@@ -315,7 +315,12 @@ module Flambda2 = struct
     let flow = ref false
     let simplify = ref false
     let reaper = ref false
+    let code_sizes = ref false (* -dcode-sizes *)
   end
+
+  type code_size_model = V1 | V2
+
+  let code_size_model = ref V2 (* -flambda2-code-size-model *)
 
   module Expert = struct
     module Default = struct
