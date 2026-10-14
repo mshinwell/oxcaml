@@ -108,297 +108,6 @@ let rec eliminate_ref id = function
   | Linstantiate _ as lam ->
       fatal_error_invalid_constructor lam
 
-(* Simplification of exits *)
-
-type exit = {
-  mutable count: int;
-  mutable max_depth: int;
-}
-
-let simplify_exits lam =
-
-  (* Count occurrences of (exit n ...) statements *)
-  let exits = Hashtbl.create 17 in
-
-  let get_exit i =
-    try Hashtbl.find exits i
-    with Not_found -> {count = 0; max_depth = 0}
-
-  and incr_exit i nb d =
-    match Hashtbl.find_opt exits i with
-    | Some r ->
-        r.count <- r.count + nb;
-        r.max_depth <- Misc.Stdlib.Int.max r.max_depth d
-    | None ->
-        let r = {count = nb; max_depth = d} in
-        Hashtbl.add exits i r
-  in
-
-  let rec count ~try_depth = function
-  | (Lvar _| Lmutvar _ | Lconst _) -> ()
-  | Lapply ap ->
-      count ~try_depth ap.ap_func;
-      List.iter (count ~try_depth) ap.ap_args
-  | Lfunction {body} -> count ~try_depth body
-  | Llet(_, _kind, _v, _duid, l1, l2)
-  | Lmutlet(_kind, _v, _duid, l1, l2) ->
-      count ~try_depth l2; count ~try_depth l1
-  | Lletrec(bindings, body) ->
-      List.iter (fun { def = { body } } -> count ~try_depth body) bindings;
-      count ~try_depth body
-  | Lprim(_p, ll, _) -> List.iter (count ~try_depth) ll
-  | Lswitch(l, sw, _loc, _kind) ->
-      count_default ~try_depth sw ;
-      count ~try_depth l;
-      List.iter (fun (_, l) -> count ~try_depth l) sw.sw_consts;
-      List.iter (fun (_, l) -> count ~try_depth l) sw.sw_blocks
-  | Lstringswitch(l, sw, d, _, _kind) ->
-      count ~try_depth l;
-      List.iter (fun (_, l) -> count ~try_depth l) sw;
-      begin match  d with
-      | None -> ()
-      | Some d -> match sw with
-        | []|[_] -> count ~try_depth d
-        | _ -> (* default will get replicated *)
-            count ~try_depth d; count ~try_depth d
-      end
-  | Lstaticraise (i,ls) ->
-      incr_exit i 1 try_depth;
-      List.iter (count ~try_depth) ls
-  | Lstaticcatch (l1,(i,[]),Lstaticraise (j,[]), _, _) ->
-      (* i will be replaced by j in l1, so each occurrence of i in l1
-         increases j's ref count *)
-      count ~try_depth l1 ;
-      let ic = get_exit i in
-      incr_exit j ic.count (Misc.Stdlib.Int.max try_depth ic.max_depth)
-  | Lstaticcatch(l1, (i,_), l2, r, _) ->
-      count ~try_depth l1;
-      (* If l1 does not contain (exit i),
-         l2 will be removed, so don't count its exits *)
-      if (get_exit i).count > 0 then begin
-        let try_depth =
-          match r with
-          | Popped_region -> try_depth - 1
-          | Same_region -> try_depth
-        in
-        count ~try_depth l2
-      end
-  | Ltrywith(l1, _v, _duid, l2, _kind) ->
-      count ~try_depth:(try_depth+1) l1;
-      count ~try_depth l2;
-  | Lifthenelse(l1, l2, l3, _kind) ->
-      count ~try_depth l1;
-      count ~try_depth l2;
-      count ~try_depth l3
-  | Lsequence(l1, l2) -> count ~try_depth l1; count ~try_depth l2
-  | Lwhile lw -> count ~try_depth lw.wh_cond; count ~try_depth lw.wh_body
-  | Lfor lf ->
-      count ~try_depth lf.for_from;
-      count ~try_depth lf.for_to;
-      count ~try_depth lf.for_body
-  | Lassign(_v, l) -> count ~try_depth l
-  | Lsend(_k, m, o, ll, _, _, _, _, _) ->
-      List.iter (count ~try_depth) (m::o::ll)
-  | Levent(l, _) -> count ~try_depth l
-  | Lifused(_v, l) -> count ~try_depth l
-  | Lregion (l, _) -> count ~try_depth:(try_depth+1) l
-  | Lexclave l -> count ~try_depth:(try_depth-1) l
-  | Lsplice _ | Lkindtemplate _ | Lkindinstantiate _ | Ltemplate _
-  | Linstantiate _ as lam ->
-      fatal_error_invalid_constructor lam
-
-  and count_default ~try_depth sw = match sw.sw_failaction with
-  | None -> ()
-  | Some al ->
-      let nconsts = List.length sw.sw_consts
-      and nblocks = List.length sw.sw_blocks in
-      if
-        nconsts < sw.sw_numconsts && nblocks < sw.sw_numblocks
-      then begin (* default action will occur twice in native code *)
-        count ~try_depth al ; count ~try_depth al
-      end else begin (* default action will occur once *)
-        assert (nconsts < sw.sw_numconsts || nblocks < sw.sw_numblocks) ;
-        count ~try_depth al
-      end
-  in
-  count ~try_depth:0 lam;
-
-  (*
-     Second pass simplify  ``catch body with (i ...) handler''
-      - if (exit i ...) does not occur in body, suppress catch
-      - if (exit i ...) occurs exactly once in body,
-        substitute it with handler
-      - If handler is a single variable, replace (exit i ..) with it
-   Note:
-    In ``catch body with (i x1 .. xn) handler''
-     Substituted expression is
-      let y1 = x1 and ... yn = xn in
-      handler[x1 <- y1 ; ... ; xn <- yn]
-     For the sake of preserving the uniqueness  of bound variables.
-     (No alpha conversion of ``handler'' is presently needed, since
-     substitution of several ``(exit i ...)''
-     occurs only when ``handler'' is a variable.)
-  *)
-
-  let subst = Hashtbl.create 17 in
-  let rec simplif ~layout ~try_depth l =
-    (* layout is the expected layout of the result: [None] if we want to
-       leave it unchanged, [Some layout] if we need to update the layout of
-       the result to [layout]. *)
-    let result_layout ly = Option.value layout ~default:ly in
-    match l with
-  | Lvar _| Lmutvar _ | Lconst _ -> l
-  | Lapply ap ->
-      Lapply{ap with ap_func = simplif ~layout:None ~try_depth ap.ap_func;
-                     ap_args = List.map (simplif ~layout:None ~try_depth) ap.ap_args}
-  | Lfunction lfun ->
-      Lfunction (map_lfunction (simplif ~layout:None ~try_depth) lfun)
-  | Llet(str, kind, v, duid, l1, l2) ->
-      Llet(str, kind, v, duid, simplif ~layout:None ~try_depth l1,
-           simplif ~layout ~try_depth l2)
-  | Lmutlet(kind, v, duid, l1, l2) ->
-      Lmutlet(kind, v, duid, simplif ~layout:None ~try_depth l1,
-              simplif ~layout ~try_depth l2)
-  | Lletrec(bindings, body) ->
-      let bindings =
-        List.map (fun ({ def = {kind; params; return; body = l; attr; loc;
-                                mode; ret_mode } }
-                       as rb) ->
-                   let def =
-                     lfunction' ~kind ~params ~return ~mode ~ret_mode
-                       ~body:(simplif ~layout:None ~try_depth l) ~attr ~loc
-                   in
-                   { rb with def })
-          bindings
-      in
-      Lletrec(bindings, simplif ~layout ~try_depth body)
-  | Lprim(p, ll, loc) -> begin
-    let ll = List.map (simplif ~layout:None ~try_depth) ll in
-    match p, ll with
-        (* Simplify Obj.with_tag *)
-      | Pccall { Primitive.prim_name = "caml_obj_with_tag"; _ },
-        [Lconst (Const_base (Const_int tag));
-         Lprim (Pmakeblock (_, mut, shape, mode), fields, loc)] ->
-         Lprim (Pmakeblock(tag, mut, shape, mode), fields, loc)
-      | Pccall { Primitive.prim_name = "caml_obj_with_tag"; _ },
-        [Lconst (Const_base (Const_int tag));
-         Lconst (Const_block (_, fields))] ->
-         Lconst (Const_block (tag, fields))
-
-      | _ -> Lprim(p, ll, loc)
-     end
-  | Lswitch(l, sw, loc, kind) ->
-      let new_l = simplif ~layout:None ~try_depth l
-      and new_consts =
-      List.map (fun (n, e) -> (n, simplif ~layout ~try_depth e)) sw.sw_consts
-      and new_blocks =
-      List.map (fun (n, e) -> (n, simplif ~layout ~try_depth e)) sw.sw_blocks
-      and new_fail = Option.map (simplif ~layout ~try_depth) sw.sw_failaction in
-      Lswitch
-        (new_l,
-         {sw with sw_consts = new_consts ; sw_blocks = new_blocks;
-                  sw_failaction = new_fail},
-         loc, result_layout kind)
-  | Lstringswitch(l,sw,d,loc, kind) ->
-      Lstringswitch
-        (simplif ~layout:None ~try_depth l,
-         List.map (fun (s,l) -> s,simplif ~layout ~try_depth l) sw,
-         Option.map (simplif ~layout ~try_depth) d,
-         loc,
-         result_layout kind)
-  | Lstaticraise (i,[]) as l ->
-      begin try
-        let _,handler =  Hashtbl.find subst i in
-        handler
-      with
-      | Not_found -> l
-      end
-  | Lstaticraise (i,ls) ->
-      let ls = List.map (simplif ~layout:None ~try_depth) ls in
-      begin try
-        let xs,handler =  Hashtbl.find subst i in
-        let ys = List.map (fun (x, duid, k) -> Ident.rename x, duid, k) xs in
-        let env =
-          List.fold_right2
-            (fun (x, _, _) (y, _, _) env -> Ident.Map.add x y env)
-            xs ys Ident.Map.empty
-        in
-        (* The evaluation order for Lstaticraise arguments is currently
-           right-to-left in all backends.
-           To preserve this, we use fold_left2 instead of fold_right2
-           (the first argument is inserted deepest in the expression,
-           so will be evaluated last).
-        *)
-        List.fold_left2
-          (fun r (y, duid, kind) l -> Llet (Strict, kind, y, duid, l, r))
-          (Lambda.rename env handler) ys ls
-      with
-      | Not_found -> Lstaticraise (i,ls)
-      end
-  | Lstaticcatch (l1,(i,[]),(Lstaticraise (_j,[]) as l2),_,_) ->
-      Hashtbl.add subst i ([],simplif ~layout ~try_depth l2) ;
-      simplif ~layout ~try_depth l1
-  | Lstaticcatch (l1,(i,xs),l2,r,kind) ->
-      let try_depth =
-        match r with
-        | Popped_region -> try_depth - 1
-        | Same_region -> try_depth
-      in
-      let {count; max_depth} = get_exit i in
-      if count = 0 then
-        (* Discard staticcatch: not matching exit *)
-        simplif ~layout ~try_depth l1
-      else if
-      count = 1 && max_depth <= try_depth then begin
-        (* Inline handler if there is a single occurrence and it is not
-           nested within an inner try..with *)
-        assert(max_depth = try_depth);
-        Hashtbl.add subst i (xs,simplif ~layout ~try_depth l2);
-        simplif ~layout:(Some (result_layout kind)) ~try_depth l1
-      end else
-        Lstaticcatch (
-          simplif ~layout ~try_depth l1,
-          (i,xs),
-          simplif ~layout ~try_depth l2,
-          r,
-          result_layout kind)
-  | Ltrywith(l1, v, duid, l2, kind) ->
-      let l1 = simplif ~layout ~try_depth:(try_depth + 1) l1 in
-      Ltrywith(l1, v, duid, simplif ~layout ~try_depth l2, result_layout kind)
-  | Lifthenelse(l1, l2, l3, kind) ->
-      Lifthenelse(
-        simplif ~layout:None ~try_depth l1,
-        simplif ~layout ~try_depth l2,
-        simplif ~layout ~try_depth l3,
-        result_layout kind)
-  | Lsequence(l1, l2) ->
-      Lsequence(
-        simplif ~layout:None ~try_depth l1,
-        simplif ~layout ~try_depth l2)
-  | Lwhile lw -> Lwhile {
-      wh_cond = simplif ~layout:None ~try_depth lw.wh_cond;
-      wh_body = simplif ~layout:None ~try_depth lw.wh_body}
-  | Lfor lf ->
-      Lfor {lf with for_from = simplif ~layout:None ~try_depth lf.for_from;
-                    for_to = simplif ~layout:None ~try_depth lf.for_to;
-                    for_body = simplif ~layout:None ~try_depth lf.for_body}
-  | Lassign(v, l) -> Lassign(v, simplif ~layout:None ~try_depth l)
-  | Lsend(k, m, o, ll, pos, mode, loc, layout, yielding) ->
-      Lsend(k, simplif ~layout:None ~try_depth m, simplif ~layout:None ~try_depth o,
-            List.map (simplif ~layout:None ~try_depth) ll, pos, mode, loc,
-            layout, yielding)
-  | Levent(l, ev) -> Levent(simplif ~layout ~try_depth l, ev)
-  | Lifused(v, l) -> Lifused (v,simplif ~layout ~try_depth l)
-  | Lregion (l, ly) -> Lregion (
-      simplif ~layout ~try_depth:(try_depth + 1) l,
-      result_layout ly)
-  | Lexclave l -> Lexclave (simplif ~layout ~try_depth:(try_depth - 1) l)
-  | Lsplice _ | Lkindtemplate _ | Lkindinstantiate _ | Ltemplate _
-  | Linstantiate _ ->
-      fatal_error_invalid_constructor l
-  in
-  simplif ~layout:None ~try_depth:0 lam
-
 (* Compile-time beta-reduction of functions immediately applied:
       Lapply(Lfunction(Curried, params, body), args, loc) ->
         let paramN = argN in ... let param1 = arg1 in body
@@ -977,7 +686,8 @@ let split_default_wrapper ~id:fun_id ~debug_uid:fun_duid ~kind ~params ~return
    function by a staticcatch handler (on that scope).
 
    This handles as a special case functions used exactly once (in any
-   scope) for a full application.
+   scope) for a full application: such functions are inlined at their
+   application site (unless a region needs to be closed there).
 *)
 
 type slot =
@@ -986,6 +696,7 @@ type slot =
     function_scope: lambda;
     mutable scope: lambda option;
     mutable closed_region: lambda option;
+    mutable uses: int;
   }
 
 type exclave_status =
@@ -1002,6 +713,7 @@ module LamTbl = Hashtbl.Make(struct
 let simplify_local_functions lam =
   let slots = Hashtbl.create 16 in
   let static_id = Hashtbl.create 16 in (* function id -> static id *)
+  let inline_id = Hashtbl.create 16 in (* function id -> function, if inlined *)
   let static = LamTbl.create 16 in (* scope -> static function on that scope *)
   (* We keep track of the current "tail scope", identified
      by the outermost lambda for which the the current lambda
@@ -1042,13 +754,13 @@ let simplify_local_functions lam =
           { func = lf;
             function_scope = !current_function_scope;
             scope = None;
-            closed_region = None }
+            closed_region = None;
+            uses = 0 }
         in
         Hashtbl.add slots id r;
         tail cont;
         begin match Hashtbl.find_opt slots id with
-        | Some {scope = Some scope; closed_region; _} ->
-            let st = next_raise_count () in
+        | Some {scope = Some scope; closed_region; uses; _} ->
             let sc, exclave =
               (* Do not move higher than current lambda *)
               if scope == !current_scope then cont, No_exclave
@@ -1060,8 +772,17 @@ let simplify_local_functions lam =
                     cont, Within_exclave
               end else scope, No_exclave
             in
-            Hashtbl.add static_id id st;
-            LamTbl.add static sc (st, lf, exclave);
+            begin match exclave with
+            | No_exclave when uses = 1 ->
+                (* The function is applied exactly once: its body will be
+                   inlined at the application site, which is in tail position
+                   of that "scope". *)
+                Hashtbl.add inline_id id lf
+            | No_exclave | Exclave | Within_exclave ->
+                let st = next_raise_count () in
+                Hashtbl.add static_id id st;
+                LamTbl.add static sc (st, lf, exclave)
+            end;
             (* The body of the function will become an handler
                in that "scope". *)
             with_scope ~scope lf.body
@@ -1091,15 +812,18 @@ let simplify_local_functions lam =
             Hashtbl.remove slots id
         | Some ({scope = None; _} as slot) ->
             (* First use of the function: remember the current tail scope *)
+            slot.uses <- 1;
             slot.scope <- Some curr_scope;
             slot.closed_region <- closed_region
         | Some ({closed_region = Some old_closed_region} as slot) -> begin
+            slot.uses <- slot.uses + 1;
             match closed_region with
             | Some closed_region when closed_region == old_closed_region ->
                 ()
             | _ -> slot.closed_region <- None
           end
-        | _ -> ()
+        | Some slot -> slot.uses <- slot.uses + 1
+        | None -> ()
         end;
         List.iter non_tail ap_args
     | Lvar id ->
@@ -1147,8 +871,20 @@ let simplify_local_functions lam =
   let rec rewrite lam0 =
     let lam =
       match lam0 with
-      | Llet (_, _, id, _duid, _, cont) when Hashtbl.mem static_id id ->
+      | Llet (_, _, id, _duid, _, cont)
+        when Hashtbl.mem static_id id || Hashtbl.mem inline_id id ->
           rewrite cont
+      | Lapply {ap_func = Lvar id; ap_args; _} when Hashtbl.mem inline_id id ->
+         let lf = Hashtbl.find inline_id id in
+         begin match exact_application lf ap_args with
+           | None ->
+              Misc.fatal_error "Simplif.simplify_local_functions: wrong arity"
+           | Some exact_args ->
+              (* As for the arguments of a static raise, the arguments are
+                 evaluated right-to-left. *)
+              beta_reduce lf.params (rewrite lf.body)
+                (List.map rewrite exact_args)
+         end
       | Lapply {ap_func = Lvar id; ap_args; _} when Hashtbl.mem static_id id ->
          let st = Hashtbl.find static_id id in
          let slot = Hashtbl.find slots id in
@@ -1178,7 +914,7 @@ let simplify_local_functions lam =
       (LamTbl.find_all static lam0)
       lam
   in
-  if LamTbl.length static = 0 then
+  if LamTbl.length static = 0 && Hashtbl.length inline_id = 0 then
     lam
   else
     rewrite lam
@@ -1196,7 +932,6 @@ let simplify_lambda lam ~restrict_to_upstream_dwarf ~gdwarf_may_alter_codegen =
     |> (if !Clflags.native_code || Clflags.is_flambda2() || not !Clflags.debug
         then simplify_local_functions else Fun.id
        )
-    |> simplify_exits
     |> simplify_lets ~restrict_to_upstream_dwarf ~gdwarf_may_alter_codegen
     |> Tmc.rewrite
   in

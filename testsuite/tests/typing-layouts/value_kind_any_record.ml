@@ -138,7 +138,8 @@ let either (v : float# inline) (w : float# inline) =
      (function {nlocal = 0}
        v[value<(consts (0)) (non_consts ([0: float64, value<int>]))>]
        w[value<(consts (0)) (non_consts ([0: float64, value<int>]))>] : int
-       (catch (if v (exit 11 v) (if w (exit 11 w) 0))
+       (catch
+         (catch (if v (exit 11 v) (if w (exit 12) 0)) with (12) (exit 11 w))
         with (11 r[value<(consts ()) (non_consts ([0: float64, value<int>]))>])
          (mixedfield 1  (float64,value<int>) r))))
   (apply (field_imm 1 (global Toploop!)) "either" either))

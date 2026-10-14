@@ -98,6 +98,28 @@ val add_static_exn_continuation :
 
 val get_static_exn_continuation : t -> Static_label.t -> Continuation.t
 
+(** Information about a static exception whose handler is itself a static raise
+    with trivial arguments (variables or constants). Such handlers are not
+    compiled to continuations: instead, each [Lstaticraise] to them is replaced
+    by the handler itself, with the parameters bound to the arguments. *)
+type static_exn_alias =
+  { continuation : Continuation.t;
+        (** The continuation that would have been bound to the handler. It is
+            registered in the environment so that the try stack and region stack
+            in scope at the handler are available. *)
+    params : (Ident.t * Flambda_debug_uid.t * Flambda_kind.With_subkind.t) list;
+        (** The unarized parameters of the handler, including the extra
+            parameters for mutable variables. *)
+    handler : Lambda.lambda;
+    handler_env : t;  (** The environment in which to convert [handler]. *)
+    k : Continuation.t;  (** The return continuation of the handler. *)
+    k_exn : Continuation.t  (** The exception continuation of the handler. *)
+  }
+
+val add_static_exn_alias : t -> Static_label.t -> static_exn_alias -> t
+
+val get_static_exn_alias : t -> Static_label.t -> static_exn_alias option
+
 val mark_as_recursive_static_catch : t -> Static_label.t -> t
 
 val is_static_exn_recursive : t -> Static_label.t -> bool

@@ -91,7 +91,17 @@ type t =
     region_closure_continuations :
       region_closure_continuation Region_stack_element.Map.t;
     my_alloc_region : Ident.t;
-    ident_stamp_upon_starting : int
+    ident_stamp_upon_starting : int;
+    static_exn_aliases : static_exn_alias Static_label.Map.t
+  }
+
+and static_exn_alias =
+  { continuation : Continuation.t;
+    params : (Ident.t * Flambda_debug_uid.t * Flambda_kind.With_subkind.t) list;
+    handler : Lambda.lambda;
+    handler_env : t;
+    k : Continuation.t;
+    k_exn : Continuation.t
   }
 
 let create ~current_unit ~machine_width ~return_continuation ~exn_continuation
@@ -117,7 +127,8 @@ let create ~current_unit ~machine_width ~return_continuation ~exn_continuation
       Continuation.Map.singleton return_continuation [];
     region_closure_continuations = Region_stack_element.Map.empty;
     my_alloc_region;
-    ident_stamp_upon_starting
+    ident_stamp_upon_starting;
+    static_exn_aliases = Static_label.Map.empty
   }
 
 let current_unit t = t.current_unit
@@ -273,6 +284,15 @@ let get_static_exn_continuation t static_exn =
     Misc.fatal_errorf "Unbound static exception %a" Static_label.format
       static_exn
   | continuation -> continuation
+
+let add_static_exn_alias t static_exn alias =
+  { t with
+    static_exn_aliases =
+      Static_label.Map.add static_exn alias t.static_exn_aliases
+  }
+
+let get_static_exn_alias t static_exn =
+  Static_label.Map.find_opt static_exn t.static_exn_aliases
 
 let mark_as_recursive_static_catch t static_exn =
   if Static_label.Set.mem static_exn t.recursive_static_catches

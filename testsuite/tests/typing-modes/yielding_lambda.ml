@@ -153,7 +153,7 @@ end
                        (non_consts ([0: ?,
                                      value<
                                       (consts (0)) (non_consts ([0: ?, *]))>]))
-                    (if (%int_notequal i 0)
+                    (catch (if (%int_notequal i 0) (exit 21) 0) with (21)
                       (makeblock 0 (?,value<
                                        (consts (0))
                                         (non_consts ([0: ?,
@@ -162,8 +162,7 @@ end
                                                         (non_consts (
                                                         [0: ?, *]))>]))>)
                         (apply[yielding] f i)
-                        (apply[yielding] loop (%int_sub i 1)))
-                      0)))
+                        (apply[yielding] loop (%int_sub i 1))))))
                (applytail (field_imm 10 (global Stdlib__List!))
                  (apply[yielding] loop i))))))
       (makeblock 0 map init))))

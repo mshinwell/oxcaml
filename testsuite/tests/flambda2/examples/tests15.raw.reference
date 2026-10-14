@@ -27,7 +27,7 @@
      where k3 =
        cont k1 ($camlTests15__empty_array_3)
  in
- let code size(18)
+ let code size(19)
        is_c_1
          (x,
           param :
@@ -42,8 +42,10 @@
     let untagged = %untag_imm (scrutinee_tag) in
     let eq = %int_comp.`imm`.eq (untagged, 2i) in
     switch eq
-      | 0 -> k3
+      | 0 -> k4
       | 1 -> k1 (1))
+     where k4 =
+       cont k3
      where k3 =
        cont k1 (0)
  in

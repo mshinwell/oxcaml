@@ -134,12 +134,13 @@ let match_mini_anf_aliased r =
      (function {nlocal = 0} r/8[value<(consts ()) (non_consts ([0: *, *]))>]
        : (consts ())
           (non_consts ([0: value<(consts ()) (non_consts ([0: *, *]))>, *]))
-       (let
-         (*match*/0 =[value<int>] 1
-          r/9 =[value<(consts ()) (non_consts ([0: *, *]))>]
-            (apply aliased_use/0 r/8))
-         (makeblock 0 (value<(consts ()) (non_consts ([0: *, *]))>,*) r/9
-           (field_imm 1 r/8)))))
+       (catch (let (*match*/0 =[value<int>] 1) (exit 10 (field_imm 1 r/8)))
+        with (10 y/3)
+         (let
+           (r/9 =[value<(consts ()) (non_consts ([0: *, *]))>]
+              (apply aliased_use/0 r/8))
+           (makeblock 0 (value<(consts ()) (non_consts ([0: *, *]))>,*) r/9
+             y/3)))))
   (apply (field_imm 1 (global Toploop!)) "match_mini_anf_aliased"
     match_mini_anf_aliased/0))
 val match_mini_anf_aliased : record -> record * string = <fun>
@@ -160,13 +161,15 @@ let match_mini_anf_unique r =
      (function {nlocal = 0} r/10[value<(consts ()) (non_consts ([0: *, *]))>]
        : (consts ())
           (non_consts ([0: value<(consts ()) (non_consts ([0: *, *]))>, *]))
-       (let
-         (y/3 =o? (field_mut 1 r/10)
-          *match*/1 =[value<int>] 1
-          r/11 =[value<(consts ()) (non_consts ([0: *, *]))>]
-            (apply unique_use/0 r/10))
-         (makeblock 0 (value<(consts ()) (non_consts ([0: *, *]))>,*) r/11
-           y/3))))
+       (catch
+         (let (y/4 =o? (field_mut 1 r/10) *match*/1 =[value<int>] 1)
+           (exit 15 y/4))
+        with (15 y/5)
+         (let
+           (r/11 =[value<(consts ()) (non_consts ([0: *, *]))>]
+              (apply unique_use/0 r/10))
+           (makeblock 0 (value<(consts ()) (non_consts ([0: *, *]))>,*) r/11
+             y/5)))))
   (apply (field_imm 1 (global Toploop!)) "match_mini_anf_unique"
     match_mini_anf_unique/0))
 val match_mini_anf_unique : record @ unique -> record * string = <fun>
@@ -188,15 +191,18 @@ let match_anf_aliased r =
        : (consts ())
           (non_consts ([0: value<(consts ()) (non_consts ([0: *, *]))>, *]))
        (catch
-         (let (y/4 =a? (field_imm 1 r/12))
-           (if (%eq y/4 "") (let (*match*/2 =[value<int>] 0) (exit 21 y/4))
-             (let (*match*/3 =[value<int>] 1) (exit 21 (field_imm 1 r/12)))))
-        with (21 y/5)
+         (catch
+           (let (y/6 =a? (field_imm 1 r/12))
+             (if (%eq y/6 "") (let (*match*/2 =[value<int>] 0) (exit 21 y/6))
+               (exit 20)))
+          with (20)
+           (let (*match*/3 =[value<int>] 1) (exit 21 (field_imm 1 r/12))))
+        with (21 y/7)
          (let
            (r/13 =[value<(consts ()) (non_consts ([0: *, *]))>]
               (apply aliased_use/0 r/12))
            (makeblock 0 (value<(consts ()) (non_consts ([0: *, *]))>,*) r/13
-             y/5)))))
+             y/7)))))
   (apply (field_imm 1 (global Toploop!)) "match_anf_aliased"
     match_anf_aliased/0))
 val match_anf_aliased : record -> record * string = <fun>
@@ -219,16 +225,19 @@ let match_anf_unique r =
        : (consts ())
           (non_consts ([0: value<(consts ()) (non_consts ([0: *, *]))>, *]))
        (catch
-         (let (y/6 =o? (field_mut 1 r/14))
-           (if (%eq y/6 "") (let (*match*/4 =[value<int>] 0) (exit 29 y/6))
-             (let (y/7 =o? (field_mut 1 r/14) *match*/5 =[value<int>] 1)
-               (exit 29 y/7))))
-        with (29 y/8)
+         (catch
+           (let (y/8 =o? (field_mut 1 r/14))
+             (if (%eq y/8 "") (let (*match*/4 =[value<int>] 0) (exit 29 y/8))
+               (exit 28)))
+          with (28)
+           (let (y/9 =o? (field_mut 1 r/14) *match*/5 =[value<int>] 1)
+             (exit 29 y/9)))
+        with (29 y/10)
          (let
            (r/15 =[value<(consts ()) (non_consts ([0: *, *]))>]
               (apply unique_use/0 r/14))
            (makeblock 0 (value<(consts ()) (non_consts ([0: *, *]))>,*) r/15
-             y/8)))))
+             y/10)))))
   (apply (field_imm 1 (global Toploop!)) "match_anf_unique"
     match_anf_unique/0))
 val match_anf_unique : record @ unique -> record * string = <fun>
@@ -408,19 +417,22 @@ let match_guard r =
      (function {nlocal = 0} r/16[value<(consts ()) (non_consts ([0: *, *]))>]
        : (consts ())
           (non_consts ([0: value<(consts ()) (non_consts ([0: *, *]))>, *]))
-       (let (y/9 =o? (field_mut 1 r/16))
-         (if (caml_string_equal y/9 "")
-           (let
-             (r/17 =[value<(consts ()) (non_consts ([0: *, *]))>]
-                (apply aliased_use/0 r/16))
-             (makeblock 0 (value<(consts ()) (non_consts ([0: *, *]))>,*)
-               r/17 y/9))
-           (let
-             (y/10 =o? (field_mut 1 r/16)
-              r/18 =[value<(consts ()) (non_consts ([0: *, *]))>]
-                (apply unique_use/0 r/16))
-             (makeblock 0 (value<(consts ()) (non_consts ([0: *, *]))>,*)
-               r/18 y/10))))))
+       (catch
+         (let (y/11 =o? (field_mut 1 r/16))
+           (if (caml_string_equal y/11 "")
+             (let
+               (r/17 =[value<(consts ()) (non_consts ([0: *, *]))>]
+                  (apply aliased_use/0 r/16))
+               (makeblock 0 (value<(consts ()) (non_consts ([0: *, *]))>,*)
+                 r/17 y/11))
+             (exit 39)))
+        with (39)
+         (let
+           (y/12 =o? (field_mut 1 r/16)
+            r/18 =[value<(consts ()) (non_consts ([0: *, *]))>]
+              (apply unique_use/0 r/16))
+           (makeblock 0 (value<(consts ()) (non_consts ([0: *, *]))>,*) r/18
+             y/12)))))
   (apply (field_imm 1 (global Toploop!)) "match_guard" match_guard/0))
 val match_guard : record @ unique -> record * string = <fun>
 |}]

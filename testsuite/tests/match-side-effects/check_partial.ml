@@ -35,9 +35,11 @@ type _ t = Int : int -> int t | True : bool t | False : bool t
                                 (consts (1 0)) (non_consts ([0: value<int>]))>]))>]
        : int
        (let (*match*/0 =o? (field_mut 0 (mixedfield 0  (?,?) param/0)))
-         (switch* (mixedfield 1  (?,?) param/0)
-          case int 0: 0
-          case int 1:
+         (catch
+           (switch* (mixedfield 1  (?,?) param/0)
+            case int 0: 0
+            case int 1: (exit 2))
+          with (2)
            (let
              (*match*/1 =?
                 (let (tag/0 =a[value<int>] (caml_obj_tag *match*/0))
@@ -62,12 +64,12 @@ let lazy_needs_partial : _ * bool t ref -> int = function
      (function {nlocal = 0}
        param/1[value<(consts ()) (non_consts ([0: *, *]))>] : int
        (catch
-         (let
-           (*match*/2 =a? (mixedfield 0  (?,?) param/1)
-            *match*/3 =o? (field_mut 0 (mixedfield 1  (?,?) param/1)))
-           (switch* *match*/3
-            case int 0: 0
-            case int 1:
+         (let (*match*/2 =a? (mixedfield 0  (?,?) param/1))
+           (catch
+             (let (*match*/3 =o? (field_mut 0 (mixedfield 1  (?,?) param/1)))
+               (switch* *match*/3 case int 0: 0
+                                  case int 1: (exit 4)))
+            with (4)
              (let
                (*match*/4 =?
                   (let (tag/1 =a[value<int>] (caml_obj_tag *match*/2))
@@ -95,10 +97,12 @@ let guard_total : bool t ref -> int = function
 (let
   (guard_total/0 =
      (function {nlocal = 0} param/2 : int
-       (if (opaque 0) 1
-         (let (*match*/6 =o? (field_mut 0 param/2))
-           (if (isint *match*/6) (if *match*/6 12 0)
-             (raise (makeblock 0 (getpredef Match_failure/0!!) [0: "" 1 38])))))))
+       (catch
+         (catch (if (opaque 0) 1 (exit 6)) with (6)
+           (let (*match*/6 =o? (field_mut 0 param/2))
+             (if (isint *match*/6) (if *match*/6 12 0) (exit 5))))
+        with (5)
+         (raise (makeblock 0 (getpredef Match_failure/0!!) [0: "" 1 38])))))
   (apply (field_imm 1 (global Toploop!)) "guard_total" guard_total/0))
 val guard_total : bool t ref -> int = <fun>
 |}];;
@@ -113,13 +117,14 @@ let guard_needs_partial : bool t ref -> int = function
 (let
   (guard_needs_partial/0 =
      (function {nlocal = 0} param/3 : int
-       (let (*match*/7 =o? (field_mut 0 param/3))
-         (catch (if (isint *match*/7) (if *match*/7 (exit 9) 0) (exit 9))
-          with (9)
-           (if (opaque 0) 1
-             (if (isint *match*/7) 12
-               (raise
-                 (makeblock 0 (getpredef Match_failure/0!!) [0: "" 1 46]))))))))
+       (catch
+         (let (*match*/7 =o? (field_mut 0 param/3))
+           (catch
+             (catch (if (isint *match*/7) (if *match*/7 (exit 9) 0) (exit 9))
+              with (9) (if (opaque 0) 1 (exit 8)))
+            with (8) (if (isint *match*/7) 12 (exit 7))))
+        with (7)
+         (raise (makeblock 0 (getpredef Match_failure/0!!) [0: "" 1 46])))))
   (apply (field_imm 1 (global Toploop!)) "guard_needs_partial"
     guard_needs_partial/0))
 val guard_needs_partial : bool t ref -> int = <fun>

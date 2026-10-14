@@ -202,6 +202,8 @@ let rec fib = function | 0 | 1 -> 1 | n -> (fib (n - 1)) + (fib (n - 2))
 (letrec
   (fib
      (function {nlocal = 0} n[value<int>] : int
-       (if (isout 1 n)
-         (%int_add (apply fib (%int_sub n 1)) (apply fib (%int_sub n 2))) 1)))
+       (catch
+         (catch (if (isout 1 n) (exit 3) (exit 2)) with (3)
+           (%int_add (apply fib (%int_sub n 1)) (apply fib (%int_sub n 2))))
+        with (2) 1)))
   (makeblock 0 fib))

@@ -42,7 +42,7 @@ let $camlVariant_unboxing__first_const_0 = Block 0 () in
        let Pmakeblock = %block.[`0`].my_alloc_region (Pfield, 0) in
        cont k1 (Pmakeblock)
  in
- let code size(12)
+ let code size(24)
        is_empty_2 (t : val)
          my_closure &my_alloc_region my_depth
          -> k1 * k2
@@ -54,11 +54,18 @@ let $camlVariant_unboxing__first_const_0 = Block 0 () in
      where k3
              (`*match*` :
                 [ 0 | 0 of imm tagged * val |1 of imm tagged * val * val ]) =
-       let prim = %is_int (`*match*`) in
-       let Pisint = %tag_imm (prim) in
-       cont k1 (Pisint)
+       ((let prim = %is_int (`*match*`) in
+         let Pisint = %tag_imm (prim) in
+         (let untagged = %untag_imm (Pisint) in
+          switch untagged
+            | 0 -> k4
+            | 1 -> k1 (1))
+           where k4 =
+             cont k3)
+          where k3 =
+            cont k1 (0))
  in
- let code inline(always) loopify(never) size(27)
+ let code inline(always) loopify(never) size(39)
        Tree_operations_1 (Tree : val)
          my_closure &my_alloc_region my_depth
          -> k1 * k2

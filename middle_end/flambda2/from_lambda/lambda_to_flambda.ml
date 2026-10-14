@@ -77,8 +77,8 @@ let _print_stack ppf stack =
 (* Uses of [Lstaticfail] that jump out of try-with handlers need special care:
    the correct number of pop trap operations must be inserted. A similar thing
    is also necessary for closing local allocation regions. *)
-let compile_staticfail acc env ccenv ~(continuation : Continuation.t) ~args :
-    Expr_with_acc.t =
+let wrap_staticfail acc env ccenv ~(continuation : Continuation.t)
+    (jump : Acc.t -> CCenv.t -> Expr_with_acc.t) : Expr_with_acc.t =
   let try_stack_at_handler = Env.get_try_stack_at_handler env continuation in
   let try_stack_now = Env.get_try_stack env in
   let dbg =
@@ -174,12 +174,12 @@ let compile_staticfail acc env ccenv ~(continuation : Continuation.t) ~args :
     (* see above *)
   in
   add_pop_traps acc ~try_stack_now
-    (fun acc ccenv ->
-      add_end_regions acc ~region_stack_now
-        (fun acc ccenv ->
-          CC.close_apply_cont acc ccenv ~dbg continuation None args)
-        acc ccenv)
+    (fun acc ccenv -> add_end_regions acc ~region_stack_now jump acc ccenv)
     acc ccenv
+
+let compile_staticfail acc env ccenv ~continuation ~args : Expr_with_acc.t =
+  wrap_staticfail acc env ccenv ~continuation (fun acc ccenv ->
+      CC.close_apply_cont acc ccenv ~dbg:Debuginfo.none continuation None args)
 
 let is_user_visible env id : IR.user_visible =
   if Ident.stamp id >= Env.ident_stamp_upon_starting env
@@ -467,6 +467,21 @@ let name_if_not_var acc ccenv name simple kind body =
     CC.close_let acc ccenv
       [id, id_duid, kind]
       Not_user_visible (IR.Simple simple) ~body:(body id)
+
+(* A static exception handler that is itself a static raise, with arguments that
+   are variables or constants, is not compiled to a continuation; see
+   [Env.static_exn_alias]. *)
+let static_handler_is_alias ~static_exn (handler : L.lambda) =
+  let is_trivial_arg (arg : L.lambda) =
+    match[@ocaml.warning "-fragile-match"] arg with
+    | Lvar _ | Lmutvar _ | Lconst _ -> true
+    | _ -> false
+  in
+  match[@ocaml.warning "-fragile-match"] handler with
+  | Lstaticraise (target, args) ->
+    (not (Static_label.equal target static_exn))
+    && List.for_all is_trivial_arg args
+  | _ -> false
 
 let rec cps acc env ccenv (lam : L.lambda) (k : cps_continuation)
     (k_exn : Continuation.t) : Expr_with_acc.t =
@@ -804,8 +819,10 @@ let rec cps acc env ccenv (lam : L.lambda) (k : cps_continuation)
             (fun var : IR.simple -> Var var)
             (Env.extra_args_for_continuation env continuation)
         in
-        compile_staticfail acc env ccenv ~continuation
-          ~args:(List.flatten args @ extra_args))
+        let args = List.flatten args @ extra_args in
+        match Env.get_static_exn_alias env static_exn with
+        | None -> compile_staticfail acc env ccenv ~continuation ~args
+        | Some alias -> inline_static_exn_alias acc env ccenv alias ~args)
       k_exn
   | Lstaticcatch (body, (static_exn, args), handler, r, layout) ->
     maybe_insert_let_cont "staticcatch_result" layout k acc env ccenv
@@ -871,13 +888,28 @@ let rec cps acc env ccenv (lam : L.lambda) (k : cps_continuation)
                 arg, duid, is_user_visible env arg, kind)
               (List.flatten args @ extra_params) )
         in
-        let handler acc ccenv =
-          let ccenv = CCenv.set_not_at_toplevel ccenv in
-          cps_tail acc handler_env ccenv handler k k_exn
-        in
-        let body acc ccenv = cps_tail acc body_env ccenv body k k_exn in
-        CC.close_let_cont acc ccenv ~name:continuation ~is_exn_handler:false
-          ~params ~recursive ~body ~handler)
+        match recursive with
+        | Nonrecursive when static_handler_is_alias ~static_exn handler ->
+          let alias : Env.static_exn_alias =
+            { continuation;
+              params =
+                List.map (fun (id, duid, _, kind) -> id, duid, kind) params;
+              handler;
+              handler_env;
+              k;
+              k_exn
+            }
+          in
+          let body_env = Env.add_static_exn_alias body_env static_exn alias in
+          cps_tail acc body_env ccenv body k k_exn
+        | Nonrecursive | Recursive ->
+          let handler acc ccenv =
+            let ccenv = CCenv.set_not_at_toplevel ccenv in
+            cps_tail acc handler_env ccenv handler k k_exn
+          in
+          let body acc ccenv = cps_tail acc body_env ccenv body k k_exn in
+          CC.close_let_cont acc ccenv ~name:continuation ~is_exn_handler:false
+            ~params ~recursive ~body ~handler)
   | Lsend (meth_kind, meth, obj, args, pos, mode, loc, layout, _yielding) ->
     cps_non_tail_simple acc env ccenv obj
       (fun acc env ccenv obj _obj_arity ->
@@ -1671,6 +1703,32 @@ and cps_function env ~fid ~fuid ~(recursive : Recursive.t)
     ~my_region ~my_ghost_region ~my_alloc_region ~body ~attr ~loc
     ~free_idents_of_body recursive ~closure_alloc_mode:mode
     ~first_complex_local_param ~result_mode:ret_mode
+
+(* Replace a static raise to a static exception whose handler is an alias (see
+   [static_handler_is_alias]) by the handler itself: after popping any traps and
+   closing any regions, as for a normal static raise, the parameters of the
+   handler are bound to the arguments and the handler is converted in its own
+   environment. *)
+and inline_static_exn_alias acc env ccenv (alias : Env.static_exn_alias)
+    ~(args : IR.simple list) : Expr_with_acc.t =
+  let { Env.continuation; params; handler; handler_env; k; k_exn } = alias in
+  if List.compare_lengths params args <> 0
+  then
+    Misc.fatal_errorf
+      "Wrong number of arguments for static exception handler %a"
+      Continuation.print continuation;
+  wrap_staticfail acc env ccenv ~continuation (fun acc ccenv ->
+      let ccenv = CCenv.set_not_at_toplevel ccenv in
+      let body =
+        List.fold_left2
+          (fun body (id, duid, kind) (arg : IR.simple) acc ccenv ->
+            CC.close_let acc ccenv
+              [id, duid, kind]
+              (is_user_visible env id) (Simple arg) ~body)
+          (fun acc ccenv -> cps_tail acc handler_env ccenv handler k k_exn)
+          params args
+      in
+      body acc ccenv)
 
 and cps_switch acc env ccenv (switch : L.lambda_switch) ~condition_dbg
     ~scrutinee (k : Continuation.t) (k_exn : Continuation.t) : Expr_with_acc.t =

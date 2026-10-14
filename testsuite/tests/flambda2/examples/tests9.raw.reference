@@ -115,13 +115,13 @@
     let Pisint = %tag_imm (prim) in
     (let untagged = %untag_imm (Pisint) in
      switch untagged
-       | 0 -> k5
-       | 1 -> k6)
+       | 0 -> k6
+       | 1 -> k7)
+      where k7 =
+        cont k4
       where k6 =
-        cont k3
-      where k5 =
-        cont k4)
-     where k4 =
+        cont k5)
+     where k5 =
        ((let prim = %is_int (l2) in
          let Pisint = %tag_imm (prim) in
          (let untagged = %untag_imm (Pisint) in
@@ -129,7 +129,7 @@
             | 0 -> k6
             | 1 -> k7)
            where k7 =
-             cont k4
+             cont k3
            where k6 =
              cont k5)
           where k5 =
@@ -190,16 +190,16 @@
                         (my_closure ~ depth my_depth -> next_depth
                          : _ -> [ 0 | 0 of val * [ 0 | 0 of val * val ] ])
                           (t1, t2, Pmakeblock)
-                          -> k1 * k2))
-          where k4 =
-            apply direct(rev_append_2 &my_alloc_region)
-              (rev_append : _ -> [ 0 | 0 of val * [ 0 | 0 of val * val ] ])
-                (l1, accu)
-                -> k1 * k2)
-     where k3 =
+                          -> k1 * k2)))
+     where k4 =
        apply direct(rev_append_2 &my_alloc_region)
          (rev_append : _ -> [ 0 | 0 of val * [ 0 | 0 of val * val ] ])
            (l2, accu)
+           -> k1 * k2
+     where k3 =
+       apply direct(rev_append_2 &my_alloc_region)
+         (rev_append : _ -> [ 0 | 0 of val * [ 0 | 0 of val * val ] ])
+           (l1, accu)
            -> k1 * k2
  in
  let code rec loopify(default tailrec) size(119)
@@ -219,13 +219,13 @@
     let Pisint = %tag_imm (prim) in
     (let untagged = %untag_imm (Pisint) in
      switch untagged
-       | 0 -> k5
-       | 1 -> k6)
+       | 0 -> k6
+       | 1 -> k7)
+      where k7 =
+        cont k4
       where k6 =
-        cont k3
-      where k5 =
-        cont k4)
-     where k4 =
+        cont k5)
+     where k5 =
        ((let prim = %is_int (l2) in
          let Pisint = %tag_imm (prim) in
          (let untagged = %untag_imm (Pisint) in
@@ -233,7 +233,7 @@
             | 0 -> k6
             | 1 -> k7)
            where k7 =
-             cont k4
+             cont k3
            where k6 =
              cont k5)
           where k5 =
@@ -294,16 +294,16 @@
                         (my_closure ~ depth my_depth -> next_depth
                          : _ -> [ 0 | 0 of val * [ 0 | 0 of val * val ] ])
                           (t1, t2, Pmakeblock)
-                          -> k1 * k2))
-          where k4 =
-            apply direct(rev_append_2 &my_alloc_region)
-              (rev_append : _ -> [ 0 | 0 of val * [ 0 | 0 of val * val ] ])
-                (l1, accu)
-                -> k1 * k2)
-     where k3 =
+                          -> k1 * k2)))
+     where k4 =
        apply direct(rev_append_2 &my_alloc_region)
          (rev_append : _ -> [ 0 | 0 of val * [ 0 | 0 of val * val ] ])
            (l2, accu)
+           -> k1 * k2
+     where k3 =
+       apply direct(rev_append_2 &my_alloc_region)
+         (rev_append : _ -> [ 0 | 0 of val * [ 0 | 0 of val * val ] ])
+           (l1, accu)
            -> k1 * k2
  in
  let code rec size(696)

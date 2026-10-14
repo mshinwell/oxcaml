@@ -287,7 +287,10 @@ end
          (caml_fresh_oo_id 0))
      test =
        (function {nlocal = 0} param : int
-         (if (%eq (field_imm 0 param) A) (atomic_load_field_imm param 1) 0))
+         (catch
+           (if (%eq (field_imm 0 param) A) (atomic_load_field_imm param 1)
+             (exit 21))
+          with (21) 0))
      *match* =[value<int>]
        (if (%eq (apply test (makemutable 0 (?,value<int>) A 42)) 42) 0
          (raise (makeblock 0 (getpredef Assert_failure!!) [0: "" 11 11]))))

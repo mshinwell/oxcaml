@@ -27,7 +27,7 @@ let $camlAlt_ergo__Pmakeblock_8 =
   Block 0 ($`*predef*`.caml_exn_Assert_failure, $camlAlt_ergo__const_block_7)
 in
 let code div_4 deleted in
-let code loopify(never) size(86) newer_version_of(inv_borne_sup_1)
+let code loopify(never) size(84) newer_version_of(inv_borne_sup_1)
       inv_borne_sup_1_1
         (b :
            [ 0 |1 | 0 of [ 0 of imm tagged * imm tagged ]
@@ -48,9 +48,9 @@ let code loopify(never) size(86) newer_version_of(inv_borne_sup_1)
         | 0 -> k1 pop(regular k1) ($camlAlt_ergo__Pmakeblock_2)
         | 1 -> k1 pop(regular k1) ($camlAlt_ergo__Pmakeblock_4)
     where k2 =
-      ((let Pfield = %block_load.[`0`] (b) in
-        let Pmixedfield = %block_load.[`0`] (Pfield) in
-        let Popaque = %opaque (0) in
+      let Pfield = %block_load.[`0`] (b) in
+      let Pmixedfield = %block_load.[`0`] (Pfield) in
+      ((let Popaque = %opaque (0) in
         let Pobj_magic = %opaque (Popaque) in
         apply &my_alloc_region Pobj_magic (Pmixedfield) -> k3 * k1
           where k3 (param : [ 0 |1 ]) =
@@ -67,24 +67,24 @@ let code loopify(never) size(86) newer_version_of(inv_borne_sup_1)
                     | 0 -> k2
                     | 1 -> k3)
                    where k3 =
-                     let Pfield = %block_load.[`0`] (b) in
-                     let Pmixedfield = %block_load.[`1`] (Pfield) in
+                     let Pmixedfield_1 = %block_load.[`1`] (Pfield) in
                      let Popaque = %opaque (0) in
                      let Pobj_magic = %opaque (Popaque) in
                      let Pmakeblock =
-                       %block.[`0`].my_alloc_region (Pobj_magic, Pmixedfield)
+                       %block.[`0`].my_alloc_region
+                         (Pobj_magic, Pmixedfield_1)
                      in
                      let Pmakeblock_1 =
                        %block.[`1`].my_alloc_region (Pmakeblock)
                      in
                      cont k (Pmakeblock_1)
                    where k2 =
-                     let Pfield = %block_load.[`0`] (b) in
-                     let Pmixedfield = %block_load.[`1`] (Pfield) in
+                     let Pmixedfield_1 = %block_load.[`1`] (Pfield) in
                      let Popaque = %opaque (0) in
                      let Pobj_magic = %opaque (Popaque) in
                      let Pmakeblock =
-                       %block.[`0`].my_alloc_region (Pobj_magic, Pmixedfield)
+                       %block.[`0`].my_alloc_region
+                         (Pobj_magic, Pmixedfield_1)
                      in
                      let Pmakeblock_1 =
                        %block.[`0`].my_alloc_region (Pmakeblock)

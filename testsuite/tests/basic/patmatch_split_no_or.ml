@@ -20,9 +20,10 @@ let last_is_anys = function
        param/0[value<(consts ()) (non_consts ([0: value<int>, value<int>]))>]
        : int
        (catch
-         (if (mixedfield 0  (?,?) param/0)
-           (if (mixedfield 1  (?,?) param/0) (exit 2) 1)
-           (if (mixedfield 1  (?,?) param/0) (exit 2) 2))
+         (catch
+           (if (mixedfield 0  (?,?) param/0)
+             (if (mixedfield 1  (?,?) param/0) (exit 2) 1) (exit 3))
+          with (3) (if (mixedfield 1  (?,?) param/0) (exit 2) 2))
         with (2) 3)))
   (apply (field_imm 1 (global Toploop!)) "last_is_anys" last_is_anys/0))
 val last_is_anys : bool * bool -> int = <fun>
@@ -40,9 +41,10 @@ let last_is_vars = function
        param/1[value<(consts ()) (non_consts ([0: value<int>, value<int>]))>]
        : int
        (catch
-         (if (mixedfield 0  (?,?) param/1)
-           (if (mixedfield 1  (?,?) param/1) (exit 5) 1)
-           (if (mixedfield 1  (?,?) param/1) (exit 5) 2))
+         (catch
+           (if (mixedfield 0  (?,?) param/1)
+             (if (mixedfield 1  (?,?) param/1) (exit 5) 1) (exit 6))
+          with (6) (if (mixedfield 1  (?,?) param/1) (exit 5) 2))
         with (5) 3)))
   (apply (field_imm 1 (global Toploop!)) "last_is_vars" last_is_vars/0))
 val last_is_vars : bool * bool -> int = <fun>
@@ -85,15 +87,20 @@ let f = function
        param/2[value<
                 (consts ()) (non_consts ([0: *, value<int>, value<int>]))>]
        : int
-       (let (*match*/0 =a? (mixedfield 0  (?,?,?) param/2))
-         (catch
-           (if (%eq *match*/0 A/0)
-             (if (mixedfield 1  (?,?,?) param/2) 1 (exit 11)) (exit 11))
-          with (11)
-           (if (mixedfield 1  (?,?,?) param/2)
-             (if (%eq (field_imm 0 *match*/0) B/0) 2
-               (if (%eq (field_imm 0 *match*/0) C/0) 3 4))
-             (if (mixedfield 2  (?,?,?) param/2) 12 11))))))
+       (catch
+         (let (*match*/0 =a? (mixedfield 0  (?,?,?) param/2))
+           (catch
+             (catch
+               (catch
+                 (if (%eq *match*/0 A/0)
+                   (if (mixedfield 1  (?,?,?) param/2) 1 (exit 11))
+                   (exit 11))
+                with (11)
+                 (if (mixedfield 1  (?,?,?) param/2) (exit 10)
+                   (if (mixedfield 2  (?,?,?) param/2) 12 11)))
+              with (10) (if (%eq (field_imm 0 *match*/0) B/0) 2 (exit 9)))
+            with (9) (if (%eq (field_imm 0 *match*/0) C/0) 3 (exit 8))))
+        with (8) 4)))
   (apply (field_imm 1 (global Toploop!)) "f" f/0))
 val f : t * bool * bool -> int = <fun>
 |}]

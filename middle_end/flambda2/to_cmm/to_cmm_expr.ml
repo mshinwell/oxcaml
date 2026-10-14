@@ -704,6 +704,164 @@ let invalid env res ~message =
   in
   cmm, free_vars, symbol_inits, res
 
+(* Follow applications of continuations that are to be inlined (see
+   [Env.add_inline_cont]) and whose handlers are themselves applications of
+   continuations, returning the application that is eventually performed. *)
+let rec resolve_inlined_apply_cont env (apply_cont : Apply_cont.t) =
+  match Apply_cont.trap_action apply_cont with
+  | Some _ -> apply_cont
+  | None -> (
+    let k = Apply_cont.continuation apply_cont in
+    if Env.is_exn_handler env k
+    then apply_cont
+    else
+      match Env.get_continuation env k with
+      | Return _ | Jump _ -> apply_cont
+      | Inline { handler_params; handler_body; _ } -> (
+        match[@ocaml.warning "-fragile-match"] Expr.descr handler_body with
+        | Apply_cont handler_apply_cont
+          when Option.is_none (Apply_cont.trap_action handler_apply_cont) ->
+          let params = Bound_parameters.vars handler_params in
+          let args = Apply_cont.args apply_cont in
+          let handler_args = Apply_cont.args handler_apply_cont in
+          if
+            List.compare_lengths params args <> 0
+            || List.exists Simple.has_coercion handler_args
+          then apply_cont
+          else
+            let subst = Variable.Map.of_list (List.combine params args) in
+            let args =
+              List.map
+                (fun arg ->
+                  match Simple.must_be_var arg with
+                  | None -> arg
+                  | Some (var, _coercion) -> (
+                    match Variable.Map.find_opt var subst with
+                    | None -> arg
+                    | Some arg -> arg))
+                handler_args
+            in
+            resolve_inlined_apply_cont env
+              (Apply_cont.update_args handler_apply_cont ~args)
+        | _ -> apply_cont))
+
+(* A switch on a boolean whose two arms, after following the continuations that
+   are to be inlined, both apply the same continuation with arguments that
+   differ only in a boolean constant, is translated as a single application of
+   that continuation, with the boolean computed from the scrutinee. [Simplify]
+   performs the corresponding rewrite on Flambda terms; this covers classic
+   mode, where single-use continuations are only inlined here. *)
+let boolean_switch_fold env res ~dbg ~scrutinee ~untagged_scrutinee_cmm
+    ~scrutinee_free_vars arms =
+  let machine_width = Target_system.Machine_width.Sixty_four in
+  let zero = Target_ocaml_int.zero machine_width in
+  let one = Target_ocaml_int.one machine_width in
+  let as_bool simple =
+    match Simple.must_be_const simple with
+    | None -> None
+    | Some const -> (
+      match Reg_width_const.is_tagged_immediate const with
+      | None -> None
+      | Some i ->
+        if Target_ocaml_int.equal i zero
+        then Some false
+        else if Target_ocaml_int.equal i one
+        then Some true
+        else None)
+  in
+  (* Returns the index of the only argument that differs between the two
+     applications, together with its (boolean) value in each of them. *)
+  let rec differing_arg index args0 args1 =
+    match args0, args1 with
+    | [], [] -> Some None
+    | arg0 :: args0, arg1 :: args1 -> (
+      if Simple.equal arg0 arg1
+      then differing_arg (index + 1) args0 args1
+      else
+        match
+          as_bool arg0, as_bool arg1, differing_arg (index + 1) args0 args1
+        with
+        | Some b0, Some b1, Some None -> Some (Some (index, b0, b1))
+        | _, _, _ -> None)
+    | [], _ :: _ | _ :: _, [] -> None
+  in
+  match Target_ocaml_int.Map.bindings arms with
+  | [(d0, arm0); (d1, arm1)]
+    when Target_ocaml_int.equal d0 zero && Target_ocaml_int.equal d1 one -> (
+    let apply_cont0 = resolve_inlined_apply_cont env (Switch_arm.action arm0) in
+    let apply_cont1 = resolve_inlined_apply_cont env (Switch_arm.action arm1) in
+    let k = Apply_cont.continuation apply_cont0 in
+    if
+      (not (Continuation.equal k (Apply_cont.continuation apply_cont1)))
+      || Option.is_some (Apply_cont.trap_action apply_cont0)
+      || Option.is_some (Apply_cont.trap_action apply_cont1)
+      || Env.is_exn_handler env k
+    then None
+    else
+      let args0 = Apply_cont.args apply_cont0 in
+      let args1 = Apply_cont.args apply_cont1 in
+      match differing_arg 0 args0 args1 with
+      | None
+      | Some None
+      | Some (Some (_, false, false))
+      | Some (Some (_, true, true)) ->
+        None
+      | Some (Some (index, b0, _b1)) -> (
+        let make_jump : (Cmm.expression list -> Cmm.expression) option =
+          match Env.get_continuation env k with
+          | Inline _ -> None
+          | Return { param_types } ->
+            if List.compare_lengths param_types args0 = 0
+            then Some C.make_tuple
+            else None
+          | Jump { cont; param_types } ->
+            let has_skipped_param =
+              List.exists
+                (fun (param_type : _ Env.param_type) ->
+                  match param_type with Skip_param -> true | Param _ -> false)
+                param_types
+            in
+            if has_skipped_param || List.compare_lengths param_types args0 <> 0
+            then None
+            else Some (fun args -> C.cexit cont args [])
+        in
+        match make_jump with
+        | None -> None
+        | Some make_jump ->
+          (* If the arm for discriminant 0 passes [true] then the result is the
+             negation of the scrutinee. *)
+          let negate = b0 in
+          let tagged_scrutinee =
+            match Env.extra_info env scrutinee with
+            | Some (Untag tagged_scrutinee_cmm) -> tagged_scrutinee_cmm
+            | None -> C.tag_int untagged_scrutinee_cmm dbg
+          in
+          let value =
+            if negate then C.mk_not dbg tagged_scrutinee else tagged_scrutinee
+          in
+          let other_args = List.filteri (fun i _ -> i <> index) args0 in
+          let other_args, other_free_vars, env, res, _ =
+            C.simple_list ~dbg env res other_args
+          in
+          let rec insert i l =
+            if i = 0
+            then value :: l
+            else
+              match l with [] -> [value] | arg :: l -> arg :: insert (i - 1) l
+          in
+          let args = insert index other_args in
+          let free_vars =
+            Backend_var.Set.union scrutinee_free_vars other_free_vars
+          in
+          let wrap, _, res =
+            Env.flush_delayed_lets ~mode:Flush_everything env res
+          in
+          let cmm, free_vars, symbol_inits =
+            wrap (make_jump args) free_vars Env.Symbol_inits.empty
+          in
+          Some (cmm, free_vars, symbol_inits, res)))
+  | _ -> None
+
 (* The main set of translation functions for expressions *)
 
 let rec expr env res e :
@@ -1258,6 +1416,17 @@ and switch env res switch =
     C.simple ~dbg env res scrutinee
   in
   let arms = Switch.arms switch in
+  match
+    boolean_switch_fold env res ~dbg ~scrutinee ~untagged_scrutinee_cmm
+      ~scrutinee_free_vars arms
+  with
+  | Some result -> result
+  | None ->
+    switch_general env res ~dbg ~scrutinee ~untagged_scrutinee_cmm
+      ~scrutinee_free_vars arms
+
+and switch_general env res ~dbg ~scrutinee ~untagged_scrutinee_cmm
+    ~scrutinee_free_vars arms =
   (* For binary switches, which can be translated to an if-then-else, it can be
      interesting for the scrutinee to be tagged (particularly for switches
      coming from a source level if-then-else on booleans) as that way the

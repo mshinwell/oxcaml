@@ -22,7 +22,6 @@
 
 (* Elimination of useless Llet(Alias) bindings.
    Transformation of let-bound references into variables.
-   Simplification over staticraise/staticcatch constructs.
    Generation of tail-call annotations if -annot is set. *)
 
 open Lambda

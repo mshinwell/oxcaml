@@ -7,8 +7,8 @@ let code inline(always) loopify(never) size(5) newer_version_of(x_0)
         -> k * k1
         : imm tagged =
   let prim = %int_comp.ne (xt0, 0) in
-  let int_notequal = %tag_imm (prim) in
-  cont k (int_notequal)
+  let tagged_scrutinee = %tag_imm (prim) in
+  cont k (tagged_scrutinee)
 in
 let $camlId_switch__x_1 = closure x_0_1 @x &toplevel in
 let code loopify(never) size(1) newer_version_of(id_switch_1)

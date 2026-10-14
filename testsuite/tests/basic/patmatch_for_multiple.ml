@@ -41,8 +41,10 @@ match (3, 2, 1) with
    *match*/1 =[value<int>] 2
    *match*/2 =[value<int>] 1)
   (catch
-    (if (%int_notequal *match*/1 3)
-      (if (%int_notequal *match*/0 1) 0 (exit 2)) (exit 2))
+    (catch
+      (catch (if (%int_notequal *match*/1 3) (exit 4) (exit 2)) with (4)
+        (if (%int_notequal *match*/0 1) (exit 3) (exit 2)))
+     with (3) 0)
    with (2) 1))
 - : bool = false
 |}];;
@@ -89,14 +91,18 @@ match (3, 2, 1) with
    *match*/4 =[value<int>] 2
    *match*/5 =[value<int>] 1)
   (catch
-    (if (%int_notequal *match*/4 3)
-      (if (%int_notequal *match*/3 1) 0
-        (exit 6
-          (makeblock 0 (value<int>,value<int>,value<int>) *match*/3 *match*/4
-            *match*/5)))
-      (exit 6
-        (makeblock 0 (value<int>,value<int>,value<int>) *match*/3 *match*/4
-          *match*/5)))
+    (catch
+      (catch
+        (if (%int_notequal *match*/4 3) (exit 8)
+          (exit 6
+            (makeblock 0 (value<int>,value<int>,value<int>) *match*/3
+              *match*/4 *match*/5)))
+       with (8)
+        (if (%int_notequal *match*/3 1) (exit 7)
+          (exit 6
+            (makeblock 0 (value<int>,value<int>,value<int>) *match*/3
+              *match*/4 *match*/5))))
+     with (7) 0)
    with (6 x/2[value<
                 (consts ())
                  (non_consts ([0: value<int>, value<int>, value<int>]))>])

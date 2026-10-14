@@ -19,9 +19,8 @@ let f : type a. a rep -> a -> int = fun Block (a, _b) -> a
 (let
   (f =
      (function {nlocal = 0} param[value<int>] param : int
-       (if param
-         (raise (makeblock 0 (getpredef Match_failure!!) [0: "" 1 40]))
-         (mixedfield 0  (?,?) param))))
+       (catch (if param (exit 2) (mixedfield 0  (?,?) param)) with (2)
+         (raise (makeblock 0 (getpredef Match_failure!!) [0: "" 1 40])))))
   (apply (field_imm 1 (global Toploop!)) "f" f))
 val f : 'a rep -> 'a -> int = <fun>
 |}]
@@ -49,9 +48,8 @@ let h b =
      (function {nlocal = 0} b[value<int>] : int
        (catch (if b (exit 9 0 [0: 1 2]) (exit 9 1 0))
         with (9 param[value<int>] param)
-         (if param
-           (raise (makeblock 0 (getpredef Match_failure!!) [0: "" 2 50]))
-           (mixedfield 0  (?,?) param)))))
+         (catch (if param (exit 7) (mixedfield 0  (?,?) param)) with (7)
+           (raise (makeblock 0 (getpredef Match_failure!!) [0: "" 2 50]))))))
   (apply (field_imm 1 (global Toploop!)) "h" h))
 val h : bool -> int = <fun>
 |}]
@@ -246,9 +244,8 @@ let p : type a. a rep -> int * int -> int = fun Block (x, _y) -> x
      (function {nlocal = 0} param[value<int>]
        param[value<(consts ()) (non_consts ([0: value<int>, value<int>]))>]
        : int
-       (if param
-         (raise (makeblock 0 (getpredef Match_failure!!) [0: "" 1 48]))
-         (mixedfield 0  (?,?) param))))
+       (catch (if param (exit 27) (mixedfield 0  (?,?) param)) with (27)
+         (raise (makeblock 0 (getpredef Match_failure!!) [0: "" 1 48])))))
   (apply (field_imm 1 (global Toploop!)) "p" p))
 val p : 'a rep -> int * int -> int = <fun>
 |}]

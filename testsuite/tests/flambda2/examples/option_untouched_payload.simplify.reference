@@ -37,8 +37,8 @@ let code inline(never) loopify(never) size(21) newer_version_of(is_none_any_2)
       apply &my_alloc_region h (0) -> k2 * k1
     where k2 (o : [ 0 | 0 of any ]) =
       let prim = %is_int (o) in
-      let Pisint = %tag_imm (prim) in
-      cont k (Pisint)
+      let tagged_scrutinee = %tag_imm (prim) in
+      cont k (tagged_scrutinee)
 in
 let $camlOption_untouched_payload__is_none_any_3 =
   closure is_none_any_2_1 @is_none_any &toplevel
@@ -56,8 +56,8 @@ let code inline(never) loopify(never) size(21) newer_version_of(is_none_value_3)
       apply &my_alloc_region h (0) -> k2 * k1
     where k2 (o : [ 0 | 0 of val ]) =
       let prim = %is_int (o) in
-      let Pisint = %tag_imm (prim) in
-      cont k (Pisint)
+      let tagged_scrutinee = %tag_imm (prim) in
+      cont k (tagged_scrutinee)
 in
 let $camlOption_untouched_payload__is_none_value_4 =
   closure is_none_value_3_1 @is_none_value &toplevel
