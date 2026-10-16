@@ -82,7 +82,8 @@ type t =
       (Name.t * Code_id.t Or_unknown.t) Function_slot.Lmap.t list;
     mutable closure_function_decls :
       Function_declarations.code_id_in_function_declaration
-      Code_id_or_name.Map.t
+      Code_id_or_name.Map.t;
+    mutable scope_conts : Continuation.Set.t Code_id_or_name.Map.t
   }
 
 let code_deps t = t.code_deps
@@ -90,6 +91,16 @@ let code_deps t = t.code_deps
 let code_references t = t.code_references
 
 let rebuild_queries t = t.rebuild_queries
+
+let add_scope_cont t ~scope cont =
+  t.scope_conts
+    <- Code_id_or_name.Map.update scope
+         (function
+           | None -> Some (Continuation.Set.singleton cont)
+           | Some conts -> Some (Continuation.Set.add cont conts))
+         t.scope_conts
+
+let get_scope_conts t = t.scope_conts
 
 let record_apply_for_rebuild t apply =
   t.rebuild_queries
@@ -110,7 +121,8 @@ let create () =
     continuation_info = Continuation.Map.empty;
     set_of_closures_graph = Code_id.Map.empty;
     all_sets_of_closures = [];
-    closure_function_decls = Code_id_or_name.Map.empty
+    closure_function_decls = Code_id_or_name.Map.empty;
+    scope_conts = Code_id_or_name.Map.empty
   }
 
 (* CR-someday ncourant: it would be great if we kept constants and symbols from
@@ -170,6 +182,36 @@ let add_any_source t x = Graph.add_any_source t.deps x
 let add_zero_alloc_source t x = Graph.add_zero_alloc_source t.deps x
 
 let add_any_usage t x = Graph.add_any_usage t.deps x
+
+let add_allocated_in t ~alloc ~scope =
+  Graph.add_allocated_in t.deps ~alloc ~scope
+
+let add_scope_exit t ~scope ~param = Graph.add_scope_exit t.deps ~scope ~param
+
+let add_unsafe_scope t scope = Graph.add_unsafe_scope t.deps scope
+
+let add_return_of t ~scope ~result = Graph.add_return_of t.deps ~scope ~result
+
+let add_call_result t ~result ~scope ~call_widget =
+  Graph.add_call_result t.deps ~result ~scope ~call_widget
+
+let add_unscoped_call_result t result =
+  Graph.add_unscoped_call_result t.deps result
+
+let add_indirect_call_result t result =
+  Graph.add_indirect_call_result t.deps result
+
+let is_exn_handler t cont =
+  match Continuation.Map.find_opt cont t.continuation_info with
+  | Some { is_exn_handler; _ } -> is_exn_handler
+  | None ->
+    Misc.fatal_errorf "[is_exn_handler]: no information about continuation %a"
+      Continuation.print cont
+
+let scope_contains_continuation t ~scope cont =
+  match Code_id_or_name.Map.find_opt scope t.scope_conts with
+  | None -> false
+  | Some conts -> Continuation.Set.mem cont conts
 
 let add_code_id_my_closure t code_id my_closure =
   Graph.add_code_id_my_closure t.deps code_id my_closure
@@ -420,6 +462,7 @@ let create_unknown_arity_non_tupled_call_witnesses t code_id ~arity ~params
           ~base:witness;
         add_constructor_dep t ~from:next_witness
           Field.unknown_arity_call_witness ~base:v;
+        Graph.add_partial_application_node t.deps ~node:v ~code_id;
         add_deps rest)
   in
   let params = Flambda_arity.group_by_parameter arity params in

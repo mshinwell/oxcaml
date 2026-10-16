@@ -27,7 +27,10 @@ type result =
       (Name.t * Code_id.t Or_unknown.t) Function_slot.Lmap.t list;
     closure_function_decls :
       Function_declarations.code_id_in_function_declaration
-      Code_id_or_name.Map.t
+      Code_id_or_name.Map.t;
+    scope_conts : Continuation.Set.t Code_id_or_name.Map.t
+        (** The continuations defined inside each region scope (see
+            [Escape_analysis]). *)
   }
 
 val run : closed_world:bool -> Flambda_unit.t -> result

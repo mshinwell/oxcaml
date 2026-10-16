@@ -39,6 +39,8 @@ let environment acc current_code_id =
   Traverse_env.create ~parent:Rev_expr.Hole ~conts:Continuation.Map.empty
     ~current_code_id ~should_preserve_direct_calls:Yes
     ~le_monde_exterieur:external_world ~all_constants
+    ~region_scope:No_region_scope ~return_continuation:(Continuation.create ())
+    ~exn_continuation:(Continuation.create ())
 
 let graph acc = Acc.deps acc ~all_constants:(Name.var (var "all_constants"))
 

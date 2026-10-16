@@ -75,8 +75,8 @@ let save ~filename ~participants
     ~solution:({ uses; code_changes; queries } : Reaper.Staged.solution)
     ~(slot_offsets : Slot_offsets.result) =
   let data =
-    Rebuild_solution.create_data ~queries ~unboxing:uses.unboxing ~code_changes
-      ~slot_offsets:slot_offsets.exported_offsets
+    Rebuild_solution.create_data ~db:uses.db ~queries ~unboxing:uses.unboxing
+      ~code_changes ~slot_offsets:slot_offsets.exported_offsets
   in
   let by_unit = Rebuild_solution.partition_by_compilation_unit data in
   let builder =

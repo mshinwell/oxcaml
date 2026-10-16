@@ -66,7 +66,30 @@ type env =
     should_keep_param :
       Continuation.t -> Variable.t -> KS.t -> Unboxing_analysis.param_decision;
     should_preserve_direct_calls : should_preserve_direct_calls;
-    inside_code_definition : bool
+    inside_code_definition : bool;
+    (* For each region scope (see [Escape_analysis]), the continuations defined
+       inside it. *)
+    conts_per_scope : Continuation.Set.t Code_id_or_name.Map.t;
+    (* The return continuation of the enclosing function, or of the unit:
+       applications returning to it are tail calls. *)
+    return_continuation : Continuation.t;
+    (* The regions of the enclosing region scopes being rebuilt, innermost
+       first. *)
+    regions : region list;
+    continuation_info : Traverse_acc.continuation_info Continuation.Map.t
+  }
+
+and region =
+  { region : Variable.t;
+    ghost_region : Variable.t;
+    inner_conts : Continuation.Set.t;
+    (* Continuations closing this region (and any enclosing region also left)
+       before jumping to a given exit continuation. They are created on demand
+       and bound at the start of the scope. *)
+    closers : (Continuation.t * RE.continuation_handler) Continuation.Map.t ref;
+    (* [false] for the region of the caller of a function returning at mode
+       local ([my_region]), which the function must not close. *)
+    closable : bool
   }
 
 type rebuild_result =
@@ -111,6 +134,15 @@ let is_name_used (env : env) name =
   Name.pattern_match name ~symbol:(is_symbol_used env) ~var:(is_var_used env)
 
 let poison name kind = Simple.const (Reg_width_const.const_poison kind name)
+
+(* Turn a heap allocation into a stack allocation in the region of the innermost
+   region scope when the escape analysis has decided it is local. *)
+let localize_alloc_mode env ~is_local
+    (alloc_mode : Alloc_mode.For_allocations.t) =
+  match alloc_mode, env.regions with
+  | Heap { alloc_region }, { region; _ } :: _ when is_local ->
+    Alloc_mode.For_allocations.local ~alloc_region ~region
+  | (Heap _ | Local _), _ -> alloc_mode
 
 let simple_is_unboxable env simple =
   Simple.pattern_match
@@ -1674,6 +1706,11 @@ let rebuild_singleton_binding_whose_representation_is_being_changed env bp bv
           | None -> Simple.const_zero env.machine_width
           | Some x -> x)
     in
+    let alloc_mode =
+      localize_alloc_mode env alloc_mode
+        ~is_local:
+          (Rebuild_solution.is_local_allocation env.solution (Bound_var.var bv))
+    in
     let prim =
       P.Variadic
         ( Make_block
@@ -1706,15 +1743,20 @@ let rebuild_singleton_binding_whose_representation_is_being_changed env bp bv
 
 let rebuild_make_block_default_case env (bp : Bound_pattern.t)
     ~(block_kind : P.Block_kind.t) ~mutability ~alloc_mode ~fields ~hole dbg =
-  let bound_name =
+  let bound_var =
     match bp with
-    | Singleton v -> Name.var (Bound_var.var v)
+    | Singleton v -> Bound_var.var v
     | Set_of_closures _ | Static _ ->
       Misc.fatal_errorf
         "Expected singleton bound pattern in \
          [rebuild_make_block_default_case], got %a"
         Bound_pattern.print bp
   in
+  let alloc_mode =
+    localize_alloc_mode env alloc_mode
+      ~is_local:(Rebuild_solution.is_local_allocation env.solution bound_var)
+  in
+  let bound_name = Name.var bound_var in
   let _tag, block_shape = P.Block_kind.to_shape block_kind in
   let block_kind =
     match block_kind, env.typing with
@@ -1811,12 +1853,193 @@ let rebuild_let_expr_holed_set_of_closures env res bvs ~set_of_closures
              })
            set_of_closures)
     in
+    let alloc_mode =
+      localize_alloc_mode env alloc_mode
+        ~is_local:
+          (List.for_all
+             (fun bv ->
+               Rebuild_solution.is_local_allocation env.solution
+                 (Bound_var.var bv))
+             bvs)
+    in
     let expr =
       RE.create_let bound_pattern
         (Named.create_set_of_closures ~alloc_mode set_of_closures)
         ~size_of_defining_expr ~body:hole
     in
     expr, res
+
+(* The regions to close when jumping to continuation [k] from the current point:
+   those of the enclosing region scopes in which [k] is not defined. Nothing is
+   closed on the exceptional path (see [Escape_analysis]). *)
+let regions_exited_by env k =
+  match env.regions with
+  | [] -> []
+  | _ :: _ ->
+    let is_exn_handler =
+      match Continuation.Map.find_opt k env.continuation_info with
+      | Some { is_exn_handler; _ } -> is_exn_handler
+      | None ->
+        Misc.fatal_errorf
+          "[regions_exited_by]: no information about continuation %a"
+          Continuation.print k
+    in
+    if is_exn_handler
+    then []
+    else
+      List.filter
+        (fun { inner_conts; closable; _ } ->
+          closable && not (Continuation.Set.mem k inner_conts))
+        env.regions
+
+let end_regions env regions (body : RE.t) : RE.t =
+  let end_region ~ghost region body =
+    let end_region : P.t = Unary (End_region { ghost }, Simple.var region) in
+    RE.create_let
+      (Bound_pattern.singleton
+         (Bound_var.create
+            (Variable.create "region_end" K.value)
+            Flambda_debug_uid.none Name_mode.normal))
+      (Named.create_prim end_region Debuginfo.none)
+      ~size_of_defining_expr:
+        (Code_size.prim ~machine_width:env.machine_width end_region)
+      ~body
+  in
+  List.fold_left
+    (fun body { region; ghost_region; _ } ->
+      end_region ~ghost:false region (end_region ~ghost:true ghost_region body))
+    body regions
+
+let begin_regions env { region; ghost_region; _ } (body : RE.t) : RE.t =
+  let begin_region ~ghost region body =
+    let begin_region : P.t = Variadic (Begin_region { ghost }, []) in
+    RE.create_let
+      (Bound_pattern.singleton
+         (Bound_var.create region Flambda_debug_uid.none Name_mode.normal))
+      (Named.create_prim begin_region Debuginfo.none)
+      ~size_of_defining_expr:
+        (Code_size.prim ~machine_width:env.machine_width begin_region)
+      ~body
+  in
+  begin_region ~ghost:false region (begin_region ~ghost:true ghost_region body)
+
+(* Calls to functions made to return at mode local (see [Escape_analysis])
+   receive their result in the region of the innermost enclosing scope. *)
+let set_local_return_mode env apply =
+  let returns_local code_id =
+    Rebuild_solution.returns_local env.solution code_id
+  in
+  let callee_returns_local =
+    match Apply.call_kind apply with
+    | Function { function_call = Direct code_id; _ } -> (
+      returns_local code_id
+      ||
+      match Apply.callee apply with
+      | None -> false
+      | Some callee ->
+        Simple.pattern_match callee
+          ~const:(fun _ -> false)
+          ~name:(fun name ~coercion:_ ->
+            match
+              Rebuild_solution.code_id_actually_directly_called env.solution
+                name
+            with
+            | Unknown -> false
+            | Known code_ids -> Code_id.Set.exists returns_local code_ids))
+    | Function
+        { function_call = Indirect_known_arity _ | Indirect_unknown_arity; _ }
+    | Method _ | C_call _ | Effect _ ->
+      false
+  in
+  if not callee_returns_local
+  then apply
+  else
+    match env.regions with
+    | [] ->
+      Misc.fatal_errorf "No region for the local result of application %a"
+        Apply.print apply
+    | { region; ghost_region; _ } :: _ ->
+      let alloc_region =
+        Alloc_mode.For_applications.alloc_region (Apply.return_mode apply)
+      in
+      Apply.with_return_mode apply
+        (Alloc_mode.For_applications.maybe_alloc_stack ~alloc_region ~region
+           ~ghost_region)
+
+(* A continuation that closes the regions left when jumping to [k], then jumps
+   to [k]. Used where an [End_region] cannot simply be inserted before the jump:
+   [Switch] arms, and non-tail applications returning to [k]. *)
+let closer env k =
+  match env.regions with
+  | [] ->
+    Misc.fatal_errorf "[closer]: no region to close before jumping to %a"
+      Continuation.print k
+  | innermost :: _ -> (
+    match Continuation.Map.find_opt k !(innermost.closers) with
+    | Some (k_close, _) -> k_close
+    | None ->
+      let k_close = Continuation.create () in
+      let params =
+        get_parameters
+          (List.map freshen_decisions
+             (Continuation.Map.find k env.cont_params_to_keep))
+      in
+      let apply_cont =
+        Apply_cont_expr.create k
+          ~args:(List.map (fun p -> Simple.var (Bound_parameter.var p)) params)
+          ~dbg:Debuginfo.none
+      in
+      let handler =
+        RE.from_expr
+          ~expr:(Expr.create_apply_cont apply_cont)
+          ~free_names:(Apply_cont_expr.free_names apply_cont)
+          ~code_size:(Code_size.apply_cont apply_cont)
+      in
+      let handler = end_regions env (regions_exited_by env k) handler in
+      let handler =
+        RE.create_continuation_handler
+          (Bound_parameters.create params)
+          ~handler ~is_exn_handler:false ~is_cold:false
+      in
+      innermost.closers
+        := Continuation.Map.add k (k_close, handler) !(innermost.closers);
+      k_close)
+
+(* Rebuild the body of a region scope (a function body or a recursive
+   continuation handler), adding a region around it if the escape analysis found
+   local allocations in it: [Begin_region] at the start, and [End_region] on
+   every exit, which [rebuild_expr] inserts when rebuilding the jumps to
+   continuations defined outside the scope. Tail calls are preserved by closing
+   the regions before them (no local value may be passed to them, see
+   [Traverse.traverse_apply]). Nothing is done on the exceptional path: the
+   exception handler that catches the exception closes the region (as for
+   regions introduced by the type checker), or, failing that, an enclosing
+   region. *)
+let rebuild_region_scope env res ~scope ~rebuild_body =
+  if not (Rebuild_solution.scope_needs_region env.solution scope)
+  then rebuild_body env res
+  else
+    let region =
+      { region = Variable.create "region" K.region;
+        ghost_region = Variable.create "ghost_region" K.region;
+        inner_conts =
+          (match Code_id_or_name.Map.find_opt scope env.conts_per_scope with
+          | Some conts -> conts
+          | None -> Continuation.Set.empty);
+        closers = ref Continuation.Map.empty;
+        closable = true
+      }
+    in
+    let body, res =
+      rebuild_body { env with regions = region :: env.regions } res
+    in
+    let body =
+      Continuation.Map.fold
+        (fun _ (k_close, handler) body ->
+          RE.create_non_recursive_let_cont k_close handler ~body)
+        !(region.closers) body
+    in
+    begin_regions env region body, res
 
 let rebuild_let_expr_singleton (env : env) res bv ~(defining_expr : Named.t)
     ~hole : RE.t * rebuild_result =
@@ -1864,6 +2087,17 @@ let rebuild_let_expr_singleton (env : env) res bv ~(defining_expr : Named.t)
     | _ ->
       let defining_expr, size_of_defining_expr =
         rebuild_named_default_case env defining_expr
+      in
+      let defining_expr : Named.t =
+        match defining_expr with
+        | Prim (Unary (Box_number (bn, alloc_mode), contents), dbg)
+          when Rebuild_solution.is_local_allocation env.solution
+                 (Bound_var.var bv) ->
+          let alloc_mode = localize_alloc_mode env alloc_mode ~is_local:true in
+          Named.create_prim (Unary (Box_number (bn, alloc_mode), contents)) dbg
+        | Prim _ | Simple _ | Set_of_closures _ | Static_consts _ | Rec_info _
+          ->
+          defining_expr
       in
       ( RE.create_let bound_pattern defining_expr ~size_of_defining_expr
           ~body:hole,
@@ -2029,7 +2263,7 @@ and rebuild_holed (env : env) res (rev_expr : Rev_expr.rev_expr_holed)
         RE.create_non_recursive_let_cont cont cont_handler ~body:hole
       in
       rebuild_holed env res parent let_cont_expr
-  | Let_cont_rec { parent; handlers; invariant_params } ->
+  | Let_cont_rec { parent; handlers; invariant_params; region_scope } ->
     (* TODO unboxed parameters *)
     let filter_params cont params =
       let params = Bound_parameters.to_list params in
@@ -2051,7 +2285,11 @@ and rebuild_holed (env : env) res (rev_expr : Rev_expr.rev_expr_holed)
             handler
           in
           let bound_parameters = filter_params cont bound_parameters in
-          let handler, res = rebuild_expr env res expr in
+          let handler, res =
+            rebuild_region_scope env res
+              ~scope:(Code_id_or_name.var region_scope)
+              ~rebuild_body:(fun env res -> rebuild_expr env res expr)
+          in
           let cont_handler =
             RE.create_continuation_handler bound_parameters ~handler
               ~is_exn_handler ~is_cold
@@ -2089,11 +2327,21 @@ and rebuild_expr (env : env) (res : rebuild_result)
       | Some ac ->
         let expr = Expr.create_apply_cont ac in
         let free_names = Apply_cont_expr.free_names ac in
-        RE.from_expr ~expr ~free_names ~code_size:(Code_size.apply_cont ac))
+        end_regions env
+          (regions_exited_by env (Apply_cont_expr.continuation ac))
+          (RE.from_expr ~expr ~free_names ~code_size:(Code_size.apply_cont ac)))
     | Switch switch ->
       let arms =
         Target_ocaml_int.Map.filter_map
-          (fun _ -> rewrite_apply_cont_expr env)
+          (fun _ action ->
+            match rewrite_apply_cont_expr env action with
+            | None -> None
+            | Some action -> (
+              let k = Apply_cont_expr.continuation action in
+              match regions_exited_by env k with
+              | [] -> Some action
+              | _ :: _ ->
+                Some (Apply_cont_expr.with_continuation action (closer env k))))
           (Switch_expr.arms switch)
       in
       if Target_ocaml_int.Map.is_empty arms
@@ -2113,7 +2361,37 @@ and rebuild_expr (env : env) (res : rebuild_result)
         let expr = Expr.create_switch switch in
         let free_names = Switch_expr.free_names switch in
         RE.from_expr ~expr ~free_names ~code_size:(Code_size.switch switch)
-    | Apply apply -> rebuild_apply env apply
+    | Apply apply -> (
+      let apply = set_local_return_mode env apply in
+      let expr = rebuild_apply env apply in
+      match Apply.continuation apply with
+      | Never_returns -> expr
+      | Return k -> (
+        match regions_exited_by env k with
+        | [] -> expr
+        | regions ->
+          let is_tail_call =
+            Continuation.equal k env.return_continuation
+            &&
+            match Apply.position apply with
+            | Normal -> true
+            | Nontail -> false
+          in
+          if is_tail_call
+          then
+            (* Tail call: close the regions beforehand so that it remains a tail
+               call; no local value is passed to it (see
+               [Traverse.traverse_apply]). *)
+            end_regions env regions expr
+          else
+            let renaming =
+              Renaming.add_continuation Renaming.empty k (closer env k)
+            in
+            RE.from_expr
+              ~expr:(Expr.apply_renaming expr.expr renaming)
+              ~free_names:
+                (Name_occurrences.apply_renaming expr.free_names renaming)
+              ~code_size:expr.code_size))
   in
   rebuild_holed env res holed_expr expr
 
@@ -2130,7 +2408,6 @@ and rebuild_function_params_and_body (env : env) res code_metadata
       in
       { env with should_preserve_direct_calls }
   in
-  let env = { env with inside_code_definition = true } in
   let { Rev_expr.return_continuation;
         exn_continuation;
         params;
@@ -2141,7 +2418,39 @@ and rebuild_function_params_and_body (env : env) res code_metadata
       } =
     params_and_body
   in
+  let env =
+    { env with
+      inside_code_definition = true;
+      return_continuation;
+      regions = []
+    }
+  in
   let code_id = Code_metadata.code_id code_metadata in
+  (* A function returning at mode local allocates in its caller's region, which
+     it must not close (see [Escape_analysis]). *)
+  let my_alloc_mode, caller_region =
+    if not (Rebuild_solution.returns_local env.solution code_id)
+    then my_alloc_mode, None
+    else
+      match (my_alloc_mode : Alloc_mode.For_applications.t) with
+      | Maybe_alloc_stack _ ->
+        Misc.fatal_errorf
+          "Function %a already returns at mode local, but the escape analysis \
+           decided to make it do so"
+          Code_id.print code_id
+      | Not_alloc_stack { alloc_region } ->
+        let region = Variable.create "my_region" K.region in
+        let ghost_region = Variable.create "my_ghost_region" K.region in
+        ( Alloc_mode.For_applications.maybe_alloc_stack ~alloc_region ~region
+            ~ghost_region,
+          Some
+            { region;
+              ghost_region;
+              inner_conts = Continuation.Set.empty;
+              closers = ref Continuation.Map.empty;
+              closable = false
+            } )
+  in
   let updating_calling_convention =
     Rebuild_solution.get_calling_convention_change env.solution code_id
   in
@@ -2202,7 +2511,12 @@ and rebuild_function_params_and_body (env : env) res code_metadata
     in
     let all_vars = region_vars @ (my_closure :: Bound_parameters.vars params) in
     match List.filter (is_dead_var env) all_vars with
-    | [] -> rebuild_expr env res body
+    | [] -> (
+      match caller_region with
+      | Some region -> rebuild_expr { env with regions = [region] } res body
+      | None ->
+        rebuild_region_scope env res ~scope:(Code_id_or_name.code_id code_id)
+          ~rebuild_body:(fun env res -> rebuild_expr env res body))
     | _ :: _ as dead_vars ->
       let msg =
         Format.asprintf
@@ -2375,8 +2689,8 @@ type result =
 
 let rebuild ~machine_width ~ordered_code_ids
     ~(continuation_info : Traverse_acc.continuation_info Continuation.Map.t)
-    ~fixed_arity_continuations ~typing (solution : Rebuild_solution.t)
-    get_code_metadata toplevel_expr code =
+    ~fixed_arity_continuations ~scope_conts ~return_continuation ~typing
+    (solution : Rebuild_solution.t) get_code_metadata toplevel_expr code =
   let should_keep_param cont param kind : Unboxing_analysis.param_decision =
     let keep_all_parameters =
       Continuation.Set.mem cont fixed_arity_continuations
@@ -2427,7 +2741,11 @@ let rebuild ~machine_width ~ordered_code_ids
       cont_params_to_keep;
       should_keep_param;
       should_preserve_direct_calls;
-      inside_code_definition = false
+      inside_code_definition = false;
+      conts_per_scope = scope_conts;
+      return_continuation;
+      regions = [];
+      continuation_info
     }
   in
   let res =

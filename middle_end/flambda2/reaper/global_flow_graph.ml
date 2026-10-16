@@ -35,7 +35,15 @@ type graph =
     mutable any_usage : N.t;
     mutable any_source : N.t;
     mutable zero_alloc_source : N.t;
-    mutable code_id_my_closure : NN.t
+    mutable code_id_my_closure : NN.t;
+    mutable allocated_in : NN.t;
+    mutable scope_exit : NN.t;
+    mutable unsafe_scope : N.t;
+    mutable return_of : NN.t;
+    mutable call_result : NNN.t;
+    mutable unscoped_call_result : N.t;
+    mutable indirect_call_result : N.t;
+    mutable partial_application_node : NN.t
   }
 
 let print_iter_edges ~print_edge graph =
@@ -95,6 +103,22 @@ let zero_alloc_source = N.create ~name:"zero_alloc_source"
 
 let code_id_my_closure = NN.create ~name:"code_id_my_closure"
 
+let allocated_in = NN.create ~name:"allocated_in"
+
+let scope_exit = NN.create ~name:"scope_exit"
+
+let unsafe_scope = N.create ~name:"unsafe_scope"
+
+let return_of = NN.create ~name:"return_of"
+
+let call_result = NNN.create ~name:"call_result"
+
+let unscoped_call_result = N.create ~name:"unscoped_call_result"
+
+let indirect_call_result = N.create ~name:"indirect_call_result"
+
+let partial_application_node = NN.create ~name:"partial_application_node"
+
 let to_datalog graph =
   Datalog.set_table alias graph.alias
   @@ Datalog.set_table use graph.use
@@ -109,6 +133,14 @@ let to_datalog graph =
   @@ Datalog.set_table any_source graph.any_source
   @@ Datalog.set_table zero_alloc_source graph.zero_alloc_source
   @@ Datalog.set_table code_id_my_closure graph.code_id_my_closure
+  @@ Datalog.set_table allocated_in graph.allocated_in
+  @@ Datalog.set_table scope_exit graph.scope_exit
+  @@ Datalog.set_table unsafe_scope graph.unsafe_scope
+  @@ Datalog.set_table return_of graph.return_of
+  @@ Datalog.set_table call_result graph.call_result
+  @@ Datalog.set_table unscoped_call_result graph.unscoped_call_result
+  @@ Datalog.set_table indirect_call_result graph.indirect_call_result
+  @@ Datalog.set_table partial_application_node graph.partial_application_node
   @@ Datalog.empty
 
 module Relations = struct
@@ -153,6 +185,24 @@ module Relations = struct
 
   let code_id_my_closure ~code_id ~my_closure =
     Datalog.atom code_id_my_closure [code_id; my_closure]
+
+  let allocated_in ~alloc ~scope = Datalog.atom allocated_in [alloc; scope]
+
+  let scope_exit ~scope ~param = Datalog.atom scope_exit [scope; param]
+
+  let unsafe_scope scope = Datalog.atom unsafe_scope [scope]
+
+  let return_of ~scope ~result = Datalog.atom return_of [scope; result]
+
+  let call_result ~result ~scope ~call_widget =
+    Datalog.atom call_result [result; scope; call_widget]
+
+  let unscoped_call_result result = Datalog.atom unscoped_call_result [result]
+
+  let indirect_call_result result = Datalog.atom indirect_call_result [result]
+
+  let partial_application_node ~node ~code_id =
+    Datalog.atom partial_application_node [node; code_id]
 end
 
 let create () =
@@ -168,7 +218,15 @@ let create () =
     any_usage = N.empty;
     any_source = N.empty;
     zero_alloc_source = N.empty;
-    code_id_my_closure = NN.empty
+    code_id_my_closure = NN.empty;
+    allocated_in = NN.empty;
+    scope_exit = NN.empty;
+    unsafe_scope = N.empty;
+    return_of = NN.empty;
+    call_result = NNN.empty;
+    unscoped_call_result = N.empty;
+    indirect_call_result = N.empty;
+    partial_application_node = NN.empty
   }
 
 let union g1 g2 =
@@ -189,7 +247,18 @@ let union g1 g2 =
     any_source = N.union keep g1.any_source g2.any_source;
     zero_alloc_source = N.union keep g1.zero_alloc_source g2.zero_alloc_source;
     code_id_my_closure =
-      NN.union keep g1.code_id_my_closure g2.code_id_my_closure
+      NN.union keep g1.code_id_my_closure g2.code_id_my_closure;
+    allocated_in = NN.union keep g1.allocated_in g2.allocated_in;
+    scope_exit = NN.union keep g1.scope_exit g2.scope_exit;
+    unsafe_scope = N.union keep g1.unsafe_scope g2.unsafe_scope;
+    return_of = NN.union keep g1.return_of g2.return_of;
+    call_result = NNN.union keep g1.call_result g2.call_result;
+    unscoped_call_result =
+      N.union keep g1.unscoped_call_result g2.unscoped_call_result;
+    indirect_call_result =
+      N.union keep g1.indirect_call_result g2.indirect_call_result;
+    partial_application_node =
+      NN.union keep g1.partial_application_node g2.partial_application_node
   }
 
 let add_alias t ~to_ ~from = t.alias <- NN.add_or_replace [to_; from] () t.alias
@@ -246,6 +315,40 @@ let add_code_id_my_closure t code_id my_closure =
          [Code_id_or_name.code_id code_id; Code_id_or_name.var my_closure]
          () t.code_id_my_closure
 
+let add_allocated_in t ~alloc ~scope =
+  t.allocated_in <- NN.add_or_replace [alloc; scope] () t.allocated_in
+
+let add_scope_exit t ~scope ~param =
+  t.scope_exit
+    <- NN.add_or_replace [scope; Code_id_or_name.var param] () t.scope_exit
+
+let add_unsafe_scope t scope =
+  t.unsafe_scope <- N.add_or_replace [scope] () t.unsafe_scope
+
+let add_return_of t ~scope ~result =
+  t.return_of
+    <- NN.add_or_replace [scope; Code_id_or_name.var result] () t.return_of
+
+let add_call_result t ~result ~scope ~call_widget =
+  t.call_result
+    <- NNN.add_or_replace
+         [Code_id_or_name.var result; scope; call_widget]
+         () t.call_result
+
+let add_unscoped_call_result t result =
+  t.unscoped_call_result
+    <- N.add_or_replace [Code_id_or_name.var result] () t.unscoped_call_result
+
+let add_indirect_call_result t result =
+  t.indirect_call_result
+    <- N.add_or_replace [Code_id_or_name.var result] () t.indirect_call_result
+
+let add_partial_application_node t ~node ~code_id =
+  t.partial_application_node
+    <- NN.add_or_replace
+         [node; Code_id_or_name.code_id code_id]
+         () t.partial_application_node
+
 let ids_for_export graph =
   let open Datalog_helpers in
   let ids = Ids_for_export.empty in
@@ -262,6 +365,14 @@ let ids_for_export graph =
   let ids = Serialisation.N.add_ids graph.any_source ids in
   let ids = Serialisation.N.add_ids graph.zero_alloc_source ids in
   let ids = Serialisation.Nn.add_ids graph.code_id_my_closure ids in
+  let ids = Serialisation.Nn.add_ids graph.allocated_in ids in
+  let ids = Serialisation.Nn.add_ids graph.scope_exit ids in
+  let ids = Serialisation.N.add_ids graph.unsafe_scope ids in
+  let ids = Serialisation.Nn.add_ids graph.return_of ids in
+  let ids = Serialisation.Nnn.add_ids graph.call_result ids in
+  let ids = Serialisation.N.add_ids graph.unscoped_call_result ids in
+  let ids = Serialisation.N.add_ids graph.indirect_call_result ids in
+  let ids = Serialisation.Nn.add_ids graph.partial_application_node ids in
   ids
 
 let compilation_units graph =
@@ -282,7 +393,15 @@ let compilation_units graph =
   let cus = Serialisation.N.fold_ids graph.any_usage ~init:cus ~f in
   let cus = Serialisation.N.fold_ids graph.any_source ~init:cus ~f in
   let cus = Serialisation.N.fold_ids graph.zero_alloc_source ~init:cus ~f in
-  Serialisation.Nn.fold_ids graph.code_id_my_closure ~init:cus ~f
+  let cus = Serialisation.Nn.fold_ids graph.code_id_my_closure ~init:cus ~f in
+  let cus = Serialisation.Nn.fold_ids graph.allocated_in ~init:cus ~f in
+  let cus = Serialisation.Nn.fold_ids graph.scope_exit ~init:cus ~f in
+  let cus = Serialisation.N.fold_ids graph.unsafe_scope ~init:cus ~f in
+  let cus = Serialisation.Nn.fold_ids graph.return_of ~init:cus ~f in
+  let cus = Serialisation.Nnn.fold_ids graph.call_result ~init:cus ~f in
+  let cus = Serialisation.N.fold_ids graph.unscoped_call_result ~init:cus ~f in
+  let cus = Serialisation.N.fold_ids graph.indirect_call_result ~init:cus ~f in
+  Serialisation.Nn.fold_ids graph.partial_application_node ~init:cus ~f
 
 let fields_for_export graph =
   let open Datalog_helpers in
@@ -310,5 +429,16 @@ let apply_renaming graph renaming ~rename_field =
     zero_alloc_source =
       Serialisation.N.rename graph.zero_alloc_source ~rename_id;
     code_id_my_closure =
-      Serialisation.Nn.rename graph.code_id_my_closure ~rename_id
+      Serialisation.Nn.rename graph.code_id_my_closure ~rename_id;
+    allocated_in = Serialisation.Nn.rename graph.allocated_in ~rename_id;
+    scope_exit = Serialisation.Nn.rename graph.scope_exit ~rename_id;
+    unsafe_scope = Serialisation.N.rename graph.unsafe_scope ~rename_id;
+    return_of = Serialisation.Nn.rename graph.return_of ~rename_id;
+    call_result = Serialisation.Nnn.rename graph.call_result ~rename_id;
+    unscoped_call_result =
+      Serialisation.N.rename graph.unscoped_call_result ~rename_id;
+    indirect_call_result =
+      Serialisation.N.rename graph.indirect_call_result ~rename_id;
+    partial_application_node =
+      Serialisation.Nn.rename graph.partial_application_node ~rename_id
   }

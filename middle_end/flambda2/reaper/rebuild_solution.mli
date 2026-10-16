@@ -31,6 +31,7 @@ open! Flambda.Import
 type data
 
 val create_data :
+  db:Datalog.database ->
   queries:Rebuild_queries.t ->
   unboxing:Unboxing_analysis.result ->
   code_changes:Unboxing_analysis.code_changes ->
@@ -70,6 +71,17 @@ val get_unboxed_fields :
 
 val get_changed_representation :
   t -> Code_id_or_name.t -> Unboxing_analysis.changed_representation option
+
+(** Decisions of the escape analysis (see [Escape_analysis]): whether the
+    allocation bound to the variable is to be a stack allocation; whether the
+    region scope (code id of a function, or dummy variable of a recursive
+    [Let_cont]) needs a region; whether the function is to allocate its result
+    in its caller's region. *)
+val is_local_allocation : t -> Variable.t -> bool
+
+val scope_needs_region : t -> Code_id_or_name.t -> bool
+
+val returns_local : t -> Code_id.t -> bool
 
 val code_id_actually_directly_called : t -> Name.t -> Code_id.Set.t Or_unknown.t
 

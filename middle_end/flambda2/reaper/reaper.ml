@@ -114,7 +114,8 @@ module Staged = struct
         code : Rev_expr.rev_code Code_id.Map.t;
         ordered_code_ids : Code_id.t array;
         fixed_arity_continuations : Continuation.Set.t;
-        continuation_info : Traverse_acc.continuation_info Continuation.Map.t
+        continuation_info : Traverse_acc.continuation_info Continuation.Map.t;
+        scope_conts : Continuation.Set.t Code_id_or_name.Map.t
       }
 
     let ids_for_export
@@ -122,9 +123,21 @@ module Staged = struct
           code;
           ordered_code_ids;
           fixed_arity_continuations;
-          continuation_info
+          continuation_info;
+          scope_conts
         } =
-      let ids = Rev_expr.ids_for_export toplevel_expr in
+      let ids =
+        Code_id_or_name.Map.fold
+          (fun scope conts ids ->
+            Continuation.Set.fold
+              (fun cont ids -> Ids_for_export.add_continuation ids cont)
+              conts
+              (Ids_for_export.add_code_id_or_name ids scope))
+          scope_conts Ids_for_export.empty
+      in
+      let ids =
+        Ids_for_export.union ids (Rev_expr.ids_for_export toplevel_expr)
+      in
       let ids =
         Code_id.Map.fold
           (fun code_id rev_code ids ->
@@ -153,8 +166,20 @@ module Staged = struct
           code;
           ordered_code_ids;
           fixed_arity_continuations;
-          continuation_info
+          continuation_info;
+          scope_conts
         } renaming =
+      let scope_conts' =
+        Code_id_or_name.Map.fold
+          (fun scope conts map ->
+            Code_id_or_name.Map.add
+              (Renaming.apply_code_id_or_name renaming scope)
+              (Continuation.Set.map
+                 (Renaming.apply_continuation renaming)
+                 conts)
+              map)
+          scope_conts Code_id_or_name.Map.empty
+      in
       let toplevel_expr' = Rev_expr.apply_renaming toplevel_expr renaming in
       let code' =
         Code_id.Map.fold
@@ -189,7 +214,8 @@ module Staged = struct
         code = code';
         ordered_code_ids = ordered_code_ids';
         fixed_arity_continuations = fixed_arity_continuations';
-        continuation_info = continuation_info'
+        continuation_info = continuation_info';
+        scope_conts = scope_conts'
       }
   end
 
@@ -211,7 +237,8 @@ module Staged = struct
             code_references;
             rebuild_queries;
             all_sets_of_closures;
-            closure_function_decls
+            closure_function_decls;
+            scope_conts
           } =
       Traverse.run ~closed_world unit
     in
@@ -229,7 +256,8 @@ module Staged = struct
         code;
         ordered_code_ids;
         fixed_arity_continuations;
-        continuation_info
+        continuation_info;
+        scope_conts
       }
     in
     deps, slot_offsets_inputs, solve_inputs, rebuild_data
@@ -355,15 +383,18 @@ module Staged = struct
             code;
             ordered_code_ids;
             fixed_arity_continuations;
-            continuation_info
+            continuation_info;
+            scope_conts
           } =
       traverse_rebuild
     in
     let Rebuild.
           { body; all_code = rebuilt_code; code_ids_to_remember; free_names } =
       Rebuild.rebuild ~machine_width ~ordered_code_ids
-        ~fixed_arity_continuations ~continuation_info ~typing solution
-        get_code_metadata toplevel_expr code
+        ~fixed_arity_continuations ~continuation_info ~scope_conts
+        ~return_continuation:
+          (Flambda_unit.Metadata.return_continuation unit_metadata)
+        ~typing solution get_code_metadata toplevel_expr code
     in
     let is_foreign code_id =
       not (Current_unit.is_current (Code_id.get_compilation_unit code_id))
@@ -437,7 +468,7 @@ let run ~machine_width ~cmx_loader ~all_code ~final_typing_env ~free_names
       }
   in
   let rebuild_data =
-    Rebuild_solution.create_data ~queries:solution.queries
+    Rebuild_solution.create_data ~db:solution.uses.db ~queries:solution.queries
       ~unboxing:solution.uses.unboxing ~code_changes:solution.code_changes
       ~slot_offsets:slot_offsets.exported_offsets
   in

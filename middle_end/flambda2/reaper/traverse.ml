@@ -350,6 +350,16 @@ let must_have_callee apply =
     Misc.fatal_errorf "Callee is unexpectedly [None] in [Apply]:@ %a"
       Apply.print apply
 
+(* Record where the results of an application land, for the escape analysis (see
+   [Escape_analysis]). *)
+let record_call_results denv acc ~call_widget return_args =
+  match Env.region_scope denv with
+  | Some scope ->
+    List.iter
+      (fun result -> Acc.add_call_result acc ~result ~scope ~call_widget)
+      return_args
+  | None -> List.iter (Acc.add_unscoped_call_result acc) return_args
+
 let traverse_call_kind denv acc apply ~exn_arg ~return_args ~default_acc =
   match Apply.call_kind apply with
   | Function { function_call = Direct code_id; _ } -> (
@@ -358,6 +368,7 @@ let traverse_call_kind denv acc apply ~exn_arg ~return_args ~default_acc =
       Acc.make_known_arity_apply_widget acc ~denv apply ~returns:return_args
         ~exn:exn_arg
     in
+    record_call_results denv acc ~call_widget return_args;
     let callee = Apply.callee apply in
     let is_external =
       not (Current_unit.is_current (Code_id.get_compilation_unit code_id))
@@ -417,6 +428,7 @@ let traverse_call_kind denv acc apply ~exn_arg ~return_args ~default_acc =
       Acc.make_known_arity_apply_widget acc ~denv apply ~returns:return_args
         ~exn:exn_arg
     in
+    record_call_results denv acc ~call_widget return_args;
     let closure = Acc.simple_to_node acc ~denv (must_have_callee apply) in
     Acc.add_accessor_dep acc ~to_:call_widget Field.known_arity_call_witness
       ~base:closure
@@ -426,12 +438,57 @@ let traverse_call_kind denv acc apply ~exn_arg ~return_args ~default_acc =
         ~exn:exn_arg
     in
     let closure = Acc.simple_to_node acc ~denv (must_have_callee apply) in
+    List.iter (Acc.add_indirect_call_result acc) return_args;
     Acc.add_accessor_dep acc ~to_:call_widget Field.unknown_arity_call_witness
       ~base:closure
   | Method _ | C_call _ | Effect _ -> default_acc acc
 
+(* Regions are not closed on exceptional paths (see [Escape_analysis]). A region
+   scope from which an exception can escape to a handler defined outside of it
+   (other than the exception continuation of the function, for which the caller
+   is responsible) cannot be given a region: an enclosing loop could otherwise
+   accumulate unclosed regions. *)
+let note_jump_to denv acc cont =
+  if
+    Acc.is_exn_handler acc cont
+    && not (Continuation.equal cont (Env.exn_continuation denv))
+  then
+    List.iter
+      (fun scope ->
+        if not (Acc.scope_contains_continuation acc ~scope cont)
+        then Acc.add_unsafe_scope acc scope)
+      (Env.enclosing_region_scopes denv)
+
 let traverse_apply denv acc apply : rev_expr =
   Acc.record_apply_for_rebuild acc apply;
+  note_jump_to denv acc
+    (Exn_continuation.exn_handler (Apply.exn_continuation apply));
+  (match Apply.continuation apply, Apply.position apply with
+  | Return k, Normal when Continuation.equal k (Env.return_continuation denv) ->
+    (* Tail call: the regions of the enclosing scopes are closed before it, so
+       that it remains a tail call (see [Rebuild]); hence no local value may be
+       passed to it. This is the same restriction as the one imposed by the type
+       checker on local values; as there, an application marked [@nontail] is
+       not subject to it.
+
+       CR mshinwell: this is conservative. In the future we could consider e.g.
+       automatically making such applications non-tail when the callee is known
+       not to be recursive, or letting the callee allocate its result in the
+       caller's region (as done by [exclave_], see [Lexclave] in Lambda), which
+       would also allow allocations in a callee that only escape through its
+       result to become local. *)
+    let add_sink scope simple =
+      Simple.pattern_match' simple
+        ~const:(fun _ -> ())
+        ~symbol:(fun _ ~coercion:_ -> ())
+        ~var:(fun param ~coercion:_ -> Acc.add_scope_exit acc ~scope ~param)
+    in
+    List.iter
+      (fun scope ->
+        List.iter (add_sink scope) (Apply.args apply);
+        Option.iter (add_sink scope) (Apply.callee apply))
+      (Env.enclosing_region_scopes denv)
+  | Return _, (Normal | Nontail) | Never_returns, _ -> ());
   let return_args =
     match Apply.continuation apply with
     | Never_returns -> []
@@ -499,6 +556,7 @@ let traverse_apply denv acc apply : rev_expr =
 
 let traverse_apply_cont denv acc apply_cont : rev_expr =
   let expr = Apply_cont apply_cont in
+  note_jump_to denv acc (Apply_cont_expr.continuation apply_cont);
   apply_cont_deps denv acc apply_cont;
   { expr; holed_expr = Env.parent denv }
 
@@ -506,13 +564,55 @@ let traverse_switch denv acc switch : rev_expr =
   let expr = Switch switch in
   Acc.add_cond_any_usage acc ~denv (Switch_expr.scrutinee switch);
   Target_ocaml_int.Map.iter
-    (fun _ apply_cont -> apply_cont_deps denv acc apply_cont)
+    (fun _ apply_cont ->
+      note_jump_to denv acc (Apply_cont_expr.continuation apply_cont);
+      apply_cont_deps denv acc apply_cont)
     (Switch_expr.arms switch);
   { expr; holed_expr = Env.parent denv }
 
 let traverse_invalid denv _acc ~message =
   let expr = Invalid { message } in
   { expr; holed_expr = Env.parent denv }
+
+(* Record heap allocations that the escape analysis may turn into stack
+   allocations (see [Escape_analysis]). Sets of closures are only candidates
+   when the code of every function is known, since their code metadata is
+   adjusted when they become local (see [Unboxing_analysis]). *)
+let record_candidate_allocation denv acc ~(bound_pattern : Bound_pattern.t)
+    (defining_expr : Named.t) =
+  match Env.region_scope denv with
+  | None -> ()
+  | Some scope -> (
+    let add bv =
+      Acc.add_allocated_in acc
+        ~alloc:(Code_id_or_name.var (Bound_var.var bv))
+        ~scope
+    in
+    match[@ocaml.warning "-fragile-match"] defining_expr, bound_pattern with
+    | ( Prim
+          ( ( Variadic (Make_block (_, _, Alloc_mode.For_allocations.Heap _), _)
+            | Unary (Box_number (_, Alloc_mode.For_allocations.Heap _), _) ),
+            _ ),
+        Singleton bv ) ->
+      add bv
+    | ( Set_of_closures (set_of_closures, Alloc_mode.For_allocations.Heap _),
+        Set_of_closures bvs ) ->
+      let funs =
+        Function_declarations.funs
+          (Set_of_closures.function_decls set_of_closures)
+      in
+      let can_be_local =
+        Function_slot.Map.for_all
+          (fun _ (decl : Function_declarations.code_id_in_function_declaration)
+             ->
+            match decl with
+            | Deleted _ -> false
+            | Code_id { code_id; only_full_applications = _ } ->
+              Option.is_some (Acc.find_code_dep acc code_id))
+          funs
+      in
+      if can_be_local then List.iter add bvs
+    | _ -> ())
 
 let rec traverse_let denv acc let_expr : rev_expr =
   let bound_pattern, body =
@@ -544,6 +644,7 @@ let rec traverse_let denv acc let_expr : rev_expr =
     default_bp (fun to_ ->
         Acc.add_alias acc ~to_ ~from:(Acc.simple_to_node acc ~denv s))
   | Rec_info _ -> default acc);
+  record_candidate_allocation denv acc ~bound_pattern defining_expr;
   let make_set_of_closures set_of_closures =
     let function_decls = Set_of_closures.function_decls set_of_closures in
     let value_slots = Set_of_closures.value_slots set_of_closures in
@@ -618,6 +719,9 @@ and traverse_let_cont_non_recursive denv acc cont ~body handler =
         (Flambda_arity.unarize
            (Bound_parameters.arity handler.bound_parameters))
       ~is_exn_handler;
+    List.iter
+      (fun scope -> Acc.add_scope_cont acc ~scope cont)
+      (Env.enclosing_region_scopes denv);
     if is_exn_handler
     then (
       (* The exception parameter of any exception handler is assumed to have any
@@ -665,22 +769,37 @@ and traverse_let_cont_recursive denv acc ~invariant_params ~body handlers =
           @ Flambda_arity.unarize (Bound_parameters.arity bp)
         in
         Acc.continuation_info acc cont ~params ~arity ~is_exn_handler:false;
+        List.iter
+          (fun scope -> Acc.add_scope_cont acc ~scope cont)
+          (Env.enclosing_region_scopes denv);
         Env.add_cont denv cont (Normal params))
       handlers denv
   in
+  (* The handlers form a region scope of their own (see [Escape_analysis]):
+     every continuation currently in scope, including the recursive ones
+     themselves, is outside of it. *)
+  let region_scope = Variable.create "region_scope" K.region in
+  let handler_denv = Env.enter_recursive_handler denv ~scope:region_scope in
+  (match Env.region_scope handler_denv with
+  | None -> ()
+  | Some scope ->
+    List.iter
+      (fun param -> Acc.add_scope_exit acc ~scope ~param)
+      (Env.all_continuation_params denv));
   let handlers =
     Continuation.Lmap.map
       (fun (cont_handler, bound_parameters, handler) ->
         let is_exn_handler = Continuation_handler.is_exn_handler cont_handler in
         let is_cold = Continuation_handler.is_cold cont_handler in
-        let expr = traverse (Env.with_parent denv Hole) acc handler in
+        let expr = traverse (Env.with_parent handler_denv Hole) acc handler in
         let handler = { bound_parameters; expr; is_exn_handler; is_cold } in
         handler)
       handlers
   in
   let denv =
     Env.with_parent denv
-      (Let_cont_rec { invariant_params; handlers; parent = Env.parent denv })
+      (Let_cont_rec
+         { invariant_params; handlers; parent = Env.parent denv; region_scope })
   in
   traverse denv acc body
 
@@ -746,6 +865,23 @@ and traverse_function_params_and_body acc code_id code ~return_continuation
       [ return_continuation, Env.Normal return;
         exn_continuation, Env.Normal [exn] ]
   in
+  let scope = Code_id_or_name.code_id code_id in
+  Acc.add_scope_exit acc ~scope ~param:exn;
+  List.iter (fun result -> Acc.add_return_of acc ~scope ~result) return;
+  let region_scope : Env.region_scope =
+    if
+      Escape_analysis.enabled ()
+      && Flambda_features.stack_allocation_enabled ()
+      && not is_opaque
+    then
+      match (my_alloc_mode : Alloc_mode.For_applications.t) with
+      | Not_alloc_stack _ -> Scope scope
+      | Maybe_alloc_stack _ ->
+        (* The body may allocate its result directly in the caller's region;
+           such allocations must not happen while an inner region is open. *)
+        No_region_scope
+    else No_region_scope
+  in
   Acc.continuation_info acc return_continuation ~is_exn_handler:false
     ~params:return
     ~arity:
@@ -765,6 +901,7 @@ and traverse_function_params_and_body acc code_id code ~return_continuation
   let denv =
     Env.create ~parent:Hole ~conts ~should_preserve_direct_calls
       ~current_code_id:(Some code_id) ~le_monde_exterieur ~all_constants
+      ~region_scope ~return_continuation ~exn_continuation
   in
   if not is_opaque
   then (
@@ -833,7 +970,8 @@ type result =
       (Name.t * Code_id.t Or_unknown.t) Function_slot.Lmap.t list;
     closure_function_decls :
       Function_declarations.code_id_in_function_declaration
-      Code_id_or_name.Map.t
+      Code_id_or_name.Map.t;
+    scope_conts : Continuation.Set.t Code_id_or_name.Map.t
   }
 
 let create_symbol_and_add_any_source acc name =
@@ -874,7 +1012,14 @@ let run0 unit acc ~all_constants ~closed_world () =
     (Env.create ~parent:Hole ~conts ~should_preserve_direct_calls
        ~current_code_id:None
        ~le_monde_exterieur:(Name.symbol le_monde_exterieur)
-       ~all_constants:(Name.symbol all_constants))
+       ~all_constants:(Name.symbol all_constants)
+       ~region_scope:
+         (if
+            Escape_analysis.enabled ()
+            && Flambda_features.stack_allocation_enabled ()
+          then Toplevel
+          else No_region_scope)
+       ~return_continuation ~exn_continuation)
     acc (Flambda_unit.body unit)
 
 let run ~closed_world (unit : Flambda_unit.t) =
@@ -899,5 +1044,6 @@ let run ~closed_world (unit : Flambda_unit.t) =
     code_references = Acc.code_references acc;
     rebuild_queries = Acc.rebuild_queries acc;
     all_sets_of_closures = Acc.get_all_sets_of_closures acc;
-    closure_function_decls = Acc.get_closure_function_decls acc
+    closure_function_decls = Acc.get_closure_function_decls acc;
+    scope_conts = Acc.get_scope_conts acc
   }

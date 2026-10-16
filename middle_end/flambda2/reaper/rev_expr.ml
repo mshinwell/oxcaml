@@ -34,7 +34,10 @@ type rev_expr_holed =
   | Let_cont_rec of
       { invariant_params : Bound_parameters.t;
         handlers : cont_handler Continuation.Lmap.t;
-        parent : rev_expr_holed
+        parent : rev_expr_holed;
+        region_scope : Variable.t
+            (** Dummy variable naming the region scope of the handlers for the
+                escape analysis (see [Escape_analysis]). *)
       }
 
 and rev_named =
@@ -124,8 +127,9 @@ and ids_for_export_holed (holed : rev_expr_holed) =
          (ids_for_export_cont_handler handler)
          (ids_for_export_holed parent))
       cont
-  | Let_cont_rec { invariant_params; handlers; parent } ->
+  | Let_cont_rec { invariant_params; handlers; parent; region_scope } ->
     let ids = ids_for_export_holed parent in
+    let ids = Ids_for_export.add_variable ids region_scope in
     let ids =
       Continuation.Lmap.fold
         (fun cont handler ids ->
@@ -224,7 +228,7 @@ and apply_renaming_holed (holed : rev_expr_holed) renaming : rev_expr_holed =
         handler = apply_renaming_cont_handler handler renaming;
         parent = apply_renaming_holed parent renaming
       }
-  | Let_cont_rec { invariant_params; handlers; parent } ->
+  | Let_cont_rec { invariant_params; handlers; parent; region_scope } ->
     let renamed_handlers_as_list =
       List.map
         (fun (cont, handler) ->
@@ -236,7 +240,8 @@ and apply_renaming_holed (holed : rev_expr_holed) renaming : rev_expr_holed =
       { invariant_params =
           Bound_parameters.apply_renaming invariant_params renaming;
         handlers = Continuation.Lmap.of_list renamed_handlers_as_list;
-        parent = apply_renaming_holed parent renaming
+        parent = apply_renaming_holed parent renaming;
+        region_scope = Renaming.apply_variable renaming region_scope
       }
 
 and apply_renaming_named (named : rev_named) renaming : rev_named =

@@ -29,6 +29,24 @@ let fixpoint (graph : Global_flow_graph.graph) ~analysis_scope =
   let stats = Datalog.Schedule.create_stats ~with_provenance datalog in
   let db = Points_to_analysis.perform_analysis datalog ~stats ~analysis_scope in
   let unboxing = Unboxing_analysis.perform_analysis db ~stats ~analysis_scope in
+  (* The escape analysis needs two results of the unboxing analysis as
+     relations: which functions may not change calling convention, and which
+     allocations are unboxed. *)
+  let db =
+    if Escape_analysis.enabled ()
+    then
+      let db =
+        Datalog.set_table cannot_change_calling_convention_tbl
+          unboxing.cannot_change_calling_convention db
+      in
+      let db =
+        Datalog.set_table to_unbox_tbl
+          (Code_id_or_name.Map.map (fun _ -> ()) unboxing.unboxed_fields)
+          db
+      in
+      Escape_analysis.perform_analysis db ~stats
+    else db
+  in
   if with_provenance || Flambda_features.debug_reaper "stats"
   then Format.eprintf "%a@." Datalog.Schedule.print_stats stats;
   { db; unboxing }

@@ -369,12 +369,6 @@ let changed_representation_apply_renaming changed_representation renaming
 let cannot_change_witness_calling_convention =
   rel1 "cannot_change_witness_calling_convention" Cols.[n]
 
-let cannot_change_calling_convention_table =
-  Datalog.create_relation ~name:"cannot_change_calling_convention" Cols.[n]
-
-let cannot_change_calling_convention x =
-  cannot_change_calling_convention_table % [x]
-
 let cannot_change_representation0 = rel1 "cannot_change_representation0" Cols.[n]
 
 let cannot_change_representation1 = rel1 "cannot_change_representation1" Cols.[n]
@@ -386,10 +380,6 @@ let cannot_unbox0_tbl = Datalog.create_relation ~name:"cannot_unbox0" Cols.[n]
 let cannot_unbox0 x = cannot_unbox0_tbl % [x]
 
 let cannot_unbox = rel1 "cannot_unbox" Cols.[n]
-
-let to_unbox_tbl = Datalog.create_relation ~name:"to_unbox" Cols.[n]
-
-let to_unbox x = to_unbox_tbl % [x]
 
 let to_change_representation_tbl =
   Datalog.create_relation ~name:"to_change_representation" Cols.[n]
@@ -995,7 +985,7 @@ let perform_analysis db ~stats ~analysis_scope =
   { unboxed_fields;
     changed_representation;
     cannot_change_calling_convention =
-      Datalog.get_table cannot_change_calling_convention_table db
+      Datalog.get_table cannot_change_calling_convention_tbl db
   }
 
 let cannot_change_calling_convention ~analysis_scope uses v =
@@ -1196,6 +1186,37 @@ let compute_code_changes ~db uses ~analysis_scope ~rewrite_kind_with_subkind
           ( Changing_calling_convention
               { params_decisions; return_decisions; my_closure_decision },
             code_metadata )
+      in
+      (* Changes decided by the escape analysis (see [Escape_analysis]). A
+         function returning at mode local, or whose closure is allocated
+         locally, has [nlocal = 1] (see [Lambda.curried_function_kind]). *)
+      let code_metadata =
+        let with_nlocal_one code_metadata =
+          match Code_metadata.first_complex_local_param code_metadata with
+          | Never_partially_applied -> code_metadata
+          | Index index ->
+            let num_params =
+              Flambda_arity.num_params
+                (Code_metadata.params_arity code_metadata)
+            in
+            if index >= num_params && num_params > 0
+            then
+              Code_metadata.with_first_complex_local_param
+                (Index (num_params - 1))
+                code_metadata
+            else code_metadata
+        in
+        let code_metadata =
+          if Escape_analysis.returns_local db code_id
+          then
+            with_nlocal_one
+              (Code_metadata.with_result_mode Lambda.maybe_alloc_stack
+                 code_metadata)
+          else code_metadata
+        in
+        if Escape_analysis.is_local_closure_code db code_id
+        then with_nlocal_one code_metadata
+        else code_metadata
       in
       (* The original result types may no longer match the calling convention.
          Rebuild can rewrite them for export; other units do not need them. *)

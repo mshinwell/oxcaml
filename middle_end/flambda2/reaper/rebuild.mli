@@ -50,6 +50,8 @@ val rebuild :
   ordered_code_ids:Code_id.t array ->
   continuation_info:Traverse_acc.continuation_info Continuation.Map.t ->
   fixed_arity_continuations:Continuation.Set.t ->
+  scope_conts:Continuation.Set.t Code_id_or_name.Map.t ->
+  return_continuation:Continuation.t ->
   typing:typing option ->
   Rebuild_solution.t ->
   (Code_id.t -> Code_metadata.t) ->

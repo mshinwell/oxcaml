@@ -34,15 +34,42 @@ type data =
     changed_representation :
       (UA.changed_representation * Code_id_or_name.t) Code_id_or_name.Map.t;
     code_changes : UA.code_changes;
-    slot_offsets : Exported_offsets.t
+    slot_offsets : Exported_offsets.t;
+    (* Decisions of the escape analysis (see [Escape_analysis]). *)
+    local_allocations : unit Code_id_or_name.Map.t;
+    scopes_needing_region : unit Code_id_or_name.Map.t;
+    local_returns : unit Code_id_or_name.Map.t
   }
 
-let create_data ~queries ~(unboxing : UA.result) ~code_changes ~slot_offsets =
+let create_data ~db ~queries ~(unboxing : UA.result) ~code_changes ~slot_offsets
+    =
+  let local_allocations =
+    Datalog.get_table Escape_analysis.local_allocation_tbl db
+  in
+  (* A region is only needed in scopes where a local allocation survives
+     rebuilding, that is, is not unboxed, or where a function returning at mode
+     local is called. *)
+  let scopes_needing_region =
+    Code_id_or_name.Map.fold
+      (fun alloc () acc ->
+        if Code_id_or_name.Map.mem alloc unboxing.unboxed_fields
+        then acc
+        else
+          List.fold_left
+            (fun acc scope -> Code_id_or_name.Map.add scope () acc)
+            acc
+            (Escape_analysis.scopes_of_allocation db alloc))
+      local_allocations
+      (Datalog.get_table Escape_analysis.scope_with_local_call_result_tbl db)
+  in
   { queries;
     unboxed_fields = unboxing.unboxed_fields;
     changed_representation = unboxing.changed_representation;
     code_changes;
-    slot_offsets
+    slot_offsets;
+    local_allocations;
+    scopes_needing_region;
+    local_returns = Datalog.get_table Escape_analysis.local_return_tbl db
   }
 
 let empty_data =
@@ -50,11 +77,30 @@ let empty_data =
     unboxed_fields = Code_id_or_name.Map.empty;
     changed_representation = Code_id_or_name.Map.empty;
     code_changes = UA.empty_code_changes;
-    slot_offsets = Exported_offsets.empty
+    slot_offsets = Exported_offsets.empty;
+    local_allocations = Code_id_or_name.Map.empty;
+    scopes_needing_region = Code_id_or_name.Map.empty;
+    local_returns = Code_id_or_name.Map.empty
   }
+
+let ids_of_set set ids =
+  Code_id_or_name.Map.fold
+    (fun id () ids -> Ids_for_export.add_code_id_or_name ids id)
+    set ids
+
+let rename_set set renaming =
+  Code_id_or_name.Map.fold
+    (fun id () set ->
+      Code_id_or_name.Map.add
+        (Renaming.apply_code_id_or_name renaming id)
+        () set)
+    set Code_id_or_name.Map.empty
 
 let ids_for_export data =
   let ids = Rebuild_queries.ids_for_export data.queries in
+  let ids = ids_of_set data.local_allocations ids in
+  let ids = ids_of_set data.scopes_needing_region ids in
+  let ids = ids_of_set data.local_returns ids in
   let ids = UA.unboxed_fields_ids_for_export data.unboxed_fields ids in
   let ids =
     UA.changed_representation_ids_for_export data.changed_representation ids
@@ -80,7 +126,10 @@ let apply_renaming data renaming ~rename_field =
       UA.changed_representation_apply_renaming data.changed_representation
         renaming ~rename_field;
     code_changes =
-      UA.code_changes_apply_renaming data.code_changes renaming ~rename_field
+      UA.code_changes_apply_renaming data.code_changes renaming ~rename_field;
+    local_allocations = rename_set data.local_allocations renaming;
+    scopes_needing_region = rename_set data.scopes_needing_region renaming;
+    local_returns = rename_set data.local_returns renaming
   }
 
 let partition_by_compilation_unit data =
@@ -128,6 +177,24 @@ let partition_by_compilation_unit data =
       ~f:(fun part code_changes -> { part with code_changes })
       partitions
   in
+  let partitions =
+    add_parts
+      (partition_map data.local_allocations)
+      ~f:(fun part local_allocations -> { part with local_allocations })
+      partitions
+  in
+  let partitions =
+    add_parts
+      (partition_map data.scopes_needing_region)
+      ~f:(fun part scopes_needing_region -> { part with scopes_needing_region })
+      partitions
+  in
+  let partitions =
+    add_parts
+      (partition_map data.local_returns)
+      ~f:(fun part local_returns -> { part with local_returns })
+      partitions
+  in
   add_parts
     (Exported_offsets.partition_by_compilation_unit data.slot_offsets)
     ~f:(fun part slot_offsets -> { part with slot_offsets })
@@ -154,6 +221,17 @@ let field_used t id field =
 
 let get_unboxed_fields t id =
   Code_id_or_name.Map.find_opt id (data_for_id t id).unboxed_fields
+
+let is_local_allocation t var =
+  let id = Code_id_or_name.var var in
+  Code_id_or_name.Map.mem id (data_for_id t id).local_allocations
+
+let scope_needs_region t scope =
+  Code_id_or_name.Map.mem scope (data_for_id t scope).scopes_needing_region
+
+let returns_local t code_id =
+  let id = Code_id_or_name.code_id code_id in
+  Code_id_or_name.Map.mem id (data_for_id t id).local_returns
 
 let get_changed_representation t id =
   Option.map fst

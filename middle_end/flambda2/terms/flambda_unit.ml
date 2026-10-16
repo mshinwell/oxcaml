@@ -24,6 +24,8 @@ module Metadata = struct
 
   let module_symbol t = t.module_symbol
 
+  let return_continuation t = t.return_continuation
+
   let ids_for_export
       { return_continuation;
         exn_continuation;
