@@ -83,10 +83,6 @@ and region =
   { region : Variable.t;
     ghost_region : Variable.t;
     inner_conts : Continuation.Set.t;
-    (* Continuations closing this region (and any enclosing region also left)
-       before jumping to a given exit continuation. They are created on demand
-       and bound at the start of the scope. *)
-    closers : (Continuation.t * RE.continuation_handler) Continuation.Map.t ref;
     (* [false] for the region of the caller of a function returning at mode
        local ([my_region]), which the function must not close. *)
     closable : bool
@@ -1968,42 +1964,63 @@ let set_local_return_mode env apply =
 
 (* A continuation that closes the regions left when jumping to [k], then jumps
    to [k]. Used where an [End_region] cannot simply be inserted before the jump:
-   [Switch] arms, and non-tail applications returning to [k]. *)
+   [Switch] arms, and non-tail applications returning to [k]. Such closing
+   continuations are bound locally, around the [Switch] or the application. *)
 let closer env k =
-  match env.regions with
-  | [] ->
-    Misc.fatal_errorf "[closer]: no region to close before jumping to %a"
-      Continuation.print k
-  | innermost :: _ -> (
-    match Continuation.Map.find_opt k !(innermost.closers) with
-    | Some (k_close, _) -> k_close
-    | None ->
-      let k_close = Continuation.create () in
-      let params =
-        get_parameters
-          (List.map freshen_decisions
-             (Continuation.Map.find k env.cont_params_to_keep))
-      in
-      let apply_cont =
-        Apply_cont_expr.create k
-          ~args:(List.map (fun p -> Simple.var (Bound_parameter.var p)) params)
-          ~dbg:Debuginfo.none
-      in
-      let handler =
-        RE.from_expr
-          ~expr:(Expr.create_apply_cont apply_cont)
-          ~free_names:(Apply_cont_expr.free_names apply_cont)
-          ~code_size:(Code_size.apply_cont apply_cont)
-      in
-      let handler = end_regions env (regions_exited_by env k) handler in
-      let handler =
-        RE.create_continuation_handler
-          (Bound_parameters.create params)
-          ~handler ~is_exn_handler:false ~is_cold:false
-      in
-      innermost.closers
-        := Continuation.Map.add k (k_close, handler) !(innermost.closers);
-      k_close)
+  let k_close = Continuation.create () in
+  let params =
+    get_parameters
+      (List.map freshen_decisions
+         (Continuation.Map.find k env.cont_params_to_keep))
+  in
+  let apply_cont =
+    Apply_cont_expr.create k
+      ~args:(List.map (fun p -> Simple.var (Bound_parameter.var p)) params)
+      ~dbg:Debuginfo.none
+  in
+  let handler =
+    RE.from_expr
+      ~expr:(Expr.create_apply_cont apply_cont)
+      ~free_names:(Apply_cont_expr.free_names apply_cont)
+      ~code_size:(Code_size.apply_cont apply_cont)
+  in
+  let handler = end_regions env (regions_exited_by env k) handler in
+  let handler =
+    RE.create_continuation_handler
+      (Bound_parameters.create params)
+      ~handler ~is_exn_handler:false ~is_cold:false
+  in
+  k_close, handler
+
+let bind_closers closers body =
+  List.fold_left
+    (fun body (k_close, handler) ->
+      RE.create_non_recursive_let_cont k_close handler ~body)
+    body closers
+
+let redirect_switch_arms env arms =
+  let arms, closers =
+    Target_ocaml_int.Map.fold
+      (fun discriminant action (arms, closers) ->
+        let k = Apply_cont_expr.continuation action in
+        match regions_exited_by env k with
+        | [] -> Target_ocaml_int.Map.add discriminant action arms, closers
+        | _ :: _ ->
+          let k_close, closers =
+            match Continuation.Map.find_opt k closers with
+            | Some (k_close, _) -> k_close, closers
+            | None ->
+              let k_close, handler = closer env k in
+              k_close, Continuation.Map.add k (k_close, handler) closers
+          in
+          ( Target_ocaml_int.Map.add discriminant
+              (Apply_cont_expr.with_continuation action k_close)
+              arms,
+            closers ))
+      arms
+      (Target_ocaml_int.Map.empty, Continuation.Map.empty)
+  in
+  arms, List.map snd (Continuation.Map.bindings closers)
 
 (* Rebuild the body of a region scope (a function body or a recursive
    continuation handler), adding a region around it if the escape analysis found
@@ -2026,18 +2043,11 @@ let rebuild_region_scope env res ~scope ~rebuild_body =
           (match Code_id_or_name.Map.find_opt scope env.conts_per_scope with
           | Some conts -> conts
           | None -> Continuation.Set.empty);
-        closers = ref Continuation.Map.empty;
         closable = true
       }
     in
     let body, res =
       rebuild_body { env with regions = region :: env.regions } res
-    in
-    let body =
-      Continuation.Map.fold
-        (fun _ (k_close, handler) body ->
-          RE.create_non_recursive_let_cont k_close handler ~body)
-        !(region.closers) body
     in
     begin_regions env region body, res
 
@@ -2333,17 +2343,10 @@ and rebuild_expr (env : env) (res : rebuild_result)
     | Switch switch ->
       let arms =
         Target_ocaml_int.Map.filter_map
-          (fun _ action ->
-            match rewrite_apply_cont_expr env action with
-            | None -> None
-            | Some action -> (
-              let k = Apply_cont_expr.continuation action in
-              match regions_exited_by env k with
-              | [] -> Some action
-              | _ :: _ ->
-                Some (Apply_cont_expr.with_continuation action (closer env k))))
+          (fun _ action -> rewrite_apply_cont_expr env action)
           (Switch_expr.arms switch)
       in
+      let arms, closers = redirect_switch_arms env arms in
       if Target_ocaml_int.Map.is_empty arms
       then
         RE.from_expr
@@ -2360,7 +2363,8 @@ and rebuild_expr (env : env) (res : rebuild_result)
         in
         let expr = Expr.create_switch switch in
         let free_names = Switch_expr.free_names switch in
-        RE.from_expr ~expr ~free_names ~code_size:(Code_size.switch switch)
+        bind_closers closers
+          (RE.from_expr ~expr ~free_names ~code_size:(Code_size.switch switch))
     | Apply apply -> (
       let apply = set_local_return_mode env apply in
       let expr = rebuild_apply env apply in
@@ -2384,14 +2388,15 @@ and rebuild_expr (env : env) (res : rebuild_result)
                [Traverse.traverse_apply]). *)
             end_regions env regions expr
           else
-            let renaming =
-              Renaming.add_continuation Renaming.empty k (closer env k)
-            in
-            RE.from_expr
-              ~expr:(Expr.apply_renaming expr.expr renaming)
-              ~free_names:
-                (Name_occurrences.apply_renaming expr.free_names renaming)
-              ~code_size:expr.code_size))
+            let k_close, handler = closer env k in
+            let renaming = Renaming.add_continuation Renaming.empty k k_close in
+            RE.create_non_recursive_let_cont k_close handler
+              ~body:
+                (RE.from_expr
+                   ~expr:(Expr.apply_renaming expr.expr renaming)
+                   ~free_names:
+                     (Name_occurrences.apply_renaming expr.free_names renaming)
+                   ~code_size:expr.code_size)))
   in
   rebuild_holed env res holed_expr expr
 
@@ -2447,7 +2452,6 @@ and rebuild_function_params_and_body (env : env) res code_metadata
             { region;
               ghost_region;
               inner_conts = Continuation.Set.empty;
-              closers = ref Continuation.Map.empty;
               closable = false
             } )
   in
