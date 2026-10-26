@@ -89,7 +89,7 @@ let find_deletions (ssa : finished Ssa.graph) : finished Block.t Block.Tbl.t =
     dead;
   deletions
 
-let run (ssa : finished Ssa.graph) : finished Ssa.graph * int =
+let run ~ppf_dump (ssa : finished Ssa.graph) : finished Ssa.graph * int =
   let deletions = find_deletions ssa in
   if Block.Tbl.length deletions = 0
   then ssa, 0
@@ -113,5 +113,5 @@ let run (ssa : finished Ssa.graph) : finished Ssa.graph * int =
     end
     in
     let module Runner = Make_run (Delete_reducer) in
-    Runner.run ssa, Block.Tbl.length deletions
+    Runner.run ~ppf_dump ssa, Block.Tbl.length deletions
   end

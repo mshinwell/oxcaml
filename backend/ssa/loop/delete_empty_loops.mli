@@ -48,4 +48,5 @@ open Ssa.Export
 (** Delete empty loops in the graph, returning the rewritten graph together with
     the number of loops deleted. Returns the input unchanged when there is
     nothing to delete. *)
-val run : finished Ssa.graph -> finished Ssa.graph * int
+val run :
+  ppf_dump:Format.formatter -> finished Ssa.graph -> finished Ssa.graph * int

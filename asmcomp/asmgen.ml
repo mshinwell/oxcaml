@@ -604,7 +604,7 @@ let compile_via_ssa ~ppf_dump ~funcnames (fd_cmm : Cmm.fundecl) :
   let ssa =
     if !Oxcaml_flags.ssa_delete_empty_loops
     then begin
-      let ssa, deleted = Delete_empty_loops.run ssa in
+      let ssa, deleted = Delete_empty_loops.run ~ppf_dump ssa in
       if !Oxcaml_flags.dump_ssa && deleted > 0
       then
         Format.fprintf ppf_dump
