@@ -67,6 +67,8 @@
 
 (copy_files# backend/ssa/loop/*.ml{,i})
 
+(copy_files# backend/ssa/loop/rocq/*.ml{,i})
+
 (copy_files# backend/debug/*.ml{,i})
 
 (copy_files# backend/debug/dwarf/dwarf_ocaml/*.ml{,i})
@@ -744,6 +746,11 @@
   ssa_tail_call
   ssa_of_cmm
   cfg_of_ssa
+  ;; backend/ssa/loop/rocq/ (extracted from Rocq by rocq/Makefile)
+  OcamlList
+  FourierMotzkin
+  LoopComparisons
+  AffineExpr
   ;; backend/ssa/loop/
   fourier_motzkin
   affine_expr

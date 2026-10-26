@@ -25,6 +25,11 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
+(* This is the interface of fourier_motzkin.mli with one change: the type of
+   forms is stated to be that of the extracted [FourierMotzkin], so that the
+   extracted [LoopComparisons], whose forms are [FourierMotzkin.Affine.t],
+   implements loop_comparisons.mli through its wrapper. *)
+
 [@@@ocaml.warning "+a-40-41-42"]
 
 (** Affine inequalities over interned integer atoms, with Fourier-Motzkin
@@ -42,7 +47,7 @@ exception Overflow
 module Affine : sig
   (** [terms] maps each atom to a non-zero coefficient; [const] is the constant
       term. The value denotes the assertion [const + sum coeff*atom >= 0]. *)
-  type t =
+  type t = FourierMotzkin.Affine.t =
     { const : int;
       terms : (int * int) list
     }
