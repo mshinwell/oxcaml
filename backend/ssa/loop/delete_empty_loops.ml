@@ -29,64 +29,27 @@ open! Int_replace_polymorphic_compare
 
 [@@@ocaml.warning "+a-40-41-42"]
 
-(* See [delete_empty_loops.mli] for the interface. *)
+(* See [delete_empty_loops.mli] for the interface.
+
+   The analysis deciding which loops to delete is [DeleteEmptyLoops], generated
+   from the Rocq model in [rocq/DeleteEmptyLoops.v] by [rocq/Extract.v] (see
+   [rocq/Makefile]); it returns the loop headers to bypass with the exit target
+   each should jump to instead. The rewriting of the graph below is not
+   modelled. *)
 
 open Ssa.Export
 open Ssa_reducer
-
-(* A loop may only be deleted if, besides spinning its (dead) induction
-   variables, it performs no observable work. [Dead_induction_var] only checks
-   the header parameters; it says nothing about the body, so a loop like [while
-   i < n do print_int 7; i <- i + 1 done] has a dead IV [i] yet is emphatically
-   not empty. Here we additionally require every body block to contain only
-   side-effect-free instructions and to end in a pure control-flow terminator,
-   ruling out stores, calls, raises, allocations, early returns and trap
-   manipulation. *)
-let terminator_pure_control (t : finished Terminator.t) : bool =
-  match t with
-  | Continue { continuation = Goto _; _ } | Switch _ -> true
-  | Continue { continuation = Return | Raise _ | Unreachable; _ }
-  | Call _ | Invalid _ ->
-    false
-
-let body_effect_free (loop : Induction_var.loop) : bool =
-  Block.Set.for_all
-    (fun (bl : finished Block.t) ->
-      Array.for_all
-        (fun (i : finished Instruction.t) ->
-          not (Instruction.has_side_effect i))
-        (Block.body bl)
-      && terminator_pure_control (Block.terminator bl))
-    loop.body
+module E = DeleteEmptyLoops
 
 (* Loop headers to bypass, mapped to the exit target their terminator should
-   jump to instead. The exit target was a [Switch] target, so it can have no
-   block parameters; we still check, since a [Goto] with no arguments would be
-   malformed otherwise. *)
+   jump to instead. *)
 let find_deletions (ssa : finished Ssa.graph) : finished Block.t Block.Tbl.t =
   let op_def = Induction_var.compute_op_def ssa in
-  let loops = Induction_var.analyze ~op_def ssa in
-  let dead = Dead_induction_var.analyze ssa loops in
   let deletions = Block.Tbl.create 4 in
   List.iter
-    (fun (dr : Dead_induction_var.loop_result) ->
-      let loop = dr.loop in
-      let bivs =
-        List.map (fun (br : Dead_induction_var.biv_result) -> br.biv) dr.bivs
-      in
-      let terminates =
-        match Termination.analyze ~op_def loop bivs with
-        | Terminates -> true
-        | Unknown -> false
-      in
-      if dr.useless && terminates && body_effect_free loop
-      then
-        match Termination.find_exit_branch loop with
-        | Some { exit_target; _ }
-          when Array.length (Block.params exit_target) = 0 ->
-          Block.Tbl.replace deletions loop.header exit_target
-        | Some _ | None -> ())
-    dead;
+    (fun (header, exit_target) ->
+      Block.Tbl.replace deletions header exit_target)
+    (E.find_deletions op_def (Ssa.blocks ssa));
   deletions
 
 let run ~ppf_dump (ssa : finished Ssa.graph) : finished Ssa.graph * int =

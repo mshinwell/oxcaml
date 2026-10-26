@@ -1,4 +1,4 @@
-(* A Rocq model of [backend/ssa/loop/affine_ssa.ml], except [guards_at].
+(* A Rocq model of [backend/ssa/loop/affine_ssa.ml].
 
    See the reading guide at the top of LoopComparisons.v for the Rocq
    vocabulary and the layout of the shared files; AffineExpr.v for the
@@ -13,20 +13,22 @@
 
    - The OCaml matches on SSA values ([Ssa.Value.t]) directly, looking at
      the operation that defines each one. The model cannot look inside an
-     SSA value, so the OCaml wrapper (affine_ssa.ml) first copies the part
-     of the value graph the recogniser looks at into a [tree] (below): a
-     node for each value, holding the value itself, and, when the value is
-     defined by one of the operations the OCaml matches on, that operation
-     with the trees of its arguments. Part 2 says what a truthful tree is
-     ([tree_sound]); the wrapper's [tree_of_value] is trusted to build one.
+     SSA value, so the trusted [tree_of_value] of backend/ssa/ssa_view.ml
+     (declared in SsaModel.v, with the [tree] type) first copies the part
+     of the value graph the recogniser looks at into a tree: a node for
+     each value, holding the value itself, and, when the value is defined
+     by one of the operations the OCaml matches on, that operation with
+     the trees of its arguments. Part 2 says what a truthful tree is
+     ([tree_sound]).
 
    - The OCaml's atom interner [ctx] is a mutable record and its [side]
      list is a reference. Here both are values, passed to each function and
      returned with its result, so that each function is a pure function of
      its arguments.
 
-   [guards_at], which walks the dominator tree of the SSA graph, stays in
-   OCaml; it is the only user of [cond_facts], which is modelled here.
+   [guards_at] walks the chain of immediate dominators of a block, which
+   SsaModel.v provides as [strict_dominators], reading each dominator's
+   terminator through the [terminator] view there.
 
    The results, in part 4, say that the facts the OCaml gathers are true:
    under the valuation that reads every atom as the machine value of the
@@ -40,7 +42,10 @@
      value, and the side facts it pushes are true;
    - [cond_facts_sound]: when the comparison a branch tests came out as the
      branch taken requires, the facts derived from it are true; and they
-     are well-formed, as [Fourier_motzkin.entails] needs.
+     are well-formed, as [Fourier_motzkin.entails] needs;
+   - [guards_at_sound]: when each branch [guards_at] takes a fact from
+     went the way its dominating edge requires ([guards_taken]), the facts
+     gathered are all true, and well-formed.
 
    Contexts only grow ([extends]), and whatever holds under every
    valuation agreeing with a context holds under every valuation agreeing
@@ -48,21 +53,24 @@
    calls [guards_at] makes hold together under the one valuation that
    agrees with the final context, which exists ([agrees_exists]). That is
    the valuation under which [Fourier_motzkin.entails_sound] then makes an
-   entailed goal true of the machine values.
+   entailed goal true of the machine values (see LoopTermination.v).
 
    The theorems carry one hypothesis about resources: the atom counter
    must not wrap, which it cannot unless a value graph has more than
    [max_int] nodes ([size]).
 
-   Trusted parts, beyond those of AffineExpr.v: that the wrapper's trees
-   are truthful ([tree_sound] below spells out the machine semantics of
-   each recognised operation), and that [Ssa.Value.equal] only identifies
-   values with the same machine value. *)
+   Trusted parts, beyond those of AffineExpr.v: that the trees of
+   [tree_of_value] are truthful ([tree_sound] below spells out the machine
+   semantics of each recognised operation), that [Ssa.Value.equal] only
+   identifies values with the same machine value, and that the dominators
+   and terminators SsaModel.v reports are the graph's. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxcamlStdlib Require Import OcamlOption OcamlInt OcamlInt64 OcamlList.
 From OxcamlBackend Require Import IntegerComparison.
-From OxcamlLoop Require Import FourierMotzkin LoopComparisons AffineExpr.
+From OxcamlSsa Require Import SsaModel.
+From OxcamlLoop Require Import FourierMotzkin LoopComparisons AffineExpr
+  NaturalLoop.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -71,42 +79,10 @@ Import ListNotations.
 
 Local Open Scope sint63_scope.
 
-(* An SSA value ([finished Ssa.Value.t]) and [Ssa.Value.equal]. Nothing is
-   computed on them here beyond that equality test. *)
-Parameter value : Type.
-Parameter value_eqb : value -> value -> bool.
-
-(* What the OCaml matches on, as a tree built by the wrapper's
-   [tree_of_value]: each node holds its SSA value [v], and, when [v] is
-   defined by an operation the OCaml recognises, that operation with the
-   trees of the arguments the OCaml looks at. The constructors follow the
-   OCaml patterns: [Iadd v a b] is [Res ({ op = Intop Iadd; args = [| a; b
-   |] }, _)], [Iadd_imm v a k] is [Intop_imm (Iadd, k)] with argument [a],
-   and so on. [Const_int]'s [nativeint] is an [Int64] here (the same
-   integers on a 64-bit machine; the wrapper converts). The argument of a
-   logical shift is not inspected by the OCaml and is not kept. [Other] is
-   every other value, which is atomized. *)
-Inductive tree : Type :=
-  | Const_int (v : value) (n : Int64.t)
-  | Iadd (v : value) (a b : tree)
-  | Isub (v : value) (a b : tree)
-  | Iadd_imm (v : value) (a : tree) (k : int)
-  | Isub_imm (v : value) (a : tree) (k : int)
-  | Ilsl (v : value) (a : tree) (k : int)
-  | Iasr (v : value) (a : tree) (k : int)
-  | Ilsr (v : value) (k : int)
-  | Ior (v : value) (a : tree) (m : int)
-  | Icomp (v : value) (cmp : integer_comparison) (a b : tree)
-  | Icomp_imm (v : value) (cmp : integer_comparison) (a : tree) (k : int)
-  | Other (v : value).
-
-(* The SSA value a tree stands for. *)
-Definition root (t : tree) : value :=
-  match t with
-  | Const_int v _ | Iadd v _ _ | Isub v _ _ | Iadd_imm v _ _ | Isub_imm v _ _
-  | Ilsl v _ _ | Iasr v _ _ | Ilsr v _ | Ior v _ _ | Icomp v _ _ _
-  | Icomp_imm v _ _ _ | Other v => v
-  end.
+(* SSA values ([value], with [value_eqb] for [Ssa.Value.equal]) and the
+   [tree] view of a value graph that the OCaml matches on, with [root] for
+   the value a tree stands for, are declared in SsaModel.v. Nothing is
+   computed on values here beyond the equality test. *)
 
 (* --- Atom interner --- *)
 
@@ -253,6 +229,41 @@ Definition cond_facts (c : ctx) (side : list Affine.t) (negate : bool)
   | _ => (([], side), c)
   end.
 
+(* OCaml [guards_at] walks the immediate dominators of [target], which
+   SsaModel.v provides as the list [strict_dominators target]. For one
+   dominator, [guard_test] is the OCaml's [match] on its terminator and
+   the two [if]s: the comparison it branches on and whether the fact is
+   to be negated, when the taken edge dominates [target]; [guard_facts] is
+   the body of the walk, with the OCaml's [acc] reference and the [side]
+   and [ctx] of [cond_facts] passed along as [st]. *)
+Definition guard_test (target idom : block) : option (value * bool) :=
+  match terminator idom with
+  | Terminator.Switch index [ifnot; ifso] =>
+    if NaturalLoop.edge_dominates idom ifso target
+    then Some (index, false)
+    else if NaturalLoop.edge_dominates idom ifnot target
+    then Some (index, true)
+    else None
+  | _ => None
+  end.
+
+Definition guard_facts (target : block)
+    (st : (list Affine.t * list Affine.t) * ctx) (idom : block)
+    : (list Affine.t * list Affine.t) * ctx :=
+  let '((acc, side), c) := st in
+  match guard_test target idom with
+  | Some (index, negate) =>
+    let '((fs, side), c) := cond_facts c side negate (tree_of_value index) in
+    ((fs ++ acc, side), c)
+  | None => ((acc, side), c)
+  end.
+
+(* OCaml [guards_at]. *)
+Definition guards_at (c : ctx) (side : list Affine.t) (target : block)
+    : (list Affine.t * list Affine.t) * ctx :=
+  OcamlList.fold_left (guard_facts target) (([], side), c)
+    (strict_dominators target).
+
 (* ======================================================================== *)
 (* Part 2: the intended meaning                                             *)
 (* ======================================================================== *)
@@ -278,6 +289,21 @@ Definition ctx_wf (c : ctx) : Prop :=
 (* A context only gains atoms. *)
 Definition extends (c c' : ctx) : Prop :=
   forall p, In p c.(atoms) -> In p c'.(atoms).
+
+(* The atoms [guards_at] may allocate for one dominator ([cond_facts]
+   allocates at most [size cond + 2]), for a list of dominators, and for
+   the whole walk. *)
+Definition guard_size (target d : block) : Z :=
+  match guard_test target d with
+  | Some (index, _) => size (tree_of_value index) + 2
+  | None => 0
+  end.
+
+Definition guards_sum (target : block) (doms : list block) : Z :=
+  fold_right (fun d acc => guard_size target d + acc) 0 doms.
+
+Definition guards_size (target : block) : Z :=
+  guards_sum target (strict_dominators target).
 
 Section Semantics.
   (* The machine value of each SSA value: a 64-bit register, in one
@@ -339,6 +365,20 @@ Section Semantics.
     | _ => True
     end.
 
+  (* The branches [guards_at] takes facts from went the way it assumes:
+     for each dominator of [target] whose taken edge dominates [target],
+     the comparison tested came out as that edge requires. On entry to
+     [target] this is what [NaturalLoop.edge_dominates_sound] gives, as
+     every path to [target] took that edge; it is an assumption on [mval],
+     which LoopTermination.v makes of the values at the entry to a loop. *)
+  Definition guard_taken (target d : block) : Prop :=
+    forall index negate,
+      guard_test target d = Some (index, negate) ->
+      test_result negate (tree_of_value index).
+
+  Definition guards_taken (target : block) : Prop :=
+    forall d, In d (strict_dominators target) -> guard_taken target d.
+
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
 (* ======================================================================== *)
@@ -356,6 +396,28 @@ Section Semantics.
 
   Lemma size_pos : forall t, 1 <= size t.
   Proof. induction t; cbn [size]; lia. Qed.
+
+  Lemma guard_size_nonneg : forall target d, 0 <= guard_size target d.
+  Proof.
+    intros target d. unfold guard_size.
+    destruct (guard_test target d) as [[index negate] | ]; [ | lia ].
+    pose proof (size_pos (tree_of_value index)). lia.
+  Qed.
+
+  Lemma guards_sum_nil : forall target, guards_sum target [] = 0.
+  Proof. reflexivity. Qed.
+
+  Lemma guards_sum_cons : forall target d doms,
+    guards_sum target (d :: doms)
+    = guard_size target d + guards_sum target doms.
+  Proof. reflexivity. Qed.
+
+  Lemma guards_sum_nonneg : forall target doms, 0 <= guards_sum target doms.
+  Proof.
+    intros target doms. induction doms as [ | d doms IH ].
+    - rewrite guards_sum_nil. lia.
+    - rewrite guards_sum_cons. pose proof (guard_size_nonneg target d). lia.
+  Qed.
 
   Lemma to_Z_max_shift_bits : to_Z max_shift_bits = 16.
   Proof. reflexivity. Qed.
@@ -821,6 +883,141 @@ Section Semantics.
       unfold holds_all, holds.
       apply facts_sound; [ exact Hwfla | apply constant_wf | ].
       cbv zeta. rewrite Ea, constant_denote, Ht. destruct negate; reflexivity.
+  Qed.
+
+  (* The atom counter after [cond_facts], which [guards_at_sound] needs
+     to chain the calls. *)
+  Lemma cond_facts_next : forall cond c side negate fs side' c',
+    tree_sound cond -> ctx_wf c ->
+    to_Z c.(next) + size cond + 2 <= ocaml_max_int ->
+    cond_facts c side negate cond = ((fs, side'), c') ->
+    to_Z c'.(next) <= to_Z c.(next) + size cond + 2.
+  Proof.
+    intros cond c side negate fs side' c' Hs Hwf Hn H.
+    pose proof (size_pos cond) as Hpos.
+    destruct cond as [v n | v a b | v a b | v a k | v a k | v a k | v a k
+                      | v k | v a m | v cmp a b | v cmp a k | v];
+      cbn [cond_facts] in H; try (injection H as <- <- <-; lia).
+    - (* Icomp *)
+      cbn [tree_sound] in Hs. destruct Hs as [Hsa Hsb]. cbn [size] in *.
+      pose proof (size_pos a). pose proof (size_pos b).
+      destruct (linearize c side a) as [[la side1] ca] eqn:Hla.
+      destruct (linearize ca side1 b) as [[lb side2] cb] eqn:Hlb.
+      injection H as <- <- <-.
+      destruct (linearize_sound a c side la side1 ca Hsa Hwf ltac:(lia) Hla)
+        as [Hwfa [_ [Hna _]]].
+      destruct (linearize_sound b ca side1 lb side2 cb Hsb Hwfa ltac:(lia) Hlb)
+        as [_ [_ [Hnb _]]].
+      lia.
+    - (* Icomp_imm *)
+      cbn [tree_sound] in Hs. cbn [size] in *. pose proof (size_pos a).
+      destruct (linearize c side a) as [[la side1] ca] eqn:Hla.
+      injection H as <- <- <-.
+      destruct (linearize_sound a c side la side1 ca Hs Hwf ltac:(lia) Hla)
+        as [_ [_ [Hna _]]].
+      lia.
+  Qed.
+
+  (* The walk of [guards_at] over any list of dominators, from any
+     accumulated facts: it keeps the context well-formed and growing, the
+     facts and side facts well-formed, and, under a valuation agreeing
+     with the final context, the side facts true and the facts true when
+     the branches went as assumed. *)
+  Lemma guards_fold_sound : forall target doms acc side c fs side' c',
+    (forall v, tree_sound (tree_of_value v)) -> ctx_wf c ->
+    to_Z c.(next) + guards_sum target doms <= ocaml_max_int ->
+    List.fold_left (guard_facts target) doms ((acc, side), c)
+    = ((fs, side'), c') ->
+    ctx_wf c' /\ extends c c'
+    /\ to_Z c'.(next) <= to_Z c.(next) + guards_sum target doms
+    /\ (Forall wf acc -> Forall wf fs) /\ (Forall wf side -> Forall wf side')
+    /\ forall rho, agrees rho c' ->
+         (holds_all rho side -> holds_all rho side')
+         /\ ((forall d, In d doms -> guard_taken target d) ->
+             holds_all rho acc -> holds_all rho fs).
+  Proof.
+    intros target doms. induction doms as [ | d doms IH ];
+      intros acc side c fs side' c' Htrees Hwf Hn H;
+      cbn [List.fold_left] in H.
+    - injection H as <- <- <-. rewrite guards_sum_nil in *.
+      refine (conj Hwf (conj (extends_refl c) (conj _ (conj _ (conj _ _)))));
+        [ lia | tauto | tauto | ].
+      intros rho _. split; [ tauto | ]. intros _ Hacc. exact Hacc.
+    - rewrite guards_sum_cons in *.
+      pose proof (guards_sum_nonneg target doms) as Hsum.
+      pose proof (guard_size_nonneg target d) as Hgd.
+      assert (Hstep : exists acc1 side1 c1,
+        guard_facts target ((acc, side), c) d = ((acc1, side1), c1)
+        /\ ctx_wf c1 /\ extends c c1
+        /\ to_Z c1.(next) <= to_Z c.(next) + guard_size target d
+        /\ (Forall wf acc -> Forall wf acc1)
+        /\ (Forall wf side -> Forall wf side1)
+        /\ forall rho, agrees rho c1 ->
+             (holds_all rho side -> holds_all rho side1)
+             /\ (guard_taken target d -> holds_all rho acc ->
+                 holds_all rho acc1)).
+      { unfold guard_facts, guard_size in *.
+        destruct (guard_test target d) as [[index negate] | ] eqn:Hg.
+        - destruct (cond_facts c side negate (tree_of_value index))
+            as [[fs1 side1] c1] eqn:Hcf.
+          exists (fs1 ++ acc), side1, c1. split; [ reflexivity | ].
+          destruct (cond_facts_sound (tree_of_value index) c side negate
+                      fs1 side1 c1 (Htrees index) Hwf ltac:(lia) Hcf)
+            as [Hwf1 [He1 [Hwffs [Hwfs1 Hrho1]]]].
+          pose proof (cond_facts_next (tree_of_value index) c side negate
+                        fs1 side1 c1 (Htrees index) Hwf ltac:(lia) Hcf)
+            as Hn1.
+          refine (conj Hwf1 (conj He1 (conj _ (conj _ (conj Hwfs1 _)))));
+            [ lia | intros Hacc; apply Forall_app; split; assumption | ].
+          intros rho Hrho. destruct (Hrho1 rho Hrho) as [S1 T1].
+          split; [ exact S1 | ].
+          intros Htaken Hacc. unfold holds_all in *. apply Forall_app.
+          split; [ apply T1, (Htaken index negate Hg) | exact Hacc ].
+        - exists acc, side, c. split; [ reflexivity | ].
+          refine (conj Hwf (conj (extends_refl c)
+                    (conj _ (conj _ (conj _ _)))));
+            [ lia | tauto | tauto | ].
+          intros rho _. split; [ tauto | ]. intros _ Hacc. exact Hacc. }
+      destruct Hstep
+        as [acc1 [side1 [c1 [Est [Hwf1 [He1 [Hn1 [Hacc1 [Hside1 Hrho1]]]]]]]]].
+      rewrite Est in H.
+      destruct (IH acc1 side1 c1 fs side' c' Htrees Hwf1 ltac:(lia) H)
+        as [Hwf' [He' [Hn' [Hacc' [Hside' Hrho']]]]].
+      refine (conj Hwf' (conj (extends_trans _ _ _ He1 He')
+                (conj _ (conj _ (conj _ _)))));
+        [ lia | tauto | tauto | ].
+      intros rho Hrho. destruct (Hrho' rho Hrho) as [S' A'].
+      destruct (Hrho1 rho (agrees_extends _ _ _ He' Hrho)) as [S1 A1].
+      split; [ intros Hs; apply S', S1, Hs | ].
+      intros Htaken Hacc.
+      apply A'; [ intros d' Hd'; apply Htaken; right; exact Hd' | ].
+      apply A1; [ apply Htaken; left; reflexivity | exact Hacc ].
+  Qed.
+
+  (* The facts [guards_at] gathers at [target] are well-formed, and true
+     under a valuation agreeing with the final context when the dominating
+     branches went as assumed; the side facts are kept true. *)
+  Theorem guards_at_sound : forall target c side fs side' c',
+    (forall v, tree_sound (tree_of_value v)) -> ctx_wf c ->
+    to_Z c.(next) + guards_size target <= ocaml_max_int ->
+    guards_at c side target = ((fs, side'), c') ->
+    ctx_wf c' /\ extends c c'
+    /\ to_Z c'.(next) <= to_Z c.(next) + guards_size target
+    /\ Forall wf fs /\ (Forall wf side -> Forall wf side')
+    /\ forall rho, agrees rho c' ->
+         (holds_all rho side -> holds_all rho side')
+         /\ (guards_taken target -> holds_all rho fs).
+  Proof.
+    intros target c side fs side' c' Htrees Hwf Hn H.
+    unfold guards_at, OcamlList.fold_left in H.
+    destruct (guards_fold_sound target (strict_dominators target) [] side c
+                fs side' c' Htrees Hwf Hn H)
+      as [Hwf' [He [Hn' [Hfs [Hside Hrho]]]]].
+    refine (conj Hwf' (conj He (conj Hn' (conj (Hfs (Forall_nil _))
+              (conj Hside _))))).
+    intros rho Hrho'. destruct (Hrho rho Hrho') as [S T].
+    split; [ exact S | ].
+    intros Htaken. apply T; [ exact Htaken | exact (Forall_nil _) ].
   Qed.
 
 End Semantics.

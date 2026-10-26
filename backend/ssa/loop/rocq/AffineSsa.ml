@@ -1,38 +1,8 @@
 open AffineExpr
 open FourierMotzkin
 open LoopComparisons
-
-type value = Ssa.finished Ssa.Value.t
-
-type tree =
-  | Const_int of value * int64
-  | Iadd of value * tree * tree
-  | Isub of value * tree * tree
-  | Iadd_imm of value * tree * int
-  | Isub_imm of value * tree * int
-  | Ilsl of value * tree * int
-  | Iasr of value * tree * int
-  | Ilsr of value * int
-  | Ior of value * tree * int
-  | Icomp of value * Cmm.integer_comparison * tree * tree
-  | Icomp_imm of value * Cmm.integer_comparison * tree * int
-  | Other of value
-
-(** val root : tree -> value **)
-
-let root = function
-  | Const_int (v, _) -> v
-  | Iadd (v, _, _) -> v
-  | Isub (v, _, _) -> v
-  | Iadd_imm (v, _, _) -> v
-  | Isub_imm (v, _, _) -> v
-  | Ilsl (v, _, _) -> v
-  | Iasr (v, _, _) -> v
-  | Ilsr (v, _) -> v
-  | Ior (v, _, _) -> v
-  | Icomp (v, _, _, _) -> v
-  | Icomp_imm (v, _, _, _) -> v
-  | Other v -> v
+open NaturalLoop
+open SsaModel
 
 type ctx =
   { atoms : (int * value) list;
@@ -199,3 +169,46 @@ let cond_facts c side negate = function
     let la, side0 = p in
     (facts negate cmp la (Affine.constant k), side0), c0
   | _ -> ([], side), c
+
+(** val guard_test : block -> block -> (value * bool) option **)
+
+let guard_test target idom =
+  match Ssa_view.terminator idom with
+  | Terminator.Switch (index, targets) -> (
+    match targets with
+    | [] -> None
+    | ifnot :: l -> (
+      match l with
+      | [] -> None
+      | ifso :: l0 -> (
+        match l0 with
+        | [] ->
+          if edge_dominates idom ifso target
+          then Some (index, false)
+          else if edge_dominates idom ifnot target
+          then Some (index, true)
+          else None
+        | _ :: _ -> None)))
+  | _ -> None
+
+(** val guard_facts : block -> ((Affine.t list * Affine.t list) * ctx) -> block
+    -> (Affine.t list * Affine.t list) * ctx **)
+
+let guard_facts target st idom =
+  let p, c = st in
+  let acc, side = p in
+  match guard_test target idom with
+  | Some p0 ->
+    let index, negate = p0 in
+    let p1, c0 = cond_facts c side negate (Ssa_view.tree_of_value index) in
+    let fs, side0 = p1 in
+    (fs @ acc, side0), c0
+  | None -> (acc, side), c
+
+(** val guards_at : ctx -> Affine.t list -> block -> (Affine.t list * Affine.t
+    list) * ctx **)
+
+let guards_at c side target =
+  List.fold_left (guard_facts target)
+    (([], side), c)
+    (Ssa_view.strict_dominators target)

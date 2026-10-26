@@ -29,76 +29,23 @@ open! Int_replace_polymorphic_compare
 
 [@@@ocaml.warning "+a-40-41-42"]
 
-(* See [natural_loop.mli] for the interface. *)
+(* See [natural_loop.mli] for the interface.
+
+   The implementation is [NaturalLoop], generated from the Rocq model in
+   [rocq/NaturalLoop.v] by [rocq/Extract.v] (see [rocq/Makefile]); it works on
+   the graph's block list and the dominance oracle of [Ssa.Block]. This file
+   only adds the labelled arguments of the interface. *)
 
 open Ssa.Export
+module E = NaturalLoop
 
-type loop =
+type loop = E.natural_loop =
   { header : finished Block.t;
     body : Block.Set.t;
     back_edges : finished Block.t list
   }
 
-(* An edge u -> v is a back edge iff v dominates u. The natural loop of such an
-   edge consists of the header v plus every block that can reach u in the graph
-   without passing through v. *)
-let natural_loop_body ~(header : finished Block.t)
-    ~(back_preds : finished Block.t list) : Block.Set.t =
-  let body = ref (Block.Set.singleton header) in
-  let rec walk worklist =
-    match worklist with
-    | [] -> ()
-    | bl :: rest ->
-      let ps = Block.predecessors bl in
-      let added = ref rest in
-      List.iter
-        (fun p ->
-          if not (Block.Set.mem p !body)
-          then (
-            body := Block.Set.add p !body;
-            added := p :: !added))
-        ps;
-      walk !added
-  in
-  let seeds =
-    List.filter
-      (fun bp ->
-        if Block.Set.mem bp !body
-        then false
-        else (
-          body := Block.Set.add bp !body;
-          true))
-      back_preds
-  in
-  walk seeds;
-  !body
-
 let find_loops (ssa : finished Ssa.graph) : loop list =
-  let header_tbl : finished Block.t list Block.Tbl.t = Block.Tbl.create 8 in
-  List.iter
-    (fun (bl : finished Block.t) ->
-      List.iter
-        (fun (succ : finished Block.t) ->
-          if Block.dominates succ bl
-          then
-            let existing =
-              match Block.Tbl.find_opt header_tbl succ with
-              | Some l -> l
-              | None -> []
-            in
-            Block.Tbl.replace header_tbl succ (bl :: existing))
-        (Block.all_successors bl))
-    (Ssa.blocks ssa);
-  Block.Tbl.fold
-    (fun header back_preds acc ->
-      let body = natural_loop_body ~header ~back_preds in
-      { header; body; back_edges = back_preds } :: acc)
-    header_tbl []
+  E.find_loops (Ssa.blocks ssa)
 
-let edge_dominates ~(src : finished Block.t) ~(succ : finished Block.t)
-    ~(target : finished Block.t) : bool =
-  Block.dominates succ target
-  &&
-  match Block.predecessors succ with
-  | [p] -> Block.equal p src
-  | [] | _ :: _ :: _ -> false
+let edge_dominates ~src ~succ ~target = E.edge_dominates src succ target

@@ -1,5 +1,5 @@
 (* TEST
- flags = "-O3 -ssa-delete-empty-loops";
+ flags = "-O3 -use-ssa -ssa-delete-empty-loops";
  native;
 *)
 
@@ -58,6 +58,43 @@ let[@inline never] two_counter (n : int) =
   done;
   !hits
 
+(* The exit comparison is also the loop's result. The loop must NOT be
+   deleted: the header would then compute the comparison with the initial
+   counter rather than with the one that ended the loop, and [0 < m] would be
+   returned in place of [false]. The bound [n lsr 3] is what lets the
+   termination analysis accept the loop in the first place (the logical shift
+   bounds the register, so the tagged counter provably never wraps). *)
+let[@inline never] exit_cond_returned (n : int) =
+  let m = n lsr 3 in
+  let rec loop i =
+    let b = i < m in
+    if b then loop (i + 1) else b
+  in
+  loop 0
+
+(* The same through a mutable variable. *)
+let[@inline never] exit_cond_via_ref (n : int) =
+  let m = n lsr 3 in
+  let i = ref 0 in
+  let b = ref true in
+  while
+    b := !i < m;
+    !b
+  do
+    incr i
+  done;
+  !b
+
+(* The same with the comparison consumed by an instruction after the loop
+   rather than returned directly. *)
+let[@inline never] exit_cond_as_int (n : int) =
+  let m = n lsr 3 in
+  let rec loop i =
+    let b = i < m in
+    if b then loop (i + 1) else Sys.opaque_identity (Bool.to_int b)
+  in
+  loop 0
+
 let () =
   spin 1000;
   spin_range 1 1000;
@@ -68,4 +105,7 @@ let () =
   store_loop a 100;
   Printf.printf "store=%d\n" a.(0);
   (* i: 0,2,4,...  j: n,n+1,...  gap n closes at rate 1 per step -> n steps *)
-  Printf.printf "two_counter=%d\n" (two_counter 10)
+  Printf.printf "two_counter=%d\n" (two_counter 10);
+  Printf.printf "exit_cond_returned=%b\n" (exit_cond_returned 40);
+  Printf.printf "exit_cond_via_ref=%b\n" (exit_cond_via_ref 40);
+  Printf.printf "exit_cond_as_int=%d\n" (exit_cond_as_int 40)

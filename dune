@@ -65,6 +65,8 @@
 
 (copy_files# backend/ssa/*.ml{,i})
 
+(copy_files# backend/ssa/rocq/*.ml{,i})
+
 (copy_files# backend/ssa/loop/*.ml{,i})
 
 (copy_files# backend/ssa/loop/rocq/*.ml{,i})
@@ -746,12 +748,20 @@
   ssa_tail_call
   ssa_of_cmm
   cfg_of_ssa
+  ssa_view
+  ;; backend/ssa/rocq/ (extracted from Rocq by rocq/Makefile)
+  SsaModel
   ;; backend/ssa/loop/rocq/ (extracted from Rocq by rocq/Makefile)
   OcamlList
   FourierMotzkin
   LoopComparisons
   AffineExpr
+  NaturalLoop
   AffineSsa
+  InductionVar
+  LoopTermination
+  DeadInductionVar
+  DeleteEmptyLoops
   ;; backend/ssa/loop/
   fourier_motzkin
   affine_expr

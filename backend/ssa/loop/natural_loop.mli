@@ -39,7 +39,7 @@
 
 open Ssa.Export
 
-type loop =
+type loop = NaturalLoop.natural_loop =
   { header : finished Block.t;
     body : Block.Set.t;
     back_edges : finished Block.t list

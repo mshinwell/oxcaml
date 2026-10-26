@@ -24,3 +24,17 @@ let rec filter_map_opt f = function
       | Some l1 -> Some (match y with Some y0 -> y0 :: l1 | None -> l1)
       | None -> None)
     | None -> None)
+
+(** val nth_int : 'a1 list -> int -> 'a1 option **)
+
+let rec nth_int l i =
+  match l with
+  | [] -> None
+  | x :: l0 -> if Int.equal i 0 then Some x else nth_int l0 (i - 1)
+
+(** val same_length : 'a1 list -> 'a2 list -> bool **)
+
+let rec same_length l1 l2 =
+  match l1 with
+  | [] -> ( match l2 with [] -> true | _ :: _ -> false)
+  | _ :: l3 -> ( match l2 with [] -> false | _ :: l4 -> same_length l3 l4)

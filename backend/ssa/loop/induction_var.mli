@@ -41,11 +41,11 @@ type loop = Natural_loop.loop =
     back_edges : finished Block.t list
   }
 
-type step =
+type step = InductionVar.biv_step =
   | Step_const of int
   | Step_var of finished Value.t
 
-type biv =
+type biv = InductionVar.biv =
   { loop : loop;
     param_index : int;
     update : finished Value.t list;

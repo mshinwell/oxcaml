@@ -1,0 +1,475 @@
+(* A Rocq model of [backend/ssa/loop/induction_var.ml], except
+   [compute_op_def], which fills a hash table and stays in OCaml (SsaModel.v
+   has the table as [op_def]).
+
+   See the reading guide at the top of LoopComparisons.v for the Rocq
+   vocabulary, SsaModel.v for how the models see an SSA graph, and
+   NaturalLoop.v for the loops this file analyses. As there, the file has
+   four parts: (1) a transcription of the OCaml, (2) the intended meaning,
+   (3) stepping-stone lemmas, (4) the theorems. Parts 1 and 2 are the part
+   to check by eye.
+
+   The OCaml walks the header's parameter array with [Array.iteri] and the
+   argument arrays with [args.(index)]; here the arrays are lists and
+   [nth_int] (OcamlList.v) is the indexing.
+
+   The result, in part 4, is [analyze_spec]: every basic induction variable
+   reported for a loop satisfies [biv_spec] (part 2), which spells out what
+   the OCaml checked: the update value arriving over every back edge for
+   that parameter is [self + c], [c + self] or [self - c] with the same
+   loop-invariant [c] and the same sign, and the [update] list is exactly
+   those values. What such an update does to the machine value of the
+   parameter is stated and used in LoopTermination.v. *)
+
+From Stdlib Require Import ZArith Lia Bool List.
+From OxcamlStdlib Require Import OcamlOption OcamlInt OcamlList.
+From OxcamlSsa Require Import SsaModel.
+From OxcamlLoop Require Import NaturalLoop.
+Import ListNotations.
+
+(* ======================================================================== *)
+(* Part 1: transcription of the OCaml                                       *)
+(* ======================================================================== *)
+
+Local Open Scope sint63_scope.
+
+(* OCaml [is_header_param]. *)
+Definition is_header_param (block : block) (index : int) (v : value)
+    : bool :=
+  value_eqb v (param block index).
+
+(* OCaml [is_loop_invariant]: [Op_const] is its first case, the [Const_*]
+   operations; [Res id _] its second, any other operation. *)
+Definition is_loop_invariant (op_def : op_def) (loop_body : blockset)
+    (v : value) : bool :=
+  match view_value v with
+  | Res _ Op_const => true
+  | Res id _ =>
+    match op_def_find op_def id with
+    | None => false
+    | Some bl => negb (set_mem bl loop_body)
+    end
+  | Block_param block _ => negb (set_mem block loop_body)
+  end.
+
+(* OCaml [step]. *)
+Inductive biv_step : Type :=
+  | Step_const (c : int)
+  | Step_var (v : value).
+
+(* OCaml [[`Add | `Sub]]. *)
+Inductive biv_sign : Type :=
+  | Add
+  | Sub.
+
+(* OCaml [biv]. *)
+Record biv : Type :=
+  { loop : natural_loop;
+    param_index : int;
+    update : list value;
+    step : biv_step;
+    sign : biv_sign }.
+
+Definition step_same (a b : biv_step) : bool :=
+  match a, b with
+  | Step_const x, Step_const y => x =? y
+  | Step_var x, Step_var y => value_eqb x y
+  | Step_const _, Step_var _ | Step_var _, Step_const _ => false
+  end.
+
+Definition sign_same (a b : biv_sign) : bool :=
+  match a, b with
+  | Add, Add | Sub, Sub => true
+  | Add, Sub | Sub, Add => false
+  end.
+
+(* OCaml [signed_step]. A [-c] step is not representable when [c] is
+   [min_int] (the OCaml's [-c] would be [min_int] again), so there is no
+   signed step then. *)
+Definition signed_step (biv : biv) : option int :=
+  match biv.(step) with
+  | Step_const c =>
+    match biv.(sign) with
+    | Add => Some c
+    | Sub => if c =? min_int then None else Some (Uint63.opp c)
+    end
+  | Step_var _ => None
+  end.
+
+(* OCaml [classify_update]: the [when is_self x] guards are the [if]s. *)
+Definition classify_update (is_self : value -> bool) (op_def : op_def)
+    (loop_body : blockset) (v : value) : option (biv_step * biv_sign) :=
+  match view_value v with
+  | Res _ (Op_add_imm x c) =>
+    if is_self x then Some (Step_const c, Add) else None
+  | Res _ (Op_sub_imm x c) =>
+    if is_self x then Some (Step_const c, Sub) else None
+  | Res _ (Op_add x y) =>
+    if is_self x && is_loop_invariant op_def loop_body y
+    then Some (Step_var y, Add)
+    else if is_self y && is_loop_invariant op_def loop_body x
+    then Some (Step_var x, Add)
+    else None
+  | Res _ (Op_sub x y) =>
+    if is_self x && is_loop_invariant op_def loop_body y
+    then Some (Step_var y, Sub)
+    else None
+  | _ => None
+  end.
+
+(* OCaml [back_edge_set]. *)
+Definition back_edge_set (loop : natural_loop) : blockset :=
+  OcamlList.fold_left (fun s b => set_add b s) set_empty loop.(back_edges).
+
+(* OCaml [pred_args_to_header]. The OCaml turns the arguments into
+   [Value.t option]s ([Arg v] to [Some v]); here they stay [Terminator.arg]
+   and [classify_param] reads them. *)
+Definition pred_args_to_header (header : block) (pred : block)
+    : option (list Terminator.arg) :=
+  match terminator pred with
+  | Terminator.Continue (Goto goto) args =>
+    if block_eqb goto header && same_length args (params header)
+    then Some args
+    else None
+  | _ => None
+  end.
+
+(* The value an argument at position [index] passes, if any. *)
+Definition arg_value (args : list Terminator.arg) (index : int)
+    : option value :=
+  match nth_int args index with
+  | Some (Terminator.Arg v) => Some v
+  | Some Terminator.Omitted_since_unused | None => None
+  end.
+
+(* The body of OCaml [analyze_loop]'s [Array.iteri]: the BIV for the
+   parameter [index], if it is one. [back_pred_args] pairs each back-edge
+   source with its arguments. The OCaml's [List.map Option.get] is the
+   [filter_map] here. *)
+Definition classify_param (loop : natural_loop) (op_def : op_def)
+    (back_pred_args : list (block * list Terminator.arg)) (index : int)
+    : option biv :=
+  let is_self := is_header_param loop.(header) index in
+  let back_vals_opt :=
+    map (fun '(_, args) => arg_value args index) back_pred_args
+  in
+  if forallb is_some back_vals_opt
+  then
+    let back_vals := filter_map (fun v => v) back_vals_opt in
+    match back_vals with
+    | [] => None
+    | first :: rest =>
+      match classify_update is_self op_def loop.(body) first with
+      | None => None
+      | Some (step, sign) =>
+        let agrees :=
+          forallb
+            (fun v =>
+              match classify_update is_self op_def loop.(body) v with
+              | Some (step', sign') =>
+                step_same step step' && sign_same sign sign'
+              | None => false
+              end)
+            rest
+        in
+        if agrees
+        then
+          Some {| loop := loop;
+                  param_index := index;
+                  update := back_vals;
+                  step := step;
+                  sign := sign |}
+        else None
+      end
+    end
+  else None.
+
+(* The [Array.iteri] itself: [index] is the position of the first of
+   [params] in the header's parameters. *)
+Fixpoint params_bivs (loop : natural_loop) (op_def : op_def)
+    (back_pred_args : list (block * list Terminator.arg)) (index : int)
+    (params : list value) : list biv :=
+  match params with
+  | [] => []
+  | _ :: params =>
+    let rest := params_bivs loop op_def back_pred_args (index + one) params in
+    match classify_param loop op_def back_pred_args index with
+    | Some biv => biv :: rest
+    | None => rest
+    end
+  end.
+
+(* OCaml [analyze_loop]. *)
+Definition analyze_loop (op_def : op_def) (loop : natural_loop) : list biv :=
+  let header := loop.(header) in
+  let back_set := back_edge_set loop in
+  let pred_args :=
+    map (fun p => (p, pred_args_to_header header p)) (predecessors header)
+  in
+  let all_back_edges_have_args :=
+    forallb (fun '(p, args) => negb (set_mem p back_set) || is_some args)
+      pred_args
+  in
+  if negb all_back_edges_have_args
+  then []
+  else
+    let back_pred_args :=
+      filter_map
+        (fun '(p, args) =>
+          if set_mem p back_set
+          then option_map (fun args => (p, args)) args
+          else None)
+        pred_args
+    in
+    params_bivs loop op_def back_pred_args zero (params header).
+
+(* OCaml [analyze], on the graph's block list. *)
+Definition analyze (op_def : op_def) (blocks : list block)
+    : list (natural_loop * list biv) :=
+  map (fun loop => (loop, analyze_loop op_def loop)) (find_loops blocks).
+
+(* ======================================================================== *)
+(* Part 2: the intended meaning                                             *)
+(* ======================================================================== *)
+
+(* What the OCaml established of a BIV it reports for the loop [l]: it is
+   for a parameter [param_index] of the header; every back-edge source that
+   is a predecessor of the header passes, in its [Goto] to the header, a
+   value for that parameter, and [update] holds exactly those values; and
+   each of them is [self + c], [c + self] or [self - c] for the header
+   parameter [self] and a loop-invariant [c], with the same [step] and
+   [sign] as recorded. *)
+Definition biv_spec (op_def : op_def) (l : natural_loop) (b : biv) : Prop :=
+  b.(loop) = l
+  /\ b.(update) <> []
+  /\ (forall u, In u b.(update) ->
+        exists step' sign',
+          classify_update (is_header_param l.(header) b.(param_index))
+            op_def l.(body) u = Some (step', sign')
+          /\ step_same b.(step) step' = true
+          /\ sign_same b.(sign) sign' = true)
+  /\ (forall s, In s l.(back_edges) -> In s (predecessors l.(header)) ->
+        exists args u,
+          pred_args_to_header l.(header) s = Some args
+          /\ arg_value args b.(param_index) = Some u
+          /\ In u b.(update))
+  /\ (forall u, In u b.(update) ->
+        exists s args,
+          In s l.(back_edges)
+          /\ pred_args_to_header l.(header) s = Some args
+          /\ arg_value args b.(param_index) = Some u).
+
+(* ======================================================================== *)
+(* Part 3: lemmas used by the proofs                                        *)
+(* ======================================================================== *)
+
+Lemma step_same_refl : forall s, step_same s s = true.
+Proof.
+  intros [c | v]; cbn [step_same].
+  - apply eqb_int. reflexivity.
+  - apply value_eqb_spec. reflexivity.
+Qed.
+
+Lemma sign_same_refl : forall s, sign_same s s = true.
+Proof. intros []; reflexivity. Qed.
+
+Lemma back_edge_set_spec : forall l b,
+  set_mem b (back_edge_set l) = true <-> In b l.(back_edges).
+Proof.
+  intros l b. unfold back_edge_set, OcamlList.fold_left.
+  generalize (back_edges l). intros edges.
+  (* The accumulator holds the edges seen so far. *)
+  assert (H : forall s,
+    set_mem b (List.fold_left (fun s b => set_add b s) edges s) = true
+    <-> In b edges \/ set_mem b s = true).
+  { induction edges as [ | e edges IH ]; intros s; cbn [List.fold_left].
+    - cbn [In]. tauto.
+    - rewrite IH, set_mem_add_iff. cbn [In]. intuition congruence. }
+  rewrite H, set_mem_empty. intuition discriminate.
+Qed.
+
+(* --- [classify_param] --- *)
+
+Lemma arg_values_all :
+  forall (back_pred_args : list (block * list Terminator.arg)) index,
+  forallb is_some
+    (map (fun '(_, args) => arg_value args index) back_pred_args) = true ->
+  forall p args, In (p, args) back_pred_args ->
+  exists u, arg_value args index = Some u.
+Proof.
+  intros bpa index H p args Hin. rewrite forallb_forall in H.
+  specialize (H (arg_value args index)).
+  destruct (arg_value args index) as [u | ] eqn:E.
+  - exists u. reflexivity.
+  - exfalso.
+    assert (H0 : In (@None value)
+                   (map (fun '(_, args) => arg_value args index) bpa)).
+    { apply in_map_iff. exists (p, args). split; [ exact E | exact Hin ]. }
+    specialize (H H0). discriminate.
+Qed.
+
+Lemma back_vals_In :
+  forall (back_pred_args : list (block * list Terminator.arg)) index u,
+  In u (filter_map (fun v => v)
+          (map (fun '(_, args) => arg_value args index) back_pred_args))
+  <-> exists p args,
+        In (p, args) back_pred_args /\ arg_value args index = Some u.
+Proof.
+  intros bpa index u. split.
+  - intros H. apply filter_map_In in H. destruct H as [x [Hx Hu]].
+    apply in_map_iff in Hx. destruct Hx as [[p args] [<- Hin]].
+    exists p, args. split; [ exact Hin | exact Hu ].
+  - intros [p [args [Hin Hu]]].
+    induction bpa as [ | [p' args'] bpa IH ]; [ contradiction | ].
+    cbn [map filter_map]. destruct Hin as [E | Hin].
+    + injection E as <- <-. rewrite Hu. left. reflexivity.
+    + destruct (arg_value args' index); [ right | ]; apply IH, Hin.
+Qed.
+
+Lemma classify_param_spec : forall l op_def bpa index b,
+  classify_param l op_def bpa index = Some b ->
+  b.(loop) = l
+  /\ b.(param_index) = index
+  /\ b.(update) <> []
+  /\ (forall u, In u b.(update) ->
+        exists step' sign',
+          classify_update (is_header_param l.(header) index) op_def l.(body) u
+          = Some (step', sign')
+          /\ step_same b.(step) step' = true
+          /\ sign_same b.(sign) sign' = true)
+  /\ (forall p args, In (p, args) bpa ->
+        exists u, arg_value args index = Some u /\ In u b.(update))
+  /\ (forall u, In u b.(update) ->
+        exists p args, In (p, args) bpa /\ arg_value args index = Some u).
+Proof.
+  intros l op_def bpa index b H. unfold classify_param in H. cbv zeta in H.
+  destruct (forallb is_some _) eqn:Hall; [ | discriminate ].
+  pose proof (arg_values_all _ _ Hall) as Hvals.
+  set (back_vals := filter_map (fun v => v)
+                      (map (fun '(_, args) => arg_value args index) bpa)) in *.
+  destruct back_vals as [ | first rest ] eqn:Hbv; [ discriminate | ].
+  destruct (classify_update _ _ _ first) as [[step0 sign0] | ] eqn:Hfirst;
+    [ | discriminate ].
+  destruct (forallb _ rest) eqn:Hagree; [ | discriminate ].
+  injection H as <-. cbn [loop param_index update step sign].
+  rewrite forallb_forall in Hagree.
+  repeat split.
+  - discriminate.
+  - intros u [ -> | Hu ].
+    + exists step0, sign0.
+      split; [ exact Hfirst | ].
+      split; [ apply step_same_refl | apply sign_same_refl ].
+    + specialize (Hagree u Hu).
+      destruct (classify_update _ _ _ u) as [[step' sign'] | ];
+        [ | discriminate ].
+      exists step', sign'. apply andb_true_iff in Hagree.
+      split; [ reflexivity | exact Hagree ].
+  - intros p args Hin. destruct (Hvals p args Hin) as [u Hu].
+    exists u. split; [ exact Hu | ].
+    rewrite <- Hbv. apply back_vals_In. exists p, args. split; assumption.
+  - intros u Hu. rewrite <- Hbv in Hu. apply back_vals_In in Hu. exact Hu.
+Qed.
+
+Lemma params_bivs_In : forall l op_def bpa params index b,
+  In b (params_bivs l op_def bpa index params) ->
+  exists i, classify_param l op_def bpa i = Some b.
+Proof.
+  intros l op_def bpa params. induction params as [ | v params IH ];
+    intros index b H; cbn [params_bivs] in H.
+  - contradiction.
+  - destruct (classify_param l op_def bpa index) as [b' | ] eqn:E.
+    + destruct H as [ -> | H ].
+      * exists index. exact E.
+      * exact (IH _ _ H).
+    + exact (IH _ _ H).
+Qed.
+
+(* --- [analyze_loop] --- *)
+
+Lemma back_pred_args_In : forall header back_set preds p args,
+  In (p, args)
+    (filter_map
+       (fun '(p, args) =>
+         if set_mem p back_set
+         then option_map (fun args => (p, args)) args
+         else None)
+       (map (fun p => (p, pred_args_to_header header p)) preds))
+  <-> In p preds /\ set_mem p back_set = true
+      /\ pred_args_to_header header p = Some args.
+Proof.
+  intros header back_set preds p args. induction preds as [ | q preds IH ].
+  - cbn. tauto.
+  - cbn [map filter_map]. destruct (set_mem q back_set) eqn:Hq.
+    + destruct (pred_args_to_header header q) as [qargs | ] eqn:Hqa;
+        cbn [option_map].
+      * cbn [In]. rewrite IH. split.
+        -- intros [E | H].
+           ++ injection E as <- <-. split; [ left; reflexivity | ].
+              split; [ exact Hq | exact Hqa ].
+           ++ destruct H as [H1 [H2 H3]]. split; [ right; exact H1 | ].
+              split; assumption.
+        -- intros [[ -> | H1 ] [H2 H3]].
+           ++ left. rewrite Hqa in H3. injection H3 as ->. reflexivity.
+           ++ right. split; [ exact H1 | split; assumption ].
+      * rewrite IH. cbn [In]. split.
+        -- intros [H1 [H2 H3]]. split; [ right; exact H1 | split; assumption ].
+        -- intros [[ -> | H1 ] [H2 H3]].
+           ++ rewrite Hqa in H3. discriminate.
+           ++ split; [ exact H1 | split; assumption ].
+    + rewrite IH. cbn [In]. split.
+      * intros [H1 [H2 H3]]. split; [ right; exact H1 | split; assumption ].
+      * intros [[ -> | H1 ] [H2 H3]].
+        -- rewrite Hq in H2. discriminate.
+        -- split; [ exact H1 | split; assumption ].
+Qed.
+
+(* ======================================================================== *)
+(* Part 4: theorems                                                         *)
+(* ======================================================================== *)
+
+Theorem analyze_loop_spec : forall op_def l b,
+  In b (analyze_loop op_def l) -> biv_spec op_def l b.
+Proof.
+  intros op_def l b H. unfold analyze_loop in H. cbv zeta in H.
+  destruct (negb (forallb _ _)) eqn:Hall; [ contradiction | ].
+  apply negb_false_iff in Hall. rewrite forallb_forall in Hall.
+  apply params_bivs_In in H. destruct H as [i Hi].
+  destruct (classify_param_spec _ _ _ _ _ Hi)
+    as [Hl [Hidx [Hne [Hupd [Hargs Hupd']]]]].
+  unfold biv_spec. rewrite Hidx.
+  split; [ exact Hl | split; [ exact Hne | split; [ | split ] ] ].
+  - exact Hupd.
+  - intros s Hs Hpred.
+    assert (Hset : set_mem s (back_edge_set l) = true)
+      by (apply back_edge_set_spec; exact Hs).
+    assert (Hsome : exists args, pred_args_to_header l.(header) s = Some args).
+    { specialize (Hall (s, pred_args_to_header l.(header) s)).
+      destruct (pred_args_to_header l.(header) s) as [args | ] eqn:E.
+      - exists args. reflexivity.
+      - exfalso.
+        assert (Hin : In (s, @None (list Terminator.arg))
+                        (map (fun p => (p, pred_args_to_header l.(header) p))
+                           (predecessors l.(header)))).
+        { apply in_map_iff. exists s. split; [ rewrite E; reflexivity | ].
+          exact Hpred. }
+        specialize (Hall Hin). rewrite Hset in Hall. discriminate. }
+    destruct Hsome as [args Hargs'].
+    destruct (Hargs s args) as [u [Hu Hin]].
+    { apply back_pred_args_In. split; [ exact Hpred | split; assumption ]. }
+    exists args, u. split; [ exact Hargs' | split; assumption ].
+  - intros u Hu. destruct (Hupd' u Hu) as [s [args [Hin Hval]]].
+    apply back_pred_args_In in Hin. destruct Hin as [_ [Hset Hpa]].
+    apply back_edge_set_spec in Hset.
+    exists s, args. split; [ exact Hset | split; assumption ].
+Qed.
+
+Theorem analyze_spec : forall op_def blocks l bivs,
+  In (l, bivs) (analyze op_def blocks) ->
+  In l (find_loops blocks) /\ bivs = analyze_loop op_def l
+  /\ forall b, In b bivs -> biv_spec op_def l b.
+Proof.
+  intros op_def blocks l bivs H. unfold analyze in H.
+  apply in_map_iff in H. destruct H as [l' [E Hl]]. injection E as <- <-.
+  split; [ exact Hl | split; [ reflexivity | ] ].
+  intros b Hb. apply analyze_loop_spec, Hb.
+Qed.

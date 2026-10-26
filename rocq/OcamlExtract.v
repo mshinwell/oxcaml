@@ -14,7 +14,7 @@
 
 From Stdlib Require Import Extraction List.
 From Stdlib Require Uint63 Sint63.
-From OxcamlStdlib Require Import OcamlInt OcamlInt64 OcamlList.
+From OxcamlStdlib Require Import OcamlOption OcamlInt OcamlInt64 OcamlList.
 
 Extraction Language OCaml.
 
@@ -82,3 +82,7 @@ Extract Inlined Constant assoc_opt => "List.assoc_opt".
 Extract Inlined Constant compare_length_with => "List.compare_length_with".
 Extract Inlined Constant OcamlList.fold_left => "List.fold_left".
 Extract Constant sort_uniq => "List.sort_uniq Int.compare".
+
+(* OCaml [Option]. *)
+Extract Inlined Constant option_map => "Option.map".
+Extract Inlined Constant is_some => "Option.is_some".

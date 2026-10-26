@@ -1,3 +1,6 @@
 xxxxx
 store=100
 two_counter=10
+exit_cond_returned=false
+exit_cond_via_ref=false
+exit_cond_as_int=0

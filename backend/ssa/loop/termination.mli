@@ -39,7 +39,7 @@
 
 open Ssa.Export
 
-type t =
+type t = LoopTermination.t =
   | Terminates
   | Unknown
 
@@ -49,7 +49,7 @@ val analyze :
   Induction_var.biv list ->
   t
 
-type exit_branch =
+type exit_branch = LoopTermination.exit_branch =
   { condition : finished Value.t;
     continue_when_true : bool;
     exit_target : finished Block.t  (** the out-of-loop target of the branch *)

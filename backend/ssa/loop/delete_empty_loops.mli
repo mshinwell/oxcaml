@@ -33,7 +33,8 @@
     - {!Termination.analyze} reports [Terminates],
     - {!Dead_induction_var.analyze} reports [useless = true], i.e. every block
       parameter of the header is a basic induction variable whose only uses are
-      its own update expression and the exit comparison, and
+      its own update expression and the exit comparison, which in turn is used
+      only by the header's branch, and
     - every block of the loop body contains only side-effect-free instructions
       and ends in a pure control-flow terminator.
 

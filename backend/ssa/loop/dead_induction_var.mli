@@ -29,7 +29,8 @@
 
 (** Detect basic induction variables that are "dead": ones whose only uses in
     the whole SSA graph are as arguments of their own back-edge update
-    expression(s) and of the loop's exit comparison. Such IVs contribute no
+    expression(s) and of the loop's exit comparison, where the exit comparison
+    is itself used only by the loop header's branch. Such IVs contribute no
     observable state beyond iteration. A loop in which every header parameter is
     such a dead IV iterates without doing any observable work through its
     parameters; combined with a termination proof and an effect-free body it can
@@ -37,15 +38,16 @@
 
 open Ssa.Export
 
-type biv_result =
+type biv_result = DeadInductionVar.biv_result =
   { biv : Induction_var.biv;
     dead : bool
         (** [true] iff the BIV's only uses in the whole graph are the loop's
-            exit comparison and its own back-edge update — i.e. it would become
-            removable if the exit test stopped mentioning it. *)
+            exit comparison and its own back-edge update, and the exit
+            comparison's only use is the header's branch — i.e. the BIV and the
+            comparison would become removable if the branch were removed. *)
   }
 
-type loop_result =
+type loop_result = DeadInductionVar.loop_result =
   { loop : Induction_var.loop;
     bivs : biv_result list;
     useless : bool

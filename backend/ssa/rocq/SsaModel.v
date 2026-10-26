@@ -8,8 +8,8 @@
    so on. Each observation is realized at extraction (SsaModelExtract.v) by
    a function of the compiler: some directly by [Ssa] ([Block.predecessors],
    [Block.dominates], ...), the others by the small functions of
-   backend/ssa/loop/ssa_view.ml, each of which turns an OCaml [match] into
-   one of the [Inductive] views below.
+   backend/ssa/ssa_view.ml, each of which turns an OCaml [match] into one
+   of the [Inductive] views below.
 
    Nothing here is proved. What the proofs rely on about these observations
    is stated where it is used, as hypotheses of the theorems (what an
@@ -78,10 +78,11 @@ Parameter dominates : block -> block -> bool.
    with [Block.immediate_dominator]. *)
 Parameter strict_dominators : block -> list block.
 
-(* [Block.params] as a list, [Block.param], and [Block.body] as a list. *)
+(* [Block.params] as a list, [Block.param], and [Block.body] as a list
+   ([block_body], as the loop record of NaturalLoop.v has a [body]). *)
 Parameter params : block -> list value.
 Parameter param : block -> int -> value.
-Parameter body : block -> list instr.
+Parameter block_body : block -> list instr.
 
 (* --- Terminators --- *)
 
@@ -183,8 +184,12 @@ Definition root (t : tree) : value :=
   | Icomp_imm v _ _ _ | Other v => v
   end.
 
-(* The wrapper's [tree_of_value]. *)
+(* [Ssa_view.tree_of_value], and the one thing assumed of its shape: the
+   tree built for a value has that value at its root (every branch of the
+   OCaml builds a node for [v] itself). What the nodes assert about the
+   machine values is [tree_sound] in AffineSsa.v, assumed where used. *)
 Parameter tree_of_value : value -> tree.
+Axiom tree_of_value_root : forall v, root (tree_of_value v) = v.
 
 (* ======================================================================== *)
 (* [Induction_var.op_def]                                                   *)
