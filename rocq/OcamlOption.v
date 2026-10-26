@@ -15,3 +15,7 @@ Notation "'let*' x ':=' m 'in' k" :=
 Notation "'let*' ' p ':=' m 'in' k" :=
   (match m with Some p => k | None => None end)
   (at level 10, p pattern, m at level 100, k at level 200).
+
+(* [Option.is_some]. *)
+Definition is_some {A} (o : option A) : bool :=
+  match o with Some _ => true | None => false end.

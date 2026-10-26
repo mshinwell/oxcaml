@@ -69,7 +69,41 @@ Fixpoint filter_map_opt {A B} (f : A -> option (option B)) (l : list A)
     Some (match y with Some y => y :: l | None => l end)
   end.
 
+(* [arr.(i)] on an array held as a list: [None] where OCaml would raise
+   [Invalid_argument], i.e. for [i] outside [0 .. length - 1]. *)
+Fixpoint nth_int {A} (l : list A) (i : int) : option A :=
+  match l with
+  | [] => None
+  | x :: l => if i =? zero then Some x else nth_int l (i - one)
+  end.
+
+(* [Array.length a = Array.length b] on arrays held as lists. *)
+Fixpoint same_length {A B} (l1 : list A) (l2 : list B) : bool :=
+  match l1, l2 with
+  | [], [] => true
+  | _ :: l1, _ :: l2 => same_length l1 l2
+  | [], _ :: _ | _ :: _, [] => false
+  end.
+
 (* ---- Lemmas ----------------------------------------------------------- *)
+
+Lemma same_length_spec : forall {A B} (l1 : list A) (l2 : list B),
+  same_length l1 l2 = true <-> length l1 = length l2.
+Proof.
+  intros A B l1. induction l1 as [ | x l1 IH ]; intros [ | y l2 ]; simpl;
+    [ tauto | split; discriminate | split; discriminate | ].
+  rewrite IH. split; [ intros ->; reflexivity | intros H; injection H; auto ].
+Qed.
+
+Lemma nth_int_In : forall {A} (l : list A) i x,
+  nth_int l i = Some x -> In x l.
+Proof.
+  intros A l. induction l as [ | y l IH ]; intros i x H; simpl in H.
+  - discriminate.
+  - destruct (i =? zero).
+    + injection H as ->. left. reflexivity.
+    + right. exact (IH _ _ H).
+Qed.
 
 Lemma filter_map_In : forall {A B} (f : A -> option B) l y,
   In y (filter_map f l) -> exists x, In x l /\ f x = Some y.
