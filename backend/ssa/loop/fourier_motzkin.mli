@@ -70,13 +70,15 @@ module Affine : sig
 
   val sub : t -> t -> t
 
-  (** [add] / [scale] / [add_const] with overflow detection: raise {!Overflow}
-      instead of silently wrapping. *)
+  (** [add] / [scale] / [add_const] / [sub] with overflow detection: raise
+      {!Overflow} instead of silently wrapping. *)
   val add_checked : t -> t -> t
 
   val scale_checked : int -> t -> t
 
   val add_const_checked : t -> int -> t
+
+  val sub_checked : t -> t -> t
 end
 
 (** [feasible ineqs] is [true] iff the conjunction [{ f >= 0 | f in ineqs }] is

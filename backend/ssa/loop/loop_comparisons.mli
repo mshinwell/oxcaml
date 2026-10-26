@@ -71,7 +71,9 @@ val continue_terminates : step:int -> Cmm.integer_comparison -> termination
 (** [facts ~negate cmp la lb] is the list of affine inequalities implied by the
     signed comparison [la cmp lb] (negated first when [negate]). Each returned
     [f] asserts [f >= 0]. Unsigned comparisons and [Cne] cannot be expressed as
-    a single affine inequality and contribute nothing. *)
+    a single affine inequality and contribute nothing; nor does a comparison
+    whose inequality cannot be formed without overflowing the OCaml [int]
+    coefficients. *)
 val facts :
   negate:bool ->
   Cmm.integer_comparison ->

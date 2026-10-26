@@ -131,6 +131,8 @@ module Affine = struct
     { const = add_ovf a.const b.const; terms }
 
   let add_const_checked t c = { t with const = add_ovf t.const c }
+
+  let sub_checked a b = add_checked a (scale_checked (-1) b)
 end
 
 (* === Resolvents ===

@@ -95,13 +95,24 @@ let continue_terminates ~step (cmp : Cmm.integer_comparison) : termination =
 
 (* Facts implied by the (possibly negated) signed comparison [la cmp lb].
    Unsigned comparisons and [Cne] cannot be expressed as a single affine
-   inequality, so they contribute nothing. *)
+   inequality, so they contribute nothing.
+
+   The forms are combined with the overflow-checked operations: [la] and [lb]
+   each fit the OCaml [int] range, but their difference need not (e.g. constants
+   [max_int] and [-max_int]), and a silently wrapped constant would state a fact
+   stronger than the comparison implies. On [Overflow] the comparison
+   contributes nothing, which is always sound: fewer facts can only make
+   [Fourier_motzkin.entails] prove less. *)
 let facts ~negate (cmp : Cmm.integer_comparison) la lb : Affine.t list =
   let cmp = if negate then Cmm.negate_integer_comparison cmp else cmp in
-  match cmp with
-  | Cge -> [Affine.sub la lb]
-  | Cgt -> [Affine.add_const (Affine.sub la lb) (-1)]
-  | Cle -> [Affine.sub lb la]
-  | Clt -> [Affine.add_const (Affine.sub lb la) (-1)]
-  | Ceq -> [Affine.sub la lb; Affine.sub lb la]
-  | Cne | Cult | Cugt | Cule | Cuge -> []
+  match
+    match cmp with
+    | Cge -> [Affine.sub_checked la lb]
+    | Cgt -> [Affine.add_const_checked (Affine.sub_checked la lb) (-1)]
+    | Cle -> [Affine.sub_checked lb la]
+    | Clt -> [Affine.add_const_checked (Affine.sub_checked lb la) (-1)]
+    | Ceq -> [Affine.sub_checked la lb; Affine.sub_checked lb la]
+    | Cne | Cult | Cugt | Cule | Cuge -> []
+  with
+  | facts -> facts
+  | exception Fourier_motzkin.Overflow -> []
