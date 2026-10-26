@@ -29,153 +29,66 @@ open! Int_replace_polymorphic_compare
 
 [@@@ocaml.warning "+a-40-41-42"]
 
-(* See [affine_ssa.mli] for the interface. *)
+(* See [affine_ssa.mli] for the interface.
+
+   The linearization of values and the facts of a branch are [AffineSsa],
+   generated from the Rocq model in [rocq/AffineSsa.v] by [rocq/Extract.v] (see
+   [rocq/Makefile]). The model cannot look inside SSA values, so it works on a
+   copy of the part of the value graph it inspects, built by [tree_of_value]
+   below; and it passes its atom interner and its list of side facts along as
+   values, which this file keeps in the mutable [ctx] and the [side] reference
+   of the interface. [guards_at], which walks the dominator tree, is not
+   modelled and is as it was. *)
 
 open Ssa.Export
 module Affine = Fourier_motzkin.Affine
+module E = AffineSsa
 
-(* === Atom interner === *)
+type ctx = { mutable c : E.ctx }
 
-type ctx =
-  { mutable atoms : (int * finished Value.t) list;
-    mutable next : int
-  }
+let new_ctx () = { c = E.new_ctx }
 
-let new_ctx () = { atoms = []; next = 0 }
-
-let intern ctx (v : finished Value.t) : int =
-  match List.find_opt (fun (_, w) -> Value.equal v w) ctx.atoms with
-  | Some (id, _) -> id
-  | None ->
-    let id = ctx.next in
-    ctx.next <- id + 1;
-    ctx.atoms <- (id, v) :: ctx.atoms;
-    id
-
-(* === Recognition into {!Affine_expr} === *)
-
-(* [Nativeint.to_int] truncates to the OCaml [int] width; the value fits iff
-   converting back is the identity. *)
-let fits_int (n : nativeint) =
-  Nativeint.equal (Nativeint.of_int (Nativeint.to_int n)) n
-
-let max_shift_bits = 16
-
-(* The affine expression of [v]'s machine-integer value: decomposition through
-   add/sub/shift shapes, with anything unrecognised interned as an atom.
-
-   Each node carries its static value interval ([None] = not known to fit signed
-   64-bit). A composite whose interval is unknown is atomized instead of
-   decomposed: machine arithmetic wraps at 64 bits while the affine denotation
-   is over unbounded integers, so a decomposition only models the machine value
-   soundly when its integer evaluation provably stays in signed 64-bit range for
-   every valuation of its atoms within their known ranges. A bare atom is always
-   exact, whatever its range. *)
-let rec expr_of_value ctx (v : finished Value.t) :
-    Affine_expr.t * Affine_expr.Range.t option =
-  let module E = Affine_expr in
-  let module R = E.Range in
-  let atomize v = E.Atom (intern ctx v), Some R.full in
-  (* Keep a composite node only if certification succeeded; otherwise atomize
-     [v] itself. *)
-  let keep v node range =
-    match range with Some _ -> node, range | None -> atomize v
-  in
-  let radd a b =
-    match a, b with Some a, Some b -> R.add a b | (None | Some _), _ -> None
-  in
-  let rsub a b =
-    match a, b with Some a, Some b -> R.sub a b | (None | Some _), _ -> None
-  in
-  let rscale k r = Option.bind r (R.scale k) in
+(* The operations defining [v] and, recursively, its arguments, in the shapes
+   the model matches on. This is the one place that looks inside SSA values;
+   [tree_sound] in rocq/AffineSsa.v says what each node asserts about the
+   machine values, which is what the proofs assume of this function. *)
+let rec tree_of_value (v : finished Value.t) : E.tree =
   match[@warning "-fragile-match"] v with
-  | Res ({ op = Const_int n; _ }, _) when fits_int n ->
-    let c = Nativeint.to_int n in
-    E.Const c, Some (R.const c)
+  | Res ({ op = Const_int n; _ }, _) -> E.Const_int (v, Int64.of_nativeint n)
   | Res ({ op = Intop Iadd; args = [| a; b |]; _ }, _) ->
-    let ea, ra = expr_of_value ctx a in
-    let eb, rb = expr_of_value ctx b in
-    keep v (E.Add (ea, eb)) (radd ra rb)
+    E.Iadd (v, tree_of_value a, tree_of_value b)
   | Res ({ op = Intop Isub; args = [| a; b |]; _ }, _) ->
-    let ea, ra = expr_of_value ctx a in
-    let eb, rb = expr_of_value ctx b in
-    keep v (E.Sub (ea, eb)) (rsub ra rb)
+    E.Isub (v, tree_of_value a, tree_of_value b)
   | Res ({ op = Intop_imm (Iadd, k); args = [| a |]; _ }, _) ->
-    let ea, ra = expr_of_value ctx a in
-    keep v (E.Add (ea, E.Const k)) (radd ra (Some (R.const k)))
+    E.Iadd_imm (v, tree_of_value a, k)
   | Res ({ op = Intop_imm (Isub, k); args = [| a |]; _ }, _) ->
-    let ea, ra = expr_of_value ctx a in
-    keep v (E.Sub (ea, E.Const k)) (rsub ra (Some (R.const k)))
-  | Res ({ op = Intop_imm (Ilsl, k); args = [| a |]; _ }, _)
-    when k >= 0 && k < max_shift_bits ->
-    let ea, ra = expr_of_value ctx a in
-    keep v (E.Scale (1 lsl k, ea)) (rscale (1 lsl k) ra)
-  | Res ({ op = Intop_imm (Iasr, k); args = [| a |]; _ }, _)
-    when k >= 0 && k < max_shift_bits -> (
-    (* Atomized arithmetic right shift: the atom's relation to the shifted value
-       and its range are expressed by the side bounds {!Affine_expr.to_affine}
-       emits. Shifting any register right yields a range-certified result. The
-       relation facts are only sound against a machine-exact argument form,
-       which [expr_of_value] guarantees. *)
-    match expr_of_value ctx a with
-    | ea, Some _ ->
-      ( E.Shr_atom { atom = intern ctx v; arg = ea; bits = k },
-        Some (R.shr_signed k) )
-    | _, None -> atomize v)
-  | Res ({ op = Intop_imm (Ilsr, k); args = [| _ |]; _ }, _)
-    when k >= 1 && k < 64 ->
-    (* Atomized logical right shift: not affine in its argument over signed
-       integers, so only the result's range is kept. This is the shape of an
-       array-length load (header word shifted right), whose boundedness the loop
-       analyses rely on to discharge no-overflow obligations. *)
-    E.Lsr_atom { atom = intern ctx v; bits = k }, Some (R.shr_logical k)
-  | Res ({ op = Intop_imm (Ior, m); args = [| a |]; _ }, _) when m >= 0 -> (
-    (* Atomized or-with-mask (the tagging shape [x lor 1]): related to its
-       argument by [arg <= atom <= arg + mask], which again is only sound
-       against a machine-exact argument form. *)
-    match expr_of_value ctx a with
-    | ea, Some r ->
-      E.Or_atom { atom = intern ctx v; arg = ea; mask = m }, R.or_mask m r
-    | _, None -> atomize v)
-  | _ -> atomize v
+    E.Isub_imm (v, tree_of_value a, k)
+  | Res ({ op = Intop_imm (Ilsl, k); args = [| a |]; _ }, _) ->
+    E.Ilsl (v, tree_of_value a, k)
+  | Res ({ op = Intop_imm (Iasr, k); args = [| a |]; _ }, _) ->
+    E.Iasr (v, tree_of_value a, k)
+  | Res ({ op = Intop_imm (Ilsr, k); args = [| _ |]; _ }, _) -> E.Ilsr (v, k)
+  | Res ({ op = Intop_imm (Ior, m); args = [| a |]; _ }, _) ->
+    E.Ior (v, tree_of_value a, m)
+  | Res ({ op = Intop (Icomp cmp); args = [| a; b |]; _ }, _) ->
+    E.Icomp (v, cmp, tree_of_value a, tree_of_value b)
+  | Res ({ op = Intop_imm (Icomp cmp, k); args = [| a |]; _ }, _) ->
+    E.Icomp_imm (v, cmp, tree_of_value a, k)
+  | _ -> E.Other v
 
-(* === Linearization === *)
-
-(* Push [sides] onto [side], skipping facts already present: repeated
-   linearizations of the same value re-emit identical shift/or bounds, and
-   duplicated facts inflate the Fourier-Motzkin cascade quadratically. *)
-let push_sides side sides =
-  List.iter
-    (fun f ->
-      if not (List.exists (Affine.equal f) !side) then side := f :: !side)
-    sides
-
-(* Affine form of [v]'s machine-integer value, for building facts: sound to
-   combine with the side facts pushed onto [side], for any runtime values. Right
-   shifts and or-with-mask are atomized with their relation/range bounds;
-   decompositions that cannot be certified machine-exact, and anything not
-   decomposed, become atoms. *)
 let linearize ctx side (v : finished Value.t) : Affine.t =
-  let e, _range = expr_of_value ctx v in
-  match Affine_expr.to_affine e with
-  | form, sides ->
-    push_sides side sides;
-    form
-  | exception Fourier_motzkin.Overflow ->
-    (* A coefficient escaped the OCaml [int] range while building the form; fall
-       back to an (always exact) atom. *)
-    Affine.var (intern ctx v)
-
-(* === Guard facts from dominating branches === *)
+  let (form, side'), c = E.linearize ctx.c !side (tree_of_value v) in
+  side := side';
+  ctx.c <- c;
+  form
 
 let cond_facts ctx side ~negate (cond : finished Value.t) : Affine.t list =
-  match[@warning "-fragile-match"] cond with
-  | Res ({ op = Intop (Icomp cmp); args = [| a; b |]; _ }, _) ->
-    Loop_comparisons.facts ~negate cmp (linearize ctx side a)
-      (linearize ctx side b)
-  | Res ({ op = Intop_imm (Icomp cmp, k); args = [| a |]; _ }, _) ->
-    Loop_comparisons.facts ~negate cmp (linearize ctx side a) (Affine.const k)
-  | _ -> []
+  let (facts, side'), c =
+    E.cond_facts ctx.c !side negate (tree_of_value cond)
+  in
+  side := side';
+  ctx.c <- c;
+  facts
 
 (* Facts that hold at entry to [target], gathered from the two-target branches
    on its immediate-dominator chain. In a two-target [Switch], [targets.(0)] is

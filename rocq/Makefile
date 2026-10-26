@@ -10,9 +10,10 @@
 #                           extraction directives
 #   backend/rocq/           OxcamlBackend: backend-wide definitions, such as
 #                           the semantics of integer comparisons
-#   backend/ssa/loop/rocq/  OxcamlLoop: the loop passes, their extraction
-#                           (Extract.v, one .ml per model) and the wrappers
-#                           around the extracted code
+#   backend/ssa/loop/rocq/  OxcamlLoop: the loop passes and their extraction
+#                           (Extract.v, one .ml per model); the wrappers
+#                           around the extracted code are the modules of
+#                           backend/ssa/loop/ itself
 #
 # The extracted files are run through ocamlformat so that they satisfy the
 # repository's `make fmt` check like any other source under backend/ssa/.
@@ -34,18 +35,19 @@ BACKEND := $(addprefix $(BACKEND_DIR)/, \
   IntegerComparison.v IntegerComparisonExtract.v)
 LOOP := $(addprefix $(LOOP_DIR)/, \
   FourierMotzkin.v FourierMotzkinExtract.v LoopComparisons.v AffineExpr.v \
-  AffineExprExtract.v)
+  AffineExprExtract.v AffineSsa.v AffineSsaExtract.v)
 EXTRACT := $(LOOP_DIR)/Extract.v
 EXTRACTED := $(addprefix $(LOOP_DIR)/, \
   OcamlList.ml OcamlList.mli FourierMotzkin.ml FourierMotzkin.mli \
-  LoopComparisons.ml LoopComparisons.mli AffineExpr.ml AffineExpr.mli)
+  LoopComparisons.ml LoopComparisons.mli AffineExpr.ml AffineExpr.mli \
+  AffineSsa.ml AffineSsa.mli)
 
 SOURCES := $(STDLIB) $(BACKEND) $(LOOP) $(EXTRACT)
 DEPS := $(STDLIB_DIR)/.rocqdeps.d
 
 .PHONY: all clean
 
-all: $(EXTRACT:.v=.vo)
+all: $(SOURCES:.v=.vo)
 
 # Extract.v writes the .ml and .mli files into the loop directory. Separate
 # extraction also writes an empty pair for every Rocq module whose contents
@@ -58,6 +60,13 @@ $(EXTRACT:.v=.vo): $(EXTRACT)
 	$(ROCQ) compile $(FLAGS) -output-directory $(LOOP_DIR) $<
 	for f in $(LOOP_DIR)/*.ml $(LOOP_DIR)/*.mli; do \
 	  grep -q '[^[:space:]]' $$f || rm -f $$f; done
+	@for f in $(LOOP_DIR)/*.ml $(LOOP_DIR)/*.mli; do \
+	  case " $(EXTRACTED) " in *" $$f "*) ;; *) \
+	    echo "error: unexpected extracted file $$f: a model computes with" \
+	      "something that has no OCaml realization (see OcamlExtract.v)"; \
+	    exit 1;; \
+	  esac; \
+	done
 	for f in $(LOOP_DIR)/*.mli; do \
 	  for m in `sed -n 's/^open \(.*\)$$/\1/p' $$f`; do \
 	    grep -q -E '^ *(type|module) ' $(LOOP_DIR)/$$m.mli || \

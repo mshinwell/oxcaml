@@ -751,6 +751,7 @@
   FourierMotzkin
   LoopComparisons
   AffineExpr
+  AffineSsa
   ;; backend/ssa/loop/
   fourier_motzkin
   affine_expr
