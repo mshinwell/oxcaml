@@ -42,7 +42,7 @@ Definition unsigned64 (z : Z) : Z := if z <? 0 then z + two64 else z.
 Lemma unsigned64_bounds : forall z, in_int64 z -> 0 <= unsigned64 z < two64.
 Proof.
   intros z Hz. unfold unsigned64, in_int64, two63, two64 in *.
-  destruct (z <? 0) eqn:E; [apply Z.ltb_lt in E | apply Z.ltb_ge in E]; lia.
+  destruct (z <? 0) eqn:E; [ apply Z.ltb_lt in E | apply Z.ltb_ge in E ]; lia.
 Qed.
 
 (* [wrap64 z] differs from [z] by a multiple of 2^64 ... *)
@@ -76,8 +76,8 @@ Lemma quot_abs_le : forall a b, 0 < b -> Z.abs (Z.quot a b) <= Z.abs a.
 Proof.
   intros a b Hb.
   assert (Hpos : forall x, 0 <= x -> Z.quot x b <= x).
-  { intros x Hx. apply Z.quot_le_upper_bound; [exact Hb | nia]. }
-  destruct (Z_le_gt_dec 0 a) as [Ha | Ha].
+  { intros x Hx. apply Z.quot_le_upper_bound; [ exact Hb | nia ]. }
+  destruct (Z_le_gt_dec 0 a) as [ Ha | Ha ].
   - pose proof (Z.quot_pos a b Ha Hb). pose proof (Hpos a Ha). lia.
   - pose proof (Z.quot_pos (- a) b ltac:(lia) Hb) as H1.
     pose proof (Hpos (- a) ltac:(lia)) as H2.
@@ -87,7 +87,7 @@ Qed.
 Lemma quot_in_range : forall a b, 0 < b -> in_int64 a -> in_int64 (Z.quot a b).
 Proof.
   intros a b Hb Ha. pose proof (quot_abs_le a b Hb).
-  destruct (Z_le_gt_dec 0 a) as [Ha0 | Ha0].
+  destruct (Z_le_gt_dec 0 a) as [ Ha0 | Ha0 ].
   - pose proof (Z.quot_pos a b Ha0 Hb). unfold in_int64 in *. lia.
   - pose proof (Z.quot_pos (- a) b ltac:(lia) Hb) as H1.
     rewrite Z.quot_opp_l in H1 by lia. unfold in_int64 in *. lia.

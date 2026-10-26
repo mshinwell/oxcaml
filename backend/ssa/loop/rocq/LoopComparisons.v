@@ -162,7 +162,7 @@ Definition bound_in_range (step b : Z) : bool :=
 Lemma iv_shift : forall v0 step n,
   iv v0 step (S n) = iv (wrap64 (v0 + step)) step n.
 Proof.
-  intros v0 step n. induction n as [| n IH].
+  intros v0 step n. induction n as [ | n IH ].
   - reflexivity.
   - cbn [iv] in *. rewrite IH. reflexivity.
 Qed.
@@ -181,7 +181,7 @@ Proof.
   (* Induction on a bound [m] for the measure. *)
   assert (forall (m : nat) v, in_int64 v -> mu v < Z.of_nat m ->
             exists n, test (iv v step n) = false) as Hind.
-  { induction m as [| m IH]; intros v Hv Hm; destruct (test v) eqn:Ht.
+  { induction m as [ | m IH ]; intros v Hv Hm; destruct (test v) eqn:Ht.
     - destruct (Hstep v Hv Ht) as [_ [Hmu _]]. lia.
     - exists O. exact Ht.
     - destruct (Hstep v Hv Ht) as [Hr [Hmu Hdec]].
@@ -191,7 +191,7 @@ Proof.
   intros v0 Hv0.
   apply (Hind (Z.to_nat (mu v0) + 1)%nat v0 Hv0).
   rewrite Nat2Z.inj_add. pose proof (Nat2Z.is_nonneg (Z.to_nat (mu v0))).
-  destruct (Z_le_gt_dec 0 (mu v0)) as [Hge | Hlt].
+  destruct (Z_le_gt_dec 0 (mu v0)) as [ Hge | Hlt ].
   - rewrite (Z2Nat.id _ Hge). lia.
   - lia.
 Qed.
@@ -206,16 +206,16 @@ Lemma ceq_terminates : forall step v0 bound,
   exists n, eval Ceq (iv v0 step n) bound = false.
 Proof.
   intros step v0 bound Hs Hnz.
-  destruct (Z.eqb_spec v0 bound) as [E | E].
+  destruct (Z.eqb_spec v0 bound) as [ E | E ].
   - exists 1%nat. subst v0.
     change ((wrap64 (bound + step) =? bound) = false).
     destruct (wrap64_eq (bound + step)) as [k Hk]. rewrite Hk.
-    destruct (Z.eqb_spec (bound + step - k * two64) bound) as [E | E];
-      [| reflexivity].
+    destruct (Z.eqb_spec (bound + step - k * two64) bound) as [ E | E ];
+      [ | reflexivity ].
     exfalso. unfold two62, two64 in *.
     assert (k = 0) by lia. subst k. lia.
   - exists O. change ((v0 =? bound) = false).
-    destruct (Z.eqb_spec v0 bound); [contradiction | reflexivity].
+    destruct (Z.eqb_spec v0 bound); [ contradiction | reflexivity ].
 Qed.
 
 (* [Clt], step 1: continuing means [v < bound], so [v + 1 <= bound] is
@@ -226,7 +226,7 @@ Lemma clt_one_terminates : forall v0 bound,
 Proof.
   intros v0 bound Hv0 Hb.
   apply (terminate_by_measure (fun v => eval Clt v bound) 1
-           (fun v => bound - v)); [| exact Hv0].
+           (fun v => bound - v)); [ | exact Hv0 ].
   intros v Hv Ht. unfold eval in Ht. zcmp_hyp Ht.
   unfold in_int64, two63 in *. lia.
 Qed.
@@ -238,7 +238,7 @@ Lemma cgt_minus_one_terminates : forall v0 bound,
 Proof.
   intros v0 bound Hv0 Hb.
   apply (terminate_by_measure (fun v => eval Cgt v bound) (-1)
-           (fun v => v - bound)); [| exact Hv0].
+           (fun v => v - bound)); [ | exact Hv0 ].
   intros v Hv Ht. unfold eval in Ht. zcmp_hyp Ht.
   unfold in_int64, two63 in *. lia.
 Qed.
@@ -252,7 +252,7 @@ Lemma clt_pos_terminates : forall step v0 bound,
 Proof.
   intros step v0 bound Hs Hbr Hv0 Hb.
   apply (terminate_by_measure (fun v => eval Clt v bound) step
-           (fun v => bound - v)); [| exact Hv0].
+           (fun v => bound - v)); [ | exact Hv0 ].
   intros v Hv Ht. unfold eval in Ht. zcmp_hyp Ht.
   unfold in_int64, ocaml_max_int, two62, two63 in *. lia.
 Qed.
@@ -265,7 +265,7 @@ Lemma cle_pos_terminates : forall step v0 bound,
 Proof.
   intros step v0 bound Hs Hbr Hv0 Hb.
   apply (terminate_by_measure (fun v => eval Cle v bound) step
-           (fun v => bound - v + 1)); [| exact Hv0].
+           (fun v => bound - v + 1)); [ | exact Hv0 ].
   intros v Hv Ht. unfold eval in Ht. zcmp_hyp Ht.
   unfold in_int64, ocaml_max_int, two62, two63 in *. lia.
 Qed.
@@ -278,7 +278,7 @@ Lemma cgt_neg_terminates : forall step v0 bound,
 Proof.
   intros step v0 bound Hs Hbr Hv0 Hb.
   apply (terminate_by_measure (fun v => eval Cgt v bound) step
-           (fun v => v - bound)); [| exact Hv0].
+           (fun v => v - bound)); [ | exact Hv0 ].
   intros v Hv Ht. unfold eval in Ht. zcmp_hyp Ht.
   unfold in_int64, ocaml_max_int, two62, two63 in *. lia.
 Qed.
@@ -291,7 +291,7 @@ Lemma cge_neg_terminates : forall step v0 bound,
 Proof.
   intros step v0 bound Hs Hbr Hv0 Hb.
   apply (terminate_by_measure (fun v => eval Cge v bound) step
-           (fun v => v - bound + 1)); [| exact Hv0].
+           (fun v => v - bound + 1)); [ | exact Hv0 ].
   intros v Hv Ht. unfold eval in Ht. zcmp_hyp Ht.
   unfold in_int64, ocaml_max_int, two62, two63 in *. lia.
 Qed.
@@ -368,7 +368,7 @@ Corollary loop_exits :
 Proof.
   intros iv_is_left continue_when_true cmp step v0 bound Hv0 Hb ccmp Hverdict.
   assert (exists n, eval ccmp (iv v0 (to_Z step) n) bound = false) as [n Hn].
-  { destruct Hverdict as [H | [H Hrange]].
+  { destruct Hverdict as [ H | [H Hrange] ].
     - eapply continue_terminates_Terminates; eauto.
     - eapply continue_terminates_Terminates_if_bound_in_range; eauto. }
   exists n. rewrite <- oriented_continue_comparison_correct. exact Hn.
@@ -415,7 +415,7 @@ Ltac checked_cases rho :=
            destruct (Affine.sub_checked a b) eqn:E;
            [ pose proof (sub_checked_wf _ _ _ E ltac:(assumption)
                            ltac:(assumption)) as W;
-             apply (sub_checked_denote rho) in E; [| assumption | assumption]
+             apply (sub_checked_denote rho) in E; [ | assumption | assumption ]
            | ];
            cbv beta iota
          | |- context [Affine.add_const_checked ?a ?c] =>

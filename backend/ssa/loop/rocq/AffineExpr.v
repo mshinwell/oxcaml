@@ -320,7 +320,7 @@ Lemma shr_range_facts_signed_sound : forall rho atom bits x,
   holds_all rho (shr_range_facts true atom bits).
 Proof.
   intros rho atom bits x Hb Hx Hatom. unfold shr_range_facts.
-  destruct (bits <? one)%sint63 eqn:E1; [apply Forall_nil |].
+  destruct (bits <? one)%sint63 eqn:E1; [ apply Forall_nil | ].
   rewrite <- not_true_iff_false, ltb_int, to_Z_one in E1.
   cbv zeta. unfold in_int64 in Hx.
   pose proof (pow2_pos (to_Z bits) ltac:(lia)) as Hp.
@@ -330,11 +330,11 @@ Proof.
                 = (two63 - 1) / 2 ^ to_Z bits).
   { rewrite Int64.to_int_exact;
       rewrite Int64.shift_right_spec by lia; rewrite Int64.to_Z_max_int;
-      [reflexivity |].
+      [ reflexivity | ].
     assert (0 <= (two63 - 1) / 2 ^ to_Z bits)
-      by (apply Z.div_pos; [unfold two63; lia | lia]).
+      by (apply Z.div_pos; [ unfold two63; lia | lia ]).
     assert ((two63 - 1) / 2 ^ to_Z bits < two62)
-      by (apply Z.div_lt_upper_bound; [lia | unfold two63, two62; lia]).
+      by (apply Z.div_lt_upper_bound; [ lia | unfold two63, two62; lia ]).
     lia. }
   assert (Hup : x / 2 ^ to_Z bits <= (two63 - 1) / 2 ^ to_Z bits)
     by (apply Z.div_le_mono; lia).
@@ -347,15 +347,15 @@ Proof.
                   = - two63 / 2 ^ to_Z bits).
     { rewrite Int64.to_int_exact;
         rewrite Int64.shift_right_spec by lia; rewrite Int64.to_Z_min_int;
-        [reflexivity |].
+        [ reflexivity | ].
       assert (- two62 <= - two63 / 2 ^ to_Z bits)
-        by (apply Z.div_le_lower_bound; [lia | unfold two63, two62; lia]).
+        by (apply Z.div_le_lower_bound; [ lia | unfold two63, two62; lia ]).
       assert (- two63 / 2 ^ to_Z bits <= 0)
-        by (apply Z.div_le_upper_bound; [lia | unfold two63; lia]).
+        by (apply Z.div_le_upper_bound; [ lia | unfold two63; lia ]).
       unfold two62 in *. lia. }
     assert (Hlo' : - two62 < - two63 / 2 ^ to_Z bits).
     { assert (- 2305843009213693952 <= - two63 / 2 ^ to_Z bits)
-        by (apply Z.div_le_lower_bound; [lia | unfold two63; lia]).
+        by (apply Z.div_le_lower_bound; [ lia | unfold two63; lia ]).
       unfold two63, two62 in *. lia. }
     assert (Hdown : - two63 / 2 ^ to_Z bits <= x / 2 ^ to_Z bits)
       by (apply Z.div_le_mono; lia).
@@ -365,7 +365,7 @@ Proof.
       * rewrite Hlo, Hatom. lia.
       * intro C. apply (f_equal to_Z) in C. rewrite Hlo, to_Z_min_int in C.
         lia.
-  - apply Forall_cons; [| apply Forall_nil]. unfold holds.
+  - apply Forall_cons; [ | apply Forall_nil ]. unfold holds.
     rewrite upper_denote, Hhi, Hatom. lia.
 Qed.
 
@@ -387,20 +387,20 @@ Proof.
   destruct (two <=? bits)%sint63 eqn:E2.
   - apply leb_int in E2. rewrite to_Z_two in E2.
     assert (Hm : to_Z (word_bits - bits)%sint63 = 64 - to_Z bits).
-    { rewrite Sint63.to_Z_sub; rewrite to_Z_word_bits; [reflexivity |].
+    { rewrite Sint63.to_Z_sub; rewrite to_Z_word_bits; [ reflexivity | ].
       rewrite to_Z_min_int, to_Z_max_int. unfold two62. lia. }
     assert (Hhi : to_Z ((one << (word_bits - bits)) - one)%sint63
                   = 2 ^ (64 - to_Z bits) - 1).
-    { rewrite to_Z_lsl_one_pred; rewrite Hm; [reflexivity | lia]. }
+    { rewrite to_Z_lsl_one_pred; rewrite Hm; [ reflexivity | lia ]. }
     assert (Hlt : unsigned64 x / 2 ^ to_Z bits < 2 ^ (64 - to_Z bits)).
-    { apply Z.div_lt_upper_bound; [lia |].
+    { apply Z.div_lt_upper_bound; [ lia | ].
       rewrite <- Z.pow_add_r by lia.
       replace (to_Z bits + (64 - to_Z bits)) with 64 by lia.
       rewrite <- two64_pow. lia. }
     repeat (apply Forall_cons || apply Forall_nil); unfold holds.
     + rewrite upper_denote, Hhi, Hatom. lia.
     + rewrite var_denote. exact Hnn.
-  - apply Forall_cons; [| apply Forall_nil]. unfold holds.
+  - apply Forall_cons; [ | apply Forall_nil ]. unfold holds.
     rewrite var_denote. exact Hnn.
 Qed.
 
@@ -476,10 +476,10 @@ Proof.
   change (unsigned64 (-1)) with (two64 - 1).
   assert (Hq : 0 <= (two64 - 1) / 2 ^ to_Z bits < two63).
   { split.
-    - apply Z.div_pos; [unfold two64; lia | lia].
-    - apply Z.div_lt_upper_bound; [lia | unfold two63, two64; lia]. }
+    - apply Z.div_pos; [ unfold two64; lia | lia ].
+    - apply Z.div_lt_upper_bound; [ lia | unfold two63, two64; lia ]. }
   rewrite wrap64_id by (unfold in_int64; lia).
-  split; [apply Z.div_pos; lia | apply Z.div_le_mono; lia].
+  split; [ apply Z.div_pos; lia | apply Z.div_le_mono; lia ].
 Qed.
 
 Theorem add_sound : forall a b r x y,
@@ -487,10 +487,10 @@ Theorem add_sound : forall a b r x y,
   in_range r (x + y).
 Proof.
   intros a b r x y H [Hax Hxa] [Hby Hyb]. unfold Range.add in H.
-  destruct (Range.add64 (Range.lo a) (Range.lo b)) as [lo |] eqn:Hlo;
-    [| discriminate].
-  destruct (Range.add64 (Range.hi a) (Range.hi b)) as [hi |] eqn:Hhi;
-    [| discriminate].
+  destruct (Range.add64 (Range.lo a) (Range.lo b)) as [ lo | ] eqn:Hlo;
+    [ | discriminate ].
+  destruct (Range.add64 (Range.hi a) (Range.hi b)) as [ hi | ] eqn:Hhi;
+    [ | discriminate ].
   injection H as <-. unfold in_range. cbn [Range.lo Range.hi].
   apply add_ovf64_spec in Hlo. apply add_ovf64_spec in Hhi. lia.
 Qed.
@@ -499,7 +499,7 @@ Theorem neg_sound : forall a r x,
   Range.neg a = Some r -> in_range a x -> in_range r (- x).
 Proof.
   intros a r x H [Hlo Hhi]. unfold Range.neg in H.
-  destruct (Int64.equal _ _) eqn:E; [discriminate |].
+  destruct (Int64.equal _ _) eqn:E; [ discriminate | ].
   injection H as <-. unfold in_range. cbn [Range.lo Range.hi].
   apply Int64.equal_false in E. rewrite Int64.to_Z_min_int in E.
   pose proof (Int64.to_Z_bounded (Range.lo a)).
@@ -513,7 +513,7 @@ Theorem sub_sound : forall a b r x y,
   in_range r (x - y).
 Proof.
   intros a b r x y H Ha Hb. unfold Range.sub in H.
-  destruct (Range.neg b) as [nb |] eqn:Hnb; [| discriminate].
+  destruct (Range.neg b) as [ nb | ] eqn:Hnb; [ | discriminate ].
   pose proof (neg_sound _ _ _ Hnb Hb).
   replace (x - y) with (x + - y) by ring. eapply add_sound; eassumption.
 Qed.
@@ -523,9 +523,9 @@ Theorem or_mask_sound : forall mask a r x,
   in_range r (Z.lor x (to_Z mask)).
 Proof.
   intros mask a r x H [Hlo Hhi]. unfold Range.or_mask in H.
-  destruct (mask <? zero)%sint63 eqn:E; [discriminate |].
+  destruct (mask <? zero)%sint63 eqn:E; [ discriminate | ].
   rewrite <- not_true_iff_false, ltb_int, to_Z_zero in E.
-  destruct (Range.add64 _ _) as [hi |] eqn:Hhi'; [| discriminate].
+  destruct (Range.add64 _ _) as [ hi | ] eqn:Hhi'; [ | discriminate ].
   injection H as <-. unfold in_range. cbn [Range.lo Range.hi].
   apply add_ovf64_spec in Hhi'. rewrite Int64.of_int_spec in Hhi'.
   pose proof (lor_bounds x (to_Z mask) ltac:(lia)). lia.
@@ -540,15 +540,15 @@ Proof.
     unfold in_range. cbn [Range.lo Range.hi].
     rewrite Int64.to_Z_zero, to_Z_zero. lia. }
   cbv zeta in H.
-  destruct (Range.mul64 _ (Range.lo a)) as [p |] eqn:Hp; [| discriminate].
-  destruct (Range.mul64 _ (Range.hi a)) as [q |] eqn:Hq; [| discriminate].
+  destruct (Range.mul64 _ (Range.lo a)) as [ p | ] eqn:Hp; [ | discriminate ].
+  destruct (Range.mul64 _ (Range.hi a)) as [ q | ] eqn:Hq; [ | discriminate ].
   apply mul_ovf64_spec in Hp. apply mul_ovf64_spec in Hq.
   rewrite Int64.of_int_spec in Hp, Hq.
   assert (Hk : to_Z k * Int64.to_Z (Range.lo a) <= to_Z k * x
                /\ to_Z k * x <= to_Z k * Int64.to_Z (Range.hi a)
                \/ to_Z k * Int64.to_Z (Range.hi a) <= to_Z k * x
                   /\ to_Z k * x <= to_Z k * Int64.to_Z (Range.lo a)).
-  { destruct (Z_lt_le_dec 0 (to_Z k)) as [Hpos | Hneg].
+  { destruct (Z_lt_le_dec 0 (to_Z k)) as [ Hpos | Hneg ].
     - left. split; apply Z.mul_le_mono_nonneg_l; lia.
     - right. split; apply Z.mul_le_mono_nonpos_l; lia. }
   destruct (Int64.compare p q <=? zero)%sint63 eqn:Ec; injection H as <-;
@@ -572,68 +572,71 @@ Lemma to_affine_spec : forall e f sides,
 Proof.
   induction e; intros f sides H; cbn [to_affine] in H.
   - (* Const *)
-    injection H as <- <-. split; [apply constant_wf | split; [constructor |]].
-    split; [intros rho; apply constant_denote | intros rho _; constructor].
+    injection H as <- <-.
+    split; [ apply constant_wf | split; [ constructor | ] ].
+    split; [ intros rho; apply constant_denote | intros rho _; constructor ].
   - (* Atom *)
-    injection H as <- <-. split; [apply var_wf | split; [constructor |]].
-    split; [intros rho; apply var_denote | intros rho _; constructor].
+    injection H as <- <-.
+    split; [ apply var_wf | split; [ constructor | ] ].
+    split; [ intros rho; apply var_denote | intros rho _; constructor ].
   - (* Add *)
-    destruct (to_affine e1) as [[fa sa] |] eqn:Ha; [| discriminate].
-    destruct (to_affine e2) as [[fb sb] |] eqn:Hb; [| discriminate].
-    destruct (Affine.add_checked fa fb) as [f' |] eqn:Hf; [| discriminate].
+    destruct (to_affine e1) as [ [fa sa] | ] eqn:Ha; [ | discriminate ].
+    destruct (to_affine e2) as [ [fb sb] | ] eqn:Hb; [ | discriminate ].
+    destruct (Affine.add_checked fa fb) as [ f' | ] eqn:Hf; [ | discriminate ].
     injection H as <- <-.
     destruct (IHe1 _ _ eq_refl) as [Hwa [Hwsa [Hda Hsa]]].
     destruct (IHe2 _ _ eq_refl) as [Hwb [Hwsb [Hdb Hsb]]].
-    split; [| split; [| split]].
+    split; [ | split; [ | split ] ].
     + exact (proj2 (proj2 (add_checked_spec (fun _ => 0) _ _ _ Hwa Hwb Hf))).
     + apply Forall_app; split; assumption.
     + intros rho. destruct (add_checked_spec rho _ _ _ Hwa Hwb Hf) as [Hd _].
       rewrite Hd, Hda, Hdb. reflexivity.
     + intros rho [Hca Hcb]. unfold holds_all. apply Forall_app.
-      split; [apply Hsa | apply Hsb]; assumption.
+      split; [ apply Hsa | apply Hsb ]; assumption.
   - (* Sub *)
-    destruct (to_affine e1) as [[fa sa] |] eqn:Ha; [| discriminate].
-    destruct (to_affine e2) as [[fb sb] |] eqn:Hb; [| discriminate].
-    destruct (Affine.scale_checked minus_one fb) as [nfb |] eqn:Hn;
-      [| discriminate].
-    destruct (Affine.add_checked fa nfb) as [f' |] eqn:Hf; [| discriminate].
+    destruct (to_affine e1) as [ [fa sa] | ] eqn:Ha; [ | discriminate ].
+    destruct (to_affine e2) as [ [fb sb] | ] eqn:Hb; [ | discriminate ].
+    destruct (Affine.scale_checked minus_one fb) as [ nfb | ] eqn:Hn;
+      [ | discriminate ].
+    destruct (Affine.add_checked fa nfb) as [ f' | ] eqn:Hf; [ | discriminate ].
     injection H as <- <-.
     destruct (IHe1 _ _ eq_refl) as [Hwa [Hwsa [Hda Hsa]]].
     destruct (IHe2 _ _ eq_refl) as [Hwb [Hwsb [Hdb Hsb]]].
     pose proof (proj2 (proj2 (scale_checked_spec (fun _ => 0) _ _ _ Hn)) Hwb)
       as Hwn.
-    split; [| split; [| split]].
+    split; [ | split; [ | split ] ].
     + exact (proj2 (proj2 (add_checked_spec (fun _ => 0) _ _ _ Hwa Hwn Hf))).
     + apply Forall_app; split; assumption.
     + intros rho. destruct (add_checked_spec rho _ _ _ Hwa Hwn Hf) as [Hd _].
       destruct (scale_checked_spec rho _ _ _ Hn) as [Hdn _].
       rewrite Hd, Hdn, Hda, Hdb, to_Z_minus_one. cbn [eval]. ring.
     + intros rho [Hca Hcb]. unfold holds_all. apply Forall_app.
-      split; [apply Hsa | apply Hsb]; assumption.
+      split; [ apply Hsa | apply Hsb ]; assumption.
   - (* Scale *)
-    destruct (to_affine e) as [[fa sa] |] eqn:Ha; [| discriminate].
-    destruct (Affine.scale_checked k fa) as [f' |] eqn:Hf; [| discriminate].
+    destruct (to_affine e) as [ [fa sa] | ] eqn:Ha; [ | discriminate ].
+    destruct (Affine.scale_checked k fa) as [ f' | ] eqn:Hf; [ | discriminate ].
     injection H as <- <-.
     destruct (IHe _ _ eq_refl) as [Hwa [Hwsa [Hda Hsa]]].
-    split; [| split; [| split]].
+    split; [ | split; [ | split ] ].
     + exact (proj2 (proj2 (scale_checked_spec (fun _ => 0) _ _ _ Hf)) Hwa).
     + exact Hwsa.
     + intros rho. destruct (scale_checked_spec rho _ _ _ Hf) as [Hd _].
       rewrite Hd, Hda. reflexivity.
     + intros rho Hc. apply Hsa. exact Hc.
   - (* Shr_atom *)
-    destruct (to_affine e) as [[fa sa] |] eqn:Ha; [| discriminate].
+    destruct (to_affine e) as [ [fa sa] | ] eqn:Ha; [ | discriminate ].
     cbv zeta in H.
     destruct (Affine.scale_checked (- (one << bits))%sint63 (Affine.var atom))
-      as [m |] eqn:Hm; [| discriminate].
-    destruct (Affine.add_checked fa m) as [s1 |] eqn:Hs1; [| discriminate].
+      as [ m | ] eqn:Hm; [ | discriminate ].
+    destruct (Affine.add_checked fa m) as [ s1 | ] eqn:Hs1; [ | discriminate ].
     destruct (Affine.scale_checked (one << bits)%sint63 (Affine.var atom))
-      as [p |] eqn:Hp; [| discriminate].
+      as [ p | ] eqn:Hp; [ | discriminate ].
     destruct (Affine.add_const_checked p ((one << bits) - one)%sint63)
-      as [pc |] eqn:Hpc; [| discriminate].
-    destruct (Affine.scale_checked minus_one fa) as [nfa |] eqn:Hnfa;
-      [| discriminate].
-    destruct (Affine.add_checked pc nfa) as [s2 |] eqn:Hs2; [| discriminate].
+      as [ pc | ] eqn:Hpc; [ | discriminate ].
+    destruct (Affine.scale_checked minus_one fa) as [ nfa | ] eqn:Hnfa;
+      [ | discriminate ].
+    destruct (Affine.add_checked pc nfa) as [ s2 | ] eqn:Hs2;
+      [ | discriminate ].
     injection H as <- <-.
     destruct (IHe _ _ eq_refl) as [Hwa [Hwsa [Hda Hsa]]].
     pose proof (proj2 (proj2 (scale_checked_spec (fun _ => 0) _ _ _ Hm))
@@ -648,9 +651,9 @@ Proof.
       as Hwnfa.
     pose proof (proj2 (proj2 (add_checked_spec (fun _ => 0) _ _ _ Hwpc Hwnfa
                                 Hs2))) as Hws2.
-    split; [apply var_wf | split; [| split]].
-    + apply Forall_cons; [exact Hws1 |]. apply Forall_cons; [exact Hws2 |].
-      apply Forall_app. split; [apply shr_range_facts_wf | exact Hwsa].
+    split; [ apply var_wf | split; [ | split ] ].
+    + apply Forall_cons; [ exact Hws1 | ]. apply Forall_cons; [ exact Hws2 | ].
+      apply Forall_app. split; [ apply shr_range_facts_wf | exact Hwsa ].
     + intros rho. apply var_denote.
     + intros rho [Hc [Hb [Hx Hatom]]].
       pose proof (to_Z_lsl_one bits ltac:(lia)) as Hpow.
@@ -661,7 +664,7 @@ Proof.
       assert (Hnmin : (one << bits)%sint63 <> min_int).
       { intro C. apply (f_equal to_Z) in C. rewrite Hpow, to_Z_min_int in C.
         unfold two62 in C. lia. }
-      apply Forall_cons; [| apply Forall_cons; [| apply Forall_app; split]].
+      apply Forall_cons; [ | apply Forall_cons; [ | apply Forall_app; split ] ].
       * (* [fa - pow * v >= 0] *)
         unfold holds.
         destruct (add_checked_spec rho _ _ _ Hwa Hwm Hs1) as [Hd1 _].
@@ -681,26 +684,27 @@ Proof.
               unfold two62, two63 in *; lia).
         rewrite Hpow, to_Z_one, Hatom.
         pose proof (Z.mul_succ_div_gt (eval rho e) (2 ^ to_Z bits) Hp2). lia.
-      * eapply shr_range_facts_signed_sound; [lia | exact Hx | exact Hatom].
+      * eapply shr_range_facts_signed_sound; [ lia | exact Hx | exact Hatom ].
       * apply Hsa. exact Hc.
   - (* Lsr_atom *)
     injection H as <- <-.
-    split; [apply var_wf | split; [apply shr_range_facts_wf | split]].
+    split; [ apply var_wf | split; [ apply shr_range_facts_wf | split  ] ].
     + intros rho. apply var_denote.
     + intros rho [Hb [r [Hr Hatom]]].
-      eapply shr_range_facts_logical_sound; [exact Hb | exact Hr | exact Hatom].
+      eapply shr_range_facts_logical_sound;
+        [ exact Hb | exact Hr | exact Hatom ].
   - (* Or_atom *)
-    destruct (to_affine e) as [[fa sa] |] eqn:Ha; [| discriminate].
+    destruct (to_affine e) as [ [fa sa] | ] eqn:Ha; [ | discriminate ].
     cbv zeta in H.
-    destruct (Affine.scale_checked minus_one fa) as [nfa |] eqn:Hnfa;
-      [| discriminate].
-    destruct (Affine.add_checked (Affine.var atom) nfa) as [s1 |] eqn:Hs1;
-      [| discriminate].
-    destruct (Affine.add_const_checked fa mask) as [fm |] eqn:Hfm;
-      [| discriminate].
-    destruct (Affine.scale_checked minus_one (Affine.var atom)) as [nv |]
-      eqn:Hnv; [| discriminate].
-    destruct (Affine.add_checked fm nv) as [s2 |] eqn:Hs2; [| discriminate].
+    destruct (Affine.scale_checked minus_one fa) as [ nfa | ] eqn:Hnfa;
+      [ | discriminate ].
+    destruct (Affine.add_checked (Affine.var atom) nfa) as [ s1 | ] eqn:Hs1;
+      [ | discriminate ].
+    destruct (Affine.add_const_checked fa mask) as [ fm | ] eqn:Hfm;
+      [ | discriminate ].
+    destruct (Affine.scale_checked minus_one (Affine.var atom)) as [ nv | ]
+      eqn:Hnv; [ | discriminate ].
+    destruct (Affine.add_checked fm nv) as [ s2 | ] eqn:Hs2; [ | discriminate ].
     injection H as <- <-.
     destruct (IHe _ _ eq_refl) as [Hwa [Hwsa [Hda Hsa]]].
     pose proof (proj2 (proj2 (scale_checked_spec (fun _ => 0) _ _ _ Hnfa)) Hwa)
@@ -713,13 +717,13 @@ Proof.
                   (var_wf atom)) as Hwnv.
     pose proof (proj2 (proj2 (add_checked_spec (fun _ => 0) _ _ _ Hwfm Hwnv
                                 Hs2))) as Hws2.
-    split; [apply var_wf | split; [| split]].
-    + apply Forall_cons; [exact Hws1 |]. apply Forall_cons; [exact Hws2 |].
+    split; [ apply var_wf | split; [ | split ] ].
+    + apply Forall_cons; [ exact Hws1 | ]. apply Forall_cons; [ exact Hws2 | ].
       exact Hwsa.
     + intros rho. apply var_denote.
     + intros rho [Hc [Hmask Hatom]].
       pose proof (lor_bounds (eval rho e) (to_Z mask) Hmask) as Hor.
-      apply Forall_cons; [| apply Forall_cons; [| apply Hsa; exact Hc]];
+      apply Forall_cons; [ | apply Forall_cons; [ | apply Hsa; exact Hc ] ];
         unfold holds.
       * destruct (add_checked_spec rho _ _ _ (var_wf atom) Hwnfa Hs1)
           as [Hd1 _].
@@ -742,7 +746,7 @@ Theorem to_affine_sound : forall rho e f sides,
 Proof.
   intros rho e f sides H.
   destruct (to_affine_spec e f sides H) as [_ [_ [Hd Hs]]].
-  split; [apply Hd | apply Hs].
+  split; [ apply Hd | apply Hs ].
 Qed.
 
 (* The form and the side facts are well-formed, as [entails] requires. *)

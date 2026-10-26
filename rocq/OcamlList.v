@@ -74,11 +74,11 @@ Fixpoint filter_map_opt {A B} (f : A -> option (option B)) (l : list A)
 Lemma filter_map_In : forall {A B} (f : A -> option B) l y,
   In y (filter_map f l) -> exists x, In x l /\ f x = Some y.
 Proof.
-  intros A B f l y. induction l as [| x l IH]; simpl; intros H.
+  intros A B f l y. induction l as [ | x l IH ]; simpl; intros H.
   - contradiction.
-  - destruct (f x) as [y'|] eqn:Hx.
-    + destruct H as [-> | H].
-      * exists x. split; [left; reflexivity | exact Hx].
+  - destruct (f x) as [ y' | ] eqn:Hx.
+    + destruct H as [ -> | H ].
+      * exists x. split; [ left; reflexivity | exact Hx ].
       * destruct (IH H) as [x' [Hin Hx']]. exists x'. auto.
     + destruct (IH H) as [x' [Hin Hx']]. exists x'. auto.
 Qed.
@@ -86,7 +86,7 @@ Qed.
 Lemma assoc_opt_In : forall {C} id (l : list (int * C)) c,
   assoc_opt id l = Some c -> In (id, c) l.
 Proof.
-  intros C id l c. induction l as [| [k c'] l IH]; simpl; intros H.
+  intros C id l c. induction l as [ | [k c'] l IH ]; simpl; intros H.
   - discriminate.
   - destruct (id =? k) eqn:E.
     + apply eqb_int in E. injection H as <-. subst. left. reflexivity.
@@ -96,17 +96,17 @@ Qed.
 Lemma assoc_opt_Some : forall {C} id (l : list (int * C)),
   In id (map fst l) -> exists c, assoc_opt id l = Some c.
 Proof.
-  intros C id l. induction l as [| [k c] l IH]; simpl; intros H.
+  intros C id l. induction l as [ | [k c] l IH ]; simpl; intros H.
   - contradiction.
-  - destruct (id =? k) eqn:E; [exists c; reflexivity |].
-    destruct H as [-> | H]; [rewrite eqb_int_refl in E; discriminate |].
+  - destruct (id =? k) eqn:E; [ exists c; reflexivity | ].
+    destruct H as [ -> | H ]; [ rewrite eqb_int_refl in E; discriminate | ].
     apply IH. exact H.
 Qed.
 
 Lemma assoc_opt_None : forall {C} id (l : list (int * C)),
   ~ In id (map fst l) -> assoc_opt id l = None.
 Proof.
-  intros C id l. induction l as [| [k c] l IH]; simpl; intros H.
+  intros C id l. induction l as [ | [k c] l IH ]; simpl; intros H.
   - reflexivity.
   - destruct (id =? k) eqn:E.
     + apply eqb_int in E. subst. exfalso. apply H. left. reflexivity.
@@ -119,10 +119,10 @@ Lemma map_opt_keys : forall {C D} (g : C -> option D) (l : list (int * C)) l',
   map_opt (fun '(id, c) => let* d := g c in Some (id, d)) l = Some l' ->
   map fst l' = map fst l.
 Proof.
-  intros C D g l. induction l as [| [k c] l IH]; simpl; intros l' H.
+  intros C D g l. induction l as [ | [k c] l IH ]; simpl; intros l' H.
   - injection H as <-. reflexivity.
-  - destruct (g c) as [d|]; [| discriminate].
-    destruct (map_opt _ l) as [rest|] eqn:Hr; [| discriminate].
+  - destruct (g c) as [ d | ]; [ | discriminate ].
+    destruct (map_opt _ l) as [ rest | ] eqn:Hr; [ | discriminate ].
     injection H as <-. simpl. f_equal. apply IH. reflexivity.
 Qed.
 
@@ -135,12 +135,12 @@ Lemma map_opt_assoc : forall {C D} (g : C -> option D) (l : list (int * C)) l',
     | None => assoc_opt id l' = None
     end.
 Proof.
-  intros C D g l. induction l as [| [k c] l IH]; simpl; intros l' H id.
+  intros C D g l. induction l as [ | [k c] l IH ]; simpl; intros l' H id.
   - injection H as <-. reflexivity.
-  - destruct (g c) as [d|] eqn:Hg; [| discriminate].
-    destruct (map_opt _ l) as [rest|] eqn:Hr; [| discriminate].
+  - destruct (g c) as [ d | ] eqn:Hg; [ | discriminate ].
+    destruct (map_opt _ l) as [ rest | ] eqn:Hr; [ | discriminate ].
     injection H as <-. simpl. destruct (id =? k).
-    + exists d. split; [exact Hg | reflexivity].
+    + exists d. split; [ exact Hg | reflexivity ].
     + apply IH. reflexivity.
 Qed.
 
@@ -167,10 +167,10 @@ Lemma filter_map_NoDup_keys : forall {C} (f : int -> option (int * C)) ids,
   (forall id p, f id = Some p -> fst p = id) ->
   NoDup ids -> NoDup (map fst (filter_map f ids)).
 Proof.
-  intros C f ids Hf Hnd. induction Hnd as [| id ids Hnin Hnd IH]; simpl.
+  intros C f ids Hf Hnd. induction Hnd as [ | id ids Hnin Hnd IH ]; simpl.
   - constructor.
-  - destruct (f id) as [p |] eqn:Hp; [| exact IH].
-    simpl. constructor; [| exact IH].
+  - destruct (f id) as [ p | ] eqn:Hp; [ | exact IH ].
+    simpl. constructor; [ | exact IH ].
     intros Hin. apply Hnin. rewrite (Hf id p Hp) in Hin.
     apply (filter_map_keys_In f ids id Hf Hin).
 Qed.
