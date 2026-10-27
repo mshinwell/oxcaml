@@ -41,24 +41,24 @@ Definition terminator_pure_control (t : Terminator.t) : bool :=
 (* A block whose instructions have no side effects and whose terminator
    only transfers control within the function: running it has no effect
    beyond the values it defines. *)
-Definition block_effect_free (bl : block) : bool :=
-  forallb (fun i => negb (has_side_effect i)) (block_body bl)
-  && terminator_pure_control (terminator bl).
+Definition block_effect_free (block : block) : bool :=
+  forallb (fun instr => negb (has_side_effect instr)) (block_body block)
+  && terminator_pure_control (terminator block).
 
-(* [v] is parameter [index] of [bl]. *)
-Definition is_param (bl : block) (index : int) (v : value) : bool :=
-  value_eqb v (param bl index).
+(* [v] is parameter [index] of [block]. *)
+Definition is_param (block : block) (index : int) (v : value) : bool :=
+  value_eqb v (param block index).
 
-(* [i] is the instruction defining [v]. *)
-Definition instr_defines_value (i : instr) (v : value) : bool :=
-  match i, v with
+(* [instr] is the instruction defining [v]. *)
+Definition instr_defines_value (instr : instr) (v : value) : bool :=
+  match instr, v with
   | Op id _, Res id' _ _ _ => instr_id_eqb id id'
   | _, _ => false
   end.
 
 (* The values an instruction reads. *)
-Definition args_of_instr (i : instr) : list value :=
-  match i with
+Definition args_of_instr (instr : instr) : list value :=
+  match instr with
   | Op _ args => args
   | Push_trap | Pop_trap => []
   end.
@@ -84,7 +84,7 @@ Definition terminator_args (term : Terminator.t) : list (list value) :=
 (* [arg] passes the value [v]. *)
 Definition arg_is (v : value) (arg : Terminator.arg) : bool :=
   match arg with
-  | Terminator.Arg a => value_eqb a v
+  | Terminator.Arg w => value_eqb w v
   | Terminator.Omitted_since_unused => false
   end.
 
@@ -107,15 +107,15 @@ Definition goto_args (target pred : block) : option (list Terminator.arg) :=
   | _ => None
   end.
 
-(* The terminator of [bl] is a [Goto] to [target] passing [v] as the
+(* The terminator of [block] is a [Goto] to [target] passing [v] as the
    argument at position [k], and at no other position. *)
-Definition goto_passes (target : block) (k : int) (v : value) (bl : block)
+Definition goto_passes (target : block) (k : int) (v : value) (block : block)
     : bool :=
-  match terminator bl with
+  match terminator block with
   | Terminator.Continue (Goto goto) args =>
     block_eqb goto target
     && (match arg_value args k with
-        | Some a => value_eqb a v
+        | Some w => value_eqb w v
         | None => false
         end)
     && (count_occurrences (arg_is v) args =? one)
@@ -130,13 +130,15 @@ Definition all_uses_ok (blocks : list block) (same : value -> bool)
     (approve_instr : instr -> bool)
     (approve_term : block -> list value -> bool) : bool :=
   forallb
-    (fun bl =>
+    (fun block =>
       forallb
-        (fun i => negb (existsb same (args_of_instr i)) || approve_instr i)
-        (block_body bl)
+        (fun instr =>
+          negb (existsb same (args_of_instr instr)) || approve_instr instr)
+        (block_body block)
       && forallb
-           (fun arr => negb (existsb same arr) || approve_term bl arr)
-           (terminator_args (terminator bl)))
+           (fun operands =>
+             negb (existsb same operands) || approve_term block operands)
+           (terminator_args (terminator block)))
     blocks.
 
 (* Visit roots from left to right, threading the completed set. *)
@@ -144,8 +146,8 @@ Fixpoint visit_all (visit : blockset -> block -> option blockset)
     (seen : blockset) (roots : list block) : option blockset :=
   match roots with
   | [] => Some seen
-  | b :: roots =>
-    let* seen := visit seen b in visit_all visit seen roots
+  | block :: roots =>
+    let* seen := visit seen block in visit_all visit seen roots
   end.
 
 (* A depth-first acyclicity check on [region] without [cut]. [active] holds
@@ -154,18 +156,18 @@ Fixpoint visit_all (visit : blockset -> block -> option blockset)
    bounds recursive depth for Rocq; the graph's block list is enough for
    any acyclic region. *)
 Fixpoint visit_acyclic (fuel : list block) (region : blockset) (cut : block)
-    (active seen : blockset) (b : block) : option blockset :=
-  if block_eqb b cut || negb (set_mem b region) || set_mem b seen
+    (active seen : blockset) (block : block) : option blockset :=
+  if block_eqb block cut || negb (set_mem block region) || set_mem block seen
   then Some seen
-  else if set_mem b active then None
+  else if set_mem block active then None
   else
     match fuel with
     | [] => None
     | _ :: fuel =>
       let* seen := visit_all
-        (visit_acyclic fuel region cut (set_add b active)) seen
-        (all_successors b) in
-      Some (set_add b seen)
+        (visit_acyclic fuel region cut (set_add block active)) seen
+        (all_successors block) in
+      Some (set_add block seen)
     end.
 
 (* Check every block of the region, not just the part reached from [cut].
@@ -176,7 +178,7 @@ Definition acyclic_except (blocks : list block) (region : blockset)
     set_empty blocks with
   | None => false
   | Some seen =>
-    set_for_all (fun b => block_eqb b cut || set_mem b seen) region
+    set_for_all (fun block => block_eqb block cut || set_mem block seen) region
   end.
 
 (* ======================================================================== *)
@@ -185,9 +187,9 @@ Definition acyclic_except (blocks : list block) (region : blockset)
 
 (* The block's instructions have no side effects and its terminator stays
    within the function. *)
-Definition block_does_nothing (bl : block) : Prop :=
-  (forall i, In i (block_body bl) -> has_side_effect i = false)
-  /\ terminator_pure_control (terminator bl) = true.
+Definition block_does_nothing (block : block) : Prop :=
+  (forall instr, In instr (block_body block) -> has_side_effect instr = false)
+  /\ terminator_pure_control (terminator block) = true.
 
 (* [uses_only blocks same approve_instr approve_term]: in every block of
    the graph, every instruction with an argument [same] accepts satisfies
@@ -196,27 +198,28 @@ Definition block_does_nothing (bl : block) : Prop :=
 Definition uses_only (blocks : list block) (same : value -> bool)
     (approve_instr : instr -> Prop)
     (approve_term : block -> list value -> Prop) : Prop :=
-  forall bl, In bl blocks ->
-    (forall i, In i (block_body bl) ->
-       existsb same (args_of_instr i) = true -> approve_instr i)
-    /\ (forall arr, In arr (terminator_args (terminator bl)) ->
-          existsb same arr = true -> approve_term bl arr).
+  forall block, In block blocks ->
+    (forall instr, In instr (block_body block) ->
+       existsb same (args_of_instr instr) = true -> approve_instr instr)
+    /\ (forall operands, In operands (terminator_args (terminator block)) ->
+          existsb same operands = true -> approve_term block operands).
 
-(* The terminator of [bl] is a [Goto] to [target] whose argument at
+(* The terminator of [block] is a [Goto] to [target] whose argument at
    position [k] is [v], and no other argument is ([count_occurrences ... =
    one]: one position passes it). *)
-Definition passes_at (target : block) (k : int) (v : value) (bl : block)
+Definition passes_at (target : block) (k : int) (v : value) (block : block)
     : Prop :=
   exists args,
-    terminator bl = Terminator.Continue (Goto target) args
+    terminator block = Terminator.Continue (Goto target) args
     /\ arg_value args k = Some v
     /\ count_occurrences (arg_is v) args = one.
 
 (* The successor relation restricted to [region] without [cut], oriented
    for accessibility: following an edge decreases in the relation. *)
-Definition region_edge (region : blockset) (cut s b : block) : Prop :=
-  set_mem b region = true /\ b <> cut
-  /\ set_mem s region = true /\ s <> cut /\ In s (all_successors b).
+Definition region_edge (region : blockset) (cut succ block : block) : Prop :=
+  set_mem block region = true /\ block <> cut
+  /\ set_mem succ region = true /\ succ <> cut
+  /\ In succ (all_successors block).
 
 (* An execution cannot stay in the region forever without visiting [cut]. *)
 Definition no_infinite_path_except (region : blockset) (cut : block) : Prop :=
@@ -232,26 +235,28 @@ Definition no_infinite_path_except (region : blockset) (cut : block) : Prop :=
 
 (* [block_eqb] is equality: it accepts a block and itself, and rejects two
    different blocks. *)
-Lemma block_eqb_refl : forall b, block_eqb b b = true.
+Lemma block_eqb_refl : forall block, block_eqb block block = true.
 Proof. intros b. apply block_eqb_spec. reflexivity. Qed.
 
 (* Two different blocks are told apart. *)
-Lemma block_eqb_neq : forall a b, a <> b -> block_eqb a b = false.
+Lemma block_eqb_neq : forall block block',
+  block <> block' -> block_eqb block block' = false.
 Proof.
   intros a b H. destruct (block_eqb a b) eqn:E; [ | reflexivity ].
   apply block_eqb_spec in E. contradiction.
 Qed.
 
 (* Membership in a set after [set_add], and in a singleton. *)
-Lemma set_mem_add_iff : forall b x s,
-  set_mem b (set_add x s) = true <-> b = x \/ set_mem b s = true.
+Lemma set_mem_add_iff : forall block block' set,
+  set_mem block (set_add block' set) = true
+  <-> block = block' \/ set_mem block set = true.
 Proof.
   intros b x s. rewrite set_mem_add, orb_true_iff, block_eqb_spec. tauto.
 Qed.
 
 (* A singleton holds its element and nothing else. *)
-Lemma set_mem_singleton_iff : forall b x,
-  set_mem b (set_singleton x) = true <-> b = x.
+Lemma set_mem_singleton_iff : forall block block',
+  set_mem block (set_singleton block') = true <-> block = block'.
 Proof. intros b x. rewrite set_mem_singleton. apply block_eqb_spec. Qed.
 
 (* --- Acyclic regions --- *)
@@ -261,26 +266,28 @@ Section Acyclic.
   Variable cut : block.
 
   Definition completed (seen : blockset) : Prop :=
-    forall b, set_mem b seen = true -> Acc (region_edge region cut) b.
+    forall block,
+      set_mem block seen = true -> Acc (region_edge region cut) block.
 
-  Definition covered (seen : blockset) (b : block) : Prop :=
-    b = cut \/ set_mem b region = false \/ set_mem b seen = true.
+  Definition covered (seen : blockset) (block : block) : Prop :=
+    block = cut \/ set_mem block region = false \/ set_mem block seen = true.
 
   Definition includes (old new : blockset) : Prop :=
-    forall b, set_mem b old = true -> set_mem b new = true.
+    forall block, set_mem block old = true -> set_mem block new = true.
 
   (* Growing the completed set preserves coverage of a block. *)
-  Lemma covered_includes : forall old new b,
-    includes old new -> covered old b -> covered new b.
+  Lemma covered_includes : forall old new block,
+    includes old new -> covered old block -> covered new block.
   Proof.
     intros old new b Hinc [H | [H | H]];
       [ left | right; left | right; right ]; auto.
   Qed.
 
   (* A skipped block is outside the region, the cut, or already completed. *)
-  Lemma skipped_covered : forall seen b,
-    block_eqb b cut || negb (set_mem b region) || set_mem b seen = true ->
-    covered seen b.
+  Lemma skipped_covered : forall seen block,
+    block_eqb block cut || negb (set_mem block region) || set_mem block seen
+    = true ->
+    covered seen block.
   Proof.
     intros seen b H. apply orb_true_iff in H. destruct H as [H | H].
     - apply orb_true_iff in H. destruct H as [H | H].
@@ -291,12 +298,12 @@ Section Acyclic.
 
   (* Visiting a list preserves completed blocks and covers every root. *)
   Lemma visit_all_spec : forall visit,
-    (forall seen b out, completed seen -> visit seen b = Some out ->
-       completed out /\ includes seen out /\ covered out b) ->
+    (forall seen block out, completed seen -> visit seen block = Some out ->
+       completed out /\ includes seen out /\ covered out block) ->
     forall roots seen out,
       completed seen -> visit_all visit seen roots = Some out ->
       completed out /\ includes seen out
-      /\ forall b, In b roots -> covered out b.
+      /\ forall block, In block roots -> covered out block.
   Proof.
     intros visit Hvisit roots. induction roots as [|b roots IH];
       intros seen out Hseen H; cbn [visit_all] in H.
@@ -314,9 +321,10 @@ Section Acyclic.
 
   (* Successful DFS visits only complete accessible blocks: every in-region
      successor has already completed before its predecessor is added. *)
-  Lemma visit_acyclic_spec : forall fuel active seen b out,
-    completed seen -> visit_acyclic fuel region cut active seen b = Some out ->
-    completed out /\ includes seen out /\ covered out b.
+  Lemma visit_acyclic_spec : forall fuel active seen block out,
+    completed seen ->
+    visit_acyclic fuel region cut active seen block = Some out ->
+    completed out /\ includes seen out /\ covered out block.
   Proof.
     induction fuel as [|x fuel IH]; intros active seen b out Hseen H;
       cbn [visit_acyclic] in H;
@@ -348,9 +356,9 @@ Section Acyclic.
   Qed.
 
   (* Accessibility excludes an infinite sequence of successor steps. *)
-  Lemma accessible_no_path : forall b,
-    Acc (region_edge region cut) b ->
-    forall path : nat -> block, path 0%nat = b ->
+  Lemma accessible_no_path : forall start,
+    Acc (region_edge region cut) start ->
+    forall path : nat -> block, path 0%nat = start ->
       (forall n, region_edge region cut (path (S n)) (path n)) -> False.
   Proof.
     intros b Hacc. induction Hacc as [b Hb IH].
@@ -378,8 +386,8 @@ Proof.
 Qed.
 
 (* [arg_value] reads the argument list. *)
-Lemma arg_value_nth : forall args i u,
-  arg_value args i = Some u -> nth_int args i = Some (Terminator.Arg u).
+Lemma arg_value_nth : forall args index u,
+  arg_value args index = Some u -> nth_int args index = Some (Terminator.Arg u).
 Proof.
   intros args i u H. unfold arg_value in H.
   destruct (nth_int args i) as [ [a | ] | ]; try discriminate.
@@ -391,7 +399,8 @@ Qed.
 (* [uses_only] with weaker approvals follows from [uses_only] with
    stronger ones. *)
 Lemma uses_only_weaken : forall blocks same P P' Q Q',
-  (forall i, P i -> P' i) -> (forall bl arr, Q bl arr -> Q' bl arr) ->
+  (forall instr, P instr -> P' instr) ->
+  (forall block operands, Q block operands -> Q' block operands) ->
   uses_only blocks same P Q -> uses_only blocks same P' Q'.
 Proof.
   intros blocks same P P' Q Q' HP HQ H bl Hbl.
@@ -429,8 +438,8 @@ Proof.
 Qed.
 
 (* A block [block_effect_free] accepts does nothing. *)
-Theorem block_effect_free_spec : forall bl,
-  block_effect_free bl = true -> block_does_nothing bl.
+Theorem block_effect_free_spec : forall block,
+  block_effect_free block = true -> block_does_nothing block.
 Proof.
   intros bl H. unfold block_effect_free in H.
   apply andb_true_iff in H. destruct H as [Hi Ht].
@@ -444,8 +453,8 @@ Qed.
 Theorem all_uses_ok_spec : forall blocks same approve_instr approve_term,
   all_uses_ok blocks same approve_instr approve_term = true ->
   uses_only blocks same
-    (fun i => approve_instr i = true)
-    (fun bl arr => approve_term bl arr = true).
+    (fun instr => approve_instr instr = true)
+    (fun block operands => approve_term block operands = true).
 Proof.
   intros blocks same approve_instr approve_term H bl Hbl.
   unfold all_uses_ok in H. rewrite forallb_forall in H.
@@ -459,8 +468,8 @@ Proof.
 Qed.
 
 (* What [goto_passes] checks, read back as [passes_at]. *)
-Theorem goto_passes_spec : forall target k v bl,
-  goto_passes target k v bl = true -> passes_at target k v bl.
+Theorem goto_passes_spec : forall target k v block,
+  goto_passes target k v block = true -> passes_at target k v block.
 Proof.
   intros target k v bl H. unfold goto_passes in H. unfold passes_at.
   destruct (terminator bl) as [ [goto | | | ] args | | | ]; try discriminate.

@@ -270,22 +270,22 @@ Definition cond_facts (c : ctx) (side : list Affine.t) (negate : bool)
    is to be negated, when the edge it takes towards [target] dominates
    [target]; [guard_facts] is the body of the walk, with the facts so far
    and the [side] and [ctx] of [cond_facts] passed along as [st]. *)
-Definition guard_test (target idom : block) : option (value * bool) :=
-  match terminator idom with
+Definition guard_test (target dominator : block) : option (value * bool) :=
+  match terminator dominator with
   | Terminator.Switch index [ifnot; ifso] =>
-    if edge_dominates idom ifso target
+    if edge_dominates dominator ifso target
     then Some (index, false)
-    else if edge_dominates idom ifnot target
+    else if edge_dominates dominator ifnot target
     then Some (index, true)
     else None
   | _ => None
   end.
 
 Definition guard_facts (target : block)
-    (st : (list Affine.t * list Affine.t) * ctx) (idom : block)
+    (st : (list Affine.t * list Affine.t) * ctx) (dominator : block)
     : (list Affine.t * list Affine.t) * ctx :=
   let '((acc, side), c) := st in
-  match guard_test target idom with
+  match guard_test target dominator with
   | Some (index, negate) =>
     let '((fs, side), c) := cond_facts c side negate index in
     ((fs ++ acc, side), c)
@@ -326,14 +326,15 @@ Definition linearize_atoms : Z := to_Z max_nodes + 2.
 
 Definition cond_atoms : Z := 2 * linearize_atoms.
 
-Definition guard_size (target d : block) : Z :=
-  match guard_test target d with
+Definition guard_size (target dominator : block) : Z :=
+  match guard_test target dominator with
   | Some _ => cond_atoms
   | None => 0
   end.
 
-Definition guards_sum (target : block) (doms : list block) : Z :=
-  fold_right (fun d acc => guard_size target d + acc) 0 doms.
+Definition guards_sum (target : block) (dominators : list block) : Z :=
+  fold_right (fun dominator acc => guard_size target dominator + acc) 0
+    dominators.
 
 Definition guards_size (target : block) : Z :=
   guards_sum target (strict_dominators target).
@@ -412,12 +413,14 @@ Section Semantics.
      [target] this is what [SsaDominance.edge_dominates_sound] gives, as
      every path to [target] took that edge; it is an assumption on [mval],
      which LoopTermination.v makes of the values at the entry to a loop. *)
-  Definition guard_taken (target d : block) : Prop :=
+  Definition guard_taken (target dominator : block) : Prop :=
     forall index negate,
-      guard_test target d = Some (index, negate) -> test_result negate index.
+      guard_test target dominator = Some (index, negate) ->
+      test_result negate index.
 
   Definition guards_taken (target : block) : Prop :=
-    forall d, In d (strict_dominators target) -> guard_taken target d.
+    forall dominator,
+      In dominator (strict_dominators target) -> guard_taken target dominator.
 
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
@@ -452,7 +455,8 @@ Section Semantics.
 
   (* The atom allowances are non-negative, and [guards_sum] unfolds on lists.
      *)
-  Lemma guard_size_nonneg : forall target d, 0 <= guard_size target d.
+  Lemma guard_size_nonneg : forall target dominator,
+    0 <= guard_size target dominator.
   Proof.
     intros target d. unfold guard_size.
     destruct (guard_test target d) as [[index negate] | ];
@@ -462,12 +466,13 @@ Section Semantics.
   Lemma guards_sum_nil : forall target, guards_sum target [] = 0.
   Proof. reflexivity. Qed.
 
-  Lemma guards_sum_cons : forall target d doms,
-    guards_sum target (d :: doms)
-    = guard_size target d + guards_sum target doms.
+  Lemma guards_sum_cons : forall target dominator dominators,
+    guards_sum target (dominator :: dominators)
+    = guard_size target dominator + guards_sum target dominators.
   Proof. reflexivity. Qed.
 
-  Lemma guards_sum_nonneg : forall target doms, 0 <= guards_sum target doms.
+  Lemma guards_sum_nonneg : forall target dominators,
+    0 <= guards_sum target dominators.
   Proof.
     intros target doms. induction doms as [ | d doms IH ].
     - rewrite guards_sum_nil. lia.
@@ -624,7 +629,7 @@ Section Semantics.
      it is computed from. *)
   Fixpoint value_ind' (P : value -> Prop)
       (Hres : forall id op args i, Forall P args -> P (Res id op args i))
-      (Hparam : forall b i, P (Block_param b i)) (v : value) : P v :=
+      (Hparam : forall block i, P (Block_param block i)) (v : value) : P v :=
     match v with
     | Res id op args i =>
       Hres id op args i
@@ -633,7 +638,7 @@ Section Semantics.
             | [] => Forall_nil P
             | a :: l => Forall_cons a (value_ind' P Hres Hparam a) (args_ind l)
             end) args)
-    | Block_param b i => Hparam b i
+    | Block_param block i => Hparam block i
     end.
 
 (* ======================================================================== *)
@@ -1064,16 +1069,18 @@ Section Semantics.
      facts and side facts well-formed, and, under a valuation agreeing
      with the final context, the side facts true and the facts true when
      the branches went as assumed. *)
-  Lemma guards_fold_sound : forall target doms acc side c fs side' c',
-    ctx_wf c -> to_Z c.(next) + guards_sum target doms <= ocaml_max_int ->
-    List.fold_left (guard_facts target) doms ((acc, side), c)
+  Lemma guards_fold_sound : forall target dominators acc side c fs side' c',
+    ctx_wf c ->
+    to_Z c.(next) + guards_sum target dominators <= ocaml_max_int ->
+    List.fold_left (guard_facts target) dominators ((acc, side), c)
     = ((fs, side'), c') ->
     ctx_wf c' /\ extends c c'
-    /\ to_Z c'.(next) <= to_Z c.(next) + guards_sum target doms
+    /\ to_Z c'.(next) <= to_Z c.(next) + guards_sum target dominators
     /\ (Forall wf acc -> Forall wf fs) /\ (Forall wf side -> Forall wf side')
     /\ forall rho, agrees rho c' ->
          (holds_all rho side -> holds_all rho side')
-         /\ ((forall d, In d doms -> guard_taken target d) ->
+         /\ ((forall dominator,
+                In dominator dominators -> guard_taken target dominator) ->
              holds_all rho acc -> holds_all rho fs).
   Proof.
     intros target doms. induction doms as [ | d doms IH ];

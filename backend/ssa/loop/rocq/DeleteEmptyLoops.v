@@ -63,9 +63,9 @@ Definition body_effect_free (loop : natural_loop) : bool :=
    the header's test fails, and somewhere other than [exit]. *)
 Definition single_exit (loop : natural_loop) (exit : block) : bool :=
   set_for_all
-    (fun bl =>
-      forallb (fun s => set_mem s loop.(body) || block_eqb s exit)
-        (all_successors bl))
+    (fun block =>
+      forallb (fun succ => set_mem succ loop.(body) || block_eqb succ exit)
+        (all_successors block))
     loop.(body).
 
 (* [LoopTermination.analyze] as a boolean. It is the costly check, so
@@ -84,10 +84,10 @@ Definition find_deletions (op_def : op_def) (blocks : list block)
   let loops := InductionVar.analyze op_def blocks in
   let dead := DeadInductionVar.analyze blocks loops in
   filter_map
-    (fun dr =>
-      let loop := dr.(loop) in
-      let bivs := map (fun br => br.(biv)) dr.(bivs) in
-      if dr.(useless) && body_effect_free loop
+    (fun result =>
+      let loop := result.(loop) in
+      let bivs := map (fun biv_result => biv_result.(biv)) result.(bivs) in
+      if result.(useless) && body_effect_free loop
       then
         match find_exit_branch loop with
         | Some exit_info =>
@@ -109,64 +109,65 @@ Definition find_deletions (op_def : op_def) (blocks : list block)
 (* Part 2: the intended meaning                                             *)
 (* ======================================================================== *)
 
-Definition body_does_nothing (l : natural_loop) : Prop :=
-  forall bl, set_mem bl l.(body) = true -> block_does_nothing bl.
+Definition body_does_nothing (loop : natural_loop) : Prop :=
+  forall block, set_mem block loop.(body) = true -> block_does_nothing block.
 
 (* Every edge out of a block of the body stays in the body or goes to
    [exit]. *)
-Definition exits_only_to (l : natural_loop) (exit : block) : Prop :=
-  forall bl, set_mem bl l.(body) = true ->
-    forall s, In s (all_successors bl) ->
-      set_mem s l.(body) = true \/ s = exit.
+Definition exits_only_to (loop : natural_loop) (exit : block) : Prop :=
+  forall block, set_mem block loop.(body) = true ->
+    forall succ, In succ (all_successors block) ->
+      set_mem succ loop.(body) = true \/ succ = exit.
 
 (* The header's exit branch, in the shape LoopTermination.v recognises,
    goes to [exit], which takes no arguments. *)
-Definition exit_branch_to (l : natural_loop) (exit : block) : Prop :=
+Definition exit_branch_to (loop : natural_loop) (exit : block) : Prop :=
   exists exit_info,
-    find_exit_branch l = Some exit_info
+    find_exit_branch loop = Some exit_info
     /\ exit_info.(exit_target) = exit /\ params exit = [].
 
-(* No run of [l] goes on for ever (LoopTermination.v), whatever the
+(* No run of [loop] goes on for ever (LoopTermination.v), whatever the
    graph's entry block. *)
-Definition no_infinite_header_run (op_def : op_def) (l : natural_loop)
+Definition no_infinite_header_run (op_def : op_def) (loop : natural_loop)
     : Prop :=
-  forall entry iter, infinite_header_run entry op_def l iter -> False.
+  forall entry iter, infinite_header_run entry op_def loop iter -> False.
 
 (* Every parameter of the header is one of [bivs], and each of those is a
-   basic induction variable of [l] that is dead. *)
+   basic induction variable of [loop] that is dead. *)
 Definition params_are_dead_bivs (op_def : op_def) (blocks : list block)
-    (l : natural_loop) (bivs : list InductionVar.biv) : Prop :=
-  (forall k v, nth_int (params l.(header)) k = Some v ->
-     exists b, In b bivs /\ b.(param_index) = k)
-  /\ (forall b, In b bivs -> biv_spec op_def l b /\ dead_spec blocks b).
+    (loop : natural_loop) (bivs : list InductionVar.biv) : Prop :=
+  (forall k v, nth_int (params loop.(header)) k = Some v ->
+     exists biv, In biv bivs /\ biv.(param_index) = k)
+  /\ (forall biv, In biv bivs ->
+        biv_spec op_def loop biv /\ dead_spec blocks biv).
 
-(* What holds of a loop [l], with the basic induction variables [bivs]
+(* What holds of a loop [loop], with the basic induction variables [bivs]
    InductionVar.v reports for it, when [find_deletions] deletes it. *)
 Definition deletable (op_def : op_def) (blocks : list block)
-    (l : natural_loop) (bivs : list InductionVar.biv) (exit : block)
+    (loop : natural_loop) (bivs : list InductionVar.biv) (exit : block)
     : Prop :=
-  exit_branch_to l exit
-  /\ no_infinite_header_run op_def l
-  /\ no_infinite_path_except l.(body) l.(header)
-  /\ params_are_dead_bivs op_def blocks l bivs
-  /\ body_does_nothing l
-  /\ exits_only_to l exit.
+  exit_branch_to loop exit
+  /\ no_infinite_header_run op_def loop
+  /\ no_infinite_path_except loop.(body) loop.(header)
+  /\ params_are_dead_bivs op_def blocks loop bivs
+  /\ body_does_nothing loop
+  /\ exits_only_to loop exit.
 
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
 (* ======================================================================== *)
 
 (* What [body_effect_free] checks, read back. *)
-Lemma body_effect_free_spec : forall l,
-  body_effect_free l = true -> body_does_nothing l.
+Lemma body_effect_free_spec : forall loop,
+  body_effect_free loop = true -> body_does_nothing loop.
 Proof.
   intros l H bl Hbl. unfold body_effect_free in H.
   rewrite set_for_all_spec in H. apply block_effect_free_spec, H. exact Hbl.
 Qed.
 
 (* What [single_exit] checks, read back. *)
-Lemma single_exit_spec : forall l exit,
-  single_exit l exit = true -> exits_only_to l exit.
+Lemma single_exit_spec : forall loop exit,
+  single_exit loop exit = true -> exits_only_to loop exit.
 Proof.
   intros l exit H bl Hbl s Hs. unfold single_exit in H.
   rewrite set_for_all_spec in H. specialize (H bl Hbl).
@@ -179,12 +180,12 @@ Qed.
 (* Part 4: theorems                                                         *)
 (* ======================================================================== *)
 
-Theorem find_deletions_spec : forall op_def blocks h exit,
-  In (h, exit) (find_deletions op_def blocks) ->
-  exists l bivs,
-    In (l, bivs) (InductionVar.analyze op_def blocks)
-    /\ h = l.(header)
-    /\ deletable op_def blocks l bivs exit.
+Theorem find_deletions_spec : forall op_def blocks header exit,
+  In (header, exit) (find_deletions op_def blocks) ->
+  exists loop bivs,
+    In (loop, bivs) (InductionVar.analyze op_def blocks)
+    /\ header = loop.(NaturalLoop.header)
+    /\ deletable op_def blocks loop bivs exit.
 Proof.
   intros op_def blocks h exit H. unfold find_deletions in H. cbv zeta in H.
   apply filter_map_In in H. destruct H as [dr [Hdr H]].

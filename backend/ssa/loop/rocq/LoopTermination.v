@@ -111,9 +111,9 @@ Definition extract_comparison (is_iv_val is_bound : value -> bool)
    satisfying [biv_spec] (InductionVar.v): [biv_implies_termination_spec]
    reads it back. *)
 Definition biv_implies_termination (op_def : op_def) (biv : biv) : bool :=
-  match find_exit_branch biv.(loop), signed_step biv with
+  match find_exit_branch biv.(InductionVar.loop), signed_step biv with
   | Some exit_info, Some step =>
-    let header := biv.(loop).(header) in
+    let header := biv.(InductionVar.loop).(header) in
     let is_self := is_param header biv.(param_index) in
     let is_iv_val v := is_self v || existsb (value_eqb v) biv.(update) in
     let is_bound v := is_loop_invariant op_def header v in
@@ -155,23 +155,24 @@ Local Open Scope Z_scope.
 Definition bool_to_Z (b : bool) : Z := if b then 1 else 0.
 
 (* The value a bound stands for, given the values on entry to the loop. *)
-Definition bound_value (iter0 : value -> Z) (b : bound) : Z :=
-  match b with
+Definition bound_value (iter0 : value -> Z) (bnd : bound) : Z :=
+  match bnd with
   | Value_bound v => iter0 v
   | Const_bound k => to_Z k
   end.
 
 (* The precondition of [analyze]: [bivs] are basic induction variables of
-   the loop [l], in the sense of InductionVar.v. [InductionVar.analyze_spec]
-   establishes it for the lists that analysis builds. *)
-Definition bivs_of_loop (op_def : op_def) (l : natural_loop)
+   the loop [loop], in the sense of InductionVar.v.
+   [InductionVar.analyze_spec] establishes it for the lists that analysis
+   builds. *)
+Definition bivs_of_loop (op_def : op_def) (loop : natural_loop)
     (bivs : list biv) : Prop :=
-  forall b, In b bivs -> biv_spec op_def l b.
+  forall biv, In biv bivs -> biv_spec op_def loop biv.
 
 (* --- A run of the loop that goes on for ever --- *)
 
-(* A run of the loop [l] is a sequence of consecutive visits of its header
-   between which control stays in the body of [l]: it starts when the
+(* A run of the loop [loop] is a sequence of consecutive visits of its
+   header between which control stays in the body of [loop]: it starts when the
    header is entered from outside the loop and ends when the header's
    branch leaves the body (a later visit of the header belongs to another
    run). The loop does not terminate when some run never ends. Because the
@@ -190,7 +191,7 @@ Definition bivs_of_loop (op_def : op_def) (l : natural_loop)
    [infinite_header_run] states what is then true of [iter], in three
    groups. It is the trusted meaning of the views of SsaModel.v in one
    run: a reviewer checks that each hypothesis holds of a real execution
-   that never leaves [l]; the model proves that no [iter] satisfies them
+   that never leaves [loop]; the model proves that no [iter] satisfies them
    all for a loop [analyze] says terminates ([analyze_Terminates]). *)
 
 (* What the machine computes, at every visit. *)
@@ -217,20 +218,20 @@ Record machine_values (iter : nat -> value -> Z) : Prop :=
 (* How the run entered the loop, [entry] being the graph's entry block:
    what held of the values on entry, and still holds at every visit of
    the values from outside the loop. *)
-Record loop_entry (entry : block) (op_def : op_def) (l : natural_loop)
+Record loop_entry (entry : block) (op_def : op_def) (loop : natural_loop)
     (iter : nat -> value -> Z) : Prop :=
   { (* [dominates] means what SsaDominance.v says it means. *)
     run_dominance : dominance_semantics entry;
 
-    (* The branch of a block [d] whose terminator is [Switch index [ifnot;
-       ifso]] goes to [ifso] when the comparison [index] holds and to
-       [ifnot] when it fails. When every path from the entry to the header
-       takes the edge to [ifso] (or, [negate], the edge to [ifnot]), the
-       execution took it, so the comparison held (failed) on entry. *)
-    iter_branches : forall d index ifnot ifso (negate : bool),
-      terminator d = Terminator.Switch index [ifnot; ifso] ->
-      (forall p, path entry p l.(header) ->
-         edge_on p d (if negate then ifnot else ifso)) ->
+    (* The branch of a block [block] whose terminator is [Switch index
+       [ifnot; ifso]] goes to [ifso] when the comparison [index] holds and
+       to [ifnot] when it fails. When every path from the entry to the
+       header takes the edge to [ifso] (or, [negate], the edge to [ifnot]),
+       the execution took it, so the comparison held (failed) on entry. *)
+    iter_branches : forall block index ifnot ifso (negate : bool),
+      terminator block = Terminator.Switch index [ifnot; ifso] ->
+      (forall p, path entry p loop.(header) ->
+         edge_on p block (if negate then ifnot else ifso)) ->
       test_result (iter 0%nat) negate index;
 
     (* A loop-invariant value (InductionVar.v: a constant, or one defined
@@ -238,17 +239,17 @@ Record loop_entry (entry : block) (op_def : op_def) (l : natural_loop)
        value at every visit: its block is not in the body, where the run
        stays between two visits, so it does not run again. *)
     iter_invariant : forall n v,
-      loop_invariant_value op_def l.(header) v -> iter n v = iter 0%nat v }.
+      loop_invariant_value op_def loop.(header) v -> iter n v = iter 0%nat v }.
 
 (* The run never leaves the loop. *)
-Record stays_in_loop (l : natural_loop) (iter : nat -> value -> Z) : Prop :=
+Record stays_in_loop (loop : natural_loop) (iter : nat -> value -> Z) : Prop :=
   { (* At every visit the header's [Switch] (control goes to
        [targets.(index)]) sends the run into the body ... *)
     run_continues : forall n index targets,
-      terminator l.(header) = Terminator.Switch index targets ->
+      terminator loop.(header) = Terminator.Switch index targets ->
       exists target,
         nth_error targets (Z.to_nat (iter n index)) = Some target
-        /\ set_mem target l.(body) = true;
+        /\ set_mem target loop.(body) = true;
 
     (* ... and the next visit arrives over a back edge, whose terminator
        is a [Goto] to the header: the value of each parameter at the next
@@ -259,46 +260,47 @@ Record stays_in_loop (l : natural_loop) (iter : nat -> value -> Z) : Prop :=
        body into the header is a back edge, and a run that stays in the
        body can arrive no other way. *)
     run_back_edge : forall n,
-      exists s args,
-        In s l.(back_edges) /\ In s (predecessors l.(header))
-        /\ terminator s = Terminator.Continue (Goto l.(header)) args
-        /\ forall i u, nth_int args i = Some (Terminator.Arg u) ->
-             iter (S n) (param l.(header) i) = iter n u }.
+      exists source args,
+        In source loop.(back_edge_sources)
+        /\ In source (predecessors loop.(header))
+        /\ terminator source = Terminator.Continue (Goto loop.(header)) args
+        /\ forall index u, nth_int args index = Some (Terminator.Arg u) ->
+             iter (S n) (param loop.(header) index) = iter n u }.
 
 (* A bound on the graph, not on the run: the atom counter of AffineSsa.v,
    an OxCaml [int], cannot wrap while the bound and the header's guards
    are linearized. A linearization allocates at most [linearize_atoms]
    (258) atoms, so this only fails for a header with some 2^53
    dominators. *)
-Definition atom_counter_fits (l : natural_loop) : Prop :=
-  linearize_atoms + guards_size l.(header) <= ocaml_max_int.
+Definition atom_counter_fits (loop : natural_loop) : Prop :=
+  linearize_atoms + guards_size loop.(header) <= ocaml_max_int.
 
 Record infinite_header_run (entry : block) (op_def : op_def)
-    (l : natural_loop) (iter : nat -> value -> Z) : Prop :=
+    (loop : natural_loop) (iter : nat -> value -> Z) : Prop :=
   { run_machine : machine_values iter;
-    run_entry : loop_entry entry op_def l iter;
-    run_stays : stays_in_loop l iter;
-    run_atoms_fit : atom_counter_fits l }.
+    run_entry : loop_entry entry op_def loop iter;
+    run_stays : stays_in_loop loop iter;
+    run_atoms_fit : atom_counter_fits loop }.
 
 Arguments iter_bounded {iter}.
 Arguments iter_op {iter}.
 Arguments iter_comparison {iter}.
-Arguments run_dominance {entry op_def l iter}.
-Arguments iter_branches {entry op_def l iter}.
-Arguments iter_invariant {entry op_def l iter}.
-Arguments run_continues {l iter}.
-Arguments run_back_edge {l iter}.
-Arguments run_machine {entry op_def l iter}.
-Arguments run_entry {entry op_def l iter}.
-Arguments run_stays {entry op_def l iter}.
-Arguments run_atoms_fit {entry op_def l iter}.
+Arguments run_dominance {entry op_def loop iter}.
+Arguments iter_branches {entry op_def loop iter}.
+Arguments iter_invariant {entry op_def loop iter}.
+Arguments run_continues {loop iter}.
+Arguments run_back_edge {loop iter}.
+Arguments run_machine {entry op_def loop iter}.
+Arguments run_entry {entry op_def loop iter}.
+Arguments run_stays {entry op_def loop iter}.
+Arguments run_atoms_fit {entry op_def loop iter}.
 
 Section Run.
   Variable entry : block.
   Variable op_def : op_def.
-  Variable l : natural_loop.
+  Variable loop : natural_loop.
   Variable iter : nat -> value -> Z.
-  Hypothesis run : infinite_header_run entry op_def l iter.
+  Hypothesis run : infinite_header_run entry op_def loop iter.
 
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
@@ -352,7 +354,8 @@ Section Run.
 
   (* A constant step comes from [self + c] or [self - c]. *)
   Lemma classify_update_const : forall is_self c sign u,
-    classify_update is_self op_def l.(header) u = Some (Step_const c, sign) ->
+    classify_update is_self op_def loop.(header) u
+      = Some (Step_const c, sign) ->
     exists id i x,
       is_self x = true
       /\ ((sign = Add /\ u = Res id (Intop_imm Iadd c) [x] i)
@@ -377,10 +380,11 @@ Section Run.
   Qed.
 
   (* Each update value is the parameter plus the signed step. *)
-  Lemma biv_update_value : forall b st u n,
-    biv_spec op_def l b -> signed_step b = Some st -> In u b.(update) ->
+  Lemma biv_update_value : forall biv step u n,
+    biv_spec op_def loop biv -> signed_step biv = Some step ->
+    In u biv.(update) ->
     iter n u
-    = wrap64 (iter n (param l.(header) b.(param_index)) + to_Z st).
+    = wrap64 (iter n (param loop.(header) biv.(param_index)) + to_Z step).
   Proof.
     intros b st u n Hspec Hstep Hu.
     destruct Hspec as [_ [_ [Hupd _]]].
@@ -398,7 +402,7 @@ Section Run.
       destruct Hcase as [[_ Hv] | [Hab _]]; [ | discriminate ]. subst u.
       pose proof (run.(run_machine).(iter_op) n
                     (Res id (Intop_imm Iadd c)
-                       [param l.(header) b.(param_index)] i)) as Hop.
+                       [param loop.(header) b.(param_index)] i)) as Hop.
       cbv [op_semantics] in Hop. exact Hop.
     - (* Sub *)
       destruct (c =? min_int)%sint63 eqn:Hmin; [ discriminate | ].
@@ -407,17 +411,18 @@ Section Run.
       destruct Hcase as [[Hab _] | [_ Hv]]; [ discriminate | ]. subst u.
       pose proof (run.(run_machine).(iter_op) n
                     (Res id (Intop_imm Isub c)
-                       [param l.(header) b.(param_index)] i)) as Hop.
+                       [param loop.(header) b.(param_index)] i)) as Hop.
       cbv [op_semantics] in Hop. rewrite Hop.
       rewrite Sint63.to_Z_opp by (apply eqb_int_false; exact Hmin).
       f_equal; ring.
   Qed.
 
   (* The parameter's values at the visits are the sequence [iv]. *)
-  Lemma self_sequence : forall b step,
-    biv_spec op_def l b -> signed_step b = Some step ->
-    forall n, iter n (param l.(header) b.(param_index))
-              = iv (iter 0 (param l.(header) b.(param_index))) (to_Z step) n.
+  Lemma self_sequence : forall biv step,
+    biv_spec op_def loop biv -> signed_step biv = Some step ->
+    forall n, iter n (param loop.(header) biv.(param_index))
+              = iv (iter 0 (param loop.(header) biv.(param_index)))
+                   (to_Z step) n.
   Proof.
     intros b step Hspec Hstep n. induction n as [ | n IH ].
     - reflexivity.
@@ -434,22 +439,23 @@ Section Run.
   (* So are those of any value [is_iv_val] accepts: the
      parameter itself, or one of its updates (the sequence from its next
      value). *)
-  Lemma iv_val_sequence : forall b step x,
-    biv_spec op_def l b -> signed_step b = Some step ->
-    is_param l.(header) b.(param_index) x
-      || existsb (value_eqb x) b.(update) = true ->
+  Lemma iv_val_sequence : forall biv step x,
+    biv_spec op_def loop biv -> signed_step biv = Some step ->
+    is_param loop.(header) biv.(param_index) x
+      || existsb (value_eqb x) biv.(update) = true ->
     exists v0, in_int64 v0 /\ forall n, iter n x = iv v0 (to_Z step) n.
   Proof.
     intros b step x Hspec Hstep Hx. apply orb_true_iff in Hx.
     destruct Hx as [Hself | Hupd].
     - unfold is_param in Hself. apply value_eqb_spec in Hself.
       subst x.
-      exists (iter 0 (param l.(header) b.(param_index))).
+      exists (iter 0 (param loop.(header) b.(param_index))).
       split; [ apply run.(run_machine).(iter_bounded) | ].
       intros n. apply self_sequence; assumption.
     - apply existsb_exists in Hupd. destruct Hupd as [u [Hin Hequ]].
       apply value_eqb_spec in Hequ. subst x.
-      exists (wrap64 (iter 0 (param l.(header) b.(param_index)) + to_Z step)).
+      exists (wrap64 (iter 0 (param loop.(header) b.(param_index))
+                      + to_Z step)).
       split; [ apply wrap64_in_range | ].
       intros n. rewrite <- iv_shift. cbn [iv].
       rewrite <- (self_sequence b step Hspec Hstep n).
@@ -462,7 +468,7 @@ Section Run.
      ([guards_taken], AffineSsa.v): each is one whose edge
      [edge_dominates] accepts, which by [edge_dominates_sound] is on every
      path from the entry to the header, so [iter_branches] applies. *)
-  Lemma guards_taken_of_run : guards_taken (iter 0%nat) l.(header).
+  Lemma guards_taken_of_run : guards_taken (iter 0%nat) loop.(header).
   Proof.
     intros d _ index negate Hg. unfold guard_test in Hg.
     destruct (terminator d) as [ | index' targets | | ] eqn:Ht;
@@ -470,24 +476,24 @@ Section Run.
     destruct targets as [ | ifnot [ | ifso [ | ? ? ] ] ]; try discriminate.
     cbv iota beta in Hg.
     pose proof run.(run_entry).(run_dominance) as Hdom.
-    destruct (edge_dominates d ifso l.(header)) eqn:Hso.
+    destruct (edge_dominates d ifso loop.(header)) eqn:Hso.
     - injection Hg as <- <-.
       apply (run.(run_entry).(iter_branches) d _ ifnot ifso _ Ht).
       intros p Hp.
-      exact (edge_dominates_sound entry Hdom d ifso l.(header) Hso p Hp).
-    - destruct (edge_dominates d ifnot l.(header)) eqn:Hnot;
+      exact (edge_dominates_sound entry Hdom d ifso loop.(header) Hso p Hp).
+    - destruct (edge_dominates d ifnot loop.(header)) eqn:Hnot;
         [ | discriminate ].
       injection Hg as <- <-.
       apply (run.(run_entry).(iter_branches) d _ ifnot ifso _ Ht).
       intros p Hp.
-      exact (edge_dominates_sound entry Hdom d ifnot l.(header) Hnot p Hp).
+      exact (edge_dominates_sound entry Hdom d ifnot loop.(header) Hnot p Hp).
   Qed.
 
   (* The facts [bound_in_range] checks a register bound against hold
      under a valuation that reads the bound's form as its value. *)
   Lemma value_bound_facts : forall v form side1 c1 guards side2 c2,
     linearize new_ctx [] v = ((form, side1), c1) ->
-    guards_at c1 side1 l.(header) = ((guards, side2), c2) ->
+    guards_at c1 side1 loop.(header) = ((guards, side2), c2) ->
     exists rho,
       denote rho form = iter 0 v
       /\ Forall wf (guards ++ side2) /\ wf form
@@ -499,13 +505,13 @@ Section Run.
     assert (Hn0 : to_Z new_ctx.(next) = 0) by exact to_Z_zero.
     pose proof run.(run_atoms_fit) as Hsmall.
     unfold atom_counter_fits in Hsmall.
-    assert (Hgs : 0 <= guards_size l.(header)) by apply guards_sum_nonneg.
+    assert (Hgs : 0 <= guards_size loop.(header)) by apply guards_sum_nonneg.
     destruct (linearize_sound (iter 0) (run.(run_machine).(iter_bounded) 0)
                 Heqb (run.(run_machine).(iter_op) 0%nat) v new_ctx [] form
                 side1 c1 new_ctx_wf ltac:(lia) Hlin)
       as [Hwf1 [_ [Hn1 [Hwff [Hwfs1 Hrho1]]]]].
     destruct (guards_at_sound (iter 0) (run.(run_machine).(iter_bounded) 0)
-                Heqb (run.(run_machine).(iter_op) 0%nat) l.(header) c1 side1
+                Heqb (run.(run_machine).(iter_op) 0%nat) loop.(header) c1 side1
                 guards side2 c2 Hwf1 ltac:(lia) Hg)
       as [Hwf2 [He12 [_ [Hwfg [Hwfs2 Hrho2]]]]].
     destruct (agrees_exists (iter 0) c2 Hwf2) as [rho Hrho].
@@ -523,7 +529,7 @@ Section Run.
   (* [bound_in_range] establishes the side condition of
      LoopComparisons.v on the bound's value. *)
   Lemma bound_in_range_sound : forall step bnd,
-    bound_in_range step l.(header) bnd = true ->
+    bound_in_range step loop.(header) bnd = true ->
     LoopComparisons.bound_in_range (to_Z step) (bound_value (iter 0) bnd)
     = true.
   Proof.
@@ -540,7 +546,7 @@ Section Run.
     destruct bnd as [v | k]; cbn [bound_value].
     - (* Value_bound *)
       destruct (linearize new_ctx [] v) as [[form side1] c1] eqn:Hlin.
-      destruct (guards_at c1 side1 l.(header)) as [[guards side2] c2] eqn:Hg.
+      destruct (guards_at c1 side1 loop.(header)) as [[guards side2] c2] eqn:Hg.
       destruct (value_bound_facts v form side1 c1 guards side2 c2 Hlin Hg)
         as [rho [Hden [Hwffacts [Hwff Hfacts]]]].
       destruct (0 <? to_Z step) eqn:Hp; cbv iota in H.
@@ -577,33 +583,34 @@ Section Run.
 
   (* --- The verdict against the run --- *)
 
-  (* What [biv_implies_termination] accepting [b], a BIV of [l], says: the
-     header has an exit branch [eb], [b] a literal step, the exit
-     comparison the shape [extract_comparison] reads, and the verdict of
-     LoopComparisons.v on them is [Terminates], or
+  (* What [biv_implies_termination] accepting [biv], a BIV of [loop], says:
+     the header has an exit branch [exit_info], [biv] a literal step, the
+     exit comparison the shape [extract_comparison] reads, and the verdict
+     of LoopComparisons.v on them is [Terminates], or
      [Terminates_if_bound_in_range] with the bound checked in range. *)
-  Lemma biv_implies_termination_spec : forall b,
-    b.(loop) = l -> biv_implies_termination op_def b = true ->
-    exists eb step cmp iv_is_left bnd,
-      find_exit_branch l = Some eb
-      /\ signed_step b = Some step
+  Lemma biv_implies_termination_spec : forall biv,
+    biv.(InductionVar.loop) = loop ->
+    biv_implies_termination op_def biv = true ->
+    exists exit_info step cmp iv_is_left bnd,
+      find_exit_branch loop = Some exit_info
+      /\ signed_step biv = Some step
       /\ extract_comparison
-           (fun v => is_param l.(header) b.(param_index) v
-                     || existsb (value_eqb v) b.(update))
-           (is_loop_invariant op_def l.(header)) eb.(condition)
+           (fun v => is_param loop.(header) biv.(param_index) v
+                     || existsb (value_eqb v) biv.(update))
+           (is_loop_invariant op_def loop.(header)) exit_info.(condition)
          = Some (cmp, iv_is_left, bnd)
       /\ (continue_terminates step
-            (oriented_continue_comparison iv_is_left eb.(continue_when_true)
-               cmp)
+            (oriented_continue_comparison iv_is_left
+               exit_info.(continue_when_true) cmp)
           = LoopComparisons.Terminates
           \/ (continue_terminates step
                 (oriented_continue_comparison iv_is_left
-                   eb.(continue_when_true) cmp)
+                   exit_info.(continue_when_true) cmp)
               = LoopComparisons.Terminates_if_bound_in_range
-              /\ bound_in_range step l.(header) bnd = true)).
+              /\ bound_in_range step loop.(header) bnd = true)).
   Proof.
     intros b Hl Hb. unfold biv_implies_termination in Hb. rewrite Hl in Hb.
-    destruct (find_exit_branch l) as [eb | ] eqn:Hexit; [ | discriminate ].
+    destruct (find_exit_branch loop) as [eb | ] eqn:Hexit; [ | discriminate ].
     destruct (signed_step b) as [step | ] eqn:Hstep; [ | discriminate ].
     cbv iota zeta beta in Hb.
     destruct (extract_comparison _ _ eb.(condition))
@@ -623,12 +630,12 @@ Section Run.
   (* At every visit the exit comparison tests the sequence [iv] of
      LoopComparisons.v (the induction variable's values, from its value or
      its updated value at the first visit) against a bound fixed at entry. *)
-  Lemma exit_test_sequence : forall b step cond cmp iv_is_left bnd,
-    biv_spec op_def l b -> signed_step b = Some step ->
+  Lemma exit_test_sequence : forall biv step cond cmp iv_is_left bnd,
+    biv_spec op_def loop biv -> signed_step biv = Some step ->
     extract_comparison
-      (fun v => is_param l.(header) b.(param_index) v
-                || existsb (value_eqb v) b.(update))
-      (is_loop_invariant op_def l.(header)) cond
+      (fun v => is_param loop.(header) biv.(param_index) v
+                || existsb (value_eqb v) biv.(update))
+      (is_loop_invariant op_def loop.(header)) cond
     = Some (cmp, iv_is_left, bnd) ->
     exists v0, in_int64 v0
       /\ forall n, iter n cond
@@ -674,13 +681,13 @@ Section Run.
   (* At every visit of a run the exit test comes out the way that
      continues the loop: the header's [Switch] goes into the body, and of
      its two targets only one is in it. *)
-  Lemma run_test_continues : forall eb n (test : bool),
-    find_exit_branch l = Some eb ->
-    iter n eb.(condition) = bool_to_Z test ->
-    test = eb.(continue_when_true).
+  Lemma run_test_continues : forall exit_info n (test : bool),
+    find_exit_branch loop = Some exit_info ->
+    iter n exit_info.(condition) = bool_to_Z test ->
+    test = exit_info.(continue_when_true).
   Proof.
     intros eb n test Hexit Htest.
-    destruct (find_exit_branch_spec l eb Hexit)
+    destruct (find_exit_branch_spec loop eb Hexit)
       as [ifnot [ifso [Ht [Hso Hnot]]]].
     destruct (run.(run_stays).(run_continues) n eb.(condition)
                 [ifnot; ifso] Ht)
@@ -701,7 +708,7 @@ Section Run.
      hypotheses of this section, together with a [Terminates] verdict for
      the loop's basic induction variables, are contradictory. *)
   Theorem analyze_Terminates : forall bivs,
-    bivs_of_loop op_def l bivs ->
+    bivs_of_loop op_def loop bivs ->
     analyze op_def bivs = Terminates -> False.
   Proof.
     intros bivs Hbivs H. unfold analyze in H.
@@ -736,7 +743,7 @@ Section Run.
   (* The same for the basic induction variables InductionVar.v reports
      for the loop. *)
   Theorem analyze_Terminates_of_graph : forall blocks bivs,
-    In (l, bivs) (InductionVar.analyze op_def blocks) ->
+    In (loop, bivs) (InductionVar.analyze op_def blocks) ->
     analyze op_def bivs = Terminates -> False.
   Proof.
     intros blocks bivs Hin H.

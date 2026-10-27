@@ -3,7 +3,7 @@ open SsaModel
 type natural_loop =
   { header : block;
     body : blockset;
-    back_edges : block list
+    back_edge_sources : block list
   }
 
 val add_new : blockset * block list -> block -> blockset * block list

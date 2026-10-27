@@ -24,7 +24,7 @@ let is_loop_invariant op_def0 header0 v =
       | Operation.Const_mask _ -> true
       | _ -> (
         match Ssa.Instruction.Id.Tbl.find_opt op_def0 id with
-        | Some bl -> strictly_dominates bl header0
+        | Some block0 -> strictly_dominates block0 header0
         | None -> false))
     (fun block0 _ -> strictly_dominates block0 header0)
     v
@@ -134,20 +134,20 @@ let classify_update is_self op_def0 header0 v =
 
 let back_edge_set loop0 =
   List.fold_left
-    (fun s b -> Ssa.Block.Set.add b s)
-    Ssa.Block.Set.empty loop0.back_edges
+    (fun set block0 -> Ssa.Block.Set.add block0 set)
+    Ssa.Block.Set.empty loop0.back_edge_sources
 
 (** val classify_param : natural_loop -> op_def -> (block * Ssa.finished
     Ssa.Terminator.arg list) list -> int -> biv option **)
 
-let classify_param loop0 op_def0 back_pred_args index =
+let classify_param loop0 op_def0 source_args index =
   let is_self = is_param loop0.header index in
   let back_vals_opt =
     List.map
       (fun pat ->
         let _, args = pat in
         arg_value args index)
-      back_pred_args
+      source_args
   in
   if List.for_all Option.is_some back_vals_opt
   then
@@ -185,11 +185,11 @@ let classify_param loop0 op_def0 back_pred_args index =
     Ssa.Terminator.arg list) list -> int -> Ssa.finished Ssa.Value.t list -> biv
     list **)
 
-let rec params_bivs loop0 op_def0 back_pred_args index = function
+let rec params_bivs loop0 op_def0 source_args index = function
   | [] -> []
   | _ :: params1 -> (
-    let rest = params_bivs loop0 op_def0 back_pred_args (index + 1) params1 in
-    match classify_param loop0 op_def0 back_pred_args index with
+    let rest = params_bivs loop0 op_def0 source_args (index + 1) params1 in
+    match classify_param loop0 op_def0 source_args index with
     | Some biv0 -> biv0 :: rest
     | None -> rest)
 
@@ -197,30 +197,32 @@ let rec params_bivs loop0 op_def0 back_pred_args index = function
 
 let analyze_loop op_def0 loop0 =
   let header0 = loop0.header in
-  let back_set = back_edge_set loop0 in
+  let source_set = back_edge_set loop0 in
   let pred_args =
-    List.map (fun p -> p, goto_args header0 p) (Ssa.Block.predecessors header0)
+    List.map
+      (fun pred -> pred, goto_args header0 pred)
+      (Ssa.Block.predecessors header0)
   in
   let all_back_edges_have_args =
     List.for_all
       (fun pat ->
-        let p, args = pat in
-        (not (Ssa.Block.Set.mem p back_set)) || Option.is_some args)
+        let pred, args = pat in
+        (not (Ssa.Block.Set.mem pred source_set)) || Option.is_some args)
       pred_args
   in
   if not all_back_edges_have_args
   then []
   else
-    let back_pred_args =
+    let source_args =
       List.filter_map
         (fun pat ->
-          let p, args = pat in
-          if Ssa.Block.Set.mem p back_set
-          then Option.map (fun args0 -> p, args0) args
+          let pred, args = pat in
+          if Ssa.Block.Set.mem pred source_set
+          then Option.map (fun args0 -> pred, args0) args
           else None)
         pred_args
     in
-    params_bivs loop0 op_def0 back_pred_args 0 (params header0)
+    params_bivs loop0 op_def0 source_args 0 (params header0)
 
 (** val analyze : op_def -> block list -> (natural_loop * biv list) list **)
 

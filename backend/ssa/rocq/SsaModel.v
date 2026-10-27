@@ -41,7 +41,7 @@ Parameter instr_id : Type.
    [Block_param (b, i)], the parameter [i] of [b]. *)
 Inductive value : Type :=
   | Res (id : instr_id) (op : operation) (args : list value) (i : int)
-  | Block_param (b : block) (i : int).
+  | Block_param (block : block) (i : int).
 
 (* [Ssa.finished Ssa.Instruction.t]: [Op id args] is [Op { id; args; _ }]
    with the arguments as a list. *)
@@ -59,9 +59,11 @@ Inductive instr : Type :=
 Parameter block_eqb : block -> block -> bool.
 Parameter value_eqb : value -> value -> bool.
 Parameter instr_id_eqb : instr_id -> instr_id -> bool.
-Axiom block_eqb_spec : forall a b, block_eqb a b = true <-> a = b.
-Axiom value_eqb_spec : forall a b, value_eqb a b = true <-> a = b.
-Axiom instr_id_eqb_spec : forall a b, instr_id_eqb a b = true <-> a = b.
+Axiom block_eqb_spec : forall block block',
+  block_eqb block block' = true <-> block = block'.
+Axiom value_eqb_spec : forall v w, value_eqb v w = true <-> v = w.
+Axiom instr_id_eqb_spec : forall id id',
+  instr_id_eqb id id' = true <-> id = id'.
 
 (* ======================================================================== *)
 (* Sets of blocks: [Ssa.Block.Set]                                          *)
@@ -76,13 +78,15 @@ Parameter set_for_all : (block -> bool) -> blockset -> bool.
 (* Membership: nothing is in the empty set; a singleton holds its element;
    adding a block puts it in and keeps the others; [set_for_all f] holds
    exactly when [f] holds of every member. *)
-Axiom set_mem_empty : forall b, set_mem b set_empty = false.
-Axiom set_mem_singleton : forall b x,
-  set_mem b (set_singleton x) = block_eqb b x.
-Axiom set_mem_add : forall b x s,
-  set_mem b (set_add x s) = block_eqb b x || set_mem b s.
-Axiom set_for_all_spec : forall f s,
-  set_for_all f s = true <-> (forall b, set_mem b s = true -> f b = true).
+Axiom set_mem_empty : forall block, set_mem block set_empty = false.
+Axiom set_mem_singleton : forall block block',
+  set_mem block (set_singleton block') = block_eqb block block'.
+Axiom set_mem_add : forall block block' set,
+  set_mem block (set_add block' set)
+  = block_eqb block block' || set_mem block set.
+Axiom set_for_all_spec : forall f set,
+  set_for_all f set = true
+  <-> (forall block, set_mem block set = true -> f block = true).
 
 (* ======================================================================== *)
 (* Blocks                                                                   *)
@@ -111,7 +115,7 @@ Parameter block_body : block -> list instr.
 (* [Ssa.continuation]; the payload of [Raise] is not inspected. *)
 Parameter raise_kind : Type.
 Inductive continuation : Type :=
-  | Goto (b : block)
+  | Goto (block : block)
   | Return
   | Raise (k : raise_kind)
   | Unreachable.

@@ -177,13 +177,13 @@ Definition resolvent (cp cn : int) (p n : Affine.t) : option Affine.t :=
 Definition max_atoms : int := 64.
 Definition max_ineqs : int := 500.
 
-(* One step of [feasible]: eliminate the atom [v]. [None] when the system
-   is over the size limit; an overflowing resolvent is dropped. *)
-Definition elim (v : int) (ineqs : list Affine.t) : option (list Affine.t) :=
+(* One step of [feasible]: eliminate the atom [atom]. [None] when the
+   system is over the size limit; an overflowing resolvent is dropped. *)
+Definition elim (atom : int) (ineqs : list Affine.t) : option (list Affine.t) :=
   if zero <? compare_length_with ineqs max_ineqs
   then None
   else
-    let cf f := Affine.coeff v f in
+    let cf f := Affine.coeff atom f in
     let pos := filter (fun f => zero <? cf f) ineqs in
     let neg := filter (fun f => cf f <? zero) ineqs in
     let zero_coeff := filter (fun f => cf f =? zero) ineqs in
@@ -202,7 +202,7 @@ Fixpoint elim_all (atoms : list int) (ineqs : list Affine.t)
     : option (list Affine.t) :=
   match atoms with
   | [] => Some ineqs
-  | v :: atoms => let* ineqs := elim v ineqs in elim_all atoms ineqs
+  | atom :: atoms => let* ineqs := elim atom ineqs in elim_all atoms ineqs
   end.
 
 Definition feasible (ineqs : list Affine.t) : bool :=
@@ -924,10 +924,10 @@ Definition elim_result (eliminated : int -> Prop) (ineqs out : list Affine.t)
         forall f, In f out -> to_Z (Affine.coeff id f) = 0)
   /\ (forall rho, holds_all rho ineqs -> holds_all rho out).
 
-(* Eliminating [v] eliminates [v]. *)
-Lemma elim_spec : forall v ineqs out,
-  Forall wf ineqs -> elim v ineqs = Some out ->
-  elim_result (fun id => id = v) ineqs out.
+(* Eliminating [atom] eliminates [atom]. *)
+Lemma elim_spec : forall atom ineqs out,
+  Forall wf ineqs -> elim atom ineqs = Some out ->
+  elim_result (fun id => id = atom) ineqs out.
 Proof.
   intros v ineqs out Hwf H. unfold elim in H.
   destruct (zero <? compare_length_with ineqs max_ineqs)%sint63;

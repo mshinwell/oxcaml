@@ -13,10 +13,11 @@ let body_effect_free loop0 = Ssa.Block.Set.for_all block_effect_free loop0.body
 
 let single_exit loop0 exit =
   Ssa.Block.Set.for_all
-    (fun bl ->
+    (fun block0 ->
       List.for_all
-        (fun s -> Ssa.Block.Set.mem s loop0.body || Ssa.Block.equal s exit)
-        (Ssa.Block.all_successors bl))
+        (fun succ ->
+          Ssa.Block.Set.mem succ loop0.body || Ssa.Block.equal succ exit)
+        (Ssa.Block.all_successors block0))
     loop0.body
 
 (** val loop_terminates : op_def -> biv list -> bool **)
@@ -30,10 +31,10 @@ let find_deletions op_def0 blocks =
   let loops = InductionVar.analyze op_def0 blocks in
   let dead = DeadInductionVar.analyze blocks loops in
   List.filter_map
-    (fun dr ->
-      let loop0 = dr.DeadInductionVar.loop in
-      let bivs0 = List.map (fun br -> br.biv) dr.bivs in
-      if dr.useless && body_effect_free loop0
+    (fun result ->
+      let loop0 = result.DeadInductionVar.loop in
+      let bivs0 = List.map (fun biv_result -> biv_result.biv) result.bivs in
+      if result.useless && body_effect_free loop0
       then
         match find_exit_branch loop0 with
         | Some exit_info -> (

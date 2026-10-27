@@ -57,8 +57,9 @@ Record loop_result : Type :=
 Definition param_uses_ok (blocks : list block) (header : block) (k : int)
     (cond : value) (updates : list value) : bool :=
   all_uses_ok blocks (is_param header k)
-    (fun i =>
-      instr_defines_value i cond || existsb (instr_defines_value i) updates)
+    (fun instr =>
+      instr_defines_value instr cond
+      || existsb (instr_defines_value instr) updates)
     (fun _ _ => false).
 
 (* The exit comparison is read by no instruction, and by no terminator but
@@ -67,17 +68,18 @@ Definition cond_uses_ok (blocks : list block) (header : block) (cond : value)
     : bool :=
   all_uses_ok blocks (value_eqb cond)
     (fun _ => false)
-    (fun bl _ => block_eqb bl header).
+    (fun block _ => block_eqb block header).
 
 (* The update value [u] is read by no instruction but the exit comparison,
-   and by no terminator but the [Goto] to the header of a back-edge block
-   (one of [back_preds]), as the argument at position [k] and at no other
-   position. *)
+   and by no terminator but the [Goto] to the header of a back-edge source
+   (one of [back_edge_sources]), as the argument at position [k] and at no
+   other position. *)
 Definition update_uses_ok (blocks : list block) (header : block)
-    (back_preds : blockset) (k : int) (cond u : value) : bool :=
+    (back_edge_sources : blockset) (k : int) (cond u : value) : bool :=
   all_uses_ok blocks (value_eqb u)
-    (fun i => instr_defines_value i cond)
-    (fun bl _ => set_mem bl back_preds && goto_passes header k u bl).
+    (fun instr => instr_defines_value instr cond)
+    (fun block _ =>
+      set_mem block back_edge_sources && goto_passes header k u block).
 
 (* Whether a BIV is dead: its parameter, the exit comparison and its update
    values are used only as the loop's own control requires, as [dead_spec]
@@ -89,10 +91,11 @@ Definition is_dead (blocks : list block) (biv : InductionVar.biv) : bool :=
     let cond := exit_info.(condition) in
     let header := biv.(InductionVar.loop).(header) in
     let k := biv.(param_index) in
-    let back_preds := back_edge_set biv.(InductionVar.loop) in
+    let back_edge_sources := back_edge_set biv.(InductionVar.loop) in
     param_uses_ok blocks header k cond biv.(update)
     && cond_uses_ok blocks header cond
-    && forallb (update_uses_ok blocks header back_preds k cond) biv.(update)
+    && forallb (update_uses_ok blocks header back_edge_sources k cond)
+         biv.(update)
   end.
 
 (* Every header parameter is a dead BIV. *)
@@ -116,7 +119,7 @@ Definition analyze (blocks : list block)
 (* Part 2: the intended meaning                                             *)
 (* ======================================================================== *)
 
-(* What [dead = true] establishes of a basic induction variable [b] of a
+(* What [dead = true] establishes of a basic induction variable [biv] of a
    loop with the exit branch [exit_info], in terms of [uses_only]
    (SsaGraph.v): its parameter is used only by the exit comparison and its
    own updates and by no terminator; the exit comparison is used by no
@@ -127,40 +130,43 @@ Definition analyze (blocks : list block)
 Definition param_used_only_by_exit_and_updates (blocks : list block)
     (header : block) (k : int) (cond : value) (updates : list value) : Prop :=
   uses_only blocks (is_param header k)
-    (fun i =>
-      instr_defines_value i cond = true
-      \/ exists u, In u updates /\ instr_defines_value i u = true)
+    (fun instr =>
+      instr_defines_value instr cond = true
+      \/ exists u, In u updates /\ instr_defines_value instr u = true)
     (fun _ _ => False).
 
 Definition cond_used_only_by_header_branch (blocks : list block)
     (header : block) (cond : value) : Prop :=
-  uses_only blocks (value_eqb cond) (fun _ => False) (fun bl _ => bl = header).
+  uses_only blocks (value_eqb cond) (fun _ => False)
+    (fun block _ => block = header).
 
 Definition update_used_only_by_exit_and_back_edge (blocks : list block)
-    (l : natural_loop) (k : int) (cond u : value) : Prop :=
+    (loop : natural_loop) (k : int) (cond u : value) : Prop :=
   uses_only blocks (value_eqb u)
-    (fun i => instr_defines_value i cond = true)
-    (fun bl _ => In bl l.(back_edges) /\ passes_at l.(header) k u bl).
+    (fun instr => instr_defines_value instr cond = true)
+    (fun block _ =>
+      In block loop.(back_edge_sources) /\ passes_at loop.(header) k u block).
 
-Definition dead_spec (blocks : list block) (b : InductionVar.biv) : Prop :=
+Definition dead_spec (blocks : list block) (biv : InductionVar.biv) : Prop :=
   exists exit_info,
-    find_exit_branch b.(InductionVar.loop) = Some exit_info
+    find_exit_branch biv.(InductionVar.loop) = Some exit_info
     /\ let cond := exit_info.(condition) in
-       let l := b.(InductionVar.loop) in
-       let k := b.(param_index) in
-       param_used_only_by_exit_and_updates blocks l.(header) k cond b.(update)
-       /\ cond_used_only_by_header_branch blocks l.(header) cond
-       /\ forall u, In u b.(update) ->
-            update_used_only_by_exit_and_back_edge blocks l k cond u.
+       let loop := biv.(InductionVar.loop) in
+       let k := biv.(param_index) in
+       param_used_only_by_exit_and_updates blocks loop.(header) k cond
+         biv.(update)
+       /\ cond_used_only_by_header_branch blocks loop.(header) cond
+       /\ forall u, In u biv.(update) ->
+            update_used_only_by_exit_and_back_edge blocks loop k cond u.
 
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
 (* ======================================================================== *)
 
 (* The approval [update_uses_ok] asks of a terminator use, read back. *)
-Lemma update_term_approved : forall l header k v bl,
-  set_mem bl (back_edge_set l) && goto_passes header k v bl = true ->
-  In bl l.(back_edges) /\ passes_at header k v bl.
+Lemma update_term_approved : forall loop header k v block,
+  set_mem block (back_edge_set loop) && goto_passes header k v block = true ->
+  In block loop.(back_edge_sources) /\ passes_at header k v block.
 Proof.
   intros l header k v bl H. apply andb_true_iff in H. destruct H as [Hset H].
   split; [ apply back_edge_set_spec; exact Hset | ].
@@ -172,8 +178,8 @@ Qed.
 (* ======================================================================== *)
 
 (* A BIV [is_dead] accepts satisfies [dead_spec]. *)
-Theorem is_dead_spec : forall blocks b,
-  is_dead blocks b = true -> dead_spec blocks b.
+Theorem is_dead_spec : forall blocks biv,
+  is_dead blocks biv = true -> dead_spec blocks biv.
 Proof.
   intros blocks b H. unfold is_dead in H.
   destruct (find_exit_branch b.(InductionVar.loop)) as [exit_info | ]
@@ -209,7 +215,7 @@ Qed.
 Theorem loop_is_useless_spec : forall loop bivs,
   loop_is_useless loop bivs = true ->
   length (params loop.(header)) = length bivs
-  /\ forall br, In br bivs -> br.(dead) = true.
+  /\ forall biv_result, In biv_result bivs -> biv_result.(dead) = true.
 Proof.
   intros loop bivs H. unfold loop_is_useless in H.
   apply andb_true_iff in H. destruct H as [Hlen Hdead].
@@ -221,15 +227,16 @@ Qed.
    of the loop with [dead] computed by [is_dead], every one reported dead
    satisfies [dead_spec], and a loop reported useless has as many dead
    induction variables as its header has parameters. *)
-Theorem analyze_spec : forall blocks loops r,
-  In r (analyze blocks loops) ->
-  In (r.(loop), map biv r.(bivs)) loops
-  /\ (forall br, In br r.(bivs) ->
-        br.(dead) = is_dead blocks br.(biv)
-        /\ (br.(dead) = true -> dead_spec blocks br.(biv)))
-  /\ (r.(useless) = true ->
-        length (params r.(loop).(header)) = length r.(bivs)
-        /\ forall br, In br r.(bivs) -> br.(dead) = true).
+Theorem analyze_spec : forall blocks loops result,
+  In result (analyze blocks loops) ->
+  In (result.(loop), map biv result.(bivs)) loops
+  /\ (forall biv_result, In biv_result result.(bivs) ->
+        biv_result.(dead) = is_dead blocks biv_result.(biv)
+        /\ (biv_result.(dead) = true -> dead_spec blocks biv_result.(biv)))
+  /\ (result.(useless) = true ->
+        length (params result.(loop).(header)) = length result.(bivs)
+        /\ forall biv_result,
+             In biv_result result.(bivs) -> biv_result.(dead) = true).
 Proof.
   intros blocks loops r H. unfold analyze in H.
   apply in_map_iff in H. destruct H as [[l bs] [<- Hin]]. cbv zeta.

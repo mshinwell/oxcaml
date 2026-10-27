@@ -26,20 +26,20 @@ let terminator_pure_control t =
 
 (** val block_effect_free : block -> bool **)
 
-let block_effect_free bl =
+let block_effect_free block0 =
   List.for_all
-    (fun i -> not (Ssa.Instruction.has_side_effect i))
-    (block_body bl)
-  && terminator_pure_control (Ssa.Block.terminator bl)
+    (fun instr -> not (Ssa.Instruction.has_side_effect instr))
+    (block_body block0)
+  && terminator_pure_control (Ssa.Block.terminator block0)
 
 (** val is_param : block -> int -> Ssa.finished Ssa.Value.t -> bool **)
 
-let is_param bl index v = Ssa.Value.equal v (Ssa.Block.param bl index)
+let is_param block0 index v = Ssa.Value.equal v (Ssa.Block.param block0 index)
 
 (** val instr_defines_value : Ssa.finished Ssa.Instruction.t -> Ssa.finished
     Ssa.Value.t -> bool **)
 
-let instr_defines_value i v =
+let instr_defines_value instr v =
   (fun f_op f_push_trap f_pop_trap (i : Ssa.finished Ssa.Instruction.t) ->
     match i with
     | Ssa.Instruction.Op { Ssa.Instruction.id; args; _ } ->
@@ -57,12 +57,12 @@ let instr_defines_value i v =
         v)
     (fun _ -> false)
     (fun _ -> false)
-    i
+    instr
 
 (** val args_of_instr : Ssa.finished Ssa.Instruction.t -> Ssa.finished
     Ssa.Value.t list **)
 
-let args_of_instr i =
+let args_of_instr instr =
   (fun f_op f_push_trap f_pop_trap (i : Ssa.finished Ssa.Instruction.t) ->
     match i with
     | Ssa.Instruction.Op { Ssa.Instruction.id; args; _ } ->
@@ -72,7 +72,7 @@ let args_of_instr i =
     (fun _ args -> args)
     (fun _ -> [])
     (fun _ -> [])
-    i
+    instr
 
 (** val terminator_args : Ssa.finished Ssa.Terminator.t -> Ssa.finished
     Ssa.Value.t list list **)
@@ -108,7 +108,7 @@ let terminator_args term =
     bool **)
 
 let arg_is v = function
-  | Ssa.Terminator.Arg a -> Ssa.Value.equal a v
+  | Ssa.Terminator.Arg w -> Ssa.Value.equal w v
   | Ssa.Terminator.Omitted_since_unused -> false
 
 (** val arg_value : Ssa.finished Ssa.Terminator.arg list -> int -> Ssa.finished
@@ -154,7 +154,7 @@ let goto_args target pred =
 (** val goto_passes : block -> int -> Ssa.finished Ssa.Value.t -> block -> bool
     **)
 
-let goto_passes target k v bl =
+let goto_passes target k v block0 =
   (fun f_continue
     f_switch
     f_call
@@ -174,14 +174,14 @@ let goto_passes target k v bl =
         (Ssa.Block.equal goto target
         &&
         match arg_value args k with
-        | Some a -> Ssa.Value.equal a v
+        | Some w -> Ssa.Value.equal w v
         | None -> false)
         && Int.equal (count_occurrences (arg_is v) args) 1
       | _ -> false)
     (fun _ _ -> false)
     (fun _ -> false)
     (fun _ -> false)
-    (Ssa.Block.terminator bl)
+    (Ssa.Block.terminator block0)
 
 (** val all_uses_ok : block list -> (Ssa.finished Ssa.Value.t -> bool) ->
     (Ssa.finished Ssa.Instruction.t -> bool) -> (block -> Ssa.finished
@@ -189,13 +189,15 @@ let goto_passes target k v bl =
 
 let all_uses_ok blocks same approve_instr approve_term =
   List.for_all
-    (fun bl ->
+    (fun block0 ->
       List.for_all
-        (fun i -> (not (List.exists same (args_of_instr i))) || approve_instr i)
-        (block_body bl)
+        (fun instr ->
+          (not (List.exists same (args_of_instr instr))) || approve_instr instr)
+        (block_body block0)
       && List.for_all
-           (fun arr -> (not (List.exists same arr)) || approve_term bl arr)
-           (terminator_args (Ssa.Block.terminator bl)))
+           (fun operands ->
+             (not (List.exists same operands)) || approve_term block0 operands)
+           (terminator_args (Ssa.Block.terminator block0)))
     blocks
 
 (** val visit_all : (blockset -> block -> blockset option) -> blockset -> block
@@ -203,20 +205,20 @@ let all_uses_ok blocks same approve_instr approve_term =
 
 let rec visit_all visit seen = function
   | [] -> Some seen
-  | b :: roots0 -> (
-    match visit seen b with
+  | block0 :: roots0 -> (
+    match visit seen block0 with
     | Some seen0 -> visit_all visit seen0 roots0
     | None -> None)
 
 (** val visit_acyclic : block list -> blockset -> block -> blockset -> blockset
     -> block -> blockset option **)
 
-let rec visit_acyclic fuel region cut active seen b =
+let rec visit_acyclic fuel region cut active seen block0 =
   if
-    (Ssa.Block.equal b cut || not (Ssa.Block.Set.mem b region))
-    || Ssa.Block.Set.mem b seen
+    (Ssa.Block.equal block0 cut || not (Ssa.Block.Set.mem block0 region))
+    || Ssa.Block.Set.mem block0 seen
   then Some seen
-  else if Ssa.Block.Set.mem b active
+  else if Ssa.Block.Set.mem block0 active
   then None
   else
     match fuel with
@@ -224,11 +226,11 @@ let rec visit_acyclic fuel region cut active seen b =
     | _ :: fuel0 -> (
       match
         visit_all
-          (visit_acyclic fuel0 region cut (Ssa.Block.Set.add b active))
+          (visit_acyclic fuel0 region cut (Ssa.Block.Set.add block0 active))
           seen
-          (Ssa.Block.all_successors b)
+          (Ssa.Block.all_successors block0)
       with
-      | Some seen0 -> Some (Ssa.Block.Set.add b seen0)
+      | Some seen0 -> Some (Ssa.Block.Set.add block0 seen0)
       | None -> None)
 
 (** val acyclic_except : block list -> blockset -> block -> bool **)
@@ -241,6 +243,7 @@ let acyclic_except blocks region cut =
   with
   | Some seen ->
     Ssa.Block.Set.for_all
-      (fun b -> Ssa.Block.equal b cut || Ssa.Block.Set.mem b seen)
+      (fun block0 ->
+        Ssa.Block.equal block0 cut || Ssa.Block.Set.mem block0 seen)
       region
   | None -> false

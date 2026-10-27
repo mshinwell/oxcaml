@@ -20,8 +20,9 @@ type loop_result =
 
 let param_uses_ok blocks header0 k cond updates =
   all_uses_ok blocks (is_param header0 k)
-    (fun i ->
-      instr_defines_value i cond || List.exists (instr_defines_value i) updates)
+    (fun instr ->
+      instr_defines_value instr cond
+      || List.exists (instr_defines_value instr) updates)
     (fun _ _ -> false)
 
 (** val cond_uses_ok : block list -> block -> Ssa.finished Ssa.Value.t -> bool **)
@@ -29,15 +30,17 @@ let param_uses_ok blocks header0 k cond updates =
 let cond_uses_ok blocks header0 cond =
   all_uses_ok blocks (Ssa.Value.equal cond)
     (fun _ -> false)
-    (fun bl _ -> Ssa.Block.equal bl header0)
+    (fun block0 _ -> Ssa.Block.equal block0 header0)
 
 (** val update_uses_ok : block list -> block -> blockset -> int -> Ssa.finished
     Ssa.Value.t -> Ssa.finished Ssa.Value.t -> bool **)
 
-let update_uses_ok blocks header0 back_preds k cond u =
+let update_uses_ok blocks header0 back_edge_sources k cond u =
   all_uses_ok blocks (Ssa.Value.equal u)
-    (fun i -> instr_defines_value i cond)
-    (fun bl _ -> Ssa.Block.Set.mem bl back_preds && goto_passes header0 k u bl)
+    (fun instr -> instr_defines_value instr cond)
+    (fun block0 _ ->
+      Ssa.Block.Set.mem block0 back_edge_sources
+      && goto_passes header0 k u block0)
 
 (** val is_dead : block list -> biv -> bool **)
 
@@ -47,11 +50,11 @@ let is_dead blocks biv0 =
     let cond = exit_info.condition in
     let header0 = biv0.InductionVar.loop.header in
     let k = biv0.param_index in
-    let back_preds = back_edge_set biv0.InductionVar.loop in
+    let back_edge_sources = back_edge_set biv0.InductionVar.loop in
     (param_uses_ok blocks header0 k cond biv0.update
     && cond_uses_ok blocks header0 cond)
     && List.for_all
-         (update_uses_ok blocks header0 back_preds k cond)
+         (update_uses_ok blocks header0 back_edge_sources k cond)
          biv0.update
   | None -> false
 

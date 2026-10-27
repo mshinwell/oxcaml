@@ -215,11 +215,11 @@ let resolvent cp cn p n =
 
 (** val elim : int -> Affine.t list -> Affine.t list option **)
 
-let elim v ineqs =
+let elim atom ineqs =
   if 0 < List.compare_length_with ineqs 500
   then None
   else
-    let cf = fun f -> Affine.coeff v f in
+    let cf = fun f -> Affine.coeff atom f in
     let pos = List.filter (fun f -> 0 < cf f) ineqs in
     let neg0 = List.filter (fun f -> cf f < 0) ineqs in
     let zero_coeff = List.filter (fun f -> Int.equal (cf f) 0) ineqs in
@@ -241,8 +241,8 @@ let elim v ineqs =
 let rec elim_all atoms ineqs =
   match atoms with
   | [] -> Some ineqs
-  | v :: atoms0 -> (
-    match elim v ineqs with
+  | atom :: atoms0 -> (
+    match elim atom ineqs with
     | Some ineqs0 -> elim_all atoms0 ineqs0
     | None -> None)
 

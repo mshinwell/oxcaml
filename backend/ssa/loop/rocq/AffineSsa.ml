@@ -298,7 +298,7 @@ let cond_facts c side negate cond =
 (** val guard_test : block -> block -> (Ssa.finished Ssa.Value.t * bool) option
     **)
 
-let guard_test target idom =
+let guard_test target dominator =
   (fun f_continue
     f_switch
     f_call
@@ -322,23 +322,23 @@ let guard_test target idom =
         | ifso :: l0 -> (
           match l0 with
           | [] ->
-            if edge_dominates idom ifso target
+            if edge_dominates dominator ifso target
             then Some (index, false)
-            else if edge_dominates idom ifnot target
+            else if edge_dominates dominator ifnot target
             then Some (index, true)
             else None
           | _ :: _ -> None)))
     (fun _ -> None)
     (fun _ -> None)
-    (Ssa.Block.terminator idom)
+    (Ssa.Block.terminator dominator)
 
 (** val guard_facts : block -> ((Affine.t list * Affine.t list) * ctx) -> block
     -> (Affine.t list * Affine.t list) * ctx **)
 
-let guard_facts target st idom =
+let guard_facts target st dominator =
   let p, c = st in
   let acc, side = p in
-  match guard_test target idom with
+  match guard_test target dominator with
   | Some p0 ->
     let index, negate = p0 in
     let p1, c0 = cond_facts c side negate index in

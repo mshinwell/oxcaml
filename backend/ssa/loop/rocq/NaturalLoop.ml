@@ -3,16 +3,16 @@ open SsaModel
 type natural_loop =
   { header : block;
     body : blockset;
-    back_edges : block list
+    back_edge_sources : block list
   }
 
 (** val add_new : (blockset * block list) -> block -> blockset * block list **)
 
-let add_new acc p =
+let add_new acc pred =
   let body0, added = acc in
-  if Ssa.Block.Set.mem p body0
+  if Ssa.Block.Set.mem pred body0
   then body0, added
-  else Ssa.Block.Set.add p body0, p :: added
+  else Ssa.Block.Set.add pred body0, pred :: added
 
 (** val walk : block list -> blockset -> block list -> blockset **)
 
@@ -22,55 +22,60 @@ let rec walk fuel body0 worklist =
   | _ :: fuel0 -> (
     match worklist with
     | [] -> body0
-    | bl :: rest ->
+    | block0 :: rest ->
       let body1, added =
-        List.fold_left add_new (body0, rest) (Ssa.Block.predecessors bl)
+        List.fold_left add_new (body0, rest) (Ssa.Block.predecessors block0)
       in
       walk fuel0 body1 added)
 
 (** val natural_loop_body : block list -> block -> block list -> blockset **)
 
-let natural_loop_body fuel header0 back_preds =
+let natural_loop_body fuel header0 back_edge_sources0 =
   let body0, seeds =
-    List.fold_left add_new (Ssa.Block.Set.singleton header0, []) back_preds
+    List.fold_left add_new
+      (Ssa.Block.Set.singleton header0, [])
+      back_edge_sources0
   in
   walk fuel body0 seeds
 
 (** val add_back_edge : block -> block -> (block * block list) list -> (block *
     block list) list **)
 
-let rec add_back_edge header0 src = function
-  | [] -> (header0, src :: []) :: []
-  | p :: tbl0 ->
-    let h, srcs = p in
-    if Ssa.Block.equal h header0
-    then (h, src :: srcs) :: tbl0
-    else (h, srcs) :: add_back_edge header0 src tbl0
+let rec add_back_edge header0 source = function
+  | [] -> (header0, source :: []) :: []
+  | p :: table0 ->
+    let header', back_edge_sources0 = p in
+    if Ssa.Block.equal header' header0
+    then (header', source :: back_edge_sources0) :: table0
+    else (header', back_edge_sources0) :: add_back_edge header0 source table0
 
 (** val record_back_edge : block -> (block * block list) list -> block -> (block
     * block list) list **)
 
-let record_back_edge bl tbl succ =
-  if Ssa.Block.dominates succ bl then add_back_edge succ bl tbl else tbl
+let record_back_edge source table succ =
+  if Ssa.Block.dominates succ source
+  then add_back_edge succ source table
+  else table
 
 (** val record_back_edges : (block * block list) list -> block -> (block * block
     list) list **)
 
-let record_back_edges tbl bl =
-  List.fold_left (record_back_edge bl) tbl (Ssa.Block.all_successors bl)
+let record_back_edges table source =
+  List.fold_left (record_back_edge source) table
+    (Ssa.Block.all_successors source)
 
 (** val find_loops : block list -> natural_loop list **)
 
 let find_loops blocks =
-  let header_tbl = List.fold_left record_back_edges [] blocks in
+  let header_table = List.fold_left record_back_edges [] blocks in
   List.map
     (fun pat ->
-      let header0, back_preds = pat in
+      let header0, back_edge_sources0 = pat in
       { header = header0;
-        body = natural_loop_body blocks header0 back_preds;
-        back_edges = back_preds
+        body = natural_loop_body blocks header0 back_edge_sources0;
+        back_edge_sources = back_edge_sources0
       })
-    header_tbl
+    header_table
 
 type exit_branch =
   { condition : Ssa.finished Ssa.Value.t;
