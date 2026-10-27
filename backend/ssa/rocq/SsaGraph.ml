@@ -123,21 +123,23 @@ let rec visit_all visit seen = function
     | Some seen0 -> visit_all visit seen0 roots0
     | None -> None)
 
-(** val visit_acyclic : block list -> blockset -> block -> blockset -> block ->
-    blockset option **)
+(** val visit_acyclic : block list -> blockset -> block -> blockset -> blockset
+    -> block -> blockset option **)
 
-let rec visit_acyclic fuel region cut seen b =
+let rec visit_acyclic fuel region cut active seen b =
   if
     (Ssa.Block.equal b cut || not (Ssa.Block.Set.mem b region))
     || Ssa.Block.Set.mem b seen
   then Some seen
+  else if Ssa.Block.Set.mem b active
+  then None
   else
     match fuel with
     | [] -> None
     | _ :: fuel0 -> (
       match
         visit_all
-          (visit_acyclic fuel0 region cut)
+          (visit_acyclic fuel0 region cut (Ssa.Block.Set.add b active))
           seen
           (Ssa.Block.all_successors b)
       with
@@ -148,7 +150,9 @@ let rec visit_acyclic fuel region cut seen b =
 
 let acyclic_except blocks region cut =
   match
-    visit_all (visit_acyclic blocks region cut) Ssa.Block.Set.empty blocks
+    visit_all
+      (visit_acyclic blocks region cut Ssa.Block.Set.empty)
+      Ssa.Block.Set.empty blocks
   with
   | Some seen ->
     Ssa.Block.Set.for_all

@@ -82,8 +82,8 @@ let strict_dominators (b : finished Block.t) : finished Block.t list =
   walk b []
 
 let tree_of_value (v : finished Value.t) : M.tree =
-  (* Bound the expanded tree, not the number of distinct SSA values: sharing
-     the tree alone would still leave exponential traversals in the extracted
+  (* Bound the expanded tree, not the number of distinct SSA values: sharing the
+     tree alone would still leave exponential traversals in the extracted
      recognizer and linearizer. An unexpanded value remains an exact atom.
      Reserve child nodes before descending so even the [Other] leaves fit the
      budget, and a long unary chain cannot exhaust the stack. *)

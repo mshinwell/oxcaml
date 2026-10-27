@@ -34,6 +34,12 @@ val visit_all :
   blockset option
 
 val visit_acyclic :
-  block list -> blockset -> block -> blockset -> block -> blockset option
+  block list ->
+  blockset ->
+  block ->
+  blockset ->
+  blockset ->
+  block ->
+  blockset option
 
 val acyclic_except : block list -> blockset -> block -> bool

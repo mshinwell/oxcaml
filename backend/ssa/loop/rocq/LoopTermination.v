@@ -168,10 +168,10 @@ Definition bound_value (iter0 : value -> Z) (b : bound) : Z :=
    DeleteEmptyLoops.v separately checks that the body without the header
    is acyclic. For the visits described here, the header's parameters, the
    values of the body's blocks and the values of the blocks dominating the
-   header take the values the
-   execution computes (a value of an inner loop, computed several times
-   between two visits, takes the first). Every other value is one the
-   execution does not compute during the run (it is defined after the
+   header take the values the execution computes (a value of an inner loop,
+   computed several times between two visits, takes the first). Every other
+   value is one the execution does not compute during the run (it is defined
+   after the
    loop, or on another path); it is given the value of its operation on
    the values of its arguments when [iter_op] or [tree_sound] says what
    that is, and any 64-bit value otherwise. Nothing else constrains

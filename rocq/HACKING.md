@@ -75,12 +75,12 @@ Every model file has a header and four parts, marked by banners:
    are supposed to mean, in terms of the model's observations of the
    graph and of mathematical integers (`Z`). Each conjunct of a
    specification is a named predicate (`exits_only_to`,
-   `no_infinite_run`, `params_are_dead_bivs`, ...), so that the
+   `no_infinite_header_run`, `params_are_dead_bivs`, ...), so that the
    specification reads as a sentence and needs no comment explaining its
    parts. Hypotheses about the compiler that the model cannot prove (what
    an operation computes, what dominance means, how a run of a loop goes)
    are stated here too, as `Hypothesis` in a `Section` or as the fields
-   of a `Record` such as `infinite_run`.
+   of a `Record` such as `infinite_header_run`.
 3. **Lemmas used by the proofs.** Stepping stones. Each non-trivial one
    has a comment before it saying, in plain words, what it states.
 4. **The theorems.** The correctness claims, each with a comment before
@@ -185,7 +185,7 @@ header.
   analysis actually computes (`exists args, goto_args ... = Some args`),
   so that the proof is a reading-back of the code.
 - Hypotheses about machine semantics are stated once, in one place
-  (`tree_sound`, `infinite_run`), and every file that needs them takes
+  (`tree_sound`, `infinite_header_run`), and every file that needs them takes
   them as hypotheses rather than restating them.
 
 ## Proof style

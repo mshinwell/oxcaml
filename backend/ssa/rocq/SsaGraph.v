@@ -1,9 +1,9 @@
 (* Properties of the blocks, terminators, instructions and values of an SSA
    graph that any pass may ask about, computed on the views of SsaModel.v:
    what a terminator does, what an instruction or a terminator reads, which
-   values a block's [Goto] passes, and whether every use of a value in the
-   graph is an approved one. The extraction of this file, SsaGraph.ml, is
-   the implementation.
+   values a block's [Goto] passes, whether every use of a value in the
+   graph is approved, and whether a region is acyclic after removing one
+   block. The extraction of this file, SsaGraph.ml, is the implementation.
 
    See the reading guide at the top of backend/ssa/loop/rocq/
    LoopComparisons.v for the Rocq vocabulary and SsaModel.v for how the
@@ -146,29 +146,32 @@ Fixpoint visit_all (visit : blockset -> block -> option blockset)
     let* seen := visit seen b in visit_all visit seen roots
   end.
 
-(* A depth-first acyclicity check on [region] without [cut]. Only completed
-   blocks are memoized: revisiting a block on the current path exhausts the
-   depth fuel and rejects the graph. Each successful visit completes one
-   block, so sharing does not cause repeated traversals of its successors.
-   The graph's block list is enough depth fuel for any acyclic region. *)
+(* A depth-first acyclicity check on [region] without [cut]. [active] holds
+   the current path, so a cycle is rejected immediately; [seen] memoizes
+   completed blocks, so shared successors are traversed only once. Fuel
+   bounds recursive depth for Rocq; the graph's block list is enough for
+   any acyclic region. *)
 Fixpoint visit_acyclic (fuel : list block) (region : blockset) (cut : block)
-    (seen : blockset) (b : block) : option blockset :=
+    (active seen : blockset) (b : block) : option blockset :=
   if block_eqb b cut || negb (set_mem b region) || set_mem b seen
   then Some seen
+  else if set_mem b active then None
   else
     match fuel with
     | [] => None
     | _ :: fuel =>
-      let* seen := visit_all (visit_acyclic fuel region cut) seen
+      let* seen := visit_all
+        (visit_acyclic fuel region cut (set_add b active)) seen
         (all_successors b) in
       Some (set_add b seen)
     end.
 
 (* Check every block of the region, not just the part reached from [cut].
-   The final coverage check also rejects an incomplete [blocks] list. *)
+   The final coverage check prevents missing roots from hiding a cycle. *)
 Definition acyclic_except (blocks : list block) (region : blockset)
     (cut : block) : bool :=
-  match visit_all (visit_acyclic blocks region cut) set_empty blocks with
+  match visit_all (visit_acyclic blocks region cut set_empty)
+    set_empty blocks with
   | None => false
   | Some seen =>
     set_for_all (fun b => block_eqb b cut || set_mem b seen) region
@@ -309,23 +312,25 @@ Section Acyclic.
 
   (* Successful DFS visits only complete accessible blocks: every in-region
      successor has already completed before its predecessor is added. *)
-  Lemma visit_acyclic_spec : forall fuel seen b out,
-    completed seen -> visit_acyclic fuel region cut seen b = Some out ->
+  Lemma visit_acyclic_spec : forall fuel active seen b out,
+    completed seen -> visit_acyclic fuel region cut active seen b = Some out ->
     completed out /\ includes seen out /\ covered out b.
   Proof.
-    induction fuel as [|x fuel IH]; intros seen b out Hseen H;
+    induction fuel as [|x fuel IH]; intros active seen b out Hseen H;
       cbn [visit_acyclic] in H;
       destruct (block_eqb b cut || negb (set_mem b region) || set_mem b seen)
         eqn:Hskip.
     - injection H as <-. split; [ exact Hseen | ].
       split; [ intros a Ha; exact Ha | apply skipped_covered; exact Hskip ].
-    - discriminate.
+    - destruct (set_mem b active); discriminate.
     - injection H as <-. split; [ exact Hseen | ].
       split; [ intros a Ha; exact Ha | apply skipped_covered; exact Hskip ].
-    - destruct (visit_all (visit_acyclic fuel region cut) seen
+    - destruct (set_mem b active); [ discriminate | ].
+      destruct (visit_all
+        (visit_acyclic fuel region cut (set_add b active)) seen
         (all_successors b)) as [next |] eqn:Hnext; [ | discriminate ].
       injection H as <-.
-      destruct (visit_all_spec _ IH _ _ _ Hseen Hnext)
+      destruct (visit_all_spec _ (IH (set_add b active)) _ _ _ Hseen Hnext)
         as [Hdone [Hinc Hchildren]].
       split.
       + intros a Ha. apply set_mem_add_iff in Ha. destruct Ha as [-> | Ha].
@@ -379,12 +384,14 @@ Theorem acyclic_except_sound : forall blocks region cut,
   no_infinite_path_except region cut.
 Proof.
   intros blocks region cut H path Hpath. unfold acyclic_except in H.
-  destruct (visit_all (visit_acyclic blocks region cut) set_empty blocks)
+  destruct (visit_all (visit_acyclic blocks region cut set_empty)
+    set_empty blocks)
     as [seen |] eqn:Hv; [ | discriminate ].
   assert (Hempty : completed region cut set_empty).
   { intros b Hb. rewrite set_mem_empty in Hb. discriminate. }
-  destruct (visit_all_spec region cut _ (visit_acyclic_spec region cut blocks)
-    _ _ _ Hempty Hv) as [Hdone _].
+  destruct (visit_all_spec region cut _
+    (visit_acyclic_spec region cut blocks set_empty) _ _ _ Hempty Hv)
+    as [Hdone _].
   rewrite set_for_all_spec in H.
   destruct (Hpath 0%nat) as [Hmem [Hcut _]].
   specialize (H _ Hmem). apply orb_true_iff in H. destruct H as [H | H].
