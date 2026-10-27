@@ -1,0 +1,8 @@
+nested_outer_effect=10
+nested_inner_effect=70
+two_back_edges_diff=5,6
+self_spin=42
+var_step=6
+counter_after=5
+sum_to=10
+done

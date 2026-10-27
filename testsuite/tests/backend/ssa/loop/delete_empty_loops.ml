@@ -6,7 +6,12 @@
 (* Exercises empty-loop deletion. A terminating loop that does no observable
    work may be removed, but a loop whose body has *any* side effect -- even one
    that does not flow through a header parameter -- must be preserved, as must a
-   loop whose termination cannot be established. *)
+   loop whose termination cannot be established. Each comment says whether the
+   pass deletes the loop; compiling this file with [-dssa] prints "SSA after
+   Delete_empty_loops (N deleted)" for every function in which a loop was
+   deleted. See delete_empty_loops_exits.ml for loops with a second way out and
+   delete_empty_loops_shapes.ml for other shapes and the analysis's known
+   limitations. *)
 
 (* Genuinely empty: spins a dead counter, no observable effect. Safe to delete;
    observably a no-op either way. *)

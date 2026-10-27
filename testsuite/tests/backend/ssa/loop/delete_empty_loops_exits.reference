@@ -1,0 +1,6 @@
+early_exit=1,0
+raise_exit=Early
+early_exit_effect(true)=early
+early_exit_effect(false)=
+bounds_check=Invalid_argument
+same_exit=0,0
