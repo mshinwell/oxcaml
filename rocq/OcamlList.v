@@ -1,13 +1,13 @@
-(* Models of the OCaml [List] functions the compiler models use, over
+(* Models of the OxCaml [List] functions the compiler models use, over
    [int]-keyed association lists where a key is involved.
 
-   Functions whose OCaml callback may raise an exception come in a variant
+   Functions whose OxCaml callback may raise an exception come in a variant
    returning [option] (see OcamlOption.v): [map_opt] is [List.map] and
    [filter_map_opt] is [List.filter_map], each returning [None] if any call
    of the callback would have raised. *)
 
 From Stdlib Require Import ZArith List.
-From OxcamlStdlib Require Import OcamlOption OcamlInt.
+From OxCamlStdlib Require Import OcamlOption OcamlInt.
 Import ListNotations.
 
 Local Open Scope sint63_scope.
@@ -69,7 +69,7 @@ Fixpoint filter_map_opt {A B} (f : A -> option (option B)) (l : list A)
     Some (match y with Some y => y :: l | None => l end)
   end.
 
-(* [arr.(i)] on an array held as a list: [None] where OCaml would raise
+(* [arr.(i)] on an array held as a list: [None] where OxCaml would raise
    [Invalid_argument], i.e. for [i] outside [0 .. length - 1]. *)
 Fixpoint nth_int {A} (l : list A) (i : int) : option A :=
   match l with

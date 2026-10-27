@@ -1,29 +1,31 @@
-(* A Rocq model of [backend/ssa/loop/dead_induction_var.ml].
+(* The basic induction variables a loop computes for nothing but its own
+   control: used only by the exit comparison and their own updates, with
+   the comparison used only by the header's branch. The extraction of this
+   file, DeadInductionVar.ml, is the implementation; dead_induction_var.ml
+   in the parent directory wraps it.
 
    See the reading guide at the top of LoopComparisons.v for the Rocq
    vocabulary, SsaModel.v for how the models see an SSA graph, and
    InductionVar.v and LoopTermination.v for the basic induction variables
    and the exit branches this file is given. As there, the file has four
-   parts: (1) a transcription of the OCaml, (2) the intended meaning, (3)
+   parts: (1) the definitions, (2) the intended meaning, (3)
    stepping-stone lemmas, (4) the theorems. Parts 1 and 2 are the part to
    check by eye.
 
-   The OCaml walks the graph's blocks with an [ok] reference that any
-   unapproved use clears; here [all_uses_ok] is the conjunction over the
-   blocks, [count_occurrences] counts over a list, and the arrays of
-   arguments are lists.
+   The arguments of instructions and terminators, and the header's
+   parameters, are lists here.
 
    Why the uses of the exit comparison are checked ([cond_ok]): deleting
    the loop (DeleteEmptyLoops.v) leaves the comparison computed from the
    loop's initial parameters, so a use of it other than the header's
    branch -- an instruction, or a [Return] of it after the loop -- would
    observe a value the iteration that ended the loop did not produce. The
-   first version of the OCaml did not check this; the error was found
+   first version of the analysis did not check this; the error was found
    while writing the model.
 
    The result, in part 4, is [analyze_spec]: for each basic induction
    variable reported dead, [dead_spec] (part 2) holds, which spells out
-   what the OCaml checked of every instruction and terminator of the
+   what was checked of every instruction and terminator of the
    graph: the parameter is used only by the exit comparison and its own
    updates, the exit comparison only by the header's branch, and each
    update only by the exit comparison and as that parameter's argument of
@@ -31,18 +33,19 @@
    header parameter among its dead induction variables. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
-From OxcamlStdlib Require Import OcamlOption OcamlInt OcamlList.
-From OxcamlSsa Require Import SsaModel.
-From OxcamlLoop Require Import NaturalLoop InductionVar LoopTermination.
+From OxCamlStdlib Require Import OcamlOption OcamlInt OcamlList.
+From OxCamlSsa Require Import SsaModel.
+From OxCamlLoop Require Import NaturalLoop InductionVar LoopTermination.
 Import ListNotations.
 
 (* ======================================================================== *)
-(* Part 1: transcription of the OCaml                                       *)
+(* Part 1: the definitions                                                  *)
 (* ======================================================================== *)
 
 Local Open Scope sint63_scope.
 
-(* OCaml [biv_result] and [loop_result]. After these, the type [biv] of
+(* A BIV with its verdict, and a loop with its BIVs' verdicts and whether
+   every header parameter is a dead BIV. After these, the type [biv] of
    InductionVar.v is written [InductionVar.biv], its field [loop]
    [InductionVar.loop]. *)
 Record biv_result : Type :=
@@ -54,21 +57,23 @@ Record loop_result : Type :=
     bivs : list biv_result;
     useless : bool }.
 
-(* OCaml [instr_defines_value]. *)
+(* [i] is the instruction defining [v]. *)
 Definition instr_defines_value (i : instr) (v : value) : bool :=
   match view_instr i, view_value v with
   | Op id _, Res id' _ => instr_id_eqb id id'
   | _, _ => false
   end.
 
-(* OCaml [args_of_instr]. *)
+(* The values an instruction reads. *)
 Definition args_of_instr (i : instr) : list value :=
   match view_instr i with
   | Op _ args => args
   | Push_trap | Pop_trap => []
   end.
 
-(* OCaml [terminator_args]. *)
+(* The values a terminator reads, one list per kind of use: the arguments
+   a [Continue] passes, the index of a [Switch], the arguments of a [Call]
+   or an [Invalid]. *)
 Definition terminator_args (term : Terminator.t) : list (list value) :=
   match term with
   | Terminator.Continue _ args =>
@@ -84,13 +89,13 @@ Definition terminator_args (term : Terminator.t) : list (list value) :=
   | Terminator.Invalid args => [args]
   end.
 
-(* OCaml [count_occurrences]. *)
+(* How many elements of [l] [same] accepts. *)
 Definition count_occurrences {A} (same : A -> bool) (l : list A) : int :=
   OcamlList.fold_left (fun n x => if same x then n + one else n) zero l.
 
-(* OCaml [all_uses_ok], on the graph's block list: its [ok] reference,
-   cleared by any use [same] accepts that the approval does not, is this
-   conjunction. *)
+(* Every use in the graph of a value [same] accepts is approved: by
+   [approve_instr] for an instruction reading it, by [approve_term] for
+   the block whose terminator reads it, given the list it is read in. *)
 Definition all_uses_ok (blocks : list block) (same : value -> bool)
     (approve_instr : instr -> bool)
     (approve_term : block -> list value -> bool) : bool :=
@@ -104,9 +109,32 @@ Definition all_uses_ok (blocks : list block) (same : value -> bool)
            (terminator_args (terminator bl)))
     blocks.
 
-(* OCaml [is_dead]. The OCaml's [Array.length args > k && match args.(k)
-   with Arg a -> ... | Omitted_since_unused -> false] is the [match] on
-   [arg_value args k] (InductionVar.v). *)
+(* [arg] passes the value [v]. *)
+Definition arg_is (v : value) (arg : Terminator.arg) : bool :=
+  match arg with
+  | Terminator.Arg a => value_eqb a v
+  | Terminator.Omitted_since_unused => false
+  end.
+
+(* The terminator of [bl] is a [Goto] to [header] passing [v] as the
+   argument at position [k], and at no other position. *)
+Definition goto_passes (header : block) (k : int) (v : value) (bl : block)
+    : bool :=
+  match terminator bl with
+  | Terminator.Continue (Goto goto) args =>
+    block_eqb goto header
+    && (match arg_value args k with
+        | Some a => value_eqb a v
+        | None => false
+        end)
+    && (count_occurrences (arg_is v) args =? one)
+  | Terminator.Continue (Return | Raise _ | Unreachable) _
+  | Terminator.Switch _ _ | Terminator.Call _ | Terminator.Invalid _ => false
+  end.
+
+(* Whether a BIV is dead: its parameter, the exit comparison and its update
+   values are used only as the loop's own control requires, as [dead_spec]
+   (part 2) spells out. *)
 Definition is_dead (blocks : list block) (biv : InductionVar.biv) : bool :=
   match find_exit_branch biv.(InductionVar.loop) with
   | None => false
@@ -142,36 +170,16 @@ Definition is_dead (blocks : list block) (biv : InductionVar.biv) : bool :=
         (fun v =>
           all_uses_ok blocks (value_eqb v)
             (fun i => instr_defines_value i cond)
-            (fun bl _ =>
-              set_mem bl back_preds
-              && match terminator bl with
-                 | Terminator.Continue (Goto goto) args =>
-                   block_eqb goto header
-                   && (match arg_value args k with
-                       | Some a => value_eqb a v
-                       | None => false
-                       end)
-                   && (count_occurrences
-                         (fun arg =>
-                           match arg with
-                           | Terminator.Arg a => value_eqb a v
-                           | Terminator.Omitted_since_unused => false
-                           end)
-                         args
-                       =? one)
-                 | Terminator.Continue (Return | Raise _ | Unreachable) _
-                 | Terminator.Switch _ _ | Terminator.Call _
-                 | Terminator.Invalid _ => false
-                 end))
+            (fun bl _ => set_mem bl back_preds && goto_passes header k v bl))
         biv.(update)
   end.
 
-(* OCaml [loop_is_useless]. *)
+(* Every header parameter is a dead BIV. *)
 Definition loop_is_useless (loop : natural_loop) (bivs : list biv_result)
     : bool :=
   same_length (params loop.(header)) bivs && forallb dead bivs.
 
-(* OCaml [analyze], on the graph's block list. *)
+(* The verdicts for each loop given, with its BIVs. *)
 Definition analyze (blocks : list block)
     (loops : list (natural_loop * list InductionVar.biv))
     : list loop_result :=
@@ -200,6 +208,16 @@ Definition uses_only (blocks : list block) (same : value -> bool)
     /\ (forall arr, In arr (terminator_args (terminator bl)) ->
           existsb same arr = true -> approve_term bl arr).
 
+(* The terminator of [bl] is a [Goto] to [header] whose argument at
+   position [k] is [v], and no other argument is ([count_occurrences ... =
+   one]: one position passes it). *)
+Definition passes_at (header : block) (k : int) (v : value) (bl : block)
+    : Prop :=
+  exists args,
+    terminator bl = Terminator.Continue (Goto header) args
+    /\ arg_value args k = Some v
+    /\ count_occurrences (arg_is v) args = one.
+
 (* What [dead = true] establishes of a basic induction variable [b] of a
    loop with the exit branch [exit_info]: its parameter [self] is used only
    by the exit comparison and its own updates and by no terminator; the
@@ -207,7 +225,7 @@ Definition uses_only (blocks : list block) (same : value -> bool)
    terminator; and each update value is used by no instruction but the
    exit comparison, and by no terminator but the [Goto] to the header of
    a back-edge block, as the argument at the parameter's position and at
-   no other ([count_occurrences ... = one]: one position passes it). *)
+   no other ([passes_at]). *)
 Definition dead_spec (blocks : list block) (b : InductionVar.biv) : Prop :=
   exists exit_info,
     find_exit_branch b.(InductionVar.loop) = Some exit_info
@@ -227,17 +245,7 @@ Definition dead_spec (blocks : list block) (b : InductionVar.biv) : Prop :=
               (fun i => instr_defines_value i cond = true)
               (fun bl _ =>
                 In bl b.(InductionVar.loop).(back_edges)
-                /\ exists args,
-                     terminator bl = Terminator.Continue (Goto header) args
-                     /\ arg_value args k = Some u
-                     /\ count_occurrences
-                          (fun arg =>
-                            match arg with
-                            | Terminator.Arg a => value_eqb a u
-                            | Terminator.Omitted_since_unused => false
-                            end)
-                          args
-                        = one).
+                /\ passes_at header k u bl).
 
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
@@ -272,41 +280,13 @@ Qed.
 
 (* The approval of a terminator use of an update value, read back. *)
 Lemma update_term_approved : forall b header k v bl,
-  set_mem bl (back_edge_set b.(InductionVar.loop))
-  && match terminator bl with
-     | Terminator.Continue (Goto goto) args =>
-       block_eqb goto header
-       && (match arg_value args k with
-           | Some a => value_eqb a v
-           | None => false
-           end)
-       && (count_occurrences
-             (fun arg =>
-               match arg with
-               | Terminator.Arg a => value_eqb a v
-               | Terminator.Omitted_since_unused => false
-               end)
-             args
-           =? one)
-     | Terminator.Continue (Return | Raise _ | Unreachable) _
-     | Terminator.Switch _ _ | Terminator.Call _ | Terminator.Invalid _ =>
-       false
-     end = true ->
-  In bl b.(InductionVar.loop).(back_edges)
-  /\ exists args,
-       terminator bl = Terminator.Continue (Goto header) args
-       /\ arg_value args k = Some v
-       /\ count_occurrences
-            (fun arg =>
-              match arg with
-              | Terminator.Arg a => value_eqb a v
-              | Terminator.Omitted_since_unused => false
-              end)
-            args
-          = one.
+  set_mem bl (back_edge_set b.(InductionVar.loop)) && goto_passes header k v bl
+  = true ->
+  In bl b.(InductionVar.loop).(back_edges) /\ passes_at header k v bl.
 Proof.
   intros b header k v bl H. apply andb_true_iff in H. destruct H as [Hset H].
   apply back_edge_set_spec in Hset. split; [ exact Hset | ].
+  unfold goto_passes in H. unfold passes_at.
   destruct (terminator bl) as [ [goto | | | ] args | | | ]; try discriminate.
   apply andb_true_iff in H. destruct H as [H Hcount].
   apply andb_true_iff in H. destruct H as [Hgoto Harg].

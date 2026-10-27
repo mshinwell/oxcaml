@@ -763,12 +763,8 @@
   DeadInductionVar
   DeleteEmptyLoops
   ;; backend/ssa/loop/
-  fourier_motzkin
-  affine_expr
-  loop_comparisons
   natural_loop
   induction_var
-  affine_ssa
   termination
   dead_induction_var
   delete_empty_loops

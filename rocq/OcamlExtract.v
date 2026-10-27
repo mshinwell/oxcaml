@@ -1,20 +1,20 @@
-(* Extraction directives mapping the models in this directory onto OCaml's
+(* Extraction directives mapping the models in this directory onto OxCaml's
    own types and functions, for every extraction in the repository to
-   [Require]. Nothing here is proved: each line says which OCaml value
+   [Require]. Nothing here is proved: each line says which OxCaml value
    realizes a model definition, and is trusted by inspection.
 
-   - Rocq's primitive [int] (Sint63) is OCaml's [int] and its operations are
-     OCaml's. This restates Rocq's own ExtrOCamlInt63 so that the output
+   - Rocq's primitive [int] (Sint63) is OxCaml's [int] and its operations are
+     OxCaml's. This restates Rocq's own ExtrOCamlInt63 so that the output
      does not depend on Rocq's runtime library.
-   - The [Int64] model is OCaml's [Int64]; the axioms in OcamlInt64.v are
+   - The [Int64] model is OxCaml's [Int64]; the axioms in OcamlInt64.v are
      the documented behaviour of each operation named here.
-   - The list functions are OCaml's [List] functions; [sort_uniq] is
+   - The list functions are OxCaml's [List] functions; [sort_uniq] is
      [List.sort_uniq Int.compare]. [map_opt] and [filter_map_opt] have no
-     OCaml counterpart and are extracted as they are. *)
+     OxCaml counterpart and are extracted as they are. *)
 
 From Stdlib Require Import Extraction List.
 From Stdlib Require Uint63 Sint63.
-From OxcamlStdlib Require Import OcamlOption OcamlInt OcamlInt64 OcamlList.
+From OxCamlStdlib Require Import OcamlOption OcamlInt OcamlInt64 OcamlList.
 
 Extraction Language OCaml.
 
@@ -26,7 +26,7 @@ Extract Inlined Constant negb => "not".
 Extract Inlined Constant andb => "( && )".
 Extract Inlined Constant orb => "( || )".
 
-(* OCaml [int]. *)
+(* OxCaml [int]. *)
 Extract Constant Uint63.int => "int".
 Extraction Inline Uint63.int.
 Extract Inlined Constant Uint63.eqb => "Int.equal".
@@ -44,7 +44,7 @@ Extract Inlined Constant one => "1".
 Extract Inlined Constant minus_one => "(-1)".
 Extract Inlined Constant two => "2".
 
-(* OCaml [Int64]. *)
+(* OxCaml [Int64]. *)
 Extract Constant int64 => "int64".
 Extraction Inline int64.
 Extract Inlined Constant int64_zero => "0L".
@@ -67,7 +67,7 @@ Extract Inlined Constant int64_shift_right_logical =>
 Extract Inlined Constant int64_equal => "Int64.equal".
 Extract Inlined Constant int64_compare => "Int64.compare".
 
-(* OCaml [List]. *)
+(* OxCaml [List]. *)
 Extract Inlined Constant map => "List.map".
 Extract Inlined Constant filter => "List.filter".
 Extract Inlined Constant filter_map => "List.filter_map".
@@ -83,6 +83,6 @@ Extract Inlined Constant compare_length_with => "List.compare_length_with".
 Extract Inlined Constant OcamlList.fold_left => "List.fold_left".
 Extract Constant sort_uniq => "List.sort_uniq Int.compare".
 
-(* OCaml [Option]. *)
+(* OxCaml [Option]. *)
 Extract Inlined Constant option_map => "Option.map".
 Extract Inlined Constant is_some => "Option.is_some".

@@ -81,5 +81,4 @@ let signed_step = E.signed_step
 
 let back_edge_set = E.back_edge_set
 
-let is_loop_invariant ~op_def loop_body v =
-  E.is_loop_invariant op_def loop_body v
+let is_loop_invariant ~op_def ~header v = E.is_loop_invariant op_def header v

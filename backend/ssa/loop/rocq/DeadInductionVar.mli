@@ -29,6 +29,10 @@ val all_uses_ok :
   (block -> value list -> bool) ->
   bool
 
+val arg_is : value -> Ssa.finished Ssa.Terminator.arg -> bool
+
+val goto_passes : block -> int -> value -> block -> bool
+
 val is_dead : block list -> biv -> bool
 
 val loop_is_useless : natural_loop -> biv_result list -> bool

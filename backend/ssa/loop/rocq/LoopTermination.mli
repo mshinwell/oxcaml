@@ -31,4 +31,4 @@ val extract_comparison :
 
 val biv_implies_termination : op_def -> biv -> bool
 
-val analyze : op_def -> natural_loop -> biv list -> t
+val analyze : op_def -> biv list -> t

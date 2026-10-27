@@ -1,17 +1,19 @@
-(* A Rocq model of [backend/ssa/loop/natural_loop.ml].
+(* The natural loops of an SSA graph, from its back edges, and a test for
+   an edge dominating a block. The extraction of this file, NaturalLoop.ml,
+   is the implementation; natural_loop.ml in the parent directory wraps it.
 
    See the reading guide at the top of LoopComparisons.v for the Rocq
    vocabulary, and SsaModel.v for how the models see an SSA graph: blocks
    are abstract, with [predecessors], [all_successors] and [dominates] as
    the compiler provides them. As in the other files, there are four
-   parts: (1) a transcription of the OCaml, (2) the intended meaning, (3)
+   parts: (1) the definitions, (2) the intended meaning, (3)
    stepping-stone lemmas, (4) the theorems. Parts 1 and 2 are the part to
    check by eye.
 
-   One thing is different from the OCaml. Its [natural_loop_body] runs a
-   worklist until the worklist is empty, which Rocq cannot see terminates;
-   the model's [walk] also stops when a list of "fuel" runs out, and
-   [find_loops] passes the graph's block list as fuel. That is enough fuel:
+   [natural_loop_body] runs a worklist until the worklist is empty, which
+   Rocq cannot see terminates on its own; so its [walk] also stops when a
+   list of "fuel" runs out, and [find_loops] passes the graph's block list
+   as fuel. That is enough fuel:
    every pop of the worklist corresponds to a block added to the body, and
    a block is added at most once ([natural_loop_body_complete] proves that
    nothing is lost).
@@ -25,39 +27,39 @@
      which a back-edge source can be reached without passing through the
      header, which is the definition of the natural loop (and in particular
      the body is the same whatever the order of the worklist);
-   - [edge_dominates_sound]: the sufficient condition the OCaml checks for
+   - [edge_dominates_sound]: the sufficient condition [edge_dominates] has for
      an edge to dominate a block is one: every path from the entry to the
      block traverses the edge, given what [dominates] means.
 
    The trusted part is SsaModel.v: that [predecessors] and
    [all_successors] are the two ends of the same edges, that [dominates d
    b] means every path from the entry to [b] passes through [d], and that
-   the entry has no predecessors. The theorems state these as hypotheses. *)
+   the entry dominates every block (every block of a finished graph is
+   reachable from it). The theorems state these as hypotheses. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
-From OxcamlStdlib Require Import OcamlInt OcamlList.
-From OxcamlSsa Require Import SsaModel.
+From OxCamlStdlib Require Import OcamlInt OcamlList.
+From OxCamlSsa Require Import SsaModel.
 Import ListNotations.
 
 (* ======================================================================== *)
-(* Part 1: transcription of the OCaml                                       *)
+(* Part 1: the definitions                                                  *)
 (* ======================================================================== *)
 
-(* OCaml [loop]. *)
+(* A natural loop: its header, its body, and the sources of its back edges. *)
 Record natural_loop : Type :=
   { header : block;
     body : blockset;
     back_edges : list block }.
 
-(* The body of the OCaml's two loops that add a block to the body, and to
-   the worklist, when it is not in the body yet: [(body, added)] are its
-   two references. *)
+(* Add a block to the body, and to the worklist [added], when it is not in
+   the body yet. *)
 Definition add_new (acc : blockset * list block) (p : block)
     : blockset * list block :=
   let '(body, added) := acc in
   if set_mem p body then (body, added) else (set_add p body, p :: added).
 
-(* OCaml [natural_loop_body]'s [walk], with the fuel explained above. *)
+(* The worklist walk of [natural_loop_body], with the fuel explained above. *)
 Fixpoint walk (fuel : list block) (body : blockset) (worklist : list block)
     : blockset :=
   match fuel, worklist with
@@ -69,9 +71,10 @@ Fixpoint walk (fuel : list block) (body : blockset) (worklist : list block)
     walk fuel body added
   end.
 
-(* OCaml [natural_loop_body]. The OCaml's [List.filter] keeps the seeds in
-   their order and the worklist here has them reversed, which changes the
-   order of the walk but not the body it computes. *)
+(* The body of the loop with header [header] and back-edge sources
+   [back_preds]: the header and every block from which a back-edge source
+   can be reached without passing through the header. The order of the
+   walk does not affect the body it computes. *)
 Definition natural_loop_body (fuel : list block) (header : block)
     (back_preds : list block) : blockset :=
   let '(body, seeds) :=
@@ -79,8 +82,8 @@ Definition natural_loop_body (fuel : list block) (header : block)
   in
   walk fuel body seeds.
 
-(* The OCaml's [Block.Tbl.replace header_tbl succ (bl :: existing)], on an
-   association list in place of the hash table. *)
+(* Record the back edge [src -> header] in the association list from
+   headers to their back-edge sources. *)
 Fixpoint add_back_edge (header src : block)
     (tbl : list (block * list block)) : list (block * list block) :=
   match tbl with
@@ -91,9 +94,8 @@ Fixpoint add_back_edge (header src : block)
     else (h, srcs) :: add_back_edge header src tbl
   end.
 
-(* The bodies of the two [List.iter]s of the OCaml's [find_loops]: for
-   each block [bl] and each of its successors [succ], record the edge if it
-   is a back edge. *)
+(* For each block [bl] and each of its successors [succ], record the edge
+   if it is a back edge: one whose target dominates its source. *)
 Definition record_back_edge (bl : block) (tbl : list (block * list block))
     (succ : block) : list (block * list block) :=
   if dominates succ bl then add_back_edge succ bl tbl else tbl.
@@ -102,9 +104,8 @@ Definition record_back_edges (tbl : list (block * list block)) (bl : block)
     : list (block * list block) :=
   OcamlList.fold_left (record_back_edge bl) tbl (all_successors bl).
 
-(* OCaml [find_loops], on the graph's block list [Ssa.blocks ssa]. The
-   loops come out in the order their headers are first met rather than in
-   the hash table's order. *)
+(* The natural loops of the graph, given its block list ([Ssa.blocks
+   ssa]), in the order their headers are first met. *)
 Definition find_loops (blocks : list block) : list natural_loop :=
   let header_tbl := OcamlList.fold_left record_back_edges [] blocks in
   map
@@ -114,9 +115,17 @@ Definition find_loops (blocks : list block) : list natural_loop :=
          back_edges := back_preds |})
     header_tbl.
 
-(* OCaml [edge_dominates]. *)
+(* A sufficient condition for the edge [src -> succ] to dominate [target]:
+   [succ] dominates [target] and the edge is the only way into [succ]. The
+   middle test excludes [succ] being the graph's entry, which has a
+   predecessor when the function calls itself in tail position ([Continue
+   (Goto entry)]): paths from the entry to [target] then start at [succ]
+   without taking the edge. On a finished graph, where every block is
+   reachable from the entry, a block that dominates its only predecessor
+   can only be the entry. *)
 Definition edge_dominates (src succ target : block) : bool :=
   dominates succ target
+  && negb (dominates succ src)
   && match predecessors succ with
      | [p] => block_eqb p src
      | [] | _ :: _ :: _ => false
@@ -686,12 +695,16 @@ End FindLoops.
 
 Section Dominance.
   Variable entry : block.
-  Hypothesis entry_no_preds : predecessors entry = [].
 
   (* What [dominates] means: every path from the entry to [b] passes
-     through [d]. *)
+     through [d] ... *)
   Hypothesis dominates_spec : forall d b,
     dominates d b = true -> forall p, path entry p b -> In d p.
+
+  (* ... and the entry dominates every block, each being reachable from
+     it. Nothing is assumed of the entry's predecessors: a self-recursive
+     tail call is a back edge to the entry. *)
+  Hypothesis entry_dominates : forall b, dominates entry b = true.
 
   Lemma path_edge_to : forall a p c succ src,
     path a p c -> In succ p -> a <> succ -> predecessors succ = [src] ->
@@ -716,13 +729,14 @@ Section Dominance.
     forall p, path entry p target -> edge_on p src succ.
   Proof.
     intros src succ target H p Hp. unfold edge_dominates in H.
-    apply andb_true_iff in H. destruct H as [Hd Hpred].
+    apply andb_true_iff in H. destruct H as [H Hpred].
+    apply andb_true_iff in H. destruct H as [Hd Hnd].
     destruct (predecessors succ) as [ | p0 [ | ? ? ] ] eqn:Hps;
       try discriminate.
     apply block_eqb_spec in Hpred. subst p0.
     apply (path_edge_to entry p target succ src Hp).
     - exact (dominates_spec succ target Hd p Hp).
-    - intros ->. rewrite entry_no_preds in Hps. discriminate.
+    - intros ->. rewrite entry_dominates in Hnd. discriminate.
     - exact Hps.
   Qed.
 End Dominance.

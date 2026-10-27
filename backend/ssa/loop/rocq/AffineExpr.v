@@ -1,47 +1,51 @@
-(* A Rocq model of [backend/ssa/loop/affine_expr.ml].
+(* The affine view of a machine-integer value: a small expression type, its
+   linearization into affine forms with side facts, and the value ranges
+   that certify a linearization exact. The extraction of this file,
+   AffineExpr.ml next to it, is the implementation.
 
    See the reading guide at the top of LoopComparisons.v for the Rocq
    vocabulary and the layout of the shared files, and FourierMotzkin.v for
    the model of [Affine] that this one builds on. As there, this file has
-   four parts: (1) a transcription of the OCaml, (2) the intended meaning,
+   four parts: (1) the definitions, (2) the intended meaning,
    (3) stepping-stone lemmas, (4) the theorems. Parts 1 and 2 are the part
    to check by eye.
 
-   The OCaml's [to_affine] raises [Overflow] (through the checked [Affine]
-   operations) where a coefficient would wrap; here it returns an [option],
-   with [None] standing for the exception (see OcamlOption.v).
+   [to_affine] returns an [option]: [None] where a coefficient would wrap
+   in one of the checked [Affine] operations (see OcamlOption.v).
 
    The results, in part 4:
 
    - [Range]: each operation on value ranges contains the exact result when
      its arguments are in the given ranges, and a range only ever holds
      64-bit values ([add_sound], [scale_sound], ...). This is what lets
-     [Affine_ssa] certify that a decomposition is machine-exact.
+     AffineSsa.v certify that a decomposition is machine-exact.
 
    - [to_affine_sound]: the affine form returned for an expression has the
      expression's value (over unbounded integers), and every side fact is
      true, provided the atoms standing for the atomized shifts and ors have
      the values the machine gives them ([consistent] below says what that
-     means, and is what [Affine_ssa] guarantees). [to_affine_wf] adds that
-     the forms are well-formed, as [Fourier_motzkin.entails] needs.
+     means, and is what AffineSsa.v guarantees). [to_affine_wf] adds that
+     the forms are well-formed, as [FourierMotzkin.entails] needs.
 
    Trusted parts, beyond those of FourierMotzkin.v: the [Int64] shifts and
    negation, the exactness of [Int64.to_int] on values that fit an [int]
    (axioms in OcamlInt64.v), and the extraction of [lsl] (OcamlExtract.v). *)
 
 From Stdlib Require Import ZArith Lia Bool List Zbitwise.
-From OxcamlStdlib Require Import OcamlOption OcamlInt OcamlInt64 OcamlList.
-From OxcamlLoop Require Import FourierMotzkin.
+From OxCamlStdlib Require Import OcamlOption OcamlInt OcamlInt64 OcamlList.
+From OxCamlLoop Require Import FourierMotzkin.
 Import ListNotations.
 
 (* ======================================================================== *)
-(* Part 1: transcription of the OCaml                                       *)
+(* Part 1: the definitions                                                  *)
 (* ======================================================================== *)
 
 Local Open Scope sint63_scope.
 
-(* OCaml [Affine_expr.t]. The OCaml's inline records ([Shr_atom of { atom;
-   arg; bits }]) are positional arguments here, in the same order. *)
+(* The expression recognised in an integer value: constants, atoms, sums,
+   differences and scalings, and the right shifts and ors, which stand as
+   atoms ([Shr_atom], [Lsr_atom], [Or_atom]) with facts about their
+   ranges; [to_affine] says what each stands for. *)
 Inductive t : Type :=
   | Const (c : int)
   | Atom (id : int)
@@ -70,8 +74,7 @@ Module Range.
     else {| lo := Int64.zero;
             hi := Int64.shift_right_logical Int64.minus_one bits |}.
 
-  (* The OCaml's [add64] and [mul64] are copies of the checked 64-bit
-     arithmetic of fourier_motzkin.ml, modelled in FourierMotzkin.v. *)
+  (* The checked 64-bit arithmetic of FourierMotzkin.v. *)
   Definition add64 : Int64.t -> Int64.t -> option Int64.t := add_ovf64.
   Definition mul64 : Int64.t -> Int64.t -> option Int64.t := mul_ovf64.
 
@@ -86,11 +89,11 @@ Module Range.
     then None
     else Some {| lo := Int64.neg r.(hi); hi := Int64.neg r.(lo) |}.
 
-  (* OCaml [Option.bind (neg b) (add a)]. *)
+  (* [a - b] as [a + (- b)]. *)
   Definition sub (a b : t) : option t :=
     let* nb := neg b in add a nb.
 
-  (* OCaml [Option.map (fun hi -> ...) (add64 ...)]. *)
+  (* The range of [x lor mask] for [x] in [r] and a non-negative [mask]. *)
   Definition or_mask (mask : int) (r : t) : option t :=
     if mask <? zero
     then None
@@ -115,7 +118,8 @@ End Range.
 (* The [64] of [64 - bits]: the width of a register. *)
 Definition word_bits : int := 64.
 
-(* OCaml [shr_range_facts ~signed ~atom ~bits]. *)
+(* The facts about the atom standing for a right shift by [bits] bits:
+   the bounds of its result, when they are representable. *)
 Definition shr_range_facts (signed : bool) (atom bits : int)
     : list Affine.t :=
   if signed
@@ -142,9 +146,9 @@ Definition shr_range_facts (signed : bool) (atom bits : int)
       [Affine.add_const (Affine.scale minus_one (Affine.var atom)) hi; lower]
     else [lower].
 
-(* OCaml [to_affine]. Each checked operation is a [let*] step; where the
-   OCaml nests them in one expression, the steps are written out in the
-   order the values are needed. *)
+(* The affine form of an expression, with the side facts about the atoms
+   standing for its shifts and ors; each checked operation is a [let*]
+   step, [None] on overflow. *)
 Fixpoint to_affine (e : t) : option (Affine.t * list Affine.t) :=
   match e with
   | Const c => Some (Affine.constant c, [])
@@ -218,11 +222,11 @@ Fixpoint eval (rho : valuation) (e : t) : Z :=
 Definition in_range (r : Range.t) (z : Z) : Prop :=
   Int64.to_Z r.(Range.lo) <= z <= Int64.to_Z r.(Range.hi).
 
-(* What [Affine_ssa] guarantees about the atoms standing for shifts and
+(* What AffineSsa.v guarantees about the atoms standing for shifts and
    ors: each has the value the machine computes from the exact value of its
-   argument, that value fitting a 64-bit register (which [Affine_ssa]
+   argument, that value fitting a 64-bit register (which AffineSsa.v
    certifies with [Range] before it builds the node). [bits] and [mask] are
-   within the ranges [Affine_ssa] produces them in (its shift amounts are
+   within the ranges AffineSsa.v produces them in (its shift amounts are
    below 16; here the bound is the one under which [1 lsl bits] is
    [2^bits]). Over unbounded integers:
 

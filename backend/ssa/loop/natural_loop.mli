@@ -55,7 +55,10 @@ val find_loops : finished Ssa.graph -> loop list
     (all paths pass through [succ]) and [src] is [succ]'s only predecessor (the
     only way into [succ] is that edge). Node-dominance of [succ] alone would not
     be enough: control could reach [succ] via another in-edge when paths
-    reconverge. *)
+    reconverge. [succ] must also not dominate [src], which rules out [succ]
+    being the graph's entry: a self-recursive tail call is a back edge to the
+    entry, and were it the entry's only in-edge, paths from the entry would
+    still start at [succ] without traversing it. *)
 val edge_dominates :
   src:finished Block.t ->
   succ:finished Block.t ->

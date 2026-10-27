@@ -2,13 +2,13 @@
 
    The models of backend/ssa/loop/ run on a finished SSA graph
    ([Ssa.finished Ssa.graph]), but its blocks, values and instructions are
-   OCaml data the models cannot look inside. This file declares them as
-   abstract types ([Parameter]), with the few observations the OCaml makes
+   OxCaml data the models cannot look inside. This file declares them as
+   abstract types ([Parameter]), with the few observations the passes make
    of them: what a value is defined by, what a block's terminator is, and
    so on. Each observation is realized at extraction (SsaModelExtract.v) by
    a function of the compiler: some directly by [Ssa] ([Block.predecessors],
    [Block.dominates], ...), the others by the small functions of
-   backend/ssa/ssa_view.ml, each of which turns an OCaml [match] into one
+   backend/ssa/ssa_view.ml, each of which turns a [match] on that data into one
    of the [Inductive] views below.
 
    Nothing here is proved. What the proofs rely on about these observations
@@ -20,8 +20,8 @@
    provide. *)
 
 From Stdlib Require Import ZArith Bool List.
-From OxcamlStdlib Require Import OcamlInt OcamlInt64.
-From OxcamlBackend Require Import IntegerComparison.
+From OxCamlStdlib Require Import OcamlInt OcamlInt64.
+From OxCamlBackend Require Import IntegerComparison.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -36,7 +36,7 @@ Parameter instr : Type.
 Parameter instr_id : Type.
 
 (* [Ssa.Block.equal], [Ssa.Value.equal] and [Ssa.Instruction.Id.equal]:
-   the identity of the OCaml data, which the models take as equality. *)
+   the identity of the OxCaml data, which the models take as equality. *)
 Parameter block_eqb : block -> block -> bool.
 Parameter value_eqb : value -> value -> bool.
 Parameter instr_id_eqb : instr_id -> instr_id -> bool.
@@ -74,8 +74,8 @@ Parameter all_successors : block -> list block.
 Parameter dominates : block -> block -> bool.
 
 (* The blocks that strictly dominate a block, nearest first, ending with
-   the graph's entry: the chain the OCaml's [Affine_ssa.guards_at] walks
-   with [Block.immediate_dominator]. *)
+   the graph's entry: the chain [AffineSsa.guards_at] walks, built by
+   [Ssa_view.strict_dominators] with [Block.immediate_dominator]. *)
 Parameter strict_dominators : block -> list block.
 
 (* [Block.params] as a list, [Block.param], and [Block.body] as a list
@@ -152,16 +152,16 @@ Parameter has_side_effect : instr -> bool.
 
 (* --- The tree view of a value graph, for AffineSsa.v --- *)
 
-(* What [Affine_ssa.expr_of_value] matches on, as a tree built by the
-   wrapper's [tree_of_value]: each node holds its SSA value [v], and, when
-   [v] is defined by an operation the OCaml recognises, that operation with
-   the trees of the arguments the OCaml looks at. The constructors follow
-   the OCaml patterns: [Iadd v a b] is [Res ({ op = Intop Iadd; args = [| a;
-   b |] }, _)], [Iadd_imm v a k] is [Intop_imm (Iadd, k)] with argument
-   [a], and so on. [Const_int]'s [nativeint] is an [Int64] here (the same
-   integers on a 64-bit machine; the wrapper converts). The argument of a
-   logical shift is not inspected by the OCaml and is not kept. [Other] is
-   every other value, which is atomized. *)
+(* What [AffineSsa.expr_of_value] matches on, as a tree built by
+   [Ssa_view.tree_of_value]: each node holds its SSA value [v], and, when
+   [v] is defined by an operation the recogniser knows, that operation with
+   the trees of the arguments it looks at. The constructors follow the
+   patterns of [Ssa_view.tree_of_value]: [Iadd v a b] is [Res ({ op = Intop
+   Iadd; args = [| a; b |] }, _)], [Iadd_imm v a k] is [Intop_imm (Iadd,
+   k)] with argument [a], and so on. [Const_int]'s [nativeint] is an
+   [Int64] here (the same integers on a 64-bit machine; [Ssa_view]
+   converts). The argument of a logical shift is not inspected and is not
+   kept. [Other] is every other value, which is atomized. *)
 Inductive tree : Type :=
   | Const_int (v : value) (n : Int64.t)
   | Iadd (v : value) (a b : tree)
@@ -186,7 +186,7 @@ Definition root (t : tree) : value :=
 
 (* [Ssa_view.tree_of_value], and the one thing assumed of its shape: the
    tree built for a value has that value at its root (every branch of the
-   OCaml builds a node for [v] itself). What the nodes assert about the
+   it builds a node for [v] itself). What the nodes assert about the
    machine values is [tree_sound] in AffineSsa.v, assumed where used. *)
 Parameter tree_of_value : value -> tree.
 Axiom tree_of_value_root : forall v, root (tree_of_value v) = v.
@@ -196,7 +196,7 @@ Axiom tree_of_value_root : forall v, root (tree_of_value v) = v.
 (* ======================================================================== *)
 
 (* The table from the id of each [Op] to the block defining it, built by
-   the OCaml's [Induction_var.compute_op_def]; [op_def_find] is
+   [Induction_var.compute_op_def]; [op_def_find] is
    [Instruction.Id.Tbl.find_opt]. *)
 Parameter op_def : Type.
 Parameter op_def_find : op_def -> instr_id -> option block.

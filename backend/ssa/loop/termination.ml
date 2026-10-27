@@ -50,6 +50,4 @@ type exit_branch = E.exit_branch =
 
 let find_exit_branch = E.find_exit_branch
 
-let analyze ~op_def (loop : Induction_var.loop) (bivs : Induction_var.biv list)
-    : t =
-  E.analyze op_def loop bivs
+let analyze ~op_def (bivs : Induction_var.biv list) : t = E.analyze op_def bivs

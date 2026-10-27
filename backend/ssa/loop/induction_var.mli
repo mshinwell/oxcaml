@@ -74,8 +74,11 @@ val signed_step : biv -> int option
 (** [loop.back_edges] as a set. *)
 val back_edge_set : loop -> Block.Set.t
 
-(** [is_loop_invariant ~op_def loop_body v] is [true] iff [v] cannot change
-    across iterations of a loop whose body is [loop_body]: it is a compile-time
+(** [is_loop_invariant ~op_def ~header v] is [true] iff [v] cannot change across
+    iterations of the loop whose header is [header]: it is a compile-time
     constant, or its defining block (for an operation result) / owning block
-    (for a [Block_param]) lies outside [loop_body]. *)
-val is_loop_invariant : op_def:op_def -> Block.Set.t -> finished Value.t -> bool
+    (for a [Block_param]) strictly dominates [header], so is not in the loop's
+    body and does not run between two visits of the header. For a value used in
+    the body this is the same as the defining block lying outside the body. *)
+val is_loop_invariant :
+  op_def:op_def -> header:finished Block.t -> finished Value.t -> bool

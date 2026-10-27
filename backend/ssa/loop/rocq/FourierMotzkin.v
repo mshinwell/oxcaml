@@ -1,22 +1,23 @@
-(* A Rocq model of [backend/ssa/loop/fourier_motzkin.ml].
+(* Affine inequalities over interned integer atoms, with Fourier-Motzkin
+   feasibility and entailment, for the loop analyses. The extraction of
+   this file, FourierMotzkin.ml next to it, is the implementation.
 
    See the reading guide at the top of LoopComparisons.v for the Rocq
    vocabulary and the layout of the shared files. As there, this file has
-   four parts: (1) a transcription of the OCaml, (2) the intended meaning,
+   four parts: (1) the definitions, (2) the intended meaning,
    (3) stepping-stone lemmas, (4) the theorems. Parts 1 and 2 are the part
    to check by eye.
 
-   The OCaml raises [Overflow] where an integer operation would wrap; here
-   every function that can overflow returns an [option], with [None]
-   standing for the exception (see OcamlOption.v).
+   Every function that can overflow returns an [option], [None] standing
+   for the overflow (see OcamlOption.v); nothing wraps silently.
 
    Trusted parts, beyond the [Int64] model in OcamlInt64.v and the
-   [sort_uniq] assumptions in OcamlList.v (each is a few lines of OCaml to
-   review): the overflow tests of the [_ovf] helpers are taken as given,
-   by the axioms [add_fits_spec] and friends below, to answer whether the
-   exact result fits the type. The OCaml implements that test with the
-   standard sign-bit trick for addition and a divide-back check for
-   multiplication (the lines quoted in FourierMotzkinExtract.v).
+   [sort_uniq] assumptions in OcamlList.v (each is a few lines of OxCaml
+   to review): the overflow tests of the [_ovf] helpers are taken as
+   given, by the axioms [add_fits_spec] and friends below, to answer
+   whether the exact result fits the type. Their OxCaml, the standard
+   sign-bit trick for addition and a divide-back check for
+   multiplication, is in FourierMotzkinExtract.v.
 
    The main results are [feasible_sound] and [entails_sound] in part 4: when
    [feasible] says "infeasible", no integer assignment satisfies the
@@ -26,11 +27,11 @@
    nothing (it is conservative on overflow and on size limits). *)
 
 From Stdlib Require Import ZArith Lia Bool List Recdef.
-From OxcamlStdlib Require Import OcamlOption OcamlInt OcamlInt64 OcamlList.
+From OxCamlStdlib Require Import OcamlOption OcamlInt OcamlInt64 OcamlList.
 Import ListNotations.
 
 (* ======================================================================== *)
-(* Part 1: transcription of the OCaml                                       *)
+(* Part 1: the definitions                                                  *)
 (* ======================================================================== *)
 
 Local Open Scope sint63_scope.
@@ -38,7 +39,7 @@ Local Open Scope sint63_scope.
 (* ---- Overflow-checked [int] arithmetic (the [_ovf] helpers) ----------- *)
 
 (* The overflow tests: whether the exact sum or product of two machine
-   integers fits an OCaml [int]. *)
+   integers fits an [int]. *)
 Parameter add_fits mul_fits : int -> int -> bool.
 Axiom add_fits_spec : forall a b, add_fits a b = fits_int (to_Z a + to_Z b).
 Axiom mul_fits_spec : forall a b, mul_fits a b = fits_int (to_Z a * to_Z b).
@@ -61,7 +62,7 @@ Definition coeff_gen {C} (dflt : C) (id : int) (terms : list (int * C)) : C :=
 Module Affine.
   Record t := { const : int; terms : list (int * int) }.
 
-  (* OCaml [Affine.const]; the name is taken by the field here. *)
+  (* The form with no terms ([const] being the field). *)
   Definition constant (c : int) : t := {| const := c; terms := [] |}.
 
   Definition var (id : int) : t := {| const := zero; terms := [(id, one)] |}.
@@ -231,8 +232,8 @@ Definition resolvent (cp cn : int) (p n : Affine.t) : option Affine.t :=
 Definition max_atoms : int := 64.
 Definition max_ineqs : int := 10000.
 
-(* The local [elim] of [feasible]. [None] is the [Overflow] raised on the size
-   limit; an overflowing resolvent is dropped by [filter_map]. *)
+(* One step of [feasible]: eliminate the atom [v]. [None] when the system
+   is over the size limit; an overflowing resolvent is dropped. *)
 Definition elim (v : int) (ineqs : list Affine.t) : option (list Affine.t) :=
   if zero <? compare_length_with ineqs max_ineqs
   then None
@@ -251,8 +252,7 @@ Definition elim (v : int) (ineqs : list Affine.t) : option (list Affine.t) :=
     in
     Some (rev_append zero_coeff resolvents).
 
-(* [List.fold_left (fun acc v -> elim v acc) ineqs atoms], with [elim]'s
-   [Overflow] propagating. *)
+(* Eliminate the atoms in turn, stopping at the first [None]. *)
 Fixpoint elim_all (atoms : list int) (ineqs : list Affine.t)
     : option (list Affine.t) :=
   match atoms with
@@ -1120,19 +1120,27 @@ Proof. intros. apply add_wf. Qed.
 
 (* --- One elimination step. --- *)
 
-(* Eliminating [v] keeps the forms well-formed and their atoms among the
-   input atoms, gives every output a zero coefficient of [v], keeps zero any
-   coefficient that was zero throughout the input, and preserves truth: a
-   valuation satisfying the input satisfies the output. *)
-Lemma elim_spec : forall v ineqs out,
-  Forall wf ineqs -> elim v ineqs = Some out ->
+(* What an elimination establishes of its output [out] from its input
+   [ineqs], [eliminated] holding of the atoms it removed: the forms are
+   well-formed and their atoms among the input's; every eliminated atom,
+   and every atom whose coefficient was zero throughout the input, has a
+   zero coefficient in every output; and truth is preserved: a valuation
+   satisfying the input satisfies the output. *)
+Definition elim_result (eliminated : int -> Prop) (ineqs out : list Affine.t)
+    : Prop :=
   Forall wf out
   /\ (forall S, (forall f, In f ineqs -> incl (map fst f.(Affine.terms)) S) ->
         forall f, In f out -> incl (map fst f.(Affine.terms)) S)
-  /\ (forall f, In f out -> to_Z (Affine.coeff v f) = 0)
-  /\ (forall id, (forall f, In f ineqs -> to_Z (Affine.coeff id f) = 0) ->
+  /\ (forall id,
+        eliminated id
+        \/ (forall f, In f ineqs -> to_Z (Affine.coeff id f) = 0) ->
         forall f, In f out -> to_Z (Affine.coeff id f) = 0)
   /\ (forall rho, holds_all rho ineqs -> holds_all rho out).
+
+(* Eliminating [v] eliminates [v]. *)
+Lemma elim_spec : forall v ineqs out,
+  Forall wf ineqs -> elim v ineqs = Some out ->
+  elim_result (fun id => id = v) ineqs out.
 Proof.
   intros v ineqs out Hwf H. unfold elim in H.
   destruct (zero <? compare_length_with ineqs max_ineqs)%sint63;
@@ -1164,7 +1172,7 @@ Proof.
         [ | discriminate ].
       cbv iota in Hres. apply neg_ovf_spec in Hcn.
       exists p, n, cn. tauto. }
-  split; [ | split; [ | split; [ | split ] ] ].
+  unfold elim_result. split; [ | split; [ | split ] ].
   - apply Forall_forall. intros f Hin.
     destruct (Hcase f Hin)
       as [ [Hin' _] | [p [n [cn [Hp [Hn [_ [_ [_ Hres]]]]]]]] ].
@@ -1179,24 +1187,23 @@ Proof.
       destruct (Hkeys id Hid) as [ Hid' | Hid' ].
       * apply (HS p Hp id Hid').
       * apply (HS n Hn id Hid').
-  - intros f Hin.
-    destruct (Hcase f Hin)
-      as [ [_ Hz] | [p [n [cn [Hp [Hn [Hpos [Hneg [Hcn Hres]]]]]]]] ].
-    + rewrite Hz. apply to_Z_zero.
-    + destruct (resolvent_spec _ _ _ _ _ (Hwf p Hp) (Hwf n Hn) Hres)
-        as [_ [_ [[g [Hg Hcoeff]] _]]].
-      specialize (Hcoeff v). rewrite Hcn in Hcoeff.
-      assert (E : g * to_Z (Affine.coeff v f) = 0) by (rewrite Hcoeff; ring).
-      apply Z.mul_eq_0 in E as [ E | E ]; lia.
-  - intros id Hz f Hin.
-    destruct (Hcase f Hin)
-      as [ [Hin' _] | [p [n [cn [Hp [Hn [_ [_ [_ Hres]]]]]]]] ].
-    + apply Hz. exact Hin'.
-    + destruct (resolvent_spec _ _ _ _ _ (Hwf p Hp) (Hwf n Hn) Hres)
-        as [_ [_ [[g [Hg Hcoeff]] _]]].
-      specialize (Hcoeff id). rewrite (Hz p Hp), (Hz n Hn) in Hcoeff.
-      assert (E : g * to_Z (Affine.coeff id f) = 0) by lia.
-      apply Z.mul_eq_0 in E as [ E | E ]; lia.
+  - intros id [ -> | Hz ] f Hin.
+    + destruct (Hcase f Hin)
+        as [ [_ Hz] | [p [n [cn [Hp [Hn [Hpos [Hneg [Hcn Hres]]]]]]]] ].
+      * rewrite Hz. apply to_Z_zero.
+      * destruct (resolvent_spec _ _ _ _ _ (Hwf p Hp) (Hwf n Hn) Hres)
+          as [_ [_ [[g [Hg Hcoeff]] _]]].
+        specialize (Hcoeff v). rewrite Hcn in Hcoeff.
+        assert (E : g * to_Z (Affine.coeff v f) = 0) by (rewrite Hcoeff; ring).
+        apply Z.mul_eq_0 in E as [ E | E ]; lia.
+    + destruct (Hcase f Hin)
+        as [ [Hin' _] | [p [n [cn [Hp [Hn [_ [_ [_ Hres]]]]]]]] ].
+      * apply Hz. exact Hin'.
+      * destruct (resolvent_spec _ _ _ _ _ (Hwf p Hp) (Hwf n Hn) Hres)
+          as [_ [_ [[g [Hg Hcoeff]] _]]].
+        specialize (Hcoeff id). rewrite (Hz p Hp), (Hz n Hn) in Hcoeff.
+        assert (E : g * to_Z (Affine.coeff id f) = 0) by lia.
+        apply Z.mul_eq_0 in E as [ E | E ]; lia.
   - intros rho Hholds. unfold holds_all in *. rewrite Forall_forall in *.
     intros f Hin.
     destruct (Hcase f Hin)
@@ -1211,35 +1218,29 @@ Qed.
 
 (* --- Eliminating every atom in turn. --- *)
 
-(* The same, for a sequence of eliminations: every eliminated atom, and
-   every atom that was absent throughout the input, has a zero coefficient in
-   every output. *)
+(* The same, for a sequence of eliminations: every atom of the sequence is
+   eliminated. *)
 Lemma elim_all_spec : forall atoms ineqs out,
   Forall wf ineqs -> elim_all atoms ineqs = Some out ->
-  Forall wf out
-  /\ (forall S, (forall f, In f ineqs -> incl (map fst f.(Affine.terms)) S) ->
-        forall f, In f out -> incl (map fst f.(Affine.terms)) S)
-  /\ (forall id,
-        In id atoms \/ (forall f, In f ineqs -> to_Z (Affine.coeff id f) = 0) ->
-        forall f, In f out -> to_Z (Affine.coeff id f) = 0)
-  /\ (forall rho, holds_all rho ineqs -> holds_all rho out).
+  elim_result (fun id => In id atoms) ineqs out.
 Proof.
-  induction atoms as [ | v atoms IH ]; intros ineqs out Hwf H.
+  induction atoms as [ | v atoms IH ]; intros ineqs out Hwf H;
+    unfold elim_result.
   - injection H as <-. split; [ exact Hwf | split; [ | split ] ].
     + intros S HS f Hin. apply HS. exact Hin.
     + intros id [ Hid | Hz ] f Hin; [ contradiction | apply Hz; exact Hin ].
     + intros rho Hh. exact Hh.
   - cbn [elim_all] in H.
     destruct (elim v ineqs) as [ mid | ] eqn:He; [ | discriminate ].
-    destruct (elim_spec v ineqs mid Hwf He) as [Hwf1 [Hkeys1 [Hv1 [Hz1 Hh1]]]].
+    destruct (elim_spec v ineqs mid Hwf He) as [Hwf1 [Hkeys1 [Hz1 Hh1]]].
     destruct (IH mid out Hwf1 H) as [Hwf2 [Hkeys2 [Hz2 Hh2]]].
     split; [ exact Hwf2 | split; [ | split ] ].
     + intros S HS. apply Hkeys2. apply Hkeys1. exact HS.
     + intros id Hid f Hin. apply (Hz2 id); [ | exact Hin ].
       destruct Hid as [ [ -> | Hid ] | Hz ].
-      * right. exact Hv1.
+      * right. apply Hz1. left. reflexivity.
       * left. exact Hid.
-      * right. apply Hz1. exact Hz.
+      * right. apply Hz1. right. exact Hz.
     + intros rho Hh. apply Hh2. apply Hh1. exact Hh.
 Qed.
 

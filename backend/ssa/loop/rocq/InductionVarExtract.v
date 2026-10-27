@@ -4,6 +4,6 @@
    the mapping is trusted by inspection. *)
 
 From Stdlib Require Import Extraction.
-From OxcamlLoop Require Import InductionVar.
+From OxCamlLoop Require Import InductionVar.
 
 Extract Inductive biv_sign => "[ `Add | `Sub ]" [ "`Add" "`Sub" ].

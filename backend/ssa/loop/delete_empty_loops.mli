@@ -36,13 +36,17 @@
       its own update expression and the exit comparison, which in turn is used
       only by the header's branch, and
     - every block of the loop body contains only side-effect-free instructions
-      and ends in a pure control-flow terminator.
+      and ends in a pure control-flow terminator, and
+    - the header's exit edge is the only edge leaving the loop body, so that the
+      loop cannot be left early, into a raise or another continuation.
 
     The transformation rewrites the loop header's exit [Switch] into an
     unconditional jump to the exit target. The loop body, back edges and IV
     update computations become unreachable and are pruned when the output graph
     is finished; downstream CFG passes (e.g. merge-block cleanup) tidy up the
-    remaining control flow. *)
+    remaining control flow. The analysis is [DeleteEmptyLoops.find_deletions],
+    extracted from rocq/DeleteEmptyLoops.v, whose [deletable] states what is
+    established of every loop that is deleted. *)
 
 open Ssa.Export
 

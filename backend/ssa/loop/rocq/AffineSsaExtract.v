@@ -6,6 +6,6 @@
    inspection. *)
 
 From Stdlib Require Import Extraction.
-From OxcamlLoop Require Import AffineSsa.
+From OxCamlLoop Require Import AffineSsa.
 
 Extract Inlined Constant max_shift_bits => "16".

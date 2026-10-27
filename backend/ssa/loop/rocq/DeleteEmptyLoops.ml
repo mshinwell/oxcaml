@@ -23,6 +23,21 @@ let body_effect_free loop0 =
       && terminator_pure_control (Ssa_view.terminator bl))
     loop0.body
 
+(** val single_exit : natural_loop -> block -> bool **)
+
+let single_exit loop0 exit =
+  Ssa.Block.Set.for_all
+    (fun bl ->
+      List.for_all
+        (fun s -> Ssa.Block.Set.mem s loop0.body || Ssa.Block.equal s exit)
+        (Ssa.Block.all_successors bl))
+    loop0.body
+
+(** val loop_terminates : op_def -> biv list -> bool **)
+
+let loop_terminates op_def0 bivs0 =
+  match analyze op_def0 bivs0 with Terminates -> true | Unknown -> false
+
 (** val find_deletions : op_def -> block list -> (block * block) list **)
 
 let find_deletions op_def0 blocks =
@@ -32,17 +47,17 @@ let find_deletions op_def0 blocks =
     (fun dr ->
       let loop0 = dr.DeadInductionVar.loop in
       let bivs0 = List.map (fun br -> br.biv) dr.bivs in
-      let terminates =
-        match analyze op_def0 loop0 bivs0 with
-        | Terminates -> true
-        | Unknown -> false
-      in
-      if (dr.useless && terminates) && body_effect_free loop0
+      if dr.useless && body_effect_free loop0
       then
         match find_exit_branch loop0 with
         | Some exit_info -> (
           match Ssa_view.params exit_info.exit_target with
-          | [] -> Some (loop0.header, exit_info.exit_target)
+          | [] ->
+            if
+              single_exit loop0 exit_info.exit_target
+              && loop_terminates op_def0 bivs0
+            then Some (loop0.header, exit_info.exit_target)
+            else None
           | _ :: _ -> None)
         | None -> None
       else None)

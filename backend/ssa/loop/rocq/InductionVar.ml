@@ -7,18 +7,23 @@ open SsaModel
 let is_header_param block0 index v =
   Ssa.Value.equal v (Ssa.Block.param block0 index)
 
-(** val is_loop_invariant : op_def -> blockset -> value -> bool **)
+(** val strictly_dominates : block -> block -> bool **)
 
-let is_loop_invariant op_def0 loop_body v =
+let strictly_dominates d b =
+  Ssa.Block.dominates d b && not (Ssa.Block.equal d b)
+
+(** val is_loop_invariant : op_def -> block -> value -> bool **)
+
+let is_loop_invariant op_def0 header0 v =
   match Ssa_view.value v with
   | Res (id, op) -> (
     match op with
     | Op_const -> true
     | _ -> (
       match Ssa.Instruction.Id.Tbl.find_opt op_def0 id with
-      | Some bl -> not (Ssa.Block.Set.mem bl loop_body)
+      | Some bl -> strictly_dominates bl header0
       | None -> false))
-  | Block_param (block0, _) -> not (Ssa.Block.Set.mem block0 loop_body)
+  | Block_param (block0, _) -> strictly_dominates block0 header0
 
 type biv_step =
   | Step_const of int
@@ -58,21 +63,21 @@ let signed_step biv0 =
     | `Sub -> if Int.equal c Int.min_int then None else Some (Int.neg c))
   | Step_var _ -> None
 
-(** val classify_update : (value -> bool) -> op_def -> blockset -> value ->
+(** val classify_update : (value -> bool) -> op_def -> block -> value ->
     (biv_step * [ `Add | `Sub ]) option **)
 
-let classify_update is_self op_def0 loop_body v =
+let classify_update is_self op_def0 header0 v =
   match Ssa_view.value v with
   | Res (_, op) -> (
     match op with
     | Op_add (x, y) ->
-      if is_self x && is_loop_invariant op_def0 loop_body y
+      if is_self x && is_loop_invariant op_def0 header0 y
       then Some (Step_var y, `Add)
-      else if is_self y && is_loop_invariant op_def0 loop_body x
+      else if is_self y && is_loop_invariant op_def0 header0 x
       then Some (Step_var x, `Add)
       else None
     | Op_sub (x, y) ->
-      if is_self x && is_loop_invariant op_def0 loop_body y
+      if is_self x && is_loop_invariant op_def0 header0 y
       then Some (Step_var y, `Sub)
       else None
     | Op_add_imm (x, c) -> if is_self x then Some (Step_const c, `Add) else None
@@ -132,13 +137,13 @@ let classify_param loop0 op_def0 back_pred_args index =
     match back_vals with
     | [] -> None
     | first :: rest -> (
-      match classify_update is_self op_def0 loop0.body first with
+      match classify_update is_self op_def0 loop0.header first with
       | Some p ->
         let step0, sign0 = p in
         let agrees =
           List.for_all
             (fun v ->
-              match classify_update is_self op_def0 loop0.body v with
+              match classify_update is_self op_def0 loop0.header v with
               | Some p0 ->
                 let step', sign' = p0 in
                 step_same step0 step' && sign_same sign0 sign'

@@ -1,4 +1,4 @@
-(* OCaml's [int], modelled by Rocq's primitive signed 63-bit integer [int]
+(* OxCaml's [int], modelled by Rocq's primitive signed 63-bit integer [int]
    (from the standard library's Sint63), which is exactly the same type.
    [to_Z] reads an [int] as a mathematical integer ([Z]).
 
@@ -8,7 +8,7 @@
 From Stdlib Require Import ZArith Lia Bool.
 From Stdlib Require Export Sint63.
 
-(* The literals are named so that extraction can print them as OCaml
+(* The literals are named so that extraction can print them as OxCaml
    literals (a primitive-int literal would otherwise be printed as a call
    into Rocq's runtime). *)
 Local Open Scope sint63_scope.
@@ -24,7 +24,7 @@ Definition two62 : Z := 4611686018427387904.
 
 Lemma two62_pow : two62 = 2 ^ 62. Proof. reflexivity. Qed.
 
-(* OCaml's [max_int], as a mathematical integer. *)
+(* OxCaml's [max_int], as a mathematical integer. *)
 Definition ocaml_max_int : Z := two62 - 1.
 
 Lemma to_Z_zero : to_Z zero = 0.
@@ -45,7 +45,7 @@ Proof. reflexivity. Qed.
 Lemma to_Z_max_int : to_Z max_int = two62 - 1.
 Proof. reflexivity. Qed.
 
-(* An OCaml [int] lies in [[-2^62, 2^62 - 1]]. *)
+(* An OxCaml [int] lies in [[-2^62, 2^62 - 1]]. *)
 Lemma int_bounds : forall x : int, - two62 <= to_Z x <= two62 - 1.
 Proof.
   intro x. pose proof (Sint63.to_Z_bounded x) as H.

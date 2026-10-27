@@ -64,6 +64,28 @@ let all_uses_ok blocks same approve_instr approve_term =
            (terminator_args (Ssa_view.terminator bl)))
     blocks
 
+(** val arg_is : value -> Ssa.finished Ssa.Terminator.arg -> bool **)
+
+let arg_is v = function
+  | Ssa.Terminator.Arg a -> Ssa.Value.equal a v
+  | Ssa.Terminator.Omitted_since_unused -> false
+
+(** val goto_passes : block -> int -> value -> block -> bool **)
+
+let goto_passes header0 k v bl =
+  match Ssa_view.terminator bl with
+  | Terminator.Continue (continuation, args) -> (
+    match continuation with
+    | Ssa.Goto goto ->
+      (Ssa.Block.equal goto header0
+      &&
+      match arg_value args k with
+      | Some a -> Ssa.Value.equal a v
+      | None -> false)
+      && Int.equal (count_occurrences (arg_is v) args) 1
+    | _ -> false)
+  | _ -> false
+
 (** val is_dead : block list -> biv -> bool **)
 
 let is_dead blocks biv0 =
@@ -94,27 +116,7 @@ let is_dead blocks biv0 =
           all_uses_ok blocks (Ssa.Value.equal v)
             (fun i -> instr_defines_value i cond)
             (fun bl _ ->
-              Ssa.Block.Set.mem bl back_preds
-              &&
-              match Ssa_view.terminator bl with
-              | Terminator.Continue (continuation, args) -> (
-                match continuation with
-                | Ssa.Goto goto ->
-                  (Ssa.Block.equal goto header0
-                  &&
-                  match arg_value args k with
-                  | Some a -> Ssa.Value.equal a v
-                  | None -> false)
-                  && Int.equal
-                       (count_occurrences
-                          (fun arg ->
-                            match arg with
-                            | Ssa.Terminator.Arg a -> Ssa.Value.equal a v
-                            | Ssa.Terminator.Omitted_since_unused -> false)
-                          args)
-                       1
-                | _ -> false)
-              | _ -> false))
+              Ssa.Block.Set.mem bl back_preds && goto_passes header0 k v bl))
         biv0.update
   | None -> false
 

@@ -1,65 +1,72 @@
-(* A Rocq model of [backend/ssa/loop/loop_comparisons.ml].
+(* The decisions on signed integer comparisons shared by the loop analyses:
+   the orientation of a loop's continue test, whether an induction variable
+   makes it fail, and the affine facts a comparison implies. The extraction
+   of this file, LoopComparisons.ml next to it, is the implementation.
 
    Reading guide (no Rocq knowledge assumed):
 
-   - [Inductive]  declares a variant type, like OCaml [type t = A | B].
-   - [Definition] declares a function or constant, like OCaml [let].
-   - [Fixpoint]   declares a recursive function, like OCaml [let rec].
+   - [Inductive]  declares a variant type, like OxCaml [type t = A | B].
+   - [Definition] declares a function or constant, like OxCaml [let].
+   - [Fixpoint]   declares a recursive function, like OxCaml [let rec].
    - [Lemma] / [Theorem] state a property; the text between [Proof.] and
      [Qed.] is a script that the checker runs to establish it. The
      statements are what matter; the scripts can be skipped.
    - [Z] is the type of unbounded mathematical integers. [int] is Rocq's
-     primitive signed 63-bit integer, which is exactly OCaml's [int];
+     primitive signed 63-bit integer, which is exactly OxCaml's [int];
      [to_Z] reads an [int] as a mathematical integer.
 
    Shared material lives elsewhere: rocq/ at the root of the repository
-   models OCaml's own types (OcamlInt.v, OcamlInt64.v, OcamlList.v,
+   models OxCaml's own types (OcamlInt.v, OcamlInt64.v, OcamlList.v,
    OcamlOption.v), backend/rocq/IntegerComparison.v has
    [Cmm.integer_comparison] with [negate], [swap] and their semantics, and
-   FourierMotzkin.v next to this file has [Fourier_motzkin.Affine].
+   FourierMotzkin.v next to this file has [Affine], the affine forms.
 
    The file has four parts:
-   1. A line-by-line transcription of the OCaml. Compare these against
-      loop_comparisons.ml.
+   1. The definitions.
    2. The intended meaning: how an induction variable (IV) advances with
       wrap-around, and what "the bound is in range" means.
    3. Lemmas used by the proofs. Stepping stones; skip on a first reading.
    4. The theorems. These are the correctness claims, each with its proof.
 
-   Parts 1 and 2 are the part to check by eye: the transcription against the
-   OCaml, and the semantics against one's understanding of the machine. Once
+   Parts 1 and 2 are the part to check by eye: the definitions, and the
+   semantics against one's understanding of the machine. Once
    they are right, Rocq checks everything else when the file is compiled
    (see rocq/Makefile at the root of the repository). *)
 
 From Stdlib Require Import ZArith Lia Bool List.
-From OxcamlStdlib Require Import OcamlOption OcamlInt OcamlInt64 ZTactics.
-From OxcamlBackend Require Import IntegerComparison.
-From OxcamlLoop Require Import FourierMotzkin.
+From OxCamlStdlib Require Import OcamlOption OcamlInt OcamlInt64 ZTactics.
+From OxCamlBackend Require Import IntegerComparison.
+From OxCamlLoop Require Import FourierMotzkin.
 Import ListNotations.
 
 (* ======================================================================== *)
-(* Part 1: transcription of the OCaml                                       *)
+(* Part 1: the definitions                                                  *)
 (* ======================================================================== *)
 
-(* [Loop_comparisons.oriented_continue_comparison] *)
+(* The comparison under which the loop continues, with the induction
+   variable on the left: [cmp] is the test of the exit branch, [iv_is_left]
+   whether the variable is its left operand, [continue_when_true] whether
+   the loop continues when the test holds. *)
 Definition oriented_continue_comparison
     (iv_is_left continue_when_true : bool) (cmp : integer_comparison)
     : integer_comparison :=
   let cmp := if iv_is_left then cmp else swap cmp in
   if continue_when_true then cmp else negate cmp.
 
-(* [Loop_comparisons.termination] *)
+(* The verdict on a continue comparison and a step. *)
 Inductive termination : Type :=
   | Terminates
   | Terminates_if_bound_in_range
   | Unknown.
 
-(* The OCaml [step : int] is a 63-bit signed integer. *)
+(* A [step : int] is a 63-bit signed integer. *)
 Local Open Scope sint63_scope.
 Local Notation "x >? y" := (y <? x)
   (at level 70, no associativity) : sint63_scope.
 
-(* [Loop_comparisons.continue_terminates] *)
+(* Whether an induction variable advancing by [step] must eventually fail
+   the continue comparison [cmp] against a fixed bound: outright, only if
+   the bound is in range (part 2), or not that this can tell. *)
 Definition continue_terminates (step : int) (cmp : integer_comparison)
     : termination :=
   if step =? zero
@@ -84,15 +91,14 @@ Definition continue_terminates (step : int) (cmp : integer_comparison)
     | Cne | Cult | Cugt | Cule | Cuge => Unknown
     end.
 
-(* [Affine] is the model of [Fourier_motzkin.Affine] in FourierMotzkin.v,
-   imported above: a form [f] stands for the assertion [f >= 0], [denote
-   rho f] is its integer value when the atoms take the values given by
-   [rho], and [wf f] says that no atom occurs twice in it. The OCaml
-   operations raise [Overflow] when a coefficient would leave the [int]
-   range; the model's versions return [None] instead. *)
+(* [Affine], from FourierMotzkin.v, is the affine forms: a form [f]
+   stands for the assertion [f >= 0], [denote rho f] is its integer value
+   when the atoms take the values given by [rho], and [wf f] says that no
+   atom occurs twice in it. The checked operations return [None] when a
+   coefficient would leave the [int] range. *)
 
-(* [Loop_comparisons.facts]. The OCaml labels the bool [~negate], and its
-   [match ... with exception Overflow -> []] is the final [match] here. *)
+(* The facts implied by [la cmp lb] holding ([neg = false]) or failing
+   ([neg = true]): none when a coefficient overflows (the final [match]). *)
 Definition facts (neg : bool) (cmp : integer_comparison)
     (la lb : Affine.t) : list Affine.t :=
   let cmp := if neg then negate cmp else cmp in

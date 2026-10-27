@@ -100,12 +100,11 @@ let biv_implies_termination op_def0 biv0 =
     match signed_step biv0 with
     | Some step -> (
       let header0 = biv0.loop.header in
-      let body0 = biv0.loop.body in
       let is_self = is_header_param header0 biv0.param_index in
       let is_iv_val =
        fun v -> is_self v || List.exists (Ssa.Value.equal v) biv0.update
       in
-      let is_bound = fun v -> is_loop_invariant op_def0 body0 v in
+      let is_bound = fun v -> is_loop_invariant op_def0 header0 v in
       match extract_comparison is_iv_val is_bound exit_info.condition with
       | Some p -> (
         let p0, bound0 = p in
@@ -122,9 +121,9 @@ let biv_implies_termination op_def0 biv0 =
     | None -> false)
   | None -> false
 
-(** val analyze : op_def -> natural_loop -> biv list -> t **)
+(** val analyze : op_def -> biv list -> t **)
 
-let analyze op_def0 _ bivs =
+let analyze op_def0 bivs =
   if List.exists (biv_implies_termination op_def0) bivs
   then Terminates
   else Unknown

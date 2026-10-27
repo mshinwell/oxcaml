@@ -75,7 +75,7 @@ let find_loops blocks =
 (** val edge_dominates : block -> block -> block -> bool **)
 
 let edge_dominates src succ target =
-  Ssa.Block.dominates succ target
+  (Ssa.Block.dominates succ target && not (Ssa.Block.dominates succ src))
   &&
   match Ssa.Block.predecessors succ with
   | [] -> false

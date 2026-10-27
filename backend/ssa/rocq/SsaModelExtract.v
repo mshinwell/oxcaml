@@ -6,7 +6,7 @@
    compiler's data into the model's views. *)
 
 From Stdlib Require Import Extraction.
-From OxcamlSsa Require Import SsaModel.
+From OxCamlSsa Require Import SsaModel.
 
 (* The abstract types and their equalities. *)
 Extract Constant block => "Ssa.finished Ssa.Block.t".

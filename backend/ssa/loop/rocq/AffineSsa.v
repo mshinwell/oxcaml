@@ -1,36 +1,37 @@
-(* A Rocq model of [backend/ssa/loop/affine_ssa.ml].
+(* The linearization of SSA integer values into affine forms, and the
+   affine facts implied by the branches dominating a block. The extraction
+   of this file, AffineSsa.ml next to it, is the implementation.
 
    See the reading guide at the top of LoopComparisons.v for the Rocq
    vocabulary and the layout of the shared files; AffineExpr.v for the
    expressions and ranges this file builds, and LoopComparisons.v for the
    facts it derives from comparisons. As there, this file has four parts:
-   (1) a transcription of the OCaml, (2) the intended meaning, (3)
+   (1) the definitions, (2) the intended meaning, (3)
    stepping-stone lemmas, (4) the theorems. Parts 1 and 2 are the part to
    check by eye.
 
-   Two things are different from the OCaml, both for the same reason: the
-   model can only compute on what it can see.
+   Two things about the shape of the code follow from the model only
+   being able to compute on what it can see.
 
-   - The OCaml matches on SSA values ([Ssa.Value.t]) directly, looking at
-     the operation that defines each one. The model cannot look inside an
-     SSA value, so the trusted [tree_of_value] of backend/ssa/ssa_view.ml
-     (declared in SsaModel.v, with the [tree] type) first copies the part
-     of the value graph the recogniser looks at into a tree: a node for
-     each value, holding the value itself, and, when the value is defined
-     by one of the operations the OCaml matches on, that operation with
-     the trees of its arguments. Part 2 says what a truthful tree is
-     ([tree_sound]).
+   - The model cannot look inside an SSA value ([Ssa.Value.t]) at the
+     operation that defines it, so the trusted [tree_of_value] of
+     backend/ssa/ssa_view.ml (declared in SsaModel.v, with the [tree]
+     type) first copies the part of the value graph the recogniser looks
+     at into a tree: a node for each value, holding the value itself, and,
+     when the value is defined by one of the integer operations
+     [expr_of_value] understands, that operation with the trees of its
+     arguments. Part 2 says what a truthful tree is ([tree_sound]).
 
-   - The OCaml's atom interner [ctx] is a mutable record and its [side]
-     list is a reference. Here both are values, passed to each function and
-     returned with its result, so that each function is a pure function of
-     its arguments.
+   - The atom interner [ctx] and the [side] list of facts are values,
+     passed to each function and returned with its result, rather than
+     mutable state, so that each function is a pure function of its
+     arguments.
 
    [guards_at] walks the chain of immediate dominators of a block, which
    SsaModel.v provides as [strict_dominators], reading each dominator's
    terminator through the [terminator] view there.
 
-   The results, in part 4, say that the facts the OCaml gathers are true:
+   The results, in part 4, say that the facts gathered here are true:
    under the valuation that reads every atom as the machine value of the
    SSA value it stands for ([agrees]),
 
@@ -42,7 +43,7 @@
      value, and the side facts it pushes are true;
    - [cond_facts_sound]: when the comparison a branch tests came out as the
      branch taken requires, the facts derived from it are true; and they
-     are well-formed, as [Fourier_motzkin.entails] needs;
+     are well-formed, as [FourierMotzkin.entails] needs;
    - [guards_at_sound]: when each branch [guards_at] takes a fact from
      went the way its dominating edge requires ([guards_taken]), the facts
      gathered are all true, and well-formed.
@@ -52,7 +53,7 @@
    with a later one; so the facts and side facts of all the [cond_facts]
    calls [guards_at] makes hold together under the one valuation that
    agrees with the final context, which exists ([agrees_exists]). That is
-   the valuation under which [Fourier_motzkin.entails_sound] then makes an
+   the valuation under which [FourierMotzkin.entails_sound] then makes an
    entailed goal true of the machine values (see LoopTermination.v).
 
    The theorems carry one hypothesis about resources: the atom counter
@@ -66,32 +67,33 @@
    and terminators SsaModel.v reports are the graph's. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
-From OxcamlStdlib Require Import OcamlOption OcamlInt OcamlInt64 OcamlList.
-From OxcamlBackend Require Import IntegerComparison.
-From OxcamlSsa Require Import SsaModel.
-From OxcamlLoop Require Import FourierMotzkin LoopComparisons AffineExpr
+From OxCamlStdlib Require Import OcamlOption OcamlInt OcamlInt64 OcamlList.
+From OxCamlBackend Require Import IntegerComparison.
+From OxCamlSsa Require Import SsaModel.
+From OxCamlLoop Require Import FourierMotzkin LoopComparisons AffineExpr
   NaturalLoop.
 Import ListNotations.
 
 (* ======================================================================== *)
-(* Part 1: transcription of the OCaml                                       *)
+(* Part 1: the definitions                                                  *)
 (* ======================================================================== *)
 
 Local Open Scope sint63_scope.
 
 (* SSA values ([value], with [value_eqb] for [Ssa.Value.equal]) and the
-   [tree] view of a value graph that the OCaml matches on, with [root] for
-   the value a tree stands for, are declared in SsaModel.v. Nothing is
-   computed on values here beyond the equality test. *)
+   [tree] view of a value graph, with [root] for the value a tree stands
+   for, are declared in SsaModel.v. Nothing is computed on values here
+   beyond the equality test. *)
 
 (* --- Atom interner --- *)
 
-(* OCaml [ctx]; the two mutable fields are the fields of a value here. *)
+(* The atom interner: the atoms allocated so far, each with its value, and
+   the next atom to allocate. *)
 Record ctx := { atoms : list (int * value); next : int }.
 
 Definition new_ctx : ctx := {| atoms := []; next := zero |}.
 
-(* OCaml [intern]: the atom of [v], allocated if [v] has none yet. *)
+(* The atom of [v], allocated if [v] has none yet. *)
 Definition intern (c : ctx) (v : value) : int * ctx :=
   match find (fun '(_, w) => value_eqb v w) c.(atoms) with
   | Some (id, _) => (id, c)
@@ -100,15 +102,16 @@ Definition intern (c : ctx) (v : value) : int * ctx :=
     (id, {| atoms := (id, v) :: c.(atoms); next := id + one |})
   end.
 
-(* --- Recognition into [Affine_expr] --- *)
+(* --- Recognition into [AffineExpr.t] --- *)
 
-(* OCaml [fits_int], on the [Int64] standing for its [nativeint]. *)
+(* Whether a constant (the [Int64] standing for a [nativeint]) is an [int]. *)
 Definition fits_int (n : Int64.t) : bool :=
   Int64.equal (Int64.of_int (Int64.to_int n)) n.
 
 Definition max_shift_bits : int := 16.
 
-(* The local functions of the OCaml's [expr_of_value]. *)
+(* The helpers of [expr_of_value]: [atomize] makes a value an atom with
+   the full range; [keep] keeps a node only while its range is known. *)
 Definition atomize (c : ctx) (v : value)
     : (AffineExpr.t * option Range.t) * ctx :=
   let '(id, c) := intern c v in ((AffineExpr.Atom id, Some Range.full), c).
@@ -129,9 +132,9 @@ Definition rsub (a b : option Range.t) : option Range.t :=
 Definition rscale (k : int) (r : option Range.t) : option Range.t :=
   match r with Some r => Range.scale k r | None => None end.
 
-(* OCaml [expr_of_value]. The OCaml's [when] guards are the [if]s here,
-   with the fall-through to [atomize v] made explicit; [64] in the guard of
-   the logical shift is [word_bits]. *)
+(* The expression of a value's tree, with the value's range when one is
+   known. A value defined by an operation not understood here, or whose
+   range is lost, becomes an atom ([atomize]). *)
 Fixpoint expr_of_value (c : ctx) (t : tree)
     : (AffineExpr.t * option Range.t) * ctx :=
   match t with
@@ -194,15 +197,15 @@ Fixpoint expr_of_value (c : ctx) (t : tree)
 
 (* --- Linearization --- *)
 
-(* OCaml [push_sides]: [side] with each fact of [sides] not already in it
-   pushed on the front. *)
+(* [side] with each fact of [sides] not already in it pushed on the front. *)
 Definition push_sides (side sides : list Affine.t) : list Affine.t :=
   OcamlList.fold_left
     (fun side f => if existsb (Affine.equal f) side then side else f :: side)
     side sides.
 
-(* OCaml [linearize]. The OCaml catches [Overflow] from [to_affine]; here
-   that is the [None] case. *)
+(* The affine form of a value's tree, with the side facts of its
+   linearization added to [side]; an atom for the value itself when
+   [to_affine] overflows. *)
 Definition linearize (c : ctx) (side : list Affine.t) (t : tree)
     : (Affine.t * list Affine.t) * ctx :=
   let '((e, _), c) := expr_of_value c t in
@@ -214,8 +217,9 @@ Definition linearize (c : ctx) (side : list Affine.t) (t : tree)
 
 (* --- Guard facts from dominating branches --- *)
 
-(* OCaml [cond_facts]. The OCaml passes the two linearizations as
-   arguments of one call; here they are sequenced, [a] first. *)
+(* The facts a comparison implies when it holds ([negate = false]) or
+   fails ([negate = true]); its operands are linearized in turn, [a]
+   first. *)
 Definition cond_facts (c : ctx) (side : list Affine.t) (negate : bool)
     (cond : tree) : (list Affine.t * list Affine.t) * ctx :=
   match cond with
@@ -229,13 +233,12 @@ Definition cond_facts (c : ctx) (side : list Affine.t) (negate : bool)
   | _ => (([], side), c)
   end.
 
-(* OCaml [guards_at] walks the immediate dominators of [target], which
-   SsaModel.v provides as the list [strict_dominators target]. For one
-   dominator, [guard_test] is the OCaml's [match] on its terminator and
-   the two [if]s: the comparison it branches on and whether the fact is
-   to be negated, when the taken edge dominates [target]; [guard_facts] is
-   the body of the walk, with the OCaml's [acc] reference and the [side]
-   and [ctx] of [cond_facts] passed along as [st]. *)
+(* [guards_at] walks the strict dominators of [target], which SsaModel.v
+   provides as the list [strict_dominators target]. For one dominator,
+   [guard_test] gives the comparison it branches on and whether the fact
+   is to be negated, when the edge it takes towards [target] dominates
+   [target]; [guard_facts] is the body of the walk, with the facts so far
+   and the [side] and [ctx] of [cond_facts] passed along as [st]. *)
 Definition guard_test (target idom : block) : option (value * bool) :=
   match terminator idom with
   | Terminator.Switch index [ifnot; ifso] =>
@@ -258,7 +261,8 @@ Definition guard_facts (target : block)
   | None => ((acc, side), c)
   end.
 
-(* OCaml [guards_at]. *)
+(* The facts holding on entry to [target], from the branches that
+   dominate it. *)
 Definition guards_at (c : ctx) (side : list Affine.t) (target : block)
     : (list Affine.t * list Affine.t) * ctx :=
   OcamlList.fold_left (guard_facts target) (([], side), c)

@@ -1,17 +1,17 @@
 (* Extraction directives for FourierMotzkin.v (the extraction itself is
    run by Extract.v). Everything about the functions is proved in
    FourierMotzkin.v, and the mappings of the basic types, [int], [Int64]
-   and the list functions onto OCaml's are in OcamlExtract.v. What this
-   file adds, and what has to be trusted by inspection, is the OCaml for
+   and the list functions onto OxCaml's are in OcamlExtract.v. What this
+   file adds, and what has to be trusted by inspection, is the OxCaml for
    the four overflow tests [add_fits], [mul_fits], [add_fits64] and
    [mul_fits64]. The model takes each as given, with an axiom saying that
-   it answers whether the exact result fits the type; the OCaml below is
-   the implementation of that test from fourier_motzkin.ml: the sign-bit
-   trick for addition, a divide-back check for multiplication. *)
+   it answers whether the exact result fits the type; the OxCaml below is
+   the implementation of that test: the sign-bit trick for addition, a
+   divide-back check for multiplication. *)
 
 From Stdlib Require Import Extraction.
-From OxcamlStdlib Require Import OcamlExtract.
-From OxcamlLoop Require Import FourierMotzkin.
+From OxCamlStdlib Require Import OcamlExtract.
+From OxCamlLoop Require Import FourierMotzkin.
 
 Extract Constant add_fits =>
   "fun a b ->

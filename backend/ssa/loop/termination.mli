@@ -34,7 +34,7 @@
     loop and the other is outside). If a basic induction variable is the
     comparison's IV-related operand, and the IV's monotonic direction makes the
     continue-condition eventually fail (accounting for 64-bit wrap-around, see
-    {!Loop_comparisons}), the loop terminates. Otherwise the result is
+    rocq/LoopComparisons.v), the loop terminates. Otherwise the result is
     [Unknown]. *)
 
 open Ssa.Export
@@ -43,11 +43,8 @@ type t = LoopTermination.t =
   | Terminates
   | Unknown
 
-val analyze :
-  op_def:Induction_var.op_def ->
-  Induction_var.loop ->
-  Induction_var.biv list ->
-  t
+(** The verdict for the loop whose basic induction variables are given. *)
+val analyze : op_def:Induction_var.op_def -> Induction_var.biv list -> t
 
 type exit_branch = LoopTermination.exit_branch =
   { condition : finished Value.t;

@@ -8,7 +8,7 @@
      originals. *)
 
 From Stdlib Require Import Extraction.
-From OxcamlBackend Require Import IntegerComparison.
+From OxCamlBackend Require Import IntegerComparison.
 
 Extract Inductive integer_comparison => "Cmm.integer_comparison"
   [ "Cmm.Ceq" "Cmm.Cne" "Cmm.Clt" "Cmm.Cgt" "Cmm.Cle" "Cmm.Cge"

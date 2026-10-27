@@ -1,4 +1,8 @@
-(* A Rocq model of [backend/ssa/loop/termination.ml].
+(* Whether a loop terminates: its header's exit branch compares a basic
+   induction variable with a loop-invariant bound in a way the variable's
+   step must eventually make fail. The extraction of this file,
+   LoopTermination.ml, is the implementation; termination.ml in the parent
+   directory wraps it.
 
    See the reading guide at the top of LoopComparisons.v for the Rocq
    vocabulary; SsaModel.v for how the models see an SSA graph;
@@ -6,16 +10,15 @@
    variables this file is given; LoopComparisons.v for the termination
    argument about a comparison and an induction variable, which this file
    applies; and AffineSsa.v for the facts a register bound is checked
-   against. As there, the file has four parts: (1) a transcription of the
-   OCaml, (2) the intended meaning, (3) stepping-stone lemmas, (4) the
-   theorems. Parts 1 and 2 are the part to check by eye.
+   against. As there, the file has four parts: (1) the definitions, (2) the
+   intended meaning, (3) stepping-stone lemmas, (4) the theorems. Parts 1
+   and 2 are the part to check by eye.
 
    The file is LoopTermination.v rather than Termination.v because the
    extracted module would otherwise clash with termination.ml, the
-   wrapper around it. The OCaml's [t] has the constructors [Terminates]
+   wrapper around it. The type [t] here has the constructors [Terminates]
    and [Unknown], as does [LoopComparisons.termination]; the latter's are
-   written qualified below. The OCaml's polymorphic variant for a bound is
-   the inductive [bound].
+   written qualified below.
 
    The result, in part 4, is [analyze_Terminates]: when the analysis says
    that a loop terminates, no run of the loop visits its header for ever.
@@ -40,31 +43,32 @@
    on entry, [entails_sound] makes the goal follow). *)
 
 From Stdlib Require Import ZArith Lia Bool List.
-From OxcamlStdlib Require Import OcamlOption OcamlInt OcamlInt64 OcamlList.
-From OxcamlBackend Require Import IntegerComparison.
-From OxcamlSsa Require Import SsaModel.
-From OxcamlLoop Require Import FourierMotzkin LoopComparisons AffineExpr
+From OxCamlStdlib Require Import OcamlOption OcamlInt OcamlInt64 OcamlList.
+From OxCamlBackend Require Import IntegerComparison.
+From OxCamlSsa Require Import SsaModel.
+From OxCamlLoop Require Import FourierMotzkin LoopComparisons AffineExpr
   NaturalLoop AffineSsa InductionVar.
 Import ListNotations.
 
 (* ======================================================================== *)
-(* Part 1: transcription of the OCaml                                       *)
+(* Part 1: the definitions                                                  *)
 (* ======================================================================== *)
 
 Local Open Scope sint63_scope.
 
-(* OCaml [t]. *)
+(* The verdict. *)
 Inductive t : Type :=
   | Terminates
   | Unknown.
 
-(* OCaml [exit_branch]. *)
+(* The header's exit branch: the comparison it tests, which way continues
+   the loop, and where the other way goes. *)
 Record exit_branch : Type :=
   { condition : value;
     continue_when_true : bool;
     exit_target : block }.
 
-(* OCaml [find_exit_branch]: the header's terminator must be a two-target
+(* The exit branch of a loop: the header's terminator must be a two-target
    [Switch], [ifnot] its false edge and [ifso] its true edge. *)
 Definition find_exit_branch (loop : natural_loop) : option exit_branch :=
   match terminator loop.(header) with
@@ -83,14 +87,15 @@ Definition find_exit_branch (loop : natural_loop) : option exit_branch :=
   | _ => None
   end.
 
-(* OCaml [[`Value of finished Value.t | `Const of int]]. *)
+(* The other operand of the exit comparison. *)
 Inductive bound : Type :=
   | Value_bound (v : value)
   | Const_bound (k : int).
 
-(* OCaml [bound_in_range]. The OCaml's [ctx] and [side] are passed along
-   as values (see AffineSsa.v), and its [exception Overflow -> false] is
-   the [None] case. *)
+(* Whether the bound is in the range part 2 of LoopComparisons.v asks for:
+   for a constant, by comparison; for a value, by asking whether the facts
+   holding at the header (AffineSsa.v) entail it; [false] when an affine
+   form overflows. *)
 Definition bound_in_range (step : int) (header : block) (bound : bound)
     : bool :=
   match bound with
@@ -112,9 +117,8 @@ Definition bound_in_range (step : int) (header : block) (bound : bound)
     end
   end.
 
-(* The [extract] of OCaml [biv_implies_termination]: the comparison the
-   exit branch tests, whether the induction variable is its left operand,
-   and the other operand. *)
+(* The comparison the exit branch tests, whether the induction variable
+   is its left operand, and the other operand. *)
 Definition extract_comparison (is_iv_val is_bound : value -> bool)
     (cond : value) : option (integer_comparison * bool * bound) :=
   match view_value cond with
@@ -129,15 +133,15 @@ Definition extract_comparison (is_iv_val is_bound : value -> bool)
   | _ => None
   end.
 
-(* OCaml [biv_implies_termination]. *)
+(* Whether [biv]'s step must eventually make the exit comparison fail
+   (LoopComparisons.v): then the loop terminates. *)
 Definition biv_implies_termination (op_def : op_def) (biv : biv) : bool :=
   match find_exit_branch biv.(loop), signed_step biv with
   | Some exit_info, Some step =>
     let header := biv.(loop).(header) in
-    let body := biv.(loop).(body) in
     let is_self := is_header_param header biv.(param_index) in
     let is_iv_val v := is_self v || existsb (value_eqb v) biv.(update) in
-    let is_bound v := is_loop_invariant op_def body v in
+    let is_bound v := is_loop_invariant op_def header v in
     match extract_comparison is_iv_val is_bound exit_info.(condition) with
     | None => false
     | Some (cmp, iv_is_left, bound) =>
@@ -155,9 +159,9 @@ Definition biv_implies_termination (op_def : op_def) (biv : biv) : bool :=
   | None, _ | Some _, None => false
   end.
 
-(* OCaml [analyze]; its loop argument is unused there too. *)
-Definition analyze (op_def : op_def) (loop : natural_loop) (bivs : list biv)
-    : t :=
+(* The verdict for the loop of [bivs], its basic induction variables: it
+   terminates if one of them shows that it does. *)
+Definition analyze (op_def : op_def) (bivs : list biv) : t :=
   if existsb (biv_implies_termination op_def) bivs then Terminates else Unknown.
 
 Local Close Scope sint63_scope.
@@ -180,10 +184,22 @@ Definition bound_value (iter0 : value -> Z) (b : bound) : Z :=
 
 (* A run of the loop [l] that visits the header for ever. [iter n v] is
    the machine value of the SSA value [v] as the run computes it during
-   its [n]-th visit of the header (for a value defined outside the loop,
+   its [n]-th visit of the header (for a value defined before the loop,
    its value when the loop was entered). The fields are what the loop
    passes rely on about the graph; they are the trusted meaning of the
-   views of SsaModel.v in one run. *)
+   views of SsaModel.v in one run.
+
+   Every execution that enters the loop and never leaves it gives such an
+   [iter]: the header's parameters, the values of the body's blocks and
+   the values of the blocks dominating the header take the values the
+   execution computes (a value of an inner loop, computed several times
+   between two visits, takes the first). Every other value is one the
+   execution does not compute during the run (it is defined after the
+   loop, or on another path); it is given the value of its operation on
+   the values of its arguments when [iter_op] or [tree_sound] says what
+   that is, and any 64-bit value otherwise. Nothing else constrains
+   these: [iter_invariant] speaks only of values defined in blocks that
+   strictly dominate the header. *)
 Record infinite_run (op_def : op_def) (l : natural_loop)
     (iter : nat -> value -> Z) : Prop :=
   { (* Values are 64-bit registers. *)
@@ -205,10 +221,14 @@ Record infinite_run (op_def : op_def) (l : natural_loop)
       | _ => True
       end;
 
-    (* A value [is_loop_invariant] says is defined outside the loop, or is
-       a constant, has the same value at every visit. *)
+    (* A value [is_loop_invariant] says is a constant, or is defined in a
+       block strictly dominating the header, has the same value at every
+       visit: such a block is not in the body, where the run stays between
+       two visits ([run_continues], [run_back_edge]), so it does not run
+       again. *)
     iter_invariant : forall n v,
-      is_loop_invariant op_def l.(body) v = true -> iter n v = iter 0%nat v;
+      is_loop_invariant op_def l.(header) v = true ->
+      iter n v = iter 0%nat v;
 
     (* The trees of [tree_of_value] are truthful of the values on entry
        (AffineSsa.v), and the branches dominating the header went the way
@@ -317,7 +337,7 @@ Section Run.
 
   (* A constant step comes from [self + c] or [self - c]. *)
   Lemma classify_update_const : forall is_self c sign u,
-    classify_update is_self op_def l.(body) u = Some (Step_const c, sign) ->
+    classify_update is_self op_def l.(header) u = Some (Step_const c, sign) ->
     exists id x,
       is_self x = true
       /\ ((sign = Add /\ view_value u = Res id (Op_add_imm x c))
@@ -386,7 +406,7 @@ Section Run.
       apply biv_update_value; assumption.
   Qed.
 
-  (* So are those of any value the OCaml's [is_iv_val] accepts: the
+  (* So are those of any value [is_iv_val] accepts: the
      parameter itself, or one of its updates (the sequence from its next
      value). *)
   Lemma iv_val_sequence : forall b step x,
@@ -518,7 +538,7 @@ Section Run.
      the meaning of InductionVar.v holds), are contradictory. *)
   Theorem analyze_Terminates : forall bivs,
     (forall b, In b bivs -> biv_spec op_def l b) ->
-    analyze op_def l bivs = Terminates -> False.
+    analyze op_def bivs = Terminates -> False.
   Proof.
     intros bivs Hbivs H. unfold analyze in H.
     destruct (existsb (biv_implies_termination op_def) bivs) eqn:He;
@@ -605,7 +625,7 @@ Section Run.
      for the loop. *)
   Theorem analyze_Terminates_of_graph : forall blocks bivs,
     In (l, bivs) (InductionVar.analyze op_def blocks) ->
-    analyze op_def l bivs = Terminates -> False.
+    analyze op_def bivs = Terminates -> False.
   Proof.
     intros blocks bivs Hin H.
     destruct (analyze_spec _ _ _ _ Hin) as [_ [_ Hbivs]].

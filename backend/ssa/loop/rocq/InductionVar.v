@@ -1,68 +1,82 @@
-(* A Rocq model of [backend/ssa/loop/induction_var.ml], except
-   [compute_op_def], which fills a hash table and stays in OCaml (SsaModel.v
-   has the table as [op_def]).
+(* The basic induction variables of a natural loop: the header parameters
+   that every back edge updates by the same loop-invariant step. The
+   extraction of this file, InductionVar.ml, is the implementation;
+   induction_var.ml in the parent directory wraps it and adds
+   [compute_op_def], which fills the table SsaModel.v declares as
+   [op_def].
 
    See the reading guide at the top of LoopComparisons.v for the Rocq
    vocabulary, SsaModel.v for how the models see an SSA graph, and
    NaturalLoop.v for the loops this file analyses. As there, the file has
-   four parts: (1) a transcription of the OCaml, (2) the intended meaning,
+   four parts: (1) the definitions, (2) the intended meaning,
    (3) stepping-stone lemmas, (4) the theorems. Parts 1 and 2 are the part
    to check by eye.
 
-   The OCaml walks the header's parameter array with [Array.iteri] and the
-   argument arrays with [args.(index)]; here the arrays are lists and
-   [nth_int] (OcamlList.v) is the indexing.
+   The header's parameters and the arguments of a [Goto] are lists here,
+   indexed by [nth_int] (OcamlList.v).
 
    The result, in part 4, is [analyze_spec]: every basic induction variable
    reported for a loop satisfies [biv_spec] (part 2), which spells out what
-   the OCaml checked: the update value arriving over every back edge for
+   was checked: the update value arriving over every back edge for
    that parameter is [self + c], [c + self] or [self - c] with the same
    loop-invariant [c] and the same sign, and the [update] list is exactly
    those values. What such an update does to the machine value of the
    parameter is stated and used in LoopTermination.v. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
-From OxcamlStdlib Require Import OcamlOption OcamlInt OcamlList.
-From OxcamlSsa Require Import SsaModel.
-From OxcamlLoop Require Import NaturalLoop.
+From OxCamlStdlib Require Import OcamlOption OcamlInt OcamlList.
+From OxCamlSsa Require Import SsaModel.
+From OxCamlLoop Require Import NaturalLoop.
 Import ListNotations.
 
 (* ======================================================================== *)
-(* Part 1: transcription of the OCaml                                       *)
+(* Part 1: the definitions                                                  *)
 (* ======================================================================== *)
 
 Local Open Scope sint63_scope.
 
-(* OCaml [is_header_param]. *)
+(* [v] is parameter [index] of [block]. *)
 Definition is_header_param (block : block) (index : int) (v : value)
     : bool :=
   value_eqb v (param block index).
 
-(* OCaml [is_loop_invariant]: [Op_const] is its first case, the [Const_*]
-   operations; [Res id _] its second, any other operation. *)
-Definition is_loop_invariant (op_def : op_def) (loop_body : blockset)
-    (v : value) : bool :=
+(* [d] dominates [b] and is not [b]. *)
+Definition strictly_dominates (d b : block) : bool :=
+  dominates d b && negb (block_eqb d b).
+
+(* A value cannot change across the iterations of a loop when it is a
+   constant ([Op_const], the [Const_*] operations), or is
+   defined in a block that strictly dominates the loop's header: such a
+   block is not in the loop's body (whose blocks the header dominates), so
+   it does not run between two visits of the header. For a value used in
+   the body this is the same as its defining block being outside the body,
+   by SSA scoping; it is the form in which LoopTermination.v assumes it of
+   a run ([iter_invariant] there). *)
+Definition is_loop_invariant (op_def : op_def) (header : block) (v : value)
+    : bool :=
   match view_value v with
   | Res _ Op_const => true
   | Res id _ =>
     match op_def_find op_def id with
     | None => false
-    | Some bl => negb (set_mem bl loop_body)
+    | Some bl => strictly_dominates bl header
     end
-  | Block_param block _ => negb (set_mem block loop_body)
+  | Block_param block _ => strictly_dominates block header
   end.
 
-(* OCaml [step]. *)
+(* The per-iteration step: a literal, or a loop-invariant value. *)
 Inductive biv_step : Type :=
   | Step_const (c : int)
   | Step_var (v : value).
 
-(* OCaml [[`Add | `Sub]]. *)
+(* Whether the step is added or subtracted. *)
 Inductive biv_sign : Type :=
   | Add
   | Sub.
 
-(* OCaml [biv]. *)
+(* A basic induction variable: parameter [param_index] of the header of
+   [loop], the values arriving for it over the back edges ([update]), and
+   their common step and sign. *)
 Record biv : Type :=
   { loop : natural_loop;
     param_index : int;
@@ -83,9 +97,8 @@ Definition sign_same (a b : biv_sign) : bool :=
   | Add, Sub | Sub, Add => false
   end.
 
-(* OCaml [signed_step]. A [-c] step is not representable when [c] is
-   [min_int] (the OCaml's [-c] would be [min_int] again), so there is no
-   signed step then. *)
+(* A literal step with its sign. A [-c] step is not representable when
+   [c] is [min_int], so there is no signed step then. *)
 Definition signed_step (biv : biv) : option int :=
   match biv.(step) with
   | Step_const c =>
@@ -96,34 +109,35 @@ Definition signed_step (biv : biv) : option int :=
   | Step_var _ => None
   end.
 
-(* OCaml [classify_update]: the [when is_self x] guards are the [if]s. *)
+(* The step and sign of an update value: [self + c], [c + self] or
+   [self - c], with [self] the parameter ([is_self]) and [c] a literal or
+   a loop-invariant value. *)
 Definition classify_update (is_self : value -> bool) (op_def : op_def)
-    (loop_body : blockset) (v : value) : option (biv_step * biv_sign) :=
+    (header : block) (v : value) : option (biv_step * biv_sign) :=
   match view_value v with
   | Res _ (Op_add_imm x c) =>
     if is_self x then Some (Step_const c, Add) else None
   | Res _ (Op_sub_imm x c) =>
     if is_self x then Some (Step_const c, Sub) else None
   | Res _ (Op_add x y) =>
-    if is_self x && is_loop_invariant op_def loop_body y
+    if is_self x && is_loop_invariant op_def header y
     then Some (Step_var y, Add)
-    else if is_self y && is_loop_invariant op_def loop_body x
+    else if is_self y && is_loop_invariant op_def header x
     then Some (Step_var x, Add)
     else None
   | Res _ (Op_sub x y) =>
-    if is_self x && is_loop_invariant op_def loop_body y
+    if is_self x && is_loop_invariant op_def header y
     then Some (Step_var y, Sub)
     else None
   | _ => None
   end.
 
-(* OCaml [back_edge_set]. *)
+(* The back-edge sources as a set. *)
 Definition back_edge_set (loop : natural_loop) : blockset :=
   OcamlList.fold_left (fun s b => set_add b s) set_empty loop.(back_edges).
 
-(* OCaml [pred_args_to_header]. The OCaml turns the arguments into
-   [Value.t option]s ([Arg v] to [Some v]); here they stay [Terminator.arg]
-   and [classify_param] reads them. *)
+(* The arguments [pred] passes to [header], when its terminator is a
+   [Goto] there with one argument per parameter. *)
 Definition pred_args_to_header (header : block) (pred : block)
     : option (list Terminator.arg) :=
   match terminator pred with
@@ -142,10 +156,9 @@ Definition arg_value (args : list Terminator.arg) (index : int)
   | Some Terminator.Omitted_since_unused | None => None
   end.
 
-(* The body of OCaml [analyze_loop]'s [Array.iteri]: the BIV for the
-   parameter [index], if it is one. [back_pred_args] pairs each back-edge
-   source with its arguments. The OCaml's [List.map Option.get] is the
-   [filter_map] here. *)
+(* The BIV for the parameter [index], if it is one: every back edge passes
+   a value for it, and they classify alike. [back_pred_args] pairs each
+   back-edge source with its arguments. *)
 Definition classify_param (loop : natural_loop) (op_def : op_def)
     (back_pred_args : list (block * list Terminator.arg)) (index : int)
     : option biv :=
@@ -159,13 +172,13 @@ Definition classify_param (loop : natural_loop) (op_def : op_def)
     match back_vals with
     | [] => None
     | first :: rest =>
-      match classify_update is_self op_def loop.(body) first with
+      match classify_update is_self op_def loop.(header) first with
       | None => None
       | Some (step, sign) =>
         let agrees :=
           forallb
             (fun v =>
-              match classify_update is_self op_def loop.(body) v with
+              match classify_update is_self op_def loop.(header) v with
               | Some (step', sign') =>
                 step_same step step' && sign_same sign sign'
               | None => false
@@ -184,8 +197,8 @@ Definition classify_param (loop : natural_loop) (op_def : op_def)
     end
   else None.
 
-(* The [Array.iteri] itself: [index] is the position of the first of
-   [params] in the header's parameters. *)
+(* The BIVs among [params], [index] being the position of the first of
+   them in the header's parameters. *)
 Fixpoint params_bivs (loop : natural_loop) (op_def : op_def)
     (back_pred_args : list (block * list Terminator.arg)) (index : int)
     (params : list value) : list biv :=
@@ -199,7 +212,8 @@ Fixpoint params_bivs (loop : natural_loop) (op_def : op_def)
     end
   end.
 
-(* OCaml [analyze_loop]. *)
+(* The BIVs of a loop: none unless every back edge is a [Goto] to the
+   header with one argument per parameter. *)
 Definition analyze_loop (op_def : op_def) (loop : natural_loop) : list biv :=
   let header := loop.(header) in
   let back_set := back_edge_set loop in
@@ -223,7 +237,7 @@ Definition analyze_loop (op_def : op_def) (loop : natural_loop) : list biv :=
     in
     params_bivs loop op_def back_pred_args zero (params header).
 
-(* OCaml [analyze], on the graph's block list. *)
+(* Every natural loop of the graph with its BIVs. *)
 Definition analyze (op_def : op_def) (blocks : list block)
     : list (natural_loop * list biv) :=
   map (fun loop => (loop, analyze_loop op_def loop)) (find_loops blocks).
@@ -232,8 +246,20 @@ Definition analyze (op_def : op_def) (blocks : list block)
 (* Part 2: the intended meaning                                             *)
 (* ======================================================================== *)
 
-(* What the OCaml established of a BIV it reports for the loop [l]: it is
-   for a parameter [param_index] of the header; every back-edge source that
+(* Every update value of [b] is [self + c], [c + self] or [self - c] for
+   the header parameter [self] at [index] and a loop-invariant [c], with
+   the step and sign [b] records. *)
+Definition updates_classified (op_def : op_def) (l : natural_loop)
+    (index : int) (b : biv) : Prop :=
+  forall u, In u b.(update) ->
+    exists step' sign',
+      classify_update (is_header_param l.(header) index) op_def l.(header) u
+      = Some (step', sign')
+      /\ step_same b.(step) step' = true
+      /\ sign_same b.(sign) sign' = true.
+
+(* What holds of a BIV reported for the loop [l]: it is for a parameter
+   [param_index] of the header; every back-edge source that
    is a predecessor of the header passes, in its [Goto] to the header, a
    value for that parameter, and [update] holds exactly those values; and
    each of them is [self + c], [c + self] or [self - c] for the header
@@ -242,12 +268,7 @@ Definition analyze (op_def : op_def) (blocks : list block)
 Definition biv_spec (op_def : op_def) (l : natural_loop) (b : biv) : Prop :=
   b.(loop) = l
   /\ b.(update) <> []
-  /\ (forall u, In u b.(update) ->
-        exists step' sign',
-          classify_update (is_header_param l.(header) b.(param_index))
-            op_def l.(body) u = Some (step', sign')
-          /\ step_same b.(step) step' = true
-          /\ sign_same b.(sign) sign' = true)
+  /\ updates_classified op_def l b.(param_index) b
   /\ (forall s, In s l.(back_edges) -> In s (predecessors l.(header)) ->
         exists args u,
           pred_args_to_header l.(header) s = Some args
@@ -331,12 +352,7 @@ Lemma classify_param_spec : forall l op_def bpa index b,
   b.(loop) = l
   /\ b.(param_index) = index
   /\ b.(update) <> []
-  /\ (forall u, In u b.(update) ->
-        exists step' sign',
-          classify_update (is_header_param l.(header) index) op_def l.(body) u
-          = Some (step', sign')
-          /\ step_same b.(step) step' = true
-          /\ sign_same b.(sign) sign' = true)
+  /\ updates_classified op_def l index b
   /\ (forall p args, In (p, args) bpa ->
         exists u, arg_value args index = Some u /\ In u b.(update))
   /\ (forall u, In u b.(update) ->
