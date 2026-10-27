@@ -223,7 +223,9 @@ Definition region_edge (region : blockset) (cut succ block : block) : Prop :=
   /\ set_mem succ region = true /\ succ <> cut
   /\ In succ (all_successors block).
 
-(* An execution cannot stay in the region forever without visiting [cut]. *)
+(* The region without [cut] is acyclic, stated as the termination
+   arguments use it: no execution stays in the region for ever without
+   visiting [cut]. *)
 Definition no_infinite_path_except (region : blockset) (cut : block) : Prop :=
   forall path : nat -> block,
     (forall (n : nat), set_mem (path n) region = true /\ path n <> cut

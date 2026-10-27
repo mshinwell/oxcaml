@@ -5,10 +5,10 @@ open SsaModel
 let strictly_dominates dominator block0 =
   Ssa.Block.dominates dominator block0 && not (Ssa.Block.equal dominator block0)
 
-(** val edge_dominates : block -> block -> block -> bool **)
+(** val sole_predecessor : block -> block -> bool **)
 
-let edge_dominates pred succ target =
-  (Ssa.Block.dominates succ target && not (Ssa.Block.dominates succ pred))
+let sole_predecessor pred succ =
+  (not (Ssa.Block.dominates succ pred))
   &&
   match Ssa.Block.predecessors succ with
   | [] -> false

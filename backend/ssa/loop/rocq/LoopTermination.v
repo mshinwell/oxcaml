@@ -477,9 +477,10 @@ Section Run.
   (* --- The bound --- *)
 
   (* The branches [guards_at] takes facts from went the way it assumes
-     ([guards_taken], AffineSsa.v): each is one whose edge
-     [edge_dominates] accepts, which by [edge_dominates_sound] is on every
-     path from the entry to the header, so [iter_branches] applies. *)
+     ([guards_taken], AffineSsa.v): each goes to a block that dominates
+     the header and is entered only from the branching block, so by
+     [edge_on_every_path] every path from the entry to the header takes
+     it, and [iter_branches] applies. *)
   Lemma guards_taken_of_run : guards_taken (iter 0%nat) loop.(header).
   Proof.
     intros d _ index negate Hg. unfold guard_test in Hg.
@@ -488,17 +489,18 @@ Section Run.
     destruct targets as [ | ifnot [ | ifso [ | ? ? ] ] ]; try discriminate.
     cbv iota beta in Hg.
     pose proof run.(run_entry).(run_dominance) as Hdom.
-    destruct (edge_dominates d ifso loop.(header)) eqn:Hso.
+    destruct (dominates ifso loop.(header) && sole_predecessor d ifso)
+      eqn:Hso.
     - injection Hg as <- <-.
       apply (run.(run_entry).(iter_branches) d _ ifnot ifso _ Ht).
-      intros p Hp.
-      exact (edge_dominates_sound entry Hdom d ifso loop.(header) Hso p Hp).
-    - destruct (edge_dominates d ifnot loop.(header)) eqn:Hnot;
-        [ | discriminate ].
+      intros p Hp. apply andb_prop in Hso. destruct Hso as [Hd Hsp].
+      exact (edge_on_every_path entry Hdom d ifso loop.(header) Hd Hsp p Hp).
+    - destruct (dominates ifnot loop.(header) && sole_predecessor d ifnot)
+        eqn:Hnot; [ | discriminate ].
       injection Hg as <- <-.
       apply (run.(run_entry).(iter_branches) d _ ifnot ifso _ Ht).
-      intros p Hp.
-      exact (edge_dominates_sound entry Hdom d ifnot loop.(header) Hnot p Hp).
+      intros p Hp. apply andb_prop in Hnot. destruct Hnot as [Hd Hsp].
+      exact (edge_on_every_path entry Hdom d ifnot loop.(header) Hd Hsp p Hp).
   Qed.
 
   (* The facts [bound_in_range] checks a register bound against hold

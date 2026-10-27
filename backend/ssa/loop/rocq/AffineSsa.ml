@@ -322,9 +322,12 @@ let guard_test target dominator =
         | ifso :: l0 -> (
           match l0 with
           | [] ->
-            if edge_dominates dominator ifso target
+            if
+              Ssa.Block.dominates ifso target && sole_predecessor dominator ifso
             then Some (index, false)
-            else if edge_dominates dominator ifnot target
+            else if
+              Ssa.Block.dominates ifnot target
+              && sole_predecessor dominator ifnot
             then Some (index, true)
             else None
           | _ :: _ -> None)))

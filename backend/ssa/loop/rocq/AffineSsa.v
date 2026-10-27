@@ -45,8 +45,8 @@
      branch taken requires, the facts derived from it are true; and they
      are well-formed, as [FourierMotzkin.entails] needs;
    - [guards_at_sound]: when each branch [guards_at] takes a fact from
-     went the way its dominating edge requires ([guards_taken]), the facts
-     gathered are all true, and well-formed.
+     went the way it must have on every path to the block ([guards_taken]),
+     the facts gathered are all true, and well-formed.
 
    Contexts only grow ([extends]), and whatever holds under every
    valuation agreeing with a context holds under every valuation agreeing
@@ -270,15 +270,17 @@ Definition cond_facts (c : ctx) (side : list Affine.t) (negate : bool)
 (* [guards_at] walks the strict dominators of [target], which SsaModel.v
    provides as the list [strict_dominators target]. For one dominator,
    [guard_test] gives the comparison it branches on and whether the fact
-   is to be negated, when the edge it takes towards [target] dominates
-   [target]; [guard_facts] is the body of the walk, with the facts so far
-   and the [side] and [ctx] of [cond_facts] passed along as [st]. *)
+   is to be negated, when the successor it branches to towards [target]
+   dominates [target] and is entered only from the dominator
+   ([sole_predecessor], SsaDominance.v), so that every path to [target]
+   takes that branch; [guard_facts] is the body of the walk, with the facts
+   so far and the [side] and [ctx] of [cond_facts] passed along as [st]. *)
 Definition guard_test (target dominator : block) : option (value * bool) :=
   match terminator dominator with
   | Terminator.Switch index [ifnot; ifso] =>
-    if edge_dominates dominator ifso target
+    if dominates ifso target && sole_predecessor dominator ifso
     then Some (index, false)
-    else if edge_dominates dominator ifnot target
+    else if dominates ifnot target && sole_predecessor dominator ifnot
     then Some (index, true)
     else None
   | _ => None
@@ -413,11 +415,12 @@ Section Semantics.
     end.
 
   (* The branches [guards_at] takes facts from went the way it assumes:
-     for each dominator of [target] whose taken edge dominates [target],
-     the comparison tested came out as that edge requires. On entry to
-     [target] this is what [SsaDominance.edge_dominates_sound] gives, as
-     every path to [target] took that edge; it is an assumption on [mval],
-     which LoopTermination.v makes of the values at the entry to a loop. *)
+     for each dominator of [target] whose branch [guard_test] accepts, the
+     comparison tested came out as that branch requires. On entry to
+     [target] this is what [SsaDominance.edge_on_every_path] gives, as
+     every path to [target] took that branch; it is an assumption on
+     [mval], which LoopTermination.v makes of the values at the entry to a
+     loop. *)
   Definition guard_taken (target dominator : block) : Prop :=
     forall (index : value) (negate : bool),
       guard_test target dominator = Some (index, negate) ->

@@ -1,6 +1,6 @@
 (* Dominance in an SSA graph, beyond the [dominates] test SsaModel.v takes
-   from the compiler: strict dominance, a sufficient condition for an edge
-   to dominate a block, and what dominance means in terms of paths. The
+   from the compiler: strict dominance, the test that a block is entered
+   from one block only, and what dominance means in terms of paths. The
    extraction of this file, SsaDominance.ml, is the implementation.
 
    See the reading guide at the top of backend/ssa/loop/rocq/
@@ -9,9 +9,10 @@
    definitions, (2) the intended meaning, (3) stepping-stone lemmas, (4)
    the theorems. Parts 1 and 2 are the part to check by eye.
 
-   The result, in part 4, is [edge_dominates_sound]: the sufficient
-   condition [edge_dominates] has for an edge to dominate a block is one;
-   every path from the entry to the block traverses the edge.
+   The result, in part 4, is [edge_on_every_path]: when [succ] dominates
+   [target] and is entered only from [pred], every path from the entry to
+   [target] takes the edge [pred -> succ]. This is how AffineSsa.v knows
+   which way the branch of a dominator went.
 
    The trusted part is SsaModel.v: that [predecessors] lists the sources of
    the edges into a block, that [dominates d b] means every path from the
@@ -31,17 +32,15 @@ Import ListNotations.
 Definition strictly_dominates (dominator block : block) : bool :=
   dominates dominator block && negb (block_eqb dominator block).
 
-(* A sufficient condition for the edge [pred -> succ] to dominate [target]:
-   [succ] dominates [target] and the edge is the only way into [succ]. The
-   middle test excludes [succ] being the graph's entry, which has a
+(* [pred] is the sole predecessor of [succ], which is not the graph's
+   entry: control enters [succ] only from [pred]. The entry has a
    predecessor when the function calls itself in tail position ([Continue
-   (Goto entry)]): paths from the entry to [target] then start at [succ]
-   without taking the edge. On a finished graph, where every block is
-   reachable from the entry, a block that dominates its only predecessor
-   can only be the entry. *)
-Definition edge_dominates (pred succ target : block) : bool :=
-  dominates succ target
-  && negb (dominates succ pred)
+   (Goto entry)]), yet is also entered from outside; on a finished graph,
+   where every block is reachable from the entry, a block that dominates
+   its only predecessor can only be the entry, which the first test
+   excludes. *)
+Definition sole_predecessor (pred succ : block) : bool :=
+  negb (dominates succ pred)
   && match predecessors succ with
      | [only_pred] => block_eqb only_pred pred
      | [] | _ :: _ :: _ => false
@@ -112,19 +111,18 @@ Section Dominance.
   Variable entry : block.
   Hypothesis dominance : dominance_semantics entry.
 
-  (* An edge [edge_dominates] accepts for [target] is on every path from
-     the entry to [target]. *)
-  Theorem edge_dominates_sound : forall (pred succ target : block),
-    edge_dominates pred succ target = true ->
+  (* When [succ] dominates [target] and [pred] is its sole predecessor,
+     every path from the entry to [target] takes the edge [pred -> succ]. *)
+  Theorem edge_on_every_path : forall (pred succ target : block),
+    succ --dom--> target -> sole_predecessor pred succ = true ->
     forall (p : list block), path entry p target -> edge_on p pred succ.
   Proof.
-    intros src succ target H p Hp. unfold edge_dominates in H.
-    apply andb_true_iff in H. destruct H as [H Hpred].
-    apply andb_true_iff in H. destruct H as [Hd Hnd].
+    intros pred succ target Hd H p Hp. unfold sole_predecessor in H.
+    apply andb_true_iff in H. destruct H as [Hnd Hpred].
     destruct (predecessors succ) as [ | p0 [ | ? ? ] ] eqn:Hps;
       try discriminate.
     apply block_eqb_spec in Hpred. subst p0.
-    apply (path_edge_to entry p target succ src Hp).
+    apply (path_edge_to entry p target succ pred Hp).
     - exact (dominance.(dominates_spec) succ target Hd p Hp).
     - intros ->. rewrite dominance.(entry_dominates) in Hnd. discriminate.
     - exact Hps.
