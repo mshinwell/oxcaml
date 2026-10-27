@@ -351,6 +351,17 @@ Section Semantics.
     | Other _ => True
     end.
 
+  (* A check, which no proof uses, that the [Ilsr] clause is satisfiable: a
+     logical shift by zero returns its argument, negative registers
+     included, which is why the quotient is read back through [wrap64]. *)
+  Remark tree_sound_lsr_zero : forall v, tree_sound (Ilsr v zero).
+  Proof.
+    intro v. cbn [tree_sound]. intros _.
+    exists (mval v). split; [ apply mval_bounded | ].
+    rewrite to_Z_zero, Z.pow_0_r, Z.div_1_r.
+    symmetry. apply wrap64_unsigned, mval_bounded.
+  Qed.
+
   (* A valuation agrees with a context when it reads each atom as the
      machine value of the SSA value interned for it. *)
   Definition agrees (rho : valuation) (c : ctx) : Prop :=
@@ -385,16 +396,6 @@ Section Semantics.
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
 (* ======================================================================== *)
-
-  (* A logical shift by zero can preserve any signed register value,
-     including negative ones. *)
-  Lemma tree_sound_lsr_zero : forall v, tree_sound (Ilsr v zero).
-  Proof.
-    intro v. cbn [tree_sound]. intros _.
-    exists (mval v). split; [ apply mval_bounded | ].
-    rewrite to_Z_zero, Z.pow_0_r, Z.div_1_r.
-    symmetry. apply wrap64_unsigned, mval_bounded.
-  Qed.
 
   (* A context extends itself, and extension is transitive. *)
   Lemma extends_refl : forall c, extends c c.

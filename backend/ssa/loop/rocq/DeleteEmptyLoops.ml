@@ -33,16 +33,15 @@ let find_deletions op_def0 blocks =
     (fun dr ->
       let loop0 = dr.DeadInductionVar.loop in
       let bivs0 = List.map (fun br -> br.biv) dr.bivs in
-      if
-        (dr.useless && body_effect_free loop0)
-        && acyclic_except blocks loop0.body loop0.header
+      if dr.useless && body_effect_free loop0
       then
         match find_exit_branch loop0 with
         | Some exit_info -> (
           match Ssa_view.params exit_info.exit_target with
           | [] ->
             if
-              single_exit loop0 exit_info.exit_target
+              (single_exit loop0 exit_info.exit_target
+              && acyclic_except blocks loop0.body loop0.header)
               && loop_terminates op_def0 bivs0
             then Some (loop0.header, exit_info.exit_target)
             else None

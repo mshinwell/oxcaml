@@ -171,12 +171,11 @@ Definition bound_value (iter0 : value -> Z) (b : bound) : Z :=
    header take the values the execution computes (a value of an inner loop,
    computed several times between two visits, takes the first). Every other
    value is one the execution does not compute during the run (it is defined
-   after the
-   loop, or on another path); it is given the value of its operation on
-   the values of its arguments when [iter_op] or [tree_sound] says what
-   that is, and any 64-bit value otherwise. Nothing else constrains
-   these: [iter_invariant] speaks only of values defined in blocks that
-   strictly dominate the header. *)
+   after the loop, or on another path); it is given the value of its
+   operation on the values of its arguments when [iter_op] or [tree_sound]
+   says what that is, and any 64-bit value otherwise. Nothing else
+   constrains these: [iter_invariant] speaks only of values defined in
+   blocks that strictly dominate the header. *)
 Record infinite_header_run (op_def : op_def) (l : natural_loop)
     (iter : nat -> value -> Z) : Prop :=
   { (* Values are 64-bit registers. *)

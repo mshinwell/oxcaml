@@ -88,13 +88,13 @@ Definition find_deletions (op_def : op_def) (blocks : list block)
       let loop := dr.(loop) in
       let bivs := map (fun br => br.(biv)) dr.(bivs) in
       if dr.(useless) && body_effect_free loop
-         && acyclic_except blocks loop.(body) loop.(header)
       then
         match find_exit_branch loop with
         | Some exit_info =>
           match params exit_info.(exit_target) with
           | [] =>
             if single_exit loop exit_info.(exit_target)
+               && acyclic_except blocks loop.(body) loop.(header)
                && loop_terminates op_def bivs
             then Some (loop.(header), exit_info.(exit_target))
             else None
@@ -188,17 +188,16 @@ Proof.
   apply filter_map_In in H. destruct H as [dr [Hdr H]].
   destruct (DeadInductionVar.analyze_spec _ _ _ Hdr) as [Hin [Hbivs Huseless]].
   cbv zeta in H.
-  destruct (dr.(useless) && body_effect_free dr.(loop)
-    && acyclic_except blocks dr.(loop).(body) dr.(loop).(header)) eqn:Hcond;
+  destruct (dr.(useless) && body_effect_free dr.(loop)) eqn:Hcond;
     [ | discriminate ].
-  apply andb_true_iff in Hcond. destruct Hcond as [Hcond Hacyclic].
   apply andb_true_iff in Hcond. destruct Hcond as [Hu Hfree].
   destruct (find_exit_branch dr.(loop)) as [exit_info | ] eqn:Hexit;
     [ | discriminate ].
   destruct (params exit_info.(exit_target)) eqn:Hparams; [ | discriminate ].
-  destruct (single_exit dr.(loop) exit_info.(exit_target) && _) eqn:Hcond;
-    [ | discriminate ].
-  apply andb_true_iff in Hcond. destruct Hcond as [Hsingle Hterm].
+  destruct (single_exit dr.(loop) exit_info.(exit_target) && _ && _)
+    eqn:Hcond; [ | discriminate ].
+  apply andb_true_iff in Hcond. destruct Hcond as [Hcond Hterm].
+  apply andb_true_iff in Hcond. destruct Hcond as [Hsingle Hacyclic].
   unfold loop_terminates in Hterm.
   destruct (LoopTermination.analyze op_def _) eqn:Hanalyze;
     [ | discriminate ].

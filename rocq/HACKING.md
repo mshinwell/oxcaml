@@ -80,7 +80,9 @@ Every model file has a header and four parts, marked by banners:
    parts. Hypotheses about the compiler that the model cannot prove (what
    an operation computes, what dominance means, how a run of a loop goes)
    are stated here too, as `Hypothesis` in a `Section` or as the fields
-   of a `Record` such as `infinite_header_run`.
+   of a `Record` such as `infinite_header_run`. A `Remark` showing that
+   such a hypothesis is satisfiable (`tree_sound_lsr_zero`) sits right
+   after it: it documents the statement rather than serving a proof.
 3. **Lemmas used by the proofs.** Stepping stones. Each non-trivial one
    has a comment before it saying, in plain words, what it states.
 4. **The theorems.** The correctness claims, each with a comment before
