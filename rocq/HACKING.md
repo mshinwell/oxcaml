@@ -189,6 +189,23 @@ header.
 - Hypotheses about machine semantics are stated once, in one place
   (`tree_sound`, `infinite_header_run`), and every file that needs them takes
   them as hypotheses rather than restating them.
+- A part-1 definition may be sound only for inputs with a property it
+  does not check: `LoopTermination.analyze` is sound only for the basic
+  induction variables of one loop. Such a precondition is a named part-2
+  predicate (`bivs_of_loop`), is a hypothesis of the part-4 theorem, and
+  is named in the comment before the definition. It never goes into the
+  definition's type (a subset type would put proofs into part 1 and tie
+  the extracted code to the meaning), and it is never assumed of the
+  program: where the definitions are composed, the producer's theorem
+  discharges it (`InductionVar.analyze_spec`), so that the top-level
+  theorem `find_deletions_spec` has no hypothesis but the trusted
+  meaning of the primitives.
+- The meaning of a run (`infinite_header_run`) mentions no part-1
+  function beyond the primitives of SsaModel.v and the fields of the loop
+  record: a hypothesis stated through an analysis function would silently
+  trust that function. A property of an analysis result is stated as
+  what it means (`loop_invariant_value`) and tied to the function by a
+  read-back theorem (`is_loop_invariant_spec`).
 
 ## Proof style
 

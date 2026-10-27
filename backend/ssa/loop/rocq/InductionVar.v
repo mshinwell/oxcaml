@@ -40,8 +40,8 @@ Local Open Scope sint63_scope.
    block is not in the loop's body (whose blocks the header dominates), so
    it does not run between two visits of the header. For a value used in
    the body this is the same as its defining block being outside the body,
-   by SSA scoping; it is the form in which LoopTermination.v assumes it of
-   a run ([iter_invariant] there). *)
+   by SSA scoping. What a [true] means is [loop_invariant_value] (part 2),
+   which LoopTermination.v assumes of a run ([iter_invariant] there). *)
 Definition is_loop_invariant (op_def : op_def) (header : block) (v : value)
     : bool :=
   match view_value v with
@@ -215,6 +215,20 @@ Definition analyze (op_def : op_def) (blocks : list block)
 (* ======================================================================== *)
 (* Part 2: the intended meaning                                             *)
 (* ======================================================================== *)
+
+(* A value that cannot change while the loop runs: a constant, or a value
+   defined (an operation according to [op_def], a parameter by its block)
+   in a block that dominates [header] without being it. *)
+Definition loop_invariant_value (op_def : op_def) (header : block)
+    (v : value) : Prop :=
+  match view_value v with
+  | Res _ Op_const => True
+  | Res id _ =>
+    exists bl,
+      op_def_find op_def id = Some bl
+      /\ dominates bl header = true /\ bl <> header
+  | Block_param bl _ => dominates bl header = true /\ bl <> header
+  end.
 
 (* Every update value of [b] is [self + c], [c + self] or [self - c] for
    the header parameter [self] at [index] and a loop-invariant [c], with
@@ -470,6 +484,26 @@ Qed.
 (* ======================================================================== *)
 (* Part 4: theorems                                                         *)
 (* ======================================================================== *)
+
+(* What [is_loop_invariant] checks, read back. *)
+Theorem is_loop_invariant_spec : forall op_def header v,
+  is_loop_invariant op_def header v = true ->
+  loop_invariant_value op_def header v.
+Proof.
+  intros op_def header v H.
+  unfold is_loop_invariant in H. unfold loop_invariant_value.
+  assert (Hstrict : forall bl, strictly_dominates bl header = true ->
+    dominates bl header = true /\ bl <> header).
+  { intros bl Hs. unfold strictly_dominates in Hs.
+    apply andb_true_iff in Hs. destruct Hs as [Hd Hne].
+    split; [ exact Hd | ]. intros ->.
+    rewrite block_eqb_refl in Hne. discriminate. }
+  destruct (view_value v) as [id op | bl i].
+  - destruct op; try exact I;
+      destruct (op_def_find op_def id) as [bl | ]; try discriminate;
+      (exists bl; split; [ reflexivity | apply Hstrict; exact H ]).
+  - apply Hstrict. exact H.
+Qed.
 
 (* Every BIV [analyze_loop] reports satisfies [biv_spec]. *)
 Theorem analyze_loop_spec : forall op_def l b,

@@ -126,9 +126,11 @@ Definition exit_branch_to (l : natural_loop) (exit : block) : Prop :=
     find_exit_branch l = Some exit_info
     /\ exit_info.(exit_target) = exit /\ params exit = [].
 
+(* No run of [l] goes on for ever (LoopTermination.v), whatever the
+   graph's entry block. *)
 Definition no_infinite_header_run (op_def : op_def) (l : natural_loop)
     : Prop :=
-  forall iter, infinite_header_run op_def l iter -> False.
+  forall entry iter, infinite_header_run entry op_def l iter -> False.
 
 (* Every parameter of the header is one of [bivs], and each of those is a
    basic induction variable of [l] that is dead. *)
@@ -210,8 +212,8 @@ Proof.
   split; [ | split; [ | split; [ | split; [ | split ] ] ] ].
   - unfold exit_branch_to. exists exit_info.
     split; [ exact Hexit | split; [ reflexivity | exact Hparams ] ].
-  - unfold no_infinite_header_run. intros iter Hrun.
-    exact (analyze_Terminates_of_graph _ _ _ Hrun _ _ Hin Hanalyze).
+  - unfold no_infinite_header_run. intros entry iter Hrun.
+    exact (analyze_Terminates_of_graph _ _ _ _ Hrun _ _ Hin Hanalyze).
   - apply (acyclic_except_sound blocks). exact Hacyclic.
   - unfold params_are_dead_bivs. split.
     + intros k v Hk. rewrite Hdef.

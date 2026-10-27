@@ -130,7 +130,9 @@ Definition rscale (k : int) (r : option Range.t) : option Range.t :=
 
 (* The expression of a value's tree, with the value's range when one is
    known. A value defined by an operation not understood here, or whose
-   range is lost, becomes an atom ([atomize]). *)
+   range is lost, becomes an atom ([atomize]). Sound for a well-formed
+   context ([ctx_wf], part 2) whose atom counter has room for the tree:
+   [expr_of_value_sound]. *)
 Fixpoint expr_of_value (c : ctx) (t : tree)
     : (AffineExpr.t * option Range.t) * ctx :=
   match t with
@@ -201,7 +203,8 @@ Definition push_sides (side sides : list Affine.t) : list Affine.t :=
 
 (* The affine form of a value's tree, with the side facts of its
    linearization added to [side]; an atom for the value itself when
-   [to_affine] overflows. *)
+   [to_affine] overflows. Sound under the conditions of [expr_of_value]:
+   [linearize_sound]. *)
 Definition linearize (c : ctx) (side : list Affine.t) (t : tree)
     : (Affine.t * list Affine.t) * ctx :=
   let '((e, _), c) := expr_of_value c t in
@@ -258,7 +261,8 @@ Definition guard_facts (target : block)
   end.
 
 (* The facts holding on entry to [target], from the branches that
-   dominate it. *)
+   dominate it. Sound for a well-formed context whose atom counter has
+   room for the guards' trees: [guards_at_sound]. *)
 Definition guards_at (c : ctx) (side : list Affine.t) (target : block)
     : (list Affine.t * list Affine.t) * ctx :=
   OxCamlList.fold_left (guard_facts target) (([], side), c)

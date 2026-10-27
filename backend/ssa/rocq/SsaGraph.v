@@ -360,6 +360,30 @@ Section Acyclic.
   Qed.
 End Acyclic.
 
+(* --- Goto arguments --- *)
+
+(* [goto_args] reads the terminator. *)
+Lemma goto_args_terminator : forall target pred args,
+  goto_args target pred = Some args ->
+  terminator pred = Terminator.Continue (Goto target) args.
+Proof.
+  intros target pred args H. unfold goto_args in H.
+  destruct (terminator pred) as [ [goto | | | ] args' | | | ];
+    try discriminate.
+  destruct (block_eqb goto target && _) eqn:Hc; [ | discriminate ].
+  injection H as <-. apply andb_true_iff in Hc. destruct Hc as [Hgoto _].
+  apply block_eqb_spec in Hgoto. subst goto. reflexivity.
+Qed.
+
+(* [arg_value] reads the argument list. *)
+Lemma arg_value_nth : forall args i u,
+  arg_value args i = Some u -> nth_int args i = Some (Terminator.Arg u).
+Proof.
+  intros args i u H. unfold arg_value in H.
+  destruct (nth_int args i) as [ [a | ] | ]; try discriminate.
+  injection H as <-. reflexivity.
+Qed.
+
 (* --- Uses --- *)
 
 (* [uses_only] with weaker approvals follows from [uses_only] with

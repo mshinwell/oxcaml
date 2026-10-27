@@ -16,8 +16,8 @@
    The trusted part is SsaModel.v: that [predecessors] lists the sources of
    the edges into a block, that [dominates d b] means every path from the
    entry to [b] passes through [d], and that the entry dominates every block
-   (every block of a finished graph is reachable from it). The theorem
-   states the last two as hypotheses. *)
+   (every block of a finished graph is reachable from it). The last two
+   are [dominance_semantics] in part 2, which the theorem assumes. *)
 
 From Stdlib Require Import Bool List.
 From OxCamlSsa Require Import SsaModel SsaGraph.
@@ -63,6 +63,19 @@ Inductive path : block -> list block -> block -> Prop :=
 Definition edge_on (p : list block) (src succ : block) : Prop :=
   exists l1 l2, p = l1 ++ src :: succ :: l2.
 
+(* What the compiler's [dominates] means, [entry] being the graph's entry
+   block: every path from the entry to [b] passes through each dominator
+   of [b], and the entry dominates every block, each being reachable from
+   it. Nothing is assumed of the entry's predecessors: a self-recursive
+   tail call is a back edge to the entry. *)
+Record dominance_semantics (entry : block) : Prop :=
+  { dominates_spec : forall d b,
+      dominates d b = true -> forall p, path entry p b -> In d p;
+    entry_dominates : forall b, dominates entry b = true }.
+
+Arguments dominates_spec {entry}.
+Arguments entry_dominates {entry}.
+
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
 (* ======================================================================== *)
@@ -93,16 +106,7 @@ Qed.
 
 Section Dominance.
   Variable entry : block.
-
-  (* What [dominates] means: every path from the entry to [b] passes
-     through [d] ... *)
-  Hypothesis dominates_spec : forall d b,
-    dominates d b = true -> forall p, path entry p b -> In d p.
-
-  (* ... and the entry dominates every block, each being reachable from
-     it. Nothing is assumed of the entry's predecessors: a self-recursive
-     tail call is a back edge to the entry. *)
-  Hypothesis entry_dominates : forall b, dominates entry b = true.
+  Hypothesis dominance : dominance_semantics entry.
 
   (* An edge [edge_dominates] accepts for [target] is on every path from
      the entry to [target]. *)
@@ -117,8 +121,8 @@ Section Dominance.
       try discriminate.
     apply block_eqb_spec in Hpred. subst p0.
     apply (path_edge_to entry p target succ src Hp).
-    - exact (dominates_spec succ target Hd p Hp).
-    - intros ->. rewrite entry_dominates in Hnd. discriminate.
+    - exact (dominance.(dominates_spec) succ target Hd p Hp).
+    - intros ->. rewrite dominance.(entry_dominates) in Hnd. discriminate.
     - exact Hps.
   Qed.
 End Dominance.
