@@ -1,16 +1,7 @@
 open NaturalLoop
-open OxCamlList
+open SsaDominance
+open SsaGraph
 open SsaModel
-
-(** val is_header_param : block -> int -> value -> bool **)
-
-let is_header_param block0 index v =
-  Ssa.Value.equal v (Ssa.Block.param block0 index)
-
-(** val strictly_dominates : block -> block -> bool **)
-
-let strictly_dominates d b =
-  Ssa.Block.dominates d b && not (Ssa.Block.equal d b)
 
 (** val is_loop_invariant : op_def -> block -> value -> bool **)
 
@@ -92,38 +83,11 @@ let back_edge_set loop0 =
     (fun s b -> Ssa.Block.Set.add b s)
     Ssa.Block.Set.empty loop0.back_edges
 
-(** val pred_args_to_header : block -> block -> Ssa.finished Ssa.Terminator.arg
-    list option **)
-
-let pred_args_to_header header0 pred =
-  match Ssa_view.terminator pred with
-  | Terminator.Continue (continuation, args) -> (
-    match continuation with
-    | Ssa.Goto goto ->
-      if
-        Ssa.Block.equal goto header0
-        && same_length args (Ssa_view.params header0)
-      then Some args
-      else None
-    | _ -> None)
-  | _ -> None
-
-(** val arg_value : Ssa.finished Ssa.Terminator.arg list -> int -> value option
-    **)
-
-let arg_value args index =
-  match nth_int args index with
-  | Some a -> (
-    match a with
-    | Ssa.Terminator.Arg v -> Some v
-    | Ssa.Terminator.Omitted_since_unused -> None)
-  | None -> None
-
 (** val classify_param : natural_loop -> op_def -> (block * Ssa.finished
     Ssa.Terminator.arg list) list -> int -> biv option **)
 
 let classify_param loop0 op_def0 back_pred_args index =
-  let is_self = is_header_param loop0.header index in
+  let is_self = is_param loop0.header index in
   let back_vals_opt =
     List.map
       (fun pat ->
@@ -180,9 +144,7 @@ let analyze_loop op_def0 loop0 =
   let header0 = loop0.header in
   let back_set = back_edge_set loop0 in
   let pred_args =
-    List.map
-      (fun p -> p, pred_args_to_header header0 p)
-      (Ssa.Block.predecessors header0)
+    List.map (fun p -> p, goto_args header0 p) (Ssa.Block.predecessors header0)
   in
   let all_back_edges_have_args =
     List.for_all

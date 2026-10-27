@@ -23,4 +23,10 @@ val record_back_edges :
 
 val find_loops : block list -> natural_loop list
 
-val edge_dominates : block -> block -> block -> bool
+type exit_branch =
+  { condition : value;
+    continue_when_true : bool;
+    exit_target : block
+  }
+
+val find_exit_branch : natural_loop -> exit_branch option

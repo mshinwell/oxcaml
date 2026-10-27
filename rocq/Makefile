@@ -6,13 +6,16 @@
 # The sources live in four directories, each a Rocq library:
 #
 #   rocq/                   OxCamlStdlib: models of OxCaml's own types (int,
-#                           Int64, lists, exceptions as options) and their
-#                           extraction directives
+#                           Int64, lists, exceptions as options), generic
+#                           integer arithmetic, and their extraction
+#                           directives; see HACKING.md there
 #   backend/rocq/           OxCamlBackend: backend-wide definitions, such as
 #                           the semantics of integer comparisons
 #   backend/ssa/rocq/       OxCamlSsa: the SSA graph as the models see it
 #                           (abstract blocks and values, with the few
-#                           observations the passes make of them)
+#                           observations the passes make of them), and the
+#                           properties of terminators, uses and dominance
+#                           that any pass may need
 #   backend/ssa/loop/rocq/  OxCamlLoop: the loop analyses and their
 #                           extraction (Extract.v, one .ml per model); the
 #                           pass using them is backend/ssa/loop/
@@ -34,10 +37,12 @@ FLAGS := -Q $(STDLIB_DIR) OxCamlStdlib -Q $(BACKEND_DIR) OxCamlBackend \
   -Q $(SSA_DIR) OxCamlSsa -Q $(LOOP_DIR) OxCamlLoop
 
 STDLIB := $(addprefix $(STDLIB_DIR)/, \
-  OxCamlOption.v ZTactics.v OxCamlInt.v OxCamlInt64.v OxCamlList.v OxCamlExtract.v)
+  OxCamlOption.v ZTactics.v OxCamlInt.v OxCamlInt64.v OxCamlList.v IntArith.v \
+  OxCamlExtract.v IntArithExtract.v)
 BACKEND := $(addprefix $(BACKEND_DIR)/, \
   IntegerComparison.v IntegerComparisonExtract.v)
-SSA := $(addprefix $(SSA_DIR)/, SsaModel.v SsaModelExtract.v)
+SSA := $(addprefix $(SSA_DIR)/, \
+  SsaModel.v SsaModelExtract.v SsaGraph.v SsaDominance.v)
 LOOP := $(addprefix $(LOOP_DIR)/, \
   FourierMotzkin.v FourierMotzkinExtract.v LoopComparisons.v AffineExpr.v \
   AffineExprExtract.v NaturalLoop.v AffineSsa.v AffineSsaExtract.v \
@@ -46,10 +51,15 @@ LOOP := $(addprefix $(LOOP_DIR)/, \
 EXTRACT := $(LOOP_DIR)/Extract.v
 
 # The extraction writes one .ml and .mli per model into the loop directory;
-# those of the SSA model are then moved next to their source.
-SSA_EXTRACTED := $(addprefix $(SSA_DIR)/, SsaModel.ml SsaModel.mli)
+# those of the SSA models are then moved next to their sources. Those of the
+# rocq/ models that are not mapped onto OxCaml's own functions (OxCamlList,
+# IntArith) stay in the loop directory.
+SSA_MODULES := SsaModel SsaGraph SsaDominance
+SSA_EXTRACTED := $(addprefix $(SSA_DIR)/, \
+  $(foreach m, $(SSA_MODULES), $(m).ml $(m).mli))
 LOOP_EXTRACTED := $(addprefix $(LOOP_DIR)/, \
-  OxCamlList.ml OxCamlList.mli FourierMotzkin.ml FourierMotzkin.mli \
+  OxCamlList.ml OxCamlList.mli IntArith.ml IntArith.mli \
+  FourierMotzkin.ml FourierMotzkin.mli \
   LoopComparisons.ml LoopComparisons.mli AffineExpr.ml AffineExpr.mli \
   NaturalLoop.ml NaturalLoop.mli AffineSsa.ml AffineSsa.mli \
   InductionVar.ml InductionVar.mli LoopTermination.ml LoopTermination.mli \
@@ -75,7 +85,8 @@ $(EXTRACT:.v=.vo): $(EXTRACT)
 	$(ROCQ) compile $(FLAGS) -output-directory $(LOOP_DIR) $<
 	for f in $(LOOP_DIR)/*.ml $(LOOP_DIR)/*.mli; do \
 	  grep -q '[^[:space:]]' $$f || rm -f $$f; done
-	mv $(LOOP_DIR)/SsaModel.ml $(LOOP_DIR)/SsaModel.mli $(SSA_DIR)/
+	mv $(foreach m, $(SSA_MODULES), $(LOOP_DIR)/$(m).ml $(LOOP_DIR)/$(m).mli) \
+	  $(SSA_DIR)/
 	@for f in $(LOOP_DIR)/*.ml $(LOOP_DIR)/*.mli; do \
 	  case " $(LOOP_EXTRACTED) " in *" $$f "*) ;; *) \
 	    echo "error: unexpected extracted file $$f: a model computes with" \

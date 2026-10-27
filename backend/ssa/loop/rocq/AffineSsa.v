@@ -67,11 +67,11 @@
    and terminators SsaModel.v reports are the graph's. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
-From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64 OxCamlList.
+From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64 OxCamlList
+  IntArith.
 From OxCamlBackend Require Import IntegerComparison.
-From OxCamlSsa Require Import SsaModel.
-From OxCamlLoop Require Import FourierMotzkin LoopComparisons AffineExpr
-  NaturalLoop.
+From OxCamlSsa Require Import SsaModel SsaDominance.
+From OxCamlLoop Require Import FourierMotzkin LoopComparisons AffineExpr.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -104,10 +104,6 @@ Definition intern (c : ctx) (v : value) : int * ctx :=
 
 (* --- Recognition into [AffineExpr.t] --- *)
 
-(* Whether a constant (the [Int64] standing for a [nativeint]) is an [int]. *)
-Definition fits_int (n : Int64.t) : bool :=
-  Int64.equal (Int64.of_int (Int64.to_int n)) n.
-
 Definition max_shift_bits : int := 16.
 
 (* The helpers of [expr_of_value]: [atomize] makes a value an atom with
@@ -139,7 +135,7 @@ Fixpoint expr_of_value (c : ctx) (t : tree)
     : (AffineExpr.t * option Range.t) * ctx :=
   match t with
   | Const_int v n =>
-    if fits_int n
+    if int64_is_int n
     then
       let k := Int64.to_int n in
       ((AffineExpr.Const k, Some (Range.const k)), c)
@@ -242,9 +238,9 @@ Definition cond_facts (c : ctx) (side : list Affine.t) (negate : bool)
 Definition guard_test (target idom : block) : option (value * bool) :=
   match terminator idom with
   | Terminator.Switch index [ifnot; ifso] =>
-    if NaturalLoop.edge_dominates idom ifso target
+    if edge_dominates idom ifso target
     then Some (index, false)
-    else if NaturalLoop.edge_dominates idom ifnot target
+    else if edge_dominates idom ifnot target
     then Some (index, true)
     else None
   | _ => None
@@ -335,8 +331,10 @@ Section Semantics.
     | Isub v a b =>
       tree_sound a /\ tree_sound b
       /\ mval v = wrap64 (mval (root a) - mval (root b))
-    | Iadd_imm v a k => tree_sound a /\ mval v = wrap64 (mval (root a) + to_Z k)
-    | Isub_imm v a k => tree_sound a /\ mval v = wrap64 (mval (root a) - to_Z k)
+    | Iadd_imm v a k =>
+      tree_sound a /\ mval v = wrap64 (mval (root a) + to_Z k)
+    | Isub_imm v a k =>
+      tree_sound a /\ mval v = wrap64 (mval (root a) - to_Z k)
     | Ilsl v a k =>
       tree_sound a
       /\ (0 <= to_Z k <= 63 -> mval v = wrap64 (mval (root a) * 2 ^ to_Z k))
@@ -372,7 +370,7 @@ Section Semantics.
   (* The branches [guards_at] takes facts from went the way it assumes:
      for each dominator of [target] whose taken edge dominates [target],
      the comparison tested came out as that edge requires. On entry to
-     [target] this is what [NaturalLoop.edge_dominates_sound] gives, as
+     [target] this is what [SsaDominance.edge_dominates_sound] gives, as
      every path to [target] took that edge; it is an assumption on [mval],
      which LoopTermination.v makes of the values at the entry to a loop. *)
   Definition guard_taken (target d : block) : Prop :=
@@ -387,6 +385,7 @@ Section Semantics.
 (* Part 3: lemmas used by the proofs                                        *)
 (* ======================================================================== *)
 
+  (* A context extends itself, and extension is transitive. *)
   Lemma extends_refl : forall c, extends c c.
   Proof. intros c p H. exact H. Qed.
 
@@ -394,13 +393,18 @@ Section Semantics.
     extends c1 c2 -> extends c2 c3 -> extends c1 c3.
   Proof. intros c1 c2 c3 H12 H23 p H. apply H23, H12, H. Qed.
 
+  (* A valuation agreeing with an extension of a context agrees with the
+     context. *)
   Lemma agrees_extends : forall rho c c',
     extends c c' -> agrees rho c' -> agrees rho c.
   Proof. intros rho c c' He Ha id v H. apply Ha, He, H. Qed.
 
+  (* A tree has at least one node. *)
   Lemma size_pos : forall t, 1 <= size t.
   Proof. induction t; cbn [size]; lia. Qed.
 
+  (* The atom allowances are non-negative, and [guards_sum] unfolds on lists.
+     *)
   Lemma guard_size_nonneg : forall target d, 0 <= guard_size target d.
   Proof.
     intros target d. unfold guard_size.
@@ -425,14 +429,6 @@ Section Semantics.
 
   Lemma to_Z_max_shift_bits : to_Z max_shift_bits = 16.
   Proof. reflexivity. Qed.
-
-  (* [fits_int n] means the [int] read back from [n] is [n]'s value. *)
-  Lemma fits_int_spec : forall n,
-    fits_int n = true -> to_Z (Int64.to_int n) = Int64.to_Z n.
-  Proof.
-    intros n H. unfold fits_int in H. apply Int64.equal_spec in H.
-    rewrite Int64.of_int_spec in H. exact H.
-  Qed.
 
   (* --- [intern] --- *)
 
@@ -470,6 +466,10 @@ Section Semantics.
       + intros rho Ha. apply Ha. left. reflexivity.
   Qed.
 
+  (* [atomize] returns an atom standing for [v] with the full range: the
+     context stays well-formed and gains at most one atom, and under any
+     agreeing valuation the atom reads as [v]'s machine value, which is in the
+     range. *)
   Lemma atomize_spec : forall c v e r c',
     ctx_wf c -> to_Z c.(next) < ocaml_max_int ->
     atomize c v = ((e, r), c') ->
@@ -490,6 +490,7 @@ Section Semantics.
 
   (* --- [push_sides] --- *)
 
+  (* Every fact of the result comes from one of the two lists ... *)
   Lemma push_sides_In : forall sides side f,
     In f (push_sides side sides) -> In f side \/ In f sides.
   Proof.
@@ -505,6 +506,8 @@ Section Semantics.
         * right. right. exact Hs.
   Qed.
 
+  (* ... so a property of every fact of both holds of every fact of the result.
+     *)
   Lemma push_sides_Forall : forall (P : Affine.t -> Prop) side sides,
     Forall P side -> Forall P sides -> Forall P (push_sides side sides).
   Proof.
@@ -515,20 +518,6 @@ Section Semantics.
   Qed.
 
   (* --- The valuation agreeing with a context --- *)
-
-  Lemma assoc_opt_NoDup : forall {C} (l : list (int * C)) id c,
-    NoDup (map fst l) -> In (id, c) l -> assoc_opt id l = Some c.
-  Proof.
-    intros C l id c. induction l as [ | [k c'] l IH ]; intros Hnd Hin.
-    - contradiction.
-    - cbn [map fst] in Hnd. inversion Hnd as [ | ? ? Hnin Hnd' ]. subst.
-      cbn [assoc_opt]. destruct Hin as [ Heq | Hin ].
-      + injection Heq as <- <-. rewrite eqb_int_refl. reflexivity.
-      + destruct (id =? k)%sint63 eqn:E.
-        * apply eqb_int in E. subst k. exfalso. apply Hnin.
-          apply in_map_iff. exists (id, c). split; [ reflexivity | exact Hin ].
-        * apply IH; assumption.
-  Qed.
 
   Theorem agrees_exists : forall c, ctx_wf c -> exists rho, agrees rho c.
   Proof.
@@ -581,11 +570,11 @@ Section Semantics.
       intros c e r c' Hs Hwf Hn H; cbn [expr_of_value] in H;
       cbn [tree_sound] in Hs; cbn [size] in Hn |- *.
     - (* Const_int *)
-      destruct (fits_int n) eqn:Hf.
+      destruct (int64_is_int n) eqn:Hf.
       + injection H as <- <- <-.
         refine (conj Hwf (conj (extends_refl c) (conj _ _))); [ lia | ].
         intros rho _. cbn [root AffineExpr.eval consistent].
-        pose proof (fits_int_spec n Hf) as Hk.
+        pose proof (int64_is_int_spec n Hf) as Hk.
         split; [ rewrite Hk, Hs; reflexivity | ].
         split; [ exact I | ].
         intros rg Hrg. injection Hrg as <-. rewrite Hs, <- Hk.
@@ -658,7 +647,8 @@ Section Semantics.
         unfold radd in Hr. destruct ra as [ rga | ]; [ | discriminate ].
         refine (conj Hwfa (conj Hea (conj _ _))); [ lia | ].
         intros rho Hrho.
-        destruct (Hrho_a rho Hrho) as [Ea [Ca Ra]]. specialize (Ra rga eq_refl).
+        destruct (Hrho_a rho Hrho) as [Ea [Ca Ra]].
+        specialize (Ra rga eq_refl).
         pose proof (add_sound _ _ _ _ _ Hr Ra (const_sound k)) as Hsum.
         pose proof (in_range_int64 _ _ Hsum) as Hfits.
         cbn [root] in *. rewrite Hv, (wrap64_id _ Hfits).
@@ -678,7 +668,8 @@ Section Semantics.
         unfold rsub in Hr. destruct ra as [ rga | ]; [ | discriminate ].
         refine (conj Hwfa (conj Hea (conj _ _))); [ lia | ].
         intros rho Hrho.
-        destruct (Hrho_a rho Hrho) as [Ea [Ca Ra]]. specialize (Ra rga eq_refl).
+        destruct (Hrho_a rho Hrho) as [Ea [Ca Ra]].
+        specialize (Ra rga eq_refl).
         pose proof (sub_sound _ _ _ _ _ Hr Ra (const_sound k)) as Hdiff.
         pose proof (in_range_int64 _ _ Hdiff) as Hfits.
         cbn [root] in *. rewrite Hv, (wrap64_id _ Hfits).
@@ -727,7 +718,8 @@ Section Semantics.
           refine (conj Hwf1 (conj (extends_trans _ _ _ Hea He1) (conj _ _)));
             [ lia | ].
           intros rho Hrho.
-          destruct (Hrho_a rho (agrees_extends _ _ _ He1 Hrho)) as [Ea [Ca Ra]].
+          destruct (Hrho_a rho (agrees_extends _ _ _ He1 Hrho))
+            as [Ea [Ca Ra]].
           pose proof (Hid rho Hrho) as Eid.
           cbn [root] in *. specialize (Hv ltac:(lia)).
           cbn [AffineExpr.eval consistent].
@@ -771,7 +763,8 @@ Section Semantics.
           refine (conj Hwf1 (conj (extends_trans _ _ _ Hea He1) (conj _ _)));
             [ lia | ].
           intros rho Hrho.
-          destruct (Hrho_a rho (agrees_extends _ _ _ He1 Hrho)) as [Ea [Ca Ra]].
+          destruct (Hrho_a rho (agrees_extends _ _ _ He1 Hrho))
+            as [Ea [Ca Ra]].
           pose proof (Hid rho Hrho) as Eid. specialize (Ra rga eq_refl).
           cbn [root] in *. cbn [AffineExpr.eval consistent].
           split; [ exact Eid | ].

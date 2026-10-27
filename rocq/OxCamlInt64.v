@@ -8,7 +8,7 @@
    is the trusted base for every model that computes in [Int64]; each axiom
    is the documented behaviour of the OxCaml operation. *)
 
-From Stdlib Require Import ZArith Lia Bool.
+From Stdlib Require Import ZArith Lia Bool Zbitwise.
 From OxCamlStdlib Require Import OxCamlInt.
 
 Local Open Scope Z_scope.
@@ -18,6 +18,7 @@ Local Open Scope Z_scope.
 Definition two63 : Z := 9223372036854775808.
 Definition two64 : Z := 18446744073709551616.
 
+(* The two constants as powers, for [rewrite]. *)
 Lemma two63_pow : two63 = 2 ^ 63. Proof. reflexivity. Qed.
 Lemma two64_pow : two64 = 2 ^ 64. Proof. reflexivity. Qed.
 
@@ -27,6 +28,7 @@ Definition in_int64 (z : Z) : Prop := - two63 <= z < two63.
 (* The same, as a boolean test. *)
 Definition fits_int64 (z : Z) : bool := (- two63 <=? z) && (z <? two63).
 
+(* [fits_int64] answering [true] means [in_int64]. *)
 Lemma fits_int64_true : forall z, fits_int64 z = true -> in_int64 z.
 Proof.
   unfold fits_int64, in_int64. intros z H. apply andb_prop in H as [H1 H2].
@@ -39,6 +41,7 @@ Definition wrap64 (z : Z) : Z := (z + two63) mod two64 - two63.
 (* The unsigned reading of a signed 64-bit value. *)
 Definition unsigned64 (z : Z) : Z := if z <? 0 then z + two64 else z.
 
+(* The unsigned reading of a 64-bit value lies in [[0, 2^64)]. *)
 Lemma unsigned64_bounds : forall z, in_int64 z -> 0 <= unsigned64 z < two64.
 Proof.
   intros z Hz. unfold unsigned64, in_int64, two63, two64 in *.
@@ -84,6 +87,8 @@ Proof.
     rewrite Z.quot_opp_l in H1, H2 by lia. lia.
 Qed.
 
+(* So the quotient of a 64-bit value by a positive divisor is a 64-bit value.
+   *)
 Lemma quot_in_range : forall a b, 0 < b -> in_int64 a -> in_int64 (Z.quot a b).
 Proof.
   intros a b Hb Ha. pose proof (quot_abs_le a b Hb).
@@ -91,6 +96,45 @@ Proof.
   - pose proof (Z.quot_pos a b Ha0 Hb). unfold in_int64 in *. lia.
   - pose proof (Z.quot_pos (- a) b ltac:(lia) Hb) as H1.
     rewrite Z.quot_opp_l in H1 by lia. unfold in_int64 in *. lia.
+Qed.
+
+(* ---- Powers of two and bitwise or, on Z ------------------------------- *)
+
+Lemma pow2_pos : forall n, 0 <= n -> 0 < 2 ^ n.
+Proof. intros n Hn. apply Z.pow_pos_nonneg; lia. Qed.
+
+(* [1 <= 2^n <= 2^63] for [0 <= n <= 63], with the powers as numerals, so
+   that [lia] can use them. *)
+Lemma pow2_bounds : forall n, 0 <= n <= 63 -> 1 <= 2 ^ n <= two63.
+Proof.
+  intros n Hn. rewrite two63_pow. split.
+  - change 1 with (2 ^ 0). apply Z.pow_le_mono_r; lia.
+  - apply Z.pow_le_mono_r; lia.
+Qed.
+
+(* Lower bounds on powers of two, as numerals for [lia]. *)
+Lemma pow2_ge_2 : forall n, 1 <= n -> 2 <= 2 ^ n.
+Proof.
+  intros n Hn. change 2 with (2 ^ 1) at 1. apply Z.pow_le_mono_r; lia.
+Qed.
+
+Lemma pow2_ge_4 : forall n, 2 <= n -> 4 <= 2 ^ n.
+Proof.
+  intros n Hn. change 4 with (2 ^ 2) at 1. apply Z.pow_le_mono_r; lia.
+Qed.
+
+(* [x lor m] for [m >= 0] lies in [[x, x + m]] (two's complement). *)
+Lemma lor_bounds : forall x m, 0 <= m -> x <= Z.lor x m <= x + m.
+Proof.
+  intros x m Hm.
+  pose proof (Z.add_lor_land x m) as Hsum.
+  assert (H0 : 0 <= Z.land x m) by (apply Z.land_nonneg; right; exact Hm).
+  assert (Hle : Z.land x m <= m).
+  { pose proof (Z.sub_land_same_l m x) as Hs. rewrite (Z.land_comm m x) in Hs.
+    assert (0 <= Z.land m (Z.lnot x))
+      by (apply Z.land_nonneg; left; exact Hm).
+    lia. }
+  lia.
 Qed.
 
 (* ---- OxCaml's [Int64] --------------------------------------------------- *)
@@ -137,7 +181,9 @@ Module Int64.
   Abbreviation equal := int64_equal.
   Abbreviation compare := int64_compare.
 
+  (* Every [Int64] is a 64-bit value. *)
   Axiom to_Z_bounded : forall x, in_int64 (to_Z x).
+  (* The values of the literals. *)
   Axiom to_Z_zero : to_Z zero = 0.
   Axiom to_Z_one : to_Z one = 1.
   Axiom to_Z_minus_one : to_Z minus_one = -1.
@@ -152,6 +198,7 @@ Module Int64.
   Axiom to_int_exact : forall a,
     - two62 <= to_Z a <= two62 - 1 -> Sint63Axioms.to_Z (to_int a) = to_Z a.
 
+  (* Addition, subtraction and multiplication wrap at 64 bits. *)
   Axiom add_spec : forall a b, to_Z (add a b) = wrap64 (to_Z a + to_Z b).
   Axiom sub_spec : forall a b, to_Z (sub a b) = wrap64 (to_Z a - to_Z b).
   Axiom mul_spec : forall a b, to_Z (mul a b) = wrap64 (to_Z a * to_Z b).
@@ -160,6 +207,8 @@ Module Int64.
      never pass. *)
   Axiom div_spec : forall a b,
     to_Z b <> 0 -> to_Z (div a b) = wrap64 (Z.quot (to_Z a) (to_Z b)).
+  (* [Int64.rem] is the remainder of that division ([Z.rem], with the sign of
+     the dividend). *)
   Axiom rem_spec : forall a b,
     to_Z b <> 0 -> to_Z (rem a b) = Z.rem (to_Z a) (to_Z b).
   (* [Int64.abs min_int = min_int], and likewise [Int64.neg]. *)
@@ -176,6 +225,7 @@ Module Int64.
     0 <= Sint63Axioms.to_Z n <= 63 ->
     to_Z (shift_right_logical a n)
     = wrap64 (unsigned64 (to_Z a) / 2 ^ Sint63Axioms.to_Z n).
+  (* [Int64.equal] is equality of values. *)
   Axiom equal_spec : forall a b, equal a b = true <-> to_Z a = to_Z b.
   (* OxCaml's [Int64.compare] returns an [int] that is negative, zero or
      positive according as the first argument is less than, equal to or
@@ -214,6 +264,8 @@ Module Int64.
     destruct (compare_spec a b) as [Hlt Heq]. lia.
   Qed.
 
+  (* [Int64.equal] answering [false] means different values; in particular a
+     value it distinguishes from zero is not zero. *)
   Lemma equal_false : forall a b, equal a b = false -> to_Z a <> to_Z b.
   Proof.
     intros a b H E. apply equal_spec in E. congruence.

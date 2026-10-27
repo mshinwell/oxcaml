@@ -40,7 +40,7 @@
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlList.
-From OxCamlSsa Require Import SsaModel.
+From OxCamlSsa Require Import SsaModel SsaGraph.
 From OxCamlLoop Require Import NaturalLoop InductionVar LoopTermination
   DeadInductionVar.
 Import ListNotations.
@@ -49,22 +49,11 @@ Import ListNotations.
 (* Part 1: the definitions                                                  *)
 (* ======================================================================== *)
 
-(* A terminator that only transfers control within the function. *)
-Definition terminator_pure_control (t : Terminator.t) : bool :=
-  match t with
-  | Terminator.Continue (Goto _) _ | Terminator.Switch _ _ => true
-  | Terminator.Continue (Return | Raise _ | Unreachable) _
-  | Terminator.Call _ | Terminator.Invalid _ => false
-  end.
-
-(* Every block of the body has only side-effect-free instructions and such
-   a terminator. *)
+(* Every block of the body is [block_effect_free] (SsaGraph.v): its
+   instructions have no side effects and its terminator only transfers
+   control within the function. *)
 Definition body_effect_free (loop : natural_loop) : bool :=
-  set_for_all
-    (fun bl =>
-      forallb (fun i => negb (has_side_effect i)) (block_body bl)
-      && terminator_pure_control (terminator bl))
-    loop.(body).
+  set_for_all block_effect_free loop.(body).
 
 (* Every edge out of a block of the body stays in the body or is the
    header's exit edge, to [exit]. [body_effect_free] only sees the blocks
@@ -118,18 +107,15 @@ Definition find_deletions (op_def : op_def) (blocks : list block)
 (* Part 2: the intended meaning                                             *)
 (* ======================================================================== *)
 
-(* Every block of the body has only side-effect-free instructions and a
-   terminator that stays within the function. *)
 Definition body_does_nothing (l : natural_loop) : Prop :=
-  forall bl, set_mem bl l.(body) = true ->
-    (forall i, In i (block_body bl) -> has_side_effect i = false)
-    /\ terminator_pure_control (terminator bl) = true.
+  forall bl, set_mem bl l.(body) = true -> block_does_nothing bl.
 
 (* Every edge out of a block of the body stays in the body or goes to
    [exit]. *)
 Definition exits_only_to (l : natural_loop) (exit : block) : Prop :=
   forall bl, set_mem bl l.(body) = true ->
-    forall s, In s (all_successors bl) -> set_mem s l.(body) = true \/ s = exit.
+    forall s, In s (all_successors bl) ->
+      set_mem s l.(body) = true \/ s = exit.
 
 (* The header's exit branch, in the shape LoopTermination.v recognises,
    goes to [exit], which takes no arguments. *)
@@ -164,17 +150,15 @@ Definition deletable (op_def : op_def) (blocks : list block)
 (* Part 3: lemmas used by the proofs                                        *)
 (* ======================================================================== *)
 
+(* What [body_effect_free] checks, read back. *)
 Lemma body_effect_free_spec : forall l,
   body_effect_free l = true -> body_does_nothing l.
 Proof.
   intros l H bl Hbl. unfold body_effect_free in H.
-  rewrite set_for_all_spec in H. specialize (H bl Hbl).
-  apply andb_true_iff in H. destruct H as [Hi Ht].
-  split; [ | exact Ht ].
-  rewrite forallb_forall in Hi. intros i Hin.
-  specialize (Hi i Hin). apply negb_true_iff in Hi. exact Hi.
+  rewrite set_for_all_spec in H. apply block_effect_free_spec, H. exact Hbl.
 Qed.
 
+(* What [single_exit] checks, read back. *)
 Lemma single_exit_spec : forall l exit,
   single_exit l exit = true -> exits_only_to l exit.
 Proof.

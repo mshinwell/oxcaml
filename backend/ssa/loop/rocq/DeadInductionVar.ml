@@ -1,7 +1,7 @@
 open InductionVar
-open LoopTermination
 open NaturalLoop
 open OxCamlList
+open SsaGraph
 open SsaModel
 
 type biv_result =
@@ -15,76 +15,29 @@ type loop_result =
     useless : bool
   }
 
-(** val instr_defines_value : instr -> value -> bool **)
+(** val param_uses_ok : block list -> block -> int -> value -> value list ->
+    bool **)
 
-let instr_defines_value i v =
-  match Ssa_view.instr i with
-  | Op (id, _) -> (
-    match Ssa_view.value v with
-    | Res (id', _) -> Ssa.Instruction.Id.equal id id'
-    | Block_param (_, _) -> false)
-  | _ -> false
+let param_uses_ok blocks header0 k cond updates =
+  all_uses_ok blocks (is_param header0 k)
+    (fun i ->
+      instr_defines_value i cond || List.exists (instr_defines_value i) updates)
+    (fun _ _ -> false)
 
-(** val args_of_instr : instr -> value list **)
+(** val cond_uses_ok : block list -> block -> value -> bool **)
 
-let args_of_instr i =
-  match Ssa_view.instr i with Op (_, args) -> args | _ -> []
+let cond_uses_ok blocks header0 cond =
+  all_uses_ok blocks (Ssa.Value.equal cond)
+    (fun _ -> false)
+    (fun bl _ -> Ssa.Block.equal bl header0)
 
-(** val terminator_args : Terminator.t -> value list list **)
+(** val update_uses_ok : block list -> block -> blockset -> int -> value ->
+    value -> bool **)
 
-let terminator_args = function
-  | Terminator.Continue (_, args) ->
-    List.filter_map
-      (fun arg ->
-        match arg with
-        | Ssa.Terminator.Arg v -> Some v
-        | Ssa.Terminator.Omitted_since_unused -> None)
-      args
-    :: []
-  | Terminator.Switch (index, _) -> (index :: []) :: []
-  | Terminator.Call args -> args :: []
-  | Terminator.Invalid args -> args :: []
-
-(** val count_occurrences : ('a1 -> bool) -> 'a1 list -> int **)
-
-let count_occurrences same l =
-  List.fold_left (fun n x -> if same x then n + 1 else n) 0 l
-
-(** val all_uses_ok : block list -> (value -> bool) -> (instr -> bool) -> (block
-    -> value list -> bool) -> bool **)
-
-let all_uses_ok blocks same approve_instr approve_term =
-  List.for_all
-    (fun bl ->
-      List.for_all
-        (fun i -> (not (List.exists same (args_of_instr i))) || approve_instr i)
-        (Ssa_view.body bl)
-      && List.for_all
-           (fun arr -> (not (List.exists same arr)) || approve_term bl arr)
-           (terminator_args (Ssa_view.terminator bl)))
-    blocks
-
-(** val arg_is : value -> Ssa.finished Ssa.Terminator.arg -> bool **)
-
-let arg_is v = function
-  | Ssa.Terminator.Arg a -> Ssa.Value.equal a v
-  | Ssa.Terminator.Omitted_since_unused -> false
-
-(** val goto_passes : block -> int -> value -> block -> bool **)
-
-let goto_passes header0 k v bl =
-  match Ssa_view.terminator bl with
-  | Terminator.Continue (continuation, args) -> (
-    match continuation with
-    | Ssa.Goto goto ->
-      (Ssa.Block.equal goto header0
-      &&
-      match arg_value args k with
-      | Some a -> Ssa.Value.equal a v
-      | None -> false)
-      && Int.equal (count_occurrences (arg_is v) args) 1
-    | _ -> false)
-  | _ -> false
+let update_uses_ok blocks header0 back_preds k cond u =
+  all_uses_ok blocks (Ssa.Value.equal u)
+    (fun i -> instr_defines_value i cond)
+    (fun bl _ -> Ssa.Block.Set.mem bl back_preds && goto_passes header0 k u bl)
 
 (** val is_dead : block list -> biv -> bool **)
 
@@ -94,30 +47,12 @@ let is_dead blocks biv0 =
     let cond = exit_info.condition in
     let header0 = biv0.InductionVar.loop.header in
     let k = biv0.param_index in
-    let is_self = is_header_param header0 k in
     let back_preds = back_edge_set biv0.InductionVar.loop in
-    let self_ok =
-      all_uses_ok blocks is_self
-        (fun i ->
-          instr_defines_value i cond
-          || List.exists (instr_defines_value i) biv0.update)
-        (fun _ _ -> false)
-    in
-    let cond_ok =
-      all_uses_ok blocks (Ssa.Value.equal cond)
-        (fun _ -> false)
-        (fun bl _ -> Ssa.Block.equal bl header0)
-    in
-    if not (self_ok && cond_ok)
-    then false
-    else
-      List.for_all
-        (fun v ->
-          all_uses_ok blocks (Ssa.Value.equal v)
-            (fun i -> instr_defines_value i cond)
-            (fun bl _ ->
-              Ssa.Block.Set.mem bl back_preds && goto_passes header0 k v bl))
-        biv0.update
+    (param_uses_ok blocks header0 k cond biv0.update
+    && cond_uses_ok blocks header0 cond)
+    && List.for_all
+         (update_uses_ok blocks header0 back_preds k cond)
+         biv0.update
   | None -> false
 
 (** val loop_is_useless : natural_loop -> biv_result list -> bool **)

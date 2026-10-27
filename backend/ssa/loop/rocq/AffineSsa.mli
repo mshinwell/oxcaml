@@ -1,7 +1,6 @@
 open AffineExpr
 open FourierMotzkin
 open LoopComparisons
-open NaturalLoop
 open SsaModel
 
 type ctx =
@@ -12,8 +11,6 @@ type ctx =
 val new_ctx : ctx
 
 val intern : ctx -> value -> int * ctx
-
-val fits_int : int64 -> bool
 
 val atomize : ctx -> value -> (t * Range.t option) * ctx
 

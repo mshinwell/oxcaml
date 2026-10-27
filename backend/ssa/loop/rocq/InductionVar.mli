@@ -1,10 +1,6 @@
 open NaturalLoop
 open SsaModel
 
-val is_header_param : block -> int -> value -> bool
-
-val strictly_dominates : block -> block -> bool
-
 val is_loop_invariant : op_def -> block -> value -> bool
 
 type biv_step =
@@ -33,11 +29,6 @@ val classify_update :
   (biv_step * [`Add | `Sub]) option
 
 val back_edge_set : natural_loop -> blockset
-
-val pred_args_to_header :
-  block -> block -> Ssa.finished Ssa.Terminator.arg list option
-
-val arg_value : Ssa.finished Ssa.Terminator.arg list -> int -> value option
 
 val classify_param :
   natural_loop ->

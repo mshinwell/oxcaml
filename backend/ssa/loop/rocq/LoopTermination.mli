@@ -9,14 +9,6 @@ type t =
   | Terminates
   | Unknown
 
-type exit_branch =
-  { condition : value;
-    continue_when_true : bool;
-    exit_target : block
-  }
-
-val find_exit_branch : natural_loop -> exit_branch option
-
 type bound =
   | Value_bound of value
   | Const_bound of int

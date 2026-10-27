@@ -72,11 +72,42 @@ let find_loops blocks =
       })
     header_tbl
 
-(** val edge_dominates : block -> block -> block -> bool **)
+type exit_branch =
+  { condition : value;
+    continue_when_true : bool;
+    exit_target : block
+  }
 
-let edge_dominates src succ target =
-  (Ssa.Block.dominates succ target && not (Ssa.Block.dominates succ src))
-  &&
-  match Ssa.Block.predecessors succ with
-  | [] -> false
-  | p :: l -> ( match l with [] -> Ssa.Block.equal p src | _ :: _ -> false)
+(** val find_exit_branch : natural_loop -> exit_branch option **)
+
+let find_exit_branch loop =
+  match Ssa_view.terminator loop.header with
+  | Terminator.Switch (index, targets) -> (
+    match targets with
+    | [] -> None
+    | ifnot :: l -> (
+      match l with
+      | [] -> None
+      | ifso :: l0 -> (
+        match l0 with
+        | [] ->
+          if Ssa.Block.Set.mem ifso loop.body
+          then
+            if Ssa.Block.Set.mem ifnot loop.body
+            then None
+            else
+              Some
+                { condition = index;
+                  continue_when_true = true;
+                  exit_target = ifnot
+                }
+          else if Ssa.Block.Set.mem ifnot loop.body
+          then
+            Some
+              { condition = index;
+                continue_when_true = false;
+                exit_target = ifso
+              }
+          else None
+        | _ :: _ -> None)))
+  | _ -> None

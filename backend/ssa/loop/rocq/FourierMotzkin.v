@@ -11,13 +11,9 @@
    Every function that can overflow returns an [option], [None] standing
    for the overflow (see OxCamlOption.v); nothing wraps silently.
 
-   Trusted parts, beyond the [Int64] model in OxCamlInt64.v and the
-   [sort_uniq] assumptions in OxCamlList.v (each is a few lines of OxCaml
-   to review): the overflow tests of the [_ovf] helpers are taken as
-   given, by the axioms [add_fits_spec] and friends below, to answer
-   whether the exact result fits the type. Their OxCaml, the standard
-   sign-bit trick for addition and a divide-back check for
-   multiplication, is in FourierMotzkinExtract.v.
+   Trusted parts: the [Int64] model in OxCamlInt64.v, the [sort_uniq]
+   assumptions in OxCamlList.v and the overflow tests of the checked
+   arithmetic in IntArith.v (each is a few lines of OxCaml to review).
 
    The main results are [feasible_sound] and [entails_sound] in part 4: when
    [feasible] says "infeasible", no integer assignment satisfies the
@@ -27,7 +23,8 @@
    nothing (it is conservative on overflow and on size limits). *)
 
 From Stdlib Require Import ZArith Lia Bool List Recdef.
-From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64 OxCamlList.
+From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64 OxCamlList
+  IntArith.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -35,27 +32,6 @@ Import ListNotations.
 (* ======================================================================== *)
 
 Local Open Scope sint63_scope.
-
-(* ---- Overflow-checked [int] arithmetic (the [_ovf] helpers) ----------- *)
-
-(* The overflow tests: whether the exact sum or product of two machine
-   integers fits an [int]. *)
-Parameter add_fits mul_fits : int -> int -> bool.
-Axiom add_fits_spec : forall a b, add_fits a b = fits_int (to_Z a + to_Z b).
-Axiom mul_fits_spec : forall a b, mul_fits a b = fits_int (to_Z a * to_Z b).
-
-Definition add_ovf (a b : int) : option int :=
-  if add_fits a b then Some (a + b) else None.
-
-Definition mul_ovf (a b : int) : option int :=
-  if mul_fits a b then Some (a * b) else None.
-
-Definition neg_ovf (a : int) : option int :=
-  if a =? min_int then None else Some (- a).
-
-(* The coefficient of [id] in a term list, [dflt] if absent. *)
-Definition coeff_gen {C} (dflt : C) (id : int) (terms : list (int * C)) : C :=
-  match assoc_opt id terms with Some c => c | None => dflt end.
 
 (* ---- [module Affine] -------------------------------------------------- *)
 
@@ -67,7 +43,7 @@ Module Affine.
 
   Definition var (id : int) : t := {| const := zero; terms := [(id, one)] |}.
 
-  Definition coeff (id : int) (f : t) : int := coeff_gen zero id f.(terms).
+  Definition coeff (id : int) (f : t) : int := assoc_default zero id f.(terms).
 
   Fixpoint terms_equal (l1 l2 : list (int * int)) : bool :=
     match l1, l2 with
@@ -139,46 +115,8 @@ End Affine.
 
 (* ---- Resolvents ------------------------------------------------------- *)
 
-(* [add_ovf64] / [mul_ovf64]: the exact result, if it fits. *)
-(* The overflow tests on [Int64], as for [int] above. *)
-Parameter add_fits64 mul_fits64 : Int64.t -> Int64.t -> bool.
-Axiom add_fits64_spec : forall a b,
-  add_fits64 a b = fits_int64 (Int64.to_Z a + Int64.to_Z b).
-Axiom mul_fits64_spec : forall a b,
-  mul_fits64 a b = fits_int64 (Int64.to_Z a * Int64.to_Z b).
-
-Definition add_ovf64 (a b : Int64.t) : option Int64.t :=
-  if add_fits64 a b then Some (Int64.add a b) else None.
-
-Definition mul_ovf64 (a b : Int64.t) : option Int64.t :=
-  if mul_fits64 a b then Some (Int64.mul a b) else None.
-
-(* [let rec gcd64 a b = if b = 0L then a else gcd64 b (Int64.rem a b)].
-   Rocq needs a termination argument: [|b|] strictly decreases. *)
-Function gcd64 (a b : Int64.t)
-    {measure (fun b => Z.to_nat (Z.abs (Int64.to_Z b))) b} : Int64.t :=
-  if Int64.equal b Int64.zero then a else gcd64 b (Int64.rem a b).
-Proof.
-  intros a b Hb. apply Int64.nonzero in Hb.
-  rewrite Int64.rem_spec by exact Hb.
-  apply Z2Nat.inj_lt; try apply Z.abs_nonneg.
-  apply Z.rem_bound_abs. exact Hb.
-Defined.
-
-(* Floor division for [g > 0]. *)
-Definition fdiv64 (c g : Int64.t) : Int64.t :=
-  let q := Int64.div c g in
-  if (Int64.compare c Int64.zero <? zero)
-     && negb (Int64.equal (Int64.rem c g) Int64.zero)
-  then Int64.sub q Int64.one
-  else q.
-
-Definition to_int_ovf (x : Int64.t) : option int :=
-  let i := Int64.to_int x in
-  if Int64.equal (Int64.of_int i) x then Some i else None.
-
 (* The local [coeff] of [resolvent], over [Int64] coefficients. *)
-Definition coeff64 := coeff_gen Int64.zero.
+Definition coeff64 := assoc_default Int64.zero.
 
 (* The local [scaled] of [resolvent]. *)
 Definition scaled (k : Int64.t) (f : Affine.t)
@@ -219,7 +157,8 @@ Definition resolvent (cp cn : int) (p n : Affine.t) : option Affine.t :=
       let* k := to_int_ovf (fdiv64 c g) in
       let* ts :=
         map_opt
-          (fun '(id, c) => let* c := to_int_ovf (Int64.div c g) in Some (id, c))
+          (fun '(id, c) =>
+            let* c := to_int_ovf (Int64.div c g) in Some (id, c))
           ts
       in
       Some {| Affine.const := k; Affine.terms := ts |}
@@ -323,96 +262,10 @@ Definition wf (f : Affine.t) : Prop := NoDup (map fst f.(Affine.terms)).
 (* Part 3: lemmas used by the proofs                                        *)
 (* ======================================================================== *)
 
-(* --- The overflow-checked operations compute the exact result. --- *)
+(* --- The gcd fold of [resolvent] yields a common divisor of all
+   coefficients. --- *)
 
-Lemma add_ovf_spec : forall a b s,
-  add_ovf a b = Some s -> to_Z s = to_Z a + to_Z b.
-Proof.
-  unfold add_ovf. intros a b s H. rewrite add_fits_spec in H.
-  destruct (fits_int _) eqn:Hr; [ | discriminate ].
-  injection H as <-. apply Sint63.to_Z_add.
-  rewrite to_Z_min_int, to_Z_max_int. apply fits_int_true. exact Hr.
-Qed.
-
-Lemma mul_ovf_spec : forall a b s,
-  mul_ovf a b = Some s -> to_Z s = to_Z a * to_Z b.
-Proof.
-  unfold mul_ovf. intros a b s H. rewrite mul_fits_spec in H.
-  destruct (fits_int _) eqn:Hr; [ | discriminate ].
-  injection H as <-. apply Sint63.to_Z_mul.
-  rewrite to_Z_min_int, to_Z_max_int. apply fits_int_true. exact Hr.
-Qed.
-
-Lemma neg_ovf_spec : forall a s, neg_ovf a = Some s -> to_Z s = - to_Z a.
-Proof.
-  unfold neg_ovf. intros a s H.
-  destruct (a =? min_int)%sint63 eqn:E; [ discriminate | ].
-  injection H as <-. apply Sint63.to_Z_opp. apply eqb_int_false. exact E.
-Qed.
-
-Lemma add_ovf64_spec : forall a b s,
-  add_ovf64 a b = Some s -> Int64.to_Z s = Int64.to_Z a + Int64.to_Z b.
-Proof.
-  unfold add_ovf64. intros a b s H. rewrite add_fits64_spec in H.
-  destruct (fits_int64 _) eqn:Hr; [ | discriminate ].
-  injection H as <-. rewrite Int64.add_spec. apply wrap64_id.
-  apply fits_int64_true. exact Hr.
-Qed.
-
-Lemma mul_ovf64_spec : forall a b s,
-  mul_ovf64 a b = Some s -> Int64.to_Z s = Int64.to_Z a * Int64.to_Z b.
-Proof.
-  unfold mul_ovf64. intros a b s H. rewrite mul_fits64_spec in H.
-  destruct (fits_int64 _) eqn:Hr; [ | discriminate ].
-  injection H as <-. rewrite Int64.mul_spec. apply wrap64_id.
-  apply fits_int64_true. exact Hr.
-Qed.
-
-Lemma to_int_ovf_spec : forall x i,
-  to_int_ovf x = Some i -> to_Z i = Int64.to_Z x.
-Proof.
-  unfold to_int_ovf. intros x i H.
-  destruct (Int64.equal _ _) eqn:E; [ | discriminate ].
-  injection H as <-. apply Int64.equal_spec in E.
-  rewrite Int64.of_int_spec in E. exact E.
-Qed.
-
-(* --- The normalisation of a resolvent: gcd and floor division. --- *)
-
-(* [gcd64 a b] divides both arguments (that it is their greatest common
-   divisor is not needed). *)
-Lemma gcd64_divides : forall a b,
-  (Int64.to_Z (gcd64 a b) | Int64.to_Z a)
-  /\ (Int64.to_Z (gcd64 a b) | Int64.to_Z b).
-Proof.
-  intros a b. functional induction (gcd64 a b).
-  - apply Int64.equal_spec in e. rewrite Int64.to_Z_zero in e. rewrite e.
-    split; [ apply Z.divide_refl | apply Z.divide_0_r ].
-  - match goal with IH : _ /\ _ |- _ => destruct IH as [IH1 IH2] end.
-    apply Int64.nonzero in e.
-    rewrite Int64.rem_spec in IH2 by exact e.
-    split; [ | exact IH1 ].
-    rewrite (Z.quot_rem' (Int64.to_Z a) (Int64.to_Z b)).
-    apply Z.divide_add_r; [ apply Z.divide_mul_l; exact IH1 | exact IH2 ].
-Qed.
-
-(* [Int64.abs] does not change divisibility, even on [min_int] (which it
-   leaves unchanged). *)
-Lemma abs64_divide : forall d c,
-  (d | Int64.to_Z (Int64.abs c)) -> (d | Int64.to_Z c).
-Proof.
-  intros d c H. rewrite Int64.abs_spec in H.
-  pose proof (Int64.to_Z_bounded c) as Hc. unfold in_int64 in Hc.
-  destruct (Z.eq_dec (Int64.to_Z c) (- two63)) as [ E | NE ].
-  - rewrite E in *.
-    replace (wrap64 (Z.abs (- two63))) with (- two63) in H
-      by (unfold wrap64, two63, two64; vm_compute; reflexivity).
-    exact H.
-  - rewrite wrap64_id in H by (unfold in_int64; lia).
-    apply Z.divide_abs_r. exact H.
-Qed.
-
-(* The gcd fold of [resolvent] yields a common divisor of all coefficients. *)
+(* The fold's result divides the initial accumulator ... *)
 Lemma fold_gcd_divides_acc : forall (ts : list (int * Int64.t)) g0,
   (Int64.to_Z (fold_left (fun g '(_, c) => gcd64 g (Int64.abs c)) g0 ts)
    | Int64.to_Z g0).
@@ -422,6 +275,7 @@ Proof.
   - eapply Z.divide_trans; [ apply IH | apply gcd64_divides ].
 Qed.
 
+(* ... and every coefficient in the list. *)
 Lemma fold_gcd_divides : forall (ts : list (int * Int64.t)) g0 id c,
   In (id, c) ts ->
   (Int64.to_Z (fold_left (fun g '(_, c) => gcd64 g (Int64.abs c)) g0 ts)
@@ -439,89 +293,14 @@ Proof.
     + eapply IH. exact Hin.
 Qed.
 
-(* [fdiv64] is floor division. *)
-Lemma fdiv64_spec : forall c g,
-  0 < Int64.to_Z g -> Int64.to_Z (fdiv64 c g) = Int64.to_Z c / Int64.to_Z g.
-Proof.
-  intros c g Hg. unfold fdiv64.
-  assert (Hg0 : Int64.to_Z g <> 0) by lia.
-  pose proof (Int64.to_Z_bounded c) as Hc. unfold in_int64 in Hc.
-  pose proof (Z.quot_rem' (Int64.to_Z c) (Int64.to_Z g)) as Hqr.
-  pose proof (Z.rem_bound_abs (Int64.to_Z c) (Int64.to_Z g) Hg0) as Hrb.
-  assert (Hq : Int64.to_Z (Int64.div c g)
-               = Z.quot (Int64.to_Z c) (Int64.to_Z g)).
-  { rewrite Int64.div_spec by exact Hg0. apply wrap64_id.
-    apply quot_in_range; [ exact Hg | exact (Int64.to_Z_bounded c) ]. }
-  assert (Hlt' : (Int64.compare c Int64.zero <? zero)%sint63 = true
-                 <-> Int64.to_Z c < 0)
-    by (rewrite Int64.compare_lt, Int64.to_Z_zero; reflexivity).
-  assert (Heq' : Int64.equal (Int64.rem c g) Int64.zero = true
-                 <-> Z.rem (Int64.to_Z c) (Int64.to_Z g) = 0)
-    by (rewrite Int64.equal_spec, Int64.rem_spec, Int64.to_Z_zero by exact Hg0;
-        reflexivity).
-  destruct (Int64.compare c Int64.zero <? zero)%sint63 eqn:Hlt;
-    destruct (Int64.equal (Int64.rem c g) Int64.zero) eqn:Heq; simpl.
-  - (* c < 0 and g divides c: the quotient is exact. *)
-    assert (Hr : Z.rem (Int64.to_Z c) (Int64.to_Z g) = 0)
-      by (apply Heq'; reflexivity).
-    rewrite Hq. apply Z.div_unique_pos with (r := 0); lia.
-  - (* c < 0 and g does not divide c: round the quotient down. *)
-    assert (Hneg : Int64.to_Z c < 0) by (apply Hlt'; reflexivity).
-    assert (Hr : Z.rem (Int64.to_Z c) (Int64.to_Z g) <> 0)
-      by (intro H; apply Heq' in H; discriminate).
-    assert (Hrneg : Z.rem (Int64.to_Z c) (Int64.to_Z g) <= 0)
-      by (apply Z.rem_nonpos; lia).
-    assert (Hg2 : 2 <= Int64.to_Z g).
-    { destruct (Z.eq_dec (Int64.to_Z g) 1) as [ E | E ]; [ | lia ].
-      rewrite E, Z.rem_1_r in Hr. contradiction. }
-    assert (Hqb : - two63 < Z.quot (Int64.to_Z c) (Int64.to_Z g)).
-    { pose proof (quot_abs_le (Int64.to_Z c) (Int64.to_Z g) Hg) as Habs.
-      pose proof (Int64.to_Z_bounded g) as Hgb. unfold in_int64 in Hgb.
-      destruct (Z.eq_dec (Z.quot (Int64.to_Z c) (Int64.to_Z g)) (- two63))
-        as [ E | NE ].
-      - exfalso. rewrite E in Hqr. unfold two63 in *. lia.
-      - unfold two63 in *. lia. }
-    pose proof (quot_in_range (Int64.to_Z c) (Int64.to_Z g) Hg
-                  (Int64.to_Z_bounded c)) as Hqrange.
-    unfold in_int64 in Hqrange.
-    rewrite Int64.sub_spec, Hq, Int64.to_Z_one.
-    rewrite wrap64_id by (unfold in_int64; unfold two63 in *; lia).
-    apply Z.div_unique_pos
-      with (r := Z.rem (Int64.to_Z c) (Int64.to_Z g) + Int64.to_Z g).
-    + lia.
-    + rewrite Z.mul_sub_distr_l. lia.
-  - (* c >= 0 and g divides c. *)
-    assert (Hr : Z.rem (Int64.to_Z c) (Int64.to_Z g) = 0)
-      by (apply Heq'; reflexivity).
-    rewrite Hq. apply Z.div_unique_pos with (r := 0); lia.
-  - (* c >= 0 and g does not divide c: the quotient is already the floor. *)
-    assert (Hnn : 0 <= Int64.to_Z c).
-    { destruct (Z_le_gt_dec 0 (Int64.to_Z c)) as [ | Hneg ]; [ assumption | ].
-      exfalso. assert (E : false = true) by (apply Hlt'; lia). discriminate E. }
-    assert (Hrnn : 0 <= Z.rem (Int64.to_Z c) (Int64.to_Z g))
-      by (apply Z.rem_nonneg; lia).
-    rewrite Hq.
-    apply Z.div_unique_pos with (r := Z.rem (Int64.to_Z c) (Int64.to_Z g)); lia.
-Qed.
-
-(* [Int64.div] by a positive divisor that divides exactly is the exact
-   quotient. *)
-Lemma div_exact64 : forall c g,
-  0 < Int64.to_Z g -> (Int64.to_Z g | Int64.to_Z c) ->
-  Int64.to_Z (Int64.div c g) = Int64.to_Z c / Int64.to_Z g.
-Proof.
-  intros c g Hg Hd. rewrite Int64.div_spec by lia.
-  rewrite wrap64_id
-    by (apply quot_in_range; [ lia | apply Int64.to_Z_bounded ]).
-  apply Z.quot_div_exact; [ lia | exact Hd ].
-Qed.
-
 (* --- Sums over atoms. --- *)
 
 (* [sum f id] over a list of atoms. *)
 Definition sum_ids (f : int -> Z) (ids : list int) : Z :=
   fold_right (fun id acc => f id + acc) 0 ids.
 
+(* Sums unfold on cons, depend only on the summand at each atom, vanish when
+   every summand does, and distribute over addition and scaling. *)
 Lemma sum_ids_cons : forall f id ids,
   sum_ids f (id :: ids) = f id + sum_ids f ids.
 Proof. reflexivity. Qed.
@@ -574,35 +353,24 @@ Proof.
     rewrite (IH Hnd Hin). lia.
 Qed.
 
+(* The value of a term list unfolds on cons. *)
 Lemma denote_terms_cons : forall {C} (cZ : C -> Z) rho id c terms,
   denote_terms cZ rho ((id, c) :: terms)
   = cZ c * rho id + denote_terms cZ rho terms.
 Proof. reflexivity. Qed.
-
-Lemma coeff_gen_cons : forall {C} (dflt : C) id k c terms,
-  coeff_gen dflt id ((k, c) :: terms)
-  = if (id =? k)%sint63 then c else coeff_gen dflt id terms.
-Proof.
-  intros. unfold coeff_gen. simpl. destruct (id =? k)%sint63; reflexivity.
-Qed.
-
-Lemma coeff_gen_not_in : forall {C} (dflt : C) id terms,
-  ~ In id (map fst terms) -> coeff_gen dflt id terms = dflt.
-Proof.
-  intros. unfold coeff_gen. rewrite assoc_opt_None by assumption. reflexivity.
-Qed.
 
 (* The value of a duplicate-free term list is the sum, over any
    duplicate-free list of atoms covering it, of coefficient times atom. *)
 Lemma sum_ids_coeff : forall {C} (cZ : C -> Z) (dflt : C) rho terms ids,
   cZ dflt = 0 -> NoDup (map fst terms) -> NoDup ids ->
   incl (map fst terms) ids ->
-  sum_ids (fun id => cZ (coeff_gen dflt id terms) * rho id) ids
+  sum_ids (fun id => cZ (assoc_default dflt id terms) * rho id) ids
   = denote_terms cZ rho terms.
 Proof.
   intros C cZ dflt rho terms.
   induction terms as [ | [k c] terms IH ]; intros ids Hd Hnd Hnd_ids Hincl.
-  - apply sum_ids_zero. intros id _. unfold coeff_gen. simpl. rewrite Hd. ring.
+  - apply sum_ids_zero. intros id _. unfold assoc_default. simpl.
+    rewrite Hd. ring.
   - apply NoDup_cons_iff in Hnd as [Hk Hnd].
     rewrite denote_terms_cons.
     rewrite <- (IH ids Hd Hnd Hnd_ids)
@@ -610,18 +378,19 @@ Proof.
     apply (sum_ids_split _ _ ids k).
     + exact Hnd_ids.
     + apply Hincl. left. reflexivity.
-    + intros id Hne. cbv beta. rewrite coeff_gen_cons.
+    + intros id Hne. cbv beta. rewrite assoc_default_cons.
       destruct (id =? k)%sint63 eqn:E; [ apply eqb_int in E; contradiction | ].
       reflexivity.
-    + cbv beta. rewrite coeff_gen_cons, eqb_int_refl.
-      rewrite (coeff_gen_not_in dflt k terms Hk), Hd. ring.
+    + cbv beta. rewrite assoc_default_cons, eqb_int_refl.
+      rewrite (assoc_default_not_in dflt k terms Hk), Hd. ring.
 Qed.
 
 (* A duplicate-free term list all of whose coefficients are zero has value
    zero. *)
 Lemma denote_terms_zero : forall rho (terms : list (int * int)),
   NoDup (map fst terms) ->
-  (forall id, In id (map fst terms) -> to_Z (coeff_gen zero id terms) = 0) ->
+  (forall id, In id (map fst terms) ->
+     to_Z (assoc_default zero id terms) = 0) ->
   denote_terms to_Z rho terms = 0.
 Proof.
   intros rho terms Hnd Hz.
@@ -642,6 +411,8 @@ Definition merge_terms {C} (f : int -> option C) (is_zero : C -> bool)
       Some (if is_zero c then None else Some (id, c)))
     ids.
 
+(* [merge_terms] unfolds on cons: [None] if the coefficient fails, else the
+   entry is kept unless its coefficient is zero. *)
 Lemma merge_terms_cons : forall {C} f (z : C -> bool) id ids,
   merge_terms f z (id :: ids)
   = (let* c := f id in
@@ -654,6 +425,7 @@ Proof.
   destruct (z c); reflexivity.
 Qed.
 
+(* The atoms of a merged list are among those given ... *)
 Lemma merge_keys : forall {C} f (z : C -> bool) ids ts,
   merge_terms f z ids = Some ts -> forall id, In id (map fst ts) -> In id ids.
 Proof.
@@ -668,6 +440,7 @@ Proof.
       right. eapply IH; [ reflexivity | exact Hin ].
 Qed.
 
+(* ... and distinct when those are. *)
 Lemma merge_NoDup : forall {C} f (z : C -> bool) ids ts,
   NoDup ids -> merge_terms f z ids = Some ts -> NoDup (map fst ts).
 Proof.
@@ -683,11 +456,13 @@ Proof.
       intros Hin. apply Hnot. eapply merge_keys; [ exact Hr | exact Hin ].
 Qed.
 
+(* For every atom given, the merge computed a coefficient, which the merged
+   list holds, unless it is zero, in which case the atom is absent. *)
 Lemma merge_coeff : forall {C} f (z : C -> bool) (dflt : C) ids ts,
   NoDup ids -> merge_terms f z ids = Some ts ->
   forall id, In id ids ->
     exists c, f id = Some c
-      /\ coeff_gen dflt id ts = (if z c then dflt else c)
+      /\ assoc_default dflt id ts = (if z c then dflt else c)
       /\ (In id (map fst ts) <-> z c = false).
 Proof.
   intros C f z dflt ids. induction ids as [ | id ids IH ];
@@ -702,9 +477,9 @@ Proof.
     by (intros Hin'; apply Hnot; eapply merge_keys; [ exact Hr | exact Hin' ]).
   destruct Hin as [ -> | Hin ].
   - exists c. split; [ exact Hf | ]. destruct (z c) eqn:Hz.
-    + split; [ apply coeff_gen_not_in; exact Hrest | ].
+    + split; [ apply assoc_default_not_in; exact Hrest | ].
       split; [ intros Hin'; contradiction | discriminate ].
-    + split; [ rewrite coeff_gen_cons, eqb_int_refl; reflexivity | ].
+    + split; [ rewrite assoc_default_cons, eqb_int_refl; reflexivity | ].
       split; [ reflexivity | intros _; left; reflexivity ].
   - destruct (IH rest Hnd eq_refl id' Hin) as [c' [Hf' [Hc' Hin']]].
     exists c'. split; [ exact Hf' | ].
@@ -712,7 +487,7 @@ Proof.
     destruct (z c).
     + split; [ exact Hc' | exact Hin' ].
     + split.
-      * rewrite coeff_gen_cons.
+      * rewrite assoc_default_cons.
         destruct (id' =? id)%sint63 eqn:E;
           [ apply eqb_int in E; contradiction | exact Hc' ].
       * simpl. split.
@@ -736,7 +511,8 @@ Proof.
   apply sum_ids_ext. intros id Hid.
   destruct (merge_coeff f z dflt ids ts Hnd H id Hid) as [c [Hc [Hcoeff _]]].
   rewrite Hcoeff. rewrite <- (Hf id c Hid Hc).
-  destruct (z c) eqn:Hzc; [ rewrite Hd, (Hz c Hzc); reflexivity | reflexivity ].
+  destruct (z c) eqn:Hzc;
+    [ rewrite Hd, (Hz c Hzc); reflexivity | reflexivity ].
 Qed.
 
 (* --- The [Affine] operations. --- *)
@@ -746,6 +522,7 @@ Lemma denote_record : forall rho c ts,
   = to_Z c + denote_terms to_Z rho ts.
 Proof. reflexivity. Qed.
 
+(* A constant form has the constant's value, and is well-formed. *)
 Lemma constant_denote : forall rho c, denote rho (Affine.constant c) = to_Z c.
 Proof.
   intros. unfold Affine.constant. rewrite denote_record.
@@ -755,6 +532,7 @@ Qed.
 Lemma constant_wf : forall c, wf (Affine.constant c).
 Proof. intros. constructor. Qed.
 
+(* The form of an atom has the atom's value, and is well-formed. *)
 Lemma var_denote : forall rho id, denote rho (Affine.var id) = rho id.
 Proof.
   intros. unfold Affine.var. rewrite denote_record, denote_terms_cons.
@@ -764,6 +542,7 @@ Qed.
 Lemma var_wf : forall id, wf (Affine.var id).
 Proof. intros. unfold wf. simpl. constructor; [ tauto | constructor ]. Qed.
 
+(* Scaling every coefficient, when none overflows, scales the value. *)
 Lemma scale_terms_denote : forall rho k (terms : list (int * int)) ts,
   map_opt (fun '(id, c) => let* c := mul_ovf c k in Some (id, c)) terms
   = Some ts ->
@@ -778,6 +557,8 @@ Proof.
     apply mul_ovf_spec in Hd. rewrite Hd. ring.
 Qed.
 
+(* [scale_checked k f], when it answers, has [k] times the value of [f], no new
+   atoms, and stays well-formed. *)
 Lemma scale_checked_spec : forall rho k f f',
   Affine.scale_checked k f = Some f' ->
   denote rho f' = to_Z k * denote rho f
@@ -801,6 +582,8 @@ Proof.
     split; [ ring | split; tauto ].
 Qed.
 
+(* [add_checked], when it answers, has the sum of the values, atoms from either
+   side, and is well-formed. *)
 Lemma add_checked_spec : forall rho a b c,
   wf a -> wf b -> Affine.add_checked a b = Some c ->
   denote rho c = denote rho a + denote rho b
@@ -851,6 +634,8 @@ Proof.
   - eapply merge_NoDup; [ exact Hnd | exact Hts ].
 Qed.
 
+(* [add_const_checked], when it answers, adds the constant to the value and
+   keeps the terms. *)
 Lemma add_const_checked_spec : forall rho f k f',
   Affine.add_const_checked f k = Some f' ->
   denote rho f' = denote rho f + to_Z k
@@ -864,6 +649,8 @@ Proof.
   split; [ ring | split; [ reflexivity | tauto  ] ].
 Qed.
 
+(* [sub_checked], when it answers, has the difference of the values, atoms from
+   either side, and is well-formed. *)
 Lemma sub_checked_spec : forall rho a b c,
   wf a -> wf b -> Affine.sub_checked a b = Some c ->
   denote rho c = denote rho a - denote rho b
@@ -886,13 +673,6 @@ Qed.
 
 (* --- Resolvents. --- *)
 
-Definition int_eq_dec : forall x y : int, {x = y} + {x <> y}.
-Proof.
-  intros x y. destruct (x =? y)%sint63 eqn:E.
-  - left. apply eqb_int. exact E.
-  - right. apply eqb_int_false. exact E.
-Defined.
-
 (* [scaled k f] multiplies the constant and every coefficient of [f] by
    [k], exactly. *)
 Lemma scaled_spec : forall k f c ts,
@@ -909,7 +689,7 @@ Proof.
   split; [ | split ].
   - apply mul_ovf64_spec in Hc. rewrite Hc, Int64.of_int_spec. reflexivity.
   - eapply map_opt_keys. exact Hts.
-  - intros id. unfold coeff64, Affine.coeff, coeff_gen.
+  - intros id. unfold coeff64, Affine.coeff, assoc_default.
     pose proof (map_opt_assoc _ _ _ Hts id) as Ha. revert Ha.
     destruct (assoc_opt id f.(Affine.terms)) as [ c0 | ]; intro Ha.
     + destruct Ha as [d [Hd ->]]. apply mul_ovf64_spec in Hd.
@@ -976,7 +756,7 @@ Proof.
       split; [ intros _; unfold m; lia | reflexivity ]. }
   assert (Hm0 : forall id, ~ In id ids -> m id = 0 /\ ~ In id (map fst ts)).
   { intros id Hid. split.
-    - unfold m, Affine.coeff. rewrite !coeff_gen_not_in;
+    - unfold m, Affine.coeff. rewrite !assoc_default_not_in;
         [ rewrite to_Z_zero; ring | | ];
         intros Hin; apply Hid; apply Hids; tauto.
     - intros Hin. apply Hid. eapply merge_keys; [ exact Hts | exact Hin ]. }
@@ -1007,7 +787,7 @@ Proof.
     + intros id Hin. contradiction.
     + exists 1. split; [ lia | ]. intros id.
       specialize (Hm_all id). unfold m in Hm_all. rewrite Hm_all.
-      unfold Affine.coeff, coeff_gen. cbn [Affine.terms assoc_opt].
+      unfold Affine.coeff, assoc_default. cbn [Affine.terms assoc_opt].
       rewrite to_Z_zero. ring.
     + intros rho Hpos. rewrite Hsum in Hpos.
       rewrite sum_ids_zero in Hpos by (intros; rewrite Hm_all; ring).
@@ -1040,7 +820,7 @@ Proof.
               * to_Z (Affine.coeff id
                         {| Affine.const := k; Affine.terms := rts |})
               = m id).
-    { intros id. unfold Affine.coeff, coeff_gen. cbn [Affine.terms].
+    { intros id. unfold Affine.coeff, assoc_default. cbn [Affine.terms].
       pose proof (map_opt_assoc _ _ _ Hrts id) as Ha. revert Ha.
       destruct (assoc_opt id (t0 :: ts')) as [ c0 | ] eqn:Ha0; intro Ha.
       - destruct Ha as [d [Hd Hd']]. rewrite Hd'.
@@ -1053,7 +833,7 @@ Proof.
         { eapply merge_keys; [ exact Hts | ].
           apply assoc_opt_In in Ha0. apply (in_map fst) in Ha0. exact Ha0. }
         destruct (Hm id Hin) as [Hm1 _].
-        unfold coeff64, coeff_gen in Hm1. rewrite Ha0 in Hm1.
+        unfold coeff64, assoc_default in Hm1. rewrite Ha0 in Hm1.
         rewrite <- Hm1, Hq. ring.
       - rewrite Ha, to_Z_zero.
         assert (Hnot : ~ In id (map fst (t0 :: ts'))).
@@ -1077,7 +857,8 @@ Proof.
       { rewrite <- (sum_ids_coeff to_Z zero rho rts ids);
           [ | reflexivity | | exact Hnd | ].
         - rewrite <- sum_ids_scale. apply sum_ids_ext. intros id _.
-          rewrite <- (Hcoeff id). unfold Affine.coeff. cbn [Affine.terms]. ring.
+          rewrite <- (Hcoeff id). unfold Affine.coeff. cbn [Affine.terms].
+          ring.
         - rewrite Hkeys. eapply merge_NoDup; [ exact Hnd | exact Hts ].
         - intros x Hx. rewrite Hkeys in Hx.
           eapply merge_keys; [ exact Hts | exact Hx ]. }

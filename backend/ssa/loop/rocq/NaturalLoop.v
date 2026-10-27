@@ -1,5 +1,5 @@
-(* The natural loops of an SSA graph, from its back edges, and a test for
-   an edge dominating a block. The extraction of this file, NaturalLoop.ml,
+(* The natural loops of an SSA graph, from its back edges, and the exit
+   branch of a loop's header. The extraction of this file, NaturalLoop.ml,
    is the implementation.
 
    See the reading guide at the top of LoopComparisons.v for the Rocq
@@ -27,19 +27,18 @@
      which a back-edge source can be reached without passing through the
      header, which is the definition of the natural loop (and in particular
      the body is the same whatever the order of the worklist);
-   - [edge_dominates_sound]: the sufficient condition [edge_dominates] has for
-     an edge to dominate a block is one: every path from the entry to the
-     block traverses the edge, given what [dominates] means.
+   - [find_exit_branch_spec]: the exit branch found is the header's
+     two-way [Switch], one way into the body and the other out of it.
 
    The trusted part is SsaModel.v: that [predecessors] and
-   [all_successors] are the two ends of the same edges, that [dominates d
-   b] means every path from the entry to [b] passes through [d], and that
-   the entry dominates every block (every block of a finished graph is
-   reachable from it). The theorems state these as hypotheses. *)
+   [all_successors] are the two ends of the same edges, that the block list
+   given is the whole graph (which the theorems state as hypotheses), and
+   that [dominates] is dominance in the graph (SsaDominance.v says what
+   that means). *)
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlInt OxCamlList.
-From OxCamlSsa Require Import SsaModel.
+From OxCamlSsa Require Import SsaModel SsaGraph.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -115,37 +114,36 @@ Definition find_loops (blocks : list block) : list natural_loop :=
          back_edges := back_preds |})
     header_tbl.
 
-(* A sufficient condition for the edge [src -> succ] to dominate [target]:
-   [succ] dominates [target] and the edge is the only way into [succ]. The
-   middle test excludes [succ] being the graph's entry, which has a
-   predecessor when the function calls itself in tail position ([Continue
-   (Goto entry)]): paths from the entry to [target] then start at [succ]
-   without taking the edge. On a finished graph, where every block is
-   reachable from the entry, a block that dominates its only predecessor
-   can only be the entry. *)
-Definition edge_dominates (src succ target : block) : bool :=
-  dominates succ target
-  && negb (dominates succ src)
-  && match predecessors succ with
-     | [p] => block_eqb p src
-     | [] | _ :: _ :: _ => false
-     end.
+(* The header's exit branch: the comparison it tests, which way continues
+   the loop, and where the other way goes. *)
+Record exit_branch : Type :=
+  { condition : value;
+    continue_when_true : bool;
+    exit_target : block }.
+
+(* The exit branch of a loop: the header's terminator must be a two-target
+   [Switch], [ifnot] its false edge and [ifso] its true edge, one of them
+   into the body and the other out of it. *)
+Definition find_exit_branch (loop : natural_loop) : option exit_branch :=
+  match terminator loop.(header) with
+  | Terminator.Switch index [ifnot; ifso] =>
+    match set_mem ifso loop.(body), set_mem ifnot loop.(body) with
+    | true, false =>
+      Some {| condition := index;
+              continue_when_true := true;
+              exit_target := ifnot |}
+    | false, true =>
+      Some {| condition := index;
+              continue_when_true := false;
+              exit_target := ifso |}
+    | true, true | false, false => None
+    end
+  | _ => None
+  end.
 
 (* ======================================================================== *)
 (* Part 2: the intended meaning                                             *)
 (* ======================================================================== *)
-
-(* [path a p c]: [p] is a path from [a] to [c] along the graph's edges,
-   listing its blocks from [a] to [c]. An edge [a -> b] is [a] being a
-   predecessor of [b]. *)
-Inductive path : block -> list block -> block -> Prop :=
-  | path_one : forall b, path b [b] b
-  | path_cons : forall a b l c,
-      In a (predecessors b) -> path b (b :: l) c -> path a (a :: b :: l) c.
-
-(* The edge [src -> succ] is on the path [p]. *)
-Definition edge_on (p : list block) (src succ : block) : Prop :=
-  exists l1 l2, p = l1 ++ src :: succ :: l2.
 
 (* [reaches header sources b]: from [b], one of [sources] can be reached
    along the graph's edges without passing through [header], [b] itself
@@ -162,34 +160,6 @@ Inductive reaches (header : block) (sources : list block) : block -> Prop :=
 (* Part 3: lemmas used by the proofs                                        *)
 (* ======================================================================== *)
 
-(* --- Block equality and sets --- *)
-
-Lemma block_eqb_refl : forall b, block_eqb b b = true.
-Proof. intros b. apply block_eqb_spec. reflexivity. Qed.
-
-Lemma block_eqb_neq : forall a b, a <> b -> block_eqb a b = false.
-Proof.
-  intros a b H. destruct (block_eqb a b) eqn:E; [ | reflexivity ].
-  apply block_eqb_spec in E. contradiction.
-Qed.
-
-Lemma set_mem_add_iff : forall b x s,
-  set_mem b (set_add x s) = true <-> b = x \/ set_mem b s = true.
-Proof.
-  intros b x s. rewrite set_mem_add, orb_true_iff, block_eqb_spec. tauto.
-Qed.
-
-Lemma set_mem_singleton_iff : forall b x,
-  set_mem b (set_singleton x) = true <-> b = x.
-Proof. intros b x. rewrite set_mem_singleton. apply block_eqb_spec. Qed.
-
-Lemma length_filter_le : forall {A} (f : A -> bool) (l : list A),
-  length (filter f l) <= length l.
-Proof.
-  intros A f l. induction l as [ | x l IH ]; [ reflexivity | ].
-  simpl. destruct (f x); simpl; lia.
-Qed.
-
 (* --- The walk: soundness --- *)
 
 Section Walk.
@@ -202,6 +172,8 @@ Section Walk.
     /\ forall b, set_mem b body = true ->
          b = header \/ reaches header sources b.
 
+  (* One round of [add_new] over [preds] keeps the body sound and the worklist
+     made of blocks that reach a source, when every predecessor added does. *)
   Lemma fold_add_new_sound : forall preds body added,
     body_sound body -> Forall (reaches header sources) added ->
     (forall p, In p preds -> p <> header -> reaches header sources p) ->
@@ -222,11 +194,14 @@ Section Walk.
         * destruct Hb as [Hh Hb]. split.
           -- apply set_mem_add_iff. right. exact Hh.
           -- intros b Hin. apply set_mem_add_iff in Hin.
-             destruct Hin as [ -> | Hin ]; [ right; exact Hrp | apply Hb, Hin ].
+             destruct Hin as [ -> | Hin ];
+               [ right; exact Hrp | apply Hb, Hin ].
         * constructor; assumption.
         * intros q Hq. apply Hp. right. exact Hq.
   Qed.
 
+  (* The walk keeps the body sound when the worklist holds only blocks that
+     reach a source. *)
   Lemma walk_sound : forall fuel body wl,
     body_sound body -> Forall (reaches header sources) wl ->
     body_sound (walk fuel body wl).
@@ -242,6 +217,7 @@ Section Walk.
     cbn [fst snd] in H. destruct H as [H1 H2]. apply IH; assumption.
   Qed.
 
+  (* The body computed is sound, whatever the fuel. *)
   Lemma natural_loop_body_sound_aux : forall fuel,
     body_sound (natural_loop_body fuel header sources).
   Proof.
@@ -258,10 +234,12 @@ Section Walk.
     exact (walk_sound fuel body0 seeds Hf1 Hf2).
   Qed.
 
+  (* The header is in the body. *)
   Theorem natural_loop_body_header : forall fuel,
     set_mem header (natural_loop_body fuel header sources) = true.
   Proof. intros fuel. exact (proj1 (natural_loop_body_sound_aux fuel)). Qed.
 
+  (* Every block of the body is the header or reaches a source. *)
   Theorem natural_loop_body_sound : forall fuel b,
     set_mem b (natural_loop_body fuel header sources) = true ->
     b = header \/ reaches header sources b.
@@ -284,30 +262,7 @@ Section Walk.
     forall b, set_mem b body = true -> b <> header -> ~ In b wl ->
     forall p, In p (predecessors b) -> set_mem p body = true.
 
-  Lemma filter_le : forall {A} (f g : A -> bool) (l : list A),
-    (forall y, f y = true -> g y = true) ->
-    length (filter f l) <= length (filter g l).
-  Proof.
-    intros A f g l Hfg. induction l as [ | y l IH ]; [ reflexivity | ].
-    simpl. destruct (f y) eqn:Hf.
-    - rewrite (Hfg y Hf). simpl. lia.
-    - destruct (g y); simpl; lia.
-  Qed.
-
-  Lemma filter_lt : forall {A} (f g : A -> bool) (l : list A) x,
-    (forall y, f y = true -> g y = true) ->
-    In x l -> g x = true -> f x = false ->
-    length (filter f l) < length (filter g l).
-  Proof.
-    intros A f g l x Hfg Hin Hg Hf.
-    induction l as [ | y l IH ]; [ contradiction | ].
-    simpl. destruct Hin as [ -> | Hin ].
-    - rewrite Hf, Hg. simpl. pose proof (filter_le f g l Hfg). lia.
-    - destruct (f y) eqn:Hfy.
-      + rewrite (Hfg y Hfy). simpl. apply IH in Hin. lia.
-      + destruct (g y); simpl; apply IH in Hin; lia.
-  Qed.
-
+  (* Adding a block of the graph not yet in the body decreases [absent]. *)
   Lemma absent_add : forall body p,
     In p blocks -> set_mem p body = false ->
     absent (set_add p body) < absent body.
@@ -322,6 +277,7 @@ Section Walk.
     - apply negb_false_iff. apply set_mem_add_iff. left. reflexivity.
   Qed.
 
+  (* [absent] is at most the number of blocks. *)
   Lemma absent_le_length : forall body, absent body <= length blocks.
   Proof. intros body. apply length_filter_le. Qed.
 
@@ -376,6 +332,9 @@ Section Walk.
           -- right. right. exact Hb'.
   Qed.
 
+  (* With enough fuel ([length wl + absent body]), the walk keeps every block
+     of the body and ends with a body closed under predecessors, except at the
+     header. *)
   Lemma walk_complete : forall fuel body wl,
     (forall b, In b wl -> set_mem b body = true) ->
     (forall b, set_mem b body = true -> In b blocks) ->
@@ -422,6 +381,8 @@ Section Walk.
         intros b Hb. apply IH1, H1, Hb.
   Qed.
 
+  (* With the graph's blocks as fuel, the body holds every source and is closed
+     under predecessors, except at the header. *)
   Lemma natural_loop_body_complete_aux :
     In header blocks -> (forall s, In s sources -> In s blocks) ->
     (forall s, In s sources ->
@@ -452,10 +413,13 @@ Section Walk.
     intros s Hs'. apply W1, H2, Hs'.
   Qed.
 
+  (* A block that reaches a source is not the header. *)
   Lemma reaches_not_header : forall b,
     reaches header sources b -> b <> header.
   Proof. intros b H. destruct H; assumption. Qed.
 
+  (* Every block that reaches a source without passing through the header is in
+     the body. *)
   Theorem natural_loop_body_complete : forall b,
     In header blocks -> (forall s, In s sources -> In s blocks) ->
     reaches header sources b ->
@@ -488,6 +452,8 @@ Section FindLoops.
   Definition tbl_has (tbl : list (block * list block)) (h s : block) : Prop :=
     exists srcs, In (h, srcs) tbl /\ In s srcs.
 
+  (* The entries after [add_back_edge h s]: a new entry [(h, [s])], the entry
+     of [h] with [s] added, or an entry left alone. *)
   Lemma add_back_edge_entries : forall h s tbl h' srcs',
     In (h', srcs') (add_back_edge h s tbl) ->
     (h' = h /\ srcs' = [s])
@@ -511,6 +477,7 @@ Section FindLoops.
           -- right. right. right. exact H.
   Qed.
 
+  (* After [add_back_edge h s] the table has [s] as a source of [h] ... *)
   Lemma add_back_edge_has_new : forall h s tbl,
     tbl_has (add_back_edge h s tbl) h s.
   Proof.
@@ -523,6 +490,7 @@ Section FindLoops.
         exists srcs. split; [ right; exact H1 | exact H2 ].
   Qed.
 
+  (* ... and keeps every source it had. *)
   Lemma add_back_edge_has_old : forall h s tbl h' s',
     tbl_has tbl h' s' -> tbl_has (add_back_edge h s tbl) h' s'.
   Proof.
@@ -542,11 +510,15 @@ Section FindLoops.
           exists srcs'. split; [ right; exact H1 | exact H2 ].
   Qed.
 
+  (* [record_back_edge], unfolded. *)
   Lemma record_back_edge_eq : forall bl tbl h,
     record_back_edge bl tbl h
     = if dominates h bl then add_back_edge h bl tbl else tbl.
   Proof. reflexivity. Qed.
 
+  (* Recording the back edges among the successors [succs] of [bl]: the table
+     stays sound, keeps what it had, and gains each successor that dominates
+     [bl]. *)
   Lemma fold_succs_spec : forall bl succs tbl,
     In bl blocks -> (forall s, In s succs -> In s (all_successors bl)) ->
     tbl_sound tbl ->
@@ -591,6 +563,8 @@ Section FindLoops.
         * apply S3; assumption.
   Qed.
 
+  (* The same over a list of blocks: the table gains every back edge among
+     their successors. *)
   Lemma fold_blocks_spec : forall bls tbl,
     (forall b, In b bls -> In b blocks) -> tbl_sound tbl ->
     let tbl' := List.fold_left record_back_edges bls tbl in
@@ -616,6 +590,8 @@ Section FindLoops.
         * apply T3; assumption.
   Qed.
 
+  (* The table [find_loops] builds is sound and holds every back edge of the
+     graph. *)
   Lemma header_tbl_spec :
     let tbl := List.fold_left record_back_edges blocks [] in
     tbl_sound tbl
@@ -628,6 +604,8 @@ Section FindLoops.
     split; assumption.
   Qed.
 
+  (* The loops found are exactly the entries of the table, each with its body
+     computed. *)
   Lemma find_loops_In : forall l,
     In l (find_loops blocks) <->
     exists h srcs,
@@ -644,6 +622,8 @@ Section FindLoops.
       exact Hin.
   Qed.
 
+  (* Every back edge of a loop found is an edge of the graph whose target, the
+     header, dominates its source. *)
   Theorem find_loops_back_edges : forall l s,
     In l (find_loops blocks) -> In s l.(back_edges) ->
     In s blocks /\ In l.(header) (all_successors s)
@@ -655,9 +635,12 @@ Section FindLoops.
     exact (proj2 (S1 h srcs Hin) s Hs).
   Qed.
 
+  (* Every edge whose target dominates its source is a back edge of a loop
+     found, with that target as header. *)
   Theorem find_loops_complete : forall s h,
     In s blocks -> In h (all_successors s) -> dominates h s = true ->
-    exists l, In l (find_loops blocks) /\ l.(header) = h /\ In s l.(back_edges).
+    exists l,
+      In l (find_loops blocks) /\ l.(header) = h /\ In s l.(back_edges).
   Proof.
     intros s h Hs Hh Hd.
     destruct header_tbl_spec as [_ S3].
@@ -669,6 +652,8 @@ Section FindLoops.
     apply find_loops_In. exists h, srcs. split; [ exact Hin | reflexivity ].
   Qed.
 
+  (* The body of a loop found is its header plus the blocks that reach a
+     back-edge source without passing through the header. *)
   Theorem find_loops_body : forall l b,
     In l (find_loops blocks) ->
     (set_mem b l.(body) = true
@@ -691,52 +676,24 @@ Section FindLoops.
   Qed.
 End FindLoops.
 
-(* --- [edge_dominates] --- *)
+(* --- [find_exit_branch] --- *)
 
-Section Dominance.
-  Variable entry : block.
-
-  (* What [dominates] means: every path from the entry to [b] passes
-     through [d] ... *)
-  Hypothesis dominates_spec : forall d b,
-    dominates d b = true -> forall p, path entry p b -> In d p.
-
-  (* ... and the entry dominates every block, each being reachable from
-     it. Nothing is assumed of the entry's predecessors: a self-recursive
-     tail call is a back edge to the entry. *)
-  Hypothesis entry_dominates : forall b, dominates entry b = true.
-
-  Lemma path_edge_to : forall a p c succ src,
-    path a p c -> In succ p -> a <> succ -> predecessors succ = [src] ->
-    edge_on p src succ.
-  Proof.
-    intros a p c succ src Hp.
-    induction Hp as [ b | a b l c Hab Hp IH ]; intros Hin Hne Hpred.
-    - destruct Hin as [ -> | [] ]. contradiction.
-    - destruct (block_eqb b succ) eqn:E.
-      + apply block_eqb_spec in E. subst b.
-        rewrite Hpred in Hab. destruct Hab as [ -> | [] ].
-        exists [], l. reflexivity.
-      + assert (Hne' : b <> succ).
-        { intros ->. rewrite block_eqb_refl in E. discriminate. }
-        destruct Hin as [ -> | Hin ]; [ contradiction | ].
-        destruct (IH Hin Hne' Hpred) as [l1 [l2 Heq]].
-        exists (a :: l1), l2. rewrite Heq. reflexivity.
-  Qed.
-
-  Theorem edge_dominates_sound : forall src succ target,
-    edge_dominates src succ target = true ->
-    forall p, path entry p target -> edge_on p src succ.
-  Proof.
-    intros src succ target H p Hp. unfold edge_dominates in H.
-    apply andb_true_iff in H. destruct H as [H Hpred].
-    apply andb_true_iff in H. destruct H as [Hd Hnd].
-    destruct (predecessors succ) as [ | p0 [ | ? ? ] ] eqn:Hps;
-      try discriminate.
-    apply block_eqb_spec in Hpred. subst p0.
-    apply (path_edge_to entry p target succ src Hp).
-    - exact (dominates_spec succ target Hd p Hp).
-    - intros ->. rewrite entry_dominates in Hnd. discriminate.
-    - exact Hps.
-  Qed.
-End Dominance.
+(* The exit branch found is the header's two-way [Switch] on [condition];
+   the loop continues along the edge [continue_when_true] names, which is
+   into the body, and the other edge leaves it. *)
+Theorem find_exit_branch_spec : forall l eb,
+  find_exit_branch l = Some eb ->
+  exists ifnot ifso,
+    terminator l.(header) = Terminator.Switch eb.(condition) [ifnot; ifso]
+    /\ set_mem ifso l.(body) = eb.(continue_when_true)
+    /\ set_mem ifnot l.(body) = negb eb.(continue_when_true).
+Proof.
+  intros l eb H. unfold find_exit_branch in H.
+  destruct (terminator l.(header)) as [ | index targets | | ] eqn:Ht;
+    try discriminate.
+  destruct targets as [ | ifnot [ | ifso [ | ] ] ]; try discriminate.
+  exists ifnot, ifso.
+  destruct (set_mem ifso l.(body)) eqn:Hso;
+    destruct (set_mem ifnot l.(body)) eqn:Hnot; try discriminate;
+    injection H as <-; cbn; repeat split.
+Qed.

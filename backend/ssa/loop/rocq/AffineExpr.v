@@ -32,7 +32,8 @@
    (axioms in OxCamlInt64.v), and the extraction of [lsl] (OxCamlExtract.v). *)
 
 From Stdlib Require Import ZArith Lia Bool List Zbitwise.
-From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64 OxCamlList.
+From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64 OxCamlList
+  IntArith.
 From OxCamlLoop Require Import FourierMotzkin.
 Import ListNotations.
 
@@ -74,7 +75,7 @@ Module Range.
     else {| lo := Int64.zero;
             hi := Int64.shift_right_logical Int64.minus_one bits |}.
 
-  (* The checked 64-bit arithmetic of FourierMotzkin.v. *)
+  (* The checked 64-bit arithmetic of IntArith.v (rocq/). *)
   Definition add64 : Int64.t -> Int64.t -> option Int64.t := add_ovf64.
   Definition mul64 : Int64.t -> Int64.t -> option Int64.t := mul_ovf64.
 
@@ -257,26 +258,10 @@ Fixpoint consistent (rho : valuation) (e : t) : Prop :=
 (* Part 3: lemmas used by the proofs                                        *)
 (* ======================================================================== *)
 
-Lemma pow2_pos : forall n, 0 <= n -> 0 < 2 ^ n.
-Proof. intros n Hn. apply Z.pow_pos_nonneg; lia. Qed.
-
-(* [2^1 <= 2^n <= 2^63] for [1 <= n <= 63], with the powers as numerals, so
-   that [lia] can use them. *)
-Lemma pow2_bounds : forall n, 0 <= n <= 63 -> 1 <= 2 ^ n <= two63.
-Proof.
-  intros n Hn. rewrite two63_pow. split.
-  - change 1 with (2 ^ 0). apply Z.pow_le_mono_r; lia.
-  - apply Z.pow_le_mono_r; lia.
-Qed.
-
-Lemma pow2_ge_2 : forall n, 1 <= n -> 2 <= 2 ^ n.
-Proof. intros n Hn. change 2 with (2 ^ 1) at 1. apply Z.pow_le_mono_r; lia. Qed.
-
-Lemma pow2_ge_4 : forall n, 2 <= n -> 4 <= 2 ^ n.
-Proof. intros n Hn. change 4 with (2 ^ 2) at 1. apply Z.pow_le_mono_r; lia. Qed.
-
 (* --- The two forms of a range fact. --- *)
 
+(* The upper-bound fact [hi - atom >= 0], as a form, has the value
+   [hi - atom]. *)
 Lemma upper_denote : forall rho atom hi,
   denote rho (Affine.add_const (Affine.scale minus_one (Affine.var atom)) hi)
   = to_Z hi - rho atom.
@@ -294,6 +279,8 @@ Proof.
   rewrite to_Z_zero, to_Z_minus_one. ring.
 Qed.
 
+(* The lower-bound fact [atom + c >= 0], as a form, has the value [atom + c].
+   *)
 Lemma lower_denote : forall rho atom c,
   denote rho (Affine.add_const (Affine.var atom) c) = rho atom + to_Z c.
 Proof.
@@ -319,6 +306,8 @@ Proof.
     auto using add_const_wf, scale_wf, var_wf.
 Qed.
 
+(* The range facts of an arithmetic right shift hold when the atom is the shift
+   of a 64-bit value. *)
 Lemma shr_range_facts_signed_sound : forall rho atom bits x,
   0 <= to_Z bits <= 63 -> in_int64 x -> rho atom = x / 2 ^ to_Z bits ->
   holds_all rho (shr_range_facts true atom bits).
@@ -376,6 +365,8 @@ Qed.
 Lemma to_Z_word_bits : to_Z word_bits = 64.
 Proof. reflexivity. Qed.
 
+(* The same for a logical right shift of the unsigned reading of a 64-bit
+   value. *)
 Lemma shr_range_facts_logical_sound : forall rho atom bits x,
   1 <= to_Z bits <= 63 -> in_int64 x ->
   rho atom = unsigned64 x / 2 ^ to_Z bits ->
@@ -408,21 +399,6 @@ Proof.
     rewrite var_denote. exact Hnn.
 Qed.
 
-(* --- [x lor m] for [m >= 0] lies in [[x, x + m]] (two's complement). --- *)
-
-Lemma lor_bounds : forall x m, 0 <= m -> x <= Z.lor x m <= x + m.
-Proof.
-  intros x m Hm.
-  pose proof (Z.add_lor_land x m) as Hsum.
-  assert (H0 : 0 <= Z.land x m) by (apply Z.land_nonneg; right; exact Hm).
-  assert (Hle : Z.land x m <= m).
-  { pose proof (Z.sub_land_same_l m x) as Hs. rewrite (Z.land_comm m x) in Hs.
-    assert (0 <= Z.land m (Z.lnot x))
-      by (apply Z.land_nonneg; left; exact Hm).
-    lia. }
-  lia.
-Qed.
-
 (* ======================================================================== *)
 (* Part 4: the theorems                                                     *)
 (* ======================================================================== *)
@@ -438,12 +414,14 @@ Proof.
   unfold in_int64 in *. lia.
 Qed.
 
+(* Every 64-bit value is in the full range. *)
 Theorem full_sound : forall z, in_int64 z -> in_range Range.full z.
 Proof.
   intros z Hz. unfold in_range, Range.full. cbn [Range.lo Range.hi].
   rewrite Int64.to_Z_min_int, Int64.to_Z_max_int. unfold in_int64 in Hz. lia.
 Qed.
 
+(* A constant is in its own range. *)
 Theorem const_sound : forall c, in_range (Range.const c) (to_Z c).
 Proof.
   intros c. unfold in_range, Range.const. cbv zeta. cbn [Range.lo Range.hi].
@@ -486,6 +464,7 @@ Proof.
   split; [ apply Z.div_pos; lia | apply Z.div_le_mono; lia ].
 Qed.
 
+(* The sum of values in two ranges is in their sum, when it was computed. *)
 Theorem add_sound : forall a b r x y,
   Range.add a b = Some r -> in_range a x -> in_range b y ->
   in_range r (x + y).
@@ -499,6 +478,7 @@ Proof.
   apply add_ovf64_spec in Hlo. apply add_ovf64_spec in Hhi. lia.
 Qed.
 
+(* The negation of a value in a range is in the negated range. *)
 Theorem neg_sound : forall a r x,
   Range.neg a = Some r -> in_range a x -> in_range r (- x).
 Proof.
@@ -512,6 +492,7 @@ Proof.
   rewrite !Int64.neg_spec, !wrap64_id by (unfold in_int64; lia). lia.
 Qed.
 
+(* The difference of values in two ranges is in their difference. *)
 Theorem sub_sound : forall a b r x y,
   Range.sub a b = Some r -> in_range a x -> in_range b y ->
   in_range r (x - y).
@@ -522,6 +503,7 @@ Proof.
   replace (x - y) with (x + - y) by ring. eapply add_sound; eassumption.
 Qed.
 
+(* [x lor mask] for [x] in a range is in the or'ed range. *)
 Theorem or_mask_sound : forall mask a r x,
   Range.or_mask mask a = Some r -> in_range a x ->
   in_range r (Z.lor x (to_Z mask)).
@@ -535,6 +517,7 @@ Proof.
   pose proof (lor_bounds x (to_Z mask) ltac:(lia)). lia.
 Qed.
 
+(* [k * x] for [x] in a range is in the scaled range. *)
 Theorem scale_sound : forall k a r x,
   Range.scale k a = Some r -> in_range a x -> in_range r (to_Z k * x).
 Proof.
@@ -563,11 +546,12 @@ Qed.
 
 (* --- [to_affine] --- *)
 
+Opaque shr_range_facts.
+
 (* Everything at once, by induction on the expression: the form and the
    side facts are well-formed, the form has the expression's value, and
    the side facts hold when the atoms are consistent. ([shr_range_facts]
    is kept folded while [to_affine] is unfolded.) *)
-Opaque shr_range_facts.
 Lemma to_affine_spec : forall e f sides,
   to_affine e = Some (f, sides) ->
   wf f /\ Forall wf sides
@@ -602,7 +586,8 @@ Proof.
     destruct (to_affine e2) as [ [fb sb] | ] eqn:Hb; [ | discriminate ].
     destruct (Affine.scale_checked minus_one fb) as [ nfb | ] eqn:Hn;
       [ | discriminate ].
-    destruct (Affine.add_checked fa nfb) as [ f' | ] eqn:Hf; [ | discriminate ].
+    destruct (Affine.add_checked fa nfb) as [ f' | ] eqn:Hf;
+      [ | discriminate ].
     injection H as <- <-.
     destruct (IHe1 _ _ eq_refl) as [Hwa [Hwsa [Hda Hsa]]].
     destruct (IHe2 _ _ eq_refl) as [Hwb [Hwsb [Hdb Hsb]]].
@@ -618,7 +603,8 @@ Proof.
       split; [ apply Hsa | apply Hsb ]; assumption.
   - (* Scale *)
     destruct (to_affine e) as [ [fa sa] | ] eqn:Ha; [ | discriminate ].
-    destruct (Affine.scale_checked k fa) as [ f' | ] eqn:Hf; [ | discriminate ].
+    destruct (Affine.scale_checked k fa) as [ f' | ] eqn:Hf;
+      [ | discriminate ].
     injection H as <- <-.
     destruct (IHe _ _ eq_refl) as [Hwa [Hwsa [Hda Hsa]]].
     split; [ | split; [ | split ] ].
@@ -645,8 +631,8 @@ Proof.
     destruct (IHe _ _ eq_refl) as [Hwa [Hwsa [Hda Hsa]]].
     pose proof (proj2 (proj2 (scale_checked_spec (fun _ => 0) _ _ _ Hm))
                   (var_wf atom)) as Hwm.
-    pose proof (proj2 (proj2 (add_checked_spec (fun _ => 0) _ _ _ Hwa Hwm Hs1)))
-      as Hws1.
+    pose proof (proj2 (proj2 (add_checked_spec (fun _ => 0) _ _ _ Hwa Hwm
+                                Hs1))) as Hws1.
     pose proof (proj2 (proj2 (scale_checked_spec (fun _ => 0) _ _ _ Hp))
                   (var_wf atom)) as Hwp.
     pose proof (proj2 (proj2 (add_const_checked_spec (fun _ => 0) _ _ _ Hpc))
@@ -668,7 +654,8 @@ Proof.
       assert (Hnmin : (one << bits)%sint63 <> min_int).
       { intro C. apply (f_equal to_Z) in C. rewrite Hpow, to_Z_min_int in C.
         unfold two62 in C. lia. }
-      apply Forall_cons; [ | apply Forall_cons; [ | apply Forall_app; split ] ].
+      apply Forall_cons;
+        [ | apply Forall_cons; [ | apply Forall_app; split ] ].
       * (* [fa - pow * v >= 0] *)
         unfold holds.
         destruct (add_checked_spec rho _ _ _ Hwa Hwm Hs1) as [Hd1 _].
@@ -708,7 +695,8 @@ Proof.
       [ | discriminate ].
     destruct (Affine.scale_checked minus_one (Affine.var atom)) as [ nv | ]
       eqn:Hnv; [ | discriminate ].
-    destruct (Affine.add_checked fm nv) as [ s2 | ] eqn:Hs2; [ | discriminate ].
+    destruct (Affine.add_checked fm nv) as [ s2 | ] eqn:Hs2;
+      [ | discriminate ].
     injection H as <- <-.
     destruct (IHe _ _ eq_refl) as [Hwa [Hwsa [Hda Hsa]]].
     pose proof (proj2 (proj2 (scale_checked_spec (fun _ => 0) _ _ _ Hnfa)) Hwa)

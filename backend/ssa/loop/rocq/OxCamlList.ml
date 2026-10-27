@@ -1,3 +1,13 @@
+(** val assoc_default : 'a1 -> int -> (int * 'a1) list -> 'a1 **)
+
+let assoc_default dflt id l =
+  match List.assoc_opt id l with Some c -> c | None -> dflt
+
+(** val count_occurrences : ('a1 -> bool) -> 'a1 list -> int **)
+
+let count_occurrences same l =
+  List.fold_left (fun n x -> if same x then n + 1 else n) 0 l
+
 (** val sort_uniq : int list -> int list **)
 
 let sort_uniq = List.sort_uniq Int.compare

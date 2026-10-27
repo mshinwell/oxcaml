@@ -22,11 +22,13 @@ Local Open Scope Z_scope.
 
 Definition two62 : Z := 4611686018427387904.
 
+(* [two62] as a power, for [rewrite]. *)
 Lemma two62_pow : two62 = 2 ^ 62. Proof. reflexivity. Qed.
 
 (* OxCaml's [max_int], as a mathematical integer. *)
 Definition ocaml_max_int : Z := two62 - 1.
 
+(* The values of the named literals, of [min_int] and of [max_int]. *)
 Lemma to_Z_zero : to_Z zero = 0.
 Proof. reflexivity. Qed.
 
@@ -55,6 +57,7 @@ Qed.
 (* Whether a mathematical integer is representable as an [int]. *)
 Definition fits_int (z : Z) : bool := (- two62 <=? z) && (z <=? two62 - 1).
 
+(* [fits_int] answering [true] means that the bounds hold. *)
 Lemma fits_int_true : forall z, fits_int z = true -> - two62 <= z <= two62 - 1.
 Proof.
   unfold fits_int. intros z H. apply andb_prop in H as [H1 H2].
@@ -143,6 +146,7 @@ Ltac case_int_tests :=
 
 (* Rearrangements of sums of [int]s, which hold with wrap-around. *)
 
+(* [cmod] may be applied to either summand first, or not at all. *)
 Lemma cmod_add_l : forall a b d,
   Sint63.cmod (Sint63.cmod a d + b) d = Sint63.cmod (a + b) d.
 Proof.
@@ -159,6 +163,7 @@ Proof.
   reflexivity.
 Qed.
 
+(* Zero is neutral for the wrap-around addition. *)
 Lemma add_zero_l : forall x : int, (zero + x)%sint63 = x.
 Proof.
   intros x. rewrite <- (Sint63.of_to_Z (zero + x)%sint63), Sint63.add_spec.
@@ -171,6 +176,7 @@ Proof.
   rewrite Sint63.of_Z_cmod, to_Z_zero, Z.add_0_r. apply Sint63.of_to_Z.
 Qed.
 
+(* [(x + 1) + (k - 1) = x + k], with wrap-around. *)
 Lemma add_one_sub_one : forall x k : int,
   ((x + one) + (k - one))%sint63 = (x + k)%sint63.
 Proof.
@@ -178,3 +184,11 @@ Proof.
   rewrite !Sint63.add_spec, Sint63.sub_spec, cmod_add_l, cmod_add_r, to_Z_one.
   f_equal. ring.
 Qed.
+
+(* Equality of [int]s is decidable: for [in_dec] and the like in proofs. *)
+Definition int_eq_dec : forall x y : int, {x = y} + {x <> y}.
+Proof.
+  intros x y. destruct (x =? y)%sint63 eqn:E.
+  - left. apply eqb_int. exact E.
+  - right. apply eqb_int_false. exact E.
+Defined.

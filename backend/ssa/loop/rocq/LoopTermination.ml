@@ -3,51 +3,12 @@ open FourierMotzkin
 open InductionVar
 open LoopComparisons
 open NaturalLoop
+open SsaGraph
 open SsaModel
 
 type t =
   | Terminates
   | Unknown
-
-type exit_branch =
-  { condition : value;
-    continue_when_true : bool;
-    exit_target : block
-  }
-
-(** val find_exit_branch : natural_loop -> exit_branch option **)
-
-let find_exit_branch loop0 =
-  match Ssa_view.terminator loop0.header with
-  | Terminator.Switch (index, targets) -> (
-    match targets with
-    | [] -> None
-    | ifnot :: l -> (
-      match l with
-      | [] -> None
-      | ifso :: l0 -> (
-        match l0 with
-        | [] ->
-          if Ssa.Block.Set.mem ifso loop0.body
-          then
-            if Ssa.Block.Set.mem ifnot loop0.body
-            then None
-            else
-              Some
-                { condition = index;
-                  continue_when_true = true;
-                  exit_target = ifnot
-                }
-          else if Ssa.Block.Set.mem ifnot loop0.body
-          then
-            Some
-              { condition = index;
-                continue_when_true = false;
-                exit_target = ifso
-              }
-          else None
-        | _ :: _ -> None)))
-  | _ -> None
 
 type bound =
   | Value_bound of value
@@ -100,7 +61,7 @@ let biv_implies_termination op_def0 biv0 =
     match signed_step biv0 with
     | Some step -> (
       let header0 = biv0.loop.header in
-      let is_self = is_header_param header0 biv0.param_index in
+      let is_self = is_param header0 biv0.param_index in
       let is_iv_val =
        fun v -> is_self v || List.exists (Ssa.Value.equal v) biv0.update
       in

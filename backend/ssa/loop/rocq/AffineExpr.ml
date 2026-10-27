@@ -1,4 +1,5 @@
 open FourierMotzkin
+open IntArith
 
 type t =
   | Const of int

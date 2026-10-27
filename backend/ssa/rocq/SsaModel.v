@@ -54,6 +54,9 @@ Parameter set_singleton : block -> blockset.
 Parameter set_add : block -> blockset -> blockset.
 Parameter set_mem : block -> blockset -> bool.
 Parameter set_for_all : (block -> bool) -> blockset -> bool.
+(* Membership: nothing is in the empty set; a singleton holds its element;
+   adding a block puts it in and keeps the others; [set_for_all f] holds
+   exactly when [f] holds of every member. *)
 Axiom set_mem_empty : forall b, set_mem b set_empty = false.
 Axiom set_mem_singleton : forall b x,
   set_mem b (set_singleton x) = block_eqb b x.

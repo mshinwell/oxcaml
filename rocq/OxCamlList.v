@@ -6,7 +6,7 @@
    [filter_map_opt] is [List.filter_map], each returning [None] if any call
    of the callback would have raised. *)
 
-From Stdlib Require Import ZArith List.
+From Stdlib Require Import ZArith Lia List.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt.
 Import ListNotations.
 
@@ -18,6 +18,10 @@ Fixpoint assoc_opt {C} (id : int) (l : list (int * C)) : option C :=
   | [] => None
   | (k, c) :: l => if id =? k then Some c else assoc_opt id l
   end.
+
+(* The value for [id] in an association list, [dflt] if there is none. *)
+Definition assoc_default {C} (dflt : C) (id : int) (l : list (int * C)) : C :=
+  match assoc_opt id l with Some c => c | None => dflt end.
 
 Fixpoint filter_map {A B} (f : A -> option B) (l : list A) : list B :=
   match l with
@@ -35,6 +39,10 @@ Definition concat_map {A B} (f : A -> list B) (l : list A) : list B :=
 (* [List.fold_left f init l]; Rocq's own [fold_left] takes [init] last. *)
 Definition fold_left {A B} (f : A -> B -> A) (init : A) (l : list B) : A :=
   List.fold_left f l init.
+
+(* How many elements of [l] [same] accepts. *)
+Definition count_occurrences {A} (same : A -> bool) (l : list A) : int :=
+  fold_left (fun n x => if same x then n + one else n) zero l.
 
 (* [List.sort_uniq Int.compare]. Only what the proofs need is assumed: the
    result has no duplicates and the same members as the input. *)
@@ -95,6 +103,7 @@ Proof.
   rewrite IH. split; [ intros ->; reflexivity | intros H; injection H; auto ].
 Qed.
 
+(* An element at some position is an element of the list. *)
 Lemma nth_int_In : forall {A} (l : list A) i x,
   nth_int l i = Some x -> In x l.
 Proof.
@@ -105,6 +114,7 @@ Proof.
     + right. exact (IH _ _ H).
 Qed.
 
+(* An element of [filter_map f l] is [f] of an element of [l]. *)
 Lemma filter_map_In : forall {A B} (f : A -> option B) l y,
   In y (filter_map f l) -> exists x, In x l /\ f x = Some y.
 Proof.
@@ -117,6 +127,7 @@ Proof.
     + destruct (IH H) as [x' [Hin Hx']]. exists x'. auto.
 Qed.
 
+(* [assoc_opt] finds an entry with the key ... *)
 Lemma assoc_opt_In : forall {C} id (l : list (int * C)) c,
   assoc_opt id l = Some c -> In (id, c) l.
 Proof.
@@ -127,6 +138,7 @@ Proof.
     + right. apply IH. exact H.
 Qed.
 
+(* ... finds one whenever the key is present ... *)
 Lemma assoc_opt_Some : forall {C} id (l : list (int * C)),
   In id (map fst l) -> exists c, assoc_opt id l = Some c.
 Proof.
@@ -137,6 +149,7 @@ Proof.
     apply IH. exact H.
 Qed.
 
+(* ... and none when it is absent. *)
 Lemma assoc_opt_None : forall {C} id (l : list (int * C)),
   ~ In id (map fst l) -> assoc_opt id l = None.
 Proof.
@@ -178,6 +191,7 @@ Proof.
     + apply IH. reflexivity.
 Qed.
 
+(* [rev_append] has the elements of both lists. *)
 Lemma in_rev_append : forall {A} (l1 l2 : list A) x,
   In x (rev_append l1 l2) <-> In x l1 \/ In x l2.
 Proof.
@@ -207,4 +221,74 @@ Proof.
     simpl. constructor; [ | exact IH ].
     intros Hin. apply Hnin. rewrite (Hf id p Hp) in Hin.
     apply (filter_map_keys_In f ids id Hf Hin).
+Qed.
+
+(* --- [assoc_opt] and [assoc_default] --- *)
+
+(* In a list whose keys are distinct, the lookup of a key finds its entry. *)
+Lemma assoc_opt_NoDup : forall {C} (l : list (int * C)) id c,
+  NoDup (map fst l) -> In (id, c) l -> assoc_opt id l = Some c.
+Proof.
+  intros C l id c. induction l as [ | [k c'] l IH ]; intros Hnd Hin.
+  - contradiction.
+  - cbn [map fst] in Hnd. inversion Hnd as [ | ? ? Hnin Hnd' ]. subst.
+    cbn [assoc_opt]. destruct Hin as [ Heq | Hin ].
+    + injection Heq as <- <-. rewrite eqb_int_refl. reflexivity.
+    + destruct (id =? k)%sint63 eqn:E.
+      * apply eqb_int in E. subst k. exfalso. apply Hnin.
+        apply in_map_iff. exists (id, c). split; [ reflexivity | exact Hin ].
+      * apply IH; assumption.
+Qed.
+
+(* [assoc_default] on a cons: the head's value if its key matches, else the
+   lookup in the tail. *)
+Lemma assoc_default_cons : forall {C} (dflt : C) id k c l,
+  assoc_default dflt id ((k, c) :: l)
+  = if (id =? k)%sint63 then c else assoc_default dflt id l.
+Proof.
+  intros. unfold assoc_default. simpl. destruct (id =? k)%sint63; reflexivity.
+Qed.
+
+(* An absent key gives the default. *)
+Lemma assoc_default_not_in : forall {C} (dflt : C) id l,
+  ~ In id (map fst l) -> assoc_default dflt id l = dflt.
+Proof.
+  intros. unfold assoc_default. rewrite assoc_opt_None by assumption.
+  reflexivity.
+Qed.
+
+(* --- [filter] --- *)
+
+Lemma length_filter_le : forall {A} (f : A -> bool) (l : list A),
+  (length (filter f l) <= length l)%nat.
+Proof.
+  intros A f l. induction l as [ | x l IH ]; [ reflexivity | ].
+  simpl. destruct (f x); simpl; lia.
+Qed.
+
+(* A filter that accepts less keeps no more elements ... *)
+Lemma filter_le : forall {A} (f g : A -> bool) (l : list A),
+  (forall y, f y = true -> g y = true) ->
+  (length (filter f l) <= length (filter g l))%nat.
+Proof.
+  intros A f g l Hfg. induction l as [ | y l IH ]; [ reflexivity | ].
+  simpl. destruct (f y) eqn:Hf.
+  - rewrite (Hfg y Hf). simpl. lia.
+  - destruct (g y); simpl; lia.
+Qed.
+
+(* ... and strictly fewer when it rejects an element of the list that the
+   other accepts. *)
+Lemma filter_lt : forall {A} (f g : A -> bool) (l : list A) x,
+  (forall y, f y = true -> g y = true) ->
+  In x l -> g x = true -> f x = false ->
+  (length (filter f l) < length (filter g l))%nat.
+Proof.
+  intros A f g l x Hfg Hin Hg Hf.
+  induction l as [ | y l IH ]; [ contradiction | ].
+  simpl. destruct Hin as [ -> | Hin ].
+  - rewrite Hf, Hg. simpl. pose proof (filter_le f g l Hfg). lia.
+  - destruct (f y) eqn:Hfy.
+    + rewrite (Hfg y Hfy). simpl. apply IH in Hin. lia.
+    + destruct (g y); simpl; apply IH in Hin; lia.
 Qed.

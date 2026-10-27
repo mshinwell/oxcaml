@@ -1,5 +1,4 @@
 open InductionVar
-open LoopTermination
 open NaturalLoop
 open SsaModel
 
@@ -14,24 +13,12 @@ type loop_result =
     useless : bool
   }
 
-val instr_defines_value : instr -> value -> bool
+val param_uses_ok : block list -> block -> int -> value -> value list -> bool
 
-val args_of_instr : instr -> value list
+val cond_uses_ok : block list -> block -> value -> bool
 
-val terminator_args : Terminator.t -> value list list
-
-val count_occurrences : ('a1 -> bool) -> 'a1 list -> int
-
-val all_uses_ok :
-  block list ->
-  (value -> bool) ->
-  (instr -> bool) ->
-  (block -> value list -> bool) ->
-  bool
-
-val arg_is : value -> Ssa.finished Ssa.Terminator.arg -> bool
-
-val goto_passes : block -> int -> value -> block -> bool
+val update_uses_ok :
+  block list -> block -> blockset -> int -> value -> value -> bool
 
 val is_dead : block list -> biv -> bool
 

@@ -5,8 +5,9 @@
 
    See the reading guide at the top of LoopComparisons.v for the Rocq
    vocabulary; SsaModel.v for how the models see an SSA graph;
-   NaturalLoop.v and InductionVar.v for the loops and the basic induction
-   variables this file is given; LoopComparisons.v for the termination
+   NaturalLoop.v and InductionVar.v for the loops, their exit branches and
+   the basic induction variables this file is given; LoopComparisons.v for
+   the termination
    argument about a comparison and an induction variable, which this file
    applies; and AffineSsa.v for the facts a register bound is checked
    against. As there, the file has four parts: (1) the definitions, (2) the
@@ -42,7 +43,7 @@
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64 OxCamlList.
 From OxCamlBackend Require Import IntegerComparison.
-From OxCamlSsa Require Import SsaModel.
+From OxCamlSsa Require Import SsaModel SsaGraph.
 From OxCamlLoop Require Import FourierMotzkin LoopComparisons AffineExpr
   NaturalLoop AffineSsa InductionVar.
 Import ListNotations.
@@ -57,32 +58,6 @@ Local Open Scope sint63_scope.
 Inductive t : Type :=
   | Terminates
   | Unknown.
-
-(* The header's exit branch: the comparison it tests, which way continues
-   the loop, and where the other way goes. *)
-Record exit_branch : Type :=
-  { condition : value;
-    continue_when_true : bool;
-    exit_target : block }.
-
-(* The exit branch of a loop: the header's terminator must be a two-target
-   [Switch], [ifnot] its false edge and [ifso] its true edge. *)
-Definition find_exit_branch (loop : natural_loop) : option exit_branch :=
-  match terminator loop.(header) with
-  | Terminator.Switch index [ifnot; ifso] =>
-    match set_mem ifso loop.(body), set_mem ifnot loop.(body) with
-    | true, false =>
-      Some {| condition := index;
-              continue_when_true := true;
-              exit_target := ifnot |}
-    | false, true =>
-      Some {| condition := index;
-              continue_when_true := false;
-              exit_target := ifso |}
-    | true, true | false, false => None
-    end
-  | _ => None
-  end.
 
 (* The other operand of the exit comparison. *)
 Inductive bound : Type :=
@@ -136,7 +111,7 @@ Definition biv_implies_termination (op_def : op_def) (biv : biv) : bool :=
   match find_exit_branch biv.(loop), signed_step biv with
   | Some exit_info, Some step =>
     let header := biv.(loop).(header) in
-    let is_self := is_header_param header biv.(param_index) in
+    let is_self := is_param header biv.(param_index) in
     let is_iv_val v := is_self v || existsb (value_eqb v) biv.(update) in
     let is_bound v := is_loop_invariant op_def header v in
     match extract_comparison is_iv_val is_bound exit_info.(condition) with
@@ -159,7 +134,9 @@ Definition biv_implies_termination (op_def : op_def) (biv : biv) : bool :=
 (* The verdict for the loop of [bivs], its basic induction variables: it
    terminates if one of them shows that it does. *)
 Definition analyze (op_def : op_def) (bivs : list biv) : t :=
-  if existsb (biv_implies_termination op_def) bivs then Terminates else Unknown.
+  if existsb (biv_implies_termination op_def) bivs
+  then Terminates
+  else Unknown.
 
 Local Close Scope sint63_scope.
 
@@ -252,7 +229,7 @@ Record infinite_run (op_def : op_def) (l : natural_loop)
     run_back_edge : forall n,
       exists s args,
         In s l.(back_edges) /\ In s (predecessors l.(header))
-        /\ pred_args_to_header l.(header) s = Some args
+        /\ goto_args l.(header) s = Some args
         /\ forall i u, arg_value args i = Some u ->
              iter (S n) (param l.(header) i) = iter n u }.
 
@@ -275,24 +252,7 @@ Section Run.
 (* Part 3: lemmas used by the proofs                                        *)
 (* ======================================================================== *)
 
-  (* --- The exit branch and the comparison it tests --- *)
-
-  Lemma find_exit_branch_spec : forall eb,
-    find_exit_branch l = Some eb ->
-    exists ifnot ifso,
-      terminator l.(header) = Terminator.Switch eb.(condition) [ifnot; ifso]
-      /\ set_mem ifso l.(body) = eb.(continue_when_true)
-      /\ set_mem ifnot l.(body) = negb eb.(continue_when_true).
-  Proof.
-    intros eb H. unfold find_exit_branch in H.
-    destruct (terminator l.(header)) as [ | index targets | | ] eqn:Ht;
-      try discriminate.
-    destruct targets as [ | ifnot [ | ifso [ | ] ] ]; try discriminate.
-    exists ifnot, ifso.
-    destruct (set_mem ifso l.(body)) eqn:Hso;
-      destruct (set_mem ifnot l.(body)) eqn:Hnot; try discriminate;
-      injection H as <-; cbn; repeat split.
-  Qed.
+  (* --- The comparison the exit branch tests --- *)
 
   Lemma extract_comparison_spec :
     forall is_iv_val is_bound cond cmp iv_is_left bnd,
@@ -369,7 +329,7 @@ Section Run.
     destruct step' as [c' | w']; cbn [step_same] in Hss; [ | discriminate ].
     apply eqb_int in Hss. subst c'.
     destruct (classify_update_const _ _ _ _ Hcl) as [id [x [Hx Hcase]]].
-    unfold is_header_param in Hx. apply value_eqb_spec in Hx. subst x.
+    unfold is_param in Hx. apply value_eqb_spec in Hx. subst x.
     pose proof (run.(iter_op) n u) as Hop.
     destruct b.(sign) eqn:Hsign.
     - (* Add *)
@@ -395,7 +355,8 @@ Section Run.
   Proof.
     intros b step Hspec Hstep n. induction n as [ | n IH ].
     - reflexivity.
-    - destruct (run.(run_back_edge) n) as [s [args [Hs [Hpred [Hargs Hnext]]]]].
+    - destruct (run.(run_back_edge) n)
+        as [s [args [Hs [Hpred [Hargs Hnext]]]]].
       pose proof Hspec as [_ [_ [_ [Hback _]]]].
       destruct (Hback s Hs Hpred) as [args' [u [Hargs' [Hu Hin]]]].
       rewrite Hargs in Hargs'. injection Hargs' as <-.
@@ -408,13 +369,13 @@ Section Run.
      value). *)
   Lemma iv_val_sequence : forall b step x,
     biv_spec op_def l b -> signed_step b = Some step ->
-    is_header_param l.(header) b.(param_index) x
+    is_param l.(header) b.(param_index) x
       || existsb (value_eqb x) b.(update) = true ->
     exists v0, in_int64 v0 /\ forall n, iter n x = iv v0 (to_Z step) n.
   Proof.
     intros b step x Hspec Hstep Hx. apply orb_true_iff in Hx.
     destruct Hx as [Hself | Hupd].
-    - unfold is_header_param in Hself. apply value_eqb_spec in Hself.
+    - unfold is_param in Hself. apply value_eqb_spec in Hself.
       subst x.
       exists (iter 0 (param l.(header) b.(param_index))).
       split; [ apply run.(iter_bounded) | ].
@@ -453,8 +414,8 @@ Section Run.
                 (tree_of_value v) new_ctx [] form side1 c1 (run.(iter_trees) v)
                 Hwf0 ltac:(lia) Hlin)
       as [Hwf1 [_ [Hn1 [Hwff [Hwfs1 Hrho1]]]]].
-    destruct (guards_at_sound (iter 0) (run.(iter_bounded) 0) Heqb l.(header) c1
-                side1 guards side2 c2 run.(iter_trees) Hwf1 ltac:(lia) Hg)
+    destruct (guards_at_sound (iter 0) (run.(iter_bounded) 0) Heqb l.(header)
+                c1 side1 guards side2 c2 run.(iter_trees) Hwf1 ltac:(lia) Hg)
       as [Hwf2 [He12 [_ [Hwfg [Hwfs2 Hrho2]]]]].
     destruct (agrees_exists (iter 0) c2 Hwf2) as [rho Hrho].
     destruct (Hrho2 rho Hrho) as [Hs2 Hg2].
@@ -550,7 +511,7 @@ Section Run.
     destruct (extract_comparison _ _ eb.(condition))
       as [[[cmp iv_is_left] bnd] | ] eqn:Hext; [ | discriminate ].
     cbv zeta in Hb.
-    destruct (find_exit_branch_spec eb Hexit)
+    destruct (find_exit_branch_spec l eb Hexit)
       as [ifnot [ifso [Ht [Hso Hnot]]]].
     (* The verdict, with its side condition discharged. *)
     assert (Hverdict :

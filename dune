@@ -751,8 +751,11 @@
   ssa_view
   ;; backend/ssa/rocq/ (extracted from Rocq by rocq/Makefile)
   SsaModel
+  SsaGraph
+  SsaDominance
   ;; backend/ssa/loop/rocq/ (extracted from Rocq by rocq/Makefile)
   OxCamlList
+  IntArith
   FourierMotzkin
   LoopComparisons
   AffineExpr

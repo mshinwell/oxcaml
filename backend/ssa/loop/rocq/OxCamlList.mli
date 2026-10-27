@@ -1,3 +1,7 @@
+val assoc_default : 'a1 -> int -> (int * 'a1) list -> 'a1
+
+val count_occurrences : ('a1 -> bool) -> 'a1 list -> int
+
 val sort_uniq : int list -> int list
 
 val map_opt : ('a1 -> 'a2 option) -> 'a1 list -> 'a2 list option

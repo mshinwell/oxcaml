@@ -2,26 +2,12 @@ open DeadInductionVar
 open InductionVar
 open LoopTermination
 open NaturalLoop
+open SsaGraph
 open SsaModel
-
-(** val terminator_pure_control : Terminator.t -> bool **)
-
-let terminator_pure_control = function
-  | Terminator.Continue (continuation, _) -> (
-    match continuation with Ssa.Goto _ -> true | _ -> false)
-  | Terminator.Switch (_, _) -> true
-  | _ -> false
 
 (** val body_effect_free : natural_loop -> bool **)
 
-let body_effect_free loop0 =
-  Ssa.Block.Set.for_all
-    (fun bl ->
-      List.for_all
-        (fun i -> not (Ssa.Instruction.has_side_effect i))
-        (Ssa_view.body bl)
-      && terminator_pure_control (Ssa_view.terminator bl))
-    loop0.body
+let body_effect_free loop0 = Ssa.Block.Set.for_all block_effect_free loop0.body
 
 (** val single_exit : natural_loop -> block -> bool **)
 

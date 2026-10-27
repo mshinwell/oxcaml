@@ -4,17 +4,15 @@
    file, DeadInductionVar.ml, is the implementation.
 
    See the reading guide at the top of LoopComparisons.v for the Rocq
-   vocabulary, SsaModel.v for how the models see an SSA graph, and
-   InductionVar.v and LoopTermination.v for the basic induction variables
-   and the exit branches this file is given. As there, the file has four
-   parts: (1) the definitions, (2) the intended meaning, (3)
+   vocabulary, SsaModel.v for how the models see an SSA graph, SsaGraph.v
+   (backend/ssa/rocq/) for the uses of a value in the graph, and
+   NaturalLoop.v and InductionVar.v for the loops, their exit branches and
+   the basic induction variables this file is given. As there, the file has
+   four parts: (1) the definitions, (2) the intended meaning, (3)
    stepping-stone lemmas, (4) the theorems. Parts 1 and 2 are the part to
    check by eye.
 
-   The arguments of instructions and terminators, and the header's
-   parameters, are lists here.
-
-   Why the uses of the exit comparison are checked ([cond_ok]): deleting
+   Why the uses of the exit comparison are checked ([cond_uses_ok]): deleting
    the loop (DeleteEmptyLoops.v) leaves the comparison computed from the
    loop's initial parameters, so a use of it other than the header's
    branch -- an instruction, or a [Return] of it after the loop -- would
@@ -33,15 +31,13 @@
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlList.
-From OxCamlSsa Require Import SsaModel.
-From OxCamlLoop Require Import NaturalLoop InductionVar LoopTermination.
+From OxCamlSsa Require Import SsaModel SsaGraph.
+From OxCamlLoop Require Import NaturalLoop InductionVar.
 Import ListNotations.
 
 (* ======================================================================== *)
 (* Part 1: the definitions                                                  *)
 (* ======================================================================== *)
-
-Local Open Scope sint63_scope.
 
 (* A BIV with its verdict, and a loop with its BIVs' verdicts and whether
    every header parameter is a dead BIV. After these, the type [biv] of
@@ -56,80 +52,32 @@ Record loop_result : Type :=
     bivs : list biv_result;
     useless : bool }.
 
-(* [i] is the instruction defining [v]. *)
-Definition instr_defines_value (i : instr) (v : value) : bool :=
-  match view_instr i, view_value v with
-  | Op id _, Res id' _ => instr_id_eqb id id'
-  | _, _ => false
-  end.
+(* The parameter [k] of [header] is read only by the exit comparison
+   [cond] and by the [updates], and by no terminator. *)
+Definition param_uses_ok (blocks : list block) (header : block) (k : int)
+    (cond : value) (updates : list value) : bool :=
+  all_uses_ok blocks (is_param header k)
+    (fun i =>
+      instr_defines_value i cond || existsb (instr_defines_value i) updates)
+    (fun _ _ => false).
 
-(* The values an instruction reads. *)
-Definition args_of_instr (i : instr) : list value :=
-  match view_instr i with
-  | Op _ args => args
-  | Push_trap | Pop_trap => []
-  end.
-
-(* The values a terminator reads, one list per kind of use: the arguments
-   a [Continue] passes, the index of a [Switch], the arguments of a [Call]
-   or an [Invalid]. *)
-Definition terminator_args (term : Terminator.t) : list (list value) :=
-  match term with
-  | Terminator.Continue _ args =>
-    [filter_map
-       (fun arg =>
-         match arg with
-         | Terminator.Arg v => Some v
-         | Terminator.Omitted_since_unused => None
-         end)
-       args]
-  | Terminator.Switch index _ => [[index]]
-  | Terminator.Call args => [args]
-  | Terminator.Invalid args => [args]
-  end.
-
-(* How many elements of [l] [same] accepts. *)
-Definition count_occurrences {A} (same : A -> bool) (l : list A) : int :=
-  OxCamlList.fold_left (fun n x => if same x then n + one else n) zero l.
-
-(* Every use in the graph of a value [same] accepts is approved: by
-   [approve_instr] for an instruction reading it, by [approve_term] for
-   the block whose terminator reads it, given the list it is read in. *)
-Definition all_uses_ok (blocks : list block) (same : value -> bool)
-    (approve_instr : instr -> bool)
-    (approve_term : block -> list value -> bool) : bool :=
-  forallb
-    (fun bl =>
-      forallb
-        (fun i => negb (existsb same (args_of_instr i)) || approve_instr i)
-        (block_body bl)
-      && forallb
-           (fun arr => negb (existsb same arr) || approve_term bl arr)
-           (terminator_args (terminator bl)))
-    blocks.
-
-(* [arg] passes the value [v]. *)
-Definition arg_is (v : value) (arg : Terminator.arg) : bool :=
-  match arg with
-  | Terminator.Arg a => value_eqb a v
-  | Terminator.Omitted_since_unused => false
-  end.
-
-(* The terminator of [bl] is a [Goto] to [header] passing [v] as the
-   argument at position [k], and at no other position. *)
-Definition goto_passes (header : block) (k : int) (v : value) (bl : block)
+(* The exit comparison is read by no instruction, and by no terminator but
+   the header's. *)
+Definition cond_uses_ok (blocks : list block) (header : block) (cond : value)
     : bool :=
-  match terminator bl with
-  | Terminator.Continue (Goto goto) args =>
-    block_eqb goto header
-    && (match arg_value args k with
-        | Some a => value_eqb a v
-        | None => false
-        end)
-    && (count_occurrences (arg_is v) args =? one)
-  | Terminator.Continue (Return | Raise _ | Unreachable) _
-  | Terminator.Switch _ _ | Terminator.Call _ | Terminator.Invalid _ => false
-  end.
+  all_uses_ok blocks (value_eqb cond)
+    (fun _ => false)
+    (fun bl _ => block_eqb bl header).
+
+(* The update value [u] is read by no instruction but the exit comparison,
+   and by no terminator but the [Goto] to the header of a back-edge block
+   (one of [back_preds]), as the argument at position [k] and at no other
+   position. *)
+Definition update_uses_ok (blocks : list block) (header : block)
+    (back_preds : blockset) (k : int) (cond u : value) : bool :=
+  all_uses_ok blocks (value_eqb u)
+    (fun i => instr_defines_value i cond)
+    (fun bl _ => set_mem bl back_preds && goto_passes header k u bl).
 
 (* Whether a BIV is dead: its parameter, the exit comparison and its update
    values are used only as the loop's own control requires, as [dead_spec]
@@ -141,36 +89,10 @@ Definition is_dead (blocks : list block) (biv : InductionVar.biv) : bool :=
     let cond := exit_info.(condition) in
     let header := biv.(InductionVar.loop).(header) in
     let k := biv.(param_index) in
-    let is_self := is_header_param header k in
     let back_preds := back_edge_set biv.(InductionVar.loop) in
-    (* Uses of [self]: approved only when the consumer is the exit
-       comparison or one of the update expressions, never a terminator. *)
-    let self_ok :=
-      all_uses_ok blocks is_self
-        (fun i =>
-          instr_defines_value i cond
-          || existsb (instr_defines_value i) biv.(update))
-        (fun _ _ => false)
-    in
-    (* Uses of the exit comparison: approved only as the index of the
-       header's [Switch]. *)
-    let cond_ok :=
-      all_uses_ok blocks (value_eqb cond)
-        (fun _ => false)
-        (fun bl _ => block_eqb bl header)
-    in
-    if negb (self_ok && cond_ok)
-    then false
-    else
-      (* Uses of each update value: approved only as an argument of the
-         exit comparison, or as the back-edge [Goto]'s argument at
-         position [k], and at no other position of that [Goto]. *)
-      forallb
-        (fun v =>
-          all_uses_ok blocks (value_eqb v)
-            (fun i => instr_defines_value i cond)
-            (fun bl _ => set_mem bl back_preds && goto_passes header k v bl))
-        biv.(update)
+    param_uses_ok blocks header k cond biv.(update)
+    && cond_uses_ok blocks header cond
+    && forallb (update_uses_ok blocks header back_preds k cond) biv.(update)
   end.
 
 (* Every header parameter is a dead BIV. *)
@@ -194,112 +116,62 @@ Definition analyze (blocks : list block)
 (* Part 2: the intended meaning                                             *)
 (* ======================================================================== *)
 
-(* [uses_only blocks same approve_instr approve_term]: in every block of
-   the graph, every instruction with an argument [same] accepts satisfies
-   [approve_instr], and every argument list of a terminator with a value
-   [same] accepts satisfies [approve_term] with its block. *)
-Definition uses_only (blocks : list block) (same : value -> bool)
-    (approve_instr : instr -> Prop)
-    (approve_term : block -> list value -> Prop) : Prop :=
-  forall bl, In bl blocks ->
-    (forall i, In i (block_body bl) ->
-       existsb same (args_of_instr i) = true -> approve_instr i)
-    /\ (forall arr, In arr (terminator_args (terminator bl)) ->
-          existsb same arr = true -> approve_term bl arr).
-
-(* The terminator of [bl] is a [Goto] to [header] whose argument at
-   position [k] is [v], and no other argument is ([count_occurrences ... =
-   one]: one position passes it). *)
-Definition passes_at (header : block) (k : int) (v : value) (bl : block)
-    : Prop :=
-  exists args,
-    terminator bl = Terminator.Continue (Goto header) args
-    /\ arg_value args k = Some v
-    /\ count_occurrences (arg_is v) args = one.
-
 (* What [dead = true] establishes of a basic induction variable [b] of a
-   loop with the exit branch [exit_info]: its parameter [self] is used only
-   by the exit comparison and its own updates and by no terminator; the
-   exit comparison is used by no instruction and only by the header's
-   terminator; and each update value is used by no instruction but the
-   exit comparison, and by no terminator but the [Goto] to the header of
-   a back-edge block, as the argument at the parameter's position and at
-   no other ([passes_at]). *)
+   loop with the exit branch [exit_info], in terms of [uses_only]
+   (SsaGraph.v): its parameter is used only by the exit comparison and its
+   own updates and by no terminator; the exit comparison is used by no
+   instruction and only by the header's terminator; and each update value
+   is used by no instruction but the exit comparison, and by no terminator
+   but the [Goto] to the header of a back-edge block, as the argument at
+   the parameter's position and at no other ([passes_at]). *)
+Definition param_used_only_by_exit_and_updates (blocks : list block)
+    (header : block) (k : int) (cond : value) (updates : list value) : Prop :=
+  uses_only blocks (is_param header k)
+    (fun i =>
+      instr_defines_value i cond = true
+      \/ exists u, In u updates /\ instr_defines_value i u = true)
+    (fun _ _ => False).
+
+Definition cond_used_only_by_header_branch (blocks : list block)
+    (header : block) (cond : value) : Prop :=
+  uses_only blocks (value_eqb cond) (fun _ => False) (fun bl _ => bl = header).
+
+Definition update_used_only_by_exit_and_back_edge (blocks : list block)
+    (l : natural_loop) (k : int) (cond u : value) : Prop :=
+  uses_only blocks (value_eqb u)
+    (fun i => instr_defines_value i cond = true)
+    (fun bl _ => In bl l.(back_edges) /\ passes_at l.(header) k u bl).
+
 Definition dead_spec (blocks : list block) (b : InductionVar.biv) : Prop :=
   exists exit_info,
     find_exit_branch b.(InductionVar.loop) = Some exit_info
     /\ let cond := exit_info.(condition) in
-       let header := b.(InductionVar.loop).(header) in
+       let l := b.(InductionVar.loop) in
        let k := b.(param_index) in
-       uses_only blocks (is_header_param header k)
-         (fun i =>
-           instr_defines_value i cond = true
-           \/ exists u, In u b.(update) /\ instr_defines_value i u = true)
-         (fun _ _ => False)
-       /\ uses_only blocks (value_eqb cond)
-            (fun _ => False)
-            (fun bl _ => bl = header)
+       param_used_only_by_exit_and_updates blocks l.(header) k cond b.(update)
+       /\ cond_used_only_by_header_branch blocks l.(header) cond
        /\ forall u, In u b.(update) ->
-            uses_only blocks (value_eqb u)
-              (fun i => instr_defines_value i cond = true)
-              (fun bl _ =>
-                In bl b.(InductionVar.loop).(back_edges)
-                /\ passes_at header k u bl).
+            update_used_only_by_exit_and_back_edge blocks l k cond u.
 
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
 (* ======================================================================== *)
 
-Lemma all_uses_ok_spec : forall blocks same approve_instr approve_term,
-  all_uses_ok blocks same approve_instr approve_term = true ->
-  uses_only blocks same
-    (fun i => approve_instr i = true)
-    (fun bl arr => approve_term bl arr = true).
+(* The approval [update_uses_ok] asks of a terminator use, read back. *)
+Lemma update_term_approved : forall l header k v bl,
+  set_mem bl (back_edge_set l) && goto_passes header k v bl = true ->
+  In bl l.(back_edges) /\ passes_at header k v bl.
 Proof.
-  intros blocks same approve_instr approve_term H bl Hbl.
-  unfold all_uses_ok in H. rewrite forallb_forall in H.
-  specialize (H bl Hbl). apply andb_true_iff in H. destruct H as [Hi Ht].
-  rewrite forallb_forall in Hi, Ht.
-  split.
-  - intros i Hin Huse. specialize (Hi i Hin).
-    rewrite Huse in Hi. exact Hi.
-  - intros arr Hin Huse. specialize (Ht arr Hin).
-    rewrite Huse in Ht. exact Ht.
-Qed.
-
-Lemma uses_only_weaken : forall blocks same P P' Q Q',
-  (forall i, P i -> P' i) -> (forall bl arr, Q bl arr -> Q' bl arr) ->
-  uses_only blocks same P Q -> uses_only blocks same P' Q'.
-Proof.
-  intros blocks same P P' Q Q' HP HQ H bl Hbl.
-  destruct (H bl Hbl) as [Hi Ht]. split.
-  - intros i Hin Huse. apply HP, Hi; assumption.
-  - intros arr Hin Huse. apply HQ, Ht; assumption.
-Qed.
-
-(* The approval of a terminator use of an update value, read back. *)
-Lemma update_term_approved : forall b header k v bl,
-  set_mem bl (back_edge_set b.(InductionVar.loop)) && goto_passes header k v bl
-  = true ->
-  In bl b.(InductionVar.loop).(back_edges) /\ passes_at header k v bl.
-Proof.
-  intros b header k v bl H. apply andb_true_iff in H. destruct H as [Hset H].
-  apply back_edge_set_spec in Hset. split; [ exact Hset | ].
-  unfold goto_passes in H. unfold passes_at.
-  destruct (terminator bl) as [ [goto | | | ] args | | | ]; try discriminate.
-  apply andb_true_iff in H. destruct H as [H Hcount].
-  apply andb_true_iff in H. destruct H as [Hgoto Harg].
-  apply block_eqb_spec in Hgoto. subst goto.
-  destruct (arg_value args k) as [a | ] eqn:Hav; [ | discriminate ].
-  apply value_eqb_spec in Harg. subst a.
-  apply eqb_int in Hcount.
-  exists args. split; [ reflexivity | split; [ exact Hav | exact Hcount ] ].
+  intros l header k v bl H. apply andb_true_iff in H. destruct H as [Hset H].
+  split; [ apply back_edge_set_spec; exact Hset | ].
+  apply goto_passes_spec. exact H.
 Qed.
 
 (* ======================================================================== *)
 (* Part 4: theorems                                                         *)
 (* ======================================================================== *)
 
+(* A BIV [is_dead] accepts satisfies [dead_spec]. *)
 Theorem is_dead_spec : forall blocks b,
   is_dead blocks b = true -> dead_spec blocks b.
 Proof.
@@ -307,27 +179,33 @@ Proof.
   destruct (find_exit_branch b.(InductionVar.loop)) as [exit_info | ]
     eqn:Hexit; [ | discriminate ].
   cbv zeta in H.
-  destruct (negb (_ && _)) eqn:Hok; [ discriminate | ].
-  apply negb_false_iff, andb_true_iff in Hok. destruct Hok as [Hself Hcond].
-  rewrite forallb_forall in H.
+  apply andb_true_iff in H. destruct H as [H Hupd].
+  apply andb_true_iff in H. destruct H as [Hself Hcond].
+  rewrite forallb_forall in Hupd.
   exists exit_info. split; [ exact Hexit | ]. cbv zeta.
   split; [ | split ].
-  - apply all_uses_ok_spec in Hself.
+  - unfold param_uses_ok in Hself. apply all_uses_ok_spec in Hself.
+    unfold param_used_only_by_exit_and_updates.
     refine (uses_only_weaken _ _ _ _ _ _ _ _ Hself).
     + intros i Hi. apply orb_true_iff in Hi. destruct Hi as [Hi | Hi].
       * left. exact Hi.
       * right. apply existsb_exists in Hi. exact Hi.
     + intros bl arr Hf. discriminate.
-  - apply all_uses_ok_spec in Hcond.
+  - unfold cond_uses_ok in Hcond. apply all_uses_ok_spec in Hcond.
+    unfold cond_used_only_by_header_branch.
     refine (uses_only_weaken _ _ _ _ _ _ _ _ Hcond).
     + intros i Hi. discriminate.
     + intros bl arr Hbl. apply block_eqb_spec. exact Hbl.
-  - intros u Hu. specialize (H u Hu). apply all_uses_ok_spec in H.
-    refine (uses_only_weaken _ _ _ _ _ _ _ _ H).
+  - intros u Hu. specialize (Hupd u Hu).
+    unfold update_uses_ok in Hupd. apply all_uses_ok_spec in Hupd.
+    unfold update_used_only_by_exit_and_back_edge.
+    refine (uses_only_weaken _ _ _ _ _ _ _ _ Hupd).
     + intros i Hi. exact Hi.
     + intros bl arr Hbl. apply update_term_approved. exact Hbl.
 Qed.
 
+(* A loop [loop_is_useless] accepts has as many BIVs as its header has
+   parameters, all of them dead. *)
 Theorem loop_is_useless_spec : forall loop bivs,
   loop_is_useless loop bivs = true ->
   length (params loop.(header)) = length bivs

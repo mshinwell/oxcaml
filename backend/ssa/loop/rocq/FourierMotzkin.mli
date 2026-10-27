@@ -1,15 +1,3 @@
-val add_fits : int -> int -> bool
-
-val mul_fits : int -> int -> bool
-
-val add_ovf : int -> int -> int option
-
-val mul_ovf : int -> int -> int option
-
-val neg_ovf : int -> int option
-
-val coeff_gen : 'a1 -> int -> (int * 'a1) list -> 'a1
-
 module Affine : sig
   type t =
     { const : int;
@@ -48,20 +36,6 @@ module Affine : sig
 
   val sub_checked : t -> t -> t option
 end
-
-val add_fits64 : int64 -> int64 -> bool
-
-val mul_fits64 : int64 -> int64 -> bool
-
-val add_ovf64 : int64 -> int64 -> int64 option
-
-val mul_ovf64 : int64 -> int64 -> int64 option
-
-val gcd64 : int64 -> int64 -> int64
-
-val fdiv64 : int64 -> int64 -> int64
-
-val to_int_ovf : int64 -> int option
 
 val coeff64 : int -> (int * int64) list -> int64
 

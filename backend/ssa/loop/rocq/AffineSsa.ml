@@ -1,7 +1,8 @@
 open AffineExpr
 open FourierMotzkin
+open IntArith
 open LoopComparisons
-open NaturalLoop
+open SsaDominance
 open SsaModel
 
 type ctx =
@@ -29,10 +30,6 @@ let intern c v =
   | None ->
     let id = c.next in
     id, { atoms = (id, v) :: c.atoms; next = id + 1 }
-
-(** val fits_int : int64 -> bool **)
-
-let fits_int n = Int64.equal (Int64.of_int (Int64.to_int n)) n
 
 (** val atomize : ctx -> value -> (t * Range.t option) * ctx **)
 
@@ -68,7 +65,7 @@ let rscale k = function Some r0 -> Range.scale k r0 | None -> None
 
 let rec expr_of_value c = function
   | Const_int (v, n) ->
-    if fits_int n
+    if int64_is_int n
     then
       let k = Int64.to_int n in
       (Const k, Some (Range.const k)), c
