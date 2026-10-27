@@ -40,16 +40,37 @@ let bound_in_range step header0 = function
 
 let extract_comparison is_iv_val is_bound cond =
   match Ssa_view.value cond with
-  | Res (_, op) -> (
+  | Res (_, op, args) -> (
     match op with
-    | Op_comp (cmp, x, y) ->
-      if is_iv_val x && is_bound y
-      then Some ((cmp, true), Value_bound y)
-      else if is_iv_val y && is_bound x
-      then Some ((cmp, false), Value_bound x)
-      else None
-    | Op_comp_imm (cmp, x, k) ->
-      if is_iv_val x then Some ((cmp, true), Const_bound k) else None
+    | Operation.Intop op0 -> (
+      match op0 with
+      | Operation.Icomp cmp -> (
+        match args with
+        | [] -> None
+        | x :: l -> (
+          match l with
+          | [] -> None
+          | y :: l0 -> (
+            match l0 with
+            | [] ->
+              if is_iv_val x && is_bound y
+              then Some ((cmp, true), Value_bound y)
+              else if is_iv_val y && is_bound x
+              then Some ((cmp, false), Value_bound x)
+              else None
+            | _ :: _ -> None)))
+      | _ -> None)
+    | Operation.Intop_imm (op0, k) -> (
+      match op0 with
+      | Operation.Icomp cmp -> (
+        match args with
+        | [] -> None
+        | x :: l -> (
+          match l with
+          | [] ->
+            if is_iv_val x then Some ((cmp, true), Const_bound k) else None
+          | _ :: _ -> None))
+      | _ -> None)
     | _ -> None)
   | Block_param (_, _) -> None
 

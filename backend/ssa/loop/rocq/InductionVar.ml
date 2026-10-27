@@ -7,9 +7,16 @@ open SsaModel
 
 let is_loop_invariant op_def0 header0 v =
   match Ssa_view.value v with
-  | Res (id, op) -> (
+  | Res (id, op, _) -> (
     match op with
-    | Op_const -> true
+    | Operation.Const_int _ -> true
+    | Operation.Const_float32 _ -> true
+    | Operation.Const_float _ -> true
+    | Operation.Const_symbol _ -> true
+    | Operation.Const_vec128 _ -> true
+    | Operation.Const_vec256 _ -> true
+    | Operation.Const_vec512 _ -> true
+    | Operation.Const_mask _ -> true
     | _ -> (
       match Ssa.Instruction.Id.Tbl.find_opt op_def0 id with
       | Some bl -> strictly_dominates bl header0
@@ -59,20 +66,56 @@ let signed_step biv0 =
 
 let classify_update is_self op_def0 header0 v =
   match Ssa_view.value v with
-  | Res (_, op) -> (
+  | Res (_, op, args) -> (
     match op with
-    | Op_add (x, y) ->
-      if is_self x && is_loop_invariant op_def0 header0 y
-      then Some (Step_var y, `Add)
-      else if is_self y && is_loop_invariant op_def0 header0 x
-      then Some (Step_var x, `Add)
-      else None
-    | Op_sub (x, y) ->
-      if is_self x && is_loop_invariant op_def0 header0 y
-      then Some (Step_var y, `Sub)
-      else None
-    | Op_add_imm (x, c) -> if is_self x then Some (Step_const c, `Add) else None
-    | Op_sub_imm (x, c) -> if is_self x then Some (Step_const c, `Sub) else None
+    | Operation.Intop op0 -> (
+      match op0 with
+      | Operation.Iadd -> (
+        match args with
+        | [] -> None
+        | x :: l -> (
+          match l with
+          | [] -> None
+          | y :: l0 -> (
+            match l0 with
+            | [] ->
+              if is_self x && is_loop_invariant op_def0 header0 y
+              then Some (Step_var y, `Add)
+              else if is_self y && is_loop_invariant op_def0 header0 x
+              then Some (Step_var x, `Add)
+              else None
+            | _ :: _ -> None)))
+      | Operation.Isub -> (
+        match args with
+        | [] -> None
+        | x :: l -> (
+          match l with
+          | [] -> None
+          | y :: l0 -> (
+            match l0 with
+            | [] ->
+              if is_self x && is_loop_invariant op_def0 header0 y
+              then Some (Step_var y, `Sub)
+              else None
+            | _ :: _ -> None)))
+      | _ -> None)
+    | Operation.Intop_imm (op0, c) -> (
+      match op0 with
+      | Operation.Iadd -> (
+        match args with
+        | [] -> None
+        | x :: l -> (
+          match l with
+          | [] -> if is_self x then Some (Step_const c, `Add) else None
+          | _ :: _ -> None))
+      | Operation.Isub -> (
+        match args with
+        | [] -> None
+        | x :: l -> (
+          match l with
+          | [] -> if is_self x then Some (Step_const c, `Sub) else None
+          | _ :: _ -> None))
+      | _ -> None)
     | _ -> None)
   | Block_param (_, _) -> None
 

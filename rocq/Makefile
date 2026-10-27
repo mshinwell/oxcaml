@@ -10,7 +10,8 @@
 #                           integer arithmetic, and their extraction
 #                           directives; see HACKING.md there
 #   backend/rocq/           OxCamlBackend: backend-wide definitions, such as
-#                           the semantics of integer comparisons
+#                           the semantics of integer comparisons and the
+#                           operations of the backend's instructions
 #   backend/ssa/rocq/       OxCamlSsa: the SSA graph as the models see it
 #                           (abstract blocks and values, with the few
 #                           observations the passes make of them), and the
@@ -40,7 +41,8 @@ STDLIB := $(addprefix $(STDLIB_DIR)/, \
   OxCamlOption.v ZTactics.v OxCamlInt.v OxCamlInt64.v OxCamlList.v IntArith.v \
   OxCamlExtract.v IntArithExtract.v)
 BACKEND := $(addprefix $(BACKEND_DIR)/, \
-  IntegerComparison.v IntegerComparisonExtract.v)
+  IntegerComparison.v IntegerComparisonExtract.v Operation.v \
+  OperationExtract.v)
 SSA := $(addprefix $(SSA_DIR)/, \
   SsaModel.v SsaModelExtract.v SsaGraph.v SsaDominance.v)
 LOOP := $(addprefix $(LOOP_DIR)/, \

@@ -27,7 +27,7 @@ let instr_defines_value i v =
   match Ssa_view.instr i with
   | Op (id, _) -> (
     match Ssa_view.value v with
-    | Res (id', _) -> Ssa.Instruction.Id.equal id id'
+    | Res (id', _, _) -> Ssa.Instruction.Id.equal id id'
     | Block_param (_, _) -> false)
   | _ -> false
 

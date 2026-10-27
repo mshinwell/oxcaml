@@ -19,6 +19,7 @@
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlList.
+From OxCamlBackend Require Import Operation.
 From OxCamlSsa Require Import SsaModel.
 Import ListNotations.
 
@@ -50,7 +51,7 @@ Definition is_param (bl : block) (index : int) (v : value) : bool :=
 (* [i] is the instruction defining [v]. *)
 Definition instr_defines_value (i : instr) (v : value) : bool :=
   match view_instr i, view_value v with
-  | Op id _, Res id' _ => instr_id_eqb id id'
+  | Op id _, Res id' _ _ => instr_id_eqb id id'
   | _, _ => false
   end.
 

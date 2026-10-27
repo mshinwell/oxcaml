@@ -171,6 +171,12 @@ Parameter int64_shift_right int64_shift_right_logical : int64 -> int -> int64.
 Parameter int64_equal : int64 -> int64 -> bool.
 Parameter int64_compare : int64 -> int64 -> int.
 
+(* OxCaml's [nativeint] and [int32], the payloads of two constant
+   operations, which the models do not compute on; [Int64.of_nativeint]
+   reads a [nativeint] as the same 64-bit value. *)
+Parameter nativeint int32 : Type.
+Parameter nativeint_to_int64 : nativeint -> int64.
+
 Module Int64.
   Abbreviation t := int64.
   Abbreviation to_Z := int64_to_Z.
@@ -192,6 +198,7 @@ Module Int64.
   Abbreviation shift_right_logical := int64_shift_right_logical.
   Abbreviation equal := int64_equal.
   Abbreviation compare := int64_compare.
+  Abbreviation of_nativeint := nativeint_to_int64.
 
   (* Every [Int64] is a 64-bit value. *)
   Axiom to_Z_bounded : forall x, in_int64 (to_Z x).

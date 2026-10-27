@@ -19,18 +19,8 @@ module Terminator : sig
     | Invalid of value list
 end
 
-type op_view =
-  | Op_const
-  | Op_add of value * value
-  | Op_sub of value * value
-  | Op_add_imm of value * int
-  | Op_sub_imm of value * int
-  | Op_comp of Cmm.integer_comparison * value * value
-  | Op_comp_imm of Cmm.integer_comparison * value * int
-  | Op_other
-
 type value_view =
-  | Res of instr_id * op_view
+  | Res of instr_id * Operation.t * value list
   | Block_param of block * int
 
 type instr_view =

@@ -20,7 +20,7 @@ Each directory is a Rocq library (`rocq/Makefile` maps them):
 | Directory                | Library        | Contents                                      |
 |--------------------------|----------------|-----------------------------------------------|
 | `rocq/`                  | `OxCamlStdlib` | Models of OxCaml's own types (`int`, `Int64`, lists, exceptions as options), generic arithmetic (`IntArith.v`), proof helpers, and the extraction directives mapping them onto OxCaml's functions (`OxCamlExtract.v`) |
-| `backend/rocq/`          | `OxCamlBackend`| Backend-wide definitions, such as the semantics of `Cmm.integer_comparison` |
+| `backend/rocq/`          | `OxCamlBackend`| Backend-wide definitions: the semantics of `Cmm.integer_comparison`, the model's copy of `Operation.t` |
 | `backend/ssa/rocq/`      | `OxCamlSsa`    | The SSA graph as the models see it: `SsaModel.v` (the abstract interface), `SsaGraph.v` (properties of blocks, terminators and uses that any pass may need), `SsaDominance.v` |
 | `backend/ssa/loop/rocq/` | `OxCamlLoop`   | The loop analyses, and `Extract.v`, which extracts everything |
 
@@ -127,7 +127,13 @@ overflow, unrecognised shapes).
   the model's `Inductive` views. To observe something new: add the
   `Parameter`, its `Extract` directive in `SsaModelExtract.v`, and the
   view function. `SsaModel.v` proves nothing; what the proofs rely on
-  about an observation is a hypothesis of the theorem using it.
+  about an observation is a hypothesis of the theorem using it. The
+  operation defining a value is given as it is: `Operation.v`
+  (`backend/rocq/`) copies `Operation.t` constructor for constructor,
+  with the payloads the models never inspect as abstract types, and
+  extraction maps it back onto the compiler's type, so a model matches
+  on operations directly. Keep the copy in step with
+  `backend/operation.mli`.
 - **Extracted inductives standing for compiler types** must list their
   constructors in the same order as the OxCaml type
   (`Extract Inductive ... [ ... ]`), and a comment must say which type to

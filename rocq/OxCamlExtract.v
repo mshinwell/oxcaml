@@ -47,6 +47,11 @@ Extract Inlined Constant two => "2".
 (* OxCaml [Int64]. *)
 Extract Constant int64 => "int64".
 Extraction Inline int64.
+Extract Constant nativeint => "nativeint".
+Extraction Inline nativeint.
+Extract Constant int32 => "int32".
+Extraction Inline int32.
+Extract Inlined Constant nativeint_to_int64 => "Int64.of_nativeint".
 Extract Inlined Constant int64_zero => "0L".
 Extract Inlined Constant int64_one => "1L".
 Extract Inlined Constant int64_minus_one => "(-1L)".

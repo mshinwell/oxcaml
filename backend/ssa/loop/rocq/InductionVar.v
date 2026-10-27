@@ -24,6 +24,7 @@
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlList.
+From OxCamlBackend Require Import Operation.
 From OxCamlSsa Require Import SsaModel SsaGraph SsaDominance.
 From OxCamlLoop Require Import NaturalLoop.
 Import ListNotations.
@@ -35,8 +36,8 @@ Import ListNotations.
 Local Open Scope sint63_scope.
 
 (* A value cannot change across the iterations of a loop when it is a
-   constant ([Op_const], the [Const_*] operations), or is
-   defined in a block that strictly dominates the loop's header: such a
+   constant (one of the [Const_*] operations), or is defined in a block
+   that strictly dominates the loop's header: such a
    block is not in the loop's body (whose blocks the header dominates), so
    it does not run between two visits of the header. For a value used in
    the body this is the same as its defining block being outside the body,
@@ -45,8 +46,10 @@ Local Open Scope sint63_scope.
 Definition is_loop_invariant (op_def : op_def) (header : block) (v : value)
     : bool :=
   match view_value v with
-  | Res _ Op_const => true
-  | Res id _ =>
+  | Res _ (Operation.Const_int _ | Const_float32 _ | Const_float _
+           | Const_symbol _ | Const_vec128 _ | Const_vec256 _
+           | Const_vec512 _ | Const_mask _) _ => true
+  | Res id _ _ =>
     match op_def_find op_def id with
     | None => false
     | Some bl => strictly_dominates bl header
@@ -105,17 +108,17 @@ Definition signed_step (biv : biv) : option int :=
 Definition classify_update (is_self : value -> bool) (op_def : op_def)
     (header : block) (v : value) : option (biv_step * biv_sign) :=
   match view_value v with
-  | Res _ (Op_add_imm x c) =>
+  | Res _ (Intop_imm Operation.Iadd c) [x] =>
     if is_self x then Some (Step_const c, Add) else None
-  | Res _ (Op_sub_imm x c) =>
+  | Res _ (Intop_imm Operation.Isub c) [x] =>
     if is_self x then Some (Step_const c, Sub) else None
-  | Res _ (Op_add x y) =>
+  | Res _ (Intop Operation.Iadd) [x; y] =>
     if is_self x && is_loop_invariant op_def header y
     then Some (Step_var y, Add)
     else if is_self y && is_loop_invariant op_def header x
     then Some (Step_var x, Add)
     else None
-  | Res _ (Op_sub x y) =>
+  | Res _ (Intop Operation.Isub) [x; y] =>
     if is_self x && is_loop_invariant op_def header y
     then Some (Step_var y, Sub)
     else None
@@ -222,8 +225,10 @@ Definition analyze (op_def : op_def) (blocks : list block)
 Definition loop_invariant_value (op_def : op_def) (header : block)
     (v : value) : Prop :=
   match view_value v with
-  | Res _ Op_const => True
-  | Res id _ =>
+  | Res _ (Operation.Const_int _ | Const_float32 _ | Const_float _
+           | Const_symbol _ | Const_vec128 _ | Const_vec256 _
+           | Const_vec512 _ | Const_mask _) _ => True
+  | Res id _ _ =>
     exists bl,
       op_def_find op_def id = Some bl
       /\ dominates bl header = true /\ bl <> header
@@ -498,7 +503,7 @@ Proof.
     apply andb_true_iff in Hs. destruct Hs as [Hd Hne].
     split; [ exact Hd | ]. intros ->.
     rewrite block_eqb_refl in Hne. discriminate. }
-  destruct (view_value v) as [id op | bl i].
+  destruct (view_value v) as [id op args | bl i].
   - destruct op; try exact I;
       destruct (op_def_find op_def id) as [bl | ]; try discriminate;
       (exists bl; split; [ reflexivity | apply Hstrict; exact H ]).

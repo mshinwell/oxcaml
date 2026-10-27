@@ -40,7 +40,8 @@
 
 open Ssa.Export
 
-(** [SsaModel.view_value]: the shape of the operation defining a value. *)
+(** [SsaModel.view_value]: what defines a value, with the arguments of an
+    operation as a list. *)
 val value : finished Value.t -> SsaModel.value_view
 
 (** [SsaModel.view_instr]: the shape of an instruction. *)

@@ -8,8 +8,11 @@
    so on. Each observation is realized at extraction (SsaModelExtract.v) by
    a function of the compiler: some directly by [Ssa] ([Block.predecessors],
    [Block.dominates], ...), the others by the small functions of
-   backend/ssa/ssa_view.ml, each of which turns a [match] on that data into one
-   of the [Inductive] views below.
+   backend/ssa/ssa_view.ml, each of which turns the compiler's data into one
+   of the [Inductive] views below. The operation defining a value is given
+   as it is, through the model's copy of [Operation.t]
+   (backend/rocq/Operation.v), so that the models match on operations
+   directly.
 
    Nothing here is proved. What the proofs rely on about these observations
    is stated where it is used, as hypotheses of the theorems (what an
@@ -21,7 +24,7 @@
 
 From Stdlib Require Import ZArith Bool List.
 From OxCamlStdlib Require Import OxCamlInt OxCamlInt64.
-From OxCamlBackend Require Import IntegerComparison.
+From OxCamlBackend Require Import IntegerComparison Operation.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -118,25 +121,11 @@ Parameter terminator : block -> Terminator.t.
 (* Values and instructions                                                  *)
 (* ======================================================================== *)
 
-(* The shapes of a [Value.t] the loop passes match on. [Res id op] is
-   [Res ({ id; op; args; _ }, _)] with [op] and [args] summarized as an
-   [op_view]: [Op_add x y] is [op = Intop Iadd] with [args = [| x; y |]],
-   [Op_add_imm x c] is [op = Intop_imm (Iadd, c)] with [args = [| x |]],
-   and so on; [Op_const] is any of the [Const_*] operations; [Op_other] is
-   everything else, including the above with an unexpected number of
-   arguments. [Block_param b i] is [Block_param (b, i)]. *)
-Inductive op_view : Type :=
-  | Op_const
-  | Op_add (x y : value)
-  | Op_sub (x y : value)
-  | Op_add_imm (x : value) (c : int)
-  | Op_sub_imm (x : value) (c : int)
-  | Op_comp (cmp : integer_comparison) (x y : value)
-  | Op_comp_imm (cmp : integer_comparison) (x : value) (k : int)
-  | Op_other.
-
+(* The shape of a [Value.t]: [Res id op args] is [Res ({ id; op; args; _ },
+   _)] with the arguments as a list, and [Block_param b i] is
+   [Block_param (b, i)]. *)
 Inductive value_view : Type :=
-  | Res (id : instr_id) (op : op_view)
+  | Res (id : instr_id) (op : operation) (args : list value)
   | Block_param (b : block) (i : int).
 
 Parameter view_value : value -> value_view.

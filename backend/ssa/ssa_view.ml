@@ -36,22 +36,7 @@ module M = SsaModel
 
 let value (v : finished Value.t) : M.value_view =
   match v with
-  | Res ({ id; op; args; _ }, _) ->
-    let op : M.op_view =
-      match[@warning "-fragile-match"] op, args with
-      | ( ( Const_int _ | Const_float _ | Const_float32 _ | Const_symbol _
-          | Const_vec128 _ | Const_vec256 _ | Const_vec512 _ ),
-          _ ) ->
-        Op_const
-      | Intop Iadd, [| x; y |] -> Op_add (x, y)
-      | Intop Isub, [| x; y |] -> Op_sub (x, y)
-      | Intop_imm (Iadd, c), [| x |] -> Op_add_imm (x, c)
-      | Intop_imm (Isub, c), [| x |] -> Op_sub_imm (x, c)
-      | Intop (Icomp cmp), [| x; y |] -> Op_comp (cmp, x, y)
-      | Intop_imm (Icomp cmp, k), [| x |] -> Op_comp_imm (cmp, x, k)
-      | _, _ -> Op_other
-    in
-    Res (id, op)
+  | Res ({ id; op; args; _ }, _) -> Res (id, op, Array.to_list args)
   | Block_param (block, index) -> Block_param (block, index)
 
 let instr (i : finished Instruction.t) : M.instr_view =

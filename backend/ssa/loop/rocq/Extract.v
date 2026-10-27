@@ -18,12 +18,13 @@
    Everything about the functions is proved in the model files. The
    mapping of the models' types and primitives onto OxCaml's is what has to
    be trusted by inspection; it is in OxCamlExtract.v and IntArithExtract.v
-   (rocq/), IntegerComparisonExtract.v (backend/rocq/), SsaModelExtract.v
-   (backend/ssa/rocq/) and the *Extract.v files here. *)
+   (rocq/), IntegerComparisonExtract.v and OperationExtract.v
+   (backend/rocq/), SsaModelExtract.v (backend/ssa/rocq/) and the
+   *Extract.v files here. *)
 
 From Stdlib Require Import Extraction.
 From OxCamlStdlib Require Import OxCamlExtract IntArithExtract.
-From OxCamlBackend Require Import IntegerComparisonExtract.
+From OxCamlBackend Require Import IntegerComparisonExtract OperationExtract.
 From OxCamlSsa Require Import SsaModelExtract SsaGraph SsaDominance.
 From OxCamlLoop Require Import FourierMotzkin FourierMotzkinExtract
   LoopComparisons AffineExpr AffineExprExtract NaturalLoop AffineSsa

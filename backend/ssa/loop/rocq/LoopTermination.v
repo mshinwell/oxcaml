@@ -43,7 +43,7 @@
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64 OxCamlList.
-From OxCamlBackend Require Import IntegerComparison.
+From OxCamlBackend Require Import IntegerComparison Operation.
 From OxCamlSsa Require Import SsaModel SsaGraph SsaDominance.
 From OxCamlLoop Require Import FourierMotzkin LoopComparisons AffineExpr
   NaturalLoop AffineSsa InductionVar.
@@ -95,9 +95,9 @@ Definition bound_in_range (step : int) (header : block) (bound : bound)
 Definition extract_comparison (is_iv_val is_bound : value -> bool)
     (cond : value) : option (integer_comparison * bool * bound) :=
   match view_value cond with
-  | Res _ (Op_comp_imm cmp x k) =>
+  | Res _ (Intop_imm (Operation.Icomp cmp) k) [x] =>
     if is_iv_val x then Some (cmp, true, Const_bound k) else None
-  | Res _ (Op_comp cmp x y) =>
+  | Res _ (Intop (Operation.Icomp cmp)) [x; y] =>
     if is_iv_val x && is_bound y
     then Some (cmp, true, Value_bound y)
     else if is_iv_val y && is_bound x
@@ -202,14 +202,18 @@ Record machine_values (iter : nat -> value -> Z) : Prop :=
        bits, and a comparison is 1 or 0. *)
     iter_op : forall n v,
       match view_value v with
-      | Res _ (Op_add x y) => iter n v = wrap64 (iter n x + iter n y)
-      | Res _ (Op_sub x y) => iter n v = wrap64 (iter n x - iter n y)
-      | Res _ (Op_add_imm x c) => iter n v = wrap64 (iter n x + to_Z c)
-      | Res _ (Op_sub_imm x c) => iter n v = wrap64 (iter n x - to_Z c)
-      | Res _ (Op_comp cmp x y) =>
+      | Res _ (Intop Operation.Iadd) [x; y] =>
+        iter n v = wrap64 (iter n x + iter n y)
+      | Res _ (Intop Operation.Isub) [x; y] =>
+        iter n v = wrap64 (iter n x - iter n y)
+      | Res _ (Intop_imm Operation.Iadd c) [x] =>
+        iter n v = wrap64 (iter n x + to_Z c)
+      | Res _ (Intop_imm Operation.Isub c) [x] =>
+        iter n v = wrap64 (iter n x - to_Z c)
+      | Res _ (Intop (Operation.Icomp cmp)) [x; y] =>
         iter n v
         = bool_to_Z (IntegerComparison.eval cmp (iter n x) (iter n y))
-      | Res _ (Op_comp_imm cmp x k) =>
+      | Res _ (Intop_imm (Operation.Icomp cmp) k) [x] =>
         iter n v = bool_to_Z (IntegerComparison.eval cmp (iter n x) (to_Z k))
       | _ => True
       end }.
@@ -314,21 +318,28 @@ Section Run.
     forall is_iv_val is_bound cond cmp iv_is_left bnd,
     extract_comparison is_iv_val is_bound cond = Some (cmp, iv_is_left, bnd) ->
     exists id,
-      (exists x k, view_value cond = Res id (Op_comp_imm cmp x k)
+      (exists x k,
+         view_value cond = Res id (Intop_imm (Operation.Icomp cmp) k) [x]
          /\ is_iv_val x = true /\ iv_is_left = true /\ bnd = Const_bound k)
-      \/ (exists x y, view_value cond = Res id (Op_comp cmp x y)
+      \/ (exists x y,
+         view_value cond = Res id (Intop (Operation.Icomp cmp)) [x; y]
          /\ is_iv_val x = true /\ is_bound y = true
          /\ iv_is_left = true /\ bnd = Value_bound y)
-      \/ (exists x y, view_value cond = Res id (Op_comp cmp x y)
+      \/ (exists x y,
+         view_value cond = Res id (Intop (Operation.Icomp cmp)) [x; y]
          /\ is_iv_val y = true /\ is_bound x = true
          /\ iv_is_left = false /\ bnd = Value_bound x).
   Proof.
     intros is_iv_val is_bound cond cmp iv_is_left bnd H.
     unfold extract_comparison in H.
-    destruct (view_value cond) as [id op | bl i] eqn:Hv; [ | discriminate ].
-    destruct op as [ | x y | x y | x c | x c | cmp' x y | cmp' x k | ];
-      try discriminate.
-    - (* Op_comp *)
+    destruct (view_value cond) as [id op args | bl i] eqn:Hv;
+      [ | discriminate ].
+    destruct op as [ | | | ? | ? | ? | ? | ? | ? | ? | ? | ? | ? | ? ? ? | iop
+                   | ? | iop k | ? | ? ? | ? | ? | ? | ? | | | | ? | ? | | | |
+                   | | ? ];
+      try discriminate; destruct iop; try discriminate;
+      destruct args as [ | x [ | y [ | ? ? ] ] ]; try discriminate.
+    - (* Intop (Operation.Icomp cmp'), [x; y] *)
       destruct (is_iv_val x && is_bound y) eqn:H1.
       + injection H as <- <- <-. apply andb_true_iff in H1.
         destruct H1 as [Hx Hy].
@@ -339,7 +350,7 @@ Section Run.
         destruct H2 as [Hy Hx].
         exists id. right. right. exists x, y.
         repeat split; try reflexivity; assumption.
-    - (* Op_comp_imm *)
+    - (* Intop_imm (Operation.Icomp cmp') k, [x] *)
       destruct (is_iv_val x) eqn:Hx; [ | discriminate ].
       injection H as <- <- <-.
       exists id. left. exists x, k.
@@ -353,13 +364,18 @@ Section Run.
     classify_update is_self op_def l.(header) u = Some (Step_const c, sign) ->
     exists id x,
       is_self x = true
-      /\ ((sign = Add /\ view_value u = Res id (Op_add_imm x c))
-          \/ (sign = Sub /\ view_value u = Res id (Op_sub_imm x c))).
+      /\ ((sign = Add
+           /\ view_value u = Res id (Intop_imm Operation.Iadd c) [x])
+          \/ (sign = Sub
+              /\ view_value u = Res id (Intop_imm Operation.Isub c) [x])).
   Proof.
     intros is_self c sign u H. unfold classify_update in H.
-    destruct (view_value u) as [id op | bl i] eqn:Hv; [ | discriminate ].
-    destruct op as [ | x y | x y | x c0 | x c0 | cmp x y | cmp x k | ];
-      try discriminate.
+    destruct (view_value u) as [id op args | bl i] eqn:Hv; [ | discriminate ].
+    destruct op as [ | | | ? | ? | ? | ? | ? | ? | ? | ? | ? | ? | ? ? ? | iop
+                   | ? | iop c0 | ? | ? ? | ? | ? | ? | ? | | | | ? | ? | | | |
+                   | | ? ];
+      try discriminate; destruct iop; try discriminate;
+      destruct args as [ | x [ | y [ | ? ? ] ] ]; try discriminate.
     - destruct (is_self x && _); [ discriminate | ].
       destruct (is_self y && _); discriminate.
     - destruct (is_self x && _); discriminate.
