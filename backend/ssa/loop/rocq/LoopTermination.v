@@ -163,9 +163,12 @@ Definition bound_value (iter0 : value -> Z) (b : bound) : Z :=
    passes rely on about the graph; they are the trusted meaning of the
    views of SsaModel.v in one run.
 
-   Every execution that enters the loop and never leaves it gives such an
-   [iter]: the header's parameters, the values of the body's blocks and
-   the values of the blocks dominating the header take the values the
+   An execution that visits the header infinitely often gives such an
+   [iter]. An execution stuck in an inner cycle need not do so:
+   DeleteEmptyLoops.v separately checks that the body without the header
+   is acyclic. For the visits described here, the header's parameters, the
+   values of the body's blocks and the values of the blocks dominating the
+   header take the values the
    execution computes (a value of an inner loop, computed several times
    between two visits, takes the first). Every other value is one the
    execution does not compute during the run (it is defined after the
@@ -174,7 +177,7 @@ Definition bound_value (iter0 : value -> Z) (b : bound) : Z :=
    that is, and any 64-bit value otherwise. Nothing else constrains
    these: [iter_invariant] speaks only of values defined in blocks that
    strictly dominate the header. *)
-Record infinite_run (op_def : op_def) (l : natural_loop)
+Record infinite_header_run (op_def : op_def) (l : natural_loop)
     (iter : nat -> value -> Z) : Prop :=
   { (* Values are 64-bit registers. *)
     iter_bounded : forall n v, in_int64 (iter n v);
@@ -246,7 +249,7 @@ Section Run.
   Variable op_def : op_def.
   Variable l : natural_loop.
   Variable iter : nat -> value -> Z.
-  Hypothesis run : infinite_run op_def l iter.
+  Hypothesis run : infinite_header_run op_def l iter.
 
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)

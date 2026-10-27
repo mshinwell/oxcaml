@@ -317,7 +317,8 @@ Section Semantics.
      computes from the machine values of its arguments: add, subtract and
      left shift wrap at 64 bits; the arithmetic right shift divides
      rounding towards minus infinity; the logical right shift divides the
-     unsigned reading of its (unrecorded) argument; or is the bitwise or
+     unsigned reading of its (unrecorded) argument, read back as a signed
+     register (including a shift by zero); or is the bitwise or
      of two's-complement values. Shifts by amounts outside the register
      width compute something unspecified, which nothing below relies on.
      A comparison's own value is not needed, only those of its operands
@@ -343,7 +344,7 @@ Section Semantics.
       /\ (0 <= to_Z k <= 63 -> mval v = mval (root a) / 2 ^ to_Z k)
     | Ilsr v k =>
       0 <= to_Z k <= 63 ->
-      exists r, in_int64 r /\ mval v = unsigned64 r / 2 ^ to_Z k
+      exists r, in_int64 r /\ mval v = wrap64 (unsigned64 r / 2 ^ to_Z k)
     | Ior v a m => tree_sound a /\ mval v = Z.lor (mval (root a)) (to_Z m)
     | Icomp _ _ a b => tree_sound a /\ tree_sound b
     | Icomp_imm _ _ a _ => tree_sound a
@@ -384,6 +385,16 @@ Section Semantics.
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
 (* ======================================================================== *)
+
+  (* A logical shift by zero can preserve any signed register value,
+     including negative ones. *)
+  Lemma tree_sound_lsr_zero : forall v, tree_sound (Ilsr v zero).
+  Proof.
+    intro v. cbn [tree_sound]. intros _.
+    exists (mval v). split; [ apply mval_bounded | ].
+    rewrite to_Z_zero, Z.pow_0_r, Z.div_1_r.
+    symmetry. apply wrap64_unsigned, mval_bounded.
+  Qed.
 
   (* A context extends itself, and extension is transitive. *)
   Lemma extends_refl : forall c, extends c c.
@@ -741,6 +752,9 @@ Section Semantics.
         refine (conj Hwf1 (conj He1 (conj _ _))); [ lia | ].
         intros rho Hrho. pose proof (Hid rho Hrho) as Eid.
         destruct (Hs ltac:(lia)) as [r0 [Hr0 Hv]].
+        rewrite wrap64_id in Hv.
+        2: { apply in_range_int64 with (r := Range.shr_logical k).
+             apply shr_logical_sound; [ lia | exact Hr0 ]. }
         cbn [root AffineExpr.eval consistent].
         split; [ exact Eid | ].
         split.

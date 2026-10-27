@@ -137,6 +137,43 @@ Definition all_uses_ok (blocks : list block) (same : value -> bool)
            (terminator_args (terminator bl)))
     blocks.
 
+(* Visit roots from left to right, threading the completed set. *)
+Fixpoint visit_all (visit : blockset -> block -> option blockset)
+    (seen : blockset) (roots : list block) : option blockset :=
+  match roots with
+  | [] => Some seen
+  | b :: roots =>
+    let* seen := visit seen b in visit_all visit seen roots
+  end.
+
+(* A depth-first acyclicity check on [region] without [cut]. Only completed
+   blocks are memoized: revisiting a block on the current path exhausts the
+   depth fuel and rejects the graph. Each successful visit completes one
+   block, so sharing does not cause repeated traversals of its successors.
+   The graph's block list is enough depth fuel for any acyclic region. *)
+Fixpoint visit_acyclic (fuel : list block) (region : blockset) (cut : block)
+    (seen : blockset) (b : block) : option blockset :=
+  if block_eqb b cut || negb (set_mem b region) || set_mem b seen
+  then Some seen
+  else
+    match fuel with
+    | [] => None
+    | _ :: fuel =>
+      let* seen := visit_all (visit_acyclic fuel region cut) seen
+        (all_successors b) in
+      Some (set_add b seen)
+    end.
+
+(* Check every block of the region, not just the part reached from [cut].
+   The final coverage check also rejects an incomplete [blocks] list. *)
+Definition acyclic_except (blocks : list block) (region : blockset)
+    (cut : block) : bool :=
+  match visit_all (visit_acyclic blocks region cut) set_empty blocks with
+  | None => false
+  | Some seen =>
+    set_for_all (fun b => block_eqb b cut || set_mem b seen) region
+  end.
+
 (* ======================================================================== *)
 (* Part 2: the intended meaning                                             *)
 (* ======================================================================== *)
@@ -170,6 +207,18 @@ Definition passes_at (target : block) (k : int) (v : value) (bl : block)
     /\ arg_value args k = Some v
     /\ count_occurrences (arg_is v) args = one.
 
+(* The successor relation restricted to [region] without [cut], oriented
+   for accessibility: following an edge decreases in the relation. *)
+Definition region_edge (region : blockset) (cut s b : block) : Prop :=
+  set_mem b region = true /\ b <> cut
+  /\ set_mem s region = true /\ s <> cut /\ In s (all_successors b).
+
+(* An execution cannot stay in the region forever without visiting [cut]. *)
+Definition no_infinite_path_except (region : blockset) (cut : block) : Prop :=
+  forall path : nat -> block,
+    (forall n, set_mem (path n) region = true /\ path n <> cut
+       /\ In (path (S n)) (all_successors (path n))) -> False.
+
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
 (* ======================================================================== *)
@@ -200,6 +249,112 @@ Lemma set_mem_singleton_iff : forall b x,
   set_mem b (set_singleton x) = true <-> b = x.
 Proof. intros b x. rewrite set_mem_singleton. apply block_eqb_spec. Qed.
 
+(* --- Acyclic regions --- *)
+
+Section Acyclic.
+  Variable region : blockset.
+  Variable cut : block.
+
+  Definition completed (seen : blockset) : Prop :=
+    forall b, set_mem b seen = true -> Acc (region_edge region cut) b.
+
+  Definition covered (seen : blockset) (b : block) : Prop :=
+    b = cut \/ set_mem b region = false \/ set_mem b seen = true.
+
+  Definition includes (old new : blockset) : Prop :=
+    forall b, set_mem b old = true -> set_mem b new = true.
+
+  (* Growing the completed set preserves coverage of a block. *)
+  Lemma covered_includes : forall old new b,
+    includes old new -> covered old b -> covered new b.
+  Proof.
+    intros old new b Hinc [H | [H | H]];
+      [ left | right; left | right; right ]; auto.
+  Qed.
+
+  (* A skipped block is outside the region, the cut, or already completed. *)
+  Lemma skipped_covered : forall seen b,
+    block_eqb b cut || negb (set_mem b region) || set_mem b seen = true ->
+    covered seen b.
+  Proof.
+    intros seen b H. apply orb_true_iff in H. destruct H as [H | H].
+    - apply orb_true_iff in H. destruct H as [H | H].
+      + left. apply block_eqb_spec. exact H.
+      + right; left. apply negb_true_iff. exact H.
+    - right; right. exact H.
+  Qed.
+
+  (* Visiting a list preserves completed blocks and covers every root. *)
+  Lemma visit_all_spec : forall visit,
+    (forall seen b out, completed seen -> visit seen b = Some out ->
+       completed out /\ includes seen out /\ covered out b) ->
+    forall roots seen out,
+      completed seen -> visit_all visit seen roots = Some out ->
+      completed out /\ includes seen out
+      /\ forall b, In b roots -> covered out b.
+  Proof.
+    intros visit Hvisit roots. induction roots as [|b roots IH];
+      intros seen out Hseen H; cbn [visit_all] in H.
+    - injection H as <-. split; [ exact Hseen | ].
+      split; [ intros x Hx; exact Hx | intros x Hx; contradiction ].
+    - destruct (visit seen b) as [next |] eqn:Hv; [ | discriminate ].
+      destruct (Hvisit _ _ _ Hseen Hv) as [Hnext [Hinc Hcover]].
+      destruct (IH _ _ Hnext H) as [Hout [Hinc' Hcovers]].
+      split; [ exact Hout | ]. split.
+      + intros x Hx. apply Hinc', Hinc. exact Hx.
+      + intros x [<- | Hx].
+        * eapply covered_includes; eassumption.
+        * apply Hcovers. exact Hx.
+  Qed.
+
+  (* Successful DFS visits only complete accessible blocks: every in-region
+     successor has already completed before its predecessor is added. *)
+  Lemma visit_acyclic_spec : forall fuel seen b out,
+    completed seen -> visit_acyclic fuel region cut seen b = Some out ->
+    completed out /\ includes seen out /\ covered out b.
+  Proof.
+    induction fuel as [|x fuel IH]; intros seen b out Hseen H;
+      cbn [visit_acyclic] in H;
+      destruct (block_eqb b cut || negb (set_mem b region) || set_mem b seen)
+        eqn:Hskip.
+    - injection H as <-. split; [ exact Hseen | ].
+      split; [ intros a Ha; exact Ha | apply skipped_covered; exact Hskip ].
+    - discriminate.
+    - injection H as <-. split; [ exact Hseen | ].
+      split; [ intros a Ha; exact Ha | apply skipped_covered; exact Hskip ].
+    - destruct (visit_all (visit_acyclic fuel region cut) seen
+        (all_successors b)) as [next |] eqn:Hnext; [ | discriminate ].
+      injection H as <-.
+      destruct (visit_all_spec _ IH _ _ _ Hseen Hnext)
+        as [Hdone [Hinc Hchildren]].
+      split.
+      + intros a Ha. apply set_mem_add_iff in Ha. destruct Ha as [-> | Ha].
+        * constructor. intros s [_ [_ [Hs [Hcut Hedge]]]].
+          destruct (Hchildren s Hedge) as [H | [H | H]].
+          -- contradiction.
+          -- rewrite Hs in H. discriminate.
+          -- apply Hdone. exact H.
+        * apply Hdone. exact Ha.
+      + split.
+        * intros a Ha. apply set_mem_add_iff. right. apply Hinc. exact Ha.
+        * right; right. apply set_mem_add_iff. left. reflexivity.
+  Qed.
+
+  (* Accessibility excludes an infinite sequence of successor steps. *)
+  Lemma accessible_no_path : forall b,
+    Acc (region_edge region cut) b ->
+    forall path : nat -> block, path 0%nat = b ->
+      (forall n, region_edge region cut (path (S n)) (path n)) -> False.
+  Proof.
+    intros b Hacc. induction Hacc as [b Hb IH].
+    intros path Hroot Hedge.
+    assert (Hnext : region_edge region cut (path 1%nat) b).
+    { rewrite <- Hroot. exact (Hedge 0%nat). }
+    apply (IH _ Hnext (fun n => path (S n)) eq_refl).
+    intro n. apply Hedge.
+  Qed.
+End Acyclic.
+
 (* --- Uses --- *)
 
 (* [uses_only] with weaker approvals follows from [uses_only] with
@@ -217,6 +372,28 @@ Qed.
 (* ======================================================================== *)
 (* Part 4: theorems                                                         *)
 (* ======================================================================== *)
+
+(* A successfully checked region has no infinite path avoiding the cut. *)
+Theorem acyclic_except_sound : forall blocks region cut,
+  acyclic_except blocks region cut = true ->
+  no_infinite_path_except region cut.
+Proof.
+  intros blocks region cut H path Hpath. unfold acyclic_except in H.
+  destruct (visit_all (visit_acyclic blocks region cut) set_empty blocks)
+    as [seen |] eqn:Hv; [ | discriminate ].
+  assert (Hempty : completed region cut set_empty).
+  { intros b Hb. rewrite set_mem_empty in Hb. discriminate. }
+  destruct (visit_all_spec region cut _ (visit_acyclic_spec region cut blocks)
+    _ _ _ Hempty Hv) as [Hdone _].
+  rewrite set_for_all_spec in H.
+  destruct (Hpath 0%nat) as [Hmem [Hcut _]].
+  specialize (H _ Hmem). apply orb_true_iff in H. destruct H as [H | H].
+  - apply block_eqb_spec in H. contradiction.
+  - eapply (accessible_no_path region cut _ (Hdone _ H) path eq_refl).
+    intro n. destruct (Hpath n) as [Hb [Hbc Hedge]].
+    destruct (Hpath (S n)) as [Hs [Hsc _]].
+    repeat split; assumption.
+Qed.
 
 (* A block [block_effect_free] accepts does nothing. *)
 Theorem block_effect_free_spec : forall bl,

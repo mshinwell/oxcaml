@@ -112,3 +112,46 @@ let all_uses_ok blocks same approve_instr approve_term =
            (fun arr -> (not (List.exists same arr)) || approve_term bl arr)
            (terminator_args (Ssa_view.terminator bl)))
     blocks
+
+(** val visit_all : (blockset -> block -> blockset option) -> blockset -> block
+    list -> blockset option **)
+
+let rec visit_all visit seen = function
+  | [] -> Some seen
+  | b :: roots0 -> (
+    match visit seen b with
+    | Some seen0 -> visit_all visit seen0 roots0
+    | None -> None)
+
+(** val visit_acyclic : block list -> blockset -> block -> blockset -> block ->
+    blockset option **)
+
+let rec visit_acyclic fuel region cut seen b =
+  if
+    (Ssa.Block.equal b cut || not (Ssa.Block.Set.mem b region))
+    || Ssa.Block.Set.mem b seen
+  then Some seen
+  else
+    match fuel with
+    | [] -> None
+    | _ :: fuel0 -> (
+      match
+        visit_all
+          (visit_acyclic fuel0 region cut)
+          seen
+          (Ssa.Block.all_successors b)
+      with
+      | Some seen0 -> Some (Ssa.Block.Set.add b seen0)
+      | None -> None)
+
+(** val acyclic_except : block list -> blockset -> block -> bool **)
+
+let acyclic_except blocks region cut =
+  match
+    visit_all (visit_acyclic blocks region cut) Ssa.Block.Set.empty blocks
+  with
+  | Some seen ->
+    Ssa.Block.Set.for_all
+      (fun b -> Ssa.Block.equal b cut || Ssa.Block.Set.mem b seen)
+      region
+  | None -> false

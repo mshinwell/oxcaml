@@ -31,6 +31,8 @@
 
     A loop is considered empty when:
     - the termination analysis (rocq/LoopTermination.v) reports [Terminates],
+      and the body with its header removed is acyclic, so execution cannot
+      diverge between visits to the header,
     - every block parameter of the header is a basic induction variable
       (rocq/InductionVar.v) whose only uses are its own update expression and
       the exit comparison, which in turn is used only by the header's branch

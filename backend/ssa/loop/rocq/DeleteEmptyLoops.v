@@ -16,7 +16,8 @@
    when [deletable] (part 2) holds of it. Its header's exit branch is the
    simple one LoopTermination.v recognises, with an exit target that takes
    no arguments; the loop has no run that visits its header for ever
-   ([infinite_run] there); each of its header's parameters is a basic
+   ([infinite_header_run] there), and no infinite path through its body
+   avoiding the header; each of its header's parameters is a basic
    induction variable (InductionVar.v) that is dead in the sense of
    DeadInductionVar.v; every block of its body has only side-effect-free
    instructions and a [Goto] or [Switch] terminator; and that exit edge is
@@ -87,6 +88,7 @@ Definition find_deletions (op_def : op_def) (blocks : list block)
       let loop := dr.(loop) in
       let bivs := map (fun br => br.(biv)) dr.(bivs) in
       if dr.(useless) && body_effect_free loop
+         && acyclic_except blocks loop.(body) loop.(header)
       then
         match find_exit_branch loop with
         | Some exit_info =>
@@ -124,8 +126,9 @@ Definition exit_branch_to (l : natural_loop) (exit : block) : Prop :=
     find_exit_branch l = Some exit_info
     /\ exit_info.(exit_target) = exit /\ params exit = [].
 
-Definition no_infinite_run (op_def : op_def) (l : natural_loop) : Prop :=
-  forall iter, infinite_run op_def l iter -> False.
+Definition no_infinite_header_run (op_def : op_def) (l : natural_loop)
+    : Prop :=
+  forall iter, infinite_header_run op_def l iter -> False.
 
 (* Every parameter of the header is one of [bivs], and each of those is a
    basic induction variable of [l] that is dead. *)
@@ -141,7 +144,8 @@ Definition deletable (op_def : op_def) (blocks : list block)
     (l : natural_loop) (bivs : list InductionVar.biv) (exit : block)
     : Prop :=
   exit_branch_to l exit
-  /\ no_infinite_run op_def l
+  /\ no_infinite_header_run op_def l
+  /\ no_infinite_path_except l.(body) l.(header)
   /\ params_are_dead_bivs op_def blocks l bivs
   /\ body_does_nothing l
   /\ exits_only_to l exit.
@@ -184,8 +188,10 @@ Proof.
   apply filter_map_In in H. destruct H as [dr [Hdr H]].
   destruct (DeadInductionVar.analyze_spec _ _ _ Hdr) as [Hin [Hbivs Huseless]].
   cbv zeta in H.
-  destruct (dr.(useless) && body_effect_free dr.(loop)) eqn:Hcond;
+  destruct (dr.(useless) && body_effect_free dr.(loop)
+    && acyclic_except blocks dr.(loop).(body) dr.(loop).(header)) eqn:Hcond;
     [ | discriminate ].
+  apply andb_true_iff in Hcond. destruct Hcond as [Hcond Hacyclic].
   apply andb_true_iff in Hcond. destruct Hcond as [Hu Hfree].
   destruct (find_exit_branch dr.(loop)) as [exit_info | ] eqn:Hexit;
     [ | discriminate ].
@@ -201,11 +207,13 @@ Proof.
   split; [ exact Hin | split; [ reflexivity | ] ].
   destruct (InductionVar.analyze_spec _ _ _ _ Hin) as [_ [Hdef Hspec]].
   destruct (Huseless Hu) as [Hlen Hdead].
-  unfold deletable. split; [ | split; [ | split; [ | split ] ] ].
+  unfold deletable.
+  split; [ | split; [ | split; [ | split; [ | split ] ] ] ].
   - unfold exit_branch_to. exists exit_info.
     split; [ exact Hexit | split; [ reflexivity | exact Hparams ] ].
-  - unfold no_infinite_run. intros iter Hrun.
+  - unfold no_infinite_header_run. intros iter Hrun.
     exact (analyze_Terminates_of_graph _ _ _ Hrun _ _ Hin Hanalyze).
+  - apply (acyclic_except_sound blocks). exact Hacyclic.
   - unfold params_are_dead_bivs. split.
     + intros k v Hk. rewrite Hdef.
       apply (analyze_loop_cover _ _ _ v); [ | exact Hk ].

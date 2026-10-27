@@ -73,6 +73,18 @@ Proof.
   assert (k = 0) by lia. subst k. lia.
 Qed.
 
+(* Reading the unsigned interpretation back as a signed register preserves
+   its bit pattern, including when the sign bit is set. *)
+Lemma wrap64_unsigned : forall z, in_int64 z -> wrap64 (unsigned64 z) = z.
+Proof.
+  intros z Hz. unfold unsigned64. destruct (z <? 0).
+  - unfold wrap64.
+    replace (z + two64 + two63) with (z + two63 + 1 * two64) by ring.
+    rewrite Z.mod_add by (unfold two64; lia).
+    apply wrap64_id. exact Hz.
+  - apply wrap64_id. exact Hz.
+Qed.
+
 (* The truncated quotient of a 64-bit value by a positive divisor is again
    a 64-bit value (its magnitude does not grow). *)
 Lemma quot_abs_le : forall a b, 0 < b -> Z.abs (Z.quot a b) <= Z.abs a.

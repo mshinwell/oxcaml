@@ -81,29 +81,57 @@ let strict_dominators (b : finished Block.t) : finished Block.t list =
   in
   walk b []
 
-let rec tree_of_value (v : finished Value.t) : M.tree =
-  match[@warning "-fragile-match"] v with
-  | Res ({ op = Const_int n; _ }, _) -> M.Const_int (v, Int64.of_nativeint n)
-  | Res ({ op = Intop Iadd; args = [| a; b |]; _ }, _) ->
-    M.Iadd (v, tree_of_value a, tree_of_value b)
-  | Res ({ op = Intop Isub; args = [| a; b |]; _ }, _) ->
-    M.Isub (v, tree_of_value a, tree_of_value b)
-  | Res ({ op = Intop_imm (Iadd, k); args = [| a |]; _ }, _) ->
-    M.Iadd_imm (v, tree_of_value a, k)
-  | Res ({ op = Intop_imm (Isub, k); args = [| a |]; _ }, _) ->
-    M.Isub_imm (v, tree_of_value a, k)
-  | Res ({ op = Intop_imm (Ilsl, k); args = [| a |]; _ }, _) ->
-    M.Ilsl (v, tree_of_value a, k)
-  | Res ({ op = Intop_imm (Iasr, k); args = [| a |]; _ }, _) ->
-    M.Iasr (v, tree_of_value a, k)
-  | Res ({ op = Intop_imm (Ilsr, k); args = [| _ |]; _ }, _) -> M.Ilsr (v, k)
-  | Res ({ op = Intop_imm (Ior, m); args = [| a |]; _ }, _) ->
-    M.Ior (v, tree_of_value a, m)
-  | Res ({ op = Intop (Icomp cmp); args = [| a; b |]; _ }, _) ->
-    M.Icomp (v, cmp, tree_of_value a, tree_of_value b)
-  | Res ({ op = Intop_imm (Icomp cmp, k); args = [| a |]; _ }, _) ->
-    M.Icomp_imm (v, cmp, tree_of_value a, k)
-  | _ -> M.Other v
+let tree_of_value (v : finished Value.t) : M.tree =
+  (* Bound the expanded tree, not the number of distinct SSA values: sharing
+     the tree alone would still leave exponential traversals in the extracted
+     recognizer and linearizer. An unexpanded value remains an exact atom.
+     Reserve child nodes before descending so even the [Other] leaves fit the
+     budget, and a long unary chain cannot exhaust the stack. *)
+  let max_nodes = 256 in
+  let remaining = ref (max_nodes - 1) in
+  let rec walk (v : finished Value.t) =
+    let unary a make =
+      if !remaining < 1
+      then M.Other v
+      else begin
+        decr remaining;
+        make (walk a)
+      end
+    in
+    let binary a b make =
+      if !remaining < 2
+      then M.Other v
+      else begin
+        remaining := !remaining - 2;
+        let a = walk a in
+        let b = walk b in
+        make a b
+      end
+    in
+    match[@warning "-fragile-match"] v with
+    | Res ({ op = Const_int n; _ }, _) -> M.Const_int (v, Int64.of_nativeint n)
+    | Res ({ op = Intop Iadd; args = [| a; b |]; _ }, _) ->
+      binary a b (fun a b -> M.Iadd (v, a, b))
+    | Res ({ op = Intop Isub; args = [| a; b |]; _ }, _) ->
+      binary a b (fun a b -> M.Isub (v, a, b))
+    | Res ({ op = Intop_imm (Iadd, k); args = [| a |]; _ }, _) ->
+      unary a (fun a -> M.Iadd_imm (v, a, k))
+    | Res ({ op = Intop_imm (Isub, k); args = [| a |]; _ }, _) ->
+      unary a (fun a -> M.Isub_imm (v, a, k))
+    | Res ({ op = Intop_imm (Ilsl, k); args = [| a |]; _ }, _) ->
+      unary a (fun a -> M.Ilsl (v, a, k))
+    | Res ({ op = Intop_imm (Iasr, k); args = [| a |]; _ }, _) ->
+      unary a (fun a -> M.Iasr (v, a, k))
+    | Res ({ op = Intop_imm (Ilsr, k); args = [| _ |]; _ }, _) -> M.Ilsr (v, k)
+    | Res ({ op = Intop_imm (Ior, m); args = [| a |]; _ }, _) ->
+      unary a (fun a -> M.Ior (v, a, m))
+    | Res ({ op = Intop (Icomp cmp); args = [| a; b |]; _ }, _) ->
+      binary a b (fun a b -> M.Icomp (v, cmp, a, b))
+    | Res ({ op = Intop_imm (Icomp cmp, k); args = [| a |]; _ }, _) ->
+      unary a (fun a -> M.Icomp_imm (v, cmp, a, k))
+    | _ -> M.Other v
+  in
+  walk v
 
 let compute_op_def (ssa : finished Ssa.graph) : M.op_def =
   let tbl : M.op_def = Instruction.Id.Tbl.create 64 in

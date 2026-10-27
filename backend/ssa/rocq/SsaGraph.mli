@@ -26,3 +26,14 @@ val all_uses_ok :
   (instr -> bool) ->
   (block -> value list -> bool) ->
   bool
+
+val visit_all :
+  (blockset -> block -> blockset option) ->
+  blockset ->
+  block list ->
+  blockset option
+
+val visit_acyclic :
+  block list -> blockset -> block -> blockset -> block -> blockset option
+
+val acyclic_except : block list -> blockset -> block -> bool

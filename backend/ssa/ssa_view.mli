@@ -62,7 +62,10 @@ val strict_dominators : finished Block.t -> finished Block.t list
 
 (** [SsaModel.tree_of_value]: the operations defining a value and, recursively,
     its arguments, in the shapes the affine linearization
-    (backend/ssa/loop/rocq/AffineSsa.v) matches on. *)
+    (backend/ssa/loop/rocq/AffineSsa.v) matches on. Expansion has a total node
+    budget, including repeated occurrences of shared values; when exhausted,
+    subexpressions become [Other] leaves for their original SSA values. This
+    bounds both construction and the extracted code's traversals. *)
 val tree_of_value : finished Value.t -> SsaModel.tree
 
 (** The table from the id of each [Op] to the block defining it. The models read

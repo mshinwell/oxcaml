@@ -33,7 +33,9 @@ let find_deletions op_def0 blocks =
     (fun dr ->
       let loop0 = dr.DeadInductionVar.loop in
       let bivs0 = List.map (fun br -> br.biv) dr.bivs in
-      if dr.useless && body_effect_free loop0
+      if
+        (dr.useless && body_effect_free loop0)
+        && acyclic_except blocks loop0.body loop0.header
       then
         match find_exit_branch loop0 with
         | Some exit_info -> (

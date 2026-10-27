@@ -164,7 +164,9 @@ Parameter has_side_effect : instr -> bool.
    k)] with argument [a], and so on. [Const_int]'s [nativeint] is an
    [Int64] here (the same integers on a 64-bit machine; [Ssa_view]
    converts). The argument of a logical shift is not inspected and is not
-   kept. [Other] is every other value, which is atomized. *)
+   kept. [Other] is every other value, and any subexpression left unexpanded
+   by the veneer's total node budget; either is atomized. Counting expanded
+   nodes, not distinct SSA values, also bounds the extracted traversals. *)
 Inductive tree : Type :=
   | Const_int (v : value) (n : Int64.t)
   | Iadd (v : value) (a b : tree)
