@@ -64,16 +64,16 @@ Inductive path : block -> list block -> block -> Prop :=
 Definition edge_on (p : list block) (pred succ : block) : Prop :=
   exists before after, p = before ++ pred :: succ :: after.
 
-(* What the compiler's [dominates] means, [entry] being the graph's entry
-   block: every path from the entry to [b] passes through each dominator
-   of [b], and the entry dominates every block, each being reachable from
-   it. Nothing is assumed of the entry's predecessors: a self-recursive
-   tail call is a back edge to the entry. *)
+(* What the compiler's [dominates], written [--dom-->], means, [entry]
+   being the graph's entry block: every path from the entry to [block]
+   passes through each dominator of [block], and the entry dominates every
+   block, each being reachable from it. Nothing is assumed of the entry's
+   predecessors: a self-recursive tail call is a back edge to the entry. *)
 Record dominance_semantics (entry : block) : Prop :=
   { dominates_spec : forall dominator block,
-      dominates dominator block = true ->
+      dominator --dom--> block ->
       forall p, path entry p block -> In dominator p;
-    entry_dominates : forall block, dominates entry block = true }.
+    entry_dominates : forall block, entry --dom--> block }.
 
 Arguments dominates_spec {entry}.
 Arguments entry_dominates {entry}.

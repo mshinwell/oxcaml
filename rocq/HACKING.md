@@ -184,6 +184,9 @@ header.
 
 - Say what the booleans mean with `Prop`s over the observations of
   `SsaModel.v`, not over the compiler's data.
+- Use the notations `SsaModel.v` defines (`a --dom--> b` for `a`
+  dominating `b`) in parts 2 to 4, where a statement is read by eye.
+  Part 1 is code and calls the primitives as the compiler does.
 - Prefer a per-element statement to a counting one: "every parameter at
   position `k` has a dead induction variable with `param_index = k`" is
   checkable; "there are as many as parameters" is not what the pass

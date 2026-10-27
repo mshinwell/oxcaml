@@ -14,6 +14,7 @@
    - [Z] is the type of unbounded mathematical integers. [int] is Rocq's
      primitive signed 63-bit integer, which is exactly OxCaml's [int];
      [to_Z] reads an [int] as a mathematical integer.
+   - [a --dom--> b] (SsaModel.v) says that block [a] dominates block [b].
 
    Shared material lives elsewhere: rocq/ at the root of the repository
    models OxCaml's own types (OxCamlInt.v, OxCamlInt64.v, OxCamlList.v,

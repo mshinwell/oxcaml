@@ -233,8 +233,8 @@ Definition loop_invariant_value (op_def : op_def) (header : block)
   | Res id _ _ _ =>
     exists block,
       op_def_find op_def id = Some block
-      /\ dominates block header = true /\ block <> header
-  | Block_param block _ => dominates block header = true /\ block <> header
+      /\ block --dom--> header /\ block <> header
+  | Block_param block _ => block --dom--> header /\ block <> header
   end.
 
 (* Every update value of [biv] is [self + c], [c + self] or [self - c] for

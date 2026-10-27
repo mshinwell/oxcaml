@@ -99,6 +99,12 @@ Parameter predecessors : block -> list block.
 Parameter all_successors : block -> list block.
 Parameter dominates : block -> block -> bool.
 
+(* [dominator --dom--> block]: [dominator] dominates [block]. The
+   statements of parts 2 to 4 of the models write dominance this way; the
+   code of part 1 calls [dominates] as the compiler does. *)
+Notation "dominator --dom--> block" := (dominates dominator block = true)
+  (at level 70, no associativity).
+
 (* [Block.strict_dominators]: the blocks that strictly dominate a block,
    nearest first, ending with the graph's entry; the chain
    [AffineSsa.guards_at] walks. *)

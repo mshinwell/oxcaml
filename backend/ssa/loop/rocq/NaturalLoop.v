@@ -466,7 +466,7 @@ Section FindLoops.
       back_edge_sources <> []
       /\ forall source, In source back_edge_sources ->
            In source blocks /\ In header (all_successors source)
-           /\ dominates header source = true.
+           /\ header --dom--> source.
 
   Definition table_has (table : list (block * list block))
       (header source : block) : Prop :=
@@ -555,7 +555,7 @@ Section FindLoops.
     table_sound table'
     /\ (forall header source',
           table_has table header source' -> table_has table' header source')
-    /\ (forall succ, In succ succs -> dominates succ source = true ->
+    /\ (forall succ, In succ succs -> succ --dom--> source ->
           table_has table' succ source).
   Proof.
     intros bl succs. induction succs as [ | h succs IH ];
@@ -604,7 +604,7 @@ Section FindLoops.
           table_has table header source -> table_has table' header source)
     /\ (forall header source,
           In source blocks' -> In header (all_successors source) ->
-          dominates header source = true -> table_has table' header source).
+          header --dom--> source -> table_has table' header source).
   Proof.
     induction blocks' as [ | bl bls IH ]; intros tbl Hin Hs; cbv zeta.
     - cbn [List.fold_left]. split; [ exact Hs | split; [ tauto | ] ].
@@ -630,7 +630,7 @@ Section FindLoops.
     table_sound table
     /\ (forall header source,
           In source blocks -> In header (all_successors source) ->
-          dominates header source = true -> table_has table header source).
+          header --dom--> source -> table_has table header source).
   Proof.
     cbv zeta.
     destruct (fold_blocks_spec blocks [] (fun b Hb => Hb)
@@ -662,7 +662,7 @@ Section FindLoops.
   Theorem find_loops_back_edges : forall loop source,
     In loop (find_loops blocks) -> In source loop.(back_edge_sources) ->
     In source blocks /\ In loop.(header) (all_successors source)
-    /\ dominates loop.(header) source = true.
+    /\ loop.(header) --dom--> source.
   Proof.
     intros l s Hl Hs. apply find_loops_In in Hl.
     destruct Hl as [h [srcs [Hin ->]]]. cbn [header back_edge_sources] in *.
@@ -674,7 +674,7 @@ Section FindLoops.
      found, with that target as header. *)
   Theorem find_loops_complete : forall source header,
     In source blocks -> In header (all_successors source) ->
-    dominates header source = true ->
+    header --dom--> source ->
     exists loop,
       In loop (find_loops blocks) /\ loop.(NaturalLoop.header) = header
       /\ In source loop.(back_edge_sources).
