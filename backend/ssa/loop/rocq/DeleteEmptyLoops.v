@@ -16,8 +16,9 @@
    when [deletable] (part 2) holds of it. Its header's exit branch is the
    simple one LoopTermination.v recognises, with an exit target that takes
    no arguments; the loop has no run that visits its header for ever
-   ([infinite_header_run] there), and no infinite path through its body
-   avoiding the header; each of its header's parameters is a basic
+   ([infinite_header_run] there), and every execution that stays in its
+   body comes back to the header ([SsaGraph.revisits]: the body without
+   the header is acyclic); each of its header's parameters is a basic
    induction variable (InductionVar.v) that is dead in the sense of
    DeadInductionVar.v; every block of its body has only side-effect-free
    instructions and a [Goto] or [Switch] terminator; and that exit edge is
@@ -153,7 +154,7 @@ Definition deletable (op_def : op_def) (blocks : list block)
     : Prop :=
   exit_branch_to loop exit
   /\ no_infinite_header_run op_def loop
-  /\ no_infinite_path_except loop.(body) loop.(header)
+  /\ revisits loop.(body) loop.(header)
   /\ params_are_dead_bivs op_def blocks loop bivs
   /\ body_does_nothing loop
   /\ exits_only_to loop exit.

@@ -175,11 +175,13 @@ Definition bivs_of_loop (op_def : op_def) (loop : natural_loop)
    header between which control stays in the body of [loop]: it starts when the
    header is entered from outside the loop and ends when the header's
    branch leaves the body (a later visit of the header belongs to another
-   run). The loop does not terminate when some run never ends. Because the
-   body minus the header is acyclic (DeleteEmptyLoops.v checks it), such a
-   run visits the header infinitely often, and is described by [iter]:
-   [iter n v] is the machine value of the SSA value [v] during the [n]-th
-   visit of the header. For the header's parameters, the values of the
+   run). The loop does not terminate when some run never ends. Such a run
+   visits the header again and again: an execution that stays in the body
+   comes back to the header ([SsaGraph.revisits], a conjunct of
+   [DeleteEmptyLoops.deletable] that the [acyclic_except] check
+   establishes). It is therefore described by [iter]: [iter n v] is the
+   machine value of the SSA value [v] during the [n]-th visit of the
+   header. For the header's parameters, the values of the
    body's blocks and the values of the blocks dominating the header, that
    is the value the execution computes (for a value defined before the
    loop, its value when the loop was entered). Every other value is one

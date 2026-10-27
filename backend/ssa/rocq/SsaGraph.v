@@ -223,13 +223,17 @@ Definition region_edge (region : blockset) (cut succ block : block) : Prop :=
   /\ set_mem succ region = true /\ succ <> cut
   /\ In succ (all_successors block).
 
-(* The region without [cut] is acyclic, stated as the termination
-   arguments use it: no execution stays in the region for ever without
-   visiting [cut]. *)
-Definition no_infinite_path_except (region : blockset) (cut : block) : Prop :=
-  forall path : nat -> block,
-    (forall (n : nat), set_mem (path n) region = true /\ path n <> cut
-       /\ In (path (S n)) (all_successors (path n))) -> False.
+(* An execution that stays in [region] visits [cut] again and again: a
+   sequence of blocks of the region, each a successor of the one before,
+   contains [cut] after any point. For a finite graph this says that the
+   region without [cut] is acyclic; it is stated for executions, which is
+   how DeleteEmptyLoops.v and LoopTermination.v use it. *)
+Definition revisits (region : blockset) (cut : block) : Prop :=
+  forall (trace : nat -> block),
+    (forall (n : nat),
+       set_mem (trace n) region = true
+       /\ In (trace (S n)) (all_successors (trace n))) ->
+    forall (n : nat), exists (m : nat), (n <= m)%nat /\ trace m = cut.
 
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
@@ -370,20 +374,32 @@ Section Acyclic.
         * right; right. apply set_mem_add_iff. left. reflexivity.
   Qed.
 
-  (* An accessible block starts no infinite sequence of [region_edge]
-     steps. *)
-  Lemma accessible_no_path : forall (start : block),
+  (* An execution that starts at an accessible block and stays in the
+     region reaches [cut]. *)
+  Lemma accessible_reaches_cut : forall (start : block),
     Acc (region_edge region cut) start ->
-    forall path : nat -> block, path 0%nat = start ->
-      (forall (n : nat), region_edge region cut (path (S n)) (path n)) ->
-      False.
+    forall (trace : nat -> block), trace 0%nat = start ->
+      (forall (n : nat),
+         set_mem (trace n) region = true
+         /\ In (trace (S n)) (all_successors (trace n))) ->
+      exists (m : nat), trace m = cut.
   Proof.
-    intros b Hacc. induction Hacc as [b Hb IH].
-    intros path Hroot Hedge.
-    assert (Hnext : region_edge region cut (path 1%nat) b).
-    { rewrite <- Hroot. exact (Hedge 0%nat). }
-    apply (IH _ Hnext (fun n => path (S n)) eq_refl).
-    intro n. apply Hedge.
+    intros start Hacc. induction Hacc as [start _ IH].
+    intros trace Hroot Htrace.
+    destruct (block_eqb (trace 0%nat) cut) eqn:H0.
+    { apply block_eqb_spec in H0. exists 0%nat. exact H0. }
+    destruct (block_eqb (trace 1%nat) cut) eqn:H1.
+    { apply block_eqb_spec in H1. exists 1%nat. exact H1. }
+    assert (Hnext : region_edge region cut (trace 1%nat) start).
+    { rewrite <- Hroot.
+      destruct (Htrace 0%nat) as [Hm0 Hedge].
+      destruct (Htrace 1%nat) as [Hm1 _].
+      repeat split; try assumption.
+      - intros E. rewrite E, block_eqb_refl in H0. discriminate.
+      - intros E. rewrite E, block_eqb_refl in H1. discriminate. }
+    destruct (IH _ Hnext (fun n => trace (S n)) eq_refl
+                (fun n => Htrace (S n))) as [m Hm].
+    exists (S m). exact Hm.
   Qed.
 End Acyclic.
 
@@ -436,13 +452,13 @@ Qed.
 (* Part 4: theorems                                                         *)
 (* ======================================================================== *)
 
-(* A successfully checked region has no infinite path avoiding the cut. *)
+(* In a successfully checked region, every execution that stays in the
+   region visits the cut again and again. *)
 Theorem acyclic_except_sound :
   forall (blocks : list block) (region : blockset) (cut : block),
-  acyclic_except blocks region cut = true ->
-  no_infinite_path_except region cut.
+  acyclic_except blocks region cut = true -> revisits region cut.
 Proof.
-  intros blocks region cut H path Hpath. unfold acyclic_except in H.
+  intros blocks region cut H trace Htrace n. unfold acyclic_except in H.
   destruct (visit_all (visit_acyclic blocks region cut set_empty)
     set_empty blocks)
     as [seen |] eqn:Hv; [ | discriminate ].
@@ -452,13 +468,13 @@ Proof.
     (visit_acyclic_spec region cut blocks set_empty) _ _ _ Hempty Hv)
     as [Hdone _].
   rewrite set_for_all_spec in H.
-  destruct (Hpath 0%nat) as [Hmem [Hcut _]].
+  destruct (Htrace n) as [Hmem _].
   specialize (H _ Hmem). apply orb_true_iff in H. destruct H as [H | H].
-  - apply block_eqb_spec in H. contradiction.
-  - eapply (accessible_no_path region cut _ (Hdone _ H) path eq_refl).
-    intro n. destruct (Hpath n) as [Hb [Hbc Hedge]].
-    destruct (Hpath (S n)) as [Hs [Hsc _]].
-    repeat split; assumption.
+  - apply block_eqb_spec in H. exists n. split; [ lia | exact H ].
+  - destruct (accessible_reaches_cut region cut _ (Hdone _ H)
+                (fun k => trace (k + n)%nat) eq_refl
+                (fun k => Htrace (k + n)%nat)) as [m Hm].
+    exists (m + n)%nat. split; [ lia | exact Hm ].
 Qed.
 
 (* A block [block_effect_free] accepts does nothing. *)
