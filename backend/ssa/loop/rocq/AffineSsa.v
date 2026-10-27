@@ -93,6 +93,7 @@ Record ctx := { atoms : list (int * value); next : int; budget : int }.
 (* The nodes one linearization may expand. *)
 Definition max_nodes : int := 256.
 
+(* The empty context, with a full budget. *)
 Definition new_ctx : ctx :=
   {| atoms := []; next := zero; budget := max_nodes |}.
 
@@ -115,6 +116,7 @@ Definition intern (c : ctx) (v : value) : int * ctx :=
 
 (* --- Recognition into [AffineExpr.t] --- *)
 
+(* The shifts expanded are by fewer than this many bits. *)
 Definition max_shift_bits : int := 16.
 
 (* The helpers of [expr_of_value]: [atomize] makes a value an atom with
@@ -130,6 +132,7 @@ Definition keep (c : ctx) (v : value) (node : AffineExpr.t)
   | None => atomize c v
   end.
 
+(* The range operations, on ranges that may be unknown. *)
 Definition radd (a b : option Range.t) : option Range.t :=
   match a, b with Some a, Some b => Range.add a b | _, _ => None end.
 
@@ -526,6 +529,9 @@ Section Semantics.
 
   (* --- [intern] --- *)
 
+  (* [intern] returns an atom standing for [v]: the context stays
+     well-formed, grows by at most one atom and keeps its budget, and under
+     any agreeing valuation the atom reads as [v]'s machine value. *)
   Lemma intern_spec : forall (c : ctx) (v : value) (id : int) (c' : ctx),
     ctx_wf c -> to_Z c.(next) < ocaml_max_int -> intern c v = (id, c') ->
     ctx_wf c' /\ extends c c' /\ to_Z c'.(next) <= to_Z c.(next) + 1
@@ -618,6 +624,8 @@ Section Semantics.
 
   (* --- The valuation agreeing with a context --- *)
 
+  (* Every well-formed context has an agreeing valuation: its atoms are
+     distinct, so each can be given the machine value of its SSA value. *)
   Theorem agrees_exists :
     forall (c : ctx), ctx_wf c -> exists rho, agrees rho c.
   Proof.

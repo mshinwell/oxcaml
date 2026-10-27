@@ -109,6 +109,9 @@ Definition find_deletions (op_def : op_def) (blocks : list block)
 (* Part 2: the intended meaning                                             *)
 (* ======================================================================== *)
 
+(* Every block of the loop body does nothing (SsaGraph.v): its instructions
+   have no side effects and its terminator only transfers control within
+   the function. *)
 Definition body_does_nothing (loop : natural_loop) : Prop :=
   forall (block : block),
     set_mem block loop.(body) = true -> block_does_nothing block.
@@ -182,6 +185,9 @@ Qed.
 (* Part 4: theorems                                                         *)
 (* ======================================================================== *)
 
+(* Every pair [(header, exit)] that [find_deletions] returns names the
+   header of a loop [InductionVar.analyze] reports, with its basic
+   induction variables, and that loop is [deletable] with exit [exit]. *)
 Theorem find_deletions_spec :
   forall (op_def : op_def) (blocks : list block) (header exit : block),
   In (header, exit) (find_deletions op_def blocks) ->

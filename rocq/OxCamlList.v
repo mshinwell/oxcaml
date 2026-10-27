@@ -23,6 +23,7 @@ Fixpoint assoc_opt {C} (id : int) (l : list (int * C)) : option C :=
 Definition assoc_default {C} (dflt : C) (id : int) (l : list (int * C)) : C :=
   match assoc_opt id l with Some c => c | None => dflt end.
 
+(* [List.filter_map]. *)
 Fixpoint filter_map {A B} (f : A -> option B) (l : list A) : list B :=
   match l with
   | [] => []
@@ -33,6 +34,7 @@ Fixpoint filter_map {A B} (f : A -> option B) (l : list A) : list B :=
     end
   end.
 
+(* [List.concat_map]. *)
 Definition concat_map {A B} (f : A -> list B) (l : list A) : list B :=
   flat_map f l.
 
@@ -96,6 +98,7 @@ Fixpoint same_length {A B} (l1 : list A) (l2 : list B) : bool :=
 
 (* ---- Lemmas ----------------------------------------------------------- *)
 
+(* [same_length] is equality of lengths. *)
 Lemma same_length_spec : forall {A B : Type} (l1 : list A) (l2 : list B),
   same_length l1 l2 = true <-> length l1 = length l2.
 Proof.
@@ -271,6 +274,7 @@ Qed.
 
 (* --- [filter] --- *)
 
+(* A filter keeps at most the list's elements. *)
 Lemma length_filter_le : forall {A : Type} (f : A -> bool) (l : list A),
   (length (filter f l) <= length l)%nat.
 Proof.

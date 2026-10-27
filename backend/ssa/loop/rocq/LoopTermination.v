@@ -278,6 +278,8 @@ Record stays_in_loop (loop : natural_loop) (iter : nat -> value -> Z) : Prop :=
 Definition atom_counter_fits (loop : natural_loop) : Prop :=
   linearize_atoms + guards_size loop.(header) <= ocaml_max_int.
 
+(* A run of [loop] that goes on for ever: the three groups above, and the
+   bound on the atom counter. *)
 Record infinite_header_run (entry : block) (op_def : op_def)
     (loop : natural_loop) (iter : nat -> value -> Z) : Prop :=
   { run_machine : machine_values iter;
@@ -311,6 +313,9 @@ Section Run.
 
   (* --- The comparison the exit branch tests --- *)
 
+  (* What [extract_comparison] found: [cond] compares a value [is_iv_val]
+     accepts with a literal, or with a value [is_bound] accepts on either
+     side, [iv_is_left] saying which. *)
   Lemma extract_comparison_spec :
     forall (is_iv_val is_bound : value -> bool) (cond : value)
       (cmp : integer_comparison) (iv_is_left : bool) (bnd : bound),
@@ -384,7 +389,8 @@ Section Run.
       right. split; reflexivity.
   Qed.
 
-  (* Each update value is the parameter plus the signed step. *)
+  (* At every visit, each update value of [biv] is the parameter's value
+     plus the signed step, wrapped to 64 bits. *)
   Lemma biv_update_value :
     forall (biv : biv) (step : int) (u : value) (n : nat),
     biv_spec op_def loop biv -> signed_step biv = Some step ->

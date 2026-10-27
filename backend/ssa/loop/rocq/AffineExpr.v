@@ -58,8 +58,12 @@ Inductive t : Type :=
   | Or_atom (atom : int) (arg : t) (mask : int).
 
 Module Range.
+  (* A closed interval of 64-bit values. *)
   Record t := { lo : Int64.t; hi : Int64.t }.
 
+  (* The range of any register; of a constant; of an arithmetic right shift
+     by [bits] of any register; and of a logical right shift by [bits] of any
+     register (the full range for a shift by zero or less). *)
   Definition full : t := {| lo := Int64.min_int; hi := Int64.max_int |}.
 
   Definition const (c : int) : t :=
@@ -79,6 +83,7 @@ Module Range.
   Definition add64 : Int64.t -> Int64.t -> option Int64.t := add_ovf64.
   Definition mul64 : Int64.t -> Int64.t -> option Int64.t := mul_ovf64.
 
+  (* Each operation answers [None] when a bound would overflow. *)
   Definition add (a b : t) : option t :=
     match add64 a.(lo) b.(lo), add64 a.(hi) b.(hi) with
     | Some lo, Some hi => Some {| lo := lo; hi := hi |}
@@ -296,6 +301,7 @@ Qed.
 
 (* --- The range facts of an atomized shift. --- *)
 
+(* The range facts are well-formed. *)
 Lemma shr_range_facts_wf : forall (signed : bool) (atom bits : int),
   Forall wf (shr_range_facts signed atom bits).
 Proof.

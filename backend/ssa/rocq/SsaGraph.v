@@ -267,13 +267,17 @@ Section Acyclic.
   Variable region : blockset.
   Variable cut : block.
 
+  (* Every block of [seen] is accessible for [region_edge]: from it, no
+     sequence of edges within the region avoiding [cut] goes on for ever. *)
   Definition completed (seen : blockset) : Prop :=
     forall (block : block),
       set_mem block seen = true -> Acc (region_edge region cut) block.
 
+  (* [block] needs no visit: it is [cut], outside the region, or in [seen]. *)
   Definition covered (seen : blockset) (block : block) : Prop :=
     block = cut \/ set_mem block region = false \/ set_mem block seen = true.
 
+  (* [old] is a subset of [new]. *)
   Definition includes (old new : blockset) : Prop :=
     forall (block : block),
       set_mem block old = true -> set_mem block new = true.
@@ -299,7 +303,9 @@ Section Acyclic.
     - right; right. exact H.
   Qed.
 
-  (* Visiting a list preserves completed blocks and covers every root. *)
+  (* If [visit] keeps the completed set completed and growing and covers
+     the block visited, so does [visit_all] over [roots], covering every
+     root. *)
   Lemma visit_all_spec : forall (visit : blockset -> block -> option blockset),
     (forall (seen : blockset) (block : block) (out : blockset),
        completed seen -> visit seen block = Some out ->
@@ -323,8 +329,9 @@ Section Acyclic.
         * apply Hcovers. exact Hx.
   Qed.
 
-  (* Successful DFS visits only complete accessible blocks: every in-region
-     successor has already completed before its predecessor is added. *)
+  (* A successful [visit_acyclic] from [block] keeps the completed set
+     completed and growing, and covers [block]: a block is added only once
+     all its successors within the region are completed. *)
   Lemma visit_acyclic_spec :
     forall (fuel : list block) (active seen : blockset) (block : block)
       (out : blockset),
@@ -361,7 +368,8 @@ Section Acyclic.
         * right; right. apply set_mem_add_iff. left. reflexivity.
   Qed.
 
-  (* Accessibility excludes an infinite sequence of successor steps. *)
+  (* An accessible block starts no infinite sequence of [region_edge]
+     steps. *)
   Lemma accessible_no_path : forall (start : block),
     Acc (region_edge region cut) start ->
     forall path : nat -> block, path 0%nat = start ->

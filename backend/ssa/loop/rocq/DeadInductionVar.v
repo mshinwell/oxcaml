@@ -119,14 +119,9 @@ Definition analyze (blocks : list block)
 (* Part 2: the intended meaning                                             *)
 (* ======================================================================== *)
 
-(* What [dead = true] establishes of a basic induction variable [biv] of a
-   loop with the exit branch [exit_info], in terms of [uses_only]
-   (SsaGraph.v): its parameter is used only by the exit comparison and its
-   own updates and by no terminator; the exit comparison is used by no
-   instruction and only by the header's terminator; and each update value
-   is used by no instruction but the exit comparison, and by no terminator
-   but the [Goto] to the header of a back-edge block, as the argument at
-   the parameter's position and at no other ([passes_at]). *)
+(* The parameter [k] of [header] is used only by the exit comparison
+   [cond] and the [updates], and by no terminator ([uses_only],
+   SsaGraph.v). *)
 Definition param_used_only_by_exit_and_updates (blocks : list block)
     (header : block) (k : int) (cond : value) (updates : list value) : Prop :=
   uses_only blocks (is_param header k)
@@ -135,11 +130,16 @@ Definition param_used_only_by_exit_and_updates (blocks : list block)
       \/ exists u, In u updates /\ instr_defines_value instr u = true)
     (fun _ _ => False).
 
+(* The exit comparison is used by no instruction, and by no terminator but
+   the header's. *)
 Definition cond_used_only_by_header_branch (blocks : list block)
     (header : block) (cond : value) : Prop :=
   uses_only blocks (value_eqb cond) (fun _ => False)
     (fun block _ => block = header).
 
+(* The update value [u] is used by no instruction but the exit comparison,
+   and by no terminator but the [Goto] to the header of a back-edge source,
+   as the argument at position [k] and at no other ([passes_at]). *)
 Definition update_used_only_by_exit_and_back_edge (blocks : list block)
     (loop : natural_loop) (k : int) (cond u : value) : Prop :=
   uses_only blocks (value_eqb u)
@@ -147,6 +147,9 @@ Definition update_used_only_by_exit_and_back_edge (blocks : list block)
     (fun block _ =>
       In block loop.(back_edge_sources) /\ passes_at loop.(header) k u block).
 
+(* What [dead = true] establishes of a basic induction variable [biv]: its
+   loop has an exit branch, and the three properties above hold of its
+   parameter, of the exit comparison and of each of its update values. *)
 Definition dead_spec (blocks : list block) (biv : InductionVar.biv) : Prop :=
   exists exit_info,
     find_exit_branch biv.(InductionVar.loop) = Some exit_info

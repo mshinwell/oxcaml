@@ -77,6 +77,7 @@ Record biv : Type :=
     step : biv_step;
     sign : biv_sign }.
 
+(* Equality of steps, and of signs. *)
 Definition step_same (a b : biv_step) : bool :=
   match a, b with
   | Step_const x, Step_const y => x =? y
@@ -249,13 +250,9 @@ Definition updates_classified (op_def : op_def) (loop : natural_loop)
       /\ step_same biv.(step) step' = true
       /\ sign_same biv.(sign) sign' = true.
 
-(* What holds of a BIV reported for the loop [loop]: it is for a parameter
-   [param_index] of the header; every back-edge source that
-   is a predecessor of the header passes, in its [Goto] to the header, a
-   value for that parameter, and [update] holds exactly those values; and
-   each of them is [self + c], [c + self] or [self - c] for the header
-   parameter [self] and a loop-invariant [c], with the same [step] and
-   [sign] as recorded. *)
+(* Every back-edge source that is a predecessor of the header passes, in
+   its [Goto] to the header, a value for the parameter of [biv], and that
+   value is among [update]. *)
 Definition every_back_edge_passes_an_update (loop : natural_loop) (biv : biv)
     : Prop :=
   forall (source : block),
@@ -266,6 +263,8 @@ Definition every_back_edge_passes_an_update (loop : natural_loop) (biv : biv)
       /\ arg_value args biv.(param_index) = Some u
       /\ In u biv.(update).
 
+(* Every value of [update] is what some back-edge source passes, in its
+   [Goto] to the header, for the parameter of [biv]. *)
 Definition every_update_arrives_over_a_back_edge (loop : natural_loop)
     (biv : biv) : Prop :=
   forall (u : value), In u biv.(update) ->
@@ -274,6 +273,12 @@ Definition every_update_arrives_over_a_back_edge (loop : natural_loop)
       /\ goto_args loop.(header) source = Some args
       /\ arg_value args biv.(param_index) = Some u.
 
+(* What holds of a BIV reported for the loop [loop]: it is for a parameter
+   [param_index] of the header; every back-edge source that is a
+   predecessor of the header passes a value for that parameter, and
+   [update] holds exactly those values; and each of them is [self + c],
+   [c + self] or [self - c] for the header parameter [self] and a
+   loop-invariant [c], with the same [step] and [sign] as recorded. *)
 Definition biv_spec (op_def : op_def) (loop : natural_loop) (biv : biv)
     : Prop :=
   biv.(InductionVar.loop) = loop
@@ -316,8 +321,8 @@ Qed.
 
 (* --- [classify_param] --- *)
 
-(* When every back edge passes a value at [index] ([forallb is_some]), each
-   pair has one. *)
+(* When [forallb is_some] accepts the values at [index], every pair of
+   [source_args] passes a value there. *)
 Lemma arg_values_all :
   forall (source_args : list (block * list Terminator.arg)) (index : int),
   forallb is_some
@@ -472,6 +477,9 @@ Qed.
 
 (* --- [analyze_loop] --- *)
 
+(* The pairs [analyze_loop] builds: a predecessor [pred] of the header
+   appears with [args] exactly when [pred] is a back-edge source whose
+   terminator is a [Goto] to the header passing [args]. *)
 Lemma source_args_In :
   forall (header : block) (source_set : blockset) (preds : list block)
     (pred : block) (args : list Terminator.arg),

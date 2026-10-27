@@ -41,8 +41,10 @@ Module Affine.
   (* The form with no terms ([const] being the field). *)
   Definition constant (c : int) : t := {| const := c; terms := [] |}.
 
+  (* The form of one atom. *)
   Definition var (id : int) : t := {| const := zero; terms := [(id, one)] |}.
 
+  (* The coefficient of [id] in [f], zero when absent. *)
   Definition coeff (id : int) (f : t) : int := assoc_default zero id f.(terms).
 
   Fixpoint terms_equal (l1 l2 : list (int * int)) : bool :=
@@ -81,6 +83,8 @@ Module Affine.
 
   Definition sub (a b : t) : t := add a (neg b).
 
+  (* The checked operations: [None] when a coefficient or the constant would
+     overflow. *)
   Definition scale_checked (k : int) (f : t) : option t :=
     if k =? zero
     then Some (constant zero)
@@ -129,6 +133,11 @@ Definition scaled (k : Int64.t) (f : Affine.t)
   in
   Some (c, ts).
 
+(* The resolvent of [p], in which the atom has the positive coefficient
+   [cp], and [n], in which it has the negative coefficient [- cn]: the
+   combination [cn * p + cp * n], computed in [Int64], divided by the gcd of
+   its coefficients and read back as [int]s. A resolvent with no terms is
+   normalized to the constant 0 or -1. [None] on overflow. *)
 Definition resolvent (cp cn : int) (p n : Affine.t) : option Affine.t :=
   let cp64 := Int64.of_int cp in
   let cn64 := Int64.of_int cn in
@@ -206,6 +215,9 @@ Fixpoint elim_all (atoms : list int) (ineqs : list Affine.t)
   | atom :: atoms => let* ineqs := elim atom ineqs in elim_all atoms ineqs
   end.
 
+(* Whether the system may have a solution: eliminate every atom and check
+   that no constant form is negative. [true], the safe answer, over the size
+   limits or on overflow. *)
 Definition feasible (ineqs : list Affine.t) : bool :=
   let atoms :=
     sort_uniq (concat_map (fun f => map fst f.(Affine.terms)) ineqs) in
@@ -217,6 +229,8 @@ Definition feasible (ineqs : list Affine.t) : bool :=
     | None => true
     end.
 
+(* Whether [goal >= 0] follows from [facts]: the facts together with
+   [goal < 0], i.e. [- goal - 1 >= 0], are infeasible. *)
 Definition entails (facts : list Affine.t) (goal : Affine.t) : bool :=
   let negated :=
     let* ng := Affine.scale_checked minus_one goal in
@@ -956,7 +970,8 @@ Definition elim_result (eliminated : int -> Prop) (ineqs out : list Affine.t)
         forall (f : Affine.t), In f out -> to_Z (Affine.coeff id f) = 0)
   /\ (forall (rho : valuation), holds_all rho ineqs -> holds_all rho out).
 
-(* Eliminating [atom] eliminates [atom]. *)
+(* [elim atom], when it answers, is an elimination step in the sense of
+   [elim_result], the atom eliminated being [atom]. *)
 Lemma elim_spec : forall (atom : int) (ineqs out : list Affine.t),
   Forall wf ineqs -> elim atom ineqs = Some out ->
   elim_result (fun id => id = atom) ineqs out.
