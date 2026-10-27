@@ -53,27 +53,27 @@ Definition edge_dominates (pred succ target : block) : bool :=
 
 (* [path first p last]: [p] is a path from [first] to [last] along the
    graph's edges, listing its blocks from [first] to [last]. An edge
-   [pred -> block] is [pred] being a predecessor of [block]. *)
+   [pred -> succ] is [pred] being a predecessor of [succ]. *)
 Inductive path : block -> list block -> block -> Prop :=
-  | path_one : forall block, path block [block] block
-  | path_cons : forall pred block rest last,
-      In pred (predecessors block) -> path block (block :: rest) last ->
-      path pred (pred :: block :: rest) last.
+  | path_one : forall (block : block), path block [block] block
+  | path_cons : forall (pred succ : block) (rest : list block) (last : block),
+      In pred (predecessors succ) -> path succ (succ :: rest) last ->
+      path pred (pred :: succ :: rest) last.
 
 (* The edge [pred -> succ] is on the path [p]. *)
 Definition edge_on (p : list block) (pred succ : block) : Prop :=
   exists before after, p = before ++ pred :: succ :: after.
 
 (* What the compiler's [dominates], written [--dom-->], means, [entry]
-   being the graph's entry block: every path from the entry to [block]
-   passes through each dominator of [block], and the entry dominates every
+   being the graph's entry block: every path from the entry to [target]
+   passes through each dominator of [target], and the entry dominates every
    block, each being reachable from it. Nothing is assumed of the entry's
    predecessors: a self-recursive tail call is a back edge to the entry. *)
 Record dominance_semantics (entry : block) : Prop :=
-  { dominates_spec : forall dominator block,
-      dominator --dom--> block ->
-      forall p, path entry p block -> In dominator p;
-    entry_dominates : forall block, entry --dom--> block }.
+  { dominates_spec : forall (dominator target : block),
+      dominator --dom--> target ->
+      forall (p : list block), path entry p target -> In dominator p;
+    entry_dominates : forall (block : block), entry --dom--> block }.
 
 Arguments dominates_spec {entry}.
 Arguments entry_dominates {entry}.
@@ -84,7 +84,8 @@ Arguments entry_dominates {entry}.
 
 (* A path that visits [succ], without starting there, arrives over the
    edge from [succ]'s only predecessor. *)
-Lemma path_edge_to : forall first p last succ pred,
+Lemma path_edge_to :
+  forall (first : block) (p : list block) (last succ pred : block),
   path first p last -> In succ p -> first <> succ ->
   predecessors succ = [pred] ->
   edge_on p pred succ.
@@ -113,9 +114,9 @@ Section Dominance.
 
   (* An edge [edge_dominates] accepts for [target] is on every path from
      the entry to [target]. *)
-  Theorem edge_dominates_sound : forall pred succ target,
+  Theorem edge_dominates_sound : forall (pred succ target : block),
     edge_dominates pred succ target = true ->
-    forall p, path entry p target -> edge_on p pred succ.
+    forall (p : list block), path entry p target -> edge_on p pred succ.
   Proof.
     intros src succ target H p Hp. unfold edge_dominates in H.
     apply andb_true_iff in H. destruct H as [H Hpred].

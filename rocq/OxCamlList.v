@@ -47,8 +47,9 @@ Definition count_occurrences {A} (same : A -> bool) (l : list A) : int :=
 (* [List.sort_uniq Int.compare]. Only what the proofs need is assumed: the
    result has no duplicates and the same members as the input. *)
 Parameter sort_uniq : list int -> list int.
-Axiom sort_uniq_NoDup : forall l, NoDup (sort_uniq l).
-Axiom sort_uniq_In : forall l x, In x (sort_uniq l) <-> In x l.
+Axiom sort_uniq_NoDup : forall (l : list int), NoDup (sort_uniq l).
+Axiom sort_uniq_In : forall (l : list int) (x : int),
+  In x (sort_uniq l) <-> In x l.
 
 (* [List.compare_length_with l n], the sign of [length l - n]. The models
    only use it to apply a size limit, on which nothing they claim depends,
@@ -95,7 +96,7 @@ Fixpoint same_length {A B} (l1 : list A) (l2 : list B) : bool :=
 
 (* ---- Lemmas ----------------------------------------------------------- *)
 
-Lemma same_length_spec : forall {A B} (l1 : list A) (l2 : list B),
+Lemma same_length_spec : forall {A B : Type} (l1 : list A) (l2 : list B),
   same_length l1 l2 = true <-> length l1 = length l2.
 Proof.
   intros A B l1. induction l1 as [ | x l1 IH ]; intros [ | y l2 ]; simpl;
@@ -104,7 +105,7 @@ Proof.
 Qed.
 
 (* An element at some position is an element of the list. *)
-Lemma nth_int_In : forall {A} (l : list A) i x,
+Lemma nth_int_In : forall {A : Type} (l : list A) (i : int) (x : A),
   nth_int l i = Some x -> In x l.
 Proof.
   intros A l. induction l as [ | y l IH ]; intros i x H; simpl in H.
@@ -115,7 +116,8 @@ Proof.
 Qed.
 
 (* An element of [filter_map f l] is [f] of an element of [l]. *)
-Lemma filter_map_In : forall {A B} (f : A -> option B) l y,
+Lemma filter_map_In :
+  forall {A B : Type} (f : A -> option B) (l : list A) (y : B),
   In y (filter_map f l) -> exists x, In x l /\ f x = Some y.
 Proof.
   intros A B f l y. induction l as [ | x l IH ]; simpl; intros H.
@@ -128,7 +130,7 @@ Proof.
 Qed.
 
 (* [assoc_opt] finds an entry with the key ... *)
-Lemma assoc_opt_In : forall {C} id (l : list (int * C)) c,
+Lemma assoc_opt_In : forall {C : Type} (id : int) (l : list (int * C)) (c : C),
   assoc_opt id l = Some c -> In (id, c) l.
 Proof.
   intros C id l c. induction l as [ | [k c'] l IH ]; simpl; intros H.
@@ -139,7 +141,7 @@ Proof.
 Qed.
 
 (* ... finds one whenever the key is present ... *)
-Lemma assoc_opt_Some : forall {C} id (l : list (int * C)),
+Lemma assoc_opt_Some : forall {C : Type} (id : int) (l : list (int * C)),
   In id (map fst l) -> exists c, assoc_opt id l = Some c.
 Proof.
   intros C id l. induction l as [ | [k c] l IH ]; simpl; intros H.
@@ -150,7 +152,7 @@ Proof.
 Qed.
 
 (* ... and none when it is absent. *)
-Lemma assoc_opt_None : forall {C} id (l : list (int * C)),
+Lemma assoc_opt_None : forall {C : Type} (id : int) (l : list (int * C)),
   ~ In id (map fst l) -> assoc_opt id l = None.
 Proof.
   intros C id l. induction l as [ | [k c] l IH ]; simpl; intros H.
@@ -162,7 +164,9 @@ Qed.
 
 (* [map_opt] over an association list, mapping the values: the keys are
    unchanged ... *)
-Lemma map_opt_keys : forall {C D} (g : C -> option D) (l : list (int * C)) l',
+Lemma map_opt_keys :
+  forall {C D : Type} (g : C -> option D) (l : list (int * C))
+    (l' : list (int * D)),
   map_opt (fun '(id, c) => let* d := g c in Some (id, d)) l = Some l' ->
   map fst l' = map fst l.
 Proof.
@@ -174,9 +178,11 @@ Proof.
 Qed.
 
 (* ... and each value is mapped. *)
-Lemma map_opt_assoc : forall {C D} (g : C -> option D) (l : list (int * C)) l',
+Lemma map_opt_assoc :
+  forall {C D : Type} (g : C -> option D) (l : list (int * C))
+    (l' : list (int * D)),
   map_opt (fun '(id, c) => let* d := g c in Some (id, d)) l = Some l' ->
-  forall id,
+  forall (id : int),
     match assoc_opt id l with
     | Some c => exists d, g c = Some d /\ assoc_opt id l' = Some d
     | None => assoc_opt id l' = None
@@ -192,7 +198,7 @@ Proof.
 Qed.
 
 (* [rev_append] has the elements of both lists. *)
-Lemma in_rev_append : forall {A} (l1 l2 : list A) x,
+Lemma in_rev_append : forall {A : Type} (l1 l2 : list A) (x : A),
   In x (rev_append l1 l2) <-> In x l1 \/ In x l2.
 Proof.
   intros. rewrite rev_append_rev, in_app_iff, <- in_rev. reflexivity.
@@ -200,8 +206,10 @@ Qed.
 
 (* [filter_map] over atoms, where the callback keeps the atom as the key:
    the keys of the result are among the atoms ... *)
-Lemma filter_map_keys_In : forall {C} (f : int -> option (int * C)) ids id,
-  (forall id p, f id = Some p -> fst p = id) ->
+Lemma filter_map_keys_In :
+  forall {C : Type} (f : int -> option (int * C)) (ids : list int)
+    (id : int),
+  (forall (id : int) (p : int * C), f id = Some p -> fst p = id) ->
   In id (map fst (filter_map f ids)) -> In id ids.
 Proof.
   intros C f ids id Hf Hin.
@@ -211,8 +219,9 @@ Proof.
 Qed.
 
 (* ... and are distinct if the atoms are. *)
-Lemma filter_map_NoDup_keys : forall {C} (f : int -> option (int * C)) ids,
-  (forall id p, f id = Some p -> fst p = id) ->
+Lemma filter_map_NoDup_keys :
+  forall {C : Type} (f : int -> option (int * C)) (ids : list int),
+  (forall (id : int) (p : int * C), f id = Some p -> fst p = id) ->
   NoDup ids -> NoDup (map fst (filter_map f ids)).
 Proof.
   intros C f ids Hf Hnd. induction Hnd as [ | id ids Hnin Hnd IH ]; simpl.
@@ -226,7 +235,8 @@ Qed.
 (* --- [assoc_opt] and [assoc_default] --- *)
 
 (* In a list whose keys are distinct, the lookup of a key finds its entry. *)
-Lemma assoc_opt_NoDup : forall {C} (l : list (int * C)) id c,
+Lemma assoc_opt_NoDup :
+  forall {C : Type} (l : list (int * C)) (id : int) (c : C),
   NoDup (map fst l) -> In (id, c) l -> assoc_opt id l = Some c.
 Proof.
   intros C l id c. induction l as [ | [k c'] l IH ]; intros Hnd Hin.
@@ -242,7 +252,8 @@ Qed.
 
 (* [assoc_default] on a cons: the head's value if its key matches, else the
    lookup in the tail. *)
-Lemma assoc_default_cons : forall {C} (dflt : C) id k c l,
+Lemma assoc_default_cons :
+  forall {C : Type} (dflt : C) (id k : int) (c : C) (l : list (int * C)),
   assoc_default dflt id ((k, c) :: l)
   = if (id =? k)%sint63 then c else assoc_default dflt id l.
 Proof.
@@ -250,7 +261,8 @@ Proof.
 Qed.
 
 (* An absent key gives the default. *)
-Lemma assoc_default_not_in : forall {C} (dflt : C) id l,
+Lemma assoc_default_not_in :
+  forall {C : Type} (dflt : C) (id : int) (l : list (int * C)),
   ~ In id (map fst l) -> assoc_default dflt id l = dflt.
 Proof.
   intros. unfold assoc_default. rewrite assoc_opt_None by assumption.
@@ -259,7 +271,7 @@ Qed.
 
 (* --- [filter] --- *)
 
-Lemma length_filter_le : forall {A} (f : A -> bool) (l : list A),
+Lemma length_filter_le : forall {A : Type} (f : A -> bool) (l : list A),
   (length (filter f l) <= length l)%nat.
 Proof.
   intros A f l. induction l as [ | x l IH ]; [ reflexivity | ].
@@ -267,8 +279,8 @@ Proof.
 Qed.
 
 (* A filter that accepts less keeps no more elements ... *)
-Lemma filter_le : forall {A} (f g : A -> bool) (l : list A),
-  (forall y, f y = true -> g y = true) ->
+Lemma filter_le : forall {A : Type} (f g : A -> bool) (l : list A),
+  (forall (y : A), f y = true -> g y = true) ->
   (length (filter f l) <= length (filter g l))%nat.
 Proof.
   intros A f g l Hfg. induction l as [ | y l IH ]; [ reflexivity | ].
@@ -279,8 +291,8 @@ Qed.
 
 (* ... and strictly fewer when it rejects an element of the list that the
    other accepts. *)
-Lemma filter_lt : forall {A} (f g : A -> bool) (l : list A) x,
-  (forall y, f y = true -> g y = true) ->
+Lemma filter_lt : forall {A : Type} (f g : A -> bool) (l : list A) (x : A),
+  (forall (y : A), f y = true -> g y = true) ->
   In x l -> g x = true -> f x = false ->
   (length (filter f l) < length (filter g l))%nat.
 Proof.

@@ -166,7 +166,7 @@ Definition bound_in_range (step b : Z) : bool :=
 
 (* Iterating from [v0] for [n + 1] steps is iterating from the next value
    for [n] steps. *)
-Lemma iv_shift : forall v0 step n,
+Lemma iv_shift : forall (v0 step : Z) (n : nat),
   iv v0 step (S n) = iv (wrap64 (v0 + step)) step n.
 Proof.
   intros v0 step n. induction n as [ | n IH ].
@@ -180,9 +180,9 @@ Qed.
    non-negative, then the test eventually fails. *)
 Lemma terminate_by_measure :
   forall (test : Z -> bool) (step : Z) (mu : Z -> Z),
-    (forall v, in_int64 v -> test v = true ->
+    (forall (v : Z), in_int64 v -> test v = true ->
        in_int64 (v + step) /\ 0 <= mu v /\ mu (v + step) < mu v) ->
-    forall v0, in_int64 v0 -> exists n, test (iv v0 step n) = false.
+    forall (v0 : Z), in_int64 v0 -> exists n, test (iv v0 step n) = false.
 Proof.
   intros test step mu Hstep.
   (* Induction on a bound [m] for the measure. *)
@@ -208,7 +208,7 @@ Qed.
 (* [Ceq], any non-zero step: the test [v = bound] cannot hold twice in a
    row, since adding a non-zero 63-bit step to a 64-bit value changes it
    even with wrap-around. *)
-Lemma ceq_terminates : forall step v0 bound,
+Lemma ceq_terminates : forall (step v0 bound : Z),
   - two62 <= step <= two62 - 1 -> step <> 0 ->
   exists n, eval Ceq (iv v0 step n) bound = false.
 Proof.
@@ -227,7 +227,7 @@ Qed.
 
 (* [Clt], step 1: continuing means [v < bound], so [v + 1 <= bound] is
    again a 64-bit value, and [bound - v] decreases. *)
-Lemma clt_one_terminates : forall v0 bound,
+Lemma clt_one_terminates : forall (v0 bound : Z),
   in_int64 v0 -> in_int64 bound ->
   exists n, eval Clt (iv v0 1 n) bound = false.
 Proof.
@@ -239,7 +239,7 @@ Proof.
 Qed.
 
 (* [Cgt], step -1: symmetric. *)
-Lemma cgt_minus_one_terminates : forall v0 bound,
+Lemma cgt_minus_one_terminates : forall (v0 bound : Z),
   in_int64 v0 -> in_int64 bound ->
   exists n, eval Cgt (iv v0 (-1) n) bound = false.
 Proof.
@@ -252,7 +252,7 @@ Qed.
 
 (* [Clt], positive step, [bound <= max_int]: continuing means
    [v < bound <= 2^62 - 1] and [step <= 2^62 - 1], so [v + step < 2^63]. *)
-Lemma clt_pos_terminates : forall step v0 bound,
+Lemma clt_pos_terminates : forall (step v0 bound : Z),
   0 < step <= two62 - 1 -> bound <= ocaml_max_int ->
   in_int64 v0 -> in_int64 bound ->
   exists n, eval Clt (iv v0 step n) bound = false.
@@ -265,7 +265,7 @@ Proof.
 Qed.
 
 (* [Cle], positive step, [bound <= max_int]: as above with [v <= bound]. *)
-Lemma cle_pos_terminates : forall step v0 bound,
+Lemma cle_pos_terminates : forall (step v0 bound : Z),
   0 < step <= two62 - 1 -> bound <= ocaml_max_int ->
   in_int64 v0 -> in_int64 bound ->
   exists n, eval Cle (iv v0 step n) bound = false.
@@ -278,7 +278,7 @@ Proof.
 Qed.
 
 (* [Cgt], negative step, [bound >= -max_int]: symmetric. *)
-Lemma cgt_neg_terminates : forall step v0 bound,
+Lemma cgt_neg_terminates : forall (step v0 bound : Z),
   - two62 <= step < 0 -> - ocaml_max_int <= bound ->
   in_int64 v0 -> in_int64 bound ->
   exists n, eval Cgt (iv v0 step n) bound = false.
@@ -291,7 +291,7 @@ Proof.
 Qed.
 
 (* [Cge], negative step, [bound >= -max_int]: symmetric. *)
-Lemma cge_neg_terminates : forall step v0 bound,
+Lemma cge_neg_terminates : forall (step v0 bound : Z),
   - two62 <= step < 0 -> - ocaml_max_int <= bound ->
   in_int64 v0 -> in_int64 bound ->
   exists n, eval Cge (iv v0 step n) bound = false.
@@ -310,7 +310,8 @@ Qed.
 (* The oriented comparison, evaluated with the IV on the left, is exactly
    the loop's continue test. *)
 Theorem oriented_continue_comparison_correct :
-  forall iv_is_left continue_when_true cmp v bound,
+  forall (iv_is_left continue_when_true : bool) (cmp : integer_comparison)
+    (v bound : Z),
     eval (oriented_continue_comparison iv_is_left continue_when_true cmp)
          v bound
     = loop_continues iv_is_left continue_when_true cmp v bound.
@@ -324,7 +325,7 @@ Qed.
    bound (any 64-bit values), the continue test [iv cmp bound] fails after
    finitely many iterations of adding [step] with wrap-around. *)
 Theorem continue_terminates_Terminates :
-  forall (step : int) cmp v0 bound,
+  forall (step : int) (cmp : integer_comparison) (v0 bound : Z),
     in_int64 v0 -> in_int64 bound ->
     continue_terminates step cmp = Terminates ->
     exists n, eval cmp (iv v0 (to_Z step) n) bound = false.
@@ -340,7 +341,7 @@ Qed.
 (* A [Terminates_if_bound_in_range] verdict is sound once the side
    condition on the bound holds. *)
 Theorem continue_terminates_Terminates_if_bound_in_range :
-  forall (step : int) cmp v0 bound,
+  forall (step : int) (cmp : integer_comparison) (v0 bound : Z),
     in_int64 v0 -> in_int64 bound ->
     continue_terminates step cmp = Terminates_if_bound_in_range ->
     bound_in_range (to_Z step) bound = true ->
@@ -362,7 +363,8 @@ Qed.
    condition if asked to. Then the loop's continue test eventually fails,
    i.e. the loop exits. *)
 Corollary loop_exits :
-  forall iv_is_left continue_when_true cmp (step : int) v0 bound,
+  forall (iv_is_left continue_when_true : bool) (cmp : integer_comparison)
+    (step : int) (v0 bound : Z),
     in_int64 v0 -> in_int64 bound ->
     let ccmp := oriented_continue_comparison iv_is_left continue_when_true cmp
     in
@@ -383,28 +385,29 @@ Qed.
 
 (* What a successful checked operation means, from FourierMotzkin.v: its
    value, and that it keeps the forms well-formed. *)
-Lemma sub_checked_denote : forall rho a b f,
+Lemma sub_checked_denote : forall (rho : valuation) (a b f : Affine.t),
   Affine.sub_checked a b = Some f -> wf a -> wf b ->
   denote rho f = denote rho a - denote rho b.
 Proof.
   intros rho a b f H Ha Hb. exact (proj1 (sub_checked_spec rho a b f Ha Hb H)).
 Qed.
 
-Lemma sub_checked_wf : forall a b f,
+Lemma sub_checked_wf : forall (a b f : Affine.t),
   Affine.sub_checked a b = Some f -> wf a -> wf b -> wf f.
 Proof.
   intros a b f H Ha Hb.
   exact (proj2 (proj2 (sub_checked_spec (fun _ => 0) a b f Ha Hb H))).
 Qed.
 
-Lemma add_const_checked_denote : forall rho a c f,
+Lemma add_const_checked_denote :
+  forall (rho : valuation) (a : Affine.t) (c : int) (f : Affine.t),
   Affine.add_const_checked a c = Some f ->
   denote rho f = denote rho a + to_Z c.
 Proof.
   intros rho a c f H. exact (proj1 (add_const_checked_spec rho a c f H)).
 Qed.
 
-Lemma add_const_checked_wf : forall a c f,
+Lemma add_const_checked_wf : forall (a : Affine.t) (c : int) (f : Affine.t),
   Affine.add_const_checked a c = Some f -> wf a -> wf f.
 Proof.
   intros a c f H Ha.
@@ -439,7 +442,8 @@ Ltac checked_cases rho :=
    every returned form is non-negative. Nothing is assumed about overflow:
    when the checked operations fail, no fact is returned. *)
 Theorem facts_sound :
-  forall (neg : bool) cmp la lb (rho : int -> Z),
+  forall (neg : bool) (cmp : integer_comparison) (la lb : Affine.t)
+    (rho : int -> Z),
     wf la -> wf lb ->
     (let test := eval cmp (denote rho la) (denote rho lb) in
      if neg then negb test else test) = true ->
@@ -466,7 +470,8 @@ Qed.
 
 (* The facts are well-formed, as [entails] requires of its hypotheses
    (see [entails_sound] in FourierMotzkin.v). *)
-Theorem facts_wf : forall (neg : bool) cmp la lb,
+Theorem facts_wf :
+  forall (neg : bool) (cmp : integer_comparison) (la lb : Affine.t),
   wf la -> wf lb -> Forall wf (facts neg cmp la lb).
 Proof.
   intros neg cmp la lb Hla Hlb. unfold facts. cbv zeta.

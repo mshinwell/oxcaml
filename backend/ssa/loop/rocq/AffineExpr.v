@@ -262,7 +262,7 @@ Fixpoint consistent (rho : valuation) (e : t) : Prop :=
 
 (* The upper-bound fact [hi - atom >= 0], as a form, has the value
    [hi - atom]. *)
-Lemma upper_denote : forall rho atom hi,
+Lemma upper_denote : forall (rho : valuation) (atom hi : int),
   denote rho (Affine.add_const (Affine.scale minus_one (Affine.var atom)) hi)
   = to_Z hi - rho atom.
 Proof.
@@ -281,7 +281,7 @@ Qed.
 
 (* The lower-bound fact [atom + c >= 0], as a form, has the value [atom + c].
    *)
-Lemma lower_denote : forall rho atom c,
+Lemma lower_denote : forall (rho : valuation) (atom c : int),
   denote rho (Affine.add_const (Affine.var atom) c) = rho atom + to_Z c.
 Proof.
   intros rho atom c. unfold Affine.add_const, Affine.var.
@@ -296,7 +296,7 @@ Qed.
 
 (* --- The range facts of an atomized shift. --- *)
 
-Lemma shr_range_facts_wf : forall signed atom bits,
+Lemma shr_range_facts_wf : forall (signed : bool) (atom bits : int),
   Forall wf (shr_range_facts signed atom bits).
 Proof.
   intros signed atom bits. unfold shr_range_facts.
@@ -308,7 +308,8 @@ Qed.
 
 (* The range facts of an arithmetic right shift hold when the atom is the shift
    of a 64-bit value. *)
-Lemma shr_range_facts_signed_sound : forall rho atom bits x,
+Lemma shr_range_facts_signed_sound :
+  forall (rho : int -> Z) (atom bits : int) (x : Z),
   0 <= to_Z bits <= 63 -> in_int64 x -> rho atom = x / 2 ^ to_Z bits ->
   holds_all rho (shr_range_facts true atom bits).
 Proof.
@@ -367,7 +368,8 @@ Proof. reflexivity. Qed.
 
 (* The same for a logical right shift of the unsigned reading of a 64-bit
    value. *)
-Lemma shr_range_facts_logical_sound : forall rho atom bits x,
+Lemma shr_range_facts_logical_sound :
+  forall (rho : int -> Z) (atom bits : int) (x : Z),
   1 <= to_Z bits <= 63 -> in_int64 x ->
   rho atom = unsigned64 x / 2 ^ to_Z bits ->
   holds_all rho (shr_range_facts false atom bits).
@@ -406,7 +408,8 @@ Qed.
 (* --- [Range] --- *)
 
 (* A range only holds 64-bit values. *)
-Theorem in_range_int64 : forall r z, in_range r z -> in_int64 z.
+Theorem in_range_int64 : forall (r : Range.t) (z : Z),
+  in_range r z -> in_int64 z.
 Proof.
   intros r z [Hlo Hhi].
   pose proof (Int64.to_Z_bounded r.(Range.lo)).
@@ -415,21 +418,21 @@ Proof.
 Qed.
 
 (* Every 64-bit value is in the full range. *)
-Theorem full_sound : forall z, in_int64 z -> in_range Range.full z.
+Theorem full_sound : forall (z : Z), in_int64 z -> in_range Range.full z.
 Proof.
   intros z Hz. unfold in_range, Range.full. cbn [Range.lo Range.hi].
   rewrite Int64.to_Z_min_int, Int64.to_Z_max_int. unfold in_int64 in Hz. lia.
 Qed.
 
 (* A constant is in its own range. *)
-Theorem const_sound : forall c, in_range (Range.const c) (to_Z c).
+Theorem const_sound : forall (c : int), in_range (Range.const c) (to_Z c).
 Proof.
   intros c. unfold in_range, Range.const. cbv zeta. cbn [Range.lo Range.hi].
   rewrite Int64.of_int_spec. lia.
 Qed.
 
 (* [x asr bits], i.e. [x / 2^bits], for any 64-bit [x]. *)
-Theorem shr_signed_sound : forall bits x,
+Theorem shr_signed_sound : forall (bits : int) (x : Z),
   0 <= to_Z bits <= 63 -> in_int64 x ->
   in_range (Range.shr_signed bits) (x / 2 ^ to_Z bits).
 Proof.
@@ -442,7 +445,7 @@ Proof.
 Qed.
 
 (* [x lsr bits], i.e. [unsigned64 x / 2^bits], for any 64-bit [x]. *)
-Theorem shr_logical_sound : forall bits x,
+Theorem shr_logical_sound : forall (bits : int) (x : Z),
   1 <= to_Z bits <= 63 -> in_int64 x ->
   in_range (Range.shr_logical bits) (unsigned64 x / 2 ^ to_Z bits).
 Proof.
@@ -465,7 +468,7 @@ Proof.
 Qed.
 
 (* The sum of values in two ranges is in their sum, when it was computed. *)
-Theorem add_sound : forall a b r x y,
+Theorem add_sound : forall (a b r : Range.t) (x y : Z),
   Range.add a b = Some r -> in_range a x -> in_range b y ->
   in_range r (x + y).
 Proof.
@@ -479,7 +482,7 @@ Proof.
 Qed.
 
 (* The negation of a value in a range is in the negated range. *)
-Theorem neg_sound : forall a r x,
+Theorem neg_sound : forall (a r : Range.t) (x : Z),
   Range.neg a = Some r -> in_range a x -> in_range r (- x).
 Proof.
   intros a r x H [Hlo Hhi]. unfold Range.neg in H.
@@ -493,7 +496,7 @@ Proof.
 Qed.
 
 (* The difference of values in two ranges is in their difference. *)
-Theorem sub_sound : forall a b r x y,
+Theorem sub_sound : forall (a b r : Range.t) (x y : Z),
   Range.sub a b = Some r -> in_range a x -> in_range b y ->
   in_range r (x - y).
 Proof.
@@ -504,7 +507,7 @@ Proof.
 Qed.
 
 (* [x lor mask] for [x] in a range is in the or'ed range. *)
-Theorem or_mask_sound : forall mask a r x,
+Theorem or_mask_sound : forall (mask : int) (a r : Range.t) (x : Z),
   Range.or_mask mask a = Some r -> in_range a x ->
   in_range r (Z.lor x (to_Z mask)).
 Proof.
@@ -518,7 +521,7 @@ Proof.
 Qed.
 
 (* [k * x] for [x] in a range is in the scaled range. *)
-Theorem scale_sound : forall k a r x,
+Theorem scale_sound : forall (k : int) (a r : Range.t) (x : Z),
   Range.scale k a = Some r -> in_range a x -> in_range r (to_Z k * x).
 Proof.
   intros k a r x H [Hlo Hhi]. unfold Range.scale in H.
@@ -552,11 +555,11 @@ Opaque shr_range_facts.
    side facts are well-formed, the form has the expression's value, and
    the side facts hold when the atoms are consistent. ([shr_range_facts]
    is kept folded while [to_affine] is unfolded.) *)
-Lemma to_affine_spec : forall e f sides,
+Lemma to_affine_spec : forall (e : t) (f : Affine.t) (sides : list Affine.t),
   to_affine e = Some (f, sides) ->
   wf f /\ Forall wf sides
-  /\ (forall rho, denote rho f = eval rho e)
-  /\ (forall rho, consistent rho e -> holds_all rho sides).
+  /\ (forall (rho : valuation), denote rho f = eval rho e)
+  /\ (forall (rho : valuation), consistent rho e -> holds_all rho sides).
 Proof.
   induction e; intros f sides H; cbn [to_affine] in H.
   - (* Const *)
@@ -731,7 +734,8 @@ Transparent shr_range_facts.
 (* The form has the expression's value, and the side facts hold, whenever
    the atoms are consistent. [consistent] is only needed for the side
    facts: the value equation holds unconditionally. *)
-Theorem to_affine_sound : forall rho e f sides,
+Theorem to_affine_sound :
+  forall (rho : valuation) (e : t) (f : Affine.t) (sides : list Affine.t),
   to_affine e = Some (f, sides) ->
   denote rho f = eval rho e
   /\ (consistent rho e -> holds_all rho sides).
@@ -742,7 +746,7 @@ Proof.
 Qed.
 
 (* The form and the side facts are well-formed, as [entails] requires. *)
-Theorem to_affine_wf : forall e f sides,
+Theorem to_affine_wf : forall (e : t) (f : Affine.t) (sides : list Affine.t),
   to_affine e = Some (f, sides) -> wf f /\ Forall wf sides.
 Proof.
   intros e f sides H. destruct (to_affine_spec e f sides H) as [Hw [Hws _]].

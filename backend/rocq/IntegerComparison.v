@@ -61,14 +61,14 @@ Definition eval (cmp : integer_comparison) (a b : Z) : bool :=
   end.
 
 (* [negate] computes the negation of a comparison. *)
-Theorem negate_correct : forall cmp a b,
+Theorem negate_correct : forall (cmp : integer_comparison) (a b : Z),
   eval (negate cmp) a b = negb (eval cmp a b).
 Proof.
   intros cmp a b. destruct cmp; simpl; case_zcmp.
 Qed.
 
 (* [swap] computes the comparison with its operands exchanged. *)
-Theorem swap_correct : forall cmp a b,
+Theorem swap_correct : forall (cmp : integer_comparison) (a b : Z),
   eval (swap cmp) a b = eval cmp b a.
 Proof.
   intros cmp a b. destruct cmp; simpl; case_zcmp.

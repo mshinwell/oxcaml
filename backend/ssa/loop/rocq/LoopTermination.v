@@ -167,7 +167,7 @@ Definition bound_value (iter0 : value -> Z) (bnd : bound) : Z :=
    builds. *)
 Definition bivs_of_loop (op_def : op_def) (loop : natural_loop)
     (bivs : list biv) : Prop :=
-  forall biv, In biv bivs -> biv_spec op_def loop biv.
+  forall (biv : biv), In biv bivs -> biv_spec op_def loop biv.
 
 (* --- A run of the loop that goes on for ever --- *)
 
@@ -197,15 +197,15 @@ Definition bivs_of_loop (op_def : op_def) (loop : natural_loop)
 (* What the machine computes, at every visit. *)
 Record machine_values (iter : nat -> value -> Z) : Prop :=
   { (* Values are 64-bit registers. *)
-    iter_bounded : forall n v, in_int64 (iter n v);
+    iter_bounded : forall (n : nat) (v : value), in_int64 (iter n v);
 
     (* The recognised integer operations compute what [op_semantics]
        (AffineSsa.v) says: addition and subtraction wrap at 64 bits, and
        so on. *)
-    iter_op : forall n v, op_semantics (iter n) v;
+    iter_op : forall (n : nat) (v : value), op_semantics (iter n) v;
 
     (* A comparison is 1 or 0. *)
-    iter_comparison : forall n v,
+    iter_comparison : forall (n : nat) (v : value),
       match v with
       | Res _ (Intop (Icomp cmp)) [x; y] _ =>
         iter n v
@@ -223,29 +223,31 @@ Record loop_entry (entry : block) (op_def : op_def) (loop : natural_loop)
   { (* [dominates] means what SsaDominance.v says it means. *)
     run_dominance : dominance_semantics entry;
 
-    (* The branch of a block [block] whose terminator is [Switch index
+    (* The branch of a block [pred] whose terminator is [Switch index
        [ifnot; ifso]] goes to [ifso] when the comparison [index] holds and
        to [ifnot] when it fails. When every path from the entry to the
        header takes the edge to [ifso] (or, [negate], the edge to [ifnot]),
        the execution took it, so the comparison held (failed) on entry. *)
-    iter_branches : forall block index ifnot ifso (negate : bool),
-      terminator block = Terminator.Switch index [ifnot; ifso] ->
-      (forall p, path entry p loop.(header) ->
-         edge_on p block (if negate then ifnot else ifso)) ->
+    iter_branches :
+      forall (pred : block) (index : value) (ifnot ifso : block)
+        (negate : bool),
+      terminator pred = Terminator.Switch index [ifnot; ifso] ->
+      (forall (p : list block), path entry p loop.(header) ->
+         edge_on p pred (if negate then ifnot else ifso)) ->
       test_result (iter 0%nat) negate index;
 
     (* A loop-invariant value (InductionVar.v: a constant, or one defined
        in a block that dominates the header and is not it) has the same
        value at every visit: its block is not in the body, where the run
        stays between two visits, so it does not run again. *)
-    iter_invariant : forall n v,
+    iter_invariant : forall (n : nat) (v : value),
       loop_invariant_value op_def loop.(header) v -> iter n v = iter 0%nat v }.
 
 (* The run never leaves the loop. *)
 Record stays_in_loop (loop : natural_loop) (iter : nat -> value -> Z) : Prop :=
   { (* At every visit the header's [Switch] (control goes to
        [targets.(index)]) sends the run into the body ... *)
-    run_continues : forall n index targets,
+    run_continues : forall (n : nat) (index : value) (targets : list block),
       terminator loop.(header) = Terminator.Switch index targets ->
       exists target,
         nth_error targets (Z.to_nat (iter n index)) = Some target
@@ -259,12 +261,13 @@ Record stays_in_loop (loop : natural_loop) (iter : nat -> value -> Z) : Prop :=
        the header would give one to that back edge), so an edge from the
        body into the header is a back edge, and a run that stays in the
        body can arrive no other way. *)
-    run_back_edge : forall n,
+    run_back_edge : forall (n : nat),
       exists source args,
         In source loop.(back_edge_sources)
         /\ In source (predecessors loop.(header))
         /\ terminator source = Terminator.Continue (Goto loop.(header)) args
-        /\ forall index u, nth_int args index = Some (Terminator.Arg u) ->
+        /\ forall (index : int) (u : value),
+             nth_int args index = Some (Terminator.Arg u) ->
              iter (S n) (param loop.(header) index) = iter n u }.
 
 (* A bound on the graph, not on the run: the atom counter of AffineSsa.v,
@@ -309,7 +312,8 @@ Section Run.
   (* --- The comparison the exit branch tests --- *)
 
   Lemma extract_comparison_spec :
-    forall is_iv_val is_bound cond cmp iv_is_left bnd,
+    forall (is_iv_val is_bound : value -> bool) (cond : value)
+      (cmp : integer_comparison) (iv_is_left : bool) (bnd : bound),
     extract_comparison is_iv_val is_bound cond = Some (cmp, iv_is_left, bnd) ->
     exists id i,
       (exists x k,
@@ -353,7 +357,8 @@ Section Run.
   (* --- The induction variable's values along the run --- *)
 
   (* A constant step comes from [self + c] or [self - c]. *)
-  Lemma classify_update_const : forall is_self c sign u,
+  Lemma classify_update_const :
+    forall (is_self : value -> bool) (c : int) (sign : biv_sign) (u : value),
     classify_update is_self op_def loop.(header) u
       = Some (Step_const c, sign) ->
     exists id i x,
@@ -380,7 +385,8 @@ Section Run.
   Qed.
 
   (* Each update value is the parameter plus the signed step. *)
-  Lemma biv_update_value : forall biv step u n,
+  Lemma biv_update_value :
+    forall (biv : biv) (step : int) (u : value) (n : nat),
     biv_spec op_def loop biv -> signed_step biv = Some step ->
     In u biv.(update) ->
     iter n u
@@ -418,11 +424,11 @@ Section Run.
   Qed.
 
   (* The parameter's values at the visits are the sequence [iv]. *)
-  Lemma self_sequence : forall biv step,
+  Lemma self_sequence : forall (biv : biv) (step : int),
     biv_spec op_def loop biv -> signed_step biv = Some step ->
-    forall n, iter n (param loop.(header) biv.(param_index))
-              = iv (iter 0 (param loop.(header) biv.(param_index)))
-                   (to_Z step) n.
+    forall (n : nat), iter n (param loop.(header) biv.(param_index))
+                      = iv (iter 0 (param loop.(header) biv.(param_index)))
+                           (to_Z step) n.
   Proof.
     intros b step Hspec Hstep n. induction n as [ | n IH ].
     - reflexivity.
@@ -439,11 +445,11 @@ Section Run.
   (* So are those of any value [is_iv_val] accepts: the
      parameter itself, or one of its updates (the sequence from its next
      value). *)
-  Lemma iv_val_sequence : forall biv step x,
+  Lemma iv_val_sequence : forall (biv : biv) (step : int) (x : value),
     biv_spec op_def loop biv -> signed_step biv = Some step ->
     is_param loop.(header) biv.(param_index) x
       || existsb (value_eqb x) biv.(update) = true ->
-    exists v0, in_int64 v0 /\ forall n, iter n x = iv v0 (to_Z step) n.
+    exists v0, in_int64 v0 /\ forall (n : nat), iter n x = iv v0 (to_Z step) n.
   Proof.
     intros b step x Hspec Hstep Hx. apply orb_true_iff in Hx.
     destruct Hx as [Hself | Hupd].
@@ -491,7 +497,9 @@ Section Run.
 
   (* The facts [bound_in_range] checks a register bound against hold
      under a valuation that reads the bound's form as its value. *)
-  Lemma value_bound_facts : forall v form side1 c1 guards side2 c2,
+  Lemma value_bound_facts :
+    forall (v : value) (form : Affine.t) (side1 : list Affine.t) (c1 : ctx)
+      (guards side2 : list Affine.t) (c2 : ctx),
     linearize new_ctx [] v = ((form, side1), c1) ->
     guards_at c1 side1 loop.(header) = ((guards, side2), c2) ->
     exists rho,
@@ -528,7 +536,7 @@ Section Run.
 
   (* [bound_in_range] establishes the side condition of
      LoopComparisons.v on the bound's value. *)
-  Lemma bound_in_range_sound : forall step bnd,
+  Lemma bound_in_range_sound : forall (step : int) (bnd : bound),
     bound_in_range step loop.(header) bnd = true ->
     LoopComparisons.bound_in_range (to_Z step) (bound_value (iter 0) bnd)
     = true.
@@ -546,7 +554,8 @@ Section Run.
     destruct bnd as [v | k]; cbn [bound_value].
     - (* Value_bound *)
       destruct (linearize new_ctx [] v) as [[form side1] c1] eqn:Hlin.
-      destruct (guards_at c1 side1 loop.(header)) as [[guards side2] c2] eqn:Hg.
+      destruct (guards_at c1 side1 loop.(header))
+        as [[guards side2] c2] eqn:Hg.
       destruct (value_bound_facts v form side1 c1 guards side2 c2 Hlin Hg)
         as [rho [Hden [Hwffacts [Hwff Hfacts]]]].
       destruct (0 <? to_Z step) eqn:Hp; cbv iota in H.
@@ -588,7 +597,7 @@ Section Run.
      exit comparison the shape [extract_comparison] reads, and the verdict
      of LoopComparisons.v on them is [Terminates], or
      [Terminates_if_bound_in_range] with the bound checked in range. *)
-  Lemma biv_implies_termination_spec : forall biv,
+  Lemma biv_implies_termination_spec : forall (biv : biv),
     biv.(InductionVar.loop) = loop ->
     biv_implies_termination op_def biv = true ->
     exists exit_info step cmp iv_is_left bnd,
@@ -630,7 +639,9 @@ Section Run.
   (* At every visit the exit comparison tests the sequence [iv] of
      LoopComparisons.v (the induction variable's values, from its value or
      its updated value at the first visit) against a bound fixed at entry. *)
-  Lemma exit_test_sequence : forall biv step cond cmp iv_is_left bnd,
+  Lemma exit_test_sequence :
+    forall (biv : biv) (step : int) (cond : value)
+      (cmp : integer_comparison) (iv_is_left : bool) (bnd : bound),
     biv_spec op_def loop biv -> signed_step biv = Some step ->
     extract_comparison
       (fun v => is_param loop.(header) biv.(param_index) v
@@ -638,7 +649,8 @@ Section Run.
       (is_loop_invariant op_def loop.(header)) cond
     = Some (cmp, iv_is_left, bnd) ->
     exists v0, in_int64 v0
-      /\ forall n, iter n cond
+      /\ forall (n : nat),
+           iter n cond
            = bool_to_Z
                (if iv_is_left
                 then IntegerComparison.eval cmp (iv v0 (to_Z step) n)
@@ -681,7 +693,8 @@ Section Run.
   (* At every visit of a run the exit test comes out the way that
      continues the loop: the header's [Switch] goes into the body, and of
      its two targets only one is in it. *)
-  Lemma run_test_continues : forall exit_info n (test : bool),
+  Lemma run_test_continues :
+    forall (exit_info : exit_branch) (n : nat) (test : bool),
     find_exit_branch loop = Some exit_info ->
     iter n exit_info.(condition) = bool_to_Z test ->
     test = exit_info.(continue_when_true).
@@ -707,7 +720,7 @@ Section Run.
   (* No run of a loop the analysis says terminates goes on for ever: the
      hypotheses of this section, together with a [Terminates] verdict for
      the loop's basic induction variables, are contradictory. *)
-  Theorem analyze_Terminates : forall bivs,
+  Theorem analyze_Terminates : forall (bivs : list biv),
     bivs_of_loop op_def loop bivs ->
     analyze op_def bivs = Terminates -> False.
   Proof.
@@ -742,7 +755,8 @@ Section Run.
 
   (* The same for the basic induction variables InductionVar.v reports
      for the loop. *)
-  Theorem analyze_Terminates_of_graph : forall blocks bivs,
+  Theorem analyze_Terminates_of_graph :
+    forall (blocks : list block) (bivs : list biv),
     In (loop, bivs) (InductionVar.analyze op_def blocks) ->
     analyze op_def bivs = Terminates -> False.
   Proof.

@@ -58,7 +58,8 @@ Qed.
 Definition fits_int (z : Z) : bool := (- two62 <=? z) && (z <=? two62 - 1).
 
 (* [fits_int] answering [true] means that the bounds hold. *)
-Lemma fits_int_true : forall z, fits_int z = true -> - two62 <= z <= two62 - 1.
+Lemma fits_int_true : forall (z : Z),
+  fits_int z = true -> - two62 <= z <= two62 - 1.
 Proof.
   unfold fits_int. intros z H. apply andb_prop in H as [H1 H2].
   apply Z.leb_le in H1. apply Z.leb_le in H2. lia.
@@ -147,7 +148,7 @@ Ltac case_int_tests :=
 (* Rearrangements of sums of [int]s, which hold with wrap-around. *)
 
 (* [cmod] may be applied to either summand first, or not at all. *)
-Lemma cmod_add_l : forall a b d,
+Lemma cmod_add_l : forall (a b d : Z),
   Sint63.cmod (Sint63.cmod a d + b) d = Sint63.cmod (a + b) d.
 Proof.
   intros a b d. unfold Sint63.cmod.
@@ -156,7 +157,7 @@ Proof.
   rewrite Zplus_mod_idemp_l. f_equal. f_equal. ring.
 Qed.
 
-Lemma cmod_add_r : forall a b d,
+Lemma cmod_add_r : forall (a b d : Z),
   Sint63.cmod (a + Sint63.cmod b d) d = Sint63.cmod (a + b) d.
 Proof.
   intros a b d. rewrite (Z.add_comm a), cmod_add_l, (Z.add_comm b).

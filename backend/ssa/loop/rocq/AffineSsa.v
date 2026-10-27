@@ -310,12 +310,13 @@ Local Open Scope Z_scope.
    next one to be allocated, and the budget is not negative. *)
 Definition ctx_wf (c : ctx) : Prop :=
   NoDup (map fst c.(atoms))
-  /\ (forall id v, In (id, v) c.(atoms) -> to_Z id < to_Z c.(next))
+  /\ (forall (id : int) (v : value),
+        In (id, v) c.(atoms) -> to_Z id < to_Z c.(next))
   /\ 0 <= to_Z c.(budget).
 
 (* A context only gains atoms. *)
 Definition extends (c c' : ctx) : Prop :=
-  forall p, In p c.(atoms) -> In p c'.(atoms).
+  forall (p : int * value), In p c.(atoms) -> In p c'.(atoms).
 
 (* The atoms one linearization may allocate: one per node expanded, one
    for the value itself and one when its affine form overflows; those the
@@ -344,8 +345,9 @@ Section Semantics.
      execution of the function. [Ssa.Value.equal] identifies SSA values,
      which then have the same machine value. *)
   Variable mval : value -> Z.
-  Hypothesis mval_bounded : forall v, in_int64 (mval v).
-  Hypothesis mval_eqb : forall v w, value_eqb v w = true -> mval v = mval w.
+  Hypothesis mval_bounded : forall (v : value), in_int64 (mval v).
+  Hypothesis mval_eqb :
+    forall (v w : value), value_eqb v w = true -> mval v = mval w.
 
   (* What the operations the recogniser understands compute, from the
      machine values of their arguments: a constant is its value (a
@@ -378,7 +380,7 @@ Section Semantics.
   (* A check, which no proof uses, that the [Ilsr] clause is satisfiable: a
      logical shift by zero returns its argument, negative registers
      included, which is why the quotient is read back through [wrap64]. *)
-  Remark op_semantics_lsr_zero : forall id a i,
+  Remark op_semantics_lsr_zero : forall (id : instr_id) (a : value) (i : int),
     mval (Res id (Intop_imm Ilsr zero) [a] i) = mval a ->
     op_semantics (Res id (Intop_imm Ilsr zero) [a] i).
   Proof.
@@ -388,12 +390,12 @@ Section Semantics.
   Qed.
 
   (* Every value is computed as its operation says. *)
-  Hypothesis mval_ops : forall v, op_semantics v.
+  Hypothesis mval_ops : forall (v : value), op_semantics v.
 
   (* A valuation agrees with a context when it reads each atom as the
      machine value of the SSA value interned for it. *)
   Definition agrees (rho : valuation) (c : ctx) : Prop :=
-    forall id v, In (id, v) c.(atoms) -> rho id = mval v.
+    forall (id : int) (v : value), In (id, v) c.(atoms) -> rho id = mval v.
 
   (* The comparison a branch tests came out as the taken edge requires:
      true for the edge [cond_facts] is called with [negate = false] for,
@@ -414,12 +416,12 @@ Section Semantics.
      every path to [target] took that edge; it is an assumption on [mval],
      which LoopTermination.v makes of the values at the entry to a loop. *)
   Definition guard_taken (target dominator : block) : Prop :=
-    forall index negate,
+    forall (index : value) (negate : bool),
       guard_test target dominator = Some (index, negate) ->
       test_result negate index.
 
   Definition guards_taken (target : block) : Prop :=
-    forall dominator,
+    forall (dominator : block),
       In dominator (strict_dominators target) -> guard_taken target dominator.
 
 (* ======================================================================== *)
@@ -427,16 +429,16 @@ Section Semantics.
 (* ======================================================================== *)
 
   (* A context extends itself, and extension is transitive. *)
-  Lemma extends_refl : forall c, extends c c.
+  Lemma extends_refl : forall (c : ctx), extends c c.
   Proof. intros c p H. exact H. Qed.
 
-  Lemma extends_trans : forall c1 c2 c3,
+  Lemma extends_trans : forall (c1 c2 c3 : ctx),
     extends c1 c2 -> extends c2 c3 -> extends c1 c3.
   Proof. intros c1 c2 c3 H12 H23 p H. apply H23, H12, H. Qed.
 
   (* A valuation agreeing with an extension of a context agrees with the
      context. *)
-  Lemma agrees_extends : forall rho c c',
+  Lemma agrees_extends : forall (rho : valuation) (c c' : ctx),
     extends c c' -> agrees rho c' -> agrees rho c.
   Proof. intros rho c c' He Ha id v H. apply Ha, He, H. Qed.
 
@@ -455,7 +457,7 @@ Section Semantics.
 
   (* The atom allowances are non-negative, and [guards_sum] unfolds on lists.
      *)
-  Lemma guard_size_nonneg : forall target dominator,
+  Lemma guard_size_nonneg : forall (target dominator : block),
     0 <= guard_size target dominator.
   Proof.
     intros target d. unfold guard_size.
@@ -463,15 +465,16 @@ Section Semantics.
       [ rewrite cond_atoms_eq | ]; lia.
   Qed.
 
-  Lemma guards_sum_nil : forall target, guards_sum target [] = 0.
+  Lemma guards_sum_nil : forall (target : block), guards_sum target [] = 0.
   Proof. reflexivity. Qed.
 
-  Lemma guards_sum_cons : forall target dominator dominators,
+  Lemma guards_sum_cons :
+    forall (target dominator : block) (dominators : list block),
     guards_sum target (dominator :: dominators)
     = guard_size target dominator + guards_sum target dominators.
   Proof. reflexivity. Qed.
 
-  Lemma guards_sum_nonneg : forall target dominators,
+  Lemma guards_sum_nonneg : forall (target : block) (dominators : list block),
     0 <= guards_sum target dominators.
   Proof.
     intros target doms. induction doms as [ | d doms IH ].
@@ -481,7 +484,7 @@ Section Semantics.
 
   (* --- The context --- *)
 
-  Lemma ctx_wf_budget : forall c, ctx_wf c -> 0 <= to_Z c.(budget).
+  Lemma ctx_wf_budget : forall (c : ctx), ctx_wf c -> 0 <= to_Z c.(budget).
   Proof. intros c [_ [_ H]]. exact H. Qed.
 
   Lemma new_ctx_wf : ctx_wf new_ctx.
@@ -491,7 +494,7 @@ Section Semantics.
   Qed.
 
   (* [refill] keeps the atoms and the counter and sets the budget. *)
-  Lemma refill_spec : forall c,
+  Lemma refill_spec : forall (c : ctx),
     ctx_wf c ->
     ctx_wf (refill c) /\ extends c (refill c)
     /\ to_Z (refill c).(next) = to_Z c.(next)
@@ -505,7 +508,7 @@ Section Semantics.
 
   (* [spend c k], when the budget has [k] nodes, keeps the atoms and the
      counter and lowers the budget by [k]. *)
-  Lemma spend_spec : forall c k,
+  Lemma spend_spec : forall (c : ctx) (k : int),
     ctx_wf c -> 0 <= to_Z k -> (k <=? c.(budget))%sint63 = true ->
     ctx_wf (spend c k) /\ extends c (spend c k)
     /\ to_Z (spend c k).(next) = to_Z c.(next)
@@ -523,11 +526,11 @@ Section Semantics.
 
   (* --- [intern] --- *)
 
-  Lemma intern_spec : forall c v id c',
+  Lemma intern_spec : forall (c : ctx) (v : value) (id : int) (c' : ctx),
     ctx_wf c -> to_Z c.(next) < ocaml_max_int -> intern c v = (id, c') ->
     ctx_wf c' /\ extends c c' /\ to_Z c'.(next) <= to_Z c.(next) + 1
     /\ to_Z c'.(budget) = to_Z c.(budget)
-    /\ forall rho, agrees rho c' -> rho id = mval v.
+    /\ forall (rho : valuation), agrees rho c' -> rho id = mval v.
   Proof.
     intros c v id c' [Hnd [Hlt Hb]] Hnext H. unfold intern in H.
     destruct (find _ c.(atoms)) as [ [id0 w] | ] eqn:Hf.
@@ -561,14 +564,16 @@ Section Semantics.
      context stays well-formed, keeps its budget and gains at most one
      atom, and under any agreeing valuation the atom reads as [v]'s
      machine value, which is in the range. *)
-  Lemma atomize_spec : forall c v e r c',
+  Lemma atomize_spec :
+    forall (c : ctx) (v : value) (e : AffineExpr.t) (r : option Range.t)
+      (c' : ctx),
     ctx_wf c -> to_Z c.(next) < ocaml_max_int ->
     atomize c v = ((e, r), c') ->
     ctx_wf c' /\ extends c c' /\ to_Z c'.(next) <= to_Z c.(next) + 1
     /\ to_Z c'.(budget) = to_Z c.(budget)
-    /\ forall rho, agrees rho c' ->
+    /\ forall (rho : valuation), agrees rho c' ->
          AffineExpr.eval rho e = mval v /\ consistent rho e
-         /\ forall rg, r = Some rg -> in_range rg (mval v).
+         /\ forall (rg : Range.t), r = Some rg -> in_range rg (mval v).
   Proof.
     intros c v e r c' Hwf Hnext H. unfold atomize in H.
     destruct (intern c v) as [id c1] eqn:Hi. injection H as <- <- <-.
@@ -584,7 +589,7 @@ Section Semantics.
   (* --- [push_sides] --- *)
 
   (* Every fact of the result comes from one of the two lists ... *)
-  Lemma push_sides_In : forall sides side f,
+  Lemma push_sides_In : forall (sides side : list Affine.t) (f : Affine.t),
     In f (push_sides side sides) -> In f side \/ In f sides.
   Proof.
     unfold push_sides, OxCamlList.fold_left.
@@ -601,7 +606,8 @@ Section Semantics.
 
   (* ... so a property of every fact of both holds of every fact of the result.
      *)
-  Lemma push_sides_Forall : forall (P : Affine.t -> Prop) side sides,
+  Lemma push_sides_Forall :
+    forall (P : Affine.t -> Prop) (side sides : list Affine.t),
     Forall P side -> Forall P sides -> Forall P (push_sides side sides).
   Proof.
     intros P side sides Hside Hsides.
@@ -612,7 +618,8 @@ Section Semantics.
 
   (* --- The valuation agreeing with a context --- *)
 
-  Theorem agrees_exists : forall c, ctx_wf c -> exists rho, agrees rho c.
+  Theorem agrees_exists :
+    forall (c : ctx), ctx_wf c -> exists rho, agrees rho c.
   Proof.
     intros c [Hnd _].
     exists (fun id => match assoc_opt id c.(atoms) with
@@ -675,15 +682,17 @@ Section Semantics.
      was found, the machine value is in it. The context stays well-formed
      and only grows, and the atoms it gains are paid for by the budget,
      but for one. *)
-  Theorem expr_of_value_sound : forall v c e r c',
+  Theorem expr_of_value_sound :
+    forall (v : value) (c : ctx) (e : AffineExpr.t) (r : option Range.t)
+      (c' : ctx),
     ctx_wf c -> to_Z c.(next) + to_Z c.(budget) + 1 <= ocaml_max_int ->
     expr_of_value c v = ((e, r), c') ->
     ctx_wf c' /\ extends c c'
     /\ to_Z c'.(next) + to_Z c'.(budget)
        <= to_Z c.(next) + to_Z c.(budget) + 1
-    /\ forall rho, agrees rho c' ->
+    /\ forall (rho : valuation), agrees rho c' ->
          AffineExpr.eval rho e = mval v /\ consistent rho e
-         /\ forall rg, r = Some rg -> in_range rg (mval v).
+         /\ forall (rg : Range.t), r = Some rg -> in_range rg (mval v).
   Proof.
     intros v. induction v as [id op args i IHargs | b i] using value_ind';
       intros c e r c' Hwf Hn H;
@@ -740,7 +749,8 @@ Section Semantics.
             [ lia | ].
           intros rho Hrho.
           destruct (Hrho_b rho Hrho) as [Eb [Cb Rb]].
-          destruct (Hrho_a rho (agrees_extends _ _ _ Heb Hrho)) as [Ea [Ca Ra]].
+          destruct (Hrho_a rho (agrees_extends _ _ _ Heb Hrho))
+            as [Ea [Ca Ra]].
           specialize (Ra rga eq_refl). specialize (Rb rgb eq_refl).
           pose proof (add_sound _ _ _ _ _ Hr Ra Rb) as Hsum.
           pose proof (in_range_int64 _ _ Hsum) as Hfits.
@@ -764,7 +774,8 @@ Section Semantics.
             [ lia | ].
           intros rho Hrho.
           destruct (Hrho_b rho Hrho) as [Eb [Cb Rb]].
-          destruct (Hrho_a rho (agrees_extends _ _ _ Heb Hrho)) as [Ea [Ca Ra]].
+          destruct (Hrho_a rho (agrees_extends _ _ _ Heb Hrho))
+            as [Ea [Ca Ra]].
           specialize (Ra rga eq_refl). specialize (Rb rgb eq_refl).
           pose proof (sub_sound _ _ _ _ _ Hr Ra Rb) as Hdiff.
           pose proof (in_range_int64 _ _ Hdiff) as Hfits.
@@ -954,13 +965,15 @@ Section Semantics.
 
   (* The affine form of a value has the value's machine value, and the
      side facts pushed are true; both are well-formed. *)
-  Theorem linearize_sound : forall v c side f side' c',
+  Theorem linearize_sound :
+    forall (v : value) (c : ctx) (side : list Affine.t) (f : Affine.t)
+      (side' : list Affine.t) (c' : ctx),
     ctx_wf c -> to_Z c.(next) + linearize_atoms <= ocaml_max_int ->
     linearize c side v = ((f, side'), c') ->
     ctx_wf c' /\ extends c c'
     /\ to_Z c'.(next) <= to_Z c.(next) + linearize_atoms
     /\ wf f /\ (Forall wf side -> Forall wf side')
-    /\ forall rho, agrees rho c' ->
+    /\ forall (rho : valuation), agrees rho c' ->
          denote rho f = mval v
          /\ (holds_all rho side -> holds_all rho side').
   Proof.
@@ -1010,12 +1023,14 @@ Section Semantics.
   (* The facts derived from a comparison hold when the comparison came out
      as the branch taken requires; they, and the side facts, are
      well-formed. *)
-  Theorem cond_facts_sound : forall cond c side negate fs side' c',
+  Theorem cond_facts_sound :
+    forall (cond : value) (c : ctx) (side : list Affine.t) (negate : bool)
+      (fs side' : list Affine.t) (c' : ctx),
     ctx_wf c -> to_Z c.(next) + cond_atoms <= ocaml_max_int ->
     cond_facts c side negate cond = ((fs, side'), c') ->
     ctx_wf c' /\ extends c c' /\ to_Z c'.(next) <= to_Z c.(next) + cond_atoms
     /\ Forall wf fs /\ (Forall wf side -> Forall wf side')
-    /\ forall rho, agrees rho c' ->
+    /\ forall (rho : valuation), agrees rho c' ->
          (holds_all rho side -> holds_all rho side')
          /\ (test_result negate cond -> holds_all rho fs).
   Proof.
@@ -1069,7 +1084,10 @@ Section Semantics.
      facts and side facts well-formed, and, under a valuation agreeing
      with the final context, the side facts true and the facts true when
      the branches went as assumed. *)
-  Lemma guards_fold_sound : forall target dominators acc side c fs side' c',
+  Lemma guards_fold_sound :
+    forall (target : block) (dominators : list block)
+      (acc side : list Affine.t) (c : ctx) (fs side' : list Affine.t)
+      (c' : ctx),
     ctx_wf c ->
     to_Z c.(next) + guards_sum target dominators <= ocaml_max_int ->
     List.fold_left (guard_facts target) dominators ((acc, side), c)
@@ -1077,9 +1095,9 @@ Section Semantics.
     ctx_wf c' /\ extends c c'
     /\ to_Z c'.(next) <= to_Z c.(next) + guards_sum target dominators
     /\ (Forall wf acc -> Forall wf fs) /\ (Forall wf side -> Forall wf side')
-    /\ forall rho, agrees rho c' ->
+    /\ forall (rho : valuation), agrees rho c' ->
          (holds_all rho side -> holds_all rho side')
-         /\ ((forall dominator,
+         /\ ((forall (dominator : block),
                 In dominator dominators -> guard_taken target dominator) ->
              holds_all rho acc -> holds_all rho fs).
   Proof.
@@ -1141,13 +1159,15 @@ Section Semantics.
   (* The facts [guards_at] gathers at [target] are well-formed, and true
      under a valuation agreeing with the final context when the dominating
      branches went as assumed; the side facts are kept true. *)
-  Theorem guards_at_sound : forall target c side fs side' c',
+  Theorem guards_at_sound :
+    forall (target : block) (c : ctx) (side fs side' : list Affine.t)
+      (c' : ctx),
     ctx_wf c -> to_Z c.(next) + guards_size target <= ocaml_max_int ->
     guards_at c side target = ((fs, side'), c') ->
     ctx_wf c' /\ extends c c'
     /\ to_Z c'.(next) <= to_Z c.(next) + guards_size target
     /\ Forall wf fs /\ (Forall wf side -> Forall wf side')
-    /\ forall rho, agrees rho c' ->
+    /\ forall (rho : valuation), agrees rho c' ->
          (holds_all rho side -> holds_all rho side')
          /\ (guards_taken target -> holds_all rho fs).
   Proof.

@@ -242,7 +242,7 @@ Definition loop_invariant_value (op_def : op_def) (header : block)
    the step and sign [biv] records. *)
 Definition updates_classified (op_def : op_def) (loop : natural_loop)
     (index : int) (biv : biv) : Prop :=
-  forall u, In u biv.(update) ->
+  forall (u : value), In u biv.(update) ->
     exists step' sign',
       classify_update (is_param loop.(header) index) op_def loop.(header) u
       = Some (step', sign')
@@ -258,7 +258,7 @@ Definition updates_classified (op_def : op_def) (loop : natural_loop)
    [sign] as recorded. *)
 Definition every_back_edge_passes_an_update (loop : natural_loop) (biv : biv)
     : Prop :=
-  forall source,
+  forall (source : block),
     In source loop.(back_edge_sources) ->
     In source (predecessors loop.(header)) ->
     exists args u,
@@ -268,7 +268,7 @@ Definition every_back_edge_passes_an_update (loop : natural_loop) (biv : biv)
 
 Definition every_update_arrives_over_a_back_edge (loop : natural_loop)
     (biv : biv) : Prop :=
-  forall u, In u biv.(update) ->
+  forall (u : value), In u biv.(update) ->
     exists source args,
       In source loop.(back_edge_sources)
       /\ goto_args loop.(header) source = Some args
@@ -287,18 +287,18 @@ Definition biv_spec (op_def : op_def) (loop : natural_loop) (biv : biv)
 (* ======================================================================== *)
 
 (* [step_same] and [sign_same] are reflexive. *)
-Lemma step_same_refl : forall step, step_same step step = true.
+Lemma step_same_refl : forall (step : biv_step), step_same step step = true.
 Proof.
   intros [c | v]; cbn [step_same].
   - apply eqb_int. reflexivity.
   - apply value_eqb_spec. reflexivity.
 Qed.
 
-Lemma sign_same_refl : forall sign, sign_same sign sign = true.
+Lemma sign_same_refl : forall (sign : biv_sign), sign_same sign sign = true.
 Proof. intros []; reflexivity. Qed.
 
 (* [back_edge_set] holds exactly the back-edge sources. *)
-Lemma back_edge_set_spec : forall loop block,
+Lemma back_edge_set_spec : forall (loop : natural_loop) (block : block),
   set_mem block (back_edge_set loop) = true
   <-> In block loop.(back_edge_sources).
 Proof.
@@ -319,10 +319,11 @@ Qed.
 (* When every back edge passes a value at [index] ([forallb is_some]), each
    pair has one. *)
 Lemma arg_values_all :
-  forall (source_args : list (block * list Terminator.arg)) index,
+  forall (source_args : list (block * list Terminator.arg)) (index : int),
   forallb is_some
     (map (fun '(_, args) => arg_value args index) source_args) = true ->
-  forall source args, In (source, args) source_args ->
+  forall (source : block) (args : list Terminator.arg),
+  In (source, args) source_args ->
   exists u, arg_value args index = Some u.
 Proof.
   intros bpa index H p args Hin. rewrite forallb_forall in H.
@@ -339,7 +340,8 @@ Qed.
 (* The values collected at [index] are exactly those some back edge passes
    there. *)
 Lemma back_vals_In :
-  forall (source_args : list (block * list Terminator.arg)) index u,
+  forall (source_args : list (block * list Terminator.arg)) (index : int)
+    (u : value),
   In u (filter_map (fun v => v)
           (map (fun '(_, args) => arg_value args index) source_args))
   <-> exists source args,
@@ -359,15 +361,19 @@ Qed.
 (* What [classify_param] establishes of the BIV it returns: it is for this loop
    and [index]; its updates are non-empty, classify alike, and are exactly the
    values the back edges pass at [index]. *)
-Lemma classify_param_spec : forall loop op_def source_args index biv,
+Lemma classify_param_spec :
+  forall (loop : natural_loop) (op_def : op_def)
+    (source_args : list (block * list Terminator.arg)) (index : int)
+    (biv : biv),
   classify_param loop op_def source_args index = Some biv ->
   biv.(InductionVar.loop) = loop
   /\ biv.(param_index) = index
   /\ biv.(update) <> []
   /\ updates_classified op_def loop index biv
-  /\ (forall source args, In (source, args) source_args ->
+  /\ (forall (source : block) (args : list Terminator.arg),
+        In (source, args) source_args ->
         exists u, arg_value args index = Some u /\ In u biv.(update))
-  /\ (forall u, In u biv.(update) ->
+  /\ (forall (u : value), In u biv.(update) ->
         exists source args,
           In (source, args) source_args /\ arg_value args index = Some u).
 Proof.
@@ -400,7 +406,10 @@ Proof.
 Qed.
 
 (* At most one BIV per parameter. *)
-Lemma params_bivs_length_le : forall loop op_def source_args params index,
+Lemma params_bivs_length_le :
+  forall (loop : natural_loop) (op_def : op_def)
+    (source_args : list (block * list Terminator.arg)) (params : list value)
+    (index : int),
   (length (params_bivs loop op_def source_args index params)
    <= length params)%nat.
 Proof.
@@ -413,7 +422,10 @@ Qed.
 
 (* With as many BIVs as parameters, every parameter position has one:
    [classify_param] yields at most one BIV per position, indexed by it. *)
-Lemma params_bivs_cover : forall loop op_def source_args params index k v,
+Lemma params_bivs_cover :
+  forall (loop : natural_loop) (op_def : op_def)
+    (source_args : list (block * list Terminator.arg)) (params : list value)
+    (index k : int) (v : value),
   length (params_bivs loop op_def source_args index params) = length params ->
   nth_int params k = Some v ->
   exists biv, In biv (params_bivs loop op_def source_args index params)
@@ -441,7 +453,10 @@ Qed.
 
 (* Every BIV [params_bivs] returns comes from [classify_param] at some index.
    *)
-Lemma params_bivs_In : forall loop op_def source_args params index biv,
+Lemma params_bivs_In :
+  forall (loop : natural_loop) (op_def : op_def)
+    (source_args : list (block * list Terminator.arg)) (params : list value)
+    (index : int) (biv : biv),
   In biv (params_bivs loop op_def source_args index params) ->
   exists index', classify_param loop op_def source_args index' = Some biv.
 Proof.
@@ -457,7 +472,9 @@ Qed.
 
 (* --- [analyze_loop] --- *)
 
-Lemma source_args_In : forall header source_set preds pred args,
+Lemma source_args_In :
+  forall (header : block) (source_set : blockset) (preds : list block)
+    (pred : block) (args : list Terminator.arg),
   In (pred, args)
     (filter_map
        (fun '(pred, args) =>
@@ -499,7 +516,8 @@ Qed.
 (* ======================================================================== *)
 
 (* What [is_loop_invariant] checks, read back. *)
-Theorem is_loop_invariant_spec : forall op_def header v,
+Theorem is_loop_invariant_spec :
+  forall (op_def : op_def) (header : block) (v : value),
   is_loop_invariant op_def header v = true ->
   loop_invariant_value op_def header v.
 Proof.
@@ -519,7 +537,8 @@ Proof.
 Qed.
 
 (* Every BIV [analyze_loop] reports satisfies [biv_spec]. *)
-Theorem analyze_loop_spec : forall op_def loop biv,
+Theorem analyze_loop_spec :
+  forall (op_def : op_def) (loop : natural_loop) (biv : biv),
   In biv (analyze_loop op_def loop) -> biv_spec op_def loop biv.
 Proof.
   intros op_def l b H. unfold analyze_loop in H. cbv zeta in H.
@@ -559,7 +578,8 @@ Qed.
 
 (* When a loop has as many BIVs as its header has parameters, every
    parameter position has one. *)
-Theorem analyze_loop_cover : forall op_def loop k v,
+Theorem analyze_loop_cover :
+  forall (op_def : op_def) (loop : natural_loop) (k : int) (v : value),
   length (analyze_loop op_def loop) = length (params loop.(header)) ->
   nth_int (params loop.(header)) k = Some v ->
   exists biv, In biv (analyze_loop op_def loop) /\ biv.(param_index) = k.
@@ -575,10 +595,12 @@ Qed.
 
 (* Each pair [analyze] returns is a loop [find_loops] finds with the BIVs
    [analyze_loop] computes for it, each satisfying [biv_spec]. *)
-Theorem analyze_spec : forall op_def blocks loop bivs,
+Theorem analyze_spec :
+  forall (op_def : op_def) (blocks : list block) (loop : natural_loop)
+    (bivs : list biv),
   In (loop, bivs) (analyze op_def blocks) ->
   In loop (find_loops blocks) /\ bivs = analyze_loop op_def loop
-  /\ forall biv, In biv bivs -> biv_spec op_def loop biv.
+  /\ forall (biv : biv), In biv bivs -> biv_spec op_def loop biv.
 Proof.
   intros op_def blocks l bivs H. unfold analyze in H.
   apply in_map_iff in H. destruct H as [l' [E Hl]]. injection E as <- <-.

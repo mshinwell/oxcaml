@@ -156,7 +156,7 @@ Definition dead_spec (blocks : list block) (biv : InductionVar.biv) : Prop :=
        param_used_only_by_exit_and_updates blocks loop.(header) k cond
          biv.(update)
        /\ cond_used_only_by_header_branch blocks loop.(header) cond
-       /\ forall u, In u biv.(update) ->
+       /\ forall (u : value), In u biv.(update) ->
             update_used_only_by_exit_and_back_edge blocks loop k cond u.
 
 (* ======================================================================== *)
@@ -164,7 +164,9 @@ Definition dead_spec (blocks : list block) (biv : InductionVar.biv) : Prop :=
 (* ======================================================================== *)
 
 (* The approval [update_uses_ok] asks of a terminator use, read back. *)
-Lemma update_term_approved : forall loop header k v block,
+Lemma update_term_approved :
+  forall (loop : natural_loop) (header : block) (k : int) (v : value)
+    (block : block),
   set_mem block (back_edge_set loop) && goto_passes header k v block = true ->
   In block loop.(back_edge_sources) /\ passes_at header k v block.
 Proof.
@@ -178,7 +180,7 @@ Qed.
 (* ======================================================================== *)
 
 (* A BIV [is_dead] accepts satisfies [dead_spec]. *)
-Theorem is_dead_spec : forall blocks biv,
+Theorem is_dead_spec : forall (blocks : list block) (biv : InductionVar.biv),
   is_dead blocks biv = true -> dead_spec blocks biv.
 Proof.
   intros blocks b H. unfold is_dead in H.
@@ -212,10 +214,12 @@ Qed.
 
 (* A loop [loop_is_useless] accepts has as many BIVs as its header has
    parameters, all of them dead. *)
-Theorem loop_is_useless_spec : forall loop bivs,
+Theorem loop_is_useless_spec :
+  forall (loop : natural_loop) (bivs : list biv_result),
   loop_is_useless loop bivs = true ->
   length (params loop.(header)) = length bivs
-  /\ forall biv_result, In biv_result bivs -> biv_result.(dead) = true.
+  /\ forall (biv_result : biv_result),
+       In biv_result bivs -> biv_result.(dead) = true.
 Proof.
   intros loop bivs H. unfold loop_is_useless in H.
   apply andb_true_iff in H. destruct H as [Hlen Hdead].
@@ -227,15 +231,18 @@ Qed.
    of the loop with [dead] computed by [is_dead], every one reported dead
    satisfies [dead_spec], and a loop reported useless has as many dead
    induction variables as its header has parameters. *)
-Theorem analyze_spec : forall blocks loops result,
+Theorem analyze_spec :
+  forall (blocks : list block)
+    (loops : list (natural_loop * list InductionVar.biv))
+    (result : loop_result),
   In result (analyze blocks loops) ->
   In (result.(loop), map biv result.(bivs)) loops
-  /\ (forall biv_result, In biv_result result.(bivs) ->
+  /\ (forall (biv_result : biv_result), In biv_result result.(bivs) ->
         biv_result.(dead) = is_dead blocks biv_result.(biv)
         /\ (biv_result.(dead) = true -> dead_spec blocks biv_result.(biv)))
   /\ (result.(useless) = true ->
         length (params result.(loop).(header)) = length result.(bivs)
-        /\ forall biv_result,
+        /\ forall (biv_result : biv_result),
              In biv_result result.(bivs) -> biv_result.(dead) = true).
 Proof.
   intros blocks loops r H. unfold analyze in H.

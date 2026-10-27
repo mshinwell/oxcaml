@@ -179,7 +179,8 @@ Definition max_ineqs : int := 500.
 
 (* One step of [feasible]: eliminate the atom [atom]. [None] when the
    system is over the size limit; an overflowing resolvent is dropped. *)
-Definition elim (atom : int) (ineqs : list Affine.t) : option (list Affine.t) :=
+Definition elim (atom : int) (ineqs : list Affine.t)
+    : option (list Affine.t) :=
   if zero <? compare_length_with ineqs max_ineqs
   then None
   else
@@ -266,7 +267,7 @@ Definition wf (f : Affine.t) : Prop := NoDup (map fst f.(Affine.terms)).
    coefficients. --- *)
 
 (* The fold's result divides the initial accumulator ... *)
-Lemma fold_gcd_divides_acc : forall (ts : list (int * Int64.t)) g0,
+Lemma fold_gcd_divides_acc : forall (ts : list (int * Int64.t)) (g0 : Int64.t),
   (Int64.to_Z (fold_left (fun g '(_, c) => gcd64 g (Int64.abs c)) g0 ts)
    | Int64.to_Z g0).
 Proof.
@@ -276,7 +277,8 @@ Proof.
 Qed.
 
 (* ... and every coefficient in the list. *)
-Lemma fold_gcd_divides : forall (ts : list (int * Int64.t)) g0 id c,
+Lemma fold_gcd_divides :
+  forall (ts : list (int * Int64.t)) (g0 : Int64.t) (id : int) (c : Int64.t),
   In (id, c) ts ->
   (Int64.to_Z (fold_left (fun g '(_, c) => gcd64 g (Int64.abs c)) g0 ts)
    | Int64.to_Z c).
@@ -301,34 +303,35 @@ Definition sum_ids (f : int -> Z) (ids : list int) : Z :=
 
 (* Sums unfold on cons, depend only on the summand at each atom, vanish when
    every summand does, and distribute over addition and scaling. *)
-Lemma sum_ids_cons : forall f id ids,
+Lemma sum_ids_cons : forall (f : int -> Z) (id : int) (ids : list int),
   sum_ids f (id :: ids) = f id + sum_ids f ids.
 Proof. reflexivity. Qed.
 
-Lemma sum_ids_ext : forall f g ids,
-  (forall id, In id ids -> f id = g id) -> sum_ids f ids = sum_ids g ids.
+Lemma sum_ids_ext : forall (f g : int -> Z) (ids : list int),
+  (forall (id : int), In id ids -> f id = g id) ->
+  sum_ids f ids = sum_ids g ids.
 Proof.
   intros f g ids H. induction ids as [ | id ids IH ]; [ reflexivity | ].
   rewrite !sum_ids_cons. rewrite H by (left; reflexivity).
   rewrite IH; [ reflexivity | ]. intros. apply H. right. assumption.
 Qed.
 
-Lemma sum_ids_zero : forall f ids,
-  (forall id, In id ids -> f id = 0) -> sum_ids f ids = 0.
+Lemma sum_ids_zero : forall (f : int -> Z) (ids : list int),
+  (forall (id : int), In id ids -> f id = 0) -> sum_ids f ids = 0.
 Proof.
   intros f ids H. induction ids as [ | id ids IH ]; [ reflexivity | ].
   rewrite sum_ids_cons, H by (left; reflexivity).
   rewrite IH; [ reflexivity | ]. intros. apply H. right. assumption.
 Qed.
 
-Lemma sum_ids_add : forall f g ids,
+Lemma sum_ids_add : forall (f g : int -> Z) (ids : list int),
   sum_ids (fun id => f id + g id) ids = sum_ids f ids + sum_ids g ids.
 Proof.
   intros f g ids. induction ids as [ | id ids IH ]; [ reflexivity | ].
   rewrite !sum_ids_cons, IH. cbv beta. ring.
 Qed.
 
-Lemma sum_ids_scale : forall k f ids,
+Lemma sum_ids_scale : forall (k : Z) (f : int -> Z) (ids : list int),
   sum_ids (fun id => k * f id) ids = k * sum_ids f ids.
 Proof.
   intros k f ids. induction ids as [ | id ids IH ]; [ simpl; ring | ].
@@ -337,9 +340,10 @@ Qed.
 
 (* Splitting off the contribution of one atom [id0] that occurs exactly
    once in [ids]. *)
-Lemma sum_ids_split : forall f g ids id0 v,
+Lemma sum_ids_split :
+  forall (f g : int -> Z) (ids : list int) (id0 : int) (v : Z),
   NoDup ids -> In id0 ids ->
-  (forall id, id <> id0 -> f id = g id) -> f id0 = v + g id0 ->
+  (forall (id : int), id <> id0 -> f id = g id) -> f id0 = v + g id0 ->
   sum_ids f ids = v + sum_ids g ids.
 Proof.
   intros f g ids id0 v Hnd Hin Hfg Hv.
@@ -354,14 +358,18 @@ Proof.
 Qed.
 
 (* The value of a term list unfolds on cons. *)
-Lemma denote_terms_cons : forall {C} (cZ : C -> Z) rho id c terms,
+Lemma denote_terms_cons :
+  forall {C : Type} (cZ : C -> Z) (rho : valuation) (id : int) (c : C)
+    (terms : list (int * C)),
   denote_terms cZ rho ((id, c) :: terms)
   = cZ c * rho id + denote_terms cZ rho terms.
 Proof. reflexivity. Qed.
 
 (* The value of a duplicate-free term list is the sum, over any
    duplicate-free list of atoms covering it, of coefficient times atom. *)
-Lemma sum_ids_coeff : forall {C} (cZ : C -> Z) (dflt : C) rho terms ids,
+Lemma sum_ids_coeff :
+  forall {C : Type} (cZ : C -> Z) (dflt : C) (rho : valuation)
+    (terms : list (int * C)) (ids : list int),
   cZ dflt = 0 -> NoDup (map fst terms) -> NoDup ids ->
   incl (map fst terms) ids ->
   sum_ids (fun id => cZ (assoc_default dflt id terms) * rho id) ids
@@ -387,9 +395,9 @@ Qed.
 
 (* A duplicate-free term list all of whose coefficients are zero has value
    zero. *)
-Lemma denote_terms_zero : forall rho (terms : list (int * int)),
+Lemma denote_terms_zero : forall (rho : valuation) (terms : list (int * int)),
   NoDup (map fst terms) ->
-  (forall id, In id (map fst terms) ->
+  (forall (id : int), In id (map fst terms) ->
      to_Z (assoc_default zero id terms) = 0) ->
   denote_terms to_Z rho terms = 0.
 Proof.
@@ -413,7 +421,9 @@ Definition merge_terms {C} (f : int -> option C) (is_zero : C -> bool)
 
 (* [merge_terms] unfolds on cons: [None] if the coefficient fails, else the
    entry is kept unless its coefficient is zero. *)
-Lemma merge_terms_cons : forall {C} f (z : C -> bool) id ids,
+Lemma merge_terms_cons :
+  forall {C : Type} (f : int -> option C) (z : C -> bool) (id : int)
+    (ids : list int),
   merge_terms f z (id :: ids)
   = (let* c := f id in
      let* rest := merge_terms f z ids in
@@ -426,8 +436,11 @@ Proof.
 Qed.
 
 (* The atoms of a merged list are among those given ... *)
-Lemma merge_keys : forall {C} f (z : C -> bool) ids ts,
-  merge_terms f z ids = Some ts -> forall id, In id (map fst ts) -> In id ids.
+Lemma merge_keys :
+  forall {C : Type} (f : int -> option C) (z : C -> bool) (ids : list int)
+    (ts : list (int * C)),
+  merge_terms f z ids = Some ts ->
+  forall (id : int), In id (map fst ts) -> In id ids.
 Proof.
   intros C f z ids. induction ids as [ | id ids IH ]; intros ts H id' Hin.
   - injection H as <-. contradiction.
@@ -441,7 +454,9 @@ Proof.
 Qed.
 
 (* ... and distinct when those are. *)
-Lemma merge_NoDup : forall {C} f (z : C -> bool) ids ts,
+Lemma merge_NoDup :
+  forall {C : Type} (f : int -> option C) (z : C -> bool) (ids : list int)
+    (ts : list (int * C)),
   NoDup ids -> merge_terms f z ids = Some ts -> NoDup (map fst ts).
 Proof.
   intros C f z ids. induction ids as [ | id ids IH ]; intros ts Hnd H.
@@ -458,9 +473,11 @@ Qed.
 
 (* For every atom given, the merge computed a coefficient, which the merged
    list holds, unless it is zero, in which case the atom is absent. *)
-Lemma merge_coeff : forall {C} f (z : C -> bool) (dflt : C) ids ts,
+Lemma merge_coeff :
+  forall {C : Type} (f : int -> option C) (z : C -> bool) (dflt : C)
+    (ids : list int) (ts : list (int * C)),
   NoDup ids -> merge_terms f z ids = Some ts ->
-  forall id, In id ids ->
+  forall (id : int), In id ids ->
     exists c, f id = Some c
       /\ assoc_default dflt id ts = (if z c then dflt else c)
       /\ (In id (map fst ts) <-> z c = false).
@@ -497,10 +514,12 @@ Qed.
 
 (* The value of a merged term list is the sum over the atoms of the merged
    coefficients. *)
-Lemma merge_denote : forall {C} (cZ : C -> Z) f (z : C -> bool) (dflt : C)
-    rho (fz : int -> Z) ids ts,
-  cZ dflt = 0 -> (forall c, z c = true -> cZ c = 0) -> NoDup ids ->
-  (forall id c, In id ids -> f id = Some c -> cZ c = fz id) ->
+Lemma merge_denote :
+  forall {C : Type} (cZ : C -> Z) (f : int -> option C) (z : C -> bool)
+    (dflt : C) (rho : valuation) (fz : int -> Z) (ids : list int)
+    (ts : list (int * C)),
+  cZ dflt = 0 -> (forall (c : C), z c = true -> cZ c = 0) -> NoDup ids ->
+  (forall (id : int) (c : C), In id ids -> f id = Some c -> cZ c = fz id) ->
   merge_terms f z ids = Some ts ->
   denote_terms cZ rho ts = sum_ids (fun id => fz id * rho id) ids.
 Proof.
@@ -517,33 +536,37 @@ Qed.
 
 (* --- The [Affine] operations. --- *)
 
-Lemma denote_record : forall rho c ts,
+Lemma denote_record :
+  forall (rho : valuation) (c : int) (ts : list (int * int)),
   denote rho {| Affine.const := c; Affine.terms := ts |}
   = to_Z c + denote_terms to_Z rho ts.
 Proof. reflexivity. Qed.
 
 (* A constant form has the constant's value, and is well-formed. *)
-Lemma constant_denote : forall rho c, denote rho (Affine.constant c) = to_Z c.
+Lemma constant_denote : forall (rho : valuation) (c : int),
+  denote rho (Affine.constant c) = to_Z c.
 Proof.
   intros. unfold Affine.constant. rewrite denote_record.
   change (denote_terms to_Z rho []) with 0. ring.
 Qed.
 
-Lemma constant_wf : forall c, wf (Affine.constant c).
+Lemma constant_wf : forall (c : int), wf (Affine.constant c).
 Proof. intros. constructor. Qed.
 
 (* The form of an atom has the atom's value, and is well-formed. *)
-Lemma var_denote : forall rho id, denote rho (Affine.var id) = rho id.
+Lemma var_denote : forall (rho : valuation) (id : int),
+  denote rho (Affine.var id) = rho id.
 Proof.
   intros. unfold Affine.var. rewrite denote_record, denote_terms_cons.
   change (denote_terms to_Z rho []) with 0. rewrite to_Z_zero, to_Z_one. ring.
 Qed.
 
-Lemma var_wf : forall id, wf (Affine.var id).
+Lemma var_wf : forall (id : int), wf (Affine.var id).
 Proof. intros. unfold wf. simpl. constructor; [ tauto | constructor ]. Qed.
 
 (* Scaling every coefficient, when none overflows, scales the value. *)
-Lemma scale_terms_denote : forall rho k (terms : list (int * int)) ts,
+Lemma scale_terms_denote :
+  forall (rho : valuation) (k : int) (terms ts : list (int * int)),
   map_opt (fun '(id, c) => let* c := mul_ovf c k in Some (id, c)) terms
   = Some ts ->
   denote_terms to_Z rho ts = to_Z k * denote_terms to_Z rho terms.
@@ -559,10 +582,11 @@ Qed.
 
 (* [scale_checked k f], when it answers, has [k] times the value of [f], no new
    atoms, and stays well-formed. *)
-Lemma scale_checked_spec : forall rho k f f',
+Lemma scale_checked_spec :
+  forall (rho : valuation) (k : int) (f f' : Affine.t),
   Affine.scale_checked k f = Some f' ->
   denote rho f' = to_Z k * denote rho f
-  /\ (forall id, In id (map fst f'.(Affine.terms)) ->
+  /\ (forall (id : int), In id (map fst f'.(Affine.terms)) ->
         In id (map fst f.(Affine.terms)))
   /\ (wf f -> wf f').
 Proof.
@@ -584,10 +608,10 @@ Qed.
 
 (* [add_checked], when it answers, has the sum of the values, atoms from either
    side, and is well-formed. *)
-Lemma add_checked_spec : forall rho a b c,
+Lemma add_checked_spec : forall (rho : valuation) (a b c : Affine.t),
   wf a -> wf b -> Affine.add_checked a b = Some c ->
   denote rho c = denote rho a + denote rho b
-  /\ (forall id, In id (map fst c.(Affine.terms)) ->
+  /\ (forall (id : int), In id (map fst c.(Affine.terms)) ->
         In id (map fst a.(Affine.terms)) \/ In id (map fst b.(Affine.terms)))
   /\ wf c.
 Proof.
@@ -636,7 +660,8 @@ Qed.
 
 (* [add_const_checked], when it answers, adds the constant to the value and
    keeps the terms. *)
-Lemma add_const_checked_spec : forall rho f k f',
+Lemma add_const_checked_spec :
+  forall (rho : valuation) (f : Affine.t) (k : int) (f' : Affine.t),
   Affine.add_const_checked f k = Some f' ->
   denote rho f' = denote rho f + to_Z k
   /\ f'.(Affine.terms) = f.(Affine.terms)
@@ -651,10 +676,10 @@ Qed.
 
 (* [sub_checked], when it answers, has the difference of the values, atoms from
    either side, and is well-formed. *)
-Lemma sub_checked_spec : forall rho a b c,
+Lemma sub_checked_spec : forall (rho : valuation) (a b c : Affine.t),
   wf a -> wf b -> Affine.sub_checked a b = Some c ->
   denote rho c = denote rho a - denote rho b
-  /\ (forall id, In id (map fst c.(Affine.terms)) ->
+  /\ (forall (id : int), In id (map fst c.(Affine.terms)) ->
         In id (map fst a.(Affine.terms)) \/ In id (map fst b.(Affine.terms)))
   /\ wf c.
 Proof.
@@ -675,12 +700,14 @@ Qed.
 
 (* [scaled k f] multiplies the constant and every coefficient of [f] by
    [k], exactly. *)
-Lemma scaled_spec : forall k f c ts,
+Lemma scaled_spec :
+  forall (k : Int64.t) (f : Affine.t) (c : Int64.t)
+    (ts : list (int * Int64.t)),
   scaled k f = Some (c, ts) ->
   Int64.to_Z c = Int64.to_Z k * to_Z f.(Affine.const)
   /\ map fst ts = map fst f.(Affine.terms)
-  /\ (forall id, Int64.to_Z (coeff64 id ts)
-                 = Int64.to_Z k * to_Z (Affine.coeff id f)).
+  /\ (forall (id : int), Int64.to_Z (coeff64 id ts)
+                         = Int64.to_Z k * to_Z (Affine.coeff id f)).
 Proof.
   unfold scaled. intros k f c ts H.
   destruct (mul_ovf64 _ _) as [ c' | ] eqn:Hc; [ | discriminate ].
@@ -700,17 +727,17 @@ Qed.
 (* What a resolvent is: a form [r] whose coefficients are, up to a positive
    factor [g], the combination [cn * p + cp * n], and which holds whenever
    that combination is non-negative. *)
-Lemma resolvent_spec : forall cp cn p n r,
+Lemma resolvent_spec : forall (cp cn : int) (p n r : Affine.t),
   wf p -> wf n -> resolvent cp cn p n = Some r ->
   wf r
-  /\ (forall id, In id (map fst r.(Affine.terms)) ->
+  /\ (forall (id : int), In id (map fst r.(Affine.terms)) ->
         In id (map fst p.(Affine.terms)) \/ In id (map fst n.(Affine.terms)))
   /\ (exists g, 0 < g /\
-        forall id,
+        forall (id : int),
           g * to_Z (Affine.coeff id r)
           = to_Z cn * to_Z (Affine.coeff id p)
             + to_Z cp * to_Z (Affine.coeff id n))
-  /\ (forall rho,
+  /\ (forall (rho : valuation),
         0 <= to_Z cn * denote rho p + to_Z cp * denote rho n ->
         0 <= denote rho r).
 Proof.
@@ -879,10 +906,11 @@ Qed.
 
 (* --- Every constructor of [Affine] builds a well-formed form. --- *)
 
-Lemma add_const_wf : forall f c, wf f -> wf (Affine.add_const f c).
+Lemma add_const_wf : forall (f : Affine.t) (c : int),
+  wf f -> wf (Affine.add_const f c).
 Proof. intros f c H. exact H. Qed.
 
-Lemma add_wf : forall a b, wf (Affine.add a b).
+Lemma add_wf : forall (a b : Affine.t), wf (Affine.add a b).
 Proof.
   intros a b. unfold wf, Affine.add. cbv zeta. cbn [Affine.terms].
   apply filter_map_NoDup_keys; [ | apply sort_uniq_NoDup ].
@@ -891,7 +919,8 @@ Proof.
   injection Hp as <-. reflexivity.
 Qed.
 
-Lemma scale_wf : forall k f, wf f -> wf (Affine.scale k f).
+Lemma scale_wf : forall (k : int) (f : Affine.t),
+  wf f -> wf (Affine.scale k f).
 Proof.
   intros k f H. unfold wf, Affine.scale.
   destruct (k =? zero)%sint63; [ constructor | ].
@@ -899,10 +928,10 @@ Proof.
   erewrite map_ext; [ exact H | ]. intros [id c]. reflexivity.
 Qed.
 
-Lemma neg_wf : forall f, wf f -> wf (Affine.neg f).
+Lemma neg_wf : forall (f : Affine.t), wf f -> wf (Affine.neg f).
 Proof. intros. apply scale_wf. assumption. Qed.
 
-Lemma sub_wf : forall a b, wf (Affine.sub a b).
+Lemma sub_wf : forall (a b : Affine.t), wf (Affine.sub a b).
 Proof. intros. apply add_wf. Qed.
 
 (* --- One elimination step. --- *)
@@ -916,16 +945,19 @@ Proof. intros. apply add_wf. Qed.
 Definition elim_result (eliminated : int -> Prop) (ineqs out : list Affine.t)
     : Prop :=
   Forall wf out
-  /\ (forall S, (forall f, In f ineqs -> incl (map fst f.(Affine.terms)) S) ->
-        forall f, In f out -> incl (map fst f.(Affine.terms)) S)
-  /\ (forall id,
+  /\ (forall (S : list int),
+        (forall (f : Affine.t),
+           In f ineqs -> incl (map fst f.(Affine.terms)) S) ->
+        forall (f : Affine.t), In f out -> incl (map fst f.(Affine.terms)) S)
+  /\ (forall (id : int),
         eliminated id
-        \/ (forall f, In f ineqs -> to_Z (Affine.coeff id f) = 0) ->
-        forall f, In f out -> to_Z (Affine.coeff id f) = 0)
-  /\ (forall rho, holds_all rho ineqs -> holds_all rho out).
+        \/ (forall (f : Affine.t),
+              In f ineqs -> to_Z (Affine.coeff id f) = 0) ->
+        forall (f : Affine.t), In f out -> to_Z (Affine.coeff id f) = 0)
+  /\ (forall (rho : valuation), holds_all rho ineqs -> holds_all rho out).
 
 (* Eliminating [atom] eliminates [atom]. *)
-Lemma elim_spec : forall atom ineqs out,
+Lemma elim_spec : forall (atom : int) (ineqs out : list Affine.t),
   Forall wf ineqs -> elim atom ineqs = Some out ->
   elim_result (fun id => id = atom) ineqs out.
 Proof.
@@ -1007,7 +1039,7 @@ Qed.
 
 (* The same, for a sequence of eliminations: every atom of the sequence is
    eliminated. *)
-Lemma elim_all_spec : forall atoms ineqs out,
+Lemma elim_all_spec : forall (atoms : list int) (ineqs out : list Affine.t),
   Forall wf ineqs -> elim_all atoms ineqs = Some out ->
   elim_result (fun id => In id atoms) ineqs out.
 Proof.
@@ -1038,9 +1070,9 @@ Qed.
    (It may answer [true] for an infeasible system: on the size limits, on
    an overflow, or because Fourier-Motzkin elimination is only complete over
    the rationals.) *)
-Theorem feasible_sound : forall ineqs,
+Theorem feasible_sound : forall (ineqs : list Affine.t),
   Forall wf ineqs -> feasible ineqs = false ->
-  forall rho, ~ holds_all rho ineqs.
+  forall (rho : valuation), ~ holds_all rho ineqs.
 Proof.
   intros ineqs Hwf Hf rho Hholds. unfold feasible in Hf. cbv zeta in Hf.
   set (atoms := sort_uniq _) in Hf.
@@ -1067,9 +1099,9 @@ Qed.
 
 (* [entails] never wrongly reports an entailment: if it answers [true], every
    integer valuation satisfying the facts satisfies the goal. *)
-Theorem entails_sound : forall facts goal,
+Theorem entails_sound : forall (facts : list Affine.t) (goal : Affine.t),
   Forall wf facts -> wf goal -> entails facts goal = true ->
-  forall rho, holds_all rho facts -> 0 <= denote rho goal.
+  forall (rho : valuation), holds_all rho facts -> 0 <= denote rho goal.
 Proof.
   intros facts goal Hwf Hwfg He rho Hfacts.
   unfold entails in He. cbv zeta in He.
