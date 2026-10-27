@@ -24,7 +24,7 @@ val record_back_edges :
 val find_loops : block list -> natural_loop list
 
 type exit_branch =
-  { condition : value;
+  { condition : Ssa.finished Ssa.Value.t;
     continue_when_true : bool;
     exit_target : block
   }

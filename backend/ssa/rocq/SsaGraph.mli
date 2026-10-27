@@ -1,30 +1,34 @@
 open SsaModel
 
-val terminator_pure_control : Terminator.t -> bool
+val terminator_pure_control : Ssa.finished Ssa.Terminator.t -> bool
 
 val block_effect_free : block -> bool
 
-val is_param : block -> int -> value -> bool
+val is_param : block -> int -> Ssa.finished Ssa.Value.t -> bool
 
-val instr_defines_value : instr -> value -> bool
+val instr_defines_value :
+  Ssa.finished Ssa.Instruction.t -> Ssa.finished Ssa.Value.t -> bool
 
-val args_of_instr : instr -> value list
+val args_of_instr :
+  Ssa.finished Ssa.Instruction.t -> Ssa.finished Ssa.Value.t list
 
-val terminator_args : Terminator.t -> value list list
+val terminator_args :
+  Ssa.finished Ssa.Terminator.t -> Ssa.finished Ssa.Value.t list list
 
-val arg_is : value -> Ssa.finished Ssa.Terminator.arg -> bool
+val arg_is : Ssa.finished Ssa.Value.t -> Ssa.finished Ssa.Terminator.arg -> bool
 
-val arg_value : Ssa.finished Ssa.Terminator.arg list -> int -> value option
+val arg_value :
+  Ssa.finished Ssa.Terminator.arg list -> int -> Ssa.finished Ssa.Value.t option
 
 val goto_args : block -> block -> Ssa.finished Ssa.Terminator.arg list option
 
-val goto_passes : block -> int -> value -> block -> bool
+val goto_passes : block -> int -> Ssa.finished Ssa.Value.t -> block -> bool
 
 val all_uses_ok :
   block list ->
-  (value -> bool) ->
-  (instr -> bool) ->
-  (block -> value list -> bool) ->
+  (Ssa.finished Ssa.Value.t -> bool) ->
+  (Ssa.finished Ssa.Instruction.t -> bool) ->
+  (block -> Ssa.finished Ssa.Value.t list -> bool) ->
   bool
 
 val visit_all :

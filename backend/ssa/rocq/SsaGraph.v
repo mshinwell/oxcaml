@@ -1,5 +1,6 @@
 (* Properties of the blocks, terminators, instructions and values of an SSA
-   graph that any pass may ask about, computed on the views of SsaModel.v:
+   graph that any pass may ask about, computed on the graph as SsaModel.v
+   sees it:
    what a terminator does, what an instruction or a terminator reads, which
    values a block's [Goto] passes, whether every use of a value in the
    graph is approved, and whether a region is acyclic after removing one
@@ -50,14 +51,14 @@ Definition is_param (bl : block) (index : int) (v : value) : bool :=
 
 (* [i] is the instruction defining [v]. *)
 Definition instr_defines_value (i : instr) (v : value) : bool :=
-  match view_instr i, view_value v with
-  | Op id _, Res id' _ _ => instr_id_eqb id id'
+  match i, v with
+  | Op id _, Res id' _ _ _ => instr_id_eqb id id'
   | _, _ => false
   end.
 
 (* The values an instruction reads. *)
 Definition args_of_instr (i : instr) : list value :=
-  match view_instr i with
+  match i with
   | Op _ args => args
   | Push_trap | Pop_trap => []
   end.

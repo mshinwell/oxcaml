@@ -10,15 +10,15 @@ type t =
   | Unknown
 
 type bound =
-  | Value_bound of value
+  | Value_bound of Ssa.finished Ssa.Value.t
   | Const_bound of int
 
 val bound_in_range : int -> block -> bound -> bool
 
 val extract_comparison :
-  (value -> bool) ->
-  (value -> bool) ->
-  value ->
+  (Ssa.finished Ssa.Value.t -> bool) ->
+  (Ssa.finished Ssa.Value.t -> bool) ->
+  Ssa.finished Ssa.Value.t ->
   ((Cmm.integer_comparison * bool) * bound) option
 
 val biv_implies_termination : op_def -> biv -> bool

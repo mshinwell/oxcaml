@@ -81,7 +81,7 @@ Every model file has a header and four parts, marked by banners:
    an operation computes, what dominance means, how a run of a loop goes)
    are stated here too, as `Hypothesis` in a `Section` or as the fields
    of a `Record` such as `infinite_header_run`. A `Remark` showing that
-   such a hypothesis is satisfiable (`tree_sound_lsr_zero`) sits right
+   such a hypothesis is satisfiable (`op_semantics_lsr_zero`) sits right
    after it: it documents the statement rather than serving a proof.
 3. **Lemmas used by the proofs.** Stepping stones. Each non-trivial one
    has a comment before it saying, in plain words, what it states.
@@ -118,22 +118,21 @@ overflow, unrecognised shapes).
 - **Arrays** are lists, indexed with `nth_int` (`None` where OxCaml would
   raise), compared in length with `same_length`. `OxCamlList.fold_left`
   has OxCaml's argument order.
-- **The compiler's data** (blocks, values, instructions) are `Parameter`
-  types in `SsaModel.v`, with the few observations the models make of
-  them (`terminator`, `view_value`, `predecessors`, ...) also as
-  `Parameter`s. Each is realised at extraction by a compiler function,
-  either directly or through a small view function in
-  `backend/ssa/ssa_view.ml` that turns a `match` on the data into one of
-  the model's `Inductive` views. To observe something new: add the
-  `Parameter`, its `Extract` directive in `SsaModelExtract.v`, and the
-  view function. `SsaModel.v` proves nothing; what the proofs rely on
-  about an observation is a hypothesis of the theorem using it. The
-  operation defining a value is given as it is: `Operation.v`
-  (`backend/rocq/`) copies `Operation.t` constructor for constructor,
-  with the payloads the models never inspect as abstract types, and
-  extraction maps it back onto the compiler's type, so a model matches
-  on operations directly. Keep the copy in step with
-  `backend/operation.mli`.
+- **The compiler's data**: blocks are a `Parameter` type in
+  `SsaModel.v`, with the few observations the models make of them
+  (`terminator`, `params`, `predecessors`, ...) also as `Parameter`s,
+  each realised at extraction by a function of `Ssa`, at most wrapped
+  with `Array.to_list`. Values, instructions and terminators are
+  `Inductive` types there, copying the compiler's with the fields the
+  models read, and `Extract Inductive` maps each back onto the
+  compiler's type with a match function (its last argument) that reads
+  the compiler's data; so the models match on the compiler's values
+  directly, and the operation defining a value is `Operation.v`'s copy of
+  `Operation.t` (`backend/rocq/`), kept in step with
+  `backend/operation.mli`. To observe something new about a block: add
+  the `Parameter` and its `Extract` directive in `SsaModelExtract.v`.
+  `SsaModel.v` proves nothing; what the proofs rely on about an
+  observation is a hypothesis of the theorem using it.
 - **Extracted inductives standing for compiler types** must list their
   constructors in the same order as the OxCaml type
   (`Extract Inductive ... [ ... ]`), and a comment must say which type to
@@ -155,7 +154,8 @@ The trusted base is small and must stay listed in the headers:
 - the `Parameter`s with axioms standing for a few lines of OxCaml that
   are easier to review than to model (`IntArith.v`'s overflow tests);
 - the extraction directives, which say which OxCaml value realises each
-  model definition (`*Extract.v`), and the view functions they name;
+  model definition (`*Extract.v`), including the match functions written
+  in them;
 - the hypotheses the theorems take about the graph.
 
 Everything else is proved. Never `Admitted`. When something cannot be
@@ -169,9 +169,8 @@ header.
   that needs it, not in a `let` before it (`find_deletions` runs the
   termination analysis last for this reason).
 - An extracted module may depend on compiler modules, but a compiler
-  module that the extraction maps onto (such as `Ssa_view`) must not
-  depend on an extracted one except through types spelled out in the
-  `Extract Constant` string, or dune reports a dependency cycle.
+  module that the extraction maps onto (such as `Ssa`) must not depend
+  on an extracted one, or dune reports a dependency cycle.
 - Extraction puts the same `open` lines at the top of a `.ml` and its
   `.mli`; the Makefile strips the unused ones from the `.mli`, where only
   types can be referred to.
@@ -193,7 +192,7 @@ header.
   analysis actually computes (`exists args, goto_args ... = Some args`),
   so that the proof is a reading-back of the code.
 - Hypotheses about machine semantics are stated once, in one place
-  (`tree_sound`, `infinite_header_run`), and every file that needs them takes
+  (`op_semantics`, `infinite_header_run`), and every file that needs them takes
   them as hypotheses rather than restating them.
 - A part-1 definition may be sound only for inputs with a property it
   does not check: `LoopTermination.analyze` is sound only for the basic

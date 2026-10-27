@@ -73,7 +73,7 @@ let find_loops blocks =
     header_tbl
 
 type exit_branch =
-  { condition : value;
+  { condition : Ssa.finished Ssa.Value.t;
     continue_when_true : bool;
     exit_target : block
   }
@@ -81,33 +81,48 @@ type exit_branch =
 (** val find_exit_branch : natural_loop -> exit_branch option **)
 
 let find_exit_branch loop =
-  match Ssa_view.terminator loop.header with
-  | Terminator.Switch (index, targets) -> (
-    match targets with
-    | [] -> None
-    | ifnot :: l -> (
-      match l with
+  (fun f_continue
+    f_switch
+    f_call
+    f_invalid
+    (t : Ssa.finished Ssa.Terminator.t)
+  ->
+    match t with
+    | Ssa.Terminator.Continue { continuation; args } ->
+      f_continue continuation (Array.to_list args)
+    | Ssa.Terminator.Switch { index; targets } ->
+      f_switch index (Array.to_list targets)
+    | Ssa.Terminator.Call { args; _ } -> f_call (Array.to_list args)
+    | Ssa.Terminator.Invalid { args; _ } -> f_invalid (Array.to_list args))
+    (fun _ _ -> None)
+    (fun index targets ->
+      match targets with
       | [] -> None
-      | ifso :: l0 -> (
-        match l0 with
-        | [] ->
-          if Ssa.Block.Set.mem ifso loop.body
-          then
-            if Ssa.Block.Set.mem ifnot loop.body
-            then None
-            else
+      | ifnot :: l -> (
+        match l with
+        | [] -> None
+        | ifso :: l0 -> (
+          match l0 with
+          | [] ->
+            if Ssa.Block.Set.mem ifso loop.body
+            then
+              if Ssa.Block.Set.mem ifnot loop.body
+              then None
+              else
+                Some
+                  { condition = index;
+                    continue_when_true = true;
+                    exit_target = ifnot
+                  }
+            else if Ssa.Block.Set.mem ifnot loop.body
+            then
               Some
                 { condition = index;
-                  continue_when_true = true;
-                  exit_target = ifnot
+                  continue_when_true = false;
+                  exit_target = ifso
                 }
-          else if Ssa.Block.Set.mem ifnot loop.body
-          then
-            Some
-              { condition = index;
-                continue_when_true = false;
-                exit_target = ifso
-              }
-          else None
-        | _ :: _ -> None)))
-  | _ -> None
+            else None
+          | _ :: _ -> None)))
+    (fun _ -> None)
+    (fun _ -> None)
+    (Ssa.Block.terminator loop.header)

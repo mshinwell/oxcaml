@@ -74,7 +74,7 @@ Definition bound_in_range (step : int) (header : block) (bound : bound)
   match bound with
   | Const_bound k => if zero <? step then k <=? max_int else - max_int <=? k
   | Value_bound v =>
-    let '((form, side), c) := linearize new_ctx [] (tree_of_value v) in
+    let '((form, side), c) := linearize new_ctx [] v in
     let '((guards, side), c) := guards_at c side header in
     let facts := guards ++ side in
     let goal :=
@@ -94,10 +94,10 @@ Definition bound_in_range (step : int) (header : block) (bound : bound)
    is its left operand, and the other operand. *)
 Definition extract_comparison (is_iv_val is_bound : value -> bool)
     (cond : value) : option (integer_comparison * bool * bound) :=
-  match view_value cond with
-  | Res _ (Intop_imm (Operation.Icomp cmp) k) [x] =>
+  match cond with
+  | Res _ (Intop_imm (Icomp cmp) k) [x] _ =>
     if is_iv_val x then Some (cmp, true, Const_bound k) else None
-  | Res _ (Intop (Operation.Icomp cmp)) [x; y] =>
+  | Res _ (Intop (Icomp cmp)) [x; y] _ =>
     if is_iv_val x && is_bound y
     then Some (cmp, true, Value_bound y)
     else if is_iv_val y && is_bound x
@@ -198,22 +198,18 @@ Record machine_values (iter : nat -> value -> Z) : Prop :=
   { (* Values are 64-bit registers. *)
     iter_bounded : forall n v, in_int64 (iter n v);
 
-    (* The recognised operations: addition and subtraction wrap at 64
-       bits, and a comparison is 1 or 0. *)
-    iter_op : forall n v,
-      match view_value v with
-      | Res _ (Intop Operation.Iadd) [x; y] =>
-        iter n v = wrap64 (iter n x + iter n y)
-      | Res _ (Intop Operation.Isub) [x; y] =>
-        iter n v = wrap64 (iter n x - iter n y)
-      | Res _ (Intop_imm Operation.Iadd c) [x] =>
-        iter n v = wrap64 (iter n x + to_Z c)
-      | Res _ (Intop_imm Operation.Isub c) [x] =>
-        iter n v = wrap64 (iter n x - to_Z c)
-      | Res _ (Intop (Operation.Icomp cmp)) [x; y] =>
+    (* The recognised integer operations compute what [op_semantics]
+       (AffineSsa.v) says: addition and subtraction wrap at 64 bits, and
+       so on. *)
+    iter_op : forall n v, op_semantics (iter n) v;
+
+    (* A comparison is 1 or 0. *)
+    iter_comparison : forall n v,
+      match v with
+      | Res _ (Intop (Icomp cmp)) [x; y] _ =>
         iter n v
         = bool_to_Z (IntegerComparison.eval cmp (iter n x) (iter n y))
-      | Res _ (Intop_imm (Operation.Icomp cmp) k) [x] =>
+      | Res _ (Intop_imm (Icomp cmp) k) [x] _ =>
         iter n v = bool_to_Z (IntegerComparison.eval cmp (iter n x) (to_Z k))
       | _ => True
       end }.
@@ -226,10 +222,6 @@ Record loop_entry (entry : block) (op_def : op_def) (l : natural_loop)
   { (* [dominates] means what SsaDominance.v says it means. *)
     run_dominance : dominance_semantics entry;
 
-    (* The trees of [tree_of_value] are truthful of the values on entry
-       (AffineSsa.v). *)
-    iter_trees : forall v, tree_sound (iter 0%nat) (tree_of_value v);
-
     (* The branch of a block [d] whose terminator is [Switch index [ifnot;
        ifso]] goes to [ifso] when the comparison [index] holds and to
        [ifnot] when it fails. When every path from the entry to the header
@@ -239,7 +231,7 @@ Record loop_entry (entry : block) (op_def : op_def) (l : natural_loop)
       terminator d = Terminator.Switch index [ifnot; ifso] ->
       (forall p, path entry p l.(header) ->
          edge_on p d (if negate then ifnot else ifso)) ->
-      test_result (iter 0%nat) negate (tree_of_value index);
+      test_result (iter 0%nat) negate index;
 
     (* A loop-invariant value (InductionVar.v: a constant, or one defined
        in a block that dominates the header and is not it) has the same
@@ -275,11 +267,11 @@ Record stays_in_loop (l : natural_loop) (iter : nat -> value -> Z) : Prop :=
 
 (* A bound on the graph, not on the run: the atom counter of AffineSsa.v,
    an OxCaml [int], cannot wrap while the bound and the header's guards
-   are linearized. [Ssa_view.tree_of_value] builds at most 256 nodes, so
-   this only fails for a header with some 2^53 dominators. *)
+   are linearized. A linearization allocates at most [linearize_atoms]
+   (258) atoms, so this only fails for a header with some 2^53
+   dominators. *)
 Definition atom_counter_fits (l : natural_loop) : Prop :=
-  forall v,
-    size (tree_of_value v) + 1 + guards_size l.(header) <= ocaml_max_int.
+  linearize_atoms + guards_size l.(header) <= ocaml_max_int.
 
 Record infinite_header_run (entry : block) (op_def : op_def)
     (l : natural_loop) (iter : nat -> value -> Z) : Prop :=
@@ -290,8 +282,8 @@ Record infinite_header_run (entry : block) (op_def : op_def)
 
 Arguments iter_bounded {iter}.
 Arguments iter_op {iter}.
+Arguments iter_comparison {iter}.
 Arguments run_dominance {entry op_def l iter}.
-Arguments iter_trees {entry op_def l iter}.
 Arguments iter_branches {entry op_def l iter}.
 Arguments iter_invariant {entry op_def l iter}.
 Arguments run_continues {l iter}.
@@ -317,43 +309,42 @@ Section Run.
   Lemma extract_comparison_spec :
     forall is_iv_val is_bound cond cmp iv_is_left bnd,
     extract_comparison is_iv_val is_bound cond = Some (cmp, iv_is_left, bnd) ->
-    exists id,
+    exists id i,
       (exists x k,
-         view_value cond = Res id (Intop_imm (Operation.Icomp cmp) k) [x]
+         cond = Res id (Intop_imm (Icomp cmp) k) [x] i
          /\ is_iv_val x = true /\ iv_is_left = true /\ bnd = Const_bound k)
       \/ (exists x y,
-         view_value cond = Res id (Intop (Operation.Icomp cmp)) [x; y]
+         cond = Res id (Intop (Icomp cmp)) [x; y] i
          /\ is_iv_val x = true /\ is_bound y = true
          /\ iv_is_left = true /\ bnd = Value_bound y)
       \/ (exists x y,
-         view_value cond = Res id (Intop (Operation.Icomp cmp)) [x; y]
+         cond = Res id (Intop (Icomp cmp)) [x; y] i
          /\ is_iv_val y = true /\ is_bound x = true
          /\ iv_is_left = false /\ bnd = Value_bound x).
   Proof.
     intros is_iv_val is_bound cond cmp iv_is_left bnd H.
     unfold extract_comparison in H.
-    destruct (view_value cond) as [id op args | bl i] eqn:Hv;
-      [ | discriminate ].
+    destruct cond as [id op args i | bl i]; [ | discriminate ].
     destruct op as [ | | | ? | ? | ? | ? | ? | ? | ? | ? | ? | ? | ? ? ? | iop
                    | ? | iop k | ? | ? ? | ? | ? | ? | ? | | | | ? | ? | | | |
                    | | ? ];
       try discriminate; destruct iop; try discriminate;
       destruct args as [ | x [ | y [ | ? ? ] ] ]; try discriminate.
-    - (* Intop (Operation.Icomp cmp'), [x; y] *)
+    - (* Intop (Icomp cmp'), [x; y] *)
       destruct (is_iv_val x && is_bound y) eqn:H1.
       + injection H as <- <- <-. apply andb_true_iff in H1.
         destruct H1 as [Hx Hy].
-        exists id. right. left. exists x, y.
+        exists id, i. right. left. exists x, y.
         repeat split; try reflexivity; assumption.
       + destruct (is_iv_val y && is_bound x) eqn:H2; [ | discriminate ].
         injection H as <- <- <-. apply andb_true_iff in H2.
         destruct H2 as [Hy Hx].
-        exists id. right. right. exists x, y.
+        exists id, i. right. right. exists x, y.
         repeat split; try reflexivity; assumption.
-    - (* Intop_imm (Operation.Icomp cmp') k, [x] *)
+    - (* Intop_imm (Icomp cmp') k, [x] *)
       destruct (is_iv_val x) eqn:Hx; [ | discriminate ].
       injection H as <- <- <-.
-      exists id. left. exists x, k.
+      exists id, i. left. exists x, k.
       repeat split; try reflexivity; assumption.
   Qed.
 
@@ -362,15 +353,13 @@ Section Run.
   (* A constant step comes from [self + c] or [self - c]. *)
   Lemma classify_update_const : forall is_self c sign u,
     classify_update is_self op_def l.(header) u = Some (Step_const c, sign) ->
-    exists id x,
+    exists id i x,
       is_self x = true
-      /\ ((sign = Add
-           /\ view_value u = Res id (Intop_imm Operation.Iadd c) [x])
-          \/ (sign = Sub
-              /\ view_value u = Res id (Intop_imm Operation.Isub c) [x])).
+      /\ ((sign = Add /\ u = Res id (Intop_imm Iadd c) [x] i)
+          \/ (sign = Sub /\ u = Res id (Intop_imm Isub c) [x] i)).
   Proof.
     intros is_self c sign u H. unfold classify_update in H.
-    destruct (view_value u) as [id op args | bl i] eqn:Hv; [ | discriminate ].
+    destruct u as [id op args i | bl i]; [ | discriminate ].
     destruct op as [ | | | ? | ? | ? | ? | ? | ? | ? | ? | ? | ? | ? ? ? | iop
                    | ? | iop c0 | ? | ? ? | ? | ? | ? | ? | | | | ? | ? | | | |
                    | | ? ];
@@ -380,10 +369,10 @@ Section Run.
       destruct (is_self y && _); discriminate.
     - destruct (is_self x && _); discriminate.
     - destruct (is_self x) eqn:Hx; [ | discriminate ].
-      injection H as <- <-. exists id, x. split; [ exact Hx | ].
+      injection H as <- <-. exists id, i, x. split; [ exact Hx | ].
       left. split; reflexivity.
     - destruct (is_self x) eqn:Hx; [ | discriminate ].
-      injection H as <- <-. exists id, x. split; [ exact Hx | ].
+      injection H as <- <-. exists id, i, x. split; [ exact Hx | ].
       right. split; reflexivity.
   Qed.
 
@@ -400,21 +389,26 @@ Section Run.
     destruct b.(step) as [c | w] eqn:Hbs; [ | discriminate ].
     destruct step' as [c' | w']; cbn [step_same] in Hss; [ | discriminate ].
     apply eqb_int in Hss. subst c'.
-    destruct (classify_update_const _ _ _ _ Hcl) as [id [x [Hx Hcase]]].
+    destruct (classify_update_const _ _ _ _ Hcl) as [id [i [x [Hx Hcase]]]].
     unfold is_param in Hx. apply value_eqb_spec in Hx. subst x.
-    pose proof (run.(run_machine).(iter_op) n u) as Hop.
     destruct b.(sign) eqn:Hsign.
     - (* Add *)
       injection Hstep as <-.
       destruct sign'; cbn [sign_same] in Hsg; [ | discriminate ].
-      destruct Hcase as [[_ Hv] | [Hab _]]; [ | discriminate ].
-      rewrite Hv in Hop. cbv iota in Hop. exact Hop.
+      destruct Hcase as [[_ Hv] | [Hab _]]; [ | discriminate ]. subst u.
+      pose proof (run.(run_machine).(iter_op) n
+                    (Res id (Intop_imm Iadd c)
+                       [param l.(header) b.(param_index)] i)) as Hop.
+      cbv [op_semantics] in Hop. exact Hop.
     - (* Sub *)
       destruct (c =? min_int)%sint63 eqn:Hmin; [ discriminate | ].
       injection Hstep as <-.
       destruct sign'; cbn [sign_same] in Hsg; [ discriminate | ].
-      destruct Hcase as [[Hab _] | [_ Hv]]; [ discriminate | ].
-      rewrite Hv in Hop. cbv iota in Hop. rewrite Hop.
+      destruct Hcase as [[Hab _] | [_ Hv]]; [ discriminate | ]. subst u.
+      pose proof (run.(run_machine).(iter_op) n
+                    (Res id (Intop_imm Isub c)
+                       [param l.(header) b.(param_index)] i)) as Hop.
+      cbv [op_semantics] in Hop. rewrite Hop.
       rewrite Sint63.to_Z_opp by (apply eqb_int_false; exact Hmin).
       f_equal; ring.
   Qed.
@@ -492,7 +486,7 @@ Section Run.
   (* The facts [bound_in_range] checks a register bound against hold
      under a valuation that reads the bound's form as its value. *)
   Lemma value_bound_facts : forall v form side1 c1 guards side2 c2,
-    linearize new_ctx [] (tree_of_value v) = ((form, side1), c1) ->
+    linearize new_ctx [] v = ((form, side1), c1) ->
     guards_at c1 side1 l.(header) = ((guards, side2), c2) ->
     exists rho,
       denote rho form = iter 0 v
@@ -502,24 +496,21 @@ Section Run.
     intros v form side1 c1 guards side2 c2 Hlin Hg.
     assert (Heqb : forall v w, value_eqb v w = true -> iter 0 v = iter 0 w).
     { intros v' w E. apply value_eqb_spec in E. subst w. reflexivity. }
-    assert (Hwf0 : ctx_wf new_ctx).
-    { split; [ constructor | intros id w Hin; destruct Hin ]. }
     assert (Hn0 : to_Z new_ctx.(next) = 0) by exact to_Z_zero.
-    pose proof (run.(run_atoms_fit) v) as Hsmall.
+    pose proof run.(run_atoms_fit) as Hsmall.
+    unfold atom_counter_fits in Hsmall.
     assert (Hgs : 0 <= guards_size l.(header)) by apply guards_sum_nonneg.
-    pose proof (size_pos (tree_of_value v)) as Hsz.
     destruct (linearize_sound (iter 0) (run.(run_machine).(iter_bounded) 0)
-                Heqb (tree_of_value v) new_ctx [] form side1 c1
-                (run.(run_entry).(iter_trees) v) Hwf0 ltac:(lia) Hlin)
+                Heqb (run.(run_machine).(iter_op) 0%nat) v new_ctx [] form
+                side1 c1 new_ctx_wf ltac:(lia) Hlin)
       as [Hwf1 [_ [Hn1 [Hwff [Hwfs1 Hrho1]]]]].
     destruct (guards_at_sound (iter 0) (run.(run_machine).(iter_bounded) 0)
-                Heqb l.(header) c1 side1 guards side2 c2
-                run.(run_entry).(iter_trees) Hwf1 ltac:(lia) Hg)
+                Heqb (run.(run_machine).(iter_op) 0%nat) l.(header) c1 side1
+                guards side2 c2 Hwf1 ltac:(lia) Hg)
       as [Hwf2 [He12 [_ [Hwfg [Hwfs2 Hrho2]]]]].
     destruct (agrees_exists (iter 0) c2 Hwf2) as [rho Hrho].
     destruct (Hrho2 rho Hrho) as [Hs2 Hg2].
     destruct (Hrho1 rho (agrees_extends _ _ _ _ He12 Hrho)) as [Hden Hs1].
-    rewrite tree_of_value_root in Hden.
     exists rho. split; [ exact Hden | ].
     split; [ apply Forall_app; split; [ exact Hwfg | ] | ].
     { apply Hwfs2, Hwfs1. exact (Forall_nil _). }
@@ -548,8 +539,7 @@ Section Run.
     unfold bound_in_range in H. cbv zeta in H. rewrite Hpos in H.
     destruct bnd as [v | k]; cbn [bound_value].
     - (* Value_bound *)
-      destruct (linearize new_ctx [] (tree_of_value v))
-        as [[form side1] c1] eqn:Hlin.
+      destruct (linearize new_ctx [] v) as [[form side1] c1] eqn:Hlin.
       destruct (guards_at c1 side1 l.(header)) as [[guards side2] c2] eqn:Hg.
       destruct (value_bound_facts v form side1 c1 guards side2 c2 Hlin Hg)
         as [rho [Hden [Hwffacts [Hwff Hfacts]]]].
@@ -650,28 +640,31 @@ Section Run.
                        (iv v0 (to_Z step) n)).
   Proof.
     intros b step cond cmp iv_is_left bnd Hspec Hstep Hext.
-    destruct (extract_comparison_spec _ _ _ _ _ _ Hext) as [id Hcases].
+    destruct (extract_comparison_spec _ _ _ _ _ _ Hext) as [id [i Hcases]].
     destruct Hcases
-      as [ [x [k [Hv [Hx [-> ->]]]]]
-         | [ [x [y [Hv [Hx [Hy [-> ->]]]]]]
-           | [x [y [Hv [Hy [Hx [-> ->]]]]]] ] ].
+      as [ [x [k [-> [Hx [-> ->]]]]]
+         | [ [x [y [-> [Hx [Hy [-> ->]]]]]]
+           | [x [y [-> [Hy [Hx [-> ->]]]]]] ] ].
     - destruct (iv_val_sequence b step x Hspec Hstep Hx) as [v0 [Hv0 Hiter]].
       exists v0. split; [ exact Hv0 | ]. intros n.
-      pose proof (run.(run_machine).(iter_op) n cond) as Hop.
-      rewrite Hv in Hop. cbv iota in Hop.
+      pose proof (run.(run_machine).(iter_comparison) n
+                    (Res id (Intop_imm (Icomp cmp) k) [x] i)) as Hop.
+      cbv iota in Hop.
       rewrite Hop, Hiter. reflexivity.
     - destruct (iv_val_sequence b step x Hspec Hstep Hx) as [v0 [Hv0 Hiter]].
       exists v0. split; [ exact Hv0 | ]. intros n.
-      pose proof (run.(run_machine).(iter_op) n cond) as Hop.
-      rewrite Hv in Hop. cbv iota in Hop.
+      pose proof (run.(run_machine).(iter_comparison) n
+                    (Res id (Intop (Icomp cmp)) [x; y] i)) as Hop.
+      cbv iota in Hop.
       rewrite Hop, Hiter.
       rewrite (run.(run_entry).(iter_invariant) n y
                  (is_loop_invariant_spec _ _ _ Hy)).
       reflexivity.
     - destruct (iv_val_sequence b step y Hspec Hstep Hy) as [v0 [Hv0 Hiter]].
       exists v0. split; [ exact Hv0 | ]. intros n.
-      pose proof (run.(run_machine).(iter_op) n cond) as Hop.
-      rewrite Hv in Hop. cbv iota in Hop.
+      pose proof (run.(run_machine).(iter_comparison) n
+                    (Res id (Intop (Icomp cmp)) [x; y] i)) as Hop.
+      cbv iota in Hop.
       rewrite Hop, Hiter.
       rewrite (run.(run_entry).(iter_invariant) n x
                  (is_loop_invariant_spec _ _ _ Hx)).

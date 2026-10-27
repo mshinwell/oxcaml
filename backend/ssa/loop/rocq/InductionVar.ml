@@ -3,34 +3,40 @@ open SsaDominance
 open SsaGraph
 open SsaModel
 
-(** val is_loop_invariant : op_def -> block -> value -> bool **)
+(** val is_loop_invariant : op_def -> block -> Ssa.finished Ssa.Value.t -> bool
+    **)
 
 let is_loop_invariant op_def0 header0 v =
-  match Ssa_view.value v with
-  | Res (id, op, _) -> (
-    match op with
-    | Operation.Const_int _ -> true
-    | Operation.Const_float32 _ -> true
-    | Operation.Const_float _ -> true
-    | Operation.Const_symbol _ -> true
-    | Operation.Const_vec128 _ -> true
-    | Operation.Const_vec256 _ -> true
-    | Operation.Const_vec512 _ -> true
-    | Operation.Const_mask _ -> true
-    | _ -> (
-      match Ssa.Instruction.Id.Tbl.find_opt op_def0 id with
-      | Some bl -> strictly_dominates bl header0
-      | None -> false))
-  | Block_param (block0, _) -> strictly_dominates block0 header0
+  (fun f_res f_param (v : Ssa.finished Ssa.Value.t) ->
+    match v with
+    | Ssa.Instruction.Res ({ Ssa.Instruction.id; op; args; _ }, i) ->
+      f_res id op (Array.to_list args) i
+    | Ssa.Instruction.Block_param (b, i) -> f_param b i)
+    (fun id op _ _ ->
+      match op with
+      | Operation.Const_int _ -> true
+      | Operation.Const_float32 _ -> true
+      | Operation.Const_float _ -> true
+      | Operation.Const_symbol _ -> true
+      | Operation.Const_vec128 _ -> true
+      | Operation.Const_vec256 _ -> true
+      | Operation.Const_vec512 _ -> true
+      | Operation.Const_mask _ -> true
+      | _ -> (
+        match Ssa.Instruction.Id.Tbl.find_opt op_def0 id with
+        | Some bl -> strictly_dominates bl header0
+        | None -> false))
+    (fun block0 _ -> strictly_dominates block0 header0)
+    v
 
 type biv_step =
   | Step_const of int
-  | Step_var of value
+  | Step_var of Ssa.finished Ssa.Value.t
 
 type biv =
   { loop : natural_loop;
     param_index : int;
-    update : value list;
+    update : Ssa.finished Ssa.Value.t list;
     step : biv_step;
     sign : [`Add | `Sub]
   }
@@ -61,63 +67,68 @@ let signed_step biv0 =
     | `Sub -> if Int.equal c Int.min_int then None else Some (Int.neg c))
   | Step_var _ -> None
 
-(** val classify_update : (value -> bool) -> op_def -> block -> value ->
-    (biv_step * [ `Add | `Sub ]) option **)
+(** val classify_update : (Ssa.finished Ssa.Value.t -> bool) -> op_def -> block
+    -> Ssa.finished Ssa.Value.t -> (biv_step * [ `Add | `Sub ]) option **)
 
 let classify_update is_self op_def0 header0 v =
-  match Ssa_view.value v with
-  | Res (_, op, args) -> (
-    match op with
-    | Operation.Intop op0 -> (
-      match op0 with
-      | Operation.Iadd -> (
-        match args with
-        | [] -> None
-        | x :: l -> (
-          match l with
+  (fun f_res f_param (v : Ssa.finished Ssa.Value.t) ->
+    match v with
+    | Ssa.Instruction.Res ({ Ssa.Instruction.id; op; args; _ }, i) ->
+      f_res id op (Array.to_list args) i
+    | Ssa.Instruction.Block_param (b, i) -> f_param b i)
+    (fun _ op args _ ->
+      match op with
+      | Operation.Intop op0 -> (
+        match op0 with
+        | Operation.Iadd -> (
+          match args with
           | [] -> None
-          | y :: l0 -> (
-            match l0 with
-            | [] ->
-              if is_self x && is_loop_invariant op_def0 header0 y
-              then Some (Step_var y, `Add)
-              else if is_self y && is_loop_invariant op_def0 header0 x
-              then Some (Step_var x, `Add)
-              else None
-            | _ :: _ -> None)))
-      | Operation.Isub -> (
-        match args with
-        | [] -> None
-        | x :: l -> (
-          match l with
+          | x :: l -> (
+            match l with
+            | [] -> None
+            | y :: l0 -> (
+              match l0 with
+              | [] ->
+                if is_self x && is_loop_invariant op_def0 header0 y
+                then Some (Step_var y, `Add)
+                else if is_self y && is_loop_invariant op_def0 header0 x
+                then Some (Step_var x, `Add)
+                else None
+              | _ :: _ -> None)))
+        | Operation.Isub -> (
+          match args with
           | [] -> None
-          | y :: l0 -> (
-            match l0 with
-            | [] ->
-              if is_self x && is_loop_invariant op_def0 header0 y
-              then Some (Step_var y, `Sub)
-              else None
-            | _ :: _ -> None)))
+          | x :: l -> (
+            match l with
+            | [] -> None
+            | y :: l0 -> (
+              match l0 with
+              | [] ->
+                if is_self x && is_loop_invariant op_def0 header0 y
+                then Some (Step_var y, `Sub)
+                else None
+              | _ :: _ -> None)))
+        | _ -> None)
+      | Operation.Intop_imm (op0, c) -> (
+        match op0 with
+        | Operation.Iadd -> (
+          match args with
+          | [] -> None
+          | x :: l -> (
+            match l with
+            | [] -> if is_self x then Some (Step_const c, `Add) else None
+            | _ :: _ -> None))
+        | Operation.Isub -> (
+          match args with
+          | [] -> None
+          | x :: l -> (
+            match l with
+            | [] -> if is_self x then Some (Step_const c, `Sub) else None
+            | _ :: _ -> None))
+        | _ -> None)
       | _ -> None)
-    | Operation.Intop_imm (op0, c) -> (
-      match op0 with
-      | Operation.Iadd -> (
-        match args with
-        | [] -> None
-        | x :: l -> (
-          match l with
-          | [] -> if is_self x then Some (Step_const c, `Add) else None
-          | _ :: _ -> None))
-      | Operation.Isub -> (
-        match args with
-        | [] -> None
-        | x :: l -> (
-          match l with
-          | [] -> if is_self x then Some (Step_const c, `Sub) else None
-          | _ :: _ -> None))
-      | _ -> None)
-    | _ -> None)
-  | Block_param (_, _) -> None
+    (fun _ _ -> None)
+    v
 
 (** val back_edge_set : natural_loop -> blockset **)
 
@@ -171,12 +182,13 @@ let classify_param loop0 op_def0 back_pred_args index =
   else None
 
 (** val params_bivs : natural_loop -> op_def -> (block * Ssa.finished
-    Ssa.Terminator.arg list) list -> int -> value list -> biv list **)
+    Ssa.Terminator.arg list) list -> int -> Ssa.finished Ssa.Value.t list -> biv
+    list **)
 
 let rec params_bivs loop0 op_def0 back_pred_args index = function
   | [] -> []
-  | _ :: params0 -> (
-    let rest = params_bivs loop0 op_def0 back_pred_args (index + 1) params0 in
+  | _ :: params1 -> (
+    let rest = params_bivs loop0 op_def0 back_pred_args (index + 1) params1 in
     match classify_param loop0 op_def0 back_pred_args index with
     | Some biv0 -> biv0 :: rest
     | None -> rest)
@@ -208,7 +220,7 @@ let analyze_loop op_def0 loop0 =
           else None)
         pred_args
     in
-    params_bivs loop0 op_def0 back_pred_args 0 (Ssa_view.params header0)
+    params_bivs loop0 op_def0 back_pred_args 0 (params header0)
 
 (** val analyze : op_def -> block list -> (natural_loop * biv list) list **)
 

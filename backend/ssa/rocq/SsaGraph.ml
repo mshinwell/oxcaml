@@ -1,64 +1,118 @@
 open OxCamlList
 open SsaModel
 
-(** val terminator_pure_control : Terminator.t -> bool **)
+(** val terminator_pure_control : Ssa.finished Ssa.Terminator.t -> bool **)
 
-let terminator_pure_control = function
-  | Terminator.Continue (continuation, _) -> (
-    match continuation with Ssa.Goto _ -> true | _ -> false)
-  | Terminator.Switch (_, _) -> true
-  | _ -> false
+let terminator_pure_control t =
+  (fun f_continue
+    f_switch
+    f_call
+    f_invalid
+    (t : Ssa.finished Ssa.Terminator.t)
+  ->
+    match t with
+    | Ssa.Terminator.Continue { continuation; args } ->
+      f_continue continuation (Array.to_list args)
+    | Ssa.Terminator.Switch { index; targets } ->
+      f_switch index (Array.to_list targets)
+    | Ssa.Terminator.Call { args; _ } -> f_call (Array.to_list args)
+    | Ssa.Terminator.Invalid { args; _ } -> f_invalid (Array.to_list args))
+    (fun continuation _ ->
+      match continuation with Ssa.Goto _ -> true | _ -> false)
+    (fun _ _ -> true)
+    (fun _ -> false)
+    (fun _ -> false)
+    t
 
 (** val block_effect_free : block -> bool **)
 
 let block_effect_free bl =
   List.for_all
     (fun i -> not (Ssa.Instruction.has_side_effect i))
-    (Ssa_view.body bl)
-  && terminator_pure_control (Ssa_view.terminator bl)
+    (block_body bl)
+  && terminator_pure_control (Ssa.Block.terminator bl)
 
-(** val is_param : block -> int -> value -> bool **)
+(** val is_param : block -> int -> Ssa.finished Ssa.Value.t -> bool **)
 
 let is_param bl index v = Ssa.Value.equal v (Ssa.Block.param bl index)
 
-(** val instr_defines_value : instr -> value -> bool **)
+(** val instr_defines_value : Ssa.finished Ssa.Instruction.t -> Ssa.finished
+    Ssa.Value.t -> bool **)
 
 let instr_defines_value i v =
-  match Ssa_view.instr i with
-  | Op (id, _) -> (
-    match Ssa_view.value v with
-    | Res (id', _, _) -> Ssa.Instruction.Id.equal id id'
-    | Block_param (_, _) -> false)
-  | _ -> false
+  (fun f_op f_push_trap f_pop_trap (i : Ssa.finished Ssa.Instruction.t) ->
+    match i with
+    | Ssa.Instruction.Op { Ssa.Instruction.id; args; _ } ->
+      f_op id (Array.to_list args)
+    | Ssa.Instruction.Push_trap _ -> f_push_trap ()
+    | Ssa.Instruction.Pop_trap _ -> f_pop_trap ())
+    (fun id _ ->
+      (fun f_res f_param (v : Ssa.finished Ssa.Value.t) ->
+        match v with
+        | Ssa.Instruction.Res ({ Ssa.Instruction.id; op; args; _ }, i) ->
+          f_res id op (Array.to_list args) i
+        | Ssa.Instruction.Block_param (b, i) -> f_param b i)
+        (fun id' _ _ _ -> Ssa.Instruction.Id.equal id id')
+        (fun _ _ -> false)
+        v)
+    (fun _ -> false)
+    (fun _ -> false)
+    i
 
-(** val args_of_instr : instr -> value list **)
+(** val args_of_instr : Ssa.finished Ssa.Instruction.t -> Ssa.finished
+    Ssa.Value.t list **)
 
 let args_of_instr i =
-  match Ssa_view.instr i with Op (_, args) -> args | _ -> []
+  (fun f_op f_push_trap f_pop_trap (i : Ssa.finished Ssa.Instruction.t) ->
+    match i with
+    | Ssa.Instruction.Op { Ssa.Instruction.id; args; _ } ->
+      f_op id (Array.to_list args)
+    | Ssa.Instruction.Push_trap _ -> f_push_trap ()
+    | Ssa.Instruction.Pop_trap _ -> f_pop_trap ())
+    (fun _ args -> args)
+    (fun _ -> [])
+    (fun _ -> [])
+    i
 
-(** val terminator_args : Terminator.t -> value list list **)
+(** val terminator_args : Ssa.finished Ssa.Terminator.t -> Ssa.finished
+    Ssa.Value.t list list **)
 
-let terminator_args = function
-  | Terminator.Continue (_, args) ->
-    List.filter_map
-      (fun arg ->
-        match arg with
-        | Ssa.Terminator.Arg v -> Some v
-        | Ssa.Terminator.Omitted_since_unused -> None)
-      args
-    :: []
-  | Terminator.Switch (index, _) -> (index :: []) :: []
-  | Terminator.Call args -> args :: []
-  | Terminator.Invalid args -> args :: []
+let terminator_args term =
+  (fun f_continue
+    f_switch
+    f_call
+    f_invalid
+    (t : Ssa.finished Ssa.Terminator.t)
+  ->
+    match t with
+    | Ssa.Terminator.Continue { continuation; args } ->
+      f_continue continuation (Array.to_list args)
+    | Ssa.Terminator.Switch { index; targets } ->
+      f_switch index (Array.to_list targets)
+    | Ssa.Terminator.Call { args; _ } -> f_call (Array.to_list args)
+    | Ssa.Terminator.Invalid { args; _ } -> f_invalid (Array.to_list args))
+    (fun _ args ->
+      List.filter_map
+        (fun arg ->
+          match arg with
+          | Ssa.Terminator.Arg v -> Some v
+          | Ssa.Terminator.Omitted_since_unused -> None)
+        args
+      :: [])
+    (fun index _ -> (index :: []) :: [])
+    (fun args -> args :: [])
+    (fun args -> args :: [])
+    term
 
-(** val arg_is : value -> Ssa.finished Ssa.Terminator.arg -> bool **)
+(** val arg_is : Ssa.finished Ssa.Value.t -> Ssa.finished Ssa.Terminator.arg ->
+    bool **)
 
 let arg_is v = function
   | Ssa.Terminator.Arg a -> Ssa.Value.equal a v
   | Ssa.Terminator.Omitted_since_unused -> false
 
-(** val arg_value : Ssa.finished Ssa.Terminator.arg list -> int -> value option
-    **)
+(** val arg_value : Ssa.finished Ssa.Terminator.arg list -> int -> Ssa.finished
+    Ssa.Value.t option **)
 
 let arg_value args index =
   match nth_int args index with
@@ -72,45 +126,76 @@ let arg_value args index =
     option **)
 
 let goto_args target pred =
-  match Ssa_view.terminator pred with
-  | Terminator.Continue (continuation, args) -> (
-    match continuation with
-    | Ssa.Goto goto ->
-      if
-        Ssa.Block.equal goto target && same_length args (Ssa_view.params target)
-      then Some args
-      else None
-    | _ -> None)
-  | _ -> None
+  (fun f_continue
+    f_switch
+    f_call
+    f_invalid
+    (t : Ssa.finished Ssa.Terminator.t)
+  ->
+    match t with
+    | Ssa.Terminator.Continue { continuation; args } ->
+      f_continue continuation (Array.to_list args)
+    | Ssa.Terminator.Switch { index; targets } ->
+      f_switch index (Array.to_list targets)
+    | Ssa.Terminator.Call { args; _ } -> f_call (Array.to_list args)
+    | Ssa.Terminator.Invalid { args; _ } -> f_invalid (Array.to_list args))
+    (fun continuation args ->
+      match continuation with
+      | Ssa.Goto goto ->
+        if Ssa.Block.equal goto target && same_length args (params target)
+        then Some args
+        else None
+      | _ -> None)
+    (fun _ _ -> None)
+    (fun _ -> None)
+    (fun _ -> None)
+    (Ssa.Block.terminator pred)
 
-(** val goto_passes : block -> int -> value -> block -> bool **)
+(** val goto_passes : block -> int -> Ssa.finished Ssa.Value.t -> block -> bool
+    **)
 
 let goto_passes target k v bl =
-  match Ssa_view.terminator bl with
-  | Terminator.Continue (continuation, args) -> (
-    match continuation with
-    | Ssa.Goto goto ->
-      (Ssa.Block.equal goto target
-      &&
-      match arg_value args k with
-      | Some a -> Ssa.Value.equal a v
-      | None -> false)
-      && Int.equal (count_occurrences (arg_is v) args) 1
-    | _ -> false)
-  | _ -> false
+  (fun f_continue
+    f_switch
+    f_call
+    f_invalid
+    (t : Ssa.finished Ssa.Terminator.t)
+  ->
+    match t with
+    | Ssa.Terminator.Continue { continuation; args } ->
+      f_continue continuation (Array.to_list args)
+    | Ssa.Terminator.Switch { index; targets } ->
+      f_switch index (Array.to_list targets)
+    | Ssa.Terminator.Call { args; _ } -> f_call (Array.to_list args)
+    | Ssa.Terminator.Invalid { args; _ } -> f_invalid (Array.to_list args))
+    (fun continuation args ->
+      match continuation with
+      | Ssa.Goto goto ->
+        (Ssa.Block.equal goto target
+        &&
+        match arg_value args k with
+        | Some a -> Ssa.Value.equal a v
+        | None -> false)
+        && Int.equal (count_occurrences (arg_is v) args) 1
+      | _ -> false)
+    (fun _ _ -> false)
+    (fun _ -> false)
+    (fun _ -> false)
+    (Ssa.Block.terminator bl)
 
-(** val all_uses_ok : block list -> (value -> bool) -> (instr -> bool) -> (block
-    -> value list -> bool) -> bool **)
+(** val all_uses_ok : block list -> (Ssa.finished Ssa.Value.t -> bool) ->
+    (Ssa.finished Ssa.Instruction.t -> bool) -> (block -> Ssa.finished
+    Ssa.Value.t list -> bool) -> bool **)
 
 let all_uses_ok blocks same approve_instr approve_term =
   List.for_all
     (fun bl ->
       List.for_all
         (fun i -> (not (List.exists same (args_of_instr i))) || approve_instr i)
-        (Ssa_view.body bl)
+        (block_body bl)
       && List.for_all
            (fun arr -> (not (List.exists same arr)) || approve_term bl arr)
-           (terminator_args (Ssa_view.terminator bl)))
+           (terminator_args (Ssa.Block.terminator bl)))
     blocks
 
 (** val visit_all : (blockset -> block -> blockset option) -> blockset -> block

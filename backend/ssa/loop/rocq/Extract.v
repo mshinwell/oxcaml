@@ -8,7 +8,7 @@
    IntArith.ml. The pass itself, delete_empty_loops.ml in the
    parent directory, calls [DeleteEmptyLoops.find_deletions] and rewrites
    the graph at the loops it returns; that rewriting, and the table of
-   [Ssa_view.compute_op_def] the analyses are given, are not modelled.
+   defining blocks the analyses are given, are not modelled.
 
    The entry points extracted are [find_deletions] and, for the unit test
    oxcaml/tests/backend/ssa/loop_comparisons_facts.ml, the affine forms

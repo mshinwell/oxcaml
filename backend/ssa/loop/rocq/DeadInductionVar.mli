@@ -13,12 +13,24 @@ type loop_result =
     useless : bool
   }
 
-val param_uses_ok : block list -> block -> int -> value -> value list -> bool
+val param_uses_ok :
+  block list ->
+  block ->
+  int ->
+  Ssa.finished Ssa.Value.t ->
+  Ssa.finished Ssa.Value.t list ->
+  bool
 
-val cond_uses_ok : block list -> block -> value -> bool
+val cond_uses_ok : block list -> block -> Ssa.finished Ssa.Value.t -> bool
 
 val update_uses_ok :
-  block list -> block -> blockset -> int -> value -> value -> bool
+  block list ->
+  block ->
+  blockset ->
+  int ->
+  Ssa.finished Ssa.Value.t ->
+  Ssa.finished Ssa.Value.t ->
+  bool
 
 val is_dead : block list -> biv -> bool
 

@@ -11,14 +11,14 @@ type t =
   | Unknown
 
 type bound =
-  | Value_bound of value
+  | Value_bound of Ssa.finished Ssa.Value.t
   | Const_bound of int
 
 (** val bound_in_range : int -> block -> bound -> bool **)
 
 let bound_in_range step header0 = function
   | Value_bound v -> (
-    let p, c = linearize new_ctx [] (Ssa_view.tree_of_value v) in
+    let p, c = linearize new_ctx [] v in
     let form, side = p in
     let p0, _ = guards_at c side header0 in
     let guards, side0 = p0 in
@@ -35,44 +35,50 @@ let bound_in_range step header0 = function
   | Const_bound k ->
     if 0 < step then k <= Int.max_int else Int.neg Int.max_int <= k
 
-(** val extract_comparison : (value -> bool) -> (value -> bool) -> value ->
-    ((Cmm.integer_comparison * bool) * bound) option **)
+(** val extract_comparison : (Ssa.finished Ssa.Value.t -> bool) -> (Ssa.finished
+    Ssa.Value.t -> bool) -> Ssa.finished Ssa.Value.t -> ((Cmm.integer_comparison
+    * bool) * bound) option **)
 
 let extract_comparison is_iv_val is_bound cond =
-  match Ssa_view.value cond with
-  | Res (_, op, args) -> (
-    match op with
-    | Operation.Intop op0 -> (
-      match op0 with
-      | Operation.Icomp cmp -> (
-        match args with
-        | [] -> None
-        | x :: l -> (
-          match l with
+  (fun f_res f_param (v : Ssa.finished Ssa.Value.t) ->
+    match v with
+    | Ssa.Instruction.Res ({ Ssa.Instruction.id; op; args; _ }, i) ->
+      f_res id op (Array.to_list args) i
+    | Ssa.Instruction.Block_param (b, i) -> f_param b i)
+    (fun _ op args _ ->
+      match op with
+      | Operation.Intop op0 -> (
+        match op0 with
+        | Operation.Icomp cmp -> (
+          match args with
           | [] -> None
-          | y :: l0 -> (
-            match l0 with
+          | x :: l -> (
+            match l with
+            | [] -> None
+            | y :: l0 -> (
+              match l0 with
+              | [] ->
+                if is_iv_val x && is_bound y
+                then Some ((cmp, true), Value_bound y)
+                else if is_iv_val y && is_bound x
+                then Some ((cmp, false), Value_bound x)
+                else None
+              | _ :: _ -> None)))
+        | _ -> None)
+      | Operation.Intop_imm (op0, k) -> (
+        match op0 with
+        | Operation.Icomp cmp -> (
+          match args with
+          | [] -> None
+          | x :: l -> (
+            match l with
             | [] ->
-              if is_iv_val x && is_bound y
-              then Some ((cmp, true), Value_bound y)
-              else if is_iv_val y && is_bound x
-              then Some ((cmp, false), Value_bound x)
-              else None
-            | _ :: _ -> None)))
+              if is_iv_val x then Some ((cmp, true), Const_bound k) else None
+            | _ :: _ -> None))
+        | _ -> None)
       | _ -> None)
-    | Operation.Intop_imm (op0, k) -> (
-      match op0 with
-      | Operation.Icomp cmp -> (
-        match args with
-        | [] -> None
-        | x :: l -> (
-          match l with
-          | [] ->
-            if is_iv_val x then Some ((cmp, true), Const_bound k) else None
-          | _ :: _ -> None))
-      | _ -> None)
-    | _ -> None)
-  | Block_param (_, _) -> None
+    (fun _ _ -> None)
+    cond
 
 (** val biv_implies_termination : op_def -> biv -> bool **)
 

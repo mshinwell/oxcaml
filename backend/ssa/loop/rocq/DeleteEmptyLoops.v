@@ -2,7 +2,7 @@
    NaturalLoop.v, InductionVar.v, LoopTermination.v and DeadInductionVar.v
    into the decision. The extraction of this file, DeleteEmptyLoops.ml, is
    the implementation; delete_empty_loops.ml in the parent directory wraps
-   it, builds the table of [Ssa_view.compute_op_def] it is given, and
+   it, builds the table of defining blocks ([op_def]) it is given, and
    rewrites the graph at the (header, exit target) pairs it returns ([run],
    over [Ssa_reducer]), which is not modelled.
 
@@ -78,7 +78,7 @@ Definition loop_terminates (op_def : op_def) (bivs : list InductionVar.biv)
   end.
 
 (* The loops to delete, as (header, exit target) pairs, given the graph's
-   block list and the table of [Ssa_view.compute_op_def]. *)
+   block list and the table of defining blocks. *)
 Definition find_deletions (op_def : op_def) (blocks : list block)
     : list (block * block) :=
   let loops := InductionVar.analyze op_def blocks in

@@ -10,26 +10,26 @@
    stepping-stone lemmas, (4) the theorems. Parts 1 and 2 are the part to
    check by eye.
 
-   Two things about the shape of the code follow from the model only
-   being able to compute on what it can see.
+   [expr_of_value] walks the value graph itself: a [value] (SsaModel.v) is
+   the compiler's [Ssa.Value.t], carrying the operation that defines it
+   and its arguments, and the walk matches on the integer operations it
+   understands. Two things about the shape of the code:
 
-   - The model cannot look inside an SSA value ([Ssa.Value.t]) at the
-     operation that defines it, so the trusted [tree_of_value] of
-     backend/ssa/ssa_view.ml (declared in SsaModel.v, with the [tree]
-     type) first copies the part of the value graph the recogniser looks
-     at into a tree: a node for each value, holding the value itself, and,
-     when the value is defined by one of the integer operations
-     [expr_of_value] understands, that operation with the trees of its
-     arguments. Part 2 says what a truthful tree is ([tree_sound]).
+   - The graph is shared, and a walk of it as a tree can be exponentially
+     larger than the graph. So the walk has a budget of nodes to expand,
+     [max_nodes] per linearization, carried in the context as [budget] and
+     spent before descending into the arguments of a node. A value beyond
+     the budget becomes an atom, like a value defined by an operation not
+     understood here; an atom is always sound.
 
-   - The atom interner [ctx] and the [side] list of facts are values,
-     passed to each function and returned with its result, rather than
-     mutable state, so that each function is a pure function of its
-     arguments.
+   - The context [ctx] (the atom interner and the budget) and the [side]
+     list of facts are values, passed to each function and returned with
+     its result, rather than mutable state, so that each function is a
+     pure function of its arguments.
 
    [guards_at] walks the chain of immediate dominators of a block, which
    SsaModel.v provides as [strict_dominators], reading each dominator's
-   terminator through the [terminator] view there.
+   terminator.
 
    The results, in part 4, say that the facts gathered here are true:
    under the valuation that reads every atom as the machine value of the
@@ -57,19 +57,20 @@
    entailed goal true of the machine values (see LoopTermination.v).
 
    The theorems carry one hypothesis about resources: the atom counter
-   must not wrap, which it cannot unless a value graph has more than
-   [max_int] nodes ([size]).
+   must not wrap. A linearization allocates at most [linearize_atoms]
+   atoms (one per node expanded, and two more), so this only asks that the
+   counter start that far below [max_int].
 
-   Trusted parts, beyond those of AffineExpr.v: that the trees of
-   [tree_of_value] are truthful ([tree_sound] below spells out the machine
-   semantics of each recognised operation), that [Ssa.Value.equal] only
-   identifies values with the same machine value, and that the dominators
-   and terminators SsaModel.v reports are the graph's. *)
+   Trusted parts, beyond those of AffineExpr.v: what the recognised
+   operations compute ([op_semantics] below spells out the machine
+   semantics of each), that [Ssa.Value.equal] only identifies values with
+   the same machine value, and that the dominators and terminators
+   SsaModel.v reports are the graph's. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64 OxCamlList
   IntArith.
-From OxCamlBackend Require Import IntegerComparison.
+From OxCamlBackend Require Import IntegerComparison Operation.
 From OxCamlSsa Require Import SsaModel SsaDominance.
 From OxCamlLoop Require Import FourierMotzkin LoopComparisons AffineExpr.
 Import ListNotations.
@@ -80,18 +81,27 @@ Import ListNotations.
 
 Local Open Scope sint63_scope.
 
-(* SSA values ([value], with [value_eqb] for [Ssa.Value.equal]) and the
-   [tree] view of a value graph, with [root] for the value a tree stands
-   for, are declared in SsaModel.v. Nothing is computed on values here
-   beyond the equality test. *)
+(* SSA values ([value], with [value_eqb] for [Ssa.Value.equal]) are those
+   of SsaModel.v; the operations are those of Operation.v. *)
 
-(* --- Atom interner --- *)
+(* --- The context: atom interner and node budget --- *)
 
-(* The atom interner: the atoms allocated so far, each with its value, and
-   the next atom to allocate. *)
-Record ctx := { atoms : list (int * value); next : int }.
+(* The atoms allocated so far, each with its value; the next atom to
+   allocate; and the nodes [expr_of_value] may still expand. *)
+Record ctx := { atoms : list (int * value); next : int; budget : int }.
 
-Definition new_ctx : ctx := {| atoms := []; next := zero |}.
+(* The nodes one linearization may expand. *)
+Definition max_nodes : int := 256.
+
+Definition new_ctx : ctx :=
+  {| atoms := []; next := zero; budget := max_nodes |}.
+
+(* The context with a fresh budget, and with [k] nodes of it spent. *)
+Definition refill (c : ctx) : ctx :=
+  {| atoms := c.(atoms); next := c.(next); budget := max_nodes |}.
+
+Definition spend (c : ctx) (k : int) : ctx :=
+  {| atoms := c.(atoms); next := c.(next); budget := c.(budget) - k |}.
 
 (* The atom of [v], allocated if [v] has none yet. *)
 Definition intern (c : ctx) (v : value) : int * ctx :=
@@ -99,7 +109,8 @@ Definition intern (c : ctx) (v : value) : int * ctx :=
   | Some (id, _) => (id, c)
   | None =>
     let id := c.(next) in
-    (id, {| atoms := (id, v) :: c.(atoms); next := id + one |})
+    (id, {| atoms := (id, v) :: c.(atoms); next := id + one;
+            budget := c.(budget) |})
   end.
 
 (* --- Recognition into [AffineExpr.t] --- *)
@@ -128,45 +139,66 @@ Definition rsub (a b : option Range.t) : option Range.t :=
 Definition rscale (k : int) (r : option Range.t) : option Range.t :=
   match r with Some r => Range.scale k r | None => None end.
 
-(* The expression of a value's tree, with the value's range when one is
-   known. A value defined by an operation not understood here, or whose
-   range is lost, becomes an atom ([atomize]). Sound for a well-formed
-   context ([ctx_wf], part 2) whose atom counter has room for the tree:
-   [expr_of_value_sound]. *)
-Fixpoint expr_of_value (c : ctx) (t : tree)
+(* The expression of a value, with its range when one is known, from the
+   operation defining it and, recursively, its arguments; the budget pays
+   for each argument before it is walked. A value defined by an operation
+   not understood here, one whose range is lost, or one beyond the budget
+   becomes an atom ([atomize]). The argument of a logical shift is not
+   walked. Sound for a well-formed context ([ctx_wf], part 2) whose atom
+   counter has room for the budget: [expr_of_value_sound]. *)
+Fixpoint expr_of_value (c : ctx) (v : value)
     : (AffineExpr.t * option Range.t) * ctx :=
-  match t with
-  | Const_int v n =>
+  match v with
+  | Res _ (Const_int n) _ _ =>
+    let n := Int64.of_nativeint n in
     if int64_is_int n
     then
       let k := Int64.to_int n in
       ((AffineExpr.Const k, Some (Range.const k)), c)
     else atomize c v
-  | Iadd v a b =>
-    let '((ea, ra), c) := expr_of_value c a in
-    let '((eb, rb), c) := expr_of_value c b in
-    keep c v (AffineExpr.Add ea eb) (radd ra rb)
-  | Isub v a b =>
-    let '((ea, ra), c) := expr_of_value c a in
-    let '((eb, rb), c) := expr_of_value c b in
-    keep c v (AffineExpr.Sub ea eb) (rsub ra rb)
-  | Iadd_imm v a k =>
-    let '((ea, ra), c) := expr_of_value c a in
-    keep c v (AffineExpr.Add ea (AffineExpr.Const k))
-      (radd ra (Some (Range.const k)))
-  | Isub_imm v a k =>
-    let '((ea, ra), c) := expr_of_value c a in
-    keep c v (AffineExpr.Sub ea (AffineExpr.Const k))
-      (rsub ra (Some (Range.const k)))
-  | Ilsl v a k =>
-    if (zero <=? k) && (k <? max_shift_bits)
+  | Res _ (Intop Iadd) [a; b] _ =>
+    if two <=? c.(budget)
     then
+      let c := spend c two in
+      let '((ea, ra), c) := expr_of_value c a in
+      let '((eb, rb), c) := expr_of_value c b in
+      keep c v (AffineExpr.Add ea eb) (radd ra rb)
+    else atomize c v
+  | Res _ (Intop Isub) [a; b] _ =>
+    if two <=? c.(budget)
+    then
+      let c := spend c two in
+      let '((ea, ra), c) := expr_of_value c a in
+      let '((eb, rb), c) := expr_of_value c b in
+      keep c v (AffineExpr.Sub ea eb) (rsub ra rb)
+    else atomize c v
+  | Res _ (Intop_imm Iadd k) [a] _ =>
+    if one <=? c.(budget)
+    then
+      let c := spend c one in
+      let '((ea, ra), c) := expr_of_value c a in
+      keep c v (AffineExpr.Add ea (AffineExpr.Const k))
+        (radd ra (Some (Range.const k)))
+    else atomize c v
+  | Res _ (Intop_imm Isub k) [a] _ =>
+    if one <=? c.(budget)
+    then
+      let c := spend c one in
+      let '((ea, ra), c) := expr_of_value c a in
+      keep c v (AffineExpr.Sub ea (AffineExpr.Const k))
+        (rsub ra (Some (Range.const k)))
+    else atomize c v
+  | Res _ (Intop_imm Ilsl k) [a] _ =>
+    if (zero <=? k) && (k <? max_shift_bits) && (one <=? c.(budget))
+    then
+      let c := spend c one in
       let '((ea, ra), c) := expr_of_value c a in
       keep c v (AffineExpr.Scale (one << k) ea) (rscale (one << k) ra)
     else atomize c v
-  | Iasr v a k =>
-    if (zero <=? k) && (k <? max_shift_bits)
+  | Res _ (Intop_imm Iasr k) [a] _ =>
+    if (zero <=? k) && (k <? max_shift_bits) && (one <=? c.(budget))
     then
+      let c := spend c one in
       match expr_of_value c a with
       | ((ea, Some _), c) =>
         let '(id, c) := intern c v in
@@ -174,15 +206,16 @@ Fixpoint expr_of_value (c : ctx) (t : tree)
       | ((_, None), c) => atomize c v
       end
     else atomize c v
-  | Ilsr v k =>
+  | Res _ (Intop_imm Ilsr k) [_] _ =>
     if (one <=? k) && (k <? word_bits)
     then
       let '(id, c) := intern c v in
       ((AffineExpr.Lsr_atom id k, Some (Range.shr_logical k)), c)
     else atomize c v
-  | Ior v a m =>
-    if zero <=? m
+  | Res _ (Intop_imm Ior m) [a] _ =>
+    if (zero <=? m) && (one <=? c.(budget))
     then
+      let c := spend c one in
       match expr_of_value c a with
       | ((ea, Some r), c) =>
         let '(id, c) := intern c v in
@@ -190,7 +223,7 @@ Fixpoint expr_of_value (c : ctx) (t : tree)
       | ((_, None), c) => atomize c v
       end
     else atomize c v
-  | Icomp v _ _ _ | Icomp_imm v _ _ _ | Other v => atomize c v
+  | _ => atomize c v
   end.
 
 (* --- Linearization --- *)
@@ -201,32 +234,31 @@ Definition push_sides (side sides : list Affine.t) : list Affine.t :=
     (fun side f => if existsb (Affine.equal f) side then side else f :: side)
     side sides.
 
-(* The affine form of a value's tree, with the side facts of its
-   linearization added to [side]; an atom for the value itself when
-   [to_affine] overflows. Sound under the conditions of [expr_of_value]:
-   [linearize_sound]. *)
-Definition linearize (c : ctx) (side : list Affine.t) (t : tree)
+(* The affine form of a value, walked with a fresh budget, with the side
+   facts of its linearization added to [side]; an atom for the value
+   itself when [to_affine] overflows. Sound under the conditions of
+   [expr_of_value]: [linearize_sound]. *)
+Definition linearize (c : ctx) (side : list Affine.t) (v : value)
     : (Affine.t * list Affine.t) * ctx :=
-  let '((e, _), c) := expr_of_value c t in
+  let '((e, _), c) := expr_of_value (refill c) v in
   match to_affine e with
   | Some (form, sides) => ((form, push_sides side sides), c)
-  | None =>
-    let '(id, c) := intern c (root t) in ((Affine.var id, side), c)
+  | None => let '(id, c) := intern c v in ((Affine.var id, side), c)
   end.
 
 (* --- Guard facts from dominating branches --- *)
 
 (* The facts a comparison implies when it holds ([negate = false]) or
    fails ([negate = true]); its operands are linearized in turn, [a]
-   first. *)
+   first. A value that is not a comparison yields no facts. *)
 Definition cond_facts (c : ctx) (side : list Affine.t) (negate : bool)
-    (cond : tree) : (list Affine.t * list Affine.t) * ctx :=
+    (cond : value) : (list Affine.t * list Affine.t) * ctx :=
   match cond with
-  | Icomp _ cmp a b =>
+  | Res _ (Intop (Icomp cmp)) [a; b] _ =>
     let '((la, side), c) := linearize c side a in
     let '((lb, side), c) := linearize c side b in
     ((facts negate cmp la lb, side), c)
-  | Icomp_imm _ cmp a k =>
+  | Res _ (Intop_imm (Icomp cmp) k) [a] _ =>
     let '((la, side), c) := linearize c side a in
     ((facts negate cmp la (Affine.constant k), side), c)
   | _ => (([], side), c)
@@ -255,14 +287,14 @@ Definition guard_facts (target : block)
   let '((acc, side), c) := st in
   match guard_test target idom with
   | Some (index, negate) =>
-    let '((fs, side), c) := cond_facts c side negate (tree_of_value index) in
+    let '((fs, side), c) := cond_facts c side negate index in
     ((fs ++ acc, side), c)
   | None => ((acc, side), c)
   end.
 
 (* The facts holding on entry to [target], from the branches that
    dominate it. Sound for a well-formed context whose atom counter has
-   room for the guards' trees: [guards_at_sound]. *)
+   room for the guards: [guards_at_sound]. *)
 Definition guards_at (c : ctx) (side : list Affine.t) (target : block)
     : (list Affine.t * list Affine.t) * ctx :=
   OxCamlList.fold_left (guard_facts target) (([], side), c)
@@ -274,32 +306,29 @@ Definition guards_at (c : ctx) (side : list Affine.t) (target : block)
 
 Local Open Scope Z_scope.
 
-(* The number of nodes of a tree: a bound on the atoms a walk of it can
-   allocate. *)
-Fixpoint size (t : tree) : Z :=
-  match t with
-  | Const_int _ _ | Ilsr _ _ | Other _ => 1
-  | Iadd _ a b | Isub _ a b | Icomp _ _ a b => 1 + size a + size b
-  | Iadd_imm _ a _ | Isub_imm _ a _ | Ilsl _ a _ | Iasr _ a _ | Ior _ a _
-  | Icomp_imm _ _ a _ => 1 + size a
-  end.
-
-(* The interner's invariant: each atom appears once, and all are below the
-   next one to be allocated. *)
+(* The context's invariant: each atom appears once, all are below the
+   next one to be allocated, and the budget is not negative. *)
 Definition ctx_wf (c : ctx) : Prop :=
   NoDup (map fst c.(atoms))
-  /\ forall id v, In (id, v) c.(atoms) -> to_Z id < to_Z c.(next).
+  /\ (forall id v, In (id, v) c.(atoms) -> to_Z id < to_Z c.(next))
+  /\ 0 <= to_Z c.(budget).
 
 (* A context only gains atoms. *)
 Definition extends (c c' : ctx) : Prop :=
   forall p, In p c.(atoms) -> In p c'.(atoms).
 
-(* The atoms [guards_at] may allocate for one dominator ([cond_facts]
-   allocates at most [size cond + 2]), for a list of dominators, and for
-   the whole walk. *)
+(* The atoms one linearization may allocate: one per node expanded, one
+   for the value itself and one when its affine form overflows; those the
+   facts of one comparison may allocate, with two operands linearized; and
+   those [guards_at] may allocate for one dominator, for a list of
+   dominators, and for the whole walk. *)
+Definition linearize_atoms : Z := to_Z max_nodes + 2.
+
+Definition cond_atoms : Z := 2 * linearize_atoms.
+
 Definition guard_size (target d : block) : Z :=
   match guard_test target d with
-  | Some (index, _) => size (tree_of_value index) + 2
+  | Some _ => cond_atoms
   | None => 0
   end.
 
@@ -317,54 +346,48 @@ Section Semantics.
   Hypothesis mval_bounded : forall v, in_int64 (mval v).
   Hypothesis mval_eqb : forall v w, value_eqb v w = true -> mval v = mval w.
 
-  (* A tree is truthful when the value at each node is what its operation
-     computes from the machine values of its arguments: add, subtract and
-     left shift wrap at 64 bits; the arithmetic right shift divides
-     rounding towards minus infinity; the logical right shift divides the
-     unsigned reading of its (unrecorded) argument, read back as a signed
-     register (including a shift by zero); or is the bitwise or
-     of two's-complement values. Shifts by amounts outside the register
-     width compute something unspecified, which nothing below relies on.
-     A comparison's own value is not needed, only those of its operands
-     (see [test_result]). *)
-  Fixpoint tree_sound (t : tree) : Prop :=
-    match t with
-    | Const_int v n => mval v = Int64.to_Z n
-    | Iadd v a b =>
-      tree_sound a /\ tree_sound b
-      /\ mval v = wrap64 (mval (root a) + mval (root b))
-    | Isub v a b =>
-      tree_sound a /\ tree_sound b
-      /\ mval v = wrap64 (mval (root a) - mval (root b))
-    | Iadd_imm v a k =>
-      tree_sound a /\ mval v = wrap64 (mval (root a) + to_Z k)
-    | Isub_imm v a k =>
-      tree_sound a /\ mval v = wrap64 (mval (root a) - to_Z k)
-    | Ilsl v a k =>
-      tree_sound a
-      /\ (0 <= to_Z k <= 63 -> mval v = wrap64 (mval (root a) * 2 ^ to_Z k))
-    | Iasr v a k =>
-      tree_sound a
-      /\ (0 <= to_Z k <= 63 -> mval v = mval (root a) / 2 ^ to_Z k)
-    | Ilsr v k =>
+  (* What the operations the recogniser understands compute, from the
+     machine values of their arguments: a constant is its value (a
+     [nativeint] read as the same 64-bit value); add, subtract and left
+     shift wrap at 64 bits; the arithmetic right shift divides rounding
+     towards minus infinity; the logical right shift divides the unsigned
+     reading of its argument, read back as a signed register (including a
+     shift by zero); or is the bitwise or of two's-complement values.
+     Shifts by amounts outside the register width compute something
+     unspecified, which nothing below relies on. A comparison's own value
+     is not needed, only those of its operands (see [test_result]). *)
+  Definition op_semantics (v : value) : Prop :=
+    match v with
+    | Res _ (Const_int n) _ _ => mval v = Int64.to_Z (Int64.of_nativeint n)
+    | Res _ (Intop Iadd) [a; b] _ => mval v = wrap64 (mval a + mval b)
+    | Res _ (Intop Isub) [a; b] _ => mval v = wrap64 (mval a - mval b)
+    | Res _ (Intop_imm Iadd k) [a] _ => mval v = wrap64 (mval a + to_Z k)
+    | Res _ (Intop_imm Isub k) [a] _ => mval v = wrap64 (mval a - to_Z k)
+    | Res _ (Intop_imm Ilsl k) [a] _ =>
+      0 <= to_Z k <= 63 -> mval v = wrap64 (mval a * 2 ^ to_Z k)
+    | Res _ (Intop_imm Iasr k) [a] _ =>
+      0 <= to_Z k <= 63 -> mval v = mval a / 2 ^ to_Z k
+    | Res _ (Intop_imm Ilsr k) [a] _ =>
       0 <= to_Z k <= 63 ->
-      exists r, in_int64 r /\ mval v = wrap64 (unsigned64 r / 2 ^ to_Z k)
-    | Ior v a m => tree_sound a /\ mval v = Z.lor (mval (root a)) (to_Z m)
-    | Icomp _ _ a b => tree_sound a /\ tree_sound b
-    | Icomp_imm _ _ a _ => tree_sound a
-    | Other _ => True
+      mval v = wrap64 (unsigned64 (mval a) / 2 ^ to_Z k)
+    | Res _ (Intop_imm Ior m) [a] _ => mval v = Z.lor (mval a) (to_Z m)
+    | _ => True
     end.
 
   (* A check, which no proof uses, that the [Ilsr] clause is satisfiable: a
      logical shift by zero returns its argument, negative registers
      included, which is why the quotient is read back through [wrap64]. *)
-  Remark tree_sound_lsr_zero : forall v, tree_sound (Ilsr v zero).
+  Remark op_semantics_lsr_zero : forall id a i,
+    mval (Res id (Intop_imm Ilsr zero) [a] i) = mval a ->
+    op_semantics (Res id (Intop_imm Ilsr zero) [a] i).
   Proof.
-    intro v. cbn [tree_sound]. intros _.
-    exists (mval v). split; [ apply mval_bounded | ].
-    rewrite to_Z_zero, Z.pow_0_r, Z.div_1_r.
+    intros id a i Hv. cbn [op_semantics]. intros _.
+    rewrite to_Z_zero, Z.pow_0_r, Z.div_1_r, Hv.
     symmetry. apply wrap64_unsigned, mval_bounded.
   Qed.
+
+  (* Every value is computed as its operation says. *)
+  Hypothesis mval_ops : forall v, op_semantics v.
 
   (* A valuation agrees with a context when it reads each atom as the
      machine value of the SSA value interned for it. *)
@@ -373,13 +396,13 @@ Section Semantics.
 
   (* The comparison a branch tests came out as the taken edge requires:
      true for the edge [cond_facts] is called with [negate = false] for,
-     false for the other. Trees that are not comparisons yield no facts. *)
-  Definition test_result (negate : bool) (cond : tree) : Prop :=
+     false for the other. Values that are not comparisons yield no facts. *)
+  Definition test_result (negate : bool) (cond : value) : Prop :=
     match cond with
-    | Icomp _ cmp a b =>
-      IntegerComparison.eval cmp (mval (root a)) (mval (root b)) = negb negate
-    | Icomp_imm _ cmp a k =>
-      IntegerComparison.eval cmp (mval (root a)) (to_Z k) = negb negate
+    | Res _ (Intop (Icomp cmp)) [a; b] _ =>
+      IntegerComparison.eval cmp (mval a) (mval b) = negb negate
+    | Res _ (Intop_imm (Icomp cmp) k) [a] _ =>
+      IntegerComparison.eval cmp (mval a) (to_Z k) = negb negate
     | _ => True
     end.
 
@@ -391,8 +414,7 @@ Section Semantics.
      which LoopTermination.v makes of the values at the entry to a loop. *)
   Definition guard_taken (target d : block) : Prop :=
     forall index negate,
-      guard_test target d = Some (index, negate) ->
-      test_result negate (tree_of_value index).
+      guard_test target d = Some (index, negate) -> test_result negate index.
 
   Definition guards_taken (target : block) : Prop :=
     forall d, In d (strict_dominators target) -> guard_taken target d.
@@ -415,17 +437,26 @@ Section Semantics.
     extends c c' -> agrees rho c' -> agrees rho c.
   Proof. intros rho c c' He Ha id v H. apply Ha, He, H. Qed.
 
-  (* A tree has at least one node. *)
-  Lemma size_pos : forall t, 1 <= size t.
-  Proof. induction t; cbn [size]; lia. Qed.
+  (* The literals. *)
+  Lemma to_Z_max_nodes : to_Z max_nodes = 256.
+  Proof. reflexivity. Qed.
+
+  Lemma to_Z_max_shift_bits : to_Z max_shift_bits = 16.
+  Proof. reflexivity. Qed.
+
+  Lemma linearize_atoms_eq : linearize_atoms = 258.
+  Proof. reflexivity. Qed.
+
+  Lemma cond_atoms_eq : cond_atoms = 516.
+  Proof. reflexivity. Qed.
 
   (* The atom allowances are non-negative, and [guards_sum] unfolds on lists.
      *)
   Lemma guard_size_nonneg : forall target d, 0 <= guard_size target d.
   Proof.
     intros target d. unfold guard_size.
-    destruct (guard_test target d) as [[index negate] | ]; [ | lia ].
-    pose proof (size_pos (tree_of_value index)). lia.
+    destruct (guard_test target d) as [[index negate] | ];
+      [ rewrite cond_atoms_eq | ]; lia.
   Qed.
 
   Lemma guards_sum_nil : forall target, guards_sum target [] = 0.
@@ -443,34 +474,73 @@ Section Semantics.
     - rewrite guards_sum_cons. pose proof (guard_size_nonneg target d). lia.
   Qed.
 
-  Lemma to_Z_max_shift_bits : to_Z max_shift_bits = 16.
-  Proof. reflexivity. Qed.
+  (* --- The context --- *)
+
+  Lemma ctx_wf_budget : forall c, ctx_wf c -> 0 <= to_Z c.(budget).
+  Proof. intros c [_ [_ H]]. exact H. Qed.
+
+  Lemma new_ctx_wf : ctx_wf new_ctx.
+  Proof.
+    split; [ constructor | ]. split; [ intros id v Hin; destruct Hin | ].
+    cbn [budget new_ctx]. rewrite to_Z_max_nodes. lia.
+  Qed.
+
+  (* [refill] keeps the atoms and the counter and sets the budget. *)
+  Lemma refill_spec : forall c,
+    ctx_wf c ->
+    ctx_wf (refill c) /\ extends c (refill c)
+    /\ to_Z (refill c).(next) = to_Z c.(next)
+    /\ to_Z (refill c).(budget) = to_Z max_nodes.
+  Proof.
+    intros c [Hnd [Hlt _]]. unfold refill. cbn [atoms next budget].
+    refine (conj (conj Hnd (conj Hlt _)) (conj _ (conj eq_refl eq_refl))).
+    - cbn [budget]. rewrite to_Z_max_nodes. lia.
+    - intros p Hp. exact Hp.
+  Qed.
+
+  (* [spend c k], when the budget has [k] nodes, keeps the atoms and the
+     counter and lowers the budget by [k]. *)
+  Lemma spend_spec : forall c k,
+    ctx_wf c -> 0 <= to_Z k -> (k <=? c.(budget))%sint63 = true ->
+    ctx_wf (spend c k) /\ extends c (spend c k)
+    /\ to_Z (spend c k).(next) = to_Z c.(next)
+    /\ to_Z (spend c k).(budget) = to_Z c.(budget) - to_Z k.
+  Proof.
+    intros c k [Hnd [Hlt Hb]] Hk Hle. apply leb_int in Hle.
+    unfold spend. cbn [atoms next budget].
+    assert (Hsub : to_Z (c.(budget) - k)%sint63 = to_Z c.(budget) - to_Z k).
+    { apply Sint63.to_Z_sub. rewrite to_Z_min_int, to_Z_max_int.
+      pose proof (int_bounds c.(budget)). pose proof (int_bounds k). lia. }
+    refine (conj (conj Hnd (conj Hlt _)) (conj _ (conj eq_refl Hsub))).
+    - cbn [budget]. rewrite Hsub. lia.
+    - intros p Hp. exact Hp.
+  Qed.
 
   (* --- [intern] --- *)
 
   Lemma intern_spec : forall c v id c',
     ctx_wf c -> to_Z c.(next) < ocaml_max_int -> intern c v = (id, c') ->
     ctx_wf c' /\ extends c c' /\ to_Z c'.(next) <= to_Z c.(next) + 1
+    /\ to_Z c'.(budget) = to_Z c.(budget)
     /\ forall rho, agrees rho c' -> rho id = mval v.
   Proof.
-    intros c v id c' [Hnd Hlt] Hnext H. unfold intern in H.
+    intros c v id c' [Hnd [Hlt Hb]] Hnext H. unfold intern in H.
     destruct (find _ c.(atoms)) as [ [id0 w] | ] eqn:Hf.
     - apply find_some in Hf as [Hin Heq]. injection H as <- <-.
-      repeat split.
-      + exact Hnd.
-      + exact Hlt.
-      + apply extends_refl.
-      + lia.
-      + intros rho Ha. rewrite (Ha id0 w Hin). symmetry. apply mval_eqb.
-        exact Heq.
-    - injection H as <- <-. unfold ctx_wf, extends, agrees. cbn [atoms next].
+      refine (conj (conj Hnd (conj Hlt Hb))
+                (conj (extends_refl c) (conj _ (conj eq_refl _))));
+        [ lia | ].
+      intros rho Ha. rewrite (Ha id0 w Hin). symmetry. apply mval_eqb.
+      exact Heq.
+    - injection H as <- <-. unfold ctx_wf, extends, agrees.
+      cbn [atoms next budget].
       assert (Hsucc : to_Z (c.(next) + one)%sint63 = to_Z c.(next) + 1).
       { rewrite Sint63.to_Z_add.
         - rewrite to_Z_one. reflexivity.
         - rewrite to_Z_min_int, to_Z_max_int, to_Z_one.
           pose proof (int_bounds c.(next)). unfold ocaml_max_int in Hnext.
           lia. }
-      repeat split.
+      refine (conj (conj _ (conj _ Hb)) (conj _ (conj _ (conj eq_refl _)))).
       + cbn [map fst]. constructor; [ | exact Hnd ].
         intros Hin. apply in_map_iff in Hin as [[id0 w] [Hfst Hin]].
         cbn [fst] in Hfst. subst id0. pose proof (Hlt _ _ Hin). lia.
@@ -483,21 +553,23 @@ Section Semantics.
   Qed.
 
   (* [atomize] returns an atom standing for [v] with the full range: the
-     context stays well-formed and gains at most one atom, and under any
-     agreeing valuation the atom reads as [v]'s machine value, which is in the
-     range. *)
+     context stays well-formed, keeps its budget and gains at most one
+     atom, and under any agreeing valuation the atom reads as [v]'s
+     machine value, which is in the range. *)
   Lemma atomize_spec : forall c v e r c',
     ctx_wf c -> to_Z c.(next) < ocaml_max_int ->
     atomize c v = ((e, r), c') ->
     ctx_wf c' /\ extends c c' /\ to_Z c'.(next) <= to_Z c.(next) + 1
+    /\ to_Z c'.(budget) = to_Z c.(budget)
     /\ forall rho, agrees rho c' ->
          AffineExpr.eval rho e = mval v /\ consistent rho e
          /\ forall rg, r = Some rg -> in_range rg (mval v).
   Proof.
     intros c v e r c' Hwf Hnext H. unfold atomize in H.
     destruct (intern c v) as [id c1] eqn:Hi. injection H as <- <- <-.
-    destruct (intern_spec c v id c1 Hwf Hnext Hi) as [Hwf1 [He1 [Hn1 Hid]]].
-    refine (conj Hwf1 (conj He1 (conj Hn1 _))).
+    destruct (intern_spec c v id c1 Hwf Hnext Hi)
+      as [Hwf1 [He1 [Hn1 [Hb1 Hid]]]].
+    refine (conj Hwf1 (conj He1 (conj Hn1 (conj Hb1 _)))).
     intros rho Ha. cbn [AffineExpr.eval consistent].
     split; [ apply Hid; exact Ha | ].
     split; [ exact I | ].
@@ -546,6 +618,24 @@ Section Semantics.
     reflexivity.
   Qed.
 
+  (* --- Induction over values --- *)
+
+  (* Induction over a value and, through the argument lists, the values
+     it is computed from. *)
+  Fixpoint value_ind' (P : value -> Prop)
+      (Hres : forall id op args i, Forall P args -> P (Res id op args i))
+      (Hparam : forall b i, P (Block_param b i)) (v : value) : P v :=
+    match v with
+    | Res id op args i =>
+      Hres id op args i
+        ((fix args_ind (l : list value) : Forall P l :=
+            match l with
+            | [] => Forall_nil P
+            | a :: l => Forall_cons a (value_ind' P Hres Hparam a) (args_ind l)
+            end) args)
+    | Block_param b i => Hparam b i
+    end.
+
 (* ======================================================================== *)
 (* Part 4: the theorems                                                     *)
 (* ======================================================================== *)
@@ -554,11 +644,11 @@ Section Semantics.
      [atomize_spec], given the context's well-formedness and its extension
      from the initial context. *)
   Ltac finish_atomized Hwf Hext H :=
-    let A := fresh "A" in let B := fresh "B" in
-    let C := fresh "C" in let D := fresh "D" in
-    destruct (atomize_spec _ _ _ _ _ Hwf ltac:(lia) H) as [A [B [C D]]];
-    cbn [root size] in *;
-    refine (conj A (conj (extends_trans _ _ _ Hext B) (conj _ D))); lia.
+    let A := fresh "A" in let B := fresh "B" in let C := fresh "C" in
+    let D := fresh "D" in let E := fresh "E" in let F := fresh "F" in
+    pose proof (ctx_wf_budget _ Hwf) as F;
+    destruct (atomize_spec _ _ _ _ _ Hwf ltac:(lia) H) as [A [B [C [D E]]]];
+    refine (conj A (conj (extends_trans _ _ _ Hext B) (conj _ E))); lia.
 
   (* Turn a true shift-amount guard into bounds on the amount. *)
   Ltac shift_guard Hk :=
@@ -567,144 +657,222 @@ Section Semantics.
     rewrite ?to_Z_zero, ?to_Z_one in Hk0;
     rewrite ?to_Z_max_shift_bits, ?to_Z_word_bits in Hk1.
 
-  (* The expression built for a tree, under any valuation agreeing with
-     the context it leaves: it evaluates to the machine value of the tree's
-     SSA value exactly; its atomized shifts and ors are consistent; and if
-     a range was found, the machine value is in it. The context stays
-     well-formed, only grows, and gains at most one atom per node. *)
-  Theorem expr_of_value_sound : forall t c e r c',
-    tree_sound t -> ctx_wf c -> to_Z c.(next) + size t <= ocaml_max_int ->
-    expr_of_value c t = ((e, r), c') ->
-    ctx_wf c' /\ extends c c' /\ to_Z c'.(next) <= to_Z c.(next) + size t
+  (* Pay for the arguments of a node: read [spend_spec] for a true budget
+     test. *)
+  Ltac pay k Hwf Hle Hwf1 He1 Hn1 Hb1 :=
+    destruct (spend_spec _ k Hwf ltac:(rewrite ?to_Z_one, ?to_Z_two; lia) Hle)
+      as [Hwf1 [He1 [Hn1 Hb1]]];
+    rewrite ?to_Z_one, ?to_Z_two in Hb1.
+
+  (* The expression built for a value, under any valuation agreeing with
+     the context it leaves: it evaluates to the value's machine value
+     exactly; its atomized shifts and ors are consistent; and if a range
+     was found, the machine value is in it. The context stays well-formed
+     and only grows, and the atoms it gains are paid for by the budget,
+     but for one. *)
+  Theorem expr_of_value_sound : forall v c e r c',
+    ctx_wf c -> to_Z c.(next) + to_Z c.(budget) + 1 <= ocaml_max_int ->
+    expr_of_value c v = ((e, r), c') ->
+    ctx_wf c' /\ extends c c'
+    /\ to_Z c'.(next) + to_Z c'.(budget)
+       <= to_Z c.(next) + to_Z c.(budget) + 1
     /\ forall rho, agrees rho c' ->
-         AffineExpr.eval rho e = mval (root t) /\ consistent rho e
-         /\ forall rg, r = Some rg -> in_range rg (mval (root t)).
+         AffineExpr.eval rho e = mval v /\ consistent rho e
+         /\ forall rg, r = Some rg -> in_range rg (mval v).
   Proof.
-    induction t as [v n | v a IHa b IHb | v a IHa b IHb | v a IHa k
-                    | v a IHa k | v a IHa k | v a IHa k | v k | v a IHa m
-                    | v cmp a IHa b IHb | v cmp a IHa k | v];
-      intros c e r c' Hs Hwf Hn H; cbn [expr_of_value] in H;
-      cbn [tree_sound] in Hs; cbn [size] in Hn |- *.
+    intros v. induction v as [id op args i IHargs | b i] using value_ind';
+      intros c e r c' Hwf Hn H;
+      [ | cbn [expr_of_value] in H; finish_atomized Hwf (extends_refl c) H ].
+    pose proof (mval_ops (Res id op args i)) as Hs.
+    destruct op as [ | | | n | ? | ? | ? | ? | ? | ? | ? | ? | ? | ? ? ? | iop
+                   | ? | iop k | ? | ? ? | ? | ? | ? | ? | | | | ? | ? | | | |
+                   | | ? ];
+      try solve [ cbn [expr_of_value] in H;
+                  finish_atomized Hwf (extends_refl c) H ].
     - (* Const_int *)
-      destruct (int64_is_int n) eqn:Hf.
+      cbn [expr_of_value] in H. cbn [op_semantics] in Hs.
+      destruct (int64_is_int (Int64.of_nativeint n)) eqn:Hf.
       + injection H as <- <- <-.
         refine (conj Hwf (conj (extends_refl c) (conj _ _))); [ lia | ].
-        intros rho _. cbn [root AffineExpr.eval consistent].
-        pose proof (int64_is_int_spec n Hf) as Hk.
+        intros rho _. cbn [AffineExpr.eval consistent].
+        pose proof (int64_is_int_spec _ Hf) as Hk.
         split; [ rewrite Hk, Hs; reflexivity | ].
         split; [ exact I | ].
         intros rg Hrg. injection Hrg as <-. rewrite Hs, <- Hk.
         apply const_sound.
       + finish_atomized Hwf (extends_refl c) H.
-    - (* Iadd *)
-      destruct Hs as [Hsa [Hsb Hv]].
-      pose proof (size_pos a). pose proof (size_pos b).
-      destruct (expr_of_value c a) as [[ea ra] ca] eqn:Ha.
-      destruct (expr_of_value ca b) as [[eb rb] cb] eqn:Hb.
-      destruct (IHa c ea ra ca Hsa Hwf ltac:(lia) Ha)
-        as [Hwfa [Hea [Hna Hrho_a]]].
-      destruct (IHb ca eb rb cb Hsb Hwfa ltac:(lia) Hb)
-        as [Hwfb [Heb [Hnb Hrho_b]]].
-      unfold keep in H. destruct (radd ra rb) as [ rg | ] eqn:Hr.
-      + injection H as <- <- <-.
-        unfold radd in Hr.
-        destruct ra as [ rga | ]; [ | discriminate ].
-        destruct rb as [ rgb | ]; [ | discriminate ].
-        refine (conj Hwfb (conj (extends_trans _ _ _ Hea Heb) (conj _ _)));
-          [ lia | ].
-        intros rho Hrho.
-        destruct (Hrho_b rho Hrho) as [Eb [Cb Rb]].
-        destruct (Hrho_a rho (agrees_extends _ _ _ Heb Hrho)) as [Ea [Ca Ra]].
-        specialize (Ra rga eq_refl). specialize (Rb rgb eq_refl).
-        pose proof (add_sound _ _ _ _ _ Hr Ra Rb) as Hsum.
-        pose proof (in_range_int64 _ _ Hsum) as Hfits.
-        cbn [root] in *. rewrite Hv, (wrap64_id _ Hfits).
-        cbn [AffineExpr.eval consistent].
-        split; [ rewrite Ea, Eb; reflexivity | ].
-        split; [ exact (conj Ca Cb) | ].
-        intros rg' Hrg. injection Hrg as <-. exact Hsum.
-      + finish_atomized Hwfb (extends_trans _ _ _ Hea Heb) H.
-    - (* Isub *)
-      destruct Hs as [Hsa [Hsb Hv]].
-      pose proof (size_pos a). pose proof (size_pos b).
-      destruct (expr_of_value c a) as [[ea ra] ca] eqn:Ha.
-      destruct (expr_of_value ca b) as [[eb rb] cb] eqn:Hb.
-      destruct (IHa c ea ra ca Hsa Hwf ltac:(lia) Ha)
-        as [Hwfa [Hea [Hna Hrho_a]]].
-      destruct (IHb ca eb rb cb Hsb Hwfa ltac:(lia) Hb)
-        as [Hwfb [Heb [Hnb Hrho_b]]].
-      unfold keep in H. destruct (rsub ra rb) as [ rg | ] eqn:Hr.
-      + injection H as <- <- <-.
-        unfold rsub in Hr.
-        destruct ra as [ rga | ]; [ | discriminate ].
-        destruct rb as [ rgb | ]; [ | discriminate ].
-        refine (conj Hwfb (conj (extends_trans _ _ _ Hea Heb) (conj _ _)));
-          [ lia | ].
-        intros rho Hrho.
-        destruct (Hrho_b rho Hrho) as [Eb [Cb Rb]].
-        destruct (Hrho_a rho (agrees_extends _ _ _ Heb Hrho)) as [Ea [Ca Ra]].
-        specialize (Ra rga eq_refl). specialize (Rb rgb eq_refl).
-        pose proof (sub_sound _ _ _ _ _ Hr Ra Rb) as Hdiff.
-        pose proof (in_range_int64 _ _ Hdiff) as Hfits.
-        cbn [root] in *. rewrite Hv, (wrap64_id _ Hfits).
-        cbn [AffineExpr.eval consistent].
-        split; [ rewrite Ea, Eb; reflexivity | ].
-        split; [ exact (conj Ca Cb) | ].
-        intros rg' Hrg. injection Hrg as <-. exact Hdiff.
-      + finish_atomized Hwfb (extends_trans _ _ _ Hea Heb) H.
-    - (* Iadd_imm *)
-      destruct Hs as [Hsa Hv]. pose proof (size_pos a).
-      destruct (expr_of_value c a) as [[ea ra] ca] eqn:Ha.
-      destruct (IHa c ea ra ca Hsa Hwf ltac:(lia) Ha)
-        as [Hwfa [Hea [Hna Hrho_a]]].
-      unfold keep in H.
-      destruct (radd ra (Some (Range.const k))) as [ rg | ] eqn:Hr.
-      + injection H as <- <- <-.
-        unfold radd in Hr. destruct ra as [ rga | ]; [ | discriminate ].
-        refine (conj Hwfa (conj Hea (conj _ _))); [ lia | ].
-        intros rho Hrho.
-        destruct (Hrho_a rho Hrho) as [Ea [Ca Ra]].
-        specialize (Ra rga eq_refl).
-        pose proof (add_sound _ _ _ _ _ Hr Ra (const_sound k)) as Hsum.
-        pose proof (in_range_int64 _ _ Hsum) as Hfits.
-        cbn [root] in *. rewrite Hv, (wrap64_id _ Hfits).
-        cbn [AffineExpr.eval consistent].
-        split; [ rewrite Ea; reflexivity | ].
-        split; [ exact (conj Ca I) | ].
-        intros rg' Hrg. injection Hrg as <-. exact Hsum.
-      + finish_atomized Hwfa Hea H.
-    - (* Isub_imm *)
-      destruct Hs as [Hsa Hv]. pose proof (size_pos a).
-      destruct (expr_of_value c a) as [[ea ra] ca] eqn:Ha.
-      destruct (IHa c ea ra ca Hsa Hwf ltac:(lia) Ha)
-        as [Hwfa [Hea [Hna Hrho_a]]].
-      unfold keep in H.
-      destruct (rsub ra (Some (Range.const k))) as [ rg | ] eqn:Hr.
-      + injection H as <- <- <-.
-        unfold rsub in Hr. destruct ra as [ rga | ]; [ | discriminate ].
-        refine (conj Hwfa (conj Hea (conj _ _))); [ lia | ].
-        intros rho Hrho.
-        destruct (Hrho_a rho Hrho) as [Ea [Ca Ra]].
-        specialize (Ra rga eq_refl).
-        pose proof (sub_sound _ _ _ _ _ Hr Ra (const_sound k)) as Hdiff.
-        pose proof (in_range_int64 _ _ Hdiff) as Hfits.
-        cbn [root] in *. rewrite Hv, (wrap64_id _ Hfits).
-        cbn [AffineExpr.eval consistent].
-        split; [ rewrite Ea; reflexivity | ].
-        split; [ exact (conj Ca I) | ].
-        intros rg' Hrg. injection Hrg as <-. exact Hdiff.
-      + finish_atomized Hwfa Hea H.
-    - (* Ilsl *)
-      destruct Hs as [Hsa Hv]. pose proof (size_pos a).
-      destruct ((zero <=? k) && (k <? max_shift_bits))%sint63 eqn:Hk.
-      + shift_guard Hk.
-        destruct (expr_of_value c a) as [[ea ra] ca] eqn:Ha.
-        destruct (IHa c ea ra ca Hsa Hwf ltac:(lia) Ha)
+    - (* Intop *)
+      destruct iop;
+        try solve [ cbn [expr_of_value] in H;
+                    finish_atomized Hwf (extends_refl c) H ];
+        destruct args as [ | a [ | b [ | ? ? ] ] ];
+        try solve [ cbn [expr_of_value] in H;
+                    finish_atomized Hwf (extends_refl c) H ];
+        cbn [expr_of_value] in H; cbn [op_semantics] in Hs;
+        pose proof (Forall_inv IHargs) as IHa;
+        pose proof (Forall_inv (Forall_inv_tail IHargs)) as IHb;
+        destruct (two <=? c.(budget))%sint63 eqn:Hle;
+        [ | finish_atomized Hwf (extends_refl c) H
+          | | finish_atomized Hwf (extends_refl c) H ];
+        pay two Hwf Hle Hwf1 He1 Hn1 Hb1;
+        destruct (expr_of_value (spend c two) a) as [[ea ra] ca] eqn:Ha;
+        destruct (expr_of_value ca b) as [[eb rb] cb] eqn:Hb;
+        destruct (IHa _ ea ra ca Hwf1 ltac:(lia) Ha)
+          as [Hwfa [Hea [Hna Hrho_a]]];
+        destruct (IHb ca eb rb cb Hwfa ltac:(lia) Hb)
+          as [Hwfb [Heb [Hnb Hrho_b]]];
+        unfold keep in H.
+      + (* Iadd *)
+        destruct (radd ra rb) as [ rg | ] eqn:Hr.
+        * injection H as <- <- <-.
+          unfold radd in Hr.
+          destruct ra as [ rga | ]; [ | discriminate ].
+          destruct rb as [ rgb | ]; [ | discriminate ].
+          refine (conj Hwfb
+                    (conj (extends_trans _ _ _ He1
+                             (extends_trans _ _ _ Hea Heb))
+                       (conj _ _)));
+            [ lia | ].
+          intros rho Hrho.
+          destruct (Hrho_b rho Hrho) as [Eb [Cb Rb]].
+          destruct (Hrho_a rho (agrees_extends _ _ _ Heb Hrho)) as [Ea [Ca Ra]].
+          specialize (Ra rga eq_refl). specialize (Rb rgb eq_refl).
+          pose proof (add_sound _ _ _ _ _ Hr Ra Rb) as Hsum.
+          pose proof (in_range_int64 _ _ Hsum) as Hfits.
+          rewrite Hs, (wrap64_id _ Hfits).
+          cbn [AffineExpr.eval consistent].
+          split; [ rewrite Ea, Eb; reflexivity | ].
+          split; [ exact (conj Ca Cb) | ].
+          intros rg' Hrg. injection Hrg as <-. exact Hsum.
+        * finish_atomized Hwfb
+            (extends_trans _ _ _ He1 (extends_trans _ _ _ Hea Heb)) H.
+      + (* Isub *)
+        destruct (rsub ra rb) as [ rg | ] eqn:Hr.
+        * injection H as <- <- <-.
+          unfold rsub in Hr.
+          destruct ra as [ rga | ]; [ | discriminate ].
+          destruct rb as [ rgb | ]; [ | discriminate ].
+          refine (conj Hwfb
+                    (conj (extends_trans _ _ _ He1
+                             (extends_trans _ _ _ Hea Heb))
+                       (conj _ _)));
+            [ lia | ].
+          intros rho Hrho.
+          destruct (Hrho_b rho Hrho) as [Eb [Cb Rb]].
+          destruct (Hrho_a rho (agrees_extends _ _ _ Heb Hrho)) as [Ea [Ca Ra]].
+          specialize (Ra rga eq_refl). specialize (Rb rgb eq_refl).
+          pose proof (sub_sound _ _ _ _ _ Hr Ra Rb) as Hdiff.
+          pose proof (in_range_int64 _ _ Hdiff) as Hfits.
+          rewrite Hs, (wrap64_id _ Hfits).
+          cbn [AffineExpr.eval consistent].
+          split; [ rewrite Ea, Eb; reflexivity | ].
+          split; [ exact (conj Ca Cb) | ].
+          intros rg' Hrg. injection Hrg as <-. exact Hdiff.
+        * finish_atomized Hwfb
+            (extends_trans _ _ _ He1 (extends_trans _ _ _ Hea Heb)) H.
+    - (* Intop_imm *)
+      destruct iop;
+        try solve [ cbn [expr_of_value] in H;
+                    finish_atomized Hwf (extends_refl c) H ];
+        destruct args as [ | a [ | ? ? ] ];
+        try solve [ cbn [expr_of_value] in H;
+                    finish_atomized Hwf (extends_refl c) H ];
+        cbn [expr_of_value] in H; cbn [op_semantics] in Hs;
+        pose proof (Forall_inv IHargs) as IHa.
+      + (* Iadd *)
+        destruct (one <=? c.(budget))%sint63 eqn:Hle;
+          [ | finish_atomized Hwf (extends_refl c) H ].
+        pay one Hwf Hle Hwf1 He1 Hn1 Hb1.
+        destruct (expr_of_value (spend c one) a) as [[ea ra] ca] eqn:Ha.
+        destruct (IHa _ ea ra ca Hwf1 ltac:(lia) Ha)
+          as [Hwfa [Hea [Hna Hrho_a]]].
+        unfold keep in H.
+        destruct (radd ra (Some (Range.const k))) as [ rg | ] eqn:Hr.
+        * injection H as <- <- <-.
+          unfold radd in Hr. destruct ra as [ rga | ]; [ | discriminate ].
+          refine (conj Hwfa (conj (extends_trans _ _ _ He1 Hea) (conj _ _)));
+            [ lia | ].
+          intros rho Hrho.
+          destruct (Hrho_a rho Hrho) as [Ea [Ca Ra]].
+          specialize (Ra rga eq_refl).
+          pose proof (add_sound _ _ _ _ _ Hr Ra (const_sound k)) as Hsum.
+          pose proof (in_range_int64 _ _ Hsum) as Hfits.
+          rewrite Hs, (wrap64_id _ Hfits).
+          cbn [AffineExpr.eval consistent].
+          split; [ rewrite Ea; reflexivity | ].
+          split; [ exact (conj Ca I) | ].
+          intros rg' Hrg. injection Hrg as <-. exact Hsum.
+        * finish_atomized Hwfa (extends_trans _ _ _ He1 Hea) H.
+      + (* Isub *)
+        destruct (one <=? c.(budget))%sint63 eqn:Hle;
+          [ | finish_atomized Hwf (extends_refl c) H ].
+        pay one Hwf Hle Hwf1 He1 Hn1 Hb1.
+        destruct (expr_of_value (spend c one) a) as [[ea ra] ca] eqn:Ha.
+        destruct (IHa _ ea ra ca Hwf1 ltac:(lia) Ha)
+          as [Hwfa [Hea [Hna Hrho_a]]].
+        unfold keep in H.
+        destruct (rsub ra (Some (Range.const k))) as [ rg | ] eqn:Hr.
+        * injection H as <- <- <-.
+          unfold rsub in Hr. destruct ra as [ rga | ]; [ | discriminate ].
+          refine (conj Hwfa (conj (extends_trans _ _ _ He1 Hea) (conj _ _)));
+            [ lia | ].
+          intros rho Hrho.
+          destruct (Hrho_a rho Hrho) as [Ea [Ca Ra]].
+          specialize (Ra rga eq_refl).
+          pose proof (sub_sound _ _ _ _ _ Hr Ra (const_sound k)) as Hdiff.
+          pose proof (in_range_int64 _ _ Hdiff) as Hfits.
+          rewrite Hs, (wrap64_id _ Hfits).
+          cbn [AffineExpr.eval consistent].
+          split; [ rewrite Ea; reflexivity | ].
+          split; [ exact (conj Ca I) | ].
+          intros rg' Hrg. injection Hrg as <-. exact Hdiff.
+        * finish_atomized Hwfa (extends_trans _ _ _ He1 Hea) H.
+      + (* Ior *)
+        destruct ((zero <=? k) && (one <=? c.(budget)))%sint63 eqn:Hg;
+          [ | finish_atomized Hwf (extends_refl c) H ].
+        apply andb_prop in Hg. destruct Hg as [Hm Hle].
+        apply leb_int in Hm. rewrite to_Z_zero in Hm.
+        pay one Hwf Hle Hwf1 He1 Hn1 Hb1.
+        destruct (expr_of_value (spend c one) a) as [[ea ra] ca] eqn:Ha.
+        destruct (IHa _ ea ra ca Hwf1 ltac:(lia) Ha)
+          as [Hwfa [Hea [Hna Hrho_a]]].
+        pose proof (ctx_wf_budget _ Hwfa) as Hba.
+        destruct ra as [ rga | ].
+        * destruct (intern ca (Res id (Intop_imm Ior k) [a] i))
+            as [atom c1] eqn:Hi.
+          injection H as <- <- <-.
+          destruct (intern_spec ca _ atom c1 Hwfa ltac:(lia) Hi)
+            as [Hwf1' [He1' [Hn1' [Hb1' Hid]]]].
+          refine (conj Hwf1'
+                    (conj (extends_trans _ _ _ He1
+                             (extends_trans _ _ _ Hea He1'))
+                       (conj _ _)));
+            [ lia | ].
+          intros rho Hrho.
+          destruct (Hrho_a rho (agrees_extends _ _ _ He1' Hrho))
+            as [Ea [Ca Ra]].
+          pose proof (Hid rho Hrho) as Eid. specialize (Ra rga eq_refl).
+          cbn [AffineExpr.eval consistent].
+          split; [ exact Eid | ].
+          split.
+          { split; [ exact Ca | ]. split; [ exact Hm | ].
+            rewrite Eid, Ea. exact Hs. }
+          { intros rg Hrg. rewrite Hs. exact (or_mask_sound _ _ _ _ Hrg Ra). }
+        * finish_atomized Hwfa (extends_trans _ _ _ He1 Hea) H.
+      + (* Ilsl *)
+        destruct ((zero <=? k) && (k <? max_shift_bits)
+                  && (one <=? c.(budget)))%sint63 eqn:Hg;
+          [ | finish_atomized Hwf (extends_refl c) H ].
+        apply andb_prop in Hg. destruct Hg as [Hk Hle]. shift_guard Hk.
+        pay one Hwf Hle Hwf1 He1 Hn1 Hb1.
+        destruct (expr_of_value (spend c one) a) as [[ea ra] ca] eqn:Ha.
+        destruct (IHa _ ea ra ca Hwf1 ltac:(lia) Ha)
           as [Hwfa [Hea [Hna Hrho_a]]].
         unfold keep in H. destruct (rscale _ ra) as [ rg | ] eqn:Hr.
         * injection H as <- <- <-.
           unfold rscale in Hr. destruct ra as [ rga | ]; [ | discriminate ].
-          refine (conj Hwfa (conj Hea (conj _ _))); [ lia | ].
+          refine (conj Hwfa (conj (extends_trans _ _ _ He1 Hea) (conj _ _)));
+            [ lia | ].
           intros rho Hrho.
           destruct (Hrho_a rho Hrho) as [Ea [Ca Ra]].
           specialize (Ra rga eq_refl).
@@ -712,116 +880,98 @@ Section Semantics.
           rewrite to_Z_lsl_one in Hprod by lia.
           pose proof (in_range_int64 _ _ Hprod) as Hfits.
           rewrite Z.mul_comm in Hfits.
-          cbn [root] in *. specialize (Hv ltac:(lia)).
-          rewrite Hv, (wrap64_id _ Hfits).
+          specialize (Hs ltac:(lia)).
+          rewrite Hs, (wrap64_id _ Hfits).
           cbn [AffineExpr.eval consistent].
           split; [ rewrite to_Z_lsl_one by lia; rewrite Ea; lia | ].
           split; [ exact Ca | ].
           intros rg' Hrg. injection Hrg as <-. rewrite Z.mul_comm. exact Hprod.
-        * finish_atomized Hwfa Hea H.
-      + finish_atomized Hwf (extends_refl c) H.
-    - (* Iasr *)
-      destruct Hs as [Hsa Hv]. pose proof (size_pos a).
-      destruct ((zero <=? k) && (k <? max_shift_bits))%sint63 eqn:Hk.
-      + shift_guard Hk.
-        destruct (expr_of_value c a) as [[ea ra] ca] eqn:Ha.
-        destruct (IHa c ea ra ca Hsa Hwf ltac:(lia) Ha)
+        * finish_atomized Hwfa (extends_trans _ _ _ He1 Hea) H.
+      + (* Ilsr *)
+        destruct ((one <=? k) && (k <? word_bits))%sint63 eqn:Hk;
+          [ | finish_atomized Hwf (extends_refl c) H ].
+        shift_guard Hk.
+        pose proof (ctx_wf_budget _ Hwf) as Hbc.
+        destruct (intern c (Res id (Intop_imm Ilsr k) [a] i))
+          as [atom c1] eqn:Hi.
+        injection H as <- <- <-.
+        destruct (intern_spec c _ atom c1 Hwf ltac:(lia) Hi)
+          as [Hwf1 [He1 [Hn1 [Hb1 Hid]]]].
+        refine (conj Hwf1 (conj He1 (conj _ _))); [ lia | ].
+        intros rho Hrho. pose proof (Hid rho Hrho) as Eid.
+        specialize (Hs ltac:(lia)).
+        rewrite wrap64_id in Hs.
+        2: { apply in_range_int64 with (r := Range.shr_logical k).
+             apply shr_logical_sound; [ lia | apply mval_bounded ]. }
+        cbn [AffineExpr.eval consistent].
+        split; [ exact Eid | ].
+        split.
+        { split; [ lia | ]. exists (mval a). split; [ apply mval_bounded | ].
+          rewrite Eid. exact Hs. }
+        { intros rg Hrg. injection Hrg as <-. rewrite Hs.
+          apply shr_logical_sound; [ lia | apply mval_bounded ]. }
+      + (* Iasr *)
+        destruct ((zero <=? k) && (k <? max_shift_bits)
+                  && (one <=? c.(budget)))%sint63 eqn:Hg;
+          [ | finish_atomized Hwf (extends_refl c) H ].
+        apply andb_prop in Hg. destruct Hg as [Hk Hle]. shift_guard Hk.
+        pay one Hwf Hle Hwf1 He1 Hn1 Hb1.
+        destruct (expr_of_value (spend c one) a) as [[ea ra] ca] eqn:Ha.
+        destruct (IHa _ ea ra ca Hwf1 ltac:(lia) Ha)
           as [Hwfa [Hea [Hna Hrho_a]]].
+        pose proof (ctx_wf_budget _ Hwfa) as Hba.
         destruct ra as [ rga | ].
-        * destruct (intern ca v) as [id c1] eqn:Hi. injection H as <- <- <-.
-          destruct (intern_spec ca v id c1 Hwfa ltac:(lia) Hi)
-            as [Hwf1 [He1 [Hn1 Hid]]].
-          refine (conj Hwf1 (conj (extends_trans _ _ _ Hea He1) (conj _ _)));
+        * destruct (intern ca (Res id (Intop_imm Iasr k) [a] i))
+            as [atom c1] eqn:Hi.
+          injection H as <- <- <-.
+          destruct (intern_spec ca _ atom c1 Hwfa ltac:(lia) Hi)
+            as [Hwf1' [He1' [Hn1' [Hb1' Hid]]]].
+          refine (conj Hwf1'
+                    (conj (extends_trans _ _ _ He1
+                             (extends_trans _ _ _ Hea He1'))
+                       (conj _ _)));
             [ lia | ].
           intros rho Hrho.
-          destruct (Hrho_a rho (agrees_extends _ _ _ He1 Hrho))
+          destruct (Hrho_a rho (agrees_extends _ _ _ He1' Hrho))
             as [Ea [Ca Ra]].
           pose proof (Hid rho Hrho) as Eid.
-          cbn [root] in *. specialize (Hv ltac:(lia)).
+          specialize (Hs ltac:(lia)).
           cbn [AffineExpr.eval consistent].
           split; [ exact Eid | ].
           split.
           { split; [ exact Ca | ]. split; [ lia | ]. split.
             - rewrite Ea. apply mval_bounded.
-            - rewrite Eid, Ea. exact Hv. }
-          { intros rg Hrg. injection Hrg as <-. rewrite Hv.
+            - rewrite Eid, Ea. exact Hs. }
+          { intros rg Hrg. injection Hrg as <-. rewrite Hs.
             apply shr_signed_sound; [ lia | apply mval_bounded ]. }
-        * finish_atomized Hwfa Hea H.
-      + finish_atomized Hwf (extends_refl c) H.
-    - (* Ilsr *)
-      destruct ((one <=? k) && (k <? word_bits))%sint63 eqn:Hk.
-      + shift_guard Hk.
-        destruct (intern c v) as [id c1] eqn:Hi. injection H as <- <- <-.
-        destruct (intern_spec c v id c1 Hwf ltac:(lia) Hi)
-          as [Hwf1 [He1 [Hn1 Hid]]].
-        refine (conj Hwf1 (conj He1 (conj _ _))); [ lia | ].
-        intros rho Hrho. pose proof (Hid rho Hrho) as Eid.
-        destruct (Hs ltac:(lia)) as [r0 [Hr0 Hv]].
-        rewrite wrap64_id in Hv.
-        2: { apply in_range_int64 with (r := Range.shr_logical k).
-             apply shr_logical_sound; [ lia | exact Hr0 ]. }
-        cbn [root AffineExpr.eval consistent].
-        split; [ exact Eid | ].
-        split.
-        { split; [ lia | ]. exists r0. split; [ exact Hr0 | ].
-          rewrite Eid. exact Hv. }
-        { intros rg Hrg. injection Hrg as <-. rewrite Hv.
-          apply shr_logical_sound; [ lia | exact Hr0 ]. }
-      + finish_atomized Hwf (extends_refl c) H.
-    - (* Ior *)
-      destruct Hs as [Hsa Hv]. pose proof (size_pos a).
-      destruct (zero <=? m)%sint63 eqn:Hm.
-      + apply leb_int in Hm. rewrite to_Z_zero in Hm.
-        destruct (expr_of_value c a) as [[ea ra] ca] eqn:Ha.
-        destruct (IHa c ea ra ca Hsa Hwf ltac:(lia) Ha)
-          as [Hwfa [Hea [Hna Hrho_a]]].
-        destruct ra as [ rga | ].
-        * destruct (intern ca v) as [id c1] eqn:Hi. injection H as <- <- <-.
-          destruct (intern_spec ca v id c1 Hwfa ltac:(lia) Hi)
-            as [Hwf1 [He1 [Hn1 Hid]]].
-          refine (conj Hwf1 (conj (extends_trans _ _ _ Hea He1) (conj _ _)));
-            [ lia | ].
-          intros rho Hrho.
-          destruct (Hrho_a rho (agrees_extends _ _ _ He1 Hrho))
-            as [Ea [Ca Ra]].
-          pose proof (Hid rho Hrho) as Eid. specialize (Ra rga eq_refl).
-          cbn [root] in *. cbn [AffineExpr.eval consistent].
-          split; [ exact Eid | ].
-          split.
-          { split; [ exact Ca | ]. split; [ exact Hm | ].
-            rewrite Eid, Ea. exact Hv. }
-          { intros rg Hrg. rewrite Hv. exact (or_mask_sound _ _ _ _ Hrg Ra). }
-        * finish_atomized Hwfa Hea H.
-      + finish_atomized Hwf (extends_refl c) H.
-    - (* Icomp *)
-      pose proof (size_pos a). pose proof (size_pos b).
-      finish_atomized Hwf (extends_refl c) H.
-    - (* Icomp_imm *)
-      pose proof (size_pos a). finish_atomized Hwf (extends_refl c) H.
-    - (* Other *)
-      finish_atomized Hwf (extends_refl c) H.
+        * finish_atomized Hwfa (extends_trans _ _ _ He1 Hea) H.
   Qed.
 
-  (* The affine form of a tree has the machine value of its SSA value,
-     and the side facts pushed are true; both are well-formed. *)
-  Theorem linearize_sound : forall t c side f side' c',
-    tree_sound t -> ctx_wf c -> to_Z c.(next) + size t + 1 <= ocaml_max_int ->
-    linearize c side t = ((f, side'), c') ->
-    ctx_wf c' /\ extends c c' /\ to_Z c'.(next) <= to_Z c.(next) + size t + 1
+  (* The affine form of a value has the value's machine value, and the
+     side facts pushed are true; both are well-formed. *)
+  Theorem linearize_sound : forall v c side f side' c',
+    ctx_wf c -> to_Z c.(next) + linearize_atoms <= ocaml_max_int ->
+    linearize c side v = ((f, side'), c') ->
+    ctx_wf c' /\ extends c c'
+    /\ to_Z c'.(next) <= to_Z c.(next) + linearize_atoms
     /\ wf f /\ (Forall wf side -> Forall wf side')
     /\ forall rho, agrees rho c' ->
-         denote rho f = mval (root t)
+         denote rho f = mval v
          /\ (holds_all rho side -> holds_all rho side').
   Proof.
-    intros t c side f side' c' Hs Hwf Hn H. unfold linearize in H.
-    unfold holds_all.
-    destruct (expr_of_value c t) as [[e r] ce] eqn:He.
-    destruct (expr_of_value_sound t c e r ce Hs Hwf ltac:(lia) He)
+    intros v c side f side' c' Hwf Hn H. unfold linearize in H.
+    unfold holds_all. rewrite linearize_atoms_eq in *.
+    destruct (refill_spec c Hwf) as [Hwfr [Her [Hnr Hbr]]].
+    rewrite to_Z_max_nodes in Hbr.
+    destruct (expr_of_value (refill c) v) as [[e r] ce] eqn:He.
+    destruct (expr_of_value_sound v (refill c) e r ce Hwfr ltac:(lia) He)
       as [Hwfe [Hee [Hne Hrho_e]]].
+    pose proof (ctx_wf_budget _ Hwfe) as Hbe.
     destruct (to_affine e) as [ [form sides] | ] eqn:Hta.
     - injection H as <- <- <-.
       destruct (to_affine_wf e form sides Hta) as [Hwff Hwfs].
-      refine (conj Hwfe (conj Hee (conj _ (conj Hwff (conj _ _)))));
+      refine (conj Hwfe (conj (extends_trans _ _ _ Her Hee)
+                (conj _ (conj Hwff (conj _ _)))));
         [ lia | | ].
       + intros Hside. apply push_sides_Forall; assumption.
       + intros rho Hrho.
@@ -830,108 +980,83 @@ Section Semantics.
         split; [ rewrite Ed; exact Ee | ].
         intros Hside. apply push_sides_Forall; [ exact Hside | ].
         apply Hsides. exact Ce.
-    - destruct (intern ce (root t)) as [id c1] eqn:Hi. injection H as <- <- <-.
-      destruct (intern_spec ce (root t) id c1 Hwfe ltac:(lia) Hi)
-        as [Hwf1 [He1 [Hn1 Hid]]].
-      refine (conj Hwf1 (conj (extends_trans _ _ _ Hee He1)
-                (conj _ (conj (var_wf id) (conj _ _)))));
+    - destruct (intern ce v) as [atom c1] eqn:Hi. injection H as <- <- <-.
+      destruct (intern_spec ce v atom c1 Hwfe ltac:(lia) Hi)
+        as [Hwf1 [He1 [Hn1 [_ Hid]]]].
+      refine (conj Hwf1
+                (conj (extends_trans _ _ _ Her (extends_trans _ _ _ Hee He1))
+                   (conj _ (conj (var_wf atom) (conj _ _)))));
         [ lia | intros Hside; exact Hside | ].
       intros rho Hrho. split; [ rewrite var_denote; apply Hid; exact Hrho | ].
       intros Hside. exact Hside.
   Qed.
 
+  (* A value that is not a comparison yields no facts: close the goal of
+     [cond_facts_sound] for it. *)
+  Ltac no_facts Hwf H :=
+    cbn [cond_facts] in H; injection H as <- <- <-;
+    refine (conj Hwf (conj (extends_refl _)
+              (conj _ (conj (Forall_nil _) (conj _ _)))));
+    [ lia
+    | intros Hside; exact Hside
+    | intros rho _; split;
+      [ intros Hside; exact Hside | intros _; constructor ] ].
+
   (* The facts derived from a comparison hold when the comparison came out
      as the branch taken requires; they, and the side facts, are
      well-formed. *)
   Theorem cond_facts_sound : forall cond c side negate fs side' c',
-    tree_sound cond -> ctx_wf c ->
-    to_Z c.(next) + size cond + 2 <= ocaml_max_int ->
+    ctx_wf c -> to_Z c.(next) + cond_atoms <= ocaml_max_int ->
     cond_facts c side negate cond = ((fs, side'), c') ->
-    ctx_wf c' /\ extends c c'
+    ctx_wf c' /\ extends c c' /\ to_Z c'.(next) <= to_Z c.(next) + cond_atoms
     /\ Forall wf fs /\ (Forall wf side -> Forall wf side')
     /\ forall rho, agrees rho c' ->
          (holds_all rho side -> holds_all rho side')
          /\ (test_result negate cond -> holds_all rho fs).
   Proof.
-    intros cond c side negate fs side' c' Hs Hwf Hn H.
-    destruct cond as [v n | v a b | v a b | v a k | v a k | v a k | v a k
-                      | v k | v a m | v cmp a b | v cmp a k | v];
-      cbn [cond_facts] in H;
-      try (injection H as <- <- <-;
-           refine (conj Hwf (conj (extends_refl c)
-                     (conj (Forall_nil _) (conj _ _))));
-           [intros Hside; exact Hside
-           | intros rho _; split;
-             [ intros Hside; exact Hside | intros _; constructor ]]).
-    - (* Icomp *)
-      cbn [tree_sound] in Hs. destruct Hs as [Hsa Hsb]. cbn [size] in Hn.
-      pose proof (size_pos a). pose proof (size_pos b).
-      destruct (linearize c side a) as [[la side1] ca] eqn:Hla.
-      destruct (linearize ca side1 b) as [[lb side2] cb] eqn:Hlb.
+    intros cond c side negate fs side' c' Hwf Hn H.
+    rewrite cond_atoms_eq in *. pose proof linearize_atoms_eq as Hla.
+    destruct cond as [id op args i | bl i]; [ | no_facts Hwf H ].
+    destruct op as [ | | | ? | ? | ? | ? | ? | ? | ? | ? | ? | ? | ? ? ? | iop
+                   | ? | iop k | ? | ? ? | ? | ? | ? | ? | | | | ? | ? | | | |
+                   | | ? ];
+      try solve [ no_facts Hwf H ];
+      destruct iop; try solve [ no_facts Hwf H ];
+      destruct args as [ | a [ | b [ | ? ? ] ] ]; try solve [ no_facts Hwf H ];
+      cbn [cond_facts] in H; cbn [test_result].
+    - (* Intop (Icomp cmp), [a; b] *)
+      destruct (linearize c side a) as [[la side1] ca] eqn:Hlina.
+      destruct (linearize ca side1 b) as [[lb side2] cb] eqn:Hlinb.
       injection H as <- <- <-.
-      destruct (linearize_sound a c side la side1 ca Hsa Hwf ltac:(lia) Hla)
+      destruct (linearize_sound a c side la side1 ca Hwf ltac:(lia) Hlina)
         as [Hwfa [Hea [Hna [Hwfla [Hwfs1 Hrho_a]]]]].
-      destruct (linearize_sound b ca side1 lb side2 cb Hsb Hwfa ltac:(lia) Hlb)
+      destruct (linearize_sound b ca side1 lb side2 cb Hwfa ltac:(lia) Hlinb)
         as [Hwfb [Heb [Hnb [Hwflb [Hwfs2 Hrho_b]]]]].
       refine (conj Hwfb (conj (extends_trans _ _ _ Hea Heb)
-                (conj (facts_wf _ _ _ _ Hwfla Hwflb) (conj _ _)))).
+                (conj _ (conj (facts_wf _ _ _ _ Hwfla Hwflb) (conj _ _)))));
+        [ lia | | ].
       + intros Hside. apply Hwfs2, Hwfs1, Hside.
       + intros rho Hrho.
         destruct (Hrho_b rho Hrho) as [Eb Sb].
         destruct (Hrho_a rho (agrees_extends _ _ _ Heb Hrho)) as [Ea Sa].
         split; [ intros Hside; apply Sb, Sa, Hside | ].
-        intros Ht. cbn [test_result] in Ht.
-        unfold holds_all, holds.
+        intros Ht. unfold holds_all, holds.
         apply facts_sound; [ exact Hwfla | exact Hwflb | ].
         cbv zeta. rewrite Ea, Eb, Ht. destruct negate; reflexivity.
-    - (* Icomp_imm *)
-      cbn [tree_sound] in Hs. cbn [size] in Hn. pose proof (size_pos a).
-      destruct (linearize c side a) as [[la side1] ca] eqn:Hla.
+    - (* Intop_imm (Icomp cmp) k, [a] *)
+      destruct (linearize c side a) as [[la side1] ca] eqn:Hlina.
       injection H as <- <- <-.
-      destruct (linearize_sound a c side la side1 ca Hs Hwf ltac:(lia) Hla)
+      destruct (linearize_sound a c side la side1 ca Hwf ltac:(lia) Hlina)
         as [Hwfa [Hea [Hna [Hwfla [Hwfs1 Hrho_a]]]]].
       refine (conj Hwfa (conj Hea
-                (conj (facts_wf _ _ _ _ Hwfla (constant_wf k))
-                   (conj Hwfs1 _)))).
+                (conj _ (conj (facts_wf _ _ _ _ Hwfla (constant_wf k))
+                   (conj Hwfs1 _)))));
+        [ lia | ].
       intros rho Hrho. destruct (Hrho_a rho Hrho) as [Ea Sa].
       split; [ exact Sa | ].
-      intros Ht. cbn [test_result] in Ht.
-      unfold holds_all, holds.
+      intros Ht. unfold holds_all, holds.
       apply facts_sound; [ exact Hwfla | apply constant_wf | ].
       cbv zeta. rewrite Ea, constant_denote, Ht. destruct negate; reflexivity.
-  Qed.
-
-  (* The atom counter after [cond_facts], which [guards_at_sound] needs
-     to chain the calls. *)
-  Lemma cond_facts_next : forall cond c side negate fs side' c',
-    tree_sound cond -> ctx_wf c ->
-    to_Z c.(next) + size cond + 2 <= ocaml_max_int ->
-    cond_facts c side negate cond = ((fs, side'), c') ->
-    to_Z c'.(next) <= to_Z c.(next) + size cond + 2.
-  Proof.
-    intros cond c side negate fs side' c' Hs Hwf Hn H.
-    pose proof (size_pos cond) as Hpos.
-    destruct cond as [v n | v a b | v a b | v a k | v a k | v a k | v a k
-                      | v k | v a m | v cmp a b | v cmp a k | v];
-      cbn [cond_facts] in H; try (injection H as <- <- <-; lia).
-    - (* Icomp *)
-      cbn [tree_sound] in Hs. destruct Hs as [Hsa Hsb]. cbn [size] in *.
-      pose proof (size_pos a). pose proof (size_pos b).
-      destruct (linearize c side a) as [[la side1] ca] eqn:Hla.
-      destruct (linearize ca side1 b) as [[lb side2] cb] eqn:Hlb.
-      injection H as <- <- <-.
-      destruct (linearize_sound a c side la side1 ca Hsa Hwf ltac:(lia) Hla)
-        as [Hwfa [_ [Hna _]]].
-      destruct (linearize_sound b ca side1 lb side2 cb Hsb Hwfa ltac:(lia) Hlb)
-        as [_ [_ [Hnb _]]].
-      lia.
-    - (* Icomp_imm *)
-      cbn [tree_sound] in Hs. cbn [size] in *. pose proof (size_pos a).
-      destruct (linearize c side a) as [[la side1] ca] eqn:Hla.
-      injection H as <- <- <-.
-      destruct (linearize_sound a c side la side1 ca Hs Hwf ltac:(lia) Hla)
-        as [_ [_ [Hna _]]].
-      lia.
   Qed.
 
   (* The walk of [guards_at] over any list of dominators, from any
@@ -940,8 +1065,7 @@ Section Semantics.
      with the final context, the side facts true and the facts true when
      the branches went as assumed. *)
   Lemma guards_fold_sound : forall target doms acc side c fs side' c',
-    (forall v, tree_sound (tree_of_value v)) -> ctx_wf c ->
-    to_Z c.(next) + guards_sum target doms <= ocaml_max_int ->
+    ctx_wf c -> to_Z c.(next) + guards_sum target doms <= ocaml_max_int ->
     List.fold_left (guard_facts target) doms ((acc, side), c)
     = ((fs, side'), c') ->
     ctx_wf c' /\ extends c c'
@@ -953,7 +1077,7 @@ Section Semantics.
              holds_all rho acc -> holds_all rho fs).
   Proof.
     intros target doms. induction doms as [ | d doms IH ];
-      intros acc side c fs side' c' Htrees Hwf Hn H;
+      intros acc side c fs side' c' Hwf Hn H;
       cbn [List.fold_left] in H.
     - injection H as <- <- <-. rewrite guards_sum_nil in *.
       refine (conj Hwf (conj (extends_refl c) (conj _ (conj _ (conj _ _)))));
@@ -974,17 +1098,14 @@ Section Semantics.
                  holds_all rho acc1)).
       { unfold guard_facts, guard_size in *.
         destruct (guard_test target d) as [[index negate] | ] eqn:Hg.
-        - destruct (cond_facts c side negate (tree_of_value index))
+        - destruct (cond_facts c side negate index)
             as [[fs1 side1] c1] eqn:Hcf.
           exists (fs1 ++ acc), side1, c1. split; [ reflexivity | ].
-          destruct (cond_facts_sound (tree_of_value index) c side negate
-                      fs1 side1 c1 (Htrees index) Hwf ltac:(lia) Hcf)
-            as [Hwf1 [He1 [Hwffs [Hwfs1 Hrho1]]]].
-          pose proof (cond_facts_next (tree_of_value index) c side negate
-                        fs1 side1 c1 (Htrees index) Hwf ltac:(lia) Hcf)
-            as Hn1.
-          refine (conj Hwf1 (conj He1 (conj _ (conj _ (conj Hwfs1 _)))));
-            [ lia | intros Hacc; apply Forall_app; split; assumption | ].
+          destruct (cond_facts_sound index c side negate fs1 side1 c1 Hwf
+                      ltac:(lia) Hcf)
+            as [Hwf1 [He1 [Hn1 [Hwffs [Hwfs1 Hrho1]]]]].
+          refine (conj Hwf1 (conj He1 (conj Hn1 (conj _ (conj Hwfs1 _)))));
+            [ intros Hacc; apply Forall_app; split; assumption | ].
           intros rho Hrho. destruct (Hrho1 rho Hrho) as [S1 T1].
           split; [ exact S1 | ].
           intros Htaken Hacc. unfold holds_all in *. apply Forall_app.
@@ -997,7 +1118,7 @@ Section Semantics.
       destruct Hstep
         as [acc1 [side1 [c1 [Est [Hwf1 [He1 [Hn1 [Hacc1 [Hside1 Hrho1]]]]]]]]].
       rewrite Est in H.
-      destruct (IH acc1 side1 c1 fs side' c' Htrees Hwf1 ltac:(lia) H)
+      destruct (IH acc1 side1 c1 fs side' c' Hwf1 ltac:(lia) H)
         as [Hwf' [He' [Hn' [Hacc' [Hside' Hrho']]]]].
       refine (conj Hwf' (conj (extends_trans _ _ _ He1 He')
                 (conj _ (conj _ (conj _ _)))));
@@ -1014,8 +1135,7 @@ Section Semantics.
      under a valuation agreeing with the final context when the dominating
      branches went as assumed; the side facts are kept true. *)
   Theorem guards_at_sound : forall target c side fs side' c',
-    (forall v, tree_sound (tree_of_value v)) -> ctx_wf c ->
-    to_Z c.(next) + guards_size target <= ocaml_max_int ->
+    ctx_wf c -> to_Z c.(next) + guards_size target <= ocaml_max_int ->
     guards_at c side target = ((fs, side'), c') ->
     ctx_wf c' /\ extends c c'
     /\ to_Z c'.(next) <= to_Z c.(next) + guards_size target
@@ -1024,10 +1144,10 @@ Section Semantics.
          (holds_all rho side -> holds_all rho side')
          /\ (guards_taken target -> holds_all rho fs).
   Proof.
-    intros target c side fs side' c' Htrees Hwf Hn H.
+    intros target c side fs side' c' Hwf Hn H.
     unfold guards_at, OxCamlList.fold_left in H.
     destruct (guards_fold_sound target (strict_dominators target) [] side c
-                fs side' c' Htrees Hwf Hn H)
+                fs side' c' Hwf Hn H)
       as [Hwf' [He [Hn' [Hfs [Hside Hrho]]]]].
     refine (conj Hwf' (conj He (conj Hn' (conj (Hfs (Forall_nil _))
               (conj Hside _))))).

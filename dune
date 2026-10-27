@@ -748,7 +748,6 @@
   ssa_tail_call
   ssa_of_cmm
   cfg_of_ssa
-  ssa_view
   ;; backend/ssa/rocq/ (extracted from Rocq by rocq/Makefile)
   SsaModel
   SsaGraph

@@ -95,26 +95,11 @@ let graph_with_result build =
   | Continue { args = [| Arg result |]; _ } -> result
   | _ -> failwith "unexpected terminator"
 
-let rec tree_size (tree : SsaModel.tree) =
-  match tree with
-  | Const_int _ | Ilsr _ | Other _ -> 1
-  | Iadd (_, a, b) | Isub (_, a, b) | Icomp (_, _, a, b) ->
-    1 + tree_size a + tree_size b
-  | Iadd_imm (_, a, _)
-  | Isub_imm (_, a, _)
-  | Ilsl (_, a, _)
-  | Iasr (_, a, _)
-  | Ior (_, a, _)
-  | Icomp_imm (_, _, a, _) ->
-    1 + tree_size a
-
 let check_atom result =
-  let tree = Ssa_view.tree_of_value result in
-  assert (Value.equal (SsaModel.root tree) result);
-  (* This is a regression bound, deliberately larger than the implementation's
-     budget. Both long paths and shared DAGs must produce a small tree. *)
-  assert (tree_size tree <= 1024);
-  let (form, _), ctx = AffineSsa.linearize AffineSsa.new_ctx [] tree in
+  let (form, _), ctx = AffineSsa.linearize AffineSsa.new_ctx [] result in
+  (* The walk of the value graph is bounded by the linearizer's node budget, so
+     both long paths and shared DAGs allocate few atoms. *)
+  assert (List.length ctx.AffineSsa.atoms <= 258);
   match form with
   | { FourierMotzkin.Affine.const = 0; terms = [(id, 1)] } ->
     assert (Value.equal (List.assoc id ctx.atoms) result)
@@ -131,9 +116,7 @@ let () =
         let x = emit (Const_int 5n) [||] in
         emit (Intop_imm (Iadd, 7)) [| x |])
   in
-  let (form, side), _ =
-    AffineSsa.linearize AffineSsa.new_ctx [] (Ssa_view.tree_of_value small)
-  in
+  let (form, side), _ = AffineSsa.linearize AffineSsa.new_ctx [] small in
   assert (form = { FourierMotzkin.Affine.const = 12; terms = [] });
   assert (side = []);
   let zero_shift =
@@ -143,8 +126,8 @@ let () =
   in
   check_atom zero_shift;
   (* The shared graph has only 34 instructions, but unbounded unfolding produces
-     196607 nodes. The outer shift is deliberately not recognized by the
-     linearizer: expansion must be bounded before it is called. *)
+     196607 nodes. The outer shift is not recognized by the linearizer, so the
+     result is an atom without any walk. *)
   let shared =
     graph_with_result (fun emit ->
         let x = ref (emit (Const_int 1n) [||]) in
@@ -155,8 +138,8 @@ let () =
         emit (Intop_imm (Ilsl, 16)) [| !x |])
   in
   check_atom shared;
-  (* Also exercise both extracted traversals on a shared expression made
-     entirely of recognized operations. *)
+  (* A shared expression made entirely of recognized operations: the walk must
+     stop at the node budget. *)
   let shared_add =
     graph_with_result (fun emit ->
         let x = ref (emit (Const_int 1n) [||]) in

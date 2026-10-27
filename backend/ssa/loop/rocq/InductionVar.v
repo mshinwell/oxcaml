@@ -1,8 +1,8 @@
 (* The basic induction variables of a natural loop: the header parameters
    that every back edge updates by the same loop-invariant step. The
    extraction of this file, InductionVar.ml, is the implementation; the
-   table SsaModel.v declares as [op_def] is built by
-   [Ssa_view.compute_op_def].
+   table SsaModel.v declares as [op_def] is built by the pass
+   (delete_empty_loops.ml).
 
    See the reading guide at the top of LoopComparisons.v for the Rocq
    vocabulary, SsaModel.v for how the models see an SSA graph, and
@@ -45,11 +45,11 @@ Local Open Scope sint63_scope.
    which LoopTermination.v assumes of a run ([iter_invariant] there). *)
 Definition is_loop_invariant (op_def : op_def) (header : block) (v : value)
     : bool :=
-  match view_value v with
-  | Res _ (Operation.Const_int _ | Const_float32 _ | Const_float _
+  match v with
+  | Res _ (Const_int _ | Const_float32 _ | Const_float _
            | Const_symbol _ | Const_vec128 _ | Const_vec256 _
-           | Const_vec512 _ | Const_mask _) _ => true
-  | Res id _ _ =>
+           | Const_vec512 _ | Const_mask _) _ _ => true
+  | Res id _ _ _ =>
     match op_def_find op_def id with
     | None => false
     | Some bl => strictly_dominates bl header
@@ -107,18 +107,18 @@ Definition signed_step (biv : biv) : option int :=
    a loop-invariant value. *)
 Definition classify_update (is_self : value -> bool) (op_def : op_def)
     (header : block) (v : value) : option (biv_step * biv_sign) :=
-  match view_value v with
-  | Res _ (Intop_imm Operation.Iadd c) [x] =>
+  match v with
+  | Res _ (Intop_imm Iadd c) [x] _ =>
     if is_self x then Some (Step_const c, Add) else None
-  | Res _ (Intop_imm Operation.Isub c) [x] =>
+  | Res _ (Intop_imm Isub c) [x] _ =>
     if is_self x then Some (Step_const c, Sub) else None
-  | Res _ (Intop Operation.Iadd) [x; y] =>
+  | Res _ (Intop Iadd) [x; y] _ =>
     if is_self x && is_loop_invariant op_def header y
     then Some (Step_var y, Add)
     else if is_self y && is_loop_invariant op_def header x
     then Some (Step_var x, Add)
     else None
-  | Res _ (Intop Operation.Isub) [x; y] =>
+  | Res _ (Intop Isub) [x; y] _ =>
     if is_self x && is_loop_invariant op_def header y
     then Some (Step_var y, Sub)
     else None
@@ -224,11 +224,11 @@ Definition analyze (op_def : op_def) (blocks : list block)
    in a block that dominates [header] without being it. *)
 Definition loop_invariant_value (op_def : op_def) (header : block)
     (v : value) : Prop :=
-  match view_value v with
-  | Res _ (Operation.Const_int _ | Const_float32 _ | Const_float _
+  match v with
+  | Res _ (Const_int _ | Const_float32 _ | Const_float _
            | Const_symbol _ | Const_vec128 _ | Const_vec256 _
-           | Const_vec512 _ | Const_mask _) _ => True
-  | Res id _ _ =>
+           | Const_vec512 _ | Const_mask _) _ _ => True
+  | Res id _ _ _ =>
     exists bl,
       op_def_find op_def id = Some bl
       /\ dominates bl header = true /\ bl <> header
@@ -503,7 +503,7 @@ Proof.
     apply andb_true_iff in Hs. destruct Hs as [Hd Hne].
     split; [ exact Hd | ]. intros ->.
     rewrite block_eqb_refl in Hne. discriminate. }
-  destruct (view_value v) as [id op args | bl i].
+  destruct v as [id op args i | bl i].
   - destruct op; try exact I;
       destruct (op_def_find op_def id) as [bl | ]; try discriminate;
       (exists bl; split; [ reflexivity | apply Hstrict; exact H ]).

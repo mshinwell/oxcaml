@@ -37,7 +37,7 @@ let find_deletions op_def0 blocks =
       then
         match find_exit_branch loop0 with
         | Some exit_info -> (
-          match Ssa_view.params exit_info.exit_target with
+          match params exit_info.exit_target with
           | [] ->
             if
               (single_exit loop0 exit_info.exit_target

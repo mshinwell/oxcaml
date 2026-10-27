@@ -15,8 +15,8 @@ type loop_result =
     useless : bool
   }
 
-(** val param_uses_ok : block list -> block -> int -> value -> value list ->
-    bool **)
+(** val param_uses_ok : block list -> block -> int -> Ssa.finished Ssa.Value.t
+    -> Ssa.finished Ssa.Value.t list -> bool **)
 
 let param_uses_ok blocks header0 k cond updates =
   all_uses_ok blocks (is_param header0 k)
@@ -24,15 +24,15 @@ let param_uses_ok blocks header0 k cond updates =
       instr_defines_value i cond || List.exists (instr_defines_value i) updates)
     (fun _ _ -> false)
 
-(** val cond_uses_ok : block list -> block -> value -> bool **)
+(** val cond_uses_ok : block list -> block -> Ssa.finished Ssa.Value.t -> bool **)
 
 let cond_uses_ok blocks header0 cond =
   all_uses_ok blocks (Ssa.Value.equal cond)
     (fun _ -> false)
     (fun bl _ -> Ssa.Block.equal bl header0)
 
-(** val update_uses_ok : block list -> block -> blockset -> int -> value ->
-    value -> bool **)
+(** val update_uses_ok : block list -> block -> blockset -> int -> Ssa.finished
+    Ssa.Value.t -> Ssa.finished Ssa.Value.t -> bool **)
 
 let update_uses_ok blocks header0 back_preds k cond u =
   all_uses_ok blocks (Ssa.Value.equal u)
@@ -58,7 +58,7 @@ let is_dead blocks biv0 =
 (** val loop_is_useless : natural_loop -> biv_result list -> bool **)
 
 let loop_is_useless loop0 bivs0 =
-  same_length (Ssa_view.params loop0.header) bivs0
+  same_length (params loop0.header) bivs0
   && List.for_all (fun b -> b.dead) bivs0
 
 (** val analyze : block list -> (natural_loop * biv list) list -> loop_result
