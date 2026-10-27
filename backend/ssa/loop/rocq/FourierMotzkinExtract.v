@@ -1,7 +1,7 @@
 (* Extraction directives for FourierMotzkin.v (the extraction itself is
    run by Extract.v). Everything about the functions is proved in
    FourierMotzkin.v, and the mappings of the basic types, [int], [Int64]
-   and the list functions onto OxCaml's are in OcamlExtract.v. What this
+   and the list functions onto OxCaml's are in OxCamlExtract.v. What this
    file adds, and what has to be trusted by inspection, is the OxCaml for
    the four overflow tests [add_fits], [mul_fits], [add_fits64] and
    [mul_fits64]. The model takes each as given, with an axiom saying that
@@ -10,7 +10,7 @@
    divide-back check for multiplication. *)
 
 From Stdlib Require Import Extraction.
-From OxCamlStdlib Require Import OcamlExtract.
+From OxCamlStdlib Require Import OxCamlExtract.
 From OxCamlLoop Require Import FourierMotzkin.
 
 Extract Constant add_fits =>
@@ -44,7 +44,8 @@ Extract Constant mul_fits64 =>
     then false
     else Int64.equal (Int64.div (Int64.mul a b) a) b".
 
-(* The size limits, as literals: a primitive-integer constant would
-   otherwise be printed as [Uint63.of_int 10000]. *)
+(* The size limits of FourierMotzkin.v, repeated as literals: a
+   primitive-integer constant would otherwise be printed as
+   [Uint63.of_int 500]. Keep the two in step. *)
 Extract Inlined Constant max_atoms => "64".
-Extract Inlined Constant max_ineqs => "10000".
+Extract Inlined Constant max_ineqs => "500".

@@ -2,7 +2,7 @@
    NaturalLoop.v, InductionVar.v, LoopTermination.v and DeadInductionVar.v
    into the decision. The extraction of this file, DeleteEmptyLoops.ml, is
    the implementation; delete_empty_loops.ml in the parent directory wraps
-   it, builds the table of [Induction_var.compute_op_def] it is given, and
+   it, builds the table of [Ssa_view.compute_op_def] it is given, and
    rewrites the graph at the (header, exit target) pairs it returns ([run],
    over [Ssa_reducer]), which is not modelled.
 
@@ -39,7 +39,7 @@
    rewrite included. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
-From OxCamlStdlib Require Import OcamlOption OcamlInt OcamlList.
+From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlList.
 From OxCamlSsa Require Import SsaModel.
 From OxCamlLoop Require Import NaturalLoop InductionVar LoopTermination
   DeadInductionVar.
@@ -88,7 +88,7 @@ Definition loop_terminates (op_def : op_def) (bivs : list InductionVar.biv)
   end.
 
 (* The loops to delete, as (header, exit target) pairs, given the graph's
-   block list and the table of [Induction_var.compute_op_def]. *)
+   block list and the table of [Ssa_view.compute_op_def]. *)
 Definition find_deletions (op_def : op_def) (blocks : list block)
     : list (block * block) :=
   let loops := InductionVar.analyze op_def blocks in
@@ -127,28 +127,38 @@ Definition body_does_nothing (l : natural_loop) : Prop :=
 
 (* Every edge out of a block of the body stays in the body or goes to
    [exit]. *)
-Definition leaves_only_to (l : natural_loop) (exit : block) : Prop :=
+Definition exits_only_to (l : natural_loop) (exit : block) : Prop :=
   forall bl, set_mem bl l.(body) = true ->
     forall s, In s (all_successors bl) -> set_mem s l.(body) = true \/ s = exit.
+
+(* The header's exit branch, in the shape LoopTermination.v recognises,
+   goes to [exit], which takes no arguments. *)
+Definition exit_branch_to (l : natural_loop) (exit : block) : Prop :=
+  exists exit_info,
+    find_exit_branch l = Some exit_info
+    /\ exit_info.(exit_target) = exit /\ params exit = [].
+
+Definition no_infinite_run (op_def : op_def) (l : natural_loop) : Prop :=
+  forall iter, infinite_run op_def l iter -> False.
+
+(* Every parameter of the header is one of [bivs], and each of those is a
+   basic induction variable of [l] that is dead. *)
+Definition params_are_dead_bivs (op_def : op_def) (blocks : list block)
+    (l : natural_loop) (bivs : list InductionVar.biv) : Prop :=
+  (forall k v, nth_int (params l.(header)) k = Some v ->
+     exists b, In b bivs /\ b.(param_index) = k)
+  /\ (forall b, In b bivs -> biv_spec op_def l b /\ dead_spec blocks b).
 
 (* What holds of a loop [l], with the basic induction variables [bivs]
    InductionVar.v reports for it, when [find_deletions] deletes it. *)
 Definition deletable (op_def : op_def) (blocks : list block)
     (l : natural_loop) (bivs : list InductionVar.biv) (exit : block)
     : Prop :=
-  (* the exit branch, whose target takes no arguments *)
-  (exists exit_info,
-     find_exit_branch l = Some exit_info
-     /\ exit_info.(exit_target) = exit /\ params exit = [])
-  (* no run of the loop visits the header for ever *)
-  /\ (forall iter, infinite_run op_def l iter -> False)
-  (* every header parameter is a dead basic induction variable *)
-  /\ length (params l.(header)) = length bivs
-  /\ (forall b, In b bivs -> biv_spec op_def l b /\ dead_spec blocks b)
-  (* the body does nothing observable ... *)
+  exit_branch_to l exit
+  /\ no_infinite_run op_def l
+  /\ params_are_dead_bivs op_def blocks l bivs
   /\ body_does_nothing l
-  (* ... and can only be left through the exit *)
-  /\ leaves_only_to l exit.
+  /\ exits_only_to l exit.
 
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
@@ -166,7 +176,7 @@ Proof.
 Qed.
 
 Lemma single_exit_spec : forall l exit,
-  single_exit l exit = true -> leaves_only_to l exit.
+  single_exit l exit = true -> exits_only_to l exit.
 Proof.
   intros l exit H bl Hbl s Hs. unfold single_exit in H.
   rewrite set_for_all_spec in H. specialize (H bl Hbl).
@@ -205,17 +215,20 @@ Proof.
   injection H as <- <-.
   exists dr.(loop), (map biv dr.(bivs)).
   split; [ exact Hin | split; [ reflexivity | ] ].
-  destruct (InductionVar.analyze_spec _ _ _ _ Hin) as [_ [_ Hspec]].
+  destruct (InductionVar.analyze_spec _ _ _ _ Hin) as [_ [Hdef Hspec]].
   destruct (Huseless Hu) as [Hlen Hdead].
-  unfold deletable. split; [ | split; [ | split; [ | split; [ | split ] ] ] ].
-  - exists exit_info. split; [ exact Hexit | split; [ reflexivity | ] ].
-    exact Hparams.
-  - intros iter Hrun.
+  unfold deletable. split; [ | split; [ | split; [ | split ] ] ].
+  - unfold exit_branch_to. exists exit_info.
+    split; [ exact Hexit | split; [ reflexivity | exact Hparams ] ].
+  - unfold no_infinite_run. intros iter Hrun.
     exact (analyze_Terminates_of_graph _ _ _ Hrun _ _ Hin Hanalyze).
-  - rewrite length_map. exact Hlen.
-  - intros b Hb. split; [ apply Hspec; exact Hb | ].
-    apply in_map_iff in Hb. destruct Hb as [br [<- Hbr]].
-    destruct (Hbivs br Hbr) as [_ Hd]. apply Hd, Hdead. exact Hbr.
+  - unfold params_are_dead_bivs. split.
+    + intros k v Hk. rewrite Hdef.
+      apply (analyze_loop_cover _ _ _ v); [ | exact Hk ].
+      rewrite <- Hdef, length_map. symmetry. exact Hlen.
+    + intros b Hb. split; [ apply Hspec; exact Hb | ].
+      apply in_map_iff in Hb. destruct Hb as [br [<- Hbr]].
+      destruct (Hbivs br Hbr) as [_ Hd]. apply Hd, Hdead. exact Hbr.
   - apply body_effect_free_spec. exact Hfree.
   - apply single_exit_spec. exact Hsingle.
 Qed.

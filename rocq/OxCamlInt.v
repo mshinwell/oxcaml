@@ -140,3 +140,41 @@ Ltac case_int_tests :=
   repeat match goal with
          | H : to_Z ?s = ?c |- _ => rewrite H in *
          end.
+
+(* Rearrangements of sums of [int]s, which hold with wrap-around. *)
+
+Lemma cmod_add_l : forall a b d,
+  Sint63.cmod (Sint63.cmod a d + b) d = Sint63.cmod (a + b) d.
+Proof.
+  intros a b d. unfold Sint63.cmod.
+  replace ((a + d / 2) mod d - d / 2 + b + d / 2)
+    with ((a + d / 2) mod d + b) by ring.
+  rewrite Zplus_mod_idemp_l. f_equal. f_equal. ring.
+Qed.
+
+Lemma cmod_add_r : forall a b d,
+  Sint63.cmod (a + Sint63.cmod b d) d = Sint63.cmod (a + b) d.
+Proof.
+  intros a b d. rewrite (Z.add_comm a), cmod_add_l, (Z.add_comm b).
+  reflexivity.
+Qed.
+
+Lemma add_zero_l : forall x : int, (zero + x)%sint63 = x.
+Proof.
+  intros x. rewrite <- (Sint63.of_to_Z (zero + x)%sint63), Sint63.add_spec.
+  rewrite Sint63.of_Z_cmod, to_Z_zero, Z.add_0_l. apply Sint63.of_to_Z.
+Qed.
+
+Lemma add_zero_r : forall x : int, (x + zero)%sint63 = x.
+Proof.
+  intros x. rewrite <- (Sint63.of_to_Z (x + zero)%sint63), Sint63.add_spec.
+  rewrite Sint63.of_Z_cmod, to_Z_zero, Z.add_0_r. apply Sint63.of_to_Z.
+Qed.
+
+Lemma add_one_sub_one : forall x k : int,
+  ((x + one) + (k - one))%sint63 = (x + k)%sint63.
+Proof.
+  intros x k. apply Sint63.to_Z_inj.
+  rewrite !Sint63.add_spec, Sint63.sub_spec, cmod_add_l, cmod_add_r, to_Z_one.
+  f_equal. ring.
+Qed.

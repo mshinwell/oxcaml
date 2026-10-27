@@ -6,7 +6,7 @@
    - Rocq's primitive [int] (Sint63) is OxCaml's [int] and its operations are
      OxCaml's. This restates Rocq's own ExtrOCamlInt63 so that the output
      does not depend on Rocq's runtime library.
-   - The [Int64] model is OxCaml's [Int64]; the axioms in OcamlInt64.v are
+   - The [Int64] model is OxCaml's [Int64]; the axioms in OxCamlInt64.v are
      the documented behaviour of each operation named here.
    - The list functions are OxCaml's [List] functions; [sort_uniq] is
      [List.sort_uniq Int.compare]. [map_opt] and [filter_map_opt] have no
@@ -14,7 +14,7 @@
 
 From Stdlib Require Import Extraction List.
 From Stdlib Require Uint63 Sint63.
-From OxCamlStdlib Require Import OcamlOption OcamlInt OcamlInt64 OcamlList.
+From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64 OxCamlList.
 
 Extraction Language OCaml.
 
@@ -80,7 +80,7 @@ Extract Inlined Constant app => "( @ )".
 Extract Inlined Constant fst => "fst".
 Extract Inlined Constant assoc_opt => "List.assoc_opt".
 Extract Inlined Constant compare_length_with => "List.compare_length_with".
-Extract Inlined Constant OcamlList.fold_left => "List.fold_left".
+Extract Inlined Constant OxCamlList.fold_left => "List.fold_left".
 Extract Constant sort_uniq => "List.sort_uniq Int.compare".
 
 (* OxCaml [Option]. *)

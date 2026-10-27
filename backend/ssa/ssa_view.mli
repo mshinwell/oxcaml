@@ -64,3 +64,8 @@ val strict_dominators : finished Block.t -> finished Block.t list
     its arguments, in the shapes the affine linearization
     (backend/ssa/loop/rocq/AffineSsa.v) matches on. *)
 val tree_of_value : finished Value.t -> SsaModel.tree
+
+(** The table from the id of each [Op] to the block defining it. The models read
+    it through [SsaModel.op_def_find], which is [Instruction.Id.Tbl.find_opt].
+*)
+val compute_op_def : finished Ssa.graph -> SsaModel.op_def

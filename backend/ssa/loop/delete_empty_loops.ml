@@ -44,7 +44,7 @@ module E = DeleteEmptyLoops
 (* Loop headers to bypass, mapped to the exit target their terminator should
    jump to instead. *)
 let find_deletions (ssa : finished Ssa.graph) : finished Block.t Block.Tbl.t =
-  let op_def = Induction_var.compute_op_def ssa in
+  let op_def = Ssa_view.compute_op_def ssa in
   let deletions = Block.Tbl.create 4 in
   List.iter
     (fun (header, exit_target) ->

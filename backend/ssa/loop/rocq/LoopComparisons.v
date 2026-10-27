@@ -16,8 +16,8 @@
      [to_Z] reads an [int] as a mathematical integer.
 
    Shared material lives elsewhere: rocq/ at the root of the repository
-   models OxCaml's own types (OcamlInt.v, OcamlInt64.v, OcamlList.v,
-   OcamlOption.v), backend/rocq/IntegerComparison.v has
+   models OxCaml's own types (OxCamlInt.v, OxCamlInt64.v, OxCamlList.v,
+   OxCamlOption.v), backend/rocq/IntegerComparison.v has
    [Cmm.integer_comparison] with [negate], [swap] and their semantics, and
    FourierMotzkin.v next to this file has [Affine], the affine forms.
 
@@ -34,7 +34,7 @@
    (see rocq/Makefile at the root of the repository). *)
 
 From Stdlib Require Import ZArith Lia Bool List.
-From OxCamlStdlib Require Import OcamlOption OcamlInt OcamlInt64 ZTactics.
+From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64 ZTactics.
 From OxCamlBackend Require Import IntegerComparison.
 From OxCamlLoop Require Import FourierMotzkin.
 Import ListNotations.

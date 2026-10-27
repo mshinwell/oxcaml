@@ -67,7 +67,7 @@
    and terminators SsaModel.v reports are the graph's. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
-From OxCamlStdlib Require Import OcamlOption OcamlInt OcamlInt64 OcamlList.
+From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64 OxCamlList.
 From OxCamlBackend Require Import IntegerComparison.
 From OxCamlSsa Require Import SsaModel.
 From OxCamlLoop Require Import FourierMotzkin LoopComparisons AffineExpr
@@ -199,7 +199,7 @@ Fixpoint expr_of_value (c : ctx) (t : tree)
 
 (* [side] with each fact of [sides] not already in it pushed on the front. *)
 Definition push_sides (side sides : list Affine.t) : list Affine.t :=
-  OcamlList.fold_left
+  OxCamlList.fold_left
     (fun side f => if existsb (Affine.equal f) side then side else f :: side)
     side sides.
 
@@ -265,7 +265,7 @@ Definition guard_facts (target : block)
    dominate it. *)
 Definition guards_at (c : ctx) (side : list Affine.t) (target : block)
     : (list Affine.t * list Affine.t) * ctx :=
-  OcamlList.fold_left (guard_facts target) (([], side), c)
+  OxCamlList.fold_left (guard_facts target) (([], side), c)
     (strict_dominators target).
 
 (* ======================================================================== *)
@@ -493,7 +493,7 @@ Section Semantics.
   Lemma push_sides_In : forall sides side f,
     In f (push_sides side sides) -> In f side \/ In f sides.
   Proof.
-    unfold push_sides, OcamlList.fold_left.
+    unfold push_sides, OxCamlList.fold_left.
     induction sides as [ | g sides IH ]; cbn [List.fold_left]; intros side f H.
     - left. exact H.
     - destruct (existsb (Affine.equal g) side).
@@ -1013,7 +1013,7 @@ Section Semantics.
          /\ (guards_taken target -> holds_all rho fs).
   Proof.
     intros target c side fs side' c' Htrees Hwf Hn H.
-    unfold guards_at, OcamlList.fold_left in H.
+    unfold guards_at, OxCamlList.fold_left in H.
     destruct (guards_fold_sound target (strict_dominators target) [] side c
                 fs side' c' Htrees Hwf Hn H)
       as [Hwf' [He [Hn' [Hfs [Hside Hrho]]]]].

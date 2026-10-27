@@ -20,7 +20,7 @@
    provide. *)
 
 From Stdlib Require Import ZArith Bool List.
-From OxCamlStdlib Require Import OcamlInt OcamlInt64.
+From OxCamlStdlib Require Import OxCamlInt OxCamlInt64.
 From OxCamlBackend Require Import IntegerComparison.
 Import ListNotations.
 
@@ -192,11 +192,11 @@ Parameter tree_of_value : value -> tree.
 Axiom tree_of_value_root : forall v, root (tree_of_value v) = v.
 
 (* ======================================================================== *)
-(* [Induction_var.op_def]                                                   *)
+(* The table of defining blocks                                             *)
 (* ======================================================================== *)
 
 (* The table from the id of each [Op] to the block defining it, built by
-   [Induction_var.compute_op_def]; [op_def_find] is
+   [Ssa_view.compute_op_def]; [op_def_find] is
    [Instruction.Id.Tbl.find_opt]. *)
 Parameter op_def : Type.
 Parameter op_def_find : op_def -> instr_id -> option block.

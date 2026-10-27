@@ -1,6 +1,6 @@
 (* Extraction directives for SsaModel.v: which type and function of the
    compiler stand for each abstract type and observation of the model. As
-   in OcamlExtract.v (rocq/), nothing here is proved; the mapping is
+   in OxCamlExtract.v (rocq/), nothing here is proved; the mapping is
    trusted by inspection. The observations that are not functions of [Ssa]
    itself are the functions of backend/ssa/ssa_view.ml, which turn the
    compiler's data into the model's views. *)
@@ -50,7 +50,8 @@ Extract Inlined Constant view_instr => "Ssa_view.instr".
 Extract Inlined Constant has_side_effect => "Ssa.Instruction.has_side_effect".
 Extract Inlined Constant tree_of_value => "Ssa_view.tree_of_value".
 
-(* [Induction_var.op_def]. *)
+(* The table [Ssa_view.compute_op_def] builds. The type is spelt out, as
+   Ssa_view depends on the extraction of SsaModel.v. *)
 Extract Constant op_def =>
   "(Ssa.finished, Ssa.finished Ssa.Block.t) Ssa.Instruction.Id.Tbl.t".
 Extract Inlined Constant op_def_find => "Ssa.Instruction.Id.Tbl.find_opt".

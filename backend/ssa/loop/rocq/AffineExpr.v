@@ -11,7 +11,7 @@
    to check by eye.
 
    [to_affine] returns an [option]: [None] where a coefficient would wrap
-   in one of the checked [Affine] operations (see OcamlOption.v).
+   in one of the checked [Affine] operations (see OxCamlOption.v).
 
    The results, in part 4:
 
@@ -29,10 +29,10 @@
 
    Trusted parts, beyond those of FourierMotzkin.v: the [Int64] shifts and
    negation, the exactness of [Int64.to_int] on values that fit an [int]
-   (axioms in OcamlInt64.v), and the extraction of [lsl] (OcamlExtract.v). *)
+   (axioms in OxCamlInt64.v), and the extraction of [lsl] (OxCamlExtract.v). *)
 
 From Stdlib Require Import ZArith Lia Bool List Zbitwise.
-From OxCamlStdlib Require Import OcamlOption OcamlInt OcamlInt64 OcamlList.
+From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64 OxCamlList.
 From OxCamlLoop Require Import FourierMotzkin.
 Import ListNotations.
 

@@ -104,3 +104,16 @@ let rec tree_of_value (v : finished Value.t) : M.tree =
   | Res ({ op = Intop_imm (Icomp cmp, k); args = [| a |]; _ }, _) ->
     M.Icomp_imm (v, cmp, tree_of_value a, k)
   | _ -> M.Other v
+
+let compute_op_def (ssa : finished Ssa.graph) : M.op_def =
+  let tbl : M.op_def = Instruction.Id.Tbl.create 64 in
+  List.iter
+    (fun (bl : finished Block.t) ->
+      Array.iter
+        (fun (i : finished Instruction.t) ->
+          match i with
+          | Op { id; _ } -> Instruction.Id.Tbl.replace tbl id bl
+          | Push_trap _ | Pop_trap _ -> ())
+        (Block.body bl))
+    (Ssa.blocks ssa);
+  tbl

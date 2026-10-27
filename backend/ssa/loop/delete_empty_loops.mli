@@ -30,11 +30,11 @@
 (** Bypass every loop whose body does no observable work.
 
     A loop is considered empty when:
-    - {!Termination.analyze} reports [Terminates],
-    - {!Dead_induction_var.analyze} reports [useless = true], i.e. every block
-      parameter of the header is a basic induction variable whose only uses are
-      its own update expression and the exit comparison, which in turn is used
-      only by the header's branch, and
+    - the termination analysis (rocq/LoopTermination.v) reports [Terminates],
+    - every block parameter of the header is a basic induction variable
+      (rocq/InductionVar.v) whose only uses are its own update expression and
+      the exit comparison, which in turn is used only by the header's branch
+      (rocq/DeadInductionVar.v), and
     - every block of the loop body contains only side-effect-free instructions
       and ends in a pure control-flow terminator, and
     - the header's exit edge is the only edge leaving the loop body, so that the

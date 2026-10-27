@@ -1,9 +1,8 @@
 (* The basic induction variables of a natural loop: the header parameters
    that every back edge updates by the same loop-invariant step. The
-   extraction of this file, InductionVar.ml, is the implementation;
-   induction_var.ml in the parent directory wraps it and adds
-   [compute_op_def], which fills the table SsaModel.v declares as
-   [op_def].
+   extraction of this file, InductionVar.ml, is the implementation; the
+   table SsaModel.v declares as [op_def] is built by
+   [Ssa_view.compute_op_def].
 
    See the reading guide at the top of LoopComparisons.v for the Rocq
    vocabulary, SsaModel.v for how the models see an SSA graph, and
@@ -13,7 +12,7 @@
    to check by eye.
 
    The header's parameters and the arguments of a [Goto] are lists here,
-   indexed by [nth_int] (OcamlList.v).
+   indexed by [nth_int] (OxCamlList.v).
 
    The result, in part 4, is [analyze_spec]: every basic induction variable
    reported for a loop satisfies [biv_spec] (part 2), which spells out what
@@ -24,7 +23,7 @@
    parameter is stated and used in LoopTermination.v. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
-From OxCamlStdlib Require Import OcamlOption OcamlInt OcamlList.
+From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlList.
 From OxCamlSsa Require Import SsaModel.
 From OxCamlLoop Require Import NaturalLoop.
 Import ListNotations.
@@ -134,7 +133,7 @@ Definition classify_update (is_self : value -> bool) (op_def : op_def)
 
 (* The back-edge sources as a set. *)
 Definition back_edge_set (loop : natural_loop) : blockset :=
-  OcamlList.fold_left (fun s b => set_add b s) set_empty loop.(back_edges).
+  OxCamlList.fold_left (fun s b => set_add b s) set_empty loop.(back_edges).
 
 (* The arguments [pred] passes to [header], when its terminator is a
    [Goto] there with one argument per parameter. *)
@@ -297,7 +296,7 @@ Proof. intros []; reflexivity. Qed.
 Lemma back_edge_set_spec : forall l b,
   set_mem b (back_edge_set l) = true <-> In b l.(back_edges).
 Proof.
-  intros l b. unfold back_edge_set, OcamlList.fold_left.
+  intros l b. unfold back_edge_set, OxCamlList.fold_left.
   generalize (back_edges l). intros edges.
   (* The accumulator holds the edges seen so far. *)
   assert (H : forall s,
@@ -384,6 +383,44 @@ Proof.
     exists u. split; [ exact Hu | ].
     rewrite <- Hbv. apply back_vals_In. exists p, args. split; assumption.
   - intros u Hu. rewrite <- Hbv in Hu. apply back_vals_In in Hu. exact Hu.
+Qed.
+
+Lemma params_bivs_length_le : forall l op_def bpa params index,
+  (length (params_bivs l op_def bpa index params) <= length params)%nat.
+Proof.
+  intros l op_def bpa params. induction params as [ | x params IH ];
+    intros index; cbn [params_bivs].
+  - apply Nat.le_refl.
+  - specialize (IH (index + one)%sint63).
+    destruct (classify_param l op_def bpa index); cbn [length]; lia.
+Qed.
+
+(* With as many BIVs as parameters, every parameter position has one:
+   [classify_param] yields at most one BIV per position, indexed by it. *)
+Lemma params_bivs_cover : forall l op_def bpa params index k v,
+  length (params_bivs l op_def bpa index params) = length params ->
+  nth_int params k = Some v ->
+  exists b, In b (params_bivs l op_def bpa index params)
+    /\ b.(param_index) = (index + k)%sint63.
+Proof.
+  intros l op_def bpa params. induction params as [ | x params IH ];
+    intros index k v Hlen Hnth; cbn [params_bivs nth_int] in *.
+  - discriminate.
+  - destruct (classify_param l op_def bpa index) as [b | ] eqn:E.
+    + destruct (k =? zero)%sint63 eqn:Hk.
+      * apply eqb_int in Hk. subst k. exists b.
+        split; [ left; reflexivity | ].
+        rewrite add_zero_r.
+        exact (proj1 (proj2 (classify_param_spec _ _ _ _ _ E))).
+      * cbn [length] in Hlen. injection Hlen as Hlen.
+        destruct (IH (index + one)%sint63 (k - one)%sint63 v Hlen Hnth)
+          as [b' [Hb' Hidx]].
+        exists b'. split; [ right; exact Hb' | ].
+        rewrite Hidx. apply add_one_sub_one.
+    + exfalso.
+      pose proof
+        (params_bivs_length_le l op_def bpa params (index + one)%sint63).
+      cbn [length] in Hlen. lia.
 Qed.
 
 Lemma params_bivs_In : forall l op_def bpa params index b,
@@ -477,6 +514,22 @@ Proof.
     apply back_pred_args_In in Hin. destruct Hin as [_ [Hset Hpa]].
     apply back_edge_set_spec in Hset.
     exists s, args. split; [ exact Hset | split; assumption ].
+Qed.
+
+(* When a loop has as many BIVs as its header has parameters, every
+   parameter position has one. *)
+Theorem analyze_loop_cover : forall op_def l k v,
+  length (analyze_loop op_def l) = length (params l.(header)) ->
+  nth_int (params l.(header)) k = Some v ->
+  exists b, In b (analyze_loop op_def l) /\ b.(param_index) = k.
+Proof.
+  intros op_def l k v Hlen Hnth. unfold analyze_loop in *. cbv zeta in *.
+  destruct (negb (forallb _ _)).
+  - exfalso. cbn [length] in Hlen.
+    destruct (params l.(header)); [ | discriminate ].
+    cbn [nth_int] in Hnth. discriminate.
+  - destruct (params_bivs_cover _ _ _ _ _ _ _ Hlen Hnth) as [b [Hb Hidx]].
+    exists b. split; [ exact Hb | ]. rewrite Hidx. apply add_zero_l.
 Qed.
 
 Theorem analyze_spec : forall op_def blocks l bivs,

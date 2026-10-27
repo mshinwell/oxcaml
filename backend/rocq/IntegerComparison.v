@@ -6,7 +6,7 @@
    constructor order matters for extraction. *)
 
 From Stdlib Require Import ZArith Lia.
-From OxCamlStdlib Require Import OcamlInt64 ZTactics.
+From OxCamlStdlib Require Import OxCamlInt64 ZTactics.
 
 Local Open Scope Z_scope.
 

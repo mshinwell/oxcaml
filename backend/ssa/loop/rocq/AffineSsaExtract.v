@@ -2,7 +2,7 @@
    Extract.v). Everything about the functions is proved in AffineSsa.v;
    the SSA values and trees it computes on are those of SsaModel.v, whose
    extraction is in SsaModelExtract.v. This file only prints the model's
-   one literal. As in OcamlExtract.v, the mapping is trusted by
+   one literal. As in OxCamlExtract.v, the mapping is trusted by
    inspection. *)
 
 From Stdlib Require Import Extraction.

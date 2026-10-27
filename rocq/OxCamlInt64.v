@@ -9,7 +9,7 @@
    is the documented behaviour of the OxCaml operation. *)
 
 From Stdlib Require Import ZArith Lia Bool.
-From OxCamlStdlib Require Import OcamlInt.
+From OxCamlStdlib Require Import OxCamlInt.
 
 Local Open Scope Z_scope.
 
@@ -98,7 +98,7 @@ Qed.
 (* The type and its operations are declared at top level and given their
    OxCaml names by the abbreviations in [Module Int64] below, so that the
    models write [Int64.add a b] as OxCaml does, while extraction
-   (OcamlExtract.v) maps each operation straight to OxCaml's without
+   (OxCamlExtract.v) maps each operation straight to OxCaml's without
    emitting a module that would shadow OxCaml's [Int64]. The axioms, which
    are not extracted, live in the module. *)
 
@@ -187,30 +187,30 @@ Module Int64.
   (* The tests OxCaml code writes as [Int64.compare x y < 0], [> 0] and
      [>= 0], which the models write the same way. *)
   Lemma compare_lt : forall a b,
-    (compare a b <? OcamlInt.zero)%sint63 = true <-> to_Z a < to_Z b.
+    (compare a b <? OxCamlInt.zero)%sint63 = true <-> to_Z a < to_Z b.
   Proof.
-    intros a b. rewrite ltb_int, OcamlInt.to_Z_zero.
+    intros a b. rewrite ltb_int, OxCamlInt.to_Z_zero.
     exact (proj1 (compare_spec a b)).
   Qed.
 
   Lemma compare_gt : forall a b,
-    (OcamlInt.zero <? compare a b)%sint63 = true <-> to_Z b < to_Z a.
+    (OxCamlInt.zero <? compare a b)%sint63 = true <-> to_Z b < to_Z a.
   Proof.
-    intros a b. rewrite ltb_int, OcamlInt.to_Z_zero.
+    intros a b. rewrite ltb_int, OxCamlInt.to_Z_zero.
     destruct (compare_spec a b) as [Hlt Heq]. lia.
   Qed.
 
   Lemma compare_ge : forall a b,
-    (OcamlInt.zero <=? compare a b)%sint63 = true <-> to_Z b <= to_Z a.
+    (OxCamlInt.zero <=? compare a b)%sint63 = true <-> to_Z b <= to_Z a.
   Proof.
-    intros a b. rewrite leb_int, OcamlInt.to_Z_zero.
+    intros a b. rewrite leb_int, OxCamlInt.to_Z_zero.
     destruct (compare_spec a b) as [Hlt Heq]. lia.
   Qed.
 
   Lemma compare_le : forall a b,
-    (compare a b <=? OcamlInt.zero)%sint63 = true <-> to_Z a <= to_Z b.
+    (compare a b <=? OxCamlInt.zero)%sint63 = true <-> to_Z a <= to_Z b.
   Proof.
-    intros a b. rewrite leb_int, OcamlInt.to_Z_zero.
+    intros a b. rewrite leb_int, OxCamlInt.to_Z_zero.
     destruct (compare_spec a b) as [Hlt Heq]. lia.
   Qed.
 

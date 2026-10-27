@@ -13,10 +13,10 @@
 #   backend/ssa/rocq/       OxCamlSsa: the SSA graph as the models see it
 #                           (abstract blocks and values, with the few
 #                           observations the passes make of them)
-#   backend/ssa/loop/rocq/  OxCamlLoop: the loop passes and their extraction
-#                           (Extract.v, one .ml per model); the wrappers
-#                           around the extracted code are the modules of
-#                           backend/ssa/loop/ itself
+#   backend/ssa/loop/rocq/  OxCamlLoop: the loop analyses and their
+#                           extraction (Extract.v, one .ml per model); the
+#                           pass using them is backend/ssa/loop/
+#                           delete_empty_loops.ml
 #
 # The extracted files are run through ocamlformat so that they satisfy the
 # repository's `make fmt` check like any other source under backend/ssa/.
@@ -34,7 +34,7 @@ FLAGS := -Q $(STDLIB_DIR) OxCamlStdlib -Q $(BACKEND_DIR) OxCamlBackend \
   -Q $(SSA_DIR) OxCamlSsa -Q $(LOOP_DIR) OxCamlLoop
 
 STDLIB := $(addprefix $(STDLIB_DIR)/, \
-  OcamlOption.v ZTactics.v OcamlInt.v OcamlInt64.v OcamlList.v OcamlExtract.v)
+  OxCamlOption.v ZTactics.v OxCamlInt.v OxCamlInt64.v OxCamlList.v OxCamlExtract.v)
 BACKEND := $(addprefix $(BACKEND_DIR)/, \
   IntegerComparison.v IntegerComparisonExtract.v)
 SSA := $(addprefix $(SSA_DIR)/, SsaModel.v SsaModelExtract.v)
@@ -49,7 +49,7 @@ EXTRACT := $(LOOP_DIR)/Extract.v
 # those of the SSA model are then moved next to their source.
 SSA_EXTRACTED := $(addprefix $(SSA_DIR)/, SsaModel.ml SsaModel.mli)
 LOOP_EXTRACTED := $(addprefix $(LOOP_DIR)/, \
-  OcamlList.ml OcamlList.mli FourierMotzkin.ml FourierMotzkin.mli \
+  OxCamlList.ml OxCamlList.mli FourierMotzkin.ml FourierMotzkin.mli \
   LoopComparisons.ml LoopComparisons.mli AffineExpr.ml AffineExpr.mli \
   NaturalLoop.ml NaturalLoop.mli AffineSsa.ml AffineSsa.mli \
   InductionVar.ml InductionVar.mli LoopTermination.ml LoopTermination.mli \
@@ -66,10 +66,10 @@ all: $(SOURCES:.v=.vo)
 
 # Extract.v writes the .ml and .mli files into the loop directory. Separate
 # extraction also writes an empty pair for every Rocq module whose contents
-# are all mapped onto OxCaml's own (OcamlInt, Uint63, ...); those are removed.
+# are all mapped onto OxCaml's own (OxCamlInt, Uint63, ...); those are removed.
 # It also puts the same `open M` lines at the top of a .ml and of its .mli;
 # in the .mli only types can be referred to, so the open of a module that
-# defines no types or submodules (OcamlList) is unused there, which warning
+# defines no types or submodules (OxCamlList) is unused there, which warning
 # 33 rejects. Such opens are removed from the .mli files.
 $(EXTRACT:.v=.vo): $(EXTRACT)
 	$(ROCQ) compile $(FLAGS) -output-directory $(LOOP_DIR) $<
@@ -79,7 +79,7 @@ $(EXTRACT:.v=.vo): $(EXTRACT)
 	@for f in $(LOOP_DIR)/*.ml $(LOOP_DIR)/*.mli; do \
 	  case " $(LOOP_EXTRACTED) " in *" $$f "*) ;; *) \
 	    echo "error: unexpected extracted file $$f: a model computes with" \
-	      "something that has no OxCaml realization (see OcamlExtract.v)"; \
+	      "something that has no OxCaml realization (see OxCamlExtract.v)"; \
 	    exit 1;; \
 	  esac; \
 	done

@@ -3,24 +3,25 @@
    the SSA graph, next to its source in backend/ssa/rocq/): SsaModel.ml,
    FourierMotzkin.ml, LoopComparisons.ml, AffineExpr.ml, NaturalLoop.ml,
    AffineSsa.ml, InductionVar.ml, LoopTermination.ml, DeadInductionVar.ml,
-   DeleteEmptyLoops.ml, and OcamlList.ml for the few list functions with
-   no OxCaml counterpart. The graph-level models have thin wrappers in the
-   parent directory (natural_loop.ml, induction_var.ml, termination.ml,
-   dead_induction_var.ml, delete_empty_loops.ml), which add the labelled
-   arguments of the .mli files there, the hash table of
-   [Induction_var.compute_op_def] and the rewriting of
-   [Delete_empty_loops.run], which are not modelled; the arithmetic models
-   (FourierMotzkin, LoopComparisons, AffineExpr, AffineSsa) are used as
-   extracted.
+   DeleteEmptyLoops.ml, and OxCamlList.ml for the few list functions with
+   no OxCaml counterpart. The pass itself, delete_empty_loops.ml in the
+   parent directory, calls [DeleteEmptyLoops.find_deletions] and rewrites
+   the graph at the loops it returns; that rewriting, and the table of
+   [Ssa_view.compute_op_def] the analyses are given, are not modelled.
+
+   The entry points extracted are [find_deletions] and, for the unit test
+   oxcaml/tests/backend/ssa/loop_comparisons_facts.ml, the affine forms
+   with [feasible], [entails] and [facts]; everything they use comes with
+   them.
 
    Everything about the functions is proved in the model files. The
    mapping of the models' types and primitives onto OxCaml's is what has to
-   be trusted by inspection; it is in OcamlExtract.v (rocq/),
+   be trusted by inspection; it is in OxCamlExtract.v (rocq/),
    IntegerComparisonExtract.v (backend/rocq/), SsaModelExtract.v
    (backend/ssa/rocq/) and the *Extract.v files here. *)
 
 From Stdlib Require Import Extraction.
-From OxCamlStdlib Require Import OcamlExtract.
+From OxCamlStdlib Require Import OxCamlExtract.
 From OxCamlBackend Require Import IntegerComparisonExtract.
 From OxCamlSsa Require Import SsaModelExtract.
 From OxCamlLoop Require Import FourierMotzkin FourierMotzkinExtract
@@ -29,14 +30,5 @@ From OxCamlLoop Require Import FourierMotzkin FourierMotzkinExtract
   DeadInductionVar DeleteEmptyLoops.
 
 Separate Extraction
-  Affine feasible entails
-  oriented_continue_comparison continue_terminates facts
-  Range to_affine
-  new_ctx linearize cond_facts guards_at
-  NaturalLoop.find_loops NaturalLoop.edge_dominates
-  InductionVar.analyze InductionVar.is_header_param
-  InductionVar.is_loop_invariant InductionVar.signed_step
-  InductionVar.back_edge_set
-  LoopTermination.analyze LoopTermination.find_exit_branch
-  DeadInductionVar.analyze
+  Affine feasible entails facts
   DeleteEmptyLoops.find_deletions.

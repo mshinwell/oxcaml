@@ -752,7 +752,7 @@
   ;; backend/ssa/rocq/ (extracted from Rocq by rocq/Makefile)
   SsaModel
   ;; backend/ssa/loop/rocq/ (extracted from Rocq by rocq/Makefile)
-  OcamlList
+  OxCamlList
   FourierMotzkin
   LoopComparisons
   AffineExpr
@@ -763,10 +763,6 @@
   DeadInductionVar
   DeleteEmptyLoops
   ;; backend/ssa/loop/
-  natural_loop
-  induction_var
-  termination
-  dead_induction_var
   delete_empty_loops
   ;; backend/debug/
   available_ranges_vars

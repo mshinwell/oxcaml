@@ -1,8 +1,7 @@
 (* Whether a loop terminates: its header's exit branch compares a basic
    induction variable with a loop-invariant bound in a way the variable's
    step must eventually make fail. The extraction of this file,
-   LoopTermination.ml, is the implementation; termination.ml in the parent
-   directory wraps it.
+   LoopTermination.ml, is the implementation.
 
    See the reading guide at the top of LoopComparisons.v for the Rocq
    vocabulary; SsaModel.v for how the models see an SSA graph;
@@ -14,11 +13,9 @@
    intended meaning, (3) stepping-stone lemmas, (4) the theorems. Parts 1
    and 2 are the part to check by eye.
 
-   The file is LoopTermination.v rather than Termination.v because the
-   extracted module would otherwise clash with termination.ml, the
-   wrapper around it. The type [t] here has the constructors [Terminates]
-   and [Unknown], as does [LoopComparisons.termination]; the latter's are
-   written qualified below.
+   The type [t] here has the constructors [Terminates] and [Unknown], as
+   does [LoopComparisons.termination]; the latter's are written qualified
+   below.
 
    The result, in part 4, is [analyze_Terminates]: when the analysis says
    that a loop terminates, no run of the loop visits its header for ever.
@@ -43,7 +40,7 @@
    on entry, [entails_sound] makes the goal follow). *)
 
 From Stdlib Require Import ZArith Lia Bool List.
-From OxCamlStdlib Require Import OcamlOption OcamlInt OcamlInt64 OcamlList.
+From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64 OxCamlList.
 From OxCamlBackend Require Import IntegerComparison.
 From OxCamlSsa Require Import SsaModel.
 From OxCamlLoop Require Import FourierMotzkin LoopComparisons AffineExpr

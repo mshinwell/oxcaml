@@ -1,8 +1,7 @@
 (* The basic induction variables a loop computes for nothing but its own
    control: used only by the exit comparison and their own updates, with
    the comparison used only by the header's branch. The extraction of this
-   file, DeadInductionVar.ml, is the implementation; dead_induction_var.ml
-   in the parent directory wraps it.
+   file, DeadInductionVar.ml, is the implementation.
 
    See the reading guide at the top of LoopComparisons.v for the Rocq
    vocabulary, SsaModel.v for how the models see an SSA graph, and
@@ -33,7 +32,7 @@
    header parameter among its dead induction variables. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
-From OxCamlStdlib Require Import OcamlOption OcamlInt OcamlList.
+From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlList.
 From OxCamlSsa Require Import SsaModel.
 From OxCamlLoop Require Import NaturalLoop InductionVar LoopTermination.
 Import ListNotations.
@@ -91,7 +90,7 @@ Definition terminator_args (term : Terminator.t) : list (list value) :=
 
 (* How many elements of [l] [same] accepts. *)
 Definition count_occurrences {A} (same : A -> bool) (l : list A) : int :=
-  OcamlList.fold_left (fun n x => if same x then n + one else n) zero l.
+  OxCamlList.fold_left (fun n x => if same x then n + one else n) zero l.
 
 (* Every use in the graph of a value [same] accepts is approved: by
    [approve_instr] for an instruction reading it, by [approve_term] for

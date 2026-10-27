@@ -9,10 +9,10 @@
    to check by eye.
 
    Every function that can overflow returns an [option], [None] standing
-   for the overflow (see OcamlOption.v); nothing wraps silently.
+   for the overflow (see OxCamlOption.v); nothing wraps silently.
 
-   Trusted parts, beyond the [Int64] model in OcamlInt64.v and the
-   [sort_uniq] assumptions in OcamlList.v (each is a few lines of OxCaml
+   Trusted parts, beyond the [Int64] model in OxCamlInt64.v and the
+   [sort_uniq] assumptions in OxCamlList.v (each is a few lines of OxCaml
    to review): the overflow tests of the [_ovf] helpers are taken as
    given, by the axioms [add_fits_spec] and friends below, to answer
    whether the exact result fits the type. Their OxCaml, the standard
@@ -27,7 +27,7 @@
    nothing (it is conservative on overflow and on size limits). *)
 
 From Stdlib Require Import ZArith Lia Bool List Recdef.
-From OxCamlStdlib Require Import OcamlOption OcamlInt OcamlInt64 OcamlList.
+From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64 OxCamlList.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -229,8 +229,14 @@ Definition resolvent (cp cn : int) (p n : Affine.t) : option Affine.t :=
 
 (* ---- [feasible] and [entails] ----------------------------------------- *)
 
+(* Size limits beyond which [feasible] gives up, answering "feasible", the
+   safe side. One elimination step can produce up to a quarter of the
+   squared number of inequalities as resolvents, so [max_ineqs] bounds the
+   work of a step; the systems the loop analyses build have a few dozen
+   inequalities at most. FourierMotzkinExtract.v repeats the two values as
+   literals. *)
 Definition max_atoms : int := 64.
-Definition max_ineqs : int := 10000.
+Definition max_ineqs : int := 500.
 
 (* One step of [feasible]: eliminate the atom [v]. [None] when the system
    is over the size limit; an overflowing resolvent is dropped. *)

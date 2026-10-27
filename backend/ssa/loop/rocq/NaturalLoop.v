@@ -1,6 +1,6 @@
 (* The natural loops of an SSA graph, from its back edges, and a test for
    an edge dominating a block. The extraction of this file, NaturalLoop.ml,
-   is the implementation; natural_loop.ml in the parent directory wraps it.
+   is the implementation.
 
    See the reading guide at the top of LoopComparisons.v for the Rocq
    vocabulary, and SsaModel.v for how the models see an SSA graph: blocks
@@ -38,7 +38,7 @@
    reachable from it). The theorems state these as hypotheses. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
-From OxCamlStdlib Require Import OcamlInt OcamlList.
+From OxCamlStdlib Require Import OxCamlInt OxCamlList.
 From OxCamlSsa Require Import SsaModel.
 Import ListNotations.
 
@@ -66,7 +66,7 @@ Fixpoint walk (fuel : list block) (body : blockset) (worklist : list block)
   | [], _ | _, [] => body
   | _ :: fuel, bl :: rest =>
     let '(body, added) :=
-      OcamlList.fold_left add_new (body, rest) (predecessors bl)
+      OxCamlList.fold_left add_new (body, rest) (predecessors bl)
     in
     walk fuel body added
   end.
@@ -78,7 +78,7 @@ Fixpoint walk (fuel : list block) (body : blockset) (worklist : list block)
 Definition natural_loop_body (fuel : list block) (header : block)
     (back_preds : list block) : blockset :=
   let '(body, seeds) :=
-    OcamlList.fold_left add_new (set_singleton header, []) back_preds
+    OxCamlList.fold_left add_new (set_singleton header, []) back_preds
   in
   walk fuel body seeds.
 
@@ -102,12 +102,12 @@ Definition record_back_edge (bl : block) (tbl : list (block * list block))
 
 Definition record_back_edges (tbl : list (block * list block)) (bl : block)
     : list (block * list block) :=
-  OcamlList.fold_left (record_back_edge bl) tbl (all_successors bl).
+  OxCamlList.fold_left (record_back_edge bl) tbl (all_successors bl).
 
 (* The natural loops of the graph, given its block list ([Ssa.blocks
    ssa]), in the order their headers are first met. *)
 Definition find_loops (blocks : list block) : list natural_loop :=
-  let header_tbl := OcamlList.fold_left record_back_edges [] blocks in
+  let header_tbl := OxCamlList.fold_left record_back_edges [] blocks in
   map
     (fun '(header, back_preds) =>
       {| header := header;
@@ -233,7 +233,7 @@ Section Walk.
   Proof.
     induction fuel as [ | f fuel IH ]; intros body wl Hb Hw; [ exact Hb | ].
     destruct wl as [ | bl rest ]; [ exact Hb | ].
-    cbn [walk]. unfold OcamlList.fold_left.
+    cbn [walk]. unfold OxCamlList.fold_left.
     inversion Hw as [ | ? ? Hbl Hrest ]; subst.
     pose proof (fold_add_new_sound (predecessors bl) body rest Hb Hrest
                   (fun p Hp Hne => reaches_pred _ _ _ _ Hbl Hp Hne)) as H.
@@ -245,7 +245,7 @@ Section Walk.
   Lemma natural_loop_body_sound_aux : forall fuel,
     body_sound (natural_loop_body fuel header sources).
   Proof.
-    intros fuel. unfold natural_loop_body, OcamlList.fold_left.
+    intros fuel. unfold natural_loop_body, OxCamlList.fold_left.
     assert (Hb0 : body_sound (set_singleton header)).
     { split; [ apply set_mem_singleton_iff; reflexivity | ].
       intros b Hb. left. apply set_mem_singleton_iff, Hb. }
@@ -390,7 +390,7 @@ Section Walk.
       + cbn [length] in Hn. lia.
     - destruct wl as [ | bl rest ].
       + cbn [walk]. split; [ tauto | exact Hcl ].
-      + cbn [walk]. unfold OcamlList.fold_left.
+      + cbn [walk]. unfold OxCamlList.fold_left.
         destruct (List.fold_left add_new (predecessors bl) (body, rest))
           as [body1 added1] eqn:Hf.
         assert (Hpreds : forall p, In p (predecessors bl) -> In p blocks).
@@ -428,7 +428,7 @@ Section Walk.
        set_mem s (natural_loop_body blocks header sources) = true)
     /\ closed_except (natural_loop_body blocks header sources) [].
   Proof.
-    intros Hh Hs. unfold natural_loop_body, OcamlList.fold_left.
+    intros Hh Hs. unfold natural_loop_body, OxCamlList.fold_left.
     destruct (List.fold_left add_new sources (set_singleton header, []))
       as [body0 seeds] eqn:Hf.
     destruct (fold_add_new_spec _ _ _ _ _ Hf Hs)
@@ -636,7 +636,7 @@ Section FindLoops.
                 body := natural_loop_body blocks h srcs;
                 back_edges := srcs |}.
   Proof.
-    intros l. unfold find_loops, OcamlList.fold_left. cbv zeta.
+    intros l. unfold find_loops, OxCamlList.fold_left. cbv zeta.
     rewrite in_map_iff. split.
     - intros [ [h srcs] [<- Hin] ]. exists h, srcs. split; [ exact Hin | ].
       reflexivity.

@@ -2,12 +2,12 @@
    [int]-keyed association lists where a key is involved.
 
    Functions whose OxCaml callback may raise an exception come in a variant
-   returning [option] (see OcamlOption.v): [map_opt] is [List.map] and
+   returning [option] (see OxCamlOption.v): [map_opt] is [List.map] and
    [filter_map_opt] is [List.filter_map], each returning [None] if any call
    of the callback would have raised. *)
 
 From Stdlib Require Import ZArith List.
-From OxCamlStdlib Require Import OcamlOption OcamlInt.
+From OxCamlStdlib Require Import OxCamlOption OxCamlInt.
 Import ListNotations.
 
 Local Open Scope sint63_scope.

@@ -1,4 +1,4 @@
-open OcamlList
+open OxCamlList
 
 (** val add_fits : int -> int -> bool **)
 
@@ -296,7 +296,7 @@ let resolvent cp cn p n =
 (** val elim : int -> Affine.t list -> Affine.t list option **)
 
 let elim v ineqs =
-  if 0 < List.compare_length_with ineqs 10000
+  if 0 < List.compare_length_with ineqs 500
   then None
   else
     let cf = fun f -> Affine.coeff v f in
