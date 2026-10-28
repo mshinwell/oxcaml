@@ -21,17 +21,15 @@ Section Invariants.
   Variable defs : op_def.
   Variable loop : natural_loop.
   Variable initial_regs : registers.
-  Variable trace : nat -> state.
+  Variable start : state.
 
   Hypothesis edges : control_edges.
   Hypothesis well_formed : well_formed_ssa blocks entry.
   Hypothesis loop_graph : loop_graph_properties blocks entry loop.
   Hypothesis dominance : dominance_semantics entry.
   Hypothesis definitions : op_def_correct defs blocks.
-  Hypothesis prefix : context_steps (enter entry initial_regs) (trace 0%nat).
-  Hypothesis execution : infinite_execution trace.
-  Hypothesis confined : stays_in_region loop.(body) trace.
-  Hypothesis starts_at_header : at_entry loop.(header) (trace 0%nat).
+  Hypothesis prefix : context_steps (enter entry initial_regs) start.
+  Hypothesis starts_at_header : at_entry loop.(header) start.
   Hypothesis body_supported : body_in_supported_fragment loop.
 
   (* Header reachability follows from the actual prefix, so antisymmetry
@@ -39,7 +37,7 @@ Section Invariants.
   Lemma invariant_header_reachable :
     point_reachable entry (entry_point loop.(header)).
   Proof.
-    assert (Hreachable : point_reachable entry (state_point (trace 0%nat))).
+    assert (Hreachable : point_reachable entry (state_point start)).
     { eapply context_steps_point_reachable;
         [exact edges | exact prefix | apply enter_valid_position |].
       exists [entry_point entry]. constructor. }
@@ -88,21 +86,6 @@ Section Invariants.
     discriminate.
   Qed.
 
-  (* An outside register has the same contents at any two times in this
-     confined execution, whether or not it is read at either time. *)
-  Lemma invariant_register_same : forall (reg : register) (first second : nat),
-    ~ defined_in_region loop.(body) reg ->
-    current_registers (trace second) reg = current_registers (trace first) reg.
-  Proof.
-    intros reg first second Houtside.
-    assert (Hposition : valid_position (trace 0%nat)).
-    { eapply context_steps_valid_position;
-        [exact prefix | apply enter_valid_position]. }
-    pose proof (region_register_constant (graph_parameters _ _ well_formed)
-      loop.(body) trace reg execution confined Hposition Houtside) as Hfixed.
-    rewrite (Hfixed first), (Hfixed second). reflexivity.
-  Qed.
-
   (* Opaque operations, including non-integer constants, cannot occur in
      the whitelisted loop. An available such definition is outside it. *)
   Lemma unmodeled_result_outside : forall (id : instr_id)
@@ -130,31 +113,58 @@ Section Invariants.
   (* The syntactic invariant classifier is sound for available actual
      values. Availability is essential: constants need not have executed
      at arbitrary states, and fabricated results are not definitions. *)
-  Theorem loop_invariant_value_same : forall (v : value) (first second : nat),
+  Theorem loop_invariant_value_same :
+    forall (v : value) (first second : state),
+    region_steps loop.(body) start first ->
+    region_steps loop.(body) start second ->
+    set_mem (current_block first) loop.(body) = true ->
+    set_mem (current_block second) loop.(body) = true ->
     loop_invariant_value defs loop.(header) v ->
-    available_value blocks entry (state_point (trace first)) v ->
-    available_value blocks entry (state_point (trace second)) v ->
-    current_registers (trace second) (register_of_value v)
-      = current_registers (trace first) (register_of_value v).
+    available_value blocks entry (state_point first) v ->
+    available_value blocks entry (state_point second) v ->
+    current_registers second (register_of_value v)
+      = current_registers first (register_of_value v).
   Proof.
-    intros [id op args index | b index] first second Hinvariant Hfirst Hsecond.
+    intros v first second
+      Hrun_first Hrun_second Hinside_first Hinside_second
+      Hinvariant Hfirst Hsecond.
+    assert (Hposition : valid_position start).
+    { eapply context_steps_valid_position;
+        [exact prefix | apply enter_valid_position]. }
+    assert (Hframe : forall (reg : register),
+      ~ defined_in_region loop.(body) reg ->
+      current_registers second reg = current_registers first reg).
+    { intros reg Houtside.
+      rewrite (region_steps_frame (graph_parameters _ _ well_formed)
+        _ _ _ reg Hrun_first Hposition (or_introl Hinside_first) Houtside),
+        (region_steps_frame (graph_parameters _ _ well_formed)
+        _ _ _ reg Hrun_second Hposition (or_introl Hinside_second) Houtside).
+      reflexivity. }
+    assert (Hvalues : forall (reached : state),
+      region_steps loop.(body) start reached ->
+      coherent_at blocks entry (current_registers reached)
+        (state_point reached)).
+    { intros reached Hrun.
+      eapply context_execution_values_coherent;
+        [exact edges | exact well_formed |].
+      eapply context_steps_trans; [exact prefix |].
+      apply context_of_steps, (region_steps_execution _ _ _ Hrun). }
+    destruct v as [id op args index | b index].
     - destruct op; cbn [loop_invariant_value] in Hinvariant;
         try solve
           [lazymatch type of Hinvariant with ex _ => idtac end;
            destruct Hinvariant as [defining_block [Hlookup [Hdom Hstrict]]];
-           apply invariant_register_same;
+           apply Hframe;
            eapply invariant_result_outside; eassumption].
-      all: try solve [apply invariant_register_same;
+      all: try solve [apply Hframe;
         eapply unmodeled_result_outside; [ | exact Hfirst]; reflexivity].
-      all: pose proof (reachable_execution_values edges blocks entry
-        initial_regs trace well_formed prefix execution first _ Hfirst)
+      all: pose proof (Hvalues first Hrun_first _ Hfirst)
           as Hcoherent_first;
         destruct Hcoherent_first as [values_first [result_first
           [Hread_first [Heval_first Hvalue_first]]]];
         cbn [eval_operation] in Heval_first; try discriminate.
       injection Heval_first as <-.
-      pose proof (reachable_execution_values edges blocks entry initial_regs
-        trace well_formed prefix execution second _ Hsecond)
+      pose proof (Hvalues second Hrun_second _ Hsecond)
         as Hcoherent_second.
       destruct Hcoherent_second
         as [values_second [result_second
@@ -162,7 +172,7 @@ Section Invariants.
       cbn [eval_operation] in Heval_second.
       injection Heval_second as <-. cbn [register_of_value].
       rewrite Hvalue_first, Hvalue_second. reflexivity.
-    - destruct Hinvariant as [Hdom Hstrict]. apply invariant_register_same.
+    - destruct Hinvariant as [Hdom Hstrict]. apply Hframe.
       change (~ (set_mem b loop.(body) = true)).
       rewrite (strict_dominator_outside b Hdom Hstrict).
       discriminate.

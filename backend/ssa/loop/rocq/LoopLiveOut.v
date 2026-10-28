@@ -823,6 +823,6 @@ Section ControlValues.
       apply (region_steps_frame (graph_parameters _ _ well_formed)
         loop.(body) _ _ reg Hsegment); [ | | exact Houtside].
       + exists (block_body loop.(header)). cbn. rewrite app_nil_r. reflexivity.
-      + exact (proj1 certified_exit_edge).
+      + right. exact (proj1 certified_exit_edge).
   Qed.
 End ControlValues.

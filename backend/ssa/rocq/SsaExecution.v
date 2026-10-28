@@ -5,9 +5,9 @@
    invariants or loop-analysis verdicts. The purpose of this layer is to
    derive operation equations at their actual uses, rather than assume
    equations for every freely constructed [value] term. Only operations
-   selected by [modeled_operation] have exact equations. SsaContext.v
-   extends these results to a word-observation overapproximation of
-   surrounding opaque operations, without assuming equations for them. *)
+   selected by [modeled_operation] have exact equations. SsaContext.v uses
+   the frame and newly-defined-result lemmas here to prove preservation
+   once, for both integer steps and surrounding opaque computations. *)
 
 From Stdlib Require Import ZArith Lia List.
 From OxCamlStdlib Require Import OxCamlInt OxCamlInt64 OxCamlList.
@@ -291,33 +291,6 @@ Proof.
       [exact Hedges | eassumption | eapply nth_error_In; eassumption].
 Qed.
 
-(* Reachability follows the same structural edges used by dominance. *)
-Lemma step_point_reachable : control_edges -> forall (entry : block)
-    (before after : state),
-  valid_position before -> point_reachable entry (state_point before) ->
-  step before after -> point_reachable entry (state_point after).
-Proof.
-  intros Hedges entry before after Hposition [points Hpath] Hstep.
-  exists (points ++ [state_point after]).
-  eapply point_path_snoc; [exact Hpath |].
-  eapply step_point_edge; eassumption.
-Qed.
-
-(* A finite execution extends a reachable program-point path. *)
-Lemma steps_point_reachable : control_edges -> forall (entry : block)
-    (before after : state),
-  steps before after -> valid_position before ->
-  point_reachable entry (state_point before) ->
-  point_reachable entry (state_point after).
-Proof.
-  intros Hedges entry before after Hsteps. induction Hsteps;
-    intros Hposition Hreachable.
-  - exact Hreachable.
-  - apply IHHsteps.
-    + eapply step_valid_position; eassumption.
-    + eapply step_point_reachable; eassumption.
-Qed.
-
 (* Registers of definitions at other sites cannot be changed by this
    step. For results this uses unique instruction identities; for
    parameters it uses the actual parameter layout of the target. *)
@@ -403,85 +376,6 @@ Proof.
   - exfalso. eapply result_definition_not_entry. exact Hdefinition.
 Qed.
 
-(* Operands of an available result cannot be rebound at the current
-   point: their sites strictly dominate the result's site. Were an operand
-   being rebound here, mutual dominance would contradict that strictness. *)
-Lemma available_operands_frame :
-  forall (blocks : list block) (entry : block) (before after : state)
-    (id : instr_id) (op : operation) (args : list value)
-    (count : int) (site : point),
-  well_formed_ssa blocks entry -> valid_position before ->
-  In (current_block before) blocks ->
-  point_reachable entry (state_point after) ->
-  result_definition id op args count site -> In (fst site) blocks ->
-  point_dominates entry site (state_point after) -> step before after ->
-  read_values (current_registers after) args
-    = read_values (current_registers before) args.
-Proof.
-  intros blocks entry before after id op args count site Hwf Hposition
-    Hbefore Hreachable Hdefinition Hsite Hdominates Hstep.
-  apply read_values_ext. intros arg Hin.
-  destruct (operand_definitions _ _ Hwf id op args count site
-    Hsite Hdefinition arg Hin) as [arg_site [Harg [Hargsite [Hdom Hstrict]]]].
-  eapply step_definition_frame; try eassumption.
-  intros Heq. subst arg_site.
-  assert (site = state_point after) by
-    (eapply point_dominance_antisymmetric; eassumption).
-  congruence.
-Qed.
-
-(* Available result equations are preserved by execution. New results
-   satisfy them because the instruction just executed; other results and
-   their operands are unchanged. No equation is assumed for a value whose
-   definition is not yet available. *)
-Theorem step_values_coherent : control_edges ->
-  forall (blocks : list block) (entry : block) (before after : state),
-  well_formed_ssa blocks entry -> valid_position before ->
-  In (current_block before) blocks ->
-  point_reachable entry (state_point before) ->
-  coherent_at blocks entry (current_registers before) (state_point before) ->
-  step before after ->
-  coherent_at blocks entry (current_registers after) (state_point after).
-Proof.
-  intros Hedges blocks entry before after Hwf Hposition Hbefore Hreachable
-    Hcoherent Hstep v [site [Hdefinition [Hsite Hdominates]]].
-  destruct v as [id op args index | b index]; [ | exact I].
-  cbn [value_coherent].
-  destruct (modeled_operation op args) eqn:Hmodeled; [ | exact I].
-  pose proof Hdefinition as [count [Hresult Hindex]].
-  assert (Hreachable_after : point_reachable entry (state_point after)).
-  { eapply step_point_reachable; eassumption. }
-  assert (Hargs : read_values (current_registers after) args
-    = read_values (current_registers before) args).
-  { eapply available_operands_frame; eassumption. }
-  destruct (point_eqb site (state_point after)) eqn:E.
-  - apply point_eqb_spec in E. subst site.
-    destruct (step_new_result _ _ _ _ _ _ Hposition Hstep Hdefinition)
-      as [Hindex_zero Hexec]. subst index.
-    destruct (execute_instruction_result _ _ _ _ _ _ Hexec)
-      as [_ [arg_values [result [Hread [Heval Hregs]]]]].
-    exists arg_values, result. split; [rewrite Hargs; exact Hread |].
-    split; [exact Heval |]. rewrite Hregs. apply write_register_same.
-  - assert (Hneq : site <> state_point after).
-    { intros Heq. assert (point_eqb site (state_point after) = true)
-        by (apply point_eqb_spec; exact Heq). congruence. }
-    assert (Hdominates_before :
-      point_dominates entry site (state_point before)).
-    { eapply point_dominates_predecessor;
-        [exact Hdominates | exact Hneq |].
-      eapply step_point_edge; eassumption. }
-    assert (Havailable_before : available_value blocks entry
-      (state_point before) (Res id op args index)).
-    { exists site. auto. }
-    specialize (Hcoherent _ Havailable_before).
-    cbn [value_coherent] in Hcoherent. rewrite Hmodeled in Hcoherent.
-    destruct Hcoherent as [arg_values [result [Hread [Heval Hvalue]]]].
-    exists arg_values, result. split; [rewrite Hargs; exact Hread |].
-    split; [exact Heval |]. rewrite <- Hvalue.
-    exact (step_definition_frame _ _ _ _ _ _ Hwf Hposition Hbefore
-      Hdefinition Hsite Hneq Hstep).
-Qed.
-
 (* No instruction result is available at function entry. Consequently
    initial coherence holds for arbitrary input-register values; it is not
    an assumption about a valuation or a real execution. *)
@@ -496,34 +390,4 @@ Proof.
   destruct Hin as [Heq | []]. subst site.
   destruct Hdefinition as [count [Hresult _]].
   exfalso. eapply result_definition_not_entry. exact Hresult.
-Qed.
-
-(* Operation equations for every available actual value follow from a
-   finite execution and structural SSA well-formedness. This replaces a
-   global machine-valuation premise with an operational theorem. *)
-Theorem execution_values_coherent : control_edges ->
-  forall (blocks : list block) (entry : block) (initial_regs : registers)
-    (reached : state),
-  well_formed_ssa blocks entry -> steps (enter entry initial_regs) reached ->
-  coherent_at blocks entry (current_registers reached) (state_point reached).
-Proof.
-  intros Hedges blocks entry initial_regs reached Hwf Hrun.
-  assert (forall before after, steps before after ->
-    valid_position before -> In (current_block before) blocks ->
-    point_reachable entry (state_point before) ->
-    coherent_at blocks entry (current_registers before) (state_point before) ->
-    coherent_at blocks entry (current_registers after) (state_point after))
-    as Hsteps.
-  { intros before after Hsteps. induction Hsteps;
-      intros Hposition Hin Hreachable Hcoherent.
-    - exact Hcoherent.
-    - apply IHHsteps.
-      + eapply step_valid_position; eassumption.
-      + eapply step_in_graph; eassumption.
-      + eapply step_point_reachable; eassumption.
-      + eapply step_values_coherent; eassumption. }
-  eapply Hsteps; [exact Hrun | apply enter_valid_position | | |].
-  - apply (entry_in_graph _ _ Hwf).
-  - exists [entry_point entry]. constructor.
-  - apply entry_values_coherent.
 Qed.

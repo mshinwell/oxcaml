@@ -16,9 +16,8 @@
    when [deletion_certificate] (part 2) holds of it. Its header's exit
    branch is the simple one LoopTermination.v recognises, with an exit
    target that takes no arguments; the termination analysis has returned
-   [Terminates], and every infinite execution confined to its body comes
-   back to the header ([SsaGraph.revisits]: the body without the header is
-   acyclic); each of its header's parameters is a basic
+   [Terminates], and the body without the header has a well-founded
+   successor relation ([SsaGraph.acyclic_region]); each header parameter is a
    induction variable (InductionVar.v) that is dead in the sense of
    DeadInductionVar.v; every block of its body has only whitelisted integer
    instructions and a [Goto] or [Switch] terminator; and all edges leaving
@@ -155,7 +154,7 @@ Definition deletion_certificate (op_def : op_def) (blocks : list block)
     : Prop :=
   exit_branch_to loop exit
   /\ LoopTermination.analyze op_def bivs = Terminates
-  /\ revisits loop.(body) loop.(header)
+  /\ acyclic_region loop.(body) loop.(header)
   /\ params_are_dead_bivs op_def blocks loop bivs
   /\ body_in_supported_fragment loop
   /\ exits_only_to loop exit.

@@ -17,8 +17,9 @@
    SsaContext.v's word-observation overapproximation, so loads, calls and
    other opaque computations need not be given full memory semantics.
    Review that abstraction and the graph contracts in SsaExecution.v,
-   SsaGraph.v and SsaProgress.v alongside the extraction veneer. The finite
-   witness proof uses classical logic, but adds no semantic axioms.
+   SsaGraph.v and SsaProgress.v alongside the extraction veneer. Finite exit
+   follows directly by iteration; definedness uses classical case splits.
+   Neither introduces semantic axioms.
 
    No post-deletion graph, renaming or pruning is modelled here, and
    eligibility is not assumed as a compiler contract. Nothing is extracted. *)
@@ -83,33 +84,6 @@ Proof.
     as [exit_regs Hrun].
   pose proof Heligible as [_ [Houtside Hrest]].
   eapply region_exit_progress; eassumption.
-Qed.
-
-(* A loop that exits on this first header visit already has the required
-   value agreement: the parameterless transfer modifies no register.
-   The theorem includes the header's actual computations and their values. *)
-Theorem first_visit_exit_eligible : forall (loop : natural_loop) (exit : block)
-    (header_regs first_header_regs exit_regs : registers),
-  set_mem loop.(header) loop.(body) = true ->
-  set_mem exit loop.(body) = false -> params exit = [] ->
-  executes_insns header_regs (block_body loop.(header)) first_header_regs ->
-  SsaSemantics.step
-    {| current_block := loop.(header); remaining := [];
-       current_registers := first_header_regs |}
-    (enter exit exit_regs) ->
-  eligible_entry loop exit header_regs.
-Proof.
-  intros loop exit header_regs first exit_regs Hinside Houtside Hparams
-    Hbody Hstep.
-  split; [exact Hinside |]. split; [exact Houtside |].
-  split; [exact Hparams |]. exists first, exit_regs.
-  split; [exact Hbody |]. split.
-  - eapply Region_cons; [exact Hinside | exact Hstep | constructor].
-  - pose proof (step_to_parameterless_frame
-      {| current_block := loop.(header); remaining := [];
-         current_registers := first |} (enter exit exit_regs)
-      eq_refl Hparams Hstep) as Heq.
-    cbn in Heq. subst exit_regs. intros reg Hlive. reflexivity.
 Qed.
 
 (* For an accepted loop, a finite original execution to its exit suffices:
@@ -196,8 +170,8 @@ Theorem certificate_entry_eligible : control_edges ->
        In dominator path) -> dominator --dom--> target) ->
   switch_edge_multiplicity -> graph_size_supported blocks ->
   NoDup (strict_dominators loop.(header)) ->
-  (forall (dominator : block), In dominator (strict_dominators loop.(header)) ->
-     In dominator blocks) ->
+  (forall (dominator : block),
+     In dominator (strict_dominators loop.(header)) -> In dominator blocks) ->
   deletion_certificate defs blocks loop bivs exit ->
   bounded_registers initial_regs ->
   live_registers_bound (entry_point entry) initial_regs ->
@@ -208,12 +182,15 @@ Proof.
   intros Hedges blocks entry defs loop bivs exit initial_regs header_regs
     Hwf Hlayout Hgraph Hdominance Hdefs Hcomplete Hmultiplicity Hsize Hnodup
     Hmembers Hcertificate Hbounded Hinputs Hswitches Hprefix.
-  assert (Hnoinfinite : no_infinite_execution_in loop.(body)
-    (enter loop.(header) header_regs)).
-  { eapply accepted_loop_no_infinite_execution; eassumption. }
-  destruct (region_finite_exit loop.(body) (enter loop.(header) header_regs)
-    Hnoinfinite) as [reached [Hrun Houtside]].
+  assert (Hprogress : forall (reached : state),
+    region_steps loop.(body) (enter loop.(header) header_regs) reached ->
+    set_mem (current_block reached) loop.(body) = true ->
+    exists (next : state), SsaSemantics.step reached next).
   { eapply certificate_region_progress; eassumption. }
+  destruct (accepted_loop_finite_exit blocks entry defs loop bivs exit
+    initial_regs header_regs Hedges Hwf Hgraph Hcertificate Hprefix
+    Hprogress Hdominance Hdefs Hcomplete Hmultiplicity Hsize Hnodup Hmembers
+    Hbounded) as [reached [Hrun Houtside]].
   pose proof Hcertificate as [_ [_ [_ [_ [_ Honly]]]]].
   destruct (region_exit_target Hedges loop exit
     (enter loop.(header) header_regs) reached Honly
@@ -233,31 +210,6 @@ Section GraphEligibility.
     In dominator blocks -> In target blocks ->
     (forall (path : list block), SsaDominance.path entry path target ->
        In dominator path) -> dominator --dom--> target.
-
-  (* The actual deletion decision now guarantees live-out safety for all
-     its accepted shapes. Finite exit remains an explicit premise, rather
-     than being silently identified with the existing no-infinite results. *)
-  Theorem find_deletions_finite_exit_eligible : control_edges ->
-    forall (defs : op_def) (header exit : block),
-    well_formed_ssa blocks entry ->
-    In (header, exit) (find_deletions defs blocks) ->
-    exists (loop : natural_loop) (bivs : list biv),
-      In (loop, bivs) (InductionVar.analyze defs blocks)
-      /\ header = loop.(NaturalLoop.header)
-      /\ forall (initial_regs header_regs exit_regs : registers),
-           context_steps (enter entry initial_regs)
-             (enter header header_regs) ->
-           region_steps loop.(body) (enter header header_regs)
-             (enter exit exit_regs) -> eligible_entry loop exit header_regs.
-  Proof.
-    intros Hedges defs header exit Hwf Hin.
-    destruct (find_deletions_graph_properties blocks entry predecessors_closed
-      successors_closed dominance dominance_complete defs header exit Hin)
-      as [loop [bivs [Hloop [Hheader [Hcertificate Hgraph]]]]].
-    exists loop, bivs. split; [exact Hloop |]. split; [exact Hheader |].
-    intros initial_regs header_regs exit_regs Hprefix Hrun. subst header.
-    eapply certificate_finite_exit_eligible; eassumption.
-  Qed.
 
   (* The public theorem starts from the actual deletion decision. Its
      graph premises concern builder metadata and resource size only;
