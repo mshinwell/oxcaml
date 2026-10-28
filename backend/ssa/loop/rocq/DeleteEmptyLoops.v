@@ -117,8 +117,8 @@ Definition find_deletions (op_def : op_def) (blocks : list block)
    boundedness theorems there describe exactly what execution changes. *)
 Definition body_in_supported_fragment (loop : natural_loop) : Prop :=
   forall (block : block), set_mem block loop.(body) = true ->
-    (forall instruction, In instruction (block_body block) ->
-       supported_instruction instruction = true)
+    (forall (insn : instr), In insn (block_body block) ->
+       supported_instruction insn = true)
     /\ terminator_pure_control (terminator block) = true.
 
 (* Every edge out of a block of the body stays in the body or goes to
@@ -161,7 +161,8 @@ Definition deletable (op_def : op_def) (blocks : list block)
   /\ revisits loop.(body) loop.(header)
   /\ params_are_dead_bivs op_def blocks loop bivs
   /\ body_in_supported_fragment loop
-  /\ exits_only_to loop exit.
+  /\ exits_only_to loop exit
+  /\ bivs <> [].
 
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
@@ -238,5 +239,10 @@ Proof.
       apply in_map_iff in Hb. destruct Hb as [br [<- Hbr]].
       destruct (Hbivs br Hbr) as [_ Hd]. apply Hd, Hdead. exact Hbr.
   - apply body_supported_spec. exact Hfree.
-  - apply single_exit_spec. exact Hsingle.
+  - split.
+    + apply single_exit_spec. exact Hsingle.
+    + intros Hempty.
+      change (LoopTermination.analyze op_def (map biv dr.(bivs)) = Terminates)
+        in Hanalyze.
+      rewrite Hempty in Hanalyze. discriminate.
 Qed.

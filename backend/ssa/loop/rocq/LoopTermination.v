@@ -654,7 +654,7 @@ Section Run.
     forall (biv : biv) (step : int) (cond : value)
       (cmp : integer_comparison) (iv_is_left : bool) (bnd : bound),
     biv_spec op_def loop biv -> signed_step biv = Some step ->
-    (exists targets,
+    (exists (targets : list block),
        terminator loop.(header) = Terminator.Switch cond targets) ->
     extract_comparison
       (fun v => is_param loop.(header) biv.(param_index) v

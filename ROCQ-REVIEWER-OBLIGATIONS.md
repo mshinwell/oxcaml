@@ -7,10 +7,16 @@ progress with bound operands, register-width preservation, simultaneous
 parameter binding, and deterministic stepping. The extracted whitelist
 rejects all other operations in a candidate loop, including its header.
 
-The execution-to-termination bridge and rewrite preservation theorem are
-still missing. Obligations 1 and 3 below describe missing proofs, not an
-acceptable long-term reviewer contract; see `ROCQ-SEMANTICS-PROPOSAL.md`.
-This note distinguishes the analysis certificates from those proofs.
+`SsaExecution.v` now derives equations for available actual SSA values
+from execution and structural well-formedness. `LoopExecution.v` proves
+header revisits, fixed values of registers defined outside a region,
+natural-loop graph properties, and actual back-edge parameter passing.
+
+The remaining composition into the arithmetic termination argument and
+the rewrite-preservation theorem are still missing. Obligations 1 and 3
+below describe missing proofs, not an acceptable long-term reviewer
+contract; see `ROCQ-SEMANTICS-PROPOSAL.md`. This note distinguishes the
+analysis certificates from those proofs.
 
 ## What Rocq proves
 
@@ -34,14 +40,16 @@ induction variables, and the loop satisfies `deletable` with exit
   integer instructions with the required operand/result arities, and a
   `Goto` or `Switch` terminator;
 - `exits_only_to`: every successor of a body block is in the body or is
-  `exit`.
+  `exit`;
+- `bivs <> []`: there is at least one analyzed induction variable.
 
 Every conjunct but the second is a proposition over the observations
 SsaModel.v takes from the compiler: `predecessors`, `all_successors`,
 `dominates`, `params`, `param`, `block_body`, `terminator`,
 the instruction operation/result count, and `op_def_find`. The second
-quantifies over a mathematical function `iter`. Nothing in Rocq connects `iter` to an
-execution of the compiled function; that connection is obligation 1.
+quantifies over a mathematical function `iter`. The new operational lemmas
+have not yet been assembled into that sampled valuation; the remaining
+connection is obligation 1.
 
 ## Obligation 1: the run hypotheses hold of real executions
 
@@ -111,15 +119,17 @@ along an edge to `exit`.
 - The list passed to `find_deletions`, `Ssa.blocks ssa`, is the whole
   graph: closed under predecessors and under successors. The theorems
   of NaturalLoop.v take this as the hypotheses `blocks_closed` and
-  `succs_closed`. It is not a conjunct of `deletable`, so the reviewer
-  applies those theorems by hand where obligation 1 needs them. (Adding
-  the natural-loop facts to `deletable` under these hypotheses is an
-  open item of ROCQ-VACUITY-AUDIT.md.)
+  `succs_closed`. `LoopExecution.find_deletions_graph_properties` composes
+  these theorems with the deletion decision; the reviewer no longer needs
+  to apply the natural-loop theorems manually. Its dominance premise
+  requires complete as well as sound answers for graph blocks.
 - `predecessors` and `all_successors` describe the same edges from both
   ends.
 - `terminator`, `params`, `param` and `block_body` return the block's
   own data. The instruction match returns its actual opcode, operands
-  and result count. The pass no longer relies on `has_side_effect` to
+  and result count. Parameters are distinct and belong to their own
+  block; indexed access agrees with the parameter list (`parameter_layout`
+  in SsaSemantics.v). The pass no longer relies on `has_side_effect` to
   establish that an instruction can be skipped.
 - `compute_op_def` in delete_empty_loops.ml maps each `Op` id to the
   block containing it, so that `op_def_find op_def id = Some b` exactly
@@ -153,7 +163,7 @@ checks the argument in the header comment of DeleteEmptyLoops.v:
   single iteration, the value it had in the last original iteration.
   The argument is that, by SSA scoping, such a value is a header
   parameter, which `dead_spec` forbids any use of outside the loop's
-  control,   or an integer instruction whose inputs are loop-invariant values,
+  control, or an integer instruction whose inputs are loop-invariant values,
   earlier header instruction results, or header parameters, the last
   excluded by `dead_spec` for any instruction other than the exit
   comparison and the parameter's own updates.
@@ -166,7 +176,10 @@ remaining live-out argument, which still needs an operational proof.
 ## What is not covered at all
 
 - The dominator computation behind `Block.dominates`.
-- The invariants of a finished SSA graph that the observations rely on
-  (one `op_data` per instruction, parameters bound by `Goto` arguments,
-  pruning of unreachable blocks).
+- A proof that the OCaml finished-graph builder satisfies the structural
+  `well_formed_ssa` conditions in SsaExecution.v: canonical definitions,
+  unique instruction sites, and definition/use dominance. These are
+  explicit premises of the available-value theorem, not proved properties
+  of the OCaml builder.
+- Pruning of unreachable blocks.
 - `Ssa_reducer`, which performs the rewrite.

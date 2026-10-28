@@ -49,7 +49,7 @@ let supported_operation op args =
 
 (** val supported_instruction : Ssa.finished Ssa.Instruction.t -> bool **)
 
-let supported_instruction instruction =
+let supported_instruction insn =
   (fun f_op f_push_trap f_pop_trap (i : Ssa.finished Ssa.Instruction.t) ->
     match i with
     | Ssa.Instruction.Op { Ssa.Instruction.id; op; args; typ; _ } ->
@@ -60,7 +60,7 @@ let supported_instruction instruction =
       Int.equal results 1 && supported_operation op args)
     (fun _ -> false)
     (fun _ -> false)
-    instruction
+    insn
 
 (** val supported_block : block -> bool **)
 

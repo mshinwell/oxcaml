@@ -185,10 +185,26 @@ Definition acyclic_except (blocks : list block) (region : blockset)
 (* Part 2: the intended meaning                                             *)
 (* ======================================================================== *)
 
+(* The compiler's edge observations agree with the terminators and with
+   one another. Extra successors (for example exception edges) are allowed;
+   every ordinary control transfer must still appear in the graph. *)
+Record control_edges : Prop :=
+  { goto_successor : forall (source target : block)
+      (args : list Terminator.arg),
+      terminator source = Terminator.Continue (Goto target) args ->
+      In target (all_successors source);
+    switch_successor : forall (source : block) (index : value)
+      (targets : list block) (target : block),
+      terminator source = Terminator.Switch index targets ->
+      In target targets -> In target (all_successors source);
+    predecessor_successor : forall (source target : block),
+      In source (predecessors target) <-> In target (all_successors source) }.
+
 (* A direct operand of the instruction tested by this block's Switch.
    Unlike all terms of [value], these operands occur in the actual graph. *)
 Definition switch_operand (b : block) (v : value) : Prop :=
-  exists id op args i targets,
+  exists (id : instr_id) (op : operation) (args : list value) (i : int)
+    (targets : list block),
     terminator b = Terminator.Switch (Res id op args i) targets
     /\ In v args.
 

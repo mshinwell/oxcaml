@@ -38,7 +38,7 @@
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlInt OxCamlList.
-From OxCamlSsa Require Import SsaModel SsaGraph.
+From OxCamlSsa Require Import SsaModel SsaGraph SsaDominance.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -572,6 +572,86 @@ Section FindLoops.
           exists srcs'. split; [ right; exact H1 | exact H2 ].
   Qed.
 
+  (* Adding a back edge introduces no header other than the one being
+     recorded. This is used to preserve uniqueness of table keys. *)
+  Lemma add_back_edge_keys : forall (loop_header source : block)
+      (table : list (block * list block)) (key : block),
+    In key (map fst (add_back_edge loop_header source table)) ->
+    key = loop_header \/ In key (map fst table).
+  Proof.
+    intros h s table h' Hin. apply in_map_iff in Hin.
+    destruct Hin as [[key sources] [E Hin]]. cbn in E. subst key.
+    destruct (add_back_edge_entries _ _ _ _ _ Hin)
+      as [[H _] | [[H _] | H]]; try (left; exact H).
+    right. apply in_map_iff. exists (h', sources). auto.
+  Qed.
+
+  (* Each header still has one table entry after recording a back edge. *)
+  Lemma add_back_edge_unique : forall (loop_header source : block)
+      (table : list (block * list block)),
+    NoDup (map fst table) ->
+    NoDup (map fst (add_back_edge loop_header source table)).
+  Proof.
+    intros h s table. induction table as [ | [key sources] table IH ];
+      intros Hunique; cbn [add_back_edge map fst].
+    - constructor; [cbn; tauto | constructor].
+    - inversion Hunique as [ | ? ? Hnot Htail ]; subst.
+      destruct (block_eqb key h) eqn:E; cbn.
+      + constructor; assumption.
+      + constructor; [ | apply IH; exact Htail].
+        intros Hin. apply add_back_edge_keys in Hin.
+        destruct Hin as [Heq | Hin]; [ | contradiction].
+        subst key. rewrite block_eqb_refl in E. discriminate.
+  Qed.
+
+  (* Recording successors and then blocks preserves unique header keys. *)
+  Lemma record_back_edges_unique : forall (source : block)
+      (table : list (block * list block)),
+    NoDup (map fst table) ->
+    NoDup (map fst (record_back_edges table source)).
+  Proof.
+    intros source table Hunique.
+    unfold record_back_edges, OxCamlList.fold_left.
+    generalize dependent table. induction (all_successors source)
+      as [ | target targets IH ]; intros table Hunique; cbn.
+    - exact Hunique.
+    - apply IH. unfold record_back_edge.
+      destruct (dominates target source); [apply add_back_edge_unique |];
+        exact Hunique.
+  Qed.
+
+  (* The complete discovery table contains each header at most once. *)
+  Lemma header_table_unique :
+    NoDup (map fst (List.fold_left record_back_edges blocks [])).
+  Proof.
+    assert (forall bs table, NoDup (map fst table) ->
+      NoDup (map fst (List.fold_left record_back_edges bs table))) as Hfold.
+    { intros bs. induction bs as [ | b bs IH ]; intros table Hunique; cbn.
+      - exact Hunique.
+      - apply IH, record_back_edges_unique. exact Hunique. }
+    apply Hfold. constructor.
+  Qed.
+
+  (* A table with distinct keys has one value for each key. *)
+  Lemma unique_header_sources :
+    forall (table : list (block * list block)) (loop_header : block)
+      (sources sources' : list block),
+    NoDup (map fst table) ->
+    In (loop_header, sources) table ->
+    In (loop_header, sources') table -> sources = sources'.
+  Proof.
+    intros table. induction table as [ | [key srcs] table IH ];
+      intros h sources sources' Hunique Hin Hin'; [contradiction |].
+    inversion Hunique as [ | ? ? Hnot Htail ]; subst.
+    destruct Hin as [E | Hin], Hin' as [E' | Hin'].
+    - congruence.
+    - injection E as -> ->. exfalso. apply Hnot.
+      apply in_map_iff. exists (h, sources'). auto.
+    - injection E' as -> ->. exfalso. apply Hnot.
+      apply in_map_iff. exists (h, sources). auto.
+    - eapply IH; eassumption.
+  Qed.
+
   (* [record_back_edge], unfolded. *)
   Lemma record_back_edge_eq :
     forall (source : block) (table : list (block * list block)) (succ : block),
@@ -731,6 +811,60 @@ Section FindLoops.
     apply find_loops_In. exists h, srcs. split; [ exact Hin | reflexivity ].
   Qed.
 
+  (* There is one natural-loop record for a header, not merely some loop
+     with that header. Back-edge completeness can therefore be applied to
+     the particular record returned to the deletion analysis. *)
+  Theorem find_loops_unique_header : forall (loop other_loop : natural_loop),
+    In loop (find_loops blocks) -> In other_loop (find_loops blocks) ->
+    loop.(header) = other_loop.(header) -> loop = other_loop.
+  Proof.
+    intros l l' Hl Hl' Heq.
+    apply find_loops_In in Hl, Hl'.
+    destruct Hl as [h [sources [Hin ->]]].
+    destruct Hl' as [h' [sources' [Hin' ->]]]. cbn in Heq. subst h'.
+    assert (sources = sources') by
+      (eapply unique_header_sources; eauto using header_table_unique).
+    subst sources'. reflexivity.
+  Qed.
+
+  (* Every back edge to a found header belongs to that loop's source list. *)
+  Theorem find_loops_back_edges_complete :
+    forall (loop : natural_loop) (source : block),
+    In loop (find_loops blocks) -> In source blocks ->
+    In loop.(header) (all_successors source) ->
+    loop.(header) --dom--> source ->
+    In source loop.(back_edge_sources).
+  Proof.
+    intros l source Hl Hsource Hedge Hdom.
+    destruct (find_loops_complete source l.(header) Hsource Hedge Hdom)
+      as [l' [Hl' [Hheader Hback]]].
+    assert (l' = l) by (eapply find_loops_unique_header; eassumption).
+    subst l'. exact Hback.
+  Qed.
+
+  (* A found loop's header and body blocks belong to the supplied graph.
+     The closure assumptions are graph observations, not execution laws. *)
+  Theorem find_loops_blocks : forall (loop : natural_loop),
+    In loop (find_loops blocks) ->
+    In loop.(header) blocks /\
+    forall (b : block), set_mem b loop.(body) = true -> In b blocks.
+  Proof.
+    intros l Hl. pose proof Hl as Hrecord. apply find_loops_In in Hrecord.
+    destruct Hrecord as [h [sources [Hin Heq]]]. subst l. cbn.
+    destruct header_table_spec as [Hsound _].
+    destruct (Hsound h sources Hin) as [Hnonempty Hsources].
+    assert (Hheader : In h blocks).
+    { destruct sources as [ | source sources]; [contradiction |].
+      destruct (Hsources source (or_introl eq_refl)) as [Hs [Hedge _]].
+      eapply succs_closed; eassumption. }
+    split; [exact Hheader |]. intros b Hb.
+    destruct (natural_loop_body_sound h sources blocks b Hb)
+      as [-> | Hreach]; [exact Hheader |].
+    clear Hb. induction Hreach.
+    - apply Hsources. exact H.
+    - eapply blocks_closed; eassumption.
+  Qed.
+
   (* The body of a loop found is its header plus the blocks that reach a
      back-edge source without passing through the header. *)
   Theorem find_loops_body : forall (loop : natural_loop) (block : block),
@@ -755,6 +889,45 @@ Section FindLoops.
         * intros s Hs. exact (proj1 (Hall s Hs)).
   Qed.
 End FindLoops.
+
+(* The semantic domination of a back-edge source extends backwards to
+   every block reaching it without passing through the header. *)
+Lemma reaches_dominated : forall (entry loop_header : block)
+    (sources : list block),
+  dominance_semantics entry ->
+  (forall (source : block),
+    In source sources -> loop_header --dom--> source) ->
+  forall (b : block), reaches loop_header sources b ->
+  forall (p : list block), path entry p b -> In loop_header p.
+Proof.
+  intros entry h sources Hdom Hsources b Hreach.
+  induction Hreach as [source Hin Hne | b pred Hr IH Hedge Hne];
+    intros p Hp.
+  - eapply dominates_spec; [exact Hdom | apply Hsources; exact Hin | exact Hp].
+  - pose proof (IH _ (path_snoc _ _ _ _ Hp Hedge)) as Hin.
+    apply in_app_or in Hin. destruct Hin as [Hin | [Heq | []]];
+      [exact Hin |].
+    exfalso. apply (reaches_not_header h sources b Hr). exact Heq.
+Qed.
+
+(* Every path into a found loop body passes through its header. This
+   connects the reverse CFG walk to semantic dominance, without assuming
+   that property of the analysis's result. *)
+Theorem find_loops_body_dominated : forall (blocks : list block)
+    (entry : block) (loop : natural_loop),
+  dominance_semantics entry -> In loop (find_loops blocks) ->
+  forall (b : block), set_mem b loop.(body) = true ->
+  forall (p : list block), path entry p b -> In loop.(header) p.
+Proof.
+  intros blocks entry l Hdom Hl b Hb p Hp.
+  pose proof Hl as Hrecord. apply find_loops_In in Hrecord.
+  destruct Hrecord as [h [sources [Hin Heq]]]. subst l. cbn in *.
+  destruct (natural_loop_body_sound h sources blocks b Hb)
+    as [-> | Hreach]; [eapply path_last; exact Hp |].
+  eapply reaches_dominated; [exact Hdom | | exact Hreach | exact Hp].
+  intros source Hsource.
+  exact (proj2 (proj2 (find_loops_back_edges blocks _ source Hl Hsource))).
+Qed.
 
 (* --- [find_exit_branch] --- *)
 

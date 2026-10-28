@@ -118,6 +118,39 @@ Proof.
     + right. exact (IH _ _ H).
 Qed.
 
+(* Equal suffix lengths identify the same element in two decompositions
+   of a list. This lets SSA definitions be located by instruction position. *)
+Lemma same_position_element : forall (A : Type)
+    (prefix prefix' suffix suffix' : list A) (element element' : A),
+  prefix ++ element :: suffix = prefix' ++ element' :: suffix' ->
+  length suffix = length suffix' -> element = element'.
+Proof.
+  intros A prefix. induction prefix as [ | head prefix IH ];
+    intros prefix' suffix suffix' element element' Heq Hlength;
+    destruct prefix' as [ | head' prefix']; cbn in Heq.
+  - congruence.
+  - apply (f_equal (@length A)) in Heq. cbn in Heq.
+    rewrite app_length in Heq. cbn in Heq. lia.
+  - apply (f_equal (@length A)) in Heq. cbn in Heq.
+    rewrite app_length in Heq. cbn in Heq. lia.
+  - injection Heq as _ Htail. eapply IH; eassumption.
+Qed.
+
+(* Pointwise-related lists have related entries at the same machine-int
+   index, whenever the entry in the first list exists. *)
+Lemma Forall2_nth_int : forall {A B : Type} (R : A -> B -> Prop)
+    (xs : list A) (ys : list B),
+  Forall2 R xs ys -> forall (index : int) (x : A),
+  nth_int xs index = Some x ->
+  exists (y : B), nth_int ys index = Some y /\ R x y.
+Proof.
+  intros A B R xs ys H. induction H; intros i z Hnth; cbn in *.
+  - discriminate.
+  - destruct (i =? zero) eqn:E.
+    + injection Hnth as <-. exists y. auto.
+    + apply IHForall2. exact Hnth.
+Qed.
+
 (* An element of [filter_map f l] is [f] of an element of [l]. *)
 Lemma filter_map_In :
   forall {A B : Type} (f : A -> option B) (l : list A) (y : B),

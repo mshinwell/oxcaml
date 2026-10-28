@@ -20,7 +20,7 @@
    (every block of a finished graph is reachable from it). The last two
    are [dominance_semantics] in part 2, which the theorem assumes. *)
 
-From Stdlib Require Import Bool List.
+From Stdlib Require Import Bool List Lia PeanoNat.
 From OxCamlSsa Require Import SsaModel SsaGraph.
 Import ListNotations.
 
@@ -77,9 +77,173 @@ Record dominance_semantics (entry : block) : Prop :=
 Arguments dominates_spec {entry}.
 Arguments entry_dominates {entry}.
 
+(* A program point is a block and the number of instructions still to
+   execute. The entry point has the full body remaining; point zero is
+   the terminator. Result definitions become available after their
+   instruction, while parameters are available at the block entry. *)
+Definition point : Type := block * nat.
+
+Definition entry_point (b : block) : point := (b, length (block_body b)).
+
+Definition point_eqb (lhs rhs : point) : bool :=
+  block_eqb (fst lhs) (fst rhs) && Nat.eqb (snd lhs) (snd rhs).
+
+(* Instruction edges advance through a block. Terminator edges use the
+   same successor observation as block dominance, including exceptional
+   successors even though the restricted semantics cannot take them. *)
+Inductive point_edge : point -> point -> Prop :=
+  | Point_instruction : forall (b : block) (insns_left : nat),
+      insns_left < length (block_body b) ->
+      point_edge (b, S insns_left) (b, insns_left)
+  | Point_transfer : forall (source target : block),
+      In target (all_successors source) ->
+      point_edge (source, 0) (entry_point target).
+
+Inductive point_path : point -> list point -> point -> Prop :=
+  | Point_path_one : forall (p : point), point_path p [p] p
+  | Point_path_cons : forall (first next last : point) (rest : list point),
+      point_edge first next -> point_path next (next :: rest) last ->
+      point_path first (first :: next :: rest) last.
+
+Definition point_dominates (entry : block) (dominator target : point)
+    : Prop :=
+  forall (points : list point),
+    point_path (entry_point entry) points target -> In dominator points.
+
+Definition point_reachable (entry : block) (target : point) : Prop :=
+  exists (points : list point), point_path (entry_point entry) points target.
+
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
 (* ======================================================================== *)
+
+(* Point equality compares the block identity and instruction position. *)
+Lemma point_eqb_spec : forall (lhs rhs : point),
+  point_eqb lhs rhs = true <-> lhs = rhs.
+Proof.
+  intros [b n] [b' n']. unfold point_eqb; cbn.
+  rewrite andb_true_iff, block_eqb_spec, Nat.eqb_eq.
+  split; [intros [-> ->]; reflexivity | intros H; inversion H; auto].
+Qed.
+
+(* A point path can be extended at either end by one graph edge. *)
+Lemma point_path_prepend : forall (first next last : point)
+    (points : list point),
+  point_edge first next -> point_path next points last ->
+  point_path first (first :: points) last.
+Proof.
+  intros first next last points Hedge Hpath.
+  inversion Hpath; subst; apply Point_path_cons; assumption.
+Qed.
+
+Lemma point_path_snoc : forall (first last next : point)
+    (points : list point),
+  point_path first points last -> point_edge last next ->
+  point_path first (points ++ [next]) next.
+Proof.
+  intros first last next points Hpath. induction Hpath; intros Hedge; cbn.
+  - apply Point_path_cons; [exact Hedge | constructor].
+  - apply Point_path_cons; [assumption | apply IHHpath; exact Hedge].
+Qed.
+
+(* Truncate a path at its first visit to the destination. *)
+Lemma point_path_first_visit : forall (first last : point)
+    (points : list point),
+  point_path first points last ->
+  exists (prefix : list point),
+    point_path first (prefix ++ [last]) last /\ ~ In last prefix.
+Proof.
+  intros first last points Hpath. induction Hpath.
+  - exists []. split; [constructor | cbn; tauto].
+  - destruct (point_eqb first last) eqn:E.
+    + apply point_eqb_spec in E. subst first.
+      exists []. split; [constructor | cbn; tauto].
+    + destruct IHHpath as [prefix [Hp Hnot]].
+      exists (first :: prefix). split.
+      * cbn. eapply point_path_prepend; eassumption.
+      * intros [Heq | Hin]; [ | contradiction].
+        subst first. assert (point_eqb last last = true)
+          by (apply point_eqb_spec; reflexivity). congruence.
+Qed.
+
+(* A member of an avoiding prefix can be reached without leaving that
+   prefix. This is the path-splicing fact needed for antisymmetry. *)
+Lemma point_path_prefix_avoiding : forall (first last : point)
+    (points : list point),
+  point_path first points last ->
+  forall (prefix suffix : list point) (member avoid : point),
+  points = prefix ++ suffix -> ~ In avoid prefix -> In member prefix ->
+  exists (before_member : list point),
+    point_path first before_member member /\ ~ In avoid before_member.
+Proof.
+  intros first last points Hpath. induction Hpath;
+    intros prefix suffix member avoid Heq Havoid Hin;
+    destruct prefix as [ | head prefix]; [contradiction | | contradiction |].
+  - cbn in Heq. injection Heq as <- Htail.
+    destruct prefix; [ | discriminate]. cbn in Hin.
+    destruct Hin as [<- | []]. exists [p]. split; [constructor |].
+    exact Havoid.
+  - cbn in Heq. injection Heq as <- Htail.
+    destruct Hin as [<- | Hin].
+    + exists [first]. split; [constructor | cbn in *; tauto].
+    + destruct (IHHpath prefix suffix member avoid Htail
+        ltac:(cbn in Havoid; tauto) Hin) as [before_member [Hp Hnot]].
+      exists (first :: before_member). split.
+      * eapply point_path_prepend; eassumption.
+      * cbn in *. tauto.
+Qed.
+
+(* Mutual domination of reachable points means they are the same point.
+   Reachability prevents unreachable graph fragments making this vacuous. *)
+Theorem point_dominance_antisymmetric : forall (entry : block)
+    (lhs rhs : point),
+  point_reachable entry rhs -> point_dominates entry lhs rhs ->
+  point_dominates entry rhs lhs -> lhs = rhs.
+Proof.
+  intros entry lhs rhs [points Hpath] Hlhs Hrhs.
+  destruct (point_eqb lhs rhs) eqn:E;
+    [apply point_eqb_spec; exact E |].
+  destruct (point_path_first_visit _ _ _ Hpath)
+    as [prefix [Hp Hnot]].
+  pose proof (Hlhs _ Hp) as Hin. apply in_app_or in Hin.
+  destruct Hin as [Hin | [Heq | []]].
+  - destruct (point_path_prefix_avoiding _ _ _ Hp prefix [rhs] lhs rhs
+      eq_refl Hnot Hin) as [before_lhs [Hbefore Havoid]].
+    exfalso. apply Havoid, Hrhs, Hbefore.
+  - subst lhs. assert (point_eqb rhs rhs = true)
+      by (apply point_eqb_spec; reflexivity). congruence.
+Qed.
+
+(* A dominator of a successor also dominates its predecessor unless it
+   is the successor itself, where a definition may just have become live. *)
+Lemma point_dominates_predecessor : forall (entry : block)
+    (dominator before after : point),
+  point_dominates entry dominator after -> dominator <> after ->
+  point_edge before after -> point_dominates entry dominator before.
+Proof.
+  intros entry dominator before after Hdom Hneq Hedge points Hpath.
+  pose proof (Hdom _ (point_path_snoc _ _ _ _ Hpath Hedge)) as Hin.
+  apply in_app_or in Hin. destruct Hin as [Hin | [Heq | []]];
+    [exact Hin | congruence].
+Qed.
+
+(* A path contains its endpoint. *)
+Lemma path_last : forall (first : block) (p : list block) (last : block),
+  path first p last -> In last p.
+Proof.
+  intros first p last H. induction H; cbn; auto.
+Qed.
+
+(* Following one more edge extends a path at its end. *)
+Lemma path_snoc :
+  forall (first : block) (p : list block) (last next : block),
+  path first p last -> In last (predecessors next) ->
+  path first (p ++ [next]) next.
+Proof.
+  intros first p last next H. induction H; intros Hedge; cbn.
+  - apply path_cons; [exact Hedge | constructor].
+  - apply path_cons; [assumption | apply IHpath; exact Hedge].
+Qed.
 
 (* A path that visits [succ], without starting there, arrives over the
    edge from [succ]'s only predecessor. *)
