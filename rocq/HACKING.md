@@ -19,9 +19,13 @@ instruction-by-instruction execution for that fragment and the extracted
 whitelist. `SsaExecution.v` derives operation equations for available
 values from execution and structural SSA well-formedness.
 `LoopExecution.v` connects execution to header revisits and back-edge
-parameter passing. Composition into the termination argument and proof of
-the graph rewrite remain unfinished: `find_deletions_spec` is still an
-analysis-certificate theorem, not a behavior-preservation theorem.
+parameter passing. `LoopInvariantExecution.v` derives bound constancy, and
+`LoopCounterExecution.v` proves no infinite confined execution for literal
+bounds and unconditional comparison rules. Entry-range proofs, progress,
+live-out agreement and the graph rewrite remain unfinished.
+`find_deletions_spec` is an analysis-certificate theorem, not a
+behavior-preservation theorem. The old `infinite_header_run` abstraction is
+not an assumed compiler contract and is not used by the operational proofs.
 
 ## The directories
 
@@ -32,7 +36,7 @@ Each directory is a Rocq library (`rocq/Makefile` maps them):
 | `rocq/`                  | `OxCamlStdlib` | Models of OxCaml's own types (`int`, `Int64`, lists, exceptions as options), generic arithmetic (`IntArith.v`), proof helpers, and the extraction directives mapping them onto OxCaml's functions (`OxCamlExtract.v`) |
 | `backend/rocq/`          | `OxCamlBackend`| Backend-wide definitions: the semantics of `Cmm.integer_comparison`, the model's copy of `Operation.t` |
 | `backend/ssa/rocq/`      | `OxCamlSsa`    | The SSA graph as the models see it: `SsaModel.v` (the abstract interface), `SsaGraph.v` (properties of blocks, terminators and uses that any pass may need), `SsaDominance.v`, `SsaSemantics.v` (execution of the restricted integer fragment), `SsaExecution.v` (well-formedness and available-value equations) |
-| `backend/ssa/loop/rocq/` | `OxCamlLoop`   | The loop analyses, the operational bridge in `LoopExecution.v`, and `Extract.v`, which extracts the implementation |
+| `backend/ssa/loop/rocq/` | `OxCamlLoop`   | The loop analyses, the operational proofs in `LoopExecution.v`, `LoopInvariantExecution.v` and `LoopCounterExecution.v`, and `Extract.v`, which extracts the implementation |
 
 Put a definition or lemma where its OxCaml counterpart would live. A fact
 about lists goes in `OxCamlList.v`, about machine integers in
@@ -85,14 +89,13 @@ Every model file has a header and four parts, marked by banners:
    are supposed to mean, in terms of the model's observations of the
    graph and of mathematical integers (`Z`). Each conjunct of a
    specification is a named predicate (`exits_only_to`,
-   `no_infinite_header_run`, `params_are_dead_bivs`, ...), so that the
+   `params_are_dead_bivs`, `body_in_supported_fragment`, ...), so that the
    specification reads as a sentence and needs no comment explaining its
-   parts. Hypotheses about the compiler that the model cannot prove (what
-   an operation computes, what dominance means, how a run of a loop goes)
-   are stated here too, as `Hypothesis` in a `Section` or as the fields
-   of a `Record` such as `infinite_header_run`. A `Remark` showing that
-   such a hypothesis is satisfiable (`op_semantics_lsr_zero`) sits right
-   after it: it documents the statement rather than serving a proof.
+   parts. Local compiler-data contracts belong here too, as `Hypothesis`
+   in a `Section` or fields of a `Record`: for example, `control_edges`
+   and `parameter_layout`. Execution belongs in an independent semantics
+   such as `SsaSemantics.step`; the facts an analysis needs from execution
+   must be proved, not packaged as a trusted run record.
 3. **Lemmas used by the proofs.** Stepping stones. Each non-trivial one
    has a comment before it saying, in plain words, what it states.
 4. **The theorems.** The correctness claims, each with a comment before
@@ -100,9 +103,9 @@ Every model file has a header and four parts, marked by banners:
 
 The header says what the file models, where its extraction lives, which
 files to read first, what the main theorems establish, and what is
-trusted. Parts 1 and 2 are what a reviewer checks by eye; Rocq checks the
-rest. The theorems only ever go one way: a boolean check answering `true`
-implies its meaning. Nothing is claimed about `false` answers, so the
+trusted. Review the definitions, contracts and theorem statements by eye;
+Rocq checks the proofs. Analysis-certificate theorems go one way: a boolean
+check answering `true` implies its meaning. Nothing is claimed about `false` answers, so the
 analyses may be conservative wherever that is convenient (size limits,
 overflow, unrecognised shapes).
 
@@ -204,9 +207,10 @@ header.
 - The existential witnesses in a specification should be things the
   analysis actually computes (`exists args, goto_args ... = Some args`),
   so that the proof is a reading-back of the code.
-- Hypotheses about machine semantics are stated once, in one place
-  (`op_semantics`, `infinite_header_run`), and every file that needs them takes
-  them as hypotheses rather than restating them.
+- Define machine execution once (`SsaSemantics.v`). Derive operation
+  equations only for available, canonical definitions (`SsaExecution.v`).
+  An abstract arithmetic valuation such as `AffineSsa.op_semantics` needs
+  a proved connection to execution before it can justify optimization.
 - A part-1 definition may be sound only for inputs with a property it
   does not check: `LoopTermination.analyze` is sound only for the basic
   induction variables of one loop. Such a precondition is a named part-2
@@ -218,16 +222,18 @@ header.
   discharges it (`InductionVar.analyze_spec`), so that the top-level
   theorem `find_deletions_spec` has no hypothesis but the trusted
   meaning of the primitives.
-- The meaning of a run (`infinite_header_run`) mentions no part-1
-  function beyond the primitives of SsaModel.v and the fields of the loop
-  record: a hypothesis stated through an analysis function would silently
-  trust that function. A property of an analysis result is stated as
-  what it means (`loop_invariant_value`) and tied to the function by a
-  read-back theorem (`is_loop_invariant_spec`).
+- Execution must not depend on the analysis being verified. For example,
+  `LoopExecution.infinite_execution` is a sequence of instruction steps,
+  not a record assuming counter recurrence or invariant bounds. A
+  property of an analysis result is stated as what it means
+  (`loop_invariant_value`), tied to the function by a read-back theorem
+  (`is_loop_invariant_spec`), and then justified operationally
+  (`LoopInvariantExecution.loop_invariant_value_same`).
 
 ## Proof style
 
-- Statements and proofs stay under 80 columns.
+- Statements and proofs stay under 80 columns. Give explicit types to
+  statement binders and use `insn` for instruction variables.
 - Case splits that the reader does not need to follow are written inline
   with `[ ... | ... ]`; those that carry an argument use bullets
   (`-`, `+`, `*`), with a comment when the case is not evident from the

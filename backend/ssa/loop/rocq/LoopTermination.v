@@ -11,17 +11,17 @@
    argument about a comparison and an induction variable, which this file
    applies; and AffineSsa.v for the facts a register bound is checked
    against. As there, the file has four parts: (1) the definitions, (2) the
-   intended meaning, (3) stepping-stone lemmas, (4) the theorems. Parts 1
-   and 2 are the part to check by eye.
+   intended meaning, (3) stepping-stone lemmas, (4) the theorems. Review
+   parts 1 and 2 and the theorem statements; Rocq checks the proofs.
 
    The type [t] here has the constructors [Terminates] and [Unknown], as
    does [LoopComparisons.termination]; the latter's are written qualified
    below.
 
-   The result, in part 4, is [analyze_Terminates]: when the analysis says
-   that a loop terminates, no run of the loop goes on for ever. Part 2
-   says what a run is and what it means for one to go on for ever
-   ([infinite_header_run]): the machine value of every SSA value at each
+   The legacy abstract result, in part 4, is [analyze_Terminates]: a
+   [Terminates] verdict contradicts the abstract run record in part 2.
+   This is not itself a theorem about executions. The record
+   [infinite_header_run] describes the machine value of every SSA value at each
    visit of the header ([iter]), with what the loop passes rely on about
    the graph stated as hypotheses, in three groups: what the machine
    computes ([machine_values]); how the loop was entered, with the values
@@ -29,6 +29,14 @@
    the header's branch going into the body and the next visit arriving
    over a back edge ([stays_in_loop]). A run satisfying all of that for
    ever contradicts a [Terminates] verdict.
+
+   This abstract-run theorem is not the operational contract of loop
+   deletion. DeleteEmptyLoops.v exposes the analysis verdict as part of a
+   certificate; LoopCounterExecution.v derives the counter recurrence and
+   bound constancy from actual instruction steps instead of assuming
+   [infinite_header_run]. It proves absence of infinite confined execution
+   for literal bounds and unconditional comparison rules. Register bounds
+   needing affine entry-range facts are not yet covered operationally.
 
    The argument, as the lemmas of part 3 cut it: by InductionVar.v the
    parameter the verdict rests on is updated by the same constant on every
@@ -178,7 +186,7 @@ Definition bivs_of_loop (op_def : op_def) (loop : natural_loop)
    run). The loop does not terminate when some run never ends. Such a run
    visits the header again and again: an execution that stays in the body
    comes back to the header ([SsaGraph.revisits], a conjunct of
-   [DeleteEmptyLoops.deletable] that the [acyclic_except] check
+   [DeleteEmptyLoops.deletion_certificate] that the [acyclic_except] check
    establishes). It is therefore described by [iter]: [iter n v] is the
    machine value of the SSA value [v] during the [n]-th visit of the
    header. For the header's parameters, the values of the
@@ -190,11 +198,14 @@ Definition bivs_of_loop (op_def : op_def) (loop : natural_loop)
    the values of its arguments when the hypotheses below say what that is,
    and any 64-bit value otherwise.
 
-   [infinite_header_run] states what is then true of [iter], in three
-   groups. It is the trusted meaning of the views of SsaModel.v in one
-   run: a reviewer checks that each hypothesis holds of a real execution
-   that never leaves [loop]; the model proves that no [iter] satisfies them
-   all for a loop [analyze] says terminates ([analyze_Terminates]). *)
+   This is a legacy mathematical abstraction, not a trusted compiler
+   contract: no theorem constructs it from execution. In particular, its
+   universal operation equations require more than actual register reads,
+   and its branch and back-edge fields are substantial proof obligations.
+   [analyze_Terminates] proves their conjunction contradictory for an
+   accepted loop. The operational proofs in LoopCounterExecution.v bypass
+   this record; reviewers must not treat its fields as assumptions about
+   the compiler. *)
 
 (* What the machine computes, at every visit. *)
 Record machine_values (iter : nat -> value -> Z) : Prop :=
@@ -302,6 +313,27 @@ Arguments run_machine {entry op_def loop iter}.
 Arguments run_entry {entry op_def loop iter}.
 Arguments run_stays {entry op_def loop iter}.
 Arguments run_atoms_fit {entry op_def loop iter}.
+
+(* A literal-bound range check depends only on machine-int comparisons,
+   not on a run, entry guards or a valuation of SSA expressions. *)
+Lemma constant_bound_in_range : forall (step_size : int) (header : block)
+    (limit : int),
+  bound_in_range step_size header (Const_bound limit) = true ->
+  LoopComparisons.bound_in_range (to_Z step_size) (to_Z limit) = true.
+Proof.
+  intros step_size header limit Hcheck.
+  unfold bound_in_range in Hcheck. cbv zeta in Hcheck.
+  rewrite zero_ltb_to_Z in Hcheck.
+  unfold LoopComparisons.bound_in_range. rewrite Z.gtb_ltb.
+  destruct (0 <? to_Z step_size)%Z.
+  - apply leb_int in Hcheck. rewrite to_Z_max_int in Hcheck.
+    apply Z.leb_le. exact Hcheck.
+  - apply leb_int in Hcheck. rewrite Sint63.to_Z_opp in Hcheck.
+    + rewrite to_Z_max_int in Hcheck. apply Z.leb_le.
+      unfold ocaml_max_int. lia.
+    + intros Heq. apply (f_equal to_Z) in Heq.
+      rewrite to_Z_max_int, to_Z_min_int in Heq. unfold two62 in Heq. lia.
+Qed.
 
 Section Run.
   Variable entry : block.
@@ -554,13 +586,7 @@ Section Run.
   Proof.
     intros step bnd H.
     unfold LoopComparisons.bound_in_range. rewrite Z.gtb_ltb.
-    assert (Hpos : (zero <? step)%sint63 = (0 <? to_Z step)).
-    { destruct (zero <? step)%sint63 eqn:E; symmetry.
-      - apply Z.ltb_lt. rewrite <- to_Z_zero. apply ltb_int. exact E.
-      - apply Z.ltb_ge.
-        destruct (Z.lt_ge_cases 0 (to_Z step)) as [C | C]; [ | exact C ].
-        exfalso. rewrite <- to_Z_zero in C. apply ltb_int in C.
-        rewrite C in E. discriminate. }
+    pose proof (zero_ltb_to_Z step) as Hpos.
     unfold bound_in_range in H. cbv zeta in H. rewrite Hpos in H.
     destruct bnd as [v | k]; cbn [bound_value].
     - (* Value_bound *)

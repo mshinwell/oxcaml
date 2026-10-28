@@ -74,14 +74,52 @@ Definition value_coherent (regs : registers) (v : value) : Prop :=
   | Block_param _ _ => True
   end.
 
-(* Only definitions dominating the current instruction position are
-   available. Values from another branch, later instructions and stale
-   results from a previous loop iteration are not asserted coherent. *)
+(* Availability is structural: a canonical definition in this graph
+   dominates the program point. Merely sharing an instruction ID is not
+   sufficient, and a definition later in the block is not available. *)
+Definition available_value (blocks : list block) (entry : block)
+    (position : point) (v : value) : Prop :=
+  exists (site : point), value_definition v site /\ In (fst site) blocks
+    /\ point_dominates entry site position.
+
+(* Only available values are asserted coherent. Values from another
+   branch, later instructions and stale results from a previous loop
+   iteration need not satisfy any operation equation. *)
 Definition coherent_at (blocks : list block) (entry : block)
     (regs : registers) (position : point) : Prop :=
-  forall (v : value) (site : point),
-    value_definition v site -> In (fst site) blocks ->
-    point_dominates entry site position -> value_coherent regs v.
+  forall (v : value), available_value blocks entry position v ->
+    value_coherent regs v.
+
+(* Operands of an available result are available as well. *)
+Lemma operand_available : forall (blocks : list block) (entry : block)
+    (position : point) (id : instr_id) (op : operation) (args : list value)
+    (index : int) (arg : value),
+  well_formed_ssa blocks entry ->
+  available_value blocks entry position (Res id op args index) ->
+  In arg args -> available_value blocks entry position arg.
+Proof.
+  intros blocks entry position id op args index arg Hwf
+    [site [[count [Hdefinition Hindex]] [Hsite Hdominates]]] Hin.
+  destruct (operand_definitions _ _ Hwf id op args count site
+    Hsite Hdefinition arg Hin) as [arg_site [Harg [Hargsite [Hdom _]]]].
+  exists arg_site. split; [exact Harg |]. split; [exact Hargsite |].
+  eapply point_dominance_transitive; eassumption.
+Qed.
+
+(* A terminator's operands are available when that terminator executes. *)
+Lemma terminator_operand_available : forall (blocks : list block)
+    (entry : block) (s : state) (args : list value) (arg : value),
+  well_formed_ssa blocks entry -> In (current_block s) blocks ->
+  remaining s = [] ->
+  In args (terminator_args (terminator (current_block s))) -> In arg args ->
+  available_value blocks entry (state_point s) arg.
+Proof.
+  intros blocks entry s args arg Hwf Hblock Hremaining Hargs Hin.
+  destruct (terminator_definitions _ _ Hwf _ _ Hblock Hargs arg Hin)
+    as [site [Hdefinition [Hsite Hdominates]]].
+  exists site. split; [exact Hdefinition |]. split; [exact Hsite |].
+  unfold state_point. rewrite Hremaining. exact Hdominates.
+Qed.
 
 (* A result site is strictly inside its block, never at block entry. *)
 Lemma result_definition_not_entry : forall (id : instr_id) (op : operation)
@@ -161,6 +199,21 @@ Proof.
   exists (points ++ [state_point after]).
   eapply point_path_snoc; [exact Hpath |].
   eapply step_point_edge; eassumption.
+Qed.
+
+(* A finite execution extends a reachable program-point path. *)
+Lemma steps_point_reachable : control_edges -> forall (entry : block)
+    (before after : state),
+  steps before after -> valid_position before ->
+  point_reachable entry (state_point before) ->
+  point_reachable entry (state_point after).
+Proof.
+  intros Hedges entry before after Hsteps. induction Hsteps;
+    intros Hposition Hreachable.
+  - exact Hreachable.
+  - apply IHHsteps.
+    + eapply step_valid_position; eassumption.
+    + eapply step_point_reachable; eassumption.
 Qed.
 
 (* Registers of definitions at other sites cannot be changed by this
@@ -289,7 +342,7 @@ Theorem step_values_coherent : control_edges ->
   coherent_at blocks entry (current_registers after) (state_point after).
 Proof.
   intros Hedges blocks entry before after Hwf Hposition Hbefore Hreachable
-    Hcoherent Hstep v site Hdefinition Hsite Hdominates.
+    Hcoherent Hstep v [site [Hdefinition [Hsite Hdominates]]].
   destruct v as [id op args index | b index]; [ | exact I].
   pose proof Hdefinition as [count [Hresult Hindex]].
   assert (Hreachable_after : point_reachable entry (state_point after)).
@@ -313,7 +366,10 @@ Proof.
     { eapply point_dominates_predecessor;
         [exact Hdominates | exact Hneq |].
       eapply step_point_edge; eassumption. }
-    destruct (Hcoherent _ _ Hdefinition Hsite Hdominates_before)
+    assert (Havailable_before : available_value blocks entry
+      (state_point before) (Res id op args index)).
+    { exists site. auto. }
+    destruct (Hcoherent _ Havailable_before)
       as [arg_values [result [Hread [Heval Hvalue]]]].
     exists arg_values, result. split; [rewrite Hargs; exact Hread |].
     split; [exact Heval |]. rewrite <- Hvalue.
@@ -328,7 +384,8 @@ Lemma entry_values_coherent : forall (blocks : list block) (entry : block)
     (initial_regs : registers),
   coherent_at blocks entry initial_regs (entry_point entry).
 Proof.
-  intros blocks entry initial_regs v site Hdefinition Hsite Hdominates.
+  intros blocks entry initial_regs v
+    [site [Hdefinition [Hsite Hdominates]]].
   destruct v as [id op args index | b index]; [ | exact I].
   pose proof (Hdominates [entry_point entry] (Point_path_one _)) as Hin.
   destruct Hin as [Heq | []]. subst site.

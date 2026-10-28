@@ -82,6 +82,19 @@ Proof. intros. apply Sint63.ltb_spec. Qed.
 Lemma leb_int : forall x y : int, (x <=? y)%sint63 = true <-> to_Z x <= to_Z y.
 Proof. intros. apply Sint63.leb_spec. Qed.
 
+(* Testing a machine int's sign agrees with its mathematical value. *)
+Lemma zero_ltb_to_Z : forall (value : int),
+  (zero <? value)%sint63 = (0 <? to_Z value)%Z.
+Proof.
+  intros value. destruct (zero <? value)%sint63 eqn:E; symmetry.
+  - apply Z.ltb_lt. rewrite <- to_Z_zero. apply ltb_int. exact E.
+  - apply Z.ltb_ge.
+    destruct (Z.lt_ge_cases 0 (to_Z value)) as [Hpositive | Hnonpositive];
+      [ | exact Hnonpositive].
+    exfalso. rewrite <- to_Z_zero in Hpositive.
+    apply ltb_int in Hpositive. congruence.
+Qed.
+
 (* --- [lsl] --- *)
 
 (* The unsigned reading of a non-negative [int] is its value. *)

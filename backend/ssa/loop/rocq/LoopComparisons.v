@@ -29,10 +29,16 @@
    3. Lemmas used by the proofs. Stepping stones; skip on a first reading.
    4. The theorems. These are the correctness claims, each with its proof.
 
-   Parts 1 and 2 are the part to check by eye: the definitions, and the
-   semantics against one's understanding of the machine. Once
-   they are right, Rocq checks everything else when the file is compiled
-   (see rocq/Makefile at the root of the repository). *)
+   Review parts 1 and 2 and the theorem statements: the definitions,
+   semantics, assumptions and conclusions must match the intended claim.
+   Rocq checks the proofs (see rocq/Makefile at the root of the repository).
+
+   This file proves arithmetic facts, not optimizer correctness. The
+   independent instruction semantics is in SsaSemantics.v, and structural
+   SSA well-formedness is in SsaExecution.v. DeleteEmptyLoops.v states the
+   analysis certificate. LoopCounterExecution.v connects it to operational
+   absence of infinite execution for the cases identified there; progress,
+   live-out agreement and the graph rewrite are not yet proved. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64 ZTactics.

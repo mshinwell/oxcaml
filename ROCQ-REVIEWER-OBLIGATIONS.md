@@ -1,185 +1,117 @@
-# What a reviewer of the loop models must check
+# Reviewing the empty-loop model
 
-The restricted implementation now has an instruction/control-flow
-semantics in `backend/ssa/rocq/SsaSemantics.v`. It models integer constants,
-addition, subtraction, comparisons, Goto and Switch, and proves instruction
-progress with bound operands, register-width preservation, simultaneous
-parameter binding, and deterministic stepping. The extracted whitelist
-rejects all other operations in a candidate loop, including its header.
+The review boundary is stated in the source, not supplied by this note.
+Read definitions, contracts and theorem statements; Rocq checks the proofs.
+The operational proof is still incomplete. In particular, the old request
+to justify `infinite_header_run` by inspection is withdrawn: that record is
+not a trusted compiler contract.
 
-`SsaExecution.v` now derives equations for available actual SSA values
-from execution and structural well-formedness. `LoopExecution.v` proves
-header revisits, fixed values of registers defined outside a region,
-natural-loop graph properties, and actual back-edge parameter passing.
+## Source reading order
 
-The remaining composition into the arithmetic termination argument and
-the rewrite-preservation theorem are still missing. Obligations 1 and 3
-below describe missing proofs, not an acceptable long-term reviewer
-contract; see `ROCQ-SEMANTICS-PROPOSAL.md`. This note distinguishes the
-analysis certificates from those proofs.
+1. `backend/ssa/rocq/SsaSemantics.v`: the extracted whitelist and independent
+   instruction semantics. Operands read registers; executing an instruction
+   computes its result. Goto arguments are read before parameters are bound.
+   Omitted arguments become unbound, and invalid Switch indices get stuck.
+2. `backend/ssa/rocq/SsaExecution.v`: `well_formed_ssa`, canonical definitions,
+   availability and `execution_values_coherent`. Only actual available
+   definitions acquire operation equations; arbitrary fabricated `Res`
+   expressions do not.
+3. `backend/ssa/loop/rocq/DeleteEmptyLoops.v`: the extracted decision and
+   `find_deletions_spec`. Its conclusion is a `deletion_certificate`, not
+   behavior preservation.
+4. `LoopExecution.v`, `LoopInvariantExecution.v` and
+   `LoopCounterExecution.v` in the same loop directory: graph composition,
+   actual header visits, counter recurrence, bound constancy and the
+   operational no-infinite-execution theorems.
 
-## What Rocq proves
+## What the certificate establishes
 
-One theorem, `DeleteEmptyLoops.find_deletions_spec`: for any table
-`op_def` and block list `blocks`, every pair `(header, exit)` returned by
-`find_deletions op_def blocks` is the header of a loop that
-`InductionVar.analyze op_def blocks` reports, with that loop's basic
-induction variables, and the loop satisfies `deletable` with exit
-`exit`. The conjuncts of `deletable` are:
+Every returned `(header, exit)` belongs to an actual analyzed loop and BIV
+list satisfying these six conjuncts:
 
-- `exit_branch_to`: the header's terminator is a two-way `Switch`, one
-  edge into the body and the other to `exit`, which takes no arguments;
-- `no_infinite_header_run`: for every block `entry` and every function
-  `iter` from visit numbers and SSA values to integers, the record
-  `infinite_header_run entry op_def loop iter` is contradictory;
-- `revisits`: a sequence of body blocks, each a successor of the one
-  before, contains the header after any point;
-- `params_are_dead_bivs`: every header parameter is a basic induction
-  variable (`biv_spec`) that is dead (`dead_spec`);
-- `body_in_supported_fragment`: every body block has only whitelisted
-  integer instructions with the required operand/result arities, and a
-  `Goto` or `Switch` terminator;
-- `exits_only_to`: every successor of a body block is in the body or is
-  `exit`;
-- `bivs <> []`: there is at least one analyzed induction variable.
+- `exit_branch_to`: the header has the recognized two-way Switch and its
+  exit target takes no arguments.
+- `LoopTermination.analyze ... = Terminates`: the arithmetic analysis
+  accepted at least one of those BIVs (`certificate_counter` supplies it).
+- `revisits`: infinite control flow confined to the body revisits the header.
+- `params_are_dead_bivs`: every header parameter is a recognized dead BIV.
+- `body_in_supported_fragment`: every body instruction, including those in
+  the header, is an integer constant, addition, subtraction or comparison
+  with the expected arities; terminators are Goto or Switch.
+- `exits_only_to`: every edge leaving the body goes to the same exit target.
+  This does not require every exiting edge to originate at the header.
 
-Every conjunct but the second is a proposition over the observations
-SsaModel.v takes from the compiler: `predecessors`, `all_successors`,
-`dominates`, `params`, `param`, `block_body`, `terminator`,
-the instruction operation/result count, and `op_def_find`. The second
-quantifies over a mathematical function `iter`. The new operational lemmas
-have not yet been assembled into that sampled valuation; the remaining
-connection is obligation 1.
+There is no `no_infinite_header_run` conjunct. A contradiction in the
+legacy abstract run model is no longer presented as operational termination.
 
-## Obligation 1: the run hypotheses hold of real executions
+## What is now proved from execution
 
-The claim to check is this. Take any execution of the compiled function
-and any segment of it that begins with control entering the loop's
-header and in which control never leaves the loop body. Suppose the
-segment is infinite. Then it visits the header infinitely often: the
-blocks it visits form a sequence of body blocks following the graph's
-edges, so `revisits` (a theorem) places the header after any point.
-Define `iter n v` as the value the execution gives the SSA value `v`
-during the n-th header visit of the segment, with the defaults the
-comment on `infinite_header_run` in LoopTermination.v gives for values
-the segment does not compute. The claim is that
-`infinite_header_run entry op_def loop iter` holds, `entry` being the
-function's entry block.
+`LoopCounterExecution.v` composes the actual deletion decision with two
+operational results:
 
-The reviewer checks the claim field by field, against their
-understanding of how SSA code executes. The nine fields are:
+- `find_deletions_literal_no_infinite_execution`: accepted loops whose
+  header tests an immediate comparison cannot execute forever inside the
+  body, starting at a reachable header entry.
+- `find_deletions_unconditional_no_infinite_execution`: the same conclusion
+  for an actual analyzed BIV satisfying `unconditional_counter`. This is a
+  static condition selecting comparison rules that need no bound-range
+  premise, for example increment by one with continuing comparison `<`.
+  Register bounds are allowed; their constancy is proved, not assumed.
 
-- `iter_bounded`: every value is a 64-bit register.
-- `iter_op`: the operations listed in `AffineSsa.op_semantics` compute
-  what it says: addition, subtraction and left shift wrap at 64 bits,
-  the arithmetic right shift divides rounding towards minus infinity,
-  the logical right shift divides the unsigned reading of its argument,
-  or is the bitwise or, and `Const_int n` is `Int64.of_nativeint n`.
-- `iter_comparison`: a comparison instruction yields 1 or 0 according to
-  `IntegerComparison.eval`, which must be the machine's signed and
-  unsigned comparison of 64-bit values.
-- `run_dominance`: `Block.dominates d b = true` implies that every path
-  from the entry to `b` passes through `d`, and the entry dominates
-  every block. The latter needs every block of a finished graph to be
-  reachable from the entry, or `dominates` to answer `true` for the
-  entry and an unreachable block.
-- `iter_branches`: when a block ends in a two-way `Switch` and every
-  path from the entry to the header takes one given edge of it, the
-  comparison it tests came out the way that edge requires, at the first
-  visit.
-- `iter_invariant`: an operand of the actual header test that is a
-  constant, or is defined in a block that strictly dominates the header,
-  has the same value at every visit. This is no longer asserted of all
-  freely constructible `Res` terms: that admitted a fabricated expression
-  borrowing an outside instruction's ID and incorrectly forced every
-  value to be invariant. This relies on such a block not being in the body, which
-  follows from the header dominating every body block (a consequence of
-  `find_loops_body` in NaturalLoop.v), and on `op_def` naming the right
-  defining block (obligation 2).
-- `run_continues`: at every visit the header's `Switch` goes into the
-  body. This is the definition of the segment.
-- `run_back_edge`: the next visit arrives from a block in
-  `back_edge_sources` that is a predecessor of the header, whose
-  terminator is a `Goto` to the header, and the value of each header
-  parameter at the next visit is the value of the corresponding
-  argument at this one. This is SSA parameter passing, plus the fact
-  that every edge from the body into the header is a back edge of this
-  loop, which is `find_loops_complete` in NaturalLoop.v applied under the
-  closure hypotheses of obligation 2.
-- `run_atoms_fit`: the header has fewer than about 2^53 dominating
-  branches, so the atom counter of AffineSsa.v cannot wrap.
+Both use the independent `step` semantics, structural SSA well-formedness,
+accurate graph metadata, and bounded initial registers. Consecutive header
+entries advance the counter once, including branches and multiple back
+edges. The comparison reads that counter or its update. Every mathematical
+iteration is realized by an actual entry, so the arithmetic eventual-failure
+theorem contradicts an infinite confined execution.
 
-Once the claim is accepted, `analyze_Terminates_of_graph` makes the
-infinite segment contradictory. So every entry into the loop leaves the
-body after finitely many steps, and by `exits_only_to` it can only leave
-along an edge to `exit`.
+`no_infinite_execution_in` means exactly that. It does **not** imply that a
+finite execution cannot get stuck, or that the rewritten program agrees.
 
-## Obligation 2: the observations are the graph
+## Remaining local compiler contracts
 
-- The list passed to `find_deletions`, `Ssa.blocks ssa`, is the whole
-  graph: closed under predecessors and under successors. The theorems
-  of NaturalLoop.v take this as the hypotheses `blocks_closed` and
-  `succs_closed`. `LoopExecution.find_deletions_graph_properties` composes
-  these theorems with the deletion decision; the reviewer no longer needs
-  to apply the natural-loop theorems manually. Its dominance premise
-  requires complete as well as sound answers for graph blocks.
-- `predecessors` and `all_successors` describe the same edges from both
-  ends.
-- `terminator`, `params`, `param` and `block_body` return the block's
-  own data. The instruction match returns its actual opcode, operands
-  and result count. Parameters are distinct and belong to their own
-  block; indexed access agrees with the parameter list (`parameter_layout`
-  in SsaSemantics.v). The pass no longer relies on `has_side_effect` to
-  establish that an instruction can be skipped.
-- `compute_op_def` in delete_empty_loops.ml maps each `Op` id to the
-  block containing it, so that `op_def_find op_def id = Some b` exactly
-  when `b` holds the instruction `id`.
-- `Ssa.Value.equal` identifies two values only when they denote the
-  same register value; `Ssa.Block.equal` and `Ssa.Instruction.Id.equal`
-  are identity.
-- The extraction directives in the `*Extract.v` files name the right
-  OxCaml values, including the three hand-written match functions for
-  values, instructions and terminators in SsaModelExtract.v, and
-  `backend/rocq/Operation.v` lists the constructors of `Operation.t` in
-  the compiler's order. The axioms of OxCamlInt64.v, OxCamlList.v,
-  IntArith.v (with the OxCaml in IntArithExtract.v) and SsaModel.v hold
-  of the OxCaml functions they describe.
+These are explicit source premises or extraction contracts:
+
+- `Ssa.blocks ssa` includes the whole graph and is closed under predecessor
+  and successor edges. The two edge views agree (`control_edges`).
+- Dominance answers have the stated path meaning and are complete for graph
+  blocks where required by `find_deletions_graph_properties`.
+- `terminator`, `block_body`, `params` and `param` read actual block data.
+  Parameter positions have the identities specified by `parameter_layout`.
+  Instruction matches return the actual opcode, operands and result count.
+- The graph builder satisfies `well_formed_ssa`: unique instruction sites,
+  canonical references, valid result indices and definition/use dominance,
+  including instruction order. This has not been proved for the OCaml
+  builder.
+- `compute_op_def` maps every actual instruction ID to its containing block
+  (`op_def_correct`).
+- Equality, set and integer primitives satisfy their stated contracts. The
+  extraction directives and handwritten value/instruction/terminator match
+  functions correspond to the OCaml representations. Operation constructors
+  remain in the compiler's order.
 - The Rocq kernel and extraction are trusted as usual.
 
-## Obligation 3: the rewrite is justified by `deletable`
+## Missing proofs, not reviewer assumptions
 
-The rewrite, `Delete_empty_loops.run`, replaces the header's terminator
-by an unconditional jump to `exit`, which takes no arguments; the body
-becomes unreachable and is pruned. It is not modelled. The reviewer
-checks the argument in the header comment of DeleteEmptyLoops.v:
+- **Entry-range facts:** connect the affine bound and guard analysis to
+  reachable execution for register-bound rules needing a range premise.
+  Prove the relevant executed guards and account for the static atom-counter
+  bound; do not assume the legacy run record.
+- **Progress and finite exit:** exclude stuck executions under suitable
+  structural typing, argument and Switch conditions. The current
+  `well_formed_ssa` does not itself rule out reading an omitted parameter or
+  selecting an invalid Switch index.
+- **Live-out agreement and rewrite preservation:** the rewritten header
+  executes once, whereas the original may execute it many times. Prove
+  agreement for values needed after the loop; equality of the entire
+  register environment is neither necessary nor true for dead counters.
+- **Surrounding code:** the partial semantics has no rules for unsupported
+  operations, even outside the loop. The implementation permits such
+  operations outside candidate loops; covering those executions needs an
+  abstract context/effect semantics, not an interpretation as no-ops.
+- **Reducer correspondence:** relate the abstract header-terminator rewrite
+  to `Ssa_reducer`, pruning, renaming and composition of multiple deletions.
 
-- Termination and control: by obligation 1 the original loop always
-  reaches `exit`, and by `exits_only_to` and `body_in_supported_fragment` it can
-  be left no other way (no call, raise or return in the body). The
-  rewritten code reaches `exit` at once.
-- Effects: the body performs none, so skipping it is unobservable.
-- Values: the header's instructions still run once after the rewrite.
-  Every header-defined value used after the loop must have, in that
-  single iteration, the value it had in the last original iteration.
-  The argument is that, by SSA scoping, such a value is a header
-  parameter, which `dead_spec` forbids any use of outside the loop's
-  control, or an integer instruction whose inputs are loop-invariant values,
-  earlier header instruction results, or header parameters, the last
-  excluded by `dead_spec` for any instruction other than the exit
-  comparison and the parameter's own updates.
-
-The earlier version also required stability of loads across iterations.
-The restricted whitelist removes that obligation: loads are rejected in
-the header as well as in the rest of the body. This does not discharge the
-remaining live-out argument, which still needs an operational proof.
-
-## What is not covered at all
-
-- The dominator computation behind `Block.dominates`.
-- A proof that the OCaml finished-graph builder satisfies the structural
-  `well_formed_ssa` conditions in SsaExecution.v: canonical definitions,
-  unique instruction sites, and definition/use dominance. These are
-  explicit premises of the available-value theorem, not proved properties
-  of the OCaml builder.
-- Pruning of unreachable blocks.
-- `Ssa_reducer`, which performs the rewrite.
+The accepted direction remains `ROCQ-SEMANTICS-PROPOSAL.md`. None of these
+missing proofs is discharged by asking a reviewer to accept a prose
+execution argument.

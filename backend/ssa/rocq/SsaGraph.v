@@ -200,6 +200,15 @@ Record control_edges : Prop :=
     predecessor_successor : forall (source target : block),
       In source (predecessors target) <-> In target (all_successors source) }.
 
+(* Every instruction in the supplied graph resolves to its containing
+   block in the table built by the OCaml veneer. No claim is needed about
+   IDs that do not occur in the graph. *)
+Definition op_def_correct (defs : op_def) (blocks : list block) : Prop :=
+  forall (b : block) (id : instr_id) (op : operation) (args : list value)
+    (results : int),
+  In b blocks -> In (Op id op args results) (block_body b) ->
+  op_def_find defs id = Some b.
+
 (* A direct operand of the instruction tested by this block's Switch.
    Unlike all terms of [value], these operands occur in the actual graph. *)
 Definition switch_operand (b : block) (v : value) : Prop :=
@@ -426,6 +435,24 @@ Section Acyclic.
   Qed.
 End Acyclic.
 
+(* A concrete argument of a Continue is among that terminator's uses. *)
+Lemma continue_argument_used : forall (continuation : continuation)
+    (args : list Terminator.arg) (index : int) (arg : value),
+  nth_int args index = Some (Terminator.Arg arg) ->
+  exists (uses : list value),
+    In uses (terminator_args (Terminator.Continue continuation args))
+    /\ In arg uses.
+Proof.
+  intros continuation args index arg Harg.
+  apply nth_int_In in Harg. unfold terminator_args.
+  eexists. split; [left; reflexivity |].
+  induction args as [ | [v |] args IH]; cbn in *; try contradiction.
+  - destruct Harg as [Heq | Hin].
+    + injection Heq as ->. left. reflexivity.
+    + right. apply IH. exact Hin.
+  - destruct Harg as [Heq | Hin]; [discriminate | apply IH; exact Hin].
+Qed.
+
 (* --- Goto arguments --- *)
 
 (* [goto_args] reads the terminator. *)
@@ -440,6 +467,20 @@ Proof.
   destruct (block_eqb goto target && _) eqn:Hc; [ | discriminate ].
   injection H as <-. apply andb_true_iff in Hc. destruct Hc as [Hgoto _].
   apply block_eqb_spec in Hgoto. subst goto. reflexivity.
+Qed.
+
+(* An accepted Goto has one argument slot per target parameter. *)
+Lemma goto_args_arity : forall (target source : block)
+    (args : list Terminator.arg),
+  goto_args target source = Some args ->
+  same_length args (params target) = true.
+Proof.
+  intros target source args Hgoto. unfold goto_args in Hgoto.
+  destruct (terminator source) as [[dest | | |] arguments | | |];
+    try discriminate.
+  destruct (block_eqb dest target && same_length arguments (params target))
+    eqn:E; [ | discriminate].
+  injection Hgoto as <-. apply andb_true_iff in E. exact (proj2 E).
 Qed.
 
 (* [arg_value] reads the argument list. *)

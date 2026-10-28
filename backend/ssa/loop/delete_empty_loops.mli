@@ -41,18 +41,20 @@
       constants, additions, subtractions and comparisons, with one result and
       the expected operands (rocq/SsaSemantics.v), and ends in a [Goto] or
       [Switch]; memory operations are not supported, and
-    - the header's exit edge is the only edge leaving the loop body, so that the
-      loop cannot be left early, into a raise or another continuation.
+    - every edge leaving the loop body goes to the same exit target as the
+      header's exit edge.
 
     The transformation rewrites the loop header's exit [Switch] into an
     unconditional jump to the exit target. The loop body, back edges and IV
     update computations become unreachable and are pruned when the output graph
     is finished; downstream CFG passes (e.g. merge-block cleanup) tidy up the
     remaining control flow. The analysis is [DeleteEmptyLoops.find_deletions],
-    extracted from rocq/DeleteEmptyLoops.v, whose [deletable] states what is
-    established of every loop that is deleted. The operational semantics is in
-    backend/ssa/rocq/SsaSemantics.v; its connection to the termination analysis
-    and graph rewrite is not yet proved. *)
+    extracted from rocq/DeleteEmptyLoops.v, whose [deletion_certificate] states
+    what is established of every loop that is deleted. The operational semantics
+    is in backend/ssa/rocq/SsaSemantics.v. LoopCounterExecution.v proves absence
+    of infinite execution inside loops with literal bounds or unconditional
+    comparison rules. Entry-range proofs, progress, live-out agreement and
+    correctness of the graph rewrite remain unfinished. *)
 
 open Ssa.Export
 

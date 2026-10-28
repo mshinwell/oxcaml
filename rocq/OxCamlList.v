@@ -107,6 +107,19 @@ Proof.
   rewrite IH. split; [ intros ->; reflexivity | intros H; injection H; auto ].
 Qed.
 
+(* Equal-length arrays have the same valid machine-int indices. *)
+Lemma same_length_nth_int : forall {A B : Type} (xs : list A) (ys : list B)
+    (index : int) (x : A),
+  same_length xs ys = true -> nth_int xs index = Some x ->
+  exists (y : B), nth_int ys index = Some y.
+Proof.
+  intros A B xs. induction xs as [ | x xs IH];
+    intros [ | y ys] index value Hlength Hnth; try discriminate; cbn in *.
+  destruct (index =? zero) eqn:E.
+  - exists y. reflexivity.
+  - eapply IH; eassumption.
+Qed.
+
 (* An element at some position is an element of the list. *)
 Lemma nth_int_In : forall {A : Type} (l : list A) (i : int) (x : A),
   nth_int l i = Some x -> In x l.

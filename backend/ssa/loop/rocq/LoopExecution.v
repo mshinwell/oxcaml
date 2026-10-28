@@ -26,6 +26,14 @@ Definition stays_in_region (region : blockset) (trace : nat -> state)
     : Prop :=
   forall (time : nat), set_mem (current_block (trace time)) region = true.
 
+(* This excludes infinite execution confined to the region. It does not
+   identify stuck states with successful exits or claim progress for
+   arbitrary initial register environments. *)
+Definition no_infinite_execution_in (region : blockset) (start : state)
+    : Prop :=
+  forall (trace : nat -> state), trace 0 = start ->
+    infinite_execution trace -> stays_in_region region trace -> False.
+
 (* Every finite prefix of an infinite execution is a finite execution
    in the same operational semantics. *)
 Lemma execution_prefix : forall (trace : nat -> state),
@@ -53,6 +61,16 @@ Proof.
   intros Hedges blocks entry initial_regs trace Hwf Hprefix Htrace time.
   eapply execution_values_coherent; [exact Hedges | exact Hwf |].
   eapply steps_trans; [exact Hprefix | apply execution_prefix; exact Htrace].
+Qed.
+
+(* Instruction-position validity propagates along an execution. *)
+Lemma execution_positions : forall (trace : nat -> state),
+  infinite_execution trace -> valid_position (trace 0) ->
+  forall (time : nat), valid_position (trace time).
+Proof.
+  intros trace Htrace Hposition time. induction time as [ | time IH].
+  - exact Hposition.
+  - eapply step_valid_position; [exact IH | apply Htrace].
 Qed.
 
 (* The basic machine invariants hold at every point of an infinite
@@ -140,6 +158,29 @@ Proof.
     rewrite Hblock', Hblock. auto.
 Qed.
 
+(* The instruction sequence leading to a block's terminator preserves
+   every block parameter, even when executing inside that same block. *)
+Lemma parameters_through_body : forall (trace : nat -> state),
+  infinite_execution trace -> forall (b : block) (index : int)
+    (start insns_left : nat),
+  length (remaining (trace start)) = insns_left ->
+  current_registers (trace (start + insns_left)) (Param b index)
+    = current_registers (trace start) (Param b index).
+Proof.
+  intros trace Htrace b index start insns_left. generalize dependent start.
+  induction insns_left as [ | insns_left IH]; intros start Hlength.
+  - rewrite Nat.add_0_r. reflexivity.
+  - destruct (remaining (trace start)) as [ | insn rest] eqn:E;
+      [discriminate |].
+    injection Hlength as Hlength.
+    destruct (instruction_step_position _ _ _ _ (Htrace start) E)
+      as [_ Hrest].
+    replace (start + S insns_left) with (S start + insns_left) by lia.
+    rewrite (IH (S start) ltac:(rewrite Hrest; exact Hlength)).
+    eapply instruction_parameter_frame;
+      [apply Htrace | rewrite E; discriminate].
+Qed.
+
 (* A terminator step follows a graph edge and starts the target's body. *)
 Lemma terminator_step_edge : control_edges -> forall (before after : state),
   remaining before = [] -> SsaSemantics.step before after ->
@@ -168,6 +209,23 @@ Proof.
   replace (t + length (remaining (trace t)) + 1)
     with (S (t + length (remaining (trace t)))) by lia.
   rewrite Hblock in Hedge. exact Hedge.
+Qed.
+
+(* Every block sample after the first is an actual block-entry state. *)
+Lemma block_time_entry : control_edges -> forall (trace : nat -> state),
+  infinite_execution trace -> forall (visit : nat),
+  at_entry (current_block (trace (block_time trace (S visit))))
+    (trace (block_time trace (S visit))).
+Proof.
+  intros Hedges trace Htrace visit. split; [reflexivity |].
+  cbn [block_time]. set (start := block_time trace visit).
+  destruct (reaches_terminator trace Htrace start
+    (length (remaining (trace start))) eq_refl) as [_ Hfinished].
+  pose proof (terminator_step_edge Hedges _ _ Hfinished
+    (Htrace (start + length (remaining (trace start))))) as [_ Hentry].
+  replace (start + length (remaining (trace start)) + 1)
+    with (S (start + length (remaining (trace start)))) by lia.
+  exact Hentry.
 Qed.
 
 (* Block samples cannot accumulate in a finite prefix of instruction time. *)
@@ -199,6 +257,104 @@ Proof.
   exists (block_time trace m
     + length (remaining (trace (block_time trace m)))).
   split; [lia |]. rewrite Hblock, Hheader. auto.
+Qed.
+
+(* An infinite confined execution has a later entry to the header, not
+   merely a later instruction in the same visit. *)
+Lemma later_header_entry : control_edges ->
+  forall (region : blockset) (header : block) (trace : nat -> state),
+  revisits region header -> infinite_execution trace ->
+  stays_in_region region trace -> forall (start : nat),
+  exists (visit : nat), start < visit /\ at_entry header (trace visit).
+Proof.
+  intros Hedges region header trace Hrevisits Htrace Hregion start.
+  assert (Hblocks : forall (visit : nat),
+    set_mem (current_block (trace (block_time trace visit))) region = true
+    /\ In (current_block (trace (block_time trace (S visit))))
+         (all_successors (current_block (trace (block_time trace visit))))).
+  { intros visit. split; [apply Hregion | apply block_time_edge; assumption]. }
+  destruct (Hrevisits (fun visit =>
+    current_block (trace (block_time trace visit))) Hblocks (S start))
+    as [visit [Hlater Hheader]].
+  pose proof (block_time_ge trace visit) as Htime.
+  exists (block_time trace visit). split; [lia |].
+  destruct visit as [ | visit]; [lia |].
+  rewrite <- Hheader. apply block_time_entry; assumption.
+Qed.
+
+(* A decidable event occurring at a known finite time has a first
+   occurrence. This avoids any choice axiom when selecting header visits. *)
+Lemma first_event : forall (test : nat -> bool) (limit : nat),
+  test limit = true ->
+  exists (first : nat), first <= limit /\ test first = true
+    /\ forall (earlier : nat), earlier < first -> test earlier = false.
+Proof.
+  intros test limit. generalize dependent test.
+  induction limit as [ | limit IH]; intros test Hlimit;
+    destruct (test 0) eqn:Hfirst.
+  - exists 0. repeat split; try assumption; lia.
+  - discriminate.
+  - exists 0. repeat split; try assumption; lia.
+  - destruct (IH (fun time => test (S time)) Hlimit)
+      as [first [Hbound [Htest Hminimal]]].
+    exists (S first). split; [lia |]. split; [exact Htest |].
+    intros [ | earlier] Hearlier; [exact Hfirst |].
+    apply Hminimal. lia.
+Qed.
+
+(* Select consecutive header entries. The earlier time returned is the
+   terminator immediately before the next entry, so the recurrence can
+   use the actual back-edge transition. *)
+Theorem next_header_entry : control_edges ->
+  forall (region : blockset) (header : block) (trace : nat -> state),
+  revisits region header -> infinite_execution trace ->
+  stays_in_region region trace -> valid_position (trace 0) ->
+  forall (start : nat), exists (back_time : nat),
+    start <= back_time /\ at_entry header (trace (S back_time))
+    /\ forall (between : nat), start < between <= back_time ->
+         ~ at_entry header (trace between).
+Proof.
+  intros Hedges region header trace Hrevisits Htrace Hregion Hposition start.
+  pose proof (execution_positions trace Htrace Hposition) as Hpositions.
+  destruct (later_header_entry Hedges region header trace
+    Hrevisits Htrace Hregion start) as [later [Hlater Hentry]].
+  set (test := fun offset => entry_test header (trace (start + S offset))).
+  assert (Htest : test (later - start - 1) = true).
+  { unfold test. replace (start + S (later - start - 1)) with later by lia.
+    apply (entry_test_spec _ _ (Hpositions later)). exact Hentry. }
+  destruct (first_event test _ Htest)
+    as [offset [Hbound [Hfirst Hminimal]]].
+  exists (start + offset). split; [lia |]. split.
+  - apply (entry_test_spec _ _ (Hpositions (S (start + offset)))).
+    unfold test in Hfirst. replace (start + S offset) with (S (start + offset))
+      in Hfirst by lia. exact Hfirst.
+  - intros between Hbetween Hentry_between.
+    pose proof (Hminimal (between - start - 1) ltac:(lia)) as Hfalse.
+    unfold test in Hfalse.
+    replace (start + S (between - start - 1)) with between in Hfalse by lia.
+    apply (entry_test_spec _ _ (Hpositions between)) in Hentry_between.
+    congruence.
+Qed.
+
+(* Header parameters stay fixed until the next entry, including during
+   the header's own instruction sequence. *)
+Lemma parameter_between_entries : parameter_layout ->
+  forall (trace : nat -> state) (header : block) (index : int)
+    (start distance : nat),
+  infinite_execution trace ->
+  (forall (offset : nat), 0 < offset <= distance ->
+     ~ at_entry header (trace (start + offset))) ->
+  current_registers (trace (start + distance)) (Param header index)
+    = current_registers (trace start) (Param header index).
+Proof.
+  intros Hlayout trace header index start distance Htrace.
+  induction distance as [ | distance IH]; intros Hno_entry.
+  - rewrite Nat.add_0_r. reflexivity.
+  - rewrite <- (IH ltac:(intros offset Hoffset; apply Hno_entry; lia)).
+    replace (start + S distance) with (S (start + distance)) by lia.
+    eapply step_parameter_frame_unless_entry; [exact Hlayout | apply Htrace |].
+    replace (S (start + distance)) with (start + S distance) by lia.
+    apply Hno_entry. lia.
 Qed.
 
 (* Every selected loop has the operational revisit property. The graph
@@ -279,13 +435,16 @@ Section Graph.
     forall (defs : op_def) (loop_header exit : block),
     In (loop_header, exit) (find_deletions defs blocks) ->
     exists (loop : natural_loop) (bivs : list biv),
-      loop_header = loop.(header) /\ deletable defs blocks loop bivs exit
+      In (loop, bivs) (InductionVar.analyze defs blocks)
+      /\ loop_header = loop.(header)
+      /\ deletion_certificate defs blocks loop bivs exit
       /\ loop_graph_properties blocks entry loop.
   Proof.
     intros defs h exit Hin.
     destruct (find_deletions_spec _ _ _ _ Hin)
       as [l [bivs [Hl [Hheader Hcert]]]].
-    exists l, bivs. split; [exact Hheader |]. split; [exact Hcert |].
+    exists l, bivs. split; [exact Hl |].
+    split; [exact Hheader |]. split; [exact Hcert |].
     apply found_loop_graph_properties.
     exact (proj1 (InductionVar.analyze_spec _ _ _ _ Hl)).
   Qed.
@@ -299,7 +458,7 @@ Theorem loop_back_edge_step : forall (blocks : list block) (entry : block)
     (defs : op_def) (loop : natural_loop) (bivs : list biv) (exit : block),
   control_edges -> parameter_layout ->
   loop_graph_properties blocks entry loop ->
-  deletable defs blocks loop bivs exit ->
+  deletion_certificate defs blocks loop bivs exit ->
   forall (before after : state),
     remaining before = [] ->
     set_mem (current_block before) loop.(body) = true ->
@@ -323,9 +482,8 @@ Proof.
   { eapply loop_back_edges_complete; eassumption. }
   assert (Hpred : In (current_block s) (predecessors l.(header))).
   { apply (proj2 (predecessor_successor Hedges _ _)). exact Hedge. }
-  destruct Hcert as [_ [_ [_ [[_ Hspecs] [_ [_ Hnonempty]]]]]].
-  destruct bivs as [ | biv bivs]; [contradiction |].
-  destruct (Hspecs biv (or_introl eq_refl)) as [Hspec _].
+  destruct (certificate_counter _ _ _ _ _ Hcert)
+    as [biv [Hcounter_in [Hspec _]]].
   destruct Hspec as [_ [_ [_ [Hargs _]]]].
   destruct (Hargs _ Hback Hpred) as [args [v [Hgoto _]]].
   apply goto_args_terminator in Hgoto.

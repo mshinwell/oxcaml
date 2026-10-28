@@ -157,6 +157,15 @@ Definition enter (b : block) (rs : registers) : state :=
      remaining := block_body b;
      current_registers := rs |}.
 
+Definition at_entry (b : block) (s : state) : Prop :=
+  current_block s = b /\ remaining s = block_body b.
+
+(* The length test avoids needing equality on opaque operation payloads.
+   At a valid instruction position, a full-length suffix is the full body. *)
+Definition entry_test (b : block) (s : state) : bool :=
+  block_eqb (current_block s) b
+  && Nat.eqb (length (remaining s)) (length (block_body b)).
+
 (* The remaining instruction list is a suffix of the current block's
    body in a reachable state. Successor selection checks nonnegativity
    before conversion to nat, so negative indices do not select target 0.
@@ -215,7 +224,9 @@ Record parameter_layout : Prop :=
     parameters_distinct : forall (b : block),
       NoDup (map register_of_value (params b));
     parameter_lookup : forall (b : block) (index : int) (v : value),
-      nth_int (params b) index = Some v -> param b index = v }.
+      nth_int (params b) index = Some v -> param b index = v;
+    parameter_identity : forall (b : block) (index : int) (v : value),
+      nth_int (params b) index = Some v -> v = Block_param b index }.
 
 (* An actual result reference agrees with the instruction in the graph,
    including its operation and operands. This excludes fabricated [Res]
@@ -262,6 +273,35 @@ Proof.
   induction Hprefix as [s | s t u Hstep Hprefix IH]; intros Hsuffix.
   - exact Hsuffix.
   - eapply Steps_cons; [exact Hstep | apply IH; exact Hsuffix].
+Qed.
+
+(* The executable entry test agrees with the structural entry predicate. *)
+Lemma entry_test_spec : forall (b : block) (s : state),
+  valid_position s -> (entry_test b s = true <-> at_entry b s).
+Proof.
+  intros b s Hposition. unfold entry_test, at_entry.
+  rewrite andb_true_iff, block_eqb_spec, Nat.eqb_eq.
+  split; intros [Hblock Hrest]; split; [exact Hblock | | exact Hblock |].
+  - destruct Hposition as [prefix Hbody]. rewrite Hblock in Hbody.
+    assert (length prefix = 0)%nat.
+    { rewrite Hbody, length_app in Hrest. lia. }
+    apply length_zero_iff_nil in H. subst prefix. cbn in Hbody. symmetry.
+    exact Hbody.
+  - rewrite Hrest. reflexivity.
+Qed.
+
+(* Reaching a block entry must be a terminator transfer, not an instruction
+   step: consuming one instruction cannot leave a full-length body. *)
+Lemma step_to_entry : forall (b : block) (before after : state),
+  valid_position before -> step before after -> at_entry b after ->
+  remaining before = [].
+Proof.
+  intros b before after Hposition Hstep [Hblock Hremaining].
+  destruct Hstep; cbn in *; try reflexivity.
+  destruct Hposition as [prefix Hbody]. cbn in Hbody.
+  subst b. rewrite Hremaining in Hbody.
+  apply (f_equal (@length instr)) in Hbody.
+  rewrite length_app in Hbody. cbn in Hbody. lia.
 Qed.
 
 (* Register equality depends only on identity, as the compiler's does. *)
@@ -620,6 +660,15 @@ Proof.
   - apply enter_valid_position.
 Qed.
 
+(* Finite execution preserves a valid instruction position. *)
+Lemma steps_valid_position : forall (before after : state),
+  steps before after -> valid_position before -> valid_position after.
+Proof.
+  intros before after Hsteps. induction Hsteps; intros Hposition.
+  - exact Hposition.
+  - apply IHHsteps. eapply step_valid_position; eassumption.
+Qed.
+
 (* Every state reached from a block entry has an actual instruction
    position and bounded registers, if the initial registers were bounded. *)
 Theorem execution_invariants :
@@ -637,6 +686,65 @@ Proof.
       + eapply step_bounded; eassumption. }
   intros b rs s Hbound Hrun. eapply Hsteps; [exact Hrun | | exact Hbound].
   apply enter_valid_position.
+Qed.
+
+(* Executing an instruction never changes any block parameter. *)
+Lemma instruction_parameter_frame : forall (b : block) (index : int)
+    (before after : state),
+  step before after -> remaining before <> [] ->
+  current_registers after (Param b index)
+    = current_registers before (Param b index).
+Proof.
+  intros b index before after Hstep Hnonempty.
+  destruct Hstep; cbn in *; try contradiction.
+  destruct insn as [id op args results | |]; try discriminate.
+  eapply execute_instruction_frame; [eassumption | discriminate].
+Qed.
+
+(* The true/false targets of a two-way Switch are selected by 1 and 0,
+   respectively, as computed by an integer comparison. *)
+Lemma boolean_switch_step : forall (before after : state) (index : value)
+    (ifnot ifso : block) (test : bool),
+  remaining before = [] ->
+  terminator (current_block before) = Terminator.Switch index [ifnot; ifso] ->
+  current_registers before (register_of_value index)
+    = Some (if test then 1 else 0) ->
+  step before after -> current_block after = if test then ifso else ifnot.
+Proof.
+  intros before after index ifnot ifso test Hremaining Hterm Hvalue Hstep.
+  destruct Hstep as [source insn rest regs regs' Hexec |
+    source target args regs values regs' Hgoto Hread Hbind |
+    source condition targets regs word target Hswitch Hindex Hpos Hnth
+      Hparams];
+    cbn in *; try discriminate.
+  - rewrite Hgoto in Hterm. discriminate.
+  - rewrite Hswitch in Hterm. injection Hterm as -> ->.
+    rewrite Hvalue in Hindex. injection Hindex as <-.
+    destruct test; cbn in Hnth; injection Hnth as <-; reflexivity.
+Qed.
+
+(* Parameters do not change unless a step arrives at their block entry.
+   Instructions in the header itself therefore preserve its parameters. *)
+Theorem step_parameter_frame_unless_entry : parameter_layout ->
+  forall (b : block) (index : int) (before after : state),
+  step before after -> ~ at_entry b after ->
+  current_registers after (Param b index)
+    = current_registers before (Param b index).
+Proof.
+  intros Hlayout b index before after Hstep Hnot.
+  destruct Hstep as [source insn rest regs regs' Hexec |
+    source target args regs values regs' Hterm Hread Hbind |
+    source condition targets regs word target Hterm Hvalue Hpos Hnth Hparams];
+    cbn in *.
+  - destruct insn as [id op args results | |]; try discriminate.
+    eapply execute_instruction_frame; [exact Hexec | discriminate].
+  - eapply bind_parameters_frame; [exact Hbind |].
+    intros Hin. apply in_map_iff in Hin.
+    destruct Hin as [parameter [Hreg Hin]].
+    destruct (parameters_local Hlayout target parameter Hin)
+      as [param_index ->]. cbn in Hreg. inversion Hreg; subst.
+    apply Hnot. split; reflexivity.
+  - reflexivity.
 Qed.
 
 (* Parameters of a block are unchanged by a step that does not enter

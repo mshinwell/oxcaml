@@ -227,6 +227,87 @@ Proof.
     [exact Hin | congruence].
 Qed.
 
+(* A visited point has a prefix path contained in the original path. *)
+Lemma point_path_member : forall (first last : point) (points : list point),
+  point_path first points last -> forall (member : point), In member points ->
+  exists (prefix : list point), point_path first prefix member
+    /\ forall (visited : point), In visited prefix -> In visited points.
+Proof.
+  intros first last points Hpath. induction Hpath; intros member Hin.
+  - destruct Hin as [<- | []]. exists [p]. split; [constructor | auto].
+  - destruct Hin as [<- | Hin].
+    + exists [first]. split; [constructor | cbn; tauto].
+    + destruct (IHHpath member Hin) as [prefix [Hp Hmembers]].
+      exists (first :: prefix). split.
+      * eapply point_path_prepend; eassumption.
+      * intros visited [<- | Hvisited]; [left; reflexivity |].
+        right. apply Hmembers. exact Hvisited.
+Qed.
+
+(* Dominating a dominator is enough to dominate its target. *)
+Theorem point_dominance_transitive : forall (entry : block)
+    (first middle last : point),
+  point_dominates entry first middle -> point_dominates entry middle last ->
+  point_dominates entry first last.
+Proof.
+  intros entry first middle last Hfirst Hmiddle points Hpath.
+  destruct (point_path_member _ _ _ Hpath middle (Hmiddle _ Hpath))
+    as [prefix [Hprefix Hmembers]].
+  apply Hmembers, Hfirst, Hprefix.
+Qed.
+
+(* A block path can be extended by one incoming edge. *)
+Lemma path_prepend : forall (first next last : block) (blocks : list block),
+  In first (predecessors next) -> path next blocks last ->
+  path first (first :: blocks) last.
+Proof.
+  intros first next last blocks Hedge Hpath.
+  inversion Hpath; subst; apply path_cons; assumption.
+Qed.
+
+(* Project a program-point path to a block path. Every block other than
+   the starting block was entered at its full-body entry point. *)
+Lemma point_path_blocks : control_edges -> forall (first last : point)
+    (points : list point),
+  point_path first points last ->
+  exists (blocks : list block), path (fst first) blocks (fst last)
+    /\ forall (b : block), In b blocks ->
+         b = fst first \/ In (entry_point b) points.
+Proof.
+  intros Hedges first last points Hpath. induction Hpath.
+  - exists [fst p]. split; [constructor |].
+    intros b [<- | []]. left. reflexivity.
+  - destruct IHHpath as [blocks [Hblocks Hmembers]].
+    destruct H; cbn in *.
+    + exists blocks. split; [exact Hblocks |].
+      intros block Hblock. destruct (Hmembers block Hblock) as [Hfirst | Hin].
+      * left. exact Hfirst.
+      * right. right. exact Hin.
+    + exists (source :: blocks). split.
+      * eapply path_prepend; [ | exact Hblocks].
+        apply (proj2 (predecessor_successor Hedges source target)). exact H.
+      * intros block [<- | Hblock]; [left; reflexivity |].
+        destruct (Hmembers block Hblock) as [-> | Hin].
+        -- right. right. left. reflexivity.
+        -- right. right. exact Hin.
+Qed.
+
+(* Semantic block dominance lifts to dominance of the block's entry
+   point, preserving within-block instruction ordering. *)
+Theorem point_dominance_of_block : control_edges -> forall (entry : block)
+    (dominator : block) (target : point),
+  (forall (blocks : list block), path entry blocks (fst target) ->
+     In dominator blocks) ->
+  point_dominates entry (entry_point dominator) target.
+Proof.
+  intros Hedges entry dominator target Hdom points Hpath.
+  destruct (point_path_blocks Hedges _ _ _ Hpath)
+    as [blocks [Hblocks Hmembers]].
+  destruct (Hmembers dominator (Hdom blocks Hblocks)) as [Heq | Hin];
+    [ | exact Hin].
+  cbn in Heq. subst dominator. inversion Hpath; subst; left; reflexivity.
+Qed.
+
 (* A path contains its endpoint. *)
 Lemma path_last : forall (first : block) (p : list block) (last : block),
   path first p last -> In last p.

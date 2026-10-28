@@ -9,23 +9,24 @@
    See the reading guide at the top of LoopComparisons.v for the Rocq
    vocabulary and SsaModel.v for how the models see an SSA graph. As there,
    the file has four parts: (1) the definitions, (2) the intended meaning,
-   (3) stepping-stone lemmas, (4) the theorems. Parts 1 and 2 are the part
-   to check by eye.
+   (3) stepping-stone lemmas, (4) the theorems. Review parts 1 and 2 and
+   the theorem statements; Rocq checks the proofs.
 
    The result, in part 4, is [find_deletions_spec]: a loop is deleted only
-   when [deletable] (part 2) holds of it. Its header's exit branch is the
-   simple one LoopTermination.v recognises, with an exit target that takes
-   no arguments; the loop has no run that visits its header for ever
-   ([infinite_header_run] there), and every execution that stays in its
-   body comes back to the header ([SsaGraph.revisits]: the body without
-   the header is acyclic); each of its header's parameters is a basic
+   when [deletion_certificate] (part 2) holds of it. Its header's exit
+   branch is the simple one LoopTermination.v recognises, with an exit
+   target that takes no arguments; the termination analysis has returned
+   [Terminates], and every infinite execution confined to its body comes
+   back to the header ([SsaGraph.revisits]: the body without the header is
+   acyclic); each of its header's parameters is a basic
    induction variable (InductionVar.v) that is dead in the sense of
    DeadInductionVar.v; every block of its body has only whitelisted integer
-   instructions and a [Goto] or [Switch] terminator; and that exit edge is
-   the only edge leaving the body. These are analysis certificates, not
-   yet an operational correctness theorem: connecting the termination
-   abstraction to SsaSemantics.step and proving preservation of live-out
-   values remain necessary to justify the graph rewrite.
+   instructions and a [Goto] or [Switch] terminator; and all edges leaving
+   the body go to that exit target. These are analysis certificates, not
+   a rewrite-correctness theorem. LoopCounterExecution.v proves absence
+   of infinite confined execution for literal bounds and unconditional
+   comparison rules, without assuming an abstract run. Entry-range facts,
+   progress and preservation of live-out values remain to be proved.
 
    The last point also covers the header's own instructions, which still
    run once after the rewrite, as they did on the first iteration before
@@ -58,11 +59,9 @@ Import ListNotations.
 Definition body_supported (loop : natural_loop) : bool :=
   set_for_all supported_block loop.(body).
 
-(* Every edge out of a block of the body stays in the body or is the
-   header's exit edge, to [exit]. [body_supported] only sees the blocks
-   of the body: a [Switch] or [Goto] from the body to a block outside it
-   (a raise, a return of another value, ...) would leave the loop before
-   the header's test fails, and somewhere other than [exit]. *)
+(* Every edge out of a body block stays in the body or goes to [exit].
+   [body_supported] alone does not exclude a [Switch] or [Goto] to another
+   outside target. Early exits are allowed, but only to this same target. *)
 Definition single_exit (loop : natural_loop) (exit : block) : bool :=
   set_for_all
     (fun block =>
@@ -131,38 +130,31 @@ Definition exits_only_to (loop : natural_loop) (exit : block) : Prop :=
 (* The header's exit branch, in the shape LoopTermination.v recognises,
    goes to [exit], which takes no arguments. *)
 Definition exit_branch_to (loop : natural_loop) (exit : block) : Prop :=
-  exists exit_info,
+  exists (exit_info : exit_branch),
     find_exit_branch loop = Some exit_info
     /\ exit_info.(exit_target) = exit /\ params exit = [].
-
-(* No run of [loop] goes on for ever (LoopTermination.v), whatever the
-   graph's entry block. *)
-Definition no_infinite_header_run (op_def : op_def) (loop : natural_loop)
-    : Prop :=
-  forall (entry : block) (iter : nat -> value -> Z),
-    infinite_header_run entry op_def loop iter -> False.
 
 (* Every parameter of the header is one of [bivs], and each of those is a
    basic induction variable of [loop] that is dead. *)
 Definition params_are_dead_bivs (op_def : op_def) (blocks : list block)
     (loop : natural_loop) (bivs : list InductionVar.biv) : Prop :=
   (forall (k : int) (v : value), nth_int (params loop.(header)) k = Some v ->
-     exists biv, In biv bivs /\ biv.(param_index) = k)
+     exists (biv : InductionVar.biv),
+       In biv bivs /\ biv.(param_index) = k)
   /\ (forall (biv : InductionVar.biv), In biv bivs ->
         biv_spec op_def loop biv /\ dead_spec blocks biv).
 
 (* What holds of a loop [loop], with the basic induction variables [bivs]
    InductionVar.v reports for it, when [find_deletions] deletes it. *)
-Definition deletable (op_def : op_def) (blocks : list block)
+Definition deletion_certificate (op_def : op_def) (blocks : list block)
     (loop : natural_loop) (bivs : list InductionVar.biv) (exit : block)
     : Prop :=
   exit_branch_to loop exit
-  /\ no_infinite_header_run op_def loop
+  /\ LoopTermination.analyze op_def bivs = Terminates
   /\ revisits loop.(body) loop.(header)
   /\ params_are_dead_bivs op_def blocks loop bivs
   /\ body_in_supported_fragment loop
-  /\ exits_only_to loop exit
-  /\ bivs <> [].
+  /\ exits_only_to loop exit.
 
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
@@ -187,20 +179,41 @@ Proof.
   right. apply block_eqb_spec. exact H.
 Qed.
 
+(* A successful termination check supplies a particular analyzed counter
+   whose comparison passed. This witness is used by operational proofs. *)
+Lemma certificate_counter : forall (defs : op_def) (blocks : list block)
+    (loop : natural_loop) (bivs : list InductionVar.biv) (exit : block),
+  deletion_certificate defs blocks loop bivs exit ->
+  exists (counter : InductionVar.biv), In counter bivs
+    /\ biv_spec defs loop counter
+    /\ biv_implies_termination defs counter = true.
+Proof.
+  intros defs blocks loop bivs exit [_ [Htest [_ [[_ Hspecs] _]]]].
+  unfold LoopTermination.analyze in Htest.
+  destruct (existsb (biv_implies_termination defs) bivs) eqn:Hcounter;
+    [ | discriminate].
+  apply existsb_exists in Hcounter.
+  destruct Hcounter as [counter [Hin Haccepted]].
+  exists counter. split; [exact Hin |]. split.
+  - exact (proj1 (Hspecs counter Hin)).
+  - exact Haccepted.
+Qed.
+
 (* ======================================================================== *)
 (* Part 4: theorems                                                         *)
 (* ======================================================================== *)
 
 (* Every pair [(header, exit)] that [find_deletions] returns names the
    header of a loop [InductionVar.analyze] reports, with its basic
-   induction variables, and that loop is [deletable] with exit [exit]. *)
+   induction variables, and that loop satisfies [deletion_certificate]
+   with exit [exit]. *)
 Theorem find_deletions_spec :
   forall (op_def : op_def) (blocks : list block) (header exit : block),
   In (header, exit) (find_deletions op_def blocks) ->
-  exists loop bivs,
+  exists (loop : natural_loop) (bivs : list InductionVar.biv),
     In (loop, bivs) (InductionVar.analyze op_def blocks)
     /\ header = loop.(NaturalLoop.header)
-    /\ deletable op_def blocks loop bivs exit.
+    /\ deletion_certificate op_def blocks loop bivs exit.
 Proof.
   intros op_def blocks h exit H. unfold find_deletions in H. cbv zeta in H.
   apply filter_map_In in H. destruct H as [dr [Hdr H]].
@@ -224,12 +237,11 @@ Proof.
   split; [ exact Hin | split; [ reflexivity | ] ].
   destruct (InductionVar.analyze_spec _ _ _ _ Hin) as [_ [Hdef Hspec]].
   destruct (Huseless Hu) as [Hlen Hdead].
-  unfold deletable.
+  unfold deletion_certificate.
   split; [ | split; [ | split; [ | split; [ | split ] ] ] ].
   - unfold exit_branch_to. exists exit_info.
     split; [ exact Hexit | split; [ reflexivity | exact Hparams ] ].
-  - unfold no_infinite_header_run. intros entry iter Hrun.
-    exact (analyze_Terminates_of_graph _ _ _ _ Hrun _ _ Hin Hanalyze).
+  - exact Hanalyze.
   - apply (acyclic_except_sound blocks). exact Hacyclic.
   - unfold params_are_dead_bivs. split.
     + intros k v Hk. rewrite Hdef.
@@ -239,10 +251,5 @@ Proof.
       apply in_map_iff in Hb. destruct Hb as [br [<- Hbr]].
       destruct (Hbivs br Hbr) as [_ Hd]. apply Hd, Hdead. exact Hbr.
   - apply body_supported_spec. exact Hfree.
-  - split.
-    + apply single_exit_spec. exact Hsingle.
-    + intros Hempty.
-      change (LoopTermination.analyze op_def (map biv dr.(bivs)) = Terminates)
-        in Hanalyze.
-      rewrite Hempty in Hanalyze. discriminate.
+  - apply single_exit_spec. exact Hsingle.
 Qed.

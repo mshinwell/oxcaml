@@ -8,8 +8,8 @@
    vocabulary, SsaModel.v for how the models see an SSA graph, and
    NaturalLoop.v for the loops this file analyses. As there, the file has
    four parts: (1) the definitions, (2) the intended meaning,
-   (3) stepping-stone lemmas, (4) the theorems. Parts 1 and 2 are the part
-   to check by eye.
+   (3) stepping-stone lemmas, (4) the theorems. Review parts 1 and 2 and
+   the theorem statements; Rocq checks the proofs.
 
    The header's parameters and the arguments of a [Goto] are lists here,
    indexed by [nth_int] (OxCamlList.v).
@@ -19,8 +19,8 @@
    was checked: the update value arriving over every back edge for
    that parameter is [self + c], [c + self] or [self - c] with the same
    loop-invariant [c] and the same sign, and the [update] list is exactly
-   those values. What such an update does to the machine value of the
-   parameter is stated and used in LoopTermination.v. *)
+   those values. LoopCounterExecution.v proves what such an update does
+   to the parameter in actual instruction-by-instruction execution. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlList.
@@ -41,8 +41,10 @@ Local Open Scope sint63_scope.
    block is not in the loop's body (whose blocks the header dominates), so
    it does not run between two visits of the header. For a value used in
    the body this is the same as its defining block being outside the body,
-   by SSA scoping. What a [true] means is [loop_invariant_value] (part 2),
-   which LoopTermination.v assumes of a run ([iter_invariant] there). *)
+   by SSA scoping. A [true] establishes [loop_invariant_value] (part 2).
+   LoopInvariantExecution.v proves its operational meaning for available
+   canonical definitions; it is not sound for arbitrary fabricated [Res]
+   expressions merely borrowing an outside instruction's ID. *)
 Definition is_loop_invariant (op_def : op_def) (header : block) (v : value)
     : bool :=
   match v with

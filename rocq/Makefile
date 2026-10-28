@@ -50,7 +50,8 @@ LOOP := $(addprefix $(LOOP_DIR)/, \
   FourierMotzkin.v FourierMotzkinExtract.v LoopComparisons.v AffineExpr.v \
   AffineExprExtract.v NaturalLoop.v AffineSsa.v AffineSsaExtract.v \
   InductionVar.v InductionVarExtract.v LoopTermination.v DeadInductionVar.v \
-  DeleteEmptyLoops.v LoopExecution.v)
+  DeleteEmptyLoops.v LoopExecution.v LoopInvariantExecution.v \
+  LoopCounterExecution.v)
 EXTRACT := $(LOOP_DIR)/Extract.v
 
 # The extraction writes one .ml and .mli per model into the loop directory;
