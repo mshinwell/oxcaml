@@ -24,14 +24,6 @@ let terminator_pure_control t =
     (fun _ -> false)
     t
 
-(** val block_effect_free : block -> bool **)
-
-let block_effect_free block0 =
-  List.for_all
-    (fun instr -> not (Ssa.Instruction.has_side_effect instr))
-    (block_body block0)
-  && terminator_pure_control (Ssa.Block.terminator block0)
-
 (** val is_param : block -> int -> Ssa.finished Ssa.Value.t -> bool **)
 
 let is_param block0 index v = Ssa.Value.equal v (Ssa.Block.param block0 index)
@@ -42,11 +34,11 @@ let is_param block0 index v = Ssa.Value.equal v (Ssa.Block.param block0 index)
 let instr_defines_value instr v =
   (fun f_op f_push_trap f_pop_trap (i : Ssa.finished Ssa.Instruction.t) ->
     match i with
-    | Ssa.Instruction.Op { Ssa.Instruction.id; args; _ } ->
-      f_op id (Array.to_list args)
+    | Ssa.Instruction.Op { Ssa.Instruction.id; op; args; typ; _ } ->
+      f_op id op (Array.to_list args) (Array.length typ)
     | Ssa.Instruction.Push_trap _ -> f_push_trap ()
     | Ssa.Instruction.Pop_trap _ -> f_pop_trap ())
-    (fun id _ ->
+    (fun id _ _ _ ->
       (fun f_res f_param (v : Ssa.finished Ssa.Value.t) ->
         match v with
         | Ssa.Instruction.Res ({ Ssa.Instruction.id; op; args; _ }, i) ->
@@ -65,11 +57,11 @@ let instr_defines_value instr v =
 let args_of_instr instr =
   (fun f_op f_push_trap f_pop_trap (i : Ssa.finished Ssa.Instruction.t) ->
     match i with
-    | Ssa.Instruction.Op { Ssa.Instruction.id; args; _ } ->
-      f_op id (Array.to_list args)
+    | Ssa.Instruction.Op { Ssa.Instruction.id; op; args; typ; _ } ->
+      f_op id op (Array.to_list args) (Array.length typ)
     | Ssa.Instruction.Push_trap _ -> f_push_trap ()
     | Ssa.Instruction.Pop_trap _ -> f_pop_trap ())
-    (fun _ args -> args)
+    (fun _ _ args _ -> args)
     (fun _ -> [])
     (fun _ -> [])
     instr

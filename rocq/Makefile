@@ -44,7 +44,7 @@ BACKEND := $(addprefix $(BACKEND_DIR)/, \
   IntegerComparison.v IntegerComparisonExtract.v Operation.v \
   OperationExtract.v)
 SSA := $(addprefix $(SSA_DIR)/, \
-  SsaModel.v SsaModelExtract.v SsaGraph.v SsaDominance.v)
+  SsaModel.v SsaModelExtract.v SsaGraph.v SsaDominance.v SsaSemantics.v)
 LOOP := $(addprefix $(LOOP_DIR)/, \
   FourierMotzkin.v FourierMotzkinExtract.v LoopComparisons.v AffineExpr.v \
   AffineExprExtract.v NaturalLoop.v AffineSsa.v AffineSsaExtract.v \
@@ -56,7 +56,7 @@ EXTRACT := $(LOOP_DIR)/Extract.v
 # those of the SSA models are then moved next to their sources. Those of the
 # rocq/ models that are not mapped onto OxCaml's own functions (OxCamlList,
 # IntArith) stay in the loop directory.
-SSA_MODULES := SsaModel SsaGraph SsaDominance
+SSA_MODULES := SsaModel SsaGraph SsaDominance SsaSemantics
 SSA_EXTRACTED := $(addprefix $(SSA_DIR)/, \
   $(foreach m, $(SSA_MODULES), $(m).ml $(m).mli))
 LOOP_EXTRACTED := $(addprefix $(LOOP_DIR)/, \

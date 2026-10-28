@@ -4,10 +4,11 @@ open LoopTermination
 open NaturalLoop
 open SsaGraph
 open SsaModel
+open SsaSemantics
 
-(** val body_effect_free : natural_loop -> bool **)
+(** val body_supported : natural_loop -> bool **)
 
-let body_effect_free loop0 = Ssa.Block.Set.for_all block_effect_free loop0.body
+let body_supported loop0 = Ssa.Block.Set.for_all supported_block loop0.body
 
 (** val single_exit : natural_loop -> block -> bool **)
 
@@ -34,7 +35,7 @@ let find_deletions op_def0 blocks =
     (fun result ->
       let loop0 = result.DeadInductionVar.loop in
       let bivs0 = List.map (fun biv_result -> biv_result.biv) result.bivs in
-      if result.useless && body_effect_free loop0
+      if result.useless && body_supported loop0
       then
         match find_exit_branch loop0 with
         | Some exit_info -> (

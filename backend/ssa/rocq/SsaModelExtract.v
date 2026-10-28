@@ -28,8 +28,8 @@ Extract Inductive instr => "Ssa.finished Ssa.Instruction.t"
     "Ssa.Instruction.Pop_trap" ]
   "(fun f_op f_push_trap f_pop_trap (i : Ssa.finished Ssa.Instruction.t) ->
       match i with
-      | Ssa.Instruction.Op { Ssa.Instruction.id; args; _ } ->
-        f_op id (Array.to_list args)
+      | Ssa.Instruction.Op { Ssa.Instruction.id; op; args; typ; _ } ->
+        f_op id op (Array.to_list args) (Array.length typ)
       | Ssa.Instruction.Push_trap _ -> f_push_trap ()
       | Ssa.Instruction.Pop_trap _ -> f_pop_trap ())".
 Extract Inlined Constant block_eqb => "Ssa.Block.equal".

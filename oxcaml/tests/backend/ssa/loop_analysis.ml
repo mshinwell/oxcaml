@@ -24,6 +24,11 @@ let goto target args : _ Terminator.t =
       args = Array.map (fun v -> Terminator.Arg v) args
     }
 
+type instruction_location =
+  | Before_loop
+  | Header
+  | Latch
+
 type body_shape =
   | Straight
   | Diamond
@@ -34,8 +39,10 @@ type body_shape =
    flow between header visits distinguishes these cases. The irreducible cycle
    has two entries, so rejecting nested natural loops alone would not
    suffice. *)
-let loop shape =
-  let graph = Ssa.create_graph function_info ~keep_unused_ops:false in
+let loop ?extra shape =
+  let graph =
+    Ssa.create_graph function_info ~keep_unused_ops:(Option.is_some extra)
+  in
   let header = block graph Cmm.typ_int in
   let body = block graph [||] in
   let latch = block graph [||] in
@@ -43,8 +50,17 @@ let loop shape =
   let entry = Cursor.start (Ssa.entry graph) in
   let zero = emit graph entry (Const_int 0n) [||] in
   let flag = emit graph entry (Const_int 1n) [||] in
+  let emit_extra location cursor =
+    match extra with
+    | Some (where, op) when where = location ->
+      let (_ : _ Value.t) = emit graph cursor op [| flag |] in
+      ()
+    | Some _ | None -> ()
+  in
+  emit_extra Before_loop entry;
   finish graph entry (goto header [| zero |]);
   let cursor = Cursor.start header in
+  emit_extra Header cursor;
   let i = Block.param header 0 in
   let cond = emit graph cursor (Intop_imm (Icomp Cmm.Clt, 10)) [| i |] in
   finish graph cursor (Switch { index = cond; targets = [| exit; body |] });
@@ -69,6 +85,7 @@ let loop shape =
   | Diamond -> branches ~cycle:false
   | Irreducible_cycle -> branches ~cycle:true);
   let cursor = Cursor.start latch in
+  emit_extra Latch cursor;
   let next = emit graph cursor (Intop_imm (Iadd, 1)) [| i |] in
   finish graph cursor (goto header [| next |]);
   let cursor = Cursor.start exit in
@@ -83,6 +100,24 @@ let check_loop shape expected =
     Delete_empty_loops.run ~ppf_dump:Format.err_formatter graph
   in
   assert (deleted = expected)
+
+(* Keep unused instructions so these checks reach the loop whitelist, rather
+   than relying on an earlier dead-code pass to remove the operation. These
+   graphs are analyzed, not executed; the load address is immaterial. *)
+let check_extra location operation expected =
+  let graph = loop ~extra:(location, operation) Straight in
+  let _, deleted =
+    Delete_empty_loops.run ~ppf_dump:Format.err_formatter graph
+  in
+  assert (deleted = expected)
+
+let load ~is_atomic : Operation.t =
+  Load
+    { memory_chunk = Cmm.Word_int;
+      addressing_mode = Arch.identity_addressing;
+      mutability = Mutable;
+      is_atomic
+    }
 
 let graph_with_result build =
   let graph = Ssa.create_graph function_info ~keep_unused_ops:false in
@@ -110,6 +145,17 @@ let () =
   check_loop Diamond 1;
   check_loop Inner_cycle 0;
   check_loop Irreducible_cycle 0;
+  List.iter
+    (fun location ->
+      check_extra location (Intop_imm (Iadd, 0)) 1;
+      check_extra location (Intop_imm (Isub, 1)) 1;
+      check_extra location (Intop_imm (Icomp Cmm.Ceq, 0)) 1;
+      check_extra location (load ~is_atomic:false) 0;
+      check_extra location (load ~is_atomic:true) 0;
+      check_extra location (Intop_imm (Idiv { signed = true }, 1)) 0;
+      check_extra location (Intop_imm (Ilsr, 1)) 0)
+    [Header; Latch];
+  check_extra Before_loop (load ~is_atomic:false) 1;
   (* Ordinary small expressions must still be expanded, not all atomized. *)
   let small =
     graph_with_result (fun emit ->

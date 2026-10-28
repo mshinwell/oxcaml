@@ -2,8 +2,6 @@ open SsaModel
 
 val terminator_pure_control : Ssa.finished Ssa.Terminator.t -> bool
 
-val block_effect_free : block -> bool
-
 val is_param : block -> int -> Ssa.finished Ssa.Value.t -> bool
 
 val instr_defines_value :

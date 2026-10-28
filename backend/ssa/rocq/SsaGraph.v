@@ -52,14 +52,14 @@ Definition is_param (block : block) (index : int) (v : value) : bool :=
 (* [instr] is the instruction defining [v]. *)
 Definition instr_defines_value (instr : instr) (v : value) : bool :=
   match instr, v with
-  | Op id _, Res id' _ _ _ => instr_id_eqb id id'
+  | Op id _ _ _, Res id' _ _ _ => instr_id_eqb id id'
   | _, _ => false
   end.
 
 (* The values an instruction reads. *)
 Definition args_of_instr (instr : instr) : list value :=
   match instr with
-  | Op _ args => args
+  | Op _ _ args _ => args
   | Push_trap | Pop_trap => []
   end.
 
@@ -184,6 +184,13 @@ Definition acyclic_except (blocks : list block) (region : blockset)
 (* ======================================================================== *)
 (* Part 2: the intended meaning                                             *)
 (* ======================================================================== *)
+
+(* A direct operand of the instruction tested by this block's Switch.
+   Unlike all terms of [value], these operands occur in the actual graph. *)
+Definition switch_operand (b : block) (v : value) : Prop :=
+  exists id op args i targets,
+    terminator b = Terminator.Switch (Res id op args i) targets
+    /\ In v args.
 
 (* The block's instructions have no side effects and its terminator stays
    within the function. *)

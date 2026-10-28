@@ -13,6 +13,14 @@ The first models are the loop analyses behind `-ssa-delete-empty-loops`
 (`backend/ssa/loop/rocq/`); read them as worked examples, starting with
 the reading guide at the top of `LoopComparisons.v`.
 
+The pass currently accepts only integer constants, additions, subtractions
+and comparisons, with Goto/Switch control flow. `SsaSemantics.v` gives
+instruction-by-instruction execution for that fragment and the extracted
+whitelist. Its local execution theorems do not yet connect the loop
+analysis to real executions or prove the graph rewrite correct. In
+particular, `find_deletions_spec` is an analysis-certificate theorem, not
+a behavior-preservation theorem.
+
 ## The directories
 
 Each directory is a Rocq library (`rocq/Makefile` maps them):
@@ -21,7 +29,7 @@ Each directory is a Rocq library (`rocq/Makefile` maps them):
 |--------------------------|----------------|-----------------------------------------------|
 | `rocq/`                  | `OxCamlStdlib` | Models of OxCaml's own types (`int`, `Int64`, lists, exceptions as options), generic arithmetic (`IntArith.v`), proof helpers, and the extraction directives mapping them onto OxCaml's functions (`OxCamlExtract.v`) |
 | `backend/rocq/`          | `OxCamlBackend`| Backend-wide definitions: the semantics of `Cmm.integer_comparison`, the model's copy of `Operation.t` |
-| `backend/ssa/rocq/`      | `OxCamlSsa`    | The SSA graph as the models see it: `SsaModel.v` (the abstract interface), `SsaGraph.v` (properties of blocks, terminators and uses that any pass may need), `SsaDominance.v` |
+| `backend/ssa/rocq/`      | `OxCamlSsa`    | The SSA graph as the models see it: `SsaModel.v` (the abstract interface), `SsaGraph.v` (properties of blocks, terminators and uses that any pass may need), `SsaDominance.v`, `SsaSemantics.v` (execution of the restricted integer fragment) |
 | `backend/ssa/loop/rocq/` | `OxCamlLoop`   | The loop analyses, and `Extract.v`, which extracts everything |
 
 Put a definition or lemma where its OxCaml counterpart would live. A fact

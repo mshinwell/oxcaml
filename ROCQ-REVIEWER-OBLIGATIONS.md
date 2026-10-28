@@ -1,10 +1,16 @@
 # What a reviewer of the loop models must check
 
-Date: 2026-10-28, at commit 216b1c3442. The Rocq models under
-`backend/ssa/rocq/` and `backend/ssa/loop/rocq/` have no small-step
-semantics of SSA. This note states precisely what Rocq proves about the
-empty-loop deletion pass, and what therefore remains for a reviewer to
-check by inspection before concluding that the pass is correct.
+The restricted implementation now has an instruction/control-flow
+semantics in `backend/ssa/rocq/SsaSemantics.v`. It models integer constants,
+addition, subtraction, comparisons, Goto and Switch, and proves instruction
+progress with bound operands, register-width preservation, simultaneous
+parameter binding, and deterministic stepping. The extracted whitelist
+rejects all other operations in a candidate loop, including its header.
+
+The execution-to-termination bridge and rewrite preservation theorem are
+still missing. Obligations 1 and 3 below describe missing proofs, not an
+acceptable long-term reviewer contract; see `ROCQ-SEMANTICS-PROPOSAL.md`.
+This note distinguishes the analysis certificates from those proofs.
 
 ## What Rocq proves
 
@@ -24,16 +30,17 @@ induction variables, and the loop satisfies `deletable` with exit
   before, contains the header after any point;
 - `params_are_dead_bivs`: every header parameter is a basic induction
   variable (`biv_spec`) that is dead (`dead_spec`);
-- `body_does_nothing`: every body block has only instructions with
-  `has_side_effect = false` and a `Goto` or `Switch` terminator;
+- `body_in_supported_fragment`: every body block has only whitelisted
+  integer instructions with the required operand/result arities, and a
+  `Goto` or `Switch` terminator;
 - `exits_only_to`: every successor of a body block is in the body or is
   `exit`.
 
 Every conjunct but the second is a proposition over the observations
 SsaModel.v takes from the compiler: `predecessors`, `all_successors`,
 `dominates`, `params`, `param`, `block_body`, `terminator`,
-`has_side_effect` and `op_def_find`. The second quantifies over a
-mathematical function `iter`. Nothing in Rocq connects `iter` to an
+the instruction operation/result count, and `op_def_find`. The second
+quantifies over a mathematical function `iter`. Nothing in Rocq connects `iter` to an
 execution of the compiled function; that connection is obligation 1.
 
 ## Obligation 1: the run hypotheses hold of real executions
@@ -72,9 +79,12 @@ understanding of how SSA code executes. The nine fields are:
   path from the entry to the header takes one given edge of it, the
   comparison it tests came out the way that edge requires, at the first
   visit.
-- `iter_invariant`: a value that is a constant, or is defined in a block
-  that strictly dominates the header, has the same value at every
-  visit. This relies on such a block not being in the body, which
+- `iter_invariant`: an operand of the actual header test that is a
+  constant, or is defined in a block that strictly dominates the header,
+  has the same value at every visit. This is no longer asserted of all
+  freely constructible `Res` terms: that admitted a fabricated expression
+  borrowing an outside instruction's ID and incorrectly forced every
+  value to be invariant. This relies on such a block not being in the body, which
   follows from the header dominating every body block (a consequence of
   `find_loops_body` in NaturalLoop.v), and on `op_def` naming the right
   defining block (obligation 2).
@@ -108,8 +118,9 @@ along an edge to `exit`.
 - `predecessors` and `all_successors` describe the same edges from both
   ends.
 - `terminator`, `params`, `param` and `block_body` return the block's
-  own data, and `has_side_effect = false` means that the instruction
-  has no effect beyond defining its results.
+  own data. The instruction match returns its actual opcode, operands
+  and result count. The pass no longer relies on `has_side_effect` to
+  establish that an instruction can be skipped.
 - `compute_op_def` in delete_empty_loops.ml maps each `Op` id to the
   block containing it, so that `op_def_find op_def id = Some b` exactly
   when `b` holds the instruction `id`.
@@ -133,7 +144,7 @@ becomes unreachable and is pruned. It is not modelled. The reviewer
 checks the argument in the header comment of DeleteEmptyLoops.v:
 
 - Termination and control: by obligation 1 the original loop always
-  reaches `exit`, and by `exits_only_to` and `body_does_nothing` it can
+  reaches `exit`, and by `exits_only_to` and `body_in_supported_fragment` it can
   be left no other way (no call, raise or return in the body). The
   rewritten code reaches `exit` at once.
 - Effects: the body performs none, so skipping it is unobservable.
@@ -142,17 +153,15 @@ checks the argument in the header comment of DeleteEmptyLoops.v:
   single iteration, the value it had in the last original iteration.
   The argument is that, by SSA scoping, such a value is a header
   parameter, which `dead_spec` forbids any use of outside the loop's
-  control, or an instruction whose inputs are loop-invariant values,
-  loads from memory the body does not write, or header parameters, the
-  last excluded by `dead_spec` for any instruction other than the exit
+  control,   or an integer instruction whose inputs are loop-invariant values,
+  earlier header instruction results, or header parameters, the last
+  excluded by `dead_spec` for any instruction other than the exit
   comparison and the parameter's own updates.
 
-The value argument makes one assumption that is neither a graph property
-nor a conjunct of `deletable`: a load in the header reads the same
-memory at every iteration. Within the function this follows from
-`body_does_nothing` (no store in the body); across threads or domains it
-is a memory-model statement. It is the one item in this note that
-deserves a second opinion.
+The earlier version also required stability of loads across iterations.
+The restricted whitelist removes that obligation: loads are rejected in
+the header as well as in the rest of the body. This does not discharge the
+remaining live-out argument, which still needs an operational proof.
 
 ## What is not covered at all
 

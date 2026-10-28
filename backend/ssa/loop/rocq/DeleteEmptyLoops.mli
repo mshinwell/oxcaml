@@ -4,7 +4,7 @@ open LoopTermination
 open NaturalLoop
 open SsaModel
 
-val body_effect_free : natural_loop -> bool
+val body_supported : natural_loop -> bool
 
 val single_exit : natural_loop -> block -> bool
 

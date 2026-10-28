@@ -20,12 +20,12 @@
    body comes back to the header ([SsaGraph.revisits]: the body without
    the header is acyclic); each of its header's parameters is a basic
    induction variable (InductionVar.v) that is dead in the sense of
-   DeadInductionVar.v; every block of its body has only side-effect-free
+   DeadInductionVar.v; every block of its body has only whitelisted integer
    instructions and a [Goto] or [Switch] terminator; and that exit edge is
-   the only edge leaving the body. That is what justifies replacing the
-   header's branch by a jump to the exit target: the loop always reaches
-   that exit, can be left no other way, and computes nothing that is
-   observed after it.
+   the only edge leaving the body. These are analysis certificates, not
+   yet an operational correctness theorem: connecting the termination
+   abstraction to SsaSemantics.step and proving preservation of live-out
+   values remain necessary to justify the graph rewrite.
 
    The last point also covers the header's own instructions, which still
    run once after the rewrite, as they did on the first iteration before
@@ -34,15 +34,16 @@
    header dominates the exit, so such a value is a header parameter, which
    DeadInductionVar.v forbids any use of outside the loop's own control, or
    is defined by a header instruction, whose inputs are values defined
-   before the loop, loads from memory the loop does not write, or header
-   parameters; and a parameter used by an instruction other than the exit
+   before the loop, earlier integer instructions, or header parameters;
+   and a parameter used by an instruction other than the exit
    comparison and its own update is not dead, which keeps the loop. So
-   every such value is the same at every iteration, the one after the
-   rewrite included. *)
+   every such value should be the same at every iteration, the one after
+   the rewrite included. This last argument is still to be proved from
+   the operational semantics and SSA well-formedness. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlList.
-From OxCamlSsa Require Import SsaModel SsaGraph.
+From OxCamlSsa Require Import SsaModel SsaGraph SsaSemantics.
 From OxCamlLoop Require Import NaturalLoop InductionVar LoopTermination
   DeadInductionVar.
 Import ListNotations.
@@ -51,14 +52,14 @@ Import ListNotations.
 (* Part 1: the definitions                                                  *)
 (* ======================================================================== *)
 
-(* Every block of the body is [block_effect_free] (SsaGraph.v): its
-   instructions have no side effects and its terminator only transfers
-   control within the function. *)
-Definition body_effect_free (loop : natural_loop) : bool :=
-  set_for_all block_effect_free loop.(body).
+(* Only the integer/control-flow fragment of SsaSemantics.v is eligible.
+   In particular, a load is rejected even if [has_side_effect] says false.
+   The header belongs to the body, so its instructions are checked too. *)
+Definition body_supported (loop : natural_loop) : bool :=
+  set_for_all supported_block loop.(body).
 
 (* Every edge out of a block of the body stays in the body or is the
-   header's exit edge, to [exit]. [body_effect_free] only sees the blocks
+   header's exit edge, to [exit]. [body_supported] only sees the blocks
    of the body: a [Switch] or [Goto] from the body to a block outside it
    (a raise, a return of another value, ...) would leave the loop before
    the header's test fails, and somewhere other than [exit]. *)
@@ -88,7 +89,7 @@ Definition find_deletions (op_def : op_def) (blocks : list block)
     (fun result =>
       let loop := result.(loop) in
       let bivs := map (fun biv_result => biv_result.(biv)) result.(bivs) in
-      if result.(useless) && body_effect_free loop
+      if result.(useless) && body_supported loop
       then
         match find_exit_branch loop with
         | Some exit_info =>
@@ -110,12 +111,15 @@ Definition find_deletions (op_def : op_def) (blocks : list block)
 (* Part 2: the intended meaning                                             *)
 (* ======================================================================== *)
 
-(* Every block of the loop body does nothing (SsaGraph.v): its instructions
-   have no side effects and its terminator only transfers control within
-   the function. *)
-Definition body_does_nothing (loop : natural_loop) : Prop :=
-  forall (block : block),
-    set_mem block loop.(body) = true -> block_does_nothing block.
+(* Every instruction can execute in the integer fragment, and every
+   terminator is internal control flow. [supported_instruction_executes]
+   gives instruction progress when the operands are bound; the frame and
+   boundedness theorems there describe exactly what execution changes. *)
+Definition body_in_supported_fragment (loop : natural_loop) : Prop :=
+  forall (block : block), set_mem block loop.(body) = true ->
+    (forall instruction, In instruction (block_body block) ->
+       supported_instruction instruction = true)
+    /\ terminator_pure_control (terminator block) = true.
 
 (* Every edge out of a block of the body stays in the body or goes to
    [exit]. *)
@@ -156,19 +160,19 @@ Definition deletable (op_def : op_def) (blocks : list block)
   /\ no_infinite_header_run op_def loop
   /\ revisits loop.(body) loop.(header)
   /\ params_are_dead_bivs op_def blocks loop bivs
-  /\ body_does_nothing loop
+  /\ body_in_supported_fragment loop
   /\ exits_only_to loop exit.
 
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
 (* ======================================================================== *)
 
-(* What [body_effect_free] checks, read back. *)
-Lemma body_effect_free_spec : forall (loop : natural_loop),
-  body_effect_free loop = true -> body_does_nothing loop.
+(* The loop's instruction whitelist and control-flow restriction. *)
+Lemma body_supported_spec : forall (loop : natural_loop),
+  body_supported loop = true -> body_in_supported_fragment loop.
 Proof.
-  intros l H bl Hbl. unfold body_effect_free in H.
-  rewrite set_for_all_spec in H. apply block_effect_free_spec, H. exact Hbl.
+  intros l H bl Hbl. unfold body_supported in H.
+  rewrite set_for_all_spec in H. apply supported_block_spec, H. exact Hbl.
 Qed.
 
 (* What [single_exit] checks, read back. *)
@@ -201,7 +205,7 @@ Proof.
   apply filter_map_In in H. destruct H as [dr [Hdr H]].
   destruct (DeadInductionVar.analyze_spec _ _ _ Hdr) as [Hin [Hbivs Huseless]].
   cbv zeta in H.
-  destruct (dr.(useless) && body_effect_free dr.(loop)) eqn:Hcond;
+  destruct (dr.(useless) && body_supported dr.(loop)) eqn:Hcond;
     [ | discriminate ].
   apply andb_true_iff in Hcond. destruct Hcond as [Hu Hfree].
   destruct (find_exit_branch dr.(loop)) as [exit_info | ] eqn:Hexit;
@@ -233,6 +237,6 @@ Proof.
     + intros b Hb. split; [ apply Hspec; exact Hb | ].
       apply in_map_iff in Hb. destruct Hb as [br [<- Hbr]].
       destruct (Hbivs br Hbr) as [_ Hd]. apply Hd, Hdead. exact Hbr.
-  - apply body_effect_free_spec. exact Hfree.
+  - apply body_supported_spec. exact Hfree.
   - apply single_exit_spec. exact Hsingle.
 Qed.

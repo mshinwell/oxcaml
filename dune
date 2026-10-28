@@ -752,6 +752,7 @@
   SsaModel
   SsaGraph
   SsaDominance
+  SsaSemantics
   ;; backend/ssa/loop/rocq/ (extracted from Rocq by rocq/Makefile)
   OxCamlList
   IntArith

@@ -1,7 +1,8 @@
 (* The extraction of the loop models to OxCaml, one file per model, written
    next to this file (rocq/Makefile then moves SsaModel.ml, SsaGraph.ml and
-   SsaDominance.ml, the models of the SSA graph, next to their sources in
-   backend/ssa/rocq/): those three, FourierMotzkin.ml, LoopComparisons.ml,
+   SsaDominance.ml and SsaSemantics.ml, the models of the SSA graph, next to
+   their sources in backend/ssa/rocq/): those four, FourierMotzkin.ml,
+   LoopComparisons.ml,
    AffineExpr.ml, NaturalLoop.ml, AffineSsa.ml, InductionVar.ml,
    LoopTermination.ml, DeadInductionVar.ml, DeleteEmptyLoops.ml, and, for
    the models of rocq/ with no OxCaml counterpart, OxCamlList.ml and
@@ -25,7 +26,8 @@
 From Stdlib Require Import Extraction.
 From OxCamlStdlib Require Import OxCamlExtract IntArithExtract.
 From OxCamlBackend Require Import IntegerComparisonExtract OperationExtract.
-From OxCamlSsa Require Import SsaModelExtract SsaGraph SsaDominance.
+From OxCamlSsa Require Import SsaModelExtract SsaGraph SsaDominance
+  SsaSemantics.
 From OxCamlLoop Require Import FourierMotzkin FourierMotzkinExtract
   LoopComparisons AffineExpr AffineExprExtract NaturalLoop AffineSsa
   AffineSsaExtract InductionVar InductionVarExtract LoopTermination

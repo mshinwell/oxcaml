@@ -37,8 +37,10 @@
       (rocq/InductionVar.v) whose only uses are its own update expression and
       the exit comparison, which in turn is used only by the header's branch
       (rocq/DeadInductionVar.v), and
-    - every block of the loop body contains only side-effect-free instructions
-      and ends in a pure control-flow terminator, and
+    - every block of the loop body, including the header, contains only integer
+      constants, additions, subtractions and comparisons, with one result and
+      the expected operands (rocq/SsaSemantics.v), and ends in a [Goto] or
+      [Switch]; memory operations are not supported, and
     - the header's exit edge is the only edge leaving the loop body, so that the
       loop cannot be left early, into a raise or another continuation.
 
@@ -48,7 +50,9 @@
     is finished; downstream CFG passes (e.g. merge-block cleanup) tidy up the
     remaining control flow. The analysis is [DeleteEmptyLoops.find_deletions],
     extracted from rocq/DeleteEmptyLoops.v, whose [deletable] states what is
-    established of every loop that is deleted. *)
+    established of every loop that is deleted. The operational semantics is in
+    backend/ssa/rocq/SsaSemantics.v; its connection to the termination analysis
+    and graph rewrite is not yet proved. *)
 
 open Ssa.Export
 

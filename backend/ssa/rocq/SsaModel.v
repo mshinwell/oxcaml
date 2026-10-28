@@ -43,10 +43,11 @@ Inductive value : Type :=
   | Res (id : instr_id) (op : operation) (args : list value) (i : int)
   | Block_param (block : block) (i : int).
 
-(* [Ssa.finished Ssa.Instruction.t]: [Op id args] is [Op { id; args; _ }]
-   with the arguments as a list. *)
+(* [Ssa.finished Ssa.Instruction.t]: an [Op]'s operation, arguments and
+   number of results. Keeping the operation here lets the semantics execute
+   the instruction itself, rather than infer it from a use of its result. *)
 Inductive instr : Type :=
-  | Op (id : instr_id) (args : list value)
+  | Op (id : instr_id) (op : operation) (args : list value) (results : int)
   | Push_trap
   | Pop_trap.
 

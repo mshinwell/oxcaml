@@ -238,11 +238,12 @@ Record loop_entry (entry : block) (op_def : op_def) (loop : natural_loop)
          edge_on p pred (if negate then ifnot else ifso)) ->
       test_result (iter 0%nat) negate index;
 
-    (* A loop-invariant value (InductionVar.v: a constant, or one defined
-       in a block that dominates the header and is not it) has the same
-       value at every visit: its block is not in the body, where the run
-       stays between two visits, so it does not run again. *)
+    (* An invariant operand of the actual header test keeps its value.
+       Do not quantify invariance over arbitrary [Res] terms: a fabricated
+       expression can borrow the id of an instruction outside the loop.
+       The arithmetic abstraction only needs invariance of this bound. *)
     iter_invariant : forall (n : nat) (v : value),
+      switch_operand loop.(header) v ->
       loop_invariant_value op_def loop.(header) v -> iter n v = iter 0%nat v }.
 
 (* The run never leaves the loop. *)
@@ -653,6 +654,8 @@ Section Run.
     forall (biv : biv) (step : int) (cond : value)
       (cmp : integer_comparison) (iv_is_left : bool) (bnd : bound),
     biv_spec op_def loop biv -> signed_step biv = Some step ->
+    (exists targets,
+       terminator loop.(header) = Terminator.Switch cond targets) ->
     extract_comparison
       (fun v => is_param loop.(header) biv.(param_index) v
                 || existsb (value_eqb v) biv.(update))
@@ -668,7 +671,7 @@ Section Run.
                 else IntegerComparison.eval cmp (bound_value (iter 0) bnd)
                        (iv v0 (to_Z step) n)).
   Proof.
-    intros b step cond cmp iv_is_left bnd Hspec Hstep Hext.
+    intros b step cond cmp iv_is_left bnd Hspec Hstep [targets Hterm] Hext.
     destruct (extract_comparison_spec _ _ _ _ _ _ Hext) as [id [i Hcases]].
     destruct Hcases
       as [ [x [k [-> [Hx [-> ->]]]]]
@@ -686,7 +689,10 @@ Section Run.
                     (Res id (Intop (Icomp cmp)) [x; y] i)) as Hop.
       cbv iota in Hop.
       rewrite Hop, Hiter.
-      rewrite (run.(run_entry).(iter_invariant) n y
+      assert (Hoperand : switch_operand loop.(header) y).
+      { exists id, (Intop (Icomp cmp)), [x; y], i, targets.
+        split; [exact Hterm | cbn; auto]. }
+      rewrite (run.(run_entry).(iter_invariant) n y Hoperand
                  (is_loop_invariant_spec _ _ _ Hy)).
       reflexivity.
     - destruct (iv_val_sequence b step y Hspec Hstep Hy) as [v0 [Hv0 Hiter]].
@@ -695,7 +701,10 @@ Section Run.
                     (Res id (Intop (Icomp cmp)) [x; y] i)) as Hop.
       cbv iota in Hop.
       rewrite Hop, Hiter.
-      rewrite (run.(run_entry).(iter_invariant) n x
+      assert (Hoperand : switch_operand loop.(header) x).
+      { exists id, (Intop (Icomp cmp)), [x; y], i, targets.
+        split; [exact Hterm | cbn; auto]. }
+      rewrite (run.(run_entry).(iter_invariant) n x Hoperand
                  (is_loop_invariant_spec _ _ _ Hx)).
       reflexivity.
   Qed.
@@ -741,8 +750,12 @@ Section Run.
     pose proof (Hbivs b Hin) as Hspec. pose proof Hspec as [Hl _].
     destruct (biv_implies_termination_spec b Hl Hb)
       as [eb [step [cmp [iv_is_left [bnd [Hexit [Hstep [Hext Hverdict]]]]]]]].
+    assert (Hcondition : exists targets,
+      terminator loop.(header) = Terminator.Switch eb.(condition) targets).
+    { destruct (find_exit_branch_spec loop eb Hexit)
+        as [ifnot [ifso [Ht _]]]. exists [ifnot; ifso]. exact Ht. }
     destruct (exit_test_sequence b step eb.(condition) cmp iv_is_left bnd
-                Hspec Hstep Hext) as [v0 [Hv0 Hiter]].
+                Hspec Hstep Hcondition Hext) as [v0 [Hv0 Hiter]].
     assert (Hbnd : in_int64 (bound_value (iter 0) bnd)).
     { destruct bnd as [v | k]; cbn [bound_value];
         [ apply run.(run_machine).(iter_bounded) | ].
