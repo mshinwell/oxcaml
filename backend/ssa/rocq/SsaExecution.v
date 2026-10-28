@@ -4,9 +4,10 @@
    positions and graph paths only. They contain no valuations, execution
    invariants or loop-analysis verdicts. The purpose of this layer is to
    derive operation equations at their actual uses, rather than assume
-   equations for every freely constructed [value] term. The execution
-   language is still the restricted fragment of SsaSemantics.v; these
-   theorems do not assign semantics to unsupported operations. *)
+   equations for every freely constructed [value] term. Only operations
+   selected by [modeled_operation] have exact equations. SsaContext.v
+   extends these results to a word-observation overapproximation of
+   surrounding opaque operations, without assuming equations for them. *)
 
 From Stdlib Require Import ZArith Lia List.
 From OxCamlStdlib Require Import OxCamlInt OxCamlInt64 OxCamlList.
@@ -66,16 +67,18 @@ Record well_formed_ssa (blocks : list block) (entry : block) : Prop :=
         value_definition arg arg_site /\ In (fst arg_site) blocks
         /\ point_dominates entry arg_site (b, 0%nat) }.
 
-(* Equations for actual instruction results. Parameters have no defining
-   operation. Unbound parameters are allowed here; attempting to read one
-   still gets stuck in the operational semantics. *)
+(* Exact equations for modeled instruction results, and no equations for
+   opaque results or parameters. Register definedness is proved separately
+   in SsaProgress.v; this predicate does not silently default missing reads. *)
 Definition value_coherent (regs : registers) (v : value) : Prop :=
   match v with
   | Res id op args index =>
-    exists (arg_values : list Z) (result : Z),
-      read_values regs args = Some arg_values
-      /\ eval_operation op arg_values = Some result
-      /\ regs (Result id index) = Some result
+    if modeled_operation op args then
+      exists (arg_values : list Z) (result : Z),
+        read_values regs args = Some arg_values
+        /\ eval_operation op arg_values = Some result
+        /\ regs (Result id index) = Some result
+    else True
   | Block_param _ _ => True
   end.
 
@@ -443,6 +446,8 @@ Proof.
   intros Hedges blocks entry before after Hwf Hposition Hbefore Hreachable
     Hcoherent Hstep v [site [Hdefinition [Hsite Hdominates]]].
   destruct v as [id op args index | b index]; [ | exact I].
+  cbn [value_coherent].
+  destruct (modeled_operation op args) eqn:Hmodeled; [ | exact I].
   pose proof Hdefinition as [count [Hresult Hindex]].
   assert (Hreachable_after : point_reachable entry (state_point after)).
   { eapply step_point_reachable; eassumption. }
@@ -468,8 +473,9 @@ Proof.
     assert (Havailable_before : available_value blocks entry
       (state_point before) (Res id op args index)).
     { exists site. auto. }
-    destruct (Hcoherent _ Havailable_before)
-      as [arg_values [result [Hread [Heval Hvalue]]]].
+    specialize (Hcoherent _ Havailable_before).
+    cbn [value_coherent] in Hcoherent. rewrite Hmodeled in Hcoherent.
+    destruct Hcoherent as [arg_values [result [Hread [Heval Hvalue]]]].
     exists arg_values, result. split; [rewrite Hargs; exact Hread |].
     split; [exact Heval |]. rewrite <- Hvalue.
     exact (step_definition_frame _ _ _ _ _ _ Hwf Hposition Hbefore

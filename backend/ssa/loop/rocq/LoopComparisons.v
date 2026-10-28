@@ -36,9 +36,11 @@
    This file proves arithmetic facts, not optimizer correctness. The
    independent instruction semantics is in SsaSemantics.v, and structural
    SSA well-formedness is in SsaExecution.v. DeleteEmptyLoops.v states the
-   analysis certificate. LoopCounterExecution.v connects it to operational
-   absence of infinite execution for the cases identified there; progress,
-   live-out agreement and the graph rewrite are not yet proved. *)
+   analysis certificate. The operational root is
+   LoopEligibility.find_deletions_eligible, proving finite first exit and
+   live-out agreement from that decision and explicit graph/input contracts.
+   SsaContext.v permits opaque computations in the unchanged prefix.
+   The post-deletion graph and its cleanup are deliberately not modelled. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64 ZTactics.

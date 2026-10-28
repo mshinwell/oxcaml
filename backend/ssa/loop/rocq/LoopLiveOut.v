@@ -13,7 +13,7 @@ From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlInt OxCamlList.
 From OxCamlBackend Require Import Operation.
 From OxCamlSsa Require Import SsaModel SsaGraph SsaDominance SsaSemantics
-  SsaExecution SsaLiveness.
+  SsaExecution SsaLiveness SsaContext.
 From OxCamlLoop Require Import NaturalLoop InductionVar DeadInductionVar
   LoopTermination DeleteEmptyLoops LoopExecution LoopCounterExecution
   AffineSsa.
@@ -745,12 +745,14 @@ Section ControlValues.
           apply IHargs.
           - eapply operand_available; eassumption.
           - eapply noncontrol_operands; eassumption. }
-        destruct (Hfirst _ (exit_available_at_header _ Havailable))
-          as [first_args [first_result
-            [Hfirst_read [Hfirst_eval Hfirst_value]]]].
-        destruct (Hfinal _ Havailable)
-          as [final_args [final_result
-            [Hfinal_read [Hfinal_eval Hfinal_value]]]].
+        specialize (Hfirst _ (exit_available_at_header _ Havailable)).
+        specialize (Hfinal _ Havailable).
+        cbn [value_coherent] in Hfirst, Hfinal.
+        rewrite (supported_operation_modeled _ _ _ Hop) in Hfirst, Hfinal.
+        destruct Hfirst as [first_args [first_result
+          [Hfirst_read [Hfirst_eval Hfirst_value]]]].
+        destruct Hfinal as [final_args [final_result
+          [Hfinal_read [Hfinal_eval Hfinal_value]]]].
         rewrite Hargs, Hfirst_read in Hfinal_read. injection Hfinal_read as <-.
         rewrite Hfirst_eval in Hfinal_eval. injection Hfinal_eval as <-.
         cbn [register_of_value]. rewrite Hfirst_value, Hfinal_value.
@@ -796,7 +798,8 @@ Section ControlValues.
      assumptions. Only termination of this segment is still a premise. *)
   Theorem finite_exit_live_agreement : forall
       (initial_regs header_regs first_header_regs exit_regs : registers),
-    steps (enter entry initial_regs) (enter loop.(header) header_regs) ->
+    context_steps (enter entry initial_regs)
+      (enter loop.(header) header_regs) ->
     executes_insns header_regs (block_body loop.(header)) first_header_regs ->
     region_steps loop.(body)
       {| current_block := loop.(header); remaining := [];
@@ -804,18 +807,18 @@ Section ControlValues.
     agree_on_live (entry_point exit) first_header_regs exit_regs.
   Proof.
     intros initial_regs header_regs first final Hprefix Hbody Hsegment.
-    assert (Hfirst : steps (enter entry initial_regs)
+    assert (Hfirst : context_steps (enter entry initial_regs)
       {| current_block := loop.(header); remaining := [];
          current_registers := first |}).
-    { eapply steps_trans; [exact Hprefix |].
-      apply executes_insns_steps. exact Hbody. }
+    { eapply context_steps_trans; [exact Hprefix |].
+      apply context_of_steps, executes_insns_steps. exact Hbody. }
     apply live_out_values_agree.
-    - exact (execution_values_coherent edges blocks entry initial_regs _
+    - exact (context_execution_values_coherent edges blocks entry initial_regs _
         well_formed Hfirst).
-    - apply (execution_values_coherent edges blocks entry initial_regs
+    - apply (context_execution_values_coherent edges blocks entry initial_regs
         (enter exit final) well_formed).
-      eapply steps_trans; [exact Hfirst |].
-      exact (region_steps_execution _ _ _ Hsegment).
+      eapply context_steps_trans; [exact Hfirst |].
+      apply context_of_steps. exact (region_steps_execution _ _ _ Hsegment).
     - intros reg Houtside.
       apply (region_steps_frame (graph_parameters _ _ well_formed)
         loop.(body) _ _ reg Hsegment); [ | | exact Houtside].

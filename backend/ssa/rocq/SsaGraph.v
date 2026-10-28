@@ -200,6 +200,16 @@ Record control_edges : Prop :=
     predecessor_successor : forall (source target : block),
       In source (predecessors target) <-> In target (all_successors source) }.
 
+(* Predecessor metadata retains one occurrence for each Switch edge,
+   including repeated targets. Other incoming edges may add occurrences.
+   This is a property of graph construction, not of branch execution. *)
+Definition switch_edge_multiplicity : Prop :=
+  forall (source : block) (index : value) (targets : list block)
+    (target : block),
+  terminator source = Terminator.Switch index targets ->
+  (length (filter (block_eqb target) targets)
+    <= length (filter (block_eqb source) (predecessors target)))%nat.
+
 (* Every instruction in the supplied graph resolves to its containing
    block in the table built by the OCaml veneer. No claim is needed about
    IDs that do not occur in the graph. *)
@@ -436,6 +446,23 @@ Section Acyclic.
 End Acyclic.
 
 (* A concrete argument of a Continue is among that terminator's uses. *)
+Lemma continue_argument_operand : forall (continuation : continuation)
+    (args : list Terminator.arg) (arg : value),
+  In (Terminator.Arg arg) args ->
+  exists (uses : list value),
+    In uses (terminator_args (Terminator.Continue continuation args))
+    /\ In arg uses.
+Proof.
+  intros continuation args arg Harg. unfold terminator_args.
+  eexists. split; [left; reflexivity |].
+  induction args as [ | [v |] args IH]; cbn in *; try contradiction.
+  - destruct Harg as [Heq | Hin].
+    + injection Heq as ->. left. reflexivity.
+    + right. apply IH. exact Hin.
+  - destruct Harg as [Heq | Hin]; [discriminate | apply IH; exact Hin].
+Qed.
+
+(* The indexed version used for back-edge parameter passing. *)
 Lemma continue_argument_used : forall (continuation : continuation)
     (args : list Terminator.arg) (index : int) (arg : value),
   nth_int args index = Some (Terminator.Arg arg) ->
@@ -443,14 +470,8 @@ Lemma continue_argument_used : forall (continuation : continuation)
     In uses (terminator_args (Terminator.Continue continuation args))
     /\ In arg uses.
 Proof.
-  intros continuation args index arg Harg.
-  apply nth_int_In in Harg. unfold terminator_args.
-  eexists. split; [left; reflexivity |].
-  induction args as [ | [v |] args IH]; cbn in *; try contradiction.
-  - destruct Harg as [Heq | Hin].
-    + injection Heq as ->. left. reflexivity.
-    + right. apply IH. exact Hin.
-  - destruct Harg as [Heq | Hin]; [discriminate | apply IH; exact Hin].
+  intros continuation args index arg Harg. apply continue_argument_operand.
+  eapply nth_int_In. exact Harg.
 Qed.
 
 (* --- Goto arguments --- *)

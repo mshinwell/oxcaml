@@ -152,6 +152,75 @@ Proof.
   lia.
 Qed.
 
+(* Nonnegative signed-register values have no set bit at position 63. *)
+Lemma nonnegative_word_log2 : forall (word : Z),
+  0 <= word < two63 -> Z.log2 word < 63.
+Proof.
+  intros word Hword. destruct (Z.eq_dec word 0) as [-> | Hnonzero].
+  - reflexivity.
+  - apply (proj1 (Z.log2_lt_pow2 word 63 ltac:(lia))).
+    rewrite <- two63_pow. lia.
+Qed.
+
+(* Bitwise or of two nonnegative signed words cannot set their sign bit. *)
+Lemma nonnegative_lor_word : forall (left right : Z),
+  0 <= left < two63 -> 0 <= right < two63 ->
+  0 <= Z.lor left right < two63.
+Proof.
+  intros left right Hleft Hright.
+  assert (Hnonnegative : 0 <= Z.lor left right).
+  { apply Z.lor_nonneg. lia. }
+  split; [exact Hnonnegative |].
+  destruct (Z.eq_dec (Z.lor left right) 0) as [-> | Hnonzero];
+    [unfold two63; lia |].
+  rewrite two63_pow.
+  apply (proj2 (Z.log2_lt_pow2 (Z.lor left right) 63 ltac:(lia))).
+  rewrite Z.log2_lor by lia.
+  pose proof (nonnegative_word_log2 left Hleft).
+  pose proof (nonnegative_word_log2 right Hright).
+  apply Z.max_lub_lt; assumption.
+Qed.
+
+(* Bitwise and also preserves the range of nonnegative signed words. *)
+Lemma nonnegative_land_word : forall (left right : Z),
+  0 <= left < two63 -> 0 <= right < two63 ->
+  0 <= Z.land left right < two63.
+Proof.
+  intros left right Hleft Hright.
+  assert (Hnonnegative : 0 <= Z.land left right).
+  { apply Z.land_nonneg. lia. }
+  split; [exact Hnonnegative |].
+  destruct (Z.eq_dec (Z.land left right) 0) as [-> | Hnonzero];
+    [unfold two63; lia |].
+  rewrite two63_pow.
+  apply (proj2 (Z.log2_lt_pow2 (Z.land left right) 63 ltac:(lia))).
+  pose proof (Z.log2_land left right ltac:(lia) ltac:(lia)).
+  pose proof (nonnegative_word_log2 left Hleft).
+  pose proof (Z.le_min_l (Z.log2 left) (Z.log2 right)). lia.
+Qed.
+
+(* Two's-complement or preserves signed 64-bit bounds, including negative
+   masks. Complementing the two-negative case reduces it to bitwise and. *)
+Lemma lor_in_int64 : forall (left right : Z),
+  in_int64 left -> in_int64 right -> in_int64 (Z.lor left right).
+Proof.
+  intros left right Hleft Hright. unfold in_int64 in *.
+  destruct (Z_lt_ge_dec left 0) as [Hleft_neg | Hleft_pos];
+    destruct (Z_lt_ge_dec right 0) as [Hright_neg | Hright_pos].
+  - pose proof (nonnegative_land_word (Z.lnot left) (Z.lnot right)
+      ltac:(rewrite Z.lnot_eq_pred_opp; lia)
+      ltac:(rewrite Z.lnot_eq_pred_opp; lia)) as Hcomplement.
+    rewrite <- Z.lnot_lor, Z.lnot_eq_pred_opp in Hcomplement. lia.
+  - pose proof (lor_bounds left right ltac:(lia)).
+    assert (Z.lor left right < 0) by (apply Z.lor_neg; auto).
+    unfold two63 in *. lia.
+  - rewrite Z.lor_comm. pose proof (lor_bounds right left ltac:(lia)).
+    assert (Z.lor right left < 0) by (apply Z.lor_neg; auto).
+    unfold two63 in *. lia.
+  - pose proof (nonnegative_lor_word left right ltac:(lia) ltac:(lia)).
+    unfold two63 in *. lia.
+Qed.
+
 (* ---- OxCaml's [Int64] --------------------------------------------------- *)
 
 (* The type and its operations are declared at top level and given their

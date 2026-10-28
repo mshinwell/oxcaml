@@ -2,18 +2,20 @@
 
    Review [supported_operation], [eval_operation], [execute_instruction]
    and [step]. The whitelist, including operand and result arities, is
-   extracted; the execution semantics and its proofs are not. Unsupported
-   operations have no execution rule here: in particular, memory operations
-   are not interpreted as no-ops.
+   extracted; the execution semantics and its proofs are not. The exact
+   evaluator also covers immediate shifts and or, for bounds computed
+   outside loops; this does not widen the loop whitelist. Other operations
+   have no rule here. SsaContext.v handles their observations in unchanged
+   prefixes without interpreting memory effects as no-ops.
 
    Registers are identified by instruction/result or block/parameter, not
    by a freely constructed expression. An operand reads its register; only
    executing an instruction evaluates its operation. [step] executes one
    instruction or terminator, and [return_state] distinguishes a return
-   from a stuck state. This is a partial SSA semantics, not yet a proof of
-   the loop analysis or the graph rewriter. SsaExecution.v derives
-   equations for available values from these steps and structural SSA
-   well-formedness; LoopExecution.v connects steps to loop graph facts. *)
+   from a stuck state. SsaExecution.v derives available-value equations
+   from these steps and structural SSA well-formedness. SsaProgress.v
+   derives operand definedness and progress. LoopEligibility.v proves
+   semantic loop eligibility; the graph rewriter is not modelled. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64
@@ -96,12 +98,26 @@ Fixpoint read_values (rs : registers) (args : list value)
 Definition comparison_value (cmp : integer_comparison) (x y : Z) : Z :=
   if IntegerComparison.eval cmp x y then 1 else 0.
 
+(* Operations for which the observation semantics has an exact integer
+   equation. This is broader than the loop whitelist: shifts and bitwise
+   or may compute bounds before entering an otherwise empty loop. *)
+Definition modeled_operation {A : Type} (op : operation) (args : list A)
+    : bool :=
+  match op, args with
+  | Const_int _, _
+  | Intop (Iadd | Isub | Icomp _), [_; _]
+  | Intop_imm (Iadd | Isub | Icomp _ | Ior) _, [_] => true
+  | Intop_imm (Ilsl | Iasr | Ilsr) bits, [_] =>
+    Z.leb 0 (to_Z bits) && Z.leb (to_Z bits) 63
+  | _, _ => false
+  end.
+
 (* Operations compute on values read from the current environment. These
    clauses, rather than equations imposed on every SSA expression, define
    their semantics. Arithmetic wraps at 64 bits. *)
 Definition eval_operation (op : operation) (args : list Z) : option Z :=
   match op, args with
-  | Const_int n, [] => Some (Int64.to_Z (Int64.of_nativeint n))
+  | Const_int n, _ => Some (Int64.to_Z (Int64.of_nativeint n))
   | Intop Iadd, [x; y] => Some (wrap64 (x + y))
   | Intop Isub, [x; y] => Some (wrap64 (x - y))
   | Intop (Icomp cmp), [x; y] => Some (comparison_value cmp x y)
@@ -109,6 +125,16 @@ Definition eval_operation (op : operation) (args : list Z) : option Z :=
   | Intop_imm Isub k, [x] => Some (wrap64 (x - to_Z k))
   | Intop_imm (Icomp cmp) k, [x] =>
     Some (comparison_value cmp x (to_Z k))
+  | Intop_imm Ilsl bits, [x] =>
+    if Z.leb 0 (to_Z bits) && Z.leb (to_Z bits) 63
+    then Some (wrap64 (x * 2 ^ to_Z bits)) else None
+  | Intop_imm Iasr bits, [x] =>
+    if Z.leb 0 (to_Z bits) && Z.leb (to_Z bits) 63
+    then Some (wrap64 (x / 2 ^ to_Z bits)) else None
+  | Intop_imm Ilsr bits, [x] =>
+    if Z.leb 0 (to_Z bits) && Z.leb (to_Z bits) 63
+    then Some (wrap64 (unsigned64 x / 2 ^ to_Z bits)) else None
+  | Intop_imm Ior mask, [x] => Some (wrap64 (Z.lor x (to_Z mask)))
   | _, _ => None
   end.
 
@@ -421,6 +447,17 @@ Proof.
     cbn [eval_operation]; eexists; reflexivity.
 Qed.
 
+(* The loop whitelist is a subset of the exact observation equations. *)
+Lemma supported_operation_modeled : forall (A : Type) (op : operation)
+    (args : list A),
+  supported_operation op args = true -> modeled_operation op args = true.
+Proof.
+  intros A op args Hsupported.
+  destruct op; try discriminate; try (destruct op; try discriminate);
+    destruct args as [ | lhs [ | rhs [ | extra rest]]];
+    try discriminate; reflexivity.
+Qed.
+
 (* All supported results fit a machine register, including wraparound. *)
 Lemma eval_operation_bounded :
   forall (op : operation) (arg_values : list Z) (result : Z),
@@ -429,6 +466,9 @@ Proof.
   intros op zs z H. destruct op; try discriminate;
     try (destruct op; try discriminate);
     destruct zs as [ | x [ | y [ | a zs ] ]]; try discriminate;
+    cbn [eval_operation] in H;
+    try (destruct (Z.leb 0 (to_Z k) && Z.leb (to_Z k) 63);
+      [ | discriminate]);
     injection H as <-;
     try apply Int64.to_Z_bounded; try apply wrap64_in_range;
     unfold comparison_value; destruct (IntegerComparison.eval _ _ _);

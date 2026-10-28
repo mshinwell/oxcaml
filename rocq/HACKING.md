@@ -13,22 +13,43 @@ The first models are the loop analyses behind `-ssa-delete-empty-loops`
 (`backend/ssa/loop/rocq/`); read them as worked examples, starting with
 the reading guide at the top of `LoopComparisons.v`.
 
-The pass currently accepts only integer constants, additions, subtractions
-and comparisons, with Goto/Switch control flow. `SsaSemantics.v` gives
-instruction-by-instruction execution for that fragment and the extracted
-whitelist. `SsaExecution.v` derives operation equations for available
-values from execution and structural SSA well-formedness.
-`LoopExecution.v` connects execution to header revisits and back-edge
-parameter passing. `LoopInvariantExecution.v` derives bound constancy, and
-`LoopCounterExecution.v` proves no infinite confined execution for literal
-bounds and unconditional comparison rules. `SsaLiveness.v` defines values
-needed before their next definition. `LoopLiveOut.v` proves agreement on
-those values between the first header execution and any finite loop exit.
-`LoopEligibility.v` states semantic eligibility on the original graph and
-composes that result with `find_deletions`. Finite exit remains a premise:
-entry-range proofs, progress and coverage of unsupported surrounding code
-are unfinished. Modelling the mechanically rewritten graph, renaming and
-cleanup is deliberately outside this proof's scope.
+Start review of empty-loop deletion at `LoopEligibility.v`: read
+`eligible_entry` and `find_deletions_eligible`, then their imported
+semantics and contracts. The theorem proves finite normal first exit and
+agreement with the first header execution on every register read before
+its next definition. It assumes no recurrence, invariant bound, guard
+outcome, progress or finite exit. The mechanically rewritten graph,
+renaming and cleanup are deliberately outside this proof's scope.
+
+The loop whitelist remains integer constants, additions, subtractions and
+comparisons, with Goto/Switch control flow. `SsaSemantics.v` defines exact
+execution; its evaluator additionally supports immediate shifts and or
+for computations before the loop. `SsaContext.v` overapproximates word
+observations in the unchanged prefix: opaque instructions can produce
+arbitrary bounded outputs, and opaque terminators can take CFG successors
+with arbitrary parameter values. Memory effects are unconstrained, not
+no-ops. Trap-stack markers and exceptional mid-block transfers are not
+represented (call transfers may include exceptional successors). This
+avoids a full memory/call/vector semantics; the correspondence of these
+observations to compiler operations remains a review boundary.
+
+`SsaExecution.v` and `SsaContext.v` derive available-value equations;
+`SsaLiveness.v` defines reads before redefinition; `SsaProgress.v` derives
+bound operands and progress. `LoopExecution.v` connects actual steps to
+header revisits and finite first exits. `LoopInvariantExecution.v` and
+`LoopCounterExecution.v` derive bound constancy and counter termination.
+`LoopValueSnapshot.v`, `LoopGuardExecution.v` and `LoopRangeExecution.v`
+connect affine entailment to the actual prefix, including duplicate
+Switch edges. `LoopLiveOut.v` derives live-out agreement.
+
+The public theorem's non-algorithmic premises are explicit: structural
+SSA/dominance metadata, edge multiplicities, Goto/parameter layout,
+bounded live function inputs, and defined Switch indices from the reached
+header onward. Out-of-range Switch indices are undefined behavior in SSA.
+`graph_size_supported` assumes at most $2^{32}$ graph blocks to rule out
+atom-counter overflow; this is a host-resource premise, not a runtime
+check. The finite-witness and definedness proofs use classical logic,
+not new semantic axioms.
 
 `find_deletions_spec` remains an analysis-certificate theorem. The old
 `infinite_header_run` abstraction is not an assumed compiler contract and
@@ -44,8 +65,8 @@ Each directory is a Rocq library (`rocq/Makefile` maps them):
 |--------------------------|----------------|-----------------------------------------------|
 | `rocq/`                  | `OxCamlStdlib` | Models of OxCaml's own types (`int`, `Int64`, lists, exceptions as options), generic arithmetic (`IntArith.v`), proof helpers, and the extraction directives mapping them onto OxCaml's functions (`OxCamlExtract.v`) |
 | `backend/rocq/`          | `OxCamlBackend`| Backend-wide definitions: the semantics of `Cmm.integer_comparison`, the model's copy of `Operation.t` |
-| `backend/ssa/rocq/`      | `OxCamlSsa`    | The SSA graph as the models see it: `SsaModel.v` (the abstract interface), `SsaGraph.v` (properties of blocks, terminators and uses that any pass may need), `SsaDominance.v`, `SsaSemantics.v` (execution of the restricted integer fragment), `SsaExecution.v` (well-formedness and available-value equations), `SsaLiveness.v` (reads before redefinition) |
-| `backend/ssa/loop/rocq/` | `OxCamlLoop`   | The loop analyses, the operational proofs in `LoopExecution.v`, `LoopInvariantExecution.v`, `LoopCounterExecution.v`, `LoopLiveOut.v` and `LoopEligibility.v`, and `Extract.v`, which extracts the implementation |
+| `backend/ssa/rocq/`      | `OxCamlSsa`    | The SSA graph as the models see it: `SsaModel.v` (the abstract interface), `SsaGraph.v` (properties of blocks, terminators and uses that any pass may need), `SsaDominance.v`, `SsaSemantics.v` (execution of the restricted integer fragment), `SsaExecution.v` (well-formedness and available-value equations), `SsaLiveness.v` (reads before redefinition), `SsaProgress.v` (definedness and progress), `SsaContext.v` (opaque surrounding computations) |
+| `backend/ssa/loop/rocq/` | `OxCamlLoop`   | The loop analyses, the operational proofs in `LoopExecution.v`, `LoopInvariantExecution.v`, `LoopCounterExecution.v`, `LoopValueSnapshot.v`, `LoopGuardExecution.v`, `LoopRangeExecution.v`, `LoopLiveOut.v` and `LoopEligibility.v`, and `Extract.v`, which extracts the implementation |
 
 Put a definition or lemma where its OxCaml counterpart would live. A fact
 about lists goes in `OxCamlList.v`, about machine integers in

@@ -8,10 +8,10 @@
    successors, and successor/predecessor views agree. No arithmetic or
    loop invariant is assumed by that theorem. *)
 
-From Stdlib Require Import ZArith Lia List.
+From Stdlib Require Import ZArith Lia List Classical_Prop.
 From OxCamlStdlib Require Import OxCamlInt OxCamlList.
 From OxCamlSsa Require Import SsaModel SsaGraph SsaDominance SsaSemantics
-  SsaExecution.
+  SsaExecution SsaProgress SsaContext.
 From OxCamlLoop Require Import NaturalLoop InductionVar DeleteEmptyLoops.
 Import ListNotations.
 Local Open Scope nat_scope.
@@ -169,6 +169,92 @@ Proof.
       subst middle'. eapply IH; eassumption.
 Qed.
 
+(* Iterate the proof-only successor function. A stuck state repeats; the
+   progress argument below proves that repetition is never used inside
+   the region. This is not a modified machine semantics. *)
+Fixpoint successor_trace (start : state) (time : nat) : state :=
+  match time with
+  | O => start
+  | S previous =>
+    let current := successor_trace start previous in
+    match next_state current with Some next => next | None => current end
+  end.
+
+(* Nondivergence plus separately proved progress gives a finite first
+   exit. Classical reasoning is used only to obtain a finite witness;
+   the infinite trace in the contradiction is explicitly constructed. *)
+Theorem region_finite_exit : forall (region : blockset) (start : state),
+  no_infinite_execution_in region start ->
+  (forall (reached : state), region_steps region start reached ->
+    set_mem (current_block reached) region = true ->
+    exists (next : state), SsaSemantics.step reached next) ->
+  exists (reached : state), region_steps region start reached
+    /\ set_mem (current_block reached) region = false.
+Proof.
+  intros region start Hfinite Hprogress. apply NNPP. intros Hnoexit.
+  assert (Hinside : forall (reached : state),
+    region_steps region start reached ->
+    set_mem (current_block reached) region = true).
+  { intros reached Hprefix.
+    destruct (set_mem (current_block reached) region) eqn:Hmem;
+      [reflexivity |]. exfalso. apply Hnoexit. exists reached. auto. }
+  assert (Hprefix : forall (time : nat),
+    region_steps region start (successor_trace start time)).
+  { intros time. induction time as [ | time IH]; [constructor |].
+    destruct (Hprogress _ IH (Hinside _ IH)) as [next Hstep].
+    cbn [successor_trace]. rewrite (next_state_complete _ _ Hstep).
+    eapply region_steps_trans; [exact IH |].
+    eapply Region_cons; [apply Hinside; exact IH | exact Hstep | constructor]. }
+  apply (Hfinite (successor_trace start) eq_refl).
+  - intros time.
+    destruct (Hprogress _ (Hprefix time) (Hinside _ (Hprefix time)))
+      as [next Hstep].
+    cbn [successor_trace]. rewrite (next_state_complete _ _ Hstep). exact Hstep.
+  - intros time. apply Hinside, Hprefix.
+Qed.
+
+(* Leaving a region is a block transfer, not an instruction. The new
+   state is exactly the target's entry, before any exit instruction runs. *)
+Lemma step_exits_region : control_edges -> forall (region : blockset)
+    (before after : state),
+  set_mem (current_block before) region = true ->
+  set_mem (current_block after) region = false ->
+  SsaSemantics.step before after ->
+  In (current_block after) (all_successors (current_block before))
+    /\ after = enter (current_block after) (current_registers after).
+Proof.
+  intros Hedges region before after Hinside Houtside Hstep.
+  destruct Hstep; cbn in *; [congruence | |]; split; try reflexivity.
+  - eapply goto_successor; eassumption.
+  - eapply switch_successor;
+      [exact Hedges | eassumption | eapply nth_error_In; eassumption].
+Qed.
+
+(* When a region has one designated exit, its finite first exit reaches
+   that block's entry. No instructions in the exit block are included. *)
+Theorem region_exit_target : control_edges -> forall (loop : natural_loop)
+    (exit : block) (before after : state),
+  exits_only_to loop exit ->
+  set_mem (current_block before) loop.(body) = true ->
+  region_steps loop.(body) before after ->
+  set_mem (current_block after) loop.(body) = false ->
+  exists (regs : registers), after = enter exit regs.
+Proof.
+  intros Hedges loop exit before after Honly Hinside Hrun.
+  revert Hinside.
+  induction Hrun as [s | before middle after Hsource Hstep Hrest IH];
+    intros Hinside Houtside; [congruence |].
+  destruct (set_mem (current_block middle) loop.(body)) eqn:Hmiddle.
+  - apply IH; [reflexivity | exact Houtside].
+  - assert (Hsame : middle = after).
+    { inversion Hrest; subst; [reflexivity | congruence]. }
+    subst after.
+    destruct (step_exits_region Hedges _ _ _ Hsource Hmiddle Hstep)
+      as [Hsucc Hentry].
+    destruct (Honly _ Hsource _ Hsucc) as [Hin | Hexit]; [congruence |].
+    exists (current_registers middle). rewrite <- Hexit. exact Hentry.
+Qed.
+
 (* Every finite prefix of an infinite execution is a finite execution
    in the same operational semantics. *)
 Lemma execution_prefix : forall (trace : nat -> state),
@@ -188,14 +274,16 @@ Theorem reachable_execution_values : control_edges ->
   forall (blocks : list block) (entry : block) (initial_regs : registers)
     (trace : nat -> state),
   well_formed_ssa blocks entry ->
-  steps (enter entry initial_regs) (trace 0) -> infinite_execution trace ->
+  context_steps (enter entry initial_regs) (trace 0) ->
+  infinite_execution trace ->
   forall (time : nat),
     coherent_at blocks entry (current_registers (trace time))
       (state_point (trace time)).
 Proof.
   intros Hedges blocks entry initial_regs trace Hwf Hprefix Htrace time.
-  eapply execution_values_coherent; [exact Hedges | exact Hwf |].
-  eapply steps_trans; [exact Hprefix | apply execution_prefix; exact Htrace].
+  eapply context_execution_values_coherent; [exact Hedges | exact Hwf |].
+  eapply context_steps_trans; [exact Hprefix |].
+  apply context_of_steps, execution_prefix. exact Htrace.
 Qed.
 
 (* Instruction-position validity propagates along an execution. *)

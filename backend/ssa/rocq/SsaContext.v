@@ -1,0 +1,447 @@
+(* Word observations of surrounding SSA code.
+
+   Integer operations and Goto/Switch use SsaSemantics.step. An opaque
+   instruction may produce arbitrary signed-word observations in exactly
+   its declared result registers. An opaque terminator may take any CFG
+   successor and supply arbitrary word observations for its parameters.
+   Memory and other effects are deliberately unconstrained, not treated
+   as no-ops: this relation is used only for the unchanged prefix before
+   a loop. The loop's silent execution still uses SsaSemantics.step.
+
+   This is an overapproximation, including nondeterministic opaque
+   outputs, not a concrete semantics of calls, memory or vector values.
+   Exact equations are derived only for [modeled_operation] results.
+   Trap-stack markers and exceptional transfers from mid-block operations
+   are not represented; the prefix premise explicitly uses this relation.
+   Call transfers may include exceptional CFG successors. Nothing here is
+   extracted. *)
+
+From Stdlib Require Import ZArith Lia List Classical_Prop.
+From OxCamlStdlib Require Import OxCamlInt OxCamlInt64.
+From OxCamlBackend Require Import Operation.
+From OxCamlSsa Require Import SsaModel SsaGraph SsaDominance SsaSemantics
+  SsaExecution SsaLiveness SsaProgress.
+Import ListNotations.
+Local Open Scope Z_scope.
+
+Definition result_register (id : instr_id) (count : int) (reg : register)
+    : Prop :=
+  exists (index : int), reg = Result id index /\ 0 <= to_Z index < to_Z count.
+
+(* An opaque effect writes only its declared outputs. Each output is an
+   arbitrary word observation; all other register observations persist. *)
+Definition opaque_outputs (written : register -> Prop)
+    (before after : registers) : Prop :=
+  (forall (reg : register), ~ written reg -> after reg = before reg)
+  /\ (forall (reg : register), written reg ->
+        exists (word : Z), in_int64 word /\ after reg = Some word).
+
+Inductive context_step : state -> state -> Prop :=
+  | Context_integer : forall (before after : state),
+      step before after -> context_step before after
+  | Context_opaque_instruction : forall (b : block) (id : instr_id)
+      (op : operation) (args : list value) (count : int) (rest : list instr)
+      (before after : registers) (words : list Z),
+      modeled_operation op args = false ->
+      read_values before args = Some words ->
+      opaque_outputs (result_register id count) before after ->
+      context_step
+        {| current_block := b; remaining := Op id op args count :: rest;
+           current_registers := before |}
+        {| current_block := b; remaining := rest; current_registers := after |}
+  | Context_opaque_transfer : forall (source target : block)
+      (before after : registers),
+      terminator_pure_control (terminator source) = false ->
+      In target (all_successors source) ->
+      opaque_outputs (fun reg => In reg (map register_of_value (params target)))
+        before after ->
+      context_step
+        {| current_block := source; remaining := [];
+           current_registers := before |}
+        (enter target after).
+
+Inductive context_steps : state -> state -> Prop :=
+  | Context_refl : forall (s : state), context_steps s s
+  | Context_cons : forall (before middle after : state),
+      context_step before middle -> context_steps middle after ->
+      context_steps before after.
+
+(* Pure finite execution is included without changing any step. *)
+Lemma context_of_steps : forall (before after : state),
+  steps before after -> context_steps before after.
+Proof.
+  intros before after Hrun. induction Hrun; [constructor |].
+  eapply Context_cons; [constructor; exact H | exact IHHrun].
+Qed.
+
+Lemma context_steps_trans : forall (before middle after : state),
+  context_steps before middle -> context_steps middle after ->
+  context_steps before after.
+Proof.
+  intros before middle after Hfirst Hlast. induction Hfirst;
+    [exact Hlast |]. eapply Context_cons; [exact H |].
+  apply IHHfirst. exact Hlast.
+Qed.
+
+(* Opaque steps still follow instruction positions and actual CFG edges. *)
+Lemma context_step_valid_position : forall (before after : state),
+  context_step before after -> valid_position before -> valid_position after.
+Proof.
+  intros before after Hstep Hposition. destruct Hstep.
+  - eapply step_valid_position; eassumption.
+  - destruct Hposition as [prefix Hbody].
+    exists (prefix ++ [Op id op args count]).
+    cbn in *. rewrite Hbody, <- app_assoc. reflexivity.
+  - apply enter_valid_position.
+Qed.
+
+Lemma context_step_point_edge : control_edges -> forall (before after : state),
+  valid_position before -> context_step before after ->
+  point_edge (state_point before) (state_point after).
+Proof.
+  intros Hedges before after Hposition Hstep. destruct Hstep.
+  - eapply step_point_edge; eassumption.
+  - unfold state_point. cbn. constructor.
+    destruct Hposition as [prefix Hbody]. cbn in Hbody.
+    rewrite Hbody, length_app. cbn. lia.
+  - constructor. exact H0.
+Qed.
+
+Lemma context_step_in_graph : control_edges -> forall (blocks : list block)
+    (entry : block) (before after : state),
+  well_formed_ssa blocks entry -> In (current_block before) blocks ->
+  context_step before after -> In (current_block after) blocks.
+Proof.
+  intros Hedges blocks entry before after Hwf Hin Hstep. destruct Hstep.
+  - eapply step_in_graph; eassumption.
+  - exact Hin.
+  - eapply graph_successors_closed; eassumption.
+Qed.
+
+(* Arbitrary opaque outputs are still machine-word observations. *)
+Lemma opaque_outputs_bounded : forall (written : register -> Prop)
+    (before after : registers),
+  bounded_registers before -> opaque_outputs written before after ->
+  bounded_registers after.
+Proof.
+  intros written before after Hbounded [Hframe Houtputs] reg word Hread.
+  destruct (classic (written reg)) as [Hwritten | Hunwritten].
+  - destruct (Houtputs _ Hwritten) as [result [Hresult Hvalue]].
+    rewrite Hread in Hvalue. injection Hvalue as <-. exact Hresult.
+  - rewrite Hframe in Hread by exact Hunwritten. eapply Hbounded. exact Hread.
+Qed.
+
+Lemma context_step_bounded : forall (before after : state),
+  bounded_registers (current_registers before) -> context_step before after ->
+  bounded_registers (current_registers after).
+Proof.
+  intros before after Hbounded Hstep. destruct Hstep.
+  - eapply step_bounded; eassumption.
+  - eapply opaque_outputs_bounded; eassumption.
+  - eapply opaque_outputs_bounded; eassumption.
+Qed.
+
+(* The definition-site frame theorem also holds across opaque effects.
+   SSA registers are distinct from mutable memory and are written only
+   by their defining instruction or incoming parameter binding. *)
+Lemma context_step_definition_frame : forall (blocks : list block)
+    (entry : block) (before after : state) (v : value) (site : point),
+  well_formed_ssa blocks entry -> valid_position before ->
+  In (current_block before) blocks ->
+  value_definition v site -> In (fst site) blocks ->
+  site <> state_point after -> context_step before after ->
+  current_registers after (register_of_value v)
+    = current_registers before (register_of_value v).
+Proof.
+  intros blocks entry before after v site Hwf Hposition Hin Hdefinition Hsite
+    Hneq Hstep. destruct Hstep.
+  - eapply step_definition_frame; eassumption.
+  - apply (proj1 H1). intros Hwritten.
+    destruct Hwritten as [index [Hreg Hindex]].
+    destruct v as [actual_id actual_op actual_args actual_index | b' index'];
+      cbn in Hreg; [ | discriminate].
+    injection Hreg as -> ->.
+    destruct Hdefinition as [actual_count [Hdefinition Hactual_index]].
+    apply Hneq. eapply result_sites_unique;
+      [exact Hwf | exact Hsite | exact Hin | exact Hdefinition |].
+    eapply executing_result_definition. exact Hposition.
+  - apply (proj1 H1). intros Hwritten. apply in_map_iff in Hwritten.
+    destruct Hwritten as [parameter [Hreg Hparameter]].
+    destruct (parameters_local (graph_parameters _ _ Hwf) _ _ Hparameter)
+      as [index ->].
+    destruct v as [id op args result_index | b index']; cbn in Hreg;
+      [discriminate |]. injection Hreg as -> ->.
+    destruct Hdefinition as [Hentry Hparam]. apply Hneq. exact Hentry.
+Qed.
+
+(* A modeled result newly available after a context step must have been
+   produced by an ordinary integer step, never by an opaque effect. *)
+Lemma context_step_new_result : forall (before after : state)
+    (id : instr_id) (op : operation) (args : list value) (index : int),
+  valid_position before -> context_step before after ->
+  modeled_operation op args = true ->
+  value_definition (Res id op args index) (state_point after) ->
+  index = zero /\ execute_instruction (current_registers before)
+    (Op id op args one) = Some (current_registers after).
+Proof.
+  intros before after id op args index Hposition Hstep Hmodeled Hdefinition.
+  destruct Hstep.
+  - eapply step_new_result; eassumption.
+  - destruct Hdefinition as [actual_count [Hdefinition Hindex]].
+    pose proof (executing_result_definition _ _ _ _ _ _ _ Hposition)
+      as Hactual.
+    pose proof (result_definition_at_point _ _ _ _ _ _ _ _ _ Hdefinition
+      Hactual) as Heq.
+    injection Heq as -> -> -> ->. congruence.
+  - destruct Hdefinition as [count [Hdefinition Hindex]].
+    exfalso. eapply result_definition_not_entry. exact Hdefinition.
+Qed.
+
+(* Available operands of a modeled result are unchanged by an incoming
+   step, including an opaque step elsewhere in the graph. *)
+Lemma context_available_operands_frame : forall (blocks : list block)
+    (entry : block) (before after : state) (id : instr_id) (op : operation)
+    (args : list value) (count : int) (site : point),
+  well_formed_ssa blocks entry -> valid_position before ->
+  In (current_block before) blocks ->
+  point_reachable entry (state_point after) ->
+  result_definition id op args count site -> In (fst site) blocks ->
+  point_dominates entry site (state_point after) -> context_step before after ->
+  read_values (current_registers after) args
+    = read_values (current_registers before) args.
+Proof.
+  intros blocks entry before after id op args count site Hwf Hposition Hin
+    Hreachable Hdefinition Hsite Hdom Hstep.
+  apply read_values_ext. intros arg Harg.
+  destruct (operand_definitions _ _ Hwf _ _ _ _ _ Hsite Hdefinition _ Harg)
+    as [arg_site [Harg_definition [Harg_site [Harg_dom Hstrict]]]].
+  eapply context_step_definition_frame; try eassumption.
+  intros Heq. subst arg_site.
+  assert (site = state_point after) by
+    (eapply point_dominance_antisymmetric; eassumption).
+  congruence.
+Qed.
+
+(* Exact available-value equations follow from context execution too.
+   Opaque results carry no arithmetic equation; their observed registers
+   remain available as atoms to the affine analysis. *)
+Theorem context_step_values_coherent : control_edges ->
+  forall (blocks : list block) (entry : block) (before after : state),
+  well_formed_ssa blocks entry -> valid_position before ->
+  In (current_block before) blocks ->
+  point_reachable entry (state_point before) ->
+  coherent_at blocks entry (current_registers before) (state_point before) ->
+  context_step before after ->
+  coherent_at blocks entry (current_registers after) (state_point after).
+Proof.
+  intros Hedges blocks entry before after Hwf Hposition Hin Hreachable
+    Hcoherent Hstep v [site [Hdefinition [Hsite Hdom]]].
+  destruct v as [id op args index | b index]; [ | exact I].
+  cbn [value_coherent].
+  destruct (modeled_operation op args) eqn:Hmodeled; [ | exact I].
+  pose proof Hdefinition as [count [Hresult Hindex]].
+  pose proof (context_step_point_edge Hedges _ _ Hposition Hstep) as Hedge.
+  assert (Hreachable_after : point_reachable entry (state_point after)).
+  { destruct Hreachable as [points Hpath].
+    exists (points ++ [state_point after]).
+    eapply point_path_snoc; eassumption. }
+  assert (Hargs : read_values (current_registers after) args
+    = read_values (current_registers before) args).
+  { eapply context_available_operands_frame; eassumption. }
+  destruct (point_eqb site (state_point after)) eqn:Heq.
+  - apply point_eqb_spec in Heq. subst site.
+    destruct (context_step_new_result _ _ _ _ _ _ Hposition Hstep Hmodeled
+      Hdefinition) as [-> Hexec].
+    destruct (execute_instruction_result _ _ _ _ _ _ Hexec)
+      as [_ [words [result [Hread [Heval Hregs]]]]].
+    exists words, result. split; [rewrite Hargs; exact Hread |].
+    split; [exact Heval |]. rewrite Hregs. apply write_register_same.
+  - assert (Hneq : site <> state_point after).
+    { intros ->. rewrite (proj2 (point_eqb_spec _ _) eq_refl) in Heq.
+      discriminate. }
+    assert (Havailable : available_value blocks entry (state_point before)
+      (Res id op args index)).
+    { exists site. split; [exact Hdefinition |]. split; [exact Hsite |].
+      eapply point_dominates_predecessor; eassumption. }
+    specialize (Hcoherent _ Havailable). cbn [value_coherent] in Hcoherent.
+    rewrite Hmodeled in Hcoherent.
+    destruct Hcoherent as [words [result [Hread [Heval Hvalue]]]].
+    exists words, result. split; [rewrite Hargs; exact Hread |].
+    split; [exact Heval |]. rewrite <- Hvalue.
+    eapply context_step_definition_frame with (v := Res id op args index)
+      (site := site); eassumption.
+Qed.
+
+(* Opaque outputs, like ordinary results and Goto bindings, define every
+   live register introduced by their step. *)
+Lemma context_step_new_live_bound : forall (blocks : list block)
+    (entry : block) (before after : state) (reg : register),
+  well_formed_ssa blocks entry -> control_layout blocks ->
+  valid_position before -> In (current_block before) blocks ->
+  defined_at (state_point after) reg -> register_used blocks reg ->
+  context_step before after ->
+  exists (word : Z), current_registers after reg = Some word.
+Proof.
+  intros blocks entry before after reg Hwf Hlayout Hposition Hin Hdefinition
+    Hused Hstep. destruct Hstep.
+  - eapply step_new_live_bound; eassumption.
+  - destruct Hdefinition as [v [Hdefinition <-]].
+    destruct v as [actual_id actual_op actual_args index |
+      parameter_block index].
+    + destruct Hdefinition as [actual_count [Hdefinition Hindex]].
+      pose proof (executing_result_definition _ _ _ _ _ _ _ Hposition)
+        as Hactual.
+      pose proof (result_definition_at_point _ _ _ _ _ _ _ _ _ Hdefinition
+        Hactual) as Heq. injection Heq as -> -> -> ->.
+      destruct (proj2 H1 (Result id index) ltac:(exists index; auto))
+        as [word [Hbounded Hword]]. exists word. exact Hword.
+    + destruct Hdefinition as [Hentry Hparam].
+      cbn [state_point] in Hentry. unfold entry_point in Hentry.
+      injection Hentry as Hblock Hlength. subst parameter_block.
+      destruct Hposition as [prefix Hbody]. cbn in Hbody.
+      rewrite Hbody, length_app in Hlength. cbn in Hlength. lia.
+  - destruct Hdefinition as [v [Hdefinition <-]].
+    destruct v as [id op args index | parameter_block index].
+    + destruct Hdefinition as [count [Hdefinition Hindex]].
+      exfalso. eapply result_definition_not_entry. exact Hdefinition.
+    + destruct Hdefinition as [Hentry Hparam].
+      apply (f_equal fst) in Hentry. cbn in Hentry. subst parameter_block.
+      assert (Hin_param : In (register_of_value (Block_param target index))
+        (map register_of_value (params target))).
+      { apply in_map. eapply OxCamlList.nth_int_In. exact Hparam. }
+      destruct (proj2 H1 _ Hin_param) as [word [Hbounded Hword]].
+      exists word. exact Hword.
+Qed.
+
+(* Live-register definedness holds across the context overapproximation;
+   it is not an assumption about an arbitrary reached snapshot. *)
+Lemma context_step_live_registers_bound : control_edges ->
+  forall (blocks : list block) (entry : block) (before after : state),
+  well_formed_ssa blocks entry -> control_layout blocks ->
+  valid_position before -> In (current_block before) blocks ->
+  live_registers_bound (state_point before) (current_registers before) ->
+  context_step before after ->
+  live_registers_bound (state_point after) (current_registers after).
+Proof.
+  intros Hedges blocks entry before after Hwf Hlayout Hposition Hin Hbound
+    Hstep reg Hlive.
+  pose proof (context_step_in_graph Hedges _ _ _ _ Hwf Hin Hstep) as Hafter.
+  destruct (classic (defined_at (state_point after) reg)) as [Hnew | Hold].
+  - eapply context_step_new_live_bound; try eassumption.
+    exact (live_register_used blocks entry (state_point after) reg
+      Hwf Hafter Hlive).
+  - assert (Hlive_before : live_at (state_point before) reg).
+    { eapply Live_predecessor; [ | exact Hold | exact Hlive].
+      eapply context_step_point_edge; eassumption. }
+    destruct (Hbound _ Hlive_before) as [word Hword]. exists word.
+    destruct (live_at_available blocks entry (state_point after) reg
+      Hwf Hafter Hlive) as [v [Hreg [site [Hdefinition [Hsite Hdom]]]]].
+    assert (Hneq : site <> state_point after).
+    { intros Heq. subst site. apply Hold. exists v. auto. }
+    rewrite <- Hreg.
+    rewrite (context_step_definition_frame blocks entry before after v site
+      Hwf Hposition Hin Hdefinition Hsite Hneq Hstep).
+    rewrite Hreg. exact Hword.
+Qed.
+
+(* Finite context prefixes preserve valid program positions. *)
+Lemma context_steps_valid_position : forall (before after : state),
+  context_steps before after -> valid_position before -> valid_position after.
+Proof.
+  intros before after Hrun. induction Hrun; intros Hposition;
+    [exact Hposition |]. apply IHHrun.
+  eapply context_step_valid_position; eassumption.
+Qed.
+
+(* The observations of a finite context prefix fit signed words. *)
+Theorem context_execution_invariants : forall (entry : block)
+    (initial_regs : registers) (reached : state),
+  bounded_registers initial_regs ->
+  context_steps (enter entry initial_regs) reached ->
+  valid_position reached /\ bounded_registers (current_registers reached).
+Proof.
+  intros entry initial_regs reached Hbounded Hrun. split.
+  - eapply context_steps_valid_position;
+      [exact Hrun | apply enter_valid_position].
+  - assert (Hpreserved : forall (before after : state),
+      context_steps before after ->
+      bounded_registers (current_registers before) ->
+      bounded_registers (current_registers after)).
+    { intros before after Hsteps. induction Hsteps; intros Hbefore;
+        [exact Hbefore |]. apply IHHsteps.
+      eapply context_step_bounded; eassumption. }
+    eapply Hpreserved; eassumption.
+Qed.
+
+(* Context paths project to the same graph used by dominance. *)
+Lemma context_steps_point_reachable : control_edges -> forall (entry : block)
+    (before after : state),
+  context_steps before after -> valid_position before ->
+  point_reachable entry (state_point before) ->
+  point_reachable entry (state_point after).
+Proof.
+  intros Hedges entry before after Hrun. induction Hrun;
+    intros Hposition Hreachable; [exact Hreachable |].
+  apply IHHrun.
+  - eapply context_step_valid_position; eassumption.
+  - destruct Hreachable as [points Hpath].
+    exists (points ++ [state_point middle]).
+    eapply point_path_snoc; [exact Hpath |].
+    eapply context_step_point_edge; eassumption.
+Qed.
+
+(* Context execution derives exact equations only for modeled results;
+   opaque computations before the loop remain unconstrained atoms. *)
+Theorem context_execution_values_coherent : control_edges ->
+  forall (blocks : list block) (entry : block) (initial_regs : registers)
+    (reached : state),
+  well_formed_ssa blocks entry ->
+  context_steps (enter entry initial_regs) reached ->
+  coherent_at blocks entry (current_registers reached) (state_point reached).
+Proof.
+  intros Hedges blocks entry initial_regs reached Hwf Hrun.
+  assert (Hpreserved : forall (before after : state),
+    context_steps before after ->
+    valid_position before -> In (current_block before) blocks ->
+    point_reachable entry (state_point before) ->
+    coherent_at blocks entry (current_registers before) (state_point before) ->
+    coherent_at blocks entry (current_registers after) (state_point after)).
+  { intros before after Hsteps. induction Hsteps;
+      intros Hposition Hin Hreachable Hcoherent; [exact Hcoherent |].
+    apply IHHsteps.
+    - eapply context_step_valid_position; eassumption.
+    - eapply context_step_in_graph; eassumption.
+    - eapply context_steps_point_reachable; [exact Hedges | | exact Hposition |
+        exact Hreachable].
+      eapply Context_cons; [exact H | constructor].
+    - eapply context_step_values_coherent; eassumption. }
+  eapply Hpreserved; [exact Hrun | apply enter_valid_position |
+    exact (entry_in_graph _ _ Hwf) | | apply entry_values_coherent].
+  exists [entry_point entry]. constructor.
+Qed.
+
+(* Bound function inputs suffice for all live observations in a context
+   prefix, including after opaque instructions and calls. *)
+Theorem context_execution_live_registers_bound : control_edges ->
+  forall (blocks : list block) (entry : block) (initial_regs : registers)
+    (reached : state),
+  well_formed_ssa blocks entry -> control_layout blocks ->
+  live_registers_bound (entry_point entry) initial_regs ->
+  context_steps (enter entry initial_regs) reached ->
+  live_registers_bound (state_point reached) (current_registers reached).
+Proof.
+  intros Hedges blocks entry initial_regs reached Hwf Hlayout Hinputs Hrun.
+  assert (Hpreserved : forall (before after : state),
+    context_steps before after ->
+    valid_position before -> In (current_block before) blocks ->
+    live_registers_bound (state_point before) (current_registers before) ->
+    live_registers_bound (state_point after) (current_registers after)).
+  { intros before after Hsteps. induction Hsteps;
+      intros Hposition Hin Hbound; [exact Hbound |].
+    apply IHHsteps.
+    - eapply context_step_valid_position; eassumption.
+    - eapply context_step_in_graph; eassumption.
+    - eapply context_step_live_registers_bound; eassumption. }
+  eapply Hpreserved; [exact Hrun | apply enter_valid_position |
+    exact (entry_in_graph _ _ Hwf) | exact Hinputs].
+Qed.

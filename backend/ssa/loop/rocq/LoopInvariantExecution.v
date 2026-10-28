@@ -10,8 +10,9 @@ From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlInt OxCamlInt64.
 From OxCamlBackend Require Import Operation.
 From OxCamlSsa Require Import SsaModel SsaGraph SsaDominance SsaSemantics
-  SsaExecution.
-From OxCamlLoop Require Import NaturalLoop InductionVar LoopExecution.
+  SsaExecution SsaContext.
+From OxCamlLoop Require Import NaturalLoop InductionVar LoopExecution
+  DeleteEmptyLoops.
 Import ListNotations.
 
 Section Invariants.
@@ -27,10 +28,11 @@ Section Invariants.
   Hypothesis loop_graph : loop_graph_properties blocks entry loop.
   Hypothesis dominance : dominance_semantics entry.
   Hypothesis definitions : op_def_correct defs blocks.
-  Hypothesis prefix : steps (enter entry initial_regs) (trace 0%nat).
+  Hypothesis prefix : context_steps (enter entry initial_regs) (trace 0%nat).
   Hypothesis execution : infinite_execution trace.
   Hypothesis confined : stays_in_region loop.(body) trace.
   Hypothesis starts_at_header : at_entry loop.(header) (trace 0%nat).
+  Hypothesis body_supported : body_in_supported_fragment loop.
 
   (* Header reachability follows from the actual prefix, so antisymmetry
      of dominance cannot be used vacuously on unreachable blocks. *)
@@ -38,7 +40,7 @@ Section Invariants.
     point_reachable entry (entry_point loop.(header)).
   Proof.
     assert (Hreachable : point_reachable entry (state_point (trace 0%nat))).
-    { eapply steps_point_reachable;
+    { eapply context_steps_point_reachable;
         [exact edges | exact prefix | apply enter_valid_position |].
       exists [entry_point entry]. constructor. }
     destruct starts_at_header as [Hblock Hremaining].
@@ -94,11 +96,35 @@ Section Invariants.
   Proof.
     intros reg first second Houtside.
     assert (Hposition : valid_position (trace 0%nat)).
-    { eapply steps_valid_position;
+    { eapply context_steps_valid_position;
         [exact prefix | apply enter_valid_position]. }
     pose proof (region_register_constant (graph_parameters _ _ well_formed)
       loop.(body) trace reg execution confined Hposition Houtside) as Hfixed.
     rewrite (Hfixed first), (Hfixed second). reflexivity.
+  Qed.
+
+  (* Opaque operations, including non-integer constants, cannot occur in
+     the whitelisted loop. An available such definition is outside it. *)
+  Lemma unmodeled_result_outside : forall (id : instr_id)
+      (op : operation) (args : list value) (index : int) (position : point),
+    modeled_operation op args = false ->
+    available_value blocks entry position (Res id op args index) ->
+    ~ defined_in_region loop.(body) (Result id index).
+  Proof.
+    intros id op args index position Hopaque
+      [site [Hdefinition [Hsite Hdom]]].
+    eapply definition_outside_region with (v := Res id op args index)
+      (site := site); [exact well_formed |
+      exact (loop_body_in_graph _ _ _ loop_graph) | exact Hdefinition |
+      exact Hsite |].
+    destruct (set_mem (fst site) loop.(body)) eqn:Hinside; [ | reflexivity].
+    destruct Hdefinition as [count [[before [suffix [Hbody Hlength]]] Hindex]].
+    assert (Hin : In (Op id op args count) (block_body (fst site))).
+    { rewrite Hbody. apply in_or_app. right. left. reflexivity. }
+    pose proof (proj1 (body_supported _ Hinside) _ Hin) as Hsupported.
+    apply andb_true_iff in Hsupported.
+    pose proof (supported_operation_modeled _ _ _ (proj2 Hsupported)).
+    congruence.
   Qed.
 
   (* The syntactic invariant classifier is sound for available actual
@@ -118,21 +144,22 @@ Section Invariants.
            destruct Hinvariant as [defining_block [Hlookup [Hdom Hstrict]]];
            apply invariant_register_same;
            eapply invariant_result_outside; eassumption].
+      all: try solve [apply invariant_register_same;
+        eapply unmodeled_result_outside; [ | exact Hfirst]; reflexivity].
       all: pose proof (reachable_execution_values edges blocks entry
         initial_regs trace well_formed prefix execution first _ Hfirst)
           as Hcoherent_first;
         destruct Hcoherent_first as [values_first [result_first
           [Hread_first [Heval_first Hvalue_first]]]];
         cbn [eval_operation] in Heval_first; try discriminate.
-      destruct values_first; [ | discriminate]. injection Heval_first as <-.
+      injection Heval_first as <-.
       pose proof (reachable_execution_values edges blocks entry initial_regs
         trace well_formed prefix execution second _ Hsecond)
         as Hcoherent_second.
       destruct Hcoherent_second
         as [values_second [result_second
           [Hread_second [Heval_second Hvalue_second]]]].
-      destruct values_second; cbn [eval_operation] in Heval_second;
-        [ | discriminate].
+      cbn [eval_operation] in Heval_second.
       injection Heval_second as <-. cbn [register_of_value].
       rewrite Hvalue_first, Hvalue_second. reflexivity.
     - destruct Hinvariant as [Hdom Hstrict]. apply invariant_register_same.

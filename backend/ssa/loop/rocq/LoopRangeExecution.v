@@ -1,0 +1,169 @@
+(* Operational meaning of the affine entry-range check.
+
+   LoopValueSnapshot constructs a mathematical interpretation of syntax;
+   LoopGuardExecution derives its guard facts from executed Switches.
+   This module connects the entailment check to an actual bound register.
+   The only resource premise is an explicit bound on graph size, not a
+   field asserting arithmetic properties of a loop run. *)
+
+From Stdlib Require Import ZArith Lia Bool List.
+From OxCamlStdlib Require Import OxCamlInt OxCamlInt64 OxCamlList.
+From OxCamlSsa Require Import SsaModel SsaGraph SsaDominance SsaSemantics
+  SsaExecution SsaContext.
+From OxCamlLoop Require Import FourierMotzkin AffineExpr AffineSsa
+  LoopComparisons LoopTermination LoopValueSnapshot LoopGuardExecution.
+Import ListNotations.
+Local Open Scope Z_scope.
+
+(* An explicit, ordinary resource bound: at most 2^32 graph blocks. This
+   leaves ample room in the signed 63-bit affine atom counter even if
+   every block supplies a two-operand guard. This host-resource premise is
+   explicit and is not a check performed by the extracted pass. *)
+Definition graph_size_supported (blocks : list block) : Prop :=
+  Z.of_nat (length blocks) <= 2 ^ 32.
+
+(* One guard allocates at most two linearizations' worth of atoms. *)
+Lemma guards_size_bound : forall (target : block) (dominators : list block),
+  guards_sum target dominators <= cond_atoms * Z.of_nat (length dominators).
+Proof.
+  intros target dominators. induction dominators as [ | source rest IH].
+  - rewrite guards_sum_nil. cbn. lia.
+  - rewrite guards_sum_cons. cbn [length]. rewrite Nat2Z.inj_succ.
+    unfold guard_size. destruct (guard_test target source);
+      rewrite cond_atoms_eq in *; lia.
+Qed.
+
+(* The graph-size contract discharges the affine counter capacity bound;
+   it does not assume anything about the values of loop counters. *)
+Lemma graph_atoms_fit : forall (blocks : list block) (target : block),
+  graph_size_supported blocks -> NoDup (strict_dominators target) ->
+  (forall (dominator : block), In dominator (strict_dominators target) ->
+     In dominator blocks) ->
+  linearize_atoms + guards_size target <= ocaml_max_int.
+Proof.
+  intros blocks target Hsize Hnodup Hmembers.
+  pose proof (NoDup_incl_length Hnodup Hmembers) as Hlength.
+  pose proof (guards_size_bound target (strict_dominators target)) as Hguards.
+  unfold graph_size_supported in Hsize.
+  unfold guards_size. rewrite linearize_atoms_eq.
+  rewrite cond_atoms_eq in Hguards.
+  unfold ocaml_max_int, two62. cbn in Hsize. lia.
+Qed.
+
+(* The bound form and all entry facts share one mathematical valuation.
+   This proof uses no assumed operation equations: they are theorems of
+   the snapshot construction, even on fabricated syntax. *)
+Lemma snapshot_bound_facts : forall (regs : registers) (target : block)
+    (v : value) (form : Affine.t) (side1 : list Affine.t) (c1 : ctx)
+    (guards side2 : list Affine.t) (c2 : ctx),
+  linearize_atoms + guards_size target <= ocaml_max_int ->
+  guards_taken (snapshot_value regs) target ->
+  linearize new_ctx [] v = ((form, side1), c1) ->
+  guards_at c1 side1 target = ((guards, side2), c2) ->
+  exists (rho : valuation),
+    denote rho form = snapshot_value regs v
+    /\ Forall wf (guards ++ side2) /\ wf form
+    /\ holds_all rho (guards ++ side2).
+Proof.
+  intros regs target v form side1 c1 guards side2 c2 Hsmall Htaken Hlin Hg.
+  assert (Heqb : forall (v w : value), value_eqb v w = true ->
+    snapshot_value regs v = snapshot_value regs w).
+  { intros lhs rhs Heq. apply value_eqb_spec in Heq. subst rhs. reflexivity. }
+  assert (Hn0 : to_Z new_ctx.(next) = 0) by exact to_Z_zero.
+  assert (Hgs : 0 <= guards_size target) by apply guards_sum_nonneg.
+  destruct (linearize_sound (snapshot_value regs) (snapshot_value_bounded regs)
+    Heqb (snapshot_operation_semantics regs) v new_ctx [] form side1 c1
+    new_ctx_wf ltac:(lia) Hlin)
+    as [Hwf1 [_ [Hn1 [Hwff [Hwfs1 Hrho1]]]]].
+  destruct (guards_at_sound (snapshot_value regs) (snapshot_value_bounded regs)
+    Heqb (snapshot_operation_semantics regs) target c1 side1 guards side2 c2
+    Hwf1 ltac:(lia) Hg) as [Hwf2 [He12 [_ [Hwfg [Hwfs2 Hrho2]]]]].
+  destruct (agrees_exists (snapshot_value regs) c2 Hwf2) as [rho Hrho].
+  destruct (Hrho2 rho Hrho) as [Hs2 Hg2].
+  destruct (Hrho1 rho (agrees_extends _ _ _ _ He12 Hrho)) as [Hden Hs1].
+  exists rho. split; [exact Hden |].
+  split; [apply Forall_app; split; [exact Hwfg |] |].
+  { apply Hwfs2, Hwfs1. exact (Forall_nil _). }
+  split; [exact Hwff |]. unfold holds_all. apply Forall_app. split.
+  - apply Hg2. exact Htaken.
+  - apply Hs2, Hs1. exact (Forall_nil _).
+Qed.
+
+(* Fourier-Motzkin entailment gives the arithmetic termination rule's
+   range condition for the snapshot's bound. *)
+Lemma snapshot_bound_in_range : forall (regs : registers) (target : block)
+    (step_size : int) (bnd : bound),
+  linearize_atoms + guards_size target <= ocaml_max_int ->
+  guards_taken (snapshot_value regs) target ->
+  LoopTermination.bound_in_range step_size target bnd = true ->
+  LoopComparisons.bound_in_range (to_Z step_size)
+    (bound_value (snapshot_value regs) bnd) = true.
+Proof.
+  intros regs target step_size [v | constant] Hsmall Htaken Hcheck;
+    [ | eapply constant_bound_in_range; exact Hcheck].
+  unfold LoopComparisons.bound_in_range. rewrite Z.gtb_ltb.
+  unfold LoopTermination.bound_in_range in Hcheck. cbv zeta in Hcheck.
+  rewrite zero_ltb_to_Z in Hcheck. cbn [bound_value].
+  destruct (linearize new_ctx [] v) as [[form side1] c1] eqn:Hlin.
+  destruct (guards_at c1 side1 target) as [[guards side2] c2] eqn:Hg.
+  destruct (snapshot_bound_facts regs target v form side1 c1 guards side2 c2
+    Hsmall Htaken Hlin Hg) as [rho [Hden [Hwffacts [Hwff Hfacts]]]].
+  destruct (0 <? to_Z step_size) eqn:Hpositive; cbv iota in Hcheck.
+  - destruct (Affine.scale_checked minus_one form) as [negated |] eqn:Hscale;
+      [ | discriminate]. cbv iota in Hcheck.
+    destruct (Affine.add_const_checked negated max_int) as [goal |] eqn:Hadd;
+      [ | discriminate]. cbv iota in Hcheck.
+    destruct (scale_checked_spec rho _ _ _ Hscale) as [Hd1 [_ Hwf1]].
+    destruct (add_const_checked_spec rho _ _ _ Hadd) as [Hd2 [_ Hwf2]].
+    pose proof (entails_sound _ _ Hwffacts (Hwf2 (Hwf1 Hwff)) Hcheck rho
+      Hfacts) as Hgoal.
+    rewrite Hd2, Hd1, to_Z_minus_one, to_Z_max_int, Hden in Hgoal.
+    apply Z.leb_le. unfold ocaml_max_int. lia.
+  - destruct (Affine.add_const_checked form max_int) as [goal |] eqn:Hadd;
+      [ | discriminate]. cbv iota in Hcheck.
+    destruct (add_const_checked_spec rho _ _ _ Hadd) as [Hdenote [_ Hwfgoal]].
+    pose proof (entails_sound _ _ Hwffacts (Hwfgoal Hwff) Hcheck rho Hfacts)
+      as Hgoal.
+    rewrite Hdenote, to_Z_max_int, Hden in Hgoal.
+    apply Z.leb_le. unfold ocaml_max_int. lia.
+Qed.
+
+(* The register-bound range check is sound on an actual execution prefix.
+   All arithmetic and guard facts have been discharged; the premises are
+   graph metadata, resource size, a reached state and an actual read. *)
+Theorem executed_bound_in_range : forall (blocks : list block) (entry : block),
+  control_edges -> well_formed_ssa blocks entry -> dominance_semantics entry ->
+  (forall (dominator target : block),
+    In dominator blocks -> In target blocks ->
+    (forall (path : list block), SsaDominance.path entry path target ->
+       In dominator path) -> dominator --dom--> target) ->
+  switch_edge_multiplicity -> graph_size_supported blocks ->
+  forall (target : block) (initial_regs : registers) (reached : state)
+    (step_size : int) (v : value) (word : Z),
+  NoDup (strict_dominators target) ->
+  (forall (dominator : block), In dominator (strict_dominators target) ->
+     In dominator blocks) ->
+  bounded_registers initial_regs ->
+  context_steps (enter entry initial_regs) reached ->
+  current_block reached = target ->
+  available_value blocks entry (state_point reached) v ->
+  current_registers reached (register_of_value v) = Some word ->
+  LoopTermination.bound_in_range step_size target (Value_bound v) = true ->
+  LoopComparisons.bound_in_range (to_Z step_size) word = true.
+Proof.
+  intros blocks entry Hedges Hwf Hdominance Hcomplete Hmultiplicity Hsize
+    target initial_regs reached step_size v word Hnodup Hmembers Hbounded
+    Hsteps Hblock Havailable Hread Hcheck.
+  assert (Hsnapshot : snapshot_value (current_registers reached) v = word).
+  { eapply snapshot_read_available; [exact Hwf | | | exact Havailable |
+      exact Hread].
+    - eapply context_execution_values_coherent; eassumption.
+    - exact (proj2 (context_execution_invariants _ _ _ Hbounded Hsteps)). }
+  rewrite <- Hsnapshot.
+  change (LoopComparisons.bound_in_range (to_Z step_size)
+    (bound_value (snapshot_value (current_registers reached)) (Value_bound v))
+    = true).
+  eapply snapshot_bound_in_range; [ | | exact Hcheck].
+  - eapply graph_atoms_fit; eassumption.
+  - eapply executed_guards_taken; eassumption.
+Qed.

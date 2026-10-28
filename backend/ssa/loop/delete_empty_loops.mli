@@ -51,11 +51,11 @@
     remaining control flow. The analysis is [DeleteEmptyLoops.find_deletions],
     extracted from rocq/DeleteEmptyLoops.v, whose [deletion_certificate] states
     what is established of every loop that is deleted. The operational semantics
-    is in backend/ssa/rocq/SsaSemantics.v. LoopCounterExecution.v proves absence
-    of infinite execution inside loops with literal bounds or unconditional
-    comparison rules. LoopEligibility.v establishes semantic eligibility given a
-    finite exit, including agreement with the first header execution on live-out
-    values. Entry-range proofs, progress and finite exit remain unfinished; the
+    is in backend/ssa/rocq/SsaSemantics.v; SsaContext.v overapproximates word
+    observations of opaque computations in the unchanged prefix.
+    LoopEligibility.find_deletions_eligible proves finite normal first exit and
+    agreement with the first header execution on live-out values, for the
+    explicit graph, resource and defined-input contracts in its statement. The
     mechanical graph rewrite is outside the proof's scope. *)
 
 open Ssa.Export

@@ -23,12 +23,12 @@
    DeadInductionVar.v; every block of its body has only whitelisted integer
    instructions and a [Goto] or [Switch] terminator; and all edges leaving
    the body go to that exit target. These are analysis certificates, not
-   a rewrite-correctness theorem. LoopCounterExecution.v proves absence
-   of infinite confined execution for literal bounds and unconditional
-   comparison rules, without assuming an abstract run. LoopLiveOut.v proves
-   live-out agreement for every accepted loop given a finite exit, and
-   LoopEligibility.v packages this as semantic eligibility on the original
-   graph. Entry-range facts and progress/finite exit remain to be proved.
+   a rewrite-correctness theorem. The operational root is
+   LoopEligibility.find_deletions_eligible: from the decision, graph
+   contracts and a defined input, it proves finite normal first exit and
+   live-out agreement with the first header execution. Counter recurrence,
+   bound constancy and affine entry-guard facts are derived from execution,
+   including opaque surrounding computations in the unchanged prefix.
    The mechanical graph rewrite is outside this proof's scope.
 
    The whitelist also covers the header's own instructions, which still

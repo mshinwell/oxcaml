@@ -6,12 +6,13 @@
    the loop, including whichever back edge it takes. No field of
    [infinite_header_run] is assumed here.
 
-   The public theorems at the end compose [find_deletions] with this
-   semantics: literal-bound tests, and counters satisfying the static
-   [unconditional_counter] predicate, cannot execute forever inside the
-   reported loop. Register bounds needing affine entry-range facts are
-   not covered yet. Neither theorem proves progress from stuck states,
-   live-out agreement or correctness of the graph rewrite.
+   [accepted_loop_no_infinite_execution] covers every accepted counter
+   rule, including register bounds checked using affine entry guards.
+   LoopRangeExecution.v supplies those range facts from the actual prefix;
+   SsaContext.v permits opaque surrounding computations in that prefix.
+   LoopEligibility.v combines this nondivergence result with separately
+   proved progress and live-out agreement to establish finite normal exit.
+   The mechanical graph rewrite is deliberately outside the proof.
 
    Review the definitions in the first section, the public theorem
    statements at the end, and their imported contracts: [control_edges],
@@ -22,9 +23,11 @@
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlInt OxCamlInt64 OxCamlList.
 From OxCamlBackend Require Import Operation IntegerComparison.
-From OxCamlSsa Require Import SsaModel SsaGraph SsaSemantics SsaExecution.
+From OxCamlSsa Require Import SsaModel SsaGraph SsaSemantics SsaExecution
+  SsaContext.
 From OxCamlLoop Require Import NaturalLoop InductionVar LoopTermination
-  LoopComparisons DeleteEmptyLoops LoopExecution LoopInvariantExecution.
+  LoopComparisons DeleteEmptyLoops LoopExecution LoopInvariantExecution
+  LoopRangeExecution.
 Import ListNotations.
 Local Open Scope Z_scope.
 
@@ -330,14 +333,15 @@ Section CounterExecution.
   Hypothesis well_formed : well_formed_ssa blocks entry.
   Hypothesis loop_graph : loop_graph_properties blocks entry loop.
   Hypothesis certificate : deletion_certificate defs blocks loop bivs exit.
-  Hypothesis prefix : steps (enter entry initial_regs) (trace 0%nat).
+  Hypothesis prefix : context_steps (enter entry initial_regs) (trace 0%nat).
   Hypothesis execution : infinite_execution trace.
   Hypothesis confined : stays_in_region loop.(body) trace.
 
   (* The initial instruction position follows from the executed prefix. *)
   Lemma counter_trace_position : valid_position (trace 0%nat).
   Proof.
-    eapply steps_valid_position; [exact prefix | apply enter_valid_position].
+    eapply context_steps_valid_position;
+      [exact prefix | apply enter_valid_position].
   Qed.
 
   (* A counter accepted by the deletion certificate satisfies the BIV
@@ -354,7 +358,7 @@ Section CounterExecution.
     forall (time : nat), bounded_registers (current_registers (trace time)).
   Proof.
     intros Hinitial time.
-    destruct (execution_invariants entry initial_regs _ Hinitial prefix)
+    destruct (context_execution_invariants entry initial_regs _ Hinitial prefix)
       as [Hposition Hbounded].
     exact (proj2 (infinite_execution_invariants trace execution
       Hposition Hbounded time)).
@@ -677,7 +681,8 @@ Section CounterExecution.
         assert (Hsame : current_registers (trace time)
           (register_of_value bound_ref)
           = current_registers (trace first) (register_of_value bound_ref)).
-        { eapply loop_invariant_value_same; eassumption. }
+        { eapply loop_invariant_value_same; try eassumption.
+          exact (proj1 (proj2 (proj2 (proj2 (proj2 certificate))))). }
         unfold read_bound in *. rewrite Hsame. exact Hbound.
       - exists (to_Z constant). intros time Hblock Hfinished. reflexivity.
     Qed.
@@ -729,6 +734,57 @@ Section CounterExecution.
         as [counter_ref [Hcounter [Hbound Hshape]]].
       eapply unconditional_counter_cannot_continue; try eassumption.
       destruct bnd; [apply is_loop_invariant_spec; exact Hbound | exact I].
+    Qed.
+
+    (* Every successful counter verdict is now operationally terminating,
+       including register bounds whose range comes from affine guards. *)
+    Theorem accepted_counter_cannot_continue :
+      (forall (dominator target : block),
+        In dominator blocks -> In target blocks ->
+        (forall (path : list block), SsaDominance.path entry path target ->
+           In dominator path) -> dominator --dom--> target) ->
+      switch_edge_multiplicity -> graph_size_supported blocks ->
+      NoDup (strict_dominators loop.(header)) ->
+      (forall (dominator : block),
+        In dominator (strict_dominators loop.(header)) ->
+        In dominator blocks) ->
+      bounded_registers initial_regs ->
+      at_entry loop.(header) (trace 0%nat) -> False.
+    Proof.
+      intros Hcomplete Hmultiplicity Hsize Hnodup Hmembers Hbounded Hentry.
+      destruct (certificate_counter _ _ _ _ _ certificate)
+        as [biv [Hin [Hspec Haccepted]]].
+      destruct (biv_implies_termination_spec defs loop biv (proj1 Hspec)
+        Haccepted) as [exit_info [step_size [cmp [iv_is_left [bnd
+          [Hexit [Hstep [Hextract Hverdict]]]]]]]].
+      destruct (extract_comparison_shape _ _ _ _ _ _ Hextract)
+        as [counter_ref [Hcounter [Hinvariant Hshape]]].
+      assert (Hbound_invariant : match bnd with
+        | Const_bound _ => True
+        | Value_bound bound_ref =>
+          loop_invariant_value defs loop.(header) bound_ref
+        end).
+      { destruct bnd; [apply is_loop_invariant_spec; exact Hinvariant | auto]. }
+      destruct (header_bound_fixed exit_info cmp iv_is_left counter_ref bnd
+        Hexit Hshape Hbound_invariant Hentry) as [bound_word Hfixed].
+      eapply counter_cannot_continue with (bound_word := bound_word);
+        try eassumption.
+      destruct Hverdict as [Hverdict | [Hverdict Hrange]];
+        [left; exact Hverdict | right; split; [exact Hverdict |]].
+      destruct (header_terminal 0%nat Hentry)
+        as [first [Hblock [Hfinished Hparams]]].
+      specialize (Hfixed first Hblock Hfinished).
+      destruct bnd as [bound_ref | constant].
+      - pose proof (header_comparison_available _ _ Hexit Hblock Hfinished)
+          as Hcondition.
+        destruct (comparison_operands_available _ _ _ _ _ _ _ _ well_formed
+          Hcondition Hshape) as [_ Hbound_available].
+        eapply executed_bound_in_range with (reached := trace first)
+          (initial_regs := initial_regs); try eassumption.
+        eapply context_steps_trans; [exact prefix |].
+        apply context_of_steps, execution_prefix. exact execution.
+      - cbn [read_bound] in Hfixed. injection Hfixed as <-.
+        eapply constant_bound_in_range. exact Hrange.
     Qed.
   End InvariantBound.
 
@@ -782,7 +838,7 @@ Theorem literal_loop_no_infinite_execution : control_edges ->
   well_formed_ssa blocks entry -> loop_graph_properties blocks entry loop ->
   deletion_certificate defs blocks loop bivs exit ->
   bounded_registers initial_regs ->
-  steps (enter entry initial_regs) (enter loop.(header) header_regs) ->
+  context_steps (enter entry initial_regs) (enter loop.(header) header_regs) ->
   literal_header_test loop.(header) ->
   no_infinite_execution_in loop.(body) (enter loop.(header) header_regs).
 Proof.
@@ -808,7 +864,7 @@ Theorem unconditional_loop_no_infinite_execution : control_edges ->
   SsaDominance.dominance_semantics entry -> op_def_correct defs blocks ->
   deletion_certificate defs blocks loop bivs exit ->
   bounded_registers initial_regs ->
-  steps (enter entry initial_regs) (enter loop.(header) header_regs) ->
+  context_steps (enter entry initial_regs) (enter loop.(header) header_regs) ->
   (exists (biv : biv), In biv bivs /\ unconditional_counter defs biv) ->
   no_infinite_execution_in loop.(body) (enter loop.(header) header_regs).
 Proof.
@@ -821,6 +877,39 @@ Proof.
     (bivs := bivs) (exit := exit) (initial_regs := initial_regs)
     (trace := trace);
     try eassumption.
+  - rewrite Hstart. exact Hprefix.
+  - rewrite Hstart. split; reflexivity.
+Qed.
+
+(* No accepted comparison shape needs a separate coverage predicate now.
+   All recurrence, invariance, guard truth and range facts are conclusions
+   of the original execution and the analysis certificate. *)
+Theorem accepted_loop_no_infinite_execution : control_edges ->
+  forall (blocks : list block) (entry : block) (defs : op_def)
+    (loop : natural_loop) (bivs : list biv) (exit : block)
+    (initial_regs header_regs : registers),
+  well_formed_ssa blocks entry -> loop_graph_properties blocks entry loop ->
+  SsaDominance.dominance_semantics entry -> op_def_correct defs blocks ->
+  (forall (dominator target : block),
+    In dominator blocks -> In target blocks ->
+    (forall (path : list block), SsaDominance.path entry path target ->
+       In dominator path) -> dominator --dom--> target) ->
+  switch_edge_multiplicity -> graph_size_supported blocks ->
+  NoDup (strict_dominators loop.(header)) ->
+  (forall (dominator : block), In dominator (strict_dominators loop.(header)) ->
+     In dominator blocks) ->
+  deletion_certificate defs blocks loop bivs exit ->
+  bounded_registers initial_regs ->
+  context_steps (enter entry initial_regs) (enter loop.(header) header_regs) ->
+  no_infinite_execution_in loop.(body) (enter loop.(header) header_regs).
+Proof.
+  intros Hedges blocks entry defs loop bivs exit initial_regs header_regs
+    Hwf Hgraph Hdominance Hdefs Hcomplete Hmultiplicity Hsize Hnodup Hmembers
+    Hcertificate Hbounded Hprefix trace Hstart Htrace Hregion.
+  eapply accepted_counter_cannot_continue with
+    (blocks := blocks) (entry := entry) (defs := defs) (loop := loop)
+    (bivs := bivs) (exit := exit) (initial_regs := initial_regs)
+    (trace := trace); try eassumption.
   - rewrite Hstart. exact Hprefix.
   - rewrite Hstart. split; reflexivity.
 Qed.
@@ -847,7 +936,7 @@ Section GraphTermination.
     well_formed_ssa blocks entry ->
     In (header, exit) (find_deletions defs blocks) ->
     bounded_registers initial_regs ->
-    steps (enter entry initial_regs) (enter header header_regs) ->
+    context_steps (enter entry initial_regs) (enter header header_regs) ->
     literal_header_test header ->
     exists (loop : natural_loop) (bivs : list biv),
       In (loop, bivs) (InductionVar.analyze defs blocks)
@@ -871,7 +960,7 @@ Section GraphTermination.
     well_formed_ssa blocks entry -> op_def_correct defs blocks ->
     In (header, exit) (find_deletions defs blocks) ->
     bounded_registers initial_regs ->
-    steps (enter entry initial_regs) (enter header header_regs) ->
+    context_steps (enter entry initial_regs) (enter header header_regs) ->
     exists (loop : natural_loop) (bivs : list biv),
       In (loop, bivs) (InductionVar.analyze defs blocks)
       /\ header = loop.(NaturalLoop.header)
