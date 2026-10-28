@@ -45,13 +45,13 @@ BACKEND := $(addprefix $(BACKEND_DIR)/, \
   OperationExtract.v)
 SSA := $(addprefix $(SSA_DIR)/, \
   SsaModel.v SsaModelExtract.v SsaGraph.v SsaDominance.v SsaSemantics.v \
-  SsaExecution.v)
+  SsaExecution.v SsaLiveness.v)
 LOOP := $(addprefix $(LOOP_DIR)/, \
   FourierMotzkin.v FourierMotzkinExtract.v LoopComparisons.v AffineExpr.v \
   AffineExprExtract.v NaturalLoop.v AffineSsa.v AffineSsaExtract.v \
   InductionVar.v InductionVarExtract.v LoopTermination.v DeadInductionVar.v \
   DeleteEmptyLoops.v LoopExecution.v LoopInvariantExecution.v \
-  LoopCounterExecution.v)
+  LoopCounterExecution.v LoopLiveOut.v LoopEligibility.v)
 EXTRACT := $(LOOP_DIR)/Extract.v
 
 # The extraction writes one .ml and .mli per model into the loop directory;

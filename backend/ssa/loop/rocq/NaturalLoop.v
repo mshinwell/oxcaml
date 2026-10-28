@@ -931,6 +931,26 @@ Qed.
 
 (* --- [find_exit_branch] --- *)
 
+(* The reported exit target is an actual Switch target outside the body.
+   This identifies the target, not merely the orientation of the test. *)
+Theorem find_exit_branch_exit : forall (loop : natural_loop)
+    (exit_info : exit_branch),
+  find_exit_branch loop = Some exit_info ->
+  set_mem exit_info.(exit_target) loop.(body) = false /\
+  exists (targets : list block),
+    terminator loop.(header) = Terminator.Switch exit_info.(condition) targets
+    /\ In exit_info.(exit_target) targets.
+Proof.
+  intros loop exit_info Hfound. unfold find_exit_branch in Hfound.
+  destruct (terminator loop.(header)) as [ | index targets | |] eqn:Hterm;
+    try discriminate.
+  destruct targets as [ | ifnot [ | ifso [ | extra rest]]]; try discriminate.
+  destruct (set_mem ifso loop.(body)) eqn:Hso;
+    destruct (set_mem ifnot loop.(body)) eqn:Hnot; try discriminate;
+    injection Hfound as <-; cbn; split; try assumption.
+  all: exists [ifnot; ifso]; split; [reflexivity | cbn; auto].
+Qed.
+
 (* The exit branch found is the header's two-way [Switch] on [condition];
    the loop continues along the edge [continue_when_true] names, which is
    into the body, and the other edge leaves it. *)

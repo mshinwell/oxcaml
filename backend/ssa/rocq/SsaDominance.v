@@ -126,6 +126,14 @@ Proof.
   split; [intros [-> ->]; reflexivity | intros H; inversion H; auto].
 Qed.
 
+(* Every path contains its endpoint, so each point dominates itself. *)
+Lemma point_dominates_refl : forall (entry : block) (position : point),
+  point_dominates entry position position.
+Proof.
+  intros entry position points Hpath. induction Hpath;
+    [left; reflexivity | right; exact IHHpath].
+Qed.
+
 (* A point path can be extended at either end by one graph edge. *)
 Lemma point_path_prepend : forall (first next last : point)
     (points : list point),
@@ -144,6 +152,69 @@ Proof.
   intros first last next points Hpath. induction Hpath; intros Hedge; cbn.
   - apply Point_path_cons; [exact Hedge | constructor].
   - apply Point_path_cons; [assumption | apply IHHpath; exact Hedge].
+Qed.
+
+(* Join two paths without requiring a self-edge at their shared point. *)
+Lemma point_path_join : forall (first middle last : point)
+    (prefix suffix : list point),
+  point_path first prefix middle -> point_path middle suffix last ->
+  exists (joined : list point), point_path first joined last /\
+    forall (member : point), In member joined ->
+      In member prefix \/ In member suffix.
+Proof.
+  intros first middle last prefix suffix Hprefix Hsuffix.
+  induction Hprefix.
+  - exists suffix. split; [exact Hsuffix | auto].
+  - destruct (IHHprefix Hsuffix) as [joined [Hjoined Hmembers]].
+    exists (first :: joined). split.
+    + eapply point_path_prepend; eassumption.
+    + intros member [<- | Hin]; [left; left; reflexivity |].
+      destruct (Hmembers member Hin); [left; right | right]; assumption.
+Qed.
+
+(* Keep the suffix starting at the last occurrence of a selected point. *)
+Lemma point_path_last_visit : forall (first last : point)
+    (points : list point),
+  point_path first points last -> forall (selected : point),
+  In selected points -> exists (tail : list point),
+    point_path selected (selected :: tail) last /\ ~ In selected tail.
+Proof.
+  intros first last points Hpath. induction Hpath;
+    intros selected Hin.
+  - destruct Hin as [<- | []]. exists []. split; [constructor | tauto].
+  - destruct (existsb (point_eqb selected) (next :: rest)) eqn:Hlater.
+    + apply existsb_exists in Hlater. destruct Hlater as [p [Hp Heq]].
+      apply point_eqb_spec in Heq. subst p. apply IHHpath. exact Hp.
+    + destruct Hin as [<- | Hin].
+      * exists (next :: rest). split; [econstructor; eassumption |].
+        intros Hin. assert (existsb (point_eqb first) (next :: rest) = true).
+        { apply existsb_exists. exists first. split; [exact Hin |].
+          apply point_eqb_spec. reflexivity. }
+        congruence.
+      * assert (existsb (point_eqb selected) (next :: rest) = true).
+        { apply existsb_exists. exists selected. split; [exact Hin |].
+          apply point_eqb_spec. reflexivity. }
+        congruence.
+Qed.
+
+(* A path avoiding a region's entry point after its start cannot leave
+   and re-enter a region closed under all other incoming edges. *)
+Lemma point_path_region_suffix : forall (inside : point -> Prop)
+    (cut : point),
+  (forall (before after : point), point_edge before after ->
+     inside after -> after <> cut -> inside before) ->
+  forall (first last : point) (points : list point),
+  point_path first points last -> inside last ->
+  ~ In cut (tl points) -> Forall inside points.
+Proof.
+  intros inside cut Hclosed first last points Hpath.
+  induction Hpath; intros Hlast Havoid.
+  - constructor; [exact Hlast | constructor].
+  - assert (Htail : Forall inside (next :: rest)).
+    { apply IHHpath; [exact Hlast |]. cbn in *. tauto. }
+    constructor; [ | exact Htail].
+    eapply Hclosed; [exact H | inversion Htail; assumption |].
+    intros Heq. subst next. apply Havoid. left. reflexivity.
 Qed.
 
 (* Truncate a path at its first visit to the destination. *)
@@ -225,6 +296,26 @@ Proof.
   pose proof (Hdom _ (point_path_snoc _ _ _ _ Hpath Hedge)) as Hin.
   apply in_app_or in Hin. destruct Hin as [Hin | [Heq | []]];
     [exact Hin | congruence].
+Qed.
+
+(* A definition in another block that dominates this block's terminator
+   also dominates its entry: advancing through the body never encounters
+   that other definition. *)
+Lemma other_block_dominates_entry : forall (entry b : block)
+    (dominator : point),
+  fst dominator <> b -> point_dominates entry dominator (b, 0%nat) ->
+  point_dominates entry dominator (entry_point b).
+Proof.
+  intros entry b dominator Hother Hdom.
+  assert (forall (remaining : nat), remaining <= length (block_body b) ->
+    point_dominates entry dominator (b, remaining)) as Hthrough.
+  { intros remaining. induction remaining as [ | remaining IH]; intros Hlen.
+    - exact Hdom.
+    - eapply point_dominates_predecessor.
+      + apply IH. lia.
+      + intros Heq. apply (f_equal fst) in Heq. cbn in Heq. contradiction.
+      + constructor. lia. }
+  apply Hthrough. lia.
 Qed.
 
 (* A visited point has a prefix path contained in the original path. *)

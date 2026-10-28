@@ -202,6 +202,16 @@ Inductive steps : state -> state -> Prop :=
   | Steps_cons : forall (s t u : state),
       step s t -> steps t u -> steps s u.
 
+(* Execute an instruction list without taking the block's terminator.
+   This is the retained header computation in the eligibility theorem. *)
+Inductive executes_insns : registers -> list instr -> registers -> Prop :=
+  | Insns_nil : forall (regs : registers), executes_insns regs [] regs
+  | Insns_cons : forall (before middle after : registers) (insn : instr)
+      (rest : list instr),
+      execute_instruction before insn = Some middle ->
+      executes_insns middle rest after ->
+      executes_insns before (insn :: rest) after.
+
 Definition valid_position (s : state) : Prop :=
   exists (prefix : list instr),
     block_body (current_block s) = prefix ++ remaining s.
@@ -273,6 +283,34 @@ Proof.
   induction Hprefix as [s | s t u Hstep Hprefix IH]; intros Hsuffix.
   - exact Hsuffix.
   - eapply Steps_cons; [exact Hstep | apply IH; exact Hsuffix].
+Qed.
+
+(* Executing a body list is an actual finite execution ending immediately
+   before its terminator. No instruction is evaluated merely by reading it. *)
+Lemma executes_insns_steps : forall (b : block) (insns : list instr)
+    (before after : registers),
+  executes_insns before insns after ->
+  steps {| current_block := b; remaining := insns;
+           current_registers := before |}
+        {| current_block := b; remaining := [];
+           current_registers := after |}.
+Proof.
+  intros b insns before after Hbody. induction Hbody.
+  - constructor.
+  - eapply Steps_cons; [constructor; exact H | exact IHHbody].
+Qed.
+
+(* A retained instruction sequence has a unique resulting environment. *)
+Lemma executes_insns_deterministic : forall (insns : list instr)
+    (before after other : registers),
+  executes_insns before insns after ->
+  executes_insns before insns other -> after = other.
+Proof.
+  intros insns before after other Hbody. revert other.
+  induction Hbody; intros other Hother; inversion Hother; subst.
+  - reflexivity.
+  - assert (middle = middle0) by congruence. subst middle0.
+    apply IHHbody. assumption.
 Qed.
 
 (* The executable entry test agrees with the structural entry predicate. *)
@@ -769,6 +807,18 @@ Proof.
     destruct (parameters_local Hlayout target parameter Hin)
       as [param_index ->]. cbn in Hreg. inversion Hreg. contradiction.
   - reflexivity.
+Qed.
+
+(* A control transfer into a parameterless block changes no register.
+   This applies to the final exiting edge, not just to internal steps. *)
+Theorem step_to_parameterless_frame : forall (before after : state),
+  remaining before = [] -> params (current_block after) = [] ->
+  step before after -> current_registers after = current_registers before.
+Proof.
+  intros before after Hfinished Hparams Hstep. destruct Hstep;
+    cbn in *; try discriminate; [ | reflexivity].
+  rewrite Hparams in H1. destruct zs; cbn in H1; [ | discriminate].
+  injection H1 as <-. reflexivity.
 Qed.
 
 (* A step within a region cannot change a register defined outside it.

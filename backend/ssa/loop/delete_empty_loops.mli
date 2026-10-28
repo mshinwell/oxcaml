@@ -53,8 +53,10 @@
     what is established of every loop that is deleted. The operational semantics
     is in backend/ssa/rocq/SsaSemantics.v. LoopCounterExecution.v proves absence
     of infinite execution inside loops with literal bounds or unconditional
-    comparison rules. Entry-range proofs, progress, live-out agreement and
-    correctness of the graph rewrite remain unfinished. *)
+    comparison rules. LoopEligibility.v establishes semantic eligibility given a
+    finite exit, including agreement with the first header execution on live-out
+    values. Entry-range proofs, progress and finite exit remain unfinished; the
+    mechanical graph rewrite is outside the proof's scope. *)
 
 open Ssa.Export
 

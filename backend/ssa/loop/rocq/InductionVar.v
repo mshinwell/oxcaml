@@ -321,6 +321,33 @@ Proof.
   rewrite H, set_mem_empty. intuition discriminate.
 Qed.
 
+(* Every recognized update directly reads the parameter it updates,
+   whether its step is immediate or held in an invariant register. *)
+Lemma classify_update_reads_self : forall (is_self : value -> bool)
+    (defs : op_def) (header : block) (updated : value) (step : biv_step)
+    (sign : biv_sign),
+  classify_update is_self defs header updated = Some (step, sign) ->
+  match updated with
+  | Res _ _ args _ => exists (self : value),
+      In self args /\ is_self self = true
+  | Block_param _ _ => False
+  end.
+Proof.
+  intros is_self defs header [id op args index | b index] step sign Hclass;
+    [ | discriminate].
+  destruct op; try discriminate; try (destruct op; try discriminate);
+    destruct args as [ | a [ | b [ | extra rest]]]; try discriminate;
+    cbn [classify_update] in Hclass;
+    repeat match type of Hclass with
+    | context [if ?test then _ else _] =>
+      let Heq := fresh "Htest" in destruct test eqn:Heq
+    end; try discriminate.
+  all: repeat match goal with
+    | Htest : (_ && _ = true) |- _ =>
+      apply andb_true_iff in Htest; destruct Htest
+    end; cbn; eauto.
+Qed.
+
 (* --- [classify_param] --- *)
 
 (* When [forallb is_some] accepts the values at [index], every pair of

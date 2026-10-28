@@ -25,10 +25,13 @@
    the body go to that exit target. These are analysis certificates, not
    a rewrite-correctness theorem. LoopCounterExecution.v proves absence
    of infinite confined execution for literal bounds and unconditional
-   comparison rules, without assuming an abstract run. Entry-range facts,
-   progress and preservation of live-out values remain to be proved.
+   comparison rules, without assuming an abstract run. LoopLiveOut.v proves
+   live-out agreement for every accepted loop given a finite exit, and
+   LoopEligibility.v packages this as semantic eligibility on the original
+   graph. Entry-range facts and progress/finite exit remain to be proved.
+   The mechanical graph rewrite is outside this proof's scope.
 
-   The last point also covers the header's own instructions, which still
+   The whitelist also covers the header's own instructions, which still
    run once after the rewrite, as they did on the first iteration before
    it. Being free of side effects, they can only be observed through a
    value used after the loop. By SSA scoping no block of the body but the
@@ -38,9 +41,10 @@
    before the loop, earlier integer instructions, or header parameters;
    and a parameter used by an instruction other than the exit
    comparison and its own update is not dead, which keeps the loop. So
-   every such value should be the same at every iteration, the one after
-   the rewrite included. This last argument is still to be proved from
-   the operational semantics and SSA well-formedness. *)
+   every such live-out value agrees between the first header execution and
+   the finite exit. LoopLiveOut.finite_exit_live_agreement proves this from
+   execution and SSA well-formedness. Its liveness definition includes later
+   reads before redefinition, including paths that re-enter the loop. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlList.

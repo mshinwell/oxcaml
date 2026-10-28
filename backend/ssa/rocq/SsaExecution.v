@@ -38,6 +38,11 @@ Definition value_definition (v : value) (site : point) : Prop :=
 
 Record well_formed_ssa (blocks : list block) (entry : block) : Prop :=
   { entry_in_graph : In entry blocks;
+    (* Finished graphs contain only reachable blocks. This is structural
+       reachability through program points, not a claim that operations
+       execute successfully or that branches are dynamically feasible. *)
+    graph_blocks_reachable : forall (b : block), In b blocks ->
+      point_reachable entry (b, 0%nat);
     graph_successors_closed : forall (source target : block),
       In source blocks -> In target (all_successors source) ->
       In target blocks;
@@ -144,6 +149,100 @@ Proof.
     [prefix' [suffix' [Hbody' Hlength']]].
   eapply same_position_element; [rewrite <- Hbody, <- Hbody'; reflexivity |].
   congruence.
+Qed.
+
+(* Canonical available references sharing a register share the complete
+   value payload. The two references may be available at different points. *)
+Lemma available_value_identity : forall (blocks : list block) (entry : block)
+    (first second : point) (v w : value),
+  well_formed_ssa blocks entry -> available_value blocks entry first v ->
+  available_value blocks entry second w ->
+  register_of_value v = register_of_value w -> v = w.
+Proof.
+  intros blocks entry first second
+    [id op args index | b index] [id' op' args' index' | b' index'] Hwf
+    [site [Hdefinition [Hsite Hdom]]]
+    [site' [Hdefinition' [Hsite' Hdom']]] Hreg;
+    cbn [register_of_value] in Hreg; try discriminate;
+    inversion Hreg; subst.
+  - destruct Hdefinition as [count [Hdefinition Hindex]].
+    destruct Hdefinition' as [count' [Hdefinition' Hindex']].
+    assert (site = site') by (eapply result_sites_unique; eassumption).
+    subst site'.
+    pose proof (result_definition_at_point _ _ _ _ _ _ _ _ _
+      Hdefinition Hdefinition') as Hsame.
+    injection Hsame as -> -> ->. reflexivity.
+  - reflexivity.
+Qed.
+
+(* An instruction in a block has a definition site at the suffix after it. *)
+Lemma result_definition_of_membership : forall (b : block) (id : instr_id)
+    (op : operation) (args : list value) (count : int),
+  In (Op id op args count) (block_body b) ->
+  exists (site : point), fst site = b /\
+    result_definition id op args count site.
+Proof.
+  intros b id op args count Hin. apply in_split in Hin.
+  destruct Hin as [prefix [suffix Hbody]].
+  exists (b, length suffix). split; [reflexivity |].
+  exists prefix, suffix. auto.
+Qed.
+
+(* An available reference to a single-result instruction is its unique
+   result, with the actual payload. Sharing an ID alone is not enough. *)
+Lemma single_result_reference : forall (blocks : list block) (entry : block)
+    (position : point) (b : block) (id : instr_id) (op : operation)
+    (args : list value) (v : value),
+  well_formed_ssa blocks entry -> In b blocks ->
+  In (Op id op args one) (block_body b) ->
+  available_value blocks entry position v ->
+  instr_defines_value (Op id op args one) v = true ->
+  v = Res id op args zero.
+Proof.
+  intros blocks entry position b id op args [actual_id actual_op actual_args
+    index | parameter_block index] Hwf Hblock Hin
+    [site [Hdefinition [Hsite Hdom]]] Hdefines; [ | discriminate].
+  cbn [instr_defines_value] in Hdefines.
+  apply instr_id_eqb_spec in Hdefines. subst actual_id.
+  destruct Hdefinition as [count [Hdefinition Hindex]].
+  destruct (result_definition_of_membership _ _ _ _ _ Hin)
+    as [actual_site [Hactual_block Hactual]].
+  assert (site = actual_site) as Heq.
+  { eapply result_sites_unique;
+      [exact Hwf | exact Hsite | | exact Hdefinition | exact Hactual].
+    rewrite Hactual_block. exact Hblock. }
+  subst site.
+  pose proof (result_definition_at_point _ _ _ _ _ _ _ _ _
+    Hdefinition Hactual) as Hsame.
+  injection Hsame as -> -> ->.
+  assert (index = zero) as ->.
+  { apply Sint63.to_Z_inj. rewrite to_Z_zero, to_Z_one in *. lia. }
+  reflexivity.
+Qed.
+
+(* A canonical definition outside a region cannot share its register
+   with a definition inside. Unique sites rule out borrowed IDs. *)
+Lemma definition_outside_region : forall (blocks : list block) (entry : block)
+    (region : blockset) (v : value) (site : point),
+  well_formed_ssa blocks entry ->
+  (forall (b : block), set_mem b region = true -> In b blocks) ->
+  value_definition v site -> In (fst site) blocks ->
+  set_mem (fst site) region = false ->
+  ~ defined_in_region region (register_of_value v).
+Proof.
+  intros blocks entry region [id op args index | b index] site Hwf Hmembers
+    Hdefinition Hsite Houtside Hinside.
+  - destruct Hdefinition as [count [Hdefinition Hindex]].
+    destruct Hinside as [b [actual_op [actual_args [actual_count
+      [Hblock Hmember]]]]].
+    destruct (result_definition_of_membership _ _ _ _ _ Hmember)
+      as [actual_site [Hactual_block Hactual]].
+    assert (site = actual_site) as Heq.
+    { eapply result_sites_unique;
+        [exact Hwf | exact Hsite | | exact Hdefinition | exact Hactual].
+      rewrite Hactual_block. apply Hmembers. exact Hblock. }
+    rewrite Heq, Hactual_block in Houtside. congruence.
+  - destruct Hdefinition as [-> Hparameter]. cbn in *. congruence.
 Qed.
 
 (* An executable instruction position corresponds to its actual body

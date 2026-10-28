@@ -496,6 +496,21 @@ Qed.
 
 (* --- Uses --- *)
 
+(* An individual instruction operand inherits the checked use approval. *)
+Lemma uses_only_instruction : forall (blocks : list block)
+    (same : value -> bool) (approve_insn : instr -> Prop)
+    (approve_term : block -> list value -> Prop) (b : block) (insn : instr)
+    (arg : value),
+  uses_only blocks same approve_insn approve_term -> In b blocks ->
+  In insn (block_body b) -> In arg (args_of_instr insn) -> same arg = true ->
+  approve_insn insn.
+Proof.
+  intros blocks same approve_insn approve_term b insn arg Huses Hblock
+    Hmember Harg Hsame.
+  apply (proj1 (Huses b Hblock) insn Hmember).
+  apply existsb_exists. exists arg. auto.
+Qed.
+
 (* [uses_only] with weaker approvals follows from [uses_only] with
    stronger ones. *)
 Lemma uses_only_weaken :

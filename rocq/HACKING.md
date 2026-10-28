@@ -21,11 +21,20 @@ values from execution and structural SSA well-formedness.
 `LoopExecution.v` connects execution to header revisits and back-edge
 parameter passing. `LoopInvariantExecution.v` derives bound constancy, and
 `LoopCounterExecution.v` proves no infinite confined execution for literal
-bounds and unconditional comparison rules. Entry-range proofs, progress,
-live-out agreement and the graph rewrite remain unfinished.
-`find_deletions_spec` is an analysis-certificate theorem, not a
-behavior-preservation theorem. The old `infinite_header_run` abstraction is
-not an assumed compiler contract and is not used by the operational proofs.
+bounds and unconditional comparison rules. `SsaLiveness.v` defines values
+needed before their next definition. `LoopLiveOut.v` proves agreement on
+those values between the first header execution and any finite loop exit.
+`LoopEligibility.v` states semantic eligibility on the original graph and
+composes that result with `find_deletions`. Finite exit remains a premise:
+entry-range proofs, progress and coverage of unsupported surrounding code
+are unfinished. Modelling the mechanically rewritten graph, renaming and
+cleanup is deliberately outside this proof's scope.
+
+`find_deletions_spec` remains an analysis-certificate theorem. The old
+`infinite_header_run` abstraction is not an assumed compiler contract and
+is not used by the operational proofs. `well_formed_ssa` formally assumes
+that finished graph blocks are structurally reachable, as the OCaml
+builder's reachability pass ensures; it does not assume dynamic feasibility.
 
 ## The directories
 
@@ -35,8 +44,8 @@ Each directory is a Rocq library (`rocq/Makefile` maps them):
 |--------------------------|----------------|-----------------------------------------------|
 | `rocq/`                  | `OxCamlStdlib` | Models of OxCaml's own types (`int`, `Int64`, lists, exceptions as options), generic arithmetic (`IntArith.v`), proof helpers, and the extraction directives mapping them onto OxCaml's functions (`OxCamlExtract.v`) |
 | `backend/rocq/`          | `OxCamlBackend`| Backend-wide definitions: the semantics of `Cmm.integer_comparison`, the model's copy of `Operation.t` |
-| `backend/ssa/rocq/`      | `OxCamlSsa`    | The SSA graph as the models see it: `SsaModel.v` (the abstract interface), `SsaGraph.v` (properties of blocks, terminators and uses that any pass may need), `SsaDominance.v`, `SsaSemantics.v` (execution of the restricted integer fragment), `SsaExecution.v` (well-formedness and available-value equations) |
-| `backend/ssa/loop/rocq/` | `OxCamlLoop`   | The loop analyses, the operational proofs in `LoopExecution.v`, `LoopInvariantExecution.v` and `LoopCounterExecution.v`, and `Extract.v`, which extracts the implementation |
+| `backend/ssa/rocq/`      | `OxCamlSsa`    | The SSA graph as the models see it: `SsaModel.v` (the abstract interface), `SsaGraph.v` (properties of blocks, terminators and uses that any pass may need), `SsaDominance.v`, `SsaSemantics.v` (execution of the restricted integer fragment), `SsaExecution.v` (well-formedness and available-value equations), `SsaLiveness.v` (reads before redefinition) |
+| `backend/ssa/loop/rocq/` | `OxCamlLoop`   | The loop analyses, the operational proofs in `LoopExecution.v`, `LoopInvariantExecution.v`, `LoopCounterExecution.v`, `LoopLiveOut.v` and `LoopEligibility.v`, and `Extract.v`, which extracts the implementation |
 
 Put a definition or lemma where its OxCaml counterpart would live. A fact
 about lists goes in `OxCamlList.v`, about machine integers in

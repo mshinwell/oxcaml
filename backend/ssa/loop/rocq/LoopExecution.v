@@ -34,6 +34,141 @@ Definition no_infinite_execution_in (region : blockset) (start : state)
   forall (trace : nat -> state), trace 0 = start ->
     infinite_execution trace -> stays_in_region region trace -> False.
 
+(* A finite region segment may leave the region only on its final step.
+   Requiring only its source states to be inside includes the exiting edge. *)
+Inductive region_steps (region : blockset) : state -> state -> Prop :=
+  | Region_refl : forall (s : state), region_steps region s s
+  | Region_cons : forall (before middle after : state),
+      set_mem (current_block before) region = true ->
+      SsaSemantics.step before middle -> region_steps region middle after ->
+      region_steps region before after.
+
+(* Region segments are executions in the same original graph. *)
+Lemma region_steps_execution : forall (region : blockset)
+    (before after : state),
+  region_steps region before after -> steps before after.
+Proof.
+  intros region before after Hregion. induction Hregion.
+  - constructor.
+  - eapply Steps_cons; eassumption.
+Qed.
+
+(* Region segments compose when the second segment can start: its own
+   source-state conditions prevent continuing after an earlier exit. *)
+Lemma region_steps_trans : forall (region : blockset)
+    (before middle after : state),
+  region_steps region before middle -> region_steps region middle after ->
+  region_steps region before after.
+Proof.
+  intros region before middle after Hprefix.
+  induction Hprefix as [s | before middle last Hinside Hstep Hrest IH];
+    intros Hsuffix; [exact Hsuffix |].
+  eapply Region_cons; [exact Hinside | exact Hstep | apply IH; exact Hsuffix].
+Qed.
+
+(* Executing a block body inside the region remains in that region and
+   ends before taking its terminator. *)
+Lemma executes_insns_region : forall (region : blockset) (b : block)
+    (insns : list instr) (before after : registers),
+  set_mem b region = true -> executes_insns before insns after ->
+  region_steps region
+    {| current_block := b; remaining := insns; current_registers := before |}
+    {| current_block := b; remaining := []; current_registers := after |}.
+Proof.
+  intros region b insns before after Hinside Hbody. induction Hbody.
+  - constructor.
+  - eapply Region_cons; [exact Hinside | constructor; exact H | exact IHHbody].
+Qed.
+
+(* A finite exit must first execute the current block's remaining body.
+   Extracting this prefix needs no separate progress assumption. *)
+Lemma region_exit_body_prefix : forall (region : blockset) (b : block)
+    (insns : list instr) (before : registers) (after : state),
+  set_mem b region = true -> set_mem (current_block after) region = false ->
+  region_steps region
+    {| current_block := b; remaining := insns; current_registers := before |}
+    after ->
+  exists (body_regs : registers), executes_insns before insns body_regs /\
+    region_steps region
+      {| current_block := b; remaining := []; current_registers := body_regs |}
+      after.
+Proof.
+  intros region b insns. induction insns as [ | insn rest IH];
+    intros before after Hinside Houtside Hsegment.
+  - exists before. split; [constructor | exact Hsegment].
+  - inversion Hsegment as [s | s middle last Hsource Hstep Hrest]; subst.
+    + cbn in Houtside. congruence.
+    + inversion Hstep as [source current suffix regs regs' Hexec |
+        source target args regs values regs' Hterm Hread Hbind |
+        source index targets regs word target Hterm Hread Hnonneg Hnth
+          Hparams];
+        subst.
+      destruct (IH regs' after Hinside Houtside Hrest)
+        as [body_regs [Hbody Hsuffix]].
+      exists body_regs. split; [econstructor; eassumption | exact Hsuffix].
+Qed.
+
+(* Outside registers remain unchanged through the exiting edge as well:
+   the final block has no parameters, so entering it writes no register. *)
+Theorem region_steps_frame : parameter_layout -> forall (region : blockset)
+    (before after : state) (reg : register),
+  region_steps region before after -> valid_position before ->
+  params (current_block after) = [] -> ~ defined_in_region region reg ->
+  current_registers after reg = current_registers before reg.
+Proof.
+  intros Hlayout region before after reg Hsegment.
+  induction Hsegment as [s | before middle after Hinside Hstep Hrest IH];
+    intros Hposition Hparams Houtside; [reflexivity |].
+  destruct (set_mem (current_block middle) region) eqn:Hmiddle.
+  - rewrite (IH ltac:(eapply step_valid_position; eassumption)
+      Hparams Houtside).
+    eapply step_region_frame; eassumption.
+  - inversion Hrest; subst; [ | congruence].
+    assert (Hfinished : remaining before = []).
+    { destruct Hstep; cbn in *; try reflexivity. congruence. }
+    rewrite (step_to_parameterless_frame _ _ Hfinished Hparams Hstep).
+    reflexivity.
+Qed.
+
+(* A finite segment reaching outside the region rules out an infinite
+   confined execution from the same state, using step determinism. *)
+Theorem region_exit_not_infinite : forall (region : blockset)
+    (before after : state),
+  region_steps region before after ->
+  set_mem (current_block after) region = false ->
+  no_infinite_execution_in region before.
+Proof.
+  intros region before after Hsegment Houtside.
+  induction Hsegment as [s | before middle after Hinside Hstep Hrest IH];
+    intros trace Hstart Htrace Hregion.
+  - specialize (Hregion 0). rewrite Hstart, Houtside in Hregion. discriminate.
+  - apply (IH Houtside (fun time => trace (S time))).
+    + symmetry. eapply step_deterministic; [exact Hstep |].
+      rewrite <- Hstart. apply Htrace.
+    + intros time. apply Htrace.
+    + intros time. apply Hregion.
+Qed.
+
+(* A finite exit witness also rules out getting stuck earlier. Every
+   other finite confined prefix follows the same deterministic steps. *)
+Theorem region_exit_progress : forall (region : blockset)
+    (before after : state),
+  region_steps region before after ->
+  set_mem (current_block after) region = false ->
+  forall (reached : state), region_steps region before reached ->
+  set_mem (current_block reached) region = true ->
+  exists (next : state), SsaSemantics.step reached next.
+Proof.
+  intros region before after Hexit.
+  induction Hexit as [s | before middle after Hinside Hstep Hrest IH];
+    intros Houtside reached Hprefix Hreached.
+  - inversion Hprefix; subst; cbn in *; congruence.
+  - inversion Hprefix as [s | s middle' last Hsource Hnext Hsuffix]; subst.
+    + exists middle. exact Hstep.
+    + assert (middle = middle') by (eapply step_deterministic; eassumption).
+      subst middle'. eapply IH; eassumption.
+Qed.
+
 (* Every finite prefix of an infinite execution is a finite execution
    in the same operational semantics. *)
 Lemma execution_prefix : forall (trace : nat -> state),
@@ -390,6 +525,11 @@ Record loop_graph_properties (blocks : list block) (entry : block)
     loop_header_dominates_body : forall (b : block),
       set_mem b loop.(body) = true ->
       forall (p : list block), path entry p b -> In loop.(header) p;
+    loop_body_predecessors : forall (source target : block),
+      set_mem target loop.(body) = true -> target <> loop.(header) ->
+      In source (predecessors target) -> set_mem source loop.(body) = true;
+    loop_back_edge_in_body : forall (source : block),
+      In source loop.(back_edge_sources) -> set_mem source loop.(body) = true;
     loop_back_edges_complete : forall (source : block),
       set_mem source loop.(body) = true ->
       In loop.(header) (all_successors source) ->
@@ -422,6 +562,26 @@ Section Graph.
     - pose proof Hl as Hrecord. apply find_loops_In in Hrecord.
       destruct Hrecord as [h [sources [Hin ->]]].
       apply natural_loop_body_header.
+    - intros source target Htarget Hnot_header Hedge.
+      apply (proj2 (find_loops_body blocks predecessors_closed
+        successors_closed
+        l source Hl)).
+      destruct (block_eqb source l.(header)) eqn:E.
+      + left. apply block_eqb_spec. exact E.
+      + right. eapply reaches_pred; [ | exact Hedge |].
+        * apply (proj1 (find_loops_body blocks predecessors_closed
+            successors_closed l target Hl)) in Htarget.
+          destruct Htarget as [Heq | Hreaches];
+            [contradiction | exact Hreaches].
+        * intros Heq. subst source. rewrite block_eqb_refl in E. discriminate.
+    - intros source Hsource.
+      apply (proj2 (find_loops_body blocks predecessors_closed
+        successors_closed
+        l source Hl)).
+      destruct (block_eqb source l.(header)) eqn:E.
+      + left. apply block_eqb_spec. exact E.
+      + right. constructor; [exact Hsource |].
+        intros Heq. subst source. rewrite block_eqb_refl in E. discriminate.
     - intros source Hsource Hedge.
       eapply find_loops_back_edges_complete;
         [exact Hl | apply Hbody; exact Hsource | exact Hedge |].
