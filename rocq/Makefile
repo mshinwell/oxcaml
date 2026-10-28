@@ -1,6 +1,7 @@
 # Check the Rocq models and proofs, and regenerate the extracted OxCaml.
 #
 #   make          check every .v file, then run the extraction
+#   make assumptions  print global assumptions and declaration types
 #   make clean    remove everything generated
 #
 # The sources live in four directories, each a Rocq library:
@@ -73,11 +74,35 @@ LOOP_EXTRACTED := $(addprefix $(LOOP_DIR)/, \
 EXTRACTED := $(SSA_EXTRACTED) $(LOOP_EXTRACTED)
 
 SOURCES := $(STDLIB) $(BACKEND) $(SSA) $(LOOP) $(EXTRACT)
+MODULES := $(patsubst $(STDLIB_DIR)/%.v,OxCamlStdlib.%,$(STDLIB)) \
+  $(patsubst $(BACKEND_DIR)/%.v,OxCamlBackend.%,$(BACKEND)) \
+  $(patsubst $(SSA_DIR)/%.v,OxCamlSsa.%,$(SSA)) \
+  $(patsubst $(LOOP_DIR)/%.v,OxCamlLoop.%,$(LOOP) $(EXTRACT))
 DEPS := $(STDLIB_DIR)/.rocqdeps.d
 
-.PHONY: all clean
+.PHONY: all assumptions clean
 
 all: $(SOURCES:.v=.vo)
+
+# The checker reports global assumptions, not theorem premises. Constant
+# types also expose Section arguments and contract fields,
+# including declarations inside nested modules.
+assumptions: all
+	@printf '%s\n' '=== Global assumptions (including dependencies) ==='
+	@$(ROCQ) check -silent -o $(FLAGS) $(MODULES) 2>&1
+	@printf '\n%s\n' '=== Declaration types and contract fields ===' \
+	  'Section hypotheses appear as arguments in these types.' \
+	  'This section includes proved theorems, not just assumptions.'
+	@set -eu; \
+	  audit_dir=$$(mktemp -d); \
+	  trap 'rm -rf "$$audit_dir"' 0; \
+	  { printf '%s\n' 'Set Printing Width 78.' \
+	      'Set Printing Depth 1000000.'; \
+	    for module in $(MODULES); do \
+	      printf 'Require %s.\nPrint Namespace %s.\n' "$$module" "$$module"; \
+	    done; \
+	  } > "$$audit_dir/Assumptions.v"; \
+	  $(ROCQ) repl -q -batch $(FLAGS) -l "$$audit_dir/Assumptions.v"
 
 # Extract.v writes the .ml and .mli files into the loop directory. Separate
 # extraction also writes an empty pair for every Rocq module whose contents

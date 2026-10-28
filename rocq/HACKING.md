@@ -96,6 +96,31 @@ With Rocq and the repository's `ocamlformat` on `PATH`:
 After renaming or moving `.v` files, stale `.vo` files can shadow the new
 ones: `touch` the sources (or `make -C rocq clean`) before rebuilding.
 
+### Printing the review obligations
+
+Run `make -s -C rocq assumptions > assumptions.txt` to build and audit every
+module listed in this Makefile. The report has two parts:
+
+1. `rocq check -o` rechecks the compiled modules and lists global axioms and
+   abstract constants, including those in imported libraries. It also
+   reports unsafe typing assumptions. This is a whole-context inventory,
+   not the minimal dependencies of one theorem.
+2. `Print Namespace` prints constant types for each project module,
+   including nested modules, theorem premises generalized from `Section`s,
+   and the projections of contract records. Unlike `Search`, it does not
+   hide names through a search blacklist. This part includes proved
+   theorems too; it is not another list of axioms.
+
+For a particular theorem, `Check @find_deletions_eligible.` shows its full
+premises and `Print Assumptions find_deletions_eligible.` gives its global
+axiom dependencies. Named predicates still need inspection in the source:
+declaration types do not print definition bodies, and an assumption audit
+cannot check that the semantics or extraction match the compiler.
+
+The target derives its module list from the build lists, so newly added
+modules are included automatically. It prints to standard output and does
+not leave generated audit sources in the workspace.
+
 ### Adding a module
 
 A new `.v` file goes in the library's list in `rocq/Makefile` (`STDLIB`,
