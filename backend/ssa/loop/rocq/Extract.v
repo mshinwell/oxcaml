@@ -33,6 +33,9 @@ From OxCamlLoop Require Import FourierMotzkin FourierMotzkinExtract
   AffineSsaExtract InductionVar InductionVarExtract LoopTermination
   DeadInductionVar DeleteEmptyLoops.
 
+Extract Inlined Constant DeleteEmptyLoops.graph_block_limit =>
+  "4_294_967_296".
+
 Separate Extraction
   Affine feasible entails facts
   DeleteEmptyLoops.find_deletions.

@@ -67,3 +67,36 @@ let supported_instruction insn =
 let supported_block b =
   List.for_all supported_instruction (block_body b)
   && terminator_pure_control (Ssa.Block.terminator b)
+
+(** val context_instruction_supported : Ssa.finished Ssa.Instruction.t -> bool **)
+
+let context_instruction_supported insn =
+  (fun f_op f_push_trap f_pop_trap (i : Ssa.finished Ssa.Instruction.t) ->
+    match i with
+    | Ssa.Instruction.Op { Ssa.Instruction.id; op; args; typ; _ } ->
+      f_op id op (Array.to_list args) (Array.length typ)
+    | Ssa.Instruction.Push_trap _ -> f_push_trap ()
+    | Ssa.Instruction.Pop_trap _ -> f_pop_trap ())
+    (fun _ op _ count ->
+      match op with
+      | Operation.Const_int _ -> Int.equal count 1
+      | Operation.Intop op0 -> (
+        match op0 with
+        | Operation.Iadd -> Int.equal count 1
+        | Operation.Isub -> Int.equal count 1
+        | Operation.Icomp _ -> Int.equal count 1
+        | _ -> true)
+      | Operation.Intop_imm (op0, _) -> (
+        match op0 with
+        | Operation.Iadd -> Int.equal count 1
+        | Operation.Isub -> Int.equal count 1
+        | Operation.Ior -> Int.equal count 1
+        | Operation.Ilsl -> Int.equal count 1
+        | Operation.Ilsr -> Int.equal count 1
+        | Operation.Iasr -> Int.equal count 1
+        | Operation.Icomp _ -> Int.equal count 1
+        | _ -> true)
+      | _ -> true)
+    (fun _ -> false)
+    (fun _ -> false)
+    insn

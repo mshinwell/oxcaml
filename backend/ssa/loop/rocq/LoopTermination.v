@@ -7,9 +7,8 @@
    vocabulary; SsaModel.v for how the models see an SSA graph;
    NaturalLoop.v and InductionVar.v for the loops, their exit branches and
    the basic induction variables this file is given; LoopComparisons.v for
-   the termination
-   argument about a comparison and an induction variable, which this file
-   applies; and AffineSsa.v for the facts a register bound is checked
+   the arithmetic termination argument; and AffineSsa.v for the facts a
+   register bound is checked
    against. As there, the file has four parts: (1) the definitions, (2) the
    intended meaning, (3) stepping-stone lemmas, (4) the theorems. Review
    parts 1 and 2 and the theorem statements; Rocq checks the proofs.

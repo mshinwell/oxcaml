@@ -28,16 +28,22 @@ for computations before the loop. `SsaContext.v` overapproximates word
 observations in the unchanged prefix: opaque instructions can produce
 arbitrary bounded outputs, and opaque terminators can take CFG successors
 with arbitrary parameter values. Memory effects are unconstrained, not
-no-ops. Trap-stack markers and exceptional mid-block transfers are not
-represented (call transfers may include exceptional successors). This
-avoids a full memory/call/vector semantics; the correspondence of these
-observations to compiler operations remains a review boundary.
+no-ops. The extracted `graph_supported` gate rejects any graph containing
+trap markers or modeled operation families with other than one result.
+It checks every block, so unsupported code even after or beside the loop
+prevents deletion. With no local trap handlers, an escaping mid-block
+exception cannot supply a prefix reaching the header. Opaque loads and
+calls are still allowed. This avoids a full memory/call/vector semantics;
+the correspondence of word observations to compiler operations remains a
+review boundary.
 
-`SsaExecution.v` and `SsaContext.v` derive available-value equations;
-`SsaLiveness.v` defines reads before redefinition; `SsaProgress.v` derives
-bound operands and progress. `LoopExecution.v` connects actual steps to
-header revisits and finite first exits. `LoopInvariantExecution.v` and
-`LoopCounterExecution.v` derive bound constancy and counter termination.
+`SsaExecution.v` supplies definition-site and frame facts; `SsaContext.v`
+proves available-value equations and execution invariants once for both
+exact and opaque steps. `SsaLiveness.v` defines reads before redefinition;
+`SsaProgress.v` derives progress from bound operands. `LoopExecution.v`
+uses accessibility to construct finite traversals to the next header or
+exit. `LoopInvariantExecution.v` proves bound constancy on finite segments;
+`LoopCounterExecution.v` iterates up to the arithmetic exit witness.
 `LoopValueSnapshot.v`, `LoopGuardExecution.v` and `LoopRangeExecution.v`
 connect affine entailment to the actual prefix, including duplicate
 Switch edges. `LoopLiveOut.v` derives live-out agreement.
@@ -46,16 +52,16 @@ The public theorem's non-algorithmic premises are explicit: structural
 SSA/dominance metadata, edge multiplicities, Goto/parameter layout,
 bounded live function inputs, and defined Switch indices from the reached
 header onward. Out-of-range Switch indices are undefined behavior in SSA.
-`graph_size_supported` assumes at most $2^{32}$ graph blocks to rule out
-atom-counter overflow; this is a host-resource premise, not a runtime
-check. The finite-witness and definedness proofs use classical logic,
-not new semantic axioms.
+The extracted gate enforces at most $2^{32}$ graph blocks with a bounded
+list walk. `find_deletions_supported` proves `graph_size_supported` and
+prefix instruction coverage, so graph size is not a public theorem premise.
+Finite exit is constructed directly; definedness uses classical case
+splits, not new semantic axioms.
 
-`find_deletions_spec` remains an analysis-certificate theorem. The old
-`infinite_header_run` abstraction is not an assumed compiler contract and
-is not used by the operational proofs. `well_formed_ssa` formally assumes
-that finished graph blocks are structurally reachable, as the OCaml
-builder's reachability pass ensures; it does not assume dynamic feasibility.
+`find_deletions_spec` is the analysis-certificate theorem.
+`well_formed_ssa` formally assumes that finished graph blocks are
+structurally reachable, as the OCaml builder's reachability pass ensures;
+it does not assume dynamic feasibility.
 
 ## The directories
 
@@ -263,22 +269,17 @@ header.
   analysis actually computes (`exists args, goto_args ... = Some args`),
   so that the proof is a reading-back of the code.
 - Define machine execution once (`SsaSemantics.v`). Derive operation
-  equations only for available, canonical definitions (`SsaExecution.v`).
+  equations only for available, canonical definitions (`SsaExecution.v`
+  and `SsaContext.v`).
   An abstract arithmetic valuation such as `AffineSsa.op_semantics` needs
   a proved connection to execution before it can justify optimization.
-- A part-1 definition may be sound only for inputs with a property it
-  does not check: `LoopTermination.analyze` is sound only for the basic
-  induction variables of one loop. Such a precondition is a named part-2
-  predicate (`bivs_of_loop`), is a hypothesis of the part-4 theorem, and
-  is named in the comment before the definition. It never goes into the
-  definition's type (a subset type would put proofs into part 1 and tie
-  the extracted code to the meaning), and it is never assumed of the
-  program: where the definitions are composed, the producer's theorem
-  discharges it (`InductionVar.analyze_spec`), so that the top-level
-  theorem `find_deletions_spec` has no hypothesis but the trusted
-  meaning of the primitives.
+- Keep analysis preconditions in named propositions, not in executable
+  types. For example, the counter proof needs `biv_spec`, which
+  `InductionVar.analyze_spec` establishes for the discovered variables.
+  Composing the analyses must discharge these preconditions, rather than
+  turn them into trusted assumptions about the program.
 - Execution must not depend on the analysis being verified. For example,
-  `LoopExecution.infinite_execution` is a sequence of instruction steps,
+  `LoopExecution.region_steps` is a sequence of instruction steps,
   not a record assuming counter recurrence or invariant bounds. A
   property of an analysis result is stated as what it means
   (`loop_invariant_value`), tied to the function by a read-back theorem
@@ -306,7 +307,7 @@ header.
 - `functional induction` proves properties of a `Function`; the
   decreasing measure is proved once, at the definition.
 - A `Section` with `Variable`s and `Hypothesis`es shares the setting of
-  many lemmas (the run of a loop in `LoopTermination.v`); the lemmas are
+  many lemmas (the graph in `LoopCounterExecution.v`); the lemmas are
   generalised over them at `End`.
 - Name hypotheses after what they say (`Hexit`, `Hwf`), not `H0`, `H1`.
 - Do not comment what a named predicate already says; do comment every

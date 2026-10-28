@@ -7,7 +7,7 @@ is outside the Rocq scope; it is a separate OCaml code-review obligation.
 
 The main result is `LoopEligibility.find_deletions_eligible`, in
 `backend/ssa/loop/rocq/LoopEligibility.v`. Under its explicit graph,
-representation, resource and input premises, it proves `eligible_entry`:
+representation and input premises, it proves `eligible_entry`:
 
 - The original loop reaches the designated parameterless exit after a finite
   sequence of silent integer/control-flow steps.
@@ -155,10 +155,10 @@ new ones. The custom match functions expose one node's operands at a time.
 There is no separate formal OCaml-to-Rocq representation-refinement proof;
 this correspondence is part of reviewing the veneer.
 
-## 4. Check input, context and resource applicability
+## 4. Check input and context applicability
 
 These are explicit premises of `find_deletions_eligible`, distinct from
-builder metadata.
+builder metadata:
 
 - `bounded_registers initial_regs`: every present initial word fits the
   modeled register width.
@@ -182,18 +182,30 @@ Calls return through target parameters. This is a word-observation
 abstraction, not a full memory, call or vector semantics. Memory effects
 are unconstrained, not interpreted as no-ops.
 
-**Trap-stack markers and exceptional transfers from mid-block operations
-are not represented by this prefix relation.** Opaque call transfers can
-include exceptional successors. If an actual prefix cannot be represented,
-the theorem does not cover that execution; the pass does not enforce this
-restriction on surrounding code. Covering such prefixes requires extending
-the semantics, not asking a reviewer to assume the missing transitions.
+`DeleteEmptyLoops.graph_supported` enforces the prefix's syntactic coverage
+before running the analyses. It rejects the whole graph if any block contains
+`Push_trap` or `Pop_trap`, or if an exactly modeled operation family has other
+than one result. Opaque operations may have multiple results; ordinary loads,
+stores and calls remain permitted outside the loop. This is conservative:
+unsupported code elsewhere in the function also prevents deletion.
 
-Finally, `LoopRangeExecution.graph_size_supported` requires at most
-`2^32` supplied blocks. Together with distinct graph-local strict dominators,
-this discharges affine atom-counter capacity. **It is an unchecked
-host-resource premise, not a limit enforced by the pass.** Establish it for
-the supported compilation inputs before applying the theorem.
+Review this check against `context_step`, `modeled_operation` and the veneer.
+In the finished SSA builder, function entry has an empty trap stack; only
+Push/Pop modify it, and exception edges come from Call/Raise terminators.
+With trap markers excluded, no local handler can transfer control from a
+mid-block operation into the loop. An escaping exception does not produce a
+prefix reaching the header. The observation correspondence for normally
+completed opaque operations remains a review obligation, not a new assumed
+loop property. Full machine types and actual operation behavior still need
+the checks described above.
+
+The same gate enforces at most `2^32` supplied blocks using
+`OxCamlList.length_at_most`, which decrements only positive machine integers.
+`find_deletions_supported` proves both the mathematical size bound and the
+instruction coverage for every reported deletion. Together with distinct
+graph-local strict dominators, the size bound discharges affine atom-counter
+capacity. It is not a premise of `find_deletions_eligible`. Review the extracted
+limit literal and the guard's placement before the expensive analyses.
 
 ## 5. Review extraction and the trusted primitives
 
@@ -221,27 +233,28 @@ root `dune` builds these generated files.
   the linearization budget, shift limit and Fourier-Motzkin limits.
 
 The trusted foundation also includes the Rocq kernel, extraction and the
-primitive libraries named by the assumption audit. Classical logic is used
-for definedness and the finite-exit witness; it does not assume facts about
-SSA executions.
+primitive libraries named by the assumption audit. Classical case splits
+are used for definedness. The finite-exit witness is built by finite iteration;
+neither argument assumes facts about SSA executions.
 
 ## 6. Read the checked conclusions; do not resupply them as assumptions
 
 The main theorem discharges the loop-specific obligations through:
 
 - `DeleteEmptyLoops.find_deletions_spec`: the actual reported loop/BIVs have
-  the required whitelist, dead-use restrictions, header revisits and exit
-  constraints.
+  the required whitelist, dead-use restrictions, accessibility after removing
+  the header, and exit constraints.
 - `SsaExecution.v` and `SsaContext.v`: exact operation equations for
   available canonical modeled values, without equations for opaque results.
 - `LoopExecution.v`, `LoopInvariantExecution.v` and
-  `LoopCounterExecution.v`: actual header visits, counter updates, bound
-  constancy and absence of infinite confined execution for accepted rules.
+  `LoopCounterExecution.v`: finite traversals to the next header or exit,
+  actual counter updates, and bound constancy. Induction up to the arithmetic
+  exit witness proves finite exit, allowing an earlier exit on any traversal.
 - `LoopValueSnapshot.v`, `LoopGuardExecution.v` and `LoopRangeExecution.v`:
   a constructed affine valuation, actual accepted guard outcomes and
   sound range checks on the observed bound.
-- `SsaProgress.v`, `LoopExecution.v` and `LoopLiveOut.v`: progress, finite
-  first exit and agreement on live-out values.
+- `SsaProgress.v`, `SsaContext.v` and `LoopLiveOut.v`: progress from bound
+  operands, shared execution invariants and agreement on live-out values.
 
 Review the meanings of the arithmetic and affine specifications they use,
 including `LoopComparisons.loop_exits`, `AffineSsa.linearize_sound`,

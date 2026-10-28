@@ -35,11 +35,16 @@ type body_shape =
   | Inner_cycle
   | Irreducible_cycle
 
+type prefix_shape =
+  | Plain_prefix
+  | Opaque_call
+  | Trap_handler
+
 (* The outer counter always advances towards ten and is dead. Only the control
    flow between header visits distinguishes these cases. The irreducible cycle
    has two entries, so rejecting nested natural loops alone would not
    suffice. *)
-let loop ?extra shape =
+let loop ?extra ?(extra_type = Cmm.typ_int) ?(prefix = Plain_prefix) shape =
   let graph =
     Ssa.create_graph function_info ~keep_unused_ops:(Option.is_some extra)
   in
@@ -53,11 +58,44 @@ let loop ?extra shape =
   let emit_extra location cursor =
     match extra with
     | Some (where, op) when where = location ->
-      let (_ : _ Value.t) = emit graph cursor op [| flag |] in
+      let (_ : _ Value.t array) =
+        Cursor.emit_op graph cursor op Debuginfo.none extra_type [| flag |]
+      in
       ()
     | Some _ | None -> ()
   in
   emit_extra Before_loop entry;
+  let entry =
+    match prefix with
+    | Plain_prefix -> entry
+    | Opaque_call | Trap_handler ->
+      let returned = block graph [||] in
+      let handler =
+        match prefix with
+        | Trap_handler -> Some (block graph Cmm.typ_int)
+        | Plain_prefix | Opaque_call -> None
+      in
+      Option.iter (fun handler -> Cursor.emit_push_trap entry ~handler) handler;
+      finish graph entry
+        (Call
+           { op = Direct (Cmm.global_symbol "prefix_call");
+             args = [||];
+             continuation = Goto returned;
+             may_raise = true;
+             nontail = true
+           });
+      let cursor = Cursor.start returned in
+      Option.iter
+        (fun handler ->
+          Cursor.emit_pop_trap cursor ~handler;
+          finish graph (Cursor.start handler)
+            (Continue
+               { continuation = Return;
+                 args = [| Arg (Block.param handler 0) |]
+               }))
+        handler;
+      cursor
+  in
   finish graph entry (goto header [| zero |]);
   let cursor = Cursor.start header in
   emit_extra Header cursor;
@@ -94,22 +132,21 @@ let loop ?extra shape =
     (Continue { continuation = Return; args = [| Arg result |] });
   Ssa.finish_graph graph
 
-let check_loop shape expected =
-  let graph = loop shape in
+let check_deletions graph expected =
   let _, deleted =
     Delete_empty_loops.run ~ppf_dump:Format.err_formatter graph
   in
   assert (deleted = expected)
 
+let check_loop shape expected = check_deletions (loop shape) expected
+
 (* Keep unused instructions so these checks reach the loop whitelist, rather
    than relying on an earlier dead-code pass to remove the operation. These
    graphs are analyzed, not executed; the load address is immaterial. *)
-let check_extra location operation expected =
-  let graph = loop ~extra:(location, operation) Straight in
-  let _, deleted =
-    Delete_empty_loops.run ~ppf_dump:Format.err_formatter graph
-  in
-  assert (deleted = expected)
+let check_extra ?extra_type location operation expected =
+  check_deletions
+    (loop ~extra:(location, operation) ?extra_type Straight)
+    expected
 
 let load ~is_atomic : Operation.t =
   Load
@@ -118,6 +155,44 @@ let load ~is_atomic : Operation.t =
       mutability = Mutable;
       is_atomic
     }
+
+(* A load supplies an unconstrained register bound. Steps of magnitude two
+   require the affine range check, unlike the immediate-bound/unit-step tests. A
+   duplicate-target guard conveys neither boolean outcome. *)
+let register_bound_loop ~step ~guard ~duplicate_targets =
+  let graph = Ssa.create_graph function_info ~keep_unused_ops:false in
+  let preheader = block graph [||] in
+  let header = block graph Cmm.typ_int in
+  let latch = block graph [||] in
+  let exit = block graph [||] in
+  let entry = Cursor.start (Ssa.entry graph) in
+  let zero = emit graph entry (Const_int 0n) [||] in
+  let bound = emit graph entry (load ~is_atomic:false) [| zero |] in
+  (match guard with
+  | None -> finish graph entry (goto preheader [||])
+  | Some (comparison, threshold) ->
+    let cond =
+      emit graph entry (Intop_imm (Icomp comparison, threshold)) [| bound |]
+    in
+    let ifnot = if duplicate_targets then preheader else exit in
+    finish graph entry
+      (Switch { index = cond; targets = [| ifnot; preheader |] }));
+  finish graph (Cursor.start preheader) (goto header [| zero |]);
+  let cursor = Cursor.start header in
+  let counter = Block.param header 0 in
+  let comparison = if step > 0 then Cmm.Clt else Cmm.Cgt in
+  let cond =
+    emit graph cursor (Intop (Icomp comparison)) [| counter; bound |]
+  in
+  finish graph cursor (Switch { index = cond; targets = [| exit; latch |] });
+  let cursor = Cursor.start latch in
+  let next = emit graph cursor (Intop_imm (Iadd, step)) [| counter |] in
+  finish graph cursor (goto header [| next |]);
+  let cursor = Cursor.start exit in
+  let result = emit graph cursor (Const_int 42n) [||] in
+  finish graph cursor
+    (Continue { continuation = Return; args = [| Arg result |] });
+  Ssa.finish_graph graph
 
 let graph_with_result build =
   let graph = Ssa.create_graph function_info ~keep_unused_ops:false in
@@ -156,6 +231,34 @@ let () =
       check_extra location (Intop_imm (Ilsr, 1)) 0)
     [Header; Latch];
   check_extra Before_loop (load ~is_atomic:false) 1;
+  check_deletions (loop ~prefix:Opaque_call Straight) 1;
+  let trapped = loop ~prefix:Trap_handler Straight in
+  assert (not (DeleteEmptyLoops.graph_supported (Ssa.blocks trapped)));
+  check_deletions trapped 0;
+  check_extra ~extra_type:[||] Before_loop (Const_int 0n) 0;
+  check_extra ~extra_type:[| Cmm.Int; Cmm.Int |] Before_loop (Const_int 0n) 0;
+  (* Exercise the bounded walk at a small boundary rather than allocate billions
+     of graph blocks. The production limit is fixed in the model. *)
+  assert (not (OxCamlList.length_at_most Int.min_int [()]));
+  assert (OxCamlList.length_at_most Int.max_int [()]);
+  assert (not (OxCamlList.length_at_most (-1) []));
+  assert (OxCamlList.length_at_most 0 []);
+  assert (not (OxCamlList.length_at_most 0 [()]));
+  assert (OxCamlList.length_at_most 2 [(); ()]);
+  assert (not (OxCamlList.length_at_most 2 [(); (); ()]));
+  List.iter
+    (fun (step, guard, duplicate_targets, expected) ->
+      check_deletions
+        (register_bound_loop ~step ~guard ~duplicate_targets)
+        expected)
+    [ 2, Some (Cmm.Cle, 10), false, 1;
+      2, None, false, 0;
+      2, Some (Cmm.Cgt, 10), false, 0;
+      2, Some (Cmm.Cle, 10), true, 0;
+      -2, Some (Cmm.Cge, -10), false, 1;
+      -2, None, false, 0;
+      -2, Some (Cmm.Clt, -10), false, 0;
+      -2, Some (Cmm.Cge, -10), true, 0 ];
   (* Ordinary small expressions must still be expanded, not all atomized. *)
   let small =
     graph_with_result (fun emit ->

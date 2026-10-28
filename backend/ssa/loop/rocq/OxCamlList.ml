@@ -12,6 +12,12 @@ let count_occurrences same l =
 
 let sort_uniq = List.sort_uniq Int.compare
 
+(** val length_at_most : int -> 'a1 list -> bool **)
+
+let rec length_at_most limit = function
+  | [] -> 0 <= limit
+  | _ :: rest -> if 0 < limit then length_at_most (limit - 1) rest else false
+
 (** val map_opt : ('a1 -> 'a2 option) -> 'a1 list -> 'a2 list option **)
 
 let rec map_opt f = function

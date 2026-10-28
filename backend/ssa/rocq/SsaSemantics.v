@@ -12,8 +12,8 @@
    by a freely constructed expression. An operand reads its register; only
    executing an instruction evaluates its operation. [step] executes one
    instruction or terminator, and [return_state] distinguishes a return
-   from a stuck state. SsaExecution.v derives available-value equations
-   from these steps and structural SSA well-formedness. SsaProgress.v
+   from a stuck state. SsaContext.v derives available-value equations
+   using SsaExecution.v's structural SSA and frame facts. SsaProgress.v
    derives operand definedness and progress. LoopEligibility.v proves
    semantic loop eligibility; the graph rewriter is not modelled. *)
 
@@ -110,6 +110,18 @@ Definition modeled_operation {A : Type} (op : operation) (args : list A)
   | Intop_imm (Ilsl | Iasr | Ilsr) bits, [_] =>
     Z.leb 0 (to_Z bits) && Z.leb (to_Z bits) 63
   | _, _ => false
+  end.
+
+(* SsaContext permits opaque Op effects, but not trap-stack markers.
+   Its exact operation families must have their evaluator's single result.
+   Checking the whole graph covers every prefix, not only dominators. *)
+Definition context_instruction_supported (insn : instr) : bool :=
+  match insn with
+  | Op _ (Const_int _ | Intop (Iadd | Isub | Icomp _)
+          | Intop_imm (Iadd | Isub | Icomp _ | Ior | Ilsl | Iasr | Ilsr) _)
+      _ count => (count =? one)%sint63
+  | Op _ _ _ _ => true
+  | Push_trap | Pop_trap => false
   end.
 
 (* Operations compute on values read from the current environment. These

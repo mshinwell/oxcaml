@@ -12,6 +12,11 @@
    (3) stepping-stone lemmas, (4) the theorems. Review parts 1 and 2 and
    the theorem statements; Rocq checks the proofs.
 
+   The global applicability gate checks graph size and excludes trap
+   markers and incompatible result counts in surrounding code.
+   [find_deletions_supported] reads these checks back; graph size is not
+   assumed by the public eligibility theorem.
+
    The result, in part 4, is [find_deletions_spec]: a loop is deleted only
    when [deletion_certificate] (part 2) holds of it. Its header's exit
    branch is the simple one LoopTermination.v recognises, with an exit
@@ -47,6 +52,7 @@
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlList.
+From OxCamlBackend Require Import Operation.
 From OxCamlSsa Require Import SsaModel SsaGraph SsaSemantics.
 From OxCamlLoop Require Import NaturalLoop InductionVar LoopTermination
   DeadInductionVar.
@@ -55,6 +61,15 @@ Import ListNotations.
 (* ======================================================================== *)
 (* Part 1: the definitions                                                  *)
 (* ======================================================================== *)
+
+(* This leaves room in the affine atom counter even if every graph block
+   supplies a two-operand guard. Check before running any loop analysis. *)
+Definition graph_block_limit : int := 4294967296%sint63.
+
+Definition graph_supported (blocks : list block) : bool :=
+  length_at_most graph_block_limit blocks
+  && forallb (fun b => forallb context_instruction_supported (block_body b))
+       blocks.
 
 (* Only the integer/control-flow fragment of SsaSemantics.v is eligible.
    In particular, a load is rejected even if [has_side_effect] says false.
@@ -85,6 +100,7 @@ Definition loop_terminates (op_def : op_def) (bivs : list InductionVar.biv)
    block list and the table of defining blocks. *)
 Definition find_deletions (op_def : op_def) (blocks : list block)
     : list (block * block) :=
+  if graph_supported blocks then
   let loops := InductionVar.analyze op_def blocks in
   let dead := DeadInductionVar.analyze blocks loops in
   filter_map
@@ -107,7 +123,8 @@ Definition find_deletions (op_def : op_def) (blocks : list block)
         | None => None
         end
       else None)
-    dead.
+    dead
+  else [].
 
 (* ======================================================================== *)
 (* Part 2: the intended meaning                                             *)
@@ -206,6 +223,37 @@ Qed.
 (* Part 4: theorems                                                         *)
 (* ======================================================================== *)
 
+(* Every reported deletion passed both applicability checks. This removes
+   graph size as a premise of the public eligibility theorem and enforces
+   the syntactic coverage of the unchanged-prefix observation semantics. *)
+Theorem find_deletions_supported :
+  forall (defs : op_def) (blocks : list block) (header exit : block),
+  In (header, exit) (find_deletions defs blocks) ->
+  graph_size_supported blocks /\
+  forall (b : block) (insn : instr), In b blocks ->
+    In insn (block_body b) ->
+    match insn with
+    | Op _ op args count => modeled_operation op args = true -> count = one
+    | Push_trap | Pop_trap => False
+    end.
+Proof.
+  intros defs blocks header exit Hin. unfold find_deletions in Hin.
+  destruct (graph_supported blocks) eqn:Hcheck; [ | contradiction].
+  unfold graph_supported in Hcheck. apply andb_true_iff in Hcheck.
+  destruct Hcheck as [Hsize Hprefix]. split.
+  - apply length_at_most_spec in Hsize. exact Hsize.
+  - intros b insn Hb Hinsn. rewrite forallb_forall in Hprefix.
+    specialize (Hprefix b Hb). rewrite forallb_forall in Hprefix.
+    specialize (Hprefix insn Hinsn).
+    destruct insn as [id op args count | |]; try discriminate.
+    intros Hmodeled. destruct op;
+      cbn [context_instruction_supported modeled_operation] in *;
+      try discriminate; try (apply eqb_int; exact Hprefix).
+    all: destruct op; cbn [context_instruction_supported] in Hprefix;
+      try (apply eqb_int; exact Hprefix);
+      destruct args as [|x [|y [|extra rest]]]; discriminate.
+Qed.
+
 (* Every pair [(header, exit)] that [find_deletions] returns names the
    header of a loop [InductionVar.analyze] reports, with its basic
    induction variables, and that loop satisfies [deletion_certificate]
@@ -218,7 +266,8 @@ Theorem find_deletions_spec :
     /\ header = loop.(NaturalLoop.header)
     /\ deletion_certificate op_def blocks loop bivs exit.
 Proof.
-  intros op_def blocks h exit H. unfold find_deletions in H. cbv zeta in H.
+  intros op_def blocks h exit H. unfold find_deletions in H.
+  destruct (graph_supported blocks); [ | contradiction]. cbv zeta in H.
   apply filter_map_In in H. destruct H as [dr [Hdr H]].
   destruct (DeadInductionVar.analyze_spec _ _ _ Hdr) as [Hin [Hbivs Huseless]].
   cbv zeta in H.

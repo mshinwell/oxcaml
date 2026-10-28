@@ -58,6 +58,15 @@ Axiom sort_uniq_In : forall (l : list int) (x : int),
    so no property of it is assumed. *)
 Parameter compare_length_with : forall {A : Type}, list A -> int -> int.
 
+(* A bounded length check without a potentially overflowing length count.
+   The extracted recursion decrements a positive machine integer only. *)
+Fixpoint length_at_most {A : Type} (limit : int) (xs : list A) : bool :=
+  match xs with
+  | [] => zero <=? limit
+  | _ :: rest =>
+    if zero <? limit then length_at_most (limit - one) rest else false
+  end.
+
 (* [List.map f l] where [f] may raise. *)
 Fixpoint map_opt {A B} (f : A -> option B) (l : list A) : option (list B) :=
   match l with
@@ -97,6 +106,25 @@ Fixpoint same_length {A B} (l1 : list A) (l2 : list B) : bool :=
   end.
 
 (* ---- Lemmas ----------------------------------------------------------- *)
+
+(* A successful bounded walk establishes the mathematical length bound. *)
+Lemma length_at_most_spec : forall (A : Type) (xs : list A) (limit : int),
+  length_at_most limit xs = true ->
+  (Z.of_nat (length xs) <= to_Z limit)%Z.
+Proof.
+  intros A xs. induction xs as [|x rest IH]; intros limit Hcheck;
+    cbn [length_at_most] in Hcheck.
+  - apply leb_int in Hcheck. rewrite to_Z_zero in Hcheck. exact Hcheck.
+  - destruct (zero <? limit) eqn:Hpositive; [|discriminate].
+    apply ltb_int in Hpositive. rewrite to_Z_zero in Hpositive.
+    specialize (IH _ Hcheck).
+    rewrite Sint63.sub_spec, to_Z_one in IH.
+    rewrite Sint63.cmod_small in IH.
+    + cbn [length]. rewrite Nat2Z.inj_succ. lia.
+    + pose proof (int_bounds limit). unfold two62 in *.
+      change (-4611686018427387904 <= to_Z limit - 1
+        < 4611686018427387904)%Z. lia.
+Qed.
 
 (* [same_length] is equality of lengths. *)
 Lemma same_length_spec : forall {A B : Type} (l1 : list A) (l2 : list B),
@@ -143,9 +171,9 @@ Proof.
     destruct prefix' as [ | head' prefix']; cbn in Heq.
   - congruence.
   - apply (f_equal (@length A)) in Heq. cbn in Heq.
-    rewrite app_length in Heq. cbn in Heq. lia.
+    rewrite length_app in Heq. cbn in Heq. lia.
   - apply (f_equal (@length A)) in Heq. cbn in Heq.
-    rewrite app_length in Heq. cbn in Heq. lia.
+    rewrite length_app in Heq. cbn in Heq. lia.
   - injection Heq as _ Htail. eapply IH; eassumption.
 Qed.
 

@@ -12,9 +12,10 @@
    outputs, not a concrete semantics of calls, memory or vector values.
    Exact equations are derived only for [modeled_operation] results.
    Trap-stack markers and exceptional transfers from mid-block operations
-   are not represented; the prefix premise explicitly uses this relation.
-   Call transfers may include exceptional CFG successors. Nothing here is
-   extracted. *)
+   are not represented. DeleteEmptyLoops.graph_supported rejects graphs
+   with trap markers or incompatible result counts for modeled operations.
+   With no local handler, an escaping exception cannot reach the header.
+   Call transfers follow actual CFG successors. Nothing here is extracted. *)
 
 From Stdlib Require Import ZArith Lia List Classical_Prop.
 From OxCamlStdlib Require Import OxCamlInt OxCamlInt64.

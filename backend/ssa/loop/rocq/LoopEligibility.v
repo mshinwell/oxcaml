@@ -8,9 +8,10 @@
 
    Start review with [eligible_entry] and [find_deletions_eligible]. The
    latter proves finite first exit and live-out agreement for every
-   accepted counter shape. Its premises are graph metadata, the explicit
-   resource bound [graph_size_supported], bound function inputs, a reached
-   header, and the language's defined-index condition [switches_in_range].
+   accepted counter shape. Its premises are graph metadata, bound function
+   inputs, a reached header, and the language's defined-index condition
+   [switches_in_range]. The extracted gate checks graph size and prefix
+   instruction coverage; [find_deletions_supported] proves these checks.
    It assumes no recurrence, invariant bound, guard outcome or finite exit.
 
    The loop executes in SsaSemantics.v. Its unchanged prefix uses
@@ -212,14 +213,13 @@ Section GraphEligibility.
        In dominator path) -> dominator --dom--> target.
 
   (* The public theorem starts from the actual deletion decision. Its
-     graph premises concern builder metadata and resource size only;
+     graph premises concern builder metadata only;
      its input premises are ordinary bound arguments and defined Switch
      indices. No loop recurrence or termination premise remains. *)
   Theorem find_deletions_eligible : control_edges ->
     forall (defs : op_def) (header exit : block),
     well_formed_ssa blocks entry -> control_layout blocks ->
     op_def_correct defs blocks -> switch_edge_multiplicity ->
-    graph_size_supported blocks ->
     NoDup (strict_dominators header) ->
     (forall (dominator : block), In dominator (strict_dominators header) ->
        In dominator blocks) ->
@@ -235,8 +235,9 @@ Section GraphEligibility.
              (enter header header_regs) ->
            eligible_entry loop exit header_regs.
   Proof.
-    intros Hedges defs header exit Hwf Hlayout Hdefs Hmultiplicity Hsize
+    intros Hedges defs header exit Hwf Hlayout Hdefs Hmultiplicity
       Hnodup Hmembers Hin.
+    pose proof (proj1 (find_deletions_supported _ _ _ _ Hin)) as Hsize.
     destruct (find_deletions_graph_properties blocks entry predecessors_closed
       successors_closed dominance dominance_complete defs header exit Hin)
       as [loop [bivs [Hloop [Hheader [Hcertificate Hgraph]]]]].

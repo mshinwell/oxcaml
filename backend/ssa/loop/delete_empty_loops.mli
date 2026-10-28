@@ -29,6 +29,12 @@
 
 (** Bypass every loop whose body does no observable work.
 
+    The analysis first rejects graphs larger than 2^32 blocks, graphs with any
+    trap-stack markers, and graphs whose exactly modeled operation families have
+    other than one result. This conservatively checks the whole graph, not only
+    code preceding a candidate loop. Opaque loads and calls outside loops are
+    still permitted.
+
     A loop is considered empty when:
     - the termination analysis (rocq/LoopTermination.v) reports [Terminates],
       and the body with its header removed is acyclic, so execution cannot
@@ -55,7 +61,8 @@
     observations of opaque computations in the unchanged prefix.
     LoopEligibility.find_deletions_eligible proves finite normal first exit and
     agreement with the first header execution on live-out values, for the
-    explicit graph, resource and defined-input contracts in its statement. The
+    explicit graph and defined-input contracts in its statement. The size and
+    prefix-instruction checks are proved by [find_deletions_supported]. The
     mechanical graph rewrite is outside the proof's scope. *)
 
 open Ssa.Export

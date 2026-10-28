@@ -3,8 +3,8 @@
    LoopValueSnapshot constructs a mathematical interpretation of syntax;
    LoopGuardExecution derives its guard facts from executed Switches.
    This module connects the entailment check to an actual bound register.
-   The only resource premise is an explicit bound on graph size, not a
-   field asserting arithmetic properties of a loop run. *)
+   Its graph-size premise is discharged by the extracted applicability
+   check, not a field asserting arithmetic properties of a loop run. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlInt OxCamlInt64 OxCamlList.
@@ -14,13 +14,6 @@ From OxCamlLoop Require Import FourierMotzkin AffineExpr AffineSsa
   LoopComparisons LoopTermination LoopValueSnapshot LoopGuardExecution.
 Import ListNotations.
 Local Open Scope Z_scope.
-
-(* An explicit, ordinary resource bound: at most 2^32 graph blocks. This
-   leaves ample room in the signed 63-bit affine atom counter even if
-   every block supplies a two-operand guard. This host-resource premise is
-   explicit and is not a check performed by the extracted pass. *)
-Definition graph_size_supported (blocks : list block) : Prop :=
-  Z.of_nat (length blocks) <= 2 ^ 32.
 
 (* One guard allocates at most two linearizations' worth of atoms. *)
 Lemma guards_size_bound : forall (target : block) (dominators : list block),

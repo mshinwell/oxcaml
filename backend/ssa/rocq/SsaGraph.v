@@ -258,6 +258,10 @@ Definition passes_at (target : block) (k : int) (v : value) (block : block)
     /\ arg_value args k = Some v
     /\ count_occurrences (arg_is v) args = one.
 
+(* The checked graph-size limit used to bound affine atom allocation. *)
+Definition graph_size_supported (blocks : list block) : Prop :=
+  (Z.of_nat (length blocks) <= 2 ^ 32)%Z.
+
 (* The successor relation restricted to [region] without [cut], oriented
    for accessibility: following an edge decreases in the relation. *)
 Definition region_edge (region : blockset) (cut succ block : block) : Prop :=
