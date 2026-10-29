@@ -164,7 +164,7 @@ Theorem executed_bound_in_range : forall (blocks : list block) (entry : block),
     dominator ∈ blocks ⇒ target ∈ blocks ⇒
     (forall (visited_blocks : list block), SsaDominance.block_path_from entry
       visited_blocks target ⇒
-       dominator ∈ visited_blocks) ⇒ dominator --dom--> target) ⇒
+       dominator ∈ visited_blocks) ⇒ dominator ▷ target) ⇒
   switch_edge_multiplicity ⇒ graph_size_supported blocks ⇒
   forall (target : block) (initial_regs : registers) (reached : state)
     (step_size : int) (bound_ref : value) (bound_word : Z),

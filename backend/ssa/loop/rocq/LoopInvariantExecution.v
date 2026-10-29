@@ -79,7 +79,7 @@ Section Invariants.
 
   (* A strict dominator of the header cannot also lie in its body. *)
   Lemma strict_dominator_outside_loop : forall (dominator : block),
-    dominator --dom--> loop.(header) ⇒ dominator <> loop.(header) ⇒
+    dominator ▷ loop.(header) ⇒ dominator <> loop.(header) ⇒
     set_mem dominator loop.(body) = false.
   Proof.
     intros dominator Hdom Hstrict.
@@ -107,7 +107,7 @@ Section Invariants.
     (index : int)
       (defining_block : block),
     op_def_find defs id = Some defining_block ⇒
-    defining_block --dom--> loop.(header) ⇒
+    defining_block ▷ loop.(header) ⇒
     defining_block <> loop.(header) ⇒
     ~ register_defined_in_region loop.(body) (Result id index).
   Proof.

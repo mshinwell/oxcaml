@@ -271,7 +271,7 @@ header.
 
 - Say what the booleans mean with `Prop`s over the observations of
   `SsaModel.v`, not over the compiler's data.
-- Use the notations `SsaModel.v` defines (`a --dom--> b` for `a`
+- Use the notations `SsaModel.v` defines (`a ▷ b` for `a`
   dominating `b`) in parts 2 to 4, where a statement is read by eye.
   Part 1 is code and calls the primitives as the compiler does.
 - Use `⇒` and `⇔` for logical implication and equivalence, and `∧` and

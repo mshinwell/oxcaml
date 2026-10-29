@@ -510,7 +510,7 @@ Section CounterExecution.
       dominator ∈ blocks ⇒ target ∈ blocks ⇒
       (forall (visited_blocks : list block), SsaDominance.block_path_from entry
         visited_blocks target ⇒
-         dominator ∈ visited_blocks) ⇒ dominator --dom--> target) ⇒
+         dominator ∈ visited_blocks) ⇒ dominator ▷ target) ⇒
     switch_edge_multiplicity ⇒ graph_size_supported blocks ⇒
     NoDup (strict_dominators loop.(header)) ⇒
     (forall (dominator : block),

@@ -90,18 +90,18 @@ Inductive block_path_from : block -> list block -> block -> Prop :=
       block_path_from succ (succ :: rest) last ⇒
       block_path_from pred (pred :: succ :: rest) last.
 
-(* What the compiler's [dominates], written [--dom-->], means, [entry] being
+(* What the compiler's [dominates], written [▷], means, [entry] being
    the graph's entry block: every path from the entry to [target] passes
    through each dominator of [target], and the entry dominates every block,
    each being reachable from it. Nothing is assumed of the entry's
    predecessors: a self-recursive tail call is a back edge to the entry. *)
 Record dominance_semantics (entry : block) : Prop :=
   { dominates_spec : forall (dominator target : block),
-      dominator --dom--> target ⇒
+      dominator ▷ target ⇒
       forall (visited_blocks : list block),
       block_path_from entry visited_blocks target ⇒
       dominator ∈ visited_blocks;
-    entry_dominates : forall (block : block), entry --dom--> block }.
+    entry_dominates : forall (block : block), entry ▷ block }.
 
 Arguments dominates_spec {entry}.
 Arguments entry_dominates {entry}.

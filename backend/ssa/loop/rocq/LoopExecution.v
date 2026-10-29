@@ -370,7 +370,7 @@ Section Graph.
     dominator ∈ blocks ⇒ target ∈ blocks ⇒
     (forall (visited_blocks : list block), block_path_from entry visited_blocks
       target ⇒ dominator ∈ visited_blocks) ⇒
-    dominator --dom--> target.
+    dominator ▷ target.
 
   (* Graph closure and correct dominance observations suffice to prove the
      natural-loop structural properties used by execution proofs. *)

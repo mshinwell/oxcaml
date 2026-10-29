@@ -113,7 +113,7 @@ Section Execution.
     dominator ∈ blocks ⇒ target ∈ blocks ⇒
     (forall (visited_blocks : list block), SsaDominance.block_path_from entry
       visited_blocks target ⇒
-       dominator ∈ visited_blocks) ⇒ dominator --dom--> target.
+       dominator ∈ visited_blocks) ⇒ dominator ▷ target.
 
   (* The checked non-dominance is also non-dominance of program points.
      Completeness matters here: soundness alone says nothing about false. *)
@@ -374,7 +374,7 @@ Theorem executed_guards_taken : forall (blocks : list block) (entry : block),
     dominator ∈ blocks ⇒ target ∈ blocks ⇒
     (forall (visited_blocks : list block), SsaDominance.block_path_from entry
       visited_blocks target ⇒
-       dominator ∈ visited_blocks) ⇒ dominator --dom--> target) ⇒
+       dominator ∈ visited_blocks) ⇒ dominator ▷ target) ⇒
   switch_edge_multiplicity ⇒
   forall (target : block) (initial_regs : registers) (reached : state),
   (forall (dominator : block), dominator ∈ (strict_dominators target) ⇒

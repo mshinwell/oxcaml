@@ -550,7 +550,7 @@ Section FindLoops.
       back_edge_sources <> []
       ∧ forall (source : block), source ∈ back_edge_sources ⇒
            source ∈ blocks ∧ header ∈ (all_successors source)
-           ∧ header --dom--> source.
+           ∧ header ▷ source.
 
   (* The table records [source] as a back-edge source of [header]. *)
   Definition back_edge_table_contains (table : list (block * list block))
@@ -730,7 +730,7 @@ Section FindLoops.
     ∧ (forall (header source' : block),
           back_edge_table_contains table header source' ⇒
             back_edge_table_contains table' header source')
-    ∧ (forall (succ : block), succ ∈ succs ⇒ succ --dom--> source ⇒
+    ∧ (forall (succ : block), succ ∈ succs ⇒ succ ▷ source ⇒
           back_edge_table_contains table' succ source).
   Proof.
     intros bl succs. induction succs as [ | h succs IH ];
@@ -783,7 +783,7 @@ Section FindLoops.
             back_edge_table_contains table' header source)
     ∧ (forall (header source : block),
           source ∈ blocks' ⇒ header ∈ (all_successors source) ⇒
-          header --dom--> source ⇒ back_edge_table_contains table' header
+          header ▷ source ⇒ back_edge_table_contains table' header
             source).
   Proof.
     induction blocks' as [ | bl bls IH ]; intros tbl Hin Hs; cbv zeta.
@@ -810,7 +810,7 @@ Section FindLoops.
     back_edge_table_sound table
     ∧ (forall (header source : block),
           source ∈ blocks ⇒ header ∈ (all_successors source) ⇒
-          header --dom--> source ⇒ back_edge_table_contains table header
+          header ▷ source ⇒ back_edge_table_contains table header
             source).
   Proof.
     cbv zeta.
@@ -843,7 +843,7 @@ Section FindLoops.
     forall (loop : natural_loop) (source : block),
     loop ∈ (find_loops blocks) ⇒ source ∈ loop.(back_edge_sources) ⇒
     source ∈ blocks ∧ loop.(header) ∈ (all_successors source)
-    ∧ loop.(header) --dom--> source.
+    ∧ loop.(header) ▷ source.
   Proof.
     intros l s Hl Hs. apply find_loops_In in Hl.
     destruct Hl as [h [srcs [Hin ->]]]. cbn [header back_edge_sources] in *.
@@ -855,7 +855,7 @@ Section FindLoops.
      found, with that target as header. *)
   Theorem find_loops_complete : forall (source header : block),
     source ∈ blocks ⇒ header ∈ (all_successors source) ⇒
-    header --dom--> source ⇒
+    header ▷ source ⇒
     exists loop,
       loop ∈ (find_loops blocks) ∧ loop.(NaturalLoop.header) = header
       ∧ source ∈ loop.(back_edge_sources).
@@ -891,7 +891,7 @@ Section FindLoops.
     forall (loop : natural_loop) (source : block),
     loop ∈ (find_loops blocks) ⇒ source ∈ blocks ⇒
     loop.(header) ∈ (all_successors source) ⇒
-    loop.(header) --dom--> source ⇒
+    loop.(header) ▷ source ⇒
     source ∈ loop.(back_edge_sources).
   Proof.
     intros l source Hl Hsource Hedge Hdom.
@@ -957,7 +957,7 @@ Lemma reaches_back_edge_dominated : forall (entry loop_header : block)
     (sources : list block),
   dominance_semantics entry ⇒
   (forall (source : block),
-    source ∈ sources ⇒ loop_header --dom--> source) ⇒
+    source ∈ sources ⇒ loop_header ▷ source) ⇒
   forall (body_block : block),
   reaches_back_edge_without_header loop_header sources body_block ⇒
   forall (visited_blocks : list block),

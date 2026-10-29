@@ -97,7 +97,7 @@ Record finished_graph (blocks : list block) (entry : block) (defs : op_def)
       dominator ∈ blocks ⇒ target ∈ blocks ⇒
       (forall (visited_blocks : list block), block_path_from entry
         visited_blocks target ⇒ dominator ∈ visited_blocks) ⇒
-      dominator --dom--> target;
+      dominator ▷ target;
     (* [strict_dominators] lists distinct blocks of the graph. *)
     graph_strict_dominators : forall (b : block), b ∈ blocks ⇒
       NoDup (strict_dominators b)
