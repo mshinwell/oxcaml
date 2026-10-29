@@ -321,36 +321,37 @@ original graph; it does not model a post-rewrite graph or the reducer.
 The theorem is per loop and per header entry. The step from it to "the
 rewritten function behaves like the original" is the standard liveness
 simulation, which is not in Rocq; it goes as follows, with `P` the original
-graph and `P'` the graph with the header's terminator replaced.
+graph and `P'` the graph with the header's terminator replaced. Below,
+`register_live_at` refers to liveness in the original graph.
 
 Relate a state of `P` and a state of `P'` at the same program point when
-their register files agree on `register_live_at^P` of that point and
+their register files agree on `register_live_at` of that point and
 everything else (memory, trap stack, current block and remaining
 instructions) is equal.
 
 - Every step other than the header's terminator is the same instruction or
   terminator in both graphs. It reads only registers that are
-  `register_live_at^P` at its point (`Live_read`), so it writes the same
+  `register_live_at` at its point (`Live_read`), so it writes the same
   values; a register live after the step is either written by it, or not
   written and then live before it (`Live_predecessor`). The relation is
   preserved.
 - At `(header, 0)`, `P` runs `steps_until exit` to `enter exit exit_regs`
   and `P'` takes `Goto exit` with its own `first_header_regs'`, which
-  agrees with `first_header_regs` on `register_live_at^P (header, 0)`.
+  agrees with `first_header_regs` on `register_live_at (header, 0)`.
   Since `exit` is a successor of the header and has no parameters,
   nothing is defined at `block_entry_point exit`, so `Live_predecessor` gives
-  `register_live_at^P (block_entry_point exit) ⊆ register_live_at^P (header, 0)`;
+  `register_live_at (block_entry_point exit) ⊆ register_live_at (header, 0)`;
   together with `agree_on_live (block_entry_point exit) first_header_regs
   exit_regs` from `eligible_entry`, the two states at `exit` are related.
-  The skipped segment writes no memory and no trap marker: `step` has rules only for
-  whitelisted integer operations (`execute_instruction` is `None` on
+  The skipped segment writes no memory and no trap marker: `step` has rules
+  only for whitelisted integer operations (`execute_instruction` is `None` on
   everything else) and for `Goto`/`Switch`, so the other components are
   equal too. `step` is deterministic, so the witness is `P`'s only
   execution from the header: `P` does not diverge or get stuck before the
   exit, and `P'` loses no behaviour.
-- `P'` has a subset of `P`'s edges, so
-  `register_live_at^{P'} ⊆ register_live_at^P` and the relation is at least
-  as strong as `P'` needs.
+- `P'` has a subset of `P`'s edges, so every register live in the rewritten
+  graph is also live in the original graph. The relation is therefore at
+  least as strong as `P'` needs.
 
 Several reported headers are rewritten at once. The argument is per
 rewritten terminator, and the `P` side is always the original graph, in

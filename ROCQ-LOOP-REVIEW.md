@@ -272,22 +272,24 @@ to behave identically — given the simulation argument in 2.3.
 
 ### 2.3 The argument the Rocq development leaves to the reader
 
-The theorem is per loop and per header entry, on the original graph. To
-conclude that the rewritten function `P'` is observationally equivalent to
-`P`, one needs the standard simulation: relate states of `P` and `P'` at the
-same program point whose register files agree on `live_at^P` of that point
-(same memory, trap stack, etc.). I checked the two non-obvious steps:
+The theorem is per loop and per header entry, on the original graph.
+`live_at` below refers to liveness in that graph. To conclude that the
+rewritten function `P'` is observationally equivalent to `P`, one needs the
+standard simulation: relate states of `P` and `P'` at the same program point
+whose register files agree on `live_at` of that point (same memory, trap
+stack, etc.). I checked the two non-obvious steps:
 
 1. At `(header, 0)`, `P` runs the loop to `enter exit exit_regs` while `P'`
    takes `Goto exit` with `first_header_regs'` agreeing with
-   `first_header_regs` on `live_at^P (header, 0)`. We need agreement on
-   `live_at^P (entry_point exit)`. This follows from
+   `first_header_regs` on `live_at (header, 0)`. We need agreement on
+   `live_at (entry_point exit)`. This follows from
    `Live_predecessor` with the edge `(header,0) -> entry_point exit`
    (`exit ∈ all_successors header`) and `~ defined_at (entry_point exit) r`
    (no params, and `result_definition_not_entry`), so
-   `live_at^P (entry_point exit) ⊆ live_at^P (header, 0)`.
-2. Everywhere else `P'` has a subset of `P`'s edges, so `live_at^{P'} ⊆
-   live_at^P` and the invariant is preserved by identical steps.
+   `live_at (entry_point exit) ⊆ live_at (header, 0)`.
+2. Everywhere else `P'` has a subset of `P`'s edges, so every register live
+   in the rewritten graph is also live in the original graph. Identical
+   steps preserve the invariant.
 
 Also needed and true but not stated by `eligible_entry`: the loop touches
 neither memory nor the trap stack (follows from the whitelist and from
