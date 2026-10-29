@@ -34,6 +34,7 @@
    the callback would have raised. *)
 
 From Stdlib Require Import ZArith Lia List.
+From OxCamlStdlib Require Import OxCamlLogic.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt.
 Import ListNotations.
 
@@ -83,7 +84,7 @@ Definition count_occurrences {A} (same : A -> bool) (l : list A) : int :=
 Parameter sort_uniq : list int -> list int.
 Axiom sort_uniq_NoDup : forall (l : list int), NoDup (sort_uniq l).
 Axiom sort_uniq_In : forall (l : list int) (x : int),
-  x ∈ (sort_uniq l) <-> x ∈ l.
+  x ∈ (sort_uniq l) ⇔ x ∈ l.
 
 (* [List.compare_length_with l n], the sign of [length l - n]. The models only
    use it to apply a size limit, on which nothing they claim depends, so no
@@ -141,7 +142,7 @@ Fixpoint same_length {A B} (l1 : list A) (l2 : list B) : bool :=
 
 (* A successful bounded walk establishes the mathematical length bound. *)
 Lemma length_at_most_spec : forall (A : Type) (xs : list A) (limit : int),
-  length_at_most limit xs = true ->
+  length_at_most limit xs = true ⇒
   (Z.of_nat (length xs) <= to_Z limit)%Z.
 Proof.
   intros A xs. induction xs as [|x rest IH]; intros limit Hcheck;
@@ -160,7 +161,7 @@ Qed.
 
 (* [same_length] is equality of lengths. *)
 Lemma same_length_spec : forall {A B : Type} (l1 : list A) (l2 : list B),
-  same_length l1 l2 = true <-> length l1 = length l2.
+  same_length l1 l2 = true ⇔ length l1 = length l2.
 Proof.
   intros A B l1. induction l1 as [ | x l1 IH ]; intros [ | y l2 ]; simpl;
     [ tauto | split; discriminate | split; discriminate | ].
@@ -170,7 +171,7 @@ Qed.
 (* Equal-length arrays have the same valid machine-int indices. *)
 Lemma same_length_nth_int : forall {A B : Type} (xs : list A) (ys : list B)
     (index : int) (x : A),
-  same_length xs ys = true -> nth_int xs index = Some x ->
+  same_length xs ys = true ⇒ nth_int xs index = Some x ⇒
   exists (y : B), nth_int ys index = Some y.
 Proof.
   intros A B xs. induction xs as [ | x xs IH];
@@ -182,7 +183,7 @@ Qed.
 
 (* An element at some position is an element of the list. *)
 Lemma nth_int_In : forall {A : Type} (l : list A) (i : int) (x : A),
-  nth_int l i = Some x -> x ∈ l.
+  nth_int l i = Some x ⇒ x ∈ l.
 Proof.
   intros A l. induction l as [ | y l IH ]; intros i x H; simpl in H.
   - discriminate.
@@ -195,8 +196,8 @@ Qed.
    list. This lets SSA definitions be located by instruction position. *)
 Lemma same_position_element : forall (A : Type)
     (prefix prefix' suffix suffix' : list A) (element element' : A),
-  prefix ++ element :: suffix = prefix' ++ element' :: suffix' ->
-  length suffix = length suffix' -> element = element'.
+  prefix ++ element :: suffix = prefix' ++ element' :: suffix' ⇒
+  length suffix = length suffix' ⇒ element = element'.
 Proof.
   intros A prefix. induction prefix as [ | head prefix IH ];
     intros prefix' suffix suffix' element element' Heq Hlength;
@@ -213,8 +214,8 @@ Qed.
    whenever the entry in the first list exists. *)
 Lemma Forall2_nth_int : forall {A B : Type} (R : A -> B -> Prop)
     (xs : list A) (ys : list B),
-  Forall2 R xs ys -> forall (index : int) (x : A),
-  nth_int xs index = Some x ->
+  Forall2 R xs ys ⇒ forall (index : int) (x : A),
+  nth_int xs index = Some x ⇒
   exists (y : B), nth_int ys index = Some y /\ R x y.
 Proof.
   intros A B R xs ys H. induction H; intros i z Hnth; cbn in *.
@@ -227,7 +228,7 @@ Qed.
 (* An element of [filter_map f l] is [f] of an element of [l]. *)
 Lemma filter_map_In :
   forall {A B : Type} (f : A -> option B) (l : list A) (y : B),
-  y ∈ (filter_map f l) -> exists x, x ∈ l /\ f x = Some y.
+  y ∈ (filter_map f l) ⇒ exists x, x ∈ l /\ f x = Some y.
 Proof.
   intros A B f l y. induction l as [ | x l IH ]; simpl; intros H.
   - contradiction.
@@ -241,7 +242,7 @@ Qed.
 (* [assoc_opt] finds an entry with the key ... *)
 Lemma assoc_opt_In : forall {C : Type} (key : int) (entries : list (int * C))
   (entry_value : C),
-  assoc_opt key entries = Some entry_value -> (key, entry_value) ∈ entries.
+  assoc_opt key entries = Some entry_value ⇒ (key, entry_value) ∈ entries.
 Proof.
   intros C id l c. induction l as [ | [k c'] l IH ]; simpl; intros H.
   - discriminate.
@@ -253,7 +254,7 @@ Qed.
 (* ... finds one whenever the key is present ... *)
 Lemma assoc_opt_Some : forall {C : Type} (key : int)
   (entries : list (int * C)),
-  key ∈ map fst entries ->
+  key ∈ map fst entries ⇒
   exists entry_value, assoc_opt key entries = Some entry_value.
 Proof.
   intros C id l. induction l as [ | [k c] l IH ]; simpl; intros H.
@@ -266,7 +267,7 @@ Qed.
 (* ... and none when it is absent. *)
 Lemma assoc_opt_None : forall {C : Type} (key : int)
   (entries : list (int * C)),
-  key ∉ (map fst entries) -> assoc_opt key entries = None.
+  key ∉ (map fst entries) ⇒ assoc_opt key entries = None.
 Proof.
   intros C id l. induction l as [ | [k c] l IH ]; simpl; intros H.
   - reflexivity.
@@ -281,7 +282,7 @@ Lemma map_opt_keys :
   forall {C D : Type} (g : C -> option D) (entries : list (int * C))
     (mapped_entries : list (int * D)),
   map_opt (fun '(id, c) => let* d := g c in Some (id, d)) entries = Some
-    mapped_entries ->
+    mapped_entries ⇒
   map fst mapped_entries = map fst entries.
 Proof.
   intros C D g l. induction l as [ | [k c] l IH ]; simpl; intros l' H.
@@ -296,7 +297,7 @@ Lemma map_opt_assoc :
   forall {C D : Type} (g : C -> option D) (entries : list (int * C))
     (mapped_entries : list (int * D)),
   map_opt (fun '(id, c) => let* d := g c in Some (id, d)) entries = Some
-    mapped_entries ->
+    mapped_entries ⇒
   forall (id : int),
     match assoc_opt id entries with
     | Some c => exists d, g c = Some d /\ assoc_opt id mapped_entries = Some d
@@ -314,7 +315,7 @@ Qed.
 
 (* [rev_append] has the elements of both lists. *)
 Lemma in_rev_append : forall {A : Type} (l1 l2 : list A) (x : A),
-  x ∈ (rev_append l1 l2) <-> x ∈ l1 \/ x ∈ l2.
+  x ∈ (rev_append l1 l2) ⇔ x ∈ l1 \/ x ∈ l2.
 Proof.
   intros. rewrite rev_append_rev, in_app_iff, <- in_rev. reflexivity.
 Qed.
@@ -324,7 +325,7 @@ Qed.
 (* In a list whose keys are distinct, the lookup of a key finds its entry. *)
 Lemma assoc_opt_NoDup :
   forall {C : Type} (entries : list (int * C)) (key : int) (entry_value : C),
-  NoDup (map fst entries) -> (key, entry_value) ∈ entries -> assoc_opt key
+  NoDup (map fst entries) ⇒ (key, entry_value) ∈ entries ⇒ assoc_opt key
     entries = Some entry_value.
 Proof.
   intros C l id c. induction l as [ | [k c'] l IH ]; intros Hnd Hin.
@@ -355,7 +356,7 @@ Qed.
 (* An absent key gives the default. *)
 Lemma assoc_default_not_in :
   forall {C : Type} (default : C) (key : int) (entries : list (int * C)),
-  key ∉ (map fst entries) -> assoc_default default key entries = default.
+  key ∉ (map fst entries) ⇒ assoc_default default key entries = default.
 Proof.
   intros. unfold assoc_default. rewrite assoc_opt_None by assumption.
   reflexivity.
@@ -373,7 +374,7 @@ Qed.
 
 (* A filter that accepts less keeps no more elements ... *)
 Lemma filter_length_le : forall {A : Type} (f g : A -> bool) (l : list A),
-  (forall (y : A), f y = true -> g y = true) ->
+  (forall (y : A), f y = true ⇒ g y = true) ⇒
   (length (filter f l) <= length (filter g l))%nat.
 Proof.
   intros A f g l Hfg. induction l as [ | y l IH ]; [ reflexivity | ].
@@ -386,8 +387,8 @@ Qed.
    accepts. *)
 Lemma filter_length_lt : forall {A : Type} (f g : A -> bool) (l : list A)
   (x : A),
-  (forall (y : A), f y = true -> g y = true) ->
-  x ∈ l -> g x = true -> f x = false ->
+  (forall (y : A), f y = true ⇒ g y = true) ⇒
+  x ∈ l ⇒ g x = true ⇒ f x = false ⇒
   (length (filter f l) < length (filter g l))%nat.
 Proof.
   intros A f g l x Hfg Hin Hg Hf.

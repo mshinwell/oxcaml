@@ -69,6 +69,7 @@
    nothing is defined on entering it. Nothing is extracted. *)
 
 From Stdlib Require Import List Bool.
+From OxCamlStdlib Require Import OxCamlLogic.
 From OxCamlStdlib Require Import OxCamlList.
 From OxCamlSsa Require Import SsaModel SsaGraph SsaDominance SsaSemantics
   SsaExecution SsaLiveness SsaProgress SsaContext.
@@ -117,7 +118,7 @@ Definition eligible_loop_entry (loop : natural_loop) (exit : block)
 
 Lemma eligible_loop_entry_eligible : forall (loop : natural_loop)
     (exit : block) (header_regs : registers),
-  eligible_loop_entry loop exit header_regs ->
+  eligible_loop_entry loop exit header_regs ⇒
   eligible_entry loop.(header) exit header_regs.
 Proof.
   intros loop exit header_regs
@@ -131,15 +132,15 @@ Qed.
 (* For an accepted loop, a finite original execution to its exit suffices: the
    first header computation and live-out agreement are both derived. No
    equality of dead counter values is required. *)
-Theorem certificate_finite_exit_eligible : control_edges ->
+Theorem certificate_finite_exit_eligible : control_edges ⇒
   forall (blocks : list block) (entry : block) (defs : op_def)
     (loop : natural_loop) (bivs : list biv) (exit : block)
     (initial_regs header_regs exit_regs : registers),
-  well_formed_ssa blocks entry -> loop_graph_properties blocks entry loop ->
-  deletion_certificate defs blocks loop bivs exit ->
-  context_steps (enter entry initial_regs) (enter loop.(header) header_regs) ->
+  well_formed_ssa blocks entry ⇒ loop_graph_properties blocks entry loop ⇒
+  deletion_certificate defs blocks loop bivs exit ⇒
+  context_steps (enter entry initial_regs) (enter loop.(header) header_regs) ⇒
   region_steps loop.(body) (enter loop.(header) header_regs)
-    (enter exit exit_regs) ->
+    (enter exit exit_regs) ⇒
   eligible_loop_entry loop exit header_regs.
 Proof.
   intros Hedges blocks entry defs loop bivs exit initial_regs header_regs
@@ -161,19 +162,19 @@ Qed.
 (* Progress inside an accepted loop follows from the instruction whitelist and
    ordinary SSA input/argument definedness. The only dynamic side condition is
    the language's defined-index rule for Switch. *)
-Theorem certificate_region_progress : control_edges ->
+Theorem certificate_region_progress : control_edges ⇒
   forall (blocks : list block) (entry : block) (defs : op_def)
     (loop : natural_loop) (bivs : list biv) (exit : block)
     (initial_regs header_regs : registers),
-  well_formed_ssa blocks entry -> control_layout blocks ->
-  loop_graph_properties blocks entry loop ->
-  deletion_certificate defs blocks loop bivs exit ->
-  live_registers_defined (block_entry_point entry) initial_regs ->
-  switches_in_range (enter loop.(header) header_regs) ->
-  context_steps (enter entry initial_regs) (enter loop.(header) header_regs) ->
+  well_formed_ssa blocks entry ⇒ control_layout blocks ⇒
+  loop_graph_properties blocks entry loop ⇒
+  deletion_certificate defs blocks loop bivs exit ⇒
+  live_registers_defined (block_entry_point entry) initial_regs ⇒
+  switches_in_range (enter loop.(header) header_regs) ⇒
+  context_steps (enter entry initial_regs) (enter loop.(header) header_regs) ⇒
   forall (reached : state),
-  region_steps loop.(body) (enter loop.(header) header_regs) reached ->
-  set_mem (current_block reached) loop.(body) = true ->
+  region_steps loop.(body) (enter loop.(header) header_regs) reached ⇒
+  set_mem (current_block reached) loop.(body) = true ⇒
   exists (next : state), SsaSemantics.step reached next.
 Proof.
   intros Hedges blocks entry defs loop bivs exit initial_regs header_regs
@@ -200,27 +201,27 @@ Qed.
    is a conclusion, as are the actual counter recurrence, bound constancy,
    entry guards, range facts and live-out agreement. No post-deletion graph is
    needed. *)
-Theorem certificate_entry_eligible : control_edges ->
+Theorem certificate_entry_eligible : control_edges ⇒
   forall (blocks : list block) (entry : block) (defs : op_def)
     (loop : natural_loop) (bivs : list biv) (exit : block)
     (initial_regs header_regs : registers),
-  well_formed_ssa blocks entry -> control_layout blocks ->
-  loop_graph_properties blocks entry loop -> dominance_semantics entry ->
-  op_def_correct defs blocks ->
+  well_formed_ssa blocks entry ⇒ control_layout blocks ⇒
+  loop_graph_properties blocks entry loop ⇒ dominance_semantics entry ⇒
+  op_def_correct defs blocks ⇒
   (forall (dominator target : block),
-    dominator ∈ blocks -> target ∈ blocks ->
+    dominator ∈ blocks ⇒ target ∈ blocks ⇒
     (forall (visited_blocks : list block), SsaDominance.block_path_from entry
-      visited_blocks target ->
-       dominator ∈ visited_blocks) -> dominator --dom--> target) ->
-  switch_edge_multiplicity -> graph_size_supported blocks ->
-  NoDup (strict_dominators loop.(header)) ->
+      visited_blocks target ⇒
+       dominator ∈ visited_blocks) ⇒ dominator --dom--> target) ⇒
+  switch_edge_multiplicity ⇒ graph_size_supported blocks ⇒
+  NoDup (strict_dominators loop.(header)) ⇒
   (forall (dominator : block),
-     dominator ∈ (strict_dominators loop.(header)) -> dominator ∈ blocks) ->
-  deletion_certificate defs blocks loop bivs exit ->
-  bounded_registers initial_regs ->
-  live_registers_defined (block_entry_point entry) initial_regs ->
-  switches_in_range (enter loop.(header) header_regs) ->
-  context_steps (enter entry initial_regs) (enter loop.(header) header_regs) ->
+     dominator ∈ (strict_dominators loop.(header)) ⇒ dominator ∈ blocks) ⇒
+  deletion_certificate defs blocks loop bivs exit ⇒
+  bounded_registers initial_regs ⇒
+  live_registers_defined (block_entry_point entry) initial_regs ⇒
+  switches_in_range (enter loop.(header) header_regs) ⇒
+  context_steps (enter entry initial_regs) (enter loop.(header) header_regs) ⇒
   eligible_loop_entry loop exit header_regs.
 Proof.
   intros Hedges blocks entry defs loop bivs exit initial_regs header_regs
@@ -249,10 +250,10 @@ Qed.
 Theorem find_deletions_eligible :
   forall (blocks : list block) (entry : block) (defs : op_def)
     (header exit : block),
-  finished_graph blocks entry defs ->
-  (header, exit) ∈ (find_deletions defs blocks) ->
+  finished_graph blocks entry defs ⇒
+  (header, exit) ∈ (find_deletions defs blocks) ⇒
   forall (initial_regs header_regs : registers),
-    reached_header entry header initial_regs header_regs ->
+    reached_header entry header initial_regs header_regs ⇒
     eligible_entry header exit header_regs.
 Proof.
   intros blocks entry defs header exit Hgraph Hin initial_regs header_regs

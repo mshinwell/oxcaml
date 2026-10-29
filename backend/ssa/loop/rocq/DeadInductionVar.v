@@ -55,6 +55,7 @@
    useless has every header parameter among its dead induction variables. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
+From OxCamlStdlib Require Import OxCamlLogic.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlList.
 From OxCamlSsa Require Import SsaModel SsaGraph.
 From OxCamlLoop Require Import NaturalLoop InductionVar.
@@ -194,7 +195,7 @@ Definition dead_spec (blocks : list block) (biv : InductionVar.biv) : Prop :=
          parameter_index exit_comparison biv.(update)
        /\ exit_comparison_used_only_by_header_branch blocks loop.(header)
             exit_comparison
-       /\ forall (updated_value : value), updated_value ∈ biv.(update) ->
+       /\ forall (updated_value : value), updated_value ∈ biv.(update) ⇒
             update_used_only_by_exit_comparison_and_back_edge blocks loop
               parameter_index exit_comparison updated_value.
 
@@ -208,7 +209,7 @@ Lemma update_terminator_use_approved :
     (updated_value : value)
     (block : block),
   set_mem block (back_edge_set loop) && goto_passes_only_at header
-    parameter_index updated_value block = true ->
+    parameter_index updated_value block = true ⇒
   block ∈ loop.(back_edge_sources) /\ passes_only_at header parameter_index
     updated_value block.
 Proof.
@@ -223,7 +224,7 @@ Qed.
 
 (* A BIV [is_dead] accepts satisfies [dead_spec]. *)
 Theorem is_dead_spec : forall (blocks : list block) (biv : InductionVar.biv),
-  is_dead blocks biv = true -> dead_spec blocks biv.
+  is_dead blocks biv = true ⇒ dead_spec blocks biv.
 Proof.
   intros blocks b H. unfold is_dead in H.
   destruct (find_exit_branch b.(InductionVar.loop)) as [exit_info | ]
@@ -258,10 +259,10 @@ Qed.
    parameters, all of them dead. *)
 Theorem loop_is_useless_spec :
   forall (loop : natural_loop) (bivs : list biv_result),
-  loop_is_useless loop bivs = true ->
+  loop_is_useless loop bivs = true ⇒
   length (params loop.(header)) = length bivs
   /\ forall (biv_result : biv_result),
-       biv_result ∈ bivs -> biv_result.(dead) = true.
+       biv_result ∈ bivs ⇒ biv_result.(dead) = true.
 Proof.
   intros loop bivs H. unfold loop_is_useless in H.
   apply andb_true_iff in H. destruct H as [Hlen Hdead].
@@ -277,15 +278,15 @@ Theorem analyze_spec :
   forall (blocks : list block)
     (loops : list (natural_loop * list InductionVar.biv))
     (result : loop_result),
-  result ∈ (analyze blocks loops) ->
+  result ∈ (analyze blocks loops) ⇒
   (result.(loop), map biv result.(bivs)) ∈ loops
-  /\ (forall (biv_result : biv_result), biv_result ∈ result.(bivs) ->
+  /\ (forall (biv_result : biv_result), biv_result ∈ result.(bivs) ⇒
         biv_result.(dead) = is_dead blocks biv_result.(biv)
-        /\ (biv_result.(dead) = true -> dead_spec blocks biv_result.(biv)))
-  /\ (result.(useless) = true ->
+        /\ (biv_result.(dead) = true ⇒ dead_spec blocks biv_result.(biv)))
+  /\ (result.(useless) = true ⇒
         length (params result.(loop).(header)) = length result.(bivs)
         /\ forall (biv_result : biv_result),
-             biv_result ∈ result.(bivs) -> biv_result.(dead) = true).
+             biv_result ∈ result.(bivs) ⇒ biv_result.(dead) = true).
 Proof.
   intros blocks loops r H. unfold analyze in H.
   apply in_map_iff in H. destruct H as [[l bs] [<- Hin]]. cbv zeta.

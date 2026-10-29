@@ -35,6 +35,7 @@
    assumed. Nothing here is part of the final statement. *)
 
 From Stdlib Require Import ZArith Lia List.
+From OxCamlStdlib Require Import OxCamlLogic.
 From OxCamlStdlib Require Import OxCamlInt OxCamlList.
 From OxCamlSsa Require Import SsaModel SsaGraph SsaDominance SsaSemantics
   SsaExecution SsaProgress SsaContext.
@@ -47,14 +48,14 @@ Local Open Scope nat_scope.
 Inductive region_steps (region : blockset) : state -> state -> Prop :=
   | Region_refl : forall (s : state), region_steps region s s
   | Region_cons : forall (before middle after : state),
-      set_mem (current_block before) region = true ->
-      SsaSemantics.step before middle -> region_steps region middle after ->
+      set_mem (current_block before) region = true ⇒
+      SsaSemantics.step before middle ⇒ region_steps region middle after ⇒
       region_steps region before after.
 
 (* Region segments are executions in the same original graph. *)
 Lemma region_steps_execution : forall (region : blockset)
     (before after : state),
-  region_steps region before after -> steps before after.
+  region_steps region before after ⇒ steps before after.
 Proof.
   intros region before after Hregion. induction Hregion.
   - constructor.
@@ -64,8 +65,8 @@ Qed.
 (* A segment whose final state is outside the region first reaches that state's
    block there: every earlier source state is inside the region. *)
 Lemma region_steps_until : forall (region : blockset) (before after : state),
-  region_steps region before after ->
-  set_mem (current_block after) region = false ->
+  region_steps region before after ⇒
+  set_mem (current_block after) region = false ⇒
   steps_until (current_block after) before after.
 Proof.
   intros region before after Hregion Houtside.
@@ -79,7 +80,7 @@ Qed.
    source-state conditions prevent continuing after an earlier exit. *)
 Lemma region_steps_trans : forall (region : blockset)
     (before middle after : state),
-  region_steps region before middle -> region_steps region middle after ->
+  region_steps region before middle ⇒ region_steps region middle after ⇒
   region_steps region before after.
 Proof.
   intros region before middle after Hprefix.
@@ -92,7 +93,7 @@ Qed.
    before taking its terminator. *)
 Lemma executes_insns_region : forall (region : blockset) (b : block)
     (insns : list instr) (before after : registers),
-  set_mem b region = true -> executes_insns before insns after ->
+  set_mem b region = true ⇒ executes_insns before insns after ⇒
   region_steps region
     {| current_block := b; remaining := insns; current_registers := before |}
     {| current_block := b; remaining := []; current_registers := after |}.
@@ -106,10 +107,10 @@ Qed.
    Extracting this prefix needs no separate progress assumption. *)
 Lemma region_exit_body_prefix : forall (region : blockset) (b : block)
     (insns : list instr) (before : registers) (after : state),
-  set_mem b region = true -> set_mem (current_block after) region = false ->
+  set_mem b region = true ⇒ set_mem (current_block after) region = false ⇒
   region_steps region
     {| current_block := b; remaining := insns; current_registers := before |}
-    after ->
+    after ⇒
   exists (body_regs : registers), executes_insns before insns body_regs /\
     region_steps region
       {| current_block := b; remaining := []; current_registers := body_regs |}
@@ -132,12 +133,12 @@ Qed.
 
 (* Outside registers remain unchanged while inside the region and across an
    exit into a parameterless block, which writes no register. *)
-Theorem region_steps_frame : parameter_layout -> forall (region : blockset)
+Theorem region_steps_frame : parameter_layout ⇒ forall (region : blockset)
     (before after : state) (reg : register),
-  region_steps region before after -> valid_position before ->
+  region_steps region before after ⇒ valid_position before ⇒
   (set_mem (current_block after) region = true
-   \/ params (current_block after) = []) -> ~ register_defined_in_region region
-     reg ->
+   \/ params (current_block after) = []) ⇒ ~ register_defined_in_region region
+     reg ⇒
   current_registers after reg = current_registers before reg.
 Proof.
   intros Hlayout region before after reg Hsegment.
@@ -158,11 +159,11 @@ Qed.
 
 (* Leaving a region is a block transfer, not an instruction. The new state is
    exactly the target's entry, before any exit instruction runs. *)
-Lemma step_exits_region : control_edges -> forall (region : blockset)
+Lemma step_exits_region : control_edges ⇒ forall (region : blockset)
     (before after : state),
-  set_mem (current_block before) region = true ->
-  set_mem (current_block after) region = false ->
-  SsaSemantics.step before after ->
+  set_mem (current_block before) region = true ⇒
+  set_mem (current_block after) region = false ⇒
+  SsaSemantics.step before after ⇒
   (current_block after) ∈ (all_successors (current_block before))
     /\ after = enter (current_block after) (current_registers after).
 Proof.
@@ -175,12 +176,12 @@ Qed.
 
 (* When a region has one designated exit, its finite first exit reaches that
    block's entry. No instructions in the exit block are included. *)
-Theorem region_exit_target : control_edges -> forall (loop : natural_loop)
+Theorem region_exit_target : control_edges ⇒ forall (loop : natural_loop)
     (exit : block) (before after : state),
-  exits_only_to loop exit ->
-  set_mem (current_block before) loop.(body) = true ->
-  region_steps loop.(body) before after ->
-  set_mem (current_block after) loop.(body) = false ->
+  exits_only_to loop exit ⇒
+  set_mem (current_block before) loop.(body) = true ⇒
+  region_steps loop.(body) before after ⇒
+  set_mem (current_block after) loop.(body) = false ⇒
   exists (regs : registers), after = enter exit regs.
 Proof.
   intros Hedges loop exit before after Honly Hinside Hrun.
@@ -199,8 +200,8 @@ Proof.
 Qed.
 
 (* A terminator step follows a graph edge and starts the target's body. *)
-Lemma terminator_step_edge : control_edges -> forall (before after : state),
-  remaining before = [] -> SsaSemantics.step before after ->
+Lemma terminator_step_edge : control_edges ⇒ forall (before after : state),
+  remaining before = [] ⇒ SsaSemantics.step before after ⇒
   (current_block after) ∈ (all_successors (current_block before))
   /\ remaining after = block_body (current_block after).
 Proof.
@@ -214,13 +215,13 @@ Qed.
 (* Progress suffices to execute a finite instruction suffix. The caller proves
    progress from the whitelist and ordinary operand definedness. *)
 Lemma region_finish_body : forall (region : blockset) (start : state),
-  (forall (reached : state), region_steps region start reached ->
-    set_mem (current_block reached) region = true ->
-    exists (next : state), SsaSemantics.step reached next) ->
+  (forall (reached : state), region_steps region start reached ⇒
+    set_mem (current_block reached) region = true ⇒
+    exists (next : state), SsaSemantics.step reached next) ⇒
   forall (b : block) (insns : list instr) (regs : registers),
-  set_mem b region = true ->
+  set_mem b region = true ⇒
   region_steps region start
-    {| current_block := b; remaining := insns; current_registers := regs |} ->
+    {| current_block := b; remaining := insns; current_registers := regs |} ⇒
   exists (final : registers), executes_insns regs insns final.
 Proof.
   intros region start Hprogress b insns. induction insns as [|insn rest IH];
@@ -241,13 +242,13 @@ Qed.
    Accessibility handles block transfers, and instruction-list induction
    handles each block body. The last source still has the original header
    parameters, allowing the counter proof to read its back-edge arguments. *)
-Theorem region_iteration : control_edges -> parameter_layout ->
+Theorem region_iteration : control_edges ⇒ parameter_layout ⇒
   forall (region : blockset) (header : block) (start : state),
-  region_acyclic_except region header -> remaining start = [] ->
-  set_mem (current_block start) region = true ->
-  (forall (reached : state), region_steps region start reached ->
-    set_mem (current_block reached) region = true ->
-    exists (next : state), SsaSemantics.step reached next) ->
+  region_acyclic_except region header ⇒ remaining start = [] ⇒
+  set_mem (current_block start) region = true ⇒
+  (forall (reached : state), region_steps region start reached ⇒
+    set_mem (current_block reached) region = true ⇒
+    exists (next : state), SsaSemantics.step reached next) ⇒
   exists (before after : state),
     region_steps region start before /\ SsaSemantics.step before after
     /\ set_mem (current_block before) region = true
@@ -342,39 +343,39 @@ Record loop_graph_properties (blocks : list block) (entry : block)
   { loop_header_in_body : set_mem loop.(header) loop.(body) = true;
     loop_header_in_graph : loop.(header) ∈ blocks;
     loop_body_in_graph : forall (b : block),
-      set_mem b loop.(body) = true -> b ∈ blocks;
+      set_mem b loop.(body) = true ⇒ b ∈ blocks;
     loop_header_dominates_body : forall (b : block),
-      set_mem b loop.(body) = true ->
+      set_mem b loop.(body) = true ⇒
       forall (visited_blocks : list block), block_path_from entry
-        visited_blocks b -> loop.(header) ∈ visited_blocks;
+        visited_blocks b ⇒ loop.(header) ∈ visited_blocks;
     loop_body_predecessors : forall (source target : block),
-      set_mem target loop.(body) = true -> target <> loop.(header) ->
-      source ∈ (predecessors target) -> set_mem source loop.(body) = true;
+      set_mem target loop.(body) = true ⇒ target <> loop.(header) ⇒
+      source ∈ (predecessors target) ⇒ set_mem source loop.(body) = true;
     loop_back_edge_in_body : forall (source : block),
-      source ∈ loop.(back_edge_sources) -> set_mem source loop.(body) = true;
+      source ∈ loop.(back_edge_sources) ⇒ set_mem source loop.(body) = true;
     loop_back_edges_complete : forall (source : block),
-      set_mem source loop.(body) = true ->
-      loop.(header) ∈ (all_successors source) ->
+      set_mem source loop.(body) = true ⇒
+      loop.(header) ∈ (all_successors source) ⇒
       source ∈ loop.(back_edge_sources) }.
 
 Section Graph.
   Variable blocks : list block.
   Variable entry : block.
   Hypothesis predecessors_closed : forall (b pred : block),
-    b ∈ blocks -> pred ∈ (predecessors b) -> pred ∈ blocks.
+    b ∈ blocks ⇒ pred ∈ (predecessors b) ⇒ pred ∈ blocks.
   Hypothesis successors_closed : forall (b succ : block),
-    b ∈ blocks -> succ ∈ (all_successors b) -> succ ∈ blocks.
+    b ∈ blocks ⇒ succ ∈ (all_successors b) ⇒ succ ∈ blocks.
   Hypothesis dominance : dominance_semantics entry.
   Hypothesis dominance_complete : forall (dominator target : block),
-    dominator ∈ blocks -> target ∈ blocks ->
+    dominator ∈ blocks ⇒ target ∈ blocks ⇒
     (forall (visited_blocks : list block), block_path_from entry visited_blocks
-      target -> dominator ∈ visited_blocks) ->
+      target ⇒ dominator ∈ visited_blocks) ⇒
     dominator --dom--> target.
 
   (* Graph closure and correct dominance observations suffice to prove the
      natural-loop structural properties used by execution proofs. *)
   Theorem found_loop_graph_properties : forall (loop : natural_loop),
-    loop ∈ (find_loops blocks) -> loop_graph_properties blocks entry loop.
+    loop ∈ (find_loops blocks) ⇒ loop_graph_properties blocks entry loop.
   Proof.
     intros l Hl.
     destruct (find_loops_blocks blocks predecessors_closed successors_closed
@@ -416,7 +417,7 @@ Section Graph.
      properties no longer need to be assembled manually by a reviewer. *)
   Theorem find_deletions_graph_properties :
     forall (defs : op_def) (loop_header exit : block),
-    (loop_header, exit) ∈ (find_deletions defs blocks) ->
+    (loop_header, exit) ∈ (find_deletions defs blocks) ⇒
     exists (loop : natural_loop) (bivs : list biv),
       (loop, bivs) ∈ (InductionVar.analyze defs blocks)
       /\ loop_header = loop.(header)
@@ -438,20 +439,20 @@ End Graph.
    parameters, all from a single operational transition. *)
 Theorem loop_back_edge_step : forall (blocks : list block) (entry : block)
     (defs : op_def) (loop : natural_loop) (bivs : list biv) (exit : block),
-  control_edges -> parameter_layout ->
-  loop_graph_properties blocks entry loop ->
-  deletion_certificate defs blocks loop bivs exit ->
+  control_edges ⇒ parameter_layout ⇒
+  loop_graph_properties blocks entry loop ⇒
+  deletion_certificate defs blocks loop bivs exit ⇒
   forall (before after : state),
-    remaining before = [] ->
-    set_mem (current_block before) loop.(body) = true ->
-    SsaSemantics.step before after -> current_block after = loop.(header) ->
+    remaining before = [] ⇒
+    set_mem (current_block before) loop.(body) = true ⇒
+    SsaSemantics.step before after ⇒ current_block after = loop.(header) ⇒
     exists (args : list Terminator.arg),
       (current_block before) ∈ loop.(back_edge_sources)
       /\ (current_block before) ∈ (predecessors loop.(header))
       /\ terminator (current_block before)
            = Terminator.Continue (Goto loop.(header)) args
       /\ forall (index : int) (arg : value),
-           nth_int args index = Some (Terminator.Arg arg) ->
+           nth_int args index = Some (Terminator.Arg arg) ⇒
            current_registers after
              (register_of_value (param loop.(header) index))
            = current_registers before (register_of_value arg).

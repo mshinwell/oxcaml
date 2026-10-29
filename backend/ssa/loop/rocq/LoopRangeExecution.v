@@ -34,6 +34,7 @@
    field asserting arithmetic properties of a loop run. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
+From OxCamlStdlib Require Import OxCamlLogic.
 From OxCamlStdlib Require Import OxCamlInt OxCamlInt64 OxCamlList.
 From OxCamlSsa Require Import SsaModel SsaGraph SsaDominance SsaSemantics
   SsaExecution SsaContext.
@@ -58,9 +59,9 @@ Qed.
 (* The graph-size contract discharges the affine counter capacity bound; it
    does not assume anything about the values of loop counters. *)
 Lemma graph_atoms_fit : forall (blocks : list block) (target : block),
-  graph_size_supported blocks -> NoDup (strict_dominators target) ->
-  (forall (dominator : block), dominator ∈ (strict_dominators target) ->
-     dominator ∈ blocks) ->
+  graph_size_supported blocks ⇒ NoDup (strict_dominators target) ⇒
+  (forall (dominator : block), dominator ∈ (strict_dominators target) ⇒
+     dominator ∈ blocks) ⇒
   linearize_atom_bound + guards_atom_bound target <= ocaml_max_int.
 Proof.
   intros blocks target Hsize Hnodup Hmembers.
@@ -80,11 +81,11 @@ Lemma snapshot_bound_facts : forall (regs : registers) (target : block)
     (bound_ref : value) (form : Affine.t) (bound_side_facts : list Affine.t)
       (bound_ctx : ctx)
     (guards all_side_facts : list Affine.t) (guard_ctx : ctx),
-  linearize_atom_bound + guards_atom_bound target <= ocaml_max_int ->
-  guards_taken (snapshot_value regs) target ->
-  linearize new_ctx [] bound_ref = ((form, bound_side_facts), bound_ctx) ->
+  linearize_atom_bound + guards_atom_bound target <= ocaml_max_int ⇒
+  guards_taken (snapshot_value regs) target ⇒
+  linearize new_ctx [] bound_ref = ((form, bound_side_facts), bound_ctx) ⇒
   guards_at bound_ctx bound_side_facts target = ((guards, all_side_facts),
-    guard_ctx) ->
+    guard_ctx) ⇒
   exists (rho : valuation),
     denote rho form = snapshot_value regs bound_ref
     /\ Forall wf (guards ++ all_side_facts) /\ wf form
@@ -119,9 +120,9 @@ Qed.
    condition for the snapshot's bound. *)
 Lemma snapshot_bound_in_range : forall (regs : registers) (target : block)
     (step_size : int) (comparison_bound : bound),
-  linearize_atom_bound + guards_atom_bound target <= ocaml_max_int ->
-  guards_taken (snapshot_value regs) target ->
-  LoopTermination.bound_in_range step_size target comparison_bound = true ->
+  linearize_atom_bound + guards_atom_bound target <= ocaml_max_int ⇒
+  guards_taken (snapshot_value regs) target ⇒
+  LoopTermination.bound_in_range step_size target comparison_bound = true ⇒
   LoopComparisons.bound_in_range (to_Z step_size)
     (bound_value (snapshot_value regs) comparison_bound) = true.
 Proof.
@@ -158,25 +159,25 @@ Qed.
    arithmetic and guard facts have been discharged; the premises are graph
    metadata, resource size, a reached state and an actual read. *)
 Theorem executed_bound_in_range : forall (blocks : list block) (entry : block),
-  control_edges -> well_formed_ssa blocks entry -> dominance_semantics entry ->
+  control_edges ⇒ well_formed_ssa blocks entry ⇒ dominance_semantics entry ⇒
   (forall (dominator target : block),
-    dominator ∈ blocks -> target ∈ blocks ->
+    dominator ∈ blocks ⇒ target ∈ blocks ⇒
     (forall (visited_blocks : list block), SsaDominance.block_path_from entry
-      visited_blocks target ->
-       dominator ∈ visited_blocks) -> dominator --dom--> target) ->
-  switch_edge_multiplicity -> graph_size_supported blocks ->
+      visited_blocks target ⇒
+       dominator ∈ visited_blocks) ⇒ dominator --dom--> target) ⇒
+  switch_edge_multiplicity ⇒ graph_size_supported blocks ⇒
   forall (target : block) (initial_regs : registers) (reached : state)
     (step_size : int) (bound_ref : value) (bound_word : Z),
-  NoDup (strict_dominators target) ->
-  (forall (dominator : block), dominator ∈ (strict_dominators target) ->
-     dominator ∈ blocks) ->
-  bounded_registers initial_regs ->
-  context_steps (enter entry initial_regs) reached ->
-  current_block reached = target ->
-  available_value blocks entry (state_program_point reached) bound_ref ->
-  current_registers reached (register_of_value bound_ref) = Some bound_word ->
+  NoDup (strict_dominators target) ⇒
+  (forall (dominator : block), dominator ∈ (strict_dominators target) ⇒
+     dominator ∈ blocks) ⇒
+  bounded_registers initial_regs ⇒
+  context_steps (enter entry initial_regs) reached ⇒
+  current_block reached = target ⇒
+  available_value blocks entry (state_program_point reached) bound_ref ⇒
+  current_registers reached (register_of_value bound_ref) = Some bound_word ⇒
   LoopTermination.bound_in_range step_size target (Value_bound bound_ref)
-    = true ->
+    = true ⇒
   LoopComparisons.bound_in_range (to_Z step_size) bound_word = true.
 Proof.
   intros blocks entry Hedges Hwf Hdominance Hcomplete Hmultiplicity Hsize

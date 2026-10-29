@@ -54,6 +54,7 @@
    guard, such as [SsaGraph.control_edges], use this universe. *)
 
 From Stdlib Require Import ZArith Bool List.
+From OxCamlStdlib Require Import OxCamlLogic.
 From OxCamlStdlib Require Import OxCamlInt OxCamlInt64.
 From OxCamlBackend Require Import IntegerComparison Operation.
 Import ListNotations.
@@ -92,10 +93,10 @@ Parameter block_eqb : block -> block -> bool.
 Parameter value_eqb : value -> value -> bool.
 Parameter instr_id_eqb : instr_id -> instr_id -> bool.
 Axiom block_eqb_spec : forall (block block' : block),
-  block_eqb block block' = true <-> block = block'.
-Axiom value_eqb_spec : forall (v w : value), value_eqb v w = true <-> v = w.
+  block_eqb block block' = true ⇔ block = block'.
+Axiom value_eqb_spec : forall (v w : value), value_eqb v w = true ⇔ v = w.
 Axiom instr_id_eqb_spec : forall (id id' : instr_id),
-  instr_id_eqb id id' = true <-> id = id'.
+  instr_id_eqb id id' = true ⇔ id = id'.
 
 (* ======================================================================== *)
 (* Sets of blocks: [Ssa.Block.Set]                                          *)
@@ -118,7 +119,7 @@ Axiom set_mem_add : forall (block block' : block) (set : blockset),
   = block_eqb block block' || set_mem block set.
 Axiom set_for_all_spec : forall (f : block -> bool) (set : blockset),
   set_for_all f set = true
-  <-> (forall (block : block), set_mem block set = true -> f block = true).
+  ⇔ (forall (block : block), set_mem block set = true ⇒ f block = true).
 
 (* ======================================================================== *)
 (* Blocks                                                                   *)

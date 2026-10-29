@@ -45,6 +45,7 @@
    in part 2. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
+From OxCamlStdlib Require Import OxCamlLogic.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlList.
 From OxCamlBackend Require Import Operation.
 From OxCamlSsa Require Import SsaModel.
@@ -210,14 +211,14 @@ Definition acyclic_except (blocks : list block) (region : blockset)
 Record control_edges : Prop :=
   { goto_successor : forall (source target : block)
       (args : list Terminator.arg),
-      terminator source = Terminator.Continue (Goto target) args ->
+      terminator source = Terminator.Continue (Goto target) args ⇒
       target ∈ (all_successors source);
     switch_successor : forall (source : block) (index : value)
       (targets : list block) (target : block),
-      terminator source = Terminator.Switch index targets ->
-      target ∈ targets -> target ∈ (all_successors source);
+      terminator source = Terminator.Switch index targets ⇒
+      target ∈ targets ⇒ target ∈ (all_successors source);
     predecessor_successor : forall (source target : block),
-      source ∈ (predecessors target) <-> target ∈ (all_successors source) }.
+      source ∈ (predecessors target) ⇔ target ∈ (all_successors source) }.
 
 (* Predecessor metadata retains one occurrence for each Switch edge, including
    repeated targets. Other incoming edges may add occurrences. This is a
@@ -225,7 +226,7 @@ Record control_edges : Prop :=
 Definition switch_edge_multiplicity : Prop :=
   forall (source : block) (index : value) (targets : list block)
     (target : block),
-  terminator source = Terminator.Switch index targets ->
+  terminator source = Terminator.Switch index targets ⇒
   (length (filter (block_eqb target) targets)
     <= length (filter (block_eqb source) (predecessors target)))%nat.
 
@@ -235,7 +236,7 @@ Definition switch_edge_multiplicity : Prop :=
 Definition op_def_correct (defs : op_def) (blocks : list block) : Prop :=
   forall (b : block) (id : instr_id) (op : operation) (args : list value)
     (results : int),
-  b ∈ blocks -> (Op id op args results) ∈ (block_body b) ->
+  b ∈ blocks ⇒ (Op id op args results) ∈ (block_body b) ⇒
   op_def_find defs id = Some b.
 
 (* [uses_only blocks same approve_instr approve_term]: in every block of the
@@ -245,12 +246,12 @@ Definition op_def_correct (defs : op_def) (blocks : list block) : Prop :=
 Definition uses_only (blocks : list block) (same : value -> bool)
     (approve_instr : instr -> Prop)
     (approve_term : block -> list value -> Prop) : Prop :=
-  forall (block : block), block ∈ blocks ->
-    (forall (instr : instr), instr ∈ (block_body block) ->
-       existsb same (args_of_instr instr) = true -> approve_instr instr)
+  forall (block : block), block ∈ blocks ⇒
+    (forall (instr : instr), instr ∈ (block_body block) ⇒
+       existsb same (args_of_instr instr) = true ⇒ approve_instr instr)
     /\ (forall (operands : list value),
-          operands ∈ (terminator_args (terminator block)) ->
-          existsb same operands = true -> approve_term block operands).
+          operands ∈ (terminator_args (terminator block)) ⇒
+          existsb same operands = true ⇒ approve_term block operands).
 
 (* The terminator of [block] is a [Goto] to [target] whose argument at position
    [argument_index] is [argument_value], and no other argument is
@@ -277,7 +278,7 @@ Definition region_edge_avoiding (region : blockset)
 
 (* Removing the header leaves a well-founded successor relation. *)
 Definition region_acyclic_except (region : blockset) (cut : block) : Prop :=
-  forall (b : block), set_mem b region = true -> b <> cut ->
+  forall (b : block), set_mem b region = true ⇒ b <> cut ⇒
     Acc (region_edge_avoiding region cut) b.
 
 (* ======================================================================== *)
@@ -294,14 +295,14 @@ Proof. intros b. apply block_eqb_spec. reflexivity. Qed.
 (* Membership in a set after [set_add], and in a singleton. *)
 Lemma set_mem_add_iff : forall (block block' : block) (set : blockset),
   set_mem block (set_add block' set) = true
-  <-> block = block' \/ set_mem block set = true.
+  ⇔ block = block' \/ set_mem block set = true.
 Proof.
   intros b x s. rewrite set_mem_add, orb_true_iff, block_eqb_spec. tauto.
 Qed.
 
 (* A singleton holds its element and nothing else. *)
 Lemma set_mem_singleton_iff : forall (block block' : block),
-  set_mem block (set_singleton block') = true <-> block = block'.
+  set_mem block (set_singleton block') = true ⇔ block = block'.
 Proof. intros b x. rewrite set_mem_singleton. apply block_eqb_spec. Qed.
 
 (* --- Acyclic regions --- *)
@@ -314,7 +315,7 @@ Section Acyclic.
      no sequence of edges within the region avoiding [cut] goes on for ever. *)
   Definition completed_blocks_accessible (seen : blockset) : Prop :=
     forall (block : block),
-      set_mem block seen = true -> Acc (region_edge_avoiding region cut) block.
+      set_mem block seen = true ⇒ Acc (region_edge_avoiding region cut) block.
 
   (* [block] needs no visit: it is [cut], outside the region, or in [seen]. *)
   Definition block_visit_covered (seen : blockset) (block : block) : Prop :=
@@ -323,12 +324,12 @@ Section Acyclic.
   (* [old] is a subset of [new]. *)
   Definition blockset_subset (old new : blockset) : Prop :=
     forall (block : block),
-      set_mem block old = true -> set_mem block new = true.
+      set_mem block old = true ⇒ set_mem block new = true.
 
   (* Growing the completed set preserves coverage of a block. *)
   Lemma block_visit_covered_subset : forall (old new : blockset)
     (block : block),
-    blockset_subset old new -> block_visit_covered old block ->
+    blockset_subset old new ⇒ block_visit_covered old block ⇒
       block_visit_covered new block.
   Proof.
     intros old new b Hinc [H | [H | H]];
@@ -338,7 +339,7 @@ Section Acyclic.
   (* A skipped block is outside the region, the cut, or already completed. *)
   Lemma skipped_block_visit_covered : forall (seen : blockset) (block : block),
     block_eqb block cut || negb (set_mem block region) || set_mem block seen
-    = true ->
+    = true ⇒
     block_visit_covered seen block.
   Proof.
     intros seen b H. apply orb_true_iff in H. destruct H as [H | H].
@@ -352,16 +353,16 @@ Section Acyclic.
      block visited, so does [visit_all] over [roots], covering every root. *)
   Lemma visit_all_spec : forall (visit : blockset -> block -> option blockset),
     (forall (seen : blockset) (block : block) (completed_set : blockset),
-       completed_blocks_accessible seen -> visit seen block = Some
-         completed_set ->
+       completed_blocks_accessible seen ⇒ visit seen block = Some
+         completed_set ⇒
        completed_blocks_accessible completed_set /\ blockset_subset seen
-         completed_set /\ block_visit_covered completed_set block) ->
+         completed_set /\ block_visit_covered completed_set block) ⇒
     forall (roots : list block) (seen completed_set : blockset),
-      completed_blocks_accessible seen -> visit_all visit seen roots = Some
-        completed_set ->
+      completed_blocks_accessible seen ⇒ visit_all visit seen roots = Some
+        completed_set ⇒
       completed_blocks_accessible completed_set
       /\ blockset_subset seen completed_set
-      /\ forall (block : block), block ∈ roots -> block_visit_covered
+      /\ forall (block : block), block ∈ roots ⇒ block_visit_covered
         completed_set block.
   Proof.
     intros visit Hvisit roots. induction roots as [|b roots IH];
@@ -384,8 +385,8 @@ Section Acyclic.
   Lemma visit_acyclic_spec :
     forall (fuel : list block) (active seen : blockset) (block : block)
       (completed_set : blockset),
-    completed_blocks_accessible seen ->
-    visit_acyclic fuel region cut active seen block = Some completed_set ->
+    completed_blocks_accessible seen ⇒
+    visit_acyclic fuel region cut active seen block = Some completed_set ⇒
     completed_blocks_accessible completed_set /\ blockset_subset seen
       completed_set /\ block_visit_covered completed_set block.
   Proof.
@@ -425,7 +426,7 @@ End Acyclic.
 (* A concrete argument of a Continue is among that terminator's uses. *)
 Lemma continue_argument_operand : forall (continuation : continuation)
     (args : list Terminator.arg) (arg : value),
-  (Terminator.Arg arg) ∈ args ->
+  (Terminator.Arg arg) ∈ args ⇒
   exists (uses : list value),
     uses ∈ (terminator_args (Terminator.Continue continuation args))
     /\ arg ∈ uses.
@@ -442,7 +443,7 @@ Qed.
 (* The indexed version used for back-edge parameter passing. *)
 Lemma continue_argument_used : forall (continuation : continuation)
     (args : list Terminator.arg) (index : int) (arg : value),
-  nth_int args index = Some (Terminator.Arg arg) ->
+  nth_int args index = Some (Terminator.Arg arg) ⇒
   exists (uses : list value),
     uses ∈ (terminator_args (Terminator.Continue continuation args))
     /\ arg ∈ uses.
@@ -456,7 +457,7 @@ Qed.
 (* [goto_args] reads the terminator. *)
 Lemma goto_args_terminator :
   forall (target pred : block) (args : list Terminator.arg),
-  goto_args target pred = Some args ->
+  goto_args target pred = Some args ⇒
   terminator pred = Terminator.Continue (Goto target) args.
 Proof.
   intros target pred args H. unfold goto_args in H.
@@ -470,7 +471,7 @@ Qed.
 (* An accepted Goto has one argument slot per target parameter. *)
 Lemma goto_args_arity : forall (target source : block)
     (args : list Terminator.arg),
-  goto_args target source = Some args ->
+  goto_args target source = Some args ⇒
   same_length args (params target) = true.
 Proof.
   intros target source args Hgoto. unfold goto_args in Hgoto.
@@ -484,7 +485,7 @@ Qed.
 (* [arg_value] reads the argument list. *)
 Lemma arg_value_nth :
   forall (args : list Terminator.arg) (index : int) (argument_value : value),
-  arg_value args index = Some argument_value ->
+  arg_value args index = Some argument_value ⇒
   nth_int args index = Some (Terminator.Arg argument_value).
 Proof.
   intros args i u H. unfold arg_value in H.
@@ -499,8 +500,8 @@ Lemma uses_only_instruction : forall (blocks : list block)
     (same : value -> bool) (approve_insn : instr -> Prop)
     (approve_term : block -> list value -> Prop) (b : block) (insn : instr)
     (arg : value),
-  uses_only blocks same approve_insn approve_term -> b ∈ blocks ->
-  insn ∈ (block_body b) -> arg ∈ (args_of_instr insn) -> same arg = true ->
+  uses_only blocks same approve_insn approve_term ⇒ b ∈ blocks ⇒
+  insn ∈ (block_body b) ⇒ arg ∈ (args_of_instr insn) ⇒ same arg = true ⇒
   approve_insn insn.
 Proof.
   intros blocks same approve_insn approve_term b insn arg Huses Hblock
@@ -515,10 +516,10 @@ Lemma uses_only_weaken :
   forall (blocks : list block) (same : value -> bool)
     (approve_insn weaker_insn_approval : instr -> Prop)
     (approve_term weaker_term_approval : block -> list value -> Prop),
-  (forall (instr : instr), approve_insn instr -> weaker_insn_approval instr) ->
+  (forall (instr : instr), approve_insn instr ⇒ weaker_insn_approval instr) ⇒
   (forall (block : block) (operands : list value),
-     approve_term block operands -> weaker_term_approval block operands) ->
-  uses_only blocks same approve_insn approve_term -> uses_only blocks same
+     approve_term block operands ⇒ weaker_term_approval block operands) ⇒
+  uses_only blocks same approve_insn approve_term ⇒ uses_only blocks same
     weaker_insn_approval weaker_term_approval.
 Proof.
   intros blocks same P P' Q Q' HP HQ H bl Hbl.
@@ -535,7 +536,7 @@ Qed.
    an infinite-trace interpretation. *)
 Theorem acyclic_except_sound :
   forall (blocks : list block) (region : blockset) (cut : block),
-  acyclic_except blocks region cut = true -> region_acyclic_except region cut.
+  acyclic_except blocks region cut = true ⇒ region_acyclic_except region cut.
 Proof.
   intros blocks region cut H b Hmem Hnot. unfold acyclic_except in H.
   destruct (visit_all (visit_acyclic blocks region cut set_empty)
@@ -557,7 +558,7 @@ Theorem all_uses_ok_spec :
   forall (blocks : list block) (same : value -> bool)
     (approve_instr : instr -> bool)
     (approve_term : block -> list value -> bool),
-  all_uses_ok blocks same approve_instr approve_term = true ->
+  all_uses_ok blocks same approve_instr approve_term = true ⇒
   uses_only blocks same
     (fun instr => approve_instr instr = true)
     (fun block operands => approve_term block operands = true).
@@ -577,7 +578,7 @@ Qed.
 Theorem goto_passes_only_at_spec :
   forall (target : block) (argument_index : int) (argument_value : value)
     (block : block),
-  goto_passes_only_at target argument_index argument_value block = true ->
+  goto_passes_only_at target argument_index argument_value block = true ⇒
     passes_only_at target argument_index argument_value block.
 Proof.
   intros target k v bl H. unfold goto_passes_only_at in H. unfold

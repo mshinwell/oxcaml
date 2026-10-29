@@ -40,6 +40,7 @@
    with the other extracted files), is the implementation. *)
 
 From Stdlib Require Import ZArith Lia Bool List Recdef.
+From OxCamlStdlib Require Import OxCamlLogic.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64.
 
 Local Open Scope sint63_scope.
@@ -120,7 +121,7 @@ Local Open Scope Z_scope.
 (* Each checked operation, when it answers, computes the exact result. *)
 
 Lemma add_ovf_spec : forall (a b sum : int),
-  add_ovf a b = Some sum -> to_Z sum = to_Z a + to_Z b.
+  add_ovf a b = Some sum ⇒ to_Z sum = to_Z a + to_Z b.
 Proof.
   unfold add_ovf. intros a b s H. rewrite add_fits_spec in H.
   destruct (fits_int _) eqn:Hr; [ | discriminate ].
@@ -130,7 +131,7 @@ Qed.
 
 (* The checked product is the exact product. *)
 Lemma mul_ovf_spec : forall (a b product : int),
-  mul_ovf a b = Some product -> to_Z product = to_Z a * to_Z b.
+  mul_ovf a b = Some product ⇒ to_Z product = to_Z a * to_Z b.
 Proof.
   unfold mul_ovf. intros a b s H. rewrite mul_fits_spec in H.
   destruct (fits_int _) eqn:Hr; [ | discriminate ].
@@ -140,7 +141,7 @@ Qed.
 
 (* The checked negation is the exact negation. *)
 Lemma neg_ovf_spec : forall (a negated : int),
-  neg_ovf a = Some negated -> to_Z negated = - to_Z a.
+  neg_ovf a = Some negated ⇒ to_Z negated = - to_Z a.
 Proof.
   unfold neg_ovf. intros a s H.
   destruct (a =? min_int)%sint63 eqn:E; [ discriminate | ].
@@ -149,7 +150,7 @@ Qed.
 
 (* The checked 64-bit sum is the exact sum. *)
 Lemma add_ovf64_spec : forall (a b sum : Int64.t),
-  add_ovf64 a b = Some sum -> Int64.to_Z sum = Int64.to_Z a + Int64.to_Z b.
+  add_ovf64 a b = Some sum ⇒ Int64.to_Z sum = Int64.to_Z a + Int64.to_Z b.
 Proof.
   unfold add_ovf64. intros a b s H. rewrite add_fits64_spec in H.
   destruct (fits_int64 _) eqn:Hr; [ | discriminate ].
@@ -159,7 +160,7 @@ Qed.
 
 (* The checked 64-bit product is the exact product. *)
 Lemma mul_ovf64_spec : forall (a b product : Int64.t),
-  mul_ovf64 a b = Some product -> Int64.to_Z product = Int64.to_Z a *
+  mul_ovf64 a b = Some product ⇒ Int64.to_Z product = Int64.to_Z a *
     Int64.to_Z b.
 Proof.
   unfold mul_ovf64. intros a b s H. rewrite mul_fits64_spec in H.
@@ -171,7 +172,7 @@ Qed.
 (* An [Int64] that [int64_is_int] accepts has the value of the [int] read from
    it. *)
 Lemma int64_is_int_spec : forall (n : Int64.t),
-  int64_is_int n = true -> to_Z (Int64.to_int n) = Int64.to_Z n.
+  int64_is_int n = true ⇒ to_Z (Int64.to_int n) = Int64.to_Z n.
 Proof.
   intros n H. unfold int64_is_int in H. apply Int64.equal_spec in H.
   rewrite Int64.of_int_spec in H. exact H.
@@ -179,7 +180,7 @@ Qed.
 
 (* The [int] [to_int_ovf] returns has the value of its argument. *)
 Lemma to_int_ovf_spec : forall (x : Int64.t) (i : int),
-  to_int_ovf x = Some i -> to_Z i = Int64.to_Z x.
+  to_int_ovf x = Some i ⇒ to_Z i = Int64.to_Z x.
 Proof.
   unfold to_int_ovf. intros x i H.
   destruct (int64_is_int x) eqn:E; [ | discriminate ].
@@ -206,7 +207,7 @@ Qed.
 (* [Int64.abs] does not change divisibility, even on [min_int] (which it leaves
    unchanged). *)
 Lemma abs64_divide : forall (d : Z) (c : Int64.t),
-  (d | Int64.to_Z (Int64.abs c)) -> (d | Int64.to_Z c).
+  (d | Int64.to_Z (Int64.abs c)) ⇒ (d | Int64.to_Z c).
 Proof.
   intros d c H. rewrite Int64.abs_spec in H.
   pose proof (Int64.to_Z_bounded c) as Hc. unfold in_int64 in Hc.
@@ -221,7 +222,7 @@ Qed.
 
 (* [floor_div64] is floor division. *)
 Lemma floor_div64_spec : forall (dividend divisor : Int64.t),
-  0 < Int64.to_Z divisor -> Int64.to_Z (floor_div64 dividend divisor) =
+  0 < Int64.to_Z divisor ⇒ Int64.to_Z (floor_div64 dividend divisor) =
     Int64.to_Z dividend / Int64.to_Z divisor.
 Proof.
   intros c g Hg. unfold floor_div64.
@@ -290,7 +291,7 @@ Qed.
 (* [Int64.div] by a positive divisor that divides exactly is the exact
    quotient. *)
 Lemma div_exact64 : forall (dividend divisor : Int64.t),
-  0 < Int64.to_Z divisor -> (Int64.to_Z divisor | Int64.to_Z dividend) ->
+  0 < Int64.to_Z divisor ⇒ (Int64.to_Z divisor | Int64.to_Z dividend) ⇒
   Int64.to_Z (Int64.div dividend divisor)
   = Int64.to_Z dividend / Int64.to_Z divisor.
 Proof.

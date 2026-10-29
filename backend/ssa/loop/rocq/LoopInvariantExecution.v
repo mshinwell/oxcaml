@@ -34,6 +34,7 @@
    assigning invariance to fabricated expressions. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
+From OxCamlStdlib Require Import OxCamlLogic.
 From OxCamlStdlib Require Import OxCamlList.
 From OxCamlStdlib Require Import OxCamlInt OxCamlInt64.
 From OxCamlBackend Require Import Operation.
@@ -78,7 +79,7 @@ Section Invariants.
 
   (* A strict dominator of the header cannot also lie in its body. *)
   Lemma strict_dominator_outside_loop : forall (dominator : block),
-    dominator --dom--> loop.(header) -> dominator <> loop.(header) ->
+    dominator --dom--> loop.(header) ⇒ dominator <> loop.(header) ⇒
     set_mem dominator loop.(body) = false.
   Proof.
     intros dominator Hdom Hstrict.
@@ -105,9 +106,9 @@ Section Invariants.
   Lemma invariant_result_defined_outside_loop : forall (id : instr_id)
     (index : int)
       (defining_block : block),
-    op_def_find defs id = Some defining_block ->
-    defining_block --dom--> loop.(header) ->
-    defining_block <> loop.(header) ->
+    op_def_find defs id = Some defining_block ⇒
+    defining_block --dom--> loop.(header) ⇒
+    defining_block <> loop.(header) ⇒
     ~ register_defined_in_region loop.(body) (Result id index).
   Proof.
     intros id index defining_block Hlookup Hdom Hstrict
@@ -126,8 +127,8 @@ Section Invariants.
   Lemma unmodeled_result_defined_outside_loop : forall (id : instr_id)
       (op : operation) (args : list value) (index : int)
         (position : program_point),
-    modeled_operation op args = false ->
-    available_value blocks entry position (Res id op args index) ->
+    modeled_operation op args = false ⇒
+    available_value blocks entry position (Res id op args index) ⇒
     ~ register_defined_in_region loop.(body) (Result id index).
   Proof.
     intros id op args index position Hopaque
@@ -151,13 +152,13 @@ Section Invariants.
      states, and fabricated results are not definitions. *)
   Theorem loop_invariant_value_same :
     forall (invariant_ref : value) (first second : state),
-    region_steps loop.(body) start first ->
-    region_steps loop.(body) start second ->
-    set_mem (current_block first) loop.(body) = true ->
-    set_mem (current_block second) loop.(body) = true ->
-    loop_invariant_value defs loop.(header) invariant_ref ->
-    available_value blocks entry (state_program_point first) invariant_ref ->
-    available_value blocks entry (state_program_point second) invariant_ref ->
+    region_steps loop.(body) start first ⇒
+    region_steps loop.(body) start second ⇒
+    set_mem (current_block first) loop.(body) = true ⇒
+    set_mem (current_block second) loop.(body) = true ⇒
+    loop_invariant_value defs loop.(header) invariant_ref ⇒
+    available_value blocks entry (state_program_point first) invariant_ref ⇒
+    available_value blocks entry (state_program_point second) invariant_ref ⇒
     current_registers second (register_of_value invariant_ref)
       = current_registers first (register_of_value invariant_ref).
   Proof.

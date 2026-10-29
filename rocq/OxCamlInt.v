@@ -33,6 +33,7 @@
    the basic facts about [int] that the proofs need. *)
 
 From Stdlib Require Import ZArith Lia Bool.
+From OxCamlStdlib Require Import OxCamlLogic.
 From Stdlib Require Export Sint63.
 
 (* The literals are named so that extraction can print them as OxCaml literals
@@ -83,7 +84,7 @@ Definition fits_int (z : Z) : bool := (- two62 <=? z) && (z <=? two62 - 1).
 
 (* [fits_int] answering [true] means that the bounds hold. *)
 Lemma fits_int_true : forall (z : Z),
-  fits_int z = true -> - two62 <= z <= two62 - 1.
+  fits_int z = true ⇒ - two62 <= z <= two62 - 1.
 Proof.
   unfold fits_int. intros z H. apply andb_prop in H as [H1 H2].
   apply Z.leb_le in H1. apply Z.leb_le in H2. lia.
@@ -91,19 +92,19 @@ Qed.
 
 (* --- The boolean tests on [int], as propositions. --- *)
 
-Lemma eqb_int : forall x y : int, (x =? y)%sint63 = true <-> x = y.
+Lemma eqb_int : forall x y : int, (x =? y)%sint63 = true ⇔ x = y.
 Proof. intros. apply Uint63.eqb_spec. Qed.
 
-Lemma eqb_int_false : forall x y : int, (x =? y)%sint63 = false <-> x <> y.
+Lemma eqb_int_false : forall x y : int, (x =? y)%sint63 = false ⇔ x <> y.
 Proof. intros. rewrite <- not_true_iff_false, eqb_int. tauto. Qed.
 
 Lemma eqb_int_refl : forall x : int, (x =? x)%sint63 = true.
 Proof. intros. apply eqb_int. reflexivity. Qed.
 
-Lemma ltb_int : forall x y : int, (x <? y)%sint63 = true <-> to_Z x < to_Z y.
+Lemma ltb_int : forall x y : int, (x <? y)%sint63 = true ⇔ to_Z x < to_Z y.
 Proof. intros. apply Sint63.ltb_spec. Qed.
 
-Lemma leb_int : forall x y : int, (x <=? y)%sint63 = true <-> to_Z x <= to_Z y.
+Lemma leb_int : forall x y : int, (x <=? y)%sint63 = true ⇔ to_Z x <= to_Z y.
 Proof. intros. apply Sint63.leb_spec. Qed.
 
 (* Testing a machine int's sign agrees with its mathematical value. *)
@@ -122,7 +123,7 @@ Qed.
 (* --- [lsl] --- *)
 
 (* The unsigned reading of a non-negative [int] is its value. *)
-Lemma uint_to_Z_nonneg : forall n : int, 0 <= to_Z n -> Uint63.to_Z n = to_Z n.
+Lemma uint_to_Z_nonneg : forall n : int, 0 <= to_Z n ⇒ Uint63.to_Z n = to_Z n.
 Proof.
   intros n Hn. rewrite <- (Sint63.to_Z_mod_Uint63to_Z n). apply Z.mod_small.
   assert (HwB : Uint63Axioms.wB = 2 * two62) by reflexivity.
@@ -133,7 +134,7 @@ Qed.
    for [shift_amount <= 61]: [lsl] shifts the unsigned reading, and bit 62 is
    the sign bit. *)
 Lemma to_Z_lsl_one : forall shift_amount : int,
-  0 <= to_Z shift_amount <= 61 ->
+  0 <= to_Z shift_amount <= 61 ⇒
   to_Z (one << shift_amount)%sint63 = 2 ^ to_Z shift_amount.
 Proof.
   intros n Hn.
@@ -153,7 +154,7 @@ Qed.
    62]: at [shift_amount = 62] the shift gives [min_int] and the subtraction
    wraps to [max_int], which is the right value. *)
 Lemma to_Z_lsl_one_pred : forall shift_amount : int,
-  1 <= to_Z shift_amount <= 62 -> to_Z ((one << shift_amount) - one)%sint63 = 2
+  1 <= to_Z shift_amount <= 62 ⇒ to_Z ((one << shift_amount) - one)%sint63 = 2
     ^ to_Z shift_amount - 1.
 Proof.
   intros n Hn.

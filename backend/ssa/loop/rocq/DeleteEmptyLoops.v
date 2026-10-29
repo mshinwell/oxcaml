@@ -78,6 +78,7 @@
    loop. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
+From OxCamlStdlib Require Import OxCamlLogic.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlList.
 From OxCamlBackend Require Import Operation.
 From OxCamlSsa Require Import SsaModel SsaGraph SsaSemantics.
@@ -163,16 +164,16 @@ Definition find_deletions (op_def : op_def) (blocks : list block)
    progress when the operands are bound; the frame and boundedness theorems
    there describe exactly what execution changes. *)
 Definition body_in_supported_fragment (loop : natural_loop) : Prop :=
-  forall (block : block), set_mem block loop.(body) = true ->
-    (forall (insn : instr), insn ∈ (block_body block) ->
+  forall (block : block), set_mem block loop.(body) = true ⇒
+    (forall (insn : instr), insn ∈ (block_body block) ⇒
        supported_instruction insn = true)
     /\ terminator_pure_control (terminator block) = true.
 
 (* Every edge out of a block of the body stays in the body or goes to [exit].
    *)
 Definition exits_only_to (loop : natural_loop) (exit : block) : Prop :=
-  forall (pred : block), set_mem pred loop.(body) = true ->
-    forall (succ : block), succ ∈ (all_successors pred) ->
+  forall (pred : block), set_mem pred loop.(body) = true ⇒
+    forall (succ : block), succ ∈ (all_successors pred) ⇒
       set_mem succ loop.(body) = true \/ succ = exit.
 
 (* The header's exit branch, in the shape LoopTermination.v recognises, goes to
@@ -187,10 +188,10 @@ Definition exit_branch_to (loop : natural_loop) (exit : block) : Prop :=
 Definition params_are_dead_bivs (op_def : op_def) (blocks : list block)
     (loop : natural_loop) (bivs : list InductionVar.biv) : Prop :=
   (forall (parameter_index : int) (parameter : value), nth_int (params
-    loop.(header)) parameter_index = Some parameter ->
+    loop.(header)) parameter_index = Some parameter ⇒
      exists (biv : InductionVar.biv),
        biv ∈ bivs /\ biv.(param_index) = parameter_index)
-  /\ (forall (biv : InductionVar.biv), biv ∈ bivs ->
+  /\ (forall (biv : InductionVar.biv), biv ∈ bivs ⇒
         biv_spec op_def loop biv /\ dead_spec blocks biv).
 
 (* What holds of a loop [loop], with the basic induction variables [bivs]
@@ -211,7 +212,7 @@ Definition deletion_certificate (op_def : op_def) (blocks : list block)
 
 (* The loop's instruction whitelist and control-flow restriction. *)
 Lemma body_supported_spec : forall (loop : natural_loop),
-  body_supported loop = true -> body_in_supported_fragment loop.
+  body_supported loop = true ⇒ body_in_supported_fragment loop.
 Proof.
   intros l H bl Hbl. unfold body_supported in H.
   rewrite set_for_all_spec in H. apply supported_block_spec, H. exact Hbl.
@@ -219,7 +220,7 @@ Qed.
 
 (* What [single_exit] checks, read back. *)
 Lemma single_exit_spec : forall (loop : natural_loop) (exit : block),
-  single_exit loop exit = true -> exits_only_to loop exit.
+  single_exit loop exit = true ⇒ exits_only_to loop exit.
 Proof.
   intros l exit H bl Hbl s Hs. unfold single_exit in H.
   rewrite set_for_all_spec in H. specialize (H bl Hbl).
@@ -232,7 +233,7 @@ Qed.
    comparison passed. This witness is used by operational proofs. *)
 Lemma certificate_counter : forall (defs : op_def) (blocks : list block)
     (loop : natural_loop) (bivs : list InductionVar.biv) (exit : block),
-  deletion_certificate defs blocks loop bivs exit ->
+  deletion_certificate defs blocks loop bivs exit ⇒
   exists (counter : InductionVar.biv), counter ∈ bivs
     /\ biv_spec defs loop counter
     /\ biv_implies_termination defs counter = true.
@@ -259,12 +260,12 @@ Qed.
    rule for every instruction of every prefix. *)
 Theorem find_deletions_supported :
   forall (defs : op_def) (blocks : list block) (header exit : block),
-  (header, exit) ∈ (find_deletions defs blocks) ->
+  (header, exit) ∈ (find_deletions defs blocks) ⇒
   graph_size_supported blocks /\
   forall (b : block) (id : instr_id) (op : operation) (args : list value)
     (count : int),
-    b ∈ blocks -> (Op id op args count) ∈ (block_body b) ->
-    modeled_operation op args = true -> count = one.
+    b ∈ blocks ⇒ (Op id op args count) ∈ (block_body b) ⇒
+    modeled_operation op args = true ⇒ count = one.
 Proof.
   intros defs blocks header exit Hin. unfold find_deletions in Hin.
   destruct (graph_supported blocks) eqn:Hcheck; [ | contradiction].
@@ -288,7 +289,7 @@ Qed.
    *)
 Theorem find_deletions_spec :
   forall (op_def : op_def) (blocks : list block) (header exit : block),
-  (header, exit) ∈ (find_deletions op_def blocks) ->
+  (header, exit) ∈ (find_deletions op_def blocks) ⇒
   exists (loop : natural_loop) (bivs : list InductionVar.biv),
     (loop, bivs) ∈ (InductionVar.analyze op_def blocks)
     /\ header = loop.(NaturalLoop.header)
