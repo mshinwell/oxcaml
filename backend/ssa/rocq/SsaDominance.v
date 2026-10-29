@@ -1,26 +1,27 @@
-(* Dominance in an SSA graph, beyond the [dominates] test SsaModel.v takes
-   from the compiler: strict dominance, the test that a block is entered
-   from one block only, and what dominance means in terms of paths. The
-   extraction of this file, SsaDominance.ml, is the implementation.
+(* Dominance in an SSA graph, beyond the [dominates] test SsaModel.v takes from
+   the compiler: strict dominance, the test that a block is entered from one
+   block only, and what dominance means in terms of paths. The extraction of
+   this file, SsaDominance.ml, is the implementation.
 
-   See the reading guide at the top of backend/ssa/loop/rocq/
-   LoopComparisons.v for the Rocq vocabulary and SsaModel.v for how the
-   models see an SSA graph. As there, the file has four parts: (1) the
-   definitions, (2) the intended meaning, (3) stepping-stone lemmas, (4)
-   the theorems. Parts 1 and 2 are the part to check by eye.
+   See backend/ssa/loop/rocq/LoopComparisons.v for the Rocq reading guide and
+   SsaModel.v for how the models see an SSA graph.
+   As there, the file has four parts: (1) the definitions, (2) the intended
+   meaning, (3) stepping-stone lemmas, (4) the theorems. Parts 1 and 2 are the
+   part to check by eye.
 
    The results are the point-level dominance facts of part 3, which
    SsaExecution.v, SsaLiveness.v and the loop proofs use; the direction a
-   dominating branch took is derived operationally in LoopGuardExecution.v
-   from [singleton_predecessor_dominance].
+   dominating branch took is derived operationally in LoopGuardExecution.v from
+   [singleton_predecessor_dominance].
 
-   The trusted part is SsaModel.v: that [predecessors] lists the sources of
-   the edges into a block, that [dominates d b] means every path from the
-   entry to [b] passes through [d], and that the entry dominates every block
-   (every block of a finished graph is reachable from it). The last two
-   are [dominance_semantics] in part 2, which the theorems assume. *)
+   The trusted part is SsaModel.v: that [predecessors] lists the sources of the
+   edges into a block, that [dominates d b] means every path from the entry to
+   [b] passes through [d], and that the entry dominates every block (every
+   block of a finished graph is reachable from it). The last two are
+   [dominance_semantics] in part 2, which the theorems assume. *)
 
 From Stdlib Require Import Bool List Lia PeanoNat.
+From OxCamlStdlib Require Import OxCamlList.
 From OxCamlSsa Require Import SsaModel SsaGraph.
 Import ListNotations.
 
@@ -32,13 +33,12 @@ Import ListNotations.
 Definition strictly_dominates (dominator block : block) : bool :=
   dominates dominator block && negb (block_eqb dominator block).
 
-(* [pred] is the sole predecessor of [succ], which is not the graph's
-   entry: control enters [succ] only from [pred]. The entry has a
-   predecessor when the function calls itself in tail position ([Continue
-   (Goto entry)]), yet is also entered from outside; on a finished graph,
-   where every block is reachable from the entry, a block that dominates
-   its only predecessor can only be the entry, which the first test
-   excludes. *)
+(* [pred] is the sole predecessor of [succ], which is not the graph's entry:
+   control enters [succ] only from [pred]. The entry has a predecessor when the
+   function calls itself in tail position ([Continue (Goto entry)]), yet is
+   also entered from outside; on a finished graph, where every block is
+   reachable from the entry, a block that dominates its only predecessor can
+   only be the entry, which the first test excludes. *)
 Definition sole_predecessor (pred succ : block) : bool :=
   negb (dominates succ pred)
   && match predecessors succ with
@@ -50,158 +50,177 @@ Definition sole_predecessor (pred succ : block) : bool :=
 (* Part 2: the intended meaning                                             *)
 (* ======================================================================== *)
 
-(* [path first p last]: [p] is a path from [first] to [last] along the
-   graph's edges, listing its blocks from [first] to [last]. An edge
-   [pred -> succ] is [pred] being a predecessor of [succ]. *)
-Inductive path : block -> list block -> block -> Prop :=
-  | path_one : forall (block : block), path block [block] block
-  | path_cons : forall (pred succ : block) (rest : list block) (last : block),
-      In pred (predecessors succ) -> path succ (succ :: rest) last ->
-      path pred (pred :: succ :: rest) last.
+(* [block_path_from first p last]: [p] is a path from [first] to [last] along
+   the graph's edges, listing its blocks from [first] to [last]. An edge [pred
+   -> succ] is [pred] being a predecessor of [succ]. *)
+Inductive block_path_from : block -> list block -> block -> Prop :=
+  | Block_path_one : forall (block : block),
+      block_path_from block [block] block
+  | Block_path_cons : forall (pred succ : block) (rest : list block)
+      (last : block),
+      pred ∈ (predecessors succ) ->
+      block_path_from succ (succ :: rest) last ->
+      block_path_from pred (pred :: succ :: rest) last.
 
-(* What the compiler's [dominates], written [--dom-->], means, [entry]
-   being the graph's entry block: every path from the entry to [target]
-   passes through each dominator of [target], and the entry dominates every
-   block, each being reachable from it. Nothing is assumed of the entry's
+(* What the compiler's [dominates], written [--dom-->], means, [entry] being
+   the graph's entry block: every path from the entry to [target] passes
+   through each dominator of [target], and the entry dominates every block,
+   each being reachable from it. Nothing is assumed of the entry's
    predecessors: a self-recursive tail call is a back edge to the entry. *)
 Record dominance_semantics (entry : block) : Prop :=
   { dominates_spec : forall (dominator target : block),
       dominator --dom--> target ->
-      forall (p : list block), path entry p target -> In dominator p;
+      forall (visited_blocks : list block),
+      block_path_from entry visited_blocks target ->
+      dominator ∈ visited_blocks;
     entry_dominates : forall (block : block), entry --dom--> block }.
 
 Arguments dominates_spec {entry}.
 Arguments entry_dominates {entry}.
 
-(* A program point is a block and the number of instructions still to
-   execute. The entry point has the full body remaining; point zero is
-   the terminator. Result definitions become available after their
-   instruction, while parameters are available at the block entry. *)
-Definition point : Type := block * nat.
+(* A program point is a block and the number of instructions still to execute.
+   The entry point has the full body remaining; point zero is the terminator.
+   Result definitions become available after their instruction, while
+   parameters are available at the block entry. *)
+Definition program_point : Type := block * nat.
 
-Definition entry_point (b : block) : point := (b, length (block_body b)).
+Definition block_entry_point (target : block) : program_point :=
+  (target, length (block_body target)).
 
-Definition point_eqb (lhs rhs : point) : bool :=
+Definition program_point_eqb (lhs rhs : program_point) : bool :=
   block_eqb (fst lhs) (fst rhs) && Nat.eqb (snd lhs) (snd rhs).
 
-(* Instruction edges advance through a block. Terminator edges use the
-   same successor observation as block dominance, including exceptional
-   successors even though the restricted semantics cannot take them. *)
-Inductive point_edge : point -> point -> Prop :=
-  | Point_instruction : forall (b : block) (insns_left : nat),
+(* Instruction edges advance through a block. Terminator edges use the same
+   successor observation as block dominance, including exceptional successors
+   even though the restricted semantics cannot take them. *)
+Inductive program_point_edge : program_point -> program_point -> Prop :=
+  | Program_point_instruction : forall (b : block) (insns_left : nat),
       insns_left < length (block_body b) ->
-      point_edge (b, S insns_left) (b, insns_left)
-  | Point_transfer : forall (source target : block),
-      In target (all_successors source) ->
-      point_edge (source, 0) (entry_point target).
+      program_point_edge (b, S insns_left) (b, insns_left)
+  | Program_point_transfer : forall (source target : block),
+      target ∈ (all_successors source) ->
+      program_point_edge (source, 0) (block_entry_point target).
 
-Inductive point_path : point -> list point -> point -> Prop :=
-  | Point_path_one : forall (p : point), point_path p [p] p
-  | Point_path_cons : forall (first next last : point) (rest : list point),
-      point_edge first next -> point_path next (next :: rest) last ->
-      point_path first (first :: next :: rest) last.
+Inductive program_point_path_from
+    : program_point -> list program_point -> program_point -> Prop :=
+  | Program_point_path_one : forall (position : program_point),
+      program_point_path_from position [position] position
+  | Program_point_path_cons : forall (first next last : program_point)
+      (rest : list program_point),
+      program_point_edge first next ->
+      program_point_path_from next (next :: rest) last ->
+      program_point_path_from first (first :: next :: rest) last.
 
-Definition point_dominates (entry : block) (dominator target : point)
-    : Prop :=
-  forall (points : list point),
-    point_path (entry_point entry) points target -> In dominator points.
+Definition program_point_dominates (entry : block)
+    (dominator target : program_point) : Prop :=
+  forall (points : list program_point),
+    program_point_path_from (block_entry_point entry) points target ->
+    dominator ∈ points.
 
-Definition point_reachable (entry : block) (target : point) : Prop :=
-  exists (points : list point), point_path (entry_point entry) points target.
+Definition program_point_reachable (entry : block)
+    (target : program_point) : Prop :=
+  exists (points : list program_point),
+    program_point_path_from (block_entry_point entry) points target.
 
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
 (* ======================================================================== *)
 
 (* Point equality compares the block identity and instruction position. *)
-Lemma point_eqb_spec : forall (lhs rhs : point),
-  point_eqb lhs rhs = true <-> lhs = rhs.
+Lemma program_point_eqb_spec : forall (lhs rhs : program_point),
+  program_point_eqb lhs rhs = true <-> lhs = rhs.
 Proof.
-  intros [b n] [b' n']. unfold point_eqb; cbn.
+  intros [b n] [b' n']. unfold program_point_eqb; cbn.
   rewrite andb_true_iff, block_eqb_spec, Nat.eqb_eq.
   split; [intros [-> ->]; reflexivity | intros H; inversion H; auto].
 Qed.
 
 (* Every path contains its endpoint, so each point dominates itself. *)
-Lemma point_dominates_refl : forall (entry : block) (position : point),
-  point_dominates entry position position.
+Lemma program_point_dominates_refl : forall (entry : block)
+  (position : program_point),
+  program_point_dominates entry position position.
 Proof.
   intros entry position points Hpath. induction Hpath;
     [left; reflexivity | right; exact IHHpath].
 Qed.
 
 (* A point path can be extended at either end by one graph edge. *)
-Lemma point_path_prepend : forall (first next last : point)
-    (points : list point),
-  point_edge first next -> point_path next points last ->
-  point_path first (first :: points) last.
+Lemma program_point_path_prepend : forall (first next last : program_point)
+    (points : list program_point),
+  program_point_edge first next -> program_point_path_from next points last ->
+  program_point_path_from first (first :: points) last.
 Proof.
   intros first next last points Hedge Hpath.
-  inversion Hpath; subst; apply Point_path_cons; assumption.
+  inversion Hpath; subst; apply Program_point_path_cons; assumption.
 Qed.
 
-Lemma point_path_snoc : forall (first last next : point)
-    (points : list point),
-  point_path first points last -> point_edge last next ->
-  point_path first (points ++ [next]) next.
+Lemma program_point_path_snoc : forall (first last next : program_point)
+    (points : list program_point),
+  program_point_path_from first points last -> program_point_edge last next ->
+  program_point_path_from first (points ++ [next]) next.
 Proof.
   intros first last next points Hpath. induction Hpath; intros Hedge; cbn.
-  - apply Point_path_cons; [exact Hedge | constructor].
-  - apply Point_path_cons; [assumption | apply IHHpath; exact Hedge].
+  - apply Program_point_path_cons; [exact Hedge | constructor].
+  - apply Program_point_path_cons; [assumption | apply IHHpath; exact Hedge].
 Qed.
 
 (* Join two paths without requiring a self-edge at their shared point. *)
-Lemma point_path_join : forall (first middle last : point)
-    (prefix suffix : list point),
-  point_path first prefix middle -> point_path middle suffix last ->
-  exists (joined : list point), point_path first joined last /\
-    forall (member : point), In member joined ->
-      In member prefix \/ In member suffix.
+Lemma program_point_path_join : forall (first middle last : program_point)
+    (prefix suffix : list program_point),
+  program_point_path_from first prefix middle -> program_point_path_from middle
+    suffix last ->
+  exists (joined : list program_point), program_point_path_from first joined
+    last /\
+    forall (member : program_point), member ∈ joined ->
+      member ∈ prefix \/ member ∈ suffix.
 Proof.
   intros first middle last prefix suffix Hprefix Hsuffix.
   induction Hprefix.
   - exists suffix. split; [exact Hsuffix | auto].
   - destruct (IHHprefix Hsuffix) as [joined [Hjoined Hmembers]].
     exists (first :: joined). split.
-    + eapply point_path_prepend; eassumption.
+    + eapply program_point_path_prepend; eassumption.
     + intros member [<- | Hin]; [left; left; reflexivity |].
       destruct (Hmembers member Hin); [left; right | right]; assumption.
 Qed.
 
 (* Keep the suffix starting at the last occurrence of a selected point. *)
-Lemma point_path_last_visit : forall (first last : point)
-    (points : list point),
-  point_path first points last -> forall (selected : point),
-  In selected points -> exists (tail : list point),
-    point_path selected (selected :: tail) last /\ ~ In selected tail.
+Lemma program_point_path_last_visit : forall (first last : program_point)
+    (points : list program_point),
+  program_point_path_from first points last -> forall (selected :
+    program_point),
+  selected ∈ points -> exists (tail : list program_point),
+    program_point_path_from selected (selected :: tail) last /\ selected ∉ tail.
 Proof.
   intros first last points Hpath. induction Hpath;
     intros selected Hin.
   - destruct Hin as [<- | []]. exists []. split; [constructor | tauto].
-  - destruct (existsb (point_eqb selected) (next :: rest)) eqn:Hlater.
+  - destruct (existsb (program_point_eqb selected) (next :: rest)) eqn:Hlater.
     + apply existsb_exists in Hlater. destruct Hlater as [p [Hp Heq]].
-      apply point_eqb_spec in Heq. subst p. apply IHHpath. exact Hp.
+      apply program_point_eqb_spec in Heq. subst p. apply IHHpath. exact Hp.
     + destruct Hin as [<- | Hin].
       * exists (next :: rest). split; [econstructor; eassumption |].
-        intros Hin. assert (existsb (point_eqb first) (next :: rest) = true).
+        intros Hin. assert (existsb (program_point_eqb first)
+          (next :: rest) = true).
         { apply existsb_exists. exists first. split; [exact Hin |].
-          apply point_eqb_spec. reflexivity. }
+          apply program_point_eqb_spec. reflexivity. }
         congruence.
-      * assert (existsb (point_eqb selected) (next :: rest) = true).
+      * assert (existsb (program_point_eqb selected) (next :: rest) = true).
         { apply existsb_exists. exists selected. split; [exact Hin |].
-          apply point_eqb_spec. reflexivity. }
+          apply program_point_eqb_spec. reflexivity. }
         congruence.
 Qed.
 
-(* A path avoiding a region's entry point after its start cannot leave
-   and re-enter a region closed under all other incoming edges. *)
-Lemma point_path_region_suffix : forall (inside : point -> Prop)
-    (cut : point),
-  (forall (before after : point), point_edge before after ->
+(* A path avoiding a region's entry point after its start cannot leave and
+   re-enter a region closed under all other incoming edges. *)
+Lemma program_point_path_region_suffix : forall (inside : program_point ->
+  Prop)
+    (cut : program_point),
+  (forall (before after : program_point), program_point_edge before after ->
      inside after -> after <> cut -> inside before) ->
-  forall (first last : point) (points : list point),
-  point_path first points last -> inside last ->
-  ~ In cut (tl points) -> Forall inside points.
+  forall (first last : program_point) (points : list program_point),
+  program_point_path_from first points last -> inside last ->
+  cut ∉ (tl points) -> Forall inside points.
 Proof.
   intros inside cut Hclosed first last points Hpath.
   induction Hpath; intros Hlast Havoid.
@@ -214,41 +233,41 @@ Proof.
 Qed.
 
 (* Truncate a path at its first visit to the destination. *)
-Lemma point_path_first_visit : forall (first last : point)
-    (points : list point),
-  point_path first points last ->
-  exists (prefix : list point),
-    point_path first (prefix ++ [last]) last /\ ~ In last prefix.
+Lemma program_point_path_first_visit : forall (first last : program_point)
+    (points : list program_point),
+  program_point_path_from first points last ->
+  exists (prefix : list program_point),
+    program_point_path_from first (prefix ++ [last]) last /\ last ∉ prefix.
 Proof.
   intros first last points Hpath. induction Hpath.
   - exists []. split; [constructor | cbn; tauto].
-  - destruct (point_eqb first last) eqn:E.
-    + apply point_eqb_spec in E. subst first.
+  - destruct (program_point_eqb first last) eqn:E.
+    + apply program_point_eqb_spec in E. subst first.
       exists []. split; [constructor | cbn; tauto].
     + destruct IHHpath as [prefix [Hp Hnot]].
       exists (first :: prefix). split.
-      * cbn. eapply point_path_prepend; eassumption.
+      * cbn. eapply program_point_path_prepend; eassumption.
       * intros [Heq | Hin]; [ | contradiction].
-        subst first. assert (point_eqb last last = true)
-          by (apply point_eqb_spec; reflexivity). congruence.
+        subst first. assert (program_point_eqb last last = true)
+          by (apply program_point_eqb_spec; reflexivity). congruence.
 Qed.
 
-(* A member of an avoiding prefix can be reached without leaving that
-   prefix. This is the path-splicing fact needed for antisymmetry. *)
-Lemma point_path_prefix_avoiding : forall (first last : point)
-    (points : list point),
-  point_path first points last ->
-  forall (prefix suffix : list point) (member avoid : point),
-  points = prefix ++ suffix -> ~ In avoid prefix -> In member prefix ->
-  exists (before_member : list point),
-    point_path first before_member member /\ ~ In avoid before_member.
+(* A member of an avoiding prefix can be reached without leaving that prefix.
+   This is the path-splicing fact needed for antisymmetry. *)
+Lemma program_point_path_prefix_avoiding : forall (first last : program_point)
+    (points : list program_point),
+  program_point_path_from first points last ->
+  forall (prefix suffix : list program_point) (member avoid : program_point),
+  points = prefix ++ suffix -> avoid ∉ prefix -> member ∈ prefix ->
+  exists (before_member : list program_point),
+    program_point_path_from first before_member member /\ avoid ∉ before_member.
 Proof.
   intros first last points Hpath. induction Hpath;
     intros prefix suffix member avoid Heq Havoid Hin;
     destruct prefix as [ | head prefix]; [contradiction | | contradiction |].
   - cbn in Heq. injection Heq as <- Htail.
     destruct prefix; [ | discriminate]. cbn in Hin.
-    destruct Hin as [<- | []]. exists [p]. split; [constructor |].
+    destruct Hin as [<- | []]. exists [position]. split; [constructor |].
     exact Havoid.
   - cbn in Heq. injection Heq as <- Htail.
     destruct Hin as [<- | Hin].
@@ -256,58 +275,59 @@ Proof.
     + destruct (IHHpath prefix suffix member avoid Htail
         ltac:(cbn in Havoid; tauto) Hin) as [before_member [Hp Hnot]].
       exists (first :: before_member). split.
-      * eapply point_path_prepend; eassumption.
+      * eapply program_point_path_prepend; eassumption.
       * cbn in *. tauto.
 Qed.
 
 (* Mutual domination of reachable points means they are the same point.
    Reachability prevents unreachable graph fragments making this vacuous. *)
-Theorem point_dominance_antisymmetric : forall (entry : block)
-    (lhs rhs : point),
-  point_reachable entry rhs -> point_dominates entry lhs rhs ->
-  point_dominates entry rhs lhs -> lhs = rhs.
+Theorem program_point_dominance_antisymmetric : forall (entry : block)
+    (lhs rhs : program_point),
+  program_point_reachable entry rhs -> program_point_dominates entry lhs rhs ->
+  program_point_dominates entry rhs lhs -> lhs = rhs.
 Proof.
   intros entry lhs rhs [points Hpath] Hlhs Hrhs.
-  destruct (point_eqb lhs rhs) eqn:E;
-    [apply point_eqb_spec; exact E |].
-  destruct (point_path_first_visit _ _ _ Hpath)
+  destruct (program_point_eqb lhs rhs) eqn:E;
+    [apply program_point_eqb_spec; exact E |].
+  destruct (program_point_path_first_visit _ _ _ Hpath)
     as [prefix [Hp Hnot]].
   pose proof (Hlhs _ Hp) as Hin. apply in_app_or in Hin.
   destruct Hin as [Hin | [Heq | []]].
-  - destruct (point_path_prefix_avoiding _ _ _ Hp prefix [rhs] lhs rhs
+  - destruct (program_point_path_prefix_avoiding _ _ _ Hp prefix [rhs] lhs rhs
       eq_refl Hnot Hin) as [before_lhs [Hbefore Havoid]].
     exfalso. apply Havoid, Hrhs, Hbefore.
-  - subst lhs. assert (point_eqb rhs rhs = true)
-      by (apply point_eqb_spec; reflexivity). congruence.
+  - subst lhs. assert (program_point_eqb rhs rhs = true)
+      by (apply program_point_eqb_spec; reflexivity). congruence.
 Qed.
 
-(* A dominator of a successor also dominates its predecessor unless it
-   is the successor itself, where a definition may just have become live. *)
-Lemma point_dominates_predecessor : forall (entry : block)
-    (dominator before after : point),
-  point_dominates entry dominator after -> dominator <> after ->
-  point_edge before after -> point_dominates entry dominator before.
+(* A dominator of a successor also dominates its predecessor unless it is the
+   successor itself, where a definition may just have become live. *)
+Lemma program_point_dominates_predecessor : forall (entry : block)
+    (dominator before after : program_point),
+  program_point_dominates entry dominator after -> dominator <> after ->
+  program_point_edge before after ->
+  program_point_dominates entry dominator before.
 Proof.
   intros entry dominator before after Hdom Hneq Hedge points Hpath.
-  pose proof (Hdom _ (point_path_snoc _ _ _ _ Hpath Hedge)) as Hin.
+  pose proof (Hdom _ (program_point_path_snoc _ _ _ _ Hpath Hedge)) as Hin.
   apply in_app_or in Hin. destruct Hin as [Hin | [Heq | []]];
     [exact Hin | congruence].
 Qed.
 
-(* A definition in another block that dominates this block's terminator
-   also dominates its entry: advancing through the body never encounters
-   that other definition. *)
+(* A definition in another block that dominates this block's terminator also
+   dominates its entry: advancing through the body never encounters that other
+   definition. *)
 Lemma other_block_dominates_entry : forall (entry b : block)
-    (dominator : point),
-  fst dominator <> b -> point_dominates entry dominator (b, 0%nat) ->
-  point_dominates entry dominator (entry_point b).
+    (dominator : program_point),
+  fst dominator <> b -> program_point_dominates entry dominator (b, 0%nat) ->
+  program_point_dominates entry dominator (block_entry_point b).
 Proof.
   intros entry b dominator Hother Hdom.
   assert (forall (remaining : nat), remaining <= length (block_body b) ->
-    point_dominates entry dominator (b, remaining)) as Hthrough.
+    program_point_dominates entry dominator (b, remaining)) as Hthrough.
   { intros remaining. induction remaining as [ | remaining IH]; intros Hlen.
     - exact Hdom.
-    - eapply point_dominates_predecessor.
+    - eapply program_point_dominates_predecessor.
       + apply IH. lia.
       + intros Heq. apply (f_equal fst) in Heq. cbn in Heq. contradiction.
       + constructor. lia. }
@@ -315,54 +335,60 @@ Proof.
 Qed.
 
 (* A visited point has a prefix path contained in the original path. *)
-Lemma point_path_member : forall (first last : point) (points : list point),
-  point_path first points last -> forall (member : point), In member points ->
-  exists (prefix : list point), point_path first prefix member
-    /\ forall (visited : point), In visited prefix -> In visited points.
+Lemma program_point_path_member : forall (first last : program_point)
+  (points : list program_point),
+  program_point_path_from first points last -> forall (member : program_point),
+    member ∈ points ->
+  exists (prefix : list program_point),
+    program_point_path_from first prefix member
+    /\ forall (visited : program_point), visited ∈ prefix -> visited ∈ points.
 Proof.
   intros first last points Hpath. induction Hpath; intros member Hin.
-  - destruct Hin as [<- | []]. exists [p]. split; [constructor | auto].
+  - destruct Hin as [<- | []]. exists [position]. split; [constructor | auto].
   - destruct Hin as [<- | Hin].
     + exists [first]. split; [constructor | cbn; tauto].
     + destruct (IHHpath member Hin) as [prefix [Hp Hmembers]].
       exists (first :: prefix). split.
-      * eapply point_path_prepend; eassumption.
+      * eapply program_point_path_prepend; eassumption.
       * intros visited [<- | Hvisited]; [left; reflexivity |].
         right. apply Hmembers. exact Hvisited.
 Qed.
 
 (* Dominating a dominator is enough to dominate its target. *)
-Theorem point_dominance_transitive : forall (entry : block)
-    (first middle last : point),
-  point_dominates entry first middle -> point_dominates entry middle last ->
-  point_dominates entry first last.
+Theorem program_point_dominance_transitive : forall (entry : block)
+    (first middle last : program_point),
+  program_point_dominates entry first middle -> program_point_dominates entry
+    middle last ->
+  program_point_dominates entry first last.
 Proof.
   intros entry first middle last Hfirst Hmiddle points Hpath.
-  destruct (point_path_member _ _ _ Hpath middle (Hmiddle _ Hpath))
+  destruct (program_point_path_member _ _ _ Hpath middle (Hmiddle _ Hpath))
     as [prefix [Hprefix Hmembers]].
   apply Hmembers, Hfirst, Hprefix.
 Qed.
 
 (* A block path can be extended by one incoming edge. *)
-Lemma path_prepend : forall (first next last : block) (blocks : list block),
-  In first (predecessors next) -> path next blocks last ->
-  path first (first :: blocks) last.
+Lemma block_path_prepend : forall (first next last : block)
+  (blocks : list block),
+  first ∈ (predecessors next) -> block_path_from next blocks last ->
+  block_path_from first (first :: blocks) last.
 Proof.
   intros first next last blocks Hedge Hpath.
-  inversion Hpath; subst; apply path_cons; assumption.
+  inversion Hpath; subst; apply Block_path_cons; assumption.
 Qed.
 
-(* Project a program-point path to a block path. Every block other than
-   the starting block was entered at its full-body entry point. *)
-Lemma point_path_blocks : control_edges -> forall (first last : point)
-    (points : list point),
-  point_path first points last ->
-  exists (blocks : list block), path (fst first) blocks (fst last)
-    /\ forall (b : block), In b blocks ->
-         b = fst first \/ In (entry_point b) points.
+(* Project a program-point path to a block path. Every block other than the
+   starting block was entered at its full-body entry point. *)
+Lemma program_point_path_to_blocks : control_edges -> forall (first last :
+  program_point)
+    (points : list program_point),
+  program_point_path_from first points last ->
+  exists (blocks : list block), block_path_from (fst first) blocks (fst last)
+    /\ forall (b : block), b ∈ blocks ->
+         b = fst first \/ (block_entry_point b) ∈ points.
 Proof.
   intros Hedges first last points Hpath. induction Hpath.
-  - exists [fst p]. split; [constructor |].
+  - exists [fst position]. split; [constructor |].
     intros b [<- | []]. left. reflexivity.
   - destruct IHHpath as [blocks [Hblocks Hmembers]].
     destruct H; cbn in *.
@@ -371,7 +397,7 @@ Proof.
       * left. exact Hfirst.
       * right. right. exact Hin.
     + exists (source :: blocks). split.
-      * eapply path_prepend; [ | exact Hblocks].
+      * eapply block_path_prepend; [ | exact Hblocks].
         apply (proj2 (predecessor_successor Hedges source target)). exact H.
       * intros block [<- | Hblock]; [left; reflexivity |].
         destruct (Hmembers block Hblock) as [-> | Hin].
@@ -381,43 +407,45 @@ Qed.
 
 (* Counting down through a block gives a path to its terminator without
    visiting any other block. *)
-Lemma block_body_point_path : forall (b : block) (remaining : nat),
+Lemma block_body_program_point_path : forall (b : block) (remaining : nat),
   remaining <= length (block_body b) ->
-  exists (points : list point), point_path (b, remaining) points (b, 0)
-    /\ forall (position : point), In position points -> fst position = b.
+  exists (points : list program_point), program_point_path_from (b, remaining)
+    points (b, 0)
+    /\ forall (position : program_point),
+       position ∈ points -> fst position = b.
 Proof.
   intros b remaining. induction remaining as [ | remaining IH]; intros Hlen.
   - exists [(b, 0)]. split; [constructor |].
     intros position [<- | []]. reflexivity.
   - destruct (IH ltac:(lia)) as [points [Hpath Hmembers]].
     exists ((b, S remaining) :: points). split.
-    + eapply point_path_prepend; [constructor; lia | exact Hpath].
+    + eapply program_point_path_prepend; [constructor; lia | exact Hpath].
     + intros position [<- | Hin]; [reflexivity | apply Hmembers; exact Hin].
 Qed.
 
-(* Expand a block path to instruction-level points. This direction is
-   needed to use completeness of the compiler's block-dominance query. *)
-Lemma block_path_points : control_edges -> forall (first last : block)
-    (blocks : list block),
-  path first blocks last ->
-  exists (points : list point),
-    point_path (entry_point first) points (last, 0)
-    /\ forall (position : point), In position points ->
-         In (fst position) blocks.
+(* Expand a block path to instruction-level points. This direction is needed to
+   use completeness of the compiler's block-dominance query. *)
+Lemma block_path_to_program_points : control_edges ->
+  forall (first last : block) (blocks : list block),
+  block_path_from first blocks last ->
+  exists (points : list program_point),
+    program_point_path_from (block_entry_point first) points (last, 0)
+    /\ forall (position : program_point), position ∈ points ->
+         (fst position) ∈ blocks.
 Proof.
   intros Hedges first last blocks Hpath. induction Hpath.
-  - destruct (block_body_point_path block (length (block_body block))
+  - destruct (block_body_program_point_path block (length (block_body block))
       ltac:(lia)) as [points [Hpoints Hmembers]].
     exists points. split; [exact Hpoints |].
     intros position Hin. left. symmetry. apply Hmembers. exact Hin.
   - destruct IHHpath as [suffix [Hsuffix Hsuffix_members]].
-    destruct (block_body_point_path pred (length (block_body pred))
+    destruct (block_body_program_point_path pred (length (block_body pred))
       ltac:(lia)) as [prefix [Hprefix Hprefix_members]].
-    assert (Htransfer : point_edge (pred, 0) (entry_point succ)).
+    assert (Htransfer : program_point_edge (pred, 0) (block_entry_point succ)).
     { constructor. apply (proj1 (predecessor_successor Hedges pred succ)).
       exact H. }
-    pose proof (point_path_prepend _ _ _ _ Htransfer Hsuffix) as Htail.
-    destruct (point_path_join _ _ _ _ _ Hprefix Htail)
+    pose proof (program_point_path_prepend _ _ _ _ Htransfer Hsuffix) as Htail.
+    destruct (program_point_path_join _ _ _ _ _ Hprefix Htail)
       as [points [Hpoints Hmembers]].
     exists points. split; [exact Hpoints |]. intros position Hin.
     destruct (Hmembers position Hin)
@@ -428,27 +456,28 @@ Proof.
 Qed.
 
 (* Entry-point dominance implies ordinary block dominance. *)
-Theorem block_dominance_of_point : control_edges ->
+Theorem block_dominance_of_program_point : control_edges ->
   forall (entry dominator target : block),
-  point_dominates entry (entry_point dominator) (target, 0) ->
-  forall (blocks : list block), path entry blocks target -> In dominator blocks.
+  program_point_dominates entry (block_entry_point dominator) (target, 0) ->
+  forall (blocks : list block),
+  block_path_from entry blocks target -> dominator ∈ blocks.
 Proof.
   intros Hedges entry dominator target Hdom blocks Hpath.
-  destruct (block_path_points Hedges _ _ _ Hpath)
+  destruct (block_path_to_program_points Hedges _ _ _ Hpath)
     as [points [Hpoints Hmembers]].
   exact (Hmembers _ (Hdom points Hpoints)).
 Qed.
 
-(* Semantic block dominance lifts to dominance of the block's entry
-   point, preserving within-block instruction ordering. *)
-Theorem point_dominance_of_block : control_edges -> forall (entry : block)
-    (dominator : block) (target : point),
-  (forall (blocks : list block), path entry blocks (fst target) ->
-     In dominator blocks) ->
-  point_dominates entry (entry_point dominator) target.
+(* Semantic block dominance lifts to dominance of the block's entry point,
+   preserving within-block instruction ordering. *)
+Theorem program_point_dominance_of_block : control_edges ->
+  forall (entry dominator : block) (target : program_point),
+  (forall (blocks : list block), block_path_from entry blocks (fst target) ->
+     dominator ∈ blocks) ->
+  program_point_dominates entry (block_entry_point dominator) target.
 Proof.
   intros Hedges entry dominator target Hdom points Hpath.
-  destruct (point_path_blocks Hedges _ _ _ Hpath)
+  destruct (program_point_path_to_blocks Hedges _ _ _ Hpath)
     as [blocks [Hblocks Hmembers]].
   destruct (Hmembers dominator (Hdom blocks Hblocks)) as [Heq | Hin];
     [ | exact Hin].
@@ -456,13 +485,14 @@ Proof.
 Qed.
 
 (* Only a terminator edge can enter the full-body point of a block. *)
-Lemma point_edge_to_entry : control_edges -> forall (before : point)
+Lemma program_point_edge_to_entry : control_edges -> forall (before :
+  program_point)
     (target : block),
-  point_edge before (entry_point target) ->
-  snd before = 0 /\ In (fst before) (predecessors target).
+  program_point_edge before (block_entry_point target) ->
+  snd before = 0 /\ (fst before) ∈ (predecessors target).
 Proof.
   intros Hedges before target Hedge. inversion Hedge; subst.
-  - unfold entry_point in *. cbn in *. lia.
+  - unfold block_entry_point in *. cbn in *. lia.
   - split; [reflexivity |].
     apply (proj2 (predecessor_successor Hedges source target)). assumption.
 Qed.
@@ -472,20 +502,21 @@ Qed.
 Lemma singleton_predecessor_dominance : control_edges ->
   forall (entry source target : block),
   target <> entry -> predecessors target = [source] ->
-  point_dominates entry (source, 0) (entry_point target).
+  program_point_dominates entry (source, 0) (block_entry_point target).
 Proof.
   intros Hedges entry source target Hnotentry Hpreds points Hpath.
-  assert (Hpath_property : forall (first : point) (points : list point),
-    point_path first points (entry_point target) ->
-    first = entry_point target \/ In (source, 0) points).
-  { clear Hpath points. intros first path Hrun.
-    remember (entry_point target) as last.
+  assert (Hpath_property : forall (first : program_point)
+    (points : list program_point),
+    program_point_path_from first points (block_entry_point target) ->
+    first = block_entry_point target \/ (source, 0) ∈ points).
+  { clear Hpath points. intros first block_path_from Hrun.
+    remember (block_entry_point target) as last.
     induction Hrun; subst.
     - left. reflexivity.
     - destruct (IHHrun eq_refl) as [Heq | Hin].
       + right. left.
         rewrite Heq in H.
-        destruct (point_edge_to_entry Hedges _ _ H) as [Hcount Hpred].
+        destruct (program_point_edge_to_entry Hedges _ _ H) as [Hcount Hpred].
         rewrite Hpreds in Hpred. destruct Hpred as [Hsource | []].
         destruct first as [b n]. cbn in *. subst. reflexivity.
       + right. right. exact Hin. }
@@ -494,19 +525,20 @@ Proof.
 Qed.
 
 (* A path contains its endpoint. *)
-Lemma path_last : forall (first : block) (p : list block) (last : block),
-  path first p last -> In last p.
+Lemma block_path_last : forall (first : block) (visited_blocks : list block)
+  (last : block),
+  block_path_from first visited_blocks last -> last ∈ visited_blocks.
 Proof.
   intros first p last H. induction H; cbn; auto.
 Qed.
 
 (* Following one more edge extends a path at its end. *)
-Lemma path_snoc :
-  forall (first : block) (p : list block) (last next : block),
-  path first p last -> In last (predecessors next) ->
-  path first (p ++ [next]) next.
+Lemma block_path_snoc :
+  forall (first : block) (visited_blocks : list block) (last next : block),
+  block_path_from first visited_blocks last -> last ∈ (predecessors next) ->
+  block_path_from first (visited_blocks ++ [next]) next.
 Proof.
   intros first p last next H. induction H; intros Hedge; cbn.
-  - apply path_cons; [exact Hedge | constructor].
-  - apply path_cons; [assumption | apply IHpath; exact Hedge].
+  - apply Block_path_cons; [exact Hedge | constructor].
+  - apply Block_path_cons; [assumption | apply IHblock_path_from; exact Hedge].
 Qed.

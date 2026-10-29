@@ -68,10 +68,12 @@ let to_int_ovf x = if int64_is_int x then Some (Int64.to_int x) else None
 
 let rec gcd64 a b = if Int64.equal b 0L then a else gcd64 b (Int64.rem a b)
 
-(** val fdiv64 : int64 -> int64 -> int64 **)
+(** val floor_div64 : int64 -> int64 -> int64 **)
 
-let fdiv64 c g =
-  let q = Int64.div c g in
-  if Int64.compare c 0L < 0 && not (Int64.equal (Int64.rem c g) 0L)
+let floor_div64 dividend divisor =
+  let q = Int64.div dividend divisor in
+  if
+    Int64.compare dividend 0L < 0
+    && not (Int64.equal (Int64.rem dividend divisor) 0L)
   then Int64.sub q 1L
   else q

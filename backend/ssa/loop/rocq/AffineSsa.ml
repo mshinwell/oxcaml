@@ -15,13 +15,13 @@ type ctx =
 
 let new_ctx = { atoms = []; next = 0; budget = 256 }
 
-(** val refill : ctx -> ctx **)
+(** val refill_budget : ctx -> ctx **)
 
-let refill c = { atoms = c.atoms; next = c.next; budget = 256 }
+let refill_budget c = { atoms = c.atoms; next = c.next; budget = 256 }
 
-(** val spend : ctx -> int -> ctx **)
+(** val spend_budget : ctx -> int -> ctx **)
 
-let spend c k = { atoms = c.atoms; next = c.next; budget = c.budget - k }
+let spend_budget c k = { atoms = c.atoms; next = c.next; budget = c.budget - k }
 
 (** val intern : ctx -> Ssa.finished Ssa.Value.t -> int * ctx **)
 
@@ -47,29 +47,33 @@ let atomize c v =
   let id, c0 = intern c v in
   (Atom id, Some Range.full), c0
 
-(** val keep : ctx -> Ssa.finished Ssa.Value.t -> t -> Range.t option -> (t *
-    Range.t option) * ctx **)
+(** val keep_if_range_known : ctx -> Ssa.finished Ssa.Value.t -> t -> Range.t
+    option -> (t * Range.t option) * ctx **)
 
-let keep c v node range =
+let keep_if_range_known c v node range =
   match range with Some _ -> (node, range), c | None -> atomize c v
 
-(** val radd : Range.t option -> Range.t option -> Range.t option **)
+(** val add_optional_ranges : Range.t option -> Range.t option -> Range.t option
+    **)
 
-let radd a b =
+let add_optional_ranges a b =
   match a with
   | Some a0 -> ( match b with Some b0 -> Range.add a0 b0 | None -> None)
   | None -> None
 
-(** val rsub : Range.t option -> Range.t option -> Range.t option **)
+(** val sub_optional_ranges : Range.t option -> Range.t option -> Range.t option
+    **)
 
-let rsub a b =
+let sub_optional_ranges a b =
   match a with
   | Some a0 -> ( match b with Some b0 -> Range.sub a0 b0 | None -> None)
   | None -> None
 
-(** val rscale : int -> Range.t option -> Range.t option **)
+(** val scale_optional_range : int -> Range.t option -> Range.t option **)
 
-let rscale k = function Some r0 -> Range.scale k r0 | None -> None
+let scale_optional_range k = function
+  | Some r0 -> Range.scale k r0
+  | None -> None
 
 (** val expr_of_value : ctx -> Ssa.finished Ssa.Value.t -> (t * Range.t option)
     * ctx **)
@@ -102,12 +106,14 @@ let rec expr_of_value c v =
               | [] ->
                 if 2 <= c.budget
                 then
-                  let c0 = spend c 2 in
+                  let c0 = spend_budget c 2 in
                   let p, c1 = expr_of_value c0 a in
                   let ea, ra = p in
                   let p0, c2 = expr_of_value c1 b in
                   let eb, rb = p0 in
-                  keep c2 v (Add (ea, eb)) (radd ra rb)
+                  keep_if_range_known c2 v
+                    (Add (ea, eb))
+                    (add_optional_ranges ra rb)
                 else atomize c v
               | _ :: _ -> atomize c v)))
         | Operation.Isub -> (
@@ -121,12 +127,14 @@ let rec expr_of_value c v =
               | [] ->
                 if 2 <= c.budget
                 then
-                  let c0 = spend c 2 in
+                  let c0 = spend_budget c 2 in
                   let p, c1 = expr_of_value c0 a in
                   let ea, ra = p in
                   let p0, c2 = expr_of_value c1 b in
                   let eb, rb = p0 in
-                  keep c2 v (Sub (ea, eb)) (rsub ra rb)
+                  keep_if_range_known c2 v
+                    (Sub (ea, eb))
+                    (sub_optional_ranges ra rb)
                 else atomize c v
               | _ :: _ -> atomize c v)))
         | _ -> atomize c v)
@@ -140,10 +148,12 @@ let rec expr_of_value c v =
             | [] ->
               if 1 <= c.budget
               then
-                let c0 = spend c 1 in
+                let c0 = spend_budget c 1 in
                 let p, c1 = expr_of_value c0 a in
                 let ea, ra = p in
-                keep c1 v (Add (ea, Const m)) (radd ra (Some (Range.const m)))
+                keep_if_range_known c1 v
+                  (Add (ea, Const m))
+                  (add_optional_ranges ra (Some (Range.const m)))
               else atomize c v
             | _ :: _ -> atomize c v))
         | Operation.Isub -> (
@@ -154,10 +164,12 @@ let rec expr_of_value c v =
             | [] ->
               if 1 <= c.budget
               then
-                let c0 = spend c 1 in
+                let c0 = spend_budget c 1 in
                 let p, c1 = expr_of_value c0 a in
                 let ea, ra = p in
-                keep c1 v (Sub (ea, Const m)) (rsub ra (Some (Range.const m)))
+                keep_if_range_known c1 v
+                  (Sub (ea, Const m))
+                  (sub_optional_ranges ra (Some (Range.const m)))
               else atomize c v
             | _ :: _ -> atomize c v))
         | Operation.Ior -> (
@@ -168,7 +180,7 @@ let rec expr_of_value c v =
             | [] ->
               if 0 <= m && 1 <= c.budget
               then
-                let c0 = spend c 1 in
+                let c0 = spend_budget c 1 in
                 let p, c1 = expr_of_value c0 a in
                 let ea, o = p in
                 match o with
@@ -186,10 +198,12 @@ let rec expr_of_value c v =
             | [] ->
               if (0 <= m && m < 16) && 1 <= c.budget
               then
-                let c0 = spend c 1 in
+                let c0 = spend_budget c 1 in
                 let p, c1 = expr_of_value c0 a in
                 let ea, ra = p in
-                keep c1 v (Scale (1 lsl m, ea)) (rscale (1 lsl m) ra)
+                keep_if_range_known c1 v
+                  (Scale (1 lsl m, ea))
+                  (scale_optional_range (1 lsl m) ra)
               else atomize c v
             | _ :: _ -> atomize c v))
         | Operation.Ilsr -> (
@@ -212,7 +226,7 @@ let rec expr_of_value c v =
             | [] ->
               if (0 <= m && m < 16) && 1 <= c.budget
               then
-                let c0 = spend c 1 in
+                let c0 = spend_budget c 1 in
                 let p, c1 = expr_of_value c0 a in
                 let ea, o = p in
                 match o with
@@ -229,17 +243,19 @@ let rec expr_of_value c v =
 
 (** val push_sides : Affine.t list -> Affine.t list -> Affine.t list **)
 
-let push_sides side sides =
+let push_sides existing_facts new_facts =
   List.fold_left
-    (fun side0 f ->
-      if List.exists (Affine.equal f) side0 then side0 else f :: side0)
-    side sides
+    (fun existing_facts0 fact ->
+      if List.exists (Affine.equal fact) existing_facts0
+      then existing_facts0
+      else fact :: existing_facts0)
+    existing_facts new_facts
 
 (** val linearize : ctx -> Affine.t list -> Ssa.finished Ssa.Value.t ->
     (Affine.t * Affine.t list) * ctx **)
 
 let linearize c side v =
-  let p, c0 = expr_of_value (refill c) v in
+  let p, c0 = expr_of_value (refill_budget c) v in
   let e, _ = p in
   match to_affine e with
   | Some p0 ->
@@ -249,10 +265,10 @@ let linearize c side v =
     let id, c1 = intern c0 v in
     (Affine.var id, side), c1
 
-(** val cond_facts : ctx -> Affine.t list -> bool -> Ssa.finished Ssa.Value.t ->
-    (Affine.t list * Affine.t list) * ctx **)
+(** val comparison_facts : ctx -> Affine.t list -> bool -> Ssa.finished
+    Ssa.Value.t -> (Affine.t list * Affine.t list) * ctx **)
 
-let cond_facts c side negate cond =
+let comparison_facts c side negate cond =
   (fun f_res f_param (v : Ssa.finished Ssa.Value.t) ->
     match v with
     | Ssa.Instruction.Res ({ Ssa.Instruction.id; op; args; _ }, i) ->
@@ -344,7 +360,7 @@ let guard_facts target st dominator =
   match guard_test target dominator with
   | Some p0 ->
     let index, negate = p0 in
-    let p1, c0 = cond_facts c side negate index in
+    let p1, c0 = comparison_facts c side negate index in
     let fs, side0 = p1 in
     (fs @ acc, side0), c0
   | None -> (acc, side), c

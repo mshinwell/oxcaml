@@ -186,7 +186,7 @@ These are the fields of `SsaContext.reached_header`, the input premise of
 
 - `bounded_registers initial_regs`: every present initial word fits the
   modeled register width.
-- `live_registers_bound (entry_point entry) initial_regs`: function-entry
+- `live_registers_defined (block_entry_point entry) initial_regs`: function-entry
   registers needed before their next definition are bound. Definedness of
   later live operands follows from execution and `control_layout`.
 - `switches_in_range (enter header header_regs)`: subsequent executions
@@ -324,31 +324,33 @@ simulation, which is not in Rocq; it goes as follows, with `P` the original
 graph and `P'` the graph with the header's terminator replaced.
 
 Relate a state of `P` and a state of `P'` at the same program point when
-their register files agree on `live_at^P` of that point and everything
-else (memory, trap stack, current block and remaining instructions) is
-equal.
+their register files agree on `register_live_at^P` of that point and
+everything else (memory, trap stack, current block and remaining
+instructions) is equal.
 
 - Every step other than the header's terminator is the same instruction or
-  terminator in both graphs. It reads only registers that are `live_at^P`
-  at its point (`Live_read`), so it writes the same values; a register
-  live after the step is either written by it, or not written and then
-  live before it (`Live_predecessor`). The relation is preserved.
+  terminator in both graphs. It reads only registers that are
+  `register_live_at^P` at its point (`Live_read`), so it writes the same
+  values; a register live after the step is either written by it, or not
+  written and then live before it (`Live_predecessor`). The relation is
+  preserved.
 - At `(header, 0)`, `P` runs `steps_until exit` to `enter exit exit_regs`
   and `P'` takes `Goto exit` with its own `first_header_regs'`, which
-  agrees with `first_header_regs` on `live_at^P (header, 0)`. Since `exit`
-  is a successor of the header and has no parameters, nothing is defined
-  at `entry_point exit`, so `Live_predecessor` gives
-  `live_at^P (entry_point exit) ⊆ live_at^P (header, 0)`; with
-  `agree_on_live (entry_point exit) first_header_regs exit_regs` from
-  `eligible_entry`, the two states at `exit` are related. The skipped
-  segment writes no memory and no trap marker: `step` has rules only for
+  agrees with `first_header_regs` on `register_live_at^P (header, 0)`.
+  Since `exit` is a successor of the header and has no parameters,
+  nothing is defined at `block_entry_point exit`, so `Live_predecessor` gives
+  `register_live_at^P (block_entry_point exit) ⊆ register_live_at^P (header, 0)`;
+  together with `agree_on_live (block_entry_point exit) first_header_regs
+  exit_regs` from `eligible_entry`, the two states at `exit` are related.
+  The skipped segment writes no memory and no trap marker: `step` has rules only for
   whitelisted integer operations (`execute_instruction` is `None` on
   everything else) and for `Goto`/`Switch`, so the other components are
   equal too. `step` is deterministic, so the witness is `P`'s only
   execution from the header: `P` does not diverge or get stuck before the
   exit, and `P'` loses no behaviour.
-- `P'` has a subset of `P`'s edges, so `live_at^{P'} ⊆ live_at^P` and the
-  relation is at least as strong as `P'` needs.
+- `P'` has a subset of `P`'s edges, so
+  `register_live_at^{P'} ⊆ register_live_at^P` and the relation is at least
+  as strong as `P'` needs.
 
 Several reported headers are rewritten at once. The argument is per
 rewritten terminator, and the `P` side is always the original graph, in

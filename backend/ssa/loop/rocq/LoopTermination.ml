@@ -39,7 +39,7 @@ let bound_in_range step header0 = function
     Ssa.Value.t -> bool) -> Ssa.finished Ssa.Value.t -> ((Cmm.integer_comparison
     * bool) * bound) option **)
 
-let extract_comparison is_iv_val is_bound cond =
+let extract_comparison is_counter_operand is_bound comparison_result =
   (fun f_res f_param (v : Ssa.finished Ssa.Value.t) ->
     match v with
     | Ssa.Instruction.Res ({ Ssa.Instruction.id; op; args; _ }, i) ->
@@ -58,9 +58,9 @@ let extract_comparison is_iv_val is_bound cond =
             | y :: l0 -> (
               match l0 with
               | [] ->
-                if is_iv_val x && is_bound y
+                if is_counter_operand x && is_bound y
                 then Some ((cmp, true), Value_bound y)
-                else if is_iv_val y && is_bound x
+                else if is_counter_operand y && is_bound x
                 then Some ((cmp, false), Value_bound x)
                 else None
               | _ :: _ -> None)))
@@ -73,12 +73,14 @@ let extract_comparison is_iv_val is_bound cond =
           | x :: l -> (
             match l with
             | [] ->
-              if is_iv_val x then Some ((cmp, true), Const_bound k) else None
+              if is_counter_operand x
+              then Some ((cmp, true), Const_bound k)
+              else None
             | _ :: _ -> None))
         | _ -> None)
       | _ -> None)
     (fun _ _ -> None)
-    cond
+    comparison_result
 
 (** val biv_implies_termination : op_def -> biv -> bool **)
 

@@ -1,71 +1,70 @@
-(* The linearization of SSA integer values into affine forms, and the
-   affine facts implied by the branches dominating a block. The extraction
-   of this file, AffineSsa.ml next to it, is the implementation.
+(* The linearization of SSA integer values into affine forms, and the affine
+   facts implied by the branches dominating a block. The extraction of this
+   file, AffineSsa.ml next to it, is the implementation.
 
    See the reading guide at the top of LoopComparisons.v for the Rocq
    vocabulary and the layout of the shared files; AffineExpr.v for the
-   expressions and ranges this file builds, and LoopComparisons.v for the
-   facts it derives from comparisons. As there, this file has four parts:
-   (1) the definitions, (2) the intended meaning, (3)
-   stepping-stone lemmas, (4) the theorems. Parts 1 and 2 are the part to
-   check by eye.
+   expressions and ranges this file builds, and LoopComparisons.v for the facts
+   it derives from comparisons. As there, this file has four parts: (1) the
+   definitions, (2) the intended meaning, (3) stepping-stone lemmas, (4) the
+   theorems. Parts 1 and 2 are the part to check by eye.
 
-   [expr_of_value] walks the value graph itself: a [value] (SsaModel.v) is
-   the compiler's [Ssa.Value.t], carrying the operation that defines it
-   and its arguments, and the walk matches on the integer operations it
-   understands. Two things about the shape of the code:
+   [expr_of_value] walks the value graph itself: a [value] (SsaModel.v) is the
+   compiler's [Ssa.Value.t], carrying the operation that defines it and its
+   arguments, and the walk matches on the integer operations it understands.
+   Two things about the shape of the code:
 
    - The graph is shared, and a walk of it as a tree can be exponentially
      larger than the graph. So the walk has a budget of nodes to expand,
      [max_nodes] per linearization, carried in the context as [budget] and
-     spent before descending into the arguments of a node. A value beyond
-     the budget becomes an atom, like a value defined by an operation not
+     spent before descending into the arguments of a node. A value beyond the
+     budget becomes an atom, like a value defined by an operation not
      understood here; an atom is always sound.
 
-   - The context [ctx] (the atom interner and the budget) and the [side]
-     list of facts are values, passed to each function and returned with
-     its result, rather than mutable state, so that each function is a
-     pure function of its arguments.
+   - The context [ctx] (the atom interner and the budget) and the [side] list
+     of facts are values, passed to each function and returned with its result,
+     rather than mutable state, so that each function is a pure function of its
+     arguments.
 
    [guards_at] walks the chain of immediate dominators of a block, which
    SsaModel.v provides as [strict_dominators], reading each dominator's
    terminator.
 
-   The results, in part 4, say that the facts gathered here are true:
-   under the valuation that reads every atom as the machine value of the
-   SSA value it stands for ([agrees]),
+   The results, in part 4, say that the facts gathered here are true: under the
+   valuation that reads every atom as the machine value of the SSA value it
+   stands for ([agrees]),
 
-   - [expr_of_value_sound]: the expression built for a value evaluates to
-     the value's machine value exactly, its range (when known) contains
-     that value, and its atomized shifts and ors are [consistent] in the
+   - [expr_of_value_sound]: the expression built for a value evaluates to the
+     value's machine value exactly, its range (when known) contains that value,
+     and its atomized shifts and ors are [atom_operations_consistent] in the
      sense of AffineExpr.v;
    - [linearize_sound]: the affine form of a value has the value's machine
      value, and the side facts it pushes are true;
-   - [cond_facts_sound]: when the comparison a branch tests came out as the
-     branch taken requires, the facts derived from it are true; and they
+   - [comparison_facts_sound]: when the comparison a branch tests came out as
+     the branch taken requires, the facts derived from it are true; and they
      are well-formed, as [FourierMotzkin.entails] needs;
-   - [guards_at_sound]: when each branch [guards_at] takes a fact from
-     went the way it must have on every path to the block ([guards_taken]),
-     the facts gathered are all true, and well-formed.
+   - [guards_at_sound]: when each branch [guards_at] takes a fact from went the
+     way it must have on every path to the block ([guards_taken]), the facts
+     gathered are all true, and well-formed.
 
-   Contexts only grow ([extends]), and whatever holds under every
-   valuation agreeing with a context holds under every valuation agreeing
-   with a later one; so the facts and side facts of all the [cond_facts]
-   calls [guards_at] makes hold together under the one valuation that
-   agrees with the final context, which exists ([agrees_exists]). That is
-   the valuation under which [FourierMotzkin.entails_sound] then makes an
-   entailed goal true of the machine values (see LoopTermination.v).
+   Contexts only grow ([extends]), and whatever holds under every valuation
+   agreeing with a context holds under every valuation agreeing with a later
+   one; so the facts and side facts of all the [comparison_facts] calls
+   [guards_at] makes hold together under the one valuation that agrees with the
+   final context, which exists ([agrees_exists]). That is the valuation under
+   which [FourierMotzkin.entails_sound] then makes an entailed goal true of the
+   machine values (see LoopTermination.v).
 
-   The theorems carry one hypothesis about resources: the atom counter
-   must not wrap. A linearization allocates at most [linearize_atoms]
-   atoms (one per node expanded, and two more), so this only asks that the
-   counter start that far below [max_int].
+   The theorems carry one hypothesis about resources: the atom counter must not
+   wrap. A linearization allocates at most [linearize_atom_bound] atoms (one
+   per node expanded, and two more), so this only asks that the counter start
+   that far below [max_int].
 
-   Trusted parts, beyond those of AffineExpr.v: what the recognised
-   operations compute, which is [SsaSemantics.eval_operation] ([op_semantics]
-   below asks that the valuation satisfy it), that [Ssa.Value.equal] only
-   identifies values with the same machine value, and that the dominators
-   and terminators SsaModel.v reports are the graph's. *)
+   Trusted parts, beyond those of AffineExpr.v: what the recognised operations
+   compute, which is [SsaSemantics.eval_operation] ([op_semantics] below asks
+   that the valuation satisfy it), that [Ssa.Value.equal] only identifies
+   values with the same machine value, and that the dominators and terminators
+   SsaModel.v reports are the graph's. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64 OxCamlList
@@ -81,13 +80,13 @@ Import ListNotations.
 
 Local Open Scope sint63_scope.
 
-(* SSA values ([value], with [value_eqb] for [Ssa.Value.equal]) are those
-   of SsaModel.v; the operations are those of Operation.v. *)
+(* SSA values ([value], with [value_eqb] for [Ssa.Value.equal]) are those of
+   SsaModel.v; the operations are those of Operation.v. *)
 
 (* --- The context: atom interner and node budget --- *)
 
-(* The atoms allocated so far, each with its value; the next atom to
-   allocate; and the nodes [expr_of_value] may still expand. *)
+(* The atoms allocated so far, each with its value; the next atom to allocate;
+   and the nodes [expr_of_value] may still expand. *)
 Record ctx := { atoms : list (int * value); next : int; budget : int }.
 
 (* The nodes one linearization may expand. *)
@@ -98,10 +97,10 @@ Definition new_ctx : ctx :=
   {| atoms := []; next := zero; budget := max_nodes |}.
 
 (* The context with a fresh budget, and with [k] nodes of it spent. *)
-Definition refill (c : ctx) : ctx :=
+Definition refill_budget (c : ctx) : ctx :=
   {| atoms := c.(atoms); next := c.(next); budget := max_nodes |}.
 
-Definition spend (c : ctx) (k : int) : ctx :=
+Definition spend_budget (c : ctx) (k : int) : ctx :=
   {| atoms := c.(atoms); next := c.(next); budget := c.(budget) - k |}.
 
 (* The atom of [v], allocated if [v] has none yet. *)
@@ -119,13 +118,14 @@ Definition intern (c : ctx) (v : value) : int * ctx :=
 (* The shifts expanded are by fewer than this many bits. *)
 Definition max_shift_bits : int := 16.
 
-(* The helpers of [expr_of_value]: [atomize] makes a value an atom with
-   the full range; [keep] keeps a node only while its range is known. *)
+(* The helpers of [expr_of_value]: [atomize] makes a value an atom with the
+   full range; [keep_if_range_known] keeps a node only while its range is
+   known. *)
 Definition atomize (c : ctx) (v : value)
     : (AffineExpr.t * option Range.t) * ctx :=
   let '(id, c) := intern c v in ((AffineExpr.Atom id, Some Range.full), c).
 
-Definition keep (c : ctx) (v : value) (node : AffineExpr.t)
+Definition keep_if_range_known (c : ctx) (v : value) (node : AffineExpr.t)
     (range : option Range.t) : (AffineExpr.t * option Range.t) * ctx :=
   match range with
   | Some _ => ((node, range), c)
@@ -133,22 +133,23 @@ Definition keep (c : ctx) (v : value) (node : AffineExpr.t)
   end.
 
 (* The range operations, on ranges that may be unknown. *)
-Definition radd (a b : option Range.t) : option Range.t :=
+Definition add_optional_ranges (a b : option Range.t) : option Range.t :=
   match a, b with Some a, Some b => Range.add a b | _, _ => None end.
 
-Definition rsub (a b : option Range.t) : option Range.t :=
+Definition sub_optional_ranges (a b : option Range.t) : option Range.t :=
   match a, b with Some a, Some b => Range.sub a b | _, _ => None end.
 
-Definition rscale (k : int) (r : option Range.t) : option Range.t :=
+Definition scale_optional_range (k : int)
+  (r : option Range.t) : option Range.t :=
   match r with Some r => Range.scale k r | None => None end.
 
 (* The expression of a value, with its range when one is known, from the
-   operation defining it and, recursively, its arguments; the budget pays
-   for each argument before it is walked. A value defined by an operation
-   not understood here, one whose range is lost, or one beyond the budget
-   becomes an atom ([atomize]). The argument of a logical shift is not
-   walked. Sound for a well-formed context ([ctx_wf], part 2) whose atom
-   counter has room for the budget: [expr_of_value_sound]. *)
+   operation defining it and, recursively, its arguments; the budget pays for
+   each argument before it is walked. A value defined by an operation not
+   understood here, one whose range is lost, or one beyond the budget becomes
+   an atom ([atomize]). The argument of a logical shift is not walked. Sound
+   for a well-formed context ([ctx_wf], part 2) whose atom counter has room for
+   the budget: [expr_of_value_sound]. *)
 Fixpoint expr_of_value (c : ctx) (v : value)
     : (AffineExpr.t * option Range.t) * ctx :=
   match v with
@@ -162,46 +163,49 @@ Fixpoint expr_of_value (c : ctx) (v : value)
   | Res _ (Intop Iadd) [a; b] _ =>
     if two <=? c.(budget)
     then
-      let c := spend c two in
+      let c := spend_budget c two in
       let '((ea, ra), c) := expr_of_value c a in
       let '((eb, rb), c) := expr_of_value c b in
-      keep c v (AffineExpr.Add ea eb) (radd ra rb)
+      keep_if_range_known c v (AffineExpr.Add ea eb)
+        (add_optional_ranges ra rb)
     else atomize c v
   | Res _ (Intop Isub) [a; b] _ =>
     if two <=? c.(budget)
     then
-      let c := spend c two in
+      let c := spend_budget c two in
       let '((ea, ra), c) := expr_of_value c a in
       let '((eb, rb), c) := expr_of_value c b in
-      keep c v (AffineExpr.Sub ea eb) (rsub ra rb)
+      keep_if_range_known c v (AffineExpr.Sub ea eb)
+        (sub_optional_ranges ra rb)
     else atomize c v
   | Res _ (Intop_imm Iadd k) [a] _ =>
     if one <=? c.(budget)
     then
-      let c := spend c one in
+      let c := spend_budget c one in
       let '((ea, ra), c) := expr_of_value c a in
-      keep c v (AffineExpr.Add ea (AffineExpr.Const k))
-        (radd ra (Some (Range.const k)))
+      keep_if_range_known c v (AffineExpr.Add ea (AffineExpr.Const k))
+        (add_optional_ranges ra (Some (Range.const k)))
     else atomize c v
   | Res _ (Intop_imm Isub k) [a] _ =>
     if one <=? c.(budget)
     then
-      let c := spend c one in
+      let c := spend_budget c one in
       let '((ea, ra), c) := expr_of_value c a in
-      keep c v (AffineExpr.Sub ea (AffineExpr.Const k))
-        (rsub ra (Some (Range.const k)))
+      keep_if_range_known c v (AffineExpr.Sub ea (AffineExpr.Const k))
+        (sub_optional_ranges ra (Some (Range.const k)))
     else atomize c v
   | Res _ (Intop_imm Ilsl k) [a] _ =>
     if (zero <=? k) && (k <? max_shift_bits) && (one <=? c.(budget))
     then
-      let c := spend c one in
+      let c := spend_budget c one in
       let '((ea, ra), c) := expr_of_value c a in
-      keep c v (AffineExpr.Scale (one << k) ea) (rscale (one << k) ra)
+      keep_if_range_known c v (AffineExpr.Scale (one << k) ea)
+        (scale_optional_range (one << k) ra)
     else atomize c v
   | Res _ (Intop_imm Iasr k) [a] _ =>
     if (zero <=? k) && (k <? max_shift_bits) && (one <=? c.(budget))
     then
-      let c := spend c one in
+      let c := spend_budget c one in
       match expr_of_value c a with
       | ((ea, Some _), c) =>
         let '(id, c) := intern c v in
@@ -218,7 +222,7 @@ Fixpoint expr_of_value (c : ctx) (v : value)
   | Res _ (Intop_imm Ior m) [a] _ =>
     if (zero <=? m) && (one <=? c.(budget))
     then
-      let c := spend c one in
+      let c := spend_budget c one in
       match expr_of_value c a with
       | ((ea, Some r), c) =>
         let '(id, c) := intern c v in
@@ -231,19 +235,22 @@ Fixpoint expr_of_value (c : ctx) (v : value)
 
 (* --- Linearization --- *)
 
-(* [side] with each fact of [sides] not already in it pushed on the front. *)
-Definition push_sides (side sides : list Affine.t) : list Affine.t :=
+(* [existing_facts] with each fact of [new_facts] not already in it pushed on
+   the front. *)
+Definition push_sides (existing_facts new_facts : list Affine.t)
+    : list Affine.t :=
   OxCamlList.fold_left
-    (fun side f => if existsb (Affine.equal f) side then side else f :: side)
-    side sides.
+    (fun existing_facts fact => if existsb (Affine.equal fact) existing_facts
+      then existing_facts else fact :: existing_facts)
+    existing_facts new_facts.
 
-(* The affine form of a value, walked with a fresh budget, with the side
-   facts of its linearization added to [side]; an atom for the value
-   itself when [to_affine] overflows. Sound under the conditions of
-   [expr_of_value]: [linearize_sound]. *)
+(* The affine form of a value, walked with a fresh budget, with the side facts
+   of its linearization added to [side]; an atom for the value itself when
+   [to_affine] overflows. Sound under the conditions of [expr_of_value]:
+   [linearize_sound]. *)
 Definition linearize (c : ctx) (side : list Affine.t) (v : value)
     : (Affine.t * list Affine.t) * ctx :=
-  let '((e, _), c) := expr_of_value (refill c) v in
+  let '((e, _), c) := expr_of_value (refill_budget c) v in
   match to_affine e with
   | Some (form, sides) => ((form, push_sides side sides), c)
   | None => let '(id, c) := intern c v in ((Affine.var id, side), c)
@@ -251,10 +258,10 @@ Definition linearize (c : ctx) (side : list Affine.t) (v : value)
 
 (* --- Guard facts from dominating branches --- *)
 
-(* The facts a comparison implies when it holds ([negate = false]) or
-   fails ([negate = true]); its operands are linearized in turn, [a]
-   first. A value that is not a comparison yields no facts. *)
-Definition cond_facts (c : ctx) (side : list Affine.t) (negate : bool)
+(* The facts a comparison implies when it holds ([negate = false]) or fails
+   ([negate = true]); its operands are linearized in turn, [a] first. A value
+   that is not a comparison yields no facts. *)
+Definition comparison_facts (c : ctx) (side : list Affine.t) (negate : bool)
     (cond : value) : (list Affine.t * list Affine.t) * ctx :=
   match cond with
   | Res _ (Intop (Icomp cmp)) [a; b] _ =>
@@ -269,12 +276,12 @@ Definition cond_facts (c : ctx) (side : list Affine.t) (negate : bool)
 
 (* [guards_at] walks the strict dominators of [target], which SsaModel.v
    provides as the list [strict_dominators target]. For one dominator,
-   [guard_test] gives the comparison it branches on and whether the fact
-   is to be negated, when the successor it branches to towards [target]
-   dominates [target] and is entered only from the dominator
-   ([sole_predecessor], SsaDominance.v), so that every path to [target]
-   takes that branch; [guard_facts] is the body of the walk, with the facts
-   so far and the [side] and [ctx] of [cond_facts] passed along as [st]. *)
+   [guard_test] gives the comparison it branches on and whether the fact is to
+   be negated, when the successor it branches to towards [target] dominates
+   [target] and is entered only from the dominator ([sole_predecessor],
+   SsaDominance.v), so that every path to [target] takes that branch;
+   [guard_facts] is the body of the walk, with the facts so far and the [side]
+   and [ctx] of [comparison_facts] passed along as [st]. *)
 Definition guard_test (target dominator : block) : option (value * bool) :=
   match terminator dominator with
   | Terminator.Switch index [ifnot; ifso] =>
@@ -292,14 +299,14 @@ Definition guard_facts (target : block)
   let '((acc, side), c) := st in
   match guard_test target dominator with
   | Some (index, negate) =>
-    let '((fs, side), c) := cond_facts c side negate index in
+    let '((fs, side), c) := comparison_facts c side negate index in
     ((fs ++ acc, side), c)
   | None => ((acc, side), c)
   end.
 
-(* The facts holding on entry to [target], from the branches that
-   dominate it. Sound for a well-formed context whose atom counter has
-   room for the guards: [guards_at_sound]. *)
+(* The facts holding on entry to [target], from the branches that dominate it.
+   Sound for a well-formed context whose atom counter has room for the guards:
+   [guards_at_sound]. *)
 Definition guards_at (c : ctx) (side : list Affine.t) (target : block)
     : (list Affine.t * list Affine.t) * ctx :=
   OxCamlList.fold_left (guard_facts target) (([], side), c)
@@ -311,94 +318,103 @@ Definition guards_at (c : ctx) (side : list Affine.t) (target : block)
 
 Local Open Scope Z_scope.
 
-(* The context's invariant: each atom appears once, all are below the
-   next one to be allocated, and the budget is not negative. *)
+(* The context's invariant: each atom appears once, all are below the next one
+   to be allocated, and the budget is not negative. *)
 Definition ctx_wf (c : ctx) : Prop :=
   NoDup (map fst c.(atoms))
   /\ (forall (id : int) (v : value),
-        In (id, v) c.(atoms) -> to_Z id < to_Z c.(next))
+        (id, v) ∈ c.(atoms) -> to_Z id < to_Z c.(next))
   /\ 0 <= to_Z c.(budget).
 
 (* A context only gains atoms. *)
-Definition extends (c c' : ctx) : Prop :=
-  forall (p : int * value), In p c.(atoms) -> In p c'.(atoms).
+Definition extends (initial_ctx extended_ctx : ctx) : Prop :=
+  forall (p : int * value), p ∈ initial_ctx.(atoms) -> p ∈ extended_ctx.(atoms).
 
-(* The atoms one linearization may allocate: one per node expanded, one
-   for the value itself and one when its affine form overflows; those the
-   facts of one comparison may allocate, with two operands linearized; and
-   those [guards_at] may allocate for one dominator, for a list of
-   dominators, and for the whole walk. *)
-Definition linearize_atoms : Z := to_Z max_nodes + 2.
+(* The atoms one linearization may allocate: one per node expanded, one for the
+   value itself and one when its affine form overflows; those the facts of one
+   comparison may allocate, with two operands linearized; and those [guards_at]
+   may allocate for one dominator, for a list of dominators, and for the whole
+   walk. *)
+Definition linearize_atom_bound : Z := to_Z max_nodes + 2.
 
-Definition cond_atoms : Z := 2 * linearize_atoms.
+Definition comparison_atom_bound : Z := 2 * linearize_atom_bound.
 
-Definition guard_size (target dominator : block) : Z :=
+Definition guard_atom_bound (target dominator : block) : Z :=
   match guard_test target dominator with
-  | Some _ => cond_atoms
+  | Some _ => comparison_atom_bound
   | None => 0
   end.
 
-Definition guards_sum (target : block) (dominators : list block) : Z :=
-  fold_right (fun dominator acc => guard_size target dominator + acc) 0
+Definition guard_list_atom_bound (target : block)
+  (dominators : list block) : Z :=
+  fold_right (fun dominator acc => guard_atom_bound target dominator + acc) 0
     dominators.
 
-Definition guards_size (target : block) : Z :=
-  guards_sum target (strict_dominators target).
+Definition guards_atom_bound (target : block) : Z :=
+  guard_list_atom_bound target (strict_dominators target).
 
 Section Semantics.
-  (* The machine value of each SSA value: a 64-bit register, in one
-     execution of the function. [Ssa.Value.equal] identifies SSA values,
-     which then have the same machine value. *)
-  Variable mval : value -> Z.
-  Hypothesis mval_bounded : forall (v : value), in_int64 (mval v).
-  Hypothesis mval_eqb :
-    forall (v w : value), value_eqb v w = true -> mval v = mval w.
+  (* The machine value of each SSA value: a 64-bit register, in one execution
+     of the function. [Ssa.Value.equal] identifies SSA values, which then have
+     the same machine value. *)
+  Variable value_words : value -> Z.
+  Hypothesis value_words_bounded : forall (v : value), in_int64 (value_words
+    v).
+  Hypothesis value_words_respect_equality :
+    forall (v w : value),
+    value_eqb v w = true -> value_words v = value_words w.
 
-  (* The recognised operations compute what [SsaSemantics.eval_operation]
-     says on the machine values of their arguments: there is one arithmetic
-     semantics in the development, and this is a reading of it. It
-     covers every [modeled_operation], comparisons included, though the
-     affine theorems only need the operands of a comparison (see
-     [test_result]). *)
+  (* The recognised operations compute what [SsaSemantics.eval_operation] says
+     on the machine values of their arguments: there is one arithmetic
+     semantics in the development, and this is a reading of it. It covers every
+     [modeled_operation], comparisons included, though the affine theorems only
+     need the operands of a comparison (see [comparison_matches_branch]). *)
   Definition op_semantics (v : value) : Prop :=
     match v with
     | Res _ op args _ =>
       modeled_operation op args = true ->
-      eval_operation op (map mval args) = Some (mval v)
+      eval_operation op (map value_words args) = Some (value_words v)
     | Block_param _ _ => True
     end.
 
   (* Every value is computed as its operation says. *)
-  Hypothesis mval_ops : forall (v : value), op_semantics v.
+  Hypothesis value_words_follow_operations :
+    forall (v : value), op_semantics v.
 
   (* The equations the proofs below use, one per recognised shape, as they
-     follow from [op_semantics] and the register bound: add, subtract and
-     left shift wrap at 64 bits; the arithmetic right shift divides
-     rounding towards minus infinity; the logical right shift divides the
-     unsigned reading of its argument, read back as a signed register; or
-     is the bitwise or of two's-complement values. Shifts by amounts
-     outside the register width are not constrained. *)
+     follow from [op_semantics] and the register bound: add, subtract and left
+     shift wrap at 64 bits; the arithmetic right shift divides rounding towards
+     minus infinity; the logical right shift divides the unsigned reading of
+     its argument, read back as a signed register; or is the bitwise or of
+     two's-complement values. Shifts by amounts outside the register width are
+     not constrained. *)
   Definition op_equations (v : value) : Prop :=
     match v with
-    | Res _ (Const_int n) _ _ => mval v = Int64.to_Z (Int64.of_nativeint n)
-    | Res _ (Intop Iadd) [a; b] _ => mval v = wrap64 (mval a + mval b)
-    | Res _ (Intop Isub) [a; b] _ => mval v = wrap64 (mval a - mval b)
-    | Res _ (Intop_imm Iadd k) [a] _ => mval v = wrap64 (mval a + to_Z k)
-    | Res _ (Intop_imm Isub k) [a] _ => mval v = wrap64 (mval a - to_Z k)
+    | Res _ (Const_int n) _ _ => value_words v = Int64.to_Z (Int64.of_nativeint
+      n)
+    | Res _ (Intop Iadd) [a; b] _ => value_words v = wrap64 (value_words a +
+      value_words b)
+    | Res _ (Intop Isub) [a; b] _ => value_words v = wrap64 (value_words a -
+      value_words b)
+    | Res _ (Intop_imm Iadd k) [a] _ => value_words v = wrap64 (value_words a +
+      to_Z k)
+    | Res _ (Intop_imm Isub k) [a] _ => value_words v = wrap64 (value_words a -
+      to_Z k)
     | Res _ (Intop_imm Ilsl k) [a] _ =>
-      0 <= to_Z k <= 63 -> mval v = wrap64 (mval a * 2 ^ to_Z k)
+      0 <= to_Z k <= 63 -> value_words v = wrap64 (value_words a * 2 ^ to_Z k)
     | Res _ (Intop_imm Iasr k) [a] _ =>
-      0 <= to_Z k <= 63 -> mval v = mval a / 2 ^ to_Z k
+      0 <= to_Z k <= 63 -> value_words v = value_words a / 2 ^ to_Z k
     | Res _ (Intop_imm Ilsr k) [a] _ =>
       0 <= to_Z k <= 63 ->
-      mval v = wrap64 (unsigned64 (mval a) / 2 ^ to_Z k)
-    | Res _ (Intop_imm Ior m) [a] _ => mval v = Z.lor (mval a) (to_Z m)
+      value_words v = wrap64 (unsigned64 (value_words a) / 2 ^ to_Z k)
+    | Res _ (Intop_imm Ior m) [a] _ => value_words v = Z.lor (value_words a)
+      (to_Z m)
     | _ => True
     end.
 
-  Lemma mval_equations : forall (v : value), op_equations v.
+  Lemma value_word_equations : forall (v : value), op_equations v.
   Proof.
-    intros v. pose proof (mval_ops v) as Hs.
+    intros v. pose proof (value_words_follow_operations v) as Hs.
     destruct v as [id op args i | b i]; [ | exact I].
     assert (Hbits : forall (k : int), 0 <= to_Z k <= 63 ->
       Z.leb 0 (to_Z k) && Z.leb (to_Z k) 63 = true).
@@ -411,7 +427,7 @@ Section Semantics.
     - (* Ior *)
       specialize (Hs eq_refl). injection Hs as Hs.
       rewrite <- Hs. apply wrap64_id, lor_in_int64.
-      + apply mval_bounded.
+      + apply value_words_bounded.
       + pose proof (int_bounds k). unfold in_int64, two63, two62 in *. lia.
     - (* Ilsl *)
       intros Hk. rewrite (Hbits k Hk) in Hs. specialize (Hs eq_refl).
@@ -422,42 +438,44 @@ Section Semantics.
     - (* Iasr *)
       intros Hk. rewrite (Hbits k Hk) in Hs. specialize (Hs eq_refl).
       injection Hs as Hs. rewrite <- Hs. apply wrap64_id.
-      eapply in_range_int64.
-      eapply shr_signed_sound; [exact Hk | apply mval_bounded].
+      eapply in_range_implies_int64.
+      eapply signed_shift_range_sound; [exact Hk | apply value_words_bounded].
   Qed.
 
-  (* A valuation agrees with a context when it reads each atom as the
-     machine value of the SSA value interned for it. *)
+  (* A valuation agrees with a context when it reads each atom as the machine
+     value of the SSA value interned for it. *)
   Definition agrees (rho : valuation) (c : ctx) : Prop :=
-    forall (id : int) (v : value), In (id, v) c.(atoms) -> rho id = mval v.
+    forall (id : int) (v : value),
+      (id, v) ∈ c.(atoms) -> rho id = value_words v.
 
-  (* The comparison a branch tests came out as the taken edge requires:
-     true for the edge [cond_facts] is called with [negate = false] for,
-     false for the other. Values that are not comparisons yield no facts. *)
-  Definition test_result (negate : bool) (cond : value) : Prop :=
-    match cond with
+  (* The comparison a branch tests came out as the taken edge requires: true
+     for the edge [comparison_facts] is called with [negate = false] for, false
+     for the other. Values that are not comparisons yield no facts. *)
+  Definition comparison_matches_branch (negate : bool)
+    (comparison_result : value) : Prop :=
+    match comparison_result with
     | Res _ (Intop (Icomp cmp)) [a; b] _ =>
-      IntegerComparison.eval cmp (mval a) (mval b) = negb negate
+      IntegerComparison.eval cmp (value_words a) (value_words b) = negb negate
     | Res _ (Intop_imm (Icomp cmp) k) [a] _ =>
-      IntegerComparison.eval cmp (mval a) (to_Z k) = negb negate
+      IntegerComparison.eval cmp (value_words a) (to_Z k) = negb negate
     | _ => True
     end.
 
-  (* The branches [guards_at] takes facts from went the way it assumes:
-     for each dominator of [target] whose branch [guard_test] accepts, the
-     comparison tested came out as that branch requires. On entry to
-     [target] this holds because every path to [target] took that branch
+  (* The branches [guards_at] takes facts from went the way it assumes: for
+     each dominator of [target] whose branch [guard_test] accepts, the
+     comparison tested came out as that branch requires. On entry to [target]
+     this holds because every path to [target] took that branch
      (LoopGuardExecution.executed_guards_taken proves it of the actual
-     execution); here it is an assumption on [mval], which
+     execution); here it is an assumption on [value_words], which
      LoopTermination.v makes of the values at the entry to a loop. *)
   Definition guard_taken (target dominator : block) : Prop :=
     forall (index : value) (negate : bool),
       guard_test target dominator = Some (index, negate) ->
-      test_result negate index.
+      comparison_matches_branch negate index.
 
   Definition guards_taken (target : block) : Prop :=
     forall (dominator : block),
-      In dominator (strict_dominators target) -> guard_taken target dominator.
+      dominator ∈ (strict_dominators target) -> guard_taken target dominator.
 
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
@@ -467,14 +485,17 @@ Section Semantics.
   Lemma extends_refl : forall (c : ctx), extends c c.
   Proof. intros c p H. exact H. Qed.
 
-  Lemma extends_trans : forall (c1 c2 c3 : ctx),
-    extends c1 c2 -> extends c2 c3 -> extends c1 c3.
+  Lemma extends_trans : forall (initial_ctx middle_ctx final_ctx : ctx),
+    extends initial_ctx middle_ctx -> extends middle_ctx final_ctx -> extends
+      initial_ctx final_ctx.
   Proof. intros c1 c2 c3 H12 H23 p H. apply H23, H12, H. Qed.
 
   (* A valuation agreeing with an extension of a context agrees with the
      context. *)
-  Lemma agrees_extends : forall (rho : valuation) (c c' : ctx),
-    extends c c' -> agrees rho c' -> agrees rho c.
+  Lemma agrees_extends : forall (rho : valuation)
+    (initial_ctx extended_ctx : ctx),
+    extends initial_ctx extended_ctx -> agrees rho extended_ctx -> agrees rho
+      initial_ctx.
   Proof. intros rho c c' He Ha id v H. apply Ha, He, H. Qed.
 
   (* The literals. *)
@@ -484,37 +505,41 @@ Section Semantics.
   Lemma to_Z_max_shift_bits : to_Z max_shift_bits = 16.
   Proof. reflexivity. Qed.
 
-  Lemma linearize_atoms_eq : linearize_atoms = 258.
+  Lemma linearize_atom_bound_eq : linearize_atom_bound = 258.
   Proof. reflexivity. Qed.
 
-  Lemma cond_atoms_eq : cond_atoms = 516.
+  Lemma comparison_atom_bound_eq : comparison_atom_bound = 516.
   Proof. reflexivity. Qed.
 
-  (* The atom allowances are non-negative, and [guards_sum] unfolds on lists.
-     *)
-  Lemma guard_size_nonneg : forall (target dominator : block),
-    0 <= guard_size target dominator.
+  (* The atom allowances are non-negative, and [guard_list_atom_bound] unfolds
+     on lists. *)
+  Lemma guard_atom_bound_nonnegative : forall (target dominator : block),
+    0 <= guard_atom_bound target dominator.
   Proof.
-    intros target d. unfold guard_size.
+    intros target d. unfold guard_atom_bound.
     destruct (guard_test target d) as [[index negate] | ];
-      [ rewrite cond_atoms_eq | ]; lia.
+      [ rewrite comparison_atom_bound_eq | ]; lia.
   Qed.
 
-  Lemma guards_sum_nil : forall (target : block), guards_sum target [] = 0.
+  Lemma guard_list_atom_bound_nil : forall (target : block),
+    guard_list_atom_bound target [] = 0.
   Proof. reflexivity. Qed.
 
-  Lemma guards_sum_cons :
+  Lemma guard_list_atom_bound_cons :
     forall (target dominator : block) (dominators : list block),
-    guards_sum target (dominator :: dominators)
-    = guard_size target dominator + guards_sum target dominators.
+    guard_list_atom_bound target (dominator :: dominators)
+    = guard_atom_bound target dominator + guard_list_atom_bound target
+      dominators.
   Proof. reflexivity. Qed.
 
-  Lemma guards_sum_nonneg : forall (target : block) (dominators : list block),
-    0 <= guards_sum target dominators.
+  Lemma guard_list_atom_bound_nonnegative : forall (target : block)
+    (dominators : list block),
+    0 <= guard_list_atom_bound target dominators.
   Proof.
     intros target doms. induction doms as [ | d doms IH ].
-    - rewrite guards_sum_nil. lia.
-    - rewrite guards_sum_cons. pose proof (guard_size_nonneg target d). lia.
+    - rewrite guard_list_atom_bound_nil. lia.
+    - rewrite guard_list_atom_bound_cons. pose proof
+      (guard_atom_bound_nonnegative target d). lia.
   Qed.
 
   (* --- The context --- *)
@@ -528,29 +553,31 @@ Section Semantics.
     cbn [budget new_ctx]. rewrite to_Z_max_nodes. lia.
   Qed.
 
-  (* [refill] keeps the atoms and the counter and sets the budget. *)
-  Lemma refill_spec : forall (c : ctx),
+  (* [refill_budget] keeps the atoms and the counter and sets the budget. *)
+  Lemma refill_budget_spec : forall (c : ctx),
     ctx_wf c ->
-    ctx_wf (refill c) /\ extends c (refill c)
-    /\ to_Z (refill c).(next) = to_Z c.(next)
-    /\ to_Z (refill c).(budget) = to_Z max_nodes.
+    ctx_wf (refill_budget c) /\ extends c (refill_budget c)
+    /\ to_Z (refill_budget c).(next) = to_Z c.(next)
+    /\ to_Z (refill_budget c).(budget) = to_Z max_nodes.
   Proof.
-    intros c [Hnd [Hlt _]]. unfold refill. cbn [atoms next budget].
+    intros c [Hnd [Hlt _]]. unfold refill_budget. cbn [atoms next budget].
     refine (conj (conj Hnd (conj Hlt _)) (conj _ (conj eq_refl eq_refl))).
     - cbn [budget]. rewrite to_Z_max_nodes. lia.
     - intros p Hp. exact Hp.
   Qed.
 
-  (* [spend c k], when the budget has [k] nodes, keeps the atoms and the
-     counter and lowers the budget by [k]. *)
-  Lemma spend_spec : forall (c : ctx) (k : int),
-    ctx_wf c -> 0 <= to_Z k -> (k <=? c.(budget))%sint63 = true ->
-    ctx_wf (spend c k) /\ extends c (spend c k)
-    /\ to_Z (spend c k).(next) = to_Z c.(next)
-    /\ to_Z (spend c k).(budget) = to_Z c.(budget) - to_Z k.
+  (* [spend_budget c node_count], when the budget has [node_count] nodes, keeps
+     the atoms and the counter and lowers the budget by [node_count]. *)
+  Lemma spend_budget_spec : forall (c : ctx) (node_count : int),
+    ctx_wf c -> 0 <= to_Z node_count ->
+    (node_count <=? c.(budget))%sint63 = true ->
+    ctx_wf (spend_budget c node_count) /\ extends c (spend_budget c node_count)
+    /\ to_Z (spend_budget c node_count).(next) = to_Z c.(next)
+    /\ to_Z (spend_budget c node_count).(budget)
+       = to_Z c.(budget) - to_Z node_count.
   Proof.
     intros c k [Hnd [Hlt Hb]] Hk Hle. apply leb_int in Hle.
-    unfold spend. cbn [atoms next budget].
+    unfold spend_budget. cbn [atoms next budget].
     assert (Hsub : to_Z (c.(budget) - k)%sint63 = to_Z c.(budget) - to_Z k).
     { apply Sint63.to_Z_sub. rewrite to_Z_min_int, to_Z_max_int.
       pose proof (int_bounds c.(budget)). pose proof (int_bounds k). lia. }
@@ -561,14 +588,18 @@ Section Semantics.
 
   (* --- [intern] --- *)
 
-  (* [intern] returns an atom standing for [v]: the context stays
-     well-formed, grows by at most one atom and keeps its budget, and under
-     any agreeing valuation the atom reads as [v]'s machine value. *)
-  Lemma intern_spec : forall (c : ctx) (v : value) (id : int) (c' : ctx),
-    ctx_wf c -> to_Z c.(next) < ocaml_max_int -> intern c v = (id, c') ->
-    ctx_wf c' /\ extends c c' /\ to_Z c'.(next) <= to_Z c.(next) + 1
-    /\ to_Z c'.(budget) = to_Z c.(budget)
-    /\ forall (rho : valuation), agrees rho c' -> rho id = mval v.
+  (* [intern] returns an atom standing for [value_ref]: the context stays
+     well-formed, grows by at most one atom and keeps its budget, and under any
+     agreeing valuation the atom reads as [value_ref]'s machine value. *)
+  Lemma intern_spec : forall (initial_ctx : ctx) (value_ref : value)
+    (id : int) (final_ctx : ctx),
+    ctx_wf initial_ctx -> to_Z initial_ctx.(next) < ocaml_max_int ->
+    intern initial_ctx value_ref = (id, final_ctx) ->
+    ctx_wf final_ctx /\ extends initial_ctx final_ctx
+    /\ to_Z final_ctx.(next) <= to_Z initial_ctx.(next) + 1
+    /\ to_Z final_ctx.(budget) = to_Z initial_ctx.(budget)
+    /\ forall (rho : valuation), agrees rho final_ctx ->
+         rho id = value_words value_ref.
   Proof.
     intros c v id c' [Hnd [Hlt Hb]] Hnext H. unfold intern in H.
     destruct (find _ c.(atoms)) as [ [id0 w] | ] eqn:Hf.
@@ -576,7 +607,8 @@ Section Semantics.
       refine (conj (conj Hnd (conj Hlt Hb))
                 (conj (extends_refl c) (conj _ (conj eq_refl _))));
         [ lia | ].
-      intros rho Ha. rewrite (Ha id0 w Hin). symmetry. apply mval_eqb.
+      intros rho Ha. rewrite (Ha id0 w Hin). symmetry. apply
+        value_words_respect_equality.
       exact Heq.
     - injection H as <- <-. unfold ctx_wf, extends, agrees.
       cbn [atoms next budget].
@@ -598,39 +630,46 @@ Section Semantics.
       + intros rho Ha. apply Ha. left. reflexivity.
   Qed.
 
-  (* [atomize] returns an atom standing for [v] with the full range: the
-     context stays well-formed, keeps its budget and gains at most one
-     atom, and under any agreeing valuation the atom reads as [v]'s
+  (* [atomize] returns an atom standing for [value_ref] with the full range:
+     the context stays well-formed, keeps its budget and gains at most one
+     atom, and under any agreeing valuation the atom reads as [value_ref]'s
      machine value, which is in the range. *)
   Lemma atomize_spec :
-    forall (c : ctx) (v : value) (e : AffineExpr.t) (r : option Range.t)
-      (c' : ctx),
-    ctx_wf c -> to_Z c.(next) < ocaml_max_int ->
-    atomize c v = ((e, r), c') ->
-    ctx_wf c' /\ extends c c' /\ to_Z c'.(next) <= to_Z c.(next) + 1
-    /\ to_Z c'.(budget) = to_Z c.(budget)
-    /\ forall (rho : valuation), agrees rho c' ->
-         AffineExpr.eval rho e = mval v /\ consistent rho e
-         /\ forall (rg : Range.t), r = Some rg -> in_range rg (mval v).
+    forall (initial_ctx : ctx) (value_ref : value) (expr : AffineExpr.t)
+      (optional_range : option Range.t)
+      (final_ctx : ctx),
+    ctx_wf initial_ctx -> to_Z initial_ctx.(next) < ocaml_max_int ->
+    atomize initial_ctx value_ref = ((expr, optional_range), final_ctx) ->
+    ctx_wf final_ctx /\ extends initial_ctx final_ctx /\ to_Z final_ctx.(next)
+      <= to_Z initial_ctx.(next) + 1
+    /\ to_Z final_ctx.(budget) = to_Z initial_ctx.(budget)
+    /\ forall (rho : valuation), agrees rho final_ctx ->
+         AffineExpr.eval rho expr = value_words value_ref /\
+           atom_operations_consistent rho expr
+         /\ forall (known_range : Range.t), optional_range = Some known_range
+           -> in_range known_range (value_words value_ref).
   Proof.
     intros c v e r c' Hwf Hnext H. unfold atomize in H.
     destruct (intern c v) as [id c1] eqn:Hi. injection H as <- <- <-.
     destruct (intern_spec c v id c1 Hwf Hnext Hi)
       as [Hwf1 [He1 [Hn1 [Hb1 Hid]]]].
     refine (conj Hwf1 (conj He1 (conj Hn1 (conj Hb1 _)))).
-    intros rho Ha. cbn [AffineExpr.eval consistent].
+    intros rho Ha. cbn [AffineExpr.eval atom_operations_consistent].
     split; [ apply Hid; exact Ha | ].
     split; [ exact I | ].
-    intros rg Hrg. injection Hrg as <-. apply full_sound. apply mval_bounded.
+    intros rg Hrg. injection Hrg as <-. apply full_range_sound. apply
+      value_words_bounded.
   Qed.
 
   (* --- [push_sides] --- *)
 
   (* Every fact of the result comes from one of the two lists ... *)
-  Lemma push_sides_In : forall (sides side : list Affine.t) (f : Affine.t),
-    In f (push_sides side sides) -> In f side \/ In f sides.
+  Lemma push_sides_In : forall (new_facts existing_facts : list Affine.t)
+    (fact : Affine.t),
+    fact ∈ (push_sides existing_facts new_facts) -> fact ∈ existing_facts \/
+      fact ∈ new_facts.
   Proof.
-    unfold push_sides, OxCamlList.fold_left.
+    intros sides. unfold push_sides, OxCamlList.fold_left.
     induction sides as [ | g sides IH ]; cbn [List.fold_left]; intros side f H.
     - left. exact H.
     - destruct (existsb (Affine.equal g) side).
@@ -645,8 +684,9 @@ Section Semantics.
   (* ... so a property of every fact of both holds of every fact of the result.
      *)
   Lemma push_sides_Forall :
-    forall (P : Affine.t -> Prop) (side sides : list Affine.t),
-    Forall P side -> Forall P sides -> Forall P (push_sides side sides).
+    forall (P : Affine.t -> Prop) (existing_facts new_facts : list Affine.t),
+    Forall P existing_facts -> Forall P new_facts -> Forall P (push_sides
+      existing_facts new_facts).
   Proof.
     intros P side sides Hside Hsides.
     rewrite Forall_forall in Hside, Hsides |- *. intros f Hf.
@@ -663,7 +703,7 @@ Section Semantics.
   Proof.
     intros c [Hnd _].
     exists (fun id => match assoc_opt id c.(atoms) with
-                      | Some v => mval v
+                      | Some v => value_words v
                       | None => 0
                       end).
     intros id v Hin. cbv beta. rewrite (assoc_opt_NoDup _ id v Hnd Hin).
@@ -672,8 +712,8 @@ Section Semantics.
 
   (* --- Induction over values --- *)
 
-  (* Induction over a value and, through the argument lists, the values
-     it is computed from. *)
+  (* Induction over a value and, through the argument lists, the values it is
+     computed from. *)
   Fixpoint value_ind' (P : value -> Prop)
       (Hres : forall id op args i, Forall P args -> P (Res id op args i))
       (Hparam : forall block i, P (Block_param block i)) (v : value) : P v :=
@@ -693,8 +733,8 @@ Section Semantics.
 (* ======================================================================== *)
 
   (* The fall-through of a case to [atomize]: close the goal from
-     [atomize_spec], given the context's well-formedness and its extension
-     from the initial context. *)
+     [atomize_spec], given the context's well-formedness and its extension from
+     the initial context. *)
   Ltac finish_atomized Hwf Hext H :=
     let A := fresh "A" in let B := fresh "B" in let C := fresh "C" in
     let D := fresh "D" in let E := fresh "E" in let F := fresh "F" in
@@ -709,35 +749,40 @@ Section Semantics.
     rewrite ?to_Z_zero, ?to_Z_one in Hk0;
     rewrite ?to_Z_max_shift_bits, ?to_Z_word_bits in Hk1.
 
-  (* Pay for the arguments of a node: read [spend_spec] for a true budget
-     test. *)
+  (* Pay for the arguments of a node: read [spend_budget_spec] for a true
+     budget test. *)
   Ltac pay k Hwf Hle Hwf1 He1 Hn1 Hb1 :=
-    destruct (spend_spec _ k Hwf ltac:(rewrite ?to_Z_one, ?to_Z_two; lia) Hle)
+    destruct (spend_budget_spec _ k Hwf ltac:(rewrite ?to_Z_one, ?to_Z_two;
+      lia) Hle)
       as [Hwf1 [He1 [Hn1 Hb1]]];
     rewrite ?to_Z_one, ?to_Z_two in Hb1.
 
-  (* The expression built for a value, under any valuation agreeing with
-     the context it leaves: it evaluates to the value's machine value
-     exactly; its atomized shifts and ors are consistent; and if a range
-     was found, the machine value is in it. The context stays well-formed
-     and only grows, and the atoms it gains are paid for by the budget,
-     but for one. *)
+  (* The expression built for a value, under any valuation agreeing with the
+     context it leaves: it evaluates to the value's machine value exactly; its
+     atomized shifts and ors are consistent; and if a range was found, the
+     machine value is in it. The context stays well-formed and only grows, and
+     the atoms it gains are paid for by the budget, but for one. *)
   Theorem expr_of_value_sound :
-    forall (v : value) (c : ctx) (e : AffineExpr.t) (r : option Range.t)
-      (c' : ctx),
-    ctx_wf c -> to_Z c.(next) + to_Z c.(budget) + 1 <= ocaml_max_int ->
-    expr_of_value c v = ((e, r), c') ->
-    ctx_wf c' /\ extends c c'
-    /\ to_Z c'.(next) + to_Z c'.(budget)
-       <= to_Z c.(next) + to_Z c.(budget) + 1
-    /\ forall (rho : valuation), agrees rho c' ->
-         AffineExpr.eval rho e = mval v /\ consistent rho e
-         /\ forall (rg : Range.t), r = Some rg -> in_range rg (mval v).
+    forall (value_ref : value) (initial_ctx : ctx) (expr : AffineExpr.t)
+      (optional_range : option Range.t)
+      (final_ctx : ctx),
+    ctx_wf initial_ctx ->
+    to_Z initial_ctx.(next) + to_Z initial_ctx.(budget) + 1 <= ocaml_max_int ->
+    expr_of_value initial_ctx value_ref
+      = ((expr, optional_range), final_ctx) ->
+    ctx_wf final_ctx /\ extends initial_ctx final_ctx
+    /\ to_Z final_ctx.(next) + to_Z final_ctx.(budget)
+       <= to_Z initial_ctx.(next) + to_Z initial_ctx.(budget) + 1
+    /\ forall (rho : valuation), agrees rho final_ctx ->
+         AffineExpr.eval rho expr = value_words value_ref /\
+           atom_operations_consistent rho expr
+         /\ forall (known_range : Range.t), optional_range = Some known_range
+           -> in_range known_range (value_words value_ref).
   Proof.
     intros v. induction v as [id op args i IHargs | b i] using value_ind';
       intros c e r c' Hwf Hn H;
       [ | cbn [expr_of_value] in H; finish_atomized Hwf (extends_refl c) H ].
-    pose proof (mval_equations (Res id op args i)) as Hs.
+    pose proof (value_word_equations (Res id op args i)) as Hs.
     destruct op as [ | | | n | ? | ? | ? | ? | ? | ? | ? | ? | ? | ? ? ? | iop
                    | ? | iop k | ? | ? ? | ? | ? | ? | ? | | | | ? | ? | | | |
                    | | ? ];
@@ -748,12 +793,12 @@ Section Semantics.
       destruct (int64_is_int (Int64.of_nativeint n)) eqn:Hf.
       + injection H as <- <- <-.
         refine (conj Hwf (conj (extends_refl c) (conj _ _))); [ lia | ].
-        intros rho _. cbn [AffineExpr.eval consistent].
+        intros rho _. cbn [AffineExpr.eval atom_operations_consistent].
         pose proof (int64_is_int_spec _ Hf) as Hk.
         split; [ rewrite Hk, Hs; reflexivity | ].
         split; [ exact I | ].
         intros rg Hrg. injection Hrg as <-. rewrite Hs, <- Hk.
-        apply const_sound.
+        apply constant_range_sound.
       + finish_atomized Hwf (extends_refl c) H.
     - (* Intop *)
       destruct iop;
@@ -769,17 +814,17 @@ Section Semantics.
         [ | finish_atomized Hwf (extends_refl c) H
           | | finish_atomized Hwf (extends_refl c) H ];
         pay two Hwf Hle Hwf1 He1 Hn1 Hb1;
-        destruct (expr_of_value (spend c two) a) as [[ea ra] ca] eqn:Ha;
+        destruct (expr_of_value (spend_budget c two) a) as [[ea ra] ca] eqn:Ha;
         destruct (expr_of_value ca b) as [[eb rb] cb] eqn:Hb;
         destruct (IHa _ ea ra ca Hwf1 ltac:(lia) Ha)
           as [Hwfa [Hea [Hna Hrho_a]]];
         destruct (IHb ca eb rb cb Hwfa ltac:(lia) Hb)
           as [Hwfb [Heb [Hnb Hrho_b]]];
-        unfold keep in H.
+        unfold keep_if_range_known in H.
       + (* Iadd *)
-        destruct (radd ra rb) as [ rg | ] eqn:Hr.
+        destruct (add_optional_ranges ra rb) as [ rg | ] eqn:Hr.
         * injection H as <- <- <-.
-          unfold radd in Hr.
+          unfold add_optional_ranges in Hr.
           destruct ra as [ rga | ]; [ | discriminate ].
           destruct rb as [ rgb | ]; [ | discriminate ].
           refine (conj Hwfb
@@ -792,19 +837,19 @@ Section Semantics.
           destruct (Hrho_a rho (agrees_extends _ _ _ Heb Hrho))
             as [Ea [Ca Ra]].
           specialize (Ra rga eq_refl). specialize (Rb rgb eq_refl).
-          pose proof (add_sound _ _ _ _ _ Hr Ra Rb) as Hsum.
-          pose proof (in_range_int64 _ _ Hsum) as Hfits.
+          pose proof (range_add_sound _ _ _ _ _ Hr Ra Rb) as Hsum.
+          pose proof (in_range_implies_int64 _ _ Hsum) as Hfits.
           rewrite Hs, (wrap64_id _ Hfits).
-          cbn [AffineExpr.eval consistent].
+          cbn [AffineExpr.eval atom_operations_consistent].
           split; [ rewrite Ea, Eb; reflexivity | ].
           split; [ exact (conj Ca Cb) | ].
           intros rg' Hrg. injection Hrg as <-. exact Hsum.
         * finish_atomized Hwfb
             (extends_trans _ _ _ He1 (extends_trans _ _ _ Hea Heb)) H.
       + (* Isub *)
-        destruct (rsub ra rb) as [ rg | ] eqn:Hr.
+        destruct (sub_optional_ranges ra rb) as [ rg | ] eqn:Hr.
         * injection H as <- <- <-.
-          unfold rsub in Hr.
+          unfold sub_optional_ranges in Hr.
           destruct ra as [ rga | ]; [ | discriminate ].
           destruct rb as [ rgb | ]; [ | discriminate ].
           refine (conj Hwfb
@@ -817,10 +862,10 @@ Section Semantics.
           destruct (Hrho_a rho (agrees_extends _ _ _ Heb Hrho))
             as [Ea [Ca Ra]].
           specialize (Ra rga eq_refl). specialize (Rb rgb eq_refl).
-          pose proof (sub_sound _ _ _ _ _ Hr Ra Rb) as Hdiff.
-          pose proof (in_range_int64 _ _ Hdiff) as Hfits.
+          pose proof (range_sub_sound _ _ _ _ _ Hr Ra Rb) as Hdiff.
+          pose proof (in_range_implies_int64 _ _ Hdiff) as Hfits.
           rewrite Hs, (wrap64_id _ Hfits).
-          cbn [AffineExpr.eval consistent].
+          cbn [AffineExpr.eval atom_operations_consistent].
           split; [ rewrite Ea, Eb; reflexivity | ].
           split; [ exact (conj Ca Cb) | ].
           intros rg' Hrg. injection Hrg as <-. exact Hdiff.
@@ -839,22 +884,25 @@ Section Semantics.
         destruct (one <=? c.(budget))%sint63 eqn:Hle;
           [ | finish_atomized Hwf (extends_refl c) H ].
         pay one Hwf Hle Hwf1 He1 Hn1 Hb1.
-        destruct (expr_of_value (spend c one) a) as [[ea ra] ca] eqn:Ha.
+        destruct (expr_of_value (spend_budget c one) a) as [[ea ra] ca] eqn:Ha.
         destruct (IHa _ ea ra ca Hwf1 ltac:(lia) Ha)
           as [Hwfa [Hea [Hna Hrho_a]]].
-        unfold keep in H.
-        destruct (radd ra (Some (Range.const k))) as [ rg | ] eqn:Hr.
+        unfold keep_if_range_known in H.
+        destruct (add_optional_ranges ra (Some (Range.const k))) as [ rg | ]
+          eqn:Hr.
         * injection H as <- <- <-.
-          unfold radd in Hr. destruct ra as [ rga | ]; [ | discriminate ].
+          unfold add_optional_ranges in Hr. destruct ra as [ rga | ]; [ |
+            discriminate ].
           refine (conj Hwfa (conj (extends_trans _ _ _ He1 Hea) (conj _ _)));
             [ lia | ].
           intros rho Hrho.
           destruct (Hrho_a rho Hrho) as [Ea [Ca Ra]].
           specialize (Ra rga eq_refl).
-          pose proof (add_sound _ _ _ _ _ Hr Ra (const_sound k)) as Hsum.
-          pose proof (in_range_int64 _ _ Hsum) as Hfits.
+          pose proof (range_add_sound _ _ _ _ _ Hr Ra (constant_range_sound k))
+            as Hsum.
+          pose proof (in_range_implies_int64 _ _ Hsum) as Hfits.
           rewrite Hs, (wrap64_id _ Hfits).
-          cbn [AffineExpr.eval consistent].
+          cbn [AffineExpr.eval atom_operations_consistent].
           split; [ rewrite Ea; reflexivity | ].
           split; [ exact (conj Ca I) | ].
           intros rg' Hrg. injection Hrg as <-. exact Hsum.
@@ -863,22 +911,25 @@ Section Semantics.
         destruct (one <=? c.(budget))%sint63 eqn:Hle;
           [ | finish_atomized Hwf (extends_refl c) H ].
         pay one Hwf Hle Hwf1 He1 Hn1 Hb1.
-        destruct (expr_of_value (spend c one) a) as [[ea ra] ca] eqn:Ha.
+        destruct (expr_of_value (spend_budget c one) a) as [[ea ra] ca] eqn:Ha.
         destruct (IHa _ ea ra ca Hwf1 ltac:(lia) Ha)
           as [Hwfa [Hea [Hna Hrho_a]]].
-        unfold keep in H.
-        destruct (rsub ra (Some (Range.const k))) as [ rg | ] eqn:Hr.
+        unfold keep_if_range_known in H.
+        destruct (sub_optional_ranges ra (Some (Range.const k))) as [ rg | ]
+          eqn:Hr.
         * injection H as <- <- <-.
-          unfold rsub in Hr. destruct ra as [ rga | ]; [ | discriminate ].
+          unfold sub_optional_ranges in Hr. destruct ra as [ rga | ]; [ |
+            discriminate ].
           refine (conj Hwfa (conj (extends_trans _ _ _ He1 Hea) (conj _ _)));
             [ lia | ].
           intros rho Hrho.
           destruct (Hrho_a rho Hrho) as [Ea [Ca Ra]].
           specialize (Ra rga eq_refl).
-          pose proof (sub_sound _ _ _ _ _ Hr Ra (const_sound k)) as Hdiff.
-          pose proof (in_range_int64 _ _ Hdiff) as Hfits.
+          pose proof (range_sub_sound _ _ _ _ _ Hr Ra (constant_range_sound k))
+            as Hdiff.
+          pose proof (in_range_implies_int64 _ _ Hdiff) as Hfits.
           rewrite Hs, (wrap64_id _ Hfits).
-          cbn [AffineExpr.eval consistent].
+          cbn [AffineExpr.eval atom_operations_consistent].
           split; [ rewrite Ea; reflexivity | ].
           split; [ exact (conj Ca I) | ].
           intros rg' Hrg. injection Hrg as <-. exact Hdiff.
@@ -889,7 +940,7 @@ Section Semantics.
         apply andb_prop in Hg. destruct Hg as [Hm Hle].
         apply leb_int in Hm. rewrite to_Z_zero in Hm.
         pay one Hwf Hle Hwf1 He1 Hn1 Hb1.
-        destruct (expr_of_value (spend c one) a) as [[ea ra] ca] eqn:Ha.
+        destruct (expr_of_value (spend_budget c one) a) as [[ea ra] ca] eqn:Ha.
         destruct (IHa _ ea ra ca Hwf1 ltac:(lia) Ha)
           as [Hwfa [Hea [Hna Hrho_a]]].
         pose proof (ctx_wf_budget _ Hwfa) as Hba.
@@ -908,12 +959,13 @@ Section Semantics.
           destruct (Hrho_a rho (agrees_extends _ _ _ He1' Hrho))
             as [Ea [Ca Ra]].
           pose proof (Hid rho Hrho) as Eid. specialize (Ra rga eq_refl).
-          cbn [AffineExpr.eval consistent].
+          cbn [AffineExpr.eval atom_operations_consistent].
           split; [ exact Eid | ].
           split.
           { split; [ exact Ca | ]. split; [ exact Hm | ].
             rewrite Eid, Ea. exact Hs. }
-          { intros rg Hrg. rewrite Hs. exact (or_mask_sound _ _ _ _ Hrg Ra). }
+          { intros rg Hrg. rewrite Hs. exact (range_or_mask_sound _ _ _ _ Hrg
+            Ra). }
         * finish_atomized Hwfa (extends_trans _ _ _ He1 Hea) H.
       + (* Ilsl *)
         destruct ((zero <=? k) && (k <? max_shift_bits)
@@ -921,24 +973,26 @@ Section Semantics.
           [ | finish_atomized Hwf (extends_refl c) H ].
         apply andb_prop in Hg. destruct Hg as [Hk Hle]. shift_guard Hk.
         pay one Hwf Hle Hwf1 He1 Hn1 Hb1.
-        destruct (expr_of_value (spend c one) a) as [[ea ra] ca] eqn:Ha.
+        destruct (expr_of_value (spend_budget c one) a) as [[ea ra] ca] eqn:Ha.
         destruct (IHa _ ea ra ca Hwf1 ltac:(lia) Ha)
           as [Hwfa [Hea [Hna Hrho_a]]].
-        unfold keep in H. destruct (rscale _ ra) as [ rg | ] eqn:Hr.
+        unfold keep_if_range_known in H. destruct (scale_optional_range _ ra)
+          as [ rg | ] eqn:Hr.
         * injection H as <- <- <-.
-          unfold rscale in Hr. destruct ra as [ rga | ]; [ | discriminate ].
+          unfold scale_optional_range in Hr. destruct ra as [ rga | ]; [ |
+            discriminate ].
           refine (conj Hwfa (conj (extends_trans _ _ _ He1 Hea) (conj _ _)));
             [ lia | ].
           intros rho Hrho.
           destruct (Hrho_a rho Hrho) as [Ea [Ca Ra]].
           specialize (Ra rga eq_refl).
-          pose proof (scale_sound _ _ _ _ Hr Ra) as Hprod.
+          pose proof (range_scale_sound _ _ _ _ Hr Ra) as Hprod.
           rewrite to_Z_lsl_one in Hprod by lia.
-          pose proof (in_range_int64 _ _ Hprod) as Hfits.
+          pose proof (in_range_implies_int64 _ _ Hprod) as Hfits.
           rewrite Z.mul_comm in Hfits.
           specialize (Hs ltac:(lia)).
           rewrite Hs, (wrap64_id _ Hfits).
-          cbn [AffineExpr.eval consistent].
+          cbn [AffineExpr.eval atom_operations_consistent].
           split; [ rewrite to_Z_lsl_one by lia; rewrite Ea; lia | ].
           split; [ exact Ca | ].
           intros rg' Hrg. injection Hrg as <-. rewrite Z.mul_comm. exact Hprod.
@@ -957,22 +1011,25 @@ Section Semantics.
         intros rho Hrho. pose proof (Hid rho Hrho) as Eid.
         specialize (Hs ltac:(lia)).
         rewrite wrap64_id in Hs.
-        2: { apply in_range_int64 with (r := Range.shr_logical k).
-             apply shr_logical_sound; [ lia | apply mval_bounded ]. }
-        cbn [AffineExpr.eval consistent].
+        2: { apply in_range_implies_int64 with (range := Range.shr_logical k).
+             apply logical_shift_range_sound; [ lia | apply value_words_bounded
+               ]. }
+        cbn [AffineExpr.eval atom_operations_consistent].
         split; [ exact Eid | ].
         split.
-        { split; [ lia | ]. exists (mval a). split; [ apply mval_bounded | ].
+        { split; [ lia | ]. exists (value_words a). split; [ apply
+          value_words_bounded | ].
           rewrite Eid. exact Hs. }
         { intros rg Hrg. injection Hrg as <-. rewrite Hs.
-          apply shr_logical_sound; [ lia | apply mval_bounded ]. }
+          apply logical_shift_range_sound; [ lia | apply value_words_bounded ].
+            }
       + (* Iasr *)
         destruct ((zero <=? k) && (k <? max_shift_bits)
                   && (one <=? c.(budget)))%sint63 eqn:Hg;
           [ | finish_atomized Hwf (extends_refl c) H ].
         apply andb_prop in Hg. destruct Hg as [Hk Hle]. shift_guard Hk.
         pay one Hwf Hle Hwf1 He1 Hn1 Hb1.
-        destruct (expr_of_value (spend c one) a) as [[ea ra] ca] eqn:Ha.
+        destruct (expr_of_value (spend_budget c one) a) as [[ea ra] ca] eqn:Ha.
         destruct (IHa _ ea ra ca Hwf1 ltac:(lia) Ha)
           as [Hwfa [Hea [Hna Hrho_a]]].
         pose proof (ctx_wf_budget _ Hwfa) as Hba.
@@ -992,37 +1049,43 @@ Section Semantics.
             as [Ea [Ca Ra]].
           pose proof (Hid rho Hrho) as Eid.
           specialize (Hs ltac:(lia)).
-          cbn [AffineExpr.eval consistent].
+          cbn [AffineExpr.eval atom_operations_consistent].
           split; [ exact Eid | ].
           split.
           { split; [ exact Ca | ]. split; [ lia | ]. split.
-            - rewrite Ea. apply mval_bounded.
+            - rewrite Ea. apply value_words_bounded.
             - rewrite Eid, Ea. exact Hs. }
           { intros rg Hrg. injection Hrg as <-. rewrite Hs.
-            apply shr_signed_sound; [ lia | apply mval_bounded ]. }
+            apply signed_shift_range_sound; [ lia | apply value_words_bounded
+              ]. }
         * finish_atomized Hwfa (extends_trans _ _ _ He1 Hea) H.
   Qed.
 
-  (* The affine form of a value has the value's machine value, and the
-     side facts pushed are true; both are well-formed. *)
+  (* The affine form of a value has the value's machine value, and the side
+     facts pushed are true; both are well-formed. *)
   Theorem linearize_sound :
-    forall (v : value) (c : ctx) (side : list Affine.t) (f : Affine.t)
-      (side' : list Affine.t) (c' : ctx),
-    ctx_wf c -> to_Z c.(next) + linearize_atoms <= ocaml_max_int ->
-    linearize c side v = ((f, side'), c') ->
-    ctx_wf c' /\ extends c c'
-    /\ to_Z c'.(next) <= to_Z c.(next) + linearize_atoms
-    /\ wf f /\ (Forall wf side -> Forall wf side')
-    /\ forall (rho : valuation), agrees rho c' ->
-         denote rho f = mval v
-         /\ (holds_all rho side -> holds_all rho side').
+    forall (value_ref : value) (initial_ctx : ctx)
+      (initial_side_facts : list Affine.t) (form : Affine.t)
+      (final_side_facts : list Affine.t) (final_ctx : ctx),
+    ctx_wf initial_ctx ->
+    to_Z initial_ctx.(next) + linearize_atom_bound <= ocaml_max_int ->
+    linearize initial_ctx initial_side_facts value_ref
+      = ((form, final_side_facts), final_ctx) ->
+    ctx_wf final_ctx /\ extends initial_ctx final_ctx
+    /\ to_Z final_ctx.(next) <= to_Z initial_ctx.(next) + linearize_atom_bound
+    /\ wf form /\ (Forall wf initial_side_facts -> Forall wf final_side_facts)
+    /\ forall (rho : valuation), agrees rho final_ctx ->
+         denote rho form = value_words value_ref
+         /\ (holds_all rho initial_side_facts ->
+             holds_all rho final_side_facts).
   Proof.
     intros v c side f side' c' Hwf Hn H. unfold linearize in H.
-    unfold holds_all. rewrite linearize_atoms_eq in *.
-    destruct (refill_spec c Hwf) as [Hwfr [Her [Hnr Hbr]]].
+    unfold holds_all. rewrite linearize_atom_bound_eq in *.
+    destruct (refill_budget_spec c Hwf) as [Hwfr [Her [Hnr Hbr]]].
     rewrite to_Z_max_nodes in Hbr.
-    destruct (expr_of_value (refill c) v) as [[e r] ce] eqn:He.
-    destruct (expr_of_value_sound v (refill c) e r ce Hwfr ltac:(lia) He)
+    destruct (expr_of_value (refill_budget c) v) as [[e r] ce] eqn:He.
+    destruct (expr_of_value_sound v (refill_budget c) e r ce Hwfr ltac:(lia)
+      He)
       as [Hwfe [Hee [Hne Hrho_e]]].
     pose proof (ctx_wf_budget _ Hwfe) as Hbe.
     destruct (to_affine e) as [ [form sides] | ] eqn:Hta.
@@ -1050,9 +1113,9 @@ Section Semantics.
   Qed.
 
   (* A value that is not a comparison yields no facts: close the goal of
-     [cond_facts_sound] for it. *)
+     [comparison_facts_sound] for it. *)
   Ltac no_facts Hwf H :=
-    cbn [cond_facts] in H; injection H as <- <- <-;
+    cbn [comparison_facts] in H; injection H as <- <- <-;
     refine (conj Hwf (conj (extends_refl _)
               (conj _ (conj (Forall_nil _) (conj _ _)))));
     [ lia
@@ -1060,22 +1123,28 @@ Section Semantics.
     | intros rho _; split;
       [ intros Hside; exact Hside | intros _; constructor ] ].
 
-  (* The facts derived from a comparison hold when the comparison came out
-     as the branch taken requires; they, and the side facts, are
-     well-formed. *)
-  Theorem cond_facts_sound :
-    forall (cond : value) (c : ctx) (side : list Affine.t) (negate : bool)
-      (fs side' : list Affine.t) (c' : ctx),
-    ctx_wf c -> to_Z c.(next) + cond_atoms <= ocaml_max_int ->
-    cond_facts c side negate cond = ((fs, side'), c') ->
-    ctx_wf c' /\ extends c c' /\ to_Z c'.(next) <= to_Z c.(next) + cond_atoms
-    /\ Forall wf fs /\ (Forall wf side -> Forall wf side')
-    /\ forall (rho : valuation), agrees rho c' ->
-         (holds_all rho side -> holds_all rho side')
-         /\ (test_result negate cond -> holds_all rho fs).
+  (* The facts derived from a comparison hold when the comparison came out as
+     the branch taken requires; they, and the side facts, are well-formed. *)
+  Theorem comparison_facts_sound :
+    forall (comparison_result : value) (initial_ctx : ctx)
+      (initial_side_facts : list Affine.t) (negate : bool)
+      (derived_facts final_side_facts : list Affine.t) (final_ctx : ctx),
+    ctx_wf initial_ctx ->
+    to_Z initial_ctx.(next) + comparison_atom_bound <= ocaml_max_int ->
+    comparison_facts initial_ctx initial_side_facts negate comparison_result =
+      ((derived_facts, final_side_facts), final_ctx) ->
+    ctx_wf final_ctx /\ extends initial_ctx final_ctx
+    /\ to_Z final_ctx.(next) <= to_Z initial_ctx.(next) + comparison_atom_bound
+    /\ Forall wf derived_facts
+    /\ (Forall wf initial_side_facts -> Forall wf final_side_facts)
+    /\ forall (rho : valuation), agrees rho final_ctx ->
+         (holds_all rho initial_side_facts -> holds_all rho final_side_facts)
+         /\ (comparison_matches_branch negate comparison_result ->
+             holds_all rho derived_facts).
   Proof.
     intros cond c side negate fs side' c' Hwf Hn H.
-    rewrite cond_atoms_eq in *. pose proof linearize_atoms_eq as Hla.
+    rewrite comparison_atom_bound_eq in *. pose proof linearize_atom_bound_eq
+      as Hla.
     destruct cond as [id op args i | bl i]; [ | no_facts Hwf H ].
     destruct op as [ | | | ? | ? | ? | ? | ? | ? | ? | ? | ? | ? | ? ? ? | iop
                    | ? | iop k | ? | ? ? | ? | ? | ? | ? | | | | ? | ? | | | |
@@ -1083,7 +1152,7 @@ Section Semantics.
       try solve [ no_facts Hwf H ];
       destruct iop; try solve [ no_facts Hwf H ];
       destruct args as [ | a [ | b [ | ? ? ] ] ]; try solve [ no_facts Hwf H ];
-      cbn [cond_facts] in H; cbn [test_result].
+      cbn [comparison_facts] in H; cbn [comparison_matches_branch].
     - (* Intop (Icomp cmp), [a; b] *)
       destruct (linearize c side a) as [[la side1] ca] eqn:Hlina.
       destruct (linearize ca side1 b) as [[lb side2] cb] eqn:Hlinb.
@@ -1119,54 +1188,60 @@ Section Semantics.
       cbv zeta. rewrite Ea, constant_denote, Ht. destruct negate; reflexivity.
   Qed.
 
-  (* The walk of [guards_at] over any list of dominators, from any
-     accumulated facts: it keeps the context well-formed and growing, the
-     facts and side facts well-formed, and, under a valuation agreeing
-     with the final context, the side facts true and the facts true when
-     the branches went as assumed. *)
+  (* The walk of [guards_at] over any list of dominators, from any accumulated
+     facts: it keeps the context well-formed and growing, the facts and side
+     facts well-formed, and, under a valuation agreeing with the final context,
+     the side facts true and the facts true when the branches went as assumed.
+     *)
   Lemma guards_fold_sound :
     forall (target : block) (dominators : list block)
-      (acc side : list Affine.t) (c : ctx) (fs side' : list Affine.t)
-      (c' : ctx),
-    ctx_wf c ->
-    to_Z c.(next) + guards_sum target dominators <= ocaml_max_int ->
-    List.fold_left (guard_facts target) dominators ((acc, side), c)
-    = ((fs, side'), c') ->
-    ctx_wf c' /\ extends c c'
-    /\ to_Z c'.(next) <= to_Z c.(next) + guards_sum target dominators
-    /\ (Forall wf acc -> Forall wf fs) /\ (Forall wf side -> Forall wf side')
-    /\ forall (rho : valuation), agrees rho c' ->
-         (holds_all rho side -> holds_all rho side')
+      (initial_guard_facts initial_side_facts : list Affine.t)
+      (initial_ctx : ctx)
+      (derived_guard_facts final_side_facts : list Affine.t) (final_ctx : ctx),
+    ctx_wf initial_ctx ->
+    to_Z initial_ctx.(next) + guard_list_atom_bound target dominators <=
+      ocaml_max_int ->
+    List.fold_left (guard_facts target) dominators
+      ((initial_guard_facts, initial_side_facts), initial_ctx)
+      = ((derived_guard_facts, final_side_facts), final_ctx) ->
+    ctx_wf final_ctx /\ extends initial_ctx final_ctx
+    /\ to_Z final_ctx.(next)
+       <= to_Z initial_ctx.(next) + guard_list_atom_bound target dominators
+    /\ (Forall wf initial_guard_facts -> Forall wf derived_guard_facts)
+    /\ (Forall wf initial_side_facts -> Forall wf final_side_facts)
+    /\ forall (rho : valuation), agrees rho final_ctx ->
+         (holds_all rho initial_side_facts -> holds_all rho final_side_facts)
          /\ ((forall (dominator : block),
-                In dominator dominators -> guard_taken target dominator) ->
-             holds_all rho acc -> holds_all rho fs).
+                dominator ∈ dominators -> guard_taken target dominator) ->
+             holds_all rho initial_guard_facts ->
+             holds_all rho derived_guard_facts).
   Proof.
     intros target doms. induction doms as [ | d doms IH ];
       intros acc side c fs side' c' Hwf Hn H;
       cbn [List.fold_left] in H.
-    - injection H as <- <- <-. rewrite guards_sum_nil in *.
+    - injection H as <- <- <-. rewrite guard_list_atom_bound_nil in *.
       refine (conj Hwf (conj (extends_refl c) (conj _ (conj _ (conj _ _)))));
         [ lia | tauto | tauto | ].
       intros rho _. split; [ tauto | ]. intros _ Hacc. exact Hacc.
-    - rewrite guards_sum_cons in *.
-      pose proof (guards_sum_nonneg target doms) as Hsum.
-      pose proof (guard_size_nonneg target d) as Hgd.
+    - rewrite guard_list_atom_bound_cons in *.
+      pose proof (guard_list_atom_bound_nonnegative target doms) as Hsum.
+      pose proof (guard_atom_bound_nonnegative target d) as Hgd.
       assert (Hstep : exists acc1 side1 c1,
         guard_facts target ((acc, side), c) d = ((acc1, side1), c1)
         /\ ctx_wf c1 /\ extends c c1
-        /\ to_Z c1.(next) <= to_Z c.(next) + guard_size target d
+        /\ to_Z c1.(next) <= to_Z c.(next) + guard_atom_bound target d
         /\ (Forall wf acc -> Forall wf acc1)
         /\ (Forall wf side -> Forall wf side1)
         /\ forall rho, agrees rho c1 ->
              (holds_all rho side -> holds_all rho side1)
              /\ (guard_taken target d -> holds_all rho acc ->
                  holds_all rho acc1)).
-      { unfold guard_facts, guard_size in *.
+      { unfold guard_facts, guard_atom_bound in *.
         destruct (guard_test target d) as [[index negate] | ] eqn:Hg.
-        - destruct (cond_facts c side negate index)
+        - destruct (comparison_facts c side negate index)
             as [[fs1 side1] c1] eqn:Hcf.
           exists (fs1 ++ acc), side1, c1. split; [ reflexivity | ].
-          destruct (cond_facts_sound index c side negate fs1 side1 c1 Hwf
+          destruct (comparison_facts_sound index c side negate fs1 side1 c1 Hwf
                       ltac:(lia) Hcf)
             as [Hwf1 [He1 [Hn1 [Hwffs [Hwfs1 Hrho1]]]]].
           refine (conj Hwf1 (conj He1 (conj Hn1 (conj _ (conj Hwfs1 _)))));
@@ -1196,20 +1271,25 @@ Section Semantics.
       apply A1; [ apply Htaken; left; reflexivity | exact Hacc ].
   Qed.
 
-  (* The facts [guards_at] gathers at [target] are well-formed, and true
-     under a valuation agreeing with the final context when the dominating
-     branches went as assumed; the side facts are kept true. *)
+  (* The facts [guards_at] gathers at [target] are well-formed, and true under
+     a valuation agreeing with the final context when the dominating branches
+     went as assumed; the side facts are kept true. *)
   Theorem guards_at_sound :
-    forall (target : block) (c : ctx) (side fs side' : list Affine.t)
-      (c' : ctx),
-    ctx_wf c -> to_Z c.(next) + guards_size target <= ocaml_max_int ->
-    guards_at c side target = ((fs, side'), c') ->
-    ctx_wf c' /\ extends c c'
-    /\ to_Z c'.(next) <= to_Z c.(next) + guards_size target
-    /\ Forall wf fs /\ (Forall wf side -> Forall wf side')
-    /\ forall (rho : valuation), agrees rho c' ->
-         (holds_all rho side -> holds_all rho side')
-         /\ (guards_taken target -> holds_all rho fs).
+    forall (target : block) (initial_ctx : ctx)
+      (initial_side_facts derived_guard_facts final_side_facts : list Affine.t)
+      (final_ctx : ctx),
+    ctx_wf initial_ctx ->
+    to_Z initial_ctx.(next) + guards_atom_bound target <= ocaml_max_int ->
+    guards_at initial_ctx initial_side_facts target
+      = ((derived_guard_facts, final_side_facts), final_ctx) ->
+    ctx_wf final_ctx /\ extends initial_ctx final_ctx
+    /\ to_Z final_ctx.(next)
+       <= to_Z initial_ctx.(next) + guards_atom_bound target
+    /\ Forall wf derived_guard_facts
+    /\ (Forall wf initial_side_facts -> Forall wf final_side_facts)
+    /\ forall (rho : valuation), agrees rho final_ctx ->
+         (holds_all rho initial_side_facts -> holds_all rho final_side_facts)
+         /\ (guards_taken target -> holds_all rho derived_guard_facts).
   Proof.
     intros target c side fs side' c' Hwf Hn H.
     unfold guards_at, OxCamlList.fold_left in H.

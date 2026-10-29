@@ -1,13 +1,13 @@
-(* Extraction directives mapping the models in this directory onto OxCaml's
-   own types and functions, for every extraction in the repository to
-   [Require]. Nothing here is proved: each line says which OxCaml value
-   realizes a model definition, and is trusted by inspection.
+(* Extraction directives mapping the models in this directory onto OxCaml's own
+   types and functions, for every extraction in the repository to [Require].
+   Nothing here is proved: each line says which OxCaml value realizes a model
+   definition, and is trusted by inspection.
 
    - Rocq's primitive [int] (Sint63) is OxCaml's [int] and its operations are
-     OxCaml's. This restates Rocq's own ExtrOCamlInt63 so that the output
-     does not depend on Rocq's runtime library.
-   - The [Int64] model is OxCaml's [Int64]; the axioms in OxCamlInt64.v are
-     the documented behaviour of each operation named here.
+     OxCaml's. This restates Rocq's own ExtrOCamlInt63 so that the output does
+     not depend on Rocq's runtime library.
+   - The [Int64] model is OxCaml's [Int64]; the axioms in OxCamlInt64.v are the
+     documented behaviour of each operation named here.
    - The list functions are OxCaml's [List] functions; [sort_uniq] is
      [List.sort_uniq Int.compare]. [map_opt] and [filter_map_opt] have no
      OxCaml counterpart and are extracted as they are. *)

@@ -1,33 +1,30 @@
 (* The SSA graph as the loop models see it.
 
-   The models of backend/ssa/loop/ run on a finished SSA graph
-   ([Ssa.finished Ssa.graph]). Its blocks are OxCaml data the models cannot
-   look inside, declared here as an abstract type ([Parameter]) with the
-   few observations the passes make of them: predecessors, dominance,
-   parameters, body and terminator. Its values, instructions and
-   terminators are declared as [Inductive] types copying the compiler's,
-   constructor for constructor, with the fields the passes read; the
-   extraction (SsaModelExtract.v) maps each back onto the compiler's type,
-   so that a model matching on a value matches on the compiler's
-   [Ssa.Value.t] itself, and the operation defining a value is the
-   compiler's [Operation.t] (backend/rocq/Operation.v). Each observation
+   The models of backend/ssa/loop/ run on a finished SSA graph ([Ssa.finished
+   Ssa.graph]). Its blocks are OxCaml data the models cannot look inside,
+   declared here as an abstract type ([Parameter]) with the few observations
+   the passes make of them: predecessors, dominance, parameters, body and
+   terminator. Its values, instructions and terminators are declared as
+   [Inductive] types copying the compiler's, constructor for constructor, with
+   the fields the passes read; the extraction (SsaModelExtract.v) maps each
+   back onto the compiler's type, so that a model matching on a value matches
+   on the compiler's [Ssa.Value.t] itself, and the operation defining a value
+   is the compiler's [Operation.t] (backend/rocq/Operation.v). Each observation
    is realized at extraction by a function of [Ssa] ([Block.predecessors],
    [Block.dominates], ...), at most wrapped to turn an array into a list.
 
-   Nothing here is proved. What the proofs rely on about these observations
-   is stated where it is used, as hypotheses of the theorems (what an
-   operation computes, what dominance means, how a run of a loop goes). The
-   axioms below say only how the equalities and the block sets behave,
-   which is what [Ssa.Block.equal] (identity of blocks), [Ssa.Value.equal]
-   (identity of values) and [Ssa.Block.Set] (sets ordered by block id)
-   provide.
+   Nothing here is proved. What the proofs rely on about these observations is
+   stated where it is used, as hypotheses of the theorems (what an operation
+   computes, what dominance means, how a run of a loop goes). The axioms below
+   say only how the equalities and the block sets behave, which is what
+   [Ssa.Block.equal] (identity of blocks), [Ssa.Value.equal] (identity of
+   values) and [Ssa.Block.Set] (sets ordered by block id) provide.
 
-   [block] stands for the reachable blocks of one finished graph, the only
-   ones the pass receives: [finish_graph] prunes the unreachable ones, no
-   reachable block refers to them, and the compiler's [dominates] is not
-   even defined on them. Hypotheses that quantify over every [block]
-   without an [In blocks] guard, such as [SsaGraph.control_edges], are to
-   be read with this universe. *)
+   [block] stands for the reachable blocks of one finished graph, the only ones
+   the pass receives: [finish_graph] prunes the unreachable ones, no reachable
+   block refers to them, and the compiler's [dominates] is not even defined on
+   them. Hypotheses that quantify over every [block] without a membership
+   guard, such as [SsaGraph.control_edges], use this universe. *)
 
 From Stdlib Require Import ZArith Bool List.
 From OxCamlStdlib Require Import OxCamlInt OxCamlInt64.
@@ -42,28 +39,28 @@ Import ListNotations.
 Parameter block : Type.
 Parameter instr_id : Type.
 
-(* [Ssa.finished Ssa.Value.t]: [Res id op args i] is
-   [Res ({ id; op; args; _ }, i)], the result [i] of the instruction [id]
-   computing [op] on [args] (as a list), and [Block_param b i] is
-   [Block_param (b, i)], the parameter [i] of [b]. *)
+(* [Ssa.finished Ssa.Value.t]: [Res id op args i] is [Res ({ id; op; args; _ },
+   i)], the result [i] of the instruction [id] computing [op] on [args] (as a
+   list), and [Block_param b i] is [Block_param (b, i)], the parameter [i] of
+   [b]. *)
 Inductive value : Type :=
   | Res (id : instr_id) (op : operation) (args : list value) (i : int)
   | Block_param (block : block) (i : int).
 
-(* [Ssa.finished Ssa.Instruction.t]: an [Op]'s operation, arguments and
-   number of results. Keeping the operation here lets the semantics execute
-   the instruction itself, rather than infer it from a use of its result. *)
+(* [Ssa.finished Ssa.Instruction.t]: an [Op]'s operation, arguments and number
+   of results. Keeping the operation here lets the semantics execute the
+   instruction itself, rather than infer it from a use of its result. *)
 Inductive instr : Type :=
   | Op (id : instr_id) (op : operation) (args : list value) (results : int)
   | Push_trap
   | Pop_trap.
 
-(* [Ssa.Block.equal], [Ssa.Value.equal] and [Ssa.Instruction.Id.equal]:
-   the identity of the OxCaml data, which the models take as equality.
-   [Ssa.Value.equal] compares an operation's result by its instruction
-   (one [op_data] per instruction, so by [id]) and result index, and a
-   parameter by its block and index; two values of one graph are then
-   equal to it exactly when they are the same term of [value]. *)
+(* [Ssa.Block.equal], [Ssa.Value.equal] and [Ssa.Instruction.Id.equal]: the
+   identity of the OxCaml data, which the models take as equality.
+   [Ssa.Value.equal] compares an operation's result by its instruction (one
+   [op_data] per instruction, so by [id]) and result index, and a parameter by
+   its block and index; two values of one graph are then equal to it exactly
+   when they are the same term of [value]. *)
 Parameter block_eqb : block -> block -> bool.
 Parameter value_eqb : value -> value -> bool.
 Parameter instr_id_eqb : instr_id -> instr_id -> bool.
@@ -100,16 +97,16 @@ Axiom set_for_all_spec : forall (f : block -> bool) (set : blockset),
 (* Blocks                                                                   *)
 (* ======================================================================== *)
 
-(* [Block.predecessors], [Block.all_successors] (the structural successors
-   and the exception successor) and [Block.dominates]: [dominates a b] says
-   that [a] dominates [b], [a = b] included. *)
+(* [Block.predecessors], [Block.all_successors] (the structural successors and
+   the exception successor) and [Block.dominates]: [dominates a b] says that
+   [a] dominates [b], [a = b] included. *)
 Parameter predecessors : block -> list block.
 Parameter all_successors : block -> list block.
 Parameter dominates : block -> block -> bool.
 
-(* [dominator --dom--> block]: [dominator] dominates [block]. The
-   statements of parts 2 to 4 of the models write dominance this way; the
-   code of part 1 calls [dominates] as the compiler does. *)
+(* [dominator --dom--> block]: [dominator] dominates [block]. The statements of
+   parts 2 to 4 of the models write dominance this way; the code of part 1
+   calls [dominates] as the compiler does. *)
 Notation "dominator --dom--> block" := (dominates dominator block = true)
   (at level 70, no associativity).
 
@@ -134,8 +131,8 @@ Inductive continuation : Type :=
   | Raise (k : raise_kind)
   | Unreachable.
 
-(* [Ssa.Terminator]: [arg] is [Terminator.arg], and [t] is [Terminator.t]
-   with its arrays as lists and only the fields the loop passes read. *)
+(* [Ssa.Terminator]: [arg] is [Terminator.arg], and [t] is [Terminator.t] with
+   its arrays as lists and only the fields the loop passes read. *)
 Module Terminator.
   Inductive arg : Type :=
     | Arg (v : value)
@@ -155,8 +152,8 @@ Parameter terminator : block -> Terminator.t.
 (* The table of defining blocks                                             *)
 (* ======================================================================== *)
 
-(* The table from the id of each [Op] to the block defining it, built by
-   the pass (delete_empty_loops.ml); [op_def_find] is
+(* The table from the id of each [Op] to the block defining it, built by the
+   pass (delete_empty_loops.ml); [op_def_find] is
    [Instruction.Id.Tbl.find_opt]. *)
 Parameter op_def : Type.
 Parameter op_def_find : op_def -> instr_id -> option block.

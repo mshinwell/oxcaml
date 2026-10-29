@@ -6,17 +6,18 @@ type natural_loop =
     back_edge_sources : block list
   }
 
-(** val add_new : (blockset * block list) -> block -> blockset * block list **)
+(** val add_new_body_block : (blockset * block list) -> block -> blockset *
+    block list **)
 
-let add_new acc pred =
+let add_new_body_block acc pred =
   let body0, added = acc in
   if Ssa.Block.Set.mem pred body0
   then body0, added
   else Ssa.Block.Set.add pred body0, pred :: added
 
-(** val walk : block list -> blockset -> block list -> blockset **)
+(** val walk_predecessors : block list -> blockset -> block list -> blockset **)
 
-let rec walk fuel body0 worklist =
+let rec walk_predecessors fuel body0 worklist =
   match fuel with
   | [] -> body0
   | _ :: fuel0 -> (
@@ -24,19 +25,20 @@ let rec walk fuel body0 worklist =
     | [] -> body0
     | block0 :: rest ->
       let body1, added =
-        List.fold_left add_new (body0, rest) (Ssa.Block.predecessors block0)
+        List.fold_left add_new_body_block (body0, rest)
+          (Ssa.Block.predecessors block0)
       in
-      walk fuel0 body1 added)
+      walk_predecessors fuel0 body1 added)
 
 (** val natural_loop_body : block list -> block -> block list -> blockset **)
 
 let natural_loop_body fuel header0 back_edge_sources0 =
   let body0, seeds =
-    List.fold_left add_new
+    List.fold_left add_new_body_block
       (Ssa.Block.Set.singleton header0, [])
       back_edge_sources0
   in
-  walk fuel body0 seeds
+  walk_predecessors fuel body0 seeds
 
 (** val add_back_edge : block -> block -> (block * block list) list -> (block *
     block list) list **)

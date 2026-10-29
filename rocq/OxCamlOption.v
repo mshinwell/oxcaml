@@ -1,11 +1,11 @@
 (* Modelling exceptions with [option].
 
-   OxCaml code raises an exception where an operation cannot produce a
-   result, for instance where a coefficient would wrap. The models return
-   [None] instead, and [let* x := m in k] runs [k] on the result of [m]
-   unless [m] returned [None], in which case the whole computation returns
-   [None]: the same propagation an uncaught exception has. The extracted
-   code keeps the [option]s. *)
+   OxCaml code raises an exception where an operation cannot produce a result,
+   for instance where a coefficient would wrap. The models return [None]
+   instead, and [let* x := m in k] runs [k] on the result of [m] unless [m]
+   returned [None], in which case the whole computation returns [None]: the
+   same propagation an uncaught exception has. The extracted code keeps the
+   [option]s. *)
 
 Notation "'let*' x ':=' m 'in' k" :=
   (match m with Some x => k | None => None end)

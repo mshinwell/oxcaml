@@ -18,29 +18,34 @@ type loop_result =
 (** val param_uses_ok : block list -> block -> int -> Ssa.finished Ssa.Value.t
     -> Ssa.finished Ssa.Value.t list -> bool **)
 
-let param_uses_ok blocks header0 k cond updates =
-  all_uses_ok blocks (is_param header0 k)
+let param_uses_ok blocks header0 parameter_index exit_comparison updates =
+  all_uses_ok blocks
+    (is_param header0 parameter_index)
     (fun instr ->
-      instr_defines_value instr cond
+      instr_defines_value instr exit_comparison
       || List.exists (instr_defines_value instr) updates)
     (fun _ _ -> false)
 
-(** val cond_uses_ok : block list -> block -> Ssa.finished Ssa.Value.t -> bool **)
+(** val exit_comparison_uses_ok : block list -> block -> Ssa.finished
+    Ssa.Value.t -> bool **)
 
-let cond_uses_ok blocks header0 cond =
-  all_uses_ok blocks (Ssa.Value.equal cond)
+let exit_comparison_uses_ok blocks header0 exit_comparison =
+  all_uses_ok blocks
+    (Ssa.Value.equal exit_comparison)
     (fun _ -> false)
     (fun block0 _ -> Ssa.Block.equal block0 header0)
 
 (** val update_uses_ok : block list -> block -> blockset -> int -> Ssa.finished
     Ssa.Value.t -> Ssa.finished Ssa.Value.t -> bool **)
 
-let update_uses_ok blocks header0 back_edge_sources k cond u =
-  all_uses_ok blocks (Ssa.Value.equal u)
-    (fun instr -> instr_defines_value instr cond)
+let update_uses_ok blocks header0 back_edge_sources parameter_index
+    exit_comparison updated_value =
+  all_uses_ok blocks
+    (Ssa.Value.equal updated_value)
+    (fun instr -> instr_defines_value instr exit_comparison)
     (fun block0 _ ->
       Ssa.Block.Set.mem block0 back_edge_sources
-      && goto_passes header0 k u block0)
+      && goto_passes_only_at header0 parameter_index updated_value block0)
 
 (** val is_dead : block list -> biv -> bool **)
 
@@ -52,7 +57,7 @@ let is_dead blocks biv0 =
     let k = biv0.param_index in
     let back_edge_sources = back_edge_set biv0.InductionVar.loop in
     (param_uses_ok blocks header0 k cond biv0.update
-    && cond_uses_ok blocks header0 cond)
+    && exit_comparison_uses_ok blocks header0 cond)
     && List.for_all
          (update_uses_ok blocks header0 back_edge_sources k cond)
          biv0.update

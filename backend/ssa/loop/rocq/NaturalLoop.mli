@@ -6,9 +6,9 @@ type natural_loop =
     back_edge_sources : block list
   }
 
-val add_new : blockset * block list -> block -> blockset * block list
+val add_new_body_block : blockset * block list -> block -> blockset * block list
 
-val walk : block list -> blockset -> block list -> blockset
+val walk_predecessors : block list -> blockset -> block list -> blockset
 
 val natural_loop_body : block list -> block -> block list -> blockset
 

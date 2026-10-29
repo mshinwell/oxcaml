@@ -1,14 +1,14 @@
 (* Extraction directives for SsaModel.v: which type and function of the
    compiler stand for each type and observation of the model. As in
-   OxCamlExtract.v (rocq/), nothing here is proved; the mapping is trusted
-   by inspection.
+   OxCamlExtract.v (rocq/), nothing here is proved; the mapping is trusted by
+   inspection.
 
    The inductive types standing for the compiler's values, instructions and
-   terminators are matched through the function given as the last argument
-   of their [Extract Inductive], which reads the compiler's data (turning
-   an array into a list on the way). The models never build such data, and
-   could not, as the compiler's types are private, so the constructor
-   names listed are never printed. *)
+   terminators are matched through the function given as the last argument of
+   their [Extract Inductive], which reads the compiler's data (turning an array
+   into a list on the way). The models never build such data, and could not, as
+   the compiler's types are private, so the constructor names listed are never
+   printed. *)
 
 From Stdlib Require Import Extraction.
 From OxCamlSsa Require Import SsaModel.

@@ -143,10 +143,10 @@ let goto_args target pred =
     (fun _ -> None)
     (Ssa.Block.terminator pred)
 
-(** val goto_passes : block -> int -> Ssa.finished Ssa.Value.t -> block -> bool
-    **)
+(** val goto_passes_only_at : block -> int -> Ssa.finished Ssa.Value.t -> block
+    -> bool **)
 
-let goto_passes target k v block0 =
+let goto_passes_only_at target argument_index argument_value block0 =
   (fun f_continue
     f_switch
     f_call
@@ -165,10 +165,10 @@ let goto_passes target k v block0 =
       | Ssa.Goto goto ->
         (Ssa.Block.equal goto target
         &&
-        match arg_value args k with
-        | Some w -> Ssa.Value.equal w v
+        match arg_value args argument_index with
+        | Some w -> Ssa.Value.equal w argument_value
         | None -> false)
-        && Int.equal (count_occurrences (arg_is v) args) 1
+        && Int.equal (count_occurrences (arg_is argument_value) args) 1
       | _ -> false)
     (fun _ _ -> false)
     (fun _ -> false)

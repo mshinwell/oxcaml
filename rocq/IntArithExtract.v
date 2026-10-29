@@ -1,9 +1,8 @@
-(* Extraction directives for IntArith.v: the OxCaml for the four overflow
-   tests [add_fits], [mul_fits], [add_fits64] and [mul_fits64], which the
-   model takes as given, each with an axiom saying that it answers whether
-   the exact result fits the type. Nothing here is proved; the code is
-   trusted by inspection: the sign-bit trick for addition, a divide-back
-   check for multiplication. *)
+(* Extraction directives for IntArith.v: the OxCaml for the four overflow tests
+   [add_fits], [mul_fits], [add_fits64] and [mul_fits64], which the model takes
+   as given, each with an axiom saying that it answers whether the exact result
+   fits the type. Nothing here is proved; the code is trusted by inspection:
+   the sign-bit trick for addition, a divide-back check for multiplication. *)
 
 From Stdlib Require Import Extraction.
 From OxCamlStdlib Require Import OxCamlExtract IntArith.

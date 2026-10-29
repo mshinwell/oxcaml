@@ -1,8 +1,8 @@
 (* Extraction directives for Operation.v, trusted by inspection:
-   [integer_operation] and [operation] are [Operation.integer_operation]
-   and [Operation.t], whose constructors must be listed in the same order
-   as in backend/operation.mli; the abstract payload types are the
-   compiler's, inlined so that this module extracts to nothing. *)
+   [integer_operation] and [operation] are [Operation.integer_operation] and
+   [Operation.t], whose constructors must be listed in the same order as in
+   backend/operation.mli; the abstract payload types are the compiler's,
+   inlined so that this module extracts to nothing. *)
 
 From Stdlib Require Import Extraction.
 From OxCamlBackend Require Import Operation.

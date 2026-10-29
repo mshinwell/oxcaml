@@ -1,17 +1,16 @@
-(* Integer arithmetic beyond what OxCaml's [Int] and [Int64] provide, for
-   the models that compute with machine integers: overflow-checked addition,
-   multiplication and negation, which return [None] instead of wrapping
-   (see OxCamlOption.v); the exact conversion of an [Int64] to an [int];
-   and, on [Int64], a greatest common divisor and floor division.
+(* Integer arithmetic beyond what OxCaml's [Int] and [Int64] provide, for the
+   models that compute with machine integers: overflow-checked addition,
+   multiplication and negation, which return [None] instead of wrapping (see
+   OxCamlOption.v); the exact conversion of an [Int64] to an [int]; and, on
+   [Int64], a greatest common divisor and floor division.
 
-   The overflow tests [add_fits], [mul_fits], [add_fits64] and [mul_fits64]
-   are taken as given: each is a [Parameter] with an axiom saying that it
-   answers whether the exact result fits the type. Their OxCaml, the
-   sign-bit trick for addition and a divide-back check for multiplication,
-   is in IntArithExtract.v and is trusted by inspection. Everything else is
-   defined here and proved below. The extraction of this file, IntArith.ml
-   (in backend/ssa/loop/rocq/, with the other extracted files), is the
-   implementation. *)
+   The overflow tests [add_fits], [mul_fits], [add_fits64] and [mul_fits64] are
+   taken as given: each is a [Parameter] with an axiom saying that it answers
+   whether the exact result fits the type. Their OxCaml, the sign-bit trick for
+   addition and a divide-back check for multiplication, is in IntArithExtract.v
+   and is trusted by inspection. Everything else is defined here and proved
+   below. The extraction of this file, IntArith.ml (in backend/ssa/loop/rocq/,
+   with the other extracted files), is the implementation. *)
 
 From Stdlib Require Import ZArith Lia Bool List Recdef.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64.
@@ -56,8 +55,8 @@ Definition mul_ovf64 (a b : Int64.t) : option Int64.t :=
 
 (* ---- From [Int64] to [int] -------------------------------------------- *)
 
-(* Whether an [Int64] is an [int]: reading it back from [Int64.to_int]
-   gives it again. *)
+(* Whether an [Int64] is an [int]: reading it back from [Int64.to_int] gives it
+   again. *)
 Definition int64_is_int (n : Int64.t) : bool :=
   Int64.equal (Int64.of_int (Int64.to_int n)) n.
 
@@ -66,8 +65,8 @@ Definition to_int_ovf (x : Int64.t) : option int :=
 
 (* ---- Greatest common divisor and floor division on [Int64] ------------ *)
 
-(* [let rec gcd64 a b = if b = 0L then a else gcd64 b (Int64.rem a b)].
-   Rocq needs a termination argument: [|b|] strictly decreases. *)
+(* [let rec gcd64 a b = if b = 0L then a else gcd64 b (Int64.rem a b)]. Rocq
+   needs a termination argument: [|b|] strictly decreases. *)
 Function gcd64 (a b : Int64.t)
     {measure (fun b => Z.to_nat (Z.abs (Int64.to_Z b))) b} : Int64.t :=
   if Int64.equal b Int64.zero then a else gcd64 b (Int64.rem a b).
@@ -78,12 +77,12 @@ Proof.
   apply Z.rem_bound_abs. exact Hb.
 Defined.
 
-(* Floor division for [g > 0]: [Int64.div] rounds towards zero, so a
+(* Floor division for [divisor > 0]: [Int64.div] rounds towards zero, so a
    negative dividend with a remainder is rounded down by one. *)
-Definition fdiv64 (c g : Int64.t) : Int64.t :=
-  let q := Int64.div c g in
-  if (Int64.compare c Int64.zero <? zero)
-     && negb (Int64.equal (Int64.rem c g) Int64.zero)
+Definition floor_div64 (dividend divisor : Int64.t) : Int64.t :=
+  let q := Int64.div dividend divisor in
+  if (Int64.compare dividend Int64.zero <? zero)
+     && negb (Int64.equal (Int64.rem dividend divisor) Int64.zero)
   then Int64.sub q Int64.one
   else q.
 
@@ -93,8 +92,8 @@ Local Open Scope Z_scope.
 
 (* Each checked operation, when it answers, computes the exact result. *)
 
-Lemma add_ovf_spec : forall (a b s : int),
-  add_ovf a b = Some s -> to_Z s = to_Z a + to_Z b.
+Lemma add_ovf_spec : forall (a b sum : int),
+  add_ovf a b = Some sum -> to_Z sum = to_Z a + to_Z b.
 Proof.
   unfold add_ovf. intros a b s H. rewrite add_fits_spec in H.
   destruct (fits_int _) eqn:Hr; [ | discriminate ].
@@ -103,8 +102,8 @@ Proof.
 Qed.
 
 (* The checked product is the exact product. *)
-Lemma mul_ovf_spec : forall (a b s : int),
-  mul_ovf a b = Some s -> to_Z s = to_Z a * to_Z b.
+Lemma mul_ovf_spec : forall (a b product : int),
+  mul_ovf a b = Some product -> to_Z product = to_Z a * to_Z b.
 Proof.
   unfold mul_ovf. intros a b s H. rewrite mul_fits_spec in H.
   destruct (fits_int _) eqn:Hr; [ | discriminate ].
@@ -113,8 +112,8 @@ Proof.
 Qed.
 
 (* The checked negation is the exact negation. *)
-Lemma neg_ovf_spec : forall (a s : int),
-  neg_ovf a = Some s -> to_Z s = - to_Z a.
+Lemma neg_ovf_spec : forall (a negated : int),
+  neg_ovf a = Some negated -> to_Z negated = - to_Z a.
 Proof.
   unfold neg_ovf. intros a s H.
   destruct (a =? min_int)%sint63 eqn:E; [ discriminate | ].
@@ -122,8 +121,8 @@ Proof.
 Qed.
 
 (* The checked 64-bit sum is the exact sum. *)
-Lemma add_ovf64_spec : forall (a b s : Int64.t),
-  add_ovf64 a b = Some s -> Int64.to_Z s = Int64.to_Z a + Int64.to_Z b.
+Lemma add_ovf64_spec : forall (a b sum : Int64.t),
+  add_ovf64 a b = Some sum -> Int64.to_Z sum = Int64.to_Z a + Int64.to_Z b.
 Proof.
   unfold add_ovf64. intros a b s H. rewrite add_fits64_spec in H.
   destruct (fits_int64 _) eqn:Hr; [ | discriminate ].
@@ -132,8 +131,9 @@ Proof.
 Qed.
 
 (* The checked 64-bit product is the exact product. *)
-Lemma mul_ovf64_spec : forall (a b s : Int64.t),
-  mul_ovf64 a b = Some s -> Int64.to_Z s = Int64.to_Z a * Int64.to_Z b.
+Lemma mul_ovf64_spec : forall (a b product : Int64.t),
+  mul_ovf64 a b = Some product -> Int64.to_Z product = Int64.to_Z a *
+    Int64.to_Z b.
 Proof.
   unfold mul_ovf64. intros a b s H. rewrite mul_fits64_spec in H.
   destruct (fits_int64 _) eqn:Hr; [ | discriminate ].
@@ -141,8 +141,8 @@ Proof.
   apply fits_int64_true. exact Hr.
 Qed.
 
-(* An [Int64] that [int64_is_int] accepts has the value of the [int] read
-   from it. *)
+(* An [Int64] that [int64_is_int] accepts has the value of the [int] read from
+   it. *)
 Lemma int64_is_int_spec : forall (n : Int64.t),
   int64_is_int n = true -> to_Z (Int64.to_int n) = Int64.to_Z n.
 Proof.
@@ -159,8 +159,8 @@ Proof.
   injection H as <-. apply int64_is_int_spec. exact E.
 Qed.
 
-(* [gcd64 a b] divides both arguments (that it is their greatest common
-   divisor is not needed). *)
+(* [gcd64 a b] divides both arguments (that it is their greatest common divisor
+   is not needed). *)
 Lemma gcd64_divides : forall (a b : Int64.t),
   (Int64.to_Z (gcd64 a b) | Int64.to_Z a)
   /\ (Int64.to_Z (gcd64 a b) | Int64.to_Z b).
@@ -176,8 +176,8 @@ Proof.
     apply Z.divide_add_r; [ apply Z.divide_mul_l; exact IH1 | exact IH2 ].
 Qed.
 
-(* [Int64.abs] does not change divisibility, even on [min_int] (which it
-   leaves unchanged). *)
+(* [Int64.abs] does not change divisibility, even on [min_int] (which it leaves
+   unchanged). *)
 Lemma abs64_divide : forall (d : Z) (c : Int64.t),
   (d | Int64.to_Z (Int64.abs c)) -> (d | Int64.to_Z c).
 Proof.
@@ -192,11 +192,12 @@ Proof.
     apply Z.divide_abs_r. exact H.
 Qed.
 
-(* [fdiv64] is floor division. *)
-Lemma fdiv64_spec : forall (c g : Int64.t),
-  0 < Int64.to_Z g -> Int64.to_Z (fdiv64 c g) = Int64.to_Z c / Int64.to_Z g.
+(* [floor_div64] is floor division. *)
+Lemma floor_div64_spec : forall (dividend divisor : Int64.t),
+  0 < Int64.to_Z divisor -> Int64.to_Z (floor_div64 dividend divisor) =
+    Int64.to_Z dividend / Int64.to_Z divisor.
 Proof.
-  intros c g Hg. unfold fdiv64.
+  intros c g Hg. unfold floor_div64.
   assert (Hg0 : Int64.to_Z g <> 0) by lia.
   pose proof (Int64.to_Z_bounded c) as Hc. unfold in_int64 in Hc.
   pose proof (Z.quot_rem' (Int64.to_Z c) (Int64.to_Z g)) as Hqr.
@@ -204,7 +205,7 @@ Proof.
   assert (Hq : Int64.to_Z (Int64.div c g)
                = Z.quot (Int64.to_Z c) (Int64.to_Z g)).
   { rewrite Int64.div_spec by exact Hg0. apply wrap64_id.
-    apply quot_in_range; [ exact Hg | exact (Int64.to_Z_bounded c) ]. }
+    apply quot_in_int64; [ exact Hg | exact (Int64.to_Z_bounded c) ]. }
   assert (Hlt' : (Int64.compare c Int64.zero <? zero)%sint63 = true
                  <-> Int64.to_Z c < 0)
     by (rewrite Int64.compare_lt, Int64.to_Z_zero; reflexivity).
@@ -234,7 +235,7 @@ Proof.
         as [ E | NE ].
       - exfalso. rewrite E in Hqr. unfold two63 in *. lia.
       - unfold two63 in *. lia. }
-    pose proof (quot_in_range (Int64.to_Z c) (Int64.to_Z g) Hg
+    pose proof (quot_in_int64 (Int64.to_Z c) (Int64.to_Z g) Hg
                   (Int64.to_Z_bounded c)) as Hqrange.
     unfold in_int64 in Hqrange.
     rewrite Int64.sub_spec, Hq, Int64.to_Z_one.
@@ -261,12 +262,13 @@ Qed.
 
 (* [Int64.div] by a positive divisor that divides exactly is the exact
    quotient. *)
-Lemma div_exact64 : forall (c g : Int64.t),
-  0 < Int64.to_Z g -> (Int64.to_Z g | Int64.to_Z c) ->
-  Int64.to_Z (Int64.div c g) = Int64.to_Z c / Int64.to_Z g.
+Lemma div_exact64 : forall (dividend divisor : Int64.t),
+  0 < Int64.to_Z divisor -> (Int64.to_Z divisor | Int64.to_Z dividend) ->
+  Int64.to_Z (Int64.div dividend divisor)
+  = Int64.to_Z dividend / Int64.to_Z divisor.
 Proof.
   intros c g Hg Hd. rewrite Int64.div_spec by lia.
   rewrite wrap64_id
-    by (apply quot_in_range; [ lia | apply Int64.to_Z_bounded ]).
+    by (apply quot_in_int64; [ lia | apply Int64.to_Z_bounded ]).
   apply Z.quot_div_exact; [ lia | exact Hd ].
 Qed.

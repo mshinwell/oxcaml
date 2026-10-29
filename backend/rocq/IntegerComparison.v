@@ -1,9 +1,8 @@
-(* [Cmm.integer_comparison] (i.e. [Scalar.Integer_comparison.t]), its
-   [negate] and [swap], and what a comparison computes on 64-bit machine
-   values.
+(* [Cmm.integer_comparison] (i.e. [Scalar.Integer_comparison.t]), its [negate]
+   and [swap], and what a comparison computes on 64-bit machine values.
 
-   The transcription is to be compared with typing/scalar.ml; the
-   constructor order matters for extraction. *)
+   The transcription is to be compared with typing/scalar.ml; the constructor
+   order matters for extraction. *)
 
 From Stdlib Require Import ZArith Lia.
 From OxCamlStdlib Require Import OxCamlInt64 ZTactics.
@@ -43,9 +42,9 @@ Definition swap (c : integer_comparison) : integer_comparison :=
   | Cuge => Cule
   end.
 
-(* What the machine computes for [a cmp b] on 64-bit signed values [a] and
-   [b]: the signed comparisons compare the values, the unsigned ones compare
-   their unsigned readings. *)
+(* What the machine computes for [a cmp b] on 64-bit signed values [a] and [b]:
+   the signed comparisons compare the values, the unsigned ones compare their
+   unsigned readings. *)
 Definition eval (cmp : integer_comparison) (a b : Z) : bool :=
   match cmp with
   | Ceq => a =? b

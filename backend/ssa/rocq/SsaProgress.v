@@ -1,12 +1,12 @@
 (* Defined operands and progress for the supported SSA fragment.
 
    [control_layout] formalizes ordinary builder guarantees: Goto arguments
-   match parameters, omitted arguments feed globally unused parameters,
-   and Switch targets have no parameters. [switches_in_range] is the
-   standard defined-input condition for SSA Switch (out-of-range indices
-   are undefined behavior); it asserts neither progress nor termination.
-   All instruction definedness below follows from liveness and execution.
-   This module is proof-only. *)
+   match parameters, omitted arguments feed globally unused parameters, and
+   Switch targets have no parameters. [switches_in_range] is the standard
+   defined-input condition for SSA Switch (out-of-range indices are undefined
+   behavior); it asserts neither progress nor termination. All instruction
+   definedness below follows from liveness and execution. This module is
+   proof-only. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlInt OxCamlList.
@@ -16,13 +16,13 @@ Import ListNotations.
 Local Open Scope Z_scope.
 
 Definition register_used (blocks : list block) (reg : register) : Prop :=
-  exists (position : point) (v : value), In (fst position) blocks
+  exists (position : program_point) (v : value), (fst position) ∈ blocks
     /\ operand_at position v /\ register_of_value v = reg.
 
 Record control_layout (blocks : list block) : Prop :=
   { goto_parameter_layout : forall (source target : block)
       (args : list Terminator.arg),
-      In source blocks ->
+      source ∈ blocks ->
       terminator source = Terminator.Continue (Goto target) args ->
       Forall2 (fun (arg : Terminator.arg) (parameter : value) =>
         match arg with
@@ -32,11 +32,13 @@ Record control_layout (blocks : list block) : Prop :=
         end) args (params target);
     switch_parameterless : forall (source : block) (index : value)
       (targets : list block) (target : block),
-      In source blocks -> terminator source = Terminator.Switch index targets ->
-      In target targets -> params target = [] }.
+      source ∈ blocks ->
+      terminator source = Terminator.Switch index targets ->
+      target ∈ targets -> params target = [] }.
 
-Definition live_registers_bound (position : point) (regs : registers) : Prop :=
-  forall (reg : register), live_at position reg ->
+Definition live_registers_defined (position : program_point)
+  (regs : registers) : Prop :=
+  forall (reg : register), register_live_at position reg ->
     exists (word : Z), regs reg = Some word.
 
 Definition switches_in_range (initial : state) : Prop :=
@@ -46,52 +48,54 @@ Definition switches_in_range (initial : state) : Prop :=
   current_registers reached (register_of_value index) = Some word ->
   0 <= word < Z.of_nat (length targets).
 
-(* What [Ssa.finish_graph] guarantees of the graph the pass receives, as
-   the eligibility theorem needs it: [blocks] is the graph's block list,
-   [entry] its entry block and [defs] the table of defining blocks the
-   pass builds from [blocks]. One field per builder guarantee; section 3
-   of ROCQ-REVIEWER-OBLIGATIONS.md says where each is enforced. *)
+(* What [Ssa.finish_graph] guarantees of the graph the pass receives, as the
+   eligibility theorem needs it: [blocks] is the graph's block list, [entry]
+   its entry block and [defs] the table of defining blocks the pass builds from
+   [blocks]. One field per builder guarantee; section 3 of
+   ROCQ-REVIEWER-OBLIGATIONS.md says where each is enforced. *)
 Record finished_graph (blocks : list block) (entry : block) (defs : op_def)
     : Prop :=
   { (* Definitions, uses, parameters, reachability, successor closure. *)
     graph_well_formed : well_formed_ssa blocks entry;
     (* The predecessors of a block of the graph are blocks of the graph. *)
     graph_predecessors_closed : forall (b pred : block),
-      In b blocks -> In pred (predecessors b) -> In pred blocks;
+      b ∈ blocks -> pred ∈ (predecessors b) -> pred ∈ blocks;
     (* Terminators, successors and predecessors describe the same edges. *)
     graph_edges : control_edges;
     graph_switch_edges : switch_edge_multiplicity;
     (* [dominates] is sound and complete for dominance along paths. *)
     graph_dominance : dominance_semantics entry;
     graph_dominance_complete : forall (dominator target : block),
-      In dominator blocks -> In target blocks ->
-      (forall (p : list block), path entry p target -> In dominator p) ->
+      dominator ∈ blocks -> target ∈ blocks ->
+      (forall (visited_blocks : list block), block_path_from entry
+        visited_blocks target -> dominator ∈ visited_blocks) ->
       dominator --dom--> target;
     (* [strict_dominators] lists distinct blocks of the graph. *)
-    graph_strict_dominators : forall (b : block), In b blocks ->
+    graph_strict_dominators : forall (b : block), b ∈ blocks ->
       NoDup (strict_dominators b)
-      /\ (forall (d : block), In d (strict_dominators b) -> In d blocks);
+      /\ (forall (d : block), d ∈ (strict_dominators b) -> d ∈ blocks);
     (* Goto arguments match parameters; Switch targets have none. *)
     graph_layout : control_layout blocks;
     (* The table maps every instruction to its block. *)
     graph_definitions : op_def_correct defs blocks }.
 
-(* Liveness witnesses a real operand somewhere in the successor-closed
-   graph, even when the read is several blocks away. *)
+(* Liveness witnesses a real operand somewhere in the successor-closed graph,
+   even when the read is several blocks away. *)
 Lemma live_register_used : forall (blocks : list block) (entry : block)
-    (position : point) (reg : register),
-  well_formed_ssa blocks entry -> In (fst position) blocks ->
-  live_at position reg -> register_used blocks reg.
+    (position : program_point) (reg : register),
+  well_formed_ssa blocks entry -> (fst position) ∈ blocks ->
+  register_live_at position reg -> register_used blocks reg.
 Proof.
   intros blocks entry position reg Hwf Hin Hlive. revert Hin.
   induction Hlive; intros Hin.
   - exists position, v. auto.
-  - apply IHHlive. eapply point_edge_in_graph; eassumption.
+  - apply IHHlive. eapply program_point_edge_in_graph; eassumption.
 Qed.
 
 (* Reading a list succeeds when every referenced register is bound. *)
-Lemma read_values_bound : forall (regs : registers) (args : list value),
-  (forall (arg : value), In arg args ->
+Lemma read_values_of_defined_operands : forall (regs : registers)
+  (args : list value),
+  (forall (arg : value), arg ∈ args ->
     exists (word : Z), regs (register_of_value arg) = Some word) ->
   exists (words : list Z), read_values regs args = Some words.
 Proof.
@@ -104,9 +108,9 @@ Proof.
     reflexivity.
 Qed.
 
-(* A used parameter cannot receive an omitted argument. The actual read
-   and simultaneous binding therefore give it a concrete word. *)
-Lemma used_parameter_bound : forall (blocks : list block)
+(* A used parameter cannot receive an omitted argument. The actual read and
+   simultaneous binding therefore give it a concrete word. *)
+Lemma used_parameter_defined : forall (blocks : list block)
     (args : list Terminator.arg) (parameters : list value)
     (before after : registers) (words : list (option Z)),
   Forall2 (fun (arg : Terminator.arg) (parameter : value) =>
@@ -118,7 +122,7 @@ Lemma used_parameter_bound : forall (blocks : list block)
   read_arguments before args = Some words ->
   Forall2 (fun (parameter : value) (word : option Z) =>
     after (register_of_value parameter) = word) parameters words ->
-  forall (parameter : value), In parameter parameters ->
+  forall (parameter : value), parameter ∈ parameters ->
   register_used blocks (register_of_value parameter) ->
   exists (word : Z), after (register_of_value parameter) = Some word.
 Proof.
@@ -141,13 +145,15 @@ Proof.
       * eapply IH; try eassumption; reflexivity.
 Qed.
 
-(* A newly defined live register is bound by the actual step. Results
-   come from executing an instruction; used parameters receive arguments. *)
-Lemma step_new_live_bound : forall (blocks : list block) (entry : block)
+(* A newly defined live register is bound by the actual step. Results come from
+   executing an instruction; used parameters receive arguments. *)
+Lemma step_new_live_register_defined : forall (blocks : list block)
+  (entry : block)
     (before after : state) (reg : register),
   well_formed_ssa blocks entry -> control_layout blocks ->
-  valid_position before -> In (current_block before) blocks ->
-  defined_at (state_point after) reg -> register_used blocks reg ->
+  valid_position before -> (current_block before) ∈ blocks ->
+  register_defined_at (state_program_point after) reg -> register_used blocks
+    reg ->
   step before after ->
   exists (word : Z), current_registers after reg = Some word.
 Proof.
@@ -160,29 +166,34 @@ Proof.
       as [_ [words [result [Hread [Heval Hregs]]]]].
     exists result. rewrite Hregs. apply write_register_same.
   - destruct Hdefinition as [Hentry Hparam].
-    destruct Hstep; cbn [state_point enter] in Hentry.
-    + unfold entry_point in Hentry. injection Hentry as Hsame Hlength.
-      subst b0. destruct Hposition as [prefix Hbody]. cbn in Hbody.
+    destruct Hstep as [source insn rest before_regs after_regs Hexec |
+      source target arguments before_regs argument_words after_regs
+        Hterm Hread Hbind |
+      source index_value targets regs index_word target
+        Hterm Hread Hnonnegative Hnth Hparams];
+      cbn [state_program_point enter] in Hentry.
+    + unfold block_entry_point in Hentry. injection Hentry as Hsame Hlength.
+      subst source. destruct Hposition as [prefix Hbody]. cbn in Hbody.
       rewrite Hbody, length_app in Hlength. cbn in Hlength. lia.
-    + unfold entry_point in Hentry. injection Hentry as Hsame Hlength.
+    + unfold block_entry_point in Hentry. injection Hentry as Hsame Hlength.
       subst target.
-      eapply used_parameter_bound with (parameters := params b)
-        (args := args) (before := rs) (words := zs).
+      eapply used_parameter_defined with (parameters := params b)
+        (args := arguments) (before := before_regs) (words := argument_words).
       * eapply goto_parameter_layout; eassumption.
-      * exact H0.
+      * exact Hread.
       * eapply bind_parameters_values; [apply (parameters_distinct
-          (graph_parameters _ _ Hwf)) | exact H1].
+          (graph_parameters _ _ Hwf)) | exact Hbind].
       * eapply nth_int_In. exact Hparam.
       * exact Hused.
-    + unfold entry_point in Hentry. injection Hentry as Hsame Hlength.
-      subst target. rewrite H3 in Hparam. discriminate.
+    + unfold block_entry_point in Hentry. injection Hentry as Hsame Hlength.
+      subst target. rewrite Hparams in Hparam. discriminate.
 Qed.
 
 (* Reading Goto arguments succeeds when each non-omitted input is bound;
    omitted arguments still occupy a parameter position. *)
-Lemma read_arguments_bound : forall (regs : registers)
+Lemma read_arguments_of_defined_operands : forall (regs : registers)
     (args : list Terminator.arg),
-  (forall (arg : value), In (Terminator.Arg arg) args ->
+  (forall (arg : value), (Terminator.Arg arg) ∈ args ->
      exists (word : Z), regs (register_of_value arg) = Some word) ->
   exists (words : list (option Z)), read_arguments regs args = Some words
     /\ length words = length args.
@@ -213,20 +224,21 @@ Proof.
   - cbn [bind_parameters]. apply IH. cbn in Hlength. lia.
 Qed.
 
-(* A supported state with bound live registers makes progress, provided
-   its Switch (if any) has a defined index. No loop property is used. *)
+(* A supported state with bound live registers makes progress, provided its
+   Switch (if any) has a defined index. No loop property is used. *)
 Theorem supported_state_progress : forall (blocks : list block)
-    (entry : block) (s : state),
+    (entry : block) (current : state),
   well_formed_ssa blocks entry -> control_layout blocks ->
-  valid_position s -> In (current_block s) blocks ->
-  live_registers_bound (state_point s) (current_registers s) ->
-  supported_block (current_block s) = true ->
+  valid_position current -> (current_block current) ∈ blocks ->
+  live_registers_defined (state_program_point current)
+    (current_registers current) ->
+  supported_block (current_block current) = true ->
   (forall (index : value) (targets : list block) (word : Z),
-    remaining s = [] ->
-    terminator (current_block s) = Terminator.Switch index targets ->
-    current_registers s (register_of_value index) = Some word ->
+    remaining current = [] ->
+    terminator (current_block current) = Terminator.Switch index targets ->
+    current_registers current (register_of_value index) = Some word ->
     0 <= word < Z.of_nat (length targets)) ->
-  exists (next : state), step s next.
+  exists (next : state), step current next.
 Proof.
   intros blocks entry [b insns regs] Hwf Hlayout Hposition Hblock Hbound
     Hsupported Hswitch.
@@ -236,7 +248,8 @@ Proof.
   - destruct (terminator b) as [continuation args | index targets | |]
       eqn:Hterminator; try discriminate.
     + destruct continuation as [target | | kind |]; try discriminate.
-      destruct (read_arguments_bound regs args) as [words [Hread Hlength]].
+      destruct (read_arguments_of_defined_operands regs args) as [words [Hread
+        Hlength]].
       { intros arg Hin.
         destruct (continue_argument_operand (Goto target) args arg Hin)
           as [uses [Huses Huse]].
@@ -262,13 +275,13 @@ Proof.
         -- eapply switch_parameterless; [exact Hlayout | exact Hblock |
              exact Hterminator | eapply nth_error_In; exact Htarget].
       * apply nth_error_None in Htarget. lia.
-  - assert (Hin : In insn (block_body b)).
+  - assert (Hin : insn ∈ (block_body b)).
     { destruct Hposition as [prefix Hbody]. cbn in Hbody. rewrite Hbody.
       apply in_or_app. right. left. reflexivity. }
     apply forallb_forall with (x := insn) in Hinsns; [ | exact Hin].
     assert (Hreads : exists (words : list Z),
       read_values regs (args_of_instr insn) = Some words).
-    { apply read_values_bound. intros arg Harg. apply Hbound.
+    { apply read_values_of_defined_operands. intros arg Harg. apply Hbound.
       destruct insn as [id op args count | |]; try contradiction.
       apply Live_read. eapply Instruction_operand; [ | exact Harg].
       eapply executing_result_definition. exact Hposition. }

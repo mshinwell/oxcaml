@@ -1,16 +1,16 @@
 (* OxCaml's [int], modelled by Rocq's primitive signed 63-bit integer [int]
-   (from the standard library's Sint63), which is exactly the same type.
-   [to_Z] reads an [int] as a mathematical integer ([Z]).
+   (from the standard library's Sint63), which is exactly the same type. [to_Z]
+   reads an [int] as a mathematical integer ([Z]).
 
-   This file re-exports Sint63, names the literals the models use, and
-   collects the basic facts about [int] that the proofs need. *)
+   This file re-exports Sint63, names the literals the models use, and collects
+   the basic facts about [int] that the proofs need. *)
 
 From Stdlib Require Import ZArith Lia Bool.
 From Stdlib Require Export Sint63.
 
-(* The literals are named so that extraction can print them as OxCaml
-   literals (a primitive-int literal would otherwise be printed as a call
-   into Rocq's runtime). *)
+(* The literals are named so that extraction can print them as OxCaml literals
+   (a primitive-int literal would otherwise be printed as a call into Rocq's
+   runtime). *)
 Local Open Scope sint63_scope.
 Definition zero : int := 0.
 Definition one : int := 1.
@@ -102,10 +102,12 @@ Proof.
   pose proof (int_bounds n). unfold two62 in *. lia.
 Qed.
 
-(* [1 lsl n] is [2^n] as long as that fits an [int], i.e. for [n <= 61]:
-   [lsl] shifts the unsigned reading, and bit 62 is the sign bit. *)
-Lemma to_Z_lsl_one : forall n : int,
-  0 <= to_Z n <= 61 -> to_Z (one << n)%sint63 = 2 ^ to_Z n.
+(* [1 lsl shift_amount] is [2^shift_amount] as long as that fits an [int], i.e.
+   for [shift_amount <= 61]: [lsl] shifts the unsigned reading, and bit 62 is
+   the sign bit. *)
+Lemma to_Z_lsl_one : forall shift_amount : int,
+  0 <= to_Z shift_amount <= 61 ->
+  to_Z (one << shift_amount)%sint63 = 2 ^ to_Z shift_amount.
 Proof.
   intros n Hn.
   assert (HwB : Uint63Axioms.wB = 9223372036854775808) by reflexivity.
@@ -120,11 +122,12 @@ Proof.
   rewrite (Z.mod_small (2 ^ to_Z n + 4611686018427387904)) by lia. lia.
 Qed.
 
-(* [(1 lsl n) - 1] is [2^n - 1] for [1 <= n <= 62]: at [n = 62] the shift
-   gives [min_int] and the subtraction wraps to [max_int], which is the
-   right value. *)
-Lemma to_Z_lsl_one_pred : forall n : int,
-  1 <= to_Z n <= 62 -> to_Z ((one << n) - one)%sint63 = 2 ^ to_Z n - 1.
+(* [(1 lsl shift_amount) - 1] is [2^shift_amount - 1] for [1 <= shift_amount <=
+   62]: at [shift_amount = 62] the shift gives [min_int] and the subtraction
+   wraps to [max_int], which is the right value. *)
+Lemma to_Z_lsl_one_pred : forall shift_amount : int,
+  1 <= to_Z shift_amount <= 62 -> to_Z ((one << shift_amount) - one)%sint63 = 2
+    ^ to_Z shift_amount - 1.
 Proof.
   intros n Hn.
   assert (HwB : Uint63Axioms.wB = 9223372036854775808) by reflexivity.
@@ -142,9 +145,9 @@ Proof.
   rewrite (Z.mod_small (2 ^ to_Z n - 1 + 4611686018427387904)) by lia. lia.
 Qed.
 
-(* Split on the [int] tests in the goal, turning [step =? one] into the
-   cases [to_Z step = 1] / [to_Z step <> 1], etc., and then rewrite any
-   equation on a [to_Z] everywhere. *)
+(* Split on the [int] tests in the goal, turning [step =? one] into the cases
+   [to_Z step = 1] / [to_Z step <> 1], etc., and then rewrite any equation on a
+   [to_Z] everywhere. *)
 Ltac case_int_tests :=
   repeat match goal with
          | |- context [PrimInt63.eqb ?x ?y] => destruct (Sint63.eqbP x y)
@@ -158,8 +161,9 @@ Ltac case_int_tests :=
 (* Rearrangements of sums of [int]s, which hold with wrap-around. *)
 
 (* [cmod] may be applied to either summand first, or not at all. *)
-Lemma cmod_add_l : forall (a b d : Z),
-  Sint63.cmod (Sint63.cmod a d + b) d = Sint63.cmod (a + b) d.
+Lemma cmod_add_l : forall (a b modulus : Z),
+  Sint63.cmod (Sint63.cmod a modulus + b) modulus
+  = Sint63.cmod (a + b) modulus.
 Proof.
   intros a b d. unfold Sint63.cmod.
   replace ((a + d / 2) mod d - d / 2 + b + d / 2)
@@ -167,8 +171,9 @@ Proof.
   rewrite Zplus_mod_idemp_l. f_equal. f_equal. ring.
 Qed.
 
-Lemma cmod_add_r : forall (a b d : Z),
-  Sint63.cmod (a + Sint63.cmod b d) d = Sint63.cmod (a + b) d.
+Lemma cmod_add_r : forall (a b modulus : Z),
+  Sint63.cmod (a + Sint63.cmod b modulus) modulus
+  = Sint63.cmod (a + b) modulus.
 Proof.
   intros a b d. rewrite (Z.add_comm a), cmod_add_l, (Z.add_comm b).
   reflexivity.

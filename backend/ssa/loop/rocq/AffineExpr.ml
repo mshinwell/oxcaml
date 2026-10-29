@@ -144,7 +144,7 @@ let rec to_affine = function
       | Some p0 -> (
         let fb, sb = p0 in
         match Affine.add_checked fa fb with
-        | Some f -> Some (f, sa @ sb)
+        | Some form -> Some (form, sa @ sb)
         | None -> None)
       | None -> None)
     | None -> None)
@@ -158,7 +158,7 @@ let rec to_affine = function
         match Affine.scale_checked (-1) fb with
         | Some nfb -> (
           match Affine.add_checked fa nfb with
-          | Some f -> Some (f, sa @ sb)
+          | Some form -> Some (form, sa @ sb)
           | None -> None)
         | None -> None)
       | None -> None)
@@ -168,7 +168,7 @@ let rec to_affine = function
     | Some p -> (
       let fa, sa = p in
       match Affine.scale_checked k fa with
-      | Some f -> Some (f, sa)
+      | Some form -> Some (form, sa)
       | None -> None)
     | None -> None)
   | Shr_atom (atom, arg, bits) -> (

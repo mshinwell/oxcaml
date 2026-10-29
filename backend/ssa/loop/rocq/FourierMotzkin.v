@@ -1,19 +1,18 @@
 (* Affine inequalities over interned integer atoms, with Fourier-Motzkin
-   feasibility and entailment, for the loop analyses. The extraction of
-   this file, FourierMotzkin.ml next to it, is the implementation.
+   feasibility and entailment, for the loop analyses. The extraction of this
+   file, FourierMotzkin.ml next to it, is the implementation.
 
    See the reading guide at the top of LoopComparisons.v for the Rocq
-   vocabulary and the layout of the shared files. As there, this file has
-   four parts: (1) the definitions, (2) the intended meaning,
-   (3) stepping-stone lemmas, (4) the theorems. Parts 1 and 2 are the part
-   to check by eye.
+   vocabulary and the layout of the shared files. As there, this file has four
+   parts: (1) the definitions, (2) the intended meaning, (3) stepping-stone
+   lemmas, (4) the theorems. Parts 1 and 2 are the part to check by eye.
 
-   Every function that can overflow returns an [option], [None] standing
-   for the overflow (see OxCamlOption.v); nothing wraps silently.
+   Every function that can overflow returns an [option], [None] standing for
+   the overflow (see OxCamlOption.v); nothing wraps silently.
 
    Trusted parts: the [Int64] model in OxCamlInt64.v, the [sort_uniq]
-   assumptions in OxCamlList.v and the overflow tests of the checked
-   arithmetic in IntArith.v (each is a few lines of OxCaml to review).
+   assumptions in OxCamlList.v and the overflow tests of the checked arithmetic
+   in IntArith.v (each is a few lines of OxCaml to review).
 
    The main results are [feasible_sound] and [entails_sound] in part 4: when
    [feasible] says "infeasible", no integer assignment satisfies the
@@ -107,26 +106,31 @@ End Affine.
 (* The local [coeff] of [resolvent], over [Int64] coefficients. *)
 Definition coeff64 := assoc_default Int64.zero.
 
-(* The local [scaled] of [resolvent]. *)
-Definition scaled (k : Int64.t) (f : Affine.t)
+(* The local [scale_to_int64] of [resolvent]. *)
+Definition scale_to_int64 (factor : Int64.t) (form : Affine.t)
     : option (Int64.t * list (int * Int64.t)) :=
-  let* c := mul_ovf64 k (Int64.of_int f.(Affine.const)) in
+  let* c := mul_ovf64 factor (Int64.of_int form.(Affine.const)) in
   let* ts :=
     map_opt
-      (fun '(id, c) => let* c := mul_ovf64 k (Int64.of_int c) in Some (id, c))
-      f.(Affine.terms)
+      (fun '(id, c) =>
+        let* c := mul_ovf64 factor (Int64.of_int c) in Some (id, c))
+      form.(Affine.terms)
   in
   Some (c, ts).
 
-(* The resolvent of [p], in which the atom has the positive coefficient
-   [cp], and [n], in which it has the negative coefficient [- cn]: the
-   combination [cn * p + cp * n], computed in [Int64], divided by the gcd of
-   its coefficients and read back as [int]s. A resolvent with no terms is
-   normalized to the constant 0 or -1. [None] on overflow. *)
-Definition resolvent (cp cn : int) (p n : Affine.t) : option Affine.t :=
-  let cp64 := Int64.of_int cp in
-  let cn64 := Int64.of_int cn in
-  match scaled cn64 p, scaled cp64 n with
+(* The resolvent of [positive_form], in which the atom has the positive
+   coefficient [positive_coeff], and [negative_form], in which it has the
+   negative coefficient [- negative_coeff_magnitude]: the combination
+   [negative_coeff_magnitude * positive_form + positive_coeff * negative_form],
+   computed in [Int64], divided by the gcd of its coefficients and read back as
+   [int]s. A resolvent with no terms is normalized to the constant 0 or -1.
+   [None] on overflow. *)
+Definition resolvent (positive_coeff negative_coeff_magnitude : int)
+    (positive_form negative_form : Affine.t) : option Affine.t :=
+  let cp64 := Int64.of_int positive_coeff in
+  let cn64 := Int64.of_int negative_coeff_magnitude in
+  match scale_to_int64 cn64 positive_form,
+        scale_to_int64 cp64 negative_form with
   | Some (pc, pterms), Some (nc, nterms) =>
     let ids := sort_uniq (map fst pterms ++ map fst nterms) in
     let* ts :=
@@ -144,15 +148,22 @@ Definition resolvent (cp cn : int) (p n : Affine.t) : option Affine.t :=
                 else minus_one;
               Affine.terms := [] |}
     | _ :: _ =>
-      let g :=
-        fold_left (fun g '(_, c) => gcd64 g (Int64.abs c)) Int64.zero ts
+      let normalization_factor :=
+        fold_left
+          (fun normalization_factor '(_, c) =>
+            gcd64 normalization_factor (Int64.abs c))
+          Int64.zero ts
       in
-      let g := if zero <? Int64.compare g Int64.one then g else Int64.one in
-      let* k := to_int_ovf (fdiv64 c g) in
+      let normalization_factor :=
+        if zero <? Int64.compare normalization_factor Int64.one
+        then normalization_factor else Int64.one
+      in
+      let* k := to_int_ovf (floor_div64 c normalization_factor) in
       let* ts :=
         map_opt
           (fun '(id, c) =>
-            let* c := to_int_ovf (Int64.div c g) in Some (id, c))
+            let* c := to_int_ovf (Int64.div c normalization_factor) in
+            Some (id, c))
           ts
       in
       Some {| Affine.const := k; Affine.terms := ts |}
@@ -162,18 +173,17 @@ Definition resolvent (cp cn : int) (p n : Affine.t) : option Affine.t :=
 
 (* ---- [feasible] and [entails] ----------------------------------------- *)
 
-(* Size limits beyond which [feasible] gives up, answering "feasible", the
-   safe side. One elimination step can produce up to a quarter of the
-   squared number of inequalities as resolvents, so [max_ineqs] bounds the
-   work of a step; the systems the loop analyses build have a few dozen
-   inequalities at most. FourierMotzkinExtract.v repeats the two values as
-   literals. *)
+(* Size limits beyond which [feasible] gives up, answering "feasible", the safe
+   side. One elimination step can produce up to a quarter of the squared number
+   of inequalities as resolvents, so [max_ineqs] bounds the work of a step; the
+   systems the loop analyses build have a few dozen inequalities at most.
+   FourierMotzkinExtract.v repeats the two values as literals. *)
 Definition max_atoms : int := 64.
 Definition max_ineqs : int := 500.
 
-(* One step of [feasible]: eliminate the atom [atom]. [None] when the
-   system is over the size limit; an overflowing resolvent is dropped. *)
-Definition elim (atom : int) (ineqs : list Affine.t)
+(* One step of [feasible]: eliminate the atom [atom]. [None] when the system is
+   over the size limit; an overflowing resolvent is dropped. *)
+Definition eliminate_atom (atom : int) (ineqs : list Affine.t)
     : option (list Affine.t) :=
   if zero <? compare_length_with ineqs max_ineqs
   then None
@@ -193,29 +203,30 @@ Definition elim (atom : int) (ineqs : list Affine.t)
     Some (rev_append zero_coeff resolvents).
 
 (* Eliminate the atoms in turn, stopping at the first [None]. *)
-Fixpoint elim_all (atoms : list int) (ineqs : list Affine.t)
+Fixpoint eliminate_atoms (atoms : list int) (ineqs : list Affine.t)
     : option (list Affine.t) :=
   match atoms with
   | [] => Some ineqs
-  | atom :: atoms => let* ineqs := elim atom ineqs in elim_all atoms ineqs
+  | atom :: atoms => let* ineqs := eliminate_atom atom ineqs in eliminate_atoms
+    atoms ineqs
   end.
 
-(* Whether the system may have a solution: eliminate every atom and check
-   that no constant form is negative. [true], the safe answer, over the size
-   limits or on overflow. *)
+(* Whether the system may have a solution: eliminate every atom and check that
+   no constant form is negative. [true], the safe answer, over the size limits
+   or on overflow. *)
 Definition feasible (ineqs : list Affine.t) : bool :=
   let atoms :=
     sort_uniq (concat_map (fun f => map fst f.(Affine.terms)) ineqs) in
   if zero <? compare_length_with atoms max_atoms
   then true
   else
-    match elim_all atoms ineqs with
+    match eliminate_atoms atoms ineqs with
     | Some reduced => forallb (fun f => zero <=? f.(Affine.const)) reduced
     | None => true
     end.
 
-(* Whether [goal >= 0] follows from [facts]: the facts together with
-   [goal < 0], i.e. [- goal - 1 >= 0], are infeasible. *)
+(* Whether [goal >= 0] follows from [facts]: the facts together with [goal <
+   0], i.e. [- goal - 1 >= 0], are infeasible. *)
 Definition entails (facts : list Affine.t) (goal : Affine.t) : bool :=
   let negated :=
     let* ng := Affine.scale_checked minus_one goal in
@@ -237,11 +248,11 @@ Local Open Scope Z_scope.
    assignment, so a fortiori for the machine ones. *)
 Definition valuation := int -> Z.
 
-(* [sum coeff * atom] over a term list, for any coefficient type that reads
-   as an integer. *)
-Definition denote_terms {C} (cZ : C -> Z) (rho : valuation)
+(* [sum coeff * atom] over a term list, for any coefficient type that reads as
+   an integer. *)
+Definition denote_terms {C} (coefficient_value : C -> Z) (rho : valuation)
     (terms : list (int * C)) : Z :=
-  fold_right (fun '(id, c) acc => cZ c * rho id + acc) 0 terms.
+  fold_right (fun '(id, c) acc => coefficient_value c * rho id + acc) 0 terms.
 
 (* The value of an affine form: [const + sum coeff * atom]. *)
 Definition denote (rho : valuation) (f : Affine.t) : Z :=
@@ -253,36 +264,41 @@ Definition holds (rho : valuation) (f : Affine.t) : Prop := 0 <= denote rho f.
 Definition holds_all (rho : valuation) (l : list Affine.t) : Prop :=
   Forall (holds rho) l.
 
-(* The representation invariant: each atom appears at most once in a term
-   list. Every constructor in [Affine] maintains it, so every form the loop
-   passes build satisfies it. *)
+(* The representation invariant: each atom appears at most once in a term list.
+   Every constructor in [Affine] maintains it, so every form the loop passes
+   build satisfies it. *)
 Definition wf (f : Affine.t) : Prop := NoDup (map fst f.(Affine.terms)).
 
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
 (* ======================================================================== *)
 
-(* --- The gcd fold of [resolvent] yields a common divisor of all
-   coefficients. --- *)
+(* --- The gcd fold of [resolvent] yields a common divisor of all coefficients.
+   --- *)
 
 (* The fold's result divides the initial accumulator ... *)
-Lemma fold_gcd_divides_acc : forall (ts : list (int * Int64.t)) (g0 : Int64.t),
-  (Int64.to_Z (fold_left (fun g '(_, c) => gcd64 g (Int64.abs c)) g0 ts)
-   | Int64.to_Z g0).
+Lemma fold_gcd_divides_acc : forall (terms : list (int * Int64.t))
+  (initial_gcd : Int64.t),
+  (Int64.to_Z (fold_left (fun g '(_, coefficient) => gcd64 g (Int64.abs
+    coefficient)) initial_gcd terms)
+   | Int64.to_Z initial_gcd).
 Proof.
-  unfold fold_left. induction ts as [ | [id c] ts IH ]; intros g0; simpl.
+  intros ts. unfold fold_left.
+  induction ts as [ | [id c] ts IH ]; intros g0; simpl.
   - apply Z.divide_refl.
   - eapply Z.divide_trans; [ apply IH | apply gcd64_divides ].
 Qed.
 
 (* ... and every coefficient in the list. *)
 Lemma fold_gcd_divides :
-  forall (ts : list (int * Int64.t)) (g0 : Int64.t) (id : int) (c : Int64.t),
-  In (id, c) ts ->
-  (Int64.to_Z (fold_left (fun g '(_, c) => gcd64 g (Int64.abs c)) g0 ts)
-   | Int64.to_Z c).
+  forall (terms : list (int * Int64.t)) (initial_gcd : Int64.t) (id : int)
+    (coefficient : Int64.t),
+  (id, coefficient) ∈ terms ->
+  (Int64.to_Z (fold_left (fun g '(_, coefficient) => gcd64 g (Int64.abs
+    coefficient)) initial_gcd terms)
+   | Int64.to_Z coefficient).
 Proof.
-  unfold fold_left.
+  intros ts. unfold fold_left.
   induction ts as [ | [id' c'] ts IH ]; intros g0 id c Hin; simpl in *.
   - contradiction.
   - destruct Hin as [ E | Hin ].
@@ -307,7 +323,7 @@ Lemma sum_ids_cons : forall (f : int -> Z) (id : int) (ids : list int),
 Proof. reflexivity. Qed.
 
 Lemma sum_ids_ext : forall (f g : int -> Z) (ids : list int),
-  (forall (id : int), In id ids -> f id = g id) ->
+  (forall (id : int), id ∈ ids -> f id = g id) ->
   sum_ids f ids = sum_ids g ids.
 Proof.
   intros f g ids H. induction ids as [ | id ids IH ]; [ reflexivity | ].
@@ -316,7 +332,7 @@ Proof.
 Qed.
 
 Lemma sum_ids_zero : forall (f : int -> Z) (ids : list int),
-  (forall (id : int), In id ids -> f id = 0) -> sum_ids f ids = 0.
+  (forall (id : int), id ∈ ids -> f id = 0) -> sum_ids f ids = 0.
 Proof.
   intros f ids H. induction ids as [ | id ids IH ]; [ reflexivity | ].
   rewrite sum_ids_cons, H by (left; reflexivity).
@@ -337,11 +353,11 @@ Proof.
   rewrite !sum_ids_cons, IH. cbv beta. ring.
 Qed.
 
-(* Splitting off the contribution of one atom [id0] that occurs exactly
-   once in [ids]. *)
+(* Splitting off the contribution of one atom [id0] that occurs exactly once in
+   [ids]. *)
 Lemma sum_ids_split :
   forall (f g : int -> Z) (ids : list int) (id0 : int) (v : Z),
-  NoDup ids -> In id0 ids ->
+  NoDup ids -> id0 ∈ ids ->
   (forall (id : int), id <> id0 -> f id = g id) -> f id0 = v + g id0 ->
   sum_ids f ids = v + sum_ids g ids.
 Proof.
@@ -358,21 +374,23 @@ Qed.
 
 (* The value of a term list unfolds on cons. *)
 Lemma denote_terms_cons :
-  forall {C : Type} (cZ : C -> Z) (rho : valuation) (id : int) (c : C)
+  forall {C : Type} (coefficient_value : C -> Z) (rho : valuation) (id : int)
+    (c : C)
     (terms : list (int * C)),
-  denote_terms cZ rho ((id, c) :: terms)
-  = cZ c * rho id + denote_terms cZ rho terms.
+  denote_terms coefficient_value rho ((id, c) :: terms)
+  = coefficient_value c * rho id + denote_terms coefficient_value rho terms.
 Proof. reflexivity. Qed.
 
-(* The value of a duplicate-free term list is the sum, over any
-   duplicate-free list of atoms covering it, of coefficient times atom. *)
+(* The value of a duplicate-free term list is the sum, over any duplicate-free
+   list of atoms covering it, of coefficient times atom. *)
 Lemma sum_ids_coeff :
-  forall {C : Type} (cZ : C -> Z) (dflt : C) (rho : valuation)
+  forall {C : Type} (coefficient_value : C -> Z) (dflt : C) (rho : valuation)
     (terms : list (int * C)) (ids : list int),
-  cZ dflt = 0 -> NoDup (map fst terms) -> NoDup ids ->
+  coefficient_value dflt = 0 -> NoDup (map fst terms) -> NoDup ids ->
   incl (map fst terms) ids ->
-  sum_ids (fun id => cZ (assoc_default dflt id terms) * rho id) ids
-  = denote_terms cZ rho terms.
+  sum_ids (fun id => coefficient_value (assoc_default dflt id terms) * rho id)
+    ids
+  = denote_terms coefficient_value rho terms.
 Proof.
   intros C cZ dflt rho terms.
   induction terms as [ | [k c] terms IH ]; intros ids Hd Hnd Hnd_ids Hincl.
@@ -396,7 +414,7 @@ Qed.
    zero. *)
 Lemma denote_terms_zero : forall (rho : valuation) (terms : list (int * int)),
   NoDup (map fst terms) ->
-  (forall (id : int), In id (map fst terms) ->
+  (forall (id : int), id ∈ (map fst terms) ->
      to_Z (assoc_default zero id terms) = 0) ->
   denote_terms to_Z rho terms = 0.
 Proof.
@@ -408,8 +426,8 @@ Qed.
 
 (* --- Merging term lists. --- *)
 
-(* The shape shared by [Affine.add_checked] and [resolvent]: for each atom
-   a checked coefficient, dropped when zero. *)
+(* The shape shared by [Affine.add_checked] and [resolvent]: for each atom a
+   checked coefficient, dropped when zero. *)
 Definition merge_terms {C} (f : int -> option C) (is_zero : C -> bool)
     (ids : list int) : option (list (int * C)) :=
   filter_map_opt
@@ -421,25 +439,27 @@ Definition merge_terms {C} (f : int -> option C) (is_zero : C -> bool)
 (* [merge_terms] unfolds on cons: [None] if the coefficient fails, else the
    entry is kept unless its coefficient is zero. *)
 Lemma merge_terms_cons :
-  forall {C : Type} (f : int -> option C) (z : C -> bool) (id : int)
+  forall {C : Type} (compute_coefficient : int -> option C)
+    (is_zero : C -> bool) (id : int)
     (ids : list int),
-  merge_terms f z (id :: ids)
-  = (let* c := f id in
-     let* rest := merge_terms f z ids in
-     Some (if z c then rest else (id, c) :: rest)).
+  merge_terms compute_coefficient is_zero (id :: ids)
+  = (let* c := compute_coefficient id in
+     let* rest := merge_terms compute_coefficient is_zero ids in
+     Some (if is_zero c then rest else (id, c) :: rest)).
 Proof.
-  intros. unfold merge_terms. simpl.
+  intros C f z id ids. unfold merge_terms. simpl.
   destruct (f id) as [ c | ]; [ | reflexivity ].
   destruct (filter_map_opt _ ids); [ | reflexivity ].
   destruct (z c); reflexivity.
 Qed.
 
 (* The atoms of a merged list are among those given ... *)
-Lemma merge_keys :
-  forall {C : Type} (f : int -> option C) (z : C -> bool) (ids : list int)
-    (ts : list (int * C)),
-  merge_terms f z ids = Some ts ->
-  forall (id : int), In id (map fst ts) -> In id ids.
+Lemma merge_terms_keys :
+  forall {C : Type} (compute_coefficient : int -> option C)
+    (is_zero : C -> bool) (ids : list int)
+    (merged_terms : list (int * C)),
+  merge_terms compute_coefficient is_zero ids = Some merged_terms ->
+  forall (id : int), id ∈ (map fst merged_terms) -> id ∈ ids.
 Proof.
   intros C f z ids. induction ids as [ | id ids IH ]; intros ts H id' Hin.
   - injection H as <-. contradiction.
@@ -453,10 +473,13 @@ Proof.
 Qed.
 
 (* ... and distinct when those are. *)
-Lemma merge_NoDup :
-  forall {C : Type} (f : int -> option C) (z : C -> bool) (ids : list int)
-    (ts : list (int * C)),
-  NoDup ids -> merge_terms f z ids = Some ts -> NoDup (map fst ts).
+Lemma merge_terms_NoDup :
+  forall {C : Type} (compute_coefficient : int -> option C)
+    (is_zero : C -> bool) (ids : list int)
+    (merged_terms : list (int * C)),
+  NoDup ids ->
+  merge_terms compute_coefficient is_zero ids = Some merged_terms ->
+  NoDup (map fst merged_terms).
 Proof.
   intros C f z ids. induction ids as [ | id ids IH ]; intros ts Hnd H.
   - injection H as <-. constructor.
@@ -467,19 +490,23 @@ Proof.
     injection H as <-. destruct (z c).
     + eapply IH; [ exact Hnd | reflexivity ].
     + simpl. constructor; [ | eapply IH; [ exact Hnd | reflexivity  ] ].
-      intros Hin. apply Hnot. eapply merge_keys; [ exact Hr | exact Hin ].
+      intros Hin. apply Hnot. eapply merge_terms_keys; [ exact Hr | exact Hin
+        ].
 Qed.
 
 (* For every atom given, the merge computed a coefficient, which the merged
    list holds, unless it is zero, in which case the atom is absent. *)
-Lemma merge_coeff :
-  forall {C : Type} (f : int -> option C) (z : C -> bool) (dflt : C)
-    (ids : list int) (ts : list (int * C)),
-  NoDup ids -> merge_terms f z ids = Some ts ->
-  forall (id : int), In id ids ->
-    exists c, f id = Some c
-      /\ assoc_default dflt id ts = (if z c then dflt else c)
-      /\ (In id (map fst ts) <-> z c = false).
+Lemma merge_terms_coefficient :
+  forall {C : Type} (compute_coefficient : int -> option C)
+    (is_zero : C -> bool) (default_coefficient : C)
+    (ids : list int) (merged_terms : list (int * C)),
+  NoDup ids ->
+  merge_terms compute_coefficient is_zero ids = Some merged_terms ->
+  forall (id : int), id ∈ ids ->
+    exists c, compute_coefficient id = Some c
+      /\ assoc_default default_coefficient id merged_terms = (if is_zero c then
+        default_coefficient else c)
+      /\ (id ∈ (map fst merged_terms) <-> is_zero c = false).
 Proof.
   intros C f z dflt ids. induction ids as [ | id ids IH ];
     intros ts Hnd H id' Hin;
@@ -489,8 +516,9 @@ Proof.
   destruct (f id) as [ c | ] eqn:Hf; [ | discriminate ].
   destruct (merge_terms f z ids) as [ rest | ] eqn:Hr; [ | discriminate ].
   injection H as <-.
-  assert (Hrest : ~ In id (map fst rest))
-    by (intros Hin'; apply Hnot; eapply merge_keys; [ exact Hr | exact Hin' ]).
+  assert (Hrest : id ∉ (map fst rest))
+    by (intros Hin'; apply Hnot; eapply merge_terms_keys; [ exact Hr | exact
+      Hin' ]).
   destruct Hin as [ -> | Hin ].
   - exists c. split; [ exact Hf | ]. destruct (z c) eqn:Hz.
     + split; [ apply assoc_default_not_in; exact Hrest | ].
@@ -513,21 +541,27 @@ Qed.
 
 (* The value of a merged term list is the sum over the atoms of the merged
    coefficients. *)
-Lemma merge_denote :
-  forall {C : Type} (cZ : C -> Z) (f : int -> option C) (z : C -> bool)
-    (dflt : C) (rho : valuation) (fz : int -> Z) (ids : list int)
-    (ts : list (int * C)),
-  cZ dflt = 0 -> (forall (c : C), z c = true -> cZ c = 0) -> NoDup ids ->
-  (forall (id : int) (c : C), In id ids -> f id = Some c -> cZ c = fz id) ->
-  merge_terms f z ids = Some ts ->
-  denote_terms cZ rho ts = sum_ids (fun id => fz id * rho id) ids.
+Lemma merge_terms_denote :
+  forall {C : Type} (coefficient_value : C -> Z)
+    (compute_coefficient : int -> option C) (is_zero : C -> bool)
+    (default_coefficient : C) (rho : valuation)
+      (merged_coefficient_value : int -> Z) (ids : list int)
+    (merged_terms : list (int * C)),
+  coefficient_value default_coefficient = 0 -> (forall (c : C), is_zero c =
+    true -> coefficient_value c = 0) -> NoDup ids ->
+  (forall (id : int) (c : C), id ∈ ids -> compute_coefficient id = Some c ->
+    coefficient_value c = merged_coefficient_value id) ->
+  merge_terms compute_coefficient is_zero ids = Some merged_terms ->
+  denote_terms coefficient_value rho merged_terms = sum_ids (fun id =>
+    merged_coefficient_value id * rho id) ids.
 Proof.
   intros C cZ f z dflt rho fz ids ts Hd Hz Hnd Hf H.
   rewrite <- (sum_ids_coeff cZ dflt rho ts ids);
-    [ | exact Hd | eapply merge_NoDup; eauto | exact Hnd
-     | intros x Hx; eapply merge_keys; eauto].
+    [ | exact Hd | eapply merge_terms_NoDup; eauto | exact Hnd
+     | intros x Hx; eapply merge_terms_keys; eauto].
   apply sum_ids_ext. intros id Hid.
-  destruct (merge_coeff f z dflt ids ts Hnd H id Hid) as [c [Hc [Hcoeff _]]].
+  destruct (merge_terms_coefficient f z dflt ids ts Hnd H id Hid) as [c [Hc
+    [Hcoeff _]]].
   rewrite Hcoeff. rewrite <- (Hf id c Hid Hc).
   destruct (z c) eqn:Hzc;
     [ rewrite Hd, (Hz c Hzc); reflexivity | reflexivity ].
@@ -565,10 +599,12 @@ Proof. intros. unfold wf. simpl. constructor; [ tauto | constructor ]. Qed.
 
 (* Scaling every coefficient, when none overflows, scales the value. *)
 Lemma scale_terms_denote :
-  forall (rho : valuation) (k : int) (terms ts : list (int * int)),
-  map_opt (fun '(id, c) => let* c := mul_ovf c k in Some (id, c)) terms
-  = Some ts ->
-  denote_terms to_Z rho ts = to_Z k * denote_terms to_Z rho terms.
+  forall (rho : valuation) (factor : int)
+    (terms scaled_terms : list (int * int)),
+  map_opt (fun '(id, c) => let* c := mul_ovf c factor in Some (id, c)) terms
+  = Some scaled_terms ->
+  denote_terms to_Z rho scaled_terms = to_Z factor * denote_terms to_Z rho
+    terms.
 Proof.
   intros rho k terms. induction terms as [ | [id c0] terms IH ]; intros ts Hts.
   - injection Hts as <-. change (denote_terms to_Z rho []) with 0. ring.
@@ -579,15 +615,15 @@ Proof.
     apply mul_ovf_spec in Hd. rewrite Hd. ring.
 Qed.
 
-(* [scale_checked k f], when it answers, has [k] times the value of [f], no new
-   atoms, and stays well-formed. *)
+(* [scale_checked factor form], when it answers, has [factor] times the value
+   of [form], no new atoms, and stays well-formed. *)
 Lemma scale_checked_spec :
-  forall (rho : valuation) (k : int) (f f' : Affine.t),
-  Affine.scale_checked k f = Some f' ->
-  denote rho f' = to_Z k * denote rho f
-  /\ (forall (id : int), In id (map fst f'.(Affine.terms)) ->
-        In id (map fst f.(Affine.terms)))
-  /\ (wf f -> wf f').
+  forall (rho : valuation) (factor : int) (form scaled_form : Affine.t),
+  Affine.scale_checked factor form = Some scaled_form ->
+  denote rho scaled_form = to_Z factor * denote rho form
+  /\ (forall (id : int), id ∈ (map fst scaled_form.(Affine.terms)) ->
+        id ∈ (map fst form.(Affine.terms)))
+  /\ (wf form -> wf scaled_form).
 Proof.
   intros rho k f f' H. unfold Affine.scale_checked in H.
   destruct (k =? zero)%sint63 eqn:Hk.
@@ -607,20 +643,23 @@ Qed.
 
 (* [add_checked], when it answers, has the sum of the values, atoms from either
    side, and is well-formed. *)
-Lemma add_checked_spec : forall (rho : valuation) (a b c : Affine.t),
-  wf a -> wf b -> Affine.add_checked a b = Some c ->
-  denote rho c = denote rho a + denote rho b
-  /\ (forall (id : int), In id (map fst c.(Affine.terms)) ->
-        In id (map fst a.(Affine.terms)) \/ In id (map fst b.(Affine.terms)))
-  /\ wf c.
+Lemma add_checked_spec : forall (rho : valuation)
+  (left_form right_form sum_form : Affine.t),
+  wf left_form -> wf right_form -> Affine.add_checked left_form right_form =
+    Some sum_form ->
+  denote rho sum_form = denote rho left_form + denote rho right_form
+  /\ (forall (id : int), id ∈ (map fst sum_form.(Affine.terms)) ->
+        id ∈ (map fst left_form.(Affine.terms)) \/ id ∈ (map fst
+          right_form.(Affine.terms)))
+  /\ wf sum_form.
 Proof.
   intros rho a b c Ha Hb H. unfold Affine.add_checked in H.
   set (ids := sort_uniq (map fst a.(Affine.terms) ++ map fst b.(Affine.terms)))
     in *.
   assert (Hnd : NoDup ids) by apply sort_uniq_NoDup.
-  assert (Hids : forall x, In x ids <->
-                   In x (map fst a.(Affine.terms))
-                   \/ In x (map fst b.(Affine.terms)))
+  assert (Hids : forall x, x ∈ ids <->
+                   x ∈ (map fst a.(Affine.terms))
+                   \/ x ∈ (map fst b.(Affine.terms)))
     by (intros x; unfold ids; rewrite sort_uniq_In, in_app_iff; reflexivity).
   change (filter_map_opt _ ids)
     with (merge_terms
@@ -632,7 +671,7 @@ Proof.
   assert (Hdt : denote_terms to_Z rho ts
                 = denote_terms to_Z rho a.(Affine.terms)
                   + denote_terms to_Z rho b.(Affine.terms)).
-  { rewrite (merge_denote to_Z
+  { rewrite (merge_terms_denote to_Z
                (fun id => add_ovf (Affine.coeff id a) (Affine.coeff id b))
                (fun c => (c =? zero)%sint63) zero rho
                (fun id => to_Z (Affine.coeff id a) + to_Z (Affine.coeff id b))
@@ -653,18 +692,20 @@ Proof.
     - exact Hts. }
   unfold denote, wf. cbn [Affine.const Affine.terms]. rewrite Hk, Hdt.
   split; [ ring | split ].
-  - intros id Hin. apply Hids. eapply merge_keys; [ exact Hts | exact Hin ].
-  - eapply merge_NoDup; [ exact Hnd | exact Hts ].
+  - intros id Hin. apply Hids. eapply merge_terms_keys; [ exact Hts | exact Hin
+    ].
+  - eapply merge_terms_NoDup; [ exact Hnd | exact Hts ].
 Qed.
 
 (* [add_const_checked], when it answers, adds the constant to the value and
    keeps the terms. *)
 Lemma add_const_checked_spec :
-  forall (rho : valuation) (f : Affine.t) (k : int) (f' : Affine.t),
-  Affine.add_const_checked f k = Some f' ->
-  denote rho f' = denote rho f + to_Z k
-  /\ f'.(Affine.terms) = f.(Affine.terms)
-  /\ (wf f -> wf f').
+  forall (rho : valuation) (form : Affine.t) (constant : int)
+    (result_form : Affine.t),
+  Affine.add_const_checked form constant = Some result_form ->
+  denote rho result_form = denote rho form + to_Z constant
+  /\ result_form.(Affine.terms) = form.(Affine.terms)
+  /\ (wf form -> wf result_form).
 Proof.
   intros rho f k f' H. unfold Affine.add_const_checked in H.
   destruct (add_ovf _ _) as [ c | ] eqn:Hc; [ | discriminate ].
@@ -675,12 +716,15 @@ Qed.
 
 (* [sub_checked], when it answers, has the difference of the values, atoms from
    either side, and is well-formed. *)
-Lemma sub_checked_spec : forall (rho : valuation) (a b c : Affine.t),
-  wf a -> wf b -> Affine.sub_checked a b = Some c ->
-  denote rho c = denote rho a - denote rho b
-  /\ (forall (id : int), In id (map fst c.(Affine.terms)) ->
-        In id (map fst a.(Affine.terms)) \/ In id (map fst b.(Affine.terms)))
-  /\ wf c.
+Lemma sub_checked_spec : forall (rho : valuation)
+  (left_form right_form difference_form : Affine.t),
+  wf left_form -> wf right_form -> Affine.sub_checked left_form right_form =
+    Some difference_form ->
+  denote rho difference_form = denote rho left_form - denote rho right_form
+  /\ (forall (id : int), id ∈ (map fst difference_form.(Affine.terms)) ->
+        id ∈ (map fst left_form.(Affine.terms)) \/ id ∈ (map fst
+          right_form.(Affine.terms)))
+  /\ wf difference_form.
 Proof.
   intros rho a b c Ha Hb H. unfold Affine.sub_checked in H.
   destruct (Affine.scale_checked minus_one b) as [ nb | ] eqn:Hnb;
@@ -697,18 +741,18 @@ Qed.
 
 (* --- Resolvents. --- *)
 
-(* [scaled k f] multiplies the constant and every coefficient of [f] by
-   [k], exactly. *)
-Lemma scaled_spec :
-  forall (k : Int64.t) (f : Affine.t) (c : Int64.t)
-    (ts : list (int * Int64.t)),
-  scaled k f = Some (c, ts) ->
-  Int64.to_Z c = Int64.to_Z k * to_Z f.(Affine.const)
-  /\ map fst ts = map fst f.(Affine.terms)
-  /\ (forall (id : int), Int64.to_Z (coeff64 id ts)
-                         = Int64.to_Z k * to_Z (Affine.coeff id f)).
+(* [scale_to_int64 factor form] multiplies the constant and every coefficient
+   of [form] by [factor], exactly. *)
+Lemma scale_to_int64_spec :
+  forall (factor : Int64.t) (form : Affine.t) (scaled_constant : Int64.t)
+    (scaled_terms : list (int * Int64.t)),
+  scale_to_int64 factor form = Some (scaled_constant, scaled_terms) ->
+  Int64.to_Z scaled_constant = Int64.to_Z factor * to_Z form.(Affine.const)
+  /\ map fst scaled_terms = map fst form.(Affine.terms)
+  /\ (forall (id : int), Int64.to_Z (coeff64 id scaled_terms)
+                         = Int64.to_Z factor * to_Z (Affine.coeff id form)).
 Proof.
-  unfold scaled. intros k f c ts H.
+  unfold scale_to_int64. intros k f c ts H.
   destruct (mul_ovf64 _ _) as [ c' | ] eqn:Hc; [ | discriminate ].
   destruct (map_opt _ _) as [ ts' | ] eqn:Hts; [ | discriminate ].
   injection H as <- <-.
@@ -723,36 +767,43 @@ Proof.
     + rewrite Ha, Int64.to_Z_zero, to_Z_zero. ring.
 Qed.
 
-(* What a resolvent is: a form [r] whose coefficients are, up to a positive
-   factor [g], the combination [cn * p + cp * n], and which holds whenever
-   that combination is non-negative. *)
-Lemma resolvent_spec : forall (cp cn : int) (p n r : Affine.t),
-  wf p -> wf n -> resolvent cp cn p n = Some r ->
-  wf r
-  /\ (forall (id : int), In id (map fst r.(Affine.terms)) ->
-        In id (map fst p.(Affine.terms)) \/ In id (map fst n.(Affine.terms)))
-  /\ (exists g, 0 < g /\
+(* What a resolvent is: a form [resolvent_form] whose coefficients are, up to a
+   positive factor [normalization_factor], the combination
+   [negative_coeff_magnitude * positive_form + positive_coeff * negative_form],
+   and which holds whenever that combination is non-negative. *)
+Lemma resolvent_spec : forall (positive_coeff negative_coeff_magnitude : int)
+    (positive_form negative_form resolvent_form : Affine.t),
+  wf positive_form -> wf negative_form ->
+  resolvent positive_coeff negative_coeff_magnitude
+    positive_form negative_form = Some resolvent_form ->
+  wf resolvent_form
+  /\ (forall (id : int), id ∈ (map fst resolvent_form.(Affine.terms)) ->
+        id ∈ (map fst positive_form.(Affine.terms))
+        \/ id ∈ (map fst negative_form.(Affine.terms)))
+  /\ (exists normalization_factor, 0 < normalization_factor /\
         forall (id : int),
-          g * to_Z (Affine.coeff id r)
-          = to_Z cn * to_Z (Affine.coeff id p)
-            + to_Z cp * to_Z (Affine.coeff id n))
+          normalization_factor * to_Z (Affine.coeff id resolvent_form)
+          = to_Z negative_coeff_magnitude
+              * to_Z (Affine.coeff id positive_form)
+            + to_Z positive_coeff * to_Z (Affine.coeff id negative_form))
   /\ (forall (rho : valuation),
-        0 <= to_Z cn * denote rho p + to_Z cp * denote rho n ->
-        0 <= denote rho r).
+        0 <= to_Z negative_coeff_magnitude * denote rho positive_form
+             + to_Z positive_coeff * denote rho negative_form ->
+        0 <= denote rho resolvent_form).
 Proof.
   intros cp cn p n r Hp Hn H. unfold resolvent in H.
-  destruct (scaled (Int64.of_int cn) p) as [ [pc pterms] | ] eqn:Hsp;
+  destruct (scale_to_int64 (Int64.of_int cn) p) as [ [pc pterms] | ] eqn:Hsp;
     [ | discriminate ].
-  destruct (scaled (Int64.of_int cp) n) as [ [nc nterms] | ] eqn:Hsn;
+  destruct (scale_to_int64 (Int64.of_int cp) n) as [ [nc nterms] | ] eqn:Hsn;
     [ | discriminate ].
-  destruct (scaled_spec _ _ _ _ Hsp) as [Hpc [Hpkeys Hpcoeff]].
-  destruct (scaled_spec _ _ _ _ Hsn) as [Hnc [Hnkeys Hncoeff]].
+  destruct (scale_to_int64_spec _ _ _ _ Hsp) as [Hpc [Hpkeys Hpcoeff]].
+  destruct (scale_to_int64_spec _ _ _ _ Hsn) as [Hnc [Hnkeys Hncoeff]].
   rewrite Int64.of_int_spec in Hpc, Hnc, Hpcoeff, Hncoeff.
   set (ids := sort_uniq (map fst pterms ++ map fst nterms)) in *.
   assert (Hnd : NoDup ids) by apply sort_uniq_NoDup.
-  assert (Hids : forall x, In x ids <->
-                   In x (map fst p.(Affine.terms))
-                   \/ In x (map fst n.(Affine.terms))).
+  assert (Hids : forall x, x ∈ ids <->
+                   x ∈ (map fst p.(Affine.terms))
+                   \/ x ∈ (map fst n.(Affine.terms))).
   { intros x. unfold ids.
     rewrite sort_uniq_In, in_app_iff, Hpkeys, Hnkeys. reflexivity. }
   change (filter_map_opt _ ids)
@@ -765,11 +816,11 @@ Proof.
   (* The merged coefficient of each atom. *)
   set (m := fun id => to_Z cn * to_Z (Affine.coeff id p)
                       + to_Z cp * to_Z (Affine.coeff id n)).
-  assert (Hm : forall id, In id ids ->
+  assert (Hm : forall id, id ∈ ids ->
             Int64.to_Z (coeff64 id ts) = m id
-            /\ (In id (map fst ts) <-> m id <> 0)).
+            /\ (id ∈ (map fst ts) <-> m id <> 0)).
   { intros id Hid.
-    destruct (merge_coeff _ _ Int64.zero ids ts Hnd Hts id Hid)
+    destruct (merge_terms_coefficient _ _ Int64.zero ids ts Hnd Hts id Hid)
       as [c0 [Hc0 [Hcoeff Hin]]].
     apply add_ovf64_spec in Hc0. rewrite Hpcoeff, Hncoeff in Hc0.
     unfold coeff64. rewrite Hcoeff, Hin.
@@ -780,12 +831,13 @@ Proof.
     - apply Int64.equal_false in Hz. rewrite Int64.to_Z_zero in Hz.
       split; [ unfold m; lia | ].
       split; [ intros _; unfold m; lia | reflexivity ]. }
-  assert (Hm0 : forall id, ~ In id ids -> m id = 0 /\ ~ In id (map fst ts)).
+  assert (Hm0 : forall id, id ∉ ids -> m id = 0 /\ id ∉ (map fst ts)).
   { intros id Hid. split.
     - unfold m, Affine.coeff. rewrite !assoc_default_not_in;
         [ rewrite to_Z_zero; ring | | ];
         intros Hin; apply Hid; apply Hids; tauto.
-    - intros Hin. apply Hid. eapply merge_keys; [ exact Hts | exact Hin ]. }
+    - intros Hin. apply Hid. eapply merge_terms_keys; [ exact Hts | exact Hin
+      ]. }
   (* The combination, as a sum over [ids]. *)
   assert (Hsum : forall rho,
             to_Z cn * denote rho p + to_Z cp * denote rho n
@@ -828,7 +880,7 @@ Proof.
     set (g := if (zero <? Int64.compare g0 Int64.one)%sint63 then g0
               else Int64.one) in H.
     assert (Hg : 0 < Int64.to_Z g
-                 /\ forall id c0, In (id, c0) (t0 :: ts') ->
+                 /\ forall id c0, (id, c0) ∈ (t0 :: ts') ->
                       (Int64.to_Z g | Int64.to_Z c0)).
     { unfold g. destruct (zero <? Int64.compare g0 Int64.one)%sint63 eqn:Hgt.
       - apply Int64.compare_gt in Hgt. rewrite Int64.to_Z_one in Hgt.
@@ -836,10 +888,11 @@ Proof.
         eapply fold_gcd_divides. exact Hin.
       - rewrite Int64.to_Z_one. split; [ lia | ]. intros. apply Z.divide_1_l. }
     clearbody g.
-    destruct (to_int_ovf (fdiv64 c g)) as [ k | ] eqn:Hk; [ | discriminate ].
+    destruct (to_int_ovf (floor_div64 c g)) as [ k | ] eqn:Hk; [ | discriminate
+      ].
     destruct (map_opt _ (t0 :: ts')) as [ rts | ] eqn:Hrts; [ | discriminate ].
     injection H as <-.
-    apply to_int_ovf_spec in Hk. rewrite fdiv64_spec in Hk by lia.
+    apply to_int_ovf_spec in Hk. rewrite floor_div64_spec in Hk by lia.
     pose proof (map_opt_keys _ _ _ Hrts) as Hkeys.
     assert (Hcoeff : forall id,
               Int64.to_Z g
@@ -855,14 +908,14 @@ Proof.
           by (apply (proj2 Hg id c0); apply assoc_opt_In; exact Ha0).
         rewrite div_exact64 by first [ lia | exact Hdiv ].
         destruct Hdiv as [q Hq]. rewrite Hq, Z.div_mul by lia.
-        assert (Hin : In id ids).
-        { eapply merge_keys; [ exact Hts | ].
+        assert (Hin : id ∈ ids).
+        { eapply merge_terms_keys; [ exact Hts | ].
           apply assoc_opt_In in Ha0. apply (in_map fst) in Ha0. exact Ha0. }
         destruct (Hm id Hin) as [Hm1 _].
         unfold coeff64, assoc_default in Hm1. rewrite Ha0 in Hm1.
         rewrite <- Hm1, Hq. ring.
       - rewrite Ha, to_Z_zero.
-        assert (Hnot : ~ In id (map fst (t0 :: ts'))).
+        assert (Hnot : id ∉ (map fst (t0 :: ts'))).
         { intros Hin. destruct (assoc_opt_Some id (t0 :: ts') Hin) as [c0 E].
           congruence. }
         destruct (in_dec int_eq_dec id ids) as [ Hin | Hnin ].
@@ -872,10 +925,10 @@ Proof.
         + destruct (Hm0 id Hnin) as [E _]. rewrite E. ring. }
     split; [ | split; [ | split ] ].
     + unfold wf. cbn [Affine.terms]. rewrite Hkeys.
-      eapply merge_NoDup; [ exact Hnd | exact Hts ].
+      eapply merge_terms_NoDup; [ exact Hnd | exact Hts ].
     + intros id Hin. cbn [Affine.terms] in Hin. rewrite Hkeys in Hin.
       apply Hids.
-      eapply merge_keys; [ exact Hts | exact Hin ].
+      eapply merge_terms_keys; [ exact Hts | exact Hin ].
     + exists (Int64.to_Z g). split; [ lia | exact Hcoeff ].
     + intros rho Hpos. rewrite Hsum in Hpos.
       assert (Hdt : sum_ids (fun id => m id * rho id) ids
@@ -885,9 +938,9 @@ Proof.
         - rewrite <- sum_ids_scale. apply sum_ids_ext. intros id _.
           rewrite <- (Hcoeff id). unfold Affine.coeff. cbn [Affine.terms].
           ring.
-        - rewrite Hkeys. eapply merge_NoDup; [ exact Hnd | exact Hts ].
+        - rewrite Hkeys. eapply merge_terms_NoDup; [ exact Hnd | exact Hts ].
         - intros x Hx. rewrite Hkeys in Hx.
-          eapply merge_keys; [ exact Hts | exact Hx ]. }
+          eapply merge_terms_keys; [ exact Hts | exact Hx ]. }
       unfold denote. cbn [Affine.const Affine.terms]. rewrite Hk.
       rewrite Hdt in Hpos.
       assert (Hlow : - denote_terms to_Z rho rts
@@ -920,33 +973,41 @@ Qed.
 
 (* --- One elimination step. --- *)
 
-(* What an elimination establishes of its output [out] from its input
-   [ineqs], [eliminated] holding of the atoms it removed: the forms are
-   well-formed and their atoms among the input's; every eliminated atom,
-   and every atom whose coefficient was zero throughout the input, has a
-   zero coefficient in every output; and truth is preserved: a valuation
-   satisfying the input satisfies the output. *)
-Definition elim_result (eliminated : int -> Prop) (ineqs out : list Affine.t)
+(* What an elimination establishes of its output [output_inequalities] from its
+   input [input_inequalities], [eliminated] holding of the atoms it removed:
+   the forms are well-formed and their atoms among the input's; every
+   eliminated atom, and every atom whose coefficient was zero throughout the
+   input, has a zero coefficient in every output; and truth is preserved: a
+   valuation satisfying the input satisfies the output. *)
+Definition elimination_result (eliminated : int -> Prop)
+  (input_inequalities output_inequalities : list Affine.t)
     : Prop :=
-  Forall wf out
-  /\ (forall (S : list int),
+  Forall wf output_inequalities
+  /\ (forall (covering_atoms : list int),
         (forall (f : Affine.t),
-           In f ineqs -> incl (map fst f.(Affine.terms)) S) ->
-        forall (f : Affine.t), In f out -> incl (map fst f.(Affine.terms)) S)
+           f ∈ input_inequalities -> incl (map fst f.(Affine.terms))
+             covering_atoms) ->
+        forall (f : Affine.t), f ∈ output_inequalities -> incl (map fst
+          f.(Affine.terms)) covering_atoms)
   /\ (forall (id : int),
         eliminated id
         \/ (forall (f : Affine.t),
-              In f ineqs -> to_Z (Affine.coeff id f) = 0) ->
-        forall (f : Affine.t), In f out -> to_Z (Affine.coeff id f) = 0)
-  /\ (forall (rho : valuation), holds_all rho ineqs -> holds_all rho out).
+              f ∈ input_inequalities -> to_Z (Affine.coeff id f) = 0) ->
+        forall (f : Affine.t), f ∈ output_inequalities -> to_Z (Affine.coeff
+          id f) = 0)
+  /\ (forall (rho : valuation), holds_all rho input_inequalities -> holds_all
+    rho output_inequalities).
 
-(* [elim atom], when it answers, is an elimination step in the sense of
-   [elim_result], the atom eliminated being [atom]. *)
-Lemma elim_spec : forall (atom : int) (ineqs out : list Affine.t),
-  Forall wf ineqs -> elim atom ineqs = Some out ->
-  elim_result (fun id => id = atom) ineqs out.
+(* [eliminate_atom atom], when it answers, is an elimination step in the sense
+   of [elimination_result], the atom eliminated being [atom]. *)
+Lemma eliminate_atom_spec : forall (atom : int)
+  (input_inequalities output_inequalities : list Affine.t),
+  Forall wf input_inequalities -> eliminate_atom atom input_inequalities = Some
+    output_inequalities ->
+  elimination_result (fun id => id = atom) input_inequalities
+    output_inequalities.
 Proof.
-  intros v ineqs out Hwf H. unfold elim in H.
+  intros v ineqs out Hwf H. unfold eliminate_atom in H.
   destruct (zero <? compare_length_with ineqs max_ineqs)%sint63;
     [ discriminate | ].
   injection H as <-. cbv beta zeta.
@@ -957,9 +1018,9 @@ Proof.
   set (res := concat_map _ pos).
   (* Each output is an input with a zero coefficient of [v], or the resolvent
      of an input pair with coefficients of opposite signs. *)
-  assert (Hcase : forall f, In f (rev_append zc res) ->
-            (In f ineqs /\ Affine.coeff v f = zero)
-            \/ (exists p n cn, In p ineqs /\ In n ineqs
+  assert (Hcase : forall f, f ∈ (rev_append zc res) ->
+            (f ∈ ineqs /\ Affine.coeff v f = zero)
+            \/ (exists p n cn, p ∈ ineqs /\ n ∈ ineqs
                   /\ 0 < to_Z (Affine.coeff v p)
                   /\ to_Z (Affine.coeff v n) < 0
                   /\ to_Z cn = - to_Z (Affine.coeff v n)
@@ -976,7 +1037,7 @@ Proof.
         [ | discriminate ].
       cbv iota in Hres. apply neg_ovf_spec in Hcn.
       exists p, n, cn. tauto. }
-  unfold elim_result. split; [ | split; [ | split ] ].
+  unfold elimination_result. split; [ | split; [ | split ] ].
   - apply Forall_forall. intros f Hin.
     destruct (Hcase f Hin)
       as [ [Hin' _] | [p [n [cn [Hp [Hn [_ [_ [_ Hres]]]]]]]] ].
@@ -1024,19 +1085,23 @@ Qed.
 
 (* The same, for a sequence of eliminations: every atom of the sequence is
    eliminated. *)
-Lemma elim_all_spec : forall (atoms : list int) (ineqs out : list Affine.t),
-  Forall wf ineqs -> elim_all atoms ineqs = Some out ->
-  elim_result (fun id => In id atoms) ineqs out.
+Lemma eliminate_atoms_spec : forall (atoms : list int)
+  (input_inequalities output_inequalities : list Affine.t),
+  Forall wf input_inequalities -> eliminate_atoms atoms input_inequalities =
+    Some output_inequalities ->
+  elimination_result (fun id => id ∈ atoms) input_inequalities
+    output_inequalities.
 Proof.
   induction atoms as [ | v atoms IH ]; intros ineqs out Hwf H;
-    unfold elim_result.
+    unfold elimination_result.
   - injection H as <-. split; [ exact Hwf | split; [ | split ] ].
     + intros S HS f Hin. apply HS. exact Hin.
     + intros id [ Hid | Hz ] f Hin; [ contradiction | apply Hz; exact Hin ].
     + intros rho Hh. exact Hh.
-  - cbn [elim_all] in H.
-    destruct (elim v ineqs) as [ mid | ] eqn:He; [ | discriminate ].
-    destruct (elim_spec v ineqs mid Hwf He) as [Hwf1 [Hkeys1 [Hz1 Hh1]]].
+  - cbn [eliminate_atoms] in H.
+    destruct (eliminate_atom v ineqs) as [ mid | ] eqn:He; [ | discriminate ].
+    destruct (eliminate_atom_spec v ineqs mid Hwf He) as [Hwf1 [Hkeys1 [Hz1
+      Hh1]]].
     destruct (IH mid out Hwf1 H) as [Hwf2 [Hkeys2 [Hz2 Hh2]]].
     split; [ exact Hwf2 | split; [ | split ] ].
     + intros S HS. apply Hkeys2. apply Hkeys1. exact HS.
@@ -1051,10 +1116,10 @@ Qed.
 (* --- The theorems. --- *)
 
 (* [feasible] never wrongly reports an infeasible system: if it answers
-   [false], no integer valuation of the atoms satisfies every inequality.
-   (It may answer [true] for an infeasible system: on the size limits, on
-   an overflow, or because Fourier-Motzkin elimination is only complete over
-   the rationals.) *)
+   [false], no integer valuation of the atoms satisfies every inequality. (It
+   may answer [true] for an infeasible system: on the size limits, on an
+   overflow, or because Fourier-Motzkin elimination is only complete over the
+   rationals.) *)
 Theorem feasible_sound : forall (ineqs : list Affine.t),
   Forall wf ineqs -> feasible ineqs = false ->
   forall (rho : valuation), ~ holds_all rho ineqs.
@@ -1063,9 +1128,10 @@ Proof.
   set (atoms := sort_uniq _) in Hf.
   destruct (zero <? compare_length_with atoms max_atoms)%sint63;
     [ discriminate | ].
-  destruct (elim_all atoms ineqs) as [ reduced | ] eqn:He; [ | discriminate ].
+  destruct (eliminate_atoms atoms ineqs) as [ reduced | ] eqn:He; [ |
+    discriminate ].
   cbv iota in Hf.
-  destruct (elim_all_spec atoms ineqs reduced Hwf He)
+  destruct (eliminate_atoms_spec atoms ineqs reduced Hwf He)
     as [Hwf' [Hkeys [Hzero Hpres]]].
   specialize (Hpres rho Hholds). unfold holds_all in Hpres.
   rewrite Forall_forall in Hwf', Hpres.

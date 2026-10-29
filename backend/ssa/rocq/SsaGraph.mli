@@ -20,7 +20,8 @@ val arg_value :
 
 val goto_args : block -> block -> Ssa.finished Ssa.Terminator.arg list option
 
-val goto_passes : block -> int -> Ssa.finished Ssa.Value.t -> block -> bool
+val goto_passes_only_at :
+  block -> int -> Ssa.finished Ssa.Value.t -> block -> bool
 
 val all_uses_ok :
   block list ->

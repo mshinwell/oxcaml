@@ -1,14 +1,15 @@
-(* A mathematical valuation for the affine analysis, constructed rather
-   than assumed of a program execution.
+(* A mathematical valuation for the affine analysis, constructed rather than
+   assumed of a program execution.
 
    AffineSsa's arithmetic theorems use a total valuation of syntax. Here
    [snapshot_value] extends a register snapshot to all syntax by arithmetic
-   interpretation, including fabricated expressions. It is not execution
-   and is not extracted. [snapshot_agrees_available] proves agreement with
-   actual register reads only for canonical available values. No invariance
-   or execution meaning is assigned to fabricated expressions. *)
+   interpretation, including fabricated expressions. It is not execution and is
+   not extracted. [snapshot_agrees_available] proves agreement with actual
+   register reads only for canonical available values. No invariance or
+   execution meaning is assigned to fabricated expressions. *)
 
 From Stdlib Require Import ZArith Lia List Bool.
+From OxCamlStdlib Require Import OxCamlList.
 From OxCamlStdlib Require Import OxCamlInt OxCamlInt64.
 From OxCamlBackend Require Import Operation.
 From OxCamlSsa Require Import SsaModel SsaSemantics SsaExecution.
@@ -22,10 +23,10 @@ Definition snapshot_atom (regs : registers) (v : value) : Z :=
   | None => 0
   end.
 
-(* Syntax is interpreted by [eval_operation], the one arithmetic semantics
-   of the development, wherever it applies; a value it does not evaluate
-   (an opaque operation, a shift out of range, a parameter) is read from
-   its register. *)
+(* Syntax is interpreted by [eval_operation], the one arithmetic semantics of
+   the development, wherever it applies; a value it does not evaluate (an
+   opaque operation, a shift out of range, a parameter) is read from its
+   register. *)
 Fixpoint snapshot_value (regs : registers) (v : value) : Z :=
   match v with
   | Res _ op args _ =>
@@ -36,8 +37,8 @@ Fixpoint snapshot_value (regs : registers) (v : value) : Z :=
   | Block_param _ _ => snapshot_atom regs v
   end.
 
-(* Unavailable atoms may be assigned defaults in the mathematical
-   extension, but those defaults are not used by the execution semantics. *)
+(* Unavailable atoms may be assigned defaults in the mathematical extension,
+   but those defaults are not used by the execution semantics. *)
 Lemma snapshot_atom_bounded : forall (regs : registers) (v : value),
   in_int64 (snapshot_atom regs v).
 Proof.
@@ -59,14 +60,14 @@ Proof.
   eapply eval_operation_bounded. exact Heval.
 Qed.
 
-(* The extension satisfies the affine library's operation equations on
-   all syntax. This universal fact is proved, not a machine/run premise. *)
+(* The extension satisfies the affine library's operation equations on all
+   syntax. This universal fact is proved, not a machine/run premise. *)
 Theorem snapshot_operation_semantics : forall (regs : registers) (v : value),
   op_semantics (snapshot_value regs) v.
 Proof.
   intros regs [id op args index | b index]; [ | exact I].
   cbn [op_semantics]. intros Hmodeled.
-  destruct (eval_operation_modeled _ _ _ (snapshot_value regs) Hmodeled)
+  destruct (modeled_operation_total _ _ _ (snapshot_value regs) Hmodeled)
     as [result Heval].
   cbn [snapshot_value]. rewrite Heval. reflexivity.
 Qed.
@@ -80,12 +81,12 @@ Proof.
   apply wrap64_id. eapply Hbounded. exact Hread.
 Qed.
 
-(* Pointwise agreement on actual operands gives the same argument list
-   in the affine valuation as the instruction read from its registers. *)
+(* Pointwise agreement on actual operands gives the same argument list in the
+   affine valuation as the instruction read from its registers. *)
 Lemma read_values_snapshot : forall (regs : registers) (args : list value)
     (words : list Z),
   bounded_registers regs -> read_values regs args = Some words ->
-  (forall (arg : value), In arg args ->
+  (forall (arg : value), arg ∈ args ->
      snapshot_value regs arg = snapshot_atom regs arg) ->
   Forall2 (fun arg word => snapshot_value regs arg = word) args words.
 Proof.
@@ -113,8 +114,8 @@ Proof.
 Qed.
 
 (* For an actually evaluated operation, interpreting its operands in an
-   agreeing snapshot computes the stored result. Comparisons and opaque
-   syntax use their result register directly in the affine valuation. *)
+   agreeing snapshot computes the stored result. Comparisons and opaque syntax
+   use their result register directly in the affine valuation. *)
 Lemma snapshot_evaluated_result : forall (regs : registers) (id : instr_id)
     (op : operation) (args : list value) (index : int)
     (words : list Z) (result : Z),
@@ -131,8 +132,8 @@ Proof.
   symmetry. apply wrap64_id. exact Hbounded.
 Qed.
 
-(* Syntax outside the exact operation model reads its register directly.
-   In particular, no equation is assumed for a load or other opaque op. *)
+(* Syntax outside the exact operation model reads its register directly. In
+   particular, no equation is assumed for a load or other opaque op. *)
 Lemma snapshot_unmodeled : forall (regs : registers) (id : instr_id)
     (op : operation) (args : list value) (index : int),
   modeled_operation op args = false ->
@@ -140,15 +141,15 @@ Lemma snapshot_unmodeled : forall (regs : registers) (id : instr_id)
     = snapshot_atom regs (Res id op args index).
 Proof.
   intros regs id op args index Hmodeled. cbn [snapshot_value].
-  rewrite (eval_operation_unmodeled _ _ _ (snapshot_value regs) Hmodeled).
+  rewrite (unmodeled_operation_undefined _ _ _ (snapshot_value regs) Hmodeled).
   reflexivity.
 Qed.
 
-(* Available actual values have their stored register value in the
-   mathematical extension. The induction descends only through available
-   canonical operands, whose equations follow from execution. *)
+(* Available actual values have their stored register value in the mathematical
+   extension. The induction descends only through available canonical operands,
+   whose equations follow from execution. *)
 Theorem snapshot_agrees_available : forall (blocks : list block)
-    (entry : block) (position : SsaDominance.point) (regs : registers),
+    (entry : block) (position : SsaDominance.program_point) (regs : registers),
   well_formed_ssa blocks entry -> coherent_at blocks entry regs position ->
   bounded_registers regs -> forall (v : value),
   available_value blocks entry position v ->
@@ -169,10 +170,11 @@ Proof.
   apply IHargs. eapply operand_available; eassumption.
 Qed.
 
-(* This is the bridge used by range proofs: no default or recomputation
-   remains when the available value has an actual register reading. *)
+(* This is the bridge used by range proofs: no default or recomputation remains
+   when the available value has an actual register reading. *)
 Theorem snapshot_read_available : forall (blocks : list block) (entry : block)
-    (position : SsaDominance.point) (regs : registers) (v : value) (word : Z),
+    (position : SsaDominance.program_point) (regs : registers) (v : value)
+      (word : Z),
   well_formed_ssa blocks entry -> coherent_at blocks entry regs position ->
   bounded_registers regs -> available_value blocks entry position v ->
   regs (register_of_value v) = Some word -> snapshot_value regs v = word.

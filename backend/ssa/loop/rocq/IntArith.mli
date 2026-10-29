@@ -22,4 +22,4 @@ val to_int_ovf : int64 -> int option
 
 val gcd64 : int64 -> int64 -> int64
 
-val fdiv64 : int64 -> int64 -> int64
+val floor_div64 : int64 -> int64 -> int64

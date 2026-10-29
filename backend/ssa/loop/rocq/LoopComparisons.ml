@@ -39,37 +39,39 @@ let continue_terminates step cmp =
 (** val facts : bool -> Cmm.integer_comparison -> Affine.t -> Affine.t ->
     Affine.t list **)
 
-let facts neg cmp la lb =
-  let cmp0 = if neg then Cmm.negate_integer_comparison cmp else cmp in
+let facts negate_comparison cmp left_form right_form =
+  let cmp0 =
+    if negate_comparison then Cmm.negate_integer_comparison cmp else cmp
+  in
   let computed =
     match cmp0 with
     | Cmm.Ceq -> (
-      match Affine.sub_checked la lb with
+      match Affine.sub_checked left_form right_form with
       | Some f1 -> (
-        match Affine.sub_checked lb la with
+        match Affine.sub_checked right_form left_form with
         | Some f2 -> Some [f1; f2]
         | None -> None)
       | None -> None)
     | Cmm.Clt -> (
-      match Affine.sub_checked lb la with
+      match Affine.sub_checked right_form left_form with
       | Some d -> (
         match Affine.add_const_checked d (-1) with
         | Some f -> Some (f :: [])
         | None -> None)
       | None -> None)
     | Cmm.Cgt -> (
-      match Affine.sub_checked la lb with
+      match Affine.sub_checked left_form right_form with
       | Some d -> (
         match Affine.add_const_checked d (-1) with
         | Some f -> Some (f :: [])
         | None -> None)
       | None -> None)
     | Cmm.Cle -> (
-      match Affine.sub_checked lb la with
+      match Affine.sub_checked right_form left_form with
       | Some f -> Some (f :: [])
       | None -> None)
     | Cmm.Cge -> (
-      match Affine.sub_checked la lb with
+      match Affine.sub_checked left_form right_form with
       | Some f -> Some (f :: [])
       | None -> None)
     | _ -> Some []

@@ -2,11 +2,12 @@
 
    Strict dominators are outside a reachable natural-loop body, so their
    registers are not rewritten while execution stays in that body. Constant
-   results have their literal value whenever available. Together these
-   facts justify [loop_invariant_value] for actual available SSA values,
-   without assigning invariance to fabricated expressions. *)
+   results have their literal value whenever available. Together these facts
+   justify [loop_invariant_value] for actual available SSA values, without
+   assigning invariance to fabricated expressions. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
+From OxCamlStdlib Require Import OxCamlList.
 From OxCamlStdlib Require Import OxCamlInt OxCamlInt64.
 From OxCamlBackend Require Import Operation.
 From OxCamlSsa Require Import SsaModel SsaGraph SsaDominance SsaSemantics
@@ -32,49 +33,55 @@ Section Invariants.
   Hypothesis starts_at_header : at_entry loop.(header) start.
   Hypothesis body_supported : body_in_supported_fragment loop.
 
-  (* Header reachability follows from the actual prefix, so antisymmetry
-     of dominance cannot be used vacuously on unreachable blocks. *)
+  (* Header reachability follows from the actual prefix, so antisymmetry of
+     dominance cannot be used vacuously on unreachable blocks. *)
   Lemma invariant_header_reachable :
-    point_reachable entry (entry_point loop.(header)).
+    program_point_reachable entry (block_entry_point loop.(header)).
   Proof.
-    assert (Hreachable : point_reachable entry (state_point start)).
-    { eapply context_steps_point_reachable;
+    assert (Hreachable : program_point_reachable entry (state_program_point
+      start)).
+    { eapply context_steps_program_point_reachable;
         [exact edges | exact prefix | apply enter_valid_position |].
-      exists [entry_point entry]. constructor. }
+      exists [block_entry_point entry]. constructor. }
     destruct starts_at_header as [Hblock Hremaining].
-    unfold state_point in Hreachable. rewrite Hblock, Hremaining in Hreachable.
+    unfold state_program_point in Hreachable. rewrite Hblock, Hremaining in
+      Hreachable.
     exact Hreachable.
   Qed.
 
   (* A strict dominator of the header cannot also lie in its body. *)
-  Lemma strict_dominator_outside : forall (dominator : block),
+  Lemma strict_dominator_outside_loop : forall (dominator : block),
     dominator --dom--> loop.(header) -> dominator <> loop.(header) ->
     set_mem dominator loop.(body) = false.
   Proof.
     intros dominator Hdom Hstrict.
     destruct (set_mem dominator loop.(body)) eqn:Hinside; [ | reflexivity].
-    assert (Hto_header : point_dominates entry (entry_point dominator)
-      (entry_point loop.(header))).
-    { apply point_dominance_of_block; [exact edges |].
-      intros path Hpath. exact (dominates_spec dominance _ _ Hdom _ Hpath). }
-    assert (Hto_body : point_dominates entry (entry_point loop.(header))
-      (entry_point dominator)).
-    { apply point_dominance_of_block; [exact edges |].
+    assert (Hto_header : program_point_dominates entry (block_entry_point
+      dominator)
+      (block_entry_point loop.(header))).
+    { apply program_point_dominance_of_block; [exact edges |].
+      intros block_path_from Hpath. exact (dominates_spec dominance _ _ Hdom _
+        Hpath). }
+    assert (Hto_body : program_point_dominates entry (block_entry_point
+      loop.(header))
+      (block_entry_point dominator)).
+    { apply program_point_dominance_of_block; [exact edges |].
       exact (loop_header_dominates_body _ _ _ loop_graph dominator Hinside). }
-    pose proof (point_dominance_antisymmetric entry _ _
+    pose proof (program_point_dominance_antisymmetric entry _ _
       invariant_header_reachable Hto_header Hto_body) as Heq.
     apply (f_equal fst) in Heq. cbn in Heq. contradiction.
   Qed.
 
-  (* The defining-block table identifies every actual result register.
-     If it says a strict dominator defines the register, the body cannot
-     contain another instruction that rewrites that same register. *)
-  Lemma invariant_result_outside : forall (id : instr_id) (index : int)
+  (* The defining-block table identifies every actual result register. If it
+     says a strict dominator defines the register, the body cannot contain
+     another instruction that rewrites that same register. *)
+  Lemma invariant_result_defined_outside_loop : forall (id : instr_id)
+    (index : int)
       (defining_block : block),
     op_def_find defs id = Some defining_block ->
     defining_block --dom--> loop.(header) ->
     defining_block <> loop.(header) ->
-    ~ defined_in_region loop.(body) (Result id index).
+    ~ register_defined_in_region loop.(body) (Result id index).
   Proof.
     intros id index defining_block Hlookup Hdom Hstrict
       [body_block [op [args [results [Hinside Hdefinition]]]]].
@@ -82,17 +89,19 @@ Section Invariants.
       (loop_body_in_graph _ _ _ loop_graph body_block Hinside) Hdefinition)
       as Hactual.
     rewrite Hlookup in Hactual. injection Hactual as <-.
-    rewrite (strict_dominator_outside defining_block Hdom Hstrict) in Hinside.
+    rewrite (strict_dominator_outside_loop defining_block Hdom Hstrict) in
+      Hinside.
     discriminate.
   Qed.
 
-  (* Opaque operations, including non-integer constants, cannot occur in
-     the whitelisted loop. An available such definition is outside it. *)
-  Lemma unmodeled_result_outside : forall (id : instr_id)
-      (op : operation) (args : list value) (index : int) (position : point),
+  (* Opaque operations, including non-integer constants, cannot occur in the
+     whitelisted loop. An available such definition is outside it. *)
+  Lemma unmodeled_result_defined_outside_loop : forall (id : instr_id)
+      (op : operation) (args : list value) (index : int)
+        (position : program_point),
     modeled_operation op args = false ->
     available_value blocks entry position (Res id op args index) ->
-    ~ defined_in_region loop.(body) (Result id index).
+    ~ register_defined_in_region loop.(body) (Result id index).
   Proof.
     intros id op args index position Hopaque
       [site [Hdefinition [Hsite Hdom]]].
@@ -102,7 +111,7 @@ Section Invariants.
       exact Hsite |].
     destruct (set_mem (fst site) loop.(body)) eqn:Hinside; [ | reflexivity].
     destruct Hdefinition as [count [[before [suffix [Hbody Hlength]]] Hindex]].
-    assert (Hin : In (Op id op args count) (block_body (fst site))).
+    assert (Hin : (Op id op args count) ∈ (block_body (fst site))).
     { rewrite Hbody. apply in_or_app. right. left. reflexivity. }
     pose proof (proj1 (body_supported _ Hinside) _ Hin) as Hsupported.
     apply andb_true_iff in Hsupported.
@@ -110,20 +119,20 @@ Section Invariants.
     congruence.
   Qed.
 
-  (* The syntactic invariant classifier is sound for available actual
-     values. Availability is essential: constants need not have executed
-     at arbitrary states, and fabricated results are not definitions. *)
+  (* The syntactic invariant classifier is sound for available actual values.
+     Availability is essential: constants need not have executed at arbitrary
+     states, and fabricated results are not definitions. *)
   Theorem loop_invariant_value_same :
-    forall (v : value) (first second : state),
+    forall (invariant_ref : value) (first second : state),
     region_steps loop.(body) start first ->
     region_steps loop.(body) start second ->
     set_mem (current_block first) loop.(body) = true ->
     set_mem (current_block second) loop.(body) = true ->
-    loop_invariant_value defs loop.(header) v ->
-    available_value blocks entry (state_point first) v ->
-    available_value blocks entry (state_point second) v ->
-    current_registers second (register_of_value v)
-      = current_registers first (register_of_value v).
+    loop_invariant_value defs loop.(header) invariant_ref ->
+    available_value blocks entry (state_program_point first) invariant_ref ->
+    available_value blocks entry (state_program_point second) invariant_ref ->
+    current_registers second (register_of_value invariant_ref)
+      = current_registers first (register_of_value invariant_ref).
   Proof.
     intros v first second
       Hrun_first Hrun_second Hinside_first Hinside_second
@@ -132,7 +141,7 @@ Section Invariants.
     { eapply context_steps_valid_position;
         [exact prefix | apply enter_valid_position]. }
     assert (Hframe : forall (reg : register),
-      ~ defined_in_region loop.(body) reg ->
+      ~ register_defined_in_region loop.(body) reg ->
       current_registers second reg = current_registers first reg).
     { intros reg Houtside.
       rewrite (region_steps_frame (graph_parameters _ _ well_formed)
@@ -143,7 +152,7 @@ Section Invariants.
     assert (Hvalues : forall (reached : state),
       region_steps loop.(body) start reached ->
       coherent_at blocks entry (current_registers reached)
-        (state_point reached)).
+        (state_program_point reached)).
     { intros reached Hrun.
       eapply context_execution_values_coherent;
         [exact edges | exact well_formed |].
@@ -155,9 +164,10 @@ Section Invariants.
           [lazymatch type of Hinvariant with ex _ => idtac end;
            destruct Hinvariant as [defining_block [Hlookup [Hdom Hstrict]]];
            apply Hframe;
-           eapply invariant_result_outside; eassumption].
+           eapply invariant_result_defined_outside_loop; eassumption].
       all: try solve [apply Hframe;
-        eapply unmodeled_result_outside; [ | exact Hfirst]; reflexivity].
+        eapply unmodeled_result_defined_outside_loop; [ | exact Hfirst];
+          reflexivity].
       all: pose proof (Hvalues first Hrun_first _ Hfirst)
           as Hcoherent_first;
         destruct Hcoherent_first as [values_first [result_first
@@ -174,7 +184,7 @@ Section Invariants.
       rewrite Hvalue_first, Hvalue_second. reflexivity.
     - destruct Hinvariant as [Hdom Hstrict]. apply Hframe.
       change (~ (set_mem b loop.(body) = true)).
-      rewrite (strict_dominator_outside b Hdom Hstrict).
+      rewrite (strict_dominator_outside_loop b Hdom Hstrict).
       discriminate.
   Qed.
 End Invariants.

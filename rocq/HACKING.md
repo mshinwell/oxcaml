@@ -227,7 +227,7 @@ overflow, unrecognised shapes).
 - **Recursion** that Rocq cannot see terminates is written either with
   `Function ... {measure ...}` and a decreasing measure (`gcd64`), or with
   an explicit "fuel" list and a completeness theorem showing that the
-  fuel the caller passes is enough (`NaturalLoop.walk`).
+  fuel the caller passes is enough (`NaturalLoop.walk_predecessors`).
 - **Mutable state** is threaded explicitly: a context is passed in and
   returned, so that each function is a pure function of its arguments
   (`AffineSsa.ctx`).
@@ -274,6 +274,8 @@ header.
 - Use the notations `SsaModel.v` defines (`a --dom--> b` for `a`
   dominating `b`) in parts 2 to 4, where a statement is read by eye.
   Part 1 is code and calls the primitives as the compiler does.
+- Use `∈` and `∉` for list membership and non-membership; `OxCamlList.v`
+  defines these notations for `List.In` and its negation.
 - Prefer a per-element statement to a counting one: "every parameter at
   position `k` has a dead induction variable with `param_index = k`" is
   checkable; "there are as many as parameters" is not what the pass
@@ -284,7 +286,7 @@ header.
 - Define machine execution once (`SsaSemantics.v`). Derive operation
   equations only for available, canonical definitions (`SsaExecution.v`
   and `SsaContext.v`). An abstract arithmetic valuation such as
-  `AffineSsa.mval` is constrained by `SsaSemantics.eval_operation`
+  `AffineSsa.value_words` is constrained by `SsaSemantics.eval_operation`
   (`AffineSsa.op_semantics`), not by a second statement of the
   arithmetic, and needs a proved connection to execution
   (`LoopValueSnapshot.v`) before it can justify optimization.

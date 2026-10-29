@@ -2,14 +2,16 @@
 
    A register is live when some structural continuation reads it before
    redefining it. This includes reads in later blocks and on later loop
-   entries, not just the operands of the next instruction. The definition
-   is deliberately an overapproximation: infeasible CFG paths count too.
+   entries, not just the operands of the next instruction. The definition is
+   deliberately an overapproximation: infeasible CFG paths count too.
 
-   Review [operand_at], [defined_at] and [live_at]. The availability theorem
-   below is derived from the structural SSA contract, not assumed as an
-   execution or loop-analysis invariant. Nothing here is extracted. *)
+   Review [operand_at], [register_defined_at] and [register_live_at]. The
+   availability theorem below is derived from the structural SSA contract, not
+   assumed as an execution or loop-analysis invariant. Nothing here is
+   extracted. *)
 
 From Stdlib Require Import ZArith Lia List.
+From OxCamlStdlib Require Import OxCamlList.
 From OxCamlStdlib Require Import OxCamlInt.
 From OxCamlBackend Require Import Operation.
 From OxCamlSsa Require Import SsaModel SsaGraph SsaDominance SsaSemantics
@@ -18,50 +20,53 @@ Import ListNotations.
 
 (* Instruction operands are read before the instruction's result site;
    terminator operands are read at point zero. *)
-Inductive operand_at : point -> value -> Prop :=
+Inductive operand_at : program_point -> value -> Prop :=
   | Instruction_operand : forall (b : block) (remaining : nat)
       (id : instr_id) (op : operation) (args : list value) (count : int)
       (arg : value),
-      result_definition id op args count (b, remaining) -> In arg args ->
+      result_definition id op args count (b, remaining) -> arg ∈ args ->
       operand_at (b, S remaining) arg
   | Terminator_operand : forall (b : block) (args : list value) (arg : value),
-      In args (terminator_args (terminator b)) -> In arg args ->
+      args ∈ (terminator_args (terminator b)) -> arg ∈ args ->
       operand_at (b, 0%nat) arg.
 
-Definition defined_at (position : point) (reg : register) : Prop :=
+Definition register_defined_at (position : program_point)
+  (reg : register) : Prop :=
   exists (v : value), value_definition v position /\ register_of_value v = reg.
 
-(* Definitions kill the old register value on the incoming edge. In
-   particular, a later entry to a parameter's block does not read its
-   old value merely because that parameter is used in the block. *)
-Inductive live_at : point -> register -> Prop :=
-  | Live_read : forall (position : point) (v : value),
-      operand_at position v -> live_at position (register_of_value v)
-  | Live_predecessor : forall (before after : point) (reg : register),
-      point_edge before after -> ~ defined_at after reg ->
-      live_at after reg -> live_at before reg.
+(* Definitions kill the old register value on the incoming edge. In particular,
+   a later entry to a parameter's block does not read its old value merely
+   because that parameter is used in the block. *)
+Inductive register_live_at : program_point -> register -> Prop :=
+  | Live_read : forall (position : program_point) (v : value),
+      operand_at position v -> register_live_at position (register_of_value v)
+  | Live_predecessor : forall (before after : program_point) (reg : register),
+      program_point_edge before after -> ~ register_defined_at after reg ->
+      register_live_at after reg -> register_live_at before reg.
 
-Definition agree_on_live (position : point) (left right : registers) : Prop :=
-  forall (reg : register), live_at position reg -> left reg = right reg.
+Definition agree_on_live (position : program_point)
+  (left right : registers) : Prop :=
+  forall (reg : register),
+    register_live_at position reg -> left reg = right reg.
 
-(* The point immediately before an actual instruction has its instruction
-   edge to the definition site. *)
+(* The point immediately before an actual instruction has its instruction edge
+   to the definition site. *)
 Lemma definition_instruction_edge : forall (b : block) (remaining : nat)
     (id : instr_id) (op : operation) (args : list value) (count : int),
   result_definition id op args count (b, remaining) ->
-  point_edge (b, S remaining) (b, remaining).
+  program_point_edge (b, S remaining) (b, remaining).
 Proof.
   intros b remaining id op args count [prefix [suffix [Hbody Hlength]]].
   cbn in Hbody, Hlength. constructor.
   rewrite Hbody, length_app. cbn. lia.
 Qed.
 
-(* Every actual read has an available canonical definition. For an
-   instruction, strict definition/use dominance puts the operand before
-   the instruction, rather than merely after its result is written. *)
+(* Every actual read has an available canonical definition. For an instruction,
+   strict definition/use dominance puts the operand before the instruction,
+   rather than merely after its result is written. *)
 Theorem operand_at_available : forall (blocks : list block) (entry : block)
-    (position : point) (v : value),
-  well_formed_ssa blocks entry -> In (fst position) blocks ->
+    (position : program_point) (v : value),
+  well_formed_ssa blocks entry -> (fst position) ∈ blocks ->
   operand_at position v -> available_value blocks entry position v.
 Proof.
   intros blocks entry position v Hwf Hblock Huse.
@@ -71,7 +76,7 @@ Proof.
       Hblock Hdefinition arg Harg)
       as [site [Harg_definition [Hsite [Hdom Hstrict]]]].
     exists site. split; [exact Harg_definition |]. split; [exact Hsite |].
-    eapply point_dominates_predecessor; [exact Hdom | exact Hstrict |].
+    eapply program_point_dominates_predecessor; [exact Hdom | exact Hstrict |].
     eapply definition_instruction_edge. exact Hdefinition.
   - destruct (terminator_definitions _ _ Hwf b args Hblock Hargs arg Harg)
       as [site [Hdefinition [Hsite Hdom]]].
@@ -79,23 +84,24 @@ Proof.
 Qed.
 
 (* A point edge stays inside a successor-closed graph. *)
-Lemma point_edge_in_graph : forall (blocks : list block) (entry : block)
-    (before after : point),
-  well_formed_ssa blocks entry -> In (fst before) blocks ->
-  point_edge before after -> In (fst after) blocks.
+Lemma program_point_edge_in_graph : forall (blocks : list block)
+  (entry : block)
+    (before after : program_point),
+  well_formed_ssa blocks entry -> (fst before) ∈ blocks ->
+  program_point_edge before after -> (fst after) ∈ blocks.
 Proof.
   intros blocks entry before after Hwf Hbefore Hedge. destruct Hedge;
     cbn in *; [exact Hbefore |].
   eapply graph_successors_closed; eassumption.
 Qed.
 
-(* A value needed before its next definition is already available. This
-   is why live-out agreement can be proved using available-value equations;
-   stale registers for definitions that will execute later are not live. *)
+(* A value needed before its next definition is already available. This is why
+   live-out agreement can be proved using available-value equations; stale
+   registers for definitions that will execute later are not live. *)
 Theorem live_at_available : forall (blocks : list block) (entry : block)
-    (position : point) (reg : register),
-  well_formed_ssa blocks entry -> In (fst position) blocks ->
-  live_at position reg ->
+    (position : program_point) (reg : register),
+  well_formed_ssa blocks entry -> (fst position) ∈ blocks ->
+  register_live_at position reg ->
   exists (v : value), register_of_value v = reg /\
     available_value blocks entry position v.
 Proof.
@@ -104,10 +110,10 @@ Proof.
     before after reg Hedge Hnot Hlive IH]; intros Hblock.
   - exists v. split; [reflexivity |].
     eapply operand_at_available; eassumption.
-  - destruct (IH (point_edge_in_graph _ _ _ _ Hwf Hblock Hedge))
+  - destruct (IH (program_point_edge_in_graph _ _ _ _ Hwf Hblock Hedge))
       as [v [Hreg [site [Hdefinition [Hsite Hdom]]]]].
     exists v. split; [exact Hreg |]. exists site.
     split; [exact Hdefinition |]. split; [exact Hsite |].
-    eapply point_dominates_predecessor; [exact Hdom | | exact Hedge].
+    eapply program_point_dominates_predecessor; [exact Hdom | | exact Hedge].
     intros Heq. subst site. apply Hnot. exists v. auto.
 Qed.

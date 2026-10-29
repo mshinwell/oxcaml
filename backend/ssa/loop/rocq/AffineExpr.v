@@ -1,31 +1,30 @@
 (* The affine view of a machine-integer value: a small expression type, its
-   linearization into affine forms with side facts, and the value ranges
-   that certify a linearization exact. The extraction of this file,
-   AffineExpr.ml next to it, is the implementation.
+   linearization into affine forms with side facts, and the value ranges that
+   certify a linearization exact. The extraction of this file, AffineExpr.ml
+   next to it, is the implementation.
 
    See the reading guide at the top of LoopComparisons.v for the Rocq
-   vocabulary and the layout of the shared files, and FourierMotzkin.v for
-   the model of [Affine] that this one builds on. As there, this file has
-   four parts: (1) the definitions, (2) the intended meaning,
-   (3) stepping-stone lemmas, (4) the theorems. Parts 1 and 2 are the part
-   to check by eye.
+   vocabulary and the layout of the shared files, and FourierMotzkin.v for the
+   model of [Affine] that this one builds on. As there, this file has four
+   parts: (1) the definitions, (2) the intended meaning, (3) stepping-stone
+   lemmas, (4) the theorems. Parts 1 and 2 are the part to check by eye.
 
-   [to_affine] returns an [option]: [None] where a coefficient would wrap
-   in one of the checked [Affine] operations (see OxCamlOption.v).
+   [to_affine] returns an [option]: [None] where a coefficient would wrap in
+   one of the checked [Affine] operations (see OxCamlOption.v).
 
    The results, in part 4:
 
-   - [Range]: each operation on value ranges contains the exact result when
-     its arguments are in the given ranges, and a range only ever holds
-     64-bit values ([add_sound], [scale_sound], ...). This is what lets
+   - [Range]: each operation on value ranges contains the exact result when its
+     arguments are in the given ranges, and a range only ever holds 64-bit
+     values ([range_add_sound], [range_scale_sound], ...). This is what lets
      AffineSsa.v certify that a decomposition is machine-exact.
 
    - [to_affine_sound]: the affine form returned for an expression has the
-     expression's value (over unbounded integers), and every side fact is
-     true, provided the atoms standing for the atomized shifts and ors have
-     the values the machine gives them ([consistent] below says what that
-     means, and is what AffineSsa.v guarantees). [to_affine_wf] adds that
-     the forms are well-formed, as [FourierMotzkin.entails] needs.
+     expression's value (over unbounded integers), and every side fact is true,
+     provided the atoms standing for the atomized shifts and ors have the
+     values the machine gives them ([atom_operations_consistent] below says
+     what that means, and is what AffineSsa.v guarantees). [to_affine_wf] adds
+     that the forms are well-formed, as [FourierMotzkin.entails] needs.
 
    Trusted parts, beyond those of FourierMotzkin.v: the [Int64] shifts and
    negation, the exactness of [Int64.to_int] on values that fit an [int]
@@ -44,9 +43,9 @@ Import ListNotations.
 Local Open Scope sint63_scope.
 
 (* The expression recognised in an integer value: constants, atoms, sums,
-   differences and scalings, and the right shifts and ors, which stand as
-   atoms ([Shr_atom], [Lsr_atom], [Or_atom]) with facts about their
-   ranges; [to_affine] says what each stands for. *)
+   differences and scalings, and the right shifts and ors, which stand as atoms
+   ([Shr_atom], [Lsr_atom], [Or_atom]) with facts about their ranges;
+   [to_affine] says what each stands for. *)
 Inductive t : Type :=
   | Const (c : int)
   | Atom (id : int)
@@ -61,8 +60,8 @@ Module Range.
   (* A closed interval of 64-bit values. *)
   Record t := { lo : Int64.t; hi : Int64.t }.
 
-  (* The range of any register; of a constant; of an arithmetic right shift
-     by [bits] of any register; and of a logical right shift by [bits] of any
+  (* The range of any register; of a constant; of an arithmetic right shift by
+     [bits] of any register; and of a logical right shift by [bits] of any
      register (the full range for a shift by zero or less). *)
   Definition full : t := {| lo := Int64.min_int; hi := Int64.max_int |}.
 
@@ -124,8 +123,8 @@ End Range.
 (* The [64] of [64 - bits]: the width of a register. *)
 Definition word_bits : int := 64.
 
-(* The facts about the atom standing for a right shift by [bits] bits:
-   the bounds of its result, when they are representable. *)
+(* The facts about the atom standing for a right shift by [bits] bits: the
+   bounds of its result, when they are representable. *)
 Definition shr_range_facts (signed : bool) (atom bits : int)
     : list Affine.t :=
   if signed
@@ -153,27 +152,27 @@ Definition shr_range_facts (signed : bool) (atom bits : int)
     else [lower].
 
 (* The affine form of an expression, with the side facts about the atoms
-   standing for its shifts and ors; each checked operation is a [let*]
-   step, [None] on overflow. *)
-Fixpoint to_affine (e : t) : option (Affine.t * list Affine.t) :=
-  match e with
+   standing for its shifts and ors; each checked operation is a [let*] step,
+   [None] on overflow. *)
+Fixpoint to_affine (expr : t) : option (Affine.t * list Affine.t) :=
+  match expr with
   | Const c => Some (Affine.constant c, [])
   | Atom id => Some (Affine.var id, [])
   | Add a b =>
     let* '(fa, sa) := to_affine a in
     let* '(fb, sb) := to_affine b in
-    let* f := Affine.add_checked fa fb in
-    Some (f, sa ++ sb)
+    let* form := Affine.add_checked fa fb in
+    Some (form, sa ++ sb)
   | Sub a b =>
     let* '(fa, sa) := to_affine a in
     let* '(fb, sb) := to_affine b in
     let* nfb := Affine.scale_checked minus_one fb in
-    let* f := Affine.add_checked fa nfb in
-    Some (f, sa ++ sb)
+    let* form := Affine.add_checked fa nfb in
+    Some (form, sa ++ sb)
   | Scale k a =>
     let* '(fa, sa) := to_affine a in
-    let* f := Affine.scale_checked k fa in
-    Some (f, sa)
+    let* form := Affine.scale_checked k fa in
+    Some (form, sa)
   | Shr_atom atom arg bits =>
     let* '(fa, sa) := to_affine arg in
     let v := Affine.var atom in
@@ -208,12 +207,12 @@ Fixpoint to_affine (e : t) : option (Affine.t * list Affine.t) :=
 
 Local Open Scope Z_scope.
 
-(* The value of an expression over unbounded integers, [rho] giving the
-   atoms' values. The atomized shifts and ors are atoms: their value is
-   whatever [rho] says, and their relation to their argument is only
-   expressed by the side facts of [to_affine]. *)
-Fixpoint eval (rho : valuation) (e : t) : Z :=
-  match e with
+(* The value of an expression over unbounded integers, [rho] giving the atoms'
+   values. The atomized shifts and ors are atoms: their value is whatever [rho]
+   says, and their relation to their argument is only expressed by the side
+   facts of [to_affine]. *)
+Fixpoint eval (rho : valuation) (expr : t) : Z :=
+  match expr with
   | Const c => to_Z c
   | Atom id => rho id
   | Add a b => eval rho a + eval rho b
@@ -225,28 +224,29 @@ Fixpoint eval (rho : valuation) (e : t) : Z :=
   end.
 
 (* A range contains an integer. *)
-Definition in_range (r : Range.t) (z : Z) : Prop :=
-  Int64.to_Z r.(Range.lo) <= z <= Int64.to_Z r.(Range.hi).
+Definition in_range (range : Range.t) (word : Z) : Prop :=
+  Int64.to_Z range.(Range.lo) <= word <= Int64.to_Z range.(Range.hi).
 
-(* What AffineSsa.v guarantees about the atoms standing for shifts and
-   ors: each has the value the machine computes from the exact value of its
-   argument, that value fitting a 64-bit register (which AffineSsa.v
-   certifies with [Range] before it builds the node). [bits] and [mask] are
-   within the ranges AffineSsa.v produces them in (its shift amounts are
-   below 16; here the bound is the one under which [1 lsl bits] is
-   [2^bits]). Over unbounded integers:
+(* What AffineSsa.v guarantees about the atoms standing for shifts and ors:
+   each has the value the machine computes from the exact value of its
+   argument, that value fitting a 64-bit register (which AffineSsa.v certifies
+   with [Range] before it builds the node). [bits] and [mask] are within the
+   ranges AffineSsa.v produces them in (its shift amounts are below 16; here
+   the bound is the one under which [1 lsl bits] is [2^bits]). Over unbounded
+   integers:
 
    - [arg asr bits] is [arg / 2^bits], rounding towards minus infinity;
-   - [r lsr bits] is [unsigned64 r / 2^bits], for some register value [r]
-     (the argument of a logical shift is not kept in the expression);
+   - [r lsr bits] is [unsigned64 r / 2^bits], for some register value [r] (the
+     argument of a logical shift is not kept in the expression);
    - [arg lor mask] is the two's-complement [Z.lor]. *)
-Fixpoint consistent (rho : valuation) (e : t) : Prop :=
-  match e with
+Fixpoint atom_operations_consistent (rho : valuation) (expr : t) : Prop :=
+  match expr with
   | Const _ | Atom _ => True
-  | Add a b | Sub a b => consistent rho a /\ consistent rho b
-  | Scale _ a => consistent rho a
+  | Add a b | Sub a b => atom_operations_consistent rho a /\
+    atom_operations_consistent rho b
+  | Scale _ a => atom_operations_consistent rho a
   | Shr_atom atom arg bits =>
-    consistent rho arg
+    atom_operations_consistent rho arg
     /\ 0 <= to_Z bits <= 61
     /\ in_int64 (eval rho arg)
     /\ rho atom = eval rho arg / 2 ^ to_Z bits
@@ -254,7 +254,7 @@ Fixpoint consistent (rho : valuation) (e : t) : Prop :=
     1 <= to_Z bits <= 63
     /\ exists r, in_int64 r /\ rho atom = unsigned64 r / 2 ^ to_Z bits
   | Or_atom atom arg mask =>
-    consistent rho arg
+    atom_operations_consistent rho arg
     /\ 0 <= to_Z mask
     /\ rho atom = Z.lor (eval rho arg) (to_Z mask)
   end.
@@ -265,11 +265,13 @@ Fixpoint consistent (rho : valuation) (e : t) : Prop :=
 
 (* --- The two forms of a range fact. --- *)
 
-(* The upper-bound fact [hi - atom >= 0], as a form, has the value
-   [hi - atom]. *)
-Lemma upper_denote : forall (rho : valuation) (atom hi : int),
-  denote rho (Affine.add_const (Affine.scale minus_one (Affine.var atom)) hi)
-  = to_Z hi - rho atom.
+(* The upper-bound fact [upper_bound - atom >= 0], as a form, has the value
+   [upper_bound - atom]. *)
+Lemma upper_bound_fact_denote : forall (rho : valuation)
+  (atom upper_bound : int),
+  denote rho (Affine.add_const (Affine.scale minus_one (Affine.var atom))
+    upper_bound)
+  = to_Z upper_bound - rho atom.
 Proof.
   intros rho atom hi. unfold Affine.add_const, Affine.scale, Affine.var.
   change (minus_one =? zero)%sint63 with false. cbv iota.
@@ -284,10 +286,11 @@ Proof.
   rewrite to_Z_zero, to_Z_minus_one. ring.
 Qed.
 
-(* The lower-bound fact [atom + c >= 0], as a form, has the value [atom + c].
-   *)
-Lemma lower_denote : forall (rho : valuation) (atom c : int),
-  denote rho (Affine.add_const (Affine.var atom) c) = rho atom + to_Z c.
+(* The lower-bound fact [atom + offset >= 0], as a form, has the value [atom +
+   offset]. *)
+Lemma lower_bound_fact_denote : forall (rho : valuation) (atom offset : int),
+  denote rho (Affine.add_const (Affine.var atom) offset)
+  = rho atom + to_Z offset.
 Proof.
   intros rho atom c. unfold Affine.add_const, Affine.var.
   cbn [Affine.const Affine.terms].
@@ -341,8 +344,8 @@ Proof.
   destruct (two <=? bits)%sint63 eqn:E2.
   - apply leb_int in E2. rewrite to_Z_two in E2.
     pose proof (pow2_ge_4 (to_Z bits) ltac:(lia)) as Hp4.
-    (* The lower bound, [min_int asr bits], fits an [int] and is not
-       [min_int], so its negation is exact. *)
+    (* The lower bound, [min_int asr bits], fits an [int] and is not [min_int],
+       so its negation is exact. *)
     assert (Hlo : to_Z (Int64.to_int (Int64.shift_right Int64.min_int bits))
                   = - two63 / 2 ^ to_Z bits).
     { rewrite Int64.to_int_exact;
@@ -360,13 +363,13 @@ Proof.
     assert (Hdown : - two63 / 2 ^ to_Z bits <= x / 2 ^ to_Z bits)
       by (apply Z.div_le_mono; lia).
     repeat (apply Forall_cons || apply Forall_nil); unfold holds.
-    + rewrite upper_denote, Hhi, Hatom. lia.
-    + rewrite lower_denote, Sint63.to_Z_opp.
+    + rewrite upper_bound_fact_denote, Hhi, Hatom. lia.
+    + rewrite lower_bound_fact_denote, Sint63.to_Z_opp.
       * rewrite Hlo, Hatom. lia.
       * intro C. apply (f_equal to_Z) in C. rewrite Hlo, to_Z_min_int in C.
         lia.
   - apply Forall_cons; [ | apply Forall_nil ]. unfold holds.
-    rewrite upper_denote, Hhi, Hatom. lia.
+    rewrite upper_bound_fact_denote, Hhi, Hatom. lia.
 Qed.
 
 Lemma to_Z_word_bits : to_Z word_bits = 64.
@@ -401,7 +404,7 @@ Proof.
       replace (to_Z bits + (64 - to_Z bits)) with 64 by lia.
       rewrite <- two64_pow. lia. }
     repeat (apply Forall_cons || apply Forall_nil); unfold holds.
-    + rewrite upper_denote, Hhi, Hatom. lia.
+    + rewrite upper_bound_fact_denote, Hhi, Hatom. lia.
     + rewrite var_denote. exact Hnn.
   - apply Forall_cons; [ | apply Forall_nil ]. unfold holds.
     rewrite var_denote. exact Hnn.
@@ -414,8 +417,8 @@ Qed.
 (* --- [Range] --- *)
 
 (* A range only holds 64-bit values. *)
-Theorem in_range_int64 : forall (r : Range.t) (z : Z),
-  in_range r z -> in_int64 z.
+Theorem in_range_implies_int64 : forall (range : Range.t) (word : Z),
+  in_range range word -> in_int64 word.
 Proof.
   intros r z [Hlo Hhi].
   pose proof (Int64.to_Z_bounded r.(Range.lo)).
@@ -424,21 +427,22 @@ Proof.
 Qed.
 
 (* Every 64-bit value is in the full range. *)
-Theorem full_sound : forall (z : Z), in_int64 z -> in_range Range.full z.
+Theorem full_range_sound : forall (z : Z), in_int64 z -> in_range Range.full z.
 Proof.
   intros z Hz. unfold in_range, Range.full. cbn [Range.lo Range.hi].
   rewrite Int64.to_Z_min_int, Int64.to_Z_max_int. unfold in_int64 in Hz. lia.
 Qed.
 
 (* A constant is in its own range. *)
-Theorem const_sound : forall (c : int), in_range (Range.const c) (to_Z c).
+Theorem constant_range_sound : forall (c : int), in_range (Range.const c)
+  (to_Z c).
 Proof.
   intros c. unfold in_range, Range.const. cbv zeta. cbn [Range.lo Range.hi].
   rewrite Int64.of_int_spec. lia.
 Qed.
 
 (* [x asr bits], i.e. [x / 2^bits], for any 64-bit [x]. *)
-Theorem shr_signed_sound : forall (bits : int) (x : Z),
+Theorem signed_shift_range_sound : forall (bits : int) (x : Z),
   0 <= to_Z bits <= 63 -> in_int64 x ->
   in_range (Range.shr_signed bits) (x / 2 ^ to_Z bits).
 Proof.
@@ -451,7 +455,7 @@ Proof.
 Qed.
 
 (* [x lsr bits], i.e. [unsigned64 x / 2^bits], for any 64-bit [x]. *)
-Theorem shr_logical_sound : forall (bits : int) (x : Z),
+Theorem logical_shift_range_sound : forall (bits : int) (x : Z),
   1 <= to_Z bits <= 63 -> in_int64 x ->
   in_range (Range.shr_logical bits) (unsigned64 x / 2 ^ to_Z bits).
 Proof.
@@ -474,9 +478,11 @@ Proof.
 Qed.
 
 (* The sum of values in two ranges is in their sum, when it was computed. *)
-Theorem add_sound : forall (a b r : Range.t) (x y : Z),
-  Range.add a b = Some r -> in_range a x -> in_range b y ->
-  in_range r (x + y).
+Theorem range_add_sound : forall (left_range right_range result_range :
+  Range.t) (x y : Z),
+  Range.add left_range right_range = Some result_range -> in_range left_range x
+    -> in_range right_range y ->
+  in_range result_range (x + y).
 Proof.
   intros a b r x y H [Hax Hxa] [Hby Hyb]. unfold Range.add in H.
   destruct (Range.add64 (Range.lo a) (Range.lo b)) as [ lo | ] eqn:Hlo;
@@ -488,8 +494,9 @@ Proof.
 Qed.
 
 (* The negation of a value in a range is in the negated range. *)
-Theorem neg_sound : forall (a r : Range.t) (x : Z),
-  Range.neg a = Some r -> in_range a x -> in_range r (- x).
+Theorem range_neg_sound : forall (input_range result_range : Range.t) (x : Z),
+  Range.neg input_range = Some result_range -> in_range input_range x ->
+    in_range result_range (- x).
 Proof.
   intros a r x H [Hlo Hhi]. unfold Range.neg in H.
   destruct (Int64.equal _ _) eqn:E; [ discriminate | ].
@@ -502,20 +509,24 @@ Proof.
 Qed.
 
 (* The difference of values in two ranges is in their difference. *)
-Theorem sub_sound : forall (a b r : Range.t) (x y : Z),
-  Range.sub a b = Some r -> in_range a x -> in_range b y ->
-  in_range r (x - y).
+Theorem range_sub_sound : forall (left_range right_range result_range :
+  Range.t) (x y : Z),
+  Range.sub left_range right_range = Some result_range -> in_range left_range x
+    -> in_range right_range y ->
+  in_range result_range (x - y).
 Proof.
   intros a b r x y H Ha Hb. unfold Range.sub in H.
   destruct (Range.neg b) as [ nb | ] eqn:Hnb; [ | discriminate ].
-  pose proof (neg_sound _ _ _ Hnb Hb).
-  replace (x - y) with (x + - y) by ring. eapply add_sound; eassumption.
+  pose proof (range_neg_sound _ _ _ Hnb Hb).
+  replace (x - y) with (x + - y) by ring. eapply range_add_sound; eassumption.
 Qed.
 
 (* [x lor mask] for [x] in a range is in the or'ed range. *)
-Theorem or_mask_sound : forall (mask : int) (a r : Range.t) (x : Z),
-  Range.or_mask mask a = Some r -> in_range a x ->
-  in_range r (Z.lor x (to_Z mask)).
+Theorem range_or_mask_sound : forall (mask : int)
+  (input_range result_range : Range.t) (x : Z),
+  Range.or_mask mask input_range = Some result_range ->
+  in_range input_range x ->
+  in_range result_range (Z.lor x (to_Z mask)).
 Proof.
   intros mask a r x H [Hlo Hhi]. unfold Range.or_mask in H.
   destruct (mask <? zero)%sint63 eqn:E; [ discriminate | ].
@@ -526,9 +537,11 @@ Proof.
   pose proof (lor_bounds x (to_Z mask) ltac:(lia)). lia.
 Qed.
 
-(* [k * x] for [x] in a range is in the scaled range. *)
-Theorem scale_sound : forall (k : int) (a r : Range.t) (x : Z),
-  Range.scale k a = Some r -> in_range a x -> in_range r (to_Z k * x).
+(* [factor * x] for [x] in a range is in the scaled range. *)
+Theorem range_scale_sound : forall (factor : int)
+  (input_range result_range : Range.t) (x : Z),
+  Range.scale factor input_range = Some result_range -> in_range input_range x
+    -> in_range result_range (to_Z factor * x).
 Proof.
   intros k a r x H [Hlo Hhi]. unfold Range.scale in H.
   destruct (k =? zero)%sint63 eqn:Ek.
@@ -557,17 +570,19 @@ Qed.
 
 Opaque shr_range_facts.
 
-(* Everything at once, by induction on the expression: the form and the
-   side facts are well-formed, the form has the expression's value, and
-   the side facts hold when the atoms are consistent. ([shr_range_facts]
-   is kept folded while [to_affine] is unfolded.) *)
-Lemma to_affine_spec : forall (e : t) (f : Affine.t) (sides : list Affine.t),
-  to_affine e = Some (f, sides) ->
-  wf f /\ Forall wf sides
-  /\ (forall (rho : valuation), denote rho f = eval rho e)
-  /\ (forall (rho : valuation), consistent rho e -> holds_all rho sides).
+(* Everything at once, by induction on the expression: the form and the side
+   facts are well-formed, the form has the expression's value, and the side
+   facts hold when the atoms are consistent. ([shr_range_facts] is kept folded
+   while [to_affine] is unfolded.) *)
+Lemma to_affine_spec : forall (expr : t) (form : Affine.t)
+  (side_facts : list Affine.t),
+  to_affine expr = Some (form, side_facts) ->
+  wf form /\ Forall wf side_facts
+  /\ (forall (rho : valuation), denote rho form = eval rho expr)
+  /\ (forall (rho : valuation), atom_operations_consistent rho expr ->
+    holds_all rho side_facts).
 Proof.
-  induction e; intros f sides H; cbn [to_affine] in H.
+  intros e. induction e; intros f sides H; cbn [to_affine] in H.
   - (* Const *)
     injection H as <- <-.
     split; [ apply constant_wf | split; [ constructor | ] ].
@@ -737,14 +752,15 @@ Proof.
 Qed.
 Transparent shr_range_facts.
 
-(* The form has the expression's value, and the side facts hold, whenever
-   the atoms are consistent. [consistent] is only needed for the side
-   facts: the value equation holds unconditionally. *)
+(* The form has the expression's value, and the side facts hold, whenever the
+   atoms are consistent. [atom_operations_consistent] is only needed for the
+   side facts: the value equation holds unconditionally. *)
 Theorem to_affine_sound :
-  forall (rho : valuation) (e : t) (f : Affine.t) (sides : list Affine.t),
-  to_affine e = Some (f, sides) ->
-  denote rho f = eval rho e
-  /\ (consistent rho e -> holds_all rho sides).
+  forall (rho : valuation) (expr : t) (form : Affine.t)
+    (side_facts : list Affine.t),
+  to_affine expr = Some (form, side_facts) ->
+  denote rho form = eval rho expr
+  /\ (atom_operations_consistent rho expr -> holds_all rho side_facts).
 Proof.
   intros rho e f sides H.
   destruct (to_affine_spec e f sides H) as [_ [_ [Hd Hs]]].
@@ -752,8 +768,9 @@ Proof.
 Qed.
 
 (* The form and the side facts are well-formed, as [entails] requires. *)
-Theorem to_affine_wf : forall (e : t) (f : Affine.t) (sides : list Affine.t),
-  to_affine e = Some (f, sides) -> wf f /\ Forall wf sides.
+Theorem to_affine_wf : forall (expr : t) (form : Affine.t)
+  (side_facts : list Affine.t),
+  to_affine expr = Some (form, side_facts) -> wf form /\ Forall wf side_facts.
 Proof.
   intros e f sides H. destruct (to_affine_spec e f sides H) as [Hw [Hws _]].
   split; assumption.

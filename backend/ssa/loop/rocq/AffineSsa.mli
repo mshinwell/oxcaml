@@ -11,26 +11,26 @@ type ctx =
 
 val new_ctx : ctx
 
-val refill : ctx -> ctx
+val refill_budget : ctx -> ctx
 
-val spend : ctx -> int -> ctx
+val spend_budget : ctx -> int -> ctx
 
 val intern : ctx -> Ssa.finished Ssa.Value.t -> int * ctx
 
 val atomize : ctx -> Ssa.finished Ssa.Value.t -> (t * Range.t option) * ctx
 
-val keep :
+val keep_if_range_known :
   ctx ->
   Ssa.finished Ssa.Value.t ->
   t ->
   Range.t option ->
   (t * Range.t option) * ctx
 
-val radd : Range.t option -> Range.t option -> Range.t option
+val add_optional_ranges : Range.t option -> Range.t option -> Range.t option
 
-val rsub : Range.t option -> Range.t option -> Range.t option
+val sub_optional_ranges : Range.t option -> Range.t option -> Range.t option
 
-val rscale : int -> Range.t option -> Range.t option
+val scale_optional_range : int -> Range.t option -> Range.t option
 
 val expr_of_value :
   ctx -> Ssa.finished Ssa.Value.t -> (t * Range.t option) * ctx
@@ -43,7 +43,7 @@ val linearize :
   Ssa.finished Ssa.Value.t ->
   (Affine.t * Affine.t list) * ctx
 
-val cond_facts :
+val comparison_facts :
   ctx ->
   Affine.t list ->
   bool ->

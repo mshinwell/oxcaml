@@ -1,12 +1,12 @@
-(* 64-bit machine integers: the arithmetic of a machine register, and
-   OxCaml's [Int64].
+(* 64-bit machine integers: the arithmetic of a machine register, and OxCaml's
+   [Int64].
 
-   The first half is pure mathematics on [Z]: two's-complement wrap-around
-   and the signed/unsigned readings of a 64-bit value. The second half models
+   The first half is pure mathematics on [Z]: two's-complement wrap-around and
+   the signed/unsigned readings of a 64-bit value. The second half models
    OxCaml's [Int64] as an abstract type whose operations are specified, as
-   axioms, by that arithmetic. Rocq has no primitive 64-bit integer, so this
-   is the trusted base for every model that computes in [Int64]; each axiom
-   is the documented behaviour of the OxCaml operation. *)
+   axioms, by that arithmetic. Rocq has no primitive 64-bit integer, so this is
+   the trusted base for every model that computes in [Int64]; each axiom is the
+   documented behaviour of the OxCaml operation. *)
 
 From Stdlib Require Import ZArith Lia Bool Zbitwise.
 From OxCamlStdlib Require Import OxCamlInt.
@@ -50,7 +50,8 @@ Proof.
 Qed.
 
 (* [wrap64 z] differs from [z] by a multiple of 2^64 ... *)
-Lemma wrap64_eq : forall (z : Z), exists k, wrap64 z = z - k * two64.
+Lemma wrap64_sub_multiple : forall (z : Z), exists multiple, wrap64 z = z -
+  multiple * two64.
 Proof.
   intro z. exists ((z + two63) / two64). unfold wrap64.
   pose proof (Z.div_mod (z + two63) two64 ltac:(unfold two64; lia)) as H.
@@ -68,15 +69,16 @@ Qed.
 (* ... so it is the identity on 64-bit values. *)
 Lemma wrap64_id : forall (z : Z), in_int64 z -> wrap64 z = z.
 Proof.
-  intros z Hz. destruct (wrap64_eq z) as [k Hk].
+  intros z Hz. destruct (wrap64_sub_multiple z) as [k Hk].
   pose proof (wrap64_in_range z) as Hr. rewrite Hk in Hr.
   unfold in_int64, two63, two64 in *.
   assert (k = 0) by lia. subst k. lia.
 Qed.
 
-(* The truncated quotient of a 64-bit value by a positive divisor is again
-   a 64-bit value (its magnitude does not grow). *)
-Lemma quot_abs_le : forall (a b : Z), 0 < b -> Z.abs (Z.quot a b) <= Z.abs a.
+(* The truncated quotient of a 64-bit value by a positive divisor is again a
+   64-bit value (its magnitude does not grow). *)
+Lemma quot_abs_le : forall (dividend divisor : Z), 0 < divisor -> Z.abs (Z.quot
+  dividend divisor) <= Z.abs dividend.
 Proof.
   intros a b Hb.
   assert (Hpos : forall x, 0 <= x -> Z.quot x b <= x).
@@ -90,8 +92,8 @@ Qed.
 
 (* So the quotient of a 64-bit value by a positive divisor is a 64-bit value.
    *)
-Lemma quot_in_range : forall (a b : Z),
-  0 < b -> in_int64 a -> in_int64 (Z.quot a b).
+Lemma quot_in_int64 : forall (dividend divisor : Z),
+  0 < divisor -> in_int64 dividend -> in_int64 (Z.quot dividend divisor).
 Proof.
   intros a b Hb Ha. pose proof (quot_abs_le a b Hb).
   destruct (Z_le_gt_dec 0 a) as [ Ha0 | Ha0 ].
@@ -201,12 +203,12 @@ Qed.
 
 (* ---- OxCaml's [Int64] --------------------------------------------------- *)
 
-(* The type and its operations are declared at top level and given their
-   OxCaml names by the abbreviations in [Module Int64] below, so that the
-   models write [Int64.add a b] as OxCaml does, while extraction
-   (OxCamlExtract.v) maps each operation straight to OxCaml's without
-   emitting a module that would shadow OxCaml's [Int64]. The axioms, which
-   are not extracted, live in the module. *)
+(* The type and its operations are declared at top level and given their OxCaml
+   names by the abbreviations in [Module Int64] below, so that the models write
+   [Int64.add a b] as OxCaml does, while extraction (OxCamlExtract.v) maps each
+   operation straight to OxCaml's without emitting a module that would shadow
+   OxCaml's [Int64]. The axioms, which are not extracted, live in the module.
+   *)
 
 Parameter int64 : Type.
 Parameter int64_to_Z : int64 -> Z.
@@ -221,9 +223,9 @@ Parameter int64_shift_right int64_shift_right_logical : int64 -> int -> int64.
 Parameter int64_equal : int64 -> int64 -> bool.
 Parameter int64_compare : int64 -> int64 -> int.
 
-(* OxCaml's [nativeint] and [int32], the payloads of two constant
-   operations, which the models do not compute on; [Int64.of_nativeint]
-   reads a [nativeint] as the same 64-bit value. *)
+(* OxCaml's [nativeint] and [int32], the payloads of two constant operations,
+   which the models do not compute on; [Int64.of_nativeint] reads a [nativeint]
+   as the same 64-bit value. *)
 Parameter nativeint int32 : Type.
 Parameter nativeint_to_int64 : nativeint -> int64.
 
@@ -262,8 +264,8 @@ Module Int64.
   (* [Int64.of_int] is exact: every [int] is a 64-bit value. *)
   Axiom of_int_spec : forall (i : int), to_Z (of_int i) = Sint63Axioms.to_Z i.
 
-  (* [Int64.to_int] drops the top bit, so it is exact on the values that
-     fit an [int]. *)
+  (* [Int64.to_int] drops the top bit, so it is exact on the values that fit an
+     [int]. *)
   Axiom to_int_exact : forall (a : int64),
     - two62 <= to_Z a <= two62 - 1 -> Sint63Axioms.to_Z (to_int a) = to_Z a.
 
@@ -275,8 +277,8 @@ Module Int64.
   Axiom mul_spec : forall (a b : int64),
     to_Z (mul a b) = wrap64 (to_Z a * to_Z b).
   (* Division truncates toward zero; [min_int / -1] wraps to [min_int]. The
-     OxCaml raises [Division_by_zero] on a zero divisor, which the models
-     never pass. *)
+     OxCaml raises [Division_by_zero] on a zero divisor, which the models never
+     pass. *)
   Axiom div_spec : forall (a b : int64),
     to_Z b <> 0 -> to_Z (div a b) = wrap64 (Z.quot (to_Z a) (to_Z b)).
   (* [Int64.rem] is the remainder of that division ([Z.rem], with the sign of
@@ -286,29 +288,30 @@ Module Int64.
   (* [Int64.abs min_int = min_int], and likewise [Int64.neg]. *)
   Axiom abs_spec : forall (a : int64), to_Z (abs a) = wrap64 (Z.abs (to_Z a)).
   Axiom neg_spec : forall (a : int64), to_Z (neg a) = wrap64 (- to_Z a).
-  (* The right shifts, for amounts within the width (OxCaml leaves the
-     others unspecified): [shift_right] is the arithmetic shift, division
-     by [2^n] rounding towards minus infinity, and [shift_right_logical]
-     divides the unsigned reading of the value. *)
-  Axiom shift_right_spec : forall (a : int64) (n : int),
-    0 <= Sint63Axioms.to_Z n <= 63 ->
-    to_Z (shift_right a n) = to_Z a / 2 ^ Sint63Axioms.to_Z n.
-  Axiom shift_right_logical_spec : forall (a : int64) (n : int),
-    0 <= Sint63Axioms.to_Z n <= 63 ->
-    to_Z (shift_right_logical a n)
-    = wrap64 (unsigned64 (to_Z a) / 2 ^ Sint63Axioms.to_Z n).
+  (* The right shifts, for amounts within the width (OxCaml leaves the others
+     unspecified): [shift_right] is the arithmetic shift, division by
+     [2^shift_amount] rounding towards minus infinity, and
+     [shift_right_logical] divides the unsigned reading of the value. *)
+  Axiom shift_right_spec : forall (a : int64) (shift_amount : int),
+    0 <= Sint63Axioms.to_Z shift_amount <= 63 ->
+    to_Z (shift_right a shift_amount)
+    = to_Z a / 2 ^ Sint63Axioms.to_Z shift_amount.
+  Axiom shift_right_logical_spec : forall (a : int64) (shift_amount : int),
+    0 <= Sint63Axioms.to_Z shift_amount <= 63 ->
+    to_Z (shift_right_logical a shift_amount)
+    = wrap64 (unsigned64 (to_Z a) / 2 ^ Sint63Axioms.to_Z shift_amount).
   (* [Int64.equal] is equality of values. *)
   Axiom equal_spec : forall (a b : int64),
     equal a b = true <-> to_Z a = to_Z b.
   (* OxCaml's [Int64.compare] returns an [int] that is negative, zero or
-     positive according as the first argument is less than, equal to or
-     greater than the second. *)
+     positive according as the first argument is less than, equal to or greater
+     than the second. *)
   Axiom compare_spec : forall (a b : int64),
     (Sint63Axioms.to_Z (compare a b) < 0 <-> to_Z a < to_Z b)
     /\ (Sint63Axioms.to_Z (compare a b) = 0 <-> to_Z a = to_Z b).
 
-  (* The tests OxCaml code writes as [Int64.compare x y < 0], [> 0] and
-     [>= 0], which the models write the same way. *)
+  (* The tests OxCaml code writes as [Int64.compare x y < 0], [> 0] and [>= 0],
+     which the models write the same way. *)
   Lemma compare_lt : forall (a b : int64),
     (compare a b <? OxCamlInt.zero)%sint63 = true <-> to_Z a < to_Z b.
   Proof.

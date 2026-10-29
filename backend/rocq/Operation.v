@@ -1,10 +1,10 @@
 (* The operations of the backend's instructions: [Operation.t] and
-   [Operation.integer_operation] (backend/operation.mli), as the SSA models
-   see them. The two types are copies of the compiler's, constructor for
+   [Operation.integer_operation] (backend/operation.mli), as the SSA models see
+   them. The two types are copies of the compiler's, constructor for
    constructor, and extraction maps them back onto the compiler's
-   (OperationExtract.v), so that a model matches on the very operation
-   that defines an SSA value. The payloads a model never looks inside are
-   abstract types, each named after the compiler type standing for it.
+   (OperationExtract.v), so that a model matches on the very operation that
+   defines an SSA value. The payloads a model never looks inside are abstract
+   types, each named after the compiler type standing for it.
 
    Nothing is proved here. What an operation computes is stated where it is
    relied on (backend/ssa/loop/rocq/AffineSsa.v, LoopTermination.v). *)
@@ -39,8 +39,8 @@ Inductive integer_operation : Type :=
   | Ipopcnt
   | Icomp (cmp : integer_comparison).
 
-(* [Operation.t], the constructors in the same order and with the same
-   names, except [Opaque_op] for [Opaque], a keyword in Rocq. *)
+(* [Operation.t], the constructors in the same order and with the same names,
+   except [Opaque_op] for [Opaque], a keyword in Rocq. *)
 Inductive operation : Type :=
   | Move
   | Spill

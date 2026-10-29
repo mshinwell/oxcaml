@@ -1,19 +1,19 @@
 (* The arithmetic of a loop counter in actual SSA execution.
 
-   [counter_iteration] derives the update from an actual finite traversal
-   and its back-edge argument. [accepted_loop_finite_exit] then iterates up
-   to the arithmetic exit witness from LoopComparisons.v, unless an earlier
-   traversal exits. No infinite trace or sampled counter valuation is used.
+   [counter_iteration] derives the update from an actual finite traversal and
+   its back-edge argument. [accepted_loop_finite_exit] then iterates up to the
+   arithmetic exit witness from LoopComparisons.v, unless an earlier traversal
+   exits. No infinite trace or sampled counter valuation is used.
 
    LoopInvariantExecution.v proves bound constancy on finite segments;
    LoopRangeExecution.v supplies affine range facts from the actual prefix.
    SsaContext.v permits opaque surrounding computations in that prefix and
-   proves the available-value equations used here. LoopEligibility.v
-   discharges progress and combines finite exit with live-out agreement.
+   proves the available-value equations used here. LoopEligibility.v discharges
+   progress and combines finite exit with live-out agreement.
 
-   Review the observation definitions and [accepted_loop_finite_exit],
-   together with the graph contracts in their premises. The mechanical
-   graph rewrite is deliberately outside this proof. *)
+   Review the observation definitions and [accepted_loop_finite_exit], together
+   with the graph contracts in their premises. The mechanical graph rewrite is
+   deliberately outside this proof. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlInt OxCamlInt64 OxCamlList.
@@ -30,8 +30,8 @@ Local Open Scope Z_scope.
 (* Static coverage and observations (nothing in this file is extracted)     *)
 (* ======================================================================== *)
 
-(* The comparison may test the parameter or its just-computed update.
-   This choice depends on the reference, not on the execution state. *)
+(* The comparison may test the parameter or its just-computed update. This
+   choice depends on the reference, not on the execution state. *)
 Definition tested_counter (loop : natural_loop) (biv : biv)
     (counter_ref : value) (step_size : int) (counter : Z) : Z :=
   if is_param loop.(header) biv.(param_index) counter_ref then counter
@@ -39,9 +39,10 @@ Definition tested_counter (loop : natural_loop) (biv : biv)
 
 (* The concrete instruction shape of an extracted comparison. *)
 Definition comparison_shape (condition : value) (cmp : integer_comparison)
-    (iv_is_left : bool) (counter_ref : value) (bnd : bound) : Prop :=
+    (iv_is_left : bool) (counter_ref : value)
+      (comparison_bound : bound) : Prop :=
   exists (id : instr_id) (index : int),
-    match bnd with
+    match comparison_bound with
     | Const_bound constant =>
       iv_is_left = true
       /\ condition =
@@ -52,8 +53,9 @@ Definition comparison_shape (condition : value) (cmp : integer_comparison)
          else [bound_ref; counter_ref]) index
     end.
 
-Definition read_bound (regs : registers) (bnd : bound) : option Z :=
-  match bnd with
+Definition read_comparison_bound (regs : registers)
+  (comparison_bound : bound) : option Z :=
+  match comparison_bound with
   | Const_bound constant => Some (to_Z constant)
   | Value_bound bound_ref => regs (register_of_value bound_ref)
   end.
@@ -62,8 +64,8 @@ Definition read_bound (regs : registers) (bnd : bound) : option Z :=
 (* Operational lemmas                                                      *)
 (* ======================================================================== *)
 
-(* A reported counter index is in range: an update is passed at that
-   position by a Goto whose argument list matches the header parameters. *)
+(* A reported counter index is in range: an update is passed at that position
+   by a Goto whose argument list matches the header parameters. *)
 Lemma biv_parameter_identity : parameter_layout ->
   forall (defs : op_def) (loop : natural_loop) (biv : biv),
   biv_spec defs loop biv ->
@@ -73,7 +75,7 @@ Proof.
   intros Hlayout defs loop biv [_ [Hnonempty [_ [_ Harrives]]]].
   destruct biv.(update) as [ | updated updates] eqn:Hupdates;
     [contradiction |].
-  assert (Hin : In updated biv.(update)).
+  assert (Hin : updated ∈ biv.(update)).
   { rewrite Hupdates. left. reflexivity. }
   destruct (Harrives updated Hin) as [source [args [_ [Hgoto Harg]]]].
   destruct (same_length_nth_int args (params loop.(header)) biv.(param_index)
@@ -83,12 +85,12 @@ Proof.
   apply (parameter_identity Hlayout _ _ _ Hparameter).
 Qed.
 
-(* An actual update result is the current parameter plus the signed step,
-   with machine wraparound. Both the parameter and the result are bound. *)
+(* An actual update result is the current parameter plus the signed step, with
+   machine wraparound. Both the parameter and the result are bound. *)
 Lemma biv_update_observed : forall (defs : op_def) (loop : natural_loop)
     (biv : biv) (step_size : int) (updated : value) (regs : registers),
   biv_spec defs loop biv -> signed_step biv = Some step_size ->
-  In updated biv.(update) -> value_coherent regs updated ->
+  updated ∈ biv.(update) -> value_coherent regs updated ->
   exists (counter : Z),
     regs (register_of_value (param loop.(header) biv.(param_index)))
       = Some counter
@@ -136,8 +138,8 @@ Proof.
     exact Hvalue.
 Qed.
 
-(* Observing an accepted counter operand determines the header parameter
-   and whether the comparison sees it before or after the update. *)
+(* Observing an accepted counter operand determines the header parameter and
+   whether the comparison sees it before or after the update. *)
 Lemma biv_operand_observed : forall (defs : op_def) (loop : natural_loop)
     (biv : biv) (step_size : int) (counter_ref : value) (regs : registers)
     (observed : Z),
@@ -170,13 +172,13 @@ Qed.
    instruction shape, not a hypothesis about the values it computes. *)
 Lemma extract_comparison_shape : forall (is_counter is_bound : value -> bool)
     (condition : value) (cmp : integer_comparison) (iv_is_left : bool)
-    (bnd : bound),
+    (comparison_bound : bound),
   extract_comparison is_counter is_bound condition
-    = Some (cmp, iv_is_left, bnd) ->
+    = Some (cmp, iv_is_left, comparison_bound) ->
   exists (counter_ref : value), is_counter counter_ref = true
-    /\ (match bnd with Const_bound _ => True
+    /\ (match comparison_bound with Const_bound _ => True
         | Value_bound bound_ref => is_bound bound_ref = true end)
-    /\ comparison_shape condition cmp iv_is_left counter_ref bnd.
+    /\ comparison_shape condition cmp iv_is_left counter_ref comparison_bound.
 Proof.
   intros is_counter is_bound condition cmp iv_is_left bnd Hextract.
   destruct (extract_comparison_spec _ _ _ _ _ _ Hextract)
@@ -192,17 +194,17 @@ Proof.
     exists id, index. reflexivity.
 Qed.
 
-(* Operands of the actual comparison are available at every point where
-   its result is available. This includes an update tested by the header. *)
+(* Operands of the actual comparison are available at every point where its
+   result is available. This includes an update tested by the header. *)
 Lemma comparison_operands_available : forall (blocks : list block)
-    (entry : block) (position : SsaDominance.point) (condition : value)
+    (entry : block) (position : SsaDominance.program_point) (condition : value)
     (cmp : integer_comparison) (iv_is_left : bool) (counter_ref : value)
-    (bnd : bound),
+    (comparison_bound : bound),
   well_formed_ssa blocks entry ->
   available_value blocks entry position condition ->
-  comparison_shape condition cmp iv_is_left counter_ref bnd ->
+  comparison_shape condition cmp iv_is_left counter_ref comparison_bound ->
   available_value blocks entry position counter_ref
-    /\ match bnd with Const_bound _ => True
+    /\ match comparison_bound with Const_bound _ => True
        | Value_bound bound_ref =>
          available_value blocks entry position bound_ref end.
 Proof.
@@ -219,12 +221,12 @@ Qed.
    exactly its 0/1 result, for either orientation and either kind of bound. *)
 Lemma comparison_values_observed : forall (condition : value)
     (cmp : integer_comparison) (iv_is_left : bool) (counter_ref : value)
-    (bnd : bound) (regs : registers),
-  comparison_shape condition cmp iv_is_left counter_ref bnd ->
+    (comparison_bound : bound) (regs : registers),
+  comparison_shape condition cmp iv_is_left counter_ref comparison_bound ->
   value_coherent regs condition ->
   exists (counter_word bound_word : Z),
     regs (register_of_value counter_ref) = Some counter_word
-    /\ read_bound regs bnd = Some bound_word
+    /\ read_comparison_bound regs comparison_bound = Some bound_word
     /\ regs (register_of_value condition) = Some (bool_to_Z
          (if iv_is_left then IntegerComparison.eval cmp counter_word bound_word
           else IntegerComparison.eval cmp bound_word counter_word)).
@@ -242,7 +244,7 @@ Proof.
       injection Hread as <-. cbn [eval_operation] in Heval.
       injection Heval as <-. exists counter_word, bound_word.
       split; [reflexivity |]. split.
-      * unfold read_bound. exact Hbound.
+      * unfold read_comparison_bound. exact Hbound.
       * exact Hvalue.
     + destruct (regs (register_of_value bound_ref)) as [bound_word |]
         eqn:Hbound; [ | discriminate].
@@ -251,7 +253,7 @@ Proof.
       injection Hread as <-. cbn [eval_operation] in Heval.
       injection Heval as <-. exists counter_word, bound_word.
       split; [reflexivity |]. split.
-      * unfold read_bound. exact Hbound.
+      * unfold read_comparison_bound. exact Hbound.
       * exact Hvalue.
   - destruct Hshape as [-> ->].
     destruct Hcoherent as [values [result [Hread [Heval Hvalue]]]].
@@ -264,8 +266,10 @@ Proof.
 Qed.
 
 (* A bound that was actually read fits a machine register. *)
-Lemma read_bound_bounded : forall (regs : registers) (bnd : bound) (word : Z),
-  bounded_registers regs -> read_bound regs bnd = Some word -> in_int64 word.
+Lemma read_comparison_bound_bounded : forall (regs : registers)
+  (comparison_bound : bound) (word : Z),
+  bounded_registers regs -> read_comparison_bound regs comparison_bound = Some
+    word -> in_int64 word.
 Proof.
   intros regs [bound_ref | constant] word Hbounded Hread.
   - eapply Hbounded. exact Hread.
@@ -277,13 +281,14 @@ Qed.
 Lemma tested_counter_sequence : forall (loop : natural_loop) (biv : biv)
     (counter_ref : value) (step_size : int) (counter : Z) (iteration : nat),
   tested_counter loop biv counter_ref step_size
-    (iv counter (to_Z step_size) iteration)
-  = iv (tested_counter loop biv counter_ref step_size counter)
+    (counter_after_iterations counter (to_Z step_size) iteration)
+  = counter_after_iterations (tested_counter loop biv counter_ref step_size
+    counter)
       (to_Z step_size) iteration.
 Proof.
   intros loop biv counter_ref step_size counter iteration.
   unfold tested_counter. destruct (is_param _ _ _); [reflexivity |].
-  rewrite <- iv_shift. reflexivity.
+  rewrite <- counter_after_iterations_shift. reflexivity.
 Qed.
 
 Section CounterExecution.
@@ -306,14 +311,14 @@ Section CounterExecution.
     set_mem (current_block reached) loop.(body) = true ->
     exists (next : state), SsaSemantics.step reached next.
 
-  (* The header test is an actual terminator operand and is therefore
-     available after the header instructions have executed. *)
+  (* The header test is an actual terminator operand and is therefore available
+     after the header instructions have executed. *)
   Lemma header_comparison_available : forall (exit_info : exit_branch)
       (reached : state),
     find_exit_branch loop = Some exit_info ->
     current_block reached = loop.(header) ->
     remaining reached = [] ->
-    available_value blocks entry (state_point reached)
+    available_value blocks entry (state_program_point reached)
       exit_info.(condition).
   Proof.
     intros exit_info reached Hexit Hblock Hfinished.
@@ -325,16 +330,17 @@ Section CounterExecution.
     - rewrite Hblock, Hterm. cbn [terminator_args]. left. reflexivity.
   Qed.
 
-  (* The header's comparison observes the actual counter (or its update)
-     and bound, and its result is the corresponding machine boolean. *)
-  Lemma header_test_observed : forall (biv : biv) (step_size : int)
+  (* The header's comparison observes the actual counter (or its update) and
+     bound, and its result is the corresponding machine boolean. *)
+  Lemma header_comparison_observed : forall (biv : biv) (step_size : int)
       (exit_info : exit_branch) (cmp : integer_comparison) (iv_is_left : bool)
-      (counter_ref : value) (bnd : bound) (reached : state),
+      (counter_ref : value) (comparison_bound : bound) (reached : state),
     biv_spec defs loop biv ->
     region_steps loop.(body) start reached ->
     signed_step biv = Some step_size ->
     find_exit_branch loop = Some exit_info ->
-    comparison_shape exit_info.(condition) cmp iv_is_left counter_ref bnd ->
+    comparison_shape exit_info.(condition) cmp iv_is_left counter_ref
+      comparison_bound ->
     is_param loop.(header) biv.(param_index) counter_ref
       || existsb (value_eqb counter_ref) biv.(update) = true ->
     current_block reached = loop.(header) ->
@@ -342,7 +348,8 @@ Section CounterExecution.
     exists (counter bound_word : Z),
       current_registers reached (Param loop.(header) biv.(param_index))
         = Some counter
-      /\ read_bound (current_registers reached) bnd = Some bound_word
+      /\ read_comparison_bound (current_registers reached) comparison_bound =
+        Some bound_word
       /\ current_registers reached
            (register_of_value exit_info.(condition))
            = Some (bool_to_Z
@@ -380,18 +387,23 @@ Section CounterExecution.
   (* One traversal either exits or reaches the next header test with the
      counter advanced once. Every equation comes from an actual SSA read. *)
   Lemma counter_iteration : forall (biv : biv) (step_size : int)
-      (test : state) (counter : Z),
+      (header_test_state : state) (counter : Z),
     biv_spec defs loop biv -> signed_step biv = Some step_size ->
-    region_steps loop.(body) start test ->
-    current_block test = loop.(header) -> remaining test = [] ->
-    current_registers test (Param loop.(header) biv.(param_index))
+    region_steps loop.(body) start header_test_state ->
+    current_block header_test_state = loop.(header) ->
+    remaining header_test_state = [] ->
+    current_registers header_test_state (Param loop.(header) biv.(param_index))
       = Some counter ->
-    (exists (outside : state), region_steps loop.(body) start outside
-       /\ set_mem (current_block outside) loop.(body) = false)
-    \/ exists (next : state), region_steps loop.(body) start next
-       /\ current_block next = loop.(header) /\ remaining next = []
-       /\ current_registers next (Param loop.(header) biv.(param_index))
-            = Some (wrap64 (counter + to_Z step_size)).
+    (exists (exit_state : state),
+       region_steps loop.(body) start exit_state
+       /\ set_mem (current_block exit_state) loop.(body) = false)
+    \/ exists (next_header_test_state : state),
+       region_steps loop.(body) start next_header_test_state
+       /\ current_block next_header_test_state = loop.(header)
+       /\ remaining next_header_test_state = []
+       /\ current_registers next_header_test_state
+            (Param loop.(header) biv.(param_index))
+          = Some (wrap64 (counter + to_Z step_size)).
   Proof.
     intros biv step_size test counter Hspec Hstep Hrun Hheader Hfinished
       Hcounter.
@@ -425,7 +437,7 @@ Section CounterExecution.
       destruct (continue_argument_used (Goto loop.(header)) args
         biv.(param_index) updated Harg_index) as [uses [Huses Hused]].
       assert (Havailable : available_value blocks entry
-        (state_point before) updated).
+        (state_program_point before) updated).
       { eapply terminator_operand_available;
           [exact well_formed | | exact Hdone | | exact Hused].
         - apply (loop_body_in_graph _ _ _ loop_graph). exact Hbefore.
@@ -461,22 +473,23 @@ Section CounterExecution.
         exact Hupdated.
   Qed.
 
-  (* The arithmetic exit witness bounds the number of finite iterations.
-     A traversal may exit earlier; otherwise its counter and fixed bound
-     make the witnessed header test take the exiting edge. *)
+  (* The arithmetic exit witness bounds the number of finite iterations. A
+     traversal may exit earlier; otherwise its counter and fixed bound make the
+     witnessed header test take the exiting edge. *)
   Theorem accepted_loop_finite_exit :
     SsaDominance.dominance_semantics entry -> op_def_correct defs blocks ->
     (forall (dominator target : block),
-      In dominator blocks -> In target blocks ->
-      (forall (path : list block), SsaDominance.path entry path target ->
-         In dominator path) -> dominator --dom--> target) ->
+      dominator ∈ blocks -> target ∈ blocks ->
+      (forall (visited_blocks : list block), SsaDominance.block_path_from entry
+        visited_blocks target ->
+         dominator ∈ visited_blocks) -> dominator --dom--> target) ->
     switch_edge_multiplicity -> graph_size_supported blocks ->
     NoDup (strict_dominators loop.(header)) ->
     (forall (dominator : block),
-      In dominator (strict_dominators loop.(header)) -> In dominator blocks) ->
+      dominator ∈ (strict_dominators loop.(header)) -> dominator ∈ blocks) ->
     bounded_registers initial_regs ->
-    exists (outside : state), region_steps loop.(body) start outside
-      /\ set_mem (current_block outside) loop.(body) = false.
+    exists (exit_state : state), region_steps loop.(body) start exit_state
+      /\ set_mem (current_block exit_state) loop.(body) = false.
   Proof.
     intros Hdominance Hdefs Hcomplete Hmultiplicity Hsize Hnodup Hmembers
       Hbounded.
@@ -500,7 +513,7 @@ Section CounterExecution.
         [Hexit [Hstep [Hextract Hverdict]]]]]]]].
     destruct (extract_comparison_shape _ _ _ _ _ _ Hextract)
       as [counter_ref [Hcounter_ref [Hinvariant Hshape]]].
-    destruct (header_test_observed biv step_size exit_info cmp iv_is_left
+    destruct (header_comparison_observed biv step_size exit_info cmp iv_is_left
       counter_ref bnd first Hspec Hfirst Hstep Hexit Hshape Hcounter_ref
       eq_refl eq_refl)
       as [counter [bound_word [Hcounter [Hbound Hcondition]]]].
@@ -513,7 +526,7 @@ Section CounterExecution.
     { unfold tested_counter. destruct (is_param _ _ _);
         [eapply Hfirst_bounded; exact Hcounter | apply wrap64_in_range]. }
     assert (Hbound_bounded : in_int64 bound_word).
-    { eapply read_bound_bounded; eassumption. }
+    { eapply read_comparison_bound_bounded; eassumption. }
     assert (Harithmetic :
       continue_terminates step_size
         (oriented_continue_comparison iv_is_left
@@ -528,7 +541,7 @@ Section CounterExecution.
       destruct bnd as [bound_ref | constant].
       - eapply executed_bound_in_range with (reached := first)
           (initial_regs := initial_regs); try eassumption; reflexivity.
-      - cbn [read_bound] in Hbound. injection Hbound as <-.
+      - cbn [read_comparison_bound] in Hbound. injection Hbound as <-.
         eapply constant_bound_in_range. exact Hrange. }
     destruct (loop_exits iv_is_left exit_info.(continue_when_true) cmp
       step_size (tested_counter loop biv counter_ref step_size counter)
@@ -540,7 +553,7 @@ Section CounterExecution.
       \/ exists (test : state), region_steps loop.(body) start test
         /\ current_block test = loop.(header) /\ remaining test = []
         /\ current_registers test (Param loop.(header) biv.(param_index))
-             = Some (iv counter (to_Z step_size) n)).
+             = Some (counter_after_iterations counter (to_Z step_size) n)).
     { intros n. induction n as [|n IH].
       - right. exists first. auto.
       - destruct IH as [Houtside | [test [Hrun [Hheader [Hdone Hvalue]]]]];
@@ -549,13 +562,13 @@ Section CounterExecution.
           Hheader Hdone Hvalue). }
     destruct (Hiterate iteration) as [Houtside |
       [test [Hrun [Hheader [Hdone Hvalue]]]]]; [exact Houtside |].
-    destruct (header_test_observed biv step_size exit_info cmp iv_is_left
+    destruct (header_comparison_observed biv step_size exit_info cmp iv_is_left
       counter_ref bnd test Hspec Hrun Hstep Hexit Hshape Hcounter_ref
       Hheader Hdone)
       as [actual_counter [actual_bound [Hcounter_now [Hbound_now Htest]]]].
     rewrite Hvalue in Hcounter_now. injection Hcounter_now as <-.
     assert (Hfixed : actual_bound = bound_word).
-    { destruct bnd as [bound_ref | constant]; cbn [read_bound] in *;
+    { destruct bnd as [bound_ref | constant]; cbn [read_comparison_bound] in *;
         [ | congruence].
       pose proof (header_comparison_available exit_info test Hexit
         Hheader Hdone) as Havailable.
@@ -585,10 +598,12 @@ Section CounterExecution.
     - unfold loop_continues in Hfails. cbv zeta in Hfails.
       rewrite Htarget.
       destruct (if iv_is_left then IntegerComparison.eval cmp
-        (iv (tested_counter loop biv counter_ref step_size counter)
+        (counter_after_iterations (tested_counter loop biv counter_ref
+          step_size counter)
           (to_Z step_size) iteration) bound_word
         else IntegerComparison.eval cmp bound_word
-          (iv (tested_counter loop biv counter_ref step_size counter)
+          (counter_after_iterations (tested_counter loop biv counter_ref
+            step_size counter)
             (to_Z step_size) iteration));
         destruct exit_info.(continue_when_true); cbn in *; congruence.
   Qed.

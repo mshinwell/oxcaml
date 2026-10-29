@@ -117,19 +117,20 @@ end
 
 let coeff64 = assoc_default 0L
 
-(** val scaled : int64 -> Affine.t -> (int64 * (int * int64) list) option **)
+(** val scale_to_int64 : int64 -> Affine.t -> (int64 * (int * int64) list)
+    option **)
 
-let scaled k f =
-  match mul_ovf64 k (Int64.of_int f.Affine.const) with
+let scale_to_int64 factor form =
+  match mul_ovf64 factor (Int64.of_int form.Affine.const) with
   | Some c -> (
     match
       map_opt
         (fun pat ->
           let id, c0 = pat in
-          match mul_ovf64 k (Int64.of_int c0) with
+          match mul_ovf64 factor (Int64.of_int c0) with
           | Some c1 -> Some (id, c1)
           | None -> None)
-        f.Affine.terms
+        form.Affine.terms
     with
     | Some ts -> Some (c, ts)
     | None -> None)
@@ -137,15 +138,16 @@ let scaled k f =
 
 (** val resolvent : int -> int -> Affine.t -> Affine.t -> Affine.t option **)
 
-let resolvent cp cn p n =
-  let cp64 = Int64.of_int cp in
-  let cn64 = Int64.of_int cn in
-  match scaled cn64 p with
-  | Some p0 -> (
-    let pc, pterms = p0 in
-    match scaled cp64 n with
-    | Some p1 -> (
-      let nc, nterms = p1 in
+let resolvent positive_coeff negative_coeff_magnitude positive_form
+    negative_form =
+  let cp64 = Int64.of_int positive_coeff in
+  let cn64 = Int64.of_int negative_coeff_magnitude in
+  match scale_to_int64 cn64 positive_form with
+  | Some p -> (
+    let pc, pterms = p in
+    match scale_to_int64 cp64 negative_form with
+    | Some p0 -> (
+      let nc, nterms = p0 in
       let ids = sort_uniq (List.map fst pterms @ List.map fst nterms) in
       match
         filter_map_opt
@@ -165,21 +167,25 @@ let resolvent cp cn p n =
                 Affine.terms = []
               }
           | _ :: _ -> (
-            let g =
+            let normalization_factor =
               List.fold_left
-                (fun g pat ->
+                (fun normalization_factor pat ->
                   let _, c0 = pat in
-                  gcd64 g (Int64.abs c0))
+                  gcd64 normalization_factor (Int64.abs c0))
                 0L ts
             in
-            let g0 = if 0 < Int64.compare g 1L then g else 1L in
-            match to_int_ovf (fdiv64 c g0) with
+            let normalization_factor0 =
+              if 0 < Int64.compare normalization_factor 1L
+              then normalization_factor
+              else 1L
+            in
+            match to_int_ovf (floor_div64 c normalization_factor0) with
             | Some k -> (
               match
                 map_opt
                   (fun pat ->
                     let id, c0 = pat in
-                    match to_int_ovf (Int64.div c0 g0) with
+                    match to_int_ovf (Int64.div c0 normalization_factor0) with
                     | Some c1 -> Some (id, c1)
                     | None -> None)
                   ts
@@ -192,9 +198,9 @@ let resolvent cp cn p n =
     | None -> None)
   | None -> None
 
-(** val elim : int -> Affine.t list -> Affine.t list option **)
+(** val eliminate_atom : int -> Affine.t list -> Affine.t list option **)
 
-let elim atom ineqs =
+let eliminate_atom atom ineqs =
   if 0 < List.compare_length_with ineqs 500
   then None
   else
@@ -215,14 +221,14 @@ let elim atom ineqs =
     in
     Some (List.rev_append zero_coeff resolvents)
 
-(** val elim_all : int list -> Affine.t list -> Affine.t list option **)
+(** val eliminate_atoms : int list -> Affine.t list -> Affine.t list option **)
 
-let rec elim_all atoms ineqs =
+let rec eliminate_atoms atoms ineqs =
   match atoms with
   | [] -> Some ineqs
   | atom :: atoms0 -> (
-    match elim atom ineqs with
-    | Some ineqs0 -> elim_all atoms0 ineqs0
+    match eliminate_atom atom ineqs with
+    | Some ineqs0 -> eliminate_atoms atoms0 ineqs0
     | None -> None)
 
 (** val feasible : Affine.t list -> bool **)
@@ -234,7 +240,7 @@ let feasible ineqs =
   if 0 < List.compare_length_with atoms 64
   then true
   else
-    match elim_all atoms ineqs with
+    match eliminate_atoms atoms ineqs with
     | Some reduced -> List.for_all (fun f -> 0 <= f.Affine.const) reduced
     | None -> true
 

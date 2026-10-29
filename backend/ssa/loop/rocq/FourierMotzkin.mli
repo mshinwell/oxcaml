@@ -33,13 +33,13 @@ end
 
 val coeff64 : int -> (int * int64) list -> int64
 
-val scaled : int64 -> Affine.t -> (int64 * (int * int64) list) option
+val scale_to_int64 : int64 -> Affine.t -> (int64 * (int * int64) list) option
 
 val resolvent : int -> int -> Affine.t -> Affine.t -> Affine.t option
 
-val elim : int -> Affine.t list -> Affine.t list option
+val eliminate_atom : int -> Affine.t list -> Affine.t list option
 
-val elim_all : int list -> Affine.t list -> Affine.t list option
+val eliminate_atoms : int list -> Affine.t list -> Affine.t list option
 
 val feasible : Affine.t list -> bool
 

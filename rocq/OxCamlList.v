@@ -3,12 +3,17 @@
 
    Functions whose OxCaml callback may raise an exception come in a variant
    returning [option] (see OxCamlOption.v): [map_opt] is [List.map] and
-   [filter_map_opt] is [List.filter_map], each returning [None] if any call
-   of the callback would have raised. *)
+   [filter_map_opt] is [List.filter_map], each returning [None] if any call of
+   the callback would have raised. *)
 
 From Stdlib Require Import ZArith Lia List.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt.
 Import ListNotations.
+
+Notation "element ∈ elements" := (List.In element elements)
+  (at level 70).
+Notation "element ∉ elements" := (~ List.In element elements)
+  (at level 70).
 
 Local Open Scope sint63_scope.
 
@@ -51,15 +56,15 @@ Definition count_occurrences {A} (same : A -> bool) (l : list A) : int :=
 Parameter sort_uniq : list int -> list int.
 Axiom sort_uniq_NoDup : forall (l : list int), NoDup (sort_uniq l).
 Axiom sort_uniq_In : forall (l : list int) (x : int),
-  In x (sort_uniq l) <-> In x l.
+  x ∈ (sort_uniq l) <-> x ∈ l.
 
-(* [List.compare_length_with l n], the sign of [length l - n]. The models
-   only use it to apply a size limit, on which nothing they claim depends,
-   so no property of it is assumed. *)
+(* [List.compare_length_with l n], the sign of [length l - n]. The models only
+   use it to apply a size limit, on which nothing they claim depends, so no
+   property of it is assumed. *)
 Parameter compare_length_with : forall {A : Type}, list A -> int -> int.
 
-(* A bounded length check without a potentially overflowing length count.
-   The extracted recursion decrements a positive machine integer only. *)
+(* A bounded length check without a potentially overflowing length count. The
+   extracted recursion decrements a positive machine integer only. *)
 Fixpoint length_at_most {A : Type} (limit : int) (xs : list A) : bool :=
   match xs with
   | [] => zero <=? limit
@@ -150,7 +155,7 @@ Qed.
 
 (* An element at some position is an element of the list. *)
 Lemma nth_int_In : forall {A : Type} (l : list A) (i : int) (x : A),
-  nth_int l i = Some x -> In x l.
+  nth_int l i = Some x -> x ∈ l.
 Proof.
   intros A l. induction l as [ | y l IH ]; intros i x H; simpl in H.
   - discriminate.
@@ -159,8 +164,8 @@ Proof.
     + right. exact (IH _ _ H).
 Qed.
 
-(* Equal suffix lengths identify the same element in two decompositions
-   of a list. This lets SSA definitions be located by instruction position. *)
+(* Equal suffix lengths identify the same element in two decompositions of a
+   list. This lets SSA definitions be located by instruction position. *)
 Lemma same_position_element : forall (A : Type)
     (prefix prefix' suffix suffix' : list A) (element element' : A),
   prefix ++ element :: suffix = prefix' ++ element' :: suffix' ->
@@ -177,8 +182,8 @@ Proof.
   - injection Heq as _ Htail. eapply IH; eassumption.
 Qed.
 
-(* Pointwise-related lists have related entries at the same machine-int
-   index, whenever the entry in the first list exists. *)
+(* Pointwise-related lists have related entries at the same machine-int index,
+   whenever the entry in the first list exists. *)
 Lemma Forall2_nth_int : forall {A B : Type} (R : A -> B -> Prop)
     (xs : list A) (ys : list B),
   Forall2 R xs ys -> forall (index : int) (x : A),
@@ -195,7 +200,7 @@ Qed.
 (* An element of [filter_map f l] is [f] of an element of [l]. *)
 Lemma filter_map_In :
   forall {A B : Type} (f : A -> option B) (l : list A) (y : B),
-  In y (filter_map f l) -> exists x, In x l /\ f x = Some y.
+  y ∈ (filter_map f l) -> exists x, x ∈ l /\ f x = Some y.
 Proof.
   intros A B f l y. induction l as [ | x l IH ]; simpl; intros H.
   - contradiction.
@@ -207,8 +212,9 @@ Proof.
 Qed.
 
 (* [assoc_opt] finds an entry with the key ... *)
-Lemma assoc_opt_In : forall {C : Type} (id : int) (l : list (int * C)) (c : C),
-  assoc_opt id l = Some c -> In (id, c) l.
+Lemma assoc_opt_In : forall {C : Type} (key : int) (entries : list (int * C))
+  (entry_value : C),
+  assoc_opt key entries = Some entry_value -> (key, entry_value) ∈ entries.
 Proof.
   intros C id l c. induction l as [ | [k c'] l IH ]; simpl; intros H.
   - discriminate.
@@ -218,8 +224,10 @@ Proof.
 Qed.
 
 (* ... finds one whenever the key is present ... *)
-Lemma assoc_opt_Some : forall {C : Type} (id : int) (l : list (int * C)),
-  In id (map fst l) -> exists c, assoc_opt id l = Some c.
+Lemma assoc_opt_Some : forall {C : Type} (key : int)
+  (entries : list (int * C)),
+  key ∈ map fst entries ->
+  exists entry_value, assoc_opt key entries = Some entry_value.
 Proof.
   intros C id l. induction l as [ | [k c] l IH ]; simpl; intros H.
   - contradiction.
@@ -229,8 +237,9 @@ Proof.
 Qed.
 
 (* ... and none when it is absent. *)
-Lemma assoc_opt_None : forall {C : Type} (id : int) (l : list (int * C)),
-  ~ In id (map fst l) -> assoc_opt id l = None.
+Lemma assoc_opt_None : forall {C : Type} (key : int)
+  (entries : list (int * C)),
+  key ∉ (map fst entries) -> assoc_opt key entries = None.
 Proof.
   intros C id l. induction l as [ | [k c] l IH ]; simpl; intros H.
   - reflexivity.
@@ -242,10 +251,11 @@ Qed.
 (* [map_opt] over an association list, mapping the values: the keys are
    unchanged ... *)
 Lemma map_opt_keys :
-  forall {C D : Type} (g : C -> option D) (l : list (int * C))
-    (l' : list (int * D)),
-  map_opt (fun '(id, c) => let* d := g c in Some (id, d)) l = Some l' ->
-  map fst l' = map fst l.
+  forall {C D : Type} (g : C -> option D) (entries : list (int * C))
+    (mapped_entries : list (int * D)),
+  map_opt (fun '(id, c) => let* d := g c in Some (id, d)) entries = Some
+    mapped_entries ->
+  map fst mapped_entries = map fst entries.
 Proof.
   intros C D g l. induction l as [ | [k c] l IH ]; simpl; intros l' H.
   - injection H as <-. reflexivity.
@@ -256,13 +266,14 @@ Qed.
 
 (* ... and each value is mapped. *)
 Lemma map_opt_assoc :
-  forall {C D : Type} (g : C -> option D) (l : list (int * C))
-    (l' : list (int * D)),
-  map_opt (fun '(id, c) => let* d := g c in Some (id, d)) l = Some l' ->
+  forall {C D : Type} (g : C -> option D) (entries : list (int * C))
+    (mapped_entries : list (int * D)),
+  map_opt (fun '(id, c) => let* d := g c in Some (id, d)) entries = Some
+    mapped_entries ->
   forall (id : int),
-    match assoc_opt id l with
-    | Some c => exists d, g c = Some d /\ assoc_opt id l' = Some d
-    | None => assoc_opt id l' = None
+    match assoc_opt id entries with
+    | Some c => exists d, g c = Some d /\ assoc_opt id mapped_entries = Some d
+    | None => assoc_opt id mapped_entries = None
     end.
 Proof.
   intros C D g l. induction l as [ | [k c] l IH ]; simpl; intros l' H id.
@@ -276,7 +287,7 @@ Qed.
 
 (* [rev_append] has the elements of both lists. *)
 Lemma in_rev_append : forall {A : Type} (l1 l2 : list A) (x : A),
-  In x (rev_append l1 l2) <-> In x l1 \/ In x l2.
+  x ∈ (rev_append l1 l2) <-> x ∈ l1 \/ x ∈ l2.
 Proof.
   intros. rewrite rev_append_rev, in_app_iff, <- in_rev. reflexivity.
 Qed.
@@ -285,8 +296,9 @@ Qed.
 
 (* In a list whose keys are distinct, the lookup of a key finds its entry. *)
 Lemma assoc_opt_NoDup :
-  forall {C : Type} (l : list (int * C)) (id : int) (c : C),
-  NoDup (map fst l) -> In (id, c) l -> assoc_opt id l = Some c.
+  forall {C : Type} (entries : list (int * C)) (key : int) (entry_value : C),
+  NoDup (map fst entries) -> (key, entry_value) ∈ entries -> assoc_opt key
+    entries = Some entry_value.
 Proof.
   intros C l id c. induction l as [ | [k c'] l IH ]; intros Hnd Hin.
   - contradiction.
@@ -302,17 +314,21 @@ Qed.
 (* [assoc_default] on a cons: the head's value if its key matches, else the
    lookup in the tail. *)
 Lemma assoc_default_cons :
-  forall {C : Type} (dflt : C) (id k : int) (c : C) (l : list (int * C)),
-  assoc_default dflt id ((k, c) :: l)
-  = if (id =? k)%sint63 then c else assoc_default dflt id l.
+  forall {C : Type} (default : C) (key head_key : int) (head_value : C)
+    (entries : list (int * C)),
+  assoc_default default key ((head_key, head_value) :: entries)
+  = if (key =? head_key)%sint63 then head_value
+    else assoc_default default key entries.
 Proof.
-  intros. unfold assoc_default. simpl. destruct (id =? k)%sint63; reflexivity.
+  intros C default key head_key head_value entries.
+  unfold assoc_default. simpl.
+  destruct (key =? head_key)%sint63; reflexivity.
 Qed.
 
 (* An absent key gives the default. *)
 Lemma assoc_default_not_in :
-  forall {C : Type} (dflt : C) (id : int) (l : list (int * C)),
-  ~ In id (map fst l) -> assoc_default dflt id l = dflt.
+  forall {C : Type} (default : C) (key : int) (entries : list (int * C)),
+  key ∉ (map fst entries) -> assoc_default default key entries = default.
 Proof.
   intros. unfold assoc_default. rewrite assoc_opt_None by assumption.
   reflexivity.
@@ -329,7 +345,7 @@ Proof.
 Qed.
 
 (* A filter that accepts less keeps no more elements ... *)
-Lemma filter_le : forall {A : Type} (f g : A -> bool) (l : list A),
+Lemma filter_length_le : forall {A : Type} (f g : A -> bool) (l : list A),
   (forall (y : A), f y = true -> g y = true) ->
   (length (filter f l) <= length (filter g l))%nat.
 Proof.
@@ -339,17 +355,18 @@ Proof.
   - destruct (g y); simpl; lia.
 Qed.
 
-(* ... and strictly fewer when it rejects an element of the list that the
-   other accepts. *)
-Lemma filter_lt : forall {A : Type} (f g : A -> bool) (l : list A) (x : A),
+(* ... and strictly fewer when it rejects an element of the list that the other
+   accepts. *)
+Lemma filter_length_lt : forall {A : Type} (f g : A -> bool) (l : list A)
+  (x : A),
   (forall (y : A), f y = true -> g y = true) ->
-  In x l -> g x = true -> f x = false ->
+  x ∈ l -> g x = true -> f x = false ->
   (length (filter f l) < length (filter g l))%nat.
 Proof.
   intros A f g l x Hfg Hin Hg Hf.
   induction l as [ | y l IH ]; [ contradiction | ].
   simpl. destruct Hin as [ -> | Hin ].
-  - rewrite Hf, Hg. simpl. pose proof (filter_le f g l Hfg). lia.
+  - rewrite Hf, Hg. simpl. pose proof (filter_length_le f g l Hfg). lia.
   - destruct (f y) eqn:Hfy.
     + rewrite (Hfg y Hfy). simpl. apply IH in Hin. lia.
     + destruct (g y); simpl; apply IH in Hin; lia.

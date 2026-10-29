@@ -21,7 +21,8 @@ val param_uses_ok :
   Ssa.finished Ssa.Value.t list ->
   bool
 
-val cond_uses_ok : block list -> block -> Ssa.finished Ssa.Value.t -> bool
+val exit_comparison_uses_ok :
+  block list -> block -> Ssa.finished Ssa.Value.t -> bool
 
 val update_uses_ok :
   block list ->
