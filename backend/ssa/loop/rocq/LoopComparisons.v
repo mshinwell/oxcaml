@@ -223,7 +223,7 @@ Qed.
 Lemma terminate_by_measure :
   forall (test : Z -> bool) (step : Z) (decreasing_measure : Z -> Z),
     (forall (counter : Z), in_int64 counter ⇒ test counter = true ⇒
-       in_int64 (counter + step) /\ 0 <= decreasing_measure counter /\
+       in_int64 (counter + step) ∧ 0 <= decreasing_measure counter ∧
          decreasing_measure (counter + step) < decreasing_measure counter) ⇒
     forall (initial_counter : Z), in_int64 initial_counter ⇒ exists
       iterations, test (counter_after_iterations initial_counter step
@@ -426,9 +426,9 @@ Corollary loop_exits :
       continue_when_true cmp
     in
     (continue_terminates step continue_comparison = Terminates
-     \/ (continue_terminates step continue_comparison =
+     ∨ (continue_terminates step continue_comparison =
        Terminates_if_bound_in_range
-         /\ bound_in_range (to_Z step) bound = true)) ⇒
+         ∧ bound_in_range (to_Z step) bound = true)) ⇒
     exists iterations,
       loop_continues iv_is_left continue_when_true cmp
         (counter_after_iterations initial_counter (to_Z step) iterations) bound

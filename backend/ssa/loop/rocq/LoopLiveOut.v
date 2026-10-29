@@ -76,7 +76,7 @@ Section Geometry.
     set_mem (fst position) loop.(body) = true ⇒
     exists (points : list program_point),
       program_point_path_from (block_entry_point loop.(header)) points position
-        /\
+        ∧
       Forall (fun p => set_mem (fst p) loop.(body) = true) points.
   Proof.
     intros position [points Hpath] Hinside.
@@ -181,9 +181,9 @@ Definition loop_control_value (loop : natural_loop)
   (bivs : list InductionVar.biv)
     (exit_comparison value_ref : value) : Prop :=
   (exists (index : int), value_ref = Block_param loop.(header) index)
-  \/ value_ref = exit_comparison
-  \/ exists (counter : InductionVar.biv),
-       counter ∈ bivs /\ value_ref ∈ counter.(update).
+  ∨ value_ref = exit_comparison
+  ∨ exists (counter : InductionVar.biv),
+       counter ∈ bivs ∧ value_ref ∈ counter.(update).
 
 Section ControlValues.
   Variable blocks : list block.
@@ -201,7 +201,7 @@ Section ControlValues.
 
   (* The certificate supplies the BIV and dead-use facts together. *)
   Lemma certified_biv : forall (counter : InductionVar.biv), counter ∈ bivs ⇒
-    biv_spec defs loop counter /\ dead_spec blocks counter.
+    biv_spec defs loop counter ∧ dead_spec blocks counter.
   Proof.
     intros counter Hin. destruct certificate as [_ [_ [_ [[_ Hspecs] _]]]].
     apply Hspecs. exact Hin.
@@ -213,9 +213,9 @@ Section ControlValues.
     counter ∈ bivs ⇒
     param_used_only_by_exit_comparison_and_updates blocks loop.(header)
       counter.(param_index) exit_info.(condition) counter.(update)
-    /\ exit_comparison_used_only_by_header_branch blocks loop.(header)
+    ∧ exit_comparison_used_only_by_header_branch blocks loop.(header)
          exit_info.(condition)
-    /\ forall (updated : value), updated ∈ counter.(update) ⇒
+    ∧ forall (updated : value), updated ∈ counter.(update) ⇒
          update_used_only_by_exit_comparison_and_back_edge blocks loop
            counter.(param_index) exit_info.(condition) updated.
   Proof.
@@ -243,8 +243,8 @@ Section ControlValues.
   Lemma control_update_available : forall (counter : InductionVar.biv)
       (updated : value),
     counter ∈ bivs ⇒ updated ∈ counter.(update) ⇒
-    exists (source : block), set_mem source loop.(body) = true /\
-      source ∈ blocks /\
+    exists (source : block), set_mem source loop.(body) = true ∧
+      source ∈ blocks ∧
       available_value blocks entry (source, 0%nat) updated.
   Proof.
     intros counter updated Hin Hupdated.
@@ -322,15 +322,15 @@ Section ControlValues.
      an instruction ID appearing in the update list. *)
   Theorem control_result_definition_inside : forall (value_ref : value)
     (site : program_point),
-    (value_ref = exit_info.(condition) \/
+    (value_ref = exit_info.(condition) ∨
       exists (counter : InductionVar.biv),
-        counter ∈ bivs /\ value_ref ∈ counter.(update)) ⇒
+        counter ∈ bivs ∧ value_ref ∈ counter.(update)) ⇒
     value_definition value_ref site ⇒ (fst site) ∈ blocks ⇒
     set_mem (fst site) loop.(body) = true.
   Proof.
     intros v site Hcontrol Hdefinition Hsite.
     assert (Havailable : exists (source : block),
-      set_mem source loop.(body) = true /\ source ∈ blocks /\
+      set_mem source loop.(body) = true ∧ source ∈ blocks ∧
       available_value blocks entry (source, 0%nat) v).
     { destruct Hcontrol as [-> | [counter [Hin Hupdated]]].
       - exists loop.(header). split;
@@ -360,9 +360,9 @@ Section ControlValues.
   (* Every condition/update reference has an available canonical definition
      somewhere in the graph, irrespective of where a later use occurs. *)
   Lemma control_result_available : forall (value_ref : value),
-    (value_ref = exit_info.(condition) \/
+    (value_ref = exit_info.(condition) ∨
       exists (counter : InductionVar.biv),
-        counter ∈ bivs /\ value_ref ∈ counter.(update)) ⇒
+        counter ∈ bivs ∧ value_ref ∈ counter.(update)) ⇒
     exists (position : program_point),
       available_value blocks entry position value_ref.
   Proof.
@@ -378,9 +378,9 @@ Section ControlValues.
   Lemma control_insn_inside : forall (id : instr_id) (op : operation)
       (args : list value) (count : int) (site : program_point) (v : value),
     (fst site) ∈ blocks ⇒ result_definition id op args count site ⇒
-    (v = exit_info.(condition) \/
+    (v = exit_info.(condition) ∨
       exists (counter : InductionVar.biv),
-        counter ∈ bivs /\ v ∈ counter.(update)) ⇒
+        counter ∈ bivs ∧ v ∈ counter.(update)) ⇒
     instr_defines_value (Op id op args count) v = true ⇒
     set_mem (fst site) loop.(body) = true.
   Proof.
@@ -486,9 +486,9 @@ Section ControlValues.
   (* A condition or update selected by these analyses is an instruction result,
      never an arbitrary block parameter masquerading as one. *)
   Lemma control_value_is_instruction_result : forall (value_ref : value),
-    (value_ref = exit_info.(condition) \/
+    (value_ref = exit_info.(condition) ∨
       exists (counter : InductionVar.biv),
-        counter ∈ bivs /\ value_ref ∈ counter.(update)) ⇒
+        counter ∈ bivs ∧ value_ref ∈ counter.(update)) ⇒
     exists (id : instr_id) (op : operation) (args : list value) (index : int),
       value_ref = Res id op args index.
   Proof.
@@ -529,9 +529,9 @@ Section ControlValues.
   (* A changing control result is not available at the header entry: its
      dependency on a header parameter forces its definition after entry. *)
   Lemma control_result_unavailable_at_entry : forall (v : value),
-    (v = exit_info.(condition) \/
+    (v = exit_info.(condition) ∨
       exists (counter : InductionVar.biv),
-        counter ∈ bivs /\ v ∈ counter.(update)) ⇒
+        counter ∈ bivs ∧ v ∈ counter.(update)) ⇒
     ~ available_value blocks entry (block_entry_point loop.(header)) v.
   Proof.
     intros v Hcontrol [site [Hdefinition [Hsite Hdom]]].
@@ -638,9 +638,9 @@ Section ControlValues.
   Lemma defines_control_result : forall (b : block) (id : instr_id)
       (op : operation) (args : list value) (control : value),
     b ∈ blocks ⇒ (Op id op args one) ∈ (block_body b) ⇒
-    (control = exit_info.(condition) \/
+    (control = exit_info.(condition) ∨
       exists (counter : InductionVar.biv),
-        counter ∈ bivs /\ control ∈ counter.(update)) ⇒
+        counter ∈ bivs ∧ control ∈ counter.(update)) ⇒
     instr_defines_value (Op id op args one) control = true ⇒
     loop_control_value loop bivs exit_info.(condition) (Res id op args zero).
   Proof.
@@ -701,7 +701,7 @@ Section ControlValues.
 
   (* The certificate's parameterless exit is an actual successor of the header.
      This direct edge is crucial to the live-out dominance proof. *)
-  Lemma certified_exit_edge : params exit = [] /\
+  Lemma certified_exit_edge : params exit = [] ∧
     exit ∈ (all_successors loop.(header)).
   Proof.
     pose proof certificate as [[found [Hfound [Htarget Hparams]]] Hrest].

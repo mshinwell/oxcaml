@@ -51,7 +51,7 @@ Local Open Scope Z_scope.
    or the exclusion of the graph entry. *)
 Lemma sole_predecessor_structure : forall (source target : block),
   sole_predecessor source target = true ⇒
-  dominates target source = false /\ predecessors target = [source].
+  dominates target source = false ∧ predecessors target = [source].
 Proof.
   intros source target Hsole. unfold sole_predecessor in Hsole.
   apply andb_true_iff in Hsole. destruct Hsole as [Hdom Hpreds].
@@ -85,8 +85,8 @@ Lemma guard_test_structure : forall (target source : block)
   guard_test target source = Some (condition, negate) ⇒
   exists (ifnot ifso : block),
     terminator source = Terminator.Switch condition [ifnot; ifso]
-    /\ dominates (if negate then ifnot else ifso) target = true
-    /\ sole_predecessor source (if negate then ifnot else ifso) = true.
+    ∧ dominates (if negate then ifnot else ifso) target = true
+    ∧ sole_predecessor source (if negate then ifnot else ifso) = true.
 Proof.
   intros target source condition negate Hguard. unfold guard_test in Hguard.
   destruct (terminator source) as [ | index targets | |] eqn:Hterm;
@@ -178,7 +178,7 @@ Section Execution.
         { change (Z.to_nat n < length [ifnot; ifso])%nat.
           apply nth_error_Some. rewrite H2. discriminate. }
         assert (Hrange : 0 <= n < 2) by lia.
-        assert (Hcases : n = 0 \/ n = 1) by lia.
+        assert (Hcases : n = 0 ∨ n = 1) by lia.
         destruct negate; destruct Hcases as [-> | ->];
           cbv in H2; cbn; congruence. }
       cbn. rewrite <- Hindex. exact H0.

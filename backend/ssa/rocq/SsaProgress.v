@@ -45,7 +45,7 @@ Local Open Scope Z_scope.
 
 Definition register_used (blocks : list block) (reg : register) : Prop :=
   exists (position : program_point) (v : value), (fst position) ∈ blocks
-    /\ operand_at position v /\ register_of_value v = reg.
+    ∧ operand_at position v ∧ register_of_value v = reg.
 
 Record control_layout (blocks : list block) : Prop :=
   { goto_parameter_layout : forall (source target : block)
@@ -101,7 +101,7 @@ Record finished_graph (blocks : list block) (entry : block) (defs : op_def)
     (* [strict_dominators] lists distinct blocks of the graph. *)
     graph_strict_dominators : forall (b : block), b ∈ blocks ⇒
       NoDup (strict_dominators b)
-      /\ (forall (d : block), d ∈ (strict_dominators b) ⇒ d ∈ blocks);
+      ∧ (forall (d : block), d ∈ (strict_dominators b) ⇒ d ∈ blocks);
     (* Goto arguments match parameters; Switch targets have none. *)
     graph_layout : control_layout blocks;
     (* The table maps every instruction to its block. *)
@@ -224,7 +224,7 @@ Lemma read_arguments_of_defined_operands : forall (regs : registers)
   (forall (arg : value), (Terminator.Arg arg) ∈ args ⇒
      exists (word : Z), regs (register_of_value arg) = Some word) ⇒
   exists (words : list (option Z)), read_arguments regs args = Some words
-    /\ length words = length args.
+    ∧ length words = length args.
 Proof.
   intros regs args. induction args as [ | [arg |] args IH]; intros Hbound.
   - exists []. auto.

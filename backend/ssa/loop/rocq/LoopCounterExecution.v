@@ -73,7 +73,7 @@ Definition comparison_shape (condition : value) (cmp : integer_comparison)
     match comparison_bound with
     | Const_bound constant =>
       iv_is_left = true
-      /\ condition =
+      ∧ condition =
            Res id (Intop_imm (Icomp cmp) constant) [counter_ref] index
     | Value_bound bound_ref =>
       condition = Res id (Intop (Icomp cmp))
@@ -122,7 +122,7 @@ Lemma biv_update_observed : forall (defs : op_def) (loop : natural_loop)
   exists (counter : Z),
     regs (register_of_value (param loop.(header) biv.(param_index)))
       = Some counter
-    /\ regs (register_of_value updated)
+    ∧ regs (register_of_value updated)
          = Some (wrap64 (counter + to_Z step_size)).
 Proof.
   intros defs loop biv step_size updated regs Hspec Hstep Hin Hcoherent.
@@ -179,7 +179,7 @@ Lemma biv_operand_observed : forall (defs : op_def) (loop : natural_loop)
   exists (counter : Z),
     regs (register_of_value (param loop.(header) biv.(param_index)))
       = Some counter
-    /\ observed = tested_counter loop biv counter_ref step_size counter.
+    ∧ observed = tested_counter loop biv counter_ref step_size counter.
 Proof.
   intros defs loop biv step_size counter_ref regs observed Hspec Hstep
     Haccepted Hcoherent Hread.
@@ -204,9 +204,9 @@ Lemma extract_comparison_shape : forall (is_counter is_bound : value -> bool)
   extract_comparison is_counter is_bound condition
     = Some (cmp, iv_is_left, comparison_bound) ⇒
   exists (counter_ref : value), is_counter counter_ref = true
-    /\ (match comparison_bound with Const_bound _ => True
+    ∧ (match comparison_bound with Const_bound _ => True
         | Value_bound bound_ref => is_bound bound_ref = true end)
-    /\ comparison_shape condition cmp iv_is_left counter_ref comparison_bound.
+    ∧ comparison_shape condition cmp iv_is_left counter_ref comparison_bound.
 Proof.
   intros is_counter is_bound condition cmp iv_is_left bnd Hextract.
   destruct (extract_comparison_spec _ _ _ _ _ _ Hextract)
@@ -232,7 +232,7 @@ Lemma comparison_operands_available : forall (blocks : list block)
   available_value blocks entry position condition ⇒
   comparison_shape condition cmp iv_is_left counter_ref comparison_bound ⇒
   available_value blocks entry position counter_ref
-    /\ match comparison_bound with Const_bound _ => True
+    ∧ match comparison_bound with Const_bound _ => True
        | Value_bound bound_ref =>
          available_value blocks entry position bound_ref end.
 Proof.
@@ -254,8 +254,8 @@ Lemma comparison_values_observed : forall (condition : value)
   value_coherent regs condition ⇒
   exists (counter_word bound_word : Z),
     regs (register_of_value counter_ref) = Some counter_word
-    /\ read_comparison_bound regs comparison_bound = Some bound_word
-    /\ regs (register_of_value condition) = Some (bool_to_Z
+    ∧ read_comparison_bound regs comparison_bound = Some bound_word
+    ∧ regs (register_of_value condition) = Some (bool_to_Z
          (if iv_is_left then IntegerComparison.eval cmp counter_word bound_word
           else IntegerComparison.eval cmp bound_word counter_word)).
 Proof.
@@ -376,9 +376,9 @@ Section CounterExecution.
     exists (counter bound_word : Z),
       current_registers reached (Param loop.(header) biv.(param_index))
         = Some counter
-      /\ read_comparison_bound (current_registers reached) comparison_bound =
+      ∧ read_comparison_bound (current_registers reached) comparison_bound =
         Some bound_word
-      /\ current_registers reached
+      ∧ current_registers reached
            (register_of_value exit_info.(condition))
            = Some (bool_to_Z
                (if iv_is_left
@@ -424,12 +424,12 @@ Section CounterExecution.
       = Some counter ⇒
     (exists (exit_state : state),
        region_steps loop.(body) start exit_state
-       /\ set_mem (current_block exit_state) loop.(body) = false)
-    \/ exists (next_header_test_state : state),
+       ∧ set_mem (current_block exit_state) loop.(body) = false)
+    ∨ exists (next_header_test_state : state),
        region_steps loop.(body) start next_header_test_state
-       /\ current_block next_header_test_state = loop.(header)
-       /\ remaining next_header_test_state = []
-       /\ current_registers next_header_test_state
+       ∧ current_block next_header_test_state = loop.(header)
+       ∧ remaining next_header_test_state = []
+       ∧ current_registers next_header_test_state
             (Param loop.(header) biv.(param_index))
           = Some (wrap64 (counter + to_Z step_size)).
   Proof.
@@ -517,7 +517,7 @@ Section CounterExecution.
       dominator ∈ (strict_dominators loop.(header)) ⇒ dominator ∈ blocks) ⇒
     bounded_registers initial_regs ⇒
     exists (exit_state : state), region_steps loop.(body) start exit_state
-      /\ set_mem (current_block exit_state) loop.(body) = false.
+      ∧ set_mem (current_block exit_state) loop.(body) = false.
   Proof.
     intros Hdominance Hdefs Hcomplete Hmultiplicity Hsize Hnodup Hmembers
       Hbounded.
@@ -559,10 +559,10 @@ Section CounterExecution.
       continue_terminates step_size
         (oriented_continue_comparison iv_is_left
           exit_info.(continue_when_true) cmp) = LoopComparisons.Terminates
-      \/ (continue_terminates step_size
+      ∨ (continue_terminates step_size
            (oriented_continue_comparison iv_is_left
              exit_info.(continue_when_true) cmp) = Terminates_if_bound_in_range
-          /\ LoopComparisons.bound_in_range (to_Z step_size) bound_word
+          ∧ LoopComparisons.bound_in_range (to_Z step_size) bound_word
                = true)).
     { destruct Hverdict as [Hverdict | [Hverdict Hrange]];
         [left; exact Hverdict | right; split; [exact Hverdict |]].
@@ -577,10 +577,10 @@ Section CounterExecution.
       as [iteration Hfails].
     assert (Hiterate : forall (n : nat),
       (exists (outside : state), region_steps loop.(body) start outside
-        /\ set_mem (current_block outside) loop.(body) = false)
-      \/ exists (test : state), region_steps loop.(body) start test
-        /\ current_block test = loop.(header) /\ remaining test = []
-        /\ current_registers test (Param loop.(header) biv.(param_index))
+        ∧ set_mem (current_block outside) loop.(body) = false)
+      ∨ exists (test : state), region_steps loop.(body) start test
+        ∧ current_block test = loop.(header) ∧ remaining test = []
+        ∧ current_registers test (Param loop.(header) biv.(param_index))
              = Some (counter_after_iterations counter (to_Z step_size) n)).
     { intros n. induction n as [|n IH].
       - right. exists first. auto.

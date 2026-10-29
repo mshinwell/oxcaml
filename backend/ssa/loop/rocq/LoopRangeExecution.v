@@ -88,8 +88,8 @@ Lemma snapshot_bound_facts : forall (regs : registers) (target : block)
     guard_ctx) ⇒
   exists (rho : valuation),
     denote rho form = snapshot_value regs bound_ref
-    /\ Forall wf (guards ++ all_side_facts) /\ wf form
-    /\ holds_all rho (guards ++ all_side_facts).
+    ∧ Forall wf (guards ++ all_side_facts) ∧ wf form
+    ∧ holds_all rho (guards ++ all_side_facts).
 Proof.
   intros regs target v form side1 c1 guards side2 c2 Hsmall Htaken Hlin Hg.
   assert (Heqb : forall (v w : value), value_eqb v w = true ->

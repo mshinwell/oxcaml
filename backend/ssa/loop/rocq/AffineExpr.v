@@ -270,21 +270,21 @@ Definition in_range (range : Range.t) (word : Z) : Prop :=
 Fixpoint atom_operations_consistent (rho : valuation) (expr : t) : Prop :=
   match expr with
   | Const _ | Atom _ => True
-  | Add a b | Sub a b => atom_operations_consistent rho a /\
+  | Add a b | Sub a b => atom_operations_consistent rho a ∧
     atom_operations_consistent rho b
   | Scale _ a => atom_operations_consistent rho a
   | Shr_atom atom arg bits =>
     atom_operations_consistent rho arg
-    /\ 0 <= to_Z bits <= 61
-    /\ in_int64 (eval rho arg)
-    /\ rho atom = eval rho arg / 2 ^ to_Z bits
+    ∧ 0 <= to_Z bits <= 61
+    ∧ in_int64 (eval rho arg)
+    ∧ rho atom = eval rho arg / 2 ^ to_Z bits
   | Lsr_atom atom bits =>
     1 <= to_Z bits <= 63
-    /\ exists r, in_int64 r /\ rho atom = unsigned64 r / 2 ^ to_Z bits
+    ∧ exists r, in_int64 r ∧ rho atom = unsigned64 r / 2 ^ to_Z bits
   | Or_atom atom arg mask =>
     atom_operations_consistent rho arg
-    /\ 0 <= to_Z mask
-    /\ rho atom = Z.lor (eval rho arg) (to_Z mask)
+    ∧ 0 <= to_Z mask
+    ∧ rho atom = Z.lor (eval rho arg) (to_Z mask)
   end.
 
 (* ======================================================================== *)
@@ -582,9 +582,9 @@ Proof.
   apply mul_ovf64_spec in Hp. apply mul_ovf64_spec in Hq.
   rewrite Int64.of_int_spec in Hp, Hq.
   assert (Hk : to_Z k * Int64.to_Z (Range.lo a) <= to_Z k * x
-               /\ to_Z k * x <= to_Z k * Int64.to_Z (Range.hi a)
-               \/ to_Z k * Int64.to_Z (Range.hi a) <= to_Z k * x
-                  /\ to_Z k * x <= to_Z k * Int64.to_Z (Range.lo a)).
+               ∧ to_Z k * x <= to_Z k * Int64.to_Z (Range.hi a)
+               ∨ to_Z k * Int64.to_Z (Range.hi a) <= to_Z k * x
+                  ∧ to_Z k * x <= to_Z k * Int64.to_Z (Range.lo a)).
   { destruct (Z_lt_le_dec 0 (to_Z k)) as [ Hpos | Hneg ].
     - left. split; apply Z.mul_le_mono_nonneg_l; lia.
     - right. split; apply Z.mul_le_mono_nonpos_l; lia. }
@@ -605,9 +605,9 @@ Opaque shr_range_facts.
 Lemma to_affine_spec : forall (expr : t) (form : Affine.t)
   (side_facts : list Affine.t),
   to_affine expr = Some (form, side_facts) ⇒
-  wf form /\ Forall wf side_facts
-  /\ (forall (rho : valuation), denote rho form = eval rho expr)
-  /\ (forall (rho : valuation), atom_operations_consistent rho expr ⇒
+  wf form ∧ Forall wf side_facts
+  ∧ (forall (rho : valuation), denote rho form = eval rho expr)
+  ∧ (forall (rho : valuation), atom_operations_consistent rho expr ⇒
     holds_all rho side_facts).
 Proof.
   intros e. induction e; intros f sides H; cbn [to_affine] in H.
@@ -788,7 +788,7 @@ Theorem to_affine_sound :
     (side_facts : list Affine.t),
   to_affine expr = Some (form, side_facts) ⇒
   denote rho form = eval rho expr
-  /\ (atom_operations_consistent rho expr ⇒ holds_all rho side_facts).
+  ∧ (atom_operations_consistent rho expr ⇒ holds_all rho side_facts).
 Proof.
   intros rho e f sides H.
   destruct (to_affine_spec e f sides H) as [_ [_ [Hd Hs]]].
@@ -798,7 +798,7 @@ Qed.
 (* The form and the side facts are well-formed, as [entails] requires. *)
 Theorem to_affine_wf : forall (expr : t) (form : Affine.t)
   (side_facts : list Affine.t),
-  to_affine expr = Some (form, side_facts) ⇒ wf form /\ Forall wf side_facts.
+  to_affine expr = Some (form, side_facts) ⇒ wf form ∧ Forall wf side_facts.
 Proof.
   intros e f sides H. destruct (to_affine_spec e f sides H) as [Hw [Hws _]].
   split; assumption.

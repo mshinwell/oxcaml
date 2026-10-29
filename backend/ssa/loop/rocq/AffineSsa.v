@@ -350,9 +350,9 @@ Local Open Scope Z_scope.
    to be allocated, and the budget is not negative. *)
 Definition ctx_wf (c : ctx) : Prop :=
   NoDup (map fst c.(atoms))
-  /\ (forall (id : int) (v : value),
+  ∧ (forall (id : int) (v : value),
         (id, v) ∈ c.(atoms) ⇒ to_Z id < to_Z c.(next))
-  /\ 0 <= to_Z c.(budget).
+  ∧ 0 <= to_Z c.(budget).
 
 (* A context only gains atoms. *)
 Definition extends (initial_ctx extended_ctx : ctx) : Prop :=
@@ -584,9 +584,9 @@ Section Semantics.
   (* [refill_budget] keeps the atoms and the counter and sets the budget. *)
   Lemma refill_budget_spec : forall (c : ctx),
     ctx_wf c ⇒
-    ctx_wf (refill_budget c) /\ extends c (refill_budget c)
-    /\ to_Z (refill_budget c).(next) = to_Z c.(next)
-    /\ to_Z (refill_budget c).(budget) = to_Z max_nodes.
+    ctx_wf (refill_budget c) ∧ extends c (refill_budget c)
+    ∧ to_Z (refill_budget c).(next) = to_Z c.(next)
+    ∧ to_Z (refill_budget c).(budget) = to_Z max_nodes.
   Proof.
     intros c [Hnd [Hlt _]]. unfold refill_budget. cbn [atoms next budget].
     refine (conj (conj Hnd (conj Hlt _)) (conj _ (conj eq_refl eq_refl))).
@@ -599,9 +599,9 @@ Section Semantics.
   Lemma spend_budget_spec : forall (c : ctx) (node_count : int),
     ctx_wf c ⇒ 0 <= to_Z node_count ⇒
     (node_count <=? c.(budget))%sint63 = true ⇒
-    ctx_wf (spend_budget c node_count) /\ extends c (spend_budget c node_count)
-    /\ to_Z (spend_budget c node_count).(next) = to_Z c.(next)
-    /\ to_Z (spend_budget c node_count).(budget)
+    ctx_wf (spend_budget c node_count) ∧ extends c (spend_budget c node_count)
+    ∧ to_Z (spend_budget c node_count).(next) = to_Z c.(next)
+    ∧ to_Z (spend_budget c node_count).(budget)
        = to_Z c.(budget) - to_Z node_count.
   Proof.
     intros c k [Hnd [Hlt Hb]] Hk Hle. apply leb_int in Hle.
@@ -623,10 +623,10 @@ Section Semantics.
     (id : int) (final_ctx : ctx),
     ctx_wf initial_ctx ⇒ to_Z initial_ctx.(next) < ocaml_max_int ⇒
     intern initial_ctx value_ref = (id, final_ctx) ⇒
-    ctx_wf final_ctx /\ extends initial_ctx final_ctx
-    /\ to_Z final_ctx.(next) <= to_Z initial_ctx.(next) + 1
-    /\ to_Z final_ctx.(budget) = to_Z initial_ctx.(budget)
-    /\ forall (rho : valuation), agrees rho final_ctx ⇒
+    ctx_wf final_ctx ∧ extends initial_ctx final_ctx
+    ∧ to_Z final_ctx.(next) <= to_Z initial_ctx.(next) + 1
+    ∧ to_Z final_ctx.(budget) = to_Z initial_ctx.(budget)
+    ∧ forall (rho : valuation), agrees rho final_ctx ⇒
          rho id = value_words value_ref.
   Proof.
     intros c v id c' [Hnd [Hlt Hb]] Hnext H. unfold intern in H.
@@ -668,13 +668,13 @@ Section Semantics.
       (final_ctx : ctx),
     ctx_wf initial_ctx ⇒ to_Z initial_ctx.(next) < ocaml_max_int ⇒
     atomize initial_ctx value_ref = ((expr, optional_range), final_ctx) ⇒
-    ctx_wf final_ctx /\ extends initial_ctx final_ctx /\ to_Z final_ctx.(next)
+    ctx_wf final_ctx ∧ extends initial_ctx final_ctx ∧ to_Z final_ctx.(next)
       <= to_Z initial_ctx.(next) + 1
-    /\ to_Z final_ctx.(budget) = to_Z initial_ctx.(budget)
-    /\ forall (rho : valuation), agrees rho final_ctx ⇒
-         AffineExpr.eval rho expr = value_words value_ref /\
+    ∧ to_Z final_ctx.(budget) = to_Z initial_ctx.(budget)
+    ∧ forall (rho : valuation), agrees rho final_ctx ⇒
+         AffineExpr.eval rho expr = value_words value_ref ∧
            atom_operations_consistent rho expr
-         /\ forall (known_range : Range.t), optional_range = Some known_range
+         ∧ forall (known_range : Range.t), optional_range = Some known_range
            ⇒ in_range known_range (value_words value_ref).
   Proof.
     intros c v e r c' Hwf Hnext H. unfold atomize in H.
@@ -694,7 +694,7 @@ Section Semantics.
   (* Every fact of the result comes from one of the two lists ... *)
   Lemma push_sides_In : forall (new_facts existing_facts : list Affine.t)
     (fact : Affine.t),
-    fact ∈ (push_sides existing_facts new_facts) ⇒ fact ∈ existing_facts \/
+    fact ∈ (push_sides existing_facts new_facts) ⇒ fact ∈ existing_facts ∨
       fact ∈ new_facts.
   Proof.
     intros sides. unfold push_sides, OxCamlList.fold_left.
@@ -798,13 +798,13 @@ Section Semantics.
     to_Z initial_ctx.(next) + to_Z initial_ctx.(budget) + 1 <= ocaml_max_int ⇒
     expr_of_value initial_ctx value_ref
       = ((expr, optional_range), final_ctx) ⇒
-    ctx_wf final_ctx /\ extends initial_ctx final_ctx
-    /\ to_Z final_ctx.(next) + to_Z final_ctx.(budget)
+    ctx_wf final_ctx ∧ extends initial_ctx final_ctx
+    ∧ to_Z final_ctx.(next) + to_Z final_ctx.(budget)
        <= to_Z initial_ctx.(next) + to_Z initial_ctx.(budget) + 1
-    /\ forall (rho : valuation), agrees rho final_ctx ⇒
-         AffineExpr.eval rho expr = value_words value_ref /\
+    ∧ forall (rho : valuation), agrees rho final_ctx ⇒
+         AffineExpr.eval rho expr = value_words value_ref ∧
            atom_operations_consistent rho expr
-         /\ forall (known_range : Range.t), optional_range = Some known_range
+         ∧ forall (known_range : Range.t), optional_range = Some known_range
            ⇒ in_range known_range (value_words value_ref).
   Proof.
     intros v. induction v as [id op args i IHargs | b i] using value_ind';
@@ -1099,12 +1099,12 @@ Section Semantics.
     to_Z initial_ctx.(next) + linearize_atom_bound <= ocaml_max_int ⇒
     linearize initial_ctx initial_side_facts value_ref
       = ((form, final_side_facts), final_ctx) ⇒
-    ctx_wf final_ctx /\ extends initial_ctx final_ctx
-    /\ to_Z final_ctx.(next) <= to_Z initial_ctx.(next) + linearize_atom_bound
-    /\ wf form /\ (Forall wf initial_side_facts ⇒ Forall wf final_side_facts)
-    /\ forall (rho : valuation), agrees rho final_ctx ⇒
+    ctx_wf final_ctx ∧ extends initial_ctx final_ctx
+    ∧ to_Z final_ctx.(next) <= to_Z initial_ctx.(next) + linearize_atom_bound
+    ∧ wf form ∧ (Forall wf initial_side_facts ⇒ Forall wf final_side_facts)
+    ∧ forall (rho : valuation), agrees rho final_ctx ⇒
          denote rho form = value_words value_ref
-         /\ (holds_all rho initial_side_facts ⇒
+         ∧ (holds_all rho initial_side_facts ⇒
              holds_all rho final_side_facts).
   Proof.
     intros v c side f side' c' Hwf Hn H. unfold linearize in H.
@@ -1161,13 +1161,13 @@ Section Semantics.
     to_Z initial_ctx.(next) + comparison_atom_bound <= ocaml_max_int ⇒
     comparison_facts initial_ctx initial_side_facts negate comparison_result =
       ((derived_facts, final_side_facts), final_ctx) ⇒
-    ctx_wf final_ctx /\ extends initial_ctx final_ctx
-    /\ to_Z final_ctx.(next) <= to_Z initial_ctx.(next) + comparison_atom_bound
-    /\ Forall wf derived_facts
-    /\ (Forall wf initial_side_facts ⇒ Forall wf final_side_facts)
-    /\ forall (rho : valuation), agrees rho final_ctx ⇒
+    ctx_wf final_ctx ∧ extends initial_ctx final_ctx
+    ∧ to_Z final_ctx.(next) <= to_Z initial_ctx.(next) + comparison_atom_bound
+    ∧ Forall wf derived_facts
+    ∧ (Forall wf initial_side_facts ⇒ Forall wf final_side_facts)
+    ∧ forall (rho : valuation), agrees rho final_ctx ⇒
          (holds_all rho initial_side_facts ⇒ holds_all rho final_side_facts)
-         /\ (comparison_matches_branch negate comparison_result ⇒
+         ∧ (comparison_matches_branch negate comparison_result ⇒
              holds_all rho derived_facts).
   Proof.
     intros cond c side negate fs side' c' Hwf Hn H.
@@ -1232,14 +1232,14 @@ Section Semantics.
     List.fold_left (guard_facts target) dominators
       ((initial_guard_facts, initial_side_facts), initial_ctx)
       = ((derived_guard_facts, final_side_facts), final_ctx) ⇒
-    ctx_wf final_ctx /\ extends initial_ctx final_ctx
-    /\ to_Z final_ctx.(next)
+    ctx_wf final_ctx ∧ extends initial_ctx final_ctx
+    ∧ to_Z final_ctx.(next)
        <= to_Z initial_ctx.(next) + guard_list_atom_bound target dominators
-    /\ (Forall wf initial_guard_facts ⇒ Forall wf derived_guard_facts)
-    /\ (Forall wf initial_side_facts ⇒ Forall wf final_side_facts)
-    /\ forall (rho : valuation), agrees rho final_ctx ⇒
+    ∧ (Forall wf initial_guard_facts ⇒ Forall wf derived_guard_facts)
+    ∧ (Forall wf initial_side_facts ⇒ Forall wf final_side_facts)
+    ∧ forall (rho : valuation), agrees rho final_ctx ⇒
          (holds_all rho initial_side_facts ⇒ holds_all rho final_side_facts)
-         /\ ((forall (dominator : block),
+         ∧ ((forall (dominator : block),
                 dominator ∈ dominators ⇒ guard_taken target dominator) ⇒
              holds_all rho initial_guard_facts ⇒
              holds_all rho derived_guard_facts).
@@ -1256,13 +1256,13 @@ Section Semantics.
       pose proof (guard_atom_bound_nonnegative target d) as Hgd.
       assert (Hstep : exists acc1 side1 c1,
         guard_facts target ((acc, side), c) d = ((acc1, side1), c1)
-        /\ ctx_wf c1 /\ extends c c1
-        /\ to_Z c1.(next) <= to_Z c.(next) + guard_atom_bound target d
-        /\ (Forall wf acc -> Forall wf acc1)
-        /\ (Forall wf side -> Forall wf side1)
-        /\ forall rho, agrees rho c1 ->
+        ∧ ctx_wf c1 ∧ extends c c1
+        ∧ to_Z c1.(next) <= to_Z c.(next) + guard_atom_bound target d
+        ∧ (Forall wf acc -> Forall wf acc1)
+        ∧ (Forall wf side -> Forall wf side1)
+        ∧ forall rho, agrees rho c1 ->
              (holds_all rho side -> holds_all rho side1)
-             /\ (guard_taken target d -> holds_all rho acc ->
+             ∧ (guard_taken target d -> holds_all rho acc ->
                  holds_all rho acc1)).
       { unfold guard_facts, guard_atom_bound in *.
         destruct (guard_test target d) as [[index negate] | ] eqn:Hg.
@@ -1310,14 +1310,14 @@ Section Semantics.
     to_Z initial_ctx.(next) + guards_atom_bound target <= ocaml_max_int ⇒
     guards_at initial_ctx initial_side_facts target
       = ((derived_guard_facts, final_side_facts), final_ctx) ⇒
-    ctx_wf final_ctx /\ extends initial_ctx final_ctx
-    /\ to_Z final_ctx.(next)
+    ctx_wf final_ctx ∧ extends initial_ctx final_ctx
+    ∧ to_Z final_ctx.(next)
        <= to_Z initial_ctx.(next) + guards_atom_bound target
-    /\ Forall wf derived_guard_facts
-    /\ (Forall wf initial_side_facts ⇒ Forall wf final_side_facts)
-    /\ forall (rho : valuation), agrees rho final_ctx ⇒
+    ∧ Forall wf derived_guard_facts
+    ∧ (Forall wf initial_side_facts ⇒ Forall wf final_side_facts)
+    ∧ forall (rho : valuation), agrees rho final_ctx ⇒
          (holds_all rho initial_side_facts ⇒ holds_all rho final_side_facts)
-         /\ (guards_taken target ⇒ holds_all rho derived_guard_facts).
+         ∧ (guards_taken target ⇒ holds_all rho derived_guard_facts).
   Proof.
     intros target c side fs side' c' Hwf Hn H.
     unfold guards_at, OxCamlList.fold_left in H.

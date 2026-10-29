@@ -216,7 +216,7 @@ Lemma Forall2_nth_int : forall {A B : Type} (R : A -> B -> Prop)
     (xs : list A) (ys : list B),
   Forall2 R xs ys ⇒ forall (index : int) (x : A),
   nth_int xs index = Some x ⇒
-  exists (y : B), nth_int ys index = Some y /\ R x y.
+  exists (y : B), nth_int ys index = Some y ∧ R x y.
 Proof.
   intros A B R xs ys H. induction H; intros i z Hnth; cbn in *.
   - discriminate.
@@ -228,7 +228,7 @@ Qed.
 (* An element of [filter_map f l] is [f] of an element of [l]. *)
 Lemma filter_map_In :
   forall {A B : Type} (f : A -> option B) (l : list A) (y : B),
-  y ∈ (filter_map f l) ⇒ exists x, x ∈ l /\ f x = Some y.
+  y ∈ (filter_map f l) ⇒ exists x, x ∈ l ∧ f x = Some y.
 Proof.
   intros A B f l y. induction l as [ | x l IH ]; simpl; intros H.
   - contradiction.
@@ -300,7 +300,7 @@ Lemma map_opt_assoc :
     mapped_entries ⇒
   forall (id : int),
     match assoc_opt id entries with
-    | Some c => exists d, g c = Some d /\ assoc_opt id mapped_entries = Some d
+    | Some c => exists d, g c = Some d ∧ assoc_opt id mapped_entries = Some d
     | None => assoc_opt id mapped_entries = None
     end.
 Proof.
@@ -315,7 +315,7 @@ Qed.
 
 (* [rev_append] has the elements of both lists. *)
 Lemma in_rev_append : forall {A : Type} (l1 l2 : list A) (x : A),
-  x ∈ (rev_append l1 l2) ⇔ x ∈ l1 \/ x ∈ l2.
+  x ∈ (rev_append l1 l2) ⇔ x ∈ l1 ∨ x ∈ l2.
 Proof.
   intros. rewrite rev_append_rev, in_app_iff, <- in_rev. reflexivity.
 Qed.

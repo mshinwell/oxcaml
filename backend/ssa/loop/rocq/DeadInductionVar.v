@@ -157,9 +157,9 @@ Definition param_used_only_by_exit_comparison_and_updates
   uses_only blocks (is_param header parameter_index)
     (fun instr =>
       instr_defines_value instr exit_comparison = true
-      \/ exists updated_value,
+      ∨ exists updated_value,
            updated_value ∈ updates
-           /\ instr_defines_value instr updated_value = true)
+           ∧ instr_defines_value instr updated_value = true)
     (fun _ _ => False).
 
 (* The exit comparison is used by no instruction, and by no terminator but the
@@ -180,7 +180,7 @@ Definition update_used_only_by_exit_comparison_and_back_edge
     (fun instr => instr_defines_value instr exit_comparison = true)
     (fun block _ =>
       block ∈ loop.(back_edge_sources)
-      /\ passes_only_at loop.(header) parameter_index updated_value block).
+      ∧ passes_only_at loop.(header) parameter_index updated_value block).
 
 (* What [dead = true] establishes of a basic induction variable [biv]: its loop
    has an exit branch, and the three properties above hold of its parameter, of
@@ -188,14 +188,14 @@ Definition update_used_only_by_exit_comparison_and_back_edge
 Definition dead_spec (blocks : list block) (biv : InductionVar.biv) : Prop :=
   exists exit_info,
     find_exit_branch biv.(InductionVar.loop) = Some exit_info
-    /\ let exit_comparison := exit_info.(condition) in
+    ∧ let exit_comparison := exit_info.(condition) in
        let loop := biv.(InductionVar.loop) in
        let parameter_index := biv.(param_index) in
        param_used_only_by_exit_comparison_and_updates blocks loop.(header)
          parameter_index exit_comparison biv.(update)
-       /\ exit_comparison_used_only_by_header_branch blocks loop.(header)
+       ∧ exit_comparison_used_only_by_header_branch blocks loop.(header)
             exit_comparison
-       /\ forall (updated_value : value), updated_value ∈ biv.(update) ⇒
+       ∧ forall (updated_value : value), updated_value ∈ biv.(update) ⇒
             update_used_only_by_exit_comparison_and_back_edge blocks loop
               parameter_index exit_comparison updated_value.
 
@@ -210,7 +210,7 @@ Lemma update_terminator_use_approved :
     (block : block),
   set_mem block (back_edge_set loop) && goto_passes_only_at header
     parameter_index updated_value block = true ⇒
-  block ∈ loop.(back_edge_sources) /\ passes_only_at header parameter_index
+  block ∈ loop.(back_edge_sources) ∧ passes_only_at header parameter_index
     updated_value block.
 Proof.
   intros l header k v bl H. apply andb_true_iff in H. destruct H as [Hset H].
@@ -261,7 +261,7 @@ Theorem loop_is_useless_spec :
   forall (loop : natural_loop) (bivs : list biv_result),
   loop_is_useless loop bivs = true ⇒
   length (params loop.(header)) = length bivs
-  /\ forall (biv_result : biv_result),
+  ∧ forall (biv_result : biv_result),
        biv_result ∈ bivs ⇒ biv_result.(dead) = true.
 Proof.
   intros loop bivs H. unfold loop_is_useless in H.
@@ -280,12 +280,12 @@ Theorem analyze_spec :
     (result : loop_result),
   result ∈ (analyze blocks loops) ⇒
   (result.(loop), map biv result.(bivs)) ∈ loops
-  /\ (forall (biv_result : biv_result), biv_result ∈ result.(bivs) ⇒
+  ∧ (forall (biv_result : biv_result), biv_result ∈ result.(bivs) ⇒
         biv_result.(dead) = is_dead blocks biv_result.(biv)
-        /\ (biv_result.(dead) = true ⇒ dead_spec blocks biv_result.(biv)))
-  /\ (result.(useless) = true ⇒
+        ∧ (biv_result.(dead) = true ⇒ dead_spec blocks biv_result.(biv)))
+  ∧ (result.(useless) = true ⇒
         length (params result.(loop).(header)) = length result.(bivs)
-        /\ forall (biv_result : biv_result),
+        ∧ forall (biv_result : biv_result),
              biv_result ∈ result.(bivs) ⇒ biv_result.(dead) = true).
 Proof.
   intros blocks loops r H. unfold analyze in H.

@@ -249,7 +249,7 @@ Definition uses_only (blocks : list block) (same : value -> bool)
   forall (block : block), block ∈ blocks ⇒
     (forall (instr : instr), instr ∈ (block_body block) ⇒
        existsb same (args_of_instr instr) = true ⇒ approve_instr instr)
-    /\ (forall (operands : list value),
+    ∧ (forall (operands : list value),
           operands ∈ (terminator_args (terminator block)) ⇒
           existsb same operands = true ⇒ approve_term block operands).
 
@@ -261,8 +261,8 @@ Definition passes_only_at (target : block) (argument_index : int)
     : Prop :=
   exists args,
     terminator block = Terminator.Continue (Goto target) args
-    /\ arg_value args argument_index = Some argument_value
-    /\ count_occurrences (arg_is argument_value) args = one.
+    ∧ arg_value args argument_index = Some argument_value
+    ∧ count_occurrences (arg_is argument_value) args = one.
 
 (* The checked graph-size limit used to bound affine atom allocation. *)
 Definition graph_size_supported (blocks : list block) : Prop :=
@@ -272,9 +272,9 @@ Definition graph_size_supported (blocks : list block) : Prop :=
    accessibility: following an edge decreases in the relation. *)
 Definition region_edge_avoiding (region : blockset)
   (cut succ block : block) : Prop :=
-  set_mem block region = true /\ block <> cut
-  /\ set_mem succ region = true /\ succ <> cut
-  /\ succ ∈ (all_successors block).
+  set_mem block region = true ∧ block <> cut
+  ∧ set_mem succ region = true ∧ succ <> cut
+  ∧ succ ∈ (all_successors block).
 
 (* Removing the header leaves a well-founded successor relation. *)
 Definition region_acyclic_except (region : blockset) (cut : block) : Prop :=
@@ -295,7 +295,7 @@ Proof. intros b. apply block_eqb_spec. reflexivity. Qed.
 (* Membership in a set after [set_add], and in a singleton. *)
 Lemma set_mem_add_iff : forall (block block' : block) (set : blockset),
   set_mem block (set_add block' set) = true
-  ⇔ block = block' \/ set_mem block set = true.
+  ⇔ block = block' ∨ set_mem block set = true.
 Proof.
   intros b x s. rewrite set_mem_add, orb_true_iff, block_eqb_spec. tauto.
 Qed.
@@ -319,7 +319,7 @@ Section Acyclic.
 
   (* [block] needs no visit: it is [cut], outside the region, or in [seen]. *)
   Definition block_visit_covered (seen : blockset) (block : block) : Prop :=
-    block = cut \/ set_mem block region = false \/ set_mem block seen = true.
+    block = cut ∨ set_mem block region = false ∨ set_mem block seen = true.
 
   (* [old] is a subset of [new]. *)
   Definition blockset_subset (old new : blockset) : Prop :=
@@ -355,14 +355,14 @@ Section Acyclic.
     (forall (seen : blockset) (block : block) (completed_set : blockset),
        completed_blocks_accessible seen ⇒ visit seen block = Some
          completed_set ⇒
-       completed_blocks_accessible completed_set /\ blockset_subset seen
-         completed_set /\ block_visit_covered completed_set block) ⇒
+       completed_blocks_accessible completed_set ∧ blockset_subset seen
+         completed_set ∧ block_visit_covered completed_set block) ⇒
     forall (roots : list block) (seen completed_set : blockset),
       completed_blocks_accessible seen ⇒ visit_all visit seen roots = Some
         completed_set ⇒
       completed_blocks_accessible completed_set
-      /\ blockset_subset seen completed_set
-      /\ forall (block : block), block ∈ roots ⇒ block_visit_covered
+      ∧ blockset_subset seen completed_set
+      ∧ forall (block : block), block ∈ roots ⇒ block_visit_covered
         completed_set block.
   Proof.
     intros visit Hvisit roots. induction roots as [|b roots IH];
@@ -387,8 +387,8 @@ Section Acyclic.
       (completed_set : blockset),
     completed_blocks_accessible seen ⇒
     visit_acyclic fuel region cut active seen block = Some completed_set ⇒
-    completed_blocks_accessible completed_set /\ blockset_subset seen
-      completed_set /\ block_visit_covered completed_set block.
+    completed_blocks_accessible completed_set ∧ blockset_subset seen
+      completed_set ∧ block_visit_covered completed_set block.
   Proof.
     induction fuel as [|x fuel IH]; intros active seen b out Hseen H;
       cbn [visit_acyclic] in H;
@@ -429,7 +429,7 @@ Lemma continue_argument_operand : forall (continuation : continuation)
   (Terminator.Arg arg) ∈ args ⇒
   exists (uses : list value),
     uses ∈ (terminator_args (Terminator.Continue continuation args))
-    /\ arg ∈ uses.
+    ∧ arg ∈ uses.
 Proof.
   intros continuation args arg Harg. unfold terminator_args.
   eexists. split; [left; reflexivity |].
@@ -446,7 +446,7 @@ Lemma continue_argument_used : forall (continuation : continuation)
   nth_int args index = Some (Terminator.Arg arg) ⇒
   exists (uses : list value),
     uses ∈ (terminator_args (Terminator.Continue continuation args))
-    /\ arg ∈ uses.
+    ∧ arg ∈ uses.
 Proof.
   intros continuation args index arg Harg. apply continue_argument_operand.
   eapply nth_int_In. exact Harg.

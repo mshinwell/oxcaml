@@ -198,9 +198,9 @@ Lemma program_point_path_join : forall (first middle last : program_point)
   program_point_path_from first prefix middle ⇒ program_point_path_from middle
     suffix last ⇒
   exists (joined : list program_point), program_point_path_from first joined
-    last /\
+    last ∧
     forall (member : program_point), member ∈ joined ⇒
-      member ∈ prefix \/ member ∈ suffix.
+      member ∈ prefix ∨ member ∈ suffix.
 Proof.
   intros first middle last prefix suffix Hprefix Hsuffix.
   induction Hprefix.
@@ -218,7 +218,7 @@ Lemma program_point_path_last_visit : forall (first last : program_point)
   program_point_path_from first points last ⇒ forall (selected :
     program_point),
   selected ∈ points ⇒ exists (tail : list program_point),
-    program_point_path_from selected (selected :: tail) last /\ selected ∉ tail.
+    program_point_path_from selected (selected :: tail) last ∧ selected ∉ tail.
 Proof.
   intros first last points Hpath. induction Hpath;
     intros selected Hin.
@@ -265,7 +265,7 @@ Lemma program_point_path_first_visit : forall (first last : program_point)
     (points : list program_point),
   program_point_path_from first points last ⇒
   exists (prefix : list program_point),
-    program_point_path_from first (prefix ++ [last]) last /\ last ∉ prefix.
+    program_point_path_from first (prefix ++ [last]) last ∧ last ∉ prefix.
 Proof.
   intros first last points Hpath. induction Hpath.
   - exists []. split; [constructor | cbn; tauto].
@@ -288,7 +288,7 @@ Lemma program_point_path_prefix_avoiding : forall (first last : program_point)
   forall (prefix suffix : list program_point) (member avoid : program_point),
   points = prefix ++ suffix ⇒ avoid ∉ prefix ⇒ member ∈ prefix ⇒
   exists (before_member : list program_point),
-    program_point_path_from first before_member member /\ avoid ∉ before_member.
+    program_point_path_from first before_member member ∧ avoid ∉ before_member.
 Proof.
   intros first last points Hpath. induction Hpath;
     intros prefix suffix member avoid Heq Havoid Hin;
@@ -369,7 +369,7 @@ Lemma program_point_path_member : forall (first last : program_point)
     member ∈ points ⇒
   exists (prefix : list program_point),
     program_point_path_from first prefix member
-    /\ forall (visited : program_point), visited ∈ prefix ⇒ visited ∈ points.
+    ∧ forall (visited : program_point), visited ∈ prefix ⇒ visited ∈ points.
 Proof.
   intros first last points Hpath. induction Hpath; intros member Hin.
   - destruct Hin as [<- | []]. exists [position]. split; [constructor | auto].
@@ -412,8 +412,8 @@ Lemma program_point_path_to_blocks : control_edges ⇒ forall (first last :
     (points : list program_point),
   program_point_path_from first points last ⇒
   exists (blocks : list block), block_path_from (fst first) blocks (fst last)
-    /\ forall (b : block), b ∈ blocks ⇒
-         b = fst first \/ (block_entry_point b) ∈ points.
+    ∧ forall (b : block), b ∈ blocks ⇒
+         b = fst first ∨ (block_entry_point b) ∈ points.
 Proof.
   intros Hedges first last points Hpath. induction Hpath.
   - exists [fst position]. split; [constructor |].
@@ -439,7 +439,7 @@ Lemma block_body_program_point_path : forall (b : block) (remaining : nat),
   remaining <= length (block_body b) ⇒
   exists (points : list program_point), program_point_path_from (b, remaining)
     points (b, 0)
-    /\ forall (position : program_point),
+    ∧ forall (position : program_point),
        position ∈ points ⇒ fst position = b.
 Proof.
   intros b remaining. induction remaining as [ | remaining IH]; intros Hlen.
@@ -458,7 +458,7 @@ Lemma block_path_to_program_points : control_edges ⇒
   block_path_from first blocks last ⇒
   exists (points : list program_point),
     program_point_path_from (block_entry_point first) points (last, 0)
-    /\ forall (position : program_point), position ∈ points ⇒
+    ∧ forall (position : program_point), position ∈ points ⇒
          (fst position) ∈ blocks.
 Proof.
   intros Hedges first last blocks Hpath. induction Hpath.
@@ -517,7 +517,7 @@ Lemma program_point_edge_to_entry : control_edges ⇒ forall (before :
   program_point)
     (target : block),
   program_point_edge before (block_entry_point target) ⇒
-  snd before = 0 /\ (fst before) ∈ (predecessors target).
+  snd before = 0 ∧ (fst before) ∈ (predecessors target).
 Proof.
   intros Hedges before target Hedge. inversion Hedge; subst.
   - unfold block_entry_point in *. cbn in *. lia.
@@ -536,7 +536,7 @@ Proof.
   assert (Hpath_property : forall (first : program_point)
     (points : list program_point),
     program_point_path_from first points (block_entry_point target) ->
-    first = block_entry_point target \/ (source, 0) ∈ points).
+    first = block_entry_point target ∨ (source, 0) ∈ points).
   { clear Hpath points. intros first block_path_from Hrun.
     remember (block_entry_point target) as last.
     induction Hrun; subst.

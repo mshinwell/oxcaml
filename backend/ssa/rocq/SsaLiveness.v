@@ -60,7 +60,7 @@ Inductive operand_at : program_point -> value -> Prop :=
 
 Definition register_defined_at (position : program_point)
   (reg : register) : Prop :=
-  exists (v : value), value_definition v position /\ register_of_value v = reg.
+  exists (v : value), value_definition v position ∧ register_of_value v = reg.
 
 (* Definitions kill the old register value on the incoming edge. In particular,
    a later entry to a parameter's block does not read its old value merely
@@ -130,7 +130,7 @@ Theorem live_at_available : forall (blocks : list block) (entry : block)
     (position : program_point) (reg : register),
   well_formed_ssa blocks entry ⇒ (fst position) ∈ blocks ⇒
   register_live_at position reg ⇒
-  exists (v : value), register_of_value v = reg /\
+  exists (v : value), register_of_value v = reg ∧
     available_value blocks entry position v.
 Proof.
   intros blocks entry position reg Hwf Hblock Hlive.

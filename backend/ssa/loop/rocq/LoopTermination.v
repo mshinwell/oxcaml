@@ -216,20 +216,20 @@ Section Recognition.
       (exists left_operand constant_bound,
          comparison_result = Res id (Intop_imm (Icomp cmp) constant_bound)
            [left_operand] result_index
-         /\ is_counter_operand left_operand = true /\ iv_is_left = true /\
+         ∧ is_counter_operand left_operand = true ∧ iv_is_left = true ∧
            comparison_bound = Const_bound constant_bound)
-      \/ (exists left_operand right_operand,
+      ∨ (exists left_operand right_operand,
          comparison_result = Res id (Intop (Icomp cmp)) [left_operand;
            right_operand] result_index
-         /\ is_counter_operand left_operand = true
-         /\ is_bound right_operand = true
-         /\ iv_is_left = true /\ comparison_bound = Value_bound right_operand)
-      \/ (exists left_operand right_operand,
+         ∧ is_counter_operand left_operand = true
+         ∧ is_bound right_operand = true
+         ∧ iv_is_left = true ∧ comparison_bound = Value_bound right_operand)
+      ∨ (exists left_operand right_operand,
          comparison_result = Res id (Intop (Icomp cmp)) [left_operand;
            right_operand] result_index
-         /\ is_counter_operand right_operand = true
-         /\ is_bound left_operand = true
-         /\ iv_is_left = false /\ comparison_bound = Value_bound left_operand).
+         ∧ is_counter_operand right_operand = true
+         ∧ is_bound left_operand = true
+         ∧ iv_is_left = false ∧ comparison_bound = Value_bound left_operand).
   Proof.
     intros is_iv_val is_bound cond cmp iv_is_left bnd H.
     unfold extract_comparison in H.
@@ -268,9 +268,9 @@ Section Recognition.
       = Some (Step_const step_constant, sign) ⇒
     exists id result_index self,
       is_self self = true
-      /\ ((sign = Add /\ updated_value = Res id (Intop_imm Iadd step_constant)
+      ∧ ((sign = Add ∧ updated_value = Res id (Intop_imm Iadd step_constant)
         [self] result_index)
-          \/ (sign = Sub /\ updated_value = Res id (Intop_imm Isub
+          ∨ (sign = Sub ∧ updated_value = Res id (Intop_imm Isub
             step_constant) [self] result_index)).
   Proof.
     intros is_self c sign u H. unfold classify_update in H.
@@ -305,21 +305,21 @@ Section Recognition.
     biv_implies_termination op_def biv = true ⇒
     exists exit_info step_size cmp iv_is_left comparison_bound,
       find_exit_branch loop = Some exit_info
-      /\ signed_step biv = Some step_size
-      /\ extract_comparison
+      ∧ signed_step biv = Some step_size
+      ∧ extract_comparison
            (fun v => is_param loop.(header) biv.(param_index) v
                      || existsb (value_eqb v) biv.(update))
            (is_loop_invariant op_def loop.(header)) exit_info.(condition)
          = Some (cmp, iv_is_left, comparison_bound)
-      /\ (continue_terminates step_size
+      ∧ (continue_terminates step_size
             (oriented_continue_comparison iv_is_left
                exit_info.(continue_when_true) cmp)
           = LoopComparisons.Terminates
-          \/ (continue_terminates step_size
+          ∨ (continue_terminates step_size
                 (oriented_continue_comparison iv_is_left
                    exit_info.(continue_when_true) cmp)
               = LoopComparisons.Terminates_if_bound_in_range
-              /\ bound_in_range step_size loop.(header) comparison_bound =
+              ∧ bound_in_range step_size loop.(header) comparison_bound =
                 true)).
   Proof.
     intros b Hl Hb. unfold biv_implies_termination in Hb. rewrite Hl in Hb.

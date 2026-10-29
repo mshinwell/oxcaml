@@ -167,21 +167,21 @@ Definition body_in_supported_fragment (loop : natural_loop) : Prop :=
   forall (block : block), set_mem block loop.(body) = true ⇒
     (forall (insn : instr), insn ∈ (block_body block) ⇒
        supported_instruction insn = true)
-    /\ terminator_pure_control (terminator block) = true.
+    ∧ terminator_pure_control (terminator block) = true.
 
 (* Every edge out of a block of the body stays in the body or goes to [exit].
    *)
 Definition exits_only_to (loop : natural_loop) (exit : block) : Prop :=
   forall (pred : block), set_mem pred loop.(body) = true ⇒
     forall (succ : block), succ ∈ (all_successors pred) ⇒
-      set_mem succ loop.(body) = true \/ succ = exit.
+      set_mem succ loop.(body) = true ∨ succ = exit.
 
 (* The header's exit branch, in the shape LoopTermination.v recognises, goes to
    [exit], which takes no arguments. *)
 Definition exit_branch_to (loop : natural_loop) (exit : block) : Prop :=
   exists (exit_info : exit_branch),
     find_exit_branch loop = Some exit_info
-    /\ exit_info.(exit_target) = exit /\ params exit = [].
+    ∧ exit_info.(exit_target) = exit ∧ params exit = [].
 
 (* Every parameter of the header is one of [bivs], and each of those is a basic
    induction variable of [loop] that is dead. *)
@@ -190,9 +190,9 @@ Definition params_are_dead_bivs (op_def : op_def) (blocks : list block)
   (forall (parameter_index : int) (parameter : value), nth_int (params
     loop.(header)) parameter_index = Some parameter ⇒
      exists (biv : InductionVar.biv),
-       biv ∈ bivs /\ biv.(param_index) = parameter_index)
-  /\ (forall (biv : InductionVar.biv), biv ∈ bivs ⇒
-        biv_spec op_def loop biv /\ dead_spec blocks biv).
+       biv ∈ bivs ∧ biv.(param_index) = parameter_index)
+  ∧ (forall (biv : InductionVar.biv), biv ∈ bivs ⇒
+        biv_spec op_def loop biv ∧ dead_spec blocks biv).
 
 (* What holds of a loop [loop], with the basic induction variables [bivs]
    InductionVar.v reports for it, when [find_deletions] deletes it. *)
@@ -200,11 +200,11 @@ Definition deletion_certificate (op_def : op_def) (blocks : list block)
     (loop : natural_loop) (bivs : list InductionVar.biv) (exit : block)
     : Prop :=
   exit_branch_to loop exit
-  /\ LoopTermination.analyze op_def bivs = Terminates
-  /\ region_acyclic_except loop.(body) loop.(header)
-  /\ params_are_dead_bivs op_def blocks loop bivs
-  /\ body_in_supported_fragment loop
-  /\ exits_only_to loop exit.
+  ∧ LoopTermination.analyze op_def bivs = Terminates
+  ∧ region_acyclic_except loop.(body) loop.(header)
+  ∧ params_are_dead_bivs op_def blocks loop bivs
+  ∧ body_in_supported_fragment loop
+  ∧ exits_only_to loop exit.
 
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
@@ -235,8 +235,8 @@ Lemma certificate_counter : forall (defs : op_def) (blocks : list block)
     (loop : natural_loop) (bivs : list InductionVar.biv) (exit : block),
   deletion_certificate defs blocks loop bivs exit ⇒
   exists (counter : InductionVar.biv), counter ∈ bivs
-    /\ biv_spec defs loop counter
-    /\ biv_implies_termination defs counter = true.
+    ∧ biv_spec defs loop counter
+    ∧ biv_implies_termination defs counter = true.
 Proof.
   intros defs blocks loop bivs exit [_ [Htest [_ [[_ Hspecs] _]]]].
   unfold LoopTermination.analyze in Htest.
@@ -261,7 +261,7 @@ Qed.
 Theorem find_deletions_supported :
   forall (defs : op_def) (blocks : list block) (header exit : block),
   (header, exit) ∈ (find_deletions defs blocks) ⇒
-  graph_size_supported blocks /\
+  graph_size_supported blocks ∧
   forall (b : block) (id : instr_id) (op : operation) (args : list value)
     (count : int),
     b ∈ blocks ⇒ (Op id op args count) ∈ (block_body b) ⇒
@@ -292,8 +292,8 @@ Theorem find_deletions_spec :
   (header, exit) ∈ (find_deletions op_def blocks) ⇒
   exists (loop : natural_loop) (bivs : list InductionVar.biv),
     (loop, bivs) ∈ (InductionVar.analyze op_def blocks)
-    /\ header = loop.(NaturalLoop.header)
-    /\ deletion_certificate op_def blocks loop bivs exit.
+    ∧ header = loop.(NaturalLoop.header)
+    ∧ deletion_certificate op_def blocks loop bivs exit.
 Proof.
   intros op_def blocks h exit H. unfold find_deletions in H.
   destruct (graph_supported blocks); [ | contradiction]. cbv zeta in H.

@@ -263,8 +263,8 @@ Definition loop_invariant_value (op_def : op_def) (header : block)
   | Res id _ _ _ =>
     exists block,
       op_def_find op_def id = Some block
-      /\ block --dom--> header /\ block <> header
-  | Block_param block _ => block --dom--> header /\ block <> header
+      ∧ block --dom--> header ∧ block <> header
+  | Block_param block _ => block --dom--> header ∧ block <> header
   end.
 
 (* Every update value of [biv] is [self + c], [c + self] or [self - c] for the
@@ -278,8 +278,8 @@ Definition updates_have_same_step_and_sign (op_def : op_def)
       classify_update (is_param loop.(header) index) op_def loop.(header)
         updated_value
       = Some (step', sign')
-      /\ step_same biv.(step) step' = true
-      /\ sign_same biv.(sign) sign' = true.
+      ∧ step_same biv.(step) step' = true
+      ∧ sign_same biv.(sign) sign' = true.
 
 (* Every back-edge source that is a predecessor of the header passes, in its
    [Goto] to the header, a value for the parameter of [biv], and that value is
@@ -291,8 +291,8 @@ Definition every_back_edge_passes_an_update (loop : natural_loop) (biv : biv)
     source ∈ (predecessors loop.(header)) ⇒
     exists args updated_value,
       goto_args loop.(header) source = Some args
-      /\ arg_value args biv.(param_index) = Some updated_value
-      /\ updated_value ∈ biv.(update).
+      ∧ arg_value args biv.(param_index) = Some updated_value
+      ∧ updated_value ∈ biv.(update).
 
 (* Every value of [update] is what some back-edge source passes, in its [Goto]
    to the header, for the parameter of [biv]. *)
@@ -301,8 +301,8 @@ Definition every_update_arrives_over_a_back_edge (loop : natural_loop)
   forall (updated_value : value), updated_value ∈ biv.(update) ⇒
     exists source args,
       source ∈ loop.(back_edge_sources)
-      /\ goto_args loop.(header) source = Some args
-      /\ arg_value args biv.(param_index) = Some updated_value.
+      ∧ goto_args loop.(header) source = Some args
+      ∧ arg_value args biv.(param_index) = Some updated_value.
 
 (* What holds of a BIV reported for the loop [loop]: it is for a parameter
    [param_index] of the header; every back-edge source that is a predecessor of
@@ -313,10 +313,10 @@ Definition every_update_arrives_over_a_back_edge (loop : natural_loop)
 Definition biv_spec (op_def : op_def) (loop : natural_loop) (biv : biv)
     : Prop :=
   biv.(InductionVar.loop) = loop
-  /\ biv.(update) <> []
-  /\ updates_have_same_step_and_sign op_def loop biv.(param_index) biv
-  /\ every_back_edge_passes_an_update loop biv
-  /\ every_update_arrives_over_a_back_edge loop biv.
+  ∧ biv.(update) <> []
+  ∧ updates_have_same_step_and_sign op_def loop biv.(param_index) biv
+  ∧ every_back_edge_passes_an_update loop biv
+  ∧ every_update_arrives_over_a_back_edge loop biv.
 
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
@@ -343,7 +343,7 @@ Proof.
   (* The accumulator holds the edges seen so far. *)
   assert (H : forall s,
     set_mem b (List.fold_left (fun s b => set_add b s) edges s) = true
-    <-> b ∈ edges \/ set_mem b s = true).
+    <-> b ∈ edges ∨ set_mem b s = true).
   { induction edges as [ | e edges IH ]; intros s; cbn [List.fold_left].
     - cbn [In]. tauto.
     - rewrite IH, set_mem_add_iff. cbn [In]. intuition congruence. }
@@ -358,7 +358,7 @@ Lemma classify_update_reads_self : forall (is_self : value -> bool)
   classify_update is_self defs header updated = Some (step, sign) ⇒
   match updated with
   | Res _ _ args _ => exists (self : value),
-      self ∈ args /\ is_self self = true
+      self ∈ args ∧ is_self self = true
   | Block_param _ _ => False
   end.
 Proof.
@@ -409,7 +409,7 @@ Lemma back_edge_values_In :
           (map (fun '(_, args) => arg_value args index) source_args))
   ⇔ exists source args,
         (source, args) ∈ source_args
-        /\ arg_value args index = Some updated_value.
+        ∧ arg_value args index = Some updated_value.
 Proof.
   intros bpa index u. split.
   - intros H. apply filter_map_In in H. destruct H as [x [Hx Hu]].
@@ -431,17 +431,17 @@ Lemma classify_param_spec :
     (biv : biv),
   classify_param loop op_def source_args index = Some biv ⇒
   biv.(InductionVar.loop) = loop
-  /\ biv.(param_index) = index
-  /\ biv.(update) <> []
-  /\ updates_have_same_step_and_sign op_def loop index biv
-  /\ (forall (source : block) (args : list Terminator.arg),
+  ∧ biv.(param_index) = index
+  ∧ biv.(update) <> []
+  ∧ updates_have_same_step_and_sign op_def loop index biv
+  ∧ (forall (source : block) (args : list Terminator.arg),
         (source, args) ∈ source_args ⇒
         exists updated_value,
           arg_value args index = Some updated_value
-          /\ updated_value ∈ biv.(update))
-  /\ (forall (updated_value : value), updated_value ∈ biv.(update) ⇒
+          ∧ updated_value ∈ biv.(update))
+  ∧ (forall (updated_value : value), updated_value ∈ biv.(update) ⇒
         exists source args,
-          (source, args) ∈ source_args /\ arg_value args index = Some
+          (source, args) ∈ source_args ∧ arg_value args index = Some
             updated_value).
 Proof.
   intros l op_def bpa index b H. unfold classify_param in H. cbv zeta in H.
@@ -500,7 +500,7 @@ Lemma params_bivs_cover :
   nth_int params offset = Some parameter ⇒
   exists biv, biv ∈ (params_bivs loop op_def source_args first_parameter_index
     params)
-    /\ biv.(param_index) = (first_parameter_index + offset)%sint63.
+    ∧ biv.(param_index) = (first_parameter_index + offset)%sint63.
 Proof.
   intros l op_def bpa params. induction params as [ | x params IH ];
     intros index k v Hlen Hnth; cbn [params_bivs nth_int] in *.
@@ -555,8 +555,8 @@ Lemma back_edge_arguments_In :
          then option_map (fun args => (pred, args)) args
          else None)
        (map (fun pred => (pred, goto_args header pred)) preds))
-  ⇔ pred ∈ preds /\ set_mem pred source_set = true
-      /\ goto_args header pred = Some args.
+  ⇔ pred ∈ preds ∧ set_mem pred source_set = true
+      ∧ goto_args header pred = Some args.
 Proof.
   intros header back_set preds p args. induction preds as [ | q preds IH ].
   - cbn. tauto.
@@ -597,7 +597,7 @@ Proof.
   intros op_def header v H.
   unfold is_loop_invariant in H. unfold loop_invariant_value.
   assert (Hstrict : forall bl, strictly_dominates bl header = true ->
-    dominates bl header = true /\ bl <> header).
+    dominates bl header = true ∧ bl <> header).
   { intros bl Hs. unfold strictly_dominates in Hs.
     apply andb_true_iff in Hs. destruct Hs as [Hd Hne].
     split; [ exact Hd | ]. intros ->.
@@ -658,7 +658,7 @@ Theorem analyze_loop_cover :
   length (analyze_loop op_def loop) = length (params loop.(header)) ⇒
   nth_int (params loop.(header)) parameter_index = Some parameter ⇒
   exists biv,
-    biv ∈ analyze_loop op_def loop /\ biv.(param_index) = parameter_index.
+    biv ∈ analyze_loop op_def loop ∧ biv.(param_index) = parameter_index.
 Proof.
   intros op_def l k v Hlen Hnth. unfold analyze_loop in *. cbv zeta in *.
   destruct (negb (forallb _ _)).
@@ -675,8 +675,8 @@ Theorem analyze_spec :
   forall (op_def : op_def) (blocks : list block) (loop : natural_loop)
     (bivs : list biv),
   (loop, bivs) ∈ (analyze op_def blocks) ⇒
-  loop ∈ (find_loops blocks) /\ bivs = analyze_loop op_def loop
-  /\ forall (biv : biv), biv ∈ bivs ⇒ biv_spec op_def loop biv.
+  loop ∈ (find_loops blocks) ∧ bivs = analyze_loop op_def loop
+  ∧ forall (biv : biv), biv ∈ bivs ⇒ biv_spec op_def loop biv.
 Proof.
   intros op_def blocks l bivs H. unfold analyze in H.
   apply in_map_iff in H. destruct H as [l' [E Hl]]. injection E as <- <-.

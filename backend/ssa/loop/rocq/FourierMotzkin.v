@@ -532,9 +532,9 @@ Lemma merge_terms_coefficient :
   merge_terms compute_coefficient is_zero ids = Some merged_terms ⇒
   forall (id : int), id ∈ ids ⇒
     exists c, compute_coefficient id = Some c
-      /\ assoc_default default_coefficient id merged_terms = (if is_zero c then
+      ∧ assoc_default default_coefficient id merged_terms = (if is_zero c then
         default_coefficient else c)
-      /\ (id ∈ (map fst merged_terms) ⇔ is_zero c = false).
+      ∧ (id ∈ (map fst merged_terms) ⇔ is_zero c = false).
 Proof.
   intros C f z dflt ids. induction ids as [ | id ids IH ];
     intros ts Hnd H id' Hin;
@@ -649,9 +649,9 @@ Lemma scale_checked_spec :
   forall (rho : valuation) (factor : int) (form scaled_form : Affine.t),
   Affine.scale_checked factor form = Some scaled_form ⇒
   denote rho scaled_form = to_Z factor * denote rho form
-  /\ (forall (id : int), id ∈ (map fst scaled_form.(Affine.terms)) ⇒
+  ∧ (forall (id : int), id ∈ (map fst scaled_form.(Affine.terms)) ⇒
         id ∈ (map fst form.(Affine.terms)))
-  /\ (wf form ⇒ wf scaled_form).
+  ∧ (wf form ⇒ wf scaled_form).
 Proof.
   intros rho k f f' H. unfold Affine.scale_checked in H.
   destruct (k =? zero)%sint63 eqn:Hk.
@@ -676,10 +676,10 @@ Lemma add_checked_spec : forall (rho : valuation)
   wf left_form ⇒ wf right_form ⇒ Affine.add_checked left_form right_form =
     Some sum_form ⇒
   denote rho sum_form = denote rho left_form + denote rho right_form
-  /\ (forall (id : int), id ∈ (map fst sum_form.(Affine.terms)) ⇒
-        id ∈ (map fst left_form.(Affine.terms)) \/ id ∈ (map fst
+  ∧ (forall (id : int), id ∈ (map fst sum_form.(Affine.terms)) ⇒
+        id ∈ (map fst left_form.(Affine.terms)) ∨ id ∈ (map fst
           right_form.(Affine.terms)))
-  /\ wf sum_form.
+  ∧ wf sum_form.
 Proof.
   intros rho a b c Ha Hb H. unfold Affine.add_checked in H.
   set (ids := sort_uniq (map fst a.(Affine.terms) ++ map fst b.(Affine.terms)))
@@ -687,7 +687,7 @@ Proof.
   assert (Hnd : NoDup ids) by apply sort_uniq_NoDup.
   assert (Hids : forall x, x ∈ ids <->
                    x ∈ (map fst a.(Affine.terms))
-                   \/ x ∈ (map fst b.(Affine.terms)))
+                   ∨ x ∈ (map fst b.(Affine.terms)))
     by (intros x; unfold ids; rewrite sort_uniq_In, in_app_iff; reflexivity).
   change (filter_map_opt _ ids)
     with (merge_terms
@@ -732,8 +732,8 @@ Lemma add_const_checked_spec :
     (result_form : Affine.t),
   Affine.add_const_checked form constant = Some result_form ⇒
   denote rho result_form = denote rho form + to_Z constant
-  /\ result_form.(Affine.terms) = form.(Affine.terms)
-  /\ (wf form ⇒ wf result_form).
+  ∧ result_form.(Affine.terms) = form.(Affine.terms)
+  ∧ (wf form ⇒ wf result_form).
 Proof.
   intros rho f k f' H. unfold Affine.add_const_checked in H.
   destruct (add_ovf _ _) as [ c | ] eqn:Hc; [ | discriminate ].
@@ -749,10 +749,10 @@ Lemma sub_checked_spec : forall (rho : valuation)
   wf left_form ⇒ wf right_form ⇒ Affine.sub_checked left_form right_form =
     Some difference_form ⇒
   denote rho difference_form = denote rho left_form - denote rho right_form
-  /\ (forall (id : int), id ∈ (map fst difference_form.(Affine.terms)) ⇒
-        id ∈ (map fst left_form.(Affine.terms)) \/ id ∈ (map fst
+  ∧ (forall (id : int), id ∈ (map fst difference_form.(Affine.terms)) ⇒
+        id ∈ (map fst left_form.(Affine.terms)) ∨ id ∈ (map fst
           right_form.(Affine.terms)))
-  /\ wf difference_form.
+  ∧ wf difference_form.
 Proof.
   intros rho a b c Ha Hb H. unfold Affine.sub_checked in H.
   destruct (Affine.scale_checked minus_one b) as [ nb | ] eqn:Hnb;
@@ -776,8 +776,8 @@ Lemma scale_to_int64_spec :
     (scaled_terms : list (int * Int64.t)),
   scale_to_int64 factor form = Some (scaled_constant, scaled_terms) ⇒
   Int64.to_Z scaled_constant = Int64.to_Z factor * to_Z form.(Affine.const)
-  /\ map fst scaled_terms = map fst form.(Affine.terms)
-  /\ (forall (id : int), Int64.to_Z (coeff64 id scaled_terms)
+  ∧ map fst scaled_terms = map fst form.(Affine.terms)
+  ∧ (forall (id : int), Int64.to_Z (coeff64 id scaled_terms)
                          = Int64.to_Z factor * to_Z (Affine.coeff id form)).
 Proof.
   unfold scale_to_int64. intros k f c ts H.
@@ -805,16 +805,16 @@ Lemma resolvent_spec : forall (positive_coeff negative_coeff_magnitude : int)
   resolvent positive_coeff negative_coeff_magnitude
     positive_form negative_form = Some resolvent_form ⇒
   wf resolvent_form
-  /\ (forall (id : int), id ∈ (map fst resolvent_form.(Affine.terms)) ⇒
+  ∧ (forall (id : int), id ∈ (map fst resolvent_form.(Affine.terms)) ⇒
         id ∈ (map fst positive_form.(Affine.terms))
-        \/ id ∈ (map fst negative_form.(Affine.terms)))
-  /\ (exists normalization_factor, 0 < normalization_factor /\
+        ∨ id ∈ (map fst negative_form.(Affine.terms)))
+  ∧ (exists normalization_factor, 0 < normalization_factor ∧
         forall (id : int),
           normalization_factor * to_Z (Affine.coeff id resolvent_form)
           = to_Z negative_coeff_magnitude
               * to_Z (Affine.coeff id positive_form)
             + to_Z positive_coeff * to_Z (Affine.coeff id negative_form))
-  /\ (forall (rho : valuation),
+  ∧ (forall (rho : valuation),
         0 <= to_Z negative_coeff_magnitude * denote rho positive_form
              + to_Z positive_coeff * denote rho negative_form ⇒
         0 <= denote rho resolvent_form).
@@ -831,7 +831,7 @@ Proof.
   assert (Hnd : NoDup ids) by apply sort_uniq_NoDup.
   assert (Hids : forall x, x ∈ ids <->
                    x ∈ (map fst p.(Affine.terms))
-                   \/ x ∈ (map fst n.(Affine.terms))).
+                   ∨ x ∈ (map fst n.(Affine.terms))).
   { intros x. unfold ids.
     rewrite sort_uniq_In, in_app_iff, Hpkeys, Hnkeys. reflexivity. }
   change (filter_map_opt _ ids)
@@ -846,7 +846,7 @@ Proof.
                       + to_Z cp * to_Z (Affine.coeff id n)).
   assert (Hm : forall id, id ∈ ids ->
             Int64.to_Z (coeff64 id ts) = m id
-            /\ (id ∈ (map fst ts) <-> m id <> 0)).
+            ∧ (id ∈ (map fst ts) <-> m id <> 0)).
   { intros id Hid.
     destruct (merge_terms_coefficient _ _ Int64.zero ids ts Hnd Hts id Hid)
       as [c0 [Hc0 [Hcoeff Hin]]].
@@ -859,7 +859,7 @@ Proof.
     - apply Int64.equal_false in Hz. rewrite Int64.to_Z_zero in Hz.
       split; [ unfold m; lia | ].
       split; [ intros _; unfold m; lia | reflexivity ]. }
-  assert (Hm0 : forall id, id ∉ ids -> m id = 0 /\ id ∉ (map fst ts)).
+  assert (Hm0 : forall id, id ∉ ids -> m id = 0 ∧ id ∉ (map fst ts)).
   { intros id Hid. split.
     - unfold m, Affine.coeff. rewrite !assoc_default_not_in;
         [ rewrite to_Z_zero; ring | | ];
@@ -908,7 +908,7 @@ Proof.
     set (g := if (zero <? Int64.compare g0 Int64.one)%sint63 then g0
               else Int64.one) in H.
     assert (Hg : 0 < Int64.to_Z g
-                 /\ forall id c0, (id, c0) ∈ (t0 :: ts') ->
+                 ∧ forall id c0, (id, c0) ∈ (t0 :: ts') ->
                       (Int64.to_Z g | Int64.to_Z c0)).
     { unfold g. destruct (zero <? Int64.compare g0 Int64.one)%sint63 eqn:Hgt.
       - apply Int64.compare_gt in Hgt. rewrite Int64.to_Z_one in Hgt.
@@ -1011,19 +1011,19 @@ Definition elimination_result (eliminated : int -> Prop)
   (input_inequalities output_inequalities : list Affine.t)
     : Prop :=
   Forall wf output_inequalities
-  /\ (forall (covering_atoms : list int),
+  ∧ (forall (covering_atoms : list int),
         (forall (f : Affine.t),
            f ∈ input_inequalities ⇒ incl (map fst f.(Affine.terms))
              covering_atoms) ⇒
         forall (f : Affine.t), f ∈ output_inequalities ⇒ incl (map fst
           f.(Affine.terms)) covering_atoms)
-  /\ (forall (id : int),
+  ∧ (forall (id : int),
         eliminated id
-        \/ (forall (f : Affine.t),
+        ∨ (forall (f : Affine.t),
               f ∈ input_inequalities ⇒ to_Z (Affine.coeff id f) = 0) ⇒
         forall (f : Affine.t), f ∈ output_inequalities ⇒ to_Z (Affine.coeff
           id f) = 0)
-  /\ (forall (rho : valuation), holds_all rho input_inequalities ⇒ holds_all
+  ∧ (forall (rho : valuation), holds_all rho input_inequalities ⇒ holds_all
     rho output_inequalities).
 
 (* [eliminate_atom atom], when it answers, is an elimination step in the sense
@@ -1047,12 +1047,12 @@ Proof.
   (* Each output is an input with a zero coefficient of [v], or the resolvent
      of an input pair with coefficients of opposite signs. *)
   assert (Hcase : forall f, f ∈ (rev_append zc res) ->
-            (f ∈ ineqs /\ Affine.coeff v f = zero)
-            \/ (exists p n cn, p ∈ ineqs /\ n ∈ ineqs
-                  /\ 0 < to_Z (Affine.coeff v p)
-                  /\ to_Z (Affine.coeff v n) < 0
-                  /\ to_Z cn = - to_Z (Affine.coeff v n)
-                  /\ resolvent (Affine.coeff v p) cn p n = Some f)).
+            (f ∈ ineqs ∧ Affine.coeff v f = zero)
+            ∨ (exists p n cn, p ∈ ineqs ∧ n ∈ ineqs
+                  ∧ 0 < to_Z (Affine.coeff v p)
+                  ∧ to_Z (Affine.coeff v n) < 0
+                  ∧ to_Z cn = - to_Z (Affine.coeff v n)
+                  ∧ resolvent (Affine.coeff v p) cn p n = Some f)).
   { intros f Hin. apply in_rev_append in Hin as [ Hin | Hin ].
     - left. apply filter_In in Hin as [Hin Hz]. apply eqb_int in Hz. auto.
     - right. unfold res, concat_map in Hin.

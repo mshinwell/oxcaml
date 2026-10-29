@@ -336,7 +336,7 @@ Module Int64.
      than the second. *)
   Axiom compare_spec : forall (a b : int64),
     (Sint63Axioms.to_Z (compare a b) < 0 ⇔ to_Z a < to_Z b)
-    /\ (Sint63Axioms.to_Z (compare a b) = 0 ⇔ to_Z a = to_Z b).
+    ∧ (Sint63Axioms.to_Z (compare a b) = 0 ⇔ to_Z a = to_Z b).
 
   (* The tests OxCaml code writes as [Int64.compare x y < 0], [> 0] and [>= 0],
      which the models write the same way. *)

@@ -235,7 +235,7 @@ Definition enter (target : block) (regs : registers) : state :=
      current_registers := regs |}.
 
 Definition at_entry (target : block) (current : state) : Prop :=
-  current_block current = target /\ remaining current = block_body target.
+  current_block current = target ∧ remaining current = block_body target.
 
 (* The remaining instruction list is a suffix of the current block's body in a
    reachable state. Successor selection checks nonnegativity before conversion
@@ -325,7 +325,7 @@ Definition register_defined_in_region (region : blockset)
   match reg with
   | Result id _ =>
     exists (b : block) (op : operation) (args : list value) (results : int),
-      set_mem b region = true /\ (Op id op args results) ∈ (block_body b)
+      set_mem b region = true ∧ (Op id op args results) ∈ (block_body b)
   | Param b _ => set_mem b region = true
   end.
 
@@ -614,8 +614,8 @@ Theorem supported_instruction_executes :
   read_values regs (args_of_instr insn) = Some arg_values ⇒
   exists (id : instr_id) (op : operation) (args : list value) (result : Z),
     insn = Op id op args one
-    /\ eval_operation op arg_values = Some result
-    /\ execute_instruction regs insn
+    ∧ eval_operation op arg_values = Some result
+    ∧ execute_instruction regs insn
        = Some (write_register regs (Result id zero) (Some result)).
 Proof.
   intros [id op args results | |] rs zs Hsup Hread; try discriminate.
@@ -652,11 +652,11 @@ Theorem execute_instruction_result : forall (id : instr_id) (op : operation)
     (regs_before regs_after : registers),
   execute_instruction regs_before (Op id op args result_count)
     = Some regs_after ⇒
-  result_count = one /\
+  result_count = one ∧
   exists (arg_values : list Z) (result : Z),
     read_values regs_before args = Some arg_values
-    /\ eval_operation op arg_values = Some result
-    /\ regs_after = write_register regs_before (Result id zero) (Some result).
+    ∧ eval_operation op arg_values = Some result
+    ∧ regs_after = write_register regs_before (Result id zero) (Some result).
 Proof.
   intros id op args result_count regs_before regs_after Hexec.
   unfold execute_instruction in Hexec.
@@ -694,7 +694,7 @@ Theorem goto_step_parameter : parameter_layout ⇒
   terminator (current_block before)
     = Terminator.Continue (Goto target) args ⇒
   step before after ⇒
-  current_block after = target /\ remaining after = block_body target /\
+  current_block after = target ∧ remaining after = block_body target ∧
   forall (index : int) (arg : value),
     nth_int args index = Some (Terminator.Arg arg) ⇒
     current_registers after (register_of_value (param target index))
@@ -867,7 +867,7 @@ Theorem supported_block_spec : forall (b : block),
   supported_block b = true ⇒
   (forall (insn : instr), insn ∈ (block_body b) ⇒
      supported_instruction insn = true)
-  /\ terminator_pure_control (terminator b) = true.
+  ∧ terminator_pure_control (terminator b) = true.
 Proof.
   intros b H. apply andb_true_iff in H. destruct H as [Hi Ht].
   rewrite forallb_forall in Hi. auto.

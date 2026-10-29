@@ -191,12 +191,12 @@ Qed.
    is not needed). *)
 Lemma gcd64_divides : forall (a b : Int64.t),
   (Int64.to_Z (gcd64 a b) | Int64.to_Z a)
-  /\ (Int64.to_Z (gcd64 a b) | Int64.to_Z b).
+  ∧ (Int64.to_Z (gcd64 a b) | Int64.to_Z b).
 Proof.
   intros a b. functional induction (gcd64 a b).
   - apply Int64.equal_spec in e. rewrite Int64.to_Z_zero in e. rewrite e.
     split; [ apply Z.divide_refl | apply Z.divide_0_r ].
-  - match goal with IH : _ /\ _ |- _ => destruct IH as [IH1 IH2] end.
+  - match goal with IH : _ ∧ _ |- _ => destruct IH as [IH1 IH2] end.
     apply Int64.nonzero in e.
     rewrite Int64.rem_spec in IH2 by exact e.
     split; [ | exact IH1 ].

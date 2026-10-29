@@ -88,13 +88,13 @@ Import ListNotations.
 Definition eligible_entry (header exit : block) (header_regs : registers)
     : Prop :=
   params exit = []
-  /\ exists (first_header_regs exit_regs : registers),
+  ∧ exists (first_header_regs exit_regs : registers),
        executes_insns header_regs (block_body header) first_header_regs
-       /\ steps_until exit
+       ∧ steps_until exit
             {| current_block := header; remaining := [];
                current_registers := first_header_regs |}
             (enter exit exit_regs)
-       /\ agree_on_live (block_entry_point exit) first_header_regs exit_regs.
+       ∧ agree_on_live (block_entry_point exit) first_header_regs exit_regs.
 
 (* ======================================================================== *)
 (* Part 2: proof                                                            *)
@@ -106,15 +106,15 @@ Definition eligible_entry (header exit : block) (header_regs : registers)
 Definition eligible_loop_entry (loop : natural_loop) (exit : block)
     (header_regs : registers) : Prop :=
   set_mem loop.(header) loop.(body) = true
-  /\ set_mem exit loop.(body) = false
-  /\ params exit = []
-  /\ exists (first_header_regs exit_regs : registers),
+  ∧ set_mem exit loop.(body) = false
+  ∧ params exit = []
+  ∧ exists (first_header_regs exit_regs : registers),
        executes_insns header_regs (block_body loop.(header)) first_header_regs
-       /\ region_steps loop.(body)
+       ∧ region_steps loop.(body)
             {| current_block := loop.(header); remaining := [];
                current_registers := first_header_regs |}
             (enter exit exit_regs)
-       /\ agree_on_live (block_entry_point exit) first_header_regs exit_regs.
+       ∧ agree_on_live (block_entry_point exit) first_header_regs exit_regs.
 
 Lemma eligible_loop_entry_eligible : forall (loop : natural_loop)
     (exit : block) (header_regs : registers),

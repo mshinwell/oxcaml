@@ -65,15 +65,15 @@ Definition result_register (id : instr_id) (result_count : int)
   (reg : register)
     : Prop :=
   exists (index : int),
-    reg = Result id index /\ 0 <= to_Z index < to_Z result_count.
+    reg = Result id index ∧ 0 <= to_Z index < to_Z result_count.
 
 (* An opaque effect writes only its declared outputs. Each output is an
    arbitrary word observation; all other register observations persist. *)
 Definition opaque_outputs (written : register -> Prop)
     (before after : registers) : Prop :=
   (forall (reg : register), ~ written reg ⇒ after reg = before reg)
-  /\ (forall (reg : register), written reg ⇒
-        exists (word : Z), in_int64 word /\ after reg = Some word).
+  ∧ (forall (reg : register), written reg ⇒
+        exists (word : Z), in_int64 word ∧ after reg = Some word).
 
 Inductive context_step : state -> state -> Prop :=
   | Context_integer : forall (before after : state),
@@ -269,7 +269,7 @@ Lemma context_step_new_result : forall (before after : state)
   valid_position before ⇒ context_step before after ⇒
   modeled_operation op args = true ⇒
   value_definition (Res id op args index) (state_program_point after) ⇒
-  index = zero /\ execute_instruction (current_registers before)
+  index = zero ∧ execute_instruction (current_registers before)
     (Op id op args one) = Some (current_registers after).
 Proof.
   intros before after id op args index Hposition Hstep Hmodeled Hdefinition.
@@ -463,7 +463,7 @@ Theorem context_execution_invariants : forall (entry : block)
     (initial_regs : registers) (reached : state),
   bounded_registers initial_regs ⇒
   context_steps (enter entry initial_regs) reached ⇒
-  valid_position reached /\ bounded_registers (current_registers reached).
+  valid_position reached ∧ bounded_registers (current_registers reached).
 Proof.
   intros entry initial_regs reached Hbounded Hrun. split.
   - eapply context_steps_valid_position;

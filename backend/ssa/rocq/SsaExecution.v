@@ -51,7 +51,7 @@ Definition result_definition (id : instr_id) (op : operation)
     (args : list value) (result_count : int) (site : program_point) : Prop :=
   exists (prefix suffix : list instr),
     block_body (fst site) = prefix ++ Op id op args result_count :: suffix
-    /\ snd site = length suffix.
+    ∧ snd site = length suffix.
 
 (* A reference carries the actual definition's payload, not just its ID.
    Parameters are available at entry; operation results after execution. *)
@@ -60,9 +60,9 @@ Definition value_definition (v : value) (site : program_point) : Prop :=
   | Res id op args index =>
     exists (result_count : int),
       result_definition id op args result_count site
-      /\ (0 <= to_Z index < to_Z result_count)%Z
+      ∧ (0 <= to_Z index < to_Z result_count)%Z
   | Block_param b index =>
-    site = block_entry_point b /\ nth_int (params b) index = Some v
+    site = block_entry_point b ∧ nth_int (params b) index = Some v
   end.
 
 Record well_formed_ssa (blocks : list block) (entry : block) : Prop :=
@@ -87,14 +87,14 @@ Record well_formed_ssa (blocks : list block) (entry : block) : Prop :=
       (fst site) ∈ blocks ⇒ result_definition id op args count site ⇒
       forall (arg : value), arg ∈ args ⇒
       exists (arg_site : program_point),
-        value_definition arg arg_site /\ (fst arg_site) ∈ blocks
-        /\ program_point_dominates entry arg_site site /\ arg_site <> site;
+        value_definition arg arg_site ∧ (fst arg_site) ∈ blocks
+        ∧ program_point_dominates entry arg_site site ∧ arg_site <> site;
     terminator_definitions : forall (b : block) (args : list value),
       b ∈ blocks ⇒ args ∈ (terminator_args (terminator b)) ⇒
       forall (arg : value), arg ∈ args ⇒
       exists (arg_site : program_point),
-        value_definition arg arg_site /\ (fst arg_site) ∈ blocks
-        /\ program_point_dominates entry arg_site (b, 0%nat) }.
+        value_definition arg arg_site ∧ (fst arg_site) ∈ blocks
+        ∧ program_point_dominates entry arg_site (b, 0%nat) }.
 
 (* Exact equations for modeled instruction results, and no equations for opaque
    results or parameters. Register definedness is proved separately in
@@ -105,8 +105,8 @@ Definition value_coherent (regs : registers) (v : value) : Prop :=
     if modeled_operation op args then
       exists (arg_values : list Z) (result : Z),
         read_values regs args = Some arg_values
-        /\ eval_operation op arg_values = Some result
-        /\ regs (Result id index) = Some result
+        ∧ eval_operation op arg_values = Some result
+        ∧ regs (Result id index) = Some result
     else True
   | Block_param _ _ => True
   end.
@@ -116,8 +116,8 @@ Definition value_coherent (regs : registers) (v : value) : Prop :=
    definition later in the block is not available. *)
 Definition available_value (blocks : list block) (entry : block)
     (position : program_point) (v : value) : Prop :=
-  exists (site : program_point), value_definition v site /\ (fst site) ∈ blocks
-    /\ program_point_dominates entry site position.
+  exists (site : program_point), value_definition v site ∧ (fst site) ∈ blocks
+    ∧ program_point_dominates entry site position.
 
 (* Only available values are asserted coherent. Values from another branch,
    later instructions and stale results from a previous loop iteration need not
@@ -215,7 +215,7 @@ Qed.
 Lemma result_definition_of_membership : forall (b : block) (id : instr_id)
     (op : operation) (args : list value) (count : int),
   (Op id op args count) ∈ (block_body b) ⇒
-  exists (site : program_point), fst site = b /\
+  exists (site : program_point), fst site = b ∧
     result_definition id op args count site.
 Proof.
   intros b id op args count Hin. apply in_split in Hin.
@@ -385,7 +385,7 @@ Lemma step_new_result : forall (before after : state) (id : instr_id)
     (op : operation) (args : list value) (index : int),
   valid_position before ⇒ step before after ⇒
   value_definition (Res id op args index) (state_program_point after) ⇒
-  index = zero /\
+  index = zero ∧
   execute_instruction (current_registers before) (Op id op args one)
     = Some (current_registers after).
 Proof.

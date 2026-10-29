@@ -111,7 +111,7 @@ Lemma region_exit_body_prefix : forall (region : blockset) (b : block)
   region_steps region
     {| current_block := b; remaining := insns; current_registers := before |}
     after ⇒
-  exists (body_regs : registers), executes_insns before insns body_regs /\
+  exists (body_regs : registers), executes_insns before insns body_regs ∧
     region_steps region
       {| current_block := b; remaining := []; current_registers := body_regs |}
       after.
@@ -137,7 +137,7 @@ Theorem region_steps_frame : parameter_layout ⇒ forall (region : blockset)
     (before after : state) (reg : register),
   region_steps region before after ⇒ valid_position before ⇒
   (set_mem (current_block after) region = true
-   \/ params (current_block after) = []) ⇒ ~ register_defined_in_region region
+   ∨ params (current_block after) = []) ⇒ ~ register_defined_in_region region
      reg ⇒
   current_registers after reg = current_registers before reg.
 Proof.
@@ -165,7 +165,7 @@ Lemma step_exits_region : control_edges ⇒ forall (region : blockset)
   set_mem (current_block after) region = false ⇒
   SsaSemantics.step before after ⇒
   (current_block after) ∈ (all_successors (current_block before))
-    /\ after = enter (current_block after) (current_registers after).
+    ∧ after = enter (current_block after) (current_registers after).
 Proof.
   intros Hedges region before after Hinside Houtside Hstep.
   destruct Hstep; cbn in *; [congruence | |]; split; try reflexivity.
@@ -203,7 +203,7 @@ Qed.
 Lemma terminator_step_edge : control_edges ⇒ forall (before after : state),
   remaining before = [] ⇒ SsaSemantics.step before after ⇒
   (current_block after) ∈ (all_successors (current_block before))
-  /\ remaining after = block_body (current_block after).
+  ∧ remaining after = block_body (current_block after).
 Proof.
   intros Hedges s s' Hremaining Hstep.
   destruct Hstep; cbn in *; try discriminate; split; try reflexivity.
@@ -250,13 +250,13 @@ Theorem region_iteration : control_edges ⇒ parameter_layout ⇒
     set_mem (current_block reached) region = true ⇒
     exists (next : state), SsaSemantics.step reached next) ⇒
   exists (before after : state),
-    region_steps region start before /\ SsaSemantics.step before after
-    /\ set_mem (current_block before) region = true
-    /\ remaining before = []
-    /\ (set_mem (current_block after) region = false
-        \/ current_block after = header)
-    /\ after = enter (current_block after) (current_registers after)
-    /\ forall (index : int),
+    region_steps region start before ∧ SsaSemantics.step before after
+    ∧ set_mem (current_block before) region = true
+    ∧ remaining before = []
+    ∧ (set_mem (current_block after) region = false
+        ∨ current_block after = header)
+    ∧ after = enter (current_block after) (current_registers after)
+    ∧ forall (index : int),
          current_registers before (Param header index)
          = current_registers start (Param header index).
 Proof.
@@ -269,13 +269,13 @@ Proof.
     (forall (index : int), regs (Param header index)
       = current_registers start (Param header index)) ->
     exists (before after : state),
-      region_steps region start before /\ SsaSemantics.step before after
-      /\ set_mem (current_block before) region = true
-      /\ remaining before = []
-      /\ (set_mem (current_block after) region = false
-          \/ current_block after = header)
-      /\ after = enter (current_block after) (current_registers after)
-      /\ forall (index : int), current_registers before (Param header index)
+      region_steps region start before ∧ SsaSemantics.step before after
+      ∧ set_mem (current_block before) region = true
+      ∧ remaining before = []
+      ∧ (set_mem (current_block after) region = false
+          ∨ current_block after = header)
+      ∧ after = enter (current_block after) (current_registers after)
+      ∧ forall (index : int), current_registers before (Param header index)
            = current_registers start (Param header index)).
   { intros b Hacc. induction Hacc as [b Hacc IH].
     intros regs Hb Hnot Hprefix Hparams.
@@ -420,9 +420,9 @@ Section Graph.
     (loop_header, exit) ∈ (find_deletions defs blocks) ⇒
     exists (loop : natural_loop) (bivs : list biv),
       (loop, bivs) ∈ (InductionVar.analyze defs blocks)
-      /\ loop_header = loop.(header)
-      /\ deletion_certificate defs blocks loop bivs exit
-      /\ loop_graph_properties blocks entry loop.
+      ∧ loop_header = loop.(header)
+      ∧ deletion_certificate defs blocks loop bivs exit
+      ∧ loop_graph_properties blocks entry loop.
   Proof.
     intros defs h exit Hin.
     destruct (find_deletions_spec _ _ _ _ Hin)
@@ -448,10 +448,10 @@ Theorem loop_back_edge_step : forall (blocks : list block) (entry : block)
     SsaSemantics.step before after ⇒ current_block after = loop.(header) ⇒
     exists (args : list Terminator.arg),
       (current_block before) ∈ loop.(back_edge_sources)
-      /\ (current_block before) ∈ (predecessors loop.(header))
-      /\ terminator (current_block before)
+      ∧ (current_block before) ∈ (predecessors loop.(header))
+      ∧ terminator (current_block before)
            = Terminator.Continue (Goto loop.(header)) args
-      /\ forall (index : int) (arg : value),
+      ∧ forall (index : int) (arg : value),
            nth_int args index = Some (Terminator.Arg arg) ⇒
            current_registers after
              (register_of_value (param loop.(header) index))
