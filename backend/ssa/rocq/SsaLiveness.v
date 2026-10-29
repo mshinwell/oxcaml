@@ -52,10 +52,10 @@ Inductive operand_at : program_point -> value -> Prop :=
   | Instruction_operand : ∀ (b : block) (remaining : nat)
       (id : instr_id) (op : operation) (args : list value) (count : int)
       (arg : value),
-      result_definition id op args count (b, remaining) ⇒ arg ∈ args ⇒
+      result_definition id op args count (b, remaining) -> arg ∈ args ->
       operand_at (b, S remaining) arg
   | Terminator_operand : ∀ (b : block) (args : list value) (arg : value),
-      args ∈ (terminator_args (terminator b)) ⇒ arg ∈ args ⇒
+      args ∈ (terminator_args (terminator b)) -> arg ∈ args ->
       operand_at (b, 0%nat) arg.
 
 Definition register_defined_at (position : program_point)
@@ -67,21 +67,21 @@ Definition register_defined_at (position : program_point)
    because that parameter is used in the block. *)
 Inductive register_live_at : program_point -> register -> Prop :=
   | Live_read : ∀ (position : program_point) (v : value),
-      operand_at position v ⇒ register_live_at position (register_of_value v)
+      operand_at position v -> register_live_at position (register_of_value v)
   | Live_predecessor : ∀ (before after : program_point) (reg : register),
-      program_point_edge before after ⇒ ~ register_defined_at after reg ⇒
-      register_live_at after reg ⇒ register_live_at before reg.
+      program_point_edge before after -> ~ register_defined_at after reg ->
+      register_live_at after reg -> register_live_at before reg.
 
 Definition agree_on_live (position : program_point)
   (left right : registers) : Prop :=
   ∀ (reg : register),
-    register_live_at position reg ⇒ left reg = right reg.
+    register_live_at position reg -> left reg = right reg.
 
 (* The point immediately before an actual instruction has its instruction edge
    to the definition site. *)
 Lemma definition_instruction_edge : ∀ (b : block) (remaining : nat)
     (id : instr_id) (op : operation) (args : list value) (count : int),
-  result_definition id op args count (b, remaining) ⇒
+  result_definition id op args count (b, remaining) ->
   program_point_edge (b, S remaining) (b, remaining).
 Proof.
   intros b remaining id op args count [prefix [suffix [Hbody Hlength]]].
@@ -94,8 +94,8 @@ Qed.
    rather than merely after its result is written. *)
 Theorem operand_at_available : ∀ (blocks : list block) (entry : block)
     (position : program_point) (v : value),
-  well_formed_ssa blocks entry ⇒ (fst position) ∈ blocks ⇒
-  operand_at position v ⇒ available_value blocks entry position v.
+  well_formed_ssa blocks entry -> (fst position) ∈ blocks ->
+  operand_at position v -> available_value blocks entry position v.
 Proof.
   intros blocks entry position v Hwf Hblock Huse.
   destruct Huse as [b remaining id op args count arg Hdefinition Harg |
@@ -115,8 +115,8 @@ Qed.
 Lemma program_point_edge_in_graph : ∀ (blocks : list block)
   (entry : block)
     (before after : program_point),
-  well_formed_ssa blocks entry ⇒ (fst before) ∈ blocks ⇒
-  program_point_edge before after ⇒ (fst after) ∈ blocks.
+  well_formed_ssa blocks entry -> (fst before) ∈ blocks ->
+  program_point_edge before after -> (fst after) ∈ blocks.
 Proof.
   intros blocks entry before after Hwf Hbefore Hedge. destruct Hedge;
     cbn in *; [exact Hbefore |].
@@ -128,8 +128,8 @@ Qed.
    registers for definitions that will execute later are not live. *)
 Theorem live_at_available : ∀ (blocks : list block) (entry : block)
     (position : program_point) (reg : register),
-  well_formed_ssa blocks entry ⇒ (fst position) ∈ blocks ⇒
-  register_live_at position reg ⇒
+  well_formed_ssa blocks entry -> (fst position) ∈ blocks ->
+  register_live_at position reg ->
   ∃ (v : value), register_of_value v = reg ∧
     available_value blocks entry position v.
 Proof.

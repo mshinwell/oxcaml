@@ -179,7 +179,7 @@ Definition bound_value (valuation : value -> Z)
    a run, entry guards or a valuation of SSA expressions. *)
 Lemma constant_bound_in_range : ∀ (step_size : int) (header : block)
     (limit : int),
-  bound_in_range step_size header (Const_bound limit) = true ⇒
+  bound_in_range step_size header (Const_bound limit) = true ->
   LoopComparisons.bound_in_range (to_Z step_size) (to_Z limit) = true.
 Proof.
   intros step_size header limit Hcheck.
@@ -211,7 +211,7 @@ Section Recognition.
       (cmp : integer_comparison) (iv_is_left : bool)
         (comparison_bound : bound),
     extract_comparison is_counter_operand is_bound comparison_result = Some
-      (cmp, iv_is_left, comparison_bound) ⇒
+      (cmp, iv_is_left, comparison_bound) ->
     ∃ id result_index,
       (∃ left_operand constant_bound,
          comparison_result = Res id (Intop_imm (Icomp cmp) constant_bound)
@@ -265,7 +265,7 @@ Section Recognition.
     ∀ (is_self : value -> bool) (step_constant : int) (sign : biv_sign)
       (updated_value : value),
     classify_update is_self op_def loop.(header) updated_value
-      = Some (Step_const step_constant, sign) ⇒
+      = Some (Step_const step_constant, sign) ->
     ∃ id result_index self,
       is_self self = true
       ∧ ((sign = Add ∧ updated_value = Res id (Intop_imm Iadd step_constant)
@@ -301,8 +301,8 @@ Section Recognition.
      LoopComparisons.v on them is [Terminates], or
      [Terminates_if_bound_in_range] with the bound checked in range. *)
   Lemma biv_implies_termination_spec : ∀ (biv : biv),
-    biv.(InductionVar.loop) = loop ⇒
-    biv_implies_termination op_def biv = true ⇒
+    biv.(InductionVar.loop) = loop ->
+    biv_implies_termination op_def biv = true ->
     ∃ exit_info step_size cmp iv_is_left comparison_bound,
       find_exit_branch loop = Some exit_info
       ∧ signed_step biv = Some step_size

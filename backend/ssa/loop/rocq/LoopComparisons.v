@@ -222,10 +222,10 @@ Qed.
    decreases while staying non-negative, then the test eventually fails. *)
 Lemma terminate_by_measure :
   ∀ (test : Z -> bool) (step : Z) (decreasing_measure : Z -> Z),
-    (∀ (counter : Z), in_int64 counter ⇒ test counter = true ⇒
+    (∀ (counter : Z), in_int64 counter -> test counter = true ->
        in_int64 (counter + step) ∧ 0 <= decreasing_measure counter ∧
-         decreasing_measure (counter + step) < decreasing_measure counter) ⇒
-    ∀ (initial_counter : Z), in_int64 initial_counter ⇒ ∃
+         decreasing_measure (counter + step) < decreasing_measure counter) ->
+    ∀ (initial_counter : Z), in_int64 initial_counter -> ∃
       iterations, test (counter_after_iterations initial_counter step
       iterations) = false.
 Proof.
@@ -256,7 +256,7 @@ Qed.
    since adding a non-zero 63-bit step to a 64-bit value changes it even with
    wrap-around. *)
 Lemma ceq_terminates : ∀ (step initial_counter bound : Z),
-  - two62 <= step <= two62 - 1 ⇒ step <> 0 ⇒
+  - two62 <= step <= two62 - 1 -> step <> 0 ->
   ∃ iterations, eval Ceq (counter_after_iterations initial_counter step
     iterations) bound = false.
 Proof.
@@ -276,7 +276,7 @@ Qed.
 (* [Clt], step 1: continuing means [v < bound], so [v + 1 <= bound] is again a
    64-bit value, and [bound - v] decreases. *)
 Lemma clt_one_terminates : ∀ (initial_counter bound : Z),
-  in_int64 initial_counter ⇒ in_int64 bound ⇒
+  in_int64 initial_counter -> in_int64 bound ->
   ∃ iterations, eval Clt (counter_after_iterations initial_counter 1
     iterations) bound = false.
 Proof.
@@ -289,7 +289,7 @@ Qed.
 
 (* [Cgt], step -1: symmetric. *)
 Lemma cgt_minus_one_terminates : ∀ (initial_counter bound : Z),
-  in_int64 initial_counter ⇒ in_int64 bound ⇒
+  in_int64 initial_counter -> in_int64 bound ->
   ∃ iterations, eval Cgt (counter_after_iterations initial_counter (-1)
     iterations) bound = false.
 Proof.
@@ -303,8 +303,8 @@ Qed.
 (* [Clt], positive step, [bound <= max_int]: continuing means [v < bound <=
    2^62 - 1] and [step <= 2^62 - 1], so [v + step < 2^63]. *)
 Lemma clt_pos_terminates : ∀ (step initial_counter bound : Z),
-  0 < step <= two62 - 1 ⇒ bound <= ocaml_max_int ⇒
-  in_int64 initial_counter ⇒ in_int64 bound ⇒
+  0 < step <= two62 - 1 -> bound <= ocaml_max_int ->
+  in_int64 initial_counter -> in_int64 bound ->
   ∃ iterations, eval Clt (counter_after_iterations initial_counter step
     iterations) bound = false.
 Proof.
@@ -317,8 +317,8 @@ Qed.
 
 (* [Cle], positive step, [bound <= max_int]: as above with [v <= bound]. *)
 Lemma cle_pos_terminates : ∀ (step initial_counter bound : Z),
-  0 < step <= two62 - 1 ⇒ bound <= ocaml_max_int ⇒
-  in_int64 initial_counter ⇒ in_int64 bound ⇒
+  0 < step <= two62 - 1 -> bound <= ocaml_max_int ->
+  in_int64 initial_counter -> in_int64 bound ->
   ∃ iterations, eval Cle (counter_after_iterations initial_counter step
     iterations) bound = false.
 Proof.
@@ -331,8 +331,8 @@ Qed.
 
 (* [Cgt], negative step, [bound >= -max_int]: symmetric. *)
 Lemma cgt_neg_terminates : ∀ (step initial_counter bound : Z),
-  - two62 <= step < 0 ⇒ - ocaml_max_int <= bound ⇒
-  in_int64 initial_counter ⇒ in_int64 bound ⇒
+  - two62 <= step < 0 -> - ocaml_max_int <= bound ->
+  in_int64 initial_counter -> in_int64 bound ->
   ∃ iterations, eval Cgt (counter_after_iterations initial_counter step
     iterations) bound = false.
 Proof.
@@ -345,8 +345,8 @@ Qed.
 
 (* [Cge], negative step, [bound >= -max_int]: symmetric. *)
 Lemma cge_neg_terminates : ∀ (step initial_counter bound : Z),
-  - two62 <= step < 0 ⇒ - ocaml_max_int <= bound ⇒
-  in_int64 initial_counter ⇒ in_int64 bound ⇒
+  - two62 <= step < 0 -> - ocaml_max_int <= bound ->
+  in_int64 initial_counter -> in_int64 bound ->
   ∃ iterations, eval Cge (counter_after_iterations initial_counter step
     iterations) bound = false.
 Proof.
@@ -380,8 +380,8 @@ Qed.
    fails after finitely many iterations of adding [step] with wrap-around. *)
 Theorem continue_terminates_Terminates :
   ∀ (step : int) (cmp : integer_comparison) (initial_counter bound : Z),
-    in_int64 initial_counter ⇒ in_int64 bound ⇒
-    continue_terminates step cmp = Terminates ⇒
+    in_int64 initial_counter -> in_int64 bound ->
+    continue_terminates step cmp = Terminates ->
     ∃ iterations, eval cmp (counter_after_iterations initial_counter (to_Z
       step) iterations) bound = false.
 Proof.
@@ -397,9 +397,9 @@ Qed.
    the bound holds. *)
 Theorem continue_terminates_Terminates_if_bound_in_range :
   ∀ (step : int) (cmp : integer_comparison) (initial_counter bound : Z),
-    in_int64 initial_counter ⇒ in_int64 bound ⇒
-    continue_terminates step cmp = Terminates_if_bound_in_range ⇒
-    bound_in_range (to_Z step) bound = true ⇒
+    in_int64 initial_counter -> in_int64 bound ->
+    continue_terminates step cmp = Terminates_if_bound_in_range ->
+    bound_in_range (to_Z step) bound = true ->
     ∃ iterations, eval cmp (counter_after_iterations initial_counter (to_Z
       step) iterations) bound = false.
 Proof.
@@ -421,14 +421,14 @@ Qed.
 Corollary loop_exits :
   ∀ (iv_is_left continue_when_true : bool) (cmp : integer_comparison)
     (step : int) (initial_counter bound : Z),
-    in_int64 initial_counter ⇒ in_int64 bound ⇒
+    in_int64 initial_counter -> in_int64 bound ->
     let continue_comparison := oriented_continue_comparison iv_is_left
       continue_when_true cmp
     in
     (continue_terminates step continue_comparison = Terminates
      ∨ (continue_terminates step continue_comparison =
        Terminates_if_bound_in_range
-         ∧ bound_in_range (to_Z step) bound = true)) ⇒
+         ∧ bound_in_range (to_Z step) bound = true)) ->
     ∃ iterations,
       loop_continues iv_is_left continue_when_true cmp
         (counter_after_iterations initial_counter (to_Z step) iterations) bound
@@ -447,16 +447,16 @@ Qed.
    and that it keeps the forms well-formed. *)
 Lemma sub_checked_denote : ∀ (rho : valuation)
   (left_form right_form difference : Affine.t),
-  Affine.sub_checked left_form right_form = Some difference ⇒ wf left_form ⇒
-    wf right_form ⇒
+  Affine.sub_checked left_form right_form = Some difference -> wf left_form ->
+    wf right_form ->
   denote rho difference = denote rho left_form - denote rho right_form.
 Proof.
   intros rho a b f H Ha Hb. exact (proj1 (sub_checked_spec rho a b f Ha Hb H)).
 Qed.
 
 Lemma sub_checked_wf : ∀ (left_form right_form difference : Affine.t),
-  Affine.sub_checked left_form right_form = Some difference ⇒ wf left_form ⇒
-    wf right_form ⇒ wf difference.
+  Affine.sub_checked left_form right_form = Some difference -> wf left_form ->
+    wf right_form -> wf difference.
 Proof.
   intros a b f H Ha Hb.
   exact (proj2 (proj2 (sub_checked_spec (fun _ => 0) a b f Ha Hb H))).
@@ -465,7 +465,7 @@ Qed.
 Lemma add_const_checked_denote :
   ∀ (rho : valuation) (form : Affine.t) (constant : int)
     (result_form : Affine.t),
-  Affine.add_const_checked form constant = Some result_form ⇒
+  Affine.add_const_checked form constant = Some result_form ->
   denote rho result_form = denote rho form + to_Z constant.
 Proof.
   intros rho a c f H. exact (proj1 (add_const_checked_spec rho a c f H)).
@@ -473,8 +473,8 @@ Qed.
 
 Lemma add_const_checked_wf : ∀ (form : Affine.t) (constant : int)
   (result_form : Affine.t),
-  Affine.add_const_checked form constant = Some result_form ⇒
-  wf form ⇒ wf result_form.
+  Affine.add_const_checked form constant = Some result_form ->
+  wf form -> wf result_form.
 Proof.
   intros a c f H Ha.
   exact (proj2 (proj2 (add_const_checked_spec (fun _ => 0) a c f H)) Ha).
@@ -511,9 +511,9 @@ Theorem facts_sound :
   ∀ (negate_comparison : bool) (cmp : integer_comparison)
     (left_form right_form : Affine.t)
     (rho : int -> Z),
-    wf left_form ⇒ wf right_form ⇒
+    wf left_form -> wf right_form ->
     (let test := eval cmp (denote rho left_form) (denote rho right_form) in
-     if negate_comparison then negb test else test) = true ⇒
+     if negate_comparison then negb test else test) = true ->
     Forall (fun f => 0 <= denote rho f) (facts negate_comparison cmp left_form
       right_form).
 Proof.
@@ -541,7 +541,7 @@ Qed.
 Theorem facts_wf :
   ∀ (negate_comparison : bool) (cmp : integer_comparison)
     (left_form right_form : Affine.t),
-  wf left_form ⇒ wf right_form ⇒ Forall wf (facts negate_comparison cmp
+  wf left_form -> wf right_form -> Forall wf (facts negate_comparison cmp
     left_form right_form).
 Proof.
   intros neg cmp la lb Hla Hlb. unfold facts. cbv zeta.

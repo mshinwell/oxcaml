@@ -28,8 +28,6 @@
 (* Standard notation for quantifiers [∀], [∃] and connectives [∧], [∨]. *)
 From Stdlib Require Export Unicode.Utf8_core.
 
-(* Use double-line arrows for propositions and [->] for function types. *)
-Notation "P ⇒ Q" := (P -> Q)
-  (at level 99, right associativity) : type_scope.
-Notation "P ⇔ Q" := (P <-> Q)
-  (at level 95, no associativity) : type_scope.
+(* Keep the default arrows in proof-state printing as well as source. *)
+Disable Notation "_ → _".
+Disable Notation "_ ↔ _".

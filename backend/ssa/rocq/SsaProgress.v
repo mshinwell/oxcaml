@@ -50,8 +50,8 @@ Definition register_used (blocks : list block) (reg : register) : Prop :=
 Record control_layout (blocks : list block) : Prop :=
   { goto_parameter_layout : ∀ (source target : block)
       (args : list Terminator.arg),
-      source ∈ blocks ⇒
-      terminator source = Terminator.Continue (Goto target) args ⇒
+      source ∈ blocks ->
+      terminator source = Terminator.Continue (Goto target) args ->
       Forall2 (fun (arg : Terminator.arg) (parameter : value) =>
         match arg with
         | Terminator.Arg _ => True
@@ -60,20 +60,20 @@ Record control_layout (blocks : list block) : Prop :=
         end) args (params target);
     switch_parameterless : ∀ (source : block) (index : value)
       (targets : list block) (target : block),
-      source ∈ blocks ⇒
-      terminator source = Terminator.Switch index targets ⇒
-      target ∈ targets ⇒ params target = [] }.
+      source ∈ blocks ->
+      terminator source = Terminator.Switch index targets ->
+      target ∈ targets -> params target = [] }.
 
 Definition live_registers_defined (position : program_point)
   (regs : registers) : Prop :=
-  ∀ (reg : register), register_live_at position reg ⇒
+  ∀ (reg : register), register_live_at position reg ->
     ∃ (word : Z), regs reg = Some word.
 
 Definition switches_in_range (initial : state) : Prop :=
   ∀ (reached : state) (index : value) (targets : list block) (word : Z),
-  steps initial reached ⇒ remaining reached = [] ⇒
-  terminator (current_block reached) = Terminator.Switch index targets ⇒
-  current_registers reached (register_of_value index) = Some word ⇒
+  steps initial reached -> remaining reached = [] ->
+  terminator (current_block reached) = Terminator.Switch index targets ->
+  current_registers reached (register_of_value index) = Some word ->
   0 <= word < Z.of_nat (length targets).
 
 (* What [Ssa.finish_graph] guarantees of the graph the pass receives, as the
@@ -87,21 +87,21 @@ Record finished_graph (blocks : list block) (entry : block) (defs : op_def)
     graph_well_formed : well_formed_ssa blocks entry;
     (* The predecessors of a block of the graph are blocks of the graph. *)
     graph_predecessors_closed : ∀ (b pred : block),
-      b ∈ blocks ⇒ pred ∈ (predecessors b) ⇒ pred ∈ blocks;
+      b ∈ blocks -> pred ∈ (predecessors b) -> pred ∈ blocks;
     (* Terminators, successors and predecessors describe the same edges. *)
     graph_edges : control_edges;
     graph_switch_edges : switch_edge_multiplicity;
     (* [dominates] is sound and complete for dominance along paths. *)
     graph_dominance : dominance_semantics entry;
     graph_dominance_complete : ∀ (dominator target : block),
-      dominator ∈ blocks ⇒ target ∈ blocks ⇒
+      dominator ∈ blocks -> target ∈ blocks ->
       (∀ (visited_blocks : list block), block_path_from entry
-        visited_blocks target ⇒ dominator ∈ visited_blocks) ⇒
+        visited_blocks target -> dominator ∈ visited_blocks) ->
       dominator ▷ target;
     (* [strict_dominators] lists distinct blocks of the graph. *)
-    graph_strict_dominators : ∀ (b : block), b ∈ blocks ⇒
+    graph_strict_dominators : ∀ (b : block), b ∈ blocks ->
       NoDup (strict_dominators b)
-      ∧ (∀ (d : block), d ∈ (strict_dominators b) ⇒ d ∈ blocks);
+      ∧ (∀ (d : block), d ∈ (strict_dominators b) -> d ∈ blocks);
     (* Goto arguments match parameters; Switch targets have none. *)
     graph_layout : control_layout blocks;
     (* The table maps every instruction to its block. *)
@@ -111,8 +111,8 @@ Record finished_graph (blocks : list block) (entry : block) (defs : op_def)
    even when the read is several blocks away. *)
 Lemma live_register_used : ∀ (blocks : list block) (entry : block)
     (position : program_point) (reg : register),
-  well_formed_ssa blocks entry ⇒ (fst position) ∈ blocks ⇒
-  register_live_at position reg ⇒ register_used blocks reg.
+  well_formed_ssa blocks entry -> (fst position) ∈ blocks ->
+  register_live_at position reg -> register_used blocks reg.
 Proof.
   intros blocks entry position reg Hwf Hin Hlive. revert Hin.
   induction Hlive; intros Hin.
@@ -123,8 +123,8 @@ Qed.
 (* Reading a list succeeds when every referenced register is bound. *)
 Lemma read_values_of_defined_operands : ∀ (regs : registers)
   (args : list value),
-  (∀ (arg : value), arg ∈ args ⇒
-    ∃ (word : Z), regs (register_of_value arg) = Some word) ⇒
+  (∀ (arg : value), arg ∈ args ->
+    ∃ (word : Z), regs (register_of_value arg) = Some word) ->
   ∃ (words : list Z), read_values regs args = Some words.
 Proof.
   intros regs args. induction args as [ | arg args IH]; intros Hbound.
@@ -146,12 +146,12 @@ Lemma used_parameter_defined : ∀ (blocks : list block)
     | Terminator.Arg _ => True
     | Terminator.Omitted_since_unused =>
       ~ register_used blocks (register_of_value parameter)
-    end) args parameters ⇒
-  read_arguments before args = Some words ⇒
+    end) args parameters ->
+  read_arguments before args = Some words ->
   Forall2 (fun (parameter : value) (word : option Z) =>
-    after (register_of_value parameter) = word) parameters words ⇒
-  ∀ (parameter : value), parameter ∈ parameters ⇒
-  register_used blocks (register_of_value parameter) ⇒
+    after (register_of_value parameter) = word) parameters words ->
+  ∀ (parameter : value), parameter ∈ parameters ->
+  register_used blocks (register_of_value parameter) ->
   ∃ (word : Z), after (register_of_value parameter) = Some word.
 Proof.
   intros blocks args parameters before after words Hlayout.
@@ -178,11 +178,11 @@ Qed.
 Lemma step_new_live_register_defined : ∀ (blocks : list block)
   (entry : block)
     (before after : state) (reg : register),
-  well_formed_ssa blocks entry ⇒ control_layout blocks ⇒
-  valid_position before ⇒ (current_block before) ∈ blocks ⇒
-  register_defined_at (state_program_point after) reg ⇒ register_used blocks
-    reg ⇒
-  step before after ⇒
+  well_formed_ssa blocks entry -> control_layout blocks ->
+  valid_position before -> (current_block before) ∈ blocks ->
+  register_defined_at (state_program_point after) reg -> register_used blocks
+    reg ->
+  step before after ->
   ∃ (word : Z), current_registers after reg = Some word.
 Proof.
   intros blocks entry before after reg Hwf Hlayout Hposition Hblock
@@ -221,8 +221,8 @@ Qed.
    omitted arguments still occupy a parameter position. *)
 Lemma read_arguments_of_defined_operands : ∀ (regs : registers)
     (args : list Terminator.arg),
-  (∀ (arg : value), (Terminator.Arg arg) ∈ args ⇒
-     ∃ (word : Z), regs (register_of_value arg) = Some word) ⇒
+  (∀ (arg : value), (Terminator.Arg arg) ∈ args ->
+     ∃ (word : Z), regs (register_of_value arg) = Some word) ->
   ∃ (words : list (option Z)), read_arguments regs args = Some words
     ∧ length words = length args.
 Proof.
@@ -242,7 +242,7 @@ Qed.
 (* Equal-length parameter and argument lists can always be bound. *)
 Lemma bind_parameters_total : ∀ (parameters : list value)
     (words : list (option Z)) (regs : registers),
-  length parameters = length words ⇒
+  length parameters = length words ->
   ∃ (after : registers),
     bind_parameters parameters words regs = Some after.
 Proof.
@@ -256,16 +256,16 @@ Qed.
    Switch (if any) has a defined index. No loop property is used. *)
 Theorem supported_state_progress : ∀ (blocks : list block)
     (entry : block) (current : state),
-  well_formed_ssa blocks entry ⇒ control_layout blocks ⇒
-  valid_position current ⇒ (current_block current) ∈ blocks ⇒
+  well_formed_ssa blocks entry -> control_layout blocks ->
+  valid_position current -> (current_block current) ∈ blocks ->
   live_registers_defined (state_program_point current)
-    (current_registers current) ⇒
-  supported_block (current_block current) = true ⇒
+    (current_registers current) ->
+  supported_block (current_block current) = true ->
   (∀ (index : value) (targets : list block) (word : Z),
-    remaining current = [] ⇒
-    terminator (current_block current) = Terminator.Switch index targets ⇒
-    current_registers current (register_of_value index) = Some word ⇒
-    0 <= word < Z.of_nat (length targets)) ⇒
+    remaining current = [] ->
+    terminator (current_block current) = Terminator.Switch index targets ->
+    current_registers current (register_of_value index) = Some word ->
+    0 <= word < Z.of_nat (length targets)) ->
   ∃ (next : state), step current next.
 Proof.
   intros blocks entry [b insns regs] Hwf Hlayout Hposition Hblock Hbound

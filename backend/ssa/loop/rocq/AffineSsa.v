@@ -351,12 +351,12 @@ Local Open Scope Z_scope.
 Definition ctx_wf (c : ctx) : Prop :=
   NoDup (map fst c.(atoms))
   ∧ (∀ (id : int) (v : value),
-        (id, v) ∈ c.(atoms) ⇒ to_Z id < to_Z c.(next))
+        (id, v) ∈ c.(atoms) -> to_Z id < to_Z c.(next))
   ∧ 0 <= to_Z c.(budget).
 
 (* A context only gains atoms. *)
 Definition extends (initial_ctx extended_ctx : ctx) : Prop :=
-  ∀ (p : int * value), p ∈ initial_ctx.(atoms) ⇒ p ∈ extended_ctx.(atoms).
+  ∀ (p : int * value), p ∈ initial_ctx.(atoms) -> p ∈ extended_ctx.(atoms).
 
 (* The atoms one linearization may allocate: one per node expanded, one for the
    value itself and one when its affine form overflows; those the facts of one
@@ -390,7 +390,7 @@ Section Semantics.
     v).
   Hypothesis value_words_respect_equality :
     ∀ (v w : value),
-    value_eqb v w = true ⇒ value_words v = value_words w.
+    value_eqb v w = true -> value_words v = value_words w.
 
   (* The recognised operations compute what [SsaSemantics.eval_operation] says
      on the machine values of their arguments: there is one arithmetic
@@ -400,7 +400,7 @@ Section Semantics.
   Definition op_semantics (v : value) : Prop :=
     match v with
     | Res _ op args _ =>
-      modeled_operation op args = true ⇒
+      modeled_operation op args = true ->
       eval_operation op (map value_words args) = Some (value_words v)
     | Block_param _ _ => True
     end.
@@ -429,11 +429,11 @@ Section Semantics.
     | Res _ (Intop_imm Isub k) [a] _ => value_words v = wrap64 (value_words a -
       to_Z k)
     | Res _ (Intop_imm Ilsl k) [a] _ =>
-      0 <= to_Z k <= 63 ⇒ value_words v = wrap64 (value_words a * 2 ^ to_Z k)
+      0 <= to_Z k <= 63 -> value_words v = wrap64 (value_words a * 2 ^ to_Z k)
     | Res _ (Intop_imm Iasr k) [a] _ =>
-      0 <= to_Z k <= 63 ⇒ value_words v = value_words a / 2 ^ to_Z k
+      0 <= to_Z k <= 63 -> value_words v = value_words a / 2 ^ to_Z k
     | Res _ (Intop_imm Ilsr k) [a] _ =>
-      0 <= to_Z k <= 63 ⇒
+      0 <= to_Z k <= 63 ->
       value_words v = wrap64 (unsigned64 (value_words a) / 2 ^ to_Z k)
     | Res _ (Intop_imm Ior m) [a] _ => value_words v = Z.lor (value_words a)
       (to_Z m)
@@ -474,7 +474,7 @@ Section Semantics.
      value of the SSA value interned for it. *)
   Definition agrees (rho : valuation) (c : ctx) : Prop :=
     ∀ (id : int) (v : value),
-      (id, v) ∈ c.(atoms) ⇒ rho id = value_words v.
+      (id, v) ∈ c.(atoms) -> rho id = value_words v.
 
   (* The comparison a branch tests came out as the taken edge requires: true
      for the edge [comparison_facts] is called with [negate = false] for, false
@@ -498,12 +498,12 @@ Section Semantics.
      LoopTermination.v makes of the values at the entry to a loop. *)
   Definition guard_taken (target dominator : block) : Prop :=
     ∀ (index : value) (negate : bool),
-      guard_test target dominator = Some (index, negate) ⇒
+      guard_test target dominator = Some (index, negate) ->
       comparison_matches_branch negate index.
 
   Definition guards_taken (target : block) : Prop :=
     ∀ (dominator : block),
-      dominator ∈ (strict_dominators target) ⇒ guard_taken target dominator.
+      dominator ∈ (strict_dominators target) -> guard_taken target dominator.
 
 (* ======================================================================== *)
 (* Part 3: lemmas used by the proofs                                        *)
@@ -514,7 +514,7 @@ Section Semantics.
   Proof. intros c p H. exact H. Qed.
 
   Lemma extends_trans : ∀ (initial_ctx middle_ctx final_ctx : ctx),
-    extends initial_ctx middle_ctx ⇒ extends middle_ctx final_ctx ⇒ extends
+    extends initial_ctx middle_ctx -> extends middle_ctx final_ctx -> extends
       initial_ctx final_ctx.
   Proof. intros c1 c2 c3 H12 H23 p H. apply H23, H12, H. Qed.
 
@@ -522,7 +522,7 @@ Section Semantics.
      context. *)
   Lemma agrees_extends : ∀ (rho : valuation)
     (initial_ctx extended_ctx : ctx),
-    extends initial_ctx extended_ctx ⇒ agrees rho extended_ctx ⇒ agrees rho
+    extends initial_ctx extended_ctx -> agrees rho extended_ctx -> agrees rho
       initial_ctx.
   Proof. intros rho c c' He Ha id v H. apply Ha, He, H. Qed.
 
@@ -572,7 +572,7 @@ Section Semantics.
 
   (* --- The context --- *)
 
-  Lemma ctx_wf_budget : ∀ (c : ctx), ctx_wf c ⇒ 0 <= to_Z c.(budget).
+  Lemma ctx_wf_budget : ∀ (c : ctx), ctx_wf c -> 0 <= to_Z c.(budget).
   Proof. intros c [_ [_ H]]. exact H. Qed.
 
   Lemma new_ctx_wf : ctx_wf new_ctx.
@@ -583,7 +583,7 @@ Section Semantics.
 
   (* [refill_budget] keeps the atoms and the counter and sets the budget. *)
   Lemma refill_budget_spec : ∀ (c : ctx),
-    ctx_wf c ⇒
+    ctx_wf c ->
     ctx_wf (refill_budget c) ∧ extends c (refill_budget c)
     ∧ to_Z (refill_budget c).(next) = to_Z c.(next)
     ∧ to_Z (refill_budget c).(budget) = to_Z max_nodes.
@@ -597,8 +597,8 @@ Section Semantics.
   (* [spend_budget c node_count], when the budget has [node_count] nodes, keeps
      the atoms and the counter and lowers the budget by [node_count]. *)
   Lemma spend_budget_spec : ∀ (c : ctx) (node_count : int),
-    ctx_wf c ⇒ 0 <= to_Z node_count ⇒
-    (node_count <=? c.(budget))%sint63 = true ⇒
+    ctx_wf c -> 0 <= to_Z node_count ->
+    (node_count <=? c.(budget))%sint63 = true ->
     ctx_wf (spend_budget c node_count) ∧ extends c (spend_budget c node_count)
     ∧ to_Z (spend_budget c node_count).(next) = to_Z c.(next)
     ∧ to_Z (spend_budget c node_count).(budget)
@@ -621,12 +621,12 @@ Section Semantics.
      agreeing valuation the atom reads as [value_ref]'s machine value. *)
   Lemma intern_spec : ∀ (initial_ctx : ctx) (value_ref : value)
     (id : int) (final_ctx : ctx),
-    ctx_wf initial_ctx ⇒ to_Z initial_ctx.(next) < ocaml_max_int ⇒
-    intern initial_ctx value_ref = (id, final_ctx) ⇒
+    ctx_wf initial_ctx -> to_Z initial_ctx.(next) < ocaml_max_int ->
+    intern initial_ctx value_ref = (id, final_ctx) ->
     ctx_wf final_ctx ∧ extends initial_ctx final_ctx
     ∧ to_Z final_ctx.(next) <= to_Z initial_ctx.(next) + 1
     ∧ to_Z final_ctx.(budget) = to_Z initial_ctx.(budget)
-    ∧ ∀ (rho : valuation), agrees rho final_ctx ⇒
+    ∧ ∀ (rho : valuation), agrees rho final_ctx ->
          rho id = value_words value_ref.
   Proof.
     intros c v id c' [Hnd [Hlt Hb]] Hnext H. unfold intern in H.
@@ -666,16 +666,16 @@ Section Semantics.
     ∀ (initial_ctx : ctx) (value_ref : value) (expr : AffineExpr.t)
       (optional_range : option Range.t)
       (final_ctx : ctx),
-    ctx_wf initial_ctx ⇒ to_Z initial_ctx.(next) < ocaml_max_int ⇒
-    atomize initial_ctx value_ref = ((expr, optional_range), final_ctx) ⇒
+    ctx_wf initial_ctx -> to_Z initial_ctx.(next) < ocaml_max_int ->
+    atomize initial_ctx value_ref = ((expr, optional_range), final_ctx) ->
     ctx_wf final_ctx ∧ extends initial_ctx final_ctx ∧ to_Z final_ctx.(next)
       <= to_Z initial_ctx.(next) + 1
     ∧ to_Z final_ctx.(budget) = to_Z initial_ctx.(budget)
-    ∧ ∀ (rho : valuation), agrees rho final_ctx ⇒
+    ∧ ∀ (rho : valuation), agrees rho final_ctx ->
          AffineExpr.eval rho expr = value_words value_ref ∧
            atom_operations_consistent rho expr
          ∧ ∀ (known_range : Range.t), optional_range = Some known_range
-           ⇒ in_range known_range (value_words value_ref).
+           -> in_range known_range (value_words value_ref).
   Proof.
     intros c v e r c' Hwf Hnext H. unfold atomize in H.
     destruct (intern c v) as [id c1] eqn:Hi. injection H as <- <- <-.
@@ -694,7 +694,7 @@ Section Semantics.
   (* Every fact of the result comes from one of the two lists ... *)
   Lemma push_sides_In : ∀ (new_facts existing_facts : list Affine.t)
     (fact : Affine.t),
-    fact ∈ (push_sides existing_facts new_facts) ⇒ fact ∈ existing_facts ∨
+    fact ∈ (push_sides existing_facts new_facts) -> fact ∈ existing_facts ∨
       fact ∈ new_facts.
   Proof.
     intros sides. unfold push_sides, OxCamlList.fold_left.
@@ -713,7 +713,7 @@ Section Semantics.
      *)
   Lemma push_sides_Forall :
     ∀ (P : Affine.t -> Prop) (existing_facts new_facts : list Affine.t),
-    Forall P existing_facts ⇒ Forall P new_facts ⇒ Forall P (push_sides
+    Forall P existing_facts -> Forall P new_facts -> Forall P (push_sides
       existing_facts new_facts).
   Proof.
     intros P side sides Hside Hsides.
@@ -727,7 +727,7 @@ Section Semantics.
   (* Every well-formed context has an agreeing valuation: its atoms are
      distinct, so each can be given the machine value of its SSA value. *)
   Theorem agrees_exists :
-    ∀ (c : ctx), ctx_wf c ⇒ ∃ rho, agrees rho c.
+    ∀ (c : ctx), ctx_wf c -> ∃ rho, agrees rho c.
   Proof.
     intros c [Hnd _].
     exists (fun id => match assoc_opt id c.(atoms) with
@@ -743,7 +743,7 @@ Section Semantics.
   (* Induction over a value and, through the argument lists, the values it is
      computed from. *)
   Fixpoint value_ind' (P : value -> Prop)
-      (Hres : ∀ id op args i, Forall P args ⇒ P (Res id op args i))
+      (Hres : ∀ id op args i, Forall P args -> P (Res id op args i))
       (Hparam : ∀ block i, P (Block_param block i)) (v : value) : P v :=
     match v with
     | Res id op args i =>
@@ -794,18 +794,18 @@ Section Semantics.
     ∀ (value_ref : value) (initial_ctx : ctx) (expr : AffineExpr.t)
       (optional_range : option Range.t)
       (final_ctx : ctx),
-    ctx_wf initial_ctx ⇒
-    to_Z initial_ctx.(next) + to_Z initial_ctx.(budget) + 1 <= ocaml_max_int ⇒
+    ctx_wf initial_ctx ->
+    to_Z initial_ctx.(next) + to_Z initial_ctx.(budget) + 1 <= ocaml_max_int ->
     expr_of_value initial_ctx value_ref
-      = ((expr, optional_range), final_ctx) ⇒
+      = ((expr, optional_range), final_ctx) ->
     ctx_wf final_ctx ∧ extends initial_ctx final_ctx
     ∧ to_Z final_ctx.(next) + to_Z final_ctx.(budget)
        <= to_Z initial_ctx.(next) + to_Z initial_ctx.(budget) + 1
-    ∧ ∀ (rho : valuation), agrees rho final_ctx ⇒
+    ∧ ∀ (rho : valuation), agrees rho final_ctx ->
          AffineExpr.eval rho expr = value_words value_ref ∧
            atom_operations_consistent rho expr
          ∧ ∀ (known_range : Range.t), optional_range = Some known_range
-           ⇒ in_range known_range (value_words value_ref).
+           -> in_range known_range (value_words value_ref).
   Proof.
     intros v. induction v as [id op args i IHargs | b i] using value_ind';
       intros c e r c' Hwf Hn H;
@@ -1095,16 +1095,16 @@ Section Semantics.
     ∀ (value_ref : value) (initial_ctx : ctx)
       (initial_side_facts : list Affine.t) (form : Affine.t)
       (final_side_facts : list Affine.t) (final_ctx : ctx),
-    ctx_wf initial_ctx ⇒
-    to_Z initial_ctx.(next) + linearize_atom_bound <= ocaml_max_int ⇒
+    ctx_wf initial_ctx ->
+    to_Z initial_ctx.(next) + linearize_atom_bound <= ocaml_max_int ->
     linearize initial_ctx initial_side_facts value_ref
-      = ((form, final_side_facts), final_ctx) ⇒
+      = ((form, final_side_facts), final_ctx) ->
     ctx_wf final_ctx ∧ extends initial_ctx final_ctx
     ∧ to_Z final_ctx.(next) <= to_Z initial_ctx.(next) + linearize_atom_bound
-    ∧ wf form ∧ (Forall wf initial_side_facts ⇒ Forall wf final_side_facts)
-    ∧ ∀ (rho : valuation), agrees rho final_ctx ⇒
+    ∧ wf form ∧ (Forall wf initial_side_facts -> Forall wf final_side_facts)
+    ∧ ∀ (rho : valuation), agrees rho final_ctx ->
          denote rho form = value_words value_ref
-         ∧ (holds_all rho initial_side_facts ⇒
+         ∧ (holds_all rho initial_side_facts ->
              holds_all rho final_side_facts).
   Proof.
     intros v c side f side' c' Hwf Hn H. unfold linearize in H.
@@ -1157,17 +1157,17 @@ Section Semantics.
     ∀ (comparison_result : value) (initial_ctx : ctx)
       (initial_side_facts : list Affine.t) (negate : bool)
       (derived_facts final_side_facts : list Affine.t) (final_ctx : ctx),
-    ctx_wf initial_ctx ⇒
-    to_Z initial_ctx.(next) + comparison_atom_bound <= ocaml_max_int ⇒
+    ctx_wf initial_ctx ->
+    to_Z initial_ctx.(next) + comparison_atom_bound <= ocaml_max_int ->
     comparison_facts initial_ctx initial_side_facts negate comparison_result =
-      ((derived_facts, final_side_facts), final_ctx) ⇒
+      ((derived_facts, final_side_facts), final_ctx) ->
     ctx_wf final_ctx ∧ extends initial_ctx final_ctx
     ∧ to_Z final_ctx.(next) <= to_Z initial_ctx.(next) + comparison_atom_bound
     ∧ Forall wf derived_facts
-    ∧ (Forall wf initial_side_facts ⇒ Forall wf final_side_facts)
-    ∧ ∀ (rho : valuation), agrees rho final_ctx ⇒
-         (holds_all rho initial_side_facts ⇒ holds_all rho final_side_facts)
-         ∧ (comparison_matches_branch negate comparison_result ⇒
+    ∧ (Forall wf initial_side_facts -> Forall wf final_side_facts)
+    ∧ ∀ (rho : valuation), agrees rho final_ctx ->
+         (holds_all rho initial_side_facts -> holds_all rho final_side_facts)
+         ∧ (comparison_matches_branch negate comparison_result ->
              holds_all rho derived_facts).
   Proof.
     intros cond c side negate fs side' c' Hwf Hn H.
@@ -1226,22 +1226,22 @@ Section Semantics.
       (initial_guard_facts initial_side_facts : list Affine.t)
       (initial_ctx : ctx)
       (derived_guard_facts final_side_facts : list Affine.t) (final_ctx : ctx),
-    ctx_wf initial_ctx ⇒
+    ctx_wf initial_ctx ->
     to_Z initial_ctx.(next) + guard_list_atom_bound target dominators <=
-      ocaml_max_int ⇒
+      ocaml_max_int ->
     List.fold_left (guard_facts target) dominators
       ((initial_guard_facts, initial_side_facts), initial_ctx)
-      = ((derived_guard_facts, final_side_facts), final_ctx) ⇒
+      = ((derived_guard_facts, final_side_facts), final_ctx) ->
     ctx_wf final_ctx ∧ extends initial_ctx final_ctx
     ∧ to_Z final_ctx.(next)
        <= to_Z initial_ctx.(next) + guard_list_atom_bound target dominators
-    ∧ (Forall wf initial_guard_facts ⇒ Forall wf derived_guard_facts)
-    ∧ (Forall wf initial_side_facts ⇒ Forall wf final_side_facts)
-    ∧ ∀ (rho : valuation), agrees rho final_ctx ⇒
-         (holds_all rho initial_side_facts ⇒ holds_all rho final_side_facts)
+    ∧ (Forall wf initial_guard_facts -> Forall wf derived_guard_facts)
+    ∧ (Forall wf initial_side_facts -> Forall wf final_side_facts)
+    ∧ ∀ (rho : valuation), agrees rho final_ctx ->
+         (holds_all rho initial_side_facts -> holds_all rho final_side_facts)
          ∧ ((∀ (dominator : block),
-                dominator ∈ dominators ⇒ guard_taken target dominator) ⇒
-             holds_all rho initial_guard_facts ⇒
+                dominator ∈ dominators -> guard_taken target dominator) ->
+             holds_all rho initial_guard_facts ->
              holds_all rho derived_guard_facts).
   Proof.
     intros target doms. induction doms as [ | d doms IH ];
@@ -1306,18 +1306,18 @@ Section Semantics.
     ∀ (target : block) (initial_ctx : ctx)
       (initial_side_facts derived_guard_facts final_side_facts : list Affine.t)
       (final_ctx : ctx),
-    ctx_wf initial_ctx ⇒
-    to_Z initial_ctx.(next) + guards_atom_bound target <= ocaml_max_int ⇒
+    ctx_wf initial_ctx ->
+    to_Z initial_ctx.(next) + guards_atom_bound target <= ocaml_max_int ->
     guards_at initial_ctx initial_side_facts target
-      = ((derived_guard_facts, final_side_facts), final_ctx) ⇒
+      = ((derived_guard_facts, final_side_facts), final_ctx) ->
     ctx_wf final_ctx ∧ extends initial_ctx final_ctx
     ∧ to_Z final_ctx.(next)
        <= to_Z initial_ctx.(next) + guards_atom_bound target
     ∧ Forall wf derived_guard_facts
-    ∧ (Forall wf initial_side_facts ⇒ Forall wf final_side_facts)
-    ∧ ∀ (rho : valuation), agrees rho final_ctx ⇒
-         (holds_all rho initial_side_facts ⇒ holds_all rho final_side_facts)
-         ∧ (guards_taken target ⇒ holds_all rho derived_guard_facts).
+    ∧ (Forall wf initial_side_facts -> Forall wf final_side_facts)
+    ∧ ∀ (rho : valuation), agrees rho final_ctx ->
+         (holds_all rho initial_side_facts -> holds_all rho final_side_facts)
+         ∧ (guards_taken target -> holds_all rho derived_guard_facts).
   Proof.
     intros target c side fs side' c' Hwf Hn H.
     unfold guards_at, OxCamlList.fold_left in H.

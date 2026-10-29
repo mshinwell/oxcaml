@@ -274,9 +274,9 @@ header.
 - Use the notations `SsaModel.v` defines (`a ▷ b` for `a`
   dominating `b`) in parts 2 to 4, where a statement is read by eye.
   Part 1 is code and calls the primitives as the compiler does.
-- Use `∀` and `∃` for quantifiers, `⇒` and `⇔` for implication and
-  equivalence, and `∧` and `∨` for conjunction and disjunction, importing
-  `OxCamlLogic.v`. Keep `->` for function types and `exists` for the tactic.
+- Use `∀` and `∃` for quantifiers and `∧` and `∨` for conjunction and
+  disjunction, importing `OxCamlLogic.v`. Keep the default `->` and `<->`
+  arrows, and `exists` for the tactic.
 - Use `∈` and `∉` for list membership and non-membership; `OxCamlList.v`
   defines these notations for `List.In` and its negation.
 - Prefer a per-element statement to a counting one: "every parameter at

@@ -102,7 +102,7 @@ Qed.
 
 (* A bound register's mathematical atom is exactly its stored word. *)
 Lemma snapshot_atom_read : ∀ (regs : registers) (v : value) (word : Z),
-  bounded_registers regs ⇒ regs (register_of_value v) = Some word ⇒
+  bounded_registers regs -> regs (register_of_value v) = Some word ->
   snapshot_atom regs v = word.
 Proof.
   intros regs v word Hbounded Hread. unfold snapshot_atom. rewrite Hread.
@@ -113,9 +113,9 @@ Qed.
    affine valuation as the instruction read from its registers. *)
 Lemma read_values_snapshot : ∀ (regs : registers) (args : list value)
     (words : list Z),
-  bounded_registers regs ⇒ read_values regs args = Some words ⇒
-  (∀ (arg : value), arg ∈ args ⇒
-     snapshot_value regs arg = snapshot_atom regs arg) ⇒
+  bounded_registers regs -> read_values regs args = Some words ->
+  (∀ (arg : value), arg ∈ args ->
+     snapshot_value regs arg = snapshot_atom regs arg) ->
   Forall2 (fun arg word => snapshot_value regs arg = word) args words.
 Proof.
   intros regs args. induction args as [ | arg args IH];
@@ -135,7 +135,7 @@ Qed.
    read, so an actually evaluated operation computes its stored result. *)
 Lemma forall2_snapshot_map : ∀ (regs : registers) (args : list value)
     (words : list Z),
-  Forall2 (fun arg word => snapshot_value regs arg = word) args words ⇒
+  Forall2 (fun arg word => snapshot_value regs arg = word) args words ->
   map (snapshot_value regs) args = words.
 Proof.
   intros regs args words Hall. induction Hall; cbn [map]; congruence.
@@ -147,9 +147,9 @@ Qed.
 Lemma snapshot_evaluated_result : ∀ (regs : registers) (id : instr_id)
     (op : operation) (args : list value) (index : int)
     (words : list Z) (result : Z),
-  eval_operation op words = Some result ⇒
-  Forall2 (fun arg word => snapshot_value regs arg = word) args words ⇒
-  regs (Result id index) = Some result ⇒
+  eval_operation op words = Some result ->
+  Forall2 (fun arg word => snapshot_value regs arg = word) args words ->
+  regs (Result id index) = Some result ->
   snapshot_value regs (Res id op args index)
     = snapshot_atom regs (Res id op args index).
 Proof.
@@ -164,7 +164,7 @@ Qed.
    particular, no equation is assumed for a load or other opaque op. *)
 Lemma snapshot_unmodeled : ∀ (regs : registers) (id : instr_id)
     (op : operation) (args : list value) (index : int),
-  modeled_operation op args = false ⇒
+  modeled_operation op args = false ->
   snapshot_value regs (Res id op args index)
     = snapshot_atom regs (Res id op args index).
 Proof.
@@ -178,9 +178,9 @@ Qed.
    whose equations follow from execution. *)
 Theorem snapshot_agrees_available : ∀ (blocks : list block)
     (entry : block) (position : SsaDominance.program_point) (regs : registers),
-  well_formed_ssa blocks entry ⇒ coherent_at blocks entry regs position ⇒
-  bounded_registers regs ⇒ ∀ (v : value),
-  available_value blocks entry position v ⇒
+  well_formed_ssa blocks entry -> coherent_at blocks entry regs position ->
+  bounded_registers regs -> ∀ (v : value),
+  available_value blocks entry position v ->
   snapshot_value regs v = snapshot_atom regs v.
 Proof.
   intros blocks entry position regs Hwf Hcoherent Hbounded v.
@@ -203,9 +203,9 @@ Qed.
 Theorem snapshot_read_available : ∀ (blocks : list block) (entry : block)
     (position : SsaDominance.program_point) (regs : registers) (v : value)
       (word : Z),
-  well_formed_ssa blocks entry ⇒ coherent_at blocks entry regs position ⇒
-  bounded_registers regs ⇒ available_value blocks entry position v ⇒
-  regs (register_of_value v) = Some word ⇒ snapshot_value regs v = word.
+  well_formed_ssa blocks entry -> coherent_at blocks entry regs position ->
+  bounded_registers regs -> available_value blocks entry position v ->
+  regs (register_of_value v) = Some word -> snapshot_value regs v = word.
 Proof.
   intros blocks entry position regs v word Hwf Hcoherent Hbounded
     Havailable Hread.

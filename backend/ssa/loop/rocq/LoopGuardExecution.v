@@ -50,7 +50,7 @@ Local Open Scope Z_scope.
 (* Read back the singleton predecessor test without discarding its multiplicity
    or the exclusion of the graph entry. *)
 Lemma sole_predecessor_structure : ∀ (source target : block),
-  sole_predecessor source target = true ⇒
+  sole_predecessor source target = true ->
   dominates target source = false ∧ predecessors target = [source].
 Proof.
   intros source target Hsole. unfold sole_predecessor in Hsole.
@@ -63,10 +63,10 @@ Qed.
 
 (* A singleton predecessor list rules out the ambiguous duplicate-target
    Switch, because the builder records both incoming edge occurrences. *)
-Lemma sole_predecessor_switch_distinct : switch_edge_multiplicity ⇒
+Lemma sole_predecessor_switch_distinct : switch_edge_multiplicity ->
   ∀ (source ifnot ifso : block) (condition : value) (negate : bool),
-  terminator source = Terminator.Switch condition [ifnot; ifso] ⇒
-  sole_predecessor source (if negate then ifnot else ifso) = true ⇒
+  terminator source = Terminator.Switch condition [ifnot; ifso] ->
+  sole_predecessor source (if negate then ifnot else ifso) = true ->
   ifnot <> ifso.
 Proof.
   intros Hmultiplicity source ifnot ifso condition negate Hterm Hsole Heq.
@@ -82,7 +82,7 @@ Qed.
    occurring somewhere among the targets. *)
 Lemma guard_test_structure : ∀ (target source : block)
     (condition : value) (negate : bool),
-  guard_test target source = Some (condition, negate) ⇒
+  guard_test target source = Some (condition, negate) ->
   ∃ (ifnot ifso : block),
     terminator source = Terminator.Switch condition [ifnot; ifso]
     ∧ dominates (if negate then ifnot else ifso) target = true
@@ -110,17 +110,17 @@ Section Execution.
   Hypothesis well_formed : well_formed_ssa blocks entry.
   Hypothesis dominance : dominance_semantics entry.
   Hypothesis dominance_complete : ∀ (dominator target : block),
-    dominator ∈ blocks ⇒ target ∈ blocks ⇒
+    dominator ∈ blocks -> target ∈ blocks ->
     (∀ (visited_blocks : list block), SsaDominance.block_path_from entry
-      visited_blocks target ⇒
-       dominator ∈ visited_blocks) ⇒ dominator ▷ target.
+      visited_blocks target ->
+       dominator ∈ visited_blocks) -> dominator ▷ target.
 
   (* The checked non-dominance is also non-dominance of program points.
      Completeness matters here: soundness alone says nothing about false. *)
   Lemma sole_predecessor_not_program_point_dominator : ∀ (source target :
     block),
-    source ∈ blocks ⇒ target ∈ blocks ⇒
-    sole_predecessor source target = true ⇒
+    source ∈ blocks -> target ∈ blocks ->
+    sole_predecessor source target = true ->
     ~ program_point_dominates entry (block_entry_point target) (source, 0%nat).
   Proof.
     intros source target Hsource Htarget Hsole Hdom.
@@ -135,11 +135,11 @@ Section Execution.
      selects exactly that edge. Its two targets must be distinct. *)
   Lemma guard_entry_word : ∀ (source ifnot ifso : block)
       (condition : value) (negate : bool) (before after : state),
-    terminator source = Terminator.Switch condition [ifnot; ifso] ⇒
-    predecessors (if negate then ifnot else ifso) = [source] ⇒
-    ifnot <> ifso ⇒ valid_position before ⇒ step before after ⇒
+    terminator source = Terminator.Switch condition [ifnot; ifso] ->
+    predecessors (if negate then ifnot else ifso) = [source] ->
+    ifnot <> ifso -> valid_position before -> step before after ->
     state_program_point after = block_entry_point (if negate then ifnot else
-      ifso) ⇒
+      ifso) ->
     current_registers after (register_of_value condition)
       = Some (if negate then 0 else 1).
   Proof.
@@ -188,11 +188,11 @@ Section Execution.
      successor. Its sole predecessor is the actual Switch source. *)
   Lemma context_guard_entry_word : ∀ (source ifnot ifso : block)
       (condition : value) (negate : bool) (before after : state),
-    terminator source = Terminator.Switch condition [ifnot; ifso] ⇒
-    predecessors (if negate then ifnot else ifso) = [source] ⇒
-    ifnot <> ifso ⇒ valid_position before ⇒ context_step before after ⇒
+    terminator source = Terminator.Switch condition [ifnot; ifso] ->
+    predecessors (if negate then ifnot else ifso) = [source] ->
+    ifnot <> ifso -> valid_position before -> context_step before after ->
     state_program_point after = block_entry_point (if negate then ifnot else
-      ifso) ⇒
+      ifso) ->
     current_registers after (register_of_value condition)
       = Some (if negate then 0 else 1).
   Proof.
@@ -219,13 +219,13 @@ Section Execution.
   Lemma executed_guard_word : ∀ (source ifnot ifso : block)
       (condition : value) (negate : bool) (initial_regs : registers)
       (reached : state),
-    source ∈ blocks ⇒
-    terminator source = Terminator.Switch condition [ifnot; ifso] ⇒
-    sole_predecessor source (if negate then ifnot else ifso) = true ⇒
-    ifnot <> ifso ⇒ context_steps (enter entry initial_regs) reached ⇒
+    source ∈ blocks ->
+    terminator source = Terminator.Switch condition [ifnot; ifso] ->
+    sole_predecessor source (if negate then ifnot else ifso) = true ->
+    ifnot <> ifso -> context_steps (enter entry initial_regs) reached ->
     program_point_dominates entry (block_entry_point (if negate then ifnot else
       ifso))
-      (state_program_point reached) ⇒
+      (state_program_point reached) ->
     current_registers reached (register_of_value condition)
       = Some (if negate then 0 else 1).
   Proof.
@@ -293,8 +293,8 @@ Section Execution.
      condition is still available. *)
   Lemma guard_condition_available : ∀ (source target : block)
       (condition : value) (negate : bool) (position : program_point),
-    source ∈ blocks ⇒ guard_test target source = Some (condition, negate) ⇒
-    fst position = target ⇒ available_value blocks entry position condition.
+    source ∈ blocks -> guard_test target source = Some (condition, negate) ->
+    fst position = target -> available_value blocks entry position condition.
   Proof.
     intros source target condition negate position Hsource Hguard Hposition.
     destruct (guard_test_structure _ _ _ _ Hguard)
@@ -320,9 +320,9 @@ End Execution.
 Lemma snapshot_comparison_result : ∀ (blocks : list block)
     (entry : block) (position : program_point) (regs : registers)
     (condition : value) (negate : bool),
-  well_formed_ssa blocks entry ⇒ coherent_at blocks entry regs position ⇒
-  bounded_registers regs ⇒ available_value blocks entry position condition ⇒
-  regs (register_of_value condition) = Some (if negate then 0 else 1) ⇒
+  well_formed_ssa blocks entry -> coherent_at blocks entry regs position ->
+  bounded_registers regs -> available_value blocks entry position condition ->
+  regs (register_of_value condition) = Some (if negate then 0 else 1) ->
   comparison_matches_branch (snapshot_value regs) negate condition.
 Proof.
   intros blocks entry position regs condition negate Hwf Hcoherent Hbounded
@@ -369,19 +369,19 @@ Qed.
    execution. Unlike the old branch-run premise this handles duplicate Switch
    targets through the builder's edge-occurrence metadata. *)
 Theorem executed_guards_taken : ∀ (blocks : list block) (entry : block),
-  control_edges ⇒ well_formed_ssa blocks entry ⇒ dominance_semantics entry ⇒
+  control_edges -> well_formed_ssa blocks entry -> dominance_semantics entry ->
   (∀ (dominator target : block),
-    dominator ∈ blocks ⇒ target ∈ blocks ⇒
+    dominator ∈ blocks -> target ∈ blocks ->
     (∀ (visited_blocks : list block), SsaDominance.block_path_from entry
-      visited_blocks target ⇒
-       dominator ∈ visited_blocks) ⇒ dominator ▷ target) ⇒
-  switch_edge_multiplicity ⇒
+      visited_blocks target ->
+       dominator ∈ visited_blocks) -> dominator ▷ target) ->
+  switch_edge_multiplicity ->
   ∀ (target : block) (initial_regs : registers) (reached : state),
-  (∀ (dominator : block), dominator ∈ (strict_dominators target) ⇒
-     dominator ∈ blocks) ⇒
-  bounded_registers initial_regs ⇒
-  context_steps (enter entry initial_regs) reached ⇒
-  current_block reached = target ⇒
+  (∀ (dominator : block), dominator ∈ (strict_dominators target) ->
+     dominator ∈ blocks) ->
+  bounded_registers initial_regs ->
+  context_steps (enter entry initial_regs) reached ->
+  current_block reached = target ->
   guards_taken (snapshot_value (current_registers reached)) target.
 Proof.
   intros blocks entry Hedges Hwf Hdominance Hcomplete Hmultiplicity target

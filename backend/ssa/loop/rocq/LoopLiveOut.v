@@ -57,9 +57,9 @@ Section Geometry.
   (* An incoming edge from outside the natural-loop body can only arrive at the
      header entry, not in the middle of another body block. *)
   Lemma body_program_point_predecessor : ∀ (before after : program_point),
-    program_point_edge before after ⇒
-    set_mem (fst after) loop.(body) = true ⇒
-    after <> block_entry_point loop.(header) ⇒
+    program_point_edge before after ->
+    set_mem (fst after) loop.(body) = true ->
+    after <> block_entry_point loop.(header) ->
     set_mem (fst before) loop.(body) = true.
   Proof.
     intros before after Hedge Hinside Hnot. destruct Hedge; cbn in *.
@@ -72,8 +72,8 @@ Section Geometry.
   (* A reachable body point has a suffix path from the header wholly inside the
      body. The last-header suffix excludes earlier iterations. *)
   Lemma header_body_program_point_path : ∀ (position : program_point),
-    program_point_reachable entry position ⇒
-    set_mem (fst position) loop.(body) = true ⇒
+    program_point_reachable entry position ->
+    set_mem (fst position) loop.(body) = true ->
     ∃ (points : list program_point),
       program_point_path_from (block_entry_point loop.(header)) points position
         ∧
@@ -96,10 +96,10 @@ Section Geometry.
   (* A definition outside the body that dominates a reachable body point must
      already dominate the header entry. *)
   Lemma outside_dominator_of_body : ∀ (site position : program_point),
-    program_point_reachable entry position ⇒
-    set_mem (fst position) loop.(body) = true ⇒
-    set_mem (fst site) loop.(body) = false ⇒
-    program_point_dominates entry site position ⇒
+    program_point_reachable entry position ->
+    set_mem (fst position) loop.(body) = true ->
+    set_mem (fst site) loop.(body) = false ->
+    program_point_dominates entry site position ->
     program_point_dominates entry site (block_entry_point loop.(header)).
   Proof.
     intros site position Hreachable Hinside Houtside Hdom prefix Hprefix.
@@ -121,15 +121,15 @@ Inductive depends_on_header_parameter (header : block) : value -> Prop :=
       depends_on_header_parameter header (Block_param header index)
   | Depends_result : ∀ (id : instr_id) (op : operation)
       (args : list value) (index : int) (arg : value),
-      arg ∈ args ⇒ depends_on_header_parameter header arg ⇒
+      arg ∈ args -> depends_on_header_parameter header arg ->
       depends_on_header_parameter header (Res id op args index).
 
 (* A result depending on a header parameter cannot be defined before the header
    entry. This is a consequence of SSA operand dominance. *)
 Lemma header_dependency_dominates_definition : ∀ (blocks : list block)
     (entry header : block) (v : value) (site : program_point),
-  well_formed_ssa blocks entry ⇒ depends_on_header_parameter header v ⇒
-  value_definition v site ⇒ (fst site) ∈ blocks ⇒
+  well_formed_ssa blocks entry -> depends_on_header_parameter header v ->
+  value_definition v site -> (fst site) ∈ blocks ->
   program_point_dominates entry (block_entry_point header) site.
 Proof.
   intros blocks entry header v site Hwf Hdepends. revert site.
@@ -146,15 +146,15 @@ Qed.
 (* A header-dependent definition used in the body must itself be in the body.
    An outside definition would both dominate and be dominated by the header
    entry, contradicting its different block. *)
-Theorem header_dependent_definition_in_body : control_edges ⇒
+Theorem header_dependent_definition_in_body : control_edges ->
   ∀ (blocks : list block) (entry : block) (loop : natural_loop)
     (position : program_point) (v : value) (site : program_point),
-  well_formed_ssa blocks entry ⇒ loop_graph_properties blocks entry loop ⇒
-  program_point_reachable entry position ⇒
-  set_mem (fst position) loop.(body) = true ⇒
-  depends_on_header_parameter loop.(header) v ⇒
-  value_definition v site ⇒ (fst site) ∈ blocks ⇒
-  program_point_dominates entry site position ⇒
+  well_formed_ssa blocks entry -> loop_graph_properties blocks entry loop ->
+  program_point_reachable entry position ->
+  set_mem (fst position) loop.(body) = true ->
+  depends_on_header_parameter loop.(header) v ->
+  value_definition v site -> (fst site) ∈ blocks ->
+  program_point_dominates entry site position ->
   set_mem (fst site) loop.(body) = true.
 Proof.
   intros Hedges blocks entry loop position v site Hwf Hgraph Hreachable
@@ -200,7 +200,7 @@ Section ControlValues.
   Hypothesis selected_exit : find_exit_branch loop = Some exit_info.
 
   (* The certificate supplies the BIV and dead-use facts together. *)
-  Lemma certified_biv : ∀ (counter : InductionVar.biv), counter ∈ bivs ⇒
+  Lemma certified_biv : ∀ (counter : InductionVar.biv), counter ∈ bivs ->
     biv_spec defs loop counter ∧ dead_spec blocks counter.
   Proof.
     intros counter Hin. destruct certificate as [_ [_ [_ [[_ Hspecs] _]]]].
@@ -210,12 +210,12 @@ Section ControlValues.
   (* The dead-use predicates refer to this same loop and exit condition, rather
      than to unrelated witnesses of the recognition functions. *)
   Lemma certified_dead_uses : ∀ (counter : InductionVar.biv),
-    counter ∈ bivs ⇒
+    counter ∈ bivs ->
     param_used_only_by_exit_comparison_and_updates blocks loop.(header)
       counter.(param_index) exit_info.(condition) counter.(update)
     ∧ exit_comparison_used_only_by_header_branch blocks loop.(header)
          exit_info.(condition)
-    ∧ ∀ (updated : value), updated ∈ counter.(update) ⇒
+    ∧ ∀ (updated : value), updated ∈ counter.(update) ->
          update_used_only_by_exit_comparison_and_back_edge blocks loop
            counter.(param_index) exit_info.(condition) updated.
   Proof.
@@ -242,7 +242,7 @@ Section ControlValues.
      block and program point belong to the original graph. *)
   Lemma control_update_available : ∀ (counter : InductionVar.biv)
       (updated : value),
-    counter ∈ bivs ⇒ updated ∈ counter.(update) ⇒
+    counter ∈ bivs -> updated ∈ counter.(update) ->
     ∃ (source : block), set_mem source loop.(body) = true ∧
       source ∈ blocks ∧
       available_value blocks entry (source, 0%nat) updated.
@@ -269,7 +269,7 @@ Section ControlValues.
   (* Every update directly depends on its actual header parameter. *)
   Lemma control_update_depends : ∀ (counter : InductionVar.biv)
       (updated : value),
-    counter ∈ bivs ⇒ updated ∈ counter.(update) ⇒
+    counter ∈ bivs -> updated ∈ counter.(update) ->
     depends_on_header_parameter loop.(header) updated.
   Proof.
     intros counter updated Hin Hupdated.
@@ -324,8 +324,8 @@ Section ControlValues.
     (site : program_point),
     (value_ref = exit_info.(condition) ∨
       ∃ (counter : InductionVar.biv),
-        counter ∈ bivs ∧ value_ref ∈ counter.(update)) ⇒
-    value_definition value_ref site ⇒ (fst site) ∈ blocks ⇒
+        counter ∈ bivs ∧ value_ref ∈ counter.(update)) ->
+    value_definition value_ref site -> (fst site) ∈ blocks ->
     set_mem (fst site) loop.(body) = true.
   Proof.
     intros v site Hcontrol Hdefinition Hsite.
@@ -362,7 +362,7 @@ Section ControlValues.
   Lemma control_result_available : ∀ (value_ref : value),
     (value_ref = exit_info.(condition) ∨
       ∃ (counter : InductionVar.biv),
-        counter ∈ bivs ∧ value_ref ∈ counter.(update)) ⇒
+        counter ∈ bivs ∧ value_ref ∈ counter.(update)) ->
     ∃ (position : program_point),
       available_value blocks entry position value_ref.
   Proof.
@@ -377,11 +377,11 @@ Section ControlValues.
      Canonical definition sites bridge the checker's ID test to this fact. *)
   Lemma control_insn_inside : ∀ (id : instr_id) (op : operation)
       (args : list value) (count : int) (site : program_point) (v : value),
-    (fst site) ∈ blocks ⇒ result_definition id op args count site ⇒
+    (fst site) ∈ blocks -> result_definition id op args count site ->
     (v = exit_info.(condition) ∨
       ∃ (counter : InductionVar.biv),
-        counter ∈ bivs ∧ v ∈ counter.(update)) ⇒
-    instr_defines_value (Op id op args count) v = true ⇒
+        counter ∈ bivs ∧ v ∈ counter.(update)) ->
+    instr_defines_value (Op id op args count) v = true ->
     set_mem (fst site) loop.(body) = true.
   Proof.
     intros id op args count site v Hsite Hdefinition Hcontrol Hdefines.
@@ -402,8 +402,8 @@ Section ControlValues.
      rather than assumed from their membership in a list. *)
   Theorem control_operand_inside : ∀ (position : program_point)
     (value_ref : value),
-    (fst position) ∈ blocks ⇒ operand_at position value_ref ⇒
-    loop_control_value loop bivs exit_info.(condition) value_ref ⇒
+    (fst position) ∈ blocks -> operand_at position value_ref ->
+    loop_control_value loop bivs exit_info.(condition) value_ref ->
     set_mem (fst position) loop.(body) = true.
   Proof.
     intros position v Hblock Huse Hcontrol.
@@ -488,7 +488,7 @@ Section ControlValues.
   Lemma control_value_is_instruction_result : ∀ (value_ref : value),
     (value_ref = exit_info.(condition) ∨
       ∃ (counter : InductionVar.biv),
-        counter ∈ bivs ∧ value_ref ∈ counter.(update)) ⇒
+        counter ∈ bivs ∧ value_ref ∈ counter.(update)) ->
     ∃ (id : instr_id) (op : operation) (args : list value) (index : int),
       value_ref = Res id op args index.
   Proof.
@@ -531,7 +531,7 @@ Section ControlValues.
   Lemma control_result_unavailable_at_entry : ∀ (v : value),
     (v = exit_info.(condition) ∨
       ∃ (counter : InductionVar.biv),
-        counter ∈ bivs ∧ v ∈ counter.(update)) ⇒
+        counter ∈ bivs ∧ v ∈ counter.(update)) ->
     ~ available_value blocks entry (block_entry_point loop.(header)) v.
   Proof.
     intros v Hcontrol [site [Hdefinition [Hsite Hdom]]].
@@ -555,9 +555,9 @@ Section ControlValues.
      payload. Parameter references need only their identity. *)
   Lemma control_register_identity : ∀ (control_ref available_ref : value)
     (position : program_point),
-    loop_control_value loop bivs exit_info.(condition) control_ref ⇒
-    available_value blocks entry position available_ref ⇒
-    register_of_value control_ref = register_of_value available_ref ⇒
+    loop_control_value loop bivs exit_info.(condition) control_ref ->
+    available_value blocks entry position available_ref ->
+    register_of_value control_ref = register_of_value available_ref ->
       control_ref = available_ref.
   Proof.
     intros v w position Hcontrol Havailable Hreg.
@@ -573,9 +573,9 @@ Section ControlValues.
      available; neither carries an old value into a new visit. *)
   Theorem live_control_inside : ∀ (position : program_point)
     (reg : register),
-    register_live_at position reg ⇒ (fst position) ∈ blocks ⇒
-    ∀ (v : value), loop_control_value loop bivs exit_info.(condition) v ⇒
-    reg = register_of_value v ⇒ set_mem (fst position) loop.(body) = true.
+    register_live_at position reg -> (fst position) ∈ blocks ->
+    ∀ (v : value), loop_control_value loop bivs exit_info.(condition) v ->
+    reg = register_of_value v -> set_mem (fst position) loop.(body) = true.
   Proof.
     intros position reg Hlive.
     induction Hlive as [position operand Huse |
@@ -617,7 +617,7 @@ Section ControlValues.
      the exit. This is about reads before redefinition, including paths that
      later re-enter the loop, not merely immediate outside uses. *)
   Theorem exit_live_not_control : ∀ (value_ref : value),
-    register_live_at (block_entry_point exit) (register_of_value value_ref) ⇒
+    register_live_at (block_entry_point exit) (register_of_value value_ref) ->
     ~ loop_control_value loop bivs exit_info.(condition) value_ref.
   Proof.
     intros v Hlive Hcontrol.
@@ -637,11 +637,11 @@ Section ControlValues.
      its sole result is exactly that value. *)
   Lemma defines_control_result : ∀ (b : block) (id : instr_id)
       (op : operation) (args : list value) (control : value),
-    b ∈ blocks ⇒ (Op id op args one) ∈ (block_body b) ⇒
+    b ∈ blocks -> (Op id op args one) ∈ (block_body b) ->
     (control = exit_info.(condition) ∨
       ∃ (counter : InductionVar.biv),
-        counter ∈ bivs ∧ control ∈ counter.(update)) ⇒
-    instr_defines_value (Op id op args one) control = true ⇒
+        counter ∈ bivs ∧ control ∈ counter.(update)) ->
+    instr_defines_value (Op id op args one) control = true ->
     loop_control_value loop bivs exit_info.(condition) (Res id op args zero).
   Proof.
     intros b id op args control Hblock Hmember Hcontrol Hdefines.
@@ -656,9 +656,9 @@ Section ControlValues.
      dead-use approvals permit those operands only in control instructions. *)
   Lemma noncontrol_operands : ∀ (b : block) (id : instr_id)
       (op : operation) (args : list value) (arg : value),
-    b ∈ blocks ⇒ (Op id op args one) ∈ (block_body b) ⇒ arg ∈ args ⇒
+    b ∈ blocks -> (Op id op args one) ∈ (block_body b) -> arg ∈ args ->
     ~ loop_control_value loop bivs exit_info.(condition)
-      (Res id op args zero) ⇒
+      (Res id op args zero) ->
     ~ loop_control_value loop bivs exit_info.(condition) arg.
   Proof.
     intros b id op args arg Hblock Hmember Harg Hresult Hcontrol.
@@ -716,7 +716,7 @@ Section ControlValues.
      the first header body. The direct header-to-exit edge cannot introduce a
      definition needed there. *)
   Lemma exit_value_available_at_header_terminator : ∀ (value_ref : value),
-    available_value blocks entry (block_entry_point exit) value_ref ⇒
+    available_value blocks entry (block_entry_point exit) value_ref ->
     available_value blocks entry (loop.(header), 0%nat) value_ref.
   Proof.
     intros v [site [Hdefinition [Hsite Hdom]]].
@@ -735,8 +735,8 @@ Section ControlValues.
   (* Of definitions inside the loop, only header definitions can be available
      at the header terminator, hence at its direct exit. *)
   Lemma header_available_body_definition : ∀ (site : program_point),
-    program_point_dominates entry site (loop.(header), 0%nat) ⇒
-    set_mem (fst site) loop.(body) = true ⇒ fst site = loop.(header).
+    program_point_dominates entry site (loop.(header), 0%nat) ->
+    set_mem (fst site) loop.(body) = true -> fst site = loop.(header).
   Proof.
     intros site Hdom Hinside.
     destruct (block_eqb (fst site) loop.(header)) eqn:Heq;
@@ -760,13 +760,13 @@ Section ControlValues.
      dead-use checks exclude changing control at every edge. *)
   Lemma noncontrol_values_agree : ∀ (first_header_regs exit_regs :
     registers),
-    coherent_at blocks entry first_header_regs (loop.(header), 0%nat) ⇒
-    coherent_at blocks entry exit_regs (block_entry_point exit) ⇒
-    (∀ (reg : register), ~ register_defined_in_region loop.(body) reg ⇒
-       exit_regs reg = first_header_regs reg) ⇒
+    coherent_at blocks entry first_header_regs (loop.(header), 0%nat) ->
+    coherent_at blocks entry exit_regs (block_entry_point exit) ->
+    (∀ (reg : register), ~ register_defined_in_region loop.(body) reg ->
+       exit_regs reg = first_header_regs reg) ->
     ∀ (v : value),
-    available_value blocks entry (block_entry_point exit) v ⇒
-    ~ loop_control_value loop bivs exit_info.(condition) v ⇒
+    available_value blocks entry (block_entry_point exit) v ->
+    ~ loop_control_value loop bivs exit_info.(condition) v ->
     exit_regs (register_of_value v) = first_header_regs (register_of_value v).
   Proof.
     intros first final Hfirst Hfinal Houtside v.
@@ -823,10 +823,10 @@ Section ControlValues.
      the frame property, this gives the precise boundary agreement. *)
   Theorem live_out_values_agree : ∀ (first_header_regs exit_regs :
     registers),
-    coherent_at blocks entry first_header_regs (loop.(header), 0%nat) ⇒
-    coherent_at blocks entry exit_regs (block_entry_point exit) ⇒
-    (∀ (reg : register), ~ register_defined_in_region loop.(body) reg ⇒
-       exit_regs reg = first_header_regs reg) ⇒
+    coherent_at blocks entry first_header_regs (loop.(header), 0%nat) ->
+    coherent_at blocks entry exit_regs (block_entry_point exit) ->
+    (∀ (reg : register), ~ register_defined_in_region loop.(body) reg ->
+       exit_regs reg = first_header_regs reg) ->
     agree_on_live (block_entry_point exit) first_header_regs exit_regs.
   Proof.
     intros first final Hfirst Hfinal Houtside reg Hlive.
@@ -849,11 +849,11 @@ Section ControlValues.
   Theorem finite_exit_live_agreement : ∀
       (initial_regs header_regs first_header_regs exit_regs : registers),
     context_steps (enter entry initial_regs)
-      (enter loop.(header) header_regs) ⇒
-    executes_insns header_regs (block_body loop.(header)) first_header_regs ⇒
+      (enter loop.(header) header_regs) ->
+    executes_insns header_regs (block_body loop.(header)) first_header_regs ->
     region_steps loop.(body)
       {| current_block := loop.(header); remaining := [];
-         current_registers := first_header_regs |} (enter exit exit_regs) ⇒
+         current_registers := first_header_regs |} (enter exit exit_regs) ->
     agree_on_live (block_entry_point exit) first_header_regs exit_regs.
   Proof.
     intros initial_regs header_regs first final Hprefix Hbody Hsegment.

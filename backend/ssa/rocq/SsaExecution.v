@@ -70,28 +70,28 @@ Record well_formed_ssa (blocks : list block) (entry : block) : Prop :=
     (* Finished graphs contain only reachable blocks. This is structural
        reachability through program points, not a claim that operations execute
        successfully or that branches are dynamically feasible. *)
-    graph_blocks_reachable : ∀ (b : block), b ∈ blocks ⇒
+    graph_blocks_reachable : ∀ (b : block), b ∈ blocks ->
       program_point_reachable entry (b, 0%nat);
     graph_successors_closed : ∀ (source target : block),
-      source ∈ blocks ⇒ target ∈ (all_successors source) ⇒
+      source ∈ blocks -> target ∈ (all_successors source) ->
       target ∈ blocks;
     graph_parameters : parameter_layout;
     result_sites_unique : ∀ (id : instr_id) (op op' : operation)
       (args args' : list value) (count count' : int)
         (site site' : program_point),
-      (fst site) ∈ blocks ⇒ (fst site') ∈ blocks ⇒
-      result_definition id op args count site ⇒
-      result_definition id op' args' count' site' ⇒ site = site';
+      (fst site) ∈ blocks -> (fst site') ∈ blocks ->
+      result_definition id op args count site ->
+      result_definition id op' args' count' site' -> site = site';
     operand_definitions : ∀ (id : instr_id) (op : operation)
       (args : list value) (count : int) (site : program_point),
-      (fst site) ∈ blocks ⇒ result_definition id op args count site ⇒
-      ∀ (arg : value), arg ∈ args ⇒
+      (fst site) ∈ blocks -> result_definition id op args count site ->
+      ∀ (arg : value), arg ∈ args ->
       ∃ (arg_site : program_point),
         value_definition arg arg_site ∧ (fst arg_site) ∈ blocks
         ∧ program_point_dominates entry arg_site site ∧ arg_site <> site;
     terminator_definitions : ∀ (b : block) (args : list value),
-      b ∈ blocks ⇒ args ∈ (terminator_args (terminator b)) ⇒
-      ∀ (arg : value), arg ∈ args ⇒
+      b ∈ blocks -> args ∈ (terminator_args (terminator b)) ->
+      ∀ (arg : value), arg ∈ args ->
       ∃ (arg_site : program_point),
         value_definition arg arg_site ∧ (fst arg_site) ∈ blocks
         ∧ program_point_dominates entry arg_site (b, 0%nat) }.
@@ -124,7 +124,7 @@ Definition available_value (blocks : list block) (entry : block)
    satisfy any operation equation. *)
 Definition coherent_at (blocks : list block) (entry : block)
     (regs : registers) (position : program_point) : Prop :=
-  ∀ (v : value), available_value blocks entry position v ⇒
+  ∀ (v : value), available_value blocks entry position v ->
     value_coherent regs v.
 
 (* Operands of an available result are available as well. *)
@@ -132,9 +132,9 @@ Lemma operand_available : ∀ (blocks : list block) (entry : block)
     (position : program_point) (id : instr_id) (op : operation)
       (args : list value)
     (index : int) (arg : value),
-  well_formed_ssa blocks entry ⇒
-  available_value blocks entry position (Res id op args index) ⇒
-  arg ∈ args ⇒ available_value blocks entry position arg.
+  well_formed_ssa blocks entry ->
+  available_value blocks entry position (Res id op args index) ->
+  arg ∈ args -> available_value blocks entry position arg.
 Proof.
   intros blocks entry position id op args index arg Hwf
     [site [[count [Hdefinition Hindex]] [Hsite Hdominates]]] Hin.
@@ -147,10 +147,10 @@ Qed.
 (* A terminator's operands are available when that terminator executes. *)
 Lemma terminator_operand_available : ∀ (blocks : list block)
     (entry : block) (current : state) (args : list value) (arg : value),
-  well_formed_ssa blocks entry ⇒ (current_block current) ∈ blocks ⇒
-  remaining current = [] ⇒
-  args ∈ (terminator_args (terminator (current_block current))) ⇒
-  arg ∈ args ⇒
+  well_formed_ssa blocks entry -> (current_block current) ∈ blocks ->
+  remaining current = [] ->
+  args ∈ (terminator_args (terminator (current_block current))) ->
+  arg ∈ args ->
   available_value blocks entry (state_program_point current) arg.
 Proof.
   intros blocks entry s args arg Hwf Hblock Hremaining Hargs Hin.
@@ -174,8 +174,8 @@ Qed.
 Lemma result_definition_at_point : ∀ (id id' : instr_id)
     (op op' : operation) (args args' : list value)
     (count count' : int) (site : program_point),
-  result_definition id op args count site ⇒
-  result_definition id' op' args' count' site ⇒
+  result_definition id op args count site ->
+  result_definition id' op' args' count' site ->
   Op id op args count = Op id' op' args' count'.
 Proof.
   intros id id' op op' args args' count count' site
@@ -189,10 +189,10 @@ Qed.
    payload. The two references may be available at different points. *)
 Lemma available_value_identity : ∀ (blocks : list block) (entry : block)
     (first second : program_point) (first_ref second_ref : value),
-  well_formed_ssa blocks entry ⇒
-  available_value blocks entry first first_ref ⇒
-  available_value blocks entry second second_ref ⇒
-  register_of_value first_ref = register_of_value second_ref ⇒
+  well_formed_ssa blocks entry ->
+  available_value blocks entry first first_ref ->
+  available_value blocks entry second second_ref ->
+  register_of_value first_ref = register_of_value second_ref ->
   first_ref = second_ref.
 Proof.
   intros blocks entry first second
@@ -214,7 +214,7 @@ Qed.
 (* An instruction in a block has a definition site at the suffix after it. *)
 Lemma result_definition_of_membership : ∀ (b : block) (id : instr_id)
     (op : operation) (args : list value) (count : int),
-  (Op id op args count) ∈ (block_body b) ⇒
+  (Op id op args count) ∈ (block_body b) ->
   ∃ (site : program_point), fst site = b ∧
     result_definition id op args count site.
 Proof.
@@ -229,10 +229,10 @@ Qed.
 Lemma single_result_reference : ∀ (blocks : list block) (entry : block)
     (position : program_point) (b : block) (id : instr_id) (op : operation)
     (args : list value) (v : value),
-  well_formed_ssa blocks entry ⇒ b ∈ blocks ⇒
-  (Op id op args one) ∈ (block_body b) ⇒
-  available_value blocks entry position v ⇒
-  instr_defines_value (Op id op args one) v = true ⇒
+  well_formed_ssa blocks entry -> b ∈ blocks ->
+  (Op id op args one) ∈ (block_body b) ->
+  available_value blocks entry position v ->
+  instr_defines_value (Op id op args one) v = true ->
   v = Res id op args zero.
 Proof.
   intros blocks entry position b id op args [actual_id actual_op actual_args
@@ -260,10 +260,10 @@ Qed.
    definition inside. Unique sites rule out borrowed IDs. *)
 Lemma definition_outside_region : ∀ (blocks : list block) (entry : block)
     (region : blockset) (v : value) (site : program_point),
-  well_formed_ssa blocks entry ⇒
-  (∀ (b : block), set_mem b region = true ⇒ b ∈ blocks) ⇒
-  value_definition v site ⇒ (fst site) ∈ blocks ⇒
-  set_mem (fst site) region = false ⇒
+  well_formed_ssa blocks entry ->
+  (∀ (b : block), set_mem b region = true -> b ∈ blocks) ->
+  value_definition v site -> (fst site) ∈ blocks ->
+  set_mem (fst site) region = false ->
   ~ register_defined_in_region region (register_of_value v).
 Proof.
   intros blocks entry region [id op args index | b index] site Hwf Hmembers
@@ -288,7 +288,7 @@ Lemma executing_result_definition : ∀ (b : block) (id : instr_id)
     (regs : registers),
   valid_position
     {| current_block := b; remaining := Op id op args count :: rest;
-       current_registers := regs |} ⇒
+       current_registers := regs |} ->
   result_definition id op args count (b, length rest).
 Proof.
   intros b id op args count rest regs [prefix Hbody].
@@ -296,9 +296,9 @@ Proof.
 Qed.
 
 (* Actual transitions project to structural program-point edges. *)
-Theorem step_program_point_edge : control_edges ⇒ ∀ (before after :
+Theorem step_program_point_edge : control_edges -> ∀ (before after :
   state),
-  valid_position before ⇒ step before after ⇒
+  valid_position before -> step before after ->
   program_point_edge (state_program_point before) (state_program_point after).
 Proof.
   intros Hedges before after Hposition Hstep.
@@ -311,10 +311,10 @@ Proof.
 Qed.
 
 (* A step preserves membership in a successor-closed graph. *)
-Theorem step_in_graph : control_edges ⇒ ∀ (blocks : list block)
+Theorem step_in_graph : control_edges -> ∀ (blocks : list block)
     (entry : block) (before after : state),
-  well_formed_ssa blocks entry ⇒ (current_block before) ∈ blocks ⇒
-  step before after ⇒ (current_block after) ∈ blocks.
+  well_formed_ssa blocks entry -> (current_block before) ∈ blocks ->
+  step before after -> (current_block after) ∈ blocks.
 Proof.
   intros Hedges blocks entry before after Hwf Hin Hstep.
   destruct Hstep; cbn in *; [exact Hin | |].
@@ -331,10 +331,10 @@ Qed.
 Theorem step_definition_frame :
   ∀ (blocks : list block) (entry : block) (before after : state)
     (v : value) (site : program_point),
-  well_formed_ssa blocks entry ⇒ valid_position before ⇒
-  (current_block before) ∈ blocks ⇒
-  value_definition v site ⇒ (fst site) ∈ blocks ⇒
-  site <> state_program_point after ⇒ step before after ⇒
+  well_formed_ssa blocks entry -> valid_position before ->
+  (current_block before) ∈ blocks ->
+  value_definition v site -> (fst site) ∈ blocks ->
+  site <> state_program_point after -> step before after ->
   current_registers after (register_of_value v)
     = current_registers before (register_of_value v).
 Proof.
@@ -383,8 +383,8 @@ Qed.
    because instruction result sites are never block-entry points. *)
 Lemma step_new_result : ∀ (before after : state) (id : instr_id)
     (op : operation) (args : list value) (index : int),
-  valid_position before ⇒ step before after ⇒
-  value_definition (Res id op args index) (state_program_point after) ⇒
+  valid_position before -> step before after ->
+  value_definition (Res id op args index) (state_program_point after) ->
   index = zero ∧
   execute_instruction (current_registers before) (Op id op args one)
     = Some (current_registers after).

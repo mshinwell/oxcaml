@@ -71,37 +71,37 @@ Definition result_register (id : instr_id) (result_count : int)
    arbitrary word observation; all other register observations persist. *)
 Definition opaque_outputs (written : register -> Prop)
     (before after : registers) : Prop :=
-  (∀ (reg : register), ~ written reg ⇒ after reg = before reg)
-  ∧ (∀ (reg : register), written reg ⇒
+  (∀ (reg : register), ~ written reg -> after reg = before reg)
+  ∧ (∀ (reg : register), written reg ->
         ∃ (word : Z), in_int64 word ∧ after reg = Some word).
 
 Inductive context_step : state -> state -> Prop :=
   | Context_integer : ∀ (before after : state),
-      step before after ⇒ context_step before after
+      step before after -> context_step before after
   | Context_opaque_instruction : ∀ (b : block) (id : instr_id)
       (op : operation) (args : list value) (count : int) (rest : list instr)
       (before after : registers) (words : list Z),
-      modeled_operation op args = false ⇒
-      read_values before args = Some words ⇒
-      opaque_outputs (result_register id count) before after ⇒
+      modeled_operation op args = false ->
+      read_values before args = Some words ->
+      opaque_outputs (result_register id count) before after ->
       context_step
         {| current_block := b; remaining := Op id op args count :: rest;
            current_registers := before |}
         {| current_block := b; remaining := rest; current_registers := after |}
   | Context_opaque_transfer : ∀ (source target : block)
       (before after : registers),
-      terminator_pure_control (terminator source) = false ⇒
-      target ∈ (all_successors source) ⇒
+      terminator_pure_control (terminator source) = false ->
+      target ∈ (all_successors source) ->
       opaque_outputs (fun reg => reg ∈ (map register_of_value (params
         target)))
-        before after ⇒
+        before after ->
       context_step
         {| current_block := source; remaining := [];
            current_registers := before |}
         (enter target after)
   | Context_trap_marker : ∀ (b : block) (marker : instr)
       (rest : list instr) (regs : registers),
-      is_trap_marker marker = true ⇒
+      is_trap_marker marker = true ->
       context_step
         {| current_block := b; remaining := marker :: rest;
            current_registers := regs |}
@@ -110,19 +110,19 @@ Inductive context_step : state -> state -> Prop :=
 Inductive context_steps : state -> state -> Prop :=
   | Context_refl : ∀ (s : state), context_steps s s
   | Context_cons : ∀ (before middle after : state),
-      context_step before middle ⇒ context_steps middle after ⇒
+      context_step before middle -> context_steps middle after ->
       context_steps before after.
 
 (* Pure finite execution is included without changing any step. *)
 Lemma context_of_steps : ∀ (before after : state),
-  steps before after ⇒ context_steps before after.
+  steps before after -> context_steps before after.
 Proof.
   intros before after Hrun. induction Hrun; [constructor |].
   eapply Context_cons; [constructor; exact H | exact IHHrun].
 Qed.
 
 Lemma context_steps_trans : ∀ (before middle after : state),
-  context_steps before middle ⇒ context_steps middle after ⇒
+  context_steps before middle -> context_steps middle after ->
   context_steps before after.
 Proof.
   intros before middle after Hfirst Hlast. induction Hfirst;
@@ -132,7 +132,7 @@ Qed.
 
 (* Opaque steps still follow instruction positions and actual CFG edges. *)
 Lemma context_step_valid_position : ∀ (before after : state),
-  context_step before after ⇒ valid_position before ⇒ valid_position after.
+  context_step before after -> valid_position before -> valid_position after.
 Proof.
   intros before after Hstep Hposition. destruct Hstep.
   - eapply step_valid_position; eassumption.
@@ -150,10 +150,10 @@ Qed.
 Lemma trap_marker_no_result : ∀ (b : block) (marker : instr)
     (rest : list instr) (regs : registers) (id : instr_id) (op : operation)
     (args : list value) (count : int),
-  is_trap_marker marker = true ⇒
+  is_trap_marker marker = true ->
   valid_position
     {| current_block := b; remaining := marker :: rest;
-       current_registers := regs |} ⇒
+       current_registers := regs |} ->
   ~ result_definition id op args count (b, length rest).
 Proof.
   intros b marker rest regs id op args count Hmarker [prefix Hbody]
@@ -168,7 +168,7 @@ Lemma trap_marker_not_entry : ∀ (b : block) (marker : instr)
     (rest : list instr) (regs : registers) (target : block),
   valid_position
     {| current_block := b; remaining := marker :: rest;
-       current_registers := regs |} ⇒
+       current_registers := regs |} ->
   (b, length rest) <> block_entry_point target.
 Proof.
   intros b marker rest regs target [prefix Hbody] Hentry.
@@ -176,9 +176,9 @@ Proof.
   cbn in Hbody. rewrite Hbody, length_app in Hlength. cbn in Hlength. lia.
 Qed.
 
-Lemma context_step_program_point_edge : control_edges ⇒ ∀ (before after :
+Lemma context_step_program_point_edge : control_edges -> ∀ (before after :
   state),
-  valid_position before ⇒ context_step before after ⇒
+  valid_position before -> context_step before after ->
   program_point_edge (state_program_point before) (state_program_point after).
 Proof.
   intros Hedges before after Hposition Hstep. destruct Hstep.
@@ -192,10 +192,10 @@ Proof.
     rewrite Hbody, length_app. cbn. lia.
 Qed.
 
-Lemma context_step_in_graph : control_edges ⇒ ∀ (blocks : list block)
+Lemma context_step_in_graph : control_edges -> ∀ (blocks : list block)
     (entry : block) (before after : state),
-  well_formed_ssa blocks entry ⇒ (current_block before) ∈ blocks ⇒
-  context_step before after ⇒ (current_block after) ∈ blocks.
+  well_formed_ssa blocks entry -> (current_block before) ∈ blocks ->
+  context_step before after -> (current_block after) ∈ blocks.
 Proof.
   intros Hedges blocks entry before after Hwf Hin Hstep. destruct Hstep.
   - eapply step_in_graph; eassumption.
@@ -207,7 +207,7 @@ Qed.
 (* Arbitrary opaque outputs are still machine-word observations. *)
 Lemma opaque_outputs_bounded : ∀ (written : register -> Prop)
     (before after : registers),
-  bounded_registers before ⇒ opaque_outputs written before after ⇒
+  bounded_registers before -> opaque_outputs written before after ->
   bounded_registers after.
 Proof.
   intros written before after Hbounded [Hframe Houtputs] reg word Hread.
@@ -218,7 +218,7 @@ Proof.
 Qed.
 
 Lemma context_step_bounded : ∀ (before after : state),
-  bounded_registers (current_registers before) ⇒ context_step before after ⇒
+  bounded_registers (current_registers before) -> context_step before after ->
   bounded_registers (current_registers after).
 Proof.
   intros before after Hbounded Hstep. destruct Hstep.
@@ -233,10 +233,10 @@ Qed.
    defining instruction or incoming parameter binding. *)
 Lemma context_step_definition_frame : ∀ (blocks : list block)
     (entry : block) (before after : state) (v : value) (site : program_point),
-  well_formed_ssa blocks entry ⇒ valid_position before ⇒
-  (current_block before) ∈ blocks ⇒
-  value_definition v site ⇒ (fst site) ∈ blocks ⇒
-  site <> state_program_point after ⇒ context_step before after ⇒
+  well_formed_ssa blocks entry -> valid_position before ->
+  (current_block before) ∈ blocks ->
+  value_definition v site -> (fst site) ∈ blocks ->
+  site <> state_program_point after -> context_step before after ->
   current_registers after (register_of_value v)
     = current_registers before (register_of_value v).
 Proof.
@@ -266,9 +266,9 @@ Qed.
    produced by an ordinary integer step, never by an opaque effect. *)
 Lemma context_step_new_result : ∀ (before after : state)
     (id : instr_id) (op : operation) (args : list value) (index : int),
-  valid_position before ⇒ context_step before after ⇒
-  modeled_operation op args = true ⇒
-  value_definition (Res id op args index) (state_program_point after) ⇒
+  valid_position before -> context_step before after ->
+  modeled_operation op args = true ->
+  value_definition (Res id op args index) (state_program_point after) ->
   index = zero ∧ execute_instruction (current_registers before)
     (Op id op args one) = Some (current_registers after).
 Proof.
@@ -292,12 +292,12 @@ Qed.
 Lemma context_available_operands_frame : ∀ (blocks : list block)
     (entry : block) (before after : state) (id : instr_id) (op : operation)
     (args : list value) (count : int) (site : program_point),
-  well_formed_ssa blocks entry ⇒ valid_position before ⇒
-  (current_block before) ∈ blocks ⇒
-  program_point_reachable entry (state_program_point after) ⇒
-  result_definition id op args count site ⇒ (fst site) ∈ blocks ⇒
-  program_point_dominates entry site (state_program_point after) ⇒
-    context_step before after ⇒
+  well_formed_ssa blocks entry -> valid_position before ->
+  (current_block before) ∈ blocks ->
+  program_point_reachable entry (state_program_point after) ->
+  result_definition id op args count site -> (fst site) ∈ blocks ->
+  program_point_dominates entry site (state_program_point after) ->
+    context_step before after ->
   read_values (current_registers after) args
     = read_values (current_registers before) args.
 Proof.
@@ -316,14 +316,14 @@ Qed.
 (* Exact available-value equations follow from context execution too. Opaque
    results carry no arithmetic equation; their observed registers remain
    available as atoms to the affine analysis. *)
-Theorem context_step_values_coherent : control_edges ⇒
+Theorem context_step_values_coherent : control_edges ->
   ∀ (blocks : list block) (entry : block) (before after : state),
-  well_formed_ssa blocks entry ⇒ valid_position before ⇒
-  (current_block before) ∈ blocks ⇒
-  program_point_reachable entry (state_program_point before) ⇒
+  well_formed_ssa blocks entry -> valid_position before ->
+  (current_block before) ∈ blocks ->
+  program_point_reachable entry (state_program_point before) ->
   coherent_at blocks entry (current_registers before)
-    (state_program_point before) ⇒
-  context_step before after ⇒
+    (state_program_point before) ->
+  context_step before after ->
   coherent_at blocks entry (current_registers after)
     (state_program_point after).
 Proof.
@@ -372,11 +372,11 @@ Qed.
    register introduced by their step. *)
 Lemma context_step_new_live_register_defined : ∀ (blocks : list block)
     (entry : block) (before after : state) (reg : register),
-  well_formed_ssa blocks entry ⇒ control_layout blocks ⇒
-  valid_position before ⇒ (current_block before) ∈ blocks ⇒
-  register_defined_at (state_program_point after) reg ⇒ register_used blocks
-    reg ⇒
-  context_step before after ⇒
+  well_formed_ssa blocks entry -> control_layout blocks ->
+  valid_position before -> (current_block before) ∈ blocks ->
+  register_defined_at (state_program_point after) reg -> register_used blocks
+    reg ->
+  context_step before after ->
   ∃ (word : Z), current_registers after reg = Some word.
 Proof.
   intros blocks entry before after reg Hwf Hlayout Hposition Hin Hdefinition
@@ -418,13 +418,13 @@ Qed.
 
 (* Live-register definedness holds across the context overapproximation; it is
    not an assumption about an arbitrary reached snapshot. *)
-Lemma context_step_live_registers_defined : control_edges ⇒
+Lemma context_step_live_registers_defined : control_edges ->
   ∀ (blocks : list block) (entry : block) (before after : state),
-  well_formed_ssa blocks entry ⇒ control_layout blocks ⇒
-  valid_position before ⇒ (current_block before) ∈ blocks ⇒
+  well_formed_ssa blocks entry -> control_layout blocks ->
+  valid_position before -> (current_block before) ∈ blocks ->
   live_registers_defined (state_program_point before)
-    (current_registers before) ⇒
-  context_step before after ⇒
+    (current_registers before) ->
+  context_step before after ->
   live_registers_defined (state_program_point after) (current_registers after).
 Proof.
   intros Hedges blocks entry before after Hwf Hlayout Hposition Hin Hbound
@@ -451,7 +451,7 @@ Qed.
 
 (* Finite context prefixes preserve valid program positions. *)
 Lemma context_steps_valid_position : ∀ (before after : state),
-  context_steps before after ⇒ valid_position before ⇒ valid_position after.
+  context_steps before after -> valid_position before -> valid_position after.
 Proof.
   intros before after Hrun. induction Hrun; intros Hposition;
     [exact Hposition |]. apply IHHrun.
@@ -461,8 +461,8 @@ Qed.
 (* The observations of a finite context prefix fit signed words. *)
 Theorem context_execution_invariants : ∀ (entry : block)
     (initial_regs : registers) (reached : state),
-  bounded_registers initial_regs ⇒
-  context_steps (enter entry initial_regs) reached ⇒
+  bounded_registers initial_regs ->
+  context_steps (enter entry initial_regs) reached ->
   valid_position reached ∧ bounded_registers (current_registers reached).
 Proof.
   intros entry initial_regs reached Hbounded Hrun. split.
@@ -479,10 +479,10 @@ Proof.
 Qed.
 
 (* Context paths project to the same graph used by dominance. *)
-Lemma context_steps_program_point_reachable : control_edges ⇒
+Lemma context_steps_program_point_reachable : control_edges ->
   ∀ (entry : block) (before after : state),
-  context_steps before after ⇒ valid_position before ⇒
-  program_point_reachable entry (state_program_point before) ⇒
+  context_steps before after -> valid_position before ->
+  program_point_reachable entry (state_program_point before) ->
   program_point_reachable entry (state_program_point after).
 Proof.
   intros Hedges entry before after Hrun. induction Hrun;
@@ -497,11 +497,11 @@ Qed.
 
 (* Context execution derives exact equations only for modeled results; opaque
    computations before the loop remain unconstrained atoms. *)
-Theorem context_execution_values_coherent : control_edges ⇒
+Theorem context_execution_values_coherent : control_edges ->
   ∀ (blocks : list block) (entry : block) (initial_regs : registers)
     (reached : state),
-  well_formed_ssa blocks entry ⇒
-  context_steps (enter entry initial_regs) reached ⇒
+  well_formed_ssa blocks entry ->
+  context_steps (enter entry initial_regs) reached ->
   coherent_at blocks entry (current_registers reached)
     (state_program_point reached).
 Proof.
@@ -531,12 +531,12 @@ Qed.
 
 (* Bound function inputs suffice for all live observations in a context prefix,
    including after opaque instructions and calls. *)
-Theorem context_execution_live_registers_defined : control_edges ⇒
+Theorem context_execution_live_registers_defined : control_edges ->
   ∀ (blocks : list block) (entry : block) (initial_regs : registers)
     (reached : state),
-  well_formed_ssa blocks entry ⇒ control_layout blocks ⇒
-  live_registers_defined (block_entry_point entry) initial_regs ⇒
-  context_steps (enter entry initial_regs) reached ⇒
+  well_formed_ssa blocks entry -> control_layout blocks ->
+  live_registers_defined (block_entry_point entry) initial_regs ->
+  context_steps (enter entry initial_regs) reached ->
   live_registers_defined (state_program_point reached)
     (current_registers reached).
 Proof.
