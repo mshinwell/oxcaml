@@ -256,21 +256,21 @@ B0(n/B0.0 : int) [dominator=B0 depth=0]
   v2 = 1
   goto B1(v2, Popaque/v0, v1)
 
-B1(i_769_unboxed0/B1.0 : int, j_770_unboxed0/B1.1 : int, hits_771_unboxed0/B1.2 : int) [dominator=B0 depth=1] <- B2, B0
-  v3 = i_769_unboxed0/B1.0 <s j_770_unboxed0/B1.1
+B1(i_unboxed0/B1.0 : int, j_unboxed0/B1.1 : int, hits_unboxed0/B1.2 : int) [dominator=B0 depth=1] <- B2, B0
+  v3 = i_unboxed0/B1.0 <s j_unboxed0/B1.1
   switch(v3) | 0 -> B3 | 1 -> B2
 
 B2() [dominator=B1 depth=2] <- B1
-  v4 = hits_771_unboxed0/B1.2 + 2
-  v5 = j_770_unboxed0/B1.1 + 2
-  v6 = i_769_unboxed0/B1.0 + 4
+  v4 = hits_unboxed0/B1.2 + 2
+  v5 = j_unboxed0/B1.1 + 2
+  v6 = i_unboxed0/B1.0 + 4
   goto B1(v6, v5, v4)
 
 B3() [dominator=B1 depth=2] <- B1
-  goto B4(hits_771_unboxed0/B1.2)
+  goto B4(hits_unboxed0/B1.2)
 
-B4(hits_771_unboxed0/B4.0 : val) [dominator=B3 depth=3] <- B3
-  return(hits_771_unboxed0/B4.0)
+B4(hits_unboxed0/B4.0 : val) [dominator=B3 depth=3] <- B3
+  return(hits_unboxed0/B4.0)
 |}]
 
 let _ = two_counter 10
@@ -339,12 +339,12 @@ B0(n/B0.0 : int) [dominator=B0 depth=0]
   v2 = 1
   goto B1(v2)
 
-B1(i_871_unboxed0/B1.0 : int) [dominator=B0 depth=1] <- B2, B0
-  prim/v3 = i_871_unboxed0/B1.0 <s m/v1
+B1(i_unboxed0/B1.0 : int) [dominator=B0 depth=1] <- B2, B0
+  prim/v3 = i_unboxed0/B1.0 <s m/v1
   switch(prim/v3) | 0 -> B3 | 1 -> B2
 
 B2() [dominator=B1 depth=2] <- B1
-  v4 = i_871_unboxed0/B1.0 + 2
+  v4 = i_unboxed0/B1.0 + 2
   goto B1(v4)
 
 B3() [dominator=B1 depth=2] <- B1

@@ -106,7 +106,7 @@ B1() [dominator=B0 depth=1] <- B0
   v4 = 0
   goto B2(v4, v3)
 
-B2(for_counter_naked/B2.0 : int, count_401_unboxed0/B2.1 : int) [dominator=B1 depth=2] <- B9, B1
+B2(for_counter_naked/B2.0 : int, count_unboxed0/B2.1 : int) [dominator=B1 depth=2] <- B9, B1
   for_stop/v5 = m/B0.1 + -2
   v6 = for_stop/v5 >=s 1
   switch(v6) | 0 -> B7 | 1 -> B3
@@ -124,7 +124,7 @@ B7() [dominator=B2 depth=3] <- B2
   goto B8()
 
 B8() [dominator=B2 depth=3] <- B7, B6
-  int_add/v11 = count_401_unboxed0/B2.1 + 2
+  int_add/v11 = count_unboxed0/B2.1 + 2
   for_next_naked/v12 = for_counter_naked/B2.0 + 1
   v13 = for_next_naked/v12 <=s for_stop_naked/v2
   switch(v13) | 0 -> B10 | 1 -> B9
@@ -169,7 +169,7 @@ B1() [dominator=B0 depth=1] <- B0
   v4 = 0
   goto B2(v4, v3)
 
-B2(for_counter_naked/B2.0 : int, count_491_unboxed0/B2.1 : int) [dominator=B1 depth=2] <- B9, B1
+B2(for_counter_naked/B2.0 : int, count_unboxed0/B2.1 : int) [dominator=B1 depth=2] <- B9, B1
   for_stop/v5 = m/B0.1 + -2
   v6 = for_stop/v5 >=s 1
   switch(v6) | 0 -> B7 | 1 -> B3
@@ -177,10 +177,10 @@ B2(for_counter_naked/B2.0 : int, count_491_unboxed0/B2.1 : int) [dominator=B1 de
 B3() [dominator=B2 depth=3] <- B2
   for_stop_naked/v7 = for_stop/v5 >>s 1
   v8 = 0
-  goto B4(v8, count_491_unboxed0/B2.1)
+  goto B4(v8, count_unboxed0/B2.1)
 
-B4(for_counter_naked/B4.0 : int, count_491_unboxed0/B4.1 : int) [dominator=B3 depth=4] <- B5, B3
-  int_add/v9 = count_491_unboxed0/B4.1 + 2
+B4(for_counter_naked/B4.0 : int, count_unboxed0/B4.1 : int) [dominator=B3 depth=4] <- B5, B3
+  int_add/v9 = count_unboxed0/B4.1 + 2
   for_next_naked/v10 = for_counter_naked/B4.0 + 1
   v11 = for_next_naked/v10 <=s for_stop_naked/v7
   switch(v11) | 0 -> B6 | 1 -> B5
@@ -192,18 +192,18 @@ B6() [dominator=B4 depth=5] <- B4
   goto B8(int_add/v9)
 
 B7() [dominator=B2 depth=3] <- B2
-  goto B8(count_491_unboxed0/B2.1)
+  goto B8(count_unboxed0/B2.1)
 
-B8(count_491_unboxed0/B8.0 : int) [dominator=B2 depth=3] <- B7, B6
+B8(count_unboxed0/B8.0 : int) [dominator=B2 depth=3] <- B7, B6
   for_next_naked/v12 = for_counter_naked/B2.0 + 1
   v13 = for_next_naked/v12 <=s for_stop_naked/v2
   switch(v13) | 0 -> B10 | 1 -> B9
 
 B9() [dominator=B8 depth=4] <- B8
-  goto B2(for_next_naked/v12, count_491_unboxed0/B8.0)
+  goto B2(for_next_naked/v12, count_unboxed0/B8.0)
 
 B10() [dominator=B8 depth=4] <- B8
-  return(count_491_unboxed0/B8.0)
+  return(count_unboxed0/B8.0)
 
 B11() [dominator=B0 depth=1] <- B0
   v14 = 1
@@ -383,19 +383,19 @@ B0(n/B0.0 : int) [dominator=B0 depth=0]
   v2 = 1
   goto B1(v2)
 
-B1(i_796_unboxed0/B1.0 : int) [dominator=B0 depth=1] <- B2, B0
-  v3 = i_796_unboxed0/B1.0 <s m/v1
+B1(i_unboxed0/B1.0 : int) [dominator=B0 depth=1] <- B2, B0
+  v3 = i_unboxed0/B1.0 <s m/v1
   switch(v3) | 0 -> B3 | 1 -> B2
 
 B2() [dominator=B1 depth=2] <- B1
-  v4 = i_796_unboxed0/B1.0 + 2
+  v4 = i_unboxed0/B1.0 + 2
   goto B1(v4)
 
 B3() [dominator=B1 depth=2] <- B1
-  goto B4(i_796_unboxed0/B1.0)
+  goto B4(i_unboxed0/B1.0)
 
-B4(i_796_unboxed0/B4.0 : val) [dominator=B3 depth=3] <- B3
-  return(i_796_unboxed0/B4.0)
+B4(i_unboxed0/B4.0 : val) [dominator=B3 depth=3] <- B3
+  return(i_unboxed0/B4.0)
 |}]
 
 let _ = counter_after 40
