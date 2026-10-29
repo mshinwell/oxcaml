@@ -92,10 +92,10 @@ Inductive instr : Type :=
 Parameter block_eqb : block -> block -> bool.
 Parameter value_eqb : value -> value -> bool.
 Parameter instr_id_eqb : instr_id -> instr_id -> bool.
-Axiom block_eqb_spec : forall (block block' : block),
+Axiom block_eqb_spec : ∀ (block block' : SsaModel.block),
   block_eqb block block' = true ⇔ block = block'.
-Axiom value_eqb_spec : forall (v w : value), value_eqb v w = true ⇔ v = w.
-Axiom instr_id_eqb_spec : forall (id id' : instr_id),
+Axiom value_eqb_spec : ∀ (v w : value), value_eqb v w = true ⇔ v = w.
+Axiom instr_id_eqb_spec : ∀ (id id' : instr_id),
   instr_id_eqb id id' = true ⇔ id = id'.
 
 (* ======================================================================== *)
@@ -111,15 +111,15 @@ Parameter set_for_all : (block -> bool) -> blockset -> bool.
 (* Membership: nothing is in the empty set; a singleton holds its element;
    adding a block puts it in and keeps the others; [set_for_all f] holds
    exactly when [f] holds of every member. *)
-Axiom set_mem_empty : forall (block : block), set_mem block set_empty = false.
-Axiom set_mem_singleton : forall (block block' : block),
+Axiom set_mem_empty : ∀ (block : block), set_mem block set_empty = false.
+Axiom set_mem_singleton : ∀ (block block' : SsaModel.block),
   set_mem block (set_singleton block') = block_eqb block block'.
-Axiom set_mem_add : forall (block block' : block) (set : blockset),
+Axiom set_mem_add : ∀ (block block' : SsaModel.block) (set : blockset),
   set_mem block (set_add block' set)
   = block_eqb block block' || set_mem block set.
-Axiom set_for_all_spec : forall (f : block -> bool) (set : blockset),
+Axiom set_for_all_spec : ∀ (f : block -> bool) (set : blockset),
   set_for_all f set = true
-  ⇔ (forall (block : block), set_mem block set = true ⇒ f block = true).
+  ⇔ (∀ (block : block), set_mem block set = true ⇒ f block = true).
 
 (* ======================================================================== *)
 (* Blocks                                                                   *)

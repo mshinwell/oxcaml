@@ -49,7 +49,7 @@ Definition state_program_point (current : state) : program_point :=
 (* The point immediately after an instruction is its definition site. *)
 Definition result_definition (id : instr_id) (op : operation)
     (args : list value) (result_count : int) (site : program_point) : Prop :=
-  exists (prefix suffix : list instr),
+  ∃ (prefix suffix : list instr),
     block_body (fst site) = prefix ++ Op id op args result_count :: suffix
     ∧ snd site = length suffix.
 
@@ -58,7 +58,7 @@ Definition result_definition (id : instr_id) (op : operation)
 Definition value_definition (v : value) (site : program_point) : Prop :=
   match v with
   | Res id op args index =>
-    exists (result_count : int),
+    ∃ (result_count : int),
       result_definition id op args result_count site
       ∧ (0 <= to_Z index < to_Z result_count)%Z
   | Block_param b index =>
@@ -70,29 +70,29 @@ Record well_formed_ssa (blocks : list block) (entry : block) : Prop :=
     (* Finished graphs contain only reachable blocks. This is structural
        reachability through program points, not a claim that operations execute
        successfully or that branches are dynamically feasible. *)
-    graph_blocks_reachable : forall (b : block), b ∈ blocks ⇒
+    graph_blocks_reachable : ∀ (b : block), b ∈ blocks ⇒
       program_point_reachable entry (b, 0%nat);
-    graph_successors_closed : forall (source target : block),
+    graph_successors_closed : ∀ (source target : block),
       source ∈ blocks ⇒ target ∈ (all_successors source) ⇒
       target ∈ blocks;
     graph_parameters : parameter_layout;
-    result_sites_unique : forall (id : instr_id) (op op' : operation)
+    result_sites_unique : ∀ (id : instr_id) (op op' : operation)
       (args args' : list value) (count count' : int)
         (site site' : program_point),
       (fst site) ∈ blocks ⇒ (fst site') ∈ blocks ⇒
       result_definition id op args count site ⇒
       result_definition id op' args' count' site' ⇒ site = site';
-    operand_definitions : forall (id : instr_id) (op : operation)
+    operand_definitions : ∀ (id : instr_id) (op : operation)
       (args : list value) (count : int) (site : program_point),
       (fst site) ∈ blocks ⇒ result_definition id op args count site ⇒
-      forall (arg : value), arg ∈ args ⇒
-      exists (arg_site : program_point),
+      ∀ (arg : value), arg ∈ args ⇒
+      ∃ (arg_site : program_point),
         value_definition arg arg_site ∧ (fst arg_site) ∈ blocks
         ∧ program_point_dominates entry arg_site site ∧ arg_site <> site;
-    terminator_definitions : forall (b : block) (args : list value),
+    terminator_definitions : ∀ (b : block) (args : list value),
       b ∈ blocks ⇒ args ∈ (terminator_args (terminator b)) ⇒
-      forall (arg : value), arg ∈ args ⇒
-      exists (arg_site : program_point),
+      ∀ (arg : value), arg ∈ args ⇒
+      ∃ (arg_site : program_point),
         value_definition arg arg_site ∧ (fst arg_site) ∈ blocks
         ∧ program_point_dominates entry arg_site (b, 0%nat) }.
 
@@ -103,7 +103,7 @@ Definition value_coherent (regs : registers) (v : value) : Prop :=
   match v with
   | Res id op args index =>
     if modeled_operation op args then
-      exists (arg_values : list Z) (result : Z),
+      ∃ (arg_values : list Z) (result : Z),
         read_values regs args = Some arg_values
         ∧ eval_operation op arg_values = Some result
         ∧ regs (Result id index) = Some result
@@ -116,7 +116,7 @@ Definition value_coherent (regs : registers) (v : value) : Prop :=
    definition later in the block is not available. *)
 Definition available_value (blocks : list block) (entry : block)
     (position : program_point) (v : value) : Prop :=
-  exists (site : program_point), value_definition v site ∧ (fst site) ∈ blocks
+  ∃ (site : program_point), value_definition v site ∧ (fst site) ∈ blocks
     ∧ program_point_dominates entry site position.
 
 (* Only available values are asserted coherent. Values from another branch,
@@ -124,11 +124,11 @@ Definition available_value (blocks : list block) (entry : block)
    satisfy any operation equation. *)
 Definition coherent_at (blocks : list block) (entry : block)
     (regs : registers) (position : program_point) : Prop :=
-  forall (v : value), available_value blocks entry position v ⇒
+  ∀ (v : value), available_value blocks entry position v ⇒
     value_coherent regs v.
 
 (* Operands of an available result are available as well. *)
-Lemma operand_available : forall (blocks : list block) (entry : block)
+Lemma operand_available : ∀ (blocks : list block) (entry : block)
     (position : program_point) (id : instr_id) (op : operation)
       (args : list value)
     (index : int) (arg : value),
@@ -145,7 +145,7 @@ Proof.
 Qed.
 
 (* A terminator's operands are available when that terminator executes. *)
-Lemma terminator_operand_available : forall (blocks : list block)
+Lemma terminator_operand_available : ∀ (blocks : list block)
     (entry : block) (current : state) (args : list value) (arg : value),
   well_formed_ssa blocks entry ⇒ (current_block current) ∈ blocks ⇒
   remaining current = [] ⇒
@@ -161,7 +161,7 @@ Proof.
 Qed.
 
 (* A result site is strictly inside its block, never at block entry. *)
-Lemma result_definition_not_entry : forall (id : instr_id) (op : operation)
+Lemma result_definition_not_entry : ∀ (id : instr_id) (op : operation)
     (args : list value) (result_count : int) (b : block),
   ~ result_definition id op args result_count (block_entry_point b).
 Proof.
@@ -171,7 +171,7 @@ Proof.
 Qed.
 
 (* Two instructions at one definition point are the same instruction. *)
-Lemma result_definition_at_point : forall (id id' : instr_id)
+Lemma result_definition_at_point : ∀ (id id' : instr_id)
     (op op' : operation) (args args' : list value)
     (count count' : int) (site : program_point),
   result_definition id op args count site ⇒
@@ -187,7 +187,7 @@ Qed.
 
 (* Canonical available references sharing a register share the complete value
    payload. The two references may be available at different points. *)
-Lemma available_value_identity : forall (blocks : list block) (entry : block)
+Lemma available_value_identity : ∀ (blocks : list block) (entry : block)
     (first second : program_point) (first_ref second_ref : value),
   well_formed_ssa blocks entry ⇒
   available_value blocks entry first first_ref ⇒
@@ -212,10 +212,10 @@ Proof.
 Qed.
 
 (* An instruction in a block has a definition site at the suffix after it. *)
-Lemma result_definition_of_membership : forall (b : block) (id : instr_id)
+Lemma result_definition_of_membership : ∀ (b : block) (id : instr_id)
     (op : operation) (args : list value) (count : int),
   (Op id op args count) ∈ (block_body b) ⇒
-  exists (site : program_point), fst site = b ∧
+  ∃ (site : program_point), fst site = b ∧
     result_definition id op args count site.
 Proof.
   intros b id op args count Hin. apply in_split in Hin.
@@ -226,7 +226,7 @@ Qed.
 
 (* An available reference to a single-result instruction is its unique result,
    with the actual payload. Sharing an ID alone is not enough. *)
-Lemma single_result_reference : forall (blocks : list block) (entry : block)
+Lemma single_result_reference : ∀ (blocks : list block) (entry : block)
     (position : program_point) (b : block) (id : instr_id) (op : operation)
     (args : list value) (v : value),
   well_formed_ssa blocks entry ⇒ b ∈ blocks ⇒
@@ -258,10 +258,10 @@ Qed.
 
 (* A canonical definition outside a region cannot share its register with a
    definition inside. Unique sites rule out borrowed IDs. *)
-Lemma definition_outside_region : forall (blocks : list block) (entry : block)
+Lemma definition_outside_region : ∀ (blocks : list block) (entry : block)
     (region : blockset) (v : value) (site : program_point),
   well_formed_ssa blocks entry ⇒
-  (forall (b : block), set_mem b region = true ⇒ b ∈ blocks) ⇒
+  (∀ (b : block), set_mem b region = true ⇒ b ∈ blocks) ⇒
   value_definition v site ⇒ (fst site) ∈ blocks ⇒
   set_mem (fst site) region = false ⇒
   ~ register_defined_in_region region (register_of_value v).
@@ -283,7 +283,7 @@ Qed.
 
 (* An executable instruction position corresponds to its actual body suffix.
    The successor point is precisely that instruction's site. *)
-Lemma executing_result_definition : forall (b : block) (id : instr_id)
+Lemma executing_result_definition : ∀ (b : block) (id : instr_id)
     (op : operation) (args : list value) (count : int) (rest : list instr)
     (regs : registers),
   valid_position
@@ -296,7 +296,7 @@ Proof.
 Qed.
 
 (* Actual transitions project to structural program-point edges. *)
-Theorem step_program_point_edge : control_edges ⇒ forall (before after :
+Theorem step_program_point_edge : control_edges ⇒ ∀ (before after :
   state),
   valid_position before ⇒ step before after ⇒
   program_point_edge (state_program_point before) (state_program_point after).
@@ -311,7 +311,7 @@ Proof.
 Qed.
 
 (* A step preserves membership in a successor-closed graph. *)
-Theorem step_in_graph : control_edges ⇒ forall (blocks : list block)
+Theorem step_in_graph : control_edges ⇒ ∀ (blocks : list block)
     (entry : block) (before after : state),
   well_formed_ssa blocks entry ⇒ (current_block before) ∈ blocks ⇒
   step before after ⇒ (current_block after) ∈ blocks.
@@ -329,7 +329,7 @@ Qed.
    results this uses unique instruction identities; for parameters it uses the
    actual parameter layout of the target. *)
 Theorem step_definition_frame :
-  forall (blocks : list block) (entry : block) (before after : state)
+  ∀ (blocks : list block) (entry : block) (before after : state)
     (v : value) (site : program_point),
   well_formed_ssa blocks entry ⇒ valid_position before ⇒
   (current_block before) ∈ blocks ⇒
@@ -381,7 +381,7 @@ Qed.
 (* If a result's definition site is the new program point, this very step
    executed its instruction. A transfer cannot manufacture such a result
    because instruction result sites are never block-entry points. *)
-Lemma step_new_result : forall (before after : state) (id : instr_id)
+Lemma step_new_result : ∀ (before after : state) (id : instr_id)
     (op : operation) (args : list value) (index : int),
   valid_position before ⇒ step before after ⇒
   value_definition (Res id op args index) (state_program_point after) ⇒
@@ -413,7 +413,7 @@ Qed.
 (* No instruction result is available at function entry. Consequently initial
    coherence holds for arbitrary input-register values; it is not an assumption
    about a valuation or a real execution. *)
-Lemma entry_values_coherent : forall (blocks : list block) (entry : block)
+Lemma entry_values_coherent : ∀ (blocks : list block) (entry : block)
     (initial_regs : registers),
   coherent_at blocks entry initial_regs (block_entry_point entry).
 Proof.

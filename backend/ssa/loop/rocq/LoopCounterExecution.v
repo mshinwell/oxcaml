@@ -69,7 +69,7 @@ Definition tested_counter (loop : natural_loop) (biv : biv)
 Definition comparison_shape (condition : value) (cmp : integer_comparison)
     (iv_is_left : bool) (counter_ref : value)
       (comparison_bound : bound) : Prop :=
-  exists (id : instr_id) (index : int),
+  ∃ (id : instr_id) (index : int),
     match comparison_bound with
     | Const_bound constant =>
       iv_is_left = true
@@ -95,7 +95,7 @@ Definition read_comparison_bound (regs : registers)
 (* A reported counter index is in range: an update is passed at that position
    by a Goto whose argument list matches the header parameters. *)
 Lemma biv_parameter_identity : parameter_layout ⇒
-  forall (defs : op_def) (loop : natural_loop) (biv : biv),
+  ∀ (defs : op_def) (loop : natural_loop) (biv : biv),
   biv_spec defs loop biv ⇒
   param loop.(header) biv.(param_index)
     = Block_param loop.(header) biv.(param_index).
@@ -115,11 +115,11 @@ Qed.
 
 (* An actual update result is the current parameter plus the signed step, with
    machine wraparound. Both the parameter and the result are bound. *)
-Lemma biv_update_observed : forall (defs : op_def) (loop : natural_loop)
+Lemma biv_update_observed : ∀ (defs : op_def) (loop : natural_loop)
     (biv : biv) (step_size : int) (updated : value) (regs : registers),
   biv_spec defs loop biv ⇒ signed_step biv = Some step_size ⇒
   updated ∈ biv.(update) ⇒ value_coherent regs updated ⇒
-  exists (counter : Z),
+  ∃ (counter : Z),
     regs (register_of_value (param loop.(header) biv.(param_index)))
       = Some counter
     ∧ regs (register_of_value updated)
@@ -168,7 +168,7 @@ Qed.
 
 (* Observing an accepted counter operand determines the header parameter and
    whether the comparison sees it before or after the update. *)
-Lemma biv_operand_observed : forall (defs : op_def) (loop : natural_loop)
+Lemma biv_operand_observed : ∀ (defs : op_def) (loop : natural_loop)
     (biv : biv) (step_size : int) (counter_ref : value) (regs : registers)
     (observed : Z),
   biv_spec defs loop biv ⇒ signed_step biv = Some step_size ⇒
@@ -176,7 +176,7 @@ Lemma biv_operand_observed : forall (defs : op_def) (loop : natural_loop)
     || existsb (value_eqb counter_ref) biv.(update) = true ⇒
   value_coherent regs counter_ref ⇒
   regs (register_of_value counter_ref) = Some observed ⇒
-  exists (counter : Z),
+  ∃ (counter : Z),
     regs (register_of_value (param loop.(header) biv.(param_index)))
       = Some counter
     ∧ observed = tested_counter loop biv counter_ref step_size counter.
@@ -198,12 +198,12 @@ Qed.
 
 (* The comparison recognizer supplies an actual counter operand and the
    instruction shape, not a hypothesis about the values it computes. *)
-Lemma extract_comparison_shape : forall (is_counter is_bound : value -> bool)
+Lemma extract_comparison_shape : ∀ (is_counter is_bound : value -> bool)
     (condition : value) (cmp : integer_comparison) (iv_is_left : bool)
     (comparison_bound : bound),
   extract_comparison is_counter is_bound condition
     = Some (cmp, iv_is_left, comparison_bound) ⇒
-  exists (counter_ref : value), is_counter counter_ref = true
+  ∃ (counter_ref : value), is_counter counter_ref = true
     ∧ (match comparison_bound with Const_bound _ => True
         | Value_bound bound_ref => is_bound bound_ref = true end)
     ∧ comparison_shape condition cmp iv_is_left counter_ref comparison_bound.
@@ -224,7 +224,7 @@ Qed.
 
 (* Operands of the actual comparison are available at every point where its
    result is available. This includes an update tested by the header. *)
-Lemma comparison_operands_available : forall (blocks : list block)
+Lemma comparison_operands_available : ∀ (blocks : list block)
     (entry : block) (position : SsaDominance.program_point) (condition : value)
     (cmp : integer_comparison) (iv_is_left : bool) (counter_ref : value)
     (comparison_bound : bound),
@@ -247,12 +247,12 @@ Qed.
 
 (* Evaluating the comparison reads these two operand values and produces
    exactly its 0/1 result, for either orientation and either kind of bound. *)
-Lemma comparison_values_observed : forall (condition : value)
+Lemma comparison_values_observed : ∀ (condition : value)
     (cmp : integer_comparison) (iv_is_left : bool) (counter_ref : value)
     (comparison_bound : bound) (regs : registers),
   comparison_shape condition cmp iv_is_left counter_ref comparison_bound ⇒
   value_coherent regs condition ⇒
-  exists (counter_word bound_word : Z),
+  ∃ (counter_word bound_word : Z),
     regs (register_of_value counter_ref) = Some counter_word
     ∧ read_comparison_bound regs comparison_bound = Some bound_word
     ∧ regs (register_of_value condition) = Some (bool_to_Z
@@ -294,7 +294,7 @@ Proof.
 Qed.
 
 (* A bound that was actually read fits a machine register. *)
-Lemma read_comparison_bound_bounded : forall (regs : registers)
+Lemma read_comparison_bound_bounded : ∀ (regs : registers)
   (comparison_bound : bound) (word : Z),
   bounded_registers regs ⇒ read_comparison_bound regs comparison_bound = Some
     word ⇒ in_int64 word.
@@ -306,7 +306,7 @@ Proof.
 Qed.
 
 (* Testing the updated value shifts the same IV sequence by one step. *)
-Lemma tested_counter_sequence : forall (loop : natural_loop) (biv : biv)
+Lemma tested_counter_sequence : ∀ (loop : natural_loop) (biv : biv)
     (counter_ref : value) (step_size : int) (counter : Z) (iteration : nat),
   tested_counter loop biv counter_ref step_size
     (counter_after_iterations counter (to_Z step_size) iteration)
@@ -334,14 +334,14 @@ Section CounterExecution.
   Hypothesis certificate : deletion_certificate defs blocks loop bivs exit.
   Let start := enter loop.(header) header_regs.
   Hypothesis prefix : context_steps (enter entry initial_regs) start.
-  Hypothesis progress : forall (reached : state),
+  Hypothesis progress : ∀ (reached : state),
     region_steps loop.(body) start reached ⇒
     set_mem (current_block reached) loop.(body) = true ⇒
-    exists (next : state), SsaSemantics.step reached next.
+    ∃ (next : state), SsaSemantics.step reached next.
 
   (* The header test is an actual terminator operand and is therefore available
      after the header instructions have executed. *)
-  Lemma header_comparison_available : forall (exit_info : exit_branch)
+  Lemma header_comparison_available : ∀ (exit_info : exit_branch)
       (reached : state),
     find_exit_branch loop = Some exit_info ⇒
     current_block reached = loop.(header) ⇒
@@ -360,7 +360,7 @@ Section CounterExecution.
 
   (* The header's comparison observes the actual counter (or its update) and
      bound, and its result is the corresponding machine boolean. *)
-  Lemma header_comparison_observed : forall (biv : biv) (step_size : int)
+  Lemma header_comparison_observed : ∀ (biv : biv) (step_size : int)
       (exit_info : exit_branch) (cmp : integer_comparison) (iv_is_left : bool)
       (counter_ref : value) (comparison_bound : bound) (reached : state),
     biv_spec defs loop biv ⇒
@@ -373,7 +373,7 @@ Section CounterExecution.
       || existsb (value_eqb counter_ref) biv.(update) = true ⇒
     current_block reached = loop.(header) ⇒
     remaining reached = [] ⇒
-    exists (counter bound_word : Z),
+    ∃ (counter bound_word : Z),
       current_registers reached (Param loop.(header) biv.(param_index))
         = Some counter
       ∧ read_comparison_bound (current_registers reached) comparison_bound =
@@ -414,7 +414,7 @@ Section CounterExecution.
 
   (* One traversal either exits or reaches the next header test with the
      counter advanced once. Every equation comes from an actual SSA read. *)
-  Lemma counter_iteration : forall (biv : biv) (step_size : int)
+  Lemma counter_iteration : ∀ (biv : biv) (step_size : int)
       (header_test_state : state) (counter : Z),
     biv_spec defs loop biv ⇒ signed_step biv = Some step_size ⇒
     region_steps loop.(body) start header_test_state ⇒
@@ -422,10 +422,10 @@ Section CounterExecution.
     remaining header_test_state = [] ⇒
     current_registers header_test_state (Param loop.(header) biv.(param_index))
       = Some counter ⇒
-    (exists (exit_state : state),
+    (∃ (exit_state : state),
        region_steps loop.(body) start exit_state
        ∧ set_mem (current_block exit_state) loop.(body) = false)
-    ∨ exists (next_header_test_state : state),
+    ∨ ∃ (next_header_test_state : state),
        region_steps loop.(body) start next_header_test_state
        ∧ current_block next_header_test_state = loop.(header)
        ∧ remaining next_header_test_state = []
@@ -506,17 +506,17 @@ Section CounterExecution.
      witnessed header test take the exiting edge. *)
   Theorem accepted_loop_finite_exit :
     SsaDominance.dominance_semantics entry ⇒ op_def_correct defs blocks ⇒
-    (forall (dominator target : block),
+    (∀ (dominator target : block),
       dominator ∈ blocks ⇒ target ∈ blocks ⇒
-      (forall (visited_blocks : list block), SsaDominance.block_path_from entry
+      (∀ (visited_blocks : list block), SsaDominance.block_path_from entry
         visited_blocks target ⇒
          dominator ∈ visited_blocks) ⇒ dominator ▷ target) ⇒
     switch_edge_multiplicity ⇒ graph_size_supported blocks ⇒
     NoDup (strict_dominators loop.(header)) ⇒
-    (forall (dominator : block),
+    (∀ (dominator : block),
       dominator ∈ (strict_dominators loop.(header)) ⇒ dominator ∈ blocks) ⇒
     bounded_registers initial_regs ⇒
-    exists (exit_state : state), region_steps loop.(body) start exit_state
+    ∃ (exit_state : state), region_steps loop.(body) start exit_state
       ∧ set_mem (current_block exit_state) loop.(body) = false.
   Proof.
     intros Hdominance Hdefs Hcomplete Hmultiplicity Hsize Hnodup Hmembers

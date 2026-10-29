@@ -49,7 +49,7 @@ Local Open Scope Z_scope.
 
 (* Read back the singleton predecessor test without discarding its multiplicity
    or the exclusion of the graph entry. *)
-Lemma sole_predecessor_structure : forall (source target : block),
+Lemma sole_predecessor_structure : ∀ (source target : block),
   sole_predecessor source target = true ⇒
   dominates target source = false ∧ predecessors target = [source].
 Proof.
@@ -64,7 +64,7 @@ Qed.
 (* A singleton predecessor list rules out the ambiguous duplicate-target
    Switch, because the builder records both incoming edge occurrences. *)
 Lemma sole_predecessor_switch_distinct : switch_edge_multiplicity ⇒
-  forall (source ifnot ifso : block) (condition : value) (negate : bool),
+  ∀ (source ifnot ifso : block) (condition : value) (negate : bool),
   terminator source = Terminator.Switch condition [ifnot; ifso] ⇒
   sole_predecessor source (if negate then ifnot else ifso) = true ⇒
   ifnot <> ifso.
@@ -80,10 +80,10 @@ Qed.
 
 (* The accepted guard identifies a specific successor, not merely a block
    occurring somewhere among the targets. *)
-Lemma guard_test_structure : forall (target source : block)
+Lemma guard_test_structure : ∀ (target source : block)
     (condition : value) (negate : bool),
   guard_test target source = Some (condition, negate) ⇒
-  exists (ifnot ifso : block),
+  ∃ (ifnot ifso : block),
     terminator source = Terminator.Switch condition [ifnot; ifso]
     ∧ dominates (if negate then ifnot else ifso) target = true
     ∧ sole_predecessor source (if negate then ifnot else ifso) = true.
@@ -109,15 +109,15 @@ Section Execution.
   Hypothesis edges : control_edges.
   Hypothesis well_formed : well_formed_ssa blocks entry.
   Hypothesis dominance : dominance_semantics entry.
-  Hypothesis dominance_complete : forall (dominator target : block),
+  Hypothesis dominance_complete : ∀ (dominator target : block),
     dominator ∈ blocks ⇒ target ∈ blocks ⇒
-    (forall (visited_blocks : list block), SsaDominance.block_path_from entry
+    (∀ (visited_blocks : list block), SsaDominance.block_path_from entry
       visited_blocks target ⇒
        dominator ∈ visited_blocks) ⇒ dominator ▷ target.
 
   (* The checked non-dominance is also non-dominance of program points.
      Completeness matters here: soundness alone says nothing about false. *)
-  Lemma sole_predecessor_not_program_point_dominator : forall (source target :
+  Lemma sole_predecessor_not_program_point_dominator : ∀ (source target :
     block),
     source ∈ blocks ⇒ target ∈ blocks ⇒
     sole_predecessor source target = true ⇒
@@ -133,7 +133,7 @@ Section Execution.
 
   (* On an actual transfer into the singleton successor, the Switch index
      selects exactly that edge. Its two targets must be distinct. *)
-  Lemma guard_entry_word : forall (source ifnot ifso : block)
+  Lemma guard_entry_word : ∀ (source ifnot ifso : block)
       (condition : value) (negate : bool) (before after : state),
     terminator source = Terminator.Switch condition [ifnot; ifso] ⇒
     predecessors (if negate then ifnot else ifso) = [source] ⇒
@@ -186,7 +186,7 @@ Section Execution.
 
   (* Opaque context effects cannot fabricate entry into a guard's sole
      successor. Its sole predecessor is the actual Switch source. *)
-  Lemma context_guard_entry_word : forall (source ifnot ifso : block)
+  Lemma context_guard_entry_word : ∀ (source ifnot ifso : block)
       (condition : value) (negate : bool) (before after : state),
     terminator source = Terminator.Switch condition [ifnot; ifso] ⇒
     predecessors (if negate then ifnot else ifso) = [source] ⇒
@@ -216,7 +216,7 @@ Section Execution.
   (* A guard's result cannot be redefined while its selected successor
      dominates execution: its definition already dominates the branch, whereas
      that successor does not. *)
-  Lemma executed_guard_word : forall (source ifnot ifso : block)
+  Lemma executed_guard_word : ∀ (source ifnot ifso : block)
       (condition : value) (negate : bool) (initial_regs : registers)
       (reached : state),
     source ∈ blocks ⇒
@@ -291,7 +291,7 @@ Section Execution.
 
   (* At any point dominated by the selected successor, the guard's canonical
      condition is still available. *)
-  Lemma guard_condition_available : forall (source target : block)
+  Lemma guard_condition_available : ∀ (source target : block)
       (condition : value) (negate : bool) (position : program_point),
     source ∈ blocks ⇒ guard_test target source = Some (condition, negate) ⇒
     fst position = target ⇒ available_value blocks entry position condition.
@@ -317,7 +317,7 @@ End Execution.
 
 (* A comparison's executed boolean is its arithmetic test in the snapshot. The
    snapshot bridge is used only for available operands. *)
-Lemma snapshot_comparison_result : forall (blocks : list block)
+Lemma snapshot_comparison_result : ∀ (blocks : list block)
     (entry : block) (position : program_point) (regs : registers)
     (condition : value) (negate : bool),
   well_formed_ssa blocks entry ⇒ coherent_at blocks entry regs position ⇒
@@ -368,16 +368,16 @@ Qed.
 (* Every accepted entry guard holds in the snapshot reached by an actual
    execution. Unlike the old branch-run premise this handles duplicate Switch
    targets through the builder's edge-occurrence metadata. *)
-Theorem executed_guards_taken : forall (blocks : list block) (entry : block),
+Theorem executed_guards_taken : ∀ (blocks : list block) (entry : block),
   control_edges ⇒ well_formed_ssa blocks entry ⇒ dominance_semantics entry ⇒
-  (forall (dominator target : block),
+  (∀ (dominator target : block),
     dominator ∈ blocks ⇒ target ∈ blocks ⇒
-    (forall (visited_blocks : list block), SsaDominance.block_path_from entry
+    (∀ (visited_blocks : list block), SsaDominance.block_path_from entry
       visited_blocks target ⇒
        dominator ∈ visited_blocks) ⇒ dominator ▷ target) ⇒
   switch_edge_multiplicity ⇒
-  forall (target : block) (initial_regs : registers) (reached : state),
-  (forall (dominator : block), dominator ∈ (strict_dominators target) ⇒
+  ∀ (target : block) (initial_regs : registers) (reached : state),
+  (∀ (dominator : block), dominator ∈ (strict_dominators target) ⇒
      dominator ∈ blocks) ⇒
   bounded_registers initial_regs ⇒
   context_steps (enter entry initial_regs) reached ⇒

@@ -50,9 +50,9 @@ Local Open Scope sint63_scope.
 (* Whether the exact sum or product of two [int]s is again an [int]. *)
 Parameter add_fits mul_fits : int -> int -> bool.
 (* What the tests answer: whether the exact sum, or product, is an [int]. *)
-Axiom add_fits_spec : forall (a b : int),
+Axiom add_fits_spec : ∀ (a b : int),
   add_fits a b = fits_int (to_Z a + to_Z b).
-Axiom mul_fits_spec : forall (a b : int),
+Axiom mul_fits_spec : ∀ (a b : int),
   mul_fits a b = fits_int (to_Z a * to_Z b).
 
 (* The sum, the product and the negation, when they are [int]s. *)
@@ -70,9 +70,9 @@ Definition neg_ovf (a : int) : option int :=
 (* Whether the exact sum or product of two [Int64]s is again an [Int64]. *)
 Parameter add_fits64 mul_fits64 : Int64.t -> Int64.t -> bool.
 (* The same tests on [Int64]. *)
-Axiom add_fits64_spec : forall (a b : Int64.t),
+Axiom add_fits64_spec : ∀ (a b : Int64.t),
   add_fits64 a b = fits_int64 (Int64.to_Z a + Int64.to_Z b).
-Axiom mul_fits64_spec : forall (a b : Int64.t),
+Axiom mul_fits64_spec : ∀ (a b : Int64.t),
   mul_fits64 a b = fits_int64 (Int64.to_Z a * Int64.to_Z b).
 
 Definition add_ovf64 (a b : Int64.t) : option Int64.t :=
@@ -120,7 +120,7 @@ Local Open Scope Z_scope.
 
 (* Each checked operation, when it answers, computes the exact result. *)
 
-Lemma add_ovf_spec : forall (a b sum : int),
+Lemma add_ovf_spec : ∀ (a b sum : int),
   add_ovf a b = Some sum ⇒ to_Z sum = to_Z a + to_Z b.
 Proof.
   unfold add_ovf. intros a b s H. rewrite add_fits_spec in H.
@@ -130,7 +130,7 @@ Proof.
 Qed.
 
 (* The checked product is the exact product. *)
-Lemma mul_ovf_spec : forall (a b product : int),
+Lemma mul_ovf_spec : ∀ (a b product : int),
   mul_ovf a b = Some product ⇒ to_Z product = to_Z a * to_Z b.
 Proof.
   unfold mul_ovf. intros a b s H. rewrite mul_fits_spec in H.
@@ -140,7 +140,7 @@ Proof.
 Qed.
 
 (* The checked negation is the exact negation. *)
-Lemma neg_ovf_spec : forall (a negated : int),
+Lemma neg_ovf_spec : ∀ (a negated : int),
   neg_ovf a = Some negated ⇒ to_Z negated = - to_Z a.
 Proof.
   unfold neg_ovf. intros a s H.
@@ -149,7 +149,7 @@ Proof.
 Qed.
 
 (* The checked 64-bit sum is the exact sum. *)
-Lemma add_ovf64_spec : forall (a b sum : Int64.t),
+Lemma add_ovf64_spec : ∀ (a b sum : Int64.t),
   add_ovf64 a b = Some sum ⇒ Int64.to_Z sum = Int64.to_Z a + Int64.to_Z b.
 Proof.
   unfold add_ovf64. intros a b s H. rewrite add_fits64_spec in H.
@@ -159,7 +159,7 @@ Proof.
 Qed.
 
 (* The checked 64-bit product is the exact product. *)
-Lemma mul_ovf64_spec : forall (a b product : Int64.t),
+Lemma mul_ovf64_spec : ∀ (a b product : Int64.t),
   mul_ovf64 a b = Some product ⇒ Int64.to_Z product = Int64.to_Z a *
     Int64.to_Z b.
 Proof.
@@ -171,7 +171,7 @@ Qed.
 
 (* An [Int64] that [int64_is_int] accepts has the value of the [int] read from
    it. *)
-Lemma int64_is_int_spec : forall (n : Int64.t),
+Lemma int64_is_int_spec : ∀ (n : Int64.t),
   int64_is_int n = true ⇒ to_Z (Int64.to_int n) = Int64.to_Z n.
 Proof.
   intros n H. unfold int64_is_int in H. apply Int64.equal_spec in H.
@@ -179,7 +179,7 @@ Proof.
 Qed.
 
 (* The [int] [to_int_ovf] returns has the value of its argument. *)
-Lemma to_int_ovf_spec : forall (x : Int64.t) (i : int),
+Lemma to_int_ovf_spec : ∀ (x : Int64.t) (i : int),
   to_int_ovf x = Some i ⇒ to_Z i = Int64.to_Z x.
 Proof.
   unfold to_int_ovf. intros x i H.
@@ -189,7 +189,7 @@ Qed.
 
 (* [gcd64 a b] divides both arguments (that it is their greatest common divisor
    is not needed). *)
-Lemma gcd64_divides : forall (a b : Int64.t),
+Lemma gcd64_divides : ∀ (a b : Int64.t),
   (Int64.to_Z (gcd64 a b) | Int64.to_Z a)
   ∧ (Int64.to_Z (gcd64 a b) | Int64.to_Z b).
 Proof.
@@ -206,7 +206,7 @@ Qed.
 
 (* [Int64.abs] does not change divisibility, even on [min_int] (which it leaves
    unchanged). *)
-Lemma abs64_divide : forall (d : Z) (c : Int64.t),
+Lemma abs64_divide : ∀ (d : Z) (c : Int64.t),
   (d | Int64.to_Z (Int64.abs c)) ⇒ (d | Int64.to_Z c).
 Proof.
   intros d c H. rewrite Int64.abs_spec in H.
@@ -221,7 +221,7 @@ Proof.
 Qed.
 
 (* [floor_div64] is floor division. *)
-Lemma floor_div64_spec : forall (dividend divisor : Int64.t),
+Lemma floor_div64_spec : ∀ (dividend divisor : Int64.t),
   0 < Int64.to_Z divisor ⇒ Int64.to_Z (floor_div64 dividend divisor) =
     Int64.to_Z dividend / Int64.to_Z divisor.
 Proof.
@@ -290,7 +290,7 @@ Qed.
 
 (* [Int64.div] by a positive divisor that divides exactly is the exact
    quotient. *)
-Lemma div_exact64 : forall (dividend divisor : Int64.t),
+Lemma div_exact64 : ∀ (dividend divisor : Int64.t),
   0 < Int64.to_Z divisor ⇒ (Int64.to_Z divisor | Int64.to_Z dividend) ⇒
   Int64.to_Z (Int64.div dividend divisor)
   = Int64.to_Z dividend / Int64.to_Z divisor.

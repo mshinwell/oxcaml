@@ -274,9 +274,9 @@ header.
 - Use the notations `SsaModel.v` defines (`a ▷ b` for `a`
   dominating `b`) in parts 2 to 4, where a statement is read by eye.
   Part 1 is code and calls the primitives as the compiler does.
-- Use `⇒` and `⇔` for logical implication and equivalence, and `∧` and
-  `∨` for conjunction and disjunction, importing `OxCamlLogic.v`.
-  Keep `->` for function types.
+- Use `∀` and `∃` for quantifiers, `⇒` and `⇔` for implication and
+  equivalence, and `∧` and `∨` for conjunction and disjunction, importing
+  `OxCamlLogic.v`. Keep `->` for function types and `exists` for the tactic.
 - Use `∈` and `∉` for list membership and non-membership; `OxCamlList.v`
   defines these notations for `List.In` and its negation.
 - Prefer a per-element statement to a counting one: "every parameter at
@@ -284,7 +284,7 @@ header.
   checkable; "there are as many as parameters" is not what the pass
   relies on.
 - The existential witnesses in a specification should be things the
-  analysis actually computes (`exists args, goto_args ... = Some args`),
+  analysis actually computes (`∃ args, goto_args ... = Some args`),
   so that the proof is a reading-back of the code.
 - Define machine execution once (`SsaSemantics.v`). Derive operation
   equations only for available, canonical definitions (`SsaExecution.v`

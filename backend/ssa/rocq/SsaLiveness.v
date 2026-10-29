@@ -49,37 +49,37 @@ Import ListNotations.
 (* Instruction operands are read before the instruction's result site;
    terminator operands are read at point zero. *)
 Inductive operand_at : program_point -> value -> Prop :=
-  | Instruction_operand : forall (b : block) (remaining : nat)
+  | Instruction_operand : ∀ (b : block) (remaining : nat)
       (id : instr_id) (op : operation) (args : list value) (count : int)
       (arg : value),
       result_definition id op args count (b, remaining) ⇒ arg ∈ args ⇒
       operand_at (b, S remaining) arg
-  | Terminator_operand : forall (b : block) (args : list value) (arg : value),
+  | Terminator_operand : ∀ (b : block) (args : list value) (arg : value),
       args ∈ (terminator_args (terminator b)) ⇒ arg ∈ args ⇒
       operand_at (b, 0%nat) arg.
 
 Definition register_defined_at (position : program_point)
   (reg : register) : Prop :=
-  exists (v : value), value_definition v position ∧ register_of_value v = reg.
+  ∃ (v : value), value_definition v position ∧ register_of_value v = reg.
 
 (* Definitions kill the old register value on the incoming edge. In particular,
    a later entry to a parameter's block does not read its old value merely
    because that parameter is used in the block. *)
 Inductive register_live_at : program_point -> register -> Prop :=
-  | Live_read : forall (position : program_point) (v : value),
+  | Live_read : ∀ (position : program_point) (v : value),
       operand_at position v ⇒ register_live_at position (register_of_value v)
-  | Live_predecessor : forall (before after : program_point) (reg : register),
+  | Live_predecessor : ∀ (before after : program_point) (reg : register),
       program_point_edge before after ⇒ ~ register_defined_at after reg ⇒
       register_live_at after reg ⇒ register_live_at before reg.
 
 Definition agree_on_live (position : program_point)
   (left right : registers) : Prop :=
-  forall (reg : register),
+  ∀ (reg : register),
     register_live_at position reg ⇒ left reg = right reg.
 
 (* The point immediately before an actual instruction has its instruction edge
    to the definition site. *)
-Lemma definition_instruction_edge : forall (b : block) (remaining : nat)
+Lemma definition_instruction_edge : ∀ (b : block) (remaining : nat)
     (id : instr_id) (op : operation) (args : list value) (count : int),
   result_definition id op args count (b, remaining) ⇒
   program_point_edge (b, S remaining) (b, remaining).
@@ -92,7 +92,7 @@ Qed.
 (* Every actual read has an available canonical definition. For an instruction,
    strict definition/use dominance puts the operand before the instruction,
    rather than merely after its result is written. *)
-Theorem operand_at_available : forall (blocks : list block) (entry : block)
+Theorem operand_at_available : ∀ (blocks : list block) (entry : block)
     (position : program_point) (v : value),
   well_formed_ssa blocks entry ⇒ (fst position) ∈ blocks ⇒
   operand_at position v ⇒ available_value blocks entry position v.
@@ -112,7 +112,7 @@ Proof.
 Qed.
 
 (* A point edge stays inside a successor-closed graph. *)
-Lemma program_point_edge_in_graph : forall (blocks : list block)
+Lemma program_point_edge_in_graph : ∀ (blocks : list block)
   (entry : block)
     (before after : program_point),
   well_formed_ssa blocks entry ⇒ (fst before) ∈ blocks ⇒
@@ -126,11 +126,11 @@ Qed.
 (* A value needed before its next definition is already available. This is why
    live-out agreement can be proved using available-value equations; stale
    registers for definitions that will execute later are not live. *)
-Theorem live_at_available : forall (blocks : list block) (entry : block)
+Theorem live_at_available : ∀ (blocks : list block) (entry : block)
     (position : program_point) (reg : register),
   well_formed_ssa blocks entry ⇒ (fst position) ∈ blocks ⇒
   register_live_at position reg ⇒
-  exists (v : value), register_of_value v = reg ∧
+  ∃ (v : value), register_of_value v = reg ∧
     available_value blocks entry position v.
 Proof.
   intros blocks entry position reg Hwf Hblock Hlive.

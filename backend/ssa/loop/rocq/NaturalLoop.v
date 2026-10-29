@@ -187,10 +187,10 @@ Definition find_exit_branch (loop : natural_loop) : option exit_branch :=
 Inductive reaches_back_edge_without_header (header : block)
   (back_edge_sources : list block)
     : block -> Prop :=
-  | reaches_back_edge_source : forall (source : block),
+  | reaches_back_edge_source : ∀ (source : block),
       source ∈ back_edge_sources ⇒ source <> header ⇒
       reaches_back_edge_without_header header back_edge_sources source
-  | reaches_back_edge_predecessor : forall (block pred : block),
+  | reaches_back_edge_predecessor : ∀ (block pred : SsaModel.block),
       reaches_back_edge_without_header header back_edge_sources block ⇒
       pred ∈ predecessors block ⇒
       pred <> header ⇒ reaches_back_edge_without_header header
@@ -211,7 +211,7 @@ Section Walk.
      header. *)
   Definition body_sound (body : blockset) : Prop :=
     set_mem header body = true
-    ∧ forall (block : block), set_mem block body = true ⇒
+    ∧ ∀ (block : block), set_mem block body = true ⇒
          block = header ∨ reaches_back_edge_without_header header
            back_edge_sources block.
 
@@ -219,10 +219,10 @@ Section Walk.
      and the worklist made of blocks that reach a back-edge source, provided
      every block of [preds] other than the header reaches one. *)
   Lemma fold_add_new_body_block_sound :
-    forall (preds : list block) (body : blockset) (added : list block),
+    ∀ (preds : list block) (body : blockset) (added : list block),
     body_sound body ⇒ Forall (reaches_back_edge_without_header header
       back_edge_sources) added ⇒
-    (forall (pred : block), pred ∈ preds ⇒ pred <> header ⇒
+    (∀ (pred : block), pred ∈ preds ⇒ pred <> header ⇒
        reaches_back_edge_without_header header back_edge_sources pred) ⇒
     body_sound (fst (List.fold_left add_new_body_block preds (body, added)))
     ∧ Forall (reaches_back_edge_without_header header back_edge_sources)
@@ -252,7 +252,7 @@ Section Walk.
   (* The walk keeps the loop body sound when the worklist holds only blocks
      that reach a back-edge source. *)
   Lemma walk_predecessors_sound :
-    forall (fuel : list block) (body : blockset) (worklist : list block),
+    ∀ (fuel : list block) (body : blockset) (worklist : list block),
     body_sound body ⇒ Forall (reaches_back_edge_without_header header
       back_edge_sources) worklist ⇒
     body_sound (walk_predecessors fuel body worklist).
@@ -272,7 +272,7 @@ Section Walk.
   Qed.
 
   (* The loop body computed is sound, whatever the fuel. *)
-  Lemma natural_loop_body_sound_aux : forall (fuel : list block),
+  Lemma natural_loop_body_sound_aux : ∀ (fuel : list block),
     body_sound (natural_loop_body fuel header back_edge_sources).
   Proof.
     intros fuel. unfold natural_loop_body, OxCamlList.fold_left.
@@ -292,13 +292,13 @@ Section Walk.
   Qed.
 
   (* The header is in the loop body. *)
-  Theorem natural_loop_body_header : forall (fuel : list block),
+  Theorem natural_loop_body_header : ∀ (fuel : list block),
     set_mem header (natural_loop_body fuel header back_edge_sources) = true.
   Proof. intros fuel. exact (proj1 (natural_loop_body_sound_aux fuel)). Qed.
 
   (* Every block of the loop body is the header or reaches a back-edge source
      without passing through the header. *)
-  Theorem natural_loop_body_sound : forall (fuel : list block) (block : block),
+  Theorem natural_loop_body_sound : ∀ (fuel : list block) (block : block),
     set_mem block (natural_loop_body fuel header back_edge_sources) = true ⇒
     block = header ∨ reaches_back_edge_without_header header back_edge_sources
       block.
@@ -307,7 +307,7 @@ Section Walk.
   (* --- The walk: completeness --- *)
 
   Variable blocks : list block.
-  Hypothesis blocks_closed : forall (block pred : block),
+  Hypothesis blocks_closed : ∀ (block pred : SsaModel.block),
     block ∈ blocks ⇒ pred ∈ (predecessors block) ⇒ pred ∈ blocks.
 
   (* The number of blocks of the graph not yet in the loop body: the measure
@@ -320,14 +320,14 @@ Section Walk.
      its predecessors in the body. *)
   Definition body_predecessors_closed_off_worklist (body : blockset)
     (worklist : list block) : Prop :=
-    forall (succ : block),
+    ∀ (succ : block),
       set_mem succ body = true ⇒ succ <> header ⇒ succ ∉ worklist ⇒
-      forall (pred : block),
+      ∀ (pred : block),
         pred ∈ (predecessors succ) ⇒ set_mem pred body = true.
 
   (* Adding a block of the graph not yet in the loop body decreases
      [blocks_outside_body_count]. *)
-  Lemma blocks_outside_body_count_add : forall (body : blockset)
+  Lemma blocks_outside_body_count_add : ∀ (body : blockset)
     (block : block),
     block ∈ blocks ⇒ set_mem block body = false ⇒
     blocks_outside_body_count (set_add block body) < blocks_outside_body_count
@@ -344,7 +344,7 @@ Section Walk.
   Qed.
 
   (* [blocks_outside_body_count] is at most the number of blocks. *)
-  Lemma blocks_outside_body_count_le_length : forall (body : blockset),
+  Lemma blocks_outside_body_count_le_length : ∀ (body : blockset),
     blocks_outside_body_count body <= length blocks.
   Proof. intros body. apply length_filter_le. Qed.
 
@@ -355,22 +355,22 @@ Section Walk.
      increase; and a block on the new worklist was on the old one or is one of
      [preds]. *)
   Lemma fold_add_new_body_block_spec :
-    forall (preds : list block) (body : blockset) (added : list block)
+    ∀ (preds : list block) (body : blockset) (added : list block)
       (body' : blockset) (added' : list block),
     List.fold_left add_new_body_block preds (body, added) = (body', added') ⇒
-    (forall (pred : block), pred ∈ preds ⇒ pred ∈ blocks) ⇒
-    (forall (block : block), set_mem block body = true ⇒
+    (∀ (pred : block), pred ∈ preds ⇒ pred ∈ blocks) ⇒
+    (∀ (block : block), set_mem block body = true ⇒
        set_mem block body' = true)
-    ∧ (forall (pred : block), pred ∈ preds ⇒ set_mem pred body' = true)
-    ∧ (forall (block : block), set_mem block body' = true ⇒
+    ∧ (∀ (pred : block), pred ∈ preds ⇒ set_mem pred body' = true)
+    ∧ (∀ (block : block), set_mem block body' = true ⇒
           set_mem block body = true ∨ block ∈ added')
-    ∧ (forall (block : block), block ∈ added ⇒ block ∈ added')
-    ∧ ((forall (block : block),
+    ∧ (∀ (block : block), block ∈ added ⇒ block ∈ added')
+    ∧ ((∀ (block : block),
            block ∈ added ⇒ set_mem block body = true) ⇒
-        forall (block : block), block ∈ added' ⇒ set_mem block body' = true)
+        ∀ (block : block), block ∈ added' ⇒ set_mem block body' = true)
     ∧ length added' + blocks_outside_body_count body' <= length added +
       blocks_outside_body_count body
-    ∧ (forall (block : block), block ∈ added' ⇒
+    ∧ (∀ (block : block), block ∈ added' ⇒
           block ∈ added ∨ block ∈ preds).
   Proof.
     induction preds as [ | p preds IH ]; intros body added body' added' H Hin.
@@ -415,12 +415,12 @@ Section Walk.
      walk keeps every block of the loop body and ends with a body closed under
      predecessors, except at the header. *)
   Lemma walk_predecessors_complete :
-    forall (fuel : list block) (body : blockset) (worklist : list block),
-    (forall (block : block), block ∈ worklist ⇒ set_mem block body = true) ⇒
-    (forall (block : block), set_mem block body = true ⇒ block ∈ blocks) ⇒
+    ∀ (fuel : list block) (body : blockset) (worklist : list block),
+    (∀ (block : block), block ∈ worklist ⇒ set_mem block body = true) ⇒
+    (∀ (block : block), set_mem block body = true ⇒ block ∈ blocks) ⇒
     body_predecessors_closed_off_worklist body worklist ⇒
     length worklist + blocks_outside_body_count body <= length fuel ⇒
-    (forall (block : block), set_mem block body = true ⇒
+    (∀ (block : block), set_mem block body = true ⇒
        set_mem block (walk_predecessors fuel body worklist) = true)
     ∧ body_predecessors_closed_off_worklist (walk_predecessors fuel body
       worklist) [].
@@ -469,9 +469,9 @@ Section Walk.
      source and is closed under predecessors, except at the header. *)
   Lemma natural_loop_body_complete_aux :
     header ∈ blocks ⇒
-    (forall (source : block),
+    (∀ (source : block),
        source ∈ back_edge_sources ⇒ source ∈ blocks) ⇒
-    (forall (source : block), source ∈ back_edge_sources ⇒
+    (∀ (source : block), source ∈ back_edge_sources ⇒
        set_mem source (natural_loop_body blocks header back_edge_sources)
        = true)
     ∧ body_predecessors_closed_off_worklist (natural_loop_body blocks header
@@ -507,7 +507,7 @@ Section Walk.
 
   (* A block that reaches a back-edge source without passing through the header
      is not the header. *)
-  Lemma reaches_back_edge_not_header : forall (block : block),
+  Lemma reaches_back_edge_not_header : ∀ (block : block),
     reaches_back_edge_without_header header back_edge_sources block ⇒
     block <> header.
   Proof. intros b H. destruct H; assumption. Qed.
@@ -516,9 +516,9 @@ Section Walk.
      header is in the loop body. *)
   Theorem natural_loop_body_complete :
     header ∈ blocks ⇒
-    (forall (source : block),
+    (∀ (source : block),
        source ∈ back_edge_sources ⇒ source ∈ blocks) ⇒
-    forall (block : block),
+    ∀ (block : block),
     reaches_back_edge_without_header header back_edge_sources block ⇒
     set_mem block (natural_loop_body blocks header back_edge_sources) = true.
   Proof.
@@ -535,9 +535,9 @@ End Walk.
 
 Section FindLoops.
   Variable blocks : list block.
-  Hypothesis blocks_closed : forall (block pred : block),
+  Hypothesis blocks_closed : ∀ (block pred : SsaModel.block),
     block ∈ blocks ⇒ pred ∈ (predecessors block) ⇒ pred ∈ blocks.
-  Hypothesis succs_closed : forall (block succ : block),
+  Hypothesis succs_closed : ∀ (block succ : SsaModel.block),
     block ∈ blocks ⇒ succ ∈ (all_successors block) ⇒ succ ∈ blocks.
 
   (* The invariant of the back-edge table: every entry [(header,
@@ -545,29 +545,29 @@ Section FindLoops.
      the graph with [header] dominating [source]. *)
   Definition back_edge_table_sound (table : list (block * list block))
       : Prop :=
-    forall (header : block) (back_edge_sources : list block),
+    ∀ (header : block) (back_edge_sources : list block),
       (header, back_edge_sources) ∈ table ⇒
       back_edge_sources <> []
-      ∧ forall (source : block), source ∈ back_edge_sources ⇒
+      ∧ ∀ (source : block), source ∈ back_edge_sources ⇒
            source ∈ blocks ∧ header ∈ (all_successors source)
            ∧ header ▷ source.
 
   (* The table records [source] as a back-edge source of [header]. *)
   Definition back_edge_table_contains (table : list (block * list block))
       (header source : block) : Prop :=
-    exists back_edge_sources,
+    ∃ back_edge_sources,
       (header, back_edge_sources) ∈ table ∧ source ∈ back_edge_sources.
 
   (* The entries after [add_back_edge header source]: a new entry [(header,
      [source])], the entry of [header] with [source] added, or an entry left
      alone. *)
   Lemma add_back_edge_entries :
-    forall (header source : block) (table : list (block * list block))
+    ∀ (header source : block) (table : list (block * list block))
       (header' : block) (back_edge_sources' : list block),
     (header', back_edge_sources') ∈ (add_back_edge header source table) ⇒
     (header' = header ∧ back_edge_sources' = [source])
     ∨ (header' = header
-        ∧ exists back_edge_sources,
+        ∧ ∃ back_edge_sources,
              (header, back_edge_sources) ∈ table
              ∧ back_edge_sources' = source :: back_edge_sources)
     ∨ (header', back_edge_sources') ∈ table.
@@ -592,7 +592,7 @@ Section FindLoops.
   (* After [add_back_edge header source] the table has [source] as a back-edge
      source of [header] ... *)
   Lemma add_back_edge_has_new :
-    forall (header source : block) (table : list (block * list block)),
+    ∀ (header source : block) (table : list (block * list block)),
     back_edge_table_contains (add_back_edge header source table) header source.
   Proof.
     intros h s tbl. induction tbl as [ | [h0 srcs0] tbl IH ].
@@ -606,7 +606,7 @@ Section FindLoops.
 
   (* ... and keeps every back-edge source it had. *)
   Lemma add_back_edge_has_old :
-    forall (header source : block) (table : list (block * list block))
+    ∀ (header source : block) (table : list (block * list block))
       (header' source' : block),
     back_edge_table_contains table header' source' ⇒
     back_edge_table_contains (add_back_edge header source table) header'
@@ -630,7 +630,7 @@ Section FindLoops.
 
   (* Adding a back edge introduces no header other than the one being recorded.
      This is used to preserve uniqueness of table keys. *)
-  Lemma add_back_edge_keys : forall (loop_header source : block)
+  Lemma add_back_edge_keys : ∀ (loop_header source : block)
       (table : list (block * list block)) (key : block),
     key ∈ (map fst (add_back_edge loop_header source table)) ⇒
     key = loop_header ∨ key ∈ (map fst table).
@@ -643,7 +643,7 @@ Section FindLoops.
   Qed.
 
   (* Each header still has one table entry after recording a back edge. *)
-  Lemma add_back_edge_unique : forall (loop_header source : block)
+  Lemma add_back_edge_unique : ∀ (loop_header source : block)
       (table : list (block * list block)),
     NoDup (map fst table) ⇒
     NoDup (map fst (add_back_edge loop_header source table)).
@@ -661,7 +661,7 @@ Section FindLoops.
   Qed.
 
   (* Recording successors and then blocks preserves unique header keys. *)
-  Lemma record_back_edges_unique : forall (source : block)
+  Lemma record_back_edges_unique : ∀ (source : block)
       (table : list (block * list block)),
     NoDup (map fst table) ⇒
     NoDup (map fst (record_back_edges table source)).
@@ -690,7 +690,7 @@ Section FindLoops.
 
   (* A table with distinct keys has one value for each key. *)
   Lemma unique_header_sources :
-    forall (table : list (block * list block)) (loop_header : block)
+    ∀ (table : list (block * list block)) (loop_header : block)
       (sources sources' : list block),
     NoDup (map fst table) ⇒
     (loop_header, sources) ∈ table ⇒
@@ -710,7 +710,7 @@ Section FindLoops.
 
   (* [record_back_edge], unfolded. *)
   Lemma record_back_edge_eq :
-    forall (source : block) (table : list (block * list block)) (succ : block),
+    ∀ (source : block) (table : list (block * list block)) (succ : block),
     record_back_edge source table succ
     = if dominates succ source then add_back_edge succ source table else table.
   Proof. reflexivity. Qed.
@@ -719,18 +719,18 @@ Section FindLoops.
      table stays sound, keeps what it had, and gains each successor that
      dominates [source]. *)
   Lemma record_successor_back_edges_spec :
-    forall (source : block) (succs : list block)
+    ∀ (source : block) (succs : list block)
       (table : list (block * list block)),
     source ∈ blocks ⇒
-    (forall (succ : block),
+    (∀ (succ : block),
        succ ∈ succs ⇒ succ ∈ (all_successors source)) ⇒
     back_edge_table_sound table ⇒
     let table' := List.fold_left (record_back_edge source) succs table in
     back_edge_table_sound table'
-    ∧ (forall (header source' : block),
+    ∧ (∀ (header source' : block),
           back_edge_table_contains table header source' ⇒
             back_edge_table_contains table' header source')
-    ∧ (forall (succ : block), succ ∈ succs ⇒ succ ▷ source ⇒
+    ∧ (∀ (succ : block), succ ∈ succs ⇒ succ ▷ source ⇒
           back_edge_table_contains table' succ source).
   Proof.
     intros bl succs. induction succs as [ | h succs IH ];
@@ -773,15 +773,15 @@ Section FindLoops.
      sound, keeps what it had, and gains every back edge leaving one of them.
      *)
   Lemma record_block_back_edges_spec :
-    forall (blocks' : list block) (table : list (block * list block)),
-    (forall (block : block), block ∈ blocks' ⇒ block ∈ blocks) ⇒
+    ∀ (blocks' : list block) (table : list (block * list block)),
+    (∀ (block : block), block ∈ blocks' ⇒ block ∈ blocks) ⇒
     back_edge_table_sound table ⇒
     let table' := List.fold_left record_back_edges blocks' table in
     back_edge_table_sound table'
-    ∧ (forall (header source : block),
+    ∧ (∀ (header source : block),
           back_edge_table_contains table header source ⇒
             back_edge_table_contains table' header source)
-    ∧ (forall (header source : block),
+    ∧ (∀ (header source : block),
           source ∈ blocks' ⇒ header ∈ (all_successors source) ⇒
           header ▷ source ⇒ back_edge_table_contains table' header
             source).
@@ -808,7 +808,7 @@ Section FindLoops.
   Lemma header_table_spec :
     let table := List.fold_left record_back_edges blocks [] in
     back_edge_table_sound table
-    ∧ (forall (header source : block),
+    ∧ (∀ (header source : block),
           source ∈ blocks ⇒ header ∈ (all_successors source) ⇒
           header ▷ source ⇒ back_edge_table_contains table header
             source).
@@ -821,9 +821,9 @@ Section FindLoops.
 
   (* The loops found are exactly the entries of the table, each with its body
      computed. *)
-  Lemma find_loops_In : forall (loop : natural_loop),
+  Lemma find_loops_In : ∀ (loop : natural_loop),
     loop ∈ (find_loops blocks) ⇔
-    exists header back_edge_sources,
+    ∃ header back_edge_sources,
       (header, back_edge_sources) ∈ (List.fold_left record_back_edges blocks [])
       ∧ loop = {| header := header;
                    body := natural_loop_body blocks header back_edge_sources;
@@ -840,7 +840,7 @@ Section FindLoops.
   (* Every back edge of a loop found is an edge of the graph whose target, the
      header, dominates its source. *)
   Theorem find_loops_back_edges :
-    forall (loop : natural_loop) (source : block),
+    ∀ (loop : natural_loop) (source : block),
     loop ∈ (find_loops blocks) ⇒ source ∈ loop.(back_edge_sources) ⇒
     source ∈ blocks ∧ loop.(header) ∈ (all_successors source)
     ∧ loop.(header) ▷ source.
@@ -853,10 +853,10 @@ Section FindLoops.
 
   (* Every edge whose target dominates its source is a back edge of a loop
      found, with that target as header. *)
-  Theorem find_loops_complete : forall (source header : block),
+  Theorem find_loops_complete : ∀ (source header : block),
     source ∈ blocks ⇒ header ∈ (all_successors source) ⇒
     header ▷ source ⇒
-    exists loop,
+    ∃ loop,
       loop ∈ (find_loops blocks) ∧ loop.(NaturalLoop.header) = header
       ∧ source ∈ loop.(back_edge_sources).
   Proof.
@@ -873,7 +873,7 @@ Section FindLoops.
   (* There is one natural-loop record for a header, not merely some loop with
      that header. Back-edge completeness can therefore be applied to the
      particular record returned to the deletion analysis. *)
-  Theorem find_loops_unique_header : forall (loop other_loop : natural_loop),
+  Theorem find_loops_unique_header : ∀ (loop other_loop : natural_loop),
     loop ∈ (find_loops blocks) ⇒ other_loop ∈ (find_loops blocks) ⇒
     loop.(header) = other_loop.(header) ⇒ loop = other_loop.
   Proof.
@@ -888,7 +888,7 @@ Section FindLoops.
 
   (* Every back edge to a found header belongs to that loop's source list. *)
   Theorem find_loops_back_edges_complete :
-    forall (loop : natural_loop) (source : block),
+    ∀ (loop : natural_loop) (source : block),
     loop ∈ (find_loops blocks) ⇒ source ∈ blocks ⇒
     loop.(header) ∈ (all_successors source) ⇒
     loop.(header) ▷ source ⇒
@@ -903,10 +903,10 @@ Section FindLoops.
 
   (* A found loop's header and body blocks belong to the supplied graph. The
      closure assumptions are graph observations, not execution laws. *)
-  Theorem find_loops_blocks : forall (loop : natural_loop),
+  Theorem find_loops_blocks : ∀ (loop : natural_loop),
     loop ∈ (find_loops blocks) ⇒
     loop.(header) ∈ blocks ∧
-    forall (body_block : block),
+    ∀ (body_block : block),
       set_mem body_block loop.(body) = true ⇒ body_block ∈ blocks.
   Proof.
     intros l Hl. pose proof Hl as Hrecord. apply find_loops_In in Hrecord.
@@ -927,7 +927,7 @@ Section FindLoops.
 
   (* The body of a loop found is its header plus the blocks that reach a
      back-edge source without passing through the header. *)
-  Theorem find_loops_body : forall (loop : natural_loop) (block : block),
+  Theorem find_loops_body : ∀ (loop : natural_loop) (block : block),
     loop ∈ (find_loops blocks) ⇒
     (set_mem block loop.(body) = true
      ⇔ block = loop.(header)
@@ -953,14 +953,14 @@ End FindLoops.
 
 (* The semantic domination of a back-edge source extends backwards to every
    block reaching it without passing through the header. *)
-Lemma reaches_back_edge_dominated : forall (entry loop_header : block)
+Lemma reaches_back_edge_dominated : ∀ (entry loop_header : block)
     (sources : list block),
   dominance_semantics entry ⇒
-  (forall (source : block),
+  (∀ (source : block),
     source ∈ sources ⇒ loop_header ▷ source) ⇒
-  forall (body_block : block),
+  ∀ (body_block : block),
   reaches_back_edge_without_header loop_header sources body_block ⇒
-  forall (visited_blocks : list block),
+  ∀ (visited_blocks : list block),
   block_path_from entry visited_blocks body_block ⇒
   loop_header ∈ visited_blocks.
 Proof.
@@ -977,11 +977,11 @@ Qed.
 (* Every path into a found loop body passes through its header. This connects
    the reverse CFG walk to semantic dominance, without assuming that property
    of the analysis's result. *)
-Theorem find_loops_body_dominated : forall (blocks : list block)
+Theorem find_loops_body_dominated : ∀ (blocks : list block)
     (entry : block) (loop : natural_loop),
   dominance_semantics entry ⇒ loop ∈ (find_loops blocks) ⇒
-  forall (body_block : block), set_mem body_block loop.(body) = true ⇒
-  forall (visited_blocks : list block),
+  ∀ (body_block : block), set_mem body_block loop.(body) = true ⇒
+  ∀ (visited_blocks : list block),
   block_path_from entry visited_blocks body_block ⇒
   loop.(header) ∈ visited_blocks.
 Proof.
@@ -999,11 +999,11 @@ Qed.
 
 (* The reported exit target is an actual Switch target outside the body. This
    identifies the target, not merely the orientation of the test. *)
-Theorem find_exit_branch_target : forall (loop : natural_loop)
+Theorem find_exit_branch_target : ∀ (loop : natural_loop)
     (exit_info : exit_branch),
   find_exit_branch loop = Some exit_info ⇒
   set_mem exit_info.(exit_target) loop.(body) = false ∧
-  exists (targets : list block),
+  ∃ (targets : list block),
     terminator loop.(header) = Terminator.Switch exit_info.(condition) targets
     ∧ exit_info.(exit_target) ∈ targets.
 Proof.
@@ -1021,9 +1021,9 @@ Qed.
    loop continues along the edge [continue_when_true] names, which is into the
    body, and the other edge leaves it. *)
 Theorem find_exit_branch_spec :
-  forall (loop : natural_loop) (exit_info : exit_branch),
+  ∀ (loop : natural_loop) (exit_info : exit_branch),
   find_exit_branch loop = Some exit_info ⇒
-  exists ifnot ifso,
+  ∃ ifnot ifso,
     terminator loop.(header)
     = Terminator.Switch exit_info.(condition) [ifnot; ifso]
     ∧ set_mem ifso loop.(body) = exit_info.(continue_when_true)

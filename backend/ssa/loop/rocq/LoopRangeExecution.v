@@ -44,7 +44,7 @@ Import ListNotations.
 Local Open Scope Z_scope.
 
 (* One guard allocates at most two linearizations' worth of atoms. *)
-Lemma guard_list_atom_bound_by_length : forall (target : block)
+Lemma guard_list_atom_bound_by_length : ∀ (target : block)
   (dominators : list block),
   guard_list_atom_bound target dominators <= comparison_atom_bound * Z.of_nat
     (length dominators).
@@ -58,9 +58,9 @@ Qed.
 
 (* The graph-size contract discharges the affine counter capacity bound; it
    does not assume anything about the values of loop counters. *)
-Lemma graph_atoms_fit : forall (blocks : list block) (target : block),
+Lemma graph_atoms_fit : ∀ (blocks : list block) (target : block),
   graph_size_supported blocks ⇒ NoDup (strict_dominators target) ⇒
-  (forall (dominator : block), dominator ∈ (strict_dominators target) ⇒
+  (∀ (dominator : block), dominator ∈ (strict_dominators target) ⇒
      dominator ∈ blocks) ⇒
   linearize_atom_bound + guards_atom_bound target <= ocaml_max_int.
 Proof.
@@ -77,7 +77,7 @@ Qed.
 (* The bound form and all entry facts share one mathematical valuation. This
    proof uses no assumed operation equations: they are theorems of the snapshot
    construction, even on fabricated syntax. *)
-Lemma snapshot_bound_facts : forall (regs : registers) (target : block)
+Lemma snapshot_bound_facts : ∀ (regs : registers) (target : block)
     (bound_ref : value) (form : Affine.t) (bound_side_facts : list Affine.t)
       (bound_ctx : ctx)
     (guards all_side_facts : list Affine.t) (guard_ctx : ctx),
@@ -86,7 +86,7 @@ Lemma snapshot_bound_facts : forall (regs : registers) (target : block)
   linearize new_ctx [] bound_ref = ((form, bound_side_facts), bound_ctx) ⇒
   guards_at bound_ctx bound_side_facts target = ((guards, all_side_facts),
     guard_ctx) ⇒
-  exists (rho : valuation),
+  ∃ (rho : valuation),
     denote rho form = snapshot_value regs bound_ref
     ∧ Forall wf (guards ++ all_side_facts) ∧ wf form
     ∧ holds_all rho (guards ++ all_side_facts).
@@ -118,7 +118,7 @@ Qed.
 
 (* Fourier-Motzkin entailment gives the arithmetic termination rule's range
    condition for the snapshot's bound. *)
-Lemma snapshot_bound_in_range : forall (regs : registers) (target : block)
+Lemma snapshot_bound_in_range : ∀ (regs : registers) (target : block)
     (step_size : int) (comparison_bound : bound),
   linearize_atom_bound + guards_atom_bound target <= ocaml_max_int ⇒
   guards_taken (snapshot_value regs) target ⇒
@@ -158,18 +158,18 @@ Qed.
 (* The register-bound range check is sound on an actual execution prefix. All
    arithmetic and guard facts have been discharged; the premises are graph
    metadata, resource size, a reached state and an actual read. *)
-Theorem executed_bound_in_range : forall (blocks : list block) (entry : block),
+Theorem executed_bound_in_range : ∀ (blocks : list block) (entry : block),
   control_edges ⇒ well_formed_ssa blocks entry ⇒ dominance_semantics entry ⇒
-  (forall (dominator target : block),
+  (∀ (dominator target : block),
     dominator ∈ blocks ⇒ target ∈ blocks ⇒
-    (forall (visited_blocks : list block), SsaDominance.block_path_from entry
+    (∀ (visited_blocks : list block), SsaDominance.block_path_from entry
       visited_blocks target ⇒
        dominator ∈ visited_blocks) ⇒ dominator ▷ target) ⇒
   switch_edge_multiplicity ⇒ graph_size_supported blocks ⇒
-  forall (target : block) (initial_regs : registers) (reached : state)
+  ∀ (target : block) (initial_regs : registers) (reached : state)
     (step_size : int) (bound_ref : value) (bound_word : Z),
   NoDup (strict_dominators target) ⇒
-  (forall (dominator : block), dominator ∈ (strict_dominators target) ⇒
+  (∀ (dominator : block), dominator ∈ (strict_dominators target) ⇒
      dominator ∈ blocks) ⇒
   bounded_registers initial_regs ⇒
   context_steps (enter entry initial_regs) reached ⇒

@@ -206,7 +206,7 @@ Definition bound_in_range (step limit : Z) : bool :=
 
 (* Iterating from [initial_counter] for [iterations + 1] steps is iterating
    from the next value for [iterations] steps. *)
-Lemma counter_after_iterations_shift : forall (initial_counter step : Z)
+Lemma counter_after_iterations_shift : ∀ (initial_counter step : Z)
   (iterations : nat),
   counter_after_iterations initial_counter step (S iterations) =
     counter_after_iterations (wrap64 (initial_counter + step)) step iterations.
@@ -221,11 +221,11 @@ Qed.
    value (no wrap-around) and some integer measure [decreasing_measure]
    decreases while staying non-negative, then the test eventually fails. *)
 Lemma terminate_by_measure :
-  forall (test : Z -> bool) (step : Z) (decreasing_measure : Z -> Z),
-    (forall (counter : Z), in_int64 counter ⇒ test counter = true ⇒
+  ∀ (test : Z -> bool) (step : Z) (decreasing_measure : Z -> Z),
+    (∀ (counter : Z), in_int64 counter ⇒ test counter = true ⇒
        in_int64 (counter + step) ∧ 0 <= decreasing_measure counter ∧
          decreasing_measure (counter + step) < decreasing_measure counter) ⇒
-    forall (initial_counter : Z), in_int64 initial_counter ⇒ exists
+    ∀ (initial_counter : Z), in_int64 initial_counter ⇒ ∃
       iterations, test (counter_after_iterations initial_counter step
       iterations) = false.
 Proof.
@@ -255,9 +255,9 @@ Qed.
 (* [Ceq], any non-zero step: the test [v = bound] cannot hold twice in a row,
    since adding a non-zero 63-bit step to a 64-bit value changes it even with
    wrap-around. *)
-Lemma ceq_terminates : forall (step initial_counter bound : Z),
+Lemma ceq_terminates : ∀ (step initial_counter bound : Z),
   - two62 <= step <= two62 - 1 ⇒ step <> 0 ⇒
-  exists iterations, eval Ceq (counter_after_iterations initial_counter step
+  ∃ iterations, eval Ceq (counter_after_iterations initial_counter step
     iterations) bound = false.
 Proof.
   intros step v0 bound Hs Hnz.
@@ -275,9 +275,9 @@ Qed.
 
 (* [Clt], step 1: continuing means [v < bound], so [v + 1 <= bound] is again a
    64-bit value, and [bound - v] decreases. *)
-Lemma clt_one_terminates : forall (initial_counter bound : Z),
+Lemma clt_one_terminates : ∀ (initial_counter bound : Z),
   in_int64 initial_counter ⇒ in_int64 bound ⇒
-  exists iterations, eval Clt (counter_after_iterations initial_counter 1
+  ∃ iterations, eval Clt (counter_after_iterations initial_counter 1
     iterations) bound = false.
 Proof.
   intros v0 bound Hv0 Hb.
@@ -288,9 +288,9 @@ Proof.
 Qed.
 
 (* [Cgt], step -1: symmetric. *)
-Lemma cgt_minus_one_terminates : forall (initial_counter bound : Z),
+Lemma cgt_minus_one_terminates : ∀ (initial_counter bound : Z),
   in_int64 initial_counter ⇒ in_int64 bound ⇒
-  exists iterations, eval Cgt (counter_after_iterations initial_counter (-1)
+  ∃ iterations, eval Cgt (counter_after_iterations initial_counter (-1)
     iterations) bound = false.
 Proof.
   intros v0 bound Hv0 Hb.
@@ -302,10 +302,10 @@ Qed.
 
 (* [Clt], positive step, [bound <= max_int]: continuing means [v < bound <=
    2^62 - 1] and [step <= 2^62 - 1], so [v + step < 2^63]. *)
-Lemma clt_pos_terminates : forall (step initial_counter bound : Z),
+Lemma clt_pos_terminates : ∀ (step initial_counter bound : Z),
   0 < step <= two62 - 1 ⇒ bound <= ocaml_max_int ⇒
   in_int64 initial_counter ⇒ in_int64 bound ⇒
-  exists iterations, eval Clt (counter_after_iterations initial_counter step
+  ∃ iterations, eval Clt (counter_after_iterations initial_counter step
     iterations) bound = false.
 Proof.
   intros step v0 bound Hs Hbr Hv0 Hb.
@@ -316,10 +316,10 @@ Proof.
 Qed.
 
 (* [Cle], positive step, [bound <= max_int]: as above with [v <= bound]. *)
-Lemma cle_pos_terminates : forall (step initial_counter bound : Z),
+Lemma cle_pos_terminates : ∀ (step initial_counter bound : Z),
   0 < step <= two62 - 1 ⇒ bound <= ocaml_max_int ⇒
   in_int64 initial_counter ⇒ in_int64 bound ⇒
-  exists iterations, eval Cle (counter_after_iterations initial_counter step
+  ∃ iterations, eval Cle (counter_after_iterations initial_counter step
     iterations) bound = false.
 Proof.
   intros step v0 bound Hs Hbr Hv0 Hb.
@@ -330,10 +330,10 @@ Proof.
 Qed.
 
 (* [Cgt], negative step, [bound >= -max_int]: symmetric. *)
-Lemma cgt_neg_terminates : forall (step initial_counter bound : Z),
+Lemma cgt_neg_terminates : ∀ (step initial_counter bound : Z),
   - two62 <= step < 0 ⇒ - ocaml_max_int <= bound ⇒
   in_int64 initial_counter ⇒ in_int64 bound ⇒
-  exists iterations, eval Cgt (counter_after_iterations initial_counter step
+  ∃ iterations, eval Cgt (counter_after_iterations initial_counter step
     iterations) bound = false.
 Proof.
   intros step v0 bound Hs Hbr Hv0 Hb.
@@ -344,10 +344,10 @@ Proof.
 Qed.
 
 (* [Cge], negative step, [bound >= -max_int]: symmetric. *)
-Lemma cge_neg_terminates : forall (step initial_counter bound : Z),
+Lemma cge_neg_terminates : ∀ (step initial_counter bound : Z),
   - two62 <= step < 0 ⇒ - ocaml_max_int <= bound ⇒
   in_int64 initial_counter ⇒ in_int64 bound ⇒
-  exists iterations, eval Cge (counter_after_iterations initial_counter step
+  ∃ iterations, eval Cge (counter_after_iterations initial_counter step
     iterations) bound = false.
 Proof.
   intros step v0 bound Hs Hbr Hv0 Hb.
@@ -364,7 +364,7 @@ Qed.
 (* The oriented comparison, evaluated with the IV on the left, is exactly the
    loop's continue test. *)
 Theorem oriented_continue_comparison_correct :
-  forall (iv_is_left continue_when_true : bool) (cmp : integer_comparison)
+  ∀ (iv_is_left continue_when_true : bool) (cmp : integer_comparison)
     (counter bound : Z),
     eval (oriented_continue_comparison iv_is_left continue_when_true cmp)
          counter bound
@@ -379,10 +379,10 @@ Qed.
    (any 64-bit values), the continue test [counter_after_iterations cmp bound]
    fails after finitely many iterations of adding [step] with wrap-around. *)
 Theorem continue_terminates_Terminates :
-  forall (step : int) (cmp : integer_comparison) (initial_counter bound : Z),
+  ∀ (step : int) (cmp : integer_comparison) (initial_counter bound : Z),
     in_int64 initial_counter ⇒ in_int64 bound ⇒
     continue_terminates step cmp = Terminates ⇒
-    exists iterations, eval cmp (counter_after_iterations initial_counter (to_Z
+    ∃ iterations, eval cmp (counter_after_iterations initial_counter (to_Z
       step) iterations) bound = false.
 Proof.
   intros step cmp v0 bound Hv0 Hb.
@@ -396,11 +396,11 @@ Qed.
 (* A [Terminates_if_bound_in_range] verdict is sound once the side condition on
    the bound holds. *)
 Theorem continue_terminates_Terminates_if_bound_in_range :
-  forall (step : int) (cmp : integer_comparison) (initial_counter bound : Z),
+  ∀ (step : int) (cmp : integer_comparison) (initial_counter bound : Z),
     in_int64 initial_counter ⇒ in_int64 bound ⇒
     continue_terminates step cmp = Terminates_if_bound_in_range ⇒
     bound_in_range (to_Z step) bound = true ⇒
-    exists iterations, eval cmp (counter_after_iterations initial_counter (to_Z
+    ∃ iterations, eval cmp (counter_after_iterations initial_counter (to_Z
       step) iterations) bound = false.
 Proof.
   intros step cmp v0 bound Hv0 Hb.
@@ -419,7 +419,7 @@ Qed.
    condition if asked to. Then the loop's continue test eventually fails, i.e.
    the loop exits. *)
 Corollary loop_exits :
-  forall (iv_is_left continue_when_true : bool) (cmp : integer_comparison)
+  ∀ (iv_is_left continue_when_true : bool) (cmp : integer_comparison)
     (step : int) (initial_counter bound : Z),
     in_int64 initial_counter ⇒ in_int64 bound ⇒
     let continue_comparison := oriented_continue_comparison iv_is_left
@@ -429,7 +429,7 @@ Corollary loop_exits :
      ∨ (continue_terminates step continue_comparison =
        Terminates_if_bound_in_range
          ∧ bound_in_range (to_Z step) bound = true)) ⇒
-    exists iterations,
+    ∃ iterations,
       loop_continues iv_is_left continue_when_true cmp
         (counter_after_iterations initial_counter (to_Z step) iterations) bound
           = false.
@@ -445,7 +445,7 @@ Qed.
 
 (* What a successful checked operation means, from FourierMotzkin.v: its value,
    and that it keeps the forms well-formed. *)
-Lemma sub_checked_denote : forall (rho : valuation)
+Lemma sub_checked_denote : ∀ (rho : valuation)
   (left_form right_form difference : Affine.t),
   Affine.sub_checked left_form right_form = Some difference ⇒ wf left_form ⇒
     wf right_form ⇒
@@ -454,7 +454,7 @@ Proof.
   intros rho a b f H Ha Hb. exact (proj1 (sub_checked_spec rho a b f Ha Hb H)).
 Qed.
 
-Lemma sub_checked_wf : forall (left_form right_form difference : Affine.t),
+Lemma sub_checked_wf : ∀ (left_form right_form difference : Affine.t),
   Affine.sub_checked left_form right_form = Some difference ⇒ wf left_form ⇒
     wf right_form ⇒ wf difference.
 Proof.
@@ -463,7 +463,7 @@ Proof.
 Qed.
 
 Lemma add_const_checked_denote :
-  forall (rho : valuation) (form : Affine.t) (constant : int)
+  ∀ (rho : valuation) (form : Affine.t) (constant : int)
     (result_form : Affine.t),
   Affine.add_const_checked form constant = Some result_form ⇒
   denote rho result_form = denote rho form + to_Z constant.
@@ -471,7 +471,7 @@ Proof.
   intros rho a c f H. exact (proj1 (add_const_checked_spec rho a c f H)).
 Qed.
 
-Lemma add_const_checked_wf : forall (form : Affine.t) (constant : int)
+Lemma add_const_checked_wf : ∀ (form : Affine.t) (constant : int)
   (result_form : Affine.t),
   Affine.add_const_checked form constant = Some result_form ⇒
   wf form ⇒ wf result_form.
@@ -508,7 +508,7 @@ Ltac checked_cases rho :=
    right_form] held, every returned form is non-negative. Nothing is assumed
    about overflow: when the checked operations fail, no fact is returned. *)
 Theorem facts_sound :
-  forall (negate_comparison : bool) (cmp : integer_comparison)
+  ∀ (negate_comparison : bool) (cmp : integer_comparison)
     (left_form right_form : Affine.t)
     (rho : int -> Z),
     wf left_form ⇒ wf right_form ⇒
@@ -539,7 +539,7 @@ Qed.
 (* The facts are well-formed, as [entails] requires of its hypotheses (see
    [entails_sound] in FourierMotzkin.v). *)
 Theorem facts_wf :
-  forall (negate_comparison : bool) (cmp : integer_comparison)
+  ∀ (negate_comparison : bool) (cmp : integer_comparison)
     (left_form right_form : Affine.t),
   wf left_form ⇒ wf right_form ⇒ Forall wf (facts negate_comparison cmp
     left_form right_form).

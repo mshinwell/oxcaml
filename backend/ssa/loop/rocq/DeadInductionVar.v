@@ -157,7 +157,7 @@ Definition param_used_only_by_exit_comparison_and_updates
   uses_only blocks (is_param header parameter_index)
     (fun instr =>
       instr_defines_value instr exit_comparison = true
-      ∨ exists updated_value,
+      ∨ ∃ updated_value,
            updated_value ∈ updates
            ∧ instr_defines_value instr updated_value = true)
     (fun _ _ => False).
@@ -186,7 +186,7 @@ Definition update_used_only_by_exit_comparison_and_back_edge
    has an exit branch, and the three properties above hold of its parameter, of
    the exit comparison and of each of its update values. *)
 Definition dead_spec (blocks : list block) (biv : InductionVar.biv) : Prop :=
-  exists exit_info,
+  ∃ exit_info,
     find_exit_branch biv.(InductionVar.loop) = Some exit_info
     ∧ let exit_comparison := exit_info.(condition) in
        let loop := biv.(InductionVar.loop) in
@@ -195,7 +195,7 @@ Definition dead_spec (blocks : list block) (biv : InductionVar.biv) : Prop :=
          parameter_index exit_comparison biv.(update)
        ∧ exit_comparison_used_only_by_header_branch blocks loop.(header)
             exit_comparison
-       ∧ forall (updated_value : value), updated_value ∈ biv.(update) ⇒
+       ∧ ∀ (updated_value : value), updated_value ∈ biv.(update) ⇒
             update_used_only_by_exit_comparison_and_back_edge blocks loop
               parameter_index exit_comparison updated_value.
 
@@ -205,7 +205,7 @@ Definition dead_spec (blocks : list block) (biv : InductionVar.biv) : Prop :=
 
 (* The approval [update_uses_ok] asks of a terminator use, read back. *)
 Lemma update_terminator_use_approved :
-  forall (loop : natural_loop) (header : block) (parameter_index : int)
+  ∀ (loop : natural_loop) (header : block) (parameter_index : int)
     (updated_value : value)
     (block : block),
   set_mem block (back_edge_set loop) && goto_passes_only_at header
@@ -223,7 +223,7 @@ Qed.
 (* ======================================================================== *)
 
 (* A BIV [is_dead] accepts satisfies [dead_spec]. *)
-Theorem is_dead_spec : forall (blocks : list block) (biv : InductionVar.biv),
+Theorem is_dead_spec : ∀ (blocks : list block) (biv : InductionVar.biv),
   is_dead blocks biv = true ⇒ dead_spec blocks biv.
 Proof.
   intros blocks b H. unfold is_dead in H.
@@ -258,10 +258,10 @@ Qed.
 (* A loop [loop_is_useless] accepts has as many BIVs as its header has
    parameters, all of them dead. *)
 Theorem loop_is_useless_spec :
-  forall (loop : natural_loop) (bivs : list biv_result),
+  ∀ (loop : natural_loop) (bivs : list biv_result),
   loop_is_useless loop bivs = true ⇒
   length (params loop.(header)) = length bivs
-  ∧ forall (biv_result : biv_result),
+  ∧ ∀ (biv_result : biv_result),
        biv_result ∈ bivs ⇒ biv_result.(dead) = true.
 Proof.
   intros loop bivs H. unfold loop_is_useless in H.
@@ -275,17 +275,17 @@ Qed.
    [dead_spec], and a loop reported useless has as many dead induction
    variables as its header has parameters. *)
 Theorem analyze_spec :
-  forall (blocks : list block)
+  ∀ (blocks : list block)
     (loops : list (natural_loop * list InductionVar.biv))
     (result : loop_result),
   result ∈ (analyze blocks loops) ⇒
   (result.(loop), map biv result.(bivs)) ∈ loops
-  ∧ (forall (biv_result : biv_result), biv_result ∈ result.(bivs) ⇒
+  ∧ (∀ (biv_result : biv_result), biv_result ∈ result.(bivs) ⇒
         biv_result.(dead) = is_dead blocks biv_result.(biv)
         ∧ (biv_result.(dead) = true ⇒ dead_spec blocks biv_result.(biv)))
   ∧ (result.(useless) = true ⇒
         length (params result.(loop).(header)) = length result.(bivs)
-        ∧ forall (biv_result : biv_result),
+        ∧ ∀ (biv_result : biv_result),
              biv_result ∈ result.(bivs) ⇒ biv_result.(dead) = true).
 Proof.
   intros blocks loops r H. unfold analyze in H.

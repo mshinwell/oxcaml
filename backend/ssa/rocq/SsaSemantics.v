@@ -242,14 +242,14 @@ Definition at_entry (target : block) (current : state) : Prop :=
    to nat, so negative indices do not select target 0. Switch edges have no
    arguments and may only enter parameterless blocks. *)
 Inductive step : state -> state -> Prop :=
-  | Step_instruction : forall (source : block) (insn : instr)
+  | Step_instruction : ∀ (source : block) (insn : instr)
       (rest : list instr) (before_regs after_regs : registers),
       execute_instruction before_regs insn = Some after_regs ⇒
       step {| current_block := source; remaining := insn :: rest;
               current_registers := before_regs |}
            {| current_block := source; remaining := rest;
               current_registers := after_regs |}
-  | Step_goto : forall (source target : block) (args : list Terminator.arg)
+  | Step_goto : ∀ (source target : block) (args : list Terminator.arg)
       (before_regs : registers) (argument_words : list (option Z))
       (after_regs : registers),
       terminator source = Terminator.Continue (Goto target) args ⇒
@@ -258,7 +258,7 @@ Inductive step : state -> state -> Prop :=
         = Some after_regs ⇒
       step {| current_block := source; remaining := [];
               current_registers := before_regs |} (enter target after_regs)
-  | Step_switch : forall (source : block) (index_value : value)
+  | Step_switch : ∀ (source : block) (index_value : value)
       (targets : list block) (regs : registers) (index_word : Z)
       (target : block),
       terminator source = Terminator.Switch index_value targets ⇒
@@ -272,8 +272,8 @@ Inductive step : state -> state -> Prop :=
 (* Finite execution, including zero steps. A finite stuck execution is not
    identified with a successful return. *)
 Inductive steps : state -> state -> Prop :=
-  | Steps_refl : forall (before : state), steps before before
-  | Steps_cons : forall (before middle after : state),
+  | Steps_refl : ∀ (before : state), steps before before
+  | Steps_cons : ∀ (before middle after : state),
       step before middle ⇒ steps middle after ⇒ steps before after.
 
 (* [steps_until target before middle]: the execution from [before] first enters
@@ -281,9 +281,9 @@ Inductive steps : state -> state -> Prop :=
    of other blocks. With [step] deterministic ([step_deterministic]) this is a
    statement about the execution from [before], not one path among many. *)
 Inductive steps_until (target : block) : state -> state -> Prop :=
-  | Until_here : forall (before : state),
+  | Until_here : ∀ (before : state),
       current_block before = target ⇒ steps_until target before before
-  | Until_step : forall (before middle after : state),
+  | Until_step : ∀ (before middle after : state),
       current_block before <> target ⇒ step before middle ⇒ steps_until
         target middle after ⇒
       steps_until target before after.
@@ -291,31 +291,31 @@ Inductive steps_until (target : block) : state -> state -> Prop :=
 (* Execute an instruction list without taking the block's terminator. This is
    the retained header computation in the eligibility theorem. *)
 Inductive executes_insns : registers -> list instr -> registers -> Prop :=
-  | Insns_nil : forall (regs : registers), executes_insns regs [] regs
-  | Insns_cons : forall (before middle after : registers) (insn : instr)
+  | Insns_nil : ∀ (regs : registers), executes_insns regs [] regs
+  | Insns_cons : ∀ (before middle after : registers) (insn : instr)
       (rest : list instr),
       execute_instruction before insn = Some middle ⇒
       executes_insns middle rest after ⇒
       executes_insns before (insn :: rest) after.
 
 Definition valid_position (current : state) : Prop :=
-  exists (prefix : list instr),
+  ∃ (prefix : list instr),
     block_body (current_block current) = prefix ++ remaining current.
 
 Definition bounded_registers (regs : registers) : Prop :=
-  forall (reg : register) (word : Z), regs reg = Some word ⇒ in_int64 word.
+  ∀ (reg : register) (word : Z), regs reg = Some word ⇒ in_int64 word.
 
 (* The parameter observers describe distinct parameters of their own block, and
    the indexed accessor agrees with the list. These are local compiler-data
    contracts, independent of execution and loop analysis. *)
 Record parameter_layout : Prop :=
-  { parameters_local : forall (b : block) (v : value), v ∈ (params b) ⇒
-      exists (index : int), v = Block_param b index;
-    parameters_distinct : forall (b : block),
+  { parameters_local : ∀ (b : block) (v : value), v ∈ (params b) ⇒
+      ∃ (index : int), v = Block_param b index;
+    parameters_distinct : ∀ (b : block),
       NoDup (map register_of_value (params b));
-    parameter_lookup : forall (b : block) (index : int) (v : value),
+    parameter_lookup : ∀ (b : block) (index : int) (v : value),
       nth_int (params b) index = Some v ⇒ param b index = v;
-    parameter_identity : forall (b : block) (index : int) (v : value),
+    parameter_identity : ∀ (b : block) (index : int) (v : value),
       nth_int (params b) index = Some v ⇒ v = Block_param b index }.
 
 (* Registers defined by instructions or parameters of a region. This is a
@@ -324,7 +324,7 @@ Definition register_defined_in_region (region : blockset)
   (reg : register) : Prop :=
   match reg with
   | Result id _ =>
-    exists (b : block) (op : operation) (args : list value) (results : int),
+    ∃ (b : block) (op : operation) (args : list value) (results : int),
       set_mem b region = true ∧ (Op id op args results) ∈ (block_body b)
   | Param b _ => set_mem b region = true
   end.
@@ -335,7 +335,7 @@ Definition register_defined_in_region (region : blockset)
 
 (* Executing a body list is an actual finite execution ending immediately
    before its terminator. No instruction is evaluated merely by reading it. *)
-Lemma executes_insns_steps : forall (b : block) (insns : list instr)
+Lemma executes_insns_steps : ∀ (b : block) (insns : list instr)
     (before after : registers),
   executes_insns before insns after ⇒
   steps {| current_block := b; remaining := insns;
@@ -349,7 +349,7 @@ Proof.
 Qed.
 
 (* Register equality depends only on identity, as the compiler's does. *)
-Lemma register_eqb_spec : forall (lhs rhs : register),
+Lemma register_eqb_spec : ∀ (lhs rhs : register),
   register_eqb lhs rhs = true ⇔ lhs = rhs.
 Proof.
   intros [id i | b i] [id' i' | b' i']; cbn [register_eqb];
@@ -362,7 +362,7 @@ Qed.
 
 (* Writing a result does not modify any other register. *)
 Lemma write_register_other :
-  forall (regs : registers) (written other : register) (result : option Z),
+  ∀ (regs : registers) (written other : register) (result : option Z),
   other <> written ⇒ write_register regs written result other = regs other.
 Proof.
   intros rs r s z Hneq. unfold write_register.
@@ -372,7 +372,7 @@ Qed.
 
 (* The written register receives exactly the supplied value. *)
 Lemma write_register_same :
-  forall (regs : registers) (reg : register) (result : option Z),
+  ∀ (regs : registers) (reg : register) (result : option Z),
   write_register regs reg result reg = result.
 Proof.
   intros rs r z. unfold write_register.
@@ -382,7 +382,7 @@ Qed.
 
 (* Reading operands preserves their number. *)
 Lemma read_values_length :
-  forall (regs : registers) (args : list value) (arg_values : list Z),
+  ∀ (regs : registers) (args : list value) (arg_values : list Z),
   read_values regs args = Some arg_values ⇒
   length arg_values = length args.
 Proof.
@@ -396,9 +396,9 @@ Qed.
 
 (* Equal operand-register values give equal argument lists, without making any
    claim about other registers or unexecuted instructions. *)
-Lemma read_values_ext : forall (args : list value)
+Lemma read_values_ext : ∀ (args : list value)
     (regs_before regs_after : registers),
-  (forall (arg : value), arg ∈ args ⇒
+  (∀ (arg : value), arg ∈ args ⇒
     regs_after (register_of_value arg)
       = regs_before (register_of_value arg)) ⇒
   read_values regs_after args = read_values regs_before args.
@@ -414,10 +414,10 @@ Qed.
 (* Every whitelisted operation is defined for every list of operands of its
    accepted arity. There are no divisions, shifts or memory accesses requiring
    further dynamic preconditions. *)
-Lemma supported_operation_total : forall (A : Type) (op : operation)
+Lemma supported_operation_total : ∀ (A : Type) (op : operation)
     (args : list A) (arg_values : list Z),
   supported_operation op args = true ⇒ length arg_values = length args ⇒
-  exists (result : Z), eval_operation op arg_values = Some result.
+  ∃ (result : Z), eval_operation op arg_values = Some result.
 Proof.
   intros A op args zs Hsup Hlen.
   destruct op; try discriminate;
@@ -428,7 +428,7 @@ Proof.
 Qed.
 
 (* The loop whitelist is a subset of the exact observation equations. *)
-Lemma supported_operation_modeled : forall (A : Type) (op : operation)
+Lemma supported_operation_modeled : ∀ (A : Type) (op : operation)
     (args : list A),
   supported_operation op args = true ⇒ modeled_operation op args = true.
 Proof.
@@ -441,10 +441,10 @@ Qed.
 (* The modeled operations are exactly those the evaluator accepts, on any
    operand values: [eval_operation] is total on them and undefined on the
    others. The affine analysis interprets syntax through these two facts. *)
-Lemma modeled_operation_total : forall (A : Type) (op : operation)
+Lemma modeled_operation_total : ∀ (A : Type) (op : operation)
     (args : list A) (value_of : A -> Z),
   modeled_operation op args = true ⇒
-  exists (result : Z), eval_operation op (map value_of args) = Some result.
+  ∃ (result : Z), eval_operation op (map value_of args) = Some result.
 Proof.
   intros A op args value_of Hmodeled.
   destruct op; try discriminate; try (destruct op; try discriminate);
@@ -453,7 +453,7 @@ Proof.
     try rewrite Hmodeled; eexists; reflexivity.
 Qed.
 
-Lemma unmodeled_operation_undefined : forall (A : Type) (op : operation)
+Lemma unmodeled_operation_undefined : ∀ (A : Type) (op : operation)
     (args : list A) (value_of : A -> Z),
   modeled_operation op args = false ⇒
   eval_operation op (map value_of args) = None.
@@ -467,7 +467,7 @@ Qed.
 
 (* All supported results fit a machine register, including wraparound. *)
 Lemma eval_operation_bounded :
-  forall (op : operation) (arg_values : list Z) (result : Z),
+  ∀ (op : operation) (arg_values : list Z) (result : Z),
   eval_operation op arg_values = Some result ⇒ in_int64 result.
 Proof.
   intros op zs z H. destruct op; try discriminate;
@@ -485,9 +485,9 @@ Qed.
 (* Binding a bounded value, or unbinding an omitted parameter, preserves the
    register-width invariant. *)
 Lemma write_register_bounded :
-  forall (regs : registers) (reg : register) (result : option Z),
+  ∀ (regs : registers) (reg : register) (result : option Z),
   bounded_registers regs ⇒
-  (forall (word : Z), result = Some word ⇒ in_int64 word) ⇒
+  (∀ (word : Z), result = Some word ⇒ in_int64 word) ⇒
   bounded_registers (write_register regs reg result).
 Proof.
   intros rs r z Hrs Hz s n H. unfold write_register in H.
@@ -497,11 +497,11 @@ Proof.
 Qed.
 
 (* Reading Goto arguments preserves the width of each supplied value. *)
-Lemma read_arguments_bounded : forall (regs : registers)
+Lemma read_arguments_bounded : ∀ (regs : registers)
     (args : list Terminator.arg) (arg_values : list (option Z)),
   bounded_registers regs ⇒ read_arguments regs args = Some arg_values ⇒
   Forall (fun (result : option Z) =>
-    forall (word : Z), result = Some word ⇒ in_int64 word) arg_values.
+    ∀ (word : Z), result = Some word ⇒ in_int64 word) arg_values.
 Proof.
   intros rs args. induction args as [ | [v |] args IH ];
     intros zs Hrs Hread; cbn [read_arguments] in Hread.
@@ -519,7 +519,7 @@ Qed.
 
 (* Binding parameters does not change a register outside the parameter list.
    This also applies when some parameters are omitted. *)
-Lemma bind_parameters_frame : forall (parameters : list value)
+Lemma bind_parameters_frame : ∀ (parameters : list value)
     (arg_values : list (option Z)) (regs_before regs_after : registers)
     (reg : register),
   bind_parameters parameters arg_values regs_before = Some regs_after ⇒
@@ -537,7 +537,7 @@ Qed.
 (* Distinct parameters receive the precomputed argument values. The old
    environment cannot affect the assignments, even when arguments and
    parameters overlap (for example, swapping two parameters). *)
-Lemma bind_parameters_values : forall (parameters : list value)
+Lemma bind_parameters_values : ∀ (parameters : list value)
     (arg_values : list (option Z)) (regs_before regs_after : registers),
   NoDup (map register_of_value parameters) ⇒
   bind_parameters parameters arg_values regs_before = Some regs_after ⇒
@@ -557,7 +557,7 @@ Qed.
 (* Reading and then binding argument lists associates each target parameter
    with the original argument register, not an already-updated parameter
    environment. *)
-Lemma bound_parameters_match_arguments : forall (args : list Terminator.arg)
+Lemma bound_parameters_match_arguments : ∀ (args : list Terminator.arg)
     (regs_before : registers) (arg_values : list (option Z))
     (parameters : list value) (regs_after : registers),
   read_arguments regs_before args = Some arg_values ⇒
@@ -587,11 +587,11 @@ Proof.
 Qed.
 
 (* Parameter binding preserves register widths. *)
-Lemma bind_parameters_bounded : forall (parameters : list value)
+Lemma bind_parameters_bounded : ∀ (parameters : list value)
     (arg_values : list (option Z)) (regs_before regs_after : registers),
   bounded_registers regs_before ⇒
   Forall (fun (result : option Z) =>
-    forall (word : Z), result = Some word ⇒ in_int64 word) arg_values ⇒
+    ∀ (word : Z), result = Some word ⇒ in_int64 word) arg_values ⇒
   bind_parameters parameters arg_values regs_before = Some regs_after ⇒
   bounded_registers regs_after.
 Proof.
@@ -609,10 +609,10 @@ Qed.
 (* Supported instructions always execute when their operands are bound. Their
    only modification is their sole result register. *)
 Theorem supported_instruction_executes :
-  forall (insn : instr) (regs : registers) (arg_values : list Z),
+  ∀ (insn : instr) (regs : registers) (arg_values : list Z),
   supported_instruction insn = true ⇒
   read_values regs (args_of_instr insn) = Some arg_values ⇒
-  exists (id : instr_id) (op : operation) (args : list value) (result : Z),
+  ∃ (id : instr_id) (op : operation) (args : list value) (result : Z),
     insn = Op id op args one
     ∧ eval_operation op arg_values = Some result
     ∧ execute_instruction regs insn
@@ -631,7 +631,7 @@ Qed.
 (* Every instruction step preserves the machine-width invariant; this is
    derived from execution, not assumed of an arbitrary valuation. *)
 Theorem execute_instruction_bounded :
-  forall (insn : instr) (regs_before regs_after : registers),
+  ∀ (insn : instr) (regs_before regs_after : registers),
   bounded_registers regs_before ⇒
   execute_instruction regs_before insn = Some regs_after ⇒
   bounded_registers regs_after.
@@ -647,13 +647,13 @@ Qed.
 
 (* Successful execution reads the operands, evaluates the operation and writes
    its unique result; each part follows by inverting execution. *)
-Theorem execute_instruction_result : forall (id : instr_id) (op : operation)
+Theorem execute_instruction_result : ∀ (id : instr_id) (op : operation)
     (args : list value) (result_count : int)
     (regs_before regs_after : registers),
   execute_instruction regs_before (Op id op args result_count)
     = Some regs_after ⇒
   result_count = one ∧
-  exists (arg_values : list Z) (result : Z),
+  ∃ (arg_values : list Z) (result : Z),
     read_values regs_before args = Some arg_values
     ∧ eval_operation op arg_values = Some result
     ∧ regs_after = write_register regs_before (Result id zero) (Some result).
@@ -672,7 +672,7 @@ Qed.
 (* A successful instruction writes no other register, regardless of the
    operation or environment. *)
 Theorem execute_instruction_frame :
-  forall (id : instr_id) (op : operation) (args : list value)
+  ∀ (id : instr_id) (op : operation) (args : list value)
     (result_count : int) (regs_before regs_after : registers) (reg : register),
   execute_instruction regs_before (Op id op args result_count)
     = Some regs_after ⇒
@@ -689,13 +689,13 @@ Qed.
 (* A concrete Goto step passes the source values to the corresponding
    parameters. No recurrence or run-model hypothesis is needed. *)
 Theorem goto_step_parameter : parameter_layout ⇒
-  forall (before after : state) (target : block) (args : list Terminator.arg),
+  ∀ (before after : state) (target : block) (args : list Terminator.arg),
   remaining before = [] ⇒
   terminator (current_block before)
     = Terminator.Continue (Goto target) args ⇒
   step before after ⇒
   current_block after = target ∧ remaining after = block_body target ∧
-  forall (index : int) (arg : value),
+  ∀ (index : int) (arg : value),
     nth_int args index = Some (Terminator.Arg arg) ⇒
     current_registers after (register_of_value (param target index))
     = current_registers before (register_of_value arg).
@@ -718,7 +718,7 @@ Qed.
 
 (* Every operational step, including simultaneous parameter binding, preserves
    machine-word bounds. *)
-Theorem step_bounded : forall (before after : state),
+Theorem step_bounded : ∀ (before after : state),
   bounded_registers (current_registers before) ⇒ step before after ⇒
   bounded_registers (current_registers after).
 Proof.
@@ -730,12 +730,12 @@ Proof.
 Qed.
 
 (* An entry state starts with the actual instructions of its block. *)
-Lemma enter_valid_position : forall (b : block) (regs : registers),
+Lemma enter_valid_position : ∀ (b : block) (regs : registers),
   valid_position (enter b regs).
 Proof. intros b rs. exists []. reflexivity. Qed.
 
 (* Stepping never introduces instructions not in the current block. *)
-Theorem step_valid_position : forall (before after : state),
+Theorem step_valid_position : ∀ (before after : state),
   valid_position before ⇒ step before after ⇒ valid_position after.
 Proof.
   intros s s' Hpos Hstep. destruct Hstep.
@@ -747,9 +747,9 @@ Proof.
 Qed.
 
 (* Instruction execution never changes block parameters. *)
-Lemma executes_insns_parameter_frame : forall (insns : list instr)
+Lemma executes_insns_parameter_frame : ∀ (insns : list instr)
     (before after : registers),
-  executes_insns before insns after ⇒ forall (b : block) (index : int),
+  executes_insns before insns after ⇒ ∀ (b : block) (index : int),
   after (Param b index) = before (Param b index).
 Proof.
   intros insns before after Hbody. induction Hbody;
@@ -760,7 +760,7 @@ Qed.
 
 (* The true/false targets of a two-way Switch are selected by 1 and 0,
    respectively, as computed by an integer comparison. *)
-Lemma boolean_switch_step : forall (before after : state) (index : value)
+Lemma boolean_switch_step : ∀ (before after : state) (index : value)
     (ifnot ifso : block) (test : bool),
   remaining before = [] ⇒
   terminator (current_block before) = Terminator.Switch index [ifnot; ifso] ⇒
@@ -784,7 +784,7 @@ Qed.
    block. Instruction results and block parameters are distinct register
    identities, including when their numeric indices coincide. *)
 Theorem step_parameter_frame : parameter_layout ⇒
-  forall (b : block) (index : int) (before after : state),
+  ∀ (b : block) (index : int) (before after : state),
   step before after ⇒ current_block after <> b ⇒
   current_registers after (Param b index)
     = current_registers before (Param b index).
@@ -806,7 +806,7 @@ Qed.
 
 (* A control transfer into a parameterless block changes no register. This
    applies to the final exiting edge, not just to internal steps. *)
-Theorem step_to_parameterless_frame : forall (before after : state),
+Theorem step_to_parameterless_frame : ∀ (before after : state),
   remaining before = [] ⇒ params (current_block after) = [] ⇒
   step before after ⇒ current_registers after = current_registers before.
 Proof.
@@ -821,7 +821,7 @@ Qed.
    of the instruction position is proved for executions from block entries,
    rather than assumed for arbitrary instruction lists. *)
 Theorem step_region_frame : parameter_layout ⇒
-  forall (region : blockset) (reg : register) (before after : state),
+  ∀ (region : blockset) (reg : register) (before after : state),
   valid_position before ⇒
   set_mem (current_block before) region = true ⇒
   set_mem (current_block after) region = true ⇒
@@ -855,7 +855,7 @@ Proof.
 Qed.
 
 (* Each executable state has at most one successor. *)
-Theorem step_deterministic : forall (before after other_after : state),
+Theorem step_deterministic : ∀ (before after other_after : state),
   step before after ⇒ step before other_after ⇒ after = other_after.
 Proof.
   intros s s' s'' H H'. inversion H; inversion H'; subst; congruence.
@@ -863,9 +863,9 @@ Qed.
 
 (* The extracted block check establishes the instruction whitelist and permits
    only internal control transfers. *)
-Theorem supported_block_spec : forall (b : block),
+Theorem supported_block_spec : ∀ (b : block),
   supported_block b = true ⇒
-  (forall (insn : instr), insn ∈ (block_body b) ⇒
+  (∀ (insn : instr), insn ∈ (block_body b) ⇒
      supported_instruction insn = true)
   ∧ terminator_pure_control (terminator b) = true.
 Proof.

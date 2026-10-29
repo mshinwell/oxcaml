@@ -73,7 +73,7 @@ Lemma to_Z_max_int : to_Z max_int = two62 - 1.
 Proof. reflexivity. Qed.
 
 (* An OxCaml [int] lies in [[-2^62, 2^62 - 1]]. *)
-Lemma int_bounds : forall x : int, - two62 <= to_Z x <= two62 - 1.
+Lemma int_bounds : ∀ x : int, - two62 <= to_Z x <= two62 - 1.
 Proof.
   intro x. pose proof (Sint63.to_Z_bounded x) as H.
   rewrite to_Z_min_int, to_Z_max_int in H. exact H.
@@ -83,7 +83,7 @@ Qed.
 Definition fits_int (z : Z) : bool := (- two62 <=? z) && (z <=? two62 - 1).
 
 (* [fits_int] answering [true] means that the bounds hold. *)
-Lemma fits_int_true : forall (z : Z),
+Lemma fits_int_true : ∀ (z : Z),
   fits_int z = true ⇒ - two62 <= z <= two62 - 1.
 Proof.
   unfold fits_int. intros z H. apply andb_prop in H as [H1 H2].
@@ -92,23 +92,23 @@ Qed.
 
 (* --- The boolean tests on [int], as propositions. --- *)
 
-Lemma eqb_int : forall x y : int, (x =? y)%sint63 = true ⇔ x = y.
+Lemma eqb_int : ∀ x y : int, (x =? y)%sint63 = true ⇔ x = y.
 Proof. intros. apply Uint63.eqb_spec. Qed.
 
-Lemma eqb_int_false : forall x y : int, (x =? y)%sint63 = false ⇔ x <> y.
+Lemma eqb_int_false : ∀ x y : int, (x =? y)%sint63 = false ⇔ x <> y.
 Proof. intros. rewrite <- not_true_iff_false, eqb_int. tauto. Qed.
 
-Lemma eqb_int_refl : forall x : int, (x =? x)%sint63 = true.
+Lemma eqb_int_refl : ∀ x : int, (x =? x)%sint63 = true.
 Proof. intros. apply eqb_int. reflexivity. Qed.
 
-Lemma ltb_int : forall x y : int, (x <? y)%sint63 = true ⇔ to_Z x < to_Z y.
+Lemma ltb_int : ∀ x y : int, (x <? y)%sint63 = true ⇔ to_Z x < to_Z y.
 Proof. intros. apply Sint63.ltb_spec. Qed.
 
-Lemma leb_int : forall x y : int, (x <=? y)%sint63 = true ⇔ to_Z x <= to_Z y.
+Lemma leb_int : ∀ x y : int, (x <=? y)%sint63 = true ⇔ to_Z x <= to_Z y.
 Proof. intros. apply Sint63.leb_spec. Qed.
 
 (* Testing a machine int's sign agrees with its mathematical value. *)
-Lemma zero_ltb_to_Z : forall (value : int),
+Lemma zero_ltb_to_Z : ∀ (value : int),
   (zero <? value)%sint63 = (0 <? to_Z value)%Z.
 Proof.
   intros value. destruct (zero <? value)%sint63 eqn:E; symmetry.
@@ -123,7 +123,7 @@ Qed.
 (* --- [lsl] --- *)
 
 (* The unsigned reading of a non-negative [int] is its value. *)
-Lemma uint_to_Z_nonneg : forall n : int, 0 <= to_Z n ⇒ Uint63.to_Z n = to_Z n.
+Lemma uint_to_Z_nonneg : ∀ n : int, 0 <= to_Z n ⇒ Uint63.to_Z n = to_Z n.
 Proof.
   intros n Hn. rewrite <- (Sint63.to_Z_mod_Uint63to_Z n). apply Z.mod_small.
   assert (HwB : Uint63Axioms.wB = 2 * two62) by reflexivity.
@@ -133,7 +133,7 @@ Qed.
 (* [1 lsl shift_amount] is [2^shift_amount] as long as that fits an [int], i.e.
    for [shift_amount <= 61]: [lsl] shifts the unsigned reading, and bit 62 is
    the sign bit. *)
-Lemma to_Z_lsl_one : forall shift_amount : int,
+Lemma to_Z_lsl_one : ∀ shift_amount : int,
   0 <= to_Z shift_amount <= 61 ⇒
   to_Z (one << shift_amount)%sint63 = 2 ^ to_Z shift_amount.
 Proof.
@@ -153,7 +153,7 @@ Qed.
 (* [(1 lsl shift_amount) - 1] is [2^shift_amount - 1] for [1 <= shift_amount <=
    62]: at [shift_amount = 62] the shift gives [min_int] and the subtraction
    wraps to [max_int], which is the right value. *)
-Lemma to_Z_lsl_one_pred : forall shift_amount : int,
+Lemma to_Z_lsl_one_pred : ∀ shift_amount : int,
   1 <= to_Z shift_amount <= 62 ⇒ to_Z ((one << shift_amount) - one)%sint63 = 2
     ^ to_Z shift_amount - 1.
 Proof.
@@ -189,7 +189,7 @@ Ltac case_int_tests :=
 (* Rearrangements of sums of [int]s, which hold with wrap-around. *)
 
 (* [cmod] may be applied to either summand first, or not at all. *)
-Lemma cmod_add_l : forall (a b modulus : Z),
+Lemma cmod_add_l : ∀ (a b modulus : Z),
   Sint63.cmod (Sint63.cmod a modulus + b) modulus
   = Sint63.cmod (a + b) modulus.
 Proof.
@@ -199,7 +199,7 @@ Proof.
   rewrite Zplus_mod_idemp_l. f_equal. f_equal. ring.
 Qed.
 
-Lemma cmod_add_r : forall (a b modulus : Z),
+Lemma cmod_add_r : ∀ (a b modulus : Z),
   Sint63.cmod (a + Sint63.cmod b modulus) modulus
   = Sint63.cmod (a + b) modulus.
 Proof.
@@ -208,20 +208,20 @@ Proof.
 Qed.
 
 (* Zero is neutral for the wrap-around addition. *)
-Lemma add_zero_l : forall x : int, (zero + x)%sint63 = x.
+Lemma add_zero_l : ∀ x : int, (zero + x)%sint63 = x.
 Proof.
   intros x. rewrite <- (Sint63.of_to_Z (zero + x)%sint63), Sint63.add_spec.
   rewrite Sint63.of_Z_cmod, to_Z_zero, Z.add_0_l. apply Sint63.of_to_Z.
 Qed.
 
-Lemma add_zero_r : forall x : int, (x + zero)%sint63 = x.
+Lemma add_zero_r : ∀ x : int, (x + zero)%sint63 = x.
 Proof.
   intros x. rewrite <- (Sint63.of_to_Z (x + zero)%sint63), Sint63.add_spec.
   rewrite Sint63.of_Z_cmod, to_Z_zero, Z.add_0_r. apply Sint63.of_to_Z.
 Qed.
 
 (* [(x + 1) + (k - 1) = x + k], with wrap-around. *)
-Lemma add_one_sub_one : forall x k : int,
+Lemma add_one_sub_one : ∀ x k : int,
   ((x + one) + (k - one))%sint63 = (x + k)%sint63.
 Proof.
   intros x k. apply Sint63.to_Z_inj.
@@ -230,7 +230,7 @@ Proof.
 Qed.
 
 (* Equality of [int]s is decidable: for [in_dec] and the like in proofs. *)
-Definition int_eq_dec : forall x y : int, {x = y} + {x <> y}.
+Definition int_eq_dec : ∀ x y : int, {x = y} + {x <> y}.
 Proof.
   intros x y. destruct (x =? y)%sint63 eqn:E.
   - left. apply eqb_int. exact E.

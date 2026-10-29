@@ -82,9 +82,9 @@ Definition sole_predecessor (pred succ : block) : bool :=
    the graph's edges, listing its blocks from [first] to [last]. An edge [pred
    -> succ] is [pred] being a predecessor of [succ]. *)
 Inductive block_path_from : block -> list block -> block -> Prop :=
-  | Block_path_one : forall (block : block),
+  | Block_path_one : ∀ (block : block),
       block_path_from block [block] block
-  | Block_path_cons : forall (pred succ : block) (rest : list block)
+  | Block_path_cons : ∀ (pred succ : block) (rest : list block)
       (last : block),
       pred ∈ (predecessors succ) ⇒
       block_path_from succ (succ :: rest) last ⇒
@@ -96,12 +96,12 @@ Inductive block_path_from : block -> list block -> block -> Prop :=
    each being reachable from it. Nothing is assumed of the entry's
    predecessors: a self-recursive tail call is a back edge to the entry. *)
 Record dominance_semantics (entry : block) : Prop :=
-  { dominates_spec : forall (dominator target : block),
+  { dominates_spec : ∀ (dominator target : block),
       dominator ▷ target ⇒
-      forall (visited_blocks : list block),
+      ∀ (visited_blocks : list block),
       block_path_from entry visited_blocks target ⇒
       dominator ∈ visited_blocks;
-    entry_dominates : forall (block : block), entry ▷ block }.
+    entry_dominates : ∀ (block : block), entry ▷ block }.
 
 Arguments dominates_spec {entry}.
 Arguments entry_dominates {entry}.
@@ -122,18 +122,18 @@ Definition program_point_eqb (lhs rhs : program_point) : bool :=
    successor observation as block dominance, including exceptional successors
    even though the restricted semantics cannot take them. *)
 Inductive program_point_edge : program_point -> program_point -> Prop :=
-  | Program_point_instruction : forall (b : block) (insns_left : nat),
+  | Program_point_instruction : ∀ (b : block) (insns_left : nat),
       insns_left < length (block_body b) ⇒
       program_point_edge (b, S insns_left) (b, insns_left)
-  | Program_point_transfer : forall (source target : block),
+  | Program_point_transfer : ∀ (source target : block),
       target ∈ (all_successors source) ⇒
       program_point_edge (source, 0) (block_entry_point target).
 
 Inductive program_point_path_from
     : program_point -> list program_point -> program_point -> Prop :=
-  | Program_point_path_one : forall (position : program_point),
+  | Program_point_path_one : ∀ (position : program_point),
       program_point_path_from position [position] position
-  | Program_point_path_cons : forall (first next last : program_point)
+  | Program_point_path_cons : ∀ (first next last : program_point)
       (rest : list program_point),
       program_point_edge first next ⇒
       program_point_path_from next (next :: rest) last ⇒
@@ -141,13 +141,13 @@ Inductive program_point_path_from
 
 Definition program_point_dominates (entry : block)
     (dominator target : program_point) : Prop :=
-  forall (points : list program_point),
+  ∀ (points : list program_point),
     program_point_path_from (block_entry_point entry) points target ⇒
     dominator ∈ points.
 
 Definition program_point_reachable (entry : block)
     (target : program_point) : Prop :=
-  exists (points : list program_point),
+  ∃ (points : list program_point),
     program_point_path_from (block_entry_point entry) points target.
 
 (* ======================================================================== *)
@@ -155,7 +155,7 @@ Definition program_point_reachable (entry : block)
 (* ======================================================================== *)
 
 (* Point equality compares the block identity and instruction position. *)
-Lemma program_point_eqb_spec : forall (lhs rhs : program_point),
+Lemma program_point_eqb_spec : ∀ (lhs rhs : program_point),
   program_point_eqb lhs rhs = true ⇔ lhs = rhs.
 Proof.
   intros [b n] [b' n']. unfold program_point_eqb; cbn.
@@ -164,7 +164,7 @@ Proof.
 Qed.
 
 (* Every path contains its endpoint, so each point dominates itself. *)
-Lemma program_point_dominates_refl : forall (entry : block)
+Lemma program_point_dominates_refl : ∀ (entry : block)
   (position : program_point),
   program_point_dominates entry position position.
 Proof.
@@ -173,7 +173,7 @@ Proof.
 Qed.
 
 (* A point path can be extended at either end by one graph edge. *)
-Lemma program_point_path_prepend : forall (first next last : program_point)
+Lemma program_point_path_prepend : ∀ (first next last : program_point)
     (points : list program_point),
   program_point_edge first next ⇒ program_point_path_from next points last ⇒
   program_point_path_from first (first :: points) last.
@@ -182,7 +182,7 @@ Proof.
   inversion Hpath; subst; apply Program_point_path_cons; assumption.
 Qed.
 
-Lemma program_point_path_snoc : forall (first last next : program_point)
+Lemma program_point_path_snoc : ∀ (first last next : program_point)
     (points : list program_point),
   program_point_path_from first points last ⇒ program_point_edge last next ⇒
   program_point_path_from first (points ++ [next]) next.
@@ -193,13 +193,13 @@ Proof.
 Qed.
 
 (* Join two paths without requiring a self-edge at their shared point. *)
-Lemma program_point_path_join : forall (first middle last : program_point)
+Lemma program_point_path_join : ∀ (first middle last : program_point)
     (prefix suffix : list program_point),
   program_point_path_from first prefix middle ⇒ program_point_path_from middle
     suffix last ⇒
-  exists (joined : list program_point), program_point_path_from first joined
+  ∃ (joined : list program_point), program_point_path_from first joined
     last ∧
-    forall (member : program_point), member ∈ joined ⇒
+    ∀ (member : program_point), member ∈ joined ⇒
       member ∈ prefix ∨ member ∈ suffix.
 Proof.
   intros first middle last prefix suffix Hprefix Hsuffix.
@@ -213,11 +213,11 @@ Proof.
 Qed.
 
 (* Keep the suffix starting at the last occurrence of a selected point. *)
-Lemma program_point_path_last_visit : forall (first last : program_point)
+Lemma program_point_path_last_visit : ∀ (first last : program_point)
     (points : list program_point),
-  program_point_path_from first points last ⇒ forall (selected :
+  program_point_path_from first points last ⇒ ∀ (selected :
     program_point),
-  selected ∈ points ⇒ exists (tail : list program_point),
+  selected ∈ points ⇒ ∃ (tail : list program_point),
     program_point_path_from selected (selected :: tail) last ∧ selected ∉ tail.
 Proof.
   intros first last points Hpath. induction Hpath;
@@ -241,12 +241,12 @@ Qed.
 
 (* A path avoiding a region's entry point after its start cannot leave and
    re-enter a region closed under all other incoming edges. *)
-Lemma program_point_path_region_suffix : forall (inside : program_point ->
+Lemma program_point_path_region_suffix : ∀ (inside : program_point ->
   Prop)
     (cut : program_point),
-  (forall (before after : program_point), program_point_edge before after ⇒
+  (∀ (before after : program_point), program_point_edge before after ⇒
      inside after ⇒ after <> cut ⇒ inside before) ⇒
-  forall (first last : program_point) (points : list program_point),
+  ∀ (first last : program_point) (points : list program_point),
   program_point_path_from first points last ⇒ inside last ⇒
   cut ∉ (tl points) ⇒ Forall inside points.
 Proof.
@@ -261,10 +261,10 @@ Proof.
 Qed.
 
 (* Truncate a path at its first visit to the destination. *)
-Lemma program_point_path_first_visit : forall (first last : program_point)
+Lemma program_point_path_first_visit : ∀ (first last : program_point)
     (points : list program_point),
   program_point_path_from first points last ⇒
-  exists (prefix : list program_point),
+  ∃ (prefix : list program_point),
     program_point_path_from first (prefix ++ [last]) last ∧ last ∉ prefix.
 Proof.
   intros first last points Hpath. induction Hpath.
@@ -282,12 +282,12 @@ Qed.
 
 (* A member of an avoiding prefix can be reached without leaving that prefix.
    This is the path-splicing fact needed for antisymmetry. *)
-Lemma program_point_path_prefix_avoiding : forall (first last : program_point)
+Lemma program_point_path_prefix_avoiding : ∀ (first last : program_point)
     (points : list program_point),
   program_point_path_from first points last ⇒
-  forall (prefix suffix : list program_point) (member avoid : program_point),
+  ∀ (prefix suffix : list program_point) (member avoid : program_point),
   points = prefix ++ suffix ⇒ avoid ∉ prefix ⇒ member ∈ prefix ⇒
-  exists (before_member : list program_point),
+  ∃ (before_member : list program_point),
     program_point_path_from first before_member member ∧ avoid ∉ before_member.
 Proof.
   intros first last points Hpath. induction Hpath;
@@ -309,7 +309,7 @@ Qed.
 
 (* Mutual domination of reachable points means they are the same point.
    Reachability prevents unreachable graph fragments making this vacuous. *)
-Theorem program_point_dominance_antisymmetric : forall (entry : block)
+Theorem program_point_dominance_antisymmetric : ∀ (entry : block)
     (lhs rhs : program_point),
   program_point_reachable entry rhs ⇒ program_point_dominates entry lhs rhs ⇒
   program_point_dominates entry rhs lhs ⇒ lhs = rhs.
@@ -330,7 +330,7 @@ Qed.
 
 (* A dominator of a successor also dominates its predecessor unless it is the
    successor itself, where a definition may just have become live. *)
-Lemma program_point_dominates_predecessor : forall (entry : block)
+Lemma program_point_dominates_predecessor : ∀ (entry : block)
     (dominator before after : program_point),
   program_point_dominates entry dominator after ⇒ dominator <> after ⇒
   program_point_edge before after ⇒
@@ -345,7 +345,7 @@ Qed.
 (* A definition in another block that dominates this block's terminator also
    dominates its entry: advancing through the body never encounters that other
    definition. *)
-Lemma other_block_dominates_entry : forall (entry b : block)
+Lemma other_block_dominates_entry : ∀ (entry b : block)
     (dominator : program_point),
   fst dominator <> b ⇒ program_point_dominates entry dominator (b, 0%nat) ⇒
   program_point_dominates entry dominator (block_entry_point b).
@@ -363,13 +363,13 @@ Proof.
 Qed.
 
 (* A visited point has a prefix path contained in the original path. *)
-Lemma program_point_path_member : forall (first last : program_point)
+Lemma program_point_path_member : ∀ (first last : program_point)
   (points : list program_point),
-  program_point_path_from first points last ⇒ forall (member : program_point),
+  program_point_path_from first points last ⇒ ∀ (member : program_point),
     member ∈ points ⇒
-  exists (prefix : list program_point),
+  ∃ (prefix : list program_point),
     program_point_path_from first prefix member
-    ∧ forall (visited : program_point), visited ∈ prefix ⇒ visited ∈ points.
+    ∧ ∀ (visited : program_point), visited ∈ prefix ⇒ visited ∈ points.
 Proof.
   intros first last points Hpath. induction Hpath; intros member Hin.
   - destruct Hin as [<- | []]. exists [position]. split; [constructor | auto].
@@ -383,7 +383,7 @@ Proof.
 Qed.
 
 (* Dominating a dominator is enough to dominate its target. *)
-Theorem program_point_dominance_transitive : forall (entry : block)
+Theorem program_point_dominance_transitive : ∀ (entry : block)
     (first middle last : program_point),
   program_point_dominates entry first middle ⇒ program_point_dominates entry
     middle last ⇒
@@ -396,7 +396,7 @@ Proof.
 Qed.
 
 (* A block path can be extended by one incoming edge. *)
-Lemma block_path_prepend : forall (first next last : block)
+Lemma block_path_prepend : ∀ (first next last : block)
   (blocks : list block),
   first ∈ (predecessors next) ⇒ block_path_from next blocks last ⇒
   block_path_from first (first :: blocks) last.
@@ -407,12 +407,12 @@ Qed.
 
 (* Project a program-point path to a block path. Every block other than the
    starting block was entered at its full-body entry point. *)
-Lemma program_point_path_to_blocks : control_edges ⇒ forall (first last :
+Lemma program_point_path_to_blocks : control_edges ⇒ ∀ (first last :
   program_point)
     (points : list program_point),
   program_point_path_from first points last ⇒
-  exists (blocks : list block), block_path_from (fst first) blocks (fst last)
-    ∧ forall (b : block), b ∈ blocks ⇒
+  ∃ (blocks : list block), block_path_from (fst first) blocks (fst last)
+    ∧ ∀ (b : block), b ∈ blocks ⇒
          b = fst first ∨ (block_entry_point b) ∈ points.
 Proof.
   intros Hedges first last points Hpath. induction Hpath.
@@ -435,11 +435,11 @@ Qed.
 
 (* Counting down through a block gives a path to its terminator without
    visiting any other block. *)
-Lemma block_body_program_point_path : forall (b : block) (remaining : nat),
+Lemma block_body_program_point_path : ∀ (b : block) (remaining : nat),
   remaining <= length (block_body b) ⇒
-  exists (points : list program_point), program_point_path_from (b, remaining)
+  ∃ (points : list program_point), program_point_path_from (b, remaining)
     points (b, 0)
-    ∧ forall (position : program_point),
+    ∧ ∀ (position : program_point),
        position ∈ points ⇒ fst position = b.
 Proof.
   intros b remaining. induction remaining as [ | remaining IH]; intros Hlen.
@@ -454,11 +454,11 @@ Qed.
 (* Expand a block path to instruction-level points. This direction is needed to
    use completeness of the compiler's block-dominance query. *)
 Lemma block_path_to_program_points : control_edges ⇒
-  forall (first last : block) (blocks : list block),
+  ∀ (first last : block) (blocks : list block),
   block_path_from first blocks last ⇒
-  exists (points : list program_point),
+  ∃ (points : list program_point),
     program_point_path_from (block_entry_point first) points (last, 0)
-    ∧ forall (position : program_point), position ∈ points ⇒
+    ∧ ∀ (position : program_point), position ∈ points ⇒
          (fst position) ∈ blocks.
 Proof.
   intros Hedges first last blocks Hpath. induction Hpath.
@@ -485,9 +485,9 @@ Qed.
 
 (* Entry-point dominance implies ordinary block dominance. *)
 Theorem block_dominance_of_program_point : control_edges ⇒
-  forall (entry dominator target : block),
+  ∀ (entry dominator target : block),
   program_point_dominates entry (block_entry_point dominator) (target, 0) ⇒
-  forall (blocks : list block),
+  ∀ (blocks : list block),
   block_path_from entry blocks target ⇒ dominator ∈ blocks.
 Proof.
   intros Hedges entry dominator target Hdom blocks Hpath.
@@ -499,8 +499,8 @@ Qed.
 (* Semantic block dominance lifts to dominance of the block's entry point,
    preserving within-block instruction ordering. *)
 Theorem program_point_dominance_of_block : control_edges ⇒
-  forall (entry dominator : block) (target : program_point),
-  (forall (blocks : list block), block_path_from entry blocks (fst target) ⇒
+  ∀ (entry dominator : block) (target : program_point),
+  (∀ (blocks : list block), block_path_from entry blocks (fst target) ⇒
      dominator ∈ blocks) ⇒
   program_point_dominates entry (block_entry_point dominator) target.
 Proof.
@@ -513,7 +513,7 @@ Proof.
 Qed.
 
 (* Only a terminator edge can enter the full-body point of a block. *)
-Lemma program_point_edge_to_entry : control_edges ⇒ forall (before :
+Lemma program_point_edge_to_entry : control_edges ⇒ ∀ (before :
   program_point)
     (target : block),
   program_point_edge before (block_entry_point target) ⇒
@@ -528,7 +528,7 @@ Qed.
 (* A non-entry block with one predecessor is dominated, at instruction
    granularity, by that predecessor's terminator. *)
 Lemma singleton_predecessor_dominance : control_edges ⇒
-  forall (entry source target : block),
+  ∀ (entry source target : block),
   target <> entry ⇒ predecessors target = [source] ⇒
   program_point_dominates entry (source, 0) (block_entry_point target).
 Proof.
@@ -553,7 +553,7 @@ Proof.
 Qed.
 
 (* A path contains its endpoint. *)
-Lemma block_path_last : forall (first : block) (visited_blocks : list block)
+Lemma block_path_last : ∀ (first : block) (visited_blocks : list block)
   (last : block),
   block_path_from first visited_blocks last ⇒ last ∈ visited_blocks.
 Proof.
@@ -562,7 +562,7 @@ Qed.
 
 (* Following one more edge extends a path at its end. *)
 Lemma block_path_snoc :
-  forall (first : block) (visited_blocks : list block) (last next : block),
+  ∀ (first : block) (visited_blocks : list block) (last next : block),
   block_path_from first visited_blocks last ⇒ last ∈ (predecessors next) ⇒
   block_path_from first (visited_blocks ++ [next]) next.
 Proof.

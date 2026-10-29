@@ -78,7 +78,7 @@ Section Invariants.
   Qed.
 
   (* A strict dominator of the header cannot also lie in its body. *)
-  Lemma strict_dominator_outside_loop : forall (dominator : block),
+  Lemma strict_dominator_outside_loop : ∀ (dominator : block),
     dominator ▷ loop.(header) ⇒ dominator <> loop.(header) ⇒
     set_mem dominator loop.(body) = false.
   Proof.
@@ -103,7 +103,7 @@ Section Invariants.
   (* The defining-block table identifies every actual result register. If it
      says a strict dominator defines the register, the body cannot contain
      another instruction that rewrites that same register. *)
-  Lemma invariant_result_defined_outside_loop : forall (id : instr_id)
+  Lemma invariant_result_defined_outside_loop : ∀ (id : instr_id)
     (index : int)
       (defining_block : block),
     op_def_find defs id = Some defining_block ⇒
@@ -124,7 +124,7 @@ Section Invariants.
 
   (* Opaque operations, including non-integer constants, cannot occur in the
      whitelisted loop. An available such definition is outside it. *)
-  Lemma unmodeled_result_defined_outside_loop : forall (id : instr_id)
+  Lemma unmodeled_result_defined_outside_loop : ∀ (id : instr_id)
       (op : operation) (args : list value) (index : int)
         (position : program_point),
     modeled_operation op args = false ⇒
@@ -151,7 +151,7 @@ Section Invariants.
      Availability is essential: constants need not have executed at arbitrary
      states, and fabricated results are not definitions. *)
   Theorem loop_invariant_value_same :
-    forall (invariant_ref : value) (first second : state),
+    ∀ (invariant_ref : value) (first second : state),
     region_steps loop.(body) start first ⇒
     region_steps loop.(body) start second ⇒
     set_mem (current_block first) loop.(body) = true ⇒

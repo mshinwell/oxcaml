@@ -88,7 +88,7 @@ Import ListNotations.
 Definition eligible_entry (header exit : block) (header_regs : registers)
     : Prop :=
   params exit = []
-  ∧ exists (first_header_regs exit_regs : registers),
+  ∧ ∃ (first_header_regs exit_regs : registers),
        executes_insns header_regs (block_body header) first_header_regs
        ∧ steps_until exit
             {| current_block := header; remaining := [];
@@ -108,7 +108,7 @@ Definition eligible_loop_entry (loop : natural_loop) (exit : block)
   set_mem loop.(header) loop.(body) = true
   ∧ set_mem exit loop.(body) = false
   ∧ params exit = []
-  ∧ exists (first_header_regs exit_regs : registers),
+  ∧ ∃ (first_header_regs exit_regs : registers),
        executes_insns header_regs (block_body loop.(header)) first_header_regs
        ∧ region_steps loop.(body)
             {| current_block := loop.(header); remaining := [];
@@ -116,7 +116,7 @@ Definition eligible_loop_entry (loop : natural_loop) (exit : block)
             (enter exit exit_regs)
        ∧ agree_on_live (block_entry_point exit) first_header_regs exit_regs.
 
-Lemma eligible_loop_entry_eligible : forall (loop : natural_loop)
+Lemma eligible_loop_entry_eligible : ∀ (loop : natural_loop)
     (exit : block) (header_regs : registers),
   eligible_loop_entry loop exit header_regs ⇒
   eligible_entry loop.(header) exit header_regs.
@@ -133,7 +133,7 @@ Qed.
    first header computation and live-out agreement are both derived. No
    equality of dead counter values is required. *)
 Theorem certificate_finite_exit_eligible : control_edges ⇒
-  forall (blocks : list block) (entry : block) (defs : op_def)
+  ∀ (blocks : list block) (entry : block) (defs : op_def)
     (loop : natural_loop) (bivs : list biv) (exit : block)
     (initial_regs header_regs exit_regs : registers),
   well_formed_ssa blocks entry ⇒ loop_graph_properties blocks entry loop ⇒
@@ -163,7 +163,7 @@ Qed.
    ordinary SSA input/argument definedness. The only dynamic side condition is
    the language's defined-index rule for Switch. *)
 Theorem certificate_region_progress : control_edges ⇒
-  forall (blocks : list block) (entry : block) (defs : op_def)
+  ∀ (blocks : list block) (entry : block) (defs : op_def)
     (loop : natural_loop) (bivs : list biv) (exit : block)
     (initial_regs header_regs : registers),
   well_formed_ssa blocks entry ⇒ control_layout blocks ⇒
@@ -172,10 +172,10 @@ Theorem certificate_region_progress : control_edges ⇒
   live_registers_defined (block_entry_point entry) initial_regs ⇒
   switches_in_range (enter loop.(header) header_regs) ⇒
   context_steps (enter entry initial_regs) (enter loop.(header) header_regs) ⇒
-  forall (reached : state),
+  ∀ (reached : state),
   region_steps loop.(body) (enter loop.(header) header_regs) reached ⇒
   set_mem (current_block reached) loop.(body) = true ⇒
-  exists (next : state), SsaSemantics.step reached next.
+  ∃ (next : state), SsaSemantics.step reached next.
 Proof.
   intros Hedges blocks entry defs loop bivs exit initial_regs header_regs
     Hwf Hlayout Hgraph Hcertificate Hinputs Hswitches Hprefix reached
@@ -202,20 +202,20 @@ Qed.
    entry guards, range facts and live-out agreement. No post-deletion graph is
    needed. *)
 Theorem certificate_entry_eligible : control_edges ⇒
-  forall (blocks : list block) (entry : block) (defs : op_def)
+  ∀ (blocks : list block) (entry : block) (defs : op_def)
     (loop : natural_loop) (bivs : list biv) (exit : block)
     (initial_regs header_regs : registers),
   well_formed_ssa blocks entry ⇒ control_layout blocks ⇒
   loop_graph_properties blocks entry loop ⇒ dominance_semantics entry ⇒
   op_def_correct defs blocks ⇒
-  (forall (dominator target : block),
+  (∀ (dominator target : block),
     dominator ∈ blocks ⇒ target ∈ blocks ⇒
-    (forall (visited_blocks : list block), SsaDominance.block_path_from entry
+    (∀ (visited_blocks : list block), SsaDominance.block_path_from entry
       visited_blocks target ⇒
        dominator ∈ visited_blocks) ⇒ dominator ▷ target) ⇒
   switch_edge_multiplicity ⇒ graph_size_supported blocks ⇒
   NoDup (strict_dominators loop.(header)) ⇒
-  (forall (dominator : block),
+  (∀ (dominator : block),
      dominator ∈ (strict_dominators loop.(header)) ⇒ dominator ∈ blocks) ⇒
   deletion_certificate defs blocks loop bivs exit ⇒
   bounded_registers initial_regs ⇒
@@ -248,11 +248,11 @@ Qed.
    arguments, an observed prefix and defined Switch indices. No loop recurrence
    or termination premise remains. *)
 Theorem find_deletions_eligible :
-  forall (blocks : list block) (entry : block) (defs : op_def)
+  ∀ (blocks : list block) (entry : block) (defs : op_def)
     (header exit : block),
   finished_graph blocks entry defs ⇒
   (header, exit) ∈ (find_deletions defs blocks) ⇒
-  forall (initial_regs header_regs : registers),
+  ∀ (initial_regs header_regs : registers),
     reached_header entry header initial_regs header_regs ⇒
     eligible_entry header exit header_regs.
 Proof.

@@ -25,7 +25,7 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* Standard conjunction and disjunction notation: [∧] and [∨]. *)
+(* Standard notation for quantifiers [∀], [∃] and connectives [∧], [∨]. *)
 From Stdlib Require Export Unicode.Utf8_core.
 
 (* Use double-line arrows for propositions and [->] for function types. *)
