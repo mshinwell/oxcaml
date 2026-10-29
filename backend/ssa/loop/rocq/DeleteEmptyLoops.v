@@ -72,7 +72,8 @@ Definition graph_supported (blocks : list block) : bool :=
        blocks.
 
 (* Only the integer/control-flow fragment of SsaSemantics.v is eligible.
-   In particular, a load is rejected even if [has_side_effect] says false.
+   In particular, a load is rejected even though the compiler's
+   [Ssa.Instruction.has_side_effect] says it has none.
    The header belongs to the body, so its instructions are checked too. *)
 Definition body_supported (loop : natural_loop) : bool :=
   set_for_all supported_block loop.(body).

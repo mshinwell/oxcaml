@@ -46,6 +46,36 @@ Definition switches_in_range (initial : state) : Prop :=
   current_registers reached (register_of_value index) = Some word ->
   0 <= word < Z.of_nat (length targets).
 
+(* What [Ssa.finish_graph] guarantees of the graph the pass receives, as
+   the eligibility theorem needs it: [blocks] is the graph's block list,
+   [entry] its entry block and [defs] the table of defining blocks the
+   pass builds from [blocks]. One field per builder guarantee; section 3
+   of ROCQ-REVIEWER-OBLIGATIONS.md says where each is enforced. *)
+Record finished_graph (blocks : list block) (entry : block) (defs : op_def)
+    : Prop :=
+  { (* Definitions, uses, parameters, reachability, successor closure. *)
+    graph_well_formed : well_formed_ssa blocks entry;
+    (* The predecessors of a block of the graph are blocks of the graph. *)
+    graph_predecessors_closed : forall (b pred : block),
+      In b blocks -> In pred (predecessors b) -> In pred blocks;
+    (* Terminators, successors and predecessors describe the same edges. *)
+    graph_edges : control_edges;
+    graph_switch_edges : switch_edge_multiplicity;
+    (* [dominates] is sound and complete for dominance along paths. *)
+    graph_dominance : dominance_semantics entry;
+    graph_dominance_complete : forall (dominator target : block),
+      In dominator blocks -> In target blocks ->
+      (forall (p : list block), path entry p target -> In dominator p) ->
+      dominator --dom--> target;
+    (* [strict_dominators] lists distinct blocks of the graph. *)
+    graph_strict_dominators : forall (b : block), In b blocks ->
+      NoDup (strict_dominators b)
+      /\ (forall (d : block), In d (strict_dominators b) -> In d blocks);
+    (* Goto arguments match parameters; Switch targets have none. *)
+    graph_layout : control_layout blocks;
+    (* The table maps every instruction to its block. *)
+    graph_definitions : op_def_correct defs blocks }.
+
 (* Liveness witnesses a real operand somewhere in the successor-closed
    graph, even when the read is several blocks away. *)
 Lemma live_register_used : forall (blocks : list block) (entry : block)

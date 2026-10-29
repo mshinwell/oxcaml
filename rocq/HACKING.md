@@ -15,11 +15,17 @@ the reading guide at the top of `LoopComparisons.v`.
 
 Start review of empty-loop deletion at `LoopEligibility.v`: read
 `eligible_entry` and `find_deletions_eligible`, then their imported
-semantics and contracts. The theorem proves finite normal first exit and
-agreement with the first header execution on every register read before
-its next definition. It assumes no recurrence, invariant bound, guard
-outcome, progress or finite exit. The mechanically rewritten graph,
-renaming and cleanup are deliberately outside this proof's scope.
+semantics and contracts. The theorem proves, for every header/exit pair
+the pass reports, that the execution from the header first arrives at
+the exit after finitely many steps (`SsaSemantics.steps_until`) and
+agrees with the first header execution on every register read before
+its next definition. Its premises are two records, `finished_graph`
+(`SsaProgress.v`: what the SSA builder guarantees) and `reached_header`
+(`SsaContext.v`: bound inputs and an observed prefix to the header). It
+assumes no recurrence, invariant bound, guard outcome, progress or
+finite exit, and the discovered loop does not appear in the statement.
+The mechanically rewritten graph, renaming and cleanup are deliberately
+outside this proof's scope.
 
 The loop whitelist remains integer constants, additions, subtractions and
 comparisons, with Goto/Switch control flow. `SsaSemantics.v` defines exact
@@ -51,10 +57,12 @@ exit. `LoopInvariantExecution.v` proves bound constancy on finite segments;
 connect affine entailment to the actual prefix, including duplicate
 Switch edges. `LoopLiveOut.v` derives live-out agreement.
 
-The public theorem's non-algorithmic premises are explicit: structural
-SSA/dominance metadata, edge multiplicities, Goto/parameter layout,
-bounded live function inputs, and defined Switch indices from the reached
-header onward. Out-of-range Switch indices are undefined behavior in SSA.
+The public theorem's non-algorithmic premises are the fields of
+`finished_graph` (structural SSA/dominance metadata, edge multiplicities,
+Goto/parameter layout, the definition table) and of `reached_header`
+(bounded live function inputs, the observed prefix, and defined Switch
+indices from the reached header onward). Out-of-range Switch indices are
+undefined behavior in SSA.
 The extracted gate enforces at most $2^{32}$ graph blocks with a bounded
 list walk. `find_deletions_supported` proves `graph_size_supported` and
 prefix instruction coverage, so graph size is not a public theorem premise.
@@ -273,9 +281,11 @@ header.
   so that the proof is a reading-back of the code.
 - Define machine execution once (`SsaSemantics.v`). Derive operation
   equations only for available, canonical definitions (`SsaExecution.v`
-  and `SsaContext.v`).
-  An abstract arithmetic valuation such as `AffineSsa.op_semantics` needs
-  a proved connection to execution before it can justify optimization.
+  and `SsaContext.v`). An abstract arithmetic valuation such as
+  `AffineSsa.mval` is constrained by `SsaSemantics.eval_operation`
+  (`AffineSsa.op_semantics`), not by a second statement of the
+  arithmetic, and needs a proved connection to execution
+  (`LoopValueSnapshot.v`) before it can justify optimization.
 - Keep analysis preconditions in named propositions, not in executable
   types. For example, the counter proof needs `biv_spec`, which
   `InductionVar.analyze_spec` establishes for the discovered variables.

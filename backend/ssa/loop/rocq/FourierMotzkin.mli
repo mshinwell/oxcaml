@@ -20,13 +20,7 @@ module Affine : sig
 
   val add_const : t -> int -> t
 
-  val add : t -> t -> t
-
   val scale : int -> t -> t
-
-  val neg : t -> t
-
-  val sub : t -> t -> t
 
   val scale_checked : int -> t -> t option
 

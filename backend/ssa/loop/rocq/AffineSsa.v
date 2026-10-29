@@ -62,16 +62,16 @@
    counter start that far below [max_int].
 
    Trusted parts, beyond those of AffineExpr.v: what the recognised
-   operations compute ([op_semantics] below spells out the machine
-   semantics of each), that [Ssa.Value.equal] only identifies values with
-   the same machine value, and that the dominators and terminators
-   SsaModel.v reports are the graph's. *)
+   operations compute, which is [SsaSemantics.eval_operation] ([op_semantics]
+   below asks that the valuation satisfy it), that [Ssa.Value.equal] only
+   identifies values with the same machine value, and that the dominators
+   and terminators SsaModel.v reports are the graph's. *)
 
 From Stdlib Require Import ZArith Lia Bool List.
 From OxCamlStdlib Require Import OxCamlOption OxCamlInt OxCamlInt64 OxCamlList
   IntArith.
 From OxCamlBackend Require Import IntegerComparison Operation.
-From OxCamlSsa Require Import SsaModel SsaDominance.
+From OxCamlSsa Require Import SsaModel SsaDominance SsaSemantics.
 From OxCamlLoop Require Import FourierMotzkin LoopComparisons AffineExpr.
 Import ListNotations.
 
@@ -354,17 +354,31 @@ Section Semantics.
   Hypothesis mval_eqb :
     forall (v w : value), value_eqb v w = true -> mval v = mval w.
 
-  (* What the operations the recogniser understands compute, from the
-     machine values of their arguments: a constant is its value (a
-     [nativeint] read as the same 64-bit value); add, subtract and left
-     shift wrap at 64 bits; the arithmetic right shift divides rounding
-     towards minus infinity; the logical right shift divides the unsigned
-     reading of its argument, read back as a signed register (including a
-     shift by zero); or is the bitwise or of two's-complement values.
-     Shifts by amounts outside the register width compute something
-     unspecified, which nothing below relies on. A comparison's own value
-     is not needed, only those of its operands (see [test_result]). *)
+  (* The recognised operations compute what [SsaSemantics.eval_operation]
+     says on the machine values of their arguments: there is one arithmetic
+     semantics in the development, and this is a reading of it. It
+     covers every [modeled_operation], comparisons included, though the
+     affine theorems only need the operands of a comparison (see
+     [test_result]). *)
   Definition op_semantics (v : value) : Prop :=
+    match v with
+    | Res _ op args _ =>
+      modeled_operation op args = true ->
+      eval_operation op (map mval args) = Some (mval v)
+    | Block_param _ _ => True
+    end.
+
+  (* Every value is computed as its operation says. *)
+  Hypothesis mval_ops : forall (v : value), op_semantics v.
+
+  (* The equations the proofs below use, one per recognised shape, as they
+     follow from [op_semantics] and the register bound: add, subtract and
+     left shift wrap at 64 bits; the arithmetic right shift divides
+     rounding towards minus infinity; the logical right shift divides the
+     unsigned reading of its argument, read back as a signed register; or
+     is the bitwise or of two's-complement values. Shifts by amounts
+     outside the register width are not constrained. *)
+  Definition op_equations (v : value) : Prop :=
     match v with
     | Res _ (Const_int n) _ _ => mval v = Int64.to_Z (Int64.of_nativeint n)
     | Res _ (Intop Iadd) [a; b] _ => mval v = wrap64 (mval a + mval b)
@@ -382,20 +396,35 @@ Section Semantics.
     | _ => True
     end.
 
-  (* A check, which no proof uses, that the [Ilsr] clause is satisfiable: a
-     logical shift by zero returns its argument, negative registers
-     included, which is why the quotient is read back through [wrap64]. *)
-  Remark op_semantics_lsr_zero : forall (id : instr_id) (a : value) (i : int),
-    mval (Res id (Intop_imm Ilsr zero) [a] i) = mval a ->
-    op_semantics (Res id (Intop_imm Ilsr zero) [a] i).
+  Lemma mval_equations : forall (v : value), op_equations v.
   Proof.
-    intros id a i Hv. cbn [op_semantics]. intros _.
-    rewrite to_Z_zero, Z.pow_0_r, Z.div_1_r, Hv.
-    symmetry. apply wrap64_unsigned, mval_bounded.
+    intros v. pose proof (mval_ops v) as Hs.
+    destruct v as [id op args i | b i]; [ | exact I].
+    assert (Hbits : forall (k : int), 0 <= to_Z k <= 63 ->
+      Z.leb 0 (to_Z k) && Z.leb (to_Z k) 63 = true).
+    { intros k Hk. apply andb_true_iff. split; apply Z.leb_le; lia. }
+    destruct op; try exact I; try (destruct op; try exact I);
+      destruct args as [ | a [ | b [ | extra rest]]]; try exact I;
+      cbn [op_semantics op_equations map modeled_operation eval_operation]
+        in *;
+      try (specialize (Hs eq_refl); injection Hs as Hs; symmetry; exact Hs).
+    - (* Ior *)
+      specialize (Hs eq_refl). injection Hs as Hs.
+      rewrite <- Hs. apply wrap64_id, lor_in_int64.
+      + apply mval_bounded.
+      + pose proof (int_bounds k). unfold in_int64, two63, two62 in *. lia.
+    - (* Ilsl *)
+      intros Hk. rewrite (Hbits k Hk) in Hs. specialize (Hs eq_refl).
+      injection Hs as Hs. symmetry. exact Hs.
+    - (* Ilsr *)
+      intros Hk. rewrite (Hbits k Hk) in Hs. specialize (Hs eq_refl).
+      injection Hs as Hs. symmetry. exact Hs.
+    - (* Iasr *)
+      intros Hk. rewrite (Hbits k Hk) in Hs. specialize (Hs eq_refl).
+      injection Hs as Hs. rewrite <- Hs. apply wrap64_id.
+      eapply in_range_int64.
+      eapply shr_signed_sound; [exact Hk | apply mval_bounded].
   Qed.
-
-  (* Every value is computed as its operation says. *)
-  Hypothesis mval_ops : forall (v : value), op_semantics v.
 
   (* A valuation agrees with a context when it reads each atom as the
      machine value of the SSA value interned for it. *)
@@ -417,10 +446,10 @@ Section Semantics.
   (* The branches [guards_at] takes facts from went the way it assumes:
      for each dominator of [target] whose branch [guard_test] accepts, the
      comparison tested came out as that branch requires. On entry to
-     [target] this is what [SsaDominance.edge_on_every_path] gives, as
-     every path to [target] took that branch; it is an assumption on
-     [mval], which LoopTermination.v makes of the values at the entry to a
-     loop. *)
+     [target] this holds because every path to [target] took that branch
+     (LoopGuardExecution.executed_guards_taken proves it of the actual
+     execution); here it is an assumption on [mval], which
+     LoopTermination.v makes of the values at the entry to a loop. *)
   Definition guard_taken (target dominator : block) : Prop :=
     forall (index : value) (negate : bool),
       guard_test target dominator = Some (index, negate) ->
@@ -708,14 +737,14 @@ Section Semantics.
     intros v. induction v as [id op args i IHargs | b i] using value_ind';
       intros c e r c' Hwf Hn H;
       [ | cbn [expr_of_value] in H; finish_atomized Hwf (extends_refl c) H ].
-    pose proof (mval_ops (Res id op args i)) as Hs.
+    pose proof (mval_equations (Res id op args i)) as Hs.
     destruct op as [ | | | n | ? | ? | ? | ? | ? | ? | ? | ? | ? | ? ? ? | iop
                    | ? | iop k | ? | ? ? | ? | ? | ? | ? | | | | ? | ? | | | |
                    | | ? ];
       try solve [ cbn [expr_of_value] in H;
                   finish_atomized Hwf (extends_refl c) H ].
     - (* Const_int *)
-      cbn [expr_of_value] in H. cbn [op_semantics] in Hs.
+      cbn [expr_of_value] in H. cbn [op_equations] in Hs.
       destruct (int64_is_int (Int64.of_nativeint n)) eqn:Hf.
       + injection H as <- <- <-.
         refine (conj Hwf (conj (extends_refl c) (conj _ _))); [ lia | ].
@@ -733,7 +762,7 @@ Section Semantics.
         destruct args as [ | a [ | b [ | ? ? ] ] ];
         try solve [ cbn [expr_of_value] in H;
                     finish_atomized Hwf (extends_refl c) H ];
-        cbn [expr_of_value] in H; cbn [op_semantics] in Hs;
+        cbn [expr_of_value] in H; cbn [op_equations] in Hs;
         pose proof (Forall_inv IHargs) as IHa;
         pose proof (Forall_inv (Forall_inv_tail IHargs)) as IHb;
         destruct (two <=? c.(budget))%sint63 eqn:Hle;
@@ -804,7 +833,7 @@ Section Semantics.
         destruct args as [ | a [ | ? ? ] ];
         try solve [ cbn [expr_of_value] in H;
                     finish_atomized Hwf (extends_refl c) H ];
-        cbn [expr_of_value] in H; cbn [op_semantics] in Hs;
+        cbn [expr_of_value] in H; cbn [op_equations] in Hs;
         pose proof (Forall_inv IHargs) as IHa.
       + (* Iadd *)
         destruct (one <=? c.(budget))%sint63 eqn:Hle;

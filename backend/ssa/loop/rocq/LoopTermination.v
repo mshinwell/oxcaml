@@ -134,7 +134,7 @@ Definition analyze (op_def : op_def) (bivs : list biv) : t :=
 Local Close Scope sint63_scope.
 
 (* ======================================================================== *)
-(* Part 2: the intended meaning                                             *)
+(* Part 2: lemmas used by the proofs                                        *)
 (* ======================================================================== *)
 
 Local Open Scope Z_scope.
@@ -142,16 +142,12 @@ Local Open Scope Z_scope.
 (* The machine value of a comparison: 1 for true, 0 for false. *)
 Definition bool_to_Z (b : bool) : Z := if b then 1 else 0.
 
-(* The value a bound stands for, given the values on entry to the loop. *)
-Definition bound_value (iter0 : value -> Z) (bnd : bound) : Z :=
+(* The value a bound stands for, given a valuation of SSA values. *)
+Definition bound_value (valuation : value -> Z) (bnd : bound) : Z :=
   match bnd with
-  | Value_bound v => iter0 v
+  | Value_bound v => valuation v
   | Const_bound k => to_Z k
   end.
-
-(* ======================================================================== *)
-(* Part 3: lemmas used by the proofs                                        *)
-(* ======================================================================== *)
 
 (* A literal-bound range check depends only on machine-int comparisons,
    not on a run, entry guards or a valuation of SSA expressions. *)
@@ -257,7 +253,7 @@ Section Recognition.
   Qed.
 
 (* ======================================================================== *)
-(* Part 4: theorems                                                         *)
+(* Part 3: theorems                                                         *)
 (* ======================================================================== *)
 
   (* What [biv_implies_termination] accepting [biv], a BIV of [loop], says:

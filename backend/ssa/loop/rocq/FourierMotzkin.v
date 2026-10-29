@@ -61,27 +61,12 @@ Module Affine.
   Definition add_const (f : t) (c : int) : t :=
     {| const := f.(const) + c; terms := f.(terms) |}.
 
-  Definition add (a b : t) : t :=
-    let ids := sort_uniq (map fst a.(terms) ++ map fst b.(terms)) in
-    let ts :=
-      filter_map
-        (fun id =>
-          let c := coeff id a + coeff id b in
-          if c =? zero then None else Some (id, c))
-        ids
-    in
-    {| const := a.(const) + b.(const); terms := ts |}.
-
   Definition scale (k : int) (f : t) : t :=
     if k =? zero
     then constant zero
     else
       {| const := f.(const) * k;
          terms := map (fun '(id, c) => (id, c * k)) f.(terms) |}.
-
-  Definition neg (f : t) : t := scale minus_one f.
-
-  Definition sub (a b : t) : t := add a (neg b).
 
   (* The checked operations: [None] when a coefficient or the constant would
      overflow. *)
@@ -924,15 +909,6 @@ Lemma add_const_wf : forall (f : Affine.t) (c : int),
   wf f -> wf (Affine.add_const f c).
 Proof. intros f c H. exact H. Qed.
 
-Lemma add_wf : forall (a b : Affine.t), wf (Affine.add a b).
-Proof.
-  intros a b. unfold wf, Affine.add. cbv zeta. cbn [Affine.terms].
-  apply filter_map_NoDup_keys; [ | apply sort_uniq_NoDup ].
-  intros id p Hp. cbv beta zeta in Hp.
-  destruct (_ =? zero)%sint63; [ discriminate | ].
-  injection Hp as <-. reflexivity.
-Qed.
-
 Lemma scale_wf : forall (k : int) (f : Affine.t),
   wf f -> wf (Affine.scale k f).
 Proof.
@@ -941,12 +917,6 @@ Proof.
   cbn [Affine.terms]. rewrite map_map.
   erewrite map_ext; [ exact H | ]. intros [id c]. reflexivity.
 Qed.
-
-Lemma neg_wf : forall (f : Affine.t), wf f -> wf (Affine.neg f).
-Proof. intros. apply scale_wf. assumption. Qed.
-
-Lemma sub_wf : forall (a b : Affine.t), wf (Affine.sub a b).
-Proof. intros. apply add_wf. Qed.
 
 (* --- One elimination step. --- *)
 

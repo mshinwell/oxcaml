@@ -61,9 +61,11 @@
     what is established of every loop that is deleted. The operational semantics
     is in backend/ssa/rocq/SsaSemantics.v; SsaContext.v overapproximates word
     observations of opaque computations in the unchanged prefix.
-    LoopEligibility.find_deletions_eligible proves finite normal first exit and
-    agreement with the first header execution on live-out values, for the
-    explicit graph and defined-input contracts in its statement. The size and
+    LoopEligibility.find_deletions_eligible proves, for every reported
+    header/exit pair, that the execution from the header first arrives at the
+    exit after finitely many steps and agrees with the first header execution on
+    live-out values, under the graph contract [finished_graph] (SsaProgress.v)
+    and the input contract [reached_header] (SsaContext.v). The size and
     prefix-instruction checks are proved by [find_deletions_supported]. The
     mechanical graph rewrite is outside the proof's scope. *)
 

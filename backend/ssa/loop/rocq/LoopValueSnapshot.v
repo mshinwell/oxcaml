@@ -22,33 +22,18 @@ Definition snapshot_atom (regs : registers) (v : value) : Z :=
   | None => 0
   end.
 
+(* Syntax is interpreted by [eval_operation], the one arithmetic semantics
+   of the development, wherever it applies; a value it does not evaluate
+   (an opaque operation, a shift out of range, a parameter) is read from
+   its register. *)
 Fixpoint snapshot_value (regs : registers) (v : value) : Z :=
   match v with
-  | Res _ (Const_int constant) _ _ =>
-    Int64.to_Z (Int64.of_nativeint constant)
-  | Res _ (Intop Iadd) [lhs; rhs] _ =>
-    wrap64 (snapshot_value regs lhs + snapshot_value regs rhs)
-  | Res _ (Intop Isub) [lhs; rhs] _ =>
-    wrap64 (snapshot_value regs lhs - snapshot_value regs rhs)
-  | Res _ (Intop_imm Iadd constant) [arg] _ =>
-    wrap64 (snapshot_value regs arg + to_Z constant)
-  | Res _ (Intop_imm Isub constant) [arg] _ =>
-    wrap64 (snapshot_value regs arg - to_Z constant)
-  | Res _ (Intop_imm Ilsl bits) [arg] _ =>
-    if Z.leb 0 (to_Z bits) && Z.leb (to_Z bits) 63
-    then wrap64 (snapshot_value regs arg * 2 ^ to_Z bits)
-    else snapshot_atom regs v
-  | Res _ (Intop_imm Iasr bits) [arg] _ =>
-    if Z.leb 0 (to_Z bits) && Z.leb (to_Z bits) 63
-    then wrap64 (snapshot_value regs arg / 2 ^ to_Z bits)
-    else snapshot_atom regs v
-  | Res _ (Intop_imm Ilsr bits) [arg] _ =>
-    if Z.leb 0 (to_Z bits) && Z.leb (to_Z bits) 63
-    then wrap64 (unsigned64 (snapshot_value regs arg) / 2 ^ to_Z bits)
-    else snapshot_atom regs v
-  | Res _ (Intop_imm Ior mask) [arg] _ =>
-    wrap64 (Z.lor (snapshot_value regs arg) (to_Z mask))
-  | _ => snapshot_atom regs v
+  | Res _ op args _ =>
+    match eval_operation op (map (snapshot_value regs) args) with
+    | Some word => word
+    | None => snapshot_atom regs v
+    end
+  | Block_param _ _ => snapshot_atom regs v
   end.
 
 (* Unavailable atoms may be assigned defaults in the mathematical
@@ -62,19 +47,16 @@ Proof.
 Qed.
 
 (* The total mathematical extension is bounded even for unavailable or
-   fabricated syntax. All interpreted arithmetic is explicitly wrapped. *)
+   fabricated syntax: evaluated results fit a register by
+   [eval_operation_bounded], and the rest are atoms. *)
 Lemma snapshot_value_bounded : forall (regs : registers) (v : value),
   in_int64 (snapshot_value regs v).
 Proof.
-  intros regs [id op args index | b index];
+  intros regs [id op args index | b index]; [ | apply snapshot_atom_bounded].
+  cbn [snapshot_value].
+  destruct (eval_operation op (map (snapshot_value regs) args)) eqn:Heval;
     [ | apply snapshot_atom_bounded].
-  destruct op; try apply snapshot_atom_bounded;
-    try apply Int64.to_Z_bounded;
-    try (destruct op; try apply snapshot_atom_bounded);
-    destruct args as [ | lhs [ | rhs [ | extra rest]]];
-    cbn [snapshot_value];
-    try (destruct (Z.leb 0 (to_Z k) && Z.leb (to_Z k) 63));
-    try apply snapshot_atom_bounded; apply wrap64_in_range.
+  eapply eval_operation_bounded. exact Heval.
 Qed.
 
 (* The extension satisfies the affine library's operation equations on
@@ -83,22 +65,10 @@ Theorem snapshot_operation_semantics : forall (regs : registers) (v : value),
   op_semantics (snapshot_value regs) v.
 Proof.
   intros regs [id op args index | b index]; [ | exact I].
-  destruct op; try exact I; try reflexivity;
-    try (destruct op; try exact I);
-    destruct args as [ | lhs [ | rhs [ | extra rest]]];
-    cbn [op_semantics snapshot_value]; try exact I; try reflexivity;
-    try (intros Hshift;
-      rewrite (proj2 (Z.leb_le _ _) (proj1 Hshift)),
-        (proj2 (Z.leb_le _ _) (proj2 Hshift)); reflexivity).
-  - apply wrap64_id, lor_in_int64.
-    + apply snapshot_value_bounded.
-    + pose proof (int_bounds k). unfold in_int64, two63, two62 in *. lia.
-  - intros Hshift.
-    rewrite (proj2 (Z.leb_le _ _) (proj1 Hshift)),
-      (proj2 (Z.leb_le _ _) (proj2 Hshift)).
-    apply wrap64_id.
-    eapply in_range_int64. eapply shr_signed_sound;
-      [exact Hshift | apply snapshot_value_bounded].
+  cbn [op_semantics]. intros Hmodeled.
+  destruct (eval_operation_modeled _ _ _ (snapshot_value regs) Hmodeled)
+    as [result Heval].
+  cbn [snapshot_value]. rewrite Heval. reflexivity.
 Qed.
 
 (* A bound register's mathematical atom is exactly its stored word. *)
@@ -132,6 +102,16 @@ Proof.
       intros value Hin. apply Hagree. right. exact Hin.
 Qed.
 
+(* Interpreting operands pointwise gives the argument list the instruction
+   read, so an actually evaluated operation computes its stored result. *)
+Lemma forall2_snapshot_map : forall (regs : registers) (args : list value)
+    (words : list Z),
+  Forall2 (fun arg word => snapshot_value regs arg = word) args words ->
+  map (snapshot_value regs) args = words.
+Proof.
+  intros regs args words Hall. induction Hall; cbn [map]; congruence.
+Qed.
+
 (* For an actually evaluated operation, interpreting its operands in an
    agreeing snapshot computes the stored result. Comparisons and opaque
    syntax use their result register directly in the affine valuation. *)
@@ -146,22 +126,9 @@ Lemma snapshot_evaluated_result : forall (regs : registers) (id : instr_id)
 Proof.
   intros regs id op args index words result Heval Hargs Hvalue.
   pose proof (eval_operation_bounded _ _ _ Heval) as Hbounded.
-  destruct op; try discriminate;
-    try solve [cbn [eval_operation] in Heval; injection Heval as <-;
-      cbn [snapshot_value snapshot_atom register_of_value]; rewrite Hvalue;
-      symmetry; apply wrap64_id, Int64.to_Z_bounded];
-    try (destruct op; try discriminate);
-    destruct words as [ | lhs [ | rhs [ | extra rest]]];
-    cbn [eval_operation] in Heval; try discriminate;
-    try (destruct (Z.leb 0 (to_Z k) && Z.leb (to_Z k) 63) eqn:Hshift;
-      [ | discriminate]);
-    repeat match goal with
-    | H : Forall2 _ _ [] |- _ => inversion H; clear H; subst
-    | H : Forall2 _ _ (_ :: _) |- _ => inversion H; clear H; subst
-    end;
-    cbn [snapshot_value]; try rewrite Hshift; try reflexivity;
-    unfold snapshot_atom; cbn [register_of_value]; rewrite Hvalue;
-    rewrite (wrap64_id _ Hbounded); injection Heval as <-; congruence.
+  cbn [snapshot_value]. rewrite (forall2_snapshot_map _ _ _ Hargs), Heval.
+  unfold snapshot_atom. cbn [register_of_value]. rewrite Hvalue.
+  symmetry. apply wrap64_id. exact Hbounded.
 Qed.
 
 (* Syntax outside the exact operation model reads its register directly.
@@ -172,12 +139,9 @@ Lemma snapshot_unmodeled : forall (regs : registers) (id : instr_id)
   snapshot_value regs (Res id op args index)
     = snapshot_atom regs (Res id op args index).
 Proof.
-  intros regs id op args index Hmodeled.
-  destruct op; try reflexivity; try discriminate;
-    try (destruct op; try reflexivity; try discriminate);
-    destruct args as [ | lhs [ | rhs [ | extra rest]]];
-    cbn [modeled_operation snapshot_value] in *;
-    try discriminate; try reflexivity; rewrite Hmodeled; reflexivity.
+  intros regs id op args index Hmodeled. cbn [snapshot_value].
+  rewrite (eval_operation_unmodeled _ _ _ (snapshot_value regs) Hmodeled).
+  reflexivity.
 Qed.
 
 (* Available actual values have their stored register value in the

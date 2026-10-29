@@ -11,8 +11,9 @@
    Registers are identified by instruction/result or block/parameter, not
    by a freely constructed expression. An operand reads its register; only
    executing an instruction evaluates its operation. [step] executes one
-   instruction or terminator, and [return_state] distinguishes a return
-   from a stuck state. SsaContext.v derives available-value equations
+   instruction or terminator and is deterministic; it has no rule for
+   returns, calls or other opaque code. SsaContext.v derives
+   available-value equations
    using SsaExecution.v's structural SSA and frame facts. SsaProgress.v
    derives operand definedness and progress. LoopEligibility.v proves
    semantic loop eligibility; the graph rewriter is not modelled. *)
@@ -233,13 +234,23 @@ Inductive step : state -> state -> Prop :=
       step {| current_block := b; remaining := [];
               current_registers := rs |} (enter target rs).
 
-(* Finite execution, including zero steps. Infinite executions will be
-   related to the loop analysis separately; a finite stuck execution is
+(* Finite execution, including zero steps. A finite stuck execution is
    not identified with a successful return. *)
 Inductive steps : state -> state -> Prop :=
   | Steps_refl : forall (s : state), steps s s
   | Steps_cons : forall (s t u : state),
       step s t -> steps t u -> steps s u.
+
+(* [steps_until target s t]: the execution from [s] first enters a state
+   of block [target] at [t], after finitely many steps from states of
+   other blocks. With [step] deterministic ([step_deterministic]) this is
+   a statement about the execution from [s], not one path among many. *)
+Inductive steps_until (target : block) : state -> state -> Prop :=
+  | Until_here : forall (s : state),
+      current_block s = target -> steps_until target s s
+  | Until_step : forall (s t u : state),
+      current_block s <> target -> step s t -> steps_until target t u ->
+      steps_until target s u.
 
 (* Execute an instruction list without taking the block's terminator.
    This is the retained header computation in the eligibility theorem. *)
@@ -254,12 +265,6 @@ Inductive executes_insns : registers -> list instr -> registers -> Prop :=
 Definition valid_position (s : state) : Prop :=
   exists (prefix : list instr),
     block_body (current_block s) = prefix ++ remaining s.
-
-Definition return_state (s : state) (results : list (option Z)) : Prop :=
-  remaining s = []
-  /\ exists (args : list Terminator.arg),
-       terminator (current_block s) = Terminator.Continue Return args
-       /\ read_arguments (current_registers s) args = Some results.
 
 Definition bounded_registers (rs : registers) : Prop :=
   forall (r : register) (z : Z), rs r = Some z -> in_int64 z.
@@ -277,29 +282,6 @@ Record parameter_layout : Prop :=
     parameter_identity : forall (b : block) (index : int) (v : value),
       nth_int (params b) index = Some v -> v = Block_param b index }.
 
-(* An actual result reference agrees with the instruction in the graph,
-   including its operation and operands. This excludes fabricated [Res]
-   expressions that merely borrow the id of another instruction. *)
-Definition defined_value (blocks : list block) (v : value) : Prop :=
-  match v with
-  | Res id op args i =>
-    exists (b : block) (results : int),
-      In b blocks /\ In (Op id op args results) (block_body b)
-      /\ 0 <= to_Z i < to_Z results
-  | Block_param b i =>
-    In b blocks /\ nth_int (params b) i = Some v
-  end.
-
-(* A structural condition, independent of executions or loop analysis.
-   Instruction identities have one definition in the whole graph. *)
-Definition unique_definitions (blocks : list block) : Prop :=
-  forall (b b' : block) (id : instr_id) (op op' : operation)
-    (args args' : list value) (results results' : int),
-    In b blocks -> In b' blocks ->
-    In (Op id op args results) (block_body b) ->
-    In (Op id op' args' results') (block_body b') ->
-    b = b' /\ op = op' /\ args = args' /\ results = results'.
-
 (* Registers defined by instructions or parameters of a region. This is
    a structural property of the graph, not a claim about a run. *)
 Definition defined_in_region (region : blockset) (reg : register) : Prop :=
@@ -314,16 +296,6 @@ Definition defined_in_region (region : blockset) (reg : register) : Prop :=
 (* Part 3: lemmas                                                          *)
 (* ======================================================================== *)
 
-(* Finite executions compose without any intermediate-state assumption. *)
-Lemma steps_trans : forall (before middle after : state),
-  steps before middle -> steps middle after -> steps before after.
-Proof.
-  intros before middle after Hprefix.
-  induction Hprefix as [s | s t u Hstep Hprefix IH]; intros Hsuffix.
-  - exact Hsuffix.
-  - eapply Steps_cons; [exact Hstep | apply IH; exact Hsuffix].
-Qed.
-
 (* Executing a body list is an actual finite execution ending immediately
    before its terminator. No instruction is evaluated merely by reading it. *)
 Lemma executes_insns_steps : forall (b : block) (insns : list instr)
@@ -337,19 +309,6 @@ Proof.
   intros b insns before after Hbody. induction Hbody.
   - constructor.
   - eapply Steps_cons; [constructor; exact H | exact IHHbody].
-Qed.
-
-(* A retained instruction sequence has a unique resulting environment. *)
-Lemma executes_insns_deterministic : forall (insns : list instr)
-    (before after other : registers),
-  executes_insns before insns after ->
-  executes_insns before insns other -> after = other.
-Proof.
-  intros insns before after other Hbody. revert other.
-  induction Hbody; intros other Hother; inversion Hother; subst.
-  - reflexivity.
-  - assert (middle = middle0) by congruence. subst middle0.
-    apply IHHbody. assumption.
 Qed.
 
 (* Register equality depends only on identity, as the compiler's does. *)
@@ -440,6 +399,33 @@ Proof.
   destruct op; try discriminate; try (destruct op; try discriminate);
     destruct args as [ | lhs [ | rhs [ | extra rest]]];
     try discriminate; reflexivity.
+Qed.
+
+(* The modeled operations are exactly those the evaluator accepts, on any
+   operand values: [eval_operation] is total on them and undefined on the
+   others. The affine analysis interprets syntax through these two facts. *)
+Lemma eval_operation_modeled : forall (A : Type) (op : operation)
+    (args : list A) (value_of : A -> Z),
+  modeled_operation op args = true ->
+  exists (result : Z), eval_operation op (map value_of args) = Some result.
+Proof.
+  intros A op args value_of Hmodeled.
+  destruct op; try discriminate; try (destruct op; try discriminate);
+    destruct args as [ | lhs [ | rhs [ | extra rest]]]; try discriminate;
+    cbn [modeled_operation] in Hmodeled; cbn [map eval_operation];
+    try rewrite Hmodeled; eexists; reflexivity.
+Qed.
+
+Lemma eval_operation_unmodeled : forall (A : Type) (op : operation)
+    (args : list A) (value_of : A -> Z),
+  modeled_operation op args = false ->
+  eval_operation op (map value_of args) = None.
+Proof.
+  intros A op args value_of Hmodeled.
+  destruct op; try reflexivity; try (destruct op; try reflexivity);
+    destruct args as [ | lhs [ | rhs [ | extra rest]]];
+    cbn [modeled_operation] in Hmodeled; try discriminate;
+    cbn [map eval_operation]; try rewrite Hmodeled; reflexivity.
 Qed.
 
 (* All supported results fit a machine register, including wraparound. *)
@@ -834,35 +820,6 @@ Theorem step_deterministic : forall (before after other_after : state),
   step before after -> step before other_after -> after = other_after.
 Proof.
   intros s s' s'' H H'. inversion H; inversion H'; subst; congruence.
-Qed.
-
-(* A return is not a stuck instruction or an invalid branch. *)
-Theorem return_has_no_step :
-  forall (returned : state) (results : list (option Z)),
-  return_state returned results ->
-  forall (after : state), ~ step returned after.
-Proof.
-  intros s results [Hremaining [args [Hterm Hargs]]] s' Hstep.
-  destruct Hstep; cbn in *; congruence.
-Qed.
-
-(* On actual values of a graph with unique instruction definitions,
-   register identity agrees with the complete value term. It does not
-   agree on arbitrary fabricated expressions, nor need it do so. *)
-Theorem defined_value_identity :
-  forall (blocks : list block) (v w : value),
-  unique_definitions blocks -> defined_value blocks v ->
-  defined_value blocks w -> register_of_value v = register_of_value w ->
-  v = w.
-Proof.
-  intros blocks [id op args i | b i] [id' op' args' i' | b' i']
-    Hunique Hv Hw Hreg; cbn [register_of_value] in Hreg;
-    try discriminate; inversion Hreg; subst.
-  - destruct Hv as [b [results [Hb [Hi _]]]].
-    destruct Hw as [b' [results' [Hb' [Hi' _]]]].
-    destruct (Hunique _ _ _ _ _ _ _ _ _ Hb Hb' Hi Hi')
-      as [_ [-> [-> _]]]. reflexivity.
-  - reflexivity.
 Qed.
 
 (* The extracted block check establishes the instruction whitelist and

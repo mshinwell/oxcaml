@@ -75,9 +75,6 @@ Extract Inductive Terminator.t => "Ssa.finished Ssa.Terminator.t"
       | Ssa.Terminator.Invalid { args; _ } -> f_invalid (Array.to_list args))".
 Extract Inlined Constant terminator => "Ssa.Block.terminator".
 
-(* Instructions. *)
-Extract Inlined Constant has_side_effect => "Ssa.Instruction.has_side_effect".
-
 (* The table the pass builds (delete_empty_loops.ml). *)
 Extract Constant op_def =>
   "(Ssa.finished, Ssa.finished Ssa.Block.t) Ssa.Instruction.Id.Tbl.t".

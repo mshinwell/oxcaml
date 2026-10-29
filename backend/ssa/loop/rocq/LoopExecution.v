@@ -2,9 +2,10 @@
 
    [region_iteration] uses CFG accessibility and instruction-list induction
    to reach the next header entry or an exit. [region_steps] includes only
-   the first exiting edge. A finite exit also excludes divergent or stuck
-   alternatives by determinism. Graph observer contracts are [control_edges]
-   and [parameter_layout]; no arithmetic or loop invariant is assumed. *)
+   the first exiting edge, so a segment leaving the region is a
+   [steps_until] its exit block ([region_steps_until]). Graph observer
+   contracts are [control_edges] and [parameter_layout]; no arithmetic or
+   loop invariant is assumed. Nothing here is part of the final statement. *)
 
 From Stdlib Require Import ZArith Lia List.
 From OxCamlStdlib Require Import OxCamlInt OxCamlList.
@@ -13,24 +14,6 @@ From OxCamlSsa Require Import SsaModel SsaGraph SsaDominance SsaSemantics
 From OxCamlLoop Require Import NaturalLoop InductionVar DeleteEmptyLoops.
 Import ListNotations.
 Local Open Scope nat_scope.
-
-(* An infinite execution never gets stuck: every state has its actual
-   next instruction or terminator step. No assertion is made that every
-   arbitrary initial state admits such an execution. *)
-Definition infinite_execution (trace : nat -> state) : Prop :=
-  forall (time : nat), SsaSemantics.step (trace time) (trace (S time)).
-
-Definition stays_in_region (region : blockset) (trace : nat -> state)
-    : Prop :=
-  forall (time : nat), set_mem (current_block (trace time)) region = true.
-
-(* This excludes infinite execution confined to the region. It does not
-   identify stuck states with successful exits or claim progress for
-   arbitrary initial register environments. *)
-Definition no_infinite_execution_in (region : blockset) (start : state)
-    : Prop :=
-  forall (trace : nat -> state), trace 0 = start ->
-    infinite_execution trace -> stays_in_region region trace -> False.
 
 (* A finite region segment may leave the region only on its final step.
    Requiring only its source states to be inside includes the exiting edge. *)
@@ -49,6 +32,20 @@ Proof.
   intros region before after Hregion. induction Hregion.
   - constructor.
   - eapply Steps_cons; eassumption.
+Qed.
+
+(* A segment whose final state is outside the region first reaches that
+   state's block there: every earlier source state is inside the region. *)
+Lemma region_steps_until : forall (region : blockset) (before after : state),
+  region_steps region before after ->
+  set_mem (current_block after) region = false ->
+  steps_until (current_block after) before after.
+Proof.
+  intros region before after Hregion Houtside.
+  induction Hregion as [s | before middle after Hinside Hstep Hrest IH].
+  - apply Until_here. reflexivity.
+  - eapply Until_step; [ | exact Hstep | apply IH; exact Houtside].
+    intros Heq. rewrite Heq, Houtside in Hinside. discriminate.
 Qed.
 
 (* Region segments compose when the second segment can start: its own
@@ -129,45 +126,6 @@ Proof.
     { destruct Hstep; cbn in *; try reflexivity. congruence. }
     rewrite (step_to_parameterless_frame _ _ Hfinished Hparams' Hstep).
     reflexivity.
-Qed.
-
-(* A finite segment reaching outside the region rules out an infinite
-   confined execution from the same state, using step determinism. *)
-Theorem region_exit_not_infinite : forall (region : blockset)
-    (before after : state),
-  region_steps region before after ->
-  set_mem (current_block after) region = false ->
-  no_infinite_execution_in region before.
-Proof.
-  intros region before after Hsegment Houtside.
-  induction Hsegment as [s | before middle after Hinside Hstep Hrest IH];
-    intros trace Hstart Htrace Hregion.
-  - specialize (Hregion 0). rewrite Hstart, Houtside in Hregion. discriminate.
-  - apply (IH Houtside (fun time => trace (S time))).
-    + symmetry. eapply step_deterministic; [exact Hstep |].
-      rewrite <- Hstart. apply Htrace.
-    + intros time. apply Htrace.
-    + intros time. apply Hregion.
-Qed.
-
-(* A finite exit witness also rules out getting stuck earlier. Every
-   other finite confined prefix follows the same deterministic steps. *)
-Theorem region_exit_progress : forall (region : blockset)
-    (before after : state),
-  region_steps region before after ->
-  set_mem (current_block after) region = false ->
-  forall (reached : state), region_steps region before reached ->
-  set_mem (current_block reached) region = true ->
-  exists (next : state), SsaSemantics.step reached next.
-Proof.
-  intros region before after Hexit.
-  induction Hexit as [s | before middle after Hinside Hstep Hrest IH];
-    intros Houtside reached Hprefix Hreached.
-  - inversion Hprefix; subst; cbn in *; congruence.
-  - inversion Hprefix as [s | s middle' last Hsource Hnext Hsuffix]; subst.
-    + exists middle. exact Hstep.
-    + assert (middle = middle') by (eapply step_deterministic; eassumption).
-      subst middle'. eapply IH; eassumption.
 Qed.
 
 (* Leaving a region is a block transfer, not an instruction. The new

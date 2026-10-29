@@ -74,19 +74,6 @@ Proof.
   assert (k = 0) by lia. subst k. lia.
 Qed.
 
-(* Reading the unsigned interpretation back as a signed register preserves
-   its bit pattern, including when the sign bit is set. *)
-Lemma wrap64_unsigned : forall (z : Z),
-  in_int64 z -> wrap64 (unsigned64 z) = z.
-Proof.
-  intros z Hz. unfold unsigned64. destruct (z <? 0).
-  - unfold wrap64.
-    replace (z + two64 + two63) with (z + two63 + 1 * two64) by ring.
-    rewrite Z.mod_add by (unfold two64; lia).
-    apply wrap64_id. exact Hz.
-  - apply wrap64_id. exact Hz.
-Qed.
-
 (* The truncated quotient of a 64-bit value by a positive divisor is again
    a 64-bit value (its magnitude does not grow). *)
 Lemma quot_abs_le : forall (a b : Z), 0 < b -> Z.abs (Z.quot a b) <= Z.abs a.
@@ -117,15 +104,6 @@ Qed.
 
 Lemma pow2_pos : forall (n : Z), 0 <= n -> 0 < 2 ^ n.
 Proof. intros n Hn. apply Z.pow_pos_nonneg; lia. Qed.
-
-(* [1 <= 2^n <= 2^63] for [0 <= n <= 63], with the powers as numerals, so
-   that [lia] can use them. *)
-Lemma pow2_bounds : forall (n : Z), 0 <= n <= 63 -> 1 <= 2 ^ n <= two63.
-Proof.
-  intros n Hn. rewrite two63_pow. split.
-  - change 1 with (2 ^ 0). apply Z.pow_le_mono_r; lia.
-  - apply Z.pow_le_mono_r; lia.
-Qed.
 
 (* Lower bounds on powers of two, as numerals for [lia]. *)
 Lemma pow2_ge_2 : forall (n : Z), 1 <= n -> 2 <= 2 ^ n.

@@ -281,34 +281,6 @@ Proof.
   intros. rewrite rev_append_rev, in_app_iff, <- in_rev. reflexivity.
 Qed.
 
-(* [filter_map] over atoms, where the callback keeps the atom as the key:
-   the keys of the result are among the atoms ... *)
-Lemma filter_map_keys_In :
-  forall {C : Type} (f : int -> option (int * C)) (ids : list int)
-    (id : int),
-  (forall (id : int) (p : int * C), f id = Some p -> fst p = id) ->
-  In id (map fst (filter_map f ids)) -> In id ids.
-Proof.
-  intros C f ids id Hf Hin.
-  apply in_map_iff in Hin as [[id' c] [Hfst Hin]]. simpl in Hfst. subst id'.
-  apply filter_map_In in Hin as [x [Hx Hfx]].
-  pose proof (Hf x _ Hfx) as E. simpl in E. subst x. exact Hx.
-Qed.
-
-(* ... and are distinct if the atoms are. *)
-Lemma filter_map_NoDup_keys :
-  forall {C : Type} (f : int -> option (int * C)) (ids : list int),
-  (forall (id : int) (p : int * C), f id = Some p -> fst p = id) ->
-  NoDup ids -> NoDup (map fst (filter_map f ids)).
-Proof.
-  intros C f ids Hf Hnd. induction Hnd as [ | id ids Hnin Hnd IH ]; simpl.
-  - constructor.
-  - destruct (f id) as [ p | ] eqn:Hp; [ | exact IH ].
-    simpl. constructor; [ | exact IH ].
-    intros Hin. apply Hnin. rewrite (Hf id p Hp) in Hin.
-    apply (filter_map_keys_In f ids id Hf Hin).
-Qed.
-
 (* --- [assoc_opt] and [assoc_default] --- *)
 
 (* In a list whose keys are distinct, the lookup of a key finds its entry. *)

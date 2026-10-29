@@ -6,18 +6,36 @@ its first header execution. Proving the implementation of the graph rewrite
 is outside the Rocq scope; it is a separate OCaml code-review obligation.
 
 The main result is `LoopEligibility.find_deletions_eligible`, in
-`backend/ssa/loop/rocq/LoopEligibility.v`. Under its explicit graph,
-representation and input premises, it proves `eligible_entry`:
+`backend/ssa/loop/rocq/LoopEligibility.v`:
 
-- The original loop reaches the designated parameterless exit after a finite
-  sequence of silent integer/control-flow steps.
+```coq
+Theorem find_deletions_eligible :
+  forall (blocks : list block) (entry : block) (defs : op_def)
+    (header exit : block),
+  finished_graph blocks entry defs ->
+  In (header, exit) (find_deletions defs blocks) ->
+  forall (initial_regs header_regs : registers),
+    reached_header entry header initial_regs header_regs ->
+    eligible_entry header exit header_regs.
+```
+
+`finished_graph` (`SsaProgress.v`) is what the SSA builder guarantees of
+the graph; `reached_header` (`SsaContext.v`) says the function was entered
+with bound inputs and reached `header` with registers `header_regs`.
+`eligible_entry` says:
+
 - The header instructions execute once before the bypass point.
+- From the header's terminator, the original graph's execution first
+  arrives at the designated parameterless exit after a finite sequence of
+  silent integer/control-flow steps (`SsaSemantics.steps_until`), at the
+  exit's entry.
 - Every register needed at the exit has the same value as after that first
   header execution. "Needed" means read before its next definition, including
   paths that later re-enter the loop; dead counter registers need not agree.
 
-`eligible_entry_execution` and `eligible_entry_progress` make explicit that
-this excludes divergence inside the loop and getting stuck before its exit.
+`SsaSemantics.step` is deterministic, so the finite witness is the one
+execution from the header: it neither diverges nor gets stuck before the
+exit. The discovered loop and its body do not appear in the statement.
 The result covers all counter/comparison shapes accepted by the checker,
 subject to the premises below. It is a soundness result, not completeness:
 a loop the checker does not report may still be deletable.
@@ -25,14 +43,17 @@ a loop the checker does not report may still be deletable.
 ## 1. Read the complete contract, not just the theorem declaration
 
 Start with `eligible_entry`, `find_deletions_eligible`, and the definitions
-of their premises. Include the hypotheses in the enclosing
-`GraphEligibility` section: Rocq generalizes those used by the theorem into
-arguments of its exported type. After loading the modules:
+of their premises: the fields of `finished_graph` and `reached_header`, and
+the predicates those fields name. After loading the modules:
 
 ```coq
 From OxCamlLoop Require Import LoopEligibility.
 Check @find_deletions_eligible.
 Print Assumptions find_deletions_eligible.
+Print eligible_entry.
+Print SsaSemantics.steps_until.
+Print SsaProgress.finished_graph.
+Print SsaContext.reached_header.
 Print SsaExecution.well_formed_ssa.
 Print SsaProgress.control_layout.
 Print SsaGraph.op_def_correct.
@@ -40,7 +61,8 @@ Print SsaGraph.op_def_correct.
 
 The two audit commands answer different questions:
 
-- `Check` shows the theorem's premises, including section hypotheses.
+- `Check` shows the theorem's premises. The theorem is not in a `Section`,
+  so there are no generalized hypotheses beyond what it states.
 - `Print Assumptions` shows its transitive global axioms and parameters.
   It does not expand theorem premises or the definitions of named predicates.
 
@@ -98,7 +120,8 @@ observers in `backend/ssa/rocq/SsaModelExtract.v`.
 
 ### Finished graph and dominance
 
-`SsaExecution.well_formed_ssa` and the `GraphEligibility` section require:
+`SsaProgress.finished_graph`, through `SsaExecution.well_formed_ssa` and
+its other fields, requires:
 
 - The entry belongs to the supplied graph, and every supplied block is
   structurally reachable. This is not a claim about dynamic feasibility.
@@ -109,8 +132,9 @@ observers in `backend/ssa/rocq/SsaModelExtract.v`.
 - `SsaDominance.dominance_semantics` gives the path meaning of a true
   dominance answer. The main theorem also requires complete dominance
   answers for graph blocks, not merely sound true answers.
-- `strict_dominators header` contains distinct graph blocks. Review the
-  finished dominator-chain walk and its termination at the entry.
+- `strict_dominators b` contains distinct graph blocks, for every graph
+  block `b`. Review the finished dominator-chain walk and its termination
+  at the entry.
 - `SsaGraph.switch_edge_multiplicity` holds: repeated Switch targets produce
   repeated predecessor occurrences. A branch to `[next; next] must not
   establish either boolean outcome through a singleton-predecessor test.
@@ -157,8 +181,8 @@ this correspondence is part of reviewing the veneer.
 
 ## 4. Check input and context applicability
 
-These are explicit premises of `find_deletions_eligible`, distinct from
-builder metadata:
+These are the fields of `SsaContext.reached_header`, the input premise of
+`find_deletions_eligible`, distinct from builder metadata:
 
 - `bounded_registers initial_regs`: every present initial word fits the
   modeled register width.
@@ -309,26 +333,27 @@ equal.
   at its point (`Live_read`), so it writes the same values; a register
   live after the step is either written by it, or not written and then
   live before it (`Live_predecessor`). The relation is preserved.
-- At `(header, 0)`, `P` runs the loop to `enter exit exit_regs` and `P'`
-  takes `Goto exit` with its own `first_header_regs'`, which agrees with
-  `first_header_regs` on `live_at^P (header, 0)`. Since `exit` is a
-  successor of the header and has no parameters, nothing is defined at
-  `entry_point exit`, so `Live_predecessor` gives
+- At `(header, 0)`, `P` runs `steps_until exit` to `enter exit exit_regs`
+  and `P'` takes `Goto exit` with its own `first_header_regs'`, which
+  agrees with `first_header_regs` on `live_at^P (header, 0)`. Since `exit`
+  is a successor of the header and has no parameters, nothing is defined
+  at `entry_point exit`, so `Live_predecessor` gives
   `live_at^P (entry_point exit) ⊆ live_at^P (header, 0)`; with
   `agree_on_live (entry_point exit) first_header_regs exit_regs` from
-  `eligible_entry`, the two states at `exit` are related. The loop writes
-  no memory and no trap marker (its instructions are whitelisted integer
-  operations and its terminators are `Goto`/`Switch`), so the other
-  components are equal too. `eligible_entry` also says `P` does not
-  diverge or get stuck in the loop, so `P'` loses no behaviour.
+  `eligible_entry`, the two states at `exit` are related. The skipped
+  segment writes no memory and no trap marker: `step` has rules only for
+  whitelisted integer operations (`execute_instruction` is `None` on
+  everything else) and for `Goto`/`Switch`, so the other components are
+  equal too. `step` is deterministic, so the witness is `P`'s only
+  execution from the header: `P` does not diverge or get stuck before the
+  exit, and `P'` loses no behaviour.
 - `P'` has a subset of `P`'s edges, so `live_at^{P'} ⊆ live_at^P` and the
   relation is at least as strong as `P'` needs.
 
-Several reported loops are rewritten at once. They are pairwise disjoint
-as sets of blocks: two natural loops with distinct headers that share a
-block have one header inside the other's body (both headers dominate the
-shared block, so one dominates the other, and the dominated header reaches
-the other's back edge without passing through it), and then the inner
-loop's cycle lies in the outer body without its header, which
-`acyclic_except` rejects. The simulation above therefore applies to each
-loop independently.
+Several reported headers are rewritten at once. The argument is per
+rewritten terminator, and the `P` side is always the original graph, in
+which each header's `eligible_entry` holds; so it applies to each header
+independently, whatever blocks the skipped segments visit. (The reported
+loops are in fact pairwise disjoint as sets of blocks, because
+`acyclic_except` rejects a nested cycle, but the simulation does not need
+this.)

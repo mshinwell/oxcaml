@@ -38,13 +38,9 @@ open! Int_replace_polymorphic_compare
    modelled.
 
    [LoopEligibility.find_deletions_eligible] justifies each bypass on its own,
-   on the original graph (the simulation argument connecting it to the rewritten
-   function is in ROCQ-REVIEWER-OBLIGATIONS.md, section 7). Doing all of them in
-   one pass over the graph is fine because the reported loops are pairwise
-   disjoint as sets of blocks: two natural loops with different headers that
-   share a block have one header inside the other's body, so the inner loop's
-   cycle lies in the outer body without its header, which the acyclicity check
-   rejects. *)
+   on the original graph; the simulation argument connecting it to the rewritten
+   function, including doing all the bypasses in one pass over the graph, is in
+   ROCQ-REVIEWER-OBLIGATIONS.md, section 7. *)
 
 open Ssa.Export
 open Ssa_reducer

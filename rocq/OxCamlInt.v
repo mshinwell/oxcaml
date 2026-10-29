@@ -22,9 +22,6 @@ Local Open Scope Z_scope.
 
 Definition two62 : Z := 4611686018427387904.
 
-(* [two62] as a power, for [rewrite]. *)
-Lemma two62_pow : two62 = 2 ^ 62. Proof. reflexivity. Qed.
-
 (* OxCaml's [max_int], as a mathematical integer. *)
 Definition ocaml_max_int : Z := two62 - 1.
 

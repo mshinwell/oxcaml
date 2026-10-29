@@ -38,13 +38,6 @@ Definition terminator_pure_control (t : Terminator.t) : bool :=
   | Terminator.Call _ | Terminator.Invalid _ => false
   end.
 
-(* A block whose instructions have no side effects and whose terminator
-   only transfers control within the function: running it has no effect
-   beyond the values it defines. *)
-Definition block_effect_free (block : block) : bool :=
-  forallb (fun instr => negb (has_side_effect instr)) (block_body block)
-  && terminator_pure_control (terminator block).
-
 (* [v] is parameter [index] of [block]. *)
 Definition is_param (block : block) (index : int) (v : value) : bool :=
   value_eqb v (param block index).
@@ -219,21 +212,6 @@ Definition op_def_correct (defs : op_def) (blocks : list block) : Prop :=
   In b blocks -> In (Op id op args results) (block_body b) ->
   op_def_find defs id = Some b.
 
-(* A direct operand of the instruction tested by this block's Switch.
-   Unlike all terms of [value], these operands occur in the actual graph. *)
-Definition switch_operand (b : block) (v : value) : Prop :=
-  exists (id : instr_id) (op : operation) (args : list value) (i : int)
-    (targets : list block),
-    terminator b = Terminator.Switch (Res id op args i) targets
-    /\ In v args.
-
-(* The block's instructions have no side effects and its terminator stays
-   within the function. *)
-Definition block_does_nothing (block : block) : Prop :=
-  (forall (instr : instr),
-     In instr (block_body block) -> has_side_effect instr = false)
-  /\ terminator_pure_control (terminator block) = true.
-
 (* [uses_only blocks same approve_instr approve_term]: in every block of
    the graph, every instruction with an argument [same] accepts satisfies
    [approve_instr], and every argument list of a terminator with a value
@@ -284,14 +262,6 @@ Definition acyclic_region (region : blockset) (cut : block) : Prop :=
    different blocks. *)
 Lemma block_eqb_refl : forall (block : block), block_eqb block block = true.
 Proof. intros b. apply block_eqb_spec. reflexivity. Qed.
-
-(* Two different blocks are told apart. *)
-Lemma block_eqb_neq : forall (block block' : block),
-  block <> block' -> block_eqb block block' = false.
-Proof.
-  intros a b H. destruct (block_eqb a b) eqn:E; [ | reflexivity ].
-  apply block_eqb_spec in E. contradiction.
-Qed.
 
 (* Membership in a set after [set_add], and in a singleton. *)
 Lemma set_mem_add_iff : forall (block block' : block) (set : blockset),
@@ -540,17 +510,6 @@ Proof.
   apply orb_true_iff in H. destruct H as [H | H].
   - apply block_eqb_spec in H. contradiction.
   - apply Hdone. exact H.
-Qed.
-
-(* A block [block_effect_free] accepts does nothing. *)
-Theorem block_effect_free_spec : forall (block : block),
-  block_effect_free block = true -> block_does_nothing block.
-Proof.
-  intros bl H. unfold block_effect_free in H.
-  apply andb_true_iff in H. destruct H as [Hi Ht].
-  split; [ | exact Ht ].
-  rewrite forallb_forall in Hi. intros i Hin.
-  specialize (Hi i Hin). apply negb_true_iff in Hi. exact Hi.
 Qed.
 
 (* What [all_uses_ok] checks, read back as [uses_only]: the approvals, as

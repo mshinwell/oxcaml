@@ -510,3 +510,16 @@ Proof.
   eapply Hpreserved; [exact Hrun | apply enter_valid_position |
     exact (entry_in_graph _ _ Hwf) | exact Hinputs].
 Qed.
+
+(* The inputs the eligibility theorem speaks of: the function is entered
+   with machine words in its registers and its live parameters bound, the
+   observation semantics takes it to [header] with registers
+   [header_regs], and from there the exact execution takes only defined
+   Switch indices (out-of-range indices are undefined behaviour in SSA). *)
+Record reached_header (entry header : block)
+    (initial_regs header_regs : registers) : Prop :=
+  { inputs_bounded : bounded_registers initial_regs;
+    inputs_live_bound : live_registers_bound (entry_point entry) initial_regs;
+    header_reached :
+      context_steps (enter entry initial_regs) (enter header header_regs);
+    switches_defined : switches_in_range (enter header header_regs) }.

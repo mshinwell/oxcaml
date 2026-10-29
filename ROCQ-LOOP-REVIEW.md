@@ -44,6 +44,70 @@ regenerated (only `SsaSemantics.ml` changes); `Print Assumptions` for
 and the three testsuite programs pass natively against a compiler relinked
 with the recompiled modules.
 
+### Restructuring (Part II, S1, S2, S5, S6)
+
+A third commit implements S1, S2, S5 and S6 below. The statement is now:
+
+```coq
+Inductive steps_until (target : block) : state -> state -> Prop := ...
+  (* SsaSemantics.v: first arrival at a state of block [target] *)
+
+Definition eligible_entry (header exit : block) (header_regs : registers)
+    : Prop :=
+  params exit = []
+  /\ exists (first_header_regs exit_regs : registers),
+       executes_insns header_regs (block_body header) first_header_regs
+       /\ steps_until exit
+            {| current_block := header; remaining := [];
+               current_registers := first_header_regs |}
+            (enter exit exit_regs)
+       /\ agree_on_live (entry_point exit) first_header_regs exit_regs.
+
+Theorem find_deletions_eligible :
+  forall (blocks : list block) (entry : block) (defs : op_def)
+    (header exit : block),
+  finished_graph blocks entry defs ->
+  In (header, exit) (find_deletions defs blocks) ->
+  forall (initial_regs header_regs : registers),
+    reached_header entry header initial_regs header_regs ->
+    eligible_entry header exit header_regs.
+```
+
+- S1: `natural_loop`, `biv`, `InductionVar.analyze` and `region_steps` are
+  out of the statement; the old form survives as the internal
+  `eligible_loop_entry`, with `eligible_loop_entry_eligible` bridging via
+  `LoopExecution.region_steps_until`. The two sanity theorems
+  `eligible_entry_execution` / `eligible_entry_progress` and the
+  `infinite_execution` definitions are gone: `steps_until` says directly
+  that the witness is the execution from the header, and
+  `step_deterministic` (kept) is what makes it unique.
+- S2: `SsaProgress.finished_graph` (nine fields, one per builder
+  guarantee) and `SsaContext.reached_header` (four fields) replace the
+  eleven graph premises, the `GraphEligibility` section and the four input
+  premises. `graph_strict_dominators` is stated for every graph block, not
+  just the header.
+- S5: everything in the list below was deleted except
+  `LoopTermination.bool_to_Z` and `bound_value`, which the list wrongly
+  included (they are used by `LoopCounterExecution` and
+  `LoopRangeExecution`), and `step_deterministic`, which is now the
+  justification quoted for `steps_until`. `has_side_effect` left
+  `SsaModel.v` and `SsaModelExtract.v`.
+- S6: `AffineSsa.op_semantics` is now `eval_operation op (map mval args) =
+  Some (mval v)` for modeled operations; the old clauses are the derived
+  lemma `mval_equations`. `LoopValueSnapshot.snapshot_value` evaluates
+  with `eval_operation` directly.
+
+The section 7 simulation argument in the obligations document was
+reworded for the new statement: the skipped segment is pure because `step`
+has no rule for anything but whitelisted operations and Goto/Switch, and
+the multi-loop case needs no disjointness (the `P` side is always the
+original graph). Verification: `make -C rocq all` passes; the axiom set of
+`find_deletions_eligible` is identical (129 entries, diffed against the
+previous commit); extraction changes only `FourierMotzkin.ml/.mli` (dead
+`Affine.add/neg/sub` removed); the unit tests and the three testsuite
+programs pass natively against a compiler relinked with the recompiled
+extracted modules. S3, S4 and S7 remain open.
+
 ## Verdict
 
 The theorem `LoopEligibility.find_deletions_eligible` states the right
@@ -98,7 +162,8 @@ be written down next to the theorem.
 
 ## 1. The statement: `eligible_entry` and `find_deletions_eligible`
 
-`LoopEligibility.v:39`:
+(As reviewed at `419a3d21d8`; the restructured statement is quoted under
+Status above.) `LoopEligibility.v:39`:
 
 ```coq
 Definition eligible_entry (loop : natural_loop) (exit : block)
@@ -617,6 +682,9 @@ With `block_effect_free` gone, the `has_side_effect` observer can leave
 serve only the two sanity theorems `eligible_entry_execution` and
 `eligible_entry_progress`, which explain what `eligible_entry` rules out;
 keep those if the explanation is wanted, but mark them as such.
+
+(Correction on implementation: `LoopTermination.bool_to_Z` and
+`bound_value` are not dead; see Status.)
 
 ### S6. One arithmetic semantics (low effort, maintenance)
 

@@ -48,19 +48,6 @@ module Affine = struct
 
   let add_const f c = { const = f.const + c; terms = f.terms }
 
-  (** val add : t -> t -> t **)
-
-  let add a b =
-    let ids = sort_uniq (List.map fst a.terms @ List.map fst b.terms) in
-    let ts =
-      List.filter_map
-        (fun id ->
-          let c = coeff id a + coeff id b in
-          if Int.equal c 0 then None else Some (id, c))
-        ids
-    in
-    { const = a.const + b.const; terms = ts }
-
   (** val scale : int -> t -> t **)
 
   let scale k f =
@@ -75,14 +62,6 @@ module Affine = struct
               id, c * k)
             f.terms
       }
-
-  (** val neg : t -> t **)
-
-  let neg f = scale (-1) f
-
-  (** val sub : t -> t -> t **)
-
-  let sub a b = add a (neg b)
 
   (** val scale_checked : int -> t -> t option **)
 
@@ -221,7 +200,7 @@ let elim atom ineqs =
   else
     let cf = fun f -> Affine.coeff atom f in
     let pos = List.filter (fun f -> 0 < cf f) ineqs in
-    let neg0 = List.filter (fun f -> cf f < 0) ineqs in
+    let neg = List.filter (fun f -> cf f < 0) ineqs in
     let zero_coeff = List.filter (fun f -> Int.equal (cf f) 0) ineqs in
     let resolvents =
       List.concat_map
@@ -231,7 +210,7 @@ let elim atom ineqs =
               match neg_ovf (cf n) with
               | Some cn -> resolvent (cf p) cn p n
               | None -> None)
-            neg0)
+            neg)
         pos
     in
     Some (List.rev_append zero_coeff resolvents)
