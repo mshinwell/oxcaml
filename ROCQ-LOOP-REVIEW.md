@@ -447,3 +447,228 @@ only be reached as opaque atoms.
 5. (F2, F3, F7) Small documentation touches in `SsaContext.v`,
    `SsaModel.v`, `LoopTermination.v`, `DeleteEmptyLoops.v`.
 6. (F6) Optional: accept all-omitted header parameters as dead.
+
+---
+
+# Part II: can the structure be simplified for human review?
+
+The question is what a human has to read to be convinced, and whether the
+development could be arranged so that this is less. I measured rather than
+guessed: I printed every constant of the 33 non-extraction modules
+(`Print`, 763 constants: 461 lemmas/theorems, 302 definitions/inductives)
+and computed two closures: the *proof cone* of `find_deletions_eligible`
+(everything its proof term mentions, transitively) and the *statement
+closure* (everything its type mentions, transitively through definition
+bodies only, never through proofs).
+
+## What the numbers say
+
+| Class | Count | Needs human review? |
+|---|---|---|
+| Lemmas and theorems in the proof cone | 439 of 461 | No: checked by Rocq. Only the final theorem's statement matters. |
+| Lemmas and theorems outside the cone | 22 | No; they are dead or sanity theorems (list below). |
+| Definitions in the statement closure that are *the algorithm* (reachable from `find_deletions`/`InductionVar.analyze`) | 155 | Only for extraction fidelity (the `.ml` is what runs), not for meaning: the theorem holds for whatever they compute. |
+| Definitions in the statement closure that give the theorem its *meaning* | **54** (+ the `SsaModel.v` parameters/axioms and the `*Extract.v` mappings) | **Yes.** This is the whole semantic trusted surface. |
+| Definitions used only inside proofs | 80 | No. |
+| Definitions outside the cone | 13 | No; dead. |
+
+The 54 semantic definitions are, by file: `SsaSemantics` (20: `register`,
+`registers`, `write_register`, `read_values`, `read_arguments`,
+`bind_parameters`, `comparison_value`, `modeled_operation`, `eval_operation`,
+`execute_instruction`, `state`, `enter`, `step`, `steps`, `executes_insns`,
+`bounded_registers`, `parameter_layout`, `is_trap_marker`, `register_eqb`,
+`register_of_value`), `SsaDominance` (8: `path`, `dominance_semantics`,
+`point`, `entry_point`, `point_edge`, `point_path`, `point_dominates`,
+`point_reachable`), `OxCamlInt64` (5: `wrap64`, `unsigned64`, `in_int64`,
+`two63`, `two64`), `SsaLiveness` (4), `SsaContext` (4), `SsaProgress` (4),
+`SsaExecution` (3: `result_definition`, `value_definition`,
+`well_formed_ssa`), `SsaGraph` (3: `control_edges`,
+`switch_edge_multiplicity`, `op_def_correct`), `IntegerComparison.eval`,
+`LoopExecution.region_steps`, `LoopEligibility.eligible_entry`. About 700
+lines of Rocq, spread over 11 files that total 4,500 lines with their
+lemmas.
+
+So the development is already in good shape in one respect: almost nothing
+is dead, and the meaning of the result rests on a small set of definitions.
+The problem is presentational: that set is not identified anywhere, it is
+interleaved with 3,500 lines of proof-only material, and the documentation
+(each file's "review parts 1 and 2 by eye", and `ROCQ-REVIEWER-OBLIGATIONS.md`
+§6) still directs reviewers to the Part-2 "intended meaning" predicates
+(`biv_spec`, `dead_spec`, `deletion_certificate`, `loop_invariant_value`,
+`reaches`, `op_semantics`, `loop_exits`, `entails_sound`, ...). Those were
+the specification when the result was a collection of per-analysis
+certificates; since the operational theorem was added they are internal
+lemmas, and reviewing them is wasted effort. Of the 80 proof-only
+definitions, 29 are such former specifications.
+
+## Recommendations, in order of payoff
+
+### S1. Take the natural loop out of the statement (medium effort, large payoff)
+
+`find_deletions_eligible` concludes `exists loop bivs, In (loop, bivs)
+(InductionVar.analyze defs blocks) /\ header = loop.(header) /\ ... eligible_entry
+loop exit header_regs`. The `bivs` are not used at all, and `loop` is used
+only for `loop.(body)` in `region_steps` and the two `set_mem` conjuncts.
+This drags `InductionVar.analyze`, `find_loops`, `natural_loop_body`,
+`walk`, `add_back_edge` and the `biv` record into the statement: a
+reviewer who takes the statement literally must understand the loop
+discovery algorithm to know what is being claimed.
+
+The body is only there to pin "the first arrival at `exit`". That can be
+said directly:
+
+```coq
+(* [steps_until target s t]: [t] is the first state of the execution
+   from [s] whose block is [target]. *)
+Inductive steps_until (target : block) : state -> state -> Prop :=
+  | Until_here : forall s, current_block s = target -> steps_until target s s
+  | Until_step : forall s s' t, current_block s <> target ->
+      step s s' -> steps_until target s' t -> steps_until target s t.
+
+Definition eligible_entry (header exit : block) (header_regs : registers) :=
+  params exit = []
+  /\ exists first_header_regs exit_regs,
+       executes_insns header_regs (block_body header) first_header_regs
+       /\ steps_until exit {| current_block := header; remaining := [];
+                              current_registers := first_header_regs |}
+                          (enter exit exit_regs)
+       /\ agree_on_live (entry_point exit) first_header_regs exit_regs.
+```
+
+and the theorem concludes `eligible_entry header exit header_regs` with no
+existential. This is implied by the current result (`region_steps` with
+`exit ∉ body` is a `steps_until`; `region_steps_execution` is the proof
+already), so it is a wrapper plus a renaming, and it removes ~30
+definitions and the whole of `NaturalLoop`/`InductionVar` from the
+statement closure. The simulation argument (§7 of the obligations
+document) needs nothing more than this. If "and it stays inside the loop"
+is wanted as extra information, it can be a separate corollary.
+
+### S2. Bundle the graph premises into one named contract (low effort, large payoff)
+
+The theorem has eleven graph premises (closure of predecessors and
+successors, `dominance_semantics`, `dominance_complete`, `control_edges`,
+`well_formed_ssa`, `control_layout`, `op_def_correct`,
+`switch_edge_multiplicity`, `NoDup (strict_dominators header)`, membership
+of strict dominators), four of them hidden as `Section` hypotheses. A
+single record
+
+```coq
+Record finished_graph (blocks : list block) (entry : block) (defs : op_def) : Prop := { ... }
+```
+
+with one documented field per guarantee of `Ssa.finish_graph` would make the
+theorem a five-line statement, make the Section unnecessary, and give the
+compiler-side review (obligations §3) one definition to check against
+`ssa.ml`. Likewise a record `defined_inputs initial_regs header_regs` for
+the four input premises.
+
+### S3. Separate specification from proof, physically (medium effort, large payoff)
+
+Put the 54 semantic definitions (plus `SsaModel.v`, which already is one)
+into files that contain no lemmas, and say so in their headers:
+
+- `SsaModel.v` — the interface (as now);
+- `SsaSpec.v` — registers, `step`, `steps`, `executes_insns`, `context_step`,
+  `live_at`, `agree_on_live`, points and point dominance, `well_formed_ssa`,
+  `control_layout`, `control_edges`, `switch_edge_multiplicity`,
+  `op_def_correct`, `dominance_semantics`, `bounded_registers`,
+  `live_registers_bound`, `switches_in_range`;
+- `LoopEligibility.v` — `eligible_entry`, `steps_until` and the final theorem,
+  nothing else.
+
+Then the reviewer's instruction is: read `SsaModel.v`, `SsaSpec.v`, the
+final theorem, and the `*Extract.v` files; everything else is either the
+algorithm or a proof. The present mixing (e.g. `SsaSemantics.v` is 30
+definitions and 34 lemmas; `SsaGraph.v` has the algorithm's
+`acyclic_except`, the contract `control_edges` and the proof-only
+`region_edge` side by side) is what makes the "what must I read" question
+hard today.
+
+### S4. Retire the certificate layer from the review path (low effort)
+
+Demote `biv_spec`, `dead_spec`, `deletion_certificate`, `loop_graph_properties`,
+`loop_invariant_value`, `reaches`, `body_sound`, `op_semantics`,
+`test_result`, `guards_taken`, `loop_continues`, `iv`, `bound_in_range`
+(LoopComparisons) and the `*_spec` theorems that produce them from "Part 2:
+the intended meaning" to the lemma sections, and rewrite the per-file
+reading guides, which currently say "Parts 1 and 2 are the part to check by
+eye" for files whose Part 2 nobody needs to check. Update obligations §6
+accordingly: it should say that nothing in those files needs reading.
+
+Keeping them as lemmas is fine (they structure the proof); the point is to
+stop presenting them as trusted.
+
+### S5. Delete what is dead (low effort)
+
+Outside the proof cone: definitions `SsaGraph.block_effect_free`,
+`block_does_nothing`, `switch_operand`; `SsaSemantics.defined_value`,
+`unique_definitions`, `return_state`; `SsaDominance.edge_on`;
+`LoopTermination.bool_to_Z`, `bound_value`; `FourierMotzkin.add`, `neg`,
+`sub` (the unchecked variants); lemmas `edge_on_every_path`, `path_edge_to`,
+`block_effect_free_spec`, `block_eqb_neq`, `defined_value_identity`,
+`executes_insns_deterministic`, `steps_trans`, `return_has_no_step`,
+`add_wf`, `neg_wf`, `sub_wf`, `two62_pow`, `pow2_bounds`, `wrap64_unsigned`,
+`filter_map_NoDup_keys`, `filter_map_keys_In`, `op_semantics_lsr_zero`.
+With `block_effect_free` gone, the `has_side_effect` observer can leave
+`SsaModel.v` and `SsaModelExtract.v`: one trusted mapping fewer.
+`infinite_execution`, `stays_in_region`, `no_infinite_execution_in`,
+`step_deterministic`, `region_exit_not_infinite` and `region_exit_progress`
+serve only the two sanity theorems `eligible_entry_execution` and
+`eligible_entry_progress`, which explain what `eligible_entry` rules out;
+keep those if the explanation is wanted, but mark them as such.
+
+### S6. One arithmetic semantics (low effort, maintenance)
+
+`AffineSsa.op_semantics` restates the arithmetic of
+`SsaSemantics.eval_operation` (eight clauses, same content);
+`LoopValueSnapshot` then proves they agree. Defining
+`op_semantics v := eval_operation op (map mval args) = Some (mval v)` for
+the recognised shapes would remove the duplicate. It is proof-internal now,
+so this is for maintainers rather than reviewers, but a reviewer who does
+open `AffineSsa.v` currently finds a second semantics and has to wonder
+which one is authoritative.
+
+### S7. Make the trusted surface machine-checked, so it stays small (low effort)
+
+The closures above took a 40-line script over `Print` output. A
+`make -C rocq surface` target that prints the statement closure of the
+final theorem, with the algorithm's constants filtered out, would turn
+"what must a human read" into a reproducible list, and would show
+immediately when a change enlarges it. (The existing `assumptions` target
+answers a different question: axioms, not definitions.)
+
+### Optional, smaller
+
+- `op_def` could be computed in Rocq from `blocks` instead of being built
+  by the veneer and constrained by `op_def_correct`: one premise and one
+  piece of trusted OCaml fewer, at the cost of an association-list lookup
+  or an axiomatised table like `blockset`.
+- `strict_dominators` could be `filter (strictly_dominates · header) blocks`
+  computed in Rocq rather than an observer, removing one `SsaModel`
+  parameter and two premises; the order of the list only affects atom
+  numbering.
+- `LoopComparisons.bound_in_range` and `LoopTermination.bound_in_range` share
+  a name with different types; rename one.
+
+## What I would not change
+
+- The decision to state the theorem on the original graph rather than
+  model the rewrite and the reducer. Modelling the rewrite would move the
+  simulation argument into Rocq but would add the reducer's block/value
+  maps, parameter dropping and dead-code pruning to the trusted model; the
+  present "retained header, first exit, live-out agreement" statement is
+  shorter to check than that model would be.
+- The eight operational proof files. Their decomposition (traversal to the
+  next header or exit; invariance; counter arithmetic; snapshot valuation;
+  guard outcomes; range facts; live-out; assembly) is reasonable proof
+  engineering, and with S3/S4 a reviewer never opens them.
+- The whitelist and the gate as the way to bound what the semantics must
+  model.
+
+## Effort estimate
+
+S2, S4, S5, S7: a day in total. S1: a day (new definition, wrapper
+theorem, documentation). S3: two days (moving definitions across files
+and fixing imports; no proof changes). S6: a day of proof repair in
+`LoopValueSnapshot.v`. All are independent of each other.
