@@ -1,50 +1,95 @@
 (* TEST
- flags = "-O3 -use-ssa -ssa-delete-empty-loops";
- native;
+ flags += " -O3 -use-ssa -ssa-delete-empty-loops";
+ only-default-codegen;
+ no-tsan;
+ expect.opt;
 *)
 
 (* Exercises empty-loop deletion. A terminating loop that does no observable
    work may be removed, but a loop whose body has *any* side effect -- even one
    that does not flow through a header parameter -- must be preserved, as must a
-   loop whose termination cannot be established. Each comment says whether the
-   pass deletes the loop; compiling this file with [-dssa] prints "SSA after
-   Delete_empty_loops (N deleted)" for every function in which a loop was
-   deleted. See delete_empty_loops_exits.ml for loops with a second way out and
-   delete_empty_loops_shapes.ml for other shapes and the analysis's known
-   limitations.
+   loop whose termination cannot be established. See delete_empty_loops_exits.ml
+   for loops with a second way out and delete_empty_loops_shapes.ml for other
+   shapes and the analysis's known limitations.
 
-   For the loops the pass deletes, [check_deleted] below makes the deletion
-   observable: it runs the loop with a trip count of 2^36, which takes well
-   over ten seconds of processor time if the loop is still there and none if
-   it is not, and reports which. The unit test oxcaml/tests/backend/ssa/
+   Each function is followed by the SSA that leaves the SSA pipeline
+   ([%%expect_ssa]), headed by the number of loops Delete_empty_loops removed
+   from it. In a deleted loop the header's terminator has become a jump to the
+   exit block and the body has been pruned, so no block has a back edge to the
+   header; in a kept loop the header still has a predecessor from its body. The
+   comment on each function says which to expect, and the [%%expect] blocks
+   check what the functions compute. The unit test oxcaml/tests/backend/ssa/
    loop_analysis.ml asserts exact deletion counts on hand-built graphs; this
    checks that the graphs the compiler builds for OCaml loops are among the
    shapes it recognises. *)
 
-(* [check_deleted name f] reports whether the loop [f] runs was deleted, by
-   the processor time [f] takes; see above. *)
-let check_deleted name f =
-  let start = Sys.time () in
-  f ();
-  let elapsed = Sys.time () -. start in
-  Printf.printf "%s: %s\n" name (if elapsed < 2.0 then "deleted" else "kept")
-
-let huge = 1 lsl 36
-
-(* Genuinely empty: spins a dead counter, no observable effect. Safe to delete;
-   observably a no-op either way. *)
+(* Genuinely empty: spins a dead counter, no observable effect. Deleted. *)
 let[@inline never] spin (n : int) =
   for _i = 0 to Sys.opaque_identity n - 1 do
     ()
   done
+[%%expect_ssa {|
+spin:
+Delete_empty_loops: 1 deleted
+B0(n/B0.0 : int) [dominator=B0 depth=0]
+  Popaque/v0 = opaque n/B0.0
+  for_stop/v1 = Popaque/v0 + -2
+  v2 = for_stop/v1 >=s 1
+  switch(v2) | 0 -> B5 | 1 -> B1
+
+B1() [dominator=B0 depth=1] <- B0
+  goto B2(omitted_since_unused)
+
+B2(for_counter_naked/B2.0 : int) [dominator=B1 depth=2] <- B1
+  goto B4()
+
+B4() [dominator=B2 depth=3] <- B2
+  v7 = 1
+  return(v7)
+
+B5() [dominator=B0 depth=1] <- B0
+  v8 = 1
+  return(v8)
+|}]
+
+let () = spin 1000
+[%%expect {|
+|}]
 
 (* Both bounds variable: the termination proof must discharge the no-overflow
    obligation from the untagging shape of the bound (and the [a <= b] entry
-   guard is among the facts). Deleted; observably a no-op either way. *)
+   guard is among the facts). Deleted. *)
 let[@inline never] spin_range (a : int) (b : int) =
   for _i = Sys.opaque_identity a to Sys.opaque_identity b do
     ()
   done
+[%%expect_ssa {|
+spin_range:
+Delete_empty_loops: 1 deleted
+B0(a/B0.0 : int, b/B0.1 : int) [dominator=B0 depth=0]
+  for_start/v0 = opaque a/B0.0
+  for_stop/v1 = opaque b/B0.1
+  v2 = for_start/v0 <=s for_stop/v1
+  switch(v2) | 0 -> B5 | 1 -> B1
+
+B1() [dominator=B0 depth=1] <- B0
+  goto B2(omitted_since_unused)
+
+B2(for_counter_naked/B2.0 : int) [dominator=B1 depth=2] <- B1
+  goto B4()
+
+B4() [dominator=B2 depth=3] <- B2
+  v7 = 1
+  return(v7)
+
+B5() [dominator=B0 depth=1] <- B0
+  v8 = 1
+  return(v8)
+|}]
+
+let () = spin_range 1 1000
+[%%expect {|
+|}]
 
 (* Counting down with a variable bound. Kept. Known limitation: the
    termination check needs the bound register to be at least [- max_int], but
@@ -56,25 +101,144 @@ let[@inline never] spin_downto (a : int) (b : int) =
   for _i = Sys.opaque_identity a downto Sys.opaque_identity b do
     ()
   done
+[%%expect_ssa {|
+spin_downto:
+Delete_empty_loops: 0 deleted
+B0(a/B0.0 : int, b/B0.1 : int) [dominator=B0 depth=0]
+  for_start/v0 = opaque a/B0.0
+  for_stop/v1 = opaque b/B0.1
+  v2 = for_start/v0 >=s for_stop/v1
+  switch(v2) | 0 -> B5 | 1 -> B1
+
+B1() [dominator=B0 depth=1] <- B0
+  for_start_naked/v3 = for_start/v0 >>s 1
+  for_stop_naked/v4 = for_stop/v1 >>s 1
+  goto B2(for_start_naked/v3)
+
+B2(for_counter_naked/B2.0 : int) [dominator=B1 depth=2] <- B3, B1
+  for_next_naked/v5 = for_counter_naked/B2.0 + -1
+  v6 = for_next_naked/v5 >=s for_stop_naked/v4
+  switch(v6) | 0 -> B4 | 1 -> B3
+
+B3() [dominator=B2 depth=3] <- B2
+  goto B2(for_next_naked/v5)
+
+B4() [dominator=B2 depth=3] <- B2
+  v7 = 1
+  return(v7)
+
+B5() [dominator=B0 depth=1] <- B0
+  v8 = 1
+  return(v8)
+|}]
+
+let () = spin_downto 1000 1
+[%%expect {|
+|}]
 
 (* Side effect (print) not flowing through a header parameter: must NOT be
-   deleted, so all [n] characters are printed. *)
+   deleted, so that all [n] characters are printed. *)
 let[@inline never] noisy (n : int) =
   for _i = 0 to n - 1 do
     print_char 'x'
   done
+[%%expect_ssa {|
+noisy:
+Delete_empty_loops: 0 deleted
+B0(n/B0.0 : int) [dominator=B0 depth=0]
+  for_stop/v0 = n/B0.0 + -2
+  v1 = for_stop/v0 >=s 1
+  switch(v1) | 0 -> B6 | 1 -> B1
+
+B1() [dominator=B0 depth=1] <- B0
+  for_stop_naked/v2 = for_stop/v0 >>s 1
+  v3 = 0
+  goto B2(v3)
+
+B2(for_counter_naked/B2.0 : int) [dominator=B1 depth=2] <- B4, B1
+  v4 = 241
+  v5 = "camlStdlib__print_char_42_93"
+  v6 = val[v5 + 16]
+  call_prim caml_ml_output_char(v6, v4) may_raise -> B3
+
+B3(param/B3.0 : val) [dominator=B2 depth=3] <- B2
+  for_next_naked/v7 = for_counter_naked/B2.0 + 1
+  v8 = for_next_naked/v7 <=s for_stop_naked/v2
+  switch(v8) | 0 -> B5 | 1 -> B4
+
+B4() [dominator=B3 depth=4] <- B3
+  goto B2(for_next_naked/v7)
+
+B5() [dominator=B3 depth=4] <- B3
+  v9 = 1
+  return(v9)
+
+B6() [dominator=B0 depth=1] <- B0
+  v10 = 1
+  return(v10)
+|}]
 
 (* Side effect (store) not flowing through a header parameter: must NOT be
-   deleted, so the store happens [n] times. *)
+   deleted, so that the store happens [n] times. *)
 let[@inline never] store_loop (a : int array) (n : int) =
   for _i = 0 to n - 1 do
     a.(0) <- a.(0) + 1
   done
+[%%expect_ssa {|
+store_loop:
+Delete_empty_loops: 0 deleted
+B0(a/B0.0 : val, n/B0.1 : int) [dominator=B0 depth=0]
+  for_stop/v0 = n/B0.1 + -2
+  v1 = for_stop/v0 >=s 1
+  switch(v1) | 0 -> B7 | 1 -> B1
+
+B1() [dominator=B0 depth=1] <- B0
+  for_stop_naked/v2 = for_stop/v0 >>s 1
+  v3 = 0
+  goto B2(v3)
+
+B2(for_counter_naked/B2.0 : int) [dominator=B1 depth=2] <- B4, B1
+  v4 = int mut[a/B0.0 + -8]
+  v5 = v4 << 8
+  v6 = v5 >>u 17
+  v7 = v6 >u 1
+  switch(v7) | 0 -> B6 | 1 -> B3
+
+B3() [dominator=B2 depth=3] <- B2
+  [a/B0.0] +:= 2
+  for_next_naked/v10 = for_counter_naked/B2.0 + 1
+  v11 = for_next_naked/v10 <=s for_stop_naked/v2
+  switch(v11) | 0 -> B5 | 1 -> B4
+
+B4() [dominator=B3 depth=4] <- B3
+  goto B2(for_next_naked/v10)
+
+B5() [dominator=B3 depth=4] <- B3
+  v12 = 1
+  return(v12)
+
+B6() [dominator=B2 depth=3] <- B2
+  v13 = "camlTOP__block"
+  raise(v13)
+
+B7() [dominator=B0 depth=1] <- B0
+  v14 = 1
+  return(v14)
+|}]
+
+let _ =
+  let a = [| 0 |] in
+  store_loop a 100;
+  a.(0)
+[%%expect {|
+- : int = 100
+|}]
 
 (* Two induction variables compared against each other: the comparison operand
    is loop-variant, so termination is genuinely unknown and the loop (which here
    does terminate because [j] outruns [i]) must run to completion rather than be
-   deleted. *)
+   deleted. [i] goes 0, 2, 4, ... and [j] goes n, n + 1, ..., so the gap of [n]
+   closes at one per step: [n] steps. *)
 let[@inline never] two_counter (n : int) =
   let i = ref 0 and j = ref (Sys.opaque_identity n) and hits = ref 0 in
   while !i < !j do
@@ -83,6 +247,36 @@ let[@inline never] two_counter (n : int) =
     j := !j + 1
   done;
   !hits
+[%%expect_ssa {|
+two_counter:
+Delete_empty_loops: 0 deleted
+B0(n/B0.0 : int) [dominator=B0 depth=0]
+  Popaque/v0 = opaque n/B0.0
+  v1 = 1
+  v2 = 1
+  goto B1(v2, Popaque/v0, v1)
+
+B1(i_769_unboxed0/B1.0 : int, j_770_unboxed0/B1.1 : int, hits_771_unboxed0/B1.2 : int) [dominator=B0 depth=1] <- B2, B0
+  v3 = i_769_unboxed0/B1.0 <s j_770_unboxed0/B1.1
+  switch(v3) | 0 -> B3 | 1 -> B2
+
+B2() [dominator=B1 depth=2] <- B1
+  v4 = hits_771_unboxed0/B1.2 + 2
+  v5 = j_770_unboxed0/B1.1 + 2
+  v6 = i_769_unboxed0/B1.0 + 4
+  goto B1(v6, v5, v4)
+
+B3() [dominator=B1 depth=2] <- B1
+  goto B4(hits_771_unboxed0/B1.2)
+
+B4(hits_771_unboxed0/B4.0 : val) [dominator=B3 depth=3] <- B3
+  return(hits_771_unboxed0/B4.0)
+|}]
+
+let _ = two_counter 10
+[%%expect {|
+- : int = 10
+|}]
 
 (* The exit comparison is also the loop's result. The loop must NOT be
    deleted: the header would then compute the comparison with the initial
@@ -97,6 +291,32 @@ let[@inline never] exit_cond_returned (n : int) =
     if b then loop (i + 1) else b
   in
   loop 0
+[%%expect_ssa {|
+exit_cond_returned:
+Delete_empty_loops: 0 deleted
+B0(n/B0.0 : int) [dominator=B0 depth=0]
+  v0 = n/B0.0 >>u 3
+  m/v1 = v0 | 1
+  v2 = 1
+  goto B1(v2)
+
+B1(i/B1.0 : int) [dominator=B0 depth=1] <- B2, B0
+  prim/v3 = i/B1.0 <s m/v1
+  switch(prim/v3) | 0 -> B3 | 1 -> B2
+
+B2() [dominator=B1 depth=2] <- B1
+  v4 = i/B1.0 + 2
+  goto B1(v4)
+
+B3() [dominator=B1 depth=2] <- B1
+  v5 = prim/v3  * 2 + 1
+  return(v5)
+|}]
+
+let _ = exit_cond_returned 40
+[%%expect {|
+- : bool = false
+|}]
 
 (* The same through a mutable variable. *)
 let[@inline never] exit_cond_via_ref (n : int) =
@@ -110,6 +330,35 @@ let[@inline never] exit_cond_via_ref (n : int) =
     incr i
   done;
   !b
+[%%expect_ssa {|
+exit_cond_via_ref:
+Delete_empty_loops: 0 deleted
+B0(n/B0.0 : int) [dominator=B0 depth=0]
+  v0 = n/B0.0 >>u 3
+  m/v1 = v0 | 1
+  v2 = 1
+  goto B1(v2)
+
+B1(i_871_unboxed0/B1.0 : int) [dominator=B0 depth=1] <- B2, B0
+  prim/v3 = i_871_unboxed0/B1.0 <s m/v1
+  switch(prim/v3) | 0 -> B3 | 1 -> B2
+
+B2() [dominator=B1 depth=2] <- B1
+  v4 = i_871_unboxed0/B1.0 + 2
+  goto B1(v4)
+
+B3() [dominator=B1 depth=2] <- B1
+  v5 = prim/v3  * 2 + 1
+  goto B4(v5)
+
+B4(int_lessthan/B4.0 : val) [dominator=B3 depth=3] <- B3
+  return(int_lessthan/B4.0)
+|}]
+
+let _ = exit_cond_via_ref 40
+[%%expect {|
+- : bool = false
+|}]
 
 (* The same with the comparison consumed by an instruction after the loop
    rather than returned directly. *)
@@ -120,6 +369,33 @@ let[@inline never] exit_cond_as_int (n : int) =
     if b then loop (i + 1) else Sys.opaque_identity (Bool.to_int b)
   in
   loop 0
+[%%expect_ssa {|
+exit_cond_as_int:
+Delete_empty_loops: 0 deleted
+B0(n/B0.0 : int) [dominator=B0 depth=0]
+  v0 = n/B0.0 >>u 3
+  m/v1 = v0 | 1
+  v2 = 1
+  goto B1(v2)
+
+B1(i/B1.0 : int) [dominator=B0 depth=1] <- B2, B0
+  prim/v3 = i/B1.0 <s m/v1
+  switch(prim/v3) | 0 -> B3 | 1 -> B2
+
+B2() [dominator=B1 depth=2] <- B1
+  v4 = i/B1.0 + 2
+  goto B1(v4)
+
+B3() [dominator=B1 depth=2] <- B1
+  v5 = prim/v3  * 2 + 1
+  v6 = opaque v5
+  return(v6)
+|}]
+
+let _ = exit_cond_as_int 40
+[%%expect {|
+- : int = 0
+|}]
 
 (* A loop inside a [try]: the handler is set up by a trap marker before the
    loop and popped after it, and the call may raise into it. The loop itself
@@ -133,6 +409,56 @@ let[@inline never] spin_in_try (f : int -> int) (n : int) =
     done;
     k
   with Exit -> -1
+[%%expect_ssa {|
+spin_in_try:
+Delete_empty_loops: 1 deleted
+B0(f/B0.0 : val, n/B0.1 : int) [dominator=B0 depth=0]
+  try_region/v0 = beginregion
+  push_trap B8
+  goto B1()
+
+B1() [dominator=B0 depth=1] <- B0
+  v1 = int mut[f/B0.0]
+  call_indirect(v1, n/B0.1, f/B0.0) may_raise -> B2 exn_successor=B8
+
+B2(k/B2.0 : int) [dominator=B1 depth=2] <- B1
+  Popaque/v2 = opaque k/B2.0
+  for_stop/v3 = Popaque/v2 + -2
+  v4 = for_stop/v3 >=s 1
+  switch(v4) | 0 -> B7 | 1 -> B3
+
+B3() [dominator=B2 depth=3] <- B2
+  goto B4(omitted_since_unused)
+
+B4(for_counter_naked/B4.0 : int) [dominator=B3 depth=4] <- B3
+  goto B6()
+
+B6() [dominator=B4 depth=5] <- B4
+  pop_trap B8
+  return(k/B2.0)
+
+B7() [dominator=B2 depth=3] <- B2
+  pop_trap B8
+  return(k/B2.0)
+
+B8(exn/B8.0 : val) [dominator=B1 depth=2] <- B1
+  endregion try_region/v0
+  v10 = "camlStdlib__Exit1460_42"
+  v11 = exn/B8.0 == v10
+  switch(v11) | 0 -> B10 | 1 -> B9
+
+B9() [dominator=B8 depth=3] <- B8
+  v12 = -1
+  return(v12)
+
+B10() [dominator=B8 depth=3] <- B8
+  raise(exn/B8.0)
+|}]
+
+let _ = spin_in_try (fun k -> k) 1000, spin_in_try (fun _ -> raise Exit) 1000
+[%%expect {|
+- : int * int = (1000, -1)
+|}]
 
 (* The header computes a value from outside the loop and the exit returns it.
    The value is the same on every visit of the header, so the loop is deleted
@@ -144,34 +470,45 @@ let[@inline never] header_value (n : int) (x : int) =
     if i < m then loop (i + 1) else t
   in
   loop 0
+[%%expect_ssa {|
+header_value:
+Delete_empty_loops: 1 deleted
+B0(n/B0.0 : int, x/B0.1 : int) [dominator=B0 depth=0]
+  goto B1(omitted_since_unused)
+
+B1(i/B1.0 : int) [dominator=B0 depth=1] <- B0
+  goto B3()
+
+B3() [dominator=B1 depth=2] <- B1
+  v5 = x/B0.1 + 2
+  return(v5)
+|}]
+
+let _ = header_value 800 5, header_value 0 5
+[%%expect {|
+- : int * int = (6, 6)
+|}]
 
 (* Continuing while the counter equals the bound: any non-zero step leaves
-   the bound. Deleted (not checked by time: the loop runs at most twice). *)
+   the bound. Deleted. *)
 let[@inline never] spin_while_equal (n : int) =
   let m = n lsr 3 in
   let rec loop i = if i = m then loop (i + 1) else () in
   loop 0
+[%%expect_ssa {|
+spin_while_equal:
+Delete_empty_loops: 1 deleted
+B0(n/B0.0 : int) [dominator=B0 depth=0]
+  goto B1(omitted_since_unused)
 
-let () =
-  spin 1000;
-  check_deleted "spin" (fun () -> spin huge);
-  spin_range 1 1000;
-  check_deleted "spin_range" (fun () -> spin_range 0 huge);
-  spin_downto 1000 1;
-  Printf.printf "spin_in_try=%d,%d\n"
-    (spin_in_try (fun k -> k) 1000)
-    (spin_in_try (fun _ -> raise Exit) 1000);
-  check_deleted "spin_in_try" (fun () -> ignore (spin_in_try (fun k -> k) huge));
-  Printf.printf "header_value=%d,%d\n" (header_value 800 5) (header_value 0 5);
-  check_deleted "header_value" (fun () -> ignore (header_value (huge lsl 3) 5));
-  spin_while_equal 8;
-  noisy 5;
-  print_newline ();
-  let a = [| 0 |] in
-  store_loop a 100;
-  Printf.printf "store=%d\n" a.(0);
-  (* i: 0,2,4,...  j: n,n+1,...  gap n closes at rate 1 per step -> n steps *)
-  Printf.printf "two_counter=%d\n" (two_counter 10);
-  Printf.printf "exit_cond_returned=%b\n" (exit_cond_returned 40);
-  Printf.printf "exit_cond_via_ref=%b\n" (exit_cond_via_ref 40);
-  Printf.printf "exit_cond_as_int=%d\n" (exit_cond_as_int 40)
+B1(i/B1.0 : int) [dominator=B0 depth=1] <- B0
+  goto B3()
+
+B3() [dominator=B1 depth=2] <- B1
+  v5 = 1
+  return(v5)
+|}]
+
+let () = spin_while_equal 8
+[%%expect {|
+|}]

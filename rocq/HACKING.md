@@ -106,7 +106,9 @@ With Rocq and the repository's `ocamlformat` on `PATH`:
    the change you meant. Never edit those files by hand; change the `.v`
    and regenerate.
 4. `make -s boot-compiler`, then the tests of the pass (for the loop
-   passes, `testsuite/tests/backend/ssa/loop/` and the unit test alias
+   passes, the `expect.opt` tests in `testsuite/tests/backend/ssa/loop/`,
+   whose `[%%expect_ssa]` blocks show the SSA each function ends up with
+   and how many loops were deleted from it, and the unit test alias
    `dune build @oxcaml/tests/backend/ssa/runtest`), then `make -s fmt`.
 5. Commit the `.v` files and the regenerated `.ml`/`.mli` together.
 

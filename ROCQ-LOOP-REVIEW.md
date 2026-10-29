@@ -27,9 +27,13 @@ of the empty-loop deletion proofs", except where noted:
 - F2, F3, F7: documented in `SsaContext.v`, `SsaModel.v` (and the
   obligations document), `LoopTermination.v`, `DeleteEmptyLoops.v`.
 - F4: `loop_analysis.ml` gained hand-built graphs for the shapes in
-  section 6.2; `delete_empty_loops.ml` (testsuite) now observes deletion
-  of the canonical shapes by processor time (2^36 iterations: ~19 s when
-  kept, none when deleted) and has `try`, header-value and `Ceq` cases.
+  section 6.2; `delete_empty_loops.ml` (testsuite) gained `try`,
+  header-value and `Ceq` cases. A later commit turned the three testsuite
+  files into `expect.opt` tests: each function is followed by an
+  `[%%expect_ssa]` block (new, in the expect tool) showing the SSA that
+  leaves the pipeline and the number of loops `Delete_empty_loops`
+  removed, so the deletion decisions are checked directly rather than
+  inferred from processor time.
 - F5: diagnosis refined; comment fixed. Not just an off-by-one: the lower
   bound of `x >>s 1` is `-2^62 = min_int`, and a fact `b + 2^62 >= 0`
   cannot be written with `int` affine constants, so
