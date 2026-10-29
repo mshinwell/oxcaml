@@ -29,11 +29,13 @@
 
 (** Bypass every loop whose body does no observable work.
 
-    The analysis first rejects graphs larger than 2^32 blocks, graphs with any
-    trap-stack markers, and graphs whose exactly modeled operation families have
-    other than one result. This conservatively checks the whole graph, not only
-    code preceding a candidate loop. Opaque loads and calls outside loops are
-    still permitted.
+    The analysis first rejects graphs larger than 2^32 blocks and graphs in
+    which an exactly modeled operation family (integer constants, additions,
+    subtractions, comparisons, immediate shifts and or) has other than one
+    result, so that the proof's observation semantics has a rule for every
+    instruction of the graph. This conservatively checks the whole graph, not
+    only code preceding a candidate loop. Trap handlers, opaque loads and calls
+    outside loops are permitted.
 
     A loop is considered empty when:
     - the termination analysis (rocq/LoopTermination.v) reports [Terminates],

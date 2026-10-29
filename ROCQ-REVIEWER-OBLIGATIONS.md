@@ -182,30 +182,41 @@ Calls return through target parameters. This is a word-observation
 abstraction, not a full memory, call or vector semantics. Memory effects
 are unconstrained, not interpreted as no-ops.
 
-`DeleteEmptyLoops.graph_supported` enforces the prefix's syntactic coverage
-before running the analyses. It rejects the whole graph if any block contains
-`Push_trap` or `Pop_trap`, or if an exactly modeled operation family has other
-than one result. Opaque operations may have multiple results; ordinary loads,
-stores and calls remain permitted outside the loop. This is conservative:
-unsupported code elsewhere in the function also prevents deletion.
+Every instruction and terminator of the finished SSA has a `context_step`
+rule, so that every actual prefix reaching the header is represented:
+`Push_trap` and `Pop_trap` step without touching a register
+(`Context_trap_marker`; the trap stack is not a register observation, and
+mid-block operations never transfer control); an exactly modeled operation
+with one result steps exactly; any other `Op` steps opaquely; `Goto` and
+`Switch` step exactly; every other terminator steps opaquely to any of its
+`all_successors`, which include the exception handler of a `Call` or
+`Raise`. The one syntactic gap, an exactly modeled operation family with
+other than one result, is closed by `DeleteEmptyLoops.graph_supported`,
+which rejects the whole graph before running the analyses.
 
-Review this check against `context_step`, `modeled_operation` and the veneer.
-In the finished SSA builder, function entry has an empty trap stack; only
-Push/Pop modify it, and exception edges come from Call/Raise terminators.
-With trap markers excluded, no local handler can transfer control from a
-mid-block operation into the loop. An escaping exception does not produce a
-prefix reaching the header. The observation correspondence for normally
-completed opaque operations remains a review obligation, not a new assumed
-loop property. Full machine types and actual operation behavior still need
-the checks described above.
+Review this against `context_step`, `modeled_operation`,
+`context_instruction_supported` and the veneer. The observation
+correspondence for normally completed opaque operations remains a review
+obligation, not a new assumed loop property. Full machine types and actual
+operation behavior still need the checks described above. A register of
+vector type has no faithful word observation; read it as an arbitrary
+in-range word, which is harmless because no modeled operation reads such a
+register and no accepted loop writes one.
 
 The same gate enforces at most `2^32` supplied blocks using
 `OxCamlList.length_at_most`, which decrements only positive machine integers.
 `find_deletions_supported` proves both the mathematical size bound and the
-instruction coverage for every reported deletion. Together with distinct
+result-count coverage for every reported deletion. Together with distinct
 graph-local strict dominators, the size bound discharges affine atom-counter
 capacity. It is not a premise of `find_deletions_eligible`. Review the extracted
 limit literal and the guard's placement before the expensive analyses.
+
+The statements quantify over the type `block` without an `In blocks` guard
+in `control_edges` and `dominance_semantics`. Read `block` as the reachable
+blocks of the finished graph: `finish_graph` prunes unreachable blocks, no
+reachable block refers to one, and the pass only ever receives reachable
+blocks. (On a pruned block object `Block.dominates` would not even be
+defined.)
 
 ## 5. Review extraction and the trusted primitives
 
@@ -280,3 +291,44 @@ proved judgement as intended:
 These are implementation-review obligations, not missing Rocq proofs of the
 eligibility judgement. The judgement theorem is deliberately stated on the
 original graph; it does not model a post-rewrite graph or the reducer.
+
+### From `eligible_entry` to the rewritten function
+
+The theorem is per loop and per header entry. The step from it to "the
+rewritten function behaves like the original" is the standard liveness
+simulation, which is not in Rocq; it goes as follows, with `P` the original
+graph and `P'` the graph with the header's terminator replaced.
+
+Relate a state of `P` and a state of `P'` at the same program point when
+their register files agree on `live_at^P` of that point and everything
+else (memory, trap stack, current block and remaining instructions) is
+equal.
+
+- Every step other than the header's terminator is the same instruction or
+  terminator in both graphs. It reads only registers that are `live_at^P`
+  at its point (`Live_read`), so it writes the same values; a register
+  live after the step is either written by it, or not written and then
+  live before it (`Live_predecessor`). The relation is preserved.
+- At `(header, 0)`, `P` runs the loop to `enter exit exit_regs` and `P'`
+  takes `Goto exit` with its own `first_header_regs'`, which agrees with
+  `first_header_regs` on `live_at^P (header, 0)`. Since `exit` is a
+  successor of the header and has no parameters, nothing is defined at
+  `entry_point exit`, so `Live_predecessor` gives
+  `live_at^P (entry_point exit) ⊆ live_at^P (header, 0)`; with
+  `agree_on_live (entry_point exit) first_header_regs exit_regs` from
+  `eligible_entry`, the two states at `exit` are related. The loop writes
+  no memory and no trap marker (its instructions are whitelisted integer
+  operations and its terminators are `Goto`/`Switch`), so the other
+  components are equal too. `eligible_entry` also says `P` does not
+  diverge or get stuck in the loop, so `P'` loses no behaviour.
+- `P'` has a subset of `P`'s edges, so `live_at^{P'} ⊆ live_at^P` and the
+  relation is at least as strong as `P'` needs.
+
+Several reported loops are rewritten at once. They are pairwise disjoint
+as sets of blocks: two natural loops with distinct headers that share a
+block have one header inside the other's body (both headers dominate the
+shared block, so one dominates the other, and the dominated header reaches
+the other's back edge without passing through it), and then the inner
+loop's cycle lies in the outer body without its header, which
+`acyclic_except` rejects. The simulation above therefore applies to each
+loop independently.

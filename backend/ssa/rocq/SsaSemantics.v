@@ -112,16 +112,23 @@ Definition modeled_operation {A : Type} (op : operation) (args : list A)
   | _, _ => false
   end.
 
-(* SsaContext permits opaque Op effects, but not trap-stack markers.
-   Its exact operation families must have their evaluator's single result.
-   Checking the whole graph covers every prefix, not only dominators. *)
+(* The trap-stack markers, which SsaContext.v steps over without touching
+   any register. *)
+Definition is_trap_marker (insn : instr) : bool :=
+  match insn with
+  | Push_trap | Pop_trap => true
+  | Op _ _ _ _ => false
+  end.
+
+(* SsaContext.v has a rule for every instruction except an exactly modeled
+   operation family with other than its evaluator's single result. Checking
+   the whole graph covers every prefix, not only dominators. *)
 Definition context_instruction_supported (insn : instr) : bool :=
   match insn with
   | Op _ (Const_int _ | Intop (Iadd | Isub | Icomp _)
           | Intop_imm (Iadd | Isub | Icomp _ | Ior | Ilsl | Iasr | Ilsr) _)
       _ count => (count =? one)%sint63
-  | Op _ _ _ _ => true
-  | Push_trap | Pop_trap => false
+  | Op _ _ _ _ | Push_trap | Pop_trap => true
   end.
 
 (* Operations compute on values read from the current environment. These

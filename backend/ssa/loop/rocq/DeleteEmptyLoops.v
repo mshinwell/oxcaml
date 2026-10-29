@@ -12,8 +12,8 @@
    (3) stepping-stone lemmas, (4) the theorems. Review parts 1 and 2 and
    the theorem statements; Rocq checks the proofs.
 
-   The global applicability gate checks graph size and excludes trap
-   markers and incompatible result counts in surrounding code.
+   The global applicability gate checks graph size and excludes
+   incompatible result counts of modeled operations in surrounding code.
    [find_deletions_supported] reads these checks back; graph size is not
    assumed by the public eligibility theorem.
 
@@ -22,8 +22,8 @@
    branch is the simple one LoopTermination.v recognises, with an exit
    target that takes no arguments; the termination analysis has returned
    [Terminates], and the body without the header has a well-founded
-   successor relation ([SsaGraph.acyclic_region]); each header parameter is a
-   induction variable (InductionVar.v) that is dead in the sense of
+   successor relation ([SsaGraph.acyclic_region]); each header parameter is
+   a basic induction variable (InductionVar.v) that is dead in the sense of
    DeadInductionVar.v; every block of its body has only whitelisted integer
    instructions and a [Goto] or [Switch] terminator; and all edges leaving
    the body go to that exit target. These are analysis certificates, not
@@ -225,27 +225,26 @@ Qed.
 
 (* Every reported deletion passed both applicability checks. This removes
    graph size as a premise of the public eligibility theorem and enforces
-   the syntactic coverage of the unchanged-prefix observation semantics. *)
+   the syntactic coverage of the unchanged-prefix observation semantics:
+   every exactly modeled operation in the graph has one result, so
+   SsaContext.v has a rule for every instruction of every prefix. *)
 Theorem find_deletions_supported :
   forall (defs : op_def) (blocks : list block) (header exit : block),
   In (header, exit) (find_deletions defs blocks) ->
   graph_size_supported blocks /\
-  forall (b : block) (insn : instr), In b blocks ->
-    In insn (block_body b) ->
-    match insn with
-    | Op _ op args count => modeled_operation op args = true -> count = one
-    | Push_trap | Pop_trap => False
-    end.
+  forall (b : block) (id : instr_id) (op : operation) (args : list value)
+    (count : int),
+    In b blocks -> In (Op id op args count) (block_body b) ->
+    modeled_operation op args = true -> count = one.
 Proof.
   intros defs blocks header exit Hin. unfold find_deletions in Hin.
   destruct (graph_supported blocks) eqn:Hcheck; [ | contradiction].
   unfold graph_supported in Hcheck. apply andb_true_iff in Hcheck.
   destruct Hcheck as [Hsize Hprefix]. split.
   - apply length_at_most_spec in Hsize. exact Hsize.
-  - intros b insn Hb Hinsn. rewrite forallb_forall in Hprefix.
+  - intros b id op args count Hb Hinsn. rewrite forallb_forall in Hprefix.
     specialize (Hprefix b Hb). rewrite forallb_forall in Hprefix.
-    specialize (Hprefix insn Hinsn).
-    destruct insn as [id op args count | |]; try discriminate.
+    specialize (Hprefix _ Hinsn).
     intros Hmodeled. destruct op;
       cbn [context_instruction_supported modeled_operation] in *;
       try discriminate; try (apply eqb_int; exact Hprefix).

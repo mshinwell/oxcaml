@@ -11,14 +11,23 @@
    This is an overapproximation, including nondeterministic opaque
    outputs, not a concrete semantics of calls, memory or vector values.
    Exact equations are derived only for [modeled_operation] results.
-   Trap-stack markers and exceptional transfers from mid-block operations
-   are not represented. DeleteEmptyLoops.graph_supported rejects graphs
-   with trap markers or incompatible result counts for modeled operations.
-   With no local handler, an escaping exception cannot reach the header.
-   Call transfers follow actual CFG successors. Nothing here is extracted. *)
+   [Push_trap] and [Pop_trap] change the trap stack, which no register
+   observes, so they step without changing any register; exceptional
+   transfers happen at Call and Raise terminators, whose handler is among
+   [all_successors], and are therefore opaque transfers like any other.
+   Mid-block operations never transfer control in this SSA.
+   DeleteEmptyLoops.graph_supported rejects graphs where an exactly
+   modeled operation family has other than one result, so that every
+   prefix instruction has a rule here.
+
+   Registers hold a word observation, [option Z] within [in_int64]. A
+   register of vector type has no faithful such observation; read it as
+   an arbitrary in-range word. No modeled operation reads such a register
+   and no accepted loop writes one, so nothing concluded depends on it.
+   Nothing here is extracted. *)
 
 From Stdlib Require Import ZArith Lia List Classical_Prop.
-From OxCamlStdlib Require Import OxCamlInt OxCamlInt64.
+From OxCamlStdlib Require Import OxCamlInt OxCamlInt64 OxCamlList.
 From OxCamlBackend Require Import Operation.
 From OxCamlSsa Require Import SsaModel SsaGraph SsaDominance SsaSemantics
   SsaExecution SsaLiveness SsaProgress.
@@ -59,7 +68,14 @@ Inductive context_step : state -> state -> Prop :=
       context_step
         {| current_block := source; remaining := [];
            current_registers := before |}
-        (enter target after).
+        (enter target after)
+  | Context_trap_marker : forall (b : block) (marker : instr)
+      (rest : list instr) (regs : registers),
+      is_trap_marker marker = true ->
+      context_step
+        {| current_block := b; remaining := marker :: rest;
+           current_registers := regs |}
+        {| current_block := b; remaining := rest; current_registers := regs |}.
 
 Inductive context_steps : state -> state -> Prop :=
   | Context_refl : forall (s : state), context_steps s s
@@ -94,6 +110,40 @@ Proof.
     exists (prefix ++ [Op id op args count]).
     cbn in *. rewrite Hbody, <- app_assoc. reflexivity.
   - apply enter_valid_position.
+  - destruct Hposition as [prefix Hbody].
+    exists (prefix ++ [marker]).
+    cbn in *. rewrite Hbody, <- app_assoc. reflexivity.
+Qed.
+
+(* A trap marker occupies an instruction position but defines nothing: no
+   result site coincides with the position after it. *)
+Lemma trap_marker_no_result : forall (b : block) (marker : instr)
+    (rest : list instr) (regs : registers) (id : instr_id) (op : operation)
+    (args : list value) (count : int),
+  is_trap_marker marker = true ->
+  valid_position
+    {| current_block := b; remaining := marker :: rest;
+       current_registers := regs |} ->
+  ~ result_definition id op args count (b, length rest).
+Proof.
+  intros b marker rest regs id op args count Hmarker [prefix Hbody]
+    [prefix' [suffix [Hbody' Hlength]]].
+  cbn in *. rewrite Hbody in Hbody'.
+  pose proof (same_position_element _ _ _ _ _ _ _ Hbody' Hlength) as Heq.
+  subst marker. discriminate.
+Qed.
+
+(* Nor can the position after a trap marker be a block entry. *)
+Lemma trap_marker_not_entry : forall (b : block) (marker : instr)
+    (rest : list instr) (regs : registers) (target : block),
+  valid_position
+    {| current_block := b; remaining := marker :: rest;
+       current_registers := regs |} ->
+  (b, length rest) <> entry_point target.
+Proof.
+  intros b marker rest regs target [prefix Hbody] Hentry.
+  unfold entry_point in Hentry. injection Hentry as <- Hlength.
+  cbn in Hbody. rewrite Hbody, length_app in Hlength. cbn in Hlength. lia.
 Qed.
 
 Lemma context_step_point_edge : control_edges -> forall (before after : state),
@@ -106,6 +156,9 @@ Proof.
     destruct Hposition as [prefix Hbody]. cbn in Hbody.
     rewrite Hbody, length_app. cbn. lia.
   - constructor. exact H0.
+  - unfold state_point. cbn. constructor.
+    destruct Hposition as [prefix Hbody]. cbn in Hbody.
+    rewrite Hbody, length_app. cbn. lia.
 Qed.
 
 Lemma context_step_in_graph : control_edges -> forall (blocks : list block)
@@ -117,6 +170,7 @@ Proof.
   - eapply step_in_graph; eassumption.
   - exact Hin.
   - eapply graph_successors_closed; eassumption.
+  - exact Hin.
 Qed.
 
 (* Arbitrary opaque outputs are still machine-word observations. *)
@@ -140,6 +194,7 @@ Proof.
   - eapply step_bounded; eassumption.
   - eapply opaque_outputs_bounded; eassumption.
   - eapply opaque_outputs_bounded; eassumption.
+  - exact Hbounded.
 Qed.
 
 (* The definition-site frame theorem also holds across opaque effects.
@@ -173,6 +228,7 @@ Proof.
     destruct v as [id op args result_index | b index']; cbn in Hreg;
       [discriminate |]. injection Hreg as -> ->.
     destruct Hdefinition as [Hentry Hparam]. apply Hneq. exact Hentry.
+  - reflexivity.
 Qed.
 
 (* A modeled result newly available after a context step must have been
@@ -196,6 +252,8 @@ Proof.
     injection Heq as -> -> -> ->. congruence.
   - destruct Hdefinition as [count [Hdefinition Hindex]].
     exfalso. eapply result_definition_not_entry. exact Hdefinition.
+  - destruct Hdefinition as [count [Hdefinition Hindex]].
+    exfalso. eapply trap_marker_no_result; eassumption.
 Qed.
 
 (* Available operands of a modeled result are unchanged by an incoming
@@ -312,6 +370,12 @@ Proof.
       { apply in_map. eapply OxCamlList.nth_int_In. exact Hparam. }
       destruct (proj2 H1 _ Hin_param) as [word [Hbounded Hword]].
       exists word. exact Hword.
+  - destruct Hdefinition as [v [Hdefinition <-]].
+    destruct v as [id op args index | parameter_block index].
+    + destruct Hdefinition as [count [Hdefinition Hindex]].
+      exfalso. eapply trap_marker_no_result; eassumption.
+    + destruct Hdefinition as [Hentry Hparam].
+      exfalso. eapply trap_marker_not_entry; eassumption.
 Qed.
 
 (* Live-register definedness holds across the context overapproximation;

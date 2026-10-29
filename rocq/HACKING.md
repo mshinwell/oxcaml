@@ -28,14 +28,17 @@ for computations before the loop. `SsaContext.v` overapproximates word
 observations in the unchanged prefix: opaque instructions can produce
 arbitrary bounded outputs, and opaque terminators can take CFG successors
 with arbitrary parameter values. Memory effects are unconstrained, not
-no-ops. The extracted `graph_supported` gate rejects any graph containing
-trap markers or modeled operation families with other than one result.
-It checks every block, so unsupported code even after or beside the loop
-prevents deletion. With no local trap handlers, an escaping mid-block
-exception cannot supply a prefix reaching the header. Opaque loads and
-calls are still allowed. This avoids a full memory/call/vector semantics;
-the correspondence of word observations to compiler operations remains a
-review boundary.
+no-ops. Trap markers step without touching a register, and the exception
+handler of a Call or Raise is one of its successors, so a prefix through
+a `try` is represented like any other. The extracted `graph_supported`
+gate rejects any graph containing a modeled operation family with other
+than one result, the one instruction shape with no rule; it checks every
+block, so such code even after or beside the loop prevents deletion.
+Opaque loads and calls are allowed. This avoids a full memory/call/vector
+semantics; the correspondence of word observations to compiler operations
+remains a review boundary. The simulation argument from `eligible_entry`
+to the rewritten function is written out in ROCQ-REVIEWER-OBLIGATIONS.md
+(section 7).
 
 `SsaExecution.v` supplies definition-site and frame facts; `SsaContext.v`
 proves available-value equations and execution invariants once for both

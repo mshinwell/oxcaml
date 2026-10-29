@@ -97,6 +97,6 @@ let context_instruction_supported insn =
         | Operation.Icomp _ -> Int.equal count 1
         | _ -> true)
       | _ -> true)
-    (fun _ -> false)
-    (fun _ -> false)
+    (fun _ -> true)
+    (fun _ -> true)
     insn

@@ -48,7 +48,17 @@ Inductive bound : Type :=
 (* Whether the bound is in the range part 2 of LoopComparisons.v asks for:
    for a constant, by comparison; for a value, by asking whether the facts
    holding at the header (AffineSsa.v) entail it; [false] when an affine
-   form overflows. *)
+   form overflows.
+
+   A literal bound is an [int], so [k <= max_int] always holds and
+   [- max_int <= k] fails only for [min_int]: for literal bounds the whole
+   argument is in [continue_terminates]. A register bound needs the facts
+   to pin it within [[- max_int, max_int]]; the affine constants are
+   [int]s too, so a fact such as [b + 2^62 >= 0] cannot be written, and
+   the lower bound of an arithmetic shift by one bit ([>>s 1], the shape
+   of an untagged bound) is not available (AffineExpr.shr_range_facts).
+   This is why a [downto] loop with such a bound is not deleted while the
+   corresponding [to] loop is. *)
 Definition bound_in_range (step : int) (header : block) (bound : bound)
     : bool :=
   match bound with

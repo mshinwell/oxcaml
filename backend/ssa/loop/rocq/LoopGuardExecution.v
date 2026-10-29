@@ -172,6 +172,7 @@ Section Execution.
       apply (proj2 (predecessor_successor edges _ _)) in H0.
       rewrite Htarget, Hpreds in H0. destruct H0 as [<- | []].
       rewrite Hterm in H. discriminate.
+    - exfalso. eapply trap_marker_not_entry; eassumption.
   Qed.
 
   (* A guard's result cannot be redefined while its selected successor

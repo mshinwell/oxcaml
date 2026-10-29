@@ -194,6 +194,166 @@ let register_bound_loop ~step ~guard ~duplicate_targets =
     (Continue { continuation = Return; args = [| Arg result |] });
   Ssa.finish_graph graph
 
+(* Further loop shapes: how the header is entered, what its exit test is, what
+   its instructions compute, and how the loop relates to others. Each builds a
+   graph whose loop counts from zero towards ten by one unless said otherwise,
+   and returns the graph with the number of loops the pass must delete from it.
+   Only the analysis is exercised: deleting the loop must preserve the program,
+   and these graphs are not run. *)
+module Shape = struct
+  let ret v : _ Terminator.t =
+    Continue { continuation = Return; args = [| Arg v |] }
+
+  let const graph cursor n = emit graph cursor (Const_int n) [||]
+
+  (* The loop [header -> latch -> header], exiting from the header to [exit]
+     when the counter reaches [limit] with the test [cmp]; the header's
+     parameter is the counter. [step] is the latch's increment. *)
+  let counted_loop ?(cmp = Cmm.Clt) ?(limit = 10) ?(step = 1) graph ~header
+      ~latch ~exit =
+    let cursor = Cursor.start header in
+    let i = Block.param header 0 in
+    let cond = emit graph cursor (Intop_imm (Icomp cmp, limit)) [| i |] in
+    finish graph cursor (Switch { index = cond; targets = [| exit; latch |] });
+    let cursor = Cursor.start latch in
+    let next = emit graph cursor (Intop_imm (Iadd, step)) [| i |] in
+    finish graph cursor (goto header [| next |])
+
+  let return_const graph block n =
+    let cursor = Cursor.start block in
+    finish graph cursor (ret (const graph cursor n))
+
+  (* The header is entered from a [Call]'s continuation: the counter's initial
+     value is the call's result. Deleted. *)
+  let call_continuation_header () =
+    let graph = Ssa.create_graph function_info ~keep_unused_ops:false in
+    let header = block graph Cmm.typ_int in
+    let latch = block graph [||] and exit = block graph [||] in
+    finish graph
+      (Cursor.start (Ssa.entry graph))
+      (Call
+         { op = Direct (Cmm.global_symbol "f");
+           args = [||];
+           continuation = Goto header;
+           may_raise = false;
+           nontail = true
+         });
+    counted_loop graph ~header ~latch ~exit;
+    return_const graph exit 42n;
+    Ssa.finish_graph graph, 1
+
+  (* The exit test and its step: continuing while the counter equals the bound
+     terminates with any non-zero step ([Ceq]: deleted); an unsigned comparison,
+     a zero step and a [Sub min_int] step (whose negation is not an [int]) are
+     not recognised (kept). *)
+  let exit_test ~cmp ~limit ~step ~sub_min_int =
+    let graph = Ssa.create_graph function_info ~keep_unused_ops:false in
+    let header = block graph Cmm.typ_int in
+    let latch = block graph [||] and exit = block graph [||] in
+    let entry = Cursor.start (Ssa.entry graph) in
+    finish graph entry (goto header [| const graph entry 0n |]);
+    if sub_min_int
+    then begin
+      let cursor = Cursor.start header in
+      let i = Block.param header 0 in
+      let cond = emit graph cursor (Intop_imm (Icomp cmp, limit)) [| i |] in
+      finish graph cursor (Switch { index = cond; targets = [| latch; exit |] });
+      let cursor = Cursor.start latch in
+      let next = emit graph cursor (Intop_imm (Isub, Int.min_int)) [| i |] in
+      finish graph cursor (goto header [| next |])
+    end
+    else counted_loop graph ~cmp ~limit ~step ~header ~latch ~exit;
+    return_const graph exit 42n;
+    Ssa.finish_graph graph
+
+  (* A header instruction whose value is returned after the loop: computed from
+     a loop-invariant value, it is the same on every visit and the loop is
+     deleted; computed from the counter, it keeps the loop. *)
+  let header_value_live_out ~from_counter =
+    let graph = Ssa.create_graph function_info ~keep_unused_ops:false in
+    let header = block graph Cmm.typ_int in
+    let latch = block graph [||] and exit = block graph [||] in
+    let entry = Cursor.start (Ssa.entry graph) in
+    let zero = const graph entry 0n in
+    finish graph entry (goto header [| zero |]);
+    let cursor = Cursor.start header in
+    let i = Block.param header 0 in
+    let value =
+      emit graph cursor
+        (Intop_imm (Iadd, 5))
+        [| (if from_counter then i else zero) |]
+    in
+    let cond = emit graph cursor (Intop_imm (Icomp Cmm.Clt, 10)) [| i |] in
+    finish graph cursor (Switch { index = cond; targets = [| exit; latch |] });
+    let cursor = Cursor.start latch in
+    let next = emit graph cursor (Intop_imm (Iadd, 1)) [| i |] in
+    finish graph cursor (goto header [| next |]);
+    finish graph (Cursor.start exit) (ret value);
+    Ssa.finish_graph graph, if from_counter then 0 else 1
+
+  (* Two loops one after the other, the second counting down, sharing their exit
+     block. Both deleted. *)
+  let two_sequential_loops () =
+    let graph = Ssa.create_graph function_info ~keep_unused_ops:false in
+    let header1 = block graph Cmm.typ_int and latch1 = block graph [||] in
+    let header2 = block graph Cmm.typ_int and latch2 = block graph [||] in
+    let between = block graph [||] and exit = block graph [||] in
+    let entry = Cursor.start (Ssa.entry graph) in
+    let zero = const graph entry 0n in
+    finish graph entry (goto header1 [| zero |]);
+    counted_loop graph ~header:header1 ~latch:latch1 ~exit:between;
+    finish graph (Cursor.start between) (goto header2 [| zero |]);
+    counted_loop graph ~cmp:Cmm.Cgt ~limit:(-10) ~step:(-1) ~header:header2
+      ~latch:latch2 ~exit;
+    return_const graph exit 42n;
+    Ssa.finish_graph graph, 2
+
+  (* The first loop exits into the header of a second, parameterless loop whose
+     test is loop-invariant. The first is deleted; the second has no induction
+     variable to show it terminates and is kept. *)
+  let exit_into_loop_header () =
+    let graph = Ssa.create_graph function_info ~keep_unused_ops:false in
+    let header1 = block graph Cmm.typ_int and latch1 = block graph [||] in
+    let header2 = block graph [||] and latch2 = block graph [||] in
+    let exit = block graph [||] in
+    let entry = Cursor.start (Ssa.entry graph) in
+    let zero = const graph entry 0n in
+    let flag = const graph entry 1n in
+    finish graph entry (goto header1 [| zero |]);
+    counted_loop graph ~header:header1 ~latch:latch1 ~exit:header2;
+    finish graph (Cursor.start header2)
+      (Switch { index = flag; targets = [| exit; latch2 |] });
+    finish graph (Cursor.start latch2) (goto header2 [||]);
+    return_const graph exit 42n;
+    Ssa.finish_graph graph, 1
+
+  (* The header's exit edge goes to a parameterless block that passes a
+     header-computed constant on to a block with a parameter. The parameterless
+     block is the exit target, so the loop is deleted. *)
+  let exit_through_trampoline () =
+    let graph = Ssa.create_graph function_info ~keep_unused_ops:false in
+    let header = block graph Cmm.typ_int in
+    let latch = block graph [||] in
+    let trampoline = block graph [||] in
+    let final = block graph Cmm.typ_int in
+    let entry = Cursor.start (Ssa.entry graph) in
+    finish graph entry (goto header [| const graph entry 0n |]);
+    let cursor = Cursor.start header in
+    let i = Block.param header 0 in
+    let k = const graph cursor 7n in
+    let cond = emit graph cursor (Intop_imm (Icomp Cmm.Clt, 10)) [| i |] in
+    finish graph cursor
+      (Switch { index = cond; targets = [| trampoline; latch |] });
+    let cursor = Cursor.start latch in
+    let next = emit graph cursor (Intop_imm (Iadd, 1)) [| i |] in
+    finish graph cursor (goto header [| next |]);
+    finish graph (Cursor.start trampoline) (goto final [| k |]);
+    finish graph (Cursor.start final) (ret (Block.param final 0));
+    Ssa.finish_graph graph, 1
+end
+
+let check_shape (graph, expected) = check_deletions graph expected
+
 let graph_with_result build =
   let graph = Ssa.create_graph function_info ~keep_unused_ops:false in
   let cursor = Cursor.start (Ssa.entry graph) in
@@ -232,9 +392,11 @@ let () =
     [Header; Latch];
   check_extra Before_loop (load ~is_atomic:false) 1;
   check_deletions (loop ~prefix:Opaque_call Straight) 1;
+  (* A trap handler set up around the loop is stepped over by the observation
+     semantics (SsaContext.v), so it does not prevent deletion. *)
   let trapped = loop ~prefix:Trap_handler Straight in
-  assert (not (DeleteEmptyLoops.graph_supported (Ssa.blocks trapped)));
-  check_deletions trapped 0;
+  assert (DeleteEmptyLoops.graph_supported (Ssa.blocks trapped));
+  check_deletions trapped 1;
   check_extra ~extra_type:[||] Before_loop (Const_int 0n) 0;
   check_extra ~extra_type:[| Cmm.Int; Cmm.Int |] Before_loop (Const_int 0n) 0;
   (* Exercise the bounded walk at a small boundary rather than allocate billions
@@ -259,6 +421,24 @@ let () =
       -2, None, false, 0;
       -2, Some (Cmm.Clt, -10), false, 0;
       -2, Some (Cmm.Cge, -10), true, 0 ];
+  check_shape (Shape.call_continuation_header ());
+  check_deletions
+    (Shape.exit_test ~cmp:Cmm.Ceq ~limit:0 ~step:1 ~sub_min_int:false)
+    1;
+  check_deletions
+    (Shape.exit_test ~cmp:Cmm.Cult ~limit:10 ~step:1 ~sub_min_int:false)
+    0;
+  check_deletions
+    (Shape.exit_test ~cmp:Cmm.Clt ~limit:10 ~step:0 ~sub_min_int:false)
+    0;
+  check_deletions
+    (Shape.exit_test ~cmp:Cmm.Cge ~limit:10 ~step:0 ~sub_min_int:true)
+    0;
+  check_shape (Shape.header_value_live_out ~from_counter:false);
+  check_shape (Shape.header_value_live_out ~from_counter:true);
+  check_shape (Shape.two_sequential_loops ());
+  check_shape (Shape.exit_into_loop_header ());
+  check_shape (Shape.exit_through_trampoline ());
   (* Ordinary small expressions must still be expanded, not all atomized. *)
   let small =
     graph_with_result (fun emit ->

@@ -20,7 +20,14 @@
    axioms below say only how the equalities and the block sets behave,
    which is what [Ssa.Block.equal] (identity of blocks), [Ssa.Value.equal]
    (identity of values) and [Ssa.Block.Set] (sets ordered by block id)
-   provide. *)
+   provide.
+
+   [block] stands for the reachable blocks of one finished graph, the only
+   ones the pass receives: [finish_graph] prunes the unreachable ones, no
+   reachable block refers to them, and the compiler's [dominates] is not
+   even defined on them. Hypotheses that quantify over every [block]
+   without an [In blocks] guard, such as [SsaGraph.control_edges], are to
+   be read with this universe. *)
 
 From Stdlib Require Import ZArith Bool List.
 From OxCamlStdlib Require Import OxCamlInt OxCamlInt64.

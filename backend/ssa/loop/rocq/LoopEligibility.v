@@ -23,7 +23,14 @@
    Neither introduces semantic axioms.
 
    No post-deletion graph, renaming or pruning is modelled here, and
-   eligibility is not assumed as a compiler contract. Nothing is extracted. *)
+   eligibility is not assumed as a compiler contract. The step from
+   [eligible_entry], per loop and per header entry, to the rewritten
+   function behaving like the original is the usual liveness simulation;
+   it is written out in ROCQ-REVIEWER-OBLIGATIONS.md, section 7. Its one
+   non-obvious point: a register live at the exit's entry is live at the
+   header's terminator, because the exit is a successor of the header and
+   has no parameters, so nothing is defined on entering it. Nothing is
+   extracted. *)
 
 From Stdlib Require Import List Bool.
 From OxCamlSsa Require Import SsaModel SsaGraph SsaDominance SsaSemantics
