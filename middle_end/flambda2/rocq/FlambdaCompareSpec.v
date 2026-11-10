@@ -39,6 +39,16 @@
    slots must be the same. Code is compared as closed: only its own
    parameters, [my_closure] and continuations are paired.
 
+   CR mshinwell: Code ids must be the same on the two sides, but Simplify
+   gives a new id to each new version of a piece of code. The test tool
+   gets round this where it can, by giving the new id the number of the
+   old (flsemantics.ml). That will most likely not be enough: the
+   comparison should carry pairs of code ids as it does pairs of
+   variables. Closure values hold code ids, so the values of the two runs
+   would then be related and not equal, the primitives would have to be
+   assumed to respect that relation, and equivalence would be up to code
+   ids.
+
    It is sound: expressions it says are the same are equivalent
    ([expr_eqb_sound_statement]). It is not said to be complete, and it is
    not: it does not reorder the bindings of a group, for one.

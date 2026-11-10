@@ -70,4 +70,5 @@ Extract Constant prim_eqb => "(fun p p' -> !Prim_hook.prim_eqb p p')".
 Set Extraction Output Directory ".".
 
 Separate Extraction step run kind_of_const empty_static_env expr_eqb
-  inline_calls remove_unused_lets follow_aliases.
+  inline_calls inline_tail_conts remove_unused_lets drop_deleted_code
+  follow_aliases.

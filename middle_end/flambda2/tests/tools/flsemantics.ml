@@ -282,6 +282,12 @@ let convert_apply_cont (ac : Apply_cont_expr.t) : Model.apply_cont =
 let convert_params (params : Bound_parameters.t) =
   List.map Variables.find (Bound_parameters.vars params)
 
+(* The code that is a newer version of other code, with that code, and the code
+   that is bound as deleted, noted as a unit is converted. *)
+let newer_versions : (Code_id.t * Code_id.t) list ref = ref []
+
+let deleted_code : Code_id.t list ref = ref []
+
 let rec convert_expr (e : Flambda.Expr.t) : Model.expr =
   match Flambda.Expr.descr e with
   | Let let_expr ->
@@ -349,8 +355,12 @@ and convert_let (pattern : Bound_pattern.t) (defining_expr : Flambda.Named.t)
       Flambda.Static_const_group.match_against_bound_static group bound_static
         ~init:[]
         ~code:(fun bindings code_id code ->
+          (match Code0.newer_version_of code with
+          | Some older -> newer_versions := (code_id, older) :: !newer_versions
+          | None -> ());
           Model.Bind_code (Code_ids.find code_id, convert_code code) :: bindings)
         ~deleted_code:(fun bindings code_id ->
+          deleted_code := code_id :: !deleted_code;
           Model.Bind_deleted_code (Code_ids.find code_id) :: bindings)
         ~set_of_closures:(fun bindings ~closure_symbols set ->
           match Function_slot.Lmap.bindings closure_symbols with
@@ -581,9 +591,54 @@ let run (unit : converted) : outcome * int =
 
 (* ---- The check -------------------------------------------------------- *)
 
+(* Whether a code id is used: called, made a closure of, or bound to code. Being
+   bound as deleted is not a use. *)
+let rec code_id_used (id : Model.code_id) (e : Model.expr) =
+  let in_handler (Model.Handler (_, handler)) = code_id_used id handler in
+  let in_binding (binding : Model.static_binding) =
+    match binding with
+    | Bind_code (bound, Code (_, _, _, _, body)) ->
+      bound = id || code_id_used id body
+    | Bind_deleted_code _ -> false
+    | Bind_symbol (_, Static_const_set_of_closures (code, _)) -> code = id
+    | Bind_symbol
+        ( _,
+          ( Static_const_block _ | Static_const_boxed_number _
+          | Static_const_immutable_string _ ) ) ->
+      false
+  in
+  match e with
+  | Let (_, Set_of_closures (code, _), body) ->
+    code = id || code_id_used id body
+  | Let (_, (Simple _ | Prim _ | Project_value_slot _), body) ->
+    code_id_used id body
+  | Let_static (bindings, body) ->
+    List.exists in_binding bindings || code_id_used id body
+  | Let_cont_non_recursive (_, handler, body) ->
+    in_handler handler || code_id_used id body
+  | Let_cont_recursive (handlers, body) ->
+    List.exists (fun (_, handler) -> in_handler handler) handlers
+    || code_id_used id body
+  | Apply { ap_call_kind = Direct code; _ } -> code = id
+  | Apply { ap_call_kind = Indirect; _ } | Apply_cont _ | Switch _ | Invalid ->
+    false
+
 (* The two units are converted with one numbering of names, the continuations of
    the second unit standing for those of the first, so that the verified
-   comparison can be made of the two bodies as they are. *)
+   comparison can be made of the two bodies as they are.
+
+   Simplify gives a new code id to each new version of a piece of code, and
+   binds the old one as deleted. The comparison wants code ids to be the same,
+   so the new id is given the number of the old where that changes nothing:
+   where the unit after binds the old one as deleted and does not otherwise use
+   it. The unit after is converted once to find that out, and again with the
+   numbers settled.
+
+   CR mshinwell: This identification is part of what is trusted, and will most
+   likely not be enough: it does nothing for code that has no older version, or
+   whose older version is still used. The comparison should relate code ids
+   itself; see the CR in middle_end/flambda2/rocq/FlambdaCompareSpec.v for what
+   that takes. *)
 let convert_both (before : Flambda_unit.t) (after : Flambda_unit.t) =
   let before_converted = convert_unit before in
   Continuations.alias
@@ -592,6 +647,16 @@ let convert_both (before : Flambda_unit.t) (after : Flambda_unit.t) =
   Continuations.alias
     (Flambda_unit.exn_continuation after)
     ~same_as:(Flambda_unit.exn_continuation before);
+  newer_versions := [];
+  deleted_code := [];
+  let first_pass = convert_unit after in
+  List.iter
+    (fun (newer, older) ->
+      if
+        List.exists (Code_id.equal older) !deleted_code
+        && not (code_id_used (Code_ids.find older) first_pass.body)
+      then Code_ids.alias newer ~same_as:older)
+    !newer_versions;
   before_converted, convert_unit after
 
 let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
@@ -620,19 +685,24 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
     Format.printf "  %s@." verdict;
     (* What the test above shows of one run, this shows of all. The term before
        is normalised by rewrites proved to refine it: calls of known code are
-       inlined and unused bindings removed (FlambdaNormaliseSpec.v), and aliases
+       inlined, a continuation applied once at the end of its scope is put
+       there, and unused bindings are removed (FlambdaNormaliseSpec.v); aliases
        are followed (FlambdaAliasesSpec.v). The term after may only be rewritten
-       to what is equivalent, so only its aliases are followed. The two are then
-       the same up to bound names, which is proved to make them equivalent
-       (FlambdaCompareSpec.v). *)
+       to what is equivalent: its aliases are followed and its bindings of
+       deleted code dropped. The two are then the same up to bound names, which
+       is proved to make them equivalent (FlambdaCompareSpec.v). *)
     let inlined = Normalise.inline_calls [] before.body in
     Format.printf
       "  calls outside code once those of known code are inlined: %d@."
       (calls_outside_code inlined);
     let normalised_before =
-      Normalise.remove_unused_lets (Aliases.follow_aliases [] inlined)
+      Normalise.drop_deleted_code
+        (Normalise.remove_unused_lets
+           (Aliases.follow_aliases [] (Normalise.inline_tail_conts inlined)))
     in
-    let normalised_after = Aliases.follow_aliases [] after.body in
+    let normalised_after =
+      Normalise.drop_deleted_code (Aliases.follow_aliases [] after.body)
+    in
     Format.printf "  %s@."
       (if Compare.expr_eqb [] [] before.body after.body
        then "validated: the same up to bound names"

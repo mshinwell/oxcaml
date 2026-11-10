@@ -53,6 +53,16 @@
    condition, by its soundness (in the Proofs file); nothing is claimed
    where it answers no.
 
+   [inline_tail_conts], for the term before, puts the handler of a
+   non-recursive continuation where the continuation is applied, when that
+   is at the end of a run of [Let]s that is the body of its [Let_cont]:
+   the continuation is then applied exactly once. The parameters become
+   [Let]s. It is what inlining a call leaves to be done, the continuation
+   of the call being applied at the end of the inlined body.
+
+   [drop_deleted_code], for either term, removes the bindings of deleted
+   code, which bind nothing, and a [Let_static] left with no binding.
+
    [remove_unused_lets], also for the term before, removes each [Let] whose
    variable is not free in its body, in bodies and in the handlers of
    non-recursive continuations. [var_free_b] is the test; it may say that
@@ -294,3 +304,85 @@ with remove_unused_lets_in_handler (h : continuation_handler)
 
 Definition remove_unused_lets_refines_statement : Prop :=
   ∀ e : expr, expr_refines e (remove_unused_lets e).
+
+(* ======================================================================== *)
+(* A continuation applied once, at the end of its scope                     *)
+(* ======================================================================== *)
+
+(* [body] with the handler in place of the application of [k] that ends
+   it, if it is a run of [Let]s ending so, none of which binds a variable
+   of the handler. *)
+Fixpoint inline_cont_at_tail (k : continuation) (params : list variable)
+    (handler : expr) (body : expr) : option expr :=
+  match body with
+  | Let x d body =>
+    if var_free_in_handler_b x (Handler params handler)
+    then None
+    else option_map (Let x d) (inline_cont_at_tail k params handler body)
+  | Let_static bindings body =>
+    option_map (Let_static bindings)
+      (inline_cont_at_tail k params handler body)
+  | Apply_cont ac =>
+    if Pos.eqb (ac_continuation ac) k
+       && Nat.eqb (length params) (length (ac_args ac))
+       && forallb (fun param => negb (var_in_simples param (ac_args ac)))
+            params
+    then Some (let_params params (ac_args ac) handler)
+    else None
+  | Let_cont_non_recursive _ _ _ | Let_cont_recursive _ _ | Apply _
+  | Switch _ _ | Invalid =>
+    None
+  end.
+
+Fixpoint inline_tail_conts (e : expr) : expr :=
+  match e with
+  | Let x d body => Let x d (inline_tail_conts body)
+  | Let_static bindings body => Let_static bindings (inline_tail_conts body)
+  | Let_cont_non_recursive k (Handler params handler) body =>
+    let handler' := inline_tail_conts handler in
+    let body' := inline_tail_conts body in
+    match inline_cont_at_tail k params handler' body' with
+    | Some inlined => inlined
+    | None => Let_cont_non_recursive k (Handler params handler') body'
+    end
+  | Let_cont_recursive handlers body =>
+    Let_cont_recursive handlers (inline_tail_conts body)
+  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => e
+  end.
+
+Definition inline_tail_conts_refines_statement : Prop :=
+  ∀ e : expr, expr_refines e (inline_tail_conts e).
+
+(* ======================================================================== *)
+(* Bindings of deleted code                                                 *)
+(* ======================================================================== *)
+
+Definition binds_something (binding : static_binding) : bool :=
+  match binding with
+  | Bind_deleted_code _ => false
+  | Bind_code _ _ | Bind_symbol _ _ => true
+  end.
+
+Definition let_static_if_any (bindings : list static_binding) (body : expr)
+    : expr :=
+  match bindings with
+  | [] => body
+  | _ :: _ => Let_static bindings body
+  end.
+
+Fixpoint drop_deleted_code (e : expr) : expr :=
+  match e with
+  | Let x d body => Let x d (drop_deleted_code body)
+  | Let_static bindings body =>
+    let_static_if_any (filter binds_something bindings)
+      (drop_deleted_code body)
+  | Let_cont_non_recursive k (Handler params handler) body =>
+    Let_cont_non_recursive k (Handler params (drop_deleted_code handler))
+      (drop_deleted_code body)
+  | Let_cont_recursive handlers body =>
+    Let_cont_recursive handlers (drop_deleted_code body)
+  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => e
+  end.
+
+Definition drop_deleted_code_equivalent_statement : Prop :=
+  ∀ e : expr, expr_equivalent e (drop_deleted_code e).

@@ -56,3 +56,14 @@ val var_free_in_handler_b : variable -> continuation_handler -> bool
 val remove_unused_lets : expr -> expr
 
 val remove_unused_lets_in_handler : continuation_handler -> continuation_handler
+
+val inline_cont_at_tail :
+  continuation -> variable list -> expr -> expr -> expr option
+
+val inline_tail_conts : expr -> expr
+
+val binds_something : static_binding -> bool
+
+val let_static_if_any : static_binding list -> expr -> expr
+
+val drop_deleted_code : expr -> expr

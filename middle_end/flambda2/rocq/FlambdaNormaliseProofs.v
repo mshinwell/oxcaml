@@ -508,3 +508,259 @@ Qed.
 
 Theorem remove_unused_lets_refines : remove_unused_lets_refines_statement.
 Proof. exact remove_unused_lets_refines_aux. Qed.
+
+(* ======================================================================== *)
+(* A continuation applied once, at the end of its scope                     *)
+(* ======================================================================== *)
+
+Lemma bind_params_defined (params : list variable) :
+  ∀ (vs : list value) (vars vars' bound : env),
+    bind_params params vs vars = Some bound ->
+    ∃ bound' : env, bind_params params vs vars' = Some bound'.
+Proof.
+  induction params as [ | p params IH]; intros [ | v vs] vars vars' bound;
+    simpl; try discriminate; [ eauto | ].
+  apply IH.
+Qed.
+
+(* Binding the same parameters under environments that agree at a variable
+   gives environments that agree at it; and at every parameter. *)
+Lemma bind_params_agree (params : list variable) :
+  ∀ (vs : list value) (vars vars' bound bound' : env),
+    bind_params params vs vars = Some bound ->
+    bind_params params vs vars' = Some bound' ->
+    ∀ x : variable,
+      x ∈ params ∨ lookup x vars' = lookup x vars ->
+      lookup x bound' = lookup x bound.
+Proof.
+  induction params as [ | p params IH];
+    intros [ | v vs] vars vars' bound bound'; simpl; try discriminate.
+  - intros [= <-] [= <-] x [[] | Hagree]. exact Hagree.
+  - intros Hbind Hbind' x Hx. apply (IH vs _ _ _ _ Hbind Hbind'). simpl.
+    destruct (Pos.eqb_spec x p) as [-> | Hne]; [ right; reflexivity | ].
+    destruct Hx as [[Heq | Hin] | Hagree];
+      [ congruence | left; exact Hin | right; exact Hagree ].
+Qed.
+
+(* The body under the binding of [k], against the body with the handler in
+   place: the [Let]s run alike; then the one applies [k] and the other
+   binds the parameters and goes on, to the handler under environments
+   that agree on its free variables. *)
+Lemma inline_cont_at_tail_refines (k : continuation) (params : list variable)
+    (handler : expr) (body : expr) :
+  ∀ inlined : expr,
+    inline_cont_at_tail k params handler body = Some inlined ->
+    ∀ (vars def_vars : env) (conts : cont_env) (statics : static_env),
+      (∀ x : variable,
+        var_free_in_handler x (Handler params handler) ->
+        lookup x vars = lookup x def_vars) ->
+      refines
+        (State body vars
+           ((k, Closure (Handler params handler) def_vars conts []) :: conts)
+           statics)
+        (State inlined vars conts statics).
+Proof.
+  induction body
+    as [ x d body IH | bindings body IH | k' h body IH | handlers body IH
+       | ap | ac | scrutinee arms | ];
+    intros inlined Heq vars def_vars conts statics Hagree; simpl in Heq;
+    try discriminate.
+  - (* Let *)
+    match type of Heq with
+    | context [if ?free then _ else _] => destruct free eqn:Hfree
+    end;
+      [ discriminate | ].
+    change (var_free_in_handler_b x (Handler params handler) = false)
+      in Hfree.
+    destruct (inline_cont_at_tail k params handler body) as [body' | ];
+      [ | discriminate ].
+    simpl in Heq. injection Heq as <-.
+    destruct (eval_named statics vars d) as [v | ] eqn:Hd.
+    + eapply refines_step;
+        [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity | ].
+      apply (IH body' eq_refl). intros y Hy. simpl.
+      destruct (Pos.eqb_spec y x) as [-> | _]; [ | exact (Hagree y Hy) ].
+      apply var_free_in_handler_b_sound in Hy. congruence.
+    + apply goes_wrong_refines. exists 1. simpl. rewrite Hd. reflexivity.
+  - (* Let_static *)
+    destruct (inline_cont_at_tail k params handler body) as [body' | ];
+      [ | discriminate ].
+    simpl in Heq. injection Heq as <-.
+    destruct (eval_static_bindings vars bindings statics) as [extended | ]
+      eqn:Hbindings.
+    + eapply refines_step;
+        [ simpl; rewrite Hbindings; reflexivity
+        | simpl; rewrite Hbindings; reflexivity | ].
+      exact (IH body' eq_refl vars def_vars conts extended Hagree).
+    + apply goes_wrong_refines. exists 1. simpl. rewrite Hbindings.
+      reflexivity.
+  - (* Apply_cont *)
+    destruct
+      (Pos.eqb (ac_continuation ac) k
+       && Nat.eqb (length params) (length (ac_args ac))
+       && forallb (fun param => negb (var_in_simples param (ac_args ac)))
+            params)
+      eqn:Hcheck; [ | discriminate ].
+    injection Heq as <-.
+    apply andb_true_iff in Hcheck as [Hcheck Hcapture].
+    apply andb_true_iff in Hcheck as [Hk _]. apply Pos.eqb_eq in Hk.
+    assert (Hwrong :
+      step
+        (State (Apply_cont ac) vars
+           ((k, Closure (Handler params handler) def_vars conts []) :: conts)
+           statics)
+      = Undefined ->
+      refines
+        (State (Apply_cont ac) vars
+           ((k, Closure (Handler params handler) def_vars conts []) :: conts)
+           statics)
+        (State (let_params params (ac_args ac) handler) vars conts statics)).
+    { intros Hstep. apply goes_wrong_refines. exists 1. unfold run.
+      rewrite Hstep. reflexivity. }
+    destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hargs;
+      [ | apply Hwrong; simpl; rewrite Hargs; reflexivity ].
+    destruct (bind_params params vs def_vars) as [handler_vars | ] eqn:Hbind;
+      [ | apply Hwrong; simpl; rewrite Hargs, Hk;
+          unfold apply_continuation, resolve; simpl; rewrite Pos.eqb_refl;
+          simpl; rewrite Hbind; reflexivity ].
+    destruct (bind_params_defined params vs def_vars vars handler_vars Hbind)
+      as [bound Hbound].
+    destruct (let_params_run params (ac_args ac) vs vars bound handler conts
+                statics Hargs)
+      as [n Hrun]; [ | exact Hbound | ].
+    { intros param Hin Hfree. apply var_in_simples_sound in Hfree.
+      rewrite forallb_forall in Hcapture. specialize (Hcapture param Hin).
+      apply negb_true_iff in Hcapture. congruence. }
+    apply equivalent_refines.
+    apply (equivalent_trans _ (State handler handler_vars conts statics)).
+    { apply step_equivalent. simpl. rewrite Hargs, Hk.
+      unfold apply_continuation, resolve. simpl. rewrite Pos.eqb_refl.
+      simpl. rewrite Hbind. reflexivity. }
+    apply (equivalent_trans _ (State handler bound conts statics)).
+    { apply coincide_equivalent.
+      - intros x Hx.
+        apply (bind_params_agree params vs def_vars vars handler_vars bound
+          Hbind Hbound).
+        destruct (in_dec Pos.eq_dec x params) as [Hin | Hnotin];
+          [ left; exact Hin | right ].
+        apply Hagree. split; assumption.
+      - intros k' _. apply (conts_agree_same identity_renaming). reflexivity. }
+    apply equivalent_sym, (equivalent_of_run n 0). exact Hrun.
+Qed.
+
+(* Each layer is a context around what the induction gives; then the
+   handler goes into the body where that ends by applying it. *)
+Fixpoint inline_tail_conts_refines_aux (e : expr) :
+  expr_refines e (inline_tail_conts e).
+Proof.
+  destruct e
+    as [ x d body | bindings body | k [params handler] body | handlers body
+       | ap | ac | scrutinee arms | ];
+    simpl; try apply expr_refines_refl.
+  - exact (plug_refines (Let_body x d Hole) _ _
+      (inline_tail_conts_refines_aux body)).
+  - exact (plug_refines (Let_static_body bindings Hole) _ _
+      (inline_tail_conts_refines_aux body)).
+  - assert (Hlayers :
+      expr_refines (Let_cont_non_recursive k (Handler params handler) body)
+        (Let_cont_non_recursive k
+           (Handler params (inline_tail_conts handler))
+           (inline_tail_conts body))).
+    { apply (expr_refines_trans _
+        (Let_cont_non_recursive k
+           (Handler params (inline_tail_conts handler)) body)).
+      - exact (plug_refines
+          (Let_cont_non_recursive_handler k params Hole body) _ _
+          (inline_tail_conts_refines_aux handler)).
+      - exact (plug_refines
+          (Let_cont_non_recursive_body k
+             (Handler params (inline_tail_conts handler)) Hole)
+          _ _ (inline_tail_conts_refines_aux body)). }
+    destruct
+      (inline_cont_at_tail k params (inline_tail_conts handler)
+         (inline_tail_conts body))
+      as [inlined | ] eqn:Hinline; [ | exact Hlayers ].
+    apply (expr_refines_trans _ _ _ Hlayers). intros vars conts statics.
+    eapply refines_trans;
+      [ apply equivalent_refines, step_equivalent; reflexivity | ].
+    apply (inline_cont_at_tail_refines k params _ _ inlined Hinline).
+    intros x _. reflexivity.
+  - exact (plug_refines (Let_cont_recursive_body handlers Hole) _ _
+      (inline_tail_conts_refines_aux body)).
+Qed.
+
+Theorem inline_tail_conts_refines : inline_tail_conts_refines_statement.
+Proof. exact inline_tail_conts_refines_aux. Qed.
+
+(* ======================================================================== *)
+(* Bindings of deleted code                                                 *)
+(* ======================================================================== *)
+
+Lemma expr_equivalent_trans (e e' e'' : expr) :
+  expr_equivalent e e' -> expr_equivalent e' e'' -> expr_equivalent e e''.
+Proof.
+  intros H H' vars conts statics.
+  exact (equivalent_trans _ _ _ (H vars conts statics)
+    (H' vars conts statics)).
+Qed.
+
+Lemma eval_static_bindings_filter (vars : env)
+    (bindings : list static_binding) :
+  ∀ statics : static_env,
+    eval_static_bindings vars (filter binds_something bindings) statics
+    = eval_static_bindings vars bindings statics.
+Proof.
+  induction bindings as [ | binding bindings IH]; intros statics;
+    [ reflexivity | ].
+  destruct binding as [id c | id | sym const]; simpl; try apply IH.
+  destruct (eval_static_const vars const); simpl; [ apply IH | reflexivity ].
+Qed.
+
+(* A group and the group without its bindings of deleted code, the
+   [Let_static] itself going if nothing is left. *)
+Lemma let_static_if_any_equivalent (bindings : list static_binding)
+    (body : expr) :
+  expr_equivalent (Let_static bindings body)
+    (let_static_if_any (filter binds_something bindings) body).
+Proof.
+  intros vars conts statics.
+  destruct (filter binds_something bindings) as [ | binding kept] eqn:Hkept;
+    simpl.
+  - apply step_equivalent. simpl.
+    rewrite <- (eval_static_bindings_filter vars bindings statics), Hkept.
+    reflexivity.
+  - apply (equivalent_of_run 1 1). simpl.
+    rewrite <- (eval_static_bindings_filter vars bindings statics), Hkept.
+    reflexivity.
+Qed.
+
+Fixpoint drop_deleted_code_equivalent_aux (e : expr) :
+  expr_equivalent e (drop_deleted_code e).
+Proof.
+  destruct e
+    as [ x d body | bindings body | k [params handler] body | handlers body
+       | ap | ac | scrutinee arms | ];
+    simpl; try (intros vars conts statics; apply equivalent_refl).
+  - exact (plug_equivalent (Let_body x d Hole) _ _
+      (drop_deleted_code_equivalent_aux body)).
+  - apply (expr_equivalent_trans _
+      (Let_static bindings (drop_deleted_code body))).
+    + exact (plug_equivalent (Let_static_body bindings Hole) _ _
+        (drop_deleted_code_equivalent_aux body)).
+    + apply let_static_if_any_equivalent.
+  - apply (expr_equivalent_trans _
+      (Let_cont_non_recursive k
+         (Handler params (drop_deleted_code handler)) body)).
+    + exact (plug_equivalent
+        (Let_cont_non_recursive_handler k params Hole body) _ _
+        (drop_deleted_code_equivalent_aux handler)).
+    + exact (plug_equivalent
+        (Let_cont_non_recursive_body k
+           (Handler params (drop_deleted_code handler)) Hole)
+        _ _ (drop_deleted_code_equivalent_aux body)).
+  - exact (plug_equivalent (Let_cont_recursive_body handlers Hole) _ _
+      (drop_deleted_code_equivalent_aux body)).
+Qed.
+
+Theorem drop_deleted_code_equivalent : drop_deleted_code_equivalent_statement.
+Proof. exact drop_deleted_code_equivalent_aux. Qed.

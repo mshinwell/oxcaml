@@ -488,8 +488,15 @@ not a proof.
   The decision is `FlambdaCompareSpec.expr_eqb`, equality up to bound
   names, after the term before has been normalised by rewrites proved to
   refine it: `inline_calls` (direct calls of code bound by an enclosing
-  `Let_static`), `follow_aliases` and `remove_unused_lets`. Only
-  equivalences may be applied to the term after; `follow_aliases` is one.
+  `Let_static`), `inline_tail_conts` (a continuation applied once at the
+  end of its scope), `follow_aliases`, `remove_unused_lets` and
+  `drop_deleted_code`. Only equivalences may be applied to the term
+  after; `follow_aliases` and `drop_deleted_code` are.
+- Code ids must be the same on the two sides, and Simplify gives a new
+  one to each new version of code. The tool gives the new id the number
+  of the old where the old is bound as deleted and not otherwise used;
+  this is trusted, and there are CRs in `flsemantics.ml` and
+  `FlambdaCompareSpec.v` on relating code ids in the comparison itself.
   An example that is the same but not validated shows what normalisation
   is missing. To add a rewrite: write it as a function in a Spec file,
   prove that its result refines (or is equivalent to) its argument, add

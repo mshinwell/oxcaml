@@ -39,7 +39,7 @@ inline_direct.fl:
   calls outside code: 1 before, 0 after
   the same
   calls outside code once those of known code are inlined: 0
-  not validated
+  validated: the same once normalised
 rec_cont.fl:
   before Simplify (43 steps): returns [0: 10]
   after Simplify (44 steps): returns [0: 10]

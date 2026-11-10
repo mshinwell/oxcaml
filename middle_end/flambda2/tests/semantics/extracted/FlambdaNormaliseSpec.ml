@@ -227,3 +227,68 @@ let rec remove_unused_lets e =
 
 and remove_unused_lets_in_handler = function
   | Handler (params, handler) -> Handler (params, remove_unused_lets handler)
+
+(** val inline_cont_at_tail : continuation -> variable list -> expr -> expr ->
+    expr option **)
+
+let rec inline_cont_at_tail k params handler = function
+  | Let (x, d, body0) ->
+    if var_free_in_handler_b x (Handler (params, handler))
+    then None
+    else
+      option_map
+        (fun x0 -> Let (x, d, x0))
+        (inline_cont_at_tail k params handler body0)
+  | Let_static (bindings, body0) ->
+    option_map
+      (fun x -> Let_static (bindings, x))
+      (inline_cont_at_tail k params handler body0)
+  | Apply_cont ac ->
+    if
+      (Pos.eqb ac.ac_continuation k
+      && Nat.eqb (length params) (length ac.ac_args))
+      && forallb (fun param -> negb (var_in_simples param ac.ac_args)) params
+    then Some (let_params params ac.ac_args handler)
+    else None
+  | _ -> None
+
+(** val inline_tail_conts : expr -> expr **)
+
+let rec inline_tail_conts e =
+  match e with
+  | Let (x, d, body) -> Let (x, d, inline_tail_conts body)
+  | Let_static (bindings, body) -> Let_static (bindings, inline_tail_conts body)
+  | Let_cont_non_recursive (k, handler0, body) -> (
+    let (Handler (params, handler)) = handler0 in
+    let handler' = inline_tail_conts handler in
+    let body' = inline_tail_conts body in
+    match inline_cont_at_tail k params handler' body' with
+    | Some inlined -> inlined
+    | None -> Let_cont_non_recursive (k, Handler (params, handler'), body'))
+  | Let_cont_recursive (handlers, body) ->
+    Let_cont_recursive (handlers, inline_tail_conts body)
+  | _ -> e
+
+(** val binds_something : static_binding -> bool **)
+
+let binds_something = function Bind_deleted_code _ -> false | _ -> true
+
+(** val let_static_if_any : static_binding list -> expr -> expr **)
+
+let let_static_if_any bindings body =
+  match bindings with [] -> body | _ :: _ -> Let_static (bindings, body)
+
+(** val drop_deleted_code : expr -> expr **)
+
+let rec drop_deleted_code e =
+  match e with
+  | Let (x, d, body) -> Let (x, d, drop_deleted_code body)
+  | Let_static (bindings, body) ->
+    let_static_if_any (filter binds_something bindings) (drop_deleted_code body)
+  | Let_cont_non_recursive (k, handler0, body) ->
+    let (Handler (params, handler)) = handler0 in
+    Let_cont_non_recursive
+      (k, Handler (params, drop_deleted_code handler), drop_deleted_code body)
+  | Let_cont_recursive (handlers, body) ->
+    Let_cont_recursive (handlers, drop_deleted_code body)
+  | _ -> e
