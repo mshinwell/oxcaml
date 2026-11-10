@@ -51,7 +51,7 @@
 From Stdlib Require Extraction.
 From Stdlib Require Import ExtrOcamlBasic.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaCompareSpec FlambdaNormaliseSpec.
+  FlambdaCompareSpec FlambdaNormaliseSpec FlambdaUnusedStaticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 
 Extraction Language OCaml.
@@ -72,4 +72,4 @@ Set Extraction Output Directory ".".
 Separate Extraction step run kind_of_const empty_static_env expr_eqb
   inline_calls inline_tail_conts remove_unused_lets drop_deleted_code
   fold_constants remove_unused_total_lets remove_unused_defined_lets
-  follow_aliases.
+  drop_statics follow_aliases.

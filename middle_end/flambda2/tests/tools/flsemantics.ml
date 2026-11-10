@@ -56,6 +56,7 @@ module Semantics = Flambda2_rocq_semantics.FlambdaSemanticsSpec
 module Compare = Flambda2_rocq_semantics.FlambdaCompareSpec
 module Normalise = Flambda2_rocq_semantics.FlambdaNormaliseSpec
 module Aliases = Flambda2_rocq_semantics.FlambdaAliasesSpec
+module Unused_statics = Flambda2_rocq_semantics.FlambdaUnusedStaticsSpec
 module Numbers = Flambda2_rocq_semantics.BinNums
 module P = Flambda_primitive
 
@@ -695,6 +696,108 @@ and print_binding ppf (binding : Model.static_binding) =
   | Bind_symbol (sym, Static_const_immutable_string _) ->
     Format.fprintf ppf "$%d = <string>" (int_of_positive sym)
 
+(* ---- Static bindings that are not used --------------------------------- *)
+
+(* The symbols and code ids that a term binds and that nothing live refers to:
+   not the term outside its static bindings, and not a static binding that is
+   itself live. This is only a guess of what may be removed:
+   FlambdaUnusedStaticsSpec.drop_statics checks it before removing anything. *)
+type static_name =
+  | Symbol_name of Model.symbol
+  | Code_name of Model.code_id
+
+let unused_statics (e : Model.expr) : Unused_statics.dropped =
+  (* What each binding refers to, and what the term refers to outside its
+     bindings ([None]). *)
+  let references : (static_name option * static_name) list ref = ref [] in
+  let bound : static_name list ref = ref [] in
+  let refer owner name = references := (owner, name) :: !references in
+  let in_simple owner (s : Model.simple) =
+    match s with
+    | Symbol sym -> refer owner (Symbol_name sym)
+    | Var _ | Const _ -> ()
+  in
+  let in_simples owner = List.iter (in_simple owner) in
+  let in_slots owner = List.iter (fun (_, s) -> in_simple owner s) in
+  let rec in_expr owner (e : Model.expr) =
+    match e with
+    | Let (_, d, body) ->
+      (match d with
+      | Simple s | Project_value_slot (_, s) -> in_simple owner s
+      | Prim (_, args) -> in_simples owner args
+      | Set_of_closures (code, slots) ->
+        refer owner (Code_name code);
+        in_slots owner slots);
+      in_expr owner body
+    | Let_static (bindings, body) ->
+      List.iter
+        (fun (binding : Model.static_binding) ->
+          match binding with
+          | Bind_code (id, Code (_, _, _, _, code_body)) ->
+            bound := Code_name id :: !bound;
+            in_expr (Some (Code_name id)) code_body
+          | Bind_deleted_code _ -> ()
+          | Bind_symbol (sym, const) -> (
+            bound := Symbol_name sym :: !bound;
+            let owner = Some (Symbol_name sym) in
+            match const with
+            | Static_const_set_of_closures (code, slots) ->
+              refer owner (Code_name code);
+              in_slots owner slots
+            | Static_const_block (_, fields) -> in_simples owner fields
+            | Static_const_boxed_number contents -> in_simple owner contents
+            | Static_const_immutable_string _ -> ()))
+        bindings;
+      in_expr owner body
+    | Let_cont_non_recursive (_, Handler (_, handler), body) ->
+      in_expr owner handler;
+      in_expr owner body
+    | Let_cont_recursive (handlers, body) ->
+      List.iter
+        (fun (_, Model.Handler (_, handler)) -> in_expr owner handler)
+        handlers;
+      in_expr owner body
+    | Apply ap -> (
+      in_simple owner ap.ap_callee;
+      in_simples owner ap.ap_args;
+      match ap.ap_call_kind with
+      | Direct code -> refer owner (Code_name code)
+      | Indirect -> ())
+    | Apply_cont ac -> in_simples owner ac.ac_args
+    | Switch (scrutinee, arms) ->
+      in_simple owner scrutinee;
+      List.iter
+        (fun (_, (ac : Model.apply_cont)) -> in_simples owner ac.ac_args)
+        arms
+    | Invalid -> ()
+  in
+  in_expr None e;
+  let rec live_from live =
+    let live' =
+      List.fold_left
+        (fun live (owner, name) ->
+          let owner_is_live =
+            match owner with None -> true | Some owner -> List.mem owner live
+          in
+          if owner_is_live && not (List.mem name live)
+          then name :: live
+          else live)
+        live !references
+    in
+    if List.length live' = List.length live then live else live_from live'
+  in
+  let live = live_from [] in
+  let unused = List.filter (fun name -> not (List.mem name live)) !bound in
+  { dropped_symbols =
+      List.filter_map
+        (function Symbol_name sym -> Some sym | Code_name _ -> None)
+        unused;
+    dropped_code =
+      List.filter_map
+        (function Code_name id -> Some id | Symbol_name _ -> None)
+        unused
+  }
+
 (* ---- The check -------------------------------------------------------- *)
 
 (* Whether a code id is used: called, made a closure of, or bound to code. Being
@@ -832,18 +935,41 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
       validated_as_is
       || Compare.expr_eqb [] [] normalised_before normalised_after
     in
+    (* Failing that, the static bindings of the term before that nothing uses
+       are removed, which is proved to refine it for a term run on its own and
+       not under every environment (FlambdaUnusedStaticsSpec.v), and the
+       comparison made again. *)
+    let without_unused_statics =
+      match
+        Unused_statics.drop_statics
+          (unused_statics normalised_before)
+          normalised_before
+      with
+      | Some dropped -> Normalise.drop_deleted_code dropped
+      | None -> normalised_before
+    in
+    let validated_as_a_unit =
+      (not validated)
+      && Compare.expr_eqb [] [] without_unused_statics normalised_after
+    in
     Format.printf "  %s@."
       (if validated_as_is
        then "validated: the same up to bound names"
        else if validated
        then "validated: the same once normalised"
+       else if validated_as_a_unit
+       then
+         "validated for the unit run on its own: the same once normalised and \
+          unused static bindings removed"
        else "not validated");
-    if (not validated) && Sys.getenv_opt "FLSEMANTICS_PRINT_TERMS" <> None
+    if
+      (not validated) && (not validated_as_a_unit)
+      && Sys.getenv_opt "FLSEMANTICS_PRINT_TERMS" <> None
     then
       Format.printf
         "@[<v 2>  the term before, normalised:@ %a@]@.@[<v 2>  the term after, \
          normalised:@ %a@]@."
-        print_expr normalised_before print_expr normalised_after;
+        print_expr without_unused_statics print_expr normalised_after;
     if not ok then exit 1
 
 let check_file filename =

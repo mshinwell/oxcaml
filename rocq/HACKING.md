@@ -108,7 +108,7 @@ Each directory is a Rocq library (`rocq/Makefile` maps them):
 | `backend/rocq/`          | `OxCamlBackend`| Backend-wide definitions: the semantics of `Cmm.integer_comparison` (with `IntegerComparisonProofs.v`), the model's copy of `Operation.t` |
 | `backend/ssa/rocq/`      | `OxCamlSsa`    | The SSA graph as the models see it, each model split into Spec, implementation and Proofs files (see "The layout of a model"): `SsaModel.v` (the abstract interface), `SsaGraph*` (terminators, edges and uses), `SsaDominance*` (dominance, paths and program points), `SsaSemantics*` (execution of the restricted integer fragment), `SsaExecution*` (well-formedness and available-value equations), `SsaLiveness*` (reads before redefinition), `SsaProgress*` (the `finished_graph` contract, definedness and progress), `SsaContext*` (opaque surrounding computations and the `reached_header` contract) |
 | `backend/ssa/loop/rocq/` | `OxCamlLoop`   | The loop analyses, each an implementation file and a `*Proofs.v`; the operational proofs in `LoopExecutionProofs.v`, `LoopInvariantExecutionProofs.v`, `LoopCounterExecutionProofs.v`, `LoopValueSnapshotProofs.v`, `LoopGuardExecutionProofs.v`, `LoopRangeExecutionProofs.v`, `LoopLiveOutProofs.v` and `InductionRangeExecutionProofs.v`; the statements to review in `LoopEligibilitySpec.v`, `DeleteEmptyLoopsSpec.v` and `BoundsCheckExecutionSpec.v`, proved in `LoopEligibilityProofs.v`, `DeleteEmptyLoopsProofs.v` and `BoundsCheckExecutionProofs.v`; and `Extract.v`, which extracts the implementation |
-| `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, with nothing extracted: `FlambdaModel.v` (the terms of the fragment covered so far), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics), `FlambdaContext*` (contexts, and that refinement and equivalence are preserved under them), `FlambdaNominal*` (renamings, free names, and binders as name abstractions), `FlambdaAlpha*` (the group action, equivariance, and alpha-equivalence with its soundness), `FlambdaApply*` (function calls and inlining), `FlambdaStatic*` (first facts about `Let_static`), `FlambdaCompare*` (a decision that two expressions are the same up to bound names, proved sound), `FlambdaNormalise*` (normalising a term by proved rewrites: inlining direct calls of known code, removing unused `Let`s); see "The semantics of Flambda 2" below |
+| `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, with nothing extracted: `FlambdaModel.v` (the terms of the fragment covered so far), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics), `FlambdaContext*` (contexts, and that refinement and equivalence are preserved under them), `FlambdaNominal*` (renamings, free names, and binders as name abstractions), `FlambdaAlpha*` (the group action, equivariance, and alpha-equivalence with its soundness), `FlambdaApply*` (function calls and inlining), `FlambdaStatic*` (first facts about `Let_static`), `FlambdaCompare*` (a decision that two expressions are the same up to bound names, proved sound), `FlambdaNormalise*` (normalising a term by proved rewrites: inlining direct calls of known code, removing unused `Let`s, folding constants), `FlambdaUnusedStatics*` (removing unused static bindings from a term run on its own); see "The semantics of Flambda 2" below |
 | `middle_end/flambda2/types/rocq/` | `OxCamlFlambda2Types` | A first, naive model of Flambda types and typing environments, with nothing extracted: `FlambdaTypes*` (types, what it means to satisfy a typing environment, refinement relative to one, following aliases, going under a `Let`), `FlambdaAliases*` (following aliases through a whole term, an equivalence) |
 
 Put a definition or lemma where its OxCaml counterpart would live. A fact
@@ -499,6 +499,17 @@ not a proof.
   (an unused `Let` whose defining expression has a value given the
   variables in scope) and `drop_deleted_code`. `fold_constants` asks `eval_prim` for the value
   of a primitive on constants, so it assumes nothing of the primitives.
+- Removing a static binding that nothing uses is not sound under every
+  environment (a value already there may be a closure of the code), only
+  for a term run on its own: `FlambdaUnusedStaticsSpec.drop_statics`, with
+  `program_refines`. The tool guesses which names are unused and the
+  extracted function checks the guess. An example that needs it is
+  reported as validated for the unit run on its own, a weaker verdict.
+  Its proof is a simulation that lets the second state do anything once
+  the first is undefined (`FlambdaSemanticsProofs.simulation_refines`),
+  under the invariant that nothing reachable refers to a name removed;
+  that needs an axiom, that the primitives introduce no symbols or code
+  ids (`eval_prim_avoids`).
 - Setting `FLSEMANTICS_PRINT_TERMS` makes the tool print the two
   normalised terms of an example that is not validated, which is how to
   find the rewrite that is missing.

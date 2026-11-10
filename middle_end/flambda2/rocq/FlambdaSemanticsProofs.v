@@ -480,3 +480,58 @@ Proof.
   - intros [= <-]. reflexivity.
   - intros Hbind. exact (IH vs ((param, v) :: vars) bound rest Hbind).
 Qed.
+
+(* ======================================================================== *)
+(* Simulations                                                              *)
+(* ======================================================================== *)
+
+(* What two steps, or two runs of one length, come to, where the second
+   may do anything if the first is undefined: otherwise states related by
+   [R], or the same exit. *)
+Definition result_simulated (R : state -> state -> Prop)
+    (result result' : step_result) : Prop :=
+  match result, result' with
+  | Undefined, _ => True
+  | Step s, Step s' => R s s'
+  | Exit k vs, Exit k' vs' => k = k' ∧ vs = vs'
+  | _, _ => False
+  end.
+
+Section Simulation.
+
+Variable R : state -> state -> Prop.
+
+Hypothesis R_step :
+  ∀ s s' : state, R s s' -> result_simulated R (step s) (step s').
+
+Lemma simulation_run (n : nat) :
+  ∀ s s' : state, R s s' -> result_simulated R (run n s) (run n s').
+Proof.
+  induction n as [ | n IH]; intros s s' Hrel; simpl; [ exact Hrel | ].
+  specialize (R_step s s' Hrel).
+  destruct (step s), (step s'); simpl in R_step; try contradiction;
+    try exact I; [ apply IH; exact R_step | exact R_step ].
+Qed.
+
+(* A state refines one related to it by a relation that steps preserve, in
+   step with each other, as long as the first is defined. *)
+Lemma simulation_refines (s s' : state) : R s s' -> refines s s'.
+Proof.
+  intros Hrel.
+  pose proof (fun n => simulation_run n s s' Hrel) as Hrun.
+  split.
+  - intros k vs [n Hn]. exists n. specialize (Hrun n). rewrite Hn in Hrun.
+    destruct (run n s'); simpl in Hrun; try contradiction.
+    destruct Hrun as [-> ->]. reflexivity.
+  - intros b Hterm Hb. destruct (behaves_ended s' b Hterm Hb) as [n Hended].
+    specialize (Hrun n).
+    destruct (run n s) as [t | k vs | ] eqn:Hs.
+    + destruct (run n s'); simpl in Hrun; contradiction.
+    + destruct (run n s') as [t' | k' vs' | ]; simpl in Hrun;
+        try contradiction.
+      destruct Hrun as [-> ->]. apply ended_exit in Hended. subst b.
+      left. exists n. exact Hs.
+    + right. exists n. exact Hs.
+Qed.
+
+End Simulation.

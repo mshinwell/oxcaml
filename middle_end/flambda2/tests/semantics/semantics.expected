@@ -4,7 +4,7 @@ apply_direct.fl:
   calls outside code: 1 before, 0 after
   the same
   calls outside code once those of known code are inlined: 0
-  not validated
+  validated for the unit run on its own: the same once normalised and unused static bindings removed
 arith.fl:
   before Simplify (3 steps): returns [0: 7; 42]
   after Simplify (1 steps): returns [0: 7; 42]
@@ -18,7 +18,7 @@ closure_slot.fl:
   calls outside code: 1 before, 0 after
   the same
   calls outside code once those of known code are inlined: 1
-  not validated
+  validated for the unit run on its own: the same once normalised and unused static bindings removed
 const_block.fl:
   before Simplify (3 steps): returns [0: 1; 2]
   after Simplify (1 steps): returns [0: 1; 2]
