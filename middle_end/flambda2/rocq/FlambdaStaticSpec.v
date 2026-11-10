@@ -60,8 +60,8 @@ Definition project_static_closure_statement : Prop :=
     (x : variable) (body : expr),
     expr_equivalent
       (Let_static
-         [Bind_symbol s (Static_set_of_closures code [(slot, contents)])]
+         [Bind_symbol s (Static_const_set_of_closures code [(slot, contents)])]
          (Let x (Project_value_slot slot (Symbol s)) body))
       (Let_static
-         [Bind_symbol s (Static_set_of_closures code [(slot, contents)])]
+         [Bind_symbol s (Static_const_set_of_closures code [(slot, contents)])]
          (Let x (Simple contents) body)).

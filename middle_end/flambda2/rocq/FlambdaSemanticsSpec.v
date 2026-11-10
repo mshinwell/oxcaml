@@ -40,7 +40,7 @@
    binders may shadow.
 
    The static environment is what [Let_static] has bound so far: the code
-   of code ids, and the objects that symbols point to. It is global: it is
+   of code ids, and the values that symbols point to. It is global: it is
    not kept in closures, and only grows. A symbol is a value by itself, a
    pointer ([Value_symbol]), whether or not it is bound; what it points to
    is looked up where it is used, as a closure to call or to project
@@ -114,16 +114,17 @@ Fixpoint lookup {A : Type} (name : positive) (bindings : list (positive * A))
 Definition env : Type := list (variable * value).
 
 (* What a symbol points to. *)
-Inductive static_object : Type :=
-  | Object_closure (code : code_id) (value_slots : list (value_slot * value))
-  | Object_block (tag : Z) (fields : list value)
-  | Object_boxed_number (contents : value)
-  | Object_string (bytes : list Z).
+Inductive statically_allocated_value : Type :=
+  | Static_closure (code : code_id) (value_slots : list (value_slot * value))
+  | Static_block (tag : Z) (fields : list value)
+  | Static_boxed_number (contents : value)
+  | Static_string (bytes : list Z).
 
-(* The static environment: the code and the objects bound so far. *)
+(* The static environment: the code and the statically allocated values
+   bound so far. *)
 Record static_env : Type := Static_env {
   static_code : list (code_id * code);
-  static_objects : list (symbol * static_object)
+  static_values : list (symbol * statically_allocated_value)
 }.
 
 Definition empty_static_env : static_env := Static_env [] [].
@@ -194,8 +195,8 @@ Definition closure_of (statics : static_env) (v : value)
   match v with
   | Value_closure code value_slots => Some (code, value_slots)
   | Value_symbol s =>
-    match lookup s (static_objects statics) with
-    | Some (Object_closure code value_slots) => Some (code, value_slots)
+    match lookup s (static_values statics) with
+    | Some (Static_closure code value_slots) => Some (code, value_slots)
     | _ => None
     end
   | Value_const _ => None
@@ -218,18 +219,18 @@ Definition eval_named (statics : static_env) (vars : env)
   end.
 
 Definition eval_static_const (vars : env) (const : static_const)
-    : option static_object :=
+    : option statically_allocated_value :=
   match const with
-  | Static_set_of_closures code value_slots =>
+  | Static_const_set_of_closures code value_slots =>
     let* vs := eval_value_slots vars value_slots in
-    Some (Object_closure code vs)
-  | Static_block tag fields =>
+    Some (Static_closure code vs)
+  | Static_const_block tag fields =>
     let* vs := eval_simples vars fields in
-    Some (Object_block tag vs)
-  | Static_boxed_number contents =>
+    Some (Static_block tag vs)
+  | Static_const_boxed_number contents =>
     let* v := eval_simple vars contents in
-    Some (Object_boxed_number v)
-  | Static_immutable_string bytes => Some (Object_string bytes)
+    Some (Static_boxed_number v)
+  | Static_const_immutable_string bytes => Some (Static_string bytes)
   end.
 
 (* The static environment with a group of bindings added. Deleted code is
@@ -240,14 +241,14 @@ Fixpoint eval_static_bindings (vars : env) (bindings : list static_binding)
   | [] => Some statics
   | Bind_code id c :: bindings =>
     eval_static_bindings vars bindings
-      (Static_env ((id, c) :: static_code statics) (static_objects statics))
+      (Static_env ((id, c) :: static_code statics) (static_values statics))
   | Bind_deleted_code _ :: bindings =>
     eval_static_bindings vars bindings statics
   | Bind_symbol s const :: bindings =>
-    let* object := eval_static_const vars const in
+    let* allocated := eval_static_const vars const in
     eval_static_bindings vars bindings
       (Static_env (static_code statics)
-         ((s, object) :: static_objects statics))
+         ((s, allocated) :: static_values statics))
   end.
 
 (* Binds parameters to arguments; there must be as many of each. *)

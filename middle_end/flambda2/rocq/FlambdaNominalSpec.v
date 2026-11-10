@@ -134,13 +134,14 @@ Definition rename_apply_cont (r : renaming) (ac : apply_cont) : apply_cont :=
 Definition rename_static_const (r : renaming) (const : static_const)
     : static_const :=
   match const with
-  | Static_set_of_closures code value_slots =>
-    Static_set_of_closures code
+  | Static_const_set_of_closures code value_slots =>
+    Static_const_set_of_closures code
       (map (fun slot => (fst slot, rename_simple r (snd slot))) value_slots)
-  | Static_block tag fields => Static_block tag (map (rename_simple r) fields)
-  | Static_boxed_number contents =>
-    Static_boxed_number (rename_simple r contents)
-  | Static_immutable_string bytes => Static_immutable_string bytes
+  | Static_const_block tag fields =>
+    Static_const_block tag (map (rename_simple r) fields)
+  | Static_const_boxed_number contents =>
+    Static_const_boxed_number (rename_simple r contents)
+  | Static_const_immutable_string bytes => Static_const_immutable_string bytes
   end.
 
 Definition rename_static_binding (r : renaming) (binding : static_binding)
@@ -224,11 +225,11 @@ Definition var_free_in_named (x : variable) (defining_expr : named) : Prop :=
 Definition var_free_in_static_const (x : variable) (const : static_const)
     : Prop :=
   match const with
-  | Static_set_of_closures _ value_slots =>
+  | Static_const_set_of_closures _ value_slots =>
     Exists (fun slot => var_free_in_simple x (snd slot)) value_slots
-  | Static_block _ fields => var_free_in_simples x fields
-  | Static_boxed_number contents => var_free_in_simple x contents
-  | Static_immutable_string _ => False
+  | Static_const_block _ fields => var_free_in_simples x fields
+  | Static_const_boxed_number contents => var_free_in_simple x contents
+  | Static_const_immutable_string _ => False
   end.
 
 (* Code has no free variable of the term around it, whatever is in it. *)

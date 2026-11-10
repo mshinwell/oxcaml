@@ -189,11 +189,11 @@ Inductive named : Type :=
    [Simple]s, where the compiler has, for a boxed number, a constant or a
    variable. A block is immutable. *)
 Inductive static_const : Type :=
-  | Static_set_of_closures (code : code_id)
+  | Static_const_set_of_closures (code : code_id)
       (value_slots : list (value_slot * simple))
-  | Static_block (tag : Z) (fields : list simple)
-  | Static_boxed_number (contents : simple)
-  | Static_immutable_string (bytes : list Z).
+  | Static_const_block (tag : Z) (fields : list simple)
+  | Static_const_boxed_number (contents : simple)
+  | Static_const_immutable_string (bytes : list Z).
 
 (* [Apply_cont_expr.t]. *)
 Record apply_cont : Type := Apply_cont_expr {
