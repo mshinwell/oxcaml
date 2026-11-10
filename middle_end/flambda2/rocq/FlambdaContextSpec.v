@@ -1,0 +1,89 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+(* Rewriting inside a term: refinement and equivalence of expressions are
+   preserved by every context.
+
+   This file is to be reviewed: [context] and [plug], against the terms of
+   FlambdaModel.v (a context is a term with one hole, which may be under
+   any binder and in the handler of a continuation), and the two
+   statements. They are what lets a rewrite proved of two expressions on
+   their own, such as those of FlambdaControlFlowSpec.v, be applied to a
+   subterm of a program.
+
+   The premise is a refinement under all environments ([expr_refines]). A
+   rewrite that is sound only under what is known of the variables in
+   scope, as most of the simplifier's are, is not covered: that needs a
+   refinement relative to a property of the environments.
+
+   The proofs are in FlambdaContextProofs.v, which needs no review. *)
+
+From Stdlib Require Import ZArith List.
+From OxCamlStdlib Require Import OxCamlLogic.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec.
+Import ListNotations.
+
+(* An expression with a hole: in the body of a [Let] or of a [Let_cont], or
+   in a handler of a [Let_cont]. *)
+Inductive context : Type :=
+  | Hole
+  | Let_body (x : variable) (defining_expr : named) (body : context)
+  | Let_cont_non_recursive_body (k : continuation)
+      (handler : continuation_handler) (body : context)
+  | Let_cont_non_recursive_handler (k : continuation)
+      (params : list variable) (handler : context) (body : expr)
+  | Let_cont_recursive_body
+      (handlers : list (continuation * continuation_handler))
+      (body : context)
+  | Let_cont_recursive_handler
+      (before : list (continuation * continuation_handler))
+      (k : continuation) (params : list variable) (handler : context)
+      (after : list (continuation * continuation_handler)) (body : expr).
+
+Fixpoint plug (c : context) (e : expr) : expr :=
+  match c with
+  | Hole => e
+  | Let_body x defining_expr body => Let x defining_expr (plug body e)
+  | Let_cont_non_recursive_body k handler body =>
+    Let_cont_non_recursive k handler (plug body e)
+  | Let_cont_non_recursive_handler k params handler body =>
+    Let_cont_non_recursive k (Handler params (plug handler e)) body
+  | Let_cont_recursive_body handlers body =>
+    Let_cont_recursive handlers (plug body e)
+  | Let_cont_recursive_handler before k params handler after body =>
+    Let_cont_recursive
+      (before ++ (k, Handler params (plug handler e)) :: after) body
+  end.
+
+Definition plug_refines_statement : Prop :=
+  ∀ (c : context) (source target : expr),
+    expr_refines source target ->
+    expr_refines (plug c source) (plug c target).
+
+Definition plug_equivalent_statement : Prop :=
+  ∀ (c : context) (e e' : expr),
+    expr_equivalent e e' -> expr_equivalent (plug c e) (plug c e').

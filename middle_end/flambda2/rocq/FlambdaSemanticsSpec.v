@@ -49,6 +49,8 @@
    primitive has no value. A transformation may do anything to a term whose
    execution is undefined: that is [refines], the statement of correctness
    to use for a transformation; [equivalent] is the stronger, symmetric one.
+   [refines_defined_statement] and [refines_antisymmetric_statement] say how
+   the two are related.
 
    The primitives are abstract: [eval_prim] is a parameter, with no axioms.
    A law of a primitive (say, that an addition commutes) is to be stated
@@ -244,11 +246,30 @@ Definition behaviour_unique_statement : Prop :=
 Definition equivalent (s s' : state) : Prop :=
   ∀ b : behaviour, behaves s b <-> behaves s' b.
 
-(* Every behaviour of the target is one of the source, unless the source
-   goes wrong. *)
+(* The target behaves as the source does, unless the source goes wrong: an
+   exit of the source is one of the target, and the way the target ends, if
+   it does, is the way the source ends, unless the source goes wrong. With
+   the excluded middle this is to say that every behaviour of the target is
+   one of the source unless the source goes wrong; it is stated of the
+   behaviours that end so that it can be proved without. *)
 Definition refines (source target : state) : Prop :=
-  ∀ b : behaviour,
-    behaves target b -> behaves source b ∨ behaves source Goes_wrong.
+  (∀ (k : continuation) (vs : list value),
+    behaves source (Exits k vs) -> behaves target (Exits k vs))
+  ∧ (∀ b : behaviour,
+      b <> Diverges ->
+      behaves target b -> behaves source b ∨ behaves source Goes_wrong).
+
+(* What [refines] comes to: a source that does not go wrong and its target
+   are equivalent, divergence included; and two states that refine each
+   other are equivalent. *)
+Definition refines_defined_statement : Prop :=
+  ∀ source target : state,
+    refines source target ->
+    ~ behaves source Goes_wrong ->
+    equivalent source target.
+
+Definition refines_antisymmetric_statement : Prop :=
+  ∀ s s' : state, refines s s' -> refines s' s -> equivalent s s'.
 
 (* The same for expressions: under every pair of environments. *)
 Definition expr_equivalent (e e' : expr) : Prop :=

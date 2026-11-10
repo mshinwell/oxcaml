@@ -33,8 +33,8 @@
    behaviour ([expr_refines]). They are first checks that the semantics says
    what is meant, and the first entries of a library of sound rewrites; none
    is yet tied to the code of the simplifier. They are local: each relates
-   two terms, or two states, as they stand, and nothing is yet said about
-   rewriting under a context.
+   two terms, or two states, as they stand; FlambdaContextSpec.v lets those
+   between terms be applied inside a larger term.
 
    The proofs are in FlambdaControlFlowProofs.v, which needs no review. *)
 

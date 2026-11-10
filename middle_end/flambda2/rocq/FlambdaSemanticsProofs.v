@@ -190,8 +190,63 @@ Proof.
   rewrite Hstep. reflexivity.
 Qed.
 
+(* A run that has ended with a behaviour gives that behaviour. *)
+Lemma ended_behaves (n : nat) (s : state) (b : behaviour) :
+  ended (run n s) b -> behaves s b.
+Proof.
+  destruct b as [k vs | | ], (run n s) as [s' | k' vs' | ] eqn:Hrun; simpl;
+    try contradiction.
+  - intros [-> ->]. exists n. exact Hrun.
+  - intros _. exists n. exact Hrun.
+Qed.
+
+Lemma ended_undefined (b : behaviour) : ended Undefined b -> b = Goes_wrong.
+Proof. destruct b; simpl; try contradiction. reflexivity. Qed.
+
+Lemma ended_exit (k : continuation) (vs : list value) (b : behaviour) :
+  ended (Exit k vs) b -> b = Exits k vs.
+Proof.
+  destruct b; simpl; try contradiction. intros [-> ->]. reflexivity.
+Qed.
+
+Lemma diverges_dec (b : behaviour) : b = Diverges ∨ b <> Diverges.
+Proof. destruct b; [ right | right | left ]; congruence. Qed.
+
+(* If [s] has every behaviour of [s'] that ends, and [s] diverges, then
+   [s'] diverges: a run of [s'] that had ended would be one of [s]. *)
+Lemma diverges_of_terminating (s s' : state) :
+  (∀ b : behaviour, b <> Diverges -> behaves s' b -> behaves s b) ->
+  behaves s Diverges -> behaves s' Diverges.
+Proof.
+  intros Hterm Hdiv. simpl. intros n.
+  destruct (run n s') as [u | k vs | ] eqn:Hrun; [ exists u; reflexivity | | ];
+    exfalso.
+  - assert (Hexit : behaves s' (Exits k vs)) by (exists n; exact Hrun).
+    apply Hterm in Hexit; [ | discriminate ].
+    pose proof (behaviour_unique _ _ _ Hdiv Hexit). discriminate.
+  - assert (Hwrong : behaves s' Goes_wrong) by (exists n; exact Hrun).
+    apply Hterm in Hwrong; [ | discriminate ].
+    pose proof (behaviour_unique _ _ _ Hdiv Hwrong). discriminate.
+Qed.
+
+(* Two states with the same behaviours that end are equivalent: divergence
+   need not be considered. *)
+Lemma equivalent_of_terminating (s s' : state) :
+  (∀ b : behaviour, b <> Diverges -> behaves s b <-> behaves s' b) ->
+  equivalent s s'.
+Proof.
+  intros Hterm b.
+  destruct (diverges_dec b) as [-> | Hb]; [ | exact (Hterm b Hb) ].
+  split; apply diverges_of_terminating; intros b Hb Hbehaves;
+    apply (Hterm b Hb); exact Hbehaves.
+Qed.
+
 Lemma equivalent_refines (s s' : state) : equivalent s s' -> refines s s'.
-Proof. intros Hequiv b Hb. left. apply Hequiv. exact Hb. Qed.
+Proof.
+  intros Hequiv. split.
+  - intros k vs Hb. apply Hequiv, Hb.
+  - intros b _ Hb. left. apply Hequiv, Hb.
+Qed.
 
 Lemma refines_refl (s : state) : refines s s.
 Proof. apply equivalent_refines, equivalent_refl. Qed.
@@ -199,14 +254,51 @@ Proof. apply equivalent_refines, equivalent_refl. Qed.
 Lemma refines_trans (s s' s'' : state) :
   refines s s' -> refines s' s'' -> refines s s''.
 Proof.
-  intros H H' b Hb.
-  destruct (H' b Hb) as [Hb' | Hwrong]; [ exact (H b Hb') | ].
-  destruct (H Goes_wrong Hwrong) as [Hwrong' | Hwrong']; right; exact Hwrong'.
+  intros [Hexits Hends] [Hexits' Hends']. split.
+  - intros k vs Hb. apply Hexits', Hexits, Hb.
+  - intros b Hterm Hb.
+    destruct (Hends' b Hterm Hb) as [Hb' | Hwrong];
+      [ exact (Hends b Hterm Hb') | ].
+    destruct (Hends Goes_wrong ltac:(discriminate) Hwrong); right; assumption.
 Qed.
 
 (* Anything refines a state that goes wrong. *)
 Lemma goes_wrong_refines (s s' : state) : behaves s Goes_wrong -> refines s s'.
-Proof. intros Hwrong b _. right. exact Hwrong. Qed.
+Proof.
+  intros Hwrong. split.
+  - intros k vs Hb. pose proof (behaviour_unique _ _ _ Hwrong Hb).
+    discriminate.
+  - intros b _ _. right. exact Hwrong.
+Qed.
+
+Theorem refines_defined : refines_defined_statement.
+Proof.
+  intros s s' [Hexits Hends] Hdefined. apply equivalent_of_terminating.
+  intros b Hterm. split; intros Hb.
+  - destruct b; [ apply Hexits, Hb | contradiction | congruence ].
+  - destruct (Hends b Hterm Hb); [ assumption | contradiction ].
+Qed.
+
+Theorem refines_antisymmetric : refines_antisymmetric_statement.
+Proof.
+  intros s s' [Hexits Hends] [Hexits' Hends']. apply equivalent_of_terminating.
+  intros b Hterm. split; intros Hb.
+  - destruct b; [ apply Hexits, Hb | | congruence ].
+    destruct (Hends' Goes_wrong Hterm Hb); assumption.
+  - destruct b; [ apply Hexits', Hb | | congruence ].
+    destruct (Hends Goes_wrong Hterm Hb); assumption.
+Qed.
+
+(* Refinement is preserved backwards along steps. *)
+Lemma refines_step (s s' t t' : state) :
+  step s = Step s' -> step t = Step t' -> refines s' t' -> refines s t.
+Proof.
+  intros Hs Ht Hrefines.
+  apply (refines_trans s s');
+    [ apply equivalent_refines, step_equivalent, Hs | ].
+  apply (refines_trans s' t'); [ exact Hrefines | ].
+  apply equivalent_refines, equivalent_sym, step_equivalent, Ht.
+Qed.
 
 Lemma expr_equivalent_refines (e e' : expr) :
   expr_equivalent e e' -> expr_refines e e'.

@@ -108,7 +108,7 @@ Each directory is a Rocq library (`rocq/Makefile` maps them):
 | `backend/rocq/`          | `OxCamlBackend`| Backend-wide definitions: the semantics of `Cmm.integer_comparison` (with `IntegerComparisonProofs.v`), the model's copy of `Operation.t` |
 | `backend/ssa/rocq/`      | `OxCamlSsa`    | The SSA graph as the models see it, each model split into Spec, implementation and Proofs files (see "The layout of a model"): `SsaModel.v` (the abstract interface), `SsaGraph*` (terminators, edges and uses), `SsaDominance*` (dominance, paths and program points), `SsaSemantics*` (execution of the restricted integer fragment), `SsaExecution*` (well-formedness and available-value equations), `SsaLiveness*` (reads before redefinition), `SsaProgress*` (the `finished_graph` contract, definedness and progress), `SsaContext*` (opaque surrounding computations and the `reached_header` contract) |
 | `backend/ssa/loop/rocq/` | `OxCamlLoop`   | The loop analyses, each an implementation file and a `*Proofs.v`; the operational proofs in `LoopExecutionProofs.v`, `LoopInvariantExecutionProofs.v`, `LoopCounterExecutionProofs.v`, `LoopValueSnapshotProofs.v`, `LoopGuardExecutionProofs.v`, `LoopRangeExecutionProofs.v`, `LoopLiveOutProofs.v` and `InductionRangeExecutionProofs.v`; the statements to review in `LoopEligibilitySpec.v`, `DeleteEmptyLoopsSpec.v` and `BoundsCheckExecutionSpec.v`, proved in `LoopEligibilityProofs.v`, `DeleteEmptyLoopsProofs.v` and `BoundsCheckExecutionProofs.v`; and `Extract.v`, which extracts the implementation |
-| `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, with nothing extracted: `FlambdaModel.v` (the terms of the fragment covered so far), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics); see "The semantics of Flambda 2" below |
+| `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, with nothing extracted: `FlambdaModel.v` (the terms of the fragment covered so far), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics), `FlambdaContext*` (contexts, and that refinement and equivalence are preserved under them); see "The semantics of Flambda 2" below |
 
 Put a definition or lemma where its OxCaml counterpart would live. A fact
 about lists goes in `OxCamlListProofs.v`, about machine integers in
@@ -369,7 +369,10 @@ a fragment at a time. The files follow the same Spec/Proofs split, and
   `simpl` runs a term. A state's behaviour is to exit through an unbound
   continuation with values, to go wrong, or to diverge. A transformation is
   correct when its result `refines` its source (anything may be done to a
-  term that goes wrong); `equivalent` is the symmetric notion.
+  term that goes wrong); `equivalent` is the symmetric notion. `refines` is
+  stated of the behaviours that end, so that no proof needs the excluded
+  middle: to prove an equivalence or a refinement, divergence never has to
+  be considered (`equivalent_of_terminating`).
 - To prove a local rewrite, run both sides until they meet:
   `FlambdaSemanticsProofs.equivalent_of_run`, or `step_equivalent` for one
   step. `FlambdaControlFlowProofs.v` has the worked examples.
@@ -378,10 +381,17 @@ a fragment at a time. The files follow the same Spec/Proofs split, and
   header of the file stating it, or as a lemma once the primitive has a
   definition.
 
-Not yet there: rewriting under a context (a congruence for `refines`, which
-needs free names and a relation between environments in place of equality
-of states), function calls and closures, memory and effects, trap actions,
-and any link to the simplifier's code.
+- A rewrite between expressions applies inside any term
+  (`FlambdaContextSpec.v`: `plug_refines`, `plug_equivalent`). The proof
+  (`FlambdaContextProofs.transfer`) is the pattern for any argument where
+  two runs differ in what their continuation closures hold: relate the
+  environments, and go by induction on the length of one run.
+
+Not yet there: free names, and with them the rewrites that depend on a name
+not being used (removing an unused continuation or `Let`); refinement
+relative to what is known of the environment, which most of the
+simplifier's rewrites need; function calls and closures, memory and
+effects, trap actions, and any link to the simplifier's code.
 
 ## Extraction pitfalls
 
