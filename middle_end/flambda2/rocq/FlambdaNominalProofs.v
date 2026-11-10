@@ -315,7 +315,8 @@ Lemma conts_agree_of_clauses (r : renaming) (k : continuation)
   (∀ c : cont_value,
     lookup k conts = Some c ->
     ∃ c' : cont_value,
-      lookup (rename_continuation r k) conts' = Some c' ∧ closure_renamed c c')
+      lookup (rename_continuation r k) conts' = Some c'
+      ∧ closure_renamed c c')
   ->
   (lookup k conts = None ->
    lookup (rename_continuation r k) conts' = None
