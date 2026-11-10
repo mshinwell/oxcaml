@@ -44,8 +44,8 @@ Theorem let_cont_apply_cont : let_cont_apply_cont_statement.
 Proof.
   intros k params handler args vars handler_vars conts vs Hargs Hbind.
   apply (equivalent_of_run 2 0). simpl.
-  rewrite Hargs. unfold apply_continuation. simpl.
-  rewrite Pos.eqb_refl, Hbind. reflexivity.
+  rewrite Hargs. unfold apply_continuation, resolve. simpl.
+  rewrite Pos.eqb_refl. simpl. rewrite Hbind. reflexivity.
 Qed.
 
 (* Both sides evaluate the argument first; if it has a value, both reach the
@@ -56,7 +56,8 @@ Proof.
   intros k x handler arg vars conts.
   apply (equivalent_of_run 2 1). simpl.
   destruct (eval_simple vars arg) as [v | ]; simpl; [ | reflexivity ].
-  unfold apply_continuation. simpl. rewrite Pos.eqb_refl. reflexivity.
+  unfold apply_continuation, resolve. simpl. rewrite Pos.eqb_refl.
+  reflexivity.
 Qed.
 
 Theorem let_cont_recursive_apply_cont :
@@ -65,8 +66,9 @@ Proof.
   intros k params handler handlers args vars handler_vars conts vs
     Hlookup Hargs Hbind.
   apply (equivalent_of_run 2 0). simpl.
-  rewrite Hargs. unfold apply_continuation, rec_closures.
-  rewrite (lookup_rec_closures _ _ _ _ _ _ _ Hlookup), Hbind.
+  rewrite Hargs. unfold apply_continuation, resolve, rec_closures.
+  rewrite (lookup_rec_closures _ _ _ _ _ _ _ Hlookup). simpl.
+  rewrite Hbind.
   reflexivity.
 Qed.
 
@@ -77,7 +79,7 @@ Proof.
   apply (step_behaves _ Diverges). simpl.
   set (looping := State _ _ _).
   assert (Hstep : step looping = Step looping).
-  { subst looping. simpl. unfold apply_continuation. simpl.
+  { subst looping. simpl. unfold apply_continuation, resolve. simpl.
     rewrite Pos.eqb_refl. reflexivity. }
   clearbody looping. intros n. exists looping.
   induction n as [ | n IH]; simpl; [ reflexivity | ].
@@ -104,12 +106,12 @@ Proof.
     assert (Harm : s = State (Apply_cont ac) vars conts);
       [ | rewrite <- Harm; exact Hstep ].
     simpl in Hstep.
-    destruct (eval_simple vars scrutinee) as [[[i | i]] | ];
+    destruct (eval_simple vars scrutinee) as [[[i | i] | called slots] | ];
       try discriminate.
     destruct (find_arm i arms) as [arm | ] eqn:Hfind; [ | discriminate ].
     apply find_arm_in, Hsame in Hfind. congruence.
   - simpl in Hstep.
-    destruct (eval_simple vars scrutinee) as [[[i | i]] | ];
+    destruct (eval_simple vars scrutinee) as [[[i | i] | called slots] | ];
       try discriminate.
     destruct (find_arm i arms); discriminate.
   - apply goes_wrong_refines. exists 1. unfold run. rewrite Hstep.

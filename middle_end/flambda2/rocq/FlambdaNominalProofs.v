@@ -90,8 +90,18 @@ Qed.
 
 Lemma rename_named_id (d : named) : rename_named identity_renaming d = d.
 Proof.
-  destruct d; simpl; [ rewrite rename_simple_id | rewrite rename_simples_id ];
-    reflexivity.
+  destruct d as [s | p args | code slots | slot closure]; simpl;
+    rewrite ?rename_simple_id, ?rename_simples_id; try reflexivity.
+  f_equal.
+  induction slots as [ | [slot s] slots IH]; simpl; [ reflexivity | ].
+  rewrite rename_simple_id, IH. reflexivity.
+Qed.
+
+Lemma rename_apply_id (ap : apply_expr) :
+  rename_apply identity_renaming ap = ap.
+Proof.
+  destruct ap. unfold rename_apply. simpl.
+  rewrite rename_simple_id, rename_simples_id. reflexivity.
 Qed.
 
 Lemma rename_apply_cont_id (ac : apply_cont) :
@@ -107,13 +117,14 @@ with rename_handler_id (h : continuation_handler) :
   rename_handler identity_renaming h = h.
 Proof.
   - destruct e
-      as [x d body | k h body | handlers body | ac | scrutinee arms | ];
+      as [x d body | k h body | handlers body | ap | ac | scrutinee arms | ];
       simpl.
     + rewrite rename_named_id, rename_expr_id. reflexivity.
     + rewrite rename_handler_id, rename_expr_id. reflexivity.
     + rewrite rename_expr_id. f_equal.
       induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
       rewrite rename_handler_id, IH. reflexivity.
+    + rewrite rename_apply_id. reflexivity.
     + rewrite rename_apply_cont_id. reflexivity.
     + rewrite rename_simple_id. f_equal.
       induction arms as [ | [i ac] arms IH]; simpl; [ reflexivity | ].
@@ -171,15 +182,33 @@ Proof.
     exact Hx.
 Qed.
 
+Lemma eval_value_slots_renamed (r : renaming)
+    (slots : list (value_slot * simple)) (vars vars' : env) :
+  (∀ x : variable,
+    Exists (fun slot => var_free_in_simple x (snd slot)) slots ->
+    lookup (rename_variable r x) vars' = lookup x vars) ->
+  eval_value_slots vars'
+    (map (fun slot => (fst slot, rename_simple r (snd slot))) slots)
+  = eval_value_slots vars slots.
+Proof.
+  induction slots as [ | [slot s] slots IH]; intros Hvars; simpl;
+    [ reflexivity | ].
+  rewrite (eval_simple_renamed r s vars vars'), IH; [ reflexivity | | ];
+    intros x Hx; apply Hvars; [ apply Exists_cons_tl | apply Exists_cons_hd ];
+    exact Hx.
+Qed.
+
 Lemma eval_named_renamed (r : renaming) (d : named) (vars vars' : env) :
   (∀ x : variable,
     var_free_in_named x d ->
     lookup (rename_variable r x) vars' = lookup x vars) ->
   eval_named vars' (rename_named r d) = eval_named vars d.
 Proof.
-  intros Hvars. destruct d as [s | p args]; simpl.
+  intros Hvars. destruct d as [s | p args | code slots | slot closure]; simpl.
   - apply eval_simple_renamed, Hvars.
   - rewrite (eval_simples_renamed r args vars vars' Hvars). reflexivity.
+  - rewrite (eval_value_slots_renamed r slots vars vars' Hvars). reflexivity.
+  - rewrite (eval_simple_renamed r closure vars vars' Hvars). reflexivity.
 Qed.
 
 (* Binding renamed parameters: both fail or both succeed, and then the
@@ -229,10 +258,11 @@ Qed.
    the environments of the two closures and the handlers defined with
    them: the variable environments agree along [r] on the free variables
    of [h]; a free continuation of [h] that the group does not define is not
-   defined by the other group either, and the continuation environments
-   agree at it along [r], by [C] for the closures they hold; and one that
-   the group defines, with a handler [hk], is sent by [r] to one the other
-   group defines with [hk] renamed by the renaming chosen for it. *)
+   defined by the other group either, and what it stands for in the one
+   environment and what [r] sends it to stands for in the other are
+   related by [C]; and one that the group defines, with a handler [hk], is
+   sent by [r] to one the other group defines with [hk] renamed by the
+   renaming chosen for it. *)
 Definition handler_agrees (C : cont_value -> cont_value -> Prop)
     (choice : continuation -> renaming) (r : renaming)
     (h : continuation_handler) (vars vars' : env) (conts conts' : cont_env)
@@ -245,23 +275,18 @@ Definition handler_agrees (C : cont_value -> cont_value -> Prop)
       cont_free_in_handler k h ->
       lookup k recursive = None ->
       lookup (rename_continuation r k) recursive' = None
-      ∧ (∀ c : cont_value,
-          lookup k conts = Some c ->
-          ∃ c' : cont_value,
-            lookup (rename_continuation r k) conts' = Some c' ∧ C c c')
-      ∧ (lookup k conts = None ->
-         lookup (rename_continuation r k) conts' = None
-         ∧ rename_continuation r k = k))
+      ∧ C (resolve k conts) (resolve (rename_continuation r k) conts'))
   ∧ (∀ (k : continuation) (hk : continuation_handler),
       cont_free_in_handler k h ->
       lookup k recursive = Some hk ->
       lookup (rename_continuation r k) recursive'
       = Some (rename_handler (choice k) hk)).
 
-(* A closure and its renaming. Each handler of a recursive group may have
-   been renamed by a renaming of its own, [choice] of its continuation.
-   (The warning silenced is about induction schemes, which nothing
-   uses.) *)
+(* A continuation and its renaming: the same, which covers a way out; or
+   two closures, of a handler and its renaming. Each handler of a
+   recursive group may have been renamed by a renaming of its own,
+   [choice] of its continuation. (The warning silenced is about induction
+   schemes, which nothing uses.) *)
 #[local] Set Warnings "-register-all".
 Inductive closure_renamed : cont_value -> cont_value -> Prop :=
   | Closure_same (c : cont_value) : closure_renamed c c
@@ -277,19 +302,14 @@ Inductive closure_renamed : cont_value -> cont_value -> Prop :=
     closure_renamed (Closure h vars conts recursive)
       (Closure (rename_handler r h) vars' conts' recursive').
 
-(* Two continuation environments agree at [k] along [r]: both bind it, to a
-   closure and its renaming, or neither does, and then [r] fixes it, as it
+(* Two continuation environments agree at [k] along [r]: what [k] stands
+   for in the one and what [r] sends it to stands for in the other are a
+   continuation and its renaming. If neither binds it, [r] fixes it, as it
    is observed. *)
 Definition conts_agree_at (r : renaming) (k : continuation)
     (conts conts' : cont_env) : Prop :=
-  match lookup k conts with
-  | Some c =>
-    ∃ c' : cont_value,
-      lookup (rename_continuation r k) conts' = Some c' ∧ closure_renamed c c'
-  | None =>
-    lookup (rename_continuation r k) conts' = None
-    ∧ rename_continuation r k = k
-  end.
+  closure_renamed (resolve k conts)
+    (resolve (rename_continuation r k) conts').
 
 Inductive state_renamed : state -> state -> Prop :=
   | State_same (s : state) : state_renamed s s
@@ -302,62 +322,12 @@ Inductive state_renamed : state -> state -> Prop :=
       cont_free_in_expr k e -> conts_agree_at r k conts conts') ->
     state_renamed (State e vars conts) (State (rename_expr r e) vars' conts').
 
-(* [handler_agrees] with the continuations the group does not define put
-   as [conts_agree_at]; and back. *)
-Lemma handler_agrees_intro (choice : continuation -> renaming) (r : renaming)
-    (h : continuation_handler) (vars vars' : env) (conts conts' : cont_env)
-    (recursive recursive' : list (continuation * continuation_handler)) :
-  (∀ x : variable,
-    var_free_in_handler x h ->
-    lookup (rename_variable r x) vars' = lookup x vars) ->
-  (∀ k : continuation,
-    cont_free_in_handler k h ->
-    lookup k recursive = None ->
-    lookup (rename_continuation r k) recursive' = None
-    ∧ conts_agree_at r k conts conts') ->
-  (∀ (k : continuation) (hk : continuation_handler),
-    cont_free_in_handler k h ->
-    lookup k recursive = Some hk ->
-    lookup (rename_continuation r k) recursive'
-    = Some (rename_handler (choice k) hk)) ->
-  handler_agrees closure_renamed choice r h vars vars' conts conts'
-    recursive recursive'.
-Proof.
-  intros Hvars Hunbound Hbound. split; [ exact Hvars | ].
-  split; [ | exact Hbound ].
-  intros k Hk Hnone. destruct (Hunbound k Hk Hnone) as [Hnone' Hagree].
-  split; [ exact Hnone' | ]. unfold conts_agree_at in Hagree. split.
-  - intros c Hlookup. rewrite Hlookup in Hagree. exact Hagree.
-  - intros Hlookup. rewrite Hlookup in Hagree. exact Hagree.
-Qed.
-
-Lemma handler_agrees_unbound (choice : continuation -> renaming)
-    (r : renaming) (h : continuation_handler) (vars vars' : env)
-    (conts conts' : cont_env)
-    (recursive recursive' : list (continuation * continuation_handler)) :
-  handler_agrees closure_renamed choice r h vars vars' conts conts'
-    recursive recursive' ->
-  ∀ k : continuation,
-    cont_free_in_handler k h ->
-    lookup k recursive = None ->
-    lookup (rename_continuation r k) recursive' = None
-    ∧ conts_agree_at r k conts conts'.
-Proof.
-  intros (_ & Hunbound & _) k Hk Hnone.
-  destruct (Hunbound k Hk Hnone) as (Hnone' & Hclosures & Hexits).
-  split; [ exact Hnone' | ]. unfold conts_agree_at.
-  destruct (lookup k conts) as [c | ];
-    [ apply Hclosures | apply Hexits ]; reflexivity.
-Qed.
-
 (* One environment agrees with itself at a continuation the renaming
    fixes. *)
 Lemma conts_agree_same (r : renaming) (k : continuation) (conts : cont_env) :
   rename_continuation r k = k -> conts_agree_at r k conts conts.
 Proof.
-  intros Hfix. unfold conts_agree_at. rewrite Hfix.
-  destruct (lookup k conts) as [c | ]; [ | auto ].
-  exists c. split; [ reflexivity | apply Closure_same ].
+  intros Hfix. unfold conts_agree_at. rewrite Hfix. apply Closure_same.
 Qed.
 
 (* The environments in which the handlers of two groups run, their own
@@ -377,15 +347,13 @@ Lemma group_conts_agree (choice : continuation -> renaming) (r : renaming)
     conts_agree_at r k (rec_closures recursive vars conts ++ conts)
       (rec_closures recursive' vars' conts' ++ conts').
 Proof.
-  intros Hh Hgroup k Hk. unfold conts_agree_at.
+  intros (_ & Hunbound & Hbound) Hgroup k Hk. unfold conts_agree_at, resolve.
   rewrite !lookup_rec_closures_app.
   destruct (lookup k recursive) as [hk | ] eqn:Hlookup.
-  - destruct Hh as (_ & _ & Hbound). rewrite (Hbound k hk Hk Hlookup).
-    eexists. split; [ reflexivity | ].
+  - rewrite (Hbound k hk Hk Hlookup).
     apply (Closure_renamed choice (choice k));
       [ exact (Hgroup k hk Hlookup) | exact Hgroup ].
-  - destruct (handler_agrees_unbound _ _ _ _ _ _ _ _ _ Hh k Hk Hlookup)
-      as [Hnone Hagree].
+  - destruct (Hunbound k Hk Hlookup) as [Hnone Hagree].
     rewrite Hnone. exact Hagree.
 Qed.
 
@@ -401,7 +369,7 @@ Lemma closure_renamed_non_recursive (r : renaming) (h : continuation_handler)
     (Closure (rename_handler r h) vars' conts' []).
 Proof.
   intros Hvars Hconts. apply (Closure_renamed (fun _ => r) r).
-  - apply handler_agrees_intro; [ exact Hvars | | ].
+  - split; [ exact Hvars | ]. split.
     + intros k Hk _. split; [ reflexivity | exact (Hconts k Hk) ].
     + intros k hk _ Hlookup. discriminate Hlookup.
   - intros j hj Hlookup. discriminate Hlookup.
@@ -424,7 +392,7 @@ Lemma uniform_group_agrees (r : renaming)
     handler_agrees closure_renamed (fun _ => r) r hj vars vars' conts conts'
       handlers (rename_handlers r handlers).
 Proof.
-  intros Hvars Hconts j hj Hlookup. apply handler_agrees_intro.
+  intros Hvars Hconts j hj Hlookup. split; [ | split ].
   - intros x Hx. apply Hvars. exact (lookup_any_handler _ _ _ _ Hlookup Hx).
   - intros k Hk Hnone.
     split; [ rewrite lookup_rename_handlers, Hnone; reflexivity | ].
@@ -450,11 +418,10 @@ Lemma uniform_rec_conts_agree (r : renaming)
     conts_agree_at r k (rec_closures handlers vars conts ++ conts)
       (rec_closures (rename_handlers r handlers) vars' conts' ++ conts').
 Proof.
-  intros Hvars Hconts k Hunbound. unfold conts_agree_at.
+  intros Hvars Hconts k Hunbound. unfold conts_agree_at, resolve.
   rewrite !lookup_rec_closures_app, lookup_rename_handlers.
   destruct (lookup k handlers) as [hk | ] eqn:Hlookup; simpl.
-  - eexists. split; [ reflexivity | ].
-    apply (Closure_renamed (fun _ => r) r).
+  - apply (Closure_renamed (fun _ => r) r).
     + exact (uniform_group_agrees r handlers vars vars' conts conts' Hvars
         Hconts k hk Hlookup).
     + exact (uniform_group_agrees r handlers vars vars' conts conts' Hvars
@@ -463,34 +430,46 @@ Proof.
 Qed.
 
 (* Applying a continuation and its renaming to the same values. *)
-Lemma apply_continuation_renamed (r : renaming) (k : continuation)
-    (vs : list value) (conts conts' : cont_env) :
-  conts_agree_at r k conts conts' ->
-  result_related state_renamed (apply_continuation k vs conts)
-    (apply_continuation (rename_continuation r k) vs conts').
+Lemma apply_cont_value_renamed (c c' : cont_value) (vs : list value) :
+  closure_renamed c c' ->
+  result_related state_renamed (apply_cont_value c vs)
+    (apply_cont_value c' vs).
 Proof.
-  unfold conts_agree_at, apply_continuation.
-  destruct (lookup k conts) as [c | ].
-  - intros (c' & -> & Hclosure).
-    destruct Hclosure
-      as [[[params handler] vars conts0 recursive]
-         | choice r' [params handler] vars vars' conts0 conts0' recursive
-             recursive' Hh Hgroup].
-    + destruct (bind_params params vs vars); simpl;
-        [ apply State_same | exact I ].
-    + simpl.
-      pose proof (bind_params_renamed r' params vs vars vars') as Hbind.
-      destruct (bind_params params vs vars),
-        (bind_params (map (rename_variable r') params) vs vars');
-        try contradiction; simpl; [ | exact I ].
-      apply State_renamed.
-      * intros x Hx. apply Hbind.
-        destruct (in_dec Pos.eq_dec x params) as [Hin | Hnotin];
-          [ left; exact Hin | right ].
-        apply (proj1 Hh). split; assumption.
-      * intros k' Hk'.
-        exact (group_conts_agree _ _ _ _ _ _ _ _ _ Hh Hgroup k' Hk').
-  - intros [-> ->]. simpl. auto.
+  intros
+    [[[params handler] vars conts0 recursive | exit]
+    | choice r' [params handler] vars vars' conts0 conts0' recursive
+        recursive' Hh Hgroup];
+    simpl.
+  - destruct (bind_params params vs vars); simpl;
+      [ apply State_same | exact I ].
+  - auto.
+  - pose proof (bind_params_renamed r' params vs vars vars') as Hbind.
+    destruct (bind_params params vs vars),
+      (bind_params (map (rename_variable r') params) vs vars');
+      try contradiction; simpl; [ | exact I ].
+    apply State_renamed.
+    + intros x Hx. apply Hbind.
+      destruct (in_dec Pos.eq_dec x params) as [Hin | Hnotin];
+        [ left; exact Hin | right ].
+      apply (proj1 Hh). split; assumption.
+    + intros k' Hk'.
+      exact (group_conts_agree _ _ _ _ _ _ _ _ _ Hh Hgroup k' Hk').
+Qed.
+
+(* One expression under environments that agree on its free names is a
+   state and its renaming by the identity. *)
+Lemma state_renamed_identity (e : expr) (vars vars' : env)
+    (conts conts' : cont_env) :
+  (∀ x : variable, var_free_in_expr x e -> lookup x vars' = lookup x vars) ->
+  (∀ k : continuation,
+    cont_free_in_expr k e -> conts_agree_at identity_renaming k conts conts')
+  ->
+  state_renamed (State e vars conts) (State e vars' conts').
+Proof.
+  intros Hvars Hconts.
+  pose proof (State_renamed identity_renaming e vars vars' conts conts'
+    Hvars Hconts) as Hrenamed.
+  rewrite rename_expr_id in Hrenamed. exact Hrenamed.
 Qed.
 
 (* A state and its renaming step alike. *)
@@ -500,7 +479,7 @@ Proof.
   intros [s0 | r e vars vars' conts conts' Hvars Hconts].
   - apply result_related_refl, State_same.
   - destruct e
-      as [x d body | k h body | handlers body | ac | scrutinee arms | ];
+      as [x d body | k h body | handlers body | ap | ac | scrutinee arms | ];
       simpl.
     + (* Let *)
       rewrite (eval_named_renamed r d vars vars');
@@ -514,14 +493,13 @@ Proof.
     + (* Let_cont_non_recursive *)
       apply State_renamed.
       * intros y Hy. apply Hvars. right. exact Hy.
-      * intros k' Hk'. unfold conts_agree_at. simpl.
+      * intros k' Hk'. unfold conts_agree_at, resolve. simpl.
         rewrite rename_continuation_eqb.
         destruct (Pos.eqb_spec k' k) as [-> | Hne].
-        -- eexists. split; [ reflexivity | ].
-           apply closure_renamed_non_recursive.
+        -- apply closure_renamed_non_recursive.
            ++ intros x Hx. apply Hvars. left. exact Hx.
            ++ intros k'' Hk''. apply Hconts. left. exact Hk''.
-        -- apply Hconts. right. split; assumption.
+        -- exact (Hconts k' (or_intror (conj Hne Hk'))).
     + (* Let_cont_recursive *)
       apply State_renamed.
       * intros y Hy. apply Hvars. right. exact Hy.
@@ -531,15 +509,36 @@ Proof.
            split; [ exact Hunbound | left; exact Hk' ].
         -- intros Hunbound. apply Hconts.
            split; [ exact Hunbound | right; exact Hk ].
+    + (* Apply: the same call, as code is not renamed, returning to a
+         continuation and its renaming *)
+      rewrite (eval_simple_renamed r (ap_callee ap) vars vars');
+        [ | intros y Hy; apply Hvars; left; exact Hy ].
+      rewrite (eval_simples_renamed r (ap_args ap) vars vars');
+        [ | intros y Hy; apply Hvars; right; exact Hy ].
+      destruct (eval_simple vars (ap_callee ap)) as [closure | ];
+        [ | exact I ].
+      destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | exact I ].
+      destruct (call_function_cases closure (ap_call_kind ap) vs)
+        as [Hundefined | (body & callee_vars & ret & exn & Hcall)].
+      * rewrite !Hundefined. exact I.
+      * rewrite !Hcall. simpl.
+        apply state_renamed_identity; [ reflexivity | ].
+        intros k _. unfold conts_agree_at, resolve.
+        change (rename_continuation identity_renaming k) with k. simpl.
+        destruct (Pos.eqb k ret);
+          [ exact (Hconts (ap_continuation ap) (or_introl eq_refl)) | ].
+        destruct (Pos.eqb k exn);
+          [ exact (Hconts (ap_exn_continuation ap) (or_intror eq_refl)) | ].
+        apply Closure_same.
     + (* Apply_cont *)
       rewrite (eval_simples_renamed r (ac_args ac) vars vars');
         [ | intros y Hy; apply Hvars; exact Hy ].
       destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | exact I ].
-      apply apply_continuation_renamed, Hconts. reflexivity.
+      apply apply_cont_value_renamed, Hconts. reflexivity.
     + (* Switch *)
       rewrite (eval_simple_renamed r scrutinee vars vars');
         [ | intros y Hy; apply Hvars; left; exact Hy ].
-      destruct (eval_simple vars scrutinee) as [[[i | i]] | ]; try exact I.
+      destruct (eval_simple vars scrutinee) as [[[i | i] | called slots] | ]; try exact I.
       rewrite find_arm_renamed.
       destruct (find_arm i arms) as [ac | ] eqn:Hfind; simpl; [ | exact I ].
       apply find_arm_in in Hfind.
@@ -565,10 +564,8 @@ Lemma coincide_equivalent (e : expr) (vars vars' : env)
   ->
   equivalent (State e vars conts) (State e vars' conts').
 Proof.
-  intros Hvars Hconts. apply renamed_equivalent.
-  pose proof (State_renamed identity_renaming e vars vars' conts conts'
-    Hvars Hconts) as Hrenamed.
-  rewrite rename_expr_id in Hrenamed. exact Hrenamed.
+  intros Hvars Hconts.
+  apply renamed_equivalent, state_renamed_identity; assumption.
 Qed.
 
 (* Both sides take a step, to states that are equivalent. *)
@@ -626,11 +623,10 @@ Proof.
   eapply equivalent_step; [ reflexivity | reflexivity | ].
   apply renamed_equivalent, State_renamed.
   - intros y Hy. rewrite (Hvars y Hy). reflexivity.
-  - intros k' Hk'. unfold conts_agree_at. simpl.
+  - intros k' Hk'. unfold conts_agree_at, resolve. simpl.
     rewrite rename_continuation_eqb.
-    destruct (Pos.eqb_spec k' k) as [-> | Hne].
-    + eexists. split; [ reflexivity | apply Closure_same ].
-    + apply (conts_agree_same r k' conts), Hconts; assumption.
+    destruct (Pos.eqb_spec k' k) as [-> | Hne]; [ apply Closure_same | ].
+    exact (conts_agree_same r k' conts (Hconts k' Hne Hk')).
 Qed.
 
 Theorem rename_handler_params : rename_handler_params_statement.
@@ -638,15 +634,14 @@ Proof.
   intros r k params handler body Hvars Hconts vars conts.
   eapply equivalent_step; [ reflexivity | reflexivity | ].
   apply coincide_equivalent; [ reflexivity | ].
-  intros k' _. unfold conts_agree_at. simpl.
-  change (rename_continuation identity_renaming k') with k'.
+  intros k' _. unfold conts_agree_at, resolve.
+  change (rename_continuation identity_renaming k') with k'. simpl.
   destruct (Pos.eqb k' k).
-  - eexists. split; [ reflexivity | ].
-    apply (closure_renamed_non_recursive r (Handler params handler) vars vars
+  - apply (closure_renamed_non_recursive r (Handler params handler) vars vars
       conts conts).
     + intros x [Hnotin Hx]. rewrite (Hvars x Hnotin Hx). reflexivity.
     + intros k'' Hk''. apply conts_agree_same, Hconts, Hk''.
-  - apply (conts_agree_same identity_renaming k' conts). reflexivity.
+  - exact (conts_agree_same identity_renaming k' conts eq_refl).
 Qed.
 
 Theorem rename_let_cont_recursive : rename_let_cont_recursive_statement.
@@ -727,24 +722,23 @@ Proof.
       handler_agrees closure_renamed choice (choice j) hj vars vars conts
         conts handlers handlers').
   { intros j hj Hlookup. destruct (Hfix j hj Hlookup) as [Hfixv Hfixk].
-    apply handler_agrees_intro.
+    split; [ | split ].
     - intros x Hx. rewrite (Hfixv x Hx). reflexivity.
     - intros k' Hk' Hnone. rewrite (Hfixk k' Hk').
-      split; [ exact (Hunbound k' Hnone) | ].
-      apply conts_agree_same, Hfixk, Hk'.
+      split; [ exact (Hunbound k' Hnone) | apply Closure_same ].
     - intros k' hk Hk' Hlookup'. rewrite (Hfixk k' Hk').
       exact (Hbound k' hk Hlookup'). }
   eapply equivalent_step; [ reflexivity | reflexivity | ].
   apply coincide_equivalent; [ reflexivity | ].
-  intros k' _. unfold conts_agree_at.
+  intros k' _. unfold conts_agree_at, resolve.
   change (rename_continuation identity_renaming k') with k'.
   rewrite !lookup_rec_closures_app.
   destruct (lookup k' handlers) as [hk | ] eqn:Hlookup.
-  - rewrite (Hbound k' hk Hlookup). eexists. split; [ reflexivity | ].
+  - rewrite (Hbound k' hk Hlookup).
     apply (Closure_renamed choice (choice k'));
       [ exact (Hgroup k' hk Hlookup) | exact Hgroup ].
   - rewrite (Hunbound k' Hlookup).
-    apply (conts_agree_same identity_renaming k' conts). reflexivity.
+    exact (conts_agree_same identity_renaming k' conts eq_refl).
 Qed.
 
 (* ======================================================================== *)
@@ -771,10 +765,10 @@ Proof.
   intros k h body Hunused vars conts.
   eapply equivalent_trans; [ apply step_equivalent; reflexivity | ].
   apply coincide_equivalent; [ reflexivity | ].
-  intros k' Hk'. unfold conts_agree_at.
+  intros k' Hk'. unfold conts_agree_at, resolve.
   change (rename_continuation identity_renaming k') with k'. simpl.
   destruct (Pos.eqb_spec k' k) as [-> | _]; [ contradiction | ].
-  apply (conts_agree_same identity_renaming k' conts). reflexivity.
+  exact (conts_agree_same identity_renaming k' conts eq_refl).
 Qed.
 
 Theorem unused_let_cont_recursive : unused_let_cont_recursive_statement.
@@ -782,8 +776,8 @@ Proof.
   intros handlers body Hunused vars conts.
   eapply equivalent_trans; [ apply step_equivalent; reflexivity | ].
   apply coincide_equivalent; [ reflexivity | ].
-  intros k Hk. unfold conts_agree_at.
+  intros k Hk. unfold conts_agree_at, resolve.
   change (rename_continuation identity_renaming k) with k.
   rewrite lookup_rec_closures_app, (Hunused k Hk).
-  apply (conts_agree_same identity_renaming k conts). reflexivity.
+  exact (conts_agree_same identity_renaming k conts eq_refl).
 Qed.

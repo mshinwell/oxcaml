@@ -109,17 +109,20 @@ Proof.
   split; [ reflexivity | apply Handler_same ].
 Qed.
 
-Lemma closure_related_inv (h h' : continuation_handler) (vars vars' : env)
-    (conts conts' : cont_env)
-    (recursive recursive' : list (continuation * continuation_handler)) :
-  closure_related (Closure h vars conts recursive)
-    (Closure h' vars' conts' recursive') ->
-  vars = vars' ∧ handler_related vars h h' ∧ cont_env_related conts conts'
-  ∧ handlers_related vars recursive recursive'.
+Lemma closure_related_inv (c c' : cont_value) :
+  closure_related c c' ->
+  match c, c' with
+  | Closure h vars conts recursive, Closure h' vars' conts' recursive' =>
+    vars = vars' ∧ handler_related vars h h' ∧ cont_env_related conts conts'
+    ∧ handlers_related vars recursive recursive'
+  | Outer k, Outer k' => k = k'
+  | _, _ => False
+  end.
 Proof.
   intros Hrel. inversion Hrel; subst.
   - auto.
-  - split; [ reflexivity | ]. split; [ apply Handler_same | ].
+  - destruct c' as [h vars conts recursive | k]; [ | reflexivity ].
+    split; [ reflexivity | ]. split; [ apply Handler_same | ].
     split; [ apply cont_env_related_refl | apply handlers_related_refl ].
 Qed.
 
@@ -129,17 +132,14 @@ Lemma handler_related_inv (vars : env) (params params' : list variable)
   params = params' ∧ (related params vars e e' ∨ e = e').
 Proof. intros Hrel. inversion Hrel; subst; auto. Qed.
 
-(* Related environments bind the same continuations, to related closures. *)
-Lemma lookup_related (k : continuation) (conts conts' : cont_env) :
+(* A continuation stands for related things under related environments. *)
+Lemma resolve_related (k : continuation) (conts conts' : cont_env) :
   cont_env_related conts conts' ->
-  match lookup k conts, lookup k conts' with
-  | None, None => True
-  | Some c, Some c' => closure_related c c'
-  | _, _ => False
-  end.
+  closure_related (resolve k conts) (resolve k conts').
 Proof.
+  unfold resolve.
   induction 1 as [ | [k1 c] [k1' c'] conts conts' [Hk Hc] _ IH]; simpl;
-    [ exact I | ].
+    [ apply Closure_same | ].
   simpl in Hk. subst k1'. destruct (Pos.eqb k k1); [ exact Hc | exact IH ].
 Qed.
 
@@ -215,7 +215,8 @@ Lemma transfer (n : nat) :
 Proof.
   induction n as [ | n IH]; intros e vars conts conts' b Hrel Hended;
     [ destruct b; contradiction | ].
-  destruct e as [x d body | k h body | handlers body | ac | scrutinee arms | ];
+  destruct e
+    as [x d body | k h body | handlers body | ap | ac | scrutinee arms | ];
     simpl in Hended.
   - (* Let *)
     destruct (eval_named vars d) as [v | ] eqn:Hd; simpl in Hended.
@@ -236,18 +237,46 @@ Proof.
     eapply IH; [ | exact Hended ].
     apply Forall2_app; [ | exact Hrel ].
     apply rec_closures_related; [ apply handlers_related_refl | exact Hrel ].
+  - (* Apply: the same call, returning to related continuations *)
+    destruct (eval_simple vars (ap_callee ap)) as [closure | ] eqn:Hcallee;
+      simpl in Hended;
+      [ destruct (eval_simples vars (ap_args ap)) as [vs | ] eqn:Hargs;
+        simpl in Hended
+      | ].
+    + destruct (call_function_cases closure (ap_call_kind ap) vs)
+        as [Hundefined | (body & callee_vars & ret & exn & Hcall)].
+      * rewrite Hundefined in Hended. apply ended_undefined in Hended.
+        subst b. apply carried_undefined. simpl. rewrite Hcallee, Hargs.
+        apply Hundefined.
+      * rewrite Hcall in Hended.
+        eapply carried_step;
+          [ simpl; rewrite Hcallee, Hargs; apply Hcall | ].
+        eapply IH; [ | exact Hended ].
+        apply Forall2_cons;
+          [ split; [ reflexivity | apply resolve_related, Hrel ] | ].
+        apply Forall2_cons;
+          [ split; [ reflexivity | apply resolve_related, Hrel ] | ].
+        apply Forall2_nil.
+    + apply ended_undefined in Hended. subst b.
+      apply carried_undefined. simpl. rewrite Hcallee, Hargs. reflexivity.
+    + apply ended_undefined in Hended. subst b.
+      apply carried_undefined. simpl. rewrite Hcallee. reflexivity.
   - (* Apply_cont *)
     destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hargs;
       simpl in Hended.
     + unfold apply_continuation in Hended.
-      pose proof (lookup_related (ac_continuation ac) _ _ Hrel) as Hlookup.
-      destruct (lookup (ac_continuation ac) conts)
-        as [[[params body] def_vars def_conts recursive] | ] eqn:Hl,
-        (lookup (ac_continuation ac) conts')
-        as [[[params' body'] def_vars' def_conts' recursive'] | ] eqn:Hl';
-        try contradiction.
-      * (* a bound continuation: related closures *)
-        apply closure_related_inv in Hlookup as (<- & Hh & Hconts & Hrec).
+      pose proof
+        (closure_related_inv _ _
+           (resolve_related (ac_continuation ac) _ _ Hrel))
+        as Hclosure.
+      destruct (resolve (ac_continuation ac) conts)
+        as [[params body] def_vars def_conts recursive | exit] eqn:Hl,
+        (resolve (ac_continuation ac) conts')
+        as [[params' body'] def_vars' def_conts' recursive' | exit']
+             eqn:Hl';
+        try contradiction; simpl in Hended.
+      * (* handlers: related closures *)
+        destruct Hclosure as (<- & Hh & Hconts & Hrec).
         apply handler_related_inv in Hh as [<- Hbody].
         destruct (bind_params params vs def_vars) as [handler_vars | ]
           eqn:Hbind; simpl in Hended.
@@ -263,29 +292,33 @@ Proof.
              (State body' handler_vars
                 (rec_closures recursive' def_vars def_conts' ++ def_conts'))).
            ++ simpl. rewrite Hargs. unfold apply_continuation.
-              rewrite Hl', Hbind. reflexivity.
+              rewrite Hl'. simpl. rewrite Hbind. reflexivity.
            ++ destruct Hbody as [Hbody | <-]; [ | exact Hcarried ].
               exact (carried_related _ _ _ _ _ _ _ _ Hbody Hbind Hcarried).
         -- apply ended_undefined in Hended. subst b.
            apply carried_undefined. simpl. rewrite Hargs.
-           unfold apply_continuation. rewrite Hl', Hbind. reflexivity.
-      * (* an unbound continuation: the same exit *)
-        apply ended_exit in Hended. subst b.
+           unfold apply_continuation. rewrite Hl'. simpl. rewrite Hbind.
+           reflexivity.
+      * (* ways out: the same exit *)
+        subst exit'. apply ended_exit in Hended. subst b.
         apply carried_exit. simpl. rewrite Hargs.
         unfold apply_continuation. rewrite Hl'. reflexivity.
     + apply ended_undefined in Hended. subst b.
       apply carried_undefined. simpl. rewrite Hargs. reflexivity.
   - (* Switch *)
-    destruct (eval_simple vars scrutinee) as [[[i | i]] | ] eqn:Hscrutinee;
+    destruct (eval_simple vars scrutinee)
+      as [[[i | i] | called slots] | ] eqn:Hscrutinee;
       simpl in Hended;
       [ destruct (find_arm i arms) as [ac | ] eqn:Hfind; simpl in Hended
-      | | ].
+      | | | ].
     + apply (carried_step _ (State (Apply_cont ac) vars conts'));
         [ simpl; rewrite Hscrutinee, Hfind; reflexivity | ].
       exact (IH _ _ _ _ _ Hrel Hended).
     + apply ended_undefined in Hended. subst b.
       apply carried_undefined. simpl. rewrite Hscrutinee, Hfind.
       reflexivity.
+    + apply ended_undefined in Hended. subst b.
+      apply carried_undefined. simpl. rewrite Hscrutinee. reflexivity.
     + apply ended_undefined in Hended. subst b.
       apply carried_undefined. simpl. rewrite Hscrutinee. reflexivity.
     + apply ended_undefined in Hended. subst b.

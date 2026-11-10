@@ -38,15 +38,25 @@
    definition, so no substitution is involved and binders may shadow.
 
    A continuation with no binding stands for a way out of the term: the
-   return or exception continuation of the enclosing function or unit.
-   Applying one ends execution, and the continuation and its arguments are
-   what is observed ([Exit]). This is the only observation so far; there is
-   no memory and there are no effects.
+   return or exception continuation of the enclosing unit. Applying one
+   ends execution, and the continuation and its arguments are what is
+   observed ([Exit]). This is the only observation so far; there is no
+   memory and there are no effects.
+
+   A function call ([call_function]) runs the body of the code of the
+   closure called, with the code's return and exception continuations
+   standing for the caller's. There is no stack. The code of the program
+   is a fixed table ([program_code], a parameter with no axioms), so every
+   statement holds whatever the code is, but none can yet relate two
+   programs with different code.
 
    Execution is undefined ([Undefined]) at [Invalid], at an unbound variable,
-   at a continuation applied to the wrong number of arguments, at a [Switch]
-   whose scrutinee is not a naked immediate with an arm, and where a
-   primitive has no value. A transformation may do anything to a term whose
+   at a continuation or a function applied to the wrong number of
+   arguments, at a [Switch] whose scrutinee is not a naked immediate with
+   an arm, where a primitive has no value, at a call of what is not a
+   closure, of a closure whose code the program has not got, or directly
+   of a closure of other code than the one named, and at the projection of
+   a value slot a closure has not got. A transformation may do anything to a term whose
    execution is undefined: that is [refines], the statement of correctness
    to use for a transformation; [equivalent] is the stronger, symmetric one.
    [refines_defined_statement] and [refines_antisymmetric_statement] say how
@@ -69,14 +79,21 @@ Import ListNotations.
 (* Values and environments                                                  *)
 (* ======================================================================== *)
 
-(* The values of variables. Only constants so far: there are no blocks and no
-   closures. *)
+(* The values of variables: constants and closures. A closure is the code
+   of its function and the values of its value slots. There are no blocks.
+   (The warning silenced is about induction schemes through the pairs of
+   lists, which nothing uses yet.) *)
+#[local] Set Warnings "-register-all".
 Inductive value : Type :=
-  | Value_const (c : const).
+  | Value_const (c : const)
+  | Value_closure (code : code_id) (value_slots : list (value_slot * value)).
 
 (* The value of a primitive applied to the values of its arguments, if it has
    one. *)
 Parameter eval_prim : prim -> list value -> option value.
+
+(* The code of the program. It is fixed: no term binds code. *)
+Parameter program_code : code_id -> option code.
 
 (* The first binding of a name. *)
 Fixpoint lookup {A : Type} (name : positive) (bindings : list (positive * A))
@@ -89,18 +106,26 @@ Fixpoint lookup {A : Type} (name : positive) (bindings : list (positive * A))
 
 Definition env : Type := list (variable * value).
 
-(* A continuation handler with the environments of its definition. For a
-   handler of a recursive [Let_cont], [recursive] is all the handlers of
-   that [Let_cont], which are in scope in the handler; it is empty for a
-   non-recursive one. (The warning silenced is about induction schemes
-   through the pairs of the list, which nothing uses yet.) *)
-#[local] Set Warnings "-register-all".
+(* What a continuation is. [Closure] is a continuation handler with the
+   environments of its definition. For a handler of a recursive
+   [Let_cont], [recursive] is all the handlers of that [Let_cont], which
+   are in scope in the handler; it is empty for a non-recursive one.
+   [Outer] is a way out of the whole term, by the continuation named. *)
 Inductive cont_value : Type :=
   | Closure (h : continuation_handler) (vars : env)
       (conts : list (continuation * cont_value))
-      (recursive : list (continuation * continuation_handler)).
+      (recursive : list (continuation * continuation_handler))
+  | Outer (k : continuation).
 
 Definition cont_env : Type := list (continuation * cont_value).
+
+(* What a continuation name stands for: a continuation with no binding is
+   a way out of the term. *)
+Definition resolve (k : continuation) (conts : cont_env) : cont_value :=
+  match lookup k conts with
+  | Some c => c
+  | None => Outer k
+  end.
 
 (* The closures of the handlers of a recursive [Let_cont] defined under
    [vars] and [conts]. *)
@@ -129,12 +154,31 @@ Fixpoint eval_simples (vars : env) (args : list simple)
     Some (v :: vs)
   end.
 
+Fixpoint eval_value_slots (vars : env)
+    (value_slots : list (value_slot * simple))
+    : option (list (value_slot * value)) :=
+  match value_slots with
+  | [] => Some []
+  | (slot, s) :: value_slots =>
+    let* v := eval_simple vars s in
+    let* vs := eval_value_slots vars value_slots in
+    Some ((slot, v) :: vs)
+  end.
+
 Definition eval_named (vars : env) (defining_expr : named) : option value :=
   match defining_expr with
   | Simple s => eval_simple vars s
   | Prim p args =>
     let* vs := eval_simples vars args in
     eval_prim p vs
+  | Set_of_closures code value_slots =>
+    let* vs := eval_value_slots vars value_slots in
+    Some (Value_closure code vs)
+  | Project_value_slot slot closure =>
+    match eval_simple vars closure with
+    | Some (Value_closure _ vs) => lookup slot vs
+    | _ => None
+    end
   end.
 
 (* Binds parameters to arguments; there must be as many of each. *)
@@ -167,20 +211,54 @@ Inductive step_result : Type :=
   | Exit (k : continuation) (vs : list value)
   | Undefined.
 
-(* Applying a bound continuation runs its handler under the environments of
-   its definition, with its parameters bound and, for a recursive one, the
-   handlers defined with it in scope again. *)
-Definition apply_continuation (k : continuation) (vs : list value)
-    (conts : cont_env) : step_result :=
-  match lookup k conts with
-  | None => Exit k vs
-  | Some (Closure (Handler params handler) def_vars def_conts recursive) =>
+(* Applying a handler runs it under the environments of its definition,
+   with its parameters bound and, for a recursive one, the handlers defined
+   with it in scope again. Applying a way out ends execution. *)
+Definition apply_cont_value (c : cont_value) (vs : list value)
+    : step_result :=
+  match c with
+  | Outer k => Exit k vs
+  | Closure (Handler params handler) def_vars def_conts recursive =>
     match bind_params params vs def_vars with
     | Some handler_vars =>
       Step (State handler handler_vars
         (rec_closures recursive def_vars def_conts ++ def_conts))
     | None => Undefined
     end
+  end.
+
+Definition apply_continuation (k : continuation) (vs : list value)
+    (conts : cont_env) : step_result :=
+  apply_cont_value (resolve k conts) vs.
+
+(* Calling a closure runs the body of its code. The only variables are the
+   parameters and the closure itself; the only continuations are the
+   return and exception continuations of the code, which stand for what
+   the caller's stand for. So there is no stack: to return is to apply the
+   continuation the caller gave. A direct call must be to a closure of the
+   code named. *)
+Definition call_function (closure : value) (kind : call_kind)
+    (vs : list value) (return_to exn_to : cont_value) : step_result :=
+  match closure with
+  | Value_closure called _ =>
+    let expected :=
+      match kind with
+      | Direct named => Pos.eqb called named
+      | Indirect => true
+      end
+    in
+    match expected, program_code called with
+    | true, Some c =>
+      match bind_params (code_params c) vs [(code_my_closure c, closure)] with
+      | Some callee_vars =>
+        Step (State (code_body c) callee_vars
+          [(code_return_continuation c, return_to);
+           (code_exn_continuation c, exn_to)])
+      | None => Undefined
+      end
+    | _, _ => Undefined
+    end
+  | Value_const _ => Undefined
   end.
 
 Definition step (s : state) : step_result :=
@@ -194,6 +272,14 @@ Definition step (s : state) : step_result :=
     Step (State body vars ((k, Closure h vars conts []) :: conts))
   | State (Let_cont_recursive handlers body) vars conts =>
     Step (State body vars (rec_closures handlers vars conts ++ conts))
+  | State (Apply ap) vars conts =>
+    match eval_simple vars (ap_callee ap), eval_simples vars (ap_args ap) with
+    | Some closure, Some vs =>
+      call_function closure (ap_call_kind ap) vs
+        (resolve (ap_continuation ap) conts)
+        (resolve (ap_exn_continuation ap) conts)
+    | _, _ => Undefined
+    end
   | State (Apply_cont ac) vars conts =>
     match eval_simples vars (ac_args ac) with
     | Some vs => apply_continuation (ac_continuation ac) vs conts

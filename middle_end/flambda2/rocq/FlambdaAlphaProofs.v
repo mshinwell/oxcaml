@@ -150,9 +150,20 @@ Qed.
 
 Lemma rename_named_ext (d : named) : rename_named r d = rename_named r' d.
 Proof.
-  destruct d; simpl;
-    [ rewrite rename_simple_ext
-    | rewrite (map_ext _ _ rename_simple_ext) ]; reflexivity.
+  destruct d as [s | p args | code slots | slot closure]; simpl;
+    rewrite ?rename_simple_ext, ?(map_ext _ _ rename_simple_ext);
+    try reflexivity.
+  f_equal. apply map_ext. intros [slot s]. simpl.
+  rewrite rename_simple_ext. reflexivity.
+Qed.
+
+Lemma rename_apply_ext (ap : apply_expr) :
+  rename_apply r ap = rename_apply r' ap.
+Proof.
+  unfold rename_apply.
+  rewrite !same_continuations, rename_simple_ext,
+    (map_ext _ _ rename_simple_ext).
+  reflexivity.
 Qed.
 
 Lemma rename_apply_cont_ext (ac : apply_cont) :
@@ -167,7 +178,7 @@ with rename_handler_ext (h : continuation_handler) :
   rename_handler r h = rename_handler r' h.
 Proof.
   - destruct e
-      as [x d body | k h body | handlers body | ac | scrutinee arms | ];
+      as [x d body | k h body | handlers body | ap | ac | scrutinee arms | ];
       simpl.
     + rewrite same_variables, rename_named_ext, (rename_expr_ext body).
       reflexivity.
@@ -176,6 +187,7 @@ Proof.
     + rewrite (rename_expr_ext body). f_equal.
       induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
       rewrite same_continuations, (rename_handler_ext h), IH. reflexivity.
+    + rewrite rename_apply_ext. reflexivity.
     + rewrite rename_apply_cont_ext. reflexivity.
     + rewrite rename_simple_ext. f_equal. apply map_ext. intros [i ac].
       simpl. rewrite rename_apply_cont_ext. reflexivity.
@@ -211,9 +223,21 @@ Lemma rename_named_compose (d : named) :
   rename_named (compose_renaming second first) d
   = rename_named second (rename_named first d).
 Proof.
-  destruct d; simpl;
-    [ rewrite rename_simple_compose | rewrite rename_simples_compose ];
-    reflexivity.
+  destruct d as [s | p args | code slots | slot closure]; simpl;
+    rewrite ?rename_simple_compose, ?rename_simples_compose;
+    try reflexivity.
+  f_equal. rewrite map_map. apply map_ext. intros [slot s]. simpl.
+  rewrite rename_simple_compose. reflexivity.
+Qed.
+
+Lemma rename_apply_compose (ap : apply_expr) :
+  rename_apply (compose_renaming second first) ap
+  = rename_apply second (rename_apply first ap).
+Proof.
+  unfold rename_apply. simpl.
+  rewrite !rename_continuation_compose, rename_simple_compose,
+    rename_simples_compose.
+  reflexivity.
 Qed.
 
 Lemma rename_apply_cont_compose (ac : apply_cont) :
@@ -232,7 +256,7 @@ with rename_handler_compose (h : continuation_handler) :
   = rename_handler second (rename_handler first h).
 Proof.
   - destruct e
-      as [x d body | k h body | handlers body | ac | scrutinee arms | ];
+      as [x d body | k h body | handlers body | ap | ac | scrutinee arms | ];
       simpl.
     + rewrite rename_variable_compose, rename_named_compose,
         (rename_expr_compose_aux body). reflexivity.
@@ -242,6 +266,7 @@ Proof.
       induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
       rewrite rename_continuation_compose, (rename_handler_compose h), IH.
       reflexivity.
+    + rewrite rename_apply_compose. reflexivity.
     + rewrite rename_apply_cont_compose. reflexivity.
     + rewrite rename_simple_compose. f_equal.
       induction arms as [ | [i ac] arms IH]; simpl; [ reflexivity | ].
@@ -301,9 +326,14 @@ Lemma var_free_in_named_equivariant (r : renaming) (x : variable)
   var_free_in_named (rename_variable r x) (rename_named r d)
   <-> var_free_in_named x d.
 Proof.
-  destruct d; simpl;
-    [ apply var_free_in_simple_equivariant
-    | apply var_free_in_simples_equivariant ].
+  destruct d as [s | p args | code slots | slot closure]; simpl.
+  - apply var_free_in_simple_equivariant.
+  - apply var_free_in_simples_equivariant.
+  - induction slots as [ | [slot s] slots IH]; simpl.
+    + split; intros Hfree; inversion Hfree.
+    + rewrite !Exists_cons.
+      apply or_iff; [ apply var_free_in_simple_equivariant | exact IH ].
+  - apply var_free_in_simple_equivariant.
 Qed.
 
 Lemma in_map_rename_variable (r : renaming) (x : variable)
@@ -326,7 +356,7 @@ with var_free_in_handler_equivariant (r : renaming) (x : variable)
   <-> var_free_in_handler x h.
 Proof.
   - destruct e
-      as [y d body | k h body | handlers body | ac | scrutinee arms | ];
+      as [y d body | k h body | handlers body | ap | ac | scrutinee arms | ];
       simpl.
     + apply or_iff; [ apply var_free_in_named_equivariant | ].
       apply and_iff;
@@ -339,6 +369,9 @@ Proof.
       induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
       apply or_iff;
         [ apply (var_free_in_handler_equivariant r x h) | exact IH ].
+    + apply or_iff;
+        [ apply var_free_in_simple_equivariant
+        | apply var_free_in_simples_equivariant ].
     + apply var_free_in_simples_equivariant.
     + apply or_iff; [ apply var_free_in_simple_equivariant | ].
       induction arms as [ | [i ac] arms IH]; simpl.
@@ -371,7 +404,7 @@ with cont_free_in_handler_equivariant (r : renaming) (k : continuation)
   <-> cont_free_in_handler k h.
 Proof.
   - destruct e
-      as [y d body | k' h body | handlers body | ac | scrutinee arms | ];
+      as [y d body | k' h body | handlers body | ap | ac | scrutinee arms | ];
       simpl.
     + apply (cont_free_in_expr_equivariant r k body).
     + apply or_iff; [ apply (cont_free_in_handler_equivariant r k h) | ].
@@ -383,6 +416,9 @@ Proof.
       induction handlers as [ | [k' h] handlers IH]; simpl; [ reflexivity | ].
       apply or_iff;
         [ apply (cont_free_in_handler_equivariant r k h) | exact IH ].
+    + apply or_iff;
+        (split;
+          [ apply rename_continuation_injective | intros ->; reflexivity ]).
     + split; [ apply rename_continuation_injective | intros ->; reflexivity ].
     + induction arms as [ | [i ac] arms IH]; simpl.
       * split; intros Hfree; inversion Hfree.

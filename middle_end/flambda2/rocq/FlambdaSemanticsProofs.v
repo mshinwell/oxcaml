@@ -422,3 +422,30 @@ Lemma lookup_rec_closures_app (k : continuation)
     | None => lookup k rest
     end.
 Proof. apply lookup_rec_closures_aux. Qed.
+
+(* A call is undefined, or runs a body under variables that depend on the
+   closure and the arguments only, with the code's two continuations bound
+   to what the caller gave. *)
+Lemma call_function_cases (closure : value) (kind : call_kind)
+    (vs : list value) :
+  (∀ return_to exn_to : cont_value,
+    call_function closure kind vs return_to exn_to = Undefined)
+  ∨ (∃ (body : expr) (callee_vars : env) (ret exn : continuation),
+      ∀ return_to exn_to : cont_value,
+        call_function closure kind vs return_to exn_to
+        = Step (State body callee_vars [(ret, return_to); (exn, exn_to)])).
+Proof.
+  unfold call_function.
+  destruct closure as [c | called slots]; [ left; reflexivity | ].
+  destruct
+    (match kind with
+     | Direct named => Pos.eqb called named
+     | Indirect => true
+     end);
+    [ | left; reflexivity ].
+  destruct (program_code called) as [c | ]; [ | left; reflexivity ].
+  destruct (bind_params (code_params c) vs
+              [(code_my_closure c, Value_closure called slots)])
+    as [callee_vars | ]; [ | left; reflexivity ].
+  right. eauto.
+Qed.

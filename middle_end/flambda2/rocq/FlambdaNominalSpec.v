@@ -116,11 +116,24 @@ Definition rename_named (r : renaming) (defining_expr : named) : named :=
   match defining_expr with
   | Simple s => Simple (rename_simple r s)
   | Prim p args => Prim p (map (rename_simple r) args)
+  | Set_of_closures code value_slots =>
+    Set_of_closures code
+      (map (fun slot => (fst slot, rename_simple r (snd slot))) value_slots)
+  | Project_value_slot slot closure =>
+    Project_value_slot slot (rename_simple r closure)
   end.
 
 Definition rename_apply_cont (r : renaming) (ac : apply_cont) : apply_cont :=
   Apply_cont_expr (rename_continuation r (ac_continuation ac))
     (map (rename_simple r) (ac_args ac)).
+
+(* Code is not renamed: a renaming acts on the variables and the
+   continuations of a term, and code is closed. *)
+Definition rename_apply (r : renaming) (ap : apply_expr) : apply_expr :=
+  Apply_expr (rename_simple r (ap_callee ap)) (ap_call_kind ap)
+    (map (rename_simple r) (ap_args ap))
+    (rename_continuation r (ap_continuation ap))
+    (rename_continuation r (ap_exn_continuation ap)).
 
 Fixpoint rename_expr (r : renaming) (e : expr) : expr :=
   match e with
@@ -135,6 +148,7 @@ Fixpoint rename_expr (r : renaming) (e : expr) : expr :=
       (map (fun '(k, h) => (rename_continuation r k, rename_handler r h))
          handlers)
       (rename_expr r body)
+  | Apply ap => Apply (rename_apply r ap)
   | Apply_cont ac => Apply_cont (rename_apply_cont r ac)
   | Switch scrutinee arms =>
     Switch (rename_simple r scrutinee)
@@ -178,6 +192,9 @@ Definition var_free_in_named (x : variable) (defining_expr : named) : Prop :=
   match defining_expr with
   | Simple s => var_free_in_simple x s
   | Prim _ args => var_free_in_simples x args
+  | Set_of_closures _ value_slots =>
+    Exists (fun slot => var_free_in_simple x (snd slot)) value_slots
+  | Project_value_slot _ closure => var_free_in_simple x closure
   end.
 
 (* A [Let] binds its variable in its body; a handler binds its
@@ -190,6 +207,8 @@ Fixpoint var_free_in_expr (x : variable) (e : expr) : Prop :=
     var_free_in_handler x handler ∨ var_free_in_expr x body
   | Let_cont_recursive handlers body =>
     any_handler (var_free_in_handler x) handlers ∨ var_free_in_expr x body
+  | Apply ap =>
+    var_free_in_simple x (ap_callee ap) ∨ var_free_in_simples x (ap_args ap)
   | Apply_cont ac => var_free_in_simples x (ac_args ac)
   | Switch scrutinee arms =>
     var_free_in_simple x scrutinee
@@ -212,6 +231,7 @@ Fixpoint cont_free_in_expr (k : continuation) (e : expr) : Prop :=
     lookup k handlers = None
     ∧ (any_handler (cont_free_in_handler k) handlers
        ∨ cont_free_in_expr k body)
+  | Apply ap => k = ap_continuation ap ∨ k = ap_exn_continuation ap
   | Apply_cont ac => k = ac_continuation ac
   | Switch _ arms => Exists (fun arm => k = ac_continuation (snd arm)) arms
   | Invalid => False
