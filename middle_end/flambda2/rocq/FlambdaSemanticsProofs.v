@@ -302,7 +302,7 @@ Qed.
 
 Lemma expr_equivalent_refines (e e' : expr) :
   expr_equivalent e e' -> expr_refines e e'.
-Proof. intros Hequiv vars conts. apply equivalent_refines, Hequiv. Qed.
+Proof. intros Hequiv vars conts statics. apply equivalent_refines, Hequiv. Qed.
 
 (* ======================================================================== *)
 (* Bisimulations                                                            *)
@@ -424,28 +424,31 @@ Lemma lookup_rec_closures_app (k : continuation)
 Proof. apply lookup_rec_closures_aux. Qed.
 
 (* A call is undefined, or runs a body under variables that depend on the
-   closure and the arguments only, with the code's two continuations bound
-   to what the caller gave. *)
-Lemma call_function_cases (closure : value) (kind : call_kind)
-    (vs : list value) :
+   callee, the arguments and the static environment only, with the code's
+   two continuations bound to what the caller gave. *)
+Lemma call_function_cases (callee : value) (kind : call_kind)
+    (vs : list value) (statics : static_env) :
   (∀ return_to exn_to : cont_value,
-    call_function closure kind vs return_to exn_to = Undefined)
+    call_function callee kind vs return_to exn_to statics = Undefined)
   ∨ (∃ (body : expr) (callee_vars : env) (ret exn : continuation),
       ∀ return_to exn_to : cont_value,
-        call_function closure kind vs return_to exn_to
-        = Step (State body callee_vars [(ret, return_to); (exn, exn_to)])).
+        call_function callee kind vs return_to exn_to statics
+        = Step
+            (State body callee_vars [(ret, return_to); (exn, exn_to)]
+               statics)).
 Proof.
   unfold call_function.
-  destruct closure as [c | called slots]; [ left; reflexivity | ].
+  destruct (closure_of statics callee) as [[called slots] | ];
+    [ | left; reflexivity ].
   destruct
     (match kind with
      | Direct named => Pos.eqb called named
      | Indirect => true
      end);
     [ | left; reflexivity ].
-  destruct (program_code called) as [c | ]; [ | left; reflexivity ].
-  destruct (bind_params (code_params c) vs
-              [(code_my_closure c, Value_closure called slots)])
+  destruct (lookup called (static_code statics)) as [c | ];
+    [ | left; reflexivity ].
+  destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
     as [callee_vars | ]; [ | left; reflexivity ].
   right. eauto.
 Qed.

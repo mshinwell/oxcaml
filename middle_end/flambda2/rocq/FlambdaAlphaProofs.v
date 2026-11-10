@@ -145,7 +145,7 @@ Hypothesis same_continuations :
 
 Lemma rename_simple_ext (s : simple) : rename_simple r s = rename_simple r' s.
 Proof.
-  destruct s; simpl; [ rewrite same_variables | ]; reflexivity.
+  destruct s; simpl; rewrite ?same_variables; reflexivity.
 Qed.
 
 Lemma rename_named_ext (d : named) : rename_named r d = rename_named r' d.
@@ -154,6 +154,17 @@ Proof.
     rewrite ?rename_simple_ext, ?(map_ext _ _ rename_simple_ext);
     try reflexivity.
   f_equal. apply map_ext. intros [slot s]. simpl.
+  rewrite rename_simple_ext. reflexivity.
+Qed.
+
+Lemma rename_static_binding_ext (binding : static_binding) :
+  rename_static_binding r binding = rename_static_binding r' binding.
+Proof.
+  destruct binding as [id c | id | sym [code slots | tag fields | s | bytes]];
+    simpl;
+    rewrite ?rename_simple_ext, ?(map_ext _ _ rename_simple_ext);
+    try reflexivity.
+  do 2 f_equal. apply map_ext. intros [slot s]. simpl.
   rewrite rename_simple_ext. reflexivity.
 Qed.
 
@@ -178,9 +189,13 @@ with rename_handler_ext (h : continuation_handler) :
   rename_handler r h = rename_handler r' h.
 Proof.
   - destruct e
-      as [x d body | k h body | handlers body | ap | ac | scrutinee arms | ];
+      as [x d body | bindings body | k h body | handlers body | ap | ac
+       | scrutinee arms | ];
       simpl.
     + rewrite same_variables, rename_named_ext, (rename_expr_ext body).
+      reflexivity.
+    + rewrite (rename_expr_ext body),
+        (map_ext _ _ rename_static_binding_ext).
       reflexivity.
     + rewrite same_continuations, (rename_handler_ext h),
         (rename_expr_ext body). reflexivity.
@@ -211,7 +226,7 @@ Lemma rename_simple_compose (s : simple) :
   rename_simple (compose_renaming second first) s
   = rename_simple second (rename_simple first s).
 Proof.
-  destruct s; simpl; [ rewrite rename_variable_compose | ]; reflexivity.
+  destruct s; simpl; rewrite ?rename_variable_compose; reflexivity.
 Qed.
 
 Lemma rename_simples_compose (args : list simple) :
@@ -227,6 +242,18 @@ Proof.
     rewrite ?rename_simple_compose, ?rename_simples_compose;
     try reflexivity.
   f_equal. rewrite map_map. apply map_ext. intros [slot s]. simpl.
+  rewrite rename_simple_compose. reflexivity.
+Qed.
+
+Lemma rename_static_binding_compose (binding : static_binding) :
+  rename_static_binding (compose_renaming second first) binding
+  = rename_static_binding second (rename_static_binding first binding).
+Proof.
+  destruct binding as [id c | id | sym [code slots | tag fields | s | bytes]];
+    simpl;
+    rewrite ?rename_simple_compose, ?rename_simples_compose;
+    try reflexivity.
+  do 2 f_equal. rewrite map_map. apply map_ext. intros [slot s]. simpl.
   rewrite rename_simple_compose. reflexivity.
 Qed.
 
@@ -256,10 +283,13 @@ with rename_handler_compose (h : continuation_handler) :
   = rename_handler second (rename_handler first h).
 Proof.
   - destruct e
-      as [x d body | k h body | handlers body | ap | ac | scrutinee arms | ];
+      as [x d body | bindings body | k h body | handlers body | ap | ac
+       | scrutinee arms | ];
       simpl.
     + rewrite rename_variable_compose, rename_named_compose,
         (rename_expr_compose_aux body). reflexivity.
+    + rewrite (rename_expr_compose_aux body). f_equal.
+      rewrite map_map. apply map_ext, rename_static_binding_compose.
     + rewrite rename_continuation_compose, (rename_handler_compose h),
         (rename_expr_compose_aux body). reflexivity.
     + rewrite (rename_expr_compose_aux body). f_equal.
@@ -305,7 +335,7 @@ Lemma var_free_in_simple_equivariant (r : renaming) (x : variable)
   var_free_in_simple (rename_variable r x) (rename_simple r s)
   <-> var_free_in_simple x s.
 Proof.
-  destruct s as [y | c]; simpl; [ | reflexivity ].
+  destruct s as [y | sym | c]; simpl; try reflexivity.
   split; [ apply rename_variable_injective | intros ->; reflexivity ].
 Qed.
 
@@ -336,6 +366,35 @@ Proof.
   - apply var_free_in_simple_equivariant.
 Qed.
 
+Lemma var_free_in_value_slots_equivariant (r : renaming) (x : variable)
+    (slots : list (value_slot * simple)) :
+  Exists (fun slot => var_free_in_simple (rename_variable r x) (snd slot))
+    (map (fun slot => (fst slot, rename_simple r (snd slot))) slots)
+  <-> Exists (fun slot => var_free_in_simple x (snd slot)) slots.
+Proof.
+  induction slots as [ | [slot s] slots IH]; simpl.
+  - split; intros Hfree; inversion Hfree.
+  - rewrite !Exists_cons.
+    apply or_iff; [ apply var_free_in_simple_equivariant | exact IH ].
+Qed.
+
+Lemma var_free_in_static_bindings_equivariant (r : renaming) (x : variable)
+    (bindings : list static_binding) :
+  Exists (var_free_in_static_binding (rename_variable r x))
+    (map (rename_static_binding r) bindings)
+  <-> Exists (var_free_in_static_binding x) bindings.
+Proof.
+  induction bindings as [ | binding bindings IH]; simpl.
+  - split; intros Hfree; inversion Hfree.
+  - rewrite !Exists_cons. apply or_iff; [ | exact IH ].
+    destruct binding
+      as [id c | id | sym [code slots | tag fields | s | bytes]];
+      simpl; try reflexivity.
+    + apply var_free_in_value_slots_equivariant.
+    + apply var_free_in_simples_equivariant.
+    + apply var_free_in_simple_equivariant.
+Qed.
+
 Lemma in_map_rename_variable (r : renaming) (x : variable)
     (params : list variable) :
   rename_variable r x ∈ map (rename_variable r) params <-> x ∈ params.
@@ -356,11 +415,15 @@ with var_free_in_handler_equivariant (r : renaming) (x : variable)
   <-> var_free_in_handler x h.
 Proof.
   - destruct e
-      as [y d body | k h body | handlers body | ap | ac | scrutinee arms | ];
+      as [y d body | bindings body | k h body | handlers body | ap | ac
+       | scrutinee arms | ];
       simpl.
     + apply or_iff; [ apply var_free_in_named_equivariant | ].
       apply and_iff;
         [ apply rename_variable_neq
+        | apply (var_free_in_expr_equivariant r x body) ].
+    + apply or_iff;
+        [ apply var_free_in_static_bindings_equivariant
         | apply (var_free_in_expr_equivariant r x body) ].
     + apply or_iff;
         [ apply (var_free_in_handler_equivariant r x h)
@@ -404,8 +467,10 @@ with cont_free_in_handler_equivariant (r : renaming) (k : continuation)
   <-> cont_free_in_handler k h.
 Proof.
   - destruct e
-      as [y d body | k' h body | handlers body | ap | ac | scrutinee arms | ];
+      as [y d body | bindings body | k' h body | handlers body | ap | ac
+       | scrutinee arms | ];
       simpl.
+    + apply (cont_free_in_expr_equivariant r k body).
     + apply (cont_free_in_expr_equivariant r k body).
     + apply or_iff; [ apply (cont_free_in_handler_equivariant r k h) | ].
       apply and_iff;
@@ -468,11 +533,12 @@ Proof.
        | r e Hvars Hconts | r x d body Hvars Hconts
        | r k h body Hvars Hconts | r k params handler body Hvars Hconts
        | r before k params handler after body Hvars Hconts ].
-  - intros vars conts. apply equivalent_refl.
-  - intros vars conts. apply equivalent_sym, IH.
-  - intros vars conts. exact (equivalent_trans _ _ _ (IH _ _) (IH' _ _)).
+  - intros vars conts statics. apply equivalent_refl.
+  - intros vars conts statics. apply equivalent_sym, IH.
+  - intros vars conts statics.
+    exact (equivalent_trans _ _ _ (IH _ _ _) (IH' _ _ _)).
   - apply plug_equivalent, IH.
-  - intros vars conts. apply renamed_equivalent, State_renamed.
+  - intros vars conts statics. apply renamed_equivalent, State_renamed.
     + intros x Hx. rewrite (Hvars x Hx). reflexivity.
     + intros k Hk. apply conts_agree_same, Hconts, Hk.
   - apply rename_let; assumption.
@@ -489,6 +555,9 @@ Fixpoint rename_context (r : renaming) (c : context) : context :=
   match c with
   | Hole => Hole
   | Let_body x d body => Let_body (rename_variable r x) (rename_named r d)
+      (rename_context r body)
+  | Let_static_body bindings body =>
+    Let_static_body (map (rename_static_binding r) bindings)
       (rename_context r body)
   | Let_cont_non_recursive_body k h body =>
     Let_cont_non_recursive_body (rename_continuation r k)
@@ -511,8 +580,8 @@ Lemma rename_plug (r : renaming) (c : context) (e : expr) :
   rename_expr r (plug c e) = plug (rename_context r c) (rename_expr r e).
 Proof.
   induction c
-    as [ | x d c IH | k h c IH | k params c IH body | handlers c IH
-       | before k params c IH after body ];
+    as [ | x d c IH | bindings c IH | k h c IH | k params c IH body
+       | handlers c IH | before k params c IH after body ];
     simpl; rewrite ?IH; try reflexivity.
   unfold rename_handlers. rewrite map_app. simpl. rewrite IH. reflexivity.
 Qed.
@@ -693,11 +762,12 @@ Lemma plug_var_free (c : context) (e e' : expr) :
 Proof.
   intros Hfree.
   induction c
-    as [ | y d c IH | k h c IH | k params c IH body | handlers c IH
-       | before k params c IH after body ];
+    as [ | y d c IH | bindings c IH | k h c IH | k params c IH body
+       | handlers c IH | before k params c IH after body ];
     intros x; simpl.
   - apply Hfree.
   - apply or_iff; [ reflexivity | ]. apply and_iff; [ reflexivity | apply IH ].
+  - apply or_iff; [ reflexivity | apply IH ].
   - apply or_iff; [ reflexivity | apply IH ].
   - apply or_iff; [ | reflexivity ].
     apply and_iff; [ reflexivity | apply IH ].
@@ -714,10 +784,11 @@ Lemma plug_cont_free (c : context) (e e' : expr) :
 Proof.
   intros Hfree.
   induction c
-    as [ | y d c IH | k' h c IH | k' params c IH body | handlers c IH
-       | before k' params c IH after body ];
+    as [ | y d c IH | bindings c IH | k' h c IH | k' params c IH body
+       | handlers c IH | before k' params c IH after body ];
     intros k; simpl.
   - apply Hfree.
+  - apply IH.
   - apply IH.
   - apply or_iff; [ reflexivity | ]. apply and_iff; [ reflexivity | apply IH ].
   - apply or_iff; [ apply IH | reflexivity ].
@@ -985,7 +1056,8 @@ Qed.
 
 Theorem rename_variables_equivalent : rename_variables_equivalent_statement.
 Proof.
-  intros r e vars conts Hconts. apply renamed_equivalent, State_renamed.
+  intros r e vars conts statics Hconts.
+  apply renamed_equivalent, State_renamed.
   - intros x _. apply lookup_rename_env.
   - intros k Hk. apply conts_agree_same, Hconts, Hk.
 Qed.

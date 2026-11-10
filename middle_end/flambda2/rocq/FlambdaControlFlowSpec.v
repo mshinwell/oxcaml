@@ -54,15 +54,15 @@ Import ListNotations.
 Definition let_cont_apply_cont_statement : Prop :=
   ∀ (k : continuation) (params : list variable) (handler : expr)
     (args : list simple) (vars handler_vars : env) (conts : cont_env)
-    (vs : list value),
+    (statics : static_env) (vs : list value),
     eval_simples vars args = Some vs ->
     bind_params params vs vars = Some handler_vars ->
     equivalent
       (State
          (Let_cont_non_recursive k (Handler params handler)
             (Apply_cont (Apply_cont_expr k args)))
-         vars conts)
-      (State handler handler_vars conts).
+         vars conts statics)
+      (State handler handler_vars conts statics).
 
 (* The same with one parameter, as a rewrite of terms: the parameter becomes
    a [Let]. *)
@@ -79,16 +79,16 @@ Definition let_cont_recursive_apply_cont_statement : Prop :=
   ∀ (k : continuation) (params : list variable) (handler : expr)
     (handlers : list (continuation * continuation_handler))
     (args : list simple) (vars handler_vars : env) (conts : cont_env)
-    (vs : list value),
+    (statics : static_env) (vs : list value),
     lookup k handlers = Some (Handler params handler) ->
     eval_simples vars args = Some vs ->
     bind_params params vs vars = Some handler_vars ->
     equivalent
       (State
          (Let_cont_recursive handlers (Apply_cont (Apply_cont_expr k args)))
-         vars conts)
+         vars conts statics)
       (State handler handler_vars
-         (rec_closures handlers vars conts ++ conts)).
+         (rec_closures handlers vars conts ++ conts) statics).
 
 (* A continuation that only applies itself, applied. *)
 Definition loop_forever (k : continuation) : expr :=
@@ -97,8 +97,8 @@ Definition loop_forever (k : continuation) : expr :=
     (Apply_cont (Apply_cont_expr k [])).
 
 Definition loop_forever_diverges_statement : Prop :=
-  ∀ (k : continuation) (vars : env) (conts : cont_env),
-    behaves (State (loop_forever k) vars conts) Diverges.
+  ∀ (k : continuation) (vars : env) (conts : cont_env) (statics : static_env),
+    behaves (State (loop_forever k) vars conts statics) Diverges.
 
 (* ======================================================================== *)
 (* Switches                                                                 *)

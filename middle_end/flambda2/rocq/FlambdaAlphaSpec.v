@@ -328,8 +328,9 @@ Definition rename_env (r : renaming) (vars : env) : env :=
   map (fun '(x, v) => (rename_variable r x, v)) vars.
 
 Definition rename_variables_equivalent_statement : Prop :=
-  ∀ (r : renaming) (e : expr) (vars : env) (conts : cont_env),
+  ∀ (r : renaming) (e : expr) (vars : env) (conts : cont_env)
+    (statics : static_env),
     (∀ k : continuation,
       cont_free_in_expr k e -> rename_continuation r k = k) ->
-    equivalent (State e vars conts)
-      (State (rename_expr r e) (rename_env r vars) conts).
+    equivalent (State e vars conts statics)
+      (State (rename_expr r e) (rename_env r vars) conts statics).

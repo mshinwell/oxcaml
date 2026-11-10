@@ -84,7 +84,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaControlFlowSpec.v FlambdaControlFlowProofs.v \
   FlambdaContextSpec.v FlambdaContextProofs.v \
   FlambdaNominalSpec.v FlambdaNominalProofs.v FlambdaAlphaSpec.v \
-  FlambdaAlphaProofs.v FlambdaApplySpec.v FlambdaApplyProofs.v)
+  FlambdaAlphaProofs.v FlambdaApplySpec.v FlambdaApplyProofs.v \
+  FlambdaStaticSpec.v FlambdaStaticProofs.v)
 FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaTypesSpec.v FlambdaTypesProofs.v)
 

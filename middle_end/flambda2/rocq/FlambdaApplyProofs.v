@@ -37,10 +37,11 @@ Import ListNotations.
 
 Theorem apply_indirect_known : apply_indirect_known_statement.
 Proof.
-  intros callee args k exn called slots vars conts Hcallee.
+  intros callee args k exn v called slots vars conts statics Hcallee
+    Hclosure.
   apply (equivalent_of_run 1 1). simpl. rewrite Hcallee.
   destruct (eval_simples vars args) as [vs | ]; [ | reflexivity ].
-  unfold call_function. rewrite Pos.eqb_refl. reflexivity.
+  unfold call_function. rewrite Hclosure, Pos.eqb_refl. reflexivity.
 Qed.
 
 (* ======================================================================== *)
@@ -51,7 +52,7 @@ Lemma eval_simple_extend (vars : env) (x : variable) (v : value) (s : simple) :
   ~ var_free_in_simple x s ->
   eval_simple ((x, v) :: vars) s = eval_simple vars s.
 Proof.
-  destruct s as [y | c]; simpl; [ | reflexivity ].
+  destruct s as [y | sym | c]; simpl; try reflexivity.
   intros Hnotfree. destruct (Pos.eqb_spec y x) as [-> | _]; [ | reflexivity ].
   exfalso. apply Hnotfree. reflexivity.
 Qed.
@@ -72,17 +73,17 @@ Qed.
    a call binds them, provided no parameter is free in an argument. *)
 Lemma let_params_run (params : list variable) :
   ∀ (args : list simple) (vs : list value) (vars bound : env) (body : expr)
-    (conts : cont_env),
+    (conts : cont_env) (statics : static_env),
     eval_simples vars args = Some vs ->
     (∀ param : variable,
       param ∈ params -> ~ var_free_in_simples param args) ->
     bind_params params vs vars = Some bound ->
     ∃ n : nat,
-      run n (State (let_params params args body) vars conts)
-      = Step (State body bound conts).
+      run n (State (let_params params args body) vars conts statics)
+      = Step (State body bound conts statics).
 Proof.
   induction params as [ | param params IH];
-    intros args vs vars bound body conts Hargs Hfresh Hbind.
+    intros args vs vars bound body conts statics Hargs Hfresh Hbind.
   - destruct vs; [ | discriminate ]. injection Hbind as <-.
     exists 0. reflexivity.
   - destruct vs as [ | v vs]; [ discriminate | ].
@@ -95,7 +96,8 @@ Proof.
     assert (Hnotfree : ~ var_free_in_simples param args).
     { intros Hfree. apply (Hfresh param (or_introl eq_refl)).
       apply Exists_cons_tl. exact Hfree. }
-    destruct (IH args vs ((param, v) :: vars) bound body conts) as [n Hrun].
+    destruct (IH args vs ((param, v) :: vars) bound body conts statics)
+      as [n Hrun].
     + rewrite eval_simples_extend; assumption.
     + intros p Hin Hfree. apply (Hfresh p (or_intror Hin)).
       apply Exists_cons_tl. exact Hfree.
@@ -108,32 +110,34 @@ Qed.
 (* ======================================================================== *)
 
 (* The step of a direct call of a closure of the code named. *)
-Lemma step_apply_direct (ap : apply_expr) (called : code_id)
+Lemma step_apply_direct (ap : apply_expr) (callee : value) (called : code_id)
     (slots : list (value_slot * value)) (vs : list value) (vars : env)
-    (conts : cont_env) :
-  eval_simple vars (ap_callee ap) = Some (Value_closure called slots) ->
+    (conts : cont_env) (statics : static_env) :
+  eval_simple vars (ap_callee ap) = Some callee ->
+  closure_of statics callee = Some (called, slots) ->
   eval_simples vars (ap_args ap) = Some vs ->
   ap_call_kind ap = Direct called ->
-  step (State (Apply ap) vars conts)
-  = match program_code called with
+  step (State (Apply ap) vars conts statics)
+  = match lookup called (static_code statics) with
     | Some c =>
       match
-        bind_params (code_params c) vs
-          [(code_my_closure c, Value_closure called slots)]
+        bind_params (code_params c) vs [(code_my_closure c, callee)]
       with
       | Some callee_vars =>
         Step (State (code_body c) callee_vars
           [(code_return_continuation c, resolve (ap_continuation ap) conts);
            (code_exn_continuation c,
-            resolve (ap_exn_continuation ap) conts)])
+            resolve (ap_exn_continuation ap) conts)]
+          statics)
       | None => Undefined
       end
     | None => Undefined
     end.
 Proof.
-  intros Hcallee Hargs Hkind. simpl. rewrite Hcallee, Hargs, Hkind.
-  unfold call_function. rewrite Pos.eqb_refl.
-  destruct (program_code called); reflexivity.
+  intros Hcallee Hclosure Hargs Hkind. simpl.
+  rewrite Hcallee, Hargs, Hkind.
+  unfold call_function. rewrite Hclosure, Pos.eqb_refl.
+  destruct (lookup called (static_code statics)); reflexivity.
 Qed.
 
 (* The call goes wrong, or it steps to the body under the callee's
@@ -143,53 +147,54 @@ Qed.
    exception continuations stand for those of the call. *)
 Theorem inline : inline_statement.
 Proof.
-  intros ap called c r Hkind Hcode Hclosed_vars Hclosed_conts Hvars Hret
-    Hexn Hmy_closure Hparams Harity vars conts.
+  intros ap called c r vars conts statics Hkind Hcode
+    (Hclosed_vars & Hclosed_conts & Hvars & Hret & Hexn & Hmy_closure
+     & Hparams & Harity).
   assert (Hwrong :
-    step (State (Apply ap) vars conts) = Undefined ->
-    refines (State (Apply ap) vars conts)
-      (State (inlined_body c r ap) vars conts)).
+    step (State (Apply ap) vars conts statics) = Undefined ->
+    refines (State (Apply ap) vars conts statics)
+      (State (inlined_body c r ap) vars conts statics)).
   { intros Hstep. apply goes_wrong_refines. exists 1. unfold run.
     rewrite Hstep. reflexivity. }
-  destruct (eval_simple vars (ap_callee ap)) as [closure | ] eqn:Hcallee;
+  destruct (eval_simple vars (ap_callee ap)) as [callee | ] eqn:Hcallee;
     [ | apply Hwrong; simpl; rewrite Hcallee; reflexivity ].
   destruct (eval_simples vars (ap_args ap)) as [vs | ] eqn:Hargs;
     [ | apply Hwrong; simpl; rewrite Hcallee, Hargs; reflexivity ].
-  destruct closure as [const | called' slots];
-    [ apply Hwrong; simpl; rewrite Hcallee, Hargs; reflexivity | ].
+  destruct (closure_of statics callee) as [[called' slots] | ] eqn:Hclosure;
+    [ | apply Hwrong; simpl; rewrite Hcallee, Hargs;
+        unfold call_function; rewrite Hclosure; reflexivity ].
   destruct (Pos.eqb_spec called' called) as [-> | Hother];
     [ | apply Hwrong; simpl; rewrite Hcallee, Hargs, Hkind;
-        unfold call_function;
+        unfold call_function; rewrite Hclosure;
         destruct (Pos.eqb_spec called' called);
         [ contradiction | reflexivity ] ].
-  pose proof (step_apply_direct ap called slots vs vars conts Hcallee Hargs
-    Hkind) as Hstep.
+  pose proof (step_apply_direct ap callee called slots vs vars conts statics
+    Hcallee Hclosure Hargs Hkind) as Hstep.
   rewrite Hcode in Hstep.
-  remember (Value_closure called slots) as closure eqn:Hclosure.
-  destruct (bind_params (code_params c) vs [(code_my_closure c, closure)])
+  destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
     as [callee_vars | ] eqn:Hbind; [ | exact (Hwrong Hstep) ].
   apply equivalent_refines.
   (* the call *)
   eapply equivalent_trans; [ exact (step_equivalent _ _ Hstep) | ].
   (* the inlined body *)
   destruct (let_params_run (code_params c) (ap_args ap) vs
-              ((code_my_closure c, closure) :: vars) (callee_vars ++ vars)
-              (rename_expr r (code_body c)) conts)
+              ((code_my_closure c, callee) :: vars) (callee_vars ++ vars)
+              (rename_expr r (code_body c)) conts statics)
     as [n Hrun].
   { rewrite eval_simples_extend; assumption. }
   { exact Hparams. }
   { exact (bind_params_app (code_params c) vs
-      [(code_my_closure c, closure)] callee_vars vars Hbind). }
+      [(code_my_closure c, callee)] callee_vars vars Hbind). }
   apply equivalent_sym.
   eapply equivalent_trans.
   { apply (equivalent_of_run (S n) 0). simpl. rewrite Hcallee. exact Hrun. }
   apply equivalent_sym, renamed_equivalent, State_renamed.
   - intros x Hx. rewrite Hvars, lookup_app.
     destruct (bind_params_bound (code_params c) vs
-                [(code_my_closure c, closure)] callee_vars x Hbind)
+                [(code_my_closure c, callee)] callee_vars x Hbind)
       as [v Hlookup]; [ | rewrite Hlookup; reflexivity ].
     destruct (Hclosed_vars x Hx) as [-> | Hin]; [ right | left; exact Hin ].
-    exists closure. simpl. rewrite Pos.eqb_refl. reflexivity.
+    exists callee. simpl. rewrite Pos.eqb_refl. reflexivity.
   - intros k Hk. unfold conts_agree_at.
     destruct (Hclosed_conts k Hk) as [-> | ->].
     + rewrite Hret. unfold resolve at 1. simpl. rewrite Pos.eqb_refl.
@@ -199,6 +204,15 @@ Proof.
                   (code_return_continuation c)) as [Heq | _].
       * rewrite <- Hexn, Heq, Hret. apply Closure_same.
       * rewrite Pos.eqb_refl. apply Closure_same.
+Qed.
+
+(* One step binds the code; then [inline]. *)
+Theorem inline_let_code : inline_let_code_statement.
+Proof.
+  intros ap called c r Hkind Hinlinable vars conts statics.
+  eapply refines_step; [ reflexivity | reflexivity | ].
+  apply (inline ap called c r); [ exact Hkind | | exact Hinlinable ].
+  simpl. rewrite Pos.eqb_refl. reflexivity.
 Qed.
 
 (* Swap the return continuation with the call's, then what the exception

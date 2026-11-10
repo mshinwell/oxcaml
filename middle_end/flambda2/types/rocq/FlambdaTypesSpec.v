@@ -132,14 +132,14 @@ Definition var_in_typing_env (x : variable) (tenv : typing_env) : Prop :=
 
 Definition expr_refines_in (tenv : typing_env) (source target : expr)
     : Prop :=
-  ∀ (vars : env) (conts : cont_env),
+  ∀ (vars : env) (conts : cont_env) (statics : static_env),
     env_satisfies tenv vars ->
-    refines (State source vars conts) (State target vars conts).
+    refines (State source vars conts statics) (State target vars conts statics).
 
 Definition expr_equivalent_in (tenv : typing_env) (e e' : expr) : Prop :=
-  ∀ (vars : env) (conts : cont_env),
+  ∀ (vars : env) (conts : cont_env) (statics : static_env),
     env_satisfies tenv vars ->
-    equivalent (State e vars conts) (State e' vars conts).
+    equivalent (State e vars conts statics) (State e' vars conts statics).
 
 (* With nothing known it is refinement under all environments, which
    implies refinement relative to any typing environment. *)
@@ -178,7 +178,7 @@ Definition canonical_simple (tenv : typing_env) (s : simple) : simple :=
     | Some alias => alias
     | None => s
     end
-  | Const _ => s
+  | Symbol _ | Const _ => s
   end.
 
 Definition canonical_simple_sound_statement : Prop :=
@@ -304,20 +304,22 @@ Definition identity_code (x my_closure : variable) (ret exn : continuation)
     : code :=
   Code [x] my_closure ret exn (Apply_cont (Apply_cont_expr ret [Var x])).
 
-(* A direct call of it refines the application of the call's continuation
-   to the argument: the call is inlined, the parameter is replaced by the
-   argument it is bound to, and the two bindings, then unused, go. The
-   parameter and [my_closure] are taken not to be free in the argument, as
-   they are when fresh; the two continuations of the call are taken to be
-   different (FlambdaApplySpec.v). *)
+(* A direct call of it, where its code is bound, refines the application
+   of the call's continuation to the argument: the call is inlined, the
+   parameter is replaced by the argument it is bound to, and the two
+   bindings, then unused, go. The parameter and [my_closure] are taken not
+   to be free in the argument, as they are when fresh; the two
+   continuations of the call are taken to be different
+   (FlambdaApplySpec.v). *)
 Definition inline_identity_statement : Prop :=
   ∀ (called : code_id) (x my_closure : variable) (ret exn : continuation)
     (callee arg : simple) (k k_exn : continuation),
-    program_code called = Some (identity_code x my_closure ret exn) ->
     ret <> exn ->
     k <> k_exn ->
     ~ var_free_in_simple x arg ->
     ~ var_free_in_simple my_closure arg ->
     expr_refines
-      (Apply (Apply_expr callee (Direct called) [arg] k k_exn))
-      (Apply_cont (Apply_cont_expr k [arg])).
+      (Let_static [Bind_code called (identity_code x my_closure ret exn)]
+         (Apply (Apply_expr callee (Direct called) [arg] k k_exn)))
+      (Let_static [Bind_code called (identity_code x my_closure ret exn)]
+         (Apply_cont (Apply_cont_expr k [arg]))).

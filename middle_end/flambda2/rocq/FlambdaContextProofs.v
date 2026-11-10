@@ -201,30 +201,41 @@ Hypothesis carried_undefined :
 Hypothesis carried_related :
   ∀ (params : list variable) (def_vars : env) (e e' : expr)
     (vs : list value) (handler_vars : env) (conts : cont_env)
-    (b : behaviour),
+    (statics : static_env) (b : behaviour),
     related params def_vars e e' ->
     bind_params params vs def_vars = Some handler_vars ->
-    carried (State e handler_vars conts) b ->
-    carried (State e' handler_vars conts) b.
+    carried (State e handler_vars conts statics) b ->
+    carried (State e' handler_vars conts statics) b.
 
 Lemma transfer (n : nat) :
-  ∀ (e : expr) (vars : env) (conts conts' : cont_env) (b : behaviour),
+  ∀ (e : expr) (vars : env) (conts conts' : cont_env) (statics : static_env)
+    (b : behaviour),
     cont_env_related conts conts' ->
-    ended (run n (State e vars conts)) b ->
-    carried (State e vars conts') b.
+    ended (run n (State e vars conts statics)) b ->
+    carried (State e vars conts' statics) b.
 Proof.
-  induction n as [ | n IH]; intros e vars conts conts' b Hrel Hended;
+  induction n as [ | n IH];
+    intros e vars conts conts' statics b Hrel Hended;
     [ destruct b; contradiction | ].
   destruct e
-    as [x d body | k h body | handlers body | ap | ac | scrutinee arms | ];
+    as [ x d body | bindings body | k h body | handlers body | ap | ac
+       | scrutinee arms | ];
     simpl in Hended.
   - (* Let *)
-    destruct (eval_named vars d) as [v | ] eqn:Hd; simpl in Hended.
-    + apply (carried_step _ (State body ((x, v) :: vars) conts'));
+    destruct (eval_named statics vars d) as [v | ] eqn:Hd; simpl in Hended.
+    + apply (carried_step _ (State body ((x, v) :: vars) conts' statics));
         [ simpl; rewrite Hd; reflexivity | ].
-      exact (IH _ _ _ _ _ Hrel Hended).
+      exact (IH _ _ _ _ _ _ Hrel Hended).
     + apply ended_undefined in Hended. subst b.
       apply carried_undefined. simpl. rewrite Hd. reflexivity.
+  - (* Let_static: the same bindings *)
+    destruct (eval_static_bindings vars bindings statics) as [statics' | ]
+      eqn:Hbindings; simpl in Hended.
+    + apply (carried_step _ (State body vars conts' statics'));
+        [ simpl; rewrite Hbindings; reflexivity | ].
+      exact (IH _ _ _ _ _ _ Hrel Hended).
+    + apply ended_undefined in Hended. subst b.
+      apply carried_undefined. simpl. rewrite Hbindings. reflexivity.
   - (* Let_cont_non_recursive *)
     eapply carried_step; [ simpl; reflexivity | ].
     eapply IH; [ | exact Hended ].
@@ -243,7 +254,7 @@ Proof.
       [ destruct (eval_simples vars (ap_args ap)) as [vs | ] eqn:Hargs;
         simpl in Hended
       | ].
-    + destruct (call_function_cases closure (ap_call_kind ap) vs)
+    + destruct (call_function_cases closure (ap_call_kind ap) vs statics)
         as [Hundefined | (body & callee_vars & ret & exn & Hcall)].
       * rewrite Hundefined in Hended. apply ended_undefined in Hended.
         subst b. apply carried_undefined. simpl. rewrite Hcallee, Hargs.
@@ -283,18 +294,21 @@ Proof.
         -- assert (Hcarried :
              carried
                (State body handler_vars
-                  (rec_closures recursive' def_vars def_conts' ++ def_conts'))
+                  (rec_closures recursive' def_vars def_conts' ++ def_conts')
+                  statics)
                b).
            { eapply IH; [ | exact Hended ].
              apply Forall2_app; [ | exact Hconts ].
              apply rec_closures_related; assumption. }
            apply (carried_step _
              (State body' handler_vars
-                (rec_closures recursive' def_vars def_conts' ++ def_conts'))).
+                (rec_closures recursive' def_vars def_conts' ++ def_conts')
+                statics)).
            ++ simpl. rewrite Hargs. unfold apply_continuation.
               rewrite Hl'. simpl. rewrite Hbind. reflexivity.
            ++ destruct Hbody as [Hbody | <-]; [ | exact Hcarried ].
-              exact (carried_related _ _ _ _ _ _ _ _ Hbody Hbind Hcarried).
+              exact
+                (carried_related _ _ _ _ _ _ _ _ _ Hbody Hbind Hcarried).
         -- apply ended_undefined in Hended. subst b.
            apply carried_undefined. simpl. rewrite Hargs.
            unfold apply_continuation. rewrite Hl'. simpl. rewrite Hbind.
@@ -306,21 +320,22 @@ Proof.
     + apply ended_undefined in Hended. subst b.
       apply carried_undefined. simpl. rewrite Hargs. reflexivity.
   - (* Switch *)
-    destruct (eval_simple vars scrutinee)
-      as [[[i | i] | called slots] | ] eqn:Hscrutinee;
+    destruct (eval_simple vars scrutinee) as [v | ] eqn:Hscrutinee;
       simpl in Hended;
-      [ destruct (find_arm i arms) as [ac | ] eqn:Hfind; simpl in Hended
-      | | | ].
-    + apply (carried_step _ (State (Apply_cont ac) vars conts'));
-        [ simpl; rewrite Hscrutinee, Hfind; reflexivity | ].
-      exact (IH _ _ _ _ _ Hrel Hended).
+      [ destruct (naked_immediate_of_value v) as [i | ] eqn:Himmediate;
+        simpl in Hended;
+        [ destruct (find_arm i arms) as [ac | ] eqn:Hfind; simpl in Hended
+        | ]
+      | ].
+    + apply (carried_step _ (State (Apply_cont ac) vars conts' statics));
+        [ simpl; rewrite Hscrutinee, Himmediate, Hfind; reflexivity | ].
+      exact (IH _ _ _ _ _ _ Hrel Hended).
     + apply ended_undefined in Hended. subst b.
-      apply carried_undefined. simpl. rewrite Hscrutinee, Hfind.
+      apply carried_undefined. simpl.
+      rewrite Hscrutinee, Himmediate, Hfind. reflexivity.
+    + apply ended_undefined in Hended. subst b.
+      apply carried_undefined. simpl. rewrite Hscrutinee, Himmediate.
       reflexivity.
-    + apply ended_undefined in Hended. subst b.
-      apply carried_undefined. simpl. rewrite Hscrutinee. reflexivity.
-    + apply ended_undefined in Hended. subst b.
-      apply carried_undefined. simpl. rewrite Hscrutinee. reflexivity.
     + apply ended_undefined in Hended. subst b.
       apply carried_undefined. simpl. rewrite Hscrutinee. reflexivity.
   - (* Invalid *)
@@ -349,26 +364,28 @@ Definition ends_or_wrong (s : state) (b : behaviour) : Prop :=
    closure with its parameters bound, and any continuations. *)
 Definition handler_refines_at (params : list variable) (def_vars : env)
     (source target : expr) : Prop :=
-  ∀ (vs : list value) (handler_vars : env) (conts : cont_env),
+  ∀ (vs : list value) (handler_vars : env) (conts : cont_env)
+    (statics : static_env),
     bind_params params vs def_vars = Some handler_vars ->
-    refines (State source handler_vars conts)
-      (State target handler_vars conts).
+    refines (State source handler_vars conts statics)
+      (State target handler_vars conts statics).
 
 (* An expression under an environment refines it under one whose closures
    have refining handlers. The relation is needed in both directions, as
    the two halves of [refines] run different sides. *)
-Lemma related_envs_refines (e : expr) (vars : env) (conts conts' : cont_env) :
+Lemma related_envs_refines (e : expr) (vars : env) (conts conts' : cont_env)
+    (statics : static_env) :
   cont_env_related handler_refines_at conts conts' ->
   cont_env_related
     (fun params def_vars target source =>
        handler_refines_at params def_vars source target)
     conts' conts ->
-  refines (State e vars conts) (State e vars conts').
+  refines (State e vars conts statics) (State e vars conts' statics).
 Proof.
   intros Hrel Hrel'. split.
   - intros k vs [n Hrun].
     refine (transfer handler_refines_at exits_carried _ _ _ _ n e vars conts
-      conts' (Exits k vs) Hrel _).
+      conts' statics (Exits k vs) Hrel _).
     + intros s s' b Hstep.
       destruct b as [k' vs' | | ]; unfold exits_carried; auto.
       intros Hb. apply (step_behaves s (Exits k' vs')). rewrite Hstep.
@@ -376,16 +393,17 @@ Proof.
     + intros s k' vs' Hstep. apply (step_behaves s (Exits k' vs')).
       rewrite Hstep. reflexivity.
     + intros s _. exact I.
-    + intros params def_vars source target vs' handler_vars conts'' b
-        Hrefines Hbind.
+    + intros params def_vars source target vs' handler_vars conts'' statics'
+        b Hrefines Hbind.
       destruct b; unfold exits_carried; auto.
-      apply (proj1 (Hrefines vs' handler_vars conts'' Hbind)).
+      apply (proj1 (Hrefines vs' handler_vars conts'' statics' Hbind)).
     + rewrite Hrun. simpl. auto.
   - intros b Hterm Hb. destruct (behaves_ended _ _ Hterm Hb) as [n Hended].
     refine (transfer
       (fun params def_vars target source =>
          handler_refines_at params def_vars source target)
-      ends_or_wrong _ _ _ _ n e vars conts' conts b Hrel' Hended Hterm).
+      ends_or_wrong _ _ _ _ n e vars conts' conts statics b Hrel' Hended
+      Hterm).
     + intros s s' b' Hstep Hcarried Hterm'.
       destruct (Hcarried Hterm') as [Hb' | Hwrong]; [ left | right ];
         [ apply (step_behaves s b') | apply (step_behaves s Goes_wrong) ];
@@ -394,9 +412,10 @@ Proof.
       rewrite Hstep. reflexivity.
     + intros s Hstep _. left. apply (step_behaves s Goes_wrong).
       rewrite Hstep. reflexivity.
-    + intros params def_vars target source vs handler_vars conts'' b'
-        Hrefines Hbind Hcarried Hterm'.
-      destruct (Hrefines vs handler_vars conts'' Hbind) as [_ Hends].
+    + intros params def_vars target source vs handler_vars conts'' statics'
+        b' Hrefines Hbind Hcarried Hterm'.
+      destruct (Hrefines vs handler_vars conts'' statics' Hbind)
+        as [_ Hends].
       destruct (Hcarried Hterm') as [Hb' | Hwrong];
         [ exact (Hends b' Hterm' Hb') | ].
       destruct (Hends Goes_wrong ltac:(discriminate) Hwrong); right;
@@ -406,13 +425,14 @@ Qed.
 (* A [Let_cont] refines the same with a handler replaced by one that
    refines it where it runs. *)
 Lemma let_cont_handler_refines_at (k : continuation) (params : list variable)
-    (handler handler' body : expr) (vars : env) (conts : cont_env) :
+    (handler handler' body : expr) (vars : env) (conts : cont_env)
+    (statics : static_env) :
   handler_refines_at params vars handler handler' ->
   refines
     (State (Let_cont_non_recursive k (Handler params handler) body) vars
-       conts)
+       conts statics)
     (State (Let_cont_non_recursive k (Handler params handler') body) vars
-       conts).
+       conts statics).
 Proof.
   intros Hhandler. eapply refines_step; [ reflexivity | reflexivity | ].
   apply related_envs_refines;
@@ -427,17 +447,17 @@ Lemma let_cont_recursive_handler_refines_at
     (before : list (continuation * continuation_handler)) (k : continuation)
     (params : list variable) (handler handler' : expr)
     (after : list (continuation * continuation_handler)) (body : expr)
-    (vars : env) (conts : cont_env) :
+    (vars : env) (conts : cont_env) (statics : static_env) :
   handler_refines_at params vars handler handler' ->
   refines
     (State
        (Let_cont_recursive (before ++ (k, Handler params handler) :: after)
           body)
-       vars conts)
+       vars conts statics)
     (State
        (Let_cont_recursive (before ++ (k, Handler params handler') :: after)
           body)
-       vars conts).
+       vars conts statics).
 Proof.
   intros Hhandler. eapply refines_step; [ reflexivity | reflexivity | ].
   apply related_envs_refines;
@@ -459,26 +479,33 @@ Theorem plug_refines : plug_refines_statement.
 Proof.
   intros c source target Hrefines.
   induction c
-    as [ | x d c IH | k h c IH | k params c IH body | handlers c IH
-       | before k params c IH after body ];
-    simpl; [ exact Hrefines | | | | | ]; intros vars conts.
-  - destruct (eval_named vars d) as [v | ] eqn:Hd.
+    as [ | x d c IH | bindings c IH | k h c IH | k params c IH body
+       | handlers c IH | before k params c IH after body ];
+    simpl; [ exact Hrefines | | | | | | ]; intros vars conts statics.
+  - destruct (eval_named statics vars d) as [v | ] eqn:Hd.
     + eapply refines_step;
         [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity
         | apply IH ].
     + apply goes_wrong_refines. exists 1. simpl. rewrite Hd. reflexivity.
+  - destruct (eval_static_bindings vars bindings statics) as [statics' | ]
+      eqn:Hbindings.
+    + eapply refines_step;
+        [ simpl; rewrite Hbindings; reflexivity
+        | simpl; rewrite Hbindings; reflexivity | apply IH ].
+    + apply goes_wrong_refines. exists 1. simpl. rewrite Hbindings.
+      reflexivity.
   - eapply refines_step; [ reflexivity | reflexivity | apply IH ].
-  - apply let_cont_handler_refines_at. intros vs handler_vars conts' _.
-    apply IH.
+  - apply let_cont_handler_refines_at.
+    intros vs handler_vars conts' statics' _. apply IH.
   - eapply refines_step; [ reflexivity | reflexivity | apply IH ].
   - apply let_cont_recursive_handler_refines_at.
-    intros vs handler_vars conts' _. apply IH.
+    intros vs handler_vars conts' statics' _. apply IH.
 Qed.
 
 Theorem plug_equivalent : plug_equivalent_statement.
 Proof.
-  intros c e e' Hequiv vars conts.
+  intros c e e' Hequiv vars conts statics.
   apply refines_antisymmetric; apply plug_refines;
     apply expr_equivalent_refines; [ exact Hequiv | ].
-  intros vars' conts'. apply equivalent_sym, Hequiv.
+  intros vars' conts' statics'. apply equivalent_sym, Hequiv.
 Qed.

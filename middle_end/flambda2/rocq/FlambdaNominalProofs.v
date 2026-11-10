@@ -88,13 +88,29 @@ Proof.
   rewrite rename_simple_id, IH. reflexivity.
 Qed.
 
+Lemma rename_value_slots_id (slots : list (value_slot * simple)) :
+  map (fun slot => (fst slot, rename_simple identity_renaming (snd slot)))
+    slots
+  = slots.
+Proof.
+  induction slots as [ | [slot s] slots IH]; simpl; [ reflexivity | ].
+  rewrite rename_simple_id, IH. reflexivity.
+Qed.
+
 Lemma rename_named_id (d : named) : rename_named identity_renaming d = d.
 Proof.
   destruct d as [s | p args | code slots | slot closure]; simpl;
-    rewrite ?rename_simple_id, ?rename_simples_id; try reflexivity.
-  f_equal.
-  induction slots as [ | [slot s] slots IH]; simpl; [ reflexivity | ].
-  rewrite rename_simple_id, IH. reflexivity.
+    rewrite ?rename_simple_id, ?rename_simples_id, ?rename_value_slots_id;
+    reflexivity.
+Qed.
+
+Lemma rename_static_binding_id (binding : static_binding) :
+  rename_static_binding identity_renaming binding = binding.
+Proof.
+  destruct binding as [id c | id | sym [code slots | tag fields | s | bytes]];
+    simpl;
+    rewrite ?rename_simple_id, ?rename_simples_id, ?rename_value_slots_id;
+    reflexivity.
 Qed.
 
 Lemma rename_apply_id (ap : apply_expr) :
@@ -117,9 +133,14 @@ with rename_handler_id (h : continuation_handler) :
   rename_handler identity_renaming h = h.
 Proof.
   - destruct e
-      as [x d body | k h body | handlers body | ap | ac | scrutinee arms | ];
+      as [ x d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
       simpl.
     + rewrite rename_named_id, rename_expr_id. reflexivity.
+    + rewrite rename_expr_id. f_equal.
+      induction bindings as [ | binding bindings IH]; simpl;
+        [ reflexivity | ].
+      rewrite rename_static_binding_id, IH. reflexivity.
     + rewrite rename_handler_id, rename_expr_id. reflexivity.
     + rewrite rename_expr_id. f_equal.
       induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
@@ -165,7 +186,7 @@ Lemma eval_simple_renamed (r : renaming) (s : simple) (vars vars' : env) :
     lookup (rename_variable r x) vars' = lookup x vars) ->
   eval_simple vars' (rename_simple r s) = eval_simple vars s.
 Proof.
-  intros Hvars. destruct s as [x | c]; simpl; [ | reflexivity ].
+  intros Hvars. destruct s as [x | sym | c]; simpl; try reflexivity.
   apply Hvars. reflexivity.
 Qed.
 
@@ -198,17 +219,58 @@ Proof.
     exact Hx.
 Qed.
 
-Lemma eval_named_renamed (r : renaming) (d : named) (vars vars' : env) :
+Lemma eval_named_renamed (r : renaming) (d : named) (vars vars' : env)
+    (statics : static_env) :
   (∀ x : variable,
     var_free_in_named x d ->
     lookup (rename_variable r x) vars' = lookup x vars) ->
-  eval_named vars' (rename_named r d) = eval_named vars d.
+  eval_named statics vars' (rename_named r d) = eval_named statics vars d.
 Proof.
   intros Hvars. destruct d as [s | p args | code slots | slot closure]; simpl.
   - apply eval_simple_renamed, Hvars.
   - rewrite (eval_simples_renamed r args vars vars' Hvars). reflexivity.
   - rewrite (eval_value_slots_renamed r slots vars vars' Hvars). reflexivity.
   - rewrite (eval_simple_renamed r closure vars vars' Hvars). reflexivity.
+Qed.
+
+Lemma eval_static_const_renamed (r : renaming) (const : static_const)
+    (vars vars' : env) :
+  (∀ x : variable,
+    var_free_in_static_const x const ->
+    lookup (rename_variable r x) vars' = lookup x vars) ->
+  eval_static_const vars' (rename_static_const r const)
+  = eval_static_const vars const.
+Proof.
+  intros Hvars. destruct const as [code slots | tag fields | s | bytes]; simpl.
+  - rewrite (eval_value_slots_renamed r slots vars vars' Hvars). reflexivity.
+  - rewrite (eval_simples_renamed r fields vars vars' Hvars). reflexivity.
+  - rewrite (eval_simple_renamed r s vars vars' Hvars). reflexivity.
+  - reflexivity.
+Qed.
+
+Lemma eval_static_bindings_renamed (r : renaming)
+    (bindings : list static_binding) (vars vars' : env) :
+  (∀ x : variable,
+    Exists (var_free_in_static_binding x) bindings ->
+    lookup (rename_variable r x) vars' = lookup x vars) ->
+  ∀ statics : static_env,
+    eval_static_bindings vars' (map (rename_static_binding r) bindings)
+      statics
+    = eval_static_bindings vars bindings statics.
+Proof.
+  induction bindings as [ | binding bindings IH]; intros Hvars statics;
+    [ reflexivity | ].
+  assert (Hrest :
+    ∀ x : variable,
+      Exists (var_free_in_static_binding x) bindings ->
+      lookup (rename_variable r x) vars' = lookup x vars).
+  { intros x Hx. apply Hvars. apply Exists_cons_tl. exact Hx. }
+  destruct binding as [id c | id | sym const]; simpl;
+    [ apply IH, Hrest | apply IH, Hrest | ].
+  rewrite (eval_static_const_renamed r const vars vars').
+  - destruct (eval_static_const vars const); simpl;
+      [ apply IH, Hrest | reflexivity ].
+  - intros x Hx. apply Hvars. apply Exists_cons_hd. exact Hx.
 Qed.
 
 (* Binding renamed parameters: both fail or both succeed, and then the
@@ -314,13 +376,14 @@ Definition conts_agree_at (r : renaming) (k : continuation)
 Inductive state_renamed : state -> state -> Prop :=
   | State_same (s : state) : state_renamed s s
   | State_renamed (r : renaming) (e : expr) (vars vars' : env)
-      (conts conts' : cont_env) :
+      (conts conts' : cont_env) (statics : static_env) :
     (∀ x : variable,
       var_free_in_expr x e ->
       lookup (rename_variable r x) vars' = lookup x vars) ->
     (∀ k : continuation,
       cont_free_in_expr k e -> conts_agree_at r k conts conts') ->
-    state_renamed (State e vars conts) (State (rename_expr r e) vars' conts').
+    state_renamed (State e vars conts statics)
+      (State (rename_expr r e) vars' conts' statics).
 
 (* One environment agrees with itself at a continuation the renaming
    fixes. *)
@@ -430,10 +493,11 @@ Proof.
 Qed.
 
 (* Applying a continuation and its renaming to the same values. *)
-Lemma apply_cont_value_renamed (c c' : cont_value) (vs : list value) :
+Lemma apply_cont_value_renamed (c c' : cont_value) (vs : list value)
+    (statics : static_env) :
   closure_renamed c c' ->
-  result_related state_renamed (apply_cont_value c vs)
-    (apply_cont_value c' vs).
+  result_related state_renamed (apply_cont_value c vs statics)
+    (apply_cont_value c' vs statics).
 Proof.
   intros
     [[[params handler] vars conts0 recursive | exit]
@@ -459,16 +523,16 @@ Qed.
 (* One expression under environments that agree on its free names is a
    state and its renaming by the identity. *)
 Lemma state_renamed_identity (e : expr) (vars vars' : env)
-    (conts conts' : cont_env) :
+    (conts conts' : cont_env) (statics : static_env) :
   (∀ x : variable, var_free_in_expr x e -> lookup x vars' = lookup x vars) ->
   (∀ k : continuation,
     cont_free_in_expr k e -> conts_agree_at identity_renaming k conts conts')
   ->
-  state_renamed (State e vars conts) (State e vars' conts').
+  state_renamed (State e vars conts statics) (State e vars' conts' statics).
 Proof.
   intros Hvars Hconts.
   pose proof (State_renamed identity_renaming e vars vars' conts conts'
-    Hvars Hconts) as Hrenamed.
+    statics Hvars Hconts) as Hrenamed.
   rewrite rename_expr_id in Hrenamed. exact Hrenamed.
 Qed.
 
@@ -476,19 +540,28 @@ Qed.
 Lemma renamed_step (s s' : state) :
   state_renamed s s' -> result_related state_renamed (step s) (step s').
 Proof.
-  intros [s0 | r e vars vars' conts conts' Hvars Hconts].
+  intros [s0 | r e vars vars' conts conts' statics Hvars Hconts].
   - apply result_related_refl, State_same.
   - destruct e
-      as [x d body | k h body | handlers body | ap | ac | scrutinee arms | ];
+      as [ x d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
       simpl.
     + (* Let *)
-      rewrite (eval_named_renamed r d vars vars');
+      rewrite (eval_named_renamed r d vars vars' statics);
         [ | intros y Hy; apply Hvars; left; exact Hy ].
-      destruct (eval_named vars d) as [v | ]; simpl; [ | exact I ].
+      destruct (eval_named statics vars d) as [v | ]; simpl; [ | exact I ].
       apply State_renamed.
       * intros y Hy. simpl. rewrite rename_variable_eqb.
         destruct (Pos.eqb_spec y x) as [-> | Hne]; [ reflexivity | ].
         apply Hvars. right. split; assumption.
+      * intros k Hk. apply Hconts. exact Hk.
+    + (* Let_static: the same static environment *)
+      rewrite (eval_static_bindings_renamed r bindings vars vars');
+        [ | intros y Hy; apply Hvars; left; exact Hy ].
+      destruct (eval_static_bindings vars bindings statics) as [statics' | ];
+        simpl; [ | exact I ].
+      apply State_renamed.
+      * intros y Hy. apply Hvars. right. exact Hy.
       * intros k Hk. apply Hconts. exact Hk.
     + (* Let_cont_non_recursive *)
       apply State_renamed.
@@ -518,7 +591,7 @@ Proof.
       destruct (eval_simple vars (ap_callee ap)) as [closure | ];
         [ | exact I ].
       destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | exact I ].
-      destruct (call_function_cases closure (ap_call_kind ap) vs)
+      destruct (call_function_cases closure (ap_call_kind ap) vs statics)
         as [Hundefined | (body & callee_vars & ret & exn & Hcall)].
       * rewrite !Hundefined. exact I.
       * rewrite !Hcall. simpl.
@@ -538,8 +611,8 @@ Proof.
     + (* Switch *)
       rewrite (eval_simple_renamed r scrutinee vars vars');
         [ | intros y Hy; apply Hvars; left; exact Hy ].
-      destruct (eval_simple vars scrutinee) as [[[i | i] | called slots] | ];
-        try exact I.
+      destruct (eval_simple vars scrutinee) as [v | ]; [ | exact I ].
+      destruct (naked_immediate_of_value v) as [i | ]; [ | exact I ].
       rewrite find_arm_renamed.
       destruct (find_arm i arms) as [ac | ] eqn:Hfind; simpl; [ | exact I ].
       apply find_arm_in in Hfind.
@@ -558,12 +631,12 @@ Proof. apply (bisimulation_equivalent state_renamed renamed_step). Qed.
 (* The case of no renaming: one expression under environments that agree
    on its free names. *)
 Lemma coincide_equivalent (e : expr) (vars vars' : env)
-    (conts conts' : cont_env) :
+    (conts conts' : cont_env) (statics : static_env) :
   (∀ x : variable, var_free_in_expr x e -> lookup x vars' = lookup x vars) ->
   (∀ k : continuation,
     cont_free_in_expr k e -> conts_agree_at identity_renaming k conts conts')
   ->
-  equivalent (State e vars conts) (State e vars' conts').
+  equivalent (State e vars conts statics) (State e vars' conts' statics).
 Proof.
   intros Hvars Hconts.
   apply renamed_equivalent, state_renamed_identity; assumption.
@@ -585,8 +658,8 @@ Qed.
 
 Theorem rename_let : rename_let_statement.
 Proof.
-  intros r x d body Hvars Hconts vars conts.
-  destruct (eval_named vars d) as [v | ] eqn:Hd.
+  intros r x d body Hvars Hconts vars conts statics.
+  destruct (eval_named statics vars d) as [v | ] eqn:Hd.
   - eapply equivalent_step;
       [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity | ].
     apply renamed_equivalent, State_renamed.
@@ -620,7 +693,7 @@ Qed.
 
 Theorem rename_let_cont : rename_let_cont_statement.
 Proof.
-  intros r k h body Hvars Hconts vars conts.
+  intros r k h body Hvars Hconts vars conts statics.
   eapply equivalent_step; [ reflexivity | reflexivity | ].
   apply renamed_equivalent, State_renamed.
   - intros y Hy. rewrite (Hvars y Hy). reflexivity.
@@ -632,7 +705,7 @@ Qed.
 
 Theorem rename_handler_params : rename_handler_params_statement.
 Proof.
-  intros r k params handler body Hvars Hconts vars conts.
+  intros r k params handler body Hvars Hconts vars conts statics.
   eapply equivalent_step; [ reflexivity | reflexivity | ].
   apply coincide_equivalent; [ reflexivity | ].
   intros k' _. unfold conts_agree_at, resolve.
@@ -647,7 +720,7 @@ Qed.
 
 Theorem rename_let_cont_recursive : rename_let_cont_recursive_statement.
 Proof.
-  intros r handlers body Hvars Hconts vars conts.
+  intros r handlers body Hvars Hconts vars conts statics.
   eapply equivalent_step; [ reflexivity | reflexivity | ].
   apply renamed_equivalent, State_renamed.
   - intros y Hy. rewrite (Hvars y); [ reflexivity | right; exact Hy ].
@@ -676,7 +749,7 @@ Qed.
 Theorem rename_recursive_handler_params :
   rename_recursive_handler_params_statement.
 Proof.
-  intros r before k params handler after body Hvars Hconts vars conts.
+  intros r before k params handler after body Hvars Hconts vars conts statics.
   set (h := Handler params handler).
   set (handlers := before ++ (k, h) :: after).
   set (handlers' := before ++ (k, rename_handler r h) :: after).
@@ -748,10 +821,10 @@ Qed.
 
 Theorem unused_let : unused_let_statement.
 Proof.
-  intros x d body Hunused vars conts.
-  destruct (eval_named vars d) as [v | ] eqn:Hd.
+  intros x d body Hunused vars conts statics.
+  destruct (eval_named statics vars d) as [v | ] eqn:Hd.
   - apply equivalent_refines.
-    apply (equivalent_trans _ (State body ((x, v) :: vars) conts));
+    apply (equivalent_trans _ (State body ((x, v) :: vars) conts statics));
       [ apply step_equivalent; simpl; rewrite Hd; reflexivity | ].
     apply coincide_equivalent.
     + intros y Hy. simpl.
@@ -763,7 +836,7 @@ Qed.
 
 Theorem unused_let_cont : unused_let_cont_statement.
 Proof.
-  intros k h body Hunused vars conts.
+  intros k h body Hunused vars conts statics.
   eapply equivalent_trans; [ apply step_equivalent; reflexivity | ].
   apply coincide_equivalent; [ reflexivity | ].
   intros k' Hk'. unfold conts_agree_at, resolve.
@@ -774,7 +847,7 @@ Qed.
 
 Theorem unused_let_cont_recursive : unused_let_cont_recursive_statement.
 Proof.
-  intros handlers body Hunused vars conts.
+  intros handlers body Hunused vars conts statics.
   eapply equivalent_trans; [ apply step_equivalent; reflexivity | ].
   apply coincide_equivalent; [ reflexivity | ].
   intros k Hk. unfold conts_agree_at, resolve.

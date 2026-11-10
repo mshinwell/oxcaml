@@ -109,6 +109,7 @@ Arguments rename_continuation : simpl never.
 Definition rename_simple (r : renaming) (s : simple) : simple :=
   match s with
   | Var x => Var (rename_variable r x)
+  | Symbol sym => Symbol sym
   | Const c => Const c
   end.
 
@@ -127,8 +128,29 @@ Definition rename_apply_cont (r : renaming) (ac : apply_cont) : apply_cont :=
   Apply_cont_expr (rename_continuation r (ac_continuation ac))
     (map (rename_simple r) (ac_args ac)).
 
-(* Code is not renamed: a renaming acts on the variables and the
-   continuations of a term, and code is closed. *)
+(* A renaming acts on the variables and the continuations of a term.
+   Symbols and code ids are not renamed, and nor is code: it is closed, so
+   none of its names is one of the term around it. *)
+Definition rename_static_const (r : renaming) (const : static_const)
+    : static_const :=
+  match const with
+  | Static_set_of_closures code value_slots =>
+    Static_set_of_closures code
+      (map (fun slot => (fst slot, rename_simple r (snd slot))) value_slots)
+  | Static_block tag fields => Static_block tag (map (rename_simple r) fields)
+  | Static_boxed_number contents =>
+    Static_boxed_number (rename_simple r contents)
+  | Static_immutable_string bytes => Static_immutable_string bytes
+  end.
+
+Definition rename_static_binding (r : renaming) (binding : static_binding)
+    : static_binding :=
+  match binding with
+  | Bind_code id c => Bind_code id c
+  | Bind_deleted_code id => Bind_deleted_code id
+  | Bind_symbol s const => Bind_symbol s (rename_static_const r const)
+  end.
+
 Definition rename_apply (r : renaming) (ap : apply_expr) : apply_expr :=
   Apply_expr (rename_simple r (ap_callee ap)) (ap_call_kind ap)
     (map (rename_simple r) (ap_args ap))
@@ -140,6 +162,8 @@ Fixpoint rename_expr (r : renaming) (e : expr) : expr :=
   | Let x defining_expr body =>
     Let (rename_variable r x) (rename_named r defining_expr)
       (rename_expr r body)
+  | Let_static bindings body =>
+    Let_static (map (rename_static_binding r) bindings) (rename_expr r body)
   | Let_cont_non_recursive k handler body =>
     Let_cont_non_recursive (rename_continuation r k)
       (rename_handler r handler) (rename_expr r body)
@@ -182,7 +206,7 @@ Fixpoint any_handler {A : Type} (P : A -> Prop)
 Definition var_free_in_simple (x : variable) (s : simple) : Prop :=
   match s with
   | Var y => x = y
-  | Const _ => False
+  | Symbol _ | Const _ => False
   end.
 
 Definition var_free_in_simples (x : variable) (args : list simple) : Prop :=
@@ -197,12 +221,32 @@ Definition var_free_in_named (x : variable) (defining_expr : named) : Prop :=
   | Project_value_slot _ closure => var_free_in_simple x closure
   end.
 
+Definition var_free_in_static_const (x : variable) (const : static_const)
+    : Prop :=
+  match const with
+  | Static_set_of_closures _ value_slots =>
+    Exists (fun slot => var_free_in_simple x (snd slot)) value_slots
+  | Static_block _ fields => var_free_in_simples x fields
+  | Static_boxed_number contents => var_free_in_simple x contents
+  | Static_immutable_string _ => False
+  end.
+
+(* Code has no free variable of the term around it, whatever is in it. *)
+Definition var_free_in_static_binding (x : variable)
+    (binding : static_binding) : Prop :=
+  match binding with
+  | Bind_code _ _ | Bind_deleted_code _ => False
+  | Bind_symbol _ const => var_free_in_static_const x const
+  end.
+
 (* A [Let] binds its variable in its body; a handler binds its
    parameters. *)
 Fixpoint var_free_in_expr (x : variable) (e : expr) : Prop :=
   match e with
   | Let y defining_expr body =>
     var_free_in_named x defining_expr ∨ (x <> y ∧ var_free_in_expr x body)
+  | Let_static bindings body =>
+    Exists (var_free_in_static_binding x) bindings ∨ var_free_in_expr x body
   | Let_cont_non_recursive _ handler body =>
     var_free_in_handler x handler ∨ var_free_in_expr x body
   | Let_cont_recursive handlers body =>
@@ -224,7 +268,7 @@ with var_free_in_handler (x : variable) (h : continuation_handler) : Prop :=
    recursive one binds its continuations in its body and its handlers. *)
 Fixpoint cont_free_in_expr (k : continuation) (e : expr) : Prop :=
   match e with
-  | Let _ _ body => cont_free_in_expr k body
+  | Let _ _ body | Let_static _ body => cont_free_in_expr k body
   | Let_cont_non_recursive bound handler body =>
     cont_free_in_handler k handler ∨ (k <> bound ∧ cont_free_in_expr k body)
   | Let_cont_recursive handlers body =>

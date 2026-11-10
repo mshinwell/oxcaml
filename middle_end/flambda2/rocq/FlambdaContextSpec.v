@@ -47,11 +47,13 @@ From OxCamlStdlib Require Import OxCamlLogic.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec.
 Import ListNotations.
 
-(* An expression with a hole: in the body of a [Let] or of a [Let_cont], or
-   in a handler of a [Let_cont]. *)
+(* An expression with a hole: in the body of a [Let], of either sort, or of
+   a [Let_cont], or in a handler of a [Let_cont]. There is none yet in the
+   code bound by a [Let_static]. *)
 Inductive context : Type :=
   | Hole
   | Let_body (x : variable) (defining_expr : named) (body : context)
+  | Let_static_body (bindings : list static_binding) (body : context)
   | Let_cont_non_recursive_body (k : continuation)
       (handler : continuation_handler) (body : context)
   | Let_cont_non_recursive_handler (k : continuation)
@@ -68,6 +70,7 @@ Fixpoint plug (c : context) (e : expr) : expr :=
   match c with
   | Hole => e
   | Let_body x defining_expr body => Let x defining_expr (plug body e)
+  | Let_static_body bindings body => Let_static bindings (plug body e)
   | Let_cont_non_recursive_body k handler body =>
     Let_cont_non_recursive k handler (plug body e)
   | Let_cont_non_recursive_handler k params handler body =>

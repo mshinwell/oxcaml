@@ -45,31 +45,34 @@ Lemma env_satisfies_empty (vars : env) : env_satisfies [] vars.
 Proof. intros x t []. Qed.
 
 Theorem expr_refines_weaken : expr_refines_weaken_statement.
-Proof. intros tenv source target Hrefines vars conts _. apply Hrefines. Qed.
+Proof.
+  intros tenv source target Hrefines vars conts statics _. apply Hrefines.
+Qed.
 
 Theorem expr_refines_in_empty : expr_refines_in_empty_statement.
 Proof.
   intros source target. split; [ | apply expr_refines_weaken ].
-  intros Hrefines vars conts. apply Hrefines, env_satisfies_empty.
+  intros Hrefines vars conts statics. apply Hrefines, env_satisfies_empty.
 Qed.
 
 Lemma expr_equivalent_in_refines (tenv : typing_env) (e e' : expr) :
   expr_equivalent_in tenv e e' -> expr_refines_in tenv e e'.
 Proof.
-  intros Hequiv vars conts Hsat. apply equivalent_refines, Hequiv, Hsat.
+  intros Hequiv vars conts statics Hsat. apply equivalent_refines, Hequiv, Hsat.
 Qed.
 
 Lemma expr_refines_in_trans (tenv : typing_env) (e e' e'' : expr) :
   expr_refines_in tenv e e' -> expr_refines_in tenv e' e'' ->
   expr_refines_in tenv e e''.
 Proof.
-  intros H H' vars conts Hsat.
-  exact (refines_trans _ _ _ (H vars conts Hsat) (H' vars conts Hsat)).
+  intros H H' vars conts statics Hsat.
+  exact (refines_trans _ _ _ (H vars conts statics Hsat)
+    (H' vars conts statics Hsat)).
 Qed.
 
 Theorem bottom : bottom_statement.
 Proof.
-  intros tenv x e e' Hbottom vars conts Hsat.
+  intros tenv x e e' Hbottom vars conts statics Hsat.
   destruct (Hsat x Bottom Hbottom) as (v & _ & []).
 Qed.
 
@@ -90,7 +93,8 @@ Qed.
 
 Theorem canonical_simple_sound : canonical_simple_sound_statement.
 Proof.
-  intros tenv vars s Hsat. destruct s as [x | c]; simpl; [ | reflexivity ].
+  intros tenv vars s Hsat.
+  destruct s as [x | sym | c]; simpl; try reflexivity.
   destruct (find_alias tenv x) as [alias | ] eqn:Hfind; [ | reflexivity ].
   destruct (Hsat x (Equals alias) (find_alias_in _ _ _ Hfind))
     as (v & Hlookup & Halias).
@@ -109,19 +113,20 @@ Qed.
 
 Theorem apply_cont_canonical : apply_cont_canonical_statement.
 Proof.
-  intros tenv k args vars conts Hsat. apply (equivalent_of_run 1 1). simpl.
+  intros tenv k args vars conts statics Hsat.
+  apply (equivalent_of_run 1 1). simpl.
   rewrite (canonical_simples_sound tenv vars args Hsat). reflexivity.
 Qed.
 
 Theorem let_simple_canonical : let_simple_canonical_statement.
 Proof.
-  intros tenv x s body vars conts Hsat. apply (equivalent_of_run 1 1).
+  intros tenv x s body vars conts statics Hsat. apply (equivalent_of_run 1 1).
   simpl. rewrite (canonical_simple_sound tenv vars s Hsat). reflexivity.
 Qed.
 
 Theorem switch_known : switch_known_statement.
 Proof.
-  intros tenv scrutinee i arms ac Hknown Hfind vars conts Hsat.
+  intros tenv scrutinee i arms ac Hknown Hfind vars conts statics Hsat.
   apply step_equivalent. simpl.
   rewrite <- (canonical_simple_sound tenv vars scrutinee Hsat), Hknown.
   simpl. rewrite Hfind. reflexivity.
@@ -147,7 +152,7 @@ Proof.
     { intros ->. apply Hfresh. exists x, t'. auto. }
     exists w. split.
     + simpl. destruct (Pos.eqb_spec y x); [ contradiction | exact Hlookup ].
-    + destruct t' as [ | | [z | c]]; simpl in *; try exact Hw.
+    + destruct t' as [ | | [z | sym | c]]; simpl in *; try exact Hw.
       destruct (Pos.eqb_spec z x) as [-> | _]; [ | exact Hw ].
       exfalso. apply Hfresh. exists y, (Equals (Var x)).
       split; [ exact Hin | ]. right. exists (Var x). split; reflexivity.
@@ -155,8 +160,8 @@ Qed.
 
 Theorem let_refines_in : let_refines_in_statement.
 Proof.
-  intros tenv x d body body' Hfresh Hbody vars conts Hsat.
-  destruct (eval_named vars d) as [v | ] eqn:Hd.
+  intros tenv x d body body' Hfresh Hbody vars conts statics Hsat.
+  destruct (eval_named statics vars d) as [v | ] eqn:Hd.
   - eapply refines_step;
       [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity | ].
     apply Hbody, env_satisfies_extend; [ exact Hsat | exact Hfresh | exact I ].
@@ -165,12 +170,12 @@ Qed.
 
 Theorem let_simple_refines_in : let_simple_refines_in_statement.
 Proof.
-  intros tenv x s body body' Hfresh Hnotin Hbody vars conts Hsat.
+  intros tenv x s body body' Hfresh Hnotin Hbody vars conts statics Hsat.
   destruct (eval_simple vars s) as [v | ] eqn:Hs.
   - eapply refines_step;
       [ simpl; rewrite Hs; reflexivity | simpl; rewrite Hs; reflexivity | ].
     apply Hbody, env_satisfies_extend; [ exact Hsat | exact Hfresh | ].
-    destruct s as [y | c]; simpl in *; [ | exact Hs ].
+    destruct s as [y | sym | c]; simpl in *; try exact Hs.
     destruct (Pos.eqb_spec y x) as [-> | _]; [ | exact Hs ].
     exfalso. apply Hnotin. reflexivity.
   - apply goes_wrong_refines. exists 1. simpl. rewrite Hs. reflexivity.
@@ -178,7 +183,7 @@ Qed.
 
 Theorem let_cont_body_refines_in : let_cont_body_refines_in_statement.
 Proof.
-  intros tenv k h body body' Hbody vars conts Hsat.
+  intros tenv k h body body' Hbody vars conts statics Hsat.
   eapply refines_step; [ reflexivity | reflexivity | ].
   apply Hbody, Hsat.
 Qed.
@@ -186,7 +191,7 @@ Qed.
 Theorem let_cont_recursive_body_refines_in :
   let_cont_recursive_body_refines_in_statement.
 Proof.
-  intros tenv handlers body body' Hbody vars conts Hsat.
+  intros tenv handlers body body' Hbody vars conts statics Hsat.
   eapply refines_step; [ reflexivity | reflexivity | ].
   apply Hbody, Hsat.
 Qed.
@@ -232,9 +237,10 @@ Qed.
    bound. *)
 Theorem let_cont_handler_refines_in : let_cont_handler_refines_in_statement.
 Proof.
-  intros tenv k params handler handler' body Hfresh Hhandler vars conts Hsat.
-  apply let_cont_handler_refines_at. intros vs handler_vars conts' Hbind.
-  apply Hhandler.
+  intros tenv k params handler handler' body Hfresh Hhandler vars conts
+    statics Hsat.
+  apply let_cont_handler_refines_at.
+  intros vs handler_vars conts' statics' Hbind. apply Hhandler.
   exact (env_satisfies_params tenv params vs vars handler_vars Hsat Hfresh
     Hbind).
 Qed.
@@ -243,9 +249,9 @@ Theorem let_cont_recursive_handler_refines_in :
   let_cont_recursive_handler_refines_in_statement.
 Proof.
   intros tenv before k params handler handler' after body Hfresh Hhandler
-    vars conts Hsat.
+    vars conts statics Hsat.
   apply let_cont_recursive_handler_refines_at.
-  intros vs handler_vars conts' Hbind. apply Hhandler.
+  intros vs handler_vars conts' statics' Hbind. apply Hhandler.
   exact (env_satisfies_params tenv params vs vars handler_vars Hsat Hfresh
     Hbind).
 Qed.
@@ -278,8 +284,9 @@ Proof.
   { apply unused_let. simpl. unfold var_free_in_simples. intros Hfree.
     inversion Hfree as [? ? Hhead | ? ? Hrest];
       [ exact Hhead | inversion Hrest ]. }
-  intros vars conts.
-  exact (refines_trans _ _ _ (Hrewrite vars conts) (Hunused vars conts)).
+  intros vars conts statics.
+  exact (refines_trans _ _ _ (Hrewrite vars conts statics)
+    (Hunused vars conts statics)).
 Qed.
 
 Theorem let_simple_apply_cont : let_simple_apply_cont_statement.
@@ -304,8 +311,9 @@ Proof.
   { apply unused_let. simpl. unfold var_free_in_simples. intros Hfree.
     inversion Hfree as [? ? Hhead | ? ? Hrest];
       [ exact (Hnotfree Hhead) | inversion Hrest ]. }
-  intros vars conts.
-  exact (refines_trans _ _ _ (Hrewrite vars conts) (Hunused vars conts)).
+  intros vars conts statics.
+  exact (refines_trans _ _ _ (Hrewrite vars conts statics)
+    (Hunused vars conts statics)).
 Qed.
 
 (* ======================================================================== *)
@@ -314,55 +322,65 @@ Qed.
 
 Theorem inline_identity : inline_identity_statement.
 Proof.
-  intros called x my_closure ret exn callee arg k k_exn Hcode Hcode_conts
+  intros called x my_closure ret exn callee arg k k_exn Hcode_conts
     Hcall_conts Hx Hmy_closure.
+  set (bindings := [Bind_code called (identity_code x my_closure ret exn)]).
   destruct (inline_renaming_exists ret exn k k_exn Hcode_conts Hcall_conts)
     as (r & Hvars & Hret & Hexn).
   (* the call inlined *)
   assert (Hinline :
     expr_refines
-      (Apply (Apply_expr callee (Direct called) [arg] k k_exn))
-      (Let my_closure (Simple callee)
-         (Let x (Simple arg) (Apply_cont (Apply_cont_expr k [Var x]))))).
-  { pose proof (inline (Apply_expr callee (Direct called) [arg] k k_exn)
-      called (identity_code x my_closure ret exn) r eq_refl Hcode)
-      as Hinline.
+      (Let_static bindings
+         (Apply (Apply_expr callee (Direct called) [arg] k k_exn)))
+      (Let_static bindings
+         (Let my_closure (Simple callee)
+            (Let x (Simple arg)
+               (Apply_cont (Apply_cont_expr k [Var x])))))).
+  { pose proof (inline_let_code
+      (Apply_expr callee (Direct called) [arg] k k_exn) called
+      (identity_code x my_closure ret exn) r eq_refl) as Hinline.
     unfold inlined_body, identity_code in Hinline. simpl in Hinline.
     unfold rename_apply_cont in Hinline. simpl in Hinline.
     rewrite Hret, Hvars in Hinline. apply Hinline.
+    unfold inlinable. simpl. repeat split.
     - intros y Hy. unfold var_free_in_simples in Hy.
       inversion Hy as [? ? Hhead | ? ? Hrest]; [ | inversion Hrest ].
       right. left. simpl in Hhead. symmetry. exact Hhead.
     - intros j ->. left. reflexivity.
     - exact Hvars.
-    - reflexivity.
+    - exact Hret.
     - exact Hexn.
     - unfold var_free_in_simples. intros Hfree.
       inversion Hfree as [? ? Hhead | ? ? Hrest];
         [ exact (Hmy_closure Hhead) | inversion Hrest ].
     - intros param [<- | []]. unfold var_free_in_simples. intros Hfree.
       inversion Hfree as [? ? Hhead | ? ? Hrest];
-        [ exact (Hx Hhead) | inversion Hrest ].
-    - reflexivity. }
-  (* the parameter replaced by the argument, under the first [Let] *)
+        [ exact (Hx Hhead) | inversion Hrest ]. }
+  (* the parameter replaced by the argument, under the bindings *)
   assert (Hparam :
     expr_refines
-      (Let my_closure (Simple callee)
-         (Let x (Simple arg) (Apply_cont (Apply_cont_expr k [Var x]))))
-      (Let my_closure (Simple callee)
-         (Apply_cont (Apply_cont_expr k [arg])))).
-  { exact (plug_refines (Let_body my_closure (Simple callee) Hole) _ _
-      (let_simple_apply_cont x arg k Hx)). }
+      (Let_static bindings
+         (Let my_closure (Simple callee)
+            (Let x (Simple arg) (Apply_cont (Apply_cont_expr k [Var x])))))
+      (Let_static bindings
+         (Let my_closure (Simple callee)
+            (Apply_cont (Apply_cont_expr k [arg]))))).
+  { exact (plug_refines
+      (Let_static_body bindings (Let_body my_closure (Simple callee) Hole))
+      _ _ (let_simple_apply_cont x arg k Hx)). }
   (* the first [Let] is unused *)
   assert (Hunused :
     expr_refines
-      (Let my_closure (Simple callee)
-         (Apply_cont (Apply_cont_expr k [arg])))
-      (Apply_cont (Apply_cont_expr k [arg]))).
-  { apply unused_let. simpl. unfold var_free_in_simples. intros Hfree.
+      (Let_static bindings
+         (Let my_closure (Simple callee)
+            (Apply_cont (Apply_cont_expr k [arg]))))
+      (Let_static bindings (Apply_cont (Apply_cont_expr k [arg])))).
+  { apply (plug_refines (Let_static_body bindings Hole)).
+    apply unused_let. simpl. unfold var_free_in_simples. intros Hfree.
     inversion Hfree as [? ? Hhead | ? ? Hrest];
       [ exact (Hmy_closure Hhead) | inversion Hrest ]. }
-  intros vars conts.
-  exact (refines_trans _ _ _ (Hinline vars conts)
-    (refines_trans _ _ _ (Hparam vars conts) (Hunused vars conts))).
+  intros vars conts statics.
+  exact (refines_trans _ _ _ (Hinline vars conts statics)
+    (refines_trans _ _ _ (Hparam vars conts statics)
+       (Hunused vars conts statics))).
 Qed.
