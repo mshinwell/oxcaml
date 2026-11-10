@@ -39,9 +39,16 @@
    - Calls of code bound by a [Let_static] are in FlambdaApplySpec.v
      ([inline_let_code_statement]).
 
-   Not yet here: rewriting inside the code bound, and removing a binding
-   that is not used. Both compare runs under different static
-   environments, which the arguments so far keep equal.
+   - The body of code bound by a [Let_static] may be replaced by one that
+     refines it ([let_static_code_refines_statement]): simplifying the
+     body of a function is sound. It is the case of FlambdaContextSpec.v
+     of a hole in code, stated on its own. The premise is a refinement
+     under all environments, the static one included, so a rewrite of the
+     body that relies on what other code or symbols are bound to is not
+     covered yet.
+
+   Not yet here: removing a binding that is not used, which needs the free
+   symbols and code ids of terms, of code and of values.
 
    The proofs are in FlambdaStaticProofs.v, which needs no review. *)
 
@@ -65,3 +72,21 @@ Definition project_static_closure_statement : Prop :=
       (Let_static
          [Bind_symbol s (Static_const_set_of_closures code [(slot, contents)])]
          (Let x (Simple contents) body)).
+
+Definition let_static_code_refines_statement : Prop :=
+  ∀ (before : list static_binding) (id : code_id) (params : list variable)
+    (my_closure : variable) (ret exn : continuation)
+    (code_body code_body' : expr) (after : list static_binding)
+    (body : expr),
+    expr_refines code_body code_body' ->
+    expr_refines
+      (Let_static
+         (before
+          ++ Bind_code id (Code params my_closure ret exn code_body)
+          :: after)
+         body)
+      (Let_static
+         (before
+          ++ Bind_code id (Code params my_closure ret exn code_body')
+          :: after)
+         body).

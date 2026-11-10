@@ -385,9 +385,14 @@ a fragment at a time. The files follow the same Spec/Proofs split, and
   keep it) and only grows. A symbol is a value by itself, a pointer
   (`Value_symbol`), and what it points to is looked up where it is used
   (`closure_of`), so groups may be recursive and static data cyclic.
-  Renaming does not touch symbols, code ids or code. Every simulation
-  argument so far keeps the two static environments equal, so none yet
-  relates programs whose code differs.
+  Renaming does not touch symbols, code ids or code.
+- The body of code bound by a `Let_static` may be rewritten: a context may
+  have its hole in code (`Let_static_code`), and `plug_refines` covers it
+  (`FlambdaStaticSpec.v`: `let_static_code_refines`). The proof relates
+  the static environments of the two runs (`statics_related`: the same
+  values, related code); values hold code ids and not code, so they stay
+  equal. The renaming bisimulation still keeps the static environments
+  equal, as renaming does not reach into code.
 - Inlining a direct call is a refinement (`FlambdaApplySpec.v`:
   `inline`), given that the code is closed and that binding the
   parameters captures nothing. `inline_identity`
@@ -458,9 +463,9 @@ containment is proved); equivariance of execution in the continuations
 (renaming closures and observed exits; there is a CR in
 `FlambdaAlphaSpec.v`); the simplifier's
 invariant that bound names are distinct from those in scope;
-rewriting inside the code bound by a `Let_static`, and removing an unused
-static binding (both need the static environments of two runs to be
-related and not equal); sets of closures of several functions; kinds on
+removing an unused static binding (which needs the free symbols and code
+ids of terms, code and values); rewriting the body of code by what is
+known of the static environment; sets of closures of several functions; kinds on
 parameters and well-kindedness; mutable memory and effects, trap actions,
 and any link to the simplifier's code.
 

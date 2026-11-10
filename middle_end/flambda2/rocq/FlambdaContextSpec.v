@@ -33,7 +33,7 @@
    any binder and in the handler of a continuation), and the two
    statements. They are what lets a rewrite proved of two expressions on
    their own, such as those of FlambdaControlFlowSpec.v, be applied to a
-   subterm of a program.
+   subterm of a program, the body of a function included.
 
    The premise is a refinement under all environments ([expr_refines]). A
    rewrite that is sound only under what is known of the variables in
@@ -48,12 +48,16 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec.
 Import ListNotations.
 
 (* An expression with a hole: in the body of a [Let], of either sort, or of
-   a [Let_cont], or in a handler of a [Let_cont]. There is none yet in the
-   code bound by a [Let_static]. *)
+   a [Let_cont], in a handler of a [Let_cont], or in the body of code
+   bound by a [Let_static]. *)
 Inductive context : Type :=
   | Hole
   | Let_body (x : variable) (defining_expr : named) (body : context)
   | Let_static_body (bindings : list static_binding) (body : context)
+  | Let_static_code (before : list static_binding) (id : code_id)
+      (params : list variable) (my_closure : variable)
+      (return_continuation exn_continuation : continuation)
+      (code_body : context) (after : list static_binding) (body : expr)
   | Let_cont_non_recursive_body (k : continuation)
       (handler : continuation_handler) (body : context)
   | Let_cont_non_recursive_handler (k : continuation)
@@ -71,6 +75,15 @@ Fixpoint plug (c : context) (e : expr) : expr :=
   | Hole => e
   | Let_body x defining_expr body => Let x defining_expr (plug body e)
   | Let_static_body bindings body => Let_static bindings (plug body e)
+  | Let_static_code before id params my_closure return_continuation
+      exn_continuation code_body after body =>
+    Let_static
+      (before
+       ++ Bind_code id
+            (Code params my_closure return_continuation exn_continuation
+               (plug code_body e))
+       :: after)
+      body
   | Let_cont_non_recursive_body k handler body =>
     Let_cont_non_recursive k handler (plug body e)
   | Let_cont_non_recursive_handler k params handler body =>

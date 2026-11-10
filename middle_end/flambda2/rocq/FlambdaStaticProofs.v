@@ -31,7 +31,8 @@
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaSemanticsProofs FlambdaStaticSpec.
+  FlambdaSemanticsProofs FlambdaContextSpec FlambdaContextProofs
+  FlambdaStaticSpec.
 Import ListNotations.
 
 (* Binding a group is binding its first part, then the rest. *)
@@ -68,4 +69,13 @@ Proof.
     [ | reflexivity ].
   rewrite !Pos.eqb_refl. simpl. rewrite ?Pos.eqb_refl, ?Hcontents.
   reflexivity.
+Qed.
+
+Theorem let_static_code_refines : let_static_code_refines_statement.
+Proof.
+  intros before id params my_closure ret exn code_body code_body' after body
+    Hcode.
+  exact (plug_refines
+    (Let_static_code before id params my_closure ret exn Hole after body)
+    code_body code_body' Hcode).
 Qed.

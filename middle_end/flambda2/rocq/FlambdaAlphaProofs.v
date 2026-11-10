@@ -551,6 +551,19 @@ Qed.
 (* Alpha-equivalence is equivariant                                         *)
 (* ======================================================================== *)
 
+(* A renaming does not reach into code, so nor does it into a context
+   under code. *)
+Fixpoint hole_in_code (c : context) : bool :=
+  match c with
+  | Hole => false
+  | Let_static_code _ _ _ _ _ _ _ _ _ => true
+  | Let_body _ _ body | Let_static_body _ body
+  | Let_cont_non_recursive_body _ _ body | Let_cont_recursive_body _ body =>
+    hole_in_code body
+  | Let_cont_non_recursive_handler _ _ handler _
+  | Let_cont_recursive_handler _ _ _ handler _ _ => hole_in_code handler
+  end.
+
 Fixpoint rename_context (r : renaming) (c : context) : context :=
   match c with
   | Hole => Hole
@@ -559,6 +572,11 @@ Fixpoint rename_context (r : renaming) (c : context) : context :=
   | Let_static_body bindings body =>
     Let_static_body (map (rename_static_binding r) bindings)
       (rename_context r body)
+  | Let_static_code before id params my_closure ret exn code_body after
+      body =>
+    Let_static_code (map (rename_static_binding r) before) id params
+      my_closure ret exn code_body (map (rename_static_binding r) after)
+      (rename_expr r body)
   | Let_cont_non_recursive_body k h body =>
     Let_cont_non_recursive_body (rename_continuation r k)
       (rename_handler r h) (rename_context r body)
@@ -577,13 +595,18 @@ Fixpoint rename_context (r : renaming) (c : context) : context :=
   end.
 
 Lemma rename_plug (r : renaming) (c : context) (e : expr) :
-  rename_expr r (plug c e) = plug (rename_context r c) (rename_expr r e).
+  rename_expr r (plug c e)
+  = plug (rename_context r c)
+      (if hole_in_code c then e else rename_expr r e).
 Proof.
   induction c
-    as [ | x d c IH | bindings c IH | k h c IH | k params c IH body
-       | handlers c IH | before k params c IH after body ];
+    as [ | x d c IH | bindings c IH
+       | before id params my_closure ret exn c IH after body | k h c IH
+       | k params c IH body | handlers c IH
+       | before k params c IH after body ];
     simpl; rewrite ?IH; try reflexivity.
-  unfold rename_handlers. rewrite map_app. simpl. rewrite IH. reflexivity.
+  - rewrite map_app. reflexivity.
+  - unfold rename_handlers. rewrite map_app. simpl. rewrite IH. reflexivity.
 Qed.
 
 (* The conjugate of [s] by [r]: what [s] becomes once every name is renamed
@@ -641,14 +664,15 @@ Theorem alpha_equivalent_equivariant : alpha_equivalent_equivariant_statement.
 Proof.
   intros r e e' Halpha.
   induction Halpha
-    as [ e | e e' _ IH | e e' e'' _ IH _ IH' | c e e' _ IH
+    as [ e | e e' _ IH | e e' e'' _ IH _ IH' | c e e' Halpha IH
        | s e Hvars Hconts | s x d body Hvars Hconts
        | s k h body Hvars Hconts | s k params handler body Hvars Hconts
        | s before k params handler after body Hvars Hconts ].
   - apply Alpha_refl.
   - apply Alpha_sym, IH.
   - exact (Alpha_trans _ _ _ IH IH').
-  - rewrite !rename_plug. apply Alpha_context, IH.
+  - rewrite !rename_plug.
+    destruct (hole_in_code c); apply Alpha_context; [ exact Halpha | exact IH ].
   - rewrite <- conjugate_expr. apply Alpha_rename.
     + intros y Hy.
       apply conjugate_fixes_variable, Hvars, var_free_in_renamed, Hy.
@@ -762,12 +786,16 @@ Lemma plug_var_free (c : context) (e e' : expr) :
 Proof.
   intros Hfree.
   induction c
-    as [ | y d c IH | bindings c IH | k h c IH | k params c IH body
-       | handlers c IH | before k params c IH after body ];
+    as [ | y d c IH | bindings c IH
+       | before id params my_closure ret exn c IH after body | k h c IH
+       | k params c IH body | handlers c IH
+       | before k params c IH after body ];
     intros x; simpl.
   - apply Hfree.
   - apply or_iff; [ reflexivity | ]. apply and_iff; [ reflexivity | apply IH ].
   - apply or_iff; [ reflexivity | apply IH ].
+  - apply or_iff; [ | reflexivity ]. rewrite !Exists_app, !Exists_cons.
+    reflexivity.
   - apply or_iff; [ reflexivity | apply IH ].
   - apply or_iff; [ | reflexivity ].
     apply and_iff; [ reflexivity | apply IH ].
@@ -784,12 +812,15 @@ Lemma plug_cont_free (c : context) (e e' : expr) :
 Proof.
   intros Hfree.
   induction c
-    as [ | y d c IH | bindings c IH | k' h c IH | k' params c IH body
-       | handlers c IH | before k' params c IH after body ];
+    as [ | y d c IH | bindings c IH
+       | before id params my_closure ret exn c IH after body | k' h c IH
+       | k' params c IH body | handlers c IH
+       | before k' params c IH after body ];
     intros k; simpl.
   - apply Hfree.
   - apply IH.
   - apply IH.
+  - reflexivity.
   - apply or_iff; [ reflexivity | ]. apply and_iff; [ reflexivity | apply IH ].
   - apply or_iff; [ apply IH | reflexivity ].
   - apply and_iff; [ reflexivity | ]. apply or_iff; [ reflexivity | apply IH ].
