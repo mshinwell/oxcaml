@@ -135,7 +135,8 @@ Proof.
   unfold slot_values_avoid.
   induction slots as [ | [slot' w] slots IH]; simpl; [ discriminate | ].
   intros Hav. apply andb_true_iff in Hav as [Hw Hslots].
-  destruct (Pos.eqb slot slot'); [ intros [= <-]; exact Hw | exact (IH Hslots) ].
+  destruct (Pos.eqb slot slot');
+    [ intros [= <-]; exact Hw | exact (IH Hslots) ].
 Qed.
 
 (* ======================================================================== *)
@@ -473,7 +474,8 @@ Proof.
   - destruct (bind_params params vs vars) as [bound | ] eqn:Hbind; simpl;
       [ | exact I ].
     apply State_erased;
-      [ exact Hh | exact (bind_params_avoids params vs vars bound Hvs Hvars Hbind)
+      [ exact Hh
+      | exact (bind_params_avoids params vs vars bound Hvs Hvars Hbind)
       | apply rec_closures_erased; assumption | exact Hstatics ].
 Qed.
 
