@@ -72,6 +72,13 @@ suffix is the extracted check and is not shown, nor is the
 \texttt{*Proofs.v} file.
 TEX
   { dir => 'backend/ssa/loop/rocq', name => 'OxCamlLoop' },
+  { dir => 'middle_end/flambda2/rocq', name => 'OxCamlFlambda2',
+    title => 'The terms of Flambda 2 and their semantics',
+    intro => <<'TEX' },
+The control-flow fragment of Flambda 2: its terms, their execution by an
+abstract machine, what it means for two terms to behave alike, and the
+rewrites stated against that. The \texttt{*Proofs.v} files are not shown.
+TEX
 );
 my %library = map { $_->{dir} => $_ } @libraries;
 
@@ -115,6 +122,13 @@ TEX
 What is claimed about the extracted decision \texttt{find\_eliminations}.
 The analysis itself is extracted code, and its \texttt{*Proofs.v} files give
 its meaning and prove the statement; neither is shown.
+TEX
+  { title => 'Flambda 2', guide => [], libraries => [qw(OxCamlFlambda2)],
+    intro => <<'TEX' },
+This part is separate from the SSA passes. It is the beginning of a
+semantics of Flambda 2, the middle end's intermediate language, against
+which the transformations of the simplifier are to be proved correct.
+Nothing is extracted from it and no compiler pass depends on it yet.
 TEX
 );
 # The guide numbers its sections by hand, and the sources refer to them by

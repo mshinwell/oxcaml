@@ -6,7 +6,7 @@
 #   make review   typeset what a reviewer reads as rocq/review.pdf
 #   make clean    remove everything generated
 #
-# The sources live in four directories, each a Rocq library:
+# The sources live in five directories, each a Rocq library:
 #
 #   rocq/                   OxCamlStdlib: models of OxCaml's own types (int,
 #                           Int64, lists, exceptions as options), generic
@@ -24,6 +24,9 @@
 #                           extraction (Extract.v, one .ml per model); the
 #                           passes using them are backend/ssa/loop/
 #                           delete_empty_loops.ml and bounds_check_elim.ml
+#   middle_end/flambda2/rocq/  OxCamlFlambda2: the terms of Flambda 2 and
+#                           their semantics, with rewrites proved against
+#                           it; nothing is extracted from it
 #
 # The extracted files are run through ocamlformat so that they satisfy the
 # repository's `make fmt` check like any other source under backend/ssa/.
@@ -36,9 +39,11 @@ STDLIB_DIR := $(ROOT)/rocq
 BACKEND_DIR := $(ROOT)/backend/rocq
 SSA_DIR := $(ROOT)/backend/ssa/rocq
 LOOP_DIR := $(ROOT)/backend/ssa/loop/rocq
+FLAMBDA2_DIR := $(ROOT)/middle_end/flambda2/rocq
 
 FLAGS := -Q $(STDLIB_DIR) OxCamlStdlib -Q $(BACKEND_DIR) OxCamlBackend \
-  -Q $(SSA_DIR) OxCamlSsa -Q $(LOOP_DIR) OxCamlLoop
+  -Q $(SSA_DIR) OxCamlSsa -Q $(LOOP_DIR) OxCamlLoop \
+  -Q $(FLAMBDA2_DIR) OxCamlFlambda2
 
 STDLIB := $(addprefix $(STDLIB_DIR)/, \
   OxCamlLogic.v OxCamlOption.v ZTactics.v OxCamlInt.v OxCamlIntProofs.v \
@@ -69,6 +74,9 @@ LOOP := $(addprefix $(LOOP_DIR)/, \
   InductionRangeExecutionProofs.v BoundsCheckExecutionSpec.v \
   BoundsCheckExecutionProofs.v)
 EXTRACT := $(LOOP_DIR)/Extract.v
+FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
+  FlambdaModel.v FlambdaSemanticsSpec.v FlambdaSemanticsProofs.v \
+  FlambdaControlFlowSpec.v FlambdaControlFlowProofs.v)
 
 # The extraction writes one .ml and .mli per model into the loop directory;
 # those of the SSA models are then moved next to their sources. Those of the
@@ -90,11 +98,12 @@ LOOP_EXTRACTED := $(addprefix $(LOOP_DIR)/, \
   BoundsCheckElim.ml BoundsCheckElim.mli)
 EXTRACTED := $(SSA_EXTRACTED) $(LOOP_EXTRACTED)
 
-SOURCES := $(STDLIB) $(BACKEND) $(SSA) $(LOOP) $(EXTRACT)
+SOURCES := $(STDLIB) $(BACKEND) $(SSA) $(LOOP) $(EXTRACT) $(FLAMBDA2)
 MODULES := $(patsubst $(STDLIB_DIR)/%.v,OxCamlStdlib.%,$(STDLIB)) \
   $(patsubst $(BACKEND_DIR)/%.v,OxCamlBackend.%,$(BACKEND)) \
   $(patsubst $(SSA_DIR)/%.v,OxCamlSsa.%,$(SSA)) \
-  $(patsubst $(LOOP_DIR)/%.v,OxCamlLoop.%,$(LOOP) $(EXTRACT))
+  $(patsubst $(LOOP_DIR)/%.v,OxCamlLoop.%,$(LOOP) $(EXTRACT)) \
+  $(patsubst $(FLAMBDA2_DIR)/%.v,OxCamlFlambda2.%,$(FLAMBDA2))
 DEPS := $(STDLIB_DIR)/.rocqdeps.d
 
 .PHONY: all assumptions claims review clean
@@ -108,7 +117,8 @@ all: $(SOURCES:.v=.vo) claims
 # review document").
 review: $(SOURCES:.v=.vo)
 	perl $(STDLIB_DIR)/review-pdf.pl $(STDLIB_DIR)/_review \
-	  $(STDLIB_DIR)/review.pdf $(STDLIB) $(BACKEND) $(SSA) $(LOOP) $(EXTRACT)
+	  $(STDLIB_DIR)/review.pdf $(STDLIB) $(BACKEND) $(SSA) $(LOOP) $(EXTRACT) \
+	  $(FLAMBDA2)
 
 # Every statement a Spec file binds as a proposition ([Definition X_statement
 # : Prop]) must be proved as the theorem [X] of the matching Proofs module
@@ -116,7 +126,8 @@ review: $(SOURCES:.v=.vo)
 # constant of the statement's type whose body is the theorem; on success the
 # claims checked are listed.
 SPECS := $(patsubst %,OxCamlSsa:%,$(filter %Spec.v,$(SSA))) \
-  $(patsubst %,OxCamlLoop:%,$(filter %Spec.v,$(LOOP)))
+  $(patsubst %,OxCamlLoop:%,$(filter %Spec.v,$(LOOP))) \
+  $(patsubst %,OxCamlFlambda2:%,$(filter %Spec.v,$(FLAMBDA2)))
 
 claims: $(SOURCES:.v=.vo)
 	@set -eu; \
@@ -200,7 +211,8 @@ $(DEPS): $(SOURCES)
 clean:
 	rm -f $(DEPS) $(EXTRACTED) $(STDLIB_DIR)/review.pdf
 	rm -rf $(STDLIB_DIR)/_review
-	for d in $(STDLIB_DIR) $(BACKEND_DIR) $(SSA_DIR) $(LOOP_DIR); do \
+	for d in $(STDLIB_DIR) $(BACKEND_DIR) $(SSA_DIR) $(LOOP_DIR) \
+	    $(FLAMBDA2_DIR); do \
 	  rm -rf $$d/*.vo $$d/*.vos $$d/*.vok $$d/*.glob $$d/.*.aux \
 	    $$d/.lia.cache $$d/.nia.cache $$d/.coq-native; \
 	done
