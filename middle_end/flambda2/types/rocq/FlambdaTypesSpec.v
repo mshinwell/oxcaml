@@ -43,11 +43,12 @@
    The model is naive on purpose. A type is unknown, bottom, an alias to a
    [Simple] ([Equals], which is how the compiler says that a variable is
    another variable or a constant), or that of the closures of given code
-   whose value slots hold given [Simple]s ([Closure_of]). A typing environment is a list of
-   variables with types, all of which hold. There are no kinds, no types
-   of blocks or boxed numbers, nothing known of symbols, no meet or join, no levels,
-   binding times or canonical aliases, no environment extensions, and
-   nothing about symbols or continuation parameters' types at their uses.
+   whose value slots hold given [Simple]s ([Closure_of]). A typing
+   environment is a list of variables with types, all of which hold.
+   There are no kinds, no types of blocks or boxed numbers, nothing known
+   of symbols, no meet or join, no levels, binding times or canonical
+   aliases, no environment extensions, and nothing about symbols or
+   continuation parameters' types at their uses.
    What the model does fix is the meaning of a type ([type_satisfied]) and
    of an environment ([env_satisfies]): a richer grammar is to give more
    cases to the first and keep the second.
