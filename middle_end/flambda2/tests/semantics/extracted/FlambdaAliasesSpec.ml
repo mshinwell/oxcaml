@@ -2,13 +2,17 @@ open BinPos
 open Datatypes
 open FlambdaModel
 open FlambdaNormaliseSpec
+open FlambdaSemanticsSpec
 open FlambdaTypesSpec
 open List
 open ListDef
 
 (** val var_in_type : variable -> flambda_type -> bool **)
 
-let var_in_type x = function Equals s -> var_in_simple x s | _ -> false
+let var_in_type x = function
+  | Equals s -> var_in_simple x s
+  | Closure_of (_, slots) -> var_in_value_slots x slots
+  | _ -> false
 
 (** val drop_var : variable -> typing_env -> typing_env **)
 
@@ -29,6 +33,35 @@ let drop_vars xs tenv = fold_right drop_var tenv xs
 let canonical_value_slots tenv slots =
   map (fun slot -> fst slot, canonical_simple tenv (snd slot)) slots
 
+(** val find_closure : typing_env -> variable -> (code_id * (value_slot *
+    simple) list) option **)
+
+let rec find_closure tenv x =
+  match tenv with
+  | [] -> None
+  | p :: tenv0 -> (
+    let y, f = p in
+    match f with
+    | Closure_of (code, slots) ->
+      if Pos.eqb x y then Some (code, slots) else find_closure tenv0 x
+    | _ -> find_closure tenv0 x)
+
+(** val closure_of_simple : typing_env -> simple -> (code_id * (value_slot *
+    simple) list) option **)
+
+let closure_of_simple tenv = function Var x -> find_closure tenv x | _ -> None
+
+(** val canonical_project : typing_env -> value_slot -> simple -> named **)
+
+let canonical_project tenv slot closure =
+  match closure_of_simple tenv closure with
+  | Some p -> (
+    let _, slots = p in
+    match lookup slot slots with
+    | Some contents -> Simple contents
+    | None -> Project_value_slot (slot, closure))
+  | None -> Project_value_slot (slot, closure)
+
 (** val canonical_named : typing_env -> named -> named **)
 
 let canonical_named tenv = function
@@ -37,7 +70,7 @@ let canonical_named tenv = function
   | Set_of_closures (code, slots) ->
     Set_of_closures (code, canonical_value_slots tenv slots)
   | Project_value_slot (slot, closure) ->
-    Project_value_slot (slot, canonical_simple tenv closure)
+    canonical_project tenv slot (canonical_simple tenv closure)
 
 (** val canonical_static_const : typing_env -> static_const -> static_const **)
 
@@ -64,11 +97,24 @@ let canonical_apply_cont tenv ac =
     ac_args = map (canonical_simple tenv) ac.ac_args
   }
 
+(** val canonical_call_kind : typing_env -> simple -> call_kind -> call_kind **)
+
+let canonical_call_kind tenv callee kind =
+  match kind with
+  | Direct _ -> kind
+  | Indirect -> (
+    match closure_of_simple tenv callee with
+    | Some p ->
+      let code, _ = p in
+      Direct code
+    | None -> kind)
+
 (** val canonical_apply : typing_env -> apply_expr -> apply_expr **)
 
 let canonical_apply tenv ap =
-  { ap_callee = canonical_simple tenv ap.ap_callee;
-    ap_call_kind = ap.ap_call_kind;
+  let callee = canonical_simple tenv ap.ap_callee in
+  { ap_callee = callee;
+    ap_call_kind = canonical_call_kind tenv callee ap.ap_call_kind;
     ap_args = map (canonical_simple tenv) ap.ap_args;
     ap_continuation = ap.ap_continuation;
     ap_exn_continuation = ap.ap_exn_continuation
@@ -81,6 +127,10 @@ let typing_env_under_let tenv x = function
     if var_in_simple x s
     then drop_var x tenv
     else (x, Equals s) :: drop_var x tenv
+  | Set_of_closures (code, slots) ->
+    if var_in_value_slots x slots
+    then drop_var x tenv
+    else (x, Closure_of (code, slots)) :: drop_var x tenv
   | _ -> drop_var x tenv
 
 (** val follow_aliases : typing_env -> expr -> expr **)

@@ -35,7 +35,11 @@
    [follow_aliases] goes through a term with a typing environment
    (FlambdaTypesSpec.v) holding, for the variables bound by a [Let] to a
    [Simple], that [Simple]. Every use of such a variable is replaced by
-   what it is bound to ([canonical_simple]). This is what the simplifier
+   what it is bound to ([canonical_simple]). It holds too, for the
+   variables bound to a closure, the code and the value slots of the
+   closure: a call of such a variable becomes a direct call of the code,
+   and the projection of a value slot from it becomes what the slot
+   holds. This is what the simplifier
    does with its aliases: there is no substitution, and the [Let] stays,
    to be removed if it is then unused
    (../../rocq/FlambdaNormaliseSpec.remove_unused_lets).
@@ -67,6 +71,7 @@ Import ListNotations.
 Definition var_in_type (x : variable) (t : flambda_type) : bool :=
   match t with
   | Equals s => var_in_simple x s
+  | Closure_of _ slots => var_in_value_slots x slots
   | Unknown | Bottom => false
   end.
 
@@ -85,6 +90,36 @@ Definition canonical_value_slots (tenv : typing_env)
     (slots : list (value_slot * simple)) : list (value_slot * simple) :=
   map (fun slot => (fst slot, canonical_simple tenv (snd slot))) slots.
 
+(* The closure that a variable is known to be. *)
+Fixpoint find_closure (tenv : typing_env) (x : variable)
+    : option (code_id * list (value_slot * simple)) :=
+  match tenv with
+  | [] => None
+  | (y, Closure_of code slots) :: tenv =>
+    if Pos.eqb x y then Some (code, slots) else find_closure tenv x
+  | _ :: tenv => find_closure tenv x
+  end.
+
+Definition closure_of_simple (tenv : typing_env) (s : simple)
+    : option (code_id * list (value_slot * simple)) :=
+  match s with
+  | Var x => find_closure tenv x
+  | Symbol _ | Const _ => None
+  end.
+
+(* The projection of a value slot from a known closure is what the slot
+   holds. *)
+Definition canonical_project (tenv : typing_env) (slot : value_slot)
+    (closure : simple) : named :=
+  match closure_of_simple tenv closure with
+  | Some (_, slots) =>
+    match lookup slot slots with
+    | Some contents => Simple contents
+    | None => Project_value_slot slot closure
+    end
+  | None => Project_value_slot slot closure
+  end.
+
 Definition canonical_named (tenv : typing_env) (d : named) : named :=
   match d with
   | Simple s => Simple (canonical_simple tenv s)
@@ -92,7 +127,7 @@ Definition canonical_named (tenv : typing_env) (d : named) : named :=
   | Set_of_closures code slots =>
     Set_of_closures code (canonical_value_slots tenv slots)
   | Project_value_slot slot closure =>
-    Project_value_slot slot (canonical_simple tenv closure)
+    canonical_project tenv slot (canonical_simple tenv closure)
   end.
 
 Definition canonical_static_const (tenv : typing_env) (const : static_const)
@@ -120,14 +155,23 @@ Definition canonical_apply_cont (tenv : typing_env) (ac : apply_cont)
   Apply_cont_expr (ac_continuation ac)
     (map (canonical_simple tenv) (ac_args ac)).
 
+(* A call of a known closure is a direct call of its code. *)
+Definition canonical_call_kind (tenv : typing_env) (callee : simple)
+    (kind : call_kind) : call_kind :=
+  match kind, closure_of_simple tenv callee with
+  | Indirect, Some (code, _) => Direct code
+  | Indirect, None | Direct _, _ => kind
+  end.
+
 Definition canonical_apply (tenv : typing_env) (ap : apply_expr) : apply_expr :=
-  Apply_expr (canonical_simple tenv (ap_callee ap)) (ap_call_kind ap)
+  let callee := canonical_simple tenv (ap_callee ap) in
+  Apply_expr callee (canonical_call_kind tenv callee (ap_call_kind ap))
     (map (canonical_simple tenv) (ap_args ap)) (ap_continuation ap)
     (ap_exn_continuation ap).
 
 (* What is known in the body of a [Let] of [x] to [d]: nothing of the old
-   [x], and that the new one is [d] if that is a [Simple] not mentioning
-   it. *)
+   [x], and that the new one is [d] if that is a [Simple] or a closure not
+   mentioning it. *)
 Definition typing_env_under_let (tenv : typing_env) (x : variable) (d : named)
     : typing_env :=
   match d with
@@ -135,7 +179,11 @@ Definition typing_env_under_let (tenv : typing_env) (x : variable) (d : named)
     if var_in_simple x s
     then drop_var x tenv
     else (x, Equals s) :: drop_var x tenv
-  | Prim _ _ | Set_of_closures _ _ | Project_value_slot _ _ => drop_var x tenv
+  | Set_of_closures code slots =>
+    if var_in_value_slots x slots
+    then drop_var x tenv
+    else (x, Closure_of code slots) :: drop_var x tenv
+  | Prim _ _ | Project_value_slot _ _ => drop_var x tenv
   end.
 
 Fixpoint follow_aliases (tenv : typing_env) (e : expr) : expr :=

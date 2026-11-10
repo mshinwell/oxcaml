@@ -445,8 +445,11 @@ a fragment at a time. The files follow the same Spec/Proofs split, and
   stated relative to a typing environment
   (`middle_end/flambda2/types/rocq/FlambdaTypesSpec.v`: `expr_refines_in`,
   over `env_satisfies`). The model of types there is naive on purpose (a
-  type is unknown, bottom or an alias to a `Simple`); a richer grammar is
-  to add cases to `type_satisfied`. A binder gone under must not occur in
+  type is unknown, bottom, an alias to a `Simple`, or that of the closures
+  of given code with given value slots); a richer grammar is to add cases
+  to `type_satisfied`. `follow_aliases` uses the closure types to make a
+  call of a known closure direct and to replace the projection of a value
+  slot from one by what the slot holds. A binder gone under must not occur in
   the typing environment, which is the simplifier's freshness invariant.
   There is no substitution: as in the simplifier, a variable is replaced
   at its uses by following its alias, and its `Let` is then unused.

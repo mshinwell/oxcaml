@@ -84,7 +84,7 @@ Lemma find_alias_in (tenv : typing_env) (x : variable) (s : simple) :
   find_alias tenv x = Some s -> (x, Equals s) ∈ tenv.
 Proof.
   induction tenv as [ | [y t] tenv IH]; simpl; [ discriminate | ].
-  destruct t as [ | | s'];
+  destruct t as [ | | s' | code slots];
     try (intros Hfind; right; exact (IH Hfind)).
   destruct (Pos.eqb_spec x y) as [-> | _].
   - intros [= ->]. left. reflexivity.
@@ -138,6 +138,18 @@ Qed.
 
 (* Binding a variable that does not occur in the typing environment keeps
    it satisfied, and adds whatever type the value bound has. *)
+Lemma eval_value_slots_extend (vars : env) (x : variable) (v : value)
+    (slots : list (value_slot * simple)) :
+  ~ Exists (fun slot => var_free_in_simple x (snd slot)) slots ->
+  eval_value_slots ((x, v) :: vars) slots = eval_value_slots vars slots.
+Proof.
+  induction slots as [ | [slot s] slots IH]; intros Hnotfree; simpl;
+    [ reflexivity | ].
+  rewrite eval_simple_extend, IH; [ reflexivity | | ];
+    intros Hfree; apply Hnotfree;
+    [ apply Exists_cons_tl | apply Exists_cons_hd ]; exact Hfree.
+Qed.
+
 Lemma env_satisfies_extend (tenv : typing_env) (vars : env) (x : variable)
     (v : value) (t : flambda_type) :
   env_satisfies tenv vars ->
@@ -152,10 +164,12 @@ Proof.
     { intros ->. apply Hfresh. exists x, t'. auto. }
     exists w. split.
     + simpl. destruct (Pos.eqb_spec y x); [ contradiction | exact Hlookup ].
-    + destruct t' as [ | | [z | sym | c]]; simpl in *; try exact Hw.
-      destruct (Pos.eqb_spec z x) as [-> | _]; [ | exact Hw ].
-      exfalso. apply Hfresh. exists y, (Equals (Var x)).
-      split; [ exact Hin | ]. right. exists (Var x). split; reflexivity.
+    + assert (Hnotfree : ~ var_free_in_type x t').
+      { intros Hfree. apply Hfresh. exists y, t'. auto. }
+      destruct t' as [ | | s | code slots]; simpl in *; try exact Hw.
+      * rewrite eval_simple_extend; assumption.
+      * destruct Hw as (slot_values & Heval & ->). exists slot_values.
+        rewrite eval_value_slots_extend; auto.
 Qed.
 
 Theorem let_refines_in : let_refines_in_statement.

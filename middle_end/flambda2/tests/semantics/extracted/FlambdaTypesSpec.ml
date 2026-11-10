@@ -5,6 +5,7 @@ type flambda_type =
   | Unknown
   | Bottom
   | Equals of simple
+  | Closure_of of code_id * (value_slot * simple) list
 
 type typing_env = (variable * flambda_type) list
 

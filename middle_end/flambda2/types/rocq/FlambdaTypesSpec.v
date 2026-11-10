@@ -40,11 +40,12 @@
    refinement relative to a typing environment ([expr_refines_in]), where
    those of ../../rocq/ are under all environments.
 
-   The model is naive on purpose. A type is unknown, bottom or an alias to
-   a [Simple] ([Equals], which is how the compiler says that a variable is
-   another variable or a constant). A typing environment is a list of
+   The model is naive on purpose. A type is unknown, bottom, an alias to a
+   [Simple] ([Equals], which is how the compiler says that a variable is
+   another variable or a constant), or that of the closures of given code
+   whose value slots hold given [Simple]s ([Closure_of]). A typing environment is a list of
    variables with types, all of which hold. There are no kinds, no types
-   of blocks, closures or boxed numbers, no meet or join, no levels,
+   of blocks or boxed numbers, nothing known of symbols, no meet or join, no levels,
    binding times or canonical aliases, no environment extensions, and
    nothing about symbols or continuation parameters' types at their uses.
    What the model does fix is the meaning of a type ([type_satisfied]) and
@@ -96,7 +97,8 @@ Import ListNotations.
 Inductive flambda_type : Type :=
   | Unknown
   | Bottom
-  | Equals (s : simple).
+  | Equals (s : simple)
+  | Closure_of (code : code_id) (value_slots : list (value_slot * simple)).
 
 (* [Typing_env.t]: the variables in scope with what is known of each. A
    variable may be listed more than once, and then all its types hold. *)
@@ -110,6 +112,10 @@ Definition type_satisfied (vars : env) (v : value) (t : flambda_type)
   | Unknown => True
   | Bottom => False
   | Equals s => eval_simple vars s = Some v
+  | Closure_of code value_slots =>
+    ∃ slot_values : list (value_slot * value),
+      eval_value_slots vars value_slots = Some slot_values
+      ∧ v = Value_closure code slot_values
   end.
 
 (* An environment of values is one of those a typing environment
@@ -119,12 +125,19 @@ Definition env_satisfies (tenv : typing_env) (vars : env) : Prop :=
     (x, t) ∈ tenv ->
     ∃ v : value, lookup x vars = Some v ∧ type_satisfied vars v t.
 
-(* A variable occurs in a typing environment: it is listed, or is what
-   another variable is an alias of. *)
+Definition var_free_in_type (x : variable) (t : flambda_type) : Prop :=
+  match t with
+  | Unknown | Bottom => False
+  | Equals s => var_free_in_simple x s
+  | Closure_of _ value_slots =>
+    Exists (fun slot => var_free_in_simple x (snd slot)) value_slots
+  end.
+
+(* A variable occurs in a typing environment: it is listed, or the type of
+   another variable mentions it. *)
 Definition var_in_typing_env (x : variable) (tenv : typing_env) : Prop :=
   ∃ (y : variable) (t : flambda_type),
-    (y, t) ∈ tenv
-    ∧ (x = y ∨ ∃ s : simple, t = Equals s ∧ var_free_in_simple x s).
+    (y, t) ∈ tenv ∧ (x = y ∨ var_free_in_type x t).
 
 (* ======================================================================== *)
 (* Refinement relative to a typing environment                              *)

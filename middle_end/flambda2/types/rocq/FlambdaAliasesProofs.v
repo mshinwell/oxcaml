@@ -32,7 +32,8 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaSemanticsProofs FlambdaContextProofs FlambdaNominalSpec
-  FlambdaNominalProofs FlambdaNormaliseSpec FlambdaNormaliseProofs.
+  FlambdaNominalProofs FlambdaApplyProofs FlambdaNormaliseSpec
+  FlambdaNormaliseProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaTypesProofs
   FlambdaAliasesSpec.
 Import ListNotations.
@@ -58,9 +59,12 @@ Proof.
   apply filter_In in Hin. destruct Hin as [_ Hkept].
   apply andb_true_iff in Hkept as [Hkey Htype].
   apply negb_true_iff in Hkey, Htype.
-  destruct Hmention as [-> | (s & -> & Hfree)].
+  destruct Hmention as [-> | Hfree].
   - rewrite Pos.eqb_refl in Hkey. discriminate.
-  - simpl in Htype. apply var_in_simple_sound in Hfree. congruence.
+  - destruct t as [ | | s | code slots]; simpl in Htype, Hfree;
+      try contradiction.
+    + apply var_in_simple_sound in Hfree. congruence.
+    + apply var_in_value_slots_sound in Hfree. congruence.
 Qed.
 
 Lemma drop_vars_incl (xs : list variable) (tenv : typing_env)
@@ -95,6 +99,73 @@ Proof.
   rewrite (canonical_simple_sound tenv vars s Hsat), IH. reflexivity.
 Qed.
 
+Lemma find_closure_in (tenv : typing_env) (x : variable) (code : code_id)
+    (slots : list (value_slot * simple)) :
+  find_closure tenv x = Some (code, slots) ->
+  (x, Closure_of code slots) ∈ tenv.
+Proof.
+  induction tenv as [ | [y t] tenv IH]; simpl; [ discriminate | ].
+  destruct t as [ | | s | code' slots'];
+    try (intros Hfind; right; exact (IH Hfind)).
+  destruct (Pos.eqb_spec x y) as [-> | _].
+  - intros [= -> ->]. left. reflexivity.
+  - intros Hfind. right. exact (IH Hfind).
+Qed.
+
+(* What a known closure is: the variable is bound to a closure of the
+   code, whose slots have the values of what the type says they hold. *)
+Lemma closure_of_simple_sound (tenv : typing_env) (vars : env) (s : simple)
+    (code : code_id) (slots : list (value_slot * simple)) :
+  env_satisfies tenv vars ->
+  closure_of_simple tenv s = Some (code, slots) ->
+  ∃ slot_values : list (value_slot * value),
+    eval_value_slots vars slots = Some slot_values
+    ∧ eval_simple vars s = Some (Value_closure code slot_values).
+Proof.
+  intros Hsat. destruct s as [x | sym | c]; simpl; try discriminate.
+  intros Hfind.
+  destruct (Hsat x _ (find_closure_in tenv x code slots Hfind))
+    as (v & Hlookup & slot_values & Hslots & ->).
+  exists slot_values. split; assumption.
+Qed.
+
+(* A slot of evaluated value slots has the value of what it held. *)
+Lemma eval_value_slots_lookup (vars : env) (slot : value_slot)
+    (slots : list (value_slot * simple)) :
+  ∀ (slot_values : list (value_slot * value)) (contents : simple),
+    eval_value_slots vars slots = Some slot_values ->
+    lookup slot slots = Some contents ->
+    lookup slot slot_values = eval_simple vars contents.
+Proof.
+  induction slots as [ | [slot' s] slots IH]; intros slot_values contents;
+    simpl; [ discriminate | ].
+  destruct (eval_simple vars s) as [v | ] eqn:Hs; [ | discriminate ].
+  destruct (eval_value_slots vars slots) as [rest | ]; [ | discriminate ].
+  simpl. intros [= <-]. simpl.
+  destruct (Pos.eqb slot slot').
+  - intros [= <-]. symmetry. exact Hs.
+  - apply (IH rest contents eq_refl).
+Qed.
+
+Lemma canonical_project_sound (tenv : typing_env) (vars : env)
+    (statics : static_env) (slot : value_slot) (closure : simple) :
+  env_satisfies tenv vars ->
+  eval_named statics vars (canonical_project tenv slot closure)
+  = eval_named statics vars (Project_value_slot slot closure).
+Proof.
+  intros Hsat. unfold canonical_project.
+  destruct (closure_of_simple tenv closure) as [[code slots] | ] eqn:Hclosure;
+    [ | reflexivity ].
+  destruct (lookup slot slots) as [contents | ] eqn:Hslot; [ | reflexivity ].
+  destruct (closure_of_simple_sound tenv vars closure code slots Hsat
+              Hclosure)
+    as (slot_values & Hslots & Heval).
+  simpl. rewrite Heval. simpl.
+  symmetry.
+  exact (eval_value_slots_lookup vars slot slots slot_values contents Hslots
+    Hslot).
+Qed.
+
 Lemma canonical_named_sound (tenv : typing_env) (vars : env)
     (statics : static_env) (d : named) :
   env_satisfies tenv vars ->
@@ -104,7 +175,35 @@ Proof.
   - apply canonical_simple_sound, Hsat.
   - rewrite (canonical_simples_sound tenv vars args Hsat). reflexivity.
   - rewrite (canonical_value_slots_sound tenv vars slots Hsat). reflexivity.
-  - rewrite (canonical_simple_sound tenv vars closure Hsat). reflexivity.
+  - rewrite (canonical_project_sound tenv vars statics slot _ Hsat). simpl.
+    rewrite (canonical_simple_sound tenv vars closure Hsat). reflexivity.
+Qed.
+
+(* A call and the same call with its aliases followed and, if the callee
+   is a known closure, made direct: they take the same step. *)
+Lemma canonical_apply_equivalent (tenv : typing_env) (ap : apply_expr)
+    (vars : env) (conts : cont_env) (statics : static_env) :
+  env_satisfies tenv vars ->
+  equivalent (State (Apply ap) vars conts statics)
+    (State (Apply (canonical_apply tenv ap)) vars conts statics).
+Proof.
+  intros Hsat. apply (equivalent_of_run 1 1). simpl.
+  rewrite (canonical_simples_sound tenv vars (ap_args ap) Hsat).
+  unfold canonical_call_kind.
+  destruct (ap_call_kind ap) as [code | ];
+    [ rewrite (canonical_simple_sound tenv vars (ap_callee ap) Hsat);
+      reflexivity
+    | ].
+  destruct (closure_of_simple tenv (canonical_simple tenv (ap_callee ap)))
+    as [[code slots] | ] eqn:Hclosure;
+    [ | rewrite (canonical_simple_sound tenv vars (ap_callee ap) Hsat);
+        reflexivity ].
+  destruct (closure_of_simple_sound tenv vars _ code slots Hsat Hclosure)
+    as (slot_values & _ & Heval).
+  rewrite (canonical_simple_sound tenv vars (ap_callee ap) Hsat) in Heval.
+  rewrite (canonical_simple_sound tenv vars (ap_callee ap) Hsat), Heval.
+  destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | reflexivity ].
+  unfold call_function. simpl. rewrite Pos.eqb_refl. reflexivity.
 Qed.
 
 Lemma canonical_static_bindings_sound (tenv : typing_env) (vars : env)
@@ -170,13 +269,21 @@ Proof.
       (drop_var_fresh x tenv) I). }
   destruct d as [s | p args | code slots | slot closure]; simpl;
     try exact Hunknown.
-  destruct (var_in_simple x s) eqn:Hmention; [ exact Hunknown | ].
-  apply (env_satisfies_extend _ vars x v (Equals s) Hdropped
-    (drop_var_fresh x tenv)).
-  simpl in Hd |- *. rewrite <- Hd.
-  destruct s as [y | sym | c]; simpl in Hmention |- *; try reflexivity.
-  destruct (Pos.eqb_spec y x) as [-> | _]; [ | reflexivity ].
-  rewrite Pos.eqb_refl in Hmention. discriminate.
+  - destruct (var_in_simple x s) eqn:Hmention; [ exact Hunknown | ].
+    apply (env_satisfies_extend _ vars x v (Equals s) Hdropped
+      (drop_var_fresh x tenv)).
+    simpl in Hd |- *. rewrite <- Hd. apply eval_simple_extend.
+    intros Hfree. apply var_in_simple_sound in Hfree. congruence.
+  - destruct (var_in_value_slots x slots) eqn:Hmention; [ exact Hunknown | ].
+    apply (env_satisfies_extend _ vars x v (Closure_of code slots) Hdropped
+      (drop_var_fresh x tenv)).
+    simpl in Hd |- *.
+    destruct (eval_value_slots vars slots) as [slot_values | ] eqn:Hslots;
+      [ | discriminate ].
+    simpl in Hd. injection Hd as <-. exists slot_values.
+    split; [ | reflexivity ].
+    rewrite <- Hslots. apply eval_value_slots_extend.
+    intros Hfree. apply var_in_value_slots_sound in Hfree. congruence.
 Qed.
 
 Lemma let_equivalent_in (tenv : typing_env) (x : variable) (d : named)
@@ -283,10 +390,8 @@ Proof.
       eapply equivalent_step; [ reflexivity | reflexivity | ].
       apply (follow_aliases_equivalent_in body tenv), Hsat.
     + (* Apply *)
-      intros vars conts statics Hsat. apply (equivalent_of_run 1 1). simpl.
-      rewrite (canonical_simple_sound tenv vars (ap_callee ap) Hsat),
-        (canonical_simples_sound tenv vars (ap_args ap) Hsat).
-      reflexivity.
+      intros vars conts statics Hsat.
+      apply canonical_apply_equivalent, Hsat.
     + (* Apply_cont *)
       intros vars conts statics Hsat.
       apply canonical_apply_cont_equivalent, Hsat.
