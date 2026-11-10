@@ -249,7 +249,8 @@ Definition add_definitions_of_params (tenv : typing_env)
 Definition let_cont_handler_refines_in_statement : Prop :=
   ∀ (tenv : typing_env) (k : continuation) (params : list variable)
     (handler handler' body : expr),
-    (∀ param : variable, param ∈ params -> ~ var_in_typing_env param tenv) ->
+    (∀ param : variable,
+      param ∈ params -> ~ var_in_typing_env param tenv) ->
     expr_refines_in (add_definitions_of_params tenv params) handler handler'
     ->
     expr_refines_in tenv
@@ -261,7 +262,8 @@ Definition let_cont_recursive_handler_refines_in_statement : Prop :=
     (before : list (continuation * continuation_handler)) (k : continuation)
     (params : list variable) (handler handler' : expr)
     (after : list (continuation * continuation_handler)) (body : expr),
-    (∀ param : variable, param ∈ params -> ~ var_in_typing_env param tenv) ->
+    (∀ param : variable,
+      param ∈ params -> ~ var_in_typing_env param tenv) ->
     expr_refines_in (add_definitions_of_params tenv params) handler handler'
     ->
     expr_refines_in tenv

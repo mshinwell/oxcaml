@@ -195,7 +195,8 @@ Qed.
 Lemma env_satisfies_bind_params (tenv : typing_env) (params : list variable) :
   ∀ (vs : list value) (vars handler_vars : env),
     env_satisfies tenv vars ->
-    (∀ param : variable, param ∈ params -> ~ var_in_typing_env param tenv) ->
+    (∀ param : variable,
+      param ∈ params -> ~ var_in_typing_env param tenv) ->
     bind_params params vs vars = Some handler_vars ->
     env_satisfies tenv handler_vars.
 Proof.
