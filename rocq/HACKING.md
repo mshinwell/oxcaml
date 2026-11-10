@@ -469,6 +469,37 @@ known of the static environment; sets of closures of several functions; kinds on
 parameters and well-kindedness; mutable memory and effects, trap actions,
 and any link to the simplifier's code.
 
+### Testing Simplify against the semantics
+
+`middle_end/flambda2/tests/semantics/` checks the real simplifier against
+the model on small examples written in the fexpr language. For each `.fl`
+file, `flsemantics` (`middle_end/flambda2/tests/tools/flsemantics.ml`)
+parses it to a Flambda unit, runs Simplify, converts the unit before and
+the unit after to terms of the model, runs both on the machine extracted
+from `FlambdaSemanticsSpec.v`, and compares what the two runs come to: the
+continuation exited through and its arguments, followed through symbols
+into static blocks. A closure is not looked into. The check passes if the
+outcomes are the same, or if the run before is undefined. This is a test,
+not a proof.
+
+- The machine is extracted by `FlambdaExtract.v` into
+  `tests/semantics/extracted/` (`make -C rocq all` regenerates it; the
+  files are committed; `prim_hook.ml` there is written by hand). No part
+  of the compiler is built from it.
+- Trusted and unverified: the conversion from Flambda terms to model
+  terms, and the meaning the tool gives to the few primitives it knows,
+  which the model leaves abstract. Read both in `flsemantics.ml`.
+- A construct or primitive the conversion does not know makes the example
+  "not checked"; it is never run as if undefined, which would pass for
+  nothing. When the model gains a construct, teach the conversion and add
+  an example.
+- To run:
+  `dune build --root=. --workspace=duneconf/main.ws
+  @middle_end/flambda2/tests/semantics/runtest` (after
+  `make -s boot-compiler`). The expected output is `semantics.expected`.
+  To add an example, add the `.fl` file, whose module symbol must match
+  its name, and a line in the `dune` file there.
+
 ## Extraction pitfalls
 
 - `&&` is extracted to OxCaml's short-circuiting `( && )`, but a `let` is

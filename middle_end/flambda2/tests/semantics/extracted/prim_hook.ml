@@ -1,0 +1,11 @@
+(* What realises the abstract primitives of the Rocq model in the extracted
+   machine (see middle_end/flambda2/rocq/FlambdaExtract.v). Written by hand; the
+   other modules of this directory are extracted.
+
+   The model's [eval_prim : prim -> value list -> value option] is extracted to
+   a call of the function held here, on untyped representations because this
+   module comes before the one that defines [value]. The test tool installs a
+   typed function with [Obj.repr]. *)
+
+let eval_prim : (Obj.t -> Obj.t -> Obj.t) ref =
+  ref (fun _ _ -> failwith "Prim_hook.eval_prim: no evaluator installed")

@@ -1,0 +1,311 @@
+open BinInt
+open BinNums
+open BinPos
+open Datatypes
+open FlambdaModel
+open ListDef
+
+type value =
+  | Value_const of const
+  | Value_closure of code_id * (value_slot * value) list
+  | Value_symbol of symbol
+
+(** val eval_prim : prim -> value list -> value option **)
+
+let eval_prim = fun p vs -> Obj.obj (!Prim_hook.eval_prim p (Obj.repr vs))
+
+(** val lookup : positive -> (positive * 'a1) list -> 'a1 option **)
+
+let rec lookup name = function
+  | [] -> None
+  | p :: bindings0 ->
+    let bound, a = p in
+    if Pos.eqb name bound then Some a else lookup name bindings0
+
+type env = (variable * value) list
+
+type statically_allocated_value =
+  | Static_closure of code_id * (value_slot * value) list
+  | Static_block of coq_Z * value list
+  | Static_boxed_number of value
+  | Static_string of coq_Z list
+
+type static_env =
+  { static_code : (code_id * code) list;
+    static_values : (symbol * statically_allocated_value) list
+  }
+
+(** val empty_static_env : static_env **)
+
+let empty_static_env = { static_code = []; static_values = [] }
+
+type cont_value =
+  | Closure of
+      continuation_handler
+      * env
+      * (continuation * cont_value) list
+      * (continuation * continuation_handler) list
+  | Outer of continuation
+
+type cont_env = (continuation * cont_value) list
+
+(** val resolve : continuation -> cont_env -> cont_value **)
+
+let resolve k conts = match lookup k conts with Some c -> c | None -> Outer k
+
+(** val rec_closures : (continuation * continuation_handler) list -> env ->
+    cont_env -> cont_env **)
+
+let rec_closures handlers vars conts =
+  map
+    (fun pat ->
+      let k, h = pat in
+      k, Closure (h, vars, conts, handlers))
+    handlers
+
+(** val eval_simple : env -> simple -> value option **)
+
+let eval_simple vars = function
+  | Var x -> lookup x vars
+  | Symbol sym -> Some (Value_symbol sym)
+  | Const c -> Some (Value_const c)
+
+(** val eval_simples : env -> simple list -> value list option **)
+
+let rec eval_simples vars = function
+  | [] -> Some []
+  | s :: args0 -> (
+    match eval_simple vars s with
+    | Some v -> (
+      match eval_simples vars args0 with
+      | Some vs -> Some (v :: vs)
+      | None -> None)
+    | None -> None)
+
+(** val eval_value_slots : env -> (value_slot * simple) list -> (value_slot *
+    value) list option **)
+
+let rec eval_value_slots vars = function
+  | [] -> Some []
+  | p :: value_slots0 -> (
+    let slot, s = p in
+    match eval_simple vars s with
+    | Some v -> (
+      match eval_value_slots vars value_slots0 with
+      | Some vs -> Some ((slot, v) :: vs)
+      | None -> None)
+    | None -> None)
+
+(** val closure_of : static_env -> value -> (code_id * (value_slot * value)
+    list) option **)
+
+let closure_of statics = function
+  | Value_const _ -> None
+  | Value_closure (code0, value_slots) -> Some (code0, value_slots)
+  | Value_symbol s -> (
+    match lookup s statics.static_values with
+    | Some s0 -> (
+      match s0 with
+      | Static_closure (code0, value_slots) -> Some (code0, value_slots)
+      | _ -> None)
+    | None -> None)
+
+(** val eval_named : static_env -> env -> named -> value option **)
+
+let eval_named statics vars = function
+  | Simple s -> eval_simple vars s
+  | Prim (p, args) -> (
+    match eval_simples vars args with Some vs -> eval_prim p vs | None -> None)
+  | Set_of_closures (code0, value_slots) -> (
+    match eval_value_slots vars value_slots with
+    | Some vs -> Some (Value_closure (code0, vs))
+    | None -> None)
+  | Project_value_slot (slot, closure) -> (
+    match eval_simple vars closure with
+    | Some v -> (
+      match closure_of statics v with
+      | Some called -> lookup slot (snd called)
+      | None -> None)
+    | None -> None)
+
+(** val eval_static_const : env -> static_const -> statically_allocated_value
+    option **)
+
+let eval_static_const vars = function
+  | Static_const_set_of_closures (code0, value_slots) -> (
+    match eval_value_slots vars value_slots with
+    | Some vs -> Some (Static_closure (code0, vs))
+    | None -> None)
+  | Static_const_block (tag, fields) -> (
+    match eval_simples vars fields with
+    | Some vs -> Some (Static_block (tag, vs))
+    | None -> None)
+  | Static_const_boxed_number contents -> (
+    match eval_simple vars contents with
+    | Some v -> Some (Static_boxed_number v)
+    | None -> None)
+  | Static_const_immutable_string bytes -> Some (Static_string bytes)
+
+(** val eval_static_bindings : env -> static_binding list -> static_env ->
+    static_env option **)
+
+let rec eval_static_bindings vars bindings statics =
+  match bindings with
+  | [] -> Some statics
+  | s0 :: bindings0 -> (
+    match s0 with
+    | Bind_code (id, c) ->
+      eval_static_bindings vars bindings0
+        { static_code = (id, c) :: statics.static_code;
+          static_values = statics.static_values
+        }
+    | Bind_deleted_code _ -> eval_static_bindings vars bindings0 statics
+    | Bind_symbol (s, const0) -> (
+      match eval_static_const vars const0 with
+      | Some allocated ->
+        eval_static_bindings vars bindings0
+          { static_code = statics.static_code;
+            static_values = (s, allocated) :: statics.static_values
+          }
+      | None -> None))
+
+(** val bind_params : variable list -> value list -> env -> env option **)
+
+let rec bind_params params vs vars =
+  match params with
+  | [] -> ( match vs with [] -> Some vars | _ :: _ -> None)
+  | x :: params0 -> (
+    match vs with
+    | [] -> None
+    | v :: vs0 -> bind_params params0 vs0 ((x, v) :: vars))
+
+(** val find_arm : coq_Z -> (coq_Z * apply_cont) list -> apply_cont option **)
+
+let rec find_arm i = function
+  | [] -> None
+  | p :: arms0 ->
+    let discriminant, ac = p in
+    if Z.eqb i discriminant then Some ac else find_arm i arms0
+
+(** val naked_immediate_of_value : value -> coq_Z option **)
+
+let naked_immediate_of_value = function
+  | Value_const c -> ( match c with Naked_immediate i -> Some i | _ -> None)
+  | _ -> None
+
+type state = State of expr * env * cont_env * static_env
+
+type step_result =
+  | Step of state
+  | Exit of continuation * value list
+  | Undefined
+
+(** val apply_cont_value : cont_value -> value list -> static_env -> step_result
+    **)
+
+let apply_cont_value c vs statics =
+  match c with
+  | Closure (h, def_vars, def_conts, recursive) -> (
+    let (Handler (params, handler)) = h in
+    match bind_params params vs def_vars with
+    | Some handler_vars ->
+      Step
+        (State
+           ( handler,
+             handler_vars,
+             app (rec_closures recursive def_vars def_conts) def_conts,
+             statics ))
+    | None -> Undefined)
+  | Outer k -> Exit (k, vs)
+
+(** val apply_continuation : continuation -> value list -> cont_env ->
+    static_env -> step_result **)
+
+let apply_continuation k vs conts statics =
+  apply_cont_value (resolve k conts) vs statics
+
+(** val call_function : value -> call_kind -> value list -> cont_value ->
+    cont_value -> static_env -> step_result **)
+
+let call_function callee kind vs return_to exn_to statics =
+  match closure_of statics callee with
+  | Some p ->
+    let called, _ = p in
+    let expected =
+      match kind with
+      | Direct named0 -> Pos.eqb called named0
+      | Indirect -> true
+    in
+    if expected
+    then
+      match lookup called statics.static_code with
+      | Some c -> (
+        match
+          bind_params (code_params c) vs ((code_my_closure c, callee) :: [])
+        with
+        | Some callee_vars ->
+          Step
+            (State
+               ( code_body c,
+                 callee_vars,
+                 [ code_return_continuation c, return_to;
+                   code_exn_continuation c, exn_to ],
+                 statics ))
+        | None -> Undefined)
+      | None -> Undefined
+    else Undefined
+  | None -> Undefined
+
+(** val step : state -> step_result **)
+
+let step = function
+  | State (e, vars, conts, statics) -> (
+    match e with
+    | Let (x, defining_expr, body) -> (
+      match eval_named statics vars defining_expr with
+      | Some v -> Step (State (body, (x, v) :: vars, conts, statics))
+      | None -> Undefined)
+    | Let_static (bindings, body) -> (
+      match eval_static_bindings vars bindings statics with
+      | Some statics' -> Step (State (body, vars, conts, statics'))
+      | None -> Undefined)
+    | Let_cont_non_recursive (k, h, body) ->
+      Step
+        (State (body, vars, (k, Closure (h, vars, conts, [])) :: conts, statics))
+    | Let_cont_recursive (handlers, body) ->
+      Step
+        (State
+           (body, vars, app (rec_closures handlers vars conts) conts, statics))
+    | Apply ap -> (
+      match eval_simple vars ap.ap_callee with
+      | Some callee -> (
+        match eval_simples vars ap.ap_args with
+        | Some vs ->
+          call_function callee ap.ap_call_kind vs
+            (resolve ap.ap_continuation conts)
+            (resolve ap.ap_exn_continuation conts)
+            statics
+        | None -> Undefined)
+      | None -> Undefined)
+    | Apply_cont ac -> (
+      match eval_simples vars ac.ac_args with
+      | Some vs -> apply_continuation ac.ac_continuation vs conts statics
+      | None -> Undefined)
+    | Switch (scrutinee, arms) -> (
+      match eval_simple vars scrutinee with
+      | Some v -> (
+        match naked_immediate_of_value v with
+        | Some i -> (
+          match find_arm i arms with
+          | Some ac -> Step (State (Apply_cont ac, vars, conts, statics))
+          | None -> Undefined)
+        | None -> Undefined)
+      | None -> Undefined)
+    | Invalid -> Undefined)
+
+(** val run : nat -> state -> step_result **)
+
+let rec run fuel s =
+  match fuel with
+  | O -> Step s
+  | S fuel0 -> ( match step s with Step s' -> run fuel0 s' | x -> x)

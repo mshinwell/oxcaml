@@ -1,0 +1,11 @@
+let code size(5) add_n (x) my_closure &my_region my_depth -> k * e =
+  let n = %project_value_slot.[f].[n] (my_closure) in
+  let y = %int_barith.`add` (x, n) in
+  cont k (y)
+in
+let ten = %opaque (10) in
+let add_ten = closure add_n @f &toplevel with { n = ten } in
+apply &toplevel add_ten (32) -> k1 * error
+  where k1 (r) =
+    let $camlClosure_slot = Block 0 (r) in
+    cont done ($camlClosure_slot)

@@ -1,0 +1,7 @@
+let c = %int_comp.`lt` (3, 5) in
+switch c
+  | 0 -> k (10)
+  | 1 -> k (20)
+  where k (r) =
+    let $camlSwitch = Block 0 (r) in
+    cont done ($camlSwitch)

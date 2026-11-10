@@ -1,0 +1,13 @@
+cont loop (0, 0)
+  where rec loop (i, acc) =
+    let c = %int_comp.`lt` (i, 5) in
+    (switch c
+       | 0 -> finish (acc)
+       | 1 -> next
+       where next =
+         let acc2 = %int_barith.`add` (acc, i) in
+         let i2 = %int_barith.`add` (i, 1) in
+         cont loop (i2, acc2))
+  where finish (r) =
+    let $camlRec_cont = Block 0 (r) in
+    cont done ($camlRec_cont)

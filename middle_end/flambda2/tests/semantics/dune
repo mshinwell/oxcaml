@@ -1,0 +1,33 @@
+;; Simplify checked against the Rocq semantics of Flambda 2: each example
+;; is run before and after Simplify on the machine extracted from
+;; middle_end/flambda2/rocq/FlambdaSemanticsSpec.v, and what the two runs
+;; come to is compared (see ../tools/flsemantics.ml). The tool fails if
+;; they differ; what it prints is kept in semantics.expected.
+;;
+;; To add an example, add the .fl file (its module symbol must match its
+;; name) and a line for it here. Each is run on its own, as the compiler
+;; keeps its symbols from one unit to the next.
+
+(rule
+ (target semantics.output)
+ (deps
+  ../tools/flsemantics.exe
+  (glob_files *.fl))
+ (action
+  (with-stdout-to
+   %{target}
+   (progn
+    (run ../tools/flsemantics.exe apply_direct.fl)
+    (run ../tools/flsemantics.exe arith.fl)
+    (run ../tools/flsemantics.exe closure_slot.fl)
+    (run ../tools/flsemantics.exe const_block.fl)
+    (run ../tools/flsemantics.exe indirect_higher_order.fl)
+    (run ../tools/flsemantics.exe rec_cont.fl)
+    (run ../tools/flsemantics.exe switch.fl)
+    (run ../tools/flsemantics.exe undefined_source.fl)
+    (run ../tools/flsemantics.exe unsupported_primitive.fl)))))
+
+(rule
+ (alias runtest)
+ (action
+  (diff semantics.expected semantics.output)))

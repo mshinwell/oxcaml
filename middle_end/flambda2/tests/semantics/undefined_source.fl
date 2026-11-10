@@ -1,0 +1,6 @@
+let c = %int_comp.`lt` (3, 5) in
+switch c
+  | 0 -> k (10)
+  where k (r) =
+    let $camlUndefined_source = Block 0 (r) in
+    cont done ($camlUndefined_source)

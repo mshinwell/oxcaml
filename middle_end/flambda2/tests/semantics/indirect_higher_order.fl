@@ -1,0 +1,15 @@
+let code size(5) add_one (x) my_closure &my_region my_depth -> k * e =
+  let y = %int_barith.`add` (x, 1) in
+  cont k (y)
+in
+let code size(5) twice (f, x) my_closure &my_region my_depth -> k * e =
+  apply &my_region f (x) -> k1 * e
+    where k1 (y) =
+      apply &my_region f (y) -> k * e
+in
+let $Add_one = closure add_one @add_one &toplevel in
+let $Twice = closure twice @twice &toplevel in
+apply direct(twice &toplevel) $Twice ($Add_one, 40) -> k2 * error
+  where k2 (r) =
+    let $camlIndirect_higher_order = Block 0 (r, $Add_one) in
+    cont done ($camlIndirect_higher_order)

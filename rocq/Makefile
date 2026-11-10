@@ -86,6 +86,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaNominalSpec.v FlambdaNominalProofs.v FlambdaAlphaSpec.v \
   FlambdaAlphaProofs.v FlambdaApplySpec.v FlambdaApplyProofs.v \
   FlambdaStaticSpec.v FlambdaStaticProofs.v)
+FLAMBDA2_EXTRACT := $(FLAMBDA2_DIR)/FlambdaExtract.v
+FLAMBDA2_EXTRACTED_DIR := $(ROOT)/middle_end/flambda2/tests/semantics/extracted
 FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaTypesSpec.v FlambdaTypesProofs.v)
 
@@ -110,12 +112,13 @@ LOOP_EXTRACTED := $(addprefix $(LOOP_DIR)/, \
 EXTRACTED := $(SSA_EXTRACTED) $(LOOP_EXTRACTED)
 
 SOURCES := $(STDLIB) $(BACKEND) $(SSA) $(LOOP) $(EXTRACT) $(FLAMBDA2) \
-  $(FLAMBDA2_TYPES)
+  $(FLAMBDA2_TYPES) $(FLAMBDA2_EXTRACT)
 MODULES := $(patsubst $(STDLIB_DIR)/%.v,OxCamlStdlib.%,$(STDLIB)) \
   $(patsubst $(BACKEND_DIR)/%.v,OxCamlBackend.%,$(BACKEND)) \
   $(patsubst $(SSA_DIR)/%.v,OxCamlSsa.%,$(SSA)) \
   $(patsubst $(LOOP_DIR)/%.v,OxCamlLoop.%,$(LOOP) $(EXTRACT)) \
-  $(patsubst $(FLAMBDA2_DIR)/%.v,OxCamlFlambda2.%,$(FLAMBDA2)) \
+  $(patsubst $(FLAMBDA2_DIR)/%.v,OxCamlFlambda2.%,$(FLAMBDA2) \
+    $(FLAMBDA2_EXTRACT)) \
   $(patsubst $(FLAMBDA2_TYPES_DIR)/%.v,OxCamlFlambda2Types.%,$(FLAMBDA2_TYPES))
 DEPS := $(STDLIB_DIR)/.rocqdeps.d
 
@@ -131,7 +134,7 @@ all: $(SOURCES:.v=.vo) claims
 review: $(SOURCES:.v=.vo)
 	perl $(STDLIB_DIR)/review-pdf.pl $(STDLIB_DIR)/_review \
 	  $(STDLIB_DIR)/review.pdf $(STDLIB) $(BACKEND) $(SSA) $(LOOP) $(EXTRACT) \
-	  $(FLAMBDA2) $(FLAMBDA2_TYPES)
+	  $(FLAMBDA2) $(FLAMBDA2_TYPES) $(FLAMBDA2_EXTRACT)
 
 # Every statement a Spec file binds as a proposition ([Definition X_statement
 # : Prop]) must be proved as the theorem [X] of the matching Proofs module
@@ -212,6 +215,15 @@ $(EXTRACT:.v=.vo): $(EXTRACT)
 	  done; \
 	done
 	$(OCAMLFORMAT) -i $(EXTRACTED)
+
+# FlambdaExtract.v writes the machine of the Flambda 2 semantics as OCaml
+# modules into the directory of the test tool that runs it
+# (middle_end/flambda2/tests/semantics/); prim_hook.ml there is written by
+# hand.
+$(FLAMBDA2_EXTRACT:.v=.vo): $(FLAMBDA2_EXTRACT)
+	cd $(FLAMBDA2_EXTRACTED_DIR) && $(ROCQ) compile $(FLAGS) $<
+	$(OCAMLFORMAT) -i $(FLAMBDA2_EXTRACTED_DIR)/*.ml \
+	  $(FLAMBDA2_EXTRACTED_DIR)/*.mli
 
 %.vo: %.v
 	$(ROCQ) compile $(FLAGS) $<

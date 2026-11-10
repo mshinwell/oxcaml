@@ -1,0 +1,4 @@
+let a = %int_barith.`add` (3, 4) in
+let b = %int_barith.`mul` (a, 6) in
+let $camlArith = Block 0 (a, b) in
+cont done ($camlArith)

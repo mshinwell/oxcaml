@@ -1,0 +1,9 @@
+let code size(5) add_one (x) my_closure &my_region my_depth -> k * e =
+  let y = %int_barith.`add` (x, 1) in
+  cont k (y)
+in
+let $Add_one = closure add_one &toplevel in
+apply direct(add_one &toplevel) $Add_one (41) -> k1 * error
+  where k1 (r) =
+    let $camlApply_direct = Block 0 (r) in
+    cont done ($camlApply_direct)
