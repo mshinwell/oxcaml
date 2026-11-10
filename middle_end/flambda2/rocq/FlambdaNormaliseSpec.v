@@ -53,6 +53,11 @@
    condition, by its soundness (in the Proofs file); nothing is claimed
    where it answers no.
 
+   [remove_unused_lets], also for the term before, removes each [Let] whose
+   variable is not free in its body, in bodies and in the handlers of
+   non-recursive continuations. [var_free_b] is the test; it may say that
+   a variable is free when it is not, never the reverse.
+
    The proofs are in FlambdaNormaliseProofs.v, which needs no review. *)
 
 From Stdlib Require Import ZArith List Bool.
@@ -208,3 +213,84 @@ Fixpoint inline_calls (known : list (code_id * code)) (e : expr) : expr :=
 
 Definition inline_calls_refines_statement : Prop :=
   ∀ e : expr, expr_refines e (inline_calls [] e).
+
+(* ======================================================================== *)
+(* Removing unused [Let]s                                                   *)
+(* ======================================================================== *)
+
+Definition var_in_simple (x : variable) (s : simple) : bool :=
+  match s with
+  | Var y => Pos.eqb x y
+  | Symbol _ | Const _ => false
+  end.
+
+Definition var_in_value_slots (x : variable)
+    (slots : list (value_slot * simple)) : bool :=
+  existsb (fun slot => var_in_simple x (snd slot)) slots.
+
+Definition var_in_named (x : variable) (d : named) : bool :=
+  match d with
+  | Simple s => var_in_simple x s
+  | Prim _ args => var_in_simples x args
+  | Set_of_closures _ slots => var_in_value_slots x slots
+  | Project_value_slot _ closure => var_in_simple x closure
+  end.
+
+Definition var_in_static_binding (x : variable) (binding : static_binding)
+    : bool :=
+  match binding with
+  | Bind_code _ _ | Bind_deleted_code _ => false
+  | Bind_symbol _ (Static_const_set_of_closures _ slots) =>
+    var_in_value_slots x slots
+  | Bind_symbol _ (Static_const_block _ fields) => var_in_simples x fields
+  | Bind_symbol _ (Static_const_boxed_number contents) =>
+    var_in_simple x contents
+  | Bind_symbol _ (Static_const_immutable_string _) => false
+  end.
+
+(* Whether a variable may be free in an expression. *)
+Fixpoint var_free_b (x : variable) (e : expr) : bool :=
+  match e with
+  | Let y d body =>
+    var_in_named x d || (negb (Pos.eqb x y) && var_free_b x body)
+  | Let_static bindings body =>
+    existsb (var_in_static_binding x) bindings || var_free_b x body
+  | Let_cont_non_recursive _ h body =>
+    var_free_in_handler_b x h || var_free_b x body
+  | Let_cont_recursive handlers body =>
+    existsb (fun '(_, h) => var_free_in_handler_b x h) handlers
+    || var_free_b x body
+  | Apply ap =>
+    var_in_simple x (ap_callee ap) || var_in_simples x (ap_args ap)
+  | Apply_cont ac => var_in_simples x (ac_args ac)
+  | Switch scrutinee arms =>
+    var_in_simple x scrutinee
+    || existsb (fun arm => var_in_simples x (ac_args (snd arm))) arms
+  | Invalid => false
+  end
+with var_free_in_handler_b (x : variable) (h : continuation_handler) : bool :=
+  match h with
+  | Handler params handler => negb (name_in x params) && var_free_b x handler
+  end.
+
+Fixpoint remove_unused_lets (e : expr) : expr :=
+  match e with
+  | Let x d body =>
+    let body' := remove_unused_lets body in
+    if var_free_b x body' then Let x d body' else body'
+  | Let_static bindings body => Let_static bindings (remove_unused_lets body)
+  | Let_cont_non_recursive k h body =>
+    Let_cont_non_recursive k (remove_unused_lets_in_handler h)
+      (remove_unused_lets body)
+  | Let_cont_recursive handlers body =>
+    Let_cont_recursive handlers (remove_unused_lets body)
+  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => e
+  end
+with remove_unused_lets_in_handler (h : continuation_handler)
+    : continuation_handler :=
+  match h with
+  | Handler params handler => Handler params (remove_unused_lets handler)
+  end.
+
+Definition remove_unused_lets_refines_statement : Prop :=
+  ∀ e : expr, expr_refines e (remove_unused_lets e).

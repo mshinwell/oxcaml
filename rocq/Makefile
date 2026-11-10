@@ -90,7 +90,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
 FLAMBDA2_EXTRACT := $(FLAMBDA2_DIR)/FlambdaExtract.v
 FLAMBDA2_EXTRACTED_DIR := $(ROOT)/middle_end/flambda2/tests/semantics/extracted
 FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
-  FlambdaTypesSpec.v FlambdaTypesProofs.v)
+  FlambdaTypesSpec.v FlambdaTypesProofs.v FlambdaAliasesSpec.v \
+  FlambdaAliasesProofs.v)
 
 # The extraction writes one .ml and .mli per model into the loop directory;
 # those of the SSA models are then moved next to their sources. Those of the

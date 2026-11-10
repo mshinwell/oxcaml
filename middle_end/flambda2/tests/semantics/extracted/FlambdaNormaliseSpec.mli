@@ -40,3 +40,19 @@ val codes_of :
 val inline_apply : (code_id * code) list -> apply_expr -> expr
 
 val inline_calls : (code_id * code) list -> expr -> expr
+
+val var_in_simple : variable -> simple -> bool
+
+val var_in_value_slots : variable -> (value_slot * simple) list -> bool
+
+val var_in_named : variable -> named -> bool
+
+val var_in_static_binding : variable -> static_binding -> bool
+
+val var_free_b : variable -> expr -> bool
+
+val var_free_in_handler_b : variable -> continuation_handler -> bool
+
+val remove_unused_lets : expr -> expr
+
+val remove_unused_lets_in_handler : continuation_handler -> continuation_handler

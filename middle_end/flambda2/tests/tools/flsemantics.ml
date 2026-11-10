@@ -55,6 +55,7 @@ module Model = Flambda2_rocq_semantics.FlambdaModel
 module Semantics = Flambda2_rocq_semantics.FlambdaSemanticsSpec
 module Compare = Flambda2_rocq_semantics.FlambdaCompareSpec
 module Normalise = Flambda2_rocq_semantics.FlambdaNormaliseSpec
+module Aliases = Flambda2_rocq_semantics.FlambdaAliasesSpec
 module Numbers = Flambda2_rocq_semantics.BinNums
 module P = Flambda_primitive
 
@@ -617,19 +618,26 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
         else "DIFFERENT", false
     in
     Format.printf "  %s@." verdict;
-    (* What the test above shows of one run, this shows of all: the term before,
-       normalised by rewrites proved to refine it (FlambdaNormaliseSpec.v), is
-       the term after up to bound names, which is proved to make them equivalent
+    (* What the test above shows of one run, this shows of all. The term before
+       is normalised by rewrites proved to refine it: calls of known code are
+       inlined and unused bindings removed (FlambdaNormaliseSpec.v), and aliases
+       are followed (FlambdaAliasesSpec.v). The term after may only be rewritten
+       to what is equivalent, so only its aliases are followed. The two are then
+       the same up to bound names, which is proved to make them equivalent
        (FlambdaCompareSpec.v). *)
     let inlined = Normalise.inline_calls [] before.body in
     Format.printf
       "  calls outside code once those of known code are inlined: %d@."
       (calls_outside_code inlined);
+    let normalised_before =
+      Normalise.remove_unused_lets (Aliases.follow_aliases [] inlined)
+    in
+    let normalised_after = Aliases.follow_aliases [] after.body in
     Format.printf "  %s@."
       (if Compare.expr_eqb [] [] before.body after.body
        then "validated: the same up to bound names"
-       else if Compare.expr_eqb [] [] inlined after.body
-       then "validated: the same once calls of known code are inlined"
+       else if Compare.expr_eqb [] [] normalised_before normalised_after
+       then "validated: the same once normalised"
        else "not validated");
     if not ok then exit 1
 

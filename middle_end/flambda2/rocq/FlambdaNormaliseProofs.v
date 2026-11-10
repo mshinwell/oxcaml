@@ -32,7 +32,8 @@ From Stdlib Require Import ZArith List Bool Arith.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaSemanticsProofs FlambdaNominalSpec FlambdaNominalProofs
-  FlambdaApplySpec FlambdaApplyProofs FlambdaNormaliseSpec.
+  FlambdaContextSpec FlambdaContextProofs FlambdaApplySpec
+  FlambdaApplyProofs FlambdaNormaliseSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -315,7 +316,8 @@ Lemma inline_apply_refines (known : list (code_id * code)) (ap : apply_expr)
 Proof.
   intros Hknow. unfold inline_apply.
   destruct (ap_call_kind ap) as [called | ] eqn:Hkind; [ | apply refines_refl ].
-  destruct (lookup called known) as [c | ] eqn:Hlookup; [ | apply refines_refl ].
+  destruct (lookup called known) as [c | ] eqn:Hlookup;
+    [ | apply refines_refl ].
   destruct (inlinable_b ap c) eqn:Hinlinable; [ | apply refines_refl ].
   exact (inline ap called c _ vars conts statics Hkind
     (Hknow called c Hlookup) (inlinable_b_sound ap c Hinlinable)).
@@ -359,3 +361,150 @@ Proof.
   intros e vars conts statics. apply inline_calls_refines_knowing.
   intros id c Hlookup. discriminate Hlookup.
 Qed.
+
+(* ======================================================================== *)
+(* Removing unused [Let]s                                                   *)
+(* ======================================================================== *)
+
+Lemma var_in_simple_sound (x : variable) (s : simple) :
+  var_free_in_simple x s -> var_in_simple x s = true.
+Proof.
+  destruct s as [y | sym | c]; simpl; try contradiction.
+  intros ->. apply Pos.eqb_refl.
+Qed.
+
+Lemma var_in_value_slots_sound (x : variable)
+    (slots : list (value_slot * simple)) :
+  Exists (fun slot => var_free_in_simple x (snd slot)) slots ->
+  var_in_value_slots x slots = true.
+Proof.
+  intros Hfree. apply Exists_exists in Hfree.
+  destruct Hfree as (slot & Hin & Hfree). apply existsb_exists.
+  exists slot. split; [ exact Hin | apply var_in_simple_sound, Hfree ].
+Qed.
+
+Lemma var_in_named_sound (x : variable) (d : named) :
+  var_free_in_named x d -> var_in_named x d = true.
+Proof.
+  destruct d as [s | p args | code slots | slot closure]; simpl.
+  - apply var_in_simple_sound.
+  - apply var_in_simples_sound.
+  - apply var_in_value_slots_sound.
+  - apply var_in_simple_sound.
+Qed.
+
+Lemma var_in_static_binding_sound (x : variable) (binding : static_binding) :
+  var_free_in_static_binding x binding ->
+  var_in_static_binding x binding = true.
+Proof.
+  destruct binding
+    as [id c | id | sym [code slots | tag fields | s | bytes]];
+    simpl; try contradiction.
+  - apply var_in_value_slots_sound.
+  - apply var_in_simples_sound.
+  - apply var_in_simple_sound.
+Qed.
+
+Lemma name_in_complete (name : positive) (names : list positive) :
+  name ∈ names -> name_in name names = true.
+Proof.
+  intros Hin. apply existsb_exists. exists name.
+  split; [ exact Hin | apply Pos.eqb_refl ].
+Qed.
+
+(* The test says yes of every variable that is free. *)
+Fixpoint var_free_b_sound (x : variable) (e : expr) {struct e} :
+  var_free_in_expr x e -> var_free_b x e = true
+with var_free_in_handler_b_sound (x : variable) (h : continuation_handler)
+    {struct h} :
+  var_free_in_handler x h -> var_free_in_handler_b x h = true.
+Proof.
+  - destruct e
+      as [ y d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      simpl.
+    + intros [Hx | [Hne Hx]]; apply orb_true_iff;
+        [ left; apply var_in_named_sound, Hx | right ].
+      apply andb_true_iff. split.
+      * apply negb_true_iff, Pos.eqb_neq, Hne.
+      * apply (var_free_b_sound x body), Hx.
+    + intros [Hx | Hx]; apply orb_true_iff;
+        [ left | right; apply (var_free_b_sound x body), Hx ].
+      apply Exists_exists in Hx. destruct Hx as (binding & Hin & Hx).
+      apply existsb_exists. exists binding.
+      split; [ exact Hin | apply var_in_static_binding_sound, Hx ].
+    + intros [Hx | Hx]; apply orb_true_iff;
+        [ left; apply (var_free_in_handler_b_sound x h), Hx
+        | right; apply (var_free_b_sound x body), Hx ].
+    + intros [Hx | Hx]; apply orb_true_iff;
+        [ left | right; apply (var_free_b_sound x body), Hx ].
+      induction handlers as [ | [k h] handlers IH]; simpl in Hx |- *;
+        [ contradiction | ].
+      apply orb_true_iff. destruct Hx as [Hx | Hx];
+        [ left; apply (var_free_in_handler_b_sound x h), Hx
+        | right; exact (IH Hx) ].
+    + intros [Hx | Hx]; apply orb_true_iff;
+        [ left; apply var_in_simple_sound, Hx
+        | right; apply var_in_simples_sound, Hx ].
+    + apply var_in_simples_sound.
+    + intros [Hx | Hx]; apply orb_true_iff;
+        [ left; apply var_in_simple_sound, Hx | right ].
+      apply Exists_exists in Hx. destruct Hx as (arm & Hin & Hx).
+      apply existsb_exists. exists arm.
+      split; [ exact Hin | apply var_in_simples_sound, Hx ].
+    + contradiction.
+  - destruct h as [params handler]. simpl. intros [Hnotin Hx].
+    apply andb_true_iff. split.
+    + apply negb_true_iff. destruct (name_in x params) eqn:Hin;
+        [ | reflexivity ].
+      apply name_in_In in Hin. contradiction.
+    + apply (var_free_b_sound x handler), Hx.
+Qed.
+
+Lemma expr_refines_trans (e e' e'' : expr) :
+  expr_refines e e' -> expr_refines e' e'' -> expr_refines e e''.
+Proof.
+  intros H H' vars conts statics.
+  exact (refines_trans _ _ _ (H vars conts statics) (H' vars conts statics)).
+Qed.
+
+Lemma expr_refines_refl (e : expr) : expr_refines e e.
+Proof. intros vars conts statics. apply refines_refl. Qed.
+
+(* Each layer is a context around what the induction gives; a [Let] whose
+   variable the test finds unused then goes. *)
+Fixpoint remove_unused_lets_refines_aux (e : expr) :
+  expr_refines e (remove_unused_lets e)
+with remove_unused_lets_in_handler_refines (h : continuation_handler) :
+  ∀ (k : continuation) (body : expr),
+    expr_refines (Let_cont_non_recursive k h body)
+      (Let_cont_non_recursive k (remove_unused_lets_in_handler h) body).
+Proof.
+  - destruct e
+      as [ x d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      simpl; try apply expr_refines_refl.
+    + pose proof (plug_refines (Let_body x d Hole) _ _
+        (remove_unused_lets_refines_aux body)) as Hbody.
+      simpl in Hbody.
+      destruct (var_free_b x (remove_unused_lets body)) eqn:Hfree;
+        [ exact Hbody | ].
+      apply (expr_refines_trans _ _ _ Hbody), unused_let.
+      intros Hx. apply var_free_b_sound in Hx. congruence.
+    + exact (plug_refines (Let_static_body bindings Hole) _ _
+        (remove_unused_lets_refines_aux body)).
+    + apply (expr_refines_trans _ _ _
+        (remove_unused_lets_in_handler_refines h k body)).
+      exact (plug_refines
+        (Let_cont_non_recursive_body k (remove_unused_lets_in_handler h)
+           Hole)
+        _ _ (remove_unused_lets_refines_aux body)).
+    + exact (plug_refines (Let_cont_recursive_body handlers Hole) _ _
+        (remove_unused_lets_refines_aux body)).
+  - destruct h as [params handler]. intros k body. simpl.
+    exact (plug_refines (Let_cont_non_recursive_handler k params Hole body)
+      _ _ (remove_unused_lets_refines_aux handler)).
+Qed.
+
+Theorem remove_unused_lets_refines : remove_unused_lets_refines_statement.
+Proof. exact remove_unused_lets_refines_aux. Qed.

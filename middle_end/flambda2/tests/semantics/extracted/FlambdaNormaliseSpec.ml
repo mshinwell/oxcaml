@@ -150,3 +150,80 @@ let rec inline_calls known e =
     Let_cont_recursive (handlers, inline_calls known body)
   | Apply ap -> inline_apply known ap
   | _ -> e
+
+(** val var_in_simple : variable -> simple -> bool **)
+
+let var_in_simple x = function Var y -> Pos.eqb x y | _ -> false
+
+(** val var_in_value_slots : variable -> (value_slot * simple) list -> bool **)
+
+let var_in_value_slots x slots =
+  existsb (fun slot -> var_in_simple x (snd slot)) slots
+
+(** val var_in_named : variable -> named -> bool **)
+
+let var_in_named x = function
+  | Simple s -> var_in_simple x s
+  | Prim (_, args) -> var_in_simples x args
+  | Set_of_closures (_, slots) -> var_in_value_slots x slots
+  | Project_value_slot (_, closure) -> var_in_simple x closure
+
+(** val var_in_static_binding : variable -> static_binding -> bool **)
+
+let var_in_static_binding x = function
+  | Bind_symbol (_, const) -> (
+    match const with
+    | Static_const_set_of_closures (_, slots) -> var_in_value_slots x slots
+    | Static_const_block (_, fields) -> var_in_simples x fields
+    | Static_const_boxed_number contents -> var_in_simple x contents
+    | Static_const_immutable_string _ -> false)
+  | _ -> false
+
+(** val var_free_b : variable -> expr -> bool **)
+
+let rec var_free_b x = function
+  | Let (y, d, body) ->
+    var_in_named x d || (negb (Pos.eqb x y) && var_free_b x body)
+  | Let_static (bindings, body) ->
+    existsb (var_in_static_binding x) bindings || var_free_b x body
+  | Let_cont_non_recursive (_, h, body) ->
+    var_free_in_handler_b x h || var_free_b x body
+  | Let_cont_recursive (handlers, body) ->
+    existsb
+      (fun pat ->
+        let _, h = pat in
+        var_free_in_handler_b x h)
+      handlers
+    || var_free_b x body
+  | Apply ap -> var_in_simple x ap.ap_callee || var_in_simples x ap.ap_args
+  | Apply_cont ac -> var_in_simples x ac.ac_args
+  | Switch (scrutinee, arms) ->
+    var_in_simple x scrutinee
+    || existsb (fun arm -> var_in_simples x (snd arm).ac_args) arms
+  | Invalid -> false
+
+(** val var_free_in_handler_b : variable -> continuation_handler -> bool **)
+
+and var_free_in_handler_b x = function
+  | Handler (params, handler) -> negb (name_in x params) && var_free_b x handler
+
+(** val remove_unused_lets : expr -> expr **)
+
+let rec remove_unused_lets e =
+  match e with
+  | Let (x, d, body) ->
+    let body' = remove_unused_lets body in
+    if var_free_b x body' then Let (x, d, body') else body'
+  | Let_static (bindings, body) -> Let_static (bindings, remove_unused_lets body)
+  | Let_cont_non_recursive (k, h, body) ->
+    Let_cont_non_recursive
+      (k, remove_unused_lets_in_handler h, remove_unused_lets body)
+  | Let_cont_recursive (handlers, body) ->
+    Let_cont_recursive (handlers, remove_unused_lets body)
+  | _ -> e
+
+(** val remove_unused_lets_in_handler : continuation_handler ->
+    continuation_handler **)
+
+and remove_unused_lets_in_handler = function
+  | Handler (params, handler) -> Handler (params, remove_unused_lets handler)
