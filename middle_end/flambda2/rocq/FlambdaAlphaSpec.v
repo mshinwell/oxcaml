@@ -60,11 +60,12 @@
    itself, for variables: renaming an expression and the environment of its
    variables together does not change its behaviour. For continuations it
    is stated only of renamings that fix the free ones, which are observed;
-   the general form needs renamings to act on continuation closures and on
-   behaviours, and is not here.
+   the general form is not here (see the CR at that statement).
 
-   Alpha-equivalence is defined by its generators and not by recursion on
-   the two expressions; that the two definitions agree is not proved.
+   Alpha-equivalence is defined by its generators. The usual definition by
+   recursion on the two expressions is [alpha_structural], which is shown
+   to be contained in it ([alpha_structural_sound_statement]); that the
+   two agree is not proved.
 
    The proofs are in FlambdaAlphaProofs.v, which needs no review. *)
 
@@ -161,7 +162,36 @@ Inductive alpha_equivalent : expr -> expr -> Prop :=
     alpha_equivalent
       (Let_cont_non_recursive k (Handler params handler) body)
       (Let_cont_non_recursive k (rename_handler r (Handler params handler))
+         body)
+  (* The same for a handler of a recursive [Let_cont]. *)
+  | Alpha_recursive_handler (r : renaming)
+      (before : list (continuation * continuation_handler))
+      (k : continuation) (params : list variable) (handler : expr)
+      (after : list (continuation * continuation_handler)) (body : expr) :
+    (∀ y : variable,
+      y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
+    (∀ k' : continuation,
+      cont_free_in_expr k' handler -> rename_continuation r k' = k') ->
+    alpha_equivalent
+      (Let_cont_recursive (before ++ (k, Handler params handler) :: after)
+         body)
+      (Let_cont_recursive
+         (before ++ (k, rename_handler r (Handler params handler)) :: after)
          body).
+
+(* The continuations of a recursive [Let_cont] need no rule of their own:
+   they are bound names of the whole expression ([Alpha_rename]). *)
+Definition alpha_let_cont_recursive_statement : Prop :=
+  ∀ (r : renaming) (handlers : list (continuation * continuation_handler))
+    (body : expr),
+    (∀ y : variable,
+      var_free_in_expr y (Let_cont_recursive handlers body) ->
+      rename_variable r y = y) ->
+    (∀ k : continuation,
+      cont_free_in_expr k (Let_cont_recursive handlers body) ->
+      rename_continuation r k = k) ->
+    alpha_equivalent (Let_cont_recursive handlers body)
+      (Let_cont_recursive (rename_handlers r handlers) (rename_expr r body)).
 
 Definition alpha_equivalent_equivariant_statement : Prop :=
   ∀ (r : renaming) (e e' : expr),
@@ -179,8 +209,120 @@ Definition alpha_equivalent_sound_statement : Prop :=
   ∀ e e' : expr, alpha_equivalent e e' -> expr_equivalent e e'.
 
 (* ======================================================================== *)
+(* Alpha-equivalence by recursion on the two expressions                    *)
+(* ======================================================================== *)
+
+(* The usual definition: two expressions are alpha-equivalent when they
+   have the same shape and, at each binder, the scopes are alpha-equivalent
+   once the bound names are made the same. Here that is done by a renaming
+   of each side that fixes the free names of the binder with its scope and
+   sends the bound names of the two sides to the same names;
+   [Name_abstraction.pattern_match_pair], which opens two abstractions at
+   one fresh name, is the case of two swaps. The continuations of a
+   recursive [Let_cont] are made the same throughout the two expressions,
+   and its handlers are then compared in order, each binding its own
+   parameters. *)
+Inductive alpha_structural : expr -> expr -> Prop :=
+  | Structural_let (r r' : renaming) (x x' : variable)
+      (defining_expr : named) (body body' : expr) :
+    (∀ y : variable,
+      y <> x -> var_free_in_expr y body -> rename_variable r y = y) ->
+    (∀ k : continuation,
+      cont_free_in_expr k body -> rename_continuation r k = k) ->
+    (∀ y : variable,
+      y <> x' -> var_free_in_expr y body' -> rename_variable r' y = y) ->
+    (∀ k : continuation,
+      cont_free_in_expr k body' -> rename_continuation r' k = k) ->
+    rename_variable r x = rename_variable r' x' ->
+    alpha_structural (rename_expr r body) (rename_expr r' body') ->
+    alpha_structural (Let x defining_expr body) (Let x' defining_expr body')
+  | Structural_let_cont_non_recursive (r r' : renaming)
+      (k k' : continuation) (handler handler' : continuation_handler)
+      (body body' : expr) :
+    alpha_structural_handler handler handler' ->
+    (∀ y : variable, var_free_in_expr y body -> rename_variable r y = y) ->
+    (∀ j : continuation,
+      j <> k -> cont_free_in_expr j body -> rename_continuation r j = j) ->
+    (∀ y : variable, var_free_in_expr y body' -> rename_variable r' y = y) ->
+    (∀ j : continuation,
+      j <> k' -> cont_free_in_expr j body' -> rename_continuation r' j = j)
+    ->
+    rename_continuation r k = rename_continuation r' k' ->
+    alpha_structural (rename_expr r body) (rename_expr r' body') ->
+    alpha_structural (Let_cont_non_recursive k handler body)
+      (Let_cont_non_recursive k' handler' body')
+  | Structural_let_cont_recursive (r r' : renaming)
+      (handlers handlers' : list (continuation * continuation_handler))
+      (body body' : expr) :
+    (∀ y : variable,
+      var_free_in_expr y (Let_cont_recursive handlers body) ->
+      rename_variable r y = y) ->
+    (∀ k : continuation,
+      cont_free_in_expr k (Let_cont_recursive handlers body) ->
+      rename_continuation r k = k) ->
+    (∀ y : variable,
+      var_free_in_expr y (Let_cont_recursive handlers' body') ->
+      rename_variable r' y = y) ->
+    (∀ k : continuation,
+      cont_free_in_expr k (Let_cont_recursive handlers' body') ->
+      rename_continuation r' k = k) ->
+    alpha_structural_handlers (rename_handlers r handlers)
+      (rename_handlers r' handlers') ->
+    alpha_structural (rename_expr r body) (rename_expr r' body') ->
+    alpha_structural (Let_cont_recursive handlers body)
+      (Let_cont_recursive handlers' body')
+  | Structural_apply_cont (ac : apply_cont) :
+    alpha_structural (Apply_cont ac) (Apply_cont ac)
+  | Structural_switch (scrutinee : simple) (arms : list (Z * apply_cont)) :
+    alpha_structural (Switch scrutinee arms) (Switch scrutinee arms)
+  | Structural_invalid : alpha_structural Invalid Invalid
+with alpha_structural_handler
+    : continuation_handler -> continuation_handler -> Prop :=
+  | Structural_handler (r r' : renaming) (params params' : list variable)
+      (handler handler' : expr) :
+    (∀ y : variable,
+      y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
+    (∀ k : continuation,
+      cont_free_in_expr k handler -> rename_continuation r k = k) ->
+    (∀ y : variable,
+      y ∉ params' -> var_free_in_expr y handler' -> rename_variable r' y = y)
+    ->
+    (∀ k : continuation,
+      cont_free_in_expr k handler' -> rename_continuation r' k = k) ->
+    map (rename_variable r) params = map (rename_variable r') params' ->
+    alpha_structural (rename_expr r handler) (rename_expr r' handler') ->
+    alpha_structural_handler (Handler params handler)
+      (Handler params' handler')
+with alpha_structural_handlers
+    : list (continuation * continuation_handler) ->
+      list (continuation * continuation_handler) -> Prop :=
+  | Structural_handlers_nil : alpha_structural_handlers [] []
+  | Structural_handlers_cons (k : continuation)
+      (h h' : continuation_handler)
+      (handlers handlers' : list (continuation * continuation_handler)) :
+    alpha_structural_handler h h' ->
+    alpha_structural_handlers handlers handlers' ->
+    alpha_structural_handlers ((k, h) :: handlers) ((k, h') :: handlers').
+
+(* It is contained in [alpha_equivalent], and so is sound for the
+   semantics: a comparison of two expressions that follows these rules
+   shows them equivalent. The converse, which needs [alpha_structural] to
+   be transitive, is not proved. *)
+Definition alpha_structural_sound_statement : Prop :=
+  ∀ e e' : expr, alpha_structural e e' -> alpha_equivalent e e'.
+
+(* ======================================================================== *)
 (* Execution is equivariant in the variables                                *)
 (* ======================================================================== *)
+
+(* CR mshinwell: Equivariance of execution is stated here for the variables
+   only, and for the continuations only of renamings that fix the free
+   ones. The general statement, [behaves (r . s) (r . b) <-> behaves s b],
+   needs renamings to act on continuation closures, environments, states
+   and behaviours (an exit is observed, so its continuation is renamed),
+   with [step (r . s) = r . step s] proved by cases. It will be needed for
+   inlining, which renames the return and exception continuations of a
+   function body; do it with [Apply], when closures change shape. *)
 
 Definition rename_env (r : renaming) (vars : env) : env :=
   map (fun '(x, v) => (rename_variable r x, v)) vars.

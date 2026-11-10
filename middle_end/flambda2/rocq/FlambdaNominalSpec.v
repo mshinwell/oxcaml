@@ -51,7 +51,7 @@
      ([var_free_in_expr], [cont_free_in_expr]);
    - the defining property of an abstraction: a permutation that fixes the
      free names of a binder with its scope may be applied to the bound name
-     and the scope ([rename_let_statement] and the three after it). The
+     and the scope ([rename_let_statement] and the four after it). The
      concretion at a fresh name that [pattern_match] performs is the case
      of a swap ([freshen_let_statement]);
    - that behaviour depends on the free names only, by which a binding
@@ -270,6 +270,22 @@ Definition rename_handler_params_statement : Prop :=
     expr_equivalent
       (Let_cont_non_recursive k (Handler params handler) body)
       (Let_cont_non_recursive k (rename_handler r (Handler params handler))
+         body).
+
+(* The parameters of one handler of a recursive [Let_cont]. *)
+Definition rename_recursive_handler_params_statement : Prop :=
+  ∀ (r : renaming) (before : list (continuation * continuation_handler))
+    (k : continuation) (params : list variable) (handler : expr)
+    (after : list (continuation * continuation_handler)) (body : expr),
+    (∀ y : variable,
+      y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
+    (∀ k' : continuation,
+      cont_free_in_expr k' handler -> rename_continuation r k' = k') ->
+    expr_equivalent
+      (Let_cont_recursive (before ++ (k, Handler params handler) :: after)
+         body)
+      (Let_cont_recursive
+         (before ++ (k, rename_handler r (Handler params handler)) :: after)
          body).
 
 (* The continuations of a recursive [Let_cont], and the parameters of its

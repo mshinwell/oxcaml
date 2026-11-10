@@ -408,15 +408,20 @@ a fragment at a time. The files follow the same Spec/Proofs split, and
 - Two runs that stay in step are related by a bisimulation
   (`FlambdaSemanticsProofs.bisimulation_equivalent`), as a state and its
   renaming are (`FlambdaNominalProofs.renamed_equivalent`, from which
-  `coincide_equivalent`: behaviour depends only on the free names). Two
+  `coincide_equivalent`: behaviour depends only on the free names). In
+  it a closure of a recursive group is related to its renaming with a
+  renaming chosen per handler (`closure_renamed`, `handler_agrees`), so
+  that the handlers of a group can be renamed one at a time. Two
   runs of different lengths need the induction of
   `FlambdaContextProofs.transfer`.
 
 Not yet there: refinement relative to what is known of the environment,
 which most of the simplifier's rewrites need; substitution of a `Simple`
-for a variable; that the generated alpha-equivalence agrees with the one
-defined by recursion on two expressions; equivariance of execution in the
-continuations (renaming closures and observed exits); the simplifier's
+for a variable; that the generated alpha-equivalence is contained in the
+one defined by recursion on two expressions (`alpha_structural`; the other
+containment is proved); equivariance of execution in the continuations
+(renaming closures and observed exits; there is a CR in
+`FlambdaAlphaSpec.v`); the simplifier's
 invariant that bound names are distinct from those in scope;
 function calls and closures, memory and effects, trap actions, and any
 link to the simplifier's code.

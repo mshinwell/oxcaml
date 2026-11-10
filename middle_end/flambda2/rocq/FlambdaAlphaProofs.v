@@ -430,7 +430,8 @@ Proof.
   induction Halpha
     as [ e | e e' _ IH | e e' e'' _ IH _ IH' | c e e' _ IH
        | r e Hvars Hconts | r x d body Hvars Hconts
-       | r k h body Hvars Hconts | r k params handler body Hvars Hconts ].
+       | r k h body Hvars Hconts | r k params handler body Hvars Hconts
+       | r before k params handler after body Hvars Hconts ].
   - intros vars conts. apply equivalent_refl.
   - intros vars conts. apply equivalent_sym, IH.
   - intros vars conts. exact (equivalent_trans _ _ _ (IH _ _) (IH' _ _)).
@@ -441,6 +442,7 @@ Proof.
   - apply rename_let; assumption.
   - apply rename_let_cont; assumption.
   - apply rename_handler_params; assumption.
+  - apply rename_recursive_handler_params; assumption.
 Qed.
 
 (* ======================================================================== *)
@@ -536,7 +538,8 @@ Proof.
   induction Halpha
     as [ e | e e' _ IH | e e' e'' _ IH _ IH' | c e e' _ IH
        | s e Hvars Hconts | s x d body Hvars Hconts
-       | s k h body Hvars Hconts | s k params handler body Hvars Hconts ].
+       | s k h body Hvars Hconts | s k params handler body Hvars Hconts
+       | s before k params handler after body Hvars Hconts ].
   - apply Alpha_refl.
   - apply Alpha_sym, IH.
   - exact (Alpha_trans _ _ _ IH IH').
@@ -572,6 +575,23 @@ Proof.
           apply conjugate_variable).
     apply (Alpha_handler (conjugate r s) (rename_continuation r k)
       (map (rename_variable r) params) (rename_expr r handler)
+      (rename_expr r body)).
+    + intros y Hnotin Hy.
+      apply conjugate_fixes_variable, Hvars;
+        [ | apply var_free_in_renamed, Hy ].
+      intros Hin. apply Hnotin.
+      rewrite <- (rename_variable_inverse_r r y). apply in_map, Hin.
+    + intros k' Hk'.
+      apply conjugate_fixes_continuation, Hconts, cont_free_in_renamed, Hk'.
+  - simpl. rewrite !map_app. simpl. rewrite <- conjugate_expr.
+    replace (map (rename_variable r) (map (rename_variable s) params))
+      with (map (rename_variable (conjugate r s))
+              (map (rename_variable r) params))
+      by (rewrite !map_map; apply map_ext; intros x;
+          apply conjugate_variable).
+    apply (Alpha_recursive_handler (conjugate r s) (rename_handlers r before)
+      (rename_continuation r k) (map (rename_variable r) params)
+      (rename_expr r handler) (rename_handlers r after)
       (rename_expr r body)).
     + intros y Hnotin Hy.
       apply conjugate_fixes_variable, Hvars;
@@ -628,18 +648,6 @@ Proof.
   rewrite IH. tauto.
 Qed.
 
-Lemma lookup_app {A : Type} (name : positive)
-    (bindings bindings' : list (positive * A)) :
-  lookup name (bindings ++ bindings')
-  = match lookup name bindings with
-    | Some a => Some a
-    | None => lookup name bindings'
-    end.
-Proof.
-  induction bindings as [ | [bound a] bindings IH]; simpl; [ reflexivity | ].
-  destruct (Pos.eqb name bound); [ reflexivity | exact IH ].
-Qed.
-
 (* Plugging expressions with the same free names gives expressions with
    the same free names. *)
 Lemma plug_var_free (c : context) (e e' : expr) :
@@ -694,7 +702,8 @@ Proof.
     as [ e | e e' _ [IHv IHk] | e e' e'' _ [IHv IHk] _ [IHv' IHk']
        | c e e' _ [IHv IHk]
        | s e Hvars Hconts | s x d body Hvars Hconts
-       | s k h body Hvars Hconts | s k params handler body Hvars Hconts ].
+       | s k h body Hvars Hconts | s k params handler body Hvars Hconts
+       | s before k params handler after body Hvars Hconts ].
   - split; reflexivity.
   - split; intros; symmetry; [ apply IHv | apply IHk ].
   - split; intros y;
@@ -767,7 +776,164 @@ Proof.
         (fun k' => cont_free_in_expr k' (rename_expr s handler))
         (rename_continuation_inverse_r s)
         (fun k' => cont_free_in_expr_equivariant s k' handler) Hconts k').
+  - split.
+    + intros y. simpl. apply or_iff; [ | reflexivity ].
+      rewrite !any_handler_app. simpl.
+      apply or_iff; [ reflexivity | ]. apply or_iff; [ | reflexivity ].
+      exact (abstraction_free (rename_variable s)
+        (rename_variable (inverse_renaming s))
+        (fun y => y ∈ params) (fun y => var_free_in_expr y handler)
+        (fun y => y ∈ map (rename_variable s) params)
+        (fun y => var_free_in_expr y (rename_expr s handler))
+        (rename_variable_inverse_r s)
+        (fun y => in_map_rename_variable s y params)
+        (fun y => var_free_in_expr_equivariant s y handler) Hvars y).
+    + intros k'. simpl. apply and_iff.
+      * rewrite !lookup_app. destruct (lookup k' before); [ reflexivity | ].
+        simpl. destruct (Pos.eqb k' k); [ | reflexivity ].
+        split; discriminate.
+      * apply or_iff; [ | reflexivity ]. rewrite !any_handler_app. simpl.
+        apply or_iff; [ reflexivity | ]. apply or_iff; [ | reflexivity ].
+        exact (fixed_free (rename_continuation s)
+          (rename_continuation (inverse_renaming s))
+          (fun k' => cont_free_in_expr k' handler)
+          (fun k' => cont_free_in_expr k' (rename_expr s handler))
+          (rename_continuation_inverse_r s)
+          (fun k' => cont_free_in_expr_equivariant s k' handler) Hconts k').
 Qed.
+
+Theorem alpha_let_cont_recursive : alpha_let_cont_recursive_statement.
+Proof.
+  intros r handlers body Hvars Hconts.
+  exact (Alpha_rename r (Let_cont_recursive handlers body) Hvars Hconts).
+Qed.
+
+(* ======================================================================== *)
+(* Alpha-equivalence by recursion on the two expressions                    *)
+(* ======================================================================== *)
+
+Scheme alpha_structural_mutual := Minimality for alpha_structural Sort Prop
+  with alpha_structural_handler_mutual :=
+    Minimality for alpha_structural_handler Sort Prop
+  with alpha_structural_handlers_mutual :=
+    Minimality for alpha_structural_handlers Sort Prop.
+
+Combined Scheme alpha_structural_induction from alpha_structural_mutual,
+  alpha_structural_handler_mutual, alpha_structural_handlers_mutual.
+
+(* What the three relations come to. Related handlers may replace each
+   other in either form of [Let_cont], and related lists of handlers at the
+   end of a recursive one. *)
+Definition handler_replaceable (h h' : continuation_handler) : Prop :=
+  (∀ (k : continuation) (body : expr),
+    alpha_equivalent (Let_cont_non_recursive k h body)
+      (Let_cont_non_recursive k h' body))
+  ∧ (∀ (before : list (continuation * continuation_handler))
+       (k : continuation)
+       (after : list (continuation * continuation_handler)) (body : expr),
+      alpha_equivalent (Let_cont_recursive (before ++ (k, h) :: after) body)
+        (Let_cont_recursive (before ++ (k, h') :: after) body)).
+
+Definition handlers_replaceable
+    (handlers handlers' : list (continuation * continuation_handler))
+    : Prop :=
+  ∀ (before : list (continuation * continuation_handler)) (body : expr),
+    alpha_equivalent (Let_cont_recursive (before ++ handlers) body)
+      (Let_cont_recursive (before ++ handlers') body).
+
+(* Each rule is a rule of [alpha_equivalent] for one side, the premise
+   about the scopes under a context, and the same rule backwards for the
+   other side. *)
+Lemma alpha_structural_sound_mutual :
+  (∀ e e' : expr, alpha_structural e e' -> alpha_equivalent e e')
+  ∧ (∀ h h' : continuation_handler,
+      alpha_structural_handler h h' -> handler_replaceable h h')
+  ∧ (∀ handlers handlers' : list (continuation * continuation_handler),
+      alpha_structural_handlers handlers handlers' ->
+      handlers_replaceable handlers handlers').
+Proof.
+  apply alpha_structural_induction.
+  - (* Let *)
+    intros r r' x x' d body body' Hvars Hconts Hvars' Hconts' Hbound _ IH.
+    eapply Alpha_trans; [ exact (Alpha_let r x d body Hvars Hconts) | ].
+    eapply Alpha_trans;
+      [ exact (Alpha_context (Let_body (rename_variable r x) d Hole) _ _ IH)
+      | ].
+    simpl. rewrite Hbound.
+    exact (Alpha_sym _ _ (Alpha_let r' x' d body' Hvars' Hconts')).
+  - (* Let_cont_non_recursive *)
+    intros r r' k k' h h' body body' _ [Hhandler _] Hvars Hconts Hvars' Hconts'
+      Hbound _ IH.
+    eapply Alpha_trans; [ exact (Hhandler k body) | ].
+    eapply Alpha_trans;
+      [ exact (Alpha_let_cont r k h' body Hvars Hconts) | ].
+    eapply Alpha_trans;
+      [ exact (Alpha_context
+          (Let_cont_non_recursive_body (rename_continuation r k) h' Hole)
+          _ _ IH)
+      | ].
+    simpl. rewrite Hbound.
+    exact (Alpha_sym _ _ (Alpha_let_cont r' k' h' body' Hvars' Hconts')).
+  - (* Let_cont_recursive *)
+    intros r r' handlers handlers' body body' Hvars Hconts Hvars' Hconts' _
+      Hhandlers _ IH.
+    eapply Alpha_trans;
+      [ exact (Alpha_rename r (Let_cont_recursive handlers body) Hvars
+          Hconts)
+      | ].
+    eapply Alpha_trans; [ exact (Hhandlers [] (rename_expr r body)) | ].
+    eapply Alpha_trans;
+      [ exact (Alpha_context
+          (Let_cont_recursive_body (rename_handlers r' handlers') Hole)
+          _ _ IH)
+      | ].
+    exact (Alpha_sym _ _
+      (Alpha_rename r' (Let_cont_recursive handlers' body') Hvars' Hconts')).
+  - intros ac. apply Alpha_refl.
+  - intros scrutinee arms. apply Alpha_refl.
+  - apply Alpha_refl.
+  - (* a handler *)
+    intros r r' params params' handler handler' Hvars Hconts Hvars' Hconts'
+      Hbound _ IH.
+    split.
+    + intros k body.
+      eapply Alpha_trans;
+        [ exact (Alpha_handler r k params handler body Hvars Hconts) | ].
+      eapply Alpha_trans;
+        [ exact (Alpha_context
+            (Let_cont_non_recursive_handler k
+               (map (rename_variable r) params) Hole body)
+            _ _ IH)
+        | ].
+      simpl. rewrite Hbound.
+      exact (Alpha_sym _ _
+        (Alpha_handler r' k params' handler' body Hvars' Hconts')).
+    + intros before k after body.
+      eapply Alpha_trans;
+        [ exact (Alpha_recursive_handler r before k params handler after body
+            Hvars Hconts)
+        | ].
+      eapply Alpha_trans;
+        [ exact (Alpha_context
+            (Let_cont_recursive_handler before k
+               (map (rename_variable r) params) Hole after body)
+            _ _ IH)
+        | ].
+      simpl. rewrite Hbound.
+      exact (Alpha_sym _ _
+        (Alpha_recursive_handler r' before k params' handler' after body
+           Hvars' Hconts')).
+  - intros before body. apply Alpha_refl.
+  - (* a handler and the handlers after it *)
+    intros k h h' handlers handlers' _ [_ Hhandler] _ IH before body.
+    eapply Alpha_trans; [ exact (Hhandler before k handlers body) | ].
+    specialize (IH (before ++ [(k, h')]) body).
+    rewrite <- !app_assoc in IH. exact IH.
+Qed.
+
+Theorem alpha_structural_sound : alpha_structural_sound_statement.
+Proof. exact (proj1 alpha_structural_sound_mutual). Qed.
+
 
 (* ======================================================================== *)
 (* Execution is equivariant in the variables                                *)
