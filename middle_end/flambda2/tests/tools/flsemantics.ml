@@ -813,14 +813,17 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
           Normalise.inline_calls [] term
           |> Normalise.fold_constants |> Normalise.inline_tail_conts
           |> Aliases.follow_aliases [] |> Normalise.fold_constants
-          |> Normalise.remove_unused_lets |> Normalise.drop_deleted_code)
+          |> Normalise.remove_unused_lets
+          |> Normalise.remove_unused_defined_lets []
+          |> Normalise.drop_deleted_code)
         before.body
     in
     let normalised_after =
       rounds 4
         (fun term ->
           Aliases.follow_aliases [] term
-          |> Normalise.fold_constants |> Normalise.remove_unused_total_lets
+          |> Normalise.fold_constants
+          |> Normalise.remove_unused_defined_lets []
           |> Normalise.drop_deleted_code)
         after.body
     in

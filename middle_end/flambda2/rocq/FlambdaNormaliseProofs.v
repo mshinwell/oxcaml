@@ -901,3 +901,176 @@ Qed.
 Theorem remove_unused_total_lets_equivalent :
   remove_unused_total_lets_equivalent_statement.
 Proof. exact remove_unused_total_lets_equivalent_aux. Qed.
+
+(* ======================================================================== *)
+(* Removing unused [Let]s whose defining expression has a value in scope   *)
+(* ======================================================================== *)
+
+Definition all_bound (vs : list variable) (vars : env) : Prop :=
+  ∀ x : variable, x ∈ vs -> ∃ v : value, lookup x vars = Some v.
+
+(* Equivalence under the environments that bind the variables given. *)
+Definition expr_equivalent_bound (vs : list variable) (e e' : expr) : Prop :=
+  ∀ (vars : env) (conts : cont_env) (statics : static_env),
+    all_bound vs vars ->
+    equivalent (State e vars conts statics) (State e' vars conts statics).
+
+Lemma all_bound_cons (vs : list variable) (vars : env) (x : variable)
+    (v : value) :
+  all_bound vs vars -> all_bound (x :: vs) ((x, v) :: vars).
+Proof.
+  intros Hbound y Hin. simpl.
+  destruct (Pos.eqb_spec y x) as [-> | Hne]; [ eauto | ].
+  destruct Hin as [Heq | Hin]; [ congruence | exact (Hbound y Hin) ].
+Qed.
+
+Lemma simple_in_scope_defined (vs : list variable) (vars : env) (s : simple) :
+  all_bound vs vars ->
+  simple_in_scope vs s = true ->
+  ∃ v : value, eval_simple vars s = Some v.
+Proof.
+  intros Hbound. destruct s as [x | sym | c]; simpl; eauto.
+  intros Hin. apply Hbound, name_in_In, Hin.
+Qed.
+
+Lemma value_slots_defined (vs : list variable) (vars : env)
+    (slots : list (value_slot * simple)) :
+  all_bound vs vars ->
+  forallb (fun slot => simple_in_scope vs (snd slot)) slots = true ->
+  ∃ evaluated : list (value_slot * value),
+    eval_value_slots vars slots = Some evaluated.
+Proof.
+  intros Hbound. induction slots as [ | [slot s] slots IH]; simpl; [ eauto | ].
+  intros Hscope. apply andb_true_iff in Hscope as [Hs Hslots].
+  destruct (simple_in_scope_defined vs vars s Hbound Hs) as [v ->].
+  destruct (IH Hslots) as [evaluated ->]. simpl. eauto.
+Qed.
+
+Lemma named_defined_sound (vs : list variable) (vars : env)
+    (statics : static_env) (d : named) :
+  all_bound vs vars ->
+  named_defined vs d = true ->
+  ∃ v : value, eval_named statics vars d = Some v.
+Proof.
+  intros Hbound. destruct d as [s | p args | code slots | slot closure];
+    simpl; try discriminate.
+  - apply simple_in_scope_defined, Hbound.
+  - intros Hslots.
+    destruct (value_slots_defined vs vars slots Hbound Hslots)
+      as [evaluated ->].
+    simpl. eauto.
+Qed.
+
+Lemma let_equivalent_bound (vs : list variable) (x : variable) (d : named)
+    (body body' : expr) :
+  expr_equivalent_bound (x :: vs) body body' ->
+  expr_equivalent_bound vs (Let x d body) (Let x d body').
+Proof.
+  intros Hbody vars conts statics Hbound.
+  destruct (eval_named statics vars d) as [v | ] eqn:Hd.
+  - eapply equivalent_step;
+      [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity | ].
+    apply Hbody, all_bound_cons, Hbound.
+  - apply (equivalent_of_run 1 1). simpl. rewrite Hd. reflexivity.
+Qed.
+
+(* The defining expression has a value, so the [Let] takes its step; the
+   body does not look at the variable. *)
+Lemma unused_defined_let (vs : list variable) (x : variable) (d : named)
+    (body : expr) :
+  named_defined vs d = true ->
+  ~ var_free_in_expr x body ->
+  expr_equivalent_bound vs (Let x d body) body.
+Proof.
+  intros Hdefined Hunused vars conts statics Hbound.
+  destruct (named_defined_sound vs vars statics d Hbound Hdefined) as [v Hd].
+  apply (equivalent_trans _ (State body ((x, v) :: vars) conts statics));
+    [ apply step_equivalent; simpl; rewrite Hd; reflexivity | ].
+  apply coincide_equivalent.
+  - intros y Hy. simpl.
+    destruct (Pos.eqb_spec y x) as [-> | _]; [ contradiction | reflexivity ].
+  - intros k _. apply (conts_agree_same identity_renaming). reflexivity.
+Qed.
+
+Lemma let_cont_handler_equivalent_bound (vs : list variable)
+    (k : continuation) (params : list variable)
+    (handler handler' body : expr) :
+  expr_equivalent_bound (params ++ vs) handler handler' ->
+  expr_equivalent_bound vs
+    (Let_cont_non_recursive k (Handler params handler) body)
+    (Let_cont_non_recursive k (Handler params handler') body).
+Proof.
+  intros Hhandler vars conts statics Hbound.
+  assert (Hruns :
+    ∀ (values : list value) (handler_vars : env),
+      bind_params params values vars = Some handler_vars ->
+      all_bound (params ++ vs) handler_vars).
+  { intros values handler_vars Hbind x Hin.
+    apply (bind_params_bound params values vars handler_vars x Hbind).
+    apply in_app_or in Hin. destruct Hin as [Hin | Hin];
+      [ left; exact Hin | right; exact (Hbound x Hin) ]. }
+  apply refines_antisymmetric; apply let_cont_handler_refines_at;
+    intros values handler_vars conts' statics' Hbind;
+    apply equivalent_refines; [ | apply equivalent_sym ];
+    apply Hhandler, (Hruns values handler_vars Hbind).
+Qed.
+
+Lemma expr_equivalent_bound_trans (vs : list variable) (e e' e'' : expr) :
+  expr_equivalent_bound vs e e' -> expr_equivalent_bound vs e' e'' ->
+  expr_equivalent_bound vs e e''.
+Proof.
+  intros H H' vars conts statics Hbound.
+  exact (equivalent_trans _ _ _ (H vars conts statics Hbound)
+    (H' vars conts statics Hbound)).
+Qed.
+
+Fixpoint remove_unused_defined_lets_equivalent_bound (e : expr) :
+  ∀ vs : list variable,
+    expr_equivalent_bound vs e (remove_unused_defined_lets vs e).
+Proof.
+  destruct e
+    as [ x d body | bindings body | k [params handler] body | handlers body
+       | ap | ac | scrutinee arms | ];
+    intros vs; simpl;
+    try (intros vars conts statics _; apply equivalent_refl).
+  - pose proof (let_equivalent_bound vs x d _ _
+      (remove_unused_defined_lets_equivalent_bound body (x :: vs)))
+      as Hbody.
+    destruct
+      (named_defined vs d
+       && negb (var_free_b x (remove_unused_defined_lets (x :: vs) body)))
+      eqn:Hremove; [ | exact Hbody ].
+    apply andb_true_iff in Hremove as [Hdefined Hunused].
+    apply negb_true_iff in Hunused.
+    apply (expr_equivalent_bound_trans vs _ _ _ Hbody), unused_defined_let;
+      [ exact Hdefined | ].
+    intros Hx. apply var_free_b_sound in Hx. congruence.
+  - intros vars conts statics Hbound.
+    destruct (eval_static_bindings vars bindings statics) as [extended | ]
+      eqn:Hbindings.
+    + eapply equivalent_step;
+        [ simpl; rewrite Hbindings; reflexivity
+        | simpl; rewrite Hbindings; reflexivity | ].
+      apply (remove_unused_defined_lets_equivalent_bound body vs), Hbound.
+    + apply (equivalent_of_run 1 1). simpl. rewrite Hbindings. reflexivity.
+  - apply (expr_equivalent_bound_trans vs _
+      (Let_cont_non_recursive k
+         (Handler params
+            (remove_unused_defined_lets (params ++ vs) handler))
+         body)).
+    + apply let_cont_handler_equivalent_bound,
+        remove_unused_defined_lets_equivalent_bound.
+    + intros vars conts statics Hbound.
+      eapply equivalent_step; [ reflexivity | reflexivity | ].
+      apply (remove_unused_defined_lets_equivalent_bound body vs), Hbound.
+  - intros vars conts statics Hbound.
+    eapply equivalent_step; [ reflexivity | reflexivity | ].
+    apply (remove_unused_defined_lets_equivalent_bound body vs), Hbound.
+Qed.
+
+Theorem remove_unused_defined_lets_equivalent :
+  remove_unused_defined_lets_equivalent_statement.
+Proof.
+  intros e vars conts statics.
+  apply (remove_unused_defined_lets_equivalent_bound e []). intros x [].
+Qed.

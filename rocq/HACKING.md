@@ -492,8 +492,9 @@ not a proof.
   applied once at the end of its scope), `follow_aliases`,
   `remove_unused_lets` and `drop_deleted_code`, gone round a few times as
   they enable one another. Only equivalences may be applied to the term
-  after: `follow_aliases`, `fold_constants`, `remove_unused_total_lets`
-  and `drop_deleted_code`. `fold_constants` asks `eval_prim` for the value
+  after: `follow_aliases`, `fold_constants`, `remove_unused_defined_lets`
+  (an unused `Let` whose defining expression has a value given the
+  variables in scope) and `drop_deleted_code`. `fold_constants` asks `eval_prim` for the value
   of a primitive on constants, so it assumes nothing of the primitives.
 - Setting `FLSEMANTICS_PRINT_TERMS` makes the tool print the two
   normalised terms of an example that is not validated, which is how to

@@ -68,6 +68,12 @@
    only where the defining expression is a constant or a symbol, which
    always has a value.
 
+   [remove_unused_defined_lets] goes further, also as an equivalence: it
+   keeps the variables in scope as it goes, and removes an unused [Let]
+   whose defining expression is a [Simple] or a closure made of constants,
+   symbols and variables in scope, which has a value where those
+   variables are bound.
+
    [fold_constants], for either term, replaces a primitive applied to
    constants by its value, when that is a constant, and a [Switch] on a
    constant by its arm. The value of the primitive is whatever
@@ -482,3 +488,38 @@ Fixpoint remove_unused_total_lets (e : expr) : expr :=
 
 Definition remove_unused_total_lets_equivalent_statement : Prop :=
   ∀ e : expr, expr_equivalent e (remove_unused_total_lets e).
+
+(* ======================================================================== *)
+(* Removing unused [Let]s whose defining expression has a value in scope   *)
+(* ======================================================================== *)
+
+(* The defining expression has a value wherever the variables given are
+   bound. *)
+Definition named_defined (vs : list variable) (d : named) : bool :=
+  match d with
+  | Simple s => simple_in_scope vs s
+  | Set_of_closures _ slots =>
+    forallb (fun slot => simple_in_scope vs (snd slot)) slots
+  | Prim _ _ | Project_value_slot _ _ => false
+  end.
+
+Fixpoint remove_unused_defined_lets (vs : list variable) (e : expr) : expr :=
+  match e with
+  | Let x d body =>
+    let body' := remove_unused_defined_lets (x :: vs) body in
+    if named_defined vs d && negb (var_free_b x body')
+    then body'
+    else Let x d body'
+  | Let_static bindings body =>
+    Let_static bindings (remove_unused_defined_lets vs body)
+  | Let_cont_non_recursive k (Handler params handler) body =>
+    Let_cont_non_recursive k
+      (Handler params (remove_unused_defined_lets (params ++ vs) handler))
+      (remove_unused_defined_lets vs body)
+  | Let_cont_recursive handlers body =>
+    Let_cont_recursive handlers (remove_unused_defined_lets vs body)
+  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => e
+  end.
+
+Definition remove_unused_defined_lets_equivalent_statement : Prop :=
+  ∀ e : expr, expr_equivalent e (remove_unused_defined_lets [] e).

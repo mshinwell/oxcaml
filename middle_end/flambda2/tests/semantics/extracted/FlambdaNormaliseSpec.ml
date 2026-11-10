@@ -369,3 +369,32 @@ let rec remove_unused_total_lets e =
   | Let_cont_recursive (handlers, body) ->
     Let_cont_recursive (handlers, remove_unused_total_lets body)
   | _ -> e
+
+(** val named_defined : variable list -> named -> bool **)
+
+let named_defined vs = function
+  | Simple s -> simple_in_scope vs s
+  | Set_of_closures (_, slots) ->
+    forallb (fun slot -> simple_in_scope vs (snd slot)) slots
+  | _ -> false
+
+(** val remove_unused_defined_lets : variable list -> expr -> expr **)
+
+let rec remove_unused_defined_lets vs e =
+  match e with
+  | Let (x, d, body) ->
+    let body' = remove_unused_defined_lets (x :: vs) body in
+    if named_defined vs d && negb (var_free_b x body')
+    then body'
+    else Let (x, d, body')
+  | Let_static (bindings, body) ->
+    Let_static (bindings, remove_unused_defined_lets vs body)
+  | Let_cont_non_recursive (k, handler0, body) ->
+    let (Handler (params, handler)) = handler0 in
+    Let_cont_non_recursive
+      ( k,
+        Handler (params, remove_unused_defined_lets (app params vs) handler),
+        remove_unused_defined_lets vs body )
+  | Let_cont_recursive (handlers, body) ->
+    Let_cont_recursive (handlers, remove_unused_defined_lets vs body)
+  | _ -> e

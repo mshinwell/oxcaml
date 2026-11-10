@@ -79,3 +79,7 @@ val fold_constants : expr -> expr
 val named_is_total : named -> bool
 
 val remove_unused_total_lets : expr -> expr
+
+val named_defined : variable list -> named -> bool
+
+val remove_unused_defined_lets : variable list -> expr -> expr
