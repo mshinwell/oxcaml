@@ -188,7 +188,8 @@ Proof.
   destruct (eval_named statics vars d) as [v | ] eqn:Hd.
   - eapply equivalent_step;
       [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity | ].
-    apply Hbody. exact (env_satisfies_under_let tenv x d vars statics v Hsat Hd).
+    apply Hbody.
+    exact (env_satisfies_under_let tenv x d vars statics v Hsat Hd).
   - apply (equivalent_of_run 1 1). simpl. rewrite Hd. reflexivity.
 Qed.
 
