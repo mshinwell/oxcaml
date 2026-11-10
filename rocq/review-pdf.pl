@@ -79,6 +79,13 @@ The control-flow fragment of Flambda 2: its terms, their execution by an
 abstract machine, what it means for two terms to behave alike, and the
 rewrites stated against that. The \texttt{*Proofs.v} files are not shown.
 TEX
+  { dir => 'middle_end/flambda2/types/rocq', name => 'OxCamlFlambda2Types',
+    title => 'Flambda types and typing environments',
+    intro => <<'TEX' },
+A first, naive model of the types and typing environments of the simplifier,
+with refinement relative to a typing environment. The \texttt{*Proofs.v}
+files are not shown.
+TEX
 );
 my %library = map { $_->{dir} => $_ } @libraries;
 
@@ -123,7 +130,7 @@ What is claimed about the extracted decision \texttt{find\_eliminations}.
 The analysis itself is extracted code, and its \texttt{*Proofs.v} files give
 its meaning and prove the statement; neither is shown.
 TEX
-  { title => 'Flambda 2', guide => [], libraries => [qw(OxCamlFlambda2)],
+  { title => 'Flambda 2', guide => [], libraries => [qw(OxCamlFlambda2 OxCamlFlambda2Types)],
     intro => <<'TEX' },
 This part is separate from the SSA passes. It is the beginning of a
 semantics of Flambda 2, the middle end's intermediate language, against

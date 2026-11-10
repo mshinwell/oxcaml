@@ -6,7 +6,7 @@
 #   make review   typeset what a reviewer reads as rocq/review.pdf
 #   make clean    remove everything generated
 #
-# The sources live in five directories, each a Rocq library:
+# The sources live in six directories, each a Rocq library:
 #
 #   rocq/                   OxCamlStdlib: models of OxCaml's own types (int,
 #                           Int64, lists, exceptions as options), generic
@@ -27,6 +27,9 @@
 #   middle_end/flambda2/rocq/  OxCamlFlambda2: the terms of Flambda 2 and
 #                           their semantics, with rewrites proved against
 #                           it; nothing is extracted from it
+#   middle_end/flambda2/types/rocq/  OxCamlFlambda2Types: Flambda types and
+#                           typing environments, and refinement relative to
+#                           a typing environment; nothing is extracted
 #
 # The extracted files are run through ocamlformat so that they satisfy the
 # repository's `make fmt` check like any other source under backend/ssa/.
@@ -40,10 +43,12 @@ BACKEND_DIR := $(ROOT)/backend/rocq
 SSA_DIR := $(ROOT)/backend/ssa/rocq
 LOOP_DIR := $(ROOT)/backend/ssa/loop/rocq
 FLAMBDA2_DIR := $(ROOT)/middle_end/flambda2/rocq
+FLAMBDA2_TYPES_DIR := $(ROOT)/middle_end/flambda2/types/rocq
 
 FLAGS := -Q $(STDLIB_DIR) OxCamlStdlib -Q $(BACKEND_DIR) OxCamlBackend \
   -Q $(SSA_DIR) OxCamlSsa -Q $(LOOP_DIR) OxCamlLoop \
-  -Q $(FLAMBDA2_DIR) OxCamlFlambda2
+  -Q $(FLAMBDA2_DIR) OxCamlFlambda2 \
+  -Q $(FLAMBDA2_TYPES_DIR) OxCamlFlambda2Types
 
 STDLIB := $(addprefix $(STDLIB_DIR)/, \
   OxCamlLogic.v OxCamlOption.v ZTactics.v OxCamlInt.v OxCamlIntProofs.v \
@@ -80,6 +85,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaContextSpec.v FlambdaContextProofs.v \
   FlambdaNominalSpec.v FlambdaNominalProofs.v FlambdaAlphaSpec.v \
   FlambdaAlphaProofs.v)
+FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
+  FlambdaTypesSpec.v FlambdaTypesProofs.v)
 
 # The extraction writes one .ml and .mli per model into the loop directory;
 # those of the SSA models are then moved next to their sources. Those of the
@@ -101,12 +108,14 @@ LOOP_EXTRACTED := $(addprefix $(LOOP_DIR)/, \
   BoundsCheckElim.ml BoundsCheckElim.mli)
 EXTRACTED := $(SSA_EXTRACTED) $(LOOP_EXTRACTED)
 
-SOURCES := $(STDLIB) $(BACKEND) $(SSA) $(LOOP) $(EXTRACT) $(FLAMBDA2)
+SOURCES := $(STDLIB) $(BACKEND) $(SSA) $(LOOP) $(EXTRACT) $(FLAMBDA2) \
+  $(FLAMBDA2_TYPES)
 MODULES := $(patsubst $(STDLIB_DIR)/%.v,OxCamlStdlib.%,$(STDLIB)) \
   $(patsubst $(BACKEND_DIR)/%.v,OxCamlBackend.%,$(BACKEND)) \
   $(patsubst $(SSA_DIR)/%.v,OxCamlSsa.%,$(SSA)) \
   $(patsubst $(LOOP_DIR)/%.v,OxCamlLoop.%,$(LOOP) $(EXTRACT)) \
-  $(patsubst $(FLAMBDA2_DIR)/%.v,OxCamlFlambda2.%,$(FLAMBDA2))
+  $(patsubst $(FLAMBDA2_DIR)/%.v,OxCamlFlambda2.%,$(FLAMBDA2)) \
+  $(patsubst $(FLAMBDA2_TYPES_DIR)/%.v,OxCamlFlambda2Types.%,$(FLAMBDA2_TYPES))
 DEPS := $(STDLIB_DIR)/.rocqdeps.d
 
 .PHONY: all assumptions claims review clean
@@ -121,7 +130,7 @@ all: $(SOURCES:.v=.vo) claims
 review: $(SOURCES:.v=.vo)
 	perl $(STDLIB_DIR)/review-pdf.pl $(STDLIB_DIR)/_review \
 	  $(STDLIB_DIR)/review.pdf $(STDLIB) $(BACKEND) $(SSA) $(LOOP) $(EXTRACT) \
-	  $(FLAMBDA2)
+	  $(FLAMBDA2) $(FLAMBDA2_TYPES)
 
 # Every statement a Spec file binds as a proposition ([Definition X_statement
 # : Prop]) must be proved as the theorem [X] of the matching Proofs module
@@ -130,7 +139,8 @@ review: $(SOURCES:.v=.vo)
 # claims checked are listed.
 SPECS := $(patsubst %,OxCamlSsa:%,$(filter %Spec.v,$(SSA))) \
   $(patsubst %,OxCamlLoop:%,$(filter %Spec.v,$(LOOP))) \
-  $(patsubst %,OxCamlFlambda2:%,$(filter %Spec.v,$(FLAMBDA2)))
+  $(patsubst %,OxCamlFlambda2:%,$(filter %Spec.v,$(FLAMBDA2))) \
+  $(patsubst %,OxCamlFlambda2Types:%,$(filter %Spec.v,$(FLAMBDA2_TYPES)))
 
 claims: $(SOURCES:.v=.vo)
 	@set -eu; \
@@ -215,7 +225,7 @@ clean:
 	rm -f $(DEPS) $(EXTRACTED) $(STDLIB_DIR)/review.pdf
 	rm -rf $(STDLIB_DIR)/_review
 	for d in $(STDLIB_DIR) $(BACKEND_DIR) $(SSA_DIR) $(LOOP_DIR) \
-	    $(FLAMBDA2_DIR); do \
+	    $(FLAMBDA2_DIR) $(FLAMBDA2_TYPES_DIR); do \
 	  rm -rf $$d/*.vo $$d/*.vos $$d/*.vok $$d/*.glob $$d/.*.aux \
 	    $$d/.lia.cache $$d/.nia.cache $$d/.coq-native; \
 	done

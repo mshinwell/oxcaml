@@ -109,6 +109,7 @@ Each directory is a Rocq library (`rocq/Makefile` maps them):
 | `backend/ssa/rocq/`      | `OxCamlSsa`    | The SSA graph as the models see it, each model split into Spec, implementation and Proofs files (see "The layout of a model"): `SsaModel.v` (the abstract interface), `SsaGraph*` (terminators, edges and uses), `SsaDominance*` (dominance, paths and program points), `SsaSemantics*` (execution of the restricted integer fragment), `SsaExecution*` (well-formedness and available-value equations), `SsaLiveness*` (reads before redefinition), `SsaProgress*` (the `finished_graph` contract, definedness and progress), `SsaContext*` (opaque surrounding computations and the `reached_header` contract) |
 | `backend/ssa/loop/rocq/` | `OxCamlLoop`   | The loop analyses, each an implementation file and a `*Proofs.v`; the operational proofs in `LoopExecutionProofs.v`, `LoopInvariantExecutionProofs.v`, `LoopCounterExecutionProofs.v`, `LoopValueSnapshotProofs.v`, `LoopGuardExecutionProofs.v`, `LoopRangeExecutionProofs.v`, `LoopLiveOutProofs.v` and `InductionRangeExecutionProofs.v`; the statements to review in `LoopEligibilitySpec.v`, `DeleteEmptyLoopsSpec.v` and `BoundsCheckExecutionSpec.v`, proved in `LoopEligibilityProofs.v`, `DeleteEmptyLoopsProofs.v` and `BoundsCheckExecutionProofs.v`; and `Extract.v`, which extracts the implementation |
 | `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, with nothing extracted: `FlambdaModel.v` (the terms of the fragment covered so far), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics), `FlambdaContext*` (contexts, and that refinement and equivalence are preserved under them), `FlambdaNominal*` (renamings, free names, and binders as name abstractions), `FlambdaAlpha*` (the group action, equivariance, and alpha-equivalence with its soundness); see "The semantics of Flambda 2" below |
+| `middle_end/flambda2/types/rocq/` | `OxCamlFlambda2Types` | A first, naive model of Flambda types and typing environments, with nothing extracted: `FlambdaTypes*` (types, what it means to satisfy a typing environment, refinement relative to one, following aliases, going under a `Let`) |
 
 Put a definition or lemma where its OxCaml counterpart would live. A fact
 about lists goes in `OxCamlListProofs.v`, about machine integers in
@@ -415,9 +416,19 @@ a fragment at a time. The files follow the same Spec/Proofs split, and
   runs of different lengths need the induction of
   `FlambdaContextProofs.transfer`.
 
-Not yet there: refinement relative to what is known of the environment,
-which most of the simplifier's rewrites need; substitution of a `Simple`
-for a variable; that the generated alpha-equivalence is contained in the
+- A rewrite that depends on what is known of the variables in scope is
+  stated relative to a typing environment
+  (`middle_end/flambda2/types/rocq/FlambdaTypesSpec.v`: `expr_refines_in`,
+  over `env_satisfies`). The model of types there is naive on purpose (a
+  type is unknown, bottom or an alias to a `Simple`); a richer grammar is
+  to add cases to `type_satisfied`. A binder gone under must not occur in
+  the typing environment, which is the simplifier's freshness invariant.
+  There is no substitution: as in the simplifier, a variable is replaced
+  at its uses by following its alias, and its `Let` is then unused.
+
+Not yet there: relative refinement inside a continuation handler (the
+closures of `FlambdaContextProofs.v` must be related under their own
+environments); types beyond aliases, with meet and join; that the generated alpha-equivalence is contained in the
 one defined by recursion on two expressions (`alpha_structural`; the other
 containment is proved); equivariance of execution in the continuations
 (renaming closures and observed exits; there is a CR in
