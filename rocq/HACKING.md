@@ -426,9 +426,13 @@ a fragment at a time. The files follow the same Spec/Proofs split, and
   There is no substitution: as in the simplifier, a variable is replaced
   at its uses by following its alias, and its `Let` is then unused.
 
-Not yet there: relative refinement inside a continuation handler (the
-closures of `FlambdaContextProofs.v` must be related under their own
-environments); types beyond aliases, with meet and join; that the generated alpha-equivalence is contained in the
+  Into a handler, what is known at the `Let_cont` stays known and the
+  parameters are added (`let_cont_handler_refines_in`); underneath,
+  `FlambdaContextProofs.handler_refines_at` says that a handler refines
+  another where it runs, under the variables of its closure.
+
+Not yet there: the types of a continuation's parameters, joined over its
+uses; types beyond aliases, with meet and join; that the generated alpha-equivalence is contained in the
 one defined by recursion on two expressions (`alpha_structural`; the other
 containment is proved); equivariance of execution in the continuations
 (renaming closures and observed exits; there is a CR in

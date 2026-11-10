@@ -51,20 +51,25 @@ Import ListNotations.
 
 Section Transfer.
 
-(* The relation between the bodies of corresponding handlers. *)
-Variable related : expr -> expr -> Prop.
+(* The relation between corresponding handlers, given their parameters and
+   the variables of the closure they are in: a handler runs under those
+   variables with its parameters bound, so the relation may depend on
+   them. *)
+Variable related : list variable -> env -> expr -> expr -> Prop.
 
-Inductive handler_related
+Inductive handler_related (vars : env)
     : continuation_handler -> continuation_handler -> Prop :=
   | Handler_related (params : list variable) (e e' : expr) :
-    related e e' -> handler_related (Handler params e) (Handler params e')
-  | Handler_same (h : continuation_handler) : handler_related h h.
+    related params vars e e' ->
+    handler_related vars (Handler params e) (Handler params e')
+  | Handler_same (h : continuation_handler) : handler_related vars h h.
 
-Definition handlers_related
+Definition handlers_related (vars : env)
     (handlers handlers' : list (continuation * continuation_handler))
     : Prop :=
   Forall2
-    (fun kh kh' => fst kh = fst kh' ∧ handler_related (snd kh) (snd kh'))
+    (fun kh kh' =>
+       fst kh = fst kh' ∧ handler_related vars (snd kh) (snd kh'))
     handlers handlers'.
 
 (* Closures with related handlers and, in turn, related environments. (The
@@ -74,11 +79,11 @@ Inductive closure_related : cont_value -> cont_value -> Prop :=
   | Closure_related (h h' : continuation_handler) (vars : env)
       (conts conts' : cont_env)
       (recursive recursive' : list (continuation * continuation_handler)) :
-    handler_related h h' ->
+    handler_related vars h h' ->
     Forall2
       (fun kc kc' => fst kc = fst kc' ∧ closure_related (snd kc) (snd kc'))
       conts conts' ->
-    handlers_related recursive recursive' ->
+    handlers_related vars recursive recursive' ->
     closure_related (Closure h vars conts recursive)
       (Closure h' vars conts' recursive')
   | Closure_same (c : cont_value) : closure_related c c.
@@ -95,9 +100,9 @@ Proof.
   split; [ reflexivity | apply Closure_same ].
 Qed.
 
-Lemma handlers_related_refl
+Lemma handlers_related_refl (vars : env)
     (handlers : list (continuation * continuation_handler)) :
-  handlers_related handlers handlers.
+  handlers_related vars handlers handlers.
 Proof.
   induction handlers as [ | kh handlers IH]; [ apply Forall2_nil | ].
   apply Forall2_cons; [ | exact IH ].
@@ -109,8 +114,8 @@ Lemma closure_related_inv (h h' : continuation_handler) (vars vars' : env)
     (recursive recursive' : list (continuation * continuation_handler)) :
   closure_related (Closure h vars conts recursive)
     (Closure h' vars' conts' recursive') ->
-  vars = vars' ∧ handler_related h h' ∧ cont_env_related conts conts'
-  ∧ handlers_related recursive recursive'.
+  vars = vars' ∧ handler_related vars h h' ∧ cont_env_related conts conts'
+  ∧ handlers_related vars recursive recursive'.
 Proof.
   intros Hrel. inversion Hrel; subst.
   - auto.
@@ -118,9 +123,10 @@ Proof.
     split; [ apply cont_env_related_refl | apply handlers_related_refl ].
 Qed.
 
-Lemma handler_related_inv (params params' : list variable) (e e' : expr) :
-  handler_related (Handler params e) (Handler params' e') ->
-  params = params' ∧ (related e e' ∨ e = e').
+Lemma handler_related_inv (vars : env) (params params' : list variable)
+    (e e' : expr) :
+  handler_related vars (Handler params e) (Handler params' e') ->
+  params = params' ∧ (related params vars e e' ∨ e = e').
 Proof. intros Hrel. inversion Hrel; subst; auto. Qed.
 
 (* Related environments bind the same continuations, to related closures. *)
@@ -142,8 +148,8 @@ Qed.
 Lemma rec_closures_related_aux
     (handlers handlers' all all' : list (continuation * continuation_handler))
     (vars : env) (conts conts' : cont_env) :
-  handlers_related handlers handlers' ->
-  handlers_related all all' ->
+  handlers_related vars handlers handlers' ->
+  handlers_related vars all all' ->
   cont_env_related conts conts' ->
   cont_env_related
     (map (fun '(k, h) => (k, Closure h vars conts all)) handlers)
@@ -160,7 +166,7 @@ Qed.
 Lemma rec_closures_related
     (handlers handlers' : list (continuation * continuation_handler))
     (vars : env) (conts conts' : cont_env) :
-  handlers_related handlers handlers' ->
+  handlers_related vars handlers handlers' ->
   cont_env_related conts conts' ->
   cont_env_related (rec_closures handlers vars conts)
     (rec_closures handlers' vars conts').
@@ -177,7 +183,8 @@ Qed.
    state under the second: a property of a state and a behaviour that holds
    of a state when it holds of the state it steps to, that holds of how a
    state ends at once, and that [related] carries from a handler to the
-   corresponding one, under any one pair of environments. *)
+   corresponding one, under the variables of their closures with the
+   parameters bound, and any continuations. *)
 Variable carried : state -> behaviour -> Prop.
 
 Hypothesis carried_step :
@@ -192,9 +199,13 @@ Hypothesis carried_undefined :
   ∀ s : state, step s = Undefined -> carried s Goes_wrong.
 
 Hypothesis carried_related :
-  ∀ (e e' : expr) (vars : env) (conts : cont_env) (b : behaviour),
-    related e e' ->
-    carried (State e vars conts) b -> carried (State e' vars conts) b.
+  ∀ (params : list variable) (def_vars : env) (e e' : expr)
+    (vs : list value) (handler_vars : env) (conts : cont_env)
+    (b : behaviour),
+    related params def_vars e e' ->
+    bind_params params vs def_vars = Some handler_vars ->
+    carried (State e handler_vars conts) b ->
+    carried (State e' handler_vars conts) b.
 
 Lemma transfer (n : nat) :
   ∀ (e : expr) (vars : env) (conts conts' : cont_env) (b : behaviour),
@@ -254,7 +265,7 @@ Proof.
            ++ simpl. rewrite Hargs. unfold apply_continuation.
               rewrite Hl', Hbind. reflexivity.
            ++ destruct Hbody as [Hbody | <-]; [ | exact Hcarried ].
-              exact (carried_related _ _ _ _ _ Hbody Hcarried).
+              exact (carried_related _ _ _ _ _ _ _ _ Hbody Hbind Hcarried).
         -- apply ended_undefined in Hended. subst b.
            apply carried_undefined. simpl. rewrite Hargs.
            unfold apply_continuation. rewrite Hl', Hbind. reflexivity.
@@ -301,19 +312,30 @@ Definition exits_carried (s : state) (b : behaviour) : Prop :=
 Definition ends_or_wrong (s : state) (b : behaviour) : Prop :=
   b <> Diverges -> behaves s b ∨ behaves s Goes_wrong.
 
+(* A handler refines another where it runs: under the variables of its
+   closure with its parameters bound, and any continuations. *)
+Definition handler_refines_at (params : list variable) (def_vars : env)
+    (source target : expr) : Prop :=
+  ∀ (vs : list value) (handler_vars : env) (conts : cont_env),
+    bind_params params vs def_vars = Some handler_vars ->
+    refines (State source handler_vars conts)
+      (State target handler_vars conts).
+
 (* An expression under an environment refines it under one whose closures
    have refining handlers. The relation is needed in both directions, as
    the two halves of [refines] run different sides. *)
 Lemma related_envs_refines (e : expr) (vars : env) (conts conts' : cont_env) :
-  cont_env_related expr_refines conts conts' ->
-  cont_env_related (fun target source => expr_refines source target)
+  cont_env_related handler_refines_at conts conts' ->
+  cont_env_related
+    (fun params def_vars target source =>
+       handler_refines_at params def_vars source target)
     conts' conts ->
   refines (State e vars conts) (State e vars conts').
 Proof.
   intros Hrel Hrel'. split.
   - intros k vs [n Hrun].
-    refine (transfer expr_refines exits_carried _ _ _ _ n e vars conts conts'
-      (Exits k vs) Hrel _).
+    refine (transfer handler_refines_at exits_carried _ _ _ _ n e vars conts
+      conts' (Exits k vs) Hrel _).
     + intros s s' b Hstep.
       destruct b as [k' vs' | | ]; unfold exits_carried; auto.
       intros Hb. apply (step_behaves s (Exits k' vs')). rewrite Hstep.
@@ -321,12 +343,15 @@ Proof.
     + intros s k' vs' Hstep. apply (step_behaves s (Exits k' vs')).
       rewrite Hstep. reflexivity.
     + intros s _. exact I.
-    + intros source target vars' conts'' b Hrefines.
+    + intros params def_vars source target vs' handler_vars conts'' b
+        Hrefines Hbind.
       destruct b; unfold exits_carried; auto.
-      apply (proj1 (Hrefines vars' conts'')).
+      apply (proj1 (Hrefines vs' handler_vars conts'' Hbind)).
     + rewrite Hrun. simpl. auto.
   - intros b Hterm Hb. destruct (behaves_ended _ _ Hterm Hb) as [n Hended].
-    refine (transfer (fun target source => expr_refines source target)
+    refine (transfer
+      (fun params def_vars target source =>
+         handler_refines_at params def_vars source target)
       ends_or_wrong _ _ _ _ n e vars conts' conts b Hrel' Hended Hterm).
     + intros s s' b' Hstep Hcarried Hterm'.
       destruct (Hcarried Hterm') as [Hb' | Hwrong]; [ left | right ];
@@ -336,12 +361,58 @@ Proof.
       rewrite Hstep. reflexivity.
     + intros s Hstep _. left. apply (step_behaves s Goes_wrong).
       rewrite Hstep. reflexivity.
-    + intros target source vars' conts'' b' Hrefines Hcarried Hterm'.
-      destruct (Hrefines vars' conts'') as [_ Hends].
+    + intros params def_vars target source vs handler_vars conts'' b'
+        Hrefines Hbind Hcarried Hterm'.
+      destruct (Hrefines vs handler_vars conts'' Hbind) as [_ Hends].
       destruct (Hcarried Hterm') as [Hb' | Hwrong];
         [ exact (Hends b' Hterm' Hb') | ].
       destruct (Hends Goes_wrong ltac:(discriminate) Hwrong); right;
         assumption.
+Qed.
+
+(* A [Let_cont] refines the same with a handler replaced by one that
+   refines it where it runs. *)
+Lemma let_cont_handler_refines_at (k : continuation) (params : list variable)
+    (handler handler' body : expr) (vars : env) (conts : cont_env) :
+  handler_refines_at params vars handler handler' ->
+  refines
+    (State (Let_cont_non_recursive k (Handler params handler) body) vars
+       conts)
+    (State (Let_cont_non_recursive k (Handler params handler') body) vars
+       conts).
+Proof.
+  intros Hhandler. eapply refines_step; [ reflexivity | reflexivity | ].
+  apply related_envs_refines;
+    (apply Forall2_cons; [ | apply cont_env_related_refl ]);
+    (split; [ reflexivity | ]);
+    (apply Closure_related;
+      [ apply Handler_related; exact Hhandler | apply cont_env_related_refl
+      | apply Forall2_nil ]).
+Qed.
+
+Lemma let_cont_recursive_handler_refines_at
+    (before : list (continuation * continuation_handler)) (k : continuation)
+    (params : list variable) (handler handler' : expr)
+    (after : list (continuation * continuation_handler)) (body : expr)
+    (vars : env) (conts : cont_env) :
+  handler_refines_at params vars handler handler' ->
+  refines
+    (State
+       (Let_cont_recursive (before ++ (k, Handler params handler) :: after)
+          body)
+       vars conts)
+    (State
+       (Let_cont_recursive (before ++ (k, Handler params handler') :: after)
+          body)
+       vars conts).
+Proof.
+  intros Hhandler. eapply refines_step; [ reflexivity | reflexivity | ].
+  apply related_envs_refines;
+    (apply Forall2_app; [ | apply cont_env_related_refl ]);
+    (apply rec_closures_related; [ | apply cont_env_related_refl ]);
+    (apply Forall2_app; [ apply handlers_related_refl | ]);
+    (apply Forall2_cons; [ | apply handlers_related_refl ]);
+    (split; [ reflexivity | apply Handler_related; exact Hhandler ]).
 Qed.
 
 (* ======================================================================== *)
@@ -349,8 +420,8 @@ Qed.
 (* ======================================================================== *)
 
 (* By induction on the context. A hole in a body: one step, then the
-   induction. A hole in a handler: one step, which builds closures that
-   differ in that handler only. *)
+   induction. A hole in a handler: the handler refines where it runs, as
+   it does everywhere. *)
 Theorem plug_refines : plug_refines_statement.
 Proof.
   intros c source target Hrefines.
@@ -364,21 +435,11 @@ Proof.
         | apply IH ].
     + apply goes_wrong_refines. exists 1. simpl. rewrite Hd. reflexivity.
   - eapply refines_step; [ reflexivity | reflexivity | apply IH ].
-  - eapply refines_step; [ reflexivity | reflexivity | ].
-    apply related_envs_refines;
-      (apply Forall2_cons; [ | apply cont_env_related_refl ]);
-      (split; [ reflexivity | ]);
-      (apply Closure_related;
-        [ apply Handler_related, IH | apply cont_env_related_refl
-        | apply Forall2_nil ]).
+  - apply let_cont_handler_refines_at. intros vs handler_vars conts' _.
+    apply IH.
   - eapply refines_step; [ reflexivity | reflexivity | apply IH ].
-  - eapply refines_step; [ reflexivity | reflexivity | ].
-    apply related_envs_refines;
-      (apply Forall2_app; [ | apply cont_env_related_refl ]);
-      (apply rec_closures_related; [ | apply cont_env_related_refl ]);
-      (apply Forall2_app; [ apply handlers_related_refl | ]);
-      (apply Forall2_cons; [ | apply handlers_related_refl ]);
-      (split; [ reflexivity | apply Handler_related, IH ]).
+  - apply let_cont_recursive_handler_refines_at.
+    intros vs handler_vars conts' _. apply IH.
 Qed.
 
 Theorem plug_equivalent : plug_equivalent_statement.

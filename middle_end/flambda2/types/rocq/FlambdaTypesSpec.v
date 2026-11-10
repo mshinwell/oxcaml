@@ -63,13 +63,16 @@
      must not occur in the typing environment: a binder that shadowed
      would invalidate what is known, which is the reason for the
      simplifier's invariant that bound names are fresh;
+   - going into a handler keeps what is known where the [Let_cont] is and
+     adds its parameters ([let_cont_handler_refines_in_statement],
+     [let_cont_recursive_handler_refines_in_statement]). A handler runs
+     later, any number of times, but under the variables of the place of
+     its definition, whose values do not change; what was learnt in the
+     body of the [Let_cont] is not known in it. Nothing is known of a
+     parameter but that it is bound: the types of the arguments at the
+     uses of the continuation are not joined;
    - [let_const_apply_cont_statement] puts these together with the removal
      of an unused [Let]: a constant is propagated to its use.
-
-   Not yet here: going into a continuation handler, whose body runs later
-   under the variables of its definition and its parameters; that needs
-   the closures of FlambdaContextProofs.v to be related under their own
-   environments.
 
    The proofs are in FlambdaTypesProofs.v, which needs no review. *)
 
@@ -233,6 +236,39 @@ Definition let_cont_recursive_body_refines_in_statement : Prop :=
     expr_refines_in tenv body body' ->
     expr_refines_in tenv (Let_cont_recursive handlers body)
       (Let_cont_recursive handlers body').
+
+(* [Typing_env.add_definitions_of_params]: the parameters of a handler come
+   into scope, with nothing known of them. *)
+Definition add_definitions_of_params (tenv : typing_env)
+    (params : list variable) : typing_env :=
+  map (fun param => (param, Unknown)) params ++ tenv.
+
+(* Into a handler, of a non-recursive [Let_cont] and of a recursive one:
+   what is known at the [Let_cont] is known in the handler, with its
+   parameters. *)
+Definition let_cont_handler_refines_in_statement : Prop :=
+  ∀ (tenv : typing_env) (k : continuation) (params : list variable)
+    (handler handler' body : expr),
+    (∀ param : variable, param ∈ params -> ~ var_in_typing_env param tenv) ->
+    expr_refines_in (add_definitions_of_params tenv params) handler handler'
+    ->
+    expr_refines_in tenv
+      (Let_cont_non_recursive k (Handler params handler) body)
+      (Let_cont_non_recursive k (Handler params handler') body).
+
+Definition let_cont_recursive_handler_refines_in_statement : Prop :=
+  ∀ (tenv : typing_env)
+    (before : list (continuation * continuation_handler)) (k : continuation)
+    (params : list variable) (handler handler' : expr)
+    (after : list (continuation * continuation_handler)) (body : expr),
+    (∀ param : variable, param ∈ params -> ~ var_in_typing_env param tenv) ->
+    expr_refines_in (add_definitions_of_params tenv params) handler handler'
+    ->
+    expr_refines_in tenv
+      (Let_cont_recursive (before ++ (k, Handler params handler) :: after)
+         body)
+      (Let_cont_recursive (before ++ (k, Handler params handler') :: after)
+         body).
 
 (* ======================================================================== *)
 (* An example: propagating a constant                                       *)

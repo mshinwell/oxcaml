@@ -31,7 +31,8 @@
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaSemanticsProofs FlambdaNominalSpec FlambdaNominalProofs.
+  FlambdaSemanticsProofs FlambdaContextProofs FlambdaNominalSpec
+  FlambdaNominalProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec.
 Import ListNotations.
 
@@ -187,6 +188,80 @@ Proof.
   intros tenv handlers body body' Hbody vars conts Hsat.
   eapply refines_step; [ reflexivity | reflexivity | ].
   apply Hbody, Hsat.
+Qed.
+
+(* Binding parameters that do not occur in the typing environment keeps it
+   satisfied. *)
+Lemma env_satisfies_bind_params (tenv : typing_env) (params : list variable) :
+  ∀ (vs : list value) (vars handler_vars : env),
+    env_satisfies tenv vars ->
+    (∀ param : variable, param ∈ params -> ~ var_in_typing_env param tenv) ->
+    bind_params params vs vars = Some handler_vars ->
+    env_satisfies tenv handler_vars.
+Proof.
+  induction params as [ | param params IH];
+    intros [ | v vs] vars handler_vars Hsat Hfresh; simpl; try discriminate.
+  - intros [= <-]. exact Hsat.
+  - apply IH; [ | intros p Hin; apply Hfresh; right; exact Hin ].
+    intros x t Hin.
+    apply (env_satisfies_extend tenv vars param v Unknown Hsat);
+      [ apply Hfresh; left; reflexivity | exact I | right; exact Hin ].
+Qed.
+
+(* Every parameter bound, and every variable bound before, is bound. *)
+Lemma bind_params_bound (params : list variable) :
+  ∀ (vs : list value) (vars handler_vars : env) (x : variable),
+    bind_params params vs vars = Some handler_vars ->
+    x ∈ params ∨ (∃ v : value, lookup x vars = Some v) ->
+    ∃ v : value, lookup x handler_vars = Some v.
+Proof.
+  induction params as [ | param params IH];
+    intros [ | v vs] vars handler_vars x; simpl; try discriminate.
+  - intros [= <-] [[] | Hbound]. exact Hbound.
+  - intros Hbind Hx. apply (IH vs _ _ x Hbind). simpl.
+    destruct (Pos.eqb_spec x param) as [-> | Hne]; [ right; eauto | ].
+    destruct Hx as [[Heq | Hin] | Hbound];
+      [ congruence | left; exact Hin | right; exact Hbound ].
+Qed.
+
+Lemma env_satisfies_params (tenv : typing_env) (params : list variable)
+    (vs : list value) (vars handler_vars : env) :
+  env_satisfies tenv vars ->
+  (∀ param : variable, param ∈ params -> ~ var_in_typing_env param tenv) ->
+  bind_params params vs vars = Some handler_vars ->
+  env_satisfies (add_definitions_of_params tenv params) handler_vars.
+Proof.
+  intros Hsat Hfresh Hbind x t Hin.
+  apply in_app_or in Hin. destruct Hin as [Hin | Hin].
+  - apply in_map_iff in Hin. destruct Hin as (param & [= <- <-] & Hin).
+    destruct (bind_params_bound params vs vars handler_vars param Hbind)
+      as [v Hlookup]; [ left; exact Hin | ].
+    exists v. split; [ exact Hlookup | exact I ].
+  - exact (env_satisfies_bind_params tenv params vs vars handler_vars Hsat
+      Hfresh Hbind x t Hin).
+Qed.
+
+(* The handler refines where it runs: under the variables at the
+   [Let_cont], which satisfy the typing environment, with its parameters
+   bound. *)
+Theorem let_cont_handler_refines_in : let_cont_handler_refines_in_statement.
+Proof.
+  intros tenv k params handler handler' body Hfresh Hhandler vars conts Hsat.
+  apply let_cont_handler_refines_at. intros vs handler_vars conts' Hbind.
+  apply Hhandler.
+  exact (env_satisfies_params tenv params vs vars handler_vars Hsat Hfresh
+    Hbind).
+Qed.
+
+Theorem let_cont_recursive_handler_refines_in :
+  let_cont_recursive_handler_refines_in_statement.
+Proof.
+  intros tenv before k params handler handler' after body Hfresh Hhandler
+    vars conts Hsat.
+  apply let_cont_recursive_handler_refines_at.
+  intros vs handler_vars conts' Hbind. apply Hhandler.
+  exact (env_satisfies_params tenv params vs vars handler_vars Hsat Hfresh
+    Hbind).
 Qed.
 
 (* ======================================================================== *)
