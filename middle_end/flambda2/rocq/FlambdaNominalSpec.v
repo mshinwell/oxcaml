@@ -260,7 +260,7 @@ Definition rename_let_cont_statement : Prop :=
          (rename_expr r body)).
 
 (* The parameters of a continuation handler. *)
-Definition rename_handler_statement : Prop :=
+Definition rename_handler_params_statement : Prop :=
   ∀ (r : renaming) (k : continuation) (params : list variable)
     (handler body : expr),
     (∀ y : variable,

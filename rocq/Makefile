@@ -78,7 +78,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaModel.v FlambdaSemanticsSpec.v FlambdaSemanticsProofs.v \
   FlambdaControlFlowSpec.v FlambdaControlFlowProofs.v \
   FlambdaContextSpec.v FlambdaContextProofs.v \
-  FlambdaNominalSpec.v FlambdaNominalProofs.v)
+  FlambdaNominalSpec.v FlambdaNominalProofs.v FlambdaAlphaSpec.v \
+  FlambdaAlphaProofs.v)
 
 # The extraction writes one .ml and .mli per model into the loop directory;
 # those of the SSA models are then moved next to their sources. Those of the

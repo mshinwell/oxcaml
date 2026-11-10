@@ -108,7 +108,7 @@ Each directory is a Rocq library (`rocq/Makefile` maps them):
 | `backend/rocq/`          | `OxCamlBackend`| Backend-wide definitions: the semantics of `Cmm.integer_comparison` (with `IntegerComparisonProofs.v`), the model's copy of `Operation.t` |
 | `backend/ssa/rocq/`      | `OxCamlSsa`    | The SSA graph as the models see it, each model split into Spec, implementation and Proofs files (see "The layout of a model"): `SsaModel.v` (the abstract interface), `SsaGraph*` (terminators, edges and uses), `SsaDominance*` (dominance, paths and program points), `SsaSemantics*` (execution of the restricted integer fragment), `SsaExecution*` (well-formedness and available-value equations), `SsaLiveness*` (reads before redefinition), `SsaProgress*` (the `finished_graph` contract, definedness and progress), `SsaContext*` (opaque surrounding computations and the `reached_header` contract) |
 | `backend/ssa/loop/rocq/` | `OxCamlLoop`   | The loop analyses, each an implementation file and a `*Proofs.v`; the operational proofs in `LoopExecutionProofs.v`, `LoopInvariantExecutionProofs.v`, `LoopCounterExecutionProofs.v`, `LoopValueSnapshotProofs.v`, `LoopGuardExecutionProofs.v`, `LoopRangeExecutionProofs.v`, `LoopLiveOutProofs.v` and `InductionRangeExecutionProofs.v`; the statements to review in `LoopEligibilitySpec.v`, `DeleteEmptyLoopsSpec.v` and `BoundsCheckExecutionSpec.v`, proved in `LoopEligibilityProofs.v`, `DeleteEmptyLoopsProofs.v` and `BoundsCheckExecutionProofs.v`; and `Extract.v`, which extracts the implementation |
-| `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, with nothing extracted: `FlambdaModel.v` (the terms of the fragment covered so far), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics), `FlambdaContext*` (contexts, and that refinement and equivalence are preserved under them), `FlambdaNominal*` (renamings, free names, and binders as name abstractions); see "The semantics of Flambda 2" below |
+| `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, with nothing extracted: `FlambdaModel.v` (the terms of the fragment covered so far), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics), `FlambdaContext*` (contexts, and that refinement and equivalence are preserved under them), `FlambdaNominal*` (renamings, free names, and binders as name abstractions), `FlambdaAlpha*` (the group action, equivariance, and alpha-equivalence with its soundness); see "The semantics of Flambda 2" below |
 
 Put a definition or lemma where its OxCaml counterpart would live. A fact
 about lists goes in `OxCamlListProofs.v`, about machine integers in
@@ -397,6 +397,14 @@ a fragment at a time. The files follow the same Spec/Proofs split, and
   `Name_abstraction.pattern_match` relies on), and that an unused binding
   may be removed. A fresh name is any name not free where it matters;
   nothing generates one.
+- An expression stands for its alpha-equivalence class in this sense
+  (`FlambdaAlphaSpec.v`): `alpha_equivalent` is the congruence generated
+  by renaming bound names; it is equivariant and preserves the free names;
+  and alpha-equivalent expressions are `expr_equivalent`
+  (`alpha_equivalent_sound`), so everything said with `expr_equivalent`
+  or `expr_refines` is said of classes. To carry a rule about a renaming
+  `s` across another renaming `r`, use the conjugate
+  (`FlambdaAlphaProofs.conjugate`).
 - Two runs that stay in step are related by a bisimulation
   (`FlambdaSemanticsProofs.bisimulation_equivalent`), as a state and its
   renaming are (`FlambdaNominalProofs.renamed_equivalent`, from which
@@ -406,8 +414,10 @@ a fragment at a time. The files follow the same Spec/Proofs split, and
 
 Not yet there: refinement relative to what is known of the environment,
 which most of the simplifier's rewrites need; substitution of a `Simple`
-for a variable; alpha-equivalence as a relation of its own, and the
-simplifier's invariant that bound names are distinct from those in scope;
+for a variable; that the generated alpha-equivalence agrees with the one
+defined by recursion on two expressions; equivariance of execution in the
+continuations (renaming closures and observed exits); the simplifier's
+invariant that bound names are distinct from those in scope;
 function calls and closures, memory and effects, trap actions, and any
 link to the simplifier's code.
 

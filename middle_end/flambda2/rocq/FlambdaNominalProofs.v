@@ -553,7 +553,7 @@ Proof.
     + apply (conts_agree_same r k' conts), Hconts; assumption.
 Qed.
 
-Theorem rename_handler : rename_handler_statement.
+Theorem rename_handler_params : rename_handler_params_statement.
 Proof.
   intros r k params handler body Hvars Hconts vars conts.
   eapply equivalent_step; [ reflexivity | reflexivity | ].
