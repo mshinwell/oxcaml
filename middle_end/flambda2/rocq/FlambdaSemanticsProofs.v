@@ -305,6 +305,71 @@ Lemma expr_equivalent_refines (e e' : expr) :
 Proof. intros Hequiv vars conts. apply equivalent_refines, Hequiv. Qed.
 
 (* ======================================================================== *)
+(* Bisimulations                                                            *)
+(* ======================================================================== *)
+
+(* What two steps, or two runs of one length, come to, alike up to [R]:
+   states related by [R], the same exit, or both undefined. *)
+Definition result_related (R : state -> state -> Prop)
+    (result result' : step_result) : Prop :=
+  match result, result' with
+  | Step s, Step s' => R s s'
+  | Exit k vs, Exit k' vs' => k = k' ∧ vs = vs'
+  | Undefined, Undefined => True
+  | _, _ => False
+  end.
+
+Lemma result_related_refl (R : state -> state -> Prop)
+    (result : step_result) :
+  (∀ s : state, R s s) -> result_related R result result.
+Proof. intros Hrefl. destruct result; simpl; auto. Qed.
+
+Section Bisimulation.
+
+Variable R : state -> state -> Prop.
+
+Hypothesis R_step :
+  ∀ s s' : state, R s s' -> result_related R (step s) (step s').
+
+Lemma bisimulation_run (n : nat) :
+  ∀ s s' : state, R s s' -> result_related R (run n s) (run n s').
+Proof.
+  induction n as [ | n IH]; intros s s' Hrel; simpl; [ exact Hrel | ].
+  specialize (R_step s s' Hrel).
+  destruct (step s), (step s'); simpl in R_step; try contradiction;
+    [ apply IH; exact R_step | exact R_step | exact I ].
+Qed.
+
+(* States related by a relation that steps preserve, in step with each
+   other, are equivalent. *)
+Lemma bisimulation_equivalent (s s' : state) : R s s' -> equivalent s s'.
+Proof.
+  intros Hrel b.
+  pose proof (fun n => bisimulation_run n s s' Hrel) as Hrun.
+  destruct b as [k vs | | ]; simpl; split.
+  - intros [n Hn]. exists n. specialize (Hrun n). rewrite Hn in Hrun.
+    destruct (run n s'); simpl in Hrun; try contradiction.
+    destruct Hrun as [-> ->]. reflexivity.
+  - intros [n Hn]. exists n. specialize (Hrun n). rewrite Hn in Hrun.
+    destruct (run n s); simpl in Hrun; try contradiction.
+    destruct Hrun as [-> ->]. reflexivity.
+  - intros [n Hn]. exists n. specialize (Hrun n). rewrite Hn in Hrun.
+    destruct (run n s'); simpl in Hrun; try contradiction. reflexivity.
+  - intros [n Hn]. exists n. specialize (Hrun n). rewrite Hn in Hrun.
+    destruct (run n s); simpl in Hrun; try contradiction. reflexivity.
+  - intros Hdiv n. destruct (Hdiv n) as [t Ht]. specialize (Hrun n).
+    rewrite Ht in Hrun.
+    destruct (run n s') as [t' | | ]; simpl in Hrun; try contradiction.
+    exists t'. reflexivity.
+  - intros Hdiv n. destruct (Hdiv n) as [t Ht]. specialize (Hrun n).
+    rewrite Ht in Hrun.
+    destruct (run n s) as [t' | | ]; simpl in Hrun; try contradiction.
+    exists t'. reflexivity.
+Qed.
+
+End Bisimulation.
+
+(* ======================================================================== *)
 (* Environments                                                             *)
 (* ======================================================================== *)
 
@@ -332,3 +397,28 @@ Proof.
   destruct (Pos.eqb k k'); [ | exact IH ].
   intros [= ->]. reflexivity.
 Qed.
+
+(* Looking up any continuation among the closures of a recursive
+   [Let_cont], with other bindings after them. *)
+Lemma lookup_rec_closures_aux (k : continuation)
+    (handlers all : list (continuation * continuation_handler)) (vars : env)
+    (conts rest : cont_env) :
+  lookup k (map (fun '(k, h) => (k, Closure h vars conts all)) handlers ++ rest)
+  = match lookup k handlers with
+    | Some h => Some (Closure h vars conts all)
+    | None => lookup k rest
+    end.
+Proof.
+  induction handlers as [ | [k' h'] handlers IH]; simpl; [ reflexivity | ].
+  destruct (Pos.eqb k k'); [ reflexivity | exact IH ].
+Qed.
+
+Lemma lookup_rec_closures_app (k : continuation)
+    (handlers : list (continuation * continuation_handler)) (vars : env)
+    (conts rest : cont_env) :
+  lookup k (rec_closures handlers vars conts ++ rest)
+  = match lookup k handlers with
+    | Some h => Some (Closure h vars conts handlers)
+    | None => lookup k rest
+    end.
+Proof. apply lookup_rec_closures_aux. Qed.

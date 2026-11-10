@@ -108,7 +108,7 @@ Each directory is a Rocq library (`rocq/Makefile` maps them):
 | `backend/rocq/`          | `OxCamlBackend`| Backend-wide definitions: the semantics of `Cmm.integer_comparison` (with `IntegerComparisonProofs.v`), the model's copy of `Operation.t` |
 | `backend/ssa/rocq/`      | `OxCamlSsa`    | The SSA graph as the models see it, each model split into Spec, implementation and Proofs files (see "The layout of a model"): `SsaModel.v` (the abstract interface), `SsaGraph*` (terminators, edges and uses), `SsaDominance*` (dominance, paths and program points), `SsaSemantics*` (execution of the restricted integer fragment), `SsaExecution*` (well-formedness and available-value equations), `SsaLiveness*` (reads before redefinition), `SsaProgress*` (the `finished_graph` contract, definedness and progress), `SsaContext*` (opaque surrounding computations and the `reached_header` contract) |
 | `backend/ssa/loop/rocq/` | `OxCamlLoop`   | The loop analyses, each an implementation file and a `*Proofs.v`; the operational proofs in `LoopExecutionProofs.v`, `LoopInvariantExecutionProofs.v`, `LoopCounterExecutionProofs.v`, `LoopValueSnapshotProofs.v`, `LoopGuardExecutionProofs.v`, `LoopRangeExecutionProofs.v`, `LoopLiveOutProofs.v` and `InductionRangeExecutionProofs.v`; the statements to review in `LoopEligibilitySpec.v`, `DeleteEmptyLoopsSpec.v` and `BoundsCheckExecutionSpec.v`, proved in `LoopEligibilityProofs.v`, `DeleteEmptyLoopsProofs.v` and `BoundsCheckExecutionProofs.v`; and `Extract.v`, which extracts the implementation |
-| `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, with nothing extracted: `FlambdaModel.v` (the terms of the fragment covered so far), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics), `FlambdaContext*` (contexts, and that refinement and equivalence are preserved under them); see "The semantics of Flambda 2" below |
+| `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, with nothing extracted: `FlambdaModel.v` (the terms of the fragment covered so far), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics), `FlambdaContext*` (contexts, and that refinement and equivalence are preserved under them), `FlambdaNominal*` (renamings, free names, and binders as name abstractions); see "The semantics of Flambda 2" below |
 
 Put a definition or lemma where its OxCaml counterpart would live. A fact
 about lists goes in `OxCamlListProofs.v`, about machine integers in
@@ -387,11 +387,29 @@ a fragment at a time. The files follow the same Spec/Proofs split, and
   two runs differ in what their continuation closures hold: relate the
   environments, and go by induction on the length of one run.
 
-Not yet there: free names, and with them the rewrites that depend on a name
-not being used (removing an unused continuation or `Let`); refinement
-relative to what is known of the environment, which most of the
-simplifier's rewrites need; function calls and closures, memory and
-effects, trap actions, and any link to the simplifier's code.
+- Names follow the compiler's `nominal/` directory, as a partial theory of
+  nominal sets (`FlambdaNominalSpec.v`). Terms keep their named binders,
+  which shadow, and there is no type of alpha-equivalence classes: a
+  renaming is a pair of permutations given as lists of swaps, it acts on
+  terms without capture (`rename_expr`), and `expr_equivalent` stands in
+  for equality of classes. The statements say that a renaming fixing the
+  free names of a binder with its scope may be applied to it (what
+  `Name_abstraction.pattern_match` relies on), and that an unused binding
+  may be removed. A fresh name is any name not free where it matters;
+  nothing generates one.
+- Two runs that stay in step are related by a bisimulation
+  (`FlambdaSemanticsProofs.bisimulation_equivalent`), as a state and its
+  renaming are (`FlambdaNominalProofs.renamed_equivalent`, from which
+  `coincide_equivalent`: behaviour depends only on the free names). Two
+  runs of different lengths need the induction of
+  `FlambdaContextProofs.transfer`.
+
+Not yet there: refinement relative to what is known of the environment,
+which most of the simplifier's rewrites need; substitution of a `Simple`
+for a variable; alpha-equivalence as a relation of its own, and the
+simplifier's invariant that bound names are distinct from those in scope;
+function calls and closures, memory and effects, trap actions, and any
+link to the simplifier's code.
 
 ## Extraction pitfalls
 
