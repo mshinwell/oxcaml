@@ -1,0 +1,11 @@
+let code size(5) add_one (x) my_closure &my_region my_depth -> k * e =
+  let y = %int_barith.`add` (x, 1) in
+  cont k (y)
+in
+let $Inline_direct_add_one = closure add_one @add_one &toplevel in
+let a = %opaque (41) in
+apply direct(add_one &toplevel) inlined(always) $Inline_direct_add_one (a)
+  -> k1 * error
+  where k1 (r) =
+    let $camlInline_direct = Block 0 (r, $Inline_direct_add_one) in
+    cont done ($camlInline_direct)

@@ -22,6 +22,7 @@
     (run ../tools/flsemantics.exe closure_slot.fl)
     (run ../tools/flsemantics.exe const_block.fl)
     (run ../tools/flsemantics.exe indirect_higher_order.fl)
+    (run ../tools/flsemantics.exe inline_direct.fl)
     (run ../tools/flsemantics.exe rec_cont.fl)
     (run ../tools/flsemantics.exe switch.fl)
     (run ../tools/flsemantics.exe undefined_source.fl)

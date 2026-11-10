@@ -517,7 +517,22 @@ let print_outcome ppf (outcome : outcome) =
 
 let fuel = 1_000_000
 
-let run (unit : Flambda_unit.t) : outcome * int =
+(* The calls that are not in code: those of the unit itself, which inlining
+   removes. *)
+let rec calls_outside_code (e : Model.expr) =
+  let in_handler (Model.Handler (_, handler)) = calls_outside_code handler in
+  match e with
+  | Let (_, _, body) | Let_static (_, body) -> calls_outside_code body
+  | Let_cont_non_recursive (_, handler, body) ->
+    in_handler handler + calls_outside_code body
+  | Let_cont_recursive (handlers, body) ->
+    List.fold_left
+      (fun calls (_, handler) -> calls + in_handler handler)
+      (calls_outside_code body) handlers
+  | Apply _ -> 1
+  | Apply_cont _ | Switch _ | Invalid -> 0
+
+let run (unit : Flambda_unit.t) : outcome * int * int =
   let body = convert_expr (Flambda_unit.body unit) in
   let return_continuation =
     Continuations.find (Flambda_unit.return_continuation unit)
@@ -527,11 +542,11 @@ let run (unit : Flambda_unit.t) : outcome * int =
   in
   let rec go steps (state : Semantics.state) =
     if steps >= fuel
-    then Still_running, steps
+    then Still_running, steps, calls_outside_code body
     else
       match Semantics.step state with
       | Step state -> go (steps + 1) state
-      | Undefined -> Undefined, steps
+      | Undefined -> Undefined, steps, calls_outside_code body
       | Exit (k, values) ->
         let (State (_, _, _, statics)) = state in
         let values = List.map (observe 50 statics) values in
@@ -540,7 +555,8 @@ let run (unit : Flambda_unit.t) : outcome * int =
            else if k = exn_continuation
            then Raises values
            else Exits_elsewhere),
-          steps )
+          steps,
+          calls_outside_code body )
   in
   go 0 (State (body, [], [], Semantics.empty_static_env))
 
@@ -550,11 +566,13 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
   match run before, run after with
   | exception Unsupported what ->
     Format.printf "%s: not checked: the model has not got %s@." filename what
-  | (before, steps_before), (after, steps_after) ->
+  | (before, steps_before, calls_before), (after, steps_after, calls_after) ->
     Format.printf "%s:@.  before Simplify (%d steps): %a@." filename
       steps_before print_outcome before;
     Format.printf "  after Simplify (%d steps): %a@." steps_after print_outcome
       after;
+    Format.printf "  calls outside code: %d before, %d after@." calls_before
+      calls_after;
     let verdict, ok =
       match before, after with
       | Undefined, _ -> "anything goes, as the run before is undefined", true
