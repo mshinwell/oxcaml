@@ -9,3 +9,8 @@
 
 let eval_prim : (Obj.t -> Obj.t -> Obj.t) ref =
   ref (fun _ _ -> failwith "Prim_hook.eval_prim: no evaluator installed")
+
+(* The model's [prim_eqb : prim -> prim -> bool], likewise. It has to decide
+   equality of the tool's primitives, as the model takes that as an axiom. *)
+let prim_eqb : (Obj.t -> Obj.t -> bool) ref =
+  ref (fun _ _ -> failwith "Prim_hook.prim_eqb: no equality installed")

@@ -25,9 +25,11 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* Extraction of the machine of FlambdaSemanticsSpec.v to OCaml, for
-   testing: middle_end/flambda2/tests/semantics/ runs terms before and
-   after Simplify on it and compares what they come to.
+(* Extraction of the machine of FlambdaSemanticsSpec.v and of the
+   comparison of FlambdaCompareSpec.v to OCaml, for testing:
+   middle_end/flambda2/tests/semantics/ runs terms before and after
+   Simplify on the machine and compares what they come to, and compares
+   the terms themselves.
 
    This file is to be reviewed with that test tool, and matters only to
    it: no part of the compiler is built from what is extracted here. The
@@ -46,7 +48,8 @@
 
 From Stdlib Require Extraction.
 From Stdlib Require Import ExtrOcamlBasic.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
+  FlambdaCompareSpec.
 
 Extraction Language OCaml.
 
@@ -55,7 +58,12 @@ Extract Constant prim => "Obj.t".
 Extract Constant eval_prim =>
   "(fun p vs -> Obj.obj (!Prim_hook.eval_prim p (Obj.repr vs)))".
 
+(* The equality test on the primitives, also a parameter with axioms
+   (FlambdaCompareSpec.v), is realised the same way; the tool's test must
+   decide equality for the axioms to hold of it. *)
+Extract Constant prim_eqb => "(fun p p' -> !Prim_hook.prim_eqb p p')".
+
 (* The Makefile runs this from the directory the modules go into. *)
 Set Extraction Output Directory ".".
 
-Separate Extraction step run kind_of_const empty_static_env.
+Separate Extraction step run kind_of_const empty_static_env expr_eqb.

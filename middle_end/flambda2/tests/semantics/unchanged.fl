@@ -1,0 +1,9 @@
+let a = %opaque (1) in
+let b = %opaque (2) in
+let c = %int_comp.`lt` (a, b) in
+switch c
+  | 0 -> k (a)
+  | 1 -> k (b)
+  where k (r) =
+    let $camlUnchanged = Block 0 (r) in
+    cont done ($camlUnchanged)

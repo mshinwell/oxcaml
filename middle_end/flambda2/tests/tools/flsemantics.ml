@@ -53,6 +53,7 @@ open Flambda2_bound_identifiers
 open Flambda2_term_basics
 module Model = Flambda2_rocq_semantics.FlambdaModel
 module Semantics = Flambda2_rocq_semantics.FlambdaSemanticsSpec
+module Compare = Flambda2_rocq_semantics.FlambdaCompareSpec
 module Numbers = Flambda2_rocq_semantics.BinNums
 module P = Flambda_primitive
 
@@ -113,6 +114,11 @@ struct
       incr next;
       numbers := Map.add id n !numbers;
       positive_of_int n
+
+  (* Gives [id] the number of [same_as]. *)
+  let alias id ~same_as =
+    ignore (find same_as : Numbers.positive);
+    numbers := Map.add id (Map.find same_as !numbers) !numbers
 end
 
 module Variables = Numbering (Variable)
@@ -218,6 +224,12 @@ let eval_prim (p : prim) (args : Semantics.value list) : Semantics.value option
 let () =
   Flambda2_rocq_semantics.Prim_hook.eval_prim
     := fun p args -> Obj.repr (eval_prim (Obj.obj p) (Obj.obj args))
+
+(* Structural equality decides the equality of [prim]: the primitives that
+   [check_supported] lets through hold only constant constructors and kinds. *)
+let () =
+  Flambda2_rocq_semantics.Prim_hook.prim_eqb
+    := fun p p' -> (Obj.obj p : prim) = (Obj.obj p' : prim)
 
 (* ---- Conversion of terms ---------------------------------------------- *)
 
@@ -532,54 +544,84 @@ let rec calls_outside_code (e : Model.expr) =
   | Apply _ -> 1
   | Apply_cont _ | Switch _ | Invalid -> 0
 
-let run (unit : Flambda_unit.t) : outcome * int * int =
-  let body = convert_expr (Flambda_unit.body unit) in
-  let return_continuation =
-    Continuations.find (Flambda_unit.return_continuation unit)
-  in
-  let exn_continuation =
-    Continuations.find (Flambda_unit.exn_continuation unit)
-  in
+type converted =
+  { body : Model.expr;
+    return_continuation : Model.continuation;
+    exn_continuation : Model.continuation
+  }
+
+let convert_unit (unit : Flambda_unit.t) : converted =
+  { body = convert_expr (Flambda_unit.body unit);
+    return_continuation =
+      Continuations.find (Flambda_unit.return_continuation unit);
+    exn_continuation = Continuations.find (Flambda_unit.exn_continuation unit)
+  }
+
+let run (unit : converted) : outcome * int =
   let rec go steps (state : Semantics.state) =
     if steps >= fuel
-    then Still_running, steps, calls_outside_code body
+    then Still_running, steps
     else
       match Semantics.step state with
       | Step state -> go (steps + 1) state
-      | Undefined -> Undefined, steps, calls_outside_code body
+      | Undefined -> Undefined, steps
       | Exit (k, values) ->
         let (State (_, _, _, statics)) = state in
         let values = List.map (observe 50 statics) values in
-        ( (if k = return_continuation
+        ( (if k = unit.return_continuation
            then Returns values
-           else if k = exn_continuation
+           else if k = unit.exn_continuation
            then Raises values
            else Exits_elsewhere),
-          steps,
-          calls_outside_code body )
+          steps )
   in
-  go 0 (State (body, [], [], Semantics.empty_static_env))
+  go 0 (State (unit.body, [], [], Semantics.empty_static_env))
 
 (* ---- The check -------------------------------------------------------- *)
 
+(* The two units are converted with one numbering of names, the continuations of
+   the second unit standing for those of the first, so that the verified
+   comparison can be made of the two bodies as they are. *)
+let convert_both (before : Flambda_unit.t) (after : Flambda_unit.t) =
+  let before_converted = convert_unit before in
+  Continuations.alias
+    (Flambda_unit.return_continuation after)
+    ~same_as:(Flambda_unit.return_continuation before);
+  Continuations.alias
+    (Flambda_unit.exn_continuation after)
+    ~same_as:(Flambda_unit.exn_continuation before);
+  before_converted, convert_unit after
+
 let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
-  match run before, run after with
+  match convert_both before after with
   | exception Unsupported what ->
     Format.printf "%s: not checked: the model has not got %s@." filename what
-  | (before, steps_before, calls_before), (after, steps_after, calls_after) ->
+  | before, after ->
+    let outcome_before, steps_before = run before in
+    let outcome_after, steps_after = run after in
     Format.printf "%s:@.  before Simplify (%d steps): %a@." filename
-      steps_before print_outcome before;
+      steps_before print_outcome outcome_before;
     Format.printf "  after Simplify (%d steps): %a@." steps_after print_outcome
-      after;
-    Format.printf "  calls outside code: %d before, %d after@." calls_before
-      calls_after;
+      outcome_after;
+    Format.printf "  calls outside code: %d before, %d after@."
+      (calls_outside_code before.body)
+      (calls_outside_code after.body);
     let verdict, ok =
-      match before, after with
+      match outcome_before, outcome_after with
       | Undefined, _ -> "anything goes, as the run before is undefined", true
       | Still_running, _ | _, Still_running -> "not decided", true
-      | _, _ -> if before = after then "the same", true else "DIFFERENT", false
+      | _, _ ->
+        if outcome_before = outcome_after
+        then "the same", true
+        else "DIFFERENT", false
     in
     Format.printf "  %s@." verdict;
+    (* What the test above shows of one run, this shows of all, by
+       FlambdaCompareSpec.expr_eqb_sound_statement. *)
+    Format.printf "  %s@."
+      (if Compare.expr_eqb [] [] before.body after.body
+       then "validated: the same up to bound names"
+       else "not validated");
     if not ok then exit 1
 
 let check_file filename =

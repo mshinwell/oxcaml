@@ -25,6 +25,7 @@
     (run ../tools/flsemantics.exe inline_direct.fl)
     (run ../tools/flsemantics.exe rec_cont.fl)
     (run ../tools/flsemantics.exe switch.fl)
+    (run ../tools/flsemantics.exe unchanged.fl)
     (run ../tools/flsemantics.exe undefined_source.fl)
     (run ../tools/flsemantics.exe unsupported_primitive.fl)))))
 
