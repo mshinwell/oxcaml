@@ -1,0 +1,132 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+(* Function calls: what is known of a call, and inlining.
+
+   This file is to be reviewed: [let_params] and [inlined_body], against
+   what the simplifier builds when it inlines a call
+   (simplify/inlining/inlining_transforms.ml), and the statements.
+
+   - A call whose callee is a closure of known code may be made direct
+     ([apply_indirect_known_statement]).
+   - Inlining a direct call is a refinement ([inline_statement]): the call
+     becomes the body of the code, with the closure and the arguments
+     bound by [Let] to [my_closure] and the parameters, and with the
+     code's return and exception continuations renamed to those of the
+     call. It is a refinement and not an equivalence because the call is
+     undefined when the callee is not a closure of the code named.
+
+   The premises of [inline_statement] are the conditions for this to be
+   the same computation:
+   - the code is closed: the free variables of its body are its parameters
+     and [my_closure], and its free continuations are its return and
+     exception continuations. In the call the body runs under these only;
+     inlined, it runs under everything in scope at the call;
+   - the bindings do not capture: [my_closure] and the parameters are not
+     free in the arguments. The simplifier ensures it by taking fresh
+     names for them, which FlambdaNominalSpec.v allows;
+   - the arities agree.
+   The renaming is a permutation, so a call whose return and exception
+   continuations are one continuation, of code in which they are two, is
+   not covered; otherwise there is such a renaming
+   ([inline_renaming_exists_statement]).
+
+   Nothing here decides whether to inline; and the code is the fixed table
+   of the semantics.
+
+   The proofs are in FlambdaApplyProofs.v, which needs no review. *)
+
+From Stdlib Require Import ZArith List.
+From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
+  FlambdaNominalSpec.
+Import ListNotations.
+
+(* ======================================================================== *)
+(* Calls of known code                                                      *)
+(* ======================================================================== *)
+
+Definition apply_indirect_known_statement : Prop :=
+  ∀ (callee : simple) (args : list simple) (k exn : continuation)
+    (called : code_id) (slots : list (value_slot * value)) (vars : env)
+    (conts : cont_env),
+    eval_simple vars callee = Some (Value_closure called slots) ->
+    equivalent
+      (State (Apply (Apply_expr callee Indirect args k exn)) vars conts)
+      (State (Apply (Apply_expr callee (Direct called) args k exn)) vars
+         conts).
+
+(* ======================================================================== *)
+(* Inlining                                                                 *)
+(* ======================================================================== *)
+
+(* The parameters bound to the arguments, one [Let] each, around a body. *)
+Fixpoint let_params (params : list variable) (args : list simple)
+    (body : expr) : expr :=
+  match params, args with
+  | param :: params, arg :: args =>
+    Let param (Simple arg) (let_params params args body)
+  | _, _ => body
+  end.
+
+(* A call of code [c] inlined: [r] renames the continuations of the code
+   to those of the call. *)
+Definition inlined_body (c : code) (r : renaming) (ap : apply_expr) : expr :=
+  Let (code_my_closure c) (Simple (ap_callee ap))
+    (let_params (code_params c) (ap_args ap) (rename_expr r (code_body c))).
+
+Definition inline_statement : Prop :=
+  ∀ (ap : apply_expr) (called : code_id) (c : code) (r : renaming),
+    ap_call_kind ap = Direct called ->
+    program_code called = Some c ->
+    (* the code is closed *)
+    (∀ x : variable,
+      var_free_in_expr x (code_body c) ->
+      x = code_my_closure c ∨ x ∈ code_params c) ->
+    (∀ k : continuation,
+      cont_free_in_expr k (code_body c) ->
+      k = code_return_continuation c ∨ k = code_exn_continuation c) ->
+    (* the renaming *)
+    (∀ x : variable, rename_variable r x = x) ->
+    rename_continuation r (code_return_continuation c) = ap_continuation ap ->
+    rename_continuation r (code_exn_continuation c)
+    = ap_exn_continuation ap ->
+    (* the bindings do not capture *)
+    ~ var_free_in_simples (code_my_closure c) (ap_args ap) ->
+    (∀ param : variable,
+      param ∈ code_params c -> ~ var_free_in_simples param (ap_args ap)) ->
+    length (code_params c) = length (ap_args ap) ->
+    expr_refines (Apply ap) (inlined_body c r ap).
+
+Definition inline_renaming_exists_statement : Prop :=
+  ∀ ret exn k k_exn : continuation,
+    ret <> exn ->
+    k <> k_exn ->
+    ∃ r : renaming,
+      (∀ x : variable, rename_variable r x = x)
+      ∧ rename_continuation r ret = k
+      ∧ rename_continuation r exn = k_exn.

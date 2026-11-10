@@ -108,7 +108,7 @@ Each directory is a Rocq library (`rocq/Makefile` maps them):
 | `backend/rocq/`          | `OxCamlBackend`| Backend-wide definitions: the semantics of `Cmm.integer_comparison` (with `IntegerComparisonProofs.v`), the model's copy of `Operation.t` |
 | `backend/ssa/rocq/`      | `OxCamlSsa`    | The SSA graph as the models see it, each model split into Spec, implementation and Proofs files (see "The layout of a model"): `SsaModel.v` (the abstract interface), `SsaGraph*` (terminators, edges and uses), `SsaDominance*` (dominance, paths and program points), `SsaSemantics*` (execution of the restricted integer fragment), `SsaExecution*` (well-formedness and available-value equations), `SsaLiveness*` (reads before redefinition), `SsaProgress*` (the `finished_graph` contract, definedness and progress), `SsaContext*` (opaque surrounding computations and the `reached_header` contract) |
 | `backend/ssa/loop/rocq/` | `OxCamlLoop`   | The loop analyses, each an implementation file and a `*Proofs.v`; the operational proofs in `LoopExecutionProofs.v`, `LoopInvariantExecutionProofs.v`, `LoopCounterExecutionProofs.v`, `LoopValueSnapshotProofs.v`, `LoopGuardExecutionProofs.v`, `LoopRangeExecutionProofs.v`, `LoopLiveOutProofs.v` and `InductionRangeExecutionProofs.v`; the statements to review in `LoopEligibilitySpec.v`, `DeleteEmptyLoopsSpec.v` and `BoundsCheckExecutionSpec.v`, proved in `LoopEligibilityProofs.v`, `DeleteEmptyLoopsProofs.v` and `BoundsCheckExecutionProofs.v`; and `Extract.v`, which extracts the implementation |
-| `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, with nothing extracted: `FlambdaModel.v` (the terms of the fragment covered so far), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics), `FlambdaContext*` (contexts, and that refinement and equivalence are preserved under them), `FlambdaNominal*` (renamings, free names, and binders as name abstractions), `FlambdaAlpha*` (the group action, equivariance, and alpha-equivalence with its soundness); see "The semantics of Flambda 2" below |
+| `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, with nothing extracted: `FlambdaModel.v` (the terms of the fragment covered so far), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics), `FlambdaContext*` (contexts, and that refinement and equivalence are preserved under them), `FlambdaNominal*` (renamings, free names, and binders as name abstractions), `FlambdaAlpha*` (the group action, equivariance, and alpha-equivalence with its soundness), `FlambdaApply*` (function calls and inlining); see "The semantics of Flambda 2" below |
 | `middle_end/flambda2/types/rocq/` | `OxCamlFlambda2Types` | A first, naive model of Flambda types and typing environments, with nothing extracted: `FlambdaTypes*` (types, what it means to satisfy a typing environment, refinement relative to one, following aliases, going under a `Let`) |
 
 Put a definition or lemma where its OxCaml counterpart would live. A fact
@@ -374,6 +374,19 @@ a fragment at a time. The files follow the same Spec/Proofs split, and
   stated of the behaviours that end, so that no proof needs the excluded
   middle: to prove an equivalence or a refinement, divergence never has to
   be considered (`equivalent_of_terminating`).
+- A function call has no stack (`call_function`): the body of the code
+  runs with the code's return and exception continuations standing for
+  the caller's, so returning is applying a continuation. A continuation
+  name stands for a handler closure or, unbound, for a way out of the
+  term (`resolve`). The code of the program is a fixed table
+  (`program_code`, a parameter with no axioms): statements hold whatever
+  the code is, but none yet relates programs with different code.
+- Inlining a direct call is a refinement (`FlambdaApplySpec.v`:
+  `inline`), given that the code is closed and that binding the
+  parameters captures nothing. `inline_identity`
+  (`middle_end/flambda2/types/rocq/`) is a worked example of chaining
+  inlining, rewriting under a context, following an alias and removing
+  unused bindings.
 - To prove a local rewrite, run both sides until they meet:
   `FlambdaSemanticsProofs.equivalent_of_run`, or `step_equivalent` for one
   step. `FlambdaControlFlowProofs.v` has the worked examples.
@@ -438,8 +451,10 @@ containment is proved); equivariance of execution in the continuations
 (renaming closures and observed exits; there is a CR in
 `FlambdaAlphaSpec.v`); the simplifier's
 invariant that bound names are distinct from those in scope;
-function calls and closures, memory and effects, trap actions, and any
-link to the simplifier's code.
+code bound in terms, and with it rewriting inside the body of a function
+(which needs values, now holding closures, to be related and not equal);
+sets of closures of several functions; memory and effects, trap actions,
+and any link to the simplifier's code.
 
 ## Extraction pitfalls
 

@@ -449,3 +449,31 @@ Proof.
     as [callee_vars | ]; [ | left; reflexivity ].
   right. eauto.
 Qed.
+
+(* Every parameter bound, and every variable bound before, is bound. *)
+Lemma bind_params_bound (params : list variable) :
+  ∀ (vs : list value) (vars handler_vars : env) (x : variable),
+    bind_params params vs vars = Some handler_vars ->
+    x ∈ params ∨ (∃ v : value, lookup x vars = Some v) ->
+    ∃ v : value, lookup x handler_vars = Some v.
+Proof.
+  induction params as [ | param params IH];
+    intros [ | v vs] vars handler_vars x; simpl; try discriminate.
+  - intros [= <-] [[] | Hbound]. exact Hbound.
+  - intros Hbind Hx. apply (IH vs _ _ x Hbind). simpl.
+    destruct (Pos.eqb_spec x param) as [-> | Hne]; [ right; eauto | ].
+    destruct Hx as [[Heq | Hin] | Hbound];
+      [ congruence | left; exact Hin | right; exact Hbound ].
+Qed.
+
+(* Binding parameters under more variables binds them the same way. *)
+Lemma bind_params_app (params : list variable) :
+  ∀ (vs : list value) (vars bound rest : env),
+    bind_params params vs vars = Some bound ->
+    bind_params params vs (vars ++ rest) = Some (bound ++ rest).
+Proof.
+  induction params as [ | param params IH]; intros [ | v vs] vars bound rest;
+    simpl; try discriminate.
+  - intros [= <-]. reflexivity.
+  - intros Hbind. exact (IH vs ((param, v) :: vars) bound rest Hbind).
+Qed.

@@ -71,15 +71,20 @@
      body of the [Let_cont] is not known in it. Nothing is known of a
      parameter but that it is bound: the types of the arguments at the
      uses of the continuation are not joined;
-   - [let_const_apply_cont_statement] puts these together with the removal
-     of an unused [Let]: a constant is propagated to its use.
+   - [let_const_apply_cont_statement] and [let_simple_apply_cont_statement]
+     put these together with the removal of an unused [Let]: a constant, or
+     any [Simple], is propagated to its use;
+   - [inline_identity_statement] puts that together with inlining
+     (../../rocq/FlambdaApplySpec.v) and rewriting under a context: a
+     direct call of the identity function is its argument passed to the
+     return continuation.
 
    The proofs are in FlambdaTypesProofs.v, which needs no review. *)
 
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaNominalSpec.
+  FlambdaNominalSpec FlambdaApplySpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -281,3 +286,38 @@ Definition let_const_apply_cont_statement : Prop :=
     expr_refines
       (Let x (Simple (Const c)) (Apply_cont (Apply_cont_expr k [Var x])))
       (Apply_cont (Apply_cont_expr k [Const c])).
+
+Definition let_simple_apply_cont_statement : Prop :=
+  ∀ (x : variable) (s : simple) (k : continuation),
+    ~ var_free_in_simple x s ->
+    expr_refines
+      (Let x (Simple s) (Apply_cont (Apply_cont_expr k [Var x])))
+      (Apply_cont (Apply_cont_expr k [s])).
+
+(* ======================================================================== *)
+(* An example: inlining the identity function                               *)
+(* ======================================================================== *)
+
+(* The code of the identity: it applies its return continuation to its
+   parameter. *)
+Definition identity_code (x my_closure : variable) (ret exn : continuation)
+    : code :=
+  Code [x] my_closure ret exn (Apply_cont (Apply_cont_expr ret [Var x])).
+
+(* A direct call of it refines the application of the call's continuation
+   to the argument: the call is inlined, the parameter is replaced by the
+   argument it is bound to, and the two bindings, then unused, go. The
+   parameter and [my_closure] are taken not to be free in the argument, as
+   they are when fresh; the two continuations of the call are taken to be
+   different (FlambdaApplySpec.v). *)
+Definition inline_identity_statement : Prop :=
+  ∀ (called : code_id) (x my_closure : variable) (ret exn : continuation)
+    (callee arg : simple) (k k_exn : continuation),
+    program_code called = Some (identity_code x my_closure ret exn) ->
+    ret <> exn ->
+    k <> k_exn ->
+    ~ var_free_in_simple x arg ->
+    ~ var_free_in_simple my_closure arg ->
+    expr_refines
+      (Apply (Apply_expr callee (Direct called) [arg] k k_exn))
+      (Apply_cont (Apply_cont_expr k [arg])).

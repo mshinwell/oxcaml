@@ -538,7 +538,8 @@ Proof.
     + (* Switch *)
       rewrite (eval_simple_renamed r scrutinee vars vars');
         [ | intros y Hy; apply Hvars; left; exact Hy ].
-      destruct (eval_simple vars scrutinee) as [[[i | i] | called slots] | ]; try exact I.
+      destruct (eval_simple vars scrutinee) as [[[i | i] | called slots] | ];
+        try exact I.
       rewrite find_arm_renamed.
       destruct (find_arm i arms) as [ac | ] eqn:Hfind; simpl; [ | exact I ].
       apply find_arm_in in Hfind.

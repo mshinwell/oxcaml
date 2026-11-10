@@ -31,8 +31,9 @@
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaSemanticsProofs FlambdaContextProofs FlambdaNominalSpec
-  FlambdaNominalProofs.
+  FlambdaSemanticsProofs FlambdaContextSpec FlambdaContextProofs
+  FlambdaNominalSpec FlambdaNominalProofs FlambdaApplySpec
+  FlambdaApplyProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec.
 Import ListNotations.
 
@@ -209,22 +210,6 @@ Proof.
       [ apply Hfresh; left; reflexivity | exact I | right; exact Hin ].
 Qed.
 
-(* Every parameter bound, and every variable bound before, is bound. *)
-Lemma bind_params_bound (params : list variable) :
-  ∀ (vs : list value) (vars handler_vars : env) (x : variable),
-    bind_params params vs vars = Some handler_vars ->
-    x ∈ params ∨ (∃ v : value, lookup x vars = Some v) ->
-    ∃ v : value, lookup x handler_vars = Some v.
-Proof.
-  induction params as [ | param params IH];
-    intros [ | v vs] vars handler_vars x; simpl; try discriminate.
-  - intros [= <-] [[] | Hbound]. exact Hbound.
-  - intros Hbind Hx. apply (IH vs _ _ x Hbind). simpl.
-    destruct (Pos.eqb_spec x param) as [-> | Hne]; [ right; eauto | ].
-    destruct Hx as [[Heq | Hin] | Hbound];
-      [ congruence | left; exact Hin | right; exact Hbound ].
-Qed.
-
 Lemma env_satisfies_params (tenv : typing_env) (params : list variable)
     (vs : list value) (vars handler_vars : env) :
   env_satisfies tenv vars ->
@@ -295,4 +280,89 @@ Proof.
       [ exact Hhead | inversion Hrest ]. }
   intros vars conts.
   exact (refines_trans _ _ _ (Hrewrite vars conts) (Hunused vars conts)).
+Qed.
+
+Theorem let_simple_apply_cont : let_simple_apply_cont_statement.
+Proof.
+  intros x s k Hnotfree.
+  assert (Hrewrite :
+    expr_refines
+      (Let x (Simple s) (Apply_cont (Apply_cont_expr k [Var x])))
+      (Let x (Simple s) (Apply_cont (Apply_cont_expr k [s])))).
+  { apply expr_refines_in_empty, let_simple_refines_in.
+    - unfold var_in_typing_env. intros (y & t & [] & _).
+    - exact Hnotfree.
+    - apply expr_equivalent_in_refines.
+      pose proof (apply_cont_canonical [(x, Equals s)] k [Var x])
+        as Hcanonical.
+      simpl in Hcanonical. rewrite Pos.eqb_refl in Hcanonical.
+      exact Hcanonical. }
+  assert (Hunused :
+    expr_refines
+      (Let x (Simple s) (Apply_cont (Apply_cont_expr k [s])))
+      (Apply_cont (Apply_cont_expr k [s]))).
+  { apply unused_let. simpl. unfold var_free_in_simples. intros Hfree.
+    inversion Hfree as [? ? Hhead | ? ? Hrest];
+      [ exact (Hnotfree Hhead) | inversion Hrest ]. }
+  intros vars conts.
+  exact (refines_trans _ _ _ (Hrewrite vars conts) (Hunused vars conts)).
+Qed.
+
+(* ======================================================================== *)
+(* An example: inlining the identity function                               *)
+(* ======================================================================== *)
+
+Theorem inline_identity : inline_identity_statement.
+Proof.
+  intros called x my_closure ret exn callee arg k k_exn Hcode Hcode_conts
+    Hcall_conts Hx Hmy_closure.
+  destruct (inline_renaming_exists ret exn k k_exn Hcode_conts Hcall_conts)
+    as (r & Hvars & Hret & Hexn).
+  (* the call inlined *)
+  assert (Hinline :
+    expr_refines
+      (Apply (Apply_expr callee (Direct called) [arg] k k_exn))
+      (Let my_closure (Simple callee)
+         (Let x (Simple arg) (Apply_cont (Apply_cont_expr k [Var x]))))).
+  { pose proof (inline (Apply_expr callee (Direct called) [arg] k k_exn)
+      called (identity_code x my_closure ret exn) r eq_refl Hcode)
+      as Hinline.
+    unfold inlined_body, identity_code in Hinline. simpl in Hinline.
+    unfold rename_apply_cont in Hinline. simpl in Hinline.
+    rewrite Hret, Hvars in Hinline. apply Hinline.
+    - intros y Hy. unfold var_free_in_simples in Hy.
+      inversion Hy as [? ? Hhead | ? ? Hrest]; [ | inversion Hrest ].
+      right. left. simpl in Hhead. symmetry. exact Hhead.
+    - intros j ->. left. reflexivity.
+    - exact Hvars.
+    - reflexivity.
+    - exact Hexn.
+    - unfold var_free_in_simples. intros Hfree.
+      inversion Hfree as [? ? Hhead | ? ? Hrest];
+        [ exact (Hmy_closure Hhead) | inversion Hrest ].
+    - intros param [<- | []]. unfold var_free_in_simples. intros Hfree.
+      inversion Hfree as [? ? Hhead | ? ? Hrest];
+        [ exact (Hx Hhead) | inversion Hrest ].
+    - reflexivity. }
+  (* the parameter replaced by the argument, under the first [Let] *)
+  assert (Hparam :
+    expr_refines
+      (Let my_closure (Simple callee)
+         (Let x (Simple arg) (Apply_cont (Apply_cont_expr k [Var x]))))
+      (Let my_closure (Simple callee)
+         (Apply_cont (Apply_cont_expr k [arg])))).
+  { exact (plug_refines (Let_body my_closure (Simple callee) Hole) _ _
+      (let_simple_apply_cont x arg k Hx)). }
+  (* the first [Let] is unused *)
+  assert (Hunused :
+    expr_refines
+      (Let my_closure (Simple callee)
+         (Apply_cont (Apply_cont_expr k [arg])))
+      (Apply_cont (Apply_cont_expr k [arg]))).
+  { apply unused_let. simpl. unfold var_free_in_simples. intros Hfree.
+    inversion Hfree as [? ? Hhead | ? ? Hrest];
+      [ exact (Hmy_closure Hhead) | inversion Hrest ]. }
+  intros vars conts.
+  exact (refines_trans _ _ _ (Hinline vars conts)
+    (refines_trans _ _ _ (Hparam vars conts) (Hunused vars conts))).
 Qed.

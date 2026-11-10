@@ -56,7 +56,8 @@
    an arm, where a primitive has no value, at a call of what is not a
    closure, of a closure whose code the program has not got, or directly
    of a closure of other code than the one named, and at the projection of
-   a value slot a closure has not got. A transformation may do anything to a term whose
+   a value slot a closure has not got. A transformation may do anything
+   to a term whose
    execution is undefined: that is [refines], the statement of correctness
    to use for a transformation; [equivalent] is the stronger, symmetric one.
    [refines_defined_statement] and [refines_antisymmetric_statement] say how
