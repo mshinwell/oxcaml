@@ -1,3 +1,11 @@
+(** val existsb : ('a1 -> bool) -> 'a1 list -> bool **)
+
+let rec existsb f = function [] -> false | a :: l0 -> f a || existsb f l0
+
+(** val forallb : ('a1 -> bool) -> 'a1 list -> bool **)
+
+let rec forallb f = function [] -> true | a :: l0 -> f a && forallb f l0
+
 (** val combine : 'a1 list -> 'a2 list -> ('a1 * 'a2) list **)
 
 let rec combine l l' =

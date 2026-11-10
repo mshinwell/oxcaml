@@ -3,59 +3,69 @@ apply_direct.fl:
   after Simplify (1 steps): returns [0: 42]
   calls outside code: 1 before, 0 after
   the same
+  calls outside code once those of known code are inlined: 0
   not validated
 arith.fl:
   before Simplify (3 steps): returns [0: 7; 42]
   after Simplify (1 steps): returns [0: 7; 42]
   calls outside code: 0 before, 0 after
   the same
+  calls outside code once those of known code are inlined: 0
   not validated
 closure_slot.fl:
   before Simplify (9 steps): returns [0: 42]
   after Simplify (3 steps): returns [0: 42]
   calls outside code: 1 before, 0 after
   the same
+  calls outside code once those of known code are inlined: 1
   not validated
 const_block.fl:
   before Simplify (3 steps): returns [0: 1; 2]
   after Simplify (1 steps): returns [0: 1; 2]
   calls outside code: 0 before, 0 after
   the same
+  calls outside code once those of known code are inlined: 0
   not validated
 indirect_higher_order.fl:
   before Simplify (14 steps): returns [0: 42; <fun>]
   after Simplify (16 steps): returns [0: 42; <fun>]
   calls outside code: 1 before, 1 after
   the same
+  calls outside code once those of known code are inlined: 2
   not validated
 inline_direct.fl:
   before Simplify (8 steps): returns [0: 42; <fun>]
   after Simplify (6 steps): returns [0: 42; <fun>]
   calls outside code: 1 before, 0 after
   the same
+  calls outside code once those of known code are inlined: 0
   not validated
 rec_cont.fl:
   before Simplify (43 steps): returns [0: 10]
   after Simplify (44 steps): returns [0: 10]
   calls outside code: 0 before, 0 after
   the same
+  calls outside code once those of known code are inlined: 0
   not validated
 switch.fl:
   before Simplify (5 steps): returns [0: 20]
   after Simplify (1 steps): returns [0: 20]
   calls outside code: 0 before, 0 after
   the same
+  calls outside code once those of known code are inlined: 0
   not validated
 unchanged.fl:
   before Simplify (7 steps): returns [0: 2]
   after Simplify (7 steps): returns [0: 2]
   calls outside code: 0 before, 0 after
   the same
+  calls outside code once those of known code are inlined: 0
   validated: the same up to bound names
 undefined_source.fl:
   before Simplify (2 steps): undefined
   after Simplify (0 steps): undefined
   calls outside code: 0 before, 0 after
   anything goes, as the run before is undefined
+  calls outside code once those of known code are inlined: 0
   not validated
 unsupported_primitive.fl: not checked: the model has not got primitive (Is_flat_float_array 0)

@@ -1,3 +1,7 @@
+(** val negb : bool -> bool **)
+
+let negb = function true -> false | false -> true
+
 type nat =
   | O
   | S of nat

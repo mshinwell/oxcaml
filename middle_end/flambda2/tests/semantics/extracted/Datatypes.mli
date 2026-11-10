@@ -1,3 +1,5 @@
+val negb : bool -> bool
+
 type nat =
   | O
   | S of nat

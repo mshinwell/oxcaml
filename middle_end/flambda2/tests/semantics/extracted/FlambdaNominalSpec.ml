@@ -1,0 +1,117 @@
+open BinNums
+open BinPos
+open Datatypes
+open FlambdaModel
+open ListDef
+
+type permutation = (positive * positive) list
+
+(** val swap : positive -> positive -> positive -> positive **)
+
+let swap a b name =
+  if Pos.eqb name a then b else if Pos.eqb name b then a else name
+
+(** val permute : permutation -> positive -> positive **)
+
+let rec permute p name =
+  match p with
+  | [] -> name
+  | p0 :: p1 ->
+    let a, b = p0 in
+    swap a b (permute p1 name)
+
+type renaming =
+  { variable_permutation : permutation;
+    continuation_permutation : permutation
+  }
+
+(** val rename_variable : renaming -> variable -> variable **)
+
+let rename_variable r x = permute r.variable_permutation x
+
+(** val rename_continuation : renaming -> continuation -> continuation **)
+
+let rename_continuation r k = permute r.continuation_permutation k
+
+(** val rename_simple : renaming -> simple -> simple **)
+
+let rename_simple r = function Var x -> Var (rename_variable r x) | x -> x
+
+(** val rename_named : renaming -> named -> named **)
+
+let rename_named r = function
+  | Simple s -> Simple (rename_simple r s)
+  | Prim (p, args) -> Prim (p, map (rename_simple r) args)
+  | Set_of_closures (code, value_slots) ->
+    Set_of_closures
+      (code, map (fun slot -> fst slot, rename_simple r (snd slot)) value_slots)
+  | Project_value_slot (slot, closure) ->
+    Project_value_slot (slot, rename_simple r closure)
+
+(** val rename_apply_cont : renaming -> apply_cont -> apply_cont **)
+
+let rename_apply_cont r ac =
+  { ac_continuation = rename_continuation r ac.ac_continuation;
+    ac_args = map (rename_simple r) ac.ac_args
+  }
+
+(** val rename_static_const : renaming -> static_const -> static_const **)
+
+let rename_static_const r = function
+  | Static_const_set_of_closures (code, value_slots) ->
+    Static_const_set_of_closures
+      (code, map (fun slot -> fst slot, rename_simple r (snd slot)) value_slots)
+  | Static_const_block (tag, fields) ->
+    Static_const_block (tag, map (rename_simple r) fields)
+  | Static_const_boxed_number contents ->
+    Static_const_boxed_number (rename_simple r contents)
+  | Static_const_immutable_string bytes -> Static_const_immutable_string bytes
+
+(** val rename_static_binding : renaming -> static_binding -> static_binding **)
+
+let rename_static_binding r = function
+  | Bind_symbol (s, const) -> Bind_symbol (s, rename_static_const r const)
+  | x -> x
+
+(** val rename_apply : renaming -> apply_expr -> apply_expr **)
+
+let rename_apply r ap =
+  { ap_callee = rename_simple r ap.ap_callee;
+    ap_call_kind = ap.ap_call_kind;
+    ap_args = map (rename_simple r) ap.ap_args;
+    ap_continuation = rename_continuation r ap.ap_continuation;
+    ap_exn_continuation = rename_continuation r ap.ap_exn_continuation
+  }
+
+(** val rename_expr : renaming -> expr -> expr **)
+
+let rec rename_expr r = function
+  | Let (x, defining_expr, body) ->
+    Let (rename_variable r x, rename_named r defining_expr, rename_expr r body)
+  | Let_static (bindings, body) ->
+    Let_static (map (rename_static_binding r) bindings, rename_expr r body)
+  | Let_cont_non_recursive (k, handler, body) ->
+    Let_cont_non_recursive
+      (rename_continuation r k, rename_handler r handler, rename_expr r body)
+  | Let_cont_recursive (handlers, body) ->
+    Let_cont_recursive
+      ( map
+          (fun pat ->
+            let k, h = pat in
+            rename_continuation r k, rename_handler r h)
+          handlers,
+        rename_expr r body )
+  | Apply ap -> Apply (rename_apply r ap)
+  | Apply_cont ac -> Apply_cont (rename_apply_cont r ac)
+  | Switch (scrutinee, arms) ->
+    Switch
+      ( rename_simple r scrutinee,
+        map (fun arm -> fst arm, rename_apply_cont r (snd arm)) arms )
+  | Invalid -> Invalid
+
+(** val rename_handler : renaming -> continuation_handler ->
+    continuation_handler **)
+
+and rename_handler r = function
+  | Handler (params, handler) ->
+    Handler (map (rename_variable r) params, rename_expr r handler)
