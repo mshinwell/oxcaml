@@ -589,6 +589,112 @@ let run (unit : converted) : outcome * int =
   in
   go 0 (State (unit.body, [], [], Semantics.empty_static_env))
 
+(* ---- Printing model terms ---------------------------------------------- *)
+
+(* For looking at what the normalisation made of the two terms, when an example
+   is not validated (set FLSEMANTICS_PRINT_TERMS). *)
+let print_list print ppf items =
+  Format.pp_print_list
+    ~pp_sep:(fun ppf () -> Format.fprintf ppf ",@ ")
+    print ppf items
+
+let print_var ppf x = Format.fprintf ppf "v%d" (int_of_positive x)
+
+let print_simple ppf (s : Model.simple) =
+  match s with
+  | Var x -> print_var ppf x
+  | Symbol sym -> Format.fprintf ppf "$%d" (int_of_positive sym)
+  | Const (Tagged_immediate i) -> Format.fprintf ppf "%d" (int_of_z i)
+  | Const (Naked_immediate i) -> Format.fprintf ppf "#%d" (int_of_z i)
+  | Const Null -> Format.fprintf ppf "null"
+  | Const _ -> Format.fprintf ppf "<const>"
+
+let print_simples = print_list print_simple
+
+let print_cont ppf k = Format.fprintf ppf "k%d" (int_of_positive k)
+
+let print_value_slots ppf slots =
+  print_list
+    (fun ppf (slot, s) ->
+      Format.fprintf ppf "%d = %a" (int_of_positive slot) print_simple s)
+    ppf slots
+
+let print_prim ppf (p : Model.prim) =
+  match (Obj.obj p : prim) with
+  | Unary p -> P.Without_args.print ppf (Unary p)
+  | Binary p -> P.Without_args.print ppf (Binary p)
+
+let print_named ppf (d : Model.named) =
+  match d with
+  | Simple s -> print_simple ppf s
+  | Prim (p, args) ->
+    Format.fprintf ppf "@[<hov 2>%a@ (%a)@]" print_prim p print_simples args
+  | Set_of_closures (code, slots) ->
+    Format.fprintf ppf "@[<hov 2>closure code%d@ {%a}@]" (int_of_positive code)
+      print_value_slots slots
+  | Project_value_slot (slot, closure) ->
+    Format.fprintf ppf "%a.slot%d" print_simple closure (int_of_positive slot)
+
+let print_apply_cont ppf (ac : Model.apply_cont) =
+  Format.fprintf ppf "@[<hov 2>cont %a@ (%a)@]" print_cont ac.ac_continuation
+    print_simples ac.ac_args
+
+let rec print_expr ppf (e : Model.expr) =
+  match e with
+  | Let (x, d, body) ->
+    Format.fprintf ppf "@[<hov 2>let %a =@ %a in@]@ %a" print_var x print_named
+      d print_expr body
+  | Let_static (bindings, body) ->
+    Format.fprintf ppf "@[<v 2>let static@ %a@]@ in@ %a"
+      (Format.pp_print_list print_binding)
+      bindings print_expr body
+  | Let_cont_non_recursive (k, handler, body) ->
+    Format.fprintf ppf "@[<v 2>let_cont %a %a@]@ in@ %a" print_cont k
+      print_handler handler print_expr body
+  | Let_cont_recursive (handlers, body) ->
+    Format.fprintf ppf "@[<v 2>let_cont rec@ %a@]@ in@ %a"
+      (Format.pp_print_list (fun ppf (k, handler) ->
+           Format.fprintf ppf "%a %a" print_cont k print_handler handler))
+      handlers print_expr body
+  | Apply ap ->
+    Format.fprintf ppf "@[<hov 2>apply%s %a@ (%a)@ -> %a * %a@]"
+      (match ap.ap_call_kind with
+      | Direct code -> Printf.sprintf " direct(code%d)" (int_of_positive code)
+      | Indirect -> "")
+      print_simple ap.ap_callee print_simples ap.ap_args print_cont
+      ap.ap_continuation print_cont ap.ap_exn_continuation
+  | Apply_cont ac -> print_apply_cont ppf ac
+  | Switch (scrutinee, arms) ->
+    Format.fprintf ppf "@[<v 2>switch %a@ %a@]" print_simple scrutinee
+      (Format.pp_print_list (fun ppf (i, ac) ->
+           Format.fprintf ppf "| %d -> %a" (int_of_z i) print_apply_cont ac))
+      arms
+  | Invalid -> Format.fprintf ppf "invalid"
+
+and print_handler ppf (Model.Handler (params, handler)) =
+  Format.fprintf ppf "(%a) =@ @[<v>%a@]" (print_list print_var) params
+    print_expr handler
+
+and print_binding ppf (binding : Model.static_binding) =
+  match binding with
+  | Bind_code (id, Code (params, my_closure, ret, exn, body)) ->
+    Format.fprintf ppf "@[<v 2>code%d (%a) %a -> %a * %a =@ %a@]"
+      (int_of_positive id) (print_list print_var) params print_var my_closure
+      print_cont ret print_cont exn print_expr body
+  | Bind_deleted_code id ->
+    Format.fprintf ppf "code%d deleted" (int_of_positive id)
+  | Bind_symbol (sym, Static_const_set_of_closures (code, slots)) ->
+    Format.fprintf ppf "@[<hov 2>$%d = closure code%d@ {%a}@]"
+      (int_of_positive sym) (int_of_positive code) print_value_slots slots
+  | Bind_symbol (sym, Static_const_block (tag, fields)) ->
+    Format.fprintf ppf "@[<hov 2>$%d = Block %d@ (%a)@]" (int_of_positive sym)
+      (int_of_z tag) print_simples fields
+  | Bind_symbol (sym, Static_const_boxed_number contents) ->
+    Format.fprintf ppf "$%d = boxed %a" (int_of_positive sym) print_simple
+      contents
+  | Bind_symbol (sym, Static_const_immutable_string _) ->
+    Format.fprintf ppf "$%d = <string>" (int_of_positive sym)
+
 (* ---- The check -------------------------------------------------------- *)
 
 (* Whether a code id is used: called, made a closure of, or bound to code. Being
@@ -685,30 +791,56 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
     Format.printf "  %s@." verdict;
     (* What the test above shows of one run, this shows of all. The term before
        is normalised by rewrites proved to refine it: calls of known code are
-       inlined, a continuation applied once at the end of its scope is put
-       there, and unused bindings are removed (FlambdaNormaliseSpec.v); aliases
-       are followed (FlambdaAliasesSpec.v). The term after may only be rewritten
-       to what is equivalent: its aliases are followed and its bindings of
-       deleted code dropped. The two are then the same up to bound names, which
-       is proved to make them equivalent (FlambdaCompareSpec.v). *)
+       inlined, constants are folded, a continuation applied once at the end of
+       its scope is put there, and unused bindings are removed
+       (FlambdaNormaliseSpec.v); aliases are followed (FlambdaAliasesSpec.v).
+       The term after may only be rewritten to what is equivalent: its aliases
+       are followed, its constants folded and its bindings of deleted code
+       dropped. The two are then the same up to bound names, which is proved to
+       make them equivalent (FlambdaCompareSpec.v). *)
     let inlined = Normalise.inline_calls [] before.body in
     Format.printf
       "  calls outside code once those of known code are inlined: %d@."
       (calls_outside_code inlined);
+    (* The rewrites enable one another, so they are gone round a few times. Each
+       is proved, whatever the order and the number. *)
+    let rec rounds n round term =
+      if n = 0 then term else rounds (n - 1) round (round term)
+    in
     let normalised_before =
-      Normalise.drop_deleted_code
-        (Normalise.remove_unused_lets
-           (Aliases.follow_aliases [] (Normalise.inline_tail_conts inlined)))
+      rounds 4
+        (fun term ->
+          Normalise.inline_calls [] term
+          |> Normalise.fold_constants |> Normalise.inline_tail_conts
+          |> Aliases.follow_aliases [] |> Normalise.fold_constants
+          |> Normalise.remove_unused_lets |> Normalise.drop_deleted_code)
+        before.body
     in
     let normalised_after =
-      Normalise.drop_deleted_code (Aliases.follow_aliases [] after.body)
+      rounds 4
+        (fun term ->
+          Aliases.follow_aliases [] term
+          |> Normalise.fold_constants |> Normalise.remove_unused_total_lets
+          |> Normalise.drop_deleted_code)
+        after.body
+    in
+    let validated_as_is = Compare.expr_eqb [] [] before.body after.body in
+    let validated =
+      validated_as_is
+      || Compare.expr_eqb [] [] normalised_before normalised_after
     in
     Format.printf "  %s@."
-      (if Compare.expr_eqb [] [] before.body after.body
+      (if validated_as_is
        then "validated: the same up to bound names"
-       else if Compare.expr_eqb [] [] normalised_before normalised_after
+       else if validated
        then "validated: the same once normalised"
        else "not validated");
+    if (not validated) && Sys.getenv_opt "FLSEMANTICS_PRINT_TERMS" <> None
+    then
+      Format.printf
+        "@[<v 2>  the term before, normalised:@ %a@]@.@[<v 2>  the term after, \
+         normalised:@ %a@]@."
+        print_expr normalised_before print_expr normalised_after;
     if not ok then exit 1
 
 let check_file filename =

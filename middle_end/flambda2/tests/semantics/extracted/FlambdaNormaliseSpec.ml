@@ -33,8 +33,8 @@ let named_in_scope vs = function
 (** val static_binding_in_scope : variable list -> static_binding -> bool **)
 
 let static_binding_in_scope vs = function
-  | Bind_symbol (_, const) -> (
-    match const with
+  | Bind_symbol (_, const0) -> (
+    match const0 with
     | Static_const_set_of_closures (_, slots) ->
       forallb (fun slot -> simple_in_scope vs (snd slot)) slots
     | Static_const_block (_, fields) -> simples_in_scope vs fields
@@ -171,8 +171,8 @@ let var_in_named x = function
 (** val var_in_static_binding : variable -> static_binding -> bool **)
 
 let var_in_static_binding x = function
-  | Bind_symbol (_, const) -> (
-    match const with
+  | Bind_symbol (_, const0) -> (
+    match const0 with
     | Static_const_set_of_closures (_, slots) -> var_in_value_slots x slots
     | Static_const_block (_, fields) -> var_in_simples x fields
     | Static_const_boxed_number contents -> var_in_simple x contents
@@ -291,4 +291,81 @@ let rec drop_deleted_code e =
       (k, Handler (params, drop_deleted_code handler), drop_deleted_code body)
   | Let_cont_recursive (handlers, body) ->
     Let_cont_recursive (handlers, drop_deleted_code body)
+  | _ -> e
+
+(** val consts_of_simples : simple list -> const list option **)
+
+let rec consts_of_simples = function
+  | [] -> Some []
+  | s :: args0 -> (
+    match s with
+    | Const c -> option_map (fun x -> c :: x) (consts_of_simples args0)
+    | _ -> None)
+
+(** val fold_named : named -> named **)
+
+let fold_named d =
+  match d with
+  | Prim (p, args) -> (
+    match consts_of_simples args with
+    | Some cs -> (
+      match eval_prim p (map (fun x -> Value_const x) cs) with
+      | Some v -> ( match v with Value_const c -> Simple (Const c) | _ -> d)
+      | None -> d)
+    | None -> d)
+  | _ -> d
+
+(** val fold_switch : simple -> (coq_Z * apply_cont) list -> expr **)
+
+let fold_switch scrutinee arms =
+  match scrutinee with
+  | Const c -> (
+    match c with
+    | Naked_immediate i -> (
+      match find_arm i arms with
+      | Some ac -> Apply_cont ac
+      | None -> Switch (scrutinee, arms))
+    | _ -> Switch (scrutinee, arms))
+  | _ -> Switch (scrutinee, arms)
+
+(** val fold_constants : expr -> expr **)
+
+let rec fold_constants e =
+  match e with
+  | Let (x, d, body) -> Let (x, fold_named d, fold_constants body)
+  | Let_static (bindings, body) -> Let_static (bindings, fold_constants body)
+  | Let_cont_non_recursive (k, handler0, body) ->
+    let (Handler (params, handler)) = handler0 in
+    Let_cont_non_recursive
+      (k, Handler (params, fold_constants handler), fold_constants body)
+  | Let_cont_recursive (handlers, body) ->
+    Let_cont_recursive (handlers, fold_constants body)
+  | Switch (scrutinee, arms) -> fold_switch scrutinee arms
+  | _ -> e
+
+(** val named_is_total : named -> bool **)
+
+let named_is_total = function
+  | Simple s -> ( match s with Var _ -> false | _ -> true)
+  | _ -> false
+
+(** val remove_unused_total_lets : expr -> expr **)
+
+let rec remove_unused_total_lets e =
+  match e with
+  | Let (x, d, body) ->
+    let body' = remove_unused_total_lets body in
+    if named_is_total d && negb (var_free_b x body')
+    then body'
+    else Let (x, d, body')
+  | Let_static (bindings, body) ->
+    Let_static (bindings, remove_unused_total_lets body)
+  | Let_cont_non_recursive (k, handler0, body) ->
+    let (Handler (params, handler)) = handler0 in
+    Let_cont_non_recursive
+      ( k,
+        Handler (params, remove_unused_total_lets handler),
+        remove_unused_total_lets body )
+  | Let_cont_recursive (handlers, body) ->
+    Let_cont_recursive (handlers, remove_unused_total_lets body)
   | _ -> e

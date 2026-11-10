@@ -488,10 +488,16 @@ not a proof.
   The decision is `FlambdaCompareSpec.expr_eqb`, equality up to bound
   names, after the term before has been normalised by rewrites proved to
   refine it: `inline_calls` (direct calls of code bound by an enclosing
-  `Let_static`), `inline_tail_conts` (a continuation applied once at the
-  end of its scope), `follow_aliases`, `remove_unused_lets` and
-  `drop_deleted_code`. Only equivalences may be applied to the term
-  after; `follow_aliases` and `drop_deleted_code` are.
+  `Let_static`), `fold_constants`, `inline_tail_conts` (a continuation
+  applied once at the end of its scope), `follow_aliases`,
+  `remove_unused_lets` and `drop_deleted_code`, gone round a few times as
+  they enable one another. Only equivalences may be applied to the term
+  after: `follow_aliases`, `fold_constants`, `remove_unused_total_lets`
+  and `drop_deleted_code`. `fold_constants` asks `eval_prim` for the value
+  of a primitive on constants, so it assumes nothing of the primitives.
+- Setting `FLSEMANTICS_PRINT_TERMS` makes the tool print the two
+  normalised terms of an example that is not validated, which is how to
+  find the rewrite that is missing.
 - Code ids must be the same on the two sides, and Simplify gives a new
   one to each new version of code. The tool gives the new id the number
   of the old where the old is bound as deleted and not otherwise used;

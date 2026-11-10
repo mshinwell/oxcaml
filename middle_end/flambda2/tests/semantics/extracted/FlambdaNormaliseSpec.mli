@@ -67,3 +67,15 @@ val binds_something : static_binding -> bool
 val let_static_if_any : static_binding list -> expr -> expr
 
 val drop_deleted_code : expr -> expr
+
+val consts_of_simples : simple list -> const list option
+
+val fold_named : named -> named
+
+val fold_switch : simple -> (coq_Z * apply_cont) list -> expr
+
+val fold_constants : expr -> expr
+
+val named_is_total : named -> bool
+
+val remove_unused_total_lets : expr -> expr

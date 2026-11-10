@@ -32,8 +32,9 @@ From Stdlib Require Import ZArith List Bool Arith.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaSemanticsProofs FlambdaNominalSpec FlambdaNominalProofs
-  FlambdaContextSpec FlambdaContextProofs FlambdaApplySpec
-  FlambdaApplyProofs FlambdaNormaliseSpec.
+  FlambdaControlFlowSpec FlambdaControlFlowProofs FlambdaContextSpec
+  FlambdaContextProofs FlambdaApplySpec FlambdaApplyProofs
+  FlambdaNormaliseSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -764,3 +765,139 @@ Qed.
 
 Theorem drop_deleted_code_equivalent : drop_deleted_code_equivalent_statement.
 Proof. exact drop_deleted_code_equivalent_aux. Qed.
+
+(* ======================================================================== *)
+(* Folding constants                                                        *)
+(* ======================================================================== *)
+
+Lemma consts_of_simples_eval (vars : env) (args : list simple) :
+  ∀ cs : list const,
+    consts_of_simples args = Some cs ->
+    eval_simples vars args = Some (map Value_const cs).
+Proof.
+  induction args as [ | [x | sym | c] args IH]; intros cs; simpl;
+    try discriminate.
+  - intros [= <-]. reflexivity.
+  - destruct (consts_of_simples args) as [cs' | ]; [ | discriminate ].
+    simpl. intros [= <-]. rewrite (IH cs' eq_refl). reflexivity.
+Qed.
+
+(* The value is the one the primitive has. *)
+Lemma fold_named_sound (statics : static_env) (vars : env) (d : named) :
+  eval_named statics vars (fold_named d) = eval_named statics vars d.
+Proof.
+  destruct d as [s | p args | code slots | slot closure]; simpl;
+    try reflexivity.
+  destruct (consts_of_simples args) as [cs | ] eqn:Hconsts; [ | reflexivity ].
+  destruct (eval_prim p (map Value_const cs)) as [[c | code slots | sym] | ]
+    eqn:Hprim;
+    try reflexivity.
+  simpl. rewrite (consts_of_simples_eval vars args cs Hconsts). simpl.
+  rewrite Hprim. reflexivity.
+Qed.
+
+Lemma fold_switch_equivalent (scrutinee : simple)
+    (arms : list (Z * apply_cont)) :
+  expr_equivalent (Switch scrutinee arms) (fold_switch scrutinee arms).
+Proof.
+  unfold fold_switch.
+  destruct scrutinee as [x | sym | [i | | | | | | | | | | | | | | ]];
+    try (intros vars conts statics; apply equivalent_refl).
+  destruct (find_arm i arms) as [ac | ] eqn:Hfind;
+    [ | intros vars conts statics; apply equivalent_refl ].
+  exact (switch_const i arms ac Hfind).
+Qed.
+
+Fixpoint fold_constants_equivalent_aux (e : expr) :
+  expr_equivalent e (fold_constants e).
+Proof.
+  destruct e
+    as [ x d body | bindings body | k [params handler] body | handlers body
+       | ap | ac | scrutinee arms | ];
+    simpl; try (intros vars conts statics; apply equivalent_refl).
+  - apply (expr_equivalent_trans _ (Let x (fold_named d) body)).
+    + intros vars conts statics. apply (equivalent_of_run 1 1). simpl.
+      rewrite fold_named_sound. reflexivity.
+    + exact (plug_equivalent (Let_body x (fold_named d) Hole) _ _
+        (fold_constants_equivalent_aux body)).
+  - exact (plug_equivalent (Let_static_body bindings Hole) _ _
+      (fold_constants_equivalent_aux body)).
+  - apply (expr_equivalent_trans _
+      (Let_cont_non_recursive k (Handler params (fold_constants handler))
+         body)).
+    + exact (plug_equivalent
+        (Let_cont_non_recursive_handler k params Hole body) _ _
+        (fold_constants_equivalent_aux handler)).
+    + exact (plug_equivalent
+        (Let_cont_non_recursive_body k
+           (Handler params (fold_constants handler)) Hole)
+        _ _ (fold_constants_equivalent_aux body)).
+  - exact (plug_equivalent (Let_cont_recursive_body handlers Hole) _ _
+      (fold_constants_equivalent_aux body)).
+  - apply fold_switch_equivalent.
+Qed.
+
+Theorem fold_constants_equivalent : fold_constants_equivalent_statement.
+Proof. exact fold_constants_equivalent_aux. Qed.
+
+(* ======================================================================== *)
+(* Removing unused [Let]s whose defining expression always has a value     *)
+(* ======================================================================== *)
+
+(* The defining expression has a value, so the [Let] takes its step; the
+   body does not look at the variable. *)
+Lemma unused_total_let (x : variable) (d : named) (body : expr) :
+  named_is_total d = true ->
+  ~ var_free_in_expr x body ->
+  expr_equivalent (Let x d body) body.
+Proof.
+  intros Htotal Hunused vars conts statics.
+  assert (Hvalue : ∃ v : value, eval_named statics vars d = Some v).
+  { destruct d as [[y | sym | c] | p args | code slots | slot closure];
+      simpl in Htotal; try discriminate; simpl; eauto. }
+  destruct Hvalue as [v Hd].
+  apply (equivalent_trans _ (State body ((x, v) :: vars) conts statics));
+    [ apply step_equivalent; simpl; rewrite Hd; reflexivity | ].
+  apply coincide_equivalent.
+  - intros y Hy. simpl.
+    destruct (Pos.eqb_spec y x) as [-> | _]; [ contradiction | reflexivity ].
+  - intros k _. apply (conts_agree_same identity_renaming). reflexivity.
+Qed.
+
+Fixpoint remove_unused_total_lets_equivalent_aux (e : expr) :
+  expr_equivalent e (remove_unused_total_lets e).
+Proof.
+  destruct e
+    as [ x d body | bindings body | k [params handler] body | handlers body
+       | ap | ac | scrutinee arms | ];
+    simpl; try (intros vars conts statics; apply equivalent_refl).
+  - pose proof (plug_equivalent (Let_body x d Hole) _ _
+      (remove_unused_total_lets_equivalent_aux body)) as Hbody.
+    simpl in Hbody.
+    destruct
+      (named_is_total d && negb (var_free_b x (remove_unused_total_lets body)))
+      eqn:Hremove; [ | exact Hbody ].
+    apply andb_true_iff in Hremove as [Htotal Hunused].
+    apply negb_true_iff in Hunused.
+    apply (expr_equivalent_trans _ _ _ Hbody), unused_total_let;
+      [ exact Htotal | ].
+    intros Hx. apply var_free_b_sound in Hx. congruence.
+  - exact (plug_equivalent (Let_static_body bindings Hole) _ _
+      (remove_unused_total_lets_equivalent_aux body)).
+  - apply (expr_equivalent_trans _
+      (Let_cont_non_recursive k
+         (Handler params (remove_unused_total_lets handler)) body)).
+    + exact (plug_equivalent
+        (Let_cont_non_recursive_handler k params Hole body) _ _
+        (remove_unused_total_lets_equivalent_aux handler)).
+    + exact (plug_equivalent
+        (Let_cont_non_recursive_body k
+           (Handler params (remove_unused_total_lets handler)) Hole)
+        _ _ (remove_unused_total_lets_equivalent_aux body)).
+  - exact (plug_equivalent (Let_cont_recursive_body handlers Hole) _ _
+      (remove_unused_total_lets_equivalent_aux body)).
+Qed.
+
+Theorem remove_unused_total_lets_equivalent :
+  remove_unused_total_lets_equivalent_statement.
+Proof. exact remove_unused_total_lets_equivalent_aux. Qed.

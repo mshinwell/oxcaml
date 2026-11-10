@@ -63,6 +63,18 @@
    [drop_deleted_code], for either term, removes the bindings of deleted
    code, which bind nothing, and a [Let_static] left with no binding.
 
+   [remove_unused_total_lets], for either term, is the part of
+   [remove_unused_lets] that is an equivalence: it removes an unused [Let]
+   only where the defining expression is a constant or a symbol, which
+   always has a value.
+
+   [fold_constants], for either term, replaces a primitive applied to
+   constants by its value, when that is a constant, and a [Switch] on a
+   constant by its arm. The value of the primitive is whatever
+   FlambdaSemanticsSpec.eval_prim says, so nothing is assumed of the
+   primitives: the function calls the same [eval_prim] that the semantics
+   does, and the extracted function calls what realises it.
+
    [remove_unused_lets], also for the term before, removes each [Let] whose
    variable is not free in its body, in bodies and in the handlers of
    non-recursive continuations. [var_free_b] is the test; it may say that
@@ -386,3 +398,87 @@ Fixpoint drop_deleted_code (e : expr) : expr :=
 
 Definition drop_deleted_code_equivalent_statement : Prop :=
   ∀ e : expr, expr_equivalent e (drop_deleted_code e).
+
+(* ======================================================================== *)
+(* Folding constants                                                        *)
+(* ======================================================================== *)
+
+Fixpoint consts_of_simples (args : list simple) : option (list const) :=
+  match args with
+  | [] => Some []
+  | Const c :: args => option_map (cons c) (consts_of_simples args)
+  | (Var _ | Symbol _) :: _ => None
+  end.
+
+Definition fold_named (d : named) : named :=
+  match d with
+  | Prim p args =>
+    match consts_of_simples args with
+    | Some cs =>
+      match eval_prim p (map Value_const cs) with
+      | Some (Value_const c) => Simple (Const c)
+      | Some (Value_closure _ _ | Value_symbol _) | None => d
+      end
+    | None => d
+    end
+  | Simple _ | Set_of_closures _ _ | Project_value_slot _ _ => d
+  end.
+
+Definition fold_switch (scrutinee : simple) (arms : list (Z * apply_cont))
+    : expr :=
+  match scrutinee with
+  | Const (Naked_immediate i) =>
+    match find_arm i arms with
+    | Some ac => Apply_cont ac
+    | None => Switch scrutinee arms
+    end
+  | _ => Switch scrutinee arms
+  end.
+
+Fixpoint fold_constants (e : expr) : expr :=
+  match e with
+  | Let x d body => Let x (fold_named d) (fold_constants body)
+  | Let_static bindings body => Let_static bindings (fold_constants body)
+  | Let_cont_non_recursive k (Handler params handler) body =>
+    Let_cont_non_recursive k (Handler params (fold_constants handler))
+      (fold_constants body)
+  | Let_cont_recursive handlers body =>
+    Let_cont_recursive handlers (fold_constants body)
+  | Switch scrutinee arms => fold_switch scrutinee arms
+  | Apply _ | Apply_cont _ | Invalid => e
+  end.
+
+Definition fold_constants_equivalent_statement : Prop :=
+  ∀ e : expr, expr_equivalent e (fold_constants e).
+
+(* ======================================================================== *)
+(* Removing unused [Let]s whose defining expression always has a value     *)
+(* ======================================================================== *)
+
+Definition named_is_total (d : named) : bool :=
+  match d with
+  | Simple (Const _ | Symbol _) => true
+  | Simple (Var _) | Prim _ _ | Set_of_closures _ _ | Project_value_slot _ _ =>
+    false
+  end.
+
+Fixpoint remove_unused_total_lets (e : expr) : expr :=
+  match e with
+  | Let x d body =>
+    let body' := remove_unused_total_lets body in
+    if named_is_total d && negb (var_free_b x body')
+    then body'
+    else Let x d body'
+  | Let_static bindings body =>
+    Let_static bindings (remove_unused_total_lets body)
+  | Let_cont_non_recursive k (Handler params handler) body =>
+    Let_cont_non_recursive k
+      (Handler params (remove_unused_total_lets handler))
+      (remove_unused_total_lets body)
+  | Let_cont_recursive handlers body =>
+    Let_cont_recursive handlers (remove_unused_total_lets body)
+  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => e
+  end.
+
+Definition remove_unused_total_lets_equivalent_statement : Prop :=
+  ∀ e : expr, expr_equivalent e (remove_unused_total_lets e).
