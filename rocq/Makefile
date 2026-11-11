@@ -120,6 +120,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaEquivarianceSpec.v \
   FlambdaExtcallProofs.v \
   FlambdaExtcallSpec.v \
+  FlambdaFloatCodeProofs.v \
+  FlambdaFloatCodeSpec.v \
   FlambdaFreeNamesProofs.v \
   FlambdaFreeNamesSpec.v \
   FlambdaFreshAbstractionProofs.v \
@@ -141,6 +143,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaKeepsScopeProofs.v \
   FlambdaKeepsScopeSpec.v \
   FlambdaKindModel.v \
+  FlambdaKnownClosuresProofs.v \
+  FlambdaKnownClosuresSpec.v \
   FlambdaKnownSymbolsProofs.v \
   FlambdaKnownSymbolsSpec.v \
   FlambdaLiftProofs.v \
