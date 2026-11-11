@@ -175,7 +175,7 @@
    compiler's join has it not: it takes a variable that an environment
    has a type for to have a value there. So what is to be proved of
    the transcription is the contract for the runs that have the values
-   that the join reads ([sound_join_where_values_are_read]): two
+   that the join reads ([sound_join_where_values_are_read]):
    conditions that are named and are premises there.
    - [scrutinees_have_values]: for every relation that the target has
      on a variable, the variable has a value in every run in which the
@@ -183,10 +183,16 @@
      on a scrutinee whenever every environment joined has a type for it
      ([recover_inverse_relations]). Nothing in the compiler establishes
      the condition (the CR there; discrepancy T5-10).
-   - [joined_variables_have_values]: a variable of the source that
-     every use has refined has a value in the run. Without it the join
-     of the types of such a variable may be met to bottom in the
-     target on a run that exists. It is the typing environment's own
+   - [joined_variables_have_values] and
+     [imported_variables_have_values]: a variable of the source that
+     every use has refined, and a variable of the use that the join
+     brings into the target, has a value in the run. Without them the
+     join of the types of such a variable may leave out the use at
+     which it has no value (the join of types passes over a type that
+     it finds to have no value: one that is bottom, or a head of naked
+     immediates that its relations reduce to nothing), and the target
+     then asks of the variable what the other uses say, or is bottom,
+     on a run that exists. The first is the typing environment's own
      reading of an equation (a statement about a name that is not
      reached through a value in hand needs the premise that the name
      has a value).
@@ -199,8 +205,9 @@
    source of the next join or meet: this was agreed with the owner of
    the meet, which has the same condition and the same agreement.
    An instance that shows that the transcription has not the strict
-   contract without the first condition is owed, and can be given once
-   the functions are all transcribed. The upper bound of the join of
+   contract without the first condition is owed, and can be given now
+   that the functions are all transcribed, with a join of types to run
+   them with. The upper bound of the join of
    types ([n_way_join_type_sound]) has no such condition: it is of a
    value in hand.
 
@@ -855,10 +862,12 @@ Definition scrutinees_have_values (target : Typing_env.t)
 (* A variable of the source that has an equation in the level cut from
    every use that is not bottom has a value. (The join gives such a
    variable the join of those equations, by a meet with the type that
-   the source has for it; of a variable with no value that meet may be
-   bottom.) Whoever adds an equation on a name is to add it where the
-   name has a value: that is the typing environment's reading of an
-   equation, and what a caller shows this from. *)
+   the source has for it. Of a variable with no value at a use, whose
+   type there has no value, that join may leave the use out, and the
+   target then asks of the variable what the other uses say; or the
+   meet may be bottom.) Whoever adds an equation on a name is to add it
+   where the name has a value: that is the typing environment's reading
+   of an equation, and what a caller shows this from. *)
 Definition joined_variables_have_values {A : Type} (inputs : join_inputs A)
     (valuation : env) : Prop :=
   ∀ x : variable,
@@ -873,13 +882,31 @@ Definition joined_variables_have_values {A : Type} (inputs : join_inputs A)
            = Some ty) ->
     ∃ v : value, lookup x valuation = Some v.
 
+(* A variable that the use knows, that the source does not know, and
+   that the target knows, has a value: the join brought it in, and
+   gave it the join of the types that the uses that know it have for
+   it. (A type that has no value is left out of that join by the join
+   of types, where it sees that; and a type that has one value makes
+   the variable an alias of a constant. So of a variable with no value
+   at the use the target may ask a value.) *)
+Definition imported_variables_have_values {A : Type}
+    (inputs : join_inputs A) (target : Typing_env.t) (index : Index.t)
+    (valuation : env) : Prop :=
+  ∀ (use : Typing_env.t) (x : variable),
+    use_at inputs index use ->
+    knows use x ->
+    ~ knows (source inputs) x ->
+    knows target x ->
+    ∃ v : value, lookup x valuation = Some v.
+
 (* The run has the values that the join reads. *)
 Definition values_are_read {A : Type} (inputs : join_inputs A)
     (target : Typing_env.t)
     (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind))
     (index : Index.t) (statics : static_env) (valuation : env) : Prop :=
   scrutinees_have_values target definitions index valuation
-  ∧ joined_variables_have_values inputs valuation.
+  ∧ joined_variables_have_values inputs valuation
+  ∧ imported_variables_have_values inputs target index valuation.
 
 (* What the compiler's join guarantees of its result: [join_guarantees]
    with the upper bound for those runs only. *)

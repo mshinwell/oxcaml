@@ -61,7 +61,7 @@ other uses, T5-5). That is what the meet assumes of its join. The
 compiler's join does not have it: it reads "the environment has a
 type for `x`" as "`x` has a value". So what is to be proved of the
 transcription is `sound_join_where_values_are_read`: the same
-contract for the runs that satisfy two named conditions:
+contract for the runs that satisfy three named conditions:
 
 - `scrutinees_have_values`: for every relation the target has on a
   variable (put back by `recover_inverse_relations` whenever every
@@ -69,10 +69,19 @@ contract for the runs that satisfy two named conditions:
   a value in every run in which the result has one. Nothing in the
   compiler establishes it; a `CR mshinwell` is there.
 - `joined_variables_have_values`: a variable of the source that every
-  live use has an equation on has a value in the run (otherwise the
-  meet of its source type with the joined type may be bottom on a run
-  that exists). This is what "an equation is added on a name where
-  the name has a value" gives a caller.
+  live use has an equation on has a value in the run. This is what
+  "an equation is added on a name where the name has a value" gives a
+  caller, and the meet can keep it as an invariant of a scope.
+- `imported_variables_have_values`: a variable that the use knows and
+  the join brings into the target has a value in the run.
+
+Without the last two the type joiner may leave out the use at which
+such a variable has no value (it passes over a type that it finds to
+have no value: one that is bottom, or a head of naked immediates that
+its relations reduce to nothing; R1's case, through T4), and the
+target then asks of the variable what the other uses say (a type with
+one constant for only value makes the variable an alias of it), or is
+bottom, on a run that exists.
 
 A third thing the compiler's join needs is in the contract itself, as
 a condition on the inputs of every join and a guarantee of its target
@@ -257,7 +266,7 @@ Two halves, with `FlambdaJoinSpec.v` between them.
 
 **E, the environment side (I keep it).** `types/env/join_env.ml`
 (2031 lines) and the n-way entry of `types/join_levels.ml`.
-- `FlambdaJoinEnv.v`: `Source_env`
+- `FlambdaJoinEnv.v` (transcribed to the end): `Source_env`
   (`candidate_canonical_in_source_env`), `Bindings_in_target_env`,
   `Joined_envs`, the state `Join_env.t`,
   `n_way_join_canonical_simples`, the imports
@@ -269,8 +278,8 @@ Two halves, with `FlambdaJoinSpec.v` between them.
   `cut_and_n_way_join`, `Analysis.create`, and the three functions the
   type join calls (`n_way_join_simples`, `import_type`,
   `n_way_join_env_extension`).
-- `FlambdaTypeProject.v`: `Type_grammar.project_variables_out`
-  (substituting types for existentials), unless T1 wants it.
+- `FlambdaTypeProject.v` (transcribed): `Type_grammar.project_variables_out`
+  (substituting types for existentials).
 - `FlambdaJoinEnvSpec.v`, `FlambdaJoinEnvProofs.v`: the invariant and
   the meaning of the state, the statements of the three functions, and
   `sound_join_of_environments` for the transcription, with the meet
