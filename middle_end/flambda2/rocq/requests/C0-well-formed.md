@@ -59,8 +59,9 @@ Where a pass stops only by accident, on something else than the
 condition, the row says so.
 
 Only the first two establish a condition of every term. A row with
-none of them is an unchecked assumption of the compiler, and has an
-entry in the record of discrepancies.
+none of them is an unchecked assumption of the compiler, and is
+recorded as a discrepancy (`rocq/HACKING.md`, "Discrepancies with the
+compiler").
 
 | | Condition | Owner | Where the compiler establishes it |
 |-|-----------|-------|-----------------------------------|

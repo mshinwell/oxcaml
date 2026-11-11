@@ -413,6 +413,15 @@ be proved correct, built a fragment at a time. The files follow the same Spec/Pr
   `middle_end/flambda2/rocq/PARALLEL-PLAN.md` is the plan and its rules,
   and `OWNERS.md` beside it says who owns which file. Edit only files you
   own.
+- Each stream keeps a status file under
+  `middle_end/flambda2/rocq/status/`, and a change to the core has a
+  note under `requests/` beside it. Such a document, like every
+  committed document and comment, cites only commits that are on the
+  integration branch and only files that are in the tree, and has no
+  local path, host name or session id in it. The commits of a branch
+  that is not merged yet are not to be cited: they get other hashes
+  when the branch is rebased or applied. What is elsewhere is said in
+  words.
 - `FlambdaModel.v` is the model's copy of the terms (`flambda.mli`), for
   the fragment covered; its header lists what is left out and how the
   presentation differs from the compiler's (plain names in place of name
@@ -825,9 +834,10 @@ an inconsistency in the compiler, intended and documented, or not
 known. Do not change the compiler to remove a discrepancy, and do not
 weaken a statement to hide one: model what the compiler does where that
 is sound, say so in the header of the `Spec` file, and record the
-entry. The record is kept with the instructions of those working on
-the semantics, outside the repository; a mistake in the model that is
-then fixed is not an entry, unless it is not clear which side is wrong.
+entry. An entry has a label, the stream that recorded it and a number
+(`C3-1`), and comments and documents cite it by the label. A mistake in
+the model that is then fixed is not an entry, unless it is not clear
+which side is wrong.
 
 ## Extraction pitfalls
 
@@ -928,5 +938,7 @@ then fixed is not an entry, unless it is not clear which side is wrong.
   `make -s -C rocq assumptions` passes, so there is no axiom that
   `rocq/TRUST-LEDGER.md` does not list.
 - For the Flambda 2 semantics: every discrepancy with the compiler met
-  on the way is recorded ("Discrepancies with the compiler"), and what
-  needs the regenerated extracted files is in the last commit.
+  on the way is recorded ("Discrepancies with the compiler"), what
+  needs the regenerated extracted files is in the last commit, and no
+  document or comment cites a commit that is not on the integration
+  branch or a file that is not in the tree.

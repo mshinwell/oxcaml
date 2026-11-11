@@ -4,12 +4,13 @@ Stream C1 of `PARALLEL-PLAN.md` (section 6). This is the request of
 section 7 ("Core change requests"): the diff to the `Spec` files, why,
 which statements change meaning, the fallout, and the plan for the epoch.
 
-The prototype is the branch `flambda2-rocq/C1-primitives`, on the
-integration branch at fbcbbade2c. It is whole: every `.v` file builds,
-`make -C rocq all` and `make -C rocq assumptions` pass, and the semantics
-tests pass. Read the `Spec` diff there:
+The prototype was made on the integration branch at fbcbbade2c. It was
+whole: every `.v` file built, `make -C rocq all` and `make -C rocq
+assumptions` passed, and the semantics tests passed. The change is on
+the integration branch, from 2c6b618546 to 5ed48f2c6a: the epoch, the
+fourth law and the second and third stages. Read the `Spec` diff there:
 
-    git diff fbcbbade2c flambda2-rocq/C1-primitives -- \
+    git diff 4dfea64957 5ed48f2c6a -- \
       'middle_end/flambda2/rocq/*Spec.v' 'middle_end/flambda2/rocq/*Model.v'
 
 Paths below are in `middle_end/flambda2/rocq/` unless they say otherwise.
@@ -206,7 +207,7 @@ bound that it stay so. It holds because no primitive has a value by a
 symbol's being bound to nothing; the option recommended in decision 2
 keeps it. The premise is that of `FlambdaWellFormedSpec.statics_extend`,
 asked of the symbols among the arguments only. It is not part of the
-epoch: a leaf commit after it (3c33cac226 on the branch).
+epoch: a leaf commit after it (47f3819f23).
 
 ### How adding a primitive is leaf work
 
@@ -222,10 +223,11 @@ epoch: a leaf commit after it (3c33cac226 on the branch).
    primitives says so. A new primitive adds a case to each or the file
    does not build; nothing else can break.
 
-Checked on the branch: the second stage (afa262534a) and the third
-(ef587f6491, which adds a third arity) change `FlambdaPrimitiveModel.v`,
-`FlambdaPrimitiveSpec.v`, `FlambdaPrimitiveProofs.v`, the converter and
-examples, and nothing else.
+Checked: the second stage (1301aa5104, a9cb7aaac8) and the third
+(c8c81254fd, 5ed48f2c6a, which adds a third arity) change
+`FlambdaPrimitiveModel.v`, `FlambdaPrimitiveSpec.v`,
+`FlambdaPrimitiveProofs.v`, the converter and examples (with the
+extracted files regenerated), and nothing else.
 
 ## 2. The primitives, by stage
 
@@ -593,8 +595,9 @@ Simplify does not assume the case away, a "no value" hides a part of
 the compiler's correctness instead of establishing it.
 
 Each place where the model follows the compiler by making something
-undefined, or parts from it, is recorded with the orchestrator as a
-discrepancy; the numbers C1-1 to C1-13 below are those entries, and
+undefined, or parts from it, is recorded as a discrepancy
+(`rocq/HACKING.md`, "Discrepancies with the compiler"); the numbers C1-1
+to C1-13 below are those entries, and
 R1-2 to R1-12 the reviewer's, which cite the compiler files and give
 terms that show each.
 
@@ -794,9 +797,9 @@ Order (C0's, after it built the branch and accepted the request):
    files (the converter and the examples) is the last. Each is a `Spec`
    diff of two files for R1.
 
-The series is on the branch `flambda2-rocq/C1-epoch` in that order,
-and is rebased when the epoch opens. `flambda2-rocq/C1-primitives`
-keeps the commits in the order they were made.
+The series was applied in that order: 2c6b618546, 6e814332fc,
+ffeb4f81d8 and, for (d), 986d7bed8f. The prototype had the commits in
+the order they were made.
 
 Step lemmas: none changes, as `step` does not. New, in
 `FlambdaPrimitiveProofs.v`: `eval_prim_unary`, `eval_prim_binary`,
@@ -899,8 +902,8 @@ Left:
   dead: both are C0's.
 - The extracted directory is not committed, by the rule.
 - `make -s fmt` has not been run on the branch; `flsemantics.ml` was
-  formatted with `ocamlformat`. C0 ran `make -s test` on the branch at
-  9f3b728e6d: only the failure that the base has.
+  formatted with `ocamlformat`. C0 ran `make -s test` on the branch:
+  only the failure that the base has.
 - `get_tag.fl` and `block_lifted.fl` are not validated. Both need
   normalisation that is S1's and S5's.
 - The comparison with `Number_adjuncts` is a script beside this note,

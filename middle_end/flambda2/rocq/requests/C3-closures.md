@@ -4,17 +4,15 @@ From C3, for C0 (who applies it), R1 (who reviews the `Spec` diff and
 section 4) and the human (section 7). Plan: `PARALLEL-PLAN.md`, sections
 3, 6 and 7.
 
-The change is the branch `flambda2-rocq/C3-closures`: a series of six
-commits on the integration branch (at 0a2933e7c9 when this was
-written), after C1's epoch, in the shape of an epoch (section 8). Every
+The change is a series of six commits made on the integration branch
+at 0a2933e7c9, after C1's epoch, in the shape of an epoch (section 8).
+Applied, it is b9cddb2863 to 312da818a2 on the integration branch. Every
 commit of it builds, nothing is `Admitted`, and there is no new axiom
 or `Parameter`. Section 9 says what was run.
 
 This is the fourth version of the request. The first two were written
-beside a prototype on the base before C1 (fbcbbade2c), which is kept as
-the branch `flambda2-rocq/C3-prototype`, with the history of the
-reviews. What changed since the third version, which was the series on
-f8c8224ee6:
+beside a prototype on the base before C1 (fbcbbade2c). What changed
+since the third version, which was the series on f8c8224ee6:
 
 - the static sets that one group binds may not have code in common
   (R2's finding R2-15; the orchestrator's decision under the human's
@@ -82,11 +80,11 @@ function slot has no name. They are meant to go later (section 8).
 
 ## 1. The change to the `Spec` files
 
-The diff is `git diff flambda2-rocq-semantics flambda2-rocq/C3-closures
--- '*Spec.v' '*Model.v'`: 1256 lines added in 10 files, of which 478
-are a new file. No existing constructor and no existing statement is
-edited. One existing definition is, apart from the cases added to
-matches: `well_formed_unit` gains a conjunct (below).
+The diff is `git diff 58435c1de4 312da818a2 -- '*Spec.v' '*Model.v'`:
+1272 lines added in 10 files, of which 478 are a new file. No existing
+constructor and no existing statement is edited. One existing
+definition is, apart from the cases added to matches:
+`well_formed_unit` gains a conjunct (below).
 
 ### `FlambdaModel.v`
 
