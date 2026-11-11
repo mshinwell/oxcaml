@@ -251,7 +251,7 @@ Qed.
 Lemma eval_unary_primitive_static_values (p : unary_primitive) :
   eval_unary_primitive statics p v = eval_unary_primitive statics' p v.
 Proof.
-  destruct p as [[tag size field_kind] field | | | | | | | | | ]; simpl;
+  destruct p as [[tag size field_kind] field | | | | | | | | | | ]; simpl;
     unfold eval_is_int, eval_is_null, eval_block_load;
     rewrite ?block_of_static_values, ?is_allocated_static_values,
       ?boxed_number_of_static_values, ?bound_if_symbol_static_values;
@@ -623,7 +623,7 @@ Lemma eval_unary_primitive_symbol_bound (statics : static_env)
   lookup s (static_values statics) <> None.
 Proof.
   destruct p as [[tag size field_kind] field | [ | ] | | | kind | src dst
-                | kind | kind | | ];
+                | | kind | kind | | ];
     simpl; unfold eval_is_int, eval_is_null, eval_block_load; simpl;
     rewrite ?int_of_value_symbol;
     try discriminate;
@@ -711,7 +711,7 @@ Lemma eval_unary_primitive_kinds (statics : static_env)
   kind_of_value arg = arg_kind_of_unary_primitive p
   ∧ kind_of_value v = result_kind_of_unary_primitive p.
 Proof.
-  destruct p as [access field | variant_only | | | kind | src dst | kind
+  destruct p as [access field | variant_only | | | kind | src dst | | kind
                 | kind | | ];
     cbn [eval_unary_primitive arg_kind_of_unary_primitive
          result_kind_of_unary_primitive].
@@ -782,6 +782,14 @@ Proof.
     intros [= <-]. split.
     + exact (int_of_value_kind _ _ _ Hint).
     + apply kind_of_const_of_int.
+  - (* [Boolean_not] *)
+    destruct (int_of_value Standard_tagged_immediate arg) as [i | ] eqn:Hint;
+      [ | discriminate ].
+    pose proof (int_of_value_kind _ _ _ Hint) as Harg.
+    destruct (i =? 0).
+    + intros [= <-]. split; [ exact Harg | reflexivity ].
+    + destruct (i =? 1); [ | discriminate ].
+      intros [= <-]. split; [ exact Harg | reflexivity ].
   - (* [Unbox_number] *)
     destruct (boxed_number_of statics arg) as [c | ] eqn:Hboxed;
       [ | discriminate ].
@@ -932,7 +940,7 @@ Lemma eval_unary_primitive_preserves (p : unary_primitive) (arg v : value) :
   P arg -> eval_unary_primitive statics p arg = Some v -> P v.
 Proof.
   intros Harg.
-  destruct p as [access field | variant_only | | | kind | src dst | kind
+  destruct p as [access field | variant_only | | | kind | src dst | | kind
                 | kind | | ];
     cbn [eval_unary_primitive].
   - unfold eval_block_load. destruct access as [tag size field_kind].
@@ -965,6 +973,11 @@ Proof.
     destruct (bound_if_symbol statics arg); [ | discriminate ].
     intros [= <-]. exact Harg.
   - destruct (int_of_value src arg); [ | discriminate ].
+    intros [= <-]. apply Hnumbers.
+  - destruct (int_of_value Standard_tagged_immediate arg) as [i | ];
+      [ | discriminate ].
+    destruct (i =? 0); [ intros [= <-]; apply Hnumbers | ].
+    destruct (i =? 1); [ | discriminate ].
     intros [= <-]. apply Hnumbers.
   - destruct (boxed_number_of statics arg) as [c | ]; [ | discriminate ].
     destruct (is_number_of_kind kind c); [ | discriminate ].
@@ -1271,7 +1284,7 @@ Lemma eval_unary_primitive_in_range (p : unary_primitive) (arg v : value) :
   value_in_range v = true.
 Proof.
   intros Hsymbols Harg.
-  destruct p as [access field | variant_only | | | kind | src dst | kind
+  destruct p as [access field | variant_only | | | kind | src dst | | kind
                 | kind | | ];
     cbn [eval_unary_primitive].
   - unfold eval_block_load. destruct access as [tag size field_kind].
@@ -1312,6 +1325,11 @@ Proof.
     intros [= <-]. cbn [value_in_range].
     rewrite const_in_range_const_of_int.
     apply wrap_in_range, int_width_positive.
+  - (* [Boolean_not] *)
+    destruct (int_of_value Standard_tagged_immediate arg) as [i | ];
+      [ | discriminate ].
+    destruct (i =? 0); [ intros [= <-]; reflexivity | ].
+    destruct (i =? 1); [ intros [= <-]; reflexivity | discriminate ].
   - destruct (boxed_number_of statics arg) as [c | ] eqn:Hboxed;
       [ | discriminate ].
     destruct (is_number_of_kind kind c); [ | discriminate ].
@@ -1622,7 +1640,7 @@ Lemma eval_unary_primitive_related (p : unary_primitive)
 Proof.
   intros Hr.
   destruct (Hobserved v v' Hr) as (Hblocks & Hboxed & _ & _ & Hbound).
-  destruct p as [access field | variant_only | | | kind | src dst | kind
+  destruct p as [access field | variant_only | | | kind | src dst | | kind
                 | kind | | ];
     cbn [eval_unary_primitive].
   - unfold eval_block_load. destruct access as [tag size field_kind].
@@ -1667,6 +1685,14 @@ Proof.
   - (* [Num_conv] *)
     destruct (int_of_value src v) as [i | ] eqn:Hv; [ | discriminate ].
     rewrite (related_int _ v v' i Hr Hv), Hv.
+    intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
+  - (* [Boolean_not] *)
+    destruct (int_of_value Standard_tagged_immediate v) as [i | ] eqn:Hv;
+      [ | discriminate ].
+    rewrite (related_int _ v v' i Hr Hv), Hv.
+    destruct (i =? 0);
+      [ intros [= <-]; eexists; split; [ reflexivity | apply Hnumber ] | ].
+    destruct (i =? 1); [ | discriminate ].
     intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
   - destruct (boxed_number_of statics v) as [c | ] eqn:Hv;
       [ | discriminate ].
@@ -2021,6 +2047,26 @@ Proof. reflexivity. Qed.
 Example num_conv_of_block :
   num_conv Standard_tagged_immediate Standard_naked_int64 (Value_block 0 [])
   = None.
+Proof. reflexivity. Qed.
+
+Example boolean_not_of_false :
+  unary empty_static_env Boolean_not (tagged 0) = Some (tagged 1).
+Proof. reflexivity. Qed.
+
+Example boolean_not_of_true :
+  unary empty_static_env Boolean_not (tagged 1) = Some (tagged 0).
+Proof. reflexivity. Qed.
+
+Example boolean_not_of_other_integer :
+  unary empty_static_env Boolean_not (tagged 2) = None.
+Proof. reflexivity. Qed.
+
+Example boolean_not_of_naked_immediate :
+  unary empty_static_env Boolean_not (naked 0) = None.
+Proof. reflexivity. Qed.
+
+Example boolean_not_of_block :
+  unary empty_static_env Boolean_not (Value_block 0 []) = None.
 Proof. reflexivity. Qed.
 
 Example is_int_of_immediate :

@@ -400,6 +400,9 @@ Definition eval_block_load (statics : static_env) (kind : block_access_kind)
      extension of the low bits where it does not). Between the tagged
      and the naked immediates it is [Untag_immediate] and
      [Tag_immediate].
+   - [Boolean_not] is the negation of a boolean of the source, which is
+     the tagged immediate 0 or 1: 1 for 0 and 0 for 1. It has no value
+     on another tagged immediate, nor on anything else.
    - [Untag_immediate] and [Tag_immediate] change a tagged immediate into
      the naked immediate that is the same integer, and back. *)
 (* CR mshinwell: [Get_tag] has no value on what is not a block: a tagged
@@ -418,6 +421,17 @@ Definition eval_block_load (statics : static_env) (kind : block_access_kind)
    number of its kind, which it would box and unbox like another. It
    would be wrong if a poison may be boxed where the code is executed
    and the box is then only passed on, not read. Decision D21. *)
+(* CR mshinwell: [Boolean_not] has no value on a tagged immediate other
+   than 0 and 1. Simplify makes it [Invalid] where its argument cannot
+   be 0 or 1 ([Simplify_unary_primitive.simplify_boolean_not]), so the
+   model cannot give it a value there. The machine flips one bit of
+   the word ([Cmm_helpers.mk_not]), which gives the integer with its
+   lowest bit flipped. The front end makes the primitive from [not] of
+   the source, whose argument has the type [bool]; nothing checks that
+   it is given a boolean. It would be wrong if code that is executed
+   applies it to another integer and uses the result: then Simplify
+   removes code that runs, and the model, by making it undefined, does
+   not say so. Decision D38. *)
 Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
     (v : value) : option value :=
   match p with
@@ -435,6 +449,11 @@ Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
   | Num_conv src dst =>
     let* i := int_of_value src v in
     Some (Value_const (const_of_int dst (wrap (int_width dst) i)))
+  | Boolean_not =>
+    let* i := int_of_value Standard_tagged_immediate v in
+    if i =? 0 then Some (Value_const (Tagged_immediate 1))
+    else if i =? 1 then Some (Value_const (Tagged_immediate 0))
+    else None
   | Unbox_number kind =>
     let* c := boxed_number_of statics v in
     if is_number_of_kind kind c then Some (Value_const c) else None
@@ -641,7 +660,8 @@ Definition unary_primitive_in_range (p : unary_primitive) : bool :=
     && known_in_range ocaml_int_in_range size
     && ocaml_int_in_range field
   | Is_int _ | Is_null | Get_tag | Opaque_identity _ | Num_conv _ _
-  | Unbox_number _ | Box_number _ | Untag_immediate | Tag_immediate =>
+  | Boolean_not | Unbox_number _ | Box_number _ | Untag_immediate
+  | Tag_immediate =>
     true
   end.
 
@@ -698,8 +718,8 @@ Definition naked_immediate_kind : flambda_kind :=
 (* [Flambda_primitive.arg_kind_of_unary_primitive]. *)
 Definition arg_kind_of_unary_primitive (p : unary_primitive) : flambda_kind :=
   match p with
-  | Block_load _ _ | Is_int _ | Is_null | Get_tag | Unbox_number _
-  | Untag_immediate =>
+  | Block_load _ _ | Is_int _ | Is_null | Get_tag | Boolean_not
+  | Unbox_number _ | Untag_immediate =>
     Value
   | Opaque_identity kind => kind
   | Num_conv src _ => kind_of_standard_int src
@@ -715,7 +735,7 @@ Definition result_kind_of_unary_primitive (p : unary_primitive)
   | Opaque_identity kind => kind
   | Num_conv _ dst => kind_of_standard_int dst
   | Unbox_number kind => unboxed_kind kind
-  | Block_load _ _ | Box_number _ | Tag_immediate => Value
+  | Block_load _ _ | Boolean_not | Box_number _ | Tag_immediate => Value
   end.
 
 (* [Flambda_primitive.args_kind_of_binary_primitive]. *)

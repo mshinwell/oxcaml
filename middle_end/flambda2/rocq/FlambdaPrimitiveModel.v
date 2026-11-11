@@ -35,8 +35,8 @@
    The fragment has, with the compiler's names:
    - of [unary_primitive]: [Block_load] from an immutable block of
      values, [Is_int], [Is_null], [Get_tag], [Opaque_identity],
-     [Num_conv] between the integer kinds, [Unbox_number], [Box_number],
-     [Untag_immediate] and [Tag_immediate];
+     [Num_conv] between the integer kinds, [Boolean_not], [Unbox_number],
+     [Box_number], [Untag_immediate] and [Tag_immediate];
    - of [binary_primitive]: [Int_arith] and [Int_comp], at every
      [Standard_int.t], and [Phys_equal];
    - of [variadic_primitive]: [Make_block] of an immutable block of
@@ -116,6 +116,7 @@ Inductive unary_primitive : Type :=
   | Get_tag
   | Opaque_identity (kind : flambda_kind)
   | Num_conv (src dst : standard_int)
+  | Boolean_not
   | Unbox_number (kind : boxable_number)
   | Box_number (kind : boxable_number)
   | Untag_immediate
