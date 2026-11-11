@@ -39,7 +39,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeRenameSpec
   FlambdaTypeRenameProofs FlambdaBindingTime FlambdaEnvAliases
   FlambdaEnvAliasesSpec FlambdaEnvAliasesProofs FlambdaEnvAliasesRenamingSpec
-  FlambdaEnvAliasesRenamingProofs FlambdaEnvAliasesSetSpec.
+  FlambdaEnvAliasesRenamingProofs FlambdaEnvAliasesSetSpec
+  FlambdaEnvAliasesReplay.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -1433,6 +1434,49 @@ Example add_other_constant :
   Aliases.add_alias_set resolver times x_five (Name_var x)
     (Aliases.Alias_set.make (Some six) [])
   = None.
+Proof. reflexivity. Qed.
+
+(* The calls replayed (FlambdaEnvAliasesReplay.v), as a test that
+   compares the model with the compiler makes them. [y] and [x] are
+   found equal, then [x] is found to hold five: the answers on the
+   way. *)
+Example replay_answers :
+  Aliases_replay.run resolver times
+    [Aliases_replay.Add (Var y) (Var x);
+     Aliases_replay.Get_canonical_ignoring_name_mode (Name_var y);
+     Aliases_replay.Add (Var x) (Const five);
+     Aliases_replay.Get_aliases (Var y);
+     Aliases_replay.Get_canonical_element_exn (Var y) Name_mode.Normal
+       Name_mode.Normal 3;
+     Aliases_replay.Invariant]
+  = [Aliases_replay.Added (Name_var y) (Var x) true;
+     Aliases_replay.Canonical_element (Var x);
+     Aliases_replay.Added (Name_var x) (Const five) true;
+     Aliases_replay.Aliases_of
+       (Aliases.Alias_set.make (Some five) [Name_var x; Name_var y]);
+     Aliases_replay.Canonical_element (Const five);
+     Aliases_replay.Invariant_holds true].
+Proof. reflexivity. Qed.
+
+(* Where a call has no structure to give, the structure is kept. A set
+   with another constant than the one [x] holds is a fatal error; two
+   constants are bottom; two symbols are made aliases, and the result
+   does not pass the compiler's check. *)
+Example replay_stops :
+  Aliases_replay.run resolver times
+    [Aliases_replay.Add (Var x) (Const five);
+     Aliases_replay.Add_alias_set (Name_var w)
+       (Aliases.Alias_set.make (Some six) [Name_var x]);
+     Aliases_replay.Add (Const five) (Const six);
+     Aliases_replay.Get_canonical_ignoring_name_mode (Name_var x);
+     Aliases_replay.Add (Symbol s) (Symbol s');
+     Aliases_replay.Invariant]
+  = [Aliases_replay.Added (Name_var x) (Const five) true;
+     Aliases_replay.Fatal_error;
+     Aliases_replay.Added_bottom;
+     Aliases_replay.Canonical_element (Const five);
+     Aliases_replay.Added (Name_symbol s) (Symbol s') false;
+     Aliases_replay.Invariant_holds false].
 Proof. reflexivity. Qed.
 
 End Examples.
