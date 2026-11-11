@@ -33,9 +33,9 @@
 From Stdlib Require Import ZArith List Bool Lia Setoid.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaMapProofs FlambdaSemanticsSpec.
+  FlambdaMapProofs FlambdaSemanticsSpec FlambdaWellFormedSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeMeaningSpec.
+  FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -313,39 +313,16 @@ Create Rewrite HintDb type_satisfied.
 (* What every kind has: unknown, bottom, aliases                            *)
 (* ======================================================================== *)
 
-(* A type of a kind with a description common to every kind has the
-   meaning of the description. *)
-Lemma type_of_kind_satisfied (statics : static_env) (vars : env) (v : value)
-    (k : flambda_kind) (ty : ∀ head : Type, type_descr head)
-    (P : Prop) :
-  (∀ (head : Type) (head_satisfied : head -> Prop),
-    descr_satisfied vars k head_satisfied v (ty head) <-> P) ->
-  type_satisfied statics vars v (type_of_kind k ty) <-> P.
-Proof.
-  intros Hdescr. destruct k as [ | [] | | ]; simpl; apply Hdescr.
-Qed.
-
-Lemma kind_type_of_kind (k : flambda_kind)
-    (ty : ∀ head : Type, type_descr head) :
-  kind (type_of_kind k ty) = k.
-Proof. destruct k as [ | [] | | ]; reflexivity. Qed.
-
 Theorem unknown_satisfied : unknown_satisfied_statement.
-Proof.
-  intros statics vars v k. apply type_of_kind_satisfied. reflexivity.
-Qed.
+Proof. intros statics vars v k. destruct k as [ | [] | | ]; reflexivity. Qed.
 
 Theorem bottom_satisfied : bottom_satisfied_statement.
 Proof.
-  intros statics vars v k Hsatisfied.
-  apply (type_of_kind_satisfied statics vars v k (fun _ => Bottom) False)
-    in Hsatisfied; [ exact Hsatisfied | reflexivity ].
+  intros statics vars v k. destruct k as [ | [] | | ]; intros [].
 Qed.
 
 Theorem alias_satisfied : alias_satisfied_statement.
-Proof.
-  intros statics vars v k s. apply type_of_kind_satisfied. reflexivity.
-Qed.
+Proof. intros statics vars v k s. destruct k as [ | [] | | ]; reflexivity. Qed.
 
 Lemma get_alias_descr {head : Type} (vars : env) (k : flambda_kind)
     (head_satisfied : head -> Prop) (v : value) (ty : type_descr head)
@@ -1254,3 +1231,653 @@ End Examples.
 #[global] Arguments row_like_for_closures_satisfied : simpl never.
 #[global] Arguments closures_entry_satisfied : simpl never.
 #[global] Arguments env_extension_satisfied : simpl never.
+
+(* ======================================================================== *)
+(* When the static environment grows                                        *)
+(* ======================================================================== *)
+
+Section Statics_extend.
+
+Variables statics statics' : static_env.
+Hypothesis Hextend : statics_extend statics statics'.
+
+Lemma block_of_extend (v : value) (block : Z * list value) :
+  block_of statics v = Some block -> block_of statics' v = Some block.
+Proof.
+  destruct v as [c | code slots | s]; simpl; try discriminate.
+  destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hlookup;
+    [ | discriminate ].
+  rewrite (proj2 Hextend s allocated Hlookup). auto.
+Qed.
+
+Lemma boxed_number_of_extend (v : value) (c : const) :
+  boxed_number_of statics v = Some c -> boxed_number_of statics' v = Some c.
+Proof.
+  destruct v as [c' | code slots | s]; simpl; try discriminate.
+  destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hlookup;
+    [ | discriminate ].
+  rewrite (proj2 Hextend s allocated Hlookup). auto.
+Qed.
+
+Lemma string_of_extend (v : value) (bytes : list Z) :
+  string_of statics v = Some bytes -> string_of statics' v = Some bytes.
+Proof.
+  destruct v as [c | code slots | s]; simpl; try discriminate.
+  destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hlookup;
+    [ | discriminate ].
+  rewrite (proj2 Hextend s allocated Hlookup). auto.
+Qed.
+
+Lemma closure_of_extend (v : value)
+    (closure : code_id * list (value_slot * value)) :
+  closure_of statics v = Some closure -> closure_of statics' v = Some closure.
+Proof.
+  destruct v as [c | code slots | s]; simpl; try discriminate; [ auto | ].
+  destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hlookup;
+    [ | discriminate ].
+  rewrite (proj2 Hextend s allocated Hlookup). auto.
+Qed.
+
+Lemma closure_in_set_extend (v : value)
+    (closure :
+      function_slot * list (function_slot * code_id)
+      * list (value_slot * value)) :
+  closure_in_set statics v = Some closure ->
+  closure_in_set statics' v = Some closure.
+Proof.
+  unfold closure_in_set.
+  destruct (closure_of statics v) as [[code slots] | ] eqn:Hclosure;
+    [ | discriminate ].
+  rewrite (closure_of_extend _ _ Hclosure). auto.
+Qed.
+
+(* The closures of the set of a closure are the same ones. *)
+Lemma project_function_slot_extend (v : value)
+    (closure :
+      function_slot * list (function_slot * code_id)
+      * list (value_slot * value))
+    (move_from move_to : function_slot) :
+  closure_in_set statics v = Some closure ->
+  project_function_slot statics' move_from move_to v
+  = project_function_slot statics move_from move_to v.
+Proof.
+  unfold closure_in_set, project_function_slot.
+  destruct (closure_of statics v) as [[code slots] | ] eqn:Hclosure;
+    [ | discriminate ].
+  rewrite (closure_of_extend _ _ Hclosure). reflexivity.
+Qed.
+
+Lemma some_not_none {A : Type} (o : option A) :
+  o <> None <-> ∃ a : A, o = Some a.
+Proof.
+  destruct o as [a | ]; split; [ eauto | discriminate | congruence | ].
+  intros [a [=]].
+Qed.
+
+Lemma allocated_extend (v : value) :
+  allocated statics v -> allocated statics' v.
+Proof.
+  unfold allocated. rewrite !some_not_none.
+  intros [[b Hb] | [[c Hc] | [[n Hn] | [bytes Hs]]]].
+  - left. exists b. exact (block_of_extend _ _ Hb).
+  - right. left. exists c. exact (closure_of_extend _ _ Hc).
+  - right. right. left. exists n. exact (boxed_number_of_extend _ _ Hn).
+  - right. right. right. exists bytes. exact (string_of_extend _ _ Hs).
+Qed.
+
+Lemma relation_holds_extend (relation : Relation.t) (v : value) (n : Z) :
+  relation_holds statics relation v n -> relation_holds statics' relation v n.
+Proof.
+  destruct relation; simpl.
+  - intros [Hnull | [[Himmediate | Hallocated] Hn]]; [ left; exact Hnull | | ].
+    + right. split; [ left; exact Himmediate | exact Hn ].
+    + right. split; [ | exact Hn ]. right.
+      exact (allocated_extend _ Hallocated).
+  - intros [Himmediate | [[tag [fields Hblock]] Hn]];
+      [ left; exact Himmediate | ].
+    right. split; [ | exact Hn ]. exists tag, fields.
+    exact (block_of_extend _ _ Hblock).
+  - intros [fields Hblock]. exists fields. exact (block_of_extend _ _ Hblock).
+Qed.
+
+(* What holds of the fields under one meaning of types holds under
+   another that is implied by it for the types of the fields. *)
+Lemma fields_satisfied_impl (P Q : value -> flambda_type -> Prop)
+    (tys : list flambda_type) (fields : list value) :
+  (∀ ty : flambda_type, ty ∈ tys -> ∀ v : value, P v ty -> Q v ty) ->
+  fields_satisfied P tys fields -> fields_satisfied Q tys fields.
+Proof.
+  revert fields. induction tys as [ | ty tys IH]; intros fields Himpl.
+  - auto.
+  - destruct fields as [ | field fields]; simpl; [ auto | ].
+    intros [Hfield Hfields]. split.
+    + exact (Himpl ty (or_introl eq_refl) field Hfield).
+    + apply IH; [ | exact Hfields ].
+      intros ty' Hin. exact (Himpl ty' (or_intror Hin)).
+Qed.
+
+Lemma type_satisfied_statics_extend_all (vars : env) :
+  (∀ (t : flambda_type) (v : value),
+    type_satisfied statics vars v t -> type_satisfied statics' vars v t)
+  ∧ (∀ (head : head_of_kind_value) (v : value),
+      head_of_kind_value_satisfied statics vars v head ->
+      head_of_kind_value_satisfied statics' vars v head)
+  ∧ (∀ (head : head_of_kind_value_non_null) (v : value),
+      head_of_kind_value_non_null_satisfied statics vars v head ->
+      head_of_kind_value_non_null_satisfied statics' vars v head)
+  ∧ (∀ (blocks : row_like_for_blocks) (tag : Z) (fields : list value),
+      row_like_for_blocks_satisfied statics vars tag fields blocks ->
+      row_like_for_blocks_satisfied statics' vars tag fields blocks)
+  ∧ (∀ (closures : row_like_for_closures) (v : value) (slot : function_slot)
+       (functions : list (function_slot * code_id))
+       (value_slots : list (value_slot * value)),
+      closure_in_set statics v = Some (slot, functions, value_slots) ->
+      row_like_for_closures_satisfied statics vars v slot functions
+        value_slots closures ->
+      row_like_for_closures_satisfied statics' vars v slot functions
+        value_slots closures)
+  ∧ (∀ (entry : closures_entry) (v : value) (slot : function_slot)
+       (functions : list (function_slot * code_id))
+       (value_slots : list (value_slot * value)),
+      closure_in_set statics v = Some (slot, functions, value_slots) ->
+      closures_entry_satisfied statics vars v slot functions value_slots
+        entry ->
+      closures_entry_satisfied statics' vars v slot functions value_slots
+        entry)
+  ∧ (∀ extension : env_extension,
+      env_extension_satisfied statics vars extension ->
+      env_extension_satisfied statics' vars extension).
+Proof.
+  apply types_induction.
+  - (* Type_value *)
+    intros [ | [head | s] | ] Hhead v; autorewrite with type_satisfied;
+      simpl; auto.
+  - (* Type_naked_immediate *)
+    intros [ | [head | s] | ] v; autorewrite with type_satisfied; simpl; auto.
+    intros [i [Hv [Hnumbers Hrelations]]]. exists i.
+    split; [ exact Hv | ]. split; [ exact Hnumbers | ].
+    intros relation n Hin. destruct (Hrelations relation n Hin) as [w [Hw H]].
+    exists w. split; [ exact Hw | exact (relation_holds_extend _ _ _ H) ].
+  - intros k ty v. autorewrite with type_satisfied. auto.
+  - intros ty v. autorewrite with type_satisfied. auto.
+  - intros ty v. autorewrite with type_satisfied. auto.
+  - (* Head_of_kind_value *)
+    intros non_null is_null Hnon_null v. autorewrite with type_satisfied.
+    intros [Hnull | [Hnot_null [Hhead His_null]]]; [ left; exact Hnull | ].
+    right. split; [ exact Hnot_null | ]. split; [ | exact His_null ].
+    destruct non_null as [ | head | ]; auto.
+  - (* Variant *)
+    intros is_int immediates get_tag blocks extensions is_unique Himmediates
+      Hblocks Hextensions v.
+    autorewrite with type_satisfied.
+    intros [[i [Hv [His_int [Himmediate Hextension]]]]
+           | [tag [fields [Hblock [His_int [Hget_tag [Hrow Hextension]]]]]]].
+    + left. exists i. split; [ exact Hv | ]. split; [ exact His_int | ].
+      split.
+      * destruct immediates as [ty | ]; auto.
+      * destruct extensions as [ | when_immediate when_block]; [ exact I | ].
+        exact (proj1 Hextensions Hextension).
+    + right. exists tag, fields.
+      split; [ exact (block_of_extend _ _ Hblock) | ].
+      split; [ exact His_int | ]. split; [ exact Hget_tag | ]. split.
+      * destruct blocks as [blocks | ]; auto.
+      * destruct extensions as [ | when_immediate when_block]; [ exact I | ].
+        exact (proj2 Hextensions Hextension).
+  - (* Mutable_block *)
+    intros alloc_mode v. autorewrite with type_satisfied. auto.
+  - (* Boxed_number *)
+    intros k contents alloc_mode Hcontents v. autorewrite with type_satisfied.
+    intros [c [Hboxed [Hkind Hc]]]. exists c.
+    split; [ exact (boxed_number_of_extend _ _ Hboxed) | ]. auto.
+  - (* Closures *)
+    intros by_function_slot alloc_mode Hclosures v.
+    autorewrite with type_satisfied.
+    intros [slot [functions [value_slots [Hclosure Hrow]]]].
+    exists slot, functions, value_slots.
+    split; [ exact (closure_in_set_extend _ _ Hclosure) | ].
+    exact (Hclosures v slot functions value_slots Hclosure Hrow).
+  - (* String *)
+    intros strs v. autorewrite with type_satisfied.
+    intros [bytes [Hstring Hin]]. exists bytes.
+    split; [ exact (string_of_extend _ _ Hstring) | exact Hin ].
+  - (* Row_like_for_blocks *)
+    intros known_tags other_tags alloc_mode Hknown Hother tag fields.
+    rewrite !row_like_for_blocks_find_iff.
+    assert (Hcase :
+      ∀ case : row_like_block_case,
+        P_block_case
+          (fun t =>
+             ∀ v : value,
+               type_satisfied statics vars v t ->
+               type_satisfied statics' vars v t)
+          (fun extension =>
+             env_extension_satisfied statics vars extension ->
+             env_extension_satisfied statics' vars extension)
+          case ->
+        row_like_block_case_satisfied statics vars tag fields case ->
+        row_like_block_case_satisfied statics' vars tag fields case).
+    { intros case [Htypes Hextension] [Hindex [Hfields Hext]].
+      split; [ exact Hindex | ]. split; [ | exact (Hextension Hext) ].
+      exact (fields_satisfied_impl _ _ _ _ Htypes Hfields). }
+    destruct (find_tag tag known_tags) as [[case | ] | ] eqn:Hfind.
+    + apply Hcase. exact (Hknown tag case (find_tag_in _ _ _ Hfind)).
+    + auto.
+    + destruct other_tags as [case | ]; [ exact (Hcase case Hother) | auto ].
+  - (* Row_like_for_closures *)
+    intros known_closures Hknown v slot functions value_slots Hclosure.
+    rewrite !row_like_for_closures_lookup_iff.
+    intros [case [Hlookup [Hindex [Hentry Hextension]]]]. exists case.
+    split; [ exact Hlookup | ].
+    destruct (Hknown slot case (lookup_in _ _ _ Hlookup))
+      as [IHentry IHextension].
+    split; [ exact Hindex | ]. split; [ | exact (IHextension Hextension) ].
+    exact (IHentry v slot functions value_slots Hclosure Hentry).
+  - (* Closures_entry *)
+    intros function_types closure_types value_slot_types Hclosures Hslots v
+      slot functions value_slots Hclosure.
+    rewrite !closures_entry_lookup_iff.
+    intros [Hfunctions [Hclosure_types Hvalue_slots]].
+    split; [ exact Hfunctions | ]. split.
+    + intros g ty closure Hlookup Hproject.
+      rewrite (project_function_slot_extend _ _ _ _ Hclosure) in Hproject.
+      apply (Hclosures g ty (lookup_in _ _ _ Hlookup)).
+      exact (Hclosure_types g ty closure Hlookup Hproject).
+    + intros w ty contents Hlookup Hcontents.
+      apply (Hslots w ty (lookup_in _ _ _ Hlookup)).
+      exact (Hvalue_slots w ty contents Hlookup Hcontents).
+  - (* Env_extension *)
+    intros equations Hvariables Hsymbols.
+    rewrite !env_extension_lookup_iff.
+    intros Hequations n ty Hlookup.
+    destruct (Hequations n ty Hlookup) as [v [Hv Hty]]. exists v.
+    split; [ exact Hv | ].
+    destruct n as [x | s]; simpl in Hlookup.
+    + exact (Hvariables x ty (lookup_in _ _ _ Hlookup) v Hty).
+    + exact (Hsymbols s ty (lookup_in _ _ _ Hlookup) v Hty).
+Qed.
+
+End Statics_extend.
+
+Theorem type_satisfied_statics_extend
+  : type_satisfied_statics_extend_statement.
+Proof.
+  intros statics statics' vars v t Hextend.
+  exact (proj1 (type_satisfied_statics_extend_all _ _ Hextend vars) t v).
+Qed.
+
+Theorem env_extension_satisfied_statics_extend
+  : env_extension_satisfied_statics_extend_statement.
+Proof.
+  intros statics statics' vars extension Hextend.
+  destruct (type_satisfied_statics_extend_all _ _ Hextend vars)
+    as [_ [_ [_ [_ [_ [_ Hextension]]]]]].
+  exact (Hextension extension).
+Qed.
+
+(* ======================================================================== *)
+(* The variables that the meaning of a type depends on                      *)
+(* ======================================================================== *)
+
+(* Two environments give the same values to some variables. *)
+Definition agree (vars vars' : env) (xs : list variable) : Prop :=
+  ∀ x : variable, x ∈ xs -> lookup x vars = lookup x vars'.
+
+Lemma agree_app (vars vars' : env) (xs ys : list variable) :
+  agree vars vars' (xs ++ ys) <-> agree vars vars' xs ∧ agree vars vars' ys.
+Proof.
+  unfold agree. split.
+  - intros Hagree. split; intros x Hin; apply Hagree, in_or_app; auto.
+  - intros [Hxs Hys] x Hin. apply in_app_or in Hin as [Hin | Hin]; auto.
+Qed.
+
+Lemma agree_flat_map {A : Type} (vars vars' : env) (f : A -> list variable)
+    (l : list A) (a : A) :
+  agree vars vars' (flat_map f l) -> a ∈ l -> agree vars vars' (f a).
+Proof.
+  intros Hagree Hin x Hx. apply Hagree, in_flat_map. exists a. auto.
+Qed.
+
+Lemma agree_eval_simple (vars vars' : env) (s : simple) :
+  agree vars vars' (free_variables_of_simple s) ->
+  eval_simple vars s = eval_simple vars' s.
+Proof.
+  destruct s as [x | sym | c]; simpl; [ | reflexivity | reflexivity ].
+  intros Hagree. apply Hagree. left. reflexivity.
+Qed.
+
+Lemma agree_variable_is (vars vars' : env) (x : option variable) (n : Z) :
+  agree vars vars' (free_variables_of_option x) ->
+  variable_is vars x n -> variable_is vars' x n.
+Proof.
+  destruct x as [x | ]; simpl; [ | auto ].
+  intros Hagree. rewrite (Hagree x (or_introl eq_refl)). auto.
+Qed.
+
+Lemma agree_descr {head : Type} (vars vars' : env) (k : flambda_kind)
+    (free_variables_of_head : head -> list variable)
+    (head_satisfied head_satisfied' : head -> Prop) (v : value)
+    (ty : type_descr head) :
+  agree vars vars' (free_variables_of_descr free_variables_of_head ty) ->
+  (∀ h : head,
+    ty = Ok (No_alias h) -> head_satisfied h -> head_satisfied' h) ->
+  descr_satisfied vars k head_satisfied v ty ->
+  descr_satisfied vars' k head_satisfied' v ty.
+Proof.
+  destruct ty as [ | [h | s] | ]; simpl; [ auto | | | auto ].
+  - intros _ Hhead. exact (Hhead h eq_refl).
+  - intros Hagree _. rewrite (agree_eval_simple _ _ _ Hagree). auto.
+Qed.
+
+Lemma type_satisfied_agree_all (statics : static_env) :
+  (∀ (t : flambda_type) (vars vars' : env) (v : value),
+    agree vars vars' (free_variables t) ->
+    type_satisfied statics vars v t -> type_satisfied statics vars' v t)
+  ∧ (∀ (head : head_of_kind_value) (vars vars' : env) (v : value),
+      agree vars vars' (free_variables_of_head_of_kind_value head) ->
+      head_of_kind_value_satisfied statics vars v head ->
+      head_of_kind_value_satisfied statics vars' v head)
+  ∧ (∀ (head : head_of_kind_value_non_null) (vars vars' : env) (v : value),
+      agree vars vars' (free_variables_of_head_of_kind_value_non_null head) ->
+      head_of_kind_value_non_null_satisfied statics vars v head ->
+      head_of_kind_value_non_null_satisfied statics vars' v head)
+  ∧ (∀ (blocks : row_like_for_blocks) (vars vars' : env) (tag : Z)
+       (fields : list value),
+      agree vars vars' (free_variables_of_row_like_for_blocks blocks) ->
+      row_like_for_blocks_satisfied statics vars tag fields blocks ->
+      row_like_for_blocks_satisfied statics vars' tag fields blocks)
+  ∧ (∀ (closures : row_like_for_closures) (vars vars' : env) (v : value)
+       (slot : function_slot) (functions : list (function_slot * code_id))
+       (value_slots : list (value_slot * value)),
+      agree vars vars' (free_variables_of_row_like_for_closures closures) ->
+      row_like_for_closures_satisfied statics vars v slot functions
+        value_slots closures ->
+      row_like_for_closures_satisfied statics vars' v slot functions
+        value_slots closures)
+  ∧ (∀ (entry : closures_entry) (vars vars' : env) (v : value)
+       (slot : function_slot) (functions : list (function_slot * code_id))
+       (value_slots : list (value_slot * value)),
+      agree vars vars' (free_variables_of_closures_entry entry) ->
+      closures_entry_satisfied statics vars v slot functions value_slots
+        entry ->
+      closures_entry_satisfied statics vars' v slot functions value_slots
+        entry)
+  ∧ (∀ (extension : env_extension) (vars vars' : env),
+      agree vars vars' (free_variables_of_env_extension extension) ->
+      env_extension_satisfied statics vars extension ->
+      env_extension_satisfied statics vars' extension).
+Proof.
+  apply types_induction.
+  - (* Type_value *)
+    intros ty Hhead vars vars' v Hagree. autorewrite with type_satisfied.
+    apply (agree_descr _ _ _ _ _ _ _ _ Hagree).
+    intros h ->. exact (Hhead vars vars' v Hagree).
+  - (* Type_naked_immediate *)
+    intros ty vars vars' v Hagree. autorewrite with type_satisfied.
+    apply (agree_descr _ _ _ _ _ _ _ _ Hagree).
+    intros head ->. simpl in Hagree.
+    intros [i [Hv [Hnumbers Hrelations]]]. exists i.
+    split; [ exact Hv | ]. split; [ exact Hnumbers | ].
+    intros relation n Hin. destruct (Hrelations relation n Hin) as [w [Hw H]].
+    exists w. split; [ | exact H ]. unfold value_of_name in *.
+    rewrite <- Hw. symmetry. apply agree_eval_simple.
+    exact (agree_flat_map _ _ _ _ (relation, n) Hagree Hin).
+  - intros k ty vars vars' v Hagree. autorewrite with type_satisfied.
+    apply (agree_descr _ _ _ _ _ _ _ _ Hagree). auto.
+  - intros ty vars vars' v Hagree. autorewrite with type_satisfied.
+    apply (agree_descr _ _ _ _ _ _ _ _ Hagree). auto.
+  - intros ty vars vars' v Hagree. autorewrite with type_satisfied.
+    apply (agree_descr _ _ _ _ _ _ _ _ Hagree). auto.
+  - (* Head_of_kind_value *)
+    intros non_null is_null Hnon_null vars vars' v Hagree.
+    simpl in Hagree. apply agree_app in Hagree as [Hagree_head Hagree_null].
+    autorewrite with type_satisfied.
+    intros [[Hnull His_null] | [Hnot_null [Hhead His_null]]].
+    + left. split; [ exact Hnull | ].
+      destruct is_null as [ | is_null]; [ exact His_null | ].
+      exact (agree_variable_is _ _ _ _ Hagree_null His_null).
+    + right. split; [ exact Hnot_null | ]. split.
+      * destruct non_null as [ | head | ]; auto.
+        exact (Hnon_null vars vars' v Hagree_head Hhead).
+      * destruct is_null as [ | is_null]; [ exact His_null | ].
+        exact (agree_variable_is _ _ _ _ Hagree_null His_null).
+  - (* Variant *)
+    intros is_int immediates get_tag blocks extensions is_unique Himmediates
+      Hblocks Hextensions vars vars' v Hagree.
+    simpl in Hagree.
+    apply agree_app in Hagree as [Hagree_is_int Hagree].
+    apply agree_app in Hagree as [Hagree_immediates Hagree].
+    apply agree_app in Hagree as [Hagree_get_tag Hagree].
+    apply agree_app in Hagree as [Hagree_blocks Hagree_extensions].
+    autorewrite with type_satisfied.
+    intros [[i [Hv [His_int [Himmediate Hextension]]]]
+           | [tag [fields [Hblock [His_int [Hget_tag [Hrow Hextension]]]]]]].
+    + left. exists i. split; [ exact Hv | ].
+      split; [ exact (agree_variable_is _ _ _ _ Hagree_is_int His_int) | ].
+      split.
+      * destruct immediates as [ty | ]; [ | exact I ].
+        exact (Himmediates vars vars' _ Hagree_immediates Himmediate).
+      * destruct extensions as [ | when_immediate when_block]; [ exact I | ].
+        apply agree_app in Hagree_extensions as [Hagree_immediate _].
+        exact (proj1 Hextensions vars vars' Hagree_immediate Hextension).
+    + right. exists tag, fields. split; [ exact Hblock | ].
+      split; [ exact (agree_variable_is _ _ _ _ Hagree_is_int His_int) | ].
+      split; [ exact (agree_variable_is _ _ _ _ Hagree_get_tag Hget_tag) | ].
+      split.
+      * destruct blocks as [blocks | ]; [ | exact I ].
+        exact (Hblocks vars vars' tag fields Hagree_blocks Hrow).
+      * destruct extensions as [ | when_immediate when_block]; [ exact I | ].
+        apply agree_app in Hagree_extensions as [_ Hagree_block].
+        exact (proj2 Hextensions vars vars' Hagree_block Hextension).
+  - (* Mutable_block *)
+    intros alloc_mode vars vars' v _. autorewrite with type_satisfied. auto.
+  - (* Boxed_number *)
+    intros k contents alloc_mode Hcontents vars vars' v Hagree.
+    autorewrite with type_satisfied.
+    intros [c [Hboxed [Hkind Hc]]]. exists c.
+    split; [ exact Hboxed | ]. split; [ exact Hkind | ].
+    exact (Hcontents vars vars' _ Hagree Hc).
+  - (* Closures *)
+    intros by_function_slot alloc_mode Hclosures vars vars' v Hagree.
+    autorewrite with type_satisfied.
+    intros [slot [functions [value_slots [Hclosure Hrow]]]].
+    exists slot, functions, value_slots. split; [ exact Hclosure | ].
+    exact (Hclosures vars vars' v slot functions value_slots Hagree Hrow).
+  - (* String *)
+    intros strs vars vars' v _. autorewrite with type_satisfied. auto.
+  - (* Row_like_for_blocks *)
+    intros known_tags other_tags alloc_mode Hknown Hother vars vars' tag
+      fields Hagree.
+    simpl in Hagree. apply agree_app in Hagree as [Hagree_known Hagree_other].
+    rewrite !row_like_for_blocks_find_iff.
+    assert (Hcase :
+      ∀ case : row_like_block_case,
+        P_block_case
+          (fun t =>
+             ∀ (vars vars' : env) (v : value),
+               agree vars vars' (free_variables t) ->
+               type_satisfied statics vars v t ->
+               type_satisfied statics vars' v t)
+          (fun extension =>
+             ∀ vars vars' : env,
+               agree vars vars' (free_variables_of_env_extension extension) ->
+               env_extension_satisfied statics vars extension ->
+               env_extension_satisfied statics vars' extension)
+          case ->
+        agree vars vars'
+          (free_variables_of_block_case free_variables
+             free_variables_of_env_extension case) ->
+        row_like_block_case_satisfied statics vars tag fields case ->
+        row_like_block_case_satisfied statics vars' tag fields case).
+    { intros case [Htypes Hextension] Hagree [Hindex [Hfields Hext]].
+      apply agree_app in Hagree as [Hagree_fields Hagree_extension].
+      split; [ exact Hindex | ].
+      split; [ | exact (Hextension vars vars' Hagree_extension Hext) ].
+      apply (fields_satisfied_impl _ _ _ _) with (2 := Hfields).
+      intros ty Hin v.
+      exact (Htypes ty Hin vars vars' v
+               (agree_flat_map _ _ _ _ ty Hagree_fields Hin)). }
+    destruct (find_tag tag known_tags) as [[case | ] | ] eqn:Hfind.
+    + apply find_tag_in in Hfind. apply (Hcase case (Hknown tag case Hfind)).
+      exact (agree_flat_map _ _ _ _ _ Hagree_known Hfind).
+    + auto.
+    + destruct other_tags as [case | ]; [ | auto ].
+      exact (Hcase case Hother Hagree_other).
+  - (* Row_like_for_closures *)
+    intros known_closures Hknown vars vars' v slot functions value_slots
+      Hagree.
+    rewrite !row_like_for_closures_lookup_iff.
+    intros [case [Hlookup [Hindex [Hentry Hextension]]]]. exists case.
+    split; [ exact Hlookup | ]. apply lookup_in in Hlookup.
+    destruct (Hknown slot case Hlookup) as [IHentry IHextension].
+    simpl in Hagree.
+    apply (agree_flat_map _ _ _ _ _ Hagree) in Hlookup. simpl in Hlookup.
+    apply agree_app in Hlookup as [Hagree_entry Hagree_extension].
+    split; [ exact Hindex | ].
+    split; [ | exact (IHextension vars vars' Hagree_extension Hextension) ].
+    exact (IHentry vars vars' v slot functions value_slots Hagree_entry
+             Hentry).
+  - (* Closures_entry *)
+    intros function_types closure_types value_slot_types Hclosures Hslots
+      vars vars' v slot functions value_slots Hagree.
+    simpl in Hagree.
+    apply agree_app in Hagree as [Hagree_closures Hagree_slots].
+    rewrite !closures_entry_lookup_iff.
+    intros [Hfunctions [Hclosure_types Hvalue_slots]].
+    split; [ exact Hfunctions | ]. split.
+    + intros g ty closure Hlookup Hproject.
+      pose proof (lookup_in _ _ _ Hlookup) as Hin.
+      apply (Hclosures g ty Hin vars vars').
+      * exact (agree_flat_map _ _ _ _ _ Hagree_closures Hin).
+      * exact (Hclosure_types g ty closure Hlookup Hproject).
+    + intros w ty contents Hlookup Hcontents.
+      pose proof (lookup_in _ _ _ Hlookup) as Hin.
+      apply (Hslots w ty Hin vars vars').
+      * exact (agree_flat_map _ _ _ _ _ Hagree_slots Hin).
+      * exact (Hvalue_slots w ty contents Hlookup Hcontents).
+  - (* Env_extension *)
+    intros equations Hvariables Hsymbols vars vars' Hagree.
+    simpl in Hagree.
+    apply agree_app in Hagree as [Hagree_variables Hagree_symbols].
+    rewrite !env_extension_lookup_iff.
+    intros Hequations n ty Hlookup.
+    destruct (Hequations n ty Hlookup) as [v [Hv Hty]]. exists v.
+    destruct n as [x | s]; simpl in Hlookup.
+    + pose proof (lookup_in _ _ _ Hlookup) as Hin.
+      pose proof (agree_flat_map _ _ _ _ _ Hagree_variables Hin) as Hagree.
+      simpl in Hagree. split.
+      * unfold value_of_name in *. simpl in *.
+        rewrite <- (Hagree x (or_introl eq_refl)). exact Hv.
+      * apply (Hvariables x ty Hin vars vars'); [ | exact Hty ].
+        intros y Hy. apply Hagree. right. exact Hy.
+    + pose proof (lookup_in _ _ _ Hlookup) as Hin. split; [ exact Hv | ].
+      apply (Hsymbols s ty Hin vars vars'); [ | exact Hty ].
+      exact (agree_flat_map _ _ _ _ _ Hagree_symbols Hin).
+Qed.
+
+Lemma agree_sym (vars vars' : env) (xs : list variable) :
+  agree vars vars' xs -> agree vars' vars xs.
+Proof. intros Hagree x Hin. symmetry. exact (Hagree x Hin). Qed.
+
+Theorem type_satisfied_coincide : type_satisfied_coincide_statement.
+Proof.
+  intros statics vars vars' v t Hagree.
+  destruct (type_satisfied_agree_all statics) as [Htype _].
+  split; apply Htype; [ exact Hagree | exact (agree_sym _ _ _ Hagree) ].
+Qed.
+
+Theorem env_extension_satisfied_coincide
+  : env_extension_satisfied_coincide_statement.
+Proof.
+  intros statics vars vars' extension Hagree.
+  destruct (type_satisfied_agree_all statics)
+    as [_ [_ [_ [_ [_ [_ Hextension]]]]]].
+  split; apply Hextension; [ exact Hagree | exact (agree_sym _ _ _ Hagree) ].
+Qed.
+
+Theorem type_satisfied_bind : type_satisfied_bind_statement.
+Proof.
+  intros statics vars x w v t Hfresh. apply type_satisfied_coincide.
+  intros y Hin. simpl.
+  destruct (Pos.eqb_spec y x) as [-> | _]; [ contradiction | reflexivity ].
+Qed.
+
+Theorem unknown_is_top : unknown_is_top_statement.
+Proof.
+  intros statics vars v t Hsatisfied. apply unknown_satisfied.
+  exact (type_satisfied_kind _ _ _ _ Hsatisfied).
+Qed.
+
+(* ======================================================================== *)
+(* Types with no value, and heads with no value in common                   *)
+(* ======================================================================== *)
+
+Theorem is_obviously_bottom_satisfied
+  : is_obviously_bottom_satisfied_statement.
+Proof.
+  intros statics vars v t Hbottom.
+  destruct t as [ty | ty | k ty | ty | ty]; autorewrite with type_satisfied;
+    destruct ty as [ | d | ]; try discriminate; intros [].
+Qed.
+
+Theorem is_obviously_unknown_satisfied
+  : is_obviously_unknown_satisfied_statement.
+Proof.
+  intros statics vars v t Hunknown.
+  destruct t as [ty | ty | k ty | ty | ty]; autorewrite with type_satisfied;
+    destruct ty as [ | d | ]; try discriminate; reflexivity.
+Qed.
+
+Theorem row_like_for_blocks_is_bottom_satisfied
+  : row_like_for_blocks_is_bottom_satisfied_statement.
+Proof.
+  intros statics vars tag fields [known_tags other_tags alloc_mode] Hbottom.
+  rewrite row_like_for_blocks_find_iff.
+  destruct known_tags as [ | case known_tags]; [ | discriminate ].
+  destruct other_tags as [case | ]; [ discriminate | ]. simpl. auto.
+Qed.
+
+Theorem heads_compatible_satisfied : heads_compatible_satisfied_statement.
+Proof.
+  intros statics vars v head head' Hhead Hhead'.
+  pose proof (observations_disjoint statics v) as [Hblock [Hclosure Hboxed]].
+  assert (Hclosure_in_set :
+    ∀ closure, closure_in_set statics v = Some closure ->
+               closure_of statics v <> None).
+  { unfold closure_in_set. intros closure.
+    destruct (closure_of statics v); [ discriminate | discriminate ]. }
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    destruct head' as [is_int' immediates' get_tag' blocks' extensions'
+                         is_unique'
+                      | alloc_mode' | k' contents' alloc_mode'
+                      | by_function_slot' alloc_mode' | strs'];
+    autorewrite with type_satisfied in Hhead, Hhead'; simpl; auto;
+    repeat
+      match goal with
+      | H : False |- _ => destruct H
+      | H : _ ∨ _ |- _ => destruct H
+      | H : ∃ _, _ |- _ => destruct H
+      | H : _ ∧ _ |- _ => destruct H
+      end;
+    subst; try discriminate;
+    repeat
+      match goal with
+      | H : block_of statics v = Some _ |- _ =>
+        assert (block_of statics v <> None) by (rewrite H; discriminate);
+        clear H
+      | H : boxed_number_of statics v = Some ?c,
+        H' : boxed_number_of statics v = Some ?c' |- _ =>
+        rewrite H in H'; injection H' as <-
+      | H : boxed_number_of statics v = Some _ |- _ =>
+        assert (boxed_number_of statics v <> None)
+          by (rewrite H; discriminate);
+        clear H
+      | H : string_of statics v = Some _ |- _ =>
+        assert (string_of statics v <> None) by (rewrite H; discriminate);
+        clear H
+      | H : closure_in_set statics v = Some _ |- _ =>
+        apply Hclosure_in_set in H
+      end;
+    try congruence; try tauto.
+Qed.

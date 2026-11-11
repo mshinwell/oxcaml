@@ -141,7 +141,7 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec.
+  FlambdaSemanticsSpec FlambdaWellFormedSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar.
 Import ListNotations.
 
@@ -947,3 +947,93 @@ Definition env_extension_lookup_statement : Prop :=
           lookup_name n equations = Some ty ->
           ∃ v : value,
             value_of_name vars n = Some v ∧ type_satisfied statics vars v ty).
+
+(* ======================================================================== *)
+(* What the meaning of a type depends on                                    *)
+(* ======================================================================== *)
+
+(* A type keeps its values when the static environment grows, as it does
+   in a run (FlambdaWellFormedSpec.run_extends_statics_statement): what is
+   true of a value where a handler is defined is true where it runs. *)
+Definition type_satisfied_statics_extend_statement : Prop :=
+  ∀ (statics statics' : static_env) (vars : env) (v : value)
+    (t : flambda_type),
+    statics_extend statics statics' ->
+    type_satisfied statics vars v t ->
+    type_satisfied statics' vars v t.
+
+Definition env_extension_satisfied_statics_extend_statement : Prop :=
+  ∀ (statics statics' : static_env) (vars : env) (extension : env_extension),
+    statics_extend statics statics' ->
+    env_extension_satisfied statics vars extension ->
+    env_extension_satisfied statics' vars extension.
+
+(* The meaning of a type depends on the environment only through the
+   values of the variables that the type mentions. *)
+Definition type_satisfied_coincide_statement : Prop :=
+  ∀ (statics : static_env) (vars vars' : env) (v : value) (t : flambda_type),
+    (∀ x : variable, x ∈ free_variables t -> lookup x vars = lookup x vars') ->
+    (type_satisfied statics vars v t <-> type_satisfied statics vars' v t).
+
+Definition env_extension_satisfied_coincide_statement : Prop :=
+  ∀ (statics : static_env) (vars vars' : env) (extension : env_extension),
+    (∀ x : variable,
+      x ∈ free_variables_of_env_extension extension ->
+      lookup x vars = lookup x vars') ->
+    (env_extension_satisfied statics vars extension
+     <-> env_extension_satisfied statics vars' extension).
+
+(* So binding a variable that a type does not mention changes nothing:
+   what is known stays known under a binder of a fresh name. *)
+Definition type_satisfied_bind_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (x : variable) (w v : value)
+    (t : flambda_type),
+    x ∉ free_variables t ->
+    (type_satisfied statics ((x, w) :: vars) v t
+     <-> type_satisfied statics vars v t).
+
+(* The unknown type of a kind is the top of the kind. *)
+Definition unknown_is_top_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (v : value) (t : flambda_type),
+    type_satisfied statics vars v t ->
+    type_satisfied statics vars v (unknown (kind t)).
+
+(* ======================================================================== *)
+(* Types with no value, and heads with no value in common                   *)
+(* ======================================================================== *)
+
+Definition is_obviously_bottom_satisfied_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (v : value) (t : flambda_type),
+    is_obviously_bottom t = true -> ~ type_satisfied statics vars v t.
+
+Definition is_obviously_unknown_satisfied_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (v : value) (t : flambda_type),
+    is_obviously_unknown t = true ->
+    (type_satisfied statics vars v t <-> kind_of_value v = kind t).
+
+Definition row_like_for_blocks_is_bottom_satisfied_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (tag : Z) (fields : list value)
+    (blocks : row_like_for_blocks),
+    row_like_for_blocks_is_bottom blocks = true ->
+    ~ row_like_for_blocks_satisfied statics vars tag fields blocks.
+
+(* The last case of [Meet.meet_head_of_kind_value_non_null]: two heads
+   made with different constructors have no value in common, but for a
+   variant and a mutable block; nor have boxed numbers of two kinds. *)
+Definition heads_compatible (head head' : head_of_kind_value_non_null)
+    : Prop :=
+  match head, head' with
+  | (Variant _ _ _ _ _ _ | Mutable_block _),
+    (Variant _ _ _ _ _ _ | Mutable_block _) => True
+  | Boxed_number k _ _, Boxed_number k' _ _ => k = k'
+  | Closures _ _, Closures _ _ => True
+  | String _, String _ => True
+  | _, _ => False
+  end.
+
+Definition heads_compatible_satisfied_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (v : value)
+    (head head' : head_of_kind_value_non_null),
+    head_of_kind_value_non_null_satisfied statics vars v head ->
+    head_of_kind_value_non_null_satisfied statics vars v head' ->
+    heads_compatible head head'.

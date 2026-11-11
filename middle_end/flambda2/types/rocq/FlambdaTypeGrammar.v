@@ -438,29 +438,35 @@ Definition field_kinds (shape : block_shape) (size : nat)
 (* Creation of types                                                        *)
 (* ======================================================================== *)
 
-(* A type of a kind that has a description common to every kind, which
-   are the unknown type, the bottom type and the aliases. *)
-Definition type_of_kind (k : flambda_kind)
-    (ty : ∀ head : Type, type_descr head) : flambda_type :=
-  match k with
-  | Value => Type_value (ty _)
-  | Naked_number Kind_naked_immediate => Type_naked_immediate (ty _)
-  | Naked_number k => Type_naked_number k (ty _)
-  | Rec_info => Type_rec_info (ty _)
-  | Region => Type_region (ty _)
-  end.
-
 (* [More_type_creators.unknown]: [any_value], [any_naked_immediate], ... *)
 Definition unknown (k : flambda_kind) : flambda_type :=
-  type_of_kind k (fun _ => Unknown).
+  match k with
+  | Value => Type_value Unknown
+  | Naked_number Kind_naked_immediate => Type_naked_immediate Unknown
+  | Naked_number k => Type_naked_number k Unknown
+  | Rec_info => Type_rec_info Unknown
+  | Region => Type_region Unknown
+  end.
 
 (* [More_type_creators.bottom]: [bottom_value], ... *)
 Definition bottom (k : flambda_kind) : flambda_type :=
-  type_of_kind k (fun _ => Bottom).
+  match k with
+  | Value => Type_value Bottom
+  | Naked_number Kind_naked_immediate => Type_naked_immediate Bottom
+  | Naked_number k => Type_naked_number k Bottom
+  | Rec_info => Type_rec_info Bottom
+  | Region => Type_region Bottom
+  end.
 
 (* [Type_grammar.alias_type_of]. *)
 Definition alias_type_of (k : flambda_kind) (s : simple) : flambda_type :=
-  type_of_kind k (fun _ => Ok (Equals s)).
+  match k with
+  | Value => Type_value (Ok (Equals s))
+  | Naked_number Kind_naked_immediate => Type_naked_immediate (Ok (Equals s))
+  | Naked_number k => Type_naked_number k (Ok (Equals s))
+  | Rec_info => Type_rec_info (Ok (Equals s))
+  | Region => Type_region (Ok (Equals s))
+  end.
 
 (* [Type_grammar.get_alias_opt]. *)
 Definition get_alias_opt (t : flambda_type) : option simple :=
@@ -468,6 +474,38 @@ Definition get_alias_opt (t : flambda_type) : option simple :=
     match ty with
     | Ok (Equals s) => Some s
     | Unknown | Bottom | Ok (No_alias _) => None
+    end
+  in
+  match t with
+  | Type_value ty => of_descr ty
+  | Type_naked_immediate ty => of_descr ty
+  | Type_naked_number _ ty => of_descr ty
+  | Type_rec_info ty => of_descr ty
+  | Type_region ty => of_descr ty
+  end.
+
+(* [Type_grammar.is_obviously_bottom]. *)
+Definition is_obviously_bottom (t : flambda_type) : bool :=
+  let of_descr {head : Type} (ty : type_descr head) : bool :=
+    match ty with
+    | Bottom => true
+    | Unknown | Ok _ => false
+    end
+  in
+  match t with
+  | Type_value ty => of_descr ty
+  | Type_naked_immediate ty => of_descr ty
+  | Type_naked_number _ ty => of_descr ty
+  | Type_rec_info ty => of_descr ty
+  | Type_region ty => of_descr ty
+  end.
+
+(* [Type_grammar.is_obviously_unknown]. *)
+Definition is_obviously_unknown (t : flambda_type) : bool :=
+  let of_descr {head : Type} (ty : type_descr head) : bool :=
+    match ty with
+    | Unknown => true
+    | Bottom | Ok _ => false
     end
   in
   match t with
@@ -555,6 +593,14 @@ Definition empty_env_extension : env_extension :=
 (* [Type_grammar.Row_like_for_blocks.bottom]. *)
 Definition row_like_for_blocks_bottom : row_like_for_blocks :=
   Row_like_for_blocks [] Or_bottom.Bottom Alloc_mode.Heap_or_local.
+
+(* [Type_grammar.Row_like_for_blocks.is_bottom]. *)
+Definition row_like_for_blocks_is_bottom (blocks : row_like_for_blocks)
+    : bool :=
+  match blocks with
+  | Row_like_for_blocks [] Or_bottom.Bottom _ => true
+  | Row_like_for_blocks _ _ _ => false
+  end.
 
 (* [Type_grammar.Row_like_for_blocks.create_exactly],
    [create_at_least] and [create_at_least_unknown_tag]: blocks of one tag
@@ -672,3 +718,155 @@ Definition exactly_this_closure (this_function_slot : function_slot)
                     (domain all_value_slots_in_set)))
               tt)
            empty_env_extension)]).
+
+(* ======================================================================== *)
+(* Free variables                                                           *)
+(* ======================================================================== *)
+
+(* [Type_grammar.free_names], of which only the variables are kept: the
+   variables that a type mentions, on whose values its meaning depends.
+   They are the variable of an alias, the variables that hold the results
+   of [Is_int], [Get_tag] and [Is_null], the variables of which a naked
+   immediate is the result of a relation, and the variables that an
+   environment extension has an equation on. A variable may be listed
+   more than once, and the variables of a binding of a map that is
+   shadowed are listed too. *)
+
+Definition free_variables_of_simple (s : simple) : list variable :=
+  match s with
+  | Var x => [x]
+  | Symbol _ | Const _ => []
+  end.
+
+Definition free_variables_of_name (n : name) : list variable :=
+  free_variables_of_simple (simple_of_name n).
+
+Definition free_variables_of_option (x : option variable) : list variable :=
+  match x with
+  | Some x => [x]
+  | None => []
+  end.
+
+Definition free_variables_of_descr {head : Type}
+    (free_variables_of_head : head -> list variable) (ty : type_descr head)
+    : list variable :=
+  match ty with
+  | Ok (No_alias head) => free_variables_of_head head
+  | Ok (Equals s) => free_variables_of_simple s
+  | Unknown | Bottom => []
+  end.
+
+Definition free_variables_of_naked_immediate
+    (head : head_of_kind_naked_immediate) : list variable :=
+  flat_map (fun relation => free_variables_of_name (snd relation))
+    (inverse_relations head).
+
+(* The two arguments stand for the functions being defined below. *)
+Definition free_variables_of_block_case
+    (free_variables : flambda_type -> list variable)
+    (free_variables_of_env_extension : env_extension -> list variable)
+    (case : row_like_block_case) : list variable :=
+  flat_map free_variables (case_maps_to case)
+  ++ free_variables_of_env_extension (case_env_extension case).
+
+Fixpoint free_variables (t : flambda_type) : list variable :=
+  match t with
+  | Type_value ty =>
+    free_variables_of_descr free_variables_of_head_of_kind_value ty
+  | Type_naked_immediate ty =>
+    free_variables_of_descr free_variables_of_naked_immediate ty
+  | Type_naked_number _ ty => free_variables_of_descr (fun _ => []) ty
+  | Type_rec_info ty => free_variables_of_descr (fun _ => []) ty
+  | Type_region ty => free_variables_of_descr (fun _ => []) ty
+  end
+
+with free_variables_of_head_of_kind_value (head : head_of_kind_value)
+    : list variable :=
+  match head with
+  | Head_of_kind_value non_null is_null =>
+    match non_null with
+    | Ok head => free_variables_of_head_of_kind_value_non_null head
+    | Unknown | Bottom => []
+    end
+    ++ match is_null with
+       | Not_null => []
+       | Maybe_null is_null => free_variables_of_option is_null
+       end
+  end
+
+with free_variables_of_head_of_kind_value_non_null
+    (head : head_of_kind_value_non_null) : list variable :=
+  match head with
+  | Variant is_int immediates get_tag blocks extensions _ =>
+    free_variables_of_option is_int
+    ++ match immediates with
+       | Or_unknown.Known ty => free_variables ty
+       | Or_unknown.Unknown => []
+       end
+    ++ free_variables_of_option get_tag
+    ++ match blocks with
+       | Or_unknown.Known blocks =>
+         free_variables_of_row_like_for_blocks blocks
+       | Or_unknown.Unknown => []
+       end
+    ++ match extensions with
+       | No_extensions => []
+       | Ext when_immediate when_block =>
+         free_variables_of_env_extension when_immediate
+         ++ free_variables_of_env_extension when_block
+       end
+  | Mutable_block _ | String _ => []
+  | Boxed_number _ contents _ => free_variables contents
+  | Closures by_function_slot _ =>
+    free_variables_of_row_like_for_closures by_function_slot
+  end
+
+with free_variables_of_row_like_for_blocks (blocks : row_like_for_blocks)
+    : list variable :=
+  match blocks with
+  | Row_like_for_blocks known_tags other_tags _ =>
+    flat_map
+      (fun case =>
+         match snd case with
+         | Or_unknown.Known case =>
+           free_variables_of_block_case free_variables
+             free_variables_of_env_extension case
+         | Or_unknown.Unknown => []
+         end)
+      known_tags
+    ++ match other_tags with
+       | Or_bottom.Ok case =>
+         free_variables_of_block_case free_variables
+           free_variables_of_env_extension case
+       | Or_bottom.Bottom => []
+       end
+  end
+
+with free_variables_of_row_like_for_closures (closures : row_like_for_closures)
+    : list variable :=
+  match closures with
+  | Row_like_for_closures known_closures =>
+    flat_map
+      (fun case =>
+         free_variables_of_closures_entry (case_maps_to (snd case))
+         ++ free_variables_of_env_extension (case_env_extension (snd case)))
+      known_closures
+  end
+
+with free_variables_of_closures_entry (entry : closures_entry)
+    : list variable :=
+  match entry with
+  | Closures_entry _ closure_types value_slot_types =>
+    flat_map (fun binding => free_variables (snd binding)) closure_types
+    ++ flat_map (fun binding => free_variables (snd binding)) value_slot_types
+  end
+
+with free_variables_of_env_extension (extension : env_extension)
+    : list variable :=
+  match extension with
+  | Env_extension equations =>
+    flat_map (fun binding => fst binding :: free_variables (snd binding))
+      (on_variables equations)
+    ++ flat_map (fun binding => free_variables (snd binding))
+         (on_symbols equations)
+  end.
