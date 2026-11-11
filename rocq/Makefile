@@ -88,7 +88,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaAlphaProofs.v FlambdaApplySpec.v FlambdaApplyProofs.v \
   FlambdaStaticSpec.v FlambdaStaticProofs.v FlambdaCompareSpec.v \
   FlambdaCompareProofs.v FlambdaNormaliseSpec.v FlambdaNormaliseProofs.v \
-  FlambdaUnusedStaticsSpec.v FlambdaUnusedStaticsProofs.v)
+  FlambdaUnusedStaticsSpec.v FlambdaUnusedStaticsProofs.v \
+  FlambdaValidateSpec.v FlambdaValidateProofs.v)
 FLAMBDA2_EXTRACT := $(FLAMBDA2_DIR)/FlambdaExtract.v
 FLAMBDA2_EXTRACTED_DIR := $(ROOT)/middle_end/flambda2/tests/semantics/extracted
 FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \

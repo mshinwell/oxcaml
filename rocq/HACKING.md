@@ -108,7 +108,7 @@ Each directory is a Rocq library (`rocq/Makefile` maps them):
 | `backend/rocq/`          | `OxCamlBackend`| Backend-wide definitions: the semantics of `Cmm.integer_comparison` (with `IntegerComparisonProofs.v`), the model's copy of `Operation.t` |
 | `backend/ssa/rocq/`      | `OxCamlSsa`    | The SSA graph as the models see it, each model split into Spec, implementation and Proofs files (see "The layout of a model"): `SsaModel.v` (the abstract interface), `SsaGraph*` (terminators, edges and uses), `SsaDominance*` (dominance, paths and program points), `SsaSemantics*` (execution of the restricted integer fragment), `SsaExecution*` (well-formedness and available-value equations), `SsaLiveness*` (reads before redefinition), `SsaProgress*` (the `finished_graph` contract, definedness and progress), `SsaContext*` (opaque surrounding computations and the `reached_header` contract) |
 | `backend/ssa/loop/rocq/` | `OxCamlLoop`   | The loop analyses, each an implementation file and a `*Proofs.v`; the operational proofs in `LoopExecutionProofs.v`, `LoopInvariantExecutionProofs.v`, `LoopCounterExecutionProofs.v`, `LoopValueSnapshotProofs.v`, `LoopGuardExecutionProofs.v`, `LoopRangeExecutionProofs.v`, `LoopLiveOutProofs.v` and `InductionRangeExecutionProofs.v`; the statements to review in `LoopEligibilitySpec.v`, `DeleteEmptyLoopsSpec.v` and `BoundsCheckExecutionSpec.v`, proved in `LoopEligibilityProofs.v`, `DeleteEmptyLoopsProofs.v` and `BoundsCheckExecutionProofs.v`; and `Extract.v`, which extracts the implementation |
-| `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, with nothing extracted: `FlambdaModel.v` (the terms of the fragment covered so far), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaWellFormed*` (static bindings at toplevel only, the well-formedness of a unit; and that what a static name is bound to never changes in a run), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics), `FlambdaContext*` (contexts, and that refinement and equivalence are preserved under them), `FlambdaNominal*` (renamings, free names, and binders as name abstractions), `FlambdaAlpha*` (the group action, equivariance, and alpha-equivalence with its soundness), `FlambdaApply*` (function calls and inlining), `FlambdaStatic*` (first facts about `Let_static`), `FlambdaCompare*` (a decision that two expressions are the same up to bound names, proved sound), `FlambdaNormalise*` (normalising a term by proved rewrites: inlining direct calls of known code, removing unused `Let`s, folding constants), `FlambdaUnusedStatics*` (removing unused static bindings, under environments in which their names do not occur); see "The semantics of Flambda 2" below |
+| `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, with nothing extracted: `FlambdaModel.v` (the terms of the fragment covered so far), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaWellFormed*` (static bindings at toplevel only, the well-formedness of a unit; and that what a static name is bound to never changes in a run), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics), `FlambdaContext*` (contexts, and that refinement and equivalence are preserved under them), `FlambdaNominal*` (renamings, free names, and binders as name abstractions), `FlambdaAlpha*` (the group action, equivariance, and alpha-equivalence with its soundness), `FlambdaApply*` (function calls and inlining), `FlambdaStatic*` (first facts about `Let_static`), `FlambdaCompare*` (a decision that two expressions are the same up to bound names, proved sound), `FlambdaNormalise*` (normalising a term by proved rewrites: inlining direct calls of known code, removing unused `Let`s, folding constants), `FlambdaUnusedStatics*` (removing unused static bindings, under environments in which their names do not occur), `FlambdaValidate*` (the whole check of a unit before and after Simplify, and that what it accepts is correct for the unit run on its own); see "The semantics of Flambda 2" below |
 | `middle_end/flambda2/types/rocq/` | `OxCamlFlambda2Types` | A first, naive model of Flambda types and typing environments, with nothing extracted: `FlambdaTypes*` (types, what it means to satisfy a typing environment, refinement relative to one, following aliases, going under a `Let`), `FlambdaAliases*` (following aliases through a whole term, an equivalence) |
 
 Put a definition or lemma where its OxCaml counterpart would live. A fact
@@ -486,8 +486,13 @@ outcomes are the same, or if the run before is undefined. This is a test,
 not a proof.
 
 - Beside the test of one run, the tool reports whether the pair is
-  *validated*: whether a decision extracted from Rocq and proved sound
-  accepts it, which shows the two terms equivalent under all environments.
+  *validated*: whether `FlambdaValidateSpec.validate_unit`, extracted,
+  accepts it. That is one function with one theorem
+  (`validate_unit_sound`): the term after refines the term before as a
+  compilation unit is run, on its own from empty environments. The tool
+  does not put the rewrites together itself; to change which are applied,
+  or their order, change `normalise_before` and `normalise_after` there.
+  The rest of this item is what `validate_unit` does.
   The decision is `FlambdaCompareSpec.expr_eqb`, equality up to bound
   names, after the term before has been normalised by rewrites proved to
   refine it: `inline_calls` (direct calls of code bound by an enclosing
@@ -541,8 +546,9 @@ not a proof.
   (`FlambdaUnusedStaticsSpec.drop_statics`, `envs_free_of`); a term run
   on its own is a case (`program_refines`). The tool guesses which names
   are unused and the extracted function checks the guess. An example
-  that needs it is reported as validated where the names removed are
-  fresh, a weaker verdict than under every environment.
+  that needs it is validated like any other, for the unit run on its
+  own; the two other ways of being validated hold under every
+  environment as well (`validate_unit_sound_everywhere`).
   Its proof is a simulation that lets the second state do anything once
   the first is undefined (`FlambdaSemanticsProofs.simulation_refines`),
   under the invariant that nothing reachable refers to a name removed;

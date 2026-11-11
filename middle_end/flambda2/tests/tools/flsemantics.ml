@@ -53,11 +53,10 @@ open Flambda2_bound_identifiers
 open Flambda2_term_basics
 module Model = Flambda2_rocq_semantics.FlambdaModel
 module Semantics = Flambda2_rocq_semantics.FlambdaSemanticsSpec
-module Compare = Flambda2_rocq_semantics.FlambdaCompareSpec
 module Normalise = Flambda2_rocq_semantics.FlambdaNormaliseSpec
-module Aliases = Flambda2_rocq_semantics.FlambdaAliasesSpec
 module Unused_statics = Flambda2_rocq_semantics.FlambdaUnusedStaticsSpec
 module Well_formed = Flambda2_rocq_semantics.FlambdaWellFormedSpec
+module Validate = Flambda2_rocq_semantics.FlambdaValidateSpec
 module Numbers = Flambda2_rocq_semantics.BinNums
 module P = Flambda_primitive
 
@@ -73,6 +72,9 @@ let rec positive_of_int n : Numbers.positive =
   else if n land 1 = 0
   then Coq_xO (positive_of_int (n lsr 1))
   else Coq_xI (positive_of_int (n lsr 1))
+
+let rec nat_of_int n : Flambda2_rocq_semantics.Datatypes.nat =
+  if n <= 0 then O else S (nat_of_int (n - 1))
 
 let z_of_int n : Numbers.coq_Z =
   if n = 0
@@ -926,101 +928,45 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
         else "DIFFERENT", false
     in
     Format.printf "  %s@." verdict;
-    (* What the test above shows of one run, this shows of all. The term before
-       is normalised by rewrites proved to refine it: calls of known code are
-       inlined, constants are folded, a continuation applied once at the end of
-       its scope is put there, and unused bindings are removed
-       (FlambdaNormaliseSpec.v); aliases are followed (FlambdaAliasesSpec.v).
-       The term after may only be rewritten to what is equivalent: its aliases
-       are followed, its constants folded and its bindings of deleted code
-       dropped. The two are then the same up to bound names, which is proved to
-       make them equivalent (FlambdaCompareSpec.v). *)
+    (* What the test above shows of one run, this shows of all. The whole check
+       is [validate_unit], extracted from FlambdaValidateSpec.v, where it is
+       proved that what it accepts is correct for the unit run on its own from
+       empty environments. It normalises the two terms, compares them up to
+       bound names and, failing that, removes from the term before the static
+       bindings named here and compares again. Which names those are is a guess
+       that it checks. *)
     let inlined = Normalise.inline_calls [] before.body in
     Format.printf
       "  calls outside code once those of known code are inlined: %d@."
       (calls_outside_code inlined);
-    (* The rewrites enable one another, so they are gone round a few times. Each
-       is proved, whatever the order and the number. *)
-    let rec rounds n round term =
-      let term' = round term in
-      if n = 0 || term' = term then term' else rounds (n - 1) round term'
-    in
-    let normalised_before =
-      rounds 50
-        (fun term ->
-          Normalise.inline_calls [] term
-          |> Normalise.fold_constants |> Normalise.collapse_switches
-          |> Normalise.inline_tail_conts |> Aliases.follow_aliases []
-          |> Normalise.fold_constants |> Normalise.remove_unused_lets
-          |> Normalise.remove_unused_defined_lets []
-          |> Normalise.drop_deleted_code |> Normalise.merge_statics
-          (* the same in the bodies of code, where [inline_calls] has been *)
-          |> Normalise.rewrite_code (fun body ->
-              Normalise.fold_constants body
-              |> Normalise.collapse_switches |> Normalise.inline_tail_conts
-              |> Aliases.follow_aliases [] |> Normalise.fold_constants
-              |> Normalise.remove_unused_lets
-              |> Normalise.remove_unused_defined_lets []))
-        before.body
-    in
-    let normalised_after =
-      rounds 50
-        (fun term ->
-          Aliases.follow_aliases [] term
-          |> Normalise.inline_known_calls [] []
-          |> Normalise.fold_constants
-          |> Normalise.remove_unused_defined_lets []
-          |> Normalise.drop_deleted_code |> Normalise.merge_statics
-          |> Normalise.rewrite_code (fun body ->
-              Aliases.follow_aliases [] body
-              |> Normalise.fold_constants
-              |> Normalise.remove_unused_defined_lets []))
-        after.body
-    in
-    let validated_as_is = Compare.expr_eqb [] [] before.body after.body in
-    let validated =
-      validated_as_is
-      || Compare.expr_eqb [] [] normalised_before normalised_after
-    in
-    (* Failing that, the static bindings of the term before that nothing uses
-       are removed, which is proved to refine it under every environment in
-       which the names removed do not occur, a unit run on its own being a case,
-       and not under every environment (FlambdaUnusedStaticsSpec.v), and the
-       comparison made again. *)
-    let without_unused_statics =
-      match
-        Unused_statics.drop_statics
-          (unused_statics normalised_before)
-          normalised_before
-      with
-      | Some dropped ->
-        Normalise.merge_statics (Normalise.drop_deleted_code dropped)
-      | None -> normalised_before
-    in
-    let validated_as_a_unit =
-      (not validated)
-      && Compare.expr_eqb [] [] without_unused_statics normalised_after
+    let rounds = nat_of_int 50 in
+    let normalised_before = Validate.normalise_before rounds before.body in
+    let unused = unused_statics normalised_before in
+    let validation =
+      Validate.validate_unit rounds unused before.body after.body
     in
     Format.printf "  %s@."
-      (if validated_as_is
-       then "validated: the same up to bound names"
-       else if validated
-       then "validated: the same once normalised"
-       else if validated_as_a_unit
-       then
-         "validated where the names removed are fresh: the same once \
-          normalised and unused static bindings removed"
-       else if outcome_before = Undefined
-       then "nothing to validate, as the term before is undefined"
-       else "not validated");
-    if
-      (not validated) && (not validated_as_a_unit)
-      && Sys.getenv_opt "FLSEMANTICS_PRINT_TERMS" <> None
-    then
+      (match validation with
+      | Same_up_to_bound_names -> "validated: the same up to bound names"
+      | Same_once_normalised -> "validated: the same once normalised"
+      | Same_once_unused_statics_removed ->
+        "validated: the same once normalised and unused static bindings removed"
+      | Not_validated ->
+        if outcome_before = Undefined
+        then "nothing to validate, as the term before is undefined"
+        else "not validated");
+    (match validation with
+    | Not_validated when Sys.getenv_opt "FLSEMANTICS_PRINT_TERMS" <> None ->
       Format.printf
         "@[<v 2>  the term before, normalised:@ %a@]@.@[<v 2>  the term after, \
          normalised:@ %a@]@."
-        print_expr without_unused_statics print_expr normalised_after;
+        print_expr
+        (Validate.without_statics unused normalised_before)
+        print_expr
+        (Validate.normalise_after rounds after.body)
+    | Not_validated | Same_up_to_bound_names | Same_once_normalised
+    | Same_once_unused_statics_removed ->
+      ());
     if not ok then exit 1
 
 let check_file filename =
