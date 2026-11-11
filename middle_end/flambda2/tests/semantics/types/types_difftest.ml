@@ -1525,12 +1525,15 @@ let rec parts_of_value (v : V.value) : V.value list =
 (* A join may make variables of its own, which stand for some value. A value has
    such a type if it has it for some values of those variables; the values tried
    are small numbers and the parts of the value. This asks less than the type
-   means (it ignores what the joined environment says of those variables), so a
-   value that fails it does not have the type. *)
+   means: what the joined environment says of those variables is not asked. *)
 type own_variables_answer =
-  | Has
+  | Has  (** Values were found. *)
   | Has_not
+      (** There is no variable to find a value for, and the test fails. *)
   | Unresolved
+      (** No values were found for the variables. The search is finite, so this
+          decides nothing: it is neither that the value has the type nor that it
+          has not. *)
 
 let has_for_some_own_variables (world : world) (v : V.value)
     (t : MT.flambda_type) : own_variables_answer =
@@ -1798,7 +1801,7 @@ let semantic_comparisons (names : names) : semantic_case comparison list =
         (fun ({ world_seed = _; first; second } as case) ->
           let world, values, t1, t2 = setting case in
           match implementation.meet names.env t1 t2 with
-          | Bottom -> Agree
+          | Bottom -> Not_run "the meet is bottom: no value has it"
           | Ok (meet, env) -> (
             let meet = to_model names meet in
             let learnt = types_of_names_in world env in
@@ -1912,9 +1915,11 @@ let shared_and_not (names : names) : MT.flambda_type comparison list =
 (* The ranges of numbers                                                    *)
 (* ======================================================================== *)
 
-(* A number of the model at each end of the range of each kind, and the number
-   next to it outside: the converter takes the first to the compiler and back
-   unchanged, and refuses the second. *)
+(* Numbers of the model at the ends of the range of each kind, and the numbers
+   next to them outside: the converter takes the first to the compiler and back
+   unchanged, and refuses the second. A signed integer has four (the greatest,
+   the least, and the one beyond each); a bit pattern has four (zero, the
+   greatest, the one beyond it, and -1), and a float32 two more from 2^63 up. *)
 let ranges_of_numbers () =
   let two_to n = N.z_of_int64 (Int64.shift_left 1L n) in
   let less_one n = N.z_of_int64 (Int64.pred (Int64.shift_left 1L n)) in
@@ -1925,6 +1930,12 @@ let ranges_of_numbers () =
   let all_ones count = N.z_of_words (List.init count (fun _ -> -1L)) in
   let next_word count = N.z_of_words (List.init count (fun _ -> 0L) @ [1L]) in
   let minus_one = N.z_of_int (-1) in
+  (* -(2^63 + 1), the number below the least integer of 64 bits. *)
+  let below_the_least_int64 : N.z =
+    match N.z_of_words [Int64.succ Int64.min_int] with
+    | Zpos magnitude -> Zneg magnitude
+    | Z0 | Zneg _ -> assert false
+  in
   let signed (const : N.z -> M.const) bits =
     [ const (less_one (bits - 1)), true;
       const (two_to (bits - 1)), false;
@@ -1946,8 +1957,11 @@ let ranges_of_numbers () =
     @ [ M.Naked_int64 (N.z_of_int64 Int64.max_int), true;
         M.Naked_int64 (N.z_of_words [Int64.min_int]), false;
         M.Naked_int64 (N.z_of_int64 Int64.min_int), true;
+        M.Naked_int64 below_the_least_int64, false;
         M.Naked_nativeint (N.z_of_int64 Int64.max_int), true;
-        M.Naked_nativeint (N.z_of_words [Int64.min_int]), false ]
+        M.Naked_nativeint (N.z_of_words [Int64.min_int]), false;
+        M.Naked_nativeint (N.z_of_int64 Int64.min_int), true;
+        M.Naked_nativeint below_the_least_int64, false ]
     @ pattern (fun f -> Naked_float32 f) ~last:(less_one 32) ~after:(two_to 32)
     @ [ M.Naked_float32 (N.z_of_words [Int64.min_int]), false;
         M.Naked_float32 (all_ones 1), false ]

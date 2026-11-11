@@ -1,7 +1,7 @@
 The types of the compiler against the Rocq model.
 Stack allocation: enabled.
 
-The ranges of numbers (51 constants): 51 as expected
+The ranges of numbers (54 constants): 54 as expected
 
 Raw types of the model (3000 cases, seeds 1000 to 3999)
   28 not converted: not in the compiler: a Rec_info type given by its head: the model has not got the expression
@@ -153,8 +153,9 @@ Two types of kind value and a world, for the meaning of meet and join (1500 case
     1111 not run: no value tried has both types
   meet (n-way): a value of both types has the meet: 389 agree
     1111 not run: no value tried has both types
-  meet (binary): a value of the meet has both types: 1002 agree, 31 disagree as recorded
+  meet (binary): a value of the meet has both types: 389 agree, 31 disagree as recorded
     229 not run: no value tried has the meet
+    613 not run: the meet is bottom: no value has it
     238 not run: what the meet teaches is not true in the world
     recorded as T7-4, the meet forgets what a variable of a type holds (seed 40056): the value 0 has the meet,
 (Value (Unknown Not_null))
@@ -172,8 +173,9 @@ and not both types
     and
     (Value ((Mutable_block Heap_or_local) Not_null))
     in the world of seed 1686301183863193517
-  meet (n-way): a value of the meet has both types: 1002 agree, 31 disagree as recorded
+  meet (n-way): a value of the meet has both types: 389 agree, 31 disagree as recorded
     229 not run: no value tried has the meet
+    613 not run: the meet is bottom: no value has it
     238 not run: what the meet teaches is not true in the world
     recorded as T7-4, the meet forgets what a variable of a type holds (seed 40056): the value 0 has the meet,
 (Value (Unknown Not_null))
@@ -228,8 +230,9 @@ Two types of naked immediates and a world, for the meaning of meet (1500 cases, 
     and
     (Naked_immediate ((Known [0]) []))
     in the world of seed 4267628038553257423
-  meet (binary): a value of the meet has both types: 1015 agree, 6 disagree as recorded
+  meet (binary): a value of the meet has both types: 348 agree, 6 disagree as recorded
     160 not run: no value tried has the meet
+    667 not run: the meet is bottom: no value has it
     319 not run: what the meet teaches is not true in the world
     recorded as T7-6, the meet forgets a relation of a naked immediate (seed 50247): the value # 2 has the meet,
 (Naked_immediate (= v4))
@@ -239,8 +242,9 @@ and not both types
     and
     (Naked_immediate ((Known [2]) [Is_null v3]))
     in the world of seed -4029428536059942018
-  meet (n-way): a value of the meet has both types: 1015 agree, 6 disagree as recorded
+  meet (n-way): a value of the meet has both types: 348 agree, 6 disagree as recorded
     160 not run: no value tried has the meet
+    667 not run: the meet is bottom: no value has it
     319 not run: what the meet teaches is not true in the world
     recorded as T7-6, the meet forgets a relation of a naked immediate (seed 50247): the value # 2 has the meet,
 (Naked_immediate (= v4))
