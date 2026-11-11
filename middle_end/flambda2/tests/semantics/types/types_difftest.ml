@@ -1834,6 +1834,49 @@ let shrink_semantic_case ({ world_seed = _; first; second } as case) =
   @ List.map (fun second -> { case with second }) (G.shrink second)
 
 (* ======================================================================== *)
+(* Shared and not                                                           *)
+(* ======================================================================== *)
+
+(* The results of meet and join are to be functions of the structure of their
+   inputs: a type built once and given twice (shared: the two arguments are one
+   value) and the same type built twice (not shared) are to give the same
+   result. Where they do not, the result depends on physical equality. *)
+let shared_and_not (names : names) : MT.flambda_type comparison list =
+  let compare_results name of_types =
+    { name;
+      compare =
+        (fun m ->
+          let t = to_compiler names m in
+          let again = to_compiler names m in
+          let shared = of_types t t in
+          let not_shared = of_types t again in
+          if String.equal shared not_shared
+          then Agree
+          else
+            Known_to_disagree
+              ( "T7-7, a result that depends on sharing",
+                Format.asprintf
+                  "@[<v>with the two arguments one value:@ %s@ with the type \
+                   built twice:@ %s@]"
+                  shared not_shared ))
+    }
+  in
+  let join implementation t t' =
+    print_with_own_variables names (join_as_model names implementation [t; t'])
+  in
+  let meet implementation t t' =
+    match meet_as_model names implementation t t' with
+    | None -> "Bottom"
+    | Some (meet, types) ->
+      String.concat " "
+        (List.map (print_with_own_variables names) (meet :: types))
+  in
+  [ compare_results "join (binary) of a type with itself" (join binary);
+    compare_results "join (n-way) of a type with itself" (join n_way);
+    compare_results "meet (binary) of a type with itself" (meet binary);
+    compare_results "meet (n-way) of a type with itself" (meet n_way) ]
+
+(* ======================================================================== *)
 (* The tests                                                                *)
 (* ======================================================================== *)
 
@@ -1958,6 +2001,17 @@ let () =
     ~shrink:(fun _ -> [])
     ~print:print_semantic_case
     (semantic_comparisons names);
+  run
+    ~title:
+      "A type of kind value with itself, shared and not (until the compiler \
+       has a flag for it, results may depend on sharing)"
+    ~seed:70000 ~count:1500
+    ~generate:(fun r ->
+      G.type_of_kind { well_formed = true; depth = 3 } r names.pool MK.Value)
+    ~prepare:(fun m ->
+      ignore (to_compiler names m : TG.t);
+      m)
+    ~shrink:G.shrink ~print:Model_type.print (shared_and_not names);
   Format.printf "@.%s@."
     (if !failures = 0
      then "No disagreement."

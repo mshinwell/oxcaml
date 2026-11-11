@@ -250,4 +250,78 @@ Chosen pairs of types, for the meaning of meet and join (3 cases, seeds 60000 to
   meet (binary): a value of the meet has both types: 3 agree
   meet (n-way): a value of the meet has both types: 3 agree
 
+A type of kind value with itself, shared and not (until the compiler has a flag for it, results may depend on sharing) (1500 cases, seeds 70000 to 71499)
+  1500 converted
+  join (binary) of a type with itself: 1487 agree, 13 disagree as recorded
+    recorded as T7-7, a result that depends on sharing (seed 70185): with the two arguments one value:
+(Value
+ ((Variant (is_int None) (immediates Unknown) (get_tag None)
+   (blocks (Known
+            ((known_tags [250 ->
+                           (Known
+                            ((At_least 2) (Mixed_record 1 [naked_nativeint])
+                             [(Value
+                               ((Variant (is_int None) (immediates Unknown)
+                                 (get_tag None) (blocks Unknown)
+                                 (extensions No_extensions)
+                                 (is_unique false)) Not_null))] []))])
+             (other_tags Bottom) (alloc_mode Heap_or_local))))
+   (extensions No_extensions) (is_unique false)) Not_null))
+with the type built twice:
+(Value
+ ((Variant (is_int None) (immediates Unknown) (get_tag None)
+   (blocks (Known
+            ((known_tags [250 ->
+                           (Known
+                            ((At_least 2) (Mixed_record 1 [naked_nativeint])
+                             [(Value (Unknown Not_null))] []))])
+             (other_tags Bottom) (alloc_mode Heap_or_local))))
+   (extensions No_extensions) (is_unique false)) Not_null))
+    on the shrunk input:
+    (Value
+     ((Variant (is_int None) (immediates Unknown) (get_tag None)
+       (blocks (Known
+                ((known_tags [250 ->
+                               (Known
+                                ((At_least 2)
+                                 (Mixed_record 1 [naked_nativeint])
+                                 [(Value
+                                   ((Variant (is_int None)
+                                     (immediates Unknown) (get_tag None)
+                                     (blocks Unknown)
+                                     (extensions No_extensions)
+                                     (is_unique false)) Not_null))] []))])
+                 (other_tags Bottom) (alloc_mode Heap_or_local))))
+       (extensions No_extensions) (is_unique false)) Not_null))
+  join (n-way) of a type with itself: 1398 agree, 102 disagree as recorded
+    recorded as T7-7, a result that depends on sharing (seed 70021): with the two arguments one value:
+(Value
+ ((Variant (is_int None) (immediates Unknown) (get_tag None)
+   (blocks (Known
+            ((known_tags [3 ->
+                           (Known
+                            ((At_least 3) Value_only []
+                             [$2 -> (Value (Unknown Not_null))]))])
+             (other_tags Bottom) (alloc_mode Heap_or_local))))
+   (extensions No_extensions) (is_unique false)) Not_null))
+with the type built twice:
+(Value
+ ((Variant (is_int None) (immediates Unknown) (get_tag None)
+   (blocks (Known
+            ((known_tags [3 -> (Known ((At_least 3) Value_only [] []))])
+             (other_tags Bottom) (alloc_mode Heap_or_local))))
+   (extensions No_extensions) (is_unique false)) Not_null))
+    on the shrunk input:
+    (Value
+     ((Variant (is_int None) (immediates Unknown) (get_tag None)
+       (blocks (Known
+                ((known_tags [3 ->
+                               (Known
+                                ((At_least 3) Value_only []
+                                 [$2 -> (Value (Unknown Not_null))]))])
+                 (other_tags Bottom) (alloc_mode Heap_or_local))))
+       (extensions No_extensions) (is_unique false)) Not_null))
+  meet (binary) of a type with itself: 1500 agree
+  meet (n-way) of a type with itself: 1500 agree
+
 No disagreement.
