@@ -82,7 +82,7 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaNominalSpec FlambdaAlphaSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeMeaningSpec.
+  FlambdaTypeMeaningSpec FlambdaTypeWellFormedSpec FlambdaTypeEqualSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -505,3 +505,24 @@ Definition env_extension_satisfied_rename_statement : Prop :=
     env_extension_satisfied statics (rename_env r vars)
       (rename_env_extension r extension)
     <-> env_extension_satisfied statics vars extension.
+
+(* ======================================================================== *)
+(* The tests of types do not see a renaming                                 *)
+(* ======================================================================== *)
+
+(* A renamed type is well formed exactly when the type is. *)
+Definition type_well_formed_rename_statement : Prop :=
+  (∀ (r : renaming) (t : flambda_type),
+    type_well_formed (rename_type r t) = type_well_formed t)
+  ∧ (∀ (r : renaming) (extension : env_extension),
+      env_extension_well_formed (rename_env_extension r extension)
+      = env_extension_well_formed extension).
+
+(* Two renamed types are the same type exactly when the types are. *)
+Definition type_eqb_rename_statement : Prop :=
+  (∀ (r : renaming) (t t' : flambda_type),
+    type_eqb (rename_type r t) (rename_type r t') = type_eqb t t')
+  ∧ (∀ (r : renaming) (extension extension' : env_extension),
+      env_extension_eqb (rename_env_extension r extension)
+        (rename_env_extension r extension')
+      = env_extension_eqb extension extension').

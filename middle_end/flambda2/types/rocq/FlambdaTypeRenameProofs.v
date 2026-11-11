@@ -32,10 +32,12 @@
 From Stdlib Require Import ZArith List Bool Lia Setoid.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaMapProofs FlambdaSemanticsSpec FlambdaNominalSpec FlambdaAlphaSpec
-  FlambdaAlphaProofs.
+  FlambdaMapProofs FlambdaSemanticsSpec FlambdaNominalSpec
+  FlambdaNominalProofs FlambdaAlphaSpec FlambdaAlphaProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
+  FlambdaTypeMeaningBoolSpec FlambdaTypeWellFormedSpec
+  FlambdaTypeWellFormedProofs FlambdaTypeEqualSpec FlambdaTypeEqualProofs
   FlambdaTypeRenameSpec.
 Import ListNotations.
 
@@ -1421,4 +1423,564 @@ Proof.
                 (moved_by_rename_env r vars))
       as [_ [_ [_ [_ [_ [_ Hextension]]]]]].
     exact (Hextension extension).
+Qed.
+
+(* ======================================================================== *)
+(* A renamed type is well formed when the type is                           *)
+(* ======================================================================== *)
+
+Lemma name_eqb_renamed (r : renaming) (n n' : name) :
+  name_eqb (rename_name r n) (rename_name r n') = name_eqb n n'.
+Proof.
+  destruct n, n'; simpl; [ apply rename_variable_eqb | reflexivity .. ].
+Qed.
+
+Lemma among_renamed (r : renaming) (n : name) (names : list name) :
+  Keyed.among name_eqb (rename_name r n) (map (rename_name r) names)
+  = Keyed.among name_eqb n names.
+Proof.
+  unfold Keyed.among.
+  induction names as [ | n' names IH]; simpl; [ reflexivity | ].
+  rewrite name_eqb_renamed, IH. reflexivity.
+Qed.
+
+Lemma distinct_renamed (r : renaming) (names : list name) :
+  Keyed.distinct name_eqb (map (rename_name r) names)
+  = Keyed.distinct name_eqb names.
+Proof.
+  induction names as [ | n names IH]; simpl; [ reflexivity | ].
+  rewrite among_renamed, IH. reflexivity.
+Qed.
+
+Lemma keys_map_values {K A B : Type} (f : A -> B)
+    (m : Keyed.finite_map K A) :
+  keys (Keyed.map_values f m) = keys m.
+Proof. unfold keys, Keyed.map_values. rewrite map_map. reflexivity. Qed.
+
+Lemma domain_map_values {A B : Type} (f : A -> B) (m : finite_map A) :
+  domain (map_values f m) = domain m.
+Proof. unfold domain, map_values. rewrite map_map. reflexivity. Qed.
+
+Section Renamed_well_formed.
+
+Variable r : renaming.
+
+Lemma descr_well_formed_renamed {head : Type}
+    (head_well_formed : head -> bool) (rename_head : head -> head)
+    (ty : type_descr head) :
+  (∀ h : head,
+    ty = Ok (No_alias h) -> head_well_formed h = true ->
+    head_well_formed (rename_head h) = true) ->
+  descr_well_formed head_well_formed ty = true ->
+  descr_well_formed head_well_formed (rename_descr r rename_head ty) = true.
+Proof. destruct ty as [ | [h | s] | ]; simpl; auto. Qed.
+
+Let type_kept (t : flambda_type) : Prop :=
+  type_well_formed t = true -> type_well_formed (rename_type r t) = true.
+
+Let extension_kept (extension : env_extension) : Prop :=
+  env_extension_well_formed extension = true ->
+  env_extension_well_formed (rename_env_extension r extension) = true.
+
+Lemma block_case_well_formed_renamed (case : row_like_block_case) :
+  P_block_case type_kept extension_kept case ->
+  row_like_block_case_well_formed case = true ->
+  row_like_block_case_well_formed
+    (rename_block_case (rename_type r) (rename_env_extension r) case)
+  = true.
+Proof.
+  intros [Htypes Hextension].
+  rewrite !(row_like_block_case_well_formed_iff _).
+  unfold rename_block_case. simpl.
+  intros [Hfits [Hshape [Hwf Hext]]].
+  split; [ | split; [ exact Hshape | split ] ].
+  - unfold block_product_fits in *. simpl. rewrite length_map. exact Hfits.
+  - intros ty' Hin. apply in_map_iff in Hin as [ty [<- Hin]].
+    exact (Htypes ty Hin (Hwf ty Hin)).
+  - exact (Hextension Hext).
+Qed.
+
+Lemma type_well_formed_renamed_all :
+  (∀ t : flambda_type, type_kept t)
+  ∧ (∀ head : head_of_kind_value,
+      head_of_kind_value_well_formed head = true ->
+      head_of_kind_value_well_formed (rename_head_of_kind_value r head)
+      = true)
+  ∧ (∀ head : head_of_kind_value_non_null,
+      head_of_kind_value_non_null_well_formed head = true ->
+      head_of_kind_value_non_null_well_formed
+        (rename_head_of_kind_value_non_null r head)
+      = true)
+  ∧ (∀ blocks : row_like_for_blocks,
+      row_like_for_blocks_well_formed blocks = true ->
+      row_like_for_blocks_well_formed (rename_row_like_for_blocks r blocks)
+      = true)
+  ∧ (∀ closures : row_like_for_closures,
+      row_like_for_closures_well_formed closures = true ->
+      row_like_for_closures_well_formed
+        (rename_row_like_for_closures r closures)
+      = true)
+  ∧ (∀ (entry : closures_entry)
+       (index : row_like_index set_of_closures_contents unit),
+      closures_entry_well_formed index entry = true ->
+      closures_entry_well_formed index (rename_closures_entry r entry)
+      = true)
+  ∧ (∀ extension : env_extension, extension_kept extension).
+Proof.
+  apply types_induction.
+  - (* Type_value *)
+    intros ty Hhead. unfold type_kept. simpl.
+    apply descr_well_formed_renamed. intros h ->. exact Hhead.
+  - (* Type_naked_immediate *)
+    intros ty. unfold type_kept. simpl.
+    apply descr_well_formed_renamed. intros [numbers relations] _ Hhead.
+    exact Hhead.
+  - intros k ty. unfold type_kept. simpl. rewrite !andb_true_iff.
+    intros [Hk Hty]. split; [ exact Hk | ]. revert Hty.
+    apply descr_well_formed_renamed. auto.
+  - intros ty. unfold type_kept. simpl. auto.
+  - intros ty. unfold type_kept. simpl. auto.
+  - (* Head_of_kind_value *)
+    intros non_null is_null Hnon_null. simpl.
+    destruct non_null as [ | head | ]; simpl; auto.
+  - (* Variant *)
+    intros is_int immediates get_tag blocks extensions is_unique Himmediates
+      Hblocks Hextensions. simpl.
+    rewrite !andb_true_iff. intros [[Himmediate Hrow] Hextension].
+    split; [ split | ].
+    + destruct immediates as [ty | ]; simpl; [ | reflexivity ].
+      apply andb_true_iff in Himmediate as [Hkind Hty].
+      rewrite kind_rename_type, Hkind. exact (Himmediates Hty).
+    + destruct blocks as [row | ]; simpl; [ | reflexivity ].
+      exact (Hblocks Hrow).
+    + destruct extensions as [ | when_immediate when_block]; simpl;
+        [ reflexivity | ].
+      apply andb_true_iff in Hextension as [Himmediate_ext Hblock_ext].
+      rewrite (proj1 Hextensions Himmediate_ext),
+        (proj2 Hextensions Hblock_ext).
+      reflexivity.
+  - (* Mutable_block *)
+    intros alloc_mode. simpl. auto.
+  - (* Boxed_number *)
+    intros k contents alloc_mode Hcontents. simpl.
+    rewrite !andb_true_iff, kind_rename_type. intros [Hkind Hty].
+    split; [ exact Hkind | exact (Hcontents Hty) ].
+  - (* Closures *)
+    intros by_function_slot alloc_mode Hclosures. exact Hclosures.
+  - (* String *)
+    intros strs. simpl. auto.
+  - (* Row_like_for_blocks *)
+    intros known_tags other_tags alloc_mode Hknown Hother.
+    simpl rename_row_like_for_blocks.
+    rewrite !(row_like_for_blocks_well_formed_iff _ _ _).
+    intros [Hdistinct [Hcases Hother_wf]].
+    split; [ rewrite keys_map_values; exact Hdistinct | ]. split.
+    + intros tag case' Hlookup. rewrite keyed_lookup_map_values in Hlookup.
+      destruct (Keyed.lookup Z.eqb tag known_tags) as [[case | ] | ]
+        eqn:Hfound;
+        simpl in Hlookup; try discriminate Hlookup.
+      injection Hlookup as <-.
+      apply block_case_well_formed_renamed.
+      * exact (Hknown tag case (keyed_lookup_in Z.eqb Z.eqb_eq _ _ _ Hfound)).
+      * exact (Hcases tag case Hfound).
+    + destruct other_tags as [case | ]; simpl; [ | exact I ].
+      exact (block_case_well_formed_renamed case Hother Hother_wf).
+  - (* Row_like_for_closures *)
+    intros known_closures Hknown. simpl rename_row_like_for_closures.
+    rewrite !(row_like_for_closures_well_formed_iff _).
+    intros [Hdistinct Hcases].
+    split; [ rewrite (keys_map_values _ known_closures); exact Hdistinct | ].
+    intros slot case' Hlookup. rewrite lookup_map_values in Hlookup.
+    destruct (lookup slot known_closures) as [case | ] eqn:Hfound;
+      [ | discriminate Hlookup ].
+    injection Hlookup as <-.
+    destruct (Hknown slot case (lookup_in _ _ _ Hfound))
+      as [Hentry Hextension].
+    pose proof (Hcases slot case Hfound) as Hcase.
+    unfold row_like_closures_case_well_formed in *. simpl.
+    rewrite !andb_true_iff in *. destruct Hcase as [[Hslot Hentry_wf] Hext].
+    split; [ split; [ exact Hslot | exact (Hentry _ Hentry_wf) ] | ].
+    exact (Hextension Hext).
+  - (* Closures_entry *)
+    intros function_types closure_types value_slot_types Hclosures Hslots
+      index.
+    simpl rename_closures_entry.
+    rewrite !(closures_entry_well_formed_iff _ _ _ _).
+    intros [Hfit [[Hfunctions [Hclosure_keys Hslot_keys]]
+                    [Hclosure_wf Hslot_wf]]].
+    split; [ rewrite !domain_map_values; exact Hfit | ].
+    split.
+    { split; [ exact Hfunctions | ].
+      rewrite (keys_map_values _ closure_types),
+        (keys_map_values _ value_slot_types).
+      split; assumption. }
+    split.
+    + intros g ty' Hlookup. rewrite lookup_map_values in Hlookup.
+      destruct (lookup g closure_types) as [ty | ] eqn:Hfound;
+        [ | discriminate Hlookup ].
+      injection Hlookup as <-.
+      destruct (Hclosure_wf g ty Hfound) as [Hkind Hty].
+      split; [ rewrite kind_rename_type; exact Hkind | ].
+      exact (Hclosures g ty (lookup_in _ _ _ Hfound) Hty).
+    + intros w ty' Hlookup. rewrite lookup_map_values in Hlookup.
+      destruct (lookup w value_slot_types) as [ty | ] eqn:Hfound;
+        [ | discriminate Hlookup ].
+      injection Hlookup as <-.
+      exact (Hslots w ty (lookup_in _ _ _ Hfound) (Hslot_wf w ty Hfound)).
+  - (* Env_extension *)
+    intros equations Htypes. unfold extension_kept.
+    simpl rename_env_extension.
+    rewrite !(env_extension_well_formed_iff _).
+    intros [Hdistinct Hwf]. split.
+    + unfold keys. rewrite map_map. simpl.
+      rewrite <- (map_map fst (rename_name r)), distinct_renamed.
+      exact Hdistinct.
+    + intros n ty' Hlookup.
+      destruct (lookup_renamed_equations r n ty' equations Hlookup)
+        as [n0 [ty [-> [-> Hfound]]]].
+      exact (Htypes n0 ty (keyed_lookup_in name_eqb name_eqb_eq _ _ _ Hfound)
+               (Hwf n0 ty Hfound)).
+Qed.
+
+End Renamed_well_formed.
+
+Theorem type_well_formed_rename : type_well_formed_rename_statement.
+Proof.
+  split.
+  - intros r t. apply eq_true_iff_eq. split.
+    + intros Hrenamed. rewrite <- (proj1 rename_type_inverse r t).
+      exact (proj1 (type_well_formed_renamed_all (inverse_renaming r)) _
+               Hrenamed).
+    + exact (proj1 (type_well_formed_renamed_all r) t).
+  - intros r extension. apply eq_true_iff_eq. split.
+    + intros Hrenamed. rewrite <- (proj2 rename_type_inverse r extension).
+      destruct (type_well_formed_renamed_all (inverse_renaming r))
+        as [_ [_ [_ [_ [_ [_ Hextension]]]]]].
+      exact (Hextension _ Hrenamed).
+    + destruct (type_well_formed_renamed_all r)
+        as [_ [_ [_ [_ [_ [_ Hextension]]]]]].
+      exact (Hextension extension).
+Qed.
+
+(* ======================================================================== *)
+(* Two renamed types are the same type when the types are                   *)
+(* ======================================================================== *)
+
+Lemma rename_name_inverse_r (r : renaming) (n : name) :
+  rename_name r (rename_name (inverse_renaming r) n) = n.
+Proof.
+  destruct n as [x | sym]; simpl; [ | reflexivity ].
+  rewrite rename_variable_inverse_r. reflexivity.
+Qed.
+
+Lemma simple_eqb_renamed (r : renaming) (s s' : simple) :
+  simple_eqb (rename_simple r s) (rename_simple r s') = simple_eqb s s'.
+Proof.
+  destruct s, s'; simpl; try reflexivity. apply rename_variable_eqb.
+Qed.
+
+Lemma option_variable_eqb_renamed (r : renaming) (x x' : option variable) :
+  option_variable_eqb (option_map (rename_variable r) x)
+    (option_map (rename_variable r) x')
+  = option_variable_eqb x x'.
+Proof.
+  destruct x, x'; simpl; try reflexivity. apply rename_variable_eqb.
+Qed.
+
+Lemma is_null_eqb_renamed (r : renaming) (null null' : is_null) :
+  is_null_eqb (rename_is_null r null) (rename_is_null r null')
+  = is_null_eqb null null'.
+Proof.
+  destruct null, null'; simpl; try reflexivity.
+  apply option_variable_eqb_renamed.
+Qed.
+
+(* Sets of keys, under a function that keeps the keys apart. *)
+Section Keys_mapped.
+
+Context {K : Type} (eqb : K -> K -> bool) (f : K -> K).
+
+Hypothesis Hf : ∀ a b : K, eqb (f a) (f b) = eqb a b.
+
+Lemma keyed_among_map (key : K) (keys : list K) :
+  Keyed.among eqb (f key) (map f keys) = Keyed.among eqb key keys.
+Proof.
+  unfold Keyed.among.
+  induction keys as [ | key' keys IH]; simpl; [ reflexivity | ].
+  rewrite Hf, IH. reflexivity.
+Qed.
+
+Lemma keyed_all_among_map (keys allowed : list K) :
+  Keyed.all_among eqb (map f keys) (map f allowed)
+  = Keyed.all_among eqb keys allowed.
+Proof.
+  unfold Keyed.all_among.
+  induction keys as [ | key keys IH]; simpl; [ reflexivity | ].
+  rewrite keyed_among_map, IH. reflexivity.
+Qed.
+
+Lemma keyed_same_keys_b_map (keys keys' : list K) :
+  Keyed.same_keys_b eqb (map f keys) (map f keys')
+  = Keyed.same_keys_b eqb keys keys'.
+Proof.
+  unfold Keyed.same_keys_b. rewrite !keyed_all_among_map. reflexivity.
+Qed.
+
+End Keys_mapped.
+
+Lemma lists_eqb_map {A : Type} (eqb : A -> A -> bool) (f : A -> A)
+    (l l' : list A) :
+  (∀ a a' : A, a ∈ l -> eqb a a' = true -> eqb (f a) (f a') = true) ->
+  lists_eqb eqb l l' = true -> lists_eqb eqb (map f l) (map f l') = true.
+Proof.
+  revert l'. induction l as [ | a l IH]; intros [ | a' l'] Hf; simpl;
+    try discriminate; [ reflexivity | ].
+  rewrite !andb_true_iff. intros [Ha Hl]. split.
+  - exact (Hf a a' (or_introl eq_refl) Ha).
+  - apply IH; [ | exact Hl ]. intros b b' Hin. exact (Hf b b' (or_intror Hin)).
+Qed.
+
+Lemma map_eqb_map_values {K A : Type} (key_eqb : K -> K -> bool)
+    (Hkey : decides_equality key_eqb) (eqb : A -> A -> bool) (f : A -> A)
+    (m m' : Keyed.finite_map K A) :
+  (∀ (key : K) (a a' : A),
+    (key, a) ∈ m -> eqb a a' = true -> eqb (f a) (f a') = true) ->
+  map_eqb key_eqb eqb m m' = true ->
+  map_eqb key_eqb eqb (Keyed.map_values f m) (Keyed.map_values f m') = true.
+Proof.
+  intros Hf. rewrite !(map_eqb_iff K key_eqb Hkey). intros Hsame key.
+  rewrite !keyed_lookup_map_values. specialize (Hsame key).
+  destruct (Keyed.lookup key_eqb key m) as [a | ] eqn:Hfound,
+    (Keyed.lookup key_eqb key m') as [a' | ];
+    simpl; auto.
+  apply (Hf key a a'); [ | exact Hsame ].
+  exact (keyed_lookup_in key_eqb Hkey _ _ _ Hfound).
+Qed.
+
+Section Renamed_equal.
+
+Variable r : renaming.
+
+(* The equation of the renamed extension on a name is that of the
+   extension on the name renamed back. *)
+Lemma lookup_renamed_equations_eq (n : name)
+    (equations : Keyed.finite_map name flambda_type) :
+  Keyed.lookup name_eqb n
+    (map
+       (fun equation =>
+          (rename_name r (fst equation), rename_type r (snd equation)))
+       equations)
+  = option_map (rename_type r)
+      (Keyed.lookup name_eqb (rename_name (inverse_renaming r) n) equations).
+Proof.
+  induction equations as [ | [n1 ty1] equations IH]; simpl; [ reflexivity | ].
+  replace (name_eqb n (rename_name r n1))
+    with (name_eqb (rename_name (inverse_renaming r) n) n1).
+  - destruct (name_eqb (rename_name (inverse_renaming r) n) n1);
+      [ reflexivity | exact IH ].
+  - rewrite <- (name_eqb_renamed r), rename_name_inverse_r. reflexivity.
+Qed.
+
+Lemma descr_eqb_renamed {head : Type} (head_eqb : head -> head -> bool)
+    (rename_head : head -> head) (ty ty' : type_descr head) :
+  (∀ h h' : head,
+    ty = Ok (No_alias h) -> head_eqb h h' = true ->
+    head_eqb (rename_head h) (rename_head h') = true) ->
+  descr_eqb head_eqb ty ty' = true ->
+  descr_eqb head_eqb (rename_descr r rename_head ty)
+    (rename_descr r rename_head ty')
+  = true.
+Proof.
+  destruct ty as [ | [h | s] | ], ty' as [ | [h' | s'] | ]; simpl;
+    try discriminate; auto.
+  intros _. rewrite simple_eqb_renamed. auto.
+Qed.
+
+Let type_kept (t : flambda_type) : Prop :=
+  ∀ t' : flambda_type,
+    type_eqb t t' = true ->
+    type_eqb (rename_type r t) (rename_type r t') = true.
+
+Let extension_kept (extension : env_extension) : Prop :=
+  ∀ extension' : env_extension,
+    env_extension_eqb extension extension' = true ->
+    env_extension_eqb (rename_env_extension r extension)
+      (rename_env_extension r extension')
+    = true.
+
+Lemma block_case_eqb_renamed (case case' : row_like_block_case) :
+  P_block_case type_kept extension_kept case ->
+  block_case_eqb type_eqb env_extension_eqb case case' = true ->
+  block_case_eqb type_eqb env_extension_eqb
+    (rename_block_case (rename_type r) (rename_env_extension r) case)
+    (rename_block_case (rename_type r) (rename_env_extension r) case')
+  = true.
+Proof.
+  intros [Htypes Hextension]. unfold block_case_eqb, rename_block_case.
+  simpl. rewrite !andb_true_iff. intros [[Hindex Hfields] Hext].
+  split; [ split; [ exact Hindex | ] | exact (Hextension _ Hext) ].
+  apply lists_eqb_map; [ | exact Hfields ].
+  intros ty ty' Hin. exact (Htypes ty Hin ty').
+Qed.
+
+Lemma type_eqb_renamed_all :
+  (∀ t : flambda_type, type_kept t)
+  ∧ (∀ head head' : head_of_kind_value,
+      head_of_kind_value_eqb head head' = true ->
+      head_of_kind_value_eqb (rename_head_of_kind_value r head)
+        (rename_head_of_kind_value r head')
+      = true)
+  ∧ (∀ head head' : head_of_kind_value_non_null,
+      head_of_kind_value_non_null_eqb head head' = true ->
+      head_of_kind_value_non_null_eqb
+        (rename_head_of_kind_value_non_null r head)
+        (rename_head_of_kind_value_non_null r head')
+      = true)
+  ∧ (∀ blocks blocks' : row_like_for_blocks,
+      row_like_for_blocks_eqb blocks blocks' = true ->
+      row_like_for_blocks_eqb (rename_row_like_for_blocks r blocks)
+        (rename_row_like_for_blocks r blocks')
+      = true)
+  ∧ (∀ closures closures' : row_like_for_closures,
+      row_like_for_closures_eqb closures closures' = true ->
+      row_like_for_closures_eqb (rename_row_like_for_closures r closures)
+        (rename_row_like_for_closures r closures')
+      = true)
+  ∧ (∀ entry entry' : closures_entry,
+      closures_entry_eqb entry entry' = true ->
+      closures_entry_eqb (rename_closures_entry r entry)
+        (rename_closures_entry r entry')
+      = true)
+  ∧ (∀ extension : env_extension, extension_kept extension).
+Proof.
+  apply types_induction.
+  - (* Type_value *)
+    intros ty Hhead [ty' | ty' | k' ty' | ty' | ty']; simpl;
+      try discriminate.
+    apply descr_eqb_renamed. intros h h' ->. exact (Hhead h').
+  - (* Type_naked_immediate *)
+    intros ty [ty' | ty' | k' ty' | ty' | ty']; simpl; try discriminate.
+    apply descr_eqb_renamed.
+    intros [numbers relations] [numbers' relations'] _.
+    unfold head_of_kind_naked_immediate_eqb. simpl.
+    rewrite !andb_true_iff. intros [Hnumbers Hrelations].
+    split; [ exact Hnumbers | ].
+    rewrite keyed_same_keys_b_map; [ exact Hrelations | ].
+    intros [relation n] [relation' n']. simpl.
+    rewrite name_eqb_renamed. reflexivity.
+  - (* Type_naked_number *)
+    intros k ty [ty' | ty' | k' ty' | ty' | ty']; simpl; try discriminate.
+    rewrite !andb_true_iff. intros [Hk Hty]. split; [ exact Hk | ].
+    revert Hty. apply descr_eqb_renamed. auto.
+  - intros ty [ty' | ty' | k' ty' | ty' | ty']; simpl; try discriminate.
+    apply descr_eqb_renamed. auto.
+  - intros ty [ty' | ty' | k' ty' | ty' | ty']; simpl; try discriminate.
+    apply descr_eqb_renamed. auto.
+  - (* Head_of_kind_value *)
+    intros non_null is_null Hnon_null [non_null' is_null']. simpl.
+    rewrite !andb_true_iff, is_null_eqb_renamed. intros [Hhead Hnull].
+    split; [ | exact Hnull ].
+    destruct non_null as [ | head | ], non_null' as [ | head' | ];
+      simpl in *; try discriminate; auto.
+  - (* Variant *)
+    intros is_int immediates get_tag blocks extensions is_unique Himmediates
+      Hblocks Hextensions head'.
+    destruct head'
+      as [is_int' immediates' get_tag' blocks' extensions' is_unique'
+         | alloc_mode' | k' contents' alloc_mode'
+         | by_function_slot' alloc_mode' | strs'];
+      simpl; try discriminate.
+    rewrite !andb_true_iff, !option_variable_eqb_renamed.
+    intros [[[[[His_int Himmediate] Hget_tag] Hrow] Hextension] Hunique].
+    repeat split; try assumption.
+    + destruct immediates as [ty | ], immediates' as [ty' | ]; simpl in *;
+        try discriminate; auto.
+    + destruct blocks as [row | ], blocks' as [row' | ]; simpl in *;
+        try discriminate; auto.
+    + destruct extensions as [ | when_immediate when_block],
+        extensions' as [ | when_immediate' when_block'];
+        simpl in *; try discriminate; auto.
+      apply andb_true_iff in Hextension as [Himmediate_ext Hblock_ext].
+      rewrite (proj1 Hextensions _ Himmediate_ext),
+        (proj2 Hextensions _ Hblock_ext).
+      reflexivity.
+  - (* Mutable_block *)
+    intros alloc_mode head'. destruct head'; simpl; try discriminate; auto.
+  - (* Boxed_number *)
+    intros k contents alloc_mode Hcontents head'.
+    destruct head'; simpl; try discriminate.
+    rewrite !andb_true_iff. intros [[Hk Hty] Hmode].
+    split; [ split; [ exact Hk | exact (Hcontents _ Hty) ] | exact Hmode ].
+  - (* Closures *)
+    intros by_function_slot alloc_mode Hclosures head'.
+    destruct head'; simpl; try discriminate.
+    rewrite !andb_true_iff. intros [Hrow Hmode].
+    split; [ exact (Hclosures _ Hrow) | exact Hmode ].
+  - (* String *)
+    intros strs head'. destruct head'; simpl; try discriminate; auto.
+  - (* Row_like_for_blocks *)
+    intros known_tags other_tags alloc_mode Hknown Hother
+      [known_tags' other_tags' alloc_mode'].
+    simpl. rewrite !andb_true_iff. intros [[Hmaps Hothers] Hmode].
+    split; [ split | exact Hmode ].
+    + apply (map_eqb_map_values Z.eqb Z.eqb_eq); [ | exact Hmaps ].
+      intros tag [case | ] [case' | ] Hin; simpl; try discriminate; auto.
+      exact (block_case_eqb_renamed case case' (Hknown tag case Hin)).
+    + destruct other_tags as [case | ], other_tags' as [case' | ];
+        simpl in *; try discriminate; auto.
+      exact (block_case_eqb_renamed case case' Hother Hothers).
+  - (* Row_like_for_closures *)
+    intros known_closures Hknown [known_closures']. simpl.
+    apply (map_eqb_map_values Pos.eqb Pos.eqb_eq).
+    intros slot case case' Hin.
+    destruct (Hknown slot case Hin) as [Hentry Hextension].
+    unfold closures_case_eqb, rename_closures_case. simpl.
+    rewrite !andb_true_iff. intros [[Hindex Hsame] Hext].
+    split; [ split; [ exact Hindex | exact (Hentry _ Hsame) ] | ].
+    exact (Hextension _ Hext).
+  - (* Closures_entry *)
+    intros function_types closure_types value_slot_types Hclosures Hslots
+      [function_types' closure_types' value_slot_types'].
+    simpl. rewrite !andb_true_iff. intros [[Hfunctions Hclosure] Hslot].
+    split; [ split; [ exact Hfunctions | ] | ].
+    + apply (map_eqb_map_values Pos.eqb Pos.eqb_eq); [ | exact Hclosure ].
+      intros g ty ty' Hin. exact (Hclosures g ty Hin ty').
+    + apply (map_eqb_map_values Pos.eqb Pos.eqb_eq); [ | exact Hslot ].
+      intros w ty ty' Hin. exact (Hslots w ty Hin ty').
+  - (* Env_extension *)
+    intros equations Htypes [equations']. simpl.
+    rewrite !(map_eqb_iff name name_eqb name_eqb_eq). intros Hsame n.
+    rewrite !lookup_renamed_equations_eq.
+    specialize (Hsame (rename_name (inverse_renaming r) n)).
+    destruct
+      (Keyed.lookup name_eqb (rename_name (inverse_renaming r) n) equations)
+      as [ty | ] eqn:Hfound,
+      (Keyed.lookup name_eqb (rename_name (inverse_renaming r) n) equations')
+      as [ty' | ];
+      simpl; auto.
+    exact (Htypes _ ty (keyed_lookup_in name_eqb name_eqb_eq _ _ _ Hfound)
+             ty' Hsame).
+Qed.
+
+End Renamed_equal.
+
+Theorem type_eqb_rename : type_eqb_rename_statement.
+Proof.
+  split.
+  - intros r t t'. apply eq_true_iff_eq. split.
+    + intros Hrenamed.
+      rewrite <- (proj1 rename_type_inverse r t),
+        <- (proj1 rename_type_inverse r t').
+      exact (proj1 (type_eqb_renamed_all (inverse_renaming r)) _ _ Hrenamed).
+    + exact (proj1 (type_eqb_renamed_all r) t t').
+  - intros r extension extension'. apply eq_true_iff_eq. split.
+    + intros Hrenamed.
+      rewrite <- (proj2 rename_type_inverse r extension),
+        <- (proj2 rename_type_inverse r extension').
+      destruct (type_eqb_renamed_all (inverse_renaming r))
+        as [_ [_ [_ [_ [_ [_ Hextension]]]]]].
+      exact (Hextension _ _ Hrenamed).
+    + destruct (type_eqb_renamed_all r)
+        as [_ [_ [_ [_ [_ [_ Hextension]]]]]].
+      exact (Hextension extension extension').
 Qed.
