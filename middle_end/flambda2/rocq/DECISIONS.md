@@ -333,8 +333,23 @@ says so. Only the labels that this tree cites are listed.
   the order of names; the model takes the first of a list.
 - **T4-1.** After the n-way join, the meet defines a second time the
   variables that the join imported from a branch.
+- **T4-2.** A meet that reads the type of a name holding poison can
+  answer bottom, or add a false alias, with every other premise true.
+- **T4-3.** The meet answers bottom for two function types of one slot
+  with different code, also where the index does not say that the set
+  has the slot.
+- **T4-4.** The meet of code ids in the model has no relation of code
+  age.
+- **T4-5.** The meet deduces a type of blocks or of immediates for a
+  scrutinee from a relation, also where the scrutinee holds poison.
+- **T4-6.** The reduction from a `Get_tag` relation drops the numbers
+  that are not tags of blocks.
 - **T4-7.** `expand_head` answers the type of a constant for an alias
   whose canonical element is a constant, whatever the kind of the alias.
+- **T4-8.** `is_int_for_scrutinee` says 1 for every constant scrutinee,
+  `Null` included, and `Relation.of_const` says 0 for `Null`.
+- **T4-9.** `meet_row_like`, where it keeps one case only, does not
+  define in its result the variables that the meet of that case defined.
 - **T4-10.** `add_concrete_equation_on_canonical_name` takes the name to
   be canonical after the meet that it runs in between.
 - **T5-1.** The assumption stated by the n-way join, that every name of
