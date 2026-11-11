@@ -46,6 +46,8 @@ val normalise_lifted_round : expr -> expr
 
 val normalise_lifted : nat -> expr -> expr
 
+val lifted_in_turn : nat -> lifting list -> expr -> expr
+
 val without_slots : value_slot list -> expr -> expr
 
 type validation =
@@ -56,4 +58,10 @@ type validation =
   | Not_validated
 
 val validate_unit :
-  nat -> dropped -> value_slot list -> lifting -> expr -> expr -> validation
+  nat ->
+  dropped ->
+  value_slot list ->
+  lifting list ->
+  expr ->
+  expr ->
+  validation

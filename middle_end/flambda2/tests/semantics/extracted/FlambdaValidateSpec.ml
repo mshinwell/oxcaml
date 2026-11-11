@@ -107,6 +107,14 @@ let normalise_lifted_round e =
 
 let normalise_lifted rounds e = iterate rounds normalise_lifted_round e
 
+(** val lifted_in_turn : nat -> lifting list -> expr -> expr **)
+
+let rec lifted_in_turn rounds ls e =
+  match ls with
+  | [] -> e
+  | l :: ls0 ->
+    lifted_in_turn rounds ls0 (normalise_lifted rounds (with_lifting l e))
+
 (** val without_slots : value_slot list -> expr -> expr **)
 
 let without_slots slots e =
@@ -119,10 +127,10 @@ type validation =
   | Same_once_lifted
   | Not_validated
 
-(** val validate_unit : nat -> dropped -> value_slot list -> lifting -> expr ->
-    expr -> validation **)
+(** val validate_unit : nat -> dropped -> value_slot list -> lifting list ->
+    expr -> expr -> validation **)
 
-let validate_unit rounds unused slots l before after =
+let validate_unit rounds unused slots ls before after =
   if expr_eqb [] [] before after
   then Same_up_to_bound_names
   else
@@ -136,8 +144,7 @@ let validate_unit rounds unused slots l before after =
       expr_eqb [] []
         (float_code
            (without_statics unused
-              (without_slots slots
-                 (normalise_lifted rounds (with_lifting l before)))))
+              (without_slots slots (lifted_in_turn rounds ls before))))
         (float_code after0)
     then Same_once_lifted
     else Not_validated

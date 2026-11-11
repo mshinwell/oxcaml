@@ -1468,8 +1468,11 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
    the two terms the rest. The symbols to give are those that the term after
    binds and the term before does not. Each goes to the first [Let] that makes
    what the symbol is bound to: a closure of the same code, a block of the same
-   tag whose fields agree where both are symbols or constants, a boxed number. A
-   [Let] is named by its path, as FlambdaLiftSpec.lift_expr counts it.
+   tag whose fields agree, a boxed number. Two fields agree if the first is a
+   variable of which nothing is known, or if they are the same symbol or
+   constant; a variable bound to a symbol or a constant, or whose own [Let] is
+   lifted here, counts as that symbol or constant. A [Let] is named by its path,
+   as FlambdaLiftSpec.lift_expr counts it.
 
    The guess also says in which code [my_closure] is a symbol: the code of each
    closure that the term after binds statically, if the term before, once
@@ -1509,21 +1512,41 @@ let lifting_guess ~unit (before : Model.expr) (after : Model.expr) :
       to_give := List.filter (fun (sym', _) -> sym' <> sym) !to_give;
       Some (sym, const)
   in
+  (* The variables met that stand for a symbol or a constant: those bound to
+     one, and those whose [Let] is lifted. *)
+  let known_simples : (Model.variable * Model.simple) list ref = ref [] in
   let fields_agree fields fields' =
     List.length fields = List.length fields'
     && List.for_all2
          (fun (field : Model.simple) (field' : Model.simple) ->
+           let field =
+             match field with
+             | Var x -> (
+               match List.assoc_opt x !known_simples with
+               | Some known -> known
+               | None -> field)
+             | Symbol _ | Const _ -> field
+           in
            match field, field' with
-           | Var _, _ | _, Var _ -> true
+           | Var _, _ -> true
+           | (Symbol _ | Const _), Var _ -> false
            | (Symbol _ | Const _), (Symbol _ | Const _) -> field = field')
          fields fields'
   in
   let lets = ref [] in
-  let lift path (target : Lift.lift_to) = lets := (path, target) :: !lets in
+  let lift x path (target : Lift.lift_to) =
+    lets := (path, target) :: !lets;
+    match target with
+    | Lift_to_symbol sym ->
+      known_simples := (x, Model.Symbol sym) :: !known_simples
+    | Lift_to_closure_symbols _ -> ()
+  in
   let rec in_expr (path : Numbers.positive) (e : Model.expr) =
     match e with
-    | Let (_, _, d, body) ->
+    | Let (x, _, d, body) ->
       (match d with
+      | Simple ((Symbol _ | Const _) as known) ->
+        known_simples := (x, known) :: !known_simples
       | Set_of_closures (code, _) -> (
         match
           take (fun (const : Model.static_const) ->
@@ -1531,9 +1554,9 @@ let lifting_guess ~unit (before : Model.expr) (after : Model.expr) :
               | Static_const_set_of_closures (code', _) -> code = code'
               | _ -> false)
         with
-        | Some (sym, _) -> lift path (Lift_to_symbol sym)
+        | Some (sym, _) -> lift x path (Lift_to_symbol sym)
         | None -> ())
-      | Closure_of_set (_, decls, _) -> (
+      | Closure_of_set (slot, decls, _) -> (
         match
           take (fun (const : Model.static_const) ->
               match const with
@@ -1547,7 +1570,10 @@ let lifting_guess ~unit (before : Model.expr) (after : Model.expr) :
                  (fun (sym, _) ->
                    not (List.exists (fun (_, sym') -> sym = sym') symbols))
                  !to_give;
-          lift path (Lift_to_closure_symbols symbols)
+          (match List.assoc_opt slot symbols with
+          | Some sym -> known_simples := (x, Model.Symbol sym) :: !known_simples
+          | None -> ());
+          lift x path (Lift_to_closure_symbols symbols)
         | Some _ | None -> ())
       | Prim (Variadic (Make_block (Block_kind_values tag)), fields) -> (
         match
@@ -1557,7 +1583,7 @@ let lifting_guess ~unit (before : Model.expr) (after : Model.expr) :
                 tag = tag' && fields_agree fields fields'
               | _ -> false)
         with
-        | Some (sym, _) -> lift path (Lift_to_symbol sym)
+        | Some (sym, _) -> lift x path (Lift_to_symbol sym)
         | None -> ())
       | Prim (Unary (Box_number _), [contents]) -> (
         match
@@ -1567,7 +1593,7 @@ let lifting_guess ~unit (before : Model.expr) (after : Model.expr) :
                 fields_agree [contents] [contents']
               | _ -> false)
         with
-        | Some (sym, _) -> lift path (Lift_to_symbol sym)
+        | Some (sym, _) -> lift x path (Lift_to_symbol sym)
         | None -> ())
       | _ -> ());
       in_expr (Numbers.Coq_xO path) body
@@ -1797,12 +1823,12 @@ let well_formed_before ~filename (before : Flambda_unit.t) =
    names and, failing that, removes from the term before the static bindings
    named here and compares again. Which names those are is a guess that it
    checks. Failing that too, it is asked again, with the [Let]s that Simplify
-   seems to have made static bindings: it lifts them in the term before as it
-   was given, if it may, normalises the result, reads the value slots of static
-   closures and uses what the unit binds its symbols to, removes the value slots
-   of its static sets of closures that the term after has not got, moves the
-   bindings of code of both terms up, and compares again. What is lifted and
-   which slots are guesses too. *)
+   seems to have made static bindings, in one or more liftings: it lifts them in
+   the term before as it was given, if it may, normalises the result, reads the
+   value slots of static closures and uses what the unit binds its symbols to,
+   removes the value slots of its static sets of closures that the term after
+   has not got, moves the bindings of code of both terms up, and compares again.
+   What is lifted and which slots are guesses too. *)
 let validate ~(outcome_before : outcome) (before : converted)
     (after : converted) =
   let inlined = Normalise.inline_calls [] before.body in
@@ -1820,7 +1846,7 @@ let validate ~(outcome_before : outcome) (before : converted)
     }
   in
   let validation =
-    Validate.validate_unit rounds unused [] nothing_lifted before.body
+    Validate.validate_unit rounds unused [] [nothing_lifted] before.body
       after.body
   in
   (* The two terms that were compared last, how the term before was made, and
@@ -1835,21 +1861,44 @@ let validate ~(outcome_before : outcome) (before : converted)
     in
     match validation with
     | Not_validated -> (
-      let lifting =
-        lifting_guess ~unit:(interface before) before.body normalised_after
+      (* The liftings, in turn, as [validate_unit] makes them. The first is
+         guessed from the term before as it was given; each one after it from
+         the term that those before it give, normalised: for the [Let]s that
+         inlining a call has brought out of a function. One is tried after the
+         first only if it lifts something, and there are three at most. After
+         each, as [validate_unit] does, the value slots of static closures are
+         read and what the unit binds its symbols to is used in every round of
+         the normalisation. *)
+      let rec liftings_from made lifted remaining =
+        let lifting =
+          lifting_guess ~unit:(interface before) lifted normalised_after
+        in
+        let stop =
+          match
+            remaining, made, lifting.lifted_lets, lifting.lifted_my_closures
+          with
+          | 0, _, _, _ | _, _ :: _, [], [] -> true
+          | _, _, _, _ -> false
+        in
+        if stop
+        then List.rev made, lifted
+        else
+          match Lift.lift_unit lifting lifted with
+          | None -> List.rev made, lifted
+          | Some lifted ->
+            liftings_from (lifting :: made)
+              (Validate.normalise_lifted rounds lifted)
+              (remaining - 1)
       in
-      match Lift.lift_unit lifting before.body with
-      | None -> not_lifted
-      | Some lifted -> (
-        (* As [validate_unit] does: the value slots of static closures are read
-           and what the unit binds its symbols to is used in every round of the
-           normalisation, and the bindings of code of both terms are moved up
-           before the comparison. *)
-        let lifted = Validate.normalise_lifted rounds lifted in
+      match liftings_from [] before.body 3 with
+      | [], _ -> not_lifted
+      | (_ :: _ as liftings), lifted -> (
+        (* The bindings of code of both terms are moved up before the
+           comparison. *)
         let slots = unused_slots_guess lifted normalised_after in
         let lifted = Validate.without_slots slots lifted in
         let unused = unused_statics lifted in
-        ( Validate.validate_unit rounds unused slots lifting before.body
+        ( Validate.validate_unit rounds unused slots liftings before.body
             after.body,
           Float_code.float_code (Validate.without_statics unused lifted),
           Float_code.float_code normalised_after,
