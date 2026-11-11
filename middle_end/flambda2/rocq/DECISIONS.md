@@ -333,6 +333,10 @@ says so. Only the labels that this tree cites are listed.
   the order of names; the model takes the first of a list.
 - **T4-1.** After the n-way join, the meet defines a second time the
   variables that the join imported from a branch.
+- **T4-7.** `expand_head` answers the type of a constant for an alias
+  whose canonical element is a constant, whatever the kind of the alias.
+- **T4-10.** `add_concrete_equation_on_canonical_name` takes the name to
+  be canonical after the meet that it runs in between.
 - **T5-1.** The assumption stated by the n-way join, that every name of
   the source is defined in every joined environment, is false of its
   callers, and nothing checks it.
@@ -357,6 +361,14 @@ says so. Only the labels that this tree cites are listed.
 - **T5-10.** The n-way join takes every variable that a joined
   environment knows to have a value there, where it puts a relation back
   on a scrutinee and where it drops a bottom type.
+- **T5b-1.** The join of types has no bound on its depth that is always
+  reached; on two inputs that are an alias and a type in turn, both the
+  n-way join and the binary join overflow the stack.
+- **T5b-2.** The n-way join gives an `is_null` variable to a join one of
+  whose inputs is not null, and so says that `Is_null` of each value of
+  that input is 0, poison included.
+- **T5b-3.** The n-way join of types takes what `Expand_head` answers to
+  be of the kind of the types joined, and nothing gives it that.
 - **T6-1.** A prover answers what the environment says of a name, which
   is not true of a name that holds poison (one case reaches a number
   that is not poison).
@@ -367,3 +379,5 @@ says so. Only the labels that this tree cites are listed.
   that settles it forgets the variable.
 - **V2-2.** The fexpr printer drops the kinds of the fields of a
   `Make_block`, and the parser reads back `any_value` for each.
+- **X3-5.** The n-way join of two variants that carry only a relation
+  answers unknown and drops the relation it has just joined.
