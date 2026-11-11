@@ -11,9 +11,10 @@ abstraction. Maybe there is another way?"); a hook in Simplify is fine.
 **Decided overnight, 2026-11-11, in the human's absence and for his
 review (decision D33):** the recommended options go ahead, option R of
 section 2 with the hook of section 3, and N1 of section 3.2. Each is a
-commit of its own with a test and can be reverted alone; each new entry
-point has a `CR mshinwell` saying that it is for tests and was decided
-so. The four questions of section 6 are what he is asked to confirm or
+commit of its own with a test. The commit of N1 can be reverted alone;
+that of R after it or with it, since the test of N1 ends by using the
+observer. Each new entry point has a `CR mshinwell` saying that it is
+for tests and was decided so. The four questions of section 6 are what he is asked to confirm or
 overturn.
 
 This note says what was done for the first, and proposes one small
