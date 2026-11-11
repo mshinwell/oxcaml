@@ -265,6 +265,8 @@ stays C0's for now.
 - `middle_end/flambda2/rocq/FlambdaUnbox*` (another: unboxing a number
   that is known to be boxed, untagging one that is known to be tagged;
   S1's once it is staffed)
+- `middle_end/flambda2/rocq/FlambdaCse*` (another: a primitive already
+  computed is not computed again; S5's once it is staffed)
 - `middle_end/flambda2/rocq/requests/V2-missing-constructs.md`
 
 ## V3: converter
