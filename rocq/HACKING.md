@@ -769,6 +769,28 @@ in the compiler's style, so that it can be proposed upstream by itself.
   expected file prints the stamps of variables, as `meet_test.expected`
   does, and is to be regenerated when the joins create another number
   of variables.
+- Three commits that let a test see the types that Simplify computes
+  and the names that a term is stored with (decision D33). None
+  changes what the compiler does, and each new entry point has a `CR`
+  at its place saying that it is for tests.
+  - `Type_grammar.Block_size.of_target_ocaml_int` and
+    `to_target_ocaml_int`: the type stays abstract; the two are the
+    identity and check nothing.
+  - An observer of typing environments.
+    `Typing_env.For_testing.set_observer`, in the internal interface
+    of the library of types, registers a function, and Simplify calls
+    `Typing_env.notify_test_observer` at the start of each continuation
+    handler that it simplifies and, with the final environment, at the
+    return continuation of the unit. With no observer, which is always
+    so in the compiler, the call reads a reference and returns. Test:
+    `middle_end/flambda2/tests/api_tests/typing_env_observer.ml`.
+  - `pattern_match_for_printing` of `Let_expr`, `Continuation_handler`,
+    `Non_recursive_let_cont_handler`, `Recursive_let_cont_handlers` and
+    `Function_params_and_body`: the opening of a binder that does not
+    freshen the names it binds (unless `-dfreshen` is given), which the
+    printer had and nothing exported. The environments reported to the
+    observer are keyed by those names. Test:
+    `middle_end/flambda2/tests/api_tests/binder_openings.ml`.
 
 ### Testing Simplify against the semantics
 

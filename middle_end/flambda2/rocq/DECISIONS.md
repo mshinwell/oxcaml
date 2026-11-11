@@ -381,3 +381,5 @@ says so. Only the labels that this tree cites are listed.
   `Make_block`, and the parser reads back `any_value` for each.
 - **X3-5.** The n-way join of two variants that carry only a relation
   answers unknown and drops the relation it has just joined.
+- **X4-1.** The output of Simplify binds the same variable in two
+  places: the names stored in a term are not unique.
