@@ -148,8 +148,12 @@
      above) in its function types.
    - [n_way_join_generic_product] (2955),
      [n_way_join_function_slot_indexed_product] (3010) and
-     [n_way_join_value_slot_indexed_product] (3023): in full. Its first
-     fold is [gather_components].
+     [n_way_join_value_slot_indexed_product] (3023): in full. The first
+     fold of the first is [gather_components]. The second stops, in
+     the compiler, on a component that is not of kind value: the
+     product is made with [Product.Function_slot_indexed.create]
+     (types/grammar/type_grammar.ml), which tests it whatever the
+     flags.
    - [n_way_join_int_indexed_product] (3036): in full, with the test of
      -flambda2-join-sharing structural where the compiler tests whether
      two fields are one value in memory (decision D30). The compiler
@@ -1284,11 +1288,19 @@ Definition n_way_join_generic_product (env : state)
 
 (* [n_way_join_function_slot_indexed_product] and
    [n_way_join_value_slot_indexed_product]: a product of the model is
-   the map that it holds. *)
+   the map that it holds. [Product.Function_slot_indexed.create], with
+   which the compiler makes the first, stops with a fatal error if one
+   of the components is not of kind value: [None]. The creation
+   function of the second tests nothing. *)
 Definition n_way_join_function_slot_indexed_product (env : state)
     (function_slots_indexed : list (Index.t * finite_map flambda_type))
     : option (finite_map flambda_type * state) :=
-  n_way_join_generic_product env function_slots_indexed.
+  let* '(components, env) :=
+    n_way_join_generic_product env function_slots_indexed
+  in
+  if for_all_bindings_b (fun _ ty => kind_eqb (kind ty) Value) components
+  then Some (components, env)
+  else None.
 
 Definition n_way_join_value_slot_indexed_product (env : state)
     (value_slots_indexed : list (Index.t * finite_map flambda_type))

@@ -3179,6 +3179,10 @@ Proof.
          entries)) in Hstep.
   destruct (n_way_join_generic_product n_way_join_rec s closure_types)
     as [[closure_types' s1] | ] eqn:Hclosures; [ | discriminate ].
+  match type of Hstep with
+  | context [for_all_bindings_b ?p ?m] =>
+    destruct (for_all_bindings_b p m); [ | discriminate ]
+  end.
   destruct (n_way_join_generic_product n_way_join_rec s1 value_slot_types)
     as [[value_slot_types' s2] | ] eqn:Hvalue_slots; [ | discriminate ].
   injection Hstep as <- <-.

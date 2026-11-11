@@ -375,6 +375,10 @@ Proof.
   end.
   apply n_way_join_generic_product_keeps in Hclosures.
   match type of Hstep with
+  | context [for_all_bindings_b ?p ?m] =>
+    destruct (for_all_bindings_b p m); [ | discriminate ]
+  end.
+  match type of Hstep with
   | context [n_way_join_generic_product ?f s1 ?l] =>
     destruct (n_way_join_generic_product f s1 l) as [[value_slot_types s2] | ]
       eqn:Hvalue_slots; [ | discriminate ]
