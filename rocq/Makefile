@@ -159,6 +159,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaEnvAliasesRenamingProofs.v \
   FlambdaEnvAliasesRenamingSpec.v \
   FlambdaEnvAliasesSpec.v \
+  FlambdaTypeAccessProofs.v \
+  FlambdaTypeAccessSpec.v \
   FlambdaTypeAliasKindsProofs.v \
   FlambdaTypeAliasKindsSpec.v \
   FlambdaTypeEqualProofs.v \
@@ -169,6 +171,10 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaTypeMeaningBoolSpec.v \
   FlambdaTypeMeaningProofs.v \
   FlambdaTypeMeaningSpec.v \
+  FlambdaTypeNominalProofs.v \
+  FlambdaTypeNominalSpec.v \
+  FlambdaTypeRenameProofs.v \
+  FlambdaTypeRenameSpec.v \
   FlambdaTypeWellFormedProofs.v \
   FlambdaTypeWellFormedSpec.v \
   FlambdaTypesProofs.v \
