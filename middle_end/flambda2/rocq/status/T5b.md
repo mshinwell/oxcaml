@@ -11,6 +11,12 @@ under it yet. Files, all in `middle_end/flambda2/types/rocq/`:
 - `FlambdaJoinTypesSpec.v`: what the type traversal is proved to
   meet, and what it assumes of the other streams' functions.
 - `FlambdaJoinTypesProofs.v`: the proofs.
+- `FlambdaJoinTypesKeepsSpec.v`, `FlambdaJoinTypesKeepsProofs.v`:
+  what the join of types does to the state, with no premise on the
+  state or the types.
+- `FlambdaJoinTypesExamplesSpec.v`,
+  `FlambdaJoinTypesExamplesProofs.v`: what the transcription answers
+  on small types, by computation.
 
 The interface is T5's `FlambdaJoinSpec.v`, section "The join of
 types, inside a join of environments". I do not change that file.
@@ -28,6 +34,26 @@ types, inside a join of environments". I do not change that file.
   given has it under some valuation of the target that extends the
   input's.
 - `flat_heads_sound`: the eight conjuncts of the first slice.
+- `n_way_join_keeps`: a reflexive and transitive relation on states
+  that the three functions of the environment side keep is kept by
+  the join of types, at every state and for every list of types.
+  `n_way_join_keeps_definitions`: its instance at T5's
+  `keeps_definitions`, with the three functions of `Join_env`; it
+  is `join_of_types_keeps_definitions` (`FlambdaJoinEnvSpec.v`) of
+  the model's join of types, which T5's statements about the rounds
+  of the join of environments suppose of the join of types that
+  they are given. T5 asked for it.
+- Twenty-eight examples, each an equation proved by computation:
+  unions of sets of numbers and of strings, constants and other
+  aliases, unknown and bottom inputs, heads of two forms, blocks of
+  one tag (fields joined, or kept where they are the same; two
+  sizes; two shapes), of two tags (a variable for `Get_tag`), a
+  constant constructor and a block (a variable for `Is_int`), two
+  variants, closures (one code, two codes, one input with no
+  function type: T1-4), and the answers that are `None` (no type,
+  two kinds, the bound reached, T5b-3). The environment side of the
+  examples is a stub defined in the file, not the join of
+  environments. No answer was read off a run of the compiler.
 - Proved on the way, each stated with its proof in
   `FlambdaJoinTypesProofs.v`, in the form of `join_step_sound` or
   what it becomes for a function that takes several lists or may
@@ -39,11 +65,11 @@ types, inside a join of environments". I do not change that file.
   `n_way_join_head_of_kind_value_non_null`,
   `n_way_join_head_of_kind_value`, `n_way_join_expanded_head`,
   `n_way_join_body`.
-- Validation at the tip: `make -C rocq -j8 all` (three claims of
-  mine), `make -C rocq assumptions` (the statements of the Flambda 2
+- Validation at the tip: `make -C rocq -j8 all`,
+  `make -C rocq assumptions` (the statements of the Flambda 2
   libraries depend on no axiom). No OCaml or extracted file changes;
   the semantics tests were not run.
-- Discrepancies T5b-1 and T5b-2.
+- Discrepancies T5b-1, T5b-2 and T5b-3.
 
 ## Reviews
 
@@ -53,7 +79,10 @@ Reviewer R4.
   of wording in the header of the Spec, made.
 - Products and closures entries; row-like structures: being read.
 - Variants and heads of kind value; expanded heads, the body, the
-  bound on the depth and the two closed statements: to be asked.
+  bound on the depth and the two closed statements: asked.
+- The two statements of `FlambdaJoinTypesKeepsSpec.v`, and the
+  examples (the stub environment side and each equation against
+  the compiler's code): asked.
 - R4 asked where the kind of an expansion comes from, and that no
   condition on kinds be hidden in the well-formedness of
   environments: see "Decided overnight".
@@ -94,7 +123,12 @@ owners' functions and theorems when those are under this branch.
   follow from the kinds premise of the contract, when T2's
   `typing_env_kinded` (the types kinded, the aliases of one kind,
   the symbols of kind value) replaces T5's under the same name; T5
-  tells me when. Until then it is a premise of mine.
+  tells me when. Until then it is a premise of mine. T2 has the
+  definition and the statement that gives `constants_of_kind` from
+  it on its branch; it is not under this branch yet.
+- T5: no second form of `n_way_join_keeps` is needed for the kinds
+  of the variables of the state: `n_way_join_sound` gives
+  `state_grows` at valid states, which is where T5 uses it.
 - T1: `type_eqb` identifies types with the same values;
   `block_shape_eqb` decides equality. `type_satisfied_coincide` is
   what the proofs use where a type is imported as it stands (no
@@ -259,6 +293,19 @@ is on my base.
   change: one hypothesis of the two closed statements and one line
   of one proof.
 
+- What the examples run on. Options: (a) the join of environments
+  itself, on typing environments built for each example: the
+  answers would show the types given to the variables made, and the
+  terms would be large; (b) a stub of the environment side, defined
+  in the examples file: a counter for the state, empty
+  environments, the join of `Simple`s answering the `Simple` if all
+  are the same and a variable made otherwise. Chosen: (b), with a
+  header that says so and says that no answer was read off a run of
+  the compiler. Why: the examples are there to show what the
+  traversal computes, and the orchestrator asked for a small file.
+  Cost to change: the equations are stated again over (a); nothing
+  else depends on them.
+
 ## Found so far
 
 - T5b-1: `n_way_join` has no bound on its depth and no test for a
@@ -270,6 +317,15 @@ is on my base.
 - T5b-2: the join gives an `is_null` variable to a join one of whose
   inputs is `Not_null`, which says `Is_null` is 0 of a poison value
   of that input. An unchecked assumption; it is why D26 was amended.
+- T5b-3: the join trusts the kinds of what `Expand_head` answers.
+  An alias of one kind whose canonical element is a constant of
+  another expands to a head of the constant's kind, and
+  `n_way_join_expanded_head` then meets its `assert false`, or
+  answers a type of another kind than the types given. An unchecked
+  assumption (that aliases are of one kind); the example
+  `example_join_alias_of_another_kind` shows the first on the stub.
+  The test that would show it in the compiler is described in the
+  entry and was not run.
 - Met again here: R1-16 (the empty set given to
   `create_naked_immediates_non_empty`: `None` in the model), X3-5
   (the joined relations are dropped when the join of the variant is
