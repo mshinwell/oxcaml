@@ -437,72 +437,24 @@ Definition relation_holds (statics : static_env) (relation : Relation.t)
   end.
 
 (* ======================================================================== *)
-(* Going through lists and maps                                             *)
+(* Maps of types                                                            *)
 (* ======================================================================== *)
 
 (* The meaning of a type is defined by recursion on the type, and a type
    holds maps of types. Rocq accepts a recursive call on what a map
-   binds only if the definition goes through the list that the map is,
-   so the three definitions below go through every pair of the list, and
-   ask something only of the pairs that [lookup] finds: the bindings
-   that count. The statements after them say so. *)
-
-(* [P] holds of every element of a list. *)
-Definition every {A : Type} (P : A -> Prop) : list A -> Prop :=
-  fix every (l : list A) : Prop :=
-    match l with
-    | [] => True
-    | a :: l => P a ∧ every l
-    end.
-
-(* [P] holds of every binding of a map. *)
-Definition for_all_bindings {A : Type} (P : positive -> A -> Prop)
-    (m : finite_map A) : Prop :=
-  every
-    (fun binding =>
-       lookup (fst binding) m = Some (snd binding)
-       -> P (fst binding) (snd binding))
-    m.
-
-(* [P] holds of what a map binds [name] to, if it binds it. *)
-Definition at_binding {A : Type} (P : A -> Prop) (name : positive)
-    (m : finite_map A) : Prop :=
-  every (fun binding => lookup name m = Some (snd binding) -> P (snd binding))
-    m.
-
-(* [P] holds of the case of [tag], if there is one. *)
-Definition at_tag {A : Type} (P : A -> Prop) (tag : Z) (cases : list (Z * A))
-    : Prop :=
-  every (fun case => find_tag tag cases = Some (snd case) -> P (snd case))
-    cases.
-
-(* [P] holds of every binding of a map from names. *)
-Definition for_all_names {A : Type} (P : name -> A -> Prop)
-    (m : finite_name_map A) : Prop :=
-  for_all_bindings (fun x => P (Name_var x)) (on_variables m)
-  ∧ for_all_bindings (fun s => P (Name_symbol s)) (on_symbols m).
-
-Definition every_in_statement : Prop :=
-  ∀ (A : Type) (P : A -> Prop) (l : list A),
-    every P l <-> (∀ a : A, a ∈ l -> P a).
-
-Definition for_all_bindings_lookup_statement : Prop :=
-  ∀ (A : Type) (P : positive -> A -> Prop) (m : finite_map A),
-    for_all_bindings P m
-    <-> (∀ (name : positive) (a : A), lookup name m = Some a -> P name a).
-
-Definition at_binding_lookup_statement : Prop :=
-  ∀ (A : Type) (P : A -> Prop) (name : positive) (m : finite_map A),
-    at_binding P name m <-> (∀ a : A, lookup name m = Some a -> P a).
-
-Definition at_tag_find_statement : Prop :=
-  ∀ (A : Type) (P : A -> Prop) (tag : Z) (cases : list (Z * A)),
-    at_tag P tag cases <-> (∀ a : A, find_tag tag cases = Some a -> P a).
-
-Definition for_all_names_lookup_statement : Prop :=
-  ∀ (A : Type) (P : name -> A -> Prop) (m : finite_name_map A),
-    for_all_names P m
-    <-> (∀ (n : name) (a : A), lookup_name n m = Some a -> P n a).
+   binds only if the definition goes through the list that the map is.
+   So the meaning is written with [every], [Keyed.for_all_bindings] and
+   [Keyed.at_binding] of FlambdaMapSpec.v, which go through every pair
+   of the list and ask something only of the pairs that the lookup
+   finds, the bindings that count; its statements say so
+   ([every_in_statement], [keyed_for_all_bindings_lookup_statement],
+   [keyed_at_binding_lookup_statement]). On the maps keyed by function
+   slots and value slots they are written [for_all_bindings] and
+   [at_binding]; on those keyed by tags they take [Z.eqb], and on those
+   keyed by the names of the types [name_eqb], which is a test of
+   equality: *)
+Definition name_eqb_decides_equality_statement : Prop :=
+  decides_equality name_eqb.
 
 (* ======================================================================== *)
 (* The meaning of a type                                                    *)
@@ -721,7 +673,7 @@ with row_like_for_blocks_satisfied (tag : Z) (fields : list value)
     (blocks : row_like_for_blocks) {struct blocks} : Prop :=
   match blocks with
   | Row_like_for_blocks known_tags other_tags _ =>
-    at_tag
+    Keyed.at_binding Z.eqb
       (fun case =>
          match case with
          | Or_unknown.Unknown => True
@@ -730,7 +682,7 @@ with row_like_for_blocks_satisfied (tag : Z) (fields : list value)
              fields case
          end)
       tag known_tags
-    ∧ (find_tag tag known_tags = None ->
+    ∧ (Keyed.lookup Z.eqb tag known_tags = None ->
        match other_tags with
        | Or_bottom.Bottom => False
        | Or_bottom.Ok case =>
@@ -789,7 +741,7 @@ with env_extension_satisfied (extension : env_extension) {struct extension}
     : Prop :=
   match extension with
   | Env_extension equations =>
-    for_all_names
+    Keyed.for_all_bindings name_eqb
       (fun n ty =>
          ∃ v : value, value_of_name n = Some v ∧ type_satisfied v ty)
       equations
@@ -1048,12 +1000,12 @@ Definition fields_satisfied_nth_statement : Prop :=
 (* A row-like structure of blocks, by the case of the tag. *)
 Definition row_like_for_blocks_find_statement : Prop :=
   ∀ (statics : static_env) (vars : env) (tag : Z) (fields : list value)
-    (known_tags : list (Z * Or_unknown.t row_like_block_case))
+    (known_tags : Keyed.finite_map Z (Or_unknown.t row_like_block_case))
     (other_tags : Or_bottom.t row_like_block_case)
     (alloc_mode : Alloc_mode.t),
     row_like_for_blocks_satisfied statics vars tag fields
       (Row_like_for_blocks known_tags other_tags alloc_mode)
-    <-> match find_tag tag known_tags with
+    <-> match Keyed.lookup Z.eqb tag known_tags with
         | Some (Or_unknown.Known case) =>
           row_like_block_case_satisfied statics vars tag fields case
         | Some Or_unknown.Unknown => True
@@ -1236,10 +1188,10 @@ Definition at_least_this_closure_satisfied_statement : Prop :=
 
 Definition env_extension_lookup_statement : Prop :=
   ∀ (statics : static_env) (vars : env)
-    (equations : finite_name_map flambda_type),
+    (equations : Keyed.finite_map name flambda_type),
     env_extension_satisfied statics vars (Env_extension equations)
     <-> (∀ (n : name) (ty : flambda_type),
-          lookup_name n equations = Some ty ->
+          Keyed.lookup name_eqb n equations = Some ty ->
           ∃ v : value,
             value_of_name vars n = Some v ∧ type_satisfied statics vars v ty).
 

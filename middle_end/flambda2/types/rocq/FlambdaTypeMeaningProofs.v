@@ -90,86 +90,11 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
-(* Going through lists and maps                                             *)
+(* Maps of types                                                            *)
 (* ======================================================================== *)
 
-Lemma every_iff {A : Type} (P : A -> Prop) (l : list A) :
-  every P l <-> (∀ a : A, a ∈ l -> P a).
-Proof.
-  induction l as [ | a l IH]; simpl.
-  - split; [ intros _ a [] | auto ].
-  - rewrite IH. split.
-    + intros [Ha Hl] a' [<- | Hin]; [ exact Ha | exact (Hl a' Hin) ].
-    + intros Hall. split; [ apply Hall; left; reflexivity | ].
-      intros a' Hin. apply Hall. right. exact Hin.
-Qed.
-
-Lemma for_all_bindings_iff {A : Type} (P : positive -> A -> Prop)
-    (m : finite_map A) :
-  for_all_bindings P m
-  <-> (∀ (name : positive) (a : A), lookup name m = Some a -> P name a).
-Proof.
-  unfold for_all_bindings. rewrite every_iff. split.
-  - intros Hall name a Hlookup.
-    exact (Hall (name, a) (lookup_in _ _ _ Hlookup) Hlookup).
-  - intros Hall [name a] _ Hlookup. exact (Hall name a Hlookup).
-Qed.
-
-Lemma at_binding_iff {A : Type} (P : A -> Prop) (name : positive)
-    (m : finite_map A) :
-  at_binding P name m <-> (∀ a : A, lookup name m = Some a -> P a).
-Proof.
-  unfold at_binding. rewrite every_iff. split.
-  - intros Hall a Hlookup.
-    exact (Hall (name, a) (lookup_in _ _ _ Hlookup) Hlookup).
-  - intros Hall [name' a] _ Hlookup. exact (Hall a Hlookup).
-Qed.
-
-Lemma find_tag_in {A : Type} (tag : Z) (a : A) (cases : list (Z * A)) :
-  find_tag tag cases = Some a -> (tag, a) ∈ cases.
-Proof.
-  induction cases as [ | [tag' a'] cases IH]; simpl; [ discriminate | ].
-  destruct (Z.eqb_spec tag tag') as [-> | _].
-  - intros [= ->]. left. reflexivity.
-  - intros Hfind. right. exact (IH Hfind).
-Qed.
-
-Lemma at_tag_iff {A : Type} (P : A -> Prop) (tag : Z) (cases : list (Z * A)) :
-  at_tag P tag cases <-> (∀ a : A, find_tag tag cases = Some a -> P a).
-Proof.
-  unfold at_tag. rewrite every_iff. split.
-  - intros Hall a Hfind.
-    exact (Hall (tag, a) (find_tag_in _ _ _ Hfind) Hfind).
-  - intros Hall [tag' a] _ Hfind. exact (Hall a Hfind).
-Qed.
-
-Lemma for_all_names_iff {A : Type} (P : name -> A -> Prop)
-    (m : finite_name_map A) :
-  for_all_names P m
-  <-> (∀ (n : name) (a : A), lookup_name n m = Some a -> P n a).
-Proof.
-  unfold for_all_names. rewrite !for_all_bindings_iff. split.
-  - intros [Hvars Hsymbols] [x | s] a Hlookup;
-      [ exact (Hvars x a Hlookup) | exact (Hsymbols s a Hlookup) ].
-  - intros Hall. split.
-    + intros x a Hlookup. exact (Hall (Name_var x) a Hlookup).
-    + intros s a Hlookup. exact (Hall (Name_symbol s) a Hlookup).
-Qed.
-
-Theorem every_in : every_in_statement.
-Proof. exact @every_iff. Qed.
-
-Theorem for_all_bindings_lookup : for_all_bindings_lookup_statement.
-Proof. exact @for_all_bindings_iff. Qed.
-
-Theorem at_binding_lookup : at_binding_lookup_statement.
-Proof. exact @at_binding_iff. Qed.
-
-Theorem at_tag_find : at_tag_find_statement.
-Proof. exact @at_tag_iff. Qed.
-
-Theorem for_all_names_lookup : for_all_names_lookup_statement.
-Proof. exact @for_all_names_iff. Qed.
+Theorem name_eqb_decides_equality : name_eqb_decides_equality_statement.
+Proof. exact name_eqb_eq. Qed.
 
 (* ======================================================================== *)
 (* One equation for each constructor                                        *)
@@ -721,14 +646,16 @@ Qed.
 
 (* The case of a tag, or failing one something else. *)
 Lemma at_tag_or_else {A : Type} (P : A -> Prop) (Q : Prop) (tag : Z)
-    (cases : list (Z * A)) :
-  at_tag P tag cases ∧ (find_tag tag cases = None -> Q)
-  <-> match find_tag tag cases with
+    (cases : Keyed.finite_map Z A) :
+  Keyed.at_binding Z.eqb P tag cases
+  ∧ (Keyed.lookup Z.eqb tag cases = None -> Q)
+  <-> match Keyed.lookup Z.eqb tag cases with
       | Some a => P a
       | None => Q
       end.
 Proof.
-  rewrite at_tag_iff. destruct (find_tag tag cases) as [a | ]; split.
+  rewrite (keyed_at_binding_lookup Z Z.eqb).
+  destruct (Keyed.lookup Z.eqb tag cases) as [a | ]; split.
   - intros [Hcase _]. exact (Hcase a eq_refl).
   - intros Hcase. split; [ | discriminate ]. intros a' [= <-]. exact Hcase.
   - intros [_ Hother]. exact (Hother eq_refl).
@@ -737,12 +664,12 @@ Qed.
 
 Lemma row_like_for_blocks_find_iff (statics : static_env) (vars : env)
     (tag : Z) (fields : list value)
-    (known_tags : list (Z * Or_unknown.t row_like_block_case))
+    (known_tags : Keyed.finite_map Z (Or_unknown.t row_like_block_case))
     (other_tags : Or_bottom.t row_like_block_case)
     (alloc_mode : Alloc_mode.t) :
   row_like_for_blocks_satisfied statics vars tag fields
     (Row_like_for_blocks known_tags other_tags alloc_mode)
-  <-> match find_tag tag known_tags with
+  <-> match Keyed.lookup Z.eqb tag known_tags with
       | Some (Or_unknown.Known case) =>
         row_like_block_case_satisfied statics vars tag fields case
       | Some Or_unknown.Unknown => True
@@ -755,7 +682,7 @@ Lemma row_like_for_blocks_find_iff (statics : static_env) (vars : env)
       end.
 Proof.
   simpl. rewrite at_tag_or_else. unfold row_like_block_case in *.
-  destruct (find_tag tag known_tags) as [[case | ] | ];
+  destruct (Keyed.lookup Z.eqb tag known_tags) as [[case | ] | ];
     [ reflexivity | reflexivity | destruct other_tags; reflexivity ].
 Qed.
 
@@ -818,7 +745,8 @@ Lemma row_like_for_closures_lookup_iff (statics : static_env) (vars : env)
         ∧ row_like_closures_case_satisfied statics vars v slot functions
             value_slots case.
 Proof.
-  simpl. rewrite at_binding_iff, is_bound_lookup. split.
+  simpl. rewrite (at_binding_lookup row_like_closures_case), is_bound_lookup.
+  split.
   - intros [[case Hlookup] Hcase]. exists case.
     split; [ exact Hlookup | exact (Hcase case Hlookup) ].
   - intros [case [Hlookup Hcase]]. split; [ exists case; exact Hlookup | ].
@@ -852,7 +780,7 @@ Lemma closures_entry_lookup_iff (statics : static_env) (vars : env)
           lookup w value_slots = Some contents ->
           type_satisfied statics vars contents ty).
 Proof.
-  simpl. rewrite !for_all_bindings_iff.
+  simpl. rewrite !(for_all_bindings_lookup flambda_type).
   split; intros [Hfunctions [Hclosures Hslots]];
     (split; [ exact Hfunctions | split; eauto ]).
 Qed.
@@ -897,13 +825,16 @@ Proof.
 Qed.
 
 Lemma env_extension_lookup_iff (statics : static_env) (vars : env)
-    (equations : finite_name_map flambda_type) :
+    (equations : Keyed.finite_map name flambda_type) :
   env_extension_satisfied statics vars (Env_extension equations)
   <-> (∀ (n : name) (ty : flambda_type),
-        lookup_name n equations = Some ty ->
+        Keyed.lookup name_eqb n equations = Some ty ->
         ∃ v : value,
           value_of_name vars n = Some v ∧ type_satisfied statics vars v ty).
-Proof. simpl. rewrite for_all_names_iff. reflexivity. Qed.
+Proof.
+  simpl. rewrite (keyed_for_all_bindings_lookup name name_eqb name_eqb_eq).
+  reflexivity.
+Qed.
 
 Theorem env_extension_lookup : env_extension_lookup_statement.
 Proof. exact env_extension_lookup_iff. Qed.
@@ -1472,9 +1403,8 @@ Definition scrutinee (is_int get_tag : variable) (x_is : Z) : flambda_type :=
   non_null_value
     (Variant (Some is_int) Or_unknown.Unknown (Some get_tag)
        Or_unknown.Unknown
-       (Ext (Env_extension (Finite_name_map [(x, bottom Value)] []))
-          (Env_extension
-             (Finite_name_map [(x, this_tagged_immediate x_is)] [])))
+       (Ext (Env_extension [(Name_var x, bottom Value)])
+          (Env_extension [(Name_var x, this_tagged_immediate x_is)]))
        false).
 
 Example variant_variables_has
@@ -1937,8 +1867,9 @@ Proof.
     { intros case [Htypes Hextension] [Hindex [Hfields Hext]].
       split; [ exact Hindex | ]. split; [ | exact (Hextension Hext) ].
       exact (fields_satisfied_impl _ _ _ _ Htypes Hfields). }
-    destruct (find_tag tag known_tags) as [[case | ] | ] eqn:Hfind.
-    + apply Hcase. exact (Hknown tag case (find_tag_in _ _ _ Hfind)).
+    destruct (Keyed.lookup Z.eqb tag known_tags) as [[case | ] | ] eqn:Hfind.
+    + apply Hcase.
+      exact (Hknown tag case (keyed_lookup_in Z.eqb Z.eqb_eq _ _ _ Hfind)).
     + auto.
     + destruct other_tags as [case | ]; [ exact (Hcase case Hother) | auto ].
   - (* Row_like_for_closures *)
@@ -1964,14 +1895,13 @@ Proof.
       apply (Hslots w ty (lookup_in _ _ _ Hlookup)).
       exact (Hvalue_slots w ty contents Hlookup Hcontents).
   - (* Env_extension *)
-    intros equations Hvariables Hsymbols.
+    intros equations Htypes.
     rewrite !env_extension_lookup_iff.
     intros Hequations n ty Hlookup.
     destruct (Hequations n ty Hlookup) as [v [Hv Hty]]. exists v.
     split; [ exact Hv | ].
-    destruct n as [x | s]; simpl in Hlookup.
-    + exact (Hvariables x ty (lookup_in _ _ _ Hlookup) v Hty).
-    + exact (Hsymbols s ty (lookup_in _ _ _ Hlookup) v Hty).
+    exact
+      (Htypes n ty (keyed_lookup_in name_eqb name_eqb_eq _ _ _ Hlookup) v Hty).
 Qed.
 
 End Statics_extend.
@@ -2194,8 +2124,9 @@ Proof.
       intros ty Hin v.
       exact (Htypes ty Hin vars vars' v
                (agree_flat_map _ _ _ _ ty Hagree_fields Hin)). }
-    destruct (find_tag tag known_tags) as [[case | ] | ] eqn:Hfind.
-    + apply find_tag_in in Hfind. apply (Hcase case (Hknown tag case Hfind)).
+    destruct (Keyed.lookup Z.eqb tag known_tags) as [[case | ] | ] eqn:Hfind.
+    + apply (keyed_lookup_in Z.eqb Z.eqb_eq) in Hfind.
+      apply (Hcase case (Hknown tag case Hfind)).
       exact (agree_flat_map _ _ _ _ _ Hagree_known Hfind).
     + auto.
     + destruct other_tags as [case | ]; [ | auto ].
@@ -2233,23 +2164,18 @@ Proof.
       * exact (agree_flat_map _ _ _ _ _ Hagree_slots Hin).
       * exact (Hvalue_slots w ty contents Hlookup Hcontents).
   - (* Env_extension *)
-    intros equations Hvariables Hsymbols vars vars' Hagree.
+    intros equations Htypes vars vars' Hagree.
     simpl in Hagree.
-    apply agree_app in Hagree as [Hagree_variables Hagree_symbols].
     rewrite !env_extension_lookup_iff.
     intros Hequations n ty Hlookup.
     destruct (Hequations n ty Hlookup) as [v [Hv Hty]]. exists v.
-    destruct n as [x | s]; simpl in Hlookup.
-    + pose proof (lookup_in _ _ _ Hlookup) as Hin.
-      pose proof (agree_flat_map _ _ _ _ _ Hagree_variables Hin) as Hagree.
-      simpl in Hagree. split.
-      * unfold value_of_name in *. simpl in *.
-        rewrite <- (Hagree x (or_introl eq_refl)). exact Hv.
-      * apply (Hvariables x ty Hin vars vars'); [ | exact Hty ].
-        intros y Hy. apply Hagree. right. exact Hy.
-    + pose proof (lookup_in _ _ _ Hlookup) as Hin. split; [ exact Hv | ].
-      apply (Hsymbols s ty Hin vars vars'); [ | exact Hty ].
-      exact (agree_flat_map _ _ _ _ _ Hagree_symbols Hin).
+    pose proof (keyed_lookup_in name_eqb name_eqb_eq _ _ _ Hlookup) as Hin.
+    pose proof (agree_flat_map _ _ _ _ _ Hagree Hin) as Hagree_binding.
+    simpl in Hagree_binding.
+    apply agree_app in Hagree_binding as [Hagree_name Hagree_ty]. split.
+    + unfold value_of_name.
+      rewrite <- (agree_eval_simple vars vars' _ Hagree_name). exact Hv.
+    + exact (Htypes n ty Hin vars vars' v Hagree_ty Hty).
 Qed.
 
 Lemma agree_sym (vars vars' : env) (xs : list variable) :
@@ -2364,8 +2290,9 @@ Qed.
 (* What a relation says of the value it relates                             *)
 (* ======================================================================== *)
 
-Lemma find_tag_unknown_cases {A : Type} (tag : Z) (tags : list Z) :
-  find_tag tag (map (fun tag => (tag, @Or_unknown.Unknown A)) tags)
+Lemma lookup_unknown_cases {A : Type} (tag : Z) (tags : list Z) :
+  Keyed.lookup Z.eqb tag
+    (map (fun tag => (tag, @Or_unknown.Unknown A)) tags)
   = if existsb (Z.eqb tag) tags then Some Or_unknown.Unknown else None.
 Proof.
   induction tags as [ | tag' tags IH]; simpl; [ reflexivity | ].
@@ -2385,7 +2312,7 @@ Proof.
            Or_bottom.Bottom alloc_mode)
       <-> tag ∈ tags).
   { intros tag fields. rewrite row_like_for_blocks_find_iff.
-    rewrite find_tag_unknown_cases.
+    rewrite lookup_unknown_cases.
     destruct (existsb (Z.eqb tag) tags) eqn:Hamong.
     - apply existsb_exists in Hamong as [tag' [Hin Heq]].
       apply Z.eqb_eq in Heq as <-. tauto.

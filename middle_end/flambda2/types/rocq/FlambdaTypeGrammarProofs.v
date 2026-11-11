@@ -26,7 +26,8 @@
  ******************************************************************************)
 
 
-(* Induction on the grammar of types. Nothing here needs review.
+(* The equality test of the names of types decides equality, and
+   induction on the grammar of types. Nothing here needs review.
 
    [flambda_type] is defined together with seven other types, and holds
    lists and maps of itself, so Rocq gives no induction principle that is
@@ -45,6 +46,18 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar.
 Import ListNotations.
+
+(* [name_eqb] tells whether two names are the same: the proof to give
+   with it wherever [Keyed] asks for one. *)
+Lemma name_eqb_eq : decides_equality name_eqb.
+Proof.
+  intros [x | s] [x' | s']; simpl;
+    try (split; [ discriminate | discriminate ]).
+  - rewrite Pos.eqb_eq. split; [ intros ->; reflexivity | ].
+    intros [= ->]. reflexivity.
+  - rewrite Pos.eqb_eq. split; [ intros ->; reflexivity | ].
+    intros [= ->]. reflexivity.
+Qed.
 
 (* [f] proves [P] of every element of a list; it is used with the
    induction being defined for [f], and is accepted because [f] is only
@@ -145,7 +158,7 @@ Hypothesis H_closures :
     P_non_null (Closures by_function_slot alloc_mode).
 Hypothesis H_string : ∀ strs : list (list Z), P_non_null (String strs).
 Hypothesis H_blocks :
-  ∀ (known_tags : list (Z * Or_unknown.t row_like_block_case))
+  ∀ (known_tags : Keyed.finite_map Z (Or_unknown.t row_like_block_case))
     (other_tags : Or_bottom.t row_like_block_case)
     (alloc_mode : Alloc_mode.t),
     (∀ (tag : Z) (case : row_like_block_case),
@@ -169,11 +182,8 @@ Hypothesis H_entry :
       (w, ty) ∈ value_slot_types -> P_type ty) ->
     P_entry (Closures_entry function_types closure_types value_slot_types).
 Hypothesis H_extension :
-  ∀ equations : finite_name_map flambda_type,
-    (∀ (x : variable) (ty : flambda_type),
-      (x, ty) ∈ on_variables equations -> P_type ty) ->
-    (∀ (s : symbol) (ty : flambda_type),
-      (s, ty) ∈ on_symbols equations -> P_type ty) ->
+  ∀ equations : Keyed.finite_map name flambda_type,
+    (∀ (n : name) (ty : flambda_type), (n, ty) ∈ equations -> P_type ty) ->
     P_extension (Env_extension equations).
 
 Fixpoint type_induction (t : flambda_type) : P_type t :=
@@ -279,9 +289,7 @@ with extension_induction (extension : env_extension)
     : P_extension extension :=
   match extension with
   | Env_extension equations =>
-    H_extension equations
-      (bindings_all P_type type_induction (on_variables equations))
-      (bindings_all P_type type_induction (on_symbols equations))
+    H_extension equations (bindings_all P_type type_induction equations)
   end.
 
 (* All seven at once. *)

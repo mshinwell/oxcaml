@@ -114,13 +114,13 @@
      [Row_like_index_domain.Known] are told from the [Unknown], [Ok] and
      [Bottom] of [Or_unknown_or_bottom.t], which are not in a module, and
      from [Or_unknown.Known]. [Relation.descr] is [Relation.t].
-   - Maps and sets keyed by names (function slots, value slots,
-     variables, symbols) are those of FlambdaMapSpec.v. A map from names
-     that are variables or symbols ([Name.Map.t]) is a map from each
-     ([finite_name_map]). Tags and numbers are not names: the cases of
-     the known tags are an association list of which the first case of a
-     tag counts ([find_tag]), as the arms of a [Switch] are in
-     FlambdaModel.v, and a set of numbers is a list of them.
+   - Maps and sets are those of FlambdaMapSpec.v. Those keyed by
+     function slots and by value slots are its maps on names. A map
+     keyed by tags ([Tag.Map.t]) is a [Keyed.finite_map Z], read with
+     [Keyed.lookup Z.eqb]; a map keyed by the names of the types, each
+     a variable or a symbol ([Name.Map.t]), is a
+     [Keyed.finite_map name], read with [Keyed.lookup name_eqb]. A set
+     of numbers is a list of them.
    - Function slots are names ([function_slot]), which FlambdaModel.v
      does not have yet: its sets of closures have one function. The
      definition here goes when it has them (workstream C3).
@@ -162,35 +162,15 @@ Definition simple_of_name (n : name) : simple :=
   | Name_symbol s => Symbol s
   end.
 
-(* [Name.Map.t]: variables and symbols are different names with the same
-   numbers, so a map from names is a map from the variables and one from
-   the symbols. *)
-Record finite_name_map (A : Type) : Type := Finite_name_map {
-  on_variables : finite_map A;
-  on_symbols : finite_map A
-}.
-
-Arguments Finite_name_map {A} on_variables on_symbols.
-Arguments on_variables {A} _.
-Arguments on_symbols {A} _.
-
-(* [Name.Map.find_opt]. *)
-Definition lookup_name {A : Type} (n : name) (m : finite_name_map A)
-    : option A :=
-  match n with
-  | Name_var x => lookup x (on_variables m)
-  | Name_symbol s => lookup s (on_symbols m)
-  end.
-
-(* [Name.Map.empty]. *)
-Definition empty_name_map {A : Type} : finite_name_map A :=
-  Finite_name_map [] [].
-
-(* [Tag.Map.find_opt]: the first case of a tag. *)
-Fixpoint find_tag {A : Type} (tag : Z) (cases : list (Z * A)) : option A :=
-  match cases with
-  | [] => None
-  | (tag', a) :: cases => if Z.eqb tag tag' then Some a else find_tag tag cases
+(* [Name.equal]: the equality test of names, and the one to use wherever
+   names are keys ([Keyed], in FlambdaMapSpec.v): a variable and a
+   symbol are different names, though they may be the same number. It
+   decides equality ([name_eqb_eq], in FlambdaTypeGrammarProofs.v). *)
+Definition name_eqb (n n' : name) : bool :=
+  match n, n' with
+  | Name_var x, Name_var x' => Pos.eqb x x'
+  | Name_symbol s, Name_symbol s' => Pos.eqb s s'
+  | Name_var _, Name_symbol _ | Name_symbol _, Name_var _ => false
   end.
 
 (* ======================================================================== *)
@@ -382,11 +362,10 @@ with head_of_kind_value_non_null : Type :=
 with row_like_for_blocks : Type :=
   | Row_like_for_blocks
       (known_tags :
-        list
-          (Z
-           * Or_unknown.t
-               (row_like_case nat block_shape (list flambda_type)
-                  env_extension)))
+        Keyed.finite_map Z
+          (Or_unknown.t
+             (row_like_case nat block_shape (list flambda_type)
+                env_extension)))
       (other_tags :
         Or_bottom.t
           (row_like_case nat block_shape (list flambda_type) env_extension))
@@ -405,7 +384,7 @@ with closures_entry : Type :=
       (value_slot_types : finite_map flambda_type)
 
 with env_extension : Type :=
-  | Env_extension (equations : finite_name_map flambda_type)
+  | Env_extension (equations : Keyed.finite_map name flambda_type)
 
 with variant_extensions : Type :=
   | No_extensions
@@ -609,7 +588,7 @@ Definition these_naked_immediates (imms : list Z) : flambda_type :=
 
 (* [Type_grammar.Env_extension.empty]. *)
 Definition empty_env_extension : env_extension :=
-  Env_extension empty_name_map.
+  Env_extension [].
 
 (* [Type_grammar.Row_like_for_blocks.bottom]. *)
 Definition row_like_for_blocks_bottom : row_like_for_blocks :=
@@ -920,8 +899,8 @@ with free_variables_of_env_extension (extension : env_extension)
     : list variable :=
   match extension with
   | Env_extension equations =>
-    flat_map (fun binding => fst binding :: free_variables (snd binding))
-      (on_variables equations)
-    ++ flat_map (fun binding => free_variables (snd binding))
-         (on_symbols equations)
+    flat_map
+      (fun binding =>
+         free_variables_of_name (fst binding) ++ free_variables (snd binding))
+      equations
   end.
