@@ -272,8 +272,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
-  FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaJoinEnv
-  FlambdaJoinTypes.
+  FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
+  FlambdaTypingEnvKindedSpec FlambdaJoinEnv FlambdaJoinTypes.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -577,19 +577,9 @@ Definition join_introduces {A : Type} (avoid : list variable)
           ∧ knows use x)
        ∨ among x avoid = false).
 
-(* A [Simple] is of a kind in an environment: the constant is of that
-   kind, or the environment has a type of that kind for the name. *)
-Definition simple_of_kind (tenv : Typing_env.t) (simple : simple)
-    (kind : flambda_kind) : Prop :=
-  match simple with
-  | Const c => FlambdaTypeGrammar.kind (type_for_const c) = kind
-  | Var x =>
-    ∃ ty : flambda_type,
-      Typing_env.find tenv (Name_var x) (Some kind) = Some ty
-  | Symbol s =>
-    ∃ ty : flambda_type,
-      Typing_env.find tenv (Name_symbol s) (Some kind) = Some ty
-  end.
+(* That a [Simple] is of a kind in an environment ([simple_of_kind]:
+   the constant is of that kind, or the environment has a type of that
+   kind for the name) is FlambdaTypingEnvKindedSpec.v. *)
 
 (* The aliases of a type, each with the kind at which it stands, and
    the variables that hold the results of [Is_int], [Get_tag] and
