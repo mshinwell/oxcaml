@@ -212,6 +212,9 @@ pass into the validator.
     below; S5's once it is staffed)
   - `middle_end/flambda2/rocq/FlambdaMyClosure*` (in the code of a
     closure that is a symbol, `my_closure` is the symbol; same stream)
+  - `middle_end/flambda2/rocq/FlambdaUnusedSlots*` (the value slots of
+    a static set of closures that nothing projects are removed; same
+    stream)
   - `middle_end/flambda2/rocq/FlambdaSimulationProofs.v` (simulations in
     which one step is answered by one or more; same stream, and used by
     the loops of V4)
