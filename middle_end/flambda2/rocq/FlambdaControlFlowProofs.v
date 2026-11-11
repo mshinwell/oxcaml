@@ -26,8 +26,10 @@
  ******************************************************************************)
 
 (* Proofs of the statements of FlambdaControlFlowSpec.v. Each equivalence is
-   proved by running both sides until they come to the same thing
-   (FlambdaSemanticsProofs.equivalent_of_run). Nothing here needs review. *)
+   proved by stepping both sides until they come to the same thing, with
+   the step lemmas of FlambdaSemanticsProofs.v ([step_equivalent] for a
+   step of one side, [step_eq_equivalent] where the two sides step
+   alike). Nothing here needs review. *)
 
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
@@ -44,9 +46,11 @@ Theorem let_cont_apply_cont : let_cont_apply_cont_statement.
 Proof.
   intros k params handler args vars handler_vars conts statics vs Hargs
     Hbind.
-  apply (equivalent_of_run 2 0). simpl.
-  rewrite Hargs. unfold apply_continuation, resolve. simpl.
-  rewrite Pos.eqb_refl. simpl. rewrite Hbind. reflexivity.
+  eapply equivalent_trans;
+    [ apply step_equivalent, step_let_cont_non_recursive | ].
+  apply step_equivalent.
+  apply (step_apply_cont_handler _ _ _ _ vs params handler vars conts []);
+    [ exact Hargs | apply resolve_head | exact Hbind ].
 Qed.
 
 (* Both sides evaluate the argument first; if it has a value, both reach the
@@ -55,10 +59,11 @@ Theorem let_cont_apply_cont_one_param :
   let_cont_apply_cont_one_param_statement.
 Proof.
   intros k x handler arg vars conts statics.
-  apply (equivalent_of_run 2 1). simpl.
+  eapply equivalent_trans;
+    [ apply step_equivalent, step_let_cont_non_recursive | ].
+  apply step_eq_equivalent. rewrite step_apply_cont, step_let. simpl.
   destruct (eval_simple vars arg) as [v | ]; simpl; [ | reflexivity ].
-  unfold apply_continuation, resolve. simpl. rewrite Pos.eqb_refl.
-  reflexivity.
+  unfold apply_continuation. rewrite resolve_head. reflexivity.
 Qed.
 
 Theorem let_cont_recursive_apply_cont :
@@ -67,26 +72,33 @@ Proof.
   intros k params handler handlers args vars handler_vars conts statics vs
     Hstatics Hlookup Hargs Hbind.
   eapply equivalent_trans;
-    [ apply step_equivalent; simpl; rewrite Hstatics; reflexivity | ].
-  apply step_equivalent. simpl.
-  rewrite Hargs. unfold apply_continuation, resolve, rec_closures.
-  rewrite (lookup_rec_closures _ _ _ _ _ _ _ Hlookup). simpl.
-  rewrite Hbind.
-  reflexivity.
+    [ apply step_equivalent; rewrite step_let_cont_recursive, Hstatics;
+      reflexivity
+    | ].
+  apply step_equivalent.
+  apply (step_apply_cont_handler _ _ _ _ vs params handler vars conts
+    handlers);
+    [ exact Hargs | | exact Hbind ].
+  simpl. rewrite resolve_rec_closures, Hlookup. reflexivity.
 Qed.
 
 (* After its first step the loop is in a state that steps to itself. *)
 Theorem loop_forever_diverges : loop_forever_diverges_statement.
 Proof.
   intros k vars conts statics.
-  apply (step_behaves _ Diverges). simpl.
-  match goal with
-  | |- ∀ fuel : nat, ∃ s' : state, run fuel ?s = Step s' =>
-    set (looping := s)
-  end.
+  set (handlers := [(k, Handler [] (Apply_cont (Apply_cont_expr k [])))]).
+  set (looping :=
+    State (Apply_cont (Apply_cont_expr k [])) vars
+      (rec_closures handlers vars conts ++ conts) statics).
+  assert (Hfirst :
+    step (State (loop_forever k) vars conts statics) = Step looping).
+  { unfold loop_forever. rewrite step_let_cont_recursive. reflexivity. }
   assert (Hstep : step looping = Step looping).
-  { subst looping. simpl. unfold apply_continuation, resolve. simpl.
-    rewrite Pos.eqb_refl. reflexivity. }
+  { apply (step_apply_cont_handler _ _ _ _ [] [] _ vars conts handlers);
+      [ reflexivity | | reflexivity ].
+    rewrite resolve_rec_closures. simpl. rewrite Pos.eqb_refl.
+    reflexivity. }
+  apply (step_behaves _ Diverges). rewrite Hfirst. simpl.
   clearbody looping. intros n. exists looping.
   induction n as [ | n IH]; simpl; [ reflexivity | ].
   rewrite Hstep. exact IH.
@@ -99,7 +111,8 @@ Qed.
 Theorem switch_const : switch_const_statement.
 Proof.
   intros i arms ac Hfind vars conts statics.
-  apply step_equivalent. simpl. rewrite Hfind. reflexivity.
+  apply step_equivalent. rewrite step_switch. simpl. rewrite Hfind.
+  reflexivity.
 Qed.
 
 (* Either the [Switch] steps to one of its arms, which is [ac], or it is
@@ -107,19 +120,9 @@ Qed.
 Theorem switch_same_arms : switch_same_arms_statement.
 Proof.
   intros scrutinee arms ac Hsame vars conts statics.
-  destruct (step (State (Switch scrutinee arms) vars conts statics)) eqn:Hstep.
-  - apply equivalent_refines, step_equivalent.
-    assert (Harm : s = State (Apply_cont ac) vars conts statics);
-      [ | rewrite <- Harm; exact Hstep ].
-    simpl in Hstep.
-    destruct (eval_simple vars scrutinee) as [v | ]; [ | discriminate ].
-    destruct (naked_immediate_of_value v) as [i | ]; [ | discriminate ].
-    destruct (find_arm i arms) as [arm | ] eqn:Hfind; [ | discriminate ].
-    apply find_arm_in, Hsame in Hfind. congruence.
-  - simpl in Hstep.
-    destruct (eval_simple vars scrutinee) as [v | ]; [ | discriminate ].
-    destruct (naked_immediate_of_value v) as [i | ]; [ | discriminate ].
-    destruct (find_arm i arms); discriminate.
-  - apply goes_wrong_refines. exists 1. unfold run. rewrite Hstep.
-    reflexivity.
+  destruct (step_switch_cases scrutinee arms vars conts statics)
+    as [Hwrong | (v & i & arm & _ & _ & Hfind & Hstep)];
+    [ apply step_undefined_refines, Hwrong | ].
+  apply find_arm_in, Hsame in Hfind. subst arm.
+  apply equivalent_refines, step_equivalent, Hstep.
 Qed.

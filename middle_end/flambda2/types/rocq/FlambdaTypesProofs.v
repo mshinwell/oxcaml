@@ -114,20 +114,21 @@ Qed.
 Theorem apply_cont_canonical : apply_cont_canonical_statement.
 Proof.
   intros tenv k args vars conts statics Hsat.
-  apply (equivalent_of_run 1 1). simpl.
+  apply step_eq_equivalent. rewrite !step_apply_cont. simpl.
   rewrite (canonical_simples_sound tenv vars args Hsat). reflexivity.
 Qed.
 
 Theorem let_simple_canonical : let_simple_canonical_statement.
 Proof.
-  intros tenv x s body vars conts statics Hsat. apply (equivalent_of_run 1 1).
-  simpl. rewrite (canonical_simple_sound tenv vars s Hsat). reflexivity.
+  intros tenv x s body vars conts statics Hsat.
+  apply let_equivalent_step; [ | intros v _; apply equivalent_refl ].
+  exact (canonical_simple_sound tenv vars s Hsat).
 Qed.
 
 Theorem switch_known : switch_known_statement.
 Proof.
   intros tenv scrutinee i arms ac Hknown Hfind vars conts statics Hsat.
-  apply step_equivalent. simpl.
+  apply step_equivalent. rewrite step_switch.
   rewrite <- (canonical_simple_sound tenv vars scrutinee Hsat), Hknown.
   simpl. rewrite Hfind. reflexivity.
 Qed.
@@ -175,31 +176,24 @@ Qed.
 Theorem let_refines_in : let_refines_in_statement.
 Proof.
   intros tenv x d body body' Hfresh Hbody vars conts statics Hsat.
-  destruct (eval_named statics vars d) as [v | ] eqn:Hd.
-  - eapply refines_step;
-      [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity | ].
-    apply Hbody, env_satisfies_extend; [ exact Hsat | exact Hfresh | exact I ].
-  - apply goes_wrong_refines. exists 1. simpl. rewrite Hd. reflexivity.
+  apply let_refines_step; [ reflexivity | intros v _ ].
+  apply Hbody, env_satisfies_extend; [ exact Hsat | exact Hfresh | exact I ].
 Qed.
 
 Theorem let_simple_refines_in : let_simple_refines_in_statement.
 Proof.
   intros tenv x s body body' Hfresh Hnotin Hbody vars conts statics Hsat.
-  destruct (eval_simple vars s) as [v | ] eqn:Hs.
-  - eapply refines_step;
-      [ simpl; rewrite Hs; reflexivity | simpl; rewrite Hs; reflexivity | ].
-    apply Hbody, env_satisfies_extend; [ exact Hsat | exact Hfresh | ].
-    destruct s as [y | sym | c]; simpl in *; try exact Hs.
-    destruct (Pos.eqb_spec y x) as [-> | _]; [ | exact Hs ].
-    exfalso. apply Hnotin. reflexivity.
-  - apply goes_wrong_refines. exists 1. simpl. rewrite Hs. reflexivity.
+  apply let_refines_step; [ reflexivity | intros v Hs ]. simpl in Hs.
+  apply Hbody, env_satisfies_extend; [ exact Hsat | exact Hfresh | ].
+  destruct s as [y | sym | c]; simpl in *; try exact Hs.
+  destruct (Pos.eqb_spec y x) as [-> | _]; [ | exact Hs ].
+  exfalso. apply Hnotin. reflexivity.
 Qed.
 
 Theorem let_cont_body_refines_in : let_cont_body_refines_in_statement.
 Proof.
   intros tenv k h body body' Hbody vars conts statics Hsat.
-  eapply refines_step; [ reflexivity | reflexivity | ].
-  apply Hbody, Hsat.
+  apply let_cont_non_recursive_refines_step, Hbody, Hsat.
 Qed.
 
 Theorem let_cont_recursive_body_refines_in :

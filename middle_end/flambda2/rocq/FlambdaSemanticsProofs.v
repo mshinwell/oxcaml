@@ -25,9 +25,11 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* Lemmas about the execution of FlambdaSemanticsSpec.v: bounded runs, the
-   uniqueness of behaviours, and the ways of showing two states equivalent
-   or one a refinement of the other. Nothing here needs review. *)
+(* Lemmas about the execution of FlambdaSemanticsSpec.v: what a state of
+   each construct steps to (the step lemmas, through which every other
+   proof reasons about [step]), bounded runs, the uniqueness of
+   behaviours, and the ways of showing two states equivalent or one a
+   refinement of the other. Nothing here needs review. *)
 
 From Stdlib Require Import ZArith List Arith Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
@@ -51,8 +53,169 @@ Ltac simpl_state :=
   cbn [state_expr state_vars state_conts state_statics] in *.
 
 (* ======================================================================== *)
+(* Steps                                                                    *)
+(* ======================================================================== *)
+
+(* What a state steps to, for each construct: one lemma for each case of
+   [step], saying what the state comes to and under which conditions.
+
+   These are how every proof reasons about a step. [step] is made opaque
+   below, so [simpl] and [unfold] leave it alone: a proof rewrites with
+   the lemma of the construct at hand and goes by cases on the conditions
+   it names. A change to [step] is then a change to these lemmas, and to
+   the proofs that use the lemma of the case that changed. *)
+
+Lemma step_let (x : variable) (defining_expr : named) (body : expr)
+    (vars : env) (conts : cont_env) (statics : static_env) :
+  step (State (Let x defining_expr body) vars conts statics)
+  = match eval_named statics vars defining_expr with
+    | Some v => Step (State body ((x, v) :: vars) conts statics)
+    | None => Undefined
+    end.
+Proof. reflexivity. Qed.
+
+Lemma step_let_static (bindings : list static_binding) (body : expr)
+    (vars : env) (conts : cont_env) (statics : static_env) :
+  step (State (Let_static bindings body) vars conts statics)
+  = match eval_static_bindings vars bindings statics with
+    | Some statics' => Step (State body vars conts statics')
+    | None => Undefined
+    end.
+Proof. reflexivity. Qed.
+
+Lemma step_let_cont_non_recursive (k : continuation)
+    (h : continuation_handler) (body : expr) (vars : env) (conts : cont_env)
+    (statics : static_env) :
+  step (State (Let_cont_non_recursive k h body) vars conts statics)
+  = Step (State body vars ((k, Closure h vars conts []) :: conts) statics).
+Proof. reflexivity. Qed.
+
+Lemma step_let_cont_recursive
+    (handlers : list (continuation * continuation_handler)) (body : expr)
+    (vars : env) (conts : cont_env) (statics : static_env) :
+  step (State (Let_cont_recursive handlers body) vars conts statics)
+  = if handlers_bind_statics handlers then Undefined
+    else
+      Step
+        (State body vars (rec_closures handlers vars conts ++ conts) statics).
+Proof. reflexivity. Qed.
+
+Lemma step_apply (ap : apply_expr) (vars : env) (conts : cont_env)
+    (statics : static_env) :
+  step (State (Apply ap) vars conts statics)
+  = match eval_simple vars (ap_callee ap), eval_simples vars (ap_args ap) with
+    | Some callee, Some vs =>
+      call_function callee (ap_call_kind ap) vs
+        (resolve (ap_continuation ap) conts)
+        (resolve (ap_exn_continuation ap) conts) statics
+    | _, _ => Undefined
+    end.
+Proof. reflexivity. Qed.
+
+Lemma step_apply_cont (ac : apply_cont) (vars : env) (conts : cont_env)
+    (statics : static_env) :
+  step (State (Apply_cont ac) vars conts statics)
+  = match eval_simples vars (ac_args ac) with
+    | Some vs => apply_continuation (ac_continuation ac) vs conts statics
+    | None => Undefined
+    end.
+Proof. reflexivity. Qed.
+
+Lemma step_switch (scrutinee : simple) (arms : list (Z * apply_cont))
+    (vars : env) (conts : cont_env) (statics : static_env) :
+  step (State (Switch scrutinee arms) vars conts statics)
+  = match eval_simple vars scrutinee with
+    | Some v =>
+      match naked_immediate_of_value v with
+      | Some i =>
+        match find_arm i arms with
+        | Some ac => Step (State (Apply_cont ac) vars conts statics)
+        | None => Undefined
+        end
+      | None => Undefined
+      end
+    | None => Undefined
+    end.
+Proof. reflexivity. Qed.
+
+Lemma step_invalid (vars : env) (conts : cont_env) (statics : static_env) :
+  step (State Invalid vars conts statics) = Undefined.
+Proof. reflexivity. Qed.
+
+(* The two ways in which an [Apply_cont] does not go wrong: its
+   continuation stands for a handler, which runs under the environments of
+   its closure with its parameters bound; or for a way out of the term. *)
+Lemma step_apply_cont_handler (ac : apply_cont) (vars : env)
+    (conts : cont_env) (statics : static_env) (vs : list value)
+    (params : list variable) (handler : expr) (def_vars : env)
+    (def_conts : cont_env)
+    (recursive : list (continuation * continuation_handler))
+    (handler_vars : env) :
+  eval_simples vars (ac_args ac) = Some vs ->
+  resolve (ac_continuation ac) conts
+  = Closure (Handler params handler) def_vars def_conts recursive ->
+  bind_params params vs def_vars = Some handler_vars ->
+  step (State (Apply_cont ac) vars conts statics)
+  = Step
+      (State handler handler_vars
+         (rec_closures recursive def_vars def_conts ++ def_conts) statics).
+Proof.
+  intros Hargs Hresolve Hbind. rewrite step_apply_cont, Hargs.
+  unfold apply_continuation. rewrite Hresolve. simpl. rewrite Hbind.
+  reflexivity.
+Qed.
+
+Lemma step_apply_cont_exit (ac : apply_cont) (vars : env) (conts : cont_env)
+    (statics : static_env) (vs : list value) (k : continuation) :
+  eval_simples vars (ac_args ac) = Some vs ->
+  resolve (ac_continuation ac) conts = Outer k ->
+  step (State (Apply_cont ac) vars conts statics) = Exit k vs.
+Proof.
+  intros Hargs Hresolve. rewrite step_apply_cont, Hargs.
+  unfold apply_continuation. rewrite Hresolve. reflexivity.
+Qed.
+
+(* A [Switch] is undefined, or steps to the arm of its scrutinee. *)
+Lemma step_switch_cases (scrutinee : simple) (arms : list (Z * apply_cont))
+    (vars : env) (conts : cont_env) (statics : static_env) :
+  step (State (Switch scrutinee arms) vars conts statics) = Undefined
+  ∨ ∃ (v : value) (i : Z) (ac : apply_cont),
+      eval_simple vars scrutinee = Some v
+      ∧ naked_immediate_of_value v = Some i
+      ∧ find_arm i arms = Some ac
+      ∧ step (State (Switch scrutinee arms) vars conts statics)
+        = Step (State (Apply_cont ac) vars conts statics).
+Proof.
+  rewrite step_switch.
+  destruct (eval_simple vars scrutinee) as [v | ]; [ | left; reflexivity ].
+  destruct (naked_immediate_of_value v) as [i | ] eqn:Hi;
+    [ | left; reflexivity ].
+  destruct (find_arm i arms) as [ac | ] eqn:Hfind; [ | left; reflexivity ].
+  right. exists v, i, ac. auto.
+Qed.
+
+#[global] Opaque step.
+
+(* For a proof by cases on the construct of a state:
+   [autorewrite with step] rewrites the step of each case. *)
+Create Rewrite HintDb step.
+#[global] Hint Rewrite step_let step_let_static step_let_cont_non_recursive
+  step_let_cont_recursive step_apply step_apply_cont step_switch
+  step_invalid : step.
+
+(* ======================================================================== *)
 (* Bounded runs                                                             *)
 (* ======================================================================== *)
+
+(* A run of one step more is the first step and, if that has not ended,
+   the rest of the run. *)
+Lemma run_succ (n : nat) (s : state) :
+  run (S n) s
+  = match step s with
+    | Step s' => run n s'
+    | result => result
+    end.
+Proof. reflexivity. Qed.
 
 (* A run of [n + m] steps is a run of [n] steps and, if that has not ended,
    one of [m] steps from the state reached. *)
@@ -191,8 +354,7 @@ Lemma equivalent_trans (s s' s'' : state) :
 Proof. intros H H' b. rewrite (H b). apply H'. Qed.
 
 (* Two states whose runs, of whatever lengths, come to the same thing are
-   equivalent. This is how the rewrites of FlambdaControlFlowProofs.v are
-   proved: run both sides until they meet. *)
+   equivalent. *)
 Lemma equivalent_of_run (n m : nat) (s s' : state) :
   run n s = run m s' -> equivalent s s'.
 Proof.
@@ -315,6 +477,35 @@ Proof.
   apply (refines_trans s' t'); [ exact Hrefines | ].
   apply equivalent_refines, equivalent_sym, step_equivalent, Ht.
 Qed.
+
+(* Both sides take a step, to states that are equivalent. *)
+Lemma equivalent_step (s s' t t' : state) :
+  step s = Step s' -> step t = Step t' -> equivalent s' t' -> equivalent s t.
+Proof.
+  intros Hs Ht Hequiv.
+  apply (equivalent_trans s s'); [ apply step_equivalent, Hs | ].
+  apply (equivalent_trans s' t'); [ exact Hequiv | ].
+  apply equivalent_sym, step_equivalent, Ht.
+Qed.
+
+(* Two states whose first steps come to the same thing are equivalent. *)
+Lemma step_eq_equivalent (s s' : state) : step s = step s' -> equivalent s s'.
+Proof.
+  intros Hstep b. rewrite (step_behaves s), (step_behaves s'), Hstep.
+  reflexivity.
+Qed.
+
+(* A state whose step is undefined goes wrong, so anything refines it. *)
+Lemma step_undefined_wrong (s : state) :
+  step s = Undefined -> behaves s Goes_wrong.
+Proof.
+  intros Hstep. apply (step_behaves s Goes_wrong). rewrite Hstep.
+  reflexivity.
+Qed.
+
+Lemma step_undefined_refines (s s' : state) :
+  step s = Undefined -> refines s s'.
+Proof. intros Hstep. apply goes_wrong_refines, step_undefined_wrong, Hstep. Qed.
 
 Lemma expr_equivalent_refines (e e' : expr) :
   expr_equivalent e e' -> expr_refines e e'.
@@ -439,6 +630,33 @@ Lemma lookup_rec_closures_app (k : continuation)
     end.
 Proof. apply lookup_rec_closures_aux. Qed.
 
+(* What a continuation stands for where it has just been bound, and where
+   the closures of a recursive [Let_cont] have. *)
+Lemma resolve_head (k : continuation) (c : cont_value) (conts : cont_env) :
+  resolve k ((k, c) :: conts) = c.
+Proof. unfold resolve. simpl. rewrite Pos.eqb_refl. reflexivity. Qed.
+
+Lemma resolve_other (k k' : continuation) (c : cont_value)
+    (conts : cont_env) :
+  k <> k' -> resolve k ((k', c) :: conts) = resolve k conts.
+Proof.
+  intros Hne. unfold resolve. simpl.
+  destruct (Pos.eqb_spec k k'); [ contradiction | reflexivity ].
+Qed.
+
+Lemma resolve_rec_closures (k : continuation)
+    (handlers : list (continuation * continuation_handler)) (vars : env)
+    (conts rest : cont_env) :
+  resolve k (rec_closures handlers vars conts ++ rest)
+  = match lookup k handlers with
+    | Some h => Closure h vars conts handlers
+    | None => resolve k rest
+    end.
+Proof.
+  unfold resolve. rewrite lookup_rec_closures_app.
+  destruct (lookup k handlers); reflexivity.
+Qed.
+
 (* A call is undefined, or runs a body under variables that depend on the
    callee, the arguments and the static environment only, with the code's
    two continuations bound to what the caller gave. *)
@@ -554,8 +772,138 @@ Qed.
 End Simulation.
 
 (* ======================================================================== *)
-(* Stepping a [Let_cont_recursive]                                          *)
+(* Two states at the same construct                                         *)
 (* ======================================================================== *)
+
+(* For each construct that binds, how to relate two states that are both
+   at it and take the same step: both are undefined, or both step to their
+   bodies, which are then to be related. A proof that goes under a binder
+   uses these, and so does not depend on what the step of the binder is. *)
+
+(* Two [Let]s whose defining expressions have the same value, or none. *)
+Lemma let_equivalent_step (x x' : variable) (d d' : named)
+    (body body' : expr) (vars vars' : env) (conts conts' : cont_env)
+    (statics statics' : static_env) :
+  eval_named statics' vars' d' = eval_named statics vars d ->
+  (∀ v : value,
+    eval_named statics vars d = Some v ->
+    equivalent (State body ((x, v) :: vars) conts statics)
+      (State body' ((x', v) :: vars') conts' statics')) ->
+  equivalent (State (Let x d body) vars conts statics)
+    (State (Let x' d' body') vars' conts' statics').
+Proof.
+  intros Hd' Hbodies.
+  destruct (eval_named statics vars d) as [v | ] eqn:Hd.
+  - eapply equivalent_step;
+      [ rewrite step_let, Hd; reflexivity
+      | rewrite step_let, Hd'; reflexivity | exact (Hbodies v eq_refl) ].
+  - apply step_eq_equivalent. rewrite !step_let, Hd', Hd. reflexivity.
+Qed.
+
+Lemma let_refines_step (x x' : variable) (d d' : named) (body body' : expr)
+    (vars vars' : env) (conts conts' : cont_env)
+    (statics statics' : static_env) :
+  eval_named statics' vars' d' = eval_named statics vars d ->
+  (∀ v : value,
+    eval_named statics vars d = Some v ->
+    refines (State body ((x, v) :: vars) conts statics)
+      (State body' ((x', v) :: vars') conts' statics')) ->
+  refines (State (Let x d body) vars conts statics)
+    (State (Let x' d' body') vars' conts' statics').
+Proof.
+  intros Hd' Hbodies.
+  destruct (eval_named statics vars d) as [v | ] eqn:Hd.
+  - eapply refines_step;
+      [ rewrite step_let, Hd; reflexivity
+      | rewrite step_let, Hd'; reflexivity | exact (Hbodies v eq_refl) ].
+  - apply step_undefined_refines. rewrite step_let, Hd. reflexivity.
+Qed.
+
+(* Two [Let_static]s: both groups are bound, and the bodies are related
+   under the static environments that result, or neither is. For a
+   refinement the second may be anything when the first is not bound. *)
+Lemma let_static_equivalent_step (bindings bindings' : list static_binding)
+    (body body' : expr) (vars vars' : env) (conts conts' : cont_env)
+    (statics statics' : static_env) :
+  match
+    eval_static_bindings vars bindings statics,
+    eval_static_bindings vars' bindings' statics'
+  with
+  | Some extended, Some extended' =>
+    equivalent (State body vars conts extended)
+      (State body' vars' conts' extended')
+  | None, None => True
+  | _, _ => False
+  end ->
+  equivalent (State (Let_static bindings body) vars conts statics)
+    (State (Let_static bindings' body') vars' conts' statics').
+Proof.
+  intros Hbodies.
+  destruct (eval_static_bindings vars bindings statics) as [extended | ]
+    eqn:Hbindings,
+    (eval_static_bindings vars' bindings' statics') as [extended' | ]
+      eqn:Hbindings';
+    try contradiction.
+  - eapply equivalent_step;
+      [ rewrite step_let_static, Hbindings; reflexivity
+      | rewrite step_let_static, Hbindings'; reflexivity | exact Hbodies ].
+  - apply step_eq_equivalent.
+    rewrite !step_let_static, Hbindings, Hbindings'. reflexivity.
+Qed.
+
+Lemma let_static_refines_step (bindings bindings' : list static_binding)
+    (body body' : expr) (vars vars' : env) (conts conts' : cont_env)
+    (statics statics' : static_env) :
+  match
+    eval_static_bindings vars bindings statics,
+    eval_static_bindings vars' bindings' statics'
+  with
+  | Some extended, Some extended' =>
+    refines (State body vars conts extended)
+      (State body' vars' conts' extended')
+  | Some _, None => False
+  | None, _ => True
+  end ->
+  refines (State (Let_static bindings body) vars conts statics)
+    (State (Let_static bindings' body') vars' conts' statics').
+Proof.
+  intros Hbodies.
+  destruct (eval_static_bindings vars bindings statics) as [extended | ]
+    eqn:Hbindings;
+    [ | apply step_undefined_refines; rewrite step_let_static, Hbindings;
+        reflexivity ].
+  destruct (eval_static_bindings vars' bindings' statics')
+    as [extended' | ] eqn:Hbindings'; [ | contradiction ].
+  eapply refines_step;
+    [ rewrite step_let_static, Hbindings; reflexivity
+    | rewrite step_let_static, Hbindings'; reflexivity | exact Hbodies ].
+Qed.
+
+(* Two [Let_cont_non_recursive]s always step to their bodies. *)
+Lemma let_cont_non_recursive_equivalent_step (k k' : continuation)
+    (h h' : continuation_handler) (body body' : expr) (vars vars' : env)
+    (conts conts' : cont_env) (statics statics' : static_env) :
+  equivalent
+    (State body vars ((k, Closure h vars conts []) :: conts) statics)
+    (State body' vars' ((k', Closure h' vars' conts' []) :: conts')
+       statics') ->
+  equivalent (State (Let_cont_non_recursive k h body) vars conts statics)
+    (State (Let_cont_non_recursive k' h' body') vars' conts' statics').
+Proof.
+  apply equivalent_step; apply step_let_cont_non_recursive.
+Qed.
+
+Lemma let_cont_non_recursive_refines_step (k k' : continuation)
+    (h h' : continuation_handler) (body body' : expr) (vars vars' : env)
+    (conts conts' : cont_env) (statics statics' : static_env) :
+  refines (State body vars ((k, Closure h vars conts []) :: conts) statics)
+    (State body' vars' ((k', Closure h' vars' conts' []) :: conts')
+       statics') ->
+  refines (State (Let_cont_non_recursive k h body) vars conts statics)
+    (State (Let_cont_non_recursive k' h' body') vars' conts' statics').
+Proof.
+  apply refines_step; apply step_let_cont_non_recursive.
+Qed.
 
 (* Two [Let_cont_recursive]s that agree on whether their handlers bind
    something static: both are undefined, or both step to their bodies. *)
@@ -574,14 +922,12 @@ Lemma let_cont_recursive_equivalent_step
 Proof.
   intros Hbinds Hbodies.
   destruct (handlers_bind_statics handlers) eqn:Hsource.
-  - apply (equivalent_of_run 1 1). simpl. rewrite <- Hbinds, Hsource.
-    reflexivity.
-  - apply (equivalent_trans _
-      (State body vars (rec_closures handlers vars conts ++ conts) statics));
-      [ apply step_equivalent; simpl; rewrite Hsource; reflexivity | ].
-    apply (equivalent_trans _ _ _ (Hbodies eq_refl)).
-    apply equivalent_sym, step_equivalent. simpl. rewrite <- Hbinds.
-    reflexivity.
+  - apply step_eq_equivalent.
+    rewrite !step_let_cont_recursive, <- Hbinds, Hsource. reflexivity.
+  - eapply equivalent_step;
+      [ rewrite step_let_cont_recursive, Hsource; reflexivity
+      | rewrite step_let_cont_recursive, <- Hbinds; reflexivity
+      | exact (Hbodies eq_refl) ].
 Qed.
 
 Lemma let_cont_recursive_refines_step
@@ -599,9 +945,10 @@ Lemma let_cont_recursive_refines_step
 Proof.
   intros Hbinds Hbodies.
   destruct (handlers_bind_statics handlers) eqn:Hsource.
-  - apply goes_wrong_refines, (step_behaves _ Goes_wrong). simpl.
-    rewrite Hsource. reflexivity.
+  - apply step_undefined_refines.
+    rewrite step_let_cont_recursive, Hsource. reflexivity.
   - eapply refines_step;
-      [ simpl; rewrite Hsource; reflexivity
-      | simpl; rewrite <- Hbinds; reflexivity | exact (Hbodies eq_refl) ].
+      [ rewrite step_let_cont_recursive, Hsource; reflexivity
+      | rewrite step_let_cont_recursive, <- Hbinds; reflexivity
+      | exact (Hbodies eq_refl) ].
 Qed.

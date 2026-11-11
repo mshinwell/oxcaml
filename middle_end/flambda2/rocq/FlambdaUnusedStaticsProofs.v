@@ -583,7 +583,7 @@ Proof.
   destruct e
     as [ x d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
-    simpl in He |- *.
+    simpl in He |- *; autorewrite with step; simpl.
   - (* Let *)
     apply andb_true_iff in He as [Hd Hbody].
     destruct (eval_named_erased statics statics' vars d Hstatics Hvars Hd)

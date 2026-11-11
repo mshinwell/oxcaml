@@ -58,8 +58,20 @@ Qed.
 Theorem let_static_split : let_static_split_statement.
 Proof.
   intros bindings bindings' body vars conts statics.
-  apply (equivalent_of_run 1 2). simpl. rewrite eval_static_bindings_app.
-  destruct (eval_static_bindings vars bindings statics) as [statics' | ];
+  destruct (eval_static_bindings vars bindings statics) as [statics' | ]
+    eqn:Hbindings.
+  - (* the first part is bound: the second step of the right-hand side is
+       the step of the left-hand side *)
+    apply equivalent_sym.
+    eapply equivalent_trans;
+      [ apply step_equivalent; rewrite step_let_static, Hbindings;
+        reflexivity
+      | ].
+    apply step_eq_equivalent.
+    rewrite !step_let_static, eval_static_bindings_app, Hbindings.
+    reflexivity.
+  - apply step_eq_equivalent.
+    rewrite !step_let_static, eval_static_bindings_app, Hbindings.
     reflexivity.
 Qed.
 
@@ -68,11 +80,12 @@ Qed.
 Theorem project_static_closure : project_static_closure_statement.
 Proof.
   intros s code slot contents x body vars conts statics.
-  apply (equivalent_of_run 2 2). simpl.
-  destruct (lookup s (static_values statics)); [ reflexivity | ].
+  apply let_static_equivalent_step. simpl.
+  destruct (lookup s (static_values statics)); [ exact I | ].
   destruct (eval_simple vars contents) as [v | ] eqn:Hcontents; simpl;
-    [ | reflexivity ].
-  rewrite !Pos.eqb_refl. simpl. rewrite ?Pos.eqb_refl, ?Hcontents.
+    [ | exact I ].
+  apply let_equivalent_step; [ | intros v' _; apply equivalent_refl ].
+  simpl. rewrite !Pos.eqb_refl. simpl. rewrite ?Pos.eqb_refl, ?Hcontents.
   reflexivity.
 Qed.
 

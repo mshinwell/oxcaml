@@ -11,13 +11,18 @@ that make the repository safe for parallel work.
   `state_statics`; no proof destructs a state by position
   (`FlambdaSemanticsProofs.state_eta` and `simpl_state` are what to use).
 
+- Item 1, the step lemmas. `FlambdaSemanticsProofs.v` has one equation
+  for each construct (`step_let`, ..., `step_invalid`), `step` is opaque
+  after them, and every proof goes through them. Checked by one build in
+  which `step` was a `Parameter` with only those eight equations: all the
+  other proofs built unchanged.
+
 ## In progress
 
-- Item 1, the step lemmas.
+- Item 3, finite maps.
 
 ## To do
 
-- Item 3, finite maps.
 - Item 4, one expected file per example.
 - Item 5, the lists of `rocq/Makefile` and of `FlambdaExtract.v`.
 - Item 6, the rule for the extracted files.

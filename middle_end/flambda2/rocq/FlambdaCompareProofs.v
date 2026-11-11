@@ -761,7 +761,7 @@ Proof.
     e'
     as [ x' d' body' | bindings' body' | k' h' body' | handlers' body' | ap'
        | ac' | scrutinee' arms' | ];
-    simpl in He; try discriminate; simpl.
+    simpl in He; try discriminate; autorewrite with step; simpl.
   - (* Let *)
     apply andb_true_iff in He as [Hd Hbody].
     rewrite (eval_named_match vm vars vars' statics statics' d d' Hvars

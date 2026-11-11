@@ -39,7 +39,7 @@ Theorem apply_indirect_known : apply_indirect_known_statement.
 Proof.
   intros callee args k exn v called slots vars conts statics Hcallee
     Hclosure.
-  apply (equivalent_of_run 1 1). simpl. rewrite Hcallee.
+  apply step_eq_equivalent. rewrite !step_apply. simpl. rewrite Hcallee.
   destruct (eval_simples vars args) as [vs | ]; [ | reflexivity ].
   unfold call_function. rewrite Hclosure, Pos.eqb_refl. reflexivity.
 Qed.
@@ -102,7 +102,8 @@ Proof.
     + intros p Hin Hfree. apply (Hfresh p (or_intror Hin)).
       apply Exists_cons_tl. exact Hfree.
     + exact Hbind.
-    + exists (S n). simpl. rewrite Harg. exact Hrun.
+    + exists (S n). simpl. rewrite step_let. simpl. rewrite Harg.
+      exact Hrun.
 Qed.
 
 (* ======================================================================== *)
@@ -137,8 +138,8 @@ Lemma step_apply_direct (ap : apply_expr) (callee : value) (called : code_id)
     | None => Undefined
     end.
 Proof.
-  intros Hcallee Hclosure Hargs Hkind. simpl.
-  rewrite Hcallee, Hargs, Hkind.
+  intros Hcallee Hclosure Hargs Hkind.
+  rewrite step_apply, Hcallee, Hargs, Hkind.
   unfold call_function. rewrite Hclosure, Pos.eqb_refl.
   destruct (lookup called (static_code statics)); reflexivity.
 Qed.
@@ -153,21 +154,19 @@ Proof.
   intros ap called c r vars conts statics Hkind Hcode
     (Hclosed_vars & Hclosed_conts & Hvars & Hret & Hexn & Hmy_closure
      & Hparams & Harity & Hstatic).
-  assert (Hwrong :
-    step (State (Apply ap) vars conts statics) = Undefined ->
-    refines (State (Apply ap) vars conts statics)
-      (State (inlined_body c r ap) vars conts statics)).
-  { intros Hstep. apply goes_wrong_refines. exists 1. unfold run.
-    rewrite Hstep. reflexivity. }
+  pose proof
+    (step_undefined_refines (State (Apply ap) vars conts statics)
+       (State (inlined_body c r ap) vars conts statics))
+    as Hwrong.
   destruct (eval_simple vars (ap_callee ap)) as [callee | ] eqn:Hcallee;
-    [ | apply Hwrong; simpl; rewrite Hcallee; reflexivity ].
+    [ | apply Hwrong; rewrite step_apply, Hcallee; reflexivity ].
   destruct (eval_simples vars (ap_args ap)) as [vs | ] eqn:Hargs;
-    [ | apply Hwrong; simpl; rewrite Hcallee, Hargs; reflexivity ].
+    [ | apply Hwrong; rewrite step_apply, Hcallee, Hargs; reflexivity ].
   destruct (closure_of statics callee) as [[called' slots] | ] eqn:Hclosure;
-    [ | apply Hwrong; simpl; rewrite Hcallee, Hargs;
+    [ | apply Hwrong; rewrite step_apply, Hcallee, Hargs;
         unfold call_function; rewrite Hclosure; reflexivity ].
   destruct (Pos.eqb_spec called' called) as [-> | Hother];
-    [ | apply Hwrong; simpl; rewrite Hcallee, Hargs, Hkind;
+    [ | apply Hwrong; rewrite step_apply, Hcallee, Hargs, Hkind;
         unfold call_function; rewrite Hclosure;
         destruct (Pos.eqb_spec called' called);
         [ contradiction | reflexivity ] ].
@@ -190,7 +189,8 @@ Proof.
       [(code_my_closure c, callee)] callee_vars vars Hbind). }
   apply equivalent_sym.
   eapply equivalent_trans.
-  { apply (equivalent_of_run (S n) 0). simpl. rewrite Hcallee. exact Hrun. }
+  { apply (equivalent_of_run (S n) 0). unfold inlined_body.
+    rewrite run_succ, step_let. simpl. rewrite Hcallee. exact Hrun. }
   apply equivalent_sym, renamed_equivalent, State_renamed.
   - intros x Hx. rewrite Hvars, lookup_app.
     destruct (bind_params_bound (code_params c) vs
@@ -213,12 +213,11 @@ Qed.
 Theorem inline_let_code : inline_let_code_statement.
 Proof.
   intros ap called c r Hkind Hinlinable vars conts statics.
-  destruct (lookup called (static_code statics)) as [bound | ] eqn:Hbound.
-  - apply goes_wrong_refines, (step_behaves _ Goes_wrong). simpl.
-    rewrite Hbound. reflexivity.
-  - eapply refines_step; [ simpl; rewrite Hbound; reflexivity .. | ].
-    apply (inline ap called c r); [ exact Hkind | | exact Hinlinable ].
-    simpl. rewrite Pos.eqb_refl. reflexivity.
+  apply let_static_refines_step. simpl.
+  destruct (lookup called (static_code statics)) as [bound | ];
+    [ exact I | ].
+  apply (inline ap called c r); [ exact Hkind | | exact Hinlinable ].
+  simpl. rewrite Pos.eqb_refl. reflexivity.
 Qed.
 
 (* Swap the return continuation with the call's, then what the exception
@@ -281,14 +280,15 @@ Proof.
   destruct (eval_simple vars arg) as [v | ] eqn:Harg.
   - destruct (eval_simples vars args) as [vs | ] eqn:Hrest;
       [ discriminate | ].
-    apply (step_behaves _ Goes_wrong). simpl. rewrite Harg.
-    apply (IH args _ body conts statics Hlength).
+    apply (step_behaves _ Goes_wrong). rewrite step_let. simpl.
+    rewrite Harg. apply (IH args _ body conts statics Hlength).
     + rewrite eval_simples_extend; [ exact Hrest | ].
       intros Hfree. apply (Hfresh param (or_introl eq_refl)).
       apply Exists_cons_tl. exact Hfree.
     + intros p Hin Hfree. apply (Hfresh p (or_intror Hin)).
       apply Exists_cons_tl. exact Hfree.
-  - exists 1. simpl. rewrite Harg. reflexivity.
+  - apply step_undefined_wrong. rewrite step_let. simpl. rewrite Harg.
+    reflexivity.
 Qed.
 
 (* Two states that go wrong are equivalent. *)
@@ -338,8 +338,8 @@ Proof.
         [(code_my_closure c, callee)] callee_vars vars Hbind). }
     apply equivalent_sym.
     eapply equivalent_trans.
-    { apply (equivalent_of_run (S n) 0). simpl. rewrite Hcallee.
-      exact Hrun. }
+    { apply (equivalent_of_run (S n) 0). unfold inlined_body.
+      rewrite run_succ, step_let. simpl. rewrite Hcallee. exact Hrun. }
     apply equivalent_sym, renamed_equivalent, State_renamed.
     + intros x Hx. rewrite Hvars, lookup_app.
       destruct (bind_params_bound (code_params c) vs
@@ -357,9 +357,10 @@ Proof.
         -- rewrite <- Hexn, Heq, Hret. apply Closure_same.
         -- rewrite Pos.eqb_refl. apply Closure_same.
   - apply both_wrong_equivalent.
-    + exists 1. simpl. rewrite Hcallee, Hargs. reflexivity.
-    + apply (step_behaves _ Goes_wrong). unfold inlined_body. simpl.
-      rewrite Hcallee.
+    + apply step_undefined_wrong. rewrite step_apply, Hcallee, Hargs.
+      reflexivity.
+    + apply (step_behaves _ Goes_wrong). unfold inlined_body.
+      rewrite step_let. simpl. rewrite Hcallee.
       apply let_params_wrong; [ exact Harity | | exact Hparams ].
       rewrite eval_simples_extend; assumption.
 Qed.

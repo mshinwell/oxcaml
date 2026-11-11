@@ -367,13 +367,15 @@ a fragment at a time. The files follow the same Spec/Proofs split, and
 - `FlambdaSemanticsSpec.v` defines execution as a step *function* on states
   of an abstract machine (an expression, an environment of values and one
   of continuation closures), so determinism holds by construction and
-  `simpl` runs a term. A state's behaviour is to exit through an unbound
-  continuation with values, to go wrong, or to diverge. A transformation is
-  correct when its result `refines` its source (anything may be done to a
-  term that goes wrong); `equivalent` is the symmetric notion. `refines` is
-  stated of the behaviours that end, so that no proof needs the excluded
-  middle: to prove an equivalence or a refinement, divergence never has to
-  be considered (`equivalent_of_terminating`).
+  a term can be run (by `vm_compute`: `step` is opaque to `simpl` once
+  `FlambdaSemanticsProofs.v` is loaded, see below). A state's behaviour
+  is to exit through an unbound continuation with values, to go wrong, or
+  to diverge. A transformation is correct when its result `refines` its
+  source (anything may be done to a term that goes wrong); `equivalent`
+  is the symmetric notion. `refines` is stated of the behaviours that
+  end, so that no proof needs the excluded middle: to prove an
+  equivalence or a refinement, divergence never has to be considered
+  (`equivalent_of_terminating`).
 - A function call has no stack (`call_function`): the body of the code
   runs with the code's return and exception continuations standing for
   the caller's, so returning is applying a continuation. A continuation
@@ -399,9 +401,41 @@ a fragment at a time. The files follow the same Spec/Proofs split, and
   (`middle_end/flambda2/types/rocq/`) is a worked example of chaining
   inlining, rewriting under a context, following an alias and removing
   unused bindings.
-- To prove a local rewrite, run both sides until they meet:
-  `FlambdaSemanticsProofs.equivalent_of_run`, or `step_equivalent` for one
-  step. `FlambdaControlFlowProofs.v` has the worked examples.
+- A state is a record with the fields `state_expr`, `state_vars`,
+  `state_conts` and `state_statics`. Say what a property is about with
+  the projections, and never destruct a state by position: a field added
+  later must break nothing that does not mention it. For a proof by cases
+  on any state `s`, `rewrite (state_eta s)` and destruct `state_expr s`;
+  `simpl_state` reduces the projections of a state given by its
+  components (both are in `FlambdaSemanticsProofs.v`).
+- A proof never unfolds or simplifies `step`. `FlambdaSemanticsProofs.v`
+  has one lemma for each construct (`step_let`, `step_let_static`,
+  `step_let_cont_non_recursive`, `step_let_cont_recursive`, `step_apply`,
+  `step_apply_cont`, `step_switch`, `step_invalid`), an equation saying
+  what a state at that construct steps to and under which conditions, and
+  `step` is opaque after them. Rewrite with the lemma of the construct at
+  hand; in a proof by cases on the construct, `autorewrite with step`
+  rewrites every case. `step_apply_cont_handler`, `step_apply_cont_exit`
+  and `step_switch_cases` say the same of the ways in which an
+  `Apply_cont` and a `Switch` do not go wrong.
+- To go under a binder that both sides have, use the lemmas ending in
+  `_equivalent_step` and `_refines_step` (`let_refines_step`,
+  `let_static_equivalent_step`, `let_cont_non_recursive_refines_step`,
+  `let_cont_recursive_equivalent_step`, ...): the two states take the
+  same step, and what is left is to relate the bodies. A proof written
+  with them does not depend on what the step of the binder is.
+- A change to `step` is then a change to these lemmas, and to the proofs
+  that use the lemma of the case that changed. To check that nothing else
+  has come to depend on the definition, replace it for one build by a
+  `Parameter step` with an axiom `step s = step_impl s`, `step_impl` being
+  the definition, and prove the eight lemmas by `rewrite` with the axiom:
+  everything else must still build. (Do not commit that.)
+- To prove a local rewrite, step both sides until they meet:
+  `step_equivalent` for a step of one side, `equivalent_step` and
+  `refines_step` for one of each, `step_eq_equivalent` where the two
+  first steps come to the same thing, `step_undefined_refines` where the
+  source is undefined. `FlambdaControlFlowProofs.v` has the worked
+  examples.
 - Primitives are abstract (`prim`, `eval_prim`), with no axioms. A law of a
   primitive is to be stated about `eval_prim`: as an axiom, listed in the
   header of the file stating it, or as a lemma once the primitive has a

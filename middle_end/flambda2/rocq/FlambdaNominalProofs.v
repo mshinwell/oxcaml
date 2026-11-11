@@ -582,7 +582,7 @@ Proof.
   - destruct e
       as [ x d body | bindings body | k h body | handlers body | ap | ac
          | scrutinee arms | ];
-      simpl.
+      simpl; autorewrite with step; simpl.
     + (* Let *)
       rewrite (eval_named_renamed r d vars vars' statics);
         [ | intros y Hy; apply Hvars; left; exact Hy ].
@@ -681,16 +681,6 @@ Proof.
   apply renamed_equivalent, state_renamed_identity; assumption.
 Qed.
 
-(* Both sides take a step, to states that are equivalent. *)
-Lemma equivalent_step (s s' t t' : state) :
-  step s = Step s' -> step t = Step t' -> equivalent s' t' -> equivalent s t.
-Proof.
-  intros Hs Ht Hequiv.
-  apply (equivalent_trans s s'); [ apply step_equivalent, Hs | ].
-  apply (equivalent_trans s' t'); [ exact Hequiv | ].
-  apply equivalent_sym, step_equivalent, Ht.
-Qed.
-
 (* ======================================================================== *)
 (* Binders are name abstractions                                            *)
 (* ======================================================================== *)
@@ -698,20 +688,17 @@ Qed.
 Theorem rename_let : rename_let_statement.
 Proof.
   intros r x d body Hvars Hconts vars conts statics.
-  destruct (eval_named statics vars d) as [v | ] eqn:Hd.
-  - eapply equivalent_step;
-      [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity | ].
-    apply renamed_equivalent, State_renamed.
-    + intros y Hy. simpl.
-      destruct (Pos.eqb_spec y x) as [-> | Hne];
-        [ rewrite Pos.eqb_refl; reflexivity | ].
-      rewrite (Hvars y Hne Hy).
-      destruct (Pos.eqb_spec y (rename_variable r x)) as [Heq | _];
-        [ | reflexivity ].
-      rewrite <- (Hvars y Hne Hy) in Heq.
-      apply permute_injective in Heq. contradiction.
-    + intros k Hk. apply conts_agree_same, Hconts, Hk.
-  - apply (equivalent_of_run 1 1). simpl. rewrite Hd. reflexivity.
+  apply let_equivalent_step; [ reflexivity | intros v _ ].
+  apply renamed_equivalent, State_renamed.
+  - intros y Hy. simpl.
+    destruct (Pos.eqb_spec y x) as [-> | Hne];
+      [ rewrite Pos.eqb_refl; reflexivity | ].
+    rewrite (Hvars y Hne Hy).
+    destruct (Pos.eqb_spec y (rename_variable r x)) as [Heq | _];
+      [ | reflexivity ].
+    rewrite <- (Hvars y Hne Hy) in Heq.
+    apply permute_injective in Heq. contradiction.
+  - intros k Hk. apply conts_agree_same, Hconts, Hk.
 Qed.
 
 Theorem freshen_let : freshen_let_statement.
@@ -733,7 +720,7 @@ Qed.
 Theorem rename_let_cont : rename_let_cont_statement.
 Proof.
   intros r k h body Hvars Hconts vars conts statics.
-  eapply equivalent_step; [ reflexivity | reflexivity | ].
+  apply let_cont_non_recursive_equivalent_step.
   apply renamed_equivalent, State_renamed.
   - intros y Hy. rewrite (Hvars y Hy). reflexivity.
   - intros k' Hk'. unfold conts_agree_at, resolve. simpl.
@@ -745,7 +732,7 @@ Qed.
 Theorem rename_handler_params : rename_handler_params_statement.
 Proof.
   intros r k params handler body Hvars Hconts vars conts statics.
-  eapply equivalent_step; [ reflexivity | reflexivity | ].
+  apply let_cont_non_recursive_equivalent_step.
   apply coincide_equivalent; [ reflexivity | ].
   intros k' _. unfold conts_agree_at, resolve.
   change (rename_continuation identity_renaming k') with k'. simpl.
@@ -868,19 +855,20 @@ Proof.
   destruct (eval_named statics vars d) as [v | ] eqn:Hd.
   - apply equivalent_refines.
     apply (equivalent_trans _ (State body ((x, v) :: vars) conts statics));
-      [ apply step_equivalent; simpl; rewrite Hd; reflexivity | ].
+      [ apply step_equivalent; rewrite step_let, Hd; reflexivity | ].
     apply coincide_equivalent.
     + intros y Hy. simpl.
       destruct (Pos.eqb_spec y x) as [-> | _]; [ contradiction | ].
       reflexivity.
     + intros k _. apply (conts_agree_same identity_renaming). reflexivity.
-  - apply goes_wrong_refines. exists 1. simpl. rewrite Hd. reflexivity.
+  - apply step_undefined_refines. rewrite step_let, Hd. reflexivity.
 Qed.
 
 Theorem unused_let_cont : unused_let_cont_statement.
 Proof.
   intros k h body Hunused vars conts statics.
-  eapply equivalent_trans; [ apply step_equivalent; reflexivity | ].
+  eapply equivalent_trans;
+    [ apply step_equivalent, step_let_cont_non_recursive | ].
   apply coincide_equivalent; [ reflexivity | ].
   intros k' Hk'. unfold conts_agree_at, resolve.
   change (rename_continuation identity_renaming k') with k'. simpl.
@@ -892,7 +880,9 @@ Theorem unused_let_cont_recursive : unused_let_cont_recursive_statement.
 Proof.
   intros handlers body Hstatics Hunused vars conts statics.
   eapply equivalent_trans;
-    [ apply step_equivalent; simpl; rewrite Hstatics; reflexivity | ].
+    [ apply step_equivalent; rewrite step_let_cont_recursive, Hstatics;
+      reflexivity
+    | ].
   apply coincide_equivalent; [ reflexivity | ].
   intros k Hk. unfold conts_agree_at, resolve.
   change (rename_continuation identity_renaming k) with k.

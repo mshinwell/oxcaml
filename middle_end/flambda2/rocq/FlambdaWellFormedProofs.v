@@ -88,7 +88,7 @@ Proof.
   destruct (state_expr s)
     as [x d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
-    simpl in Hstep.
+    autorewrite with step in Hstep.
   - destruct (eval_named statics vars d); [ | discriminate ].
     injection Hstep as <-. apply statics_extend_refl.
   - destruct (eval_static_bindings vars bindings statics) as [extended | ]
@@ -440,7 +440,7 @@ Proof.
   destruct (state_expr s)
     as [ x d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
-    simpl in Hstep.
+    autorewrite with step in Hstep.
   - (* Let *)
     destruct (eval_named statics vars d); [ | discriminate ].
     injection Hstep as <-. unfold inv. simpl_state. simpl in P, D, X, F.

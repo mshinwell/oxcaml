@@ -443,11 +443,8 @@ Proof.
          | ap | ac | scrutinee arms | ];
       intros known vars conts statics Hknow; simpl;
       try apply refines_refl.
-    + destruct (eval_named statics vars d) as [v | ] eqn:Hd.
-      * eapply refines_step;
-          [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity
-          | apply inline_calls_refines_knowing, Hknow ].
-      * apply goes_wrong_refines. exists 1. simpl. rewrite Hd. reflexivity.
+    + apply let_refines_step; [ reflexivity | intros v _ ].
+      apply inline_calls_refines_knowing, Hknow.
     + (* the code of the group is rewritten: the body under the one
          static environment refines it under the other; then down the
          body, the static environment binding the code as rewritten *)
@@ -477,28 +474,24 @@ Proof.
       apply (fun H =>
         eval_static_bindings_related _ vars _ _ H statics statics
           (statics_related_refl _ statics)) in Hforwards, Hbackwards.
+      apply let_static_refines_step.
       destruct (eval_static_bindings vars bindings statics) as [extended | ]
         eqn:Hbindings,
         (eval_static_bindings vars bindings' statics) as [extended' | ]
           eqn:Hbindings';
-        try contradiction.
-      * eapply refines_step;
-          [ simpl; rewrite Hbindings; reflexivity
-          | simpl; rewrite Hbindings'; reflexivity | ].
-        apply (refines_trans _ (State body vars conts extended')).
-        -- apply (related_states_refines (statics_know known)
-             (statics_know_extend known));
-             [ exact (statics_know_extend known _ _ Hknow
-                 (eval_static_bindings_extend vars _ _ _ Hbindings))
-             | exact (statics_know_extend known _ _ Hknow
-                 (eval_static_bindings_extend vars _ _ _ Hbindings'))
-             | apply cont_env_related_refl | apply cont_env_related_refl
-             | exact Hforwards | exact Hbackwards ].
-        -- apply inline_calls_refines_knowing.
-           exact (eval_static_bindings_know vars bindings' known statics
-             extended' Hknow Hbindings').
-      * apply goes_wrong_refines. exists 1. simpl. rewrite Hbindings.
-        reflexivity.
+        try contradiction; [ | exact I ].
+      apply (refines_trans _ (State body vars conts extended')).
+      * apply (related_states_refines (statics_know known)
+          (statics_know_extend known));
+          [ exact (statics_know_extend known _ _ Hknow
+              (eval_static_bindings_extend vars _ _ _ Hbindings))
+          | exact (statics_know_extend known _ _ Hknow
+              (eval_static_bindings_extend vars _ _ _ Hbindings'))
+          | apply cont_env_related_refl | apply cont_env_related_refl
+          | exact Hforwards | exact Hbackwards ].
+      * apply inline_calls_refines_knowing.
+        exact (eval_static_bindings_know vars bindings' known statics
+          extended' Hknow Hbindings').
     + destruct h as [params handler]. simpl.
       apply (refines_trans _
         (State
@@ -509,9 +502,8 @@ Proof.
           (statics_know_extend known)); [ exact Hknow | ].
         intros vs handler_vars conts' statics' Hknow' _.
         apply inline_calls_refines_knowing, Hknow'.
-      * eapply refines_step;
-          [ reflexivity | reflexivity
-          | apply inline_calls_refines_knowing, Hknow ].
+      * apply let_cont_non_recursive_refines_step,
+          inline_calls_refines_knowing, Hknow.
     + apply (refines_trans _
         (State
            (Let_cont_recursive
@@ -762,25 +754,18 @@ Proof.
     destruct (inline_cont_at_tail k params handler body) as [body' | ];
       [ | discriminate ].
     simpl in Heq. injection Heq as <-.
-    destruct (eval_named statics vars d) as [v | ] eqn:Hd.
-    + eapply refines_step;
-        [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity | ].
-      apply (IH body' eq_refl). intros y Hy. simpl.
-      destruct (Pos.eqb_spec y x) as [-> | _]; [ | exact (Hagree y Hy) ].
-      apply var_free_in_handler_b_sound in Hy. congruence.
-    + apply goes_wrong_refines. exists 1. simpl. rewrite Hd. reflexivity.
+    apply let_refines_step; [ reflexivity | intros v _ ].
+    apply (IH body' eq_refl). intros y Hy. simpl.
+    destruct (Pos.eqb_spec y x) as [-> | _]; [ | exact (Hagree y Hy) ].
+    apply var_free_in_handler_b_sound in Hy. congruence.
   - (* Let_static *)
     destruct (inline_cont_at_tail k params handler body) as [body' | ];
       [ | discriminate ].
     simpl in Heq. injection Heq as <-.
-    destruct (eval_static_bindings vars bindings statics) as [extended | ]
-      eqn:Hbindings.
-    + eapply refines_step;
-        [ simpl; rewrite Hbindings; reflexivity
-        | simpl; rewrite Hbindings; reflexivity | ].
-      exact (IH body' eq_refl vars def_vars conts extended Hagree).
-    + apply goes_wrong_refines. exists 1. simpl. rewrite Hbindings.
-      reflexivity.
+    apply let_static_refines_step.
+    destruct (eval_static_bindings vars bindings statics) as [extended | ];
+      [ | exact I ].
+    exact (IH body' eq_refl vars def_vars conts extended Hagree).
   - (* Apply_cont *)
     destruct
       (Pos.eqb (ac_continuation ac) k
@@ -791,25 +776,13 @@ Proof.
     injection Heq as <-.
     apply andb_true_iff in Hcheck as [Hcheck Hcapture].
     apply andb_true_iff in Hcheck as [Hk _]. apply Pos.eqb_eq in Hk.
-    assert (Hwrong :
-      step
-        (State (Apply_cont ac) vars
-           ((k, Closure (Handler params handler) def_vars conts []) :: conts)
-           statics)
-      = Undefined ->
-      refines
-        (State (Apply_cont ac) vars
-           ((k, Closure (Handler params handler) def_vars conts []) :: conts)
-           statics)
-        (State (let_params params (ac_args ac) handler) vars conts statics)).
-    { intros Hstep. apply goes_wrong_refines. exists 1. unfold run.
-      rewrite Hstep. reflexivity. }
     destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hargs;
-      [ | apply Hwrong; simpl; rewrite Hargs; reflexivity ].
+      [ | apply step_undefined_refines; rewrite step_apply_cont, Hargs;
+          reflexivity ].
     destruct (bind_params params vs def_vars) as [handler_vars | ] eqn:Hbind;
-      [ | apply Hwrong; simpl; rewrite Hargs, Hk;
-          unfold apply_continuation, resolve; simpl; rewrite Pos.eqb_refl;
-          simpl; rewrite Hbind; reflexivity ].
+      [ | apply step_undefined_refines; rewrite step_apply_cont, Hargs, Hk;
+          unfold apply_continuation; rewrite resolve_head; simpl;
+          rewrite Hbind; reflexivity ].
     destruct (bind_params_defined params vs def_vars vars handler_vars Hbind)
       as [bound Hbound].
     destruct (let_params_run params (ac_args ac) vs vars bound handler conts
@@ -820,9 +793,10 @@ Proof.
       apply negb_true_iff in Hcapture. congruence. }
     apply equivalent_refines.
     apply (equivalent_trans _ (State handler handler_vars conts statics)).
-    { apply step_equivalent. simpl. rewrite Hargs, Hk.
-      unfold apply_continuation, resolve. simpl. rewrite Pos.eqb_refl.
-      simpl. rewrite Hbind. reflexivity. }
+    { apply step_equivalent.
+      apply (step_apply_cont_handler _ _ _ _ vs params handler def_vars
+        conts []);
+        [ exact Hargs | rewrite Hk; apply resolve_head | exact Hbind ]. }
     apply (equivalent_trans _ (State handler bound conts statics)).
     { apply coincide_equivalent.
       - intros x Hx.
@@ -869,7 +843,9 @@ Proof.
       as [inlined | ] eqn:Hinline; [ | exact Hlayers ].
     apply (expr_refines_trans _ _ _ Hlayers). intros vars conts statics.
     eapply refines_trans;
-      [ apply equivalent_refines, step_equivalent; reflexivity | ].
+      [ apply equivalent_refines, step_equivalent,
+          step_let_cont_non_recursive
+      | ].
     apply (inline_cont_at_tail_refines k params _ _ inlined Hinline).
     intros x _. reflexivity.
   - exact (plug_refines (Let_cont_recursive_body handlers Hole) _ _ (not_many _)
@@ -917,11 +893,13 @@ Proof.
   intros vars conts statics.
   destruct (filter binds_something bindings) as [ | binding kept] eqn:Hkept;
     simpl.
-  - apply step_equivalent. simpl.
-    rewrite <- (eval_static_bindings_filter vars bindings statics), Hkept.
+  - apply step_equivalent.
+    rewrite step_let_static,
+      <- (eval_static_bindings_filter vars bindings statics), Hkept.
     reflexivity.
-  - apply (equivalent_of_run 1 1). simpl.
-    rewrite <- (eval_static_bindings_filter vars bindings statics), Hkept.
+  - apply step_eq_equivalent.
+    rewrite !step_let_static,
+      <- (eval_static_bindings_filter vars bindings statics), Hkept.
     reflexivity.
 Qed.
 
@@ -1008,8 +986,9 @@ Proof.
        | ap | ac | scrutinee arms | ];
     simpl; try (intros vars conts statics; apply equivalent_refl).
   - apply (expr_equivalent_trans _ (Let x (fold_named d) body)).
-    + intros vars conts statics. apply (equivalent_of_run 1 1). simpl.
-      rewrite fold_named_sound. reflexivity.
+    + intros vars conts statics.
+      apply let_equivalent_step;
+        [ apply fold_named_sound | intros v _; apply equivalent_refl ].
     + exact (plug_equivalent (Let_body x (fold_named d) Hole) _ _ (not_many _)
         (fold_constants_equivalent_aux body)).
   - exact (plug_equivalent (Let_static_body bindings Hole) _ _ (not_many _)
@@ -1050,7 +1029,7 @@ Proof.
       simpl in Htotal; try discriminate; simpl; eauto. }
   destruct Hvalue as [v Hd].
   apply (equivalent_trans _ (State body ((x, v) :: vars) conts statics));
-    [ apply step_equivalent; simpl; rewrite Hd; reflexivity | ].
+    [ apply step_equivalent; rewrite step_let, Hd; reflexivity | ].
   apply coincide_equivalent.
   - intros y Hy. simpl.
     destruct (Pos.eqb_spec y x) as [-> | _]; [ contradiction | reflexivity ].
@@ -1161,11 +1140,8 @@ Lemma let_equivalent_bound (vs : list variable) (x : variable) (d : named)
   expr_equivalent_bound vs (Let x d body) (Let x d body').
 Proof.
   intros Hbody vars conts statics Hbound.
-  destruct (eval_named statics vars d) as [v | ] eqn:Hd.
-  - eapply equivalent_step;
-      [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity | ].
-    apply Hbody, all_bound_cons, Hbound.
-  - apply (equivalent_of_run 1 1). simpl. rewrite Hd. reflexivity.
+  apply let_equivalent_step; [ reflexivity | intros v _ ].
+  apply Hbody, all_bound_cons, Hbound.
 Qed.
 
 (* The defining expression has a value, so the [Let] takes its step; the
@@ -1179,7 +1155,7 @@ Proof.
   intros Hdefined Hunused vars conts statics Hbound.
   destruct (named_defined_sound vs vars statics d Hbound Hdefined) as [v Hd].
   apply (equivalent_trans _ (State body ((x, v) :: vars) conts statics));
-    [ apply step_equivalent; simpl; rewrite Hd; reflexivity | ].
+    [ apply step_equivalent; rewrite step_let, Hd; reflexivity | ].
   apply coincide_equivalent.
   - intros y Hy. simpl.
     destruct (Pos.eqb_spec y x) as [-> | _]; [ contradiction | reflexivity ].
@@ -1240,13 +1216,10 @@ Proof.
       [ exact Hdefined | ].
     intros Hx. apply var_free_b_sound in Hx. congruence.
   - intros vars conts statics Hbound.
-    destruct (eval_static_bindings vars bindings statics) as [extended | ]
-      eqn:Hbindings.
-    + eapply equivalent_step;
-        [ simpl; rewrite Hbindings; reflexivity
-        | simpl; rewrite Hbindings; reflexivity | ].
-      apply (remove_unused_defined_lets_equivalent_bound body vs), Hbound.
-    + apply (equivalent_of_run 1 1). simpl. rewrite Hbindings. reflexivity.
+    apply let_static_equivalent_step.
+    destruct (eval_static_bindings vars bindings statics) as [extended | ];
+      [ | exact I ].
+    apply (remove_unused_defined_lets_equivalent_bound body vs), Hbound.
   - apply (expr_equivalent_bound_trans vs _
       (Let_cont_non_recursive k
          (Handler params
@@ -1255,7 +1228,7 @@ Proof.
     + apply let_cont_handler_equivalent_bound,
         remove_unused_defined_lets_equivalent_bound.
     + intros vars conts statics Hbound.
-      eapply equivalent_step; [ reflexivity | reflexivity | ].
+      apply let_cont_non_recursive_equivalent_step.
       apply (remove_unused_defined_lets_equivalent_bound body vs), Hbound.
   - intros vars conts statics Hbound.
     apply let_cont_recursive_equivalent_step; [ reflexivity | intros _ ].
@@ -1438,11 +1411,8 @@ Proof.
          | ap | ac | scrutinee arms | ];
       intros known_code known_symbols vars conts statics Hcode Hsymbols;
       simpl; try apply equivalent_refl.
-    + destruct (eval_named statics vars d) as [v | ] eqn:Hd.
-      * eapply equivalent_step;
-          [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity
-          | apply inline_known_calls_equivalent_knowing; assumption ].
-      * apply (equivalent_of_run 1 1). simpl. rewrite Hd. reflexivity.
+    + apply let_equivalent_step; [ reflexivity | intros v _ ].
+      apply inline_known_calls_equivalent_knowing; assumption.
     + assert (Hrefine :
         let bindings' :=
           map (inline_known_calls_in_binding known_code known_symbols)
@@ -1484,33 +1454,29 @@ Proof.
       apply (fun H =>
         eval_static_bindings_related _ vars _ _ H statics statics
           (statics_related_refl _ statics)) in Hf, Hb, Hf', Hb'.
+      apply let_static_equivalent_step.
       destruct (eval_static_bindings vars bindings statics) as [extended | ]
         eqn:Hbindings,
         (eval_static_bindings vars bindings' statics) as [extended' | ]
           eqn:Hbindings';
-        try contradiction.
-      * eapply equivalent_step;
-          [ simpl; rewrite Hbindings; reflexivity
-          | simpl; rewrite Hbindings'; reflexivity | ].
-        assert (Hok : statics_know_both known_code known_symbols statics)
-          by (split; assumption).
-        pose proof (statics_know_both_extend known_code known_symbols _ _
-          Hok (eval_static_bindings_extend vars _ _ _ Hbindings)) as Hext.
-        pose proof (statics_know_both_extend known_code known_symbols _ _
-          Hok (eval_static_bindings_extend vars _ _ _ Hbindings')) as Hext'.
-        apply (equivalent_trans _ (State body vars conts extended')).
-        -- apply refines_antisymmetric;
-             apply (related_states_refines
-               (statics_know_both known_code known_symbols)
-               (statics_know_both_extend known_code known_symbols));
-             try assumption; apply cont_env_related_refl.
-        -- apply inline_known_calls_equivalent_knowing.
-           ++ exact (eval_static_bindings_know vars bindings' known_code
-                statics extended' Hcode Hbindings').
-           ++ exact (eval_static_bindings_know_symbols vars bindings'
-                known_symbols statics extended' Hsymbols Hbindings').
-      * apply (equivalent_of_run 1 1). simpl. rewrite Hbindings, Hbindings'.
-        reflexivity.
+        try contradiction; [ | exact I ].
+      assert (Hok : statics_know_both known_code known_symbols statics)
+        by (split; assumption).
+      pose proof (statics_know_both_extend known_code known_symbols _ _
+        Hok (eval_static_bindings_extend vars _ _ _ Hbindings)) as Hext.
+      pose proof (statics_know_both_extend known_code known_symbols _ _
+        Hok (eval_static_bindings_extend vars _ _ _ Hbindings')) as Hext'.
+      apply (equivalent_trans _ (State body vars conts extended')).
+      * apply refines_antisymmetric;
+          apply (related_states_refines
+            (statics_know_both known_code known_symbols)
+            (statics_know_both_extend known_code known_symbols));
+          try assumption; apply cont_env_related_refl.
+      * apply inline_known_calls_equivalent_knowing.
+        -- exact (eval_static_bindings_know vars bindings' known_code
+             statics extended' Hcode Hbindings').
+        -- exact (eval_static_bindings_know_symbols vars bindings'
+             known_symbols statics extended' Hsymbols Hbindings').
     + destruct h as [params handler]. simpl.
       apply (equivalent_trans _
         (State
@@ -1527,9 +1493,8 @@ Proof.
           intros vs handler_vars conts' statics' [Hcode' Hsymbols'] _;
           apply equivalent_refines; [ | apply equivalent_sym ];
           apply inline_known_calls_equivalent_knowing; assumption.
-      * eapply equivalent_step;
-          [ reflexivity | reflexivity
-          | apply inline_known_calls_equivalent_knowing; assumption ].
+      * apply let_cont_non_recursive_equivalent_step.
+        apply inline_known_calls_equivalent_knowing; assumption.
     + apply (equivalent_trans _
         (State
            (Let_cont_recursive
@@ -1663,8 +1628,8 @@ Lemma code_first_equivalent (bindings : list static_binding) (body : expr) :
   expr_equivalent (Let_static bindings body)
     (Let_static (code_first bindings) body).
 Proof.
-  intros vars conts statics. apply (equivalent_of_run 1 1). simpl.
-  rewrite eval_static_bindings_code_first. reflexivity.
+  intros vars conts statics. apply step_eq_equivalent.
+  rewrite !step_let_static, eval_static_bindings_code_first. reflexivity.
 Qed.
 
 Fixpoint merge_statics_equivalent_aux (e : expr) :
@@ -1805,19 +1770,13 @@ Proof.
   apply (fun H =>
     eval_static_bindings_related _ vars _ _ H statics statics
       (statics_related_refl _ statics)) in Hforwards, Hbackwards.
-  destruct (eval_static_bindings vars bindings statics) as [extended | ]
-    eqn:Hbindings,
-    (eval_static_bindings vars bindings' statics) as [extended' | ]
-      eqn:Hbindings';
-    try contradiction.
-  - eapply refines_step;
-      [ simpl; rewrite Hbindings; reflexivity
-      | simpl; rewrite Hbindings'; reflexivity | ].
-    apply (related_states_refines always always_extend);
-      [ exact I | exact I | apply cont_env_related_refl
-      | apply cont_env_related_refl | exact Hforwards | exact Hbackwards ].
-  - apply goes_wrong_refines. exists 1. simpl. rewrite Hbindings.
-    reflexivity.
+  apply let_static_refines_step.
+  destruct (eval_static_bindings vars bindings statics) as [extended | ],
+    (eval_static_bindings vars bindings' statics) as [extended' | ];
+    try contradiction; [ | exact I ].
+  apply (related_states_refines always always_extend);
+    [ exact I | exact I | apply cont_env_related_refl
+    | apply cont_env_related_refl | exact Hforwards | exact Hbackwards ].
 Qed.
 
 Lemma rewrite_bindings_refine (f : expr -> expr)
@@ -1990,12 +1949,6 @@ Qed.
 (* A switch whose arm goes to a switch on the same scrutinee                *)
 (* ======================================================================== *)
 
-Lemma step_eq_equivalent (s s' : state) : step s = step s' -> equivalent s s'.
-Proof.
-  intros Hstep b. split; intros Hb; apply step_behaves;
-    [ rewrite <- Hstep | rewrite Hstep ]; apply step_behaves; exact Hb.
-Qed.
-
 (* A continuation that is not the one applied may be left out. *)
 Lemma apply_cont_skip (ac : apply_cont) (vars : env) (k : continuation)
     (c : cont_value) (conts : cont_env) (statics : static_env) :
@@ -2003,10 +1956,9 @@ Lemma apply_cont_skip (ac : apply_cont) (vars : env) (k : continuation)
   step (State (Apply_cont ac) vars ((k, c) :: conts) statics)
   = step (State (Apply_cont ac) vars conts statics).
 Proof.
-  intros Hk. simpl.
+  intros Hk. rewrite !step_apply_cont.
   destruct (eval_simples vars (ac_args ac)); [ | reflexivity ].
-  unfold apply_continuation, resolve. simpl.
-  destruct (Pos.eqb_spec (ac_continuation ac) k); [ contradiction | ].
+  unfold apply_continuation. rewrite (resolve_other _ _ _ _ Hk).
   reflexivity.
 Qed.
 
@@ -2046,17 +1998,20 @@ Lemma thread_arms_equivalent (k : continuation) (s : simple)
        statics).
 Proof.
   destruct (eval_simple vars s) as [v | ] eqn:Hs;
-    [ | apply (equivalent_of_run 1 1); simpl; rewrite Hs; reflexivity ].
+    [ | apply step_eq_equivalent; rewrite !step_switch, Hs; reflexivity ].
   destruct (naked_immediate_of_value v) as [i | ] eqn:Hi;
-    [ | apply (equivalent_of_run 1 1); simpl; rewrite Hs, Hi; reflexivity ].
+    [ | apply step_eq_equivalent; rewrite !step_switch, Hs, Hi;
+        reflexivity ].
   destruct (find_arm i arms) as [ac | ] eqn:Hfind;
-    [ | apply (equivalent_of_run 1 1); simpl;
-        rewrite Hs, Hi, find_arm_thread, Hfind; reflexivity ].
+    [ | apply step_eq_equivalent;
+        rewrite !step_switch, Hs, Hi, find_arm_thread, Hfind; reflexivity ].
   eapply equivalent_trans;
-    [ apply step_equivalent; simpl; rewrite Hs, Hi, Hfind; reflexivity | ].
+    [ apply step_equivalent; rewrite step_switch, Hs, Hi, Hfind;
+      reflexivity
+    | ].
   eapply equivalent_trans;
-    [ | apply equivalent_sym, step_equivalent; simpl;
-        rewrite Hs, Hi, find_arm_thread, Hfind; reflexivity ].
+    [ | apply equivalent_sym, step_equivalent;
+        rewrite step_switch, Hs, Hi, find_arm_thread, Hfind; reflexivity ].
   unfold thread_arm. destruct ac as [applied args]. simpl.
   destruct args; [ | apply equivalent_refl ].
   destruct (Pos.eqb_spec applied k) as [-> | _]; [ | apply equivalent_refl ].
@@ -2066,9 +2021,14 @@ Proof.
     [ apply equivalent_refl | ].
   simpl.
   apply (equivalent_trans _ (State (Apply_cont ac') vars conts statics)).
-  - apply (equivalent_of_run 2 0). simpl.
-    unfold apply_continuation, resolve. simpl. rewrite Pos.eqb_refl. simpl.
-    rewrite Hs, Hi, Hinner. reflexivity.
+  - eapply equivalent_trans;
+      [ apply step_equivalent;
+        apply (step_apply_cont_handler _ _ _ _ [] [] (Switch s inner)
+          vars conts []);
+        [ reflexivity | apply resolve_head | reflexivity ]
+      | ].
+    apply step_equivalent. rewrite step_switch, Hs, Hi, Hinner.
+    reflexivity.
   - apply equivalent_sym, step_eq_equivalent, apply_cont_skip, Hother.
 Qed.
 
@@ -2093,15 +2053,16 @@ Lemma switch_skip (k : continuation) (c : cont_value) (s : simple)
 Proof.
   intros Harms.
   destruct (eval_simple vars s) as [v | ] eqn:Hs;
-    [ | apply (equivalent_of_run 1 1); simpl; rewrite Hs; reflexivity ].
+    [ | apply step_eq_equivalent; rewrite !step_switch, Hs; reflexivity ].
   destruct (naked_immediate_of_value v) as [i | ] eqn:Hi;
-    [ | apply (equivalent_of_run 1 1); simpl; rewrite Hs, Hi; reflexivity ].
+    [ | apply step_eq_equivalent; rewrite !step_switch, Hs, Hi;
+        reflexivity ].
   destruct (find_arm i arms) as [ac | ] eqn:Hfind;
-    [ | apply (equivalent_of_run 1 1); simpl; rewrite Hs, Hi, Hfind;
+    [ | apply step_eq_equivalent; rewrite !step_switch, Hs, Hi, Hfind;
         reflexivity ].
   eapply equivalent_step;
-    [ simpl; rewrite Hs, Hi, Hfind; reflexivity
-    | simpl; rewrite Hs, Hi, Hfind; reflexivity | ].
+    [ rewrite step_switch, Hs, Hi, Hfind; reflexivity
+    | rewrite step_switch, Hs, Hi, Hfind; reflexivity | ].
   apply step_eq_equivalent, apply_cont_skip.
   exact (find_arm_not_applying k i arms ac Harms Hfind).
 Qed.
@@ -2119,9 +2080,9 @@ Proof.
     [ | intros vars conts statics; apply equivalent_refl ].
   intros vars conts statics.
   destruct (arms_apply k (map (thread_arm k arms) arms0)) eqn:Happly.
-  - eapply equivalent_step; [ reflexivity | reflexivity | ].
-    apply thread_arms_equivalent.
-  - eapply equivalent_trans; [ apply step_equivalent; reflexivity | ].
+  - apply let_cont_non_recursive_equivalent_step, thread_arms_equivalent.
+  - eapply equivalent_trans;
+      [ apply step_equivalent, step_let_cont_non_recursive | ].
     eapply equivalent_trans; [ apply thread_arms_equivalent | ].
     apply switch_skip, Happly.
 Qed.

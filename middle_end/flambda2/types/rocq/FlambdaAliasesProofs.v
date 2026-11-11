@@ -187,7 +187,7 @@ Lemma canonical_apply_equivalent (tenv : typing_env) (ap : apply_expr)
   equivalent (State (Apply ap) vars conts statics)
     (State (Apply (canonical_apply tenv ap)) vars conts statics).
 Proof.
-  intros Hsat. apply (equivalent_of_run 1 1). simpl.
+  intros Hsat. apply step_eq_equivalent. rewrite !step_apply. simpl.
   rewrite (canonical_simples_sound tenv vars (ap_args ap) Hsat).
   unfold canonical_call_kind.
   destruct (ap_call_kind ap) as [code | ];
@@ -250,7 +250,7 @@ Lemma canonical_apply_cont_equivalent (tenv : typing_env) (ac : apply_cont)
   equivalent (State (Apply_cont ac) vars conts statics)
     (State (Apply_cont (canonical_apply_cont tenv ac)) vars conts statics).
 Proof.
-  intros Hsat. apply (equivalent_of_run 1 1). simpl.
+  intros Hsat. apply step_eq_equivalent. rewrite !step_apply_cont. simpl.
   rewrite (canonical_simples_sound tenv vars (ac_args ac) Hsat). reflexivity.
 Qed.
 
@@ -298,12 +298,9 @@ Lemma let_equivalent_in (tenv : typing_env) (x : variable) (d : named)
   expr_equivalent_in tenv (Let x d body) (Let x d body').
 Proof.
   intros Hbody vars conts statics Hsat.
-  destruct (eval_named statics vars d) as [v | ] eqn:Hd.
-  - eapply equivalent_step;
-      [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity | ].
-    apply Hbody.
-    exact (env_satisfies_under_let tenv x d vars statics v Hsat Hd).
-  - apply (equivalent_of_run 1 1). simpl. rewrite Hd. reflexivity.
+  apply let_equivalent_step; [ reflexivity | intros v Hd ].
+  apply Hbody.
+  exact (env_satisfies_under_let tenv x d vars statics v Hsat Hd).
 Qed.
 
 Lemma let_static_equivalent_in (tenv : typing_env)
@@ -313,12 +310,9 @@ Lemma let_static_equivalent_in (tenv : typing_env)
     (Let_static bindings body').
 Proof.
   intros Hbody vars conts statics Hsat.
-  destruct (eval_static_bindings vars bindings statics) as [extended | ]
-    eqn:Hbindings.
-  - eapply equivalent_step;
-      [ simpl; rewrite Hbindings; reflexivity
-      | simpl; rewrite Hbindings; reflexivity | apply Hbody, Hsat ].
-  - apply (equivalent_of_run 1 1). simpl. rewrite Hbindings. reflexivity.
+  apply let_static_equivalent_step.
+  destruct (eval_static_bindings vars bindings statics) as [extended | ];
+    [ apply Hbody, Hsat | exact I ].
 Qed.
 
 (* A handler may be replaced by one equivalent to it under what is known
@@ -374,14 +368,17 @@ Proof.
     + (* Let *)
       apply (expr_equivalent_in_trans tenv _
         (Let x (canonical_named tenv d) body)).
-      * intros vars conts statics Hsat. apply (equivalent_of_run 1 1). simpl.
-        rewrite (canonical_named_sound tenv vars statics d Hsat). reflexivity.
+      * intros vars conts statics Hsat.
+        apply let_equivalent_step;
+          [ apply (canonical_named_sound tenv vars statics d Hsat)
+          | intros v _; apply equivalent_refl ].
       * apply let_equivalent_in, follow_aliases_equivalent_in.
     + (* Let_static *)
       apply (expr_equivalent_in_trans tenv _
         (Let_static (map (canonical_static_binding tenv) bindings) body)).
-      * intros vars conts statics Hsat. apply (equivalent_of_run 1 1). simpl.
-        rewrite (canonical_static_bindings_sound tenv vars bindings Hsat).
+      * intros vars conts statics Hsat. apply step_eq_equivalent.
+        rewrite !step_let_static,
+          (canonical_static_bindings_sound tenv vars bindings Hsat).
         reflexivity.
       * apply let_static_equivalent_in, follow_aliases_equivalent_in.
     + (* Let_cont_non_recursive *)
@@ -389,7 +386,7 @@ Proof.
         (Let_cont_non_recursive k (follow_aliases_in_handler tenv h) body));
         [ apply follow_aliases_in_handler_equivalent_in | ].
       intros vars conts statics Hsat.
-      eapply equivalent_step; [ reflexivity | reflexivity | ].
+      apply let_cont_non_recursive_equivalent_step.
       apply (follow_aliases_equivalent_in body tenv), Hsat.
     + (* Let_cont_recursive *)
       intros vars conts statics Hsat.
@@ -408,23 +405,26 @@ Proof.
           [ destruct (find_arm i arms) as [ac | ] eqn:Hfind | ]
         | ].
       * eapply equivalent_step;
-          [ simpl; rewrite Hscrutinee, Himmediate, Hfind; reflexivity
-          | simpl;
-            rewrite (canonical_simple_sound tenv vars scrutinee Hsat),
+          [ rewrite step_switch, Hscrutinee, Himmediate, Hfind; reflexivity
+          | rewrite step_switch,
+              (canonical_simple_sound tenv vars scrutinee Hsat),
               Hscrutinee, Himmediate, find_arm_canonical, Hfind;
             reflexivity
           | ].
         apply canonical_apply_cont_equivalent, Hsat.
-      * apply (equivalent_of_run 1 1). simpl.
-        rewrite (canonical_simple_sound tenv vars scrutinee Hsat),
+      * apply step_eq_equivalent.
+        rewrite !step_switch,
+          (canonical_simple_sound tenv vars scrutinee Hsat),
           Hscrutinee, Himmediate, find_arm_canonical, Hfind.
         reflexivity.
-      * apply (equivalent_of_run 1 1). simpl.
-        rewrite (canonical_simple_sound tenv vars scrutinee Hsat),
+      * apply step_eq_equivalent.
+        rewrite !step_switch,
+          (canonical_simple_sound tenv vars scrutinee Hsat),
           Hscrutinee, Himmediate.
         reflexivity.
-      * apply (equivalent_of_run 1 1). simpl.
-        rewrite (canonical_simple_sound tenv vars scrutinee Hsat),
+      * apply step_eq_equivalent.
+        rewrite !step_switch,
+          (canonical_simple_sound tenv vars scrutinee Hsat),
           Hscrutinee.
         reflexivity.
     + (* Invalid *)
