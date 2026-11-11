@@ -695,6 +695,16 @@ strict satisfaction, with no other premise), `expand_head_closed`,
   transcribed meet has it at every fuel). The last is there so that
   nothing is asked of the kinds of the names of relations, on which
   a type that fits says nothing.
+- The induction on fuel (`FlambdaMeetFuelSpec.v`): the step of a
+  meet of expanded types that has its contracts has them, so the
+  meet of expanded types has them at every fuel, and `Meet.meet` has
+  `meet_contract`: done, given that the meet of two heads of kind
+  value is right (`value_heads_right`: variants, row-like structures
+  and closures, with the join; stated and proved apart).
+  `Typing_env.add_env_extension` has `add_env_extension_sound`;
+  `Typing_env.add_equation` and `add_equations_on_params` have their
+  contracts for names that the environment knows, which the
+  contracts of section 2 do not suppose (there is a `CR mshinwell`).
 - The two parameters are replaced by T1's and T2's predicates: done.
 
 For reviewers: whether a precision statement is wanted.
