@@ -46,8 +46,9 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaPrimitiveModel FlambdaPrimitiveSpec FlambdaBlockLoadSpec
   FlambdaUnboxSpec FlambdaWellFormedSpec FlambdaWellKindedSpec
   FlambdaCompareSpec
-  FlambdaCompareAlphaSpec FlambdaCompareAlphaProofs FlambdaValidateSpec
-  FlambdaValidatorEquivarianceSpec.
+  FlambdaCompareAlphaSpec FlambdaCompareAlphaProofs FlambdaMyClosureSpec
+  FlambdaMyClosureProofs FlambdaLiftSpec FlambdaLiftProofs
+  FlambdaValidateSpec FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -3442,11 +3443,51 @@ Lemma expr_eqb_renamed (r : renaming) (e e' : expr) :
   expr_eqb [] [] (rename_expr r e) (rename_expr r e') = expr_eqb [] [] e e'.
 Proof. exact (expr_eqb_equivariant r [] [] e e'). Qed.
 
+(* The lifting: its rewrites and its checks commute with renaming by
+   the statements of their own files. *)
+Lemma only_closures_of_renamed (r : renaming)
+    (known : list (code_id * symbol)) (e : expr) :
+  only_closures_of known (rename_expr r e) = only_closures_of known e.
+Proof.
+  unfold only_closures_of.
+  induction known as [ | [id s] known IH]; simpl; [ reflexivity | ].
+  rewrite only_closure_of_equivariant, IH. reflexivity.
+Qed.
+
+Lemma lift_unit_renamed (r : renaming) (L : lifting) (e : expr) :
+  lift_unit (rename_lifting r L) (rename_expr r e)
+  = option_map (rename_expr r) (lift_unit L e).
+Proof.
+  unfold lift_unit, rename_lifting.
+  cbn [lifting_unit lifted_lets lifted_my_closures]. cbv zeta.
+  rewrite <- lift_expr_equivariant, <- bind_my_closures_equivariant.
+  rewrite well_formed_unit_equivariant, only_closures_of_renamed.
+  pose proof (exits_plain_equivariant r [] e) as Hexits. simpl in Hexits.
+  rewrite Hexits.
+  destruct
+    (exits_plain [] e
+     && well_formed_unit (lifting_unit L)
+          (bind_my_closures (lifted_my_closures L)
+             (lift_expr (lifted_lets L) root e))
+     && only_closures_of (lifted_my_closures L)
+          (bind_my_closures (lifted_my_closures L)
+             (lift_expr (lifted_lets L) root e)));
+    reflexivity.
+Qed.
+
+Lemma with_lifting_renamed (r : renaming) (L : lifting) (e : expr) :
+  with_lifting (rename_lifting r L) (rename_expr r e)
+  = rename_expr r (with_lifting L e).
+Proof.
+  unfold with_lifting. rewrite lift_unit_renamed.
+  destruct (lift_unit L e); reflexivity.
+Qed.
+
 Theorem validate_unit_equivariant : validate_unit_equivariant_statement.
 Proof.
-  intros r rounds unused before after. unfold validate_unit.
-  rewrite expr_eqb_renamed, normalise_before_equivariant,
-    normalise_after_equivariant, expr_eqb_renamed,
-    without_statics_equivariant, expr_eqb_renamed.
+  intros r rounds unused L before after. unfold validate_unit.
+  rewrite with_lifting_renamed.
+  rewrite !normalise_before_equivariant, normalise_after_equivariant,
+    !without_statics_equivariant, !expr_eqb_renamed.
   reflexivity.
 Qed.

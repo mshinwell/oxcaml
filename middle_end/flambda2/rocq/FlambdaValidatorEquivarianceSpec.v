@@ -149,7 +149,12 @@
 
    The normalisations of FlambdaValidateSpec.v: [iterate] of a rewrite
    that commutes, [normalise_before], [normalise_after] and
-   [without_statics]; and the check, [validate_unit].
+   [without_statics]; and the check, [validate_unit]. The check is
+   given what to lift (FlambdaLiftSpec.lifting), which holds the two
+   continuations of the unit, so a renaming acts on it
+   ([rename_lifting], which is to be reviewed); the lifting commutes
+   with renaming by the statements of FlambdaLiftSpec.v and of
+   FlambdaMyClosureSpec.v.
 
    Nothing is trusted here. The proofs are in
    FlambdaValidatorEquivarianceProofs.v, which needs no review. *)
@@ -160,7 +165,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaNominalSpec FlambdaAlphaSpec
   FlambdaNormaliseSpec FlambdaEquivarianceSpec FlambdaUnusedContsSpec
   FlambdaUnusedStaticsSpec FlambdaBlockLoadSpec FlambdaUnboxSpec
-  FlambdaWellFormedSpec FlambdaWellKindedSpec FlambdaValidateSpec.
+  FlambdaWellFormedSpec FlambdaWellKindedSpec FlambdaLiftSpec
+  FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -651,10 +657,20 @@ Definition well_kinded_unit_equivariant_statement : Prop :=
 (* The check                                                                *)
 (* ======================================================================== *)
 
+(* The action on what is to be lifted: the two continuations of the unit
+   are renamed. A [Let] to lift is named by where it is, and what it is
+   lifted to by symbols and code ids. *)
+Definition rename_lifting (r : renaming) (L : lifting) : lifting :=
+  Lifting (rename_unit_interface r (lifting_unit L)) (lifted_lets L)
+    (lifted_my_closures L).
+
 (* The validation answers the same, and for the same reason, on two
-   terms and on the two renamed by one renaming. The number of rounds
-   and the names of the static bindings to remove are as they were. *)
+   terms and on the two renamed by one renaming, what is to be lifted
+   being renamed with them. The number of rounds and the names of the
+   static bindings to remove are as they were. *)
 Definition validate_unit_equivariant_statement : Prop :=
-  ∀ (r : renaming) (rounds : nat) (unused : dropped) (before after : expr),
-    validate_unit rounds unused (rename_expr r before) (rename_expr r after)
-    = validate_unit rounds unused before after.
+  ∀ (r : renaming) (rounds : nat) (unused : dropped) (L : lifting)
+    (before after : expr),
+    validate_unit rounds unused (rename_lifting r L) (rename_expr r before)
+      (rename_expr r after)
+    = validate_unit rounds unused L before after.

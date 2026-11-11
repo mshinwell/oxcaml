@@ -36,7 +36,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaBlockLoadSpec
   FlambdaBlockLoadProofs FlambdaUnboxSpec FlambdaUnboxProofs
   FlambdaUnusedContsSpec FlambdaUnusedContsProofs FlambdaUnusedStaticsSpec
-  FlambdaUnusedStaticsProofs FlambdaValidateSpec.
+  FlambdaUnusedStaticsProofs FlambdaLiftSpec FlambdaLiftProofs
+  FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec
   FlambdaAliasesProofs.
 Import ListNotations.
@@ -157,10 +158,18 @@ Proof.
     (merge_statics_equivalent _)).
 Qed.
 
+Lemma with_lifting_program_refines (L : lifting) (e : expr) :
+  program_refines e (with_lifting L e).
+Proof.
+  unfold with_lifting.
+  destruct (lift_unit L e) as [e' | ] eqn:Hlift; [ | apply refines_refl ].
+  exact (lift_unit_program_refines L e e' Hlift).
+Qed.
+
 Theorem validate_unit_sound_everywhere :
   validate_unit_sound_everywhere_statement.
 Proof.
-  intros rounds unused before after. unfold validate_unit.
+  intros rounds unused L before after. unfold validate_unit.
   destruct (expr_eqb [] [] before after) eqn:Hsame.
   - intros _. apply expr_equivalent_refines, expr_eqb_sound, Hsame.
   - destruct (expr_eqb [] [] (normalise_before rounds before)
@@ -169,12 +178,18 @@ Proof.
     + destruct (expr_eqb [] []
                   (without_statics unused (normalise_before rounds before))
                   (normalise_after rounds after));
+        [ intros [H | H]; discriminate H | ].
+      destruct
+        (expr_eqb [] []
+           (without_statics unused
+              (normalise_before rounds (with_lifting L before)))
+           (normalise_after rounds after));
         intros [H | H]; discriminate H.
 Qed.
 
 Theorem validate_unit_sound : validate_unit_sound_statement.
 Proof.
-  intros rounds unused before after. unfold validate_unit.
+  intros rounds unused L before after. unfold validate_unit.
   destruct (expr_eqb [] [] before after) eqn:Hsame.
   - intros _.
     apply expr_refines_program, expr_equivalent_refines, expr_eqb_sound,
@@ -183,16 +198,30 @@ Proof.
                 (normalise_after rounds after)) eqn:Hnormalised.
     + intros _. apply expr_refines_program.
       exact (normalised_refines rounds before after Hnormalised).
-    + destruct (expr_eqb [] []
+    + assert (Hbefore :
+        program_refines before (normalise_before rounds before))
+        by apply expr_refines_program, normalise_before_refines.
+      destruct (expr_eqb [] []
                   (without_statics unused (normalise_before rounds before))
-                  (normalise_after rounds after)) eqn:Hremoved;
-        [ intros _ | intros H; contradiction H; reflexivity ].
-      apply (refines_trans _
-        (State (normalise_before rounds before) [] [] empty_static_env));
-        [ apply expr_refines_program, normalise_before_refines | ].
-      apply (refines_trans _ _ _
-        (without_statics_program_refines unused _)).
-      apply expr_refines_program, expr_equivalent_refines.
-      apply (expr_equivalent_trans _ _ _ (expr_eqb_sound _ _ Hremoved)).
-      apply expr_equivalent_sym, normalise_after_equivalent.
+                  (normalise_after rounds after)) eqn:Hremoved.
+      * intros _. apply (refines_trans _ _ _ Hbefore).
+        apply (refines_trans _ _ _
+          (without_statics_program_refines unused _)).
+        apply expr_refines_program, expr_equivalent_refines.
+        apply (expr_equivalent_trans _ _ _ (expr_eqb_sound _ _ Hremoved)).
+        apply expr_equivalent_sym, normalise_after_equivalent.
+      * destruct
+          (expr_eqb [] []
+             (without_statics unused
+                (normalise_before rounds (with_lifting L before)))
+             (normalise_after rounds after)) eqn:Hlifted;
+          [ intros _ | intros H; contradiction H; reflexivity ].
+        apply (refines_trans _ _ _ (with_lifting_program_refines L _)).
+        apply (refines_trans _ _ _
+          (expr_refines_program _ _ (normalise_before_refines rounds _))).
+        apply (refines_trans _ _ _
+          (without_statics_program_refines unused _)).
+        apply expr_refines_program, expr_equivalent_refines.
+        apply (expr_equivalent_trans _ _ _ (expr_eqb_sound _ _ Hlifted)).
+        apply expr_equivalent_sym, normalise_after_equivalent.
 Qed.
