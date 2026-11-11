@@ -37,8 +37,10 @@ which gives a name outside a list of names.
 | `FlambdaFreshBindersSpec.v`, `FlambdaAlphaFreshSpec.v`, `FlambdaAlphaGroupSpec.v` | For each binder, the rule that compares two binders at fresh names, and that it can be read both ways on terms with distinct binders and closed code; the recursive group as a name abstraction |
 | `FlambdaCompareConverseSpec.v` | What the comparison accepts is alpha-equivalent, on terms with distinct binders and closed code |
 | `FlambdaInlineFreshSpec.v` | Inlining a call with the binders of the code exchanged for fresh names; two choices give alpha-equivalent terms |
+| `FlambdaValidatorEquivarianceSpec.v` | Each rewrite and each check of the validator commutes with renaming: the rewrites of the normalisation, the checks of well-formedness and of kinds, and `validate_unit` |
 
-The last four rows are the second prover's files.
+The four rows before the last are the second prover's files, and the
+last is the third prover's.
 
 In the types library, `FlambdaEnvAliasesRenamingSpec.v` has the action
 on the aliases, and `FlambdaTypeRenameSpec.v` and
@@ -61,6 +63,12 @@ Kinds, arities and metadata have no names in them: a renaming leaves
 them as they are, and two terms that are the same up to bound names
 have the same ones.
 
+Two places name without binding. A trap action of an `Apply_cont`
+names the continuation of an exception handler, and the exception
+continuation of a call may come with extra arguments, which are
+simples. The continuation and the simples are renamed, and are among
+the free names.
+
 A well-formed unit meets three conditions, which are checks:
 
 - `names_in_scope`: no free variable, and no free continuation but the
@@ -78,9 +86,11 @@ renaming.
 A renaming is a permutation of the variables and one of the
 continuations, each a list of swaps. It acts on everything that holds
 names: terms, code, static constants, environments, continuation
-closures, the code of the static environment, states, the result of a
-step and behaviours. It renames bound and free occurrences alike, so it
-never captures. The laws of a group hold of the action.
+closures (and a continuation kept with the extra arguments of a call:
+the arguments are values, the continuation is renamed), the code of
+the static environment, states, the result of a step and behaviours.
+It renames bound and free occurrences alike, so it never captures. The
+laws of a group hold of the action.
 
 It is the action of the compiler's renamings that are permutations
 within one unit (what the freshening of a binder uses). A renaming with
@@ -223,15 +233,28 @@ relations and as functions; `code_closed`, `binders_distinct`,
 (`FlambdaInlineFreshSpec.v`: the names made are bound in the result, so
 two choices give alpha-equivalent terms).
 
-Owed, and being proved by a third prover in a series of its own: the
-other rewrites of `FlambdaNormaliseSpec.v`, `FlambdaUnusedStaticsSpec.v`,
-`FlambdaUnusedContsSpec.v`, `FlambdaBlockLoadSpec.v` and
-`FlambdaUnboxSpec.v`, the checks of `FlambdaWellFormedSpec.v`, the
-check of kinds, and `validate_unit`. The same prover takes each pass
-of the validator that is added after this was written, when it is
-merged, and the functions of typing environments. Owed by their
-owners: the lifting of constants, the ranges, and the functions on
-types.
+Proved by the third prover, in `FlambdaValidatorEquivarianceSpec.v`:
+the other rewrites of `FlambdaNormaliseSpec.v`,
+`FlambdaUnusedStaticsSpec.v`, `FlambdaUnusedContsSpec.v`,
+`FlambdaBlockLoadSpec.v` and `FlambdaUnboxSpec.v`; the checks of
+`FlambdaWellFormedSpec.v`, those of exception handlers and of trap
+actions among them; the check of kinds; the normalisations of the
+validation; and `validate_unit`: whether a unit is validated does not
+depend on its names. Every one is an equation that holds of every
+term.
+
+Owed:
+
+- each pass of the validator that is merged after this was written,
+  by its owner or by the third prover, and `validate_unit` again with
+  it;
+- a pass that renames the two terms apart makes names, so it owes the
+  fourth form: the result on a renamed term is the result renamed by a
+  renaming that agrees with the first on the free names;
+- the functions of typing environments, by the third prover, in the
+  types library;
+- by their owners, the lifting of constants and the functions on types
+  that have no such statement yet.
 
 ## 8. What a change to the model owes
 
@@ -240,6 +263,9 @@ types.
   conditions if it binds, in `expr_eqb`, and in the proofs that go by
   cases on terms. If it binds, a row in the table of section 3, a rule
   of `alpha_equivalent`, and a statement that it is a name abstraction.
+- **A new place in a term that names** (as a trap action does): it is
+  renamed, it is among the free names, and the comparison pairs it as
+  it pairs the other occurrences of that sort.
 - **A new function on terms.** Section 7.
 - **A new place for names.** A sort of its own, an action, and an
   instance of the interface. Tell N1 before putting a variable or a
