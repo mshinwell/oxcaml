@@ -403,6 +403,107 @@ with code_sets_well_formed (c : code) : bool :=
   end.
 
 (* ======================================================================== *)
+(* Numbers are in range                                                     *)
+(* ======================================================================== *)
+
+(* The numbers of a term are among those that the compiler's can be.
+   - The tag of every block made, by a [Make_block] or statically, and
+     the tag that a [Block_load] names, is at least 0 and below 251.
+   - Every constant is in the range of its kind, wherever it is: an
+     argument, a value slot, a field of a static block, the contents of
+     a static boxed number, the scrutinee of a [Switch].
+   - The field and the size of a [Block_load] and the discriminants of
+     a [Switch] are integers of the target's OCaml, and the bytes of a
+     string are bytes.
+   FlambdaPrimitiveSpec.v says what the ranges are (the section "Numbers
+   in range").
+
+   This is not stricter than the compiler: there each of these numbers
+   is of a type whose values are in range ([Tag.Scannable.t],
+   [Reg_width_const.t], [Target_ocaml_int.t], [string]), so every term
+   it builds passes. The model's numbers are integers, and without the
+   check it has terms that the compiler has not: a block with tag 300,
+   an int8 that is 200. The machine does not test the tag of a block,
+   and the arithmetic has no value on a constant out of range.
+
+   FlambdaRangeSpec.v says what the check gives: in the run of a unit
+   that passes, every number that a state holds is in range. *)
+
+Definition simple_in_range (s : simple) : bool :=
+  match s with
+  | Const c => const_in_range c
+  | Var _ | Symbol _ => true
+  end.
+
+Definition value_slots_in_range (value_slots : list (value_slot * simple))
+    : bool :=
+  forallb (fun slot => simple_in_range (snd slot)) value_slots.
+
+Definition named_in_range (d : named) : bool :=
+  match d with
+  | Simple s => simple_in_range s
+  | Prim p args => prim_in_range p && forallb simple_in_range args
+  | Set_of_closures _ value_slots | Closure_of_set _ _ value_slots =>
+    value_slots_in_range value_slots
+  | Project_value_slot _ closure | Project_value_slot_from _ _ closure
+  | Project_function_slot _ _ closure =>
+    simple_in_range closure
+  end.
+
+Definition static_const_in_range (const : static_const) : bool :=
+  match const with
+  | Static_const_set_of_closures _ value_slots
+  | Static_const_closure_of_set _ _ _ value_slots =>
+    value_slots_in_range value_slots
+  | Static_const_block tag fields =>
+    tag_in_range tag && forallb simple_in_range fields
+  | Static_const_boxed_number contents => simple_in_range contents
+  | Static_const_immutable_string bytes => forallb byte_in_range bytes
+  end.
+
+Definition apply_cont_in_range (ac : apply_cont) : bool :=
+  forallb simple_in_range (ac_args ac).
+
+Definition apply_in_range (ap : apply_expr) : bool :=
+  simple_in_range (ap_callee ap) && forallb simple_in_range (ap_args ap).
+
+Definition arm_in_range (arm : Z * apply_cont) : bool :=
+  ocaml_int_in_range (fst arm) && apply_cont_in_range (snd arm).
+
+(* Every number of the expression is in range. Code and handlers are
+   looked into. *)
+Fixpoint numbers_in_range (e : expr) : bool :=
+  match e with
+  | Let _ d body => named_in_range d && numbers_in_range body
+  | Let_static bindings body =>
+    forallb binding_numbers_in_range bindings && numbers_in_range body
+  | Let_cont_non_recursive _ h body =>
+    handler_numbers_in_range h && numbers_in_range body
+  | Let_cont_recursive handlers body =>
+    forallb (fun '(_, h) => handler_numbers_in_range h) handlers
+    && numbers_in_range body
+  | Apply ap => apply_in_range ap
+  | Apply_cont ac => apply_cont_in_range ac
+  | Switch scrutinee arms =>
+    simple_in_range scrutinee && forallb arm_in_range arms
+  | Invalid => true
+  end
+with handler_numbers_in_range (h : continuation_handler) : bool :=
+  match h with
+  | Handler _ handler => numbers_in_range handler
+  end
+with binding_numbers_in_range (binding : static_binding) : bool :=
+  match binding with
+  | Bind_code _ c => code_numbers_in_range c
+  | Bind_deleted_code _ => true
+  | Bind_symbol _ const => static_const_in_range const
+  end
+with code_numbers_in_range (c : code) : bool :=
+  match c with
+  | Code _ _ _ _ body => numbers_in_range body
+  end.
+
+(* ======================================================================== *)
 (* Well-formed units                                                        *)
 (* ======================================================================== *)
 

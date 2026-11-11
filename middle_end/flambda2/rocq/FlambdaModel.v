@@ -113,8 +113,11 @@
    - The callee of an [Apply] is always given, where the compiler may omit
      it for a direct call.
    - The numbers in constants are integers: those of the floats and
-     vectors are bit patterns, as in the compiler, and none is yet
-     restricted to its range. *)
+     vectors are bit patterns, as in the compiler. No type here
+     restricts one to its range, nor a tag, nor any other number of a
+     term: FlambdaPrimitiveSpec.v says what the ranges are, and
+     FlambdaWellFormedSpec.numbers_in_range is the check that every
+     number of a term is in its range. *)
 
 From Stdlib Require Import ZArith List.
 From OxCamlFlambda2 Require Export FlambdaKindModel FlambdaPrimitiveModel.
@@ -266,7 +269,7 @@ Record apply_expr : Type := Apply_expr {
    [Flambda.static_const_or_code] with the name it is bound to, and
    [Function_params_and_body], the code of a function.
 
-   The arms of a [Switch] are a [Targetint_31_63.Map.t] in the compiler;
+   The arms of a [Switch] are a [Target_ocaml_int.Map.t] in the compiler;
    here they are an association list, of which the first arm with a given
    discriminant counts.
 
