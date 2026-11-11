@@ -26,8 +26,8 @@
  ******************************************************************************)
 
 
-(* The validator commutes with renaming: each of its rewrites and each of
-   its checks.
+(* The rewrites and the checks that the validator is made of commute
+   with renaming.
 
    This file is to be reviewed: [rewrite_equivariant], the action of a
    renaming on what a pass carries (the definitions named [rename_...]),
@@ -36,28 +36,44 @@
    FlambdaEquivarianceSpec.v says that execution commutes with the
    renamings of FlambdaNominalSpec.v, and that two of the rewrites that
    the validation applies do ([fold_constants], [inline_calls]). Here are
-   the statements for the others, in the forms that a function on terms
-   owes (NAMES.md, section 7):
+   the statements for the other rewrites and for the checks of the files
+   listed below, in the forms that a function on terms owes (NAMES.md,
+   section 7):
    - a rewrite that takes a term and nothing else gives, on the renamed
      term, the renamed result ([rewrite_equivariant]);
-   - a rewrite that takes names too, or something keyed by names (the
-     variables in scope, the code known), gives the renamed result when
-     those are renamed with the term;
+   - a rewrite that takes names too, or something that holds names (the
+     variables in scope, the code known, what a pass knows of the
+     variables of the term), gives the renamed result when those are
+     renamed with the term;
    - a check answers the same on the renamed term, the names it is given
      being renamed with it.
-   Symbols, code ids and slots are not renamed, so what is keyed by them
-   is as it was.
+   Symbols, code ids and slots are not renamed. A map keyed by them
+   keeps its keys; what it holds is renamed where it holds variables or
+   continuations (the code known, under its code id; what is known of a
+   symbol that is a block), and is as it was where it holds none (the
+   names to remove, the code id of a symbol known to be a closure).
 
-   So what the validation does to a term depends on the names of the
-   term by their equality only: no rewrite and no check goes by the
-   order or the number of a name, and none makes a name. The one place
-   where names are made from others is the renaming that inlining
-   builds from the four continuations of a call and of the code called
+   What is not stated here yet is the validation as a whole
+   (FlambdaValidateSpec.validate_unit, with its normalisations): it
+   needs that the comparison of FlambdaCompareSpec.v answers the same
+   when both terms are renamed, which is being stated beside the
+   comparison.
+
+   So each rewrite and each check below depends on the names of the
+   term by their equality only: none goes by the order or the number of
+   a name, and none makes a name. The one place where names are made
+   from others is the renaming that inlining builds from the four
+   continuations of a call and of the code called
    (FlambdaNormaliseSpec.inline_renaming); it is made of swaps of those
    four, and commutes with a renaming of them.
 
-   Every statement here is an equation, holds of every term, and has no
-   premise: nothing is asked of the code, the binders or the scopes.
+   Every statement here is an equation and holds of every term: nothing
+   is asked of the term, its code, its binders or its scopes. Two
+   statements have a premise, on an argument that is a function: that
+   of [rewrite_code] asks that the rewrite it is given commutes with
+   renaming, and that of [static_names] asks that the way it is given
+   of reading the names of a binding does not look at variables and
+   continuations.
 
    Kinds, arities and the metadata of handlers and of code have no
    names in them: a renaming keeps them, and a check that reads them
