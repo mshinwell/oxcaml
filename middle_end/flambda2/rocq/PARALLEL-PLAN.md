@@ -90,9 +90,9 @@ compiler runs.
 
 **Out of scope for now:** match-in-match and continuation
 specialisation, mutable unboxing (`simplify/flow/mutable_unboxing.ml`),
-the Datalog side of the reaper, anything about cost or inlining
-*decisions* (a decision is an untrusted input; only its effect is
-verified).
+the reaper (workstream S7 below is kept for later and is not to be
+started), anything about cost or inlining *decisions* (a decision is an
+untrusted input; only its effect is verified).
 
 ## 3. Why naive parallelism fails here
 
@@ -312,9 +312,10 @@ condition of `FlambdaWellFormedSpec.v` earns its keep.
 **S6. Unboxing of continuation parameters.** `simplify/unboxing/`,
 immutable cases only. Later; needs C1, T5, S3.
 
-**S7. The reaper.** Run `validate_unit` on the reaper's output. Removal
-of unused fields and parameters as refinements. The analysis itself is
-not verified; its result is checked.
+**S7. The reaper.** Out of scope for now; not to be started. When it
+is: run `validate_unit` on the reaper's output. Removal of unused fields
+and parameters as refinements. The analysis itself is not verified; its
+result is checked.
 
 ### Validation and infrastructure
 
@@ -427,7 +428,7 @@ Phase 0 (one agent)
          |
    S1 (after C1, T6)   S2 (after T4, T5)   S3 (any time)
    S4 (after C3)       S5 (after C1)       S6 (after S3, T5)
-   S7 (after C1)
+   S7 (out of scope for now)
 ```
 
 S3 and N1 need nothing that does not exist and can start on day one.
@@ -449,7 +450,7 @@ S3 and N1 need nothing that does not exist and can start on day one.
 | 9 | V2 corpus and V3 converter |
 | 10 | R1 reviewer |
 
-C2, C4, C5, S2, S5, S6, S7 wait, or are picked up as agents free up.
+C2, C4, C5, S2, S5, S6 wait, or are picked up as agents free up.
 
 **Twenty agents.** As above, and split what was doubled up:
 
@@ -463,7 +464,7 @@ C2, C4, C5, S2, S5, S6, S7 wait, or are picked up as agents free up.
 | 16 | S2 switch |
 | 17 | S5 lets, CSE, lifting |
 | 18 | V3 converter on its own |
-| 19 | S7 reaper |
+| 19 | unassigned (S7, the reaper, is out of scope for now) |
 | 20 | R2 second reviewer |
 
 Beyond about twenty, the limit is the core owner and the reviewers, not
