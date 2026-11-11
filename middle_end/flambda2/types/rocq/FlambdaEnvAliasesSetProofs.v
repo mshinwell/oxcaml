@@ -25,16 +25,20 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* Proofs of the statements of FlambdaEnvAliasesSetSpec.v. Nothing here
-   needs review. *)
+(* Proofs of the statements of FlambdaEnvAliasesSetSpec.v, and examples.
+   Nothing here needs review. The examples are in the module [Examples]
+   at the end: what the binary join does with the aliases of a variable
+   at a join of two uses, and what each function answers on small
+   sets. *)
 
 From Stdlib Require Import ZArith List Bool Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec FlambdaMapProofs
-  FlambdaSemanticsSpec.
+  FlambdaSemanticsSpec FlambdaNominalSpec FlambdaNominalProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesProofs
+  FlambdaEnvAliasesRenamingSpec FlambdaEnvAliasesRenamingProofs
   FlambdaEnvAliasesSetSpec.
 Import ListNotations.
 
@@ -1066,3 +1070,289 @@ Proof.
         right. exists x. split; [ apply in_elements, Hhas | exact Hx ]. }
     rewrite !Hmerged. reflexivity.
 Qed.
+
+(* ======================================================================== *)
+(* Renaming                                                                 *)
+(* ======================================================================== *)
+
+Theorem rename_alias_set_has : rename_alias_set_has_statement.
+Proof.
+  intros r set e.
+  destruct (simple_cases e) as [[n ->] | [c ->]].
+  - rewrite rename_simple_of_name, !alias_set_has_name. simpl.
+    rewrite <- !(keyed_among_in name name_eqb name_eqb_eq),
+      (among_renamed name_eqb (rename_name r) (name_eqb_renamed r)).
+    reflexivity.
+  - reflexivity.
+Qed.
+
+Theorem rename_singleton : rename_singleton_statement.
+Proof. intros r [x | sym | c]; reflexivity. Qed.
+
+Theorem rename_is_empty : rename_is_empty_statement.
+Proof.
+  intros r [[c | ] names]; unfold Aliases.Alias_set.is_empty; simpl;
+    [ reflexivity | apply is_empty_map ].
+Qed.
+
+Lemma inter_renamed (r : renaming) (names names' : list name) :
+  Keyed.inter name_eqb (map (rename_name r) names)
+    (map (rename_name r) names')
+  = map (rename_name r) (Keyed.inter name_eqb names names').
+Proof.
+  unfold Keyed.inter. apply filter_renamed. intros n.
+  apply (among_renamed name_eqb (rename_name r) (name_eqb_renamed r)).
+Qed.
+
+Theorem rename_inter : rename_inter_statement.
+Proof.
+  intros r [const names] [const' names'].
+  unfold Aliases.Alias_set.inter, rename_alias_set. simpl.
+  rewrite inter_renamed. reflexivity.
+Qed.
+
+Theorem rename_filter : rename_filter_statement.
+Proof.
+  intros r [const names] f.
+  unfold Aliases.Alias_set.filter, rename_alias_set. simpl. f_equal.
+  apply filter_renamed. intros n. rewrite rename_simple_of_name.
+  reflexivity.
+Qed.
+
+Theorem rename_find_best : rename_find_best_statement.
+Proof.
+  intros r [[c | ] names]; unfold Aliases.Alias_set.find_best; simpl;
+    [ reflexivity | ].
+  rewrite (filter_renamed (rename_name r) name_is_symbol name_is_symbol),
+    (filter_renamed (rename_name r)
+       (fun name => negb (name_is_symbol name))
+       (fun name => negb (name_is_symbol name)));
+    try (intros n; rewrite name_is_symbol_renamed; reflexivity).
+  destruct (filter name_is_symbol names) as [ | symbol symbols]; simpl.
+  - destruct (filter (fun name => negb (name_is_symbol name)) names)
+      as [ | var vars];
+      simpl; [ reflexivity | ].
+    rewrite rename_simple_of_name. reflexivity.
+  - rewrite rename_simple_of_name. reflexivity.
+Qed.
+
+Theorem rename_get_singleton : rename_get_singleton_statement.
+Proof.
+  intros r [[c | ] names]; unfold Aliases.Alias_set.get_singleton; simpl.
+  - rewrite is_empty_map. destruct (Keyed.is_empty names); reflexivity.
+  - unfold Keyed.get_singleton.
+    rewrite (dedup_renamed name_eqb (rename_name r) (name_eqb_renamed r)).
+    destruct (Keyed.dedup name_eqb names) as [ | n [ | n' rest]]; simpl;
+      try reflexivity.
+    rewrite rename_simple_of_name. reflexivity.
+Qed.
+
+Theorem rename_choose_opt : rename_choose_opt_statement.
+Proof.
+  intros r [[c | ] names]; unfold Aliases.Alias_set.choose_opt; simpl.
+  - rewrite is_empty_map. destruct (Keyed.is_empty names); reflexivity.
+  - destruct names as [ | n names]; simpl; [ reflexivity | ].
+    rewrite rename_simple_of_name. reflexivity.
+Qed.
+
+(* The structure and the canonical element so far, renamed. *)
+Definition rename_state (r : renaming) (acc : Aliases.t * simple)
+    : Aliases.t * simple :=
+  (rename_aliases r (fst acc), rename_simple r (snd acc)).
+
+Lemma canonical_element_of_renamed (r : renaming) (t : Aliases.t)
+    (e : simple) :
+  canonical_element_of (rename_aliases r t) (rename_simple r e)
+  = rename_simple r (canonical_element_of t e).
+Proof.
+  unfold canonical_element_of. rewrite canonical_renamed.
+  destruct (Aliases.canonical t e); reflexivity.
+Qed.
+
+Lemma add_alias_of_set_renamed {A : Type} (r : renaming)
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (c elt : simple) :
+  Aliases.add_alias_of_set (rename_resolver r binding_time_resolver)
+    (rename_binding_times r binding_times_and_modes)
+    (rename_aliases r t, rename_simple r c) (rename_simple r elt)
+  = option_map (rename_state r)
+      (Aliases.add_alias_of_set binding_time_resolver binding_times_and_modes
+         (t, c) elt).
+Proof.
+  rewrite !add_alias_of_set_eq, simple_equal_renamed, rename_add.
+  destruct (simple_equal c elt); [ reflexivity | ].
+  destruct
+    (Aliases.add binding_time_resolver binding_times_and_modes t c elt)
+    as [[result | ] | ];
+    reflexivity.
+Qed.
+
+Lemma fold_step_renamed {A : Type} (r : renaming)
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (todo : list simple) :
+  ∀ acc : option (Aliases.t * simple),
+    List.fold_left
+      (step (rename_resolver r binding_time_resolver)
+         (rename_binding_times r binding_times_and_modes))
+      (map (rename_simple r) todo)
+      (option_map (rename_state r) acc)
+    = option_map (rename_state r)
+        (List.fold_left (step binding_time_resolver binding_times_and_modes)
+           todo acc).
+Proof.
+  induction todo as [ | e todo IH]; intros acc; simpl; [ reflexivity | ].
+  rewrite <- IH. f_equal.
+  destruct acc as [[t c] | ]; simpl; [ | reflexivity ].
+  rewrite canonical_element_of_renamed. apply add_alias_of_set_renamed.
+Qed.
+
+Lemma elements_renamed (r : renaming) (aliases : Aliases.Alias_set.t) :
+  elements (rename_alias_set r aliases)
+  = map (rename_simple r) (elements aliases).
+Proof.
+  unfold elements, rename_alias_set. simpl. rewrite map_app, !map_map.
+  f_equal.
+  - destruct (Aliases.Alias_set.set_const aliases); reflexivity.
+  - apply map_ext. intros n. symmetry. apply rename_simple_of_name.
+Qed.
+
+Theorem rename_add_alias_set : rename_add_alias_set_statement.
+Proof.
+  intros A r binding_time_resolver binding_times_and_modes t name aliases.
+  rewrite !add_alias_set_eq, elements_renamed, <- rename_simple_of_name,
+    canonical_element_of_renamed.
+  change
+    (Some
+       (rename_aliases r t,
+        rename_simple r (canonical_element_of t (simple_of_name name))))
+    with
+      (option_map (rename_state r)
+         (Some (t, canonical_element_of t (simple_of_name name)))).
+  rewrite
+    (fold_step_renamed r binding_time_resolver binding_times_and_modes
+       (elements aliases)
+       (Some (t, canonical_element_of t (simple_of_name name)))).
+  destruct
+    (List.fold_left (step binding_time_resolver binding_times_and_modes)
+       (elements aliases)
+       (Some (t, canonical_element_of t (simple_of_name name))))
+    as [[t' c'] | ];
+    reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* Examples                                                                 *)
+(* ======================================================================== *)
+
+Module Examples.
+
+Import FlambdaEnvAliasesProofs.Examples.
+
+(* What the binary join does with the aliases of [y], a variable defined
+   before a fork, at a join of two uses. At the first use [x] and [y]
+   have been found equal ([x_y]). At the second they have, and [x] has
+   been found to hold five. *)
+Definition x_y_five : Aliases.t :=
+  match Aliases.add resolver times x_y (Var x) (Const five) with
+  | Some (Or_bottom.Ok result) => Aliases.add_result_t result
+  | Some Or_bottom.Bottom | None => Aliases.empty
+  end.
+
+Example aliases_at_first_use :
+  Aliases.get_aliases x_y (Var y)
+  = Aliases.Alias_set.make None [Name_var x; Name_var y].
+Proof. reflexivity. Qed.
+
+Example aliases_at_second_use :
+  Aliases.get_aliases x_y_five (Var y)
+  = Aliases.Alias_set.make (Some five) [Name_var x; Name_var y].
+Proof. reflexivity. Qed.
+
+(* The aliases common to the two uses: the constant is known at one use
+   only. *)
+Definition common : Aliases.Alias_set.t :=
+  Aliases.Alias_set.inter (Aliases.get_aliases x_y (Var y))
+    (Aliases.get_aliases x_y_five (Var y)).
+
+Example common_aliases :
+  common = Aliases.Alias_set.make None [Name_var x; Name_var y].
+Proof. reflexivity. Qed.
+
+(* Without [y] itself, as the join filters them, one alias is left. *)
+Definition not_y (e : simple) : bool := negb (simple_equal e (Var y)).
+
+Example common_aliases_but_itself :
+  Aliases.Alias_set.filter common not_y
+  = Aliases.Alias_set.make None [Name_var x].
+Proof. reflexivity. Qed.
+
+Example the_common_alias :
+  Aliases.Alias_set.get_singleton (Aliases.Alias_set.filter common not_y)
+  = Some (Var x)
+  ∧ Aliases.Alias_set.find_best (Aliases.Alias_set.filter common not_y)
+    = Some (Var x).
+Proof. split; reflexivity. Qed.
+
+(* The join records it: in a structure that knows nothing, [y] is made
+   an alias of the set, and the structure is the one in which [x] and
+   [y] are aliases. *)
+Example add_common_alias :
+  Aliases.add_alias_set resolver times Aliases.empty (Name_var y)
+    (Aliases.Alias_set.filter common not_y)
+  = Some x_y.
+Proof. reflexivity. Qed.
+
+(* The best alias of a set is its constant, and failing that a
+   symbol. *)
+Example best_is_constant :
+  Aliases.Alias_set.find_best (Aliases.get_aliases x_y_five (Var y))
+  = Some (Const five).
+Proof. reflexivity. Qed.
+
+Example best_is_symbol :
+  Aliases.Alias_set.find_best
+    (Aliases.Alias_set.make None [Name_var x; Name_symbol s])
+  = Some (Symbol s).
+Proof. reflexivity. Qed.
+
+(* A set with a constant and names is not empty and has no singleton,
+   and [choose_opt] has no answer for it. *)
+Example choose_of_constant_and_names :
+  Aliases.Alias_set.choose_opt (Aliases.get_aliases x_y_five (Var y)) = None
+  ∧ Aliases.Alias_set.is_empty (Aliases.get_aliases x_y_five (Var y)) = false.
+Proof. split; reflexivity. Qed.
+
+(* A set with a constant and a name: both names end in the class of the
+   constant. *)
+Example add_constant_and_name :
+  ∃ t : Aliases.t,
+    Aliases.add_alias_set resolver times Aliases.empty (Name_var y)
+      (Aliases.Alias_set.make (Some five) [Name_var x])
+    = Some t
+    ∧ Aliases.get_canonical_ignoring_name_mode t (Name_var x) = Const five
+    ∧ Aliases.get_canonical_ignoring_name_mode t (Name_var y) = Const five.
+Proof. eexists. split; [ reflexivity | split; reflexivity ]. Qed.
+
+(* Three variables: the earliest, [w], is the canonical element. *)
+Example add_two_names :
+  ∃ t : Aliases.t,
+    Aliases.add_alias_set resolver times Aliases.empty (Name_var y)
+      (Aliases.Alias_set.make None [Name_var x; Name_var w])
+    = Some t
+    ∧ Aliases.get_canonical_ignoring_name_mode t (Name_var x) = Var w
+    ∧ Aliases.get_canonical_ignoring_name_mode t (Name_var y) = Var w.
+Proof. eexists. split; [ reflexivity | split; reflexivity ]. Qed.
+
+(* [x] is known to hold five; a set that says it holds six is the fatal
+   error. No environment gives [x] both values. *)
+Example add_other_constant :
+  Aliases.add_alias_set resolver times x_five (Name_var x)
+    (Aliases.Alias_set.make (Some six) [])
+  = None.
+Proof. reflexivity. Qed.
+
+End Examples.

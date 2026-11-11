@@ -66,6 +66,9 @@
      gives the elements the value of the name; the names spoken of
      afterwards are among those before, the name and the names of the
      set.
+   - The functions on sets and [Aliases.add_alias_set] commute with
+     renaming, with no premise (the renamings are in
+     FlambdaEnvAliasesRenamingSpec.v); [filter] with the test renamed.
 
    Differences from the OCaml, all deliberate.
    - The names of a set are a list where the OCaml has a map from names
@@ -95,10 +98,10 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec.
+  FlambdaSemanticsSpec FlambdaNominalSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
-  FlambdaEnvAliasesSpec.
+  FlambdaEnvAliasesSpec FlambdaEnvAliasesRenamingSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -282,3 +285,68 @@ Definition add_alias_set_mentioned_statement : Prop :=
     = Some t' ->
     aliases_mention t' n ->
     aliases_mention t n ∨ n = name ∨ alias_set_has aliases (simple_of_name n).
+
+(* ======================================================================== *)
+(* Renaming                                                                 *)
+(* ======================================================================== *)
+
+(* The functions on sets and [Aliases.add_alias_set] commute with
+   renaming. None has a premise: where a function chooses among names
+   it takes the first of a list, which renaming keeps. *)
+
+Definition rename_alias_set_has_statement : Prop :=
+  ∀ (r : renaming) (set : Aliases.Alias_set.t) (e : simple),
+    alias_set_has (rename_alias_set r set) (rename_simple r e)
+    <-> alias_set_has set e.
+
+Definition rename_singleton_statement : Prop :=
+  ∀ (r : renaming) (e : simple),
+    Aliases.Alias_set.singleton (rename_simple r e)
+    = rename_alias_set r (Aliases.Alias_set.singleton e).
+
+Definition rename_is_empty_statement : Prop :=
+  ∀ (r : renaming) (set : Aliases.Alias_set.t),
+    Aliases.Alias_set.is_empty (rename_alias_set r set)
+    = Aliases.Alias_set.is_empty set.
+
+Definition rename_inter_statement : Prop :=
+  ∀ (r : renaming) (set set' : Aliases.Alias_set.t),
+    Aliases.Alias_set.inter (rename_alias_set r set)
+      (rename_alias_set r set')
+    = rename_alias_set r (Aliases.Alias_set.inter set set').
+
+(* [filter] of the renamed set with a test is the renamed [filter] of
+   the set with the test of the renamed simple. *)
+Definition rename_filter_statement : Prop :=
+  ∀ (r : renaming) (set : Aliases.Alias_set.t) (f : simple -> bool),
+    Aliases.Alias_set.filter (rename_alias_set r set) f
+    = rename_alias_set r
+        (Aliases.Alias_set.filter set (fun e => f (rename_simple r e))).
+
+Definition rename_find_best_statement : Prop :=
+  ∀ (r : renaming) (set : Aliases.Alias_set.t),
+    Aliases.Alias_set.find_best (rename_alias_set r set)
+    = option_map (rename_simple r) (Aliases.Alias_set.find_best set).
+
+Definition rename_get_singleton_statement : Prop :=
+  ∀ (r : renaming) (set : Aliases.Alias_set.t),
+    Aliases.Alias_set.get_singleton (rename_alias_set r set)
+    = option_map (rename_simple r) (Aliases.Alias_set.get_singleton set).
+
+Definition rename_choose_opt_statement : Prop :=
+  ∀ (r : renaming) (set : Aliases.Alias_set.t),
+    Aliases.Alias_set.choose_opt (rename_alias_set r set)
+    = option_map (rename_simple r) (Aliases.Alias_set.choose_opt set).
+
+Definition rename_add_alias_set_statement : Prop :=
+  ∀ (A : Type) (r : renaming)
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (name : name) (aliases : Aliases.Alias_set.t),
+    Aliases.add_alias_set (rename_resolver r binding_time_resolver)
+      (rename_binding_times r binding_times_and_modes) (rename_aliases r t)
+      (rename_name r name) (rename_alias_set r aliases)
+    = option_map (rename_aliases r)
+        (Aliases.add_alias_set binding_time_resolver binding_times_and_modes
+           t name aliases).
