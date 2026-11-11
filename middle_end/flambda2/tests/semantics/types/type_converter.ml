@@ -127,7 +127,10 @@ let z_of_float32 (f : Float32.t) : N.z =
 
 let float32_of_z (z : N.z) : Float32.t option =
   match N.words_of_z ~count:1 z with
-  | Some [word] when I64.compare word 0xFFFFFFFFL <= 0 ->
+  | Some [word]
+    when I64.compare word 0L >= 0 && I64.compare word 0xFFFFFFFFL <= 0 ->
+    (* The word is read without a sign by [words_of_z]; as an [int64] one from
+       2^63 up is negative, so both bounds are asked. *)
     Some (Float32.of_bits (I64.to_int32 word))
   | Some _ | None -> None
 
