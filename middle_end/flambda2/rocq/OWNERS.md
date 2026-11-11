@@ -207,7 +207,13 @@ Each is a pass with its proof in a file pair of its own, which its owner
 creates and lists here, and the `.fl` examples that need it. V1 wires the
 pass into the validator.
 
-- S1, primitives through types. Owner: unassigned.
+- S1, primitives through types. Owner of the first slice: T2, on
+  `flambda2-rocq/T2-env`; the rest unassigned.
+  - `middle_end/flambda2/types/rocq/FlambdaSimplifyPrimitives*` (a
+    primitive replaced by a constant, or the term by `Invalid`, on the
+    answer of a prover about the types of its arguments; after
+    `simplify/simplify_primitive.ml`, `simplify_unary_primitive.ml` and
+    `simplify_binary_primitive.ml`)
 - S2, switch. Owner of the first slice: T1, on
   `flambda2-rocq/T1-grammar`; the rest unassigned.
   - `middle_end/flambda2/types/rocq/FlambdaSimplifySwitch*` (the arms

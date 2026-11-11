@@ -267,6 +267,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaReify.v \
   FlambdaReifyProofs.v \
   FlambdaReifySpec.v \
+  FlambdaSimplifyPrimitivesProofs.v \
+  FlambdaSimplifyPrimitivesSpec.v \
   FlambdaSimplifySwitchProofs.v \
   FlambdaSimplifySwitchSpec.v \
   FlambdaTypeAccessProofs.v \
