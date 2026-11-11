@@ -77,7 +77,7 @@ compiler").
 | 7d | A group binds a static set whole, each symbol at its slot (D4, option (a)) | C3 | The set is bound by one pattern. That the slots agree, in order, is checked when a group is taken apart (`Static_const.match_against_bound_static_pattern`, `static_const.ml`, 779 to 798; called by Simplify, the printer and other passes), not when it is created: `Let.create` checks only that the pattern and what it binds are of the same variety |
 | 7e | The sets that one group binds have no code id in common; sets of different groups may (the human, on R2-15) | C3 | No check where a group is built. When visited: Simplify makes one map from old to new code ids for all the sets of a group (`Simplify_set_of_closures_context.compute_old_to_new_code_ids_all_sets`), so two sets with one code id bind one new id twice and `Flow_acc.record_code_id_binding` stops (R2-15). A set made by a `Let` has a map of its own, which is why the rule stops at a group |
 | 7f | The value slots of a set are distinct | C0, agreed with C3 | Type: a map (`Simple.t Value_slot.Map.t`, `set_of_closures.ml`). The fexpr parser accepts a slot written twice and keeps the second (C3-8) |
-| 8 | The tag of every block made, by `Make_block` or statically, and the tag a `Block_load` names, is in `[0, 251)` (the human, D23). Proposed with it: a constant is in the range of its kind (D13) | C1 | Type (`Tag.Scannable.t`, whose creation function refuses others). Constants: type, I believe (`Reg_width_const`, not read); the fexpr parser wraps `int8` and `int16` (C1-11) |
+| 8 | Every number of a term is one that the compiler's can be: the tag of a block made, by `Make_block` or statically, and the tag a `Block_load` names, in `[0, 251)` (D23); a constant in the range of its kind (the human, D13); the field and the size of a `Block_load`, the discriminants of a `Switch` and the bytes of a string in the range of their type | C1 (`numbers_in_range`) | Type, each of them: `Tag.Scannable.t`, whose creation function refuses others; `Target_ocaml_int.t`; `Numeric_types.Int8.t` and `Int16.t`, made by functions that wrap or fail; `Int32.t`, `Int64.t`, `Targetint_32_64.t`. The fexpr parser wraps an `int8` or `int16` literal that is out of range (C1-11) |
 | 9a | A handler has as many kinds as parameters | C2, with its first step | Type: a parameter carries its kind (`Bound_parameter`) |
 | 9b | Code has as many parameters as its declared arity has components, unarized | C2, with its first step | Nothing checks that the arity in the metadata of code agrees with its parameters (C2-6); the producers make one from the other |
 | 9c | A call has as many arguments as its own arity has components, unarized | C2, with its first step | Creation function (`Apply_expr.create`, `apply_expr.ml`, 207 to 232) |
@@ -242,10 +242,12 @@ on undefined cases would sit together. The human has said yes to it
   in `FlambdaWellFormedSpec.v` says so: that the model is stricter
   here, what the compiler does (the file and the function, or
   nothing), and the number of the discrepancy. This is the human's
-  rule (D32). Today that is rows 1, 2, 5, 6, 7b, 7c, 7e, 9b and the
-  constants of row 8. It is a plain comment and not a `CR`: a `CR`
-  marks something undefined that may be wrong. It never applies to
-  kinds, where the model is not stricter than the compiler.
+  rule (D32). Today that is rows 1, 2, 5, 6, 7b, 7c, 7e and 9b. (Row
+  8 is not one of them: C1 found each of its ranges to hold in the
+  compiler by a type, and its comment says which.) It is a plain
+  comment and not a `CR`: a `CR` marks something undefined that may be
+  wrong. It never applies to kinds, where the model is not stricter
+  than the compiler.
 - No `Spec` file keeps a condition on terms as its own premise if the
   compiler's terms always satisfy it. It is proposed as a row, with
   the place in the compiler, or "nothing".
@@ -296,7 +298,8 @@ doesn't thoroughly check some things that ought to be invariants."
   binds only code is refused away from toplevel, though the compiler
   lets it through.
 - **Constants in range** (D13) are part of row 8, with the tags. C1
-  writes the check.
+  has written the check (`numbers_in_range`), and it is a condition of
+  `well_formed_unit`.
 - **The classification of undefined behaviour** in one definition is
   wanted. It comes after C3's epoch and after row 4, since the list is
   what is left when the conditions are in.
