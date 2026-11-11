@@ -202,11 +202,23 @@ says so. Only the labels that this tree cites are listed.
 - **C3-8.** The model can write a set of closures in which a value slot
   is given twice; the compiler cannot, and the fexpr parser accepts one
   and keeps the second value.
+- **N1-1.** `Compare` writes the reverse maps of function slots and
+  value slots into the forward maps.
+- **N1-2.** `pattern_match_pair` on code and on recursive handlers stops
+  the compiler where the lists of bound names differ in length.
 - **N1-3.** That the names of a binder are distinct is checked for
   continuations always, and for parameters only with invariant checks
   on.
 - **N1-4.** That code is closed is a claim of whoever creates it,
   checked only for the form of the claim.
+- **N1-5.** A static pattern is in a name abstraction, is never renamed,
+  and is subtracted from the free names.
+- **N1-6.** Existential variables of an environment extension, and the
+  variables a level defines, are binders that the nominal interface does
+  not see.
+- **N1-7.** Some of Simplify's output depends on the order of names.
+- **N1-8.** A renaming with an import map is not a permutation, and
+  renamings do not compose in general.
 - **R1-1.** Unboxing records `Get_tag` on the paths where the value is
   an immediate, and supplies a dummy tag of zero.
 - **R1-2.** The types library evaluates `Is_null` of poison as false.
