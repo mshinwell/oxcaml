@@ -68,25 +68,38 @@
      meet of less fuel. It is another workstream's (T5), and its
      contract is in FlambdaMeetSpec.v. It is to be read as the compiler
      run with [-flambda2-join-sharing structural] (decision D30).
-   - [type_of_get_tag_scrutinee]: the type that
-     [reduce_inverse_relations] gives a name of which a number among
-     some tags is [Get_tag]. The compiler's is
-     [blocks_with_these_tags] (FlambdaTypeGrammar.v), with which the
-     step is not sound; [immediate_or_blocks_with_these_tags], below,
-     is the type with which it is (FlambdaMeetSpec.v, "The step that
-     is not sound").
-   - [define_again]: whether a variable that the environment already
-     knows is defined again, where the compiler defines the variables
-     of a level in the environment that a join has answered
-     ([add_defined_vars], and the extra variables of
-     [meet_row_like]). The compiler does ([true]), and then the
-     environment may know one variable at two binding times; with
-     [false] only the variables that the environment does not know are
-     defined (FlambdaMeetSpec.v, discrepancy T4-1).
+   - [choices], a record of the three places where the meet can do
+     other than the compiler does ([meet_choices], which the compiler
+     has not):
+     - [type_of_get_tag_scrutinee]: the type that
+       [reduce_inverse_relations] gives a name of which a number among
+       some tags is [Get_tag]. The compiler's is
+       [blocks_with_these_tags] (FlambdaTypeGrammar.v), with which the
+       step is not sound; [immediate_or_blocks_with_these_tags],
+       below, is the type with which it is (FlambdaMeetSpec.v, "The
+       step that is not sound").
+     - [define_again]: whether a variable that the environment already
+       knows is defined again, where the compiler defines the
+       variables of a level in the environment that a join has
+       answered ([add_defined_vars], and the extra variables of
+       [meet_row_like]). The compiler does ([true]), and then the
+       environment may know one variable at two binding times; with
+       [false] only the variables that the environment does not know
+       are defined (FlambdaMeetSpec.v, discrepancy T4-1).
+     - [lift_variables_of_single_case]: [meet_row_like], where it
+       keeps one case only ([need_join] is false), makes no extension
+       of that case and does not record the variables that the
+       environment of the case defines; the join is then given that
+       one environment, and keeps of its variables those that the
+       equations it joins mention. A variable that a meet inside the
+       case defined, and that only the type answered mentions, is
+       then not known to the environment answered. The compiler does
+       not lift ([false]); with [true] those variables are defined in
+       the result, as they are where there is more than one case
+       (FlambdaMeetSpec.v, discrepancy T4-9).
    - the fuel.
-   The compiler is [Meet.meet join blocks_with_these_tags true fuel];
-   what is to be proved sound is
-   [Meet.meet join immediate_or_blocks_with_these_tags false fuel].
+   The compiler is [Meet.meet join compiler_choices fuel]; what is to
+   be proved sound is [Meet.meet join repaired_choices fuel].
 
    What the model has, in the order of the file, and how each differs
    from the compiler's:
@@ -117,7 +130,7 @@
    - [meet_head_of_kind_rec_info], [meet_head_of_kind_region]: in
      full; both answer the inputs.
    - [add_defined_vars], [meet_disjunction], [meet_row_like]: in
-     full, but for [define_again] and the names to avoid (below).
+     full, but for the choices above and the names to avoid (below).
    - [meet_relation], [meet_variant], [meet_head_of_kind_value],
      [meet_int_indexed_product], [meet_array_of_types],
      [meet_product_function_slot_indexed],
@@ -164,14 +177,26 @@
      slots, value slots and the names of an extension in the order of
      its maps; here they are gone through in the order in which the
      first map lists them, then those that only the second has
-     ([keys_of_both], FlambdaMeetGrammar.v). The order
-     matters to the answer only through the environment that one meet
-     hands the next, and through which fatal error or bottom comes
-     first; the converter from the compiler's types is to list the
-     bindings of a map in the compiler's order, and then the two
-     agree. The extra variables of [meet_row_like] are defined in the
-     order in which the cases were met, where the compiler defines
-     them in the order of the variables.
+     ([keys_of_both], FlambdaMeetGrammar.v). The extra variables of
+     [meet_row_like] are defined in the order in which the cases were
+     met, where the compiler defines them in the order of the
+     variables. So this file is the compiler's algorithm on maps whose
+     order is not the compiler's, and it is not claimed that the two
+     answer the same thing. Where the order can show: which of two
+     fatal errors or of two bottoms comes first; the environment that
+     one meet hands the next, and so what the next one reads; the
+     binding times of variables defined after a join; the order of the
+     bindings of the maps and of the equations of the levels
+     answered. Giving the model its inputs with the bindings in the
+     compiler's order does not remove these: the maps and the levels
+     that the model builds on the way (an entry replaced, a level cut,
+     an extension made of a level) are lists in the order in which
+     they were built, and are gone through in that order later. No
+     statement here says that the answer does not depend on the order,
+     up to the order of bindings and to binding times; until one does,
+     a comparison with the compiler is to be made up to those, and a
+     difference beyond them is to be looked at, not assumed to be the
+     order.
    - Names to avoid. The compiler's join makes variables with
      [Variable.create], which are new by construction. The model's
      join is to avoid the names of [Meet_env.names_to_avoid]
@@ -686,6 +711,34 @@ Definition immediate_or_blocks_with_these_tags (tags : list Z)
           Or_bottom.Bottom alloc_mode))
     No_extensions.
 
+(* The places where the transcribed meet can do other than the
+   compiler does. The compiler has no such record. *)
+Record meet_choices : Type := {
+  (* The type that [reduce_inverse_relations] gives a name of which a
+     number among some tags is [Get_tag]. *)
+  type_of_get_tag_scrutinee : list Z -> Alloc_mode.t -> flambda_type;
+  (* Whether a variable that the environment already knows is defined
+     again by [add_defined_vars] and by [meet_row_like]. *)
+  define_again : bool;
+  (* Whether [meet_row_like] defines in its result the variables that
+     the environment of its one case defines, where it keeps one case
+     only and makes no extension of it ([need_join] is false). *)
+  lift_variables_of_single_case : bool
+}.
+
+(* What the compiler does: [blocks_with_these_tags]; it defines again;
+   it does not lift. *)
+Definition compiler_choices : meet_choices :=
+  {| type_of_get_tag_scrutinee := blocks_with_these_tags;
+     define_again := true;
+     lift_variables_of_single_case := false |}.
+
+(* What the contract of FlambdaMeetSpec.v is to be proved of. *)
+Definition repaired_choices : meet_choices :=
+  {| type_of_get_tag_scrutinee := immediate_or_blocks_with_these_tags;
+     define_again := false;
+     lift_variables_of_single_case := true |}.
+
 (* ======================================================================== *)
 (* The meet, given the meet of less fuel                                    *)
 (* ======================================================================== *)
@@ -699,15 +752,9 @@ Variable join :
   meet_expanded_head -> Scope.t -> Meet_env.t -> Typing_env.t ->
   list Typing_env.t -> option Meet_env.t.
 
-(* The type that [reduce_inverse_relations] gives a name of which a
-   number among some tags is [Get_tag]. In the compiler it is
-   [blocks_with_these_tags]. *)
-Variable type_of_get_tag_scrutinee : list Z -> Alloc_mode.t -> flambda_type.
-
-(* Whether a variable that the environment already knows is defined
-   again by [add_defined_vars] and by [meet_row_like]. The compiler
-   does. *)
-Variable define_again : bool.
+(* Where the meet can do other than the compiler: see
+   [meet_choices]. *)
+Variable choices : meet_choices.
 
 (* [meet_expanded_head], of less fuel. *)
 Variable meet_expanded_head_rec : meet_expanded_head.
@@ -721,7 +768,7 @@ Definition meet (env : Meet_env.t) (t1 t2 : flambda_type)
    only in types. *)
 Definition define_in_types (env : Meet_env.t) (var : variable)
     (kind : flambda_kind) : option Meet_env.t :=
-  if define_again
+  if define_again choices
      || negb (Typing_env.mem None (Meet_env.typing_env env) (Name_var var))
   then Meet_env.add_definition env (Name_var var) Name_mode.in_types kind
   else Some env.
@@ -1146,9 +1193,18 @@ Definition meet_row_like (initial_env : Meet_env.t) (known1 known2 : known)
             extract_value maps_to_result (case_maps_to case1)
               (case_maps_to case2)
           in
+          (* Not in the compiler: where no extension is made of the
+             case, its variables may be lifted all the same (see
+             [meet_choices]). *)
           let* '(env_extension, state) :=
             if need_join
             then add_extra_variables_and_extract_extension tenv state
+            else if lift_variables_of_single_case choices
+            then
+              let* '(_, state) :=
+                add_extra_variables_and_extract_extension tenv state
+              in
+              Some (empty_env_extension, state)
             else Some (empty_env_extension, state)
           in
           let state :=
@@ -1297,7 +1353,9 @@ Definition meet_relation (env : Meet_env.t) (var1 var2 : option variable)
   end.
 
 (* [meet_function_type]. The model's function types have no
-   [rec_info], whose meet in the compiler changes nothing. *)
+   [rec_info]. The compiler meets the two as types of kind [Rec_info],
+   which answers the inputs and adds nothing unless one of them is an
+   alias. *)
 Definition meet_function_type (env : Meet_env.t)
     (func_type1 func_type2 : Or_unknown.t function_type)
     : option (Meet_result.t (Or_unknown.t function_type)) :=
@@ -1505,7 +1563,7 @@ Definition meet_row_like_for_closures (env : Meet_env.t)
 Definition type_of_get_tag_scrutinee_or_unknown (tags : list Z)
     (alloc_mode : Alloc_mode.t) : Or_unknown.t flambda_type :=
   if forallb is_structured_block tags
-  then Or_unknown.Known (type_of_get_tag_scrutinee tags alloc_mode)
+  then Or_unknown.Known (type_of_get_tag_scrutinee choices tags alloc_mode)
   else Or_unknown.Unknown.
 
 (* [reduce_inverse_relations]: what the numbers that a naked immediate
@@ -1861,8 +1919,8 @@ End Meet.
 (* ======================================================================== *)
 
 (* [Meet_and_n_way_join.meet_expanded_head] and what types/meet.ml
-   exposes, for a join, a type for the [Get_tag] step, a choice of
-   whether variables are defined again, and a number, the fuel. *)
+   exposes, for a join, the choices of [meet_choices], and a number,
+   the fuel. *)
 Module Meet.
 
 Section Fuel.
@@ -1870,8 +1928,7 @@ Section Fuel.
 Variable join :
   meet_expanded_head -> Scope.t -> Meet_env.t -> Typing_env.t ->
   list Typing_env.t -> option Meet_env.t.
-Variable type_of_get_tag_scrutinee : list Z -> Alloc_mode.t -> flambda_type.
-Variable define_again : bool.
+Variable choices : meet_choices.
 
 (* [Meet_and_n_way_join.meet_expanded_head]: the meet of two types that
    are not aliases. [None] is a fatal error of the compiler, or the
@@ -1880,8 +1937,7 @@ Fixpoint meet_expanded_head (fuel : nat) : FlambdaMeetEnv.meet_expanded_head :=
   match fuel with
   | O => fun _ _ _ => None
   | S fuel =>
-    meet_expanded_head_step join type_of_get_tag_scrutinee define_again
-      (meet_expanded_head fuel)
+    meet_expanded_head_step join choices (meet_expanded_head fuel)
   end.
 
 (* [Meet.meet], which is [Meet_and_n_way_join.meet] as it is exposed:
@@ -1938,12 +1994,11 @@ Section Fuel.
 Variable join :
   meet_expanded_head -> Scope.t -> Meet_env.t -> Typing_env.t ->
   list Typing_env.t -> option Meet_env.t.
-Variable type_of_get_tag_scrutinee : list Z -> Alloc_mode.t -> flambda_type.
-Variable define_again : bool.
+Variable choices : meet_choices.
 Variable fuel : nat.
 
 Let meet_expanded_head : FlambdaMeetEnv.meet_expanded_head :=
-  Meet.meet_expanded_head join type_of_get_tag_scrutinee define_again fuel.
+  Meet.meet_expanded_head join choices fuel.
 
 (* [Typing_env.add_equation]: the name has the type given as well as
    the type it had. *)

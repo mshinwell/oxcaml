@@ -117,12 +117,9 @@ Definition example_get_tag_env : Typing_env.t :=
    join and the other parameters of the meet: with two variables that
    have just been defined there is nothing to meet. *)
 Definition example_get_tag_env_made_statement : Prop :=
-  ∀ (join : join_scoped_envs)
-    (type_of_get_tag_scrutinee : list Z -> Alloc_mode.t -> flambda_type)
-    (define_again : bool),
-    Flambda2_types.add_get_tag_relation join type_of_get_tag_scrutinee
-      define_again 1 example_two_variables (Name_var example_tag)
-      (Var example_p)
+  ∀ (join : join_scoped_envs) (choices : meet_choices),
+    Flambda2_types.add_get_tag_relation join choices 1
+      example_two_variables (Name_var example_tag) (Var example_p)
     = Some example_get_tag_env.
 
 (* A run in which [p] is an immediate; unboxing passes 0 for the tag
@@ -237,7 +234,7 @@ Definition example_is_null_valuation : env :=
 Definition add_equation_forgets_statement : Prop :=
   ∀ join : join_scoped_envs,
     ∃ tenv' : Typing_env.t,
-      Flambda2_types.add_equation join blocks_with_these_tags true 2
+      Flambda2_types.add_equation join compiler_choices 2
         example_is_null_env (Name_var example_x) any_non_null_value
       = Some tenv'
       ∧ typing_env_satisfied_strictly empty_static_env

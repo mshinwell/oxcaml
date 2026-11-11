@@ -79,7 +79,7 @@ Ltac lookup_cases H :=
 
 Theorem example_get_tag_env_made : example_get_tag_env_made_statement.
 Proof.
-  intros join type_of_get_tag_scrutinee define_again.
+  intros join choices.
   vm_compute. reflexivity.
 Qed.
 
@@ -121,7 +121,7 @@ Proof.
   intros valuation' Hextended [_ [Hnames _]].
   assert (Hp : lookup example_p valuation'
                = Some (Value_const (Tagged_immediate 7)))
-    by (apply Hextended; reflexivity).
+    by (rewrite (Hextended example_p eq_refl); reflexivity).
   refine (_ (Hnames (Name_var example_p) _ _ _ eq_refl Hp)).
   intros [[[] _] | Hsatisfied].
   revert Hsatisfied. open_type.
@@ -152,7 +152,7 @@ Proof.
   injection Hjoin as <-. split; [ | split; [ | split ] ].
   - intros scoped_env statics valuation Hin Hinitial Hscoped_env.
     exists valuation. split; [ | exact Hinitial ].
-    intros x v _ Hlookup. exact Hlookup.
+    intros x _. reflexivity.
   - repeat split; try reflexivity.
     + intros x Hamong. exact Hamong.
     + intros n ty binding_time_and_mode Hlookup. exists ty.

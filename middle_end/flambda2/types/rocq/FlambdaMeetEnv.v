@@ -106,8 +106,12 @@
    - The equations of an extension are added in the order of the list
      that the extension is, a name with two equations having the first.
      The compiler adds them in the order of the names
-     ([Name.Map.fold]), which the model may not look at. The converter
-     from the compiler's types is to list them in that order.
+     ([Name.Map.fold]), which the model may not look at. The order can
+     show in the answer (which fatal error or bottom comes first, what
+     a later meet reads, the order of the bindings answered), and an
+     extension that the model makes from a level is in the order in
+     which the level was built: FlambdaMeet.v, "The order of what is
+     gone through", says what is and is not claimed.
    - [names_to_avoid] is not in the compiler. A variable that the
      compiler makes ([Variable.create], in types/env/join_env.ml; meet
      itself makes none) is different from every variable made before.

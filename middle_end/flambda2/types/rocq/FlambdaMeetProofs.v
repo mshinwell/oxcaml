@@ -66,7 +66,7 @@ Qed.
 
 Theorem fits_kinded : fits_kinded_statement.
 Proof.
-  intros type_well_formed typing_env_well_formed tenv [_ Hfits] n ty
+  intros type_well_formed typing_env_well_formed tenv [_ [_ Hfits]] n ty
     binding_time_and_mode Hlookup.
   exact (proj2 (proj2 (Hfits n ty binding_time_and_mode Hlookup))).
 Qed.

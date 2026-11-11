@@ -69,16 +69,17 @@
      has both types under any valuation that satisfies the environment
      ([meet_bottom_sound]);
    - some valuation satisfies [tenv'], gives [v] the type [t], and
-     gives every variable that [tenv] knows and that had a value the
-     value it had ([extended_from]). The variables that [tenv'] knows
-     and [tenv] does not are those that the meet defined; the valuation
-     may give each a value, and one valuation accounts for all the
-     equations that the meet added. A variable that [tenv] knows and
-     that had no value may be given one: the n-way join makes such a
-     variable an alias of a constant where the other environments
-     joined have for it a type that nothing has. The meaning of a type
-     reads the valuation only positively (FlambdaTypeMeaningSpec.v),
-     so a type that held still holds.
+     agrees with the first on every variable that [tenv] knows: the
+     same value, or none in both ([extended_from]). The variables that
+     [tenv'] knows and [tenv] does not are those that the meet defined;
+     the valuation may give each a value, and one valuation accounts
+     for all the equations that the meet added. So what the first
+     valuation satisfied, of environments and types over the variables
+     that [tenv] knows, the second satisfies: satisfaction depends on
+     the values of the variables mentioned only
+     (FlambdaTypingEnvSpec.v). The meet of an alternative of a
+     disjunction relies on it: the valuation that it answers has to
+     satisfy the environment of the whole meet still, for the join.
    What is known is kept and what is new is true. Nothing is said of
    how much the meet knows: see "Precision" below.
 
@@ -204,8 +205,17 @@
      join that it calls does (below), so meet has to be given them and
      to give them back. There is a CR at [type_kinded].
    - The environment is well formed: [typing_env_well_formed], which
-     is T2's to define and is a parameter until it is: binding times,
-     levels and scopes, the aliases.
+     is T2's (FlambdaTypingEnvInvariantSpec.v) and is a parameter here
+     for now: binding times, levels and scopes, the aliases.
+   - No name has a type that is obviously bottom, unless the
+     environment is bottom ([no_bottom_types]). A name with such a
+     type has no value. The n-way join passes over an obviously bottom
+     type where it joins the types that a name has in the environments
+     joined, and can then make the name an alias of what it is in the
+     others: its witness would have to give a value to a name that had
+     none, and the agreement above would be lost. Meet keeps the
+     condition: it answers bottom for the whole environment where an
+     equation has no value. There is a CR at [no_bottom_types].
    The answer is well formed in the same sense and of the kind of the
    inputs, and the environment answered knows what the first knew
    ([meet_keeps_well_formed]), so that a meet can follow a meet.
@@ -224,10 +234,10 @@
    agreed with T5 (its contract is FlambdaJoinSpec.v):
    - a valuation that satisfies the environment of the meet and one of
      the environments joined extends to one that satisfies the result,
-     and that gives every variable that the environment joined knows,
-     and that had a value, the value it had; one valuation for all
-     that the join defines. The variables that the result takes from
-     the other environments joined may have no value in it.
+     and that agrees with it on every variable that the environment
+     joined knows; one valuation for all that the join defines. The
+     variables that the result takes from the other environments
+     joined may have no value in it.
      The premise is about one valuation and both environments. It is
      not that whatever satisfies an environment joined satisfies the
      environment of the meet: that is false of the environments that
@@ -236,8 +246,14 @@
      [x : any_non_null_value] answers [x : any_non_null_value] and
      says nothing of [z], which was 0 if [x] was not null
      ([meet_disjunction], the case of one alternative that is bottom).
-     The valuation in hand satisfied the first environment and is
-     carried along, and that is all that meet can give;
+     And the join needs the environment of the meet to be satisfied:
+     for a name that every environment joined has an equation on, it
+     answers the meet of the type joined with the type that the
+     environment of the meet records. The valuation in hand satisfied
+     that environment before the alternative was met, and the
+     valuation that the alternative answers agrees with it on what
+     that environment knows, so it satisfies it still: that is what
+     meet gives, and why the agreement has to be exact;
    - the result is the first environment with equations and
      definitions added: its scope, its earlier levels and what it knew
      are unchanged ([meet_env_extends]);
@@ -252,16 +268,22 @@
    adding definitions and equations ([scoped_env_of]): each fits, and
    has every name of the first with its binding time and a type of the
    same kind.
-   Whether the n-way join has the first clause is in question
-   (discrepancy T5-10): where the type joined for a name [x] is a
-   variant with a variable [r] for [Is_int], the join gives [r] the
-   type "[Is_int] of [x]" ([recover_inverse_relations]), also where
-   [x] has no value in the run and [r] has one, and that type is true
-   of no number then. The clause is not weakened for it: a meet that
-   follows reads the relation on behalf of the value of [r] and adds
-   an equation to [x], whose type nothing ties to anything if it has
-   no value, so with [r] exempt that meet could answer bottom for a
-   value that has both types.
+   The compiler's n-way join is known to have the first clause only
+   under a condition on what it is given (discrepancy T5-10, and
+   FlambdaJoinSpec.v, which states the condition): where the type
+   joined for a name [x] is a variant with a variable [r] for
+   [Is_int], the join gives [r] the type "[Is_int] of [x]"
+   ([recover_inverse_relations]), also where [x] has no value in the
+   run and [r] has one, and that type is true of no number then. The
+   condition is that the scrutinee of every relation so recovered has
+   a value in every run in which the result has one. The clause here
+   is not weakened for it: a meet that follows reads the relation on
+   behalf of the value of [r] and adds an equation to [x], whose type
+   nothing ties to anything if it has no value, so with [r] exempt
+   that meet could answer bottom for a value that has both types. So
+   the meet is to be proved with the clause as a hypothesis on the
+   join, and its instance for the compiler's own join carries that
+   condition.
 
    Code ids. A function type names its code exactly
    (FlambdaTypeMeaningSpec.v); the code age relation is not in the
@@ -362,7 +384,14 @@
    [define_again], FlambdaMeet.v), T4-2 (a meet through a name that
    holds poison), T4-3 (function types of slots that the index does
    not have), T4-4 (code age), T4-5 (a relation on a scrutinee that
-   holds poison), T4-6 (tags out of range). *)
+   holds poison), T4-6 (tags out of range), T4-9 (where
+   [meet_row_like] keeps one case only it does not define, in the
+   environment that it answers, the variables that the meet of that
+   case defined, and the join that it calls on that one environment
+   need not keep them: the type answered can mention a variable that
+   the environment answered does not know, and
+   [meet_keeps_well_formed] is to be proved of the meet that lifts
+   them: [lift_variables_of_single_case], FlambdaMeet.v). *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
@@ -378,16 +407,15 @@ Import ListNotations.
 (* What a meet may change of a valuation                                    *)
 (* ======================================================================== *)
 
-(* What a meet or a join may change of a valuation: a variable that
-   the environment [tenv] knows, and that has a value, keeps it. A
-   variable that had no value may be given one, and the variables that
-   are new may have any value, or none. *)
+(* What a meet or a join may change of a valuation: nothing, on the
+   variables that the environment [tenv] knows. A variable that had no
+   value has none. The variables that are new may have any value, or
+   none. *)
 Definition extended_from (tenv : Typing_env.t) (valuation valuation' : env)
     : Prop :=
-  ∀ (x : variable) (v : value),
+  ∀ x : variable,
     Typing_env.mem None tenv (Name_var x) = true ->
-    lookup x valuation = Some v ->
-    lookup x valuation' = Some v.
+    lookup x valuation' = lookup x valuation.
 
 (* ======================================================================== *)
 (* The functions                                                            *)
@@ -473,6 +501,31 @@ Definition typing_env_kinded (tenv : Typing_env.t) : Prop :=
     = Some (ty, binding_time_and_mode) ->
     type_kinded tenv ty.
 
+(* No name has a type that is obviously bottom, in an environment that
+   is not bottom. *)
+(* The model is stricter than the compiler here (decision D32). The
+   compiler does make environments that are not bottom in which a name
+   has the bottom type: [Meet_env.add_env_extension_maybe_bottom],
+   for the binary join (types/join_levels_old.ml). The meet and the
+   n-way join do not call it: where an equation has no value they make
+   the whole environment bottom ([Meet_env.add_equation],
+   [Meet_env.add_env_extension]) or answer bottom
+   ([Meet_env.add_equation_strict]). *)
+(* CR mshinwell: this is asked of every environment that a meet is
+   made in, because the n-way join that the meet calls is sound only
+   for it as far as is known: the join of types passes over an
+   obviously bottom type, and the join of environments can then give
+   the name what it is in the other environments joined, where it has
+   no value in this one. It is not known that every environment that
+   Simplify builds with the n-way join has it. Discrepancy T5-10. *)
+Definition no_bottom_types (tenv : Typing_env.t) : Prop :=
+  Typing_env.is_bottom tenv = false ->
+  ∀ (n : name) (ty : flambda_type)
+    (binding_time_and_mode : Binding_time.With_name_mode.t),
+    Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
+    = Some (ty, binding_time_and_mode) ->
+    is_obviously_bottom ty = false.
+
 Section Contracts.
 
 (* [type_well_formed] is T1's (FlambdaTypeWellFormedSpec.v) and
@@ -495,10 +548,12 @@ Definition type_fits (tenv : Typing_env.t) (t : flambda_type) : Prop :=
       x ∈ free_variables t -> Typing_env.mem None tenv (Name_var x) = true)
   ∧ type_kinded tenv t.
 
-(* An environment in which a meet may be made: it is well formed, and
+(* An environment in which a meet may be made: it is well formed, no
+   name has an obviously bottom type in it unless it is bottom, and
    each of its types fits it. *)
 Definition typing_env_fits (tenv : Typing_env.t) : Prop :=
   typing_env_well_formed tenv = true
+  ∧ no_bottom_types tenv
   ∧ ∀ (n : name) (ty : flambda_type)
       (binding_time_and_mode : Binding_time.With_name_mode.t),
       Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
@@ -530,9 +585,9 @@ Definition env_extension_fits (tenv : Typing_env.t)
 
 (* A meet loses no value and what it adds is true. If a valuation
    satisfies the environment and gives [v] both types, the meet does
-   not answer bottom, and a valuation that keeps the values of what the
-   environment knew satisfies the environment answered and gives [v]
-   the type answered. *)
+   not answer bottom, and a valuation that agrees with the first on
+   what the environment knew satisfies the environment answered and
+   gives [v] the type answered. *)
 Definition meet_sound (meet : meet_function) : Prop :=
   ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
     (t1 t2 : flambda_type) (v : value)
@@ -602,7 +657,7 @@ Definition meet_contract (meet : meet_function) : Prop :=
 
 (* [Typing_env.add_equation]. If a valuation satisfies the environment,
    and the name has a value, of the type given, then a valuation that
-   keeps the values of what the environment knew satisfies the
+   agrees with the first on what the environment knew satisfies the
    environment answered. In particular that environment is not
    bottom. *)
 (* CR mshinwell: the premise is that the environment is satisfied
@@ -827,22 +882,24 @@ End Contracts.
 (* The transcribed meet                                                     *)
 (* ======================================================================== *)
 
-(* The meet as the compiler has it (FlambdaMeet.v): the step for
-   [Get_tag] adds [blocks_with_these_tags], and the variables of a
-   level are defined again after a join. It has not [meet_sound]
-   (FlambdaMeetExamplesSpec.v). *)
+(* The meet as the compiler has it (FlambdaMeet.v, [compiler_choices]):
+   the step for [Get_tag] adds [blocks_with_these_tags], the variables
+   of a level are defined again after a join, and the variables of a
+   single case of a row-like structure are not lifted. It has not
+   [meet_sound] (FlambdaMeetExamplesSpec.v). *)
 Definition compiler_meet (join : join_scoped_envs) (fuel : nat)
     : meet_function :=
-  Meet.meet join blocks_with_these_tags true fuel.
+  Meet.meet join compiler_choices fuel.
 
-(* The meet that the contract is to be proved of: the step for
-   [Get_tag] adds [immediate_or_blocks_with_these_tags], and a variable
-   that the environment knows is not defined again. The statement to
-   come is [transcription_sound type_well_formed typing_env_well_formed
+(* The meet that the contract is to be proved of ([repaired_choices]):
+   the step for [Get_tag] adds [immediate_or_blocks_with_these_tags],
+   a variable that the environment knows is not defined again, and the
+   variables of a single case are lifted. The statement to come is
+   [transcription_sound type_well_formed typing_env_well_formed
    meet_to_prove], for T1's and T2's predicates. *)
 Definition meet_to_prove (join : join_scoped_envs) (fuel : nat)
     : meet_function :=
-  Meet.meet join immediate_or_blocks_with_these_tags false fuel.
+  Meet.meet join repaired_choices fuel.
 
 (* ======================================================================== *)
 (* The step of the compiler's meet that is not sound                        *)
