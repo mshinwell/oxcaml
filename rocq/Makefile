@@ -168,6 +168,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaNominalSpec.v \
   FlambdaNormaliseProofs.v \
   FlambdaNormaliseSpec.v \
+  FlambdaPartialApplicationProofs.v \
+  FlambdaPartialApplicationSpec.v \
   FlambdaPrimitiveModel.v \
   FlambdaPrimitiveProofs.v \
   FlambdaPrimitiveSpec.v \
