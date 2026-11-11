@@ -245,6 +245,9 @@ says so. Only the labels that this tree cites are listed.
   differs between the types (T1) and the primitives (C1).
 - **R1-12.** The conversion of static constants discards the shape of a
   mixed block.
+- **R1-16.** The n-way join of immediates gives an empty set to
+  `create_naked_immediates_non_empty` when every head reduces to bottom;
+  traced, not shown reachable.
 - **R2-3.** A static set of closures may be empty; a set bound by a
   `Let` may not.
 - **R2-7.** Simplify fails on a set of closures in which two function
@@ -325,9 +328,27 @@ says so. Only the labels that this tree cites are listed.
   prefers a `Phantom` alias to an earlier `Normal` one.
 - **T3-7.** `find_best` and the tie in `find_earliest_alias` depend on
   the order of names; the model takes the first of a list.
+- **T4-1.** After the n-way join, the meet defines a second time the
+  variables that the join imported from a branch.
+- **T5-1.** The assumption stated by the n-way join, that every name of
+  the source is defined in every joined environment, is false of its
+  callers, and nothing checks it.
+- **T5-2.** The assumption that every symbol of a joined environment is
+  defined in the source is checked of a set passed beside the
+  environments, not of the environments.
+- **T5-3.** The assumption that the binding times of the variables of
+  the source are coherent across the joined environments is not checked.
+- **T5-4.** The environment of a handler holds the types of constants
+  lifted in other branches, which are not true on a path that did not
+  define the symbol.
 - **T5-5.** The n-way join gives a variable that only some uses define
   the join of its types at those uses, and nothing records that it means
   nothing at the others.
+- **T5-6.** The results of the n-way join depend on the order of names.
+- **T5-7.** A join through a name that holds poison is not an upper
+  bound.
+- **T5-8.** `Analysis.fold_variables_created_at_join` also visits
+  variables that the join did not create.
 - **T5-9.** The n-way join makes a variable of a kind for simples whose
   kinds it does not look at.
 - **T5-10.** The n-way join takes every variable that a joined
@@ -336,5 +357,7 @@ says so. Only the labels that this tree cites are listed.
 - **T6-1.** A prover answers what the environment says of a name, which
   is not true of a name that holds poison (one case reaches a number
   that is not poison).
+- **T7-4.** The meet of a type with an `is_null` variable and a type
+  that settles it forgets the variable.
 - **V2-2.** The fexpr printer drops the kinds of the fields of a
   `Make_block`, and the parser reads back `any_value` for each.
