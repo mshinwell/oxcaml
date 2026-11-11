@@ -97,7 +97,13 @@ design out; that is the request, not the change.
     are in range gains; the check itself is in C0's
     `FlambdaWellFormedSpec.v`)
 - C2, kinds and well-formed terms. Owner: C2, on
-  `flambda2-rocq/C2-kinds`.
+  `flambda2-rocq/C2-epoch` (the series) and `flambda2-rocq/C2-kinds`
+  (the prototype).
+  - `middle_end/flambda2/rocq/requests/C2-kinds.md` (the request)
+  - `middle_end/flambda2/rocq/FlambdaWellKinded*` (the check of kinds
+    and its statements)
+  - `middle_end/flambda2/tests/semantics/kinds_*.fl` and their
+    `.expected` files
 - C3, sets of closures. Owner: C3, on `flambda2-rocq/C3-closures`.
   - `middle_end/flambda2/rocq/requests/C3-closures.md`
   - `middle_end/flambda2/rocq/FlambdaClosures*` (first facts about sets
