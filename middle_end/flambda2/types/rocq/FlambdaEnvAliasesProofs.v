@@ -2031,6 +2031,16 @@ Proof.
     exact Hlookup.
 Qed.
 
+Theorem name_modes_recorded_coincide :
+  name_modes_recorded_coincide_statement.
+Proof.
+  intros A A' binding_times_and_modes binding_times_and_modes' t Hsame
+    Hrecorded e n name_mode Hlookup.
+  rewrite (Hrecorded e n name_mode Hlookup). apply Hsame.
+  right. right. left. exists e. apply mem_lookup. exists name_mode.
+  exact Hlookup.
+Qed.
+
 Theorem empty_well_formed : empty_well_formed_statement.
 Proof.
   intros A binding_time_resolver binding_times_and_modes.

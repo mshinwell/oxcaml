@@ -153,9 +153,10 @@
    - what it answers ([add_result_statement]): the canonical element of
      the merged class and the name demoted are its two arguments, the
      later of them demoted; bottom exactly for two different constants
-     ([add_bottom_statement]); no fatal error for two different
-     canonical elements of a consistent structure
-     ([add_defined_statement]);
+     ([add_bottom_statement]); neither of the model's two fatal errors
+     for two different canonical elements of a consistent structure
+     ([add_defined_statement]), which says nothing of the compiler's
+     resolver, total here;
    - the classes afterwards ([add_canonical_element_statement],
      [add_aliased_statement]): the two classes are merged and the
      others are as they were;
@@ -169,10 +170,14 @@
    is known to be equal to the element asked about
    ([get_aliases_statement]).
 
-   Nothing is stated here yet of [Aliases.invariant] and
+   [aliases_well_formed] is the invariant that the statements use. It
+   asks more than the compiler checks, and each of its parts says so
+   where it is defined. FlambdaEnvAliasesInvariantSpec.v has it as a
+   test, and says what [Aliases.invariant] and
    [Aliases.invariant_add_result], the model's copies of the checks that
-   the OCaml makes under a flag; [aliases_well_formed] is the invariant
-   that the statements use.
+   the OCaml makes under a flag, answer for a structure that has it.
+   FlambdaEnvAliasesRenamingSpec.v has the renaming of the structure,
+   its free variables, and that the functions commute with renaming.
 
    The proofs are in FlambdaEnvAliasesProofs.v, which needs no review. *)
 
@@ -375,18 +380,22 @@ Definition resolved_binding_time
    in the typing environment; where the two have the same, the one with
    the lesser binding time by the resolver. *)
 
-(* CR mshinwell: two variables with the same binding time in the typing
-   environment are ordered here by what the resolver says, and are not
-   ordered if it says the same of both. In the compiler the resolver is
-   asked only for variables of one compilation unit, and for the unit
-   being compiled it stops with a fatal error
-   ([Typing_env.binding_time_resolver], [Compilenv.get_unit]); so the
-   compiler has no order there, and relies on such variables having
-   different binding times, which nothing states (a comment in
-   [Typing_env_level.concat] says that a join may give several variables
-   one binding time). It is not certain what is meant: that such a tie
-   never reaches the aliases, or that an order is missing. Discrepancy
-   T3-1; no decision yet. *)
+(* CR mshinwell: two different variables with the same binding time in
+   the typing environment are ordered here by what the resolver says,
+   and are not ordered if it says the same of both. The compiler has no
+   order there: the resolver is asked only for variables of one
+   compilation unit, and for the unit being compiled it stops with a
+   fatal error ([Typing_env.binding_time_resolver],
+   [Compilenv.get_unit]). So the compiler relies on the variables of
+   the unit being compiled having different binding times, which
+   nothing there states or checks. The model asks for it: that
+   different variables have different binding times is a part of the
+   invariant of the typing environment, which the Spec file of the
+   typing environment states, and there the model is stricter than the
+   compiler (decision D32). It is not certain that the compiler's
+   environments have it: a comment in [Typing_env_level.concat] says
+   that a join may give several variables one binding time.
+   Discrepancy T3-1. *)
 Definition variable_earlier_statement : Prop :=
   ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
     (binding_times_and_modes
@@ -428,6 +437,13 @@ Definition defined_earlier_strict_statement : Prop :=
 
 (* The three maps describe the same classes. First, what a name has been
    demoted to has not been demoted itself... *)
+
+(* The model is stricter than the compiler here (decision D32). The
+   compiler's [invariant], which runs only with heavy invariant checks,
+   reads the two inverse maps and never [canonical_elements]: nothing in
+   the compiler checks [canonical_elements_canonical] or
+   [aliases_listed], the two parts of [aliases_consistent]. [add] keeps
+   them ([add_consistent_statement]). Discrepancy T3-3. *)
 Definition canonical_elements_canonical (t : Aliases.t) : Prop :=
   ∀ (n : name) (canonical_element : simple),
     demoted_to t n canonical_element -> is_canonical t canonical_element.
@@ -441,7 +457,11 @@ Definition aliases_listed (t : Aliases.t) : Prop :=
 Definition aliases_consistent (t : Aliases.t) : Prop :=
   canonical_elements_canonical t ∧ aliases_listed t.
 
-(* Every canonical element is earlier than the names demoted to it. *)
+(* Every canonical element is earlier than the names demoted to it. The
+   compiler checks this of the canonical elements that are names, in
+   [invariant] and [invariant_add_result], with heavy invariant checks
+   only; FlambdaEnvAliasesInvariantSpec.v says how those checks and this
+   condition are related. *)
 Definition canonical_elements_earliest {A : Type}
     (binding_time_resolver : name -> Binding_time.With_name_mode.t)
     (binding_times_and_modes
@@ -454,7 +474,14 @@ Definition canonical_elements_earliest {A : Type}
     = true.
 
 (* The name mode recorded for an alias is the one the typing environment
-   gives it. *)
+   gives it. The model is stricter than the compiler here (decision
+   D32): the compiler records the name mode when the name is demoted
+   ([add_alias_between_canonical_elements]), reads it later
+   ([find_earliest_candidates]), and nothing there checks that it is
+   still the name mode of the name. [add] keeps the condition
+   ([add_name_modes_recorded_statement]) while the typing environment
+   does not change the name mode of a name that the structure speaks of
+   ([name_modes_recorded_coincide_statement]). Discrepancy T3-3. *)
 Definition name_modes_recorded {A : Type}
     (binding_times_and_modes
       : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
@@ -733,9 +760,13 @@ Definition add_bottom_statement : Prop :=
           ∧ canonical_element2 = Const c2
           ∧ c1 <> c2).
 
-(* Third: there is no fatal error when the structure is consistent and
-   the two are canonical and different, which is what [aliases.mli]
-   asks of the caller. *)
+(* Third: [add] answers when the structure is consistent and the two are
+   canonical and different, which is what [aliases.mli] asks of the
+   caller: neither of the two fatal errors that the model has ([None])
+   happens. This is about the model, whose resolver is total. It does
+   not say that the compiler's [add] returns: for two variables of the
+   unit being compiled with one binding time, the compiler stops in the
+   resolver (discrepancy T3-1). *)
 Definition add_defined_statement : Prop :=
   ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
     (binding_times_and_modes
@@ -851,16 +882,25 @@ Definition comparable {A : Type}
     = true.
 
 (* CR mshinwell: [add] of two canonical elements neither of which is
-   earlier than the other (two symbols; two variables with the same
-   binding times) is not said here to keep
+   earlier than the other is not said here to keep
    [canonical_elements_earliest], and does not: it demotes its first
-   argument. In the compiler the same [add] succeeds, and its result
-   fails [invariant] and [invariant_add_result], which are run only
-   with heavy invariant checks. Two different symbols are never equal
-   when the program runs, so it is not certain whether [add] is meant
-   never to be given two symbols, or to answer bottom for them, or
-   whether [invariant] is too strong. Discrepancy T3-2; no decision
-   yet. *)
+   argument. There are two such cases, and the compiler differs on
+   them.
+   - Two symbols. In the compiler the same [add] succeeds, and its
+     result fails [invariant] and [invariant_add_result], which are run
+     only with heavy invariant checks
+     (FlambdaEnvAliasesInvariantSpec.v,
+     [add_two_symbols_invariant_statement]). Two different symbols are
+     never equal when the program runs, so it is not certain whether
+     [add] is meant never to be given two symbols, or to answer bottom
+     for them, or whether [invariant] is too strong. Discrepancy T3-2;
+     no decision yet.
+   - Two variables with the same binding times. In the compiler [add]
+     does not return for two such variables of the unit being compiled:
+     the order stops with a fatal error in the resolver (the question
+     at [variable_earlier_statement]; discrepancy T3-1). Here the
+     resolver is total and [add] answers. The invariant of the typing
+     environment rules the case out. *)
 Definition add_earliest_statement : Prop :=
   ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
     (binding_times_and_modes
@@ -884,8 +924,9 @@ Definition add_earliest_statement : Prop :=
    two symbols, or two variables with the same binding time in the
    typing environment. The compiler relies on different variables
    having different binding times there (see the question at
-   [variable_earlier_statement]); the typing environment is to say
-   that they have. *)
+   [variable_earlier_statement]); that they have is a part of the
+   invariant of the typing environment, where the model is stricter
+   than the compiler (decision D32). *)
 Definition simples_comparable_statement : Prop :=
   ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
     (binding_times_and_modes
@@ -963,6 +1004,25 @@ Definition well_formed_coincide_statement : Prop :=
           (simple_of_name n)) ->
     aliases_well_formed binding_time_resolver binding_times_and_modes t ->
     aliases_well_formed binding_time_resolver binding_times_and_modes' t.
+
+(* The same of the name modes recorded alone, for an invariant that has
+   not the order: they are kept when the typing environment gives the
+   same name mode to every name that the structure speaks of. *)
+Definition name_modes_recorded_coincide_statement : Prop :=
+  ∀ (A A' : Type)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (binding_times_and_modes'
+      : Keyed.finite_map name (A' * Binding_time.With_name_mode.t))
+    (t : Aliases.t),
+    (∀ n : name,
+      aliases_mention t n ->
+      Aliases.compute_name_mode_unscoped binding_times_and_modes
+        (simple_of_name n)
+      = Aliases.compute_name_mode_unscoped binding_times_and_modes'
+          (simple_of_name n)) ->
+    name_modes_recorded binding_times_and_modes t ->
+    name_modes_recorded binding_times_and_modes' t.
 
 (* ======================================================================== *)
 (* The aliases of an element                                                *)
