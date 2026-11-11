@@ -30,7 +30,9 @@ which gives a name outside a list of names.
 | `FlambdaEquivarianceSpec.v` | The action on states; a step, a run and a behaviour commute with it; two rewrites commute with it |
 | `FlambdaNameAbstractionSpec.v` | The interface of `nominal/`: things that contain names, bindable names, name abstractions, `pattern_match`, with their laws; `fresh_name` |
 | `FlambdaNominalInstancesSpec.v` | The terms as instances of the interface; each binder as a name abstraction |
-| `FlambdaFreeNamesSpec.v` | The older accounts of free names agree with the one function where code is closed |
+| `FlambdaFreeNamesSpec.v` | The older accounts of free names agree with the one function where code is closed, and what is free by them is among the free names on every term |
+| `FlambdaCanonicalFreeNamesSpec.v` | The statements about binders, and the rules of `alpha_equivalent`, written with the one function for the free names |
+| `FlambdaStateSupportSpec.v` | Every expression and every state has a finite support: with the action, the states are a nominal set |
 
 In the types library, `FlambdaEnvAliasesRenamingSpec.v` has the action
 on the aliases, with the same laws, as an instance of the interface.
@@ -148,6 +150,24 @@ equal abstractions (`FlambdaFreshQuantifierSpec.v`,
 distinct bound names. The definition by permutations stays. Its use on
 the binders of terms follows this series.
 
+States. The renamings act on the states of the machine
+(`FlambdaEquivarianceSpec.v`: the identity, composition, inverses), a
+step, a run and a behaviour commute with the action, and every state
+has a finite support (`FlambdaStateSupportSpec.v`): so the states are
+a nominal set and execution is equivariant between nominal sets. A
+state is not an instance of the interface. The interface is for one
+sort of name at a time and the machine is renamed in both; and its
+`free_names` go with an equality under which a permutation that fixes
+them changes nothing. For a state as it is written that equality is
+`=`, and the names are then all that occur, bound ones included,
+which is the support of `FlambdaStateSupportSpec.v` and not the free
+names of anything. For a state up to bound names, the equality would
+have to be defined through every handler held by a continuation and
+all the code of the static environment, and the laws would hold only
+of states whose code is closed, as for expressions. So the
+equivariance of execution stays stated directly, for both sorts at
+once.
+
 ## 7. What is owed for each function on terms
 
 A function on terms that models something the compiler does owes that
@@ -200,11 +220,13 @@ ranges, and the functions on types.
 - The older accounts of free names (`var_free_in_expr`,
   `cont_free_in_expr`, `FlambdaWellFormedSpec.free_continuations`,
   `FlambdaNormaliseSpec.expr_in_scope`) are still what many statements
-  are written with. `FlambdaFreeNamesSpec.v` lets each be restated by
-  the one function; that is to be done a statement at a time, and the
-  file then goes.
-- States are not an instance of the interface: their equivariance is
-  stated directly.
+  are written with. `FlambdaCanonicalFreeNamesSpec.v` has the
+  statements about binders and the rules of `alpha_equivalent` in the
+  form they take with the one function, each proved from the older
+  one; the older ones and the relations are still there. Whether they
+  are replaced, and the bridges of `FlambdaFreeNamesSpec.v` deleted, is
+  for the human to say: the status of this stream lists what would
+  change, owner by owner.
 - The functions listed as owed in section 7.
 
 ## 10. The compiler's side

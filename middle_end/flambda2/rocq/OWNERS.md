@@ -246,6 +246,8 @@ Owner: N1.
 - `middle_end/flambda2/rocq/FlambdaNameAbstraction*`
 - `middle_end/flambda2/rocq/FlambdaEquivariance*`
 - `middle_end/flambda2/rocq/FlambdaNominalInstances*`
+- `middle_end/flambda2/rocq/FlambdaCanonicalFreeNames*`
+- `middle_end/flambda2/rocq/FlambdaStateSupport*`
 - `middle_end/flambda2/rocq/NAMES.md`
 
 ## N2: the freshness quantifier
