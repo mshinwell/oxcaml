@@ -698,10 +698,14 @@ Definition call_function (callee : value) (kind : call_kind)
    of its kind, and the rewrites that remove a binding need not test
    kinds (FlambdaNormaliseSpec.v).
    Not tested under either reading: the kind of a field of a static
-   block or of a value slot (the fields of a block that a primitive
-   makes are tested, as arguments of the primitive:
-   FlambdaPrimitiveSpec.eval_variadic_primitive), and the kinds of the
-   values given to a way out of the term. Decision D10. *)
+   block or of a value slot, where it is stored (the fields of a block
+   that a primitive makes are tested, as arguments of the primitive:
+   FlambdaPrimitiveSpec.eval_variadic_primitive); the kinds of the
+   values given to a way out of the term; and a value that a call
+   returns against the result arity of the code. The handler that the
+   value returns to tests it against its own kinds, and the result
+   arity of the code is compared with that of the call, as two
+   annotations ([call_function]). Decision D10. *)
 
 Definition step (s : state) : step_result :=
   match s with

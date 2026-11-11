@@ -65,9 +65,13 @@
    kind of the binder that the term has in scope there follows from
    them where no other binder of the same name comes between: that is
    the scoping of the term, and nothing here says it. What the tests do
-   not reach: a value given to a way out of the term, and what a value
-   slot or a field of a block holds, which is tested only when a [Let]
-   binds it to a variable.
+   not reach: a value given to a way out of the term; and what is put
+   in a field of a static block or in a value slot, which is not tested
+   where it is stored. (A block that a primitive makes has its fields
+   tested, as arguments of the primitive.) What is read back is tested
+   where it is used: a load asks of the field the kind it is given
+   (FlambdaPrimitiveSpec.v), and the [Let] that binds what was read
+   tests its kind.
 
    The check. [well_kinded] is a boolean function: under the kinds of
    the variables in scope and the kinds of the parameters of the
