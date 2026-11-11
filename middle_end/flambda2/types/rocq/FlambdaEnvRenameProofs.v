@@ -1313,3 +1313,165 @@ Proof.
     cbn [option_map fst snd]; [ | reflexivity ].
   rewrite rename_type_alias_type_of. reflexivity.
 Qed.
+
+(* ======================================================================== *)
+(* What is done to an environment                                           *)
+(* ======================================================================== *)
+
+Theorem make_bottom_equivariant : make_bottom_equivariant_statement.
+Proof. intros r tenv. reflexivity. Qed.
+
+Theorem increment_scope_equivariant : increment_scope_equivariant_statement.
+Proof. intros r tenv. reflexivity. Qed.
+
+Theorem bump_current_level_scope_equivariant :
+  bump_current_level_scope_equivariant_statement.
+Proof. intros r tenv. reflexivity. Qed.
+
+Theorem closure_env_equivariant : closure_env_equivariant_statement.
+Proof. intros r tenv. reflexivity. Qed.
+
+Theorem with_aliases_equivariant : with_aliases_equivariant_statement.
+Proof. intros r tenv aliases. reflexivity. Qed.
+
+Lemma with_current_level_renamed (r : renaming) (tenv : Typing_env.t)
+    (current_level : Typing_env.One_level.t)
+    (just_after_level : Cached_level.t) :
+  Typing_env.with_current_level (rename_typing_env r tenv)
+    (rename_one_level r current_level)
+    (rename_cached_level r just_after_level)
+  = rename_typing_env r
+      (Typing_env.with_current_level tenv current_level just_after_level).
+Proof. reflexivity. Qed.
+
+Lemma with_current_level_and_next_binding_time_renamed (r : renaming)
+    (tenv : Typing_env.t) (current_level : Typing_env.One_level.t)
+    (just_after_level : Cached_level.t) (next_binding_time : Binding_time.t) :
+  Typing_env.with_current_level_and_next_binding_time
+    (rename_typing_env r tenv) (rename_one_level r current_level)
+    (rename_cached_level r just_after_level) next_binding_time
+  = rename_typing_env r
+      (Typing_env.with_current_level_and_next_binding_time tenv current_level
+         just_after_level next_binding_time).
+Proof. reflexivity. Qed.
+
+Theorem add_variable_definition_equivariant :
+  add_variable_definition_equivariant_statement.
+Proof.
+  intros r tenv var kind name_mode. unfold Typing_env.add_variable_definition.
+  cbv zeta. rewrite <- with_current_level_and_next_binding_time_renamed.
+  f_equal.
+  - exact
+      (f_equal (Typing_env.One_level.create (Typing_env.current_scope tenv))
+         (level_add_definition_equivariant r _ var kind _)).
+  - rewrite <- cached_level_add_or_replace_binding_equivariant,
+      rename_type_unknown.
+    reflexivity.
+Qed.
+
+Theorem add_symbol_definition_equivariant :
+  add_symbol_definition_equivariant_statement.
+Proof. intros r tenv sym. reflexivity. Qed.
+
+Theorem add_symbol_definitions_equivariant :
+  add_symbol_definitions_equivariant_statement.
+Proof. intros r tenv syms. reflexivity. Qed.
+
+Theorem add_definition_equivariant : add_definition_equivariant_statement.
+Proof.
+  intros r tenv [var | sym] name_mode kind;
+    cbn [rename_name Typing_env.add_definition option_map].
+  - rewrite add_variable_definition_equivariant. reflexivity.
+  - destruct (Name_mode.equal name_mode Name_mode.normal); reflexivity.
+Qed.
+
+Theorem add_definitions_of_params_equivariant :
+  add_definitions_of_params_equivariant_statement.
+Proof.
+  intros r tenv params. unfold Typing_env.add_definitions_of_params.
+  revert tenv. induction params as [ | [var kind] params IH]; intros tenv;
+    simpl; [ reflexivity | ].
+  rewrite add_variable_definition_equivariant. apply IH.
+Qed.
+
+Theorem replace_equation_equivariant : replace_equation_equivariant_statement.
+Proof.
+  intros r tenv n ty. unfold Typing_env.replace_equation. cbv zeta.
+  rewrite <- with_current_level_renamed. f_equal.
+  - exact
+      (f_equal (Typing_env.One_level.create (Typing_env.current_scope tenv))
+         (level_add_or_replace_equation_equivariant r _ n ty)).
+  - destruct n as [var | sym]; [ | reflexivity ].
+    exact
+      (cached_level_replace_variable_binding_equivariant r
+         (Typing_env.just_after_level tenv) var ty).
+Qed.
+
+Theorem aliases_add_equivariant : aliases_add_equivariant_statement.
+Proof.
+  intros r tenv canonical_element1 canonical_element2.
+  unfold Typing_env.aliases_add.
+  rewrite
+    (add_alike _ (rename_resolver r (Typing_env.binding_time_resolver tenv))
+       _ (rename_binding_times r (Typing_env.names_to_types tenv))
+       (resolver_of_renamed r tenv) (times_of_renamed r tenv)).
+  change (Typing_env.aliases (rename_typing_env r tenv))
+    with (rename_aliases r (Typing_env.aliases tenv)).
+  rewrite (rename_add flambda_type).
+  destruct
+    (Aliases.add (Typing_env.binding_time_resolver tenv)
+       (Typing_env.names_to_types tenv) (Typing_env.aliases tenv)
+       canonical_element1 canonical_element2)
+    as [[result | ] | ];
+    reflexivity.
+Qed.
+
+Theorem add_alias_equivariant : add_alias_equivariant_statement.
+Proof.
+  intros r tenv canonical_element1 canonical_element2.
+  unfold Typing_env.add_alias. rewrite aliases_add_equivariant.
+  destruct (Typing_env.aliases_add tenv canonical_element1 canonical_element2)
+    as [[result | ] | ];
+    reflexivity.
+Qed.
+
+Lemma cut_loop_renamed (r : renaming) (cut_after : Scope.t)
+    (levels : list Typing_env.One_level.t) :
+  ∀ result : Typing_env_level.t,
+    Typing_env.cut_loop cut_after (rename_level r result)
+      (map (rename_one_level r) levels)
+    = option_map (rename_level r) (Typing_env.cut_loop cut_after result levels).
+Proof.
+  induction levels as [ | one_level levels IH]; intros result;
+    cbn [map Typing_env.cut_loop]; [ reflexivity | ].
+  change (Typing_env.One_level.scope (rename_one_level r one_level))
+    with (Typing_env.One_level.scope one_level).
+  destruct (cut_after <? Typing_env.One_level.scope one_level)%Z;
+    [ | reflexivity ].
+  change (Typing_env.One_level.level (rename_one_level r one_level))
+    with (rename_level r (Typing_env.One_level.level one_level)).
+  rewrite level_concat_equivariant.
+  destruct
+    (Typing_env_level.concat (Typing_env.One_level.level one_level) result)
+    as [result' | ];
+    [ apply IH | reflexivity ].
+Qed.
+
+Theorem cut_equivariant : cut_equivariant_statement.
+Proof.
+  intros r tenv cut_after. unfold Typing_env.cut.
+  change (Typing_env.current_scope (rename_typing_env r tenv))
+    with (Typing_env.current_scope tenv).
+  destruct (Typing_env.current_scope tenv <=? cut_after)%Z; [ reflexivity | ].
+  exact
+    (cut_loop_renamed r cut_after (Typing_env.prev_levels tenv)
+       (Typing_env.One_level.level (Typing_env.current_level tenv))).
+Qed.
+
+Theorem cut_as_extension_equivariant : cut_as_extension_equivariant_statement.
+Proof.
+  intros r tenv cut_after. unfold Typing_env.cut_as_extension.
+  rewrite cut_equivariant.
+  destruct (Typing_env.cut tenv cut_after) as [level | ]; [ | reflexivity ].
+  cbn [option_map]. rewrite level_as_extension_equivariant. reflexivity.
+Qed.

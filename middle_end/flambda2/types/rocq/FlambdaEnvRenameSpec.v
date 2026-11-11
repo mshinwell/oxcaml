@@ -89,7 +89,10 @@
    - so does what an environment is asked ([Typing_env]): [find] and
      the functions beside it, the binding time and the name mode of a
      name, [mem], and the canonical element of a [Simple] at a name
-     mode.
+     mode;
+   - and so does what is done to an environment: the definition of a
+     variable or of a symbol, [replace_equation], [add_alias], [cut],
+     and the changes of scope.
 
    Each statement about a function is an equation and holds of every
    level or environment: nothing is asked of it, its invariant
@@ -97,7 +100,7 @@
    ([Typing_env_level.fold_on_defined_vars]). No function here makes a
    name, and none goes by the order of names. Where the order in which
    names were bound matters (the variables of a level in order, the
-   choice of a canonical element), it
+   choice of a canonical element and of the name that is demoted), it
    is read from binding times, which a name keeps when it is renamed;
    and a tie is settled by the order of a list of the model, which the
    action keeps. The compiler settles such a tie by an order on names
@@ -540,3 +543,115 @@ Definition type_simple_in_term_exn_equivariant_statement : Prop :=
            (fun typed =>
               (rename_type r (fst typed), rename_simple r (snd typed))))
         (Typing_env.type_simple_in_term_exn tenv min_name_mode simple).
+
+(* ======================================================================== *)
+(* What is done to an environment                                           *)
+(* ======================================================================== *)
+
+Definition make_bottom_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t),
+    Typing_env.make_bottom (rename_typing_env r tenv)
+    = rename_typing_env r (Typing_env.make_bottom tenv).
+
+Definition increment_scope_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t),
+    Typing_env.increment_scope (rename_typing_env r tenv)
+    = rename_typing_env r (Typing_env.increment_scope tenv).
+
+Definition bump_current_level_scope_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t),
+    Typing_env.bump_current_level_scope (rename_typing_env r tenv)
+    = rename_typing_env r (Typing_env.bump_current_level_scope tenv).
+
+Definition closure_env_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t),
+    Typing_env.closure_env (rename_typing_env r tenv)
+    = rename_typing_env r (Typing_env.closure_env tenv).
+
+Definition with_aliases_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (aliases : Aliases.t),
+    Typing_env.with_aliases (rename_typing_env r tenv)
+      (rename_aliases r aliases)
+    = rename_typing_env r (Typing_env.with_aliases tenv aliases).
+
+(* A variable is defined: the one given, renamed. The environment makes
+   no name of its own. *)
+Definition add_variable_definition_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (var : variable)
+    (kind : flambda_kind) (name_mode : Name_mode.t),
+    Typing_env.add_variable_definition (rename_typing_env r tenv)
+      (rename_variable r var) kind name_mode
+    = rename_typing_env r
+        (Typing_env.add_variable_definition tenv var kind name_mode).
+
+Definition add_symbol_definition_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (sym : symbol),
+    Typing_env.add_symbol_definition (rename_typing_env r tenv) sym
+    = rename_typing_env r (Typing_env.add_symbol_definition tenv sym).
+
+Definition add_symbol_definitions_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (syms : list symbol),
+    Typing_env.add_symbol_definitions (rename_typing_env r tenv) syms
+    = rename_typing_env r (Typing_env.add_symbol_definitions tenv syms).
+
+Definition add_definition_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (name : name)
+    (name_mode : Name_mode.t) (kind : flambda_kind),
+    Typing_env.add_definition (rename_typing_env r tenv) (rename_name r name)
+      name_mode kind
+    = option_map (rename_typing_env r)
+        (Typing_env.add_definition tenv name name_mode kind).
+
+Definition add_definitions_of_params_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t)
+    (params : list (variable * flambda_kind)),
+    Typing_env.add_definitions_of_params (rename_typing_env r tenv)
+      (map (fun param => (rename_variable r (fst param), snd param)) params)
+    = rename_typing_env r (Typing_env.add_definitions_of_params tenv params).
+
+Definition replace_equation_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (name : name) (ty : flambda_type),
+    Typing_env.replace_equation (rename_typing_env r tenv)
+      (rename_name r name) (rename_type r ty)
+    = rename_typing_env r (Typing_env.replace_equation tenv name ty).
+
+(* Two canonical elements are made aliases. Which of the two is demoted
+   goes by their binding times, which names keep. *)
+Definition aliases_add_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t)
+    (canonical_element1 canonical_element2 : simple),
+    Typing_env.aliases_add (rename_typing_env r tenv)
+      (rename_simple r canonical_element1)
+      (rename_simple r canonical_element2)
+    = option_map (or_bottom_map (rename_add_result r))
+        (Typing_env.aliases_add tenv canonical_element1 canonical_element2).
+
+Definition rename_add_alias_result (r : renaming)
+    (result : Typing_env.add_alias_result) : Typing_env.add_alias_result :=
+  {| Typing_env.canonical_element :=
+       rename_simple r (Typing_env.canonical_element result);
+     Typing_env.demoted_name := rename_name r (Typing_env.demoted_name result);
+     Typing_env.add_alias_result_t :=
+       rename_typing_env r (Typing_env.add_alias_result_t result) |}.
+
+Definition add_alias_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t)
+    (canonical_element1 canonical_element2 : simple),
+    Typing_env.add_alias (rename_typing_env r tenv)
+      (rename_simple r canonical_element1)
+      (rename_simple r canonical_element2)
+    = option_map (or_unknown_or_bottom_map (rename_add_alias_result r))
+        (Typing_env.add_alias tenv canonical_element1 canonical_element2).
+
+(* The levels after a scope, as one level: that of the renamed
+   environment is the renamed level. *)
+Definition cut_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (cut_after : Scope.t),
+    Typing_env.cut (rename_typing_env r tenv) cut_after
+    = option_map (rename_level r) (Typing_env.cut tenv cut_after).
+
+Definition cut_as_extension_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (cut_after : Scope.t),
+    Typing_env.cut_as_extension (rename_typing_env r tenv) cut_after
+    = option_map (rename_env_extension r)
+        (Typing_env.cut_as_extension tenv cut_after).
