@@ -40,8 +40,9 @@ From Stdlib Require Import ZArith List Bool Arith.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaPrimitiveSpec FlambdaPrimitiveProofs
-  FlambdaSemanticsSpec FlambdaSemanticsProofs FlambdaContextSpec
-  FlambdaNominalSpec FlambdaNominalProofs FlambdaAlphaSpec
+  FlambdaBindersSpec FlambdaSemanticsSpec FlambdaSemanticsProofs
+  FlambdaContextSpec FlambdaNominalSpec FlambdaNominalProofs
+  FlambdaAlphaSpec FlambdaAlphaProofs
   FlambdaCompareSpec FlambdaCompareProofs FlambdaCompareAlphaSpec.
 Import ListNotations.
 
@@ -874,7 +875,333 @@ Definition repeats_no_parameter : expr :=
 Theorem expr_eqb_repeated_parameter : expr_eqb_repeated_parameter_statement.
 Proof.
   exists repeats_parameter, repeats_no_parameter.
-  split; [ reflexivity | ]. split; [ reflexivity | ].
-  intros r Heq. unfold repeats_parameter, repeats_no_parameter in Heq.
-  simpl in Heq. injection Heq as _ Hfirst Hsecond _. congruence.
+  split; [ reflexivity | ]. split; [ reflexivity | ]. split.
+  - intros r Heq. unfold repeats_parameter, repeats_no_parameter in Heq.
+    simpl in Heq. injection Heq as _ Hfirst Hsecond _. congruence.
+  - intros Halpha. apply alpha_equivalent_binders_distinct in Halpha.
+    discriminate Halpha.
+Qed.
+
+(* Code that mentions a variable it does not bind, under the binder of
+   that variable; and the same with the binder and its use outside the
+   code renamed. *)
+Definition open_code : code :=
+  Code [] 5%positive 6%positive 7%positive
+    (make_code_metadata [] [Singleton Value])
+    (Apply_cont (Apply_cont_expr 6%positive [Var 2%positive])).
+
+Definition binds_around_open_code (x : variable) : expr :=
+  Let x Value (Simple (Const (Tagged_immediate 0%Z)))
+    (Let_static [Bind_code 1%positive open_code]
+       (Apply_cont (Apply_cont_expr 3%positive [Var x]))).
+
+(* The variables of the [Let]s, down the bodies, whose body has code
+   that is not closed. No rule of [alpha_equivalent] renames one, so
+   alpha-equivalent terms have the same. *)
+Fixpoint open_lets (e : expr) : list variable :=
+  match e with
+  | Let x _ _ body =>
+    (if code_closed body then [] else [x]) ++ open_lets body
+  | Let_static _ body | Let_cont_non_recursive _ _ body
+  | Let_cont_recursive _ body =>
+    open_lets body
+  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => []
+  end.
+
+Lemma closed_open_lets (e : expr) :
+  code_closed e = true -> open_lets e = [].
+Proof.
+  induction e
+    as [ x kind d body IH | bindings body IH | k h body IH | handlers body IH
+       | ap | ac | scrutinee arms | ];
+    simpl; intros Hclosed; try reflexivity.
+  - rewrite Hclosed. apply IH, Hclosed.
+  - apply andb_true_iff in Hclosed. apply IH, Hclosed.
+  - apply andb_true_iff in Hclosed. apply IH, Hclosed.
+  - apply andb_true_iff in Hclosed. apply IH, Hclosed.
+Qed.
+
+Lemma plug_open_lets (c : context) (e e' : expr) :
+  alpha_equivalent e e' ->
+  open_lets e = open_lets e' ->
+  open_lets (plug c e) = open_lets (plug c e').
+Proof.
+  intros Halpha Hsame.
+  induction c
+    as [ | y kind d c IH | bindings c IH
+       | before id params my_closure ret exn metadata c IH after body
+       | k h c IH
+       | k params metadata c IH body | handlers c IH
+       | before k params metadata c IH after body ];
+    simpl; try reflexivity; try assumption.
+  rewrite (alpha_equivalent_code_closed _ _ (Alpha_context c e e' Halpha)),
+    IH.
+  reflexivity.
+Qed.
+
+Lemma alpha_equivalent_open_lets (e e' : expr) :
+  alpha_equivalent e e' -> open_lets e = open_lets e'.
+Proof.
+  intros Halpha.
+  induction Halpha
+    as [ e | e e' _ IH | e e' e'' _ IH _ IH' | c e e' Halpha IH
+       | s e Hclosed _ _ | s x kind d body Hclosed _ _ | s k h body Hclosed _ _
+       | s k params metadata handler body _ _ _
+       | s before k params metadata handler after body _ _ _
+       | s before id c after body _ ];
+    try reflexivity.
+  - symmetry. exact IH.
+  - rewrite IH. exact IH'.
+  - apply plug_open_lets; assumption.
+  - rewrite !closed_open_lets;
+      [ reflexivity | rewrite code_closed_renamed | ]; exact Hclosed.
+  - simpl. rewrite code_closed_renamed, Hclosed. simpl.
+    rewrite !closed_open_lets;
+      [ reflexivity | rewrite code_closed_renamed | ]; exact Hclosed.
+  - simpl.
+    rewrite !closed_open_lets;
+      [ reflexivity | rewrite code_closed_renamed | ]; exact Hclosed.
+Qed.
+
+Theorem expr_eqb_open_code : expr_eqb_open_code_statement.
+Proof.
+  exists (binds_around_open_code 2%positive),
+    (binds_around_open_code 4%positive).
+  repeat (split; [ reflexivity | ]). split.
+  - intros r Heq. unfold binds_around_open_code, open_code in Heq.
+    simpl in Heq. injection Heq as Hbinder Hcode _. congruence.
+  - intros Halpha. apply alpha_equivalent_open_lets in Halpha.
+    discriminate Halpha.
+Qed.
+
+(* ======================================================================== *)
+(* The comparison does not depend on the names                              *)
+(* ======================================================================== *)
+
+Lemma forall2b_map_both {A B A' B' : Type} (g : A' -> B' -> bool)
+    (h : A -> A') (h' : B -> B') (l : list A) :
+  ∀ l' : list B,
+    forall2b g (map h l) (map h' l')
+    = forall2b (fun a b => g (h a) (h' b)) l l'.
+Proof.
+  induction l as [ | a l IH]; intros [ | b l']; simpl; try reflexivity.
+  rewrite IH. reflexivity.
+Qed.
+
+Lemma forall2b_ext {A B : Type} (g g' : A -> B -> bool) (l : list A) :
+  (∀ (a : A) (b : B), g a b = g' a b) ->
+  ∀ l' : list B, forall2b g l l' = forall2b g' l l'.
+Proof.
+  intros Hsame. induction l as [ | a l IH]; intros [ | b l']; simpl;
+    try reflexivity.
+  rewrite Hsame, IH. reflexivity.
+Qed.
+
+Section Names_renamed.
+
+Variable f : positive -> positive.
+
+Hypothesis f_eqb : ∀ x y : positive, Pos.eqb (f x) (f y) = Pos.eqb x y.
+
+Lemma names_match_renamed (m : name_map) (a a' : positive) :
+  names_match (rename_name_map f m) (f a) (f a') = names_match m a a'.
+Proof.
+  induction m as [ | [b b'] m IH]; simpl; [ apply f_eqb | ].
+  rewrite !f_eqb, IH. reflexivity.
+Qed.
+
+Lemma bind_names_renamed (xs : list positive) :
+  ∀ (xs' : list positive) (m : name_map),
+    bind_names (map f xs) (map f xs') (rename_name_map f m)
+    = option_map (rename_name_map f) (bind_names xs xs' m).
+Proof.
+  induction xs as [ | x xs IH]; intros [ | x' xs'] m; simpl;
+    try reflexivity.
+  exact (IH xs' ((x, x') :: m)).
+Qed.
+
+Lemma combine_renamed (xs : list positive) :
+  ∀ xs' : list positive,
+    combine (map f xs) (map f xs') = rename_name_map f (combine xs xs').
+Proof.
+  induction xs as [ | x xs IH]; intros [ | x' xs']; simpl; try reflexivity.
+  rewrite IH. reflexivity.
+Qed.
+
+Lemma combine_names_renamed (xs xs' : list positive) (m : name_map) :
+  combine_names (map f xs) (map f xs') (rename_name_map f m)
+  = option_map (rename_name_map f) (combine_names xs xs' m).
+Proof.
+  unfold combine_names. rewrite !length_map.
+  destruct (Nat.eqb (length xs) (length xs')); [ | reflexivity ].
+  simpl. rewrite combine_renamed. unfold rename_name_map.
+  rewrite map_app. reflexivity.
+Qed.
+
+End Names_renamed.
+
+Section Comparison_renamed.
+
+Variable r : renaming.
+
+Let vf := rename_variable r.
+
+Let kf := rename_continuation r.
+
+Lemma simple_eqb_equivariant (vm : name_map) (s s' : simple) :
+  simple_eqb (rename_name_map vf vm) (rename_simple r s) (rename_simple r s')
+  = simple_eqb vm s s'.
+Proof.
+  destruct s as [x | sym | c]; destruct s' as [x' | sym' | c']; simpl;
+    try reflexivity.
+  apply names_match_renamed, rename_variable_eqb.
+Qed.
+
+Lemma simples_eqb_equivariant (vm : name_map) (args args' : list simple) :
+  simples_eqb (rename_name_map vf vm) (map (rename_simple r) args)
+    (map (rename_simple r) args')
+  = simples_eqb vm args args'.
+Proof.
+  unfold simples_eqb. rewrite forall2b_map_both.
+  apply forall2b_ext. intros s s'. apply simple_eqb_equivariant.
+Qed.
+
+Lemma value_slots_eqb_equivariant (vm : name_map)
+    (slots slots' : list (value_slot * simple)) :
+  value_slots_eqb (rename_name_map vf vm)
+    (map (fun slot => (fst slot, rename_simple r (snd slot))) slots)
+    (map (fun slot => (fst slot, rename_simple r (snd slot))) slots')
+  = value_slots_eqb vm slots slots'.
+Proof.
+  unfold value_slots_eqb. rewrite forall2b_map_both.
+  apply forall2b_ext. intros slot slot'. simpl.
+  rewrite simple_eqb_equivariant. reflexivity.
+Qed.
+
+Lemma named_eqb_equivariant (vm : name_map) (d d' : named) :
+  named_eqb (rename_name_map vf vm) (rename_named r d) (rename_named r d')
+  = named_eqb vm d d'.
+Proof.
+  destruct d; destruct d'; simpl; try reflexivity;
+    rewrite ?simple_eqb_equivariant, ?simples_eqb_equivariant,
+      ?value_slots_eqb_equivariant;
+    reflexivity.
+Qed.
+
+Lemma static_const_eqb_equivariant (vm : name_map)
+    (const const' : static_const) :
+  static_const_eqb (rename_name_map vf vm) (rename_static_const r const)
+    (rename_static_const r const')
+  = static_const_eqb vm const const'.
+Proof.
+  destruct const; destruct const'; simpl; try reflexivity;
+    rewrite ?simple_eqb_equivariant, ?simples_eqb_equivariant,
+      ?value_slots_eqb_equivariant;
+    reflexivity.
+Qed.
+
+Lemma apply_cont_eqb_equivariant (vm km : name_map) (ac ac' : apply_cont) :
+  apply_cont_eqb (rename_name_map vf vm) (rename_name_map kf km)
+    (rename_apply_cont r ac) (rename_apply_cont r ac')
+  = apply_cont_eqb vm km ac ac'.
+Proof.
+  unfold apply_cont_eqb. simpl.
+  rewrite simples_eqb_equivariant.
+  rewrite (names_match_renamed kf (rename_continuation_eqb r)).
+  reflexivity.
+Qed.
+
+Lemma apply_eqb_equivariant (vm km : name_map) (ap ap' : apply_expr) :
+  apply_eqb (rename_name_map vf vm) (rename_name_map kf km)
+    (rename_apply r ap) (rename_apply r ap')
+  = apply_eqb vm km ap ap'.
+Proof.
+  unfold apply_eqb. simpl.
+  rewrite simple_eqb_equivariant, simples_eqb_equivariant.
+  rewrite !(names_match_renamed kf (rename_continuation_eqb r)).
+  reflexivity.
+Qed.
+
+Fixpoint expr_eqb_renamed (e : expr) {struct e} :
+  ∀ (vm km : name_map) (e' : expr),
+    expr_eqb (rename_name_map vf vm) (rename_name_map kf km)
+      (rename_expr r e) (rename_expr r e')
+    = expr_eqb vm km e e'
+with handler_eqb_renamed (h : continuation_handler) {struct h} :
+  ∀ (vm km : name_map) (h' : continuation_handler),
+    handler_eqb (rename_name_map vf vm) (rename_name_map kf km)
+      (rename_handler r h) (rename_handler r h')
+    = handler_eqb vm km h h'
+with binding_eqb_renamed (binding : static_binding) {struct binding} :
+  ∀ (vm : name_map) (binding' : static_binding),
+    binding_eqb (rename_name_map vf vm) (rename_static_binding r binding)
+      (rename_static_binding r binding')
+    = binding_eqb vm binding binding'
+with code_eqb_renamed (c : code) {struct c} :
+  ∀ c' : code, code_eqb (rename_code r c) (rename_code r c') = code_eqb c c'.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      intros vm km
+        [ x' kind' d' body' | bindings' body' | k' h' body' | handlers' body'
+        | ap' | ac' | scrutinee' arms' | ];
+      simpl; try reflexivity.
+    + (* Let *)
+      rewrite named_eqb_equivariant. f_equal.
+      exact (expr_eqb_renamed body ((x, x') :: vm) km body').
+    + (* Let_static *)
+      rewrite (expr_eqb_renamed body vm km body'). f_equal.
+      revert bindings'.
+      induction bindings as [ | binding bindings IH];
+        intros [ | binding' bindings']; simpl; try reflexivity.
+      rewrite (binding_eqb_renamed binding vm binding'), IH. reflexivity.
+    + (* Let_cont_non_recursive *)
+      rewrite (handler_eqb_renamed h vm km h'). f_equal.
+      exact (expr_eqb_renamed body vm ((k, k') :: km) body').
+    + (* Let_cont_recursive *)
+      fold (rename_handlers r handlers). fold (rename_handlers r handlers').
+      rewrite !map_fst_rename_handlers.
+      rewrite (combine_names_renamed kf).
+      destruct (combine_names (map fst handlers) (map fst handlers') km)
+        as [km' | ]; simpl; [ | reflexivity ].
+      rewrite (expr_eqb_renamed body vm km' body'). f_equal.
+      unfold rename_handlers. revert handlers'.
+      induction handlers as [ | [k0 h] handlers IH];
+        intros [ | [k0' h'] handlers']; simpl; try reflexivity.
+      rewrite (handler_eqb_renamed h vm km' h'), IH. reflexivity.
+    + (* Apply *)
+      apply apply_eqb_equivariant.
+    + (* Apply_cont *)
+      apply apply_cont_eqb_equivariant.
+    + (* Switch *)
+      rewrite simple_eqb_equivariant. f_equal.
+      rewrite forall2b_map_both. apply forall2b_ext. intros arm arm'.
+      simpl. rewrite apply_cont_eqb_equivariant. reflexivity.
+  - destruct h as [params metadata handler].
+    intros vm km [params' metadata' handler']. simpl.
+    rewrite (bind_names_renamed vf).
+    destruct (bind_names params params' vm) as [vm' | ]; simpl;
+      [ | reflexivity ].
+    f_equal. exact (expr_eqb_renamed handler vm' km handler').
+  - destruct binding as [id c | id | sym const];
+      intros vm [id' c' | id' | sym' const']; simpl; try reflexivity.
+    + rewrite (code_eqb_renamed c c'). reflexivity.
+    + rewrite static_const_eqb_equivariant. reflexivity.
+  - destruct c as [params my_closure ret exn metadata body].
+    intros [params' my_closure' ret' exn' metadata' body']. simpl.
+    change [(rename_variable r my_closure, rename_variable r my_closure')]
+      with (rename_name_map vf [(my_closure, my_closure')]).
+    rewrite (bind_names_renamed vf).
+    destruct (bind_names params params' [(my_closure, my_closure')])
+      as [vm' | ]; simpl; [ | reflexivity ].
+    f_equal.
+    exact (expr_eqb_renamed body vm' [(ret, ret'); (exn, exn')] body').
+Qed.
+
+End Comparison_renamed.
+
+Theorem expr_eqb_equivariant : expr_eqb_equivariant_statement.
+Proof.
+  intros r vm km e e'. apply expr_eqb_renamed.
 Qed.

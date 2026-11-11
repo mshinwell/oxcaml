@@ -37,22 +37,28 @@
    - the comparison, with no names paired to begin with, is reflexive,
      symmetric and transitive, on all terms;
    - it accepts every two terms that are alpha-equivalent
-     ([alpha_equivalent_accepted_statement]).
+     ([alpha_equivalent_accepted_statement]);
+   - it does not depend on the names: its answer on two terms is its
+     answer on the two terms renamed, with the names paired so far
+     renamed too ([expr_eqb_equivariant_statement]).
    So the comparison may be taken as the definition of "the same up to
    bound names", with the rules of [alpha_equivalent] as facts about it.
 
    The converse is for terms whose binders are distinct and whose code
    is closed, which are the terms that well-formedness admits
    (FlambdaBindersSpec.binders_distinct and code_closed); it is not
-   proved here. Outside those terms the comparison accepts more than
-   the renaming of a term gives: a list of parameters that repeats a
-   name against one that does not
-   ([expr_eqb_repeated_parameter_statement], which says that the second
-   term is not the first renamed; that no chain of the rules of
-   [alpha_equivalent] relates the two is not proved). For code that is
-   not closed no such pair is given here: the rules of
-   [alpha_equivalent] rename only where code is closed, so they say
-   nothing of a binder around code that is not.
+   proved here. Outside those terms the comparison accepts more:
+   - a list of parameters that repeats a name against one that does
+     not ([expr_eqb_repeated_parameter_statement]). The two terms are
+     not alpha-equivalent, since alpha-equivalent terms have distinct
+     binders together;
+   - with code that mentions a variable bound outside it, a term
+     against the same term with that binder renamed outside the code
+     only ([expr_eqb_open_code_statement]). The two terms are not
+     alpha-equivalent: the rule of [alpha_equivalent] for the binder
+     does not apply, since the code is not closed, and no other rule
+     renames it.
+   Both pairs behave alike, as all that the comparison accepts does.
 
    Nothing is trusted here. The proofs are in FlambdaCompareAlphaProofs.v,
    which needs no review. *)
@@ -79,11 +85,43 @@ Definition expr_eqb_transitive_statement : Prop :=
 Definition alpha_equivalent_accepted_statement : Prop :=
   ∀ e e' : expr, alpha_equivalent e e' -> expr_eqb [] [] e e' = true.
 
-(* The comparison accepts two terms of which the second is not a
-   renaming of the first: a handler that repeats a parameter, against
-   one that does not. The first is not a term with distinct binders. *)
+(* The comparison accepts two terms that are not alpha-equivalent, and
+   of which the second is not a renaming of the first: a handler that
+   repeats a parameter, against one that does not. The first is not a
+   term with distinct binders. *)
 Definition expr_eqb_repeated_parameter_statement : Prop :=
   ∃ e e' : expr,
     expr_eqb [] [] e e' = true
     ∧ binders_distinct e = false
-    ∧ (∀ r : renaming, rename_expr r e <> e').
+    ∧ (∀ r : renaming, rename_expr r e <> e')
+    ∧ ~ alpha_equivalent e e'.
+
+(* The comparison accepts two terms with distinct binders that are not
+   alpha-equivalent, and of which the second is not a renaming of the
+   first: code mentions a variable that is bound outside it, and the
+   second term has that binder, and its uses outside the code, renamed.
+   The code of the two is not closed. *)
+Definition expr_eqb_open_code_statement : Prop :=
+  ∃ e e' : expr,
+    expr_eqb [] [] e e' = true
+    ∧ binders_distinct e = true
+    ∧ binders_distinct e' = true
+    ∧ code_closed e = false
+    ∧ code_closed e' = false
+    ∧ (∀ r : renaming, rename_expr r e <> e')
+    ∧ ~ alpha_equivalent e e'.
+
+(* The names paired so far, renamed on both sides. *)
+Definition rename_name_map (f : positive -> positive) (m : name_map)
+    : name_map :=
+  map (fun pair => (f (fst pair), f (snd pair))) m.
+
+(* The comparison looks at names only to tell whether two are the same,
+   so a renaming of the two terms and of the names paired so far does
+   not change its answer. Nothing is asked of the terms. *)
+Definition expr_eqb_equivariant_statement : Prop :=
+  ∀ (r : renaming) (vm km : name_map) (e e' : expr),
+    expr_eqb (rename_name_map (rename_variable r) vm)
+      (rename_name_map (rename_continuation r) km) (rename_expr r e)
+      (rename_expr r e')
+    = expr_eqb vm km e e'.
