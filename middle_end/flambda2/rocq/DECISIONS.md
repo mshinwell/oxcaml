@@ -269,6 +269,9 @@ says so. Only the labels that this tree cites are listed.
 - **T2-7.** Nothing checks that the names given to
   `Typing_env.add_alias` are bound, and the aliases take an unbound
   variable for one of another compilation unit.
+- **T2-8.** `Typing_env.replace_equation` gives a variable a type of any
+  kind; only its callers in `Meet_env` keep the kind that the variable
+  was defined with.
 - **T3-1.** Ordering two variables of the unit being compiled that have
   one binding time is a fatal error in the compiler's resolver; the
   model's resolver is total, and the typing environment's invariant asks
