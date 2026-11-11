@@ -128,9 +128,13 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaInlineFreshProofs.v \
   FlambdaInlineFreshSpec.v \
   FlambdaKindModel.v \
+  FlambdaLiftProofs.v \
+  FlambdaLiftSpec.v \
   FlambdaMapProofs.v \
   FlambdaMapSpec.v \
   FlambdaModel.v \
+  FlambdaMyClosureProofs.v \
+  FlambdaMyClosureSpec.v \
   FlambdaNameAbstractionProofs.v \
   FlambdaNameAbstractionSpec.v \
   FlambdaNominalInstancesProofs.v \
