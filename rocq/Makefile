@@ -171,6 +171,12 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaJoinProofs.v \
   FlambdaJoinSpec.v \
   FlambdaJoinTypes.v \
+  FlambdaProvers.v \
+  FlambdaProversExamplesProofs.v \
+  FlambdaProversExamplesSpec.v \
+  FlambdaProversProofs.v \
+  FlambdaProversSpec.v \
+  FlambdaProversStandIn.v \
   FlambdaTypeAccessProofs.v \
   FlambdaTypeAccessSpec.v \
   FlambdaTypeAliasKindsProofs.v \
