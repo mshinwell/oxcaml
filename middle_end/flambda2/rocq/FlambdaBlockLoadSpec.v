@@ -63,14 +63,18 @@
    - [Is_int], with [variant_only] or without, becomes the naked
      immediate 0;
    - [Get_tag] becomes the tag, a naked immediate;
-   - [Block_load kind field] becomes what the field holds, under these
-     conditions ([field_loaded]), and is left as it is under any other:
-     the access kind says of the tag and of the size what is known of
-     the block, where it says anything ([known_is]); the block has the
-     field; and the field kind of the access is [Any_value]. A load
-     whose field kind is [Immediate] is left alone: it has no value on a
-     field that is not a tagged immediate, and that is not known from
-     the term.
+   - [Block_load kind mut field] becomes what the field holds, under
+     these conditions ([field_loaded]), and is left as it is under any
+     other: the load is not marked [Mutable]; the access kind says of
+     the tag and of the size what is known of the block, where it says
+     anything ([known_is]); the block has the field; and the field kind
+     of the access is [Any_value]. A load marked [Mutable] is left
+     alone, as Simplify leaves one whose argument is not a constant
+     ([Simplify_unary_primitive.simplify_mutable_block_load]): the pass
+     is for the term before only, and it must do as Simplify does. A
+     load whose field kind is [Immediate] is left alone: it has no value
+     on a field that is not a tagged immediate, and that is not known
+     from the term.
 
    So where the access kind disagrees with the block the pass does not
    fire, although the load is then undefined
@@ -231,7 +235,8 @@ Definition field_loaded (kind : block_access_kind) (field : Z)
 Definition of_known_block (p : unary_primitive) (block : known_block)
     : option simple :=
   match p with
-  | Block_load kind field => field_loaded kind field block
+  | Block_load kind (Immutable | Immutable_unique) field =>
+    field_loaded kind field block
   | Is_int _ => Some (Const (Naked_immediate 0))
   | Get_tag => Some (Const (Naked_immediate (fst block)))
   | _ => None

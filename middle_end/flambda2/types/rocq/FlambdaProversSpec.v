@@ -875,11 +875,12 @@ Definition meet_block_field_simple_sound_statement : Prop :=
            ∧ eval_simple valuation s = Some field).
 
 (* [Block_load] has a value only on a value of that domain, at the
-   kind value, and its value is the field. *)
+   kind value, and its value is the field, whatever the load says of
+   mutability. *)
 Definition block_load_defined_statement : Prop :=
-  ∀ (statics : static_env) (kind : block_access_kind) (field : Z)
-    (v r : value),
-    eval_prim statics (Unary (Block_load kind field)) [v] = Some r ->
+  ∀ (statics : static_env) (kind : block_access_kind) (mut : mutability)
+    (field : Z) (v r : value),
+    eval_prim statics (Unary (Block_load kind mut field)) [v] = Some r ->
     (0 <= field)%Z
     ∧ block_field_loads Value (Z.to_nat field) statics v
     ∧ ∃ (tag : Z) (fields : list value),

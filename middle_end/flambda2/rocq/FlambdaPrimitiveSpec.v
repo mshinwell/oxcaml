@@ -394,7 +394,26 @@ Definition known_is (known : option Z) (actual : Z) : bool :=
    ([Simplify_unary_primitive.simplify_immutable_block_load0]) takes the
    block to have that tag and that field only where it does not already
    know the field, when it reads it whatever the tag; it does not use
-   the size. *)
+   the size.
+
+   The mutability of the load is not looked at. It says what the
+   compiler may take of the load: one marked [Immutable] or
+   [Immutable_unique] may be shared with another of the same field and
+   replaced by what is known of the field, and one marked [Mutable] may
+   not ([Simplify_unary_primitive.simplify_mutable_block_load] keeps
+   one whose argument is not a constant, and makes one of a constant
+   [Invalid], where the load has no value here either). It is not a
+   test of the block: the machine reads the field
+   ([To_cmm_primitive.block_load]), and a block of the model is
+   immutable, so that a load marked [Mutable] from one, which is what
+   [%field0] of the source makes when it is applied to a tuple, reads
+   what the block was made with. ([fst] and [snd] of the standard
+   library are [%field0_immut] and [%field1_immut], and make loads
+   marked [Immutable].) When the model has blocks that can be written,
+   the effects of a load will go by its mark and not by the block, as
+   they do in the compiler ([Flambda_primitive.effects_and_coeffects]:
+   a load marked [Mutable] has a coeffect); today no primitive of the
+   model has an effect. *)
 (* CR mshinwell: [Block_load] has no value on a block whose tag or whose
    number of fields is not the one the access kind gives, nor, with
    [Immediate], on a field that is not a tagged immediate. The machine
@@ -496,7 +515,7 @@ Definition eval_block_load (statics : static_env) (kind : block_access_kind)
 Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
     (v : value) : option value :=
   match p with
-  | Block_load kind field => eval_block_load statics kind field v
+  | Block_load kind _ field => eval_block_load statics kind field v
   | Is_int variant_only =>
     option_map naked_bool (eval_is_int statics variant_only v)
   | Is_null => option_map naked_bool (eval_is_null statics v)
@@ -774,7 +793,7 @@ Definition known_in_range (test : Z -> bool) (known : option Z) : bool :=
    added has its case here, which is [true] if it carries no number. *)
 Definition unary_primitive_in_range (p : unary_primitive) : bool :=
   match p with
-  | Block_load (Block_access_values tag size _) field =>
+  | Block_load (Block_access_values tag size _) _ field =>
     known_in_range tag_in_range tag
     && known_in_range ocaml_int_in_range size
     && ocaml_int_in_range field
@@ -839,7 +858,7 @@ Definition naked_immediate_kind : flambda_kind :=
 (* [Flambda_primitive.arg_kind_of_unary_primitive]. *)
 Definition arg_kind_of_unary_primitive (p : unary_primitive) : flambda_kind :=
   match p with
-  | Block_load _ _ | Is_int _ | Is_null | Get_tag | String_length
+  | Block_load _ _ _ | Is_int _ | Is_null | Get_tag | String_length
   | Boolean_not | Unbox_number _ | Untag_immediate =>
     Value
   | Opaque_identity kind => kind
@@ -859,7 +878,8 @@ Definition result_kind_of_unary_primitive (p : unary_primitive)
   | Unary_int_arith kind _ => kind_of_standard_int kind
   | Num_conv _ dst => kind_of_standard_int dst
   | Unbox_number kind => unboxed_kind kind
-  | Block_load _ _ | Boolean_not | Box_number _ | Tag_immediate => Value
+  | Block_load _ _ _ | Boolean_not | Box_number _ | Tag_immediate =>
+    Value
   end.
 
 (* [Flambda_primitive.args_kind_of_binary_primitive]. *)

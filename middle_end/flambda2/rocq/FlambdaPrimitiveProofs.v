@@ -255,7 +255,8 @@ Qed.
 Lemma eval_unary_primitive_static_values (p : unary_primitive) :
   eval_unary_primitive statics p v = eval_unary_primitive statics' p v.
 Proof.
-  destruct p as [[tag size field_kind] field | | | | | | | | | | | | ]; simpl;
+  destruct p as [[tag size field_kind] mut field | | | | | | | | | | | | ];
+    simpl;
     unfold eval_is_int, eval_is_null, eval_block_load;
     rewrite ?block_of_static_values, ?is_allocated_static_values,
       ?boxed_number_of_static_values, ?string_of_static_values,
@@ -645,8 +646,8 @@ Lemma eval_unary_primitive_symbol_bound (statics : static_env)
   eval_unary_primitive statics p (Value_symbol s) = Some v ->
   lookup s (static_values statics) <> None.
 Proof.
-  destruct p as [[tag size field_kind] field | [ | ] | | | | kind | kind op
-                | src dst | | kind | kind | | ];
+  destruct p as [[tag size field_kind] mut field | [ | ] | | | | kind
+                | kind op | src dst | | kind | kind | | ];
     simpl; unfold eval_is_int, eval_is_null, eval_block_load; simpl;
     rewrite ?int_of_value_symbol;
     try discriminate;
@@ -751,7 +752,7 @@ Lemma eval_unary_primitive_kinds (statics : static_env)
   kind_of_value arg = arg_kind_of_unary_primitive p
   ∧ kind_of_value v = result_kind_of_unary_primitive p.
 Proof.
-  destruct p as [access field | variant_only | | | | kind | kind op
+  destruct p as [access mut field | variant_only | | | | kind | kind op
                 | src dst | | kind | kind | | ];
     cbn [eval_unary_primitive arg_kind_of_unary_primitive
          result_kind_of_unary_primitive].
@@ -1015,7 +1016,7 @@ Lemma eval_unary_primitive_preserves (p : unary_primitive) (arg v : value) :
   P arg -> eval_unary_primitive statics p arg = Some v -> P v.
 Proof.
   intros Harg.
-  destruct p as [access field | variant_only | | | | kind | kind op
+  destruct p as [access mut field | variant_only | | | | kind | kind op
                 | src dst | | kind | kind | | ];
     cbn [eval_unary_primitive].
   - unfold eval_block_load. destruct access as [tag size field_kind].
@@ -1524,7 +1525,7 @@ Lemma eval_unary_primitive_in_range (p : unary_primitive) (arg v : value) :
   value_in_range v = true.
 Proof.
   intros Hsymbols Harg.
-  destruct p as [access field | variant_only | | | | kind | kind op
+  destruct p as [access mut field | variant_only | | | | kind | kind op
                 | src dst | | kind | kind | | ];
     cbn [eval_unary_primitive].
   - unfold eval_block_load. destruct access as [tag size field_kind].
@@ -1909,7 +1910,7 @@ Lemma eval_unary_primitive_related (p : unary_primitive)
 Proof.
   intros Hr.
   destruct (Hobserved v v' Hr) as (Hblocks & Hboxed & Hstring & _ & Hbound).
-  destruct p as [access field | variant_only | | | | kind | kind op
+  destruct p as [access mut field | variant_only | | | | kind | kind op
                 | src dst | | kind | kind | | ];
     cbn [eval_unary_primitive].
   - unfold eval_block_load. destruct access as [tag size field_kind].
@@ -2587,7 +2588,7 @@ Example make_block_of_unbound_symbol :
 Proof. reflexivity. Qed.
 
 Definition load (tag size : option Z) (field : Z) : unary_primitive :=
-  Block_load (Block_access_values tag size Any_value) field.
+  Block_load (Block_access_values tag size Any_value) Immutable field.
 
 Example block_load :
   unary empty_static_env (load (Some 3) (Some 2) 1)
@@ -2598,6 +2599,20 @@ Proof. reflexivity. Qed.
 Example block_load_from_static_block :
   unary a_block (load None None 0) (Value_symbol 1%positive)
   = Some (tagged 10).
+Proof. reflexivity. Qed.
+
+Example block_load_marked_mutable :
+  unary empty_static_env
+    (Block_load (Block_access_values None None Any_value) Mutable 0)
+    (Value_block 0 [tagged 10; tagged 20])
+  = Some (tagged 10).
+Proof. reflexivity. Qed.
+
+Example block_load_marked_mutable_from_constant :
+  unary empty_static_env
+    (Block_load (Block_access_values None None Any_value) Mutable 0)
+    (tagged 10)
+  = None.
 Proof. reflexivity. Qed.
 
 Example block_load_out_of_bounds :

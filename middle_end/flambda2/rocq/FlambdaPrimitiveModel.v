@@ -34,11 +34,11 @@
 
    The fragment has, with the compiler's names:
    - of [unary_primitive]: [Block_load] from an immutable block of
-     values, [Is_int], [Is_null], [Get_tag], [String_length] of a
-     string, [Opaque_identity], the unary [Int_arith] (here
-     [Unary_int_arith]) with [Not], [Num_conv] between the integer
-     kinds, [Boolean_not], [Unbox_number], [Box_number],
-     [Untag_immediate] and [Tag_immediate];
+     values, whatever the load says of mutability, [Is_int], [Is_null],
+     [Get_tag], [String_length] of a string, [Opaque_identity], the
+     unary [Int_arith] (here [Unary_int_arith]) with [Not], [Num_conv]
+     between the integer kinds, [Boolean_not], [Unbox_number],
+     [Box_number], [Untag_immediate] and [Tag_immediate];
    - of [binary_primitive]: [String_or_bigstring_load] of one byte from
      a string, [Phys_equal], and [Int_arith], [Int_shift] and
      [Int_comp], at every [Standard_int.t];
@@ -53,11 +53,18 @@
      execution.
    - [Box_number] and [Make_block] have no allocation mode: they are the
      allocations on the heap, and the conversion must refuse a local one.
-   - [Block_load] and [Make_block] have no mutability: they are those of
-     immutable blocks ([Immutable], not [Immutable_unique]), and the
-     conversion must refuse the others. The only [Block_access_kind.t]
-     and [Block_kind.t] are those of blocks of values, [Values]; an
-     [Or_unknown.t] is an [option], [Unknown] being [None].
+   - [Make_block] has no mutability: it is that of immutable blocks
+     ([Immutable], not [Immutable_unique]), and the conversion must
+     refuse the others. So every block of the model is immutable.
+     [Block_load] has the mutability of the compiler's, and is a load
+     from such a block whatever that is: the front end marks [Mutable]
+     a load that the source declares as one of a field that may be
+     written ([Reads_vary]: [%field0] and [%field1], and the [!] of a
+     reference), and nothing stops a source from declaring such a load
+     of a tuple.
+     The only [Block_access_kind.t] and [Block_kind.t] are those of
+     blocks of values, [Values]; an [Or_unknown.t] is an [option],
+     [Unknown] being [None].
    - [Block_kind.Values] has no list of the kinds of the fields. In the
      compiler each has a subkind, which Simplify takes an argument that
      is a variable to be of ([Simplify_variadic_primitive]). The model
@@ -121,13 +128,19 @@ Inductive block_access_kind : Type :=
   | Block_access_values (tag : option Z) (size : option Z)
       (field_kind : block_access_field_kind).
 
+(* [Mutability.t]. *)
+Inductive mutability : Type :=
+  | Mutable
+  | Immutable
+  | Immutable_unique.
+
 (* [Flambda_primitive.unary_int_arith_op]. *)
 Inductive unary_int_arith_op : Type :=
   | Not.
 
 (* [Flambda_primitive.unary_primitive]. *)
 Inductive unary_primitive : Type :=
-  | Block_load (kind : block_access_kind) (field : Z)
+  | Block_load (kind : block_access_kind) (mut : mutability) (field : Z)
   | Is_int (variant_only : bool)
   | Is_null
   | Get_tag

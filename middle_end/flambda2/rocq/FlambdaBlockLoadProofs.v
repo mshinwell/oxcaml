@@ -374,8 +374,10 @@ Proof.
   simpl in Hd |- *. rewrite Hblock in Hd. simpl in Hd.
   rewrite eval_prim_unary in Hd.
   destruct u; simpl in Hresult; try discriminate Hresult.
-  - (* [Block_load] *)
-    destruct (field_loaded_spec _ _ _ _ Hresult)
+  - (* [Block_load]: not marked [Mutable] *)
+    assert (Hfield : field_loaded kind field known_block = Some result)
+      by (destruct mut; [ discriminate Hresult | exact Hresult .. ]).
+    destruct (field_loaded_spec _ _ _ _ Hfield)
       as (tag & size & -> & Htag & Hsize & Hpos & Hnth).
     destruct (fields_hold_nth _ _ _ Hfields _ _ Hnth)
       as (loaded & Hloaded & Hcontents).

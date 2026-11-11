@@ -3710,7 +3710,7 @@ Proof. exact meet_block_field_simple_sound_proof. Qed.
 
 Theorem block_load_defined : block_load_defined_statement.
 Proof.
-  intros statics access_kind field v r. rewrite eval_prim_unary. simpl.
+  intros statics access_kind mut field v r. rewrite eval_prim_unary. simpl.
   unfold eval_block_load.
   destruct access_kind as [tag size field_kind].
   destruct (block_of statics v) as [[block_tag fields] | ] eqn:Hblock;
