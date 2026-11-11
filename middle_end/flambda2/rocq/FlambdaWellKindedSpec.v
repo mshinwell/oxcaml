@@ -52,14 +52,31 @@
    undefined there, or Simplify would be wrong on such programs. The
    request (requests/C2-kinds.md) lists the forms found.
 
+   What a binder gives, with no premise either. The machine also has no
+   step at a [Let] of a value of another kind than its own, nor where a
+   handler is applied to values of other kinds than those of its
+   parameters (FlambdaSemanticsSpec.step, [apply_cont_value]; the CR at
+   [step] says how certain that is). With the first test of a call, it
+   follows that the step that binds a variable binds it to a value of
+   the kind of its binder, whatever the term and whatever the state
+   ([let_binds_at_kind_statement], [handler_binds_at_kinds_statement],
+   [call_binds_at_kinds_statement]). These are statements about the step
+   that binds. That a variable, where it is read, holds a value of the
+   kind of the binder that the term has in scope there follows from
+   them where no other binder of the same name comes between: that is
+   the scoping of the term, and nothing here says it. What the tests do
+   not reach: a value given to a way out of the term, and what a value
+   slot or a field of a block holds, which is tested only when a [Let]
+   binds it to a variable.
+
    The check. [well_kinded] is a boolean function: under the kinds of
    the variables in scope and the kinds of the parameters of the
    continuations in scope, the kinds that the term carries agree with one
    another. It is a sufficient condition and a diagnostic. A unit that
    passes it starts in a well-kinded state, a well-kinded state steps to
    a well-kinded state, and a well-kinded state is never undefined for
-   one of the reasons of [kind_fault]; in such a run a variable holds a
-   value of the kind its binder gave it. It is not a condition that the
+   one of the reasons of [kind_fault], the two tests of the binders
+   among them. It is not a condition that the
    terms of the compiler are known to meet, and no statement about those
    terms may take it as a premise:
    - each of its conditions is one that the compiler checks where it
@@ -150,9 +167,8 @@
    term has the parameters given by [outer], which is the interface of
    the term: for a unit, its return and exception continuations, each
    taking one [Value] ([unit_arities]). The kinds are those of the values
-   held now: the predicate does not remember what a binder said. What it
-   gives for a binder is in the step: a well-kinded state that binds a
-   variable binds a value of the kind the binder gives.
+   held now: the predicate does not remember what a binder said. What a
+   binder gives is in the step, and needs no well-kinded state (above).
 
    The statements:
    - a call that does not agree with the code called is undefined,
@@ -160,6 +176,10 @@
    - a call that the compiler takes for a partial application or an
      over-application is undefined too, and should not be: see below
      ([partial_or_over_application_undefined_statement]);
+   - the step that binds a variable binds a value of the kind of the
+     binder, whatever the state ([let_binds_at_kind_statement],
+     [handler_binds_at_kinds_statement],
+     [call_binds_at_kinds_statement]);
    - a unit that passes the check starts in a well-kinded state
      ([well_kinded_unit_state_statement]);
    - a well-kinded state steps to a well-kinded state
@@ -167,8 +187,10 @@
    - a well-kinded state is not undefined for a reason that the check
      rules out ([well_kinded_no_kind_fault_statement]): [kind_fault] is
      those reasons, as a test on a state. It reads no unbound variable;
-     it applies no handler to the wrong number of arguments; its
-     [Switch] is on a value of kind naked immediate;
+     its [Let] is of a value of the kind of the [Let]; it applies no
+     handler to the wrong number of arguments, nor to values of other
+     kinds than those of its parameters; its [Switch] is on a value of
+     kind naked immediate;
    - a well-kinded state exits only through a continuation of [outer],
      with values of the kinds of its parameters
      ([well_kinded_exit_statement]);
@@ -399,11 +421,14 @@ Definition apply_well_kinded (kinds : kind_env) (conts : arity_env)
    [Value]. The compiler has a check of its own for each, which stops it
    where Simplify visits the node, so Simplify never makes one of these
    [Invalid]; and no well-typed program is known to produce one. The
-   machine does not test them (the CR in FlambdaSemanticsSpec.v). What
-   is not decided is what they should be: an error of the term, as
-   here, which is then a condition that some terms the compiler accepts
-   do not meet (it does not visit a branch it has removed); or undefined
-   where executed, with the machine testing each. Decision D10. *)
+   machine is undefined where it executes one of the first three, and
+   where a call returns a value of another kind than the handler it
+   returns to takes (the CR in FlambdaSemanticsSpec.v); it does not
+   test the last two. What is not decided is what they should be: an
+   error of the term, as the check has it, which is then a condition
+   that some terms the compiler accepts do not meet (it does not visit
+   a branch it has removed); or undefined where executed, as the
+   machine has the first four. Decision D10. *)
 
 (* The check: the expression is well-kinded under the kinds of the
    variables and the kinds of the parameters of the continuations in
@@ -662,14 +687,50 @@ Definition wrong_number_of_arguments (ac : apply_cont) (conts : cont_env)
   wrong_number_given (resolve (ac_continuation ac) conts)
     (length (ac_args ac)).
 
+(* The value of the defining expression of a [Let] is not of the kind
+   that the [Let] gives its variable. *)
+Definition wrong_kind_bound (statics : static_env) (vars : env)
+    (kind : flambda_kind) (d : named) : bool :=
+  match eval_named statics vars d with
+  | Some v => negb (kind_eqb (kind_of_value v) kind)
+  | None => false
+  end.
+
+(* The continuation stands for a handler that gives its parameters other
+   kinds than those of the values it is given: [given], followed by the
+   kinds of the extra arguments that the continuation has. *)
+Fixpoint wrong_kinds_given (c : cont_value) (given : list flambda_kind)
+    : bool :=
+  match c with
+  | Closure (Handler _ metadata _) _ _ _ =>
+    negb (kinds_eqb given (hm_params_kinds metadata))
+  | Outer _ => false
+  | Extra_args c extra =>
+    wrong_kinds_given c (given ++ map kind_of_value extra)
+  end.
+
+Definition wrong_kinds_of_arguments (ac : apply_cont) (vars : env)
+    (conts : cont_env) : bool :=
+  match eval_simples vars (ac_args ac) with
+  | Some vs =>
+    wrong_kinds_given (resolve (ac_continuation ac) conts)
+      (map kind_of_value vs)
+  | None => false
+  end.
+
 (* The state is undefined for a reason that kinds rule out: it reads an
-   unbound variable; it applies a handler to the wrong number of
-   arguments; or it is a [Switch] on a value that is not of kind naked
-   immediate. *)
+   unbound variable; it is a [Let] of a value of another kind than its
+   own; it applies a handler to the wrong number of arguments, or to
+   values of other kinds than those of its parameters; or it is a
+   [Switch] on a value that is not of kind naked immediate. *)
 Definition kind_fault (s : state) : bool :=
   existsb (unbound (state_vars s)) (simples_read (state_expr s))
   || match state_expr s with
-     | Apply_cont ac => wrong_number_of_arguments ac (state_conts s)
+     | Let _ kind d _ =>
+       wrong_kind_bound (state_statics s) (state_vars s) kind d
+     | Apply_cont ac =>
+       wrong_number_of_arguments ac (state_conts s)
+       || wrong_kinds_of_arguments ac (state_vars s) (state_conts s)
      | Switch scrutinee _ =>
        match eval_simple (state_vars s) scrutinee with
        | Some v =>
@@ -677,7 +738,7 @@ Definition kind_fault (s : state) : bool :=
            (kind_eqb (kind_of_value v) (Naked_number Kind_naked_immediate))
        | None => false
        end
-     | Let _ _ _ _ | Let_static _ _ | Let_cont_non_recursive _ _ _
+     | Let_static _ _ | Let_cont_non_recursive _ _ _
      | Let_cont_recursive _ _ | Apply _ | Invalid =>
        false
      end.
@@ -797,6 +858,55 @@ Definition call_at_wrong_kinds_undefined_statement : Prop :=
 Definition partial_or_over_application_undefined_statement : Prop :=
   ∀ s : state,
     at_partial_or_over_application s = true -> step s = Undefined.
+
+(* What a binder gives, whatever the state: the step that binds a
+   variable binds it to a value of the kind of its binder. A [Let] that
+   has a step binds a value of its kind. A handler that runs has its
+   parameters bound to values of the kinds it gives them, one for each.
+   A call that has a step binds the parameters of the code to values of
+   the kinds of its parameters, and [my_closure] to a value of kind
+   [Value]. *)
+Definition let_binds_at_kind_statement : Prop :=
+  ∀ (x : variable) (kind : flambda_kind) (d : named) (body : expr)
+    (vars : env) (conts : cont_env) (statics : static_env) (s : state),
+    step (State (Let x kind d body) vars conts statics) = Step s ->
+    ∃ v : value,
+      eval_named statics vars d = Some v
+      ∧ kind_of_value v = kind
+      ∧ s = State body ((x, v) :: vars) conts statics.
+
+Definition handler_binds_at_kinds_statement : Prop :=
+  ∀ (params : list variable) (metadata : handler_metadata) (handler : expr)
+    (def_vars : env) (def_conts : cont_env)
+    (recursive : list (continuation * continuation_handler))
+    (vs : list value) (statics : static_env) (s : state),
+    apply_cont_value
+      (Closure (Handler params metadata handler) def_vars def_conts recursive)
+      vs statics
+    = Step s ->
+    map kind_of_value vs = hm_params_kinds metadata
+    ∧ ∃ handler_vars : env,
+        bind_params params vs def_vars = Some handler_vars
+        ∧ s
+          = State handler handler_vars
+              (rec_closures recursive def_vars def_conts ++ def_conts)
+              statics.
+
+Definition call_binds_at_kinds_statement : Prop :=
+  ∀ (ap : apply_expr) (vars : env) (conts : cont_env) (statics : static_env)
+    (s : state),
+    step (State (Apply ap) vars conts statics) = Step s ->
+    ∃ (callee : value) (vs : list value) (called : code_id)
+      (value_slots : list (value_slot * value)) (c : code),
+      eval_simple vars (ap_callee ap) = Some callee
+      ∧ eval_simples vars (ap_args ap) = Some vs
+      ∧ closure_of statics callee = Some (called, value_slots)
+      ∧ lookup called (static_code statics) = Some c
+      ∧ kind_of_value callee = Value
+      ∧ map kind_of_value vs = code_params_kinds c
+      ∧ bind_params (code_params c) vs [(code_my_closure c, callee)]
+        = Some (state_vars s)
+      ∧ state_expr s = code_body c.
 
 Definition well_kinded_unit_state_statement : Prop :=
   ∀ (slots : slot_kinds) (unit_return unit_exn : continuation) (e : expr),

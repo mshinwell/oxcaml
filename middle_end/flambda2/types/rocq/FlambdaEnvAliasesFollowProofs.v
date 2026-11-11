@@ -742,7 +742,7 @@ Lemma let_equivalent_where (known : Known.t) (x : variable)
   equivalent_where known (Let x kind d body) (Let x kind d body').
 Proof.
   intros Hbody vars conts statics Hrespected.
-  apply let_equivalent_step; [ reflexivity | intros v Hd ].
+  apply let_equivalent_step; [ reflexivity | intros v Hd _ ].
   apply Hbody.
   exact (under_let_respected known statics vars x d v Hrespected Hd).
 Qed.
@@ -779,7 +779,8 @@ Proof.
          (fun statics' => known_respected known statics' vars)
          (fun statics' statics'' => known_respected_extend known _ _ vars));
     try exact Hrespected;
-    intros vs handler_vars conts' statics' Hok Hbind; apply equivalent_refines;
+    intros vs handler_vars conts' statics' Hok _ Hbind;
+    apply equivalent_refines;
     [ | apply equivalent_sym ];
     apply Hhandler,
       (bind_all_respected params known statics' vs vars handler_vars Hok
@@ -818,7 +819,7 @@ Proof.
       * intros vars conts statics Hrespected.
         apply let_equivalent_step;
           [ apply (canonical_named_sound known vars statics d Hrespected)
-          | intros v _; apply equivalent_refl ].
+          | intros v _ _; apply equivalent_refl ].
       * apply let_equivalent_where, follow_aliases_equivalent_where.
     + (* Let_static *)
       apply (equivalent_where_trans known _

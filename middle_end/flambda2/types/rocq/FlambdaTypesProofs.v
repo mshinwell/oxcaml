@@ -121,7 +121,7 @@ Qed.
 Theorem let_simple_canonical : let_simple_canonical_statement.
 Proof.
   intros tenv x kind s body vars conts statics Hsat.
-  apply let_equivalent_step; [ | intros v _; apply equivalent_refl ].
+  apply let_equivalent_step; [ | intros v _ _; apply equivalent_refl ].
   exact (canonical_simple_sound tenv vars s Hsat).
 Qed.
 
@@ -176,7 +176,7 @@ Qed.
 Theorem let_refines_in : let_refines_in_statement.
 Proof.
   intros tenv x kind d body body' Hfresh Hbody vars conts statics Hsat.
-  apply let_refines_step; [ reflexivity | intros v _ ].
+  apply let_refines_step; [ reflexivity | intros v _ _ ].
   apply Hbody, env_satisfies_extend; [ exact Hsat | exact Hfresh | exact I ].
 Qed.
 
@@ -184,7 +184,7 @@ Theorem let_simple_refines_in : let_simple_refines_in_statement.
 Proof.
   intros tenv x kind s body body' Hfresh Hnotin Hbody vars conts statics
     Hsat.
-  apply let_refines_step; [ reflexivity | intros v Hs ]. simpl in Hs.
+  apply let_refines_step; [ reflexivity | intros v Hs _ ]. simpl in Hs.
   apply Hbody, env_satisfies_extend; [ exact Hsat | exact Hfresh | ].
   destruct s as [y | sym | c]; simpl in *; try exact Hs.
   destruct (Pos.eqb_spec y x) as [-> | _]; [ | exact Hs ].
@@ -249,7 +249,7 @@ Proof.
   intros tenv k params metadata handler handler' body Hfresh Hhandler vars
     conts statics Hsat.
   apply let_cont_handler_refines_at.
-  intros vs handler_vars conts' statics' Hbind. apply Hhandler.
+  intros vs handler_vars conts' statics' _ Hbind. apply Hhandler.
   exact (env_satisfies_params tenv params vs vars handler_vars Hsat Hfresh
     Hbind).
 Qed.
@@ -260,7 +260,7 @@ Proof.
   intros tenv before k params metadata handler handler' after body Hfresh
     Hbinds Hhandler vars conts statics Hsat.
   apply let_cont_recursive_handler_refines_at; [ exact Hbinds | ].
-  intros vs handler_vars conts' statics' Hbind. apply Hhandler.
+  intros vs handler_vars conts' statics' _ Hbind. apply Hhandler.
   exact (env_satisfies_params tenv params vs vars handler_vars Hsat Hfresh
     Hbind).
 Qed.

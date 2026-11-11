@@ -45,13 +45,14 @@ Import ListNotations.
 Theorem let_cont_apply_cont : let_cont_apply_cont_statement.
 Proof.
   intros k params metadata handler args vars handler_vars conts statics
-    vs Hargs Hbind.
+    vs Hargs Hkinds Hbind.
   eapply equivalent_trans;
     [ apply step_equivalent, step_let_cont_non_recursive | ].
   apply step_equivalent.
   apply (step_apply_cont_handler _ _ _ _ vs params metadata handler vars
     conts []);
-    [ exact Hargs | apply resolve_head | exact Hbind ].
+    [ exact Hargs | apply resolve_head
+    | rewrite Hkinds; apply kinds_eqb_refl | exact Hbind ].
 Qed.
 
 (* Both sides evaluate the argument first; if it has a value, both reach the
@@ -59,19 +60,21 @@ Qed.
 Theorem let_cont_apply_cont_one_param :
   let_cont_apply_cont_one_param_statement.
 Proof.
-  intros k x metadata kind handler arg vars conts statics.
+  intros k x metadata kind handler arg Hkinds vars conts statics.
   eapply equivalent_trans;
     [ apply step_equivalent, step_let_cont_non_recursive | ].
   apply step_eq_equivalent. rewrite step_apply_cont, step_let. simpl.
   destruct (eval_simple vars arg) as [v | ]; simpl; [ | reflexivity ].
-  unfold apply_continuation. rewrite resolve_head. reflexivity.
+  unfold apply_continuation. rewrite resolve_head. simpl. rewrite Hkinds.
+  rewrite (kinds_eqb_singleton (kind_of_value v) kind).
+  destruct (kind_eqb (kind_of_value v) kind); reflexivity.
 Qed.
 
 Theorem let_cont_recursive_apply_cont :
   let_cont_recursive_apply_cont_statement.
 Proof.
   intros k params metadata handler handlers args vars handler_vars conts
-    statics vs Hstatics Hlookup Hargs Hbind.
+    statics vs Hstatics Hlookup Hargs Hkinds Hbind.
   eapply equivalent_trans;
     [ apply step_equivalent; rewrite step_let_cont_recursive, Hstatics;
       reflexivity
@@ -79,7 +82,7 @@ Proof.
   apply step_equivalent.
   apply (step_apply_cont_handler _ _ _ _ vs params metadata handler vars
     conts handlers);
-    [ exact Hargs | | exact Hbind ].
+    [ exact Hargs | | rewrite Hkinds; apply kinds_eqb_refl | exact Hbind ].
   simpl. rewrite resolve_rec_closures, Hlookup. reflexivity.
 Qed.
 
@@ -100,7 +103,7 @@ Proof.
   assert (Hstep : step looping = Step looping).
   { apply (step_apply_cont_handler _ _ _ _ [] [] (make_handler_metadata [])
       _ vars conts handlers);
-      [ reflexivity | | reflexivity ].
+      [ reflexivity | | reflexivity | reflexivity ].
     rewrite resolve_rec_closures. simpl. rewrite Pos.eqb_refl.
     reflexivity. }
   apply (step_behaves _ Diverges). rewrite Hfirst. simpl.

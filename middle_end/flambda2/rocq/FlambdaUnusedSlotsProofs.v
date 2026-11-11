@@ -444,6 +444,8 @@ Proof.
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra];
     intros vs; simpl; [ | reflexivity | apply IH ].
+  destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+    [ | exact I ].
   destruct (bind_params params vs def_vars) as [handler_vars | ];
     [ | exact I ].
   unfold trim_state. simpl_state. f_equal. f_equal.
@@ -539,7 +541,8 @@ Proof.
   - (* Let *)
     simpl in Hunused. apply andb_true_iff in Hunused as [Hd _].
     destruct (eval_named statics vars d) as [v | ] eqn:Hv; [ | exact I ].
-    rewrite (eval_named_drop statics vars d v Hd Hv). reflexivity.
+    destruct (kind_eqb (kind_of_value v) xkind) eqn:Hkind; [ | exact I ].
+    rewrite (eval_named_drop statics vars d v Hd Hv), Hkind. reflexivity.
   - (* Let_static *)
     destruct (eval_static_bindings vars bindings statics) as [statics' | ]
       eqn:Heval; [ | exact I ].

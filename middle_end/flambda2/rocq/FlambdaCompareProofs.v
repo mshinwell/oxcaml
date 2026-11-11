@@ -841,7 +841,10 @@ Proof.
     simpl in Hh |- *.
     destruct (bind_names params params' vm) as [vm' | ] eqn:Hbind;
       [ | discriminate ].
-    apply andb_true_iff in Hh as [_ Hh].
+    apply andb_true_iff in Hh as [Hmetadata Hh].
+    apply handler_metadata_eqb_eq in Hmetadata. subst metadata'.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | exact I ].
     pose proof (bind_params_match params params' vs vm vm' vars vars' _
       (fun x => var_free_in_expr x handler)
       (fun x Hx =>
@@ -1063,13 +1066,15 @@ Proof.
     simpl in He; try discriminate; autorewrite with step; simpl.
   - (* Let *)
     apply andb_true_iff in He as [Hd Hbody].
-    apply andb_true_iff in Hd as [_ Hd].
+    apply andb_true_iff in Hd as [Hkind Hd].
+    apply kind_eqb_eq in Hkind. subst kind'.
     assert (Hvars_d :
       envs_match (fun y => var_free_in_named y d) vm vars vars')
       by (fewer_variables Hvars; left; assumption).
     rewrite (eval_named_match vm vars vars' statics statics' d d' Hvars_d
       Hstatics Hd).
     destruct (eval_named statics' vars' d') as [v | ]; simpl; [ | exact I ].
+    destruct (kind_eqb (kind_of_value v) kind); simpl; [ | exact I ].
     apply (State_matches ((x, x') :: vm) km);
       [ exact Hbody | | exact Hconts | exact Hstatics ].
     refine (envs_match_cons _ _ _ _ _ _ _ _ _ Hvars). intros y Hy.

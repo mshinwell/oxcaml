@@ -772,7 +772,9 @@ Proof.
        | c c' extra Hc IH Hextra];
     intros vs Hvs; simpl.
   - auto.
-  - destruct (bind_params params vs vars) as [bound | ] eqn:Hbind; simpl;
+  - destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | exact I ].
+    destruct (bind_params params vs vars) as [bound | ] eqn:Hbind; simpl;
       [ | exact I ].
     apply State_erased;
       [ exact Hh
@@ -850,6 +852,7 @@ Proof.
       as [Hsame Hvalue].
     rewrite Hsame.
     destruct (eval_named statics vars d) as [v | ]; simpl; [ | exact I ].
+    destruct (kind_eqb (kind_of_value v) kind); simpl; [ | exact I ].
     apply State_erased;
       [ exact Hbody | apply env_avoids_cons; auto | exact Hconts
       | exact Hstatics ].

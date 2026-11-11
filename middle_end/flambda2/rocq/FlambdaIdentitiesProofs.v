@@ -480,13 +480,17 @@ Proof.
          | ac | scrutinee arms | ];
       intros vars conts statics; simpl.
     + (* Let *)
-      destruct (eval_named statics vars d) as [v | ] eqn:Hd.
+      destruct (eval_named statics vars d) as [v | ] eqn:Hd;
+        [ destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind | ].
       * eapply refines_step;
-          [ rewrite step_let, Hd; reflexivity
-          | rewrite step_let, (identity_named_sound statics vars d v Hd);
+          [ rewrite step_let, Hd, Hkind; reflexivity
+          | rewrite step_let, (identity_named_sound statics vars d v Hd),
+              Hkind;
             reflexivity
           | ].
         apply apply_identities_refines_at.
+      * apply step_undefined_refines. rewrite step_let, Hd, Hkind.
+        reflexivity.
       * apply step_undefined_refines. rewrite step_let, Hd. reflexivity.
     + (* Let_static *)
       apply let_static_refines_step.
@@ -511,7 +515,7 @@ Proof.
   - destruct h as [params metadata handler].
     intros k body vars conts statics. simpl.
     apply let_cont_handler_refines_at.
-    intros vs handler_vars conts' statics' _.
+    intros vs handler_vars conts' statics' _ _.
     apply apply_identities_refines_at.
 Qed.
 

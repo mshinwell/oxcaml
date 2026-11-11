@@ -51,12 +51,16 @@ Import ListNotations.
 (* Inlining a non-recursive continuation at its application: binding [k] and
    applying it at once is running its handler with the parameters bound to
    the arguments. The handler runs under the continuations of the
-   [Let_cont], in which [k] is not bound, as it is not in scope there. *)
+   [Let_cont], in which [k] is not bound, as it is not in scope there. The
+   premises say when the application has a step: the arguments have
+   values, of the kinds that the handler gives its parameters, and as
+   many as there are parameters. *)
 Definition let_cont_apply_cont_statement : Prop :=
   ∀ (k : continuation) (params : list variable) (metadata : handler_metadata)
     (handler : expr) (args : list simple) (vars handler_vars : env)
     (conts : cont_env) (statics : static_env) (vs : list value),
     eval_simples vars args = Some vs ->
+    map kind_of_value vs = hm_params_kinds metadata ->
     bind_params params vs vars = Some handler_vars ->
     equivalent
       (State
@@ -66,10 +70,12 @@ Definition let_cont_apply_cont_statement : Prop :=
       (State handler handler_vars conts statics).
 
 (* The same with one parameter, as a rewrite of terms: the parameter becomes
-   a [Let]. *)
+   a [Let], at the kind that the handler gives it. The application and the
+   [Let] then test the same of the value of the argument. *)
 Definition let_cont_apply_cont_one_param_statement : Prop :=
   ∀ (k : continuation) (x : variable) (metadata : handler_metadata)
     (kind : flambda_kind) (handler : expr) (arg : simple),
+    hm_params_kinds metadata = [kind] ->
     expr_equivalent
       (Let_cont_non_recursive k (Handler [x] metadata handler)
          (Apply_cont (Apply_cont_expr k [arg] None)))
@@ -85,6 +91,7 @@ Definition let_cont_recursive_apply_cont_statement : Prop :=
     handlers_bind_statics handlers = false ->
     lookup k handlers = Some (Handler params metadata handler) ->
     eval_simples vars args = Some vs ->
+    map kind_of_value vs = hm_params_kinds metadata ->
     bind_params params vs vars = Some handler_vars ->
     equivalent
       (State

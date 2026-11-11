@@ -74,12 +74,14 @@ Proof.
 Qed.
 
 (* The [Let]s of [let_params] run to the body, with the parameters bound as
-   a call binds them, provided no parameter is free in an argument. *)
+   a call binds them, provided no parameter is free in an argument and the
+   values of the arguments are of the kinds given. *)
 Lemma let_params_run (params : list variable) :
   ∀ (kinds : list flambda_kind) (args : list simple) (vs : list value)
     (vars bound : env) (body : expr) (conts : cont_env)
     (statics : static_env),
     eval_simples vars args = Some vs ->
+    map kind_of_value vs = kinds ->
     (∀ param : variable,
       param ∈ params -> ~ var_free_in_simples param args) ->
     bind_params params vs vars = Some bound ->
@@ -88,7 +90,8 @@ Lemma let_params_run (params : list variable) :
       = Step (State body bound conts statics).
 Proof.
   induction params as [ | param params IH];
-    intros kinds args vs vars bound body conts statics Hargs Hfresh Hbind.
+    intros kinds args vs vars bound body conts statics Hargs Hkinds Hfresh
+      Hbind.
   - destruct vs; [ | discriminate ]. injection Hbind as <-.
     exists 0. reflexivity.
   - destruct vs as [ | v vs]; [ discriminate | ].
@@ -97,19 +100,21 @@ Proof.
     destruct (eval_simple vars arg) as [v' | ] eqn:Harg; [ | discriminate ].
     destruct (eval_simples vars args) as [vs' | ] eqn:Hrest;
       [ | discriminate ].
-    simpl in Hargs. injection Hargs as -> ->.
+    simpl in Hargs. injection Hargs as -> ->. subst kinds.
     assert (Hnotfree : ~ var_free_in_simples param args).
     { intros Hfree. apply (Hfresh param (or_introl eq_refl)).
       apply Exists_cons_tl. exact Hfree. }
     destruct
-      (IH (tl kinds) args vs ((param, v) :: vars) bound body conts statics)
+      (IH (map kind_of_value vs) args vs ((param, v) :: vars) bound body
+         conts statics)
       as [n Hrun].
     + rewrite eval_simples_extend; assumption.
+    + reflexivity.
     + intros p Hin Hfree. apply (Hfresh p (or_intror Hin)).
       apply Exists_cons_tl. exact Hfree.
     + exact Hbind.
-    + exists (S n). simpl. rewrite step_let. simpl. rewrite Harg.
-      exact Hrun.
+    + exists (S n). simpl. rewrite step_let. simpl.
+      rewrite Harg, kind_eqb_refl. exact Hrun.
 Qed.
 
 (* ======================================================================== *)
@@ -196,9 +201,14 @@ Proof.
     Hcallee Hclosure Hargs Hkind Hextra) as Hstep.
   rewrite Hcode, Hstatic in Hstep.
   match type of Hstep with
-  | context [negb ?agrees] => destruct agrees
+  | context [negb ?agrees] => destruct agrees eqn:Hagrees
   end;
     [ | exact (Hwrong Hstep) ].
+  apply Bool.andb_true_iff in Hagrees as [Hagrees _].
+  apply Bool.andb_true_iff in Hagrees as [Hkinds Hper_parameter].
+  apply kinds_eqb_eq in Hkinds.
+  apply kinds_per_parameter_eqb_eq, unarize_per_parameter_eq
+    in Hper_parameter.
   destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
     as [callee_vars | ] eqn:Hbind; [ | exact (Hwrong Hstep) ].
   apply equivalent_refines.
@@ -211,13 +221,15 @@ Proof.
               statics)
     as [n Hrun].
   { rewrite eval_simples_extend; assumption. }
+  { unfold code_params_kinds. rewrite <- Hper_parameter. exact Hkinds. }
   { exact Hparams. }
   { exact (bind_params_app (code_params c) vs
       [(code_my_closure c, callee)] callee_vars vars Hbind). }
   apply equivalent_sym.
   eapply equivalent_trans.
   { apply (equivalent_of_run (S n) 0). unfold inlined_body.
-    rewrite run_succ, step_let. simpl. rewrite Hcallee. exact Hrun. }
+    rewrite run_succ, step_let. simpl.
+    rewrite Hcallee, (closure_of_kind _ _ _ _ Hclosure). exact Hrun. }
   apply equivalent_sym, renamed_equivalent.
   - apply binds_statics_code_closed, Hstatic.
   - intros x Hx. rewrite Hvars, lookup_app.
@@ -309,8 +321,12 @@ Proof.
   destruct (eval_simple vars arg) as [v | ] eqn:Harg.
   - destruct (eval_simples vars args) as [vs | ] eqn:Hrest;
       [ discriminate | ].
+    destruct (kind_eqb (kind_of_value v) (hd Value kinds)) eqn:Hkind;
+      [ | apply step_undefined_wrong; rewrite step_let; simpl;
+          rewrite Harg, Hkind; reflexivity ].
     apply (step_behaves _ Goes_wrong). rewrite step_let. simpl.
-    rewrite Harg. apply (IH (tl kinds) args _ body conts statics Hlength).
+    rewrite Harg, Hkind.
+    apply (IH (tl kinds) args _ body conts statics Hlength).
     + rewrite eval_simples_extend; [ exact Hrest | ].
       intros Hfree. apply (Hfresh param (or_introl eq_refl)).
       apply Exists_cons_tl. exact Hfree.
@@ -318,6 +334,45 @@ Proof.
       apply Exists_cons_tl. exact Hfree.
   - apply step_undefined_wrong. rewrite step_let. simpl. rewrite Harg.
     reflexivity.
+Qed.
+
+(* Where the arguments have values that are not of the kinds given, one
+   for each parameter, the [Let]s of [let_params] go wrong: one of them
+   tests a value against another kind. *)
+Lemma let_params_wrong_kinds (params : list variable) :
+  ∀ (kinds : list flambda_kind) (args : list simple) (vs : list value)
+    (vars : env) (body : expr) (conts : cont_env) (statics : static_env),
+    length params = length args ->
+    length params = length kinds ->
+    eval_simples vars args = Some vs ->
+    map kind_of_value vs <> kinds ->
+    (∀ param : variable,
+      param ∈ params -> ~ var_free_in_simples param args) ->
+    behaves (State (let_params params kinds args body) vars conts statics)
+      Goes_wrong.
+Proof.
+  induction params as [ | param params IH];
+    intros [ | kind kinds] [ | arg args] vs vars body conts statics; simpl;
+    try discriminate.
+  - intros _ _ [= <-] Hkinds. destruct Hkinds. reflexivity.
+  - intros [= Hlength] [= Hlength'] Hargs Hkinds Hfresh.
+    destruct (eval_simple vars arg) as [v | ] eqn:Harg; [ | discriminate ].
+    destruct (eval_simples vars args) as [vs' | ] eqn:Hrest;
+      [ | discriminate ].
+    simpl in Hargs. injection Hargs as <-.
+    destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind;
+      [ | apply step_undefined_wrong; rewrite step_let; simpl;
+          rewrite Harg, Hkind; reflexivity ].
+    apply (step_behaves _ Goes_wrong). rewrite step_let. simpl.
+    rewrite Harg, Hkind.
+    apply (IH kinds args vs' _ body conts statics Hlength Hlength').
+    + rewrite eval_simples_extend; [ exact Hrest | ].
+      intros Hfree. apply (Hfresh param (or_introl eq_refl)).
+      apply Exists_cons_tl. exact Hfree.
+    + intros Heq. apply Hkinds. simpl.
+      rewrite (proj1 (kind_eqb_eq _ _) Hkind), Heq. reflexivity.
+    + intros p Hin Hfree. apply (Hfresh p (or_intror Hin)).
+      apply Exists_cons_tl. exact Hfree.
 Qed.
 
 (* Two states that go wrong are equivalent. *)
@@ -330,11 +385,13 @@ Proof.
 Qed.
 
 (* Where the callee is a closure of the code called, the call is made at
-   the arities of the code, and the arguments, when they have values,
-   have values of the kinds of the call's arity, the call cannot be
-   undefined for being of something else or for not agreeing with the
-   code, and inlining is an equivalence: if the arguments have values the
-   two meet as in [inline], and if not both go wrong. *)
+   the arities of the code, and the code gives one kind for each
+   parameter, the call cannot be undefined for being of something else or
+   for its arities, and inlining is an equivalence: if the arguments have
+   values of the kinds of the call's arity the two meet as in [inline];
+   if they have values of other kinds the call is undefined and so is a
+   [Let] of the inlined body; and if they have no values both go
+   wrong. *)
 Lemma inline_equivalent (ap : apply_expr) (called : code_id) (c : code)
     (r : renaming) (callee : value) (slots : list (value_slot * value))
     (vars : env) (conts : cont_env) (statics : static_env) :
@@ -346,21 +403,24 @@ Lemma inline_equivalent (ap : apply_expr) (called : code_id) (c : code)
   unarize_per_parameter (ap_args_arity ap)
   = unarize_per_parameter (code_params_arity c) ->
   ap_return_arity ap = code_result_arity c ->
-  (∀ vs : list value,
-    eval_simples vars (ap_args ap) = Some vs ->
-    map kind_of_value vs = unarize (ap_args_arity ap)) ->
+  length (code_params c) = length (code_params_kinds c) ->
   equivalent (State (Apply ap) vars conts statics)
     (State (inlined_body c r ap) vars conts statics).
 Proof.
   intros Hkind Hcallee Hclosure Hcode
     (Hclosed_vars & Hclosed_conts & Hvars & Hret & Hexn & Hextra
      & Hmy_closure & Hparams & Harity & Hstatic)
-    Hargs_arity Hreturn_arity Hkinds.
-  destruct (eval_simples vars (ap_args ap)) as [vs | ] eqn:Hargs.
+    Hargs_arity Hreturn_arity Hparams_kinds.
+  destruct (eval_simples vars (ap_args ap)) as [vs | ] eqn:Hargs;
+    [ destruct
+        (list_eq_dec kind_eq_dec (map kind_of_value vs)
+           (unarize (ap_args_arity ap)))
+        as [Hkinds | Hkinds]
+    | ].
   - pose proof (step_apply_direct ap callee called slots vs vars conts
       statics Hcallee Hclosure Hargs Hkind Hextra) as Hstep.
     rewrite Hcode, Hstatic in Hstep.
-    rewrite (Hkinds vs eq_refl), Hargs_arity, Hreturn_arity, kinds_eqb_refl,
+    rewrite Hkinds, Hargs_arity, Hreturn_arity, kinds_eqb_refl,
       arity_eqb_refl in Hstep.
     rewrite (proj2 (kinds_per_parameter_eqb_eq _ _) eq_refl) in Hstep.
     cbn [andb negb] in Hstep.
@@ -376,13 +436,17 @@ Proof.
                 statics)
       as [n Hrun].
     { rewrite eval_simples_extend; assumption. }
+    { unfold code_params_kinds.
+      rewrite <- (unarize_per_parameter_eq _ _ Hargs_arity).
+      exact Hkinds. }
     { exact Hparams. }
     { exact (bind_params_app (code_params c) vs
         [(code_my_closure c, callee)] callee_vars vars Hbind). }
     apply equivalent_sym.
     eapply equivalent_trans.
     { apply (equivalent_of_run (S n) 0). unfold inlined_body.
-      rewrite run_succ, step_let. simpl. rewrite Hcallee. exact Hrun. }
+      rewrite run_succ, step_let. simpl.
+      rewrite Hcallee, (closure_of_kind _ _ _ _ Hclosure). exact Hrun. }
     apply equivalent_sym, renamed_equivalent.
     + apply binds_statics_code_closed, Hstatic.
     + intros x Hx. rewrite Hvars, lookup_app.
@@ -402,10 +466,28 @@ Proof.
         -- rewrite Pos.eqb_refl. apply Same_matches.
   - apply both_wrong_equivalent.
     + apply step_undefined_wrong.
+      rewrite (step_apply_direct ap callee called slots vs vars conts
+        statics Hcallee Hclosure Hargs Hkind Hextra), Hcode, Hstatic.
+      destruct
+        (kinds_eqb (map kind_of_value vs) (unarize (ap_args_arity ap)))
+        eqn:Heq; [ | reflexivity ].
+      apply kinds_eqb_eq in Heq. contradiction.
+    + apply (step_behaves _ Goes_wrong). unfold inlined_body.
+      rewrite step_let. simpl.
+      rewrite Hcallee, (closure_of_kind _ _ _ _ Hclosure).
+      apply (let_params_wrong_kinds _ _ _ vs);
+        [ exact Harity | exact Hparams_kinds | | | exact Hparams ].
+      * rewrite eval_simples_extend; assumption.
+      * unfold code_params_kinds.
+        rewrite <- (unarize_per_parameter_eq _ _ Hargs_arity).
+        exact Hkinds.
+  - apply both_wrong_equivalent.
+    + apply step_undefined_wrong.
       rewrite (step_apply_no_extra_args _ _ _ _ Hextra), Hcallee, Hargs.
       reflexivity.
     + apply (step_behaves _ Goes_wrong). unfold inlined_body.
-      rewrite step_let. simpl. rewrite Hcallee.
+      rewrite step_let. simpl.
+      rewrite Hcallee, (closure_of_kind _ _ _ _ Hclosure).
       apply let_params_wrong; [ exact Harity | | exact Hparams ].
       rewrite eval_simples_extend; assumption.
 Qed.

@@ -73,6 +73,7 @@ Lemma shortcut_arms_equivalent (k : continuation)
     (metadata : handler_metadata) (target : apply_cont) (s : simple)
     (arms : list (Z * apply_cont)) (vars : env) (conts : cont_env)
     (statics : static_env) :
+  hm_params_kinds metadata = [] ->
   ac_continuation target <> k ->
   equivalent
     (State (Switch s arms) vars
@@ -84,7 +85,7 @@ Lemma shortcut_arms_equivalent (k : continuation)
         :: conts)
        statics).
 Proof.
-  intros Hother.
+  intros Hno_kinds Hother.
   destruct (eval_simple vars s) as [v | ] eqn:Hs;
     [ | apply step_eq_equivalent; rewrite !step_switch, Hs; reflexivity ].
   destruct (naked_immediate_of_value v) as [i | ] eqn:Hi;
@@ -108,7 +109,8 @@ Proof.
   - apply step_equivalent.
     apply (step_apply_cont_handler _ _ _ _ [] [] metadata (Apply_cont target)
       vars conts []);
-      [ reflexivity | apply resolve_head | reflexivity ].
+      [ reflexivity | apply resolve_head
+      | rewrite Hno_kinds; reflexivity | reflexivity ].
   - apply equivalent_sym, step_eq_equivalent, apply_cont_skip, Hother.
 Qed.
 
@@ -122,6 +124,8 @@ Proof.
   destruct handler as [ | | | | | target | | ];
     try (intros vars conts statics; apply equivalent_refl).
   destruct body; try (intros vars conts statics; apply equivalent_refl).
+  destruct (hm_params_kinds metadata) eqn:Hno_kinds;
+    [ | intros vars conts statics; apply equivalent_refl ].
   destruct (Pos.eqb_spec (ac_continuation target) k) as [ | Hother];
     [ intros vars conts statics; apply equivalent_refl | ].
   cbn [orb].
@@ -132,12 +136,13 @@ Proof.
     [ | intros vars conts statics; apply equivalent_refl ].
   cbn [negb]. intros vars conts statics.
   destruct (arms_apply k (map (shortcut_arm k target) arms)) eqn:Happly.
-  - apply let_cont_non_recursive_equivalent_step, shortcut_arms_equivalent,
-      Hother.
+  - apply let_cont_non_recursive_equivalent_step, shortcut_arms_equivalent;
+      [ exact Hno_kinds | exact Hother ].
   - eapply equivalent_trans;
       [ apply step_equivalent, step_let_cont_non_recursive | ].
     eapply equivalent_trans;
-      [ apply shortcut_arms_equivalent, Hother | ].
+      [ apply shortcut_arms_equivalent; [ exact Hno_kinds | exact Hother ]
+      | ].
     apply switch_skip, Happly.
 Qed.
 

@@ -288,8 +288,9 @@ Theorem remove_unused_lets_equivariant :
   remove_unused_lets_equivariant_statement.
 Proof. exact remove_unused_lets_equivariant_aux. Qed.
 
-Lemma named_is_total_renamed (r : renaming) (d : named) :
-  named_is_total (rename_named r d) = named_is_total d.
+Lemma named_is_total_renamed (r : renaming) (kind : flambda_kind)
+    (d : named) :
+  named_is_total kind (rename_named r d) = named_is_total kind d.
 Proof. destruct d as [[x | sym | c] | | | | | | ]; reflexivity. Qed.
 
 Fixpoint remove_unused_total_lets_equivariant_aux (r : renaming) (e : expr) :
@@ -303,7 +304,7 @@ Proof.
   - rewrite remove_unused_total_lets_equivariant_aux,
       var_free_b_equivariant_aux, named_is_total_renamed.
     destruct
-      (named_is_total d
+      (named_is_total kind d
        && negb (var_free_b x (remove_unused_total_lets body)));
       reflexivity.
   - rewrite remove_unused_total_lets_equivariant_aux. reflexivity.
@@ -315,37 +316,84 @@ Theorem remove_unused_total_lets_equivariant :
   remove_unused_total_lets_equivariant_statement.
 Proof. exact remove_unused_total_lets_equivariant_aux. Qed.
 
-Lemma named_defined_equivariant (r : renaming) (vs : list variable)
-    (d : named) :
-  named_defined (map (rename_variable r) vs) (rename_named r d)
-  = named_defined vs d.
+(* A variable is found among the renamed variables in scope where it was
+   found, at the same kind: a renaming is injective. *)
+Lemma lookup_rename_kinds_in_scope (r : renaming) (x : variable)
+    (kinds : kinds_in_scope) :
+  lookup (rename_variable r x) (rename_kinds_in_scope r kinds)
+  = lookup x kinds.
+Proof.
+  induction kinds as [ | [y kind] kinds IH]; simpl; [ reflexivity | ].
+  rewrite rename_variable_eqb. destruct (Pos.eqb x y); [ reflexivity | ].
+  exact IH.
+Qed.
+
+Lemma map_fst_rename_kinds_in_scope (r : renaming) (kinds : kinds_in_scope) :
+  map fst (rename_kinds_in_scope r kinds)
+  = map (rename_variable r) (map fst kinds).
+Proof.
+  unfold rename_kinds_in_scope. rewrite !map_map. reflexivity.
+Qed.
+
+Lemma kind_of_simple_in_scope_equivariant (r : renaming)
+    (kinds : kinds_in_scope) (s : simple) :
+  kind_of_simple_in_scope (rename_kinds_in_scope r kinds) (rename_simple r s)
+  = kind_of_simple_in_scope kinds s.
+Proof.
+  destruct s; simpl; [ apply lookup_rename_kinds_in_scope | | ];
+    reflexivity.
+Qed.
+
+Lemma named_defined_equivariant (r : renaming) (kinds : kinds_in_scope)
+    (kind : flambda_kind) (d : named) :
+  named_defined (rename_kinds_in_scope r kinds) kind (rename_named r d)
+  = named_defined kinds kind d.
 Proof.
   destruct d; simpl; try reflexivity;
-    [ apply simple_in_scope_equivariant
-    | apply value_slots_in_scope_equivariant
-    | rewrite value_slots_in_scope_equivariant; reflexivity ].
+    [ rewrite kind_of_simple_in_scope_equivariant; reflexivity
+    | rewrite map_fst_rename_kinds_in_scope,
+        value_slots_in_scope_equivariant;
+      reflexivity
+    | rewrite map_fst_rename_kinds_in_scope,
+        value_slots_in_scope_equivariant;
+      reflexivity ].
+Qed.
+
+Lemma params_in_scope_equivariant (r : renaming) (params : list variable) :
+  ∀ (params_kinds : list flambda_kind) (kinds : kinds_in_scope),
+    params_in_scope (map (rename_variable r) params) params_kinds
+      (rename_kinds_in_scope r kinds)
+    = rename_kinds_in_scope r (params_in_scope params params_kinds kinds).
+Proof.
+  induction params as [ | param params IH];
+    intros [ | kind params_kinds] kinds; simpl; try reflexivity.
+  exact (IH params_kinds ((param, kind) :: kinds)).
 Qed.
 
 Fixpoint remove_unused_defined_lets_equivariant_aux (r : renaming)
     (e : expr) :
-  ∀ vs : list variable,
-    remove_unused_defined_lets (map (rename_variable r) vs) (rename_expr r e)
-    = rename_expr r (remove_unused_defined_lets vs e).
+  ∀ kinds : kinds_in_scope,
+    remove_unused_defined_lets (rename_kinds_in_scope r kinds)
+      (rename_expr r e)
+    = rename_expr r (remove_unused_defined_lets kinds e).
 Proof.
   destruct e
     as [ x kind d body | bindings body | k [params metadata handler] body
        | handlers body | ap | ac | scrutinee arms | ];
-    intros vs; simpl; try reflexivity.
-  - change (rename_variable r x :: map (rename_variable r) vs)
-      with (map (rename_variable r) (x :: vs)).
+    intros kinds; simpl; try reflexivity.
+  - change ((rename_variable r x, kind) :: rename_kinds_in_scope r kinds)
+      with (rename_kinds_in_scope r ((x, kind) :: kinds)).
     rewrite remove_unused_defined_lets_equivariant_aux,
       named_defined_equivariant, var_free_b_equivariant_aux.
     destruct
-      (named_defined vs d
-       && negb (var_free_b x (remove_unused_defined_lets (x :: vs) body)));
+      (named_defined kinds kind d
+       && negb
+            (var_free_b x
+               (remove_unused_defined_lets ((x, kind) :: kinds) body)));
       reflexivity.
   - rewrite remove_unused_defined_lets_equivariant_aux. reflexivity.
-  - rewrite <- map_app, !remove_unused_defined_lets_equivariant_aux.
+  - rewrite params_in_scope_equivariant,
+      !remove_unused_defined_lets_equivariant_aux.
     reflexivity.
   - rewrite remove_unused_defined_lets_equivariant_aux. reflexivity.
 Qed.
@@ -353,7 +401,7 @@ Qed.
 Theorem remove_unused_defined_lets_equivariant :
   remove_unused_defined_lets_equivariant_statement.
 Proof.
-  intros r vs e. apply remove_unused_defined_lets_equivariant_aux.
+  intros r kinds e. apply remove_unused_defined_lets_equivariant_aux.
 Qed.
 
 (* ======================================================================== *)
@@ -502,32 +550,12 @@ Proof.
   destruct const; simpl; apply IH.
 Qed.
 
-Lemma simple_has_kind_b_renamed (r : renaming) (s : simple)
-    (kind : flambda_kind) :
-  simple_has_kind_b (rename_simple r s) kind = simple_has_kind_b s kind.
-Proof. destruct s; reflexivity. Qed.
-
-Lemma args_have_kinds_renamed (r : renaming) (args : list simple) :
-  ∀ kinds : list flambda_kind,
-    FlambdaCompareSpec.forall2b simple_has_kind_b
-      (map (rename_simple r) args) kinds
-    = FlambdaCompareSpec.forall2b simple_has_kind_b args kinds.
-Proof.
-  induction args as [ | arg args IH]; intros [ | kind kinds]; simpl;
-    try reflexivity.
-  rewrite simple_has_kind_b_renamed, IH. reflexivity.
-Qed.
-
 Lemma call_agrees_b_renamed (r : renaming) (ap : apply_expr) (c : code) :
   call_agrees_b (rename_apply r ap) (rename_code r c) = call_agrees_b ap c.
 Proof.
   destruct c as [params my_closure ret exn metadata body].
-  unfold call_agrees_b. simpl. rewrite args_have_kinds_renamed. reflexivity.
+  unfold call_agrees_b. simpl. rewrite length_map. reflexivity.
 Qed.
-
-Theorem simple_has_kind_b_equivariant :
-  simple_has_kind_b_equivariant_statement.
-Proof. exact simple_has_kind_b_renamed. Qed.
 
 Theorem call_agrees_b_equivariant : call_agrees_b_equivariant_statement.
 Proof. exact call_agrees_b_renamed. Qed.
@@ -728,6 +756,7 @@ Proof.
     try reflexivity.
   destruct body as [ | | | | | | scrutinee arms | ]; try reflexivity.
   cbn [thread_switch rename_handler rename_expr map].
+  destruct (hm_params_kinds metadata); [ | reflexivity ].
   rewrite (dec_injective simple_eq_dec (rename_simple r))
     by apply rename_simple_injective.
   destruct (simple_eq_dec scrutinee inner_scrutinee); [ | reflexivity ].
@@ -3236,6 +3265,7 @@ Proof.
   destruct handler as [ | | | | | target | | ]; try reflexivity.
   destruct body as [ | | | | | | scrutinee arms | ]; try reflexivity.
   cbn [shortcut_switch rename_handler rename_expr map].
+  destruct (hm_params_kinds metadata); [ | reflexivity ].
   change (ac_continuation (rename_apply_cont r target))
     with (rename_continuation r (ac_continuation target)).
   rewrite rename_continuation_eqb, no_trap_action_renamed.
@@ -3592,8 +3622,9 @@ Proof.
   unfold loopable.
   cbn [rename_code code_params code_my_closure code_return_continuation
        code_exn_continuation code_body].
-  rewrite among_rename_variable, !rename_continuation_eqb,
-    loop_safe_equivariant, loop_calls_equivariant,
+  rewrite among_rename_variable,
+    (distinct_map_injective _ (rename_variable_eqb r)),
+    !rename_continuation_eqb, loop_safe_equivariant, loop_calls_equivariant,
     cont_free_b_equivariant_aux.
   reflexivity.
 Qed.

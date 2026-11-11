@@ -1335,6 +1335,8 @@ Proof.
   - (* A handler. *)
     destruct Htarget as (Hagree & ds & Hh & Hds).
     destruct h as [params metadata handler]. unfold stack_enter. simpl.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | exact I ].
     destruct (bind_params params vs vars) as [handler_vars | ]; [ | exact I ].
     simpl. unfold inv. simpl_state.
     split; [ reflexivity | ]. split; [ reflexivity | ].
@@ -1515,6 +1517,7 @@ Proof.
   - (* Let *)
     rewrite !step_let.
     destruct (eval_named statics vars d) as [v | ]; [ | exact I ].
+    destruct (kind_eqb (kind_of_value v) kind); [ | exact I ].
     simpl. unfold inv. simpl_state.
     split; [ reflexivity | ]. split; [ reflexivity | ].
     split; [ reflexivity | ].

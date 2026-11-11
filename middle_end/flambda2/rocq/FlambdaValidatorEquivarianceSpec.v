@@ -86,8 +86,8 @@
 
    The rewrites and checks of FlambdaNormaliseSpec.v:
    - the checks [expr_in_scope], [inlinable_b] and [var_free_b], and
-     the two tests of whether a call is sure to agree with the code
-     called ([simple_has_kind_b], [call_agrees_b]);
+     the test of whether a call agrees with the code called in its
+     arities ([call_agrees_b]);
    - the rewrites [remove_unused_lets], [inline_tail_conts] (with
      [inline_cont_at_tail], which it is made of), [drop_deleted_code],
      [remove_unused_total_lets], [remove_unused_defined_lets],
@@ -244,20 +244,18 @@ Definition drop_deleted_code_equivariant_statement : Prop :=
 Definition remove_unused_total_lets_equivariant_statement : Prop :=
   rewrite_equivariant remove_unused_total_lets.
 
-(* The variables in scope are renamed with the term. *)
+(* The variables in scope are renamed with the term; the kinds of their
+   binders have no names in them and stay
+   (FlambdaNormaliseSpec.rename_kinds_in_scope). *)
 Definition remove_unused_defined_lets_equivariant_statement : Prop :=
-  ∀ (r : renaming) (vs : list variable) (e : expr),
-    remove_unused_defined_lets (map (rename_variable r) vs) (rename_expr r e)
-    = rename_expr r (remove_unused_defined_lets vs e).
+  ∀ (r : renaming) (kinds : kinds_in_scope) (e : expr),
+    remove_unused_defined_lets (rename_kinds_in_scope r kinds)
+      (rename_expr r e)
+    = rename_expr r (remove_unused_defined_lets kinds e).
 
-(* The two tests that decide whether a call is sure to agree with the
-   code called: of an argument, that it is sure to have a kind, and of
-   the call. They read kinds and arities, which have no names in them,
-   and of an argument only whether it is a variable. *)
-Definition simple_has_kind_b_equivariant_statement : Prop :=
-  ∀ (r : renaming) (s : simple) (kind : flambda_kind),
-    simple_has_kind_b (rename_simple r s) kind = simple_has_kind_b s kind.
-
+(* The test that decides whether a call agrees with the code called in
+   its arities. It reads arities, which have no names in them, and how
+   many parameters the code has. *)
 Definition call_agrees_b_equivariant_statement : Prop :=
   ∀ (r : renaming) (ap : apply_expr) (c : code),
     call_agrees_b (rename_apply r ap) (rename_code r c) = call_agrees_b ap c.

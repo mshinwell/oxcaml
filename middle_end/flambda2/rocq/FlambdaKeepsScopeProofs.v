@@ -191,16 +191,17 @@ Theorem remove_unused_lets_keeps_scope :
 Proof. apply keeps_scope_intro, remove_unused_lets_scoped. Qed.
 
 Fixpoint remove_unused_defined_lets_scoped (e : expr) :
-  ∀ vs : list variable, scoped e (remove_unused_defined_lets vs e).
+  ∀ kinds : kinds_in_scope, scoped e (remove_unused_defined_lets kinds e).
 Proof.
   destruct e
     as [x kind d body | bindings body | k [params metadata handler] body
        | handlers body | ap | ac | scrutinee arms | ];
-    intros vs; cbn [remove_unused_defined_lets];
+    intros kinds; cbn [remove_unused_defined_lets];
     try (scoped_under_binders remove_unused_defined_lets_scoped).
-  destruct (named_defined vs d); cbn [andb];
+  destruct (named_defined kinds kind d); cbn [andb];
     [ | scoped_under_binders remove_unused_defined_lets_scoped ].
-  destruct (var_free_b x (remove_unused_defined_lets (x :: vs) body))
+  destruct
+    (var_free_b x (remove_unused_defined_lets ((x, kind) :: kinds) body))
     eqn:Hfree; cbn [negb];
     [ scoped_under_binders remove_unused_defined_lets_scoped | ].
   apply scoped_let_unused;
@@ -210,7 +211,7 @@ Qed.
 Theorem remove_unused_defined_lets_keeps_scope :
   remove_unused_defined_lets_keeps_scope_statement.
 Proof.
-  intros vs. apply keeps_scope_intro. intros e.
+  intros kinds. apply keeps_scope_intro. intros e.
   apply remove_unused_defined_lets_scoped.
 Qed.
 
@@ -436,6 +437,7 @@ Proof.
   unfold thread_switch.
   destruct h as [[ | param params] metadata handler]; destruct handler;
     destruct body; try apply scoped_refl.
+  destruct (hm_params_kinds metadata); [ | apply scoped_refl ].
   match goal with
   | |- context [simple_eq_dec ?s ?s'] =>
     destruct (simple_eq_dec s s') as [<- | ]; [ | apply scoped_refl ]

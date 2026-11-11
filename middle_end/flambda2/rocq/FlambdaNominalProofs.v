@@ -1022,15 +1022,17 @@ Qed.
 Theorem unused_let : unused_let_statement.
 Proof.
   intros x kind d body Hunused vars conts statics.
-  destruct (eval_named statics vars d) as [v | ] eqn:Hd.
+  destruct (eval_named statics vars d) as [v | ] eqn:Hd;
+    [ destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind | ].
   - apply equivalent_refines.
     apply (equivalent_trans _ (State body ((x, v) :: vars) conts statics));
-      [ apply step_equivalent; rewrite step_let, Hd; reflexivity | ].
+      [ apply step_equivalent; rewrite step_let, Hd, Hkind; reflexivity | ].
     apply coincide_equivalent.
     + intros y Hy. simpl.
       destruct (Pos.eqb_spec y x) as [-> | _]; [ contradiction | ].
       reflexivity.
     + intros k _. apply (conts_agree_same identity_renaming). reflexivity.
+  - apply step_undefined_refines. rewrite step_let, Hd, Hkind. reflexivity.
   - apply step_undefined_refines. rewrite step_let, Hd. reflexivity.
 Qed.
 

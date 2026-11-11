@@ -114,7 +114,7 @@ Proof.
   rewrite step_let_project_function_slot. simpl eval_simple. rewrite Hbase.
   rewrite (project_function_slot_of_set statics base_slot slot decls
              slot_values code code' Hfrom Hto).
-  rewrite IH.
+  cbn [kind_of_value]. rewrite kind_eqb_refl, IH.
   - simpl. rewrite <- app_assoc. reflexivity.
   - rewrite lookup_other; [ exact Hbase | congruence ].
   - intros y' slot' Hin. apply Hbound. right. exact Hin.
@@ -214,6 +214,7 @@ Proof.
   apply distinct_NoDup in Hdistinct.
   inversion Hdistinct as [ | ? ? Hfresh Hrest]. subst.
   simpl length. rewrite run_succ, step_let_closure_of_set, lookup_head, Hslots.
+  rewrite kind_eqb_refl.
   rewrite <- (combine_fst_length xs others Hlen) at 1.
   rewrite (let_projections_runs ((slot, code) :: others) slot_values x slot
              code body conts statics (lookup_head _ _ _)
@@ -264,7 +265,7 @@ Proof.
     eapply equivalent_trans;
       [ | apply equivalent_sym;
           exact (equivalent_of_run (length bound_vars) 0 _ _ Hrun') ].
-    apply let_equivalent_step; [ | intros v _; apply equivalent_refl ].
+    apply let_equivalent_step; [ | intros v _ _; apply equivalent_refl ].
     apply distinct_NoDup in Hdistinct. rewrite closures_bound_rev. simpl.
     rewrite (closures_bound_to_lookup decls slot_values bound_vars decls vars
                i x_from move_from code Hdistinct Hx_from Hfrom).
@@ -293,7 +294,7 @@ Proof.
   intros v. simpl. rewrite Hclosure. unfold project_function_slot.
   rewrite Pos.eqb_refl, Hto.
   destruct (lookup move_from decls); [ | discriminate ].
-  simpl. intros [= <-].
+  simpl. intros [= <-] _.
   apply (apply_indirect_known (Var x) args extra k exn args_arity
            return_arity (Value_closure_of_set move_to decls slot_values) code
            slot_values).
@@ -407,7 +408,7 @@ Proof.
   destruct (project_static_set extended closure_symbols decls slot_values
               move_from move_to s s' code code' Hbound Hin Hsymbol Hfrom Hto)
     as [Hproject _].
-  apply let_equivalent_step; [ | intros v _; apply equivalent_refl ].
+  apply let_equivalent_step; [ | intros v _ _; apply equivalent_refl ].
   cbn [eval_named eval_simple]. rewrite Hproject. reflexivity.
 Qed.
 
@@ -450,7 +451,7 @@ Proof.
   pose proof (bind_closures_binds vars closure_symbols decls value_slots
                 slot_values statics extended Hslots Heval project_from s Hin)
     as Hs.
-  apply let_equivalent_step; [ | intros v _; apply equivalent_refl ].
+  apply let_equivalent_step; [ | intros v _ _; apply equivalent_refl ].
   cbn [eval_named eval_simple]. unfold project_value_slot, closure_in_set.
   rewrite Hs, Hfrom. cbn. rewrite Pos.eqb_refl. symmetry.
   exact (eval_value_slots_lookup vars slot contents value_slots slot_values
@@ -741,6 +742,8 @@ Proof.
                  | c IH extra];
     intros vs statics s'; simpl.
   - intros (Ph & Hrec & Cdef).
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | discriminate ].
     destruct (bind_params params vs def_vars); [ | discriminate ].
     intros [= <-]. simpl_state.
     refine (conj Ph (conj (conts_sets_ok_app _ _ _ Cdef) eq_refl)).
@@ -770,7 +773,8 @@ Proof.
        | scrutinee arms | ];
     autorewrite with step in Hstep.
   - (* Let *)
-    destruct (eval_named statics vars d); [ | discriminate ].
+    destruct (eval_named statics vars d) as [v | ]; [ | discriminate ].
+    destruct (kind_eqb (kind_of_value v) kind); [ | discriminate ].
     injection Hstep as <-. unfold sets_inv. simpl_state. simpl in P.
     apply andb_true_iff in P as [_ Pbody].
     exact (conj Pbody (conj C (conj S B))).
@@ -1513,6 +1517,8 @@ Proof.
                  | c IH extra];
     intros vs statics s'; simpl.
   - intros (Hh & Hrec & Cdef).
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | discriminate ].
     destruct (bind_params params vs def_vars); [ | discriminate ].
     intros [= <-]. simpl_state.
     refine (conj (Ph_handler params metadata handler Hh)
@@ -1570,7 +1576,8 @@ Proof.
        | scrutinee arms | ];
     autorewrite with step in Hstep.
   - (* Let *)
-    destruct (eval_named statics vars d); [ | discriminate ].
+    destruct (eval_named statics vars d) as [v | ]; [ | discriminate ].
+    destruct (kind_eqb (kind_of_value v) kind); [ | discriminate ].
     injection Hstep as <-. unfold terms_inv. simpl_state.
     exact (conj (Pe_let x kind d body P) (conj C S)).
   - (* Let_static *)

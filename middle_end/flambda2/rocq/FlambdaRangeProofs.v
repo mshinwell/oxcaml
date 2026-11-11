@@ -420,7 +420,9 @@ Proof.
            Hrecursive ];
     intros vs Hvs; simpl; [ exact Hvs | | ].
   - apply IH. rewrite forallb_app, Hvs, Hextra. reflexivity.
-  - destruct (bind_params params vs vars) as [handler_vars | ] eqn:Hbind;
+  - destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | exact I ].
+    destruct (bind_params params vs vars) as [handler_vars | ] eqn:Hbind;
       [ | exact I ].
     repeat split; simpl.
     + exact Hh.
@@ -502,6 +504,7 @@ Proof.
     autorewrite with step; simpl in Hexpr.
   - apply andb_true_iff in Hexpr as [Hd Hbody].
     destruct (eval_named statics vars d) as [v | ] eqn:Heval; [ | exact I ].
+    destruct (kind_eqb (kind_of_value v) kind); [ | exact I ].
     repeat split; simpl; try assumption; try apply Hstatics.
     intros y w [[= <- <-] | Hin]; [ | exact (Hvars y w Hin) ].
     exact (eval_named_in_range statics Hstatics vars Hvars d v Hd Heval).

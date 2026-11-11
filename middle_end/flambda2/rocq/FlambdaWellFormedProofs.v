@@ -80,7 +80,8 @@ Proof.
     as [x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
     autorewrite with step in Hstep.
-  - destruct (eval_named statics vars d); [ | discriminate ].
+  - destruct (eval_named statics vars d) as [v | ]; [ | discriminate ].
+    destruct (kind_eqb (kind_of_value v) kind); [ | discriminate ].
     injection Hstep as <-. apply statics_extend_refl.
   - destruct (eval_static_bindings vars bindings statics) as [extended | ]
       eqn:Heval; [ | discriminate ].
@@ -402,7 +403,8 @@ Proof.
        | scrutinee arms | ];
     autorewrite with step in Hstep.
   - (* Let *)
-    destruct (eval_named statics vars d); [ | discriminate ].
+    destruct (eval_named statics vars d) as [v | ]; [ | discriminate ].
+    destruct (kind_eqb (kind_of_value v) kind); [ | discriminate ].
     injection Hstep as <-. unfold inv. simpl_state. simpl in P, D, X, F.
     exact (conj P (conj D (conj C (conj X (conj F S))))).
   - (* Let_static *)
@@ -506,6 +508,7 @@ Proof.
            & Htarget)
          | (k & Htarget)];
       rewrite Htarget in Hstep, Ct, Nr; simpl in Hstep; [ | discriminate ].
+    destruct (kinds_eqb _ (hm_params_kinds metadata)); [ | discriminate ].
     destruct (bind_params params _ def_vars); [ | discriminate ].
     injection Hstep as <-. unfold inv. simpl_state. simpl in Ct, Nr.
     rename Ct into Cr.

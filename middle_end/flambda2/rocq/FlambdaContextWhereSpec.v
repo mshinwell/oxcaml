@@ -50,7 +50,10 @@
 
    - a handler runs under the variables of its definition with its
      parameters bound to some values, under any continuations and any
-     static environment ([handler_refines_from]);
+     static environment. The application of a handler has no step unless
+     the values are of the kinds that the handler gives its parameters
+     (FlambdaSemanticsSpec.apply_cont_value), so that fact is given too
+     ([handler_refines_from]);
    - the body of code runs at a call, under its parameters and
      [my_closure] alone, bound to the arguments and the callee, with its
      two continuations bound and under any static environment. A call
@@ -75,12 +78,14 @@
    of a state, such as a condition on the static environment, meets the
    second for free.
 
-   Nothing is given about the kinds of the values of the parameters of
-   a handler. The machine does not test the kind of a value where a
-   handler binds it (the review comment before
-   FlambdaSemanticsSpec.step), so [handler_refines_from] has no such fact
-   to hand to the premise, and is not to be read as giving one. A call
-   is tested, which is why [code_refines_from] has it.
+   The kinds of the values of the parameters of a handler are given, as
+   those of the arguments of a call are. The machine tests the kind of a
+   value where a handler binds it, as it does at a call (the review
+   comment before FlambdaSemanticsSpec.step says how certain the first
+   is). So [handler_refines_from] takes the kinds that the handler gives
+   its parameters, and hands the premise that the values are of those
+   kinds. Both are about the values, in the state where the expression
+   comes to run.
 
    The statements are of states, not of expressions under all
    environments: the two whole states are asked to have [inv] at the
@@ -132,10 +137,11 @@ Import ListNotations.
 Definition kept_by_step (inv : state -> Prop) : Prop :=
   ∀ s s' : state, inv s -> step s = Step s' -> inv s'.
 
-(* A handler with parameters [params], defined under the variables
-   [def_vars], runs under those variables with its parameters bound. In
-   every such state the two expressions have [inv] together, and the
-   first, where it has [inv], refines the second.
+(* A handler with parameters [params], which it gives the kinds [kinds],
+   defined under the variables [def_vars], runs under those variables
+   with its parameters bound to values of those kinds. In every such
+   state the two expressions have [inv] together, and the first, where
+   it has [inv], refines the second.
 
    That the two have [inv] together is asked for the proof. It goes
    through states that no run of the two whole states need reach (the
@@ -145,10 +151,11 @@ Definition kept_by_step (inv : state -> Prop) : Prop :=
    with the other expression. It is not that a run could leave the
    states that have [inv]. *)
 Definition handler_refines_from (inv : state -> Prop)
-    (params : list variable) (def_vars : env) (source target : expr)
-    : Prop :=
+    (params : list variable) (kinds : list flambda_kind) (def_vars : env)
+    (source target : expr) : Prop :=
   ∀ (vs : list value) (handler_vars : env) (conts : cont_env)
     (statics : static_env),
+    map kind_of_value vs = kinds ->
     bind_params params vs def_vars = Some handler_vars ->
     (inv (State source handler_vars conts statics)
      <-> inv (State target handler_vars conts statics))
@@ -201,7 +208,8 @@ Definition let_cont_handler_refines_from_statement : Prop :=
       (State
          (Let_cont_non_recursive k (Handler params metadata handler') body)
          vars conts statics) ->
-    handler_refines_from inv params vars handler handler' ->
+    handler_refines_from inv params (hm_params_kinds metadata) vars handler
+      handler' ->
     refines
       (State
          (Let_cont_non_recursive k (Handler params metadata handler) body)
@@ -229,7 +237,8 @@ Definition let_cont_recursive_handler_refines_from_statement : Prop :=
             (before ++ (k, Handler params metadata handler') :: after) body)
          vars conts statics) ->
     binds_statics handler = binds_statics handler' ->
-    handler_refines_from inv params vars handler handler' ->
+    handler_refines_from inv params (hm_params_kinds metadata) vars handler
+      handler' ->
     refines
       (State
          (Let_cont_recursive
@@ -336,10 +345,12 @@ Definition let_static_code_refines_where_statement : Prop :=
 (* For the predicate that every state has, the premises are a refinement
    in every state in which the expressions run. *)
 Definition handler_refines_from_always_statement : Prop :=
-  ∀ (params : list variable) (def_vars : env) (source target : expr),
-    handler_refines_from (fun _ => True) params def_vars source target
+  ∀ (params : list variable) (kinds : list flambda_kind) (def_vars : env)
+    (source target : expr),
+    handler_refines_from (fun _ => True) params kinds def_vars source target
     <-> ∀ (vs : list value) (handler_vars : env) (conts : cont_env)
           (statics : static_env),
+          map kind_of_value vs = kinds ->
           bind_params params vs def_vars = Some handler_vars ->
           refines (State source handler_vars conts statics)
             (State target handler_vars conts statics).
@@ -356,16 +367,18 @@ Definition code_refines_from_always_statement : Prop :=
    handlers that pass the check of numbers, of which the first refines
    the second from the states in range. *)
 Definition handler_refines_from_in_range_statement : Prop :=
-  ∀ (params : list variable) (def_vars : env) (source target : expr),
+  ∀ (params : list variable) (kinds : list flambda_kind) (def_vars : env)
+    (source target : expr),
     numbers_in_range source = true ->
     numbers_in_range target = true ->
     (∀ (vs : list value) (handler_vars : env) (conts : cont_env)
        (statics : static_env),
+      map kind_of_value vs = kinds ->
       bind_params params vs def_vars = Some handler_vars ->
       state_in_range (State source handler_vars conts statics) ->
       refines (State source handler_vars conts statics)
         (State target handler_vars conts statics)) ->
-    handler_refines_from state_in_range params def_vars source target.
+    handler_refines_from state_in_range params kinds def_vars source target.
 
 (* So, from a state in range, a handler may be replaced by one that
    passes the check and that it refines from the states in range. *)
@@ -380,6 +393,7 @@ Definition let_cont_handler_refines_in_range_statement : Prop :=
     numbers_in_range handler' = true ->
     (∀ (vs : list value) (handler_vars : env) (conts' : cont_env)
        (statics' : static_env),
+      map kind_of_value vs = hm_params_kinds metadata ->
       bind_params params vs vars = Some handler_vars ->
       state_in_range (State handler handler_vars conts' statics') ->
       refines (State handler handler_vars conts' statics')

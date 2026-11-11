@@ -486,7 +486,9 @@ Proof.
        | c extra Hc IH Hextra ];
     intros vs statics st Hvs Hstatics; simpl.
   - discriminate.
-  - destruct (bind_params params vs dvars) as [bound | ] eqn:Hbind;
+  - destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | discriminate ].
+    destruct (bind_params params vs dvars) as [bound | ] eqn:Hbind;
       [ | discriminate ].
     intros [= <-].
     split; [ exact Hh | ]. split; [ | split; [ | exact Hstatics ] ].
@@ -514,6 +516,7 @@ Proof.
   - (* Let *)
     apply andb_true_iff in He as [Hd Hbody]. rewrite step_let.
     destruct (eval_named statics vars d) as [v | ] eqn:Hv; [ | discriminate ].
+    destruct (kind_eqb (kind_of_value v) xkind); [ | discriminate ].
     intros [= <-].
     split; [ exact Hbody | ]. split; [ | split; assumption ].
     apply env_free_cons; [ | exact Hvars ].

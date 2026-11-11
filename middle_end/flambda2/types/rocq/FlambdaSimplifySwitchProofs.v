@@ -529,7 +529,7 @@ Lemma let_typed_refines_under_valid (tenv : Typing_env.t) (x : variable)
     (Let x declared defining_expr body').
 Proof.
   intros Hwf Hfresh Hfree Htype Hbody vars conts statics Hvalid Hsat.
-  apply let_refines_step; [ reflexivity | intros v Hv ].
+  apply let_refines_step; [ reflexivity | intros v Hv _ ].
   pose proof (Htype statics vars v Hsat Hv) as Hty.
   apply Hbody; [ exact Hvalid | ].
   apply replace_equation_env_satisfies_strictly.
@@ -566,7 +566,7 @@ Lemma let_simple_refines_under_valid (tenv : Typing_env.t) (x : variable)
     (Let x declared (Simple s) body').
 Proof.
   intros Hwf Hfresh Hscope Hkind Hadd Hbody vars conts statics Hvalid Hsat.
-  apply let_refines_step; [ reflexivity | intros v Hv ]. simpl in Hv.
+  apply let_refines_step; [ reflexivity | intros v Hv _ ]. simpl in Hv.
   assert (Hother :
     eval_simple ((x, v) :: vars) s = eval_simple vars s).
   { destruct s as [y | sym | c]; [ | reflexivity.. ]. simpl.

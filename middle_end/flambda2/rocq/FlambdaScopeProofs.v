@@ -211,6 +211,7 @@ Proof.
     autorewrite with step.
   - (* Let *)
     destruct (eval_named statics vars d) as [v | ]; [ | exact I ].
+    destruct (kind_eqb (kind_of_value v) kind); [ | exact I ].
     destruct (names_among_let _ _ _ _ _ _ Hnames) as [_ Hbody].
     apply state_in_scope_intro; assumption.
   - (* Let_static *)
@@ -307,8 +308,11 @@ Proof.
     revert Hc vs. generalize (resolve (ac_continuation ac) conts).
     intros c.
     induction c
-      as [[params handler] def_vars def_conts recursive | k' | c IH extra];
+      as [[params metadata handler] def_vars def_conts recursive | k'
+         | c IH extra];
       intros Hc vs; simpl; [ | exact Hc | exact (IH Hc (vs ++ extra)) ].
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | exact I ].
     destruct (bind_params params vs def_vars) as [handler_vars | ] eqn:Hbind;
       [ | exact I ].
     destruct Hc as ([Hh Hh_closed] & Hrecursive & Hdef_conts).

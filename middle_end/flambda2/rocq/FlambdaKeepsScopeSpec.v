@@ -113,9 +113,10 @@ Definition remove_unused_conts_keeps_scope_statement : Prop :=
 Definition remove_unused_lets_keeps_scope_statement : Prop :=
   keeps_scope remove_unused_lets.
 
-(* Whatever the variables that are taken to be in scope. *)
+(* Whatever the variables that are taken to be in scope, and the kinds
+   they are taken to have. *)
 Definition remove_unused_defined_lets_keeps_scope_statement : Prop :=
-  ∀ vs : list variable, keeps_scope (remove_unused_defined_lets vs).
+  ∀ kinds : kinds_in_scope, keeps_scope (remove_unused_defined_lets kinds).
 
 Definition apply_identities_keeps_scope_statement : Prop :=
   keeps_scope apply_identities.

@@ -84,7 +84,7 @@ Proof.
   destruct (lookup s (static_values statics)); [ exact I | ].
   destruct (eval_simple vars contents) as [v | ] eqn:Hcontents; simpl;
     [ | exact I ].
-  apply let_equivalent_step; [ | intros v' _; apply equivalent_refl ].
+  apply let_equivalent_step; [ | intros v' _ _; apply equivalent_refl ].
   simpl. rewrite !Pos.eqb_refl. simpl. rewrite ?Pos.eqb_refl, ?Hcontents.
   reflexivity.
 Qed.

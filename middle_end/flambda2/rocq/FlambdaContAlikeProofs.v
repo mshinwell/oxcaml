@@ -197,6 +197,8 @@ Proof.
   - (* Let *)
     eapply behaves_of_step; [ apply step_let | ].
     destruct (eval_named statics vars d) as [v | ]; simpl in Hended |- *;
+      [ | apply ended_undefined, Hended ].
+    destruct (kind_eqb (kind_of_value v) kind); simpl in Hended |- *;
       [ exact (IH _ _ _ _ _ _ Hrel Hended) | apply ended_undefined, Hended ].
   - (* Let_static *)
     eapply behaves_of_step; [ apply step_let_static | ].
@@ -257,6 +259,8 @@ Proof.
         (ended_terminating _ _ Hended) (ended_after_step _ _ _ Hended)).
     + (* closures of one handler *)
       simpl in Hended |- *.
+      destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+        simpl in Hended |- *; [ | apply ended_undefined, Hended ].
       destruct (bind_params params vs def_vars) as [handler_vars | ];
         simpl in Hended |- *; [ | apply ended_undefined, Hended ].
       exact (IH _ _ _ _ _ _ (rec_closures_alike _ _ _ _ Hconts) Hended).

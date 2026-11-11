@@ -60,6 +60,14 @@
    as it was at the entry ([frame_statics]), and the second jumps; the
    two are inside the loop again, with the same frame.
 
+   The handler of [self] has no step unless the values it is applied to
+   are of the kinds of the parameters of the code
+   (FlambdaSemanticsSpec.apply_cont_value). They are: a call that has a
+   step gave values of those kinds ([agreed_kinds]); at the entry the
+   jump passes the parameters, which are distinct, so their values are
+   the arguments of the call ([eval_params_bound]); and a self tail call
+   is such a call too.
+
    A continuation closure made inside a loop may be applied much later,
    when the static environment has grown. What is known of the static
    environment where it was made still holds ([cont_rel_extend]); that
@@ -159,6 +167,44 @@ Proof.
   apply (bind_params_agree_outside params vs vars vars' bound bound' Hbind
     Hbind').
   intros x _. apply Hext.
+Qed.
+
+(* Parameters that are distinct, once bound, have the values they were
+   bound to. *)
+Lemma eval_params_bound (params : list variable) :
+  ∀ (vs : list value) (base entry : env),
+    distinct params = true ->
+    bind_params params vs base = Some entry ->
+    eval_simples entry (map Var params) = Some vs.
+Proof.
+  induction params as [ | p params IH]; intros [ | v vs] base entry;
+    simpl; try discriminate; [ reflexivity | ].
+  intros Hdistinct Hbind. apply andb_true_iff in Hdistinct as [Hp Hdistinct].
+  apply negb_true_iff in Hp.
+  rewrite (lookup_bind_params_other params vs _ entry p Hbind),
+    (IH vs _ entry Hdistinct Hbind).
+  - simpl. rewrite Pos.eqb_refl. reflexivity.
+  - intros Hin. apply among_In in Hin. congruence.
+Qed.
+
+(* A call that agrees with the code gives values of the kinds of its
+   parameters. *)
+Lemma agreed_kinds (vs : list value) (args_arity return_arity : arity)
+    (c : code) :
+  negb
+    (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+     && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
+          (unarize_per_parameter (code_params_arity c))
+     && arity_eqb return_arity (code_result_arity c))
+  = false ->
+  map kind_of_value vs = code_params_kinds c.
+Proof.
+  intros Hagrees. apply negb_false_iff in Hagrees.
+  apply andb_true_iff in Hagrees as [Hagrees _].
+  apply andb_true_iff in Hagrees as [Hkinds Hargs].
+  apply kinds_eqb_eq in Hkinds. apply kinds_per_parameter_eqb_eq in Hargs.
+  unfold code_params_kinds.
+  rewrite <- (unarize_per_parameter_eq _ _ Hargs). exact Hkinds.
 Qed.
 
 (* The parameters that are bound, evaluated and bound again to their own
@@ -455,7 +501,8 @@ Proof.
   apply andb_true_iff in Hloopable as [Hloopable _].
   apply andb_true_iff in Hloopable as [Hloopable Hsafe].
   apply andb_true_iff in Hloopable as [Hloopable Hexn].
-  apply andb_true_iff in Hloopable as [Hparams Hret].
+  apply andb_true_iff in Hloopable as [Hloopable Hret].
+  apply andb_true_iff in Hloopable as [Hparams _].
   apply negb_true_iff in Hparams, Hret, Hexn.
   apply Pos.eqb_neq in Hret, Hexn.
   assert (Hnotin : frame_my_closure F ∉ frame_params F).
@@ -463,6 +510,18 @@ Proof.
     unfold frame_my_closure, frame_params in Hin. congruence. }
   repeat split; try assumption.
   rewrite (Hentry _ Hnotin). simpl. rewrite Pos.eqb_refl. reflexivity.
+Qed.
+
+(* Code that was fit to be made a loop has distinct parameters. *)
+Lemma loopable_distinct (self : continuation) (c : code) :
+  loopable self c = true -> distinct (code_params c) = true.
+Proof.
+  unfold loopable. intros Hloopable.
+  apply andb_true_iff in Hloopable as [Hloopable _].
+  apply andb_true_iff in Hloopable as [Hloopable _].
+  apply andb_true_iff in Hloopable as [Hloopable _].
+  apply andb_true_iff in Hloopable as [Hloopable _].
+  apply andb_true_iff in Hloopable as [_ Hdistinct]. exact Hdistinct.
 Qed.
 
 (* The variables of the two runs inside the loop: every name has the same
@@ -699,16 +758,23 @@ Proof.
     induction c
       as [[params metadata handler] vars conts recursive | k | c IH extra];
       intros vs; simpl; [ | reflexivity | apply IH ].
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | exact I ].
     destruct (bind_params params vs vars) as [bound | ]; [ | exact I ].
     eexists. split; [ reflexivity | ].
     apply Loops_out; [ exact Hstatics | intros k; apply Rel_same ].
-  - simpl. destruct (bind_params params vs vars) as [bound | ]; [ | exact I ].
+  - simpl.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | exact I ].
+    destruct (bind_params params vs vars) as [bound | ]; [ | exact I ].
     eexists. split; [ reflexivity | ].
     apply Loops_out; [ exact Hstatics | ].
     intros k. rewrite !resolve_rec_closures.
     destruct (lookup k recursive) as [h | ];
       [ apply Rel_out, Hconts | apply Hconts ].
   - simpl.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | exact I ].
     destruct (bind_params params vs vars) as [bound | ] eqn:Hbind;
       [ | exact I ].
     destruct (bind_params_ext params vs vars vars' bound (proj1 Hvars) Hbind)
@@ -736,11 +802,14 @@ Proof.
   rewrite Heq, Pos.eqb_refl in Hsafe. discriminate Hsafe.
 Qed.
 
-(* The looped code, entered: two steps bind [self] and jump to it, to
-   the looped body under variables that agree with those of the entry. *)
+(* The looped code, entered with distinct parameters bound to values of
+   their kinds: two steps bind [self] and jump to it, to the looped body
+   under variables that agree with those of the entry. *)
 Lemma enter_loop (self : continuation) (c : code) (vs : list value)
     (base entry : env) (conts : cont_env) (statics : static_env) :
   binds_statics (code_body c) = false ->
+  distinct (code_params c) = true ->
+  map kind_of_value vs = code_params_kinds c ->
   bind_params (code_params c) vs base = Some entry ->
   ∃ entry' : env,
     run 2 (State (code_body (looped_code self c)) entry conts statics)
@@ -756,16 +825,20 @@ Lemma enter_loop (self : continuation) (c : code) (vs : list value)
            statics)
     ∧ ∀ x : variable, lookup x entry = lookup x entry'.
 Proof.
-  intros Hbinds Hbind.
+  intros Hbinds Hdistinct Hkinds Hbind.
   destruct (rebind_params (code_params c) vs base entry Hbind)
     as (vs' & entry' & Hvs' & Hbind' & Hext).
+  rewrite (eval_params_bound _ vs base entry Hdistinct Hbind) in Hvs'.
+  injection Hvs' as <-.
+  pose proof (eval_params_bound _ vs base entry Hdistinct Hbind) as Hvs.
+  apply kinds_eqb_eq in Hkinds.
   exists entry'. split; [ | exact Hext ].
   destruct c as [params my_closure ret exn metadata body]. simpl in *.
   rewrite step_let_cont_recursive. unfold handlers_bind_statics. simpl.
   rewrite loop_calls_binds_statics, Hbinds. simpl.
-  rewrite step_apply_cont. simpl. rewrite Hvs'.
+  rewrite step_apply_cont. simpl. rewrite Hvs.
   unfold apply_continuation. rewrite resolve_head. unfold loop_handler.
-  simpl. rewrite Hbind'. reflexivity.
+  simpl. rewrite Hkinds, Hbind'. reflexivity.
 Qed.
 
 (* The same call under the two static environments, returning to
@@ -828,7 +901,8 @@ Proof.
     destruct (enter_loop self c vs _ entry
                 [(code_return_continuation c, r');
                  (code_exn_continuation c, x')]
-                statics' Hbinds Hbind)
+                statics' Hbinds (loopable_distinct self c Hloopable)
+                (agreed_kinds vs args_arity return_arity c Hagrees) Hbind)
       as (entry' & Hrun & Hext).
     eexists _, 2, _. split; [ reflexivity | ]. split; [ exact Hrun | ].
     set (F := Frame self c callee entry r' x').
@@ -925,8 +999,9 @@ Proof.
   rewrite Hid, Hbinds.
   match goal with
   | |- context [if negb ?agrees then _ else _] =>
-    destruct (negb agrees); [ exact I | ]
+    destruct (negb agrees) eqn:Hagrees; [ exact I | ]
   end.
+  apply agreed_kinds, kinds_eqb_eq in Hagrees.
   destruct
     (bind_params (code_params (frame_code F)) vs
        [(code_my_closure (frame_code F), frame_closure F)])
@@ -934,7 +1009,8 @@ Proof.
   destruct (bind_params_defined _ vs _ (frame_entry F) entry Hbind)
     as [bound' Hbind'].
   rewrite Hself. unfold frame_self_closure, loop_handler.
-  cbn [apply_cont_value]. rewrite Hbind'. eexists. split; [ reflexivity | ].
+  cbn [apply_cont_value hm_params_kinds make_handler_metadata].
+  rewrite Hagrees, Hbind'. eexists. split; [ reflexivity | ].
   apply (Loops_in F (code_body (frame_code F)) entry bound');
     try assumption.
   - split.
@@ -981,12 +1057,14 @@ Proof.
     + (* Let *)
       rewrite step_let.
       destruct (eval_named statics vars d) as [v | ] eqn:Hd; [ | exact I ].
+      cbv beta iota.
+      destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind; [ | exact I ].
       apply (answered_one _ _ (State body ((x, v) :: vars) conts' statics')).
       * rewrite step_let,
           <- (eval_named_related (ignoring_binders any_body) statics statics'
                 vars d Hrelated),
           Hd.
-        reflexivity.
+        cbv beta iota. rewrite Hkind. reflexivity.
       * apply Loops_out; assumption.
     + (* Let_static *)
       rewrite step_let_static.
@@ -1090,6 +1168,8 @@ Proof.
       apply negb_true_iff in Hx. apply Pos.eqb_neq in Hx.
       rewrite step_let.
       destruct (eval_named statics vars d) as [v | ] eqn:Hd; [ | exact I ].
+      cbv beta iota.
+      destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind; [ | exact I ].
       apply
         (answered_one _ _
            (State (looped F body) ((x, v) :: vars') conts' statics')).
@@ -1098,7 +1178,7 @@ Proof.
           <- (eval_named_related (ignoring_binders any_body) statics statics'
                 vars d Hrelated),
           Hd.
-        reflexivity.
+        cbv beta iota. rewrite Hkind. reflexivity.
       * apply (Loops_in F); try assumption. apply vars_rel_let; assumption.
     + (* Let_static *)
       rewrite step_let_static.

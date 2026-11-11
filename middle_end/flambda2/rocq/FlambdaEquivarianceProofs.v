@@ -550,6 +550,8 @@ Proof.
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra];
     intros vs; simpl; [ | reflexivity | apply IH ].
+  destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+    [ | reflexivity ].
   rewrite bind_params_equivariant.
   destruct (bind_params params vs def_vars) as [handler_vars | ]; simpl;
     [ | reflexivity ].
@@ -612,7 +614,9 @@ Proof.
     simpl; autorewrite with step.
   - (* Let *)
     rewrite eval_named_equivariant.
-    destruct (eval_named (state_statics s) (state_vars s) d); reflexivity.
+    destruct (eval_named (state_statics s) (state_vars s) d) as [v | ];
+      [ | reflexivity ].
+    destruct (kind_eqb (kind_of_value v) kind); reflexivity.
   - (* Let_static *)
     rewrite eval_static_bindings_equivariant.
     destruct

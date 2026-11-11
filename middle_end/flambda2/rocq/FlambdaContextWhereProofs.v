@@ -52,35 +52,42 @@ Section Relations.
 Variable inv : state -> Prop.
 
 (* From the target to the source. *)
-Definition handler_refined_from (params : list variable) (def_vars : env)
-    (target source : expr) : Prop :=
-  handler_refines_from inv params def_vars source target.
+Definition handler_refined_from (params : list variable)
+    (kinds : list flambda_kind) (def_vars : env) (target source : expr)
+    : Prop :=
+  handler_refines_from inv params kinds def_vars source target.
 
 Definition code_refined_from (params : list variable)
     (my_closure : variable) (ret exn : continuation)
     (metadata : code_metadata) (target source : expr) : Prop :=
   code_refines_from inv params my_closure ret exn metadata source target.
 
-Lemma handler_forwards (params : list variable) (def_vars : env)
-    (source target : expr) (vs : list value) (handler_vars : env)
-    (conts : cont_env) (statics : static_env) :
-  handler_refines_from inv params def_vars source target ->
+Lemma handler_forwards (params : list variable)
+    (kinds : list flambda_kind) (def_vars : env) (source target : expr)
+    (vs : list value) (handler_vars : env) (conts : cont_env)
+    (statics : static_env) :
+  handler_refines_from inv params kinds def_vars source target ->
+  map kind_of_value vs = kinds ->
   bind_params params vs def_vars = Some handler_vars ->
   refines_from inv (State source handler_vars conts statics)
     (State target handler_vars conts statics).
 Proof.
-  intros Hrefines Hbind. exact (Hrefines vs handler_vars conts statics Hbind).
+  intros Hrefines Hkinds Hbind.
+  exact (Hrefines vs handler_vars conts statics Hkinds Hbind).
 Qed.
 
-Lemma handler_backwards (params : list variable) (def_vars : env)
-    (target source : expr) (vs : list value) (handler_vars : env)
-    (conts : cont_env) (statics : static_env) :
-  handler_refined_from params def_vars target source ->
+Lemma handler_backwards (params : list variable)
+    (kinds : list flambda_kind) (def_vars : env) (target source : expr)
+    (vs : list value) (handler_vars : env) (conts : cont_env)
+    (statics : static_env) :
+  handler_refined_from params kinds def_vars target source ->
+  map kind_of_value vs = kinds ->
   bind_params params vs def_vars = Some handler_vars ->
   refines_from inv (State source handler_vars conts statics)
     (State target handler_vars conts statics).
 Proof.
-  intros Hrefines Hbind. exact (Hrefines vs handler_vars conts statics Hbind).
+  intros Hrefines Hkinds Hbind.
+  exact (Hrefines vs handler_vars conts statics Hkinds Hbind).
 Qed.
 
 Lemma code_forwards (params : list variable) (my_closure : variable)
@@ -187,12 +194,12 @@ Qed.
 
 Theorem handler_refines_from_always : handler_refines_from_always_statement.
 Proof.
-  intros params def_vars source target. split.
-  - intros Hrefines vs handler_vars conts statics Hbind.
-    exact (proj2 (Hrefines vs handler_vars conts statics Hbind) I).
-  - intros Hrefines vs handler_vars conts statics Hbind.
+  intros params kinds def_vars source target. split.
+  - intros Hrefines vs handler_vars conts statics Hkinds Hbind.
+    exact (proj2 (Hrefines vs handler_vars conts statics Hkinds Hbind) I).
+  - intros Hrefines vs handler_vars conts statics Hkinds Hbind.
     split; [ split; intros _; exact I | intros _ ].
-    exact (Hrefines vs handler_vars conts statics Hbind).
+    exact (Hrefines vs handler_vars conts statics Hkinds Hbind).
 Qed.
 
 Theorem code_refines_from_always : code_refines_from_always_statement.
@@ -205,9 +212,9 @@ Qed.
 Theorem handler_refines_from_in_range
   : handler_refines_from_in_range_statement.
 Proof.
-  intros params def_vars source target Hsource Htarget Hrefines vs
-    handler_vars conts statics Hbind.
-  split; [ | exact (Hrefines vs handler_vars conts statics Hbind) ].
+  intros params kinds def_vars source target Hsource Htarget Hrefines vs
+    handler_vars conts statics Hkinds Hbind.
+  split; [ | exact (Hrefines vs handler_vars conts statics Hkinds Hbind) ].
   unfold state_in_range.
   cbn [state_expr state_vars state_conts state_statics].
   rewrite Hsource, Htarget. reflexivity.

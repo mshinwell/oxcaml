@@ -167,7 +167,7 @@ Proof.
     - destruct (IH vars) as [Hforwards Hbackwards].
       split; (apply Forall2_cons; [ | assumption ]);
         (split; [ reflexivity | ]); apply Handler_related;
-        intros vs handler_vars conts statics _ _;
+        intros vs handler_vars conts statics _ _ _;
         exact (expr_refines_trans _ _ _
           (rewrite_rec_handlers_refines_aux f Hf handler)
           (rewrite_code_body_refines f _ Hf) handler_vars conts statics). }
@@ -203,7 +203,7 @@ Proof.
     - destruct (IH vars) as [Hforwards Hbackwards].
       split; (apply Forall2_cons; [ | assumption ]);
         (split; [ reflexivity | ]); apply Handler_related;
-        intros vs handler_vars conts statics _ _;
+        intros vs handler_vars conts statics _ _ _;
         exact (expr_refines_trans _ _ _
           (rewrite_code_body_refined f _ Hf)
           (rewrite_rec_handlers_refined_aux f Hf handler)

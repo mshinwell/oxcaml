@@ -117,7 +117,8 @@ Proof.
         Hsat). }
     repeat split; (apply Forall2_cons; [ | assumption ]);
       (split; [ reflexivity | ]); apply Handler_related;
-      intros vs handler_vars conts statics _ Hbind; apply equivalent_refines;
+      intros vs handler_vars conts statics _ _ Hbind;
+      apply equivalent_refines;
       first
         [ apply Hequiv, (Hruns vs handler_vars Hbind)
         | apply equivalent_sym, Hequiv, (Hruns vs handler_vars Hbind) ].

@@ -69,24 +69,31 @@
    [remove_unused_total_lets], for either term, is the part of
    [remove_unused_lets] that is an equivalence: it removes an unused [Let]
    only where the defining expression is a constant or a symbol, which
-   always has a value.
+   always has a value, and that value is of the kind of the [Let]. A
+   [Let] has no step where the value is of another kind
+   (FlambdaSemanticsSpec.step), so removing one that does not pass the
+   test would give a meaning to a term that has none.
 
    [remove_unused_defined_lets] goes further, also as an equivalence: it
-   keeps the variables in scope as it goes, and removes an unused [Let]
-   whose defining expression is a [Simple] or a closure made of constants,
-   symbols and variables in scope, which has a value where those
-   variables are bound.
+   keeps the variables in scope as it goes, each with the kind of its
+   binder (of the [Let], or of the handler for a parameter), and removes
+   an unused [Let] whose defining expression is a [Simple] or a closure
+   made of constants, symbols and variables in scope, which has a value
+   where those variables are bound, and that value is of the kind of the
+   [Let]. For a variable that is known from its binder: the machine binds
+   a variable only to a value of the kind of its binder.
 
    [inline_known_calls] is inlining as an equivalence, for either term:
    it inlines a direct call only where the callee is a symbol that a
    [Let_static] passed has bound to a closure of the code called, so that
    the call cannot be undefined for being of something else; and only
-   where the call is sure to agree with the code as
+   where the arities of the call are those of the code as
    FlambdaSemanticsSpec.call_function asks ([call_agrees_b]), so that it
-   cannot be undefined for that either. The second asks that each
-   argument be a constant or a symbol: the inlined body does not test the
-   kind of what a variable holds, and the call does. It goes where
-   [inline_calls] goes.
+   cannot be undefined for that either. The kinds of the values of the
+   arguments are not asked for: the call tests them, and so does the
+   inlined body, where each parameter is bound by a [Let] at its kind.
+   For the two to test the same, the code must give as many kinds as it
+   has parameters. It goes where [inline_calls] goes.
 
    [merge_statics], for either term, makes one group of [Let_static]s that
    follow one another, and puts the code of a group before its symbols.
@@ -552,9 +559,12 @@ Definition fold_constants_equivalent_statement : Prop :=
 (* Removing unused [Let]s whose defining expression always has a value     *)
 (* ======================================================================== *)
 
-Definition named_is_total (d : named) : bool :=
+(* The defining expression always has a value, and that value is of the
+   kind given: a [Let] of it at that kind always has a step. *)
+Definition named_is_total (kind : flambda_kind) (d : named) : bool :=
   match d with
-  | Simple (Const _ | Symbol _) => true
+  | Simple (Const c) => kind_eqb (kind_of_const c) kind
+  | Simple (Symbol _) => kind_eqb Value kind
   | Simple (Var _) | Prim _ _ | Set_of_closures _ _ | Closure_of_set _ _ _
   | Project_value_slot _ _ | Project_value_slot_from _ _ _
   | Project_function_slot _ _ _ =>
@@ -565,7 +575,7 @@ Fixpoint remove_unused_total_lets (e : expr) : expr :=
   match e with
   | Let x kind d body =>
     let body' := remove_unused_total_lets body in
-    if named_is_total d && negb (var_free_b x body')
+    if named_is_total kind d && negb (var_free_b x body')
     then body'
     else Let x kind d body'
   | Let_static bindings body =>
@@ -586,37 +596,82 @@ Definition remove_unused_total_lets_equivalent_statement : Prop :=
 (* Removing unused [Let]s whose defining expression has a value in scope   *)
 (* ======================================================================== *)
 
-(* The defining expression has a value wherever the variables given are
-   bound. *)
-Definition named_defined (vs : list variable) (d : named) : bool :=
+(* The variables in scope, each with the kind of its binder; the binder
+   passed last comes first, and is the one that counts. *)
+Definition kinds_in_scope : Type := list (variable * flambda_kind).
+
+(* A renaming acts on the variables; the kinds have no names in them.
+   The variables of [kinds] are [map fst kinds]. *)
+Definition rename_kinds_in_scope (r : renaming) (kinds : kinds_in_scope)
+    : kinds_in_scope :=
+  map (fun entry => (rename_variable r (fst entry), snd entry)) kinds.
+
+(* The kind of the value of a [Simple], wherever the variables given are
+   bound to values of their kinds: of a constant its own, of a symbol
+   [Value], of a variable the kind given. *)
+Definition kind_of_simple_in_scope (kinds : kinds_in_scope) (s : simple)
+    : option flambda_kind :=
+  match s with
+  | Var x => lookup x kinds
+  | Symbol _ => Some Value
+  | Const c => Some (kind_of_const c)
+  end.
+
+(* The defining expression has a value of the kind given wherever the
+   variables given are bound to values of their kinds. A closure is of
+   kind [Value]. *)
+Definition named_defined (kinds : kinds_in_scope) (kind : flambda_kind)
+    (d : named) : bool :=
   match d with
-  | Simple s => simple_in_scope vs s
+  | Simple s =>
+    match kind_of_simple_in_scope kinds s with
+    | Some found => kind_eqb found kind
+    | None => false
+    end
   | Set_of_closures _ slots =>
-    forallb (fun slot => simple_in_scope vs (snd slot)) slots
+    kind_eqb Value kind
+    && forallb (fun slot => simple_in_scope (map fst kinds) (snd slot)) slots
   | Closure_of_set slot decls slots =>
-    is_bound slot decls
-    && forallb (fun slot => simple_in_scope vs (snd slot)) slots
+    kind_eqb Value kind
+    && is_bound slot decls
+    && forallb (fun slot => simple_in_scope (map fst kinds) (snd slot)) slots
   | Prim _ _ | Project_value_slot _ _ | Project_value_slot_from _ _ _
   | Project_function_slot _ _ _ =>
     false
   end.
 
-Fixpoint remove_unused_defined_lets (vs : list variable) (e : expr) : expr :=
+(* The parameters of a handler added to the variables in scope, each
+   with the kind that the handler gives it, in the order in which
+   FlambdaSemanticsSpec.bind_params binds them. Where the handler does
+   not give as many kinds as it has parameters it never runs. *)
+Fixpoint params_in_scope (params : list variable)
+    (params_kinds : list flambda_kind) (kinds : kinds_in_scope)
+    : kinds_in_scope :=
+  match params, params_kinds with
+  | param :: params, kind :: params_kinds =>
+    params_in_scope params params_kinds ((param, kind) :: kinds)
+  | _, _ => kinds
+  end.
+
+Fixpoint remove_unused_defined_lets (kinds : kinds_in_scope) (e : expr)
+    : expr :=
   match e with
   | Let x kind d body =>
-    let body' := remove_unused_defined_lets (x :: vs) body in
-    if named_defined vs d && negb (var_free_b x body')
+    let body' := remove_unused_defined_lets ((x, kind) :: kinds) body in
+    if named_defined kinds kind d && negb (var_free_b x body')
     then body'
     else Let x kind d body'
   | Let_static bindings body =>
-    Let_static bindings (remove_unused_defined_lets vs body)
+    Let_static bindings (remove_unused_defined_lets kinds body)
   | Let_cont_non_recursive k (Handler params metadata handler) body =>
     Let_cont_non_recursive k
       (Handler params metadata
-         (remove_unused_defined_lets (params ++ vs) handler))
-      (remove_unused_defined_lets vs body)
+         (remove_unused_defined_lets
+            (params_in_scope params (hm_params_kinds metadata) kinds)
+            handler))
+      (remove_unused_defined_lets kinds body)
   | Let_cont_recursive handlers body =>
-    Let_cont_recursive handlers (remove_unused_defined_lets vs body)
+    Let_cont_recursive handlers (remove_unused_defined_lets kinds body)
   | Apply _ | Apply_cont _ | Switch _ _ | Invalid => e
   end.
 
@@ -649,26 +704,16 @@ Fixpoint symbols_of (bindings : list static_binding)
     symbols_of bindings known
   end.
 
-(* Whether an argument is sure to have a value of a kind, whatever the
-   environment: a constant of that kind, or a symbol where the kind is
-   [Value]. A variable is not: nothing here knows the kind of what it
-   holds. *)
-Definition simple_has_kind_b (s : simple) (kind : flambda_kind) : bool :=
-  match s with
-  | Const c => kind_eqb (kind_of_const c) kind
-  | Symbol _ => kind_eqb kind Value
-  | Var _ => false
-  end.
-
-(* Whether a call is sure to agree with code [c] as
-   FlambdaSemanticsSpec.call_function asks, whatever the environment: its
-   arities are those of the code, and its arguments are sure to have
-   values of the kinds that its own arity gives. *)
+(* Whether a call agrees with code [c] in what
+   FlambdaSemanticsSpec.call_function asks of the terms alone: its
+   arities are those of the code. What it asks of the values of the
+   arguments, that they be of the kinds of the arity, the inlined body
+   asks too, provided the code gives one kind for each parameter. *)
 Definition call_agrees_b (ap : apply_expr) (c : code) : bool :=
   kinds_per_parameter_eqb (unarize_per_parameter (ap_args_arity ap))
     (unarize_per_parameter (code_params_arity c))
   && arity_eqb (ap_return_arity ap) (code_result_arity c)
-  && forall2b simple_has_kind_b (ap_args ap) (unarize (ap_args_arity ap)).
+  && Nat.eqb (length (code_params c)) (length (code_params_kinds c)).
 
 Definition inline_known_apply (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id)) (ap : apply_expr)
@@ -899,7 +944,10 @@ Definition rewrite_code_equivalent_statement : Prop :=
    applies nor in its trap action. An arm of the body that has a trap
    action stays as it is. The [Let_cont] goes if no arm names its
    continuation any more. Simplify does as much from what an arm tells
-   it of the scrutinee. *)
+   it of the scrutinee. The handler must give no kinds of parameters
+   either: one that has no parameters and gives a kind never runs
+   (FlambdaSemanticsSpec.apply_cont_value), and an arm that applies it
+   is undefined. *)
 (* CR mshinwell: an arm of the handler whose trap action names [k] is
    left where it is. Until this was repaired only the continuation that
    the arm applies was compared with [k], so an arm of the handler that
@@ -934,14 +982,19 @@ Definition arms_apply (k : continuation) (arms : list (Z * apply_cont))
 Definition thread_switch (k : continuation) (h : continuation_handler)
     (body : expr) : expr :=
   match h, body with
-  | Handler [] _ (Switch inner_scrutinee inner), Switch scrutinee arms =>
-    if simple_eq_dec scrutinee inner_scrutinee
-    then
-      let arms := map (thread_arm k inner) arms in
-      if arms_apply k arms
-      then Let_cont_non_recursive k h (Switch scrutinee arms)
-      else Switch scrutinee arms
-    else Let_cont_non_recursive k h body
+  | Handler [] metadata (Switch inner_scrutinee inner),
+    Switch scrutinee arms =>
+    match hm_params_kinds metadata with
+    | [] =>
+      if simple_eq_dec scrutinee inner_scrutinee
+      then
+        let arms := map (thread_arm k inner) arms in
+        if arms_apply k arms
+        then Let_cont_non_recursive k h (Switch scrutinee arms)
+        else Switch scrutinee arms
+      else Let_cont_non_recursive k h body
+    | _ :: _ => Let_cont_non_recursive k h body
+    end
   | _, _ => Let_cont_non_recursive k h body
   end.
 

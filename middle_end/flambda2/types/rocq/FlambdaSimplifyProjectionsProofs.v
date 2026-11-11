@@ -175,10 +175,14 @@ Proof.
   intros tenv x declared d s body Hknown vars conts statics Hsat.
   destruct (eval_named statics vars d) as [v | ] eqn:Hd.
   - pose proof (Hknown statics vars v Hsat Hd) as Hs.
-    eapply refines_step;
-      [ rewrite step_let, Hd; reflexivity
-      | rewrite step_let; cbn [eval_named]; rewrite Hs; reflexivity
-      | apply refines_refl ].
+    destruct (kind_eqb (kind_of_value v) declared) eqn:Hkind.
+    + eapply refines_step;
+        [ rewrite step_let, Hd, Hkind; reflexivity
+        | rewrite step_let; cbn [eval_named]; rewrite Hs, Hkind;
+          reflexivity
+        | apply refines_refl ].
+    + apply step_undefined_refines. rewrite step_let, Hd, Hkind.
+      reflexivity.
   - apply step_undefined_refines. rewrite step_let, Hd. reflexivity.
 Qed.
 

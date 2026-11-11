@@ -54,9 +54,12 @@
    the name being bound, which in the handler is another continuation.
    Simplify makes no shortcut of an exception handler, nor of a handler
    whose [Apply_cont] has a trap action; so neither does this pass, and
-   an arm that has a trap action of its own stays as it is. The
-   [Let_cont] goes if no arm names its continuation any more
-   (FlambdaNormaliseSpec.arms_apply).
+   an arm that has a trap action of its own stays as it is. The handler
+   must give no kinds of parameters either: one that has no parameters
+   and gives a kind never runs (FlambdaSemanticsSpec.apply_cont_value),
+   so an arm that applies it is undefined, and the arm made of its
+   [Apply_cont] would not be. The [Let_cont] goes if no arm names its
+   continuation any more (FlambdaNormaliseSpec.arms_apply).
 
    What it leaves: a continuation with parameters, whose shortcut needs
    the arguments put for the parameters; an application that is not an
@@ -97,15 +100,19 @@ Definition shortcut_switch (k : continuation) (h : continuation_handler)
     (body : expr) : expr :=
   match h, body with
   | Handler [] metadata (Apply_cont target), Switch scrutinee arms =>
-    if Pos.eqb (ac_continuation target) k
-       || hm_is_exn_handler metadata
-       || negb (no_trap_action target)
-    then Let_cont_non_recursive k h body
-    else
-      let arms := map (shortcut_arm k target) arms in
-      if arms_apply k arms
-      then Let_cont_non_recursive k h (Switch scrutinee arms)
-      else Switch scrutinee arms
+    match hm_params_kinds metadata with
+    | [] =>
+      if Pos.eqb (ac_continuation target) k
+         || hm_is_exn_handler metadata
+         || negb (no_trap_action target)
+      then Let_cont_non_recursive k h body
+      else
+        let arms := map (shortcut_arm k target) arms in
+        if arms_apply k arms
+        then Let_cont_non_recursive k h (Switch scrutinee arms)
+        else Switch scrutinee arms
+    | _ :: _ => Let_cont_non_recursive k h body
+    end
   | _, _ => Let_cont_non_recursive k h body
   end.
 

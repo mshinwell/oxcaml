@@ -316,7 +316,7 @@ Lemma let_equivalent_in (tenv : typing_env) (x : variable)
   expr_equivalent_in tenv (Let x kind d body) (Let x kind d body').
 Proof.
   intros Hbody vars conts statics Hsat.
-  apply let_equivalent_step; [ reflexivity | intros v Hd ].
+  apply let_equivalent_step; [ reflexivity | intros v Hd _ ].
   apply Hbody.
   exact (env_satisfies_under_let tenv x d vars statics v Hsat Hd).
 Qed.
@@ -353,7 +353,7 @@ Proof.
       [ | intros param Hin; apply drop_vars_fresh, Hin | exact Hbind ].
     exact (env_satisfies_incl tenv _ vars (drop_vars_incl params tenv) Hsat). }
   apply refines_antisymmetric; apply let_cont_handler_refines_at;
-    intros vs handler_vars conts' statics' Hbind; apply equivalent_refines;
+    intros vs handler_vars conts' statics' _ Hbind; apply equivalent_refines;
     [ | apply equivalent_sym ];
     apply Hhandler, (Hruns vs handler_vars Hbind).
 Qed.
@@ -390,7 +390,7 @@ Proof.
       * intros vars conts statics Hsat.
         apply let_equivalent_step;
           [ apply (canonical_named_sound tenv vars statics d Hsat)
-          | intros v _; apply equivalent_refl ].
+          | intros v _ _; apply equivalent_refl ].
       * apply let_equivalent_in, follow_aliases_equivalent_in.
     + (* Let_static *)
       apply (expr_equivalent_in_trans tenv _

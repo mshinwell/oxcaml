@@ -66,6 +66,14 @@
    - [my_closure] is not a parameter, and no [Let] or handler of the
      body binds it ([loop_safe]): then a callee that is [Var my_closure]
      is the closure the code was called with;
+   - no name is two of the parameters (FlambdaMapSpec.distinct): the
+     loop is entered by a jump to [self] with the parameters as its
+     arguments, and the handler of [self] has no step unless their
+     values are of the kinds of the parameters
+     (FlambdaSemanticsSpec.apply_cont_value). Were one name two
+     parameters of different kinds, both would have the value of the
+     second at the jump, which would then have no step where the call
+     had one;
    - no [Let_cont] of the body binds the return or the exception
      continuation of the code ([loop_safe]): then a call that returns
      to them returns where the code does;
@@ -85,8 +93,9 @@
    - the arities of the call and the kinds of its arguments. A call
      that does not agree with the code in them is undefined
      (FlambdaSemanticsSpec.call_function), so the jump, which tests
-     nothing but the number of arguments, refines it; with the wrong
-     number of arguments the jump is undefined as the call is;
+     the kinds of its arguments against those of the parameters and
+     their number, refines it; with the wrong number of arguments the
+     jump is undefined as the call is;
    - that the callee has been proved to be this code: the closure a
      piece of code is called with is a closure of that code, by how a
      call finds the code.
@@ -257,6 +266,7 @@ Definition loopable (self : continuation) (c : code) : bool :=
       (code_exn_continuation c) self (code_body c)
   in
   negb (among (code_my_closure c) (code_params c))
+  && distinct (code_params c)
   && negb (Pos.eqb self (code_return_continuation c))
   && negb (Pos.eqb self (code_exn_continuation c))
   && loop_safe (code_my_closure c) (code_return_continuation c)

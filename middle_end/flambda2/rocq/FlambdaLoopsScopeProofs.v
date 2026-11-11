@@ -266,6 +266,7 @@ Proof.
   unfold shortcut_switch.
   destruct h as [[ | param params] metadata handler]; destruct handler;
     destruct body; try apply scoped_refl.
+  destruct (hm_params_kinds metadata); [ | apply scoped_refl ].
   match goal with
   | |- context [Pos.eqb (ac_continuation ?target) k || ?exn || ?trap] =>
     destruct (Pos.eqb (ac_continuation target) k || exn || trap);

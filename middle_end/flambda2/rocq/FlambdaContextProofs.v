@@ -67,17 +67,18 @@ Import ListNotations.
 
 Section Transfer.
 
-(* The relation between corresponding handlers, given their parameters and
-   the variables of the closure they are in: a handler runs under those
-   variables with its parameters bound, so the relation may depend on
-   them. *)
-Variable related : list variable -> env -> expr -> expr -> Prop.
+(* The relation between corresponding handlers, given their parameters,
+   the kinds of those, and the variables of the closure they are in: a
+   handler runs under those variables with its parameters bound to values
+   of those kinds, so the relation may depend on them. *)
+Variable related
+  : list variable -> list flambda_kind -> env -> expr -> expr -> Prop.
 
 Inductive handler_related (vars : env)
     : continuation_handler -> continuation_handler -> Prop :=
   | Handler_related (params : list variable) (metadata : handler_metadata)
       (e e' : expr) :
-    related params vars e e' ->
+    related params (hm_params_kinds metadata) vars e e' ->
     handler_related vars (Handler params metadata e)
       (Handler params metadata e')
   | Handler_same (h : continuation_handler) : handler_related vars h h.
@@ -188,7 +189,8 @@ Lemma handler_related_inv (vars : env) (params params' : list variable)
     (metadata metadata' : handler_metadata) (e e' : expr) :
   handler_related vars (Handler params metadata e)
     (Handler params' metadata' e') ->
-  params = params' ∧ (related params vars e e' ∨ e = e').
+  params = params' ∧ metadata = metadata'
+  ∧ (related params (hm_params_kinds metadata) vars e e' ∨ e = e').
 Proof. intros Hrel. inversion Hrel; subst; auto. Qed.
 
 (* A continuation stands for related things under related environments. *)
@@ -544,20 +546,22 @@ Hypothesis carried_undefined :
   ∀ s : state, step s = Undefined -> carried s Goes_wrong.
 
 Hypothesis inv_related :
-  ∀ (params : list variable) (def_vars : env) (e e' : expr)
-    (vs : list value) (handler_vars : env) (conts : cont_env)
+  ∀ (params : list variable) (kinds : list flambda_kind) (def_vars : env)
+    (e e' : expr) (vs : list value) (handler_vars : env) (conts : cont_env)
     (statics : static_env),
-    related params def_vars e e' ->
+    related params kinds def_vars e e' ->
+    map kind_of_value vs = kinds ->
     bind_params params vs def_vars = Some handler_vars ->
     inv (State e' handler_vars conts statics) ->
     inv (State e handler_vars conts statics).
 
 Hypothesis carried_related :
-  ∀ (params : list variable) (def_vars : env) (e e' : expr)
-    (vs : list value) (handler_vars : env) (conts : cont_env)
+  ∀ (params : list variable) (kinds : list flambda_kind) (def_vars : env)
+    (e e' : expr) (vs : list value) (handler_vars : env) (conts : cont_env)
     (statics : static_env) (b : behaviour),
-    related params def_vars e e' ->
+    related params kinds def_vars e e' ->
     inv (State e handler_vars conts statics) ->
+    map kind_of_value vs = kinds ->
     bind_params params vs def_vars = Some handler_vars ->
     carried (State e handler_vars conts statics) b ->
     carried (State e' handler_vars conts statics) b.
@@ -607,16 +611,25 @@ Proof.
        | scrutinee arms | ];
     autorewrite with step in Hended; simpl in Hended.
   - (* Let *)
-    destruct (eval_named statics vars d) as [v | ] eqn:Hd; simpl in Hended.
+    destruct (eval_named statics vars d) as [v | ] eqn:Hd; simpl in Hended;
+      [ destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind;
+        simpl in Hended
+      | ].
     + assert (Hstep :
         step (State (Let x kind d body) vars conts' statics')
         = Step (State body ((x, v) :: vars) conts' statics')).
       { rewrite step_let,
-          <- (eval_named_related statics statics' vars d Hstatics), Hd.
+          <- (eval_named_related statics statics' vars d Hstatics), Hd,
+          Hkind.
         reflexivity. }
       apply (carried_step _ _ _ Hstep).
       exact
         (IH _ _ _ _ _ _ _ Hrel Hstatics (inv_step _ _ Hinv Hstep) Hended).
+    + apply ended_undefined in Hended. subst b.
+      apply carried_undefined.
+      rewrite step_let,
+        <- (eval_named_related statics statics' vars d Hstatics), Hd, Hkind.
+      reflexivity.
     + apply ended_undefined in Hended. subst b.
       apply carried_undefined.
       rewrite step_let,
@@ -760,15 +773,23 @@ Proof.
         [ | | destruct (cont_target_not_extra_args _ _ _ Hl) ].
       * (* handlers: related closures *)
         destruct Hclosure as (<- & Hh & Hconts & Hrec).
-        apply handler_related_inv in Hh as [<- Hbody].
+        apply handler_related_inv in Hh as (<- & <- & Hbody).
         destruct
-          (bind_params params
-             (cont_args (resolve (ac_continuation ac) conts') vs) def_vars)
-          as [handler_vars | ] eqn:Hbind;
-          simpl in Hended.
+          (kinds_eqb
+             (map kind_of_value
+                (cont_args (resolve (ac_continuation ac) conts') vs))
+             (hm_params_kinds metadata))
+          eqn:Hkinds;
+          [ destruct
+              (bind_params params
+                 (cont_args (resolve (ac_continuation ac) conts') vs)
+                 def_vars)
+              as [handler_vars | ] eqn:Hbind;
+            simpl in Hended
+          | ].
         -- pose proof
              (step_apply_cont_target_handler _ _ _ statics' _ _ _ _ _ _ _ _
-                Hargs Hl' Hbind)
+                Hargs Hl' Hkinds Hbind)
              as Hstep.
            pose proof (inv_step _ _ Hinv Hstep) as Hinv'.
            assert (Hconts' :
@@ -782,15 +803,22 @@ Proof.
              [ | exact (IH _ _ _ _ _ _ _ Hconts' Hstatics Hinv' Hended) ].
            (* The state of the second handler has [inv]; so has that of
               the first, which the induction is about. *)
-           pose proof (inv_related _ _ _ _ _ _ _ _ Hbody Hbind Hinv')
+           pose proof (proj1 (kinds_eqb_eq _ _) Hkinds) as Hkinds_eq.
+           pose proof
+             (inv_related _ _ _ _ _ _ _ _ _ Hbody Hkinds_eq Hbind Hinv')
              as Hfirst.
            exact
-             (carried_related _ _ _ _ _ _ _ _ _ Hbody Hfirst Hbind
-                (IH _ _ _ _ _ _ _ Hconts' Hstatics Hfirst Hended)).
+             (carried_related _ _ _ _ _ _ _ _ _ _ Hbody Hfirst Hkinds_eq
+                Hbind (IH _ _ _ _ _ _ _ Hconts' Hstatics Hfirst Hended)).
         -- apply ended_undefined in Hended. subst b.
            apply carried_undefined. rewrite step_apply_cont, Hargs.
            unfold apply_continuation.
-           rewrite apply_cont_value_target, Hl'. simpl. rewrite Hbind.
+           rewrite apply_cont_value_target, Hl'. simpl.
+           rewrite Hkinds, Hbind. reflexivity.
+        -- apply ended_undefined in Hended. subst b.
+           apply carried_undefined. rewrite step_apply_cont, Hargs.
+           unfold apply_continuation.
+           rewrite apply_cont_value_target, Hl'. simpl. rewrite Hkinds.
            reflexivity.
       * (* ways out: the same exit *)
         subst exit'. apply ended_exit in Hended. subst b.
@@ -940,26 +968,29 @@ Hypothesis inv_step :
    the environments of the other. A step keeps [inv] along a run, which
    says nothing of such a state; [inv] of it comes from [inv] of the
    state with the corresponding expression, which a run does reach. *)
-Variable forwards backwards : list variable -> env -> expr -> expr -> Prop.
+Variable forwards backwards
+  : list variable -> list flambda_kind -> env -> expr -> expr -> Prop.
 
 Variable code_forwards code_backwards :
   list variable -> variable -> continuation -> continuation ->
   code_metadata -> expr -> expr -> Prop.
 
 Hypothesis forwards_refines :
-  ∀ (params : list variable) (def_vars : env) (source target : expr)
-    (vs : list value) (handler_vars : env) (conts : cont_env)
-    (statics : static_env),
-    forwards params def_vars source target ->
+  ∀ (params : list variable) (kinds : list flambda_kind) (def_vars : env)
+    (source target : expr) (vs : list value) (handler_vars : env)
+    (conts : cont_env) (statics : static_env),
+    forwards params kinds def_vars source target ->
+    map kind_of_value vs = kinds ->
     bind_params params vs def_vars = Some handler_vars ->
     refines_from inv (State source handler_vars conts statics)
       (State target handler_vars conts statics).
 
 Hypothesis backwards_refines :
-  ∀ (params : list variable) (def_vars : env) (target source : expr)
-    (vs : list value) (handler_vars : env) (conts : cont_env)
-    (statics : static_env),
-    backwards params def_vars target source ->
+  ∀ (params : list variable) (kinds : list flambda_kind) (def_vars : env)
+    (target source : expr) (vs : list value) (handler_vars : env)
+    (conts : cont_env) (statics : static_env),
+    backwards params kinds def_vars target source ->
+    map kind_of_value vs = kinds ->
     bind_params params vs def_vars = Some handler_vars ->
     refines_from inv (State source handler_vars conts statics)
       (State target handler_vars conts statics).
@@ -1018,16 +1049,18 @@ Proof.
     + intros s k' vs' Hstep. apply (step_behaves s (Exits k' vs')).
       rewrite Hstep. reflexivity.
     + intros s _. exact I.
-    + intros params def_vars source target vs' handler_vars conts''
-        statics'' Hrelated Hbind.
+    + intros params kinds def_vars source target vs' handler_vars conts''
+        statics'' Hrelated Hkinds Hbind.
       exact
-        (proj2 (proj1 (forwards_refines _ _ _ _ _ _ _ _ Hrelated Hbind))).
-    + intros params def_vars source target vs' handler_vars conts''
-        statics'' b Hrelated Hsource Hbind.
+        (proj2
+           (proj1
+              (forwards_refines _ _ _ _ _ _ _ _ _ Hrelated Hkinds Hbind))).
+    + intros params kinds def_vars source target vs' handler_vars conts''
+        statics'' b Hrelated Hsource Hkinds Hbind.
       destruct b; unfold exits_carried; auto.
       apply
         (proj1
-           (proj2 (forwards_refines _ _ _ _ _ _ _ _ Hrelated Hbind)
+           (proj2 (forwards_refines _ _ _ _ _ _ _ _ _ Hrelated Hkinds Hbind)
               Hsource)).
     + intros params my_closure ret exn metadata source target vs' callee
         callee_vars return_to exn_to statics'' Hrelated Hbind Hkinds Hvalue.
@@ -1059,14 +1092,17 @@ Proof.
       rewrite Hstep. reflexivity.
     + intros s Hstep _. left. apply (step_behaves s Goes_wrong).
       rewrite Hstep. reflexivity.
-    + intros params def_vars target source vs handler_vars conts''
-        statics'' Hrelated Hbind.
+    + intros params kinds def_vars target source vs handler_vars conts''
+        statics'' Hrelated Hkinds Hbind.
       exact
-        (proj1 (proj1 (backwards_refines _ _ _ _ _ _ _ _ Hrelated Hbind))).
-    + intros params def_vars target source vs handler_vars conts''
-        statics'' b' Hrelated Htarget Hbind Hcarried Hterm'.
+        (proj1
+           (proj1
+              (backwards_refines _ _ _ _ _ _ _ _ _ Hrelated Hkinds Hbind))).
+    + intros params kinds def_vars target source vs handler_vars conts''
+        statics'' b' Hrelated Htarget Hkinds Hbind Hcarried Hterm'.
       destruct
-        (backwards_refines _ _ _ _ _ _ conts'' statics'' Hrelated Hbind)
+        (backwards_refines _ _ _ _ _ _ _ conts'' statics'' Hrelated Hkinds
+           Hbind)
         as [Htogether Hrefines].
       destruct (Hrefines (proj2 Htogether Htarget)) as [_ Hends].
       destruct (Hcarried Hterm') as [Hb' | Hwrong];
@@ -1122,8 +1158,8 @@ Lemma let_cont_handler_refines_from (k : continuation)
     (State
        (Let_cont_non_recursive k (Handler params metadata handler') body)
        vars conts statics) ->
-  forwards params vars handler handler' ->
-  backwards params vars handler' handler ->
+  forwards params (hm_params_kinds metadata) vars handler handler' ->
+  backwards params (hm_params_kinds metadata) vars handler' handler ->
   refines
     (State
        (Let_cont_non_recursive k (Handler params metadata handler) body)
@@ -1280,11 +1316,12 @@ End From.
    closure with its parameters bound, any continuations, and any static
    environment of which [ok] holds. *)
 Definition handler_refines_where (ok : static_env -> Prop)
-    (params : list variable) (def_vars : env) (source target : expr)
-    : Prop :=
+    (params : list variable) (kinds : list flambda_kind) (def_vars : env)
+    (source target : expr) : Prop :=
   ∀ (vs : list value) (handler_vars : env) (conts : cont_env)
     (statics : static_env),
     ok statics ->
+    map kind_of_value vs = kinds ->
     bind_params params vs def_vars = Some handler_vars ->
     refines (State source handler_vars conts statics)
       (State target handler_vars conts statics).
@@ -1314,10 +1351,12 @@ Definition code_refines_where (ok : static_env -> Prop)
       (State target callee_vars conts statics).
 
 (* The same under any static environment. *)
-Definition handler_refines_at (params : list variable) (def_vars : env)
-    (source target : expr) : Prop :=
+Definition handler_refines_at (params : list variable)
+    (kinds : list flambda_kind) (def_vars : env) (source target : expr)
+    : Prop :=
   ∀ (vs : list value) (handler_vars : env) (conts : cont_env)
     (statics : static_env),
+    map kind_of_value vs = kinds ->
     bind_params params vs def_vars = Some handler_vars ->
     refines (State source handler_vars conts statics)
       (State target handler_vars conts statics).
@@ -1360,16 +1399,18 @@ Proof.
   intros Hrefines. split; [ split; intros Hok; exact Hok | exact Hrefines ].
 Qed.
 
-Lemma handler_refines_where_from (params : list variable) (def_vars : env)
-    (source target : expr) (vs : list value) (handler_vars : env)
-    (conts : cont_env) (statics : static_env) :
-  handler_refines_where ok params def_vars source target ->
+Lemma handler_refines_where_from (params : list variable)
+    (kinds : list flambda_kind) (def_vars : env) (source target : expr)
+    (vs : list value) (handler_vars : env) (conts : cont_env)
+    (statics : static_env) :
+  handler_refines_where ok params kinds def_vars source target ->
+  map kind_of_value vs = kinds ->
   bind_params params vs def_vars = Some handler_vars ->
   refines_from statics_ok (State source handler_vars conts statics)
     (State target handler_vars conts statics).
 Proof.
-  intros Hrefines Hbind. apply statics_ok_refines_from. intros Hok.
-  exact (Hrefines vs handler_vars conts statics Hok Hbind).
+  intros Hrefines Hkinds Hbind. apply statics_ok_refines_from. intros Hok.
+  exact (Hrefines vs handler_vars conts statics Hok Hkinds Hbind).
 Qed.
 
 Lemma expr_refines_where_from (source target : expr) (vars : env)
@@ -1407,8 +1448,8 @@ Lemma related_states_refines (e : expr) (vars : env)
   ok statics -> ok statics' ->
   cont_env_related (handler_refines_where ok) conts conts' ->
   cont_env_related
-    (fun params def_vars target source =>
-       handler_refines_where ok params def_vars source target)
+    (fun params kinds def_vars target source =>
+       handler_refines_where ok params kinds def_vars source target)
     conts' conts ->
   statics_related (expr_refines_where ok) statics statics' ->
   statics_related (fun target source => expr_refines_where ok source target)
@@ -1419,14 +1460,14 @@ Proof.
   exact
     (related_states_refines_from statics_ok statics_ok_step
        (handler_refines_where ok)
-       (fun params def_vars target source =>
-          handler_refines_where ok params def_vars source target)
+       (fun params kinds def_vars target source =>
+          handler_refines_where ok params kinds def_vars source target)
        (ignoring_binders (expr_refines_where ok))
        (ignoring_binders
           (fun target source => expr_refines_where ok source target))
        handler_refines_where_from
-       (fun params def_vars target source =>
-          handler_refines_where_from params def_vars source target)
+       (fun params kinds def_vars target source =>
+          handler_refines_where_from params kinds def_vars source target)
        (fun params my_closure ret exn metadata source target vs callee
           callee_vars return_to exn_to statics'' Hrefines _ _ _ =>
           expr_refines_where_from source target callee_vars
@@ -1445,8 +1486,8 @@ Lemma related_envs_refines (e : expr) (vars : env) (conts conts' : cont_env)
   ok statics ->
   cont_env_related (handler_refines_where ok) conts conts' ->
   cont_env_related
-    (fun params def_vars target source =>
-       handler_refines_where ok params def_vars source target)
+    (fun params kinds def_vars target source =>
+       handler_refines_where ok params kinds def_vars source target)
     conts' conts ->
   refines (State e vars conts statics) (State e vars conts' statics).
 Proof.
@@ -1461,7 +1502,8 @@ Lemma let_cont_handler_refines_where (k : continuation)
     (handler handler' body : expr) (vars : env) (conts : cont_env)
     (statics : static_env) :
   ok statics ->
-  handler_refines_where ok params vars handler handler' ->
+  handler_refines_where ok params (hm_params_kinds metadata) vars handler
+    handler' ->
   refines
     (State
        (Let_cont_non_recursive k (Handler params metadata handler) body)
@@ -1487,8 +1529,8 @@ Lemma let_cont_recursive_handlers_refine_where
   handlers_bind_statics handlers = handlers_bind_statics handlers' ->
   handlers_related (handler_refines_where ok) vars handlers handlers' ->
   handlers_related
-    (fun params def_vars target source =>
-       handler_refines_where ok params def_vars source target)
+    (fun params kinds def_vars target source =>
+       handler_refines_where ok params kinds def_vars source target)
     vars handlers' handlers ->
   refines (State (Let_cont_recursive handlers body) vars conts statics)
     (State (Let_cont_recursive handlers' body) vars conts statics).
@@ -1532,15 +1574,15 @@ Proof.
   exact
     (let_static_code_refines_from statics_ok statics_ok_step
        (handler_refines_where ok)
-       (fun params def_vars target source =>
-          handler_refines_where ok params def_vars source target)
+       (fun params kinds def_vars target source =>
+          handler_refines_where ok params kinds def_vars source target)
        (fun params my_closure _ _ metadata =>
           code_refines_where ok params my_closure metadata)
        (fun params my_closure _ _ metadata target source =>
           code_refines_where ok params my_closure metadata source target)
        handler_refines_where_from
-       (fun params def_vars target source =>
-          handler_refines_where_from params def_vars source target)
+       (fun params kinds def_vars target source =>
+          handler_refines_where_from params kinds def_vars source target)
        (fun params my_closure ret exn metadata source target vs callee
           callee_vars return_to exn_to statics' =>
           code_refines_where_from params my_closure metadata source target
@@ -1557,16 +1599,17 @@ Qed.
 
 End Where.
 
-Lemma handler_refines_at_where (params : list variable) (def_vars : env)
-    (source target : expr) :
-  handler_refines_at params def_vars source target ->
-  handler_refines_where always params def_vars source target.
+Lemma handler_refines_at_where (params : list variable)
+    (kinds : list flambda_kind) (def_vars : env) (source target : expr) :
+  handler_refines_at params kinds def_vars source target ->
+  handler_refines_where always params kinds def_vars source target.
 Proof. intros H vs handler_vars conts statics _. apply H. Qed.
 
 Lemma let_cont_handler_refines_at (k : continuation) (params : list variable)
     (metadata : handler_metadata) (handler handler' body : expr) (vars : env)
     (conts : cont_env) (statics : static_env) :
-  handler_refines_at params vars handler handler' ->
+  handler_refines_at params (hm_params_kinds metadata) vars handler
+    handler' ->
   refines
     (State
        (Let_cont_non_recursive k (Handler params metadata handler) body)
@@ -1587,7 +1630,8 @@ Lemma let_cont_recursive_handler_refines_at
     (after : list (continuation * continuation_handler)) (body : expr)
     (vars : env) (conts : cont_env) (statics : static_env) :
   binds_statics handler = binds_statics handler' ->
-  handler_refines_at params vars handler handler' ->
+  handler_refines_at params (hm_params_kinds metadata) vars handler
+    handler' ->
   refines
     (State
        (Let_cont_recursive
@@ -1681,7 +1725,7 @@ Proof.
        | before k params metadata c IH after body ];
     simpl in Hbinds |- *; [ exact Hrefines | | | | | | | ];
     intros vars conts statics.
-  - apply let_refines_step; [ reflexivity | intros v _ ]. apply IH, Hbinds.
+  - apply let_refines_step; [ reflexivity | intros v _ _ ]. apply IH, Hbinds.
   - apply let_static_refines_step.
     destruct (eval_static_bindings vars bindings statics) as [statics' | ];
       [ apply IH, Hbinds | exact I ].
@@ -1690,12 +1734,12 @@ Proof.
       | apply IH; intros _; apply Hbinds, eq_refl ].
   - apply let_cont_non_recursive_refines_step, IH, Hbinds.
   - apply let_cont_handler_refines_at.
-    intros vs handler_vars conts' statics' _. apply IH, Hbinds.
+    intros vs handler_vars conts' statics' _ _. apply IH, Hbinds.
   - apply let_cont_recursive_refines_step; [ reflexivity | intros _ ].
     apply IH, Hbinds.
   - apply let_cont_recursive_handler_refines_at;
       [ apply plug_binds_statics, Hbinds, eq_refl | ].
-    intros vs handler_vars conts' statics' _. apply IH.
+    intros vs handler_vars conts' statics' _ _. apply IH.
     intros _. apply Hbinds, eq_refl.
 Qed.
 

@@ -199,15 +199,18 @@ Proof.
          | ac | scrutinee arms | ];
       intros known vars conts statics Hhold; simpl.
     + (* Let *)
-      destruct (eval_named statics vars d) as [v | ] eqn:Hd.
+      destruct (eval_named statics vars d) as [v | ] eqn:Hd;
+        [ destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind | ].
       * eapply refines_step;
-          [ rewrite step_let, Hd; reflexivity
+          [ rewrite step_let, Hd, Hkind; reflexivity
           | rewrite step_let,
-              (share_named_sound known vars statics d v Hhold Hd);
+              (share_named_sound known vars statics d v Hhold Hd), Hkind;
             reflexivity
           | ].
         apply share_primitives_knowing_refines.
         exact (all_computed_under_let known x d vars statics v Hhold Hd).
+      * apply step_undefined_refines. rewrite step_let, Hd, Hkind.
+        reflexivity.
       * apply step_undefined_refines. rewrite step_let, Hd. reflexivity.
     + (* Let_static *)
       apply let_static_refines_step.
@@ -237,7 +240,7 @@ Proof.
     apply (let_cont_handler_refines_where (statics_extend statics)
       (statics_extend_trans statics));
       [ apply statics_extend_refl | ].
-    intros vs handler_vars conts' statics' Hextend Hbind.
+    intros vs handler_vars conts' statics' Hextend _ Hbind.
     apply share_primitives_knowing_refines.
     apply (all_computed_bind_params statics' params known vs vars
       handler_vars);

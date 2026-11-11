@@ -125,7 +125,7 @@ Proof.
   intros Hx vars conts statics.
   eapply equivalent_trans;
     [ apply step_equivalent, step_let_cont_non_recursive | ].
-  apply let_equivalent_step; [ reflexivity | intros v _ ].
+  apply let_equivalent_step; [ reflexivity | intros v _ _ ].
   apply equivalent_sym.
   eapply equivalent_trans;
     [ apply step_equivalent, step_let_cont_non_recursive | ].
@@ -212,6 +212,8 @@ Proof.
   - (* the copy *)
     intros vars conts statics. apply let_cont_non_recursive_equivalent_step.
     apply let_cont_handler_alike. intros vs statics'. simpl.
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata'));
+      simpl; [ | exact I ].
     destruct (bind_params params' vs vars) as [handler_vars | ] eqn:Hbind;
       simpl; [ | exact I ].
     apply equivalent_sym.

@@ -1222,12 +1222,16 @@ Lemma apply_cont_value_lifted (c c' : cont_value) (vs vs' : list value)
 Proof.
   intros Hc. revert vs vs'.
   induction Hc
-    as [ k | lets at_path [params handler] vars vars' conts conts' recursive
-             Hvars Hconts
+    as [ k
+       | lets at_path [params metadata handler] vars vars' conts conts'
+           recursive Hvars Hconts
        | c c' extra extra' Hc IH Hextra ];
     intros vs vs' Hvs Hstatics; simpl.
   - exists vs'. split; [ reflexivity | exact Hvs ].
-  - destruct (bind_params params vs vars) as [bound | ] eqn:Hbind;
+  - rewrite (kinds_of_values_lifted statics' vs vs' Hvs).
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | exact I ].
+    destruct (bind_params params vs vars) as [bound | ] eqn:Hbind;
       [ | exact I ].
     destruct (bind_params_lifted statics' params vs vs' vars vars' bound Hvs
                 Hvars Hbind)
@@ -1410,6 +1414,7 @@ Proof.
   - (* Let *)
     rewrite step_let.
     destruct (eval_named statics vars d) as [v | ] eqn:Hd; [ | exact I ].
+    destruct (kind_eqb (kind_of_value v) xkind) eqn:Hkind; [ | exact I ].
     assert (Hkept :
       answered state_lifted exit_lifted
         (Step (State body ((x, v) :: vars) conts statics))
@@ -1423,7 +1428,12 @@ Proof.
       exists 0, (State
                    (bind_my_closures known (lift_expr lets (xO at_path) body))
                    ((x, v') :: vars') conts' statics').
-      split; [ simpl; rewrite step_let, Hd'; reflexivity | ].
+      split;
+        [ simpl;
+          rewrite step_let, Hd', (kind_of_value_lifted statics' v v' Hv),
+            Hkind;
+          reflexivity
+        | ].
       apply State_lifted;
         [ apply env_lifted_cons; assumption | exact Hconts | exact Hstatics ].
     }
@@ -1445,7 +1455,9 @@ Proof.
                  (bind_my_closures known (lift_expr lets (xO at_path) body))
                  ((x, Value_symbol s0) :: vars') conts' extended').
     split.
-    + simpl. rewrite step_let_static, Hextended, step_let. reflexivity.
+    + simpl. rewrite step_let_static, Hextended, step_let.
+      cbn [eval_named eval_simple].
+      rewrite (kind_of_value_lifted _ _ _ Hv), Hkind. reflexivity.
     + apply State_lifted.
       * apply env_lifted_cons;
           [ exact Hv | exact (env_lifted_extend _ _ _ _ Hextend Hvars) ].
@@ -1882,7 +1894,9 @@ Proof.
        | c extra Hc IH Hextra ];
     intros vs statics Hvs Hcode; simpl.
   - apply Hvs. exists k. reflexivity.
-  - destruct (bind_params params vs dvars); [ | exact I ].
+  - destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | exact I ].
+    destruct (bind_params params vs dvars); [ | exact I ].
     destruct (rec_closures_plain cscope dvars dconts recursive Hrecursive
                 Hcscope Hdconts)
       as [Hscope' Hconts'].
@@ -1914,7 +1928,9 @@ Proof.
        | scrutinee arms | ];
     simpl in He.
   - (* Let *)
-    rewrite step_let. destruct (eval_named statics vars d); [ | exact I ].
+    rewrite step_let.
+    destruct (eval_named statics vars d) as [v | ]; [ | exact I ].
+    destruct (kind_eqb (kind_of_value v) xkind); [ | exact I ].
     exists scope. simpl. auto.
   - (* Let_static *)
     apply andb_true_iff in He as [Hbindings Hbody]. rewrite step_let_static.

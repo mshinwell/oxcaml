@@ -154,6 +154,9 @@
    at a continuation or a function applied to the wrong number of
    arguments, at a function called at arities that are not those of its
    code or with arguments that are not of the kinds of the call's arity,
+   at a [Let] whose defining expression has a value of another kind than
+   the [Let] gives its variable, at a handler applied to values of other
+   kinds than it gives its parameters,
    at a [Switch] whose scrutinee is not a naked immediate with
    an arm, where a primitive has no value, at a call of what is not a
    closure, of a closure whose code is not bound, or directly of a closure
@@ -169,12 +172,18 @@
    [refines_defined_statement] and [refines_antisymmetric_statement] say how
    the two are related.
 
-   Kinds. The kinds and arities that terms carry (FlambdaModel.v) have
-   no effect on execution, with one exception: a call ([call_function])
-   is undefined unless it agrees with the code called, in the three ways
-   given there. Simplify assumes each of them, and a well-typed program
-   whose types are refined by a GADT can break the second and the third
-   in a branch that is never run.
+   Kinds. The kinds and arities that terms carry (FlambdaModel.v) are
+   tested where a variable is bound, and nowhere else. A call
+   ([call_function]) is undefined unless it agrees with the code called,
+   in the three ways given there. Simplify assumes each of them, and a
+   well-typed program whose types are refined by a GADT can break the
+   second and the third in a branch that is never run. A [Let] is
+   undefined unless the value of its defining expression is of its kind
+   ([step]), and the application of a handler unless the values are of
+   the kinds of its parameters ([apply_cont_value]). So, in every run, a
+   variable is bound only to a value of the kind that its binder gives
+   (FlambdaWellKindedSpec.v has the statements). The CR at [step] says
+   why the last two are less certain than the first.
 
    The primitives are those of FlambdaPrimitiveModel.v, and
    [FlambdaPrimitiveSpec.eval_prim] says what each computes. A law of a
@@ -539,20 +548,27 @@ Inductive step_result : Type :=
 
 (* Applying a handler runs it under the environments of its definition,
    with its parameters bound and, for a recursive one, the handlers defined
-   with it in scope again. Applying a way out ends execution. Applying a
+   with it in scope again. The values must be of the kinds that the
+   handler gives its parameters: otherwise there is no step. Applying a
+   way out ends execution, whatever the values: a way out is the
+   interface of the term, which says nothing of kinds. Applying a
    continuation that has extra arguments applies it to the arguments
-   followed by those. *)
+   followed by those: so the extra arguments are tested with the others,
+   by the handler that they reach. *)
 Fixpoint apply_cont_value (c : cont_value) (vs : list value)
     (statics : static_env) : step_result :=
   match c with
   | Outer k => Exit k vs
-  | Closure (Handler params _ handler) def_vars def_conts recursive =>
-    match bind_params params vs def_vars with
-    | Some handler_vars =>
-      Step (State handler handler_vars
-        (rec_closures recursive def_vars def_conts ++ def_conts) statics)
-    | None => Undefined
-    end
+  | Closure (Handler params metadata handler) def_vars def_conts recursive =>
+    if kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata)
+    then
+      match bind_params params vs def_vars with
+      | Some handler_vars =>
+        Step (State handler handler_vars
+          (rec_closures recursive def_vars def_conts ++ def_conts) statics)
+      | None => Undefined
+      end
+    else Undefined
   | Extra_args c extra => apply_cont_value c (vs ++ extra) statics
   end.
 
@@ -593,10 +609,11 @@ Definition apply_continuation (k : continuation) (vs : list value)
      arity gives, unarized ([simplify_apply_shared], which compares the
      kinds of the arguments with [Flambda_arity.unarize] of
      [Apply.args_arity]; the reason is
-     [Application_argument_kind_mismatch]). This is the one place where
-     the machine looks at the kind of a value. A poison constant has the
-     kind it carries, and an allocated value or a symbol, bound or not,
-     has kind [Value]: so poison of the right kind passes, and that is
+     [Application_argument_kind_mismatch]). The machine looks at the
+     kind of a value here, at a [Let] and where a handler is applied
+     ([step], [apply_cont_value]). A poison constant has the kind it
+     carries, and an allocated value or a symbol, bound or not, has kind
+     [Value]: so poison of the right kind passes, and that is
      intended.
    - The arity of the arguments is that of the parameters of the code,
      each parameter unarized ([arity_mismatch], on
@@ -669,25 +686,31 @@ Definition call_function (callee : value) (kind : call_kind)
   | None => Undefined
   end.
 
-(* CR mshinwell: a variable bound to a value of another kind than the
-   one its binder gives (by a [Let], or as a parameter of a handler) is
-   not undefined: the machine does not test it. Nor does it test the
-   kind of a field of a static block or of a value slot. (The fields of
-   a block that a primitive makes are tested, as arguments of the
-   primitive: FlambdaPrimitiveSpec.eval_variadic_primitive.) The
+(* CR mshinwell: a [Let] of a value of another kind than the one it
+   gives its variable is undefined, and so is a handler applied to
+   values of other kinds than those of its parameters
+   ([apply_cont_value]). It is not certain that this is right. The
    compiler stops on a term in which it sees such a mismatch, so
-   Simplify never turns one into [Invalid], and no well-typed program
-   is known to produce one.
-   Should a mismatch of kinds be undefined wherever it is executed, the
-   machine would test the kind of a value wherever a variable is bound,
-   and the rewrites that remove or move a binding would be refinements,
-   or equivalences only of bindings whose kind is known. Decision D10. *)
+   Simplify never turns one into [Invalid], and no well-typed program is
+   known to produce one: nothing in the compiler says what such a term
+   means. The other reading is that the kind a binder gives has no
+   effect on execution; then nothing says that a variable holds a value
+   of its kind, and the rewrites that remove a binding need not test
+   kinds (FlambdaNormaliseSpec.v).
+   Not tested under either reading: the kind of a field of a static
+   block or of a value slot (the fields of a block that a primitive
+   makes are tested, as arguments of the primitive:
+   FlambdaPrimitiveSpec.eval_variadic_primitive), and the kinds of the
+   values given to a way out of the term. Decision D10. *)
 
 Definition step (s : state) : step_result :=
   match s with
-  | State (Let x _ defining_expr body) vars conts statics =>
+  | State (Let x kind defining_expr body) vars conts statics =>
     match eval_named statics vars defining_expr with
-    | Some v => Step (State body ((x, v) :: vars) conts statics)
+    | Some v =>
+      if kind_eqb (kind_of_value v) kind
+      then Step (State body ((x, v) :: vars) conts statics)
+      else Undefined
     | None => Undefined
     end
   | State (Let_static bindings body) vars conts statics =>

@@ -93,15 +93,6 @@ Proof.
   - intros [= Hlength]. exact (IH vs _ Hlength).
 Qed.
 
-(* Arities that agree parameter by parameter have the same kinds. *)
-Lemma unarize_per_parameter_eq (a a' : arity) :
-  unarize_per_parameter a = unarize_per_parameter a' ->
-  unarize a = unarize a'.
-Proof.
-  unfold unarize, unarize_per_parameter. rewrite !flat_map_concat_map.
-  intros ->. reflexivity.
-Qed.
-
 Section Kinds.
 
 Variable slots : slot_kinds.
@@ -331,12 +322,6 @@ Proof.
       destruct (lookup move_to syms); [ | discriminate ].
       intros [= <-]. split; reflexivity.
 Qed.
-
-(* What can be called, or projected from, has kind [Value]. *)
-Lemma closure_of_kind (statics : static_env) (v : value) (code : code_id)
-    (vs : list (value_slot * value)) :
-  closure_of statics v = Some (code, vs) -> kind_of_value v = Value.
-Proof. destruct v; try discriminate; reflexivity. Qed.
 
 (* A primitive makes its value out of its arguments
    (FlambdaPrimitiveSpec.eval_prim_preserves_statement). *)
@@ -896,6 +881,8 @@ Proof.
        | c IH extra];
     intros vs statics Hc Hkinds Hvs_wk Hstatics.
   - cbn [apply_cont_value].
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | exact I ].
     destruct (bind_params params vs def_vars) as [handler_vars | ] eqn:Hbind;
       [ | exact I ].
     simpl in Hkinds.
@@ -957,6 +944,27 @@ Proof.
     rewrite length_firstn. lia.
 Qed.
 
+(* And the kinds of what a well-kinded continuation is given are right,
+   if they are those of its arity. *)
+Lemma right_kinds_given (c : cont_value) :
+  ∀ given : list flambda_kind,
+    cont_wk c = true ->
+    given = arity_of_cont outer c ->
+    wrong_kinds_given c given = false.
+Proof.
+  induction c
+    as [[params metadata handler] def_vars def_conts recursive | k
+       | c IH extra];
+    intros given Hc Hgiven.
+  - simpl in Hgiven |- *. rewrite Hgiven, kinds_eqb_refl. reflexivity.
+  - reflexivity.
+  - cbn [wrong_kinds_given]. cbn [cont_well_kinded] in Hc.
+    apply andb_true_iff in Hc as [Hc Hextra_kinds].
+    apply andb_true_iff in Hc as [Hc _].
+    apply kinds_eqb_eq in Hextra_kinds. cbn [arity_of_cont] in Hgiven.
+    apply (IH _ Hc). rewrite Hgiven, Hextra_kinds. apply firstn_skipn.
+Qed.
+
 Lemma step_well_kinded_here (s s' : state) :
   state_wk s = true -> step s = Step s' -> state_wk s' = true.
 Proof.
@@ -973,6 +981,7 @@ Proof.
     simpl in He. apply andb_true_iff in He as [Hd Hbody].
     apply has_kind_eq in Hd.
     destruct (eval_named statics vars d) as [v | ] eqn:Hv; [ | discriminate ].
+    destruct (kind_eqb (kind_of_value v) kind); [ | discriminate ].
     injection Hstep as <-.
     destruct (eval_named_kind statics vars d kind v Hvars Hstatics Hd Hv)
       as [Hkind Hwk].
@@ -1186,15 +1195,25 @@ Lemma no_kind_fault_here (s : state) :
   state_wk s = true -> kind_fault s = false.
 Proof.
   intros Hs.
-  destruct (state_well_kinded_elim s Hs) as (He & Hvars & Hconts & _).
+  destruct (state_well_kinded_elim s Hs)
+    as (He & Hvars & Hconts & Hstatics).
   unfold kind_fault.
   set (vars := state_vars s) in *. set (conts := state_conts s) in *.
+  set (statics := state_statics s) in *.
   destruct (state_expr s)
     as [ x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
     simpl in He; try reflexivity.
   - (* Let *)
     apply andb_true_iff in He as [Hd _]. apply has_kind_eq in Hd.
+    apply orb_false_iff. split;
+      [ | unfold wrong_kind_bound;
+          destruct (eval_named statics vars d) as [v | ] eqn:Hv;
+          [ | reflexivity ];
+          destruct
+            (eval_named_kind statics vars d kind v Hvars Hstatics Hd Hv)
+            as [-> _];
+          rewrite kind_eqb_refl; reflexivity ].
     destruct d
       as [s' | p args | code value_slots | fslot decls value_slots
          | slot closure | project_from slot closure
@@ -1203,15 +1222,15 @@ Proof.
     + rewrite (bound_of_kind vars s' kind Hd). reflexivity.
     + destruct (kinds_of_simples (kinds_of_env vars) args) as [ks | ] eqn:Hks;
         [ | discriminate ].
-      rewrite orb_false_r. apply none_unbound.
+      apply none_unbound.
       exact (proj2 (kinds_of_simples_each _ _ _ Hks)).
     + destruct (value_slots_well_kinded slots (kinds_of_env vars) value_slots)
         eqn:Hslots; [ | discriminate ].
-      rewrite orb_false_r. apply none_unbound.
+      apply none_unbound.
       exact (value_slots_each _ _ Hslots).
     + destruct (value_slots_well_kinded slots (kinds_of_env vars) value_slots)
         eqn:Hslots; [ | discriminate ].
-      rewrite orb_false_r. apply none_unbound.
+      apply none_unbound.
       exact (value_slots_each _ _ Hslots).
     + destruct (kind_of_simple (kinds_of_env vars) closure) as [k | ] eqn:Hk;
         [ | discriminate ].
@@ -1249,10 +1268,14 @@ Proof.
     apply has_arity_eq in He.
     destruct (kinds_of_simples_each _ _ _ He) as [Hlength Heach].
     simpl. rewrite (none_unbound vars (ac_args ac) Heach). simpl.
-    unfold wrong_number_of_arguments.
+    unfold wrong_number_of_arguments, wrong_kinds_of_arguments.
     destruct (resolve_well_kinded conts _ _ Hconts Hk) as [Hc Harity].
-    apply (right_number_given _ _ Hc). rewrite Harity. symmetry.
-    exact Hlength.
+    rewrite (right_number_given _ _ Hc)
+      by (rewrite Harity; symmetry; exact Hlength).
+    destruct (kinds_of_simples_eval vars (ac_args ac) _ He)
+      as (vs & Hvs & Hkinds).
+    rewrite Hvs. simpl. apply (right_kinds_given _ _ Hc).
+    rewrite Harity. exact Hkinds.
   - (* Switch *)
     apply andb_true_iff in He as [Hscrutinee _].
     apply has_kind_eq in Hscrutinee.
@@ -1279,7 +1302,8 @@ Proof.
     as [ x kind d body | bindings body | k' h body | handlers body | ap | ac
        | scrutinee arms | ];
     autorewrite with step in Hstep.
-  - destruct (eval_named statics vars d); discriminate.
+  - destruct (eval_named statics vars d) as [v | ]; [ | discriminate ].
+    destruct (kind_eqb (kind_of_value v) kind); discriminate.
   - destruct (eval_static_bindings vars bindings statics); discriminate.
   - discriminate.
   - destruct (handlers_bind_statics handlers); discriminate.
@@ -1406,6 +1430,46 @@ Proof.
       as [Hundefined | (body & callee_vars & ret & exn & Hsteps)];
       [ rewrite Hundefined in Hcall | rewrite Hsteps in Hcall ];
       discriminate.
+Qed.
+
+Theorem let_binds_at_kind : let_binds_at_kind_statement.
+Proof.
+  intros x kind d body vars conts statics s. rewrite step_let.
+  destruct (eval_named statics vars d) as [v | ]; [ | discriminate ].
+  destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind; [ | discriminate ].
+  intros [= <-]. exists v. apply kind_eqb_eq in Hkind. auto.
+Qed.
+
+Theorem handler_binds_at_kinds : handler_binds_at_kinds_statement.
+Proof.
+  intros params metadata handler def_vars def_conts recursive vs statics s.
+  simpl.
+  destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata))
+    eqn:Hkinds; [ | discriminate ].
+  destruct (bind_params params vs def_vars) as [handler_vars | ];
+    [ | discriminate ].
+  intros [= <-]. apply kinds_eqb_eq in Hkinds. eauto.
+Qed.
+
+Theorem call_binds_at_kinds : call_binds_at_kinds_statement.
+Proof.
+  intros ap vars conts statics s. rewrite step_apply.
+  destruct (eval_simple vars (ap_callee ap)) as [callee | ];
+    [ | discriminate ].
+  destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | discriminate ].
+  destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
+    [ | discriminate ].
+  intros Hcall.
+  apply call_function_step in Hcall
+    as (called & value_slots & c & callee_vars & Hclosure & Hcode & Hkinds
+        & Hargs & Hreturn & Hbind & ->).
+  exists callee, vs, called, value_slots, c. repeat split.
+  - exact Hclosure.
+  - exact Hcode.
+  - exact (closure_of_kind _ _ _ _ Hclosure).
+  - unfold code_params_kinds.
+    rewrite <- (unarize_per_parameter_eq _ _ Hargs). exact Hkinds.
+  - exact Hbind.
 Qed.
 
 Theorem well_kinded_unit_state : well_kinded_unit_state_statement.

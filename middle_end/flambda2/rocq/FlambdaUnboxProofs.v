@@ -407,15 +407,18 @@ Proof.
          | ac | scrutinee arms | ];
       intros known vars conts statics Hhold; simpl.
     + (* Let *)
-      destruct (eval_named statics vars d) as [v | ] eqn:Hd.
+      destruct (eval_named statics vars d) as [v | ] eqn:Hd;
+        [ destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind | ].
       * eapply refines_step;
-          [ rewrite step_let, Hd; reflexivity
+          [ rewrite step_let, Hd, Hkind; reflexivity
           | rewrite step_let,
-              (unbox_known_named_sound known vars statics d v Hhold Hd);
+              (unbox_known_named_sound known vars statics d v Hhold Hd), Hkind;
             reflexivity
           | ].
         apply unbox_numbers_knowing_refines.
         exact (numbers_hold_under_let known x d vars statics v Hhold Hd).
+      * apply step_undefined_refines. rewrite step_let, Hd, Hkind.
+        reflexivity.
       * apply step_undefined_refines. rewrite step_let, Hd. reflexivity.
     + (* Let_static *)
       apply let_static_refines_step.
@@ -445,7 +448,7 @@ Proof.
     apply (let_cont_handler_refines_where (symbol_numbers_hold known)
       (symbol_numbers_hold_extend known));
       [ exact (proj2 Hhold) | ].
-    intros vs handler_vars conts' statics' Hsymbols Hbind.
+    intros vs handler_vars conts' statics' Hsymbols _ Hbind.
     apply unbox_numbers_knowing_refines.
     apply (numbers_hold_bind_params statics' params known vs vars
       handler_vars);

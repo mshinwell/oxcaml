@@ -514,14 +514,18 @@ Fixpoint heap_apply_cont_value (c : cont_value) (vs : list value)
     (statics : static_env) (h : heap) : heap_step_result :=
   match c with
   | Outer k => Heap_exit k (Outcome vs statics h)
-  | Closure (Handler params _ handler) def_vars def_conts recursive =>
-    match bind_params params vs def_vars with
-    | Some handler_vars =>
-      Heap_step
-        (Heap_state handler handler_vars
-           (rec_closures recursive def_vars def_conts ++ def_conts) statics h)
-    | None => Heap_undefined
-    end
+  | Closure (Handler params metadata handler) def_vars def_conts recursive =>
+    if kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata)
+    then
+      match bind_params params vs def_vars with
+      | Some handler_vars =>
+        Heap_step
+          (Heap_state handler handler_vars
+             (rec_closures recursive def_vars def_conts ++ def_conts) statics
+             h)
+      | None => Heap_undefined
+      end
+    else Heap_undefined
   | Extra_args c extra => heap_apply_cont_value c (vs ++ extra) statics h
   end.
 
@@ -568,10 +572,12 @@ Definition heap_call_function (callee : value) (kind : call_kind)
    [Let] is the only one that may change it. *)
 Definition heap_step (s : heap_state) : heap_step_result :=
   match s with
-  | Heap_state (Let x _ defining_expr body) vars conts statics h =>
+  | Heap_state (Let x kind defining_expr body) vars conts statics h =>
     match exec_named statics h vars defining_expr with
     | Some (v, h') =>
-      Heap_step (Heap_state body ((x, v) :: vars) conts statics h')
+      if kind_eqb (kind_of_value v) kind
+      then Heap_step (Heap_state body ((x, v) :: vars) conts statics h')
+      else Heap_undefined
     | None => Heap_undefined
     end
   | Heap_state (Let_static bindings body) vars conts statics h =>

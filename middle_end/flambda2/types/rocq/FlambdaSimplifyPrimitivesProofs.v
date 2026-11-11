@@ -118,7 +118,7 @@ Qed.
 Theorem let_prim_canonical : let_prim_canonical_statement.
 Proof.
   intros tenv x declared p args args' body Hargs vars conts statics Hsat.
-  apply let_equivalent_step; [ | intros v _; apply equivalent_refl ].
+  apply let_equivalent_step; [ | intros v _ _; apply equivalent_refl ].
   simpl.
   rewrite (canonical_in_terms_simples tenv statics vars args args' Hsat
              Hargs).
@@ -130,9 +130,14 @@ Proof.
   intros tenv x declared d c body Hknown vars conts statics Hsat.
   destruct (eval_named statics vars d) as [v | ] eqn:Hd.
   - pose proof (Hknown statics vars v Hsat Hd) as ->.
-    eapply refines_step;
-      [ rewrite step_let, Hd; reflexivity | rewrite step_let; reflexivity
-      | apply refines_refl ].
+    destruct (kind_eqb (kind_of_value (Value_const c)) declared) eqn:Hkind.
+    + eapply refines_step;
+        [ rewrite step_let, Hd, Hkind; reflexivity
+        | rewrite step_let; cbn [eval_named eval_simple]; rewrite Hkind;
+          reflexivity
+        | apply refines_refl ].
+    + apply step_undefined_refines. rewrite step_let, Hd, Hkind.
+      reflexivity.
   - apply step_undefined_refines. rewrite step_let, Hd. reflexivity.
 Qed.
 

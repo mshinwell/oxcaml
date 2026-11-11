@@ -357,8 +357,8 @@ Definition handlers_refine (ok : static_env -> Prop) (vars : env)
     : Prop :=
   handlers_related (handler_refines_where ok) vars handlers handlers'
   ∧ handlers_related
-      (fun params def_vars target source =>
-         handler_refines_where ok params def_vars source target)
+      (fun params kinds def_vars target source =>
+         handler_refines_where ok params kinds def_vars source target)
       vars handlers' handlers.
 
 (* Inlining leaves what binds something static as it is: what is inlined
@@ -455,7 +455,7 @@ Proof.
          | ap | ac | scrutinee arms | ];
       intros known vars conts statics Hknow; simpl;
       try apply refines_refl.
-    + apply let_refines_step; [ reflexivity | intros v _ ].
+    + apply let_refines_step; [ reflexivity | intros v _ _ ].
       apply inline_calls_refines_knowing, Hknow.
     + (* the code of the group is rewritten: the body under the one
          static environment refines it under the other; then down the
@@ -513,7 +513,7 @@ Proof.
            vars conts statics)).
       * apply (let_cont_handler_refines_where (statics_know known)
           (statics_know_extend known)); [ exact Hknow | ].
-        intros vs handler_vars conts' statics' Hknow' _.
+        intros vs handler_vars conts' statics' Hknow' _ _.
         apply inline_calls_refines_knowing, Hknow'.
       * apply let_cont_non_recursive_refines_step,
           inline_calls_refines_knowing, Hknow.
@@ -535,7 +535,7 @@ Proof.
           - destruct IH as [Hforwards Hbackwards].
             split; (apply Forall2_cons; [ | assumption ]);
               (split; [ reflexivity | ]); apply Handler_related;
-              intros vs handler_vars conts' statics' Hknow' _;
+              intros vs handler_vars conts' statics' Hknow' _ _;
               apply inline_calls_refines_knowing, Hknow'. }
         destruct Hhandlers as [Hforwards Hbackwards].
         apply (let_cont_recursive_handlers_refine_where (statics_know known)
@@ -772,7 +772,7 @@ Proof.
       as [body' | ];
       [ | discriminate ].
     simpl in Heq. injection Heq as <-.
-    apply let_refines_step; [ reflexivity | intros v _ ].
+    apply let_refines_step; [ reflexivity | intros v _ _ ].
     apply (IH body' eq_refl). intros y Hy. simpl.
     destruct (Pos.eqb_spec y x) as [-> | _]; [ | exact (Hagree y Hy) ].
     apply var_free_in_handler_b_sound in Hy. congruence.
@@ -800,14 +800,20 @@ Proof.
     destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hargs;
       [ | apply step_undefined_refines; rewrite step_apply_cont, Hargs;
           reflexivity ].
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata))
+      eqn:Hkinds;
+      [ | apply step_undefined_refines; rewrite step_apply_cont, Hargs, Hk;
+          unfold apply_continuation; rewrite resolve_head; simpl;
+          rewrite Hkinds; reflexivity ].
     destruct (bind_params params vs def_vars) as [handler_vars | ] eqn:Hbind;
       [ | apply step_undefined_refines; rewrite step_apply_cont, Hargs, Hk;
           unfold apply_continuation; rewrite resolve_head; simpl;
-          rewrite Hbind; reflexivity ].
+          rewrite Hkinds, Hbind; reflexivity ].
     destruct (bind_params_defined params vs def_vars vars handler_vars Hbind)
       as [bound Hbound].
     destruct (let_params_run params (hm_params_kinds metadata) (ac_args ac)
-                vs vars bound handler conts statics Hargs)
+                vs vars bound handler conts statics Hargs
+                (proj1 (kinds_eqb_eq _ _) Hkinds))
       as [n Hrun]; [ | exact Hbound | ].
     { intros param Hin Hfree. apply var_in_simples_sound in Hfree.
       rewrite forallb_forall in Hcapture. specialize (Hcapture param Hin).
@@ -817,7 +823,8 @@ Proof.
     { apply step_equivalent.
       apply (step_apply_cont_handler _ _ _ _ vs params metadata handler
         def_vars conts []);
-        [ exact Hargs | rewrite Hk; apply resolve_head | exact Hbind ]. }
+        [ exact Hargs | rewrite Hk; apply resolve_head | exact Hkinds
+        | exact Hbind ]. }
     apply (equivalent_trans _ (State handler bound conts statics)).
     { apply coincide_equivalent.
       - intros x Hx.
@@ -1014,7 +1021,7 @@ Proof.
   - apply (expr_equivalent_trans _ (Let x kind (fold_named d) body)).
     + intros vars conts statics.
       apply let_equivalent_step;
-        [ apply fold_named_sound | intros v _; apply equivalent_refl ].
+        [ apply fold_named_sound | intros v _ _; apply equivalent_refl ].
     + exact (plug_equivalent (Let_body x kind (fold_named d) Hole) _ _
         (not_many _) (fold_constants_equivalent_aux body)).
   - exact (plug_equivalent (Let_static_body bindings Hole) _ _ (not_many _)
@@ -1043,22 +1050,25 @@ Proof. exact fold_constants_equivalent_aux. Qed.
 (* Removing unused [Let]s whose defining expression always has a value     *)
 (* ======================================================================== *)
 
-(* The defining expression has a value, so the [Let] takes its step; the
-   body does not look at the variable. *)
+(* The defining expression has a value of the kind of the [Let], so the
+   [Let] takes its step; the body does not look at the variable. *)
 Lemma unused_total_let (x : variable) (kind : flambda_kind) (d : named)
     (body : expr) :
-  named_is_total d = true ->
+  named_is_total kind d = true ->
   ~ var_free_in_expr x body ->
   expr_equivalent (Let x kind d body) body.
 Proof.
   intros Htotal Hunused vars conts statics.
-  assert (Hvalue : ∃ v : value, eval_named statics vars d = Some v).
+  assert (Hvalue :
+    ∃ v : value,
+      eval_named statics vars d = Some v
+      ∧ kind_eqb (kind_of_value v) kind = true).
   { destruct d as [[y | sym | c] | p args | code slots | fslot decls slots
       | slot closure | pfrom slot closure | move_from move_to closure];
       simpl in Htotal; try discriminate; simpl; eauto. }
-  destruct Hvalue as [v Hd].
+  destruct Hvalue as (v & Hd & Hkind).
   apply (equivalent_trans _ (State body ((x, v) :: vars) conts statics));
-    [ apply step_equivalent; rewrite step_let, Hd; reflexivity | ].
+    [ apply step_equivalent; rewrite step_let, Hd, Hkind; reflexivity | ].
   apply coincide_equivalent.
   - intros y Hy. simpl.
     destruct (Pos.eqb_spec y x) as [-> | _]; [ contradiction | reflexivity ].
@@ -1076,7 +1086,8 @@ Proof.
       (remove_unused_total_lets_equivalent_aux body)) as Hbody.
     simpl in Hbody.
     destruct
-      (named_is_total d && negb (var_free_b x (remove_unused_total_lets body)))
+      (named_is_total kind d
+       && negb (var_free_b x (remove_unused_total_lets body)))
       eqn:Hremove; [ | exact Hbody ].
     apply andb_true_iff in Hremove as [Htotal Hunused].
     apply negb_true_iff in Hunused.
@@ -1109,174 +1120,232 @@ Proof. exact remove_unused_total_lets_equivalent_aux. Qed.
 (* Removing unused [Let]s whose defining expression has a value in scope   *)
 (* ======================================================================== *)
 
-Definition all_bound (vs : list variable) (vars : env) : Prop :=
-  ∀ x : variable, x ∈ vs -> ∃ v : value, lookup x vars = Some v.
+(* Each variable in scope is bound to a value of its kind. *)
+Definition kinds_hold (kinds : kinds_in_scope) (vars : env) : Prop :=
+  ∀ (x : variable) (kind : flambda_kind),
+    lookup x kinds = Some kind ->
+    ∃ v : value, lookup x vars = Some v ∧ kind_of_value v = kind.
 
-(* Equivalence under the environments that bind the variables given. *)
-Definition expr_equivalent_bound (vs : list variable) (e e' : expr) : Prop :=
+(* Equivalence under the environments that bind the variables given to
+   values of their kinds. *)
+Definition expr_equivalent_bound (kinds : kinds_in_scope) (e e' : expr)
+    : Prop :=
   ∀ (vars : env) (conts : cont_env) (statics : static_env),
-    all_bound vs vars ->
+    kinds_hold kinds vars ->
     equivalent (State e vars conts statics) (State e' vars conts statics).
 
-Lemma all_bound_cons (vs : list variable) (vars : env) (x : variable)
+Lemma kinds_hold_cons (kinds : kinds_in_scope) (vars : env) (x : variable)
     (v : value) :
-  all_bound vs vars -> all_bound (x :: vs) ((x, v) :: vars).
+  kinds_hold kinds vars ->
+  kinds_hold ((x, kind_of_value v) :: kinds) ((x, v) :: vars).
 Proof.
-  intros Hbound y Hin. simpl.
-  destruct (Pos.eqb_spec y x) as [-> | Hne]; [ eauto | ].
-  destruct Hin as [Heq | Hin]; [ congruence | exact (Hbound y Hin) ].
+  intros Hhold y kind. simpl.
+  destruct (Pos.eqb_spec y x) as [-> | Hne];
+    [ intros [= <-]; eauto | apply Hhold ].
 Qed.
 
-Lemma simple_in_scope_defined (vs : list variable) (vars : env) (s : simple) :
-  all_bound vs vars ->
-  simple_in_scope vs s = true ->
+(* The parameters of a handler, bound as a handler that runs binds them,
+   hold values of the kinds of the handler. *)
+Lemma params_in_scope_hold (params : list variable) :
+  ∀ (values : list value) (kinds : kinds_in_scope) (vars handler_vars : env),
+    kinds_hold kinds vars ->
+    bind_params params values vars = Some handler_vars ->
+    kinds_hold (params_in_scope params (map kind_of_value values) kinds)
+      handler_vars.
+Proof.
+  induction params as [ | param params IH];
+    intros [ | v values] kinds vars handler_vars Hhold; simpl;
+    try discriminate.
+  - intros [= <-]. exact Hhold.
+  - apply IH, kinds_hold_cons, Hhold.
+Qed.
+
+Lemma kind_of_simple_in_scope_sound (kinds : kinds_in_scope) (vars : env)
+    (s : simple) (kind : flambda_kind) :
+  kinds_hold kinds vars ->
+  kind_of_simple_in_scope kinds s = Some kind ->
+  ∃ v : value, eval_simple vars s = Some v ∧ kind_of_value v = kind.
+Proof.
+  intros Hhold. destruct s as [x | sym | c]; simpl.
+  - apply Hhold.
+  - intros [= <-]. eauto.
+  - intros [= <-]. eauto.
+Qed.
+
+Lemma simple_in_scope_defined (kinds : kinds_in_scope) (vars : env)
+    (s : simple) :
+  kinds_hold kinds vars ->
+  simple_in_scope (map fst kinds) s = true ->
   ∃ v : value, eval_simple vars s = Some v.
 Proof.
-  intros Hbound. destruct s as [x | sym | c]; simpl; eauto.
-  intros Hin. apply Hbound, among_In, Hin.
+  intros Hhold. destruct s as [x | sym | c]; simpl; eauto.
+  intros Hin. apply among_In in Hin.
+  destruct (lookup x kinds) as [kind | ] eqn:Hlookup;
+    [ | destruct (lookup_none_not_in x kinds Hlookup Hin) ].
+  destruct (Hhold x kind Hlookup) as (v & Hv & _). eauto.
 Qed.
 
-Lemma value_slots_defined (vs : list variable) (vars : env)
+Lemma value_slots_defined (kinds : kinds_in_scope) (vars : env)
     (slots : list (value_slot * simple)) :
-  all_bound vs vars ->
-  forallb (fun slot => simple_in_scope vs (snd slot)) slots = true ->
+  kinds_hold kinds vars ->
+  forallb (fun slot => simple_in_scope (map fst kinds) (snd slot)) slots
+  = true ->
   ∃ evaluated : list (value_slot * value),
     eval_value_slots vars slots = Some evaluated.
 Proof.
-  intros Hbound. induction slots as [ | [slot s] slots IH]; simpl; [ eauto | ].
+  intros Hhold. induction slots as [ | [slot s] slots IH]; simpl; [ eauto | ].
   intros Hscope. apply andb_true_iff in Hscope as [Hs Hslots].
-  destruct (simple_in_scope_defined vs vars s Hbound Hs) as [v ->].
+  destruct (simple_in_scope_defined kinds vars s Hhold Hs) as [v ->].
   destruct (IH Hslots) as [evaluated ->]. simpl. eauto.
 Qed.
 
-Lemma named_defined_sound (vs : list variable) (vars : env)
-    (statics : static_env) (d : named) :
-  all_bound vs vars ->
-  named_defined vs d = true ->
-  ∃ v : value, eval_named statics vars d = Some v.
+Lemma named_defined_sound (kinds : kinds_in_scope) (vars : env)
+    (statics : static_env) (kind : flambda_kind) (d : named) :
+  kinds_hold kinds vars ->
+  named_defined kinds kind d = true ->
+  ∃ v : value,
+    eval_named statics vars d = Some v
+    ∧ kind_eqb (kind_of_value v) kind = true.
 Proof.
-  intros Hbound.
+  intros Hhold.
   destruct d as [s | p args | code slots | fslot decls slots | slot closure
     | pfrom slot closure | move_from move_to closure];
     simpl; try discriminate.
-  - apply simple_in_scope_defined, Hbound.
-  - intros Hslots.
-    destruct (value_slots_defined vs vars slots Hbound Hslots)
+  - destruct (kind_of_simple_in_scope kinds s) as [found | ] eqn:Hs;
+      [ | discriminate ].
+    intros Hkind.
+    destruct (kind_of_simple_in_scope_sound kinds vars s found Hhold Hs)
+      as (v & Hv & <-).
+    eauto.
+  - intros Hdefined. apply andb_true_iff in Hdefined as [Hkind Hslots].
+    destruct (value_slots_defined kinds vars slots Hhold Hslots)
       as [evaluated ->].
     simpl. eauto.
-  - intros Hdefined. apply andb_true_iff in Hdefined as [Hslot Hslots].
+  - intros Hdefined. apply andb_true_iff in Hdefined as [Hdefined Hslots].
+    apply andb_true_iff in Hdefined as [Hkind Hslot].
     apply is_bound_lookup in Hslot as [code ->].
-    destruct (value_slots_defined vs vars slots Hbound Hslots)
+    destruct (value_slots_defined kinds vars slots Hhold Hslots)
       as [evaluated ->].
     simpl. eauto.
 Qed.
 
-Lemma let_equivalent_bound (vs : list variable) (x : variable)
+Lemma let_equivalent_bound (kinds : kinds_in_scope) (x : variable)
     (kind : flambda_kind) (d : named) (body body' : expr) :
-  expr_equivalent_bound (x :: vs) body body' ->
-  expr_equivalent_bound vs (Let x kind d body) (Let x kind d body').
+  expr_equivalent_bound ((x, kind) :: kinds) body body' ->
+  expr_equivalent_bound kinds (Let x kind d body) (Let x kind d body').
 Proof.
-  intros Hbody vars conts statics Hbound.
-  apply let_equivalent_step; [ reflexivity | intros v _ ].
-  apply Hbody, all_bound_cons, Hbound.
+  intros Hbody vars conts statics Hhold.
+  apply let_equivalent_step; [ reflexivity | intros v _ <- ].
+  apply Hbody, kinds_hold_cons, Hhold.
 Qed.
 
-(* The defining expression has a value, so the [Let] takes its step; the
-   body does not look at the variable. *)
-Lemma unused_defined_let (vs : list variable) (x : variable)
+(* The defining expression has a value of the kind of the [Let], so the
+   [Let] takes its step; the body does not look at the variable. *)
+Lemma unused_defined_let (kinds : kinds_in_scope) (x : variable)
     (kind : flambda_kind) (d : named) (body : expr) :
-  named_defined vs d = true ->
+  named_defined kinds kind d = true ->
   ~ var_free_in_expr x body ->
-  expr_equivalent_bound vs (Let x kind d body) body.
+  expr_equivalent_bound kinds (Let x kind d body) body.
 Proof.
-  intros Hdefined Hunused vars conts statics Hbound.
-  destruct (named_defined_sound vs vars statics d Hbound Hdefined) as [v Hd].
+  intros Hdefined Hunused vars conts statics Hhold.
+  destruct (named_defined_sound kinds vars statics kind d Hhold Hdefined)
+    as (v & Hd & Hkind).
   apply (equivalent_trans _ (State body ((x, v) :: vars) conts statics));
-    [ apply step_equivalent; rewrite step_let, Hd; reflexivity | ].
+    [ apply step_equivalent; rewrite step_let, Hd, Hkind; reflexivity | ].
   apply coincide_equivalent.
   - intros y Hy. simpl.
     destruct (Pos.eqb_spec y x) as [-> | _]; [ contradiction | reflexivity ].
   - intros k _. apply (conts_agree_same identity_renaming). reflexivity.
 Qed.
 
-Lemma let_cont_handler_equivalent_bound (vs : list variable)
+Lemma let_cont_handler_equivalent_bound (kinds : kinds_in_scope)
     (k : continuation) (params : list variable)
     (metadata : handler_metadata) (handler handler' body : expr) :
-  expr_equivalent_bound (params ++ vs) handler handler' ->
-  expr_equivalent_bound vs
+  expr_equivalent_bound
+    (params_in_scope params (hm_params_kinds metadata) kinds) handler
+    handler' ->
+  expr_equivalent_bound kinds
     (Let_cont_non_recursive k (Handler params metadata handler) body)
     (Let_cont_non_recursive k (Handler params metadata handler') body).
 Proof.
-  intros Hhandler vars conts statics Hbound.
+  intros Hhandler vars conts statics Hhold.
   assert (Hruns :
     ∀ (values : list value) (handler_vars : env),
+      map kind_of_value values = hm_params_kinds metadata ->
       bind_params params values vars = Some handler_vars ->
-      all_bound (params ++ vs) handler_vars).
-  { intros values handler_vars Hbind x Hin.
-    apply (bind_params_bound params values vars handler_vars x Hbind).
-    apply in_app_or in Hin. destruct Hin as [Hin | Hin];
-      [ left; exact Hin | right; exact (Hbound x Hin) ]. }
+      kinds_hold (params_in_scope params (hm_params_kinds metadata) kinds)
+        handler_vars).
+  { intros values handler_vars <-.
+    exact (params_in_scope_hold params values kinds vars handler_vars Hhold). }
   apply refines_antisymmetric; apply let_cont_handler_refines_at;
-    intros values handler_vars conts' statics' Hbind;
+    intros values handler_vars conts' statics' Hkinds Hbind;
     apply equivalent_refines; [ | apply equivalent_sym ];
-    apply Hhandler, (Hruns values handler_vars Hbind).
+    apply Hhandler, (Hruns values handler_vars Hkinds Hbind).
 Qed.
 
-Lemma expr_equivalent_bound_trans (vs : list variable) (e e' e'' : expr) :
-  expr_equivalent_bound vs e e' -> expr_equivalent_bound vs e' e'' ->
-  expr_equivalent_bound vs e e''.
+Lemma expr_equivalent_bound_trans (kinds : kinds_in_scope)
+    (e e' e'' : expr) :
+  expr_equivalent_bound kinds e e' -> expr_equivalent_bound kinds e' e'' ->
+  expr_equivalent_bound kinds e e''.
 Proof.
-  intros H H' vars conts statics Hbound.
-  exact (equivalent_trans _ _ _ (H vars conts statics Hbound)
-    (H' vars conts statics Hbound)).
+  intros H H' vars conts statics Hhold.
+  exact (equivalent_trans _ _ _ (H vars conts statics Hhold)
+    (H' vars conts statics Hhold)).
 Qed.
 
 Fixpoint remove_unused_defined_lets_equivalent_bound (e : expr) :
-  ∀ vs : list variable,
-    expr_equivalent_bound vs e (remove_unused_defined_lets vs e).
+  ∀ kinds : kinds_in_scope,
+    expr_equivalent_bound kinds e (remove_unused_defined_lets kinds e).
 Proof.
   destruct e
     as [ x kind d body | bindings body | k [params metadata handler] body
        | handlers body | ap | ac | scrutinee arms | ];
-    intros vs; simpl;
+    intros kinds; simpl;
     try (intros vars conts statics _; apply equivalent_refl).
-  - pose proof (let_equivalent_bound vs x kind d _ _
-      (remove_unused_defined_lets_equivalent_bound body (x :: vs)))
+  - pose proof (let_equivalent_bound kinds x kind d _ _
+      (remove_unused_defined_lets_equivalent_bound body
+         ((x, kind) :: kinds)))
       as Hbody.
     destruct
-      (named_defined vs d
-       && negb (var_free_b x (remove_unused_defined_lets (x :: vs) body)))
+      (named_defined kinds kind d
+       && negb
+            (var_free_b x
+               (remove_unused_defined_lets ((x, kind) :: kinds) body)))
       eqn:Hremove; [ | exact Hbody ].
     apply andb_true_iff in Hremove as [Hdefined Hunused].
     apply negb_true_iff in Hunused.
-    apply (expr_equivalent_bound_trans vs _ _ _ Hbody), unused_defined_let;
+    apply (expr_equivalent_bound_trans kinds _ _ _ Hbody),
+      unused_defined_let;
       [ exact Hdefined | ].
     intros Hx. apply var_free_b_sound in Hx. congruence.
-  - intros vars conts statics Hbound.
+  - intros vars conts statics Hhold.
     apply let_static_equivalent_step.
     destruct (eval_static_bindings vars bindings statics) as [extended | ];
       [ | exact I ].
-    apply (remove_unused_defined_lets_equivalent_bound body vs), Hbound.
-  - apply (expr_equivalent_bound_trans vs _
+    apply (remove_unused_defined_lets_equivalent_bound body kinds), Hhold.
+  - apply (expr_equivalent_bound_trans kinds _
       (Let_cont_non_recursive k
          (Handler params metadata
-            (remove_unused_defined_lets (params ++ vs) handler))
+            (remove_unused_defined_lets
+               (params_in_scope params (hm_params_kinds metadata) kinds)
+               handler))
          body)).
     + apply let_cont_handler_equivalent_bound,
         remove_unused_defined_lets_equivalent_bound.
-    + intros vars conts statics Hbound.
+    + intros vars conts statics Hhold.
       apply let_cont_non_recursive_equivalent_step.
-      apply (remove_unused_defined_lets_equivalent_bound body vs), Hbound.
-  - intros vars conts statics Hbound.
+      apply (remove_unused_defined_lets_equivalent_bound body kinds), Hhold.
+  - intros vars conts statics Hhold.
     apply let_cont_recursive_equivalent_step; [ reflexivity | intros _ ].
-    apply (remove_unused_defined_lets_equivalent_bound body vs), Hbound.
+    apply (remove_unused_defined_lets_equivalent_bound body kinds), Hhold.
 Qed.
 
 Theorem remove_unused_defined_lets_equivalent :
   remove_unused_defined_lets_equivalent_statement.
 Proof.
   intros e vars conts statics.
-  apply (remove_unused_defined_lets_equivalent_bound e []). intros x [].
+  apply (remove_unused_defined_lets_equivalent_bound e []).
+  intros x kind [=].
 Qed.
 
 (* ======================================================================== *)
@@ -1339,24 +1408,6 @@ Proof.
       destruct (Pos.eqb s sym); [ discriminate | apply Hknow ].
 Qed.
 
-Lemma simples_have_kinds_sound (vars : env) (args : list simple) :
-  ∀ (kinds : list flambda_kind) (vs : list value),
-    forall2b simple_has_kind_b args kinds = true ->
-    eval_simples vars args = Some vs ->
-    map kind_of_value vs = kinds.
-Proof.
-  induction args as [ | s args IH]; intros [ | kind kinds] vs; simpl;
-    try discriminate.
-  - intros _ [= <-]. reflexivity.
-  - intros Hcheck. apply andb_true_iff in Hcheck as [Hs Hargs].
-    destruct (eval_simple vars s) as [v | ] eqn:Hv; [ | discriminate ].
-    destruct (eval_simples vars args) as [vs' | ]; [ | discriminate ].
-    simpl. intros [= <-]. simpl. rewrite (IH kinds vs' Hargs eq_refl).
-    f_equal.
-    destruct s as [x | sym | c]; simpl in Hs, Hv; [ discriminate | | ];
-      injection Hv as <-; apply kind_eqb_eq in Hs; simpl; congruence.
-Qed.
-
 Lemma inline_known_apply_equivalent (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id)) (ap : apply_expr)
     (vars : env) (conts : cont_env) (statics : static_env) :
@@ -1382,17 +1433,17 @@ Proof.
   apply andb_true_iff in Hcheck as [Hsame Hinlinable].
   apply Pos.eqb_eq in Hsame. subst code.
   unfold call_agrees_b in Hagrees.
-  apply andb_true_iff in Hagrees as [Hagrees Hkinds].
+  apply andb_true_iff in Hagrees as [Hagrees Hparams_kinds].
   apply andb_true_iff in Hagrees as [Hargs_arity Hreturn_arity].
   apply kinds_per_parameter_eqb_eq in Hargs_arity.
   apply arity_eqb_eq in Hreturn_arity.
+  apply Nat.eqb_eq in Hparams_kinds.
   destruct (Hsymbols s called Hs) as [slots Hclosure].
   apply (inline_equivalent ap called c _ (Value_symbol s) slots);
     [ exact Hkind | rewrite Hcallee; reflexivity
     | exact Hclosure | exact (Hcode called c Hc)
     | exact (inlinable_b_sound ap c Hinlinable) | exact Hargs_arity
-    | exact Hreturn_arity | ].
-  intros vs. apply simples_have_kinds_sound, Hkinds.
+    | exact Hreturn_arity | exact Hparams_kinds ].
 Qed.
 
 Definition statics_know_both (known_code : list (code_id * code))
@@ -1491,7 +1542,7 @@ Proof.
          | ap | ac | scrutinee arms | ];
       intros known_code known_symbols vars conts statics Hcode Hsymbols;
       simpl; try apply equivalent_refl.
-    + apply let_equivalent_step; [ reflexivity | intros v _ ].
+    + apply let_equivalent_step; [ reflexivity | intros v _ _ ].
       apply inline_known_calls_equivalent_knowing; assumption.
     + assert (Hrefine :
         let bindings' :=
@@ -1571,7 +1622,7 @@ Proof.
             (statics_know_both known_code known_symbols)
             (statics_know_both_extend known_code known_symbols));
           try (split; assumption);
-          intros vs handler_vars conts' statics' [Hcode' Hsymbols'] _;
+          intros vs handler_vars conts' statics' [Hcode' Hsymbols'] _ _;
           apply equivalent_refines; [ | apply equivalent_sym ];
           apply inline_known_calls_equivalent_knowing; assumption.
       * apply let_cont_non_recursive_equivalent_step.
@@ -1606,7 +1657,7 @@ Proof.
           - destruct IH as [[Hforwards Hbackwards] [Hforwards' Hbackwards']].
             repeat split; (apply Forall2_cons; [ | assumption ]);
               (split; [ reflexivity | ]); apply Handler_related;
-              intros vs handler_vars conts' statics' [Hcode' Hsymbols'] _;
+              intros vs handler_vars conts' statics' [Hcode' Hsymbols'] _ _;
               try (apply equivalent_refines,
                      inline_known_calls_equivalent_knowing; assumption);
               apply equivalent_refines, equivalent_sym,
@@ -1944,7 +1995,7 @@ Ltac rewrite_code_cases IH Hf :=
          (Let_cont_non_recursive _ (Handler _ _ ?handler') _) =>
     eapply expr_refines_trans;
       [ intros vars conts statics; apply let_cont_handler_refines_at;
-        intros vs handler_vars conts' statics' _;
+        intros vs handler_vars conts' statics' _ _;
         first [ apply (IH handler) | apply (IH handler') ]
       | match goal with
         | |- expr_refines (Let_cont_non_recursive _ ?h ?body) _ =>
@@ -1979,7 +2030,7 @@ Proof.
     - destruct (IH vars) as [Hforwards Hbackwards].
       split; (apply Forall2_cons; [ | assumption ]);
         (split; [ reflexivity | ]); apply Handler_related;
-        intros vs handler_vars conts statics _ _;
+        intros vs handler_vars conts statics _ _ _;
         apply (rewrite_code_refines_aux f Hf handler). }
   eapply expr_refines_trans;
     [ | exact (plug_refines (Let_cont_recursive_body _ Hole) _ _ (not_many _)
@@ -2012,7 +2063,7 @@ Proof.
     - destruct (IH vars) as [Hforwards Hbackwards].
       split; (apply Forall2_cons; [ | assumption ]);
         (split; [ reflexivity | ]); apply Handler_related;
-        intros vs handler_vars conts statics _ _;
+        intros vs handler_vars conts statics _ _ _;
         apply (rewrite_code_refined_aux f Hf handler). }
   eapply expr_refines_trans;
     [ | exact (plug_refines (Let_cont_recursive_body _ Hole) _ _ (not_many _)
@@ -2083,6 +2134,7 @@ Lemma thread_arms_equivalent (k : continuation)
     (metadata : handler_metadata) (s : simple)
     (inner arms : list (Z * apply_cont)) (vars : env) (conts : cont_env)
     (statics : static_env) :
+  hm_params_kinds metadata = [] ->
   equivalent
     (State (Switch s arms) vars
        ((k, Closure (Handler [] metadata (Switch s inner)) vars conts [])
@@ -2093,6 +2145,7 @@ Lemma thread_arms_equivalent (k : continuation)
         :: conts)
        statics).
 Proof.
+  intros Hno_kinds.
   destruct (eval_simple vars s) as [v | ] eqn:Hs;
     [ | apply step_eq_equivalent; rewrite !step_switch, Hs; reflexivity ].
   destruct (naked_immediate_of_value v) as [i | ] eqn:Hi;
@@ -2128,7 +2181,8 @@ Proof.
       [ apply step_equivalent;
         apply (step_apply_cont_handler _ _ _ _ [] [] metadata (Switch s inner)
           vars conts []);
-        [ reflexivity | apply resolve_head | reflexivity ]
+        [ reflexivity | apply resolve_head
+        | rewrite Hno_kinds; reflexivity | reflexivity ]
       | ].
     apply step_equivalent. rewrite step_switch, Hs, Hi, Hinner.
     reflexivity.
@@ -2181,14 +2235,17 @@ Proof.
     try (intros vars conts statics; apply equivalent_refl).
   destruct handler; try (intros vars conts statics; apply equivalent_refl).
   destruct body; try (intros vars conts statics; apply equivalent_refl).
+  destruct (hm_params_kinds metadata) eqn:Hno_kinds;
+    [ | intros vars conts statics; apply equivalent_refl ].
   destruct (simple_eq_dec scrutinee0 scrutinee) as [-> | _];
     [ | intros vars conts statics; apply equivalent_refl ].
   intros vars conts statics.
   destruct (arms_apply k (map (thread_arm k arms) arms0)) eqn:Happly.
-  - apply let_cont_non_recursive_equivalent_step, thread_arms_equivalent.
+  - apply let_cont_non_recursive_equivalent_step, thread_arms_equivalent,
+      Hno_kinds.
   - eapply equivalent_trans;
       [ apply step_equivalent, step_let_cont_non_recursive | ].
-    eapply equivalent_trans; [ apply thread_arms_equivalent | ].
+    eapply equivalent_trans; [ apply thread_arms_equivalent, Hno_kinds | ].
     apply switch_skip, Happly.
 Qed.
 

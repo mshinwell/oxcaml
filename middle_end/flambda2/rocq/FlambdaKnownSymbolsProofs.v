@@ -449,6 +449,8 @@ Proof.
     as [[params metadata handler] def_vars def_conts recursive | k
        | c IH extra];
     intros vs; simpl; [ | reflexivity | apply IH ].
+  destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+    [ | exact I ].
   destruct (bind_params params vs def_vars) as [handler_vars | ];
     [ | exact I ].
   split; [ | reflexivity ].
@@ -541,8 +543,10 @@ Proof.
     simpl fold_known; autorewrite with step.
   - (* Let *)
     destruct (eval_named statics vars d) as [v | ] eqn:Hv; [ | exact I ].
+    destruct (kind_eqb (kind_of_value v) xkind) eqn:Hkind; [ | exact I ].
     rewrite eval_named_fold_statics.
-    rewrite (fold_known_named_sound_here S statics Hagrees vars d v Hv).
+    rewrite (fold_known_named_sound_here S statics Hagrees vars d v Hv),
+      Hkind.
     split; [ reflexivity | exact Hagrees ].
   - (* Let_static *)
     simpl in Hbound. apply andb_true_iff in Hbound as [Hbound _].

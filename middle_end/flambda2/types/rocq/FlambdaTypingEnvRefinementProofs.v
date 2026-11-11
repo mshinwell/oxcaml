@@ -124,7 +124,7 @@ Qed.
 Theorem let_simple_canonical : let_simple_canonical_statement.
 Proof.
   intros tenv x kind s canonical body Hcanonical vars conts statics Hsat.
-  apply let_equivalent_step; [ | intros v _; apply equivalent_refl ].
+  apply let_equivalent_step; [ | intros v _ _; apply equivalent_refl ].
   exact (canonical_in_terms_sound tenv statics vars s canonical Hsat
            Hcanonical).
 Qed.
@@ -351,7 +351,7 @@ Theorem let_refines_under : let_refines_under_statement.
 Proof.
   intros tenv x declared d body body' kind Hwf Hfresh Hkind Hbody vars conts
     statics Hsat.
-  apply let_refines_step; [ reflexivity | intros v Hv ].
+  apply let_refines_step; [ reflexivity | intros v Hv _ ].
   apply Hbody. apply add_variable_definition_env_satisfies_strictly;
     [ exact Hwf | exact Hfresh | exact (Hkind statics vars v Hsat Hv)
     | exact Hsat ].
@@ -361,7 +361,7 @@ Theorem let_typed_refines_under : let_typed_refines_under_statement.
 Proof.
   intros tenv x declared d body body' ty Hwf Hfresh Hfree Htype Hbody vars
     conts statics Hsat.
-  apply let_refines_step; [ reflexivity | intros v Hv ].
+  apply let_refines_step; [ reflexivity | intros v Hv _ ].
   pose proof (Htype statics vars v Hsat Hv) as Hty.
   apply Hbody. apply replace_equation_env_satisfies_strictly.
   - apply (add_variable_definition_in_scope tenv x _ x Hwf). left.
@@ -385,7 +385,7 @@ Theorem let_simple_refines_under : let_simple_refines_under_statement.
 Proof.
   intros tenv x declared s body body' kind result Hwf Hfresh Hscope Hkind
     Hadd Hbody vars conts statics Hsat.
-  apply let_refines_step; [ reflexivity | intros v Hv ]. simpl in Hv.
+  apply let_refines_step; [ reflexivity | intros v Hv _ ]. simpl in Hv.
   assert (Hother :
     eval_simple ((x, v) :: vars) s = eval_simple vars s).
   { destruct s as [y | sym | c]; [ | reflexivity.. ]. simpl.
@@ -455,7 +455,7 @@ Qed.
    defined, at every choice of kinds, refines where it runs. *)
 Lemma handler_refines_under_where (tenv : Typing_env.t)
     (statics : static_env) (vars : env) (params : list variable)
-    (handler handler' : expr) :
+    (params_kinds : list flambda_kind) (handler handler' : expr) :
   typing_env_invariant tenv ->
   distinct params = true ->
   (∀ x : variable,
@@ -466,11 +466,11 @@ Lemma handler_refines_under_where (tenv : Typing_env.t)
       (Typing_env.add_definitions_of_params tenv (combine params kinds))
       handler handler') ->
   env_satisfies_strictly tenv statics vars ->
-  handler_refines_where (statics_extend statics) params vars handler
-    handler'.
+  handler_refines_where (statics_extend statics) params params_kinds vars
+    handler handler'.
 Proof.
   intros Hinvariant Hdistinct Hfresh Hhandler Hsat.
-  intros vs handler_vars conts' statics' Hextend Hbind.
+  intros vs handler_vars conts' statics' Hextend _ Hbind.
   pose proof (bind_params_length params vs vars handler_vars Hbind)
     as Hlength.
   assert (Hkinds : length (map kind_of_value vs) = length params).
@@ -495,8 +495,9 @@ Proof.
   apply (let_cont_handler_refines_where (statics_extend statics)
            (fun s s' Hs Hs' => statics_extend_trans statics s s' Hs Hs'));
     [ apply statics_extend_refl | ].
-  exact (handler_refines_under_where tenv statics vars params handler
-           handler' Hinvariant Hdistinct Hfresh Hhandler Hsat).
+  exact (handler_refines_under_where tenv statics vars params
+           (hm_params_kinds metadata) handler handler' Hinvariant Hdistinct
+           Hfresh Hhandler Hsat).
 Qed.
 
 Theorem let_cont_recursive_handler_refines_under
@@ -504,8 +505,9 @@ Theorem let_cont_recursive_handler_refines_under
 Proof.
   intros tenv before k params metadata handler handler' after body
     Hinvariant Hdistinct Hfresh Hbinds Hhandler vars conts statics Hsat.
-  pose proof (handler_refines_under_where tenv statics vars params handler
-                handler' Hinvariant Hdistinct Hfresh Hhandler Hsat)
+  pose proof (handler_refines_under_where tenv statics vars params
+                (hm_params_kinds metadata) handler handler' Hinvariant
+                Hdistinct Hfresh Hhandler Hsat)
     as Hwhere.
   apply (let_cont_recursive_handlers_refine_where (statics_extend statics)
            (fun s s' Hs Hs' => statics_extend_trans statics s s' Hs Hs'));

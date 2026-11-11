@@ -71,7 +71,10 @@ Lemma step_let (x : variable) (kind : flambda_kind) (defining_expr : named)
     (body : expr) (vars : env) (conts : cont_env) (statics : static_env) :
   step (State (Let x kind defining_expr body) vars conts statics)
   = match eval_named statics vars defining_expr with
-    | Some v => Step (State body ((x, v) :: vars) conts statics)
+    | Some v =>
+      if kind_eqb (kind_of_value v) kind
+      then Step (State body ((x, v) :: vars) conts statics)
+      else Undefined
     | None => Undefined
     end.
 Proof. reflexivity. Qed.
@@ -226,10 +229,12 @@ Lemma apply_cont_value_statics (c : cont_value) (vs : list value)
   apply_cont_value c vs statics = Step s -> state_statics s = statics.
 Proof.
   revert vs.
-  induction c as [[params handler] def_vars def_conts recursive | k
+  induction c as [[params metadata handler] def_vars def_conts recursive | k
                  | c IH extra];
     intros vs; simpl.
-  - destruct (bind_params params vs def_vars); [ | discriminate ].
+  - destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | discriminate ].
+    destruct (bind_params params vs def_vars); [ | discriminate ].
     intros [= <-]. reflexivity.
   - discriminate.
   - apply IH.
@@ -247,15 +252,16 @@ Lemma step_apply_cont_handler (ac : apply_cont) (vars : env)
   eval_simples vars (ac_args ac) = Some vs ->
   resolve (ac_continuation ac) conts
   = Closure (Handler params metadata handler) def_vars def_conts recursive ->
+  kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata) = true ->
   bind_params params vs def_vars = Some handler_vars ->
   step (State (Apply_cont ac) vars conts statics)
   = Step
       (State handler handler_vars
          (rec_closures recursive def_vars def_conts ++ def_conts) statics).
 Proof.
-  intros Hargs Hresolve Hbind. rewrite step_apply_cont, Hargs.
-  unfold apply_continuation. rewrite Hresolve. simpl. rewrite Hbind.
-  reflexivity.
+  intros Hargs Hresolve Hkinds Hbind. rewrite step_apply_cont, Hargs.
+  unfold apply_continuation. rewrite Hresolve. simpl.
+  rewrite Hkinds, Hbind. reflexivity.
 Qed.
 
 Lemma step_apply_cont_exit (ac : apply_cont) (vars : env) (conts : cont_env)
@@ -278,6 +284,10 @@ Lemma step_apply_cont_target_handler (ac : apply_cont) (vars : env)
   eval_simples vars (ac_args ac) = Some vs ->
   cont_target (resolve (ac_continuation ac) conts)
   = Closure (Handler params metadata handler) def_vars def_conts recursive ->
+  kinds_eqb
+    (map kind_of_value (cont_args (resolve (ac_continuation ac) conts) vs))
+    (hm_params_kinds metadata)
+  = true ->
   bind_params params (cont_args (resolve (ac_continuation ac) conts) vs)
     def_vars
   = Some handler_vars ->
@@ -286,9 +296,9 @@ Lemma step_apply_cont_target_handler (ac : apply_cont) (vars : env)
       (State handler handler_vars
          (rec_closures recursive def_vars def_conts ++ def_conts) statics).
 Proof.
-  intros Hargs Htarget Hbind. rewrite step_apply_cont, Hargs.
+  intros Hargs Htarget Hkinds Hbind. rewrite step_apply_cont, Hargs.
   unfold apply_continuation. rewrite apply_cont_value_target, Htarget.
-  simpl. rewrite Hbind. reflexivity.
+  simpl. rewrite Hkinds, Hbind. reflexivity.
 Qed.
 
 Lemma step_apply_cont_target_exit (ac : apply_cont) (vars : env)
@@ -363,9 +373,13 @@ Lemma step_let_closure_of_set (x : variable) (kind : flambda_kind)
        vars conts statics)
   = match lookup slot function_decls, eval_value_slots vars value_slots with
     | Some _, Some vs =>
-      Step
-        (State body ((x, Value_closure_of_set slot function_decls vs) :: vars)
-           conts statics)
+      if kind_eqb Value kind
+      then
+        Step
+          (State body
+             ((x, Value_closure_of_set slot function_decls vs) :: vars) conts
+             statics)
+      else Undefined
     | _, _ => Undefined
     end.
 Proof.
@@ -384,7 +398,10 @@ Lemma step_let_project_value_slot_from (x : variable) (kind : flambda_kind)
   = match eval_simple vars closure with
     | Some v =>
       match project_value_slot statics project_from slot v with
-      | Some w => Step (State body ((x, w) :: vars) conts statics)
+      | Some w =>
+        if kind_eqb (kind_of_value w) kind
+        then Step (State body ((x, w) :: vars) conts statics)
+        else Undefined
       | None => Undefined
       end
     | None => Undefined
@@ -403,7 +420,10 @@ Lemma step_let_project_function_slot (x : variable) (kind : flambda_kind)
   = match eval_simple vars closure with
     | Some v =>
       match project_function_slot statics move_from move_to v with
-      | Some w => Step (State body ((x, w) :: vars) conts statics)
+      | Some w =>
+        if kind_eqb (kind_of_value w) kind
+        then Step (State body ((x, w) :: vars) conts statics)
+        else Undefined
       | None => Undefined
       end
     | None => Undefined
@@ -1083,6 +1103,17 @@ Lemma kinds_eqb_refl (kinds : list flambda_kind) :
   kinds_eqb kinds kinds = true.
 Proof. apply kinds_eqb_eq. reflexivity. Qed.
 
+(* One value against one kind. *)
+Lemma kinds_eqb_singleton (k k' : flambda_kind) :
+  kinds_eqb [k] [k'] = kind_eqb k k'.
+Proof.
+  destruct (kind_eqb k k') eqn:Hkind.
+  - apply kind_eqb_eq in Hkind. subst k'. apply kinds_eqb_refl.
+  - destruct (kinds_eqb [k] [k']) eqn:Hkinds; [ | reflexivity ].
+    apply kinds_eqb_eq in Hkinds. injection Hkinds as ->.
+    rewrite kind_eqb_refl in Hkind. discriminate.
+Qed.
+
 Lemma arity_eqb_refl (a : arity) : arity_eqb a a = true.
 Proof. apply arity_eqb_eq. reflexivity. Qed.
 
@@ -1101,6 +1132,21 @@ Proof.
   unfold unarize, arity_of_kinds.
   induction kinds as [ | k kinds IH]; simpl; [ | rewrite IH ]; reflexivity.
 Qed.
+
+(* Arities that agree parameter by parameter have the same kinds. *)
+Lemma unarize_per_parameter_eq (a a' : arity) :
+  unarize_per_parameter a = unarize_per_parameter a' ->
+  unarize a = unarize a'.
+Proof.
+  unfold unarize, unarize_per_parameter. rewrite !flat_map_concat_map.
+  intros ->. reflexivity.
+Qed.
+
+(* What can be called, or projected from, has kind [Value]. *)
+Lemma closure_of_kind (statics : static_env) (v : value) (code : code_id)
+    (vs : list (value_slot * value)) :
+  closure_of statics v = Some (code, vs) -> kind_of_value v = Value.
+Proof. destruct v; try discriminate; reflexivity. Qed.
 
 (* A call that is not undefined: the callee is a closure of code that is
    bound, the arguments are of the kinds of the call's arity, the call
@@ -1290,41 +1336,51 @@ End Simulation.
    uses these, and so does not depend on what the step of the binder is. *)
 
 (* Two [Let]s whose defining expressions have the same value, or none. *)
-Lemma let_equivalent_step (x x' : variable) (kind kind' : flambda_kind)
+Lemma let_equivalent_step (x x' : variable) (kind : flambda_kind)
     (d d' : named) (body body' : expr) (vars vars' : env)
     (conts conts' : cont_env) (statics statics' : static_env) :
   eval_named statics' vars' d' = eval_named statics vars d ->
   (∀ v : value,
     eval_named statics vars d = Some v ->
+    kind_of_value v = kind ->
     equivalent (State body ((x, v) :: vars) conts statics)
       (State body' ((x', v) :: vars') conts' statics')) ->
   equivalent (State (Let x kind d body) vars conts statics)
-    (State (Let x' kind' d' body') vars' conts' statics').
+    (State (Let x' kind d' body') vars' conts' statics').
 Proof.
   intros Hd' Hbodies.
   destruct (eval_named statics vars d) as [v | ] eqn:Hd.
-  - eapply equivalent_step;
-      [ rewrite step_let, Hd; reflexivity
-      | rewrite step_let, Hd'; reflexivity | exact (Hbodies v eq_refl) ].
+  - destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind.
+    + eapply equivalent_step;
+        [ rewrite step_let, Hd, Hkind; reflexivity
+        | rewrite step_let, Hd', Hkind; reflexivity
+        | exact (Hbodies v eq_refl (proj1 (kind_eqb_eq _ _) Hkind)) ].
+    + apply step_eq_equivalent. rewrite !step_let, Hd', Hd, Hkind.
+      reflexivity.
   - apply step_eq_equivalent. rewrite !step_let, Hd', Hd. reflexivity.
 Qed.
 
-Lemma let_refines_step (x x' : variable) (kind kind' : flambda_kind)
+Lemma let_refines_step (x x' : variable) (kind : flambda_kind)
     (d d' : named) (body body' : expr) (vars vars' : env)
     (conts conts' : cont_env) (statics statics' : static_env) :
   eval_named statics' vars' d' = eval_named statics vars d ->
   (∀ v : value,
     eval_named statics vars d = Some v ->
+    kind_of_value v = kind ->
     refines (State body ((x, v) :: vars) conts statics)
       (State body' ((x', v) :: vars') conts' statics')) ->
   refines (State (Let x kind d body) vars conts statics)
-    (State (Let x' kind' d' body') vars' conts' statics').
+    (State (Let x' kind d' body') vars' conts' statics').
 Proof.
   intros Hd' Hbodies.
   destruct (eval_named statics vars d) as [v | ] eqn:Hd.
-  - eapply refines_step;
-      [ rewrite step_let, Hd; reflexivity
-      | rewrite step_let, Hd'; reflexivity | exact (Hbodies v eq_refl) ].
+  - destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind.
+    + eapply refines_step;
+        [ rewrite step_let, Hd, Hkind; reflexivity
+        | rewrite step_let, Hd', Hkind; reflexivity
+        | exact (Hbodies v eq_refl (proj1 (kind_eqb_eq _ _) Hkind)) ].
+    + apply step_undefined_refines. rewrite step_let, Hd, Hkind.
+      reflexivity.
   - apply step_undefined_refines. rewrite step_let, Hd. reflexivity.
 Qed.
 
@@ -1564,10 +1620,12 @@ Lemma apply_cont_value_values_all (Q : state -> Prop) (c : cont_value)
   end.
 Proof.
   intros Hc Hvs Hstate. revert vs Hvs.
-  induction c as [[params handler] def_vars def_conts recursive | k
+  induction c as [[params metadata handler] def_vars def_conts recursive | k
                  | c IH extra];
     intros vs Hvs; simpl; [ | exact Hvs | ].
   - destruct Hc as [Hdef_vars Hdef_conts].
+    destruct (kinds_eqb (map kind_of_value vs) (hm_params_kinds metadata));
+      [ | exact I ].
     destruct (bind_params params vs def_vars) as [handler_vars | ] eqn:Hbind;
       [ | exact I ].
     apply Hstate.
@@ -1637,6 +1695,7 @@ Proof.
     autorewrite with step.
   - (* Let *)
     destruct (eval_named statics vars d) as [v | ] eqn:Hd; [ | exact I ].
+    destruct (kind_eqb (kind_of_value v) kind); [ | exact I ].
     apply Hstate; [ | exact Hconts ].
     apply Forall_cons;
       [ exact (Hlet x kind d body v eq_refl Hd) | exact Hvars ].
