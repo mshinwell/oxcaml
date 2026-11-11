@@ -96,10 +96,14 @@ There are two accounts, and they are related.
 
 The comparison is the primary notion (it is a function and it is what
 runs); the rules of `alpha_equivalent` are facts about it. The converse
-(what the comparison accepts is alpha-equivalent) can hold only of
-terms with distinct binders and closed code:
-`expr_eqb_repeated_parameter_statement` is the term that shows why. It
-is being proved for those terms.
+(what the comparison accepts is alpha-equivalent) is for terms with
+distinct binders and closed code, which are the terms that
+well-formedness admits; it is being proved for those terms. Outside
+them the comparison accepts more than the renaming of a term gives:
+`expr_eqb_repeated_parameter_statement` is a handler that repeats a
+parameter, accepted against one that does not, where the second term
+is not the first renamed. (That no chain of the rules relates the two
+is not proved.)
 
 Every statement that a bound name may be renamed has the premise that
 the code in what is renamed is closed. The relations of free names do

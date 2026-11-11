@@ -41,15 +41,18 @@
    So the comparison may be taken as the definition of "the same up to
    bound names", with the rules of [alpha_equivalent] as facts about it.
 
-   The converse can hold only of terms whose binders are distinct and
-   whose code is closed. The comparison relates a list of parameters
-   that repeats a name to one that does not, which no renaming can do
-   ([expr_eqb_repeated_parameter_statement]); well-formedness excludes
-   such lists (FlambdaBindersSpec.binders_distinct, which the first of
-   the two terms fails). And the rules of [alpha_equivalent] rename
-   only where code is closed, while the comparison is reflexive on
-   every term. Of terms with distinct binders and closed code the
-   converse is expected to hold; it is not proved here.
+   The converse is for terms whose binders are distinct and whose code
+   is closed, which are the terms that well-formedness admits
+   (FlambdaBindersSpec.binders_distinct and code_closed); it is not
+   proved here. Outside those terms the comparison accepts more than
+   the renaming of a term gives: a list of parameters that repeats a
+   name against one that does not
+   ([expr_eqb_repeated_parameter_statement], which says that the second
+   term is not the first renamed; that no chain of the rules of
+   [alpha_equivalent] relates the two is not proved). For code that is
+   not closed no such pair is given here: the rules of
+   [alpha_equivalent] rename only where code is closed, so they say
+   nothing of a binder around code that is not.
 
    Nothing is trusted here. The proofs are in FlambdaCompareAlphaProofs.v,
    which needs no review. *)
