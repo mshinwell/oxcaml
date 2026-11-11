@@ -319,6 +319,9 @@ says so. Only the labels that this tree cites are listed.
   tag to be the tag of no block, and the machine has blocks of any tag.
 - **T1-9.** A prover reads `Is_null` of a name of type `Null` as 1, and
   the relation of the model gives 0 when that name holds poison.
+- **T1-10.** The type that a projection of a value slot gives its
+  closure has an index with no function slot, so the fast path of the
+  next projection never answers on it.
 - **T2-1.** `Typing_env.replace_equation` on a name that is not bound
   records an equation that the environment cannot see.
 - **T2-2.** The invariants of the typing environment are checked only
