@@ -92,7 +92,10 @@
    - [Aliases.get_canonical_element_exn] answers the canonical element
      if it may be used at the name mode asked for, and failing that an
      alias that may; what it answers is in the class of what it was
-     asked about, and may be used at that name mode.
+     asked about, and may be used at that name mode. Which alias: one
+     of the least name mode that will do, and of those one that no other
+     is earlier than ([earliest_alias_statement]); and there is no
+     answer only if no alias may be used ([no_alias_statement]).
 
    Differences from the OCaml, all deliberate.
    - Coercions. A [Simple] of the model has no coercion
@@ -558,3 +561,76 @@ Definition canonical_at_mode_aliased_statement : Prop :=
       min_binding_time
     = Some answer ->
     aliased t answer element.
+
+(* An alias of [canonical_element] that may be used at the name mode
+   [order]: it was recorded with that name mode when it was demoted and,
+   unless that is [In_types], it still has it in the scope given. *)
+Definition alias_candidate {A : Type}
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element : simple)
+    (min_binding_time : Binding_time.t) (order : Name_mode.t) (n : name)
+    : Prop :=
+  Keyed.lookup name_eqb n
+    (Aliases.get_aliases_of_canonical_element t canonical_element)
+  = Some order
+  ∧ (order = Name_mode.In_types
+     ∨ Aliases.compute_name_mode binding_times_and_modes (simple_of_name n)
+         min_binding_time
+       = order).
+
+(* Where the canonical element may not be used, the answer is an alias
+   that may: one of the least name mode that will do and has such an
+   alias, and no other alias of that name mode is earlier than it. (So
+   asked for [Phantom], an alias recorded as [Phantom] is preferred to
+   one recorded as [Normal], even an earlier one.) *)
+Definition earliest_alias_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (element : simple)
+    (elt_name_mode min_name_mode : Name_mode.t)
+    (min_binding_time : Binding_time.t) (answer : simple),
+    ~ name_mode_at_least
+        (canonical_name_mode binding_times_and_modes t element elt_name_mode
+           min_binding_time)
+        min_name_mode ->
+    Aliases.get_canonical_element_exn binding_time_resolver
+      binding_times_and_modes t element elt_name_mode min_name_mode
+      min_binding_time
+    = Some answer ->
+    ∃ (n : name) (order : Name_mode.t),
+      answer = simple_of_name n
+      ∧ name_mode_at_least order min_name_mode
+      ∧ alias_candidate binding_times_and_modes t
+          (canonical_element_of t element) min_binding_time order n
+      ∧ ∀ (n' : name) (order' : Name_mode.t),
+          name_mode_at_least order' min_name_mode ->
+          alias_candidate binding_times_and_modes t
+            (canonical_element_of t element) min_binding_time order' n' ->
+          name_mode_at_least order' order
+          ∧ (order' = order ->
+             Aliases.name_defined_earlier binding_time_resolver
+               binding_times_and_modes n' n
+             = false).
+
+(* And there is no answer only where no alias may be used. *)
+Definition no_alias_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (element : simple)
+    (elt_name_mode min_name_mode : Name_mode.t)
+    (min_binding_time : Binding_time.t),
+    ~ name_mode_at_least
+        (canonical_name_mode binding_times_and_modes t element elt_name_mode
+           min_binding_time)
+        min_name_mode ->
+    (Aliases.get_canonical_element_exn binding_time_resolver
+       binding_times_and_modes t element elt_name_mode min_name_mode
+       min_binding_time
+     = None
+     <-> ∀ (n : name) (order : Name_mode.t),
+           name_mode_at_least order min_name_mode ->
+           ~ alias_candidate binding_times_and_modes t
+               (canonical_element_of t element) min_binding_time order n).

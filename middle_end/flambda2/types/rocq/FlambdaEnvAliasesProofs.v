@@ -711,3 +711,674 @@ Proof.
     apply canonical_element_of_demoted. apply Hconsistent.
     apply mem_lookup. exists order. exact Hlookup.
 Qed.
+
+(* ------------------------------------------------------------------------ *)
+(* Which alias is the answer                                                *)
+(* ------------------------------------------------------------------------ *)
+
+Lemma is_empty_nil {B : Type} (l : list B) :
+  Keyed.is_empty l = true <-> l = [].
+Proof. destruct l; simpl; split; solve [ reflexivity | discriminate ]. Qed.
+
+(* Settles what is left of a case of [find_earliest_candidates_cases]: a
+   comparison of two name modes, by computation, or a list of candidates
+   that is empty and is not. *)
+Ltac settle_name_modes :=
+  first
+    [ apply name_mode_at_least_b_iff; reflexivity
+    | match goal with
+      | Hle : name_mode_at_least _ _ |- _ =>
+        apply name_mode_at_least_b_iff in Hle; discriminate Hle
+      end
+    | match goal with
+      | Hne : ?c <> [], Hempty : Keyed.is_empty ?c = true |- _ =>
+        exfalso; apply Hne, is_empty_nil, Hempty
+      end
+    | match goal with
+      | Hempty : Keyed.is_empty ?c = true |- ?c = [] =>
+        apply is_empty_nil, Hempty
+      end ].
+
+(* [find_earliest_candidates] in full: the answer is the candidates of the
+   least name mode that is at least the one asked for and has some; there
+   is none only if no such name mode has a candidate. *)
+Lemma find_earliest_candidates_cases
+    (aliases : Aliases.Aliases_of_canonical_element.t)
+    (filter_by_scope : Name_mode.t -> list name -> list name)
+    (min_name_mode : Name_mode.t) :
+  match
+    Aliases.Aliases_of_canonical_element.find_earliest_candidates aliases
+      filter_by_scope min_name_mode
+  with
+  | Some candidates =>
+    ∃ order : Name_mode.t,
+      name_mode_at_least order min_name_mode
+      ∧ candidates
+        = filter_by_scope order
+            (Aliases.Aliases_of_canonical_element.at_mode aliases order)
+      ∧ candidates <> []
+      ∧ ∀ order' : Name_mode.t,
+          name_mode_at_least order' min_name_mode ->
+          filter_by_scope order'
+            (Aliases.Aliases_of_canonical_element.at_mode aliases order')
+          <> [] ->
+          name_mode_at_least order' order
+  | None =>
+    ∀ order : Name_mode.t,
+      name_mode_at_least order min_name_mode ->
+      filter_by_scope order
+        (Aliases.Aliases_of_canonical_element.at_mode aliases order)
+      = []
+  end.
+Proof.
+  unfold Aliases.Aliases_of_canonical_element.find_earliest_candidates.
+  cbn [List.fold_left].
+  remember (filter_by_scope Name_mode.In_types
+              (Aliases.Aliases_of_canonical_element.at_mode aliases
+                 Name_mode.In_types)) as in_types eqn:Hin_types.
+  remember (filter_by_scope Name_mode.Phantom
+              (Aliases.Aliases_of_canonical_element.at_mode aliases
+                 Name_mode.Phantom)) as phantom eqn:Hphantom.
+  remember (filter_by_scope Name_mode.Normal
+              (Aliases.Aliases_of_canonical_element.at_mode aliases
+                 Name_mode.Normal)) as normal eqn:Hnormal.
+  destruct (Keyed.is_empty in_types) eqn:Hempty_in_types;
+    destruct (Keyed.is_empty phantom) eqn:Hempty_phantom;
+    destruct (Keyed.is_empty normal) eqn:Hempty_normal;
+    destruct min_name_mode; simpl;
+    rewrite ?Hempty_in_types, ?Hempty_phantom, ?Hempty_normal;
+    try (match goal with
+         | Heq : ?c = filter_by_scope ?order _
+           |- ∃ order' : Name_mode.t, _ ∧ ?c = _ ∧ _ =>
+           exists order
+         end;
+         split; [ settle_name_modes | ];
+         split; [ assumption | ];
+         split;
+           [ intros Hnil; apply is_empty_nil in Hnil; congruence | ];
+         intros order' Hle Hne;
+         destruct order';
+         rewrite <- ?Hin_types, <- ?Hphantom, <- ?Hnormal in Hne;
+         settle_name_modes);
+    intros order Hle; destruct order;
+    rewrite <- ?Hin_types, <- ?Hphantom, <- ?Hnormal;
+    settle_name_modes.
+Qed.
+
+(* The earliest of a list, as [find_earliest_alias] finds it: it is the
+   name it starts from or is earlier than it, and no name of the list is
+   earlier than it. *)
+Section Earliest.
+
+Variable earlier : name -> name -> bool.
+
+Hypothesis earlier_irreflexive : ∀ n : name, earlier n n = false.
+
+Hypothesis earlier_transitive :
+  ∀ n n' n'' : name,
+    earlier n n' = true -> earlier n' n'' = true -> earlier n n'' = true.
+
+Lemma fold_earliest_before (names : list name) (first : name) :
+  let earliest :=
+    List.fold_left
+      (fun min_elt elt => if earlier elt min_elt then elt else min_elt)
+      names first
+  in
+  earliest = first ∨ earlier earliest first = true.
+Proof.
+  revert first. induction names as [ | n names IH]; intros first; simpl.
+  - left. reflexivity.
+  - destruct (earlier n first) eqn:Hn.
+    + right. destruct (IH n) as [-> | Hbefore]; [ exact Hn | ].
+      exact (earlier_transitive _ _ _ Hbefore Hn).
+    + apply IH.
+Qed.
+
+Lemma fold_earliest_minimal (names : list name) (first n : name) :
+  n ∈ first :: names ->
+  earlier n
+    (List.fold_left
+       (fun min_elt elt => if earlier elt min_elt then elt else min_elt)
+       names first)
+  = false.
+Proof.
+  revert first. induction names as [ | n' names IH]; intros first Hin.
+  - destruct Hin as [<- | []]. apply earlier_irreflexive.
+  - simpl. destruct (earlier n' first) eqn:Hn'.
+    + (* [n'] is the earliest so far. *)
+      destruct Hin as [<- | Hin]; [ | apply IH; exact Hin ].
+      match goal with
+      | |- ?test = false => destruct test eqn:Hfirst; [ | reflexivity ]
+      end.
+      exfalso.
+      destruct (fold_earliest_before names n') as [Heq | Hbefore];
+        simpl in *.
+      * rewrite Heq in Hfirst.
+        pose proof (earlier_transitive _ _ _ Hfirst Hn') as Hloop.
+        rewrite earlier_irreflexive in Hloop. discriminate Hloop.
+      * pose proof (earlier_transitive _ _ _ Hfirst Hbefore) as Hfirst'.
+        pose proof (earlier_transitive _ _ _ Hfirst' Hn') as Hloop.
+        rewrite earlier_irreflexive in Hloop. discriminate Hloop.
+    + (* [first] still is. *)
+      destruct Hin as [<- | [<- | Hin]];
+        [ apply IH; left; reflexivity | | apply IH; right; exact Hin ].
+      match goal with
+      | |- ?test = false => destruct test eqn:Hearlier; [ | reflexivity ]
+      end.
+      exfalso.
+      destruct (fold_earliest_before names first) as [Heq | Hbefore];
+        simpl in *.
+      * rewrite Heq in Hearlier. congruence.
+      * pose proof (earlier_transitive _ _ _ Hearlier Hbefore) as Hn.
+        congruence.
+Qed.
+
+End Earliest.
+
+(* The filter that [find_earliest_alias] gives to
+   [find_earliest_candidates]. *)
+Definition filter_by_scope {A : Type}
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (min_binding_time : Binding_time.t) (name_mode : Name_mode.t)
+    (names : list name) : list name :=
+  if Name_mode.equal name_mode Name_mode.in_types
+  then names
+  else
+    filter
+      (fun name =>
+         Name_mode.equal name_mode
+           (Aliases.compute_name_mode binding_times_and_modes
+              (simple_of_name name) min_binding_time))
+      names.
+
+(* What it keeps of the aliases recorded with a name mode is the
+   candidates of the Spec. *)
+Lemma in_filter_by_scope {A : Type}
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element : simple)
+    (min_binding_time : Binding_time.t) (order : Name_mode.t) (n : name) :
+  n ∈ filter_by_scope binding_times_and_modes min_binding_time order
+        (Aliases.Aliases_of_canonical_element.at_mode
+           (Aliases.get_aliases_of_canonical_element t canonical_element)
+           order)
+  <-> alias_candidate binding_times_and_modes t canonical_element
+        min_binding_time order n.
+Proof.
+  unfold filter_by_scope, alias_candidate.
+  destruct (Name_mode.equal order Name_mode.in_types) eqn:Hin_types.
+  - apply name_mode_equal_eq in Hin_types. rewrite in_at_mode.
+    split; [ auto | intros [Hlookup _]; exact Hlookup ].
+  - rewrite filter_In, in_at_mode. split; intros [Hlookup Hscoped].
+    + apply name_mode_equal_eq in Hscoped. auto.
+    + split; [ exact Hlookup | ]. apply name_mode_equal_eq.
+      destruct Hscoped as [-> | Hscoped]; [ discriminate Hin_types | ].
+      symmetry. exact Hscoped.
+Qed.
+
+Lemma find_earliest_alias_eq {A : Type}
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element : simple)
+    (min_binding_time : Binding_time.t) (min_name_mode : Name_mode.t) :
+  Aliases.find_earliest_alias binding_time_resolver binding_times_and_modes
+    t canonical_element min_binding_time min_name_mode
+  = match
+      Aliases.Aliases_of_canonical_element.find_earliest_candidates
+        (Aliases.get_aliases_of_canonical_element t canonical_element)
+        (filter_by_scope binding_times_and_modes min_binding_time)
+        min_name_mode
+    with
+    | Some [] | None => None
+    | Some (first :: rest) =>
+      Some
+        (simple_of_name
+           (List.fold_left
+              (fun min_elt elt =>
+                 if Aliases.name_defined_earlier binding_time_resolver
+                      binding_times_and_modes elt min_elt
+                 then elt
+                 else min_elt)
+              (first :: rest) first))
+    end.
+Proof.
+  unfold Aliases.find_earliest_alias.
+  fold (filter_by_scope binding_times_and_modes min_binding_time).
+  destruct (Aliases.Aliases_of_canonical_element.find_earliest_candidates
+              _ _ _) as [[ | first rest ] | ];
+    reflexivity.
+Qed.
+
+Theorem earliest_alias : earliest_alias_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes t element
+    elt_name_mode min_name_mode min_binding_time answer Hnot Hanswer.
+  rewrite get_canonical_element_exn_eq in Hanswer.
+  destruct (name_mode_at_least_b _ _) eqn:Hle;
+    [ exfalso; apply Hnot, name_mode_at_least_b_iff, Hle | ].
+  clear Hnot Hle. revert Hanswer.
+  generalize (canonical_element_of t element). intros canonical_element.
+  rewrite find_earliest_alias_eq.
+  pose proof (find_earliest_candidates_cases
+    (Aliases.get_aliases_of_canonical_element t canonical_element)
+    (filter_by_scope binding_times_and_modes min_binding_time)
+    min_name_mode) as Hcases.
+  destruct (Aliases.Aliases_of_canonical_element.find_earliest_candidates
+              _ _ _) as [candidates | ]; [ | discriminate ].
+  destruct Hcases as (order & Hle & Hcandidates & _ & Hleast).
+  destruct candidates as [ | first rest ]; [ discriminate | ].
+  intros [= <-]. eexists. exists order.
+  split; [ reflexivity | ]. split; [ exact Hle | ]. split.
+  - (* The answer is a candidate. *)
+    apply in_filter_by_scope. rewrite <- Hcandidates.
+    destruct (fold_earliest_in
+                (Aliases.name_defined_earlier binding_time_resolver
+                   binding_times_and_modes)
+                (first :: rest) first) as [Heq | Hin];
+      [ left; exact Heq | exact Hin ].
+  - intros n' order' Hle' Hcandidate. apply in_filter_by_scope in Hcandidate.
+    split.
+    + (* The name mode of any other candidate is at least its. *)
+      apply Hleast; [ exact Hle' | ]. intros Hnil.
+      rewrite Hnil in Hcandidate. exact Hcandidate.
+    + (* No candidate of its name mode is earlier. *)
+      intros ->. rewrite <- Hcandidates in Hcandidate.
+      rewrite name_defined_earlier_irreflexive.
+      apply fold_earliest_minimal.
+      * apply name_defined_earlier_irreflexive.
+      * apply name_defined_earlier_transitive.
+      * exact Hcandidate.
+Qed.
+
+Theorem no_alias : no_alias_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes t element
+    elt_name_mode min_name_mode min_binding_time Hnot.
+  rewrite get_canonical_element_exn_eq.
+  destruct (name_mode_at_least_b _ _) eqn:Hle;
+    [ exfalso; apply Hnot, name_mode_at_least_b_iff, Hle | ].
+  clear Hnot Hle.
+  generalize (canonical_element_of t element). intros canonical_element.
+  rewrite find_earliest_alias_eq.
+  pose proof (find_earliest_candidates_cases
+    (Aliases.get_aliases_of_canonical_element t canonical_element)
+    (filter_by_scope binding_times_and_modes min_binding_time)
+    min_name_mode) as Hcases.
+  destruct (Aliases.Aliases_of_canonical_element.find_earliest_candidates
+              _ _ _) as [candidates | ].
+  - (* There are candidates: the first of them is one. *)
+    destruct Hcases as (order & Hle & Hcandidates & Hne & _).
+    destruct candidates as [ | first rest ]; [ contradiction | ].
+    split; [ discriminate | ]. intros Hnone. exfalso.
+    apply (Hnone first order Hle). apply in_filter_by_scope.
+    rewrite <- Hcandidates. left. reflexivity.
+  - split; [ | reflexivity ]. intros _ n order Hle Hcandidate.
+    apply in_filter_by_scope in Hcandidate.
+    rewrite (Hcases order Hle) in Hcandidate. exact Hcandidate.
+Qed.
+
+(* ======================================================================== *)
+(* Examples                                                                 *)
+(* ======================================================================== *)
+
+(* Respect of a structure written out as its lists is a property of the
+   pairs in them. *)
+Lemma respected_of_pairs (t : Aliases.t) (vars : env) :
+  (∀ (n : name) (canonical_element : simple),
+    (n, canonical_element) ∈ Aliases.canonical_elements t ->
+    value_of_name vars n = eval_simple vars canonical_element) ->
+  (∀ (canonical_name : name)
+     (aliases : Aliases.Aliases_of_canonical_element.t) (n : name)
+     (name_mode : Name_mode.t),
+    (canonical_name, aliases) ∈ Aliases.aliases_of_canonical_names t ->
+    (n, name_mode) ∈ aliases ->
+    value_of_name vars n = value_of_name vars canonical_name) ->
+  (∀ (c : const) (aliases : Aliases.Aliases_of_canonical_element.t)
+     (n : name) (name_mode : Name_mode.t),
+    (c, aliases) ∈ Aliases.aliases_of_consts t ->
+    (n, name_mode) ∈ aliases ->
+    value_of_name vars n = Some (Value_const c)) ->
+  aliases_respected t vars.
+Proof.
+  intros Hcanonical Hnames Hconsts. split.
+  - intros n canonical_element Hdemoted. apply Hcanonical.
+    exact (keyed_lookup_in name_eqb name_eqb_eq _ _ _ Hdemoted).
+  - intros canonical_element n Hlisted. unfold listed_alias in Hlisted.
+    apply mem_lookup in Hlisted as [name_mode Hlookup].
+    apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
+    unfold Aliases.get_aliases_of_canonical_element in Hlookup.
+    destruct canonical_element as [x | s | c].
+    + destruct (Keyed.lookup name_eqb (Name_var x)
+                  (Aliases.aliases_of_canonical_names t))
+        as [aliases | ] eqn:Haliases; [ | contradiction ].
+      apply (keyed_lookup_in name_eqb name_eqb_eq) in Haliases.
+      exact (Hnames _ _ _ _ Haliases Hlookup).
+    + destruct (Keyed.lookup name_eqb (Name_symbol s)
+                  (Aliases.aliases_of_canonical_names t))
+        as [aliases | ] eqn:Haliases; [ | contradiction ].
+      apply (keyed_lookup_in name_eqb name_eqb_eq) in Haliases.
+      exact (Hnames _ _ _ _ Haliases Hlookup).
+    + destruct (Keyed.lookup const_eqb c (Aliases.aliases_of_consts t))
+        as [aliases | ] eqn:Haliases; [ | contradiction ].
+      apply (keyed_lookup_in const_eqb const_eqb_eq) in Haliases.
+      exact (Hconsts _ _ _ _ Haliases Hlookup).
+Qed.
+
+(* Goes through the pairs of a structure written out as its lists. *)
+Ltac respected_by_pairs :=
+  apply respected_of_pairs; simpl; intros;
+  repeat
+    match goal with
+    | H : _ ∨ _ |- _ => destruct H
+    | H : False |- _ => contradiction
+    | H : (_, _) = (_, _) |- _ => injection H as <- <-
+    | H : _ ∈ _ |- _ => simpl in H
+    end;
+  subst; reflexivity.
+
+Module Examples.
+
+(* Three variables, a symbol and two constants. *)
+Definition w : variable := 1%positive.
+Definition x : variable := 2%positive.
+Definition y : variable := 3%positive.
+Definition s : symbol := 1%positive.
+Definition s' : symbol := 2%positive.
+Definition five : const := Tagged_immediate 5.
+Definition six : const := Tagged_immediate 6.
+
+Definition entry (time : Binding_time.t) (name_mode : Name_mode.t)
+    : unit * Binding_time.With_name_mode.t :=
+  (tt, Binding_time.With_name_mode.create time name_mode).
+
+(* A typing environment that bound [w], then [x], then [y], all three with
+   a value at run time. *)
+Definition times
+    : Keyed.finite_map name (unit * Binding_time.With_name_mode.t) :=
+  [(Name_var w, entry 3 Name_mode.Normal);
+   (Name_var x, entry 4 Name_mode.Normal);
+   (Name_var y, entry 5 Name_mode.Normal)].
+
+Definition resolver (n : name) : Binding_time.With_name_mode.t :=
+  Binding_time.With_name_mode.imported_variables.
+
+(* ------------------------------------------------------------------------ *)
+(* Two variables                                                            *)
+(* ------------------------------------------------------------------------ *)
+
+(* [y] is demoted to [x], which was bound first. *)
+Definition x_y : Aliases.t :=
+  Aliases.make [(Name_var y, Var x)]
+    [(Name_var x, [(Name_var y, Name_mode.Normal)])] [].
+
+(* Whichever of the two is given first, the later is demoted to the
+   earlier. *)
+Example add_two_variables :
+  Aliases.add resolver times Aliases.empty (Var y) (Var x)
+  = Some (Or_bottom.Ok (Aliases.make_add_result x_y (Name_var y) (Var x)))
+  ∧ Aliases.add resolver times Aliases.empty (Var x) (Var y)
+    = Some (Or_bottom.Ok (Aliases.make_add_result x_y (Name_var y) (Var x))).
+Proof. split; reflexivity. Qed.
+
+Example canonical_of_two_variables :
+  Aliases.get_canonical_ignoring_name_mode x_y (Name_var y) = Var x
+  ∧ Aliases.get_canonical_ignoring_name_mode x_y (Name_var x) = Var x
+  ∧ Aliases.get_canonical_ignoring_name_mode x_y (Name_var w) = Var w.
+Proof. repeat split. Qed.
+
+(* An environment in which the two have the same value respects the
+   structure... *)
+Example two_variables_respected :
+  aliases_respected x_y [(x, Value_const five); (y, Value_const five)].
+Proof. respected_by_pairs. Qed.
+
+(* ... and one in which they have different values does not. *)
+Example two_variables_not_respected :
+  ~ aliases_respected x_y [(x, Value_const five); (y, Value_const six)].
+Proof.
+  intros [Hcanonical _].
+  discriminate (Hcanonical (Name_var y) (Var x) eq_refl).
+Qed.
+
+(* An environment that binds neither respects the structure; one that
+   binds only one of them does not. *)
+Example two_unbound_variables_respected : aliases_respected x_y [].
+Proof. respected_by_pairs. Qed.
+
+Example one_unbound_variable_not_respected :
+  ~ aliases_respected x_y [(x, Value_const five)].
+Proof.
+  intros [Hcanonical _].
+  discriminate (Hcanonical (Name_var y) (Var x) eq_refl).
+Qed.
+
+(* The structure is well formed for that typing environment: the
+   statements that ask for it are about something. *)
+Example two_variables_well_formed : aliases_well_formed resolver times x_y.
+Proof.
+  (* What is demoted, and what is listed. *)
+  assert (Hdemoted :
+    ∀ (n : name) (canonical_element : simple),
+      demoted_to x_y n canonical_element ->
+      n = Name_var y ∧ canonical_element = Var x).
+  { intros n canonical_element Hdemoted. unfold demoted_to in Hdemoted.
+    cbn [x_y Aliases.canonical_elements Keyed.lookup] in Hdemoted.
+    destruct (name_eqb n (Name_var y)) eqn:Hn; [ | discriminate Hdemoted ].
+    apply name_eqb_eq in Hn. injection Hdemoted as <-. auto. }
+  assert (Hlisted :
+    ∀ (canonical_element : simple) (n : name) (name_mode : Name_mode.t),
+      Keyed.lookup name_eqb n
+        (Aliases.get_aliases_of_canonical_element x_y canonical_element)
+      = Some name_mode ->
+      n = Name_var y ∧ canonical_element = Var x
+      ∧ name_mode = Name_mode.Normal).
+  { intros canonical_element n name_mode Hlookup.
+    assert (Hx : canonical_element = Var x).
+    { destruct canonical_element as [v | sym | c];
+        try discriminate Hlookup.
+      unfold Aliases.get_aliases_of_canonical_element in Hlookup.
+      cbn [x_y Aliases.aliases_of_canonical_names Keyed.lookup] in Hlookup.
+      destruct (name_eqb (Name_var v) (Name_var x)) eqn:Hv;
+        [ | discriminate Hlookup ].
+      apply name_eqb_eq in Hv. injection Hv as ->. reflexivity. }
+    subst canonical_element.
+    change (Keyed.lookup name_eqb n [(Name_var y, Name_mode.Normal)]
+            = Some name_mode) in Hlookup.
+    cbn [Keyed.lookup] in Hlookup.
+    destruct (name_eqb n (Name_var y)) eqn:Hn; [ | discriminate Hlookup ].
+    apply name_eqb_eq in Hn. injection Hlookup as <-. auto. }
+  split; [ split | split ].
+  - intros n canonical_element Hd.
+    destruct (Hdemoted n canonical_element Hd) as [-> ->]. reflexivity.
+  - intros n canonical_element. split.
+    + intros Hd. destruct (Hdemoted n canonical_element Hd) as [-> ->].
+      reflexivity.
+    + intros Hl. apply mem_lookup in Hl as [name_mode Hl].
+      destruct (Hlisted canonical_element n name_mode Hl) as (-> & -> & _).
+      reflexivity.
+  - intros n canonical_element Hd.
+    destruct (Hdemoted n canonical_element Hd) as [-> ->]. reflexivity.
+  - intros canonical_element n name_mode Hl.
+    destruct (Hlisted canonical_element n name_mode Hl) as (-> & -> & ->).
+    reflexivity.
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+(* A variable and a constant                                                *)
+(* ------------------------------------------------------------------------ *)
+
+(* The constant is the canonical element, whichever is given first. *)
+Definition x_five : Aliases.t :=
+  Aliases.make [(Name_var x, Const five)] []
+    [(five, [(Name_var x, Name_mode.Normal)])].
+
+Example add_variable_constant :
+  Aliases.add resolver times Aliases.empty (Var x) (Const five)
+  = Some
+      (Or_bottom.Ok (Aliases.make_add_result x_five (Name_var x) (Const five)))
+  ∧ Aliases.add resolver times Aliases.empty (Const five) (Var x)
+    = Some
+        (Or_bottom.Ok
+           (Aliases.make_add_result x_five (Name_var x) (Const five))).
+Proof. split; reflexivity. Qed.
+
+(* The variable must hold the constant: not another, and not nothing. *)
+Example constant_respected :
+  aliases_respected x_five [(x, Value_const five)].
+Proof. respected_by_pairs. Qed.
+
+Example constant_not_respected :
+  ~ aliases_respected x_five [(x, Value_const six)]
+  ∧ ~ aliases_respected x_five [].
+Proof.
+  split; intros [Hcanonical _];
+    discriminate (Hcanonical (Name_var x) (Const five) eq_refl).
+Qed.
+
+(* A class with a constant and two variables: [y] and [x] are aliases,
+   then [x] is the constant. Both variables now have it as their
+   canonical element. *)
+Example add_constant_to_class :
+  ∃ t : Aliases.t,
+    Aliases.add resolver times x_y (Var x) (Const five)
+    = Some (Or_bottom.Ok (Aliases.make_add_result t (Name_var x) (Const five)))
+    ∧ Aliases.get_canonical_ignoring_name_mode t (Name_var y) = Const five
+    ∧ Aliases.get_canonical_ignoring_name_mode t (Name_var x) = Const five.
+Proof. eexists. repeat split. Qed.
+
+(* Two different constants are never equal: bottom. *)
+Example add_two_constants :
+  Aliases.add resolver times Aliases.empty (Const five) (Const six)
+  = Some Or_bottom.Bottom.
+Proof. reflexivity. Qed.
+
+(* ------------------------------------------------------------------------ *)
+(* A variable and a symbol                                                  *)
+(* ------------------------------------------------------------------------ *)
+
+(* The symbol is the canonical element, whichever is given first. *)
+Definition x_s : Aliases.t :=
+  Aliases.make [(Name_var x, Symbol s)]
+    [(Name_symbol s, [(Name_var x, Name_mode.Normal)])] [].
+
+Example add_variable_symbol :
+  Aliases.add resolver times Aliases.empty (Var x) (Symbol s)
+  = Some (Or_bottom.Ok (Aliases.make_add_result x_s (Name_var x) (Symbol s)))
+  ∧ Aliases.add resolver times Aliases.empty (Symbol s) (Var x)
+    = Some
+        (Or_bottom.Ok (Aliases.make_add_result x_s (Name_var x) (Symbol s))).
+Proof. split; reflexivity. Qed.
+
+(* The variable must hold the symbol itself, the pointer. A closure made
+   by a [Let] is another value, whatever the symbol is bound to. *)
+Example symbol_respected : aliases_respected x_s [(x, Value_symbol s)].
+Proof. respected_by_pairs. Qed.
+
+Example symbol_not_respected :
+  ~ aliases_respected x_s [(x, Value_closure 1%positive [])].
+Proof.
+  intros [Hcanonical _].
+  discriminate (Hcanonical (Name_var x) (Symbol s) eq_refl).
+Qed.
+
+(* Two symbols are not ordered. [add] demotes the first of the two it is
+   given, and the result does not pass the check that the OCaml makes
+   under its flag for invariants. *)
+Example add_two_symbols :
+  ∃ t : Aliases.t,
+    Aliases.add resolver times Aliases.empty (Symbol s) (Symbol s')
+    = Some
+        (Or_bottom.Ok (Aliases.make_add_result t (Name_symbol s) (Symbol s')))
+    ∧ Aliases.invariant resolver times t = false.
+Proof. eexists. split; reflexivity. Qed.
+
+(* ------------------------------------------------------------------------ *)
+(* The canonical element at a name mode                                     *)
+(* ------------------------------------------------------------------------ *)
+
+(* A typing environment in which [w], bound first, exists only in types,
+   and [x] and [y] have values at run time. *)
+Definition times_in_types
+    : Keyed.finite_map name (unit * Binding_time.With_name_mode.t) :=
+  [(Name_var w, entry 3 Name_mode.In_types);
+   (Name_var x, entry 4 Name_mode.Normal);
+   (Name_var y, entry 5 Name_mode.Normal)].
+
+(* [x] and [y] are demoted to [w]. *)
+Definition w_x_y : Aliases.t :=
+  Aliases.make [(Name_var y, Var w); (Name_var x, Var w)]
+    [(Name_var w,
+      [(Name_var y, Name_mode.Normal); (Name_var x, Name_mode.Normal)])]
+    [].
+
+Example add_in_types :
+  ∃ t : Aliases.t,
+    Aliases.add resolver times_in_types Aliases.empty (Var x) (Var w)
+    = Some (Or_bottom.Ok (Aliases.make_add_result t (Name_var x) (Var w)))
+    ∧ ∃ t' : Aliases.t,
+        Aliases.add resolver times_in_types t (Var y) (Var w)
+        = Some (Or_bottom.Ok (Aliases.make_add_result t' (Name_var y) (Var w)))
+        ∧ ∀ n : name,
+            Aliases.get_canonical_ignoring_name_mode t' n
+            = Aliases.get_canonical_ignoring_name_mode w_x_y n.
+Proof.
+  eexists. split; [ reflexivity | ]. eexists. split; [ reflexivity | ].
+  intros n. unfold Aliases.get_canonical_ignoring_name_mode.
+  rewrite !canonical_of_name. simpl.
+  destruct (name_eqb n (Name_var y)); reflexivity.
+Qed.
+
+(* The canonical element of [y] is [w], which has no value at run time.
+   Asked for a name that has one, the answer is [x], the earliest alias
+   that has; in a scope where [x] is not (only what was bound at time 5
+   or later is), it is [y] itself. Asked for a name that may occur in
+   types, the answer is [w]. *)
+Example canonical_at_normal :
+  Aliases.get_canonical_element_exn resolver times_in_types w_x_y (Var y)
+    Name_mode.Normal Name_mode.Normal 3
+  = Some (Var x)
+  ∧ Aliases.get_canonical_element_exn resolver times_in_types w_x_y (Var y)
+      Name_mode.Normal Name_mode.Normal 5
+    = Some (Var y)
+  ∧ Aliases.get_canonical_element_exn resolver times_in_types w_x_y (Var y)
+      Name_mode.Normal Name_mode.In_types 3
+    = Some (Var w).
+Proof. repeat split. Qed.
+
+(* Where no alias may be used, there is no answer: here nothing bound
+   before time 6 is in scope. *)
+Example canonical_at_normal_none :
+  Aliases.get_canonical_element_exn resolver times_in_types w_x_y (Var y)
+    Name_mode.Normal Name_mode.Normal 6
+  = None.
+Proof. reflexivity. Qed.
+
+(* The same with [y] a name for debugging information. Asked for a name
+   that may be used there, the answer for [x] is [y], recorded as
+   [Phantom], though [x] itself, recorded as [Normal] and bound earlier,
+   may be used there too: the aliases of the least name mode that will
+   do come first. *)
+Definition times_phantom
+    : Keyed.finite_map name (unit * Binding_time.With_name_mode.t) :=
+  [(Name_var w, entry 3 Name_mode.In_types);
+   (Name_var x, entry 4 Name_mode.Normal);
+   (Name_var y, entry 5 Name_mode.Phantom)].
+
+Definition w_x_y_phantom : Aliases.t :=
+  Aliases.make [(Name_var y, Var w); (Name_var x, Var w)]
+    [(Name_var w,
+      [(Name_var y, Name_mode.Phantom); (Name_var x, Name_mode.Normal)])]
+    [].
+
+Example canonical_at_phantom :
+  Aliases.get_canonical_element_exn resolver times_phantom w_x_y_phantom
+    (Var x) Name_mode.Normal Name_mode.Phantom 3
+  = Some (Var y)
+  ∧ Aliases.get_canonical_element_exn resolver times_phantom w_x_y_phantom
+      (Var x) Name_mode.Normal Name_mode.Normal 3
+    = Some (Var x).
+Proof. split; reflexivity. Qed.
+
+End Examples.
