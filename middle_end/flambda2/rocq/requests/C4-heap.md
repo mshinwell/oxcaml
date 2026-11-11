@@ -1141,11 +1141,38 @@ item is proved.
   that binds the same symbols to the same static values, is refined:
   such outcomes are related by the identity. A theorem that exists is
   then carried over by that lemma with its proof untouched, since none
-  of the rewrites that exist changes the heap. The exceptions are the
-  two statements about static bindings that are dropped
-  (`drop_statics_refines` and its corollary): their target binds fewer
-  symbols, and they need the correspondence that is the identity on
-  the symbols kept, which their premise `envs_free_of` supplies.
+  of the rewrites that exist changes the heap. There are two
+  exceptions, each a rewrite whose target does not bind the symbols
+  that its source binds.
+  - The two statements about static bindings that are dropped
+    (`drop_statics_refines` and its corollary): their target binds
+    fewer symbols, and they need the correspondence that is the
+    identity on the symbols kept, which their premise `envs_free_of`
+    supplies.
+  - Lifting, as V3 validates it on today's model (`lift_unit`, with
+    `lift_unit_program_refines`; on V3's branch as this is written,
+    and approved by R2 for today's exits). Its target binds more
+    symbols. Today an exit is compared by its values as they are, and
+    what a symbol is bound to is not compared, so V3's check need not
+    ask that the unit never names the symbol that it lifts to. Under
+    the relation of section 3.2 it must. R2's example: a unit makes a
+    closure one of whose value slots is a symbol that the unit does
+    not bind, puts the closure in the block of the module, and exits
+    with the symbol of that block; the closure is lifted to the very
+    symbol that its value slot names. The two exits are the same
+    symbol. But the first block holds a closure whose slot is a
+    symbol bound to nothing, and the second a symbol bound to a
+    closure whose slot is that closure itself: the relation, which
+    reads through symbols, does not relate them, and should not.
+    `lift_closure` excludes the case by its premise
+    `value_slots_avoid`, with the other premises that the symbol is
+    new (section 4.2). So when the observation changes, V3's checked
+    function gains the test that the unit does not name a symbol that
+    it lifts to (or has it from the condition of well-formedness on
+    symbols, C0's follow-up to D8, if that says enough), and its
+    theorem is proved again with `machine_respects_relation_except`.
+    `validate_unit_sound` and `lift_unit_program_refines` keep their
+    shape: unconditional of a result that was checked.
 - **The new lemma: the machine respects the relation.** If two states
   run the same expression under related environments, continuations
   and memories, their behaviours are related. This is what
@@ -1852,6 +1879,12 @@ on the effects of the defining expression (section 8.2).
     relation.
   - `plug_refines`, `plug_equivalent`: same text, new proof.
   - `validate_unit_sound`: as section 3.4 says.
+  - Lifting on today's model (V3's `lift_unit`, when it is on the
+    integration branch): the checked function gains a test, that the
+    unit does not name a symbol that it lifts to, and
+    `lift_unit_program_refines` is proved again for the relation
+    (section 3.3). Without the test the theorem would be false of the
+    new `refines`.
   So two things that exist would be false if epoch 2 left them as
   they are, and change with it: `prim_may_fold`, a definition, whose
   change keeps the text of `remove_unused_lets_refines`; and
@@ -1896,7 +1929,10 @@ on the effects of the defining expression (section 8.2).
    real state and joined with today's lemma for related code.
    Then the epoch is a replay: `refines` and `expr_refines` change,
    `refines_exactly` keeps the old text, and no leaf file changes but
-   by one line per theorem. After it, as leaf work: deleting an unused
+   by one line per theorem, with the two exceptions of section 3.3:
+   the statements about static bindings that are dropped, and V3's
+   lifting, whose checked function gains a test and whose theorem is
+   proved again. After it, as leaf work: deleting an unused
    allocation (S5; proved in the prototype), lifting (S5, T6, with
    V3's relation), the instance of N1's interface.
 4. **Small and separate, in any order after 3:** rule 5 (D26);
