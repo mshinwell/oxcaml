@@ -53,7 +53,22 @@
      made from still has the older meaning of relations, in which
      [Is_int] relates a poison constant to every number. Until the
      amended statement is under this file it is a premise here
-     ([relation_of_const_exact]), which is then to go. *)
+     ([relation_of_const_exact]), which is then to go.
+   - What it is for the meet of a part of a type to be right
+     ([meet_call_ok], [part_meet_ok]): the two halves of the contract
+     of the whole meet, for a part of any type, given what it is for
+     such a part to fit an environment and to be true of the value in
+     hand. The meets of parts are put together from one another, and
+     each statement below says that one way of putting them together
+     keeps this: [map_result] ([map_result_ok_statement]),
+     [meet_unknown] ([meet_unknown_ok_statement]), [combine_results2]
+     ([combine_results2_ok_statement]). An answer that is one of the
+     inputs is right because the inputs stay fitting and true as the
+     environment and the valuation are extended ([part_stable]);
+     nothing is said of how precise an answer is.
+   - Sets: [set_meet] answers what both sets have
+     ([set_meet_cases_statement]); the meet of two heads of naked
+     numbers is right ([naked_number_meet_ok_statement]). *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
@@ -94,3 +109,210 @@ Definition reduce_head_of_kind_naked_immediate_sound_statement : Prop :=
     ∃ head' : head_of_kind_naked_immediate,
       reduce_head_of_kind_naked_immediate tenv head = Or_bottom.Ok head'
       ∧ head_of_kind_naked_immediate_satisfied statics valuation v head'.
+
+(* ======================================================================== *)
+(* The meet of a part of a type                                             *)
+(* ======================================================================== *)
+
+(* The meet of two types is made of the meets of their parts: sets of
+   numbers, products of types, the cases of a row-like structure, and
+   so on. Each such meet is given the environment of the meet and
+   answers one of its inputs or a new thing, with the environment that
+   it has added to. What follows says what it is for one of them to
+   keep what [meet_expanded_head_keeps] and [meet_expanded_head_sound]
+   (FlambdaMeetSpec.v) ask of the whole, for a part of any type [A],
+   given what it is for a part to fit an environment ([fits]: it is
+   well formed and the environment knows its names, at their kinds)
+   and to be true of the value in hand under a valuation
+   ([satisfied]). *)
+
+Section Parts.
+
+Variable type_well_formed : flambda_type -> bool.
+
+Section Part.
+
+Context {A : Type}.
+
+Variable fits : Typing_env.t -> A -> Prop.
+Variable satisfied : static_env -> env -> A -> Prop.
+
+(* What is asked of [fits] and [satisfied]: a part that fits an
+   environment fits one that extends it, and is true under a valuation
+   that agrees, on what the environment knows, with one under which it
+   is true. *)
+Definition part_stable : Prop :=
+  (∀ (menv menv' : Meet_env.t) (a : A),
+     meet_env_extends menv menv' ->
+     fits (Meet_env.typing_env menv) a ->
+     fits (Meet_env.typing_env menv') a)
+  ∧ (∀ (statics : static_env) (tenv : Typing_env.t)
+       (valuation valuation' : env) (a : A),
+       fits tenv a ->
+       extended_from tenv valuation valuation' ->
+       satisfied statics valuation a ->
+       satisfied statics valuation' a).
+
+(* What one call of a meet answered is right. If it is not bottom, the
+   environment answered is the first extended, it fits, and the part
+   answered fits it. And no value is lost: under a valuation that
+   satisfies the environment and under which both inputs are true, the
+   answer is not bottom, and a valuation that agrees with the first on
+   what the environment knew satisfies the environment answered and
+   makes the part answered true. *)
+Definition meet_call_ok (menv : Meet_env.t) (a1 a2 : A)
+    (result : Meet_result.t A) : Prop :=
+  let tenv := Meet_env.typing_env menv in
+  (∀ (r : meet_return_value A) (menv' : Meet_env.t),
+     result = Meet_result.Ok r menv' ->
+     meet_env_extends menv menv'
+     ∧ typing_env_fits type_well_formed (Meet_env.typing_env menv')
+     ∧ fits (Meet_env.typing_env menv') (extract_value r a1 a2))
+  ∧ ∀ (statics : static_env) (valuation : env),
+      typing_env_satisfied_strictly statics valuation tenv ->
+      satisfied statics valuation a1 ->
+      satisfied statics valuation a2 ->
+      ∃ (r : meet_return_value A) (menv' : Meet_env.t) (valuation' : env),
+        result = Meet_result.Ok r menv'
+        ∧ extended_from tenv valuation valuation'
+        ∧ typing_env_satisfied_strictly statics valuation'
+            (Meet_env.typing_env menv')
+        ∧ satisfied statics valuation' (extract_value r a1 a2).
+
+(* A meet of parts is right: every call of it is, on inputs that fit
+   an environment that fits. Nothing is said of a call that does not
+   answer ([None]: a fatal error of the compiler, or not enough
+   fuel). *)
+Definition part_meet_ok
+    (meet : Meet_env.t -> A -> A -> option (Meet_result.t A)) : Prop :=
+  ∀ (menv : Meet_env.t) (a1 a2 : A) (result : Meet_result.t A),
+    typing_env_fits type_well_formed (Meet_env.typing_env menv) ->
+    fits (Meet_env.typing_env menv) a1 ->
+    fits (Meet_env.typing_env menv) a2 ->
+    meet menv a1 a2 = Some result ->
+    meet_call_ok menv a1 a2 result.
+
+End Part.
+
+(* A thing that may be unknown: it fits, and is true, if it is unknown
+   or what is known does and is. *)
+Definition or_unknown_fits {A : Type} (fits : Typing_env.t -> A -> Prop)
+    (tenv : Typing_env.t) (x : Or_unknown.t A) : Prop :=
+  match x with
+  | Or_unknown.Unknown => True
+  | Or_unknown.Known a => fits tenv a
+  end.
+
+Definition or_unknown_satisfied {A : Type}
+    (satisfied : static_env -> env -> A -> Prop) (statics : static_env)
+    (valuation : env) (x : Or_unknown.t A) : Prop :=
+  match x with
+  | Or_unknown.Unknown => True
+  | Or_unknown.Known a => satisfied statics valuation a
+  end.
+
+End Parts.
+
+(* [map_result]: the answer of a meet of parts, as the answer of the
+   meet of what the parts are made into by [f]. *)
+Definition map_result_ok_statement : Prop :=
+  ∀ (type_well_formed : flambda_type -> bool) (A B : Type)
+    (fits_a : Typing_env.t -> A -> Prop)
+    (satisfied_a : static_env -> env -> A -> Prop)
+    (fits_b : Typing_env.t -> B -> Prop)
+    (satisfied_b : static_env -> env -> B -> Prop) (f : A -> B)
+    (menv : Meet_env.t) (a1 a2 : A) (result : Meet_result.t A),
+    (∀ (tenv : Typing_env.t) (a : A), fits_a tenv a -> fits_b tenv (f a)) ->
+    (∀ (statics : static_env) (valuation : env) (a : A),
+       satisfied_b statics valuation (f a) <-> satisfied_a statics valuation a)
+    ->
+    meet_call_ok type_well_formed fits_a satisfied_a menv a1 a2 result ->
+    meet_call_ok type_well_formed fits_b satisfied_b menv (f a1) (f a2)
+      (map_result f result).
+
+(* [meet_unknown]. What it is given to say that a thing known is
+   bottom must be right: such a thing is true of nothing. *)
+Definition meet_unknown_ok_statement : Prop :=
+  ∀ (type_well_formed : flambda_type -> bool) (A : Type)
+    (fits : Typing_env.t -> A -> Prop)
+    (satisfied : static_env -> env -> A -> Prop)
+    (meet_contents : Meet_env.t -> A -> A -> option (Meet_result.t A))
+    (contents_is_bottom : A -> bool),
+    (∀ (statics : static_env) (valuation : env) (a : A),
+       contents_is_bottom a = true -> ~ satisfied statics valuation a) ->
+    part_meet_ok type_well_formed fits satisfied meet_contents ->
+    part_meet_ok type_well_formed (or_unknown_fits fits)
+      (or_unknown_satisfied satisfied)
+      (meet_unknown meet_contents contents_is_bottom).
+
+(* [combine_results2]: the meet of two things that are each made of two
+   parts, by the meets of the parts, one after the other. The thing
+   made of two parts that fit must fit, and it must be true exactly
+   when its parts are. *)
+Definition combine_results2_ok_statement : Prop :=
+  ∀ (type_well_formed : flambda_type -> bool) (A B C : Type)
+    (fits_a : Typing_env.t -> A -> Prop)
+    (satisfied_a : static_env -> env -> A -> Prop)
+    (fits_b : Typing_env.t -> B -> Prop)
+    (satisfied_b : static_env -> env -> B -> Prop)
+    (fits_c : Typing_env.t -> C -> Prop)
+    (satisfied_c : static_env -> env -> C -> Prop)
+    (meet_a : Meet_env.t -> A -> A -> option (Meet_result.t A))
+    (meet_b : Meet_env.t -> B -> B -> option (Meet_result.t B))
+    (rebuild : A -> B -> C) (menv : Meet_env.t) (left_a right_a : A)
+    (left_b right_b : B) (result : Meet_result.t C),
+    let tenv := Meet_env.typing_env menv in
+    part_stable fits_a satisfied_a ->
+    part_stable fits_b satisfied_b ->
+    part_meet_ok type_well_formed fits_a satisfied_a meet_a ->
+    part_meet_ok type_well_formed fits_b satisfied_b meet_b ->
+    (∀ (tenv : Typing_env.t) (a : A) (b : B),
+       fits_a tenv a -> fits_b tenv b -> fits_c tenv (rebuild a b)) ->
+    (∀ (statics : static_env) (valuation : env) (a : A) (b : B),
+       satisfied_c statics valuation (rebuild a b)
+       <-> satisfied_a statics valuation a ∧ satisfied_b statics valuation b)
+    ->
+    typing_env_fits type_well_formed tenv ->
+    fits_a tenv left_a ->
+    fits_a tenv right_a ->
+    fits_b tenv left_b ->
+    fits_b tenv right_b ->
+    combine_results2 menv meet_a meet_b left_a right_a left_b right_b rebuild
+    = Some result ->
+    meet_call_ok type_well_formed fits_c satisfied_c menv
+      (rebuild left_a left_b) (rebuild right_a right_b) result.
+
+(* ======================================================================== *)
+(* Sets                                                                     *)
+(* ======================================================================== *)
+
+(* [set_meet] answers bottom if the two sets have nothing in common,
+   and otherwise a set that has exactly what both have; the
+   environment is the one given. The set answered is not empty if
+   neither input is. (An input that is empty is answered as it is, and
+   not as bottom: a head that is a set is to be not empty.) *)
+Definition set_meet_cases_statement : Prop :=
+  ∀ (K B : Type) (eqb : K -> K -> bool) (of_set : list K -> B)
+    (env : Meet_env.t) (s1 s2 : list K),
+    decides_equality eqb ->
+    match set_meet eqb of_set env s1 s2 with
+    | Meet_result.Bottom _ => ∀ key : K, ~ (key ∈ s1 ∧ key ∈ s2)
+    | Meet_result.Ok r env' =>
+      env' = env
+      ∧ ∃ s : list K,
+          extract_value r (of_set s1) (of_set s2) = of_set s
+          ∧ (∀ key : K, key ∈ s <-> key ∈ s1 ∧ key ∈ s2)
+          ∧ (s1 <> [] -> s2 <> [] -> s <> [])
+    end.
+
+(* The meet of two heads of naked numbers of a kind other than the
+   immediates: the sets of numbers. A head fits if it is not empty. *)
+Definition naked_number_meet_ok_statement : Prop :=
+  ∀ (type_well_formed : flambda_type -> bool) (k : naked_number_kind)
+    (v : value),
+    part_meet_ok type_well_formed
+      (fun (_ : Typing_env.t) (numbers : list Z) => numbers <> [])
+      (fun (_ : static_env) (_ : env) (numbers : list Z) =>
+         naked_numbers_satisfied k v numbers)
+      (fun (env : Meet_env.t) (t1 t2 : list Z) =>
+         Some (meet_head_of_kind_naked_number env t1 t2)).
