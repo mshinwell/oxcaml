@@ -39,9 +39,14 @@
    static, or has just been lifted (FlambdaLiftSpec.v), that name is the
    symbol of the closure, and every use of [my_closure] in the code
    becomes the symbol: a recursive function calls itself through its
-   symbol. This is right because Simplify makes new code for each set
-   that it simplifies, so the new code is that of this closure and of no
-   other.
+   symbol. That is right only where the code so simplified runs for
+   that closure and for no other. It is not inferred here from the new
+   code ids that Simplify gives: there is one new id for each old one
+   across the sets simplified together
+   (simplify/simplify_set_of_closures_context.ml,
+   [compute_old_to_new_code_ids_all_sets]), so sets that had the same
+   code have the same new code. It is a condition, checked
+   ([only_closure_of], below).
 
    What is here. [bind_my_closures known e] puts, at the head of the
    code of each code id that [known] gives a symbol,
