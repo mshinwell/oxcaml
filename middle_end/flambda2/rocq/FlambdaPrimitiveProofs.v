@@ -31,9 +31,10 @@
    of the primitives are those of rocq/. Nothing here needs review.
 
    [eval_prim] is opaque after this file. A proof that is not about one
-   primitive goes through the three laws ([eval_prim_static_values],
-   [eval_prim_kinds], [eval_prim_preserves]); one that is rewrites with
-   [eval_prim_unary] or [eval_prim_binary].
+   primitive goes through the laws ([eval_prim_static_values],
+   [eval_prim_statics_extend], [eval_prim_kinds],
+   [eval_prim_preserves]); one that is rewrites with [eval_prim_unary]
+   or [eval_prim_binary].
 
    To add a primitive, add its case where a proof here goes by cases on
    the primitives: each such proof says so. No proof here names the
@@ -238,6 +239,157 @@ Lemma eval_prim_consts (statics statics' : static_env) (p : prim)
 Proof.
   apply eval_prim_static_values. intros s Hin.
   apply in_map_iff in Hin as (c & Hc & _). discriminate.
+Qed.
+
+(* ======================================================================== *)
+(* When the static environment grows                                        *)
+(* ======================================================================== *)
+
+(* An observation that has an answer keeps it when the symbol that the
+   value is, if it is one, stays bound to the same thing. *)
+Section Statics_extend.
+
+Variables statics statics' : static_env.
+Variable v : value.
+Hypothesis Hextend :
+  ∀ (s : symbol) (allocated : statically_allocated_value),
+    v = Value_symbol s ->
+    lookup s (static_values statics) = Some allocated ->
+    lookup s (static_values statics') = Some allocated.
+
+Lemma closure_of_statics_extend
+    (closure : code_id * list (value_slot * value)) :
+  closure_of statics v = Some closure -> closure_of statics' v = Some closure.
+Proof.
+  destruct v; simpl; try exact (fun H => H).
+  match goal with
+  | |- context [lookup ?s (static_values statics)] =>
+    destruct (lookup s (static_values statics)) eqn:Hlookup;
+      [ rewrite (Hextend _ _ eq_refl Hlookup); exact (fun H => H)
+      | discriminate ]
+  end.
+Qed.
+
+Lemma block_of_statics_extend (block : Z * list value) :
+  block_of statics v = Some block -> block_of statics' v = Some block.
+Proof.
+  destruct v; simpl; try exact (fun H => H).
+  match goal with
+  | |- context [lookup ?s (static_values statics)] =>
+    destruct (lookup s (static_values statics)) eqn:Hlookup;
+      [ rewrite (Hextend _ _ eq_refl Hlookup); exact (fun H => H)
+      | discriminate ]
+  end.
+Qed.
+
+Lemma boxed_number_of_statics_extend (c : const) :
+  boxed_number_of statics v = Some c -> boxed_number_of statics' v = Some c.
+Proof.
+  destruct v; simpl; try exact (fun H => H).
+  match goal with
+  | |- context [lookup ?s (static_values statics)] =>
+    destruct (lookup s (static_values statics)) eqn:Hlookup;
+      [ rewrite (Hextend _ _ eq_refl Hlookup); exact (fun H => H)
+      | discriminate ]
+  end.
+Qed.
+
+Lemma string_of_statics_extend (bytes : list Z) :
+  string_of statics v = Some bytes -> string_of statics' v = Some bytes.
+Proof.
+  destruct v; simpl; try exact (fun H => H).
+  match goal with
+  | |- context [lookup ?s (static_values statics)] =>
+    destruct (lookup s (static_values statics)) eqn:Hlookup;
+      [ rewrite (Hextend _ _ eq_refl Hlookup); exact (fun H => H)
+      | discriminate ]
+  end.
+Qed.
+
+Lemma is_some_statics_extend {A : Type} (o o' : option A) :
+  (∀ x : A, o = Some x -> o' = Some x) ->
+  is_some o = true -> is_some o' = true.
+Proof.
+  intros Hkept. destruct o as [x | ]; [ | discriminate ].
+  rewrite (Hkept x eq_refl). exact (fun H => H).
+Qed.
+
+Lemma is_allocated_statics_extend :
+  is_allocated statics v = true -> is_allocated statics' v = true.
+Proof.
+  unfold is_allocated. rewrite !orb_true_iff.
+  intros [[[Hsome | Hsome] | Hsome] | Hsome].
+  - left. left. left. revert Hsome. apply is_some_statics_extend.
+    exact closure_of_statics_extend.
+  - left. left. right. revert Hsome. apply is_some_statics_extend.
+    exact block_of_statics_extend.
+  - left. right. revert Hsome. apply is_some_statics_extend.
+    exact boxed_number_of_statics_extend.
+  - right. revert Hsome. apply is_some_statics_extend.
+    exact string_of_statics_extend.
+Qed.
+
+Lemma eval_is_int_statics_extend (variant_only b : bool) :
+  eval_is_int statics variant_only v = Some b ->
+  eval_is_int statics' variant_only v = Some b.
+Proof.
+  unfold eval_is_int.
+  destruct (is_tagged_immediate v); [ exact (fun H => H) | ].
+  destruct variant_only.
+  - destruct (is_some (block_of statics v)) eqn:Hblock; [ | discriminate ].
+    rewrite (is_some_statics_extend _ _ block_of_statics_extend Hblock).
+    exact (fun H => H).
+  - destruct (is_allocated statics v) eqn:Hallocated; [ | discriminate ].
+    rewrite (is_allocated_statics_extend Hallocated). exact (fun H => H).
+Qed.
+
+Lemma eval_is_null_statics_extend (b : bool) :
+  eval_is_null statics v = Some b -> eval_is_null statics' v = Some b.
+Proof.
+  unfold eval_is_null.
+  destruct (is_tagged_immediate v); simpl.
+  - exact (fun H => H).
+  - destruct (is_allocated statics v) eqn:Hallocated.
+    + rewrite (is_allocated_statics_extend Hallocated). exact (fun H => H).
+    + destruct v as [[ ] | | | | ]; simpl; try discriminate;
+        exact (fun H => H).
+Qed.
+
+(* By cases on the unary primitives: one that reads an allocated value
+   does so through an observation, and has no value where the
+   observation has no answer. *)
+Lemma eval_unary_primitive_statics_extend (p : unary_primitive)
+    (result : value) :
+  eval_unary_primitive statics p v = Some result ->
+  eval_unary_primitive statics' p v = Some result.
+Proof.
+  destruct p; simpl; try exact (fun H => H);
+    match goal with
+    | |- context [eval_is_int statics ?variant_only v] =>
+      destruct (eval_is_int statics variant_only v) eqn:Hvalue;
+        [ rewrite (eval_is_int_statics_extend _ _ Hvalue) | discriminate ]
+    | |- context [eval_is_null statics v] =>
+      destruct (eval_is_null statics v) eqn:Hvalue;
+        [ rewrite (eval_is_null_statics_extend _ Hvalue) | discriminate ]
+    | |- context [block_of statics v] =>
+      destruct (block_of statics v) eqn:Hvalue;
+        [ rewrite (block_of_statics_extend _ Hvalue) | discriminate ]
+    | |- context [boxed_number_of statics v] =>
+      destruct (boxed_number_of statics v) eqn:Hvalue;
+        [ rewrite (boxed_number_of_statics_extend _ Hvalue) | discriminate ]
+    end;
+    exact (fun H => H).
+Qed.
+
+End Statics_extend.
+
+Theorem eval_prim_statics_extend : eval_prim_statics_extend_statement.
+Proof.
+  intros statics statics' p vs v Hextend.
+  destruct p as [p | p], vs as [ | v1 [ | v2 [ | v3 vs]]]; simpl;
+    try exact (fun H => H).
+  apply eval_unary_primitive_statics_extend. intros s allocated ->.
+  apply Hextend. left. reflexivity.
 Qed.
 
 (* ======================================================================== *)

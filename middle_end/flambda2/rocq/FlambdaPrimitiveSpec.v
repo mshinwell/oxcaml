@@ -71,7 +71,7 @@
    are bound to ([eval_prim_static_values_statement]).
 
    The laws. The rest of the model does not look inside a primitive: it
-   uses the three statements at the end, which hold of every primitive.
+   uses the statements at the end, which hold of every primitive.
    [eval_prim] is opaque after FlambdaPrimitiveProofs.v, as [step] is, so
    that no proof elsewhere comes to depend on which primitives there are.
    A proof about one primitive rewrites with the equation of its arity
@@ -385,6 +385,24 @@ Definition eval_prim_static_values_statement : Prop :=
       Value_symbol s ∈ vs ->
       lookup s (static_values statics) = lookup s (static_values statics')) ->
     eval_prim statics p vs = eval_prim statics' p vs.
+
+(* A primitive that has a value keeps it when the static environment
+   grows: when each symbol among its arguments that is bound stays bound
+   to the same thing, whatever else comes to be bound. The statement
+   above does not give this, as it asks of a symbol that is not bound
+   that it stay so. It holds because no primitive has a value by a
+   symbol's being bound to nothing. The premise is that of
+   [FlambdaWellFormedSpec.statics_extend], which a run of the machine
+   keeps, asked of the symbols among the arguments only. *)
+Definition eval_prim_statics_extend_statement : Prop :=
+  ∀ (statics statics' : static_env) (p : prim) (vs : list value)
+    (v : value),
+    (∀ (s : symbol) (allocated : statically_allocated_value),
+      Value_symbol s ∈ vs ->
+      lookup s (static_values statics) = Some allocated ->
+      lookup s (static_values statics') = Some allocated) ->
+    eval_prim statics p vs = Some v ->
+    eval_prim statics' p vs = Some v.
 
 (* A primitive that has a value was given arguments of its kinds, as many
    as it takes, and its value is of its result kind. *)
