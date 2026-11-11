@@ -42,9 +42,9 @@ let rename_simple r = function Var x -> Var (rename_variable r x) | x -> x
 let rename_named r = function
   | Simple s -> Simple (rename_simple r s)
   | Prim (p, args) -> Prim (p, map (rename_simple r) args)
-  | Set_of_closures (code, value_slots) ->
+  | Set_of_closures (code0, value_slots) ->
     Set_of_closures
-      (code, map (fun slot -> fst slot, rename_simple r (snd slot)) value_slots)
+      (code0, map (fun slot -> fst slot, rename_simple r (snd slot)) value_slots)
   | Closure_of_set (slot, function_decls, value_slots) ->
     Closure_of_set
       ( slot,
@@ -67,9 +67,9 @@ let rename_apply_cont r ac =
 (** val rename_static_const : renaming -> static_const -> static_const **)
 
 let rename_static_const r = function
-  | Static_const_set_of_closures (code, value_slots) ->
+  | Static_const_set_of_closures (code0, value_slots) ->
     Static_const_set_of_closures
-      (code, map (fun slot -> fst slot, rename_simple r (snd slot)) value_slots)
+      (code0, map (fun slot -> fst slot, rename_simple r (snd slot)) value_slots)
   | Static_const_closure_of_set
       (slot, closure_symbols, function_decls, value_slots) ->
     Static_const_closure_of_set
@@ -82,12 +82,6 @@ let rename_static_const r = function
   | Static_const_boxed_number contents ->
     Static_const_boxed_number (rename_simple r contents)
   | Static_const_immutable_string bytes -> Static_const_immutable_string bytes
-
-(** val rename_static_binding : renaming -> static_binding -> static_binding **)
-
-let rename_static_binding r = function
-  | Bind_symbol (s, const) -> Bind_symbol (s, rename_static_const r const)
-  | x -> x
 
 (** val rename_apply : renaming -> apply_expr -> apply_expr **)
 
@@ -137,3 +131,24 @@ let rec rename_expr r = function
 and rename_handler r = function
   | Handler (params, metadata, handler) ->
     Handler (map (rename_variable r) params, metadata, rename_expr r handler)
+
+(** val rename_static_binding : renaming -> static_binding -> static_binding **)
+
+and rename_static_binding r = function
+  | Bind_code (id, c) -> Bind_code (id, rename_code r c)
+  | Bind_deleted_code id -> Bind_deleted_code id
+  | Bind_symbol (s, const) -> Bind_symbol (s, rename_static_const r const)
+
+(** val rename_code : renaming -> code -> code **)
+
+and rename_code r = function
+  | Code
+      (params, my_closure, return_continuation, exn_continuation, metadata, body)
+    ->
+    Code
+      ( map (rename_variable r) params,
+        rename_variable r my_closure,
+        rename_continuation r return_continuation,
+        rename_continuation r exn_continuation,
+        metadata,
+        rename_expr r body )

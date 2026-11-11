@@ -34,14 +34,16 @@
    of FlambdaCompareProofs.v, which relates two states whose expressions
    the comparison accepts: the comparison accepts an expression against
    its renaming, under the maps of names that pair each name with its
-   image ([rename_expr_eqb], [variables_map]). There is no bisimulation
-   here. *)
+   image ([rename_expr_eqb], [variables_map]). At code the map is that of
+   the binders of the code alone, and that the code is closed says that
+   its body has no other free name. There is no bisimulation here. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaPrimitiveSpec FlambdaPrimitiveProofs
-  FlambdaSemanticsSpec FlambdaSemanticsProofs FlambdaNominalSpec
+  FlambdaBindersSpec FlambdaBindersProofs FlambdaSemanticsSpec
+  FlambdaSemanticsProofs FlambdaNominalSpec FlambdaFreeNamesProofs
   FlambdaCompareSpec FlambdaCompareProofs.
 Import ListNotations.
 
@@ -109,15 +111,21 @@ Proof.
     reflexivity.
 Qed.
 
-Lemma rename_static_binding_id (binding : static_binding) :
-  rename_static_binding identity_renaming binding = binding.
+Lemma rename_static_const_id (const : static_const) :
+  rename_static_const identity_renaming const = const.
 Proof.
-  destruct binding
-    as [id c | id
-       | sym [code slots | fslot syms decls slots | tag fields | s | bytes]];
+  destruct const
+    as [code slots | fslot syms decls slots | tag fields | s | bytes];
     simpl;
     rewrite ?rename_simple_id, ?rename_simples_id, ?rename_value_slots_id;
     reflexivity.
+Qed.
+
+Lemma rename_variables_id (xs : list variable) :
+  map (rename_variable identity_renaming) xs = xs.
+Proof.
+  induction xs as [ | x xs IH]; simpl; [ reflexivity | ].
+  rewrite IH. reflexivity.
 Qed.
 
 Lemma rename_apply_id (ap : apply_expr) :
@@ -134,10 +142,13 @@ Proof.
   rewrite rename_simples_id. reflexivity.
 Qed.
 
-(* By induction on the expression, its handlers included. *)
+(* By induction on the expression, its handlers and its code included. *)
 Fixpoint rename_expr_id (e : expr) : rename_expr identity_renaming e = e
 with rename_handler_id (h : continuation_handler) :
-  rename_handler identity_renaming h = h.
+  rename_handler identity_renaming h = h
+with rename_static_binding_id (binding : static_binding) :
+  rename_static_binding identity_renaming binding = binding
+with rename_code_id (c : code) : rename_code identity_renaming c = c.
 Proof.
   - destruct e
       as [ x kind d body | bindings body | k h body | handlers body | ap | ac
@@ -158,10 +169,14 @@ Proof.
       induction arms as [ | [i ac] arms IH]; simpl; [ reflexivity | ].
       rewrite rename_apply_cont_id, IH. reflexivity.
     + reflexivity.
-  - destruct h as [params metadata handler]. simpl. rewrite rename_expr_id.
-    f_equal.
-    induction params as [ | x params IH]; simpl; [ reflexivity | ].
-    rewrite IH. reflexivity.
+  - destruct h as [params metadata handler]. simpl.
+    rewrite rename_expr_id, rename_variables_id. reflexivity.
+  - destruct binding as [id c | id | sym const]; simpl.
+    + rewrite rename_code_id. reflexivity.
+    + reflexivity.
+    + rewrite rename_static_const_id. reflexivity.
+  - destruct c as [params my_closure ret exn metadata body]. simpl.
+    rewrite rename_expr_id, rename_variables_id. reflexivity.
 Qed.
 
 (* ======================================================================== *)
@@ -196,6 +211,41 @@ Proof.
     induction handlers as [ | [k [params metadata handler]] handlers IH];
       simpl; [ reflexivity | ].
     rewrite rename_binds_statics, IH. reflexivity.
+Qed.
+
+(* An expression that binds nothing static binds no code, so that all the
+   code in it is closed. *)
+Fixpoint binds_statics_code_closed (e : expr) :
+  binds_statics e = false -> code_closed e = true
+with handler_binds_statics_code_closed (h : continuation_handler) :
+  handler_binds_statics h = false -> handler_code_closed h = true.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      simpl; try reflexivity.
+    + apply binds_statics_code_closed.
+    + intros Hstatics. apply orb_false_iff in Hstatics.
+      destruct Hstatics as [Hbindings Hbody].
+      rewrite (binds_statics_code_closed body Hbody), andb_true_r.
+      induction bindings as [ | [id c | id | sym const] bindings IH];
+        simpl in *;
+        [ reflexivity | discriminate | exact (IH Hbindings) | discriminate ].
+    + intros Hstatics. apply orb_false_iff in Hstatics.
+      destruct Hstatics as [Hh Hbody].
+      rewrite (handler_binds_statics_code_closed h Hh),
+        (binds_statics_code_closed body Hbody).
+      reflexivity.
+    + intros Hstatics. apply orb_false_iff in Hstatics.
+      destruct Hstatics as [Hhandlers Hbody].
+      rewrite (binds_statics_code_closed body Hbody), andb_true_r.
+      induction handlers as [ | [k h] handlers IH]; simpl in *;
+        [ reflexivity | ].
+      apply orb_false_iff in Hhandlers. destruct Hhandlers as [Hh Hrest].
+      rewrite (handler_binds_statics_code_closed h Hh), (IH Hrest).
+      reflexivity.
+  - destruct h as [params metadata handler]. simpl.
+    apply binds_statics_code_closed.
 Qed.
 
 (* ======================================================================== *)
@@ -357,16 +407,6 @@ Proof.
   - apply forall2b_refl, Z.eqb_refl.
 Qed.
 
-(* Code is not renamed, and is the same as itself. *)
-Lemma binding_eqb_renamed (binding : static_binding) :
-  matched (fun x => var_free_in_static_binding x binding) ->
-  binding_eqb vm binding (rename_static_binding r binding) = true.
-Proof.
-  destruct binding as [id c | id | sym const]; simpl; intros Hfree;
-    rewrite Pos.eqb_refl; [ apply code_eqb_refl | reflexivity | ].
-  apply static_const_eqb_renamed, Hfree.
-Qed.
-
 Lemma apply_cont_eqb_renamed (km : name_map) (ac : apply_cont) :
   matched (fun x => var_free_in_simples x (ac_args ac)) ->
   names_match km (ac_continuation ac)
@@ -411,10 +451,12 @@ Proof.
 Qed.
 
 (* The comparison accepts an expression against its renaming, under maps
-   that pair each free name with its image. At a binder the bound names
-   are added to the map, each with its image. *)
+   that pair each free name with its image, where the code of the
+   expression is closed. At a binder the bound names are added to the
+   map, each with its image; at code the map is that of its binders. *)
 Fixpoint rename_expr_eqb (r : renaming) (e : expr) :
   ∀ vm km : name_map,
+    code_closed e = true ->
     matched r vm (fun x => var_free_in_expr x e) ->
     (∀ k : continuation,
       cont_free_in_expr k e ->
@@ -422,21 +464,29 @@ Fixpoint rename_expr_eqb (r : renaming) (e : expr) :
     expr_eqb vm km e (rename_expr r e) = true
 with rename_handler_eqb (r : renaming) (h : continuation_handler) :
   ∀ vm km : name_map,
+    handler_code_closed h = true ->
     matched r vm (fun x => var_free_in_handler x h) ->
     (∀ k : continuation,
       cont_free_in_handler k h ->
       names_match km k (rename_continuation r k) = true) ->
-    handler_eqb vm km h (rename_handler r h) = true.
+    handler_eqb vm km h (rename_handler r h) = true
+with rename_binding_eqb (r : renaming) (binding : static_binding) :
+  ∀ vm : name_map,
+    binding_code_closed binding = true ->
+    matched r vm (fun x => var_free_in_static_binding x binding) ->
+    binding_eqb vm binding (rename_static_binding r binding) = true
+with rename_code_eqb (r : renaming) (c : code) :
+  code_is_closed c = true -> code_eqb c (rename_code r c) = true.
 Proof.
   - destruct e
       as [ x kind d body | bindings body | k h body | handlers body | ap | ac
          | scrutinee arms | ];
-      intros vm km Hvars Hconts; simpl.
+      intros vm km Hclosed Hvars Hconts; simpl; simpl in Hclosed.
     + (* Let *)
       rewrite named_eqb_renamed
         by (intros y Hy; apply Hvars; left; exact Hy).
       rewrite (proj2 (kind_eqb_eq kind kind) eq_refl). simpl.
-      apply rename_expr_eqb; [ | exact Hconts ].
+      apply rename_expr_eqb; [ exact Hclosed | | exact Hconts ].
       intros y Hy.
       apply (names_match_paired (rename_variable r) (rename_variable_eqb r)
                [x] vm y).
@@ -444,17 +494,29 @@ Proof.
         [ left; left; reflexivity | right ].
       apply Hvars. right. split; assumption.
     + (* Let_static *)
+      apply andb_true_iff in Hclosed. destruct Hclosed as [Hbindings Hbody].
       apply andb_true_iff. split.
-      * apply forall2b_map. intros binding Hin. apply binding_eqb_renamed.
-        intros x Hx. apply Hvars. left. apply Exists_exists.
-        exists binding. split; assumption.
-      * apply rename_expr_eqb; [ | exact Hconts ].
+      * assert (Hfree :
+          matched r vm
+            (fun x => Exists (var_free_in_static_binding x) bindings))
+          by (intros x Hx; apply Hvars; left; exact Hx).
+        clear Hvars Hconts Hbody.
+        induction bindings as [ | binding bindings IH]; simpl;
+          [ reflexivity | ].
+        simpl in Hbindings. apply andb_true_iff in Hbindings.
+        destruct Hbindings as [Hfirst Hrest].
+        rewrite (rename_binding_eqb r binding vm Hfirst), IH;
+          [ reflexivity | exact Hrest | | ].
+        -- intros x Hx. apply Hfree, Exists_cons_tl, Hx.
+        -- intros x Hx. apply Hfree, Exists_cons_hd, Hx.
+      * apply rename_expr_eqb; [ exact Hbody | | exact Hconts ].
         intros x Hx. apply Hvars. right. exact Hx.
     + (* Let_cont_non_recursive *)
-      rewrite (rename_handler_eqb r h vm km);
+      apply andb_true_iff in Hclosed. destruct Hclosed as [Hh Hbody].
+      rewrite (rename_handler_eqb r h vm km Hh);
         [ | intros x Hx; apply Hvars; left; exact Hx
           | intros k' Hk'; apply Hconts; left; exact Hk' ].
-      apply rename_expr_eqb.
+      apply rename_expr_eqb; [ exact Hbody | | ].
       * intros x Hx. apply Hvars. right. exact Hx.
       * intros k' Hk'.
         apply (names_match_paired (rename_continuation r)
@@ -463,6 +525,7 @@ Proof.
           [ left; left; reflexivity | right ].
         apply Hconts. right. split; assumption.
     + (* Let_cont_recursive *)
+      apply andb_true_iff in Hclosed. destruct Hclosed as [Hhandlers Hbody].
       fold (rename_handlers r handlers).
       rewrite map_fst_rename_handlers,
         (combine_names_paired (rename_continuation r)).
@@ -489,20 +552,23 @@ Proof.
             any_handler (cont_free_in_handler k) handlers ->
             names_match km' k (rename_continuation r k) = true)
           by (intros k Hk; apply Hconts'; left; exact Hk).
-        clear Hvars Hconts Hconts' Hkm'.
+        clear Hvars Hconts Hconts' Hkm' Hbody.
         induction handlers as [ | [k h] handlers IH]; simpl;
           [ reflexivity | ].
-        rewrite (rename_handler_eqb r h vm km'), IH;
-          [ reflexivity | | | | ].
+        simpl in Hhandlers. apply andb_true_iff in Hhandlers.
+        destruct Hhandlers as [Hfirst Hrest].
+        rewrite (rename_handler_eqb r h vm km' Hfirst), IH;
+          [ reflexivity | exact Hrest | | | | ].
         -- intros x Hx. apply Hfree. right. exact Hx.
         -- intros k' Hk'. apply Hfree_conts. right. exact Hk'.
         -- intros x Hx. apply Hfree. left. exact Hx.
         -- intros k' Hk'. apply Hfree_conts. left. exact Hk'.
-      * apply rename_expr_eqb.
+      * apply rename_expr_eqb; [ exact Hbody | | ].
         -- intros x Hx. apply Hvars. right. exact Hx.
         -- intros k Hk. apply Hconts'. right. exact Hk.
     + (* Apply *)
-      apply apply_eqb_renamed; [ exact Hvars | | ]; apply Hconts; simpl; auto.
+      apply apply_eqb_renamed; [ exact Hvars | | ]; apply Hconts; simpl;
+        [ left | right ]; reflexivity.
     + (* Apply_cont *)
       apply apply_cont_eqb_renamed; [ exact Hvars | ].
       apply Hconts. reflexivity.
@@ -513,18 +579,48 @@ Proof.
       apply apply_cont_eqb_renamed.
       * intros x Hx. apply Hvars. right. apply Exists_exists.
         exists arm. split; assumption.
-      * apply Hconts, Exists_exists. exists arm. split; auto.
+      * apply Hconts, Exists_exists. exists arm.
+        split; [ exact Hin | reflexivity ].
     + (* Invalid *)
       reflexivity.
-  - destruct h as [params metadata handler]. intros vm km Hvars Hconts.
-    simpl. rewrite handler_metadata_eqb_refl.
+  - destruct h as [params metadata handler].
+    intros vm km Hclosed Hvars Hconts.
+    simpl. simpl in Hclosed. rewrite handler_metadata_eqb_refl.
     rewrite (bind_names_paired (rename_variable r)).
-    apply rename_expr_eqb; [ | exact Hconts ].
+    apply rename_expr_eqb; [ exact Hclosed | | exact Hconts ].
     intros x Hx.
     apply names_match_paired; [ apply rename_variable_eqb | ].
     destruct (in_dec Pos.eq_dec x params) as [Hin | Hnotin];
       [ left; apply in_rev in Hin; exact Hin | right ].
     apply Hvars. split; assumption.
+  - destruct binding as [id c | id | sym const]; intros vm Hclosed Hvars;
+      simpl; simpl in Hclosed; rewrite Pos.eqb_refl; [ | reflexivity | ].
+    + apply rename_code_eqb, Hclosed.
+    + apply static_const_eqb_renamed, Hvars.
+  - intros Hclosed.
+    destruct (proj1 (closed_code c) Hclosed) as [Hnames Hbody].
+    destruct c as [params my_closure ret exn metadata body].
+    simpl in Hnames, Hbody.
+    unfold names_among in Hnames. apply andb_true_iff in Hnames.
+    destruct Hnames as [Hvars Hconts]. simpl.
+    rewrite (bind_names_paired (rename_variable r)).
+    rewrite code_metadata_eqb_refl. cbn [andb].
+    apply rename_expr_eqb; [ exact Hbody | | ].
+    + intros x Hx.
+      apply names_match_paired; [ apply rename_variable_eqb | ].
+      apply (var_free_agrees_expr x body Hbody) in Hx.
+      pose proof (all_among_among _ _ x Hvars Hx) as Hamong.
+      apply among_In in Hamong.
+      destruct Hamong as [<- | Hin];
+        [ right | left; apply in_rev in Hin; exact Hin ].
+      apply (names_match_paired (rename_variable r) (rename_variable_eqb r)
+               [my_closure] [] my_closure).
+      left. left. reflexivity.
+    + intros k Hk.
+      apply (names_match_paired (rename_continuation r)
+               (rename_continuation_eqb r) [ret; exn] [] k).
+      left. apply (cont_free_agrees_expr k body Hbody) in Hk.
+      apply among_In. exact (all_among_among _ _ k Hconts Hk).
 Qed.
 
 (* ======================================================================== *)
@@ -609,6 +705,7 @@ Qed.
    them. *)
 Theorem renamed_equivalent (r : renaming) (e : expr) (vars vars' : env)
     (conts conts' : cont_env) (statics : static_env) :
+  code_closed e = true ->
   (∀ x : variable,
     var_free_in_expr x e ->
     lookup (rename_variable r x) vars' = lookup x vars) ->
@@ -617,9 +714,9 @@ Theorem renamed_equivalent (r : renaming) (e : expr) (vars vars' : env)
   equivalent (State e vars conts statics)
     (State (rename_expr r e) vars' conts' statics).
 Proof.
-  intros Hvars Hconts. apply matched_equivalent.
+  intros Hclosed Hvars Hconts. apply matched_equivalent.
   apply (State_matches (variables_map r) (continuations_map r)).
-  - apply rename_expr_eqb.
+  - apply rename_expr_eqb; [ exact Hclosed | | ].
     + intros x _. apply variables_map_graph. reflexivity.
     + intros k _. apply continuations_map_graph. reflexivity.
   - intros x x' Hx Hmatch. apply variables_map_graph in Hmatch. subst x'.
@@ -629,8 +726,8 @@ Proof.
   - apply statics_match_same.
 Qed.
 
-(* The case of no renaming: one expression under environments that agree
-   on its free names. *)
+(* One expression under environments that agree on its free names. No
+   name is renamed, and nothing is asked of its code. *)
 Lemma coincide_equivalent (e : expr) (vars vars' : env)
     (conts conts' : cont_env) (statics : static_env) :
   (∀ x : variable, var_free_in_expr x e -> lookup x vars' = lookup x vars) ->
@@ -639,10 +736,15 @@ Lemma coincide_equivalent (e : expr) (vars vars' : env)
   ->
   equivalent (State e vars conts statics) (State e vars' conts' statics).
 Proof.
-  intros Hvars Hconts.
-  pose proof (renamed_equivalent identity_renaming e vars vars' conts conts'
-    statics Hvars Hconts) as Hequivalent.
-  rewrite rename_expr_id in Hequivalent. exact Hequivalent.
+  intros Hvars Hconts. apply matched_equivalent.
+  apply (State_matches (variables_map identity_renaming)
+           (continuations_map identity_renaming)).
+  - apply expr_eqb_refl; apply reflexive_map_nil.
+  - intros x x' Hx Hmatch. apply variables_map_graph in Hmatch. subst x'.
+    symmetry. apply Hvars, Hx.
+  - intros k k' Hk Hmatch. apply continuations_map_graph in Hmatch.
+    subst k'. apply Hconts, Hk.
+  - apply statics_match_same.
 Qed.
 
 (* ======================================================================== *)
@@ -671,18 +773,20 @@ Lemma fixed_conts_matched (r : renaming) (km : name_map)
 Proof. intros Hkm Hfixed k Hk. rewrite (Hfixed k Hk). apply Hkm. Qed.
 
 Lemma rename_expr_accepted (r : renaming) (e : expr) :
+  code_closed e = true ->
   (∀ x : variable, var_free_in_expr x e -> rename_variable r x = x) ->
   (∀ k : continuation,
     cont_free_in_expr k e -> rename_continuation r k = k) ->
   expr_eqb [] [] e (rename_expr r e) = true.
 Proof.
-  intros Hvars Hconts. apply rename_expr_eqb.
+  intros Hclosed Hvars Hconts. apply rename_expr_eqb; [ exact Hclosed | | ].
   - apply fixed_matched; [ apply reflexive_map_nil | exact Hvars ].
   - apply (fixed_conts_matched r [] _ reflexive_map_nil Hconts).
 Qed.
 
 Lemma rename_let_accepted (r : renaming) (x : variable)
     (kind : flambda_kind) (d : named) (body : expr) :
+  code_closed body = true ->
   (∀ y : variable,
     y <> x -> var_free_in_expr y body -> rename_variable r y = y) ->
   (∀ k : continuation,
@@ -691,11 +795,12 @@ Lemma rename_let_accepted (r : renaming) (x : variable)
     (Let (rename_variable r x) kind d (rename_expr r body))
   = true.
 Proof.
-  intros Hvars Hconts. simpl.
+  intros Hclosed Hvars Hconts. simpl.
   rewrite (proj2 (kind_eqb_eq kind kind) eq_refl).
   rewrite named_eqb_refl by apply reflexive_map_nil. cbn [andb].
   apply rename_expr_eqb;
-    [ | apply (fixed_conts_matched r [] _ reflexive_map_nil Hconts) ].
+    [ exact Hclosed |
+    | apply (fixed_conts_matched r [] _ reflexive_map_nil Hconts) ].
   intros y Hy.
   apply (names_match_paired (rename_variable r) (rename_variable_eqb r)
            [x] [] y).
@@ -706,6 +811,7 @@ Qed.
 
 Lemma rename_let_cont_accepted (r : renaming) (k : continuation)
     (h : continuation_handler) (body : expr) :
+  code_closed body = true ->
   (∀ y : variable, var_free_in_expr y body -> rename_variable r y = y) ->
   (∀ k' : continuation,
     k' <> k -> cont_free_in_expr k' body -> rename_continuation r k' = k')
@@ -714,10 +820,11 @@ Lemma rename_let_cont_accepted (r : renaming) (k : continuation)
     (Let_cont_non_recursive (rename_continuation r k) h (rename_expr r body))
   = true.
 Proof.
-  intros Hvars Hconts. simpl.
+  intros Hclosed Hvars Hconts. simpl.
   rewrite handler_eqb_refl by apply reflexive_map_nil.
   apply rename_expr_eqb;
-    [ apply fixed_matched; [ apply reflexive_map_nil | exact Hvars ] | ].
+    [ exact Hclosed
+    | apply fixed_matched; [ apply reflexive_map_nil | exact Hvars ] | ].
   intros k' Hk'.
   apply (names_match_paired (rename_continuation r)
            (rename_continuation_eqb r) [k] [] k').
@@ -729,6 +836,7 @@ Qed.
 Lemma rename_handler_params_accepted (r : renaming) (k : continuation)
     (params : list variable) (metadata : handler_metadata)
     (handler body : expr) :
+  code_closed handler = true ->
   (∀ y : variable,
     y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
   (∀ k' : continuation,
@@ -739,13 +847,14 @@ Lemma rename_handler_params_accepted (r : renaming) (k : continuation)
        (rename_handler r (Handler params metadata handler)) body)
   = true.
 Proof.
-  intros Hvars Hconts.
+  intros Hclosed Hvars Hconts.
   change
     (handler_eqb [] [] (Handler params metadata handler)
        (rename_handler r (Handler params metadata handler))
      && expr_eqb [] [(k, k)] body body
      = true).
-  rewrite (rename_handler_eqb r (Handler params metadata handler) [] []).
+  rewrite (rename_handler_eqb r (Handler params metadata handler) [] []
+             Hclosed).
   - apply expr_eqb_refl;
       [ apply reflexive_map_nil
       | apply reflexive_map_cons, reflexive_map_nil ].
@@ -761,6 +870,7 @@ Lemma rename_recursive_handler_params_accepted (r : renaming)
     (k : continuation) (params : list variable)
     (metadata : handler_metadata) (handler : expr)
     (after : list (continuation * continuation_handler)) (body : expr) :
+  code_closed handler = true ->
   (∀ y : variable,
     y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
   (∀ k' : continuation,
@@ -774,7 +884,7 @@ Lemma rename_recursive_handler_params_accepted (r : renaming)
        body)
   = true.
 Proof.
-  intros Hvars Hconts. simpl. rewrite !map_app. simpl.
+  intros Hclosed Hvars Hconts. simpl. rewrite !map_app. simpl.
   destruct (combine_names_refl (map fst before ++ k :: map fst after) []
               reflexive_map_nil)
     as (km' & -> & Hkm').
@@ -793,22 +903,42 @@ Proof.
      && forall2b (fun '(_, h) '(_, h') => handler_eqb [] km' h h') after
           after
      = true).
-  rewrite Hsame, andb_true_r. apply rename_handler_eqb.
+  rewrite Hsame, andb_true_r. apply rename_handler_eqb; [ exact Hclosed | | ].
   - apply fixed_matched; [ apply reflexive_map_nil | ].
     intros x [Hnotin Hx]. exact (Hvars x Hnotin Hx).
   - apply (fixed_conts_matched r km' _ Hkm' Hconts).
 Qed.
 
+(* The binders of closed code: the code is renamed whole, and the other
+   bindings of the group are left as they are. *)
+Lemma rename_code_accepted (r : renaming) (before : list static_binding)
+    (id : code_id) (c : code) (after : list static_binding) (body : expr) :
+  code_is_closed c = true ->
+  expr_eqb [] [] (Let_static (before ++ Bind_code id c :: after) body)
+    (Let_static (before ++ Bind_code id (rename_code r c) :: after) body)
+  = true.
+Proof.
+  intros Hclosed. simpl.
+  rewrite expr_eqb_refl, andb_true_r by apply reflexive_map_nil.
+  assert (Hsame :
+    ∀ bindings : list static_binding,
+      forall2b (binding_eqb []) bindings bindings = true)
+    by (intros bindings; apply forall2b_refl; intros binding;
+        apply binding_eqb_refl, reflexive_map_nil).
+  apply forall2b_app; [ apply Hsame | ]. simpl.
+  rewrite Pos.eqb_refl, (rename_code_eqb r c Hclosed), Hsame. reflexivity.
+Qed.
+
 Theorem rename_let : rename_let_statement.
 Proof.
-  intros r x kind d body Hvars Hconts.
+  intros r x kind d body Hclosed Hvars Hconts.
   apply expr_eqb_sound, rename_let_accepted; assumption.
 Qed.
 
 Theorem freshen_let : freshen_let_statement.
 Proof.
-  intros x fresh kind d body Hfresh.
-  pose proof (rename_let (Renaming [(x, fresh)] []) x kind d body)
+  intros x fresh kind d body Hclosed Hfresh.
+  pose proof (rename_let (Renaming [(x, fresh)] []) x kind d body Hclosed)
     as Hrename.
   replace (rename_variable (Renaming [(x, fresh)] []) x) with fresh
     in Hrename
@@ -824,28 +954,34 @@ Qed.
 
 Theorem rename_let_cont : rename_let_cont_statement.
 Proof.
-  intros r k h body Hvars Hconts.
+  intros r k h body Hclosed Hvars Hconts.
   apply expr_eqb_sound, rename_let_cont_accepted; assumption.
 Qed.
 
 Theorem rename_handler_params : rename_handler_params_statement.
 Proof.
-  intros r k params metadata handler body Hvars Hconts.
+  intros r k params metadata handler body Hclosed Hvars Hconts.
   apply expr_eqb_sound, rename_handler_params_accepted; assumption.
 Qed.
 
 Theorem rename_let_cont_recursive : rename_let_cont_recursive_statement.
 Proof.
-  intros r handlers body Hvars Hconts.
+  intros r handlers body Hclosed Hvars Hconts.
   apply expr_eqb_sound, rename_expr_accepted; assumption.
 Qed.
 
 Theorem rename_recursive_handler_params :
   rename_recursive_handler_params_statement.
 Proof.
-  intros r before k params metadata handler after body Hvars Hconts.
+  intros r before k params metadata handler after body Hclosed Hvars Hconts.
   apply expr_eqb_sound, rename_recursive_handler_params_accepted;
     assumption.
+Qed.
+
+Theorem rename_code_binders : rename_code_binders_statement.
+Proof.
+  intros r before id c after body Hclosed.
+  apply expr_eqb_sound, rename_code_accepted, Hclosed.
 Qed.
 
 (* ======================================================================== *)

@@ -208,6 +208,7 @@ Proof.
   { apply (equivalent_of_run (S n) 0). unfold inlined_body.
     rewrite run_succ, step_let. simpl. rewrite Hcallee. exact Hrun. }
   apply equivalent_sym, renamed_equivalent.
+  - apply binds_statics_code_closed, Hstatic.
   - intros x Hx. rewrite Hvars, lookup_app.
     destruct (bind_params_bound (code_params c) vs
                 [(code_my_closure c, callee)] callee_vars x Hbind)
@@ -372,6 +373,7 @@ Proof.
     { apply (equivalent_of_run (S n) 0). unfold inlined_body.
       rewrite run_succ, step_let. simpl. rewrite Hcallee. exact Hrun. }
     apply equivalent_sym, renamed_equivalent.
+    + apply binds_statics_code_closed, Hstatic.
     + intros x Hx. rewrite Hvars, lookup_app.
       destruct (bind_params_bound (code_params c) vs
                   [(code_my_closure c, callee)] callee_vars x Hbind)

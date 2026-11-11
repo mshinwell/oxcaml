@@ -46,30 +46,47 @@
    - the permutations of names with finite support, as lists of swaps, and
      a renaming as one permutation of variables and one of continuations;
    - their action on terms ([rename_expr]), which renames bound and free
-     occurrences alike and so never captures;
+     occurrences alike and so never captures. It goes into code, as the
+     compiler's does: the parameters of code, [my_closure], its two
+     continuations and its body are renamed;
    - the support of a term up to its binders, its free names
-     ([var_free_in_expr], [cont_free_in_expr]);
+     ([var_free_in_expr], [cont_free_in_expr]). These relations do not
+     look into code; FlambdaBindersSpec.v has the free names as
+     functions, which do, and FlambdaFreeNamesSpec.v says that the two
+     agree where code is closed;
    - the defining property of an abstraction: a permutation that fixes the
      free names of a binder with its scope may be applied to the bound name
      and the scope ([rename_let_statement] and the four after it). The
      concretion at a fresh name that [pattern_match] performs is the case
-     of a swap ([freshen_let_statement]);
+     of a swap ([freshen_let_statement]). The binders of code are the
+     case with no condition on the permutation: closed code has no free
+     name ([rename_code_binders_statement]);
    - that behaviour depends on the free names only, by which a binding
      that is not used may be removed ([unused_let_statement] and the two
      after it).
    With FlambdaContextSpec.v these apply to any subterm.
 
-   It is partial: there is no type of alpha-equivalence classes, no general
-   notion of nominal set or of support, and no equivariance of the machine
-   itself. Fresh names are not generated here; a statement holds of every
-   name that is fresh enough.
+   Each statement that renames takes as a premise that the code bound in
+   what is renamed is closed (FlambdaBindersSpec.code_closed, a
+   condition of well-formedness). The relations of free names do not
+   see the names that are free in code, so without the premise a
+   renaming that fixes the free names of a term could still move a name
+   that code in it leaves free. No statement says anything of a
+   renaming of code that is not closed.
+
+   There is no type of alpha-equivalence classes here. The general
+   notions (a type whose values contain names, its support, name
+   abstractions and their laws) are in FlambdaNameAbstractionSpec.v, and
+   the equivariance of the machine in FlambdaEquivarianceSpec.v. Fresh
+   names are not generated here; a statement holds of every name that is
+   fresh enough.
 
    The proofs are in FlambdaNominalProofs.v, which needs no review. *)
 
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec.
+  FlambdaBindersSpec FlambdaSemanticsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -137,9 +154,9 @@ Definition rename_apply_cont (r : renaming) (ac : apply_cont) : apply_cont :=
     (map (rename_simple r) (ac_args ac)).
 
 (* A renaming acts on the variables and the continuations of a term.
-   Symbols and code ids are not renamed, and nor is code: it is closed, so
-   none of its names is one of the term around it. Kinds, arities and
-   metadata have no names in them and are left as they are. *)
+   Symbols, code ids, value slots and function slots are not renamed.
+   Kinds, arities and metadata have no names in them and are left as
+   they are. *)
 Definition rename_static_const (r : renaming) (const : static_const)
     : static_const :=
   match const with
@@ -157,14 +174,6 @@ Definition rename_static_const (r : renaming) (const : static_const)
   | Static_const_immutable_string bytes => Static_const_immutable_string bytes
   end.
 
-Definition rename_static_binding (r : renaming) (binding : static_binding)
-    : static_binding :=
-  match binding with
-  | Bind_code id c => Bind_code id c
-  | Bind_deleted_code id => Bind_deleted_code id
-  | Bind_symbol s const => Bind_symbol s (rename_static_const r const)
-  end.
-
 Definition rename_apply (r : renaming) (ap : apply_expr) : apply_expr :=
   Apply_expr (rename_simple r (ap_callee ap)) (ap_call_kind ap)
     (map (rename_simple r) (ap_args ap))
@@ -172,6 +181,12 @@ Definition rename_apply (r : renaming) (ap : apply_expr) : apply_expr :=
     (rename_continuation r (ap_exn_continuation ap)) (ap_args_arity ap)
     (ap_return_arity ap).
 
+(* [apply_renaming], [apply_renaming_continuation_handler],
+   [apply_renaming_static_const_or_code] and
+   [apply_renaming_function_params_and_body] of terms/flambda.ml. Code is
+   renamed as everything else is: its parameters, [my_closure], its two
+   continuations and its body, as the compiler renames it
+   ([Code0.apply_renaming]). *)
 Fixpoint rename_expr (r : renaming) (e : expr) : expr :=
   match e with
   | Let x kind defining_expr body =>
@@ -199,6 +214,21 @@ with rename_handler (r : renaming) (h : continuation_handler)
   match h with
   | Handler params metadata handler =>
     Handler (map (rename_variable r) params) metadata (rename_expr r handler)
+  end
+with rename_static_binding (r : renaming) (binding : static_binding)
+    : static_binding :=
+  match binding with
+  | Bind_code id c => Bind_code id (rename_code r c)
+  | Bind_deleted_code id => Bind_deleted_code id
+  | Bind_symbol s const => Bind_symbol s (rename_static_const r const)
+  end
+with rename_code (r : renaming) (c : code) : code :=
+  match c with
+  | Code params my_closure return_continuation exn_continuation metadata
+      body =>
+    Code (map (rename_variable r) params) (rename_variable r my_closure)
+      (rename_continuation r return_continuation)
+      (rename_continuation r exn_continuation) metadata (rename_expr r body)
   end.
 
 Definition rename_handlers (r : renaming)
@@ -310,10 +340,12 @@ with cont_free_in_handler (k : continuation) (h : continuation_handler)
 
 (* The variable of a [Let]: a renaming that fixes the free names of the
    body other than the bound variable may be applied to the bound variable
-   and the body. *)
+   and the body. The code that the body binds is closed, here and in the
+   statements below. *)
 Definition rename_let_statement : Prop :=
   ∀ (r : renaming) (x : variable) (kind : flambda_kind)
     (defining_expr : named) (body : expr),
+    code_closed body = true ->
     (∀ y : variable,
       y <> x -> var_free_in_expr y body -> rename_variable r y = y) ->
     (∀ k : continuation,
@@ -326,6 +358,7 @@ Definition rename_let_statement : Prop :=
 Definition freshen_let_statement : Prop :=
   ∀ (x fresh : variable) (kind : flambda_kind) (defining_expr : named)
     (body : expr),
+    code_closed body = true ->
     ~ var_free_in_expr fresh body ->
     expr_equivalent (Let x kind defining_expr body)
       (Let fresh kind defining_expr
@@ -335,6 +368,7 @@ Definition freshen_let_statement : Prop :=
 Definition rename_let_cont_statement : Prop :=
   ∀ (r : renaming) (k : continuation) (handler : continuation_handler)
     (body : expr),
+    code_closed body = true ->
     (∀ y : variable, var_free_in_expr y body -> rename_variable r y = y) ->
     (∀ k' : continuation,
       k' <> k -> cont_free_in_expr k' body -> rename_continuation r k' = k')
@@ -347,6 +381,7 @@ Definition rename_let_cont_statement : Prop :=
 Definition rename_handler_params_statement : Prop :=
   ∀ (r : renaming) (k : continuation) (params : list variable)
     (metadata : handler_metadata) (handler body : expr),
+    code_closed handler = true ->
     (∀ y : variable,
       y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
     (∀ k' : continuation,
@@ -362,6 +397,7 @@ Definition rename_recursive_handler_params_statement : Prop :=
     (k : continuation) (params : list variable)
     (metadata : handler_metadata) (handler : expr)
     (after : list (continuation * continuation_handler)) (body : expr),
+    code_closed handler = true ->
     (∀ y : variable,
       y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
     (∀ k' : continuation,
@@ -380,6 +416,7 @@ Definition rename_recursive_handler_params_statement : Prop :=
 Definition rename_let_cont_recursive_statement : Prop :=
   ∀ (r : renaming) (handlers : list (continuation * continuation_handler))
     (body : expr),
+    code_closed (Let_cont_recursive handlers body) = true ->
     (∀ y : variable,
       var_free_in_expr y (Let_cont_recursive handlers body) ->
       rename_variable r y = y) ->
@@ -388,6 +425,16 @@ Definition rename_let_cont_recursive_statement : Prop :=
       rename_continuation r k = k) ->
     expr_equivalent (Let_cont_recursive handlers body)
       (rename_expr r (Let_cont_recursive handlers body)).
+
+(* The binders of code: its parameters, [my_closure] and its return and
+   exception continuations. Closed code has no other name, so any
+   renaming at all may be applied to it. *)
+Definition rename_code_binders_statement : Prop :=
+  ∀ (r : renaming) (before : list static_binding) (id : code_id) (c : code)
+    (after : list static_binding) (body : expr),
+    code_is_closed c = true ->
+    expr_equivalent (Let_static (before ++ Bind_code id c :: after) body)
+      (Let_static (before ++ Bind_code id (rename_code r c) :: after) body).
 
 (* ======================================================================== *)
 (* Bindings that are not used                                               *)

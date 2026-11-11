@@ -672,8 +672,13 @@ Proof.
     simpl.
   - rewrite rename_named_in_range, rename_numbers_in_range. reflexivity.
   - rewrite rename_numbers_in_range. f_equal.
-    induction bindings as [ | [id c | id | sym const] bindings IH]; simpl;
-      [ reflexivity | rewrite IH; reflexivity .. | ].
+    induction bindings
+      as [ | [id [params my_closure ret exn code_body] | id | sym const]
+             bindings IH];
+      simpl;
+      [ reflexivity
+      | rewrite rename_numbers_in_range, IH; reflexivity
+      | rewrite IH; reflexivity | ].
     rewrite rename_static_const_in_range, IH. reflexivity.
   - destruct h as [params metadata handler]. simpl.
     rewrite !rename_numbers_in_range. reflexivity.

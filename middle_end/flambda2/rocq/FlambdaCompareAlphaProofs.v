@@ -839,10 +839,11 @@ Proof.
   intros e e' Halpha.
   induction Halpha
     as [ e | e e' _ IH | e e' e'' _ IH _ IH' | c e e' _ IH
-       | r e Hvars Hconts | r x kind d body Hvars Hconts
-       | r k h body Hvars Hconts
-       | r k params metadata handler body Hvars Hconts
-       | r before k params metadata handler after body Hvars Hconts ].
+       | r e Hclosed Hvars Hconts | r x kind d body Hclosed Hvars Hconts
+       | r k h body Hclosed Hvars Hconts
+       | r k params metadata handler body Hclosed Hvars Hconts
+       | r before k params metadata handler after body Hclosed Hvars Hconts
+       | r before id c after body Hclosed ].
   - apply expr_eqb_reflexive.
   - apply expr_eqb_symmetric, IH.
   - exact (expr_eqb_transitive _ _ _ IH IH').
@@ -853,4 +854,5 @@ Proof.
   - apply rename_let_cont_accepted; assumption.
   - apply rename_handler_params_accepted; assumption.
   - apply rename_recursive_handler_params_accepted; assumption.
+  - apply rename_code_accepted, Hclosed.
 Qed.

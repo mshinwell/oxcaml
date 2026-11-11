@@ -28,12 +28,13 @@
 (* Proofs of the statements of FlambdaAlphaSpec.v. Nothing here needs
    review. *)
 
-From Stdlib Require Import ZArith List Setoid.
+From Stdlib Require Import ZArith List Bool Setoid.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
-  FlambdaContextSpec FlambdaContextProofs FlambdaNominalSpec
-  FlambdaNominalProofs FlambdaAlphaSpec.
+  FlambdaMapProofs FlambdaBindersSpec FlambdaBindersProofs
+  FlambdaSemanticsSpec FlambdaSemanticsProofs FlambdaContextSpec
+  FlambdaContextProofs FlambdaNominalSpec FlambdaNominalProofs
+  FlambdaAlphaSpec.
 Import ListNotations.
 
 Lemma or_iff (A A' B B' : Prop) :
@@ -159,16 +160,15 @@ Proof.
     rewrite rename_simple_ext; reflexivity.
 Qed.
 
-Lemma rename_static_binding_ext (binding : static_binding) :
-  rename_static_binding r binding = rename_static_binding r' binding.
+Lemma rename_static_const_ext (const : static_const) :
+  rename_static_const r const = rename_static_const r' const.
 Proof.
-  destruct binding
-    as [id c | id
-       | sym [code slots | fslot syms decls slots | tag fields | s | bytes]];
+  destruct const
+    as [code slots | fslot syms decls slots | tag fields | s | bytes];
     simpl;
     rewrite ?rename_simple_ext, ?(map_ext _ _ rename_simple_ext);
     try reflexivity;
-    do 2 f_equal; apply map_ext; intros [slot s]; simpl;
+    f_equal; apply map_ext; intros [slot s]; simpl;
     rewrite rename_simple_ext; reflexivity.
 Qed.
 
@@ -190,7 +190,10 @@ Qed.
 
 Fixpoint rename_expr_ext (e : expr) : rename_expr r e = rename_expr r' e
 with rename_handler_ext (h : continuation_handler) :
-  rename_handler r h = rename_handler r' h.
+  rename_handler r h = rename_handler r' h
+with rename_static_binding_ext (binding : static_binding) :
+  rename_static_binding r binding = rename_static_binding r' binding
+with rename_code_ext (c : code) : rename_code r c = rename_code r' c.
 Proof.
   - destruct e
       as [x kind d body | bindings body | k h body | handlers body | ap | ac
@@ -198,9 +201,10 @@ Proof.
       simpl.
     + rewrite same_variables, rename_named_ext, (rename_expr_ext body).
       reflexivity.
-    + rewrite (rename_expr_ext body),
-        (map_ext _ _ rename_static_binding_ext).
-      reflexivity.
+    + rewrite (rename_expr_ext body). f_equal.
+      induction bindings as [ | binding bindings IH]; simpl;
+        [ reflexivity | ].
+      rewrite (rename_static_binding_ext binding), IH. reflexivity.
     + rewrite same_continuations, (rename_handler_ext h),
         (rename_expr_ext body). reflexivity.
     + rewrite (rename_expr_ext body). f_equal.
@@ -213,6 +217,14 @@ Proof.
     + reflexivity.
   - destruct h as [params metadata handler]. simpl.
     rewrite (rename_expr_ext handler), (map_ext _ _ same_variables).
+    reflexivity.
+  - destruct binding as [id c | id | sym const]; simpl.
+    + rewrite (rename_code_ext c). reflexivity.
+    + reflexivity.
+    + rewrite rename_static_const_ext. reflexivity.
+  - destruct c as [params my_closure ret exn metadata body]. simpl.
+    rewrite (rename_expr_ext body), (map_ext _ _ same_variables),
+      !same_continuations, same_variables.
     reflexivity.
 Qed.
 
@@ -250,18 +262,24 @@ Proof.
     rewrite rename_simple_compose; reflexivity.
 Qed.
 
-Lemma rename_static_binding_compose (binding : static_binding) :
-  rename_static_binding (compose_renaming second first) binding
-  = rename_static_binding second (rename_static_binding first binding).
+Lemma rename_static_const_compose (const : static_const) :
+  rename_static_const (compose_renaming second first) const
+  = rename_static_const second (rename_static_const first const).
 Proof.
-  destruct binding
-    as [id c | id
-       | sym [code slots | fslot syms decls slots | tag fields | s | bytes]];
+  destruct const
+    as [code slots | fslot syms decls slots | tag fields | s | bytes];
     simpl;
     rewrite ?rename_simple_compose, ?rename_simples_compose;
     try reflexivity;
-    do 2 f_equal; rewrite map_map; apply map_ext; intros [slot s]; simpl;
+    f_equal; rewrite map_map; apply map_ext; intros [slot s]; simpl;
     rewrite rename_simple_compose; reflexivity.
+Qed.
+
+Lemma rename_variables_compose (xs : list variable) :
+  map (rename_variable (compose_renaming second first)) xs
+  = map (rename_variable second) (map (rename_variable first) xs).
+Proof.
+  rewrite map_map. apply map_ext. intros x. apply rename_variable_compose.
 Qed.
 
 Lemma rename_apply_compose (ap : apply_expr) :
@@ -287,7 +305,13 @@ Fixpoint rename_expr_compose_aux (e : expr) :
   = rename_expr second (rename_expr first e)
 with rename_handler_compose (h : continuation_handler) :
   rename_handler (compose_renaming second first) h
-  = rename_handler second (rename_handler first h).
+  = rename_handler second (rename_handler first h)
+with rename_static_binding_compose (binding : static_binding) :
+  rename_static_binding (compose_renaming second first) binding
+  = rename_static_binding second (rename_static_binding first binding)
+with rename_code_compose (c : code) :
+  rename_code (compose_renaming second first) c
+  = rename_code second (rename_code first c).
 Proof.
   - destruct e
       as [x kind d body | bindings body | k h body | handlers body | ap | ac
@@ -296,7 +320,9 @@ Proof.
     + rewrite rename_variable_compose, rename_named_compose,
         (rename_expr_compose_aux body). reflexivity.
     + rewrite (rename_expr_compose_aux body). f_equal.
-      rewrite map_map. apply map_ext, rename_static_binding_compose.
+      induction bindings as [ | binding bindings IH]; simpl;
+        [ reflexivity | ].
+      rewrite (rename_static_binding_compose binding), IH. reflexivity.
     + rewrite rename_continuation_compose, (rename_handler_compose h),
         (rename_expr_compose_aux body). reflexivity.
     + rewrite (rename_expr_compose_aux body). f_equal.
@@ -310,9 +336,16 @@ Proof.
       rewrite rename_apply_cont_compose, IH. reflexivity.
     + reflexivity.
   - destruct h as [params metadata handler]. simpl.
-    rewrite (rename_expr_compose_aux handler). f_equal.
-    rewrite map_map. apply map_ext. intros x.
-    apply rename_variable_compose.
+    rewrite (rename_expr_compose_aux handler), rename_variables_compose.
+    reflexivity.
+  - destruct binding as [id c | id | sym const]; simpl.
+    + rewrite (rename_code_compose c). reflexivity.
+    + reflexivity.
+    + rewrite rename_static_const_compose. reflexivity.
+  - destruct c as [params my_closure ret exn metadata body]. simpl.
+    rewrite (rename_expr_compose_aux body), rename_variables_compose,
+      !rename_continuation_compose, rename_variable_compose.
+    reflexivity.
 Qed.
 
 End Compose.
@@ -539,6 +572,370 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* The free names, as functions, are equivariant                            *)
+(* ======================================================================== *)
+
+(* Sets of names under a function that keeps names apart. *)
+Section Injective.
+
+Variable f : positive -> positive.
+
+Hypothesis f_eqb : ∀ x y : positive, Pos.eqb (f x) (f y) = Pos.eqb x y.
+
+Lemma among_map_injective (name : positive) (names : list positive) :
+  among (f name) (map f names) = among name names.
+Proof.
+  induction names as [ | first names IH]; [ reflexivity | ].
+  cbn [map]. rewrite !among_cons, f_eqb, IH. reflexivity.
+Qed.
+
+Lemma without_map_injective (bound names : list positive) :
+  without (map f bound) (map f names) = map f (without bound names).
+Proof.
+  unfold without. induction names as [ | name names IH]; [ reflexivity | ].
+  cbn [map filter]. rewrite among_map_injective, IH.
+  destruct (among name bound); reflexivity.
+Qed.
+
+Lemma all_among_map_injective (names allowed : list positive) :
+  FlambdaMapSpec.all_among (map f names) (map f allowed)
+  = FlambdaMapSpec.all_among names allowed.
+Proof.
+  unfold FlambdaMapSpec.all_among.
+  induction names as [ | name names IH]; [ reflexivity | ].
+  cbn [map forallb]. rewrite among_map_injective, IH. reflexivity.
+Qed.
+
+Lemma distinct_map_injective (names : list positive) :
+  distinct (map f names) = distinct names.
+Proof.
+  induction names as [ | name names IH]; [ reflexivity | ].
+  cbn [map distinct]. rewrite among_map_injective, IH. reflexivity.
+Qed.
+
+End Injective.
+
+Lemma is_empty_map {A B : Type} (g : A -> B) (l : list A) :
+  Keyed.is_empty (map g l) = Keyed.is_empty l.
+Proof. destruct l; reflexivity. Qed.
+
+Section Free_names.
+
+Variable r : renaming.
+
+Lemma free_variables_of_simple_renamed (s : simple) :
+  free_variables_of_simple (rename_simple r s)
+  = map (rename_variable r) (free_variables_of_simple s).
+Proof. destruct s; reflexivity. Qed.
+
+Lemma free_variables_of_simples_renamed (args : list simple) :
+  free_variables_of_simples (map (rename_simple r) args)
+  = map (rename_variable r) (free_variables_of_simples args).
+Proof.
+  unfold free_variables_of_simples.
+  induction args as [ | s args IH]; [ reflexivity | ].
+  cbn [map flat_map].
+  rewrite map_app, free_variables_of_simple_renamed, IH. reflexivity.
+Qed.
+
+Lemma free_variables_of_value_slots_renamed
+    (slots : list (value_slot * simple)) :
+  free_variables_of_value_slots
+    (map (fun slot => (fst slot, rename_simple r (snd slot))) slots)
+  = map (rename_variable r) (free_variables_of_value_slots slots).
+Proof.
+  unfold free_variables_of_value_slots.
+  induction slots as [ | slot slots IH]; [ reflexivity | ].
+  cbn [map flat_map snd].
+  rewrite map_app, free_variables_of_simple_renamed, IH. reflexivity.
+Qed.
+
+Lemma free_variables_of_named_renamed (d : named) :
+  free_variables_of_named (rename_named r d)
+  = map (rename_variable r) (free_variables_of_named d).
+Proof.
+  destruct d; cbn [rename_named free_variables_of_named];
+    first
+      [ apply free_variables_of_simple_renamed
+      | apply free_variables_of_simples_renamed
+      | apply free_variables_of_value_slots_renamed ].
+Qed.
+
+Lemma free_variables_of_static_const_renamed (const : static_const) :
+  free_variables_of_static_const (rename_static_const r const)
+  = map (rename_variable r) (free_variables_of_static_const const).
+Proof.
+  destruct const; cbn [rename_static_const free_variables_of_static_const];
+    first
+      [ apply free_variables_of_simple_renamed
+      | apply free_variables_of_simples_renamed
+      | apply free_variables_of_value_slots_renamed | reflexivity ].
+Qed.
+
+Lemma free_variables_of_apply_cont_renamed (ac : apply_cont) :
+  free_variables_of_apply_cont (rename_apply_cont r ac)
+  = map (rename_variable r) (free_variables_of_apply_cont ac).
+Proof. apply free_variables_of_simples_renamed. Qed.
+
+Lemma free_variables_of_apply_renamed (ap : apply_expr) :
+  free_variables_of_apply (rename_apply r ap)
+  = map (rename_variable r) (free_variables_of_apply ap).
+Proof.
+  unfold free_variables_of_apply, rename_apply. simpl.
+  rewrite map_app, free_variables_of_simple_renamed,
+    free_variables_of_simples_renamed.
+  reflexivity.
+Qed.
+
+Fixpoint free_variables_of_expr_renamed (e : expr) {struct e} :
+  free_variables_of_expr (rename_expr r e)
+  = map (rename_variable r) (free_variables_of_expr e)
+with free_variables_of_handler_renamed (h : continuation_handler)
+    {struct h} :
+  free_variables_of_handler (rename_handler r h)
+  = map (rename_variable r) (free_variables_of_handler h)
+with free_variables_of_binding_renamed (binding : static_binding)
+    {struct binding} :
+  free_variables_of_binding (rename_static_binding r binding)
+  = map (rename_variable r) (free_variables_of_binding binding)
+with free_variables_of_code_renamed (c : code) {struct c} :
+  free_variables_of_code (rename_code r c)
+  = map (rename_variable r) (free_variables_of_code c).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      cbn [rename_expr free_variables_of_expr].
+    + rewrite map_app, free_variables_of_named_renamed,
+        (free_variables_of_expr_renamed body).
+      rewrite <- (without_map_injective (rename_variable r)
+                    (rename_variable_eqb r) [x]).
+      reflexivity.
+    + rewrite map_app, (free_variables_of_expr_renamed body). f_equal.
+      induction bindings as [ | binding bindings IH]; [ reflexivity | ].
+      cbn [map flat_map].
+      rewrite map_app, (free_variables_of_binding_renamed binding), IH.
+      reflexivity.
+    + rewrite map_app, (free_variables_of_handler_renamed h),
+        (free_variables_of_expr_renamed body).
+      reflexivity.
+    + rewrite map_app, (free_variables_of_expr_renamed body). f_equal.
+      induction handlers as [ | [k h] handlers IH]; [ reflexivity | ].
+      cbn [map flat_map].
+      rewrite map_app, (free_variables_of_handler_renamed h), IH.
+      reflexivity.
+    + apply free_variables_of_apply_renamed.
+    + apply free_variables_of_apply_cont_renamed.
+    + rewrite map_app, free_variables_of_simple_renamed. f_equal.
+      induction arms as [ | [i ac] arms IH]; [ reflexivity | ].
+      cbn [map flat_map snd].
+      rewrite map_app, free_variables_of_apply_cont_renamed, IH.
+      reflexivity.
+    + reflexivity.
+  - destruct h as [params metadata handler].
+    cbn [rename_handler free_variables_of_handler].
+    rewrite (free_variables_of_expr_renamed handler).
+    apply without_map_injective, rename_variable_eqb.
+  - destruct binding as [id c | id | sym const];
+      cbn [rename_static_binding free_variables_of_binding].
+    + apply free_variables_of_code_renamed.
+    + reflexivity.
+    + apply free_variables_of_static_const_renamed.
+  - destruct c as [params my_closure ret exn metadata body].
+    cbn [rename_code free_variables_of_code].
+    rewrite (free_variables_of_expr_renamed body).
+    exact (without_map_injective (rename_variable r) (rename_variable_eqb r)
+             (my_closure :: params) (free_variables_of_expr body)).
+Qed.
+
+Fixpoint free_continuations_of_expr_renamed (e : expr) {struct e} :
+  free_continuations_of_expr (rename_expr r e)
+  = map (rename_continuation r) (free_continuations_of_expr e)
+with free_continuations_of_handler_renamed (h : continuation_handler)
+    {struct h} :
+  free_continuations_of_handler (rename_handler r h)
+  = map (rename_continuation r) (free_continuations_of_handler h)
+with free_continuations_of_binding_renamed (binding : static_binding)
+    {struct binding} :
+  free_continuations_of_binding (rename_static_binding r binding)
+  = map (rename_continuation r) (free_continuations_of_binding binding)
+with free_continuations_of_code_renamed (c : code) {struct c} :
+  free_continuations_of_code (rename_code r c)
+  = map (rename_continuation r) (free_continuations_of_code c).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      cbn [rename_expr free_continuations_of_expr].
+    + apply free_continuations_of_expr_renamed.
+    + rewrite map_app, (free_continuations_of_expr_renamed body). f_equal.
+      induction bindings as [ | binding bindings IH]; [ reflexivity | ].
+      cbn [map flat_map].
+      rewrite map_app, (free_continuations_of_binding_renamed binding), IH.
+      reflexivity.
+    + rewrite map_app, (free_continuations_of_handler_renamed h),
+        (free_continuations_of_expr_renamed body).
+      rewrite <- (without_map_injective (rename_continuation r)
+                    (rename_continuation_eqb r) [k]).
+      reflexivity.
+    + fold (rename_handlers r handlers).
+      rewrite map_fst_rename_handlers.
+      rewrite <- (without_map_injective (rename_continuation r)
+                    (rename_continuation_eqb r)).
+      rewrite map_app, (free_continuations_of_expr_renamed body).
+      do 2 f_equal. unfold rename_handlers.
+      induction handlers as [ | [k h] handlers IH]; [ reflexivity | ].
+      cbn [map flat_map].
+      rewrite map_app, (free_continuations_of_handler_renamed h), IH.
+      reflexivity.
+    + reflexivity.
+    + reflexivity.
+    + rewrite !map_map. apply map_ext. intros [i ac]. reflexivity.
+    + reflexivity.
+  - destruct h as [params metadata handler].
+    cbn [rename_handler free_continuations_of_handler].
+    apply free_continuations_of_expr_renamed.
+  - destruct binding as [id c | id | sym const];
+      cbn [rename_static_binding free_continuations_of_binding].
+    + apply free_continuations_of_code_renamed.
+    + reflexivity.
+    + reflexivity.
+  - destruct c as [params my_closure ret exn metadata body].
+    cbn [rename_code free_continuations_of_code].
+    rewrite (free_continuations_of_expr_renamed body).
+    exact (without_map_injective (rename_continuation r)
+             (rename_continuation_eqb r) [ret; exn]
+             (free_continuations_of_expr body)).
+Qed.
+
+(* The three conditions on binders. *)
+
+Fixpoint code_closed_renamed (e : expr) {struct e} :
+  code_closed (rename_expr r e) = code_closed e
+with handler_code_closed_renamed (h : continuation_handler) {struct h} :
+  handler_code_closed (rename_handler r h) = handler_code_closed h
+with binding_code_closed_renamed (binding : static_binding)
+    {struct binding} :
+  binding_code_closed (rename_static_binding r binding)
+  = binding_code_closed binding
+with code_is_closed_renamed (c : code) {struct c} :
+  code_is_closed (rename_code r c) = code_is_closed c.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      cbn [rename_expr code_closed]; try reflexivity.
+    + apply code_closed_renamed.
+    + rewrite (code_closed_renamed body). f_equal.
+      induction bindings as [ | binding bindings IH]; [ reflexivity | ].
+      cbn [map forallb].
+      rewrite (binding_code_closed_renamed binding), IH. reflexivity.
+    + rewrite (handler_code_closed_renamed h), (code_closed_renamed body).
+      reflexivity.
+    + rewrite (code_closed_renamed body). f_equal.
+      induction handlers as [ | [k h] handlers IH]; [ reflexivity | ].
+      cbn [map forallb].
+      rewrite (handler_code_closed_renamed h), IH. reflexivity.
+  - destruct h as [params metadata handler].
+    cbn [rename_handler handler_code_closed].
+    apply code_closed_renamed.
+  - destruct binding as [id c | id | sym const];
+      cbn [rename_static_binding binding_code_closed];
+      [ apply code_is_closed_renamed | reflexivity | reflexivity ].
+  - pose proof (free_variables_of_code_renamed c) as Hvars.
+    pose proof (free_continuations_of_code_renamed c) as Hconts.
+    destruct c as [params my_closure ret exn metadata body].
+    cbn [rename_code code_is_closed] in *.
+    rewrite Hvars, Hconts, !is_empty_map, (code_closed_renamed body).
+    reflexivity.
+Qed.
+
+Fixpoint binders_distinct_renamed (e : expr) {struct e} :
+  binders_distinct (rename_expr r e) = binders_distinct e
+with handler_binders_distinct_renamed (h : continuation_handler)
+    {struct h} :
+  handler_binders_distinct (rename_handler r h) = handler_binders_distinct h
+with binding_binders_distinct_renamed (binding : static_binding)
+    {struct binding} :
+  binding_binders_distinct (rename_static_binding r binding)
+  = binding_binders_distinct binding
+with code_binders_distinct_renamed (c : code) {struct c} :
+  code_binders_distinct (rename_code r c) = code_binders_distinct c.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      cbn [rename_expr binders_distinct]; try reflexivity.
+    + apply binders_distinct_renamed.
+    + rewrite (binders_distinct_renamed body). f_equal.
+      induction bindings as [ | binding bindings IH]; [ reflexivity | ].
+      cbn [map forallb].
+      rewrite (binding_binders_distinct_renamed binding), IH. reflexivity.
+    + rewrite (handler_binders_distinct_renamed h),
+        (binders_distinct_renamed body).
+      reflexivity.
+    + fold (rename_handlers r handlers).
+      rewrite map_fst_rename_handlers,
+        (distinct_map_injective _ (rename_continuation_eqb r)),
+        (binders_distinct_renamed body).
+      unfold rename_handlers. rewrite is_empty_map. do 2 f_equal.
+      induction handlers as [ | [k h] handlers IH]; [ reflexivity | ].
+      cbn [map forallb].
+      rewrite (handler_binders_distinct_renamed h), IH. reflexivity.
+  - destruct h as [params metadata handler].
+    cbn [rename_handler handler_binders_distinct].
+    rewrite (distinct_map_injective _ (rename_variable_eqb r)),
+      (binders_distinct_renamed handler).
+    reflexivity.
+  - destruct binding as [id c | id | sym const];
+      cbn [rename_static_binding binding_binders_distinct];
+      [ apply code_binders_distinct_renamed | reflexivity | reflexivity ].
+  - destruct c as [params my_closure ret exn metadata body].
+    cbn [rename_code code_binders_distinct].
+    rewrite (binders_distinct_renamed body), rename_continuation_eqb.
+    change (rename_variable r my_closure :: map (rename_variable r) params)
+      with (map (rename_variable r) (my_closure :: params)).
+    rewrite (distinct_map_injective _ (rename_variable_eqb r)).
+    reflexivity.
+Qed.
+
+Lemma names_among_renamed (vs : list variable) (ks : list continuation)
+    (e : expr) :
+  names_among (map (rename_variable r) vs) (map (rename_continuation r) ks)
+    (rename_expr r e)
+  = names_among vs ks e.
+Proof.
+  unfold names_among.
+  rewrite free_variables_of_expr_renamed,
+    free_continuations_of_expr_renamed,
+    (all_among_map_injective _ (rename_variable_eqb r)),
+    (all_among_map_injective _ (rename_continuation_eqb r)).
+  reflexivity.
+Qed.
+
+End Free_names.
+
+Theorem free_variables_equivariant : free_variables_equivariant_statement.
+Proof. exact free_variables_of_expr_renamed. Qed.
+
+Theorem free_continuations_equivariant :
+  free_continuations_equivariant_statement.
+Proof. exact free_continuations_of_expr_renamed. Qed.
+
+Theorem code_closed_equivariant : code_closed_equivariant_statement.
+Proof. exact code_closed_renamed. Qed.
+
+Theorem binders_distinct_equivariant :
+  binders_distinct_equivariant_statement.
+Proof. exact binders_distinct_renamed. Qed.
+
+Theorem names_in_scope_equivariant : names_in_scope_equivariant_statement.
+Proof.
+  intros r unit_return unit_exn e.
+  exact (names_among_renamed r [] [unit_return; unit_exn] e).
+Qed.
+
+(* ======================================================================== *)
 (* Alpha-equivalent expressions behave alike                                *)
 (* ======================================================================== *)
 
@@ -548,14 +945,16 @@ Proof.
   intros Halpha.
   induction Halpha
     as [ e | e e' _ IH | e e' e'' _ IH _ IH' | c e e' _ IH
-       | r e Hvars Hconts | r x kind d body Hvars Hconts
-       | r k h body Hvars Hconts
-       | r k params metadata handler body Hvars Hconts
-       | r before k params metadata handler after body Hvars Hconts ];
+       | r e _ Hvars Hconts | r x kind d body _ Hvars Hconts
+       | r k h body _ Hvars Hconts
+       | r k params metadata handler body _ Hvars Hconts
+       | r before k params metadata handler after body _ Hvars Hconts
+       | r before id c after body _ ];
     simpl; try congruence; rewrite ?rename_binds_statics;
     try reflexivity.
   - apply plug_binds_statics, IH.
   - rewrite !existsb_app. simpl. rewrite rename_binds_statics. reflexivity.
+  - rewrite !existsb_app. reflexivity.
 Qed.
 
 Theorem alpha_equivalent_sound : alpha_equivalent_sound_statement.
@@ -563,10 +962,11 @@ Proof.
   intros e e' Halpha.
   induction Halpha
     as [ e | e e' _ IH | e e' e'' _ IH _ IH' | c e e' Hinner IH
-       | r e Hvars Hconts | r x kind d body Hvars Hconts
-       | r k h body Hvars Hconts
-       | r k params metadata handler body Hvars Hconts
-       | r before k params metadata handler after body Hvars Hconts ].
+       | r e Hclosed Hvars Hconts | r x kind d body Hclosed Hvars Hconts
+       | r k h body Hclosed Hvars Hconts
+       | r k params metadata handler body Hclosed Hvars Hconts
+       | r before k params metadata handler after body Hclosed Hvars Hconts
+       | r before id c after body Hclosed ].
   - intros vars conts statics. apply equivalent_refl.
   - intros vars conts statics. apply equivalent_sym, IH.
   - intros vars conts statics.
@@ -574,31 +974,22 @@ Proof.
   - apply plug_equivalent;
       [ intros _; apply alpha_binds_statics, Hinner | exact IH ].
   - intros vars conts statics. apply renamed_equivalent.
+    + exact Hclosed.
     + intros x Hx. rewrite (Hvars x Hx). reflexivity.
     + intros k Hk. apply conts_agree_same, Hconts, Hk.
   - apply rename_let; assumption.
   - apply rename_let_cont; assumption.
   - apply rename_handler_params; assumption.
   - apply rename_recursive_handler_params; assumption.
+  - apply rename_code_binders, Hclosed.
 Qed.
 
 (* ======================================================================== *)
 (* Alpha-equivalence is equivariant                                         *)
 (* ======================================================================== *)
 
-(* A renaming does not reach into code, so nor does it into a context
-   under code. *)
-Fixpoint hole_in_code (c : context) : bool :=
-  match c with
-  | Hole => false
-  | Let_static_code _ _ _ _ _ _ _ _ _ _ => true
-  | Let_body _ _ _ body | Let_static_body _ body
-  | Let_cont_non_recursive_body _ _ body | Let_cont_recursive_body _ body =>
-    hole_in_code body
-  | Let_cont_non_recursive_handler _ _ _ handler _
-  | Let_cont_recursive_handler _ _ _ _ handler _ _ => hole_in_code handler
-  end.
-
+(* A context is renamed as an expression is, the code that the hole is
+   in included. *)
 Fixpoint rename_context (r : renaming) (c : context) : context :=
   match c with
   | Hole => Hole
@@ -610,9 +1001,11 @@ Fixpoint rename_context (r : renaming) (c : context) : context :=
       (rename_context r body)
   | Let_static_code before id params my_closure ret exn metadata code_body
       after body =>
-    Let_static_code (map (rename_static_binding r) before) id params
-      my_closure ret exn metadata code_body
-      (map (rename_static_binding r) after) (rename_expr r body)
+    Let_static_code (map (rename_static_binding r) before) id
+      (map (rename_variable r) params) (rename_variable r my_closure)
+      (rename_continuation r ret) (rename_continuation r exn) metadata
+      (rename_context r code_body) (map (rename_static_binding r) after)
+      (rename_expr r body)
   | Let_cont_non_recursive_body k h body =>
     Let_cont_non_recursive_body (rename_continuation r k)
       (rename_handler r h) (rename_context r body)
@@ -632,9 +1025,7 @@ Fixpoint rename_context (r : renaming) (c : context) : context :=
   end.
 
 Lemma rename_plug (r : renaming) (c : context) (e : expr) :
-  rename_expr r (plug c e)
-  = plug (rename_context r c)
-      (if hole_in_code c then e else rename_expr r e).
+  rename_expr r (plug c e) = plug (rename_context r c) (rename_expr r e).
 Proof.
   induction c
     as [ | x kind d c IH | bindings c IH
@@ -642,7 +1033,7 @@ Proof.
        | k h c IH | k params metadata c IH body | handlers c IH
        | before k params metadata c IH after body ];
     simpl; rewrite ?IH; try reflexivity.
-  - rewrite map_app. reflexivity.
+  - rewrite map_app. simpl. rewrite IH. reflexivity.
   - unfold rename_handlers. rewrite map_app. simpl. rewrite IH. reflexivity.
 Qed.
 
@@ -676,6 +1067,19 @@ Proof.
   rewrite !rename_expr_compose, rename_expr_inverse. reflexivity.
 Qed.
 
+Lemma conjugate_code (r s : renaming) (c : code) :
+  rename_code (conjugate r s) (rename_code r c)
+  = rename_code r (rename_code s c).
+Proof.
+  unfold conjugate.
+  rewrite !rename_code_compose.
+  destruct c as [params my_closure ret exn metadata body]. simpl.
+  rewrite !map_map, !rename_variable_inverse_l,
+    !rename_continuation_inverse_l, rename_expr_inverse.
+  f_equal. apply map_ext. intros x. rewrite rename_variable_inverse_l.
+  reflexivity.
+Qed.
+
 Lemma conjugate_fixes_variable (r s : renaming) (y : variable) :
   rename_variable s (rename_variable (inverse_renaming r) y)
   = rename_variable (inverse_renaming r) y ->
@@ -702,22 +1106,24 @@ Proof.
   intros r e e' Halpha.
   induction Halpha
     as [ e | e e' _ IH | e e' e'' _ IH _ IH' | c e e' Halpha IH
-       | s e Hvars Hconts | s x kind d body Hvars Hconts
-       | s k h body Hvars Hconts
-       | s k params metadata handler body Hvars Hconts
-       | s before k params metadata handler after body Hvars Hconts ].
+       | s e Hclosed Hvars Hconts | s x kind d body Hclosed Hvars Hconts
+       | s k h body Hclosed Hvars Hconts
+       | s k params metadata handler body Hclosed Hvars Hconts
+       | s before k params metadata handler after body Hclosed Hvars Hconts
+       | s before id c after body Hclosed ].
   - apply Alpha_refl.
   - apply Alpha_sym, IH.
   - exact (Alpha_trans _ _ _ IH IH').
-  - rewrite !rename_plug.
-    destruct (hole_in_code c); apply Alpha_context; [ exact Halpha | exact IH ].
+  - rewrite !rename_plug. apply Alpha_context, IH.
   - rewrite <- conjugate_expr. apply Alpha_rename.
+    + rewrite code_closed_renamed. exact Hclosed.
     + intros y Hy.
       apply conjugate_fixes_variable, Hvars, var_free_in_renamed, Hy.
     + intros k Hk.
       apply conjugate_fixes_continuation, Hconts, cont_free_in_renamed, Hk.
   - simpl. rewrite <- conjugate_variable, <- conjugate_expr.
     apply Alpha_let.
+    + rewrite code_closed_renamed. exact Hclosed.
     + intros y Hne Hy.
       apply conjugate_fixes_variable, Hvars;
         [ | apply var_free_in_renamed, Hy ].
@@ -727,6 +1133,7 @@ Proof.
       apply conjugate_fixes_continuation, Hconts, cont_free_in_renamed, Hk.
   - simpl. rewrite <- conjugate_continuation, <- conjugate_expr.
     apply Alpha_let_cont.
+    + rewrite code_closed_renamed. exact Hclosed.
     + intros y Hy.
       apply conjugate_fixes_variable, Hvars, var_free_in_renamed, Hy.
     + intros k' Hne Hk'.
@@ -743,6 +1150,7 @@ Proof.
     apply (Alpha_handler (conjugate r s) (rename_continuation r k)
       (map (rename_variable r) params) metadata (rename_expr r handler)
       (rename_expr r body)).
+    + rewrite code_closed_renamed. exact Hclosed.
     + intros y Hnotin Hy.
       apply conjugate_fixes_variable, Hvars;
         [ | apply var_free_in_renamed, Hy ].
@@ -760,6 +1168,7 @@ Proof.
       (rename_continuation r k) (map (rename_variable r) params) metadata
       (rename_expr r handler) (rename_handlers r after)
       (rename_expr r body)).
+    + rewrite code_closed_renamed. exact Hclosed.
     + intros y Hnotin Hy.
       apply conjugate_fixes_variable, Hvars;
         [ | apply var_free_in_renamed, Hy ].
@@ -767,6 +1176,8 @@ Proof.
       rewrite <- (rename_variable_inverse_r r y). apply in_map, Hin.
     + intros k' Hk'.
       apply conjugate_fixes_continuation, Hconts, cont_free_in_renamed, Hk'.
+  - simpl. rewrite !map_app. simpl. rewrite <- conjugate_code.
+    apply Alpha_code. rewrite code_is_closed_renamed. exact Hclosed.
 Qed.
 
 (* ======================================================================== *)
@@ -877,10 +1288,11 @@ Proof.
   induction Halpha
     as [ e | e e' _ [IHv IHk] | e e' e'' _ [IHv IHk] _ [IHv' IHk']
        | c e e' _ [IHv IHk]
-       | s e Hvars Hconts | s x kind d body Hvars Hconts
-       | s k h body Hvars Hconts
-       | s k params metadata handler body Hvars Hconts
-       | s before k params metadata handler after body Hvars Hconts ].
+       | s e _ Hvars Hconts | s x kind d body _ Hvars Hconts
+       | s k h body _ Hvars Hconts
+       | s k params metadata handler body _ Hvars Hconts
+       | s before k params metadata handler after body _ Hvars Hconts
+       | s before id c after body _ ].
   - split; reflexivity.
   - split; intros; symmetry; [ apply IHv | apply IHk ].
   - split; intros y;
@@ -977,143 +1389,17 @@ Proof.
           (fun k' => cont_free_in_expr k' (rename_expr s handler))
           (rename_continuation_inverse_r s)
           (fun k' => cont_free_in_expr_equivariant s k' handler) Hconts k').
+  - split; [ | reflexivity ].
+    intros y. simpl. apply or_iff; [ | reflexivity ].
+    rewrite !Exists_app, !Exists_cons. reflexivity.
 Qed.
 
 Theorem alpha_let_cont_recursive : alpha_let_cont_recursive_statement.
 Proof.
-  intros r handlers body Hvars Hconts.
-  exact (Alpha_rename r (Let_cont_recursive handlers body) Hvars Hconts).
+  intros r handlers body Hclosed Hvars Hconts.
+  exact (Alpha_rename r (Let_cont_recursive handlers body) Hclosed Hvars
+           Hconts).
 Qed.
-
-(* ======================================================================== *)
-(* Alpha-equivalence by recursion on the two expressions                    *)
-(* ======================================================================== *)
-
-Scheme alpha_structural_mutual := Minimality for alpha_structural Sort Prop
-  with alpha_structural_handler_mutual :=
-    Minimality for alpha_structural_handler Sort Prop
-  with alpha_structural_handlers_mutual :=
-    Minimality for alpha_structural_handlers Sort Prop.
-
-Combined Scheme alpha_structural_induction from alpha_structural_mutual,
-  alpha_structural_handler_mutual, alpha_structural_handlers_mutual.
-
-(* What the three relations come to. Related handlers may replace each
-   other in either form of [Let_cont], and related lists of handlers at the
-   end of a recursive one. *)
-Definition handler_replaceable (h h' : continuation_handler) : Prop :=
-  (∀ (k : continuation) (body : expr),
-    alpha_equivalent (Let_cont_non_recursive k h body)
-      (Let_cont_non_recursive k h' body))
-  ∧ (∀ (before : list (continuation * continuation_handler))
-       (k : continuation)
-       (after : list (continuation * continuation_handler)) (body : expr),
-      alpha_equivalent (Let_cont_recursive (before ++ (k, h) :: after) body)
-        (Let_cont_recursive (before ++ (k, h') :: after) body)).
-
-Definition handlers_replaceable
-    (handlers handlers' : list (continuation * continuation_handler))
-    : Prop :=
-  ∀ (before : list (continuation * continuation_handler)) (body : expr),
-    alpha_equivalent (Let_cont_recursive (before ++ handlers) body)
-      (Let_cont_recursive (before ++ handlers') body).
-
-(* Each rule is a rule of [alpha_equivalent] for one side, the premise
-   about the scopes under a context, and the same rule backwards for the
-   other side. *)
-Lemma alpha_structural_sound_mutual :
-  (∀ e e' : expr, alpha_structural e e' -> alpha_equivalent e e')
-  ∧ (∀ h h' : continuation_handler,
-      alpha_structural_handler h h' -> handler_replaceable h h')
-  ∧ (∀ handlers handlers' : list (continuation * continuation_handler),
-      alpha_structural_handlers handlers handlers' ->
-      handlers_replaceable handlers handlers').
-Proof.
-  apply alpha_structural_induction.
-  - (* Let *)
-    intros r r' x x' kind d body body' Hvars Hconts Hvars' Hconts' Hbound _
-      IH.
-    eapply Alpha_trans; [ exact (Alpha_let r x kind d body Hvars Hconts) | ].
-    eapply Alpha_trans;
-      [ exact
-          (Alpha_context (Let_body (rename_variable r x) kind d Hole) _ _ IH)
-      | ].
-    simpl. rewrite Hbound.
-    exact (Alpha_sym _ _ (Alpha_let r' x' kind d body' Hvars' Hconts')).
-  - (* Let_cont_non_recursive *)
-    intros r r' k k' h h' body body' _ [Hhandler _] Hvars Hconts Hvars' Hconts'
-      Hbound _ IH.
-    eapply Alpha_trans; [ exact (Hhandler k body) | ].
-    eapply Alpha_trans;
-      [ exact (Alpha_let_cont r k h' body Hvars Hconts) | ].
-    eapply Alpha_trans;
-      [ exact (Alpha_context
-          (Let_cont_non_recursive_body (rename_continuation r k) h' Hole)
-          _ _ IH)
-      | ].
-    simpl. rewrite Hbound.
-    exact (Alpha_sym _ _ (Alpha_let_cont r' k' h' body' Hvars' Hconts')).
-  - (* Let_cont_recursive *)
-    intros r r' handlers handlers' body body' Hvars Hconts Hvars' Hconts' _
-      Hhandlers _ IH.
-    eapply Alpha_trans;
-      [ exact (Alpha_rename r (Let_cont_recursive handlers body) Hvars
-          Hconts)
-      | ].
-    eapply Alpha_trans; [ exact (Hhandlers [] (rename_expr r body)) | ].
-    eapply Alpha_trans;
-      [ exact (Alpha_context
-          (Let_cont_recursive_body (rename_handlers r' handlers') Hole)
-          _ _ IH)
-      | ].
-    exact (Alpha_sym _ _
-      (Alpha_rename r' (Let_cont_recursive handlers' body') Hvars' Hconts')).
-  - intros ac. apply Alpha_refl.
-  - intros scrutinee arms. apply Alpha_refl.
-  - apply Alpha_refl.
-  - (* a handler *)
-    intros r r' params params' metadata handler handler' Hvars Hconts Hvars'
-      Hconts' Hbound _ IH.
-    split.
-    + intros k body.
-      eapply Alpha_trans;
-        [ exact (Alpha_handler r k params metadata handler body Hvars Hconts)
-        | ].
-      eapply Alpha_trans;
-        [ exact (Alpha_context
-            (Let_cont_non_recursive_handler k
-               (map (rename_variable r) params) metadata Hole body)
-            _ _ IH)
-        | ].
-      simpl. rewrite Hbound.
-      exact (Alpha_sym _ _
-        (Alpha_handler r' k params' metadata handler' body Hvars' Hconts')).
-    + intros before k after body.
-      eapply Alpha_trans;
-        [ exact (Alpha_recursive_handler r before k params metadata handler
-            after body Hvars Hconts)
-        | ].
-      eapply Alpha_trans;
-        [ exact (Alpha_context
-            (Let_cont_recursive_handler before k
-               (map (rename_variable r) params) metadata Hole after body)
-            _ _ IH)
-        | ].
-      simpl. rewrite Hbound.
-      exact (Alpha_sym _ _
-        (Alpha_recursive_handler r' before k params' metadata handler' after
-           body Hvars' Hconts')).
-  - intros before body. apply Alpha_refl.
-  - (* a handler and the handlers after it *)
-    intros k h h' handlers handlers' _ [_ Hhandler] _ IH before body.
-    eapply Alpha_trans; [ exact (Hhandler before k handlers body) | ].
-    specialize (IH (before ++ [(k, h')]) body).
-    rewrite <- !app_assoc in IH. exact IH.
-Qed.
-
-Theorem alpha_structural_sound : alpha_structural_sound_statement.
-Proof. exact (proj1 alpha_structural_sound_mutual). Qed.
-
 
 (* ======================================================================== *)
 (* Execution is equivariant in the variables                                *)
@@ -1129,8 +1415,9 @@ Qed.
 
 Theorem rename_variables_equivalent : rename_variables_equivalent_statement.
 Proof.
-  intros r e vars conts statics Hconts.
+  intros r e vars conts statics Hclosed Hconts.
   apply renamed_equivalent.
+  - exact Hclosed.
   - intros x _. apply lookup_rename_env.
   - intros k Hk. apply conts_agree_same, Hconts, Hk.
 Qed.
