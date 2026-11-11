@@ -35,12 +35,21 @@
    runs are the same; the continuation closures and the code are not, as
    their bound names differ, so those are related ([cont_matches],
    [statics_match]). The runs start under one pair of environments, which
-   needs [expr_eqb] to be reflexive ([expr_eqb_refl]). *)
+   needs [expr_eqb] to be reflexive ([expr_eqb_refl]).
+
+   The environments need agree only on the names that are free in the
+   expression, and the environments a continuation closure keeps only on
+   those free in its handlers ([envs_match] and [conts_match] take the
+   names that matter). So the bisimulation also serves where one
+   expression runs under two environments that differ elsewhere, and it
+   is the only one about bound names: the statements of
+   FlambdaNominalSpec.v are proved from it ([matched_equivalent]). *)
 
 From Stdlib Require Import ZArith List Bool Arith.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec FlambdaSemanticsProofs FlambdaCompareSpec.
+  FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
+  FlambdaNominalSpec FlambdaCompareSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -223,52 +232,82 @@ Qed.
 (* Environments that give paired names the same things                      *)
 (* ======================================================================== *)
 
-Definition envs_match (vm : name_map) (vars vars' : env) : Prop :=
+(* The names that matter are those that satisfy [relevant]: the free
+   variables of what is about to run. *)
+Definition envs_match (relevant : variable -> Prop) (vm : name_map)
+    (vars vars' : env) : Prop :=
   ∀ x x' : variable,
-    names_match vm x x' = true -> lookup x vars = lookup x' vars'.
+    relevant x -> names_match vm x x' = true ->
+    lookup x vars = lookup x' vars'.
 
-Lemma envs_match_same (vars : env) : envs_match [] vars vars.
-Proof. intros x x' Hx. apply names_match_nil in Hx. subst x'. reflexivity. Qed.
-
-Lemma envs_match_cons (vm : name_map) (vars vars' : env) (a a' : variable)
-    (v : value) :
-  envs_match vm vars vars' ->
-  envs_match ((a, a') :: vm) ((a, v) :: vars) ((a', v) :: vars').
+Lemma envs_match_same (relevant : variable -> Prop) (vars : env) :
+  envs_match relevant [] vars vars.
 Proof.
-  intros Hmatch x x'. simpl. destruct (Pos.eqb x a).
+  intros x x' _ Hx. apply names_match_nil in Hx. subst x'. reflexivity.
+Qed.
+
+Lemma envs_match_weaken (relevant fewer : variable -> Prop) (vm : name_map)
+    (vars vars' : env) :
+  (∀ x : variable, fewer x -> relevant x) ->
+  envs_match relevant vm vars vars' ->
+  envs_match fewer vm vars vars'.
+Proof. intros Hfewer Hmatch x x' Hx. apply Hmatch, Hfewer, Hx. Qed.
+
+(* From the match of two environments, their match on fewer names; what
+   is left to show is that the fewer are among the first. *)
+Ltac fewer_variables H :=
+  refine (envs_match_weaken _ _ _ _ _ _ H); intros ? ?.
+
+Lemma envs_match_cons (relevant inner : variable -> Prop) (vm : name_map)
+    (vars vars' : env) (a a' : variable) (v : value) :
+  (∀ x : variable, inner x -> x = a ∨ relevant x) ->
+  envs_match relevant vm vars vars' ->
+  envs_match inner ((a, a') :: vm) ((a, v) :: vars) ((a', v) :: vars').
+Proof.
+  intros Hinner Hmatch x x' Hx. simpl.
+  destruct (Pos.eqb_spec x a) as [-> | Hne].
   - intros ->. reflexivity.
-  - destruct (Pos.eqb x' a'); [ discriminate | apply Hmatch ].
+  - destruct (Pos.eqb x' a'); [ discriminate | ]. apply Hmatch.
+    destruct (Hinner x Hx); [ contradiction | assumption ].
 Qed.
 
 (* Binding paired parameters: both fail or both succeed, and then the
    environments match under the pairs with those of the parameters. *)
 Lemma bind_params_match (params : list variable) :
   ∀ (params' : list variable) (vs : list value) (vm vm' : name_map)
-    (vars vars' : env),
+    (vars vars' : env) (relevant inner : variable -> Prop),
+    (∀ x : variable, inner x -> x ∈ params ∨ relevant x) ->
     bind_names params params' vm = Some vm' ->
-    envs_match vm vars vars' ->
+    envs_match relevant vm vars vars' ->
     match bind_params params vs vars, bind_params params' vs vars' with
-    | Some bound, Some bound' => envs_match vm' bound bound'
+    | Some bound, Some bound' => envs_match inner vm' bound bound'
     | None, None => True
     | _, _ => False
     end.
 Proof.
   induction params as [ | p params IH];
-    intros [ | p' params'] vs vm vm' vars vars'; simpl; try discriminate.
-  - intros [= <-] Hmatch. destruct vs; [ exact Hmatch | exact I ].
+    intros [ | p' params'] vs vm vm' vars vars' relevant inner Hinner; simpl;
+    try discriminate.
+  - intros [= <-] Hmatch. destruct vs; [ | exact I ].
+    apply (envs_match_weaken relevant); [ | exact Hmatch ].
+    intros x Hx. destruct (Hinner x Hx) as [[] | Hrelevant]. exact Hrelevant.
   - intros Hbind Hmatch. destruct vs as [ | v vs]; [ exact I | ].
-    apply (IH params' vs _ _ _ _ Hbind), envs_match_cons, Hmatch.
+    apply (IH params' vs ((p, p') :: vm) vm' ((p, v) :: vars)
+             ((p', v) :: vars') (fun x => x = p ∨ relevant x) inner);
+      [ | exact Hbind | ].
+    + intros x Hx. destruct (Hinner x Hx) as [[<- | Hin] | Hrelevant]; auto.
+    + apply (envs_match_cons relevant); [ auto | exact Hmatch ].
 Qed.
 
 Lemma eval_simple_match (vm : name_map) (vars vars' : env) (s s' : simple) :
-  envs_match vm vars vars' ->
+  envs_match (fun x => var_free_in_simple x s) vm vars vars' ->
   simple_eqb vm s s' = true ->
   eval_simple vars s = eval_simple vars' s'.
 Proof.
   intros Hmatch.
   destruct s as [x | sym | c], s' as [x' | sym' | c']; simpl;
     try discriminate.
-  - apply Hmatch.
+  - apply Hmatch. reflexivity.
   - intros Heq. apply Pos.eqb_eq in Heq. subst sym'. reflexivity.
   - unfold const_eqb. destruct (const_eq_dec c c'); [ | discriminate ].
     subst c'. reflexivity.
@@ -276,33 +315,50 @@ Qed.
 
 Lemma eval_simples_match (vm : name_map) (vars vars' : env)
     (args : list simple) :
-  envs_match vm vars vars' ->
+  envs_match (fun x => var_free_in_simples x args) vm vars vars' ->
   ∀ args' : list simple,
     simples_eqb vm args args' = true ->
     eval_simples vars args = eval_simples vars' args'.
 Proof.
-  intros Hmatch. unfold simples_eqb.
-  induction args as [ | s args IH]; intros [ | s' args']; simpl;
+  unfold simples_eqb, var_free_in_simples.
+  induction args as [ | s args IH]; intros Hmatch [ | s' args']; simpl;
     try discriminate; [ reflexivity | ].
   intros Heq. apply andb_true_iff in Heq as [Hs Hargs].
-  rewrite (eval_simple_match vm vars vars' s s' Hmatch Hs), (IH args' Hargs).
+  assert (Hfirst : envs_match (fun x => var_free_in_simple x s) vm vars vars')
+    by (fewer_variables Hmatch; apply Exists_cons_hd; assumption).
+  assert (Hrest :
+    envs_match (fun x => Exists (var_free_in_simple x) args) vm vars vars')
+    by (fewer_variables Hmatch; apply Exists_cons_tl; assumption).
+  rewrite (eval_simple_match vm vars vars' s s' Hfirst Hs),
+    (IH Hrest args' Hargs).
   reflexivity.
 Qed.
 
 Lemma eval_value_slots_match (vm : name_map) (vars vars' : env)
     (slots : list (value_slot * simple)) :
-  envs_match vm vars vars' ->
+  envs_match
+    (fun x => Exists (fun slot => var_free_in_simple x (snd slot)) slots)
+    vm vars vars' ->
   ∀ slots' : list (value_slot * simple),
     value_slots_eqb vm slots slots' = true ->
     eval_value_slots vars slots = eval_value_slots vars' slots'.
 Proof.
-  intros Hmatch. unfold value_slots_eqb.
-  induction slots as [ | [slot s] slots IH]; intros [ | [slot' s'] slots'];
-    simpl; try discriminate; [ reflexivity | ].
+  unfold value_slots_eqb.
+  induction slots as [ | [slot s] slots IH];
+    intros Hmatch [ | [slot' s'] slots']; simpl; try discriminate;
+    [ reflexivity | ].
   intros Heq. apply andb_true_iff in Heq as [Hslot Hslots].
   apply andb_true_iff in Hslot as [Hslot Hs].
   apply Pos.eqb_eq in Hslot. subst slot'.
-  rewrite (eval_simple_match vm vars vars' s s' Hmatch Hs), (IH slots' Hslots).
+  assert (Hfirst : envs_match (fun x => var_free_in_simple x s) vm vars vars')
+    by (fewer_variables Hmatch; apply Exists_cons_hd; assumption).
+  assert (Hrest :
+    envs_match
+      (fun x => Exists (fun slot => var_free_in_simple x (snd slot)) slots)
+      vm vars vars')
+    by (fewer_variables Hmatch; apply Exists_cons_tl; assumption).
+  rewrite (eval_simple_match vm vars vars' s s' Hfirst Hs),
+    (IH Hrest slots' Hslots).
   reflexivity.
 Qed.
 
@@ -371,7 +427,7 @@ Qed.
 
 Lemma eval_named_match (vm : name_map) (vars vars' : env)
     (statics statics' : static_env) (d d' : named) :
-  envs_match vm vars vars' ->
+  envs_match (fun x => var_free_in_named x d) vm vars vars' ->
   statics_match statics statics' ->
   named_eqb vm d d' = true ->
   eval_named statics vars d = eval_named statics' vars' d'.
@@ -430,7 +486,7 @@ Qed.
 
 Lemma eval_static_const_match (vm : name_map) (vars vars' : env)
     (const const' : static_const) :
-  envs_match vm vars vars' ->
+  envs_match (fun x => var_free_in_static_const x const) vm vars vars' ->
   static_const_eqb vm const const' = true ->
   eval_static_const vars const = eval_static_const vars' const'.
 Proof.
@@ -464,7 +520,8 @@ Qed.
    both fail, or the results match. *)
 Lemma eval_static_bindings_match (vm : name_map) (vars vars' : env)
     (bindings : list static_binding) :
-  envs_match vm vars vars' ->
+  envs_match (fun x => Exists (var_free_in_static_binding x) bindings) vm vars
+    vars' ->
   ∀ (bindings' : list static_binding) (statics statics' : static_env),
     forall2b (binding_eqb vm) bindings bindings' = true ->
     statics_match statics statics' ->
@@ -477,12 +534,19 @@ Lemma eval_static_bindings_match (vm : name_map) (vars vars' : env)
     | _, _ => False
     end.
 Proof.
-  intros Hmatch.
   induction bindings as [ | binding bindings IH];
-    intros [ | binding' bindings'] statics statics'; simpl; try discriminate;
-    [ intros _ Hstatics; exact Hstatics | ].
+    intros Hmatch [ | binding' bindings'] statics statics'; simpl;
+    try discriminate; [ intros _ Hstatics; exact Hstatics | ].
   intros Heq Hstatics. pose proof Hstatics as [Hcode Hvalues].
   apply andb_true_iff in Heq as [Hbinding Hrest].
+  assert (Hmatch_first :
+    envs_match (fun x => var_free_in_static_binding x binding) vm vars vars')
+    by (fewer_variables Hmatch; apply Exists_cons_hd; assumption).
+  assert (Hmatch_rest :
+    envs_match (fun x => Exists (var_free_in_static_binding x) bindings) vm
+      vars vars')
+    by (fewer_variables Hmatch; apply Exists_cons_tl; assumption).
+  specialize (IH Hmatch_rest).
   destruct binding as [id c | id | sym const],
     binding' as [id' c' | id' | sym' const'];
     simpl in Hbinding; try discriminate.
@@ -497,7 +561,8 @@ Proof.
   - apply andb_true_iff in Hbinding as [Hsym Hconst].
     apply Pos.eqb_eq in Hsym. subst sym'. rewrite <- Hvalues.
     destruct (lookup sym (static_values statics)); [ exact I | ].
-    rewrite (eval_static_const_match vm vars vars' const const' Hmatch Hconst).
+    rewrite (eval_static_const_match vm vars vars' const const' Hmatch_first
+      Hconst).
     destruct (eval_static_const vars' const') as [allocated | ]; simpl;
       [ | exact I ].
     apply (IH bindings' _ _ Hrest). split; [ exact Hcode | ].
@@ -516,7 +581,9 @@ Definition handlers_eqb (vm km : name_map)
 (* What two continuation names that match stand for: the same way out, the
    same continuation, or closures whose handlers are the same up to bound
    names, under the pairs of names of where they were defined, with
-   matching environments. *)
+   environments that match on the names free in the handlers: those of
+   the handler itself and of the handlers defined with it, any of which
+   it may come to run. *)
 #[local] Set Warnings "-register-all".
 Inductive cont_matches : cont_value -> cont_value -> Prop :=
   | Same_matches (c : cont_value) : cont_matches c c
@@ -526,74 +593,148 @@ Inductive cont_matches : cont_value -> cont_value -> Prop :=
     combine_names (map fst recursive) (map fst recursive') km = Some km' ->
     handler_eqb vm km' h h' = true ->
     handlers_eqb vm km' recursive recursive' = true ->
-    envs_match vm vars vars' ->
+    envs_match
+      (fun x =>
+         var_free_in_handler x h
+         ∨ any_handler (var_free_in_handler x) recursive)
+      vm vars vars' ->
     (∀ k k' : continuation,
+      (cont_free_in_handler k h
+       ∨ any_handler (cont_free_in_handler k) recursive)
+      ∧ lookup k recursive = None ->
       names_match km k k' = true ->
       cont_matches (resolve k conts) (resolve k' conts')) ->
     cont_matches (Closure h vars conts recursive)
       (Closure h' vars' conts' recursive').
 
-Definition conts_match (km : name_map) (conts conts' : cont_env) : Prop :=
+(* As [envs_match]: the names that matter are the free continuations of
+   what is about to run. *)
+Definition conts_match (relevant : continuation -> Prop) (km : name_map)
+    (conts conts' : cont_env) : Prop :=
   ∀ k k' : continuation,
-    names_match km k k' = true ->
+    relevant k -> names_match km k k' = true ->
     cont_matches (resolve k conts) (resolve k' conts').
 
-Lemma conts_match_same (conts : cont_env) : conts_match [] conts conts.
+Lemma conts_match_same (relevant : continuation -> Prop) (conts : cont_env) :
+  conts_match relevant [] conts conts.
 Proof.
-  intros k k' Hk. apply names_match_nil in Hk. subst k'. apply Same_matches.
+  intros k k' _ Hk. apply names_match_nil in Hk. subst k'. apply Same_matches.
 Qed.
 
-Lemma conts_match_cons (km : name_map) (conts conts' : cont_env)
-    (a a' : continuation) (c c' : cont_value) :
-  conts_match km conts conts' ->
+Lemma conts_match_weaken (relevant fewer : continuation -> Prop)
+    (km : name_map) (conts conts' : cont_env) :
+  (∀ k : continuation, fewer k -> relevant k) ->
+  conts_match relevant km conts conts' ->
+  conts_match fewer km conts conts'.
+Proof. intros Hfewer Hmatch k k' Hk. apply Hmatch, Hfewer, Hk. Qed.
+
+Ltac fewer_continuations H :=
+  refine (conts_match_weaken _ _ _ _ _ _ H); intros ? ?.
+
+Lemma conts_match_cons (relevant inner : continuation -> Prop)
+    (km : name_map) (conts conts' : cont_env) (a a' : continuation)
+    (c c' : cont_value) :
+  (∀ k : continuation, inner k -> k = a ∨ relevant k) ->
+  conts_match relevant km conts conts' ->
   cont_matches c c' ->
-  conts_match ((a, a') :: km) ((a, c) :: conts) ((a', c') :: conts').
+  conts_match inner ((a, a') :: km) ((a, c) :: conts) ((a', c') :: conts').
 Proof.
-  intros Hmatch Hc k k'. unfold resolve. simpl. destruct (Pos.eqb k a).
+  intros Hinner Hmatch Hc k k' Hk. unfold resolve. simpl.
+  destruct (Pos.eqb_spec k a) as [-> | Hne].
   - intros ->. exact Hc.
-  - destruct (Pos.eqb k' a'); [ discriminate | apply Hmatch ].
+  - destruct (Pos.eqb k' a'); [ discriminate | ]. apply Hmatch.
+    destruct (Hinner k Hk); [ contradiction | assumption ].
+Qed.
+
+(* What satisfies a predicate and is one of the handlers. *)
+Lemma any_handler_in {A : Type} (P : A -> Prop) (k : continuation) (h : A)
+    (handlers : list (continuation * A)) :
+  (k, h) ∈ handlers -> P h -> any_handler P handlers.
+Proof.
+  induction handlers as [ | [k0 h0] handlers IH]; simpl; [ intros [] | ].
+  intros [[= -> ->] | Hin] Hh; [ left; exact Hh | right; exact (IH Hin Hh) ].
+Qed.
+
+(* A name is bound by a list of handlers or is one of its names. *)
+Lemma lookup_none_or_in {A : Type} (k : continuation)
+    (handlers : list (continuation * A)) :
+  lookup k handlers = None ∨ k ∈ map fst handlers.
+Proof.
+  destruct (lookup k handlers) as [h | ] eqn:Hlookup; [ right | left; auto ].
+  apply lookup_in in Hlookup. apply in_map_iff. exists (k, h). auto.
 Qed.
 
 (* The environments in which the handlers of two matching recursive groups
    run. [all] and [all'] are the whole groups, kept apart from the handlers
-   still to be gone through. *)
-Lemma rec_conts_match_aux (vm km km' : name_map) (vars vars' : env)
-    (conts conts' : cont_env)
+   still to be gone through. The continuations that matter outside the
+   group are [relevant]; among them are those free in the group. *)
+Lemma rec_conts_match_aux (relevant : continuation -> Prop)
+    (vm km km' : name_map) (vars vars' : env) (conts conts' : cont_env)
     (all all' : list (continuation * continuation_handler)) :
   combine_names (map fst all) (map fst all') km = Some km' ->
   handlers_eqb vm km' all all' = true ->
-  envs_match vm vars vars' ->
-  conts_match km conts conts' ->
-  ∀ handlers handlers' : list (continuation * continuation_handler),
+  envs_match (fun x => any_handler (var_free_in_handler x) all) vm vars vars'
+  ->
+  (∀ k : continuation,
+    any_handler (cont_free_in_handler k) all -> lookup k all = None ->
+    relevant k) ->
+  conts_match relevant km conts conts' ->
+  ∀ (handlers handlers' : list (continuation * continuation_handler))
+    (inner : continuation -> Prop),
+    (∀ (k : continuation) (h : continuation_handler),
+      (k, h) ∈ handlers -> (k, h) ∈ all) ->
+    (∀ k : continuation, inner k -> k ∈ map fst handlers ∨ relevant k) ->
     handlers_eqb vm km' handlers handlers' = true ->
-    conts_match (combine (map fst handlers) (map fst handlers') ++ km)
+    conts_match inner (combine (map fst handlers) (map fst handlers') ++ km)
       (map (fun '(k, h) => (k, Closure h vars conts all)) handlers ++ conts)
       (map (fun '(k, h) => (k, Closure h vars' conts' all')) handlers'
        ++ conts').
 Proof.
-  intros Hnames Hall Hvars Hconts. unfold handlers_eqb.
+  intros Hnames Hall Hvars Hgroup Hconts. unfold handlers_eqb.
   induction handlers as [ | [k h] handlers IH];
-    intros [ | [k' h'] handlers']; simpl; try discriminate;
-    [ intros _; exact Hconts | ].
-  intros Heq. apply andb_true_iff in Heq as [Hh Hrest].
-  apply conts_match_cons; [ exact (IH handlers' Hrest) | ].
-  exact (Closure_matches vm km km' h h' vars vars' conts conts' all all'
-    Hnames Hh Hall Hvars Hconts).
+    intros [ | [k' h'] handlers'] inner Hin Hinner; simpl; try discriminate.
+  - intros _. apply (conts_match_weaken relevant); [ | exact Hconts ].
+    intros j Hj. destruct (Hinner j Hj) as [[] | Hrelevant]. exact Hrelevant.
+  - intros Heq. apply andb_true_iff in Heq as [Hh Hrest].
+    apply (conts_match_cons (fun j => j ∈ map fst handlers ∨ relevant j)).
+    + intros j Hj. destruct (Hinner j Hj) as [[<- | Hbound] | Hrelevant]; auto.
+    + apply (IH handlers'); [ | auto | exact Hrest ].
+      intros j hj Hj. apply Hin. right. exact Hj.
+    + pose proof (Hin k h (or_introl eq_refl)) as Hh_in.
+      apply (Closure_matches vm km km' h h' vars vars' conts conts' all all'
+               Hnames Hh Hall).
+      * fewer_variables Hvars.
+        match goal with
+        | Hx : _ ∨ _ |- _ =>
+          destruct Hx as [Hx | Hx];
+            [ exact (any_handler_in _ k h all Hh_in Hx) | exact Hx ]
+        end.
+      * intros j j' [Hj Hunbound] Hmatch. apply Hconts; [ | exact Hmatch ].
+        apply Hgroup; [ | exact Hunbound ].
+        destruct Hj as [Hj | Hj];
+          [ exact (any_handler_in _ k h all Hh_in Hj) | exact Hj ].
 Qed.
 
-Lemma rec_conts_match (vm km km' : name_map) (vars vars' : env)
-    (conts conts' : cont_env)
+Lemma rec_conts_match (relevant inner : continuation -> Prop)
+    (vm km km' : name_map) (vars vars' : env) (conts conts' : cont_env)
     (handlers handlers' : list (continuation * continuation_handler)) :
   combine_names (map fst handlers) (map fst handlers') km = Some km' ->
   handlers_eqb vm km' handlers handlers' = true ->
-  envs_match vm vars vars' ->
-  conts_match km conts conts' ->
-  conts_match km' (rec_closures handlers vars conts ++ conts)
+  envs_match (fun x => any_handler (var_free_in_handler x) handlers) vm vars
+    vars' ->
+  (∀ k : continuation,
+    any_handler (cont_free_in_handler k) handlers ->
+    lookup k handlers = None ->
+    relevant k) ->
+  (∀ k : continuation, inner k -> k ∈ map fst handlers ∨ relevant k) ->
+  conts_match relevant km conts conts' ->
+  conts_match inner km' (rec_closures handlers vars conts ++ conts)
     (rec_closures handlers' vars' conts' ++ conts').
 Proof.
-  intros Hnames Hhandlers Hvars Hconts.
-  pose proof (rec_conts_match_aux vm km km' vars vars' conts conts' handlers
-    handlers' Hnames Hhandlers Hvars Hconts handlers handlers' Hhandlers)
+  intros Hnames Hhandlers Hvars Hgroup Hinner Hconts.
+  pose proof (rec_conts_match_aux relevant vm km km' vars vars' conts conts'
+    handlers handlers' Hnames Hhandlers Hvars Hgroup Hconts handlers
+    handlers' inner (fun k h Hin => Hin) Hinner Hhandlers)
     as Hmatch.
   assert (Hkm' :
     km' = combine (map fst handlers) (map fst handlers') ++ km).
@@ -614,8 +755,8 @@ Inductive state_matches : state -> state -> Prop :=
   | State_matches (vm km : name_map) (e e' : expr) (vars vars' : env)
       (conts conts' : cont_env) (statics statics' : static_env) :
     expr_eqb vm km e e' = true ->
-    envs_match vm vars vars' ->
-    conts_match km conts conts' ->
+    envs_match (fun x => var_free_in_expr x e) vm vars vars' ->
+    conts_match (fun k => cont_free_in_expr k e) km conts conts' ->
     statics_match statics statics' ->
     state_matches (State e vars conts statics) (State e' vars' conts' statics').
 
@@ -654,8 +795,17 @@ Proof.
       combine_names (map fst recursive) (map fst recursive') km = Some km' ->
       handler_eqb vm km' h h' = true ->
       handlers_eqb vm km' recursive recursive' = true ->
-      envs_match vm vars vars' ->
-      conts_match km conts conts' ->
+      envs_match
+        (fun x =>
+           var_free_in_handler x h
+           ∨ any_handler (var_free_in_handler x) recursive)
+        vm vars vars' ->
+      conts_match
+        (fun k =>
+           (cont_free_in_handler k h
+            ∨ any_handler (cont_free_in_handler k) recursive)
+           ∧ lookup k recursive = None)
+        km conts conts' ->
       result_related state_matches
         (apply_cont_value (Closure h vars conts recursive) vs statics)
         (apply_cont_value (Closure h' vars' conts' recursive') vs statics')).
@@ -664,14 +814,27 @@ Proof.
     simpl in Hh |- *.
     destruct (bind_names params params' vm) as [vm' | ] eqn:Hbind;
       [ | discriminate ].
-    pose proof (bind_params_match params params' vs vm vm' vars vars' Hbind
-      Hvars) as Hbound.
+    pose proof (bind_params_match params params' vs vm vm' vars vars' _
+      (fun x => var_free_in_expr x handler)
+      (fun x Hx =>
+         match in_dec Pos.eq_dec x params with
+         | left Hin => or_introl Hin
+         | right Hnotin => or_intror (or_introl (conj Hnotin Hx))
+         end)
+      Hbind Hvars) as Hbound.
     destruct (bind_params params vs vars), (bind_params params' vs vars');
       try contradiction; simpl; [ | exact I ].
     apply (State_matches vm' km');
       [ exact Hh | exact Hbound | | exact Hstatics ].
-    exact (rec_conts_match vm km km' vars vars' conts conts' recursive
-      recursive' Hnames Hrec Hvars Hconts). }
+    refine
+      (rec_conts_match _ _ vm km km' vars vars' conts conts' recursive
+         recursive' Hnames Hrec _ _ _ Hconts).
+    - fewer_variables Hvars. right. assumption.
+    - intros k Hk Hunbound. split; [ right; exact Hk | exact Hunbound ].
+    - intros k Hk.
+      destruct (lookup_none_or_in k recursive) as [Hunbound | Hin];
+        [ right | left; exact Hin ].
+      split; [ left; exact Hk | exact Hunbound ]. }
   destruct Hc
     as [[h vars conts recursive | exit]
        | vm km km' h h' vars vars' conts conts' recursive recursive' Hnames
@@ -679,7 +842,7 @@ Proof.
   - destruct (closure_matches_itself h vars conts recursive)
       as (km' & Hnames & Hh & Hrec).
     exact (Hclosure [] [] km' h h vars vars conts conts recursive recursive
-      Hnames Hh Hrec (envs_match_same vars) (conts_match_same conts)).
+      Hnames Hh Hrec (envs_match_same _ vars) (conts_match_same _ conts)).
   - simpl. auto.
   - exact (Hclosure vm km km' h h' vars vars' conts conts' recursive
       recursive' Hnames Hh Hrec Hvars Hconts).
@@ -790,17 +953,20 @@ Proof.
   rewrite <- (expr_eqb_binds_statics body _ _ _ Hc).
   destruct (binds_statics body); [ exact I | ].
   pose proof (bind_params_match params params' vs _ vm
-    [(my_closure, callee)] [(my_closure', callee)] Hbind
-    (envs_match_cons [] [] [] my_closure my_closure' callee
-       (envs_match_same [])))
+    [(my_closure, callee)] [(my_closure', callee)] (fun _ => True)
+    (fun x => var_free_in_expr x body) (fun x _ => or_intror I) Hbind
+    (envs_match_cons (fun _ => True) (fun _ => True) [] [] [] my_closure
+       my_closure' callee (fun x _ => or_intror I)
+       (envs_match_same _ [])))
     as Hbound.
   destruct (bind_params params vs [(my_closure, callee)]),
     (bind_params params' vs [(my_closure', callee)]);
     try contradiction; simpl; [ | exact I ].
   apply (State_matches vm [(ret, ret'); (exn, exn')]);
     [ exact Hc | exact Hbound | | exact Hstatics ].
-  apply conts_match_cons; [ | exact Hreturn ].
-  apply conts_match_cons; [ apply conts_match_same | exact Hexn ].
+  apply (conts_match_cons (fun _ => True)); [ auto | | exact Hreturn ].
+  apply (conts_match_cons (fun _ => True));
+    [ auto | apply conts_match_same | exact Hexn ].
 Qed.
 
 Lemma find_arm_match (vm km : name_map) (i : Z)
@@ -840,27 +1006,48 @@ Proof.
     simpl in He; try discriminate; autorewrite with step; simpl.
   - (* Let *)
     apply andb_true_iff in He as [Hd Hbody].
-    rewrite (eval_named_match vm vars vars' statics statics' d d' Hvars
+    assert (Hvars_d :
+      envs_match (fun y => var_free_in_named y d) vm vars vars')
+      by (fewer_variables Hvars; left; assumption).
+    rewrite (eval_named_match vm vars vars' statics statics' d d' Hvars_d
       Hstatics Hd).
     destruct (eval_named statics' vars' d') as [v | ]; simpl; [ | exact I ].
     apply (State_matches ((x, x') :: vm) km);
-      [ exact Hbody | apply envs_match_cons, Hvars | exact Hconts
-      | exact Hstatics ].
+      [ exact Hbody | | exact Hconts | exact Hstatics ].
+    refine (envs_match_cons _ _ _ _ _ _ _ _ _ Hvars). intros y Hy.
+    destruct (Pos.eq_dec y x) as [Heq | Hne]; [ left; exact Heq | ].
+    right. right. split; assumption.
   - (* Let_static *)
     apply andb_true_iff in He as [Hbindings Hbody].
-    pose proof (eval_static_bindings_match vm vars vars' bindings Hvars
-      bindings' statics statics' Hbindings Hstatics) as Hextended.
+    assert (Hvars_bindings :
+      envs_match (fun y => Exists (var_free_in_static_binding y) bindings) vm
+        vars vars')
+      by (fewer_variables Hvars; left; assumption).
+    pose proof (eval_static_bindings_match vm vars vars' bindings
+      Hvars_bindings bindings' statics statics' Hbindings Hstatics)
+      as Hextended.
     destruct (eval_static_bindings vars bindings statics),
       (eval_static_bindings vars' bindings' statics');
       try contradiction; simpl; [ | exact I ].
-    apply (State_matches vm km); assumption.
+    apply (State_matches vm km);
+      [ exact Hbody | | exact Hconts | exact Hextended ].
+    fewer_variables Hvars. right. assumption.
   - (* Let_cont_non_recursive *)
     apply andb_true_iff in He as [Hh Hbody].
     apply (State_matches vm ((k, k') :: km));
-      [ exact Hbody | exact Hvars | | exact Hstatics ].
-    apply conts_match_cons; [ exact Hconts | ].
-    apply (Closure_matches vm km km h h' vars vars' conts conts' [] []);
-      [ reflexivity | exact Hh | reflexivity | exact Hvars | exact Hconts ].
+      [ exact Hbody | fewer_variables Hvars; right; assumption | 
+      | exact Hstatics ].
+    refine (conts_match_cons _ _ _ _ _ _ _ _ _ _ Hconts _).
+    + intros j Hj.
+      destruct (Pos.eq_dec j k) as [Heq | Hne]; [ left; exact Heq | ].
+      right. right. split; assumption.
+    + apply (Closure_matches vm km km h h' vars vars' conts conts' [] []);
+        [ reflexivity | exact Hh | reflexivity | | ].
+      * fewer_variables Hvars.
+        match goal with
+        | Hy : _ ∨ _ |- _ => destruct Hy as [Hy | []]; left; exact Hy
+        end.
+      * intros j j' [[Hj | []] _]. apply Hconts. left. exact Hj.
   - (* Let_cont_recursive *)
     destruct (combine_names (map fst handlers) (map fst handlers') km)
       as [km' | ] eqn:Hnames; [ | discriminate ].
@@ -869,9 +1056,17 @@ Proof.
       Hhandlers).
     destruct (handlers_bind_statics handlers); [ exact I | ].
     apply (State_matches vm km');
-      [ exact Hbody | exact Hvars | | exact Hstatics ].
-    exact (rec_conts_match vm km km' vars vars' conts conts' handlers
-      handlers' Hnames Hhandlers Hvars Hconts).
+      [ exact Hbody | fewer_variables Hvars; right; assumption | 
+      | exact Hstatics ].
+    refine
+      (rec_conts_match _ _ vm km km' vars vars' conts conts' handlers
+         handlers' Hnames Hhandlers _ _ _ Hconts).
+    + fewer_variables Hvars. left. assumption.
+    + intros j Hj Hunbound. split; [ exact Hunbound | left; exact Hj ].
+    + intros j Hj.
+      destruct (lookup_none_or_in j handlers) as [Hunbound | Hbound];
+        [ right | left; exact Hbound ].
+      split; [ exact Hunbound | right; exact Hj ].
   - (* Apply *)
     unfold apply_eqb in He.
     apply andb_true_iff in He as [He Hexn].
@@ -879,35 +1074,57 @@ Proof.
     apply andb_true_iff in He as [He Hargs].
     apply andb_true_iff in He as [Hcallee Hkind].
     apply call_kind_eqb_eq in Hkind.
-    rewrite (eval_simple_match vm vars vars' _ _ Hvars Hcallee),
-      (eval_simples_match vm vars vars' _ Hvars _ Hargs), <- Hkind.
+    assert (Hvars_callee :
+      envs_match (fun y => var_free_in_simple y (ap_callee ap)) vm vars vars')
+      by (fewer_variables Hvars; left; assumption).
+    assert (Hvars_args :
+      envs_match (fun y => var_free_in_simples y (ap_args ap)) vm vars vars')
+      by (fewer_variables Hvars; right; assumption).
+    rewrite (eval_simple_match vm vars vars' _ _ Hvars_callee Hcallee),
+      (eval_simples_match vm vars vars' _ Hvars_args _ Hargs), <- Hkind.
     destruct (eval_simple vars' (ap_callee ap')) as [callee | ];
       [ | exact I ].
     destruct (eval_simples vars' (ap_args ap')) as [vs | ]; [ | exact I ].
     apply call_function_match;
-      [ exact Hstatics | exact (Hconts _ _ Hreturn) | exact (Hconts _ _ Hexn) ].
+      [ exact Hstatics
+      | exact (Hconts _ _ (or_introl eq_refl) Hreturn)
+      | exact (Hconts _ _ (or_intror eq_refl) Hexn) ].
   - (* Apply_cont *)
     unfold apply_cont_eqb in He. apply andb_true_iff in He as [Hk Hargs].
     rewrite (eval_simples_match vm vars vars' _ Hvars _ Hargs).
     destruct (eval_simples vars' (ac_args ac')) as [vs | ]; [ | exact I ].
-    apply apply_cont_value_match; [ exact (Hconts _ _ Hk) | exact Hstatics ].
+    apply apply_cont_value_match;
+      [ exact (Hconts _ _ eq_refl Hk) | exact Hstatics ].
   - (* Switch *)
     apply andb_true_iff in He as [Hscrutinee Harms].
-    rewrite (eval_simple_match vm vars vars' _ _ Hvars Hscrutinee).
+    assert (Hvars_scrutinee :
+      envs_match (fun y => var_free_in_simple y scrutinee) vm vars vars')
+      by (fewer_variables Hvars; left; assumption).
+    rewrite (eval_simple_match vm vars vars' _ _ Hvars_scrutinee Hscrutinee).
     destruct (eval_simple vars' scrutinee') as [v | ]; [ | exact I ].
     destruct (naked_immediate_of_value v) as [i | ]; [ | exact I ].
     pose proof (find_arm_match vm km i arms arms' Harms) as Harm.
-    destruct (find_arm i arms) as [ac | ], (find_arm i arms') as [ac' | ];
+    destruct (find_arm i arms) as [ac | ] eqn:Hfind,
+      (find_arm i arms') as [ac' | ];
       try contradiction; simpl; [ | exact I ].
-    apply (State_matches vm km); assumption.
+    apply find_arm_in in Hfind.
+    apply (State_matches vm km); [ exact Harm | | | exact Hstatics ].
+    + fewer_variables Hvars. right. apply Exists_exists.
+      exists (i, ac). split; assumption.
+    + fewer_continuations Hconts. apply Exists_exists.
+      exists (i, ac). split; assumption.
   - (* Invalid *)
     exact I.
 Qed.
 
+(* So two states that match are equivalent. *)
+Theorem matched_equivalent (s s' : state) :
+  state_matches s s' -> equivalent s s'.
+Proof. apply (bisimulation_equivalent state_matches matched_step). Qed.
+
 Theorem expr_eqb_sound : expr_eqb_sound_statement.
 Proof.
-  intros e e' Heq vars conts statics.
-  apply (bisimulation_equivalent state_matches matched_step).
+  intros e e' Heq vars conts statics. apply matched_equivalent.
   apply (State_matches [] []);
     [ exact Heq | apply envs_match_same | apply conts_match_same
     | apply statics_match_same ].

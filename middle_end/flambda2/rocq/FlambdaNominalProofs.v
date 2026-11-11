@@ -30,16 +30,19 @@
 
    All of them come from one fact ([renamed_equivalent]): a state and its
    renaming, under environments that agree on the free names along the
-   renaming, are equivalent. The two run in step with each other, so this
-   is a bisimulation (FlambdaSemanticsProofs.bisimulation_equivalent). A
-   continuation closure is related to its renaming by a renaming of its
-   own ([closure_renamed]), since it was made under other environments. *)
+   renaming, are equivalent. That fact is an instance of the bisimulation
+   of FlambdaCompareProofs.v, which relates two states whose expressions
+   the comparison accepts: the comparison accepts an expression against
+   its renaming, under the maps of names that pair each name with its
+   image ([rename_expr_eqb], [variables_map]). There is no bisimulation
+   here. *)
 
-From Stdlib Require Import ZArith List.
+From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
-  FlambdaNominalSpec.
+  FlambdaMapProofs FlambdaPrimitiveSpec FlambdaPrimitiveProofs
+  FlambdaSemanticsSpec FlambdaSemanticsProofs FlambdaNominalSpec
+  FlambdaCompareSpec FlambdaCompareProofs.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -161,7 +164,7 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
-(* Lookups and evaluation under a renaming                                  *)
+(* Lookups under a renaming                                                 *)
 (* ======================================================================== *)
 
 Lemma lookup_rename_handlers (r : renaming) (k : continuation)
@@ -172,92 +175,6 @@ Proof.
   induction handlers as [ | [k' h] handlers IH]; simpl; [ reflexivity | ].
   rewrite rename_continuation_eqb.
   destruct (Pos.eqb k k'); [ reflexivity | exact IH ].
-Qed.
-
-Lemma lookup_any_handler {A : Type} (P : A -> Prop) (k : continuation)
-    (handlers : list (continuation * A)) (h : A) :
-  lookup k handlers = Some h -> P h -> any_handler P handlers.
-Proof.
-  induction handlers as [ | [k' h'] handlers IH]; simpl; [ discriminate | ].
-  destruct (Pos.eqb k k').
-  - intros [= ->] Hh. left. exact Hh.
-  - intros Hlookup Hh. right. exact (IH Hlookup Hh).
-Qed.
-
-Lemma eval_simple_renamed (r : renaming) (s : simple) (vars vars' : env) :
-  (∀ x : variable,
-    var_free_in_simple x s ->
-    lookup (rename_variable r x) vars' = lookup x vars) ->
-  eval_simple vars' (rename_simple r s) = eval_simple vars s.
-Proof.
-  intros Hvars. destruct s as [x | sym | c]; simpl; try reflexivity.
-  apply Hvars. reflexivity.
-Qed.
-
-Lemma eval_simples_renamed (r : renaming) (args : list simple)
-    (vars vars' : env) :
-  (∀ x : variable,
-    var_free_in_simples x args ->
-    lookup (rename_variable r x) vars' = lookup x vars) ->
-  eval_simples vars' (map (rename_simple r) args) = eval_simples vars args.
-Proof.
-  induction args as [ | s args IH]; intros Hvars; simpl; [ reflexivity | ].
-  rewrite (eval_simple_renamed r s vars vars'), IH; [ reflexivity | | ];
-    intros x Hx; apply Hvars; [ apply Exists_cons_tl | apply Exists_cons_hd ];
-    exact Hx.
-Qed.
-
-Lemma eval_value_slots_renamed (r : renaming)
-    (slots : list (value_slot * simple)) (vars vars' : env) :
-  (∀ x : variable,
-    Exists (fun slot => var_free_in_simple x (snd slot)) slots ->
-    lookup (rename_variable r x) vars' = lookup x vars) ->
-  eval_value_slots vars'
-    (map (fun slot => (fst slot, rename_simple r (snd slot))) slots)
-  = eval_value_slots vars slots.
-Proof.
-  induction slots as [ | [slot s] slots IH]; intros Hvars; simpl;
-    [ reflexivity | ].
-  rewrite (eval_simple_renamed r s vars vars'), IH; [ reflexivity | | ];
-    intros x Hx; apply Hvars; [ apply Exists_cons_tl | apply Exists_cons_hd ];
-    exact Hx.
-Qed.
-
-Lemma eval_named_renamed (r : renaming) (d : named) (vars vars' : env)
-    (statics : static_env) :
-  (∀ x : variable,
-    var_free_in_named x d ->
-    lookup (rename_variable r x) vars' = lookup x vars) ->
-  eval_named statics vars' (rename_named r d) = eval_named statics vars d.
-Proof.
-  intros Hvars.
-  destruct d as [s | p args | code slots | fslot decls slots | slot closure
-    | pfrom slot closure | move_from move_to closure]; simpl.
-  - apply eval_simple_renamed, Hvars.
-  - rewrite (eval_simples_renamed r args vars vars' Hvars). reflexivity.
-  - rewrite (eval_value_slots_renamed r slots vars vars' Hvars). reflexivity.
-  - rewrite (eval_value_slots_renamed r slots vars vars' Hvars). reflexivity.
-  - rewrite (eval_simple_renamed r closure vars vars' Hvars). reflexivity.
-  - rewrite (eval_simple_renamed r closure vars vars' Hvars). reflexivity.
-  - rewrite (eval_simple_renamed r closure vars vars' Hvars). reflexivity.
-Qed.
-
-Lemma eval_static_const_renamed (r : renaming) (const : static_const)
-    (vars vars' : env) :
-  (∀ x : variable,
-    var_free_in_static_const x const ->
-    lookup (rename_variable r x) vars' = lookup x vars) ->
-  eval_static_const vars' (rename_static_const r const)
-  = eval_static_const vars const.
-Proof.
-  intros Hvars.
-  destruct const
-    as [code slots | fslot syms decls slots | tag fields | s | bytes]; simpl.
-  - rewrite (eval_value_slots_renamed r slots vars vars' Hvars). reflexivity.
-  - rewrite (eval_value_slots_renamed r slots vars vars' Hvars). reflexivity.
-  - rewrite (eval_simples_renamed r fields vars vars' Hvars). reflexivity.
-  - rewrite (eval_simple_renamed r s vars vars' Hvars). reflexivity.
-  - reflexivity.
 Qed.
 
 (* A renaming leaves what binds something static as it is. *)
@@ -280,404 +197,433 @@ Proof.
     rewrite rename_binds_statics, IH. reflexivity.
 Qed.
 
-Lemma rename_handlers_bind_statics (r : renaming)
+(* ======================================================================== *)
+(* Names paired with their images                                           *)
+(* ======================================================================== *)
+
+Section Paired.
+
+Variable f : positive -> positive.
+
+Hypothesis f_eqb : ∀ x y : positive, Pos.eqb (f x) (f y) = Pos.eqb x y.
+
+Definition paired (xs : list positive) : name_map :=
+  map (fun x => (x, f x)) xs.
+
+(* A name matches its image if it is one of the paired names, or if it
+   did so before they were added. *)
+Lemma names_match_paired (xs : list positive) (m : name_map)
+    (y : positive) :
+  y ∈ xs ∨ names_match m y (f y) = true ->
+  names_match (paired xs ++ m) y (f y) = true.
+Proof.
+  induction xs as [ | x xs IH]; simpl.
+  - intros [[] | Hm]. exact Hm.
+  - intros Hy. rewrite f_eqb. destruct (Pos.eqb_spec y x) as [-> | Hne];
+      [ reflexivity | ].
+    apply IH. destruct Hy as [[Heq | Hin] | Hm];
+      [ congruence | left; exact Hin | right; exact Hm ].
+Qed.
+
+(* And what a name matches is its image, unless it is not one of the
+   paired names. *)
+Lemma names_match_paired_inv (xs : list positive) (m : name_map)
+    (y y' : positive) :
+  names_match (paired xs ++ m) y y' = true ->
+  y' = f y ∨ (y ∉ xs ∧ names_match m y y' = true).
+Proof.
+  induction xs as [ | x xs IH]; simpl.
+  - intros Hm. right. split; [ intros [] | exact Hm ].
+  - destruct (Pos.eqb_spec y x) as [-> | Hne].
+    + intros Heq. apply Pos.eqb_eq in Heq. left. exact Heq.
+    + destruct (Pos.eqb y' (f x)); [ discriminate | ].
+      intros Hmatch.
+      destruct (IH Hmatch) as [Heq | [Hnotin Hm]]; [ left; exact Heq | ].
+      right. split; [ | exact Hm ].
+      intros [Heq | Hin]; [ congruence | contradiction ].
+Qed.
+
+Lemma bind_names_paired (xs : list positive) :
+  ∀ m : name_map,
+    bind_names xs (map f xs) m = Some (paired (rev xs) ++ m).
+Proof.
+  induction xs as [ | x xs IH]; intros m; simpl; [ reflexivity | ].
+  rewrite IH. unfold paired. rewrite map_app, <- app_assoc. reflexivity.
+Qed.
+
+Lemma combine_names_paired (xs : list positive) (m : name_map) :
+  combine_names xs (map f xs) m = Some (paired xs ++ m).
+Proof.
+  unfold combine_names. rewrite length_map, Nat.eqb_refl. do 2 f_equal.
+  induction xs as [ | x xs IH]; simpl; [ reflexivity | ].
+  rewrite IH. reflexivity.
+Qed.
+
+End Paired.
+
+Lemma forall2b_map {A B : Type} (f : A -> B -> bool) (g : A -> B)
+    (l : list A) :
+  (∀ a : A, a ∈ l -> f a (g a) = true) -> forall2b f l (map g l) = true.
+Proof.
+  induction l as [ | a l IH]; simpl; intros Hf; [ reflexivity | ].
+  rewrite (Hf a (or_introl eq_refl)), IH; [ reflexivity | ].
+  intros b Hb. apply Hf. right. exact Hb.
+Qed.
+
+Lemma forall2b_app {A B : Type} (f : A -> B -> bool) (l1 l2 : list A)
+    (l1' l2' : list B) :
+  forall2b f l1 l1' = true -> forall2b f l2 l2' = true ->
+  forall2b f (l1 ++ l2) (l1' ++ l2') = true.
+Proof.
+  revert l1'. induction l1 as [ | a l1 IH]; intros [ | b l1']; simpl;
+    try discriminate; [ auto | ].
+  intros H1 H2. apply andb_true_iff in H1 as [Hab H1].
+  rewrite Hab, IH; auto.
+Qed.
+
+(* ======================================================================== *)
+(* The comparison accepts a renaming                                        *)
+(* ======================================================================== *)
+
+Section Renamed.
+
+Variable r : renaming.
+
+Variable vm : name_map.
+
+(* The variables that the map pairs with their images. *)
+Definition matched (free : variable -> Prop) : Prop :=
+  ∀ x : variable, free x -> names_match vm x (rename_variable r x) = true.
+
+Lemma simple_eqb_renamed (s : simple) :
+  matched (fun x => var_free_in_simple x s) ->
+  simple_eqb vm s (rename_simple r s) = true.
+Proof.
+  destruct s as [x | sym | c]; simpl; intros Hfree;
+    [ apply Hfree; reflexivity | apply Pos.eqb_refl | apply const_eqb_refl ].
+Qed.
+
+Lemma simples_eqb_renamed (args : list simple) :
+  matched (fun x => var_free_in_simples x args) ->
+  simples_eqb vm args (map (rename_simple r) args) = true.
+Proof.
+  intros Hfree. apply forall2b_map. intros s Hin. apply simple_eqb_renamed.
+  intros x Hx. apply Hfree, Exists_exists. exists s. split; assumption.
+Qed.
+
+Lemma value_slots_eqb_renamed (slots : list (value_slot * simple)) :
+  matched
+    (fun x => Exists (fun slot => var_free_in_simple x (snd slot)) slots) ->
+  value_slots_eqb vm slots
+    (map (fun slot => (fst slot, rename_simple r (snd slot))) slots)
+  = true.
+Proof.
+  intros Hfree. apply forall2b_map. intros slot Hin. simpl.
+  rewrite Pos.eqb_refl. apply simple_eqb_renamed.
+  intros x Hx. apply Hfree, Exists_exists. exists slot. split; assumption.
+Qed.
+
+Lemma named_eqb_renamed (d : named) :
+  matched (fun x => var_free_in_named x d) ->
+  named_eqb vm d (rename_named r d) = true.
+Proof.
+  destruct d
+    as [s | p args | code slots | fslot decls slots | slot closure
+       | pfrom slot closure | move_from move_to closure];
+    simpl; intros Hfree;
+    rewrite ?prim_eqb_refl, ?Pos.eqb_refl, ?names_eqb_refl; simpl.
+  - apply simple_eqb_renamed, Hfree.
+  - apply simples_eqb_renamed, Hfree.
+  - apply value_slots_eqb_renamed, Hfree.
+  - apply value_slots_eqb_renamed, Hfree.
+  - apply simple_eqb_renamed, Hfree.
+  - apply simple_eqb_renamed, Hfree.
+  - apply simple_eqb_renamed, Hfree.
+Qed.
+
+Lemma static_const_eqb_renamed (const : static_const) :
+  matched (fun x => var_free_in_static_const x const) ->
+  static_const_eqb vm const (rename_static_const r const) = true.
+Proof.
+  destruct const
+    as [code slots | fslot syms decls slots | tag fields | s | bytes];
+    simpl; intros Hfree;
+    rewrite ?Pos.eqb_refl, ?Z.eqb_refl, ?names_eqb_refl; simpl.
+  - apply value_slots_eqb_renamed, Hfree.
+  - apply value_slots_eqb_renamed, Hfree.
+  - apply simples_eqb_renamed, Hfree.
+  - apply simple_eqb_renamed, Hfree.
+  - apply forall2b_refl, Z.eqb_refl.
+Qed.
+
+(* Code is not renamed, and is the same as itself. *)
+Lemma binding_eqb_renamed (binding : static_binding) :
+  matched (fun x => var_free_in_static_binding x binding) ->
+  binding_eqb vm binding (rename_static_binding r binding) = true.
+Proof.
+  destruct binding as [id c | id | sym const]; simpl; intros Hfree;
+    rewrite Pos.eqb_refl; [ apply code_eqb_refl | reflexivity | ].
+  apply static_const_eqb_renamed, Hfree.
+Qed.
+
+Lemma apply_cont_eqb_renamed (km : name_map) (ac : apply_cont) :
+  matched (fun x => var_free_in_simples x (ac_args ac)) ->
+  names_match km (ac_continuation ac)
+    (rename_continuation r (ac_continuation ac))
+  = true ->
+  apply_cont_eqb vm km ac (rename_apply_cont r ac) = true.
+Proof.
+  intros Hfree Hk. unfold apply_cont_eqb. simpl. rewrite Hk.
+  apply simples_eqb_renamed, Hfree.
+Qed.
+
+Lemma apply_eqb_renamed (km : name_map) (ap : apply_expr) :
+  matched
+    (fun x =>
+       var_free_in_simple x (ap_callee ap)
+       ∨ var_free_in_simples x (ap_args ap)) ->
+  names_match km (ap_continuation ap)
+    (rename_continuation r (ap_continuation ap))
+  = true ->
+  names_match km (ap_exn_continuation ap)
+    (rename_continuation r (ap_exn_continuation ap))
+  = true ->
+  apply_eqb vm km ap (rename_apply r ap) = true.
+Proof.
+  intros Hfree Hreturn Hexn. unfold apply_eqb. simpl.
+  rewrite Hreturn, Hexn, simple_eqb_renamed, simples_eqb_renamed.
+  - destruct (ap_call_kind ap); simpl; rewrite ?Pos.eqb_refl; reflexivity.
+  - intros x Hx. apply Hfree. right. exact Hx.
+  - intros x Hx. apply Hfree. left. exact Hx.
+Qed.
+
+End Renamed.
+
+Lemma map_fst_rename_handlers (r : renaming)
     (handlers : list (continuation * continuation_handler)) :
-  handlers_bind_statics
-    (map (fun '(k, h) => (rename_continuation r k, rename_handler r h))
-       handlers)
-  = handlers_bind_statics handlers.
+  map fst (rename_handlers r handlers)
+  = map (rename_continuation r) (map fst handlers).
 Proof.
-  unfold handlers_bind_statics.
-  induction handlers as [ | [k [params handler]] handlers IH]; simpl;
-    [ reflexivity | ].
-  rewrite rename_binds_statics, IH. reflexivity.
+  induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
+  rewrite IH. reflexivity.
 Qed.
 
-Lemma eval_static_bindings_renamed (r : renaming)
-    (bindings : list static_binding) (vars vars' : env) :
-  (∀ x : variable,
-    Exists (var_free_in_static_binding x) bindings ->
-    lookup (rename_variable r x) vars' = lookup x vars) ->
-  ∀ statics : static_env,
-    eval_static_bindings vars' (map (rename_static_binding r) bindings)
-      statics
-    = eval_static_bindings vars bindings statics.
+(* The comparison accepts an expression against its renaming, under maps
+   that pair each free name with its image. At a binder the bound names
+   are added to the map, each with its image. *)
+Fixpoint rename_expr_eqb (r : renaming) (e : expr) :
+  ∀ vm km : name_map,
+    matched r vm (fun x => var_free_in_expr x e) ->
+    (∀ k : continuation,
+      cont_free_in_expr k e ->
+      names_match km k (rename_continuation r k) = true) ->
+    expr_eqb vm km e (rename_expr r e) = true
+with rename_handler_eqb (r : renaming) (h : continuation_handler) :
+  ∀ vm km : name_map,
+    matched r vm (fun x => var_free_in_handler x h) ->
+    (∀ k : continuation,
+      cont_free_in_handler k h ->
+      names_match km k (rename_continuation r k) = true) ->
+    handler_eqb vm km h (rename_handler r h) = true.
 Proof.
-  induction bindings as [ | binding bindings IH]; intros Hvars statics;
-    [ reflexivity | ].
-  assert (Hrest :
-    ∀ x : variable,
-      Exists (var_free_in_static_binding x) bindings ->
-      lookup (rename_variable r x) vars' = lookup x vars).
-  { intros x Hx. apply Hvars. apply Exists_cons_tl. exact Hx. }
-  destruct binding as [id c | id | sym const]; simpl;
-    [ destruct (lookup id (static_code statics));
-        [ reflexivity | apply IH, Hrest ]
-    | apply IH, Hrest
-    | ].
-  destruct (lookup sym (static_values statics)); [ reflexivity | ].
-  rewrite (eval_static_const_renamed r const vars vars').
-  - destruct (eval_static_const vars const); simpl;
-      [ apply IH, Hrest | reflexivity ].
-  - intros x Hx. apply Hvars. apply Exists_cons_hd. exact Hx.
+  - destruct e
+      as [ x d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      intros vm km Hvars Hconts; simpl.
+    + (* Let *)
+      rewrite named_eqb_renamed
+        by (intros y Hy; apply Hvars; left; exact Hy).
+      apply rename_expr_eqb; [ | exact Hconts ].
+      intros y Hy.
+      apply (names_match_paired (rename_variable r) (rename_variable_eqb r)
+               [x] vm y).
+      destruct (Pos.eq_dec y x) as [-> | Hne];
+        [ left; left; reflexivity | right ].
+      apply Hvars. right. split; assumption.
+    + (* Let_static *)
+      apply andb_true_iff. split.
+      * apply forall2b_map. intros binding Hin. apply binding_eqb_renamed.
+        intros x Hx. apply Hvars. left. apply Exists_exists.
+        exists binding. split; assumption.
+      * apply rename_expr_eqb; [ | exact Hconts ].
+        intros x Hx. apply Hvars. right. exact Hx.
+    + (* Let_cont_non_recursive *)
+      rewrite (rename_handler_eqb r h vm km);
+        [ | intros x Hx; apply Hvars; left; exact Hx
+          | intros k' Hk'; apply Hconts; left; exact Hk' ].
+      apply rename_expr_eqb.
+      * intros x Hx. apply Hvars. right. exact Hx.
+      * intros k' Hk'.
+        apply (names_match_paired (rename_continuation r)
+                 (rename_continuation_eqb r) [k] km k').
+        destruct (Pos.eq_dec k' k) as [-> | Hne];
+          [ left; left; reflexivity | right ].
+        apply Hconts. right. split; assumption.
+    + (* Let_cont_recursive *)
+      fold (rename_handlers r handlers).
+      rewrite map_fst_rename_handlers,
+        (combine_names_paired (rename_continuation r)).
+      unfold rename_handlers.
+      remember (paired (rename_continuation r) (map fst handlers) ++ km)
+        as km' eqn:Hkm'.
+      assert (Hconts' :
+        ∀ k : continuation,
+          any_handler (cont_free_in_handler k) handlers
+          ∨ cont_free_in_expr k body ->
+          names_match km' k (rename_continuation r k) = true).
+      { intros k Hk. subst km'.
+        apply names_match_paired; [ apply rename_continuation_eqb | ].
+        destruct (lookup_none_or_in k handlers) as [Hunbound | Hbound];
+          [ right | left; exact Hbound ].
+        apply Hconts. split; assumption. }
+      apply andb_true_iff. split.
+      * assert (Hfree :
+          matched r vm
+            (fun x => any_handler (var_free_in_handler x) handlers))
+          by (intros x Hx; apply Hvars; left; exact Hx).
+        assert (Hfree_conts :
+          ∀ k : continuation,
+            any_handler (cont_free_in_handler k) handlers ->
+            names_match km' k (rename_continuation r k) = true)
+          by (intros k Hk; apply Hconts'; left; exact Hk).
+        clear Hvars Hconts Hconts' Hkm'.
+        induction handlers as [ | [k h] handlers IH]; simpl;
+          [ reflexivity | ].
+        rewrite (rename_handler_eqb r h vm km'), IH;
+          [ reflexivity | | | | ].
+        -- intros x Hx. apply Hfree. right. exact Hx.
+        -- intros k' Hk'. apply Hfree_conts. right. exact Hk'.
+        -- intros x Hx. apply Hfree. left. exact Hx.
+        -- intros k' Hk'. apply Hfree_conts. left. exact Hk'.
+      * apply rename_expr_eqb.
+        -- intros x Hx. apply Hvars. right. exact Hx.
+        -- intros k Hk. apply Hconts'. right. exact Hk.
+    + (* Apply *)
+      apply apply_eqb_renamed; [ exact Hvars | | ]; apply Hconts; simpl; auto.
+    + (* Apply_cont *)
+      apply apply_cont_eqb_renamed; [ exact Hvars | ].
+      apply Hconts. reflexivity.
+    + (* Switch *)
+      rewrite simple_eqb_renamed
+        by (intros x Hx; apply Hvars; left; exact Hx).
+      apply forall2b_map. intros arm Hin. simpl. rewrite Z.eqb_refl.
+      apply apply_cont_eqb_renamed.
+      * intros x Hx. apply Hvars. right. apply Exists_exists.
+        exists arm. split; assumption.
+      * apply Hconts, Exists_exists. exists arm. split; auto.
+    + (* Invalid *)
+      reflexivity.
+  - destruct h as [params handler]. intros vm km Hvars Hconts. simpl.
+    rewrite (bind_names_paired (rename_variable r)).
+    apply rename_expr_eqb; [ | exact Hconts ].
+    intros x Hx.
+    apply names_match_paired; [ apply rename_variable_eqb | ].
+    destruct (in_dec Pos.eq_dec x params) as [Hin | Hnotin];
+      [ left; apply in_rev in Hin; exact Hin | right ].
+    apply Hvars. split; assumption.
 Qed.
 
-(* Binding renamed parameters: both fail or both succeed, and then the
-   environments agree at a variable that is a parameter or at which they
-   agreed. *)
-Lemma bind_params_renamed (r : renaming) (params : list variable) :
-  ∀ (vs : list value) (vars vars' : env),
-    match
-      bind_params params vs vars,
-      bind_params (map (rename_variable r) params) vs vars'
-    with
-    | Some bound, Some bound' =>
-      ∀ x : variable,
-        x ∈ params ∨ lookup (rename_variable r x) vars' = lookup x vars ->
-        lookup (rename_variable r x) bound' = lookup x bound
-    | None, None => True
-    | _, _ => False
-    end.
+(* ======================================================================== *)
+(* A renaming as a map of names                                             *)
+(* ======================================================================== *)
+
+(* The names that a permutation may move. *)
+Fixpoint moved (p : permutation) : list positive :=
+  match p with
+  | [] => []
+  | (a, b) :: p => a :: b :: moved p
+  end.
+
+Lemma permute_not_moved (p : permutation) (x : positive) :
+  x ∉ moved p -> permute p x = x.
 Proof.
-  induction params as [ | p params IH]; intros [ | v vs] vars vars'; simpl;
-    try exact I.
-  - intros x [[] | Hagree]. exact Hagree.
-  - specialize (IH vs ((p, v) :: vars) ((rename_variable r p, v) :: vars')).
-    destruct (bind_params params vs ((p, v) :: vars)),
-      (bind_params (map (rename_variable r) params) vs
-         ((rename_variable r p, v) :: vars'));
-      try contradiction; try exact I.
-    intros x Hx. apply IH. simpl. rewrite rename_variable_eqb.
-    destruct (Pos.eqb_spec x p) as [-> | Hne]; [ right; reflexivity | ].
-    destruct Hx as [[Heq | Hin] | Hagree];
-      [ congruence | left; exact Hin | right; exact Hagree ].
+  induction p as [ | [a b] p IH]; simpl; [ reflexivity | ].
+  intros Hnotin.
+  rewrite IH by (intros Hin; apply Hnotin; right; right; exact Hin).
+  unfold swap.
+  destruct (Pos.eqb_spec x a) as [-> | _];
+    [ exfalso; apply Hnotin; left; reflexivity | ].
+  destruct (Pos.eqb_spec x b) as [-> | _];
+    [ exfalso; apply Hnotin; right; left; reflexivity | reflexivity ].
 Qed.
 
-Lemma find_arm_renamed (r : renaming) (i : Z) (arms : list (Z * apply_cont)) :
-  find_arm i (map (fun arm => (fst arm, rename_apply_cont r (snd arm))) arms)
-  = option_map (rename_apply_cont r) (find_arm i arms).
+(* The map that pairs every name with its image: the names moved are
+   paired, and one that is not is its own image. *)
+Lemma names_match_graph (p : permutation) (x x' : positive) :
+  names_match (paired (permute p) (moved p)) x x' = true <-> x' = permute p x.
 Proof.
-  induction arms as [ | [discriminant ac] arms IH]; simpl; [ reflexivity | ].
-  destruct (Z.eqb i discriminant); [ reflexivity | exact IH ].
+  rewrite <- (app_nil_r (paired (permute p) (moved p))). split.
+  - intros Hmatch.
+    apply names_match_paired_inv in Hmatch as [Heq | [Hnotin Heq]];
+      [ exact Heq | ].
+    apply names_match_nil in Heq. subst x'. symmetry.
+    apply permute_not_moved, Hnotin.
+  - intros ->. apply names_match_paired; [ apply permute_eqb | ].
+    destruct (in_dec Pos.eq_dec x (moved p)) as [Hin | Hnotin];
+      [ left; exact Hin | right ].
+    simpl. rewrite (permute_not_moved p x Hnotin). apply Pos.eqb_refl.
 Qed.
+
+Definition variables_map (r : renaming) : name_map :=
+  paired (rename_variable r) (moved (variable_permutation r)).
+
+Definition continuations_map (r : renaming) : name_map :=
+  paired (rename_continuation r) (moved (continuation_permutation r)).
+
+Lemma variables_map_graph (r : renaming) (x x' : variable) :
+  names_match (variables_map r) x x' = true <-> x' = rename_variable r x.
+Proof. exact (names_match_graph (variable_permutation r) x x'). Qed.
+
+Lemma continuations_map_graph (r : renaming) (k k' : continuation) :
+  names_match (continuations_map r) k k' = true
+  <-> k' = rename_continuation r k.
+Proof. exact (names_match_graph (continuation_permutation r) k k'). Qed.
 
 (* ======================================================================== *)
 (* A state and its renaming                                                 *)
 (* ======================================================================== *)
 
-(* What relates a handler [h] of a closure to its renaming by [r], given
-   the environments of the two closures and the handlers defined with
-   them: the variable environments agree along [r] on the free variables
-   of [h]; a free continuation of [h] that the group does not define is not
-   defined by the other group either, and what it stands for in the one
-   environment and what [r] sends it to stands for in the other are
-   related by [C]; and one that the group defines, with a handler [hk], is
-   sent by [r] to one the other group defines with [hk] renamed by the
-   renaming chosen for it. *)
-Definition handler_agrees (C : cont_value -> cont_value -> Prop)
-    (choice : continuation -> renaming) (r : renaming)
-    (h : continuation_handler) (vars vars' : env) (conts conts' : cont_env)
-    (recursive recursive' : list (continuation * continuation_handler))
-    : Prop :=
-  (∀ x : variable,
-    var_free_in_handler x h ->
-    lookup (rename_variable r x) vars' = lookup x vars)
-  ∧ (∀ k : continuation,
-      cont_free_in_handler k h ->
-      lookup k recursive = None ->
-      lookup (rename_continuation r k) recursive' = None
-      ∧ C (resolve k conts) (resolve (rename_continuation r k) conts'))
-  ∧ (∀ (k : continuation) (hk : continuation_handler),
-      cont_free_in_handler k h ->
-      lookup k recursive = Some hk ->
-      lookup (rename_continuation r k) recursive'
-      = Some (rename_handler (choice k) hk)).
-
-(* A continuation and its renaming: the same, which covers a way out; or
-   two closures, of a handler and its renaming. Each handler of a
-   recursive group may have been renamed by a renaming of its own,
-   [choice] of its continuation. (The warning silenced is about induction
-   schemes, which nothing uses.) *)
-#[local] Set Warnings "-register-all".
-Inductive closure_renamed : cont_value -> cont_value -> Prop :=
-  | Closure_same (c : cont_value) : closure_renamed c c
-  | Closure_renamed (choice : continuation -> renaming) (r : renaming)
-      (h : continuation_handler) (vars vars' : env) (conts conts' : cont_env)
-      (recursive recursive' : list (continuation * continuation_handler)) :
-    handler_agrees closure_renamed choice r h vars vars' conts conts'
-      recursive recursive' ->
-    (∀ (j : continuation) (hj : continuation_handler),
-      lookup j recursive = Some hj ->
-      handler_agrees closure_renamed choice (choice j) hj vars vars' conts
-        conts' recursive recursive') ->
-    closure_renamed (Closure h vars conts recursive)
-      (Closure (rename_handler r h) vars' conts' recursive').
-
 (* Two continuation environments agree at [k] along [r]: what [k] stands
-   for in the one and what [r] sends it to stands for in the other are a
-   continuation and its renaming. If neither binds it, [r] fixes it, as it
-   is observed. *)
+   for in the one and what [r] sends it to stands for in the other match
+   (FlambdaCompareProofs.cont_matches). If neither binds it, [r] fixes
+   it, as it is observed. *)
 Definition conts_agree_at (r : renaming) (k : continuation)
     (conts conts' : cont_env) : Prop :=
-  closure_renamed (resolve k conts)
-    (resolve (rename_continuation r k) conts').
-
-Inductive state_renamed : state -> state -> Prop :=
-  | State_same (s : state) : state_renamed s s
-  | State_renamed (r : renaming) (e : expr) (vars vars' : env)
-      (conts conts' : cont_env) (statics : static_env) :
-    (∀ x : variable,
-      var_free_in_expr x e ->
-      lookup (rename_variable r x) vars' = lookup x vars) ->
-    (∀ k : continuation,
-      cont_free_in_expr k e -> conts_agree_at r k conts conts') ->
-    state_renamed (State e vars conts statics)
-      (State (rename_expr r e) vars' conts' statics).
+  cont_matches (resolve k conts) (resolve (rename_continuation r k) conts').
 
 (* One environment agrees with itself at a continuation the renaming
    fixes. *)
 Lemma conts_agree_same (r : renaming) (k : continuation) (conts : cont_env) :
   rename_continuation r k = k -> conts_agree_at r k conts conts.
 Proof.
-  intros Hfix. unfold conts_agree_at. rewrite Hfix. apply Closure_same.
+  intros Hfix. unfold conts_agree_at. rewrite Hfix. apply Same_matches.
 Qed.
 
-(* The environments in which the handlers of two groups run, their own
-   closures included, agree at the free continuations of a handler that
-   agrees. *)
-Lemma group_conts_agree (choice : continuation -> renaming) (r : renaming)
-    (h : continuation_handler) (vars vars' : env) (conts conts' : cont_env)
-    (recursive recursive' : list (continuation * continuation_handler)) :
-  handler_agrees closure_renamed choice r h vars vars' conts conts'
-    recursive recursive' ->
-  (∀ (j : continuation) (hj : continuation_handler),
-    lookup j recursive = Some hj ->
-    handler_agrees closure_renamed choice (choice j) hj vars vars' conts
-      conts' recursive recursive') ->
-  ∀ k : continuation,
-    cont_free_in_handler k h ->
-    conts_agree_at r k (rec_closures recursive vars conts ++ conts)
-      (rec_closures recursive' vars' conts' ++ conts').
-Proof.
-  intros (_ & Hunbound & Hbound) Hgroup k Hk. unfold conts_agree_at, resolve.
-  rewrite !lookup_rec_closures_app.
-  destruct (lookup k recursive) as [hk | ] eqn:Hlookup.
-  - rewrite (Hbound k hk Hk Hlookup).
-    apply (Closure_renamed choice (choice k));
-      [ exact (Hgroup k hk Hlookup) | exact Hgroup ].
-  - destruct (Hunbound k Hk Hlookup) as [Hnone Hagree].
-    rewrite Hnone. exact Hagree.
-Qed.
-
-(* A closure that is not recursive and its renaming. *)
-Lemma closure_renamed_non_recursive (r : renaming) (h : continuation_handler)
-    (vars vars' : env) (conts conts' : cont_env) :
-  (∀ x : variable,
-    var_free_in_handler x h ->
-    lookup (rename_variable r x) vars' = lookup x vars) ->
-  (∀ k : continuation,
-    cont_free_in_handler k h -> conts_agree_at r k conts conts') ->
-  closure_renamed (Closure h vars conts [])
-    (Closure (rename_handler r h) vars' conts' []).
-Proof.
-  intros Hvars Hconts. apply (Closure_renamed (fun _ => r) r).
-  - split; [ exact Hvars | ]. split.
-    + intros k Hk _. split; [ reflexivity | exact (Hconts k Hk) ].
-    + intros k hk _ Hlookup. discriminate Hlookup.
-  - intros j hj Hlookup. discriminate Hlookup.
-Qed.
-
-(* A recursive group and its renaming by one renaming throughout: every
-   handler agrees. *)
-Lemma uniform_group_agrees (r : renaming)
-    (handlers : list (continuation * continuation_handler))
-    (vars vars' : env) (conts conts' : cont_env) :
-  (∀ x : variable,
-    any_handler (var_free_in_handler x) handlers ->
-    lookup (rename_variable r x) vars' = lookup x vars) ->
-  (∀ k : continuation,
-    lookup k handlers = None ->
-    any_handler (cont_free_in_handler k) handlers ->
-    conts_agree_at r k conts conts') ->
-  ∀ (j : continuation) (hj : continuation_handler),
-    lookup j handlers = Some hj ->
-    handler_agrees closure_renamed (fun _ => r) r hj vars vars' conts conts'
-      handlers (rename_handlers r handlers).
-Proof.
-  intros Hvars Hconts j hj Hlookup. split; [ | split ].
-  - intros x Hx. apply Hvars. exact (lookup_any_handler _ _ _ _ Hlookup Hx).
-  - intros k Hk Hnone.
-    split; [ rewrite lookup_rename_handlers, Hnone; reflexivity | ].
-    apply Hconts; [ exact Hnone | ].
-    exact (lookup_any_handler _ _ _ _ Hlookup Hk).
-  - intros k hk _ Hk. rewrite lookup_rename_handlers, Hk. reflexivity.
-Qed.
-
-(* Agreement at [k] once the closures of such a group and of its renaming
-   are added. *)
-Lemma uniform_rec_conts_agree (r : renaming)
-    (handlers : list (continuation * continuation_handler))
-    (vars vars' : env) (conts conts' : cont_env) :
-  (∀ x : variable,
-    any_handler (var_free_in_handler x) handlers ->
-    lookup (rename_variable r x) vars' = lookup x vars) ->
-  (∀ k : continuation,
-    lookup k handlers = None ->
-    any_handler (cont_free_in_handler k) handlers ->
-    conts_agree_at r k conts conts') ->
-  ∀ k : continuation,
-    (lookup k handlers = None -> conts_agree_at r k conts conts') ->
-    conts_agree_at r k (rec_closures handlers vars conts ++ conts)
-      (rec_closures (rename_handlers r handlers) vars' conts' ++ conts').
-Proof.
-  intros Hvars Hconts k Hunbound. unfold conts_agree_at, resolve.
-  rewrite !lookup_rec_closures_app, lookup_rename_handlers.
-  destruct (lookup k handlers) as [hk | ] eqn:Hlookup; simpl.
-  - apply (Closure_renamed (fun _ => r) r).
-    + exact (uniform_group_agrees r handlers vars vars' conts conts' Hvars
-        Hconts k hk Hlookup).
-    + exact (uniform_group_agrees r handlers vars vars' conts conts' Hvars
-        Hconts).
-  - apply Hunbound. reflexivity.
-Qed.
-
-(* Applying a continuation and its renaming to the same values. *)
-Lemma apply_cont_value_renamed (c c' : cont_value) (vs : list value)
-    (statics : static_env) :
-  closure_renamed c c' ->
-  result_related state_renamed (apply_cont_value c vs statics)
-    (apply_cont_value c' vs statics).
-Proof.
-  intros
-    [[[params handler] vars conts0 recursive | exit]
-    | choice r' [params handler] vars vars' conts0 conts0' recursive
-        recursive' Hh Hgroup];
-    simpl.
-  - destruct (bind_params params vs vars); simpl;
-      [ apply State_same | exact I ].
-  - auto.
-  - pose proof (bind_params_renamed r' params vs vars vars') as Hbind.
-    destruct (bind_params params vs vars),
-      (bind_params (map (rename_variable r') params) vs vars');
-      try contradiction; simpl; [ | exact I ].
-    apply State_renamed.
-    + intros x Hx. apply Hbind.
-      destruct (in_dec Pos.eq_dec x params) as [Hin | Hnotin];
-        [ left; exact Hin | right ].
-      apply (proj1 Hh). split; assumption.
-    + intros k' Hk'.
-      exact (group_conts_agree _ _ _ _ _ _ _ _ _ Hh Hgroup k' Hk').
-Qed.
-
-(* One expression under environments that agree on its free names is a
-   state and its renaming by the identity. *)
-Lemma state_renamed_identity (e : expr) (vars vars' : env)
+(* A state and its renaming, under environments that agree on its free
+   names along the renaming: the comparison accepts the two expressions
+   under the maps of the renaming, and the environments match under
+   them. *)
+Theorem renamed_equivalent (r : renaming) (e : expr) (vars vars' : env)
     (conts conts' : cont_env) (statics : static_env) :
-  (∀ x : variable, var_free_in_expr x e -> lookup x vars' = lookup x vars) ->
+  (∀ x : variable,
+    var_free_in_expr x e ->
+    lookup (rename_variable r x) vars' = lookup x vars) ->
   (∀ k : continuation,
-    cont_free_in_expr k e -> conts_agree_at identity_renaming k conts conts')
-  ->
-  state_renamed (State e vars conts statics) (State e vars' conts' statics).
+    cont_free_in_expr k e -> conts_agree_at r k conts conts') ->
+  equivalent (State e vars conts statics)
+    (State (rename_expr r e) vars' conts' statics).
 Proof.
-  intros Hvars Hconts.
-  pose proof (State_renamed identity_renaming e vars vars' conts conts'
-    statics Hvars Hconts) as Hrenamed.
-  rewrite rename_expr_id in Hrenamed. exact Hrenamed.
+  intros Hvars Hconts. apply matched_equivalent.
+  apply (State_matches (variables_map r) (continuations_map r)).
+  - apply rename_expr_eqb.
+    + intros x _. apply variables_map_graph. reflexivity.
+    + intros k _. apply continuations_map_graph. reflexivity.
+  - intros x x' Hx Hmatch. apply variables_map_graph in Hmatch. subst x'.
+    symmetry. apply Hvars, Hx.
+  - intros k k' Hk Hmatch. apply continuations_map_graph in Hmatch.
+    subst k'. apply Hconts, Hk.
+  - apply statics_match_same.
 Qed.
-
-(* A state and its renaming step alike. *)
-Lemma renamed_step (s s' : state) :
-  state_renamed s s' -> result_related state_renamed (step s) (step s').
-Proof.
-  intros [s0 | r e vars vars' conts conts' statics Hvars Hconts].
-  - apply result_related_refl, State_same.
-  - destruct e
-      as [ x d body | bindings body | k h body | handlers body | ap | ac
-         | scrutinee arms | ];
-      simpl; autorewrite with step; simpl.
-    + (* Let *)
-      rewrite (eval_named_renamed r d vars vars' statics);
-        [ | intros y Hy; apply Hvars; left; exact Hy ].
-      destruct (eval_named statics vars d) as [v | ]; simpl; [ | exact I ].
-      apply State_renamed.
-      * intros y Hy. simpl. rewrite rename_variable_eqb.
-        destruct (Pos.eqb_spec y x) as [-> | Hne]; [ reflexivity | ].
-        apply Hvars. right. split; assumption.
-      * intros k Hk. apply Hconts. exact Hk.
-    + (* Let_static: the same static environment *)
-      rewrite (eval_static_bindings_renamed r bindings vars vars');
-        [ | intros y Hy; apply Hvars; left; exact Hy ].
-      destruct (eval_static_bindings vars bindings statics) as [statics' | ];
-        simpl; [ | exact I ].
-      apply State_renamed.
-      * intros y Hy. apply Hvars. right. exact Hy.
-      * intros k Hk. apply Hconts. exact Hk.
-    + (* Let_cont_non_recursive *)
-      apply State_renamed.
-      * intros y Hy. apply Hvars. right. exact Hy.
-      * intros k' Hk'. unfold conts_agree_at, resolve. simpl.
-        rewrite rename_continuation_eqb.
-        destruct (Pos.eqb_spec k' k) as [-> | Hne].
-        -- apply closure_renamed_non_recursive.
-           ++ intros x Hx. apply Hvars. left. exact Hx.
-           ++ intros k'' Hk''. apply Hconts. left. exact Hk''.
-        -- exact (Hconts k' (or_intror (conj Hne Hk'))).
-    + (* Let_cont_recursive *)
-      rewrite rename_handlers_bind_statics.
-      destruct (handlers_bind_statics handlers); [ exact I | ].
-      apply State_renamed.
-      * intros y Hy. apply Hvars. right. exact Hy.
-      * intros k Hk. apply uniform_rec_conts_agree.
-        -- intros x Hx. apply Hvars. left. exact Hx.
-        -- intros k' Hunbound Hk'. apply Hconts.
-           split; [ exact Hunbound | left; exact Hk' ].
-        -- intros Hunbound. apply Hconts.
-           split; [ exact Hunbound | right; exact Hk ].
-    + (* Apply: the same call, as code is not renamed, returning to a
-         continuation and its renaming *)
-      rewrite (eval_simple_renamed r (ap_callee ap) vars vars');
-        [ | intros y Hy; apply Hvars; left; exact Hy ].
-      rewrite (eval_simples_renamed r (ap_args ap) vars vars');
-        [ | intros y Hy; apply Hvars; right; exact Hy ].
-      destruct (eval_simple vars (ap_callee ap)) as [closure | ];
-        [ | exact I ].
-      destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | exact I ].
-      destruct (call_function_cases closure (ap_call_kind ap) vs statics)
-        as [Hundefined | (body & callee_vars & ret & exn & Hcall)].
-      * rewrite !Hundefined. exact I.
-      * rewrite !Hcall. simpl.
-        apply state_renamed_identity; [ reflexivity | ].
-        intros k _. unfold conts_agree_at, resolve.
-        change (rename_continuation identity_renaming k) with k. simpl.
-        destruct (Pos.eqb k ret);
-          [ exact (Hconts (ap_continuation ap) (or_introl eq_refl)) | ].
-        destruct (Pos.eqb k exn);
-          [ exact (Hconts (ap_exn_continuation ap) (or_intror eq_refl)) | ].
-        apply Closure_same.
-    + (* Apply_cont *)
-      rewrite (eval_simples_renamed r (ac_args ac) vars vars');
-        [ | intros y Hy; apply Hvars; exact Hy ].
-      destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | exact I ].
-      apply apply_cont_value_renamed, Hconts. reflexivity.
-    + (* Switch *)
-      rewrite (eval_simple_renamed r scrutinee vars vars');
-        [ | intros y Hy; apply Hvars; left; exact Hy ].
-      destruct (eval_simple vars scrutinee) as [v | ]; [ | exact I ].
-      destruct (naked_immediate_of_value v) as [i | ]; [ | exact I ].
-      rewrite find_arm_renamed.
-      destruct (find_arm i arms) as [ac | ] eqn:Hfind; simpl; [ | exact I ].
-      apply find_arm_in in Hfind.
-      apply (State_renamed r (Apply_cont ac)).
-      * intros y Hy. apply Hvars. right. apply Exists_exists.
-        exists (i, ac). split; [ exact Hfind | exact Hy ].
-      * intros k Hk. apply Hconts. apply Exists_exists.
-        exists (i, ac). split; [ exact Hfind | exact Hk ].
-    + exact I.
-Qed.
-
-Theorem renamed_equivalent (s s' : state) :
-  state_renamed s s' -> equivalent s s'.
-Proof. apply (bisimulation_equivalent state_renamed renamed_step). Qed.
 
 (* The case of no renaming: one expression under environments that agree
    on its free names. *)
@@ -690,27 +636,164 @@ Lemma coincide_equivalent (e : expr) (vars vars' : env)
   equivalent (State e vars conts statics) (State e vars' conts' statics).
 Proof.
   intros Hvars Hconts.
-  apply renamed_equivalent, state_renamed_identity; assumption.
+  pose proof (renamed_equivalent identity_renaming e vars vars' conts conts'
+    statics Hvars Hconts) as Hequivalent.
+  rewrite rename_expr_id in Hequivalent. exact Hequivalent.
 Qed.
 
 (* ======================================================================== *)
 (* Binders are name abstractions                                            *)
 (* ======================================================================== *)
 
+(* Each statement is the soundness of the comparison
+   (FlambdaCompareProofs.expr_eqb_sound) at two expressions that it
+   accepts. *)
+
+(* A renaming that fixes the free names: each matches its image under
+   maps that match every name with itself. *)
+Lemma fixed_matched (r : renaming) (vm : name_map)
+    (free : variable -> Prop) :
+  reflexive_map vm ->
+  (∀ x : variable, free x -> rename_variable r x = x) ->
+  matched r vm free.
+Proof. intros Hvm Hfixed x Hx. rewrite (Hfixed x Hx). apply Hvm. Qed.
+
+Lemma fixed_conts_matched (r : renaming) (km : name_map)
+    (free : continuation -> Prop) :
+  reflexive_map km ->
+  (∀ k : continuation, free k -> rename_continuation r k = k) ->
+  ∀ k : continuation,
+    free k -> names_match km k (rename_continuation r k) = true.
+Proof. intros Hkm Hfixed k Hk. rewrite (Hfixed k Hk). apply Hkm. Qed.
+
+Lemma rename_expr_accepted (r : renaming) (e : expr) :
+  (∀ x : variable, var_free_in_expr x e -> rename_variable r x = x) ->
+  (∀ k : continuation,
+    cont_free_in_expr k e -> rename_continuation r k = k) ->
+  expr_eqb [] [] e (rename_expr r e) = true.
+Proof.
+  intros Hvars Hconts. apply rename_expr_eqb.
+  - apply fixed_matched; [ apply reflexive_map_nil | exact Hvars ].
+  - apply (fixed_conts_matched r [] _ reflexive_map_nil Hconts).
+Qed.
+
+Lemma rename_let_accepted (r : renaming) (x : variable) (d : named)
+    (body : expr) :
+  (∀ y : variable,
+    y <> x -> var_free_in_expr y body -> rename_variable r y = y) ->
+  (∀ k : continuation,
+    cont_free_in_expr k body -> rename_continuation r k = k) ->
+  expr_eqb [] [] (Let x d body)
+    (Let (rename_variable r x) d (rename_expr r body))
+  = true.
+Proof.
+  intros Hvars Hconts. simpl.
+  rewrite named_eqb_refl by apply reflexive_map_nil.
+  apply rename_expr_eqb;
+    [ | apply (fixed_conts_matched r [] _ reflexive_map_nil Hconts) ].
+  intros y Hy.
+  apply (names_match_paired (rename_variable r) (rename_variable_eqb r)
+           [x] [] y).
+  destruct (Pos.eq_dec y x) as [-> | Hne];
+    [ left; left; reflexivity | right ].
+  simpl. rewrite (Hvars y Hne Hy). apply Pos.eqb_refl.
+Qed.
+
+Lemma rename_let_cont_accepted (r : renaming) (k : continuation)
+    (h : continuation_handler) (body : expr) :
+  (∀ y : variable, var_free_in_expr y body -> rename_variable r y = y) ->
+  (∀ k' : continuation,
+    k' <> k -> cont_free_in_expr k' body -> rename_continuation r k' = k')
+  ->
+  expr_eqb [] [] (Let_cont_non_recursive k h body)
+    (Let_cont_non_recursive (rename_continuation r k) h (rename_expr r body))
+  = true.
+Proof.
+  intros Hvars Hconts. simpl.
+  rewrite handler_eqb_refl by apply reflexive_map_nil.
+  apply rename_expr_eqb;
+    [ apply fixed_matched; [ apply reflexive_map_nil | exact Hvars ] | ].
+  intros k' Hk'.
+  apply (names_match_paired (rename_continuation r)
+           (rename_continuation_eqb r) [k] [] k').
+  destruct (Pos.eq_dec k' k) as [-> | Hne];
+    [ left; left; reflexivity | right ].
+  simpl. rewrite (Hconts k' Hne Hk'). apply Pos.eqb_refl.
+Qed.
+
+Lemma rename_handler_params_accepted (r : renaming) (k : continuation)
+    (params : list variable) (handler body : expr) :
+  (∀ y : variable,
+    y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
+  (∀ k' : continuation,
+    cont_free_in_expr k' handler -> rename_continuation r k' = k') ->
+  expr_eqb [] [] (Let_cont_non_recursive k (Handler params handler) body)
+    (Let_cont_non_recursive k (rename_handler r (Handler params handler))
+       body)
+  = true.
+Proof.
+  intros Hvars Hconts.
+  change
+    (handler_eqb [] [] (Handler params handler)
+       (rename_handler r (Handler params handler))
+     && expr_eqb [] [(k, k)] body body
+     = true).
+  rewrite (rename_handler_eqb r (Handler params handler) [] []).
+  - apply expr_eqb_refl;
+      [ apply reflexive_map_nil
+      | apply reflexive_map_cons, reflexive_map_nil ].
+  - apply fixed_matched; [ apply reflexive_map_nil | ].
+    intros x [Hnotin Hx]. exact (Hvars x Hnotin Hx).
+  - apply (fixed_conts_matched r [] _ reflexive_map_nil Hconts).
+Qed.
+
+(* The parameters of one handler of a recursive group: that handler is
+   renamed by [r] and the others are left as they are. *)
+Lemma rename_recursive_handler_params_accepted (r : renaming)
+    (before : list (continuation * continuation_handler))
+    (k : continuation) (params : list variable) (handler : expr)
+    (after : list (continuation * continuation_handler)) (body : expr) :
+  (∀ y : variable,
+    y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
+  (∀ k' : continuation,
+    cont_free_in_expr k' handler -> rename_continuation r k' = k') ->
+  expr_eqb [] []
+    (Let_cont_recursive (before ++ (k, Handler params handler) :: after)
+       body)
+    (Let_cont_recursive
+       (before ++ (k, rename_handler r (Handler params handler)) :: after)
+       body)
+  = true.
+Proof.
+  intros Hvars Hconts. simpl. rewrite !map_app. simpl.
+  destruct (combine_names_refl (map fst before ++ k :: map fst after) []
+              reflexive_map_nil)
+    as (km' & -> & Hkm').
+  rewrite (expr_eqb_refl body [] km' reflexive_map_nil Hkm'), andb_true_r.
+  assert (Hsame :
+    ∀ handlers : list (continuation * continuation_handler),
+      forall2b (fun '(_, h) '(_, h') => handler_eqb [] km' h h') handlers
+        handlers
+      = true).
+  { intros handlers. apply forall2b_refl. intros [k0 h0].
+    apply handler_eqb_refl; [ apply reflexive_map_nil | exact Hkm' ]. }
+  apply forall2b_app; [ apply Hsame | ].
+  change
+    (handler_eqb [] km' (Handler params handler)
+       (rename_handler r (Handler params handler))
+     && forall2b (fun '(_, h) '(_, h') => handler_eqb [] km' h h') after
+          after
+     = true).
+  rewrite Hsame, andb_true_r. apply rename_handler_eqb.
+  - apply fixed_matched; [ apply reflexive_map_nil | ].
+    intros x [Hnotin Hx]. exact (Hvars x Hnotin Hx).
+  - apply (fixed_conts_matched r km' _ Hkm' Hconts).
+Qed.
+
 Theorem rename_let : rename_let_statement.
 Proof.
-  intros r x d body Hvars Hconts vars conts statics.
-  apply let_equivalent_step; [ reflexivity | intros v _ ].
-  apply renamed_equivalent, State_renamed.
-  - intros y Hy. simpl.
-    destruct (Pos.eqb_spec y x) as [-> | Hne];
-      [ rewrite Pos.eqb_refl; reflexivity | ].
-    rewrite (Hvars y Hne Hy).
-    destruct (Pos.eqb_spec y (rename_variable r x)) as [Heq | _];
-      [ | reflexivity ].
-    rewrite <- (Hvars y Hne Hy) in Heq.
-    apply permute_injective in Heq. contradiction.
-  - intros k Hk. apply conts_agree_same, Hconts, Hk.
+  intros r x d body Hvars Hconts.
+  apply expr_eqb_sound, rename_let_accepted; assumption.
 Qed.
 
 Theorem freshen_let : freshen_let_statement.
@@ -731,118 +814,28 @@ Qed.
 
 Theorem rename_let_cont : rename_let_cont_statement.
 Proof.
-  intros r k h body Hvars Hconts vars conts statics.
-  apply let_cont_non_recursive_equivalent_step.
-  apply renamed_equivalent, State_renamed.
-  - intros y Hy. rewrite (Hvars y Hy). reflexivity.
-  - intros k' Hk'. unfold conts_agree_at, resolve. simpl.
-    rewrite rename_continuation_eqb.
-    destruct (Pos.eqb_spec k' k) as [-> | Hne]; [ apply Closure_same | ].
-    exact (conts_agree_same r k' conts (Hconts k' Hne Hk')).
+  intros r k h body Hvars Hconts.
+  apply expr_eqb_sound, rename_let_cont_accepted; assumption.
 Qed.
 
 Theorem rename_handler_params : rename_handler_params_statement.
 Proof.
-  intros r k params handler body Hvars Hconts vars conts statics.
-  apply let_cont_non_recursive_equivalent_step.
-  apply coincide_equivalent; [ reflexivity | ].
-  intros k' _. unfold conts_agree_at, resolve.
-  change (rename_continuation identity_renaming k') with k'. simpl.
-  destruct (Pos.eqb k' k).
-  - apply (closure_renamed_non_recursive r (Handler params handler) vars vars
-      conts conts).
-    + intros x [Hnotin Hx]. rewrite (Hvars x Hnotin Hx). reflexivity.
-    + intros k'' Hk''. apply conts_agree_same, Hconts, Hk''.
-  - exact (conts_agree_same identity_renaming k' conts eq_refl).
+  intros r k params handler body Hvars Hconts.
+  apply expr_eqb_sound, rename_handler_params_accepted; assumption.
 Qed.
 
 Theorem rename_let_cont_recursive : rename_let_cont_recursive_statement.
 Proof.
-  intros r handlers body Hvars Hconts vars conts statics. simpl.
-  apply let_cont_recursive_equivalent_step;
-    [ symmetry; apply rename_handlers_bind_statics | intros _ ].
-  apply renamed_equivalent, State_renamed.
-  - intros y Hy. rewrite (Hvars y); [ reflexivity | right; exact Hy ].
-  - intros k Hk. apply uniform_rec_conts_agree.
-    + intros x Hx. rewrite (Hvars x); [ reflexivity | left; exact Hx ].
-    + intros k' Hunbound Hk'. apply conts_agree_same, Hconts.
-      split; [ exact Hunbound | left; exact Hk' ].
-    + intros Hunbound. apply conts_agree_same, Hconts.
-      split; [ exact Hunbound | right; exact Hk ].
+  intros r handlers body Hvars Hconts.
+  apply expr_eqb_sound, rename_expr_accepted; assumption.
 Qed.
 
-(* The parameters of one handler of a recursive group: that handler is
-   renamed by [r] and the others are left as they are. *)
 Theorem rename_recursive_handler_params :
   rename_recursive_handler_params_statement.
 Proof.
-  intros r before k params handler after body Hvars Hconts vars conts statics.
-  set (h := Handler params handler).
-  set (handlers := before ++ (k, h) :: after).
-  set (handlers' := before ++ (k, rename_handler r h) :: after).
-  set (choice := fun j : continuation =>
-    match lookup j before with
-    | Some _ => identity_renaming
-    | None => if Pos.eqb j k then r else identity_renaming
-    end).
-  (* The handler of a continuation in the two groups. *)
-  assert (Hbound :
-    ∀ (j : continuation) (hj : continuation_handler),
-      lookup j handlers = Some hj ->
-      lookup j handlers' = Some (rename_handler (choice j) hj)).
-  { intros j hj. subst handlers handlers' choice. simpl.
-    rewrite !lookup_app. destruct (lookup j before) as [h0 | ].
-    - intros [= ->]. rewrite rename_handler_id. reflexivity.
-    - simpl. destruct (Pos.eqb j k).
-      + intros [= <-]. reflexivity.
-      + intros ->. rewrite rename_handler_id. reflexivity. }
-  assert (Hunbound :
-    ∀ j : continuation,
-      lookup j handlers = None -> lookup j handlers' = None).
-  { intros j. subst handlers handlers'. rewrite !lookup_app.
-    destruct (lookup j before); [ discriminate | ]. simpl.
-    destruct (Pos.eqb j k); [ discriminate | auto ]. }
-  (* The renaming chosen for a handler fixes its free names. *)
-  assert (Hfix :
-    ∀ (j : continuation) (hj : continuation_handler),
-      lookup j handlers = Some hj ->
-      (∀ x : variable,
-        var_free_in_handler x hj -> rename_variable (choice j) x = x)
-      ∧ (∀ k' : continuation,
-          cont_free_in_handler k' hj ->
-          rename_continuation (choice j) k' = k')).
-  { intros j hj. subst handlers choice. simpl. rewrite lookup_app.
-    destruct (lookup j before) as [h0 | ]; [ intros _; split; reflexivity | ].
-    simpl. destruct (Pos.eqb j k); [ | intros _; split; reflexivity ].
-    intros [= <-]. split.
-    - intros x [Hnotin Hx]. exact (Hvars x Hnotin Hx).
-    - intros k' Hk'. exact (Hconts k' Hk'). }
-  assert (Hgroup :
-    ∀ (j : continuation) (hj : continuation_handler),
-      lookup j handlers = Some hj ->
-      handler_agrees closure_renamed choice (choice j) hj vars vars conts
-        conts handlers handlers').
-  { intros j hj Hlookup. destruct (Hfix j hj Hlookup) as [Hfixv Hfixk].
-    split; [ | split ].
-    - intros x Hx. rewrite (Hfixv x Hx). reflexivity.
-    - intros k' Hk' Hnone. rewrite (Hfixk k' Hk').
-      split; [ exact (Hunbound k' Hnone) | apply Closure_same ].
-    - intros k' hk Hk' Hlookup'. rewrite (Hfixk k' Hk').
-      exact (Hbound k' hk Hlookup'). }
-  apply let_cont_recursive_equivalent_step;
-    [ subst handlers handlers' h; unfold handlers_bind_statics;
-      rewrite !existsb_app; simpl; rewrite rename_binds_statics; reflexivity
-    | intros _ ].
-  apply coincide_equivalent; [ reflexivity | ].
-  intros k' _. unfold conts_agree_at, resolve.
-  change (rename_continuation identity_renaming k') with k'.
-  rewrite !lookup_rec_closures_app.
-  destruct (lookup k' handlers) as [hk | ] eqn:Hlookup.
-  - rewrite (Hbound k' hk Hlookup).
-    apply (Closure_renamed choice (choice k'));
-      [ exact (Hgroup k' hk Hlookup) | exact Hgroup ].
-  - rewrite (Hunbound k' Hlookup).
-    exact (conts_agree_same identity_renaming k' conts eq_refl).
+  intros r before k params handler after body Hvars Hconts.
+  apply expr_eqb_sound, rename_recursive_handler_params_accepted;
+    assumption.
 Qed.
 
 (* ======================================================================== *)

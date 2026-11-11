@@ -571,7 +571,7 @@ Proof.
     exact (equivalent_trans _ _ _ (IH _ _ _) (IH' _ _ _)).
   - apply plug_equivalent;
       [ intros _; apply alpha_binds_statics, Hinner | exact IH ].
-  - intros vars conts statics. apply renamed_equivalent, State_renamed.
+  - intros vars conts statics. apply renamed_equivalent.
     + intros x Hx. rewrite (Hvars x Hx). reflexivity.
     + intros k Hk. apply conts_agree_same, Hconts, Hk.
   - apply rename_let; assumption.
@@ -1121,7 +1121,7 @@ Qed.
 Theorem rename_variables_equivalent : rename_variables_equivalent_statement.
 Proof.
   intros r e vars conts statics Hconts.
-  apply renamed_equivalent, State_renamed.
+  apply renamed_equivalent.
   - intros x _. apply lookup_rename_env.
   - intros k Hk. apply conts_agree_same, Hconts, Hk.
 Qed.

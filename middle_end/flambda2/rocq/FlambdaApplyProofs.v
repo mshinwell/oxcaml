@@ -32,7 +32,8 @@ From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
-  FlambdaNominalSpec FlambdaNominalProofs FlambdaApplySpec.
+  FlambdaNominalSpec FlambdaNominalProofs FlambdaCompareProofs
+  FlambdaApplySpec.
 Import ListNotations.
 
 Theorem apply_indirect_known : apply_indirect_known_statement.
@@ -191,7 +192,7 @@ Proof.
   eapply equivalent_trans.
   { apply (equivalent_of_run (S n) 0). unfold inlined_body.
     rewrite run_succ, step_let. simpl. rewrite Hcallee. exact Hrun. }
-  apply equivalent_sym, renamed_equivalent, State_renamed.
+  apply equivalent_sym, renamed_equivalent.
   - intros x Hx. rewrite Hvars, lookup_app.
     destruct (bind_params_bound (code_params c) vs
                 [(code_my_closure c, callee)] callee_vars x Hbind)
@@ -201,12 +202,12 @@ Proof.
   - intros k Hk. unfold conts_agree_at.
     destruct (Hclosed_conts k Hk) as [-> | ->].
     + rewrite Hret. unfold resolve at 1. simpl. rewrite Pos.eqb_refl.
-      apply Closure_same.
+      apply Same_matches.
     + rewrite Hexn. unfold resolve at 1. simpl.
       destruct (Pos.eqb_spec (code_exn_continuation c)
                   (code_return_continuation c)) as [Heq | _].
-      * rewrite <- Hexn, Heq, Hret. apply Closure_same.
-      * rewrite Pos.eqb_refl. apply Closure_same.
+      * rewrite <- Hexn, Heq, Hret. apply Same_matches.
+      * rewrite Pos.eqb_refl. apply Same_matches.
 Qed.
 
 (* One step binds the code; then [inline]. *)
@@ -340,7 +341,7 @@ Proof.
     eapply equivalent_trans.
     { apply (equivalent_of_run (S n) 0). unfold inlined_body.
       rewrite run_succ, step_let. simpl. rewrite Hcallee. exact Hrun. }
-    apply equivalent_sym, renamed_equivalent, State_renamed.
+    apply equivalent_sym, renamed_equivalent.
     + intros x Hx. rewrite Hvars, lookup_app.
       destruct (bind_params_bound (code_params c) vs
                   [(code_my_closure c, callee)] callee_vars x Hbind)
@@ -350,12 +351,12 @@ Proof.
     + intros k Hk. unfold conts_agree_at.
       destruct (Hclosed_conts k Hk) as [-> | ->].
       * rewrite Hret. unfold resolve at 1. simpl. rewrite Pos.eqb_refl.
-        apply Closure_same.
+        apply Same_matches.
       * rewrite Hexn. unfold resolve at 1. simpl.
         destruct (Pos.eqb_spec (code_exn_continuation c)
                     (code_return_continuation c)) as [Heq | _].
-        -- rewrite <- Hexn, Heq, Hret. apply Closure_same.
-        -- rewrite Pos.eqb_refl. apply Closure_same.
+        -- rewrite <- Hexn, Heq, Hret. apply Same_matches.
+        -- rewrite Pos.eqb_refl. apply Same_matches.
   - apply both_wrong_equivalent.
     + apply step_undefined_wrong. rewrite step_apply, Hcallee, Hargs.
       reflexivity.
