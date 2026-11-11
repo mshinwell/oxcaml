@@ -48,6 +48,11 @@
      [repaired_rounds_scrutinees_have_values_statement]). On the
      instance below, the repaired join admits both uses
      ([witness_repaired_join_admits_statement]).
+   - The state of a join (the last section): the readings that the
+     interface with the join of types asks for, a first invariant
+     ([state_valid], about the names of the state), and, of the three
+     functions that the join of types calls, the parts of their
+     contracts that are not about kinds.
    - An instance, [Witness], that shows that the transcription has not
      the strict contract ([sound_join_of_environments]): two uses in
      which a variable [x] that exists only in types has a type that
@@ -489,3 +494,239 @@ Definition witness_repaired_join_admits_statement : Prop :=
         join_admits_use Witness.source_env use target
           (Analysis.definitions_in_joined_envs analysis)
           (Analysis.canonical_definitions_at_normal_mode analysis) index.
+
+(* ======================================================================== *)
+(* The state of a join: its readings and its invariant                      *)
+(* ======================================================================== *)
+
+(* The interface between the two halves of the join (FlambdaJoinSpec.v,
+   section [Join_of_types]) is stated for any state with three
+   readings and an invariant. Here they are for the state of
+   FlambdaJoinEnv.v: the environment of an index is
+   [Join_env.joined_env], the definitions are
+   [Join_env.definitions_of_existentials], and the kinds of the
+   variables of the target are read from the bindings. *)
+
+(* The kind of a variable of the target so far: the reading
+   [kind_in_target_env] of FlambdaJoinSpec.v, for the state of
+   FlambdaJoinEnv.v. A variable of the source has the kind of its type
+   there; a variable that the join has made or brought in, the kind
+   recorded with it. *)
+Definition kind_in_target_env (s : Join_env.t) (x : variable)
+    : option flambda_kind :=
+  let bindings := Join_env.bindings s in
+  match
+    Keyed.lookup name_eqb (Name_var x)
+      (Typing_env.names_to_types (Bindings_in_target_env.source_env bindings))
+  with
+  | Some (ty, _) => Some (kind ty)
+  | None =>
+    match lookup x (Bindings_in_target_env.existential_variables bindings) with
+    | Some kind => Some kind
+    | None => lookup x (Bindings_in_target_env.imported_variables bindings)
+    end
+  end.
+
+(* The names that the variables that the join makes must avoid. *)
+Definition names_to_avoid (s : Join_env.t) : list variable :=
+  Bindings_in_target_env.names_to_avoid (Join_env.bindings s).
+
+(* A variable that the join has made. *)
+Definition is_existential (s : Join_env.t) (x : variable) : Prop :=
+  is_bound x
+    (Bindings_in_target_env.existential_variables (Join_env.bindings s))
+  = true.
+
+(* A variable that the join has brought in from the joined
+   environments. *)
+Definition is_imported (s : Join_env.t) (x : variable) : Prop :=
+  is_bound x (Bindings_in_target_env.imported_variables (Join_env.bindings s))
+  = true.
+
+(* The names to avoid include every variable that the source or a
+   joined environment knows, and every variable that the join has
+   made. *)
+Definition names_avoided (s : Join_env.t) : Prop :=
+  (∀ x : variable, knows (Join_env.source_env s) x -> x ∈ names_to_avoid s)
+  ∧ (∀ (index : Index.t) (use : Typing_env.t) (x : variable),
+       Join_env.joined_env s index = Some use ->
+       knows use x ->
+       x ∈ names_to_avoid s)
+  ∧ ∀ x : variable, is_existential s x -> x ∈ names_to_avoid s.
+
+(* No environment knows a variable that the join has made. *)
+Definition existentials_new (s : Join_env.t) : Prop :=
+  ∀ x : variable,
+    is_existential s x ->
+    ~ knows (Join_env.source_env s) x
+    ∧ ∀ (index : Index.t) (use : Typing_env.t),
+        Join_env.joined_env s index = Some use -> ~ knows use x.
+
+(* A variable that has a definition is one that the join has made, at
+   the kind of the definition; and the variable that stands for a
+   vector of [Simple]s has that vector for definition. *)
+Definition existentials_recorded (s : Join_env.t) : Prop :=
+  (∀ (x : variable) (simples : Simples_in_joined_envs.t)
+     (kind : flambda_kind),
+     lookup x (Join_env.definitions_of_existentials s) = Some (simples, kind)
+     ->
+     lookup x
+       (Bindings_in_target_env.existential_variables (Join_env.bindings s))
+     = Some kind)
+  ∧ ∀ (simples : Simples_in_joined_envs.t) (x : variable),
+      Bindings_in_target_env.has_existential_for_these_simples
+        (Join_env.bindings s) simples
+      = Some x ->
+      ∃ (simples' : Simples_in_joined_envs.t) (kind : flambda_kind),
+        lookup x (Join_env.definitions_of_existentials s)
+        = Some (simples', kind)
+        ∧ Simples_in_joined_envs.equal simples simples' = true.
+
+(* A variable that has been brought in is recorded with a kind; the
+   source does not know it, and some joined environment does. *)
+Definition imports_recorded (s : Join_env.t) : Prop :=
+  (∀ x : variable,
+     among x (Join_env.imported_vars s) = true -> is_imported s x)
+  ∧ ∀ x : variable,
+      is_imported s x ->
+      ~ knows (Join_env.source_env s) x
+      ∧ ∃ (index : Index.t) (use : Typing_env.t),
+          Join_env.joined_env s index = Some use ∧ knows use x.
+
+(* The invariant of the state: [state_valid] of FlambdaJoinSpec.v. It
+   says so far what the names of the state are. What the equations
+   that the state keeps mean (those of the target made so far, the
+   types still to be joined, the aliases of the variables made) is to
+   be added with the proofs of the rounds; the functions below will
+   then have to be shown to keep that too. *)
+Definition state_valid (s : Join_env.t) : Prop :=
+  names_avoided s
+  ∧ existentials_new s
+  ∧ existentials_recorded s
+  ∧ imports_recorded s.
+
+(* What is asked of the source of new names. *)
+Definition fresh_avoids (p : Join_env.parameters) : Prop :=
+  ∀ names : list variable, ~ Join_env.fresh p names ∈ names.
+
+(* The reading of kinds answers for the variables that the compiler's
+   test finds. *)
+Definition kind_in_target_env_exists_statement : Prop :=
+  ∀ (s : Join_env.t) (x : variable),
+    exists_in_target_env kind_in_target_env s x
+    = Bindings_in_target_env.exists_in_target_env (Join_env.bindings s) x.
+
+(* The state that a join starts from is valid, if the names to avoid
+   include what the environments know. *)
+Definition created_state_valid_statement : Prop :=
+  ∀ (avoid : list variable) (source : Typing_env.t) (envs : Joined_envs.t),
+    (∀ x : variable, knows source x -> x ∈ avoid) ->
+    (∀ (index : Index.t) (use : Typing_env.t) (x : variable),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       knows use x ->
+       x ∈ avoid) ->
+    state_valid
+      (Join_env.create envs
+         (Bindings_in_target_env.from_source_env avoid source)).
+
+(* What the interface asks of the invariant. *)
+Definition state_valid_has_witnesses_statement : Prop :=
+  valid_states_have_witnesses Join_env.joined_env
+    Join_env.definitions_of_existentials state_valid.
+
+
+(* The three functions that the join of types calls, against their
+   contracts in FlambdaJoinSpec.v ([import_type_sound],
+   [n_way_join_simples_sound], [n_way_join_env_extension_sound]), with
+   the readings and the invariant above: each statement below has the
+   parts of its contract that are not about kinds. The parts about
+   kinds ([state_kinded], and that a symbol is answered only at the
+   kind of values) are not here yet. *)
+
+(* [Join_env.import_type]. *)
+Definition import_type_valid_statement : Prop :=
+  ∀ (p : Join_env.parameters) (fuel : nat) (s s' : Join_env.t)
+    (ty : flambda_type),
+    fresh_avoids p ->
+    state_valid s ->
+    Join_env.import_type p fuel s ty = Some s' ->
+    state_valid s'
+    ∧ state_grows Join_env.joined_env Join_env.definitions_of_existentials
+        kind_in_target_env s s'
+    ∧ type_in_target kind_in_target_env s' ty.
+
+(* [Join_env.n_way_join_simples]. Of the [Simple]s given it is asked
+   here only that each is in the scope of the environment of its
+   index; the contract asks that each is of the kind given there,
+   which is more. *)
+Definition n_way_join_simples_valid_statement : Prop :=
+  ∀ (p : Join_env.parameters) (fuel : nat) (s s' : Join_env.t)
+    (kind : flambda_kind) (simples : list (Index.t * simple))
+    (result : Or_bottom.t simple),
+    fresh_avoids p ->
+    state_valid s ->
+    joined_envs_well_formed typing_env_invariant Join_env.joined_env s ->
+    join_args_distinct simples ->
+    join_args_in_scope Join_env.joined_env simple_in_scope s simples ->
+    Join_env.n_way_join_simples p fuel s kind simples = Some (result, s') ->
+    state_valid s'
+    ∧ state_grows Join_env.joined_env Join_env.definitions_of_existentials
+        kind_in_target_env s s'
+    ∧ (result = Or_bottom.Bottom -> simples = [])
+    ∧ ∀ joined : simple,
+        result = Or_bottom.Ok joined ->
+        simple_in_target kind_in_target_env s' joined
+        ∧ ∀ (index : Index.t) (simple : simple) (use : Typing_env.t)
+            (statics : static_env) (valuation valuation' : env) (v : value),
+            In (index, simple) simples ->
+            Join_env.joined_env s' index = Some use ->
+            typing_env_satisfied_strictly statics valuation use ->
+            extends_input Join_env.joined_env
+              Join_env.definitions_of_existentials s' index valuation
+              valuation' ->
+            eval_simple valuation simple = Some v ->
+            eval_simple valuation' joined = Some v.
+
+
+(* What is asked of the equality of environment extensions: if it
+   finds the first equal to the second, the second mentions no variable
+   that the first does not, and holds wherever the first does. *)
+Definition env_extension_eqb_sound (p : Join_env.parameters) : Prop :=
+  ∀ extension extension' : env_extension,
+    Join_env.env_extension_eqb p extension extension' = true ->
+    (∀ x : variable,
+       x ∈ free_variables_of_env_extension extension' ->
+       x ∈ free_variables_of_env_extension extension)
+    ∧ ∀ (statics : static_env) (valuation : env),
+        env_extension_satisfied statics valuation extension ->
+        env_extension_satisfied statics valuation extension'.
+
+(* [Join_env.n_way_join_env_extension]. *)
+Definition n_way_join_env_extension_valid_statement : Prop :=
+  ∀ (p : Join_env.parameters) (fuel : nat) (s : Join_env.t)
+    (extensions : list (Index.t * env_extension))
+    (result : Or_bottom.t (env_extension * Join_env.t)),
+    fresh_avoids p ->
+    env_extension_eqb_sound p ->
+    state_valid s ->
+    join_args_in_scope Join_env.joined_env env_extension_in_scope s extensions
+    ->
+    Join_env.n_way_join_env_extension p fuel s extensions = Some result ->
+    (result = Or_bottom.Bottom -> extensions = [])
+    ∧ ∀ (joined : env_extension) (s' : Join_env.t),
+        result = Or_bottom.Ok (joined, s') ->
+        state_valid s'
+        ∧ state_grows Join_env.joined_env
+            Join_env.definitions_of_existentials kind_in_target_env s s'
+        ∧ env_extension_in_target kind_in_target_env s' joined
+        ∧ ∀ (index : Index.t) (extension : env_extension)
+            (use : Typing_env.t) (statics : static_env)
+            (valuation valuation' : env),
+            In (index, extension) extensions ->
+            Join_env.joined_env s' index = Some use ->
+            typing_env_satisfied_strictly statics valuation use ->
+            extends_input Join_env.joined_env
+              Join_env.definitions_of_existentials s' index valuation
+              valuation' ->
+            env_extension_satisfied statics valuation extension ->
+            env_extension_satisfied statics valuation' joined.

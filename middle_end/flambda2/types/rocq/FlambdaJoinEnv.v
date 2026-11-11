@@ -163,7 +163,10 @@
      added, or its reverse where the header of a function says so),
      which is not the compiler's (the order of the keys). It visits the
      bindings that count ([compact]): a map of the model is a list of
-     which the first binding of a key counts. The canonical element
+     which the first binding of a key counts. (One exception: the fold
+     over the equations of an environment extension in
+     [n_way_join_env_extension] visits every equation; see there.) The
+     canonical element
      that is chosen for a vector does not depend on the order
      ([candidate_canonical_in_source_env] answers the same for every
      order of the indices); which variable is imported first, and so
@@ -1442,7 +1445,11 @@ Module Join_env.
      input if the others are the same, with its names and the variables
      of its types imported; the empty extension otherwise. (The
      compiler's function also takes the join of types and the meet, and
-     uses neither.) *)
+     uses neither.) Every equation of the list is visited, and not only
+     the first for each name: an extension of the compiler has one
+     equation for a name, and for such an extension it is the same.
+     With every equation visited, each variable that the extension
+     mentions is imported whether or not its names are distinct. *)
   Definition n_way_join_env_extension (p : parameters) (fuel : nat) (env : t)
       (extensions : list (Index.t * env_extension))
       : option (Or_bottom.t (env_extension * t)) :=
@@ -1459,8 +1466,7 @@ Module Join_env.
                let* env := env in
                let* env := import_name_transitive p fuel env (fst equation) in
                import_type_transitive p fuel env (snd equation))
-            (Keyed.compact name_eqb (equations_of first_extension))
-            (Some env)
+            (equations_of first_extension) (Some env)
         in
         Some (Or_bottom.Ok (first_extension, env))
       else Some (Or_bottom.Ok (empty_env_extension, env))
