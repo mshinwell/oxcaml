@@ -364,16 +364,6 @@ Qed.
 (* Several fresh names                                                      *)
 (* ======================================================================== *)
 
-(* As many names as asked for, different from one another and outside a
-   list: [fresh_name], again and again. *)
-Fixpoint fresh_names (count : nat) (avoid : list positive) : list positive :=
-  match count with
-  | O => []
-  | S count =>
-    let name := fresh_name avoid in
-    name :: fresh_names count (name :: avoid)
-  end.
-
 Lemma fresh_names_length (count : nat) (avoid : list positive) :
   length (fresh_names count avoid) = count.
 Proof.
@@ -398,6 +388,12 @@ Proof.
       * apply Pos.eqb_eq in Hname. subst name. apply fresh_name_fresh.
       * apply Houtside, among_cons_false in Hname as [_ Hname].
         exact Hname.
+Qed.
+
+Theorem fresh_names_fresh : fresh_names_fresh_statement.
+Proof.
+  intros count avoid.
+  split; [ apply fresh_names_length | apply fresh_names_outside ].
 Qed.
 
 Lemma distinct_outside_app (avoid avoid' names : list positive) :
