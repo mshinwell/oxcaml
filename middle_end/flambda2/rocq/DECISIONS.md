@@ -155,6 +155,9 @@ says so. Only the labels that this tree cites are listed.
 - **C1-13.** The kinds of the fields of a `Make_block` come from the
   types of the source, are used by Simplify for variables only, and are
   ignored by the backend.
+- **C2-5.** The fexpr parser gives a direct call, and an indirect call
+  with no annotation, the arity in which every argument and result is a
+  `Value`; the printer leaves the arity of such calls out.
 - **C2-6.** Nothing checks that the arities in a code's metadata are the
   kinds of its parameters.
 - **C3-1.** Simplify answers a projection that names the wrong function
@@ -210,6 +213,8 @@ says so. Only the labels that this tree cites are listed.
   binds is checked only by later consumers of the lists.
 - **R2-11.** Simplify removes a dead use of a continuation at the wrong
   kind before checking it.
+- **R2-12.** Printing a term as fexpr and parsing it back loses the
+  arities of calls.
 - **R2-15.** Sharing code between static sets succeeds in separate
   groups but fails within one group.
 - **R2-16.** The checks for duplicate parameters compare the whole
@@ -236,3 +241,5 @@ says so. Only the labels that this tree cites are listed.
   leave unchecked.
 - **T1-6.** The model's grammar of types has a boxed number of every
   naked number kind.
+- **V2-2.** The fexpr printer drops the kinds of the fields of a
+  `Make_block`, and the parser reads back `any_value` for each.
