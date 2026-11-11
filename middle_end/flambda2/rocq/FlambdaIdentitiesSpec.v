@@ -96,13 +96,19 @@
    argument, has one; and [Phys_equal] has no value on a variable that
    holds an allocated value.
 
+   The pass commutes with renaming
+   ([apply_identities_equivariant_statement]): it binds no name and
+   makes none, and it looks at a name only to see that the two
+   arguments of [Phys_equal] are the same variable, which a renaming,
+   being injective, keeps true or false.
+
    The proofs are in FlambdaIdentitiesProofs.v, which needs no review. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaKindModel FlambdaModel
   FlambdaValueSpec FlambdaPrimitiveModel FlambdaPrimitiveSpec
-  FlambdaSemanticsSpec.
+  FlambdaSemanticsSpec FlambdaNominalSpec.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -320,3 +326,13 @@ with apply_identities_in_handler (h : continuation_handler)
 
 Definition apply_identities_refines_statement : Prop :=
   ∀ e : expr, expr_refines e (apply_identities e).
+
+(* The pass commutes with renaming, and so does what it makes of one
+   defining expression. *)
+Definition identity_named_equivariant_statement : Prop :=
+  ∀ (r : renaming) (d : named),
+    identity_named (rename_named r d) = rename_named r (identity_named d).
+
+Definition apply_identities_equivariant_statement : Prop :=
+  ∀ (r : renaming) (e : expr),
+    apply_identities (rename_expr r e) = rename_expr r (apply_identities e).
