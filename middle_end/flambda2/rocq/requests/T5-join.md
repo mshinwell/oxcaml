@@ -272,6 +272,19 @@ the names to avoid include every known variable.
   for it puts the relation on the tag variable; a switch on the tag
   variable then loses the arm for a tag that only the runs without
   the imported variable have. A wrong result at run time.
+  A repaired test is in the model beside the compiler's
+  (`Join_env.repaired_choices`; `repaired_join` in
+  `FlambdaJoinEnvSpec.v`): a relation is recovered for `x` only if,
+  besides, what `x` stands for in every joined environment has a
+  canonical element at the normal name mode there. Proved: with that
+  test every relation that the rounds record is on a variable that has
+  a value at every use, in a run that binds the variables of terms
+  (`repaired_rounds_scrutinees_have_values_statement`); and the
+  repaired join admits both uses of the instance
+  (`witness_repaired_join_admits_statement`). It is a candidate for
+  the change to the compiler; it does not recover a relation on a
+  variable that exists only in types and has no alias in terms, even
+  one that has a value on every run.
 - **R1-16** (an empty set given to
   `create_naked_immediates_non_empty` when every head reduces to
   bottom): not looked at further; still traced, not shown reachable.

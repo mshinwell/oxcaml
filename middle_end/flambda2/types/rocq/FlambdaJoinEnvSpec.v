@@ -36,6 +36,18 @@
    What is here so far:
    - [compiler_join]: the transcription of the join that Simplify
      calls, as a join of environments in the sense of the contract.
+     [repaired_join]: the same with another test for recovering
+     relations ([Join_env.repaired_choices]), which is not the
+     compiler's.
+   - Of the rounds, whatever the test: a relation is recorded only on
+     a variable for which the test answered [true]
+     ([round_records_where_chosen_statement] and the two that follow).
+     Of the repaired test: such a variable has a value at every use,
+     in a run that binds the variables of terms
+     ([repaired_test_gives_values_statement],
+     [repaired_rounds_scrutinees_have_values_statement]). On the
+     instance below, the repaired join admits both uses
+     ([witness_repaired_join_admits_statement]).
    - An instance, [Witness], that shows that the transcription has not
      the strict contract ([sound_join_of_environments]): two uses in
      which a variable [x] that exists only in types has a type that
@@ -89,7 +101,7 @@
    the contract of the compiler's join has its conditions. *)
 
 From Stdlib Require Import ZArith List Bool PeanoNat.
-From OxCamlStdlib Require Import OxCamlLogic OxCamlOption.
+From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaMapSpec FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
@@ -103,16 +115,36 @@ Import ListNotations.
 (* ======================================================================== *)
 
 (* [Join_env.cut_and_n_way_join_with_analysis], given what the model's
-   function needs besides the compiler's arguments. *)
-Definition compiler_join {A meet_env meet_expanded_head : Type}
+   function needs besides the compiler's arguments, and a test for
+   recovering relations. *)
+Definition join_with {A meet_env meet_expanded_head : Type}
+    (choices : Join_env.choices)
     (ops : Join_env.meet_env_functions meet_env meet_expanded_head)
     (p : Join_env.parameters) (fuel : nat)
     (n_way_join_type : Join_env.n_way_join_type)
     (meet_expanded_head_fn : meet_expanded_head) : join_of_environments A :=
   fun (avoid : list variable) (inputs : join_inputs A) =>
-    cut_and_n_way_join_with_analysis ops p fuel n_way_join_type
+    cut_and_n_way_join_with_analysis ops p fuel choices n_way_join_type
       meet_expanded_head_fn avoid (cut_after inputs) (source inputs)
       (uses inputs).
+
+(* The compiler's join: with the compiler's test. *)
+Definition compiler_join {A meet_env meet_expanded_head : Type}
+    (ops : Join_env.meet_env_functions meet_env meet_expanded_head)
+    (p : Join_env.parameters) (fuel : nat)
+    (n_way_join_type : Join_env.n_way_join_type)
+    (meet_expanded_head_fn : meet_expanded_head) : join_of_environments A :=
+  join_with Join_env.compiler_choices ops p fuel n_way_join_type
+    meet_expanded_head_fn.
+
+(* The join with the repaired test, which is not the compiler's. *)
+Definition repaired_join {A meet_env meet_expanded_head : Type}
+    (ops : Join_env.meet_env_functions meet_env meet_expanded_head)
+    (p : Join_env.parameters) (fuel : nat)
+    (n_way_join_type : Join_env.n_way_join_type)
+    (meet_expanded_head_fn : meet_expanded_head) : join_of_environments A :=
+  join_with Join_env.repaired_choices ops p fuel n_way_join_type
+    meet_expanded_head_fn.
 
 (* ======================================================================== *)
 (* The transcription has not the strict contract                            *)
@@ -230,6 +262,10 @@ Module Witness.
   Definition join : join_of_environments unit :=
     compiler_join ops parameters 10 join_of_types tt.
 
+  (* The same with the repaired test. *)
+  Definition repaired_join : join_of_environments unit :=
+    FlambdaJoinEnvSpec.repaired_join ops parameters 10 join_of_types tt.
+
   (* The run: [r] holds 0 and [x] has no value. *)
   Definition valuation : env := [(r, Value_const (Naked_immediate 0))].
 
@@ -284,3 +320,164 @@ Definition witness_use_not_admitted_statement : Prop :=
    has not the strict contract. *)
 Definition transcribed_join_not_strict_statement : Prop :=
   ~ sound_join_of_environments typing_env_invariant Witness.join.
+
+(* ======================================================================== *)
+(* Where the rounds record a relation                                       *)
+(* ======================================================================== *)
+
+(* A relation is among those kept for the variable that holds its
+   result. *)
+Definition relation_recorded (relations : Join_env.inverse_relations)
+    (result : variable) (relation : Relation.t) (scrutinee : name) : Prop :=
+  ∃ recorded : list (Relation.t * name),
+    lookup result relations = Some recorded
+    ∧ (relation, scrutinee) ∈ recorded.
+
+(* The relations recovered from the type joined for a name are on that
+   name. *)
+Definition recovered_relations_on_name_statement : Prop :=
+  ∀ (relations relations' : Join_env.inverse_relations) (n : name)
+    (ty ty' : flambda_type) (result : variable) (relation : Relation.t)
+    (scrutinee : name),
+    Join_env.recover_inverse_relations relations n ty
+    = Some (ty', relations') ->
+    relation_recorded relations' result relation scrutinee ->
+    relation_recorded relations result relation scrutinee ∨ scrutinee = n.
+
+(* A later state has the joined environments of an earlier one, and
+   the definitions that it had: the first two parts of [state_grows]
+   (FlambdaJoinSpec.v). *)
+Definition keeps_definitions (s s' : Join_env.t) : Prop :=
+  (∀ index : Index.t,
+     Join_env.joined_env s' index = Join_env.joined_env s index)
+  ∧ ∀ (x : variable)
+      (definition : Simples_in_joined_envs.t * flambda_kind),
+      lookup x (Join_env.definitions_of_existentials s) = Some definition ->
+      lookup x (Join_env.definitions_of_existentials s') = Some definition.
+
+(* What is supposed of the join of types here. A join of types that
+   has its contract ([n_way_join_type_sound]) answers a state that has
+   grown. *)
+Definition join_of_types_keeps_definitions
+    (n_way_join_type : Join_env.n_way_join_type) : Prop :=
+  ∀ (s s' : Join_env.t) (ts : list (Index.t * flambda_type))
+    (joined : Or_unknown.t flambda_type),
+    n_way_join_type s ts = Some (joined, s') ->
+    keeps_definitions s s'.
+
+(* Every relation of the second map is in the first, or is on a
+   variable for which the test answered [true], in a state between the
+   two given. *)
+Definition recorded_where_chosen (choices : Join_env.choices)
+    (s s' : Join_env.t) (relations relations' : Join_env.inverse_relations)
+    : Prop :=
+  ∀ (result : variable) (relation : Relation.t) (scrutinee : name),
+    relation_recorded relations' result relation scrutinee ->
+    relation_recorded relations result relation scrutinee
+    ∨ ∃ (x : variable) (types : Keyed.finite_map Index.t flambda_type)
+        (s0 : Join_env.t),
+        scrutinee = Name_var x
+        ∧ keeps_definitions s s0
+        ∧ keeps_definitions s0 s'
+        ∧ Join_env.recover_relations_on choices s0 x types = true.
+
+(* A round, and each of the two loops of rounds, records a relation
+   only where the test answers [true]. *)
+Definition round_records_where_chosen_statement : Prop :=
+  ∀ (choices : Join_env.choices) (n_way_join_type : Join_env.n_way_join_type)
+    (s s' : Join_env.t)
+    (equations : finite_map (Keyed.finite_map Index.t flambda_type))
+    (relations relations' : Join_env.inverse_relations),
+    join_of_types_keeps_definitions n_way_join_type ->
+    Join_env.n_way_join_round choices n_way_join_type s equations relations
+    = Some (relations', s') ->
+    keeps_definitions s s'
+    ∧ recorded_where_chosen choices s s' relations relations'.
+
+Definition delayed_equations_record_where_chosen_statement : Prop :=
+  ∀ (fuel : nat) (choices : Join_env.choices)
+    (n_way_join_type : Join_env.n_way_join_type) (s s' : Join_env.t)
+    (equations : finite_map (Keyed.finite_map Index.t flambda_type))
+    (relations relations' : Join_env.inverse_relations),
+    join_of_types_keeps_definitions n_way_join_type ->
+    Join_env.n_way_join_delayed_equations fuel choices n_way_join_type s
+      relations equations
+    = Some (relations', s') ->
+    keeps_definitions s s'
+    ∧ recorded_where_chosen choices s s' relations relations'.
+
+Definition loop_records_where_chosen_statement : Prop :=
+  ∀ (depth : nat) (p : Join_env.parameters) (fuel : nat)
+    (choices : Join_env.choices) (n_way_join_type : Join_env.n_way_join_type)
+    (s s' : Join_env.t)
+    (existentials : finite_map (Simples_in_joined_envs.t * flambda_kind))
+    (relations relations' : Join_env.inverse_relations),
+    join_of_types_keeps_definitions n_way_join_type ->
+    Join_env.n_way_join_loop depth p fuel choices n_way_join_type s relations
+      existentials
+    = Some (relations', s') ->
+    keeps_definitions s s'
+    ∧ recorded_where_chosen choices s s' relations relations'.
+
+(* ======================================================================== *)
+(* The repaired test                                                        *)
+(* ======================================================================== *)
+
+(* A variable for which the repaired test answers [true] has a value at
+   every use, in a valuation that satisfies the use and gives a value
+   to the variables that may occur in terms there. (Of the valuation
+   only that it respects the aliases of the use is needed, so any
+   names may be exempt.) *)
+Definition repaired_test_gives_values_statement : Prop :=
+  ∀ (s : Join_env.t) (x : variable)
+    (types : Keyed.finite_map Index.t flambda_type) (index : Index.t)
+    (tenv : Typing_env.t) (exempt : name -> Prop) (statics : static_env)
+    (valuation : env),
+    Join_env.recover_relations_on Join_env.repaired_choices s x types = true ->
+    Join_env.joined_env s index = Some tenv ->
+    typing_env_satisfied_but exempt statics valuation tenv ->
+    bound_in_terms tenv valuation ->
+    has_value_at_use (Join_env.definitions_of_existentials s) index valuation
+      x.
+
+(* So, with the repaired test, every relation that the two loops of
+   [cut_and_n_way_join0] record is on a variable that has a value at
+   every use, in such a valuation: what [scrutinees_have_values] asks,
+   of the relations before they are put in the target. *)
+Definition repaired_rounds_scrutinees_have_values_statement : Prop :=
+  ∀ (depth : nat) (p : Join_env.parameters) (fuel : nat)
+    (n_way_join_type : Join_env.n_way_join_type) (s s1 s2 : Join_env.t)
+    (equations : finite_map (Keyed.finite_map Index.t flambda_type))
+    (existentials : finite_map (Simples_in_joined_envs.t * flambda_kind))
+    (relations1 relations2 : Join_env.inverse_relations) (result : variable)
+    (relation : Relation.t) (scrutinee : name) (index : Index.t)
+    (tenv : Typing_env.t) (exempt : name -> Prop) (statics : static_env)
+    (valuation : env),
+    join_of_types_keeps_definitions n_way_join_type ->
+    Join_env.n_way_join_delayed_equations fuel Join_env.repaired_choices
+      n_way_join_type s [] equations
+    = Some (relations1, s1) ->
+    Join_env.n_way_join_loop depth p fuel Join_env.repaired_choices
+      n_way_join_type s1 relations1 existentials
+    = Some (relations2, s2) ->
+    relation_recorded relations2 result relation scrutinee ->
+    Join_env.joined_env s index = Some tenv ->
+    typing_env_satisfied_but exempt statics valuation tenv ->
+    bound_in_terms tenv valuation ->
+    ∃ x : variable,
+      scrutinee = Name_var x
+      ∧ has_value_at_use (Join_env.definitions_of_existentials s2) index
+          valuation x.
+
+(* On the instance, the repaired join answers a target that admits
+   both uses: the relation on [r] is not recovered, since [x] may not
+   occur in terms. *)
+Definition witness_repaired_join_admits_statement : Prop :=
+  ∃ (target : Typing_env.t) (analysis : Analysis.t unit),
+    Witness.repaired_join [Witness.r; Witness.x] Witness.inputs
+    = Some (target, analysis)
+    ∧ ∀ (index : Index.t) (use : Typing_env.t),
+        use_at Witness.inputs index use ->
+        join_admits_use Witness.source_env use target
+          (Analysis.definitions_in_joined_envs analysis)
+          (Analysis.canonical_definitions_at_normal_mode analysis) index.

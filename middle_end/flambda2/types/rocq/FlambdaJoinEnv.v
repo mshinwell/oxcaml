@@ -178,6 +178,16 @@
      name that has not a type of naked immediates where an inverse
      relation is to be added. The checks that the compiler makes only
      with [Flambda_features.check_light_invariants] are not made.
+   - The test for recovering relations. In [n_way_join_round] the
+     compiler recovers the relations that the type joined for a
+     variable names if every joined environment gave a type
+     ([Joined_envs.exists_in_all_joined_envs]). Here the test is an
+     argument of the rounds and of the joins made with them
+     ([choices]). [compiler_choices] is the compiler's test, and with
+     it the functions are the compiler's. [repaired_choices] is not in
+     the compiler: it asks also that the variable stands, in every
+     joined environment, for something that has a value there
+     (discrepancy T5-10).
    - [machine_width], [Analysis.print] and the symbol projections
      ([n_way_join_symbol_projections], and the second component of
      [cut_for_join]) are left out: the model's environment has no
@@ -1220,9 +1230,80 @@ Module Join_env.
     t -> list (Index.t * flambda_type)
     -> option (Or_unknown.t flambda_type * t).
 
+  (* What a variant of the join decides, where it may decide otherwise
+     than the compiler. There is one such decision: whether the
+     relations that the type joined for a variable names are
+     recovered. The round asks it with the state, the variable and the
+     types that were joined. *)
+  Record choices : Type := {
+    recover_relations_on :
+      t -> variable -> Keyed.finite_map Index.t flambda_type -> bool
+  }.
+
+  (* The compiler's: every joined environment gave a type. *)
+  Definition compiler_choices : choices :=
+    {| recover_relations_on :=
+         fun env _ types =>
+           Joined_envs.exists_in_all_joined_envs (joined_envs env) types |}.
+
+  (* What a variable of the target stands for in a joined environment:
+     the [Simple] that its definition has there, if the join made the
+     variable; the variable, otherwise. *)
+  Definition stands_for (env : t) (index : Index.t) (var : variable)
+      : option simple :=
+    match lookup var (definitions_of_existentials env) with
+    | Some (simples, _) => Simples_in_joined_envs.find index simples
+    | None => Some (Var var)
+    end.
+
+  (* A [Simple] has, in an environment, an alias that may occur in
+     terms: a canonical element at the normal name mode, which is what
+     [Analysis.create] asks of the definitions that it keeps for
+     Simplify. That the element answered is bound at that mode is
+     asked again: in an environment that has its invariant it is, and
+     with the test nothing need be supposed of the environment. *)
+  Definition has_alias_in_terms (tenv : Typing_env.t) (simple : simple)
+      : bool :=
+    match
+      Typing_env.get_canonical_simple_exn tenv (Some Name_mode.normal) None
+        simple
+    with
+    | Some (Some canonical) =>
+      Typing_env.mem_simple (Some Name_mode.normal) tenv canonical
+    | Some None | None => false
+    end.
+
+  (* In every joined environment the variable stands for a [Simple]
+     that has an alias that may occur in terms. *)
+  Definition in_terms_in_all_joined_envs (env : t) (var : variable) : bool :=
+    forallb
+      (fun index =>
+         match
+           Joined_envs.get_nth_joined_env (joined_envs env) index,
+           stands_for env index var
+         with
+         | Some tenv, Some simple => has_alias_in_terms tenv simple
+         | _, _ => false
+         end)
+      (Joined_envs.keys (joined_envs env)).
+
+  (* Not the compiler's: the compiler's test, and the variable has a
+     value at every use. A relation recovered for a variable [x] says
+     of another, [r], that it holds the result of a primitive on [x];
+     that is true of the value of [r] only where [x] has a value, and
+     a variable that exists only in types may have none (discrepancy
+     T5-10). A variable that may occur in terms has a value, and so
+     has each of its aliases. *)
+  Definition repaired_choices : choices :=
+    {| recover_relations_on :=
+         fun env var types =>
+           Joined_envs.exists_in_all_joined_envs (joined_envs env) types
+           && in_terms_in_all_joined_envs env var |}.
+
   (* [n_way_join_round]: the types kept for each variable are joined,
      and what is answered is the variable's equation in the target. *)
-  Definition n_way_join_round (n_way_join_type : n_way_join_type) (env : t)
+  Definition n_way_join_round (choices : choices)
+      (n_way_join_type : n_way_join_type) (env : t)
       (equations_to_join :
          finite_map (Keyed.finite_map Index.t flambda_type))
       (relations : inverse_relations) : option (inverse_relations * t) :=
@@ -1236,7 +1317,7 @@ Module Join_env.
          | Or_unknown.Unknown => Some (relations, env)
          | Or_unknown.Known ty =>
            let* '(ty, relations) :=
-             if Joined_envs.exists_in_all_joined_envs (joined_envs env) types
+             if recover_relations_on choices env var types
              then recover_inverse_relations relations (Name_var var) ty
              else Some (ty, relations)
            in
@@ -1248,7 +1329,7 @@ Module Join_env.
   (* [n_way_join_delayed_equations]: rounds until a round keeps no new
      types. In the compiler it ends because a variable is imported
      once; here on fuel. *)
-  Fixpoint n_way_join_delayed_equations (fuel : nat)
+  Fixpoint n_way_join_delayed_equations (fuel : nat) (choices : choices)
       (n_way_join_type : n_way_join_type) (env_this_round : t)
       (relations : inverse_relations)
       (equations_this_round :
@@ -1261,11 +1342,11 @@ Module Join_env.
       then Some (relations, env_this_round)
       else
         let* '(relations, env_next_round) :=
-          n_way_join_round n_way_join_type env_this_round equations_this_round
-            relations
+          n_way_join_round choices n_way_join_type env_this_round
+            equations_this_round relations
         in
-        n_way_join_delayed_equations fuel n_way_join_type env_next_round
-          relations
+        n_way_join_delayed_equations fuel choices n_way_join_type
+          env_next_round relations
           (new_equations_in_joined_envs env_next_round env_this_round)
     end.
 
@@ -1291,7 +1372,8 @@ Module Join_env.
      as the depth allows. Those made in the last round get no
      equation. *)
   Fixpoint n_way_join_loop (depth_left : nat) (p : parameters) (fuel : nat)
-      (n_way_join_type : n_way_join_type) (env_this_round : t)
+      (choices : choices) (n_way_join_type : n_way_join_type)
+      (env_this_round : t)
       (relations : inverse_relations)
       (existentials_this_round :
          finite_map (Simples_in_joined_envs.t * flambda_kind))
@@ -1307,11 +1389,11 @@ Module Join_env.
             (compact existentials_this_round)
         in
         let* '(relations, env_next_round) :=
-          n_way_join_delayed_equations fuel n_way_join_type env_this_round
-            relations equations_in_joined_envs
+          n_way_join_delayed_equations fuel choices n_way_join_type
+            env_this_round relations equations_in_joined_envs
         in
-        n_way_join_loop depth_left p fuel n_way_join_type env_next_round
-          relations
+        n_way_join_loop depth_left p fuel choices n_way_join_type
+          env_next_round relations
           (new_definitions_of_existentials env_next_round env_this_round)
     end.
 
@@ -1668,7 +1750,7 @@ Module Join_env.
      target is bottom. *)
   Definition cut_and_n_way_join0 {meet_env meet_expanded_head : Type}
       (ops : meet_env_functions meet_env meet_expanded_head) (p : parameters)
-      (fuel : nat) (n_way_join_type : n_way_join_type)
+      (fuel : nat) (choices : choices) (n_way_join_type : n_way_join_type)
       (meet_expanded_head_fn : meet_expanded_head) (avoid : list variable)
       (source_env : meet_env) (source_tenv : Typing_env.t)
       (equations_to_join : Joined_envs.t)
@@ -1686,12 +1768,12 @@ Module Join_env.
         join_aliases_into_bindings p fuel empty_env equations_to_join
       in
       let* '(relations, env) :=
-        n_way_join_delayed_equations fuel n_way_join_type env []
+        n_way_join_delayed_equations fuel choices n_way_join_type env []
           (new_equations_in_joined_envs env empty_env)
       in
       let* '(relations, env) :=
-        n_way_join_loop (join_depth p) p fuel n_way_join_type env relations
-          (new_definitions_of_existentials env empty_env)
+        n_way_join_loop (join_depth p) p fuel choices n_way_join_type env
+          relations (new_definitions_of_existentials env empty_env)
       in
       let* '(target_env, definitions) :=
         define_or_eliminate_variables_and_add_equations ops fuel
@@ -1706,7 +1788,7 @@ Module Join_env.
      target has those and the ones that the join made. *)
   Definition cut_and_n_way_join {meet_env meet_expanded_head : Type}
       (ops : meet_env_functions meet_env meet_expanded_head) (p : parameters)
-      (fuel : nat) (n_way_join_type : n_way_join_type)
+      (fuel : nat) (choices : choices) (n_way_join_type : n_way_join_type)
       (meet_expanded_head_fn : meet_expanded_head) (cut_after : Scope.t)
       (source_env : meet_env) (source_tenv : Typing_env.t)
       (joined_envs : list Typing_env.t) : option meet_env :=
@@ -1714,9 +1796,9 @@ Module Join_env.
       cut_for_joins cut_after (Index.number joined_envs)
     in
     let* '(target_env, _, names) :=
-      cut_and_n_way_join0 ops p fuel n_way_join_type meet_expanded_head_fn
-        (names_to_avoid ops source_env) source_env source_tenv
-        equations_to_join
+      cut_and_n_way_join0 ops p fuel choices n_way_join_type
+        meet_expanded_head_fn (names_to_avoid ops source_env) source_env
+        source_tenv equations_to_join
     in
     Some (with_names_to_avoid ops target_env names).
 
@@ -1921,7 +2003,7 @@ End Analysis.
 Definition cut_and_n_way_join_with_analysis {A meet_env meet_expanded_head
     : Type}
     (ops : Join_env.meet_env_functions meet_env meet_expanded_head)
-    (p : Join_env.parameters) (fuel : nat)
+    (p : Join_env.parameters) (fuel : nat) (choices : Join_env.choices)
     (n_way_join_type : Join_env.n_way_join_type)
     (meet_expanded_head_fn : meet_expanded_head) (avoid : list variable)
     (cut_after : Scope.t) (source_tenv : Typing_env.t)
@@ -1942,7 +2024,7 @@ Definition cut_and_n_way_join_with_analysis {A meet_env meet_expanded_head
   in
   let source_env := Join_env.create_meet_env ops source_tenv in
   let* '(target_env, definitions, _) :=
-    Join_env.cut_and_n_way_join0 ops p fuel n_way_join_type
+    Join_env.cut_and_n_way_join0 ops p fuel choices n_way_join_type
       meet_expanded_head_fn avoid source_env source_tenv equations_to_join
   in
   let target_env := Join_env.final_typing_env ops target_env in
@@ -1961,7 +2043,7 @@ Definition cut_and_n_way_join_with_analysis {A meet_env meet_expanded_head
 Definition join_levels_cut_and_n_way_join {A meet_env meet_expanded_head
     : Type}
     (ops : Join_env.meet_env_functions meet_env meet_expanded_head)
-    (p : Join_env.parameters) (fuel : nat)
+    (p : Join_env.parameters) (fuel : nat) (choices : Join_env.choices)
     (n_way_join_type : Join_env.n_way_join_type)
     (meet_expanded_head_fn : meet_expanded_head) (avoid : list variable)
     (definition_typing_env : Typing_env.t)
@@ -1977,7 +2059,7 @@ Definition join_levels_cut_and_n_way_join {A meet_env meet_expanded_head
              Typing_env.mem None definition_typing_env (Name_symbol symbol))
           extra_lifted_consts_in_use_envs
   then
-    cut_and_n_way_join_with_analysis ops p fuel n_way_join_type
+    cut_and_n_way_join_with_analysis ops p fuel choices n_way_join_type
       meet_expanded_head_fn avoid cut_after definition_typing_env
       (rev (map (fun use => (snd use, fst use)) ts_and_use_ids))
   else None.
