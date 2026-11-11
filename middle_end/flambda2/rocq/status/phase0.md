@@ -46,13 +46,21 @@ that make the repository safe for parallel work.
   not commit) is in `rocq/HACKING.md`, under "Testing Simplify against
   the semantics". This branch commits them, as integrator work.
 
+- Item 7, the trust ledger. `rocq/TRUST-LEDGER.md` lists the 174 axioms
+  that Rocq reports, each or each group with its reason, and the trusted
+  OCaml of the Flambda 2 tests. `make -C rocq assumptions` fails if Rocq
+  reports an axiom that is not listed, if one listed is not reported, or
+  if a statement of the Flambda 2 libraries depends on an axiom outside
+  the ledger's section "Flambda 2" (seven axioms, all about the
+  primitives). Each failure was provoked once to see it fail.
+
 ## In progress
 
-- Item 7, the trust ledger.
+- Item 8, the ownership table.
 
 ## To do
 
-- Item 8, the ownership table.
+- The final validation: `make -s test`.
 
 ## Blocked
 

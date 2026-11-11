@@ -214,7 +214,9 @@ tests of `rocq/IntArith.v`, and Rocq's own axioms for its primitive
 63-bit integers, plus classical logic, used for case splits on
 definedness; and the parameter `Operation.specific_linear`, the target's
 reading of its specific operations (section 2.3). None of them states
-anything about SSA executions.
+anything about SSA executions. `rocq/TRUST-LEDGER.md` lists every axiom,
+each group with its reason, and `make -s -C rocq assumptions` fails if an
+axiom appears that it does not list.
 
 ## 3. The loop passes
 

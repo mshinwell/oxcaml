@@ -1,7 +1,8 @@
 # Check the Rocq models and proofs, and regenerate the extracted OxCaml.
 #
 #   make          check every .v file, then run the extraction
-#   make assumptions  print global assumptions and declaration types
+#   make assumptions  print global assumptions and declaration types, and
+#                 check the axioms against the trust ledger (TRUST-LEDGER.md)
 #   make claims   check that every statement a Spec file binds is proved
 #   make review   typeset what a reviewer reads as rocq/review.pdf
 #   make clean    remove everything generated
@@ -200,9 +201,77 @@ claims: $(SOURCES:.v=.vo)
 # The checker reports global assumptions, not theorem premises. Constant
 # types also expose Section arguments and contract fields,
 # including declarations inside nested modules.
+#
+# The axioms are checked against the trust ledger (TRUST-LEDGER.md), and the
+# target fails if they differ: an axiom that Rocq reports must be listed
+# there, and an axiom listed there must be reported. An axiom is listed by a
+# list item beginning with its fully qualified name between backquotes.
+# Then every statement of the Flambda 2 libraries (the theorems that claims
+# checks) must depend only on axioms of the ledger's section "Flambda 2".
+# Print Assumptions names an axiom by the shortest name that is not
+# ambiguous, so one is taken to be listed if a listed name ends with it.
+LEDGER := $(STDLIB_DIR)/TRUST-LEDGER.md
+FLAMBDA2_SPECS := $(patsubst %,OxCamlFlambda2:%,$(filter %Spec.v,$(FLAMBDA2))) \
+  $(patsubst %,OxCamlFlambda2Types:%,$(filter %Spec.v,$(FLAMBDA2_TYPES)))
+
 assumptions: all
 	@printf '%s\n' '=== Global assumptions (including dependencies) ==='
-	@$(ROCQ) check -silent -o $(FLAGS) $(MODULES) 2>&1
+	@set -eu; \
+	  ledger_dir=$$(mktemp -d); \
+	  trap 'rm -rf "$$ledger_dir"' 0; \
+	  cd "$$ledger_dir"; \
+	  $(ROCQ) check -silent -o $(FLAGS) $(MODULES) > check 2>&1 \
+	    || { cat check; exit 1; }; \
+	  cat check; \
+	  sed -n '/^\* Axioms:/,/^\* /p' check \
+	    | sed -n 's/^    \([^ ][^ ]*\)$$/\1/p' | LC_ALL=C sort -u > reported; \
+	  sed -n 's/^- `\([A-Za-z0-9_.'"'"']*\)`.*/\1/p' $(LEDGER) \
+	    | LC_ALL=C sort -u > listed; \
+	  LC_ALL=C comm -23 reported listed > unlisted; \
+	  LC_ALL=C comm -13 reported listed > stale; \
+	  printf '\n%s\n' '=== The axioms against the trust ledger ==='; \
+	  if [ -s unlisted ]; then \
+	    echo "error: axioms that $(LEDGER) does not list:" >&2; \
+	    sed 's/^/  /' unlisted >&2; \
+	  fi; \
+	  if [ -s stale ]; then \
+	    echo "error: axioms that $(LEDGER) lists and Rocq does not report:" \
+	      >&2; \
+	    sed 's/^/  /' stale >&2; \
+	  fi; \
+	  [ ! -s unlisted ] && [ ! -s stale ] || exit 1; \
+	  echo "The $$(wc -l < reported | tr -d ' ') axioms reported are those of" \
+	    "the trust ledger."; \
+	  for entry in $(FLAMBDA2_SPECS); do \
+	    lib=$${entry%%:*}; spec=$${entry#*:}; \
+	    module=$$(basename $$spec .v); proofs=$${module%Spec}Proofs; \
+	    for claim in $$(sed -n \
+	        's/^Definition \([A-Za-z0-9_]*\)_statement : Prop.*/\1/p' $$spec); \
+	    do \
+	      printf 'From %s Require %s.\nPrint Assumptions %s.%s.\n' \
+	        $$lib $$proofs $$proofs $$claim; \
+	    done; \
+	  done > Statements.v; \
+	  $(ROCQ) repl -q -batch $(FLAGS) -l Statements.v > statements 2>&1 \
+	    || { cat statements; exit 1; }; \
+	  sed -n 's/^\([A-Za-z_][A-Za-z0-9_.'"'"']*\)\( :.*\)\{0,1\}$$/\1/p' \
+	    statements | grep -v '^Axioms$$' | LC_ALL=C sort -u > used; \
+	  sed -n '/^## Flambda 2$$/,/^## /p' $(LEDGER) \
+	    | sed -n 's/^- `\([A-Za-z0-9_.'"'"']*\)`.*/\1/p' > flambda2; \
+	  : > foreign; \
+	  while read -r axiom; do \
+	    grep -q -x -e "$$axiom" -e ".*\.$$axiom" flambda2 \
+	      || echo "$$axiom" >> foreign; \
+	  done < used; \
+	  if [ -s foreign ]; then \
+	    echo "error: statements of the Flambda 2 libraries depend on axioms" \
+	      "that are not in the section \"Flambda 2\" of $(LEDGER):" >&2; \
+	    sed 's/^/  /' foreign >&2; \
+	    exit 1; \
+	  fi; \
+	  echo "The statements of the Flambda 2 libraries depend on" \
+	    "$$(wc -l < used | tr -d ' ') of the $$(wc -l < flambda2 | tr -d ' ')" \
+	    "axioms of the ledger's section \"Flambda 2\", and on no other."
 	@printf '\n%s\n' '=== Declaration types and contract fields ===' \
 	  'Section hypotheses appear as arguments in these types.' \
 	  'This section includes proved theorems, not just assumptions.'

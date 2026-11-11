@@ -161,6 +161,16 @@ module listed in this Makefile. The report has two parts:
    hide names through a search blacklist. This part includes proved
    theorems too; it is not another list of axioms.
 
+Between the two parts the target checks the axioms against the trust
+ledger, `rocq/TRUST-LEDGER.md`, and fails if they differ. Every axiom of
+the first part must be listed there, with its reason; every axiom listed
+there must be in the first part; and the statements of the Flambda 2
+libraries must depend only on the axioms of the ledger's section
+"Flambda 2" (so that, for one, none comes to use classical logic). An
+axiom or a `Parameter` added to a model is therefore added to the ledger
+in the same change. For the Flambda 2 work that needs a reviewer's
+sign-off, and the aim is for the ledger to shrink.
+
 For a particular theorem, `Check @find_deletions_eligible.` (or
 `Check @find_eliminations_sound.`) shows its full premises and
 `Print Assumptions find_deletions_eligible.` gives its global axiom
@@ -353,7 +363,10 @@ are reached by no reviewed statement and are Proofs definitions.
 
 ### What is trusted
 
-The trusted base is small and must stay listed in the headers:
+The trusted base is small and must stay listed in the headers, and in
+`rocq/TRUST-LEDGER.md`, which has every axiom and, for the Flambda 2
+semantics, every piece of trusted OCaml, each with its reason
+(`make -C rocq assumptions` checks the axioms against it):
 
 - the axioms about `int`, `Int64` and the list functions mapped onto
   OxCaml's (`OxCamlInt64.v`, `OxCamlList.v`);
@@ -380,6 +393,10 @@ against which the simplifier's transformations can be proved correct, built
 a fragment at a time. The files follow the same Spec/Proofs split, and
 `make claims` checks its statements too.
 
+- The work is planned for many people and agents at once:
+  `middle_end/flambda2/rocq/PARALLEL-PLAN.md` is the plan and its rules,
+  and `OWNERS.md` beside it says who owns which file. Edit only files you
+  own.
 - `FlambdaModel.v` is the model's copy of the terms (`flambda.mli`), for
   the fragment covered; its header lists what is left out and how the
   presentation differs from the compiler's (plain names in place of name
@@ -658,7 +675,9 @@ not a proof.
   integrator's like the rest of the directory.
 - Trusted and unverified: the conversion from Flambda terms to model
   terms, and the meaning the tool gives to the few primitives it knows,
-  which the model leaves abstract. Read both in `flsemantics.ml`.
+  which the model leaves abstract. Read both in `flsemantics.ml`. The
+  whole list, with the axioms about the primitives, is the section
+  "Flambda 2" of `rocq/TRUST-LEDGER.md`.
 - A construct or primitive the conversion does not know makes the example
   "not checked"; it is never run as if undefined, which would pass for
   nothing. When the model gains a construct, teach the conversion and add
@@ -771,4 +790,6 @@ not a proof.
   `rocq/Makefile`, `dune` and `Extract.v`.
 - Every non-trivial lemma and theorem has a comment; no comment restates
   a named predicate.
-- The headers list what is trusted, and nothing is `Admitted`.
+- The headers list what is trusted, and nothing is `Admitted`;
+  `make -s -C rocq assumptions` passes, so there is no axiom that
+  `rocq/TRUST-LEDGER.md` does not list.
