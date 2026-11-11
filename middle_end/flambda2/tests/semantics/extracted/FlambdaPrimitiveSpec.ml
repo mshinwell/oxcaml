@@ -2,6 +2,7 @@ open BinInt
 open BinNums
 open Datatypes
 open FlambdaKindModel
+open FlambdaMapSpec
 open FlambdaModel
 open FlambdaPrimitiveModel
 open FlambdaValueSpec
@@ -160,6 +161,12 @@ let eval_int_comp width behaviour a b =
     | Lt -> Zneg Coq_xH
     | Gt -> Zpos Coq_xH)
 
+(** val bound_if_symbol : static_env -> value -> bool **)
+
+let bound_if_symbol statics = function
+  | Value_symbol s -> is_some (lookup s statics.static_values)
+  | _ -> true
+
 (** val naked_bool : bool -> value **)
 
 let naked_bool b = Value_const (Naked_immediate (if b then Zpos Coq_xH else Z0))
@@ -258,7 +265,9 @@ let eval_unary_primitive statics p v =
       Some (Value_const (Naked_immediate tag))
     | None -> None)
   | Opaque_identity kind ->
-    if kind_eqb (kind_of_value v) kind then Some v else None
+    if kind_eqb (kind_of_value v) kind && bound_if_symbol statics v
+    then Some v
+    else None
   | Unbox_number kind -> (
     match boxed_number_of statics v with
     | Some c -> if is_number_of_kind kind c then Some (Value_const c) else None
@@ -303,13 +312,15 @@ let eval_binary_primitive p v1 v2 =
       | None -> None)
     | None -> None)
 
-(** val eval_variadic_primitive : variadic_primitive -> value list -> value
-    option **)
+(** val eval_variadic_primitive : static_env -> variadic_primitive -> value list
+    -> value option **)
 
-let eval_variadic_primitive p vs =
+let eval_variadic_primitive statics p vs =
   let (Make_block kind) = p in
   let (Block_kind_values tag) = kind in
-  if forallb (fun v -> kind_eqb (kind_of_value v) Value) vs
+  if
+    forallb (fun v -> kind_eqb (kind_of_value v) Value) vs
+    && forallb (bound_if_symbol statics) vs
   then Some (Value_block (tag, vs))
   else None
 
@@ -330,7 +341,7 @@ let eval_prim statics p vs =
       | [] -> None
       | v2 :: l0 -> (
         match l0 with [] -> eval_binary_primitive p0 v1 v2 | _ :: _ -> None)))
-  | Variadic p0 -> eval_variadic_primitive p0 vs
+  | Variadic p0 -> eval_variadic_primitive statics p0 vs
 
 (** val prim_eq_dec : prim -> prim -> bool **)
 

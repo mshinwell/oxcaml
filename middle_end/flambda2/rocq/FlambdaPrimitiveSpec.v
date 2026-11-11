@@ -50,7 +50,10 @@
      there because Simplify assumes that the case does not arise, where
      the machine would compute something;
    - when it computes with an integer that is out of the range of its
-     kind.
+     kind;
+   - when an argument is a symbol that is bound to nothing
+     ([eval_prim_symbols_bound_statement]): any operation on such a
+     symbol is undefined, and a well-formed term has none.
 
    The integers. The model is of a 64-bit target: the tagged and the
    naked immediates are OCaml's [int], of 63 bits, and the other kinds
@@ -226,6 +229,16 @@ Definition eval_int_comp (width : Z) (behaviour : int_comparison_behaviour)
 (* The primitives                                                           *)
 (* ======================================================================== *)
 
+(* A value that is a symbol is bound. A primitive that reads its
+   argument has no value on a symbol that is bound to nothing, because
+   no observation has an answer there. This is the test for one that
+   passes its argument on without reading it. *)
+Definition bound_if_symbol (statics : static_env) (v : value) : bool :=
+  match v with
+  | Value_symbol s => is_some (lookup s (static_values statics))
+  | _ => true
+  end.
+
 (* A boolean result is a naked immediate, 1 or 0. *)
 Definition naked_bool (b : bool) : value :=
   Value_const (Naked_immediate (if b then 1 else 0)).
@@ -356,7 +369,7 @@ Definition eval_block_load (statics : static_env) (kind : block_access_kind)
      argument to be a variant that is not null
      ([Flambda2_types.add_get_tag_relation]).
    - [Opaque_identity] is the identity, on a value of the kind it
-     carries.
+     carries that is not a symbol bound to nothing.
    - [Box_number] makes a boxed number of a naked number of the kind it
      carries, and [Unbox_number] is the naked number inside a boxed
      number of that kind. Neither looks at the number: it is not
@@ -393,7 +406,9 @@ Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
     let* '(tag, _) := block_of statics v in
     Some (Value_const (Naked_immediate tag))
   | Opaque_identity kind =>
-    if kind_eqb (kind_of_value v) kind then Some v else None
+    if kind_eqb (kind_of_value v) kind && bound_if_symbol statics v
+    then Some v
+    else None
   | Unbox_number kind =>
     let* c := boxed_number_of statics v in
     if is_number_of_kind kind c then Some (Value_const c) else None
@@ -432,7 +447,8 @@ Definition eval_binary_primitive (p : binary_primitive) (v1 v2 : value)
 
 (* A variadic primitive applied to values. [Make_block] makes an
    immutable block of its arguments, with the tag it carries. It has no
-   value if an argument is not of kind [Value]. A block of no fields is
+   value if an argument is not of kind [Value], or is a symbol that is
+   bound to nothing. A block of no fields is
    made like another: the compiler's backend refuses to allocate one
    ([To_cmm_primitive.check_alloc_fields]) and relies on Simplify's
    having made it a symbol, which is an obligation of the compiler and
@@ -447,11 +463,12 @@ Definition eval_binary_primitive (p : binary_primitive) (v1 v2 : value)
    backend ignores them. When they come into the model, whether a
    field that is not of its subkind makes the block undefined is to be
    settled with the kinds. Decision D25. *)
-Definition eval_variadic_primitive (p : variadic_primitive)
-    (vs : list value) : option value :=
+Definition eval_variadic_primitive (statics : static_env)
+    (p : variadic_primitive) (vs : list value) : option value :=
   match p with
   | Make_block (Block_kind_values tag) =>
     if forallb (fun v => kind_eqb (kind_of_value v) Value) vs
+       && forallb (bound_if_symbol statics) vs
     then Some (Value_block tag vs)
     else None
   end.
@@ -463,7 +480,7 @@ Definition eval_prim (statics : static_env) (p : prim) (vs : list value)
   match p, vs with
   | Unary p, [v] => eval_unary_primitive statics p v
   | Binary p, [v1; v2] => eval_binary_primitive p v1 v2
-  | Variadic p, vs => eval_variadic_primitive p vs
+  | Variadic p, vs => eval_variadic_primitive statics p vs
   | _, _ => None
   end.
 
@@ -581,7 +598,8 @@ Definition eval_prim_static_values_statement : Prop :=
    to the same thing, whatever else comes to be bound. The statement
    above does not give this, as it asks of a symbol that is not bound
    that it stay so. It holds because no primitive has a value by a
-   symbol's being bound to nothing. The premise is that of
+   symbol's being bound to nothing
+   ([eval_prim_symbols_bound_statement]). The premise is that of
    [FlambdaWellFormedSpec.statics_extend], which a run of the machine
    keeps, asked of the symbols among the arguments only. *)
 Definition eval_prim_statics_extend_statement : Prop :=
@@ -593,6 +611,18 @@ Definition eval_prim_statics_extend_statement : Prop :=
       lookup s (static_values statics') = Some allocated) ->
     eval_prim statics p vs = Some v ->
     eval_prim statics' p vs = Some v.
+
+(* A primitive has no value on a symbol that is bound to nothing: any
+   operation on such a symbol is undefined. (The symbols that are in
+   the fields of an argument are not looked at: the primitive does not
+   operate on them. In a well-formed unit there is no such symbol
+   anywhere.) *)
+Definition eval_prim_symbols_bound_statement : Prop :=
+  ∀ (statics : static_env) (p : prim) (vs : list value) (v : value)
+    (s : symbol),
+    eval_prim statics p vs = Some v ->
+    Value_symbol s ∈ vs ->
+    lookup s (static_values statics) <> None.
 
 (* A primitive that has a value was given arguments of its kinds, as many
    as it takes, and its value is of its result kind. *)

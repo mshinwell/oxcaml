@@ -2,6 +2,7 @@ open BinInt
 open BinNums
 open Datatypes
 open FlambdaKindModel
+open FlambdaMapSpec
 open FlambdaModel
 open FlambdaPrimitiveModel
 open FlambdaValueSpec
@@ -29,6 +30,8 @@ val eval_int_comparison : coq_Z -> int_comparison -> coq_Z -> coq_Z -> bool
 
 val eval_int_comp : coq_Z -> int_comparison_behaviour -> coq_Z -> coq_Z -> coq_Z
 
+val bound_if_symbol : static_env -> value -> bool
+
 val naked_bool : bool -> value
 
 val is_tagged_immediate : value -> bool
@@ -49,7 +52,8 @@ val eval_unary_primitive :
 
 val eval_binary_primitive : binary_primitive -> value -> value -> value option
 
-val eval_variadic_primitive : variadic_primitive -> value list -> value option
+val eval_variadic_primitive :
+  static_env -> variadic_primitive -> value list -> value option
 
 val eval_prim : static_env -> prim -> value list -> value option
 

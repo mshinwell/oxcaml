@@ -84,7 +84,7 @@ Proof. reflexivity. Qed.
 
 Lemma eval_prim_variadic (statics : static_env) (p : variadic_primitive)
     (vs : list value) :
-  eval_prim statics (Variadic p) vs = eval_variadic_primitive p vs.
+  eval_prim statics (Variadic p) vs = eval_variadic_primitive statics p vs.
 Proof. reflexivity. Qed.
 
 (* A primitive that has a value was applied to as many arguments as it
@@ -98,7 +98,7 @@ Lemma eval_prim_arity (statics : static_env) (p : prim) (vs : list value)
       p = Binary p' ∧ vs = [v1; v2]
       ∧ eval_binary_primitive p' v1 v2 = Some v)
   ∨ (∃ p' : variadic_primitive,
-      p = Variadic p' ∧ eval_variadic_primitive p' vs = Some v).
+      p = Variadic p' ∧ eval_variadic_primitive statics p' vs = Some v).
 Proof.
   destruct p as [p | p | p].
   - destruct vs as [ | v1 [ | v2 vs]]; simpl; try discriminate.
@@ -237,6 +237,13 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma bound_if_symbol_static_values :
+  bound_if_symbol statics v = bound_if_symbol statics' v.
+Proof.
+  destruct v; simpl; try reflexivity. rewrite (Hsame _ eq_refl).
+  reflexivity.
+Qed.
+
 (* By cases on the unary primitives: one that reads an allocated value
    does so through an observation. *)
 Lemma eval_unary_primitive_static_values (p : unary_primitive) :
@@ -245,17 +252,47 @@ Proof.
   destruct p as [[tag size field_kind] field | | | | | | | | ]; simpl;
     unfold eval_is_int, eval_is_null, eval_block_load;
     rewrite ?block_of_static_values, ?is_allocated_static_values,
-      ?boxed_number_of_static_values;
+      ?boxed_number_of_static_values, ?bound_if_symbol_static_values;
     reflexivity.
 Qed.
 
 End Static_values.
 
+Lemma forallb_bound_if_symbol_static_values (statics statics' : static_env)
+    (vs : list value) :
+  (∀ s : symbol,
+    Value_symbol s ∈ vs ->
+    lookup s (static_values statics) = lookup s (static_values statics')) ->
+  forallb (bound_if_symbol statics) vs
+  = forallb (bound_if_symbol statics') vs.
+Proof.
+  induction vs as [ | v vs IH]; simpl; intros Hsame; [ reflexivity | ].
+  rewrite IH by (intros s Hin; apply Hsame; right; exact Hin).
+  rewrite (bound_if_symbol_static_values statics statics' v)
+    by (intros s ->; apply Hsame; left; reflexivity).
+  reflexivity.
+Qed.
+
+(* By cases on the variadic primitives. *)
+Lemma eval_variadic_primitive_static_values (statics statics' : static_env)
+    (p : variadic_primitive) (vs : list value) :
+  (∀ s : symbol,
+    Value_symbol s ∈ vs ->
+    lookup s (static_values statics) = lookup s (static_values statics')) ->
+  eval_variadic_primitive statics p vs
+  = eval_variadic_primitive statics' p vs.
+Proof.
+  intros Hsame. destruct p as [[tag]]; simpl.
+  rewrite (forallb_bound_if_symbol_static_values statics statics' vs Hsame).
+  reflexivity.
+Qed.
+
 Theorem eval_prim_static_values : eval_prim_static_values_statement.
 Proof.
   intros statics statics' p vs Hsame.
-  destruct p as [p | p | p], vs as [ | v1 [ | v2 [ | v3 vs]]]; simpl;
-    try reflexivity.
+  destruct p as [p | p | p];
+    [ | | exact (eval_variadic_primitive_static_values _ _ p vs Hsame) ];
+    destruct vs as [ | v1 [ | v2 [ | v3 vs]]]; simpl; try reflexivity.
   apply eval_unary_primitive_static_values. intros s ->.
   apply Hsame. left. reflexivity.
 Qed.
@@ -404,6 +441,18 @@ Proof.
   rewrite (block_of_statics_extend _ Hblock). exact (fun H => H).
 Qed.
 
+Lemma bound_if_symbol_statics_extend :
+  bound_if_symbol statics v = true -> bound_if_symbol statics' v = true.
+Proof.
+  destruct v; simpl; try exact (fun H => H).
+  match goal with
+  | |- context [lookup ?s (static_values statics)] =>
+    destruct (lookup s (static_values statics)) eqn:Hlookup;
+      [ rewrite (Hextend _ _ eq_refl Hlookup); exact (fun H => H)
+      | discriminate ]
+  end.
+Qed.
+
 (* By cases on the unary primitives: one that reads an allocated value
    does so through an observation, and has no value where the
    observation has no answer. *)
@@ -427,19 +476,141 @@ Proof.
     | |- context [boxed_number_of statics v] =>
       destruct (boxed_number_of statics v) eqn:Hvalue;
         [ rewrite (boxed_number_of_statics_extend _ Hvalue) | discriminate ]
+    | |- context [bound_if_symbol statics v] =>
+      destruct (bound_if_symbol statics v) eqn:Hvalue;
+        [ rewrite (bound_if_symbol_statics_extend Hvalue)
+        | rewrite andb_false_r; discriminate ]
     end;
     exact (fun H => H).
 Qed.
 
 End Statics_extend.
 
+Lemma forallb_bound_if_symbol_statics_extend (statics statics' : static_env)
+    (vs : list value) :
+  (∀ (s : symbol) (allocated : statically_allocated_value),
+    Value_symbol s ∈ vs ->
+    lookup s (static_values statics) = Some allocated ->
+    lookup s (static_values statics') = Some allocated) ->
+  forallb (bound_if_symbol statics) vs = true ->
+  forallb (bound_if_symbol statics') vs = true.
+Proof.
+  induction vs as [ | v vs IH]; simpl; intros Hextend;
+    [ exact (fun H => H) | ].
+  rewrite !andb_true_iff. intros [Hv Hvs]. split.
+  - revert Hv. apply bound_if_symbol_statics_extend.
+    intros s allocated ->. apply Hextend. left. reflexivity.
+  - apply IH; [ | exact Hvs ].
+    intros s allocated Hin. apply Hextend. right. exact Hin.
+Qed.
+
+(* By cases on the variadic primitives. *)
+Lemma eval_variadic_primitive_statics_extend
+    (statics statics' : static_env) (p : variadic_primitive)
+    (vs : list value) (result : value) :
+  (∀ (s : symbol) (allocated : statically_allocated_value),
+    Value_symbol s ∈ vs ->
+    lookup s (static_values statics) = Some allocated ->
+    lookup s (static_values statics') = Some allocated) ->
+  eval_variadic_primitive statics p vs = Some result ->
+  eval_variadic_primitive statics' p vs = Some result.
+Proof.
+  intros Hextend. destruct p as [[tag]]; simpl.
+  destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) vs);
+    [ | discriminate ].
+  destruct (forallb (bound_if_symbol statics) vs) eqn:Hbound;
+    [ | discriminate ].
+  rewrite
+    (forallb_bound_if_symbol_statics_extend statics statics' vs Hextend
+       Hbound).
+  exact (fun H => H).
+Qed.
+
 Theorem eval_prim_statics_extend : eval_prim_statics_extend_statement.
 Proof.
   intros statics statics' p vs v Hextend.
-  destruct p as [p | p | p], vs as [ | v1 [ | v2 [ | v3 vs]]]; simpl;
+  destruct p as [p | p | p];
+    [ | | exact (eval_variadic_primitive_statics_extend _ _ p vs v Hextend) ];
+    destruct vs as [ | v1 [ | v2 [ | v3 vs]]]; simpl;
     try exact (fun H => H).
   apply eval_unary_primitive_statics_extend. intros s allocated ->.
   apply Hextend. left. reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* No value on a symbol that is bound to nothing                            *)
+(* ======================================================================== *)
+
+Lemma lookup_bound {A : Type} (s : symbol) (statics : list (symbol * A))
+    (x : A) :
+  lookup s statics = Some x -> lookup s statics <> None.
+Proof. intros ->. discriminate. Qed.
+
+(* An observation has no answer on a symbol that is bound to nothing. *)
+Lemma is_allocated_symbol_bound (statics : static_env) (s : symbol) :
+  is_allocated statics (Value_symbol s) = true ->
+  lookup s (static_values statics) <> None.
+Proof.
+  unfold is_allocated. simpl.
+  destruct (lookup s (static_values statics)); discriminate.
+Qed.
+
+(* By cases on the unary primitives. *)
+Lemma eval_unary_primitive_symbol_bound (statics : static_env)
+    (p : unary_primitive) (s : symbol) (v : value) :
+  eval_unary_primitive statics p (Value_symbol s) = Some v ->
+  lookup s (static_values statics) <> None.
+Proof.
+  destruct p as [[tag size field_kind] field | [ | ] | | | kind | kind
+                | kind | | ];
+    simpl; unfold eval_is_int, eval_is_null, eval_block_load; simpl;
+    try discriminate;
+    try (destruct (lookup s (static_values statics)); discriminate).
+  - destruct (is_allocated statics (Value_symbol s)) eqn:Hallocated;
+      [ | discriminate ].
+    intros _. exact (is_allocated_symbol_bound statics s Hallocated).
+  - destruct (is_allocated statics (Value_symbol s)) eqn:Hallocated;
+      [ | discriminate ].
+    intros _. exact (is_allocated_symbol_bound statics s Hallocated).
+  - destruct (lookup s (static_values statics)); [ discriminate | ].
+    rewrite andb_false_r. discriminate.
+Qed.
+
+(* By cases on the binary primitives: a symbol is not an integer. *)
+Lemma int_of_value_symbol (kind : standard_int) (s : symbol) :
+  int_of_value kind (Value_symbol s) = None.
+Proof. destruct kind; reflexivity. Qed.
+
+Lemma eval_binary_primitive_symbol (p : binary_primitive) (s : symbol)
+    (v1 v2 v : value) :
+  eval_binary_primitive p v1 v2 = Some v ->
+  v1 <> Value_symbol s ∧ v2 <> Value_symbol s.
+Proof.
+  destruct p as [kind op | kind behaviour]; simpl;
+    (destruct (int_of_value kind v1) eqn:Hv1; [ | discriminate ]);
+    (destruct (int_of_value kind v2) eqn:Hv2; [ | discriminate ]);
+    intros _; split; intros ->; rewrite int_of_value_symbol in *;
+    discriminate.
+Qed.
+
+Theorem eval_prim_symbols_bound : eval_prim_symbols_bound_statement.
+Proof.
+  intros statics p vs v s Heval Hin.
+  destruct (eval_prim_arity statics p vs v Heval)
+    as [(p' & v1 & -> & -> & Hp)
+       | [(p' & v1 & v2 & -> & -> & Hp) | (p' & -> & Hp)]].
+  - destruct Hin as [-> | [ ]].
+    exact (eval_unary_primitive_symbol_bound statics p' s v Hp).
+  - destruct (eval_binary_primitive_symbol p' s v1 v2 v Hp) as [Hv1 Hv2].
+    destruct Hin as [-> | [-> | [ ]]]; [ elim Hv1 | elim Hv2 ]; reflexivity.
+  - revert Hp. destruct p' as [[tag]]; simpl.
+    destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) vs);
+      [ | discriminate ].
+    destruct (forallb (bound_if_symbol statics) vs) eqn:Hbound;
+      [ | discriminate ].
+    intros _. rewrite forallb_forall in Hbound.
+    specialize (Hbound _ Hin). simpl in Hbound.
+    destruct (lookup s (static_values statics)); discriminate.
 Qed.
 
 (* ======================================================================== *)
@@ -516,6 +687,7 @@ Proof.
   - (* [Opaque_identity] *)
     destruct (kind_eqb (kind_of_value arg) kind) eqn:Hkind;
       [ | discriminate ].
+    destruct (bound_if_symbol statics arg); [ | discriminate ].
     apply kind_eqb_eq in Hkind. intros [= <-]. auto.
   - (* [Unbox_number] *)
     destruct (boxed_number_of statics arg) as [c | ] eqn:Hboxed;
@@ -564,9 +736,9 @@ Proof.
 Qed.
 
 (* By cases on the variadic primitives. *)
-Lemma eval_variadic_primitive_kinds (p : variadic_primitive)
-    (args : list value) (v : value) :
-  eval_variadic_primitive p args = Some v ->
+Lemma eval_variadic_primitive_kinds (statics : static_env)
+    (p : variadic_primitive) (args : list value) (v : value) :
+  eval_variadic_primitive statics p args = Some v ->
   forallb (fun kind => kind_eqb kind (args_kind_of_variadic_primitive p))
     (map kind_of_value args)
   = true
@@ -576,6 +748,7 @@ Proof.
   destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) args)
     eqn:Hargs;
     [ | discriminate ].
+  destruct (forallb (bound_if_symbol statics) args); [ | discriminate ].
   intros [= <-]. split; [ | reflexivity ]. clear tag.
   induction args as [ | arg args IH]; simpl in *; [ reflexivity | ].
   apply andb_true_iff in Hargs as [Harg Hargs]. rewrite Harg.
@@ -593,7 +766,7 @@ Proof.
     rewrite kind_eqb_refl. auto.
   - apply eval_binary_primitive_kinds in Hp as (-> & -> & ->).
     rewrite !kind_eqb_refl. auto.
-  - exact (eval_variadic_primitive_kinds p' vs v Hp).
+  - exact (eval_variadic_primitive_kinds statics p' vs v Hp).
 Qed.
 
 (* ======================================================================== *)
@@ -660,6 +833,7 @@ Proof.
   - destruct (block_of statics arg) as [[tag fields] | ]; [ | discriminate ].
     intros [= <-]. apply Hnumbers.
   - destruct (kind_eqb (kind_of_value arg) kind); [ | discriminate ].
+    destruct (bound_if_symbol statics arg); [ | discriminate ].
     intros [= <-]. exact Harg.
   - destruct (boxed_number_of statics arg) as [c | ]; [ | discriminate ].
     destruct (is_number_of_kind kind c); [ | discriminate ].
@@ -694,12 +868,13 @@ Qed.
 Lemma eval_variadic_primitive_preserves (p : variadic_primitive)
     (args : list value) (v : value) :
   (∀ arg : value, arg ∈ args -> P arg) ->
-  eval_variadic_primitive p args = Some v ->
+  eval_variadic_primitive statics p args = Some v ->
   P v.
 Proof.
   intros Hargs. destruct p as [[tag]]; simpl.
   destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) args);
     [ | discriminate ].
+  destruct (forallb (bound_if_symbol statics) args); [ | discriminate ].
   intros [= <-]. exact (proj2 (Hblocks tag args) Hargs).
 Qed.
 
@@ -717,7 +892,8 @@ Proof.
       [ | exact Hp ].
     apply Hargs. left. reflexivity.
   - exact (eval_binary_primitive_preserves P Hnumbers p' v1 v2 v Hp).
-  - exact (eval_variadic_primitive_preserves P Hblocks p' vs v Hargs Hp).
+  - exact
+      (eval_variadic_primitive_preserves P statics Hblocks p' vs v Hargs Hp).
 Qed.
 
 (* ======================================================================== *)
@@ -1017,6 +1193,18 @@ Example make_block_of_naked_number :
   = None.
 Proof. reflexivity. Qed.
 
+Example make_block_of_symbol :
+  eval_prim a_block (Variadic (Make_block (Block_kind_values 3)))
+    [tagged 10; Value_symbol 1%positive]
+  = Some (Value_block 3 [tagged 10; Value_symbol 1%positive]).
+Proof. reflexivity. Qed.
+
+Example make_block_of_unbound_symbol :
+  eval_prim empty_static_env (Variadic (Make_block (Block_kind_values 3)))
+    [tagged 10; Value_symbol 1%positive]
+  = None.
+Proof. reflexivity. Qed.
+
 Definition load (tag size : option Z) (field : Z) : unary_primitive :=
   Block_load (Block_access_values tag size Any_value) field.
 
@@ -1057,8 +1245,13 @@ Example get_tag_of_made_block :
 Proof. reflexivity. Qed.
 
 Example opaque_identity :
-  unary empty_static_env (Opaque_identity Value) (Value_symbol 1%positive)
+  unary a_block (Opaque_identity Value) (Value_symbol 1%positive)
   = Some (Value_symbol 1%positive).
+Proof. reflexivity. Qed.
+
+Example opaque_identity_of_unbound_symbol :
+  unary empty_static_env (Opaque_identity Value) (Value_symbol 1%positive)
+  = None.
 Proof. reflexivity. Qed.
 
 Example opaque_identity_wrong_kind :
