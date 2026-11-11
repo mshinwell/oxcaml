@@ -215,7 +215,11 @@
      others: its witness would have to give a value to a name that had
      none, and the agreement above would be lost. Meet keeps the
      condition: it answers bottom for the whole environment where an
-     equation has no value. There is a CR at [no_bottom_types].
+     equation that it adds is obviously bottom. The compiler's join
+     needs the condition, and the condition is not enough for it: a
+     type that is not obviously bottom may have no value either, and
+     that join passes over it in the same way (below, "The compiler's
+     n-way join"). There is a CR at [no_bottom_types].
    The answer is well formed in the same sense and of the kind of the
    inputs, and the environment answered knows what the first knew
    ([meet_keeps_well_formed]), so that a meet can follow a meet.
@@ -268,22 +272,50 @@
    adding definitions and equations ([scoped_env_of]): each fits, and
    has every name of the first with its binding time and a type of the
    same kind.
-   The compiler's n-way join is known to have the first clause only
-   under a condition on what it is given (discrepancy T5-10, and
-   FlambdaJoinSpec.v, which states the condition): where the type
-   joined for a name [x] is a variant with a variable [r] for
-   [Is_int], the join gives [r] the type "[Is_int] of [x]"
-   ([recover_inverse_relations]), also where [x] has no value in the
-   run and [r] has one, and that type is true of no number then. The
-   condition is that the scrutinee of every relation so recovered has
-   a value in every run in which the result has one. The clause here
-   is not weakened for it: a meet that follows reads the relation on
-   behalf of the value of [r] and adds an equation to [x], whose type
-   nothing ties to anything if it has no value, so with [r] exempt
-   that meet could answer bottom for a value that has both types. So
-   the meet is to be proved with the clause as a hypothesis on the
-   join, and its instance for the compiler's own join carries that
-   condition.
+
+   The compiler's n-way join. It has not the first clause as it is
+   stated (discrepancy T5-10; FlambdaJoinSpec.v states what it has).
+   It takes a variable that an environment has a type for to have a
+   value there, and a valuation that satisfies an environment strictly
+   may give it none. Two things follow.
+   - Where the type joined for a name [x] is a variant with a variable
+     [r] for [Is_int], the join gives [r] the type "[Is_int] of [x]"
+     ([recover_inverse_relations]), also where [x] has no value in the
+     run and [r] has one, and that type is true of no number then.
+   - The join of the types that a name has in the environments joined
+     passes over a type that it finds to have no value: one that is
+     obviously bottom, or a head of naked immediates that its
+     relations reduce to nothing ([expand_head], by
+     [reduce_head_of_kind_naked_immediate]). The name then gets what
+     it is in the other environments joined, an alias of a constant
+     say, also on a run through the environment in which it has no
+     value. [no_bottom_types] rules out the first kind of type only.
+     A name whose type is "0 or 2, and the result of [Is_int] on [p]",
+     in an environment where [p] is a tagged immediate, has a type
+     that is not obviously bottom, and no value; given it in one
+     environment and the constant 1 in the other, both joins of the
+     compiler answer that the name is the constant 1 (the stream of
+     differential tests ran it).
+   So the compiler's join has the first clause only of the runs that
+   have the values that it reads: three conditions on a run, stated
+   in FlambdaJoinSpec.v ([scrutinees_have_values],
+   [joined_variables_have_values], [imported_variables_have_values]).
+   The clause here is not weakened for them: a meet that follows
+   reads a relation on behalf of the value of [r] and adds an
+   equation to [x], whose type nothing ties to anything if it has no
+   value, so with [r] exempt that meet could answer bottom for a
+   value that has both types. The meet is to be proved with the
+   clause as a hypothesis on the join that it is given. Its instance
+   for the compiler's own join is owed, and it has an obligation
+   that nothing here discharges: that every join that a meet makes
+   is made on runs that have the three conditions. They are to be
+   carried through the meet as conditions on the run, and are
+   hypotheses of that instance wherever the meet is not shown to
+   establish them, with a CR there: nothing in the compiler is known
+   to establish the first and the third, and the first fails of a
+   program that the compiler, with the n-way join, then compiles to
+   code that answers a wrong number (the reproduction of discrepancy
+   T5-10).
 
    Code ids. A function type names its code exactly
    (FlambdaTypeMeaningSpec.v); the code age relation is not in the
@@ -512,12 +544,15 @@ Definition typing_env_kinded (tenv : Typing_env.t) : Prop :=
    [Meet_env.add_env_extension]) or answer bottom
    ([Meet_env.add_equation_strict]). *)
 (* CR mshinwell: this is asked of every environment that a meet is
-   made in, because the n-way join that the meet calls is sound only
-   for it as far as is known: the join of types passes over an
-   obviously bottom type, and the join of environments can then give
-   the name what it is in the other environments joined, where it has
-   no value in this one. It is not known that every environment that
-   Simplify builds with the n-way join has it. Discrepancy T5-10. *)
+   made in, because the n-way join that the meet calls is not sound
+   without it: the join of types passes over an obviously bottom type,
+   and the join of environments can then give the name what it is in
+   the other environments joined, where it has no value in this one.
+   It is not enough for the compiler's join to be sound, which passes
+   in the same way over a type that is not obviously bottom and has
+   no value (the header, "The compiler's n-way join"). It is not known
+   that every environment that Simplify builds with the n-way join has
+   it. Discrepancy T5-10. *)
 Definition no_bottom_types (tenv : Typing_env.t) : Prop :=
   Typing_env.is_bottom tenv = false ->
   ∀ (n : name) (ty : flambda_type)

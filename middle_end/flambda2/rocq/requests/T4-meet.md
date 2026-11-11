@@ -67,8 +67,8 @@ the variables that `tenv` knows, the second satisfies (T2's
 without a value could be given one), to match the n-way join; R1
 showed that the meet of an alternative of a disjunction could then not
 give the join a valuation that still satisfies the environment of the
-whole meet, and T5 found that the join can keep exact agreement if no
-name has an obviously bottom type (section 4).
+whole meet. The join is asked for the exact agreement too; what the
+compiler's join has of it is in section 5.
 
 So: the values of both inputs are kept; one valuation accounts for all
 the equations and definitions returned; bottom is answered only when no
@@ -177,8 +177,9 @@ fits it, and the two types have one kind.
   fits it. `no_bottom_types` is there for the n-way join, which passes
   over an obviously bottom type and can then make the name an alias of
   what it is in the other environments joined, giving a value to a
-  name that had none. The model is stricter than the compiler here
-  (the binary join makes such environments with
+  name that had none. The compiler's join needs it and it is not
+  enough for that join (section 5). The model is stricter than the
+  compiler here (the binary join makes such environments with
   `Meet_env.add_env_extension_maybe_bottom`); meet keeps the
   condition; there is a `CR mshinwell` (T5-10).
 
@@ -265,11 +266,23 @@ answers agrees with the one before on what `initial_tenv` knows.
 the join that answers `initial_env` has it.
 
 Found by T5 (T5-10), and decided: the compiler's n-way join has J1
-only under a condition on what it is given. Where the type joined for
+only of the runs that have the values that it reads. It takes a
+variable that an environment has a type for to have a value there;
+a valuation that satisfies an environment strictly may give it none.
+First, where the type joined for
 a name `x` is a variant with a variable `r` for `Is_int`, it gives `r`
 the type "`Is_int` of `x`" (`recover_inverse_relations`), also where
 `x` has no value in the run (it was imported by an earlier join from
-other uses) and `r` has one. Weakening the conclusion of J1 (the names
+other uses) and `r` has one. Second, the join of the types that a name
+has at the uses passes over a type that it finds to have no value (an
+obviously bottom type, or a head of naked immediates that its
+relations reduce to nothing), and the name then gets what it is at
+the other uses, also on a run through the use at which it has no
+value. `no_bottom_types` rules out the obviously bottom type only: R1
+and T7 ran a stored type "0 or 2, and `Is_int` of `p`" with `p` a
+tagged immediate at one use and the constant 1 at the other, and both
+joins of the compiler answer the constant 1.
+Weakening the conclusion of J1 (the names
 whose type is a relation on a name with no value exempt) does not work
 for the meet that follows: it reads the relation on behalf of the
 value of `r` and adds an equation to `x`, whose stored type nothing
@@ -277,10 +290,17 @@ constrains when it has no value, and the meet of the two can be
 bottom. A premise that the valuation gives every known variable a
 value cannot be supplied after a join that imports from a subset. So
 J1 stays strict, as the hypothesis under which the meet is to be
-proved; T5 states the condition under which the compiler's join has
-it (the scrutinee of every relation recovered has a value in every
-run in which the result has one), and the instance of the meet for
-the compiler's own join carries that condition.
+proved; T5 states the three conditions on a run under which the
+compiler's join has it (`scrutinees_have_values`,
+`joined_variables_have_values`, `imported_variables_have_values`, in
+`FlambdaJoinSpec.v`). The instance of the meet for the compiler's own
+join is owed, and its obligation is not discharged: that every join
+that a meet makes is made on runs that have the three conditions.
+They are hypotheses of that instance wherever the meet is not shown
+to establish them, with a `CR mshinwell`: nothing in the compiler is
+known to establish the first and the third, and X2 has an OCaml
+program on which the first fails and the code compiled with the n-way
+join answers a wrong number.
 
 Physical equality in the join: X3's audit finds four uses that change a
 result, all in the join. The behaviour to assume of the parameter is
