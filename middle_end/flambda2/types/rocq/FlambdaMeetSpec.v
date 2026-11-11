@@ -724,17 +724,21 @@ Definition env_extension_fits (tenv : Typing_env.t)
 (* CR mshinwell: that the static environment is valid is a premise of
    every statement here that says that no value is lost, and of what
    is asked of the join. It was added after review: without it the
-   statements are false of the model, though of no run. The reviewer's
-   case is a symbol bound to a closure of a static set that has the
-   function slots [f] and [g] and names a symbol for [f] only: the
-   projection of [g] from it has no value, a closures type asks
-   nothing of the closure at [g] then, and two such types whose
-   closure types at [g] do not meet are met to bottom
-   ([meet_closures_entry]). The other repair is in the meaning of a
-   closures type: that a closure type at [g] asks that the projection
-   have a value. The meaning was left as it is: a product says
-   something of the components that exist, and what exists is for
-   the index to say. *)
+   statements are false of the model, though of no run of a
+   well-formed unit (a term of the model can allocate a static set
+   that is not valid; that a run keeps the static environment valid
+   is proved of well-formed units). The reviewer's case is a symbol
+   bound to a closure of a static set that has the function slots
+   [f] and [g] and names a symbol for [f] only: the projection of
+   [g] from it has no value, a closures type asks nothing of the
+   closure at [g] then, and two such types whose closure types at
+   [g] do not meet are met to bottom ([meet_closures_entry]). The
+   other repair is in the meaning of a closures type: that a closure
+   type at [g] asks that the projection have a value. The meaning was
+   left as it is: a product says something of the components that
+   exist, and what exists is for the index to say in a static
+   environment that is valid; the index alone does not give the
+   symbol. *)
 Definition meet_sound (meet : meet_function) : Prop :=
   ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
     (t1 t2 : flambda_type) (v : value)
