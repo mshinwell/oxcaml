@@ -127,6 +127,10 @@ Proof. reflexivity. Qed.
 Theorem example_join_bound_reached : example_join_bound_reached_statement.
 Proof. reflexivity. Qed.
 
+Theorem example_join_closure_types_of_another_kind
+  : example_join_closure_types_of_another_kind_statement.
+Proof. reflexivity. Qed.
+
 Theorem example_join_alias_of_another_kind
   : example_join_alias_of_another_kind_statement.
 Proof. reflexivity. Qed.

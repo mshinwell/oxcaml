@@ -403,13 +403,15 @@ Definition example_join_two_sizes_statement : Prop :=
             No_extensions),
        1%positive).
 
-(* Blocks of one tag and two shapes: nothing is known of the blocks of
+(* Blocks of one tag and two shapes (two fields that are values; a
+   value and then a naked float): nothing is known of the blocks of
    that tag. *)
 Definition example_join_two_shapes_statement : Prop :=
   example_join 2
-    [example_join_block 0 [any_tagged_immediate];
-     immutable_block false 0 Float_record Alloc_mode.Heap
-       [any_tagged_immediate]]
+    [example_join_block 0 [any_tagged_immediate; any_tagged_immediate];
+     immutable_block false 0 (Scannable (Mixed_record 1 [Kind_naked_float]))
+       Alloc_mode.Heap
+       [any_tagged_immediate; unknown (Naked_number Kind_naked_float)]]
   = Some
       (Or_unknown.Known (blocks_with_these_tags [0] Alloc_mode.Heap),
        1%positive).
@@ -494,15 +496,18 @@ Definition example_join_closures_of_two_codes_statement : Prop :=
             Alloc_mode.Heap),
        1%positive).
 
-(* One input has a function type for the slot and the other has none:
-   the join has none. (A function type kept from the one input that
-   has it would not be an upper bound: discrepancy T1-4.) The sets of
-   closures are then of different contents, and the join is of the
-   sets that have at least what both have. *)
+(* One input has a function type for the slot and the other, the
+   closures of at least that value slot, has none: the join has none.
+   (A function type kept from the one input that has it would not be
+   an upper bound: discrepancy T1-4.) The sets of closures are of
+   different contents, and the join is of the sets that have at least
+   what both have. *)
 Definition example_join_closures_one_without_function_type_statement : Prop :=
   example_join 4
     [example_join_closure [1%positive] (these_tagged_immediates [1; 2]);
-     example_join_closure [] (these_tagged_immediates [3; 4])]
+     at_least_this_closure example_join_function_slot [] []
+       [(example_join_value_slot, these_tagged_immediates [3; 4])]
+       Alloc_mode.Heap]
   = Some
       (Or_unknown.Known
          (at_least_this_closure example_join_function_slot [] []
@@ -526,6 +531,26 @@ Definition example_join_two_kinds_statement : Prop :=
 Definition example_join_bound_reached_statement : Prop :=
   example_join 1
     [these_tagged_immediates [1; 2]; these_tagged_immediates [3; 4]]
+  = None.
+
+(* The closures of a set have types, slot by slot, which are of kind
+   value. Here the type that each input has for the function slot is
+   of kind naked immediate, and so is their join: the compiler stops
+   where it makes the product of the joined types
+   ([Product.Function_slot_indexed.create]). The types of value slots
+   may be of any kind. *)
+Definition example_join_closure_types_of_another_kind_statement : Prop :=
+  example_join 3
+    [exactly_this_closure example_join_function_slot
+       [(example_join_function_slot,
+         Or_unknown.Known (Function_type 1%positive))]
+       [(example_join_function_slot, these_naked_immediates [1; 2])] []
+       Alloc_mode.Heap;
+     exactly_this_closure example_join_function_slot
+       [(example_join_function_slot,
+         Or_unknown.Known (Function_type 1%positive))]
+       [(example_join_function_slot, these_naked_immediates [3; 4])] []
+       Alloc_mode.Heap]
   = None.
 
 (* An alias of kind value to a naked immediate, beside a type of kind
