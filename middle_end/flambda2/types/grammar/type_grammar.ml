@@ -33,6 +33,10 @@ open Or_unknown.Let_syntax
 module Block_size = struct
   include Target_ocaml_int
 
+  let of_target_ocaml_int t = t
+
+  let to_target_ocaml_int t = t
+
   (** [subset t1 t2] is true if [t1] is a subset of [t2] *)
   let subset t1 t2 = Stdlib.( <= ) (compare t1 t2) 0
 

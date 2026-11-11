@@ -20,6 +20,14 @@
 module Block_size : sig
   type t
 
+  (** A block size is a number of fields. This function and the next are the
+      identity: no check is made, and in particular the number is not required
+      to be non-negative. (The creation functions for row-like structures take
+      sizes from numbers of fields.) *)
+  val of_target_ocaml_int : Target_ocaml_int.t -> t
+
+  val to_target_ocaml_int : t -> Target_ocaml_int.t
+
   val equal : t -> t -> bool
 
   val subset : t -> t -> bool
