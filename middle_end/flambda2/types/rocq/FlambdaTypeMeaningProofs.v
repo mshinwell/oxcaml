@@ -262,13 +262,13 @@ Lemma mutable_block_head_satisfied (statics : static_env) (vars : env)
 Proof. reflexivity. Qed.
 
 Lemma boxed_number_satisfied (statics : static_env) (vars : env) (v : value)
-    (k : naked_number_kind) (contents : flambda_type)
+    (k : boxable_number) (contents : flambda_type)
     (alloc_mode : Alloc_mode.t) :
   head_of_kind_value_non_null_satisfied statics vars v
     (Boxed_number k contents alloc_mode)
   = (∃ c : const,
       boxed_number_of statics v = Some c
-      ∧ kind_of_const c = Naked_number k
+      ∧ kind_of_const c = unboxed_kind k
       ∧ type_satisfied statics vars (Value_const c) contents).
 Proof. reflexivity. Qed.
 
@@ -1564,47 +1564,47 @@ Proof. no. Qed.
 (* [Boxed_number]. *)
 Example boxed_float_has
   : has (Value_symbol a_boxed_float)
-      (box_number Kind_naked_float
+      (box_number Boxable_naked_float
          (Type_naked_number Kind_naked_float (Ok (No_alias [42])))
          Alloc_mode.Heap).
 Proof. yes. Qed.
 
 Example boxed_float_contents_has_not
   : ~ has (Value_symbol a_boxed_float)
-        (box_number Kind_naked_float
+        (box_number Boxable_naked_float
            (Type_naked_number Kind_naked_float (Ok (No_alias [43])))
            Alloc_mode.Heap).
 Proof. no. Qed.
 
 Example boxed_float_kind_has_not
   : ~ has (Value_symbol a_boxed_float)
-        (box_number Kind_naked_int32 (unknown (Naked_number Kind_naked_int32))
-           Alloc_mode.Heap).
+        (box_number Boxable_naked_int32
+           (unknown (Naked_number Kind_naked_int32)) Alloc_mode.Heap).
 Proof. no. Qed.
 
 Example boxed_float_block_has_not
   : ~ has (Value_symbol a_block)
-        (box_number Kind_naked_float (unknown (Naked_number Kind_naked_float))
-           Alloc_mode.Heap).
+        (box_number Boxable_naked_float
+           (unknown (Naked_number Kind_naked_float)) Alloc_mode.Heap).
 Proof. no. Qed.
 
 Example boxed_int64_has
   : has (Value_symbol a_boxed_int64)
-      (box_number Kind_naked_int64
+      (box_number Boxable_naked_int64
          (Type_naked_number Kind_naked_int64 (Ok (No_alias [9])))
          Alloc_mode.Heap).
 Proof. yes. Qed.
 
 Example boxed_int64_contents_has_not
   : ~ has (Value_symbol a_boxed_int64)
-        (box_number Kind_naked_int64
+        (box_number Boxable_naked_int64
            (Type_naked_number Kind_naked_int64 (Ok (No_alias [8])))
            Alloc_mode.Heap).
 Proof. no. Qed.
 
 Example boxed_int64_kind_has_not
   : ~ has (Value_symbol a_boxed_float)
-        (box_number Kind_naked_int64
+        (box_number Boxable_naked_int64
            (unknown (Naked_number Kind_naked_int64)) Alloc_mode.Heap).
 Proof. no. Qed.
 
@@ -2476,6 +2476,10 @@ Proof.
   destruct other_tags as [case | ]; [ discriminate | ]. simpl. auto.
 Qed.
 
+Lemma unboxed_kind_injective (k k' : boxable_number) :
+  unboxed_kind k = unboxed_kind k' -> k = k'.
+Proof. destruct k, k'; try discriminate; reflexivity. Qed.
+
 Theorem heads_compatible_satisfied : heads_compatible_satisfied_statement.
 Proof.
   intros statics vars v head head' Hhead Hhead'.
@@ -2516,6 +2520,9 @@ Proof.
       | H : boxed_number_of statics v = Some ?c,
         H' : boxed_number_of statics v = Some ?c' |- _ =>
         rewrite H in H'; injection H' as <-
+      | H : kind_of_const ?c = unboxed_kind ?k,
+        H' : kind_of_const ?c = unboxed_kind ?k' |- _ =>
+        rewrite H in H'; apply unboxed_kind_injective in H'; clear H
       | H : boxed_number_of statics v = Some _ |- _ =>
         assert (boxed_number_of statics v <> None)
           by (rewrite H; discriminate);

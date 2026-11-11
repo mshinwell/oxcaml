@@ -62,9 +62,11 @@
      - [Mutable_block]: in full.
      - [Boxed_float32], [Boxed_float], [Boxed_int32], [Boxed_int64],
        [Boxed_nativeint], [Boxed_vec128], [Boxed_vec256], [Boxed_vec512]
-       and [Boxed_mask] are the one [Boxed_number], which carries the
-       kind of the number boxed: [Boxed_float (ty, alloc_mode)] is
-       [Boxed_number Kind_naked_float ty alloc_mode].
+       and [Boxed_mask] are the one [Boxed_number], which says which
+       number is boxed, a [Flambda_kind.Boxable_number.t]
+       ([boxable_number], in FlambdaKindModel.v, which has these nine):
+       [Boxed_float (ty, alloc_mode)] is
+       [Boxed_number Boxable_naked_float ty alloc_mode].
      - [Closures]: in full.
      - [String]: in full; a string is the list of its bytes.
      - [Array] is left out. Its [element_kind] is a
@@ -349,7 +351,7 @@ with head_of_kind_value_non_null : Type :=
       (blocks : Or_unknown.t row_like_for_blocks)
       (extensions : variant_extensions) (is_unique : bool)
   | Mutable_block (alloc_mode : Alloc_mode.t)
-  | Boxed_number (k : naked_number_kind) (contents : flambda_type)
+  | Boxed_number (k : boxable_number) (contents : flambda_type)
       (alloc_mode : Alloc_mode.t)
   | Closures (by_function_slot : row_like_for_closures)
       (alloc_mode : Alloc_mode.t)
@@ -551,9 +553,10 @@ Definition create_closures (alloc_mode : Alloc_mode.t)
     (by_function_slot : row_like_for_closures) : flambda_type :=
   non_null_value (Closures by_function_slot alloc_mode).
 
-(* [Type_grammar.box_float32], [box_float], [box_int32], ...: the kind is
-   that of the type of the contents, which the compiler checks. *)
-Definition box_number (k : naked_number_kind) (contents : flambda_type)
+(* [Type_grammar.box_float32], [box_float], [box_int32], ...: the type
+   of the contents is to be of the kind boxed, [unboxed_kind k], which
+   the compiler checks. *)
+Definition box_number (k : boxable_number) (contents : flambda_type)
     (alloc_mode : Alloc_mode.t) : flambda_type :=
   non_null_value (Boxed_number k contents alloc_mode).
 

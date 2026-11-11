@@ -363,7 +363,7 @@ with head_of_kind_value_non_null_satisfied_b (v : value)
   | Boxed_number k contents _ =>
     match boxed_number_of statics v with
     | Some c =>
-      kind_eqb (kind_of_const c) (Naked_number k)
+      kind_eqb (kind_of_const c) (unboxed_kind k)
       && type_satisfied_b (Value_const c) contents
     | None => false
     end

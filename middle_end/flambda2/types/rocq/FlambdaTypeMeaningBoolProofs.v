@@ -629,13 +629,13 @@ Lemma mutable_block_satisfied_b (v : value) (alloc_mode : Alloc_mode.t) :
   = false.
 Proof. reflexivity. Qed.
 
-Lemma boxed_number_satisfied_b (v : value) (k : naked_number_kind)
+Lemma boxed_number_satisfied_b (v : value) (k : boxable_number)
     (contents : flambda_type) (alloc_mode : Alloc_mode.t) :
   head_of_kind_value_non_null_satisfied_b statics vars v
     (Boxed_number k contents alloc_mode)
   = match boxed_number_of statics v with
     | Some c =>
-      kind_eqb (kind_of_const c) (Naked_number k)
+      kind_eqb (kind_of_const c) (unboxed_kind k)
       && type_satisfied_b statics vars (Value_const c) contents
     | None => false
     end.

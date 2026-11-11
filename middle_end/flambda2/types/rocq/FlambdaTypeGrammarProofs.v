@@ -149,7 +149,7 @@ Hypothesis H_variant :
 Hypothesis H_mutable_block :
   ∀ alloc_mode : Alloc_mode.t, P_non_null (Mutable_block alloc_mode).
 Hypothesis H_boxed_number :
-  ∀ (k : naked_number_kind) (contents : flambda_type)
+  ∀ (k : boxable_number) (contents : flambda_type)
     (alloc_mode : Alloc_mode.t),
     P_type contents -> P_non_null (Boxed_number k contents alloc_mode).
 Hypothesis H_closures :

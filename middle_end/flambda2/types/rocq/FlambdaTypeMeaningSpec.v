@@ -78,7 +78,7 @@
      [immediates], or a block that the row-like structure [blocks]
      admits: the case of its tag, or failing one the case [other_tags],
      fixes its size, its shape and the types of its fields.
-   - [Boxed_number]: a boxed number of that kind whose contents have the
+   - [Boxed_number]: a box of that number whose contents have the
      type given. [Closures]: a closure at a function slot whose case
      admits its set of closures. [String]: one of the strings.
      [Mutable_block]: nothing, see below.
@@ -649,7 +649,7 @@ with head_of_kind_value_non_null_satisfied (v : value)
   | Boxed_number k contents _ =>
     ∃ c : const,
       boxed_number_of statics v = Some c
-      ∧ kind_of_const c = Naked_number k
+      ∧ kind_of_const c = unboxed_kind k
       ∧ type_satisfied (Value_const c) contents
   | Closures by_function_slot _ =>
     ∃ (slot : function_slot) (functions : list (function_slot * code_id))
@@ -1047,12 +1047,12 @@ Definition mutable_block_satisfied_statement : Prop :=
 (* ======================================================================== *)
 
 Definition box_number_satisfied_statement : Prop :=
-  ∀ (statics : static_env) (vars : env) (v : value) (k : naked_number_kind)
+  ∀ (statics : static_env) (vars : env) (v : value) (k : boxable_number)
     (contents : flambda_type) (alloc_mode : Alloc_mode.t),
     type_satisfied statics vars v (box_number k contents alloc_mode)
     <-> ∃ c : const,
           boxed_number_of statics v = Some c
-          ∧ kind_of_const c = Naked_number k
+          ∧ kind_of_const c = unboxed_kind k
           ∧ type_satisfied statics vars (Value_const c) contents.
 
 Definition this_immutable_string_satisfied_statement : Prop :=
