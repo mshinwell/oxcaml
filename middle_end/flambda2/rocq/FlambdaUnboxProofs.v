@@ -151,8 +151,8 @@ Proof.
   destruct (unary_applied p args) as [[u arg] | ] eqn:Happlied;
     [ | discriminate ].
   destruct (unary_applied_spec _ _ _ _ Happlied) as [-> ->].
-  destruct u as [ | | | | | | kind | | ]; simpl; try discriminate.
-  - intros [= <- <-]. left. exists kind. auto.
+  destruct u; simpl; try discriminate.
+  - intros [= <- <-]. left. eexists. split; reflexivity.
   - intros [= <- <-]. right. auto.
 Qed.
 
@@ -162,7 +162,7 @@ Lemma naked_immediate_of_int (v : value) (i : Z) :
   v = Value_const (Naked_immediate i).
 Proof.
   unfold int_of_value.
-  destruct v as [c | | | | | ]; try discriminate.
+  destruct v; try discriminate.
   destruct c; try discriminate.
   destruct (in_range _ _); [ | discriminate ].
   intros [= ->]. reflexivity.
@@ -189,7 +189,7 @@ Lemma eval_box_number (statics : static_env) (kind : boxable_number)
   ∃ c : const, unwrapped = Value_const c ∧ v = Value_boxed_number c.
 Proof.
   rewrite eval_prim_unary. unfold eval_unary_primitive.
-  destruct unwrapped as [c | | | | | ]; try discriminate.
+  destruct unwrapped; try discriminate.
   destruct (is_number_of_kind kind c); [ | discriminate ].
   intros [= <-]. exists c. auto.
 Qed.
@@ -329,7 +329,7 @@ Proof.
   destruct (unary_applied p args) as [[u wrapped] | ] eqn:Happlied;
     [ | discriminate ].
   destruct (unary_applied_spec _ _ _ _ Happlied) as [-> ->].
-  destruct u as [ | | | | | kind | | | ]; try discriminate;
+  destruct u; try discriminate;
     intros Hunwrapped Hd; simpl in Hd;
     (destruct wrapped as [x | s | c0]; [ | | discriminate ]).
   - (* [Unbox_number] of a variable *)
