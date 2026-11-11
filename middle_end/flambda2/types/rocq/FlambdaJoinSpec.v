@@ -125,13 +125,15 @@
      stated separately, with the functions.
    - That the join answers is not promised: [None] is a fatal error of
      the compiler or the model's fuel run out.
-   - That the target is kinded ([typing_env_kinded]) is not promised.
-     So the contract does not give, by itself, the premise
-     [uses_kinded] of a later join of which the target, or an
-     environment made from it, is a use. It is to be stated with the
-     functions, and needs more of the inputs than is asked here: at
-     least that the source is kinded, and that the source and the uses
-     have the variables that they share at the same kinds.
+   - That the target is kinded ([typing_env_kinded]) is not part of
+     [join_guarantees]: it needs more of the inputs than the upper
+     bound does. It is a statement of its own, [join_keeps_kinded]: if
+     the source is kinded too, and the uses have the names of the
+     source at the source's kinds, the target is kinded. With it the
+     contract gives the premise [uses_kinded] of a later join, and the
+     kinds that a meet asks, where the target or an environment made
+     from it is an input. It is to be proved of the transcription, as
+     the upper bound is.
    - Code age, allocation modes and symbol projections have no meaning
      here (FlambdaTypeMeaningSpec.v, FlambdaTypingEnv.v).
 
@@ -159,6 +161,18 @@
      variable for [Simple]s of a kind. It is a premise here, not an
      invariant claimed of the compiler's inputs: whoever states the
      kinds of typing environments is to say where it holds.
+
+   Not settled: names that have no value. [join_admits_use] is stated
+   of every valuation that satisfies the use and the source strictly,
+   and such a valuation may give no value to a variable that the use
+   knows. The compiler's join takes a variable that an environment
+   knows to have a value there. Two places are known where that
+   matters, and where the statement as it stands is not expected to
+   hold of the transcription (the CR at [join_admits_use], discrepancy
+   T5-10): the relations that the join puts back on a scrutinee
+   ([recover_inverse_relations]), and a name whose type at a use is
+   bottom. A premise is to be added for them; its form is to be agreed
+   with the meet's owner, whose contract has the same shape.
 
    What the inputs must satisfy ([join_inputs_well_formed],
    [uses_kinded], and the source being satisfied with each use in
@@ -317,6 +331,41 @@ Definition definitions_hold
    only where the symbol is bound); and the workstream on
    continuations, to show it of the inputs it gives the join.
    Discrepancy T5-4. *)
+(* CR mshinwell: a valuation that satisfies a use strictly may give no
+   value to a variable that the use knows (nothing is asked of such a
+   variable), and the compiler's join takes every variable that an
+   environment knows to have a value there. Of a valuation that leaves
+   one out, the statement below is not expected to hold of the
+   transcription, in two places.
+   - [recover_inverse_relations] (join_env.ml). Where the type joined
+     for a variable [x], from types in every environment joined, names
+     a variable [r] for the result of [Is_int], [Get_tag] or [Is_null]
+     on it, the target gives [r] the type "the result of that relation
+     on [x]", which no value of [r] has unless [x] has a value. If [x]
+     has no value at a use and [r] has one (at that use it is a
+     constant, or a variable older than [x]), no valuation need satisfy
+     the target. The compiler asks only that every environment joined
+     has a type for [x].
+   - A name whose type at a use is bottom has no value there. The join
+     of types leaves such a type out, which is right of a value in
+     hand; the target may then make the name an alias of what it is at
+     the other uses, which may have a value at that use, or be bottom
+     if every use has bottom for the name.
+   A variable that an earlier n-way join brought in from some of its
+   uses is in that case on the runs that came through the others
+   (discrepancy T5-5), and nothing in an environment tells such a
+   variable from another. Two repairs are possible. A premise: no use
+   that is not bottom has the type bottom for a name, and at the use
+   the valuation gives a value to each variable on which the target
+   has a relation whose result it gives a value to (it holds of a
+   valuation that gives a value to every variable that the use knows).
+   Or a weaker conclusion: the target is satisfied but for the results
+   of relations on a name with no value, of which only the kind is
+   asked, as it is of a name that holds poison in the typing
+   environment's file. Which one is to be agreed with the owner of the
+   meet, whose contract for the join it is given has this shape, and
+   fixed when the proof of the transcription reaches these places.
+   Discrepancy T5-10. *)
 Definition join_admits_use (source use target : Typing_env.t)
     (definitions definitions_at_normal_mode
        : finite_map (Simples_in_joined_envs.t * flambda_kind))
@@ -742,6 +791,38 @@ Definition join_keeps_constants {A : Type} (join : join_of_environments A)
     ∨ Typing_env.get_canonical_simple_ignoring_name_mode target (Var x)
       = Const c.
 
+(* The uses have the names of the source at the kinds at which the
+   source has them. *)
+Definition uses_agree_with_source_on_kinds {A : Type}
+    (inputs : join_inputs A) : Prop :=
+  ∀ (index : Index.t) (use : Typing_env.t) (n : name) (kind : flambda_kind)
+    (ty : flambda_type),
+    use_at inputs index use ->
+    Typing_env.mem None use n = true ->
+    Typing_env.find (source inputs) n (Some kind) = Some ty ->
+    ∃ ty' : flambda_type, Typing_env.find use n (Some kind) = Some ty'.
+
+(* Kinds are kept: if the source is kinded too, and the uses have the
+   names of the source at the source's kinds, the target is kinded. So
+   a meet, or another join, may follow. It is a statement of its own,
+   as the one of precision is: [join_guarantees] does not need these
+   two premises, and does not promise this. (In the meet both hold of
+   the environments of the branches of a disjunction, which are made
+   from the source by adding equations. In Simplify the uses are made
+   so from the environment at the definition of the continuation, and
+   the source from that one by defining the parameters, which no use
+   knows.) *)
+Definition join_keeps_kinded {A : Type} (join : join_of_environments A)
+    : Prop :=
+  ∀ (avoid : list variable) (inputs : join_inputs A) (target : Typing_env.t)
+    (analysis : Analysis.t A),
+    join_inputs_well_formed avoid inputs ->
+    uses_kinded inputs ->
+    typing_env_kinded (source inputs) ->
+    uses_agree_with_source_on_kinds inputs ->
+    join avoid inputs = Some (target, analysis) ->
+    typing_env_kinded target.
+
 End Contract.
 
 (* ======================================================================== *)
@@ -761,16 +842,27 @@ End Contract.
    Neither half sees the other's definitions. The state is any type
    with three readings: the environment of an index ([joined_env]), the
    definitions of the existential variables made so far, and the
-   variables that exist in the target so far (those of the source, the
-   imported ones and the existential ones:
+   variables that exist in the target so far, each with its kind
+   (those of the source, the imported ones and the existential ones:
    [Bindings_in_target_env.exists_in_target_env]); and with an
    invariant, [state_valid], which is the environment side's and of
    which the join of types knows only that the four functions keep it.
    The four contracts below are what each half proves of its functions
-   and assumes of the other's. Each is in three parts: the invariant is
+   and assumes of the other's. Each is in four parts: the invariant is
    kept; the upper bound, under any valuation of the target that
-   extends that of the input; and scope, that what is answered mentions
-   only variables of the target.
+   extends that of the input; scope, that what is answered mentions
+   only variables of the target; and kinds.
+
+   Kinds. What is answered is of the kind of what was given
+   (unconditionally for types; a [Simple] of a kind that is not that
+   of values is not a symbol). And the answer is kinded in the target
+   ([type_kinded_in_target]) at the states that are kinded
+   ([state_kinded]): a second predicate of the environment side, which
+   holds from the start of a join whose source is kinded and whose
+   uses have the names of the source at the source's kinds, and of
+   which the join of types knows only that the four functions keep it.
+   It is what the target being kinded is proved from
+   ([join_keeps_kinded]); the upper bounds do not need it.
 
    The upper bounds speak of every valuation that extends that of an
    input. That there is one is asked of the invariant
@@ -798,8 +890,16 @@ Context {state : Type}
   (joined_env : state -> Index.t -> option Typing_env.t)
   (definitions_of_existentials :
      state -> finite_map (Simples_in_joined_envs.t * flambda_kind))
-  (exists_in_target_env : state -> variable -> bool)
-  (state_valid : state -> Prop).
+  (kind_in_target_env : state -> variable -> option flambda_kind)
+  (state_valid : state -> Prop)
+  (state_kinded : state -> Prop).
+
+(* A variable exists in the target so far. *)
+Definition exists_in_target_env (s : state) (x : variable) : bool :=
+  match kind_in_target_env s x with
+  | Some _ => true
+  | None => false
+  end.
 
 (* The environments joined are well formed. *)
 Definition joined_envs_well_formed (s : state) : Prop :=
@@ -841,15 +941,16 @@ Definition valid_states_have_witnesses : Prop :=
     ∃ valuation' : env, extends_input s index valuation valuation'.
 
 (* A step of the join keeps the inputs, the definitions made and the
-   variables of the target. *)
+   variables of the target, with their kinds. *)
 Definition state_grows (s s' : state) : Prop :=
   (∀ index : Index.t, joined_env s' index = joined_env s index)
   ∧ (∀ (x : variable)
        (definition : Simples_in_joined_envs.t * flambda_kind),
        lookup x (definitions_of_existentials s) = Some definition ->
        lookup x (definitions_of_existentials s') = Some definition)
-  ∧ ∀ x : variable,
-      exists_in_target_env s x = true -> exists_in_target_env s' x = true.
+  ∧ ∀ (x : variable) (kind : flambda_kind),
+      kind_in_target_env s x = Some kind ->
+      kind_in_target_env s' x = Some kind.
 
 (* What is given mentions only variables that an environment knows. *)
 Definition simple_in_scope (tenv : Typing_env.t) (simple : simple) : Prop :=
@@ -894,12 +995,44 @@ Definition env_extension_in_target (s : state) (extension : env_extension)
     x ∈ free_variables_of_env_extension extension ->
     exists_in_target_env s x = true.
 
+(* A [Simple] is of a kind in the target so far, as [simple_of_kind]
+   is for an environment. A symbol is a value. *)
+Definition simple_of_kind_in_target (s : state) (simple : simple)
+    (kind : flambda_kind) : Prop :=
+  match simple with
+  | Const c => FlambdaTypeGrammar.kind (type_for_const c) = kind
+  | Var x => kind_in_target_env s x = Some kind
+  | Symbol _ => kind = Value
+  end.
+
+(* What is answered is kinded in the target so far, as [type_kinded]
+   is for an environment. *)
+Definition type_kinded_in_target (s : state) (ty : flambda_type) : Prop :=
+  ∀ (simple : simple) (kind : flambda_kind),
+    (simple, kind) ∈ aliases_with_kinds ty ->
+    simple_of_kind_in_target s simple kind.
+
+Definition env_extension_kinded (tenv : Typing_env.t)
+    (extension : env_extension) : Prop :=
+  ∀ (simple : simple) (kind : flambda_kind),
+    (simple, kind) ∈ aliases_of_env_extension extension ->
+    simple_of_kind tenv simple kind.
+
+Definition env_extension_kinded_in_target (s : state)
+    (extension : env_extension) : Prop :=
+  ∀ (simple : simple) (kind : flambda_kind),
+    (simple, kind) ∈ aliases_of_env_extension extension ->
+    simple_of_kind_in_target s simple kind.
+
 (* The join of types: [Meet_and_n_way_join.n_way_join]. If it answers a
    type, then at each input a value of that input's type, under a
    valuation that satisfies the input, has the type answered under any
-   valuation of the target that extends it. Unknown says nothing. This
-   is what the join of types is to be proved to meet, and what the join
-   of environments assumes of the one it is given. *)
+   valuation of the target that extends it. Unknown says nothing. The
+   type answered is of the kind of each type given (the compiler's
+   function stops if they are not of one kind, and if there is none),
+   and is kinded in the target at a state that is kinded. This is what
+   the join of types is to be proved to meet, and what the join of
+   environments assumes of the one it is given. *)
 Definition n_way_join_type_sound
     (n_way_join :
        state -> list (Index.t * flambda_type)
@@ -915,23 +1048,32 @@ Definition n_way_join_type_sound
     n_way_join s ts = Some (result, s') ->
     state_valid s'
     ∧ state_grows s s'
-    ∧ ∀ ty : flambda_type,
-        result = Or_unknown.Known ty ->
-        type_in_target s' ty
-        ∧ ∀ (index : Index.t) (t_index : flambda_type)
-            (use : Typing_env.t) (statics : static_env)
-            (valuation valuation' : env) (v : value),
-            In (index, t_index) ts ->
-            joined_env s' index = Some use ->
-            typing_env_satisfied_strictly statics valuation use ->
-            extends_input s' index valuation valuation' ->
-            type_satisfied statics valuation v t_index ->
-            type_satisfied statics valuation' v ty.
+    ∧ (∀ ty : flambda_type,
+         result = Or_unknown.Known ty ->
+         type_in_target s' ty
+         ∧ (∀ (index : Index.t) (t_index : flambda_type),
+              In (index, t_index) ts -> kind ty = kind t_index)
+         ∧ ∀ (index : Index.t) (t_index : flambda_type)
+             (use : Typing_env.t) (statics : static_env)
+             (valuation valuation' : env) (v : value),
+             In (index, t_index) ts ->
+             joined_env s' index = Some use ->
+             typing_env_satisfied_strictly statics valuation use ->
+             extends_input s' index valuation valuation' ->
+             type_satisfied statics valuation v t_index ->
+             type_satisfied statics valuation' v ty)
+    ∧ (state_kinded s ->
+       state_kinded s'
+       ∧ ∀ ty : flambda_type,
+           result = Or_unknown.Known ty -> type_kinded_in_target s' ty).
 
 (* The join of [Simple]s: [Join_env.n_way_join_simples]. The [Simple]
    answered has, in the target, the value that each [Simple] given has
    in its input, where it has one. Bottom is answered only for no
-   [Simple]. *)
+   [Simple]. A symbol is answered only at the kind of values (it is
+   then the canonical [Simple] of each one given, and those are of the
+   kind given). At a state that is kinded, the [Simple] answered is of
+   the kind given in the target. *)
 (* CR mshinwell: each [Simple] given must be of the kind given, in the
    environment of its index. The compiler's function is not given
    this, and does not test it: it makes a variable of the kind for the
@@ -956,17 +1098,24 @@ Definition n_way_join_simples_sound
     state_valid s'
     ∧ state_grows s s'
     ∧ (result = Or_bottom.Bottom -> simples = [])
-    ∧ ∀ joined : simple,
-        result = Or_bottom.Ok joined ->
-        simple_in_target s' joined
-        ∧ ∀ (index : Index.t) (simple : simple) (use : Typing_env.t)
-            (statics : static_env) (valuation valuation' : env) (v : value),
-            In (index, simple) simples ->
-            joined_env s' index = Some use ->
-            typing_env_satisfied_strictly statics valuation use ->
-            extends_input s' index valuation valuation' ->
-            eval_simple valuation simple = Some v ->
-            eval_simple valuation' joined = Some v.
+    ∧ (∀ sym : symbol, result = Or_bottom.Ok (Symbol sym) -> kind = Value)
+    ∧ (∀ joined : simple,
+         result = Or_bottom.Ok joined ->
+         simple_in_target s' joined
+         ∧ ∀ (index : Index.t) (simple : simple) (use : Typing_env.t)
+             (statics : static_env) (valuation valuation' : env)
+             (v : value),
+             In (index, simple) simples ->
+             joined_env s' index = Some use ->
+             typing_env_satisfied_strictly statics valuation use ->
+             extends_input s' index valuation valuation' ->
+             eval_simple valuation simple = Some v ->
+             eval_simple valuation' joined = Some v)
+    ∧ (state_kinded s ->
+       state_kinded s'
+       ∧ ∀ joined : simple,
+           result = Or_bottom.Ok joined ->
+           simple_of_kind_in_target s' joined kind).
 
 (* [Join_env.import_type]: the variables of a type become variables of
    the target. The join of types calls it on a type that it puts in its
@@ -978,7 +1127,8 @@ Definition n_way_join_simples_sound
    grows when variables are given values (a statement of the meaning of
    types). The type need not mean the same under the two: a variable
    with no value in the first may have one in the second, and then
-   more values have the type. *)
+   more values have the type. At a state that is kinded, a type that
+   is kinded in one of the inputs is kinded in the target. *)
 Definition import_type_sound
     (import_type : state -> flambda_type -> option state) : Prop :=
   ∀ (s s' : state) (ty : flambda_type),
@@ -986,13 +1136,21 @@ Definition import_type_sound
     joined_envs_well_formed s ->
     joined_envs_kinded s ->
     import_type s ty = Some s' ->
-    state_valid s' ∧ state_grows s s' ∧ type_in_target s' ty.
+    state_valid s'
+    ∧ state_grows s s'
+    ∧ type_in_target s' ty
+    ∧ (state_kinded s ->
+       (∃ (index : Index.t) (use : Typing_env.t),
+          joined_env s index = Some use ∧ type_kinded use ty) ->
+       state_kinded s' ∧ type_kinded_in_target s' ty).
 
 (* The join of environment extensions:
    [Join_env.n_way_join_env_extension]. The extension answered holds, in
    the target, wherever one of the extensions given holds in its input.
-   Bottom is answered only for no extension. (The compiler's function
-   also takes the join of types and the meet, and uses neither.) *)
+   Bottom is answered only for no extension. At a state that is kinded,
+   if each extension given is kinded in its input, the one answered is
+   kinded in the target. (The compiler's function also takes the join
+   of types and the meet, and uses neither.) *)
 Definition n_way_join_env_extension_sound
     (n_way_join_env_extension :
        state -> list (Index.t * env_extension)
@@ -1006,20 +1164,25 @@ Definition n_way_join_env_extension_sound
     join_args_in_scope env_extension_in_scope s extensions ->
     n_way_join_env_extension s extensions = Some result ->
     (result = Or_bottom.Bottom -> extensions = [])
-    ∧ ∀ (joined : env_extension) (s' : state),
-        result = Or_bottom.Ok (joined, s') ->
-        state_valid s'
-        ∧ state_grows s s'
-        ∧ env_extension_in_target s' joined
-        ∧ ∀ (index : Index.t) (extension : env_extension)
-            (use : Typing_env.t) (statics : static_env)
-            (valuation valuation' : env),
-            In (index, extension) extensions ->
-            joined_env s' index = Some use ->
-            typing_env_satisfied_strictly statics valuation use ->
-            extends_input s' index valuation valuation' ->
-            env_extension_satisfied statics valuation extension ->
-            env_extension_satisfied statics valuation' joined.
+    ∧ (∀ (joined : env_extension) (s' : state),
+         result = Or_bottom.Ok (joined, s') ->
+         state_valid s'
+         ∧ state_grows s s'
+         ∧ env_extension_in_target s' joined
+         ∧ ∀ (index : Index.t) (extension : env_extension)
+             (use : Typing_env.t) (statics : static_env)
+             (valuation valuation' : env),
+             In (index, extension) extensions ->
+             joined_env s' index = Some use ->
+             typing_env_satisfied_strictly statics valuation use ->
+             extends_input s' index valuation valuation' ->
+             env_extension_satisfied statics valuation extension ->
+             env_extension_satisfied statics valuation' joined)
+    ∧ (state_kinded s ->
+       join_args_in_scope env_extension_kinded s extensions ->
+       ∀ (joined : env_extension) (s' : state),
+         result = Or_bottom.Ok (joined, s') ->
+         state_kinded s' ∧ env_extension_kinded_in_target s' joined).
 
 End Join_of_types.
 

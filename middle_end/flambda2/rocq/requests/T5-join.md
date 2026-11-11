@@ -40,12 +40,31 @@ in the meet: the environment of the meet), a scope, and a list of
 5. The target is well formed (the typing environment's invariant, a
    parameter until that file names it).
 
-Not in the guarantee: that the target is kinded. So the contract does
-not by itself discharge `uses_kinded` at a later join that has the
-target, or an environment made from it, as a use. That needs more of
-the inputs than is asked today (at least a kinded source, and the
-source and the uses agreeing on the kinds of the variables they
-share); it will be stated with the functions.
+Not in `join_guarantees`: that the target is kinded. It needs more of
+the inputs than the upper bound does, so it is a statement of its own,
+`join_keeps_kinded`: if the source is kinded too and the uses have the
+names of the source at the source's kinds
+(`uses_agree_with_source_on_kinds`), the target is kinded. With it a
+later join gets `uses_kinded`, and a meet the kinds it asks (T4 needs
+this for a meet that follows a disjunction). To be proved of the
+transcription.
+
+**Not settled: names with no value (T5-10).** `join_admits_use` speaks
+of every strict valuation, and one may give no value to a variable the
+use knows. The compiler's join assumes a variable an environment knows
+has a value there. Two places where the statement as it stands is not
+expected to hold of the transcription: the relations put back on a
+scrutinee by `recover_inverse_relations` (the result of the relation
+may have a value at a use where the scrutinee has none), and a name
+whose type at a use is bottom (the type joiner drops it; the target
+may then force a value on the name, or be bottom). A variable imported
+by an earlier n-way join from some of its uses is such a variable on
+the other runs (T5-5). Two repairs, in the note at `join_admits_use`:
+a premise (no bottom-typed name in a live use; the scrutinee of each
+relation of the target has a value where its result has), or a weaker
+conclusion (the target satisfied but for the results of relations on
+names with no value). To be agreed with T4, whose contract for the
+join has the same shape.
 
 In the machine (`join_guarantees_in_machine_statement` and
 `join_admits_use_in_machine_statement`, proved): if a variable that
@@ -250,14 +269,20 @@ assumes of the other are in `FlambdaJoinSpec.v`, section "The join of
 types, inside a join of environments", and are fixed there:
 
 - the state is abstract, with three readings (`joined_env`,
-  `definitions_of_existentials`, `exists_in_target_env`) and an
-  invariant `state_valid` that is the environment side's;
+  `definitions_of_existentials`, `kind_in_target_env`, from which
+  `exists_in_target_env`) and two predicates that are the environment
+  side's: the invariant `state_valid`, and `state_kinded`;
 - four contracts, each with the premises that the environments joined
   are well formed and kinded (they do not change during a join, so
   kindedness is a premise and not a part of `state_valid`), and each
   "the invariant is kept, the state grows, the answer is in the scope
-  of the target, and the upper bound holds under every valuation that
-  `extends_input`":
+  of the target, the upper bound holds under every valuation that
+  `extends_input`, and kinds": the type joined has the kind of each
+  type given; a simple joined at a kind other than value is not a
+  symbol; and at a state that is kinded (`state_kinded`, a second
+  predicate of the environment side) the answer is kinded in the
+  target (`type_kinded_in_target`, over the reading
+  `kind_in_target_env`). The four are:
   `n_way_join_type_sound` (T proves it, E assumes it), and
   `n_way_join_simples_sound`, `import_type_sound`,
   `n_way_join_env_extension_sound` (E proves them, T assumes them).
