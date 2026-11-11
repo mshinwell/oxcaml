@@ -894,3 +894,151 @@ with free_variables_of_env_extension (extension : env_extension)
          free_variables_of_name (fst binding) ++ free_variables (snd binding))
       equations
   end.
+
+(* ======================================================================== *)
+(* Aliases, with their kinds                                                *)
+(* ======================================================================== *)
+
+(* The aliases of a type, each with the kind at which it stands: the
+   simple of every alias in the type, with the kind of the type that the
+   alias is, and the variables that hold the results of [Is_int],
+   [Get_tag] and [Is_null], which are naked immediates. It is what the
+   join of types gives the join of [Simple]s, with the kind at which it
+   gives it. The recursion is that of [free_variables]. A pair may be
+   listed more than once, and the pairs of a binding of a map that is
+   shadowed are listed too.
+
+   Not listed, though each is a name at a kind: the names of which a
+   naked immediate is the result of a relation, which are of kind value,
+   and the names that an environment extension has an equation on, each
+   of the kind of its type.
+
+   A type says at which kind each of these stands and not that it is of
+   that kind: nothing here, nor in the compiler, checks one against the
+   other, and that they agree is no part of a type being well formed
+   (FlambdaTypeWellFormedSpec.v). *)
+
+Definition aliases_of_descr {head : Type} (k : flambda_kind)
+    (aliases_of_head : head -> list (simple * flambda_kind))
+    (ty : type_descr head) : list (simple * flambda_kind) :=
+  match ty with
+  | Ok (No_alias head) => aliases_of_head head
+  | Ok (Equals s) => [(s, k)]
+  | Unknown | Bottom => []
+  end.
+
+Definition aliases_of_relation (x : option variable)
+    : list (simple * flambda_kind) :=
+  match x with
+  | Some x => [(Var x, Naked_number Kind_naked_immediate)]
+  | None => []
+  end.
+
+(* The two arguments stand for the functions being defined below. *)
+Definition aliases_of_block_case
+    (aliases_with_kinds : flambda_type -> list (simple * flambda_kind))
+    (aliases_of_env_extension : env_extension -> list (simple * flambda_kind))
+    (case : row_like_block_case) : list (simple * flambda_kind) :=
+  flat_map aliases_with_kinds (case_maps_to case)
+  ++ aliases_of_env_extension (case_env_extension case).
+
+Fixpoint aliases_with_kinds (t : flambda_type)
+    : list (simple * flambda_kind) :=
+  match t with
+  | Type_value ty =>
+    aliases_of_descr Value aliases_of_head_of_kind_value ty
+  | Type_naked_immediate ty =>
+    aliases_of_descr (Naked_number Kind_naked_immediate) (fun _ => []) ty
+  | Type_naked_number k ty =>
+    aliases_of_descr (Naked_number k) (fun _ => []) ty
+  | Type_rec_info ty => aliases_of_descr Rec_info (fun _ => []) ty
+  | Type_region ty => aliases_of_descr Region (fun _ => []) ty
+  end
+
+with aliases_of_head_of_kind_value (head : head_of_kind_value)
+    : list (simple * flambda_kind) :=
+  match head with
+  | Head_of_kind_value non_null is_null =>
+    match non_null with
+    | Ok head => aliases_of_head_of_kind_value_non_null head
+    | Unknown | Bottom => []
+    end
+    ++ match is_null with
+       | Not_null => []
+       | Maybe_null is_null => aliases_of_relation is_null
+       end
+  end
+
+with aliases_of_head_of_kind_value_non_null
+    (head : head_of_kind_value_non_null) : list (simple * flambda_kind) :=
+  match head with
+  | Variant is_int immediates get_tag blocks extensions _ =>
+    aliases_of_relation is_int
+    ++ match immediates with
+       | Or_unknown.Known ty => aliases_with_kinds ty
+       | Or_unknown.Unknown => []
+       end
+    ++ aliases_of_relation get_tag
+    ++ match blocks with
+       | Or_unknown.Known blocks => aliases_of_row_like_for_blocks blocks
+       | Or_unknown.Unknown => []
+       end
+    ++ match extensions with
+       | No_extensions => []
+       | Ext when_immediate when_block =>
+         aliases_of_env_extension when_immediate
+         ++ aliases_of_env_extension when_block
+       end
+  | Mutable_block _ | String _ => []
+  | Boxed_number _ contents _ => aliases_with_kinds contents
+  | Closures by_function_slot _ =>
+    aliases_of_row_like_for_closures by_function_slot
+  end
+
+with aliases_of_row_like_for_blocks (blocks : row_like_for_blocks)
+    : list (simple * flambda_kind) :=
+  match blocks with
+  | Row_like_for_blocks known_tags other_tags _ =>
+    flat_map
+      (fun case =>
+         match snd case with
+         | Or_unknown.Known case =>
+           aliases_of_block_case aliases_with_kinds aliases_of_env_extension
+             case
+         | Or_unknown.Unknown => []
+         end)
+      known_tags
+    ++ match other_tags with
+       | Or_bottom.Ok case =>
+         aliases_of_block_case aliases_with_kinds aliases_of_env_extension
+           case
+       | Or_bottom.Bottom => []
+       end
+  end
+
+with aliases_of_row_like_for_closures (closures : row_like_for_closures)
+    : list (simple * flambda_kind) :=
+  match closures with
+  | Row_like_for_closures known_closures =>
+    flat_map
+      (fun case =>
+         aliases_of_closures_entry (case_maps_to (snd case))
+         ++ aliases_of_env_extension (case_env_extension (snd case)))
+      known_closures
+  end
+
+with aliases_of_closures_entry (entry : closures_entry)
+    : list (simple * flambda_kind) :=
+  match entry with
+  | Closures_entry _ closure_types value_slot_types =>
+    flat_map (fun binding => aliases_with_kinds (snd binding)) closure_types
+    ++ flat_map (fun binding => aliases_with_kinds (snd binding))
+         value_slot_types
+  end
+
+with aliases_of_env_extension (extension : env_extension)
+    : list (simple * flambda_kind) :=
+  match extension with
+  | Env_extension equations =>
+    flat_map (fun binding => aliases_with_kinds (snd binding)) equations
+  end.
