@@ -11,8 +11,12 @@
 # axioms the statements rest on. `rocq doc` typesets the sources, with every
 # identifier linked to its definition; LuaLaTeX typesets the document.
 #
-# Run it as `make -C rocq review`, which passes the files of the four
-# libraries in dependency order. It needs the .vo and .glob files of a
+# Run it as `make -C rocq review`, which passes the files of the libraries.
+# Those of the stdlib, backend, SSA and loop libraries are listed in
+# dependency order in rocq/Makefile and are shown in that order. Those of
+# the Flambda 2 libraries are listed there by name, one to a line, so that
+# branches adding files merge; this script puts them in dependency order
+# (see [order] below). It needs the .vo and .glob files of a
 # complete build, `rocq doc` and `lualatex` on PATH, and a TeX installation
 # with fontspec; the fonts fall back to Latin Modern when Libertinus and
 # DejaVu Sans Mono are not installed. REVIEW_AUTHOR in the environment sets
@@ -99,6 +103,13 @@ my %library = map { $_->{dir} => $_ } @libraries;
 # sections, and the Spec files whose names match [sources], introduced by
 # [statements], end it. Every reviewed file and every top-level section of
 # the guide must land in a part.
+#
+# A part with an [order] shows the files of each of its libraries in
+# dependency order whatever the order of the arguments: a file comes after
+# the reviewed files of its library that it requires, and of the files that
+# may come next the first is the one named earliest in [order], or failing
+# that the first by name. So [order] is the reading order wished for, and a
+# file that is not in it needs no entry: it comes after the ones that are.
 my @parts = (
   { title => 'The shared models',
     guide => [ 'How SSA execution is reasoned about',
@@ -130,7 +141,13 @@ What is claimed about the extracted decision \texttt{find\_eliminations}.
 The analysis itself is extracted code, and its \texttt{*Proofs.v} files give
 its meaning and prove the statement; neither is shown.
 TEX
-  { title => 'Flambda 2', guide => [], libraries => [qw(OxCamlFlambda2 OxCamlFlambda2Types)],
+  { title => 'Flambda 2', guide => [],
+    libraries => [qw(OxCamlFlambda2 OxCamlFlambda2Types)],
+    order => [qw(FlambdaModel FlambdaMapSpec FlambdaSemanticsSpec
+      FlambdaWellFormedSpec FlambdaControlFlowSpec FlambdaContextSpec
+      FlambdaNominalSpec FlambdaAlphaSpec FlambdaApplySpec FlambdaStaticSpec
+      FlambdaCompareSpec FlambdaNormaliseSpec FlambdaUnusedStaticsSpec
+      FlambdaValidateSpec FlambdaTypesSpec FlambdaAliasesSpec)],
     intro => <<'TEX' },
 This part is separate from the SSA passes. It is the beginning of a
 semantics of Flambda 2, the middle end's intermediate language, against
@@ -183,6 +200,42 @@ for my $file (@files) {
   $by_base{$base} = $entry;
 }
 die "no reviewed files among the arguments\n" unless @sources;
+
+# The files of one library in dependency order, the ties going to the file
+# named earliest in [order] and then to the first by name (see the parts).
+sub in_reading_order {
+  my ($order, @entries) = @_;
+  my ($n, %rank, %shown, %requires) = (0);
+  $rank{$_} = $n++ for @$order;
+  my %is_entry = map { $_->{base} => 1 } @entries;
+  for my $entry (@entries) {
+    open my $in, '<', $entry->{path} or die "$entry->{rel}: $!\n";
+    my $text = do { local $/; <$in> };
+    close $in;
+    while ($text =~ /^\s*(?:From\s+\S+\s+)?Require\s+(?:Import\s+|Export\s+)?
+                     ([^.]*)\./mgx) {
+      $requires{$entry->{base}}{$_} = 1
+        for grep { $is_entry{$_} && $_ ne $entry->{base} } split ' ', $1;
+    }
+  }
+  my @pending = sort {
+    ($rank{$a->{base}} // $n) <=> ($rank{$b->{base}} // $n)
+      || $a->{base} cmp $b->{base}
+  } @entries;
+  my @ordered;
+  while (@pending) {
+    my ($next) = grep {
+      my $base = $_->{base};
+      !grep { !$shown{$_} } keys %{ $requires{$base} // {} }
+    } @pending;
+    die "the reviewed files of $entries[0]{lib}{name} require each other"
+      . " in a cycle\n" unless $next;
+    push @ordered, $next;
+    $shown{$next->{base}} = 1;
+    @pending = grep { $_ != $next } @pending;
+  }
+  return @ordered;
+}
 
 # ---- Preparing a source for rocq doc -----------------------------------
 
@@ -863,6 +916,7 @@ for my $part (@parts) {
     for my $lib (@libraries) {
       my @in_lib = grep { $_->{lib} == $lib } @in_part;
       next unless @in_lib;
+      @in_lib = in_reading_order($part->{order}, @in_lib) if $part->{order};
       $main .= "\\section{$lib->{title}}\n$lib->{intro}\n";
       $main .= source_section($_) for @in_lib;
     }

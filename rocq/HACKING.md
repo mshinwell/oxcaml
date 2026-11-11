@@ -183,7 +183,12 @@ the end, then the extraction directives and the axioms each statement
 rests on. Which guide sections make a part, or open the first one, and
 which Spec files belong to a pass is set at the top of
 `rocq/review-pdf.pl`; a new Spec file or top-level guide section must be
-assigned to a part there, or the script stops. The sources are typeset by
+assigned to a part there, or the script stops. The files of a library are
+shown in the order of its list in `rocq/Makefile`, which is a dependency
+order; the Flambda 2 lists are in alphabetical order instead (see "Adding
+a module"), so for them the script works out a dependency order itself,
+preferring the reading order written at the top of the script (`order`),
+and a new file needs no entry there. The sources are typeset by
 `rocq doc` with every identifier linked to its definition, so the target
 needs the `.glob` files of a complete build, and LuaLaTeX with `fontspec`
 (Libertinus and DejaVu Sans Mono are used when installed).
@@ -207,6 +212,19 @@ every file into `backend/ssa/loop/rocq/`; the Makefile moves the
 `OxCamlSsa` ones next to their sources. A module whose every definition is
 mapped onto OxCaml's own functions extracts to an empty file, which the
 Makefile deletes.
+
+The Flambda 2 libraries are worked on by several people and agents at
+once, and their lists are laid out so that two branches that each add
+something merge without a conflict: `FLAMBDA2` and `FLAMBDA2_TYPES` in
+`rocq/Makefile`, and the `Separate Extraction` list of `FlambdaExtract.v`,
+have one name to a line, in alphabetical order. Put a new name in its
+place in that order. The order means nothing: make takes the dependencies
+between the files from `rocq dep`, the review document orders the files
+itself, and what is extracted does not depend on the order of the names.
+`make claims` finds the Spec files of these lists by their suffix too.
+Only the integrator edits these lists (`middle_end/flambda2/rocq/`
+`PARALLEL-PLAN.md`, section 7): a workstream says in its merge request
+which lines it needs.
 
 ## The layout of a model
 

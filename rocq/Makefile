@@ -26,10 +26,10 @@
 #                           delete_empty_loops.ml and bounds_check_elim.ml
 #   middle_end/flambda2/rocq/  OxCamlFlambda2: the terms of Flambda 2 and
 #                           their semantics, with rewrites proved against
-#                           it; nothing is extracted from it
+#                           it; extracted for tests only (FlambdaExtract.v)
 #   middle_end/flambda2/types/rocq/  OxCamlFlambda2Types: Flambda types and
 #                           typing environments, and refinement relative to
-#                           a typing environment; nothing is extracted
+#                           a typing environment; extracted likewise
 #
 # The extracted files are run through ocamlformat so that they satisfy the
 # repository's `make fmt` check like any other source under backend/ssa/.
@@ -79,23 +79,47 @@ LOOP := $(addprefix $(LOOP_DIR)/, \
   InductionRangeExecutionProofs.v BoundsCheckExecutionSpec.v \
   BoundsCheckExecutionProofs.v)
 EXTRACT := $(LOOP_DIR)/Extract.v
+# The files of the two Flambda 2 libraries: one to a line, in alphabetical
+# order, so that branches that each add a file merge. The order means
+# nothing: make takes the dependencies from rocq dep, and the review
+# document puts the files in dependency order itself (review-pdf.pl).
 FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
-  FlambdaMapSpec.v FlambdaMapProofs.v \
-  FlambdaModel.v FlambdaSemanticsSpec.v FlambdaSemanticsProofs.v \
-  FlambdaWellFormedSpec.v FlambdaWellFormedProofs.v \
-  FlambdaControlFlowSpec.v FlambdaControlFlowProofs.v \
-  FlambdaContextSpec.v FlambdaContextProofs.v \
-  FlambdaNominalSpec.v FlambdaNominalProofs.v FlambdaAlphaSpec.v \
-  FlambdaAlphaProofs.v FlambdaApplySpec.v FlambdaApplyProofs.v \
-  FlambdaStaticSpec.v FlambdaStaticProofs.v FlambdaCompareSpec.v \
-  FlambdaCompareProofs.v FlambdaNormaliseSpec.v FlambdaNormaliseProofs.v \
-  FlambdaUnusedStaticsSpec.v FlambdaUnusedStaticsProofs.v \
-  FlambdaValidateSpec.v FlambdaValidateProofs.v)
+  FlambdaAlphaProofs.v \
+  FlambdaAlphaSpec.v \
+  FlambdaApplyProofs.v \
+  FlambdaApplySpec.v \
+  FlambdaCompareProofs.v \
+  FlambdaCompareSpec.v \
+  FlambdaContextProofs.v \
+  FlambdaContextSpec.v \
+  FlambdaControlFlowProofs.v \
+  FlambdaControlFlowSpec.v \
+  FlambdaMapProofs.v \
+  FlambdaMapSpec.v \
+  FlambdaModel.v \
+  FlambdaNominalProofs.v \
+  FlambdaNominalSpec.v \
+  FlambdaNormaliseProofs.v \
+  FlambdaNormaliseSpec.v \
+  FlambdaSemanticsProofs.v \
+  FlambdaSemanticsSpec.v \
+  FlambdaStaticProofs.v \
+  FlambdaStaticSpec.v \
+  FlambdaUnusedStaticsProofs.v \
+  FlambdaUnusedStaticsSpec.v \
+  FlambdaValidateProofs.v \
+  FlambdaValidateSpec.v \
+  FlambdaWellFormedProofs.v \
+  FlambdaWellFormedSpec.v \
+)
 FLAMBDA2_EXTRACT := $(FLAMBDA2_DIR)/FlambdaExtract.v
 FLAMBDA2_EXTRACTED_DIR := $(ROOT)/middle_end/flambda2/tests/semantics/extracted
 FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
-  FlambdaTypesSpec.v FlambdaTypesProofs.v FlambdaAliasesSpec.v \
-  FlambdaAliasesProofs.v)
+  FlambdaAliasesProofs.v \
+  FlambdaAliasesSpec.v \
+  FlambdaTypesProofs.v \
+  FlambdaTypesSpec.v \
+)
 
 # The extraction writes one .ml and .mli per model into the loop directory;
 # those of the SSA models are then moved next to their sources. Those of the

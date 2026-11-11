@@ -33,13 +33,20 @@ that make the repository safe for parallel work.
   eighteen expected files, concatenated in the order the old dune file
   ran the examples, are the old `semantics.expected` byte for byte.
 
+- Item 5, the lists. `FLAMBDA2` and `FLAMBDA2_TYPES` in `rocq/Makefile`
+  and the `Separate Extraction` list of `FlambdaExtract.v` have one name
+  to a line, in alphabetical order. The order was significant in one
+  place, the review document, which showed the files of a library in list
+  order; `rocq/review-pdf.pl` now puts the Flambda 2 files in dependency
+  order itself, preferring the reading order they had. The lists of the
+  other libraries are as they were.
+
 ## In progress
 
-- Item 5, the lists of `rocq/Makefile` and of `FlambdaExtract.v`.
+- Item 6, the rule for the extracted files.
 
 ## To do
 
-- Item 6, the rule for the extracted files.
 - Item 7, the trust ledger.
 - Item 8, the ownership table.
 

@@ -78,10 +78,45 @@ Extract Constant prim_may_fold => "(fun p -> !Prim_hook.prim_may_fold p)".
 (* The Makefile runs this from the directory the modules go into. *)
 Set Extraction Output Directory ".".
 
-Separate Extraction step run kind_of_const empty_static_env expr_eqb
-  inline_calls inline_tail_conts remove_unused_lets drop_deleted_code
-  fold_constants remove_unused_total_lets remove_unused_defined_lets
-  inline_known_calls merge_statics collapse_switches drop_statics
-  follow_aliases well_formed_unit rewrite_code validate_unit
-  lookup is_bound unbind map_values domain compact filter_bindings merge
-  union_with inter_with among all_among without inter distinct dedup.
+(* What is extracted, with all it uses: one name to a line, in alphabetical
+   order, so that branches that each add a name merge. The order means
+   nothing, and the closing full stop has a line of its own for the same
+   reason. *)
+Separate Extraction
+  all_among
+  among
+  collapse_switches
+  compact
+  dedup
+  distinct
+  domain
+  drop_deleted_code
+  drop_statics
+  empty_static_env
+  expr_eqb
+  filter_bindings
+  fold_constants
+  follow_aliases
+  inline_calls
+  inline_known_calls
+  inline_tail_conts
+  inter
+  inter_with
+  is_bound
+  kind_of_const
+  lookup
+  map_values
+  merge
+  merge_statics
+  remove_unused_defined_lets
+  remove_unused_lets
+  remove_unused_total_lets
+  rewrite_code
+  run
+  step
+  unbind
+  union_with
+  validate_unit
+  well_formed_unit
+  without
+  .
