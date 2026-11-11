@@ -74,6 +74,7 @@ Set Extraction Output Directory ".".
 Separate Extraction
   all_among
   among
+  bind_closures
   collapse_switches
   compact
   dedup
@@ -93,6 +94,7 @@ Separate Extraction
   inter_with
   is_bound
   kind_of_const
+  let_closures
   lookup
   map_values
   merge
