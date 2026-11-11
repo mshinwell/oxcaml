@@ -2258,26 +2258,35 @@ Qed.
 
 Section Kinds.
 
-(* What is supposed of a kinded environment. *)
-Variable env_kinded : Typing_env.t -> Prop.
+Abbreviation env_kinded := typing_env_kinded.
 
-Hypothesis canonical_kinded :
-  ∀ (tenv : Typing_env.t) (s : simple) (kind : flambda_kind),
-    typing_env_invariant tenv ->
-    env_kinded tenv ->
-    simple_of_kind tenv s kind ->
-    simple_of_kind tenv
-      (Typing_env.get_canonical_simple_ignoring_name_mode tenv s) kind.
+Lemma canonical_kinded (tenv : Typing_env.t) (s : simple)
+    (kind : flambda_kind) :
+  typing_env_invariant tenv ->
+  typing_env_kinded tenv ->
+  simple_of_kind tenv s kind ->
+  simple_of_kind tenv
+    (Typing_env.get_canonical_simple_ignoring_name_mode tenv s) kind.
+Proof.
+  intros [Hwf _] [_ [Haliases _]] Hkind.
+  exact (canonical_ignoring_name_mode_kinded tenv s kind Hwf Haliases Hkind).
+Qed.
 
-Hypothesis symbol_kinded :
-  ∀ (tenv : Typing_env.t) (s : symbol) (kind : flambda_kind),
-    env_kinded tenv -> simple_of_kind tenv (Symbol s) kind -> kind = Value.
+Lemma symbol_kinded (tenv : Typing_env.t) (s : symbol) (kind : flambda_kind) :
+  typing_env_kinded tenv -> simple_of_kind tenv (Symbol s) kind ->
+  kind = Value.
+Proof.
+  intros [_ [_ Hsymbols]] Hkind.
+  exact (symbol_of_kind_value tenv s kind Hsymbols Hkind).
+Qed.
 
-Hypothesis find_kinded :
-  ∀ (tenv : Typing_env.t) (n : name) (kind : option flambda_kind)
-    (ty : flambda_type),
-    env_kinded tenv -> Typing_env.find tenv n kind = Some ty ->
-    type_kinded tenv ty.
+Lemma find_kinded_in (tenv : Typing_env.t) (n : name)
+    (kind : option flambda_kind) (ty : flambda_type) :
+  typing_env_kinded tenv -> Typing_env.find tenv n kind = Some ty ->
+  type_kinded tenv ty.
+Proof.
+  intros [Htypes _] Hfind. exact (find_kinded tenv n kind ty Htypes Hfind).
+Qed.
 
 Abbreviation envs_invariant := (joined_envs_are typing_env_invariant).
 
@@ -2561,7 +2570,7 @@ Proof.
     + subst ty'. rewrite Halias0 in Halias. injection Halias as <-.
       pose proof (get_alias_in_aliases _ _ Halias0) as Hmember.
       rewrite (find_kind _ _ _ _ Hfind0) in Hmember.
-      exact (find_kinded _ _ _ _ (Henvs _ _ Huse) Hfind0 _ _ Hmember).
+      exact (find_kinded_in _ _ _ _ (Henvs _ _ Huse) Hfind0 _ _ Hmember).
     + subst ty'. rewrite get_alias_alias_type_of in Halias.
       injection Halias as <-. exists ty0. exact Hfind0.
   - exact (concrete_keeps_kinded _ _ _ _ _ _ Himport Himport_kinded Hvalid1
@@ -3056,28 +3065,59 @@ Proof.
   - intros x simples kind index simple use Hx. discriminate.
 Qed.
 
-Theorem n_way_join_simples_kinds : n_way_join_simples_kinds_statement.
+Lemma simple_of_kind_in_scope (tenv : Typing_env.t) (simple : simple)
+    (kind : flambda_kind) :
+  simple_of_kind tenv simple kind -> simple_in_scope tenv simple.
 Proof.
-  intros env_kinded p fuel s s' kind simples result
-    [Hcanonical [Hsymbol Hfind]] Hfresh Hvalid Hinvariant Henvs Hdistinct
+  intros Hkind x Hx. destruct simple as [y | sym | c]; try destruct Hx.
+  - subst y. exact (simple_of_kind_var_known _ _ _ Hkind).
+  - destruct H.
+Qed.
+
+Theorem n_way_join_simples_sound : n_way_join_simples_sound_statement.
+Proof.
+  intros p fuel Hfresh s s' kind simples result Hvalid Hwf Hkinded Hdistinct
     Hscope Hjoin.
-  eapply (n_way_join_simples_kinds_in env_kinded); eassumption.
+  assert (Hscope' :
+            join_args_in_scope Join_env.joined_env simple_in_scope s simples).
+  { intros index simple Hin. destruct (Hscope _ _ Hin) as [use [Huse Hkind]].
+    exists use. split; [ exact Huse | ].
+    exact (simple_of_kind_in_scope _ _ _ Hkind). }
+  destruct (n_way_join_simples_valid p fuel s s' kind simples result Hfresh
+              Hvalid Hwf Hdistinct Hscope' Hjoin)
+    as [Hvalid' [Hgrows [Hbottom Hupper]]].
+  destruct (n_way_join_simples_kinds_in p fuel s s' kind simples result Hfresh
+              Hvalid Hwf Hkinded Hdistinct Hscope Hjoin)
+    as [Hsymbol Hkinds].
+  split; [ exact Hvalid' | ]. split; [ exact Hgrows | ].
+  split; [ exact Hbottom | ]. split; [ exact Hsymbol | ].
+  split; [ exact Hupper | exact Hkinds ].
 Qed.
 
-Theorem import_type_kinds : import_type_kinds_statement.
+Theorem import_type_sound : import_type_sound_statement.
 Proof.
-  intros env_kinded p fuel s s' ty [Hcanonical [Hsymbol Hfind]] [Hfree _]
-    Hfresh Hvalid Hinvariant Henvs Himport Hkinded Hty.
-  eapply (import_type_kinds_in env_kinded); eassumption.
+  intros Hfree p fuel Hfresh s s' ty Hvalid Hwf Hkinded Himport.
+  destruct (import_type_valid p fuel s s' ty Hfresh Hvalid Himport)
+    as [Hvalid' [Hgrows Htarget]].
+  split; [ exact Hvalid' | ]. split; [ exact Hgrows | ].
+  split; [ exact Htarget | ].
+  intros Hstate Hty.
+  exact (import_type_kinds_in (proj1 Hfree) p fuel s s' ty Hfresh Hvalid Hwf
+           Hkinded Himport Hstate Hty).
 Qed.
 
-Theorem n_way_join_env_extension_kinds
-  : n_way_join_env_extension_kinds_statement.
+Theorem n_way_join_env_extension_sound
+  : n_way_join_env_extension_sound_statement.
 Proof.
-  intros env_kinded p fuel s extensions result [Hcanonical [Hsymbol Hfind]]
-    [_ Hfree] Hfresh Hvalid Hinvariant Henvs Hjoin Hkinded Hscope joined s'
-    Hresult.
-  eapply (n_way_join_env_extension_kinds_in env_kinded); eassumption.
+  intros Hfree p fuel Hfresh Heqb s extensions result Hvalid Hwf Hkinded
+    Hdistinct Hscope Hjoin.
+  destruct (n_way_join_env_extension_valid p fuel s extensions result Hfresh
+              Heqb Hvalid Hscope Hjoin) as [Hbottom Hok].
+  split; [ exact Hbottom | ]. split; [ exact Hok | ].
+  intros Hstate Hextensions joined s' Hresult.
+  exact (n_way_join_env_extension_kinds_in (proj2 Hfree) p fuel s extensions
+           result Hfresh Hvalid Hwf Hkinded Hjoin Hstate Hextensions joined s'
+           Hresult).
 Qed.
 
 (* ======================================================================== *)

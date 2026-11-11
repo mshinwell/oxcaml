@@ -53,11 +53,12 @@
      ([state_valid], about the names of the state), and, of the three
      functions that the join of types calls, the parts of their
      contracts that are not about kinds.
-   - Kinds (the section after it): [state_kinded], and the parts about
-     kinds of those three contracts, with two stand-ins for premises:
-     three facts about kinded environments, which the typing
-     environment's file on kinds is to have, and that the aliases of a
-     type are made of its free variables.
+   - Kinds, and the contracts (the section after it): [state_kinded],
+     and that those three functions meet their contracts
+     ([n_way_join_simples_sound_statement] and the two after it). Two
+     of them have a stand-in for premise: that the aliases of a type
+     are made of its free variables, which is proved with the grammar
+     of types and is not under this file yet.
    - That those three functions keep the definitions of the state at
      every state, with no premise (the last section).
    - An instance, [Witness], that shows that the transcription has not
@@ -744,7 +745,7 @@ Definition n_way_join_env_extension_valid_statement : Prop :=
             env_extension_satisfied statics valuation' joined.
 
 (* ======================================================================== *)
-(* The state of a join: kinds                                               *)
+(* The state of a join: kinds, and the three contracts                      *)
 (* ======================================================================== *)
 
 (* The kinds of the state agree with those of the joined environments:
@@ -780,36 +781,11 @@ Definition state_kinded (s : Join_env.t) : Prop :=
       Join_env.joined_env s index = Some use ->
       simple_of_kind use simple kind.
 
-(* What the statements about kinds below suppose of the environments
-   joined: a predicate on environments, and three facts about it. They
-   are stand-ins. The typing environment's file on kinds
-   (FlambdaTypingEnvKindedSpec.v) is to define [typing_env_kinded] so
-   that these are statements of it (that the types of an environment
-   are kinded, that two [Simple]s known to be equal are of one kind,
-   and that a symbol is of the kind of values); the contract of the
-   join will then read that definition, and the predicate here will be
-   it. Until then [typing_env_kinded] of FlambdaJoinSpec.v says only
-   that the types are kinded, which does not give the first two
-   facts. *)
-Definition kinded_environments (env_kinded : Typing_env.t -> Prop) : Prop :=
-  (∀ (tenv : Typing_env.t) (s : simple) (kind : flambda_kind),
-     typing_env_invariant tenv ->
-     env_kinded tenv ->
-     simple_of_kind tenv s kind ->
-     simple_of_kind tenv
-       (Typing_env.get_canonical_simple_ignoring_name_mode tenv s) kind)
-  ∧ (∀ (tenv : Typing_env.t) (s : symbol) (kind : flambda_kind),
-       env_kinded tenv -> simple_of_kind tenv (Symbol s) kind -> kind = Value)
-  ∧ ∀ (tenv : Typing_env.t) (n : name) (kind : option flambda_kind)
-      (ty : flambda_type),
-      env_kinded tenv ->
-      Typing_env.find tenv n kind = Some ty ->
-      type_kinded tenv ty.
-
-(* And of the grammar of types: the [Simple]s that a type or an
-   extension has for aliases are made of its free variables. A
-   stand-in too: it is a fact about [aliases_with_kinds] and
-   [free_variables], for the file that defines them. *)
+(* What two of the statements below suppose of the grammar of types:
+   the [Simple]s that a type or an extension has for aliases are made
+   of its free variables. It is a stand-in: a fact about
+   [aliases_with_kinds] and [free_variables], for the file that
+   defines them, where it is proved and not yet under this file. *)
 Definition aliases_are_free_variables : Prop :=
   (∀ (ty : flambda_type) (simple : simple) (kind : flambda_kind)
      (x : variable),
@@ -845,70 +821,40 @@ Definition created_state_kinded_statement : Prop :=
       (Join_env.create envs
          (Bindings_in_target_env.from_source_env avoid source)).
 
-(* The parts about kinds of the contracts of the three functions that
-   the join of types calls, with the stand-ins above for premises.
-   With the statements of the section before, they are the whole of
-   [n_way_join_simples_sound], [import_type_sound] and
-   [n_way_join_env_extension_sound], once the stand-ins are
-   discharged. *)
+(* The three functions that the join of types calls meet their
+   contracts (FlambdaJoinSpec.v), with the readings, the invariant and
+   the kinds of this file, and the invariant of typing environments
+   for their well-formedness. Asked of the parameters: a new name is
+   none of the names to avoid, and the equality of extensions is
+   sound. The statements of the section before are the parts of these
+   that are not about kinds, under weaker premises. *)
 
 (* [Join_env.n_way_join_simples]. *)
-Definition n_way_join_simples_kinds_statement : Prop :=
-  ∀ (env_kinded : Typing_env.t -> Prop) (p : Join_env.parameters)
-    (fuel : nat) (s s' : Join_env.t) (kind : flambda_kind)
-    (simples : list (Index.t * simple)) (result : Or_bottom.t simple),
-    kinded_environments env_kinded ->
+Definition n_way_join_simples_sound_statement : Prop :=
+  ∀ (p : Join_env.parameters) (fuel : nat),
     fresh_avoids p ->
-    state_valid s ->
-    joined_envs_are typing_env_invariant s ->
-    joined_envs_are env_kinded s ->
-    join_args_distinct simples ->
-    join_args_in_scope Join_env.joined_env
-      (fun use simple => simple_of_kind use simple kind) s simples ->
-    Join_env.n_way_join_simples p fuel s kind simples = Some (result, s') ->
-    (∀ sym : symbol, result = Or_bottom.Ok (Symbol sym) -> kind = Value)
-    ∧ (state_kinded s ->
-       state_kinded s'
-       ∧ ∀ joined : simple,
-           result = Or_bottom.Ok joined ->
-           simple_of_kind_in_target kind_in_target_env s' joined kind).
+    n_way_join_simples_sound typing_env_invariant Join_env.joined_env
+      Join_env.definitions_of_existentials kind_in_target_env state_valid
+      state_kinded (Join_env.n_way_join_simples p fuel).
 
 (* [Join_env.import_type]. *)
-Definition import_type_kinds_statement : Prop :=
-  ∀ (env_kinded : Typing_env.t -> Prop) (p : Join_env.parameters)
-    (fuel : nat) (s s' : Join_env.t) (ty : flambda_type),
-    kinded_environments env_kinded ->
-    aliases_are_free_variables ->
+Definition import_type_sound_statement : Prop :=
+  aliases_are_free_variables ->
+  ∀ (p : Join_env.parameters) (fuel : nat),
     fresh_avoids p ->
-    state_valid s ->
-    joined_envs_are typing_env_invariant s ->
-    joined_envs_are env_kinded s ->
-    Join_env.import_type p fuel s ty = Some s' ->
-    state_kinded s ->
-    (∃ (index : Index.t) (use : Typing_env.t),
-       Join_env.joined_env s index = Some use ∧ type_kinded use ty) ->
-    state_kinded s' ∧ type_kinded_in_target kind_in_target_env s' ty.
+    import_type_sound typing_env_invariant Join_env.joined_env
+      Join_env.definitions_of_existentials kind_in_target_env state_valid
+      state_kinded (Join_env.import_type p fuel).
 
 (* [Join_env.n_way_join_env_extension]. *)
-Definition n_way_join_env_extension_kinds_statement : Prop :=
-  ∀ (env_kinded : Typing_env.t -> Prop) (p : Join_env.parameters)
-    (fuel : nat) (s : Join_env.t)
-    (extensions : list (Index.t * env_extension))
-    (result : Or_bottom.t (env_extension * Join_env.t)),
-    kinded_environments env_kinded ->
-    aliases_are_free_variables ->
+Definition n_way_join_env_extension_sound_statement : Prop :=
+  aliases_are_free_variables ->
+  ∀ (p : Join_env.parameters) (fuel : nat),
     fresh_avoids p ->
-    state_valid s ->
-    joined_envs_are typing_env_invariant s ->
-    joined_envs_are env_kinded s ->
-    Join_env.n_way_join_env_extension p fuel s extensions = Some result ->
-    state_kinded s ->
-    join_args_in_scope Join_env.joined_env env_extension_kinded s extensions
-    ->
-    ∀ (joined : env_extension) (s' : Join_env.t),
-      result = Or_bottom.Ok (joined, s') ->
-      state_kinded s'
-      ∧ env_extension_kinded_in_target kind_in_target_env s' joined.
+    env_extension_eqb_sound p ->
+    n_way_join_env_extension_sound typing_env_invariant Join_env.joined_env
+      Join_env.definitions_of_existentials kind_in_target_env state_valid
+      state_kinded (Join_env.n_way_join_env_extension p fuel).
 
 (* ======================================================================== *)
 (* The definitions are kept at every state                                  *)
