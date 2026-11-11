@@ -202,6 +202,27 @@ says so. Only the labels that this tree cites are listed.
 - **C3-8.** The model can write a set of closures in which a value slot
   is given twice; the compiler cannot, and the fexpr parser accepts one
   and keeps the second value.
+- **C5-1.** Nothing in Flambda 2 checks that trap actions, raises and
+  calls name the handler that is installed last; the backend goes by the
+  stack and Simplify by the names.
+- **C5-2.** `Apply_cont_expr.is_raise` and the backend disagree on which
+  `Apply_cont` is a raise.
+- **C5-3.** A `Pop` with no raise kind is "the same as No_trace" for the
+  backend and is treated as a regular raise by Simplify.
+- **C5-4.** With debugging information on, Simplify does not turn a
+  regular raise or a reraise into a jump.
+- **C5-5.** A call can give extra arguments to the exception
+  continuation of its code or of the unit, which takes the exception
+  alone; in the model a way out of a term takes any number of values.
+- **C5-6.** Fexpr drops the extra arguments of a call whose exception
+  continuation is `error`, without a word.
+- **C5-7.** Nothing tests that the first parameter of an exception
+  handler is of kind value.
+- **C5-8.** Nothing checks that a continuation used as an exception
+  handler is marked `is_exn_handler`, nor that a marked one is not the
+  return continuation of a call.
+- **C5-9.** `to_cmm` stops on a trap action of a jump that names the
+  exception continuation of the function or of the unit.
 - **N1-1.** `Compare` writes the reverse maps of function slots and
   value slots into the forward maps.
 - **N1-2.** `pattern_match_pair` on code and on recursive handlers stops
@@ -251,6 +272,10 @@ says so. Only the labels that this tree cites are listed.
 - **R1-16.** The n-way join of immediates gives an empty set to
   `create_naked_immediates_non_empty` when every head reduces to bottom;
   traced, not shown reachable.
+- **R1-22.** Nothing checks that a trap action does not name the return
+  continuation of the unit: `to_cmm` gives that continuation a handler
+  of its own and lets such a trap action through, where for the return
+  continuation of a function it fails.
 - **R2-3.** A static set of closures may be empty; a set bound by a
   `Let` may not.
 - **R2-7.** Simplify fails on a set of closures in which two function
