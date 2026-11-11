@@ -338,9 +338,34 @@ let convert_const (c : Reg_width_const.t) : Model.const =
     ->
     unsupported "constant %a" Reg_width_const.print c
 
+(* CR mshinwell: A hack, so that a unit made from an OCaml source can be
+   converted: the model has nothing of [Rec_info]. Every function the front end
+   makes begins with [let next_depth = rec_info (succ my_depth)], and a
+   recursive call coerces its callee by [depth my_depth -> next_depth]. The
+   conversion drops all three: the [Let] of a [Rec_info] (in [convert_let]), the
+   [my_depth] of code (in [convert_code]), and every coercion (in
+   [convert_simple], which was so before). So the model sees none of what
+   Simplify does with depths: unrolling, and the inlining of recursive functions
+   up to a depth. What keeps this from passing a unit for nothing: the variables
+   dropped are noted here, and one used as a value is refused
+   ([convert_variable]); without that it would be a variable that nothing binds,
+   the unit before Simplify would be undefined, and anything refines an
+   undefined unit. To be replaced when the model has depths and coercions. *)
+let depth_variables : Variable.Set.t ref = ref Variable.Set.empty
+
+let drop_depth_variable var =
+  depth_variables := Variable.Set.add var !depth_variables
+
+(* A variable where it is used as a value. *)
+let convert_variable var =
+  if Variable.Set.mem var !depth_variables
+  then unsupported "the depth variable %a used as a value" Variable.print var;
+  Variables.find var
+
+(* CR mshinwell: the coercions are dropped; see [depth_variables]. *)
 let convert_simple (s : Simple.t) : Model.simple =
   Simple.pattern_match' s
-    ~var:(fun var ~coercion:_ -> Model.Var (Variables.find var))
+    ~var:(fun var ~coercion:_ -> Model.Var (convert_variable var))
     ~symbol:(fun symbol ~coercion:_ -> Model.Symbol (Symbols.find symbol))
     ~const:(fun c -> Model.Const (convert_const c))
 
@@ -538,7 +563,12 @@ and convert_let (pattern : Bound_pattern.t) (defining_expr : Flambda.Named.t)
           :: bindings)
     in
     Model.Let_static (List.rev bindings, convert_expr body)
-  | Singleton _, (Set_of_closures _ | Static_consts _ | Rec_info _)
+  | Singleton bound_var, Rec_info _ ->
+    (* CR mshinwell: the binding of a depth variable is dropped; see
+       [depth_variables]. *)
+    drop_depth_variable (Bound_var.var bound_var);
+    convert_expr body
+  | Singleton _, (Set_of_closures _ | Static_consts _)
   | Set_of_closures _, _
   | Static _, _ ->
     unsupported "the binding %a" Bound_pattern.print pattern
@@ -578,7 +608,7 @@ and convert_or_variable : type a.
  fun convert contents ->
   match contents with
   | Const c -> Const (convert c)
-  | Var (var, _) -> Var (Variables.find var)
+  | Var (var, _) -> Var (convert_variable var)
 
 (* A static block of the model is a tag and fields that are values, so a block
    with a mixed shape, whose flat suffix holds naked numbers, is not in the
@@ -627,9 +657,12 @@ and convert_code (code : Flambda.Function_params_and_body.t Code0.t) :
         ~my_closure
         ~is_my_closure_used:_
         ~my_alloc_mode:_
-        ~my_depth:_
+        ~my_depth
         ~free_names_of_body:_
       ->
+      (* CR mshinwell: the depth of the code is dropped; see
+         [depth_variables]. *)
+      drop_depth_variable my_depth;
       Model.Code
         ( convert_params params,
           Variables.find my_closure,
