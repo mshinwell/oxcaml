@@ -1527,23 +1527,37 @@ let rec parts_of_value (v : V.value) : V.value list =
    are small numbers and the parts of the value. This asks less than the type
    means (it ignores what the joined environment says of those variables), so a
    value that fails it does not have the type. *)
+type own_variables_answer =
+  | Has
+  | Has_not
+  | Unresolved
+
 let has_for_some_own_variables (world : world) (v : V.value)
-    (t : MT.flambda_type) : bool option =
+    (t : MT.flambda_type) : own_variables_answer =
   let own =
     List.filter
       (fun x -> not (List.mem_assoc x world.vars))
       (Model_type.set N.compare_positive (MT.free_variables t))
   in
-  let values = List.init 3 naked_immediate @ parts_of_value v in
+  let values =
+    List.map naked_immediate [0; 1; 2; 3; 4; 5; 250; 254] @ parts_of_value v
+  in
   let rec for_some vars (own : M.variable list) =
     match own with
     | [] -> Meaning.type_satisfied_b world.statics vars v t
     | x :: own ->
       List.exists (fun value -> for_some ((x, value) :: vars) own) values
   in
-  if List.compare_length_with own 3 > 0
-  then None
-  else Some (for_some world.vars own)
+  match own with
+  | [] ->
+    (* No variable of its own: the test decides. *)
+    if for_some world.vars [] then Has else Has_not
+  | _ :: _ ->
+    (* The search is finite: finding values shows that the value has the type;
+       not finding any shows nothing. *)
+    if List.compare_length_with own 3 <= 0 && for_some world.vars own
+    then Has
+    else Unresolved
 
 let print_value ppf (v : V.value) =
   let rec print ppf (v : V.value) =
@@ -1607,8 +1621,8 @@ let semantic_comparisons (names : names) : semantic_case comparison list =
               List.find_opt
                 (fun v ->
                   match has_for_some_own_variables world v join with
-                  | Some has -> not has
-                  | None -> false)
+                  | Has_not -> true
+                  | Has | Unresolved -> false)
                 of_an_input
             in
             match outside, of_an_input with
@@ -1659,7 +1673,19 @@ let semantic_comparisons (names : names) : semantic_case comparison list =
               then Known_to_disagree ("T1-4", what)
               else Disagree what
             | None, [] -> Not_run "no value tried has either type"
-            | None, _ :: _ -> Agree)
+            | None, _ :: _ ->
+              if
+                List.exists
+                  (fun v ->
+                    match has_for_some_own_variables world v join with
+                    | Unresolved -> true
+                    | Has | Has_not -> false)
+                  of_an_input
+              then
+                Not_run
+                  "the join has variables of its own, and no values were found \
+                   for them"
+              else Agree)
     }
   in
   let types_of_names_in world env =
@@ -1702,7 +1728,7 @@ let semantic_comparisons (names : names) : semantic_case comparison list =
                 (Format.asprintf
                    "the meet is bottom, and the value %a has both types"
                    print_value v)
-            | [] -> Agree)
+            | [] -> Not_run "no value tried has both types")
           | Ok (meet, env) -> (
             let meet = to_model names meet in
             let learnt = types_of_names_in world env in
@@ -1746,7 +1772,10 @@ let semantic_comparisons (names : names) : semantic_case comparison list =
               if about_get_tag first || about_get_tag second
               then Known_to_disagree ("T1-1", what)
               else Disagree what
-            | None, (Some _ | None) -> Agree))
+            | None, (Some _ | None) ->
+              if of_both = []
+              then Not_run "no value tried has both types"
+              else Agree))
     }
   in
   (* The other way, which is about how much a meet keeps and not about whether
@@ -1784,7 +1813,10 @@ let semantic_comparisons (names : names) : semantic_case comparison list =
                     && not (has world v first && has world v second))
                   values
               with
-              | None -> Agree
+              | None ->
+                if List.exists (fun v -> has world v meet) values
+                then Agree
+                else Not_run "no value tried has the meet"
               | Some v ->
                 let what =
                   Format.asprintf
@@ -1877,6 +1909,77 @@ let shared_and_not (names : names) : MT.flambda_type comparison list =
     compare_results "meet (n-way) of a type with itself" (meet n_way) ]
 
 (* ======================================================================== *)
+(* The ranges of numbers                                                    *)
+(* ======================================================================== *)
+
+(* A number of the model at each end of the range of each kind, and the number
+   next to it outside: the converter takes the first to the compiler and back
+   unchanged, and refuses the second. *)
+let ranges_of_numbers () =
+  let two_to n = N.z_of_int64 (Int64.shift_left 1L n) in
+  let less_one n = N.z_of_int64 (Int64.pred (Int64.shift_left 1L n)) in
+  let minus_two_to n = N.z_of_int64 (Int64.neg (Int64.shift_left 1L n)) in
+  let below_minus_two_to n =
+    N.z_of_int64 (Int64.pred (Int64.neg (Int64.shift_left 1L n)))
+  in
+  let all_ones count = N.z_of_words (List.init count (fun _ -> -1L)) in
+  let next_word count = N.z_of_words (List.init count (fun _ -> 0L) @ [1L]) in
+  let minus_one = N.z_of_int (-1) in
+  let signed (const : N.z -> M.const) bits =
+    [ const (less_one (bits - 1)), true;
+      const (two_to (bits - 1)), false;
+      const (minus_two_to (bits - 1)), true;
+      const (below_minus_two_to (bits - 1)), false ]
+  in
+  let pattern (const : N.z -> M.const) ~last ~after =
+    [ const (N.z_of_int 0), true;
+      const last, true;
+      const after, false;
+      const minus_one, false ]
+  in
+  let cases : (M.const * bool) list =
+    signed (fun i -> Naked_immediate i) 63
+    @ signed (fun i -> Tagged_immediate i) 63
+    @ signed (fun i -> Naked_int8 i) 8
+    @ signed (fun i -> Naked_int16 i) 16
+    @ signed (fun i -> Naked_int32 i) 32
+    @ [ M.Naked_int64 (N.z_of_int64 Int64.max_int), true;
+        M.Naked_int64 (N.z_of_words [Int64.min_int]), false;
+        M.Naked_int64 (N.z_of_int64 Int64.min_int), true;
+        M.Naked_nativeint (N.z_of_int64 Int64.max_int), true;
+        M.Naked_nativeint (N.z_of_words [Int64.min_int]), false ]
+    @ pattern (fun f -> Naked_float32 f) ~last:(less_one 32) ~after:(two_to 32)
+    @ [ M.Naked_float32 (N.z_of_words [Int64.min_int]), false;
+        M.Naked_float32 (all_ones 1), false ]
+    @ pattern (fun f -> Naked_float f) ~last:(all_ones 1) ~after:(next_word 1)
+    @ pattern (fun m -> Naked_mask m) ~last:(all_ones 1) ~after:(next_word 1)
+    @ pattern (fun v -> Naked_vec128 v) ~last:(all_ones 2) ~after:(next_word 2)
+    @ pattern (fun v -> Naked_vec256 v) ~last:(all_ones 4) ~after:(next_word 4)
+    @ pattern (fun v -> Naked_vec512 v) ~last:(all_ones 8) ~after:(next_word 8)
+  in
+  let wrong =
+    List.filter
+      (fun (const, in_range) ->
+        match Converter.const_of_model machine_width const with
+        | converted ->
+          let back = Converter.const_to_model converted in
+          not (in_range && Stdlib.( = ) back const)
+        | exception Converter.Not_in_the_compiler _ -> in_range)
+      cases
+  in
+  Format.printf "@.The ranges of numbers (%d constants): %d as expected@."
+    (List.length cases)
+    (List.length cases - List.length wrong);
+  List.iter
+    (fun (const, in_range) ->
+      Format.printf "  WRONG: %a is %s@." Model_type.print_const const
+        (if in_range
+         then "refused or changed, and is in range"
+         else "accepted, and is out of range"))
+    wrong;
+  failures := !failures + List.length wrong
+
+(* ======================================================================== *)
 (* The tests                                                                *)
 (* ======================================================================== *)
 
@@ -1890,6 +1993,7 @@ let () =
     (if Flambda2_ui.Flambda_features.stack_allocation_enabled ()
      then "enabled"
      else "disabled");
+  ranges_of_numbers ();
   run ~title:"Raw types of the model" ~seed:1000 ~count:3000
     ~generate:(fun r ->
       G.flambda_type { well_formed = false; depth = 3 } r names.pool)
