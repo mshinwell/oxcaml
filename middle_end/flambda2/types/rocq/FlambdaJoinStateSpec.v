@@ -99,9 +99,10 @@
    ([parameters_type_eqb_sound]), and the type that stands for a
    constant is that of the constant ([expand_const_sound]).
 
-   Not here yet: the definition of the variables of the target
-   ([define_or_eliminate_variables_and_add_equations]), and the
-   contract of the whole join. *)
+   The definition of the variables of the target
+   ([define_or_eliminate_variables_and_add_equations]) is in
+   FlambdaJoinDefineSpec.v. Not here yet: the contract of the whole
+   join. *)
 
 From Stdlib Require Import ZArith List Bool PeanoNat.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
