@@ -26,8 +26,8 @@
  ******************************************************************************)
 
 
-(* Proof of the statement of FlambdaJoinTypesKeepsSpec.v. Nothing here
-   needs review. *)
+(* Proofs of the statements of FlambdaJoinTypesKeepsSpec.v. Nothing
+   here needs review. *)
 
 From Stdlib Require Import ZArith List Bool PeanoNat.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
@@ -35,8 +35,9 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
-  FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaJoinEnv FlambdaJoinTypes
-  FlambdaJoinTypesProofs FlambdaJoinTypesKeepsSpec.
+  FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaJoinEnv FlambdaJoinEnvSpec
+  FlambdaJoinEnvProofs FlambdaJoinTypes FlambdaJoinTypesProofs
+  FlambdaJoinTypesKeepsSpec.
 Import ListNotations.
 
 Section Keeps.
@@ -641,4 +642,29 @@ Proof.
        import_type join_env_n_way_join_env_extension expand_head
        reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb Hsimples
        Himport Hextension fuel s s' ts joined Hstep).
+Qed.
+
+Theorem n_way_join_keeps_definitions
+  : n_way_join_keeps_definitions_statement.
+Proof.
+  intros p fuel_of_env fuel expand_head reduce_head_of_kind_naked_immediate
+    type_eqb block_shape_eqb s s' ts joined Hstep.
+  refine
+    (n_way_join_keeps Join_env.t keeps_definitions Join_env.joined_env
+       (Join_env.n_way_join_simples p fuel_of_env)
+       (Join_env.import_type p fuel_of_env)
+       (Join_env.n_way_join_env_extension p fuel_of_env) expand_head
+       reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel
+       keeps_definitions_refl keeps_definitions_trans _ _ _ s s' ts joined
+       Hstep).
+  - intros s0 s0' kind simples result Hsimples.
+    exact
+      (n_way_join_simples_keeps_definitions p fuel_of_env s0 s0' kind
+         simples result Hsimples).
+  - intros s0 s0' ty Himport.
+    exact (import_type_keeps_definitions p fuel_of_env s0 s0' ty Himport).
+  - intros s0 s0' extensions joined0 Hextension.
+    exact
+      (n_way_join_env_extension_keeps_definitions p fuel_of_env s0 s0'
+         extensions joined0 Hextension).
 Qed.

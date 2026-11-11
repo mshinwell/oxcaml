@@ -30,7 +30,7 @@
    environments: nothing but what the functions of the environment
    side do.
 
-   To be reviewed: the one statement of this file. The functions are
+   To be reviewed: the two statements of this file. The functions are
    FlambdaJoinTypes.v.
 
    The join of types threads the state of the join of environments,
@@ -52,14 +52,19 @@
    statements about the rounds of the join of environments need less
    of the state and with no premise: that the environments joined and
    the definitions made are kept, at every state. That is this
-   statement at that relation.
+   statement at that relation, and the second statement of this file
+   says so: the join of types, given the three functions of the join
+   of environments (FlambdaJoinEnv.v), keeps the definitions
+   ([join_of_types_keeps_definitions], FlambdaJoinEnvSpec.v), which is
+   what the statements about the rounds suppose of the join of types
+   that they are given.
 
    One place deserves a look: [n_way_join_variant] answers the state
    of before the extensions were joined when both joined extensions
    are empty. That state is one that the function went through, so
    the relation holds of it too.
 
-   The proof is in FlambdaJoinTypesKeepsProofs.v, which needs no
+   The proofs are in FlambdaJoinTypesKeepsProofs.v, which needs no
    review. *)
 
 From Stdlib Require Import ZArith List Bool.
@@ -68,7 +73,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
-  FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaJoinEnv FlambdaJoinTypes.
+  FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaJoinEnv FlambdaJoinEnvSpec
+  FlambdaJoinTypes.
 Import ListNotations.
 
 (* A reflexive and transitive relation on states that the three
@@ -110,3 +116,23 @@ Definition n_way_join_keeps_statement : Prop :=
         ts
       = Some (joined, s') ->
       keeps s s'.
+
+(* The join of types, given the three functions of the join of
+   environments, keeps the definitions of the state: at every state,
+   for every list of types, and whatever the other four functions that
+   it is given. The two amounts of fuel are that of the functions of
+   the join of environments and that of the join of types. *)
+Definition n_way_join_keeps_definitions_statement : Prop :=
+  ∀ (p : Join_env.parameters) (fuel_of_env fuel : nat)
+    (expand_head : Typing_env.t -> flambda_type -> option Expanded_type.t)
+    (reduce_head_of_kind_naked_immediate :
+       Typing_env.t -> head_of_kind_naked_immediate
+       -> Or_bottom.t head_of_kind_naked_immediate)
+    (type_eqb : flambda_type -> flambda_type -> bool)
+    (block_shape_eqb : block_shape -> block_shape -> bool),
+    join_of_types_keeps_definitions
+      (n_way_join Join_env.joined_env
+         (Join_env.n_way_join_simples p fuel_of_env)
+         (Join_env.import_type p fuel_of_env)
+         (Join_env.n_way_join_env_extension p fuel_of_env) expand_head
+         reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel).
