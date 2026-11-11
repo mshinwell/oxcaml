@@ -1028,7 +1028,8 @@ Qed.
    [Is_null] of poison and of a symbol that is not bound) and the two
    places where the compiler goes further than the meaning here (the
    block that [Meet] makes of the scrutinee of [Get_tag], and the types
-   that unboxing gives to poison); two types that the n-way join makes
+   that unboxing gives to poison); two types that the n-way join made
+   before f489f9445e
    (one of a function that a set of closures has not, which the closure
    has, and one that is no upper bound); two types that the
    creation functions do not make (a product wider than its index, a
@@ -1692,7 +1693,8 @@ Example at_least_other_value_slot_has_not
 Proof. no. Qed.
 
 (* A function type of a function that the set has not says nothing. The
-   type below is what the n-way join of the compiler makes of a set
+   type below is what the n-way join of the compiler made, before
+   f489f9445e, of a set
    with the one function at the slot of the closure and of a set with
    a second function too: at least the first function, and the code of
    both (see the header of the Spec, on products). The closure of the
@@ -1723,12 +1725,14 @@ Example closure_absent_function_has_not
   : ~ has (Value_symbol a_closure) (join_of_closure_types other_code).
 Proof. no. Qed.
 
-(* Where the n-way join is not an upper bound. The first type below is
+(* Where the n-way join was not an upper bound, before f489f9445e
+   (discrepancy T1-4). The first type below is
    what a projection of a value slot records of a closure: at least
    that value slot, and nothing of the code. Joined with the type of
    exactly a closure at the same slot with a known code, the n-way
-   join gives the second: at least the value slot, and that code. The
-   closure has the first and not the second, its code being another. *)
+   join gave the second: at least the value slot, and that code. The
+   closure has the first and not the second, its code being another.
+   Both joins now give a type that says nothing of the code. *)
 Definition closure_of_unknown_code : flambda_type :=
   at_least_this_closure unnamed_function_slot [] []
     [(a_value_slot, unknown Value)] Alloc_mode.Heap.

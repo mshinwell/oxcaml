@@ -671,8 +671,8 @@ Example mixed_record_of_values_not_well_formed
            Alloc_mode.Heap [unknown Value; unknown Value]).
 Proof. discriminate. Qed.
 
-(* 8a: the two types that the n-way join makes, with a function type of
-   a slot that the index has not. *)
+(* 8a: the two types that the n-way join made before f489f9445e, with
+   a function type of a slot that the index has not. *)
 Example join_of_closure_types_not_well_formed
   : ~ well_formed (join_of_closure_types some_code).
 Proof. discriminate. Qed.

@@ -113,7 +113,8 @@
          of the slots of the entry). For the closure types of the
          first two: nothing, it is their caller's.
          [Row_like_for_closures.create_raw]: nothing. The n-way join
-         does not keep it (see FlambdaTypeMeaningSpec.v, on products);
+         did not keep it before f489f9445e (see
+         FlambdaTypeMeaningSpec.v, on products);
       b. an exact index has the function slot of the case among its
          closures.
          Pass: [Row_like_for_closures.get_single_tag] stops on a
@@ -282,7 +283,8 @@ Definition closures_index_has_slot (slot : function_slot)
    types, closure types and value slot types, against the index of its
    case. Stricter than the compiler, which checks neither: its creation
    functions give 8a for the function types and the value slots and 8c
-   by the way they build, and its n-way join does not keep 8a. *)
+   by the way they build, and its n-way join did not keep 8a before
+   f489f9445e. *)
 Definition closures_entry_slots_fit
     (index : row_like_index set_of_closures_contents unit)
     (function_slots closure_slots : list function_slot)

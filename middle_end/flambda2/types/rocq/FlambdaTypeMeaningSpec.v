@@ -112,22 +112,23 @@
      exists is for the index of the case to say ([Type_grammar]:
      "{ 1 => Unknown; 2 => V } is equal to { 2 => V }"). The function
      types of a set of closures are read in the same way: the code of a
-     function is said if the set has the function. The n-way join
-     needs that: it keeps a function type that only some of the types
-     joined have, under an index that no longer says that the set has
-     the function ([n_way_join_closures_entry]; the other join,
-     [join_closures_entry], keeps a function type only if all have
-     it). The closure of a set without the function has to have the
-     joined type ([closure_absent_function_has] in the Proofs). The
+     function is said if the set has the function. Both joins keep a
+     function type only if every type joined has one
+     ([join_closures_entry], and [n_way_join_closures_entry] since
+     f489f9445e). Before that the n-way join kept a function type
+     that only some of the types joined had, under an index that no
+     longer said that the set had the function (discrepancy T1-4);
+     the closure of a set without the function has the type it made
+     then ([closure_absent_function_has] in the Proofs). The
      code of a function is known where the index says that the set has
      it ([closures_case_function_code_statement]), and always for the
      function at the slot of the closure itself
      ([closures_case_own_code_statement]): those are the two cases in
      which a prover reads a function type
      ([Row_like_for_closures.get_single_tag], [Provers.prove_code_ids]).
-     Even read so, the n-way join is not always an upper bound: where
-     one type says nothing of the code of the function at the slot of
-     the closure and another names it, the joined type names it
+     Even read so, the n-way join was no upper bound then: where one
+     type said nothing of the code of the function at the slot of the
+     closure and another named it, the joined type named it
      ([nway_join_has_not] in the Proofs).
    - A relation is not the execution of its primitive
      ([relation_holds]). It relates a value and a number wherever the
@@ -273,8 +274,9 @@
    callers give them what they expect, which they do not all check (a
    closure at a slot that its set has, closure types of slots of the
    set). Its raw constructors ([create_raw], which meet and join use)
-   check nothing, and the n-way join does not keep the second
-   condition (see above, on products). The statements named say what
+   check nothing, and the n-way join did not keep the second
+   condition before f489f9445e (see above, on products). The
+   statements named say what
    each condition gives, for one case. FlambdaTypeWellFormedSpec.v has
    the conditions of a whole type as one test, [type_well_formed],
    with where the compiler establishes each, and the proof that the
