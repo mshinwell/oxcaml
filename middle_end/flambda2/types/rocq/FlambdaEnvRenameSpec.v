@@ -100,8 +100,8 @@
    - the renamed environment has the invariant of
      FlambdaTypingEnvInvariantSpec.v exactly when the environment has
      it, and the test of the invariant answers the same of the two; the
-     same of its types being well formed, and of its being kinded
-     (FlambdaTypingEnvKindedSpec.v).
+     same of its types being well formed, and of its being kinded, in
+     the two senses of FlambdaTypingEnvKindedSpec.v.
 
    Each statement about a function is an equation and holds of every
    level or environment: nothing is asked of it, its invariant
@@ -780,3 +780,18 @@ Definition simple_of_kind_rename_statement : Prop :=
 Definition typing_env_kinded_rename_statement : Prop :=
   ∀ (r : renaming) (tenv : Typing_env.t),
     typing_env_kinded (rename_typing_env r tenv) <-> typing_env_kinded tenv.
+
+(* The second condition on kinds of that file, of the names that have
+   an equation in an extension inside a type: it holds of a renamed
+   type in the renamed environment exactly when it holds of the type
+   in the environment, and of the renamed environment exactly when it
+   holds of the environment. *)
+Definition type_equations_kinded_rename_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (ty : flambda_type),
+    type_equations_kinded (rename_typing_env r tenv) (rename_type r ty)
+    <-> type_equations_kinded tenv ty.
+
+Definition types_equations_kinded_rename_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t),
+    types_equations_kinded (rename_typing_env r tenv)
+    <-> types_equations_kinded tenv.
