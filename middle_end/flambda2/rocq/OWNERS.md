@@ -344,6 +344,10 @@ units with loops (`while`, `for`, tail-recursive functions).
 
 - `middle_end/flambda2/rocq/FlambdaRecHandlers*` (applying a rewrite to
   the handlers of recursive continuations)
+- `middle_end/flambda2/rocq/FlambdaContAlikeProofs.v` (a tool of proof:
+  continuations that apply alike may stand for each other)
+- `middle_end/flambda2/rocq/FlambdaSinkConts*` (moving a continuation to
+  the handler that alone uses it)
 
 ## N1: nominal loose ends
 
