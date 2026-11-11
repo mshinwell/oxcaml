@@ -348,6 +348,8 @@ units with loops (`while`, `for`, tail-recursive functions).
   continuations that apply alike may stand for each other)
 - `middle_end/flambda2/rocq/FlambdaSinkConts*` (moving a continuation to
   the handler that alone uses it)
+- `middle_end/flambda2/rocq/FlambdaShortcut*` (an arm of a switch that
+  applies a continuation which only applies another)
 - `middle_end/flambda2/rocq/FlambdaUnusedParams*` (removing the
   parameters of a continuation that its handler does not use)
 
