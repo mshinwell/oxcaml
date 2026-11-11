@@ -35,9 +35,10 @@
    The fragment has, with the compiler's names:
    - of [unary_primitive]: [Block_load] from an immutable block of
      values, [Is_int], [Is_null], [Get_tag], [String_length] of a
-     string, [Opaque_identity], [Num_conv] between the integer kinds,
-     [Boolean_not], [Unbox_number], [Box_number], [Untag_immediate] and
-     [Tag_immediate];
+     string, [Opaque_identity], the unary [Int_arith] (here
+     [Unary_int_arith]) with [Not], [Num_conv] between the integer
+     kinds, [Boolean_not], [Unbox_number], [Box_number],
+     [Untag_immediate] and [Tag_immediate];
    - of [binary_primitive]: [Int_arith], [Int_shift] and [Int_comp], at
      every [Standard_int.t], and [Phys_equal];
    - of [variadic_primitive]: [Make_block] of an immutable block of
@@ -85,8 +86,10 @@
      between two [Standard_int_or_float.t], a record of [src] and
      [dst]: the conversions to and from the two kinds of float are not
      here, and the conversion must refuse them.
-   - The unary [Int_arith] of the compiler is not here; when it is, it
-     will need another name, as this [Int_arith] is the binary one.
+   - The unary [Int_arith] of the compiler is [Unary_int_arith] here, as
+     [Int_arith] is the binary one. Its only operation is [Not]: the
+     swap of bytes, [Swap_byte_endianness], is not here, and the
+     conversion must refuse it.
 
    To add a primitive: add its constructor here, its case to the
    evaluation, to the kinds and to [prim_in_range] of
@@ -112,6 +115,10 @@ Inductive block_access_kind : Type :=
   | Block_access_values (tag : option Z) (size : option Z)
       (field_kind : block_access_field_kind).
 
+(* [Flambda_primitive.unary_int_arith_op]. *)
+Inductive unary_int_arith_op : Type :=
+  | Not.
+
 (* [Flambda_primitive.unary_primitive]. *)
 Inductive unary_primitive : Type :=
   | Block_load (kind : block_access_kind) (field : Z)
@@ -120,6 +127,7 @@ Inductive unary_primitive : Type :=
   | Get_tag
   | String_length
   | Opaque_identity (kind : flambda_kind)
+  | Unary_int_arith (kind : standard_int) (op : unary_int_arith_op)
   | Num_conv (src dst : standard_int)
   | Boolean_not
   | Unbox_number (kind : boxable_number)

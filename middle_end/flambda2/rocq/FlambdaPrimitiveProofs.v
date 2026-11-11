@@ -255,7 +255,7 @@ Qed.
 Lemma eval_unary_primitive_static_values (p : unary_primitive) :
   eval_unary_primitive statics p v = eval_unary_primitive statics' p v.
 Proof.
-  destruct p as [[tag size field_kind] field | | | | | | | | | | | ]; simpl;
+  destruct p as [[tag size field_kind] field | | | | | | | | | | | | ]; simpl;
     unfold eval_is_int, eval_is_null, eval_block_load;
     rewrite ?block_of_static_values, ?is_allocated_static_values,
       ?boxed_number_of_static_values, ?string_of_static_values,
@@ -631,8 +631,8 @@ Lemma eval_unary_primitive_symbol_bound (statics : static_env)
   eval_unary_primitive statics p (Value_symbol s) = Some v ->
   lookup s (static_values statics) <> None.
 Proof.
-  destruct p as [[tag size field_kind] field | [ | ] | | | | kind | src dst
-                | | kind | kind | | ];
+  destruct p as [[tag size field_kind] field | [ | ] | | | | kind | kind op
+                | src dst | | kind | kind | | ];
     simpl; unfold eval_is_int, eval_is_null, eval_block_load; simpl;
     rewrite ?int_of_value_symbol;
     try discriminate;
@@ -726,8 +726,8 @@ Lemma eval_unary_primitive_kinds (statics : static_env)
   kind_of_value arg = arg_kind_of_unary_primitive p
   ∧ kind_of_value v = result_kind_of_unary_primitive p.
 Proof.
-  destruct p as [access field | variant_only | | | | kind | src dst | | kind
-                | kind | | ];
+  destruct p as [access field | variant_only | | | | kind | kind op
+                | src dst | | kind | kind | | ];
     cbn [eval_unary_primitive arg_kind_of_unary_primitive
          result_kind_of_unary_primitive].
   - (* [Block_load] *)
@@ -798,6 +798,11 @@ Proof.
       [ | discriminate ].
     destruct (bound_if_symbol statics arg); [ | discriminate ].
     apply kind_eqb_eq in Hkind. intros [= <-]. auto.
+  - (* [Unary_int_arith] *)
+    destruct (int_of_value kind arg) as [a | ] eqn:Hint; [ | discriminate ].
+    intros [= <-]. split.
+    + exact (int_of_value_kind _ _ _ Hint).
+    + apply kind_of_const_of_int.
   - (* [Num_conv] *)
     destruct (int_of_value src arg) as [i | ] eqn:Hint; [ | discriminate ].
     intros [= <-]. split.
@@ -972,8 +977,8 @@ Lemma eval_unary_primitive_preserves (p : unary_primitive) (arg v : value) :
   P arg -> eval_unary_primitive statics p arg = Some v -> P v.
 Proof.
   intros Harg.
-  destruct p as [access field | variant_only | | | | kind | src dst | | kind
-                | kind | | ];
+  destruct p as [access field | variant_only | | | | kind | kind op
+                | src dst | | kind | kind | | ];
     cbn [eval_unary_primitive].
   - unfold eval_block_load. destruct access as [tag size field_kind].
     destruct (block_of statics arg) as [[block_tag fields] | ] eqn:Hblock;
@@ -1007,6 +1012,8 @@ Proof.
   - destruct (kind_eqb (kind_of_value arg) kind); [ | discriminate ].
     destruct (bound_if_symbol statics arg); [ | discriminate ].
     intros [= <-]. exact Harg.
+  - destruct (int_of_value kind arg); [ | discriminate ].
+    intros [= <-]. apply Hnumbers.
   - destruct (int_of_value src arg); [ | discriminate ].
     intros [= <-]. apply Hnumbers.
   - destruct (int_of_value Standard_tagged_immediate arg) as [i | ];
@@ -1172,6 +1179,47 @@ Proof.
   intros Hwidth.
   destruct op; simpl; try destruct (b =? 0); try discriminate;
     intros [= <-]; apply wrap_in_range, Hwidth.
+Qed.
+
+(* The result of the unary arithmetic is in range, and the complement
+   of an integer in range is in range, so the wrap of [Not] changes
+   nothing. *)
+Lemma eval_unary_int_arith_in_range (width : Z) (op : unary_int_arith_op)
+    (a : Z) :
+  1 <= width -> in_range width (eval_unary_int_arith width op a) = true.
+Proof. intros Hwidth. destruct op. apply wrap_in_range, Hwidth. Qed.
+
+Lemma eval_unary_int_arith_not (width a : Z) :
+  1 <= width ->
+  in_range width a = true ->
+  eval_unary_int_arith width Not a = Z.lnot a.
+Proof.
+  intros Hwidth Hrange. simpl.
+  apply wrap_of_in_range; [ exact Hwidth | ].
+  unfold in_range in *. unfold Z.lnot.
+  apply andb_true_iff in Hrange as [Hlow Hhigh].
+  apply Z.leb_le in Hlow. apply Z.ltb_lt in Hhigh.
+  apply andb_true_iff. split; [ apply Z.leb_le | apply Z.ltb_lt ]; lia.
+Qed.
+
+(* Simplify rewrites the exclusive or of an integer with -1, on either
+   side, into [Not] of the integer ([Simplify_binary_primitive], where
+   an operation answers [Bitwise_not_of_the_other_side]). The two are
+   the same integer. *)
+Lemma eval_int_arith_xor_minus_one_r (width a : Z) :
+  eval_int_arith width Xor a (-1)
+  = Some (eval_unary_int_arith width Not a).
+Proof.
+  unfold eval_int_arith, eval_unary_int_arith.
+  rewrite Z.lxor_m1_r. reflexivity.
+Qed.
+
+Lemma eval_int_arith_xor_minus_one_l (width a : Z) :
+  eval_int_arith width Xor (-1) a
+  = Some (eval_unary_int_arith width Not a).
+Proof.
+  unfold eval_int_arith, eval_unary_int_arith.
+  rewrite Z.lxor_m1_l. reflexivity.
 Qed.
 
 (* The result of a shift is in range. *)
@@ -1418,8 +1466,8 @@ Lemma eval_unary_primitive_in_range (p : unary_primitive) (arg v : value) :
   value_in_range v = true.
 Proof.
   intros Hsymbols Harg.
-  destruct p as [access field | variant_only | | | | kind | src dst | | kind
-                | kind | | ];
+  destruct p as [access field | variant_only | | | | kind | kind op
+                | src dst | | kind | kind | | ];
     cbn [eval_unary_primitive].
   - unfold eval_block_load. destruct access as [tag size field_kind].
     destruct (block_of statics arg) as [[block_tag fields] | ] eqn:Hblock;
@@ -1458,6 +1506,11 @@ Proof.
   - destruct (kind_eqb (kind_of_value arg) kind); [ | discriminate ].
     destruct (bound_if_symbol statics arg); [ | discriminate ].
     intros [= <-]. exact Harg.
+  - (* [Unary_int_arith] *)
+    destruct (int_of_value kind arg) as [a | ]; [ | discriminate ].
+    intros [= <-]. cbn [value_in_range].
+    rewrite const_in_range_const_of_int.
+    apply eval_unary_int_arith_in_range, int_width_positive.
   - (* [Num_conv] *)
     destruct (int_of_value src arg) as [i | ]; [ | discriminate ].
     intros [= <-]. cbn [value_in_range].
@@ -1787,8 +1840,8 @@ Lemma eval_unary_primitive_related (p : unary_primitive)
 Proof.
   intros Hr.
   destruct (Hobserved v v' Hr) as (Hblocks & Hboxed & Hstring & _ & Hbound).
-  destruct p as [access field | variant_only | | | | kind | src dst | | kind
-                | kind | | ];
+  destruct p as [access field | variant_only | | | | kind | kind op
+                | src dst | | kind | kind | | ];
     cbn [eval_unary_primitive].
   - unfold eval_block_load. destruct access as [tag size field_kind].
     destruct (block_of statics v) as [[block_tag fields] | ] eqn:Hv;
@@ -1834,6 +1887,10 @@ Proof.
     destruct (kind_eqb (kind_of_value v) kind); [ | discriminate ].
     destruct (bound_if_symbol statics v) eqn:Hv; [ | discriminate ].
     rewrite (Hbound eq_refl). intros [= <-]. exists v'. auto.
+  - (* [Unary_int_arith] *)
+    destruct (int_of_value kind v) as [a | ] eqn:Hv; [ | discriminate ].
+    rewrite (related_int _ v v' a Hr Hv), Hv.
+    intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
   - (* [Num_conv] *)
     destruct (int_of_value src v) as [i | ] eqn:Hv; [ | discriminate ].
     rewrite (related_int _ v v' i Hr Hv), Hv.
@@ -2217,6 +2274,30 @@ Proof. reflexivity. Qed.
 
 Example untag_immediate :
   unary empty_static_env Untag_immediate (tagged 5) = Some (naked 5).
+Proof. reflexivity. Qed.
+
+Example not_tagged :
+  unary empty_static_env (Unary_int_arith Standard_tagged_immediate Not)
+    (tagged 5)
+  = Some (tagged (-6)).
+Proof. reflexivity. Qed.
+
+Example not_of_least :
+  unary empty_static_env (Unary_int_arith Standard_tagged_immediate Not)
+    (tagged min_int63)
+  = Some (tagged max_int63).
+Proof. reflexivity. Qed.
+
+Example not_int8 :
+  unary empty_static_env (Unary_int_arith Standard_naked_int8 Not)
+    (Value_const (Naked_int8 (-1)))
+  = Some (Value_const (Naked_int8 0)).
+Proof. reflexivity. Qed.
+
+Example not_wrong_kind :
+  unary empty_static_env (Unary_int_arith Standard_tagged_immediate Not)
+    (naked 5)
+  = None.
 Proof. reflexivity. Qed.
 
 Definition num_conv (src dst : standard_int) (v : value) : option value :=

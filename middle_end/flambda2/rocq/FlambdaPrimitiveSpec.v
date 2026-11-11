@@ -209,6 +209,16 @@ Definition eval_int_arith (width : Z) (op : binary_int_arith_op) (a b : Z)
   | Xor => Some (wrap width (Z.lxor a b))
   end.
 
+(* The unary [Int_arith]. [Not] is the complement of every bit, which
+   for an integer in two's complement is its opposite less one. The
+   result is in range as it is; it is wrapped so that this is evident
+   (FlambdaPrimitiveProofs.v, [eval_unary_int_arith_not]). *)
+Definition eval_unary_int_arith (width : Z) (op : unary_int_arith_op)
+    (a : Z) : Z :=
+  match op with
+  | Not => wrap width (Z.lnot a)
+  end.
+
 (* The amounts by which an integer of a kind is shifted: those from 0 up
    to, and not including, this bound. It is the width of the kind, but
    64 for the tagged immediates, which have 63 bits: OCaml's [lsl],
@@ -435,6 +445,8 @@ Definition eval_block_load (statics : static_env) (kind : block_access_kind)
      constant is not boxed, and a boxed poison, which is a boxed number
      (FlambdaValueSpec.v), is not unboxed, as [is_number_of_kind] goes
      by the constructor of the constant.
+   - [Unary_int_arith] is on an integer of the kind it carries, and
+     gives one.
    - [Num_conv] changes an integer of the kind [src] into the integer
      of the kind [dst] that is the same modulo two to the width of
      [dst]: the same integer where [dst] holds it, as it does where it
@@ -501,6 +513,11 @@ Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
     if kind_eqb (kind_of_value v) kind && bound_if_symbol statics v
     then Some v
     else None
+  | Unary_int_arith kind op =>
+    let* a := int_of_value kind v in
+    Some
+      (Value_const
+         (const_of_int kind (eval_unary_int_arith (int_width kind) op a)))
   | Num_conv src dst =>
     let* i := int_of_value src v in
     Some (Value_const (const_of_int dst (wrap (int_width dst) i)))
@@ -725,8 +742,8 @@ Definition unary_primitive_in_range (p : unary_primitive) : bool :=
     && known_in_range ocaml_int_in_range size
     && ocaml_int_in_range field
   | Is_int _ | Is_null | Get_tag | String_length | Opaque_identity _
-  | Num_conv _ _ | Boolean_not | Unbox_number _ | Box_number _
-  | Untag_immediate | Tag_immediate =>
+  | Unary_int_arith _ _ | Num_conv _ _ | Boolean_not | Unbox_number _
+  | Box_number _ | Untag_immediate | Tag_immediate =>
     true
   end.
 
@@ -787,6 +804,7 @@ Definition arg_kind_of_unary_primitive (p : unary_primitive) : flambda_kind :=
   | Boolean_not | Unbox_number _ | Untag_immediate =>
     Value
   | Opaque_identity kind => kind
+  | Unary_int_arith kind _ => kind_of_standard_int kind
   | Num_conv src _ => kind_of_standard_int src
   | Box_number kind => unboxed_kind kind
   | Tag_immediate => naked_immediate_kind
@@ -799,6 +817,7 @@ Definition result_kind_of_unary_primitive (p : unary_primitive)
   | Is_int _ | Is_null | Get_tag | String_length | Untag_immediate =>
     naked_immediate_kind
   | Opaque_identity kind => kind
+  | Unary_int_arith kind _ => kind_of_standard_int kind
   | Num_conv _ dst => kind_of_standard_int dst
   | Unbox_number kind => unboxed_kind kind
   | Block_load _ _ | Boolean_not | Box_number _ | Tag_immediate => Value
