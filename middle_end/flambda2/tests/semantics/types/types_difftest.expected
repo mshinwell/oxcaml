@@ -1,5 +1,6 @@
 The types of the compiler against the Rocq model.
 Stack allocation: enabled.
+Joins: with -flambda2-join-sharing structural, but where the compiler's default is named.
 
 The ranges of numbers (52 constants): 52 as expected
 Constants of the compiler with the top bit set (12): 12 in the range of the model and unchanged by the round trip
@@ -672,7 +673,37 @@ Chosen joins
     (closure code1 []): uses 1 and 2; the binary join: yes; the n-way join: yes
     (closure code2 []): use 2; the binary join: yes; the n-way join: yes
 
-A type of kind value with itself, shared and not (until the compiler has a flag for it, results may depend on sharing) (1500 cases, seeds 70000 to 71499)
+A type of kind value with itself, shared and not (1500 cases, seeds 70000 to 71499)
+  1500 converted
+  join (binary) of a type with itself: 1208 agree
+    292 not run: the type built twice is one value
+  join (n-way) of a type with itself: 1208 agree
+    292 not run: the type built twice is one value
+  meet (binary) of a type with itself: 1208 agree
+    292 not run: the type built twice is one value
+  meet (n-way) of a type with itself: 1208 agree
+    292 not run: the type built twice is one value
+
+Two types of kind value with a common part, shared and not (1000 cases, seeds 80000 to 80999)
+  1000 converted
+  join (binary) of two blocks with a common field: 781 agree
+    219 not run: the common part built twice is one value
+  join (binary) of two variants whose immediate case says the same: 781 agree
+    219 not run: the common part built twice is one value
+  join (binary) of a variable of which the two uses know the same: 781 agree
+    219 not run: the common part built twice is one value
+  join (n-way) of two blocks with a common field: 781 agree
+    219 not run: the common part built twice is one value
+  join (n-way) of two variants whose immediate case says the same: 781 agree
+    219 not run: the common part built twice is one value
+  join (n-way) of a variable of which the two uses know the same: 781 agree
+    219 not run: the common part built twice is one value
+  meet (binary) of two blocks with a common field: 781 agree
+    219 not run: the common part built twice is one value
+  meet (n-way) of two blocks with a common field: 781 agree
+    219 not run: the common part built twice is one value
+
+A type of kind value with itself, shared and not, with the compiler's default for the sharing of joins (1500 cases, seeds 70000 to 71499)
   1500 converted
   join (binary) of a type with itself: 1195 agree, 13 disagree as recorded
     292 not run: the type built twice is one value
@@ -750,7 +781,7 @@ with the type built twice:
   meet (n-way) of a type with itself: 1208 agree
     292 not run: the type built twice is one value
 
-Two types of kind value with a common part, shared and not (the same caution) (1000 cases, seeds 80000 to 80999)
+Two types of kind value with a common part, shared and not, with the compiler's default for the sharing of joins (1000 cases, seeds 80000 to 80999)
   1000 converted
   join (binary) of two blocks with a common field: 698 agree, 83 disagree as recorded
     219 not run: the common part built twice is one value

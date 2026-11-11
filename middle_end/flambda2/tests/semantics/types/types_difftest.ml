@@ -75,6 +75,19 @@ module Random = Minicheck.Splittable_random
 
 let machine_width = Target_system.Machine_width.Sixty_four
 
+(* How a join decides that the types it is given are one type, which it then
+   keeps instead of joining: the compiler's flag [-flambda2-join-sharing]. With
+   the default, physical equality, the result of a join depends on how its
+   arguments are shared in memory (T7-7). The model has no physical equality:
+   the tests run with the structural setting, and the comparisons of shared and
+   unshared arguments are run with the default as well. *)
+let with_join_sharing (setting : Oxcaml_flags.join_sharing) (f : unit -> 'a) :
+    'a =
+  let before = !Oxcaml_flags.Flambda2.join_sharing in
+  Oxcaml_flags.Flambda2.join_sharing := Oxcaml_flags.Set setting;
+  Fun.protect f ~finally:(fun () ->
+      Oxcaml_flags.Flambda2.join_sharing := before)
+
 (* ======================================================================== *)
 (* The names of the tests                                                   *)
 (* ======================================================================== *)
@@ -229,6 +242,19 @@ type 'input comparison =
   { name : string;
     compare : 'input -> outcome
   }
+
+(* A result that differs when arguments are shared and when they are not: with
+   the compiler's default it is recorded (T7-7); with the structural setting
+   nothing is to depend on sharing, and it is a failure. *)
+type sharing =
+  | Default_sharing
+  | Structural_sharing
+
+let depends_on_sharing (sharing : sharing) what : outcome =
+  match sharing with
+  | Default_sharing ->
+    Known_to_disagree ("T7-7, a result that depends on sharing", what)
+  | Structural_sharing -> Disagree what
 
 (* A variable that a type given by the compiler mentions and the environment
    given with it does not define. *)
@@ -2149,7 +2175,8 @@ let shrink_semantic_case ({ world_seed = _; first; second } as case) =
    inputs: a type built once and given twice (shared: the two arguments are one
    value) and the same type built twice (not shared) are to give the same
    result. Where they do not, the result depends on physical equality. *)
-let shared_and_not (names : names) : MT.flambda_type comparison list =
+let shared_and_not (names : names) (sharing : sharing) :
+    MT.flambda_type comparison list =
   let compare_results name of_types =
     { name;
       compare =
@@ -2164,12 +2191,11 @@ let shared_and_not (names : names) : MT.flambda_type comparison list =
             if String.equal shared not_shared
             then Agree
             else
-              Known_to_disagree
-                ( "T7-7, a result that depends on sharing",
-                  Format.asprintf
-                    "@[<v>with the two arguments one value:@ %s@ with the type \
-                     built twice:@ %s@]"
-                    shared not_shared ))
+              depends_on_sharing sharing
+                (Format.asprintf
+                   "@[<v>with the two arguments one value:@ %s@ with the type \
+                    built twice:@ %s@]"
+                   shared not_shared))
     }
   in
   let join implementation t t' =
@@ -2204,7 +2230,7 @@ type parts =
     right : MT.flambda_type
   }
 
-let shared_parts (names : names) : parts comparison list =
+let shared_parts (names : names) (sharing : sharing) : parts comparison list =
   let variable =
     Converter.variable_of_model names.numbering
       (List.hd names.pool.value_variables)
@@ -2259,12 +2285,11 @@ let shared_parts (names : names) : parts comparison list =
             if String.equal shared not_shared
             then Agree
             else
-              Known_to_disagree
-                ( "T7-7, a result that depends on sharing",
-                  Format.asprintf
-                    "@[<v>with the common part one value:@ %s@ with the common \
-                     part built twice:@ %s@]"
-                    shared not_shared ))
+              depends_on_sharing sharing
+                (Format.asprintf
+                   "@[<v>with the common part one value:@ %s@ with the common \
+                    part built twice:@ %s@]"
+                   shared not_shared))
     }
   in
   let of_blocks operation ~common ~common' ~left ~right =
@@ -3009,8 +3034,12 @@ let () =
   Env.set_current_unit
     (Unit_info.make_dummy ~input_name:"types_difftest" comp_unit);
   let names = create_names () in
+  let structural = Oxcaml_flags.Set Oxcaml_flags.Structural in
+  Oxcaml_flags.Flambda2.join_sharing := structural;
   Format.printf
-    "The types of the compiler against the Rocq model.@.Stack allocation: %s.@."
+    "The types of the compiler against the Rocq model.@.Stack allocation: \
+     %s.@.Joins: with -flambda2-join-sharing structural, but where the \
+     compiler's default is named.@."
     (if Flambda2_ui.Flambda_features.stack_allocation_enabled ()
      then "enabled"
      else "disabled");
@@ -3161,45 +3190,58 @@ let () =
     ~print:print_semantic_case
     (semantic_comparisons names);
   chosen_joins names (the_chosen_joins names);
-  run
-    ~title:
-      "A type of kind value with itself, shared and not (until the compiler \
-       has a flag for it, results may depend on sharing)"
-    ~seed:70000 ~count:1500
-    ~generate:(fun r ->
-      G.type_of_kind { well_formed = true; depth = 3 } r names.pool MK.Value)
-    ~prepare:(fun m ->
-      ignore (to_compiler names m : TG.t);
-      m)
-    ~shrink:G.shrink ~print:Model_type.print (shared_and_not names);
-  run
-    ~title:
-      "Two types of kind value with a common part, shared and not (the same \
-       caution)"
-    ~seed:80000 ~count:1000
-    ~generate:(fun r ->
-      let part () =
-        G.type_of_kind { well_formed = true; depth = 2 } r names.pool MK.Value
-      in
-      let common = part () in
-      let left = part () in
-      let right = part () in
-      { common; left; right })
-    ~prepare:(fun ({ common; left; right } as parts) ->
-      ignore (to_compiler names common : TG.t);
-      ignore (to_compiler names left : TG.t);
-      ignore (to_compiler names right : TG.t);
-      parts)
-    ~shrink:(fun ({ common; left; right } as parts) ->
-      List.map (fun common -> { parts with common }) (G.shrink common)
-      @ List.map (fun left -> { parts with left }) (G.shrink left)
-      @ List.map (fun right -> { parts with right }) (G.shrink right))
-    ~print:(fun ppf { common; left; right } ->
-      Format.fprintf ppf
-        "@[<v>the common part@ %a@ the other part of the first@ %a@ the other \
-         part of the second@ %a@]"
-        Model_type.print common Model_type.print left Model_type.print right)
-    (shared_parts names);
+  let with_itself ~title sharing =
+    run ~title ~seed:70000 ~count:1500
+      ~generate:(fun r ->
+        G.type_of_kind { well_formed = true; depth = 3 } r names.pool MK.Value)
+      ~prepare:(fun m ->
+        ignore (to_compiler names m : TG.t);
+        m)
+      ~shrink:G.shrink ~print:Model_type.print
+      (shared_and_not names sharing)
+  in
+  let with_a_common_part ~title sharing =
+    run ~title ~seed:80000 ~count:1000
+      ~generate:(fun r ->
+        let part () =
+          G.type_of_kind { well_formed = true; depth = 2 } r names.pool MK.Value
+        in
+        let common = part () in
+        let left = part () in
+        let right = part () in
+        { common; left; right })
+      ~prepare:(fun ({ common; left; right } as parts) ->
+        ignore (to_compiler names common : TG.t);
+        ignore (to_compiler names left : TG.t);
+        ignore (to_compiler names right : TG.t);
+        parts)
+      ~shrink:(fun ({ common; left; right } as parts) ->
+        List.map (fun common -> { parts with common }) (G.shrink common)
+        @ List.map (fun left -> { parts with left }) (G.shrink left)
+        @ List.map (fun right -> { parts with right }) (G.shrink right))
+      ~print:(fun ppf { common; left; right } ->
+        Format.fprintf ppf
+          "@[<v>the common part@ %a@ the other part of the first@ %a@ the \
+           other part of the second@ %a@]"
+          Model_type.print common Model_type.print left Model_type.print right)
+      (shared_parts names sharing)
+  in
+  with_itself ~title:"A type of kind value with itself, shared and not"
+    Structural_sharing;
+  with_a_common_part
+    ~title:"Two types of kind value with a common part, shared and not"
+    Structural_sharing;
+  with_join_sharing Oxcaml_flags.Physical (fun () ->
+      with_itself
+        ~title:
+          "A type of kind value with itself, shared and not, with the \
+           compiler's default for the sharing of joins"
+        Default_sharing;
+      with_a_common_part
+        ~title:
+          "Two types of kind value with a common part, shared and not, with \
+           the compiler's default for the sharing of joins"
+        Default_sharing);
   Format.printf "@.%s@."
     (if !failures = 0
      then "No disagreement."
