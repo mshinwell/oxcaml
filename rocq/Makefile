@@ -93,6 +93,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaBlockLoadSpec.v \
   FlambdaClosuresProofs.v \
   FlambdaClosuresSpec.v \
+  FlambdaCompareAlphaProofs.v \
+  FlambdaCompareAlphaSpec.v \
   FlambdaCompareProofs.v \
   FlambdaCompareSpec.v \
   FlambdaContextProofs.v \
