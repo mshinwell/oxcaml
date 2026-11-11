@@ -379,14 +379,19 @@ $(FLAMBDA2_EXTRACT:.v=.vo): $(FLAMBDA2_EXTRACT)
 %.vo: %.v
 	$(ROCQ) compile $(FLAGS) $<
 
-# The dependencies between the .v files, computed by rocq dep.
+# The dependencies between the .v files, computed by rocq dep. They are
+# written to another file, which is renamed when rocq dep has succeeded:
+# a run that fails (rocq is not on the path, say) must not leave an empty
+# file that is newer than the sources, as later builds would take it for
+# the dependencies and rebuild nothing.
 $(DEPS): $(SOURCES)
-	$(ROCQ) dep $(FLAGS) $(SOURCES) > $@
+	$(ROCQ) dep $(FLAGS) $(SOURCES) > $@.tmp || { rm -f $@.tmp; exit 1; }
+	mv $@.tmp $@
 
 -include $(DEPS)
 
 clean:
-	rm -f $(DEPS) $(EXTRACTED) $(STDLIB_DIR)/review.pdf
+	rm -f $(DEPS) $(DEPS).tmp $(EXTRACTED) $(STDLIB_DIR)/review.pdf
 	rm -rf $(STDLIB_DIR)/_review
 	for d in $(STDLIB_DIR) $(BACKEND_DIR) $(SSA_DIR) $(LOOP_DIR) \
 	    $(FLAMBDA2_DIR) $(FLAMBDA2_TYPES_DIR); do \
