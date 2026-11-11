@@ -2358,6 +2358,253 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* The functions read the binding times and the name modes only             *)
+(* ======================================================================== *)
+
+Lemma fold_left_alike {A B : Type} (f f' : A -> B -> A) (l : list B)
+    (init : A) :
+  (∀ (a : A) (b : B), f a b = f' a b) ->
+  List.fold_left f l init = List.fold_left f' l init.
+Proof.
+  intros Hf. revert init.
+  induction l as [ | b l IH]; intros init; simpl; [ reflexivity | ].
+  rewrite Hf. apply IH.
+Qed.
+
+Lemma forallb_alike {A : Type} (f f' : A -> bool) (l : list A) :
+  (∀ a : A, f a = f' a) -> forallb f l = forallb f' l.
+Proof.
+  intros Hf. induction l as [ | a l IH]; simpl; [ reflexivity | ].
+  rewrite Hf, IH. reflexivity.
+Qed.
+
+Lemma find_earliest_candidates_alike
+    (t : Aliases.Aliases_of_canonical_element.t)
+    (filter_by_scope filter_by_scope' : Name_mode.t -> list name -> list name)
+    (min_name_mode : Name_mode.t) :
+  (∀ (name_mode : Name_mode.t) (names : list name),
+    filter_by_scope name_mode names = filter_by_scope' name_mode names) ->
+  Aliases.Aliases_of_canonical_element.find_earliest_candidates t
+    filter_by_scope min_name_mode
+  = Aliases.Aliases_of_canonical_element.find_earliest_candidates t
+      filter_by_scope' min_name_mode.
+Proof.
+  intros Hfilter.
+  unfold Aliases.Aliases_of_canonical_element.find_earliest_candidates.
+  apply fold_left_alike. intros res_opt order. rewrite Hfilter. reflexivity.
+Qed.
+
+Section Binding_times_alike.
+
+Context {A B : Type}
+  (resolver resolver' : name -> Binding_time.With_name_mode.t)
+  (times : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+  (times' : Keyed.finite_map name (B * Binding_time.With_name_mode.t)).
+
+Hypothesis resolvers_alike : ∀ n : name, resolver n = resolver' n.
+
+Hypothesis times_alike : binding_times_alike times times'.
+
+Lemma binding_time_and_name_mode_alike (elt : simple) :
+  Aliases.binding_time_and_name_mode times elt
+  = Aliases.binding_time_and_name_mode times' elt.
+Proof.
+  destruct elt as [x | sym | c]; simpl; try reflexivity.
+  pose proof (times_alike (Name_var x)) as Hx.
+  destruct (Keyed.lookup name_eqb (Name_var x) times) as [[a bt] | ],
+    (Keyed.lookup name_eqb (Name_var x) times') as [[b bt'] | ];
+    simpl in Hx; try discriminate; [ | reflexivity ].
+  injection Hx as ->. reflexivity.
+Qed.
+
+Lemma name_defined_earlier_alike (alias than : name) :
+  Aliases.name_defined_earlier resolver times alias than
+  = Aliases.name_defined_earlier resolver' times' alias than.
+Proof.
+  unfold Aliases.name_defined_earlier.
+  pose proof (times_alike alias) as Halias.
+  pose proof (times_alike than) as Hthan.
+  rewrite !resolvers_alike.
+  destruct (Keyed.lookup name_eqb alias times) as [[a bt] | ],
+    (Keyed.lookup name_eqb alias times') as [[b bt'] | ];
+    simpl in Halias; try discriminate;
+    destruct (Keyed.lookup name_eqb than times) as [[a2 bt2] | ],
+      (Keyed.lookup name_eqb than times') as [[b2 bt2'] | ];
+    simpl in Hthan; try discriminate;
+    repeat
+      match goal with
+      | H : Some _ = Some _ |- _ => injection H as ->
+      end;
+    reflexivity.
+Qed.
+
+Lemma defined_earlier_alike_here (alias than : simple) :
+  Aliases.defined_earlier resolver times alias than
+  = Aliases.defined_earlier resolver' times' alias than.
+Proof.
+  unfold Aliases.defined_earlier.
+  destruct (name_of_simple than); [ | reflexivity ].
+  destruct (name_of_simple alias); [ | reflexivity ].
+  apply name_defined_earlier_alike.
+Qed.
+
+Lemma compute_name_mode_unscoped_alike (elt : simple) :
+  Aliases.compute_name_mode_unscoped times elt
+  = Aliases.compute_name_mode_unscoped times' elt.
+Proof.
+  unfold Aliases.compute_name_mode_unscoped.
+  rewrite binding_time_and_name_mode_alike. reflexivity.
+Qed.
+
+Lemma compute_name_mode_alike (elt : simple)
+    (min_binding_time : Binding_time.t) :
+  Aliases.compute_name_mode times elt min_binding_time
+  = Aliases.compute_name_mode times' elt min_binding_time.
+Proof.
+  unfold Aliases.compute_name_mode.
+  rewrite binding_time_and_name_mode_alike. reflexivity.
+Qed.
+
+Lemma add_alias_between_canonical_elements_alike (t : Aliases.t)
+    (canonical_element to_be_demoted : simple) :
+  Aliases.add_alias_between_canonical_elements times t canonical_element
+    to_be_demoted
+  = Aliases.add_alias_between_canonical_elements times' t canonical_element
+      to_be_demoted.
+Proof.
+  unfold Aliases.add_alias_between_canonical_elements.
+  rewrite compute_name_mode_unscoped_alike. reflexivity.
+Qed.
+
+Lemma add_alike_here (t : Aliases.t)
+    (canonical_element1 canonical_element2 : simple) :
+  Aliases.add resolver times t canonical_element1 canonical_element2
+  = Aliases.add resolver' times' t canonical_element1 canonical_element2.
+Proof.
+  unfold Aliases.add, Aliases.add0, Aliases.add_alias,
+    Aliases.choose_canonical_element_to_be_demoted.
+  rewrite defined_earlier_alike_here.
+  destruct
+    (Aliases.defined_earlier resolver' times' canonical_element1
+       canonical_element2);
+    rewrite add_alias_between_canonical_elements_alike; reflexivity.
+Qed.
+
+Lemma find_earliest_alias_alike (t : Aliases.t) (canonical_element : simple)
+    (min_binding_time : Binding_time.t) (min_name_mode : Name_mode.t) :
+  Aliases.find_earliest_alias resolver times t canonical_element
+    min_binding_time min_name_mode
+  = Aliases.find_earliest_alias resolver' times' t canonical_element
+      min_binding_time min_name_mode.
+Proof.
+  unfold Aliases.find_earliest_alias.
+  rewrite
+    (find_earliest_candidates_alike _ _
+       (fun name_mode names =>
+          if Name_mode.equal name_mode Name_mode.in_types
+          then names
+          else
+            filter
+              (fun name =>
+                 Name_mode.equal name_mode
+                   (Aliases.compute_name_mode times' (simple_of_name name)
+                      min_binding_time))
+              names)).
+  - destruct
+      (Aliases.Aliases_of_canonical_element.find_earliest_candidates _ _ _)
+      as [[ | first rest] | ];
+      try reflexivity.
+    do 2 f_equal. apply fold_left_alike. intros min_elt elt.
+    rewrite name_defined_earlier_alike. reflexivity.
+  - intros name_mode names.
+    destruct (Name_mode.equal name_mode Name_mode.in_types);
+      [ reflexivity | ].
+    apply filter_ext. intros name. rewrite compute_name_mode_alike.
+    reflexivity.
+Qed.
+
+Lemma get_canonical_element_exn_alike_here (t : Aliases.t) (element : simple)
+    (elt_name_mode min_name_mode : Name_mode.t)
+    (min_binding_time : Binding_time.t) :
+  Aliases.get_canonical_element_exn resolver times t element elt_name_mode
+    min_name_mode min_binding_time
+  = Aliases.get_canonical_element_exn resolver' times' t element
+      elt_name_mode min_name_mode min_binding_time.
+Proof.
+  unfold Aliases.get_canonical_element_exn.
+  destruct (Aliases.canonical t element) as [ | canonical_element];
+    cbv beta iota zeta;
+    rewrite ?compute_name_mode_alike, ?find_earliest_alias_alike;
+    reflexivity.
+Qed.
+
+Lemma invariant_alike_here (t : Aliases.t) :
+  Aliases.invariant resolver times t = Aliases.invariant resolver' times' t.
+Proof.
+  unfold Aliases.invariant. cbv zeta. f_equal.
+  apply forallb_alike. intros [canonical_element aliases]. f_equal.
+  apply forallb_alike. intros alias. apply name_defined_earlier_alike.
+Qed.
+
+Lemma well_formed_alike_here (t : Aliases.t) :
+  aliases_well_formed resolver times t ->
+  aliases_well_formed resolver' times' t.
+Proof.
+  intros (Hconsistent & Hearliest & Hrecorded).
+  split; [ exact Hconsistent | split ].
+  - intros n canonical_element Hdemoted.
+    rewrite <- defined_earlier_alike_here.
+    exact (Hearliest n canonical_element Hdemoted).
+  - intros canonical_element n name_mode Hlookup.
+    rewrite <- compute_name_mode_unscoped_alike.
+    exact (Hrecorded canonical_element n name_mode Hlookup).
+Qed.
+
+End Binding_times_alike.
+
+Theorem defined_earlier_alike : defined_earlier_alike_statement.
+Proof.
+  intros A B resolver resolver' times times' alias than Hresolvers Htimes.
+  exact (defined_earlier_alike_here resolver resolver' times times'
+    Hresolvers Htimes alias than).
+Qed.
+
+Theorem add_alike : add_alike_statement.
+Proof.
+  intros A B resolver resolver' times times' t canonical_element1
+    canonical_element2 Hresolvers Htimes.
+  exact (add_alike_here resolver resolver' times times' Hresolvers Htimes t
+    canonical_element1 canonical_element2).
+Qed.
+
+Theorem get_canonical_element_exn_alike :
+  get_canonical_element_exn_alike_statement.
+Proof.
+  intros A B resolver resolver' times times' t element elt_name_mode
+    min_name_mode min_binding_time Hresolvers Htimes.
+  exact (get_canonical_element_exn_alike_here resolver resolver' times
+    times' Hresolvers Htimes t element elt_name_mode min_name_mode
+    min_binding_time).
+Qed.
+
+Theorem invariant_alike : invariant_alike_statement.
+Proof.
+  intros A B resolver resolver' times times' t Hresolvers Htimes.
+  exact (invariant_alike_here resolver resolver' times times' Hresolvers
+    Htimes t).
+Qed.
+
+Theorem well_formed_alike : well_formed_alike_statement.
+Proof.
+  intros A B resolver resolver' times times' t Hresolvers Htimes. split.
+  - exact (well_formed_alike_here resolver resolver' times times' Hresolvers
+      Htimes t).
+  - apply (well_formed_alike_here resolver' resolver times' times).
+    + intros n. symmetry. apply Hresolvers.
+    + intros n. symmetry. apply Htimes.
+Qed.
+
+(* ======================================================================== *)
 (* Examples                                                                 *)
 (* ======================================================================== *)
 

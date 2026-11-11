@@ -1101,6 +1101,104 @@ Definition name_modes_recorded_coincide_statement : Prop :=
     name_modes_recorded binding_times_and_modes t ->
     name_modes_recorded binding_times_and_modes' t.
 
+(* The functions take a resolver and the typing environment's map from
+   names to types and binding times, and of the map they read the
+   binding times and the name modes only. So two resolvers that answer
+   alike, and two maps that give every name the same binding time and
+   name mode, whatever they hold beside, are the same to them. (The
+   renaming of a typing environment renames the types in its map: this
+   is what says that the aliases do not see that.) *)
+Definition binding_times_alike {A B : Type}
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (binding_times_and_modes'
+      : Keyed.finite_map name (B * Binding_time.With_name_mode.t)) : Prop :=
+  ∀ n : name,
+    option_map snd (Keyed.lookup name_eqb n binding_times_and_modes)
+    = option_map snd (Keyed.lookup name_eqb n binding_times_and_modes').
+
+Definition defined_earlier_alike_statement : Prop :=
+  ∀ (A B : Type)
+    (binding_time_resolver binding_time_resolver'
+      : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (binding_times_and_modes'
+      : Keyed.finite_map name (B * Binding_time.With_name_mode.t))
+    (alias than : simple),
+    (∀ n : name, binding_time_resolver n = binding_time_resolver' n) ->
+    binding_times_alike binding_times_and_modes binding_times_and_modes' ->
+    Aliases.defined_earlier binding_time_resolver binding_times_and_modes
+      alias than
+    = Aliases.defined_earlier binding_time_resolver' binding_times_and_modes'
+        alias than.
+
+Definition add_alike_statement : Prop :=
+  ∀ (A B : Type)
+    (binding_time_resolver binding_time_resolver'
+      : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (binding_times_and_modes'
+      : Keyed.finite_map name (B * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple),
+    (∀ n : name, binding_time_resolver n = binding_time_resolver' n) ->
+    binding_times_alike binding_times_and_modes binding_times_and_modes' ->
+    Aliases.add binding_time_resolver binding_times_and_modes t
+      canonical_element1 canonical_element2
+    = Aliases.add binding_time_resolver' binding_times_and_modes' t
+        canonical_element1 canonical_element2.
+
+Definition get_canonical_element_exn_alike_statement : Prop :=
+  ∀ (A B : Type)
+    (binding_time_resolver binding_time_resolver'
+      : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (binding_times_and_modes'
+      : Keyed.finite_map name (B * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (element : simple)
+    (elt_name_mode min_name_mode : Name_mode.t)
+    (min_binding_time : Binding_time.t),
+    (∀ n : name, binding_time_resolver n = binding_time_resolver' n) ->
+    binding_times_alike binding_times_and_modes binding_times_and_modes' ->
+    Aliases.get_canonical_element_exn binding_time_resolver
+      binding_times_and_modes t element elt_name_mode min_name_mode
+      min_binding_time
+    = Aliases.get_canonical_element_exn binding_time_resolver'
+        binding_times_and_modes' t element elt_name_mode min_name_mode
+        min_binding_time.
+
+(* The compiler's check, and the invariant. *)
+Definition invariant_alike_statement : Prop :=
+  ∀ (A B : Type)
+    (binding_time_resolver binding_time_resolver'
+      : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (binding_times_and_modes'
+      : Keyed.finite_map name (B * Binding_time.With_name_mode.t))
+    (t : Aliases.t),
+    (∀ n : name, binding_time_resolver n = binding_time_resolver' n) ->
+    binding_times_alike binding_times_and_modes binding_times_and_modes' ->
+    Aliases.invariant binding_time_resolver binding_times_and_modes t
+    = Aliases.invariant binding_time_resolver' binding_times_and_modes' t.
+
+Definition well_formed_alike_statement : Prop :=
+  ∀ (A B : Type)
+    (binding_time_resolver binding_time_resolver'
+      : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (binding_times_and_modes'
+      : Keyed.finite_map name (B * Binding_time.With_name_mode.t))
+    (t : Aliases.t),
+    (∀ n : name, binding_time_resolver n = binding_time_resolver' n) ->
+    binding_times_alike binding_times_and_modes binding_times_and_modes' ->
+    (aliases_well_formed binding_time_resolver binding_times_and_modes t
+     <-> aliases_well_formed binding_time_resolver' binding_times_and_modes'
+           t).
+
 (* ======================================================================== *)
 (* The aliases of an element                                                *)
 (* ======================================================================== *)
