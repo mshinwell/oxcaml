@@ -34,9 +34,10 @@
 
    The fragment has, with the compiler's names:
    - of [unary_primitive]: [Block_load] from an immutable block of
-     values, [Is_int], [Is_null], [Get_tag], [Opaque_identity],
-     [Num_conv] between the integer kinds, [Boolean_not], [Unbox_number],
-     [Box_number], [Untag_immediate] and [Tag_immediate];
+     values, [Is_int], [Is_null], [Get_tag], [String_length] of a
+     string, [Opaque_identity], [Num_conv] between the integer kinds,
+     [Boolean_not], [Unbox_number], [Box_number], [Untag_immediate] and
+     [Tag_immediate];
    - of [binary_primitive]: [Int_arith], [Int_shift] and [Int_comp], at
      every [Standard_int.t], and [Phys_equal];
    - of [variadic_primitive]: [Make_block] of an immutable block of
@@ -77,6 +78,9 @@
      [Scalar.Signedness.t], which have the same constructors.
    - The constructors of [equality_comparison] are prefixed with
      [Phys_], for the same reason: the compiler's are [Eq] and [Neq].
+   - [String_length] has no [string_or_bytes]: it is the length of a
+     string ([String]). The model has no bytes, which are mutable, and
+     the conversion must refuse [Bytes].
    - [Num_conv] is between two [Standard_int.t], where the compiler's is
      between two [Standard_int_or_float.t], a record of [src] and
      [dst]: the conversions to and from the two kinds of float are not
@@ -114,6 +118,7 @@ Inductive unary_primitive : Type :=
   | Is_int (variant_only : bool)
   | Is_null
   | Get_tag
+  | String_length
   | Opaque_identity (kind : flambda_kind)
   | Num_conv (src dst : standard_int)
   | Boolean_not

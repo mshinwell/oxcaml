@@ -420,6 +420,12 @@ Definition eval_block_load (statics : static_env) (kind : block_access_kind)
      a closure, a boxed number and a string included: Simplify takes its
      argument to be a variant that is not null
      ([Flambda2_types.add_get_tag_relation]).
+   - [String_length] is the number of bytes of an immutable string, and
+     has no value on anything else: Simplify makes it [Invalid] where
+     its argument cannot be a string
+     ([Simplify_unary_primitive.simplify_string_length]). A string so
+     long that its length is not a naked immediate has none; the
+     compiler has no such string.
    - [Opaque_identity] is the identity, on a value of the kind it
      carries that is not a symbol bound to nothing.
    - [Box_number] makes a boxed number of a naked number of the kind it
@@ -485,6 +491,12 @@ Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
   | Get_tag =>
     let* '(tag, _) := block_of statics v in
     Some (Value_const (Naked_immediate tag))
+  | String_length =>
+    let* bytes := string_of statics v in
+    let length := Z.of_nat (length bytes) in
+    if in_range (int_width Standard_naked_immediate) length
+    then Some (Value_const (Naked_immediate length))
+    else None
   | Opaque_identity kind =>
     if kind_eqb (kind_of_value v) kind && bound_if_symbol statics v
     then Some v
@@ -712,9 +724,9 @@ Definition unary_primitive_in_range (p : unary_primitive) : bool :=
     known_in_range tag_in_range tag
     && known_in_range ocaml_int_in_range size
     && ocaml_int_in_range field
-  | Is_int _ | Is_null | Get_tag | Opaque_identity _ | Num_conv _ _
-  | Boolean_not | Unbox_number _ | Box_number _ | Untag_immediate
-  | Tag_immediate =>
+  | Is_int _ | Is_null | Get_tag | String_length | Opaque_identity _
+  | Num_conv _ _ | Boolean_not | Unbox_number _ | Box_number _
+  | Untag_immediate | Tag_immediate =>
     true
   end.
 
@@ -771,8 +783,8 @@ Definition naked_immediate_kind : flambda_kind :=
 (* [Flambda_primitive.arg_kind_of_unary_primitive]. *)
 Definition arg_kind_of_unary_primitive (p : unary_primitive) : flambda_kind :=
   match p with
-  | Block_load _ _ | Is_int _ | Is_null | Get_tag | Boolean_not
-  | Unbox_number _ | Untag_immediate =>
+  | Block_load _ _ | Is_int _ | Is_null | Get_tag | String_length
+  | Boolean_not | Unbox_number _ | Untag_immediate =>
     Value
   | Opaque_identity kind => kind
   | Num_conv src _ => kind_of_standard_int src
@@ -784,7 +796,8 @@ Definition arg_kind_of_unary_primitive (p : unary_primitive) : flambda_kind :=
 Definition result_kind_of_unary_primitive (p : unary_primitive)
     : flambda_kind :=
   match p with
-  | Is_int _ | Is_null | Get_tag | Untag_immediate => naked_immediate_kind
+  | Is_int _ | Is_null | Get_tag | String_length | Untag_immediate =>
+    naked_immediate_kind
   | Opaque_identity kind => kind
   | Num_conv _ dst => kind_of_standard_int dst
   | Unbox_number kind => unboxed_kind kind
