@@ -1194,3 +1194,219 @@ Proof.
       | rewrite step_let_cont_recursive, <- Hbinds; reflexivity
       | exact (Hbodies eq_refl) ].
 Qed.
+
+(* ======================================================================== *)
+(* Where a state holds values                                               *)
+(* ======================================================================== *)
+
+Lemma env_values_all_lookup (P : value -> Prop) (vars : env) (x : variable)
+    (v : value) :
+  env_values_all P vars -> lookup x vars = Some v -> P v.
+Proof.
+  intros Hvars Hlookup. apply lookup_in in Hlookup.
+  unfold env_values_all in Hvars. rewrite Forall_forall in Hvars.
+  exact (Hvars (x, v) Hlookup).
+Qed.
+
+Section Values_all.
+
+Variable P : value -> Prop.
+
+(* For a [P] that holds of every constant and of every symbol, the
+   values of the simples read under an environment satisfy it. *)
+Lemma eval_simple_values_all (vars : env) (s : simple) (v : value) :
+  (∀ (not_a_variable : simple) (v' : value),
+    eval_simple [] not_a_variable = Some v' -> P v') ->
+  env_values_all P vars -> eval_simple vars s = Some v -> P v.
+Proof.
+  intros Hsimple Hvars. destruct s as [x | sym | c].
+  - apply env_values_all_lookup, Hvars.
+  - apply (Hsimple (Symbol sym)).
+  - apply (Hsimple (Const c)).
+Qed.
+
+Lemma eval_simples_values_all (vars : env) (args : list simple) :
+  (∀ (not_a_variable : simple) (v' : value),
+    eval_simple [] not_a_variable = Some v' -> P v') ->
+  env_values_all P vars ->
+  ∀ vs : list value, eval_simples vars args = Some vs -> Forall P vs.
+Proof.
+  intros Hsimple Hvars. induction args as [ | s args IH]; simpl; intros vs.
+  - intros [= <-]. apply Forall_nil.
+  - destruct (eval_simple vars s) as [v | ] eqn:Hs; simpl; [ | discriminate ].
+    destruct (eval_simples vars args) as [vs' | ]; simpl; [ | discriminate ].
+    intros [= <-]. apply Forall_cons; [ | apply IH; reflexivity ].
+    exact (eval_simple_values_all vars s v Hsimple Hvars Hs).
+Qed.
+
+Lemma bind_params_values_all (params : list variable) :
+  ∀ (vs : list value) (vars vars' : env),
+    Forall P vs ->
+    env_values_all P vars ->
+    bind_params params vs vars = Some vars' ->
+    env_values_all P vars'.
+Proof.
+  induction params as [ | x params IH]; intros [ | v vs] vars vars' Hvs Hvars;
+    simpl; try discriminate.
+  - intros [= <-]. exact Hvars.
+  - apply IH; [ exact (Forall_inv_tail Hvs) | ].
+    apply Forall_cons; [ exact (Forall_inv Hvs) | exact Hvars ].
+Qed.
+
+Lemma resolve_values_all (k : continuation) (conts : cont_env) :
+  conts_values_all P conts -> cont_values_all P (resolve k conts).
+Proof.
+  unfold resolve, conts_values_all.
+  induction conts as [ | [k' c] conts IH]; simpl; [ intros _; exact I | ].
+  intros [Hc Hrest]. destruct (Pos.eqb k k'); [ exact Hc | exact (IH Hrest) ].
+Qed.
+
+Lemma conts_values_all_app (conts conts' : cont_env) :
+  conts_values_all P conts -> conts_values_all P conts' ->
+  conts_values_all P (conts ++ conts').
+Proof.
+  unfold conts_values_all.
+  induction conts as [ | binding conts IH]; simpl; [ auto | ].
+  intros [Hc Hrest] Hconts'. split; [ exact Hc | exact (IH Hrest Hconts') ].
+Qed.
+
+Lemma rec_closures_values_all (vars : env) (conts : cont_env)
+    (handlers : list (continuation * continuation_handler)) :
+  env_values_all P vars ->
+  conts_values_all P conts ->
+  conts_values_all P (rec_closures handlers vars conts).
+Proof.
+  intros Hvars Hconts. unfold rec_closures, conts_values_all.
+  generalize handlers at 1 as all. intros all.
+  induction handlers as [ | [k h] handlers IH]; simpl; [ exact I | ].
+  split; [ split; [ exact Hvars | exact Hconts ] | exact IH ].
+Qed.
+
+(* Applying a continuation whose values satisfy [P] to values that do. *)
+Lemma apply_cont_value_values_all (Q : state -> Prop) (c : cont_value)
+    (vs : list value) (statics : static_env) :
+  cont_values_all P c ->
+  Forall P vs ->
+  (∀ (e : expr) (vars : env) (conts : cont_env),
+    env_values_all P vars -> conts_values_all P conts ->
+    Q (State e vars conts statics)) ->
+  match apply_cont_value c vs statics with
+  | Step s' => Q s'
+  | Exit _ vs' => Forall P vs'
+  | Undefined => True
+  end.
+Proof.
+  intros Hc Hvs Hstate.
+  destruct c as [[params handler] def_vars def_conts recursive | k]; simpl;
+    [ | exact Hvs ].
+  destruct Hc as [Hdef_vars Hdef_conts].
+  destruct (bind_params params vs def_vars) as [handler_vars | ] eqn:Hbind;
+    [ | exact I ].
+  apply Hstate.
+  - exact (bind_params_values_all params vs def_vars handler_vars Hvs
+             Hdef_vars Hbind).
+  - apply conts_values_all_app; [ | exact Hdef_conts ].
+    apply rec_closures_values_all; assumption.
+Qed.
+
+End Values_all.
+
+(* [P] of every value a continuation holds, for a weaker [P]. *)
+Fixpoint cont_values_all_impl (P P' : value -> Prop)
+    (Himpl : ∀ v : value, P v -> P' v) (c : cont_value) :
+  cont_values_all P c -> cont_values_all P' c.
+Proof.
+  destruct c as [h vars conts recursive | k]; simpl; [ | auto ].
+  intros [Hvars Hconts]. split.
+  - exact (Forall_impl _ (fun binding => Himpl (snd binding)) Hvars).
+  - induction conts as [ | [k c] conts IH]; simpl; [ exact I | ].
+    destruct Hconts as [Hc Hrest].
+    split; [ exact (cont_values_all_impl P P' Himpl c Hc) | exact (IH Hrest) ].
+Qed.
+
+Lemma conts_values_all_impl (P P' : value -> Prop) (conts : cont_env) :
+  (∀ v : value, P v -> P' v) ->
+  conts_values_all P conts -> conts_values_all P' conts.
+Proof.
+  intros Himpl. unfold conts_values_all.
+  induction conts as [ | [k c] conts IH]; simpl; [ auto | ].
+  intros [Hc Hrest].
+  split; [ exact (cont_values_all_impl P P' Himpl c Hc) | exact (IH Hrest) ].
+Qed.
+
+Theorem step_values_all : step_values_all_statement.
+Proof.
+  intros P Q [e vars conts statics] (Hvars & Hconts & Hstatics) Hlet
+    Hlet_static Happly Happly_cont.
+  simpl in *.
+  assert (Hstate :
+    ∀ (e' : expr) (vars' : env) (conts' : cont_env),
+      env_values_all (P statics) vars' ->
+      conts_values_all (P statics) conts' ->
+      state_values_all P Q (State e' vars' conts' statics))
+    by (intros e' vars' conts' Hvars' Hconts'; repeat split; assumption).
+  destruct e
+    as [ x d body | bindings body | k h body | handlers body | ap | ac
+       | scrutinee arms | ];
+    autorewrite with step.
+  - (* Let *)
+    destruct (eval_named statics vars d) as [v | ] eqn:Hd; [ | exact I ].
+    apply Hstate; [ | exact Hconts ].
+    apply Forall_cons; [ exact (Hlet x d body v eq_refl Hd) | exact Hvars ].
+  - (* Let_static *)
+    destruct (eval_static_bindings vars bindings statics) as [statics' | ]
+      eqn:Hbindings; [ | exact I ].
+    destruct (Hlet_static bindings body statics' eq_refl Hbindings)
+      as [Hkept Hstatics'].
+    split; [ | split; [ | exact Hstatics' ] ]; simpl.
+    + exact (Forall_impl _ (fun binding => Hkept (snd binding)) Hvars).
+    + exact (conts_values_all_impl _ _ conts Hkept Hconts).
+  - (* Let_cont_non_recursive *)
+    apply Hstate; [ exact Hvars | ].
+    split; [ split; [ exact Hvars | exact Hconts ] | exact Hconts ].
+  - (* Let_cont_recursive *)
+    destruct (handlers_bind_statics handlers); [ exact I | ].
+    apply Hstate; [ exact Hvars | ].
+    apply conts_values_all_app; [ | exact Hconts ].
+    apply rec_closures_values_all; assumption.
+  - (* Apply *)
+    destruct (eval_simple vars (ap_callee ap)) as [callee | ] eqn:Hcallee;
+      [ | exact I ].
+    destruct (eval_simples vars (ap_args ap)) as [vs | ] eqn:Hargs;
+      [ | exact I ].
+    destruct (Happly ap callee vs eq_refl Hcallee Hargs) as [Hcallee_ok Hvs].
+    unfold call_function.
+    destruct (closure_of statics callee) as [[called slots] | ];
+      [ | exact I ].
+    destruct
+      (match ap_call_kind ap with
+       | Direct named => Pos.eqb called named
+       | Indirect => true
+       end);
+      [ | exact I ].
+    destruct (lookup called (static_code statics)) as [c | ]; [ | exact I ].
+    destruct (binds_statics (code_body c)); [ exact I | ].
+    destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
+      as [callee_vars | ] eqn:Hbind; [ | exact I ].
+    apply Hstate.
+    + apply (bind_params_values_all _ (code_params c) vs
+               [(code_my_closure c, callee)] callee_vars Hvs);
+        [ | exact Hbind ].
+      apply Forall_cons; [ exact Hcallee_ok | apply Forall_nil ].
+    + split; [ apply resolve_values_all, Hconts | ].
+      split; [ apply resolve_values_all, Hconts | exact I ].
+  - (* Apply_cont *)
+    destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hargs;
+      [ | exact I ].
+    unfold apply_continuation.
+    apply (apply_cont_value_values_all (P statics) (state_values_all P Q));
+      [ apply resolve_values_all, Hconts | | exact Hstate ].
+    exact (Happly_cont ac vs eq_refl Hargs).
+  - (* Switch *)
+    destruct (eval_simple vars scrutinee) as [v | ]; [ | exact I ].
+    destruct (naked_immediate_of_value v) as [i | ]; [ | exact I ].
+    destruct (find_arm i arms) as [ac | ]; [ | exact I ].
+    apply Hstate; assumption.
+  - (* Invalid *)
+    exact I.
+Qed.

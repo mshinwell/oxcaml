@@ -636,6 +636,95 @@ Fixpoint run (fuel : nat) (s : state) : step_result :=
   end.
 
 (* ======================================================================== *)
+(* Where a state holds values                                               *)
+(* ======================================================================== *)
+
+(* An invariant of a run that is about values (they are well formed, the
+   symbols in them are bound) has to hold of every value that a state
+   holds. This is where they are, said once: a new place for values, such
+   as a heap, is added here.
+
+   [P] is asked of every value that an environment binds, shadowed
+   bindings included. *)
+Definition env_values_all (P : value -> Prop) (vars : env) : Prop :=
+  Forall (fun binding => P (snd binding)) vars.
+
+(* A continuation holds the values of the environment that its closure
+   keeps, and those that the continuations it keeps hold. A way out holds
+   none. *)
+Fixpoint cont_values_all (P : value -> Prop) (c : cont_value) : Prop :=
+  match c with
+  | Outer _ => True
+  | Closure _ vars conts _ =>
+    env_values_all P vars
+    ∧ fold_right
+        (fun binding rest => cont_values_all P (snd binding) ∧ rest) True
+        conts
+  end.
+
+Definition conts_values_all (P : value -> Prop) (conts : cont_env) : Prop :=
+  fold_right (fun binding rest => cont_values_all P (snd binding) ∧ rest)
+    True conts.
+
+(* A state holds values in its variables, in the environments that its
+   continuations keep, and in its static environment. [P] is asked of
+   the values of the first two and [Q] of what each symbol is bound to;
+   what is to hold of the values inside a statically allocated value is
+   for [Q] to say. Both may depend on the static environment of the
+   state. The arguments of an exit are not in a state: the statement
+   covers them. *)
+Definition state_values_all (P : static_env -> value -> Prop)
+    (Q : static_env -> statically_allocated_value -> Prop) (s : state)
+    : Prop :=
+  env_values_all (P (state_statics s)) (state_vars s)
+  ∧ conts_values_all (P (state_statics s)) (state_conts s)
+  ∧ Forall (fun binding => Q (state_statics s) (snd binding))
+      (static_values (state_statics s)).
+
+(* A step keeps it, and the arguments of an exit satisfy [P], given of
+   the state at hand:
+   - at a [Let], [P] of the value of the defining expression;
+   - at a [Let_static] whose bindings evaluate, that [P] is kept by the
+     static environment that results, and [Q] of everything bound in it;
+   - at an [Apply] and at an [Apply_cont], [P] of the values of the
+     simples that the step reads and passes on: the callee and the
+     arguments. The value of a variable satisfies [P] already; this is
+     for the constants and the symbols among them, of which [P] need
+     not hold in general (a symbol that is not bound).
+   What a call or the application of a continuation binds are those
+   values, so nothing more is asked for them. *)
+Definition step_values_all_statement : Prop :=
+  ∀ (P : static_env -> value -> Prop)
+    (Q : static_env -> statically_allocated_value -> Prop) (s : state),
+    state_values_all P Q s ->
+    (∀ (x : variable) (defining_expr : named) (body : expr) (v : value),
+      state_expr s = Let x defining_expr body ->
+      eval_named (state_statics s) (state_vars s) defining_expr = Some v ->
+      P (state_statics s) v) ->
+    (∀ (bindings : list static_binding) (body : expr)
+       (statics' : static_env),
+      state_expr s = Let_static bindings body ->
+      eval_static_bindings (state_vars s) bindings (state_statics s)
+      = Some statics' ->
+      (∀ v : value, P (state_statics s) v -> P statics' v)
+      ∧ Forall (fun binding => Q statics' (snd binding))
+          (static_values statics')) ->
+    (∀ (ap : apply_expr) (callee : value) (vs : list value),
+      state_expr s = Apply ap ->
+      eval_simple (state_vars s) (ap_callee ap) = Some callee ->
+      eval_simples (state_vars s) (ap_args ap) = Some vs ->
+      P (state_statics s) callee ∧ Forall (P (state_statics s)) vs) ->
+    (∀ (ac : apply_cont) (vs : list value),
+      state_expr s = Apply_cont ac ->
+      eval_simples (state_vars s) (ac_args ac) = Some vs ->
+      Forall (P (state_statics s)) vs) ->
+    match step s with
+    | Step s' => state_values_all P Q s'
+    | Exit _ vs => Forall (P (state_statics s)) vs
+    | Undefined => True
+    end.
+
+(* ======================================================================== *)
 (* Behaviours                                                               *)
 (* ======================================================================== *)
 
