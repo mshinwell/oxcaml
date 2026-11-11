@@ -95,6 +95,12 @@ design out; that is the request, not the change.
 - C2, kinds and well-formed terms. Owner: C2, on
   `flambda2-rocq/C2-kinds`.
 - C3, sets of closures. Owner: C3, on `flambda2-rocq/C3-closures`.
+  - `middle_end/flambda2/rocq/requests/C3-closures.md`
+  - `middle_end/flambda2/rocq/FlambdaClosures*` (first facts about sets
+    of closures; S4's once it is staffed)
+  - `middle_end/flambda2/rocq/status/C3.md`
+  - the examples `middle_end/flambda2/tests/semantics/set_*.fl`, with
+    their `.expected` files
 - C4, heap. Owner: unassigned.
 - C5, exceptions. Owner: unassigned.
 
