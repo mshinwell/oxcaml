@@ -32,12 +32,12 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec FlambdaMapProofs
   FlambdaSemanticsSpec FlambdaSemanticsProofs FlambdaContextProofs
-  FlambdaNormaliseSpec.
+  FlambdaNominalSpec FlambdaNominalProofs FlambdaNormaliseSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaBindingTime
-  FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesProofs
-  FlambdaEnvAliasesRenamingSpec FlambdaEnvAliasesRenamingProofs
-  FlambdaEnvAliasesFollowSpec.
+  FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeRenameSpec
+  FlambdaTypeRenameProofs FlambdaBindingTime FlambdaEnvAliases
+  FlambdaEnvAliasesSpec FlambdaEnvAliasesProofs FlambdaEnvAliasesRenamingSpec
+  FlambdaEnvAliasesRenamingProofs FlambdaEnvAliasesFollowSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -1078,6 +1078,411 @@ Proof.
   intros binding_times t x e e' Hconsistent.
   exact (forget_in_aliases_aliased binding_times t x Hconsistent e e').
 Qed.
+
+(* ======================================================================== *)
+(* Renaming                                                                 *)
+(* ======================================================================== *)
+
+Lemma find_renamed {A B : Type} (g : A -> B) (p : A -> bool)
+    (p' : B -> bool) (l : list A) :
+  (∀ a : A, p' (g a) = p a) -> find p' (map g l) = option_map g (find p l).
+Proof.
+  intros Hp. induction l as [ | a l IH]; simpl; [ reflexivity | ].
+  rewrite Hp. destruct (p a); [ reflexivity | exact IH ].
+Qed.
+
+Lemma existsb_renamed {A B : Type} (g : A -> B) (p : A -> bool)
+    (p' : B -> bool) (l : list A) :
+  (∀ a : A, p' (g a) = p a) -> existsb p' (map g l) = existsb p l.
+Proof.
+  intros Hp. induction l as [ | a l IH]; simpl; [ reflexivity | ].
+  rewrite Hp, IH. reflexivity.
+Qed.
+
+Lemma fold_left_map {A A' B B' : Type} (ga : A -> A') (gb : B -> B')
+    (f : A -> B -> A) (f' : A' -> B' -> A') (l : list B) :
+  (∀ (a : A) (b : B), f' (ga a) (gb b) = ga (f a b)) ->
+  ∀ init : A,
+    List.fold_left f' (map gb l) (ga init) = ga (List.fold_left f l init).
+Proof.
+  intros Hf. induction l as [ | b l IH]; intros init; simpl;
+    [ reflexivity | ].
+  rewrite Hf. apply IH.
+Qed.
+
+Lemma var_in_simple_renamed (r : renaming) (x : variable) (s : simple) :
+  var_in_simple (rename_variable r x) (rename_simple r s) = var_in_simple x s.
+Proof. destruct s; simpl; [ apply rename_variable_eqb | | ]; reflexivity. Qed.
+
+Lemma var_in_value_slots_renamed (r : renaming) (x : variable)
+    (slots : list (value_slot * simple)) :
+  var_in_value_slots (rename_variable r x)
+    (map_values (rename_simple r) slots)
+  = var_in_value_slots x slots.
+Proof.
+  unfold var_in_value_slots, map_values. apply existsb_renamed.
+  intros [slot s]. apply var_in_simple_renamed.
+Qed.
+
+Lemma canonical_element_of_renamed (r : renaming) (t : Aliases.t)
+    (e : simple) :
+  canonical_element_of (rename_aliases r t) (rename_simple r e)
+  = rename_simple r (canonical_element_of t e).
+Proof.
+  unfold canonical_element_of. rewrite canonical_renamed.
+  destruct (Aliases.canonical t e); reflexivity.
+Qed.
+
+Lemma canonical_simple_renamed (r : renaming) (known : Known.t) (s : simple) :
+  Known.canonical_simple (rename_known r known) (rename_simple r s)
+  = rename_simple r (Known.canonical_simple known s).
+Proof. apply canonical_element_of_renamed. Qed.
+
+(* The resolver answers the same of a name and of the name renamed. *)
+Lemma resolver_renamed (r : renaming) (n : name) :
+  Known.binding_time_resolver n
+  = rename_resolver r Known.binding_time_resolver n.
+Proof. destruct n; reflexivity. Qed.
+
+Lemma add_equal_renamed (r : renaming)
+    (binding_times
+      : Keyed.finite_map name (unit * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (e e' : simple) :
+  Known.add_equal (rename_binding_times r binding_times) (rename_aliases r t)
+    (rename_simple r e) (rename_simple r e')
+  = rename_aliases r (Known.add_equal binding_times t e e').
+Proof.
+  unfold Known.add_equal.
+  rewrite !canonical_element_of_renamed, simple_equal_renamed.
+  destruct (simple_equal _ _); [ reflexivity | ].
+  rewrite
+    (add_alike unit unit Known.binding_time_resolver
+       (rename_resolver r Known.binding_time_resolver)
+       (rename_binding_times r binding_times)
+       (rename_binding_times r binding_times) (rename_aliases r t) _ _
+       (resolver_renamed r) (fun n => eq_refl)).
+  rewrite (rename_add unit r Known.binding_time_resolver binding_times t).
+  destruct (Aliases.add Known.binding_time_resolver binding_times t _ _)
+    as [[result | ] | ]; reflexivity.
+Qed.
+
+Lemma demoted_to_variable_renamed (r : renaming) (t : Aliases.t)
+    (x : variable) (n : name) :
+  simple_equal
+    (Aliases.get_canonical_ignoring_name_mode (rename_aliases r t)
+       (rename_name r n))
+    (Var (rename_variable r x))
+  = simple_equal (Aliases.get_canonical_ignoring_name_mode t n) (Var x).
+Proof.
+  rewrite (rename_canonical r t n).
+  exact (simple_equal_renamed r _ (Var x)).
+Qed.
+
+Lemma forget_in_aliases_renamed (r : renaming)
+    (binding_times
+      : Keyed.finite_map name (unit * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (x : variable) :
+  Known.forget_in_aliases (rename_binding_times r binding_times)
+    (rename_aliases r t) (rename_variable r x)
+  = rename_aliases r (Known.forget_in_aliases binding_times t x).
+Proof.
+  unfold Known.forget_in_aliases.
+  assert (Hwritten :
+    among (rename_variable r x)
+      (aliases_free_variables (rename_aliases r t))
+    = among x (aliases_free_variables t)).
+  { rewrite (rename_free_variables r t).
+    exact (among_keys_renamed Pos.eqb (rename_variable r)
+      (rename_variable_eqb r) x (aliases_free_variables t)). }
+  rewrite Hwritten.
+  destruct (negb (among x (aliases_free_variables t))); [ reflexivity | ].
+  cbv zeta.
+  assert (Hdemoted :
+    filter (fun n => negb (name_eqb n (Name_var (rename_variable r x))))
+      (Keyed.domain name_eqb
+         (Aliases.canonical_elements (rename_aliases r t)))
+    = map (rename_name r)
+        (filter (fun n => negb (name_eqb n (Name_var x)))
+           (Keyed.domain name_eqb (Aliases.canonical_elements t)))).
+  { change (Aliases.canonical_elements (rename_aliases r t))
+      with (Keyed.map_bindings (rename_name r) (rename_simple r)
+              (Aliases.canonical_elements t)).
+    rewrite (domain_renamed name_eqb (rename_name r) (name_eqb_renamed r)).
+    apply filter_renamed. intros n.
+    change (Name_var (rename_variable r x)) with (rename_name r (Name_var x)).
+    rewrite name_eqb_renamed. reflexivity. }
+  rewrite Hdemoted.
+  rewrite
+    (find_renamed (rename_name r)
+       (fun n =>
+          simple_equal (Aliases.get_canonical_ignoring_name_mode t n) (Var x))
+       (fun n =>
+          simple_equal
+            (Aliases.get_canonical_ignoring_name_mode (rename_aliases r t) n)
+            (Var (rename_variable r x)))
+       _ (demoted_to_variable_renamed r t x)).
+  apply (fold_left_map (rename_aliases r) (rename_name r) _ _ _)
+    with (init := Aliases.empty).
+  intros rebuilt n. rewrite demoted_to_variable_renamed.
+  destruct (simple_equal (Aliases.get_canonical_ignoring_name_mode t n)
+              (Var x)).
+  - destruct (find _ _) as [n' | ]; simpl; [ | reflexivity ].
+    rewrite <- !rename_simple_of_name. apply add_equal_renamed.
+  - rewrite (rename_canonical r t n), <- rename_simple_of_name.
+    apply add_equal_renamed.
+Qed.
+
+Lemma closure_value_slots_renamed (r : renaming) (c : Known.closure) :
+  Known.closure_value_slots (rename_closure r c)
+  = map_values (rename_simple r) (Known.closure_value_slots c).
+Proof. destruct c; reflexivity. Qed.
+
+Lemma forget_renamed (r : renaming) (known : Known.t) (x : variable) :
+  Known.forget (rename_known r known) (rename_variable r x)
+  = rename_known r (Known.forget known x).
+Proof.
+  unfold Known.forget, rename_known.
+  cbn [Known.aliases Known.binding_times Known.next_binding_time
+       Known.closures].
+  f_equal.
+  - apply forget_in_aliases_renamed.
+  - apply filter_renamed. intros [y c]. cbn [fst snd].
+    rewrite rename_variable_eqb, closure_value_slots_renamed,
+      var_in_value_slots_renamed.
+    reflexivity.
+Qed.
+
+Theorem rename_bind : rename_bind_statement.
+Proof.
+  intros r known x. unfold Known.bind. cbv zeta. rewrite forget_renamed.
+  reflexivity.
+Qed.
+
+Lemma bind_all_renamed (r : renaming) (params : list variable) :
+  ∀ known : Known.t,
+    Known.bind_all (rename_known r known) (map (rename_variable r) params)
+    = rename_known r (Known.bind_all known params).
+Proof.
+  unfold Known.bind_all.
+  induction params as [ | param params IH]; intros known; simpl;
+    [ reflexivity | ].
+  rewrite (rename_bind r known param). apply IH.
+Qed.
+
+Lemma find_closure_renamed (r : renaming) (known : Known.t) (s : simple) :
+  Known.find_closure (rename_known r known) (rename_simple r s)
+  = option_map (rename_closure r) (Known.find_closure known s).
+Proof.
+  destruct s as [y | sym | c]; try reflexivity.
+  exact (lookup_renamed Pos.eqb (rename_variable r) (rename_variable_eqb r)
+    (rename_closure r) y (Known.closures known)).
+Qed.
+
+(* The test of the renamed value slots, as [rename_named] writes
+   them, is the test of the value slots. *)
+Ltac renamed_slots_test r x slots :=
+  match goal with
+  | |- context [var_in_value_slots (rename_variable r x) ?renamed] =>
+    replace (var_in_value_slots (rename_variable r x) renamed)
+      with (var_in_value_slots x slots)
+      by (symmetry; exact (var_in_value_slots_renamed r x slots))
+  end.
+
+Theorem rename_under_let : rename_under_let_statement.
+Proof.
+  intros r known x d. unfold Known.under_let. cbv zeta.
+  rewrite (rename_bind r known x).
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure];
+    cbn [rename_named]; try reflexivity.
+  - rewrite var_in_simple_renamed.
+    destruct (var_in_simple x s); [ reflexivity | ].
+    unfold Known.with_aliases, rename_known.
+    cbn [Known.aliases Known.binding_times Known.next_binding_time
+         Known.closures].
+    f_equal.
+    exact (add_equal_renamed r _ _ (Var x) s).
+  - renamed_slots_test r x slots.
+    destruct (var_in_value_slots x slots); reflexivity.
+  - renamed_slots_test r x slots.
+    destruct (var_in_value_slots x slots); reflexivity.
+  - rewrite find_closure_renamed.
+    destruct (Known.find_closure (Known.bind known x) closure)
+      as [[code slots | slot decls slots] | ]; try reflexivity.
+    cbn [option_map rename_closure].
+    destruct (Pos.eqb slot move_from); reflexivity.
+Qed.
+
+Lemma canonical_simples_renamed (r : renaming) (known : Known.t)
+    (args : list simple) :
+  map (Known.canonical_simple (rename_known r known))
+    (map (rename_simple r) args)
+  = map (rename_simple r) (map (Known.canonical_simple known) args).
+Proof.
+  rewrite !map_map. apply map_ext. intros s. apply canonical_simple_renamed.
+Qed.
+
+Lemma canonical_value_slots_renamed (r : renaming) (known : Known.t)
+    (slots : list (value_slot * simple)) :
+  canonical_value_slots (rename_known r known)
+    (map_values (rename_simple r) slots)
+  = map_values (rename_simple r) (canonical_value_slots known slots).
+Proof.
+  unfold canonical_value_slots, map_values. rewrite !map_map.
+  apply map_ext. intros [slot s]. cbn [fst snd].
+  rewrite canonical_simple_renamed. reflexivity.
+Qed.
+
+Lemma lookup_value_slot_renamed (r : renaming) (slot : value_slot)
+    (c : Known.closure) :
+  lookup slot (Known.closure_value_slots (rename_closure r c))
+  = option_map (rename_simple r) (lookup slot (Known.closure_value_slots c)).
+Proof.
+  rewrite closure_value_slots_renamed.
+  exact (lookup_map_values simple simple (rename_simple r) slot _).
+Qed.
+
+Lemma canonical_project_renamed (r : renaming) (known : Known.t)
+    (slot : value_slot) (closure : simple) :
+  canonical_project (rename_known r known) slot (rename_simple r closure)
+  = rename_named r (canonical_project known slot closure).
+Proof.
+  unfold canonical_project. rewrite find_closure_renamed.
+  destruct (Known.find_closure known closure) as [c | ]; cbn [option_map];
+    [ | reflexivity ].
+  rewrite lookup_value_slot_renamed.
+  destruct (lookup slot (Known.closure_value_slots c)); reflexivity.
+Qed.
+
+Lemma canonical_project_from_renamed (r : renaming) (known : Known.t)
+    (project_from : function_slot) (slot : value_slot) (closure : simple) :
+  canonical_project_from (rename_known r known) project_from slot
+    (rename_simple r closure)
+  = rename_named r (canonical_project_from known project_from slot closure).
+Proof.
+  unfold canonical_project_from. rewrite find_closure_renamed.
+  destruct (Known.find_closure known closure) as [c | ]; cbn [option_map];
+    [ | reflexivity ].
+  replace (Known.closure_slot (rename_closure r c))
+    with (Known.closure_slot c) by (destruct c; reflexivity).
+  destruct (Pos.eqb (Known.closure_slot c) project_from); [ | reflexivity ].
+  rewrite lookup_value_slot_renamed.
+  destruct (lookup slot (Known.closure_value_slots c)); reflexivity.
+Qed.
+
+Lemma canonical_named_renamed (r : renaming) (known : Known.t) (d : named) :
+  canonical_named (rename_known r known) (rename_named r d)
+  = rename_named r (canonical_named known d).
+Proof.
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure];
+    cbn [rename_named canonical_named].
+  - rewrite canonical_simple_renamed. reflexivity.
+  - rewrite canonical_simples_renamed. reflexivity.
+  - f_equal. apply canonical_value_slots_renamed.
+  - f_equal. apply canonical_value_slots_renamed.
+  - rewrite canonical_simple_renamed. apply canonical_project_renamed.
+  - rewrite canonical_simple_renamed. apply canonical_project_from_renamed.
+  - rewrite canonical_simple_renamed. reflexivity.
+Qed.
+
+Lemma canonical_static_binding_renamed (r : renaming) (known : Known.t)
+    (binding : static_binding) :
+  canonical_static_binding (rename_known r known)
+    (rename_static_binding r binding)
+  = rename_static_binding r (canonical_static_binding known binding).
+Proof.
+  destruct binding
+    as [id c | id
+       | sym [code slots | fslot syms decls slots | tag fields | s | bytes]];
+    cbn [rename_static_binding canonical_static_binding rename_static_const
+         canonical_static_const];
+    try reflexivity.
+  - do 2 f_equal. apply canonical_value_slots_renamed.
+  - do 2 f_equal. apply canonical_value_slots_renamed.
+  - rewrite canonical_simples_renamed. reflexivity.
+  - rewrite canonical_simple_renamed. reflexivity.
+Qed.
+
+Lemma canonical_apply_cont_renamed (r : renaming) (known : Known.t)
+    (ac : apply_cont) :
+  canonical_apply_cont (rename_known r known) (rename_apply_cont r ac)
+  = rename_apply_cont r (canonical_apply_cont known ac).
+Proof.
+  unfold canonical_apply_cont, rename_apply_cont.
+  cbn [ac_continuation ac_args ac_trap_action].
+  rewrite canonical_simples_renamed. reflexivity.
+Qed.
+
+Lemma canonical_call_kind_renamed (r : renaming) (known : Known.t)
+    (callee : simple) (kind : call_kind) :
+  canonical_call_kind (rename_known r known) (rename_simple r callee) kind
+  = canonical_call_kind known callee kind.
+Proof.
+  unfold canonical_call_kind. destruct kind as [code | ]; [ reflexivity | ].
+  rewrite find_closure_renamed.
+  destruct (Known.find_closure known callee) as [c | ]; cbn [option_map];
+    [ | reflexivity ].
+  replace (Known.closure_code (rename_closure r c))
+    with (Known.closure_code c) by (destruct c; reflexivity).
+  reflexivity.
+Qed.
+
+Lemma canonical_apply_renamed (r : renaming) (known : Known.t)
+    (ap : apply_expr) :
+  canonical_apply (rename_known r known) (rename_apply r ap)
+  = rename_apply r (canonical_apply known ap).
+Proof.
+  unfold canonical_apply, rename_apply. cbv zeta.
+  cbn [ap_callee ap_call_kind ap_args ap_continuation ap_exn_continuation
+       ap_exn_extra_args ap_args_arity ap_return_arity].
+  rewrite canonical_simple_renamed, canonical_simples_renamed,
+    canonical_call_kind_renamed.
+  f_equal. rewrite !map_map. apply map_ext. intros [s kind]. cbn [fst snd].
+  rewrite canonical_simple_renamed. reflexivity.
+Qed.
+
+Fixpoint follow_aliases_renamed (r : renaming) (e : expr) :
+  ∀ known : Known.t,
+    follow_aliases (rename_known r known) (rename_expr r e)
+    = rename_expr r (follow_aliases known e)
+with follow_aliases_in_handler_renamed (r : renaming)
+    (h : continuation_handler) :
+  ∀ known : Known.t,
+    follow_aliases_in_handler (rename_known r known) (rename_handler r h)
+    = rename_handler r (follow_aliases_in_handler known h).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      intros known; simpl.
+    + rewrite canonical_named_renamed,
+        (rename_under_let r known x (canonical_named known d)),
+        (follow_aliases_renamed r body).
+      reflexivity.
+    + rewrite (follow_aliases_renamed r body). f_equal.
+      rewrite !map_map. apply map_ext. intros binding.
+      apply canonical_static_binding_renamed.
+    + rewrite (follow_aliases_in_handler_renamed r h),
+        (follow_aliases_renamed r body).
+      reflexivity.
+    + rewrite (follow_aliases_renamed r body). reflexivity.
+    + rewrite canonical_apply_renamed. reflexivity.
+    + rewrite canonical_apply_cont_renamed. reflexivity.
+    + rewrite canonical_simple_renamed. f_equal.
+      rewrite !map_map. apply map_ext. intros [i ac]. cbn [fst snd].
+      rewrite canonical_apply_cont_renamed. reflexivity.
+    + reflexivity.
+  - destruct h as [params metadata handler]. intros known. simpl.
+    rewrite bind_all_renamed, (follow_aliases_renamed r handler).
+    reflexivity.
+Qed.
+
+Theorem rename_follow_aliases : rename_follow_aliases_statement.
+Proof. intros r known e. apply follow_aliases_renamed. Qed.
+
+Theorem rename_follow_aliases_empty : rename_follow_aliases_empty_statement.
+Proof. intros r e. exact (follow_aliases_renamed r e Known.empty). Qed.
 
 (* ======================================================================== *)
 (* Examples                                                                 *)

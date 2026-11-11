@@ -132,7 +132,11 @@
      ([follow_aliases_respected_statement]), so, starting from nothing
      known, in every environment
      ([follow_aliases_equivalent_statement]): it is not only a
-     refinement, and may be applied on both sides of a comparison.
+     refinement, and may be applied on both sides of a comparison;
+   - it commutes with renaming ([rename_follow_aliases_statement]):
+     the result for a renamed term, with what is known renamed
+     ([rename_known]), is the result renamed. There is no premise: the
+     names of the term need not be different, as a binder forgets.
 
    The proofs are in FlambdaEnvAliasesFollowProofs.v, which needs no
    review. *)
@@ -140,7 +144,7 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec FlambdaNormaliseSpec.
+  FlambdaSemanticsSpec FlambdaNominalSpec FlambdaNormaliseSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesRenamingSpec.
 Import ListNotations.
@@ -576,3 +580,55 @@ Definition follow_aliases_respected_statement : Prop :=
 
 Definition follow_aliases_equivalent_statement : Prop :=
   ∀ e : expr, expr_equivalent e (follow_aliases Known.empty e).
+
+(* ======================================================================== *)
+(* Renaming                                                                 *)
+(* ======================================================================== *)
+
+(* What is known, renamed: every variable written in it, in the aliases,
+   in the map of binding times and in the closures. The binding times
+   themselves are as they were: a variable keeps the time of its
+   binding when it is renamed. *)
+Definition rename_closure (r : renaming) (c : Known.closure) : Known.closure :=
+  match c with
+  | Known.Of_code code value_slots =>
+    Known.Of_code code (map_values (rename_simple r) value_slots)
+  | Known.Of_set slot function_decls value_slots =>
+    Known.Of_set slot function_decls
+      (map_values (rename_simple r) value_slots)
+  end.
+
+Definition rename_known (r : renaming) (known : Known.t) : Known.t :=
+  Known.make (rename_aliases r (Known.aliases known))
+    (rename_binding_times r (Known.binding_times known))
+    (Known.next_binding_time known)
+    (map
+       (fun entry =>
+          (rename_variable r (fst entry), rename_closure r (snd entry)))
+       (Known.closures known)).
+
+(* The functions commute with renaming, with no premise: they compare
+   names for equality only, and order them by when they were bound,
+   which a renaming does not change. A variable that is bound again
+   after the renaming was bound again before it. *)
+Definition rename_bind_statement : Prop :=
+  ∀ (r : renaming) (known : Known.t) (x : variable),
+    Known.bind (rename_known r known) (rename_variable r x)
+    = rename_known r (Known.bind known x).
+
+Definition rename_under_let_statement : Prop :=
+  ∀ (r : renaming) (known : Known.t) (x : variable) (d : named),
+    Known.under_let (rename_known r known) (rename_variable r x)
+      (rename_named r d)
+    = rename_known r (Known.under_let known x d).
+
+Definition rename_follow_aliases_statement : Prop :=
+  ∀ (r : renaming) (known : Known.t) (e : expr),
+    follow_aliases (rename_known r known) (rename_expr r e)
+    = rename_expr r (follow_aliases known e).
+
+(* From nothing known, which is what the validator applies. *)
+Definition rename_follow_aliases_empty_statement : Prop :=
+  ∀ (r : renaming) (e : expr),
+    follow_aliases Known.empty (rename_expr r e)
+    = rename_expr r (follow_aliases Known.empty e).
