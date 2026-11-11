@@ -246,6 +246,11 @@ says so. Only the labels that this tree cites are listed.
   leave unchecked.
 - **T1-6.** The model's grammar of types has a boxed number of every
   naked number kind.
+- **T1-7.** More that the operations on types rely on and nothing
+  checks: an exact set of closures has a function type for each closure;
+  a set of strings is not empty; the kind of an alias to a constant.
+- **T1-8.** The `Get_tag` reduction of meet takes a number that is no
+  tag to be the tag of no block, and the machine has blocks of any tag.
 - **T2-1.** `Typing_env.replace_equation` on a name that is not bound
   records an equation that the environment cannot see.
 - **T2-2.** The invariants of the typing environment are checked only
