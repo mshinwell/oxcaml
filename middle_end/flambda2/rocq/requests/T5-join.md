@@ -92,9 +92,13 @@ condition the target could force a value on a name that has none at a
 use, and the exact agreement above would fail.
 
 A join that has the strict contract has this one
-(`sound_join_where_values_are_read_of_sound`, proved). An instance
-showing that the transcription lacks the strict contract without the
-first condition is owed; it needs the functions to be all transcribed.
+(`sound_join_where_values_are_read_of_sound`, proved). That the
+transcription lacks the strict contract without the first condition
+is proved on an instance (`transcribed_join_not_strict_statement` in
+`FlambdaJoinEnvSpec.v`, section 5 below). And it is no longer only
+the model's concern: X2 has a program that the compiler, with the
+n-way join and `-O3`, compiles wrongly because of it (the arm of a
+switch that the run takes is deleted).
 A weaker conclusion (target satisfied but for the results of such
 relations) was rejected with T4 and the reviewer: the meet that
 follows reduces the scrutinee's type from such a result and can
@@ -113,7 +117,8 @@ reading of the join's state (`n_way_join_type_sound`,
 `n_way_join_simples_sound`): a value of an input's type has the joined
 type under any valuation of the target that extends that input's.
 
-Proved now (eleven statements, no axioms): the three in-the-machine
+Proved now (sixteen statements, no axioms; eleven here and five about
+the instance of section 5): the three in-the-machine
 corollaries; what a constant in the analysis means, and that the two
 lists Simplify folds over hold what the vectors have at their indices;
 that the contract is met by the join that answers the source and is
@@ -245,6 +250,28 @@ the names to avoid include every known variable.
   transcribed: `n_way_join_function_types`, with
   `n_way_join_function_types_sound_statement` (proved). T1-4 is
   now a discrepancy that was demonstrated and fixed.
+- **Recovered relations (T5-10): found, shown in Rocq, and shown
+  from source.** `recover_inverse_relations` gives a variable `r` the
+  type "the result of a relation on `x`" when every joined environment
+  has a type for `x`; that is true only where `x` has a value, and a
+  variable that an earlier n-way join imported from some of its uses
+  has none on the other runs. In Rocq
+  (`FlambdaJoinEnvSpec.v`, module `Witness`): two uses in which an
+  in-types `x` has a type naming `r` for its `Is_null`; a run in which
+  `x` has no value and `r` holds 0; the transcribed join, run with
+  stand-ins for the meet's environment and the type joiner that do on
+  this input what the compiler's functions do, answers a target that
+  no valuation agreeing with the run satisfies
+  (`witness_use_not_admitted_statement`,
+  `transcribed_join_not_strict_statement`, with
+  `witness_inputs_well_formed_statement`,
+  `witness_run_satisfies_statement` and
+  `witness_join_of_types_upper_bound_statement`). From source (X2): a
+  variable imported from one branch whose type names an older tag
+  variable for its `Get_tag`; a later join whose every use has a type
+  for it puts the relation on the tag variable; a switch on the tag
+  variable then loses the arm for a tag that only the runs without
+  the imported variable have. A wrong result at run time.
 - **R1-16** (an empty set given to
   `create_naked_immediates_non_empty` when every head reduces to
   bottom): not looked at further; still traced, not shown reachable.
@@ -401,15 +428,12 @@ I call (`add_variable_definition`, `add_env_extension`,
 5. **Variables imported by a join from some of its uses (T5-5,
    T5-10).** After such a join the environment has variables that
    mean nothing on some runs, and the compiler goes on treating every
-   variable of an environment as having a value (the relations it
-   recovers at the next join; the reductions of the meet). The model
+   variable of an environment as having a value. X2 has a program
+   that the n-way join compiles wrongly for this reason. The model
    proves the compiler's join only for runs on which each recovered
-   scrutinee has a value where the result of its relation has one,
-   and nothing establishes that. Either an argument is found that an
-   imported variable is never reached on the other runs in a way that
-   matters (an invariant of how Simplify and the meet use
-   environments, not known today), or the compiler should not recover
-   a relation on a scrutinee that was imported, or should record
-   which variables may mean nothing. A program that shows wrong code
-   would settle which; a shape for one has been given to the agent
-   that reproduces candidates.
+   scrutinee has a value where the result of its relation has one.
+   For the compiler: either a relation is not recovered on a
+   scrutinee that was imported (or that stands, at a use, for a
+   variable that was), or the environment records which variables may
+   mean nothing on a run. For the model the conditions stay until the
+   compiler is changed.
