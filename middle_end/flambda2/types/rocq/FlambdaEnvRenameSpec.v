@@ -85,14 +85,19 @@
      [typing_env_names_nominal_statement]);
    - the functions of a level ([Typing_env_level]) and of what the
      environment knows of its names ([Cached_level]) commute with
-     renaming.
+     renaming;
+   - so does what an environment is asked ([Typing_env]): [find] and
+     the functions beside it, the binding time and the name mode of a
+     name, [mem], and the canonical element of a [Simple] at a name
+     mode.
 
    Each statement about a function is an equation and holds of every
    level or environment: nothing is asked of it, its invariant
    included. One has a premise, on an argument that is a function
    ([Typing_env_level.fold_on_defined_vars]). No function here makes a
    name, and none goes by the order of names. Where the order in which
-   names were bound matters (the variables of a level in order), it
+   names were bound matters (the variables of a level in order, the
+   choice of a canonical element), it
    is read from binding times, which a name keeps when it is renamed;
    and a tie is settled by the order of a list of the model, which the
    action keeps. The compiler settles such a tie by an order on names
@@ -398,3 +403,140 @@ Definition cached_level_with_aliases_equivariant_statement : Prop :=
     Cached_level.with_aliases (rename_cached_level r cached)
       (rename_aliases r aliases)
     = rename_cached_level r (Cached_level.with_aliases cached aliases).
+
+(* ======================================================================== *)
+(* What an environment is asked                                             *)
+(* ======================================================================== *)
+
+Definition create_equivariant_statement : Prop :=
+  ∀ r : renaming, rename_typing_env r Typing_env.create = Typing_env.create.
+
+Definition aliases_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t),
+    Typing_env.aliases (rename_typing_env r tenv)
+    = rename_aliases r (Typing_env.aliases tenv).
+
+Definition names_to_types_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t),
+    Typing_env.names_to_types (rename_typing_env r tenv)
+    = Keyed.map_bindings (rename_name r) (rename_binding r)
+        (Typing_env.names_to_types tenv).
+
+Definition current_scope_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t),
+    Typing_env.current_scope (rename_typing_env r tenv)
+    = Typing_env.current_scope tenv.
+
+Definition name_domain_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t),
+    Typing_env.name_domain (rename_typing_env r tenv)
+    = map (rename_name r) (Typing_env.name_domain tenv).
+
+(* [Typing_env.find_with_binding_time_and_mode'], the one that does not
+   scope the name mode: the type found is the renamed type, with the
+   same binding time and name mode; where the one is a fatal error the
+   other is. *)
+Definition find_unscoped_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (name : name)
+    (kind : option flambda_kind),
+    Typing_env.find_with_binding_time_and_mode' (rename_typing_env r tenv)
+      (rename_name r name) kind
+    = option_map (rename_binding r)
+        (Typing_env.find_with_binding_time_and_mode' tenv name kind).
+
+Definition find_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (name : name)
+    (kind : option flambda_kind),
+    Typing_env.find (rename_typing_env r tenv) (rename_name r name) kind
+    = option_map (rename_type r) (Typing_env.find tenv name kind).
+
+Definition find_with_binding_time_and_mode_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (name : name)
+    (kind : option flambda_kind),
+    Typing_env.find_with_binding_time_and_mode (rename_typing_env r tenv)
+      (rename_name r name) kind
+    = option_map (rename_binding r)
+        (Typing_env.find_with_binding_time_and_mode tenv name kind).
+
+(* A name keeps its binding time and its name mode. *)
+Definition binding_time_and_mode_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (name : name),
+    Typing_env.binding_time_and_mode (rename_typing_env r tenv)
+      (rename_name r name)
+    = Typing_env.binding_time_and_mode tenv name.
+
+Definition binding_time_and_mode_of_simple_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (simple : simple),
+    Typing_env.binding_time_and_mode_of_simple (rename_typing_env r tenv)
+      (rename_simple r simple)
+    = Typing_env.binding_time_and_mode_of_simple tenv simple.
+
+Definition binding_time_resolver_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (name : name),
+    Typing_env.binding_time_resolver (rename_typing_env r tenv)
+      (rename_name r name)
+    = Typing_env.binding_time_resolver tenv name.
+
+Definition mem_equivariant_statement : Prop :=
+  ∀ (r : renaming) (min_name_mode : option Name_mode.t) (tenv : Typing_env.t)
+    (name : name),
+    Typing_env.mem min_name_mode (rename_typing_env r tenv)
+      (rename_name r name)
+    = Typing_env.mem min_name_mode tenv name.
+
+Definition mem_simple_equivariant_statement : Prop :=
+  ∀ (r : renaming) (min_name_mode : option Name_mode.t) (tenv : Typing_env.t)
+    (simple : simple),
+    Typing_env.mem_simple min_name_mode (rename_typing_env r tenv)
+      (rename_simple r simple)
+    = Typing_env.mem_simple min_name_mode tenv simple.
+
+Definition alias_is_bound_strictly_earlier_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (bound_name : name) (alias : simple),
+    Typing_env.alias_is_bound_strictly_earlier (rename_typing_env r tenv)
+      (rename_name r bound_name) (rename_simple r alias)
+    = Typing_env.alias_is_bound_strictly_earlier tenv bound_name alias.
+
+(* The canonical element of a renamed [Simple] is the renamed canonical
+   element. The order that chooses it is by binding times, which names
+   keep; where two are equally early the model takes the first of a
+   list, which a renaming keeps (FlambdaEnvAliasesRenamingSpec.v). *)
+Definition get_canonical_ignoring_name_mode_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (simple : simple),
+    Typing_env.get_canonical_simple_ignoring_name_mode
+      (rename_typing_env r tenv) (rename_simple r simple)
+    = rename_simple r
+        (Typing_env.get_canonical_simple_ignoring_name_mode tenv simple).
+
+Definition get_canonical_simple_exn_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t)
+    (min_name_mode name_mode_of_existing_simple : option Name_mode.t)
+    (simple : simple),
+    Typing_env.get_canonical_simple_exn (rename_typing_env r tenv)
+      min_name_mode name_mode_of_existing_simple (rename_simple r simple)
+    = option_map (option_map (rename_simple r))
+        (Typing_env.get_canonical_simple_exn tenv min_name_mode
+           name_mode_of_existing_simple simple).
+
+Definition get_alias_then_canonical_simple_exn_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t)
+    (min_name_mode name_mode_of_existing_simple : option Name_mode.t)
+    (typ : flambda_type),
+    Typing_env.get_alias_then_canonical_simple_exn (rename_typing_env r tenv)
+      min_name_mode name_mode_of_existing_simple (rename_type r typ)
+    = option_map (option_map (rename_simple r))
+        (Typing_env.get_alias_then_canonical_simple_exn tenv min_name_mode
+           name_mode_of_existing_simple typ).
+
+(* The type of a [Simple] in a term, with the canonical element that the
+   type is an alias to. *)
+Definition type_simple_in_term_exn_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (min_name_mode : option Name_mode.t)
+    (simple : simple),
+    Typing_env.type_simple_in_term_exn (rename_typing_env r tenv)
+      min_name_mode (rename_simple r simple)
+    = option_map
+        (option_map
+           (fun typed =>
+              (rename_type r (fst typed), rename_simple r (snd typed))))
+        (Typing_env.type_simple_in_term_exn tenv min_name_mode simple).

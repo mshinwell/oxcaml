@@ -834,3 +834,482 @@ Qed.
 Theorem cached_level_with_aliases_equivariant :
   cached_level_with_aliases_equivariant_statement.
 Proof. intros r cached aliases. reflexivity. Qed.
+
+(* ======================================================================== *)
+(* The aliases read the environment for binding times only                  *)
+(* ======================================================================== *)
+
+(* The functions of the aliases take a resolver and the map from names
+   to types with binding times, of which they read the binding times.
+   Two resolvers that answer alike and two maps that give each name the
+   same binding time and name mode are the same to them. *)
+Lemma fold_left_alike {A B : Type} (f f' : A -> B -> A) (l : list B)
+    (init : A) :
+  (∀ (a : A) (b : B), f a b = f' a b) ->
+  List.fold_left f l init = List.fold_left f' l init.
+Proof.
+  intros Hf. revert init.
+  induction l as [ | b l IH]; intros init; simpl; [ reflexivity | ].
+  rewrite Hf. apply IH.
+Qed.
+
+Lemma find_earliest_candidates_alike
+    (t : Aliases.Aliases_of_canonical_element.t)
+    (filter_by_scope filter_by_scope' : Name_mode.t -> list name -> list name)
+    (min_name_mode : Name_mode.t) :
+  (∀ (name_mode : Name_mode.t) (names : list name),
+    filter_by_scope name_mode names = filter_by_scope' name_mode names) ->
+  Aliases.Aliases_of_canonical_element.find_earliest_candidates t
+    filter_by_scope min_name_mode
+  = Aliases.Aliases_of_canonical_element.find_earliest_candidates t
+      filter_by_scope' min_name_mode.
+Proof.
+  intros Hfilter.
+  unfold Aliases.Aliases_of_canonical_element.find_earliest_candidates.
+  apply fold_left_alike. intros res_opt order. rewrite Hfilter. reflexivity.
+Qed.
+
+Section Binding_times_alike.
+
+Context {A B : Type}
+  (resolver resolver' : name -> Binding_time.With_name_mode.t)
+  (times : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+  (times' : Keyed.finite_map name (B * Binding_time.With_name_mode.t)).
+
+Hypothesis resolvers_alike : ∀ n : name, resolver n = resolver' n.
+
+Hypothesis times_alike :
+  ∀ n : name,
+    option_map snd (Keyed.lookup name_eqb n times)
+    = option_map snd (Keyed.lookup name_eqb n times').
+
+Lemma binding_time_and_name_mode_alike (elt : simple) :
+  Aliases.binding_time_and_name_mode times elt
+  = Aliases.binding_time_and_name_mode times' elt.
+Proof.
+  destruct elt as [x | sym | c]; simpl; try reflexivity.
+  pose proof (times_alike (Name_var x)) as Hx.
+  destruct (Keyed.lookup name_eqb (Name_var x) times) as [[a bt] | ],
+    (Keyed.lookup name_eqb (Name_var x) times') as [[b bt'] | ];
+    simpl in Hx; try discriminate; [ | reflexivity ].
+  injection Hx as ->. reflexivity.
+Qed.
+
+Lemma name_defined_earlier_alike (alias than : name) :
+  Aliases.name_defined_earlier resolver times alias than
+  = Aliases.name_defined_earlier resolver' times' alias than.
+Proof.
+  unfold Aliases.name_defined_earlier.
+  pose proof (times_alike alias) as Halias.
+  pose proof (times_alike than) as Hthan.
+  rewrite !resolvers_alike.
+  destruct (Keyed.lookup name_eqb alias times) as [[a bt] | ],
+    (Keyed.lookup name_eqb alias times') as [[b bt'] | ];
+    simpl in Halias; try discriminate;
+    destruct (Keyed.lookup name_eqb than times) as [[a2 bt2] | ],
+      (Keyed.lookup name_eqb than times') as [[b2 bt2'] | ];
+    simpl in Hthan; try discriminate;
+    repeat
+      match goal with
+      | H : Some _ = Some _ |- _ => injection H as ->
+      end;
+    reflexivity.
+Qed.
+
+Lemma defined_earlier_alike (alias than : simple) :
+  Aliases.defined_earlier resolver times alias than
+  = Aliases.defined_earlier resolver' times' alias than.
+Proof.
+  unfold Aliases.defined_earlier.
+  destruct (name_of_simple than); [ | reflexivity ].
+  destruct (name_of_simple alias); [ | reflexivity ].
+  apply name_defined_earlier_alike.
+Qed.
+
+Lemma compute_name_mode_unscoped_alike (elt : simple) :
+  Aliases.compute_name_mode_unscoped times elt
+  = Aliases.compute_name_mode_unscoped times' elt.
+Proof.
+  unfold Aliases.compute_name_mode_unscoped.
+  rewrite binding_time_and_name_mode_alike. reflexivity.
+Qed.
+
+Lemma compute_name_mode_alike (elt : simple)
+    (min_binding_time : Binding_time.t) :
+  Aliases.compute_name_mode times elt min_binding_time
+  = Aliases.compute_name_mode times' elt min_binding_time.
+Proof.
+  unfold Aliases.compute_name_mode.
+  rewrite binding_time_and_name_mode_alike. reflexivity.
+Qed.
+
+Lemma add_alias_between_canonical_elements_alike (t : Aliases.t)
+    (canonical_element to_be_demoted : simple) :
+  Aliases.add_alias_between_canonical_elements times t canonical_element
+    to_be_demoted
+  = Aliases.add_alias_between_canonical_elements times' t canonical_element
+      to_be_demoted.
+Proof.
+  unfold Aliases.add_alias_between_canonical_elements.
+  rewrite compute_name_mode_unscoped_alike. reflexivity.
+Qed.
+
+Lemma add_alike (t : Aliases.t)
+    (canonical_element1 canonical_element2 : simple) :
+  Aliases.add resolver times t canonical_element1 canonical_element2
+  = Aliases.add resolver' times' t canonical_element1 canonical_element2.
+Proof.
+  unfold Aliases.add, Aliases.add0, Aliases.add_alias,
+    Aliases.choose_canonical_element_to_be_demoted.
+  rewrite defined_earlier_alike.
+  destruct
+    (Aliases.defined_earlier resolver' times' canonical_element1
+       canonical_element2);
+    rewrite add_alias_between_canonical_elements_alike; reflexivity.
+Qed.
+
+Lemma find_earliest_alias_alike (t : Aliases.t) (canonical_element : simple)
+    (min_binding_time : Binding_time.t) (min_name_mode : Name_mode.t) :
+  Aliases.find_earliest_alias resolver times t canonical_element
+    min_binding_time min_name_mode
+  = Aliases.find_earliest_alias resolver' times' t canonical_element
+      min_binding_time min_name_mode.
+Proof.
+  unfold Aliases.find_earliest_alias.
+  rewrite
+    (find_earliest_candidates_alike _ _
+       (fun name_mode names =>
+          if Name_mode.equal name_mode Name_mode.in_types
+          then names
+          else
+            filter
+              (fun name =>
+                 Name_mode.equal name_mode
+                   (Aliases.compute_name_mode times' (simple_of_name name)
+                      min_binding_time))
+              names)).
+  - destruct
+      (Aliases.Aliases_of_canonical_element.find_earliest_candidates _ _ _)
+      as [[ | first rest] | ];
+      try reflexivity.
+    do 2 f_equal. apply fold_left_alike. intros min_elt elt.
+    rewrite name_defined_earlier_alike. reflexivity.
+  - intros name_mode names.
+    destruct (Name_mode.equal name_mode Name_mode.in_types);
+      [ reflexivity | ].
+    apply filter_ext. intros name. rewrite compute_name_mode_alike.
+    reflexivity.
+Qed.
+
+Lemma get_canonical_element_exn_alike (t : Aliases.t) (element : simple)
+    (elt_name_mode min_name_mode : Name_mode.t)
+    (min_binding_time : Binding_time.t) :
+  Aliases.get_canonical_element_exn resolver times t element elt_name_mode
+    min_name_mode min_binding_time
+  = Aliases.get_canonical_element_exn resolver' times' t element
+      elt_name_mode min_name_mode min_binding_time.
+Proof.
+  unfold Aliases.get_canonical_element_exn.
+  destruct (Aliases.canonical t element) as [ | canonical_element];
+    cbv beta iota zeta;
+    rewrite ?compute_name_mode_alike, ?find_earliest_alias_alike;
+    reflexivity.
+Qed.
+
+End Binding_times_alike.
+
+(* ======================================================================== *)
+(* What an environment is asked                                             *)
+(* ======================================================================== *)
+
+Ltac open_binding :=
+  cbn [option_map fst snd]; unfold rename_binding; cbn [fst snd].
+
+Lemma names_to_types_renamed (r : renaming) (tenv : Typing_env.t) :
+  Typing_env.names_to_types (rename_typing_env r tenv)
+  = Keyed.map_bindings (rename_name r) (rename_binding r)
+      (Typing_env.names_to_types tenv).
+Proof. reflexivity. Qed.
+
+Theorem create_equivariant : create_equivariant_statement.
+Proof. intros r. reflexivity. Qed.
+
+Theorem aliases_equivariant : aliases_equivariant_statement.
+Proof. intros r tenv. reflexivity. Qed.
+
+Theorem names_to_types_equivariant : names_to_types_equivariant_statement.
+Proof. exact names_to_types_renamed. Qed.
+
+Theorem current_scope_equivariant : current_scope_equivariant_statement.
+Proof. intros r tenv. reflexivity. Qed.
+
+Theorem name_domain_equivariant : name_domain_equivariant_statement.
+Proof.
+  intros r tenv. unfold Typing_env.name_domain.
+  rewrite names_to_types_renamed, domain_named_renamed, map_app, map_map.
+  reflexivity.
+Qed.
+
+Lemma check_optional_kind_matches_renamed (r : renaming) (ty : flambda_type)
+    (kind : option flambda_kind) :
+  Typing_env.check_optional_kind_matches (rename_type r ty) kind
+  = Typing_env.check_optional_kind_matches ty kind.
+Proof.
+  destruct kind as [kind | ]; simpl; [ | reflexivity ].
+  rewrite kind_rename_type. reflexivity.
+Qed.
+
+Theorem find_unscoped_equivariant : find_unscoped_equivariant_statement.
+Proof.
+  intros r tenv n kind. unfold Typing_env.find_with_binding_time_and_mode'.
+  rewrite names_to_types_renamed, lookup_named_renamed.
+  destruct (Keyed.lookup name_eqb n (Typing_env.names_to_types tenv))
+    as [[ty binding_time] | ];
+    open_binding.
+  - rewrite check_optional_kind_matches_renamed.
+    destruct (Typing_env.check_optional_kind_matches ty kind);
+      [ | reflexivity ].
+    change (Typing_env.is_bottom (rename_typing_env r tenv))
+      with (Typing_env.is_bottom tenv).
+    destruct (Typing_env.is_bottom tenv); open_binding;
+      rewrite ?kind_rename_type, ?rename_type_bottom; reflexivity.
+  - destruct n as [x | sym]; [ reflexivity | ].
+    cbn [rename_name].
+    change (Typing_env.defined_symbols (rename_typing_env r tenv))
+      with (Typing_env.defined_symbols tenv).
+    destruct
+      (among sym (Typing_env.defined_symbols tenv)
+       && Typing_env.check_optional_kind_matches
+            (fst Typing_env.initial_symbol_type) kind);
+      reflexivity.
+Qed.
+
+Theorem find_equivariant : find_equivariant_statement.
+Proof.
+  intros r tenv n kind. unfold Typing_env.find.
+  rewrite find_unscoped_equivariant.
+  destruct (Typing_env.find_with_binding_time_and_mode' tenv n kind)
+    as [[ty binding_time] | ];
+    reflexivity.
+Qed.
+
+Theorem find_with_binding_time_and_mode_equivariant :
+  find_with_binding_time_and_mode_equivariant_statement.
+Proof.
+  intros r tenv n kind. unfold Typing_env.find_with_binding_time_and_mode.
+  rewrite find_unscoped_equivariant.
+  destruct (Typing_env.find_with_binding_time_and_mode' tenv n kind)
+    as [[ty binding_time] | ];
+    reflexivity.
+Qed.
+
+Theorem binding_time_and_mode_equivariant :
+  binding_time_and_mode_equivariant_statement.
+Proof.
+  intros r tenv [x | sym]; [ | reflexivity ].
+  pose proof
+    (find_with_binding_time_and_mode_equivariant r tenv (Name_var x) None)
+    as Hfind.
+  unfold Typing_env.binding_time_and_mode. cbn [rename_name] in *.
+  rewrite Hfind.
+  destruct (Typing_env.find_with_binding_time_and_mode tenv (Name_var x) None)
+    as [[ty binding_time] | ];
+    reflexivity.
+Qed.
+
+Theorem binding_time_and_mode_of_simple_equivariant :
+  binding_time_and_mode_of_simple_equivariant_statement.
+Proof.
+  intros r tenv [x | sym | c]; [ | reflexivity | reflexivity ].
+  exact (binding_time_and_mode_equivariant r tenv (Name_var x)).
+Qed.
+
+Theorem binding_time_resolver_equivariant :
+  binding_time_resolver_equivariant_statement.
+Proof.
+  intros r tenv n. unfold Typing_env.binding_time_resolver.
+  rewrite names_to_types_renamed, lookup_named_renamed.
+  destruct (Keyed.lookup name_eqb n (Typing_env.names_to_types tenv))
+    as [[ty binding_time] | ];
+    [ reflexivity | destruct n; reflexivity ].
+Qed.
+
+Theorem mem_equivariant : mem_equivariant_statement.
+Proof.
+  intros r min_name_mode tenv [x | sym]; [ | reflexivity ].
+  unfold Typing_env.mem.
+  rewrite names_to_types_renamed, lookup_named_renamed.
+  destruct
+    (Keyed.lookup name_eqb (Name_var x) (Typing_env.names_to_types tenv))
+    as [[ty binding_time] | ];
+    reflexivity.
+Qed.
+
+Theorem mem_simple_equivariant : mem_simple_equivariant_statement.
+Proof.
+  intros r min_name_mode tenv [x | sym | c]; [ | reflexivity | reflexivity ].
+  exact (mem_equivariant r min_name_mode tenv (Name_var x)).
+Qed.
+
+Theorem alias_is_bound_strictly_earlier_equivariant :
+  alias_is_bound_strictly_earlier_equivariant_statement.
+Proof.
+  intros r tenv bound_name alias.
+  unfold Typing_env.alias_is_bound_strictly_earlier.
+  rewrite binding_time_and_mode_equivariant,
+    binding_time_and_mode_of_simple_equivariant.
+  reflexivity.
+Qed.
+
+(* What the functions of the aliases take of the renamed environment is
+   what the renaming of FlambdaEnvAliasesRenamingSpec.v makes of what
+   they take of the environment, as far as they read it. *)
+Lemma resolver_of_renamed (r : renaming) (tenv : Typing_env.t) (n : name) :
+  Typing_env.binding_time_resolver (rename_typing_env r tenv) n
+  = rename_resolver r (Typing_env.binding_time_resolver tenv) n.
+Proof.
+  unfold rename_resolver.
+  rewrite <- (FlambdaTypeRenameProofs.rename_name_inverse_r r n) at 1.
+  apply binding_time_resolver_equivariant.
+Qed.
+
+Lemma times_of_renamed (r : renaming) (tenv : Typing_env.t) (n : name) :
+  option_map snd
+    (Keyed.lookup name_eqb n
+       (Typing_env.names_to_types (rename_typing_env r tenv)))
+  = option_map snd
+      (Keyed.lookup name_eqb n
+         (rename_binding_times r (Typing_env.names_to_types tenv))).
+Proof.
+  rewrite names_to_types_renamed.
+  unfold rename_binding_times, Keyed.map_bindings.
+  induction (Typing_env.names_to_types tenv) as [ | [n' [ty bt]] bindings IH];
+    simpl; [ reflexivity | ].
+  destruct n' as [x | sym]; simpl;
+    match goal with
+    | |- context [name_eqb n ?n'] => destruct (name_eqb n n')
+    end;
+    first [ reflexivity | exact IH ].
+Qed.
+
+Lemma canonical_element_of_renamed (r : renaming) (tenv : Typing_env.t)
+    (simple : simple) (elt_name_mode min_name_mode : Name_mode.t) :
+  Aliases.get_canonical_element_exn
+    (Typing_env.binding_time_resolver (rename_typing_env r tenv))
+    (Typing_env.names_to_types (rename_typing_env r tenv))
+    (Typing_env.aliases (rename_typing_env r tenv)) (rename_simple r simple)
+    elt_name_mode min_name_mode
+    (Typing_env.min_binding_time (rename_typing_env r tenv))
+  = option_map (rename_simple r)
+      (Aliases.get_canonical_element_exn
+         (Typing_env.binding_time_resolver tenv)
+         (Typing_env.names_to_types tenv) (Typing_env.aliases tenv) simple
+         elt_name_mode min_name_mode (Typing_env.min_binding_time tenv)).
+Proof.
+  rewrite
+    (get_canonical_element_exn_alike _
+       (rename_resolver r (Typing_env.binding_time_resolver tenv)) _
+       (rename_binding_times r (Typing_env.names_to_types tenv))
+       (resolver_of_renamed r tenv) (times_of_renamed r tenv)).
+  exact
+    (rename_canonical_at_mode flambda_type r
+       (Typing_env.binding_time_resolver tenv)
+       (Typing_env.names_to_types tenv) (Typing_env.aliases tenv) simple
+       elt_name_mode min_name_mode (Typing_env.min_binding_time tenv)).
+Qed.
+
+Theorem get_canonical_ignoring_name_mode_equivariant :
+  get_canonical_ignoring_name_mode_equivariant_statement.
+Proof.
+  intros r tenv [x | sym | c]; [ | | reflexivity ].
+  - exact (rename_canonical r (Typing_env.aliases tenv) (Name_var x)).
+  - exact (rename_canonical r (Typing_env.aliases tenv) (Name_symbol sym)).
+Qed.
+
+Theorem get_canonical_simple_exn_equivariant :
+  get_canonical_simple_exn_equivariant_statement.
+Proof.
+  intros r tenv min_name_mode name_mode_of_existing_simple simple.
+  unfold Typing_env.get_canonical_simple_exn.
+  rewrite binding_time_and_mode_of_simple_equivariant.
+  destruct
+    match name_mode_of_existing_simple with
+    | Some name_mode => Some name_mode
+    | None =>
+      option_map Binding_time.With_name_mode.name_mode
+        (Typing_env.binding_time_and_mode_of_simple tenv simple)
+    end
+    as [name_mode_simple | ];
+    [ | reflexivity ].
+  cbv beta iota. rewrite canonical_element_of_renamed. reflexivity.
+Qed.
+
+Theorem get_alias_then_canonical_simple_exn_equivariant :
+  get_alias_then_canonical_simple_exn_equivariant_statement.
+Proof.
+  intros r tenv min_name_mode name_mode_of_existing_simple typ.
+  unfold Typing_env.get_alias_then_canonical_simple_exn.
+  rewrite get_alias_opt_renamed.
+  destruct (get_alias_opt typ) as [simple | ]; [ | reflexivity ].
+  apply get_canonical_simple_exn_equivariant.
+Qed.
+
+(* The type that a [Simple] has in a term, before its canonical element
+   is asked for. *)
+Lemma typed_simple_renamed (r : renaming) (tenv : Typing_env.t)
+    (simple : simple) :
+  match rename_simple r simple with
+  | Const const =>
+    Some (type_for_const const, Binding_time.With_name_mode.consts)
+  | Var x =>
+    Typing_env.find_with_binding_time_and_mode (rename_typing_env r tenv)
+      (Name_var x) None
+  | Symbol s =>
+    Typing_env.find_with_binding_time_and_mode (rename_typing_env r tenv)
+      (Name_symbol s) None
+  end
+  = option_map (rename_binding r)
+      match simple with
+      | Const const =>
+        Some (type_for_const const, Binding_time.With_name_mode.consts)
+      | Var x =>
+        Typing_env.find_with_binding_time_and_mode tenv (Name_var x) None
+      | Symbol s =>
+        Typing_env.find_with_binding_time_and_mode tenv (Name_symbol s) None
+      end.
+Proof.
+  destruct simple as [x | sym | c]; cbn [rename_simple].
+  - exact
+      (find_with_binding_time_and_mode_equivariant r tenv (Name_var x) None).
+  - exact
+      (find_with_binding_time_and_mode_equivariant r tenv (Name_symbol sym)
+         None).
+  - open_binding.
+    rewrite rename_type_type_for_const. reflexivity.
+Qed.
+
+Theorem type_simple_in_term_exn_equivariant :
+  type_simple_in_term_exn_equivariant_statement.
+Proof.
+  intros r tenv min_name_mode simple.
+  unfold Typing_env.type_simple_in_term_exn.
+  rewrite typed_simple_renamed.
+  destruct
+    match simple with
+    | Const const =>
+      Some (type_for_const const, Binding_time.With_name_mode.consts)
+    | Var x =>
+      Typing_env.find_with_binding_time_and_mode tenv (Name_var x) None
+    | Symbol s =>
+      Typing_env.find_with_binding_time_and_mode tenv (Name_symbol s) None
+    end
+    as [[ty binding_time] | ];
+    [ | reflexivity ].
+  cbv beta iota; open_binding.
+  rewrite canonical_element_of_renamed, kind_rename_type.
+  destruct
+    (Aliases.get_canonical_element_exn _ _ _ simple _ _ _)
+    as [alias | ];
+    cbn [option_map fst snd]; [ | reflexivity ].
+  rewrite rename_type_alias_type_of. reflexivity.
+Qed.
