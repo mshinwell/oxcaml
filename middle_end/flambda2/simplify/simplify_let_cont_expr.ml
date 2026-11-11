@@ -1438,6 +1438,7 @@ and prepare_dacc_for_handlers dacc ~replay ~env_at_fork ~params ~is_recursive
 
 and simplify_handler ~simplify_expr ~is_recursive ~is_exn_handler
     ~invariant_params ~params cont dacc handler k =
+  TE.notify_test_observer (DA.typing_env dacc) ~at_handler:cont;
   let dacc =
     DA.with_continuation_uses_env dacc
       ~cont_uses_env:(CUE.reset_uses (DA.continuation_uses_env dacc))

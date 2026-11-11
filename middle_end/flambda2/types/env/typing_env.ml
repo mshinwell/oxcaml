@@ -1374,3 +1374,14 @@ end = struct
       then Value_approximation.Unknown K.value
       else Misc.fatal_errorf "Undefined symbol %a" Symbol.print symbol
 end
+
+let test_observer : (t -> Continuation.t -> unit) option ref = ref None
+
+module For_testing = struct
+  let set_observer observer = test_observer := observer
+end
+
+let notify_test_observer t ~at_handler =
+  match !test_observer with
+  | None -> ()
+  | Some observer -> observer t at_handler

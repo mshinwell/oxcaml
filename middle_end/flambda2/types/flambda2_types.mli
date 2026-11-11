@@ -278,6 +278,21 @@ module Typing_env : sig
 
   val aliases_of_simple :
     t -> min_name_mode:Name_mode.t -> Simple.t -> Alias_set.t
+
+  (* CR mshinwell: [notify_test_observer] is for tests only. It was added while
+     you were away, so that tests can read types while [t] and [flambda_type]
+     stay abstract; to be confirmed or reverted. Decision D33. *)
+
+  (** For tests of the type system: report [t] to the observer that a test has
+      registered, if there is one; otherwise do nothing. An observer can only be
+      registered through the internal interface of this library.
+
+      [t] is the environment at the start of the handler of the continuation
+      [at_handler]; for the return continuation of a compilation unit, it is the
+      final environment of the unit. A report need not correspond to a handler
+      of the term that the caller ends up with, and nothing guarantees that a
+      continuation is reported only once. *)
+  val notify_test_observer : t -> at_handler:Continuation.t -> unit
 end
 
 val meet : Typing_env.t -> t -> t -> (t * Typing_env.t) Or_bottom.t

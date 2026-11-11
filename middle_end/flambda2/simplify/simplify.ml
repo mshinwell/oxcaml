@@ -74,6 +74,8 @@ let run ~cmx_loader ~machine_width ~round ~code_slot_offsets unit =
         (TE.create ~machine_width ~resolver)
         module_symbol
   in
+  (* The end of the unit is where the return continuation is called. *)
+  TE.notify_test_observer final_typing_env ~at_handler:return_continuation;
   let all_code =
     Exported_code.merge (UA.all_code uacc)
       (Exported_code.mark_as_imported (get_imported_code ()))

@@ -201,3 +201,43 @@ val bump_current_level_scope : t -> t
 val compute_joined_aliases : t -> Name.Set.t -> t list -> t
 
 val defined_symbols : t -> Symbol.Set.t
+
+(** {2 Observation by tests}
+
+    Tests of the type system need to read the typing environments computed by a
+    client of this library (in practice, Simplify), as values of the types of
+    this module and of [Type_grammar], which [Flambda2_types] keeps abstract.
+    Such a test links against the library and registers a function with
+    [For_testing.set_observer], which is not exported by [Flambda2_types]; the
+    client reports environments with [notify_test_observer], which is. *)
+
+(* CR mshinwell: [For_testing.set_observer] and [notify_test_observer] are for
+   tests only. They were added while you were away, as the way for tests to read
+   types without [Flambda2_types] exporting what its types are; to be confirmed
+   or reverted. Decision D33. *)
+
+module For_testing : sig
+  (** [set_observer (Some f)] causes [notify_test_observer t ~at_handler] to
+      call [f t at_handler]. [set_observer None] restores the initial state,
+      where [notify_test_observer] does nothing.
+
+      The function [f] must not raise, and must only read the environment. (Note
+      that looking up a name from another compilation unit may cause the
+      corresponding .cmx file to be loaded.) *)
+  val set_observer : (t -> Continuation.t -> unit) option -> unit
+end
+
+(** Report an environment to the observer registered by a test, if there is one;
+    otherwise do nothing.
+
+    [t] is the environment at the start of the handler of the continuation
+    [at_handler]. For the return continuation of a compilation unit, which has
+    no handler in the unit, it is the environment where the unit returns: the
+    final environment of the unit.
+
+    A report says what the client computed, not what it kept. Simplify reports
+    handlers that are not in the term it returns (for example a handler that it
+    goes on to inline or to specialise), and nothing guarantees that a
+    continuation is reported only once. An observer must not take one report to
+    be one handler of the resulting term. *)
+val notify_test_observer : t -> at_handler:Continuation.t -> unit

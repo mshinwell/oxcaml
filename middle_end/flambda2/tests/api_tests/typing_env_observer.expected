@@ -1,0 +1,6 @@
+No observer: 0 observation(s).
+An observer, registered and then removed: 1 observation, at the continuation given: true.
+In the environment observed, x is one of the tagged immediates { 42 }.
+Simplify: 1 observation(s) at the return continuation of the unit, 1 at other continuations.
+The field of the module block is the variable r.
+At the start of the handler of k1, r is one of the tagged immediates { 10 20 }.
