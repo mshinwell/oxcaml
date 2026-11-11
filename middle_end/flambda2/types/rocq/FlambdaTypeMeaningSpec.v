@@ -749,6 +749,22 @@ with row_like_for_closures_satisfied (v : value) (slot : function_slot)
    with the calls (workstream S4); until then what is stated of meet,
    join and the provers leaves out the types that name code. No
    decision has a number. *)
+(* CR mshinwell: a closure type of an entry asks its type of the
+   closure projected at its slot only where the projection has a
+   value. From a symbol the projection reads the symbol that the
+   static set names for the slot, so where what a symbol is bound to
+   is not valid (FlambdaClosuresSpec.statics_valid) a set can have the
+   function and name no symbol for it, and the closure type says
+   nothing. The meet of two entries takes a closure type with no
+   value to leave no closure; that is right only where the static
+   environment is valid, and what is stated of the meet supposes it
+   ([well_formed_closures_case_closure_type_statement], in
+   FlambdaTypeWellFormedSpec.v, is the step). The other choice is to
+   ask here that the projection have a value. An entry would then say
+   that its set has the function, which is for the index to say, and
+   what is stated of the creation functions, of the accessors and of
+   the provers would change. Found in the review of the meet. No
+   decision has a number. *)
 with closures_entry_satisfied (v : value) (slot : function_slot)
     (functions : list (function_slot * code_id))
     (value_slots : list (value_slot * value)) (entry : closures_entry)

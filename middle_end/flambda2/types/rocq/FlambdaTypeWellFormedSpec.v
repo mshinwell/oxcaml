@@ -187,7 +187,8 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec.
+  FlambdaValueSpec FlambdaSemanticsSpec.
+From OxCamlFlambda2 Require FlambdaClosuresSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec.
 Import ListNotations.
@@ -758,6 +759,44 @@ Definition well_formed_closures_case_value_slot_statement : Prop :=
     ∃ contents : value,
       lookup w value_slots = Some contents
       ∧ type_satisfied statics vars contents ty.
+
+(* Condition 8a, for the closure types. In a well-formed case of
+   closures that admits a closure, a function slot of which the entry
+   has a closure type can be projected from the closure, and gives a
+   closure of that type. This one needs what the symbols are bound to
+   to be valid (FlambdaClosuresSpec.statics_valid, which every state
+   of the run of a well-formed unit has). The projection from a
+   symbol reads the symbol that the static set names for the slot,
+   and a static set that is not valid may have the function and name
+   no symbol for it: the closure types of an entry say nothing of such
+   a closure, and two types whose closure types at the slot have no
+   value in common both hold of it. So what is stated of an operation
+   that takes a closure type with no value to leave no closure (the
+   meet of two entries) has this premise on the static environment.
+   The function types and the value slot types above need none: they
+   are read from what [closure_in_set] answers. *)
+Definition well_formed_closures_case_closure_type_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (v : value) (slot : function_slot)
+    (functions : list (function_slot * code_id))
+    (value_slots : list (value_slot * value))
+    (function_types : finite_map (Or_unknown.t function_type))
+    (closure_types value_slot_types : finite_map flambda_type)
+    (index : row_like_index set_of_closures_contents unit)
+    (extension : env_extension) (g : function_slot) (ty : flambda_type),
+    let case :=
+      Row_like_case
+        (Closures_entry function_types closure_types value_slot_types) index
+        extension
+    in
+    FlambdaClosuresSpec.statics_valid statics ->
+    closure_in_set statics v = Some (slot, functions, value_slots) ->
+    row_like_closures_case_well_formed slot case = true ->
+    row_like_closures_case_satisfied statics vars v slot functions
+      value_slots case ->
+    lookup g closure_types = Some ty ->
+    ∃ closure : value,
+      project_function_slot statics slot g v = Some closure
+      ∧ type_satisfied statics vars closure ty.
 
 (* Condition 8c. In a well-formed case of closures whose index is
    exact, the function at the slot of the case has a function type. *)

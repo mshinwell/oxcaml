@@ -32,7 +32,9 @@
 From Stdlib Require Import ZArith List Bool Lia Setoid.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaMapProofs FlambdaSemanticsSpec FlambdaPrimitiveProofs.
+  FlambdaMapProofs FlambdaValueSpec FlambdaSemanticsSpec
+  FlambdaPrimitiveProofs.
+From OxCamlFlambda2 Require FlambdaClosuresSpec FlambdaClosuresProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
   FlambdaTypeWellFormedSpec.
@@ -562,6 +564,57 @@ Proof.
   rewrite !andb_true_iff in Hslots.
   destruct Hslots as [[[_ _] Hvalue_slots] _].
   exact (bound_among _ _ _ _ Hvalue_slots Hlookup).
+Qed.
+
+(* A function slot among the closures of the index of a case that
+   admits a closure is a function of the set of the closure. *)
+Lemma closures_index_function_bound (statics : static_env) (vars : env)
+    (v : value) (slot : function_slot)
+    (functions : list (function_slot * code_id))
+    (value_slots : list (value_slot * value))
+    (case : row_like_closures_case) (g : function_slot) :
+  row_like_closures_case_satisfied statics vars v slot functions value_slots
+    case ->
+  among g (contents_closures (closures_index_contents (case_index case)))
+  = true ->
+  is_bound g functions = true.
+Proof.
+  intros [Hindex _] Hamong. rewrite <- among_domain.
+  unfold closures_index_satisfied in Hindex.
+  unfold closures_index_contents in Hamong.
+  destruct (index_domain (case_index case)) as [contents | contents].
+  - destruct Hindex as [Hsame _]. rewrite <- (Hsame g). exact Hamong.
+  - destruct Hindex as [Hall _].
+    exact (proj1 (all_among _ _) Hall g Hamong).
+Qed.
+
+Theorem well_formed_closures_case_closure_type
+  : well_formed_closures_case_closure_type_statement.
+Proof.
+  intros statics vars v slot functions value_slots function_types
+    closure_types value_slot_types index extension g ty.
+  cbv zeta. intros Hvalid Hclosure Hwell_formed Hsatisfied Hlookup.
+  unfold row_like_closures_case_well_formed in Hwell_formed.
+  simpl case_index in Hwell_formed. simpl case_maps_to in Hwell_formed.
+  simpl case_env_extension in Hwell_formed.
+  rewrite !andb_true_iff, (closures_entry_well_formed_iff _ _ _ _)
+    in Hwell_formed.
+  destruct Hwell_formed as [[_ [Hslots _]] _].
+  unfold closures_entry_slots_fit in Hslots.
+  rewrite !andb_true_iff in Hslots.
+  destruct Hslots as [[[_ Hclosure_slots] _] _].
+  pose proof (bound_among _ _ _ _ Hclosure_slots Hlookup) as Hamong.
+  pose proof (closures_index_function_bound statics vars v slot functions
+                value_slots _ g Hsatisfied Hamong)
+    as Hbound.
+  destruct
+    (FlambdaClosuresProofs.project_function_slot_valid statics slot g v
+       functions value_slots Hvalid Hclosure Hbound)
+    as [closure Hproject].
+  exists closure. split; [ exact Hproject | ].
+  destruct Hsatisfied as [_ [Hentry _]]. simpl in Hentry.
+  apply closures_entry_lookup_iff in Hentry as [_ [Hclosures _]].
+  exact (Hclosures g ty closure Hlookup Hproject).
 Qed.
 
 Theorem well_formed_exact_case_function_type
