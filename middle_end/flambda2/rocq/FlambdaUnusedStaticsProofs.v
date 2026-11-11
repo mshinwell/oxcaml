@@ -263,7 +263,7 @@ Lemma closure_of_erased (statics statics' : static_env) (v : value) :
       code_kept D called = true ∧ slot_values_avoid slots = true).
 Proof.
   intros (_ & _ & Hvalues & Hvalues_avoid).
-  destruct v as [c | code slots | s]; simpl.
+  destruct v as [c | code slots | s | tag fields | contents]; simpl.
   - intros _. split; [ reflexivity | discriminate ].
   - intros Hv. apply andb_true_iff in Hv as [Hcode Hslots].
     split; [ reflexivity | ]. intros called slots' [= <- <-]. auto.
@@ -275,6 +275,41 @@ Proof.
     intros [= <- <-].
     pose proof (Hvalues_avoid s _ Hkept Hlookup) as Hallocated.
     simpl in Hallocated. apply andb_true_iff in Hallocated. exact Hallocated.
+  - intros _. split; [ reflexivity | discriminate ].
+  - intros _. split; [ reflexivity | discriminate ].
+Qed.
+
+(* The primitives introduce no symbols and no code ids: referring to no
+   name removed is a property that every primitive preserves
+   (FlambdaPrimitiveSpec.eval_prim_preserves_statement). *)
+Lemma eval_prim_avoids (statics statics' : static_env) (p : prim)
+    (vs : list value) (v : value) :
+  statics_erased statics statics' ->
+  forallb (value_avoids D) vs = true ->
+  eval_prim statics p vs = Some v ->
+  value_avoids D v = true.
+Proof.
+  intros (_ & _ & _ & Hvalues_avoid) Hvs.
+  apply (eval_prim_preserves (fun w => value_avoids D w = true)).
+  - intros c. split; reflexivity.
+  - intros tag fields. simpl. apply forallb_forall.
+  - intros s tag fields Hkept Hlookup.
+    pose proof (Hvalues_avoid s _ Hkept Hlookup) as Hfields.
+    simpl in Hfields. apply forallb_forall. exact Hfields.
+  - apply forallb_forall. exact Hvs.
+Qed.
+
+(* The value of a primitive is the same under both static environments,
+   as its arguments refer to no name removed. *)
+Lemma eval_prim_erased (statics statics' : static_env) (p : prim)
+    (vs : list value) :
+  statics_erased statics statics' ->
+  forallb (value_avoids D) vs = true ->
+  eval_prim statics' p vs = eval_prim statics p vs.
+Proof.
+  intros (_ & _ & Hvalues & _) Hvs. apply eval_prim_static_values.
+  intros s Hin. apply Hvalues.
+  exact (proj1 (forallb_forall _ _) Hvs _ Hin).
 Qed.
 
 Lemma eval_named_erased (statics statics' : static_env) (vars : env)
@@ -290,10 +325,11 @@ Proof.
   destruct d as [s | p args | code slots | slot closure]; simpl; intros Hd.
   - split; [ reflexivity | ]. intros v.
     apply eval_simple_avoids; assumption.
-  - split; [ reflexivity | ]. intros v.
-    destruct (eval_simples vars args) as [vs | ] eqn:Hargs; [ | discriminate ].
-    simpl. apply eval_prim_avoids.
-    exact (eval_simples_avoid vars args Hvars vs Hd Hargs).
+  - destruct (eval_simples vars args) as [vs | ] eqn:Hargs; simpl;
+      [ | split; [ reflexivity | discriminate ] ].
+    pose proof (eval_simples_avoid vars args Hvars vs Hd Hargs) as Hvs.
+    split; [ exact (eval_prim_erased statics statics' p vs Hstatics Hvs) | ].
+    intros v. exact (eval_prim_avoids statics statics' p vs v Hstatics Hvs).
   - apply andb_true_iff in Hd as [Hcode Hslots].
     split; [ reflexivity | ]. intros v.
     destruct (eval_value_slots vars slots) as [evaluated | ] eqn:Heval;

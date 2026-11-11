@@ -342,7 +342,8 @@ Proof.
   - apply andb_true_iff in Heq as [Hp Hargs]. apply prim_eqb_sound in Hp.
     subst p'.
     rewrite (eval_simples_match vm vars vars' args Hmatch args' Hargs).
-    reflexivity.
+    destruct (eval_simples vars' args') as [vs | ]; simpl; [ | reflexivity ].
+    apply eval_prim_same_static_values, Hstatics.
   - apply andb_true_iff in Heq as [Hcode Hslots]. apply Pos.eqb_eq in Hcode.
     subst code'.
     rewrite (eval_value_slots_match vm vars vars' slots Hmatch slots' Hslots).

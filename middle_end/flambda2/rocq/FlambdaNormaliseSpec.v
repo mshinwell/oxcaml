@@ -94,10 +94,10 @@
 
    [fold_constants], for either term, replaces a primitive applied to
    constants by its value, when that is a constant, and a [Switch] on a
-   constant by its arm. The value of the primitive is whatever
-   FlambdaSemanticsSpec.eval_prim says, so nothing is assumed of the
-   primitives: the function calls the same [eval_prim] that the semantics
-   does, and the extracted function calls what realises it.
+   constant by its arm. The value of the primitive is what
+   FlambdaPrimitiveSpec.eval_prim says, which the semantics uses too. It
+   is asked under the empty static environment: on constants a primitive
+   does not look at it.
 
    [remove_unused_lets], also for the term before, removes each [Let] whose
    variable is not free in its body, in bodies and in the handlers of
@@ -337,11 +337,14 @@ with var_free_in_handler_b (x : variable) (h : continuation_handler) : bool :=
   | Handler params handler => negb (among x params) && var_free_b x handler
   end.
 
-(* Which primitives the normalisation may fold, and remove when unused.
-   Any choice is sound; it is there so that a primitive meant to hide a
-   value from the simplifier ([Opaque_identity]) can be left alone, as
-   Simplify leaves it. *)
-Parameter prim_may_fold : prim -> bool.
+(* Which primitives the normalisation may fold, and remove when unused:
+   all but [Opaque_identity], which is meant to hide a value from the
+   simplifier and which Simplify leaves alone. Any choice is sound. *)
+Definition prim_may_fold (p : prim) : bool :=
+  match p with
+  | Unary (Opaque_identity _) => false
+  | _ => true
+  end.
 
 Definition named_may_go (d : named) : bool :=
   match d with
@@ -471,9 +474,9 @@ Definition fold_named (d : named) : named :=
   | Prim p args =>
     match (if prim_may_fold p then consts_of_simples args else None) with
     | Some cs =>
-      match eval_prim p (map Value_const cs) with
+      match eval_prim empty_static_env p (map Value_const cs) with
       | Some (Value_const c) => Simple (Const c)
-      | Some (Value_closure _ _ | Value_symbol _) | None => d
+      | _ => d
       end
     | None => d
     end

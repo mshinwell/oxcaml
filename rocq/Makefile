@@ -103,6 +103,9 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaNominalSpec.v \
   FlambdaNormaliseProofs.v \
   FlambdaNormaliseSpec.v \
+  FlambdaPrimitiveModel.v \
+  FlambdaPrimitiveProofs.v \
+  FlambdaPrimitiveSpec.v \
   FlambdaSemanticsProofs.v \
   FlambdaSemanticsSpec.v \
   FlambdaStaticProofs.v \
@@ -111,6 +114,7 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaUnusedStaticsSpec.v \
   FlambdaValidateProofs.v \
   FlambdaValidateSpec.v \
+  FlambdaValueProofs.v \
   FlambdaValueSpec.v \
   FlambdaWellFormedProofs.v \
   FlambdaWellFormedSpec.v \

@@ -32,7 +32,9 @@
    - the constants ([Reg_width_const.t]), in full but for the string of
      [Poison]; the kinds ([Flambda_kind.t]) are in FlambdaKindModel.v;
    - [Let] of one variable, bound to a [Simple], a primitive application, a
-     closure or the projection of a value slot;
+     closure or the projection of a value slot; the primitives
+     ([Flambda_primitive.t]) are in FlambdaPrimitiveModel.v, a fragment of
+     their own;
    - [Let] with the bound pattern [Static] ("let symbol"), here
      [Let_static]: a group of bindings of code ids to code and of symbols
      to static constants;
@@ -75,10 +77,9 @@
      by all its handlers; here every handler lists all its parameters, the
      invariant ones first.
    - A primitive application is a primitive with a list of arguments, where
-     [Flambda_primitive.t] holds the arguments by arity. The primitives
-     themselves are abstract ([prim]): this fragment is parametric in them,
-     and FlambdaSemanticsSpec.v gives them an abstract evaluation, about
-     which laws can be stated without defining it.
+     [Flambda_primitive.t] holds the arguments by arity. A primitive
+     applied to the wrong number of arguments has no value
+     (FlambdaPrimitiveSpec.v).
    - [Project_value_slot], a unary primitive in the compiler, is a form of
      [named] of its own, as its meaning is fixed by that of closures.
    - The callee of an [Apply] is always given, where the compiler may omit
@@ -88,7 +89,7 @@
      restricted to its range. *)
 
 From Stdlib Require Import ZArith List.
-From OxCamlFlambda2 Require Export FlambdaKindModel.
+From OxCamlFlambda2 Require Export FlambdaKindModel FlambdaPrimitiveModel.
 Import ListNotations.
 
 (* [Variable.t], [Continuation.t], [Symbol.t], [Code_id.t] and
@@ -150,9 +151,6 @@ Inductive simple : Type :=
   | Var (x : variable)
   | Symbol (s : symbol)
   | Const (c : const).
-
-(* [Flambda_primitive.t] without its arguments. *)
-Parameter prim : Type.
 
 (* [Flambda.named]. A [Set_of_closures] has one function, given by its
    code, and the values of its value slots. *)

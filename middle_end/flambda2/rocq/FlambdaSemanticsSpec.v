@@ -31,8 +31,9 @@
    This file is to be reviewed: [eval_named], [eval_static_bindings],
    [apply_cont_value], [call_function] and the rules of [step], then
    [behaves], [equivalent] and [refines]. The values, the static
-   environment and the reading of a closure are in FlambdaValueSpec.v,
-   which this file exports.
+   environment and the reading of allocated values are in
+   FlambdaValueSpec.v, and what the primitives compute is in
+   FlambdaPrimitiveSpec.v; this file exports both.
 
    The semantics is an abstract machine. A state is an expression with an
    environment giving values to variables, one giving closures to
@@ -84,10 +85,9 @@
    [refines_defined_statement] and [refines_antisymmetric_statement] say how
    the two are related.
 
-   The primitives are abstract: [eval_prim] is a parameter, with no axioms.
-   A law of a primitive (say, that an addition commutes) is to be stated
-   about [eval_prim], either as an axiom or, once primitives are defined,
-   as a lemma.
+   The primitives are those of FlambdaPrimitiveModel.v, and
+   [FlambdaPrimitiveSpec.eval_prim] says what each computes. A law of a
+   primitive (say, that an addition commutes) is a lemma about it.
 
    The lemmas and the proofs are in FlambdaSemanticsProofs.v, which needs no
    review. *)
@@ -95,16 +95,12 @@
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec.
-From OxCamlFlambda2 Require Export FlambdaValueSpec.
+From OxCamlFlambda2 Require Export FlambdaValueSpec FlambdaPrimitiveSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
 (* Environments                                                             *)
 (* ======================================================================== *)
-
-(* The value of a primitive applied to the values of its arguments, if it has
-   one. *)
-Parameter eval_prim : prim -> list value -> option value.
 
 (* An environment is a finite map of FlambdaMapSpec.v: an association
    list, of which [lookup] finds the first binding of a name. *)
@@ -177,7 +173,7 @@ Definition eval_named (statics : static_env) (vars : env)
   | Simple s => eval_simple vars s
   | Prim p args =>
     let* vs := eval_simples vars args in
-    eval_prim p vs
+    eval_prim statics p vs
   | Set_of_closures code value_slots =>
     let* vs := eval_value_slots vars value_slots in
     Some (Value_closure code vs)

@@ -35,6 +35,7 @@ From Stdlib Require Import ZArith List Arith Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec.
+From OxCamlFlambda2 Require Export FlambdaValueProofs FlambdaPrimitiveProofs.
 Import ListNotations.
 
 (* ======================================================================== *)

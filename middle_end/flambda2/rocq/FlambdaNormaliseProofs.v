@@ -935,11 +935,11 @@ Proof.
     try reflexivity.
   destruct (prim_may_fold p); [ | reflexivity ].
   destruct (consts_of_simples args) as [cs | ] eqn:Hconsts; [ | reflexivity ].
-  destruct (eval_prim p (map Value_const cs)) as [[c | code slots | sym] | ]
+  destruct (eval_prim empty_static_env p (map Value_const cs)) as [v | ]
     eqn:Hprim;
-    try reflexivity.
+    [ destruct v | ]; try reflexivity.
   simpl. rewrite (consts_of_simples_eval vars args cs Hconsts). simpl.
-  rewrite Hprim. reflexivity.
+  rewrite (eval_prim_consts statics empty_static_env), Hprim. reflexivity.
 Qed.
 
 Lemma fold_switch_equivalent (scrutinee : simple)

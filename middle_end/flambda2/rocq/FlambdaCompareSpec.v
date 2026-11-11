@@ -30,7 +30,7 @@
 
    This file is to be reviewed: [expr_eqb] and what it is made of, against
    middle_end/flambda2/compare/compare.ml, which compares Flambda terms up
-   to alpha-equivalence; the axioms about [prim_eqb]; and the statement.
+   to alpha-equivalence; and the statement.
 
    [expr_eqb] goes through the two expressions together, keeping the pairs
    of bound variables and of bound continuations met so far. A name bound
@@ -58,9 +58,6 @@
    same as its input up to bound names, or is brought to that by rewrites
    proved elsewhere, the two are equivalent by a theorem and not only by a
    test.
-
-   Trusted here: [prim_eqb], an equality test on the abstract primitives,
-   with two axioms saying that it decides equality.
 
    The proofs are in FlambdaCompareProofs.v, which needs no review. *)
 
@@ -109,21 +106,11 @@ Definition combine_names (xs xs' : list positive) (m : name_map)
 (* What has no binder                                                       *)
 (* ======================================================================== *)
 
-Definition kind_eq_dec : ∀ k k' : flambda_kind, {k = k'} + {k <> k'}.
-Proof. repeat decide equality. Defined.
-
 Definition const_eq_dec : ∀ c c' : const, {c = c'} + {c <> c'}.
 Proof. decide equality; try apply Z.eq_dec; apply kind_eq_dec. Defined.
 
 Definition const_eqb (c c' : const) : bool :=
   if const_eq_dec c c' then true else false.
-
-(* An equality test on the primitives, which are abstract. *)
-Parameter prim_eqb : prim -> prim -> bool.
-
-Axiom prim_eqb_sound : ∀ p p' : prim, prim_eqb p p' = true -> p = p'.
-
-Axiom prim_eqb_refl : ∀ p : prim, prim_eqb p p = true.
 
 Fixpoint forall2b {A B : Type} (f : A -> B -> bool) (l : list A)
     (l' : list B) : bool :=

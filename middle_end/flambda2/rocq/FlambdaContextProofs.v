@@ -268,8 +268,10 @@ Lemma eval_named_related (statics statics' : static_env) (vars : env)
 Proof.
   intros Hstatics. destruct d as [s | p args | code slots | slot closure];
     simpl; try reflexivity.
-  destruct (eval_simple vars closure) as [v | ]; simpl; [ | reflexivity ].
-  rewrite (closure_of_related statics statics' v Hstatics). reflexivity.
+  - destruct (eval_simples vars args) as [vs | ]; simpl; [ | reflexivity ].
+    apply eval_prim_same_static_values, Hstatics.
+  - destruct (eval_simple vars closure) as [v | ]; simpl; [ | reflexivity ].
+    rewrite (closure_of_related statics statics' v Hstatics). reflexivity.
 Qed.
 
 (* Related groups of bindings added to related static environments: both

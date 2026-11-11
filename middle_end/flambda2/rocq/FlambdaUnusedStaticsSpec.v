@@ -29,8 +29,8 @@
 
    This file is to be reviewed: [expr_avoids] and [erase_expr], which are
    extracted and run by the validation of
-   middle_end/flambda2/tests/semantics/; the axiom about the primitives;
-   [envs_free_of]; and the statements.
+   middle_end/flambda2/tests/semantics/; [envs_free_of]; and the
+   statements.
 
    Simplify removes the code and the symbols that nothing refers to any
    more. Removing a static binding is not sound under every environment:
@@ -53,10 +53,10 @@
    It is a refinement and not an equivalence: a binding removed may have
    been of a static constant with no value.
 
-   Trusted here: that the primitives introduce no symbols and no code ids
-   ([eval_prim_avoids]): a value they return refers only to what their
-   arguments refer to. Without it a primitive could return a closure of
-   code that has been removed.
+   The primitives introduce no symbols and no code ids: a value they
+   return refers only to what their arguments refer to
+   (FlambdaPrimitiveSpec.eval_prim_preserves_statement). Otherwise a
+   primitive could return a closure of code that has been removed.
 
    The proofs are in FlambdaUnusedStaticsProofs.v, which needs no
    review. *)
@@ -88,14 +88,9 @@ Fixpoint value_avoids (D : dropped) (v : value) : bool :=
   | Value_symbol s => symbol_kept D s
   | Value_closure code slots =>
     code_kept D code && forallb (fun '(_, v) => value_avoids D v) slots
+  | Value_block _ fields => forallb (value_avoids D) fields
+  | Value_boxed_number _ => true
   end.
-
-(* The primitives introduce no symbols and no code ids. *)
-Axiom eval_prim_avoids :
-  ∀ (D : dropped) (p : prim) (vs : list value) (v : value),
-    forallb (value_avoids D) vs = true ->
-    eval_prim p vs = Some v ->
-    value_avoids D v = true.
 
 Definition simple_avoids (D : dropped) (s : simple) : bool :=
   match s with

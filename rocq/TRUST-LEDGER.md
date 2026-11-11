@@ -38,42 +38,12 @@ The libraries `OxCamlFlambda2` (`middle_end/flambda2/rocq/`) and
 
 ### Axioms
 
-All seven are about the primitives, which the model leaves abstract. No
-statement of these libraries depends on any other axiom: none uses
+None. No statement of these libraries depends on an axiom: none uses
 classical logic, Rocq's primitive integers or the models of OxCaml's
-types below.
-
-- `OxCamlFlambda2.FlambdaModel.prim`:
-  the type of the primitives. The model is parametric in them: no term of
-  the fragment says what a primitive is. The test tool realises it by its
-  own type `prim` (`flsemantics.ml`). Goes when the primitives are an
-  inductive type of the model (workstream C1).
-- `OxCamlFlambda2.FlambdaSemanticsSpec.eval_prim`:
-  the value of a primitive applied to values, if it has one. A function
-  with no property assumed of it but `eval_prim_avoids` below. The test
-  tool realises it by its own evaluator. Goes with C1.
-- `OxCamlFlambda2.FlambdaCompareSpec.prim_eqb`:
-  an equality test on the primitives, needed to compare two terms as long
-  as the primitives are abstract. Goes with C1.
-- `OxCamlFlambda2.FlambdaCompareSpec.prim_eqb_sound`:
-  `prim_eqb p p' = true -> p = p'`: the test answers yes only of equal
-  primitives. It is on this that the comparison of two terms is sound
-  (`expr_eqb_sound`, and through it `validate_unit_sound`). The tool's
-  test must have this property; see the trusted OCaml below. Goes with C1.
-- `OxCamlFlambda2.FlambdaCompareSpec.prim_eqb_refl`:
-  `prim_eqb p p = true`. Used with the one above. Goes with C1.
-- `OxCamlFlambda2.FlambdaNormaliseSpec.prim_may_fold`:
-  which primitives the normalisation may fold on constants, and remove
-  when unused. A function with no property assumed of it: every answer is
-  sound, as folding asks `eval_prim` for the value. It is abstract so that
-  the tool can leave `Opaque_identity` alone, as Simplify does.
-- `OxCamlFlambda2.FlambdaUnusedStaticsSpec.eval_prim_avoids`:
-  a primitive applied to values that mention none of a set of symbols and
-  code ids gives a value that mentions none: the primitives introduce no
-  static names. Removing unused static bindings rests on it
-  (`drop_statics_refines`, and through it the third way in which
-  `validate_unit` accepts a pair). The tool's evaluator must have this
-  property. Goes with C1, when `eval_prim` is defined and this is a lemma.
+types below. (There were seven, all about the primitives, which the model
+left abstract. The primitives are now data,
+`middle_end/flambda2/rocq/FlambdaPrimitiveModel.v`, and what they compute
+is a definition, `FlambdaPrimitiveSpec.v`.)
 
 ### Trusted OCaml
 
@@ -92,23 +62,41 @@ it gave back.
   what the model has not got, never to approximate it. To be read case by
   case against `terms/`. Workstream V3 owns it and is to add a printer
   back to fexpr and round-trip tests.
+- **The conversion of primitives**, in the same file (the section
+  "Primitives"): one function for each arity of primitive that the model
+  has (`convert_unary_primitive`, `convert_binary_primitive` and, once
+  the model has `Make_block`, `convert_variadic_primitive`), with the
+  conversions of what a primitive carries (`convert_kind`,
+  `convert_standard_int`, the signedness, the operations and the
+  comparisons; later `convert_boxable_number` and `convert_or_unknown`).
+  It is about 95 lines with the primitives of the first stage and 145
+  with those of the third. It says which primitive of
+  `FlambdaPrimitiveModel.v` stands for one of the compiler's. It is a
+  renaming of constructors, with the fields the model keeps. Trusted:
+  that it sends a primitive to the one of the same name, and refuses a
+  primitive, or a value of a field, that the model has not got. Of the
+  primitives that allocate or load, that is: an allocation that is not
+  on the heap; a block that is not immutable or not of values; and, for
+  `Make_block`, a kind of a field that says more than `any_value`, as
+  the model has no subkinds and Simplify uses them. What a primitive
+  computes is not here: it is `FlambdaPrimitiveSpec.eval_prim`, to be
+  read against `terms/flambda_primitive.mli` and
+  `simplify/simplify_*_primitive.ml`.
+- **The conversion of numeric constants**, in the same file (the section
+  "Numbers", `convert_const`, `convert_float32`, `convert_float` and the
+  boxed numbers of `convert_static_const`, about 100 lines): from the
+  compiler's integers of each width, and the bit patterns of its floats,
+  to the integer that a constant of the model carries. Trusted: that each
+  number is converted to itself, at every width and at its bounds. (It
+  was not so: until this conversion went through `int64`, `z_of_int`
+  converted the least tagged or naked immediate to -1, and what the tool
+  reported before then is not made good by the repair.) Constants of the
+  vector and mask kinds, and poison, are refused, so the tool does not
+  exercise what the model says of boxing and unboxing at those kinds.
 - **The numbering of names**, in the same file (`Numbering`, about 30
   lines): each variable, continuation, symbol, code id and value slot of
   the compiler gets a number, the same throughout a unit. Trusted: that
   the compiler's names are fresh, so that one name stands for one thing.
-- **The meaning of the primitives**, in the same file (`eval_prim` and
-  the functions around it, about 110 lines), installed through
-  `middle_end/flambda2/tests/semantics/extracted/prim_hook.ml`: it
-  realises the axioms `prim` and `eval_prim`. Trusted: that it computes
-  what the compiler's primitives compute on the few it knows (tagging,
-  untagging, `Is_int`, `Opaque_identity`, integer arithmetic and
-  comparison on tagged and naked immediates), that it refuses the others,
-  and that it has the property `eval_prim_avoids` assumes. Goes with C1.
-- **The equality of primitives**, in the same file (the function
-  installed as `Prim_hook.prim_eqb`, structural equality on the tool's
-  `prim`): it realises `prim_eqb` and must satisfy `prim_eqb_sound` and
-  `prim_eqb_refl`. It does as long as the primitives let through hold
-  only constant constructors and kinds. Goes with C1.
 - **The identification of names across the two terms**, in the same
   file (`convert_both` with `code_id_used`, about 70 lines). The two
   units are converted with one numbering, the return and exception
@@ -119,12 +107,10 @@ it gave back.
   what is the same continuation and the same function. The second part
   goes when the comparison relates code ids itself (workstream S4; there
   are notes in `flsemantics.ml` and `FlambdaCompareSpec.v`).
-- **The extraction**: Rocq's extraction to OCaml, and the directives of
-  `middle_end/flambda2/rocq/FlambdaExtract.v`, which say what realises
-  `prim`, `eval_prim`, `prim_eqb` and `prim_may_fold` (calls through
-  `prim_hook.ml`, which is written by hand, on untyped representations).
-  The extracted modules are in
-  `middle_end/flambda2/tests/semantics/extracted/`.
+- **The extraction**: Rocq's extraction to OCaml, by
+  `middle_end/flambda2/rocq/FlambdaExtract.v`. It has no directive that
+  realises a definition of the model by hand-written OCaml. The extracted
+  modules are in `middle_end/flambda2/tests/semantics/extracted/`.
 - **What the tool reports**, in the same file (`check`, `run`,
   `observe`): that it calls `validate_unit` on the two terms converted,
   and prints its answer as it is. The comparison of the two runs that it
