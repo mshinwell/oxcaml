@@ -37,7 +37,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaBlockLoadProofs FlambdaUnboxSpec FlambdaUnboxProofs
   FlambdaUnusedContsSpec FlambdaUnusedContsProofs FlambdaUnusedStaticsSpec
   FlambdaUnusedStaticsProofs FlambdaLiftSpec FlambdaLiftProofs
-  FlambdaValidateSpec.
+  FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec
   FlambdaAliasesProofs.
 Import ListNotations.
@@ -166,10 +166,19 @@ Proof.
   exact (lift_unit_program_refines L e e' Hlift).
 Qed.
 
+Lemma without_slots_program_refines (slots : list value_slot) (e : expr) :
+  program_refines e (without_slots slots e).
+Proof.
+  unfold without_slots.
+  destruct (drop_unused_slots slots e) as [e' | ] eqn:Hdrop;
+    [ | apply refines_refl ].
+  exact (drop_unused_slots_program_refines slots e e' Hdrop).
+Qed.
+
 Theorem validate_unit_sound_everywhere :
   validate_unit_sound_everywhere_statement.
 Proof.
-  intros rounds unused L before after. unfold validate_unit.
+  intros rounds unused slots L before after. unfold validate_unit.
   destruct (expr_eqb [] [] before after) eqn:Hsame.
   - intros _. apply expr_equivalent_refines, expr_eqb_sound, Hsame.
   - destruct (expr_eqb [] [] (normalise_before rounds before)
@@ -182,14 +191,15 @@ Proof.
       destruct
         (expr_eqb [] []
            (without_statics unused
-              (normalise_before rounds (with_lifting L before)))
+              (without_slots slots
+                 (normalise_before rounds (with_lifting L before))))
            (normalise_after rounds after));
         intros [H | H]; discriminate H.
 Qed.
 
 Theorem validate_unit_sound : validate_unit_sound_statement.
 Proof.
-  intros rounds unused L before after. unfold validate_unit.
+  intros rounds unused slots L before after. unfold validate_unit.
   destruct (expr_eqb [] [] before after) eqn:Hsame.
   - intros _.
     apply expr_refines_program, expr_equivalent_refines, expr_eqb_sound,
@@ -213,12 +223,14 @@ Proof.
       * destruct
           (expr_eqb [] []
              (without_statics unused
-                (normalise_before rounds (with_lifting L before)))
+                (without_slots slots
+                   (normalise_before rounds (with_lifting L before))))
              (normalise_after rounds after)) eqn:Hlifted;
           [ intros _ | intros H; contradiction H; reflexivity ].
         apply (refines_trans _ _ _ (with_lifting_program_refines L _)).
         apply (refines_trans _ _ _
           (expr_refines_program _ _ (normalise_before_refines rounds _))).
+        apply (refines_trans _ _ _ (without_slots_program_refines slots _)).
         apply (refines_trans _ _ _
           (without_statics_program_refines unused _)).
         apply expr_refines_program, expr_equivalent_refines.

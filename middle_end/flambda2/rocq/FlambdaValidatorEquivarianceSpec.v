@@ -152,9 +152,10 @@
    [without_statics]; and the check, [validate_unit]. The check is
    given what to lift (FlambdaLiftSpec.lifting), which holds the two
    continuations of the unit, so a renaming acts on it
-   ([rename_lifting], which is to be reviewed); the lifting commutes
-   with renaming by the statements of FlambdaLiftSpec.v and of
-   FlambdaMyClosureSpec.v.
+   ([rename_lifting], which is to be reviewed); the lifting and the
+   removal of unused value slots commute with renaming by the
+   statements of FlambdaLiftSpec.v, of FlambdaMyClosureSpec.v and of
+   FlambdaUnusedSlotsSpec.v.
 
    Nothing is trusted here. The proofs are in
    FlambdaValidatorEquivarianceProofs.v, which needs no review. *)
@@ -666,11 +667,12 @@ Definition rename_lifting (r : renaming) (L : lifting) : lifting :=
 
 (* The validation answers the same, and for the same reason, on two
    terms and on the two renamed by one renaming, what is to be lifted
-   being renamed with them. The number of rounds and the names of the
-   static bindings to remove are as they were. *)
+   being renamed with them. The number of rounds, the names of the
+   static bindings to remove and the value slots to remove are as they
+   were. *)
 Definition validate_unit_equivariant_statement : Prop :=
-  ∀ (r : renaming) (rounds : nat) (unused : dropped) (L : lifting)
-    (before after : expr),
-    validate_unit rounds unused (rename_lifting r L) (rename_expr r before)
-      (rename_expr r after)
-    = validate_unit rounds unused L before after.
+  ∀ (r : renaming) (rounds : nat) (unused : dropped)
+    (slots : list value_slot) (L : lifting) (before after : expr),
+    validate_unit rounds unused slots (rename_lifting r L)
+      (rename_expr r before) (rename_expr r after)
+    = validate_unit rounds unused slots L before after.

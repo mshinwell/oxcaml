@@ -48,7 +48,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaCompareSpec
   FlambdaCompareAlphaSpec FlambdaCompareAlphaProofs FlambdaMyClosureSpec
   FlambdaMyClosureProofs FlambdaLiftSpec FlambdaLiftProofs
-  FlambdaValidateSpec FlambdaValidatorEquivarianceSpec.
+  FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs FlambdaValidateSpec
+  FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -3483,11 +3484,21 @@ Proof.
   destruct (lift_unit L e); reflexivity.
 Qed.
 
+(* The removal of unused value slots. *)
+Lemma without_slots_equivariant (slots : list value_slot) :
+  rewrite_equivariant (without_slots slots).
+Proof.
+  intros r e. unfold without_slots, drop_unused_slots.
+  rewrite slots_unused_equivariant, <- drop_slots_equivariant.
+  destruct (slots_unused slots e); reflexivity.
+Qed.
+
 Theorem validate_unit_equivariant : validate_unit_equivariant_statement.
 Proof.
-  intros r rounds unused L before after. unfold validate_unit.
+  intros r rounds unused slots L before after. unfold validate_unit.
   rewrite with_lifting_renamed.
   rewrite !normalise_before_equivariant, normalise_after_equivariant,
-    !without_statics_equivariant, !expr_eqb_renamed.
+    without_slots_equivariant, !without_statics_equivariant,
+    !expr_eqb_renamed.
   reflexivity.
 Qed.

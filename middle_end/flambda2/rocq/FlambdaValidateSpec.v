@@ -44,11 +44,15 @@
    that too, it starts again from the term before as it was given: it
    makes the [Let]s given static bindings of the symbols given
    (FlambdaLiftSpec.lift_unit, which says what is lifted and under which
-   conditions), normalises the result, removes the static bindings of
-   the names given, and compares. The lifting comes first because the
-   normalisation unfolds calls: a [Let] in the body of a function would
-   be many [Let]s afterwards, and a closure that nothing uses would be
-   gone.
+   conditions), normalises the result, removes from its static sets of
+   closures the value slots given, if nothing projects them
+   (FlambdaUnusedSlotsSpec.drop_unused_slots), removes the static
+   bindings of the names given, and compares. The lifting comes first
+   because the normalisation unfolds calls: a [Let] in the body of a
+   function would be many [Let]s afterwards, and a closure that nothing
+   uses would be gone. The value slots come after it because it is the
+   normalisation that removes the projections which the code of a
+   function makes and no longer needs.
 
    What it accepts is correct for the unit run as a compilation unit is
    run, on its own from empty environments
@@ -60,11 +64,12 @@
    in which something was lifted exits with constants and symbols only:
    that is one of the conditions.
 
-   The number of rounds, the names to remove and what to lift are for
-   the caller to choose; none is trusted. Fewer rounds, the wrong names
-   or the wrong [Let]s make the check fail, not accept what it should
-   not. The names to remove are those of the term that is compared: of
-   the term lifted, where something is lifted.
+   The number of rounds, the names and the value slots to remove and
+   what to lift are for the caller to choose; none is trusted. Fewer
+   rounds, the wrong names, the wrong value slots or the wrong [Let]s
+   make the check fail, not accept what it should not. The names to
+   remove are those of the term that is compared: of the term lifted,
+   where something is lifted.
 
    The proofs are in FlambdaValidateProofs.v, which needs no review. *)
 
@@ -73,7 +78,7 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaCompareSpec FlambdaNormaliseSpec FlambdaBlockLoadSpec
   FlambdaUnboxSpec FlambdaUnusedContsSpec FlambdaUnusedStaticsSpec
-  FlambdaLiftSpec.
+  FlambdaLiftSpec FlambdaUnusedSlotsSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -153,6 +158,14 @@ Definition with_lifting (L : lifting) (e : expr) : expr :=
   | None => e
   end.
 
+(* The value slots given removed from the static sets of closures, if
+   nothing projects them. *)
+Definition without_slots (slots : list value_slot) (e : expr) : expr :=
+  match drop_unused_slots slots e with
+  | Some e' => e'
+  | None => e
+  end.
+
 (* ======================================================================== *)
 (* The check                                                                *)
 (* ======================================================================== *)
@@ -165,8 +178,9 @@ Inductive validation : Type :=
   | Same_once_lifted
   | Not_validated.
 
-Definition validate_unit (rounds : nat) (unused : dropped) (L : lifting)
-    (before after : expr) : validation :=
+Definition validate_unit (rounds : nat) (unused : dropped)
+    (slots : list value_slot) (L : lifting) (before after : expr)
+    : validation :=
   if expr_eqb [] [] before after then Same_up_to_bound_names
   else
     let normalised := normalise_before rounds before in
@@ -177,7 +191,8 @@ Definition validate_unit (rounds : nat) (unused : dropped) (L : lifting)
     else if
       expr_eqb [] []
         (without_statics unused
-           (normalise_before rounds (with_lifting L before)))
+           (without_slots slots
+              (normalise_before rounds (with_lifting L before))))
         after
     then Same_once_lifted
     else Not_validated.
@@ -189,14 +204,17 @@ Definition validate_unit (rounds : nat) (unused : dropped) (L : lifting)
 (* A unit that is validated refines the unit it came from, run on its own
    from empty environments. *)
 Definition validate_unit_sound_statement : Prop :=
-  ∀ (rounds : nat) (unused : dropped) (L : lifting) (before after : expr),
-    validate_unit rounds unused L before after <> Not_validated ->
+  ∀ (rounds : nat) (unused : dropped) (slots : list value_slot) (L : lifting)
+    (before after : expr),
+    validate_unit rounds unused slots L before after <> Not_validated ->
     program_refines before after.
 
 (* It does so under all environments if no static binding was removed and
    nothing was lifted. *)
 Definition validate_unit_sound_everywhere_statement : Prop :=
-  ∀ (rounds : nat) (unused : dropped) (L : lifting) (before after : expr),
-    validate_unit rounds unused L before after = Same_up_to_bound_names
-    ∨ validate_unit rounds unused L before after = Same_once_normalised ->
+  ∀ (rounds : nat) (unused : dropped) (slots : list value_slot) (L : lifting)
+    (before after : expr),
+    validate_unit rounds unused slots L before after = Same_up_to_bound_names
+    ∨ validate_unit rounds unused slots L before after
+      = Same_once_normalised ->
     expr_refines before after.
