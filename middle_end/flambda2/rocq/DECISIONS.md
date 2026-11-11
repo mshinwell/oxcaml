@@ -246,5 +246,39 @@ says so. Only the labels that this tree cites are listed.
   leave unchecked.
 - **T1-6.** The model's grammar of types has a boxed number of every
   naked number kind.
+- **T2-1.** `Typing_env.replace_equation` on a name that is not bound
+  records an equation that the environment cannot see.
+- **T2-2.** The invariants of the typing environment are checked only
+  when invariant checks are on, and one is not checked at all.
+- **T2-3.** `Typing_env.find` in an environment that is bottom answers
+  bottom for every name but a symbol with no equation.
+- **T2-4.** A level drops an equation whose type is unknown, so `cut`
+  can answer an older equation than the type the environment has.
+- **T2-5.** After lifting, the environment speaks of a symbol that no
+  run of the term as it was has bound.
+- **T2-6.** The n-way join gives the handler a variable that only some
+  uses define, with its type from those uses; on a run through another
+  use nothing has that type.
+- **T2-7.** Nothing checks that the names given to
+  `Typing_env.add_alias` are bound, and the aliases take an unbound
+  variable for one of another compilation unit.
+- **T3-1.** Ordering two variables of the unit being compiled that have
+  one binding time is a fatal error in the compiler's resolver; the
+  model's resolver is total, and the typing environment's invariant asks
+  for distinct binding times.
+- **T3-2.** `Aliases.add` on two symbols demotes the first, and the
+  result fails the compiler's own `invariant` (run with heavy checks
+  only); the model follows `add` and proves the failure.
+- **T3-3.** The compiler's `Aliases.invariant` never reads
+  `canonical_elements` and never checks the name mode recorded for an
+  alias; the model asks for both and proves that `add` keeps them.
+- **T3-4.** `Alias_set.choose_opt` answers `None` for a set that has a
+  constant and names (dead code; not modelled).
+- **T3-5.** The order on name modes is total, and `aliases.ml` treats it
+  as partial.
+- **T3-6.** Asked for a `Phantom` name, `get_canonical_element_exn`
+  prefers a `Phantom` alias to an earlier `Normal` one.
+- **T3-7.** `find_best` and the tie in `find_earliest_alias` depend on
+  the order of names; the model takes the first of a list.
 - **V2-2.** The fexpr printer drops the kinds of the fields of a
   `Make_block`, and the parser reads back `any_value` for each.
