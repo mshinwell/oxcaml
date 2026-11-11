@@ -29,8 +29,8 @@
 
    This file is to be reviewed, against middle_end/flambda2/terms/flambda.mli
    and the modules it refers to. It holds definitions only. The fragment has
-   - the kinds ([Flambda_kind.t]) and the constants ([Reg_width_const.t]),
-     in full but for the string of [Poison];
+   - the constants ([Reg_width_const.t]), in full but for the string of
+     [Poison]; the kinds ([Flambda_kind.t]) are in FlambdaKindModel.v;
    - [Let] of one variable, bound to a [Simple], a primitive application, a
      closure or the projection of a value slot;
    - [Let] with the bound pattern [Static] ("let symbol"), here
@@ -88,6 +88,7 @@
      restricted to its range. *)
 
 From Stdlib Require Import ZArith List.
+From OxCamlFlambda2 Require Export FlambdaKindModel.
 Import ListNotations.
 
 (* [Variable.t], [Continuation.t], [Symbol.t], [Code_id.t] and
@@ -99,31 +100,8 @@ Definition code_id : Type := positive.
 Definition value_slot : Type := positive.
 
 (* ======================================================================== *)
-(* Kinds and constants                                                      *)
+(* Constants                                                                *)
 (* ======================================================================== *)
-
-(* [Flambda_kind.Naked_number_kind.t]. The constructors are prefixed, as
-   the constants have the compiler's names. *)
-Inductive naked_number_kind : Type :=
-  | Kind_naked_immediate
-  | Kind_naked_float32
-  | Kind_naked_float
-  | Kind_naked_int8
-  | Kind_naked_int16
-  | Kind_naked_int32
-  | Kind_naked_int64
-  | Kind_naked_nativeint
-  | Kind_naked_vec128
-  | Kind_naked_vec256
-  | Kind_naked_vec512
-  | Kind_naked_mask.
-
-(* [Flambda_kind.t]. *)
-Inductive flambda_kind : Type :=
-  | Value
-  | Naked_number (k : naked_number_kind)
-  | Region
-  | Rec_info.
 
 (* [Reg_width_const.t]. *)
 Inductive const : Type :=

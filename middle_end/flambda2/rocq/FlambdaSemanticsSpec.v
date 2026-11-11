@@ -30,7 +30,9 @@
 
    This file is to be reviewed: [eval_named], [eval_static_bindings],
    [apply_cont_value], [call_function] and the rules of [step], then
-   [behaves], [equivalent] and [refines].
+   [behaves], [equivalent] and [refines]. The values, the static
+   environment and the reading of a closure are in FlambdaValueSpec.v,
+   which this file exports.
 
    The semantics is an abstract machine. A state is an expression with an
    environment giving values to variables, one giving closures to
@@ -93,22 +95,12 @@
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec.
+From OxCamlFlambda2 Require Export FlambdaValueSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
-(* Values and environments                                                  *)
+(* Environments                                                             *)
 (* ======================================================================== *)
-
-(* The values of variables: constants, closures made by a [Let], and
-   pointers to what symbols are bound to. A closure is the code of its
-   function and the values of its value slots. (The warning silenced is
-   about induction schemes through the pairs of lists, which nothing uses
-   yet.) *)
-#[local] Set Warnings "-register-all".
-Inductive value : Type :=
-  | Value_const (c : const)
-  | Value_closure (code : code_id) (value_slots : list (value_slot * value))
-  | Value_symbol (s : symbol).
 
 (* The value of a primitive applied to the values of its arguments, if it has
    one. *)
@@ -118,27 +110,12 @@ Parameter eval_prim : prim -> list value -> option value.
    list, of which [lookup] finds the first binding of a name. *)
 Definition env : Type := list (variable * value).
 
-(* What a symbol points to. *)
-Inductive statically_allocated_value : Type :=
-  | Static_closure (code : code_id) (value_slots : list (value_slot * value))
-  | Static_block (tag : Z) (fields : list value)
-  | Static_boxed_number (contents : value)
-  | Static_string (bytes : list Z).
-
-(* The static environment: the code and the statically allocated values
-   bound so far. *)
-Record static_env : Type := Static_env {
-  static_code : list (code_id * code);
-  static_values : list (symbol * statically_allocated_value)
-}.
-
-Definition empty_static_env : static_env := Static_env [] [].
-
 (* What a continuation is. [Closure] is a continuation handler with the
    environments of its definition. For a handler of a recursive
    [Let_cont], [recursive] is all the handlers of that [Let_cont], which
    are in scope in the handler; it is empty for a non-recursive one.
    [Outer] is a way out of the whole term, by the continuation named. *)
+#[local] Set Warnings "-register-all".
 Inductive cont_value : Type :=
   | Closure (h : continuation_handler) (vars : env)
       (conts : list (continuation * cont_value))
@@ -192,19 +169,6 @@ Fixpoint eval_value_slots (vars : env)
     let* v := eval_simple vars s in
     let* vs := eval_value_slots vars value_slots in
     Some ((slot, v) :: vs)
-  end.
-
-(* A value as a closure: one made by a [Let], or a symbol bound to one. *)
-Definition closure_of (statics : static_env) (v : value)
-    : option (code_id * list (value_slot * value)) :=
-  match v with
-  | Value_closure code value_slots => Some (code, value_slots)
-  | Value_symbol s =>
-    match lookup s (static_values statics) with
-    | Some (Static_closure code value_slots) => Some (code, value_slots)
-    | _ => None
-    end
-  | Value_const _ => None
   end.
 
 Definition eval_named (statics : static_env) (vars : env)

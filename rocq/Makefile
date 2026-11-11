@@ -95,6 +95,7 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaContextSpec.v \
   FlambdaControlFlowProofs.v \
   FlambdaControlFlowSpec.v \
+  FlambdaKindModel.v \
   FlambdaMapProofs.v \
   FlambdaMapSpec.v \
   FlambdaModel.v \
@@ -110,6 +111,7 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaUnusedStaticsSpec.v \
   FlambdaValidateProofs.v \
   FlambdaValidateSpec.v \
+  FlambdaValueSpec.v \
   FlambdaWellFormedProofs.v \
   FlambdaWellFormedSpec.v \
 )
