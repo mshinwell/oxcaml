@@ -29,7 +29,7 @@
 (* The n-way join of types with the functions of the join of
    environments: the two halves of the n-way join put together.
 
-   To be reviewed: the definition and the two statements of this
+   To be reviewed: the definition and the three statements of this
    file.
 
    FlambdaJoinTypesSpec.v says what the type traversal guarantees
@@ -51,7 +51,17 @@
    FlambdaJoinEnvSpec.v), which the statements about the rounds of the
    join of environments suppose of the join of types that they are
    given: it is the statement of FlambdaJoinTypesKeepsSpec.v, said of
-   this function.
+   this function. The third is the first at another invariant of the
+   state, [state_true source] (FlambdaJoinStateSpec.v), which says what
+   the state means (the equations of the target made so far are true
+   at every input, for a join whose source is [source]) and not only
+   what its names are. It is the hypothesis under which the rounds of
+   the join of environments are proved to keep the equations true
+   ([first_phases_true_statement] of that file). Its premises are
+   those of the first and one more, [parameters_type_eqb_sound]: it is
+   about the equality of types that the join of environments is given
+   for its own use, which is not the equality that the traversal
+   uses.
 
    What is still assumed, each a premise of the first statement:
    - of [Expand_head] and of the reduction of heads of naked
@@ -86,7 +96,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaTypeEqualSpec FlambdaBindingTime
   FlambdaEnvAliases FlambdaTypingEnv FlambdaTypingEnvSpec
   FlambdaTypingEnvInvariantSpec FlambdaTypingEnvKindedSpec FlambdaJoinEnv
-  FlambdaJoinSpec FlambdaJoinEnvSpec FlambdaJoinTypes FlambdaJoinTypesSpec.
+  FlambdaJoinSpec FlambdaJoinEnvSpec FlambdaJoinStateSpec FlambdaJoinTypes
+  FlambdaJoinTypesSpec.
 Import ListNotations.
 
 (* The join of types that the join of environments is given: the
@@ -136,5 +147,26 @@ Definition n_way_join_of_types_keeps_definitions_statement : Prop :=
        -> Or_bottom.t head_of_kind_naked_immediate)
     (fuel : nat),
     join_of_types_keeps_definitions
+      (n_way_join_of_types p fuel_of_env expand_head
+         reduce_head_of_kind_naked_immediate fuel).
+
+(* It meets the contract at the invariant of the state that says what
+   the state means, for a join of any source. *)
+Definition n_way_join_of_types_true_statement : Prop :=
+  ∀ (source : Typing_env.t) (p : Join_env.parameters) (fuel_of_env : nat)
+    (expand_head : Typing_env.t -> flambda_type -> option Expanded_type.t)
+    (reduce_head_of_kind_naked_immediate :
+       Typing_env.t -> head_of_kind_naked_immediate
+       -> Or_bottom.t head_of_kind_naked_immediate)
+    (fuel : nat),
+    fresh_avoids p ->
+    parameters_type_eqb_sound p ->
+    env_extension_eqb_sound p ->
+    expand_head_sound typing_env_invariant expand_head ->
+    reduce_head_of_kind_naked_immediate_sound
+      reduce_head_of_kind_naked_immediate ->
+    n_way_join_type_sound typing_env_invariant Join_env.joined_env
+      Join_env.definitions_of_existentials kind_in_target_env
+      (state_true source) state_kinded
       (n_way_join_of_types p fuel_of_env expand_head
          reduce_head_of_kind_naked_immediate fuel).

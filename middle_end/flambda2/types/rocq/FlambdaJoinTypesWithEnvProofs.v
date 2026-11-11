@@ -38,7 +38,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaBindingTime FlambdaEnvAliases FlambdaTypingEnv FlambdaTypingEnvSpec
   FlambdaTypingEnvInvariantSpec FlambdaTypingEnvInvariantProofs
   FlambdaTypingEnvKindedSpec FlambdaTypingEnvKindedProofs FlambdaJoinEnv
-  FlambdaJoinSpec FlambdaJoinEnvSpec FlambdaJoinEnvProofs FlambdaJoinTypes
+  FlambdaJoinSpec FlambdaJoinEnvSpec FlambdaJoinEnvProofs
+  FlambdaJoinStateSpec FlambdaJoinStateProofs FlambdaJoinTypes
   FlambdaJoinTypesSpec FlambdaJoinTypesProofs FlambdaJoinTypesKeepsSpec
   FlambdaJoinTypesKeepsProofs FlambdaJoinTypesWithEnvSpec.
 Import ListNotations.
@@ -90,4 +91,28 @@ Proof.
   exact
     (n_way_join_keeps_definitions p fuel_of_env fuel expand_head
        reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb).
+Qed.
+
+Theorem n_way_join_of_types_true : n_way_join_of_types_true_statement.
+Proof.
+  intros source p fuel_of_env expand_head reduce_head_of_kind_naked_immediate
+    fuel Hfresh Hparameters Heqb Hexpand Hreduce.
+  unfold n_way_join_of_types.
+  apply FlambdaJoinTypesProofs.n_way_join_sound.
+  - split; [ exact (state_true_has_witnesses source) | ].
+    split;
+      [ exact (n_way_join_simples_true p fuel_of_env source Hfresh Hparameters)
+      | ].
+    split;
+      [ exact (import_type_true p fuel_of_env source Hfresh Hparameters) | ].
+    exact
+      (n_way_join_env_extension_true p fuel_of_env source Hfresh Hparameters
+         Heqb).
+  - intros s index use [Hvalid _].
+    exact (joined_envs_have_constants_of_kind s index use Hvalid).
+  - exact Hexpand.
+  - exact Hreduce.
+  - intros t t' Hequal statics vars v.
+    exact (type_equal_satisfied statics vars v t t' Hequal).
+  - intros shape shape' Hequal. exact (proj1 (block_shape_eqb_eq _ _) Hequal).
 Qed.
