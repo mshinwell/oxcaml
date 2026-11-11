@@ -228,6 +228,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaTypeAccessSpec.v \
   FlambdaTypeAliasKindsProofs.v \
   FlambdaTypeAliasKindsSpec.v \
+  FlambdaTypeCreatorsProofs.v \
+  FlambdaTypeCreatorsSpec.v \
   FlambdaTypeEqualProofs.v \
   FlambdaTypeEqualSpec.v \
   FlambdaTypeGrammar.v \
