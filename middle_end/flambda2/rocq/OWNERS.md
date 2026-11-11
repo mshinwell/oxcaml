@@ -152,7 +152,12 @@ All in `middle_end/flambda2/types/rocq/`, library `OxCamlFlambda2Types`.
   - `middle_end/flambda2/types/rocq/FlambdaEnvAliases*` (the aliases of
     the typing environment, after `types/env/aliases.ml`)
 - T4, meet. Owner: unassigned.
-- T5, join. Owner: unassigned.
+- T5, the n-way join. Owner: T5, on `flambda2-rocq/T5-join`.
+  - `middle_end/flambda2/types/rocq/FlambdaJoin*` (the n-way join of
+    typing environments and of types, after `types/env/join_env.ml`,
+    `types/join_levels.ml` and the join functions of
+    `types/meet_and_n_way_join.ml`; what a join guarantees)
+  - `middle_end/flambda2/rocq/requests/T5-join.md`
 - T6, provers and reification. Owner: unassigned.
 - T7, differential testing of types, and the converter between the
   compiler's types and the model's. Owner: unassigned.
