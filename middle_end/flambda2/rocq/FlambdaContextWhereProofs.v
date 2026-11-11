@@ -1,0 +1,232 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+(* Proofs of the statements of FlambdaContextWhereSpec.v. Nothing here
+   needs review.
+
+   Each statement is a lemma of FlambdaContextProofs.v, which are about
+   any relations between handlers and between the bodies of code that
+   give a refinement from the states that have the predicate, at the
+   relations of FlambdaContextWhereSpec.v. The proof itself is there
+   ([transfer]): a run under some environments is carried to environments
+   whose closures and code are the rewritten ones. *)
+
+From Stdlib Require Import ZArith List Bool.
+From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
+  FlambdaSemanticsProofs FlambdaWellFormedSpec FlambdaRangeSpec
+  FlambdaRangeProofs FlambdaContextSpec FlambdaContextProofs
+  FlambdaContextWhereSpec.
+Import ListNotations.
+
+(* ======================================================================== *)
+(* The relations of the Spec are ones that the lemmas ask for               *)
+(* ======================================================================== *)
+
+Section Relations.
+
+Variable inv : state -> Prop.
+
+(* From the target to the source. *)
+Definition handler_refined_from (params : list variable) (def_vars : env)
+    (target source : expr) : Prop :=
+  handler_refines_from inv params def_vars source target.
+
+Definition code_refined_from (params : list variable)
+    (my_closure : variable) (ret exn : continuation)
+    (metadata : code_metadata) (target source : expr) : Prop :=
+  code_refines_from inv params my_closure ret exn metadata source target.
+
+Lemma handler_forwards (params : list variable) (def_vars : env)
+    (source target : expr) (vs : list value) (handler_vars : env)
+    (conts : cont_env) (statics : static_env) :
+  handler_refines_from inv params def_vars source target ->
+  bind_params params vs def_vars = Some handler_vars ->
+  refines_from inv (State source handler_vars conts statics)
+    (State target handler_vars conts statics).
+Proof.
+  intros Hrefines Hbind. exact (Hrefines vs handler_vars conts statics Hbind).
+Qed.
+
+Lemma handler_backwards (params : list variable) (def_vars : env)
+    (target source : expr) (vs : list value) (handler_vars : env)
+    (conts : cont_env) (statics : static_env) :
+  handler_refined_from params def_vars target source ->
+  bind_params params vs def_vars = Some handler_vars ->
+  refines_from inv (State source handler_vars conts statics)
+    (State target handler_vars conts statics).
+Proof.
+  intros Hrefines Hbind. exact (Hrefines vs handler_vars conts statics Hbind).
+Qed.
+
+Lemma code_forwards (params : list variable) (my_closure : variable)
+    (ret exn : continuation) (metadata : code_metadata)
+    (source target : expr) (vs : list value) (callee : value)
+    (callee_vars : env) (return_to exn_to : cont_value)
+    (statics : static_env) :
+  code_refines_from inv params my_closure ret exn metadata source target ->
+  bind_params params vs [(my_closure, callee)] = Some callee_vars ->
+  map kind_of_value vs = unarize (cm_params_arity metadata) ->
+  kind_of_value callee = Value ->
+  refines_from inv
+    (State source callee_vars [(ret, return_to); (exn, exn_to)] statics)
+    (State target callee_vars [(ret, return_to); (exn, exn_to)] statics).
+Proof.
+  intros Hrefines Hbind Hkinds Hvalue.
+  exact
+    (Hrefines vs callee callee_vars return_to exn_to statics Hbind Hkinds
+       Hvalue).
+Qed.
+
+Lemma code_backwards (params : list variable) (my_closure : variable)
+    (ret exn : continuation) (metadata : code_metadata)
+    (target source : expr) (vs : list value) (callee : value)
+    (callee_vars : env) (return_to exn_to : cont_value)
+    (statics : static_env) :
+  code_refined_from params my_closure ret exn metadata target source ->
+  bind_params params vs [(my_closure, callee)] = Some callee_vars ->
+  map kind_of_value vs = unarize (cm_params_arity metadata) ->
+  kind_of_value callee = Value ->
+  refines_from inv
+    (State source callee_vars [(ret, return_to); (exn, exn_to)] statics)
+    (State target callee_vars [(ret, return_to); (exn, exn_to)] statics).
+Proof.
+  intros Hrefines Hbind Hkinds Hvalue.
+  exact
+    (Hrefines vs callee callee_vars return_to exn_to statics Hbind Hkinds
+       Hvalue).
+Qed.
+
+End Relations.
+
+(* ======================================================================== *)
+(* The statements                                                           *)
+(* ======================================================================== *)
+
+Theorem let_cont_handler_refines_from
+  : let_cont_handler_refines_from_statement.
+Proof.
+  intros inv k params metadata handler handler' body vars conts statics
+    Hstep Hinv Hinv' Hhandler.
+  exact
+    (FlambdaContextProofs.let_cont_handler_refines_from inv Hstep _ _ _ _
+       (handler_forwards inv) (handler_backwards inv) (code_forwards inv)
+       (code_backwards inv) k params metadata handler handler' body vars
+       conts statics Hinv Hinv' Hhandler Hhandler).
+Qed.
+
+Theorem let_cont_recursive_handler_refines_from
+  : let_cont_recursive_handler_refines_from_statement.
+Proof.
+  intros inv before k params metadata handler handler' after body vars conts
+    statics Hstep Hinv Hinv' Hbinds Hhandler.
+  apply
+    (let_cont_recursive_handlers_refine_from inv Hstep _ _ _ _
+       (handler_forwards inv) (handler_backwards inv) (code_forwards inv)
+       (code_backwards inv));
+    [ exact Hinv | exact Hinv'
+    | unfold handlers_bind_statics; rewrite !existsb_app; simpl;
+      rewrite Hbinds; reflexivity
+    | | ];
+    (apply Forall2_app; [ apply handlers_related_refl | ]);
+    (apply Forall2_cons; [ | apply handlers_related_refl ]);
+    (split; [ reflexivity | ]); apply Handler_related; exact Hhandler.
+Qed.
+
+Theorem let_static_code_refines_from
+  : let_static_code_refines_from_statement.
+Proof.
+  intros inv before id params my_closure ret exn metadata code_body
+    code_body' after body vars conts statics Hstep Hinv Hinv' Hbinds Hcode.
+  exact
+    (FlambdaContextProofs.let_static_code_refines_from inv Hstep _ _ _ _
+       (handler_forwards inv) (handler_backwards inv) (code_forwards inv)
+       (code_backwards inv) before id params my_closure ret exn metadata
+       code_body code_body' after body vars conts statics Hinv Hinv' Hbinds
+       Hcode Hcode).
+Qed.
+
+Theorem let_static_code_refines_where
+  : let_static_code_refines_where_statement.
+Proof.
+  intros ok before id params my_closure ret exn metadata code_body
+    code_body' after body vars conts statics Hextend Hok Hbinds Hcode.
+  exact
+    (FlambdaContextProofs.let_static_code_refines_where ok Hextend before id
+       params my_closure ret exn metadata code_body code_body' after body
+       vars conts statics Hok Hbinds Hcode).
+Qed.
+
+(* ======================================================================== *)
+(* The premises can be met                                                  *)
+(* ======================================================================== *)
+
+Theorem handler_refines_from_always : handler_refines_from_always_statement.
+Proof.
+  intros params def_vars source target. split.
+  - intros Hrefines vs handler_vars conts statics Hbind.
+    exact (proj2 (Hrefines vs handler_vars conts statics Hbind) I).
+  - intros Hrefines vs handler_vars conts statics Hbind.
+    split; [ split; intros _; exact I | intros _ ].
+    exact (Hrefines vs handler_vars conts statics Hbind).
+Qed.
+
+Theorem code_refines_from_always : code_refines_from_always_statement.
+Proof.
+  intros params my_closure ret exn metadata source target Hrefines vs callee
+    callee_vars return_to exn_to statics _ _ _.
+  split; [ split; intros _; exact I | intros _; apply Hrefines ].
+Qed.
+
+Theorem handler_refines_from_in_range
+  : handler_refines_from_in_range_statement.
+Proof.
+  intros params def_vars source target Hsource Htarget Hrefines vs
+    handler_vars conts statics Hbind.
+  split; [ | exact (Hrefines vs handler_vars conts statics Hbind) ].
+  unfold state_in_range.
+  cbn [state_expr state_vars state_conts state_statics].
+  rewrite Hsource, Htarget. reflexivity.
+Qed.
+
+Theorem let_cont_handler_refines_in_range
+  : let_cont_handler_refines_in_range_statement.
+Proof.
+  intros k params metadata handler handler' body vars conts statics Hinv
+    Htarget Hrefines.
+  pose proof Hinv as (Hexpr & Hvars & Hconts & Hstatics).
+  cbn [state_expr state_vars state_conts state_statics] in Hexpr, Hvars,
+    Hconts, Hstatics.
+  simpl in Hexpr. apply andb_true_iff in Hexpr as [Hsource Hbody].
+  apply (let_cont_handler_refines_from state_in_range);
+    [ exact step_in_range | exact Hinv | | ].
+  - split; [ | split; [ exact Hvars | split; [ exact Hconts | ] ] ];
+      cbn [state_expr state_vars state_conts state_statics];
+      [ | exact Hstatics ].
+    simpl. rewrite Htarget, Hbody. reflexivity.
+  - apply handler_refines_from_in_range; assumption.
+Qed.
