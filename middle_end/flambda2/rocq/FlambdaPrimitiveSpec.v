@@ -62,6 +62,16 @@
    untagging take only integers in the range of their kind
    ([int_of_value]), and their results are in range. Arithmetic is on
    mathematical integers and wraps ([wrap]), which is two's complement.
+
+   Numbers in range. The compiler's numbers are of types that hold a
+   range only, and the model's are integers. The section "Numbers in
+   range" says which integers the compiler's are: a constant of each
+   kind ([const_in_range]), the tag of a block ([tag_in_range]), the
+   numbers that a primitive carries ([prim_in_range]), and a value all
+   of whose numbers are such ([value_in_range]). A unit that passes the
+   check FlambdaWellFormedSpec.numbers_in_range has no other, and no
+   primitive makes one ([eval_prim_in_range_statement]), so the run of
+   such a unit never meets one (FlambdaRangeSpec.v).
    FlambdaPrimitiveProofs.v shows that the results of arithmetic are in
    range, that at 64 bits [wrap], [unsigned] and [in_range] are the
    [wrap64], [unsigned64] and [fits_int64] of rocq/OxCamlInt64.v, and
@@ -138,18 +148,13 @@ Definition const_of_int (kind : standard_int) (i : Z) : const :=
   end.
 
 (* The integer that a value is, if it is a constant of the kind and in
-   its range. *)
-(* CR mshinwell: A constant that is out of the range of its kind is not an
+   its range. A constant that is out of the range of its kind is not an
    integer of that kind, so the arithmetic, the comparisons, tagging and
    untagging have no value on it. The compiler cannot build such a
-   constant: each of its numbers is of a type that holds its range only
-   ([Targetint_31_63.t], [Int32.t], ...). So this is about terms that
-   only the model has, and the choice is between no value, as here, and
-   reading the constant wrapped. No value would be wrong only if a term
-   of the compiler came to hold such a constant in the model, which
-   would be a fault of the conversion. A condition of well-formedness
-   that every constant is in range would make the question go away.
-   Decision D13. *)
+   constant, a unit that passes FlambdaWellFormedSpec.numbers_in_range
+   has none, and no primitive makes one (the section "Numbers in
+   range"): so in the run of such a unit the test of the range here
+   never fails ([int_of_value_in_range_statement]). *)
 Definition int_of_value (kind : standard_int) (v : value) : option Z :=
   match kind, v with
   | Standard_tagged_immediate, Value_const (Tagged_immediate i)
@@ -485,6 +490,123 @@ Definition eval_prim (statics : static_env) (p : prim) (vs : list value)
   end.
 
 (* ======================================================================== *)
+(* Numbers in range                                                         *)
+(* ======================================================================== *)
+
+(* The numbers of the compiler's terms are of types that hold a range
+   only; here they are integers. What follows says which integers the
+   compiler's are, for a 64-bit target. A term, a value or a primitive
+   is in range when every number in it is. *)
+
+(* The tag of a block of values: the compiler's [Tag.Scannable.t], at
+   least 0 and below [Obj.no_scan_tag] ([Tag.Scannable.create]). *)
+Definition tag_in_range (tag : Z) : bool := (0 <=? tag) && (tag <? 251).
+
+(* A byte of a string. *)
+Definition byte_in_range (byte : Z) : bool := (0 <=? byte) && (byte <? 256).
+
+(* An integer of the target's OCaml, of 63 bits: the compiler's
+   [Target_ocaml_int.t], which the fields and the sizes of blocks and
+   the discriminants of a [Switch] are, as well as the immediates. *)
+Definition ocaml_int_in_range (i : Z) : bool :=
+  in_range (int_width Standard_tagged_immediate) i.
+
+(* A constant is in the range of its kind. An integer is one of the
+   width of its kind ([int_width]). The number of a float or of a vector
+   is its bit pattern, read as an integer in two's complement as the
+   integers are: of 32 bits for a float32, 64 for a float and for a
+   mask, and 128, 256 and 512 for the vectors. Null and poison have no
+   number.
+
+   In the compiler a constant is in range by its type
+   ([Int_ids.Const_data.t]): an immediate is a [Target_ocaml_int.t],
+   which every operation extends from the sign bit of its width
+   ([One_bit_fewer]); an int8 and an int16 are a [Numeric_types.Int8.t]
+   and an [Int16.t], of a private type whose values are made by
+   functions that wrap or fail; an int32 and an int64 are OCaml's, and
+   a nativeint a [Targetint_32_64.t]; a float and a vector are their
+   bit patterns, of one or several machine words. *)
+Definition const_in_range (c : const) : bool :=
+  match c with
+  | Naked_immediate i | Tagged_immediate i => ocaml_int_in_range i
+  | Naked_int8 i => in_range 8 i
+  | Naked_int16 i => in_range 16 i
+  | Naked_float32 i | Naked_int32 i => in_range 32 i
+  | Naked_float i | Naked_int64 i | Naked_nativeint i | Naked_mask i =>
+    in_range 64 i
+  | Naked_vec128 bits => in_range 128 bits
+  | Naked_vec256 bits => in_range 256 bits
+  | Naked_vec512 bits => in_range 512 bits
+  | Null | Poison _ => true
+  end.
+
+(* What is known of a tag or a size is in range. *)
+Definition known_in_range (test : Z -> bool) (known : option Z) : bool :=
+  match known with
+  | Some z => test z
+  | None => true
+  end.
+
+(* The numbers that a primitive carries are in range: the tag of the
+   block that a [Make_block] makes, and the tag, the size and the field
+   of a [Block_load]. The tags are the compiler's [Tag.Scannable.t], and
+   the size and the field its [Target_ocaml_int.t]. A primitive that is
+   added has its case here, which is [true] if it carries no number. *)
+Definition unary_primitive_in_range (p : unary_primitive) : bool :=
+  match p with
+  | Block_load (Block_access_values tag size _) field =>
+    known_in_range tag_in_range tag
+    && known_in_range ocaml_int_in_range size
+    && ocaml_int_in_range field
+  | Is_int _ | Is_null | Get_tag | Opaque_identity _ | Unbox_number _
+  | Box_number _ | Untag_immediate | Tag_immediate =>
+    true
+  end.
+
+Definition binary_primitive_in_range (p : binary_primitive) : bool :=
+  match p with
+  | Int_arith _ _ | Int_comp _ _ => true
+  end.
+
+Definition variadic_primitive_in_range (p : variadic_primitive) : bool :=
+  match p with
+  | Make_block (Block_kind_values tag) => tag_in_range tag
+  end.
+
+Definition prim_in_range (p : prim) : bool :=
+  match p with
+  | Unary p => unary_primitive_in_range p
+  | Binary p => binary_primitive_in_range p
+  | Variadic p => variadic_primitive_in_range p
+  end.
+
+(* A value is in range: its constants are, and the tags of its blocks,
+   all the way down the fields of blocks and the value slots of
+   closures. A symbol is: what it is bound to is not looked at here. *)
+Fixpoint value_in_range (v : value) : bool :=
+  match v with
+  | Value_const c | Value_boxed_number c => const_in_range c
+  | Value_closure _ value_slots | Value_closure_of_set _ _ value_slots =>
+    forallb (fun '(_, v) => value_in_range v) value_slots
+  | Value_symbol _ => true
+  | Value_block tag fields =>
+    tag_in_range tag && forallb value_in_range fields
+  end.
+
+(* What a symbol is bound to is in range. *)
+Definition allocated_in_range (allocated : statically_allocated_value)
+    : bool :=
+  match allocated with
+  | Static_closure _ value_slots
+  | Static_closure_of_set _ _ _ value_slots =>
+    forallb (fun '(_, v) => value_in_range v) value_slots
+  | Static_block tag fields =>
+    tag_in_range tag && forallb value_in_range fields
+  | Static_boxed_number contents => value_in_range contents
+  | Static_string bytes => forallb byte_in_range bytes
+  end.
+
+(* ======================================================================== *)
 (* Kinds                                                                    *)
 (* ======================================================================== *)
 
@@ -663,3 +785,31 @@ Definition eval_prim_preserves_statement : Prop :=
     (∀ arg : value, arg ∈ vs -> P arg) ->
     eval_prim statics p vs = Some v ->
     P v.
+
+(* A primitive brings no number out of range. One whose own numbers are
+   in range ([prim_in_range]), applied to values in range, has a value
+   in range, where each symbol among its arguments is bound to
+   something in range. The statement above does not give this: being
+   in range does not hold of every number, and holds of a block by its
+   tag as well as by its fields. So the constants that the arithmetic
+   makes are in the range of their kind, and the tag that [Get_tag]
+   reads is an immediate. *)
+Definition eval_prim_in_range_statement : Prop :=
+  ∀ (statics : static_env) (p : prim) (vs : list value) (v : value),
+    prim_in_range p = true ->
+    (∀ (s : symbol) (allocated : statically_allocated_value),
+      Value_symbol s ∈ vs ->
+      lookup s (static_values statics) = Some allocated ->
+      allocated_in_range allocated = true) ->
+    (∀ arg : value, arg ∈ vs -> value_in_range arg = true) ->
+    eval_prim statics p vs = Some v ->
+    value_in_range v = true.
+
+(* A constant of an integer kind that is in range is an integer of that
+   kind: among values in range, the arithmetic, the comparisons, tagging
+   and untagging have no value only on what is not a constant of their
+   kind. *)
+Definition int_of_value_in_range_statement : Prop :=
+  ∀ (kind : standard_int) (i : Z),
+    const_in_range (const_of_int kind i) = true ->
+    int_of_value kind (Value_const (const_of_int kind i)) = Some i.

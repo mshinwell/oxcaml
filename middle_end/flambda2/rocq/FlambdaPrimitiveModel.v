@@ -60,8 +60,13 @@
      has no subkinds, so the conversion must refuse a list that says
      more of a field than [any_value].
    - A tag is any integer, where the compiler's [Tag.Scannable.t] is at
-     least 0 and below 251. A block kind or an access kind with another
-     tag is one the compiler cannot build; nothing here refuses it.
+     least 0 and below 251. The field and the size of a [Block_load]
+     are any integers too, where the compiler's are signed integers of
+     63 bits ([Target_ocaml_int.t]). A primitive with a number out of
+     its range is one the compiler cannot build. No type here refuses
+     it: FlambdaPrimitiveSpec.prim_in_range is the test, and a unit
+     that passes the check FlambdaWellFormedSpec.numbers_in_range has
+     no such primitive.
    - The comparisons are those of integers only: the compiler's
      [comparison] and [comparison_behaviour] are polymorphic in the
      signedness so as to serve the floats too, which are not here. Their
@@ -73,9 +78,10 @@
      will need another name, as this [Int_arith] is the binary one.
 
    To add a primitive: add its constructor here, its case to the
-   evaluation and to the kinds of FlambdaPrimitiveSpec.v, and its case to
-   the proofs of the laws of that file, in FlambdaPrimitiveProofs.v.
-   Nothing else in the model looks inside a primitive. *)
+   evaluation, to the kinds and to [prim_in_range] of
+   FlambdaPrimitiveSpec.v, and its case to the proofs of the laws of
+   that file, in FlambdaPrimitiveProofs.v. Nothing else in the model
+   looks inside a primitive. *)
 
 From Stdlib Require Import ZArith.
 From OxCamlFlambda2 Require Import FlambdaKindModel.

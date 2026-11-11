@@ -33,8 +33,8 @@
    [eval_prim] is opaque after this file. A proof that is not about one
    primitive goes through the laws ([eval_prim_static_values],
    [eval_prim_statics_extend], [eval_prim_kinds],
-   [eval_prim_preserves]); one that is rewrites with [eval_prim_unary],
-   [eval_prim_binary] or [eval_prim_variadic].
+   [eval_prim_preserves], [eval_prim_in_range]); one that is rewrites
+   with [eval_prim_unary], [eval_prim_binary] or [eval_prim_variadic].
 
    To add a primitive, add its case where a proof here goes by cases on
    the primitives: each such proof says so. No proof here names the
@@ -967,6 +967,225 @@ Proof. rewrite wrap_63. apply Sint63.sub_spec. Qed.
 Lemma int_mul (a b : int) :
   Sint63.to_Z (a * b)%sint63 = wrap 63 (Sint63.to_Z a * Sint63.to_Z b).
 Proof. rewrite wrap_63. apply Sint63.mul_spec. Qed.
+
+(* ======================================================================== *)
+(* A primitive brings no number out of range                                *)
+(* ======================================================================== *)
+
+Lemma const_in_range_const_of_int (kind : standard_int) (i : Z) :
+  const_in_range (const_of_int kind i) = in_range (int_width kind) i.
+Proof. destruct kind; reflexivity. Qed.
+
+Theorem int_of_value_in_range : int_of_value_in_range_statement.
+Proof.
+  intros kind i Hrange. rewrite const_in_range_const_of_int in Hrange.
+  destruct kind; cbn [const_of_int int_of_value]; rewrite Hrange;
+    reflexivity.
+Qed.
+
+(* A tag is an immediate, so [Get_tag] returns one. *)
+Lemma tag_in_range_ocaml_int (tag : Z) :
+  tag_in_range tag = true -> ocaml_int_in_range tag = true.
+Proof.
+  unfold tag_in_range, ocaml_int_in_range, in_range. cbn [int_width].
+  intros Htag. apply andb_true_iff in Htag as [Hlow Hhigh].
+  apply Z.leb_le in Hlow. apply Z.ltb_lt in Hhigh.
+  change (2 ^ (63 - 1)) with 4611686018427387904.
+  apply andb_true_iff. split; [ apply Z.leb_le | apply Z.ltb_lt ]; lia.
+Qed.
+
+Lemma naked_bool_in_range (b : bool) : value_in_range (naked_bool b) = true.
+Proof. destruct b; reflexivity. Qed.
+
+Lemma eval_int_comp_in_range (width : Z)
+    (behaviour : int_comparison_behaviour) (a b : Z) :
+  ocaml_int_in_range (eval_int_comp width behaviour a b) = true.
+Proof.
+  destruct behaviour as [c | s]; cbn [eval_int_comp].
+  - destruct (eval_int_comparison width c a b); reflexivity.
+  - destruct (reading width s a ?= reading width s b); reflexivity.
+Qed.
+
+Section In_range.
+
+Variable statics : static_env.
+
+(* The tag and the fields of a block in range are, whether the block was
+   made by a primitive or is what a symbol is bound to. *)
+Lemma block_of_in_range (arg : value) (tag : Z) (fields : list value) :
+  (∀ (s : symbol) (allocated : statically_allocated_value),
+    Value_symbol s ∈ [arg] ->
+    lookup s (static_values statics) = Some allocated ->
+    allocated_in_range allocated = true) ->
+  value_in_range arg = true ->
+  block_of statics arg = Some (tag, fields) ->
+  tag_in_range tag = true ∧ forallb value_in_range fields = true.
+Proof.
+  intros Hsymbols Harg Hblock.
+  destruct (block_of_cases statics arg tag fields Hblock)
+    as [-> | (s & -> & Hlookup)];
+    apply andb_true_iff.
+  - exact Harg.
+  - exact (Hsymbols s _ (or_introl eq_refl) Hlookup).
+Qed.
+
+(* So is the number inside a boxed number. *)
+Lemma boxed_number_of_in_range (arg : value) (c : const) :
+  (∀ (s : symbol) (allocated : statically_allocated_value),
+    Value_symbol s ∈ [arg] ->
+    lookup s (static_values statics) = Some allocated ->
+    allocated_in_range allocated = true) ->
+  value_in_range arg = true ->
+  boxed_number_of statics arg = Some c ->
+  const_in_range c = true.
+Proof.
+  intros Hsymbols Harg. destruct arg; simpl; try discriminate.
+  - match goal with
+    | |- context [lookup ?s ?values] =>
+      destruct (lookup s values) as [allocated | ] eqn:Hlookup;
+        [ | discriminate ];
+        pose proof (Hsymbols s allocated (or_introl eq_refl) Hlookup)
+          as Hallocated
+    end.
+    destruct allocated; try discriminate.
+    match goal with
+    | contents : value |- _ => destruct contents
+    end;
+      try discriminate.
+    unfold boxable_contents.
+    match goal with
+    | |- context [boxable_number_of_const ?c'] =>
+      destruct (boxable_number_of_const c')
+    end;
+      [ | discriminate ].
+    intros [= <-]. exact Hallocated.
+  - unfold boxable_contents.
+    match goal with
+    | |- context [boxable_number_of_const ?c'] =>
+      destruct (boxable_number_of_const c')
+    end;
+      [ | discriminate ].
+    intros [= <-]. exact Harg.
+Qed.
+
+(* By cases on the unary primitives. *)
+Lemma eval_unary_primitive_in_range (p : unary_primitive) (arg v : value) :
+  (∀ (s : symbol) (allocated : statically_allocated_value),
+    Value_symbol s ∈ [arg] ->
+    lookup s (static_values statics) = Some allocated ->
+    allocated_in_range allocated = true) ->
+  value_in_range arg = true ->
+  eval_unary_primitive statics p arg = Some v ->
+  value_in_range v = true.
+Proof.
+  intros Hsymbols Harg.
+  destruct p as [access field | variant_only | | | kind | kind | kind | | ];
+    cbn [eval_unary_primitive].
+  - unfold eval_block_load. destruct access as [tag size field_kind].
+    destruct (block_of statics arg) as [[block_tag fields] | ] eqn:Hblock;
+      [ | discriminate ].
+    destruct
+      (known_is tag block_tag && known_is size (Z.of_nat (length fields))
+       && (0 <=? field));
+      [ | discriminate ].
+    destruct (nth_error fields (Z.to_nat field)) as [loaded | ] eqn:Hnth;
+      [ | discriminate ].
+    destruct (block_of_in_range arg block_tag fields Hsymbols Harg Hblock)
+      as [_ Hfields].
+    pose proof
+      (proj1 (forallb_forall _ _) Hfields loaded (nth_error_In _ _ Hnth))
+      as Hloaded.
+    destruct
+      (match field_kind with
+       | Any_value => kind_eqb (kind_of_value loaded) Value
+       | Immediate => is_tagged_immediate loaded
+       end);
+      [ | discriminate ].
+    intros [= <-]. exact Hloaded.
+  - destruct (eval_is_int statics variant_only arg); [ | discriminate ].
+    intros [= <-]. apply naked_bool_in_range.
+  - destruct (eval_is_null statics arg); [ | discriminate ].
+    intros [= <-]. apply naked_bool_in_range.
+  - destruct (block_of statics arg) as [[tag fields] | ] eqn:Hblock;
+      [ | discriminate ].
+    intros [= <-]. cbn [value_in_range const_in_range].
+    apply tag_in_range_ocaml_int.
+    exact (proj1 (block_of_in_range arg tag fields Hsymbols Harg Hblock)).
+  - destruct (kind_eqb (kind_of_value arg) kind); [ | discriminate ].
+    destruct (bound_if_symbol statics arg); [ | discriminate ].
+    intros [= <-]. exact Harg.
+  - destruct (boxed_number_of statics arg) as [c | ] eqn:Hboxed;
+      [ | discriminate ].
+    destruct (is_number_of_kind kind c); [ | discriminate ].
+    intros [= <-].
+    exact (boxed_number_of_in_range arg c Hsymbols Harg Hboxed).
+  - destruct arg; try discriminate.
+    match goal with
+    | |- context [is_number_of_kind kind ?c] =>
+      destruct (is_number_of_kind kind c)
+    end;
+      [ | discriminate ].
+    intros [= <-]. exact Harg.
+  - destruct (int_of_value Standard_tagged_immediate arg) as [i | ] eqn:Hint;
+      [ | discriminate ].
+    intros [= <-]. exact (proj2 (int_of_value_const _ _ _ Hint)).
+  - destruct (int_of_value Standard_naked_immediate arg) as [i | ] eqn:Hint;
+      [ | discriminate ].
+    intros [= <-]. exact (proj2 (int_of_value_const _ _ _ Hint)).
+Qed.
+
+(* By cases on the binary primitives. *)
+Lemma eval_binary_primitive_in_range (p : binary_primitive)
+    (arg1 arg2 v : value) :
+  eval_binary_primitive p arg1 arg2 = Some v -> value_in_range v = true.
+Proof.
+  destruct p as [kind op | kind behaviour]; simpl;
+    (destruct (int_of_value kind arg1) as [a | ]; [ | discriminate ]);
+    (destruct (int_of_value kind arg2) as [b | ]; [ | discriminate ]).
+  - destruct (eval_int_arith (int_width kind) op a b) as [result | ]
+      eqn:Harith;
+      [ | discriminate ].
+    intros [= <-]. cbn [value_in_range].
+    rewrite const_in_range_const_of_int.
+    exact
+      (eval_int_arith_in_range _ op a b result (int_width_positive kind)
+         Harith).
+  - intros [= <-]. cbn [value_in_range const_in_range].
+    apply eval_int_comp_in_range.
+Qed.
+
+(* By cases on the variadic primitives. *)
+Lemma eval_variadic_primitive_in_range (p : variadic_primitive)
+    (args : list value) (v : value) :
+  variadic_primitive_in_range p = true ->
+  (∀ arg : value, arg ∈ args -> value_in_range arg = true) ->
+  eval_variadic_primitive statics p args = Some v ->
+  value_in_range v = true.
+Proof.
+  intros Hp Hargs. destruct p as [[tag]].
+  cbn [variadic_primitive_in_range] in Hp. cbn [eval_variadic_primitive].
+  destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) args);
+    [ | discriminate ].
+  destruct (forallb (bound_if_symbol statics) args); [ | discriminate ].
+  intros [= <-]. cbn [value_in_range]. rewrite Hp.
+  apply forallb_forall. exact Hargs.
+Qed.
+
+End In_range.
+
+Theorem eval_prim_in_range : eval_prim_in_range_statement.
+Proof.
+  intros statics p vs v Hp Hsymbols Hargs Heval.
+  destruct (eval_prim_arity statics p vs v Heval)
+    as [(p' & v1 & -> & -> & Hp')
+       | [(p' & v1 & v2 & -> & -> & Hp') | (p' & -> & Hp')]].
+  - apply (eval_unary_primitive_in_range statics p' v1 v);
+      [ exact Hsymbols | | exact Hp' ].
+    apply Hargs. left. reflexivity.
+  - exact (eval_binary_primitive_in_range p' v1 v2 v Hp').
+  - exact
+      (eval_variadic_primitive_in_range statics p' vs v Hp Hargs Hp').
+Qed.
 
 (* ======================================================================== *)
 (* Each primitive has a value somewhere                                     *)
