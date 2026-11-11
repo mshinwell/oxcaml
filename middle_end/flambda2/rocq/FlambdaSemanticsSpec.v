@@ -47,6 +47,23 @@
    from. So a group of bindings may be recursive, and static data cyclic.
    A [Let_static] is executed where it stands; nothing lifts it.
 
+   CR mshinwell: Flambda does not permit a [Let] with the bound pattern
+   [Static] anywhere but at the toplevel of a compilation unit, and this
+   model does: it gives a meaning to a [Let_static] in the body of code
+   or in the handler of a recursive continuation, which no Flambda term
+   has. Toplevel is as Simplify decides it
+   (simplify/simplify_let_cont_expr.ml, at_unit_toplevel): the body of the
+   unit; the body of a [Let] or of a [Let_cont] that is at toplevel; and
+   the handler of a non-recursive continuation, not an exception handler,
+   bound at toplevel, whose body can only return through that
+   continuation and only raise to the exception continuation of the unit,
+   so that the handler postdominates the body. Nothing under a function
+   is. The model needs that as a well-formedness condition on terms.
+   Under it a static binding is executed at most once in a run of a unit,
+   so what a symbol or a code id is bound to never changes once bound,
+   and what is known of the static environment where a handler or a
+   piece of code is defined still holds where it runs.
+
    A continuation with no binding stands for a way out of the term: the
    return or exception continuation of the enclosing unit. Applying one
    ends execution, and the continuation and its arguments are what is
