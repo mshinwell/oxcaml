@@ -146,7 +146,8 @@ TEX
     order => [qw(FlambdaKindModel FlambdaPrimitiveModel FlambdaModel
       FlambdaMapSpec FlambdaValueSpec FlambdaPrimitiveSpec
       FlambdaSemanticsSpec
-      FlambdaWellFormedSpec FlambdaControlFlowSpec FlambdaContextSpec
+      FlambdaWellFormedSpec FlambdaClosuresSpec FlambdaControlFlowSpec
+      FlambdaContextSpec
       FlambdaNominalSpec FlambdaAlphaSpec FlambdaApplySpec FlambdaStaticSpec
       FlambdaCompareSpec FlambdaNormaliseSpec FlambdaUnusedStaticsSpec
       FlambdaValidateSpec FlambdaTypesSpec FlambdaAliasesSpec)],

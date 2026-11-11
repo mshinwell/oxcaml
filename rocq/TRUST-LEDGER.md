@@ -61,7 +61,20 @@ it gave back.
   with the meaning of the one it is given, and to refuse (`Unsupported`)
   what the model has not got, never to approximate it. To be read case by
   case against `terms/`. Workstream V3 owns it and is to add a printer
-  back to fexpr and round-trip tests.
+  back to fexpr and round-trip tests. Of a set of closures it is trusted
+  for three things that no statement covers. The order of the
+  declarations: the functions of a set are given in the order of
+  `Function_declarations.funs_in_order`, and the variables of a `Let`
+  are paired with them by position. The symbols of a static set: each
+  closure symbol of the compiler's pattern is given with the function
+  slot it is bound at; the tool refuses a pattern whose function slots
+  are not those of the set, in order, and `well_formed_unit` checks the
+  result again. And the choice between the model's two presentations of
+  a set: one for a whole unit, the same for the two units of a check,
+  the unnamed one only where every set has one function and no function
+  slot is projected. What the compiler's two patterns expand to is not
+  in the OCaml: it is `let_closures` and `bind_closures`, in Rocq, with
+  statements.
 - **The conversion of primitives**, in the same file (the section
   "Primitives"): one function for each arity of primitive that the model
   has (`convert_unary_primitive`, `convert_binary_primitive` and, once
@@ -95,9 +108,12 @@ it gave back.
   and mask kinds, and poison, are refused, so the tool does not exercise
   what the model says of boxing and unboxing at those kinds.
 - **The numbering of names**, in the same file (`Numbering`, about 30
-  lines): each variable, continuation, symbol, code id and value slot of
-  the compiler gets a number, the same throughout a unit. Trusted: that
-  the compiler's names are fresh, so that one name stands for one thing.
+  lines): each variable, continuation, symbol, code id, value slot and
+  function slot of the compiler gets a number, the same throughout a
+  unit. Trusted: that the compiler's names are fresh, so that one name
+  stands for one thing. A function slot of the compiler may get the
+  number 1, which is also the model's `unnamed_function_slot`; the two
+  are not in one unit, by the choice of presentation above.
 - **The identification of names across the two terms**, in the same
   file (`convert_both` with `code_id_used`, about 70 lines). The two
   units are converted with one numbering, the return and exception

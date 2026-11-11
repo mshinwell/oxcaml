@@ -108,7 +108,7 @@ Each directory is a Rocq library (`rocq/Makefile` maps them):
 | `backend/rocq/`          | `OxCamlBackend`| Backend-wide definitions: the semantics of `Cmm.integer_comparison` (with `IntegerComparisonProofs.v`), the model's copy of `Operation.t` |
 | `backend/ssa/rocq/`      | `OxCamlSsa`    | The SSA graph as the models see it, each model split into Spec, implementation and Proofs files (see "The layout of a model"): `SsaModel.v` (the abstract interface), `SsaGraph*` (terminators, edges and uses), `SsaDominance*` (dominance, paths and program points), `SsaSemantics*` (execution of the restricted integer fragment), `SsaExecution*` (well-formedness and available-value equations), `SsaLiveness*` (reads before redefinition), `SsaProgress*` (the `finished_graph` contract, definedness and progress), `SsaContext*` (opaque surrounding computations and the `reached_header` contract) |
 | `backend/ssa/loop/rocq/` | `OxCamlLoop`   | The loop analyses, each an implementation file and a `*Proofs.v`; the operational proofs in `LoopExecutionProofs.v`, `LoopInvariantExecutionProofs.v`, `LoopCounterExecutionProofs.v`, `LoopValueSnapshotProofs.v`, `LoopGuardExecutionProofs.v`, `LoopRangeExecutionProofs.v`, `LoopLiveOutProofs.v` and `InductionRangeExecutionProofs.v`; the statements to review in `LoopEligibilitySpec.v`, `DeleteEmptyLoopsSpec.v` and `BoundsCheckExecutionSpec.v`, proved in `LoopEligibilityProofs.v`, `DeleteEmptyLoopsProofs.v` and `BoundsCheckExecutionProofs.v`; and `Extract.v`, which extracts the implementation |
-| `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, extracted for its tests only: `FlambdaMap*` (finite maps and sets keyed by names, the one representation of environments), `FlambdaKindModel.v` (the kinds), `FlambdaPrimitiveModel.v` (the primitives of the fragment covered so far), `FlambdaModel.v` (the terms of that fragment), `FlambdaValue*` (the values of the machine, and how an allocated value is read), `FlambdaPrimitive*` (what each primitive computes, and the laws that all of them obey), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaWellFormed*` (static bindings at toplevel only, the well-formedness of a unit; and that what a static name is bound to never changes in a run), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics), `FlambdaContext*` (contexts, and that refinement and equivalence are preserved under them), `FlambdaNominal*` (renamings, free names, and binders as name abstractions), `FlambdaAlpha*` (the group action, equivariance, and alpha-equivalence with its soundness), `FlambdaApply*` (function calls and inlining), `FlambdaStatic*` (first facts about `Let_static`), `FlambdaCompare*` (a decision that two expressions are the same up to bound names, proved sound), `FlambdaNormalise*` (normalising a term by proved rewrites: inlining direct calls of known code, removing unused `Let`s, folding constants), `FlambdaUnusedStatics*` (removing unused static bindings, under environments in which their names do not occur), `FlambdaValidate*` (the whole check of a unit before and after Simplify, and that what it accepts is correct for the unit run on its own); see "The semantics of Flambda 2" below |
+| `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, extracted for its tests only: `FlambdaMap*` (finite maps and sets keyed by names, the one representation of environments), `FlambdaKindModel.v` (the kinds), `FlambdaPrimitiveModel.v` (the primitives of the fragment covered so far), `FlambdaModel.v` (the terms of that fragment), `FlambdaValue*` (the values of the machine, and how an allocated value is read), `FlambdaPrimitive*` (what each primitive computes, and the laws that all of them obey), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaWellFormed*` (the well-formedness of a unit: static bindings at toplevel only, each static name bound once, whole sets of closures; and that what a static name is bound to never changes in a run), `FlambdaClosures*` (sets of closures of several functions: the derived forms that make one, the projections, and what a well-formed unit keeps true of its sets), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics), `FlambdaContext*` (contexts, and that refinement and equivalence are preserved under them), `FlambdaNominal*` (renamings, free names, and binders as name abstractions), `FlambdaAlpha*` (the group action, equivariance, and alpha-equivalence with its soundness), `FlambdaApply*` (function calls and inlining), `FlambdaStatic*` (first facts about `Let_static`), `FlambdaCompare*` (a decision that two expressions are the same up to bound names, proved sound), `FlambdaNormalise*` (normalising a term by proved rewrites: inlining direct calls of known code, removing unused `Let`s, folding constants), `FlambdaUnusedStatics*` (removing unused static bindings, under environments in which their names do not occur), `FlambdaValidate*` (the whole check of a unit before and after Simplify, and that what it accepts is correct for the unit run on its own); see "The semantics of Flambda 2" below |
 | `middle_end/flambda2/types/rocq/` | `OxCamlFlambda2Types` | A first, naive model of Flambda types and typing environments, with nothing extracted: `FlambdaTypes*` (types, what it means to satisfy a typing environment, refinement relative to one, following aliases, going under a `Let`), `FlambdaAliases*` (following aliases through a whole term, an equivalence) |
 
 Put a definition or lemma where its OxCaml counterpart would live. A fact
@@ -441,6 +441,23 @@ be proved correct, built a fragment at a time. The files follow the same Spec/Pr
   (`Value_symbol`), and what it points to is looked up where it is used
   (`closure_of`), so groups may be recursive and static data cyclic.
   Renaming does not touch symbols, code ids or code.
+- A set of closures of several functions has no constructor of `expr`.
+  `Closure_of_set slot function_decls value_slots` makes the closure at
+  one function slot of a new set, `Project_function_slot` goes from a
+  closure to another of its set, and `Project_value_slot_from` reads a
+  value slot. A `Let` of several closures is the derived form
+  `FlambdaModel.let_closures` (the first closure is made, the others are
+  projected from it), and a static set is `bind_closures` (one
+  `Bind_symbol` for each symbol, each repeating the set). Read a value
+  as a closure through `closure_of` (its code and value slots) or
+  `closure_in_set` (its slot and its set). The older forms
+  (`Set_of_closures`, `Project_value_slot`,
+  `Static_const_set_of_closures`) are a set of one function whose slot
+  has no name; they are to be deleted, so write new statements with the
+  named forms. The terms can write sets that the compiler cannot make:
+  `FlambdaWellFormedSpec.sets_well_formed` refuses them, and
+  `FlambdaClosuresSpec.v` has what the run of a well-formed unit keeps
+  true of its sets.
 - The body of code bound by a `Let_static` may be rewritten: a context may
   have its hole in code (`Let_static_code`), and `plug_refines` covers it
   (`FlambdaStaticSpec.v`: `let_static_code_refines`). The proof relates
@@ -627,7 +644,7 @@ containment is proved); equivariance of execution in the continuations
 invariant that bound names are distinct from those in scope;
 removing an unused static binding (which needs the free symbols and code
 ids of terms, code and values); rewriting the body of code by what is
-known of the static environment; sets of closures of several functions; kinds on
+known of the static environment; kinds on
 parameters and well-kindedness; mutable memory and effects, trap actions,
 and any link to the simplifier's code.
 
