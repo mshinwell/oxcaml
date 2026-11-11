@@ -95,6 +95,12 @@
    ([values_are_read], FlambdaJoinSpec.v). How the two sets are related
    is not stated here; see the CRs.
 
+   - The join up to what it adds to the target
+     ([cut_and_n_way_join0_true_statement]): the first phases
+     ([first_phases_true_statement], FlambdaJoinStateSpec.v), which
+     also keep the state kinded ([first_phases_kinded_statement]),
+     and then this phase.
+
    Not here yet: that the two extensions fit the environment that they
    are added to (the variables of their types are variables of the
    target, at their kinds), which the functions of the meet's
@@ -317,6 +323,159 @@ Definition define_variables_true_statement : Prop :=
          binding
          ∈ Bindings_in_target_env.existential_variables_in_order
              (Join_env.bindings s))
+      ∧ Join_env.add_env_extension ops
+          (variables_defined ops menv
+             (Bindings_in_target_env.imported_variables_in_order
+                (Join_env.bindings s)
+              ++ kept))
+          (Env_extension equations) mh
+        = Some menv'
+      ∧ Join_env.add_env_extension ops menv' (Env_extension relation_equations)
+          mh
+        = Some target
+      ∧ ∀ (index : Index.t) (use : Typing_env.t) (statics : static_env)
+          (valuation : env),
+          Join_env.joined_env s index = Some use ->
+          typing_env_satisfied_strictly statics valuation use ->
+          tags_at s use statics valuation ->
+          aliases_have_values s index use valuation ->
+          relation_scrutinees_have_values s relations index use valuation ->
+          equations_true_at statics (target_valuation s index use valuation)
+            equations
+          ∧ equations_true_at statics
+              (target_valuation s index use valuation) relation_equations
+          ∧ definitions_hold definitions index valuation
+              (target_valuation s index use valuation).
+
+(* ======================================================================== *)
+(* The join, up to what it adds to the target                               *)
+(* ======================================================================== *)
+
+(* The first phases keep the state kinded, under the premises of
+   [first_phases_true_statement] (FlambdaJoinStateSpec.v). The last
+   phase needs it: the value that a variable that the join has made
+   has at an input is of the kind of the variable. *)
+Definition first_phases_kinded_statement : Prop :=
+  ∀ (source : Typing_env.t) (jt : Join_env.n_way_join_type)
+    (choices : Join_env.choices) (p : Join_env.parameters) (fuel : nat)
+    (avoid : list variable) (envs : Joined_envs.t) (s1 s2 s3 : Join_env.t)
+    (relations2 relations3 : Join_env.inverse_relations),
+    n_way_join_type_sound typing_env_invariant Join_env.joined_env
+      Join_env.definitions_of_existentials kind_in_target_env
+      (state_true source) state_kinded jt ->
+    fresh_avoids p ->
+    parameters_type_eqb_sound p ->
+    expand_const_sound p ->
+    (∀ x : variable, knows source x -> x ∈ avoid) ->
+    (∀ (index : Index.t) (use : Typing_env.t) (x : variable),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       knows use x ->
+       x ∈ avoid) ->
+    (∀ (index : Index.t) (use : Typing_env.t),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       typing_env_invariant use) ->
+    (∀ (index : Index.t) (use : Typing_env.t),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       typing_env_kinded use) ->
+    levels_found envs ->
+    (∀ (index : Index.t) (use : Typing_env.t) (x : variable)
+       (kind : flambda_kind) (ty : flambda_type)
+       (binding_time_and_mode : Binding_time.With_name_mode.t),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       simple_of_kind use (Var x) kind ->
+       Keyed.lookup name_eqb (Name_var x) (Typing_env.names_to_types source)
+       = Some (ty, binding_time_and_mode) ->
+       FlambdaTypeGrammar.kind ty = kind) ->
+    Join_env.join_aliases_into_bindings p fuel
+      (Join_env.create envs
+         (Bindings_in_target_env.from_source_env avoid source))
+      envs
+    = Some s1 ->
+    Join_env.n_way_join_delayed_equations fuel choices jt s1 []
+      (Join_env.new_equations_in_joined_envs s1
+         (Join_env.create envs
+            (Bindings_in_target_env.from_source_env avoid source)))
+    = Some (relations2, s2) ->
+    Join_env.n_way_join_loop (Join_env.join_depth p) p fuel choices jt s2
+      relations2
+      (Join_env.new_definitions_of_existentials s2
+         (Join_env.create envs
+            (Bindings_in_target_env.from_source_env avoid source)))
+    = Some (relations3, s3) ->
+    state_kinded s3.
+
+
+(* [cut_and_n_way_join0], where there is an environment to join, given
+   a join of types that meets its contract with the invariant, and
+   joined environments as [first_phases_true_statement] asks. There is
+   a state that has the invariant, is kinded, and has grown from the
+   state that the join starts from, and relations that are true of
+   it, such that: the names answered are the names to avoid of that
+   state; the target answered is the environment given, with the
+   variables brought in and some of the variables made defined in it,
+   and two extensions added; and at the run of an input that has the
+   two conditions, and whose blocks have tags in range, the equations
+   of the two extensions are true where their variables have values,
+   and the definitions answered hold, in the valuation of the target
+   that the state gives. Nothing is said of what the functions of the
+   meet's environment answer. *)
+Definition cut_and_n_way_join0_true_statement : Prop :=
+  ∀ (meet_env meet_expanded_head : Type)
+    (ops : Join_env.meet_env_functions meet_env meet_expanded_head)
+    (p : Join_env.parameters) (fuel : nat) (choices : Join_env.choices)
+    (jt : Join_env.n_way_join_type) (mh : meet_expanded_head)
+    (avoid : list variable) (menv target : meet_env) (source : Typing_env.t)
+    (envs : Joined_envs.t)
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind))
+    (names : list variable),
+    n_way_join_type_sound typing_env_invariant Join_env.joined_env
+      Join_env.definitions_of_existentials kind_in_target_env
+      (state_true source) state_kinded jt ->
+    fresh_avoids p ->
+    parameters_type_eqb_sound p ->
+    expand_const_sound p ->
+    (∀ x : variable, knows source x -> x ∈ avoid) ->
+    (∀ (index : Index.t) (use : Typing_env.t) (x : variable),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       knows use x ->
+       x ∈ avoid) ->
+    (∀ (index : Index.t) (use : Typing_env.t),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       typing_env_invariant use) ->
+    (∀ (index : Index.t) (use : Typing_env.t),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       typing_env_kinded use) ->
+    levels_found envs ->
+    (∀ (index : Index.t) (use : Typing_env.t) (x : variable)
+       (kind : flambda_kind) (ty : flambda_type)
+       (binding_time_and_mode : Binding_time.With_name_mode.t),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       simple_of_kind use (Var x) kind ->
+       Keyed.lookup name_eqb (Name_var x) (Typing_env.names_to_types source)
+       = Some (ty, binding_time_and_mode) ->
+       FlambdaTypeGrammar.kind ty = kind) ->
+    Keyed.is_empty envs = false ->
+    Join_env.cut_and_n_way_join0 ops p fuel choices jt mh avoid menv source
+      envs
+    = Some (target, definitions, names) ->
+    ∃ (s : Join_env.t) (relations : Join_env.inverse_relations)
+      (kept : list (variable * flambda_kind))
+      (equations relation_equations : list (name * flambda_type))
+      (menv' : meet_env),
+      state_true source s
+      ∧ state_kinded s
+      ∧ relations_hold s relations
+      ∧ state_grows Join_env.joined_env Join_env.definitions_of_existentials
+          kind_in_target_env
+          (Join_env.create envs
+             (Bindings_in_target_env.from_source_env avoid source))
+          s
+      ∧ names = Bindings_in_target_env.names_to_avoid (Join_env.bindings s)
+      ∧ (∀ binding : variable * flambda_kind,
+           binding ∈ kept ->
+           binding
+           ∈ Bindings_in_target_env.existential_variables_in_order
+               (Join_env.bindings s))
       ∧ Join_env.add_env_extension ops
           (variables_defined ops menv
              (Bindings_in_target_env.imported_variables_in_order

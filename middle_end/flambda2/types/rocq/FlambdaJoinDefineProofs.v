@@ -1731,3 +1731,538 @@ Proof.
   - exact (proj2 (proj2 (proj2 Hinvariant))).
 Qed.
 
+Abbreviation envs_invariant := (joined_envs_are typing_env_invariant).
+Abbreviation envs_kinded := (joined_envs_are typing_env_kinded).
+
+(* ---------------------------------------------------------------------- *)
+(* The first phases keep the state kinded                                  *)
+(* ---------------------------------------------------------------------- *)
+
+Lemma import_or_delay_kinded (p : Join_env.parameters) (fuel : nat)
+    (s s' : Join_env.t) (var : variable)
+    (types : Keyed.finite_map Index.t flambda_type) :
+  fresh_avoids p ->
+  state_valid s ->
+  state_kinded s ->
+  envs_invariant s ->
+  envs_kinded s ->
+  types_hold s var types ->
+  (∀ (index index' : Index.t) (t t' : flambda_type),
+     Keyed.lookup Index.equal index types = Some t ->
+     Keyed.lookup Index.equal index' types = Some t' ->
+     FlambdaTypeGrammar.kind t = FlambdaTypeGrammar.kind t') ->
+  Join_env.import_or_delay_n_way_join_type p fuel s var types = Some s' ->
+  state_kinded s'.
+Proof.
+  intros Hfresh Hvalid Hstate Hinvariant Hkinded Htypes Hkinds Himport.
+  unfold Join_env.import_or_delay_n_way_join_type,
+    Join_env.import_or_delay_n_way_join_type_with in Himport.
+  destruct (Index.choose types) as [[index0 any_ty] | ] eqn:Hchoose;
+    [ | discriminate ].
+  destruct
+    (Joined_envs.get_alias_then_canonical_simple_ignoring_name_mode_exn
+       (Join_env.joined_envs s) types)
+    as [[canonicals | ] | ] eqn:Hcanonicals; [ | | discriminate ].
+  - apply (add_equals_keeps_kinded p _ s s' (FlambdaTypeGrammar.kind any_ty)
+             var canonicals Hfresh (import_var_keeps p fuel Hfresh)
+             (import_var_keeps_kinded p fuel Hfresh) Hvalid Hstate Hinvariant
+             Hkinded); [ | exact Himport ].
+    intros index c use Hfind Huse.
+    apply (keyed_lookup_in Index.equal index_equal_decides) in Hfind.
+    destruct (canonicals_of_alias_types_spec _ _ _ Hcanonicals _ _ Hfind)
+      as [ty [env [alias [Hin [Hnth [Halias ->]]]]]].
+    change (Join_env.joined_env s index = Some env) in Hnth.
+    rewrite Huse in Hnth. injection Hnth as <-.
+    apply (keyed_in_compact Index.equal index_equal_decides) in Hin.
+    destruct (proj1 (proj2 Htypes) index ty Hin) as [use' [Huse' [_ Hty]]].
+    rewrite Huse in Huse'. injection Huse' as <-.
+    apply (canonical_kinded use alias _ (Hinvariant _ _ Huse)
+             (Hkinded _ _ Huse)).
+    rewrite <- (Hkinds index index0 ty any_ty Hin
+                  (choose_lookup _ _ _ Hchoose)).
+    exact (Hty alias _ (get_alias_in_aliases _ _ Halias)).
+  - exact (concrete_keeps_kinded p _ s s' var types
+             (import_var_keeps p fuel Hfresh)
+             (import_var_keeps_kinded p fuel Hfresh) Hvalid Hstate Hinvariant
+             Hkinded Himport).
+Qed.
+
+Lemma join_aliases_fold_kinded (p : Join_env.parameters) (fuel : nat)
+    (s0 : Join_env.t) (envs : Joined_envs.t) (exists0 : variable -> bool) :
+  fresh_avoids p ->
+  parameters_type_eqb_sound p ->
+  envs_invariant s0 ->
+  envs_kinded s0 ->
+  ∀ (names : list name) (s s' : Join_env.t),
+    (∀ x : variable,
+       Name_var x ∈ names ->
+       exists0 x = true ->
+       types_hold s0 x (Join_env.types_of_name_in_levels envs (Name_var x))
+       ∧ ∀ (index index' : Index.t) (t t' : flambda_type),
+           Keyed.lookup Index.equal index
+             (Join_env.types_of_name_in_levels envs (Name_var x))
+           = Some t ->
+           Keyed.lookup Index.equal index'
+             (Join_env.types_of_name_in_levels envs (Name_var x))
+           = Some t' ->
+           FlambdaTypeGrammar.kind t = FlambdaTypeGrammar.kind t') ->
+    later s0 s ->
+    state_holds s ->
+    state_kinded s ->
+    List.fold_left
+      (fun env name =>
+         let* env := env in
+         match name with
+         | Name_symbol _ => Some env
+         | Name_var var =>
+           if exists0 var
+           then
+             Join_env.import_or_delay_n_way_join_type p fuel env var
+               (Join_env.types_of_name_in_levels envs name)
+           else Some env
+         end)
+      names (Some s)
+    = Some s' ->
+    state_kinded s'.
+Proof.
+  intros Hfresh Heqb Hinvariant0 Hkinded0.
+  induction names as [ | n names IH];
+    intros s s' Hnames Hlater Hholds Hstate Hfold.
+  - injection Hfold as <-. exact Hstate.
+  - cbn [List.fold_left] in Hfold.
+    assert (Hrest :
+              ∀ x : variable,
+                Name_var x ∈ names ->
+                exists0 x = true ->
+                types_hold s0 x
+                  (Join_env.types_of_name_in_levels envs (Name_var x))
+                ∧ ∀ (index index' : Index.t) (t t' : flambda_type),
+                    Keyed.lookup Index.equal index
+                      (Join_env.types_of_name_in_levels envs (Name_var x))
+                    = Some t ->
+                    Keyed.lookup Index.equal index'
+                      (Join_env.types_of_name_in_levels envs (Name_var x))
+                    = Some t' ->
+                    FlambdaTypeGrammar.kind t = FlambdaTypeGrammar.kind t').
+    { intros x Hx. exact (Hnames x (or_intror Hx)). }
+    destruct n as [x | sym];
+      [ | exact (IH s s' Hrest Hlater Hholds Hstate Hfold) ].
+    destruct (exists0 x) eqn:Hexists;
+      [ | exact (IH s s' Hrest Hlater Hholds Hstate Hfold) ].
+    destruct (Join_env.import_or_delay_n_way_join_type p fuel s x
+                (Join_env.types_of_name_in_levels envs (Name_var x)))
+      as [s1 | ] eqn:Hs1.
+    + destruct (Hnames x (or_introl eq_refl) Hexists) as [Htypes Hkinds].
+      pose proof (later_envs_invariant _ _ Hlater Hinvariant0) as Hinvariant.
+      pose proof (later_envs_kinded _ _ Hlater Hkinded0) as Hkinded.
+      pose proof (later_types_hold _ _ _ _ Hlater Htypes) as Htypes_s.
+      destruct (import_or_delay_holds p fuel s s1 x _ Hfresh Heqb
+                  (proj1 (proj2 Hlater)) Hinvariant Hkinded Hholds Htypes_s
+                  Hkinds Hs1) as [Hlater1 Hholds1].
+      exact (IH s1 s' Hrest (later_trans _ _ _ Hlater Hlater1) Hholds1
+               (import_or_delay_kinded p fuel s s1 x _ Hfresh
+                  (proj1 (proj2 Hlater)) Hstate Hinvariant Hkinded Htypes_s
+                  Hkinds Hs1)
+               Hfold).
+    + exfalso. clear -Hfold.
+      induction names as [ | n' names IH]; [ discriminate | exact (IH Hfold) ].
+Qed.
+
+Lemma join_aliases_kinded (p : Join_env.parameters) (fuel : nat)
+    (s0 s' : Join_env.t) :
+  fresh_avoids p ->
+  parameters_type_eqb_sound p ->
+  state_valid s0 ->
+  state_kinded s0 ->
+  envs_invariant s0 ->
+  envs_kinded s0 ->
+  state_holds s0 ->
+  levels_found (Join_env.joined_envs s0) ->
+  (∀ x : variable,
+     exists_in_target_env kind_in_target_env s0 x = true ->
+     knows (Join_env.source_env s0) x) ->
+  Join_env.join_aliases_into_bindings p fuel s0 (Join_env.joined_envs s0)
+  = Some s' ->
+  state_kinded s'.
+Proof.
+  intros Hfresh Heqb Hvalid0 Hstate0 Hinvariant0 Hkinded0 Hholds0 Hlevels
+    Hsource Hjoin.
+  apply (join_aliases_fold_kinded p fuel s0 (Join_env.joined_envs s0)
+           (Bindings_in_target_env.exists_in_target_env (Join_env.bindings s0))
+           Hfresh Heqb Hinvariant0 Hkinded0
+           (Join_env.names_with_equations_everywhere (Join_env.joined_envs s0))
+           s0 s');
+    [ | exact (later_refl s0 Hvalid0) | exact Hholds0 | exact Hstate0
+      | exact Hjoin ].
+  intros x Hx Hexists. rewrite <- kind_in_target_env_exists in Hexists.
+  pose proof (Hsource x Hexists) as Hknown.
+  split.
+  - exact (level_types_hold s0 x Hvalid0 Hinvariant0 Hkinded0 Hlevels Hknown
+             Hx).
+  - exact (level_types_one_kind s0 x Hstate0 Hlevels Hknown).
+Qed.
+
+Section Rounds_kinded.
+
+Context (source : Typing_env.t) (jt : Join_env.n_way_join_type)
+  (choices : Join_env.choices).
+
+Hypothesis jt_sound :
+  FlambdaJoinSpec.n_way_join_type_sound typing_env_invariant
+    Join_env.joined_env Join_env.definitions_of_existentials
+    kind_in_target_env (state_true source) state_kinded jt.
+
+Lemma join_call_kinded (s s0 : Join_env.t) (var : variable)
+    (types : Keyed.finite_map Index.t flambda_type)
+    (joined : Or_unknown.t flambda_type) :
+  state_true source s ->
+  envs_invariant s ->
+  envs_kinded s ->
+  types_hold s var types ->
+  state_kinded s ->
+  jt s (Index.bindings types) = Some (joined, s0) ->
+  state_kinded s0.
+Proof.
+  intros Htrue Hinvariant Hkinded [Hvar [Hfound _]] Hstate Hjoin.
+  assert (Hscope :
+            join_args_in_scope Join_env.joined_env type_in_scope s
+              (Index.bindings types)).
+  { intros index t Hin. apply bindings_lookup in Hin.
+    destruct (Hfound _ _ Hin) as [use [Huse [Hscope _]]].
+    exists use. split; [ exact Huse | exact Hscope ]. }
+  assert (Hkinds :
+            join_args_in_scope Join_env.joined_env type_kinded s
+              (Index.bindings types)).
+  { intros index t Hin. apply bindings_lookup in Hin.
+    destruct (Hfound _ _ Hin) as [use [Huse [_ Hkind]]].
+    exists use. split; [ exact Huse | exact Hkind ]. }
+  destruct (jt_sound s s0 (Index.bindings types) joined Htrue Hinvariant
+              Hkinded (bindings_distinct types) Hscope Hkinds Hjoin)
+    as [_ [_ [_ Hkinded0]]].
+  exact (proj1 (Hkinded0 Hstate)).
+Qed.
+
+Lemma round_fold_kinded :
+  ∀ (bindings : list (variable * Keyed.finite_map Index.t flambda_type))
+    (s s' : Join_env.t) (relations relations' : Join_env.inverse_relations),
+    (∀ (var : variable) (types : Keyed.finite_map Index.t flambda_type),
+       In (var, types) bindings -> types_hold s var types) ->
+    state_true source s ->
+    envs_invariant s ->
+    envs_kinded s ->
+    relations_hold s relations ->
+    state_kinded s ->
+    List.fold_left (round_step jt choices) bindings (Some (relations, s))
+    = Some (relations', s') ->
+    state_kinded s'.
+Proof.
+  induction bindings as [ | [var types] bindings IH];
+    intros s s' relations relations' Htypes Htrue Hinvariant Hkinded
+      Hrelations Hstate Hfold.
+  - cbn in Hfold. injection Hfold as _ <-. exact Hstate.
+  - cbn [List.fold_left] in Hfold.
+    destruct (round_step jt choices (Some (relations, s)) (var, types))
+      as [[relations1 s1] | ] eqn:Hstep;
+      [ | rewrite round_step_none in Hfold; discriminate ].
+    destruct (round_fold_holds source jt choices jt_sound [(var, types)] s s1
+                relations relations1
+                (fun v t Hin =>
+                   Htypes v t
+                     (or_introl
+                        (match Hin with
+                         | or_introl H => H
+                         | or_intror H => match H with end
+                         end)))
+                Htrue Hinvariant Hkinded Hrelations Hstep)
+      as [Hlater1 [Hholds1 Hrelations1]].
+    assert (Hstate1 : state_kinded s1).
+    { unfold round_step in Hstep. cbn [fst snd] in Hstep.
+      destruct (jt s (Index.bindings types)) as [[joined s0] | ] eqn:Hjoin;
+        [ | discriminate ].
+      pose proof (join_call_kinded s s0 var types joined Htrue Hinvariant
+                    Hkinded (Htypes var types (or_introl eq_refl)) Hstate
+                    Hjoin) as Hstate0.
+      destruct joined as [ty | ].
+      - destruct (Join_env.recover_relations_on choices s0 var types).
+        + destruct (Join_env.recover_inverse_relations relations
+                      (Name_var var) ty)
+            as [[ty' relations0] | ]; [ | discriminate ].
+          destruct (Join_env.add_equation_in_target_env s0 var ty')
+            as [s2 | ] eqn:Hadd; [ | discriminate ].
+          injection Hstep as _ <-.
+          exact (add_equation_keeps_kinded _ _ _ _ Hstate0 Hadd).
+        + destruct (Join_env.add_equation_in_target_env s0 var ty)
+            as [s2 | ] eqn:Hadd; [ | discriminate ].
+          injection Hstep as _ <-.
+          exact (add_equation_keeps_kinded _ _ _ _ Hstate0 Hadd).
+      - injection Hstep as _ <-. exact Hstate0. }
+    exact (IH s1 s' relations1 relations'
+             (fun v t Hin =>
+                later_types_hold _ _ _ _ Hlater1 (Htypes v t (or_intror Hin)))
+             (later_true source s s1 Hlater1 Hholds1 (proj2 (proj2 Htrue)))
+             (later_envs_invariant _ _ Hlater1 Hinvariant)
+             (later_envs_kinded _ _ Hlater1 Hkinded) Hrelations1 Hstate1
+             Hfold).
+Qed.
+
+Lemma delayed_equations_kinded :
+  ∀ (fuel : nat) (s s' : Join_env.t)
+    (equations : finite_map (Keyed.finite_map Index.t flambda_type))
+    (relations relations' : Join_env.inverse_relations),
+    (∀ (var : variable) (types : Keyed.finite_map Index.t flambda_type),
+       lookup var equations = Some types -> types_hold s var types) ->
+    state_true source s ->
+    envs_invariant s ->
+    envs_kinded s ->
+    relations_hold s relations ->
+    state_kinded s ->
+    Join_env.n_way_join_delayed_equations fuel choices jt s relations
+      equations
+    = Some (relations', s') ->
+    state_kinded s'.
+Proof.
+  induction fuel as [ | fuel IH];
+    intros s s' equations relations relations' Htypes Htrue Hinvariant Hkinded
+      Hrelations Hstate Hloop; [ discriminate | ].
+  cbn [Join_env.n_way_join_delayed_equations] in Hloop.
+  destruct (Keyed.is_empty equations).
+  - injection Hloop as _ <-. exact Hstate.
+  - destruct (Join_env.n_way_join_round choices jt s equations relations)
+      as [[relations1 s1] | ] eqn:Hround; [ | discriminate ].
+    destruct (round_holds source jt choices jt_sound s s1 equations relations
+                relations1 Htypes Htrue Hinvariant Hkinded Hrelations Hround)
+      as [Hlater1 [Hholds1 Hrelations1]].
+    assert (Hstate1 : state_kinded s1).
+    { apply (round_fold_kinded (compact equations) s s1 relations relations1);
+        [ | exact Htrue | exact Hinvariant | exact Hkinded | exact Hrelations
+          | exact Hstate | exact Hround ].
+      intros var types Hin. apply Htypes. apply in_compact. exact Hin. }
+    assert (Htypes1 :
+              ∀ (var : variable)
+                (types : Keyed.finite_map Index.t flambda_type),
+                lookup var (Join_env.new_equations_in_joined_envs s1 s)
+                = Some types ->
+                types_hold s1 var types).
+    { intros var types Hvar.
+      unfold Join_env.new_equations_in_joined_envs in Hvar.
+      rewrite lookup_filter_bindings in Hvar.
+      destruct (lookup var (Join_env.types_in_joined_envs s1))
+        as [types1 | ] eqn:Hlookup; [ | discriminate ].
+      destruct (negb (is_bound var (Join_env.types_in_joined_envs s)));
+        [ | discriminate ].
+      injection Hvar as <-.
+      exact (proj1 (proj2 Hholds1) var types1 Hlookup). }
+    exact (IH s1 s' _ relations1 relations' Htypes1
+             (later_true source s s1 Hlater1 Hholds1 (proj2 (proj2 Htrue)))
+             (later_envs_invariant _ _ Hlater1 Hinvariant)
+             (later_envs_kinded _ _ Hlater1 Hkinded) Hrelations1 Hstate1
+             Hloop).
+Qed.
+
+Lemma loop_kinded (p : Join_env.parameters) :
+  expand_const_sound p ->
+  ∀ (depth fuel : nat) (s s' : Join_env.t)
+    (relations relations' : Join_env.inverse_relations)
+    (existentials : finite_map (Simples_in_joined_envs.t * flambda_kind)),
+    (∀ (x : variable) (definition : Simples_in_joined_envs.t * flambda_kind),
+       lookup x existentials = Some definition ->
+       lookup x (Join_env.definitions_of_existentials s) = Some definition) ->
+    state_true source s ->
+    envs_invariant s ->
+    envs_kinded s ->
+    relations_hold s relations ->
+    state_kinded s ->
+    Join_env.n_way_join_loop depth p fuel choices jt s relations existentials
+    = Some (relations', s') ->
+    state_kinded s'.
+Proof.
+  intros Hconst.
+  induction depth as [ | depth IH];
+    intros fuel s s' relations relations' existentials Hdefinitions Htrue
+      Hinvariant Hkinded Hrelations Hstate Hloop;
+    cbn [Join_env.n_way_join_loop] in Hloop.
+  - injection Hloop as _ <-. exact Hstate.
+  - destruct (Keyed.is_empty existentials).
+    { injection Hloop as _ <-. exact Hstate. }
+    destruct (Join_env.equations_of_existentials p s (compact existentials))
+      as [equations | ] eqn:Hequations; [ | discriminate ].
+    destruct (Join_env.n_way_join_delayed_equations fuel choices jt s
+                relations equations)
+      as [[relations1 s1] | ] eqn:Hdelayed; [ | discriminate ].
+    assert (Htypes :
+              ∀ (var : variable)
+                (types : Keyed.finite_map Index.t flambda_type),
+                lookup var equations = Some types -> types_hold s var types).
+    { intros var types Hvar.
+      destruct (equations_of_existentials_lookup p s _ _ Hequations _ _ Hvar)
+        as [simples [kind [Hin Hfind]]].
+      apply in_compact in Hin.
+      exact (existential_types_hold p s var simples kind types Hconst
+               (proj1 Htrue) (proj1 (proj2 Htrue)) Hinvariant Hkinded
+               (Hdefinitions _ _ Hin) Hfind). }
+    destruct (delayed_equations_hold source jt choices jt_sound fuel s s1
+                equations relations relations1 Htypes Htrue Hinvariant Hkinded
+                Hrelations Hdelayed) as [Hlater1 [Hholds1 Hrelations1]].
+    pose proof (delayed_equations_kinded fuel s s1 equations relations
+                  relations1 Htypes Htrue Hinvariant Hkinded Hrelations Hstate
+                  Hdelayed) as Hstate1.
+    assert (Hdefinitions1 :
+              ∀ (x : variable)
+                (definition : Simples_in_joined_envs.t * flambda_kind),
+                lookup x (Join_env.new_definitions_of_existentials s1 s)
+                = Some definition ->
+                lookup x (Join_env.definitions_of_existentials s1)
+                = Some definition).
+    { intros x definition Hx.
+      unfold Join_env.new_definitions_of_existentials in Hx.
+      rewrite lookup_filter_bindings in Hx.
+      destruct (lookup x (Join_env.definitions_of_existentials s1))
+        as [definition1 | ]; [ | discriminate ].
+      destruct (negb (is_bound x (Join_env.definitions_of_existentials s)));
+        [ | discriminate ].
+      exact Hx. }
+    exact (IH fuel s1 s' relations1 relations' _ Hdefinitions1
+             (later_true source s s1 Hlater1 Hholds1 (proj2 (proj2 Htrue)))
+             (later_envs_invariant _ _ Hlater1 Hinvariant)
+             (later_envs_kinded _ _ Hlater1 Hkinded) Hrelations1 Hstate1
+             Hloop).
+Qed.
+
+End Rounds_kinded.
+
+Theorem first_phases_kinded : first_phases_kinded_statement.
+Proof.
+  intros source jt choices p fuel avoid envs s1 s2 s3 relations2 relations3
+    Hjt Hfresh Heqb Hconst Hsource Huses Hinvariant Hkinded Hlevels Hkinds
+    Haliases Hdelayed Hloop.
+  set (s0 :=
+         Join_env.create envs
+           (Bindings_in_target_env.from_source_env avoid source)) in *.
+  pose proof (created_state_true avoid source envs Hsource Huses) as Htrue0.
+  fold s0 in Htrue0.
+  pose proof (created_state_kinded avoid source envs Hkinds) as Hstate0.
+  fold s0 in Hstate0.
+  assert (Hknown0 :
+            ∀ x : variable,
+              exists_in_target_env kind_in_target_env s0 x = true ->
+              knows source x).
+  { intros x Hx. rewrite kind_in_target_env_exists in Hx.
+    unfold s0, Join_env.create, Bindings_in_target_env.exists_in_target_env,
+      Bindings_in_target_env.from_source_env in Hx.
+    cbn in Hx. rewrite !orb_false_r in Hx. exact Hx. }
+  assert (Hinvariant0 : envs_invariant s0) by exact Hinvariant.
+  assert (Hkinded0 : envs_kinded s0) by exact Hkinded.
+  destruct (join_aliases_true p fuel source s0 s1 Hfresh Heqb Htrue0 Hstate0
+              Hinvariant Hkinded Hlevels Hknown0 Haliases)
+    as [Htrue1 Hgrows1].
+  pose proof (join_aliases_kinded p fuel s0 s1 Hfresh Heqb (proj1 Htrue0)
+                Hstate0 Hinvariant0 Hkinded0 (proj1 (proj2 Htrue0)) Hlevels
+                Hknown0 Haliases) as Hstate1.
+  assert (Hlater1 : later s0 s1).
+  { split; [ exact (proj1 Htrue0) | ]. split; [ exact (proj1 Htrue1) | ].
+    split; [ exact Hgrows1 | ].
+    rewrite (proj2 (proj2 Htrue1)). symmetry. exact (proj2 (proj2 Htrue0)). }
+  assert (Htypes1 :
+            ∀ (var : variable)
+              (types : Keyed.finite_map Index.t flambda_type),
+              lookup var (Join_env.new_equations_in_joined_envs s1 s0)
+              = Some types ->
+              types_hold s1 var types).
+  { intros var types Hvar.
+    unfold Join_env.new_equations_in_joined_envs in Hvar.
+    rewrite lookup_filter_bindings in Hvar.
+    destruct (lookup var (Join_env.types_in_joined_envs s1))
+      as [types1 | ] eqn:Hlookup; [ | discriminate ].
+    destruct (negb (is_bound var (Join_env.types_in_joined_envs s0)));
+      [ | discriminate ].
+    injection Hvar as <-.
+    exact (proj1 (proj2 (proj1 (proj2 Htrue1))) var types1 Hlookup). }
+  assert (Hrelations1 : relations_hold s1 []).
+  { intros r relation n [recorded [Hlookup _]]. discriminate. }
+  pose proof (later_envs_invariant _ _ Hlater1 Hinvariant0) as Hinvariant1.
+  pose proof (later_envs_kinded _ _ Hlater1 Hkinded0) as Hkinded1.
+  destruct (delayed_equations_hold source jt choices Hjt fuel s1 s2 _ []
+              relations2 Htypes1 Htrue1 Hinvariant1 Hkinded1 Hrelations1
+              Hdelayed) as [Hlater2 [Hholds2 Hrelations2]].
+  pose proof (delayed_equations_kinded source jt choices Hjt fuel s1 s2 _ []
+                relations2 Htypes1 Htrue1 Hinvariant1 Hkinded1 Hrelations1
+                Hstate1 Hdelayed) as Hstate2.
+  pose proof (later_trans _ _ _ Hlater1 Hlater2) as Hlater02.
+  assert (Hdefinitions2 :
+            ∀ (x : variable)
+              (definition : Simples_in_joined_envs.t * flambda_kind),
+              lookup x (Join_env.new_definitions_of_existentials s2 s0)
+              = Some definition ->
+              lookup x (Join_env.definitions_of_existentials s2)
+              = Some definition).
+  { intros x definition Hx.
+    unfold Join_env.new_definitions_of_existentials in Hx.
+    rewrite lookup_filter_bindings in Hx.
+    destruct (lookup x (Join_env.definitions_of_existentials s2))
+      as [definition2 | ]; [ | discriminate ].
+    destruct (negb (is_bound x (Join_env.definitions_of_existentials s0)));
+      [ | discriminate ].
+    exact Hx. }
+  exact (loop_kinded source jt choices Hjt p Hconst (Join_env.join_depth p)
+           fuel s2 s3 relations2 relations3 _ Hdefinitions2
+           (later_true source s1 s2 Hlater2 Hholds2 (proj2 (proj2 Htrue1)))
+           (later_envs_invariant _ _ Hlater02 Hinvariant0)
+           (later_envs_kinded _ _ Hlater02 Hkinded0) Hrelations2 Hstate2
+           Hloop).
+Qed.
+
+(* ---------------------------------------------------------------------- *)
+(* The join, up to what it adds to the target                              *)
+(* ---------------------------------------------------------------------- *)
+
+Theorem cut_and_n_way_join0_true : cut_and_n_way_join0_true_statement.
+Proof.
+  intros meet_env meet_expanded_head ops p fuel choices jt mh avoid menv
+    target source envs definitions names Hjt Hfresh Heqb Hconst Hsource Huses
+    Hinvariant Hkinded Hlevels Hkinds Hempty Hjoin.
+  unfold Join_env.cut_and_n_way_join0 in Hjoin. rewrite Hempty in Hjoin.
+  cbv zeta in Hjoin.
+  set (s0 :=
+         Join_env.create envs
+           (Bindings_in_target_env.from_source_env avoid source)) in *.
+  destruct (Join_env.join_aliases_into_bindings p fuel s0 envs) as [s1 | ]
+    eqn:Haliases; [ | discriminate ].
+  destruct (Join_env.n_way_join_delayed_equations fuel choices jt s1 []
+              (Join_env.new_equations_in_joined_envs s1 s0))
+    as [[relations2 s2] | ] eqn:Hdelayed; [ | discriminate ].
+  destruct (Join_env.n_way_join_loop (Join_env.join_depth p) p fuel choices
+              jt s2 relations2
+              (Join_env.new_definitions_of_existentials s2 s0))
+    as [[relations3 s3] | ] eqn:Hloop; [ | discriminate ].
+  destruct (Join_env.define_or_eliminate_variables_and_add_equations ops fuel
+              mh s3 menv relations3) as [[target' definitions'] | ]
+    eqn:Hdefine; [ | discriminate ].
+  injection Hjoin as <- <- <-.
+  destruct (first_phases_true source jt choices p fuel avoid envs s1 s2 s3
+              relations2 relations3 Hjt Hfresh Heqb Hconst Hsource Huses
+              Hinvariant Hkinded Hlevels Hkinds Haliases Hdelayed Hloop)
+    as [Htrue3 [Hrelations3 Hgrows3]].
+  pose proof (first_phases_kinded source jt choices p fuel avoid envs s1 s2 s3
+                relations2 relations3 Hjt Hfresh Heqb Hconst Hsource Huses
+                Hinvariant Hkinded Hlevels Hkinds Haliases Hdelayed Hloop)
+    as Hstate3.
+  assert (Hnonempty1 : relations_nonempty []).
+  { intros r names' Hr. discriminate Hr. }
+  pose proof (loop_relations_nonempty _ _ _ _ _ _ _ _ _ _
+                (delayed_equations_relations_nonempty _ _ _ _ _ _ _ _
+                   Hnonempty1 Hdelayed)
+                Hloop) as Hnonempty3.
+  assert (Hkinded3 : joined_envs_are typing_env_kinded s3).
+  { intros index use Huse. rewrite (proj1 Hgrows3) in Huse.
+    exact (Hkinded index use Huse). }
+  destruct (define_variables_true meet_env meet_expanded_head ops fuel mh
+              source s3 menv target' relations3 definitions' Htrue3 Hstate3
+              Hkinded3 Hrelations3 Hnonempty3 Hdefine)
+    as [kept [equations [relation_equations [menv' [Hkept [Hadd1 [Hadd2
+          Hruns]]]]]]].
+  exists s3, relations3, kept, equations, relation_equations, menv'.
+  split; [ exact Htrue3 | ]. split; [ exact Hstate3 | ].
+  split; [ exact Hrelations3 | ]. split; [ exact Hgrows3 | ].
+  split; [ reflexivity | ]. split; [ exact Hkept | ].
+  split; [ exact Hadd1 | ]. split; [ exact Hadd2 | exact Hruns ].
+Qed.
