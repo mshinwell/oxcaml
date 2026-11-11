@@ -32,9 +32,9 @@
 From Stdlib Require Import ZArith List Arith Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
-  FlambdaWellFormedSpec FlambdaWellFormedProofs FlambdaApplySpec
-  FlambdaApplyProofs FlambdaClosuresSpec.
+  FlambdaMapProofs FlambdaPrimitiveProofs FlambdaSemanticsSpec
+  FlambdaSemanticsProofs FlambdaWellFormedSpec FlambdaWellFormedProofs
+  FlambdaApplySpec FlambdaApplyProofs FlambdaClosuresSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -902,6 +902,477 @@ Proof.
       destruct (Hbound s move_from syms decls slots Hs) as [_ Hset].
       pose proof (Hset move_to s' (lookup_in _ _ _ Hsymbol)) as Hs'.
       simpl. rewrite Hs, Hs', Hfrom, Hto. auto.
+Qed.
+
+(* ======================================================================== *)
+(* Valid values                                                             *)
+(* ======================================================================== *)
+
+Lemma slot_values_valid_in (slot_values : list (value_slot * value)) :
+  forallb (fun '(_, contents) => value_valid contents) slot_values = true ->
+  ∀ (w : value_slot) (contents : value),
+    (w, contents) ∈ slot_values -> value_valid contents = true.
+Proof.
+  intros H w contents Hin. rewrite forallb_forall in H.
+  exact (H (w, contents) Hin).
+Qed.
+
+Lemma statics_valid_lookup (statics : static_env) (s : symbol)
+    (allocated : statically_allocated_value) :
+  statics_valid statics ->
+  lookup s (static_values statics) = Some allocated ->
+  allocated_valid allocated = true.
+Proof.
+  intros Hstatics Hs. unfold statics_valid in Hstatics.
+  rewrite Forall_forall in Hstatics.
+  exact (Hstatics (s, allocated) (lookup_in _ _ _ Hs)).
+Qed.
+
+Lemma unnamed_set_well_formed (code : code_id) :
+  set_well_formed unnamed_function_slot [(unnamed_function_slot, code)]
+  = true.
+Proof. reflexivity. Qed.
+
+(* A map has the names of another: what is bound in one is in the other. *)
+Lemma is_bound_same_names {A B : Type} (name : positive)
+    (bindings : list (positive * A)) (bindings' : list (positive * B)) :
+  map fst bindings = map fst bindings' ->
+  is_bound name bindings' = true -> is_bound name bindings = true.
+Proof.
+  intros Hnames. rewrite !is_bound_among, Hnames. exact (fun H => H).
+Qed.
+
+Theorem closure_in_set_valid : closure_in_set_valid_statement.
+Proof.
+  intros statics v slot decls slot_values Hstatics Hv.
+  unfold closure_in_set.
+  destruct v as [c | code slots | at_slot set_decls slots | s | tag fields
+    | contents];
+    [ | | | | discriminate .. ].
+  - discriminate.
+  - intros [= <- <- <-]. split; [ exact (unnamed_set_well_formed code) | ].
+    exact (slot_values_valid_in slots Hv).
+  - simpl in Hv. apply andb_true_iff in Hv as [Hset Hslots].
+    destruct (lookup at_slot set_decls); [ | discriminate ].
+    simpl. intros [= <- <- <-]. split; [ exact Hset | ].
+    exact (slot_values_valid_in slots Hslots).
+  - destruct (lookup s (static_values statics))
+      as [[code slots | at_slot syms set_decls slots | tag fields | contents
+          | bytes] | ] eqn:Hs;
+      try discriminate.
+    + pose proof (statics_valid_lookup statics s _ Hstatics Hs) as Hvalid.
+      intros [= <- <- <-]. split; [ exact (unnamed_set_well_formed code) | ].
+      exact (slot_values_valid_in slots Hvalid).
+    + pose proof (statics_valid_lookup statics s _ Hstatics Hs) as Hvalid.
+      simpl in Hvalid. apply andb_true_iff in Hvalid as [Hvalid Hslots].
+      apply andb_true_iff in Hvalid as [Hset _].
+      destruct (lookup at_slot set_decls); [ | discriminate ].
+      simpl. intros [= <- <- <-]. split; [ exact Hset | ].
+      exact (slot_values_valid_in slots Hslots).
+Qed.
+
+(* The projection of a function slot from a closure of a set of one
+   function, with no slot named, where the set has the slot asked for. *)
+Lemma project_unnamed_defined (move_to : function_slot) (code : code_id)
+    (v : value) :
+  is_bound move_to [(unnamed_function_slot, code)] = true ->
+  ∃ w : value,
+    (if Pos.eqb unnamed_function_slot unnamed_function_slot
+     then if Pos.eqb move_to unnamed_function_slot then Some v else None
+     else None)
+    = Some w.
+Proof.
+  unfold is_bound. cbn [lookup].
+  destruct (Pos.eqb move_to unnamed_function_slot); [ | discriminate ].
+  intros _. exists v. reflexivity.
+Qed.
+
+Theorem project_function_slot_valid : project_function_slot_valid_statement.
+Proof.
+  intros statics move_from move_to v decls slot_values Hstatics.
+  unfold closure_in_set, project_function_slot.
+  destruct v as [c | code slots | at_slot set_decls slots | s | tag fields
+    | contents];
+    [ | | | | discriminate .. ].
+  - discriminate.
+  - intros [= <- <- <-]. exact (project_unnamed_defined move_to code _).
+  - destruct (lookup at_slot set_decls) as [code | ]; [ | discriminate ].
+    simpl. intros [= <- <- <-]. unfold is_bound.
+    destruct (lookup move_to set_decls) as [code' | ]; [ | discriminate ].
+    intros _. eexists. rewrite Pos.eqb_refl. simpl. reflexivity.
+  - destruct (lookup s (static_values statics))
+      as [[code slots | at_slot syms set_decls slots | tag fields | contents
+          | bytes] | ] eqn:Hs;
+      try discriminate.
+    + intros [= <- <- <-]. exact (project_unnamed_defined move_to code _).
+    + pose proof (statics_valid_lookup statics s _ Hstatics Hs) as Hvalid.
+      simpl in Hvalid. apply andb_true_iff in Hvalid as [Hvalid _].
+      apply andb_true_iff in Hvalid as [_ Hnames].
+      destruct (list_eq_dec Pos.eq_dec (map fst syms) (map fst set_decls))
+        as [Hsame | ]; [ | discriminate ].
+      destruct (lookup at_slot set_decls) as [code | ]; [ | discriminate ].
+      simpl. intros [= <- <- <-] Hto.
+      pose proof (is_bound_same_names move_to syms set_decls Hsame Hto)
+        as Hsymbol.
+      unfold is_bound in Hto, Hsymbol.
+      destruct (lookup move_to set_decls) as [code' | ]; [ | discriminate ].
+      destruct (lookup move_to syms) as [s' | ]; [ | discriminate ].
+      eexists. rewrite Pos.eqb_refl. simpl. reflexivity.
+Qed.
+
+Lemma eval_simple_valid (vars : env) (s : simple) (v : value) :
+  env_valid vars -> eval_simple vars s = Some v -> value_valid v = true.
+Proof.
+  intros Hvars. destruct s as [x | sym | c]; simpl.
+  - exact (env_values_all_lookup _ vars x v Hvars).
+  - intros [= <-]. reflexivity.
+  - intros [= <-]. reflexivity.
+Qed.
+
+Lemma eval_simples_valid (vars : env) :
+  env_valid vars ->
+  ∀ (args : list simple) (vs : list value),
+    eval_simples vars args = Some vs -> forallb value_valid vs = true.
+Proof.
+  intros Hvars. induction args as [ | s args IH]; intros vs; simpl.
+  - intros [= <-]. reflexivity.
+  - destruct (eval_simple vars s) as [v | ] eqn:Hs; [ | discriminate ].
+    destruct (eval_simples vars args) as [rest | ]; [ | discriminate ].
+    simpl. intros [= <-]. simpl.
+    rewrite (eval_simple_valid vars s v Hvars Hs). exact (IH rest eq_refl).
+Qed.
+
+Lemma eval_value_slots_valid (vars : env) :
+  env_valid vars ->
+  ∀ (value_slots : list (value_slot * simple))
+    (slot_values : list (value_slot * value)),
+    eval_value_slots vars value_slots = Some slot_values ->
+    forallb (fun '(_, contents) => value_valid contents) slot_values = true.
+Proof.
+  intros Hvars.
+  induction value_slots as [ | [slot s] value_slots IH]; intros slot_values;
+    simpl.
+  - intros [= <-]. reflexivity.
+  - destruct (eval_simple vars s) as [v | ] eqn:Hs; [ | discriminate ].
+    destruct (eval_value_slots vars value_slots) as [rest | ];
+      [ | discriminate ].
+    simpl. intros [= <-]. simpl.
+    rewrite (eval_simple_valid vars s v Hvars Hs). exact (IH rest eq_refl).
+Qed.
+
+(* Validity is a property of values of the kind that a primitive keeps
+   (FlambdaPrimitiveSpec.eval_prim_preserves_statement). *)
+Lemma value_valid_of_numbers :
+  holds_of_numbers (fun v => value_valid v = true).
+Proof. intros c. split; reflexivity. Qed.
+
+Lemma value_valid_of_blocks : holds_of_blocks (fun v => value_valid v = true).
+Proof. intros tag fields. exact (forallb_forall value_valid fields). Qed.
+
+Lemma value_valid_in_static_blocks (statics : static_env) :
+  statics_valid statics ->
+  holds_in_static_blocks statics (fun v => value_valid v = true).
+Proof.
+  intros Hstatics s tag fields _ Hs v Hin.
+  pose proof (statics_valid_lookup statics s _ Hstatics Hs) as Hvalid.
+  simpl in Hvalid. rewrite forallb_forall in Hvalid. exact (Hvalid v Hin).
+Qed.
+
+(* The closure at another slot of the set of a valid closure is valid. *)
+Lemma project_function_slot_keeps_valid (statics : static_env)
+    (move_from move_to : function_slot) (v w : value) :
+  value_valid v = true ->
+  project_function_slot statics move_from move_to v = Some w ->
+  value_valid w = true.
+Proof.
+  intros Hv. unfold project_function_slot.
+  destruct v as [c | code slots | at_slot decls slots | s | tag fields
+    | contents];
+    [ | | | | discriminate .. ].
+  - discriminate.
+  - intros Hproject.
+    apply project_unnamed_function_slot in Hproject as (_ & _ & ->).
+    exact Hv.
+  - destruct (Pos.eqb at_slot move_from); [ | discriminate ].
+    destruct (lookup at_slot decls); [ | discriminate ].
+    destruct (lookup move_to decls) as [code | ] eqn:Hto; [ | discriminate ].
+    simpl. intros [= <-]. simpl in Hv. simpl.
+    apply andb_true_iff in Hv as [Hset Hslots]. rewrite Hslots.
+    unfold set_well_formed in Hset. unfold set_well_formed.
+    apply andb_true_iff in Hset as [Hset Hcodes].
+    apply andb_true_iff in Hset as [_ Hnames].
+    unfold is_bound. rewrite Hto, Hnames, Hcodes. reflexivity.
+  - destruct (lookup s (static_values statics))
+      as [[code slots | at_slot syms decls slots | tag fields | contents
+          | bytes] | ];
+      try discriminate.
+    + intros Hproject.
+      apply project_unnamed_function_slot in Hproject as (_ & _ & ->).
+      reflexivity.
+    + destruct (Pos.eqb at_slot move_from); [ | discriminate ].
+      destruct (lookup at_slot decls); [ | discriminate ].
+      destruct (lookup move_to decls); [ | discriminate ].
+      destruct (lookup move_to syms); [ | discriminate ].
+      simpl. intros [= <-]. reflexivity.
+Qed.
+
+Theorem eval_named_valid : eval_named_valid_statement.
+Proof.
+  intros statics vars d v Hd Hvars Hstatics.
+  destruct d as [s | p args | code slots | slot decls slots | slot closure
+    | project_from slot closure | move_from move_to closure];
+    simpl.
+  - exact (eval_simple_valid vars s v Hvars).
+  - destruct (eval_simples vars args) as [vs | ] eqn:Hargs;
+      [ | discriminate ].
+    simpl. intros Hprim.
+    apply (eval_prim_preserves (fun v => value_valid v = true) statics p vs
+             v value_valid_of_numbers value_valid_of_blocks
+             (value_valid_in_static_blocks statics Hstatics));
+      [ | exact Hprim ].
+    pose proof (eval_simples_valid vars Hvars args vs Hargs) as Hvs.
+    rewrite forallb_forall in Hvs. exact Hvs.
+  - destruct (eval_value_slots vars slots) as [vs | ] eqn:Hslots;
+      [ | discriminate ].
+    simpl. intros [= <-].
+    exact (eval_value_slots_valid vars Hvars slots vs Hslots).
+  - destruct (lookup slot decls); [ | discriminate ].
+    destruct (eval_value_slots vars slots) as [vs | ] eqn:Hslots;
+      [ | discriminate ].
+    simpl. intros [= <-]. simpl. simpl in Hd. rewrite Hd.
+    exact (eval_value_slots_valid vars Hvars slots vs Hslots).
+  - destruct (eval_simple vars closure) as [c | ] eqn:Hc; [ | discriminate ].
+    simpl.
+    destruct (closure_of statics c) as [[code slot_values] | ] eqn:Hclosure;
+      [ | discriminate ].
+    simpl. intros Hlookup.
+    destruct (proj1 (closure_in_set_of statics c code slot_values) Hclosure)
+      as (at_slot & decls & Hin_set & _).
+    destruct (closure_in_set_valid statics c at_slot decls slot_values
+                Hstatics (eval_simple_valid vars closure c Hvars Hc) Hin_set)
+      as [_ Hslots].
+    exact (Hslots slot v (lookup_in _ _ _ Hlookup)).
+  - destruct (eval_simple vars closure) as [c | ] eqn:Hc; [ | discriminate ].
+    simpl. unfold project_value_slot.
+    destruct (closure_in_set statics c) as [[[at_slot decls] slot_values] | ]
+      eqn:Hin_set;
+      [ | discriminate ].
+    simpl. destruct (Pos.eqb at_slot project_from); [ | discriminate ].
+    intros Hlookup.
+    destruct (closure_in_set_valid statics c at_slot decls slot_values
+                Hstatics (eval_simple_valid vars closure c Hvars Hc) Hin_set)
+      as [_ Hslots].
+    exact (Hslots slot v (lookup_in _ _ _ Hlookup)).
+  - destruct (eval_simple vars closure) as [c | ] eqn:Hc; [ | discriminate ].
+    simpl.
+    exact (project_function_slot_keeps_valid statics move_from move_to c v
+             (eval_simple_valid vars closure c Hvars Hc)).
+Qed.
+
+Theorem eval_static_const_valid : eval_static_const_valid_statement.
+Proof.
+  intros bindings s const vars allocated Hwhole Hvars.
+  destruct const as [code slots | slot syms decls slots | tag fields
+    | contents | bytes];
+    simpl.
+  - destruct (eval_value_slots vars slots) as [vs | ] eqn:Hslots;
+      [ | discriminate ].
+    simpl. intros [= <-].
+    exact (eval_value_slots_valid vars Hvars slots vs Hslots).
+  - simpl in Hwhole. apply andb_true_iff in Hwhole as [Hwhole _].
+    apply andb_true_iff in Hwhole as [Hwhole _].
+    apply andb_true_iff in Hwhole as [Hset Hnames].
+    destruct (lookup slot decls); [ | discriminate ].
+    destruct (eval_value_slots vars slots) as [vs | ] eqn:Hslots;
+      [ | discriminate ].
+    simpl. intros [= <-]. simpl. rewrite Hset, Hnames.
+    exact (eval_value_slots_valid vars Hvars slots vs Hslots).
+  - destruct (eval_simples vars fields) as [vs | ] eqn:Hfields;
+      [ | discriminate ].
+    simpl. intros [= <-].
+    exact (eval_simples_valid vars Hvars fields vs Hfields).
+  - destruct (eval_simple vars contents) as [v | ] eqn:Hcontents;
+      [ | discriminate ].
+    simpl. intros [= <-].
+    exact (eval_simple_valid vars contents v Hvars Hcontents).
+  - intros [= <-]. reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* The values of a well-formed unit                                         *)
+(* ======================================================================== *)
+
+(* A group whose bindings pass the check of static sets keeps what the
+   symbols are bound to valid. [all] is the whole group. *)
+Lemma eval_static_bindings_valid (vars : env) (all : list static_binding) :
+  env_valid vars ->
+  ∀ (bindings : list static_binding) (statics statics' : static_env),
+    forallb (static_set_whole all) bindings = true ->
+    statics_valid statics ->
+    eval_static_bindings vars bindings statics = Some statics' ->
+    statics_valid statics'.
+Proof.
+  intros Hvars.
+  induction bindings as [ | [id c | id | sym const] bindings IH];
+    intros statics statics'; simpl.
+  - intros _ Hvalid [= <-]. exact Hvalid.
+  - intros Hrest Hvalid.
+    destruct (lookup id (static_code statics)); [ discriminate | ].
+    apply (IH _ _ Hrest). exact Hvalid.
+  - intros Hrest Hvalid. exact (IH _ _ Hrest Hvalid).
+  - intros H Hvalid. apply andb_true_iff in H as [Hwhole Hrest].
+    destruct (lookup sym (static_values statics)); [ discriminate | ].
+    destruct (eval_static_const vars const) as [allocated | ] eqn:Hconst;
+      simpl; [ | discriminate ].
+    apply (IH _ _ Hrest). unfold statics_valid. simpl.
+    apply Forall_cons; [ | exact Hvalid ].
+    exact (eval_static_const_valid all sym const vars allocated Hwhole Hvars
+             Hconst).
+Qed.
+
+Lemma values_valid_Forall (vs : list value) :
+  forallb value_valid vs = true -> Forall (fun v => value_valid v = true) vs.
+Proof.
+  intros H. rewrite forallb_forall in H. apply Forall_forall. exact H.
+Qed.
+
+(* A step from a state whose terms have well-formed sets keeps the values
+   valid: the four things that FlambdaSemanticsSpec.step_values_all_statement
+   asks of the state. *)
+Lemma state_valid_step (s : state) :
+  sets_inv s -> state_valid s ->
+  match step s with
+  | Step s' => state_valid s'
+  | Exit _ vs => Forall (fun v => value_valid v = true) vs
+  | Undefined => True
+  end.
+Proof.
+  intros (P & _) Hvalid.
+  apply (step_values_all (fun _ v => value_valid v = true)
+           (fun _ allocated => allocated_valid allocated = true) s Hvalid).
+  - intros x d body v Hexpr Heval. rewrite Hexpr in P. simpl in P.
+    apply andb_true_iff in P as [Pd _].
+    destruct Hvalid as (Hvars & _ & Hstatics).
+    exact (eval_named_valid (state_statics s) (state_vars s) d v Pd Hvars
+             Hstatics Heval).
+  - intros bindings body statics' Hexpr Heval.
+    split; [ exact (fun v H => H) | ].
+    rewrite Hexpr in P. simpl in P.
+    apply andb_true_iff in P as [P _].
+    apply andb_true_iff in P as [P _].
+    apply andb_true_iff in P as [Pwhole _].
+    destruct Hvalid as (Hvars & _ & Hstatics).
+    exact (eval_static_bindings_valid (state_vars s) bindings Hvars bindings
+             (state_statics s) statics' Pwhole Hstatics Heval).
+  - intros ap callee vs _ Hcallee Hargs.
+    destruct Hvalid as (Hvars & _).
+    split.
+    + exact (eval_simple_valid (state_vars s) (ap_callee ap) callee Hvars
+               Hcallee).
+    + exact (values_valid_Forall vs
+               (eval_simples_valid (state_vars s) Hvars (ap_args ap) vs
+                  Hargs)).
+  - intros ac vs _ Hargs. destruct Hvalid as (Hvars & _).
+    exact (values_valid_Forall vs
+             (eval_simples_valid (state_vars s) Hvars (ac_args ac) vs Hargs)).
+Qed.
+
+Lemma state_valid_run (n : nat) :
+  ∀ s : state,
+    sets_inv s -> state_valid s ->
+    match run n s with
+    | Step s' => state_valid s'
+    | Exit _ vs => Forall (fun v => value_valid v = true) vs
+    | Undefined => True
+    end.
+Proof.
+  induction n as [ | n IH]; intros s Hsets Hvalid; simpl.
+  - exact Hvalid.
+  - pose proof (state_valid_step s Hsets Hvalid) as Hstep.
+    destruct (step s) as [next | k vs | ] eqn:Hnext.
+    + exact (IH next (sets_inv_step s next Hsets Hnext) Hstep).
+    + exact Hstep.
+    + exact I.
+Qed.
+
+(* The state a unit starts in holds no value. *)
+Lemma initial_state_valid (e : expr) :
+  state_valid (State e [] [] empty_static_env).
+Proof. exact (conj (Forall_nil _) (conj I (Forall_nil _))). Qed.
+
+Theorem well_formed_values_valid : well_formed_values_valid_statement.
+Proof.
+  intros unit_exn e n s Hwf Hrun.
+  pose proof
+    (state_valid_run n (State e [] [] empty_static_env)
+       (well_formed_sets_inv unit_exn e 0 _ Hwf eq_refl)
+       (initial_state_valid e))
+    as H.
+  rewrite Hrun in H. exact H.
+Qed.
+
+Theorem well_formed_exit_valid : well_formed_exit_valid_statement.
+Proof.
+  intros unit_exn e n k vs Hwf Hrun.
+  pose proof
+    (state_valid_run n (State e [] [] empty_static_env)
+       (well_formed_sets_inv unit_exn e 0 _ Hwf eq_refl)
+       (initial_state_valid e))
+    as H.
+  rewrite Hrun in H. rewrite Forall_forall in H. exact H.
+Qed.
+
+Theorem well_formed_closure_slot : well_formed_closure_slot_statement.
+Proof.
+  intros unit_exn e n s closure v slot slot' decls slot_values slot_values'
+    code Hwf Hrun Hv Hin_set Hclosure Hslot'.
+  destruct (well_formed_values_valid unit_exn e n s Hwf Hrun)
+    as (Hvars & _ & Hstatics).
+  destruct (closure_in_set_valid (state_statics s) v slot decls slot_values
+              Hstatics (eval_simple_valid (state_vars s) closure v Hvars Hv)
+              Hin_set)
+    as [Hset _].
+  unfold set_well_formed in Hset. apply andb_true_iff in Hset as [_ Hcodes].
+  exact (closure_code_determines_slot (state_statics s) v slot slot' decls
+           slot_values slot_values' code Hin_set Hcodes Hclosure Hslot').
+Qed.
+
+(* A variable that is not a parameter is bound after a call to what it
+   was bound to before the parameters. *)
+Lemma bind_params_lookup_other (x : variable) (params : list variable) :
+  ∀ (vs : list value) (vars vars' : env),
+    among x params = false ->
+    bind_params params vs vars = Some vars' ->
+    lookup x vars' = lookup x vars.
+Proof.
+  unfold among.
+  induction params as [ | y params IH]; intros [ | v vs] vars vars'; simpl;
+    try discriminate.
+  - intros _ [= <-]. reflexivity.
+  - intros Hx Hbind. apply orb_false_iff in Hx as [Hxy Hrest].
+    rewrite (IH vs _ vars' Hrest Hbind). simpl. rewrite Hxy. reflexivity.
+Qed.
+
+Theorem call_binds_my_closure : call_binds_my_closure_statement.
+Proof.
+  intros callee kind vs return_to exn_to statics s called slot_values c
+    Hcall Hclosure Hcode Hfresh.
+  unfold call_function in Hcall. rewrite Hclosure in Hcall.
+  cbv beta iota zeta in Hcall.
+  destruct
+    (match kind with
+     | Direct named => Pos.eqb called named
+     | Indirect => true
+     end);
+    [ | discriminate ].
+  rewrite Hcode in Hcall.
+  destruct (binds_statics (code_body c)); [ discriminate | ].
+  destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
+    as [callee_vars | ] eqn:Hbind;
+    [ | discriminate ].
+  injection Hcall as <-. simpl. split; [ reflexivity | ].
+  rewrite (bind_params_lookup_other _ _ vs _ callee_vars Hfresh Hbind).
+  simpl. rewrite Pos.eqb_refl. reflexivity.
 Qed.
 
 (* ======================================================================== *)

@@ -91,6 +91,41 @@
    statement that is true only of sets that are bound takes
    [static_set_bound] or [static_sets_bound] as a premise.
 
+   Such environments may also hold values of the shape of a closure of a
+   set that no term makes: at a function slot that its set has not got,
+   or of a set in which a function slot or a code id is given twice. A
+   value is valid ([value_valid]) when no closure in it is so, and what a
+   symbol is bound to is valid ([allocated_valid]) when the values in it
+   are and, for a closure of a static set, the set is so made and names a
+   symbol for each of its function slots. This is about the shape of
+   values only, not about whether the code or the symbols they name are
+   bound.
+   - A valid value that is a closure is at a function slot of a set whose
+     function slots are distinct and whose functions have each their own
+     code ([closure_in_set_valid_statement]); so the code it runs says
+     which slot it is at ([closure_code_determines_slot_statement]).
+   - Where what the symbols are bound to is valid, the projection of a
+     function slot from a closure at the slot named has a value whenever
+     the set has the slot asked for
+     ([project_function_slot_valid_statement]).
+   - Evaluation makes valid values out of valid ones: a defining
+     expression whose set is well-formed ([eval_named_valid_statement]),
+     a static constant whose binding passes the check of static sets
+     ([eval_static_const_valid_statement]).
+   - Every state of the run of a well-formed unit holds valid values
+     only, and the run ends with valid values
+     ([well_formed_values_valid_statement],
+     [well_formed_exit_valid_statement]). So a well-formed unit never
+     holds a value of the shapes above, and the facts about valid values
+     hold wherever it goes. In particular a closure that it calls is at
+     the only slot of its set that has the code called
+     ([well_formed_closure_slot_statement]).
+   - A call binds [my_closure] to the closure called, where [my_closure]
+     is not also a parameter of the code
+     ([call_binds_my_closure_statement]). [well_formed_unit] does not ask
+     that yet, so that [my_closure] is at the slot of the code that runs
+     is said here of such code only.
+
    The proofs are in FlambdaClosuresProofs.v, which needs no review. *)
 
 From Stdlib Require Import ZArith List.
@@ -345,6 +380,185 @@ Definition project_function_slot_bound_statement : Prop :=
       (slot_values : list (value_slot * value)),
       closure_in_set statics v = Some (move_from, function_decls, slot_values)
       ∧ closure_in_set statics w = Some (move_to, function_decls, slot_values).
+
+(* ======================================================================== *)
+(* Valid values                                                             *)
+(* ======================================================================== *)
+
+(* A value is valid when every closure of a set in it is at a function
+   slot of its set, whose function slots are distinct and whose functions
+   have each their own code ([set_well_formed]), and so on through the
+   values of the value slots of a closure and the fields of a block. A
+   symbol is valid whatever it is bound to, and whether or not it is
+   bound: what a symbol is bound to is asked to be valid where it is
+   bound ([allocated_valid]). So this says nothing of whether the symbols
+   or the code that a value names are bound. *)
+Fixpoint value_valid (v : value) : bool :=
+  match v with
+  | Value_const _ | Value_symbol _ | Value_boxed_number _ => true
+  | Value_closure _ value_slots =>
+    forallb (fun '(_, contents) => value_valid contents) value_slots
+  | Value_closure_of_set slot function_decls value_slots =>
+    set_well_formed slot function_decls
+    && forallb (fun '(_, contents) => value_valid contents) value_slots
+  | Value_block _ fields => forallb value_valid fields
+  end.
+
+(* What a symbol is bound to is valid when the values in it are, and, if
+   it is a closure of a set, when it is at a function slot of its set,
+   whose function slots are distinct and whose functions have each their
+   own code, and the set names a symbol for each of its function slots,
+   in their order. *)
+Definition allocated_valid (allocated : statically_allocated_value) : bool :=
+  match allocated with
+  | Static_closure _ value_slots =>
+    forallb (fun '(_, contents) => value_valid contents) value_slots
+  | Static_closure_of_set slot closure_symbols function_decls value_slots =>
+    set_well_formed slot function_decls
+    && (if
+          list_eq_dec Pos.eq_dec (map fst closure_symbols)
+            (map fst function_decls)
+        then true
+        else false)
+    && forallb (fun '(_, contents) => value_valid contents) value_slots
+  | Static_block _ fields => forallb value_valid fields
+  | Static_boxed_number contents => value_valid contents
+  | Static_string _ => true
+  end.
+
+(* Every value of the environment is valid, those that a later binding of
+   the same variable hides included. *)
+Definition env_valid (vars : env) : Prop :=
+  env_values_all (fun v => value_valid v = true) vars.
+
+(* Everything that a symbol is bound to is valid. *)
+Definition statics_valid (statics : static_env) : Prop :=
+  Forall (fun binding => allocated_valid (snd binding) = true)
+    (static_values statics).
+
+(* Every value that the state holds is valid: those of its variables and
+   of the environments that its continuations keep, and what each symbol
+   is bound to (FlambdaSemanticsSpec.state_values_all, which says where a
+   state holds values). *)
+Definition state_valid (s : state) : Prop :=
+  state_values_all (fun _ v => value_valid v = true)
+    (fun _ allocated => allocated_valid allocated = true) s.
+
+(* A valid value that is a closure, made by a [Let] or bound to a symbol,
+   is at a function slot of a set whose function slots are distinct and
+   whose functions have each their own code, and the values of its value
+   slots are valid. *)
+Definition closure_in_set_valid_statement : Prop :=
+  ∀ (statics : static_env) (v : value) (slot : function_slot)
+    (function_decls : list (function_slot * code_id))
+    (slot_values : list (value_slot * value)),
+    statics_valid statics ->
+    value_valid v = true ->
+    closure_in_set statics v = Some (slot, function_decls, slot_values) ->
+    set_well_formed slot function_decls = true
+    ∧ ∀ (w : value_slot) (contents : value),
+        (w, contents) ∈ slot_values -> value_valid contents = true.
+
+(* Where what the symbols are bound to is valid, the projection of a
+   function slot from a closure has a value whenever the closure is at
+   the slot named and its set has the slot asked for: from a symbol too,
+   as a valid static set names a symbol for each of its function slots.
+   [project_function_slot_bound_statement] says what the value is. *)
+Definition project_function_slot_valid_statement : Prop :=
+  ∀ (statics : static_env) (move_from move_to : function_slot) (v : value)
+    (function_decls : list (function_slot * code_id))
+    (slot_values : list (value_slot * value)),
+    statics_valid statics ->
+    closure_in_set statics v = Some (move_from, function_decls, slot_values) ->
+    is_bound move_to function_decls = true ->
+    ∃ w : value, project_function_slot statics move_from move_to v = Some w.
+
+(* The value of a defining expression is valid, where the values of the
+   environment and what the symbols are bound to are, and the set of a
+   closure that the expression makes is well-formed. A primitive gives a
+   valid value because it makes its value out of its arguments
+   (FlambdaPrimitiveSpec.eval_prim_preserves_statement). *)
+Definition eval_named_valid_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (d : named) (v : value),
+    named_sets_well_formed d = true ->
+    env_valid vars ->
+    statics_valid statics ->
+    eval_named statics vars d = Some v ->
+    value_valid v = true.
+
+(* What a static constant allocates is valid, where the values of the
+   environment are and the binding of the constant passes the check of
+   static sets ([static_set_whole], whatever the group). *)
+Definition eval_static_const_valid_statement : Prop :=
+  ∀ (bindings : list static_binding) (s : symbol) (const : static_const)
+    (vars : env) (allocated : statically_allocated_value),
+    static_set_whole bindings (Bind_symbol s const) = true ->
+    env_valid vars ->
+    eval_static_const vars const = Some allocated ->
+    allocated_valid allocated = true.
+
+(* ======================================================================== *)
+(* The values of a well-formed unit                                         *)
+(* ======================================================================== *)
+
+(* Every state of the run of a well-formed unit holds valid values only,
+   and if the run ends, it ends with valid values. *)
+Definition well_formed_values_valid_statement : Prop :=
+  ∀ (unit_exn : continuation) (e : expr) (n : nat) (s : state),
+    well_formed_unit unit_exn e = true ->
+    run n (State e [] [] empty_static_env) = Step s ->
+    state_valid s.
+
+Definition well_formed_exit_valid_statement : Prop :=
+  ∀ (unit_exn : continuation) (e : expr) (n : nat) (k : continuation)
+    (vs : list value),
+    well_formed_unit unit_exn e = true ->
+    run n (State e [] [] empty_static_env) = Exit k vs ->
+    ∀ v : value, v ∈ vs -> value_valid v = true.
+
+(* In the run of a well-formed unit, a closure that a simple stands for
+   is at the only function slot of its set that has the code which a
+   call of it runs. Of the callee of a call this says that the closure
+   called is at the slot of the code called, whichever closure of the
+   set it is. It does not say which set that is: two sets may have the
+   same code.
+
+   It says nothing by itself of [my_closure] in the body of that code.
+   A call binds [my_closure] to the closure called and then the
+   parameters to the arguments (FlambdaSemanticsSpec.call_function), so
+   a parameter of the same name as [my_closure] hides it, and
+   [well_formed_unit] does not ask today that there is none: that the
+   binders of code are distinct is a condition of well-formedness still
+   to come. Where [my_closure] is not a parameter, the body starts with
+   it bound to the closure called ([call_binds_my_closure_statement]),
+   and then [my_closure] is at the slot of the code that runs. *)
+Definition well_formed_closure_slot_statement : Prop :=
+  ∀ (unit_exn : continuation) (e : expr) (n : nat) (s : state)
+    (closure : simple) (v : value) (slot slot' : function_slot)
+    (function_decls : list (function_slot * code_id))
+    (slot_values slot_values' : list (value_slot * value)) (code : code_id),
+    well_formed_unit unit_exn e = true ->
+    run n (State e [] [] empty_static_env) = Step s ->
+    eval_simple (state_vars s) closure = Some v ->
+    closure_in_set (state_statics s) v
+    = Some (slot, function_decls, slot_values) ->
+    closure_of (state_statics s) v = Some (code, slot_values') ->
+    lookup slot' function_decls = Some code ->
+    slot' = slot.
+
+(* A call that has a step runs the body of the code of the closure
+   called, and, where [my_closure] is not also a parameter of that code,
+   with [my_closure] bound to the closure called. *)
+Definition call_binds_my_closure_statement : Prop :=
+  ∀ (callee : value) (kind : call_kind) (vs : list value)
+    (return_to exn_to : cont_value) (statics : static_env) (s : state)
+    (called : code_id) (slot_values : list (value_slot * value)) (c : code),
+    call_function callee kind vs return_to exn_to statics = Step s ->
+    closure_of statics callee = Some (called, slot_values) ->
+    lookup called (static_code statics) = Some c ->
+    among (code_my_closure c) (code_params c) = false ->
+    state_expr s = code_body c
+    ∧ lookup (code_my_closure c) (state_vars s) = Some callee.
 
 (* ======================================================================== *)
 (* An example: two functions that call each other                           *)

@@ -615,6 +615,9 @@ bound to.
 at one slot, and the code called is the code of that slot
 (`closure_of`). So each function of a set gets the closure at its own
 slot, or the symbol of that closure if it was called through a symbol.
+(Unless a parameter of the code has the name of its `my_closure`, which
+then hides it: the parameters are bound after it. Nothing asks yet
+that the binders of code are distinct; "Sets that share code" below.)
 
 **The projections are constructs of `named`**, like today's
 `Project_value_slot`, and not primitives: their meaning needs the static
@@ -795,11 +798,15 @@ the tool refuses it as not well-formed and does not run Simplify.
 
 What the rule gives: in a set of a well-formed unit, the code of a
 closure determines its slot (`closure_code_determines_slot_statement`).
-So when code is called, `my_closure` is at the one slot at which its
-set has that code, and the projections that the code makes from
-`my_closure`, which name that slot, do not name a wrong one whichever
-closure of the set was called. As a fact about every closure in a state
-of a run it is part of the invariant on values (section 8).
+So when code is called, the closure called is at the one slot at which
+its set has that code, whichever closure of the set it is; and where
+`my_closure` stands for the closure called, the projections that the
+code makes from `my_closure`, which name that slot, do not name a wrong
+one. `my_closure` stands for it unless a parameter of the code has the
+same name: a call binds `my_closure` and then the parameters, and
+`well_formed_unit` does not yet ask that the binders of code are
+distinct (R2). As a fact about every closure in a state of a run it is
+part of the invariant on values (section 8).
 
 What the rule does not give: the code of a closure does not determine
 its set. Two sets of a unit may have the same code ids, with other
@@ -1390,8 +1397,28 @@ symbols referred to are bound. The case of a primitive is C1's law that
 a primitive preserves a predicate on values; no axiom. It turns "a term
 cannot make one" (section 4) into "a well-formed unit never holds one",
 and with `closure_code_determines_slot_statement` it gives: in the run
-of a well-formed unit, the `my_closure` of code that is called is at
-the slot of that code.
+of a well-formed unit, a closure that is called is at the slot of the
+code called, and so is the `my_closure` of that code where no parameter
+of the code has its name (the next paragraph).
+
+Done after the epoch, in `FlambdaClosuresSpec.v`: `value_valid` and
+`allocated_valid` (what a symbol is bound to), and eight statements.
+`well_formed_values_valid_statement` and
+`well_formed_exit_valid_statement` are the invariant, over the one
+traversal of where a state holds values
+(`FlambdaSemanticsSpec.state_values_all`, the owner of names' work).
+`well_formed_closure_slot_statement` says that a closure which the run
+calls is at the only slot of its set that has the code called.
+`call_binds_my_closure_statement` says that a call binds `my_closure`
+to the closure called where `my_closure` is not also a parameter of
+the code. So the fact about `my_closure` holds of code whose binders
+are distinct; it holds of every well-formed unit only once that is a
+condition of well-formedness, which it is not yet (R2's finding: a
+parameter of the same name hides `my_closure`).
+`closure_in_set_valid_statement`,
+`project_function_slot_valid_statement`, `eval_named_valid_statement`
+and `eval_static_const_valid_statement` are what the invariant is made
+of.
 
 **The examples to add.** They are on the branch, with the real Simplify
 run on each but the four that are not well-formed. Before the change
@@ -1546,7 +1573,7 @@ Left:
   distinct. The compiler's are a map, the converter makes them from it,
   and a lookup finds the first of two (section 2).
 - The invariant on values (section 8): owed by C3, after the series is
-  applied.
+  applied. Done since: section 8.
 - That every symbol a unit mentions is bound (D8): C0's, after the
   series (section 2).
 - No statement uses the condition on the static sets of one group. It
@@ -1558,7 +1585,9 @@ Left:
   symbol has a value. In a well-formed unit it has one whenever both
   slots are among those of the set, since `sets_well_formed` asks that
   a static set names a symbol for each of its functions; that is not
-  stated or proved.
+  stated or proved. Done since, with the invariant on values:
+  `project_function_slot_valid_statement`, whose premise holds in
+  every state of the run of a well-formed unit.
 - `follow_aliases` (`types/rocq/`) is repaired, not extended: it knows
   closure types for the unnamed forms only.
 - The extracted files are regenerated on the branch and not committed,
