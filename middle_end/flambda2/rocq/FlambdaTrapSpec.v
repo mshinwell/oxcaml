@@ -32,11 +32,16 @@
 
    This file is to be reviewed: [stack_entry], [unwind], [stack_enter],
    [stack_call], [stack_apply_cont], [stack_step], [stack_run],
-   [stack_behaves], [initial_stack] and the three statements, against what
-   the backend does with the terms it is given
-   (middle_end/flambda2/to_cmm/to_cmm_expr.ml: translate_raise,
+   [stack_behaves], [initial_stack] and the three statements about the
+   two machines, against what the backend does with the terms it is
+   given (middle_end/flambda2/to_cmm/to_cmm_expr.ml: translate_raise,
    translate_apply, translate_jump_to_continuation;
-   backend/select_utils.ml: combine_traps, set_traps).
+   backend/select_utils.ml: combine_traps, set_traps);
+   [raises_as_marked] against to_cmm's test of what is a raise
+   (to_cmm_expr.ml: apply_cont, let_cont, let_cont_not_inlined;
+   to_cmm_env.ml: create, add_exn_handler, is_exn_handler), with its
+   two statements; and the action of renamings on a stack
+   ([rename_stack_entry]), with its four statements.
 
    The machine of FlambdaSemanticsSpec.v goes by the names in a term: a
    raise goes to the continuation it names, and an exception of a call
@@ -77,9 +82,9 @@
      (FlambdaModel.is_raise: it pops the continuation that it applies).
      to_cmm takes an [Apply_cont] for a raise when the continuation it
      applies is an exception handler, and stops if it has no [Pop]
-     (discrepancy C5-2). The two agree on a term whose exception
+     (discrepancy C5-2). The two agree on a unit whose exception
      handlers are apart from its other continuations
-     (FlambdaWellFormedSpec.exn_handlers_well_formed).
+     ([raises_as_marked_statement]).
 
    [stack_agrees_statement]: a unit whose binders are distinct
    (FlambdaBindersSpec.binders_distinct) and that follows the discipline
@@ -94,22 +99,29 @@
    installed last (discrepancy C5-1), and its binders are distinct.
 
    What the statements do not say. They are about the two machines of
-   the model, not about the backend. And this machine takes for a raise
-   what the term says is one, where to_cmm goes by the mark on the
-   handler applied: the step from here to the backend's code needs the
-   other check as well (FlambdaWellFormedSpec.exn_handlers_well_formed),
-   and is not made. Nor do they say that this machine commutes with
-   renaming: the statements of FlambdaEquivarianceSpec.v are of the
-   other machine. A stack holds names (the two continuations of the
-   code of a call in progress) and continuation values, which an
-   action of renamings on it would rename.
+   the model, not about the backend. One part of the step from here to
+   the backend's code is made: this machine takes for a raise what the
+   term says is one, where to_cmm goes by the mark on the handler
+   applied, and in a unit that passes the other check
+   (FlambdaWellFormedSpec.unit_exn_handlers_well_formed) the two take
+   the same [Apply_cont]s for raises ([raises_as_marked_statement]; not
+   without the check, [raises_not_as_marked_statement]). The rest is
+   not made: what to_cmm does with a raise, a call or a trap action is
+   not modelled.
+
+   This machine commutes with renaming, as the other does
+   ([stack_step_equivariant_statement] and the three after it;
+   FlambdaEquivarianceSpec.v has the other's). A stack holds names (the
+   two continuations of the code of a call in progress) and
+   continuation values, and the action renames those.
 
    The proofs are in FlambdaTrapProofs.v, which needs no review. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaBindersSpec FlambdaSemanticsSpec FlambdaWellFormedSpec.
+  FlambdaBindersSpec FlambdaSemanticsSpec FlambdaNominalSpec
+  FlambdaAlphaSpec FlambdaEquivarianceSpec FlambdaWellFormedSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -403,3 +415,148 @@ Definition stack_needs_distinct_binders_statement : Prop :=
   ∧ behaves s (Exits leave [Value_const (Tagged_immediate 1%Z)])
   ∧ stack_behaves s (initial_stack unit_exn)
       (Exits unit_exn [Value_const (Tagged_immediate 0%Z)]).
+(* ======================================================================== *)
+(* Which [Apply_cont] is a raise                                            *)
+(* ======================================================================== *)
+
+(* The two machines take an [Apply_cont] for a raise when the term says
+   that it is one: it pops the continuation that it applies
+   (FlambdaModel.is_raise, the compiler's [Apply_cont_expr.is_raise],
+   which is what Simplify goes by). to_cmm goes by the continuation
+   applied: an [Apply_cont], alone or as the arm of a [Switch], is a
+   raise when that continuation is one of the exception handlers in
+   scope (To_cmm_expr.apply_cont, by To_cmm_env.is_exn_handler). Those
+   are the exception continuation of the function, or of the unit, that
+   is being translated (To_cmm_env.create) and the continuations bound
+   since by a non-recursive [Let_cont] whose handler says that it is an
+   exception handler, in the body of that [Let_cont]
+   (To_cmm_expr.let_cont_not_inlined, by To_cmm_env.add_exn_handler).
+   to_cmm stops on a recursive [Let_cont] with such a handler, and never
+   takes a name out of the set: the compiler binds a name once.
+
+   [raises_as_marked exn_handlers e]: with [exn_handlers] the exception
+   handlers in scope, the two readings take the same [Apply_cont]s of
+   [e] for raises. *)
+Definition raise_as_marked (exn_handlers : list continuation)
+    (ac : apply_cont) : bool :=
+  Bool.eqb (is_raise ac) (among (ac_continuation ac) exn_handlers).
+
+Fixpoint raises_as_marked (exn_handlers : list continuation) (e : expr)
+    : bool :=
+  match e with
+  | Let _ _ _ body => raises_as_marked exn_handlers body
+  | Let_static bindings body =>
+    forallb binding_raises_as_marked bindings
+    && raises_as_marked exn_handlers body
+  | Let_cont_non_recursive k h body =>
+    handler_raises_as_marked exn_handlers h
+    && raises_as_marked
+         (if handler_is_exn_handler h then k :: exn_handlers
+          else exn_handlers)
+         body
+  | Let_cont_recursive handlers body =>
+    forallb (fun '(_, h) => handler_raises_as_marked exn_handlers h)
+      handlers
+    && raises_as_marked exn_handlers body
+  | Apply_cont ac => raise_as_marked exn_handlers ac
+  | Switch _ arms =>
+    forallb (fun arm => raise_as_marked exn_handlers (snd arm)) arms
+  | Apply _ | Invalid => true
+  end
+with handler_raises_as_marked (exn_handlers : list continuation)
+    (h : continuation_handler) : bool :=
+  match h with
+  | Handler _ _ handler => raises_as_marked exn_handlers handler
+  end
+with binding_raises_as_marked (binding : static_binding) : bool :=
+  match binding with
+  | Bind_code _ c => code_raises_as_marked c
+  | Bind_deleted_code _ | Bind_symbol _ _ => true
+  end
+with code_raises_as_marked (c : code) : bool :=
+  match c with
+  | Code _ _ _ exn _ body => raises_as_marked [exn] body
+  end.
+
+(* In a unit whose exception handlers are apart from its other
+   continuations, an [Apply_cont] is a raise for to_cmm exactly when the
+   term says that it is one. *)
+Definition raises_as_marked_statement : Prop :=
+  ∀ (unit_exn : continuation) (e : expr),
+    unit_exn_handlers_well_formed unit_exn e = true ->
+    raises_as_marked [unit_exn] e = true.
+
+(* An exception handler that is applied with no trap action: to_cmm takes
+   the [Apply_cont] for a raise, and the term says that it is a jump. *)
+Definition handler_applied_as_jump : expr :=
+  let leave : continuation := 2%positive in
+  let handler : continuation := 3%positive in
+  let x : variable := 1%positive in
+  Let_cont_non_recursive handler
+    (Handler [x] (make_exn_handler_metadata [Value])
+       (Apply_cont (Apply_cont_expr leave [] None)))
+    (Apply_cont
+       (Apply_cont_expr handler [Const (Tagged_immediate 0%Z)] None)).
+
+(* Without the check the two readings differ. *)
+Definition raises_not_as_marked_statement : Prop :=
+  let unit_exn : continuation := 1%positive in
+  unit_exn_handlers_well_formed unit_exn handler_applied_as_jump = false
+  ∧ raises_as_marked [unit_exn] handler_applied_as_jump = false.
+
+(* ======================================================================== *)
+(* The machine with the stack is equivariant                                *)
+(* ======================================================================== *)
+
+(* The action of renamings on a stack; FlambdaEquivarianceSpec.v has it
+   on states. A handler installed, and the continuation that a call
+   returns to, are continuation values, and are renamed as such. The two
+   continuations of the code of a call in progress are names, and are
+   renamed. The extra arguments of a call are values, which hold no
+   variables or continuations. *)
+Definition rename_stack_entry (r : renaming) (entry : stack_entry)
+    : stack_entry :=
+  match entry with
+  | Trap c => Trap (rename_cont_value r c)
+  | Call ret exn return_to extra =>
+    Call (rename_continuation r ret) (rename_continuation r exn)
+      (rename_cont_value r return_to) extra
+  end.
+
+Definition rename_stack (r : renaming) (st : stack) : stack :=
+  map (rename_stack_entry r) st.
+
+Definition rename_stack_result (r : renaming) (result : stack_result)
+    : stack_result :=
+  match result with
+  | Stack_step s st => Stack_step (rename_state r s) (rename_stack r st)
+  | Stack_exit k vs => Stack_exit (rename_continuation r k) vs
+  | Stack_undefined => Stack_undefined
+  end.
+
+(* A step, a run and the behaviours of this machine commute with
+   renaming, as those of the other machine do
+   (FlambdaEquivarianceSpec.step_equivariant_statement and the two after
+   it). As there, nothing is asked of the state. *)
+Definition stack_step_equivariant_statement : Prop :=
+  ∀ (r : renaming) (s : state) (st : stack),
+    stack_step (rename_state r s) (rename_stack r st)
+    = rename_stack_result r (stack_step s st).
+
+Definition stack_run_equivariant_statement : Prop :=
+  ∀ (r : renaming) (fuel : nat) (s : state) (st : stack),
+    stack_run fuel (rename_state r s) (rename_stack r st)
+    = rename_stack_result r (stack_run fuel s st).
+
+Definition stack_behaves_equivariant_statement : Prop :=
+  ∀ (r : renaming) (s : state) (st : stack) (b : behaviour),
+    stack_behaves (rename_state r s) (rename_stack r st)
+      (rename_behaviour r b)
+    <-> stack_behaves s st b.
+
+(* The stack that a unit starts with, renamed, is the stack that the
+   unit starts with when its exception continuation is renamed. *)
+Definition initial_stack_equivariant_statement : Prop :=
+  ∀ (r : renaming) (unit_exn : continuation),
+    rename_stack r (initial_stack unit_exn)
+    = initial_stack (rename_continuation r unit_exn).

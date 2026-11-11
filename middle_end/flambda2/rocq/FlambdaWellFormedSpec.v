@@ -153,9 +153,11 @@
    conditions of [well_formed_unit]. FlambdaTrapSpec.v has a machine
    with a stack of handlers and the statement of what the discipline
    buys: a unit that follows it, and whose binders are distinct,
-   behaves on that machine as it does on this one. The first check has
-   no such statement yet. FlambdaTrapProofs.v has examples of terms
-   that each check accepts and refuses.
+   behaves on that machine as it does on this one. Of the first check
+   it has the statement that, in a unit that passes it, the
+   [Apply_cont]s that to_cmm takes for raises are those that the term
+   says are raises. FlambdaTrapProofs.v has examples of terms that each
+   check accepts and refuses.
 
    The machine enforces the part of this that keeps a static binding from
    being executed more than once. Calling code whose body binds something

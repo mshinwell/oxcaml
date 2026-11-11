@@ -31,13 +31,16 @@
    refuses. Then the proofs of FlambdaTrapSpec.v: the machine with a
    stack of handlers agrees with the machine that goes by names on a
    unit whose binders are distinct and that follows the discipline of
-   trap actions, and not without the discipline. *)
+   trap actions, and not without the discipline; which [Apply_cont] is
+   a raise; and the machine with the stack is equivariant. *)
 
 From Stdlib Require Import ZArith List Bool Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaBindersSpec FlambdaSemanticsSpec
-  FlambdaSemanticsProofs FlambdaWellFormedSpec FlambdaTrapSpec.
+  FlambdaSemanticsProofs FlambdaNominalSpec FlambdaNominalProofs
+  FlambdaAlphaSpec FlambdaAlphaProofs FlambdaEquivarianceSpec
+  FlambdaEquivarianceProofs FlambdaWellFormedSpec FlambdaTrapSpec.
 Import ListNotations.
 
 (* So that the checks are not satisfied, or refused, for nothing: each
@@ -1831,4 +1834,444 @@ Proof.
       destruct (stack_run fuel _ _) as [s st | k' vs' | ]; simpl;
         try contradiction.
       intros _. exists s, st. reflexivity.
+Qed.
+(* ======================================================================== *)
+(* Which [Apply_cont] is a raise                                            *)
+(* ======================================================================== *)
+
+Theorem raises_not_as_marked : raises_not_as_marked_statement.
+Proof. split; reflexivity. Qed.
+
+Lemma existsb_false_In {A : Type} (f : A -> bool) (l : list A) (a : A) :
+  existsb f l = false -> In a l -> f a = false.
+Proof.
+  intros Hnone Hin. destruct (f a) eqn:Ha; [ | reflexivity ].
+  assert (Hsome : existsb f l = true)
+    by (apply existsb_exists; exists a; split; assumption).
+  congruence.
+Qed.
+
+Lemma in_without (k : positive) (bound names : list positive) :
+  In k names -> ~ In k bound -> In k (without bound names).
+Proof.
+  intros Hin Hnot. apply among_In. rewrite among_without.
+  apply andb_true_iff. split.
+  - apply among_In. exact Hin.
+  - apply negb_true_iff, among_false. exact Hnot.
+Qed.
+
+(* What is carried down the term: a handler in scope is not applied as
+   an ordinary continuation, and a free continuation that is not such a
+   handler is not used as an exception handler. Both go by names, as the
+   check does. *)
+Lemma raise_as_marked_ok (exn_handlers : list continuation)
+    (ac : apply_cont) :
+  (∀ k : continuation, In k exn_handlers -> applies k ac = false) ->
+  (∀ k : continuation,
+    In k (apply_cont_continuations ac) -> ~ In k exn_handlers ->
+    traps k ac = false) ->
+  raise_as_marked exn_handlers ac = true.
+Proof.
+  intros Happlies Htraps. unfold raise_as_marked.
+  destruct (among (ac_continuation ac) exn_handlers) eqn:Hin.
+  - apply among_In in Hin. specialize (Happlies _ Hin).
+    unfold applies in Happlies. rewrite Pos.eqb_refl in Happlies.
+    simpl in Happlies. apply negb_false_iff in Happlies.
+    rewrite Happlies. reflexivity.
+  - apply among_false in Hin.
+    specialize (Htraps (ac_continuation ac) (or_introl eq_refl) Hin).
+    unfold traps in Htraps. unfold is_raise.
+    destruct (ac_trap_action ac) as [[k | k kind] | ]; simpl in Htraps |- *;
+      try reflexivity.
+    rewrite Htraps. reflexivity.
+Qed.
+
+Fixpoint raises_as_marked_aux (e : expr) :
+  ∀ exn_handlers : list continuation,
+    exn_handlers_well_formed e = true ->
+    (∀ k : continuation, In k exn_handlers -> applies_cont k e = false) ->
+    (∀ k : continuation,
+      In k (free_continuations e) -> ~ In k exn_handlers ->
+      raises_to k e = false) ->
+    raises_as_marked exn_handlers e = true
+with handler_raises_as_marked_aux (h : continuation_handler) :
+  ∀ exn_handlers : list continuation,
+    handler_exn_handlers_well_formed h = true ->
+    (∀ k : continuation,
+      In k exn_handlers -> handler_applies_cont k h = false) ->
+    (∀ k : continuation,
+      In k (handler_free_continuations h) -> ~ In k exn_handlers ->
+      handler_raises_to k h = false) ->
+    handler_raises_as_marked exn_handlers h = true
+with binding_raises_as_marked_aux (binding : static_binding) :
+  binding_exn_handlers_well_formed binding = true ->
+  binding_raises_as_marked binding = true
+with code_raises_as_marked_aux (c : code) :
+  code_exn_handlers_well_formed c = true -> code_raises_as_marked c = true.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      intros exn_handlers Hwf Happ Hraise; simpl in Hwf, Happ, Hraise |- *.
+    + (* Let *)
+      exact (raises_as_marked_aux body exn_handlers Hwf Happ Hraise).
+    + (* Let_static *)
+      apply andb_true_iff in Hwf as [Hbindings Hbody].
+      apply andb_true_iff. split;
+        [ | exact (raises_as_marked_aux body exn_handlers Hbody Happ
+                     Hraise) ].
+      clear -Hbindings binding_raises_as_marked_aux.
+      induction bindings as [ | binding bindings IH]; simpl;
+        [ reflexivity | ].
+      simpl in Hbindings. apply andb_true_iff in Hbindings as [Hb Hbs].
+      rewrite (binding_raises_as_marked_aux binding Hb), (IH Hbs).
+      reflexivity.
+    + (* Let_cont_non_recursive *)
+      apply andb_true_iff in Hwf as [Hwf Hbody].
+      apply andb_true_iff in Hwf as [Hk Hh].
+      apply andb_true_iff. split.
+      * apply (handler_raises_as_marked_aux h exn_handlers Hh).
+        -- intros k' Hin. specialize (Happ k' Hin).
+           apply orb_false_iff in Happ. exact (proj1 Happ).
+        -- intros k' Hfree Hnot.
+           assert (Hin : In k'
+                     (handler_free_continuations h
+                      ++ without [k] (free_continuations body)))
+             by (apply in_or_app; left; exact Hfree).
+           specialize (Hraise k' Hin Hnot).
+           apply orb_false_iff in Hraise. exact (proj1 Hraise).
+      * assert (Houter : ∀ k' : continuation,
+                  In k' (free_continuations body) -> k' <> k ->
+                  ~ In k' exn_handlers -> raises_to k' body = false).
+        { intros k' Hfree Hne Hnot.
+          assert (Hin : In k'
+                    (handler_free_continuations h
+                     ++ without [k] (free_continuations body))).
+          { apply in_or_app. right. apply in_without; [ exact Hfree | ].
+            intros [Heq | []]. apply Hne. symmetry. exact Heq. }
+          specialize (Hraise k' Hin Hnot).
+          apply orb_false_iff in Hraise. exact (proj2 Hraise). }
+        destruct (handler_is_exn_handler h).
+        -- apply andb_true_iff in Hk as [Hk _].
+           apply negb_true_iff in Hk.
+           apply (raises_as_marked_aux body (k :: exn_handlers) Hbody).
+           ++ intros k' [<- | Hin]; [ exact Hk | ].
+              specialize (Happ k' Hin).
+              apply orb_false_iff in Happ. exact (proj2 Happ).
+           ++ intros k' Hfree Hnot. apply Houter; [ exact Hfree | | ].
+              ** intros ->. apply Hnot. left. reflexivity.
+              ** intros Hin. apply Hnot. right. exact Hin.
+        -- apply negb_true_iff in Hk.
+           apply (raises_as_marked_aux body exn_handlers Hbody).
+           ++ intros k' Hin. specialize (Happ k' Hin).
+              apply orb_false_iff in Happ. exact (proj2 Happ).
+           ++ intros k' Hfree Hnot.
+              destruct (Pos.eq_dec k' k) as [-> | Hne]; [ exact Hk | ].
+              exact (Houter k' Hfree Hne Hnot).
+    + (* Let_cont_recursive *)
+      apply andb_true_iff in Hwf as [Hgroup Hbody].
+      rewrite forallb_forall in Hgroup.
+      assert (Hbound : ∀ k' : continuation,
+                In k' (map fst handlers) ->
+                raises_to k' body = false
+                ∧ existsb (fun '(_, h') => handler_raises_to k' h') handlers
+                  = false).
+      { intros k' Hin. apply in_map_iff in Hin as ([k0 h0] & Heq & Hin).
+        simpl in Heq. subst k0. specialize (Hgroup _ Hin). simpl in Hgroup.
+        apply andb_true_iff in Hgroup as [Hgroup _].
+        apply andb_true_iff in Hgroup as [Hgroup Hothers].
+        apply andb_true_iff in Hgroup as [_ Hinbody].
+        split; apply negb_true_iff; assumption. }
+      assert (Hfree_outer : ∀ k' : continuation,
+                In k'
+                  (flat_map (fun '(_, h) => handler_free_continuations h)
+                     handlers
+                   ++ free_continuations body) ->
+                ~ In k' (map fst handlers) -> ~ In k' exn_handlers ->
+                existsb (fun '(_, h) => handler_raises_to k' h) handlers
+                = false
+                ∧ raises_to k' body = false).
+      { intros k' Hfree Hunbound Hnot. apply orb_false_iff.
+        apply (Hraise k'); [ | exact Hnot ].
+        apply in_without; assumption. }
+      apply andb_true_iff. split.
+      * assert (Hhandlers : ∀ (k0 : continuation) (h0 : continuation_handler),
+                  In (k0, h0) handlers ->
+                  handler_exn_handlers_well_formed h0 = true
+                  ∧ (∀ k' : continuation,
+                      In k' exn_handlers ->
+                      handler_applies_cont k' h0 = false)
+                  ∧ (∀ k' : continuation,
+                      In k' (handler_free_continuations h0) ->
+                      ~ In k' exn_handlers ->
+                      handler_raises_to k' h0 = false)).
+        { intros k0 h0 Hin. split; [ | split ].
+          - specialize (Hgroup _ Hin). simpl in Hgroup.
+            apply andb_true_iff in Hgroup. exact (proj2 Hgroup).
+          - intros k' Hexn. specialize (Happ k' Hexn).
+            apply orb_false_iff in Happ.
+            exact (existsb_false_In _ _ (k0, h0) (proj1 Happ) Hin).
+          - intros k' Hfree Hnot.
+            assert (Hnone : existsb
+                      (fun '(_, h) => handler_raises_to k' h) handlers
+                    = false).
+            { destruct (in_dec Pos.eq_dec k' (map fst handlers))
+                as [Hbound' | Hunbound].
+              - exact (proj2 (Hbound k' Hbound')).
+              - apply (Hfree_outer k'); [ | exact Hunbound | exact Hnot ].
+                apply in_or_app. left. apply in_flat_map.
+                exists (k0, h0). split; assumption. }
+            exact (existsb_false_In _ _ (k0, h0) Hnone Hin). }
+        clear -Hhandlers handler_raises_as_marked_aux.
+        induction handlers as [ | [k0 h0] handlers IH]; simpl;
+          [ reflexivity | ].
+        apply andb_true_iff. split.
+        -- destruct (Hhandlers k0 h0 (or_introl eq_refl))
+             as (Hwf0 & Happ0 & Hraise0).
+           exact (handler_raises_as_marked_aux h0 exn_handlers Hwf0 Happ0
+                    Hraise0).
+        -- apply IH. intros k1 h1 Hin. apply (Hhandlers k1 h1). right.
+           exact Hin.
+      * apply (raises_as_marked_aux body exn_handlers Hbody).
+        -- intros k' Hin. specialize (Happ k' Hin).
+           apply orb_false_iff in Happ. exact (proj2 Happ).
+        -- intros k' Hfree Hnot.
+           destruct (in_dec Pos.eq_dec k' (map fst handlers))
+             as [Hbound' | Hunbound].
+           ++ exact (proj1 (Hbound k' Hbound')).
+           ++ apply (Hfree_outer k'); [ | exact Hunbound | exact Hnot ].
+              apply in_or_app. right. exact Hfree.
+    + (* Apply *)
+      reflexivity.
+    + (* Apply_cont *)
+      exact (raise_as_marked_ok exn_handlers ac Happ Hraise).
+    + (* Switch *)
+      apply forallb_forall. intros arm Hin.
+      apply raise_as_marked_ok.
+      * intros k Hk. specialize (Happ k Hk).
+        exact (existsb_false_In _ _ arm Happ Hin).
+      * intros k Hk Hnot.
+        assert (Hfree : In k
+                  (flat_map
+                     (fun arm => apply_cont_continuations (snd arm)) arms))
+          by (apply in_flat_map; exists arm; split; assumption).
+        specialize (Hraise k Hfree Hnot).
+        exact (existsb_false_In _ _ arm Hraise Hin).
+    + (* Invalid *)
+      reflexivity.
+  - destruct h as [params metadata handler]. simpl.
+    exact (raises_as_marked_aux handler).
+  - destruct binding as [id c | id | s const]; simpl; intros Hwf;
+      try reflexivity.
+    exact (code_raises_as_marked_aux c Hwf).
+  - destruct c as [params my_closure ret exn metadata body]. simpl.
+    intros Hwf.
+    apply andb_true_iff in Hwf as [Hwf Hbody].
+    apply andb_true_iff in Hwf as [Hways Happ].
+    apply negb_true_iff in Happ.
+    unfold ways_out_well_formed in Hways. rewrite forallb_forall in Hways.
+    apply (raises_as_marked_aux body [exn] Hbody).
+    + intros k [<- | []]. exact Happ.
+    + intros k Hfree Hnot. specialize (Hways k Hfree).
+      apply andb_true_iff in Hways as [Hways _].
+      destruct (Pos.eqb_spec k exn) as [Heq | _];
+        [ exfalso; apply Hnot; left; symmetry; exact Heq | ].
+      apply negb_true_iff. exact Hways.
+Qed.
+
+Theorem raises_as_marked : raises_as_marked_statement.
+Proof.
+  intros unit_exn e Hwf. unfold unit_exn_handlers_well_formed in Hwf.
+  apply andb_true_iff in Hwf as [Hwf Hbody].
+  apply andb_true_iff in Hwf as [Hways Happ].
+  apply negb_true_iff in Happ.
+  unfold ways_out_well_formed in Hways. rewrite forallb_forall in Hways.
+  apply (raises_as_marked_aux e [unit_exn] Hbody).
+  - intros k [<- | []]. exact Happ.
+  - intros k Hfree Hnot. specialize (Hways k Hfree).
+    apply andb_true_iff in Hways as [Hways _].
+    destruct (Pos.eqb_spec k unit_exn) as [Heq | _];
+      [ exfalso; apply Hnot; left; symmetry; exact Heq | ].
+    apply negb_true_iff. exact Hways.
+Qed.
+
+(* ======================================================================== *)
+(* The machine with the stack is equivariant                                *)
+(* ======================================================================== *)
+
+Theorem initial_stack_equivariant : initial_stack_equivariant_statement.
+Proof. intros r unit_exn. reflexivity. Qed.
+
+Definition rename_leaving (r : renaming) (how : leaving) : leaving :=
+  match how with
+  | Leaving_by k => Leaving_by (rename_continuation r k)
+  | Raising => Raising
+  end.
+
+(* [unwind] goes down the stack two entries at a time where a call
+   returns, so the induction is on a bound of the length. *)
+Lemma unwind_equivariant (r : renaming) (statics : static_env) :
+  ∀ (n : nat) (st : stack) (how : leaving) (vs : list value),
+    length st <= n ->
+    unwind (rename_stack r st) (rename_leaving r how) vs
+      (rename_static_env r statics)
+    = rename_stack_result r (unwind st how vs statics).
+Proof.
+  induction n as [ | n IH]; intros st how vs Hlen.
+  - destruct st; [ | simpl in Hlen; lia ]. destruct how; reflexivity.
+  - destruct how as [k | ].
+    + destruct st as [ | [c | ret exn return_to extra] rest];
+        [ reflexivity | | ].
+      * destruct rest as [ | [c' | ret exn return_to extra] rest];
+          [ reflexivity | reflexivity | ].
+        simpl. rewrite rename_continuation_eqb.
+        destruct (Pos.eqb k ret); [ | reflexivity ].
+        rewrite apply_cont_value_equivariant.
+        destruct (apply_cont_value return_to vs statics) as [s | k' vs' | ];
+          simpl; [ reflexivity | | reflexivity ].
+        apply (IH rest (Leaving_by k') vs'). simpl in Hlen. lia.
+      * simpl. rewrite rename_continuation_eqb.
+        destruct (Pos.eqb k exn); [ | reflexivity ].
+        apply (IH rest Raising (vs ++ extra)). simpl in Hlen. lia.
+    + destruct st as [ | [c | ret exn return_to extra] rest];
+        [ reflexivity | | reflexivity ].
+      simpl. rewrite apply_cont_value_equivariant.
+      destruct (apply_cont_value c vs statics) as [s | k' vs' | ]; simpl;
+        [ reflexivity | | reflexivity ].
+      apply (IH rest (Leaving_by k') vs'). simpl in Hlen. lia.
+Qed.
+
+Lemma stack_enter_equivariant (r : renaming) (c : cont_value)
+    (vs : list value) (statics : static_env) (st : stack) :
+  stack_enter (rename_cont_value r c) vs (rename_static_env r statics)
+    (rename_stack r st)
+  = rename_stack_result r (stack_enter c vs statics st).
+Proof.
+  unfold stack_enter. rewrite apply_cont_value_equivariant.
+  destruct (apply_cont_value c vs statics) as [s | k vs' | ]; simpl;
+    [ reflexivity | | reflexivity ].
+  exact (unwind_equivariant r statics (length st) st (Leaving_by k) vs'
+           (le_n _)).
+Qed.
+
+Lemma is_raise_equivariant (r : renaming) (ac : apply_cont) :
+  is_raise (rename_apply_cont r ac) = is_raise ac.
+Proof.
+  unfold is_raise. simpl.
+  destruct (ac_trap_action ac) as [[k | k kind] | ]; simpl;
+    try reflexivity.
+  apply rename_continuation_eqb.
+Qed.
+
+Lemma stack_call_equivariant (r : renaming) (ap : apply_expr) (vars : env)
+    (conts : cont_env) (statics : static_env) (st : stack) :
+  stack_call (rename_apply r ap) (rename_env r vars)
+    (rename_cont_env r conts) (rename_static_env r statics)
+    (rename_stack r st)
+  = rename_stack_result r (stack_call ap vars conts statics st).
+Proof.
+  unfold stack_call. rewrite exn_extra_simples_rename. simpl.
+  rewrite eval_simple_equivariant, !eval_simples_equivariant.
+  destruct (eval_simple vars (ap_callee ap)) as [callee | ];
+    [ | reflexivity ].
+  destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | reflexivity ].
+  destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
+    [ | reflexivity ].
+  replace (closure_of (rename_static_env r statics) callee)
+    with (closure_of statics callee) by reflexivity.
+  destruct (closure_of statics callee) as [[called slots] | ];
+    [ | reflexivity ].
+  first [ rewrite lookup_rename_code | rewrite lookup_map_values ].
+  destruct (lookup called (static_code statics)) as [c | ]; simpl;
+    [ | reflexivity ].
+  replace (code_return_continuation (rename_code r c))
+    with (rename_continuation r (code_return_continuation c))
+    by (destruct c; reflexivity).
+  replace (code_exn_continuation (rename_code r c))
+    with (rename_continuation r (code_exn_continuation c))
+    by (destruct c; reflexivity).
+  change (Outer (rename_continuation r (code_return_continuation c)))
+    with (rename_cont_value r (Outer (code_return_continuation c))).
+  change (Outer (rename_continuation r (code_exn_continuation c)))
+    with (rename_cont_value r (Outer (code_exn_continuation c))).
+  rewrite call_function_equivariant.
+  destruct
+    (call_function callee (ap_call_kind ap) vs (ap_args_arity ap)
+       (ap_return_arity ap) (Outer (code_return_continuation c))
+       (Outer (code_exn_continuation c)) statics)
+    as [s' | k vs' | ];
+    simpl; [ | reflexivity | reflexivity ].
+  rewrite resolve_equivariant. reflexivity.
+Qed.
+
+Lemma stack_apply_cont_equivariant (r : renaming) (ac : apply_cont)
+    (vars : env) (conts : cont_env) (statics : static_env) (st : stack) :
+  stack_apply_cont (rename_apply_cont r ac) (rename_env r vars)
+    (rename_cont_env r conts) (rename_static_env r statics)
+    (rename_stack r st)
+  = rename_stack_result r (stack_apply_cont ac vars conts statics st).
+Proof.
+  unfold stack_apply_cont. rewrite is_raise_equivariant. simpl.
+  rewrite eval_simples_equivariant.
+  destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | reflexivity ].
+  rewrite resolve_equivariant.
+  destruct (ac_trap_action ac) as [[k | k kind] | ]; simpl.
+  - rewrite resolve_equivariant.
+    exact (stack_enter_equivariant r _ vs statics
+             (Trap (resolve k conts) :: st)).
+  - destruct (is_raise ac).
+    + exact (unwind_equivariant r statics (length st) st Raising vs
+               (le_n _)).
+    + destruct st as [ | [c | ret exn return_to extra] rest];
+        [ reflexivity | | reflexivity ].
+      apply stack_enter_equivariant.
+  - apply stack_enter_equivariant.
+Qed.
+
+Theorem stack_step_equivariant : stack_step_equivariant_statement.
+Proof.
+  intros r s st.
+  pose proof (step_equivariant r s) as Hstep. revert Hstep.
+  unfold stack_step. rewrite (state_eta s). unfold rename_state.
+  simpl_state.
+  destruct (state_expr s)
+    as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+       | scrutinee arms | ];
+    intros Hstep;
+    try (cbn [rename_expr]; cbn [rename_expr] in Hstep; rewrite Hstep;
+         match goal with
+         | |- context [step ?s'] => destruct (step s')
+         end;
+         reflexivity).
+  - apply stack_call_equivariant.
+  - apply stack_apply_cont_equivariant.
+Qed.
+
+Theorem stack_run_equivariant : stack_run_equivariant_statement.
+Proof.
+  intros r fuel. induction fuel as [ | fuel IH]; intros s st; simpl;
+    [ reflexivity | ].
+  rewrite stack_step_equivariant.
+  destruct (stack_step s st) as [s' st' | k vs | ]; simpl;
+    [ apply IH | | ]; reflexivity.
+Qed.
+
+Theorem stack_behaves_equivariant : stack_behaves_equivariant_statement.
+Proof.
+  intros r s st [k vs | | ]; simpl.
+  - split; intros [fuel Hrun]; exists fuel; revert Hrun;
+      rewrite stack_run_equivariant.
+    + destruct (stack_run fuel s st) as [s' st' | k' vs' | ]; simpl;
+        try discriminate.
+      intros [= Hk ->]. apply rename_continuation_injective in Hk.
+      subst k'. reflexivity.
+    + intros ->. reflexivity.
+  - split; intros [fuel Hrun]; exists fuel; revert Hrun;
+      rewrite stack_run_equivariant;
+      destruct (stack_run fuel s st); simpl; intros Hrun;
+      try discriminate; reflexivity.
+  - split; intros Hdiverges fuel; specialize (Hdiverges fuel);
+      revert Hdiverges; rewrite stack_run_equivariant;
+      destruct (stack_run fuel s st) as [s' st' | k vs | ]; simpl;
+      intros (t & st'' & Ht); try discriminate; eauto.
 Qed.
