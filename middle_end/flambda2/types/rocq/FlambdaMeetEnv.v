@@ -44,9 +44,11 @@
    - [meet_expanded_head]: the type of the function that meets two
      expanded types, which every function here that may meet is given
      as its last argument ([~meet_expanded_head] in the compiler). It
-     answers an [option]: [None] is a fatal error of the compiler, or a
+     answers an [option]: [None] is a fatal error of the compiler, a
      meet that was not given enough fuel (FlambdaMeetSpec.v,
-     "Termination").
+     "Termination"), or, in one place, a state at which the model
+     stops and the compiler does not (below, "A name that is no longer
+     canonical").
    - [t]: [typing_env] and [adding_equations_for_names] in full, the
      latter as a list of names. [create], [with_typing_env],
      [map_typing_env], [current_typing_env], [make_bottom]: in full.
@@ -57,7 +59,10 @@
      [add_concrete_equation_on_const],
      [add_or_delay_concrete_equation_on_canonical],
      [add_concrete_equation_on_simple], [record_demotion],
-     [add_alias_between_canonicals]: in full, for the default strategy.
+     [add_alias_between_canonicals]: in full, for the default strategy,
+     but for one test that the model adds in
+     [replace_concrete_equation] (below, "A name that is no longer
+     canonical").
    - [add_equation_on_simple], [add_equation], [add_env_extension] and
      [add_alias]: the compiler defines each twice, first with an
      argument [~raise_on_bottom] and then, under the same name, the
@@ -97,7 +102,9 @@
      constant that is refused, a constant that is demoted, lists of
      different lengths in [add_equations_on_params]. What the compiler
      checks only when a flag asks for invariants is not checked
-     ([record_demotion], [check_params_and_types]).
+     ([record_demotion], [check_params_and_types]). Not every [None]
+     is a fatal error of the compiler: the next item but one has a
+     [None] of the model's own.
    - Coercions. A [Simple] has none (FlambdaModel.v), so the cases for
      a coercion that is not the identity are not there.
    - A name that is no longer canonical. The model is stricter than
@@ -115,6 +122,14 @@
      [None] there. Where the type answered is not such a type the
      model does as the compiler does: the name, which is an alias in
      the aliases, gets a type that is not an alias. Discrepancy T4-10.
+     This [None] is no fatal error of the compiler and no lack of
+     fuel: on an input that reaches it the compiler answers and the
+     model does not. No choice of [meet_choices] (FlambdaMeet.v)
+     governs it, so the meet with the compiler's choices has it too.
+     It is not shown that no input reaches it; a comparison of the
+     model with the compiler is to account for such an input, and a
+     statement that the model answers what the compiler answers is to
+     exclude it or to show that there is none.
    - [add_alias] reads the kind of a [Simple] from the environment
      ([kind_of_simple], FlambdaMeetGrammar.v): a variable of the model
      does not carry its kind.

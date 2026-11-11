@@ -537,7 +537,9 @@ Definition keeps_equations_valued (tenv tenv' : Typing_env.t)
 (* The type of [Meet.meet] (meet.ml, and [Meet_and_n_way_join.meet] as
    it is exposed): bottom, or a type and the environment extended.
    [None] is a fatal error of the compiler, or a meet that was not
-   given enough fuel. *)
+   given enough fuel, or the one state at which the model stops and
+   the compiler does not (FlambdaMeetEnv.v, "A name that is no longer
+   canonical"; discrepancy T4-10). *)
 Definition meet_function : Type :=
   Typing_env.t -> flambda_type -> flambda_type ->
   option (Or_bottom.t (flambda_type * Typing_env.t)).
@@ -1024,7 +1026,12 @@ End Contracts.
    the step for [Get_tag] adds [blocks_with_these_tags], the variables
    of a level are defined again after a join, and the variables of a
    single case of a row-like structure are not lifted. It has not
-   [meet_sound] (FlambdaMeetExamplesSpec.v). *)
+   [meet_sound] (FlambdaMeetExamplesSpec.v). It is not the compiler's
+   meet on every input: where an equation is being added to a name,
+   the meet in between has demoted the name, and the type answered
+   has one constant for only value, the compiler goes on and this
+   function answers [None] (FlambdaMeetEnv.v; discrepancy T4-10). No
+   such input is known, and it is not shown that there is none. *)
 Definition compiler_meet (join : join_scoped_envs) (fuel : nat)
     : meet_function :=
   Meet.meet join compiler_choices fuel.

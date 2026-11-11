@@ -184,8 +184,9 @@ Definition meet_call_ok (menv : Meet_env.t) (a1 a2 : A)
 
 (* A meet of parts is right: every call of it is, on inputs that fit
    an environment that fits. Nothing is said of a call that does not
-   answer ([None]: a fatal error of the compiler, or not enough
-   fuel). *)
+   answer ([None]: a fatal error of the compiler, not enough fuel, or
+   the state at which the model stops and the compiler does not,
+   FlambdaMeetEnv.v). *)
 Definition part_meet_ok
     (meet : Meet_env.t -> A -> A -> option (Meet_result.t A)) : Prop :=
   ∀ (menv : Meet_env.t) (a1 a2 : A) (result : Meet_result.t A),

@@ -98,8 +98,12 @@
        the result, as they are where there is more than one case
        (FlambdaMeetSpec.v, discrepancy T4-9).
    - the fuel.
-   The compiler is [Meet.meet join compiler_choices fuel]; what is to
-   be proved sound is [Meet.meet join repaired_choices fuel].
+   The compiler is [Meet.meet join compiler_choices fuel], but for one
+   test of FlambdaMeetEnv.v that no choice governs
+   ([Meet_env.replace_concrete_equation], on a name that is no longer
+   canonical: the model answers [None] where the compiler goes on;
+   discrepancy T4-10). What is to be proved sound is
+   [Meet.meet join repaired_choices fuel].
 
    What the model has, in the order of the file, and how each differs
    from the compiler's:
@@ -727,7 +731,11 @@ Record meet_choices : Type := {
 }.
 
 (* What the compiler does: [blocks_with_these_tags]; it defines again;
-   it does not lift. *)
+   it does not lift. The meet with these choices is the compiler's
+   but for one thing that no choice governs: the test of
+   [Meet_env.replace_concrete_equation] on a name that is no longer
+   canonical, where the model answers [None] and the compiler goes on
+   (FlambdaMeetEnv.v; discrepancy T4-10). *)
 Definition compiler_choices : meet_choices :=
   {| type_of_get_tag_scrutinee := blocks_with_these_tags;
      define_again := true;
@@ -1937,7 +1945,9 @@ Variable choices : meet_choices.
 
 (* [Meet_and_n_way_join.meet_expanded_head]: the meet of two types that
    are not aliases. [None] is a fatal error of the compiler, or the
-   fuel has run out. *)
+   fuel has run out, or the one state at which the model stops and the
+   compiler does not (FlambdaMeetEnv.v, "A name that is no longer
+   canonical"). *)
 Fixpoint meet_expanded_head (fuel : nat) : FlambdaMeetEnv.meet_expanded_head :=
   match fuel with
   | O => fun _ _ _ => None
