@@ -1155,7 +1155,9 @@ let meet_as_model (names : names) (implementation : implementation) t1 t2 :
 
 (* What a join gives: the type of the parameter, and the variables that the join
    made of its own (those that are not of the tests) that this type mentions, or
-   the type of one of them, each with what the joined environment says of it. *)
+   the type of one of them, each with what the joined environment says of it.
+   Where other types are read from the joined environment besides, the variables
+   that they mention are among these too ([reached_from] below). *)
 type joined =
   { joined : MT.flambda_type;
     own : (M.variable * MT.flambda_type) list;
@@ -1178,8 +1180,8 @@ let own_variables_of (names : names) (t : MT.flambda_type) : M.variable list =
     []
     (MT.free_variables (Model_type.normalise t))
 
-let joined_of_env (names : names) (env : TE.t) (parameter : Variable.t) : joined
-    =
+let joined_of_env ?(reached_from = []) (names : names) (env : TE.t)
+    (parameter : Variable.t) : joined =
   let type_of variable =
     to_model names
       (TE.find env (Name.var variable) (Some (Variable.kind variable)))
@@ -1200,7 +1202,9 @@ let joined_of_env (names : names) (env : TE.t) (parameter : Variable.t) : joined
           let t = type_of variable in
           close ((x, t) :: own) (pending @ own_variables_of names t)
   in
-  let own = close [] (own_variables_of names joined) in
+  let own =
+    close [] (List.concat_map (own_variables_of names) (joined :: reached_from))
+  in
   let own_in_terms =
     List.filter
       (fun x ->
@@ -1343,6 +1347,19 @@ let print_joined_as_numbered ({ joined; own; own_in_terms } : joined) : string =
 
 let print_joined (names : names) (joined : joined) : string =
   rename_own_variables names (print_joined_as_numbered joined)
+
+(* What a joined environment says, as printed: the type of the parameter, the
+   types of the names of the tests, and what is said of each variable that is
+   not of the tests and that any of these types reaches. *)
+let print_joined_with_names (names : names) (env : TE.t)
+    (parameter : Variable.t) : string =
+  let learnt = types_of_names names env in
+  rename_own_variables names
+    (Format.asprintf "@[<v>%s@ and for the names %a@]"
+       (print_joined_as_numbered
+          (joined_of_env ~reached_from:learnt names env parameter))
+       print_types
+       (List.map Model_type.normalise learnt))
 
 let two_implementations (names : names) :
     (MT.flambda_type * MT.flambda_type) comparison list =
@@ -2179,8 +2196,8 @@ let shared_and_not (names : names) : MT.flambda_type comparison list =
    immediates whose immediate case says of a variable that it has the common
    part as its type; - two uses of a continuation that pass the same variable,
    each knowing that the variable has the common part as its type. What is
-   compared is the type of the parameter with what the join says of its own
-   variables and of the names of the tests. *)
+   compared is the type of the parameter with what the join says of the names of
+   the tests and of each variable of its own that any of these types reaches. *)
 type parts =
   { common : MT.flambda_type;
     left : MT.flambda_type;
@@ -2219,11 +2236,7 @@ let shared_parts (names : names) : parts comparison list =
   in
   let join implementation ?known types =
     let env, parameter = join_env names implementation ?known Value types in
-    rename_own_variables names
-      (Format.asprintf "@[<v>%s@ and for the names %a@]"
-         (print_joined_as_numbered (joined_of_env names env parameter))
-         print_types
-         (List.map Model_type.normalise (types_of_names names env)))
+    print_joined_with_names names env parameter
   in
   let meet implementation t t' =
     match meet_as_model names implementation t t' with
@@ -2765,6 +2778,61 @@ let the_chosen_joins (names : names) : chosen_join list =
 (* The comparison by text                                                   *)
 (* ======================================================================== *)
 
+(* An environment in which a variable of the tests is a block whose field is a
+   variable that is not of the tests, which is one of two numbers, and in which
+   the parameter is that variable of the tests. What the environment says of the
+   variable that is not of the tests is reached from the type of the name only.
+   Two such environments that differ in the numbers print differently when the
+   names are among the roots, as for the shared parts; from the parameter alone
+   they print alike, which is the limit of the comparisons of two joins that
+   print the parameter only. *)
+let reached_by_a_name_only (names : names) : (string * bool) list =
+  let x =
+    Converter.variable_of_model names.numbering
+      (List.hd names.pool.value_variables)
+  in
+  let parameter = parameter names Value in
+  let environment numbers =
+    let e = Variable.create "e" K.value in
+    let define env variable =
+      TE.add_definition env
+        (Bound_name.create_var
+           (Bound_var.create variable Flambda_debug_uid.none Name_mode.normal))
+        K.value
+    in
+    let meet_expanded_head = n_way.meet_expanded_head in
+    let block_of_e =
+      MTC.immutable_block ~machine_width ~is_unique:false
+        (Converter.tag_of_model machine_width (N.z_of_int 0))
+        ~shape:(Converter.block_shape_of_model (Scannable Value_only))
+        (Converter.alloc_mode_of_model Heap)
+        ~fields:[TG.alias_type_of K.value (Simple.var e)]
+    in
+    ME.use_meet_env ~meet_expanded_head
+      (define (define names.env parameter) e)
+      ~f:(fun env ->
+        List.fold_left
+          (fun env (variable, t) ->
+            ME.add_equation env (Name.var variable) t ~meet_expanded_head)
+          env
+          [ ( e,
+              to_compiler names
+                (MT.these_tagged_immediates (List.map N.z_of_int numbers)) );
+            x, block_of_e;
+            parameter, TG.alias_type_of K.value (Simple.var x) ])
+  in
+  let with_names numbers =
+    print_joined_with_names names (environment numbers) parameter
+  in
+  let parameter_only numbers =
+    print_joined names (joined_of_env names (environment numbers) parameter)
+  in
+  [ ( "a variable that only a name of the tests reaches, of two numbers and of \
+       two others, printed with the names",
+      not (String.equal (with_names [0; 1]) (with_names [2; 3])) );
+    ( "the same, printed from the parameter alone (one text)",
+      String.equal (parameter_only [0; 1]) (parameter_only [2; 3]) ) ]
+
 (* Where two answers of the compiler are compared as text, the variables that
    are not of the tests are renamed over the whole text. So two types that are
    aliases of one such variable print as two types that are aliases of another
@@ -2791,6 +2859,7 @@ let comparison_by_text (names : names) =
                   own = [own 2, alias 3; own 3, alias 3];
                   own_in_terms = []
                 })) ) ]
+    @ reached_by_a_name_only names
   in
   let wrong = List.filter (fun (_, as_expected) -> not as_expected) cases in
   Format.printf "@.The comparison by text (%d cases): %d as expected@."
