@@ -331,6 +331,9 @@ says so. Only the labels that this tree cites are listed.
   prefers a `Phantom` alias to an earlier `Normal` one.
 - **T3-7.** `find_best` and the tie in `find_earliest_alias` depend on
   the order of names; the model takes the first of a list.
+- **T3-8.** The extra variables of an extension with extra variables are
+  not a binding site in the compiler: `With_extra_variables.free_names`
+  lists them and `apply_renaming` renames them.
 - **T4-1.** After the n-way join, the meet defines a second time the
   variables that the join imported from a branch.
 - **T4-2.** A meet that reads the type of a name holding poison can
