@@ -74,11 +74,13 @@ Lemma kind_alias_type_of (k : flambda_kind) (s : simple) :
 Proof. destruct k as [ | [] | | ]; reflexivity. Qed.
 
 (* The type that the compiler gives a constant is of its kind. *)
-Lemma kind_type_for_const (c : const) : kind (type_for_const c) = kind_of_const c.
+Lemma kind_type_for_const (c : const) :
+  kind (type_for_const c) = kind_of_const c.
 Proof.
   symmetry.
   exact (type_satisfied_kind empty_static_env [] (Value_const c)
-           (type_for_const c) (type_for_const_satisfied empty_static_env [] c)).
+           (type_for_const c)
+           (type_for_const_satisfied empty_static_env [] c)).
 Qed.
 
 (* ======================================================================== *)
@@ -193,7 +195,8 @@ Lemma in_scope_in_terms_lookup (tenv : Typing_env.t) (x : variable) :
           = Name_mode.Normal.
 Proof.
   unfold in_scope_in_terms, Typing_env.mem.
-  destruct (Keyed.lookup name_eqb (Name_var x) (Typing_env.names_to_types tenv))
+  destruct (Keyed.lookup name_eqb (Name_var x)
+              (Typing_env.names_to_types tenv))
     as [[ty binding_time_and_mode] | ].
   - split.
     + intros Hmode. exists ty, binding_time_and_mode.
@@ -318,7 +321,8 @@ Proof.
   - destruct (Keyed.lookup name_eqb (Name_var x)
                 (Typing_env.names_to_types tenv))
       as [[ty binding_time_and_mode] | ]; [ | discriminate ].
-    intros _. simpl. destruct (Typing_env.is_bottom tenv); eexists; reflexivity.
+    intros _. simpl.
+    destruct (Typing_env.is_bottom tenv); eexists; reflexivity.
   - intros Hdefined.
     destruct (Keyed.lookup name_eqb (Name_symbol s)
                 (Typing_env.names_to_types tenv))
