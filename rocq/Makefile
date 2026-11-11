@@ -221,6 +221,10 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaMeetExamplesProofs.v \
   FlambdaMeetExamplesSpec.v \
   FlambdaMeetGrammar.v \
+  FlambdaMeetHeadsProofs.v \
+  FlambdaMeetHeadsSpec.v \
+  FlambdaMeetProductsProofs.v \
+  FlambdaMeetProductsSpec.v \
   FlambdaMeetProofs.v \
   FlambdaMeetScopesProofs.v \
   FlambdaMeetScopesSpec.v \
