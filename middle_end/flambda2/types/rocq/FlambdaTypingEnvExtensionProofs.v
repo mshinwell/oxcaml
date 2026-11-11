@@ -33,11 +33,13 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec FlambdaMapProofs
-  FlambdaSemanticsSpec.
+  FlambdaSemanticsSpec FlambdaNominalSpec FlambdaNominalProofs FlambdaAlphaSpec
+  FlambdaAlphaProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
-  FlambdaBindingTime FlambdaTypingEnv FlambdaTypingEnvSpec
-  FlambdaTypingEnvExtension FlambdaTypingEnvExtensionSpec.
+  FlambdaTypeRenameSpec FlambdaTypeRenameProofs FlambdaBindingTime
+  FlambdaEnvAliasesRenamingProofs FlambdaEnvAliasesSetProofs FlambdaTypingEnv
+  FlambdaTypingEnvSpec FlambdaTypingEnvExtension FlambdaTypingEnvExtensionSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -392,6 +394,300 @@ Theorem with_extra_variables_add_or_replace_equation :
   with_extra_variables_add_or_replace_equation_statement.
 Proof.
   intros t n ty n'. split; [ reflexivity | apply lookup_added ].
+Qed.
+
+(* ======================================================================== *)
+(* Renaming                                                                 *)
+(* ======================================================================== *)
+
+Theorem apply_renaming_to_map : apply_renaming_to_map_statement.
+Proof. intros r [equations]. reflexivity. Qed.
+
+Lemma compact_renamed (r : renaming)
+    (m : Keyed.finite_map name flambda_type) :
+  Keyed.compact name_eqb
+    (Keyed.map_bindings (rename_name r) (rename_type r) m)
+  = Keyed.map_bindings (rename_name r) (rename_type r)
+      (Keyed.compact name_eqb m).
+Proof.
+  unfold Keyed.compact.
+  rewrite (domain_renamed name_eqb (rename_name r) (name_eqb_renamed r)).
+  apply (tabulate_renamed (rename_name r)). intros n.
+  apply (lookup_renamed name_eqb (rename_name r) (name_eqb_renamed r)).
+Qed.
+
+Theorem apply_renaming_bindings : apply_renaming_bindings_statement.
+Proof.
+  intros r t. unfold Typing_env_extension.bindings.
+  rewrite (apply_renaming_to_map r t). apply compact_renamed.
+Qed.
+
+Theorem apply_renaming_is_empty : apply_renaming_is_empty_statement.
+Proof.
+  intros r t. unfold Typing_env_extension.is_empty.
+  rewrite (apply_renaming_to_map r t). apply is_empty_map.
+Qed.
+
+Theorem apply_renaming_has_equation : apply_renaming_has_equation_statement.
+Proof.
+  intros r t n. unfold Typing_env_extension.has_equation.
+  rewrite (apply_renaming_to_map r t).
+  apply (is_bound_renamed name_eqb (rename_name r) (name_eqb_renamed r)).
+Qed.
+
+Theorem apply_renaming_one_equation : apply_renaming_one_equation_statement.
+Proof. intros r n ty. reflexivity. Qed.
+
+Theorem apply_renaming_add_or_replace_equation :
+  apply_renaming_add_or_replace_equation_statement.
+Proof.
+  intros r [equations] n ty.
+  change
+    (Env_extension
+       (Keyed.map_bindings (rename_name r) (rename_type r)
+          ((n, ty) :: Keyed.unbind name_eqb n equations))
+     = Env_extension
+         ((rename_name r n, rename_type r ty)
+          :: Keyed.unbind name_eqb (rename_name r n)
+               (Keyed.map_bindings (rename_name r) (rename_type r)
+                  equations))).
+  rewrite (unbind_renamed name_eqb (rename_name r) (name_eqb_renamed r)).
+  reflexivity.
+Qed.
+
+Theorem apply_renaming_disjoint_union :
+  apply_renaming_disjoint_union_statement.
+Proof.
+  intros r t1 t2. unfold Typing_env_extension.disjoint_union.
+  rewrite (apply_renaming_to_map r t1), (apply_renaming_to_map r t2).
+  rewrite !(domain_renamed name_eqb (rename_name r) (name_eqb_renamed r)),
+    inter_renamed, is_empty_map.
+  destruct (Keyed.is_empty _); [ | reflexivity ].
+  destruct t1 as [equations1], t2 as [equations2]. simpl.
+  unfold Keyed.map_bindings. rewrite map_app. reflexivity.
+Qed.
+
+Lemma fold_left_renamed {A A' B B' : Type} (ga : A -> A') (gb : B -> B')
+    (f : A -> B -> A) (f' : A' -> B' -> A') (l : list B) :
+  (∀ (a : A) (b : B), f' (ga a) (gb b) = ga (f a b)) ->
+  ∀ init : A,
+    List.fold_left f' (map gb l) (ga init) = ga (List.fold_left f l init).
+Proof.
+  intros Hf. induction l as [ | b l IH]; intros init; simpl;
+    [ reflexivity | ].
+  rewrite Hf. apply IH.
+Qed.
+
+Lemma forallb_renamed {A B : Type} (g : A -> B) (p : A -> bool)
+    (p' : B -> bool) (l : list A) :
+  (∀ a : A, p' (g a) = p a) -> forallb p' (map g l) = forallb p l.
+Proof.
+  intros Hp. induction l as [ | a l IH]; simpl; [ reflexivity | ].
+  rewrite Hp, IH. reflexivity.
+Qed.
+
+Theorem apply_renaming_fold : apply_renaming_fold_statement.
+Proof.
+  intros B B' r state equation equation' t acc Hequation.
+  unfold Typing_env_extension.fold.
+  rewrite (apply_renaming_bindings r t).
+  apply
+    (fold_left_renamed state
+       (fun binding : name * flambda_type =>
+          (rename_name r (fst binding), rename_type r (snd binding)))).
+  intros a [n ty]. apply Hequation.
+Qed.
+
+Lemma get_alias_opt_renamed (r : renaming) (ty : flambda_type) :
+  get_alias_opt (rename_type r ty)
+  = option_map (rename_simple r) (get_alias_opt ty).
+Proof.
+  destruct ty as [ty | ty | k ty | ty | ty];
+    destruct ty as [ | [head | s] | ]; reflexivity.
+Qed.
+
+Lemma check_equation_renamed (r : renaming) (n : name) (ty : flambda_type) :
+  Typing_env_extension.check_equation (rename_name r n) (rename_type r ty)
+  = Typing_env_extension.check_equation n ty.
+Proof.
+  unfold Typing_env_extension.check_equation,
+    Typing_env_extension.is_alias_of_name.
+  rewrite get_alias_opt_renamed.
+  destruct (get_alias_opt ty) as [[x | sym | c] | ]; simpl;
+    try reflexivity.
+  - change (Name_var (rename_variable r x)) with (rename_name r (Name_var x)).
+    rewrite name_eqb_renamed. reflexivity.
+  - change (Name_symbol sym) with (rename_name r (Name_symbol sym)) at 1.
+    rewrite name_eqb_renamed. reflexivity.
+Qed.
+
+Theorem apply_renaming_checks : apply_renaming_checks_statement.
+Proof.
+  split; [ exact check_equation_renamed | ].
+  intros r t. unfold Typing_env_extension.invariant.
+  rewrite (apply_renaming_bindings r t).
+  apply forallb_renamed. intros [n ty]. apply check_equation_renamed.
+Qed.
+
+Theorem with_extra_variables_rename_identity :
+  with_extra_variables_rename_identity_statement.
+Proof.
+  intros [vars equations].
+  unfold Typing_env_extension.With_extra_variables.apply_renaming.
+  cbn [Typing_env_extension.With_extra_variables.existential_vars
+       Typing_env_extension.With_extra_variables.equations].
+  f_equal.
+  - apply map_fixes. intros x _. reflexivity.
+  - apply map_bindings_identity;
+      [ apply rename_name_identity | apply (proj1 rename_type_identity) ].
+Qed.
+
+Theorem with_extra_variables_rename_compose :
+  with_extra_variables_rename_compose_statement.
+Proof.
+  intros second first [vars equations].
+  unfold Typing_env_extension.With_extra_variables.apply_renaming.
+  cbn [Typing_env_extension.With_extra_variables.existential_vars
+       Typing_env_extension.With_extra_variables.equations].
+  f_equal.
+  - rewrite map_map. apply map_ext. intros x.
+    apply rename_variable_compose.
+  - rewrite map_bindings_compose.
+    apply map_bindings_extensional;
+      [ intros n; apply rename_name_compose
+      | intros ty; apply (proj1 rename_type_compose) ].
+Qed.
+
+Theorem with_extra_variables_free_names_renamed :
+  with_extra_variables_free_names_renamed_statement.
+Proof.
+  intros r [vars equations].
+  unfold Typing_env_extension.With_extra_variables.free_names,
+    Typing_env_extension.With_extra_variables.apply_renaming.
+  cbn [Typing_env_extension.With_extra_variables.existential_vars
+       Typing_env_extension.With_extra_variables.equations].
+  rewrite map_app. f_equal.
+  - rewrite !map_map. reflexivity.
+  - exact (proj2 free_names_rename_type r (Env_extension equations)).
+Qed.
+
+Theorem with_extra_variables_rename_fixes :
+  with_extra_variables_rename_fixes_statement.
+Proof.
+  intros r [vars equations] Hfixes.
+  unfold Typing_env_extension.With_extra_variables.free_names in Hfixes.
+  unfold Typing_env_extension.With_extra_variables.apply_renaming.
+  cbn [Typing_env_extension.With_extra_variables.existential_vars
+       Typing_env_extension.With_extra_variables.equations] in *.
+  f_equal.
+  - apply map_fixes. intros x Hx. apply Hfixes, in_or_app. left.
+    apply in_map, Hx.
+  - assert (Hextension :
+      rename_env_extension r (Env_extension equations)
+      = Env_extension equations).
+    { apply (proj2 rename_type_fixes). intros x Hx.
+      apply Hfixes, in_or_app. right.
+      rewrite (proj2 free_names_variables (Env_extension equations)) in Hx.
+      apply in_flat_map in Hx. destruct Hx as (n & Hn & Hx).
+      destruct n as [y | sym]; simpl in Hx; [ | contradiction ].
+      destruct Hx as [<- | []]. exact Hn. }
+    injection Hextension. auto.
+Qed.
+
+Theorem with_extra_variables_rename_add_definition :
+  with_extra_variables_rename_add_definition_statement.
+Proof. intros r t var kind. reflexivity. Qed.
+
+Theorem with_extra_variables_rename_add_equation :
+  with_extra_variables_rename_add_equation_statement.
+Proof.
+  intros r [vars equations] n ty.
+  unfold Typing_env_extension.With_extra_variables.apply_renaming,
+    Typing_env_extension.With_extra_variables.add_or_replace_equation.
+  cbn [Typing_env_extension.With_extra_variables.existential_vars
+       Typing_env_extension.With_extra_variables.equations].
+  f_equal.
+  rewrite (unbind_renamed name_eqb (rename_name r) (name_eqb_renamed r)).
+  reflexivity.
+Qed.
+
+Theorem with_extra_variables_rename_map_types :
+  with_extra_variables_rename_map_types_statement.
+Proof.
+  intros r f f' [vars equations] Hf.
+  unfold Typing_env_extension.With_extra_variables.apply_renaming,
+    Typing_env_extension.With_extra_variables.map_types.
+  cbn [Typing_env_extension.With_extra_variables.existential_vars
+       Typing_env_extension.With_extra_variables.equations].
+  f_equal. unfold Keyed.map_bindings, Keyed.map_values.
+  rewrite !map_map. apply map_ext. intros [n ty]. simpl. rewrite Hf.
+  reflexivity.
+Qed.
+
+Theorem with_extra_variables_rename_fold :
+  with_extra_variables_rename_fold_statement.
+Proof.
+  intros B B' r state variable variable' equation equation'
+    [vars equations] acc Hvariable Hequation.
+  unfold Typing_env_extension.With_extra_variables.fold,
+    Typing_env_extension.With_extra_variables.apply_renaming.
+  cbn [Typing_env_extension.With_extra_variables.existential_vars
+       Typing_env_extension.With_extra_variables.equations].
+  cbv zeta.
+  rewrite compact_renamed,
+    (fold_left_renamed state (rename_variable r)
+       (fun acc var => variable var acc) (fun acc var => variable' var acc)).
+  - apply
+      (fold_left_renamed state
+         (fun binding : name * flambda_type =>
+            (rename_name r (fst binding), rename_type r (snd binding)))).
+    intros a [n ty]. apply Hequation.
+  - intros a x. apply Hvariable.
+Qed.
+
+Theorem with_extra_variables_satisfied_rename :
+  with_extra_variables_satisfied_rename_statement.
+Proof.
+  intros r statics vars [extra equations].
+  unfold with_extra_variables_satisfied,
+    Typing_env_extension.With_extra_variables.apply_renaming.
+  cbn [Typing_env_extension.With_extra_variables.existential_vars
+       Typing_env_extension.With_extra_variables.equations].
+  split.
+  - intros (vars' & Hagree & Hsatisfied).
+    exists (rename_env (inverse_renaming r) vars'). split.
+    + intros x Hx.
+      rewrite <- (rename_variable_inverse_l r x) at 1.
+      rewrite lookup_rename_env, Hagree; [ apply lookup_rename_env | ].
+      intros Hin. apply in_map_iff in Hin. destruct Hin as (y & Heq & Hy).
+      apply rename_variable_injective in Heq. subst y. exact (Hx Hy).
+    + pose proof
+        (proj2
+           (env_extension_satisfied_rename (inverse_renaming r) statics vars'
+              (rename_env_extension r (Env_extension equations)))
+           Hsatisfied)
+        as H.
+      rewrite (proj2 rename_type_inverse r (Env_extension equations)) in H.
+      exact H.
+  - intros (vars' & Hagree & Hsatisfied).
+    exists (rename_env r vars'). split.
+    + intros x Hx.
+      rewrite <- (rename_variable_inverse_r r x), !lookup_rename_env.
+      apply Hagree. intros Hin. apply Hx, in_map_iff.
+      exists (rename_variable (inverse_renaming r) x).
+      split; [ apply rename_variable_inverse_r | exact Hin ].
+    + exact
+        (proj2
+           (env_extension_satisfied_rename r statics vars'
+              (Env_extension equations))
+           Hsatisfied).
+Qed.
+
+Theorem with_extra_variables_bound : with_extra_variables_bound_statement.
+Proof.
+  intros statics vars vars' t Hsame (vars'' & Hagree & Hsatisfied).
+  exists vars''. split; [ | exact Hsatisfied ].
+  intros x Hx. rewrite (Hagree x Hx). symmetry. exact (Hsame x Hx).
 Qed.
 
 (* ======================================================================== *)

@@ -46,12 +46,17 @@
      made only under a flag is a function of its own that answers
      whether the check passes ([check_equation], [invariant]);
    - a variable of the model has no kind, so [add_definition] cannot
-     check the kind it is given. *)
+     check the kind it is given;
+   - a renaming renames variables only, and the free names are the
+     variables and the symbols, as for types
+     (FlambdaTypeRenameSpec.v). *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec.
-From OxCamlFlambda2Types Require Import FlambdaTypeGrammar.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaNominalSpec.
+From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
+  FlambdaTypeRenameSpec.
 Import ListNotations.
 
 Module Typing_env_extension.
@@ -127,6 +132,15 @@ Definition disjoint_union (t1 t2 : t) : option t :=
   then Some (Env_extension (to_map t1 ++ to_map t2))
   else None.
 
+(* [free_names] and [apply_renaming], which are those of
+   [Type_grammar.Env_extension]: the names that have an equation are
+   free names, and are renamed. *)
+Definition free_names (t : t) : list name := free_names_of_env_extension t.
+
+Definition apply_renaming (t : t) (renaming : renaming)
+    : Typing_env_extension.t :=
+  rename_env_extension renaming t.
+
 (* ======================================================================== *)
 (* Extensions with extra variables                                          *)
 (* ======================================================================== *)
@@ -168,6 +182,19 @@ Module With_extra_variables.
   Definition map_types (t : t) (f : flambda_type -> flambda_type)
       : With_extra_variables.t :=
     create (existential_vars t) (Keyed.map_values f (equations t)).
+
+  (* The extra variables are free names, and are renamed: "At present
+     [existential_vars] is not treated as a binding site"
+     (typing_env_extension.mli). *)
+  Definition free_names (t : t) : list name :=
+    map Name_var (existential_vars t)
+    ++ free_names_of_env_extension (Env_extension (equations t)).
+
+  Definition apply_renaming (t : t) (renaming : renaming)
+      : With_extra_variables.t :=
+    create (map (rename_variable renaming) (existential_vars t))
+      (Keyed.map_bindings (rename_name renaming) (rename_type renaming)
+         (equations t)).
 
 End With_extra_variables.
 

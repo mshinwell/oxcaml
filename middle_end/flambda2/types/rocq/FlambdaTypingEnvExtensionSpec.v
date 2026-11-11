@@ -62,6 +62,15 @@
      the extra variables satisfy its equations
      ([with_extra_variables_satisfied]); with no extra variable it is a
      plain extension, and one more extra variable asks less.
+   - Renaming. The renaming and the free names of an extension are
+     those of the grammar of types, and their laws are in
+     FlambdaTypeRenameSpec.v. Here: the functions on extensions commute
+     with renaming, [fold] for a function that commutes with it, and
+     the two checks do not see it; the renamings act on extensions with
+     extra variables as they do on types (identity, composition, the
+     free names of a renamed extension, a renaming that fixes the free
+     names); the functions on them commute with renaming; and the
+     renamed environment satisfies the renamed extension.
 
    Differences from the OCaml, all deliberate.
    - The equations are an association list of which the first binding
@@ -70,8 +79,15 @@
      list in which no name has two equations as such; the OCaml's map
      has one equation for a name by construction.
    - The OCaml's [fold] goes through the equations in the order of
-     names; the model's in the order of the list. No statement here
-     depends on the order.
+     names; the model's in the order of the list. What is stated of the
+     equation that a name has, and of what satisfies an extension, does
+     not depend on the order. Some statements are about the list as it
+     is written, and keep the model's order: that [bindings] is the
+     list itself where no name has two equations, and that the
+     functions commute with renaming, the folds among them, which go
+     through the renamed equations in the same order. (The extra
+     variables are a list in the OCaml too, and its fold goes through
+     them in the order of the list.)
    - [Name.Map.disjoint_union] stops with a fatal error on a name that
      both have; [disjoint_union] answers [None] there.
    - The checks that the OCaml makes only under a flag
@@ -79,15 +95,21 @@
      [add_or_replace_equation] when it replaces an equation) are not
      made by the functions; [check_equation] and [invariant] are
      functions of their own that answer whether the check passes.
-     Nothing is stated of them.
+     Of them it is stated only that they do not see a renaming.
    - [With_extra_variables.add_definition] does not check the kind it
      is given: a variable of the model has no kind.
-   - Not modelled: [print], [ids_for_export]; [apply_renaming] and
-     [free_names], which wait for the renaming of types to be in the
-     tree. The OCaml does not treat the extra variables of an extension
-     as bound by it ("At present [existential_vars] is not treated as a
-     binding site", typing_env_extension.mli); the meaning given here
-     binds them.
+   - Not modelled: [print], [ids_for_export].
+   - The OCaml does not treat the extra variables of an extension as
+     bound by it ("At present [existential_vars] is not treated as a
+     binding site", typing_env_extension.mli): its [free_names] lists
+     them and its [apply_renaming] renames them, and so do the model's.
+     The meaning given here binds them: what satisfies an extension
+     does not depend on the values of its extra variables
+     ([with_extra_variables_bound_statement]). The two agree as far as
+     a renaming goes, since a renaming is a permutation and renames a
+     bound variable with its uses
+     ([with_extra_variables_satisfied_rename_statement]); the free
+     names are more than the names that the meaning depends on.
 
    The proofs are in FlambdaTypingEnvExtensionProofs.v, which needs no
    review. *)
@@ -95,10 +117,10 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec.
+  FlambdaSemanticsSpec FlambdaNominalSpec FlambdaAlphaSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaTypingEnv
-  FlambdaTypingEnvSpec FlambdaTypingEnvExtension.
+  FlambdaTypeMeaningSpec FlambdaTypeRenameSpec FlambdaBindingTime
+  FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaTypingEnvExtension.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -340,3 +362,187 @@ Definition with_extra_variables_add_or_replace_equation_statement : Prop :=
         else
           Keyed.lookup name_eqb n'
             (Typing_env_extension.With_extra_variables.equations t).
+
+(* ======================================================================== *)
+(* Renaming                                                                 *)
+(* ======================================================================== *)
+
+(* The functions on extensions commute with renaming. *)
+
+Definition apply_renaming_to_map_statement : Prop :=
+  ∀ (r : renaming) (t : Typing_env_extension.t),
+    Typing_env_extension.to_map (Typing_env_extension.apply_renaming t r)
+    = Keyed.map_bindings (rename_name r) (rename_type r)
+        (Typing_env_extension.to_map t).
+
+Definition apply_renaming_bindings_statement : Prop :=
+  ∀ (r : renaming) (t : Typing_env_extension.t),
+    Typing_env_extension.bindings (Typing_env_extension.apply_renaming t r)
+    = Keyed.map_bindings (rename_name r) (rename_type r)
+        (Typing_env_extension.bindings t).
+
+Definition apply_renaming_is_empty_statement : Prop :=
+  ∀ (r : renaming) (t : Typing_env_extension.t),
+    Typing_env_extension.is_empty (Typing_env_extension.apply_renaming t r)
+    = Typing_env_extension.is_empty t.
+
+Definition apply_renaming_has_equation_statement : Prop :=
+  ∀ (r : renaming) (t : Typing_env_extension.t) (n : name),
+    Typing_env_extension.has_equation (rename_name r n)
+      (Typing_env_extension.apply_renaming t r)
+    = Typing_env_extension.has_equation n t.
+
+Definition apply_renaming_one_equation_statement : Prop :=
+  ∀ (r : renaming) (n : name) (ty : flambda_type),
+    Typing_env_extension.apply_renaming
+      (Typing_env_extension.one_equation n ty) r
+    = Typing_env_extension.one_equation (rename_name r n) (rename_type r ty).
+
+Definition apply_renaming_add_or_replace_equation_statement : Prop :=
+  ∀ (r : renaming) (t : Typing_env_extension.t) (n : name)
+    (ty : flambda_type),
+    Typing_env_extension.apply_renaming
+      (Typing_env_extension.add_or_replace_equation t n ty) r
+    = Typing_env_extension.add_or_replace_equation
+        (Typing_env_extension.apply_renaming t r) (rename_name r n)
+        (rename_type r ty).
+
+Definition apply_renaming_disjoint_union_statement : Prop :=
+  ∀ (r : renaming) (t1 t2 : Typing_env_extension.t),
+    Typing_env_extension.disjoint_union
+      (Typing_env_extension.apply_renaming t1 r)
+      (Typing_env_extension.apply_renaming t2 r)
+    = option_map (fun t => Typing_env_extension.apply_renaming t r)
+        (Typing_env_extension.disjoint_union t1 t2).
+
+(* [fold] over the renamed extension, with a function that does to the
+   renamed state, for the renamed name and type, what [equation] does:
+   the answer is the renamed answer. [state] is how the state is
+   renamed. *)
+Definition apply_renaming_fold_statement : Prop :=
+  ∀ (B B' : Type) (r : renaming) (state : B -> B')
+    (equation : name -> flambda_type -> B -> B)
+    (equation' : name -> flambda_type -> B' -> B')
+    (t : Typing_env_extension.t) (acc : B),
+    (∀ (n : name) (ty : flambda_type) (acc : B),
+      equation' (rename_name r n) (rename_type r ty) (state acc)
+      = state (equation n ty acc)) ->
+    Typing_env_extension.fold equation'
+      (Typing_env_extension.apply_renaming t r) (state acc)
+    = state (Typing_env_extension.fold equation t acc).
+
+(* The two checks do not see a renaming. *)
+Definition apply_renaming_checks_statement : Prop :=
+  (∀ (r : renaming) (n : name) (ty : flambda_type),
+    Typing_env_extension.check_equation (rename_name r n) (rename_type r ty)
+    = Typing_env_extension.check_equation n ty)
+  ∧ (∀ (r : renaming) (t : Typing_env_extension.t),
+      Typing_env_extension.invariant (Typing_env_extension.apply_renaming t r)
+      = Typing_env_extension.invariant t).
+
+(* Extensions with extra variables: the renamings act on them as they do
+   on types. *)
+
+Definition with_extra_variables_rename_identity_statement : Prop :=
+  ∀ t : Typing_env_extension.With_extra_variables.t,
+    Typing_env_extension.With_extra_variables.apply_renaming t
+      identity_renaming
+    = t.
+
+Definition with_extra_variables_rename_compose_statement : Prop :=
+  ∀ (second first : renaming)
+    (t : Typing_env_extension.With_extra_variables.t),
+    Typing_env_extension.With_extra_variables.apply_renaming t
+      (compose_renaming second first)
+    = Typing_env_extension.With_extra_variables.apply_renaming
+        (Typing_env_extension.With_extra_variables.apply_renaming t first)
+        second.
+
+(* The free names of the renamed extension are the renamed free names. *)
+Definition with_extra_variables_free_names_renamed_statement : Prop :=
+  ∀ (r : renaming) (t : Typing_env_extension.With_extra_variables.t),
+    Typing_env_extension.With_extra_variables.free_names
+      (Typing_env_extension.With_extra_variables.apply_renaming t r)
+    = map (rename_name r)
+        (Typing_env_extension.With_extra_variables.free_names t).
+
+(* A renaming that fixes the variables among the free names of an
+   extension leaves it as it is. *)
+Definition with_extra_variables_rename_fixes_statement : Prop :=
+  ∀ (r : renaming) (t : Typing_env_extension.With_extra_variables.t),
+    (∀ x : variable,
+      Name_var x ∈ Typing_env_extension.With_extra_variables.free_names t ->
+      rename_variable r x = x) ->
+    Typing_env_extension.With_extra_variables.apply_renaming t r = t.
+
+(* The functions on them commute with renaming. *)
+Definition with_extra_variables_rename_add_definition_statement : Prop :=
+  ∀ (r : renaming) (t : Typing_env_extension.With_extra_variables.t)
+    (var : variable) (kind : flambda_kind),
+    Typing_env_extension.With_extra_variables.apply_renaming
+      (Typing_env_extension.With_extra_variables.add_definition t var kind) r
+    = Typing_env_extension.With_extra_variables.add_definition
+        (Typing_env_extension.With_extra_variables.apply_renaming t r)
+        (rename_variable r var) kind.
+
+Definition with_extra_variables_rename_add_equation_statement : Prop :=
+  ∀ (r : renaming) (t : Typing_env_extension.With_extra_variables.t)
+    (n : name) (ty : flambda_type),
+    Typing_env_extension.With_extra_variables.apply_renaming
+      (Typing_env_extension.With_extra_variables.add_or_replace_equation t n
+         ty)
+      r
+    = Typing_env_extension.With_extra_variables.add_or_replace_equation
+        (Typing_env_extension.With_extra_variables.apply_renaming t r)
+        (rename_name r n) (rename_type r ty).
+
+(* [map_types] with a function that commutes with the renaming. *)
+Definition with_extra_variables_rename_map_types_statement : Prop :=
+  ∀ (r : renaming) (f f' : flambda_type -> flambda_type)
+    (t : Typing_env_extension.With_extra_variables.t),
+    (∀ ty : flambda_type, f' (rename_type r ty) = rename_type r (f ty)) ->
+    Typing_env_extension.With_extra_variables.apply_renaming
+      (Typing_env_extension.With_extra_variables.map_types t f) r
+    = Typing_env_extension.With_extra_variables.map_types
+        (Typing_env_extension.With_extra_variables.apply_renaming t r) f'.
+
+(* [fold], as for a plain extension: the variables in the order of
+   their list, then the equations. *)
+Definition with_extra_variables_rename_fold_statement : Prop :=
+  ∀ (B B' : Type) (r : renaming) (state : B -> B')
+    (variable : FlambdaModel.variable -> B -> B)
+    (variable' : FlambdaModel.variable -> B' -> B')
+    (equation : name -> flambda_type -> B -> B)
+    (equation' : name -> flambda_type -> B' -> B')
+    (t : Typing_env_extension.With_extra_variables.t) (acc : B),
+    (∀ (x : FlambdaModel.variable) (acc : B),
+      variable' (rename_variable r x) (state acc) = state (variable x acc)) ->
+    (∀ (n : name) (ty : flambda_type) (acc : B),
+      equation' (rename_name r n) (rename_type r ty) (state acc)
+      = state (equation n ty acc)) ->
+    Typing_env_extension.With_extra_variables.fold variable' equation'
+      (Typing_env_extension.With_extra_variables.apply_renaming t r)
+      (state acc)
+    = state
+        (Typing_env_extension.With_extra_variables.fold variable equation t
+           acc).
+
+(* The renamed environment satisfies the renamed extension exactly when
+   the environment satisfies the extension. *)
+Definition with_extra_variables_satisfied_rename_statement : Prop :=
+  ∀ (r : renaming) (statics : static_env) (vars : env)
+    (t : Typing_env_extension.With_extra_variables.t),
+    with_extra_variables_satisfied statics (rename_env r vars)
+      (Typing_env_extension.With_extra_variables.apply_renaming t r)
+    <-> with_extra_variables_satisfied statics vars t.
+
+(* The extra variables are bound by the meaning: what satisfies an
+   extension does not depend on the values that it gives them. *)
+Definition with_extra_variables_bound_statement : Prop :=
+  ∀ (statics : static_env) (vars vars' : env)
+    (t : Typing_env_extension.With_extra_variables.t),
+    (∀ x : variable,
+      ~ x ∈ Typing_env_extension.With_extra_variables.existential_vars t ->
+      lookup x vars' = lookup x vars) ->
+    with_extra_variables_satisfied statics vars t ->
+    with_extra_variables_satisfied statics vars' t.
