@@ -181,7 +181,7 @@ and nothing is stated of them.
 | Function | Lines | What is missing |
 |----------|-------|-----------------|
 | `meet_is_flat_float_array`, `meet_is_non_empty_naked_number_array`, `prove_is_immediates_array`, `meet_is_immutable_array`, `prove_is_immutable_array` | 754-833, 903-920 | the grammar has no `Array`, the machine no arrays |
-| `meet_rec_info` | 1213-1237 | the model has no `Rec_info` |
+| `meet_rec_info` | 1213-1237 | the grammar has the types of kind `Rec_info`, but their head is `unit`: the expression that the prover answers is left out |
 | the `Array` case of every prover on heads | | the same; a head has no such case |
 | coercions on the `Simple`s answered | | a `Simple` of the model has no coercion |
 

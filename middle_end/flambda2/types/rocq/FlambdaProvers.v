@@ -91,8 +91,20 @@
      [meet_project_function_slot_simple],
      [meet_project_value_slot_simple_value],
      [meet_project_value_slot_simple] (1159 to 1212);
-   - [prove_physical_equality] (1297 to 1624).
-   The rest of the file is to follow, in the order of the plan.
+   - [prove_physical_equality] (1297 to 1624);
+   - [prove_alloc_mode_of_boxed_number_value],
+     [prove_alloc_mode_of_boxed_number],
+     [never_holds_locally_allocated_values] (1239 to 1295), of which
+     nothing is stated: an allocation mode has no meaning in the
+     model.
+   What is not here: the provers of arrays ([meet_is_flat_float_array],
+   [meet_is_non_empty_naked_number_array], [prove_is_immediates_array],
+   [meet_is_immutable_array], [prove_is_immutable_array]: 754 to 833
+   and 903 to 920), as the grammar has no [Array]; and [meet_rec_info]
+   (1213 to 1237), which answers the expression that a head of kind
+   [Rec_info] is: the grammar has the types of that kind
+   ([Type_rec_info]), but their head is [unit], the expression being
+   left out (FlambdaTypeGrammar.v), so there is nothing to answer.
 
    How the definitions differ from the compiler's.
    - A stop of the compiler is [None]. A prover expands the head of a
@@ -1597,6 +1609,61 @@ Module Provers.
       end
     | None, Some _ | Some _, None | None, None =>
       physical_equality_check_heads tenv t1 t2
+    end.
+
+  (* [Provers.prove_alloc_mode_of_boxed_number_value]. *)
+  Definition prove_alloc_mode_of_boxed_number_value (tenv : Typing_env.t)
+      (value_head : head_of_kind_value_non_null)
+      : option (Generic_proof.t Alloc_mode.t) :=
+    match value_head with
+    | Boxed_number _ _ alloc_mode => Some (Generic_proof.Proved alloc_mode)
+    | Variant _ _ _ _ _ _ | Mutable_block _ | String _ | Closures _ _ =>
+      Some Generic_proof.Unknown
+    end.
+
+  (* [Provers.prove_alloc_mode_of_boxed_number]. *)
+  Definition prove_alloc_mode_of_boxed_number (tenv : Typing_env.t)
+      (t : flambda_type) : option (Proof_of_property.t Alloc_mode.t) :=
+    gen_value_to_proof prove_alloc_mode_of_boxed_number_value tenv t.
+
+  (* [Provers.never_holds_locally_allocated_values]. *)
+  Definition never_holds_locally_allocated_values (tenv : Typing_env.t)
+      (var : variable) : option (Proof_of_property.t unit) :=
+    let heap_only (alloc_mode : Alloc_mode.t) : Proof_of_property.t unit :=
+      match alloc_mode with
+      | Alloc_mode.Heap => Proof_of_property.Proved tt
+      | Alloc_mode.Local | Alloc_mode.Heap_or_local =>
+        Proof_of_property.Unknown
+      end
+    in
+    let* ty := Typing_env.find tenv (Name_var var) None in
+    let* expanded := expand_head tenv ty in
+    match expanded with
+    | Oub_value (Ok (Head_of_kind_value (Unknown | Bottom) _))
+    | Oub_value (Unknown | Bottom) =>
+      Some Proof_of_property.Unknown
+    | Oub_value (Ok (Head_of_kind_value (Ok value_head) _)) =>
+      match value_head with
+      | Variant _ _ _ blocks _ _ =>
+        match blocks with
+        | Or_unknown.Unknown => Some Proof_of_property.Unknown
+        | Or_unknown.Known blocks =>
+          if row_like_for_blocks_is_bottom blocks
+          then Some (Proof_of_property.Proved tt)
+          else
+            match blocks with
+            | Row_like_for_blocks _ _ alloc_mode =>
+              Some (heap_only alloc_mode)
+            end
+        end
+      | Boxed_number _ _ alloc_mode | Mutable_block alloc_mode
+      | Closures _ alloc_mode =>
+        Some (heap_only alloc_mode)
+      | String _ => Some (Proof_of_property.Proved tt)
+      end
+    | Oub_naked_immediate _ | Oub_naked_number _ _ | Oub_rec_info _
+    | Oub_region _ =>
+      Some (Proof_of_property.Proved tt)
     end.
 
 End Provers.
