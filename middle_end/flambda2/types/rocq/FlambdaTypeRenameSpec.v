@@ -77,9 +77,10 @@
    its kind is the same, and so is the constant that
    [must_be_singleton] reads of it; a value has the renamed type under
    the renamed environment exactly when it has the type under the
-   environment; the tests of types do not see a renaming; and the
-   names of the equations of a renamed type are those of the type,
-   renamed.
+   environment; the tests of types do not see a renaming; the names
+   of the equations of a renamed type are those of the type, renamed;
+   and a creation function given renamed parts makes the renamed
+   type.
 
    The proofs are in FlambdaTypeRenameProofs.v, which needs no
    review. *)
@@ -554,3 +555,152 @@ Definition equation_names_rename_type_statement : Prop :=
       equation_names_of_env_extension (rename_env_extension r extension)
       = map (fun equation => (rename_name r (fst equation), snd equation))
           (equation_names_of_env_extension extension)).
+
+(* ======================================================================== *)
+(* The creation functions and the renaming                                  *)
+(* ======================================================================== *)
+
+(* A creation function given renamed parts makes the renamed type, and
+   what tells how a type is written does not see a renaming. With the
+   statements above, and those of FlambdaTypeAccessSpec.v, every
+   function of the grammar commutes with the renaming. *)
+
+(* What is made of no name and no type is left as it is. *)
+Definition rename_type_closed_statement : Prop :=
+  ∀ r : renaming,
+    (∀ k : flambda_kind, rename_type r (unknown k) = unknown k)
+    ∧ (∀ k : flambda_kind, rename_type r (bottom k) = bottom k)
+    ∧ (∀ c : const, rename_type r (this_const c) = this_const c)
+    ∧ (∀ c : const, rename_type r (type_for_const c) = type_for_const c)
+    ∧ rename_type r null = null
+    ∧ rename_type r any_non_null_value = any_non_null_value
+    ∧ (∀ alloc_mode : Alloc_mode.t,
+        rename_type r (mutable_block alloc_mode) = mutable_block alloc_mode)
+    ∧ (∀ bytes : list Z,
+        rename_type r (this_immutable_string bytes)
+        = this_immutable_string bytes)
+    ∧ (∀ imms : list Z,
+        rename_type r (these_naked_immediates imms)
+        = these_naked_immediates imms)
+    ∧ (∀ imms : list Z,
+        rename_type r (these_tagged_immediates imms)
+        = these_tagged_immediates imms)
+    ∧ rename_type r any_tagged_immediate = any_tagged_immediate
+    ∧ rename_type r any_block = any_block
+    ∧ (∀ (tags : list Z) (alloc_mode : Alloc_mode.t),
+        rename_type r (blocks_with_these_tags tags alloc_mode)
+        = blocks_with_these_tags tags alloc_mode)
+    ∧ rename_row_like_for_blocks r row_like_for_blocks_bottom
+      = row_like_for_blocks_bottom
+    ∧ rename_env_extension r empty_env_extension = empty_env_extension
+    ∧ rename_head_of_kind_value r head_of_kind_value_null
+      = head_of_kind_value_null
+    ∧ (∀ imm : Z,
+        rename_head_of_kind_value r (head_of_kind_value_tagged_immediate imm)
+        = head_of_kind_value_tagged_immediate imm).
+
+(* An alias: the simple is renamed. *)
+Definition rename_type_alias_statement : Prop :=
+  ∀ r : renaming,
+    (∀ (k : flambda_kind) (s : simple),
+      rename_type r (alias_type_of k s) = alias_type_of k (rename_simple r s))
+    ∧ (∀ t : flambda_type,
+        get_alias_opt (rename_type r t)
+        = option_map (rename_simple r) (get_alias_opt t)).
+
+(* Whether a type, or a structure of blocks, is written as bottom or
+   as unknown. *)
+Definition is_obviously_rename_type_statement : Prop :=
+  ∀ r : renaming,
+    (∀ t : flambda_type,
+      is_obviously_bottom (rename_type r t) = is_obviously_bottom t)
+    ∧ (∀ t : flambda_type,
+        is_obviously_unknown (rename_type r t) = is_obviously_unknown t)
+    ∧ (∀ blocks : row_like_for_blocks,
+        row_like_for_blocks_is_bottom (rename_row_like_for_blocks r blocks)
+        = row_like_for_blocks_is_bottom blocks).
+
+(* The extensions of a variant, as [rename_type] renames them. *)
+Definition rename_variant_extensions (r : renaming)
+    (extensions : variant_extensions) : variant_extensions :=
+  match extensions with
+  | No_extensions => No_extensions
+  | Ext when_immediate when_block =>
+    Ext (rename_env_extension r when_immediate)
+      (rename_env_extension r when_block)
+  end.
+
+(* The types of values that are not null. *)
+Definition rename_type_of_head_statement : Prop :=
+  ∀ r : renaming,
+    (∀ head : head_of_kind_value_non_null,
+      rename_type r (non_null_value head)
+      = non_null_value (rename_head_of_kind_value_non_null r head))
+    ∧ (∀ (is_unique : bool) (immediates : Or_unknown.t flambda_type)
+         (blocks : Or_unknown.t row_like_for_blocks)
+         (extensions : variant_extensions),
+        rename_type r (create_variant is_unique immediates blocks extensions)
+        = create_variant is_unique (or_unknown_map (rename_type r) immediates)
+            (or_unknown_map (rename_row_like_for_blocks r) blocks)
+            (rename_variant_extensions r extensions))
+    ∧ (∀ (alloc_mode : Alloc_mode.t) (closures : row_like_for_closures),
+        rename_type r (create_closures alloc_mode closures)
+        = create_closures alloc_mode
+            (rename_row_like_for_closures r closures))
+    ∧ (∀ (k : boxable_number) (contents : flambda_type)
+         (alloc_mode : Alloc_mode.t),
+        rename_type r (box_number k contents alloc_mode)
+        = box_number k (rename_type r contents) alloc_mode)
+    ∧ (∀ t : flambda_type,
+        rename_type r (tag_immediate t) = tag_immediate (rename_type r t)).
+
+(* Blocks: the types of the fields are renamed. *)
+Definition rename_type_of_blocks_statement : Prop :=
+  ∀ (r : renaming) (tag : Z) (size : nat) (shape : block_shape)
+    (maps_to : list flambda_type) (alloc_mode : Alloc_mode.t),
+    rename_row_like_for_blocks r
+      (row_like_for_blocks_create_exactly tag size shape maps_to alloc_mode)
+    = row_like_for_blocks_create_exactly tag size shape
+        (map (rename_type r) maps_to) alloc_mode
+    ∧ rename_row_like_for_blocks r
+        (row_like_for_blocks_create_at_least tag size shape maps_to
+           alloc_mode)
+      = row_like_for_blocks_create_at_least tag size shape
+          (map (rename_type r) maps_to) alloc_mode
+    ∧ rename_row_like_for_blocks r
+        (row_like_for_blocks_create_at_least_unknown_tag size shape maps_to
+           alloc_mode)
+      = row_like_for_blocks_create_at_least_unknown_tag size shape
+          (map (rename_type r) maps_to) alloc_mode
+    ∧ (∀ is_unique : bool,
+        rename_type r (immutable_block is_unique tag shape alloc_mode maps_to)
+        = immutable_block is_unique tag shape alloc_mode
+            (map (rename_type r) maps_to)).
+
+(* The result of a relation: the name it is about is renamed. *)
+Definition rename_type_of_relation_statement : Prop :=
+  ∀ (r : renaming) (n : name),
+    rename_type r (is_int_for_scrutinee n)
+    = is_int_for_scrutinee (rename_name r n)
+    ∧ rename_type r (get_tag_for_block n) = get_tag_for_block (rename_name r n)
+    ∧ rename_type r (is_null_for_scrutinee n)
+      = is_null_for_scrutinee (rename_name r n).
+
+(* Closures: the closure types and the value slot types are renamed. *)
+Definition rename_type_of_closure_statement : Prop :=
+  ∀ (r : renaming) (slot : function_slot)
+    (function_types : finite_map (Or_unknown.t function_type))
+    (closure_types value_slot_types : finite_map flambda_type)
+    (alloc_mode : Alloc_mode.t),
+    rename_type r
+      (exactly_this_closure slot function_types closure_types
+         value_slot_types alloc_mode)
+    = exactly_this_closure slot function_types
+        (map_values (rename_type r) closure_types)
+        (map_values (rename_type r) value_slot_types) alloc_mode
+    ∧ rename_type r
+        (at_least_this_closure slot function_types closure_types
+           value_slot_types alloc_mode)
+      = at_least_this_closure slot function_types
+          (map_values (rename_type r) closure_types)
+          (map_values (rename_type r) value_slot_types) alloc_mode.

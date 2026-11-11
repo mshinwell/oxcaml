@@ -2182,3 +2182,184 @@ Proof.
       as [_ [_ [_ [_ [_ [_ Hextension]]]]]].
     exact (Hextension extension).
 Qed.
+
+(* ======================================================================== *)
+(* The creation functions and the renaming                                  *)
+(* ======================================================================== *)
+
+Lemma rename_type_unknown (r : renaming) (k : flambda_kind) :
+  rename_type r (unknown k) = unknown k.
+Proof. destruct k as [ | [] | | ]; reflexivity. Qed.
+
+Lemma rename_type_bottom (r : renaming) (k : flambda_kind) :
+  rename_type r (bottom k) = bottom k.
+Proof. destruct k as [ | [] | | ]; reflexivity. Qed.
+
+Lemma rename_type_alias_type_of (r : renaming) (k : flambda_kind)
+    (s : simple) :
+  rename_type r (alias_type_of k s) = alias_type_of k (rename_simple r s).
+Proof. destruct k as [ | [] | | ]; reflexivity. Qed.
+
+Lemma rename_type_this_const (r : renaming) (c : const) :
+  rename_type r (this_const c) = this_const c.
+Proof. unfold this_const. rewrite rename_type_alias_type_of. reflexivity. Qed.
+
+Lemma rename_type_type_for_const (r : renaming) (c : const) :
+  rename_type r (type_for_const c) = type_for_const c.
+Proof.
+  destruct c; try apply rename_type_this_const; simpl;
+    [ reflexivity | apply rename_type_unknown ].
+Qed.
+
+Lemma rename_type_these_naked_immediates (r : renaming) (imms : list Z) :
+  rename_type r (these_naked_immediates imms) = these_naked_immediates imms.
+Proof. destruct imms as [ | i [ | i' imms]]; reflexivity. Qed.
+
+Lemma rename_type_these_tagged_immediates (r : renaming) (imms : list Z) :
+  rename_type r (these_tagged_immediates imms) = these_tagged_immediates imms.
+Proof. destruct imms as [ | i [ | i' imms]]; reflexivity. Qed.
+
+Lemma rename_type_blocks_with_these_tags (r : renaming) (tags : list Z)
+    (alloc_mode : Alloc_mode.t) :
+  rename_type r (blocks_with_these_tags tags alloc_mode)
+  = blocks_with_these_tags tags alloc_mode.
+Proof.
+  unfold blocks_with_these_tags. simpl. unfold create_variant, non_null_value.
+  do 7 f_equal. unfold Keyed.map_values. rewrite map_map. reflexivity.
+Qed.
+
+Theorem rename_type_closed : rename_type_closed_statement.
+Proof.
+  intros r.
+  repeat split; intros;
+    auto using rename_type_unknown, rename_type_bottom,
+      rename_type_this_const, rename_type_type_for_const,
+      rename_type_these_naked_immediates,
+      rename_type_these_tagged_immediates,
+      rename_type_blocks_with_these_tags.
+Qed.
+
+Lemma get_alias_opt_renamed (r : renaming) (t : flambda_type) :
+  get_alias_opt (rename_type r t)
+  = option_map (rename_simple r) (get_alias_opt t).
+Proof.
+  destruct t as [ty | ty | k ty | ty | ty];
+    destruct ty as [ | [head | s] | ]; reflexivity.
+Qed.
+
+Theorem rename_type_alias : rename_type_alias_statement.
+Proof.
+  intros r.
+  split;
+    [ exact (rename_type_alias_type_of r) | exact (get_alias_opt_renamed r) ].
+Qed.
+
+Lemma is_obviously_bottom_renamed (r : renaming) (t : flambda_type) :
+  is_obviously_bottom (rename_type r t) = is_obviously_bottom t.
+Proof.
+  destruct t as [ty | ty | k ty | ty | ty];
+    destruct ty as [ | [head | s] | ]; reflexivity.
+Qed.
+
+Lemma is_obviously_unknown_renamed (r : renaming) (t : flambda_type) :
+  is_obviously_unknown (rename_type r t) = is_obviously_unknown t.
+Proof.
+  destruct t as [ty | ty | k ty | ty | ty];
+    destruct ty as [ | [head | s] | ]; reflexivity.
+Qed.
+
+Theorem is_obviously_rename_type : is_obviously_rename_type_statement.
+Proof.
+  intros r.
+  split; [ exact (is_obviously_bottom_renamed r) | ].
+  split; [ exact (is_obviously_unknown_renamed r) | ].
+  exact (row_like_for_blocks_is_bottom_renamed r).
+Qed.
+
+Lemma rename_type_non_null_value (r : renaming)
+    (head : head_of_kind_value_non_null) :
+  rename_type r (non_null_value head)
+  = non_null_value (rename_head_of_kind_value_non_null r head).
+Proof. reflexivity. Qed.
+
+Lemma rename_type_create_variant (r : renaming) (is_unique : bool)
+    (immediates : Or_unknown.t flambda_type)
+    (blocks : Or_unknown.t row_like_for_blocks)
+    (extensions : variant_extensions) :
+  rename_type r (create_variant is_unique immediates blocks extensions)
+  = create_variant is_unique (or_unknown_map (rename_type r) immediates)
+      (or_unknown_map (rename_row_like_for_blocks r) blocks)
+      (rename_variant_extensions r extensions).
+Proof. reflexivity. Qed.
+
+Lemma rename_type_create_closures (r : renaming) (alloc_mode : Alloc_mode.t)
+    (closures : row_like_for_closures) :
+  rename_type r (create_closures alloc_mode closures)
+  = create_closures alloc_mode (rename_row_like_for_closures r closures).
+Proof. reflexivity. Qed.
+
+Lemma rename_type_box_number (r : renaming) (k : boxable_number)
+    (contents : flambda_type) (alloc_mode : Alloc_mode.t) :
+  rename_type r (box_number k contents alloc_mode)
+  = box_number k (rename_type r contents) alloc_mode.
+Proof. reflexivity. Qed.
+
+Lemma rename_type_tag_immediate (r : renaming) (t : flambda_type) :
+  rename_type r (tag_immediate t) = tag_immediate (rename_type r t).
+Proof. reflexivity. Qed.
+
+Theorem rename_type_of_head : rename_type_of_head_statement.
+Proof. intros r. repeat split. Qed.
+
+Lemma rename_type_immutable_block (r : renaming) (is_unique : bool) (tag : Z)
+    (shape : block_shape) (alloc_mode : Alloc_mode.t)
+    (fields : list flambda_type) :
+  rename_type r (immutable_block is_unique tag shape alloc_mode fields)
+  = immutable_block is_unique tag shape alloc_mode
+      (map (rename_type r) fields).
+Proof. unfold immutable_block. rewrite length_map. reflexivity. Qed.
+
+Theorem rename_type_of_blocks : rename_type_of_blocks_statement.
+Proof.
+  intros r tag size shape maps_to alloc_mode.
+  repeat split. intros is_unique. apply rename_type_immutable_block.
+Qed.
+
+Theorem rename_type_of_relation : rename_type_of_relation_statement.
+Proof. intros r n. repeat split. Qed.
+
+Lemma rename_type_exactly_this_closure (r : renaming) (slot : function_slot)
+    (function_types : finite_map (Or_unknown.t function_type))
+    (closure_types value_slot_types : finite_map flambda_type)
+    (alloc_mode : Alloc_mode.t) :
+  rename_type r
+    (exactly_this_closure slot function_types closure_types value_slot_types
+       alloc_mode)
+  = exactly_this_closure slot function_types
+      (map_values (rename_type r) closure_types)
+      (map_values (rename_type r) value_slot_types) alloc_mode.
+Proof.
+  unfold exactly_this_closure. rewrite domain_map_values. reflexivity.
+Qed.
+
+Lemma rename_type_at_least_this_closure (r : renaming) (slot : function_slot)
+    (function_types : finite_map (Or_unknown.t function_type))
+    (closure_types value_slot_types : finite_map flambda_type)
+    (alloc_mode : Alloc_mode.t) :
+  rename_type r
+    (at_least_this_closure slot function_types closure_types value_slot_types
+       alloc_mode)
+  = at_least_this_closure slot function_types
+      (map_values (rename_type r) closure_types)
+      (map_values (rename_type r) value_slot_types) alloc_mode.
+Proof.
+  unfold at_least_this_closure. rewrite domain_map_values. reflexivity.
+Qed.
+
+Theorem rename_type_of_closure : rename_type_of_closure_statement.
+Proof.
+  intros r slot function_types closure_types value_slot_types alloc_mode.
+  split;
+    [ apply rename_type_exactly_this_closure
+    | apply rename_type_at_least_this_closure ].
+Qed.
