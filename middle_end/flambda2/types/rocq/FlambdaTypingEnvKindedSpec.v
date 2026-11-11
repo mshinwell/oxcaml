@@ -56,10 +56,18 @@
      the type to [record_demotion], which reads the type of the name
      demoted with it), so the environments that a meet builds from one
      that has the condition have it, if every alias inside the types
-     that it meets is at the kind of its target. That last is the
-     condition on types, which is to come here ([type_kinded] and
-     [typing_env_kinded], when the traversal of the aliases of a type,
-     with their kinds, is in FlambdaTypeGrammar.v).
+     that it meets is at the kind of its target, which is the next
+     condition.
+   - [type_kinded tenv ty] and [types_kinded tenv]: every alias inside
+     the type, and inside every type that the environment has for a
+     name, is at the kind that the environment has for its target
+     ([aliases_with_kinds], FlambdaTypeGrammar.v, lists them). The
+     compiler finds out only where it follows the alias.
+   - [symbols_of_kind_value tenv]: a symbol that has a type has one of
+     the kind of values. A symbol is a value; one that is defined and
+     has no type is found at the type of the values that are not null.
+   - [typing_env_kinded tenv]: the last three together, the one premise
+     about kinds that the statements about meet and the join take.
    - [constants_of_kind tenv]: where the canonical element of a
      [Simple] is a constant, the constant is of the kind of the
      [Simple]. [Expand_head.expand_head] answers the type of the
@@ -71,8 +79,11 @@
 
    The statements: the kind of a name read on the map of the
    environment; that a [Simple] has one kind at most; what each
-   function that builds an environment does to [simple_of_kind]; and
-   that each keeps [aliases_kinded], under what it needs.
+   function that builds an environment does to [simple_of_kind]; that
+   each keeps [aliases_kinded], and [typing_env_kinded], under what it
+   needs; and what a kinded environment gives: the kind of a symbol, of
+   a canonical element, of a constant that is one, and that a type
+   found is kinded.
 
    The proofs are in FlambdaTypingEnvKindedProofs.v, which needs no
    review. *)
@@ -134,6 +145,49 @@ Definition constants_of_kind (tenv : Typing_env.t) : Prop :=
     Typing_env.get_canonical_simple_exn tenv (Some Name_mode.in_types) None s
     = Some (Some (Const c)) ->
     FlambdaTypeGrammar.kind (type_for_const c) = kind.
+
+(* A type is kinded in an environment: each of its aliases is at the
+   kind that the environment has for its target, and its relation
+   variables are naked immediates there. *)
+Definition type_kinded (tenv : Typing_env.t) (ty : flambda_type) : Prop :=
+  ∀ (s : simple) (kind : flambda_kind),
+    (s, kind) ∈ aliases_with_kinds ty -> simple_of_kind tenv s kind.
+
+(* Every type that the environment has for a name is kinded. *)
+(* CR mshinwell: this is a premise of the statements that need it; it
+   is not claimed that the compiler's environments have it. A type does
+   not say at which kind the target of an alias is bound, the
+   well-formedness of types leaves it out on purpose, and ill-kinded
+   code, which Simplify must accept (decisions D10 and D12), may give a
+   name an alias at another kind. The compiler finds out where it
+   follows the alias ([Typing_env.find] with the kind of the alias, a
+   fatal error whatever the flags), and not where the depth limit of a
+   join is reached first. Whether an environment that is not kinded
+   can reach a meet or a join is not known. Discrepancy T5-9. *)
+Definition types_kinded (tenv : Typing_env.t) : Prop :=
+  ∀ (n : name) (ty : flambda_type)
+    (binding_time_and_mode : Binding_time.With_name_mode.t),
+    Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
+    = Some (ty, binding_time_and_mode) ->
+    type_kinded tenv ty.
+
+(* A symbol that has a type has one of the kind of values. *)
+(* The compiler does not check this where a symbol is given a type
+   ([Typing_env.replace_equation]). A symbol that is defined and has no
+   type is found at the type of the values that are not null, and the
+   callers in [Meet_env] read the type of a name with the kind of the
+   type that they are about to give it, so that from an environment
+   that has the condition they make one that has it. *)
+Definition symbols_of_kind_value (tenv : Typing_env.t) : Prop :=
+  ∀ (s : symbol) (ty : flambda_type)
+    (binding_time_and_mode : Binding_time.With_name_mode.t),
+    Keyed.lookup name_eqb (Name_symbol s) (Typing_env.names_to_types tenv)
+    = Some (ty, binding_time_and_mode) ->
+    FlambdaTypeGrammar.kind ty = Value.
+
+(* An environment is kinded. *)
+Definition typing_env_kinded (tenv : Typing_env.t) : Prop :=
+  types_kinded tenv ∧ aliases_kinded tenv ∧ symbols_of_kind_value tenv.
 
 (* ======================================================================== *)
 (* The kind of a [Simple]                                                   *)
@@ -320,3 +374,104 @@ Definition aliases_kinded_constants_of_kind_statement : Prop :=
     aliases_consistent (Typing_env.aliases tenv) ->
     aliases_kinded tenv ->
     constants_of_kind tenv.
+
+(* ======================================================================== *)
+(* What a kinded environment gives                                          *)
+(* ======================================================================== *)
+
+(* A type stays kinded where the [Simple]s keep their kinds. *)
+Definition type_kinded_kept_statement : Prop :=
+  ∀ (tenv tenv' : Typing_env.t) (ty : flambda_type),
+    (∀ (s : simple) (kind : flambda_kind),
+      simple_of_kind tenv s kind -> simple_of_kind tenv' s kind) ->
+    type_kinded tenv ty ->
+    type_kinded tenv' ty.
+
+(* The type found for a name is kinded. *)
+Definition find_kinded_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (n : name) (kind : option flambda_kind)
+    (ty : flambda_type),
+    types_kinded tenv ->
+    Typing_env.find tenv n kind = Some ty ->
+    type_kinded tenv ty.
+
+(* A symbol is of the kind of values and of no other. *)
+Definition symbol_of_kind_value_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (s : symbol) (kind : flambda_kind),
+    symbols_of_kind_value tenv ->
+    simple_of_kind tenv (Symbol s) kind ->
+    kind = Value.
+
+(* The canonical element of a [Simple] of some kind is of that kind. *)
+Definition canonical_ignoring_name_mode_kinded_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (s : simple) (kind : flambda_kind),
+    typing_env_well_formed tenv = true ->
+    aliases_kinded tenv ->
+    simple_of_kind tenv s kind ->
+    simple_of_kind tenv
+      (Typing_env.get_canonical_simple_ignoring_name_mode tenv s) kind.
+
+Definition typing_env_kinded_constants_of_kind_statement : Prop :=
+  ∀ tenv : Typing_env.t,
+    aliases_consistent (Typing_env.aliases tenv) ->
+    typing_env_kinded tenv ->
+    constants_of_kind tenv.
+
+(* ======================================================================== *)
+(* The functions keep an environment kinded                                 *)
+(* ======================================================================== *)
+
+Definition create_kinded_statement : Prop :=
+  typing_env_kinded Typing_env.create.
+
+Definition make_bottom_kinded_statement : Prop :=
+  ∀ tenv : Typing_env.t,
+    typing_env_kinded tenv -> typing_env_kinded (Typing_env.make_bottom tenv).
+
+Definition increment_scope_kinded_statement : Prop :=
+  ∀ tenv : Typing_env.t,
+    typing_env_kinded tenv ->
+    typing_env_kinded (Typing_env.increment_scope tenv).
+
+Definition closure_env_kinded_statement : Prop :=
+  ∀ tenv : Typing_env.t,
+    typing_env_kinded tenv -> typing_env_kinded (Typing_env.closure_env tenv).
+
+Definition add_symbol_definition_kinded_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (sym : symbol),
+    typing_env_well_formed tenv = true ->
+    typing_env_kinded tenv ->
+    typing_env_kinded (Typing_env.add_symbol_definition tenv sym).
+
+(* A variable is defined that is not bound. *)
+Definition add_variable_definition_kinded_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (var : variable) (kind : flambda_kind)
+    (name_mode : Name_mode.t),
+    typing_env_well_formed tenv = true ->
+    Typing_env.mem None tenv (Name_var var) = false ->
+    typing_env_kinded tenv ->
+    typing_env_kinded
+      (Typing_env.add_variable_definition tenv var kind name_mode).
+
+(* A name gets a type that is kinded, of the kind that the name is
+   of. *)
+Definition replace_equation_kinded_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (n : name) (ty : flambda_type),
+    simple_of_kind tenv (simple_of_name n) (FlambdaTypeGrammar.kind ty) ->
+    type_kinded tenv ty ->
+    typing_env_kinded tenv ->
+    typing_env_kinded (Typing_env.replace_equation tenv n ty).
+
+(* Two canonical elements of one kind are made aliases. *)
+Definition add_alias_kinded_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (canonical_element1 canonical_element2 : simple)
+    (result : Typing_env.add_alias_result) (kind : flambda_kind),
+    aliases_consistent (Typing_env.aliases tenv) ->
+    is_canonical (Typing_env.aliases tenv) canonical_element1 ->
+    is_canonical (Typing_env.aliases tenv) canonical_element2 ->
+    simple_of_kind tenv canonical_element1 kind ->
+    simple_of_kind tenv canonical_element2 kind ->
+    Typing_env.add_alias tenv canonical_element1 canonical_element2
+    = Some (Ok result) ->
+    typing_env_kinded tenv ->
+    typing_env_kinded (Typing_env.add_alias_result_t result).

@@ -151,10 +151,8 @@
      value that has a type with one of those two has a scrutinee that
      is not poison, and a statement that reads one of them from the
      type of a name that has a value has no case of poison; of a name
-     with no value the type says nothing, as above. This is so once
-     FlambdaTypeMeaningSpec.v says it: until then [Is_int] and
-     [Get_tag] there hold of a scrutinee that is poison, and such a
-     statement has that case to deal with. [Is_null] is not so: it
+     with no value the type says nothing, as above
+     ([relation_holds], FlambdaTypeMeaningSpec.v). [Is_null] is not so: it
      relates poison of kind value to 0, since poison is not null, and a
      statement that reads it has the case of a scrutinee that holds
      poison.

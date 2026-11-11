@@ -136,10 +136,16 @@
      (discrepancy T2-2).
 
    What is not here, and is to come: that every type is well formed
-   (FlambdaTypeWellFormedSpec.v, when this file is on top of it); the
-   free names of an environment and its renaming; that a name that is
-   not canonical has the alias type of its canonical element, which
-   nothing here needs.
+   (FlambdaTypeWellFormedSpec.v); the free names of an environment and
+   its renaming.
+
+   What is not here because it is not so: that a name that is not
+   canonical has the alias type of its canonical element. It has it
+   when it is demoted ([Meet_env.record_demotion]); when the element is
+   demoted in turn the aliases move the name to the new element, and
+   its type still names the old one. Between the two steps of
+   [record_demotion] it has not even an alias type, and the invariant
+   holds there ([add_alias_invariant_statement]).
 
    What is not here, and is not to be: that an alias inside a type is
    at the kind that the environment has for its target. The compiler

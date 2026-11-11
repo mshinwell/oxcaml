@@ -34,7 +34,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaPrimitiveProofs FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaBindingTime
+  FlambdaTypeGrammarProofs FlambdaTypeAliasKindsSpec
+  FlambdaTypeAliasKindsProofs FlambdaTypeMeaningSpec FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesProofs
   FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaTypingEnvProofs
   FlambdaTypingEnvInvariantSpec FlambdaTypingEnvInvariantProofs
@@ -491,4 +492,231 @@ Proof.
   pose proof (canonical_at_mode_aliased _ _ _ _ _ _ _ _ _ Hconsistent
                 Hcanonical) as Haliased.
   exact (Hkinded (Const c) s _ kind Haliased eq_refl Hs).
+Qed.
+
+(* ======================================================================== *)
+(* What a kinded environment gives                                          *)
+(* ======================================================================== *)
+
+Theorem type_kinded_kept : type_kinded_kept_statement.
+Proof.
+  intros tenv tenv' ty Hkept Hkinded s kind Hin.
+  exact (Hkept s kind (Hkinded s kind Hin)).
+Qed.
+
+Theorem find_kinded : find_kinded_statement.
+Proof.
+  intros tenv n kind ty Hkinded Hfind.
+  destruct (find_cases tenv n kind ty Hfind)
+    as [[binding_time_and_mode Hlookup] | [[k ->] | ->]].
+  - exact (Hkinded n ty binding_time_and_mode Hlookup).
+  - intros s kind' Hin. rewrite (aliases_with_kinds_bottom k) in Hin.
+    destruct Hin.
+  - intros s kind' Hin. destruct Hin.
+Qed.
+
+Theorem symbol_of_kind_value : symbol_of_kind_value_statement.
+Proof.
+  intros tenv s kind Hsymbols Hs.
+  apply (simple_of_kind_name_iff tenv (Name_symbol s) kind) in Hs.
+  destruct Hs as [[ty [btm [Hlookup <-]]] | [_ [_ ->]]]; [ | reflexivity ].
+  exact (Hsymbols s ty btm Hlookup).
+Qed.
+
+Theorem canonical_ignoring_name_mode_kinded
+    : canonical_ignoring_name_mode_kinded_statement.
+Proof.
+  intros tenv s kind Hwf Hkinded Hs.
+  pose proof (proj1 (typing_env_well_formed_iff tenv) Hwf) as Hconditions.
+  destruct Hconditions as [_ [_ [Hconsistent _]]].
+  assert (Hc :
+    Typing_env.get_canonical_simple_ignoring_name_mode tenv s
+    = canonical_element_of (Typing_env.aliases tenv) s).
+  { destruct s as [x | sym | k]; reflexivity. }
+  rewrite Hc.
+  set (c := canonical_element_of (Typing_env.aliases tenv) s) in *.
+  destruct (simple_equal c s) eqn:Hequal.
+  { apply simple_equal_decides_equality in Hequal. rewrite Hequal.
+    exact Hs. }
+  assert (Hne : c <> s).
+  { intros Heq. apply simple_equal_decides_equality in Heq. congruence. }
+  assert (Haliased : aliased (Typing_env.aliases tenv) c s).
+  { unfold aliased, c. apply canonical_element_idempotent.
+    exact Hconsistent. }
+  (* The canonical element is of some kind. *)
+  assert (Hhas : ∃ kind' : flambda_kind, simple_of_kind tenv c kind').
+  { destruct c as [x | sym | k] eqn:Hform.
+    - pose proof (well_formed_mentioned_known tenv _ Hwf
+                    (aliased_mentioned _ _ _ (Name_var x) Haliased Hne
+                       eq_refl)) as Hbound.
+      apply mem_var_lookup in Hbound. destruct Hbound as [ty [btm Hlookup]].
+      exists (FlambdaTypeGrammar.kind ty).
+      apply (simple_of_kind_name_iff tenv (Name_var x)). left.
+      exists ty, btm. split; [ exact Hlookup | reflexivity ].
+    - pose proof (well_formed_mentioned_known tenv _ Hwf
+                    (aliased_mentioned _ _ _ (Name_symbol sym) Haliased Hne
+                       eq_refl)) as Hbound.
+      destruct (Keyed.lookup name_eqb (Name_symbol sym)
+                  (Typing_env.names_to_types tenv))
+        as [[ty btm] | ] eqn:Hlookup.
+      + exists (FlambdaTypeGrammar.kind ty).
+        apply (simple_of_kind_name_iff tenv (Name_symbol sym)). left.
+        exists ty, btm. split; [ exact Hlookup | reflexivity ].
+      + exists Value.
+        apply (simple_of_kind_name_iff tenv (Name_symbol sym)). right.
+        split; [ exact Hlookup | ]. split; [ exact Hbound | reflexivity ].
+    - exists (FlambdaTypeGrammar.kind (type_for_const k)). reflexivity. }
+  destruct Hhas as [kind' Hkind'].
+  rewrite (Hkinded c s kind' kind Haliased Hkind' Hs) in Hkind'.
+  exact Hkind'.
+Qed.
+
+Theorem typing_env_kinded_constants_of_kind
+    : typing_env_kinded_constants_of_kind_statement.
+Proof.
+  intros tenv Hconsistent [_ [Haliases _]].
+  exact (aliases_kinded_constants_of_kind tenv Hconsistent Haliases).
+Qed.
+
+(* ======================================================================== *)
+(* The functions keep an environment kinded                                 *)
+(* ======================================================================== *)
+
+(* Environments with the same types of the names in which the simples
+   keep their kinds. *)
+Lemma types_kinded_same (tenv tenv' : Typing_env.t) :
+  Typing_env.names_to_types tenv' = Typing_env.names_to_types tenv ->
+  (∀ (s : simple) (kind : flambda_kind),
+    simple_of_kind tenv s kind -> simple_of_kind tenv' s kind) ->
+  types_kinded tenv ->
+  types_kinded tenv'.
+Proof.
+  intros Htypes Hkept Hkinded n ty btm Hlookup. rewrite Htypes in Hlookup.
+  exact (type_kinded_kept tenv tenv' ty Hkept (Hkinded n ty btm Hlookup)).
+Qed.
+
+Lemma symbols_of_kind_value_same (tenv tenv' : Typing_env.t) :
+  Typing_env.names_to_types tenv' = Typing_env.names_to_types tenv ->
+  symbols_of_kind_value tenv ->
+  symbols_of_kind_value tenv'.
+Proof.
+  intros Htypes Hsymbols s ty btm Hlookup. rewrite Htypes in Hlookup.
+  exact (Hsymbols s ty btm Hlookup).
+Qed.
+
+Theorem create_kinded : create_kinded_statement.
+Proof.
+  split; [ | split; [ exact create_aliases_kinded | ] ].
+  - intros n ty btm Hlookup. discriminate.
+  - intros s ty btm Hlookup. discriminate.
+Qed.
+
+Theorem make_bottom_kinded : make_bottom_kinded_statement.
+Proof.
+  intros tenv [Htypes [Haliases Hsymbols]].
+  split; [ | split ].
+  - apply (types_kinded_same tenv); [ reflexivity | | exact Htypes ].
+    intros s kind. apply make_bottom_simple_of_kind.
+  - exact (make_bottom_aliases_kinded tenv Haliases).
+  - exact Hsymbols.
+Qed.
+
+Theorem increment_scope_kinded : increment_scope_kinded_statement.
+Proof.
+  intros tenv [Htypes [Haliases Hsymbols]].
+  split; [ | split ].
+  - apply (types_kinded_same tenv); [ reflexivity | | exact Htypes ].
+    intros s kind. apply increment_scope_simple_of_kind.
+  - exact (increment_scope_aliases_kinded tenv Haliases).
+  - exact Hsymbols.
+Qed.
+
+Theorem closure_env_kinded : closure_env_kinded_statement.
+Proof.
+  intros tenv [Htypes [Haliases Hsymbols]].
+  split; [ | split ].
+  - apply (types_kinded_same tenv); [ reflexivity | | exact Htypes ].
+    intros s kind. apply closure_env_simple_of_kind.
+  - exact (closure_env_aliases_kinded tenv Haliases).
+  - exact Hsymbols.
+Qed.
+
+Theorem add_symbol_definition_kinded : add_symbol_definition_kinded_statement.
+Proof.
+  intros tenv sym Hwf [Htypes [Haliases Hsymbols]].
+  split; [ | split ].
+  - apply (types_kinded_same tenv); [ reflexivity | | exact Htypes ].
+    intros s kind Hs. apply add_symbol_definition_simple_of_kind. left.
+    exact Hs.
+  - exact (add_symbol_definition_aliases_kinded tenv sym Hwf Haliases).
+  - exact Hsymbols.
+Qed.
+
+Theorem add_variable_definition_kinded
+    : add_variable_definition_kinded_statement.
+Proof.
+  intros tenv var kind_of_var name_mode Hwf Hfresh
+    [Htypes [Haliases Hsymbols]].
+  (* A simple that was of a kind is not the variable. *)
+  assert (Hkept :
+    ∀ (s : simple) (kind : flambda_kind),
+      simple_of_kind tenv s kind ->
+      simple_of_kind
+        (Typing_env.add_variable_definition tenv var kind_of_var name_mode) s
+        kind).
+  { intros s kind Hs. apply add_variable_definition_simple_of_kind. right.
+    split; [ | exact Hs ]. intros ->.
+    apply (simple_of_kind_name_iff tenv (Name_var var) kind) in Hs.
+    pose proof (mem_fresh_lookup tenv var Hfresh) as Hnone.
+    destruct Hs as [[ty [btm [Hlookup _]]] | [_ [Hmem _]]]; congruence. }
+  split; [ | split ].
+  - intros n ty btm Hlookup. rewrite add_variable_definition_lookup in Hlookup.
+    destruct (keyed_eqb_spec name_eqb name_eqb_eq n (Name_var var))
+      as [-> | Hne].
+    + injection Hlookup as <- <-. intros s kind Hin.
+      rewrite (aliases_with_kinds_unknown kind_of_var) in Hin. destruct Hin.
+    + exact (type_kinded_kept tenv _ ty Hkept (Htypes n ty btm Hlookup)).
+  - exact (add_variable_definition_aliases_kinded tenv var kind_of_var
+             name_mode Hwf Hfresh Haliases).
+  - intros s ty btm Hlookup. rewrite add_variable_definition_lookup in Hlookup.
+    destruct (keyed_eqb_spec name_eqb name_eqb_eq (Name_symbol s)
+                (Name_var var)) as [Heq | _]; [ discriminate | ].
+    exact (Hsymbols s ty btm Hlookup).
+Qed.
+
+Theorem replace_equation_kinded : replace_equation_kinded_statement.
+Proof.
+  intros tenv n ty Hkind Hty [Htypes [Haliases Hsymbols]].
+  assert (Hkept :
+    ∀ (s : simple) (kind : flambda_kind),
+      simple_of_kind tenv s kind ->
+      simple_of_kind (Typing_env.replace_equation tenv n ty) s kind).
+  { intros s kind. apply (replace_equation_simple_of_kind tenv n ty s kind
+                            Hkind). }
+  split; [ | split ].
+  - intros m ty1 btm1 Hlookup.
+    destruct (replace_equation_lookup_cases tenv n ty m ty1 btm1 Hlookup)
+      as [[_ ->] | Hold].
+    + exact (type_kinded_kept tenv _ ty Hkept Hty).
+    + exact (type_kinded_kept tenv _ ty1 Hkept (Htypes m ty1 btm1 Hold)).
+  - exact (replace_equation_aliases_kinded tenv n ty Hkind Haliases).
+  - intros s ty1 btm1 Hlookup.
+    destruct (replace_equation_lookup_cases tenv n ty (Name_symbol s) ty1
+                btm1 Hlookup) as [[<- ->] | Hold].
+    + exact (symbol_of_kind_value tenv s _ Hsymbols Hkind).
+    + exact (Hsymbols s ty1 btm1 Hold).
+Qed.
+
+Theorem add_alias_kinded : add_alias_kinded_statement.
+Proof.
+  intros tenv c1 c2 result kind Hconsistent Hc1 Hc2 Hkind1 Hkind2 Hadd
+    [Htypes [Haliases Hsymbols]].
+  destruct (add_alias_frame tenv c1 c2 result Hadd)
+    as [_ [_ [_ [_ [Hsame _]]]]].
+  split; [ | split ].
+  - apply (types_kinded_same tenv); [ exact Hsame | | exact Htypes ].
+    intros s k. apply (add_alias_simple_of_kind tenv c1 c2 result s k Hadd).
+  - exact (add_alias_aliases_kinded tenv c1 c2 result kind Hconsistent Hc1
+             Hc2 Hkind1 Hkind2 Hadd Haliases).
+  - exact (symbols_of_kind_value_same tenv _ Hsame Hsymbols).
 Qed.
