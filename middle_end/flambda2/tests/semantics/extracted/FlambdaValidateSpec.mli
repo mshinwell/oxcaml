@@ -2,6 +2,7 @@ open Datatypes
 open FlambdaAliasesSpec
 open FlambdaBlockLoadSpec
 open FlambdaCompareSpec
+open FlambdaKnownSymbolsSpec
 open FlambdaLiftSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
@@ -27,6 +28,12 @@ val normalise_after : nat -> expr -> expr
 val without_statics : dropped -> expr -> expr
 
 val with_lifting : lifting -> expr -> expr
+
+val with_known : expr -> expr
+
+val normalise_lifted_round : expr -> expr
+
+val normalise_lifted : nat -> expr -> expr
 
 val without_slots : value_slot list -> expr -> expr
 

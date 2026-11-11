@@ -1738,9 +1738,10 @@ let well_formed_before ~filename (before : Flambda_unit.t) =
    named here and compares again. Which names those are is a guess that it
    checks. Failing that too, it is asked again, with the [Let]s that Simplify
    seems to have made static bindings: it lifts them in the term before as it
-   was given, if it may, normalises the result, removes the value slots of its
-   static sets of closures that the term after has not got, and compares again.
-   Those are guesses too. *)
+   was given, if it may, normalises the result, uses what the unit binds its
+   symbols to, removes the value slots of its static sets of closures that the
+   term after has not got, and compares again. What is lifted and which slots
+   are guesses too. *)
 let validate ~(outcome_before : outcome) (before : converted)
     (after : converted) =
   let inlined = Normalise.inline_calls [] before.body in
@@ -1778,7 +1779,9 @@ let validate ~(outcome_before : outcome) (before : converted)
       match Lift.lift_unit lifting before.body with
       | None -> not_lifted
       | Some lifted -> (
-        let lifted = Validate.normalise_before rounds lifted in
+        (* As [validate_unit] does: what the unit binds its symbols to is used
+           in every round of the normalisation. *)
+        let lifted = Validate.normalise_lifted rounds lifted in
         let slots = unused_slots_guess lifted normalised_after in
         let lifted = Validate.without_slots slots lifted in
         let unused = unused_statics lifted in

@@ -1,0 +1,34 @@
+let $camlExported_table__first_const_0 = Block 0 () in
+(let code size(3)
+       succ_0 (x/47 : imm tagged)
+         my_closure/48 &my_alloc_region/49 my_depth/50
+         -> k/14 * k/15
+         : imm tagged =
+   let next_depth/51 = rec_info (succ my_depth/50) in
+   let int_add/52 = %int_barith.add (x/47, 1) in
+   cont k/14 (int_add/52)
+ in
+ let code size(3)
+       first_1 (param/53 : imm tagged)
+         my_closure/54 &my_alloc_region/55 my_depth/56
+         -> k/16 * k/17
+         : val =
+   let next_depth/57 = rec_info (succ my_depth/56) in
+   let table/58 = %project_value_slot.[first].[table] (my_closure/54) in
+   let Pmixedfield/59 = %block_load.[`0`] (table/58) in
+   cont k/16 (Pmixedfield/59)
+ in
+ let succ/60 = closure succ_0 @`succ` &toplevel in
+ let table/61 = %block.[`0`].`toplevel` (succ/60, 20) in
+ let first/62 = closure first_1 @first &toplevel with { table = table/61 } in
+ let Pmakeblock/63 = %block.[`0`].`toplevel` (succ/60, table/61, first/62) in
+ cont k/13 (Pmakeblock/63))
+  where k/13 define_root_symbol (module_block/43) =
+    let field_0/44 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/43)
+    in
+    let field_1/45 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/43)
+    in
+    let field_2/46 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/43)
+    in
+    let $camlExported_table = Block 0 (field_0/44, field_1/45, field_2/46) in
+    cont done ($camlExported_table)

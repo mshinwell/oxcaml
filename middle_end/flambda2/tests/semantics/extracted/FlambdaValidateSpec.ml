@@ -2,6 +2,7 @@ open Datatypes
 open FlambdaAliasesSpec
 open FlambdaBlockLoadSpec
 open FlambdaCompareSpec
+open FlambdaKnownSymbolsSpec
 open FlambdaLiftSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
@@ -80,6 +81,18 @@ let without_statics d e =
 
 let with_lifting l e = match lift_unit l e with Some e' -> e' | None -> e
 
+(** val with_known : expr -> expr **)
+
+let with_known e = match fold_known_unit e with Some e' -> e' | None -> e
+
+(** val normalise_lifted_round : expr -> expr **)
+
+let normalise_lifted_round e = with_known (normalise_before_round e)
+
+(** val normalise_lifted : nat -> expr -> expr **)
+
+let normalise_lifted rounds e = iterate rounds normalise_lifted_round e
+
 (** val without_slots : value_slot list -> expr -> expr **)
 
 let without_slots slots e =
@@ -109,7 +122,7 @@ let validate_unit rounds unused slots l before after =
       expr_eqb [] []
         (without_statics unused
            (without_slots slots
-              (normalise_before rounds (with_lifting l before))))
+              (normalise_lifted rounds (with_lifting l before))))
         after0
     then Same_once_lifted
     else Not_validated
