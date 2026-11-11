@@ -1,6 +1,7 @@
 open BinNums
 open BinPos
 open Datatypes
+open FlambdaBindersSpec
 open FlambdaMapSpec
 open FlambdaModel
 open FlambdaPrimitiveSpec
@@ -59,46 +60,46 @@ and handler_raises_to k = function
 
 (** val handler_at_toplevel : continuation -> continuation -> expr -> bool **)
 
-let handler_at_toplevel unit_exn k body =
-  negb (raises_to k body) && all_among (free_continuations body) [k; unit_exn]
+let handler_at_toplevel unit_exn0 k body =
+  negb (raises_to k body) && all_among (free_continuations body) [k; unit_exn0]
 
 (** val statics_at_toplevel : continuation -> bool -> expr -> bool **)
 
-let rec statics_at_toplevel unit_exn toplevel = function
-  | Let (_, _, _, body) -> statics_at_toplevel unit_exn toplevel body
+let rec statics_at_toplevel unit_exn0 toplevel = function
+  | Let (_, _, _, body) -> statics_at_toplevel unit_exn0 toplevel body
   | Let_static (bindings, body) ->
-    (toplevel && forallb (binding_statics_at_toplevel unit_exn) bindings)
-    && statics_at_toplevel unit_exn toplevel body
+    (toplevel && forallb (binding_statics_at_toplevel unit_exn0) bindings)
+    && statics_at_toplevel unit_exn0 toplevel body
   | Let_cont_non_recursive (k, h, body) ->
-    handler_statics_at_toplevel unit_exn
-      (toplevel && handler_at_toplevel unit_exn k body)
+    handler_statics_at_toplevel unit_exn0
+      (toplevel && handler_at_toplevel unit_exn0 k body)
       h
-    && statics_at_toplevel unit_exn toplevel body
+    && statics_at_toplevel unit_exn0 toplevel body
   | Let_cont_recursive (handlers, body) ->
     forallb
       (fun pat ->
         let _, h = pat in
-        handler_statics_at_toplevel unit_exn false h)
+        handler_statics_at_toplevel unit_exn0 false h)
       handlers
-    && statics_at_toplevel unit_exn toplevel body
+    && statics_at_toplevel unit_exn0 toplevel body
   | _ -> true
 
 (** val handler_statics_at_toplevel : continuation -> bool ->
     continuation_handler -> bool **)
 
-and handler_statics_at_toplevel unit_exn toplevel = function
-  | Handler (_, _, handler) -> statics_at_toplevel unit_exn toplevel handler
+and handler_statics_at_toplevel unit_exn0 toplevel = function
+  | Handler (_, _, handler) -> statics_at_toplevel unit_exn0 toplevel handler
 
 (** val binding_statics_at_toplevel : continuation -> static_binding -> bool **)
 
-and binding_statics_at_toplevel unit_exn = function
-  | Bind_code (_, c) -> code_statics_at_toplevel unit_exn c
+and binding_statics_at_toplevel unit_exn0 = function
+  | Bind_code (_, c) -> code_statics_at_toplevel unit_exn0 c
   | _ -> true
 
 (** val code_statics_at_toplevel : continuation -> code -> bool **)
 
-and code_statics_at_toplevel unit_exn = function
-  | Code (_, _, _, _, _, body) -> statics_at_toplevel unit_exn false body
+and code_statics_at_toplevel unit_exn0 = function
+  | Code (_, _, _, _, _, body) -> statics_at_toplevel unit_exn0 false body
 
 (** val code_ids_of_binding : static_binding -> code_id list **)
 
@@ -345,11 +346,19 @@ and binding_numbers_in_range = function
 and code_numbers_in_range = function
   | Code (_, _, _, _, _, body) -> numbers_in_range body
 
-(** val well_formed_unit : continuation -> expr -> bool **)
+type unit_interface =
+  { unit_return : continuation;
+    unit_exn : continuation
+  }
 
-let well_formed_unit unit_exn e =
-  (((statics_at_toplevel unit_exn true e
-    && distinct (static_names code_ids_of_binding e))
-   && distinct (static_names symbols_of_binding e))
+(** val well_formed_unit : unit_interface -> expr -> bool **)
+
+let well_formed_unit u e =
+  ((((((statics_at_toplevel u.unit_exn true e
+       && distinct (static_names code_ids_of_binding e))
+      && distinct (static_names symbols_of_binding e))
+     && names_in_scope u.unit_return u.unit_exn e)
+    && binders_distinct e)
+   && code_closed e)
   && sets_well_formed e)
   && numbers_in_range e

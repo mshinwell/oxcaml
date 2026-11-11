@@ -1,6 +1,7 @@
 open BinNums
 open BinPos
 open Datatypes
+open FlambdaBindersSpec
 open FlambdaMapSpec
 open FlambdaModel
 open FlambdaPrimitiveSpec
@@ -79,4 +80,9 @@ val binding_numbers_in_range : static_binding -> bool
 
 val code_numbers_in_range : code -> bool
 
-val well_formed_unit : continuation -> expr -> bool
+type unit_interface =
+  { unit_return : continuation;
+    unit_exn : continuation
+  }
+
+val well_formed_unit : unit_interface -> expr -> bool

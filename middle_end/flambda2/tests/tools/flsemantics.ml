@@ -87,6 +87,7 @@ module Normalise = Flambda2_rocq_semantics.FlambdaNormaliseSpec
 module Unused_statics = Flambda2_rocq_semantics.FlambdaUnusedStaticsSpec
 module Well_formed = Flambda2_rocq_semantics.FlambdaWellFormedSpec
 module Well_kinded = Flambda2_rocq_semantics.FlambdaWellKindedSpec
+module Binders = Flambda2_rocq_semantics.FlambdaBindersSpec
 module Validate = Flambda2_rocq_semantics.FlambdaValidateSpec
 module Numbers = Flambda2_rocq_semantics.BinNums
 module P = Flambda_primitive
@@ -1372,7 +1373,9 @@ let well_kinded (unit : converted) =
 (* Static bindings at toplevel only, each name bound once, the sets of closures
    whole, and the numbers in range (FlambdaWellFormedSpec.v). *)
 let well_formed (unit : converted) =
-  Well_formed.well_formed_unit unit.exn_continuation unit.body
+  Well_formed.well_formed_unit
+    { unit_return = unit.return_continuation; unit_exn = unit.exn_continuation }
+    unit.body
 
 (* The term before is checked before Simplify sees it, which is entitled to fail
    on one that is not well-formed. *)
@@ -1391,6 +1394,28 @@ let well_formed_before ~filename (before : Flambda_unit.t) =
           "%s: not checked: the term is not well-formed (a number out of its \
            range: the tag of a block, a constant, the field or the size of a \
            block load, a discriminant or a byte of a string)@."
+          filename
+      else if
+        not
+          (Binders.names_in_scope before.return_continuation
+             before.exn_continuation before.body)
+      then
+        Format.printf
+          "%s: not checked: the term is not well-formed (a variable or a \
+           continuation that is used where nothing binds it)@."
+          filename
+      else if not (Binders.binders_distinct before.body)
+      then
+        Format.printf
+          "%s: not checked: the term is not well-formed (a name bound twice by \
+           one binder, the closure of code among its parameters, or a \
+           recursive group of no continuation)@."
+          filename
+      else if not (Binders.code_closed before.body)
+      then
+        Format.printf
+          "%s: not checked: the term is not well-formed (code that uses a \
+           variable or a continuation that it does not bind)@."
           filename
       else if Well_formed.sets_well_formed before.body
       then

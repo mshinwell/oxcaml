@@ -114,3 +114,9 @@ let inter_with f bindings bindings' =
       | Some a0 -> ( match b with Some b0 -> Some (f a0 b0) | None -> None)
       | None -> None)
     bindings bindings'
+
+module Keyed = struct
+  (** val is_empty : 'a1 list -> bool **)
+
+  let is_empty = function [] -> true | _ :: _ -> false
+end

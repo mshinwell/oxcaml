@@ -46,3 +46,7 @@ val union_with :
 
 val inter_with :
   ('a1 -> 'a2 -> 'a3) -> 'a1 finite_map -> 'a2 finite_map -> 'a3 finite_map
+
+module Keyed : sig
+  val is_empty : 'a1 list -> bool
+end
