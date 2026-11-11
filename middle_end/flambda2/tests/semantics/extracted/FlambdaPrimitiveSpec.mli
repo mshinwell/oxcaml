@@ -5,6 +5,7 @@ open FlambdaKindModel
 open FlambdaModel
 open FlambdaPrimitiveModel
 open FlambdaValueSpec
+open List
 open OxCamlOption
 
 val in_range : coq_Z -> coq_Z -> bool
@@ -38,10 +39,17 @@ val eval_is_null : static_env -> value -> bool option
 
 val is_number_of_kind : boxable_number -> const -> bool
 
+val known_is : coq_Z option -> coq_Z -> bool
+
+val eval_block_load :
+  static_env -> block_access_kind -> coq_Z -> value -> value option
+
 val eval_unary_primitive :
   static_env -> unary_primitive -> value -> value option
 
 val eval_binary_primitive : binary_primitive -> value -> value -> value option
+
+val eval_variadic_primitive : variadic_primitive -> value list -> value option
 
 val eval_prim : static_env -> prim -> value list -> value option
 

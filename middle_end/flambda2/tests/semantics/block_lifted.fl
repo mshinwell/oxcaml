@@ -1,0 +1,11 @@
+let a = %opaque (1) in
+let b = %opaque (2) in
+let blk = %block.[`3`].`toplevel` (a, b) in
+let o = %opaque (blk) in
+let f = %block_load.[`1`] (o) in
+let g = %get_tag (o) in
+let t = %tag_imm (g) in
+let i = %is_int (o) in
+let j = %tag_imm (i) in
+let $camlBlock_lifted = Block 0 (f, t, j) in
+cont done ($camlBlock_lifted)

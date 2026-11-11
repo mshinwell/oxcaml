@@ -1,5 +1,7 @@
 open Datatypes
 
+val nth_error : 'a1 list -> nat -> 'a1 option
+
 val list_eq_dec : ('a1 -> 'a1 -> bool) -> 'a1 list -> 'a1 list -> bool
 
 val flat_map : ('a1 -> 'a2 list) -> 'a1 list -> 'a2 list

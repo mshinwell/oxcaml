@@ -5,6 +5,7 @@ open FlambdaKindModel
 open FlambdaModel
 open FlambdaPrimitiveModel
 open FlambdaValueSpec
+open List
 open OxCamlOption
 
 (** val in_range : coq_Z -> coq_Z -> bool **)
@@ -212,11 +213,41 @@ let is_number_of_kind kind c =
     match c with Naked_vec512 _ -> true | _ -> false)
   | Boxable_naked_mask -> ( match c with Naked_mask _ -> true | _ -> false)
 
+(** val known_is : coq_Z option -> coq_Z -> bool **)
+
+let known_is known actual =
+  match known with Some expected -> Z.eqb expected actual | None -> true
+
+(** val eval_block_load : static_env -> block_access_kind -> coq_Z -> value ->
+    value option **)
+
+let eval_block_load statics kind field v =
+  let (Block_access_values (tag, size, field_kind)) = kind in
+  match block_of statics v with
+  | Some p ->
+    let block_tag, fields = p in
+    if
+      (known_is tag block_tag && known_is size (Z.of_nat (length fields)))
+      && Z.leb Z0 field
+    then
+      match nth_error fields (Z.to_nat field) with
+      | Some loaded ->
+        if
+          match field_kind with
+          | Any_value -> kind_eqb (kind_of_value loaded) Value
+          | Immediate -> is_tagged_immediate loaded
+        then Some loaded
+        else None
+      | None -> None
+    else None
+  | None -> None
+
 (** val eval_unary_primitive : static_env -> unary_primitive -> value -> value
     option **)
 
 let eval_unary_primitive statics p v =
   match p with
+  | Block_load (kind, field) -> eval_block_load statics kind field v
   | Is_int variant_only ->
     option_map naked_bool (eval_is_int statics variant_only v)
   | Is_null -> option_map naked_bool (eval_is_null statics v)
@@ -272,6 +303,16 @@ let eval_binary_primitive p v1 v2 =
       | None -> None)
     | None -> None)
 
+(** val eval_variadic_primitive : variadic_primitive -> value list -> value
+    option **)
+
+let eval_variadic_primitive p vs =
+  let (Make_block kind) = p in
+  let (Block_kind_values tag) = kind in
+  if forallb (fun v -> kind_eqb (kind_of_value v) Value) vs
+  then Some (Value_block (tag, vs))
+  else None
+
 (** val eval_prim : static_env -> prim -> value list -> value option **)
 
 let eval_prim statics p vs =
@@ -289,6 +330,7 @@ let eval_prim statics p vs =
       | [] -> None
       | v2 :: l0 -> (
         match l0 with [] -> eval_binary_primitive p0 v1 v2 | _ :: _ -> None)))
+  | Variadic p0 -> eval_variadic_primitive p0 vs
 
 (** val prim_eq_dec : prim -> prim -> bool **)
 
@@ -298,6 +340,157 @@ let prim_eq_dec p p' =
     match p' with
     | Unary p1 -> (
       match p0 with
+      | Block_load (kind, field) -> (
+        match p1 with
+        | Block_load (kind0, field0) ->
+          let (Block_access_values (tag, size, field_kind)) = kind in
+          let (Block_access_values (tag0, size0, field_kind0)) = kind0 in
+          if
+            match tag with
+            | Some a -> (
+              match tag0 with
+              | Some z -> (
+                match a with
+                | Z0 -> ( match z with Z0 -> true | _ -> false)
+                | Zpos p2 -> (
+                  match z with
+                  | Zpos p3 ->
+                    let rec f p4 x =
+                      match p4 with
+                      | Coq_xI p5 -> (
+                        match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                      | Coq_xO p5 -> (
+                        match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                      | Coq_xH -> ( match x with Coq_xH -> true | _ -> false)
+                    in
+                    f p2 p3
+                  | _ -> false)
+                | Zneg p2 -> (
+                  match z with
+                  | Zneg p3 ->
+                    let rec f p4 x =
+                      match p4 with
+                      | Coq_xI p5 -> (
+                        match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                      | Coq_xO p5 -> (
+                        match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                      | Coq_xH -> ( match x with Coq_xH -> true | _ -> false)
+                    in
+                    f p2 p3
+                  | _ -> false))
+              | None -> false)
+            | None -> ( match tag0 with Some _ -> false | None -> true)
+          then
+            if
+              match size with
+              | Some a -> (
+                match size0 with
+                | Some z -> (
+                  match a with
+                  | Z0 -> ( match z with Z0 -> true | _ -> false)
+                  | Zpos p2 -> (
+                    match z with
+                    | Zpos p3 ->
+                      let rec f p4 x =
+                        match p4 with
+                        | Coq_xI p5 -> (
+                          match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                        | Coq_xO p5 -> (
+                          match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                        | Coq_xH -> (
+                          match x with Coq_xH -> true | _ -> false)
+                      in
+                      f p2 p3
+                    | _ -> false)
+                  | Zneg p2 -> (
+                    match z with
+                    | Zneg p3 ->
+                      let rec f p4 x =
+                        match p4 with
+                        | Coq_xI p5 -> (
+                          match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                        | Coq_xO p5 -> (
+                          match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                        | Coq_xH -> (
+                          match x with Coq_xH -> true | _ -> false)
+                      in
+                      f p2 p3
+                    | _ -> false))
+                | None -> false)
+              | None -> ( match size0 with Some _ -> false | None -> true)
+            then
+              match field_kind with
+              | Any_value -> (
+                match field_kind0 with
+                | Any_value -> (
+                  match field with
+                  | Z0 -> ( match field0 with Z0 -> true | _ -> false)
+                  | Zpos p2 -> (
+                    match field0 with
+                    | Zpos p3 ->
+                      let rec f p4 x =
+                        match p4 with
+                        | Coq_xI p5 -> (
+                          match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                        | Coq_xO p5 -> (
+                          match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                        | Coq_xH -> (
+                          match x with Coq_xH -> true | _ -> false)
+                      in
+                      f p2 p3
+                    | _ -> false)
+                  | Zneg p2 -> (
+                    match field0 with
+                    | Zneg p3 ->
+                      let rec f p4 x =
+                        match p4 with
+                        | Coq_xI p5 -> (
+                          match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                        | Coq_xO p5 -> (
+                          match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                        | Coq_xH -> (
+                          match x with Coq_xH -> true | _ -> false)
+                      in
+                      f p2 p3
+                    | _ -> false))
+                | Immediate -> false)
+              | Immediate -> (
+                match field_kind0 with
+                | Any_value -> false
+                | Immediate -> (
+                  match field with
+                  | Z0 -> ( match field0 with Z0 -> true | _ -> false)
+                  | Zpos p2 -> (
+                    match field0 with
+                    | Zpos p3 ->
+                      let rec f p4 x =
+                        match p4 with
+                        | Coq_xI p5 -> (
+                          match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                        | Coq_xO p5 -> (
+                          match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                        | Coq_xH -> (
+                          match x with Coq_xH -> true | _ -> false)
+                      in
+                      f p2 p3
+                    | _ -> false)
+                  | Zneg p2 -> (
+                    match field0 with
+                    | Zneg p3 ->
+                      let rec f p4 x =
+                        match p4 with
+                        | Coq_xI p5 -> (
+                          match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                        | Coq_xO p5 -> (
+                          match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                        | Coq_xH -> (
+                          match x with Coq_xH -> true | _ -> false)
+                      in
+                      f p2 p3
+                    | _ -> false)))
+            else false
+          else false
+        | _ -> false)
       | Is_int variant_only -> (
         match p1 with
         | Is_int variant_only0 ->
@@ -395,10 +588,9 @@ let prim_eq_dec p p' =
       | Untag_immediate -> (
         match p1 with Untag_immediate -> true | _ -> false)
       | Tag_immediate -> ( match p1 with Tag_immediate -> true | _ -> false))
-    | Binary _ -> false)
+    | _ -> false)
   | Binary p0 -> (
     match p' with
-    | Unary _ -> false
     | Binary p1 -> (
       match p0 with
       | Int_arith (kind, op) -> (
@@ -1012,7 +1204,40 @@ let prim_eq_dec p p' =
                     match s0 with Signed -> true | Unsigned -> false)
                   | Unsigned -> (
                     match s0 with Signed -> false | Unsigned -> true))))
-            | _ -> false)))))
+            | _ -> false))))
+    | _ -> false)
+  | Variadic p0 -> (
+    match p' with
+    | Variadic p1 -> (
+      let (Make_block kind) = p0 in
+      let (Make_block kind0) = p1 in
+      let (Block_kind_values tag) = kind in
+      let (Block_kind_values tag0) = kind0 in
+      match tag with
+      | Z0 -> ( match tag0 with Z0 -> true | _ -> false)
+      | Zpos p2 -> (
+        match tag0 with
+        | Zpos p3 ->
+          let rec f p4 x =
+            match p4 with
+            | Coq_xI p5 -> ( match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+            | Coq_xO p5 -> ( match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+            | Coq_xH -> ( match x with Coq_xH -> true | _ -> false)
+          in
+          f p2 p3
+        | _ -> false)
+      | Zneg p2 -> (
+        match tag0 with
+        | Zneg p3 ->
+          let rec f p4 x =
+            match p4 with
+            | Coq_xI p5 -> ( match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+            | Coq_xO p5 -> ( match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+            | Coq_xH -> ( match x with Coq_xH -> true | _ -> false)
+          in
+          f p2 p3
+        | _ -> false))
+    | _ -> false)
 
 (** val prim_eqb : prim -> prim -> bool **)
 

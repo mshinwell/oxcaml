@@ -33,6 +33,10 @@ module Z : sig
 
   val eqb : coq_Z -> coq_Z -> bool
 
+  val to_nat : coq_Z -> nat
+
+  val of_nat : nat -> coq_Z
+
   val of_N : coq_N -> coq_Z
 
   val pos_div_eucl : positive -> coq_Z -> coq_Z * coq_Z

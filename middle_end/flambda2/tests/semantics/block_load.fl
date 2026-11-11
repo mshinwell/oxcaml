@@ -1,0 +1,19 @@
+cont loop (0, 0)
+  where rec loop (i, acc) =
+    let c = %int_comp.`lt` (i, 3) in
+    (switch c
+       | 0 -> finish (acc)
+       | 1 -> next
+       where next =
+         let pair = %block.[`7`].`toplevel` (i, acc) in
+         let o = %opaque (pair) in
+         let x = %block_load.[`0`] (o) in
+         let y = %block_load.[`1`] (o) in
+         let tag = %get_tag (o) in
+         let t = %tag_imm (tag) in
+         let acc2 = %int_barith.`add` (y, t) in
+         let i2 = %int_barith.`add` (x, 1) in
+         cont loop (i2, acc2))
+  where finish (r) =
+    let $camlBlock_load = Block 0 (r) in
+    cont done ($camlBlock_load)

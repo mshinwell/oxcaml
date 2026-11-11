@@ -122,6 +122,14 @@ module Z = struct
     | Zpos p -> ( match y with Zpos q -> Pos.eqb p q | _ -> false)
     | Zneg p -> ( match y with Zneg q -> Pos.eqb p q | _ -> false)
 
+  (** val to_nat : coq_Z -> nat **)
+
+  let to_nat = function Zpos p -> Pos.to_nat p | _ -> O
+
+  (** val of_nat : nat -> coq_Z **)
+
+  let of_nat = function O -> Z0 | S n0 -> Zpos (Pos.of_succ_nat n0)
+
   (** val of_N : coq_N -> coq_Z **)
 
   let of_N = function N0 -> Z0 | Npos p -> Zpos p

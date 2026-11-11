@@ -217,9 +217,25 @@ let convert_signedness (signedness : Scalar.Signedness.t) :
     Primitives.signedness =
   match signedness with Signed -> Signed | Unsigned -> Unsigned
 
+let convert_or_unknown convert (known : _ Flambda2_lattices.Or_unknown.t) =
+  match known with Known a -> Some (z_of_int (convert a)) | Unknown -> None
+
 let convert_unary_primitive (p : P.unary_primitive) :
     Primitives.unary_primitive option =
   match p with
+  | Block_load
+      { kind = Values { tag; size; field_kind }; mut = Immutable; field } ->
+    let field_kind : Primitives.block_access_field_kind =
+      match field_kind with Any_value -> Any_value | Immediate -> Immediate
+    in
+    let kind : Primitives.block_access_kind =
+      Block_access_values
+        ( convert_or_unknown Tag.Scannable.to_int tag,
+          convert_or_unknown Target_ocaml_int.to_int size,
+          field_kind )
+    in
+    Some (Block_load (kind, z_of_int (Target_ocaml_int.to_int field)))
+  | Block_load _ -> None
   | Is_int { variant_only } -> Some (Is_int variant_only)
   | Is_null -> Some Is_null
   | Get_tag -> Some Get_tag
@@ -270,6 +286,26 @@ let convert_binary_primitive (p : P.binary_primitive) :
          ( convert_standard_int kind,
            Yielding_int_like_compare_functions
              (convert_signed_or_unsigned signedness) ))
+  | _ -> None
+
+(* The compiler's [Make_block] carries the kind of each field, one for each
+   argument, with its subkind, and Simplify takes an argument that is a variable
+   to be of the subkind of its field: where it cannot be, the primitive becomes
+   [Invalid] ([Simplify_variadic_primitive]). The model's [Make_block] has no
+   such annotation and makes a block of whatever values it is given. So the only
+   annotation converted is the one that says nothing, [any_value] for every
+   field; a block kind that says more of a field is not in the model. *)
+let convert_variadic_primitive (p : P.variadic_primitive) ~num_args :
+    Primitives.variadic_primitive option =
+  match p with
+  | Make_block (Values (tag, kinds), Immutable, Heap _)
+    when List.compare_length_with kinds num_args = 0
+         && List.for_all
+              (fun kind ->
+                Flambda_kind.With_subkind.equal kind
+                  Flambda_kind.With_subkind.any_value)
+              kinds ->
+    Some (Make_block (Block_kind_values (z_of_int (Tag.Scannable.to_int tag))))
   | _ -> None
 
 (* ---- Conversion of terms ---------------------------------------------- *)
@@ -449,7 +485,11 @@ and convert_prim (prim : P.t) : Model.named =
     match convert_binary_primitive p with
     | Some p -> Prim (Binary p, [convert_simple arg1; convert_simple arg2])
     | None -> unsupported "primitive %a" P.print prim)
-  | Nullary _ | Ternary _ | Quaternary _ | Variadic _ ->
+  | Variadic (p, args) -> (
+    match convert_variadic_primitive p ~num_args:(List.length args) with
+    | Some p -> Prim (Variadic p, convert_simples args)
+    | None -> unsupported "primitive %a" P.print prim)
+  | Nullary _ | Ternary _ | Quaternary _ ->
     unsupported "primitive %a" P.print prim
 
 and convert_or_variable : type a.
@@ -738,6 +778,7 @@ let string_of_signedness (signedness : Primitives.signedness) =
 let print_prim ppf (p : Primitives.prim) =
   let unary (p : Primitives.unary_primitive) =
     match p with
+    | Block_load (_, field) -> Printf.sprintf "Block_load %d" (int_of_z field)
     | Is_int variant_only -> if variant_only then "Is_int" else "Is_int_generic"
     | Is_null -> "Is_null"
     | Get_tag -> "Get_tag"
@@ -783,6 +824,8 @@ let print_prim ppf (p : Primitives.prim) =
     Format.fprintf ppf "Int_comp %s %s"
       (string_of_standard_int kind)
       (int_comp behaviour)
+  | Variadic (Make_block (Block_kind_values tag)) ->
+    Format.fprintf ppf "Make_block %d" (int_of_z tag)
 
 let print_named ppf (d : Model.named) =
   match d with

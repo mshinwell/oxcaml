@@ -1,5 +1,6 @@
 open BinNums
 open Datatypes
+open Nat
 
 module Pos : sig
   val succ : positive -> positive
@@ -48,4 +49,10 @@ module Pos : sig
   val ldiff : positive -> positive -> coq_N
 
   val coq_lxor : positive -> positive -> coq_N
+
+  val iter_op : ('a1 -> 'a1 -> 'a1) -> positive -> 'a1 -> 'a1
+
+  val to_nat : positive -> nat
+
+  val of_succ_nat : nat -> positive
 end

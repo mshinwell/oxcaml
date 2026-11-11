@@ -1,5 +1,11 @@
 open Datatypes
 
+(** val nth_error : 'a1 list -> nat -> 'a1 option **)
+
+let rec nth_error l = function
+  | O -> ( match l with [] -> None | x :: _ -> Some x)
+  | S n0 -> ( match l with [] -> None | _ :: l' -> nth_error l' n0)
+
 (** val list_eq_dec : ('a1 -> 'a1 -> bool) -> 'a1 list -> 'a1 list -> bool **)
 
 let rec list_eq_dec eq_dec l l' =
