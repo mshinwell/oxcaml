@@ -125,6 +125,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaFreshBindersSpec.v \
   FlambdaFreshQuantifierProofs.v \
   FlambdaFreshQuantifierSpec.v \
+  FlambdaHeapEquivarianceProofs.v \
+  FlambdaHeapEquivarianceSpec.v \
   FlambdaHeapProofs.v \
   FlambdaHeapSpec.v \
   FlambdaIdentitiesProofs.v \
