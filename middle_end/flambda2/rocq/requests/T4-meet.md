@@ -656,7 +656,12 @@ strict satisfaction, with no other premise), `expand_head_closed`,
 ## 15. Next
 
 - The proofs of the contract for `meet_to_prove`, with the join's
-  contract as a hypothesis; then that some fuel is enough.
+  contract as a hypothesis; then that some fuel is enough. Proved so
+  far, beside the parts that need no environment: the functions of
+  `Meet_env` (`FlambdaMeetEnvSpec.v`), and the meet of the two sides
+  of a variant or of a value that may be null, each met in a scope of
+  its own, with the join of the two environments
+  (`meet_disjunction_ok`, `FlambdaMeetScopesSpec.v`).
 - `reduce_head_of_kind_naked_immediate` is sound (T5b needs it too):
   done, with no premise but those of its statement.
 - The two parameters are replaced by T1's and T2's predicates: done.
