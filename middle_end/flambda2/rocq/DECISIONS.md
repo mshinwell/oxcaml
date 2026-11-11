@@ -222,6 +222,9 @@ says so. Only the labels that this tree cites are listed.
 - **N1-9.** The comparison of terms of the compiler (`Compare`) has no
   case for a primitive of four arguments, so it judges a term that has
   one different from itself.
+- **P1-1.** Simplify folds `Phys_equal` of a poison against another
+  constant to 0, and the backend makes a poison of kind `Value` a tagged
+  immediate.
 - **R1-1.** Unboxing records `Get_tag` on the paths where the value is
   an immediate, and supplies a dummy tag of zero.
 - **R1-2.** The types library evaluates `Is_null` of poison as false.
