@@ -36,10 +36,10 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec FlambdaMapProofs
   FlambdaSemanticsSpec FlambdaNominalSpec FlambdaNominalProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaBindingTime
-  FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesProofs
-  FlambdaEnvAliasesRenamingSpec FlambdaEnvAliasesRenamingProofs
-  FlambdaEnvAliasesSetSpec.
+  FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeRenameSpec
+  FlambdaTypeRenameProofs FlambdaBindingTime FlambdaEnvAliases
+  FlambdaEnvAliasesSpec FlambdaEnvAliasesProofs FlambdaEnvAliasesRenamingSpec
+  FlambdaEnvAliasesRenamingProofs FlambdaEnvAliasesSetSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -1081,7 +1081,7 @@ Proof.
   destruct (simple_cases e) as [[n ->] | [c ->]].
   - rewrite rename_simple_of_name, !alias_set_has_name. simpl.
     rewrite <- !(keyed_among_in name name_eqb name_eqb_eq),
-      (among_renamed name_eqb (rename_name r) (name_eqb_renamed r)).
+      (among_keys_renamed name_eqb (rename_name r) (name_eqb_renamed r)).
     reflexivity.
   - reflexivity.
 Qed.
@@ -1101,7 +1101,7 @@ Lemma inter_renamed (r : renaming) (names names' : list name) :
   = map (rename_name r) (Keyed.inter name_eqb names names').
 Proof.
   unfold Keyed.inter. apply filter_renamed. intros n.
-  apply (among_renamed name_eqb (rename_name r) (name_eqb_renamed r)).
+  apply (among_keys_renamed name_eqb (rename_name r) (name_eqb_renamed r)).
 Qed.
 
 Theorem rename_inter : rename_inter_statement.

@@ -100,8 +100,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaNominalSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
-  FlambdaEnvAliasesSpec FlambdaEnvAliasesRenamingSpec.
+  FlambdaTypeMeaningSpec FlambdaTypeRenameSpec FlambdaBindingTime
+  FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesRenamingSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.

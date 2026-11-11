@@ -34,8 +34,9 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec FlambdaMapProofs
   FlambdaSemanticsSpec FlambdaNominalSpec FlambdaNominalProofs FlambdaAlphaSpec
   FlambdaAlphaProofs FlambdaNameAbstractionSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaBindingTime
-  FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesProofs
+  FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeRenameSpec
+  FlambdaTypeRenameProofs FlambdaBindingTime FlambdaEnvAliases
+  FlambdaEnvAliasesSpec FlambdaEnvAliasesProofs
   FlambdaEnvAliasesRenamingSpec.
 Import ListNotations.
 
@@ -73,26 +74,26 @@ Proof.
   rewrite Hearlier. destruct (earlier elt first); apply IH.
 Qed.
 
-Lemma rename_bindings_identity {K B : Type} (f : K -> K) (g : B -> B)
+Lemma map_bindings_identity {K B : Type} (f : K -> K) (g : B -> B)
     (bindings : Keyed.finite_map K B) :
   (∀ k : K, f k = k) -> (∀ b : B, g b = b) ->
-  rename_bindings f g bindings = bindings.
+  Keyed.map_bindings f g bindings = bindings.
 Proof.
-  intros Hf Hg. unfold rename_bindings.
+  intros Hf Hg. unfold Keyed.map_bindings.
   induction bindings as [ | [k b] bindings IH]; simpl; [ reflexivity | ].
   rewrite Hf, Hg, IH. reflexivity.
 Qed.
 
-Lemma rename_bindings_compose {K B C D : Type} (f f' : K -> K) (g : C -> D)
+Lemma map_bindings_compose {K B C D : Type} (f f' : K -> K) (g : C -> D)
     (g' : B -> C) (bindings : Keyed.finite_map K B) :
-  rename_bindings f g (rename_bindings f' g' bindings)
-  = rename_bindings (fun k => f (f' k)) (fun b => g (g' b)) bindings.
-Proof. unfold rename_bindings. rewrite map_map. reflexivity. Qed.
+  Keyed.map_bindings f g (Keyed.map_bindings f' g' bindings)
+  = Keyed.map_bindings (fun k => f (f' k)) (fun b => g (g' b)) bindings.
+Proof. unfold Keyed.map_bindings. rewrite map_map. reflexivity. Qed.
 
-Lemma rename_bindings_extensional {K B C : Type} (f f' : K -> K)
+Lemma map_bindings_extensional {K B C : Type} (f f' : K -> K)
     (g g' : B -> C) (bindings : Keyed.finite_map K B) :
   (∀ k : K, f k = f' k) -> (∀ b : B, g b = g' b) ->
-  rename_bindings f g bindings = rename_bindings f' g' bindings.
+  Keyed.map_bindings f g bindings = Keyed.map_bindings f' g' bindings.
 Proof.
   intros Hf Hg. apply map_ext. intros [k b]. simpl. rewrite Hf, Hg.
   reflexivity.
@@ -100,8 +101,8 @@ Qed.
 
 Lemma keys_renamed {K B C : Type} (f : K -> K) (g : B -> C)
     (bindings : Keyed.finite_map K B) :
-  map fst (rename_bindings f g bindings) = map f (map fst bindings).
-Proof. unfold rename_bindings. rewrite !map_map. reflexivity. Qed.
+  map fst (Keyed.map_bindings f g bindings) = map f (map fst bindings).
+Proof. unfold Keyed.map_bindings. rewrite !map_map. reflexivity. Qed.
 
 Section Renamed_keys.
 
@@ -109,7 +110,7 @@ Section Renamed_keys.
 Context {K : Type} (eqb : K -> K -> bool) (f : K -> K).
 Hypothesis eqb_renamed : ∀ k k' : K, eqb (f k) (f k') = eqb k k'.
 
-Lemma among_renamed (k : K) (keys : list K) :
+Lemma among_keys_renamed (k : K) (keys : list K) :
   Keyed.among eqb (f k) (map f keys) = Keyed.among eqb k keys.
 Proof.
   unfold Keyed.among.
@@ -122,7 +123,7 @@ Lemma without_renamed (removed keys : list K) :
   = map f (Keyed.without eqb removed keys).
 Proof.
   unfold Keyed.without. apply filter_renamed. intros k.
-  rewrite among_renamed. reflexivity.
+  rewrite among_keys_renamed. reflexivity.
 Qed.
 
 Lemma dedup_renamed (keys : list K) :
@@ -134,17 +135,17 @@ Qed.
 
 Lemma lookup_renamed {B C : Type} (g : B -> C) (k : K)
     (bindings : Keyed.finite_map K B) :
-  Keyed.lookup eqb (f k) (rename_bindings f g bindings)
+  Keyed.lookup eqb (f k) (Keyed.map_bindings f g bindings)
   = option_map g (Keyed.lookup eqb k bindings).
 Proof.
-  unfold rename_bindings.
+  unfold Keyed.map_bindings.
   induction bindings as [ | [k' b] bindings IH]; simpl; [ reflexivity | ].
   rewrite eqb_renamed. destruct (eqb k k'); [ reflexivity | exact IH ].
 Qed.
 
 Lemma is_bound_renamed {B C : Type} (g : B -> C) (k : K)
     (bindings : Keyed.finite_map K B) :
-  Keyed.is_bound eqb (f k) (rename_bindings f g bindings)
+  Keyed.is_bound eqb (f k) (Keyed.map_bindings f g bindings)
   = Keyed.is_bound eqb k bindings.
 Proof.
   unfold Keyed.is_bound. rewrite lookup_renamed.
@@ -153,7 +154,7 @@ Qed.
 
 Lemma domain_renamed {B C : Type} (g : B -> C)
     (bindings : Keyed.finite_map K B) :
-  Keyed.domain eqb (rename_bindings f g bindings)
+  Keyed.domain eqb (Keyed.map_bindings f g bindings)
   = map f (Keyed.domain eqb bindings).
 Proof. unfold Keyed.domain. rewrite keys_renamed. apply dedup_renamed. Qed.
 
@@ -161,9 +162,9 @@ Lemma tabulate_renamed {B C : Type} (g : B -> C) (bound : K -> option B)
     (bound' : K -> option C) (keys : list K) :
   (∀ k : K, bound' (f k) = option_map g (bound k)) ->
   Keyed.tabulate bound' (map f keys)
-  = rename_bindings f g (Keyed.tabulate bound keys).
+  = Keyed.map_bindings f g (Keyed.tabulate bound keys).
 Proof.
-  intros Hbound. unfold Keyed.tabulate, rename_bindings.
+  intros Hbound. unfold Keyed.tabulate, Keyed.map_bindings.
   induction keys as [ | k keys IH]; simpl; [ reflexivity | ].
   rewrite Hbound, IH, map_app. destruct (bound k); reflexivity.
 Qed.
@@ -172,8 +173,8 @@ Lemma filter_bindings_renamed {B C : Type} (g : B -> C)
     (keep : K -> B -> bool) (keep' : K -> C -> bool)
     (bindings : Keyed.finite_map K B) :
   (∀ (k : K) (b : B), keep' (f k) (g b) = keep k b) ->
-  Keyed.filter_bindings eqb keep' (rename_bindings f g bindings)
-  = rename_bindings f g (Keyed.filter_bindings eqb keep bindings).
+  Keyed.filter_bindings eqb keep' (Keyed.map_bindings f g bindings)
+  = Keyed.map_bindings f g (Keyed.filter_bindings eqb keep bindings).
 Proof.
   intros Hkeep. unfold Keyed.filter_bindings. rewrite domain_renamed.
   apply tabulate_renamed. intros k. rewrite lookup_renamed.
@@ -183,10 +184,10 @@ Qed.
 
 Lemma unbind_renamed {B C : Type} (g : B -> C) (k : K)
     (bindings : Keyed.finite_map K B) :
-  Keyed.unbind eqb (f k) (rename_bindings f g bindings)
-  = rename_bindings f g (Keyed.unbind eqb k bindings).
+  Keyed.unbind eqb (f k) (Keyed.map_bindings f g bindings)
+  = Keyed.map_bindings f g (Keyed.unbind eqb k bindings).
 Proof.
-  unfold Keyed.unbind, rename_bindings. apply filter_renamed.
+  unfold Keyed.unbind, Keyed.map_bindings. apply filter_renamed.
   intros [k' b]. simpl. rewrite eqb_renamed. reflexivity.
 Qed.
 
@@ -195,13 +196,6 @@ End Renamed_keys.
 (* ======================================================================== *)
 (* Names and simples                                                        *)
 (* ======================================================================== *)
-
-Lemma name_eqb_renamed (r : renaming) (n n' : name) :
-  name_eqb (rename_name r n) (rename_name r n') = name_eqb n n'.
-Proof. destruct n, n'; simpl; try reflexivity. apply rename_variable_eqb. Qed.
-
-Lemma rename_name_identity (n : name) : rename_name identity_renaming n = n.
-Proof. destruct n; reflexivity. Qed.
 
 Lemma rename_name_compose (second first : renaming) (n : name) :
   rename_name (compose_renaming second first) n
@@ -214,12 +208,6 @@ Lemma rename_name_inverse_l (r : renaming) (n : name) :
   rename_name (inverse_renaming r) (rename_name r n) = n.
 Proof.
   destruct n; simpl; [ rewrite rename_variable_inverse_l | ]; reflexivity.
-Qed.
-
-Lemma rename_name_inverse_r (r : renaming) (n : name) :
-  rename_name r (rename_name (inverse_renaming r) n) = n.
-Proof.
-  destruct n; simpl; [ rewrite rename_variable_inverse_r | ]; reflexivity.
 Qed.
 
 Lemma rename_simple_inverse_l (r : renaming) (s : simple) :
@@ -443,7 +431,7 @@ Lemma rename_aliases_of_canonical_element_identity
     (aliases : Aliases.Aliases_of_canonical_element.t) :
   rename_aliases_of_canonical_element identity_renaming aliases = aliases.
 Proof.
-  apply rename_bindings_identity;
+  apply map_bindings_identity;
     [ apply rename_name_identity | reflexivity ].
 Qed.
 
@@ -451,12 +439,12 @@ Theorem rename_aliases_identity : rename_aliases_identity_statement.
 Proof.
   intros [canonical_elements of_names of_consts]. unfold rename_aliases.
   simpl. f_equal.
-  - apply rename_bindings_identity;
+  - apply map_bindings_identity;
       [ apply rename_name_identity | apply rename_simple_id ].
-  - apply rename_bindings_identity;
+  - apply map_bindings_identity;
       [ apply rename_name_identity
       | apply rename_aliases_of_canonical_element_identity ].
-  - apply (rename_bindings_identity (fun c : const => c));
+  - apply (map_bindings_identity (fun c : const => c));
       [ reflexivity | apply rename_aliases_of_canonical_element_identity ].
 Qed.
 
@@ -466,7 +454,7 @@ Lemma rename_aliases_of_canonical_element_extensional (r r' : renaming)
   rename_aliases_of_canonical_element r aliases
   = rename_aliases_of_canonical_element r' aliases.
 Proof.
-  intros Hsame. apply rename_bindings_extensional; [ | reflexivity ].
+  intros Hsame. apply map_bindings_extensional; [ | reflexivity ].
   intros [x | s]; simpl; [ rewrite Hsame | ]; reflexivity.
 Qed.
 
@@ -476,12 +464,12 @@ Proof.
   assert (Hname : ∀ n : name, rename_name r n = rename_name r' n).
   { intros [x | s]; simpl; [ rewrite Hsame | ]; reflexivity. }
   unfold rename_aliases. simpl. f_equal.
-  - apply rename_bindings_extensional; [ exact Hname | ].
+  - apply map_bindings_extensional; [ exact Hname | ].
     intros [x | s | c]; simpl; [ rewrite Hsame | | ]; reflexivity.
-  - apply rename_bindings_extensional; [ exact Hname | ].
+  - apply map_bindings_extensional; [ exact Hname | ].
     intros aliases.
     apply rename_aliases_of_canonical_element_extensional, Hsame.
-  - apply (rename_bindings_extensional (fun c : const => c)
+  - apply (map_bindings_extensional (fun c : const => c)
              (fun c : const => c));
       [ reflexivity | ].
     intros aliases.
@@ -495,8 +483,8 @@ Lemma rename_aliases_of_canonical_element_compose (second first : renaming)
       (rename_aliases_of_canonical_element first aliases).
 Proof.
   unfold rename_aliases_of_canonical_element.
-  rewrite rename_bindings_compose.
-  apply rename_bindings_extensional;
+  rewrite map_bindings_compose.
+  apply map_bindings_extensional;
     [ apply rename_name_compose | reflexivity ].
 Qed.
 
@@ -504,11 +492,11 @@ Theorem rename_aliases_compose : rename_aliases_compose_statement.
 Proof.
   intros second first [canonical_elements of_names of_consts].
   unfold rename_aliases. simpl. f_equal.
-  - rewrite rename_bindings_compose.
-    apply rename_bindings_extensional;
+  - rewrite map_bindings_compose.
+    apply map_bindings_extensional;
       [ apply rename_name_compose | apply rename_simple_compose ].
-  - rewrite rename_bindings_compose.
-    apply rename_bindings_extensional;
+  - rewrite map_bindings_compose.
+    apply map_bindings_extensional;
       [ apply rename_name_compose
       | apply rename_aliases_of_canonical_element_compose ].
   - unfold Keyed.map_values. rewrite map_map. apply map_ext.
@@ -763,20 +751,20 @@ Proof.
                    (Aliases.get_aliases_of_canonical_element t
                       to_be_demoted)))
            ++ Aliases.canonical_elements (rename_aliases r t)
-        = rename_bindings (rename_name r) (rename_simple r)
+        = Keyed.map_bindings (rename_name r) (rename_simple r)
             ((name_to_be_demoted, canonical_element)
              :: map (fun alias => (alias, canonical_element))
                   (Aliases.Aliases_of_canonical_element.all
                      (Aliases.get_aliases_of_canonical_element t
                         to_be_demoted))
                 ++ Aliases.canonical_elements t)).
-  { rewrite all_renamed. unfold rename_bindings. simpl.
+  { rewrite all_renamed. unfold Keyed.map_bindings. simpl.
     rewrite map_app, !map_map. reflexivity. }
   assert
     (Hunbound
       : Keyed.unbind name_eqb (rename_name r name_to_be_demoted)
           (Aliases.aliases_of_canonical_names (rename_aliases r t))
-        = rename_bindings (rename_name r)
+        = Keyed.map_bindings (rename_name r)
             (rename_aliases_of_canonical_element r)
             (Keyed.unbind name_eqb name_to_be_demoted
                (Aliases.aliases_of_canonical_names t))).
@@ -950,8 +938,8 @@ Lemma rename_binding_times_inverse_l {A : Type} (r : renaming)
     (rename_binding_times r binding_times_and_modes)
   = binding_times_and_modes.
 Proof.
-  unfold rename_binding_times. rewrite rename_bindings_compose.
-  apply rename_bindings_identity; [ | reflexivity ].
+  unfold rename_binding_times. rewrite map_bindings_compose.
+  apply map_bindings_identity; [ | reflexivity ].
   intros n. apply rename_name_inverse_l.
 Qed.
 
@@ -1042,14 +1030,14 @@ Proof.
     apply free_variables_of_aliases_of_canonical_element_renamed.
 Qed.
 
-Lemma rename_bindings_fixed {K B : Type} (f : K -> K) (g : B -> B)
+Lemma map_bindings_fixed {K B : Type} (f : K -> K) (g : B -> B)
     (bindings : Keyed.finite_map K B) :
   (∀ binding : K * B,
     binding ∈ bindings ->
     f (fst binding) = fst binding ∧ g (snd binding) = snd binding) ->
-  rename_bindings f g bindings = bindings.
+  Keyed.map_bindings f g bindings = bindings.
 Proof.
-  unfold rename_bindings.
+  unfold Keyed.map_bindings.
   induction bindings as [ | [k b] bindings IH]; intros Hfixed; simpl;
     [ reflexivity | ].
   destruct (Hfixed (k, b) (or_introl eq_refl)) as [Hk Hb]. simpl in Hk, Hb.
@@ -1080,7 +1068,7 @@ Lemma rename_aliases_of_canonical_element_fixed (r : renaming)
     rename_variable r x = x) ->
   rename_aliases_of_canonical_element r aliases = aliases.
 Proof.
-  intros Hfixed. apply rename_bindings_fixed.
+  intros Hfixed. apply map_bindings_fixed.
   intros binding Hin. split; [ | reflexivity ].
   apply rename_name_fixed. intros x Hx. apply Hfixed.
   apply in_flat_map. exists binding. split; assumption.
@@ -1098,20 +1086,20 @@ Proof.
   { intros x Hx. apply Hfixed, among_In, Hx. }
   clear Hfixed. unfold aliases_free_variables in Hin. simpl in Hin.
   unfold rename_aliases. simpl. f_equal.
-  - apply rename_bindings_fixed. intros binding Hbinding.
+  - apply map_bindings_fixed. intros binding Hbinding.
     split;
       [ apply rename_name_fixed | apply rename_simple_fixed ];
       intros x Hx; apply Hin, in_or_app; left; apply in_flat_map;
       exists binding; (split; [ exact Hbinding | ]); apply in_or_app;
       [ left | right ]; exact Hx.
-  - apply rename_bindings_fixed. intros binding Hbinding.
+  - apply map_bindings_fixed. intros binding Hbinding.
     split;
       [ apply rename_name_fixed
       | apply rename_aliases_of_canonical_element_fixed ];
       intros x Hx; apply Hin, in_or_app; right; apply in_or_app; left;
       apply in_flat_map; exists binding; (split; [ exact Hbinding | ]);
       apply in_or_app; [ left | right ]; exact Hx.
-  - apply (rename_bindings_fixed (fun c : const => c)).
+  - apply (map_bindings_fixed (fun c : const => c)).
     intros binding Hbinding. split; [ reflexivity | ].
     apply rename_aliases_of_canonical_element_fixed.
     intros x Hx. apply Hin, in_or_app. right. apply in_or_app. right.
@@ -1209,7 +1197,7 @@ Proof.
   - intros p t t' ->. reflexivity.
   - intros p t x. rewrite rename_free_variables.
     apply
-      (among_renamed Pos.eqb (rename_variable (Renaming p []))
+      (among_keys_renamed Pos.eqb (rename_variable (Renaming p []))
          (rename_variable_eqb (Renaming p []))).
   - intros t t' -> x. reflexivity.
   - intros p t Hfixes. apply rename_aliases_fixes. intros x Hx.

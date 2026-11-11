@@ -28,14 +28,16 @@
 (* Renaming the aliases of the typing environment, and their free
    variables.
 
-   This file is to be reviewed: the renamings ([rename_name],
-   [rename_aliases], [rename_binding_times], [rename_resolver],
-   [rename_alias_set], [rename_add_result]), [aliases_free_variables],
-   and the statements. The compiler has nothing to compare them with:
-   [Aliases.t] has neither [apply_renaming] nor [free_names] there. They
-   are here because everything that holds names is to have its renaming
-   and its free names, and the functions on it are to commute with
-   renaming (FlambdaNominalSpec.v; the compiler's directory nominal/).
+   This file is to be reviewed: the renamings ([rename_aliases],
+   [rename_binding_times], [rename_resolver], [rename_alias_set],
+   [rename_add_result]), [aliases_free_variables], and the statements.
+   The compiler has nothing to compare them with: [Aliases.t] has
+   neither [apply_renaming] nor [free_names] there. They are here
+   because everything that holds names is to have its renaming and its
+   free names, and the functions on it are to commute with renaming
+   (FlambdaNominalSpec.v; the compiler's directory nominal/). A name is
+   renamed by FlambdaTypeRenameSpec.rename_name, and a map has its keys
+   renamed by FlambdaMapSpec.Keyed.map_bindings.
 
    A renaming (FlambdaNominalSpec.renaming) permutes variables. It does
    not touch symbols or constants. The structure is renamed in all three
@@ -91,39 +93,25 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaNominalSpec FlambdaAlphaSpec
   FlambdaNameAbstractionSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
-  FlambdaEnvAliasesSpec.
+  FlambdaTypeMeaningSpec FlambdaTypeRenameSpec FlambdaBindingTime
+  FlambdaEnvAliases FlambdaEnvAliasesSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
 (* The renamings                                                            *)
 (* ======================================================================== *)
 
-(* A name renamed: a variable is renamed, a symbol is not. *)
-Definition rename_name (r : renaming) (n : name) : name :=
-  match n with
-  | Name_var x => Name_var (rename_variable r x)
-  | Name_symbol s => Name_symbol s
-  end.
-
-(* A map with its keys renamed by [f] and what they are bound to changed
-   by [g]. The module of maps is to have this operation
-   ([Keyed.map_bindings]); it will replace this definition. *)
-Definition rename_bindings {K B C : Type} (f : K -> K) (g : B -> C)
-    (bindings : Keyed.finite_map K B) : Keyed.finite_map K C :=
-  map (fun binding => (f (fst binding), g (snd binding))) bindings.
-
 Definition rename_aliases_of_canonical_element (r : renaming)
     (aliases : Aliases.Aliases_of_canonical_element.t)
     : Aliases.Aliases_of_canonical_element.t :=
-  rename_bindings (rename_name r) (fun name_mode => name_mode) aliases.
+  Keyed.map_bindings (rename_name r) (fun name_mode => name_mode) aliases.
 
 (* The structure renamed: every name in it, in the three maps. *)
 Definition rename_aliases (r : renaming) (t : Aliases.t) : Aliases.t :=
   Aliases.make
-    (rename_bindings (rename_name r) (rename_simple r)
+    (Keyed.map_bindings (rename_name r) (rename_simple r)
        (Aliases.canonical_elements t))
-    (rename_bindings (rename_name r) (rename_aliases_of_canonical_element r)
+    (Keyed.map_bindings (rename_name r) (rename_aliases_of_canonical_element r)
        (Aliases.aliases_of_canonical_names t))
     (Keyed.map_values (rename_aliases_of_canonical_element r)
        (Aliases.aliases_of_consts t)).
@@ -134,7 +122,7 @@ Definition rename_binding_times {A : Type} (r : renaming)
     (binding_times_and_modes
       : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
     : Keyed.finite_map name (A * Binding_time.With_name_mode.t) :=
-  rename_bindings (rename_name r) (fun entry => entry)
+  Keyed.map_bindings (rename_name r) (fun entry => entry)
     binding_times_and_modes.
 
 Definition rename_resolver (r : renaming)
