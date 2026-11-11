@@ -33,23 +33,33 @@ which gives a name outside a list of names.
 | `FlambdaFreeNamesSpec.v` | The older accounts of free names agree with the one function where code is closed, and what is free by them is among the free names on every term |
 | `FlambdaCanonicalFreeNamesSpec.v` | The statements about binders, and the rules of `alpha_equivalent`, written with the one function for the free names |
 | `FlambdaStateSupportSpec.v` | Every expression and every state has a finite support: with the action, the states are a nominal set |
+| `FlambdaFreshQuantifierSpec.v`, `FlambdaFreshAbstractionSpec.v` | The quantifier "for all but finitely many names"; `fresh_names`; equal abstractions of one name and of a list of distinct names, said with the quantifier |
+| `FlambdaFreshBindersSpec.v`, `FlambdaAlphaFreshSpec.v`, `FlambdaAlphaGroupSpec.v` | For each binder, the rule that compares two binders at fresh names, and that it can be read both ways on terms with distinct binders and closed code; the recursive group as a name abstraction |
+| `FlambdaCompareConverseSpec.v` | What the comparison accepts is alpha-equivalent, on terms with distinct binders and closed code |
+| `FlambdaInlineFreshSpec.v` | Inlining a call with the binders of the code exchanged for fresh names; two choices give alpha-equivalent terms |
+
+The last four rows are the second prover's files.
 
 In the types library, `FlambdaEnvAliasesRenamingSpec.v` has the action
-on the aliases, with the same laws, as an instance of the interface.
-The action on types comes with the files of the types.
+on the aliases, and `FlambdaTypeRenameSpec.v` and
+`FlambdaTypeNominalSpec.v` the action on types and on environment
+extensions, each with the same laws, as instances of the interface.
 
 ## 3. The binders
 
 | Binder | Binds | In scope in |
 |--------|-------|-------------|
-| `Let x d body` | `x` | `body` |
-| `Handler params handler` | `params` | `handler` |
+| `Let x kind d body` | `x` | `body` |
+| `Handler params metadata handler` | `params` | `handler` |
 | `Let_cont_non_recursive k h body` | `k` | `body` |
 | `Let_cont_recursive handlers body` | the continuations of `handlers` | `body` and every handler |
-| `Code params my_closure ret exn body` | `params`, `my_closure`, `ret`, `exn` | `body` |
+| `Code params my_closure ret exn metadata body` | `params`, `my_closure`, `ret`, `exn` | `body` |
 
 A `Let_static` binds no variable and no continuation. Code is closed:
 its body has no free name but what the code binds (decision D31).
+Kinds, arities and metadata have no names in them: a renaming leaves
+them as they are, and two terms that are the same up to bound names
+have the same ones.
 
 A well-formed unit meets three conditions, which are checks:
 
@@ -105,9 +115,26 @@ The comparison is the primary notion (it is a function and it is what
 runs); the rules of `alpha_equivalent` are facts about it. The converse
 (what the comparison accepts is alpha-equivalent) is for terms with
 distinct binders and closed code, which are the terms that
-well-formedness admits. It is proved, by a second prover, in a series
-that follows this one; with it the comparison decides
-alpha-equivalence on those terms.
+well-formedness admits. It is proved
+(`FlambdaCompareConverseSpec.expr_eqb_iff_alpha_equivalent_statement`):
+on those terms the comparison and alpha-equivalence are one relation,
+and the comparison decides it.
+
+At each binder alpha-equivalence can also be said as the papers on
+nominal sets say it: two binders are alpha-equivalent exactly when
+two things hold. What is outside the scope agrees: the two `Let`s
+have the same kind and the same defining expression, the two handlers
+or the two pieces of code the same metadata, and the handlers of the
+two non-recursive `Let_cont`s are themselves alpha-equivalent (the
+handlers of a recursive group are in the scope of its continuations,
+and are compared with them exchanged). And the scopes are
+alpha-equivalent once the bound names of both are exchanged for the
+same fresh names, for all but finitely many choices of them
+(`FlambdaCompareConverseSpec.alpha_let_iff_statement`, and the
+statements of `FlambdaAlphaFreshSpec.v` and `FlambdaAlphaGroupSpec.v`
+for a `Let_cont`, a handler, code, a `Let_static` and a recursive
+group). That is how the compiler compares two binders
+(`Name_abstraction.pattern_match_pair`).
 
 Outside those terms the comparison accepts more, and is still sound.
 Two pairs of terms are accepted and proved not alpha-equivalent:
@@ -136,19 +163,22 @@ equal to another when each can be opened, by a permutation that fixes
 its free names, to the same bound names and equal scopes.
 
 Instances: `simple`, `named`, static constants and environments;
-expressions whose code is closed, for each sort; the aliases, in the
-types library (types are to follow). Each binder of section 3 except
-the recursive group is shown to be a name abstraction: equal
-abstractions give alpha-equivalent terms. The laws of abstractions, and
-that opening two equal abstractions at the same names gives equal
-scopes (`pattern_match_pair_statement`), then hold of them with no
-further proof.
+expressions whose code is closed, for each sort; and, in the types
+library, the aliases, the types and the environment extensions. Each
+binder of section 3 is shown to be a name abstraction: equal
+abstractions give alpha-equivalent terms
+(`FlambdaNominalInstancesSpec.v`; for the
+recursive group, whose scope is its handlers and its body together,
+`FlambdaAlphaGroupSpec.group_abstraction_statement`). The laws of
+abstractions, and that opening two equal abstractions at the same
+names gives equal scopes (`pattern_match_pair_statement`), then hold
+of them with no further proof.
 
 The quantifier "for all but finitely many names" is a derived view of
 equal abstractions (`FlambdaFreshQuantifierSpec.v`,
 `FlambdaFreshAbstractionSpec.v`), for one bound name and for a list of
-distinct bound names. The definition by permutations stays. Its use on
-the binders of terms follows this series.
+distinct bound names. The definition by permutations stays. Section 5
+says what the quantifier gives at the binders of terms.
 
 States. The renamings act on the states of the machine
 (`FlambdaEquivarianceSpec.v`: the identity, composition, inverses), a
@@ -189,14 +219,19 @@ name is a finding: record a discrepancy.
 Proved: the machine (`step`, `run`, `behaves`); the free names, as
 relations and as functions; `code_closed`, `binders_distinct`,
 `names_in_scope`; `alpha_equivalent`; `expr_eqb`; `fold_constants`;
-`inline_calls`.
+`inline_calls`; and, in the fourth form, inlining at fresh names
+(`FlambdaInlineFreshSpec.v`: the names made are bound in the result, so
+two choices give alpha-equivalent terms).
 
 Owed, and being proved by a third prover in a series of its own: the
 other rewrites of `FlambdaNormaliseSpec.v`, `FlambdaUnusedStaticsSpec.v`,
 `FlambdaUnusedContsSpec.v`, `FlambdaBlockLoadSpec.v` and
-`FlambdaUnboxSpec.v`, the checks of `FlambdaWellFormedSpec.v`, and
-`validate_unit`. Owed by their owners: the lifting of constants, the
-ranges, and the functions on types.
+`FlambdaUnboxSpec.v`, the checks of `FlambdaWellFormedSpec.v`, the
+check of kinds, and `validate_unit`. The same prover takes each pass
+of the validator that is added after this was written, when it is
+merged, and the functions of typing environments. Owed by their
+owners: the lifting of constants, the ranges, and the functions on
+types.
 
 ## 8. What a change to the model owes
 
@@ -215,8 +250,6 @@ ranges, and the functions on types.
 
 ## 9. Not done
 
-- The recursive group as a name abstraction: its scope is the handlers
-  and the body together. In progress.
 - The older accounts of free names (`var_free_in_expr`,
   `cont_free_in_expr`, `FlambdaWellFormedSpec.free_continuations`,
   `FlambdaNormaliseSpec.expr_in_scope`) are still what many statements
