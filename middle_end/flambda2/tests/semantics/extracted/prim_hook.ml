@@ -14,3 +14,8 @@ let eval_prim : (Obj.t -> Obj.t -> Obj.t) ref =
    equality of the tool's primitives, as the model takes that as an axiom. *)
 let prim_eqb : (Obj.t -> Obj.t -> bool) ref =
   ref (fun _ _ -> failwith "Prim_hook.prim_eqb: no equality installed")
+
+(* The model's [prim_may_fold : prim -> bool]: which primitives the
+   normalisation may fold when their arguments are constants. Any answer is
+   sound. *)
+let prim_may_fold : (Obj.t -> bool) ref = ref (fun _ -> false)

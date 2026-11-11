@@ -2,6 +2,7 @@ open BinNums
 open BinPos
 open Datatypes
 open FlambdaApplySpec
+open FlambdaCompareSpec
 open FlambdaModel
 open FlambdaNominalSpec
 open FlambdaSemanticsSpec
@@ -53,6 +54,10 @@ val var_free_b : variable -> expr -> bool
 
 val var_free_in_handler_b : variable -> continuation_handler -> bool
 
+val prim_may_fold : prim -> bool
+
+val named_may_go : named -> bool
+
 val remove_unused_lets : expr -> expr
 
 val remove_unused_lets_in_handler : continuation_handler -> continuation_handler
@@ -100,3 +105,11 @@ val binds_code : static_binding -> bool
 val code_first : static_binding list -> static_binding list
 
 val merge_statics : expr -> expr
+
+val simple_eq_dec : simple -> simple -> bool
+
+val apply_cont_eq_dec : apply_cont -> apply_cont -> bool
+
+val collapse_switch : simple -> (coq_Z * apply_cont) list -> expr
+
+val collapse_switches : expr -> expr

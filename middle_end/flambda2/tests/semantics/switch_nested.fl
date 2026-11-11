@@ -1,0 +1,12 @@
+let a = %opaque (3) in
+let c = %int_comp.`lt` (a, 5) in
+switch c
+  | 0 -> small
+  | 1 -> k (1)
+  where small =
+    (switch c
+       | 0 -> k (2)
+       | 1 -> k (3))
+  where k (r) =
+    let $camlSwitch_nested = Block 0 (r) in
+    cont done ($camlSwitch_nested)

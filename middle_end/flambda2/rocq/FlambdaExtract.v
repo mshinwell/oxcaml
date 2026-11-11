@@ -66,10 +66,15 @@ Extract Constant eval_prim =>
    decide equality for the axioms to hold of it. *)
 Extract Constant prim_eqb => "(fun p p' -> !Prim_hook.prim_eqb p p')".
 
+(* Which primitives the normalisation folds (FlambdaNormaliseSpec.v) is
+   the tool's to say. *)
+Extract Constant prim_may_fold => "(fun p -> !Prim_hook.prim_may_fold p)".
+
 (* The Makefile runs this from the directory the modules go into. *)
 Set Extraction Output Directory ".".
 
 Separate Extraction step run kind_of_const empty_static_env expr_eqb
   inline_calls inline_tail_conts remove_unused_lets drop_deleted_code
   fold_constants remove_unused_total_lets remove_unused_defined_lets
-  inline_known_calls merge_statics drop_statics follow_aliases.
+  inline_known_calls merge_statics collapse_switches drop_statics
+  follow_aliases.

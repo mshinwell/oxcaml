@@ -1,3 +1,13 @@
+(** val list_eq_dec : ('a1 -> 'a1 -> bool) -> 'a1 list -> 'a1 list -> bool **)
+
+let rec list_eq_dec eq_dec l l' =
+  match l with
+  | [] -> ( match l' with [] -> true | _ :: _ -> false)
+  | a :: l0 -> (
+    match l' with
+    | [] -> false
+    | a0 :: l1 -> if eq_dec a a0 then list_eq_dec eq_dec l0 l1 else false)
+
 (** val fold_right : ('a2 -> 'a1 -> 'a1) -> 'a1 -> 'a2 list -> 'a1 **)
 
 let rec fold_right f a0 = function

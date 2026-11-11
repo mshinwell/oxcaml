@@ -1,0 +1,47 @@
+let code size(5) add (x, y) my_closure &my_region my_depth -> k * e =
+  let r = %int_barith.`add` (x, y) in
+  cont k (r)
+in
+let code size(20) clamp (x) my_closure &my_region my_depth -> k * e =
+  let negative = %int_comp.`lt` (x, 0) in
+  switch negative
+    | 0 -> not_negative
+    | 1 -> k (0)
+    where not_negative =
+      let big = %int_comp.`gt` (x, 10) in
+      switch big
+        | 0 -> k (x)
+        | 1 -> k (10)
+in
+let code size(5) add_n (x) my_closure &my_region my_depth -> k * e =
+  let n = %project_value_slot.[add_n].[n] (my_closure) in
+  let r = %int_barith.`add` (x, n) in
+  cont k (r)
+in
+let code size(10) twice (f, x) my_closure &my_region my_depth -> k * e =
+  apply &my_region f (x) -> k1 * e
+    where k1 (y) =
+      apply &my_region f (y) -> k * e
+in
+let $Showcase_add = closure add @add &toplevel in
+let $Showcase_clamp = closure clamp @clamp &toplevel in
+let $Showcase_twice = closure twice @twice &toplevel in
+let a = %opaque (3) in
+let b = %opaque (4) in
+let add_five = closure add_n @add_n &toplevel with { n = 5 } in
+apply direct(add &toplevel) inlined(always) $Showcase_add (a, b)
+  -> k1 * error
+  where k1 (sum) =
+    apply direct(twice &toplevel) inlined(always) $Showcase_twice
+      (add_five, sum) -> k2 * error
+  where k2 (bigger) =
+    apply direct(clamp &toplevel) inlined(always) $Showcase_clamp (bigger)
+      -> k3 * error
+  where k3 (clamped) =
+    let is_ten = %int_comp.`eq` (clamped, 10) in
+    switch is_ten
+      | 0 -> k4 (clamped)
+      | 1 -> k4 (100)
+  where k4 (final) =
+    let $camlShowcase = Block 0 (final, 7) in
+    cont done ($camlShowcase)

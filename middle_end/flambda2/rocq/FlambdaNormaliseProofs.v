@@ -488,8 +488,10 @@ Proof.
     + pose proof (plug_refines (Let_body x d Hole) _ _
         (remove_unused_lets_refines_aux body)) as Hbody.
       simpl in Hbody.
-      destruct (var_free_b x (remove_unused_lets body)) eqn:Hfree;
-        [ exact Hbody | ].
+      destruct
+        (var_free_b x (remove_unused_lets body) || negb (named_may_go d))
+        eqn:Hkeep; [ exact Hbody | ].
+      apply orb_false_iff in Hkeep as [Hfree _].
       apply (expr_refines_trans _ _ _ Hbody), unused_let.
       intros Hx. apply var_free_b_sound in Hx. congruence.
     + exact (plug_refines (Let_static_body bindings Hole) _ _
@@ -788,6 +790,7 @@ Lemma fold_named_sound (statics : static_env) (vars : env) (d : named) :
 Proof.
   destruct d as [s | p args | code slots | slot closure]; simpl;
     try reflexivity.
+  destruct (prim_may_fold p); [ | reflexivity ].
   destruct (consts_of_simples args) as [cs | ] eqn:Hconsts; [ | reflexivity ].
   destruct (eval_prim p (map Value_const cs)) as [[c | code slots | sym] | ]
     eqn:Hprim;
@@ -1305,3 +1308,53 @@ Qed.
 
 Theorem merge_statics_equivalent : merge_statics_equivalent_statement.
 Proof. exact merge_statics_equivalent_aux. Qed.
+
+(* ======================================================================== *)
+(* Switches whose arms are all the same                                     *)
+(* ======================================================================== *)
+
+Lemma collapse_switch_refines (scrutinee : simple)
+    (arms : list (Z * apply_cont)) :
+  expr_refines (Switch scrutinee arms) (collapse_switch scrutinee arms).
+Proof.
+  unfold collapse_switch.
+  destruct arms as [ | [i ac] others]; [ apply expr_refines_refl | ].
+  destruct
+    (forallb
+       (fun arm => if apply_cont_eq_dec (snd arm) ac then true else false)
+       others)
+    eqn:Hsame; [ | apply expr_refines_refl ].
+  apply switch_same_arms. intros j arm [[= _ <-] | Hin]; [ reflexivity | ].
+  rewrite forallb_forall in Hsame. specialize (Hsame (j, arm) Hin).
+  simpl in Hsame.
+  destruct (apply_cont_eq_dec arm ac); [ assumption | discriminate ].
+Qed.
+
+Fixpoint collapse_switches_refines_aux (e : expr) :
+  expr_refines e (collapse_switches e).
+Proof.
+  destruct e
+    as [ x d body | bindings body | k [params handler] body | handlers body
+       | ap | ac | scrutinee arms | ];
+    simpl; try apply expr_refines_refl.
+  - exact (plug_refines (Let_body x d Hole) _ _
+      (collapse_switches_refines_aux body)).
+  - exact (plug_refines (Let_static_body bindings Hole) _ _
+      (collapse_switches_refines_aux body)).
+  - apply (expr_refines_trans _
+      (Let_cont_non_recursive k (Handler params (collapse_switches handler))
+         body)).
+    + exact (plug_refines
+        (Let_cont_non_recursive_handler k params Hole body) _ _
+        (collapse_switches_refines_aux handler)).
+    + exact (plug_refines
+        (Let_cont_non_recursive_body k
+           (Handler params (collapse_switches handler)) Hole)
+        _ _ (collapse_switches_refines_aux body)).
+  - exact (plug_refines (Let_cont_recursive_body handlers Hole) _ _
+      (collapse_switches_refines_aux body)).
+  - apply collapse_switch_refines.
+Qed.
+
+Theorem collapse_switches_refines : collapse_switches_refines_statement.
+Proof. exact collapse_switches_refines_aux. Qed.

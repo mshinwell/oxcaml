@@ -1,0 +1,8 @@
+let a = %opaque (3) in
+let c = %int_comp.`lt` (a, 5) in
+switch c
+  | 0 -> k (7)
+  | 1 -> k (7)
+  where k (r) =
+    let $camlSwitch_same_arms = Block 0 (r) in
+    cont done ($camlSwitch_same_arms)

@@ -84,6 +84,10 @@
    Neither changes the static environment that results, so groups that
    differ only in how they are cut up and ordered become the same.
 
+   [collapse_switches], for the term before, replaces a [Switch] whose
+   arms are all the same by that arm. It is a refinement only: the
+   [Switch] is undefined where its scrutinee has no arm.
+
    [fold_constants], for either term, replaces a primitive applied to
    constants by its value, when that is a constant, and a [Switch] on a
    constant by its arm. The value of the primitive is whatever
@@ -101,7 +105,7 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaNominalSpec FlambdaApplySpec.
+  FlambdaNominalSpec FlambdaApplySpec FlambdaCompareSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -311,11 +315,25 @@ with var_free_in_handler_b (x : variable) (h : continuation_handler) : bool :=
   | Handler params handler => negb (name_in x params) && var_free_b x handler
   end.
 
+(* Which primitives the normalisation may fold, and remove when unused.
+   Any choice is sound; it is there so that a primitive meant to hide a
+   value from the simplifier ([Opaque_identity]) can be left alone, as
+   Simplify leaves it. *)
+Parameter prim_may_fold : prim -> bool.
+
+Definition named_may_go (d : named) : bool :=
+  match d with
+  | Prim p _ => prim_may_fold p
+  | Simple _ | Set_of_closures _ _ | Project_value_slot _ _ => true
+  end.
+
 Fixpoint remove_unused_lets (e : expr) : expr :=
   match e with
   | Let x d body =>
     let body' := remove_unused_lets body in
-    if var_free_b x body' then Let x d body' else body'
+    if var_free_b x body' || negb (named_may_go d)
+    then Let x d body'
+    else body'
   | Let_static bindings body => Let_static bindings (remove_unused_lets body)
   | Let_cont_non_recursive k h body =>
     Let_cont_non_recursive k (remove_unused_lets_in_handler h)
@@ -429,7 +447,7 @@ Fixpoint consts_of_simples (args : list simple) : option (list const) :=
 Definition fold_named (d : named) : named :=
   match d with
   | Prim p args =>
-    match consts_of_simples args with
+    match (if prim_may_fold p then consts_of_simples args else None) with
     | Some cs =>
       match eval_prim p (map Value_const cs) with
       | Some (Value_const c) => Simple (Const c)
@@ -632,3 +650,44 @@ Fixpoint merge_statics (e : expr) : expr :=
 
 Definition merge_statics_equivalent_statement : Prop :=
   ∀ e : expr, expr_equivalent e (merge_statics e).
+
+(* ======================================================================== *)
+(* Switches whose arms are all the same                                     *)
+(* ======================================================================== *)
+
+Definition simple_eq_dec : ∀ s s' : simple, {s = s'} + {s <> s'}.
+Proof. decide equality; try apply Pos.eq_dec; apply const_eq_dec. Defined.
+
+Definition apply_cont_eq_dec :
+  ∀ ac ac' : apply_cont, {ac = ac'} + {ac <> ac'}.
+Proof.
+  decide equality; [ apply (list_eq_dec simple_eq_dec) | apply Pos.eq_dec ].
+Defined.
+
+Definition collapse_switch (scrutinee : simple)
+    (arms : list (Z * apply_cont)) : expr :=
+  match arms with
+  | (_, ac) :: others =>
+    if forallb
+         (fun arm => if apply_cont_eq_dec (snd arm) ac then true else false)
+         others
+    then Apply_cont ac
+    else Switch scrutinee arms
+  | [] => Switch scrutinee arms
+  end.
+
+Fixpoint collapse_switches (e : expr) : expr :=
+  match e with
+  | Let x d body => Let x d (collapse_switches body)
+  | Let_static bindings body => Let_static bindings (collapse_switches body)
+  | Let_cont_non_recursive k (Handler params handler) body =>
+    Let_cont_non_recursive k (Handler params (collapse_switches handler))
+      (collapse_switches body)
+  | Let_cont_recursive handlers body =>
+    Let_cont_recursive handlers (collapse_switches body)
+  | Switch scrutinee arms => collapse_switch scrutinee arms
+  | Apply _ | Apply_cont _ | Invalid => e
+  end.
+
+Definition collapse_switches_refines_statement : Prop :=
+  ∀ e : expr, expr_refines e (collapse_switches e).

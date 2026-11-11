@@ -234,6 +234,15 @@ let () =
   Flambda2_rocq_semantics.Prim_hook.prim_eqb
     := fun p p' -> (Obj.obj p : prim) = (Obj.obj p' : prim)
 
+(* Everything is folded but [Opaque_identity], whose point is that the
+   simplifier does not look through it. *)
+let () =
+  Flambda2_rocq_semantics.Prim_hook.prim_may_fold
+    := fun p ->
+         match (Obj.obj p : prim) with
+         | Unary (Opaque_identity _) -> false
+         | Unary _ | Binary _ -> true
+
 (* ---- Conversion of terms ---------------------------------------------- *)
 
 let convert_const (c : Reg_width_const.t) : Model.const =
@@ -908,21 +917,22 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
     (* The rewrites enable one another, so they are gone round a few times. Each
        is proved, whatever the order and the number. *)
     let rec rounds n round term =
-      if n = 0 then term else rounds (n - 1) round (round term)
+      let term' = round term in
+      if n = 0 || term' = term then term' else rounds (n - 1) round term'
     in
     let normalised_before =
-      rounds 4
+      rounds 50
         (fun term ->
           Normalise.inline_calls [] term
-          |> Normalise.fold_constants |> Normalise.inline_tail_conts
-          |> Aliases.follow_aliases [] |> Normalise.fold_constants
-          |> Normalise.remove_unused_lets
+          |> Normalise.fold_constants |> Normalise.collapse_switches
+          |> Normalise.inline_tail_conts |> Aliases.follow_aliases []
+          |> Normalise.fold_constants |> Normalise.remove_unused_lets
           |> Normalise.remove_unused_defined_lets []
           |> Normalise.drop_deleted_code |> Normalise.merge_statics)
         before.body
     in
     let normalised_after =
-      rounds 4
+      rounds 50
         (fun term ->
           Aliases.follow_aliases [] term
           |> Normalise.inline_known_calls [] []

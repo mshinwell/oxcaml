@@ -1,0 +1,16 @@
+let code size(5) is_small (x) my_closure &my_region my_depth -> k * e =
+  let c = %int_comp.`lt` (x, 5) in
+  let t = %tag_imm (c) in
+  cont k (t)
+in
+let $Switch_on_call_is_small = closure is_small @is_small &toplevel in
+apply direct(is_small &toplevel) inlined(always) $Switch_on_call_is_small (3)
+  -> k1 * error
+  where k1 (t) =
+    let c = %untag_imm (t) in
+    switch c
+      | 0 -> k (10)
+      | 1 -> k (20)
+  where k (r) =
+    let $camlSwitch_on_call = Block 0 (r, $Switch_on_call_is_small) in
+    cont done ($camlSwitch_on_call)

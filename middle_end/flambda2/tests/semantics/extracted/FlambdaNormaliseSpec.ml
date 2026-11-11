@@ -2,6 +2,7 @@ open BinNums
 open BinPos
 open Datatypes
 open FlambdaApplySpec
+open FlambdaCompareSpec
 open FlambdaModel
 open FlambdaNominalSpec
 open FlambdaSemanticsSpec
@@ -207,13 +208,23 @@ let rec var_free_b x = function
 and var_free_in_handler_b x = function
   | Handler (params, handler) -> negb (name_in x params) && var_free_b x handler
 
+(** val prim_may_fold : prim -> bool **)
+
+let prim_may_fold = fun p -> !Prim_hook.prim_may_fold p
+
+(** val named_may_go : named -> bool **)
+
+let named_may_go = function Prim (p, _) -> prim_may_fold p | _ -> true
+
 (** val remove_unused_lets : expr -> expr **)
 
 let rec remove_unused_lets e =
   match e with
   | Let (x, d, body) ->
     let body' = remove_unused_lets body in
-    if var_free_b x body' then Let (x, d, body') else body'
+    if var_free_b x body' || negb (named_may_go d)
+    then Let (x, d, body')
+    else body'
   | Let_static (bindings, body) -> Let_static (bindings, remove_unused_lets body)
   | Let_cont_non_recursive (k, h, body) ->
     Let_cont_non_recursive
@@ -307,7 +318,7 @@ let rec consts_of_simples = function
 let fold_named d =
   match d with
   | Prim (p, args) -> (
-    match consts_of_simples args with
+    match if prim_may_fold p then consts_of_simples args else None with
     | Some cs -> (
       match eval_prim p (map (fun x -> Value_const x) cs) with
       | Some v -> ( match v with Value_const c -> Simple (Const c) | _ -> d)
@@ -493,4 +504,50 @@ let rec merge_statics e =
       (k, Handler (params, merge_statics handler), merge_statics body)
   | Let_cont_recursive (handlers, body) ->
     Let_cont_recursive (handlers, merge_statics body)
+  | _ -> e
+
+(** val simple_eq_dec : simple -> simple -> bool **)
+
+let simple_eq_dec s s' =
+  match s with
+  | Var x -> ( match s' with Var x0 -> Pos.eq_dec x x0 | _ -> false)
+  | Symbol s0 -> ( match s' with Symbol s1 -> Pos.eq_dec s0 s1 | _ -> false)
+  | Const c -> ( match s' with Const c0 -> const_eq_dec c c0 | _ -> false)
+
+(** val apply_cont_eq_dec : apply_cont -> apply_cont -> bool **)
+
+let apply_cont_eq_dec ac ac' =
+  let { ac_continuation = ac_continuation0; ac_args = ac_args0 } = ac in
+  let { ac_continuation = ac_continuation1; ac_args = ac_args1 } = ac' in
+  if Pos.eq_dec ac_continuation0 ac_continuation1
+  then list_eq_dec simple_eq_dec ac_args0 ac_args1
+  else false
+
+(** val collapse_switch : simple -> (coq_Z * apply_cont) list -> expr **)
+
+let collapse_switch scrutinee arms =
+  match arms with
+  | [] -> Switch (scrutinee, arms)
+  | p :: others ->
+    let _, ac = p in
+    if
+      forallb
+        (fun arm -> if apply_cont_eq_dec (snd arm) ac then true else false)
+        others
+    then Apply_cont ac
+    else Switch (scrutinee, arms)
+
+(** val collapse_switches : expr -> expr **)
+
+let rec collapse_switches e =
+  match e with
+  | Let (x, d, body) -> Let (x, d, collapse_switches body)
+  | Let_static (bindings, body) -> Let_static (bindings, collapse_switches body)
+  | Let_cont_non_recursive (k, handler0, body) ->
+    let (Handler (params, handler)) = handler0 in
+    Let_cont_non_recursive
+      (k, Handler (params, collapse_switches handler), collapse_switches body)
+  | Let_cont_recursive (handlers, body) ->
+    Let_cont_recursive (handlers, collapse_switches body)
+  | Switch (scrutinee, arms) -> collapse_switch scrutinee arms
   | _ -> e
