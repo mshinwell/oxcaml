@@ -55,19 +55,30 @@
 
    The statements:
    - how the notion compares with refinement under all environments,
-     and that nothing is asked under an environment that is bottom;
+     which it is under the environment that knows nothing, and that
+     nothing is asked under an environment that is bottom;
    - a [Simple] may be replaced by the canonical element that the
      environment answers for it at the normal name mode, in the
      arguments of an [Apply_cont] and in a [Let], and a [Switch] on a
      [Simple] whose canonical element is a constant is its arm;
-   - in the machine, what defining a variable, defining parameters and
-     giving a variable in scope a type do to satisfaction: the three
-     steps by which Simplify's environment follows the term;
+   - in the machine, what defining a variable, defining parameters,
+     giving a variable in scope a type and making two [Simple]s equal
+     do to satisfaction: the steps by which Simplify's environment
+     follows the term; and that the value of a [Simple] of the term is
+     of the kind at which the environment has the [Simple];
    - going under a [Let]: the body is rewritten under the environment
      with the variable defined, at the kind of the value that the
-     machine binds it to, and with a type if every such value has it;
+     machine binds it to, and with a type if every such value has it,
+     or made equal to the [Simple] that it is bound to;
    - going into the body of a [Let_cont] changes nothing; going into a
-     handler defines its parameters.
+     handler defines its parameters, and the same of one handler of a
+     recursive [Let_cont];
+   - three small terms rewritten with these, from the environment that
+     knows nothing: a constant propagated through two [Let]s, a
+     [Switch] on a variable bound to a constant, and a constant
+     propagated in the handler of a loop. They are there to show that
+     the premises of the statements can be met and that the statements
+     fit together; what they say of the terms is plain.
 
    Kinds. A [Let] gives the kind of its variable and a handler the
    kinds of its parameters (../../rocq/FlambdaModel.v), and the machine
@@ -99,8 +110,11 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
   FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
-  FlambdaTypingEnvInvariantSpec.
+  FlambdaTypingEnvInvariantSpec FlambdaTypingEnvKindedSpec
+  FlambdaTypingEnvExamplesSpec.
 Import ListNotations.
+
+Local Open Scope Z_scope.
 
 (* ======================================================================== *)
 (* Refinement relative to a typing environment                              *)
@@ -123,6 +137,13 @@ Definition expr_equivalent_under (tenv : Typing_env.t) (e e' : expr) : Prop :=
 Definition expr_refines_under_weaken_statement : Prop :=
   ∀ (tenv : Typing_env.t) (source target : expr),
     expr_refines source target -> expr_refines_under tenv source target.
+
+(* Under the environment that knows nothing it is refinement under all
+   environments: where Simplify starts. *)
+Definition expr_refines_under_create_statement : Prop :=
+  ∀ source target : expr,
+    expr_refines_under Typing_env.create source target
+    <-> expr_refines source target.
 
 Definition expr_equivalent_under_refines_statement : Prop :=
   ∀ (tenv : Typing_env.t) (e e' : expr),
@@ -221,6 +242,37 @@ Definition replace_equation_env_satisfies_strictly_statement : Prop :=
     env_satisfies_strictly (Typing_env.replace_equation tenv (Name_var x) ty)
       statics vars.
 
+(* Two [Simple]s that have the same value in the machine are made
+   equal. Their variables are in scope, so that a valuation has the
+   machine's values for them. The two are to be canonical, as
+   [Typing_env.add_alias] asks. *)
+Definition add_alias_env_satisfies_strictly_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (statics : static_env) (vars : env)
+    (canonical_element1 canonical_element2 : simple)
+    (result : Typing_env.add_alias_result),
+    (∀ x : variable,
+      canonical_element1 = Var x ∨ canonical_element2 = Var x ->
+      in_scope_in_terms tenv x) ->
+    Typing_env.add_alias tenv canonical_element1 canonical_element2
+    = Some (Ok result) ->
+    eval_simple vars canonical_element1 = eval_simple vars canonical_element2
+    ->
+    env_satisfies_strictly tenv statics vars ->
+    env_satisfies_strictly (Typing_env.add_alias_result_t result) statics
+      vars.
+
+(* The value that the machine has for a [Simple] of the term is of the
+   kind at which the environment has the [Simple]. This holds where
+   poison is exempt too. *)
+Definition simple_of_kind_value_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (statics : static_env) (vars : env) (s : simple)
+    (kind : flambda_kind) (v : value),
+    env_satisfies tenv statics vars ->
+    (∀ x : variable, s = Var x -> in_scope_in_terms tenv x) ->
+    simple_of_kind tenv s kind ->
+    eval_simple vars s = Some v ->
+    kind_of_value v = kind.
+
 (* ======================================================================== *)
 (* Going under binders                                                      *)
 (* ======================================================================== *)
@@ -267,6 +319,30 @@ Definition let_typed_refines_under_statement : Prop :=
     expr_refines_under tenv (Let x declared defining_expr body)
       (Let x declared defining_expr body').
 
+(* Where it is bound to a [Simple], it is made equal to it: the
+   variable is defined at the kind at which the environment has the
+   [Simple], and the aliases record that the two are equal.
+   ([Meet_env.add_equation] then gives the name demoted the alias type
+   of the canonical element: that step is
+   [replace_equation_env_satisfies_strictly].) The [Simple] is to be
+   canonical. The kind that the [Let] gives, [declared], is not read
+   here either. *)
+Definition let_simple_refines_under_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (x : variable) (declared : flambda_kind)
+    (s : simple) (body body' : expr) (kind : flambda_kind)
+    (result : Typing_env.add_alias_result),
+    typing_env_well_formed tenv = true ->
+    Typing_env.mem None tenv (Name_var x) = false ->
+    (∀ y : variable, s = Var y -> in_scope_in_terms tenv y) ->
+    simple_of_kind tenv s kind ->
+    Typing_env.add_alias
+      (Typing_env.add_variable_definition tenv x kind Name_mode.normal)
+      (Var x) s
+    = Some (Ok result) ->
+    expr_refines_under (Typing_env.add_alias_result_t result) body body' ->
+    expr_refines_under tenv (Let x declared (Simple s) body)
+      (Let x declared (Simple s) body').
+
 (* The body of a [Let_cont] runs where the [Let_cont] is. *)
 Definition let_cont_body_refines_under_statement : Prop :=
   ∀ (tenv : Typing_env.t) (k : continuation) (handler : continuation_handler)
@@ -307,3 +383,89 @@ Definition let_cont_handler_refines_under_statement : Prop :=
     expr_refines_under tenv
       (Let_cont_non_recursive k (Handler params metadata handler) body)
       (Let_cont_non_recursive k (Handler params metadata handler') body).
+
+(* The same of one handler of a recursive [Let_cont]. What is known
+   where the [Let_cont] is is known in the handler at every run of it:
+   the variables of that place do not change. Nothing is known of a
+   parameter but its kind, at the first run or at a later one. A
+   handler of a recursive [Let_cont] may not bind anything static, so
+   the two handlers are to agree on whether they do. *)
+Definition let_cont_recursive_handler_refines_under_statement : Prop :=
+  ∀ (tenv : Typing_env.t)
+    (before : list (continuation * continuation_handler)) (k : continuation)
+    (params : list variable) (metadata : handler_metadata)
+    (handler handler' : expr)
+    (after : list (continuation * continuation_handler)) (body : expr),
+    typing_env_invariant tenv ->
+    distinct params = true ->
+    (∀ x : variable,
+      x ∈ params -> Typing_env.mem None tenv (Name_var x) = false) ->
+    binds_statics handler = binds_statics handler' ->
+    (∀ kinds : list flambda_kind,
+      length kinds = length params ->
+      expr_refines_under
+        (Typing_env.add_definitions_of_params tenv (combine params kinds))
+        handler handler') ->
+    expr_refines_under tenv
+      (Let_cont_recursive
+         (before ++ (k, Handler params metadata handler) :: after) body)
+      (Let_cont_recursive
+         (before ++ (k, Handler params metadata handler') :: after) body).
+
+(* ======================================================================== *)
+(* Examples                                                                 *)
+(* ======================================================================== *)
+
+(* The variables are those of FlambdaTypingEnvExamplesSpec.v. Each term
+   is closed but for its continuations, so Simplify starts on it with
+   the environment that knows nothing. *)
+
+(* [let p = 7 in let x = p in apply_cont k x]. At the first [Let], [p]
+   is defined and made equal to the constant, which is the canonical
+   element of the two. At the second, [p] is replaced by its canonical
+   element; then [x] is defined and made equal to the constant too. In
+   the body [x] is replaced by its canonical element. (The two [Let]s
+   are then unused: removing them is [unused_let_statement],
+   ../../rocq/FlambdaNominalSpec.v.) *)
+Definition example_constant_propagated_statement : Prop :=
+  ∀ k : continuation,
+    expr_refines
+      (Let example_p Value (Simple (Const (Tagged_immediate 7)))
+         (Let example_x Value (Simple (Var example_p))
+            (Apply_cont (Apply_cont_expr k [Var example_x]))))
+      (Let example_p Value (Simple (Const (Tagged_immediate 7)))
+         (Let example_x Value (Simple (Const (Tagged_immediate 7)))
+            (Apply_cont (Apply_cont_expr k [Const (Tagged_immediate 7)])))).
+
+(* [let i = 1 in switch i with 0 -> k0 | 1 -> k1]: the scrutinee is
+   known to be the constant, so the [Switch] is its arm. *)
+Definition example_switch_known_statement : Prop :=
+  ∀ k0 k1 : continuation,
+    expr_refines
+      (Let example_i (Naked_number Kind_naked_immediate)
+         (Simple (Const (Naked_immediate 1)))
+         (Switch (Var example_i)
+            [(0, Apply_cont_expr k0 []); (1, Apply_cont_expr k1 [])]))
+      (Let example_i (Naked_number Kind_naked_immediate)
+         (Simple (Const (Naked_immediate 1)))
+         (Apply_cont (Apply_cont_expr k1 []))).
+
+(* A loop: [let rec k p = (let x = 7 in apply_cont k x) in
+   apply_cont k 0]. The handler is rewritten under the environment
+   with [p] defined, at any kind, on every turn of the loop. *)
+Definition example_loop_statement : Prop :=
+  ∀ k : continuation,
+    expr_refines
+      (Let_cont_recursive
+         [(k,
+           Handler [example_p] (make_handler_metadata [Value])
+             (Let example_x Value (Simple (Const (Tagged_immediate 7)))
+                (Apply_cont (Apply_cont_expr k [Var example_x]))))]
+         (Apply_cont (Apply_cont_expr k [Const (Tagged_immediate 0)])))
+      (Let_cont_recursive
+         [(k,
+           Handler [example_p] (make_handler_metadata [Value])
+             (Let example_x Value (Simple (Const (Tagged_immediate 7)))
+                (Apply_cont
+                   (Apply_cont_expr k [Const (Tagged_immediate 7)]))))]
+         (Apply_cont (Apply_cont_expr k [Const (Tagged_immediate 0)]))).

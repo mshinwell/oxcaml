@@ -41,7 +41,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaEnvAliasesProofs FlambdaTypingEnv FlambdaTypingEnvSpec
   FlambdaTypingEnvProofs FlambdaTypingEnvInvariantSpec
   FlambdaTypingEnvInvariantProofs FlambdaTypingEnvOperationsSpec
-  FlambdaTypingEnvOperationsProofs FlambdaTypingEnvRefinementSpec.
+  FlambdaTypingEnvOperationsProofs FlambdaTypingEnvKindedSpec
+  FlambdaTypingEnvExamplesSpec FlambdaTypingEnvRefinementSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -53,6 +54,13 @@ Local Open Scope Z_scope.
 Theorem expr_refines_under_weaken : expr_refines_under_weaken_statement.
 Proof.
   intros tenv source target Hrefines vars conts statics _. apply Hrefines.
+Qed.
+
+Theorem expr_refines_under_create : expr_refines_under_create_statement.
+Proof.
+  intros source target. split.
+  - intros Hunder vars conts statics. apply Hunder, create_satisfied.
+  - apply expr_refines_under_weaken.
 Qed.
 
 Theorem expr_equivalent_under_refines
@@ -263,6 +271,78 @@ Proof.
       apply (replace_equation_in_scope tenv x ty y). exact Hy.
 Qed.
 
+(* The variables in scope once two [Simple]s are made equal. *)
+Lemma add_alias_in_scope (tenv : Typing_env.t)
+    (canonical_element1 canonical_element2 : simple)
+    (result : Typing_env.add_alias_result) (y : variable) :
+  Typing_env.add_alias tenv canonical_element1 canonical_element2
+  = Some (Ok result) ->
+  (in_scope_in_terms (Typing_env.add_alias_result_t result) y
+   <-> in_scope_in_terms tenv y).
+Proof.
+  intros Hadd.
+  pose proof (add_alias_frame tenv canonical_element1 canonical_element2
+                result Hadd) as Hframe.
+  cbv zeta in Hframe.
+  destruct Hframe as [_ [_ [_ [_ [Hnames [_ [Hmin _]]]]]]].
+  rewrite !in_scope_in_terms_lookup, Hnames, Hmin. reflexivity.
+Qed.
+
+(* A valuation that agrees with the machine on the variables in scope
+   gives a [Simple] whose variable is in scope the machine's value. *)
+Lemma agrees_eval_simple (tenv : Typing_env.t) (valuation vars : env)
+    (s : simple) :
+  agrees_in_terms tenv valuation vars ->
+  (∀ x : variable, s = Var x -> in_scope_in_terms tenv x) ->
+  eval_simple valuation s = eval_simple vars s.
+Proof.
+  intros Hagrees Hscope. destruct s as [x | sym | c]; [ | reflexivity.. ].
+  exact (Hagrees x (Hscope x eq_refl)).
+Qed.
+
+Theorem add_alias_env_satisfies_strictly
+    : add_alias_env_satisfies_strictly_statement.
+Proof.
+  intros tenv statics vars c1 c2 result Hscope Hadd Heval
+    [Hbound [valuation [Hsatisfied Hagrees]]].
+  split.
+  - intros y Hy. apply Hbound.
+    apply (add_alias_in_scope tenv c1 c2 result y Hadd). exact Hy.
+  - exists valuation. split.
+    + apply (add_alias_satisfied (fun _ => False) statics valuation tenv c1
+               c2 result Hsatisfied Hadd).
+      rewrite (agrees_eval_simple tenv valuation vars c1 Hagrees),
+        (agrees_eval_simple tenv valuation vars c2 Hagrees);
+        [ exact Heval | | ];
+        intros x ->; apply Hscope; [ right | left ]; reflexivity.
+    + intros y Hy. apply Hagrees.
+      apply (add_alias_in_scope tenv c1 c2 result y Hadd). exact Hy.
+Qed.
+
+Theorem simple_of_kind_value : simple_of_kind_value_statement.
+Proof.
+  intros tenv statics vars s kind v [Hbound [valuation [Hsatisfied Hagrees]]]
+    Hscope Hkind Heval.
+  assert (Hname :
+    ∀ (n : name) (ty : flambda_type),
+      Typing_env.find tenv n (Some kind) = Some ty ->
+      value_of_name valuation n = Some v ->
+      kind_of_value v = kind).
+  { intros n ty Hfind Hvalue.
+    rewrite <- (find_kind tenv n kind ty Hfind).
+    apply (has_type_unless_kind
+             (exempt_by_poison valuation tenv n) statics valuation v ty).
+    exact (find_satisfied (exempt_by_poison valuation tenv) statics valuation
+             tenv n (Some kind) ty v Hsatisfied Hfind Hvalue). }
+  destruct s as [x | sym | c]; simpl in Hkind, Heval.
+  - destruct Hkind as [ty Hfind]. apply (Hname (Name_var x) ty Hfind).
+    rewrite value_of_name_var, (Hagrees x (Hscope x eq_refl)). exact Heval.
+  - destruct Hkind as [ty Hfind].
+    exact (Hname (Name_symbol sym) ty Hfind Heval).
+  - injection Heval as <-. rewrite <- Hkind. symmetry.
+    apply kind_type_for_const.
+Qed.
+
 (* ======================================================================== *)
 (* Going under binders                                                      *)
 (* ======================================================================== *)
@@ -299,6 +379,34 @@ Proof.
   - apply add_variable_definition_env_satisfies_strictly;
       [ exact Hwf | exact Hfresh | | exact Hsat ].
     exact (type_satisfied_kind statics vars v ty Hty).
+Qed.
+
+Theorem let_simple_refines_under : let_simple_refines_under_statement.
+Proof.
+  intros tenv x declared s body body' kind result Hwf Hfresh Hscope Hkind
+    Hadd Hbody vars conts statics Hsat.
+  apply let_refines_step; [ reflexivity | intros v Hv ]. simpl in Hv.
+  assert (Hother :
+    eval_simple ((x, v) :: vars) s = eval_simple vars s).
+  { destruct s as [y | sym | c]; [ | reflexivity.. ]. simpl.
+    apply lookup_other.
+    exact (not_bound_not_in_scope tenv x y Hfresh (Hscope y eq_refl)). }
+  apply Hbody.
+  apply (add_alias_env_satisfies_strictly
+           (Typing_env.add_variable_definition tenv x kind Name_mode.normal)
+           statics ((x, v) :: vars) (Var x) s result).
+  - intros y [[= <-] | ->];
+      apply (add_variable_definition_in_scope tenv x kind _ Hwf);
+      [ left; reflexivity | right ].
+    split; [ | exact (Hscope y eq_refl) ].
+    exact (not_bound_not_in_scope tenv x y Hfresh (Hscope y eq_refl)).
+  - exact Hadd.
+  - rewrite Hother, Hv. simpl. apply lookup_head.
+  - apply add_variable_definition_env_satisfies_strictly;
+      [ exact Hwf | exact Hfresh | | exact Hsat ].
+    apply (simple_of_kind_value tenv statics vars s kind v);
+      [ | exact Hscope | exact Hkind | exact Hv ].
+    apply env_satisfies_strictly_env_satisfies. exact Hsat.
 Qed.
 
 Theorem let_cont_body_refines_under : let_cont_body_refines_under_statement.
@@ -343,14 +451,25 @@ Proof.
   apply Forall2_cons; [ reflexivity | ]. apply IH. congruence.
 Qed.
 
-Theorem let_cont_handler_refines_under
-    : let_cont_handler_refines_under_statement.
+(* A handler that refines under the environment with its parameters
+   defined, at every choice of kinds, refines where it runs. *)
+Lemma handler_refines_under_where (tenv : Typing_env.t)
+    (statics : static_env) (vars : env) (params : list variable)
+    (handler handler' : expr) :
+  typing_env_invariant tenv ->
+  distinct params = true ->
+  (∀ x : variable,
+    x ∈ params -> Typing_env.mem None tenv (Name_var x) = false) ->
+  (∀ kinds : list flambda_kind,
+    length kinds = length params ->
+    expr_refines_under
+      (Typing_env.add_definitions_of_params tenv (combine params kinds))
+      handler handler') ->
+  env_satisfies_strictly tenv statics vars ->
+  handler_refines_where (statics_extend statics) params vars handler
+    handler'.
 Proof.
-  intros tenv k params metadata handler handler' body Hinvariant Hdistinct
-    Hfresh Hhandler vars conts statics Hsat.
-  apply (let_cont_handler_refines_where (statics_extend statics)
-           (fun s s' Hs Hs' => statics_extend_trans statics s s' Hs Hs'));
-    [ apply statics_extend_refl | ].
+  intros Hinvariant Hdistinct Hfresh Hhandler Hsat.
   intros vs handler_vars conts' statics' Hextend Hbind.
   pose proof (bind_params_length params vs vars handler_vars Hbind)
     as Hlength.
@@ -366,4 +485,104 @@ Proof.
   - rewrite (map_fst_combine params _ Hkinds). exact Hbind.
   - exact (env_satisfies_strictly_statics_extend tenv statics statics' vars
              Hextend Hsat).
+Qed.
+
+Theorem let_cont_handler_refines_under
+    : let_cont_handler_refines_under_statement.
+Proof.
+  intros tenv k params metadata handler handler' body Hinvariant Hdistinct
+    Hfresh Hhandler vars conts statics Hsat.
+  apply (let_cont_handler_refines_where (statics_extend statics)
+           (fun s s' Hs Hs' => statics_extend_trans statics s s' Hs Hs'));
+    [ apply statics_extend_refl | ].
+  exact (handler_refines_under_where tenv statics vars params handler
+           handler' Hinvariant Hdistinct Hfresh Hhandler Hsat).
+Qed.
+
+Theorem let_cont_recursive_handler_refines_under
+    : let_cont_recursive_handler_refines_under_statement.
+Proof.
+  intros tenv before k params metadata handler handler' after body
+    Hinvariant Hdistinct Hfresh Hbinds Hhandler vars conts statics Hsat.
+  pose proof (handler_refines_under_where tenv statics vars params handler
+                handler' Hinvariant Hdistinct Hfresh Hhandler Hsat)
+    as Hwhere.
+  apply (let_cont_recursive_handlers_refine_where (statics_extend statics)
+           (fun s s' Hs Hs' => statics_extend_trans statics s s' Hs Hs'));
+    [ apply statics_extend_refl
+    | unfold handlers_bind_statics; rewrite !existsb_app; simpl;
+      rewrite Hbinds; reflexivity
+    | | ];
+    (apply Forall2_app; [ apply handlers_related_refl | ]);
+    (apply Forall2_cons; [ | apply handlers_related_refl ]);
+    (split; [ reflexivity | ]); apply Handler_related; exact Hwhere.
+Qed.
+
+(* ======================================================================== *)
+(* Examples                                                                 *)
+(* ======================================================================== *)
+
+(* What the environment answers is computed. *)
+Ltac canonical_computed :=
+  split; [ vm_compute; reflexivity | eexists; vm_compute; reflexivity ].
+
+Theorem example_constant_propagated : example_constant_propagated_statement.
+Proof.
+  intros k. apply expr_refines_under_create.
+  eapply (let_simple_refines_under Typing_env.create example_p Value
+            (Const (Tagged_immediate 7)) _ _ Value).
+  - reflexivity.
+  - reflexivity.
+  - intros y [=].
+  - reflexivity.
+  - vm_compute. reflexivity.
+  - eapply expr_refines_under_trans.
+    + apply expr_equivalent_under_refines.
+      apply (let_simple_canonical _ example_x Value (Var example_p)
+               (Const (Tagged_immediate 7))).
+      canonical_computed.
+    + eapply (let_simple_refines_under _ example_x Value
+                (Const (Tagged_immediate 7)) _ _ Value).
+      * vm_compute. reflexivity.
+      * vm_compute. reflexivity.
+      * intros y [=].
+      * reflexivity.
+      * vm_compute. reflexivity.
+      * apply expr_equivalent_under_refines, apply_cont_canonical.
+        apply Forall2_cons; [ canonical_computed | apply Forall2_nil ].
+Qed.
+
+Theorem example_switch_known : example_switch_known_statement.
+Proof.
+  intros k0 k1. apply expr_refines_under_create.
+  eapply (let_simple_refines_under Typing_env.create example_i
+            (Naked_number Kind_naked_immediate) (Const (Naked_immediate 1))
+            _ _ (Naked_number Kind_naked_immediate)).
+  - reflexivity.
+  - reflexivity.
+  - intros y [=].
+  - reflexivity.
+  - vm_compute. reflexivity.
+  - apply expr_equivalent_under_refines.
+    apply (switch_known _ (Var example_i) 1); [ | reflexivity ].
+    canonical_computed.
+Qed.
+
+Theorem example_loop : example_loop_statement.
+Proof.
+  intros k. apply expr_refines_under_create.
+  apply (let_cont_recursive_handler_refines_under Typing_env.create [] k
+           [example_p] _ _ _ []).
+  - apply create_invariant.
+  - reflexivity.
+  - intros x [<- | []]. reflexivity.
+  - reflexivity.
+  - intros [ | kind [ | ? ?]]; try discriminate. intros _.
+    destruct kind as [ | [] | | ];
+      (eapply (let_simple_refines_under _ example_x Value
+                 (Const (Tagged_immediate 7)) _ _ Value);
+       [ vm_compute; reflexivity | vm_compute; reflexivity | intros y [=]
+       | reflexivity | vm_compute; reflexivity | ]);
+      apply expr_equivalent_under_refines, apply_cont_canonical;
+      (apply Forall2_cons; [ canonical_computed | apply Forall2_nil ]).
 Qed.
