@@ -4,9 +4,9 @@ Branch `flambda2-rocq/T5b-join-types`, on T5's `flambda2-rocq/T5-join`
 (which is on T2's branch, and that on the integration branch). Under
 it now: T1's second request (the equality of types, the boxable
 numbers, D26 as amended in `relation_holds`), T2's kinds of
-environments, the folds of `Keyed`, and T5's proofs that the three
-functions of the environment side meet their contracts. Not under it
-yet: T4's files, and T1's third request. Files, all in
+environments, the folds of `Keyed`, T1's third request, and T5's
+proofs that the three functions of the environment side meet their
+contracts. Not under it yet: T4's files. Files, all in
 `middle_end/flambda2/types/rocq/`:
 
 - `FlambdaJoinTypes.v`: the join functions of
@@ -56,8 +56,8 @@ types, inside a join of environments". I do not change that file.
   `state_valid`, `state_kinded` and `kind_in_target_env`. Premises:
   mine of `expand_head` and of the reduction of naked immediates
   (T4's functions, still arguments), and those of T5's theorems
-  (`aliases_are_free_variables`, `fresh_avoids p`,
-  `env_extension_eqb_sound p`). No premise about the constants of
+  (`fresh_avoids p`, `env_extension_eqb_sound p`). No premise about
+  the constants of
   the environments joined, nor about the tests of equality.
   `n_way_join_of_types_keeps_definitions`: the same function keeps
   the definitions, with no premise. T5 asked for both.
@@ -294,7 +294,7 @@ is on my base.
 
 | Assumed | Where it stands |
 |---------|-----------------|
-| `environment_side_sound`: `n_way_join_simples_sound`, `import_type_sound`, `n_way_join_env_extension_sound`, `valid_states_have_witnesses` (`FlambdaJoinSpec.v`); the last is used by `n_way_join_bound_is_met` only | T5 has proved the four of the functions of `Join_env`, under `aliases_are_free_variables` (a fact of the grammar, proved in T1's third request), `fresh_avoids p` and `env_extension_eqb_sound p`; those three are the premises of `n_way_join_of_types_sound` in its place |
+| `environment_side_sound`: `n_way_join_simples_sound`, `import_type_sound`, `n_way_join_env_extension_sound`, `valid_states_have_witnesses` (`FlambdaJoinSpec.v`); the last is used by `n_way_join_bound_is_met` only | T5 has proved the four of the functions of `Join_env`, under `fresh_avoids p` and `env_extension_eqb_sound p`; those two are the premises of `n_way_join_of_types_sound` in its place |
 | `expand_head_sound`: a value of a type has the expanded type under a valuation that satisfies the environment strictly; the expansion is in scope and kinded where the type and the environment are; it is of the kind of the type where the type is kinded and the environment has `constants_of_kind` | T4; a premise of `n_way_join_of_types_sound` until T4's files are under this branch |
 | `joined_envs_constants_of_kind`: in each environment joined, a constant that is the canonical element of a `Simple` of a kind is of that kind | discharged in `n_way_join_of_types_sound`, from the contract's kinds premise and the invariant of typing environments (T2's `typing_env_kinded_constants_of_kind`) |
 | `reduce_head_of_kind_naked_immediate_sound`: a number that has a head, under a valuation that satisfies the environment strictly, has the reduced head, which is then not bottom | T4, who has proved it with no premise on its branch; a premise of `n_way_join_of_types_sound` until T4's files are under this branch |
@@ -382,15 +382,17 @@ is on my base.
   T4's files are under this branch: a change of imports, two
   arguments and two premises fewer in `n_way_join_of_types` and its
   statement; no proof changes shape.
-- My copies of `block_shape_element_kind`,
-  `set_of_closures_contents_equal` and
-  `set_of_closures_contents_inter` go when T1's, hosted under the
-  same names in its third request, are under this branch; the
-  premise `aliases_are_free_variables` goes then too (T5's).
 - The examples against the compiler by running: asked of T7.
 - Arrays, when the grammar has them (`Array`,
   `n_way_join_array_contents`, `join_array_element_kinds`).
 - Code age and `rec_info`, with the function types.
+
+## Asked of me next
+
+- T5 is proving a stronger invariant of the state (`state_true`: the
+  equations of the target made so far are true) and will ask for
+  `n_way_join_type_sound` of `n_way_join_of_types` at it: an
+  instance of `n_way_join_sound`, when T5 sends its statements.
 
 ## Open questions
 
