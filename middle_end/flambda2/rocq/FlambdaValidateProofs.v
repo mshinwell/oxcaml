@@ -42,7 +42,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaUnusedParamsProofs FlambdaUnusedStaticsSpec
   FlambdaUnusedStaticsProofs FlambdaLiftSpec FlambdaLiftProofs
   FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs FlambdaKnownSymbolsSpec
-  FlambdaKnownSymbolsProofs FlambdaValidateSpec.
+  FlambdaKnownSymbolsProofs FlambdaKnownClosuresSpec FlambdaKnownClosuresProofs
+  FlambdaFloatCodeSpec FlambdaFloatCodeProofs FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec
   FlambdaAliasesProofs.
 Import ListNotations.
@@ -212,6 +213,8 @@ Proof.
     [ apply refines_refl | ].
   apply (refines_trans _ _ _
     (expr_refines_program _ _ (normalise_before_round_refines e))).
+  apply (refines_trans _ _ _
+    (expr_refines_program _ _ (use_known_closures_refines _))).
   apply (refines_trans _ _ _ (with_known_program_refines _)).
   apply IH.
 Qed.
@@ -240,10 +243,11 @@ Proof.
         [ intros [H | H]; discriminate H | ].
       destruct
         (expr_eqb [] []
-           (without_statics unused
-              (without_slots slots
-                 (normalise_lifted rounds (with_lifting L before))))
-           (normalise_after rounds after));
+           (float_code
+              (without_statics unused
+                 (without_slots slots
+                    (normalise_lifted rounds (with_lifting L before)))))
+           (float_code (normalise_after rounds after)));
         intros [H | H]; discriminate H.
 Qed.
 
@@ -272,10 +276,11 @@ Proof.
         apply expr_equivalent_sym, normalise_after_equivalent.
       * destruct
           (expr_eqb [] []
-             (without_statics unused
-                (without_slots slots
-                   (normalise_lifted rounds (with_lifting L before))))
-             (normalise_after rounds after)) eqn:Hlifted;
+             (float_code
+                (without_statics unused
+                   (without_slots slots
+                      (normalise_lifted rounds (with_lifting L before)))))
+             (float_code (normalise_after rounds after))) eqn:Hlifted;
           [ intros _ | intros H; contradiction H; reflexivity ].
         apply (refines_trans _ _ _ (with_lifting_program_refines L _)).
         apply (refines_trans _ _ _
@@ -284,6 +289,10 @@ Proof.
         apply (refines_trans _ _ _
           (without_statics_program_refines unused _)).
         apply expr_refines_program, expr_equivalent_refines.
+        apply (expr_equivalent_trans _ _ _ (float_code_equivalent _)).
         apply (expr_equivalent_trans _ _ _ (expr_eqb_sound _ _ Hlifted)).
-        apply expr_equivalent_sym, normalise_after_equivalent.
+        apply expr_equivalent_sym.
+        exact (expr_equivalent_trans _ _ _
+          (normalise_after_equivalent rounds after)
+          (float_code_equivalent _)).
 Qed.

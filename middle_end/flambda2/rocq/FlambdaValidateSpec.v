@@ -44,23 +44,30 @@
    that too, it starts again from the term before as it was given: it
    makes the [Let]s given static bindings of the symbols given
    (FlambdaLiftSpec.lift_unit, which says what is lifted and under which
-   conditions), normalises the result, each round followed by
-   replacing the primitives and the projections applied to symbols that
-   the unit binds to constants by their values
-   (FlambdaKnownSymbolsSpec.fold_known_unit; [normalise_lifted]),
+   conditions), normalises the result, each round followed by using
+   what is known of the static closures whose bindings are in sight
+   (FlambdaKnownClosuresSpec.use_known_closures: a value slot is read,
+   a call is made direct) and by replacing the primitives and the
+   projections applied to symbols that the unit binds to constants by
+   their values (FlambdaKnownSymbolsSpec.fold_known_unit;
+   [normalise_lifted]),
    removes from the static sets of closures the value slots given, if
    nothing projects them (FlambdaUnusedSlotsSpec.drop_unused_slots),
-   removes the static bindings of the names given, and compares. The
-   lifting comes first because the normalisation unfolds calls: a [Let]
-   in the body of a function would be many [Let]s afterwards, and a
-   closure that nothing uses would be gone. What is known of the
-   symbols is used in every round because the two enable one another: a
-   round puts a symbol where a variable stood for it, the folding puts
-   what a projection of the symbol gives in place of the projection,
-   and the next round follows that to where it is read in turn. The
-   value slots come last because it is the normalisation that removes
-   the projections which the code of a function makes and no longer
-   needs.
+   removes the static bindings of the names given, and compares; in
+   this comparison the bindings of code of both terms are first moved
+   up to the head of what they are in
+   (FlambdaFloatCodeSpec.float_code), as the two terms do not bind the
+   code of a lifted closure in the same place. The lifting comes first
+   because the normalisation unfolds calls: a [Let] in the body of a
+   function would be many [Let]s afterwards, and a closure that nothing
+   uses would be gone. What is known of the symbols is used in every
+   round because they enable one another: a round puts a symbol where
+   a variable stood for it; what is known of the symbol then puts what
+   a projection of it gives in place of the projection, and the code of
+   the closure in a call of it; and the next round follows the one to
+   where it is read in turn, and inlines the other. The value slots
+   come last because it is the normalisation that removes the
+   projections which the code of a function makes and no longer needs.
 
    What it accepts is correct for the unit run as a compilation unit is
    run, on its own from empty environments
@@ -88,7 +95,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaLoopAliasesSpec FlambdaRecHandlersSpec FlambdaShortcutSpec
   FlambdaSinkContsSpec FlambdaUnboxSpec FlambdaUnusedContsSpec
   FlambdaUnusedParamsSpec FlambdaUnusedStaticsSpec FlambdaLiftSpec
-  FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec.
+  FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
+  FlambdaFloatCodeSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -193,10 +201,11 @@ Definition with_known (e : expr) : expr :=
   end.
 
 (* The normalisation of a term in which something was lifted: each round
-   of that of the term before is followed by the use of what the unit
-   binds its symbols to. *)
+   of that of the term before is followed by the use of what is known
+   of the static closures in sight, and of what the unit binds its
+   symbols to. *)
 Definition normalise_lifted_round (e : expr) : expr :=
-  with_known (normalise_before_round e).
+  with_known (use_known_closures (normalise_before_round e)).
 
 Definition normalise_lifted (rounds : nat) (e : expr) : expr :=
   iterate rounds normalise_lifted_round e.
@@ -233,10 +242,11 @@ Definition validate_unit (rounds : nat) (unused : dropped)
     then Same_once_unused_statics_removed
     else if
       expr_eqb [] []
-        (without_statics unused
-           (without_slots slots
-              (normalise_lifted rounds (with_lifting L before))))
-        after
+        (float_code
+           (without_statics unused
+              (without_slots slots
+                 (normalise_lifted rounds (with_lifting L before)))))
+        (float_code after)
     then Same_once_lifted
     else Not_validated.
 

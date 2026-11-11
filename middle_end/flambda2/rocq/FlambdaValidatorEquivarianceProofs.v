@@ -50,9 +50,10 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMyClosureSpec FlambdaMyClosureProofs FlambdaLiftSpec
   FlambdaLiftProofs FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs
   FlambdaKnownSymbolsSpec FlambdaKnownSymbolsProofs
-  FlambdaInlineFreshProofs FlambdaRecHandlersSpec FlambdaSinkContsSpec
-  FlambdaShortcutSpec FlambdaUnusedParamsSpec FlambdaLoopAliasesSpec
-  FlambdaLoopifySpec FlambdaValidateSpec
+  FlambdaKnownClosuresSpec FlambdaKnownClosuresProofs FlambdaFloatCodeSpec
+  FlambdaFloatCodeProofs FlambdaInlineFreshProofs FlambdaRecHandlersSpec
+  FlambdaSinkContsSpec FlambdaShortcutSpec FlambdaUnusedParamsSpec
+  FlambdaLoopAliasesSpec FlambdaLoopifySpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
@@ -4298,11 +4299,22 @@ Proof.
   symmetry. apply fold_known_equivariant.
 Qed.
 
+(* The use of the static closures in sight, and the moving up of the
+   bindings of code. *)
+Lemma use_known_closures_rewrite_equivariant :
+  rewrite_equivariant use_known_closures.
+Proof. intros r e. symmetry. apply use_known_closures_equivariant. Qed.
+
+Lemma float_code_rewrite_equivariant : rewrite_equivariant float_code.
+Proof. intros r e. symmetry. apply float_code_equivariant. Qed.
+
 Lemma normalise_lifted_round_equivariant :
   rewrite_equivariant normalise_lifted_round.
 Proof.
   intros r e. unfold normalise_lifted_round.
-  rewrite normalise_before_round_equivariant. apply with_known_equivariant.
+  rewrite normalise_before_round_equivariant,
+    use_known_closures_rewrite_equivariant.
+  apply with_known_equivariant.
 Qed.
 
 Lemma normalise_lifted_equivariant (rounds : nat) :
@@ -4315,7 +4327,8 @@ Proof.
   rewrite with_lifting_renamed.
   rewrite normalise_before_equivariant, normalise_after_equivariant,
     normalise_lifted_equivariant, without_slots_equivariant,
-    !without_statics_equivariant, !expr_eqb_renamed.
+    !without_statics_equivariant, !float_code_rewrite_equivariant,
+    !expr_eqb_renamed.
   reflexivity.
 Qed.
 
