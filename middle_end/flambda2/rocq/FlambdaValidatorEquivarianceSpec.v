@@ -53,11 +53,16 @@
    symbol that is a block), and is as it was where it holds none (the
    names to remove, the code id of a symbol known to be a closure).
 
-   What is not stated here yet is the validation as a whole
-   (FlambdaValidateSpec.validate_unit, with its normalisations): it
-   needs that the comparison of FlambdaCompareSpec.v answers the same
-   when both terms are renamed, which is being stated beside the
-   comparison.
+   The normalisations that the validation applies to the two terms
+   (FlambdaValidateSpec.normalise_before, [normalise_after],
+   [without_statics]) are made of these rewrites and commute with
+   renaming too. The comparison of the two results answers the same
+   when both are renamed
+   (FlambdaCompareAlphaSpec.expr_eqb_equivariant_statement). So the
+   check as a whole, FlambdaValidateSpec.validate_unit, answers the
+   same on a pair of terms and on the pair renamed
+   ([validate_unit_equivariant_statement]): whether Simplify is found
+   correct on a unit does not depend on the names of the unit.
 
    So each rewrite and each check below depends on the names of the
    term by their equality only: none goes by the order or the number of
@@ -68,12 +73,12 @@
    four, and commutes with a renaming of them.
 
    Every statement here is an equation and holds of every term: nothing
-   is asked of the term, its code, its binders or its scopes. Two
-   statements have a premise, on an argument that is a function: that
-   of [rewrite_code] asks that the rewrite it is given commutes with
-   renaming, and that of [static_names] asks that the way it is given
-   of reading the names of a binding does not look at variables and
-   continuations.
+   is asked of the term, its code, its binders or its scopes. Three
+   statements have a premise, on an argument that is a function: those
+   of [rewrite_code] and of [iterate] ask that the rewrite they are
+   given commutes with renaming, and that of [static_names] asks that
+   the way it is given of reading the names of a binding does not look
+   at variables and continuations.
 
    Kinds, arities and the metadata of handlers and of code have no
    names in them: a renaming keeps them, and a check that reads them
@@ -125,6 +130,10 @@
    [well_formed_unit] on binders are those of FlambdaBindersSpec.v,
    which FlambdaAlphaSpec.v says are unchanged by a renaming.
 
+   The normalisations of FlambdaValidateSpec.v: [iterate] of a rewrite
+   that commutes, [normalise_before], [normalise_after] and
+   [without_statics]; and the check, [validate_unit].
+
    Nothing is trusted here. The proofs are in
    FlambdaValidatorEquivarianceProofs.v, which needs no review. *)
 
@@ -134,7 +143,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaNominalSpec FlambdaAlphaSpec
   FlambdaNormaliseSpec FlambdaEquivarianceSpec FlambdaUnusedContsSpec
   FlambdaUnusedStaticsSpec FlambdaBlockLoadSpec FlambdaUnboxSpec
-  FlambdaWellFormedSpec.
+  FlambdaWellFormedSpec FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -448,3 +457,39 @@ Definition well_formed_unit_equivariant_statement : Prop :=
 Definition static_fault_equivariant_statement : Prop :=
   ∀ (r : renaming) (s : state),
     static_fault (rename_state r s) = static_fault s.
+
+(* ======================================================================== *)
+(* The normalisations of FlambdaValidateSpec.v                              *)
+(* ======================================================================== *)
+
+(* A rewrite that commutes with renaming does so however many times it
+   is applied. *)
+Definition iterate_equivariant_statement : Prop :=
+  ∀ (rounds : nat) (f : expr -> expr),
+    rewrite_equivariant f -> rewrite_equivariant (iterate rounds f).
+
+(* The normalisation of the term before Simplify, and that of the term
+   after: each is made of the rewrites above, of [fold_constants] and of
+   [inline_calls]. *)
+Definition normalise_before_equivariant_statement : Prop :=
+  ∀ rounds : nat, rewrite_equivariant (normalise_before rounds).
+
+Definition normalise_after_equivariant_statement : Prop :=
+  ∀ rounds : nat, rewrite_equivariant (normalise_after rounds).
+
+(* The removal of the static bindings of the names given, where nothing
+   refers to them. *)
+Definition without_statics_equivariant_statement : Prop :=
+  ∀ D : dropped, rewrite_equivariant (without_statics D).
+
+(* ======================================================================== *)
+(* The check                                                                *)
+(* ======================================================================== *)
+
+(* The validation answers the same, and for the same reason, on two
+   terms and on the two renamed by one renaming. The number of rounds
+   and the names of the static bindings to remove are as they were. *)
+Definition validate_unit_equivariant_statement : Prop :=
+  ∀ (r : renaming) (rounds : nat) (unused : dropped) (before after : expr),
+    validate_unit rounds unused (rename_expr r before) (rename_expr r after)
+    = validate_unit rounds unused before after.

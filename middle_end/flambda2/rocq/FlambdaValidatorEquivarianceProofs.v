@@ -44,7 +44,9 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaApplySpec FlambdaNormaliseSpec FlambdaEquivarianceSpec
   FlambdaEquivarianceProofs FlambdaUnusedContsSpec FlambdaUnusedStaticsSpec
   FlambdaPrimitiveModel FlambdaPrimitiveSpec FlambdaBlockLoadSpec
-  FlambdaUnboxSpec FlambdaWellFormedSpec FlambdaValidatorEquivarianceSpec.
+  FlambdaUnboxSpec FlambdaWellFormedSpec FlambdaCompareSpec
+  FlambdaCompareAlphaSpec FlambdaCompareAlphaProofs FlambdaValidateSpec
+  FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -2201,4 +2203,118 @@ Proof.
     reflexivity.
   - exact (rename_handlers_bind_statics r handlers).
   - apply calls_code_binding_statics_equivariant.
+Qed.
+
+(* ======================================================================== *)
+(* The normalisations of FlambdaValidateSpec.v                              *)
+(* ======================================================================== *)
+
+Theorem iterate_equivariant : iterate_equivariant_statement.
+Proof.
+  intros rounds f f_equivariant.
+  induction rounds as [ | rounds IH]; intros r e; simpl; [ reflexivity | ].
+  rewrite f_equivariant. apply IH.
+Qed.
+
+(* The rewrites as the validation applies them: with nothing in scope and
+   nothing known. *)
+Lemma remove_unused_defined_lets_closed_equivariant :
+  rewrite_equivariant (remove_unused_defined_lets []).
+Proof.
+  intros r e. exact (remove_unused_defined_lets_equivariant_aux r e []).
+Qed.
+
+Lemma inline_calls_unknowing_equivariant :
+  rewrite_equivariant (inline_calls []).
+Proof. intros r e. exact (inline_calls_equivariant r [] e). Qed.
+
+Lemma inline_known_calls_unknowing_equivariant :
+  rewrite_equivariant (inline_known_calls [] []).
+Proof.
+  intros r e. exact (inline_known_calls_equivariant_aux r [] e []).
+Qed.
+
+(* The renaming is taken out of each rewrite in turn, from the
+   innermost. *)
+Ltac rename_outwards :=
+  repeat
+    first
+      [ rewrite fold_constants_equivariant
+      | rewrite collapse_switches_equivariant_aux
+      | rewrite remove_unused_conts_equivariant_aux
+      | rewrite inline_tail_conts_equivariant_aux
+      | rewrite thread_switches_equivariant_aux
+      | rewrite load_known_blocks_equivariant
+      | rewrite unbox_known_numbers_equivariant
+      | rewrite follow_aliases_unknowing_equivariant
+      | rewrite remove_unused_lets_equivariant_aux
+      | rewrite remove_unused_defined_lets_closed_equivariant
+      | rewrite inline_calls_unknowing_equivariant
+      | rewrite inline_known_calls_unknowing_equivariant
+      | rewrite drop_deleted_code_equivariant_aux
+      | rewrite merge_statics_equivariant_aux ].
+
+Lemma normalise_code_before_equivariant :
+  rewrite_equivariant normalise_code_before.
+Proof.
+  intros r e. unfold normalise_code_before. rename_outwards. reflexivity.
+Qed.
+
+Lemma normalise_before_round_equivariant :
+  rewrite_equivariant normalise_before_round.
+Proof.
+  intros r e. unfold normalise_before_round. rename_outwards.
+  apply rewrite_code_equivariant, normalise_code_before_equivariant.
+Qed.
+
+Theorem normalise_before_equivariant :
+  normalise_before_equivariant_statement.
+Proof.
+  intros rounds. apply iterate_equivariant, normalise_before_round_equivariant.
+Qed.
+
+Lemma normalise_code_after_equivariant :
+  rewrite_equivariant normalise_code_after.
+Proof.
+  intros r e. unfold normalise_code_after. rename_outwards. reflexivity.
+Qed.
+
+Lemma normalise_after_round_equivariant :
+  rewrite_equivariant normalise_after_round.
+Proof.
+  intros r e. unfold normalise_after_round. rename_outwards.
+  apply rewrite_code_equivariant, normalise_code_after_equivariant.
+Qed.
+
+Theorem normalise_after_equivariant : normalise_after_equivariant_statement.
+Proof.
+  intros rounds. apply iterate_equivariant, normalise_after_round_equivariant.
+Qed.
+
+Theorem without_statics_equivariant : without_statics_equivariant_statement.
+Proof.
+  intros D r e. unfold without_statics. rewrite drop_statics_equivariant.
+  destruct (drop_statics D e) as [e' | ]; cbn [option_map]; [ | reflexivity ].
+  rewrite drop_deleted_code_equivariant_aux, merge_statics_equivariant_aux.
+  reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* The check                                                                *)
+(* ======================================================================== *)
+
+(* The comparison answers the same when both terms are renamed
+   (FlambdaCompareAlphaProofs.expr_eqb_equivariant), here with no names
+   paired. *)
+Lemma expr_eqb_renamed (r : renaming) (e e' : expr) :
+  expr_eqb [] [] (rename_expr r e) (rename_expr r e') = expr_eqb [] [] e e'.
+Proof. exact (expr_eqb_equivariant r [] [] e e'). Qed.
+
+Theorem validate_unit_equivariant : validate_unit_equivariant_statement.
+Proof.
+  intros r rounds unused before after. unfold validate_unit.
+  rewrite expr_eqb_renamed, normalise_before_equivariant,
+    normalise_after_equivariant, expr_eqb_renamed,
+    without_statics_equivariant, expr_eqb_renamed.
+  reflexivity.
 Qed.
