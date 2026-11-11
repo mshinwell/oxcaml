@@ -151,6 +151,22 @@
      the premise that the name has a value of the type
      ([add_equation_sound], [add_env_extension_sound],
      [add_equations_on_params_sound]).
+   - No equation is added on a name that has no value
+     ([keeps_equations_valued]). Meet makes extensions of the levels
+     of the environments of its alternatives ([extension_of_level],
+     FlambdaMeet.v) and puts them in the type that it answers, for the
+     cases of a row-like structure and the two sides of a variant. An
+     extension is true where each of its names has a value of the type
+     of its equation, and it has to mean that: a later meet adds the
+     extension of a case to an environment and drops the case if that
+     is bottom, which is right only if the names have values of the
+     types. So an equation of a level that is cut has to be on a name
+     that has a value. Each contract here says that it is kept: if the
+     equations of the levels after a scope were on names that had a
+     value, they are still, in the environment and under the valuation
+     answered. Meet adds an equation only to a name that it reached
+     from the value in hand. The join is asked for the same, and the
+     compiler's n-way join has it not: see below.
    An environment that is satisfied with the names that poison exempts
    set aside, by a valuation in which no name holds poison, is
    satisfied strictly ([satisfied_no_poison_strictly_statement],
@@ -248,7 +264,10 @@
      and that agrees with it on every variable that the environment
      joined knows; one valuation for all that the join defines. The
      variables that the result takes from the other environments
-     joined may have no value in it.
+     joined may have no value in it; the result is then to have no
+     equation on them ([keeps_equations_valued]; the join is given
+     that the equations that the environment joined has after the
+     scope of the meet are on names that have a value).
      The premise is about one valuation and both environments. It is
      not that whatever satisfies an environment joined satisfies the
      environment of the meet: that is false of the environments that
@@ -303,6 +322,12 @@
      environment and the constant 1 in the other, both joins of the
      compiler answer that the name is the constant 1 (the stream of
      differential tests ran it).
+   A variable that the join brings in from one environment, with its
+   type, has no value on a run through another; the result then has
+   an equation on a name with no value, and the extension that an
+   enclosing meet cuts from it is false of a value that is in its
+   case. So the compiler's join has not what is asked here of
+   equations either ([keeps_equations_valued], in the first clause).
    So the compiler's join has the first clause only of the runs that
    have the values that it reads: three conditions on a run, stated
    in FlambdaJoinSpec.v ([scrutinees_have_values],
@@ -456,6 +481,39 @@ Definition extended_from (tenv : Typing_env.t) (valuation valuation' : env)
   ∀ x : variable,
     Typing_env.mem None tenv (Name_var x) = true ->
     lookup x valuation' = lookup x valuation.
+
+(* Every equation that the levels of an environment after the scope
+   [cut_after] have is on a name that has a value. Those are the
+   equations of the level that [Typing_env.cut] answers for that
+   scope, and so of the extension that is made of it. *)
+Definition equations_valued (tenv : Typing_env.t) (cut_after : Scope.t)
+    (valuation : env) : Prop :=
+  ∀ (one_level : Typing_env.One_level.t) (n : name) (ty : flambda_type),
+    one_level ∈ Typing_env.current_level tenv :: Typing_env.prev_levels tenv ->
+    (cut_after < Typing_env.One_level.scope one_level)%Z ->
+    (n, ty)
+    ∈ Typing_env_level.equations (Typing_env.One_level.level one_level) ->
+    ∃ v : value, value_of_name valuation n = Some v.
+
+(* An equation is added only on a name that has a value: whatever the
+   scope, if the equations after it were on names that had a value,
+   they are still. *)
+(* CR mshinwell: this is what the compiler relies on wherever it makes
+   an extension of the level of an environment and later adds that
+   extension to another environment (the cases of a row-like structure,
+   the two sides of a variant, the join of the environments of a
+   continuation): the equation of a name that has no value in a run is
+   then added in that run, and its meet with what is known of the name
+   may be bottom. Meet keeps it, as far as its own equations go. The
+   compiler's n-way join does not, for a variable that it brings in
+   from some of the environments joined and that has no value on the
+   runs through the others (discrepancy T5-10, the third of the
+   conditions on runs of FlambdaJoinSpec.v). *)
+Definition keeps_equations_valued (tenv tenv' : Typing_env.t)
+    (valuation valuation' : env) : Prop :=
+  ∀ cut_after : Scope.t,
+    equations_valued tenv cut_after valuation ->
+    equations_valued tenv' cut_after valuation'.
 
 (* ======================================================================== *)
 (* The functions                                                            *)
@@ -642,7 +700,8 @@ Definition meet_sound (meet : meet_function) : Prop :=
       result = Or_bottom.Ok (t, tenv')
       ∧ extended_from tenv valuation valuation'
       ∧ typing_env_satisfied_strictly statics valuation' tenv'
-      ∧ type_satisfied statics valuation' v t.
+      ∧ type_satisfied statics valuation' v t
+      ∧ keeps_equations_valued tenv tenv' valuation valuation'.
 
 (* The same, read from the answer: where a meet answers bottom, no
    value has both types under a valuation that satisfies the
@@ -721,7 +780,8 @@ Definition add_equation_sound (add_equation : add_equation_function)
     add_equation tenv n ty = Some tenv' ->
     ∃ valuation' : env,
       extended_from tenv valuation valuation'
-      ∧ typing_env_satisfied_strictly statics valuation' tenv'.
+      ∧ typing_env_satisfied_strictly statics valuation' tenv'
+      ∧ keeps_equations_valued tenv tenv' valuation valuation'.
 
 (* The same for [typing_env_satisfied], where no name holds poison. It
    follows from [add_equation_sound]
@@ -739,7 +799,8 @@ Definition add_equation_sound_no_poison
     add_equation tenv n ty = Some tenv' ->
     ∃ valuation' : env,
       extended_from tenv valuation valuation'
-      ∧ typing_env_satisfied_strictly statics valuation' tenv'.
+      ∧ typing_env_satisfied_strictly statics valuation' tenv'
+      ∧ keeps_equations_valued tenv tenv' valuation valuation'.
 
 (* [Typing_env.add_env_extension]: the same for the equations of an
    extension. That the extension is satisfied says that each of its
@@ -756,7 +817,8 @@ Definition add_env_extension_sound
     add_env_extension tenv extension = Some tenv' ->
     ∃ valuation' : env,
       extended_from tenv valuation valuation'
-      ∧ typing_env_satisfied_strictly statics valuation' tenv'.
+      ∧ typing_env_satisfied_strictly statics valuation' tenv'
+      ∧ keeps_equations_valued tenv tenv' valuation valuation'.
 
 (* [Typing_env.add_equations_on_params]: the same for the parameters of
    a continuation and the types of its arguments. Each parameter has a
@@ -778,7 +840,8 @@ Definition add_equations_on_params_sound
     add_equations_on_params tenv params param_types = Some tenv' ->
     ∃ valuation' : env,
       extended_from tenv valuation valuation'
-      ∧ typing_env_satisfied_strictly statics valuation' tenv'.
+      ∧ typing_env_satisfied_strictly statics valuation' tenv'
+      ∧ keeps_equations_valued tenv tenv' valuation valuation'.
 
 (* ======================================================================== *)
 (* The meet of expanded types, and the join that meet is given              *)
@@ -839,7 +902,9 @@ Definition meet_expanded_head_sound (meet_head : meet_expanded_head) : Prop :=
       ∧ typing_env_satisfied_strictly statics valuation'
           (Meet_env.typing_env menv')
       ∧ type_satisfied statics valuation' v
-          (Expanded_type.to_type (extract_value r expanded1 expanded2)).
+          (Expanded_type.to_type (extract_value r expanded1 expanded2))
+      ∧ keeps_equations_valued tenv (Meet_env.typing_env menv') valuation
+          valuation'.
 
 (* What the meet of expanded types keeps, whatever the values:
    [meet_keeps_well_formed] for it. The environment answered is the
@@ -896,15 +961,23 @@ Definition join_scoped_envs_sound (join : join_scoped_envs) : Prop :=
       initial_tenv scoped_envs
     = Some result ->
     (* What satisfies the first environment and one of the environments
-       joined extends to something that satisfies the result. *)
+       joined extends to something that satisfies the result. The
+       equations that the environment joined has after the scope of
+       the first are on names that have a value, and the join keeps
+       that of the first environment: it adds no equation on a name
+       that has no value. *)
     (∀ (scoped_env : Typing_env.t) (statics : static_env) (valuation : env),
       scoped_env ∈ scoped_envs ->
       typing_env_satisfied_strictly statics valuation initial_tenv ->
       typing_env_satisfied_strictly statics valuation scoped_env ->
+      equations_valued scoped_env (Typing_env.current_scope initial_tenv)
+        valuation ->
       ∃ valuation' : env,
         extended_from scoped_env valuation valuation'
         ∧ typing_env_satisfied_strictly statics valuation'
-            (Meet_env.typing_env result))
+            (Meet_env.typing_env result)
+        ∧ keeps_equations_valued initial_tenv (Meet_env.typing_env result)
+            valuation valuation')
     (* The result is the first environment, extended. *)
     ∧ meet_env_extends initial_env result
     ∧ typing_env_fits (Meet_env.typing_env result)

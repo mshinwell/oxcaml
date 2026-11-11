@@ -150,9 +150,9 @@ Proof.
   intros type_well_formed meet_head initial_env result scoped_envs
     initial_tenv Hsound Hkeeps Hfits Hscoped Hjoin.
   injection Hjoin as <-. split; [ | split; [ | split ] ].
-  - intros scoped_env statics valuation Hin Hinitial Hscoped_env.
-    exists valuation. split; [ | exact Hinitial ].
-    intros x _. reflexivity.
+  - intros scoped_env statics valuation Hin Hinitial Hscoped_env _.
+    exists valuation. split; [ intros x _; reflexivity | ].
+    split; [ exact Hinitial | ]. intros cut_after Hvalued. exact Hvalued.
   - repeat split; try reflexivity.
     + intros x Hamong. exact Hamong.
     + intros n ty binding_time_and_mode Hlookup. exists ty.
