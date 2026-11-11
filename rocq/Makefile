@@ -85,6 +85,10 @@ EXTRACT := $(LOOP_DIR)/Extract.v
 # nothing: make takes the dependencies from rocq dep, and the review
 # document puts the files in dependency order itself (review-pdf.pl).
 FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
+  FlambdaAlphaFreshProofs.v \
+  FlambdaAlphaFreshSpec.v \
+  FlambdaAlphaGroupProofs.v \
+  FlambdaAlphaGroupSpec.v \
   FlambdaAlphaProofs.v \
   FlambdaAlphaSpec.v \
   FlambdaApplyProofs.v \
@@ -97,6 +101,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaClosuresSpec.v \
   FlambdaCompareAlphaProofs.v \
   FlambdaCompareAlphaSpec.v \
+  FlambdaCompareConverseProofs.v \
+  FlambdaCompareConverseSpec.v \
   FlambdaCompareProofs.v \
   FlambdaCompareSpec.v \
   FlambdaContextProofs.v \
@@ -109,8 +115,12 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaFreeNamesSpec.v \
   FlambdaFreshAbstractionProofs.v \
   FlambdaFreshAbstractionSpec.v \
+  FlambdaFreshBindersProofs.v \
+  FlambdaFreshBindersSpec.v \
   FlambdaFreshQuantifierProofs.v \
   FlambdaFreshQuantifierSpec.v \
+  FlambdaInlineFreshProofs.v \
+  FlambdaInlineFreshSpec.v \
   FlambdaKindModel.v \
   FlambdaMapProofs.v \
   FlambdaMapSpec.v \
