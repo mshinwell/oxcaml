@@ -771,8 +771,10 @@ in the compiler's style, so that it can be proposed upstream by itself.
   of variables.
 - Three commits that let a test see the types that Simplify computes
   and the names that a term is stored with (decision D33). None
-  changes what the compiler does, and each new entry point has a `CR`
-  at its place saying that it is for tests.
+  changes what the compiler does, and each new entry point of the
+  observer and of the openings has a `CR` at its place saying that it
+  is for tests. The test of the openings registers an observer, so to
+  revert the observer, revert the openings first.
   - `Type_grammar.Block_size.of_target_ocaml_int` and
     `to_target_ocaml_int`: the type stays abstract; the two are the
     identity and check nothing.
