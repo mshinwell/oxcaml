@@ -84,29 +84,47 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
-(* Poison                                                                   *)
+(* Exempt names                                                             *)
 (* ======================================================================== *)
 
-Theorem satisfied_unless_poison_kind : satisfied_unless_poison_kind_statement.
+Theorem has_type_unless_kind : has_type_unless_kind_statement.
 Proof.
-  intros statics valuation v ty [-> | Hty]; [ reflexivity | ].
+  intros exempt statics valuation v ty [[_ Hkind] | Hty]; [ exact Hkind | ].
   exact (type_satisfied_kind statics valuation v ty Hty).
 Qed.
 
-Theorem satisfied_unless_poison_not_poison
-    : satisfied_unless_poison_not_poison_statement.
+Theorem has_type_unless_not_exempt : has_type_unless_not_exempt_statement.
 Proof.
-  intros statics valuation v ty [-> | Hty] Hnot_poison; [ | exact Hty ].
-  exfalso. exact (Hnot_poison (kind ty) eq_refl).
+  intros exempt statics valuation v ty [[Hexempt _] | Hty] Hnot_exempt;
+    [ contradiction | exact Hty ].
 Qed.
 
 (* A value that has a type is what is asked of the value of a name of
    that type. *)
-Lemma type_satisfied_unless_poison (statics : static_env) (valuation : env)
-    (v : value) (ty : flambda_type) :
+Lemma type_has_type_unless (exempt : Prop) (statics : static_env)
+    (valuation : env) (v : value) (ty : flambda_type) :
   type_satisfied statics valuation v ty ->
-  satisfied_unless_poison statics valuation v ty.
+  has_type_unless exempt statics valuation v ty.
 Proof. intros Hty. right. exact Hty. Qed.
+
+Lemma has_type_unless_weaken (exempt exempt' : Prop) (statics : static_env)
+    (valuation : env) (v : value) (ty : flambda_type) :
+  (exempt -> exempt') ->
+  has_type_unless exempt statics valuation v ty ->
+  has_type_unless exempt' statics valuation v ty.
+Proof.
+  intros Hweaken [[Hexempt Hkind] | Hty]; [ left | right; exact Hty ].
+  split; [ exact (Hweaken Hexempt) | exact Hkind ].
+Qed.
+
+(* The value of a symbol is the symbol, in every valuation. *)
+Lemma value_of_name_symbol (valuation : env) (s : symbol) :
+  value_of_name valuation (Name_symbol s) = Some (Value_symbol s).
+Proof. reflexivity. Qed.
+
+Lemma value_of_name_var (valuation : env) (x : variable) :
+  value_of_name valuation (Name_var x) = lookup x valuation.
+Proof. reflexivity. Qed.
 
 (* ======================================================================== *)
 (* Reading the lookup functions back                                        *)
@@ -143,43 +161,41 @@ Qed.
 
 (* A valuation that satisfies an environment gives the name its type,
    whichever of the two it is. *)
-Lemma find_with_binding_time_and_mode'_satisfied (statics : static_env)
-    (valuation : env) (tenv : Typing_env.t) (n : name)
+Lemma find_with_binding_time_and_mode'_satisfied (exempt : name -> Prop)
+    (statics : static_env) (valuation : env) (tenv : Typing_env.t) (n : name)
     (kind : option flambda_kind) (ty : flambda_type)
-    (binding_time_and_mode : Binding_time.With_name_mode.t) :
-  typing_env_satisfied statics valuation tenv ->
+    (binding_time_and_mode : Binding_time.With_name_mode.t) (v : value) :
+  typing_env_satisfied_but exempt statics valuation tenv ->
   Typing_env.find_with_binding_time_and_mode' tenv n kind
   = Some (ty, binding_time_and_mode) ->
-  ∃ v : value,
-    value_of_name valuation n = Some v
-    ∧ satisfied_unless_poison statics valuation v ty.
+  value_of_name valuation n = Some v ->
+  has_type_unless (exempt n) statics valuation v ty.
 Proof.
-  intros [Hbottom [Htypes _]] Hfind.
+  intros [Hbottom [Htypes _]] Hfind Hvalue.
   apply find_with_binding_time_and_mode'_cases in Hfind; [ | exact Hbottom ].
   destruct Hfind as [Hlookup | [[s ->] [= -> ->]]].
-  - exact (Htypes n ty binding_time_and_mode Hlookup).
-  - exists (Value_symbol s). split; [ reflexivity | ].
-    apply type_satisfied_unless_poison, any_non_null_value_satisfied.
+  - exact (Htypes n ty binding_time_and_mode v Hlookup Hvalue).
+  - rewrite value_of_name_symbol in Hvalue. injection Hvalue as <-.
+    apply type_has_type_unless, any_non_null_value_satisfied.
     split; [ reflexivity | discriminate ].
 Qed.
 
-Lemma find_with_binding_time_and_mode_satisfied (statics : static_env)
-    (valuation : env) (tenv : Typing_env.t) (n : name)
+Lemma find_with_binding_time_and_mode_satisfied (exempt : name -> Prop)
+    (statics : static_env) (valuation : env) (tenv : Typing_env.t) (n : name)
     (kind : option flambda_kind) (ty : flambda_type)
-    (binding_time_and_mode : Binding_time.With_name_mode.t) :
-  typing_env_satisfied statics valuation tenv ->
+    (binding_time_and_mode : Binding_time.With_name_mode.t) (v : value) :
+  typing_env_satisfied_but exempt statics valuation tenv ->
   Typing_env.find_with_binding_time_and_mode tenv n kind
   = Some (ty, binding_time_and_mode) ->
-  ∃ v : value,
-    value_of_name valuation n = Some v
-    ∧ satisfied_unless_poison statics valuation v ty.
+  value_of_name valuation n = Some v ->
+  has_type_unless (exempt n) statics valuation v ty.
 Proof.
   intros Hsatisfied. unfold Typing_env.find_with_binding_time_and_mode.
   destruct (Typing_env.find_with_binding_time_and_mode' tenv n kind)
     as [[ty' binding_time_and_mode'] | ] eqn:Hfind; [ | discriminate ].
   intros [= <- _].
-  exact (find_with_binding_time_and_mode'_satisfied statics valuation tenv n
-           kind ty' binding_time_and_mode' Hsatisfied Hfind).
+  exact (find_with_binding_time_and_mode'_satisfied exempt statics valuation
+           tenv n kind ty' binding_time_and_mode' v Hsatisfied Hfind).
 Qed.
 
 (* [mem] with the normal name mode, of a variable: its entry has the
@@ -248,37 +264,196 @@ Proof.
       simpl; intros [= <-]; lia.
 Qed.
 
-Theorem create_satisfied : create_satisfied_statement.
+(* ======================================================================== *)
+(* How the notions compare                                                  *)
+(* ======================================================================== *)
+
+Theorem satisfied_but_weaken : satisfied_but_weaken_statement.
 Proof.
-  intros statics vars. exists vars. split; [ | intros x _; reflexivity ].
-  split; [ reflexivity | ]. split.
-  - intros n ty binding_time_and_mode Hlookup. discriminate.
-  - apply empty_respected.
+  intros exempt exempt' statics valuation tenv Hweaken
+    [Hbottom [Htypes Hrespected]].
+  split; [ exact Hbottom | ]. split; [ | exact Hrespected ].
+  intros n ty binding_time_and_mode v Hlookup Hvalue.
+  exact (has_type_unless_weaken _ _ statics valuation v ty (Hweaken n)
+           (Htypes n ty binding_time_and_mode v Hlookup Hvalue)).
 Qed.
 
-Theorem bottom_not_satisfied : bottom_not_satisfied_statement.
+Theorem satisfied_strictly_satisfied : satisfied_strictly_satisfied_statement.
 Proof.
-  intros tenv statics vars Hbottom [valuation [[Hnot_bottom _] _]].
-  congruence.
+  intros statics valuation tenv.
+  apply satisfied_but_weaken. intros n [].
 Qed.
 
-Theorem make_bottom_not_satisfied : make_bottom_not_satisfied_statement.
+Theorem satisfied_no_poison_strictly
+    : satisfied_no_poison_strictly_statement.
 Proof.
-  intros tenv statics vars. apply bottom_not_satisfied. reflexivity.
+  intros statics valuation tenv Hno_poison.
+  apply satisfied_but_weaken. exact Hno_poison.
+Qed.
+
+Theorem env_satisfies_strictly_env_satisfies
+    : env_satisfies_strictly_env_satisfies_statement.
+Proof.
+  intros tenv statics vars [Hbound [valuation [Hsatisfied Hagrees]]].
+  split; [ exact Hbound | ]. exists valuation.
+  split; [ | exact Hagrees ].
+  exact (satisfied_strictly_satisfied statics valuation tenv Hsatisfied).
+Qed.
+
+(* ======================================================================== *)
+(* What satisfaction depends on                                             *)
+(* ======================================================================== *)
+
+(* Valuations that give the variables that an environment mentions the
+   same values give the names that it has a type for the same values. *)
+Lemma mentions_value_of_name (tenv : Typing_env.t)
+    (valuation valuation' : env) (n : name) (ty : flambda_type)
+    (binding_time_and_mode : Binding_time.With_name_mode.t) :
+  (∀ x : variable,
+    typing_env_mentions tenv x ->
+    lookup x valuation = lookup x valuation') ->
+  Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
+  = Some (ty, binding_time_and_mode) ->
+  value_of_name valuation n = value_of_name valuation' n.
+Proof.
+  intros Hsame Hlookup. destruct n as [x | s]; [ | reflexivity ].
+  rewrite !value_of_name_var. apply Hsame. left.
+  exists ty, binding_time_and_mode. exact Hlookup.
+Qed.
+
+Theorem satisfied_but_coincide : satisfied_but_coincide_statement.
+Proof.
+  intros exempt statics valuation valuation' tenv Hsame
+    [Hbottom [Htypes Hrespected]].
+  split; [ exact Hbottom | ]. split.
+  - intros n ty binding_time_and_mode v Hlookup Hvalue.
+    rewrite <- (mentions_value_of_name tenv valuation valuation' n ty
+                  binding_time_and_mode Hsame Hlookup) in Hvalue.
+    destruct (Htypes n ty binding_time_and_mode v Hlookup Hvalue)
+      as [Hexempt | Hty]; [ left; exact Hexempt | right ].
+    apply (proj1 (type_satisfied_coincide statics valuation valuation' v ty
+                    (fun x Hx =>
+                       Hsame x
+                         (or_intror
+                            (or_introl
+                               (ex_intro _ n
+                                  (ex_intro _ ty
+                                     (ex_intro _ binding_time_and_mode
+                                        (conj Hlookup Hx))))))))).
+    exact Hty.
+  - apply (respected_coincide (Typing_env.aliases tenv) valuation valuation');
+      [ | exact Hrespected ].
+    intros n Hmentioned. destruct n as [x | s]; [ | reflexivity ].
+    rewrite !value_of_name_var. apply Hsame. right. right. exact Hmentioned.
+Qed.
+
+Theorem typing_env_satisfied_coincide
+    : typing_env_satisfied_coincide_statement.
+Proof.
+  intros statics valuation valuation' tenv Hsame Hsatisfied.
+  apply (satisfied_but_coincide (holds_poison valuation) statics valuation
+           valuation' tenv Hsame) in Hsatisfied.
+  destruct Hsatisfied as [Hbottom [Htypes Hrespected]].
+  split; [ exact Hbottom | ]. split; [ | exact Hrespected ].
+  intros n ty binding_time_and_mode v Hlookup Hvalue.
+  apply (has_type_unless_weaken (holds_poison valuation n));
+    [ | exact (Htypes n ty binding_time_and_mode v Hlookup Hvalue) ].
+  intros [w [Hw Hpoison]]. exists w. split; [ | exact Hpoison ].
+  rewrite <- (mentions_value_of_name tenv valuation valuation' n ty
+                binding_time_and_mode Hsame Hlookup).
+  exact Hw.
+Qed.
+
+(* The variables in scope, and what the machine and a valuation have
+   for them, when the machine changes outside them. *)
+Lemma bound_in_terms_coincide (tenv : Typing_env.t) (vars vars' : env) :
+  (∀ x : variable,
+    in_scope_in_terms tenv x -> lookup x vars = lookup x vars') ->
+  bound_in_terms tenv vars ->
+  bound_in_terms tenv vars'.
+Proof.
+  intros Hcoincide Hbound x Hscope.
+  rewrite <- (Hcoincide x Hscope). exact (Hbound x Hscope).
+Qed.
+
+Lemma agrees_in_terms_coincide (tenv : Typing_env.t)
+    (valuation vars vars' : env) :
+  (∀ x : variable,
+    in_scope_in_terms tenv x -> lookup x vars = lookup x vars') ->
+  agrees_in_terms tenv valuation vars ->
+  agrees_in_terms tenv valuation vars'.
+Proof.
+  intros Hcoincide Hagrees x Hscope.
+  rewrite (Hagrees x Hscope). exact (Hcoincide x Hscope).
+Qed.
+
+Theorem env_satisfies_coincide : env_satisfies_coincide_statement.
+Proof.
+  intros tenv statics vars vars' Hcoincide
+    [Hbound [valuation [Hsatisfied Hagrees]]].
+  split.
+  - exact (bound_in_terms_coincide tenv vars vars' Hcoincide Hbound).
+  - exists valuation. split; [ exact Hsatisfied | ].
+    exact (agrees_in_terms_coincide tenv valuation vars vars' Hcoincide
+             Hagrees).
+Qed.
+
+Theorem env_satisfies_strictly_coincide
+    : env_satisfies_strictly_coincide_statement.
+Proof.
+  intros tenv statics vars vars' Hcoincide
+    [Hbound [valuation [Hsatisfied Hagrees]]].
+  split.
+  - exact (bound_in_terms_coincide tenv vars vars' Hcoincide Hbound).
+  - exists valuation. split; [ exact Hsatisfied | ].
+    exact (agrees_in_terms_coincide tenv valuation vars vars' Hcoincide
+             Hagrees).
+Qed.
+
+Theorem satisfied_strictly_env_satisfies
+    : satisfied_strictly_env_satisfies_statement.
+Proof.
+  intros tenv statics vars Hbound Hsatisfied.
+  split; [ exact Hbound | ]. exists vars.
+  split; [ exact Hsatisfied | intros x _; reflexivity ].
 Qed.
 
 Theorem typing_env_satisfied_env_satisfies
     : typing_env_satisfied_env_satisfies_statement.
 Proof.
-  intros tenv statics vars Hsatisfied. exists vars.
+  intros tenv statics vars Hbound Hsatisfied.
+  split; [ exact Hbound | ]. exists vars.
   split; [ exact Hsatisfied | intros x _; reflexivity ].
 Qed.
 
-Theorem env_satisfies_coincide : env_satisfies_coincide_statement.
+(* ======================================================================== *)
+(* What every environment satisfies, and what none does                     *)
+(* ======================================================================== *)
+
+Theorem create_satisfied : create_satisfied_statement.
 Proof.
-  intros tenv statics vars vars' Hcoincide [valuation [Hsatisfied Hagrees]].
-  exists valuation. split; [ exact Hsatisfied | ].
-  intros x Hscope. rewrite (Hagrees x Hscope). exact (Hcoincide x Hscope).
+  intros statics vars. apply satisfied_strictly_env_satisfies.
+  - intros x Hscope. discriminate.
+  - split; [ reflexivity | ]. split.
+    + intros n ty binding_time_and_mode v Hlookup. discriminate.
+    + apply empty_respected.
+Qed.
+
+Theorem bottom_not_satisfied_but : bottom_not_satisfied_but_statement.
+Proof.
+  intros exempt statics valuation tenv Hbottom [Hnot_bottom _]. congruence.
+Qed.
+
+Theorem bottom_not_satisfied : bottom_not_satisfied_statement.
+Proof.
+  intros tenv statics vars Hbottom [_ [valuation [Hsatisfied _]]].
+  exact (bottom_not_satisfied_but _ statics valuation tenv Hbottom
+           Hsatisfied).
+Qed.
+
+Theorem make_bottom_not_satisfied : make_bottom_not_satisfied_statement.
+Proof.
+  intros tenv statics vars. apply bottom_not_satisfied. reflexivity.
 Qed.
 
 (* ======================================================================== *)
@@ -287,24 +462,42 @@ Qed.
 
 Theorem find_satisfied : find_satisfied_statement.
 Proof.
-  intros statics valuation tenv n kind ty Hsatisfied.
+  intros exempt statics valuation tenv n kind ty v Hsatisfied.
   unfold Typing_env.find.
   destruct (Typing_env.find_with_binding_time_and_mode' tenv n kind)
     as [[ty' binding_time_and_mode] | ] eqn:Hfind; [ | discriminate ].
   intros [= <-].
-  exact (find_with_binding_time_and_mode'_satisfied statics valuation tenv n
-           kind ty' binding_time_and_mode Hsatisfied Hfind).
+  exact (find_with_binding_time_and_mode'_satisfied exempt statics valuation
+           tenv n kind ty' binding_time_and_mode v Hsatisfied Hfind).
+Qed.
+
+Theorem find_satisfied_strictly : find_satisfied_strictly_statement.
+Proof.
+  intros statics valuation tenv n kind ty v Hsatisfied Hfind Hvalue.
+  apply (has_type_unless_not_exempt False statics valuation v ty);
+    [ | intros [] ].
+  exact (find_satisfied (fun _ => False) statics valuation tenv n kind ty v
+           Hsatisfied Hfind Hvalue).
+Qed.
+
+Theorem alias_has_type_found : alias_has_type_found_statement.
+Proof.
+  intros statics valuation tenv n kind ty k v Hsatisfied Hfind Halias.
+  apply alias_satisfied in Halias. destruct Halias as [Hvalue _].
+  exact (find_satisfied_strictly statics valuation tenv n kind ty v
+           Hsatisfied Hfind Hvalue).
 Qed.
 
 Theorem find_not_poison : find_not_poison_statement.
 Proof.
   intros statics valuation tenv n kind ty v Hsatisfied Hfind Hvalue
     Hnot_poison.
-  destruct (find_satisfied statics valuation tenv n kind ty Hsatisfied Hfind)
-    as [v' [Hvalue' Hty]].
-  rewrite Hvalue in Hvalue'. injection Hvalue' as <-.
-  exact (satisfied_unless_poison_not_poison statics valuation v ty Hty
-           Hnot_poison).
+  apply (has_type_unless_not_exempt (holds_poison valuation n) statics
+           valuation v ty).
+  - exact (find_satisfied (holds_poison valuation) statics valuation tenv n
+             kind ty v Hsatisfied Hfind Hvalue).
+  - intros [w [Hw Hpoison]]. rewrite Hvalue in Hw. injection Hw as <-.
+    exact (Hnot_poison Hpoison).
 Qed.
 
 Theorem find_kind : find_kind_statement.
@@ -367,38 +560,52 @@ Qed.
 
 Theorem in_scope_in_terms_bound : in_scope_in_terms_bound_statement.
 Proof.
-  intros tenv statics vars x ty [valuation [Hsatisfied Hagrees]] Hscope Hfind.
-  destruct (find_satisfied statics valuation tenv (Name_var x) None ty
-              Hsatisfied Hfind) as [v [Hvalue Hty]].
-  exists v. split.
-  - rewrite <- (agrees_value_of_name tenv valuation vars x Hagrees Hscope).
-    exact Hvalue.
-  - exact (satisfied_unless_poison_kind statics valuation v ty Hty).
+  intros tenv statics vars x ty [Hbound [valuation [Hsatisfied Hagrees]]]
+    Hscope Hfind.
+  destruct (Hbound x Hscope) as [v Hv]. exists v.
+  split; [ exact Hv | ].
+  apply (has_type_unless_kind (holds_poison valuation (Name_var x)) statics
+           valuation v ty).
+  apply (find_satisfied (holds_poison valuation) statics valuation tenv
+           (Name_var x) None ty v Hsatisfied Hfind).
+  rewrite (agrees_value_of_name tenv valuation vars x Hagrees Hscope).
+  exact Hv.
+Qed.
+
+Theorem find_variable_in_terms_strictly
+    : find_variable_in_terms_strictly_statement.
+Proof.
+  intros tenv statics vars x kind ty v [_ [valuation [Hsatisfied Hagrees]]]
+    Hscope Hfind Hfree Hv.
+  apply (type_satisfied_agrees tenv statics valuation vars v ty Hagrees
+           Hfree).
+  apply (find_satisfied_strictly statics valuation tenv (Name_var x) kind ty
+           v Hsatisfied Hfind).
+  rewrite (agrees_value_of_name tenv valuation vars x Hagrees Hscope).
+  exact Hv.
 Qed.
 
 Theorem find_variable_in_terms : find_variable_in_terms_statement.
 Proof.
-  intros tenv statics vars x kind ty [valuation [Hsatisfied Hagrees]] Hscope
-    Hfind Hfree.
-  destruct (find_satisfied statics valuation tenv (Name_var x) kind ty
-              Hsatisfied Hfind) as [v [Hvalue Hty]].
-  exists v. split.
-  - rewrite <- (agrees_value_of_name tenv valuation vars x Hagrees Hscope).
-    exact Hvalue.
-  - destruct Hty as [-> | Hty]; [ left; reflexivity | right ].
-    exact (type_satisfied_agrees tenv statics valuation vars v ty Hagrees
-             Hfree Hty).
+  intros tenv statics vars x kind ty v [_ [valuation [Hsatisfied Hagrees]]]
+    Hscope Hfind Hfree Hv Hnot_poison.
+  apply (type_satisfied_agrees tenv statics valuation vars v ty Hagrees
+           Hfree).
+  apply (find_not_poison statics valuation tenv (Name_var x) kind ty v
+           Hsatisfied Hfind); [ | exact Hnot_poison ].
+  rewrite (agrees_value_of_name tenv valuation vars x Hagrees Hscope).
+  exact Hv.
 Qed.
 
 Theorem find_symbol_in_terms : find_symbol_in_terms_statement.
 Proof.
-  intros tenv statics vars s kind ty [valuation [Hsatisfied Hagrees]] Hfind
-    Hfree.
-  destruct (find_satisfied statics valuation tenv (Name_symbol s) kind ty
-              Hsatisfied Hfind) as [v [[= <-] [Hpoison | Hty]]];
-    [ discriminate | ].
-  exact (type_satisfied_agrees tenv statics valuation vars (Value_symbol s)
-           ty Hagrees Hfree Hty).
+  intros tenv statics vars s kind ty [_ [valuation [Hsatisfied Hagrees]]]
+    Hfind Hfree.
+  apply (type_satisfied_agrees tenv statics valuation vars (Value_symbol s)
+           ty Hagrees Hfree).
+  apply (find_not_poison statics valuation tenv (Name_symbol s) kind ty
+           (Value_symbol s) Hsatisfied Hfind); [ reflexivity | ].
+  intros [k Hpoison]. discriminate.
 Qed.
 
 (* ======================================================================== *)
@@ -408,7 +615,7 @@ Qed.
 Theorem canonical_ignoring_name_mode_satisfied
     : canonical_ignoring_name_mode_satisfied_statement.
 Proof.
-  intros statics valuation tenv s [_ [_ Hrespected]].
+  intros exempt statics valuation tenv s [_ [_ Hrespected]].
   destruct s as [x | s | c]; [ | | reflexivity ].
   - exact (respected_canonical (Typing_env.aliases tenv) valuation
              (Name_var x) Hrespected).
@@ -419,8 +626,8 @@ Qed.
 Theorem get_canonical_simple_satisfied
     : get_canonical_simple_satisfied_statement.
 Proof.
-  intros statics valuation tenv min_name_mode name_mode_of_existing_simple s
-    canonical [_ [_ Hrespected]].
+  intros exempt statics valuation tenv min_name_mode
+    name_mode_of_existing_simple s canonical [_ [_ Hrespected]].
   unfold Typing_env.get_canonical_simple_exn.
   destruct (match name_mode_of_existing_simple with
             | Some name_mode => Some name_mode
@@ -436,13 +643,14 @@ Qed.
 Theorem get_alias_then_canonical_simple_satisfied
     : get_alias_then_canonical_simple_satisfied_statement.
 Proof.
-  intros statics valuation tenv min_name_mode name_mode_of_existing_simple typ
-    canonical v Hsatisfied.
+  intros exempt statics valuation tenv min_name_mode
+    name_mode_of_existing_simple typ canonical v Hsatisfied.
   unfold Typing_env.get_alias_then_canonical_simple_exn.
   destruct (get_alias_opt typ) as [s | ] eqn:Halias; [ | discriminate ].
   intros Hcanonical Hty.
-  rewrite (get_canonical_simple_satisfied statics valuation tenv min_name_mode
-             name_mode_of_existing_simple s canonical Hsatisfied Hcanonical).
+  rewrite (get_canonical_simple_satisfied exempt statics valuation tenv
+             min_name_mode name_mode_of_existing_simple s canonical
+             Hsatisfied Hcanonical).
   apply (get_alias_satisfied statics valuation v typ s Halias) in Hty.
   exact (proj1 Hty).
 Qed.
@@ -450,12 +658,14 @@ Qed.
 Theorem type_simple_in_term_satisfied
     : type_simple_in_term_satisfied_statement.
 Proof.
-  intros statics valuation tenv min_name_mode s canonical ty Hsatisfied.
+  intros exempt statics valuation tenv min_name_mode s canonical ty
+    Hsatisfied.
   unfold Typing_env.type_simple_in_term_exn.
-  (* The [Simple] has a value, of the type that the environment finds. *)
+  (* The value of the [Simple], if it has one, is of the kind of the type
+     that the environment finds. *)
   assert (Hfound :
     ∀ (ty' : flambda_type)
-      (binding_time_and_mode : Binding_time.With_name_mode.t),
+      (binding_time_and_mode : Binding_time.With_name_mode.t) (v : value),
       match s with
       | Const const =>
         Some (type_for_const const, Binding_time.With_name_mode.consts)
@@ -464,24 +674,20 @@ Proof.
       | Symbol sym =>
         Typing_env.find_with_binding_time_and_mode tenv (Name_symbol sym) None
       end = Some (ty', binding_time_and_mode) ->
-      ∃ v : value,
-        eval_simple valuation s = Some v
-        ∧ kind_of_value v = FlambdaTypeGrammar.kind ty').
-  { intros ty' binding_time_and_mode. destruct s as [x | sym | c].
-    - intros Hfind.
-      destruct (find_with_binding_time_and_mode_satisfied statics valuation
-                  tenv (Name_var x) None ty' binding_time_and_mode Hsatisfied
-                  Hfind) as [v [Hvalue Hty]].
-      exists v. split; [ exact Hvalue | ].
-      exact (satisfied_unless_poison_kind statics valuation v ty' Hty).
-    - intros Hfind.
-      destruct (find_with_binding_time_and_mode_satisfied statics valuation
-                  tenv (Name_symbol sym) None ty' binding_time_and_mode
-                  Hsatisfied Hfind) as [v [Hvalue Hty]].
-      exists v. split; [ exact Hvalue | ].
-      exact (satisfied_unless_poison_kind statics valuation v ty' Hty).
-    - intros [= <- _]. exists (Value_const c).
-      split; [ reflexivity | ]. rewrite kind_type_for_const. reflexivity. }
+      eval_simple valuation s = Some v ->
+      kind_of_value v = FlambdaTypeGrammar.kind ty').
+  { intros ty' binding_time_and_mode v. destruct s as [x | sym | c].
+    - intros Hfind Hvalue.
+      exact (has_type_unless_kind _ statics valuation v ty'
+               (find_with_binding_time_and_mode_satisfied exempt statics
+                  valuation tenv (Name_var x) None ty' binding_time_and_mode
+                  v Hsatisfied Hfind Hvalue)).
+    - intros Hfind Hvalue.
+      exact (has_type_unless_kind _ statics valuation v ty'
+               (find_with_binding_time_and_mode_satisfied exempt statics
+                  valuation tenv (Name_symbol sym) None ty'
+                  binding_time_and_mode v Hsatisfied Hfind Hvalue)).
+    - intros [= <- _] [= <-]. rewrite kind_type_for_const. reflexivity. }
   destruct (match s with
             | Const const =>
               Some (type_for_const const, Binding_time.With_name_mode.consts)
@@ -491,7 +697,6 @@ Proof.
               Typing_env.find_with_binding_time_and_mode tenv
                 (Name_symbol sym) None
             end) as [[ty' binding_time_and_mode] | ]; [ | discriminate ].
-  destruct (Hfound ty' binding_time_and_mode eq_refl) as [v [Hvalue Hkind]].
   destruct (Aliases.get_canonical_element_exn _ _ _ _ _ _ _) as [alias | ]
     eqn:Hcanonical; [ | discriminate ].
   intros [= <- <-].
@@ -500,15 +705,16 @@ Proof.
     by exact (respected_canonical_at_mode _ _ _ _ valuation _ _ _ _ _
                 Hrespected Hcanonical).
   split; [ exact Halias | ].
-  exists v. split; [ exact Hvalue | ].
-  apply alias_satisfied. split; [ congruence | exact Hkind ].
+  intros v Hvalue. apply alias_satisfied.
+  split; [ congruence | ].
+  exact (Hfound ty' binding_time_and_mode v eq_refl Hvalue).
 Qed.
 
 Theorem type_simple_in_term_canonical
     : type_simple_in_term_canonical_statement.
 Proof.
-  intros tenv statics vars s canonical ty [valuation [Hsatisfied Hagrees]]
-    Hmem Hcanonical.
+  intros tenv statics vars s canonical ty
+    [_ [valuation [Hsatisfied Hagrees]]] Hmem Hcanonical.
   (* The [Simple] and its canonical element have, in the machine, the
      values that the valuation gives them. *)
   assert (Hs : eval_simple vars s = eval_simple valuation s).
@@ -536,7 +742,7 @@ Proof.
     - symmetry. apply Hagrees. apply in_scope_in_terms_lookup.
       exists data, binding_time_and_mode'. split; assumption. }
   rewrite Hs, Hc.
-  exact (proj1 (type_simple_in_term_satisfied statics valuation tenv
+  exact (proj1 (type_simple_in_term_satisfied _ statics valuation tenv
                   (Some Name_mode.normal) s canonical ty Hsatisfied
                   Hcanonical)).
 Qed.

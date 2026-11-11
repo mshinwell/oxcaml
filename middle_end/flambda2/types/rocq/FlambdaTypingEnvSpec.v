@@ -29,11 +29,13 @@
 (* What it is for the values of a run to satisfy a typing environment,
    and what looking a name up in the environment says of its value.
 
-   This file is to be reviewed: [typing_env_satisfied] and
-   [env_satisfies], with what they are made of, and the statements.
-   Every later statement about types that is relative to an environment
-   (meet, join, the provers, the rewrites of Simplify) takes one of the
-   two as a premise. So they have to be true of the environments that
+   This file is to be reviewed: [typing_env_satisfied_but], the notions
+   made with it ([typing_env_satisfied_strictly] and
+   [typing_env_satisfied]; [env_satisfies_strictly] and [env_satisfies]
+   for the machine), what they are made of, and the statements. Every
+   later statement about types that is relative to an environment
+   (meet, join, the provers, the rewrites of Simplify) takes one of
+   them as a premise. So they have to be true of the environments that
    Simplify builds, or those statements say nothing of real programs;
    and strong enough that the type found for a name is a fact about its
    value. The environment itself is FlambdaTypingEnv.v, which is to be
@@ -74,28 +76,38 @@
      else. Such a variable stands for the value it had where the
      closure was made.
    So an environment is satisfied by a valuation: an environment of
-   values, like the machine's, that gives a value to every variable the
-   typing environment knows ([typing_env_satisfied]). The machine
-   satisfies a typing environment when some valuation does that agrees
-   with the machine on the variables in scope ([env_satisfies]). Which
-   variables are in scope is the compiler's own test
-   ([in_scope_in_terms]). Statements about types (meet, join, the
-   provers) are to be made of valuations, as the types of an
-   environment mention variables that are not in scope; statements
-   about terms are to be made of the machine. FlambdaTypeMeaningSpec.v
-   needs nothing else of the environment, and what it calls [vars] is
-   the valuation.
+   values, like the machine's, that may give a value to any variable
+   that the typing environment knows ([typing_env_satisfied_but]). The
+   machine satisfies a typing environment when it binds the variables
+   in scope and some valuation that agrees with it on them satisfies
+   the environment ([env_satisfies]). Which variables are in scope is
+   the compiler's own test ([in_scope_in_terms]). Statements about
+   types (meet, join, the provers) are to be made of valuations, as the
+   types of an environment mention variables that are not in scope;
+   statements about terms are to be made of the machine.
+   FlambdaTypeMeaningSpec.v needs nothing else of the environment, and
+   what it calls [vars] is the valuation.
+
+   A valuation need not give a value to every variable that the
+   environment knows. A variable that a join has made existential may
+   stand for a variable that some uses of the continuation bind and
+   others do not (the n-way join brings such a variable in with the
+   join of its types at the uses that define it:
+   types/env/join_env.ml); in a run that comes through one of the
+   others it stands for nothing. Of a name with no value nothing is
+   asked. The alias type of such a name is the type of no value
+   (FlambdaTypeMeaningSpec.v), and no name that has a value is an alias
+   of it (FlambdaEnvAliasesSpec.v): so where a type mentions it, the
+   type speaks of a case that is not the case in that run.
 
    What it is to satisfy an environment, and what was decided.
-   - Names. Every name that has a type ([names_to_types]) has a value
-     in the valuation, and the value has the type
-     ([names_have_their_types]). The type of a name is the one that this
-     map has for it: the one that the last [replace_equation] gave it.
-     The equations of the levels are the history of the environment and
-     are not read. A value that has a type has the kind of the type
-     (FlambdaTypeMeaningSpec.v), so every name has a value of its kind.
-   - A name with no value at run time has one in the valuation, and
-     that is all: the machine may have no value for it, or another.
+   - Names. Every name that has a type ([names_to_types]) and a value
+     in the valuation: the value has the type
+     ([names_have_their_types_but]). The type of a name is the one that
+     this map has for it: the one that the last [replace_equation] gave
+     it. The equations of the levels are the history of the environment
+     and are not read. A value that has a type has the kind of the type
+     (FlambdaTypeMeaningSpec.v).
    - Symbols. A symbol is a value by itself, a pointer, so it always has
      a value; its type says what the static environment binds it to. A
      symbol that is defined and has no equation ([defined_symbols]) has
@@ -107,30 +119,42 @@
      binds the code id, and to what, is not part of an environment of
      types. (Simplify keeps the code in its own environment,
      [Downwards_env.all_code].)
-   - Poison. Nothing is asked of the type of a name whose value is the
-     poison constant of the kind of the type ([satisfied_unless_poison];
-     there is a CR there). Typing facts are about values that are not
-     poison: a name that is not poison has its type
+   - Names that are exempt. [typing_env_satisfied_but] is given the
+     names that are exempt: of the value of an exempt name only the
+     kind of its type is asked. Two cases have names.
+     [typing_env_satisfied_strictly]: no name is exempt. This is the
+     one for the statements about types. With an exempt name what the
+     compiler does with types is not right: if [n] has the type of the
+     number 4 and holds poison, poison has the alias type of [n] and
+     has not the type found for [n], so that to put the type of a name
+     for an alias to it, as [Expand_head.expand_head] does, is wrong,
+     and a meet that reaches [n] can answer bottom where there are
+     values ([alias_has_type_found_statement] and
+     FlambdaTypingEnvExamplesSpec.v).
+     [typing_env_satisfied]: the names that hold poison are exempt
+     (decision D26; there is a CR there). Typing facts are about values
+     that are not poison: a name that is not poison has its type
      ([find_not_poison_statement]), and a use of a fact has the other
-     case to deal with. Inside a type nothing changes: the fields of a
-     block that is not poison have their types as
+     case to deal with. Nothing else follows from it. It is there for
+     what unboxing does: the parameters that stand for the fields of an
+     inactive case of a variant are given their types on every path,
+     and hold poison. Until then the environments that Simplify builds
+     are strictly satisfied. Inside a type nothing changes: the fields
+     of a block that is not poison have their types as
      FlambdaTypeMeaningSpec.v says, poison or not.
-     The exemption is by the value that the valuation gives, for every
-     name. It cannot be only for the names in scope: a parameter that
-     holds poison may be captured by a closure, and is out of scope in
-     its body; and a variable that exists only in types may stand for
-     one that a term bound at a use of a continuation, where it held
-     poison. The environment does not record which is which. A side
-     effect: a valuation may give poison to a variable that exists only
-     in types and that nothing else constrains, so that to satisfy an
-     environment is not to have found a value of the type of each such
-     variable. There is a CR at [typing_env_satisfied].
+     The exemption of poison is by the value that the valuation gives,
+     for every name. It cannot be only for the names in scope: a
+     parameter that holds poison may be captured by a closure, and is
+     out of scope in its body; and a variable that exists only in types
+     may stand for one that a term bound at a use of a continuation,
+     where it held poison. The environment does not record which is
+     which.
    - Aliases are exact, poison or not: names in one class of the
-     aliases have the same value ([aliases_respected],
-     FlambdaEnvAliasesSpec.v). The compiler reads canonical elements
-     from the aliases, not from the alias types, so this is asked of
-     the aliases themselves. That the two agree is for the invariant of
-     an environment.
+     aliases have the same value, or none of them has a value
+     ([aliases_respected], FlambdaEnvAliasesSpec.v). The compiler reads
+     canonical elements from the aliases, not from the alias types, so
+     this is asked of the aliases themselves. That the two agree is for
+     the invariant of an environment.
    - An environment that is bottom is satisfied by nothing.
    - The levels, the scopes, the binding times and
      [next_binding_time] are not read: they are what the functions
@@ -153,25 +177,26 @@
      satisfy that environment. This is for the workstream on lifting
      (S5), which has two runs to relate; the environment is satisfied
      by the values of the second.
-   - Relations on a name that holds poison: until a relation says
-     nothing of such a name (FlambdaTypeMeaningSpec.v is to change so),
-     the types that unboxing gives the [Is_int] and tag parameters of a
-     field of an inactive case of a variant are not true.
+   - Unboxing of variants: from there on only [typing_env_satisfied]
+     holds, of which the statements about types say nothing. The
+     compiler relies on no fact about a parameter that holds poison
+     being used on a path that runs; nothing checks that.
    - Kinds. That the machine binds a variable to a value of the kind it
      is defined with is a premise wherever a variable is defined; it is
      for the semantics to give (workstream C2).
    - What FlambdaTypeMeaningSpec.v leaves out: code age (a type that
      names code), allocation modes.
 
-   What is stated: what satisfies the empty environment and a bottom
-   one; that satisfaction by the machine depends only on the variables
-   in scope; what [find] and [mem] say of a name; what the canonical
-   element of a simple is, with [type_simple_in_term_exn], which is
-   what Simplify does to every simple of a term. No statement here has
-   a premise on the environment (an invariant): they hold of every
-   environment. What the functions that build an environment do to
-   satisfaction, binders, the invariant and the renaming of names are
-   to follow.
+   What is stated: how the notions compare; that satisfaction depends
+   only on the values of the variables that the environment mentions,
+   and for the machine only on those in scope; what satisfies the empty
+   environment and a bottom one; what [find] and [mem] say of a name;
+   what the canonical element of a simple is, with
+   [type_simple_in_term_exn], which is what Simplify does to every
+   simple of a term. No statement here has a premise on the environment
+   (an invariant): they hold of every environment. What the functions
+   that build an environment do to satisfaction, binders, the invariant
+   and the renaming of names are to follow.
 
    The proofs are in FlambdaTypingEnvProofs.v, which needs no review. *)
 
@@ -193,13 +218,52 @@ Definition kind_eqb_decides_equality_statement : Prop :=
 (* What satisfies a typing environment                                      *)
 (* ======================================================================== *)
 
-(* A valuation is an environment of values, like the machine's, that is
-   to give a value to every variable that a typing environment knows:
-   also to those that have no value at run time. *)
+(* A valuation is an environment of values, like the machine's. It may
+   give a value to any variable that a typing environment knows, also
+   to one that has no value at run time; and it need not give one. *)
 
-(* What is asked of the value of a name whose type is [ty]: it is the
-   poison constant of the kind of the type, and then nothing more is
-   asked of it; or it has the type. *)
+(* What is asked of the value of a name whose type is [ty]: it has the
+   type; or the name is exempt, and then the value has the kind of the
+   type and nothing more is asked of it. *)
+Definition has_type_unless (exempt : Prop) (statics : static_env)
+    (valuation : env) (v : value) (ty : flambda_type) : Prop :=
+  (exempt ∧ kind_of_value v = kind ty)
+  ∨ type_satisfied statics valuation v ty.
+
+(* Every name that the typing environment has a type for, and that has
+   a value in the valuation: the value has the type, unless the name is
+   exempt. *)
+Definition names_have_their_types_but (exempt : name -> Prop)
+    (statics : static_env) (valuation : env) (tenv : Typing_env.t) : Prop :=
+  ∀ (n : name) (ty : flambda_type)
+    (binding_time_and_mode : Binding_time.With_name_mode.t) (v : value),
+    Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
+    = Some (ty, binding_time_and_mode) ->
+    value_of_name valuation n = Some v ->
+    has_type_unless (exempt n) statics valuation v ty.
+
+(* A valuation satisfies a typing environment, but for the names that
+   are exempt: the environment is not bottom, its names have their
+   types, and names that are aliases have the same value. *)
+Definition typing_env_satisfied_but (exempt : name -> Prop)
+    (statics : static_env) (valuation : env) (tenv : Typing_env.t) : Prop :=
+  Typing_env.is_bottom tenv = false
+  ∧ names_have_their_types_but exempt statics valuation tenv
+  ∧ aliases_respected (Typing_env.aliases tenv) valuation.
+
+(* A valuation satisfies a typing environment strictly: no name is
+   exempt. The statements about types (meet, join, the provers) are to
+   be made of this one. *)
+Definition typing_env_satisfied_strictly (statics : static_env)
+    (valuation : env) (tenv : Typing_env.t) : Prop :=
+  typing_env_satisfied_but (fun _ => False) statics valuation tenv.
+
+(* A name holds poison in a valuation. *)
+Definition holds_poison (valuation : env) (n : name) : Prop :=
+  ∃ v : value, value_of_name valuation n = Some v ∧ is_poison v.
+
+(* A valuation satisfies a typing environment: the names that hold
+   poison are exempt. *)
 (* CR mshinwell: nothing is asked of the type of a name whose value is
    poison. That is a decision of the model, which the compiler does not
    state. Unboxing gives the parameters that stand for the fields of an
@@ -208,25 +272,6 @@ Definition kind_eqb_decides_equality_statement : Prop :=
    build_unboxing_denv.ml). It relies on there being no strict use of
    such a parameter where it holds poison, and no meet of its type to
    bottom there; nothing checks either. Decision D26. *)
-Definition satisfied_unless_poison (statics : static_env) (valuation : env)
-    (v : value) (ty : flambda_type) : Prop :=
-  v = Value_const (Poison (kind ty)) ∨ type_satisfied statics valuation v ty.
-
-(* Every name that the typing environment has a type for has a value in
-   the valuation, of that type unless it is poison. *)
-Definition names_have_their_types (statics : static_env) (valuation : env)
-    (tenv : Typing_env.t) : Prop :=
-  ∀ (n : name) (ty : flambda_type)
-    (binding_time_and_mode : Binding_time.With_name_mode.t),
-    Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
-    = Some (ty, binding_time_and_mode) ->
-    ∃ v : value,
-      value_of_name valuation n = Some v
-      ∧ satisfied_unless_poison statics valuation v ty.
-
-(* A valuation satisfies a typing environment: the environment is not
-   bottom, its names have their types, and names that are aliases have
-   the same value. *)
 (* CR mshinwell: a valuation may give poison to a variable that exists
    only in types, of which nothing is then asked: the exemption of
    poison is by the value, for every name, and not only for the names
@@ -234,14 +279,10 @@ Definition names_have_their_types (statics : static_env) (valuation : env)
    in scope, those that a closure has captured and those that a join
    has made existential from a variable of a use; the environment does
    not record the last two. Nothing is known to go wrong with the
-   choice made; what is lost is that a variable that exists only in
-   types, and that nothing else constrains, has a value of its type.
-   Decision D26. *)
+   choice made. Decision D26. *)
 Definition typing_env_satisfied (statics : static_env) (valuation : env)
     (tenv : Typing_env.t) : Prop :=
-  Typing_env.is_bottom tenv = false
-  ∧ names_have_their_types statics valuation tenv
-  ∧ aliases_respected (Typing_env.aliases tenv) valuation.
+  typing_env_satisfied_but (holds_poison valuation) statics valuation tenv.
 
 (* A variable may occur in a term simplified under the typing
    environment: it is bound there, with the normal name mode, and is not
@@ -249,6 +290,11 @@ Definition typing_env_satisfied (statics : static_env) (valuation : env)
    [Typing_env.mem ~min_name_mode:Name_mode.normal]. *)
 Definition in_scope_in_terms (tenv : Typing_env.t) (x : variable) : Prop :=
   Typing_env.mem (Some Name_mode.normal) tenv (Name_var x) = true.
+
+(* The machine binds the variables that may occur in terms. *)
+Definition bound_in_terms (tenv : Typing_env.t) (vars : env) : Prop :=
+  ∀ x : variable,
+    in_scope_in_terms tenv x -> ∃ v : value, lookup x vars = Some v.
 
 (* A valuation gives the variables that may occur in terms the values
    that the machine has for them. *)
@@ -258,54 +304,115 @@ Definition agrees_in_terms (tenv : Typing_env.t) (valuation vars : env)
     in_scope_in_terms tenv x -> lookup x valuation = lookup x vars.
 
 (* The static environment and the variables of a state of the machine
-   satisfy a typing environment: some valuation satisfies it that gives
-   the variables in scope the values that the machine has for them. The
-   other variables of the typing environment (those of name mode
-   [In_types] or [Phantom], and those that are out of scope) have the
-   values that the valuation chooses, whatever the machine has. *)
+   satisfy a typing environment: the machine binds the variables in
+   scope, and some valuation satisfies the environment that gives them
+   the values that the machine has for them. The other variables of the
+   typing environment (those of name mode [In_types] or [Phantom], and
+   those that are out of scope) have the values that the valuation
+   chooses, or none, whatever the machine has. *)
 Definition env_satisfies (tenv : Typing_env.t) (statics : static_env)
     (vars : env) : Prop :=
-  ∃ valuation : env,
-    typing_env_satisfied statics valuation tenv
-    ∧ agrees_in_terms tenv valuation vars.
+  bound_in_terms tenv vars
+  ∧ ∃ valuation : env,
+      typing_env_satisfied statics valuation tenv
+      ∧ agrees_in_terms tenv valuation vars.
 
-(* What is asked of a value fixes its kind, poison or not; and a value
-   that is not poison has the type. *)
-Definition satisfied_unless_poison_kind_statement : Prop :=
-  ∀ (statics : static_env) (valuation : env) (v : value) (ty : flambda_type),
-    satisfied_unless_poison statics valuation v ty ->
+(* The same with no name exempt. *)
+Definition env_satisfies_strictly (tenv : Typing_env.t)
+    (statics : static_env) (vars : env) : Prop :=
+  bound_in_terms tenv vars
+  ∧ ∃ valuation : env,
+      typing_env_satisfied_strictly statics valuation tenv
+      ∧ agrees_in_terms tenv valuation vars.
+
+(* What is asked of a value fixes its kind, exempt or not; and the
+   value of a name that is not exempt has the type. *)
+Definition has_type_unless_kind_statement : Prop :=
+  ∀ (exempt : Prop) (statics : static_env) (valuation : env) (v : value)
+    (ty : flambda_type),
+    has_type_unless exempt statics valuation v ty ->
     kind_of_value v = kind ty.
 
-Definition satisfied_unless_poison_not_poison_statement : Prop :=
-  ∀ (statics : static_env) (valuation : env) (v : value) (ty : flambda_type),
-    satisfied_unless_poison statics valuation v ty ->
-    (∀ k : flambda_kind, v <> Value_const (Poison k)) ->
+Definition has_type_unless_not_exempt_statement : Prop :=
+  ∀ (exempt : Prop) (statics : static_env) (valuation : env) (v : value)
+    (ty : flambda_type),
+    has_type_unless exempt statics valuation v ty ->
+    ~ exempt ->
     type_satisfied statics valuation v ty.
 
 (* ======================================================================== *)
-(* What every environment satisfies, and what none does                     *)
+(* How the notions compare                                                  *)
 (* ======================================================================== *)
 
-(* The environment that knows nothing is satisfied by everything. *)
-Definition create_satisfied_statement : Prop :=
-  ∀ (statics : static_env) (vars : env),
-    env_satisfies Typing_env.create statics vars.
+(* The more names are exempt, the less is asked. *)
+Definition satisfied_but_weaken_statement : Prop :=
+  ∀ (exempt exempt' : name -> Prop) (statics : static_env)
+    (valuation : env) (tenv : Typing_env.t),
+    (∀ n : name, exempt n -> exempt' n) ->
+    typing_env_satisfied_but exempt statics valuation tenv ->
+    typing_env_satisfied_but exempt' statics valuation tenv.
 
-(* An environment that is bottom is satisfied by nothing: a program
-   point whose environment is bottom is not reached. *)
-Definition bottom_not_satisfied_statement : Prop :=
-  ∀ (tenv : Typing_env.t) (statics : static_env) (vars : env),
-    Typing_env.is_bottom tenv = true -> ~ env_satisfies tenv statics vars.
+(* So a valuation that satisfies an environment strictly satisfies
+   it... *)
+Definition satisfied_strictly_satisfied_statement : Prop :=
+  ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t),
+    typing_env_satisfied_strictly statics valuation tenv ->
+    typing_env_satisfied statics valuation tenv.
 
-Definition make_bottom_not_satisfied_statement : Prop :=
-  ∀ (tenv : Typing_env.t) (statics : static_env) (vars : env),
-    ~ env_satisfies (Typing_env.make_bottom tenv) statics vars.
+(* ... and the two are the same of a valuation in which no name holds
+   poison. *)
+Definition satisfied_no_poison_strictly_statement : Prop :=
+  ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t),
+    (∀ n : name, ~ holds_poison valuation n) ->
+    typing_env_satisfied statics valuation tenv ->
+    typing_env_satisfied_strictly statics valuation tenv.
 
-(* The variables of the machine that give every name its type satisfy
-   the environment: no other valuation need be found. *)
-Definition typing_env_satisfied_env_satisfies_statement : Prop :=
+Definition env_satisfies_strictly_env_satisfies_statement : Prop :=
   ∀ (tenv : Typing_env.t) (statics : static_env) (vars : env),
-    typing_env_satisfied statics vars tenv -> env_satisfies tenv statics vars.
+    env_satisfies_strictly tenv statics vars ->
+    env_satisfies tenv statics vars.
+
+(* ======================================================================== *)
+(* What satisfaction depends on                                             *)
+(* ======================================================================== *)
+
+(* A typing environment mentions a variable: it has a type for it, a
+   type that it has for a name mentions it, or its aliases do. (In an
+   environment that Simplify builds these are bound in it: that is for
+   the invariant.) *)
+Definition typing_env_mentions (tenv : Typing_env.t) (x : variable) : Prop :=
+  (∃ (ty : flambda_type)
+     (binding_time_and_mode : Binding_time.With_name_mode.t),
+     Keyed.lookup name_eqb (Name_var x) (Typing_env.names_to_types tenv)
+     = Some (ty, binding_time_and_mode))
+  ∨ (∃ (n : name) (ty : flambda_type)
+       (binding_time_and_mode : Binding_time.With_name_mode.t),
+       Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
+       = Some (ty, binding_time_and_mode)
+       ∧ x ∈ free_variables ty)
+  ∨ aliases_mention (Typing_env.aliases tenv) (Name_var x).
+
+(* Whether a valuation satisfies an environment depends only on the
+   values of the variables that the environment mentions. So binding a
+   variable that it does not mention, or leaving it out, changes
+   nothing. *)
+Definition satisfied_but_coincide_statement : Prop :=
+  ∀ (exempt : name -> Prop) (statics : static_env)
+    (valuation valuation' : env) (tenv : Typing_env.t),
+    (∀ x : variable,
+      typing_env_mentions tenv x ->
+      lookup x valuation = lookup x valuation') ->
+    typing_env_satisfied_but exempt statics valuation tenv ->
+    typing_env_satisfied_but exempt statics valuation' tenv.
+
+Definition typing_env_satisfied_coincide_statement : Prop :=
+  ∀ (statics : static_env) (valuation valuation' : env)
+    (tenv : Typing_env.t),
+    (∀ x : variable,
+      typing_env_mentions tenv x ->
+      lookup x valuation = lookup x valuation') ->
+    typing_env_satisfied statics valuation tenv ->
+    typing_env_satisfied statics valuation' tenv.
 
 (* Whether the machine satisfies an environment depends only on the
    values of the variables in scope. *)
@@ -316,30 +423,99 @@ Definition env_satisfies_coincide_statement : Prop :=
     env_satisfies tenv statics vars ->
     env_satisfies tenv statics vars'.
 
+Definition env_satisfies_strictly_coincide_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (statics : static_env) (vars vars' : env),
+    (∀ x : variable,
+      in_scope_in_terms tenv x -> lookup x vars = lookup x vars') ->
+    env_satisfies_strictly tenv statics vars ->
+    env_satisfies_strictly tenv statics vars'.
+
+(* The variables of the machine that give every name its type satisfy
+   the environment: no other valuation need be found. *)
+Definition satisfied_strictly_env_satisfies_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (statics : static_env) (vars : env),
+    bound_in_terms tenv vars ->
+    typing_env_satisfied_strictly statics vars tenv ->
+    env_satisfies_strictly tenv statics vars.
+
+Definition typing_env_satisfied_env_satisfies_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (statics : static_env) (vars : env),
+    bound_in_terms tenv vars ->
+    typing_env_satisfied statics vars tenv ->
+    env_satisfies tenv statics vars.
+
+(* ======================================================================== *)
+(* What every environment satisfies, and what none does                     *)
+(* ======================================================================== *)
+
+(* The environment that knows nothing is satisfied by everything. *)
+Definition create_satisfied_statement : Prop :=
+  ∀ (statics : static_env) (vars : env),
+    env_satisfies_strictly Typing_env.create statics vars.
+
+(* An environment that is bottom is satisfied by nothing, whatever is
+   exempt: a program point whose environment is bottom is not
+   reached. *)
+Definition bottom_not_satisfied_but_statement : Prop :=
+  ∀ (exempt : name -> Prop) (statics : static_env) (valuation : env)
+    (tenv : Typing_env.t),
+    Typing_env.is_bottom tenv = true ->
+    ~ typing_env_satisfied_but exempt statics valuation tenv.
+
+Definition bottom_not_satisfied_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (statics : static_env) (vars : env),
+    Typing_env.is_bottom tenv = true -> ~ env_satisfies tenv statics vars.
+
+Definition make_bottom_not_satisfied_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (statics : static_env) (vars : env),
+    ~ env_satisfies (Typing_env.make_bottom tenv) statics vars.
+
 (* ======================================================================== *)
 (* Looking a name up                                                        *)
 (* ======================================================================== *)
 
 (* The type that the environment gives a name is the type of its value,
-   unless that is poison, under a valuation that satisfies the
-   environment. *)
+   if it has one and is not exempt, under a valuation that satisfies
+   the environment. *)
 Definition find_satisfied_statement : Prop :=
-  ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
-    (n : name) (kind : option flambda_kind) (ty : flambda_type),
-    typing_env_satisfied statics valuation tenv ->
+  ∀ (exempt : name -> Prop) (statics : static_env) (valuation : env)
+    (tenv : Typing_env.t) (n : name) (kind : option flambda_kind)
+    (ty : flambda_type) (v : value),
+    typing_env_satisfied_but exempt statics valuation tenv ->
     Typing_env.find tenv n kind = Some ty ->
-    ∃ v : value,
-      value_of_name valuation n = Some v
-      ∧ satisfied_unless_poison statics valuation v ty.
+    value_of_name valuation n = Some v ->
+    has_type_unless (exempt n) statics valuation v ty.
 
-(* So a name whose value is not poison has the type found for it. *)
+(* Strictly: the value of a name has the type found for it. *)
+Definition find_satisfied_strictly_statement : Prop :=
+  ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
+    (n : name) (kind : option flambda_kind) (ty : flambda_type) (v : value),
+    typing_env_satisfied_strictly statics valuation tenv ->
+    Typing_env.find tenv n kind = Some ty ->
+    value_of_name valuation n = Some v ->
+    type_satisfied statics valuation v ty.
+
+(* So, strictly, a value of the alias type of a name has the type found
+   for the name: an alias may be replaced by the type of what it is an
+   alias of. *)
+Definition alias_has_type_found_statement : Prop :=
+  ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
+    (n : name) (kind : option flambda_kind) (ty : flambda_type)
+    (k : flambda_kind) (v : value),
+    typing_env_satisfied_strictly statics valuation tenv ->
+    Typing_env.find tenv n kind = Some ty ->
+    type_satisfied statics valuation v (alias_type_of k (simple_of_name n)) ->
+    type_satisfied statics valuation v ty.
+
+(* Where the names that hold poison are exempt: a name whose value is
+   not poison has the type found for it. *)
 Definition find_not_poison_statement : Prop :=
   ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
     (n : name) (kind : option flambda_kind) (ty : flambda_type) (v : value),
     typing_env_satisfied statics valuation tenv ->
     Typing_env.find tenv n kind = Some ty ->
     value_of_name valuation n = Some v ->
-    (∀ k : flambda_kind, v <> Value_const (Poison k)) ->
+    ~ is_poison v ->
     type_satisfied statics valuation v ty.
 
 (* The type found is of the kind asked for. *)
@@ -368,18 +544,32 @@ Definition in_scope_in_terms_bound_statement : Prop :=
       ∧ kind_of_value v = FlambdaTypeGrammar.kind ty.
 
 (* The type of a variable in scope is the type of the value that the
-   machine has for it, unless that is poison, if the type mentions only
-   variables in scope. (A type that mentions others is about the values
-   that the valuation gives them: [find_satisfied_statement].) *)
+   machine has for it, if the type mentions only variables in scope:
+   strictly; and where the names that hold poison are exempt, unless
+   that value is poison. (A type that mentions other variables is about
+   the values that the valuation gives them: [find_satisfied_statement].) *)
+Definition find_variable_in_terms_strictly_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (statics : static_env) (vars : env)
+    (x : variable) (kind : option flambda_kind) (ty : flambda_type)
+    (v : value),
+    env_satisfies_strictly tenv statics vars ->
+    in_scope_in_terms tenv x ->
+    Typing_env.find tenv (Name_var x) kind = Some ty ->
+    (∀ y : variable, y ∈ free_variables ty -> in_scope_in_terms tenv y) ->
+    lookup x vars = Some v ->
+    type_satisfied statics vars v ty.
+
 Definition find_variable_in_terms_statement : Prop :=
   ∀ (tenv : Typing_env.t) (statics : static_env) (vars : env)
-    (x : variable) (kind : option flambda_kind) (ty : flambda_type),
+    (x : variable) (kind : option flambda_kind) (ty : flambda_type)
+    (v : value),
     env_satisfies tenv statics vars ->
     in_scope_in_terms tenv x ->
     Typing_env.find tenv (Name_var x) kind = Some ty ->
     (∀ y : variable, y ∈ free_variables ty -> in_scope_in_terms tenv y) ->
-    ∃ v : value,
-      lookup x vars = Some v ∧ satisfied_unless_poison statics vars v ty.
+    lookup x vars = Some v ->
+    ~ is_poison v ->
+    type_satisfied statics vars v ty.
 
 (* The type of a symbol is the type of the pointer that the symbol is,
    which is not poison: it says what the static environment binds the
@@ -396,20 +586,25 @@ Definition find_symbol_in_terms_statement : Prop :=
 (* Canonical elements                                                       *)
 (* ======================================================================== *)
 
-(* The canonical element of a [Simple] has the value of the [Simple]. *)
+(* These ask only that the aliases are respected, so they hold whatever
+   is exempt. *)
+
+(* The canonical element of a [Simple] has the value of the [Simple],
+   or neither has a value. *)
 Definition canonical_ignoring_name_mode_satisfied_statement : Prop :=
-  ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
-    (s : simple),
-    typing_env_satisfied statics valuation tenv ->
+  ∀ (exempt : name -> Prop) (statics : static_env) (valuation : env)
+    (tenv : Typing_env.t) (s : simple),
+    typing_env_satisfied_but exempt statics valuation tenv ->
     eval_simple valuation
       (Typing_env.get_canonical_simple_ignoring_name_mode tenv s)
     = eval_simple valuation s.
 
 Definition get_canonical_simple_satisfied_statement : Prop :=
-  ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
+  ∀ (exempt : name -> Prop) (statics : static_env) (valuation : env)
+    (tenv : Typing_env.t)
     (min_name_mode name_mode_of_existing_simple : option Name_mode.t)
     (s canonical : simple),
-    typing_env_satisfied statics valuation tenv ->
+    typing_env_satisfied_but exempt statics valuation tenv ->
     Typing_env.get_canonical_simple_exn tenv min_name_mode
       name_mode_of_existing_simple s
     = Some (Some canonical) ->
@@ -418,30 +613,31 @@ Definition get_canonical_simple_satisfied_statement : Prop :=
 (* The canonical element of the alias that a type is: a value of the
    type is the value of that element. *)
 Definition get_alias_then_canonical_simple_satisfied_statement : Prop :=
-  ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
+  ∀ (exempt : name -> Prop) (statics : static_env) (valuation : env)
+    (tenv : Typing_env.t)
     (min_name_mode name_mode_of_existing_simple : option Name_mode.t)
     (typ : flambda_type) (canonical : simple) (v : value),
-    typing_env_satisfied statics valuation tenv ->
+    typing_env_satisfied_but exempt statics valuation tenv ->
     Typing_env.get_alias_then_canonical_simple_exn tenv min_name_mode
       name_mode_of_existing_simple typ
     = Some (Some canonical) ->
     type_satisfied statics valuation v typ ->
     eval_simple valuation canonical = Some v.
 
-(* The type of a [Simple] that occurs in a term: the [Simple] has a
-   value, of the type, and the canonical element answered has the same
-   value. *)
+(* The type of a [Simple] that occurs in a term: the canonical element
+   answered has the value of the [Simple], and that value, if there is
+   one, has the type answered. *)
 Definition type_simple_in_term_satisfied_statement : Prop :=
-  ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
-    (min_name_mode : option Name_mode.t) (s canonical : simple)
-    (ty : flambda_type),
-    typing_env_satisfied statics valuation tenv ->
+  ∀ (exempt : name -> Prop) (statics : static_env) (valuation : env)
+    (tenv : Typing_env.t) (min_name_mode : option Name_mode.t)
+    (s canonical : simple) (ty : flambda_type),
+    typing_env_satisfied_but exempt statics valuation tenv ->
     Typing_env.type_simple_in_term_exn tenv min_name_mode s
     = Some (Some (ty, canonical)) ->
     eval_simple valuation canonical = eval_simple valuation s
-    ∧ ∃ v : value,
-        eval_simple valuation s = Some v
-        ∧ type_satisfied statics valuation v ty.
+    ∧ ∀ v : value,
+        eval_simple valuation s = Some v ->
+        type_satisfied statics valuation v ty.
 
 (* In the machine: a [Simple] of a term may be replaced by the canonical
    element that the environment answers for the normal name mode. This

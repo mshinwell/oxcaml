@@ -32,7 +32,10 @@
    This file is to be reviewed with FlambdaTypingEnvSpec.v: it is there
    to show that what that file states does not hold vacuously, and what
    it says in the cases that its header singles out (a name that has no
-   value at run time, a symbol, code, poison). The proofs are in
+   value at run time, a variable that stands for nothing in a run, a
+   symbol, code, poison). An environment that is satisfied is shown to
+   be so strictly where it is; one that is not is shown not to be even
+   with the names that hold poison exempt. The proofs are in
    FlambdaTypingEnvExamplesProofs.v, which needs no review.
 
    The first example is the environment that Simplify has built when it
@@ -147,14 +150,15 @@ Definition tagged (i : Z) : value := Value_const (Tagged_immediate i).
 Definition example_env_built_statement : Prop :=
   ∃ tenv : Typing_env.t, example_env = Some tenv.
 
-(* It is satisfied by the machine where [p] holds 7 and the term has
-   run to its last line, with nothing in the static environment: the
-   code [f] of the closure is not bound there, and nothing is asked of
-   it. *)
+(* It is satisfied, strictly, by the machine where [p] holds 7 and the
+   term has run to its last line, with nothing in the static
+   environment: the code [f] of the closure is not bound there, and
+   nothing is asked of it. *)
 Definition example_env_satisfied_statement : Prop :=
   ∀ tenv : Typing_env.t,
     example_env = Some tenv ->
-    env_satisfies tenv empty_static_env (example_vars (tagged 7) (tagged 7)).
+    env_satisfies_strictly tenv empty_static_env
+      (example_vars (tagged 7) (tagged 7)).
 
 (* It is not where [p] holds 9, which is not of its type... *)
 Definition example_env_wrong_type_statement : Prop :=
@@ -188,8 +192,9 @@ Definition example_env_canonical_statement : Prop :=
 
 (* Poison. Where [p] holds poison, as a parameter that stands for a
    field of an inactive case of a variant does, nothing is asked of its
-   type: the environment is satisfied where the other names hold what
-   they must, the same poison... *)
+   type if the names that hold poison are exempt: the environment is
+   satisfied where the other names hold what they must, the same
+   poison... *)
 Definition poison (k : flambda_kind) : value := Value_const (Poison k).
 
 Definition example_env_poison_statement : Prop :=
@@ -197,6 +202,29 @@ Definition example_env_poison_statement : Prop :=
     example_env = Some tenv ->
     env_satisfies tenv empty_static_env
       (example_vars (poison Value) (poison Value)).
+
+(* ... but not strictly... *)
+Definition example_env_poison_not_strictly_statement : Prop :=
+  ∀ tenv : Typing_env.t,
+    example_env = Some tenv ->
+    ~ env_satisfies_strictly tenv empty_static_env
+        (example_vars (poison Value) (poison Value)).
+
+(* ... and there the statements about types are not to be had: poison
+   has the alias type of [p], and has not the type that the environment
+   finds for [p]. So an alias to an exempt name may not be replaced by
+   the type of the name. *)
+Definition example_env_poison_alias_type_statement : Prop :=
+  ∀ tenv : Typing_env.t,
+    example_env = Some tenv ->
+    type_satisfied empty_static_env
+      (example_vars (poison Value) (poison Value)) (poison Value)
+      (alias_type_of Value (Var example_p))
+    ∧ Typing_env.find tenv (Name_var example_p) None
+      = Some (these_tagged_immediates [7; 8])
+    ∧ ~ type_satisfied empty_static_env
+          (example_vars (poison Value) (poison Value)) (poison Value)
+          (these_tagged_immediates [7; 8]).
 
 (* ... and is not where [y], an alias of [p], holds something else: the
    aliases are exact, poison or not... *)
@@ -248,12 +276,13 @@ Definition example_body_env_scope_statement : Prop :=
     ∧ ~ in_scope_in_terms tenv example_p
     ∧ in_scope_in_terms tenv example_my_closure.
 
-(* The environment is satisfied where the value slot of the closure
-   called holds 7: the valuation gives [p] that value... *)
+(* The environment is satisfied, strictly, where the value slot of the
+   closure called holds 7: the valuation gives [p] that value... *)
 Definition example_body_env_satisfied_statement : Prop :=
   ∀ tenv : Typing_env.t,
     example_body_env = Some tenv ->
-    env_satisfies tenv empty_static_env (example_body_vars (tagged 7)).
+    env_satisfies_strictly tenv empty_static_env
+      (example_body_vars (tagged 7)).
 
 (* ... and is not where it holds 9: [p] would have to be 9, as the slot
    is, and its type says 7 or 8. So what is known of a variable that is
@@ -262,6 +291,63 @@ Definition example_body_env_wrong_slot_statement : Prop :=
   ∀ tenv : Typing_env.t,
     example_body_env = Some tenv ->
     ~ env_satisfies tenv empty_static_env (example_body_vars (tagged 9)).
+
+(* ======================================================================== *)
+(* A variable that stands for nothing in a run                              *)
+(* ======================================================================== *)
+
+(* The environment of the handler of a continuation with one parameter
+   [q], which one use calls with the immediate 0 and another with a
+   block of tag 0 whose one field is a variable bound at that use,
+   known there to be the tagged immediate 4. The join makes that
+   variable existential, [e], with its type, and gives [q] the type
+   "the immediate 0, or a block of tag 0 whose field is [e]". *)
+Definition example_q : variable := 6%positive.
+Definition example_e : variable := 7%positive.
+
+Definition example_join_type : flambda_type :=
+  create_variant false
+    (Or_unknown.Known (these_naked_immediates [0]))
+    (Or_unknown.Known
+       (row_like_for_blocks_create_exactly 0 1 (Scannable Value_only)
+          [alias_type_of Value (Var example_e)] Alloc_mode.Heap))
+    No_extensions.
+
+Definition example_join_env : Typing_env.t :=
+  let tenv := Typing_env.create in
+  let tenv :=
+    Typing_env.add_variable_definition tenv example_q Value Name_mode.normal
+  in
+  let tenv :=
+    Typing_env.add_variable_definition tenv example_e Value
+      Name_mode.in_types
+  in
+  let tenv :=
+    Typing_env.replace_equation tenv (Name_var example_e)
+      (these_tagged_immediates [4])
+  in
+  Typing_env.replace_equation tenv (Name_var example_q) example_join_type.
+
+(* In a run that comes through the first use, [q] holds 0 and [e]
+   stands for nothing: the environment is satisfied, strictly, by the
+   valuation that gives [e] no value. (Here a value of the type of [e]
+   exists and would do as well; in general none need exist in such a
+   run.) *)
+Definition example_join_env_immediate_statement : Prop :=
+  env_satisfies_strictly example_join_env empty_static_env
+    [(example_q, tagged 0)].
+
+(* In a run that comes through the second, [q] holds a block whose
+   field is 4, and the valuation gives [e] that value... *)
+Definition example_join_env_block_statement : Prop :=
+  env_satisfies_strictly example_join_env empty_static_env
+    [(example_q, Value_block 0 [tagged 4])].
+
+(* ... and the environment is not satisfied where the field is 5: [e]
+   would have to be 5, as the field is, and its type says 4. *)
+Definition example_join_env_wrong_block_statement : Prop :=
+  ~ env_satisfies example_join_env empty_static_env
+      [(example_q, Value_block 0 [tagged 5])].
 
 (* ======================================================================== *)
 (* A symbol                                                                 *)
@@ -274,7 +360,7 @@ Definition example_s : symbol := 1%positive.
    environment binds it to, or does not. *)
 Definition example_defined_symbol_statement : Prop :=
   ∀ (statics : static_env) (vars : env),
-    env_satisfies
+    env_satisfies_strictly
       (Typing_env.add_symbol_definition Typing_env.create example_s) statics
       vars.
 
@@ -290,7 +376,7 @@ Definition example_symbol_env : Typing_env.t :=
 (* It is satisfied where the static environment binds the symbol to such
    a block, and not where it does not bind it. *)
 Definition example_symbol_env_satisfied_statement : Prop :=
-  env_satisfies example_symbol_env
+  env_satisfies_strictly example_symbol_env
     (Static_env [] [(example_s, Static_block 0 [tagged 1])]) [].
 
 Definition example_symbol_env_unbound_statement : Prop :=

@@ -121,22 +121,23 @@ Proof.
       exact (Hconsts k aliases n mode Haliases Hmode).
 Qed.
 
-Lemma example_env_typing_env_satisfied (tenv : Typing_env.t) (vp : value) :
+Lemma example_env_typing_env_satisfied (exempt : name -> Prop)
+    (tenv : Typing_env.t) (vp : value) :
   example_env = Some tenv ->
-  satisfied_unless_poison empty_static_env (example_vars vp vp) vp
-    (these_tagged_immediates [7; 8]) ->
-  typing_env_satisfied empty_static_env (example_vars vp vp) tenv.
+  has_type_unless (exempt (Name_var example_p)) empty_static_env
+    (example_vars vp vp) vp (these_tagged_immediates [7; 8]) ->
+  typing_env_satisfied_but exempt empty_static_env (example_vars vp vp) tenv.
 Proof.
   intros Henv Hp. vm_compute in Henv. injection Henv as <-.
   assert (Hkind : kind_of_value vp = Value)
-    by exact (satisfied_unless_poison_kind _ _ _ _ Hp).
+    by exact (has_type_unless_kind _ _ _ _ _ Hp).
   split; [ reflexivity | ]. split.
-  - intros n ty btm Hlookup.
+  - intros n ty btm v Hlookup Hvalue.
     apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
     simpl in Hlookup.
     repeat (destruct Hlookup as [Hlookup | Hlookup];
             [ injection Hlookup as <- <- <- | ]); [ .. | contradiction ].
-    all: eexists; (split; [ reflexivity | ]).
+    all: cbv in Hvalue; injection Hvalue as <-.
     all: try (right; apply (proj2 (unknown_satisfied _ _ _ Value));
               first [ exact Hkind | reflexivity ]).
     + right. apply (proj2 (alias_satisfied _ _ _ Value (Var example_p))).
@@ -159,51 +160,94 @@ Proof.
     + intros k aliases n mode Hin. destruct Hin.
 Qed.
 
+(* The machine at the last line binds the four variables. *)
+Lemma example_env_bound (tenv : Typing_env.t) (vp vy : value) :
+  example_env = Some tenv ->
+  bound_in_terms tenv (example_vars vp vy).
+Proof.
+  intros Henv x Hscope. vm_compute in Henv. injection Henv as <-.
+  apply in_scope_in_terms_lookup in Hscope.
+  destruct Hscope as [ty [btm [Hlookup _]]].
+  apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
+  simpl in Hlookup.
+  repeat (destruct Hlookup as [Hlookup | Hlookup];
+          [ injection Hlookup as <- <- <- | ]); [ .. | contradiction ];
+    eexists; reflexivity.
+Qed.
 
 Theorem example_env_built : example_env_built_statement.
 Proof. eexists. vm_compute. reflexivity. Qed.
 
 Lemma tagged_7_or_8 (statics : static_env) (vars : env) :
-  satisfied_unless_poison statics vars (tagged 7)
-    (these_tagged_immediates [7; 8]).
+  type_satisfied statics vars (tagged 7) (these_tagged_immediates [7; 8]).
 Proof.
-  right. apply these_tagged_immediates_satisfied. exists 7.
+  apply these_tagged_immediates_satisfied. exists 7.
   split; [ reflexivity | left; reflexivity ].
 Qed.
 
 Theorem example_env_satisfied : example_env_satisfied_statement.
 Proof.
-  intros tenv Henv. apply typing_env_satisfied_env_satisfies.
-  apply example_env_typing_env_satisfied; [ exact Henv | ].
-  apply tagged_7_or_8.
+  intros tenv Henv. apply satisfied_strictly_env_satisfies.
+  - exact (example_env_bound tenv _ _ Henv).
+  - apply example_env_typing_env_satisfied; [ exact Henv | ].
+    right. apply tagged_7_or_8.
 Qed.
 
 Theorem example_env_poison : example_env_poison_statement.
 Proof.
   intros tenv Henv. apply typing_env_satisfied_env_satisfies.
-  apply example_env_typing_env_satisfied; [ exact Henv | ].
-  left. reflexivity.
+  - exact (example_env_bound tenv _ _ Henv).
+  - apply (example_env_typing_env_satisfied
+             (holds_poison (example_vars (poison Value) (poison Value))));
+      [ exact Henv | ].
+    left. split; [ | reflexivity ].
+    exists (poison Value). split; [ reflexivity | ].
+    exists Value. reflexivity.
 Qed.
 
-(* A tagged immediate that is neither 7 nor 8 is not what is asked of
-   the value of [p]. *)
-Lemma tagged_not_7_or_8 (statics : static_env) (vars : env) (i : Z) :
-  i <> 7 -> i <> 8 ->
-  ~ satisfied_unless_poison statics vars (tagged i)
-      (these_tagged_immediates [7; 8]).
+(* A value that is not the tagged immediate 7 or 8 has not the type of
+   [p]. *)
+Lemma not_tagged_7_or_8 (statics : static_env) (vars : env) (v : value) :
+  v <> tagged 7 -> v <> tagged 8 ->
+  ~ type_satisfied statics vars v (these_tagged_immediates [7; 8]).
 Proof.
-  intros H7 H8 [Hpoison | Hty]; [ discriminate | ].
+  intros H7 H8 Hty.
   apply these_tagged_immediates_satisfied in Hty.
-  destruct Hty as [j [[= <-] [<- | [<- | []]]]]; congruence.
+  destruct Hty as [j [-> [<- | [<- | []]]]]; [ apply H7 | apply H8 ];
+    reflexivity.
+Qed.
+
+Theorem example_env_poison_not_strictly
+    : example_env_poison_not_strictly_statement.
+Proof.
+  intros tenv Henv Hsatisfies. vm_compute in Henv. injection Henv as <-.
+  apply (not_tagged_7_or_8 empty_static_env
+           (example_vars (poison Value) (poison Value)) (poison Value));
+    [ discriminate | discriminate | ].
+  apply (find_variable_in_terms_strictly _ _ _ example_p None _ _ Hsatisfies
+           eq_refl eq_refl); [ intros y [] | reflexivity ].
+Qed.
+
+Theorem example_env_poison_alias_type
+    : example_env_poison_alias_type_statement.
+Proof.
+  intros tenv Henv. vm_compute in Henv. injection Henv as <-.
+  split; [ | split ].
+  - apply (proj2 (alias_satisfied _ _ _ Value (Var example_p))).
+    split; reflexivity.
+  - reflexivity.
+  - apply not_tagged_7_or_8; discriminate.
 Qed.
 
 Theorem example_env_wrong_type : example_env_wrong_type_statement.
 Proof.
   intros tenv Henv Hsatisfies. vm_compute in Henv. injection Henv as <-.
-  destruct (find_variable_in_terms _ _ _ example_p None _ Hsatisfies
-              eq_refl eq_refl) as [v [[= <-] Hty]].
-  - intros y [].
-  - revert Hty. apply tagged_not_7_or_8; discriminate.
+  apply (not_tagged_7_or_8 empty_static_env
+           (example_vars (tagged 9) (tagged 9)) (tagged 9));
+    [ discriminate | discriminate | ].
+  apply (find_variable_in_terms _ _ _ example_p None _ _ Hsatisfies eq_refl
+           eq_refl); [ intros y [] | reflexivity | ].
+  intros [k Hpoison]. discriminate.
 Qed.
 
 Theorem example_env_canonical : example_env_canonical_statement.
@@ -280,67 +324,75 @@ Definition example_body_valuation (v : value) : env :=
 
 Theorem example_body_env_satisfied : example_body_env_satisfied_statement.
 Proof.
-  intros tenv Henv. vm_compute in Henv. injection Henv as <-.
-  exists (example_body_valuation (tagged 7)). split.
-  - split; [ reflexivity | ]. split.
-    + intros n ty btm Hlookup.
-      apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
-      simpl in Hlookup.
-      repeat (destruct Hlookup as [Hlookup | Hlookup];
-              [ injection Hlookup as <- <- <- | ]); [ .. | contradiction ].
-      all: eexists; (split; [ reflexivity | ]).
-      all: try (right; apply (proj2 (unknown_satisfied _ _ _ Value));
-                reflexivity).
-      * right. apply (proj2 (alias_satisfied _ _ _ Value (Var example_c))).
-        split; reflexivity.
-      * right. apply (proj2 (alias_satisfied _ _ _ Value (Var example_p))).
-        split; reflexivity.
-      * right. apply example_closure_type_satisfied; reflexivity.
-      * right. apply (proj2 (alias_satisfied _ _ _ Value (Var example_p))).
-        split; reflexivity.
-      * apply tagged_7_or_8.
-    + apply aliases_respected_of_bindings.
-      * intros n c Hin. simpl in Hin.
-        repeat (destruct Hin as [Hin | Hin]; [ injection Hin as <- <- | ]);
-          [ .. | contradiction ]; reflexivity.
-      * intros c aliases n mode Hin Hmode. simpl in Hin.
-        repeat (destruct Hin as [Hin | Hin]; [ injection Hin as <- <- | ]);
-          [ .. | contradiction ]; simpl in Hmode.
-        all: repeat (destruct Hmode as [Hmode | Hmode];
-                     [ injection Hmode as <- <- | ]);
-          [ .. | contradiction ]; reflexivity.
-      * intros k aliases n mode Hin. destruct Hin.
-  - (* Only the closure called is in scope. *)
+  intros tenv Henv. vm_compute in Henv. injection Henv as <-. split.
+  - (* Only the closure called is in scope, and the machine binds it. *)
     intros x Hscope. apply in_scope_in_terms_lookup in Hscope.
     destruct Hscope as [ty [btm [Hlookup Hmode]]].
     apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
     simpl in Hlookup.
     repeat (destruct Hlookup as [Hlookup | Hlookup];
             [ injection Hlookup as <- <- <- | ]); [ .. | contradiction ];
-      first [ reflexivity | discriminate ].
+      first [ discriminate | eexists; reflexivity ].
+  - exists (example_body_valuation (tagged 7)). split.
+    + split; [ reflexivity | ]. split.
+      * intros n ty btm v Hlookup Hvalue.
+        apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
+        simpl in Hlookup.
+        repeat (destruct Hlookup as [Hlookup | Hlookup];
+                [ injection Hlookup as <- <- <- | ]); [ .. | contradiction ].
+        all: cbv in Hvalue; injection Hvalue as <-.
+        all: try (right; apply (proj2 (unknown_satisfied _ _ _ Value));
+                  reflexivity).
+        -- right. apply (proj2 (alias_satisfied _ _ _ Value (Var example_c))).
+           split; reflexivity.
+        -- right. apply (proj2 (alias_satisfied _ _ _ Value (Var example_p))).
+           split; reflexivity.
+        -- right. apply example_closure_type_satisfied; reflexivity.
+        -- right. apply (proj2 (alias_satisfied _ _ _ Value (Var example_p))).
+           split; reflexivity.
+        -- right. apply tagged_7_or_8.
+      * apply aliases_respected_of_bindings.
+        -- intros n c Hin. simpl in Hin.
+           repeat (destruct Hin as [Hin | Hin]; [ injection Hin as <- <- | ]);
+             [ .. | contradiction ]; reflexivity.
+        -- intros c aliases n mode Hin Hmode. simpl in Hin.
+           repeat (destruct Hin as [Hin | Hin]; [ injection Hin as <- <- | ]);
+             [ .. | contradiction ]; simpl in Hmode.
+           all: repeat (destruct Hmode as [Hmode | Hmode];
+                        [ injection Hmode as <- <- | ]);
+             [ .. | contradiction ]; reflexivity.
+        -- intros k aliases n mode Hin. destruct Hin.
+    + (* The valuation agrees with the machine on the closure called. *)
+      intros x Hscope. apply in_scope_in_terms_lookup in Hscope.
+      destruct Hscope as [ty [btm [Hlookup Hmode]]].
+      apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
+      simpl in Hlookup.
+      repeat (destruct Hlookup as [Hlookup | Hlookup];
+              [ injection Hlookup as <- <- <- | ]); [ .. | contradiction ];
+        first [ reflexivity | discriminate ].
 Qed.
 
 Theorem example_body_env_wrong_slot : example_body_env_wrong_slot_statement.
 Proof.
-  intros tenv Henv [valuation [Hsatisfied Hagrees]].
+  intros tenv Henv [_ [valuation [Hsatisfied Hagrees]]].
   vm_compute in Henv. injection Henv as <-.
   (* The valuation gives the closure called the value that the machine
      has for it... *)
   pose proof (Hagrees example_my_closure eq_refl) as Hclosure.
   cbv -[lookup] in Hclosure. cbn in Hclosure.
   (* ... which is the value of [c], its canonical element... *)
-  pose proof (canonical_ignoring_name_mode_satisfied _ valuation _
+  pose proof (canonical_ignoring_name_mode_satisfied _ _ valuation _
                 (Var example_my_closure) Hsatisfied) as Hc.
   cbv -[lookup] in Hc. rewrite Hclosure in Hc.
   (* ... and so has the type of [c], which makes [p] the contents of
      its value slot. *)
-  destruct (find_satisfied _ valuation _ (Name_var example_c) None _
-              Hsatisfied eq_refl) as [v [Hv Hty]].
-  cbv -[lookup] in Hv. rewrite Hc in Hv. injection Hv as <-.
-  destruct Hty as [Hpoison | Hty]; [ discriminate | ].
-  change (type_satisfied empty_static_env valuation
-            (Value_closure example_f [(example_w, tagged 9)])
-            example_closure_type) in Hty.
+  assert (Hty :
+    type_satisfied empty_static_env valuation
+      (Value_closure example_f [(example_w, tagged 9)])
+      example_closure_type).
+  { apply (find_not_poison empty_static_env valuation _ (Name_var example_c)
+             None _ _ Hsatisfied eq_refl); [ exact Hc | ].
+    intros [k Hpoison]. discriminate. }
   apply exactly_this_closure_satisfied in Hty.
   destruct Hty as [functions [value_slots [[= <- <-] [_ [_ Hentry]]]]].
   apply closures_entry_lookup_iff in Hentry.
@@ -349,10 +401,131 @@ Proof.
   apply (proj1 (alias_satisfied _ _ _ Value (Var example_p))) in Hslots.
   destruct Hslots as [Hp _].
   (* But [p] is 7 or 8. *)
-  destruct (find_satisfied _ valuation _ (Name_var example_p) None _
-              Hsatisfied eq_refl) as [v [Hv Hty]].
-  cbv -[lookup] in Hv, Hp. rewrite Hp in Hv. injection Hv as <-.
-  revert Hty. apply tagged_not_7_or_8; discriminate.
+  apply (not_tagged_7_or_8 empty_static_env valuation (tagged 9));
+    [ discriminate | discriminate | ].
+  apply (find_not_poison empty_static_env valuation _ (Name_var example_p)
+           None _ _ Hsatisfied eq_refl); [ exact Hp | ].
+  intros [k Hpoison]. discriminate.
+Qed.
+
+(* ======================================================================== *)
+(* A variable that stands for nothing in a run                              *)
+(* ======================================================================== *)
+
+(* The immediate 0 has the type of [q], whatever [e] is. *)
+Lemma example_join_type_immediate (vars : env) :
+  type_satisfied empty_static_env vars (tagged 0) example_join_type.
+Proof.
+  apply create_variant_satisfied. left. exists 0.
+  split; [ reflexivity | ]. split; [ | exact I ].
+  apply (proj2 (these_naked_immediates_satisfied _ _ _ [0])). exists 0.
+  split; [ reflexivity | left; reflexivity ].
+Qed.
+
+(* A block has the type of [q] when it has the type of the blocks of
+   tag 0 whose one field is [e]. *)
+Lemma example_join_type_block (vars : env) (v : value) :
+  type_satisfied empty_static_env vars (Value_block 0 [v]) example_join_type
+  <-> type_satisfied empty_static_env vars (Value_block 0 [v])
+        (immutable_block false 0 (Scannable Value_only) Alloc_mode.Heap
+           [alias_type_of Value (Var example_e)]).
+Proof.
+  unfold example_join_type, immutable_block. split; intros Hty.
+  - apply create_variant_satisfied in Hty. apply create_variant_satisfied.
+    destruct Hty as [[i [Hi _]] | Hblock];
+      [ discriminate | right; exact Hblock ].
+  - apply create_variant_satisfied in Hty. apply create_variant_satisfied.
+    destruct Hty as [[i [Hi _]] | Hblock];
+      [ discriminate | right; exact Hblock ].
+Qed.
+
+(* Only [q] is in scope. *)
+Lemma example_join_env_scope (x : variable) :
+  in_scope_in_terms example_join_env x -> x = example_q.
+Proof.
+  intros Hscope. apply in_scope_in_terms_lookup in Hscope.
+  destruct Hscope as [ty [btm [Hlookup Hmode]]].
+  apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
+  vm_compute in Hlookup.
+  repeat (destruct Hlookup as [Hlookup | Hlookup];
+          [ injection Hlookup as <- <- <- | ]); [ .. | contradiction ];
+    first [ reflexivity | discriminate ].
+Qed.
+
+Theorem example_join_env_immediate : example_join_env_immediate_statement.
+Proof.
+  apply satisfied_strictly_env_satisfies.
+  - intros x Hscope. apply example_join_env_scope in Hscope. subst x.
+    eexists. reflexivity.
+  - split; [ reflexivity | ]. split; [ | apply empty_respected ].
+    intros n ty btm v Hlookup Hvalue.
+    apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
+    vm_compute in Hlookup.
+    repeat (destruct Hlookup as [Hlookup | Hlookup];
+            [ injection Hlookup as <- <- <- | ]); [ .. | contradiction ].
+    all: cbv in Hvalue; try discriminate; injection Hvalue as <-; right.
+    all: try (apply (proj2 (unknown_satisfied _ _ _ Value)); reflexivity).
+    apply example_join_type_immediate.
+Qed.
+
+Theorem example_join_env_block : example_join_env_block_statement.
+Proof.
+  split.
+  - intros x Hscope. apply example_join_env_scope in Hscope. subst x.
+    eexists. reflexivity.
+  - exists [(example_e, tagged 4); (example_q, Value_block 0 [tagged 4])].
+    split.
+    + split; [ reflexivity | ]. split; [ | apply empty_respected ].
+      intros n ty btm v Hlookup Hvalue.
+      apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
+      vm_compute in Hlookup.
+      repeat (destruct Hlookup as [Hlookup | Hlookup];
+              [ injection Hlookup as <- <- <- | ]); [ .. | contradiction ].
+      all: cbv in Hvalue; injection Hvalue as <-; right.
+      all: try (apply (proj2 (unknown_satisfied _ _ _ Value)); reflexivity).
+      * apply (proj2 (example_join_type_block _ (tagged 4))).
+        apply immutable_block_satisfied. exists [tagged 4].
+        split; [ reflexivity | ]. split; [ split; reflexivity | ].
+        constructor; [ | constructor ].
+        apply (proj2 (alias_satisfied _ _ _ Value (Var example_e))).
+        split; reflexivity.
+      * apply (proj2 (these_tagged_immediates_satisfied _ _ _ [4])).
+        exists 4. split; [ reflexivity | left; reflexivity ].
+    + intros x Hscope. apply example_join_env_scope in Hscope. subst x.
+      reflexivity.
+Qed.
+
+Theorem example_join_env_wrong_block
+    : example_join_env_wrong_block_statement.
+Proof.
+  intros [_ [valuation [Hsatisfied Hagrees]]].
+  (* The valuation gives [q] the block that the machine has... *)
+  pose proof (Hagrees example_q eq_refl) as Hq.
+  cbv -[lookup] in Hq. cbn in Hq.
+  (* ... which has the type of [q], so that [e] is its field... *)
+  assert (Hty :
+    type_satisfied empty_static_env valuation (Value_block 0 [tagged 5])
+      example_join_type).
+  { apply (find_not_poison empty_static_env valuation example_join_env
+             (Name_var example_q) None _ _ Hsatisfied eq_refl);
+      [ exact Hq | ].
+    intros [k Hpoison]. discriminate. }
+  apply example_join_type_block in Hty.
+  apply immutable_block_satisfied in Hty.
+  destruct Hty as [fields [[= <-] [_ Hfields]]].
+  inversion Hfields as [ | field ty fields' tys Halias _ ]; subst.
+  apply (proj1 (alias_satisfied _ _ _ Value (Var example_e))) in Halias.
+  destruct Halias as [He _].
+  (* ... and [e] is 4. *)
+  assert (Hty :
+    type_satisfied empty_static_env valuation (tagged 5)
+      (these_tagged_immediates [4])).
+  { apply (find_not_poison empty_static_env valuation example_join_env
+             (Name_var example_e) None _ _ Hsatisfied eq_refl);
+      [ exact He | ].
+    intros [k Hpoison]. discriminate. }
+  apply these_tagged_immediates_satisfied in Hty.
+  destruct Hty as [i [[= <-] [Hi | []]]]. discriminate.
 Qed.
 
 (* ======================================================================== *)
@@ -361,26 +534,28 @@ Qed.
 
 Theorem example_defined_symbol : example_defined_symbol_statement.
 Proof.
-  intros statics vars. apply typing_env_satisfied_env_satisfies.
-  split; [ reflexivity | ]. split.
-  - intros n ty btm Hlookup. discriminate.
-  - apply empty_respected.
+  intros statics vars. apply satisfied_strictly_env_satisfies.
+  - intros x Hscope. discriminate.
+  - split; [ reflexivity | ]. split.
+    + intros n ty btm v Hlookup. discriminate.
+    + apply empty_respected.
 Qed.
 
 Theorem example_symbol_env_satisfied : example_symbol_env_satisfied_statement.
 Proof.
-  apply typing_env_satisfied_env_satisfies.
-  split; [ reflexivity | ]. split.
-  - intros n ty btm Hlookup.
-    apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
-    destruct Hlookup as [[= <- <- <-] | []].
-    exists (Value_symbol example_s). split; [ reflexivity | ].
-    right. apply immutable_block_satisfied. exists [tagged 1].
-    split; [ reflexivity | ]. split; [ split; reflexivity | ].
-    constructor; [ | constructor ].
-    apply (proj2 (these_tagged_immediates_satisfied _ _ _ [1])). exists 1.
-    split; [ reflexivity | left; reflexivity ].
-  - apply empty_respected.
+  apply satisfied_strictly_env_satisfies.
+  - intros x Hscope. discriminate.
+  - split; [ reflexivity | ]. split.
+    + intros n ty btm v Hlookup Hvalue.
+      apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
+      destruct Hlookup as [[= <- <- <-] | []].
+      injection Hvalue as <-.
+      right. apply immutable_block_satisfied. exists [tagged 1].
+      split; [ reflexivity | ]. split; [ split; reflexivity | ].
+      constructor; [ | constructor ].
+      apply (proj2 (these_tagged_immediates_satisfied _ _ _ [1])). exists 1.
+      split; [ reflexivity | left; reflexivity ].
+    + apply empty_respected.
 Qed.
 
 Theorem example_symbol_env_unbound : example_symbol_env_unbound_statement.
