@@ -73,13 +73,24 @@
    - [rewrite_code], which takes a rewrite into the bodies of code: it
      is equivariant when the rewrite it is given is.
 
+   Those of FlambdaUnusedContsSpec.v: the check [cont_free_b] and the
+   rewrite [remove_unused_conts].
+
+   Those of FlambdaUnusedStaticsSpec.v, where the names given are
+   symbols and code ids: the checks [expr_avoids] and
+   [binds_only_kept], the rewrite [erase_expr], and [drop_statics],
+   which is the two together; and the condition on the environments
+   under which that rewrite is sound ([envs_free_of]).
+
    Nothing is trusted here. The proofs are in
    FlambdaValidatorEquivarianceProofs.v, which needs no review. *)
 
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec FlambdaNominalSpec FlambdaNormaliseSpec.
+  FlambdaSemanticsSpec FlambdaNominalSpec FlambdaAlphaSpec
+  FlambdaNormaliseSpec FlambdaEquivarianceSpec FlambdaUnusedContsSpec
+  FlambdaUnusedStaticsSpec.
 Import ListNotations.
 
 (* A rewrite of terms that takes nothing but the term commutes with
@@ -176,3 +187,49 @@ Definition thread_switches_equivariant_statement : Prop :=
 Definition rewrite_code_equivariant_statement : Prop :=
   ∀ f : expr -> expr,
     rewrite_equivariant f -> rewrite_equivariant (rewrite_code f).
+
+(* ======================================================================== *)
+(* FlambdaUnusedContsSpec.v                                                 *)
+(* ======================================================================== *)
+
+Definition cont_free_b_equivariant_statement : Prop :=
+  ∀ (r : renaming) (k : continuation) (e : expr),
+    cont_free_b (rename_continuation r k) (rename_expr r e) = cont_free_b k e.
+
+Definition remove_unused_conts_equivariant_statement : Prop :=
+  rewrite_equivariant remove_unused_conts.
+
+(* ======================================================================== *)
+(* FlambdaUnusedStaticsSpec.v                                               *)
+(* ======================================================================== *)
+
+(* The names removed are symbols and code ids, which no renaming moves:
+   the argument that holds them is as it was. *)
+Definition expr_avoids_equivariant_statement : Prop :=
+  ∀ (r : renaming) (D : dropped) (e : expr),
+    expr_avoids D (rename_expr r e) = expr_avoids D e.
+
+Definition erase_expr_equivariant_statement : Prop :=
+  ∀ D : dropped, rewrite_equivariant (erase_expr D).
+
+(* Where the names given may not be removed from the one term they may
+   not be from the other. *)
+Definition drop_statics_equivariant_statement : Prop :=
+  ∀ (r : renaming) (D : dropped) (e : expr),
+    drop_statics D (rename_expr r e)
+    = option_map (rename_expr r) (drop_statics D e).
+
+Definition binds_only_kept_equivariant_statement : Prop :=
+  ∀ (r : renaming) (D : dropped) (e : expr),
+    binds_only_kept D (rename_expr r e) = binds_only_kept D e.
+
+(* The condition on the environments under which removing static
+   bindings is sound (the premise of
+   FlambdaUnusedStaticsSpec.drop_statics_refines_statement), with the
+   action of FlambdaEquivarianceSpec.v on what a state holds. *)
+Definition envs_free_of_equivariant_statement : Prop :=
+  ∀ (r : renaming) (D : dropped) (vars : env) (conts : cont_env)
+    (statics : static_env),
+    envs_free_of D (rename_env r vars) (rename_cont_env r conts)
+      (rename_static_env r statics)
+    = envs_free_of D vars conts statics.

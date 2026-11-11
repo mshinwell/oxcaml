@@ -42,7 +42,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
   FlambdaNominalSpec FlambdaNominalProofs FlambdaAlphaSpec FlambdaAlphaProofs
   FlambdaApplySpec FlambdaNormaliseSpec FlambdaEquivarianceSpec
-  FlambdaEquivarianceProofs FlambdaValidatorEquivarianceSpec.
+  FlambdaEquivarianceProofs FlambdaUnusedContsSpec FlambdaUnusedStaticsSpec
+  FlambdaValidatorEquivarianceSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -766,4 +767,309 @@ Theorem rewrite_code_equivariant : rewrite_code_equivariant_statement.
 Proof.
   intros f f_equivariant r e.
   apply rewrite_code_equivariant_aux, f_equivariant.
+Qed.
+
+(* ======================================================================== *)
+(* FlambdaUnusedContsSpec.v                                                 *)
+(* ======================================================================== *)
+
+Fixpoint cont_free_b_equivariant_aux (r : renaming) (k : continuation)
+    (e : expr) :
+  cont_free_b (rename_continuation r k) (rename_expr r e) = cont_free_b k e
+with cont_free_in_handler_b_equivariant (r : renaming) (k : continuation)
+    (h : continuation_handler) :
+  cont_free_in_handler_b (rename_continuation r k) (rename_handler r h)
+  = cont_free_in_handler_b k h.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | bound h body | handlers body | ap
+         | ac | scrutinee arms | ];
+      simpl.
+    + apply cont_free_b_equivariant_aux.
+    + apply cont_free_b_equivariant_aux.
+    + rewrite cont_free_in_handler_b_equivariant, rename_continuation_eqb,
+        cont_free_b_equivariant_aux.
+      reflexivity.
+    + rewrite cont_free_b_equivariant_aux. f_equal.
+      induction handlers as [ | [k' h] handlers IH]; simpl; [ reflexivity | ].
+      rewrite (cont_free_in_handler_b_equivariant r k h), IH. reflexivity.
+    + rewrite !rename_continuation_eqb. reflexivity.
+    + apply rename_continuation_eqb.
+    + apply existsb_map_with. intros arm. apply rename_continuation_eqb.
+    + reflexivity.
+  - destruct h as [params metadata handler]. simpl.
+    apply cont_free_b_equivariant_aux.
+Qed.
+
+Theorem cont_free_b_equivariant : cont_free_b_equivariant_statement.
+Proof. exact cont_free_b_equivariant_aux. Qed.
+
+Fixpoint remove_unused_conts_equivariant_aux (r : renaming) (e : expr) :
+  remove_unused_conts (rename_expr r e)
+  = rename_expr r (remove_unused_conts e)
+with remove_unused_conts_in_handler_equivariant (r : renaming)
+    (h : continuation_handler) :
+  remove_unused_conts_in_handler (rename_handler r h)
+  = rename_handler r (remove_unused_conts_in_handler h).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      simpl; try reflexivity.
+    + rewrite remove_unused_conts_equivariant_aux. reflexivity.
+    + rewrite remove_unused_conts_equivariant_aux. reflexivity.
+    + rewrite remove_unused_conts_equivariant_aux,
+        cont_free_b_equivariant_aux,
+        remove_unused_conts_in_handler_equivariant.
+      destruct (cont_free_b k (remove_unused_conts body)); reflexivity.
+    + rewrite remove_unused_conts_equivariant_aux. reflexivity.
+  - destruct h as [params metadata handler]. simpl.
+    rewrite remove_unused_conts_equivariant_aux. reflexivity.
+Qed.
+
+Theorem remove_unused_conts_equivariant :
+  remove_unused_conts_equivariant_statement.
+Proof. exact remove_unused_conts_equivariant_aux. Qed.
+
+(* ======================================================================== *)
+(* FlambdaUnusedStaticsSpec.v                                               *)
+(* ======================================================================== *)
+
+Section Dropped.
+
+Variable D : dropped.
+
+Lemma simple_avoids_renamed (r : renaming) (s : simple) :
+  simple_avoids D (rename_simple r s) = simple_avoids D s.
+Proof. destruct s; reflexivity. Qed.
+
+Lemma simples_avoid_renamed (r : renaming) (args : list simple) :
+  simples_avoid D (map (rename_simple r) args) = simples_avoid D args.
+Proof.
+  unfold simples_avoid. apply forallb_map_with. apply simple_avoids_renamed.
+Qed.
+
+Lemma value_slots_avoid_renamed (r : renaming)
+    (slots : list (value_slot * simple)) :
+  value_slots_avoid D
+    (map (fun slot => (fst slot, rename_simple r (snd slot))) slots)
+  = value_slots_avoid D slots.
+Proof.
+  unfold value_slots_avoid. apply forallb_map_with. intros slot.
+  apply simple_avoids_renamed.
+Qed.
+
+Lemma named_avoids_renamed (r : renaming) (d : named) :
+  named_avoids D (rename_named r d) = named_avoids D d.
+Proof.
+  destruct d; simpl;
+    rewrite ?value_slots_avoid_renamed, ?simples_avoid_renamed,
+      ?simple_avoids_renamed;
+    reflexivity.
+Qed.
+
+Lemma static_const_avoids_renamed (r : renaming) (const : static_const) :
+  static_const_avoids D (rename_static_const r const)
+  = static_const_avoids D const.
+Proof.
+  destruct const; simpl;
+    rewrite ?value_slots_avoid_renamed, ?simples_avoid_renamed,
+      ?simple_avoids_renamed;
+    reflexivity.
+Qed.
+
+Lemma apply_cont_avoids_renamed (r : renaming) (ac : apply_cont) :
+  apply_cont_avoids D (rename_apply_cont r ac) = apply_cont_avoids D ac.
+Proof. apply simples_avoid_renamed. Qed.
+
+Lemma apply_avoids_renamed (r : renaming) (ap : apply_expr) :
+  apply_avoids D (rename_apply r ap) = apply_avoids D ap.
+Proof.
+  unfold apply_avoids. simpl.
+  rewrite simple_avoids_renamed, simples_avoid_renamed. reflexivity.
+Qed.
+
+Fixpoint expr_avoids_renamed (r : renaming) (e : expr) :
+  expr_avoids D (rename_expr r e) = expr_avoids D e
+with handler_avoids_renamed (r : renaming) (h : continuation_handler) :
+  handler_avoids D (rename_handler r h) = handler_avoids D h
+with binding_avoids_renamed (r : renaming) (binding : static_binding) :
+  binding_avoids D (rename_static_binding r binding)
+  = binding_avoids D binding
+with code_avoids_renamed (r : renaming) (c : code) :
+  code_avoids D (rename_code r c) = code_avoids D c.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      simpl.
+    + rewrite named_avoids_renamed, expr_avoids_renamed. reflexivity.
+    + rewrite expr_avoids_renamed. f_equal.
+      induction bindings as [ | binding bindings IH]; simpl;
+        [ reflexivity | ].
+      rewrite (binding_avoids_renamed r binding), IH. reflexivity.
+    + rewrite handler_avoids_renamed, expr_avoids_renamed. reflexivity.
+    + rewrite expr_avoids_renamed. f_equal.
+      induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
+      rewrite (handler_avoids_renamed r h), IH. reflexivity.
+    + apply apply_avoids_renamed.
+    + apply apply_cont_avoids_renamed.
+    + rewrite simple_avoids_renamed. f_equal.
+      apply forallb_map_with. intros arm. apply apply_cont_avoids_renamed.
+    + reflexivity.
+  - destruct h as [params metadata handler]. simpl. apply expr_avoids_renamed.
+  - destruct binding as [id c | id | sym const]; simpl; try reflexivity.
+    + rewrite code_avoids_renamed. reflexivity.
+    + rewrite static_const_avoids_renamed. reflexivity.
+  - destruct c as [params my_closure ret exn metadata body]. simpl.
+    apply expr_avoids_renamed.
+Qed.
+
+Lemma binding_kept_renamed (r : renaming) (binding : static_binding) :
+  binding_kept D (rename_static_binding r binding) = binding_kept D binding.
+Proof. destruct binding; reflexivity. Qed.
+
+Fixpoint erase_expr_equivariant_aux (r : renaming) (e : expr) :
+  erase_expr D (rename_expr r e) = rename_expr r (erase_expr D e)
+with erase_handler_equivariant (r : renaming) (h : continuation_handler) :
+  erase_handler D (rename_handler r h) = rename_handler r (erase_handler D h)
+with erase_binding_equivariant (r : renaming) (binding : static_binding) :
+  erase_binding D (rename_static_binding r binding)
+  = rename_static_binding r (erase_binding D binding)
+with erase_code_equivariant (r : renaming) (c : code) :
+  erase_code D (rename_code r c) = rename_code r (erase_code D c).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      simpl; try reflexivity.
+    + rewrite erase_expr_equivariant_aux. reflexivity.
+    + rewrite erase_expr_equivariant_aux. f_equal.
+      induction bindings as [ | binding bindings IH]; simpl;
+        [ reflexivity | ].
+      rewrite binding_kept_renamed, IH.
+      destruct (binding_kept D binding); [ | reflexivity ].
+      simpl. rewrite (erase_binding_equivariant r binding). reflexivity.
+    + rewrite erase_handler_equivariant, erase_expr_equivariant_aux.
+      reflexivity.
+    + rewrite erase_expr_equivariant_aux. f_equal.
+      induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
+      rewrite (erase_handler_equivariant r h), IH. reflexivity.
+  - destruct h as [params metadata handler]. simpl.
+    rewrite erase_expr_equivariant_aux. reflexivity.
+  - destruct binding as [id c | id | sym const]; simpl; try reflexivity.
+    rewrite erase_code_equivariant. reflexivity.
+  - destruct c as [params my_closure ret exn metadata body]. simpl.
+    rewrite erase_expr_equivariant_aux. reflexivity.
+Qed.
+
+Fixpoint binds_only_kept_renamed (r : renaming) (e : expr) :
+  binds_only_kept D (rename_expr r e) = binds_only_kept D e
+with handler_binds_only_kept_renamed (r : renaming)
+    (h : continuation_handler) :
+  handler_binds_only_kept D (rename_handler r h)
+  = handler_binds_only_kept D h
+with binding_binds_only_kept_renamed (r : renaming)
+    (binding : static_binding) :
+  binding_binds_only_kept D (rename_static_binding r binding)
+  = binding_binds_only_kept D binding
+with code_binds_only_kept_renamed (r : renaming) (c : code) :
+  code_binds_only_kept D (rename_code r c) = code_binds_only_kept D c.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      simpl; try reflexivity.
+    + apply binds_only_kept_renamed.
+    + rewrite binds_only_kept_renamed. f_equal.
+      induction bindings as [ | binding bindings IH]; simpl;
+        [ reflexivity | ].
+      rewrite (binding_binds_only_kept_renamed r binding), IH. reflexivity.
+    + rewrite handler_binds_only_kept_renamed, binds_only_kept_renamed.
+      reflexivity.
+    + rewrite binds_only_kept_renamed. f_equal.
+      induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
+      rewrite (handler_binds_only_kept_renamed r h), IH. reflexivity.
+  - destruct h as [params metadata handler]. simpl.
+    apply binds_only_kept_renamed.
+  - destruct binding as [id c | id | sym const]; simpl; try reflexivity.
+    rewrite code_binds_only_kept_renamed. reflexivity.
+  - destruct c as [params my_closure ret exn metadata body]. simpl.
+    apply binds_only_kept_renamed.
+Qed.
+
+Lemma handler_free_of_renamed (r : renaming) (h : continuation_handler) :
+  handler_free_of D (rename_handler r h) = handler_free_of D h.
+Proof.
+  unfold handler_free_of.
+  rewrite handler_avoids_renamed, handler_binds_only_kept_renamed.
+  reflexivity.
+Qed.
+
+Lemma code_free_of_renamed (r : renaming) (c : code) :
+  code_free_of D (rename_code r c) = code_free_of D c.
+Proof.
+  unfold code_free_of.
+  rewrite code_avoids_renamed, code_binds_only_kept_renamed. reflexivity.
+Qed.
+
+Lemma env_free_of_renamed (r : renaming) (vars : env) :
+  env_free_of D (rename_env r vars) = env_free_of D vars.
+Proof.
+  unfold env_free_of, rename_env. apply forallb_map_with.
+  intros [x v]. reflexivity.
+Qed.
+
+Lemma handlers_free_of_renamed (r : renaming)
+    (handlers : list (continuation * continuation_handler)) :
+  forallb (fun '(_, h) => handler_free_of D h) (rename_handlers r handlers)
+  = forallb (fun '(_, h) => handler_free_of D h) handlers.
+Proof.
+  unfold rename_handlers. apply forallb_map_with. intros [k h].
+  apply handler_free_of_renamed.
+Qed.
+
+Fixpoint cont_free_of_renamed (r : renaming) (c : cont_value) :
+  cont_free_of D (rename_cont_value r c) = cont_free_of D c.
+Proof.
+  destruct c as [h vars conts recursive | k]; simpl; [ | reflexivity ].
+  rewrite handler_free_of_renamed, env_free_of_renamed,
+    handlers_free_of_renamed.
+  do 2 f_equal.
+  induction conts as [ | [k c] conts IH]; simpl; [ reflexivity | ].
+  rewrite (cont_free_of_renamed r c), IH. reflexivity.
+Qed.
+
+Lemma statics_free_of_renamed (r : renaming) (statics : static_env) :
+  statics_free_of D (rename_static_env r statics) = statics_free_of D statics.
+Proof.
+  unfold statics_free_of, rename_static_env. simpl. f_equal.
+  unfold map_values. apply forallb_map_with. intros [id c].
+  apply code_free_of_renamed.
+Qed.
+
+End Dropped.
+
+Theorem expr_avoids_equivariant : expr_avoids_equivariant_statement.
+Proof. intros r D e. apply expr_avoids_renamed. Qed.
+
+Theorem erase_expr_equivariant : erase_expr_equivariant_statement.
+Proof. intros D r e. apply erase_expr_equivariant_aux. Qed.
+
+Theorem drop_statics_equivariant : drop_statics_equivariant_statement.
+Proof.
+  intros r D e. unfold drop_statics. rewrite expr_avoids_renamed.
+  destruct (expr_avoids D e); [ | reflexivity ].
+  simpl. rewrite erase_expr_equivariant_aux. reflexivity.
+Qed.
+
+Theorem binds_only_kept_equivariant : binds_only_kept_equivariant_statement.
+Proof. intros r D e. apply binds_only_kept_renamed. Qed.
+
+Theorem envs_free_of_equivariant : envs_free_of_equivariant_statement.
+Proof.
+  intros r D vars conts statics. unfold envs_free_of.
+  rewrite env_free_of_renamed, statics_free_of_renamed. do 2 f_equal.
+  unfold rename_cont_env. apply forallb_map_with. intros [k c].
+  apply cont_free_of_renamed.
 Qed.
