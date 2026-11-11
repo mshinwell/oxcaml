@@ -231,6 +231,20 @@ Definition replace_equation_frame_statement : Prop :=
     ∧ Typing_env.is_bottom tenv' = Typing_env.is_bottom tenv
     ∧ Typing_env.aliases tenv' = Typing_env.aliases tenv.
 
+(* An equation of the current level afterwards, counted or not, is the
+   new one of the name or was an equation of the current level. *)
+Definition replace_equation_equations_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (n m : name) (ty ty' : flambda_type),
+    (m, ty')
+    ∈ Typing_env_level.equations
+        (Typing_env.One_level.level
+           (Typing_env.current_level (Typing_env.replace_equation tenv n ty)))
+    ->
+    (m = n ∧ ty' = ty)
+    ∨ (m, ty')
+      ∈ Typing_env_level.equations
+          (Typing_env.One_level.level (Typing_env.current_level tenv)).
+
 (* The type of another name, with its binding time and its name mode,
    is as it was. *)
 Definition replace_equation_lookup_other_statement : Prop :=

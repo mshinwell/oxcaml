@@ -755,6 +755,20 @@ Definition find_closed_statement : Prop :=
     x ∈ free_variables ty ->
     Typing_env.mem None tenv (Name_var x) = true.
 
+(* The canonical element that is answered at a name mode is bound at
+   that name mode, if the [Simple] asked about is bound. (A symbol that
+   is not defined, and that the aliases do not speak of, is its own
+   canonical element whatever the name mode asked for, and is not
+   bound: [Typing_env.binding_time_and_mode] answers for any symbol.) *)
+Definition get_canonical_simple_bound_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (min_name_mode : Name_mode.t)
+    (s canonical : simple),
+    typing_env_well_formed tenv = true ->
+    Typing_env.mem_simple None tenv s = true ->
+    Typing_env.get_canonical_simple_exn tenv (Some min_name_mode) None s
+    = Some (Some canonical) ->
+    Typing_env.mem_simple (Some min_name_mode) tenv canonical = true.
+
 (* The extension that a level makes has the equations of the level,
    one for each name. *)
 Definition as_extension_without_bindings_equations_statement : Prop :=
@@ -785,6 +799,19 @@ Definition cut_equations_found_statement : Prop :=
     ∃ binding_time_and_mode : Binding_time.With_name_mode.t,
       Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
       = Some (ty, binding_time_and_mode).
+
+(* ... as is any equation of that level, counted or not, an equation
+   of one of the levels after the scope... *)
+Definition cut_equations_member_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (cut_after : Scope.t) (level : Typing_env_level.t)
+    (n : name) (ty : flambda_type),
+    Typing_env.cut tenv cut_after = Some level ->
+    (n, ty) ∈ Typing_env_level.equations level ->
+    ∃ one_level : Typing_env.One_level.t,
+      one_level ∈ Typing_env.current_level tenv :: Typing_env.prev_levels tenv
+      ∧ cut_after < Typing_env.One_level.scope one_level
+      ∧ (n, ty)
+        ∈ Typing_env_level.equations (Typing_env.One_level.level one_level).
 
 (* ... and a variable that it defines has a type in the environment, of
    the kind that the level has for it. *)

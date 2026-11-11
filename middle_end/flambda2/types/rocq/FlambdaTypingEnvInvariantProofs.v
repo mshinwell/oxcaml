@@ -555,6 +555,88 @@ Proof.
   - destruct Hin.
 Qed.
 
+(* Two different simples that are known to be equal: the aliases speak
+   of each that is a name. *)
+Lemma aliased_mentioned (t : Aliases.t) (e e' : simple) (n : name) :
+  aliased t e e' ->
+  e <> e' ->
+  e = simple_of_name n ->
+  aliases_mention t n.
+Proof.
+  unfold aliased. intros Haliased Hne ->.
+  destruct (canonical_cases t (simple_of_name n))
+    as [[_ Hself] | [n0 [c [Heq [Hdemoted _]]]]].
+  - destruct (canonical_cases t e')
+      as [[_ Hself'] | [n' [c' [-> [Hdemoted' [_ Hcanonical']]]]]].
+    + congruence.
+    + right. left. exists n'. rewrite Hself, Hcanonical' in Haliased.
+      rewrite Haliased. exact Hdemoted'.
+  - apply simple_of_name_inj in Heq. subst n0. left. exists c.
+    exact Hdemoted.
+Qed.
+
+Lemma name_mode_at_least_compare (name_mode min_name_mode : Name_mode.t) :
+  name_mode_at_least name_mode min_name_mode ->
+  match Name_mode.compare_partial_order min_name_mode name_mode with
+  | None => false
+  | Some c => c <=? 0
+  end
+  = true.
+Proof.
+  destruct name_mode, min_name_mode; intros [c [[= <-] Hc]];
+    try reflexivity; lia.
+Qed.
+
+Theorem get_canonical_simple_bound : get_canonical_simple_bound_statement.
+Proof.
+  intros tenv min_name_mode simple canonical Hwf Hbound.
+  pose proof (proj1 (typing_env_well_formed_iff tenv) Hwf) as Hconditions.
+  destruct Hconditions as [_ [_ [Hconsistent _]]].
+  unfold Typing_env.get_canonical_simple_exn.
+  destruct (Typing_env.binding_time_and_mode_of_simple tenv simple)
+    as [btm_simple | ] eqn:Hbtm; [ | discriminate ].
+  cbn [option_map]. intros [= Hcanonical].
+  (* The canonical element is bound. *)
+  assert (Hknown : Typing_env.mem_simple None tenv canonical = true).
+  { destruct (simple_equal canonical simple) eqn:Hequal.
+    - apply simple_equal_decides_equality in Hequal. subst canonical.
+      exact Hbound.
+    - assert (Hne : canonical <> simple).
+      { intros Heq. apply simple_equal_decides_equality in Heq.
+        congruence. }
+      pose proof (canonical_at_mode_aliased _ _ _ _ _ _ _ _ _ Hconsistent
+                    Hcanonical) as Haliased.
+      destruct canonical as [x | s | c]; [ | | reflexivity ].
+      + exact (well_formed_mentioned_known tenv _ Hwf
+                 (aliased_mentioned _ _ _ (Name_var x) Haliased Hne eq_refl)).
+      + exact (well_formed_mentioned_known tenv _ Hwf
+                 (aliased_mentioned _ _ _ (Name_symbol s) Haliased Hne
+                    eq_refl)). }
+  destruct canonical as [x | s | c]; [ | exact Hknown | reflexivity ].
+  change (Typing_env.mem None tenv (Name_var x) = true) in Hknown.
+  apply mem_var_lookup in Hknown. destruct Hknown as [ty [btm Hlookup]].
+  assert (Hmode :
+    name_mode_at_least
+      (Binding_time.With_name_mode.scoped_name_mode btm
+         (Typing_env.min_binding_time tenv))
+      min_name_mode).
+  { destruct (canonical_at_mode_name_mode _ _ _ _ _ _ _ _ _ Hcanonical)
+      as [[Heq Hmode] | Hmode].
+    - subst simple.
+      unfold Typing_env.binding_time_and_mode_of_simple,
+        Typing_env.binding_time_and_mode,
+        Typing_env.find_with_binding_time_and_mode,
+        Typing_env.find_with_binding_time_and_mode' in Hbtm.
+      rewrite Hlookup in Hbtm. cbn in Hbtm.
+      destruct (Typing_env.is_bottom tenv); cbn in Hbtm;
+        injection Hbtm as <-; exact Hmode.
+    - unfold Aliases.compute_name_mode, Aliases.binding_time_and_name_mode
+        in Hmode.
+      rewrite Hlookup in Hmode. exact Hmode. }
+  unfold Typing_env.mem_simple, Typing_env.mem. rewrite Hlookup.
+  exact (name_mode_at_least_compare _ _ Hmode).
+Qed.
+
 Theorem as_extension_without_bindings_equations
     : as_extension_without_bindings_equations_statement.
 Proof.
@@ -720,6 +802,53 @@ Proof.
   - intros [= ->]. exists a. split; [ left; reflexivity | exact Hlookup ].
   - intros Hrest. destruct (IH Hrest) as [a' [Hin Ha']].
     exists a'. split; [ right; exact Hin | exact Ha' ].
+Qed.
+
+Lemma cut_loop_equations_member (cut_after : Scope.t)
+    (levels : list Typing_env.One_level.t) :
+  ∀ (result level : Typing_env_level.t) (n : name) (ty : flambda_type),
+    Typing_env.cut_loop cut_after result levels = Some level ->
+    (n, ty) ∈ Typing_env_level.equations level ->
+    (n, ty) ∈ Typing_env_level.equations result
+    ∨ ∃ one_level : Typing_env.One_level.t,
+        one_level ∈ levels
+        ∧ cut_after < Typing_env.One_level.scope one_level
+        ∧ (n, ty)
+          ∈ Typing_env_level.equations
+              (Typing_env.One_level.level one_level).
+Proof.
+  induction levels as [ | one_level levels IH]; intros result level n ty.
+  - intros [= <-] Hin. left. exact Hin.
+  - simpl.
+    destruct (cut_after <? Typing_env.One_level.scope one_level) eqn:Hscope.
+    + destruct (Typing_env_level.concat
+                  (Typing_env.One_level.level one_level) result)
+        as [result' | ] eqn:Hconcat; [ | discriminate ].
+      simpl. intros Hloop Hin.
+      destruct (IH result' level n ty Hloop Hin)
+        as [Hin' | [one [Hone [Hafter Hin']]]].
+      * apply concat_some in Hconcat. subst result'. simpl in Hin'.
+        apply in_app_or in Hin'.
+        destruct Hin' as [Hin' | Hin']; [ left; exact Hin' | right ].
+        exists one_level. split; [ left; reflexivity | ].
+        split; [ apply Z.ltb_lt; exact Hscope | exact Hin' ].
+      * right. exists one. split; [ right; exact Hone | ].
+        split; [ exact Hafter | exact Hin' ].
+    + intros [= <-] Hin. left. exact Hin.
+Qed.
+
+Theorem cut_equations_member : cut_equations_member_statement.
+Proof.
+  intros tenv cut_after level n ty. unfold Typing_env.cut.
+  destruct (Typing_env.current_scope tenv <=? cut_after) eqn:Hscope.
+  - intros [= <-] [].
+  - intros Hloop Hin. apply Z.leb_gt in Hscope.
+    destruct (cut_loop_equations_member _ _ _ _ _ _ Hloop Hin)
+      as [Hin' | [one [Hone [Hafter Hin']]]].
+    + exists (Typing_env.current_level tenv).
+      split; [ left; reflexivity | ]. split; [ exact Hscope | exact Hin' ].
+    + exists one. split; [ right; exact Hone | ].
+      split; [ exact Hafter | exact Hin' ].
 Qed.
 
 Theorem cut_defined_variables_found : cut_defined_variables_found_statement.

@@ -333,26 +333,6 @@ Qed.
 (* The functions keep the kinds of what is known to be equal                *)
 (* ======================================================================== *)
 
-(* Two different simples that are known to be equal: the aliases speak
-   of each that is a name. *)
-Lemma aliased_mentioned (t : Aliases.t) (e e' : simple) (n : name) :
-  aliased t e e' ->
-  e <> e' ->
-  e = simple_of_name n ->
-  aliases_mention t n.
-Proof.
-  unfold aliased. intros Haliased Hne ->.
-  destruct (canonical_cases t (simple_of_name n))
-    as [[_ Hself] | [n0 [c [Heq [Hdemoted _]]]]].
-  - destruct (canonical_cases t e')
-      as [[_ Hself'] | [n' [c' [-> [Hdemoted' [_ Hcanonical']]]]]].
-    + congruence.
-    + right. left. exists n'. rewrite Hself, Hcanonical' in Haliased.
-      rewrite Haliased. exact Hdemoted'.
-  - apply simple_of_name_inj in Heq. subst n0. left. exists c.
-    exact Hdemoted.
-Qed.
-
 (* Environments with the same aliases in which the simples have the
    same kinds. *)
 Lemma aliases_kinded_same (tenv tenv' : Typing_env.t) :

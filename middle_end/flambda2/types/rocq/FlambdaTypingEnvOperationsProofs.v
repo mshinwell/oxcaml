@@ -276,6 +276,22 @@ Proof.
   apply replace_equation_aliases.
 Qed.
 
+Theorem replace_equation_equations : replace_equation_equations_statement.
+Proof.
+  intros tenv n m ty ty'.
+  change (Typing_env.One_level.level
+            (Typing_env.current_level (Typing_env.replace_equation tenv n ty)))
+    with (Typing_env_level.add_or_replace_equation
+            (Typing_env.One_level.level (Typing_env.current_level tenv)) n
+            ty).
+  destruct (is_obviously_unknown ty) eqn:Hunknown.
+  - rewrite (add_or_replace_equation_unknown _ n ty Hunknown).
+    intros Hin. right. unfold Keyed.unbind in Hin.
+    apply filter_In in Hin. exact (proj1 Hin).
+  - rewrite (add_or_replace_equation_known _ n ty Hunknown).
+    intros [[= <- <-] | Hin]; [ left; split; reflexivity | right; exact Hin ].
+Qed.
+
 Theorem replace_equation_lookup_other
     : replace_equation_lookup_other_statement.
 Proof.
