@@ -1932,45 +1932,11 @@ let semantic_comparisons (names : names) : semantic_case comparison list =
                    %s@]"
                   print_value v (print_joined names join)
               in
-              (* A function type that only one of the types has, kept by the
-                 join: T1-4. *)
-              let function_types_of (t : MT.flambda_type) =
-                let of_head (head : MT.head_of_kind_value_non_null) =
-                  match head with
-                  | Closures (Row_like_for_closures cases, _) ->
-                    List.concat_map
-                      (fun (_, (case : (_, _, _, _) MT.row_like_case)) ->
-                        let (Closures_entry (function_types, _, _)
-                              : MT.closures_entry) =
-                          case.case_maps_to
-                        in
-                        List.map fst function_types)
-                      cases
-                  | Variant _ | Mutable_block _ | Boxed_number _ | String _ ->
-                    []
-                in
-                match t with
-                | Type_value (Ok (No_alias (Head_of_kind_value (non_null, _))))
-                  -> (
-                  match non_null with
-                  | Ok head -> of_head head
-                  | Unknown | Bottom -> [])
-                | Type_value (Unknown | Bottom | Ok (Equals _))
-                | Type_naked_immediate _ | Type_naked_number _ | Type_rec_info _
-                | Type_region _ ->
-                  []
-              in
-              let kept =
-                List.filter
-                  (fun slot ->
-                    not
-                      (List.mem slot (function_types_of first)
-                      && List.mem slot (function_types_of second)))
-                  (function_types_of join.joined)
-              in
-              if kept <> []
-              then Known_to_disagree ("T1-4", what)
-              else Disagree what
+              (* Before its repair in the compiler the n-way join kept a
+                 function type that only one of the types has (T1-4), and such a
+                 case was shown as recorded. It is a failure like any other
+                 now. *)
+              Disagree what
             | None, [] -> Not_run "no value tried has either type"
             | None, _ :: _ ->
               if
@@ -2790,7 +2756,7 @@ let the_chosen_joins (names : names) : chosen_join list =
           use (closure []) ];
       probes =
         [[], V.Value_closure (code, []); [], V.Value_closure (other_code, [])];
-      recorded = Some "T1-4"
+      recorded = None
     } ]
 
 (* ======================================================================== *)
