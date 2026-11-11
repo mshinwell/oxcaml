@@ -491,17 +491,28 @@ not a proof.
   The decision is `FlambdaCompareSpec.expr_eqb`, equality up to bound
   names, after the term before has been normalised by rewrites proved to
   refine it: `inline_calls` (direct calls of code bound by an enclosing
-  `Let_static`), `fold_constants`, `inline_tail_conts` (a continuation
-  applied once at the end of its scope), `follow_aliases`,
-  `remove_unused_lets` and `drop_deleted_code`, gone round a few times as
+  `Let_static`), `fold_constants`, `collapse_switches` (a `Switch` whose
+  arms are all the same), `inline_tail_conts` (a continuation applied
+  once at the end of its scope), `follow_aliases`, `remove_unused_lets`
+  and `drop_deleted_code`, gone round until nothing changes as
   they enable one another. Only equivalences may be applied to the term
   after: `follow_aliases`, `inline_known_calls` (inlining where the callee
   is a symbol bound to a closure of the code called, which makes it an
   equivalence), `fold_constants`, `remove_unused_defined_lets` (an unused
   `Let` whose defining expression has a value given the variables in
   scope), `drop_deleted_code` and `merge_statics` (one group for
-  `Let_static`s that follow one another, code before symbols). `fold_constants` asks `eval_prim` for the value
-  of a primitive on constants, so it assumes nothing of the primitives.
+  `Let_static`s that follow one another, code before symbols).
+  `fold_constants` asks `eval_prim` for the value of a primitive on
+  constants, so it assumes nothing of the primitives. Which primitives
+  are folded, and removed when unused, is the tool's to say
+  (`prim_may_fold`): all but `Opaque_identity`, which Simplify leaves
+  alone, so that an example can have values Simplify knows nothing of.
+- `showcase.fl` is the example to read first: direct and indirect calls,
+  a closure with a value slot, nested switches and a join, all inlined by
+  Simplify and validated. `switch_nested.fl` is a known gap: Simplify
+  uses what a `Switch` arm tells it of the scrutinee in the continuation
+  the arm goes to, which needs what is known at the uses of a
+  continuation to reach its handler.
 - Removing a static binding that nothing uses is not sound under every
   environment (a value already there may be a closure of the code), only
   for a term run on its own: `FlambdaUnusedStaticsSpec.drop_statics`, with
