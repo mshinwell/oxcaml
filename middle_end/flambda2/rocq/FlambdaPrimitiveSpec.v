@@ -90,6 +90,10 @@
    that no proof elsewhere comes to depend on which primitives there are.
    A proof about one primitive rewrites with the equation of its arity
    there ([eval_prim_unary], [eval_prim_binary], [eval_prim_variadic]).
+   The last law says that the value of a primitive on its arguments is
+   its value on arguments that the observations read alike
+   ([eval_prim_related_statement]): a block made by a primitive and a
+   symbol bound to an equal block, for one.
 
    The proofs are in FlambdaPrimitiveProofs.v, which needs no review. *)
 
@@ -813,3 +817,79 @@ Definition int_of_value_in_range_statement : Prop :=
   ∀ (kind : standard_int) (i : Z),
     const_in_range (const_of_int kind i) = true ->
     int_of_value kind (Value_const (const_of_int kind i)) = Some i.
+
+(* What a primitive computes on its arguments it computes on values
+   that the observations read alike. The premise is a relation between
+   values, the first read under [statics] and the second under
+   [statics'], in three parts:
+   - related values are the same constant, or neither is a constant
+     ([relates_constants]);
+   - a constant and a boxed number are related to themselves, and blocks
+     made alike of related fields are related ([relates_made]): what a
+     primitive makes of related arguments is related;
+   - what an observation answers of the first value it answers of the
+     second, with related parts, and if the first is not a symbol bound
+     to nothing nor is the second ([relates_observations]).
+   Equality is such a relation when the two static environments are the
+   same. So is the relation between a value and the same value with a
+   symbol in place of some of the blocks, boxed numbers and closures in
+   it, each symbol bound to what it stands for
+   (FlambdaLiftSpec.value_lifted): that is what lets a [Let] of a block
+   be made a static binding of a symbol.
+
+   The law goes one way: where the primitive has a value on the first
+   arguments it has a related one on the second. Nothing is said where
+   it has none on the first; the second may then have a value. So it is
+   not that related values cannot be told apart, only that an answer
+   given of the first is given of the second.
+
+   It holds because every primitive reads an allocated argument through
+   the observations only: by its tag, its fields, its contents, and
+   never by which allocation it is. It constrains what a primitive may
+   ever do: none may have a value that depends on the identity of an
+   immutable allocated value. In particular [Phys_equal] can have no
+   value on two of them, or it would tell a block from a symbol bound to
+   an equal block. With a heap the premise needs one more part, that a
+   location is related to a location only. *)
+Definition relates_constants (R : value -> value -> Prop) : Prop :=
+  (∀ (c : const) (v' : value), R (Value_const c) v' -> v' = Value_const c)
+  ∧ (∀ (v : value) (c : const), R v (Value_const c) -> v = Value_const c).
+
+Definition relates_made (R : value -> value -> Prop) : Prop :=
+  (∀ c : const,
+    R (Value_const c) (Value_const c)
+    ∧ R (Value_boxed_number c) (Value_boxed_number c))
+  ∧ (∀ (tag : Z) (fields fields' : list value),
+      Forall2 R fields fields' ->
+      R (Value_block tag fields) (Value_block tag fields')).
+
+Definition relates_observations (R : value -> value -> Prop)
+    (statics statics' : static_env) : Prop :=
+  ∀ v v' : value,
+    R v v' ->
+    (∀ (tag : Z) (fields : list value),
+      block_of statics v = Some (tag, fields) ->
+      ∃ fields' : list value,
+        block_of statics' v' = Some (tag, fields') ∧ Forall2 R fields fields')
+    ∧ (∀ c : const,
+        boxed_number_of statics v = Some c ->
+        boxed_number_of statics' v' = Some c)
+    ∧ (∀ bytes : list Z,
+        string_of statics v = Some bytes ->
+        string_of statics' v' = Some bytes)
+    ∧ (closure_of statics v <> None -> closure_of statics' v' <> None)
+    ∧ (bound_if_symbol statics v = true ->
+       bound_if_symbol statics' v' = true).
+
+Definition respects_observations (R : value -> value -> Prop)
+    (statics statics' : static_env) : Prop :=
+  relates_constants R ∧ relates_made R
+  ∧ relates_observations R statics statics'.
+
+Definition eval_prim_related_statement : Prop :=
+  ∀ (R : value -> value -> Prop) (statics statics' : static_env) (p : prim)
+    (vs vs' : list value) (v : value),
+    respects_observations R statics statics' ->
+    Forall2 R vs vs' ->
+    eval_prim statics p vs = Some v ->
+    ∃ v' : value, eval_prim statics' p vs' = Some v' ∧ R v v'.

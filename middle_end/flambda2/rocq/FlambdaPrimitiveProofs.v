@@ -33,8 +33,9 @@
    [eval_prim] is opaque after this file. A proof that is not about one
    primitive goes through the laws ([eval_prim_static_values],
    [eval_prim_statics_extend], [eval_prim_kinds],
-   [eval_prim_preserves], [eval_prim_in_range]); one that is rewrites
-   with [eval_prim_unary], [eval_prim_binary] or [eval_prim_variadic].
+   [eval_prim_preserves], [eval_prim_in_range], [eval_prim_related]);
+   one that is rewrites with [eval_prim_unary], [eval_prim_binary] or
+   [eval_prim_variadic].
 
    To add a primitive, add its case where a proof here goes by cases on
    the primitives: each such proof says so. No proof here names the
@@ -1185,6 +1186,333 @@ Proof.
   - exact (eval_binary_primitive_in_range p' v1 v2 v Hp').
   - exact
       (eval_variadic_primitive_in_range statics p' vs v Hp Hargs Hp').
+Qed.
+
+(* ======================================================================== *)
+(* A primitive cannot tell related values apart                             *)
+(* ======================================================================== *)
+
+(* A value is a constant, or it is none and is of kind [Value]. *)
+Lemma const_or_not (v : value) :
+  (∃ c : const, v = Value_const c)
+  ∨ ((∀ c : const, v <> Value_const c) ∧ kind_of_value v = Value).
+Proof.
+  destruct v; simpl;
+    try (right; split; [ intros c'; discriminate | reflexivity ]).
+  left. eauto.
+Qed.
+
+Lemma is_some_not_none {A : Type} (o : option A) :
+  is_some o = true <-> o <> None.
+Proof. destruct o; simpl; split; congruence. Qed.
+
+Lemma forall2_nth_error {A B : Type} (R : A -> B -> Prop) (l : list A)
+    (l' : list B) :
+  Forall2 R l l' ->
+  ∀ (n : nat) (a : A),
+    nth_error l n = Some a -> ∃ b : B, nth_error l' n = Some b ∧ R a b.
+Proof.
+  induction 1 as [ | a0 b0 l l' Hhead _ IH]; intros [ | n] a; simpl;
+    try discriminate.
+  - intros [= <-]. exists b0. auto.
+  - apply IH.
+Qed.
+
+Lemma forall2_forallb {A B : Type} (R : A -> B -> Prop) (f : A -> bool)
+    (g : B -> bool) (l : list A) (l' : list B) :
+  (∀ (a : A) (b : B), R a b -> f a = true -> g b = true) ->
+  Forall2 R l l' ->
+  forallb f l = true ->
+  forallb g l' = true.
+Proof.
+  intros Hfg. induction 1 as [ | a b l l' Hhead _ IH]; simpl;
+    [ reflexivity | ].
+  intros Hall. apply andb_true_iff in Hall as [Ha Hl].
+  rewrite (Hfg a b Hhead Ha), (IH Hl). reflexivity.
+Qed.
+
+Section Related.
+
+Variable R : value -> value -> Prop.
+Variables statics statics' : static_env.
+Hypothesis Hrespects : respects_observations R statics statics'.
+
+Let Hconst_l : ∀ (c : const) (v' : value),
+    R (Value_const c) v' -> v' = Value_const c :=
+  proj1 (proj1 Hrespects).
+Let Hconst_r : ∀ (v : value) (c : const),
+    R v (Value_const c) -> v = Value_const c :=
+  proj2 (proj1 Hrespects).
+Let Hnumber : ∀ c : const,
+    R (Value_const c) (Value_const c)
+    ∧ R (Value_boxed_number c) (Value_boxed_number c) :=
+  proj1 (proj1 (proj2 Hrespects)).
+Let Hblock : ∀ (tag : Z) (fields fields' : list value),
+    Forall2 R fields fields' ->
+    R (Value_block tag fields) (Value_block tag fields') :=
+  proj2 (proj1 (proj2 Hrespects)).
+Let Hobserved : relates_observations R statics statics' :=
+  proj2 (proj2 Hrespects).
+
+(* Related values are of the same kind: the same constant, or two values
+   that are not constants. *)
+Lemma related_not_const (v v' : value) :
+  R v v' ->
+  (∀ c : const, v <> Value_const c) ->
+  ∀ c : const, v' <> Value_const c.
+Proof. intros Hr Hv c ->. exact (Hv c (Hconst_r v c Hr)). Qed.
+
+Lemma related_same_kind (v v' : value) :
+  R v v' -> kind_of_value v' = kind_of_value v.
+Proof.
+  intros Hr.
+  destruct (const_or_not v) as [[c ->] | [Hv Hkind]];
+    [ rewrite (Hconst_l c v' Hr); reflexivity | ].
+  destruct (const_or_not v') as [[c ->] | [_ Hkind']];
+    [ rewrite (Hconst_r v c Hr); reflexivity | congruence ].
+Qed.
+
+(* A value that is an integer of a kind is a constant, so what is
+   related to it is the value itself. *)
+Lemma related_int (kind : standard_int) (v v' : value) (i : Z) :
+  R v v' -> int_of_value kind v = Some i -> v' = v.
+Proof.
+  intros Hr Hint. apply int_of_value_const in Hint as [-> _].
+  exact (Hconst_l _ v' Hr).
+Qed.
+
+Lemma related_int_r (kind : standard_int) (v v' : value) (i : Z) :
+  R v v' -> int_of_value kind v' = Some i -> v' = v.
+Proof.
+  intros Hr Hint. apply int_of_value_const in Hint as [-> _].
+  symmetry. exact (Hconst_r v _ Hr).
+Qed.
+
+Lemma related_is_tagged_immediate (v v' : value) :
+  R v v' -> is_tagged_immediate v' = is_tagged_immediate v.
+Proof.
+  intros Hr. unfold is_tagged_immediate.
+  destruct (int_of_value Standard_tagged_immediate v) as [i | ] eqn:Hint.
+  - rewrite (related_int _ v v' i Hr Hint), Hint. reflexivity.
+  - destruct (int_of_value Standard_tagged_immediate v') as [i | ] eqn:Hint';
+      [ | reflexivity ].
+    rewrite (related_int_r _ v v' i Hr Hint') in Hint'. congruence.
+Qed.
+
+Lemma related_is_block (v v' : value) :
+  R v v' ->
+  is_some (block_of statics v) = true ->
+  is_some (block_of statics' v') = true.
+Proof.
+  intros Hr.
+  destruct (block_of statics v) as [[tag fields] | ] eqn:Hv;
+    [ | discriminate ].
+  destruct (proj1 (Hobserved v v' Hr) tag fields Hv) as (fields' & -> & _).
+  reflexivity.
+Qed.
+
+Lemma related_is_allocated (v v' : value) :
+  R v v' ->
+  is_allocated statics v = true ->
+  is_allocated statics' v' = true.
+Proof.
+  intros Hr. unfold is_allocated. rewrite !orb_true_iff.
+  destruct (Hobserved v v' Hr) as (_ & Hboxed & Hstring & Hclosure & _).
+  intros [[[Hsome | Hsome] | Hsome] | Hsome].
+  - left. left. left. apply is_some_not_none, Hclosure, is_some_not_none.
+    exact Hsome.
+  - left. left. right. exact (related_is_block v v' Hr Hsome).
+  - left. right.
+    destruct (boxed_number_of statics v) as [c | ] eqn:Hv; [ | discriminate ].
+    rewrite (Hboxed c eq_refl). reflexivity.
+  - right.
+    destruct (string_of statics v) as [bytes | ] eqn:Hv; [ | discriminate ].
+    rewrite (Hstring bytes eq_refl). reflexivity.
+Qed.
+
+Lemma related_eval_is_int (variant_only b : bool) (v v' : value) :
+  R v v' ->
+  eval_is_int statics variant_only v = Some b ->
+  eval_is_int statics' variant_only v' = Some b.
+Proof.
+  intros Hr. unfold eval_is_int.
+  rewrite (related_is_tagged_immediate v v' Hr).
+  destruct (is_tagged_immediate v); [ exact (fun H => H) | ].
+  destruct variant_only.
+  - destruct (is_some (block_of statics v)) eqn:Hv; [ | discriminate ].
+    rewrite (related_is_block v v' Hr Hv). exact (fun H => H).
+  - destruct (is_allocated statics v) eqn:Hv; [ | discriminate ].
+    rewrite (related_is_allocated v v' Hr Hv). exact (fun H => H).
+Qed.
+
+(* On a value that is not a constant, [Is_null] answers no if it
+   answers. *)
+Lemma eval_is_null_not_const (st : static_env) (w : value) :
+  (∀ c : const, w <> Value_const c) ->
+  eval_is_null st w
+  = if is_tagged_immediate w || is_allocated st w then Some false else None.
+Proof.
+  intros Hw. destruct w; try reflexivity. exfalso. exact (Hw _ eq_refl).
+Qed.
+
+Lemma related_eval_is_null (b : bool) (v v' : value) :
+  R v v' ->
+  eval_is_null statics v = Some b ->
+  eval_is_null statics' v' = Some b.
+Proof.
+  intros Hr.
+  destruct (const_or_not v) as [[c ->] | [Hv _]];
+    [ rewrite (Hconst_l c v' Hr); destruct c; exact (fun H => H) | ].
+  rewrite (eval_is_null_not_const statics v Hv),
+    (eval_is_null_not_const statics' v' (related_not_const v v' Hr Hv)),
+    (related_is_tagged_immediate v v' Hr).
+  destruct (is_tagged_immediate v); [ exact (fun H => H) | ]. simpl.
+  destruct (is_allocated statics v) eqn:Hallocated; [ | discriminate ].
+  rewrite (related_is_allocated v v' Hr Hallocated). exact (fun H => H).
+Qed.
+
+(* By cases on the unary primitives: each reads its argument as a
+   constant, which is related to itself only, or through an observation,
+   which answers alike of related values. *)
+Lemma eval_unary_primitive_related (p : unary_primitive)
+    (v v' result : value) :
+  R v v' ->
+  eval_unary_primitive statics p v = Some result ->
+  ∃ result' : value,
+    eval_unary_primitive statics' p v' = Some result' ∧ R result result'.
+Proof.
+  intros Hr.
+  destruct (Hobserved v v' Hr) as (Hblocks & Hboxed & _ & _ & Hbound).
+  destruct p as [access field | variant_only | | | kind | kind | kind | | ];
+    cbn [eval_unary_primitive].
+  - unfold eval_block_load. destruct access as [tag size field_kind].
+    destruct (block_of statics v) as [[block_tag fields] | ] eqn:Hv;
+      [ | discriminate ].
+    destruct (Hblocks block_tag fields eq_refl) as (fields' & -> & Hfields).
+    rewrite <- (Forall2_length Hfields).
+    destruct
+      (known_is tag block_tag && known_is size (Z.of_nat (length fields))
+       && (0 <=? field));
+      [ | discriminate ].
+    destruct (nth_error fields (Z.to_nat field)) as [loaded | ] eqn:Hnth;
+      [ | discriminate ].
+    destruct (forall2_nth_error R fields fields' Hfields _ loaded Hnth)
+      as (loaded' & -> & Hloaded).
+    rewrite (related_same_kind loaded loaded' Hloaded),
+      (related_is_tagged_immediate loaded loaded' Hloaded).
+    destruct
+      (match field_kind with
+       | Any_value => kind_eqb (kind_of_value loaded) Value
+       | Immediate => is_tagged_immediate loaded
+       end);
+      [ | discriminate ].
+    intros [= <-]. exists loaded'. auto.
+  - destruct (eval_is_int statics variant_only v) as [b | ] eqn:Hv;
+      [ | discriminate ].
+    rewrite (related_eval_is_int variant_only b v v' Hr Hv).
+    intros [= <-]. exists (naked_bool b). split; [ reflexivity | ].
+    apply Hnumber.
+  - destruct (eval_is_null statics v) as [b | ] eqn:Hv; [ | discriminate ].
+    rewrite (related_eval_is_null b v v' Hr Hv).
+    intros [= <-]. exists (naked_bool b). split; [ reflexivity | ].
+    apply Hnumber.
+  - destruct (block_of statics v) as [[tag fields] | ] eqn:Hv;
+      [ | discriminate ].
+    destruct (Hblocks tag fields eq_refl) as (fields' & -> & _).
+    intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
+  - rewrite (related_same_kind v v' Hr).
+    destruct (kind_eqb (kind_of_value v) kind); [ | discriminate ].
+    destruct (bound_if_symbol statics v) eqn:Hv; [ | discriminate ].
+    rewrite (Hbound eq_refl). intros [= <-]. exists v'. auto.
+  - destruct (boxed_number_of statics v) as [c | ] eqn:Hv;
+      [ | discriminate ].
+    rewrite (Hboxed c eq_refl).
+    destruct (is_number_of_kind kind c); [ | discriminate ].
+    intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
+  - destruct (const_or_not v) as [[c ->] | [Hv _]].
+    + rewrite (Hconst_l c v' Hr).
+      destruct (is_number_of_kind kind c); [ | discriminate ].
+      intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
+    + destruct v; try discriminate. exfalso. exact (Hv _ eq_refl).
+  - destruct (int_of_value Standard_tagged_immediate v) as [i | ] eqn:Hv;
+      [ | discriminate ].
+    rewrite (related_int _ v v' i Hr Hv), Hv.
+    intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
+  - destruct (int_of_value Standard_naked_immediate v) as [i | ] eqn:Hv;
+      [ | discriminate ].
+    rewrite (related_int _ v v' i Hr Hv), Hv.
+    intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
+Qed.
+
+(* By cases on the binary primitives: both arguments are integers. *)
+Lemma eval_binary_primitive_related (p : binary_primitive)
+    (v1 v2 v1' v2' result : value) :
+  R v1 v1' ->
+  R v2 v2' ->
+  eval_binary_primitive p v1 v2 = Some result ->
+  ∃ result' : value,
+    eval_binary_primitive p v1' v2' = Some result' ∧ R result result'.
+Proof.
+  intros Hr1 Hr2.
+  destruct p as [kind op | kind behaviour]; simpl;
+    (destruct (int_of_value kind v1) as [a | ] eqn:Hv1; [ | discriminate ]);
+    (destruct (int_of_value kind v2) as [b | ] eqn:Hv2; [ | discriminate ]);
+    rewrite (related_int kind v1 v1' a Hr1 Hv1),
+      (related_int kind v2 v2' b Hr2 Hv2), Hv1, Hv2.
+  - destruct (eval_int_arith (int_width kind) op a b); [ | discriminate ].
+    intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
+  - intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
+Qed.
+
+(* By cases on the variadic primitives. *)
+Lemma eval_variadic_primitive_related (p : variadic_primitive)
+    (vs vs' : list value) (result : value) :
+  Forall2 R vs vs' ->
+  eval_variadic_primitive statics p vs = Some result ->
+  ∃ result' : value,
+    eval_variadic_primitive statics' p vs' = Some result' ∧ R result result'.
+Proof.
+  intros Hargs. destruct p as [[tag]]; simpl.
+  destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) vs)
+    eqn:Hkinds;
+    [ | discriminate ].
+  destruct (forallb (bound_if_symbol statics) vs) eqn:Hbound;
+    [ | discriminate ].
+  intros [= <-]. exists (Value_block tag vs').
+  split; [ | apply Hblock, Hargs ].
+  assert (Hkinds' :
+    forallb (fun v => kind_eqb (kind_of_value v) Value) vs' = true).
+  { revert Hkinds. apply (forall2_forallb R); [ | exact Hargs ].
+    intros v v' Hr. rewrite (related_same_kind v v' Hr). exact (fun H => H). }
+  assert (Hbound' : forallb (bound_if_symbol statics') vs' = true).
+  { revert Hbound. apply (forall2_forallb R); [ | exact Hargs ].
+    intros v v' Hr. exact (proj2 (proj2 (proj2 (proj2 (Hobserved v v' Hr))))). }
+  rewrite Hkinds', Hbound'. reflexivity.
+Qed.
+
+End Related.
+
+Theorem eval_prim_related : eval_prim_related_statement.
+Proof.
+  intros R statics statics' p vs vs' v Hrespects Hargs Heval.
+  destruct (eval_prim_arity statics p vs v Heval)
+    as [(p' & v1 & -> & -> & Hp)
+       | [(p' & v1 & v2 & -> & -> & Hp) | (p' & -> & Hp)]].
+  - inversion Hargs as [ | ? v1' ? ? Hr1 Hrest]; subst.
+    inversion Hrest; subst. rewrite eval_prim_unary.
+    exact
+      (eval_unary_primitive_related R statics statics' Hrespects p' v1 v1' v
+         Hr1 Hp).
+  - inversion Hargs as [ | ? v1' ? ? Hr1 Hrest]; subst.
+    inversion Hrest as [ | ? v2' ? ? Hr2 Hrest']; subst.
+    inversion Hrest'; subst. rewrite eval_prim_binary.
+    exact
+      (eval_binary_primitive_related R statics statics' Hrespects p' v1 v2
+         v1' v2' v Hr1 Hr2 Hp).
+  - rewrite eval_prim_variadic.
+    exact
+      (eval_variadic_primitive_related R statics statics' Hrespects p' vs
+         vs' v Hargs Hp).
 Qed.
 
 (* ======================================================================== *)
