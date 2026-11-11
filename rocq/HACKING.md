@@ -243,7 +243,9 @@ reviews the branch. So a workstream asks for its lines with a commit:
   the subject `Flambda 2 Rocq: <stream>: lines for the shared lists`. It
   touches nothing but these lists, and adds only lines for that stream's
   own files, each in its place in the order. No other commit of the
-  branch touches the lists.
+  branch touches the lists. (The one commit that may follow it is that
+  of the test tool and the examples: see "Who commits the extracted
+  files" under "Testing Simplify against the semantics".)
 - To add a line later, amend that commit if it is still the last. If
   other commits have followed it, move it back to the end before asking
   for a merge: `git rebase --onto <it>^ <it>` takes it out of the branch
@@ -711,6 +713,16 @@ not a proof.
   integrator runs `make -C rocq all` on the result and commits what it
   regenerates, on top of the branch. `prim_hook.ml`, written by hand, is
   the integrator's like the rest of the directory.
+- The test tool and the examples come last. The compiler must build at
+  every commit of the integration branch, and `make -s boot-compiler`
+  type-checks `flsemantics.ml` against the extracted files that are
+  committed. So whatever needs the regenerated files, to build or to
+  pass (a change to `flsemantics.ml`, a new `.fl` example and its
+  expected file), goes in one commit, the last of the branch, after the
+  one with the lines for the shared lists if there is one. Every commit
+  before it must pass `make -C rocq all` and `make -C rocq assumptions`.
+  The integrator does not fast-forward that last commit: it makes one
+  commit of it and of the regenerated files together.
 - Trusted and unverified: the conversion from Flambda terms to model
   terms, and the meaning the tool gives to the few primitives it knows,
   which the model leaves abstract. Read both in `flsemantics.ml`. The
@@ -732,6 +744,32 @@ not a proof.
   (`gen_rules.sh`, included by `run/dune`; the `dune` file says why it
   takes two directories), so two branches that each add an example do not
   meet in any file.
+
+### Discrepancies with the compiler
+
+Record every place where the compiler and the model part ways; some of
+them will be bugs or misfeatures of the compiler. That is, whenever:
+
+- the compiler (Simplify, the types library, the terms, the tests or
+  their tools) does, assumes or permits something that the semantics,
+  read plainly, does not justify: it rewrites to `Invalid` something the
+  machine can run, or relies on an invariant that nothing checks or
+  documents;
+- two parts of the compiler disagree with each other;
+- the model had to make something undefined, take a premise or make a
+  special case in order to follow the compiler;
+- an extracted function and the OCaml it models disagree in a test.
+
+An entry says what the compiler does and where (file and lines), what
+the model says, the example or statement that shows it and how to run
+it, and which it seems to be: a candidate bug, an unchecked assumption,
+an inconsistency in the compiler, intended and documented, or not
+known. Do not change the compiler to remove a discrepancy, and do not
+weaken a statement to hide one: model what the compiler does where that
+is sound, say so in the header of the `Spec` file, and record the
+entry. The record is kept with the instructions of those working on
+the semantics, outside the repository; a mistake in the model that is
+then fixed is not an entry, unless it is not clear which side is wrong.
 
 ## Extraction pitfalls
 
@@ -831,3 +869,6 @@ not a proof.
 - The headers list what is trusted, and nothing is `Admitted`;
   `make -s -C rocq assumptions` passes, so there is no axiom that
   `rocq/TRUST-LEDGER.md` does not list.
+- For the Flambda 2 semantics: every discrepancy with the compiler met
+  on the way is recorded ("Discrepancies with the compiler"), and what
+  needs the regenerated extracted files is in the last commit.
