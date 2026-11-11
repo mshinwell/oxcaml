@@ -325,7 +325,7 @@ Definition witness_use_not_admitted_statement : Prop :=
     ∧ ~ join_admits_use Witness.source_env Witness.use_env target
           (Analysis.definitions_in_joined_envs analysis)
           (Analysis.canonical_definitions_at_normal_mode analysis) 0
-    ∧ ~ scrutinees_have_values target
+    ∧ ~ scrutinees_have_values (known_at_use Witness.inputs 0) target
           (Analysis.definitions_in_joined_envs analysis) 0 Witness.valuation
     ∧ ~ joined_variables_have_values Witness.inputs Witness.valuation.
 
@@ -458,8 +458,8 @@ Definition repaired_test_gives_values_statement : Prop :=
     Join_env.joined_env s index = Some tenv ->
     typing_env_satisfied_but exempt statics valuation tenv ->
     bound_in_terms tenv valuation ->
-    has_value_at_use (Join_env.definitions_of_existentials s) index valuation
-      x.
+    has_value_at_use (knows tenv) (Join_env.definitions_of_existentials s)
+      index valuation x.
 
 (* So, with the repaired test, every relation that the two loops of
    [cut_and_n_way_join0] record is on a variable that has a value at
@@ -487,8 +487,8 @@ Definition repaired_rounds_scrutinees_have_values_statement : Prop :=
     bound_in_terms tenv valuation ->
     ∃ x : variable,
       scrutinee = Name_var x
-      ∧ has_value_at_use (Join_env.definitions_of_existentials s2) index
-          valuation x.
+      ∧ has_value_at_use (knows tenv)
+          (Join_env.definitions_of_existentials s2) index valuation x.
 
 (* On the instance, the repaired join answers a target that admits
    both uses: the relation on [r] is not recovered, since [x] may not
@@ -571,8 +571,9 @@ Definition existentials_new (s : Join_env.t) : Prop :=
         Join_env.joined_env s index = Some use -> ~ knows use x.
 
 (* A variable that has a definition is one that the join has made, at
-   the kind of the definition; and the variable that stands for a
-   vector of [Simple]s has that vector for definition. *)
+   the kind of the definition; the variable that stands for a vector
+   of [Simple]s has that vector for definition; and a variable that
+   the join has made has a definition. *)
 Definition existentials_recorded (s : Join_env.t) : Prop :=
   (∀ (x : variable) (simples : Simples_in_joined_envs.t)
      (kind : flambda_kind),
@@ -581,14 +582,17 @@ Definition existentials_recorded (s : Join_env.t) : Prop :=
      lookup x
        (Bindings_in_target_env.existential_variables (Join_env.bindings s))
      = Some kind)
-  ∧ ∀ (simples : Simples_in_joined_envs.t) (x : variable),
-      Bindings_in_target_env.has_existential_for_these_simples
-        (Join_env.bindings s) simples
-      = Some x ->
-      ∃ (simples' : Simples_in_joined_envs.t) (kind : flambda_kind),
-        lookup x (Join_env.definitions_of_existentials s)
-        = Some (simples', kind)
-        ∧ Simples_in_joined_envs.equal simples simples' = true.
+  ∧ (∀ (simples : Simples_in_joined_envs.t) (x : variable),
+       Bindings_in_target_env.has_existential_for_these_simples
+         (Join_env.bindings s) simples
+       = Some x ->
+       ∃ (simples' : Simples_in_joined_envs.t) (kind : flambda_kind),
+         lookup x (Join_env.definitions_of_existentials s)
+         = Some (simples', kind)
+         ∧ Simples_in_joined_envs.equal simples simples' = true)
+  ∧ ∀ x : variable,
+      is_existential s x ->
+      is_bound x (Join_env.definitions_of_existentials s) = true.
 
 (* A variable that has been brought in is recorded with a kind; the
    source does not know it, and some joined environment does. *)

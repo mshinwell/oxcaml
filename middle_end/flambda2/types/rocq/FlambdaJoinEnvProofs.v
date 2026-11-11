@@ -340,8 +340,9 @@ Proof.
   - intros Hscrutinees.
     destruct
       (Hscrutinees Witness.r Witness.x Relation.Is_null _ _ eq_refl
-         (or_introl eq_refl) (or_introl (ex_intro _ _ eq_refl)))
-      as [[v Hv] | [simples [kind [simple [v [Hdefinition _]]]]]];
+         (or_introl eq_refl)
+         (or_introl (conj (or_introl eq_refl) (ex_intro _ _ eq_refl))))
+      as [[_ [v Hv]] | [simples [kind [simple [v [Hdefinition _]]]]]];
       discriminate.
   - intros Hjoined.
     destruct (Hjoined Witness.x eq_refl) as [v Hv]; [ | discriminate ].
@@ -584,6 +585,24 @@ Proof.
   exists binding. reflexivity.
 Qed.
 
+(* A variable that has a canonical simple at a name mode is bound. *)
+Lemma canonical_exn_known (tenv : Typing_env.t)
+    (min_name_mode : option Name_mode.t) (x : variable)
+    (answer : option simple) :
+  Typing_env.get_canonical_simple_exn tenv min_name_mode None (Var x)
+  = Some answer ->
+  knows tenv x.
+Proof.
+  unfold Typing_env.get_canonical_simple_exn,
+    Typing_env.binding_time_and_mode_of_simple,
+    Typing_env.binding_time_and_mode,
+    Typing_env.find_with_binding_time_and_mode,
+    Typing_env.find_with_binding_time_and_mode', knows, Typing_env.mem.
+  destruct (Keyed.lookup name_eqb (Name_var x)
+              (Typing_env.names_to_types tenv)) as [[ty time] | ];
+    [ reflexivity | discriminate ].
+Qed.
+
 Theorem repaired_test_gives_values : repaired_test_gives_values_statement.
 Proof.
   intros s x types index tenv exempt statics valuation Htest Hindex
@@ -613,18 +632,19 @@ Proof.
     as [[simples kind] | ] eqn:Hdefinition.
   - right. exists simples, kind, simple, v.
     split; [ exact Hdefinition | split; [ exact Hstands | exact Hv ] ].
-  - injection Hstands as <-. left. exists v. exact Hv.
+  - injection Hstands as <-. left. split; [ | exists v; exact Hv ].
+    exact (canonical_exn_known _ _ _ _ Hcanonical).
 Qed.
 
 (* A variable that has a value by the definitions of a state has one by
    those of a later state. *)
-Lemma has_value_at_use_keeps (s s' : Join_env.t) (index : Index.t)
-    (valuation : env) (x : variable) :
+Lemma has_value_at_use_keeps (known : variable -> Prop) (s s' : Join_env.t)
+    (index : Index.t) (valuation : env) (x : variable) :
   keeps_definitions s s' ->
-  has_value_at_use (Join_env.definitions_of_existentials s) index valuation x
-  ->
-  has_value_at_use (Join_env.definitions_of_existentials s') index valuation
-    x.
+  has_value_at_use known (Join_env.definitions_of_existentials s) index
+    valuation x ->
+  has_value_at_use known (Join_env.definitions_of_existentials s') index
+    valuation x.
 Proof.
   intros [_ Hdefinitions]
     [Hvalue | [simples [kind [simple [v [Hdefinition [Hfind Hv]]]]]]].
@@ -651,7 +671,7 @@ Proof.
        | [x [types [s0 [Heq [Hbefore [Hafter Htest]]]]]]];
     [ discriminate | ].
   exists x. split; [ exact Heq | ].
-  apply (has_value_at_use_keeps s0 s2 _ _ _ Hafter).
+  apply (has_value_at_use_keeps _ s0 s2 _ _ _ Hafter).
   apply (repaired_test_gives_values s0 x types index tenv exempt statics
            valuation Htest); try assumption.
   destruct Hbefore as [Henvs _]. rewrite Henvs. exact Hindex.
@@ -745,9 +765,10 @@ Proof.
   - split; [ exact Hsource | split; [ exact Henvs | ] ].
     intros x Hx. discriminate.
   - intros x Hx. discriminate.
-  - split.
+  - split; [ | split ].
     + intros x simples kind Hx. discriminate.
     + intros simples x Hx. discriminate.
+    + intros x Hx. discriminate.
   - split.
     + intros x Hx. discriminate.
     + intros x Hx. discriminate.
@@ -938,7 +959,7 @@ Proof.
   intros Hfresh Hvalid Hmake. pose proof Hvalid as Hvalid0.
   destruct Hvalid
     as [[Hsource [Huses Hexistentials]]
-          [Hnew [[Hrecorded Hvectors] [Himported Himports]]]].
+          [Hnew [[Hrecorded [Hvectors Hdefined_all]] [Himported Himports]]]].
   unfold Join_env.existential_for_these_canonicals,
     Bindings_in_target_env.existential_for_these_simples in Hmake.
   destruct (Bindings_in_target_env.has_existential_for_these_simples
@@ -1012,7 +1033,7 @@ Proof.
            ++ intros index use Hindex Hknown. apply Hx0.
               exact (Huses _ _ _ Hindex Hknown).
         -- exact (Hnew y Hy).
-      * split.
+      * split; [ | split ].
         -- intros y simples k Hy.
            cbn [Join_env.bindings Join_env.definitions_of_existentials
                   Bindings_in_target_env.existential_variables lookup]
@@ -1035,6 +1056,12 @@ Proof.
                 as [simples' [k [Hdefinition Hequal']]].
               exists simples', k. rewrite (Hdefined _ _ _ Hdefinition).
               split; [ exact Hdefinition | exact Hequal' ].
+        -- intros y Hy. unfold is_existential, is_bound in Hy |- *.
+           cbn [Join_env.bindings Join_env.definitions_of_existentials
+                  Bindings_in_target_env.existential_variables lookup]
+             in Hy |- *.
+           destruct (Pos.eqb y x0); [ reflexivity | ].
+           exact (Hdefined_all y Hy).
       * split; [ exact Himported | exact Himports ].
     + split; [ intros index; reflexivity | split ].
       * intros y [simples k] Hy.
@@ -2096,7 +2123,7 @@ Proof.
   pose proof Hvalid as Hvalid0.
   destruct Hvalid
     as [[Hsource [Huses Hexistentials]]
-          [Hnew [[Hrecorded Hvectors] [Himported Himports]]]].
+          [Hnew [[Hrecorded [Hvectors Hdefined_all]] [Himported Himports]]]].
   unfold Join_env.existential_for_these_canonicals,
     Bindings_in_target_env.existential_for_these_simples in Hmake.
   destruct (Bindings_in_target_env.has_existential_for_these_simples

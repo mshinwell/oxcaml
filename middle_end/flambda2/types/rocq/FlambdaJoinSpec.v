@@ -829,13 +829,26 @@ Definition sound_join_of_environments {A : Type}
 (* What is to be proved of the compiler's join: the contract for the
    runs that have the values that the join reads. *)
 
-(* A variable has a value at a use: the valuation of the use gives it
-   one, or it has a definition there that has one. (The second is for
-   the variables that the join makes, which the use does not know.) *)
-Definition has_value_at_use
+(* A variable that the source, or the use of an index, knows. *)
+Definition known_at_use {A : Type} (inputs : join_inputs A)
+    (index : Index.t) (x : variable) : Prop :=
+  knows (source inputs) x
+  ∨ ∃ use : Typing_env.t, use_at inputs index use ∧ knows use x.
+
+(* A variable has a value at a use: it is known there and the
+   valuation of the use gives it one, or it has a definition there
+   that has one. (The second is for the variables that the join makes,
+   which the use does not know.) A value that the valuation gives to a
+   variable that is not known there does not count: a valuation that
+   satisfies the use and the source may give anything to such a
+   variable, and what it gives says nothing of the run. Without this,
+   a run in which a variable has no value would pass the conditions
+   below by a valuation that gives it one all the same, which need not
+   be a value that the target can keep. *)
+Definition has_value_at_use (known : variable -> Prop)
     (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind))
     (index : Index.t) (valuation : env) (x : variable) : Prop :=
-  (∃ v : value, lookup x valuation = Some v)
+  (known x ∧ ∃ v : value, lookup x valuation = Some v)
   ∨ ∃ (simples : Simples_in_joined_envs.t) (kind : flambda_kind)
       (simple : simple) (v : value),
       lookup x definitions = Some (simples, kind)
@@ -862,7 +875,8 @@ Definition has_value_at_use
    that exists. Simplify can make such inputs: a program has been
    compiled wrongly because of it, with the n-way join (the arm of a
    switch on [r] that the run takes is deleted). Discrepancy T5-10. *)
-Definition scrutinees_have_values (target : Typing_env.t)
+Definition scrutinees_have_values (known : variable -> Prop)
+    (target : Typing_env.t)
     (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind))
     (index : Index.t) (valuation : env) : Prop :=
   ∀ (r x : variable) (relation : Relation.t)
@@ -872,8 +886,8 @@ Definition scrutinees_have_values (target : Typing_env.t)
     = Some (Type_naked_immediate (Ok (No_alias head)), binding_time_and_mode)
     ->
     (relation, Name_var x) ∈ inverse_relations head ->
-    has_value_at_use definitions index valuation r ->
-    has_value_at_use definitions index valuation x.
+    has_value_at_use known definitions index valuation r ->
+    has_value_at_use known definitions index valuation x.
 
 (* A variable of the source that has an equation in the level cut from
    every use that is not bottom has a value. (The join gives such a
@@ -938,7 +952,8 @@ Definition values_are_read {A : Type} (inputs : join_inputs A)
     (target : Typing_env.t)
     (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind))
     (index : Index.t) (statics : static_env) (valuation : env) : Prop :=
-  scrutinees_have_values target definitions index valuation
+  scrutinees_have_values (known_at_use inputs index) target definitions
+    index valuation
   ∧ joined_variables_have_values inputs valuation
   ∧ imported_variables_have_values inputs target index valuation.
 
@@ -1011,7 +1026,8 @@ Definition added_equations_have_values {A : Type} (inputs : join_inputs A)
     (index : Index.t) (valuation : env) : Prop :=
   ∀ (x : variable) (ty : flambda_type),
     added_equation (source inputs) target x ty ->
-    has_value_at_use definitions index valuation x.
+    has_value_at_use (known_at_use inputs index) definitions index valuation
+      x.
 
 (* The target admits a use, for the valuations that have a property,
    and the witness gives a value to every variable that the join added
