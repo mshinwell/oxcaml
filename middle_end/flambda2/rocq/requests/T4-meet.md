@@ -245,6 +245,18 @@ the inputs; no value and no valuation is supposed):
   result;
 - J4: the result fits.
 
+J1 has one more conclusion since the second review, and one more
+premise: no equation is added on a name that has no value
+(`keeps_equations_valued`), given that the equations that the scoped
+environment has after the scope of the meet are on names that have a
+value (`equations_valued`). The meet makes extensions of the levels of
+its scoped environments and puts them in the type that it answers; an
+extension is true where each of its names has a value of the type of
+its equation (T1's meaning, which a later meet relies on when it adds
+the extension of a case and drops the case if that is bottom). The
+same clause is a conclusion of `meet_sound`,
+`meet_expanded_head_sound` and the `add_*_sound` contracts.
+
 J1 is about one valuation and both environments. The first request
 had instead, in `scoped_env_of`, that whatever satisfies a scoped
 environment satisfies `initial_tenv`. R1 showed that meet cannot give
