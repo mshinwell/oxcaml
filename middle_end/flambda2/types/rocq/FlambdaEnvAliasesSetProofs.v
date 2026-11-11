@@ -1071,6 +1071,86 @@ Proof.
     rewrite !Hmerged. reflexivity.
 Qed.
 
+Theorem add_alias_set_earliest : add_alias_set_earliest_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes t name aliases t'
+    Hconsistent Hearliest Hcomparable Hadd.
+  destruct
+    (add_alias_set_invariant binding_time_resolver binding_times_and_modes
+       (fun _ t1 c =>
+          aliases_consistent t1
+          ∧ c = canonical_element_of t1 (simple_of_name name)
+          ∧ canonical_elements_earliest binding_time_resolver
+              binding_times_and_modes t1
+          ∧ (∀ x : simple, is_canonical t1 x -> is_canonical t x)
+          ∧ ∀ a b : simple,
+              aliased t1 a b ->
+              aliased t a b
+              ∨ (merged_by_set t name aliases a
+                 ∧ merged_by_set t name aliases b))
+       t name aliases t' Hadd)
+    as [c' (_ & _ & Hearliest' & _)]; [ | | exact Hearliest' ].
+  - split; [ exact Hconsistent | ]. split; [ reflexivity | ].
+    split; [ exact Hearliest | ]. split; auto.
+  - intros done t1 c e t2 c2 Hhas
+      (Hconsistent1 & Hc & Hearliest1 & Hcanonical1 & Hclasses1) Hone.
+    destruct
+      (step_consistent binding_time_resolver binding_times_and_modes t1 name c
+         e t2 c2 Hconsistent1 Hc Hone)
+      as [Hconsistent2 Hc2].
+    split; [ exact Hconsistent2 | ]. split; [ exact Hc2 | ].
+    apply add_alias_of_set_cases in Hone
+      as [(_ & -> & _) | (Hdifferent & result & Hadd1 & <- & _)];
+      [ split; [ exact Hearliest1 | split; assumption ] | ].
+    assert (Hcan : is_canonical t1 c).
+    { rewrite Hc. apply canonical_element_canonical, Hconsistent1. }
+    assert (Hcan' : is_canonical t1 (canonical_element_of t1 e)).
+    { apply canonical_element_canonical, Hconsistent1. }
+    (* What is in the class of the name or of the element is merged. *)
+    assert (Hmerged :
+      ∀ a : simple,
+        aliased t1 a c ∨ aliased t1 a (canonical_element_of t1 e) ->
+        merged_by_set t name aliases a).
+    { intros a [Ha | Ha].
+      - assert (Ha' : aliased t1 a (simple_of_name name)).
+        { rewrite Hc in Ha.
+          apply (aliased_canonical_element t1 _ _ Hconsistent1), Ha. }
+        destruct (Hclasses1 _ _ Ha') as [H | [H _]];
+          [ left; exact H | exact H ].
+      - assert (Ha' : aliased t1 a e).
+        { apply (aliased_canonical_element t1 _ _ Hconsistent1), Ha. }
+        destruct (Hclasses1 _ _ Ha') as [H | [H _]]; [ | exact H ].
+        right. exists e. split; [ exact Hhas | exact H ]. }
+    split; [ | split ].
+    + apply
+        (add_earliest A binding_time_resolver binding_times_and_modes t1 c
+           (canonical_element_of t1 e) result Hconsistent1 Hearliest1 Hcan
+           Hcan');
+        [ | exact Hadd1 ].
+      apply Hcomparable;
+        [ apply Hcanonical1, Hcan
+        | apply Hcanonical1, Hcan'
+        | apply Hmerged; left; apply aliased_refl
+        | apply Hmerged; right; apply aliased_refl
+        | exact Hdifferent ].
+    + intros x Hx.
+      apply
+        (add_is_canonical A binding_time_resolver binding_times_and_modes t1
+           c (canonical_element_of t1 e) result x Hconsistent1 Hcan Hcan'
+           Hdifferent Hadd1)
+        in Hx.
+      destruct Hx as [Hx _]. apply Hcanonical1, Hx.
+    + intros a b Hab.
+      apply
+        (add_aliased A binding_time_resolver binding_times_and_modes t1 c
+           (canonical_element_of t1 e) result a b Hconsistent1 Hcan Hcan'
+           Hadd1)
+        in Hab.
+      destruct Hab as [H | [[Ha Hb] | [Ha Hb]]];
+        [ exact (Hclasses1 _ _ H) | | ];
+        right; split; apply Hmerged; auto.
+Qed.
+
 (* ======================================================================== *)
 (* Renaming                                                                 *)
 (* ======================================================================== *)

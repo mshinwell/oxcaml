@@ -65,7 +65,8 @@
      fatal error when some environment respects the structure and
      gives the elements the value of the name; the names spoken of
      afterwards are among those before, the name and the names of the
-     set.
+     set; the canonical elements stay earliest where one of every two
+     canonical elements put in one class is earlier than the other.
    - The functions on sets and [Aliases.add_alias_set] commute with
      renaming, with no premise (the renamings are in
      FlambdaEnvAliasesRenamingSpec.v); [filter] with the test renamed.
@@ -83,14 +84,20 @@
    - [Aliases.add_alias_set] goes through the names of the set in the
      order of the list, the OCaml in the order of names. The classes
      afterwards do not depend on the order; the structure as it is
-     written may.
+     written may, and the canonical elements do not where the order
+     decides (below).
    - The fatal error of the OCaml's [add_alias_set] on two different
      constants ("Discovered Bottom during alias join") is [None], as
      are those of [Aliases.add0].
-   - That the canonical element of the merged class is the earliest is
-     not stated: [Aliases.add] keeps the order only for two elements of
-     which one is earlier than the other
-     (FlambdaEnvAliasesSpec.v, [add_earliest_statement]).
+   - The canonical elements afterwards are earliest only where the
+     order decides between the canonical elements that are put in one
+     class ([add_alias_set_earliest_statement]): [Aliases.add] keeps
+     the order only for two elements of which one is earlier than the
+     other (FlambdaEnvAliasesSpec.v, [add_earliest_statement]). Where
+     it does not (two symbols, or two variables bound at one time), the
+     canonical element of the merged class may depend on the order in
+     which the names of the set are gone through, and so differ from
+     the compiler's.
 
    The proofs are in FlambdaEnvAliasesSetProofs.v, which needs no
    review. *)
@@ -251,6 +258,38 @@ Definition add_alias_set_name_modes_recorded_statement : Prop :=
       name aliases
     = Some t' ->
     name_modes_recorded binding_times_and_modes t'.
+
+(* The order. [Aliases.add] keeps the canonical elements earliest only
+   for two elements of which one is earlier than the other
+   (FlambdaEnvAliasesSpec.add_earliest_statement), so that is asked
+   here of the canonical elements that are put in one class: no two of
+   them are symbols, or variables bound at one time. (Two different
+   constants among them make the function stop.) Then the canonical
+   elements afterwards are earliest, and so are determined by the
+   classes (FlambdaEnvAliasesSpec.canonical_element_determined_statement),
+   whatever the order in which the names of the set are gone through:
+   that of names in the compiler, that of the list here. *)
+Definition add_alias_set_earliest_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (name : name) (aliases : Aliases.Alias_set.t)
+    (t' : Aliases.t),
+    aliases_consistent t ->
+    canonical_elements_earliest binding_time_resolver
+      binding_times_and_modes t ->
+    (∀ e e' : simple,
+      is_canonical t e ->
+      is_canonical t e' ->
+      merged_by_set t name aliases e ->
+      merged_by_set t name aliases e' ->
+      e <> e' ->
+      comparable binding_time_resolver binding_times_and_modes e e') ->
+    Aliases.add_alias_set binding_time_resolver binding_times_and_modes t
+      name aliases
+    = Some t' ->
+    canonical_elements_earliest binding_time_resolver
+      binding_times_and_modes t'.
 
 (* There is no fatal error when the structure is consistent and some
    environment respects it and gives every element of the set the value

@@ -683,6 +683,46 @@ Proof.
   - exact (Hearliest n canonical_element Hdemoted).
 Qed.
 
+Theorem canonical_element_determined :
+  canonical_element_determined_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes t t' Hconsistent
+    Hconsistent' Hearliest Hearliest' Hclasses e.
+  destruct (simple_equal_spec (canonical_element_of t e)
+              (canonical_element_of t' e)) as [Heq | Hne]; [ exact Heq | ].
+  exfalso.
+  (* Each of the two is in the class of which the other is the canonical
+     element, so each is earlier than the other. *)
+  assert (Hc :
+    canonical_element_of t' (canonical_element_of t e)
+    = canonical_element_of t' e).
+  { symmetry. apply (proj1 (Hclasses e (canonical_element_of t e))).
+    unfold aliased. symmetry.
+    apply canonical_element_idempotent, Hconsistent. }
+  assert (Hc' :
+    canonical_element_of t (canonical_element_of t' e)
+    = canonical_element_of t e).
+  { symmetry. apply (proj2 (Hclasses e (canonical_element_of t' e))).
+    unfold aliased. symmetry.
+    apply canonical_element_idempotent, Hconsistent'. }
+  pose proof
+    (canonical_element_earliest A binding_time_resolver
+       binding_times_and_modes t' (canonical_element_of t e) Hearliest')
+    as H1.
+  rewrite Hc in H1. specialize (H1 (fun H => Hne (eq_sym H))).
+  pose proof
+    (canonical_element_earliest A binding_time_resolver
+       binding_times_and_modes t (canonical_element_of t' e) Hearliest)
+    as H2.
+  rewrite Hc' in H2. specialize (H2 Hne).
+  destruct
+    (defined_earlier_strict A binding_time_resolver binding_times_and_modes
+       (canonical_element_of t e) (canonical_element_of t' e)
+       (canonical_element_of t e))
+    as [Hirreflexive Htransitive].
+  rewrite (Htransitive H2 H1) in Hirreflexive. discriminate Hirreflexive.
+Qed.
+
 Theorem canonical_element_constant : canonical_element_constant_statement.
 Proof. intros t e c Haliased. exact Haliased. Qed.
 
@@ -1721,6 +1761,63 @@ Proof.
   unfold is_canonical, demoted_to. rewrite canonical_of_name.
   intros Hcanonical Hdemoted. rewrite Hdemoted in Hcanonical.
   discriminate Hcanonical.
+Qed.
+
+Theorem add_respected_equal : add_respected_equal_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes t canonical_element1
+    canonical_element2 result vars Hadd Hrespected.
+  destruct (add_merged _ _ _ _ _ _ Hadd) as [[Hsame _] | (_ & [Hdem _] & _)].
+  - destruct (add_arguments _ _ _ _ _ _ Hadd) as [[Hc Hd] | [Hc Hd]];
+      rewrite <- Hc, <- Hd, Hsame; reflexivity.
+  - assert (Hdemoted :
+      value_of_name vars (Aliases.demoted_name result)
+      = eval_simple vars (Aliases.canonical_element result)).
+    { apply (proj1 Hrespected). apply Hdem. left. auto. }
+    unfold value_of_name in Hdemoted.
+    destruct (add_arguments _ _ _ _ _ _ Hadd) as [[Hc Hd] | [Hc Hd]];
+      rewrite <- Hc, <- Hd; congruence.
+Qed.
+
+Theorem add_respected_before : add_respected_before_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes t canonical_element1
+    canonical_element2 result vars Hconsistent Hcanonical1 Hcanonical2 Hadd
+    Hrespected.
+  pose proof
+    (add_respected_equal A binding_time_resolver binding_times_and_modes t
+       canonical_element1 canonical_element2 result vars Hadd Hrespected)
+    as Hequal.
+  destruct (add_merged _ _ _ _ _ _ Hadd)
+    as [[_ Hsame] | (_ & [Hdem _] & _)];
+    [ rewrite <- Hsame; exact Hrespected | ].
+  (* The name demoted was canonical, and has the value of the canonical
+     element. *)
+  assert (Hwas : is_canonical t (simple_of_name (Aliases.demoted_name result))).
+  { destruct (add_arguments _ _ _ _ _ _ Hadd) as [[_ Hd] | [_ Hd]];
+      rewrite Hd; assumption. }
+  assert (Hdemoted :
+    eval_simple vars (simple_of_name (Aliases.demoted_name result))
+    = eval_simple vars (Aliases.canonical_element result)).
+  { destruct (add_arguments _ _ _ _ _ _ Hadd) as [[Hc Hd] | [Hc Hd]];
+      rewrite Hc, Hd; congruence. }
+  destruct Hconsistent as [_ Hlisted].
+  assert (Hcanonical :
+    ∀ (n : name) (e : simple),
+      demoted_to t n e -> value_of_name vars n = eval_simple vars e).
+  { intros n e Hd.
+    destruct (simple_equal_spec e
+                (simple_of_name (Aliases.demoted_name result)))
+      as [-> | Hne].
+    - rewrite Hdemoted. apply (proj1 Hrespected). apply Hdem. left.
+      split; [ reflexivity | ]. right. apply Hlisted, Hd.
+    - apply (proj1 Hrespected). apply Hdem. right. split; [ | split ].
+      + intros ->. exact (canonical_not_demoted t _ e Hwas Hd).
+      + intros Hl. apply Hlisted in Hl. unfold demoted_to in Hd, Hl.
+        congruence.
+      + exact Hd. }
+  split; [ exact Hcanonical | ].
+  intros e n Hl. apply Hcanonical, Hlisted, Hl.
 Qed.
 
 (* The two arguments of [add] being canonical, so are the canonical

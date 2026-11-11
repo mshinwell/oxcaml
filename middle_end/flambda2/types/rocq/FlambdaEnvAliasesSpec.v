@@ -89,7 +89,9 @@
      element of the class ([canonical_element_of]), which is not itself
      demoted, is earlier than every other element of the class, is the
      constant of the class if it has one, and is not a variable if the
-     class has a symbol;
+     class has a symbol; so two structures that have the invariant
+     and the same classes have the same canonical elements
+     ([canonical_element_determined_statement]);
    - [Aliases.get_canonical_element_exn] answers the canonical element
      if it may be used at the name mode asked for, and failing that an
      alias that may; what it answers is in the class of what it was
@@ -163,7 +165,9 @@
      class and on the two arguments is the same on each class
      ([add_classes_uniform_statement]);
    - an environment that respects the structure and gives the two the
-     same value respects the result ([add_respected_statement]);
+     same value respects the result ([add_respected_statement]), and
+     conversely ([add_respected_equal_statement],
+     [add_respected_before_statement]);
    - the invariant is kept, part by part: consistency always, the name
      modes recorded always, the order only if one of the two arguments
      is earlier than the other ([add_earliest_statement], and the
@@ -556,6 +560,27 @@ Definition canonical_element_earliest_statement : Prop :=
       (canonical_element_of t e) e
     = true.
 
+(* So the classes determine the canonical elements: two structures that
+   have the same classes, in each of which the canonical element of a
+   class is earlier than its other elements, have the same canonical
+   elements. Where that holds it does not matter in which order the
+   aliases were added. It holds of what [Aliases.add] builds unless two
+   symbols, or two variables bound at one time, come into one class
+   ([add_earliest_statement]). *)
+Definition canonical_element_determined_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t t' : Aliases.t),
+    aliases_consistent t ->
+    aliases_consistent t' ->
+    canonical_elements_earliest binding_time_resolver
+      binding_times_and_modes t ->
+    canonical_elements_earliest binding_time_resolver
+      binding_times_and_modes t' ->
+    (∀ e e' : simple, aliased t e e' <-> aliased t' e e') ->
+    ∀ e : simple, canonical_element_of t e = canonical_element_of t' e.
+
 (* It is the constant of the class, if the class has one. *)
 Definition canonical_element_constant_statement : Prop :=
   ∀ (t : Aliases.t) (e : simple) (c : const),
@@ -916,6 +941,38 @@ Definition add_respected_statement : Prop :=
     eval_simple vars canonical_element1
     = eval_simple vars canonical_element2 ->
     aliases_respected (Aliases.add_result_t result) vars.
+
+(* Conversely, an environment that respects the result gives the two
+   arguments the same value, whatever the structure was. *)
+Definition add_respected_equal_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple)
+    (result : Aliases.add_result) (vars : env),
+    Aliases.add binding_time_resolver binding_times_and_modes t
+      canonical_element1 canonical_element2
+    = Some (Or_bottom.Ok result) ->
+    aliases_respected (Aliases.add_result_t result) vars ->
+    eval_simple vars canonical_element1 = eval_simple vars canonical_element2.
+
+(* And it respects the structure as it was, if that was consistent and
+   the two were canonical. So the result says what the structure said
+   and that the two are equal, and nothing more. *)
+Definition add_respected_before_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple)
+    (result : Aliases.add_result) (vars : env),
+    aliases_consistent t ->
+    is_canonical t canonical_element1 ->
+    is_canonical t canonical_element2 ->
+    Aliases.add binding_time_resolver binding_times_and_modes t
+      canonical_element1 canonical_element2
+    = Some (Or_bottom.Ok result) ->
+    aliases_respected (Aliases.add_result_t result) vars ->
+    aliases_respected t vars.
 
 (* [add] keeps the three parts of the invariant, each under what it
    needs. Consistency: the two arguments are canonical. *)
