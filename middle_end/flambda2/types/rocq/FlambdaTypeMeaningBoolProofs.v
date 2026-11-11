@@ -75,6 +75,11 @@ Hypothesis H_closure :
   ∀ (code : code_id) (value_slots : list (value_slot * value)),
     (∀ (w : value_slot) (v : value), (w, v) ∈ value_slots -> P v) ->
     P (Value_closure code value_slots).
+Hypothesis H_closure_of_set :
+  ∀ (slot : function_slot) (function_decls : list (function_slot * code_id))
+    (value_slots : list (value_slot * value)),
+    (∀ (w : value_slot) (v : value), (w, v) ∈ value_slots -> P v) ->
+    P (Value_closure_of_set slot function_decls value_slots).
 Hypothesis H_symbol : ∀ s : symbol, P (Value_symbol s).
 Hypothesis H_block :
   ∀ (tag : Z) (fields : list value),
@@ -86,6 +91,9 @@ Fixpoint value_induction (v : value) : P v :=
   | Value_const c => H_const c
   | Value_closure code value_slots =>
     H_closure code value_slots (bindings_all P value_induction value_slots)
+  | Value_closure_of_set slot function_decls value_slots =>
+    H_closure_of_set slot function_decls value_slots
+      (bindings_all P value_induction value_slots)
   | Value_symbol s => H_symbol s
   | Value_block tag fields =>
     H_block tag fields (list_all P value_induction fields)
@@ -98,10 +106,12 @@ Lemma value_eqb_eq : decides_equality value_eqb.
 Proof.
   intros v.
   induction v
-    as [c | code value_slots IH | s | tag fields IH | c]
+    as [c | code value_slots IH | slot decls value_slots IH | s
+       | tag fields IH | c]
     using value_induction;
-    intros [c' | code' value_slots' | s' | tag' fields' | c']; simpl;
-    try (split; discriminate).
+    intros [c' | code' value_slots' | slot' decls' value_slots' | s'
+           | tag' fields' | c'];
+    simpl; try (split; discriminate).
   - rewrite (const_eqb_eq c c'). split; [ intros ->; reflexivity | ].
     intros [= ->]. reflexivity.
   - rewrite andb_true_iff, Pos.eqb_eq, lists_eqb_eq.
@@ -109,6 +119,17 @@ Proof.
       intros [= -> ->]. split; reflexivity.
     + intros [w v] [w' v'] Hin. simpl.
       rewrite andb_true_iff, Pos.eqb_eq, (IH w v Hin v').
+      split; [ intros [-> ->]; reflexivity | ].
+      intros [= -> ->]. split; reflexivity.
+  - rewrite !andb_true_iff, Pos.eqb_eq, !lists_eqb_eq.
+    + split; [ intros [[-> ->] ->]; reflexivity | ].
+      intros [= -> -> ->]. repeat split.
+    + intros [w v] [w' v'] Hin. simpl.
+      rewrite andb_true_iff, Pos.eqb_eq, (IH w v Hin v').
+      split; [ intros [-> ->]; reflexivity | ].
+      intros [= -> ->]. split; reflexivity.
+    + intros [g code] [g' code'] _. simpl.
+      rewrite andb_true_iff, !Pos.eqb_eq.
       split; [ intros [-> ->]; reflexivity | ].
       intros [= -> ->]. split; reflexivity.
   - rewrite Pos.eqb_eq. split; [ intros ->; reflexivity | ].
@@ -131,8 +152,8 @@ Proof. exact value_eqb_eq. Qed.
 Lemma is_poison_b_eq (v : value) : is_poison_b v = true <-> is_poison v.
 Proof.
   unfold is_poison.
-  destruct v as [c | code slots | s | tag fields | c'];
-    [ destruct c | | | | ]; simpl;
+  destruct v as [c | code slots | slot decls slots | s | tag fields | c'];
+    [ destruct c | | | | | ]; simpl;
     first
       [ split; [ intros _; eexists; reflexivity | reflexivity ]
       | split; [ discriminate | intros [k Hv]; discriminate Hv ] ].
@@ -329,8 +350,8 @@ Lemma head_of_kind_naked_immediate_satisfied_b_eq (statics : static_env)
 Proof.
   unfold head_of_kind_naked_immediate_satisfied_b,
     head_of_kind_naked_immediate_satisfied.
-  destruct v as [c | code slots | s | tag fields | c'];
-    [ destruct c | | | | ];
+  destruct v as [c | code slots | slot decls slots | s | tag fields | c'];
+    [ destruct c | | | | | ];
     try (split; [ discriminate | intros [? [Hv _]]; discriminate Hv ]).
   rewrite andb_true_iff, (every_b_every (Relation.t * name)%type),
     (every_in (Relation.t * name)%type).
@@ -358,7 +379,7 @@ Lemma naked_numbers_satisfied_b_eq (k : naked_number_kind) (v : value)
   <-> naked_numbers_satisfied k v numbers.
 Proof.
   unfold naked_numbers_satisfied_b, naked_numbers_satisfied.
-  destruct v as [c | code slots | s | tag fields | c'];
+  destruct v as [c | code slots | slot decls slots | s | tag fields | c'];
     try (split; [ discriminate | intros [? [? [Hv _]]]; discriminate Hv ]).
   rewrite andb_true_iff, (kind_eqb_eq _ _). split.
   - intros [Hkind Hnumber].

@@ -34,8 +34,8 @@
 From Stdlib Require Import ZArith List Bool Lia Setoid.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaMapProofs FlambdaSemanticsSpec FlambdaValueProofs
-  FlambdaPrimitiveProofs FlambdaWellFormedSpec.
+  FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
+  FlambdaValueProofs FlambdaPrimitiveProofs FlambdaWellFormedSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec.
 Import ListNotations.
@@ -67,19 +67,7 @@ Lemma closure_in_set_kind (statics : static_env) (v : value)
       function_slot * list (function_slot * code_id)
       * list (value_slot * value)) :
   closure_in_set statics v = Some closure -> kind_of_value v = Value.
-Proof.
-  unfold closure_in_set.
-  destruct (closure_of statics v) as [[code slots] | ] eqn:Hclosure;
-    [ | discriminate ].
-  intros _. exact (closure_of_kind _ _ _ Hclosure).
-Qed.
-
-Theorem closure_in_set_slot : closure_in_set_slot_statement.
-Proof.
-  intros statics v slot functions value_slots. unfold closure_in_set.
-  destruct (closure_of statics v) as [[code slots] | ]; [ | discriminate ].
-  intros [= <- <- _]. reflexivity.
-Qed.
+Proof. destruct v; try discriminate; intros _; reflexivity. Qed.
 
 (* ======================================================================== *)
 (* Which value a value is                                                   *)
@@ -104,8 +92,8 @@ Lemma null_or_not {A : Type} (v : value) (a b : A) :
        end
        = b).
 Proof.
-  destruct v as [c | code slots | s | tag fields | c'];
-    [ destruct c | | | | ];
+  destruct v as [c | code slots | slot decls slots | s | tag fields | c'];
+    [ destruct c | | | | | ];
     first
       [ left; split; reflexivity
       | right; split; [ discriminate | reflexivity ] ].
@@ -126,8 +114,8 @@ Lemma tagged_immediate_or_not {A : Type} (v : value) (a : Z -> A) (b : A) :
        end
        = b).
 Proof.
-  destruct v as [c | code slots | s | tag fields | c'];
-    [ destruct c | | | | ];
+  destruct v as [c | code slots | slot decls slots | s | tag fields | c'];
+    [ destruct c | | | | | ];
     first
       [ left; eexists; split; reflexivity
       | right; split; [ intros ?; discriminate | reflexivity ] ].
@@ -148,8 +136,8 @@ Lemma naked_immediate_or_not {A : Type} (v : value) (a : Z -> A) (b : A) :
        end
        = b).
 Proof.
-  destruct v as [c | code slots | s | tag fields | c'];
-    [ destruct c | | | | ];
+  destruct v as [c | code slots | slot decls slots | s | tag fields | c'];
+    [ destruct c | | | | | ];
     first
       [ left; eexists; split; reflexivity
       | right; split; [ intros ?; discriminate | reflexivity ] ].
@@ -666,7 +654,8 @@ Qed.
 Lemma tagged_immediate_is_immediate (v : value) :
   FlambdaPrimitiveSpec.is_tagged_immediate v = true -> is_immediate v.
 Proof.
-  destruct v as [c | code slots | s | tag fields | c]; try discriminate.
+  destruct v as [c | code slots | slot decls slots | s | tag fields | c];
+    try discriminate.
   destruct c; try discriminate. intros _. eexists. reflexivity.
 Qed.
 
@@ -674,8 +663,8 @@ Lemma allocated_not_null (statics : static_env) (v : value) :
   is_allocated statics v = true ->
   kind_of_value v = Value ∧ v <> Value_const Null.
 Proof.
-  destruct v as [c | code slots | s | tag fields | c]; try discriminate;
-    intros _; (split; [ reflexivity | discriminate ]).
+  destruct v as [c | code slots | slot decls slots | s | tag fields | c];
+    try discriminate; intros _; (split; [ reflexivity | discriminate ]).
 Qed.
 
 Theorem primitive_related : primitive_related_statement.
@@ -1055,11 +1044,11 @@ Qed.
    with nothing known, with the variables and the extensions; the three
    shapes of blocks; two kinds of boxed numbers; strings; closures with
    exactly and with at least some contents, the code of the function,
-   the type of a value slot and the type of a closure of the set. Not
-   covered: the kinds of naked numbers and of boxed numbers other than
-   the two shown of each, which the definitions treat alike; a set of
-   closures of several functions, which the machine does not have
-   yet. *)
+   the type of a value slot and the type of a closure of the set, for
+   a set of one function with no slot named and for a set of two
+   functions, made by a [Let] and static. Not covered: the kinds of
+   naked numbers and of boxed numbers other than the two shown of each,
+   which the definitions treat alike. *)
 
 Module Examples.
 
@@ -1781,6 +1770,101 @@ Example nway_join_has_not
   : ~ has (Value_symbol a_closure) nway_join_with_known_code.
 Proof. no. Qed.
 
+(* A set of two functions: the closure at each of its function slots,
+   made by a [Let]. The two differ in the slot only. *)
+Definition first_function_slot : function_slot := 3%positive.
+
+Definition two_functions : list (function_slot * code_id) :=
+  [(first_function_slot, some_code); (other_function_slot, other_code)].
+
+Definition closure_at (slot : function_slot) : value :=
+  Value_closure_of_set slot two_functions [(a_value_slot, tagged 3)].
+
+(* The closure at [slot] of a set of exactly those two functions and
+   that value slot, whose closure at the other slot has the type
+   given. *)
+Definition closure_of_two_type (slot : function_slot)
+    (other_closure_type : flambda_type) : flambda_type :=
+  exactly_this_closure slot
+    [(first_function_slot, Or_unknown.Known (Function_type some_code));
+     (other_function_slot, Or_unknown.Known (Function_type other_code))]
+    [(other_function_slot, other_closure_type)]
+    [(a_value_slot, this_tagged_immediate 3)] Alloc_mode.Heap.
+
+Example closure_of_two_has
+  : has (closure_at first_function_slot)
+      (closure_of_two_type first_function_slot (unknown Value)).
+Proof. yes. Qed.
+
+(* The closure at the other slot is another closure. *)
+Example closure_at_other_slot_has_not
+  : ~ has (closure_at other_function_slot)
+        (closure_of_two_type first_function_slot (unknown Value)).
+Proof. no. Qed.
+
+(* The closure at the other slot of the set is that closure, which has
+   the type of a closure at that slot and is no immediate. *)
+Example closure_of_two_other_closure_has
+  : has (closure_at first_function_slot)
+      (closure_of_two_type first_function_slot
+         (closure_of_two_type other_function_slot (unknown Value))).
+Proof. yes. Qed.
+
+Example closure_of_two_other_closure_has_not
+  : ~ has (closure_at first_function_slot)
+        (closure_of_two_type first_function_slot any_tagged_immediate).
+Proof. no. Qed.
+
+(* The code of each function of the set is what the type says. *)
+Example closure_of_two_code_has_not
+  : ~ has (closure_at first_function_slot)
+        (exactly_this_closure first_function_slot
+           [(first_function_slot, Or_unknown.Known (Function_type some_code));
+            (other_function_slot,
+             Or_unknown.Known (Function_type some_code))]
+           []
+           [(a_value_slot, this_tagged_immediate 3)] Alloc_mode.Heap).
+Proof.
+  unfold has. intros Hhas.
+  apply exactly_this_closure_satisfied in Hhas
+    as [functions [value_slots [Hclosure [_ [_ Hentry]]]]].
+  compute in Hclosure. injection Hclosure as <- <-.
+  apply closures_entry_lookup_iff in Hentry as [Hcode _].
+  discriminate
+    (Hcode other_function_slot (Function_type some_code) other_code eq_refl
+       eq_refl).
+Qed.
+
+(* The same set, static: two symbols, each bound to the closure at one
+   slot, with the symbols of both. The closure at the other slot of
+   the set of the first is the second symbol. *)
+Definition first_closure : symbol := 9%positive.
+Definition other_closure : symbol := 10%positive.
+
+Definition closure_symbols : list (function_slot * symbol) :=
+  [(first_function_slot, first_closure); (other_function_slot, other_closure)].
+
+Definition statics_with_set : static_env :=
+  Static_env []
+    [(first_closure,
+      Static_closure_of_set first_function_slot closure_symbols two_functions
+        [(a_value_slot, tagged 3)]);
+     (other_closure,
+      Static_closure_of_set other_function_slot closure_symbols two_functions
+        [(a_value_slot, tagged 3)])].
+
+Example static_closure_of_two_has
+  : type_satisfied statics_with_set vars (Value_symbol first_closure)
+      (closure_of_two_type first_function_slot
+         (alias_type_of Value (Symbol other_closure))).
+Proof. yes. Qed.
+
+Example static_closure_of_two_has_not
+  : ~ type_satisfied statics_with_set vars (Value_symbol first_closure)
+        (closure_of_two_type first_function_slot
+           (alias_type_of Value (Symbol first_closure))).
+Proof. no. Qed.
+
 (* [Mutable_block]: no value has it ([mutable_block_satisfied]), the
    machine having none; so there is no example of a value that has. *)
 
@@ -1814,8 +1898,8 @@ Hypothesis Hextend : statics_extend statics statics'.
 Lemma block_of_extend (v : value) (block : Z * list value) :
   block_of statics v = Some block -> block_of statics' v = Some block.
 Proof.
-  destruct v as [c | code slots | s | tag fields | c]; simpl;
-    try discriminate; auto.
+  destruct v as [c | code slots | slot decls slots | s | tag fields | c];
+    simpl; try discriminate; auto.
   destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hlookup;
     [ | discriminate ].
   rewrite (proj2 Hextend s allocated Hlookup). auto.
@@ -1824,8 +1908,8 @@ Qed.
 Lemma boxed_number_of_extend (v : value) (c : const) :
   boxed_number_of statics v = Some c -> boxed_number_of statics' v = Some c.
 Proof.
-  destruct v as [c' | code slots | s | tag fields | c']; simpl;
-    try discriminate; auto.
+  destruct v as [c' | code slots | slot decls slots | s | tag fields | c'];
+    simpl; try discriminate; auto.
   destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hlookup;
     [ | discriminate ].
   rewrite (proj2 Hextend s allocated Hlookup). auto.
@@ -1834,8 +1918,8 @@ Qed.
 Lemma string_of_extend (v : value) (bytes : list Z) :
   string_of statics v = Some bytes -> string_of statics' v = Some bytes.
 Proof.
-  destruct v as [c | code slots | s | tag fields | c]; simpl;
-    try discriminate; auto.
+  destruct v as [c | code slots | slot decls slots | s | tag fields | c];
+    simpl; try discriminate; auto.
   destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hlookup;
     [ | discriminate ].
   rewrite (proj2 Hextend s allocated Hlookup). auto.
@@ -1861,10 +1945,11 @@ Lemma closure_in_set_extend (v : value)
   closure_in_set statics v = Some closure ->
   closure_in_set statics' v = Some closure.
 Proof.
-  unfold closure_in_set.
-  destruct (closure_of statics v) as [[code slots] | ] eqn:Hclosure;
+  destruct v as [c | code slots | slot decls slots | s | tag fields | c];
+    simpl; try discriminate; auto.
+  destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hlookup;
     [ | discriminate ].
-  rewrite (closure_of_extend _ _ Hclosure). auto.
+  rewrite (proj2 Hextend s allocated Hlookup). auto.
 Qed.
 
 (* The closures of the set of a closure are the same ones. *)
@@ -1877,10 +1962,12 @@ Lemma project_function_slot_extend (v : value)
   project_function_slot statics' move_from move_to v
   = project_function_slot statics move_from move_to v.
 Proof.
-  unfold closure_in_set, project_function_slot.
-  destruct (closure_of statics v) as [[code slots] | ] eqn:Hclosure;
+  unfold project_function_slot.
+  destruct v as [c | code slots | slot decls slots | s | tag fields | c];
+    simpl; try discriminate; try (intros _; reflexivity).
+  destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hlookup;
     [ | discriminate ].
-  rewrite (closure_of_extend _ _ Hclosure). reflexivity.
+  rewrite (proj2 Hextend s allocated Hlookup). reflexivity.
 Qed.
 
 Lemma relation_holds_extend (relation : Relation.t) (v : value) (n : Z) :
@@ -2396,8 +2483,15 @@ Proof.
   assert (Hclosure_in_set :
     ∀ closure, closure_in_set statics v = Some closure ->
                closure_of statics v <> None).
-  { unfold closure_in_set. intros closure.
-    destruct (closure_of statics v); [ discriminate | discriminate ]. }
+  { intros [[slot decls] slots] Hin.
+    pose proof (closure_in_set_slot _ _ _ _ _ Hin) as Hbound.
+    unfold is_bound in Hbound.
+    destruct (lookup slot decls) as [code | ] eqn:Hcode;
+      [ | discriminate Hbound ].
+    rewrite
+      (proj2 (closure_in_set_of statics v code slots)
+         (ex_intro _ slot (ex_intro _ decls (conj Hin Hcode)))).
+    discriminate. }
   destruct head as [is_int immediates get_tag blocks extensions is_unique
                    | alloc_mode | k contents alloc_mode
                    | by_function_slot alloc_mode | strs];

@@ -83,6 +83,18 @@ Fixpoint value_eqb (v v' : value) : bool :=
             Pos.eqb (fst slot) (fst slot')
             && value_eqb (snd slot) (snd slot'))
          value_slots value_slots'
+  | Value_closure_of_set slot function_decls value_slots,
+    Value_closure_of_set slot' function_decls' value_slots' =>
+    Pos.eqb slot slot'
+    && lists_eqb
+         (fun decl decl' =>
+            Pos.eqb (fst decl) (fst decl') && Pos.eqb (snd decl) (snd decl'))
+         function_decls function_decls'
+    && lists_eqb
+         (fun slot slot' =>
+            Pos.eqb (fst slot) (fst slot')
+            && value_eqb (snd slot) (snd slot'))
+         value_slots value_slots'
   | Value_symbol s, Value_symbol s' => Pos.eqb s s'
   | Value_block tag fields, Value_block tag' fields' =>
     Z.eqb tag tag' && lists_eqb value_eqb fields fields'

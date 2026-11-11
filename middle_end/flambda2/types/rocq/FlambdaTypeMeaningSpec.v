@@ -291,13 +291,14 @@
      not of a symbol bound to a block with the tag and the fields of
      the block that [s] is. What is stated of lifting has to allow for
      that.
-   - Closures are of sets of one function whose slot has no name. As
-     agreed with workstream C3, such a closure is read as the closure at
-     [unnamed_function_slot] of a set with that one function. C3 adds
-     sets of several functions and defines [closure_in_set] and
-     [project_function_slot] in the semantics, as they are here; the
-     three definitions here go then. Nothing may rely on which slot the
-     unnamed one is.
+   - Closures are read through the machine's [closure_in_set] and
+     [project_function_slot] (FlambdaValueSpec.v): a closure is the
+     closure at a function slot of a set of closures, of which the
+     machine has the code of each function slot and the values of the
+     value slots. The closure of a set of one function whose slot has
+     no name is read as the closure at [unnamed_function_slot] of a set
+     with that one function. Nothing may rely on which slot the unnamed
+     one is.
    - There are no mutable blocks, so [Mutable_block] has no value. With
      a heap (C4) it is to mean a mutable block, and a mutable block is
      then to be a block of [Variant] too, as [Meet] has it.
@@ -337,9 +338,8 @@ Import ListNotations.
 
 (* The meaning reads a value through the observations of the machine
    (FlambdaValueSpec.v): [kind_of_value], [block_of], [boxed_number_of],
-   [string_of] and [closure_of]. What is defined here is the number of
-   a constant, and the reading of a closure as one of a set, which is to
-   be the machine's (see the header). *)
+   [string_of], [closure_in_set] and [project_function_slot]. What is
+   defined here is the number of a constant. *)
 
 (* The number that a constant is, if it is one. *)
 Definition number_of_const (c : const) : option Z :=
@@ -350,45 +350,6 @@ Definition number_of_const (c : const) : option Z :=
   | Naked_mask i => Some i
   | Null | Poison _ => None
   end.
-
-(* The function slot of a closure of the machine of today, whose sets of
-   closures have one function. *)
-Definition unnamed_function_slot : function_slot := 1%positive.
-
-(* A value as a closure of a set of closures: the function slot it is
-   at, the code of each function of the set, and the values of the value
-   slots. *)
-Definition closure_in_set (statics : static_env) (v : value)
-    : option
-        (function_slot * list (function_slot * code_id)
-         * list (value_slot * value)) :=
-  match closure_of statics v with
-  | Some (code, value_slots) =>
-    Some
-      (unnamed_function_slot, [(unnamed_function_slot, code)], value_slots)
-  | None => None
-  end.
-
-(* The closure at [move_to] of the set of which a value is the closure
-   at [move_from]. *)
-Definition project_function_slot (statics : static_env)
-    (move_from move_to : function_slot) (v : value) : option value :=
-  match closure_of statics v with
-  | Some _ =>
-    if Pos.eqb move_from unnamed_function_slot
-       && Pos.eqb move_to unnamed_function_slot
-    then Some v
-    else None
-  | None => None
-  end.
-
-(* A closure is the closure of one of the functions of its set. *)
-Definition closure_in_set_slot_statement : Prop :=
-  ∀ (statics : static_env) (v : value) (slot : function_slot)
-    (functions : list (function_slot * code_id))
-    (value_slots : list (value_slot * value)),
-    closure_in_set statics v = Some (slot, functions, value_slots) ->
-    is_bound slot functions = true.
 
 (* ======================================================================== *)
 (* The relations that types speak of                                        *)

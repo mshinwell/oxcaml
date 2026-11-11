@@ -121,9 +121,8 @@
      a variable or a symbol ([Name.Map.t]), is a
      [Keyed.finite_map name], read with [Keyed.lookup name_eqb]. A set
      of numbers is a list of them.
-   - Function slots are names ([function_slot]), which FlambdaModel.v
-     does not have yet: its sets of closures have one function. The
-     definition here goes when it has them (workstream C3).
+   - Function slots are the [function_slot] of FlambdaModel.v, which
+     are names.
 
    The grammar does not enforce what the creation functions of the
    compiler check: that [immediates] is of kind naked immediate, the
@@ -146,9 +145,6 @@ Import ListNotations.
 (* ======================================================================== *)
 (* Names                                                                    *)
 (* ======================================================================== *)
-
-(* [Function_slot.t]. *)
-Definition function_slot : Type := positive.
 
 (* [Name.t]: a variable or a symbol. *)
 Inductive name : Type :=
