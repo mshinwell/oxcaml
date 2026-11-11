@@ -689,17 +689,17 @@ Definition n_way_join_simples_valid_statement : Prop :=
 
 
 (* What is asked of the equality of environment extensions: if it
-   finds the first equal to the second, the second mentions no variable
-   that the first does not, and holds wherever the first does. *)
+   finds the first equal to the second, the second holds wherever the
+   first does. (Nothing is asked of the variables that the two
+   mention: an equality that passes over the equations that do not
+   count may find equal two extensions of which one mentions a
+   variable that the other does not.) *)
 Definition env_extension_eqb_sound (p : Join_env.parameters) : Prop :=
-  ∀ extension extension' : env_extension,
+  ∀ (extension extension' : env_extension) (statics : static_env)
+    (valuation : env),
     Join_env.env_extension_eqb p extension extension' = true ->
-    (∀ x : variable,
-       x ∈ free_variables_of_env_extension extension' ->
-       x ∈ free_variables_of_env_extension extension)
-    ∧ ∀ (statics : static_env) (valuation : env),
-        env_extension_satisfied statics valuation extension ->
-        env_extension_satisfied statics valuation extension'.
+    env_extension_satisfied statics valuation extension ->
+    env_extension_satisfied statics valuation extension'.
 
 (* [Join_env.n_way_join_env_extension]. *)
 Definition n_way_join_env_extension_valid_statement : Prop :=

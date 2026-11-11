@@ -2048,22 +2048,14 @@ Proof.
     destruct Hgrows1 as [Henvs _]. rewrite Henvs in Huse.
     destruct (Hscope _ _ Hin) as [use1 [Huse1 Hscope1]].
     rewrite Huse in Huse1. injection Huse1 as <-.
-    assert (Hfirst :
-              (∀ x : variable,
-                 x ∈ free_variables_of_env_extension (Env_extension equations)
-                 -> x ∈ free_variables_of_env_extension extension)
-              ∧ env_extension_satisfied statics valuation
-                  (Env_extension equations)).
-    { destruct Hin as [Heq | Hin].
-      - injection Heq as _ <-.
-        split; [ intros x Hx; exact Hx | exact Hextension ].
-      - rewrite forallb_forall in Hall. specialize (Hall _ Hin). cbn in Hall.
-        destruct (Heqb _ _ Hall) as [Hvars Hsame].
-        split; [ exact Hvars | exact (Hsame _ _ Hextension) ]. }
-    destruct Hfirst as [Hvars Hfirst].
-    apply (env_extension_satisfied_coincide statics valuation valuation'
-             (Env_extension equations)); [ | exact Hfirst ].
-    intros x Hx. symmetry. apply Hagrees. apply Hscope1. apply Hvars. exact Hx.
+    assert (Hmoved : env_extension_satisfied statics valuation' extension).
+    { apply (env_extension_satisfied_coincide statics valuation valuation'
+               extension); [ | exact Hextension ].
+      intros x Hx. symmetry. apply Hagrees. apply Hscope1. exact Hx. }
+    destruct Hin as [Heq | Hin].
+    + injection Heq as _ <-. exact Hmoved.
+    + rewrite forallb_forall in Hall. specialize (Hall _ Hin). cbn in Hall.
+      exact (Heqb _ _ _ _ Hall Hmoved).
   - injection Hjoin as <-. injection Hresult as <- <-.
     split; [ exact Hvalid | split; [ apply grows_refl | ] ].
     split; [ intros x [] | ].
