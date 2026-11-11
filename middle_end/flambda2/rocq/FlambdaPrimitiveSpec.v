@@ -209,6 +209,49 @@ Definition eval_int_arith (width : Z) (op : binary_int_arith_op) (a b : Z)
   | Xor => Some (wrap width (Z.lxor a b))
   end.
 
+(* The amounts by which an integer of a kind is shifted: those from 0 up
+   to, and not including, this bound. It is the width of the kind, but
+   64 for the tagged immediates, which have 63 bits: OCaml's [lsl],
+   [lsr] and [asr] are specified at the amount 63. These are the
+   amounts at which Simplify computes the shift ([Number_adjuncts], at
+   [integer_bit_width] and [with_shift]). *)
+Definition shift_bound (kind : standard_int) : Z :=
+  match kind with
+  | Standard_tagged_immediate => 64
+  | _ => int_width kind
+  end.
+
+(* [Int_shift], by an amount that is not negative. [Lsl] shifts left
+   and wraps. [Lsr] shifts the unsigned reading right, and [Asr] the
+   integer itself, which keeps its sign. The result of a right shift is
+   wrapped too, so that every result is in range by its form; that
+   changes nothing but an [Lsr] by 0, which is the integer shifted and
+   not its unsigned reading (FlambdaPrimitiveProofs.v,
+   [eval_int_shift_asr] and [eval_int_shift_lsr]). *)
+(* CR mshinwell: [Int_shift] has no value on an amount that is negative,
+   or at or above [shift_bound]. Simplify says that such a shift is
+   undefined, and that it cannot make it [Invalid]
+   ([Simplify_binary_primitive], at [op_lhs_unknown] of the shifts); it
+   folds one to zero ([Number_adjuncts.with_shift]), where the machine
+   shifts by the amount modulo the size of the register on x86-64, so
+   the two differ: on a shift by 64, which the machine does not do at
+   all, and on an arithmetic shift right of a negative number.
+   For the naked immediates the bound is 63, where it is 64 for the
+   tagged ones, which are the same integers: Simplify folds a shift
+   right by 63 of a negative naked immediate to 0 and the machine gives
+   -1 (C1-9). The library documents that amount as unspecified for the
+   untagged [int] and as specified for [int]. No value is what the
+   documentation of the shifts says of these amounts; it would be
+   wrong if a program is entitled to some answer there. Decision
+   D18. *)
+Definition eval_int_shift (width : Z) (op : int_shift_op) (a amount : Z)
+    : Z :=
+  match op with
+  | Lsl => wrap width (Z.shiftl a amount)
+  | Lsr => wrap width (Z.shiftr (unsigned width a) amount)
+  | Asr => wrap width (Z.shiftr a amount)
+  end.
+
 Definition eval_int_comparison (width : Z) (c : int_comparison) (a b : Z)
     : bool :=
   match c with
@@ -523,10 +566,11 @@ Definition eval_phys_equal (statics : static_env) (v1 v2 : value)
   end.
 
 (* A binary primitive applied to two values. For [Int_arith] and
-   [Int_comp], both are integers of the kind the primitive carries. The
-   result of a comparison, and of [Phys_equal], is a naked immediate:
-   for [Phys_equal], 1 or 0 as the answer of [Phys_eq] is yes or no,
-   and the other way round for [Phys_neq]. *)
+   [Int_comp], both are integers of the kind the primitive carries. For
+   [Int_shift], the first is one, and the second, the amount, a naked
+   immediate. The result of a comparison, and of [Phys_equal], is a
+   naked immediate: for [Phys_equal], 1 or 0 as the answer of [Phys_eq]
+   is yes or no, and the other way round for [Phys_neq]. *)
 Definition eval_binary_primitive (statics : static_env)
     (p : binary_primitive) (v1 v2 : value) : option value :=
   match p with
@@ -543,6 +587,15 @@ Definition eval_binary_primitive (statics : static_env)
     let* b := int_of_value kind v2 in
     let* result := eval_int_arith (int_width kind) op a b in
     Some (Value_const (const_of_int kind result))
+  | Int_shift kind op =>
+    let* a := int_of_value kind v1 in
+    let* amount := int_of_value Standard_naked_immediate v2 in
+    if (0 <=? amount) && (amount <? shift_bound kind)
+    then
+      Some
+        (Value_const
+           (const_of_int kind (eval_int_shift (int_width kind) op a amount)))
+    else None
   | Int_comp kind behaviour =>
     let* a := int_of_value kind v1 in
     let* b := int_of_value kind v2 in
@@ -667,7 +720,7 @@ Definition unary_primitive_in_range (p : unary_primitive) : bool :=
 
 Definition binary_primitive_in_range (p : binary_primitive) : bool :=
   match p with
-  | Phys_equal _ | Int_arith _ _ | Int_comp _ _ => true
+  | Phys_equal _ | Int_arith _ _ | Int_shift _ _ | Int_comp _ _ => true
   end.
 
 Definition variadic_primitive_in_range (p : variadic_primitive) : bool :=
@@ -745,13 +798,14 @@ Definition args_kind_of_binary_primitive (p : binary_primitive)
   | Phys_equal _ => (Value, Value)
   | Int_arith kind _ | Int_comp kind _ =>
     (kind_of_standard_int kind, kind_of_standard_int kind)
+  | Int_shift kind _ => (kind_of_standard_int kind, naked_immediate_kind)
   end.
 
 (* [Flambda_primitive.result_kind_of_binary_primitive']. *)
 Definition result_kind_of_binary_primitive (p : binary_primitive)
     : flambda_kind :=
   match p with
-  | Int_arith kind _ => kind_of_standard_int kind
+  | Int_arith kind _ | Int_shift kind _ => kind_of_standard_int kind
   | Phys_equal _ | Int_comp _ _ => naked_immediate_kind
   end.
 

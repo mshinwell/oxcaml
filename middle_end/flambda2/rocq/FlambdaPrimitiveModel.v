@@ -37,8 +37,8 @@
      values, [Is_int], [Is_null], [Get_tag], [Opaque_identity],
      [Num_conv] between the integer kinds, [Boolean_not], [Unbox_number],
      [Box_number], [Untag_immediate] and [Tag_immediate];
-   - of [binary_primitive]: [Int_arith] and [Int_comp], at every
-     [Standard_int.t], and [Phys_equal];
+   - of [binary_primitive]: [Int_arith], [Int_shift] and [Int_comp], at
+     every [Standard_int.t], and [Phys_equal];
    - of [variadic_primitive]: [Make_block] of an immutable block of
      values.
    Every other primitive is left out. The conversion from the compiler's
@@ -133,6 +133,12 @@ Inductive binary_int_arith_op : Type :=
   | Or
   | Xor.
 
+(* [Flambda_primitive.int_shift_op]. *)
+Inductive int_shift_op : Type :=
+  | Lsl
+  | Lsr
+  | Asr.
+
 (* [Flambda_primitive.comparison], of integers. *)
 Inductive int_comparison : Type :=
   | Int_eq
@@ -156,6 +162,7 @@ Inductive equality_comparison : Type :=
 Inductive binary_primitive : Type :=
   | Phys_equal (op : equality_comparison)
   | Int_arith (kind : standard_int) (op : binary_int_arith_op)
+  | Int_shift (kind : standard_int) (op : int_shift_op)
   | Int_comp (kind : standard_int) (behaviour : int_comparison_behaviour).
 
 (* [Flambda_primitive.Block_kind.t]. *)

@@ -286,7 +286,8 @@ Lemma eval_binary_primitive_static_values (statics statics' : static_env)
   = eval_binary_primitive statics' p v1 v2.
 Proof.
   intros Hsame.
-  destruct p as [op | kind op | kind behaviour]; simpl; try reflexivity.
+  destruct p as [op | kind op | kind op | kind behaviour]; simpl;
+    try reflexivity.
   unfold eval_phys_equal.
   rewrite (is_allocated_static_values statics statics' v1)
     by (intros s ->; apply Hsame; left; reflexivity).
@@ -539,7 +540,7 @@ Lemma eval_binary_primitive_statics_extend (statics statics' : static_env)
   eval_binary_primitive statics' p v1 v2 = Some result.
 Proof.
   intros Hextend.
-  destruct p as [op | kind op | kind behaviour]; simpl;
+  destruct p as [op | kind op | kind op | kind behaviour]; simpl;
     try exact (fun H => H).
   unfold eval_phys_equal.
   assert (Hv1 :
@@ -665,7 +666,8 @@ Lemma eval_binary_primitive_symbol_bound (statics : static_env)
   v1 = Value_symbol s ∨ v2 = Value_symbol s ->
   lookup s (static_values statics) <> None.
 Proof.
-  destruct p as [op | kind op | kind behaviour]; simpl.
+  destruct p as [op | kind op | kind op | kind behaviour];
+    cbn [eval_binary_primitive].
   - (* [Phys_equal] *)
     destruct (eval_phys_equal statics v1 v2) as [same | ] eqn:Hsame;
       [ | discriminate ].
@@ -673,6 +675,11 @@ Proof.
   - (* [Int_arith] *)
     destruct (int_of_value kind v1) eqn:Hv1; [ | discriminate ].
     destruct (int_of_value kind v2) eqn:Hv2; [ | discriminate ].
+    intros _ [-> | ->]; rewrite int_of_value_symbol in *; discriminate.
+  - (* [Int_shift] *)
+    destruct (int_of_value kind v1) eqn:Hv1; [ | discriminate ].
+    destruct (int_of_value Standard_naked_immediate v2) eqn:Hv2;
+      [ | discriminate ].
     intros _ [-> | ->]; rewrite int_of_value_symbol in *; discriminate.
   - (* [Int_comp] *)
     destruct (int_of_value kind v1) eqn:Hv1; [ | discriminate ].
@@ -850,7 +857,9 @@ Lemma eval_binary_primitive_kinds (statics : static_env)
   ∧ kind_of_value arg2 = snd (args_kind_of_binary_primitive p)
   ∧ kind_of_value v = result_kind_of_binary_primitive p.
 Proof.
-  destruct p as [op | kind op | kind behaviour]; simpl.
+  destruct p as [op | kind op | kind op | kind behaviour];
+    cbn [eval_binary_primitive args_kind_of_binary_primitive
+         result_kind_of_binary_primitive fst snd].
   - (* [Phys_equal] *)
     destruct (eval_phys_equal statics arg1 arg2) as [same | ] eqn:Hsame;
       [ | discriminate ].
@@ -862,6 +871,15 @@ Proof.
     destruct (int_of_value kind arg2) as [b | ] eqn:Hb; [ | discriminate ].
     rewrite (int_of_value_kind _ _ _ Ha), (int_of_value_kind _ _ _ Hb).
     destruct (eval_int_arith (int_width kind) op a b) as [result | ];
+      [ | discriminate ].
+    intros [= <-]. simpl. rewrite kind_of_const_of_int. auto.
+  - (* [Int_shift] *)
+    destruct (int_of_value kind arg1) as [a | ] eqn:Ha; [ | discriminate ].
+    destruct (int_of_value Standard_naked_immediate arg2) as [amount | ]
+      eqn:Hamount;
+      [ | discriminate ].
+    rewrite (int_of_value_kind _ _ _ Ha), (int_of_value_kind _ _ _ Hamount).
+    destruct ((0 <=? amount) && (amount <? shift_bound kind));
       [ | discriminate ].
     intros [= <-]. simpl. rewrite kind_of_const_of_int. auto.
   - (* [Int_comp] *)
@@ -1000,7 +1018,8 @@ Lemma eval_binary_primitive_preserves (p : binary_primitive)
     (arg1 arg2 v : value) :
   eval_binary_primitive statics p arg1 arg2 = Some v -> P v.
 Proof.
-  destruct p as [op | kind op | kind behaviour]; simpl.
+  destruct p as [op | kind op | kind op | kind behaviour];
+    cbn [eval_binary_primitive].
   - (* [Phys_equal] *)
     destruct (eval_phys_equal statics arg1 arg2); [ | discriminate ].
     intros [= <-]. apply naked_bool_preserved.
@@ -1008,6 +1027,13 @@ Proof.
     destruct (int_of_value kind arg1) as [a | ]; [ | discriminate ].
     destruct (int_of_value kind arg2) as [b | ]; [ | discriminate ].
     destruct (eval_int_arith (int_width kind) op a b); [ | discriminate ].
+    intros [= <-]. apply Hnumbers.
+  - (* [Int_shift] *)
+    destruct (int_of_value kind arg1) as [a | ]; [ | discriminate ].
+    destruct (int_of_value Standard_naked_immediate arg2) as [amount | ];
+      [ | discriminate ].
+    destruct ((0 <=? amount) && (amount <? shift_bound kind));
+      [ | discriminate ].
     intros [= <-]. apply Hnumbers.
   - (* [Int_comp] *)
     destruct (int_of_value kind arg1) as [a | ]; [ | discriminate ].
@@ -1129,6 +1155,97 @@ Proof.
   intros Hwidth.
   destruct op; simpl; try destruct (b =? 0); try discriminate;
     intros [= <-]; apply wrap_in_range, Hwidth.
+Qed.
+
+(* The result of a shift is in range. *)
+Lemma eval_int_shift_in_range (width : Z) (op : int_shift_op)
+    (a amount : Z) :
+  1 <= width -> in_range width (eval_int_shift width op a amount) = true.
+Proof. intros Hwidth. destruct op; apply wrap_in_range, Hwidth. Qed.
+
+(* An arithmetic shift right keeps an integer in range, so the wrap of
+   [Asr] changes nothing. *)
+Lemma shiftr_in_range (width a amount : Z) :
+  1 <= width ->
+  0 <= amount ->
+  in_range width a = true ->
+  in_range width (Z.shiftr a amount) = true.
+Proof.
+  intros Hwidth Hamount Hrange. unfold in_range in *.
+  apply andb_true_iff in Hrange as [Hlow Hhigh].
+  apply Z.leb_le in Hlow. apply Z.ltb_lt in Hhigh.
+  assert (Hhalf : 0 < 2 ^ (width - 1)) by (apply Z.pow_pos_nonneg; lia).
+  assert (Hpow : 0 < 2 ^ amount) by (apply Z.pow_pos_nonneg; lia).
+  rewrite Z.shiftr_div_pow2 by exact Hamount.
+  apply andb_true_iff. split; [ apply Z.leb_le | apply Z.ltb_lt ].
+  - apply Z.div_le_lower_bound; [ exact Hpow | nia ].
+  - apply Z.div_lt_upper_bound; [ exact Hpow | nia ].
+Qed.
+
+Lemma eval_int_shift_asr (width a amount : Z) :
+  1 <= width ->
+  0 <= amount ->
+  in_range width a = true ->
+  eval_int_shift width Asr a amount = Z.shiftr a amount.
+Proof.
+  intros Hwidth Hamount Hrange. simpl.
+  apply wrap_of_in_range; [ exact Hwidth | ].
+  exact (shiftr_in_range width a amount Hwidth Hamount Hrange).
+Qed.
+
+(* The unsigned reading of an integer in range is below two to the
+   width, and wraps back to the integer. *)
+Lemma unsigned_bounds (width a : Z) :
+  1 <= width -> in_range width a = true -> 0 <= unsigned width a < 2 ^ width.
+Proof.
+  intros Hwidth Hrange. unfold in_range in Hrange. unfold unsigned.
+  apply andb_true_iff in Hrange as [Hlow Hhigh].
+  apply Z.leb_le in Hlow. apply Z.ltb_lt in Hhigh.
+  assert (Hdouble : 2 ^ width = 2 * 2 ^ (width - 1)).
+  { rewrite <- Z.pow_succ_r by lia. f_equal. lia. }
+  destruct (Z.ltb_spec a 0); lia.
+Qed.
+
+Lemma wrap_unsigned (width a : Z) :
+  1 <= width -> in_range width a = true -> wrap width (unsigned width a) = a.
+Proof.
+  intros Hwidth Hrange. unfold in_range in Hrange. unfold wrap, unsigned.
+  apply andb_true_iff in Hrange as [Hlow Hhigh].
+  apply Z.leb_le in Hlow. apply Z.ltb_lt in Hhigh.
+  assert (Hdouble : 2 ^ width = 2 * 2 ^ (width - 1)).
+  { rewrite <- Z.pow_succ_r by lia. f_equal. lia. }
+  destruct (Z.ltb_spec a 0).
+  - replace (a + 2 ^ width + 2 ^ (width - 1))
+      with (a + 2 ^ (width - 1) + 1 * 2 ^ width) by lia.
+    rewrite Z_mod_plus_full, Z.mod_small by lia. lia.
+  - rewrite Z.mod_small by lia. lia.
+Qed.
+
+(* A logical shift right by an amount that is not 0 gives an integer in
+   range, so the wrap of [Lsr] changes nothing there; by 0, it gives
+   back the integer shifted. *)
+Lemma eval_int_shift_lsr (width a amount : Z) :
+  1 <= width ->
+  0 <= amount ->
+  in_range width a = true ->
+  eval_int_shift width Lsr a amount
+  = if amount =? 0 then a else Z.shiftr (unsigned width a) amount.
+Proof.
+  intros Hwidth Hamount Hrange. simpl.
+  destruct (Z.eqb_spec amount 0) as [-> | Hpositive].
+  - rewrite Z.shiftr_0_r. exact (wrap_unsigned width a Hwidth Hrange).
+  - apply wrap_of_in_range; [ exact Hwidth | ].
+    pose proof (unsigned_bounds width a Hwidth Hrange) as Hunsigned.
+    assert (Hdouble : 2 ^ width = 2 * 2 ^ (width - 1)).
+    { rewrite <- Z.pow_succ_r by lia. f_equal. lia. }
+    assert (Hhalf : 0 < 2 ^ (width - 1)) by (apply Z.pow_pos_nonneg; lia).
+    assert (Hpow : 2 ^ 1 <= 2 ^ amount) by (apply Z.pow_le_mono_r; lia).
+    change (2 ^ 1) with 2 in Hpow.
+    rewrite Z.shiftr_div_pow2 by exact Hamount.
+    unfold in_range.
+    apply andb_true_iff. split; [ apply Z.leb_le | apply Z.ltb_lt ].
+    + apply Z.div_le_lower_bound; [ lia | nia ].
+    + apply Z.div_lt_upper_bound; [ lia | nia ].
 Qed.
 
 (* At 64 bits, the arithmetic of rocq/OxCamlInt64.v. *)
@@ -1356,14 +1473,14 @@ Lemma eval_binary_primitive_in_range (p : binary_primitive)
   eval_binary_primitive statics p arg1 arg2 = Some v ->
   value_in_range v = true.
 Proof.
-  destruct p as [op | kind op | kind behaviour]; simpl.
+  destruct p as [op | kind op | kind op | kind behaviour];
+    cbn [eval_binary_primitive].
   - (* [Phys_equal] *)
     destruct (eval_phys_equal statics arg1 arg2); [ | discriminate ].
     intros [= <-]. apply naked_bool_in_range.
   - (* [Int_arith] *)
     destruct (int_of_value kind arg1) as [a | ]; [ | discriminate ].
     destruct (int_of_value kind arg2) as [b | ]; [ | discriminate ].
-    simpl.
     destruct (eval_int_arith (int_width kind) op a b) as [result | ]
       eqn:Harith;
       [ | discriminate ].
@@ -1372,6 +1489,15 @@ Proof.
     exact
       (eval_int_arith_in_range _ op a b result (int_width_positive kind)
          Harith).
+  - (* [Int_shift] *)
+    destruct (int_of_value kind arg1) as [a | ]; [ | discriminate ].
+    destruct (int_of_value Standard_naked_immediate arg2) as [amount | ];
+      [ | discriminate ].
+    destruct ((0 <=? amount) && (amount <? shift_bound kind));
+      [ | discriminate ].
+    intros [= <-]. cbn [value_in_range].
+    rewrite const_in_range_const_of_int.
+    apply eval_int_shift_in_range, int_width_positive.
   - (* [Int_comp] *)
     destruct (int_of_value kind arg1) as [a | ]; [ | discriminate ].
     destruct (int_of_value kind arg2) as [b | ]; [ | discriminate ].
@@ -1726,7 +1852,7 @@ Lemma eval_binary_primitive_related (p : binary_primitive)
     ∧ R result result'.
 Proof.
   intros Hr1 Hr2.
-  destruct p as [op | kind op | kind behaviour];
+  destruct p as [op | kind op | kind op | kind behaviour];
     cbn [eval_binary_primitive].
   - (* [Phys_equal] *)
     destruct (eval_phys_equal statics v1 v2) as [same | ] eqn:Hsame;
@@ -1739,6 +1865,16 @@ Proof.
     rewrite (related_int kind v1 v1' a Hr1 Hv1),
       (related_int kind v2 v2' b Hr2 Hv2), Hv1, Hv2.
     destruct (eval_int_arith (int_width kind) op a b); [ | discriminate ].
+    intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
+  - (* [Int_shift] *)
+    destruct (int_of_value kind v1) as [a | ] eqn:Hv1; [ | discriminate ].
+    destruct (int_of_value Standard_naked_immediate v2) as [amount | ]
+      eqn:Hv2;
+      [ | discriminate ].
+    rewrite (related_int kind v1 v1' a Hr1 Hv1),
+      (related_int _ v2 v2' amount Hr2 Hv2), Hv1, Hv2.
+    destruct ((0 <=? amount) && (amount <? shift_bound kind));
+      [ | discriminate ].
     intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
   - (* [Int_comp] *)
     destruct (int_of_value kind v1) as [a | ] eqn:Hv1; [ | discriminate ].
@@ -1884,6 +2020,72 @@ Proof. reflexivity. Qed.
 
 Example add_wrong_kind :
   int_arith Standard_tagged_immediate Add (naked 3) (tagged 4) = None.
+Proof. reflexivity. Qed.
+
+Definition int_shift (kind : standard_int) (op : int_shift_op)
+    (a amount : value) : option value :=
+  eval_prim empty_static_env (Binary (Int_shift kind op)) [a; amount].
+
+Example lsl_tagged :
+  int_shift Standard_tagged_immediate Lsl (tagged 12) (naked 2)
+  = Some (tagged 48).
+Proof. reflexivity. Qed.
+
+Example lsl_wraps :
+  int_shift Standard_tagged_immediate Lsl (tagged 1) (naked 62)
+  = Some (tagged min_int63).
+Proof. reflexivity. Qed.
+
+Example lsr_of_negative :
+  int_shift Standard_tagged_immediate Lsr (tagged (-1)) (naked 1)
+  = Some (tagged max_int63).
+Proof. reflexivity. Qed.
+
+Example lsr_by_zero :
+  int_shift Standard_tagged_immediate Lsr (tagged (-5)) (naked 0)
+  = Some (tagged (-5)).
+Proof. reflexivity. Qed.
+
+Example asr_keeps_sign :
+  int_shift Standard_tagged_immediate Asr (tagged (-7)) (naked 1)
+  = Some (tagged (-4)).
+Proof. reflexivity. Qed.
+
+Example asr_tagged_by_63 :
+  int_shift Standard_tagged_immediate Asr (tagged (-7)) (naked 63)
+  = Some (tagged (-1)).
+Proof. reflexivity. Qed.
+
+Example asr_naked_immediate_by_63 :
+  int_shift Standard_naked_immediate Asr (naked (-7)) (naked 63) = None.
+Proof. reflexivity. Qed.
+
+Example lsl_tagged_by_64 :
+  int_shift Standard_tagged_immediate Lsl (tagged 1) (naked 64) = None.
+Proof. reflexivity. Qed.
+
+Example lsl_by_negative_amount :
+  int_shift Standard_tagged_immediate Lsl (tagged 1) (naked (-1)) = None.
+Proof. reflexivity. Qed.
+
+Example lsl_int8_wraps :
+  int_shift Standard_naked_int8 Lsl (Value_const (Naked_int8 1)) (naked 7)
+  = Some (Value_const (Naked_int8 (-128))).
+Proof. reflexivity. Qed.
+
+Example lsr_int8 :
+  int_shift Standard_naked_int8 Lsr (Value_const (Naked_int8 (-128)))
+    (naked 7)
+  = Some (Value_const (Naked_int8 1)).
+Proof. reflexivity. Qed.
+
+Example lsl_int8_by_8 :
+  int_shift Standard_naked_int8 Lsl (Value_const (Naked_int8 1)) (naked 8)
+  = None.
+Proof. reflexivity. Qed.
+
+Example shift_by_tagged_amount :
+  int_shift Standard_tagged_immediate Lsl (tagged 1) (tagged 2) = None.
 Proof. reflexivity. Qed.
 
 Example lt_signed :
