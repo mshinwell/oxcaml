@@ -1,8 +1,9 @@
 # Phase 0: status
 
-Branch `flambda2-rocq/phase0`, from `flambda2-rocq-semantics` at
-2c7ad8346a. The task is section 4 of `PARALLEL-PLAN.md`: the eight items
-that make the repository safe for parallel work.
+Branch `flambda2-rocq/phase0`, on `flambda2-rocq-semantics` at
+5035780e42. The task is section 4 of `PARALLEL-PLAN.md`: the eight items
+that make the repository safe for parallel work. All eight are done and
+the branch is ready for review.
 
 ## Done
 
@@ -61,13 +62,32 @@ that make the repository safe for parallel work.
   and unassigned. Five existing file pairs are given to no stream by the
   plan (see "Open questions").
 
+## Validation
+
+Run on the last commit of the branch.
+
+- `make -C rocq -j16 all` passes, also from `make clean`, and leaves
+  `git status` clean.
+- `make -C rocq assumptions` passes: the 174 axioms reported are those
+  of the ledger, and the Flambda 2 statements depend on the seven of its
+  section "Flambda 2" and on no other.
+- The semantics tests pass
+  (`@middle_end/flambda2/tests/semantics/runtest`).
+- `SKIP_80CH=1 make -s fmt` changes nothing.
+- `make -s test`: 2768 passed, 222 skipped, 1 failed. The failure is
+  `tests/backend/ssa/loop/bounds_check_elim.ml`, an expect test of the
+  SSA backend whose expected output numbers some variables one higher
+  than the compiler now does. It fails in the same way on the
+  integration branch at 5035780e42 (run there with `make test-one`), and
+  this branch changes no file that it reads.
+
 ## In progress
 
-- The final validation: `make -s test`.
+Nothing.
 
 ## To do
 
-Nothing else.
+Nothing.
 
 ## Blocked
 
@@ -89,6 +109,9 @@ For the orchestrator or the human; none blocks anything.
   `main` with an upstream; `SKIP_80CH=1 make -s fmt` is clean.
 - `make -C rocq review` stops at LuaLaTeX here (`newunicodechar.sty` is
   not installed); the script gets as far as writing the document.
+- `tests/backend/ssa/loop/bounds_check_elim.ml` fails on the integration
+  branch (see "Validation"). It is not a Flambda 2 file and no stream
+  owns it.
 
 ## Spec text changed
 
@@ -119,3 +142,4 @@ this list.
   `FlambdaUnusedStaticsSpec.v`, say `among` where they said `name_in`.
 - New, in `FlambdaMapSpec.v`: the definitions listed under item 3 and
   sixteen statements about them. No statement that existed mentions them.
+- The `Spec` files that use `lookup` or `among` import `FlambdaMapSpec`.
