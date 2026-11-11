@@ -1,10 +1,13 @@
 # T5b, the type traversal of the n-way join: status
 
 Branch `flambda2-rocq/T5b-join-types`, on T5's `flambda2-rocq/T5-join`
-(which is on T2's branch, and that on the integration branch). T1's
-second request (the equality of types, monotonicity, D26 as amended
-in `relation_holds`), T4's files and the folds of `Keyed` are not
-under it yet. Files, all in `middle_end/flambda2/types/rocq/`:
+(which is on T2's branch, and that on the integration branch). Under
+it now: T1's second request (the equality of types, the boxable
+numbers, D26 as amended in `relation_holds`), T2's kinds of
+environments, the folds of `Keyed`, and T5's proofs that the three
+functions of the environment side meet their contracts. Not under it
+yet: T4's files, and T1's third request. Files, all in
+`middle_end/flambda2/types/rocq/`:
 
 - `FlambdaJoinTypes.v`: the join functions of
   `types/meet_and_n_way_join.ml` and their helpers. Definitions only.
@@ -14,6 +17,9 @@ under it yet. Files, all in `middle_end/flambda2/types/rocq/`:
 - `FlambdaJoinTypesKeepsSpec.v`, `FlambdaJoinTypesKeepsProofs.v`:
   what the join of types does to the state, with no premise on the
   state or the types.
+- `FlambdaJoinTypesWithEnvSpec.v`, `FlambdaJoinTypesWithEnvProofs.v`:
+  the join of types with the functions of the join of environments,
+  which is what the join of environments is given for its rounds.
 - `FlambdaJoinTypesExamplesSpec.v`,
   `FlambdaJoinTypesExamplesProofs.v`: what the transcription answers
   on small types, by computation.
@@ -43,6 +49,18 @@ types, inside a join of environments". I do not change that file.
   the model's join of types, which T5's statements about the rounds
   of the join of environments suppose of the join of types that
   they are given. T5 asked for it.
+- `n_way_join_of_types_sound` (`FlambdaJoinTypesWithEnvSpec.v`):
+  `n_way_join_of_types`, the traversal with the three functions of
+  `Join_env` and T1's `type_eqb` and `block_shape_eqb`, meets
+  `n_way_join_type_sound` at T2's `typing_env_invariant` and T5's
+  `state_valid`, `state_kinded` and `kind_in_target_env`. Premises:
+  mine of `expand_head` and of the reduction of naked immediates
+  (T4's functions, still arguments), and those of T5's theorems
+  (`aliases_are_free_variables`, `fresh_avoids p`,
+  `env_extension_eqb_sound p`). No premise about the constants of
+  the environments joined, nor about the tests of equality.
+  `n_way_join_of_types_keeps_definitions`: the same function keeps
+  the definitions, with no premise. T5 asked for both.
 - Twenty-eight examples, each an equation proved by computation:
   unions of sets of numbers and of strings, constants and other
   aliases, unknown and bottom inputs, heads of two forms, blocks of
@@ -53,7 +71,8 @@ types, inside a join of environments". I do not change that file.
   function type: T1-4), and the answers that are `None` (no type,
   two kinds, the bound reached, T5b-3). The environment side of the
   examples is a stub defined in the file, not the join of
-  environments. No answer was read off a run of the compiler.
+  environments; the two tests of equality are T1's. No answer was
+  read off a run of the compiler.
 - Proved on the way, each stated with its proof in
   `FlambdaJoinTypesProofs.v`, in the form of `join_step_sound` or
   what it becomes for a function that takes several lists or may
@@ -80,27 +99,35 @@ Reviewer R4.
 - Products and closures entries; row-like structures: being read.
 - Variants and heads of kind value; expanded heads, the body, the
   bound on the depth and the two closed statements: asked.
-- The two statements of `FlambdaJoinTypesKeepsSpec.v`, and the
-  examples (the stub environment side and each equation against
-  the compiler's code): asked.
+- The two statements of `FlambdaJoinTypesKeepsSpec.v`: signed.
+- The definition and the two statements of
+  `FlambdaJoinTypesWithEnvSpec.v`, and the examples (the stub
+  environment side and each equation against the compiler's code):
+  asked.
+- R4 asked that the premise `joined_envs_constants_of_kind` stay in
+  the statements that are for any well-formedness of environments,
+  and go only where the invariant gives that aliases are
+  consistent. Done so.
 - R4 asked where the kind of an expansion comes from, and that no
   condition on kinds be hidden in the well-formedness of
   environments: see "Decided overnight".
 
 ## Stand-ins carried
 
-Each is a copy under its owner's names, to go with a change of
-imports when the owner's file is under this branch.
+A copy under its owner's names, to go with a change of imports when
+the owner's file is under this branch.
 
 | What | Owner |
 |------|-------|
 | `Expanded_type` (`head`, `t`, `create`, `kind`, `descr`, `create_bottom`, `create_unknown`, `create_value`, `create_naked_immediate`, `create_naked_number`, `create_rec_info`, `create_region`, `unknown_like`, `to_type`) | T4, `FlambdaExpandHead.v` |
-| `Keyed_fold.tabulate_fold_opt`, `filter_map_fold_on`, `filter_map_fold` | C0; they are in `Keyed` of `FlambdaMapSpec.v` on the integration branch, under the same names, and replace mine at the rebase that brings them |
 
-`expand_head`, `reduce_head_of_kind_naked_immediate`, `type_eqb` and
-`block_shape_eqb` are parameters of the traversal, with what is
-assumed of each a named proposition of the Spec; they become the
-owners' functions and theorems when those are under this branch.
+`expand_head` and `reduce_head_of_kind_naked_immediate` are
+parameters of the traversal, with what is assumed of each a named
+proposition of the Spec; they become T4's functions and theorems
+when those are under this branch. `type_eqb` and `block_shape_eqb`
+are parameters of the traversal too; `n_way_join_of_types` gives it
+T1's. The fold over a map that threads a state is C0's
+(`Keyed.filter_map_fold`); my copy is gone.
 
 ## Agreed with other streams
 
@@ -123,9 +150,9 @@ owners' functions and theorems when those are under this branch.
   follow from the kinds premise of the contract, when T2's
   `typing_env_kinded` (the types kinded, the aliases of one kind,
   the symbols of kind value) replaces T5's under the same name; T5
-  tells me when. Until then it is a premise of mine. T2 has the
-  definition and the statement that gives `constants_of_kind` from
-  it on its branch; it is not under this branch yet.
+  tells me when. Done: `n_way_join_of_types_sound` has no such
+  premise. The statements that are for any well-formedness keep it
+  (R4).
 - T5: no second form of `n_way_join_keeps` is needed for the kinds
   of the variables of the state: `n_way_join_sound` gives
   `state_grows` at valid states, which is where T5 uses it.
@@ -262,15 +289,14 @@ Hypotheses of the statements (no axiom, nothing admitted). Each is a
 named proposition in `FlambdaJoinTypesSpec.v` until its owner's file
 is on my base.
 
-| Assumed | Owner who discharges it |
-|---------|-------------------------|
-| `environment_side_sound`: `n_way_join_simples_sound`, `import_type_sound`, `n_way_join_env_extension_sound`, `valid_states_have_witnesses` (`FlambdaJoinSpec.v`); the last is used by `n_way_join_bound_is_met` only | T5 |
-| `expand_head_sound`: a value of a type has the expanded type under a valuation that satisfies the environment strictly; the expansion is in scope and kinded where the type and the environment are; it is of the kind of the type where the type is kinded and the environment has `constants_of_kind` | T4 |
-| `joined_envs_constants_of_kind`: in each environment joined, a constant that is the canonical element of a `Simple` of a kind is of that kind | T5 with T2: to follow from `joined_envs_kinded` once that asks the aliases of each use to be of one kind |
-| `reduce_head_of_kind_naked_immediate_sound`: a number that has a head, under a valuation that satisfies the environment strictly, has the reduced head, which is then not bottom | T4; proved on T4's branch under T1's law of the relations of constants |
-| `type_eqb_sound`: types that the test identifies have the same values | T1 |
-| `block_shape_eqb_sound`: shapes that the test identifies are one shape | T1 |
-| the fold over a map that threads a state and may drop bindings (`Keyed.filter_map_fold_on`), with its equation | C0; a stand-in in my file until it lands |
+| Assumed | Where it stands |
+|---------|-----------------|
+| `environment_side_sound`: `n_way_join_simples_sound`, `import_type_sound`, `n_way_join_env_extension_sound`, `valid_states_have_witnesses` (`FlambdaJoinSpec.v`); the last is used by `n_way_join_bound_is_met` only | T5 has proved the four of the functions of `Join_env`, under `aliases_are_free_variables` (a fact of the grammar, proved in T1's third request), `fresh_avoids p` and `env_extension_eqb_sound p`; those three are the premises of `n_way_join_of_types_sound` in its place |
+| `expand_head_sound`: a value of a type has the expanded type under a valuation that satisfies the environment strictly; the expansion is in scope and kinded where the type and the environment are; it is of the kind of the type where the type is kinded and the environment has `constants_of_kind` | T4; a premise of `n_way_join_of_types_sound` until T4's files are under this branch |
+| `joined_envs_constants_of_kind`: in each environment joined, a constant that is the canonical element of a `Simple` of a kind is of that kind | discharged in `n_way_join_of_types_sound`, from the contract's kinds premise and the invariant of typing environments (T2's `typing_env_kinded_constants_of_kind`) |
+| `reduce_head_of_kind_naked_immediate_sound`: a number that has a head, under a valuation that satisfies the environment strictly, has the reduced head, which is then not bottom | T4, who has proved it with no premise on its branch; a premise of `n_way_join_of_types_sound` until T4's files are under this branch |
+| `type_eqb_sound`: types that the test identifies have the same values | discharged with T1's `type_eqb` (`type_equal_satisfied`) |
+| `block_shape_eqb_sound`: shapes that the test identifies are one shape | discharged with T1's `block_shape_eqb` |
 
 ## Decided overnight
 
@@ -288,10 +314,15 @@ is on my base.
   aliases of each use to be of one kind (`aliases_kinded`), from
   which it follows. Chosen: (b) now, as `joined_envs_constants_of_kind`
   with a `CR mshinwell` at its definition, and (c) asked of T5 and
-  T2, who agree and are doing it. Why: kinds stay explicit premises
-  and out of well-formedness (D10, D12; R4's reading). Cost to
-  change: one hypothesis of the two closed statements and one line
-  of one proof.
+  T2, who have done it. Why: kinds stay explicit premises and out of
+  well-formedness (D10, D12; R4's reading). Where it stands: the
+  statements for any well-formedness of environments keep (b); the
+  statement at the invariant of typing environments
+  (`n_way_join_of_types_sound`) has it from (c) and asks nothing
+  more. What stays for the human: (c) makes "the aliases of each
+  environment joined are of one kind" a premise of the contract;
+  whether ill-kinded code that the compiler accepts can break it is
+  not known (T5b-3).
 
 - What the examples run on. Options: (a) the join of environments
   itself, on typing environments built for each example: the
@@ -337,14 +368,17 @@ is on my base.
 
 ## What is left
 
-- The stand-ins and the four parameters, when their owners' files
-  are under this branch (a change of imports and of the premises of
-  the two closed statements; no proof changes shape); my copies of
-  `block_shape_element_kind`, `set_of_closures_contents_equal` and
+- T4's `Expanded_type`, `expand_head` and
+  `reduce_head_of_kind_naked_immediate` and their theorems, when
+  T4's files are under this branch: a change of imports, two
+  arguments and two premises fewer in `n_way_join_of_types` and its
+  statement; no proof changes shape.
+- My copies of `block_shape_element_kind`,
+  `set_of_closures_contents_equal` and
   `set_of_closures_contents_inter` go when T1's, hosted under the
-  same names, are under it.
-- The premise `joined_envs_constants_of_kind`, when the contract's
-  kinds premise gives it.
+  same names in its third request, are under this branch; the
+  premise `aliases_are_free_variables` goes then too (T5's).
+- The examples against the compiler by running: asked of T7.
 - Arrays, when the grammar has them (`Array`,
   `n_way_join_array_contents`, `join_array_element_kinds`).
 - Code age and `rec_info`, with the function types.
