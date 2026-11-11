@@ -83,9 +83,12 @@
 
    The free names of a term include those of the code bound in it: the
    free names of code are those of its body less what the code binds.
-   This is the compiler's [Function_params_and_body.free_names], and it
-   is why code can be asked to be closed. The human has ruled that code
-   is closed (decision D31): [code_closed] is that, as a check.
+   This is the compiler's account of code too: its
+   [Function_params_and_body] is a name abstraction of the parameters,
+   [my_closure] and the two continuations over the body, and the
+   summary that code keeps is to be the free names of that abstraction.
+   It is why code can be asked to be closed. The human has ruled that
+   code is closed (decision D31): [code_closed] is that, as a check.
 
    There is one function for each sort of name and each sort of term,
    and nothing else in the model is to compute free names or scope. The
