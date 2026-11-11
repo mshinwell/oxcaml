@@ -1,0 +1,1564 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+
+
+(* Proofs of the statements of FlambdaProversSpec.v. Nothing here needs
+   review.
+
+   Each prover on heads is proved once ([generic_value_sound]), and two
+   lemmas take that through [Provers.gen_value_to_proof] and
+   [Provers.gen_value_to_meet]. What a prover reads of an expanded type
+   is through [expanded_value_cases] and the lemmas beside it, which
+   are all that is used of the soundness of [expand_head]. *)
+
+From Stdlib Require Import ZArith List Bool Lia.
+From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
+  FlambdaMapSpec FlambdaMapProofs FlambdaValueSpec FlambdaValueProofs
+  FlambdaPrimitiveModel FlambdaPrimitiveSpec FlambdaPrimitiveProofs
+  FlambdaSemanticsSpec.
+From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
+  FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs FlambdaTypeWellFormedSpec
+  FlambdaTypeWellFormedProofs FlambdaTypeAccessSpec FlambdaTypeAccessProofs
+  FlambdaBindingTime FlambdaEnvAliases
+  FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
+  FlambdaProversStandIn FlambdaProvers FlambdaProversSpec.
+Import ListNotations.
+
+(* ======================================================================== *)
+(* The view of an expanded type                                             *)
+(* ======================================================================== *)
+
+Definition descr_of_oub {head : Type} (oub : or_unknown_or_bottom head)
+    : type_descr head :=
+  match oub with
+  | Unknown => Unknown
+  | Bottom => Bottom
+  | Ok head => Ok (No_alias head)
+  end.
+
+(* The type that a view of an expanded type is a view of. *)
+Definition type_of_descr_oub (d : descr_oub) : flambda_type :=
+  match d with
+  | Oub_value oub => Type_value (descr_of_oub oub)
+  | Oub_naked_immediate oub => Type_naked_immediate (descr_of_oub oub)
+  | Oub_naked_number k oub => Type_naked_number k (descr_of_oub oub)
+  | Oub_rec_info oub => Type_rec_info (descr_of_oub oub)
+  | Oub_region oub => Type_region (descr_of_oub oub)
+  end.
+
+Lemma type_of_descr_oub_of_expanded (expanded : Expanded_type.t) :
+  type_of_descr_oub (descr_oub_of_expanded expanded)
+  = Expanded_type.to_type expanded.
+Proof.
+  destruct expanded as [k [ | head | ]];
+    unfold descr_oub_of_expanded, Expanded_type.to_type; simpl.
+  - destruct k as [ | [ | | | | | | | | | | | ] | | ]; reflexivity.
+  - destruct head; reflexivity.
+  - destruct k as [ | [ | | | | | | | | | | | ] | | ]; reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* Expanding keeps well-formedness                                          *)
+(* ======================================================================== *)
+
+Lemma of_non_alias_type_well_formed (ty : flambda_type)
+    (expanded : Expanded_type.t) :
+  type_well_formed ty = true ->
+  Expanded_type.of_non_alias_type ty = Some expanded ->
+  type_well_formed (Expanded_type.to_type expanded) = true.
+Proof.
+  intros Hwf Hexp.
+  destruct ty as [ty | ty | k ty | ty | ty];
+    destruct ty as [ | [head | s] | ]; simpl in Hexp;
+    try discriminate Hexp; injection Hexp as <-;
+    first
+      [ exact Hwf
+      | apply unknown_well_formed
+      | apply bottom_well_formed ].
+Qed.
+
+Lemma find_well_formed (tenv : Typing_env.t) (n : name)
+    (kind : option flambda_kind) (ty : flambda_type) :
+  types_well_formed tenv ->
+  Typing_env.find tenv n kind = Some ty ->
+  type_well_formed ty = true.
+Proof.
+  intros Htypes.
+  unfold Typing_env.find, Typing_env.find_with_binding_time_and_mode'.
+  destruct (Keyed.lookup name_eqb n (Typing_env.names_to_types tenv))
+    as [[ty' binding_time_and_mode] | ] eqn:Hlookup.
+  - destruct (Typing_env.check_optional_kind_matches ty' kind);
+      [ | discriminate ].
+    destruct (Typing_env.is_bottom tenv); simpl; intros [= <-].
+    + apply bottom_well_formed.
+    + exact (Htypes _ _ _ Hlookup).
+  - destruct n as [x | sym]; [ discriminate | ].
+    destruct
+      (among sym (Typing_env.defined_symbols tenv)
+       && Typing_env.check_optional_kind_matches
+            (fst Typing_env.initial_symbol_type) kind);
+      [ | discriminate ].
+    simpl. intros [= <-]. exact any_non_null_value_well_formed.
+Qed.
+
+Lemma create_const_well_formed (c : const) :
+  type_well_formed (Expanded_type.to_type (Expanded_type.create_const c))
+  = true.
+Proof.
+  destruct c; try reflexivity. apply unknown_well_formed.
+Qed.
+
+Lemma expand_head_of_alias_type_well_formed (tenv : Typing_env.t)
+    (kind : flambda_kind) (s : simple) (expanded : Expanded_type.t) :
+  types_well_formed tenv ->
+  expand_head_of_alias_type tenv kind s = Some expanded ->
+  type_well_formed (Expanded_type.to_type expanded) = true.
+Proof.
+  intros Htypes.
+  assert (Hname :
+    ∀ n : name,
+      (let* ty := Typing_env.find tenv n (Some kind) in
+       Expanded_type.of_non_alias_type ty)
+      = Some expanded ->
+      type_well_formed (Expanded_type.to_type expanded) = true).
+  { intros n.
+    destruct (Typing_env.find tenv n (Some kind)) as [ty | ] eqn:Hfind;
+      [ | discriminate ].
+    apply of_non_alias_type_well_formed.
+    exact (find_well_formed _ _ _ _ Htypes Hfind). }
+  unfold expand_head_of_alias_type.
+  destruct s as [x | sym | c].
+  - apply Hname.
+  - apply Hname.
+  - intros [= <-]. apply create_const_well_formed.
+Qed.
+
+Lemma expand_head_well_formed (tenv : Typing_env.t) (t : flambda_type)
+    (expanded : Expanded_type.t) :
+  well_formed_input tenv t ->
+  expand_head tenv t = Some expanded ->
+  type_well_formed (Expanded_type.to_type expanded) = true.
+Proof.
+  intros [Htypes Hwf]. unfold expand_head.
+  destruct (get_alias_opt t) as [s | ].
+  - destruct
+      (Typing_env.get_canonical_simple_exn tenv (Some Name_mode.in_types)
+         None s)
+      as [[canonical | ] | ]; [ | | discriminate ].
+    + apply expand_head_of_alias_type_well_formed. exact Htypes.
+    + apply of_non_alias_type_well_formed. apply unknown_well_formed.
+  - apply of_non_alias_type_well_formed. exact Hwf.
+Qed.
+
+Lemma provers_expand_head_well_formed (tenv : Typing_env.t)
+    (t : flambda_type) (d : descr_oub) :
+  well_formed_input tenv t ->
+  Provers.expand_head tenv t = Some d ->
+  type_well_formed (type_of_descr_oub d) = true.
+Proof.
+  intros Hinput. unfold Provers.expand_head.
+  destruct (expand_head tenv t) as [expanded | ] eqn:Hexp; [ | discriminate ].
+  intros [= <-]. rewrite type_of_descr_oub_of_expanded.
+  exact (expand_head_well_formed _ _ _ Hinput Hexp).
+Qed.
+
+(* ======================================================================== *)
+(* What a value has of the answers                                          *)
+(* ======================================================================== *)
+
+Lemma immediate_not_block (statics : static_env) (v : value) :
+  is_immediate v -> block_of statics v = None.
+Proof. intros [i ->]. reflexivity. Qed.
+
+Lemma immediate_kind (v : value) : is_immediate v -> kind_of_value v = Value.
+Proof. intros [i ->]. reflexivity. Qed.
+
+Lemma block_kind (statics : static_env) (v : value) :
+  is_block statics v -> kind_of_value v = Value.
+Proof.
+  intros [tag [fields Hblock]]. exact (block_of_kind _ _ _ _ Hblock).
+Qed.
+
+Lemma poison_not_null (v : value) : is_poison v -> v <> Value_const Null.
+Proof. intros [k ->]. discriminate. Qed.
+
+Lemma poison_no_head (statics : static_env) (vars : env) (v : value)
+    (head : head_of_kind_value_non_null) :
+  is_poison v ->
+  ~ head_of_kind_value_non_null_satisfied statics vars v head.
+Proof.
+  intros [k ->] Hhead.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k' contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    autorewrite with type_satisfied in Hhead.
+  - destruct Hhead as [[i [Heq _]] | [tag [fields [Hblock _]]]];
+      discriminate.
+  - exact Hhead.
+  - destruct Hhead as [c [Hboxed _]]. discriminate.
+  - destruct Hhead as [slot [functions [value_slots [Hclosure _]]]].
+    discriminate.
+  - destruct Hhead as [bytes [Hstring _]]. discriminate.
+Qed.
+
+(* A variant with nothing known of it has every tagged immediate and
+   every block. *)
+Definition any_variant : head_of_kind_value_non_null :=
+  Variant None Or_unknown.Unknown None Or_unknown.Unknown No_extensions false.
+
+Lemma any_variant_satisfied (statics : static_env) (vars : env) (v : value) :
+  variants statics v ->
+  head_of_kind_value_non_null_satisfied statics vars v any_variant.
+Proof.
+  unfold any_variant. rewrite variant_satisfied.
+  intros [[i ->] | [tag [fields Hblock]]].
+  - left. exists i. simpl. auto.
+  - right. exists tag, fields. simpl. auto.
+Qed.
+
+(* A value of a variant, as the provers read it. *)
+Lemma variant_cases (statics : static_env) (vars : env) (v : value)
+    (is_int : option variable) (immediates : Or_unknown.t flambda_type)
+    (get_tag : option variable) (blocks : Or_unknown.t row_like_for_blocks)
+    (extensions : variant_extensions) (is_unique : bool) :
+  head_of_kind_value_non_null_satisfied statics vars v
+    (Variant is_int immediates get_tag blocks extensions is_unique) ->
+  (∃ i : Z,
+    v = Value_const (Tagged_immediate i)
+    ∧ match immediates with
+      | Or_unknown.Unknown => True
+      | Or_unknown.Known ty =>
+        type_satisfied statics vars (Value_const (Naked_immediate i)) ty
+      end)
+  ∨ (∃ (tag : Z) (fields : list value),
+      block_of statics v = Some (tag, fields)
+      ∧ match blocks with
+        | Or_unknown.Unknown => True
+        | Or_unknown.Known blocks =>
+          row_like_for_blocks_satisfied statics vars tag fields blocks
+        end).
+Proof.
+  rewrite variant_satisfied.
+  intros [[i [Hv [_ [Himms _]]]]
+         | [tag [fields [Hblock [_ [_ [Hblocks _]]]]]]].
+  - left. exists i. auto.
+  - right. exists tag, fields. auto.
+Qed.
+
+(* A head that is not a variant has no tagged immediate and no block. *)
+Lemma not_variant_head (statics : static_env) (vars : env) (v : value)
+    (head : head_of_kind_value_non_null) :
+  head_of_kind_value_non_null_satisfied statics vars v head ->
+  match head with
+  | Variant _ _ _ _ _ _ | Mutable_block _ => True
+  | Boxed_number _ _ _ | Closures _ _ | String _ => ~ variants statics v
+  end.
+Proof.
+  intros Hhead.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    try exact I;
+    intros Hvariant;
+    exact
+      (heads_compatible_satisfied _ _ _ _ _
+         (any_variant_satisfied statics vars v Hvariant) Hhead).
+Qed.
+
+(* ======================================================================== *)
+(* Sets of numbers                                                          *)
+(* ======================================================================== *)
+
+Lemma is_empty_nil {A : Type} (l : list A) :
+  Keyed.is_empty l = true -> l = [].
+Proof. destruct l; [ reflexivity | discriminate ]. Qed.
+
+Lemma in_inter (i : Z) (imms imms' : list Z) :
+  i ∈ imms -> i ∈ imms' -> i ∈ Keyed.inter Z.eqb imms imms'.
+Proof.
+  intros Hin Hin'.
+  apply (keyed_among_in Z Z.eqb z_eqb_decides_equality).
+  rewrite (keyed_among_inter Z Z.eqb z_eqb_decides_equality).
+  rewrite (proj2 (keyed_among_in Z Z.eqb z_eqb_decides_equality i imms) Hin).
+  rewrite
+    (proj2 (keyed_among_in Z Z.eqb z_eqb_decides_equality i imms') Hin').
+  reflexivity.
+Qed.
+
+Lemma get_singleton_in (i imm : Z) (imms : list Z) :
+  Keyed.get_singleton Z.eqb imms = Some imm -> i ∈ imms -> i = imm.
+Proof.
+  intros Hsingleton Hin.
+  pose proof
+    (proj1 (keyed_get_singleton Z Z.eqb z_eqb_decides_equality imm imms)
+       Hsingleton i) as Hamong.
+  rewrite (proj2 (keyed_among_in Z Z.eqb z_eqb_decides_equality i imms) Hin)
+    in Hamong.
+  symmetry in Hamong. exact (proj1 (Z.eqb_eq _ _) Hamong).
+Qed.
+
+(* ======================================================================== *)
+(* The provers, under the soundness of [expand_head]                        *)
+(* ======================================================================== *)
+
+Section With_expand_head.
+
+Hypothesis expand_head_sound : expand_head_sound_assumed.
+
+Lemma expand_head_descr_sound (statics : static_env) (valuation : env)
+    (tenv : Typing_env.t) (t : flambda_type) (d : descr_oub) (v : value) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  type_satisfied statics valuation v t ->
+  Provers.expand_head tenv t = Some d ->
+  type_satisfied statics valuation v (type_of_descr_oub d).
+Proof.
+  intros Hsat Hv. unfold Provers.expand_head.
+  destruct (expand_head tenv t) as [expanded | ] eqn:Hexp; [ | discriminate ].
+  intros [= <-]. rewrite type_of_descr_oub_of_expanded.
+  exact (expand_head_sound _ _ _ _ _ _ Hsat Hv Hexp).
+Qed.
+
+(* The kind of a value of a type is that of the view of the type
+   expanded. *)
+Lemma expanded_kind (statics : static_env) (valuation : env)
+    (tenv : Typing_env.t) (t : flambda_type) (d : descr_oub) (v : value) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  type_satisfied statics valuation v t ->
+  Provers.expand_head tenv t = Some d ->
+  kind_of_value v = kind (type_of_descr_oub d).
+Proof.
+  intros Hsat Hv Hd. apply (type_satisfied_kind statics valuation).
+  exact (expand_head_descr_sound _ _ _ _ _ _ Hsat Hv Hd).
+Qed.
+
+(* What a value of a type has, when the type expanded is of kind
+   value. *)
+Lemma expanded_value_cases (statics : static_env) (valuation : env)
+    (tenv : Typing_env.t) (t : flambda_type)
+    (oub : or_unknown_or_bottom head_of_kind_value) (v : value) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  type_satisfied statics valuation v t ->
+  Provers.expand_head tenv t = Some (Oub_value oub) ->
+  match oub with
+  | Unknown => kind_of_value v = Value
+  | Bottom => False
+  | Ok (Head_of_kind_value non_null is_null) =>
+    (v = Value_const Null ∧ is_null <> Not_null)
+    ∨ (v <> Value_const Null
+       ∧ match non_null with
+         | Unknown => kind_of_value v = Value
+         | Bottom => False
+         | Ok head =>
+           head_of_kind_value_non_null_satisfied statics valuation v head
+         end)
+  end.
+Proof.
+  intros Hsat Hv Hd.
+  pose proof (expand_head_descr_sound _ _ _ _ _ _ Hsat Hv Hd) as Hexp.
+  simpl in Hexp. rewrite type_satisfied_value in Hexp.
+  destruct oub as [ | [non_null is_null] | ]; simpl in Hexp.
+  - exact Hexp.
+  - rewrite head_of_kind_value_satisfied_eq in Hexp.
+    destruct Hexp as [[Hnull His_null] | [Hnot_null [Hnon_null _]]].
+    + left. split; [ exact Hnull | ].
+      intros ->. exact His_null.
+    + right. split; [ exact Hnot_null | exact Hnon_null ].
+  - exact Hexp.
+Qed.
+
+(* The same when it is of kind naked immediate. *)
+Lemma expanded_naked_immediate_cases (statics : static_env) (valuation : env)
+    (tenv : Typing_env.t) (t : flambda_type)
+    (oub : or_unknown_or_bottom head_of_kind_naked_immediate) (v : value) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  type_satisfied statics valuation v t ->
+  Provers.expand_head tenv t = Some (Oub_naked_immediate oub) ->
+  match oub with
+  | Unknown => True
+  | Bottom => False
+  | Ok head => head_of_kind_naked_immediate_satisfied statics valuation v head
+  end.
+Proof.
+  intros Hsat Hv Hd.
+  pose proof (expand_head_descr_sound _ _ _ _ _ _ Hsat Hv Hd) as Hexp.
+  simpl in Hexp. rewrite type_satisfied_naked_immediate in Hexp.
+  destruct oub as [ | head | ]; simpl in Hexp.
+  - exact I.
+  - exact Hexp.
+  - exact Hexp.
+Qed.
+
+(* A type that expands to bottom has no value. *)
+Lemma is_bottom_sound (statics : static_env) (valuation : env)
+    (tenv : Typing_env.t) (t : flambda_type) (v : value) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  Provers.is_bottom tenv t = Some true ->
+  ~ type_satisfied statics valuation v t.
+Proof.
+  intros Hsat Hbottom Hv. unfold Provers.is_bottom in Hbottom.
+  destruct (expand_head tenv t) as [expanded | ] eqn:Hexp;
+    [ | discriminate ].
+  injection Hbottom as Hbottom.
+  pose proof (expand_head_sound _ _ _ _ _ _ Hsat Hv Hexp) as Hexpanded.
+  unfold Expanded_type.is_bottom in Hbottom.
+  unfold Expanded_type.to_type in Hexpanded.
+  destruct (Expanded_type.descr expanded); try discriminate Hbottom.
+  exact (bottom_satisfied _ _ _ _ Hexpanded).
+Qed.
+
+(* ======================================================================== *)
+(* A prover on heads, and the three ways to make a prover of it             *)
+(* ======================================================================== *)
+
+(* No condition on the head that a prover on heads is given, and the
+   one that [well_formed_input] gives. *)
+Definition any_head (tenv : Typing_env.t)
+    (head : head_of_kind_value_non_null) : Prop :=
+  True.
+
+Definition well_formed_head (tenv : Typing_env.t)
+    (head : head_of_kind_value_non_null) : Prop :=
+  types_well_formed tenv
+  ∧ head_of_kind_value_non_null_well_formed head = true.
+
+(* A prover on heads is sound: [meet_shortcut_sound], for a head that
+   is not null in place of a type. *)
+Definition generic_value_sound {A : Type}
+    (prove_gen :
+      Typing_env.t -> head_of_kind_value_non_null
+      -> option (Generic_proof.t A))
+    (input : Typing_env.t -> head_of_kind_value_non_null -> Prop)
+    (domain : static_env -> value -> Prop)
+    (holds : static_env -> env -> A -> value -> Prop) : Prop :=
+  ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
+    (head : head_of_kind_value_non_null) (v : value),
+    typing_env_satisfied_strictly statics valuation tenv ->
+    input tenv head ->
+    head_of_kind_value_non_null_satisfied statics valuation v head ->
+    domain statics v ->
+    match prove_gen tenv head with
+    | Some (Generic_proof.Proved x) => holds statics valuation x v
+    | Some Generic_proof.Invalid => False
+    | Some Generic_proof.Unknown | None => True
+    end.
+
+(* The condition on a type gives the condition on the head that the
+   type expands to. *)
+Definition input_to_head
+    (input : Typing_env.t -> flambda_type -> Prop)
+    (input_head : Typing_env.t -> head_of_kind_value_non_null -> Prop)
+    : Prop :=
+  ∀ (tenv : Typing_env.t) (t : flambda_type)
+    (head : head_of_kind_value_non_null) (is_null : is_null),
+    input tenv t ->
+    Provers.expand_head tenv t
+    = Some (Oub_value (Ok (Head_of_kind_value (Ok head) is_null))) ->
+    input_head tenv head.
+
+Lemma any_input_to_head : input_to_head any_input any_head.
+Proof. intros tenv t head is_null _ _. exact I. Qed.
+
+Lemma well_formed_input_to_head :
+  input_to_head well_formed_input well_formed_head.
+Proof.
+  intros tenv t head is_null Hinput Hd.
+  split; [ exact (proj1 Hinput) | ].
+  exact (provers_expand_head_well_formed _ _ _ Hinput Hd).
+Qed.
+
+Lemma gen_value_to_proof_sound {A : Type}
+    (prove_gen :
+      Typing_env.t -> head_of_kind_value_non_null
+      -> option (Generic_proof.t A))
+    (input : Typing_env.t -> flambda_type -> Prop)
+    (input_head : Typing_env.t -> head_of_kind_value_non_null -> Prop)
+    (holds : static_env -> env -> A -> value -> Prop) :
+  input_to_head input input_head ->
+  generic_value_sound prove_gen input_head (fun _ _ => True) holds ->
+  prover_sound (Provers.gen_value_to_proof prove_gen) input holds.
+Proof.
+  intros Hinput Hgen statics valuation tenv t x v Hsat Hin Hv Hproved.
+  unfold Provers.gen_value_to_proof in Hproved.
+  destruct (Provers.expand_head tenv t) as [d | ] eqn:Hd;
+    [ | discriminate ].
+  destruct d as [[ | [[ | head | ] [ | is_null]] | ] | oub | k oub | oub
+                | oub];
+    try discriminate Hproved.
+  pose proof (expanded_value_cases _ _ _ _ _ _ Hsat Hv Hd) as Hcases.
+  simpl in Hcases.
+  destruct Hcases as [[_ Hnot] | [_ Hhead]]; [ contradiction | ].
+  specialize
+    (Hgen statics valuation tenv head v Hsat (Hinput _ _ _ _ Hin Hd) Hhead I).
+  destruct (prove_gen tenv head) as [[y | | ] | ];
+    try discriminate Hproved.
+  injection Hproved as ->. exact Hgen.
+Qed.
+
+Lemma gen_value_to_meet_sound {A : Type}
+    (prove_gen :
+      Typing_env.t -> head_of_kind_value_non_null
+      -> option (Generic_proof.t A))
+    (input : Typing_env.t -> flambda_type -> Prop)
+    (input_head : Typing_env.t -> head_of_kind_value_non_null -> Prop)
+    (domain domain' : static_env -> value -> Prop)
+    (holds : static_env -> env -> A -> value -> Prop) :
+  input_to_head input input_head ->
+  (∀ (statics : static_env) (v : value),
+    domain' statics v ->
+    kind_of_value v = Value ∧ v <> Value_const Null ∧ domain statics v) ->
+  generic_value_sound prove_gen input_head domain holds ->
+  meet_shortcut_sound (Provers.gen_value_to_meet prove_gen) input domain'
+    holds.
+Proof.
+  intros Hinput Hdomain Hgen statics valuation tenv t v Hsat Hin Hv Hdom.
+  destruct (Hdomain _ _ Hdom) as [Hkind [Hnot_null Hdom']].
+  unfold Provers.gen_value_to_meet.
+  destruct (Provers.expand_head tenv t) as [d | ] eqn:Hd; [ | exact I ].
+  pose proof (expanded_kind _ _ _ _ _ _ Hsat Hv Hd) as Hk.
+  rewrite Hkind in Hk.
+  destruct d as [oub | oub | k oub | oub | oub]; try discriminate Hk.
+  pose proof (expanded_value_cases _ _ _ _ _ _ Hsat Hv Hd) as Hcases.
+  destruct oub as [ | [[ | head | ] is_null] | ]; simpl in Hcases |- *.
+  - exact I.
+  - exact I.
+  - destruct Hcases as [[Hnull _] | [_ Hhead]]; [ contradiction | ].
+    specialize
+      (Hgen statics valuation tenv head v Hsat (Hinput _ _ _ _ Hin Hd) Hhead
+         Hdom').
+    destruct (prove_gen tenv head) as [[y | | ] | ]; exact Hgen.
+  - destruct Hcases as [[Hnull _] | [_ []]]. contradiction.
+  - exact Hcases.
+Qed.
+
+(* [Provers.gen_value_to_gen], of a value of kind value. *)
+Lemma gen_value_to_gen_sound {A : Type}
+    (prove_gen :
+      Typing_env.t -> head_of_kind_value_non_null
+      -> option (Generic_proof.t A))
+    (domain : static_env -> value -> Prop)
+    (holds : static_env -> env -> A -> value -> Prop)
+    (statics : static_env) (valuation : env) (tenv : Typing_env.t)
+    (t : flambda_type) (v : value) :
+  generic_value_sound prove_gen any_head domain holds ->
+  typing_env_satisfied_strictly statics valuation tenv ->
+  type_satisfied statics valuation v t ->
+  kind_of_value v = Value ->
+  domain statics v ->
+  match Provers.gen_value_to_gen prove_gen tenv t with
+  | Some (Generic_proof.Proved x) => holds statics valuation x v
+  | Some Generic_proof.Invalid => False
+  | Some Generic_proof.Unknown | None => True
+  end.
+Proof.
+  intros Hgen Hsat Hv Hkind Hdom.
+  unfold Provers.gen_value_to_gen.
+  destruct (Provers.expand_head tenv t) as [d | ] eqn:Hd; [ | exact I ].
+  pose proof (expanded_kind _ _ _ _ _ _ Hsat Hv Hd) as Hk.
+  rewrite Hkind in Hk.
+  destruct d as [oub | oub | k oub | oub | oub]; try discriminate Hk.
+  pose proof (expanded_value_cases _ _ _ _ _ _ Hsat Hv Hd) as Hcases.
+  destruct oub as [ | [[ | head | ] [ | is_null]] | ];
+    simpl in Hcases |- *; try exact I.
+  - destruct Hcases as [[_ Hnot] | [_ Hhead]]; [ contradiction | ].
+    specialize (Hgen statics valuation tenv head v Hsat I Hhead Hdom).
+    destruct (prove_gen tenv head) as [[y | | ] | ]; exact Hgen.
+  - destruct Hcases as [[_ Hnot] | [_ []]]. contradiction.
+  - exact Hcases.
+Qed.
+
+(* A prover made with [Provers.gen_value_to_proof] or
+   [Provers.gen_value_to_meet] says nothing of a value that is poison,
+   whatever the prover on heads. *)
+Lemma gen_value_to_proof_silent {A : Type}
+    (prove_gen :
+      Typing_env.t -> head_of_kind_value_non_null
+      -> option (Generic_proof.t A)) :
+  prover_silent_on_poison (Provers.gen_value_to_proof prove_gen).
+Proof.
+  intros statics valuation tenv t x v Hsat Hv Hpoison Hproved.
+  unfold Provers.gen_value_to_proof in Hproved.
+  destruct (Provers.expand_head tenv t) as [d | ] eqn:Hd;
+    [ | discriminate ].
+  destruct d as [[ | [[ | head | ] [ | is_null]] | ] | oub | k oub | oub
+                | oub];
+    try discriminate Hproved.
+  pose proof (expanded_value_cases _ _ _ _ _ _ Hsat Hv Hd) as Hcases.
+  simpl in Hcases.
+  destruct Hcases as [[_ Hnot] | [_ Hhead]]; [ contradiction | ].
+  exact (poison_no_head _ _ _ _ Hpoison Hhead).
+Qed.
+
+Lemma gen_value_to_meet_silent {A : Type}
+    (prove_gen :
+      Typing_env.t -> head_of_kind_value_non_null
+      -> option (Generic_proof.t A)) :
+  meet_shortcut_silent_on_poison (Provers.gen_value_to_meet prove_gen).
+Proof.
+  intros statics valuation tenv t x v Hsat Hv Hpoison Hknown.
+  unfold Provers.gen_value_to_meet in Hknown.
+  destruct (Provers.expand_head tenv t) as [d | ] eqn:Hd;
+    [ | discriminate ].
+  destruct d as [[ | [[ | head | ] is_null] | ] | oub | k oub | oub | oub];
+    try discriminate Hknown.
+  pose proof (expanded_value_cases _ _ _ _ _ _ Hsat Hv Hd) as Hcases.
+  simpl in Hcases.
+  destruct Hcases as [[Hnull _] | [_ Hhead]].
+  - exact (poison_not_null _ Hpoison Hnull).
+  - exact (poison_no_head _ _ _ _ Hpoison Hhead).
+Qed.
+
+(* ======================================================================== *)
+(* The scrutinee questions                                                  *)
+(* ======================================================================== *)
+
+(* A variant whose immediates have no value is a block, and one whose
+   blocks are bottom is a tagged immediate. *)
+Lemma variant_no_immediates (statics : static_env) (valuation : env)
+    (tenv : Typing_env.t) (v : value) (is_int : option variable)
+    (imms : flambda_type) (get_tag : option variable)
+    (blocks : Or_unknown.t row_like_for_blocks)
+    (extensions : variant_extensions) (is_unique : bool) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  head_of_kind_value_non_null_satisfied statics valuation v
+    (Variant is_int (Or_unknown.Known imms) get_tag blocks extensions
+       is_unique) ->
+  Provers.is_bottom tenv imms = Some true ->
+  ~ is_immediate v
+  ∧ ∃ (tag : Z) (fields : list value),
+      block_of statics v = Some (tag, fields)
+      ∧ match blocks with
+        | Or_unknown.Unknown => True
+        | Or_unknown.Known blocks =>
+          row_like_for_blocks_satisfied statics valuation tag fields blocks
+        end.
+Proof.
+  intros Hsat Hhead Hbottom.
+  destruct (variant_cases _ _ _ _ _ _ _ _ _ Hhead)
+    as [[i [-> Himms]] | [tag [fields [Hblock Hblocks]]]].
+  - destruct (is_bottom_sound _ _ _ _ _ Hsat Hbottom Himms).
+  - split; [ | exists tag, fields; split; assumption ].
+    intros Himmediate.
+    rewrite (immediate_not_block statics v Himmediate) in Hblock.
+    discriminate Hblock.
+Qed.
+
+Lemma variant_no_blocks (statics : static_env) (vars : env) (v : value)
+    (is_int : option variable) (immediates : Or_unknown.t flambda_type)
+    (get_tag : option variable) (blocks : row_like_for_blocks)
+    (extensions : variant_extensions) (is_unique : bool) :
+  head_of_kind_value_non_null_satisfied statics vars v
+    (Variant is_int immediates get_tag (Or_unknown.Known blocks) extensions
+       is_unique) ->
+  row_like_for_blocks_is_bottom blocks = true ->
+  ∃ i : Z,
+    v = Value_const (Tagged_immediate i)
+    ∧ match immediates with
+      | Or_unknown.Unknown => True
+      | Or_unknown.Known ty =>
+        type_satisfied statics vars (Value_const (Naked_immediate i)) ty
+      end.
+Proof.
+  intros Hhead Hbottom.
+  destruct (variant_cases _ _ _ _ _ _ _ _ _ Hhead)
+    as [Himmediate | [tag [fields [_ Hblocks]]]].
+  - exact Himmediate.
+  - destruct
+      (row_like_for_blocks_is_bottom_satisfied _ _ _ _ _ Hbottom Hblocks).
+Qed.
+
+Lemma prove_is_int_generic_value_sound (variant_only : bool) :
+  generic_value_sound (Provers.prove_is_int_generic_value variant_only)
+    any_head
+    (fun statics v => variant_only = true -> variants statics v)
+    (fun _ _ => is_int_is).
+Proof.
+  intros statics valuation tenv head v Hsat _ Hhead Hdomain.
+  pose proof (not_variant_head _ _ _ _ Hhead) as Hnot_variant.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    simpl.
+  - destruct blocks as [blocks | ], immediates as [imms | ].
+    + destruct (row_like_for_blocks_is_bottom blocks) eqn:Hblocks;
+        destruct (Provers.is_bottom tenv imms) as [[ | ] | ] eqn:Himms;
+        simpl; try exact I.
+      * destruct (variant_no_immediates _ _ _ _ _ _ _ _ _ _ Hsat Hhead Himms)
+          as [Hnot _].
+        destruct (variant_no_blocks _ _ _ _ _ _ _ _ _ Hhead Hblocks)
+          as [i [-> _]].
+        apply Hnot. exists i. reflexivity.
+      * destruct (variant_no_blocks _ _ _ _ _ _ _ _ _ Hhead Hblocks)
+          as [i [-> _]].
+        exists i. reflexivity.
+      * exact
+          (proj1
+             (variant_no_immediates _ _ _ _ _ _ _ _ _ _ Hsat Hhead Himms)).
+    + destruct (row_like_for_blocks_is_bottom blocks) eqn:Hblocks;
+        simpl; try exact I.
+      destruct (variant_no_blocks _ _ _ _ _ _ _ _ _ Hhead Hblocks)
+        as [i [-> _]].
+      exists i. reflexivity.
+    + destruct (Provers.is_bottom tenv imms) as [[ | ] | ] eqn:Himms;
+        simpl; try exact I.
+      exact
+        (proj1 (variant_no_immediates _ _ _ _ _ _ _ _ _ _ Hsat Hhead Himms)).
+    + exact I.
+  - rewrite mutable_block_head_satisfied in Hhead. destruct Hhead.
+  - destruct variant_only; simpl.
+    + exact (Hnot_variant (Hdomain eq_refl)).
+    + intros Himmediate. apply Hnot_variant. left. exact Himmediate.
+  - destruct variant_only; simpl.
+    + exact (Hnot_variant (Hdomain eq_refl)).
+    + intros Himmediate. apply Hnot_variant. left. exact Himmediate.
+  - destruct variant_only; simpl.
+    + exact (Hnot_variant (Hdomain eq_refl)).
+    + intros Himmediate. apply Hnot_variant. left. exact Himmediate.
+Qed.
+
+Lemma prove_is_int_sound_proof :
+  prover_sound Provers.prove_is_int any_input (fun _ _ => is_int_is).
+Proof.
+  apply (gen_value_to_proof_sound _ any_input any_head).
+  - exact any_input_to_head.
+  - intros statics valuation tenv head v Hsat Hin Hhead _.
+    apply (prove_is_int_generic_value_sound false _ _ _ _ _ Hsat Hin Hhead).
+    discriminate.
+Qed.
+
+Lemma meet_is_int_variant_only_sound_proof :
+  meet_shortcut_sound Provers.meet_is_int_variant_only any_input variants
+    (fun _ _ => is_int_is).
+Proof.
+  apply
+    (gen_value_to_meet_sound _ any_input any_head
+       (fun statics v => true = true -> variants statics v)).
+  - exact any_input_to_head.
+  - intros statics v Hvariant.
+    split; [ | split; [ | intros _; exact Hvariant ] ].
+    + destruct Hvariant as [Himmediate | Hblock].
+      * exact (immediate_kind _ Himmediate).
+      * exact (block_kind _ _ Hblock).
+    + destruct Hvariant as [[i ->] | [tag [fields Hblock]]].
+      * discriminate.
+      * intros ->. discriminate Hblock.
+  - exact (prove_is_int_generic_value_sound true).
+Qed.
+
+Lemma prove_is_not_a_pointer_sound_proof :
+  prover_sound Provers.prove_is_not_a_pointer any_input
+    (fun _ _ => is_not_a_pointer_is).
+Proof.
+  intros statics valuation tenv t x v Hsat _ Hv Hproved.
+  unfold Provers.prove_is_not_a_pointer,
+    Provers.prove_is_not_a_pointer_generic_value in Hproved.
+  destruct (Provers.expand_head tenv t) as [d | ] eqn:Hd;
+    [ | discriminate ].
+  destruct d as [[ | [[ | head | ] [ | is_null]] | ] | oub | k oub | oub
+                | oub];
+    try discriminate Hproved;
+    pose proof (expanded_value_cases _ _ _ _ _ _ Hsat Hv Hd) as Hcases;
+    simpl in Hcases.
+  - (* A head that is not null. *)
+    destruct Hcases as [[_ Hnot] | [Hnot_null Hhead]]; [ contradiction | ].
+    pose proof
+      (prove_is_int_generic_value_sound false _ _ _ _ _ Hsat I Hhead
+         (fun H => False_ind _ (diff_false_true H)))
+      as Hint.
+    destruct (Provers.prove_is_int_generic_value false tenv head)
+      as [[[ | ] | | ] | ];
+      try discriminate Hproved; injection Hproved as <-; simpl in Hint |- *.
+    + left. exact Hint.
+    + split; [ exact Hint | exact Hnot_null ].
+  - (* A head that may be null. *)
+    destruct Hcases as [[Hnull _] | [Hnot_null Hhead]].
+    + destruct (Provers.prove_is_int_generic_value false tenv head)
+        as [[[ | ] | | ] | ];
+        try discriminate Hproved; injection Hproved as <-.
+      right. exact Hnull.
+    + pose proof
+        (prove_is_int_generic_value_sound false _ _ _ _ _ Hsat I Hhead
+           (fun H => False_ind _ (diff_false_true H)))
+        as Hint.
+      destruct (Provers.prove_is_int_generic_value false tenv head)
+        as [[[ | ] | | ] | ];
+        try discriminate Hproved; injection Hproved as <-; simpl in Hint.
+      left. exact Hint.
+  - (* Null and nothing else. *)
+    injection Hproved as <-.
+    destruct Hcases as [[Hnull _] | [_ []]]. right. exact Hnull.
+Qed.
+
+Lemma prove_is_not_a_pointer_silent :
+  prover_silent_on_poison Provers.prove_is_not_a_pointer.
+Proof.
+  intros statics valuation tenv t x v Hsat Hv Hpoison Hproved.
+  unfold Provers.prove_is_not_a_pointer,
+    Provers.prove_is_not_a_pointer_generic_value in Hproved.
+  destruct (Provers.expand_head tenv t) as [d | ] eqn:Hd;
+    [ | discriminate ].
+  destruct d as [[ | [[ | head | ] [ | is_null]] | ] | oub | k oub | oub
+                | oub];
+    try discriminate Hproved;
+    pose proof (expanded_value_cases _ _ _ _ _ _ Hsat Hv Hd) as Hcases;
+    simpl in Hcases.
+  - destruct Hcases as [[_ Hnot] | [_ Hhead]]; [ contradiction | ].
+    exact (poison_no_head _ _ _ _ Hpoison Hhead).
+  - destruct Hcases as [[Hnull _] | [_ Hhead]].
+    + exact (poison_not_null _ Hpoison Hnull).
+    + exact (poison_no_head _ _ _ _ Hpoison Hhead).
+  - destruct Hcases as [[Hnull _] | [_ []]].
+    exact (poison_not_null _ Hpoison Hnull).
+Qed.
+
+Lemma prove_is_null_generic_sound (statics : static_env) (valuation : env)
+    (tenv : Typing_env.t) (t : flambda_type) (v : value) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  type_satisfied statics valuation v t ->
+  kind_of_value v = Value ->
+  match Provers.prove_is_null_generic tenv t with
+  | Some (Generic_proof.Proved x) => is_null_is x v
+  | Some Generic_proof.Invalid => False
+  | Some Generic_proof.Unknown | None => True
+  end.
+Proof.
+  intros Hsat Hv Hkind. unfold Provers.prove_is_null_generic.
+  destruct (Provers.expand_head tenv t) as [d | ] eqn:Hd; [ | exact I ].
+  pose proof (expanded_kind _ _ _ _ _ _ Hsat Hv Hd) as Hk.
+  rewrite Hkind in Hk.
+  destruct d as [oub | oub | k oub | oub | oub]; try discriminate Hk.
+  pose proof (expanded_value_cases _ _ _ _ _ _ Hsat Hv Hd) as Hcases.
+  destruct oub as [ | [[ | head | ] [ | is_null]] | ];
+    simpl in Hcases |- *; try exact I.
+  - destruct Hcases as [[_ Hnot] | [Hnot_null _]];
+      [ contradiction | exact Hnot_null ].
+  - destruct Hcases as [[_ Hnot] | [Hnot_null _]];
+      [ contradiction | exact Hnot_null ].
+  - destruct Hcases as [[_ Hnot] | [_ []]]. contradiction.
+  - destruct Hcases as [[Hnull _] | [_ []]]. exact Hnull.
+  - exact Hcases.
+Qed.
+
+Lemma meet_is_null_sound_proof :
+  meet_shortcut_sound Provers.meet_is_null any_input (values_of_kind Value)
+    (fun _ _ => is_null_is).
+Proof.
+  intros statics valuation tenv t v Hsat _ Hv Hkind.
+  pose proof (prove_is_null_generic_sound _ _ _ _ _ Hsat Hv Hkind) as Hnull.
+  unfold Provers.meet_is_null.
+  destruct (Provers.prove_is_null_generic tenv t) as [[x | | ] | ];
+    exact Hnull.
+Qed.
+
+Lemma meet_is_null_poison_proof (statics : static_env) (valuation : env)
+    (tenv : Typing_env.t) (t : flambda_type) (v : value) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  type_satisfied statics valuation v t ->
+  is_poison v ->
+  Provers.meet_is_null tenv t <> Some (Meet_shortcut.Known_result true).
+Proof.
+  intros Hsat Hv Hpoison Hknown.
+  unfold Provers.meet_is_null, Provers.prove_is_null_generic in Hknown.
+  destruct (Provers.expand_head tenv t) as [d | ] eqn:Hd;
+    [ | discriminate ].
+  destruct d as [[ | [[ | head | ] [ | is_null]] | ] | oub | k oub | oub
+                | oub];
+    try discriminate Hknown.
+  pose proof (expanded_value_cases _ _ _ _ _ _ Hsat Hv Hd) as Hcases.
+  simpl in Hcases.
+  destruct Hcases as [[Hnull _] | [_ []]].
+  exact (poison_not_null _ Hpoison Hnull).
+Qed.
+
+(* ======================================================================== *)
+(* Tags                                                                     *)
+(* ======================================================================== *)
+
+Lemma prove_get_tag_generic_value_sound :
+  generic_value_sound Provers.prove_get_tag_generic_value any_head
+    (fun _ _ => True) (fun statics _ => block_with_tag_among statics).
+Proof.
+  intros statics valuation tenv head v Hsat _ Hhead _.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    simpl; try exact I.
+  destruct immediates as [imms | ]; [ | exact I ].
+  destruct (Provers.is_bottom tenv imms) as [[ | ] | ] eqn:Himms;
+    simpl; try exact I.
+  destruct (variant_no_immediates _ _ _ _ _ _ _ _ _ _ Hsat Hhead Himms)
+    as [_ [tag [fields [Hblock Hblocks]]]].
+  destruct blocks as [blocks | ]; [ | exact I ].
+  destruct (row_like_for_blocks_all_tags blocks) as [tags | ] eqn:Htags;
+    [ | exact I ].
+  pose proof (all_tags_satisfied _ _ _ _ _ _ Htags Hblocks) as Hin.
+  destruct (Keyed.is_empty tags) eqn:Hempty.
+  - rewrite (is_empty_nil _ Hempty) in Hin. destruct Hin.
+  - exists tag, fields. split; assumption.
+Qed.
+
+Lemma prove_get_tag_sound_proof :
+  prover_sound Provers.prove_get_tag any_input
+    (fun statics _ => block_with_tag_among statics).
+Proof.
+  apply (gen_value_to_proof_sound _ any_input any_head).
+  - exact any_input_to_head.
+  - exact prove_get_tag_generic_value_sound.
+Qed.
+
+(* ======================================================================== *)
+(* Naked immediates                                                         *)
+(* ======================================================================== *)
+
+(* What is known of a number admits the number [i]. *)
+Definition proof_admits (i : Z) (proof : Generic_proof.t (list Z)) : Prop :=
+  match proof with
+  | Generic_proof.Proved imms => i ∈ imms
+  | Generic_proof.Unknown => True
+  | Generic_proof.Invalid => False
+  end.
+
+Definition answer_admits (i : Z)
+    (answer : option (Generic_proof.t (list Z))) : Prop :=
+  match answer with
+  | Some proof => proof_admits i proof
+  | None => True
+  end.
+
+Lemma these_immediates_admits (i : Z) (imms : list Z) :
+  i ∈ imms -> proof_admits i (Provers.these_immediates imms).
+Proof.
+  intros Hin. unfold Provers.these_immediates.
+  destruct imms as [ | imm imms]; [ destruct Hin | exact Hin ].
+Qed.
+
+Lemma meet_these_immediates_admits (i : Z) (imms : list Z)
+    (proof : Generic_proof.t (list Z)) :
+  i ∈ imms ->
+  proof_admits i proof ->
+  proof_admits i (Provers.meet_these_immediates imms proof).
+Proof.
+  intros Hin Hproof.
+  destruct proof as [imms' | | ]; simpl.
+  - apply these_immediates_admits. exact (in_inter _ _ _ Hin Hproof).
+  - apply these_immediates_admits. exact Hin.
+  - exact Hproof.
+Qed.
+
+Lemma meet_this_immediate_admits (i : Z) (proof : Generic_proof.t (list Z)) :
+  proof_admits i proof ->
+  proof_admits i (Provers.meet_this_immediate i proof).
+Proof.
+  apply meet_these_immediates_admits. left. reflexivity.
+Qed.
+
+(* One relation of the head of a naked immediate: the name has a value
+   that the relation relates to the number. *)
+Lemma prove_naked_immediates_relation_admits (statics : static_env)
+    (valuation : env) (tenv : Typing_env.t) (relation : Relation.t)
+    (n : name) (i : Z) (imms : Generic_proof.t (list Z)) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  (∃ w : value,
+    value_of_name valuation n = Some w
+    ∧ relation_holds statics relation w i) ->
+  proof_admits i imms ->
+  answer_admits i
+    (Provers.prove_naked_immediates_relation tenv relation n imms).
+Proof.
+  intros Hsat [w [Hw Hrelation]] Himms.
+  unfold Provers.prove_naked_immediates_relation.
+  assert (Hkind : kind_of_value w = Value).
+  { destruct relation; simpl in Hrelation.
+    - destruct Hrelation as [[-> _] | [Hkind _]];
+        [ reflexivity | exact Hkind ].
+    - destruct Hrelation as [[Himmediate _] | [Hblock _]].
+      + exact (immediate_kind _ Himmediate).
+      + exact (block_kind _ _ Hblock).
+    - destruct Hrelation as [Himmediate | [[fields Hblock] _]].
+      + exact (immediate_kind _ Himmediate).
+      + exact (block_of_kind _ _ _ _ Hblock). }
+  assert (Hty :
+    type_satisfied statics valuation w
+      (alias_type_of Value (simple_of_name n))).
+  { apply alias_satisfied. split; [ exact Hw | exact Hkind ]. }
+  destruct relation; simpl in Hrelation.
+  - (* [Is_null] *)
+    pose proof (prove_is_null_generic_sound _ _ _ _ _ Hsat Hty Hkind)
+      as Hnull.
+    destruct
+      (Provers.prove_is_null_generic tenv
+         (alias_type_of Value (simple_of_name n)))
+      as [[b | | ] | ];
+      simpl; try exact I; try exact Himms; try exact Hnull.
+    assert (Hi : i = Z.b2z b).
+    { destruct b; simpl in Hnull |- *.
+      - destruct Hrelation as [[_ ->] | [_ [Hnot _]]];
+          [ reflexivity | contradiction ].
+      - destruct Hrelation as [[Hw_null _] | [_ [_ ->]]];
+          [ contradiction | reflexivity ]. }
+    rewrite <- Hi. exact (meet_this_immediate_admits _ _ Himms).
+  - (* [Is_int] *)
+    assert (Hvariant : variants statics w).
+    { destruct Hrelation as [[Himmediate _] | [Hblock _]];
+        [ left | right ]; assumption. }
+    pose proof
+      (gen_value_to_gen_sound _ _ _ _ _ _ _ _
+         (prove_is_int_generic_value_sound true) Hsat Hty Hkind
+         (fun _ => Hvariant))
+      as Hint.
+    unfold Provers.prove_is_int_generic.
+    destruct
+      (Provers.gen_value_to_gen (Provers.prove_is_int_generic_value true)
+         tenv (alias_type_of Value (simple_of_name n)))
+      as [[b | | ] | ];
+      simpl; try exact I; try exact Himms; try exact Hint.
+    assert (Hi : i = Z.b2z b).
+    { destruct b; simpl in Hint |- *.
+      - destruct Hrelation as [[_ ->] | [[tag [fields Hblock]] _]];
+          [ reflexivity | ].
+        rewrite (immediate_not_block statics w Hint) in Hblock.
+        discriminate Hblock.
+      - destruct Hrelation as [[Himmediate _] | [_ ->]];
+          [ contradiction | reflexivity ]. }
+    rewrite <- Hi. exact (meet_this_immediate_admits _ _ Himms).
+  - (* [Get_tag] *)
+    pose proof
+      (gen_value_to_gen_sound _ _ _ _ _ _ _ _
+         prove_get_tag_generic_value_sound Hsat Hty Hkind I)
+      as Htag.
+    unfold Provers.prove_get_tag_generic.
+    destruct
+      (Provers.gen_value_to_gen Provers.prove_get_tag_generic_value tenv
+         (alias_type_of Value (simple_of_name n)))
+      as [[tags | | ] | ];
+      simpl; try exact I; try exact Himms; try exact Htag.
+    apply meet_these_immediates_admits; [ | exact Himms ].
+    destruct Htag as [tag [fields [Hblock Hin]]].
+    destruct Hrelation as [Himmediate | [[fields' Hblock'] _]].
+    + rewrite (immediate_not_block statics w Himmediate) in Hblock.
+      discriminate Hblock.
+    + rewrite Hblock in Hblock'. injection Hblock' as <- _. exact Hin.
+Qed.
+
+Lemma prove_naked_immediates_fold_admits (statics : static_env)
+    (valuation : env) (tenv : Typing_env.t) (i : Z)
+    (relations : list (Relation.t * name)) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  ∀ answer : option (Generic_proof.t (list Z)),
+    (∀ (relation : Relation.t) (n : name),
+      (relation, n) ∈ relations ->
+      ∃ w : value,
+        value_of_name valuation n = Some w
+        ∧ relation_holds statics relation w i) ->
+    answer_admits i answer ->
+    answer_admits i
+      (List.fold_left
+         (fun (imms : option (Generic_proof.t (list Z)))
+              (relation_and_name : Relation.t * name) =>
+            let* imms := imms in
+            Provers.prove_naked_immediates_relation tenv
+              (fst relation_and_name) (snd relation_and_name) imms)
+         relations answer).
+Proof.
+  intros Hsat.
+  induction relations as [ | [relation n] relations IH];
+    intros answer Hrelations Hanswer; simpl.
+  - exact Hanswer.
+  - apply IH.
+    + intros relation' n' Hin. apply Hrelations. right. exact Hin.
+    + destruct answer as [imms | ]; [ | exact I ].
+      apply (prove_naked_immediates_relation_admits statics valuation).
+      * exact Hsat.
+      * apply Hrelations. left. reflexivity.
+      * exact Hanswer.
+Qed.
+
+Lemma prove_naked_immediates_generic_sound (statics : static_env)
+    (valuation : env) (tenv : Typing_env.t) (t : flambda_type) (v : value) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  well_formed_input tenv t ->
+  type_satisfied statics valuation v t ->
+  kind_of_value v = Naked_number Kind_naked_immediate ->
+  match Provers.prove_naked_immediates_generic tenv t with
+  | Some (Generic_proof.Proved imms) => naked_immediate_among imms v
+  | Some Generic_proof.Invalid => False
+  | Some Generic_proof.Unknown | None => True
+  end.
+Proof.
+  intros Hsat Hinput Hv Hkind.
+  unfold Provers.prove_naked_immediates_generic.
+  destruct (Provers.expand_head tenv t) as [d | ] eqn:Hd; [ | exact I ].
+  pose proof (expanded_kind _ _ _ _ _ _ Hsat Hv Hd) as Hk.
+  rewrite Hkind in Hk.
+  pose proof (provers_expand_head_well_formed _ _ _ Hinput Hd) as Hwf.
+  destruct d as [oub | oub | k oub | oub | oub]; try discriminate Hk.
+  - (* A head of naked immediates. *)
+    pose proof (expanded_naked_immediate_cases _ _ _ _ _ _ Hsat Hv Hd)
+      as Hcases.
+    destruct oub as [ | head | ]; simpl in Hcases |- *;
+      [ exact I | | exact Hcases ].
+    destruct Hcases as [i [-> [Hnumbers Hrelations]]].
+    pose proof
+      (prove_naked_immediates_fold_admits statics valuation tenv i
+         (inverse_relations head) Hsat
+         (Some
+            match naked_immediates head with
+            | Or_unknown.Known imms => Provers.these_immediates imms
+            | Or_unknown.Unknown => Generic_proof.Unknown
+            end)
+         Hrelations)
+      as Hfold.
+    match type of Hfold with
+    | ?P -> _ => assert (Hinitial : P)
+    end.
+    { simpl. destruct (naked_immediates head) as [imms | ].
+      - exact (these_immediates_admits _ _ Hnumbers).
+      - exact I. }
+    specialize (Hfold Hinitial).
+    match goal with
+    | |- match ?answer with _ => _ end =>
+      destruct answer as [[imms | | ] | ]
+    end;
+      simpl in Hfold; try exact I; try exact Hfold.
+    exists i. split; [ reflexivity | exact Hfold ].
+  - (* A head of naked numbers at the kind of the immediates: the type
+       is not well formed. *)
+    injection Hk as <-. simpl in Hwf. discriminate Hwf.
+Qed.
+
+Lemma meet_naked_immediates_sound_proof :
+  meet_shortcut_sound Provers.meet_naked_immediates well_formed_input
+    (values_of_kind (Naked_number Kind_naked_immediate))
+    (fun _ _ => naked_immediate_among).
+Proof.
+  intros statics valuation tenv t v Hsat Hinput Hv Hkind.
+  pose proof
+    (prove_naked_immediates_generic_sound _ _ _ _ _ Hsat Hinput Hv Hkind)
+    as Hsound.
+  unfold Provers.meet_naked_immediates.
+  destruct (Provers.prove_naked_immediates_generic tenv t)
+    as [[imms | | ] | ];
+    exact Hsound.
+Qed.
+
+Lemma meet_naked_immediates_silent :
+  meet_shortcut_silent_on_poison Provers.meet_naked_immediates.
+Proof.
+  intros statics valuation tenv t x v Hsat Hv Hpoison Hknown.
+  unfold Provers.meet_naked_immediates,
+    Provers.prove_naked_immediates_generic in Hknown.
+  destruct (Provers.expand_head tenv t) as [d | ] eqn:Hd;
+    [ | discriminate ].
+  destruct d as [oub | [ | head | ] | k oub | oub | oub];
+    try discriminate Hknown.
+  pose proof (expanded_naked_immediate_cases _ _ _ _ _ _ Hsat Hv Hd)
+    as [i [-> _]].
+  destruct Hpoison as [k Hpoison]. discriminate Hpoison.
+Qed.
+
+(* ======================================================================== *)
+(* Tagged immediates                                                        *)
+(* ======================================================================== *)
+
+(* The immediates of a well-formed variant are a well-formed type. *)
+Lemma well_formed_head_immediates (tenv : Typing_env.t)
+    (is_int : option variable) (imms : flambda_type)
+    (get_tag : option variable) (blocks : Or_unknown.t row_like_for_blocks)
+    (extensions : variant_extensions) (is_unique : bool) :
+  well_formed_head tenv
+    (Variant is_int (Or_unknown.Known imms) get_tag blocks extensions
+       is_unique) ->
+  well_formed_input tenv imms.
+Proof.
+  intros [Htypes Hwf]. split; [ exact Htypes | ].
+  rewrite variant_well_formed in Hwf.
+  apply andb_prop in Hwf. destruct Hwf as [Hwf _].
+  apply andb_prop in Hwf. destruct Hwf as [Hwf _].
+  apply andb_prop in Hwf. exact (proj2 Hwf).
+Qed.
+
+Lemma prove_equals_tagged_immediates_value_sound :
+  generic_value_sound Provers.prove_equals_tagged_immediates_value
+    well_formed_head (fun _ _ => True) (fun _ _ => tagged_immediate_among).
+Proof.
+  intros statics valuation tenv head v Hsat Hinput Hhead _.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    simpl; try exact I.
+  destruct blocks as [blocks | ]; [ | exact I ].
+  destruct (row_like_for_blocks_is_bottom blocks) eqn:Hblocks; [ | exact I ].
+  destruct (variant_no_blocks _ _ _ _ _ _ _ _ _ Hhead Hblocks)
+    as [i [-> Himms]].
+  destruct immediates as [imms | ]; [ | exact I ].
+  pose proof
+    (prove_naked_immediates_generic_sound _ _ _ _ _ Hsat
+       (well_formed_head_immediates _ _ _ _ _ _ _ Hinput) Himms eq_refl)
+    as Hsound.
+  destruct (Provers.prove_naked_immediates_generic tenv imms)
+    as [[imms' | | ] | ];
+    simpl; try exact I.
+  - destruct Hsound as [i' [Heq Hin]]. injection Heq as <-.
+    exists i. split; [ reflexivity | exact Hin ].
+  - destruct Hsound.
+Qed.
+
+Lemma prove_equals_tagged_immediates_sound_proof :
+  prover_sound Provers.prove_equals_tagged_immediates well_formed_input
+    (fun _ _ => tagged_immediate_among).
+Proof.
+  apply (gen_value_to_proof_sound _ well_formed_input well_formed_head).
+  - exact well_formed_input_to_head.
+  - exact prove_equals_tagged_immediates_value_sound.
+Qed.
+
+Lemma meet_equals_tagged_immediates_value_sound :
+  generic_value_sound Provers.meet_equals_tagged_immediates_value
+    well_formed_head tagged_immediates (fun _ _ => tagged_immediate_among).
+Proof.
+  intros statics valuation tenv head v Hsat Hinput Hhead Himmediate.
+  pose proof (not_variant_head _ _ _ _ Hhead) as Hnot_variant.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    simpl.
+  - destruct immediates as [imms | ]; [ | exact I ].
+    destruct (variant_cases _ _ _ _ _ _ _ _ _ Hhead)
+      as [[i [-> Himms]] | [tag [fields [Hblock _]]]].
+    + pose proof
+        (prove_naked_immediates_generic_sound _ _ _ _ _ Hsat
+           (well_formed_head_immediates _ _ _ _ _ _ _ Hinput) Himms eq_refl)
+        as Hsound.
+      destruct (Provers.prove_naked_immediates_generic tenv imms)
+        as [[imms' | | ] | ];
+        simpl; try exact I; try exact Hsound.
+      destruct Hsound as [i' [Heq Hin]]. injection Heq as <-.
+      exists i. split; [ reflexivity | exact Hin ].
+    + rewrite (immediate_not_block statics v Himmediate) in Hblock.
+      discriminate Hblock.
+  - rewrite mutable_block_head_satisfied in Hhead. exact Hhead.
+  - apply Hnot_variant. left. exact Himmediate.
+  - apply Hnot_variant. left. exact Himmediate.
+  - apply Hnot_variant. left. exact Himmediate.
+Qed.
+
+Lemma meet_equals_tagged_immediates_sound_proof :
+  meet_shortcut_sound Provers.meet_equals_tagged_immediates
+    well_formed_input tagged_immediates
+    (fun _ _ => tagged_immediate_among).
+Proof.
+  apply
+    (gen_value_to_meet_sound _ well_formed_input well_formed_head
+       tagged_immediates).
+  - exact well_formed_input_to_head.
+  - intros statics v Himmediate.
+    split; [ exact (immediate_kind _ Himmediate) | ].
+    split; [ | exact Himmediate ].
+    destruct Himmediate as [i ->]. discriminate.
+  - exact meet_equals_tagged_immediates_value_sound.
+Qed.
+
+Lemma meet_equals_single_tagged_immediate_sound_proof :
+  meet_shortcut_sound Provers.meet_equals_single_tagged_immediate
+    well_formed_input tagged_immediates
+    (fun _ _ imm v => v = Value_const (Tagged_immediate imm)).
+Proof.
+  intros statics valuation tenv t v Hsat Hinput Hv Himmediate.
+  pose proof
+    (meet_equals_tagged_immediates_sound_proof _ _ _ _ _ Hsat Hinput Hv
+       Himmediate)
+    as Hsound.
+  unfold Provers.meet_equals_single_tagged_immediate.
+  destruct (Provers.meet_equals_tagged_immediates tenv t)
+    as [[imms | | ] | ];
+    try exact I; try exact Hsound.
+  destruct (Keyed.get_singleton Z.eqb imms) as [imm | ] eqn:Hsingleton;
+    [ | exact I ].
+  destruct Hsound as [i [-> Hin]].
+  rewrite (get_singleton_in _ _ _ Hsingleton Hin). reflexivity.
+Qed.
+
+Lemma meet_equals_single_tagged_immediate_silent :
+  meet_shortcut_silent_on_poison Provers.meet_equals_single_tagged_immediate.
+Proof.
+  intros statics valuation tenv t x v Hsat Hv Hpoison Hknown.
+  unfold Provers.meet_equals_single_tagged_immediate in Hknown.
+  destruct (Provers.meet_equals_tagged_immediates tenv t)
+    as [[imms | | ] | ] eqn:Hmeet;
+    try discriminate Hknown.
+  exact
+    (gen_value_to_meet_silent _ _ _ _ _ _ _ Hsat Hv Hpoison Hmeet).
+Qed.
+
+(* ======================================================================== *)
+(* Naked numbers                                                            *)
+(* ======================================================================== *)
+
+Lemma expanded_naked_number_cases (statics : static_env) (valuation : env)
+    (tenv : Typing_env.t) (t : flambda_type) (k : naked_number_kind)
+    (oub : or_unknown_or_bottom (list Z)) (v : value) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  type_satisfied statics valuation v t ->
+  Provers.expand_head tenv t = Some (Oub_naked_number k oub) ->
+  match oub with
+  | Unknown => True
+  | Bottom => False
+  | Ok numbers => naked_numbers_satisfied k v numbers
+  end.
+Proof.
+  intros Hsat Hv Hd.
+  pose proof (expand_head_descr_sound _ _ _ _ _ _ Hsat Hv Hd) as Hexp.
+  simpl in Hexp. rewrite type_satisfied_naked_number in Hexp.
+  destruct oub as [ | numbers | ]; simpl in Hexp.
+  - exact I.
+  - exact Hexp.
+  - exact Hexp.
+Qed.
+
+Lemma meet_naked_number_sound_proof (kind : naked_number_kind) :
+  kind <> Kind_naked_immediate ->
+  meet_shortcut_sound (Provers.meet_naked_number kind) any_input
+    (values_of_kind (Naked_number kind))
+    (fun _ _ numbers v => naked_numbers_satisfied kind v numbers).
+Proof.
+  intros Hkind_not statics valuation tenv t v Hsat _ Hv Hkind.
+  unfold Provers.meet_naked_number.
+  destruct (Provers.expand_head tenv t) as [d | ] eqn:Hd; [ | exact I ].
+  pose proof (expanded_kind _ _ _ _ _ _ Hsat Hv Hd) as Hk.
+  unfold values_of_kind in Hkind. rewrite Hkind in Hk.
+  destruct d as [oub | oub | k oub | oub | oub]; simpl in Hk;
+    try discriminate Hk.
+  - injection Hk as ->. contradiction.
+  - injection Hk as <-. rewrite kind_eqb_refl.
+    pose proof (expanded_naked_number_cases _ _ _ _ _ _ _ Hsat Hv Hd)
+      as Hcases.
+    destruct oub as [ | numbers | ]; [ exact I | | exact Hcases ].
+    destruct (Keyed.is_empty numbers) eqn:Hempty; [ | exact Hcases ].
+    rewrite (is_empty_nil _ Hempty) in Hcases.
+    destruct Hcases as [c [n [_ [_ [_ []]]]]].
+Qed.
+
+Lemma meet_naked_number_silent (kind : naked_number_kind) :
+  meet_shortcut_silent_on_poison (Provers.meet_naked_number kind).
+Proof.
+  intros statics valuation tenv t x v Hsat Hv Hpoison Hknown.
+  unfold Provers.meet_naked_number in Hknown.
+  destruct (Provers.expand_head tenv t) as [d | ] eqn:Hd;
+    [ | discriminate ].
+  destruct d as [oub | oub | k oub | oub | oub]; try discriminate Hknown.
+  destruct (kind_eqb (Naked_number k) (Naked_number kind));
+    [ | discriminate Hknown ].
+  pose proof (expanded_naked_number_cases _ _ _ _ _ _ _ Hsat Hv Hd)
+    as Hcases.
+  destruct oub as [ | numbers | ]; try discriminate Hknown.
+  destruct Hcases as [c [n [-> [_ [Hnumber _]]]]].
+  destruct Hpoison as [k' Hpoison]. injection Hpoison as ->.
+  discriminate Hnumber.
+Qed.
+
+End With_expand_head.
+
+(* ======================================================================== *)
+(* The statements                                                           *)
+(* ======================================================================== *)
+
+Theorem prove_is_int_sound : prove_is_int_sound_statement.
+Proof. exact prove_is_int_sound_proof. Qed.
+
+Theorem meet_is_int_variant_only_sound
+  : meet_is_int_variant_only_sound_statement.
+Proof. exact meet_is_int_variant_only_sound_proof. Qed.
+
+Theorem prove_is_not_a_pointer_sound : prove_is_not_a_pointer_sound_statement.
+Proof. exact prove_is_not_a_pointer_sound_proof. Qed.
+
+Theorem prove_get_tag_sound : prove_get_tag_sound_statement.
+Proof. exact prove_get_tag_sound_proof. Qed.
+
+Theorem meet_is_null_sound : meet_is_null_sound_statement.
+Proof. exact meet_is_null_sound_proof. Qed.
+
+Theorem meet_naked_immediates_sound : meet_naked_immediates_sound_statement.
+Proof. exact meet_naked_immediates_sound_proof. Qed.
+
+Theorem prove_equals_tagged_immediates_sound
+  : prove_equals_tagged_immediates_sound_statement.
+Proof. exact prove_equals_tagged_immediates_sound_proof. Qed.
+
+Theorem meet_equals_tagged_immediates_sound
+  : meet_equals_tagged_immediates_sound_statement.
+Proof. exact meet_equals_tagged_immediates_sound_proof. Qed.
+
+Theorem meet_equals_single_tagged_immediate_sound
+  : meet_equals_single_tagged_immediate_sound_statement.
+Proof. exact meet_equals_single_tagged_immediate_sound_proof. Qed.
+
+Theorem meet_naked_number_sound : meet_naked_number_sound_statement.
+Proof. exact meet_naked_number_sound_proof. Qed.
+
+Theorem provers_silent_on_poison : provers_silent_on_poison_statement.
+Proof.
+  intros Hexpand.
+  repeat split.
+  - exact (gen_value_to_proof_silent Hexpand _).
+  - exact (gen_value_to_meet_silent Hexpand _).
+  - exact (prove_is_not_a_pointer_silent Hexpand).
+  - exact (gen_value_to_proof_silent Hexpand _).
+  - exact (meet_naked_immediates_silent Hexpand).
+  - exact (gen_value_to_proof_silent Hexpand _).
+  - exact (gen_value_to_meet_silent Hexpand _).
+  - exact (meet_equals_single_tagged_immediate_silent Hexpand).
+  - exact (meet_naked_number_silent Hexpand).
+Qed.
+
+Theorem meet_is_null_poison : meet_is_null_poison_statement.
+Proof. exact meet_is_null_poison_proof. Qed.
+
+(* ======================================================================== *)
+(* The answers against the primitives                                       *)
+(* ======================================================================== *)
+
+Lemma tagged_immediate_of_value (v : value) (i : Z) :
+  int_of_value Standard_tagged_immediate v = Some i ->
+  v = Value_const (Tagged_immediate i).
+Proof.
+  destruct v as [c | code slots | slot decls slots | s | tag fields | c];
+    try discriminate.
+  destruct c; try discriminate. simpl.
+  match goal with
+  | |- (if ?test then _ else _) = _ -> _ => destruct test
+  end;
+    [ intros [= <-]; reflexivity | discriminate ].
+Qed.
+
+Theorem is_int_defined : is_int_defined_statement.
+Proof.
+  intros statics variant_only v r. rewrite eval_prim_unary. simpl.
+  unfold eval_is_int.
+  destruct (is_tagged_immediate v) eqn:Htagged.
+  - simpl. intros [= <-].
+    pose proof (tagged_immediate_is_immediate _ Htagged) as Himmediate.
+    split; [ intros _; left; exact Himmediate | ].
+    exists true. split; [ reflexivity | exact Himmediate ].
+  - destruct variant_only.
+    + destruct (block_of statics v) as [[tag fields] | ] eqn:Hblock;
+        [ | discriminate ].
+      simpl. intros [= <-].
+      split; [ intros _; right; exists tag, fields; exact Hblock | ].
+      exists false. split; [ reflexivity | ].
+      intros Himmediate.
+      rewrite (immediate_not_block statics v Himmediate) in Hblock.
+      discriminate Hblock.
+    + destruct (is_allocated statics v) eqn:Hallocated; [ | discriminate ].
+      simpl. intros [= <-].
+      split; [ discriminate | ].
+      exists false. split; [ reflexivity | ].
+      intros [i ->]. discriminate Hallocated.
+Qed.
+
+Lemma eval_is_null_cases (statics : static_env) (v : value) (b : bool) :
+  eval_is_null statics v = Some b ->
+  kind_of_value v = Value ∧ is_null_is b v.
+Proof.
+  intros H.
+  assert (Hnull : v = Value_const Null ∨ v <> Value_const Null).
+  { destruct v as [c | | | | | ]; [ destruct c | | | | | ];
+      first [ left; reflexivity | right; discriminate ]. }
+  destruct Hnull as [-> | Hnot_null].
+  - unfold eval_is_null in H. injection H as <-. split; reflexivity.
+  - assert (Heq :
+      eval_is_null statics v
+      = if is_tagged_immediate v || is_allocated statics v
+        then Some false
+        else None).
+    { unfold eval_is_null.
+      destruct v as [c | | | | | ]; [ destruct c | | | | | ];
+        first [ reflexivity | exfalso; apply Hnot_null; reflexivity ]. }
+    rewrite Heq in H.
+    destruct (is_tagged_immediate v) eqn:Htagged; simpl in H.
+    + injection H as <-.
+      split; [ exact (is_tagged_immediate_kind _ Htagged) | exact Hnot_null ].
+    + destruct (is_allocated statics v) eqn:Hallocated; [ | discriminate H ].
+      injection H as <-.
+      split; [ | exact Hnot_null ].
+      exact (proj1 (allocated_not_null _ _ Hallocated)).
+Qed.
+
+Theorem is_null_defined : is_null_defined_statement.
+Proof.
+  intros statics v r. rewrite eval_prim_unary. simpl.
+  destruct (eval_is_null statics v) as [b | ] eqn:Hb; [ | discriminate ].
+  simpl. intros [= <-].
+  destruct (eval_is_null_cases _ _ _ Hb) as [Hkind His_null].
+  split; [ exact Hkind | ].
+  exists b. split; [ reflexivity | exact His_null ].
+Qed.
+
+Theorem get_tag_defined : get_tag_defined_statement.
+Proof.
+  intros statics v r. rewrite eval_prim_unary. simpl.
+  destruct (block_of statics v) as [[tag fields] | ]; [ | discriminate ].
+  simpl. intros [= <-]. exists tag, fields. split; reflexivity.
+Qed.
+
+Theorem untag_immediate_defined : untag_immediate_defined_statement.
+Proof.
+  intros statics v r. rewrite eval_prim_unary.
+  change (eval_unary_primitive statics Untag_immediate v)
+    with
+      (let* i := int_of_value Standard_tagged_immediate v in
+       Some (Value_const (Naked_immediate i))).
+  destruct (int_of_value Standard_tagged_immediate v) as [i | ] eqn:Hint;
+    [ | discriminate ].
+  intros [= <-]. exists i.
+  split; [ exact (tagged_immediate_of_value _ _ Hint) | reflexivity ].
+Qed.
+
+Lemma is_int_is_unique (b b' : bool) (v : value) :
+  is_int_is b v -> is_int_is b' v -> b = b'.
+Proof.
+  destruct b, b'; simpl; intros H H'; first [ reflexivity | contradiction ].
+Qed.
+
+Theorem prove_is_int_is_int : prove_is_int_is_int_statement.
+Proof.
+  intros Hexpand statics valuation tenv t b v r Hsat Hv Hproved Heval.
+  pose proof (prove_is_int_sound Hexpand _ _ _ _ _ _ Hsat I Hv Hproved)
+    as Hb.
+  destruct (is_int_defined _ _ _ _ Heval) as [_ [b' [-> Hb']]].
+  rewrite (is_int_is_unique _ _ _ Hb Hb'). reflexivity.
+Qed.
+
+Theorem prove_is_int_get_tag : prove_is_int_get_tag_statement.
+Proof.
+  intros Hexpand statics valuation tenv t v Hsat Hv Hproved.
+  pose proof (prove_is_int_sound Hexpand _ _ _ _ _ _ Hsat I Hv Hproved)
+    as Himmediate.
+  simpl in Himmediate. rewrite eval_prim_unary. simpl.
+  rewrite (immediate_not_block statics v Himmediate). reflexivity.
+Qed.

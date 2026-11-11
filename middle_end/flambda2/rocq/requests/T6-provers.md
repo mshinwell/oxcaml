@@ -43,9 +43,11 @@ through the observations of the machine (`block_of`, `boxed_number_of`,
     Definition prover_sound {A : Type}
         (prover : Typing_env.t -> flambda_type
                   -> option (Proof_of_property.t A))
+        (input : Typing_env.t -> flambda_type -> Prop)
         (holds : static_env -> env -> A -> value -> Prop) : Prop :=
       ∀ statics valuation tenv t x v,
         typing_env_satisfied_strictly statics valuation tenv ->
+        input tenv t ->
         type_satisfied statics valuation v t ->
         prover tenv t = Some (Proof_of_property.Proved x) ->
         holds statics valuation x v.
@@ -53,10 +55,12 @@ through the observations of the machine (`block_of`, `boxed_number_of`,
     Definition meet_shortcut_sound {A : Type}
         (prover : Typing_env.t -> flambda_type
                   -> option (Meet_shortcut.t A))
+        (input : Typing_env.t -> flambda_type -> Prop)
         (domain : static_env -> value -> Prop)
         (holds : static_env -> env -> A -> value -> Prop) : Prop :=
       ∀ statics valuation tenv t v,
         typing_env_satisfied_strictly statics valuation tenv ->
+        input tenv t ->
         type_satisfied statics valuation v t ->
         domain statics v ->
         match prover tenv t with
@@ -65,13 +69,25 @@ through the observations of the machine (`block_of`, `boxed_number_of`,
         | Some Meet_shortcut.Need_meet | None => True
         end.
 
-A third, `generic_proof_sound`, is the second one for the internal
+`input` is a named condition on what a prover is asked, for the
+provers that rely on more than the meaning of a type gives (the
+reviewer's request): none (`any_input`), or that the type and the
+types of the environment are well formed (`well_formed_input`, with
+T1's `type_well_formed`). The second is needed where the model's
+grammar has a type that the compiler's has not (a type of naked
+numbers at the kind of the immediates), and where a prover reads a
+function type that is missing under an exact index as no closure at
+all.
+
+A third form, in the proofs only, is the second one for the internal
 functions on heads; two lemmas take it through `gen_value_to_proof` and
 `gen_value_to_meet`, so each prover is proved once, on heads. A prover
 with more arguments (a kind, a field index, a name mode) is stated for
-every value of them. One lemma per primitive, in the S streams, then
-ties `domain` to "the primitive has a value" and `holds` to its result
-(T1's `primitive_related_statement` is the pattern).
+every value of them. One statement per primitive then ties `domain` to
+the primitive: the primitive has a value only on a value of the
+domain, and its value is what `holds` says; not the converse. Those of
+the scrutinee questions are with slice 1; the others are for the S
+streams.
 
 Nothing is claimed of `Unknown`, `Need_meet` or `None`. Completeness (a
 prover answers whenever the type decides the question) is not stated.
@@ -192,7 +208,7 @@ of them, with a CR. The array cases are left out.
 | Needed | Of | State |
 |--------|----|-------|
 | `type_satisfied` and its equations; `relation_holds` as amended; `is_obviously_bottom_satisfied_statement`, `row_like_for_blocks_is_bottom_satisfied_statement`, `relation_is_int_statement`, `relation_get_tag_statement`, `relation_is_null_statement`, `type_satisfied_kind_statement`, `alias_satisfied_statement` | T1 | on T1's branch, which this branch is cut from |
-| `row_like_for_blocks_all_tags` with `all_tags_satisfied_statement` (slice 1); `all_tags_and_sizes`, `get_singleton`, `get_field` (slice 2); `get_single_tag`, `get_closure`, `get_env_var`, `find_function_type`, and `type_well_formed` (slice 4) | T1 | being written by T1; a stand-in for `all_tags` until then |
+| `row_like_for_blocks_all_tags` with `all_tags_satisfied_statement` (slice 1); `all_tags_and_sizes`, `get_singleton`, `get_field` (slice 2); `get_single_tag`, `get_closure`, `get_env_var`, `find_function_type` (slice 4); `type_well_formed` (slices 1 and 4) | T1 | on T1's branch (`FlambdaTypeAccessSpec.v`, `FlambdaTypeWellFormedSpec.v`) |
 | `typing_env_satisfied_strictly`; `get_canonical_simple_satisfied_statement`, `get_alias_then_canonical_simple_satisfied_statement` (slices 2, 4, 6); `find_satisfied_strictly_statement` | T2 | merged |
 | the aliases are exact (through T2's statements) | T3 | merged |
 | `Expanded_type`, `expand_head`, `expand_head_sound_statement` | T4 | on T4's branch; a stand-in here until it is under this one (below) |

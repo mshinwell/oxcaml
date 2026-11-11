@@ -1,0 +1,647 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+
+
+(* The provers, as the model sees them: the questions that Simplify asks
+   of a type in a typing environment.
+
+   This file is to be reviewed, line by line against
+   middle_end/flambda2/types/provers.ml, as FlambdaTypeGrammar.v is
+   against type_grammar.ml. It holds definitions only, in a module
+   [Provers], so that [Provers.prove_is_int] is that function; and it
+   extracts. What an answer means is FlambdaProversSpec.v. The plan of
+   the workstream, with the table of the provers, is
+   middle_end/flambda2/rocq/requests/T6-provers.md.
+
+   What is here, of provers.ml (the lines are of that file):
+   - the three types of answer, [meet_shortcut], [proof_of_property]
+     and [generic_proof], each in a module of its name so that their
+     constructors are told apart ([Proof_of_property.Proved],
+     [Generic_proof.Proved], [Meet_shortcut.Invalid]), and from
+     [Unknown] of FlambdaTypeGrammar.v; [as_meet_shortcut],
+     [as_property], [gen_value_to_gen], [gen_value_to_proof],
+     [gen_value_to_meet] (lines 41 to 103);
+   - [prove_is_int_generic_value], [prove_is_int_generic],
+     [prove_is_int], [meet_is_int_variant_only],
+     [prove_is_not_a_pointer_generic_value], [prove_is_not_a_pointer]
+     (131 to 179);
+   - [prove_get_tag_generic_value], [prove_get_tag_generic],
+     [prove_get_tag] (186 to 217);
+   - [prove_is_null_generic], [meet_is_null] (219 to 233);
+   - [prove_naked_immediates_generic], [meet_naked_immediates] (235 to
+     303);
+   - [prove_equals_tagged_immediates_value],
+     [prove_equals_tagged_immediates],
+     [meet_equals_tagged_immediates_value],
+     [meet_equals_tagged_immediates],
+     [meet_equals_single_tagged_immediate] (308 to 369);
+   - [meet_naked_number] and the eleven functions defined with it,
+     [meet_naked_float32s] to [meet_naked_masks] (371 to 520).
+   The rest of the file is to follow, in the order of the plan.
+
+   How the definitions differ from the compiler's.
+   - A stop of the compiler is [None]. A prover expands the head of a
+     type ([Expand_head.expand_head]), which is a fatal error on a name
+     that is not bound and on a canonical name whose type is an alias.
+     So every prover answers an [option], [None] where the compiler
+     stops, and a function on heads that a prover is made with does
+     too. The compiler calls [Expand_head.is_bottom] and the provers
+     where the model does, in the same order, so the model stops where
+     the compiler does.
+   - [Expand_head.Expanded_type.descr_oub], the view of an expanded
+     type that the provers match on, is here ([descr_oub], the type and
+     the function): the file of [expand_head] left it out, the meet
+     having no use for it. Its fifteen constructors, one for each
+     kind, are five, as those of [Type_grammar.t] are in
+     FlambdaTypeGrammar.v: [Naked_float32] to [Naked_mask] are the one
+     [Oub_naked_number], which carries the kind. The prefix is there
+     because [Value], [Naked_immediate] and the others are the kinds
+     and the constants of the model.
+   - A head has no [Array] (FlambdaTypeGrammar.v), so no prover has
+     that case; and the nine [Boxed_float], ..., [Boxed_mask] are the
+     one [Boxed_number].
+   - [wrong_kind] answers its default. Its two other arguments, which
+     are for the message, are left out.
+   - A set of numbers ([Target_ocaml_int.Set.t]) and a set of tags
+     ([Tag.Set.t]) are lists, as in the grammar: [Set.is_empty],
+     [Set.inter] and [Set.get_singleton] are [Keyed.is_empty],
+     [Keyed.inter Z.eqb] and [Keyed.get_singleton Z.eqb]
+     (FlambdaMapSpec.v). An answer that is a set is to be compared as
+     a set: the list may have a number twice, and its order is not the
+     compiler's.
+   - The model has no machine width. [Target_ocaml_int.bool] is 1 or 0
+     ([Z.b2z]), and [Tag.to_targetint_31_63] is the number of the tag:
+     the set of numbers that [prove_naked_immediates_generic] makes of
+     a set of tags, by a fold, is the list of the tags.
+   - [inverse_relations] is a list of pairs of a relation and a name
+     (FlambdaTypeGrammar.v) where the compiler has a map from relations
+     to sets of names. [prove_naked_immediates_generic] folds over the
+     list from its head; the compiler folds over the relations in
+     their order and, for each, over its names in theirs. The three
+     local functions of [prove_naked_immediates_generic] are
+     definitions before it, and the function it folds is
+     [prove_naked_immediates_relation].
+   - [meet_naked_number] takes the kind where the compiler takes a
+     witness of it ([meet_naked_number_kind]), which has no case for
+     the immediates. At [Kind_naked_immediate] it is no function of the
+     compiler.
+   - The arguments are in the compiler's order, the environment
+     first; a labelled argument is an ordinary one. *)
+
+From Stdlib Require Import ZArith List Bool.
+From OxCamlStdlib Require Import OxCamlOption.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
+  FlambdaMapSpec.
+From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
+  FlambdaTypeAccessSpec FlambdaBindingTime FlambdaEnvAliases FlambdaTypingEnv
+  FlambdaProversStandIn.
+Import ListNotations.
+
+(* ======================================================================== *)
+(* The view of an expanded type                                             *)
+(* ======================================================================== *)
+
+(* [Expand_head.Expanded_type.descr_oub]. *)
+Inductive descr_oub : Type :=
+  | Oub_value (head : or_unknown_or_bottom head_of_kind_value)
+  | Oub_naked_immediate
+      (head : or_unknown_or_bottom head_of_kind_naked_immediate)
+  | Oub_naked_number (k : naked_number_kind)
+      (head : or_unknown_or_bottom (list Z))
+  | Oub_rec_info (head : or_unknown_or_bottom unit)
+  | Oub_region (head : or_unknown_or_bottom unit).
+
+(* [Expand_head.Expanded_type.descr_oub], the function: an expanded type
+   that is unknown or bottom is so at its kind. *)
+Definition descr_oub_of_expanded (expanded : Expanded_type.t) : descr_oub :=
+  match Expanded_type.descr expanded with
+  | Unknown =>
+    match Expanded_type.kind expanded with
+    | Value => Oub_value Unknown
+    | Naked_number Kind_naked_immediate => Oub_naked_immediate Unknown
+    | Naked_number k => Oub_naked_number k Unknown
+    | Rec_info => Oub_rec_info Unknown
+    | Region => Oub_region Unknown
+    end
+  | Bottom =>
+    match Expanded_type.kind expanded with
+    | Value => Oub_value Bottom
+    | Naked_number Kind_naked_immediate => Oub_naked_immediate Bottom
+    | Naked_number k => Oub_naked_number k Bottom
+    | Rec_info => Oub_rec_info Bottom
+    | Region => Oub_region Bottom
+    end
+  | Ok (Expanded_type.Head_value head) => Oub_value (Ok head)
+  | Ok (Expanded_type.Head_naked_immediate head) =>
+    Oub_naked_immediate (Ok head)
+  | Ok (Expanded_type.Head_naked_number k head) => Oub_naked_number k (Ok head)
+  | Ok (Expanded_type.Head_rec_info head) => Oub_rec_info (Ok head)
+  | Ok (Expanded_type.Head_region head) => Oub_region (Ok head)
+  end.
+
+(* ======================================================================== *)
+(* The answers                                                              *)
+(* ======================================================================== *)
+
+(* [Provers.meet_shortcut]. *)
+Module Meet_shortcut.
+  Inductive t (A : Type) : Type :=
+    | Known_result (a : A)
+    | Need_meet
+    | Invalid.
+  Arguments Known_result {A} a.
+  Arguments Need_meet {A}.
+  Arguments Invalid {A}.
+End Meet_shortcut.
+
+(* [Provers.proof_of_property]. *)
+Module Proof_of_property.
+  Inductive t (A : Type) : Type :=
+    | Proved (a : A)
+    | Unknown.
+  Arguments Proved {A} a.
+  Arguments Unknown {A}.
+End Proof_of_property.
+
+(* [Provers.generic_proof]. *)
+Module Generic_proof.
+  Inductive t (A : Type) : Type :=
+    | Proved (a : A)
+    | Unknown
+    | Invalid.
+  Arguments Proved {A} a.
+  Arguments Unknown {A}.
+  Arguments Invalid {A}.
+End Generic_proof.
+
+(* ======================================================================== *)
+(* The provers                                                              *)
+(* ======================================================================== *)
+
+Module Provers.
+
+  (* [Provers.is_bottom], which is [Expand_head.is_bottom]. *)
+  Definition is_bottom (tenv : Typing_env.t) (t : flambda_type)
+      : option bool :=
+    let* expanded := expand_head tenv t in
+    Some (Expanded_type.is_bottom expanded).
+
+  (* [Provers.expand_head]. *)
+  Definition expand_head (tenv : Typing_env.t) (t : flambda_type)
+      : option descr_oub :=
+    let* expanded := expand_head tenv t in
+    Some (descr_oub_of_expanded expanded).
+
+  (* [Provers.wrong_kind]: it answers its default. *)
+  Definition wrong_kind {A : Type} (default : A) : A := default.
+
+  (* [Provers.as_meet_shortcut]. *)
+  Definition as_meet_shortcut {A : Type} (p : Generic_proof.t A)
+      : Meet_shortcut.t A :=
+    match p with
+    | Generic_proof.Proved x => Meet_shortcut.Known_result x
+    | Generic_proof.Unknown => Meet_shortcut.Need_meet
+    | Generic_proof.Invalid => Meet_shortcut.Invalid
+    end.
+
+  (* [Provers.as_property]. *)
+  Definition as_property {A : Type} (p : Generic_proof.t A)
+      : Proof_of_property.t A :=
+    match p with
+    | Generic_proof.Proved x => Proof_of_property.Proved x
+    | Generic_proof.Unknown | Generic_proof.Invalid =>
+      Proof_of_property.Unknown
+    end.
+
+  (* [Provers.gen_value_to_gen]. *)
+  Definition gen_value_to_gen {A : Type}
+      (prove_gen :
+        Typing_env.t -> head_of_kind_value_non_null
+        -> option (Generic_proof.t A))
+      (tenv : Typing_env.t) (t : flambda_type) : option (Generic_proof.t A) :=
+    let* expanded := expand_head tenv t in
+    match expanded with
+    | Oub_value Unknown => Some Generic_proof.Unknown
+    | Oub_value Bottom => Some Generic_proof.Invalid
+    | Oub_value (Ok (Head_of_kind_value _ (Maybe_null _)))
+    | Oub_value (Ok (Head_of_kind_value Unknown Not_null)) =>
+      Some Generic_proof.Unknown
+    | Oub_value (Ok (Head_of_kind_value Bottom Not_null)) =>
+      Some Generic_proof.Invalid
+    | Oub_value (Ok (Head_of_kind_value (Ok head) Not_null)) =>
+      prove_gen tenv head
+    | Oub_naked_immediate _ | Oub_naked_number _ _ | Oub_rec_info _
+    | Oub_region _ =>
+      Some (wrong_kind Generic_proof.Invalid)
+    end.
+
+  (* [Provers.gen_value_to_proof]. *)
+  Definition gen_value_to_proof {A : Type}
+      (prove_gen :
+        Typing_env.t -> head_of_kind_value_non_null
+        -> option (Generic_proof.t A))
+      (tenv : Typing_env.t) (t : flambda_type)
+      : option (Proof_of_property.t A) :=
+    let* expanded := expand_head tenv t in
+    match expanded with
+    | Oub_value (Unknown | Bottom)
+    | Oub_value (Ok (Head_of_kind_value _ (Maybe_null _)))
+    | Oub_value (Ok (Head_of_kind_value (Unknown | Bottom) Not_null)) =>
+      Some Proof_of_property.Unknown
+    | Oub_value (Ok (Head_of_kind_value (Ok head) Not_null)) =>
+      let* proof := prove_gen tenv head in
+      Some (as_property proof)
+    | Oub_naked_immediate _ | Oub_naked_number _ _ | Oub_rec_info _
+    | Oub_region _ =>
+      Some (wrong_kind Proof_of_property.Unknown)
+    end.
+
+  (* [Provers.gen_value_to_meet]. *)
+  Definition gen_value_to_meet {A : Type}
+      (prove_gen :
+        Typing_env.t -> head_of_kind_value_non_null
+        -> option (Generic_proof.t A))
+      (tenv : Typing_env.t) (t : flambda_type) : option (Meet_shortcut.t A) :=
+    let* expanded := expand_head tenv t in
+    match expanded with
+    | Oub_value Unknown | Oub_value (Ok (Head_of_kind_value Unknown _)) =>
+      Some Meet_shortcut.Need_meet
+    | Oub_value Bottom | Oub_value (Ok (Head_of_kind_value Bottom _)) =>
+      Some Meet_shortcut.Invalid
+    | Oub_value (Ok (Head_of_kind_value (Ok head) _)) =>
+      let* proof := prove_gen tenv head in
+      Some (as_meet_shortcut proof)
+    | Oub_naked_immediate _ | Oub_naked_number _ _ | Oub_rec_info _
+    | Oub_region _ =>
+      Some (wrong_kind Meet_shortcut.Invalid)
+    end.
+
+  (* [Provers.prove_is_int_generic_value]. *)
+  Definition prove_is_int_generic_value (variant_only : bool)
+      (tenv : Typing_env.t) (value_head : head_of_kind_value_non_null)
+      : option (Generic_proof.t bool) :=
+    match value_head with
+    | Variant _ immediates _ blocks _ _ =>
+      match blocks, immediates with
+      | Or_unknown.Unknown, Or_unknown.Unknown => Some Generic_proof.Unknown
+      | Or_unknown.Unknown, Or_unknown.Known imms =>
+        let* imms_bottom := is_bottom tenv imms in
+        if imms_bottom
+        then Some (Generic_proof.Proved false)
+        else Some Generic_proof.Unknown
+      | Or_unknown.Known blocks, Or_unknown.Unknown =>
+        if row_like_for_blocks_is_bottom blocks
+        then Some (Generic_proof.Proved true)
+        else Some Generic_proof.Unknown
+      | Or_unknown.Known blocks, Or_unknown.Known imms =>
+        if row_like_for_blocks_is_bottom blocks
+        then
+          let* imms_bottom := is_bottom tenv imms in
+          if imms_bottom
+          then Some Generic_proof.Invalid
+          else Some (Generic_proof.Proved true)
+        else
+          let* imms_bottom := is_bottom tenv imms in
+          if imms_bottom
+          then Some (Generic_proof.Proved false)
+          else Some Generic_proof.Unknown
+      end
+    | Mutable_block _ => Some (Generic_proof.Proved false)
+    | Boxed_number _ _ _ | Closures _ _ | String _ =>
+      if variant_only
+      then Some Generic_proof.Invalid
+      else Some (Generic_proof.Proved false)
+    end.
+
+  (* [Provers.prove_is_int_generic]. *)
+  Definition prove_is_int_generic (variant_only : bool) (tenv : Typing_env.t)
+      (t : flambda_type) : option (Generic_proof.t bool) :=
+    gen_value_to_gen (prove_is_int_generic_value variant_only) tenv t.
+
+  (* [Provers.prove_is_int]. *)
+  Definition prove_is_int (tenv : Typing_env.t) (t : flambda_type)
+      : option (Proof_of_property.t bool) :=
+    gen_value_to_proof (prove_is_int_generic_value false) tenv t.
+
+  (* [Provers.meet_is_int_variant_only]. *)
+  Definition meet_is_int_variant_only (tenv : Typing_env.t)
+      (t : flambda_type) : option (Meet_shortcut.t bool) :=
+    gen_value_to_meet (prove_is_int_generic_value true) tenv t.
+
+  (* [Provers.prove_is_not_a_pointer_generic_value]. *)
+  Definition prove_is_not_a_pointer_generic_value (tenv : Typing_env.t)
+      (t : flambda_type) : option (Generic_proof.t bool) :=
+    let* expanded := expand_head tenv t in
+    match expanded with
+    | Oub_value Unknown => Some Generic_proof.Unknown
+    | Oub_value Bottom => Some Generic_proof.Invalid
+    | Oub_value (Ok (Head_of_kind_value Bottom (Maybe_null _))) =>
+      Some (Generic_proof.Proved true)
+    | Oub_value (Ok (Head_of_kind_value Bottom Not_null)) =>
+      Some Generic_proof.Invalid
+    | Oub_value (Ok (Head_of_kind_value Unknown (Maybe_null _ | Not_null))) =>
+      Some Generic_proof.Unknown
+    | Oub_value (Ok (Head_of_kind_value (Ok head) is_null)) =>
+      let* proof := prove_is_int_generic_value false tenv head in
+      match proof, is_null with
+      | Generic_proof.Proved true, (Maybe_null _ | Not_null) =>
+        Some (Generic_proof.Proved true)
+      | (Generic_proof.Proved false | Generic_proof.Unknown), Maybe_null _
+      | Generic_proof.Unknown, Not_null =>
+        Some Generic_proof.Unknown
+      | Generic_proof.Proved false, Not_null =>
+        Some (Generic_proof.Proved false)
+      | Generic_proof.Invalid, _ => Some Generic_proof.Invalid
+      end
+    | Oub_naked_immediate _ | Oub_naked_number _ _ | Oub_rec_info _
+    | Oub_region _ =>
+      Some (wrong_kind Generic_proof.Invalid)
+    end.
+
+  (* [Provers.prove_is_not_a_pointer]. *)
+  Definition prove_is_not_a_pointer (tenv : Typing_env.t) (t : flambda_type)
+      : option (Proof_of_property.t bool) :=
+    let* proof := prove_is_not_a_pointer_generic_value tenv t in
+    Some (as_property proof).
+
+  (* [Provers.prove_get_tag_generic_value]. *)
+  Definition prove_get_tag_generic_value (tenv : Typing_env.t)
+      (value_head : head_of_kind_value_non_null)
+      : option (Generic_proof.t (list Z)) :=
+    match value_head with
+    | Variant _ immediates _ blocks _ _ =>
+      match immediates with
+      | Or_unknown.Unknown => Some Generic_proof.Unknown
+      | Or_unknown.Known imms =>
+        let* imms_bottom := is_bottom tenv imms in
+        if negb imms_bottom
+        then Some Generic_proof.Unknown
+        else
+          match blocks with
+          | Or_unknown.Unknown => Some Generic_proof.Unknown
+          | Or_unknown.Known blocks =>
+            match row_like_for_blocks_all_tags blocks with
+            | Or_unknown.Unknown => Some Generic_proof.Unknown
+            | Or_unknown.Known tags =>
+              if Keyed.is_empty tags
+              then Some Generic_proof.Invalid
+              else Some (Generic_proof.Proved tags)
+            end
+          end
+      end
+    | Boxed_number _ _ _ => Some Generic_proof.Unknown
+    | Mutable_block _ => Some Generic_proof.Unknown
+    | Closures _ _ => Some Generic_proof.Unknown
+    | String _ => Some Generic_proof.Unknown
+    end.
+
+  (* [Provers.prove_get_tag_generic]. *)
+  Definition prove_get_tag_generic (tenv : Typing_env.t) (t : flambda_type)
+      : option (Generic_proof.t (list Z)) :=
+    gen_value_to_gen prove_get_tag_generic_value tenv t.
+
+  (* [Provers.prove_get_tag]. *)
+  Definition prove_get_tag (tenv : Typing_env.t) (t : flambda_type)
+      : option (Proof_of_property.t (list Z)) :=
+    gen_value_to_proof prove_get_tag_generic_value tenv t.
+
+  (* [Provers.prove_is_null_generic]. *)
+  Definition prove_is_null_generic (tenv : Typing_env.t) (t : flambda_type)
+      : option (Generic_proof.t bool) :=
+    let* expanded := expand_head tenv t in
+    match expanded with
+    | Oub_value Unknown => Some Generic_proof.Unknown
+    | Oub_value Bottom => Some Generic_proof.Invalid
+    | Oub_value (Ok (Head_of_kind_value Bottom Not_null)) =>
+      Some Generic_proof.Invalid
+    | Oub_value (Ok (Head_of_kind_value _ Not_null)) =>
+      Some (Generic_proof.Proved false)
+    | Oub_value (Ok (Head_of_kind_value Bottom _)) =>
+      Some (Generic_proof.Proved true)
+    | Oub_value (Ok (Head_of_kind_value (Unknown | Ok _) (Maybe_null _))) =>
+      Some Generic_proof.Unknown
+    | Oub_naked_immediate _ | Oub_naked_number _ _ | Oub_rec_info _
+    | Oub_region _ =>
+      Some (wrong_kind Generic_proof.Invalid)
+    end.
+
+  (* [Provers.meet_is_null]. *)
+  Definition meet_is_null (tenv : Typing_env.t) (t : flambda_type)
+      : option (Meet_shortcut.t bool) :=
+    let* proof := prove_is_null_generic tenv t in
+    Some (as_meet_shortcut proof).
+
+  (* The local functions [these_immediates], [meet_these_immediates] and
+     [meet_this_immediate] of [Provers.prove_naked_immediates_generic]. *)
+  Definition these_immediates (imms : list Z) : Generic_proof.t (list Z) :=
+    if Keyed.is_empty imms
+    then Generic_proof.Invalid
+    else Generic_proof.Proved imms.
+
+  Definition meet_these_immediates (imms : list Z)
+      (proof : Generic_proof.t (list Z)) : Generic_proof.t (list Z) :=
+    match proof with
+    | Generic_proof.Proved imms' =>
+      these_immediates (Keyed.inter Z.eqb imms imms')
+    | Generic_proof.Unknown => these_immediates imms
+    | Generic_proof.Invalid => Generic_proof.Invalid
+    end.
+
+  Definition meet_this_immediate (imm : Z) (proof : Generic_proof.t (list Z))
+      : Generic_proof.t (list Z) :=
+    meet_these_immediates [imm] proof.
+
+  (* The function that [Provers.prove_naked_immediates_generic] folds
+     over the inverse relations: what the relation with one name adds to
+     what is known of the number. *)
+  Definition prove_naked_immediates_relation (tenv : Typing_env.t)
+      (relation : Relation.t) (name : name) (imms : Generic_proof.t (list Z))
+      : option (Generic_proof.t (list Z)) :=
+    let ty := alias_type_of Value (simple_of_name name) in
+    match relation with
+    | Relation.Is_null =>
+      let* proof := prove_is_null_generic tenv ty in
+      match proof with
+      | Generic_proof.Proved b => Some (meet_this_immediate (Z.b2z b) imms)
+      | Generic_proof.Unknown => Some imms
+      | Generic_proof.Invalid => Some Generic_proof.Invalid
+      end
+    | Relation.Is_int =>
+      let* proof := prove_is_int_generic true tenv ty in
+      match proof with
+      | Generic_proof.Proved b => Some (meet_this_immediate (Z.b2z b) imms)
+      | Generic_proof.Unknown => Some imms
+      | Generic_proof.Invalid => Some Generic_proof.Invalid
+      end
+    | Relation.Get_tag =>
+      let* proof := prove_get_tag_generic tenv ty in
+      match proof with
+      | Generic_proof.Proved tags => Some (meet_these_immediates tags imms)
+      | Generic_proof.Unknown => Some imms
+      | Generic_proof.Invalid => Some Generic_proof.Invalid
+      end
+    end.
+
+  (* [Provers.prove_naked_immediates_generic]. *)
+  Definition prove_naked_immediates_generic (tenv : Typing_env.t)
+      (t : flambda_type) : option (Generic_proof.t (list Z)) :=
+    let* expanded := expand_head tenv t in
+    match expanded with
+    | Oub_naked_immediate (Ok head) =>
+      let proof : Generic_proof.t (list Z) :=
+        match naked_immediates head with
+        | Or_unknown.Known imms => these_immediates imms
+        | Or_unknown.Unknown => Generic_proof.Unknown
+        end
+      in
+      List.fold_left
+        (fun (imms : option (Generic_proof.t (list Z)))
+             (relation_and_name : Relation.t * name) =>
+           let* imms := imms in
+           prove_naked_immediates_relation tenv (fst relation_and_name)
+             (snd relation_and_name) imms)
+        (inverse_relations head) (Some proof)
+    | Oub_naked_immediate Unknown => Some Generic_proof.Unknown
+    | Oub_naked_immediate Bottom => Some Generic_proof.Invalid
+    | Oub_value _ | Oub_naked_number _ _ | Oub_rec_info _ | Oub_region _ =>
+      Some (wrong_kind Generic_proof.Invalid)
+    end.
+
+  (* [Provers.meet_naked_immediates]. *)
+  Definition meet_naked_immediates (tenv : Typing_env.t) (t : flambda_type)
+      : option (Meet_shortcut.t (list Z)) :=
+    let* proof := prove_naked_immediates_generic tenv t in
+    Some (as_meet_shortcut proof).
+
+  (* [Provers.prove_equals_tagged_immediates_value]. *)
+  Definition prove_equals_tagged_immediates_value (tenv : Typing_env.t)
+      (value_head : head_of_kind_value_non_null)
+      : option (Generic_proof.t (list Z)) :=
+    match value_head with
+    | Variant _ immediates _ blocks _ _ =>
+      match blocks with
+      | Or_unknown.Unknown => Some Generic_proof.Unknown
+      | Or_unknown.Known blocks =>
+        if row_like_for_blocks_is_bottom blocks
+        then
+          match immediates with
+          | Or_unknown.Unknown => Some Generic_proof.Unknown
+          | Or_unknown.Known imms =>
+            let* proof := prove_naked_immediates_generic tenv imms in
+            match proof with
+            | Generic_proof.Proved imms => Some (Generic_proof.Proved imms)
+            | Generic_proof.Invalid => Some (Generic_proof.Proved [])
+            | Generic_proof.Unknown => Some Generic_proof.Unknown
+            end
+          end
+        else Some Generic_proof.Unknown
+      end
+    | Mutable_block _ | Boxed_number _ _ _ | Closures _ _ | String _ =>
+      Some Generic_proof.Unknown
+    end.
+
+  (* [Provers.prove_equals_tagged_immediates]. *)
+  Definition prove_equals_tagged_immediates (tenv : Typing_env.t)
+      (t : flambda_type) : option (Proof_of_property.t (list Z)) :=
+    gen_value_to_proof prove_equals_tagged_immediates_value tenv t.
+
+  (* [Provers.meet_equals_tagged_immediates_value]. *)
+  Definition meet_equals_tagged_immediates_value (tenv : Typing_env.t)
+      (value_head : head_of_kind_value_non_null)
+      : option (Generic_proof.t (list Z)) :=
+    match value_head with
+    | Variant _ immediates _ _ _ _ =>
+      match immediates with
+      | Or_unknown.Unknown => Some Generic_proof.Unknown
+      | Or_unknown.Known imms => prove_naked_immediates_generic tenv imms
+      end
+    | Mutable_block _ | Boxed_number _ _ _ | Closures _ _ | String _ =>
+      Some Generic_proof.Invalid
+    end.
+
+  (* [Provers.meet_equals_tagged_immediates]. *)
+  Definition meet_equals_tagged_immediates (tenv : Typing_env.t)
+      (t : flambda_type) : option (Meet_shortcut.t (list Z)) :=
+    gen_value_to_meet meet_equals_tagged_immediates_value tenv t.
+
+  (* [Provers.meet_equals_single_tagged_immediate]. *)
+  Definition meet_equals_single_tagged_immediate (tenv : Typing_env.t)
+      (t : flambda_type) : option (Meet_shortcut.t Z) :=
+    let* shortcut := meet_equals_tagged_immediates tenv t in
+    match shortcut with
+    | Meet_shortcut.Known_result imms =>
+      match Keyed.get_singleton Z.eqb imms with
+      | Some imm => Some (Meet_shortcut.Known_result imm)
+      | None => Some Meet_shortcut.Need_meet
+      end
+    | Meet_shortcut.Need_meet => Some Meet_shortcut.Need_meet
+    | Meet_shortcut.Invalid => Some Meet_shortcut.Invalid
+    end.
+
+  (* [Provers.meet_naked_number]: the numbers that a type of naked
+     numbers of a kind may be. *)
+  Definition meet_naked_number (kind : naked_number_kind)
+      (tenv : Typing_env.t) (t : flambda_type)
+      : option (Meet_shortcut.t (list Z)) :=
+    let head_to_proof (head : or_unknown_or_bottom (list Z))
+        : Meet_shortcut.t (list Z) :=
+      match head with
+      | Ok set =>
+        if Keyed.is_empty set
+        then Meet_shortcut.Invalid
+        else Meet_shortcut.Known_result set
+      | Unknown => Meet_shortcut.Need_meet
+      | Bottom => Meet_shortcut.Invalid
+      end
+    in
+    let* expanded := expand_head tenv t in
+    match expanded with
+    | Oub_value _ => Some (wrong_kind Meet_shortcut.Invalid)
+    | Oub_naked_immediate _ => Some (wrong_kind Meet_shortcut.Invalid)
+    | Oub_rec_info _ => Some (wrong_kind Meet_shortcut.Invalid)
+    | Oub_region _ => Some (wrong_kind Meet_shortcut.Invalid)
+    | Oub_naked_number k numbers =>
+      if kind_eqb (Naked_number k) (Naked_number kind)
+      then Some (head_to_proof numbers)
+      else Some (wrong_kind Meet_shortcut.Invalid)
+    end.
+
+  (* [Provers.meet_naked_float32s], ..., [meet_naked_masks]. *)
+  Definition meet_naked_float32s := meet_naked_number Kind_naked_float32.
+  Definition meet_naked_floats := meet_naked_number Kind_naked_float.
+  Definition meet_naked_int8s := meet_naked_number Kind_naked_int8.
+  Definition meet_naked_int16s := meet_naked_number Kind_naked_int16.
+  Definition meet_naked_int32s := meet_naked_number Kind_naked_int32.
+  Definition meet_naked_int64s := meet_naked_number Kind_naked_int64.
+  Definition meet_naked_nativeints := meet_naked_number Kind_naked_nativeint.
+  Definition meet_naked_vec128s := meet_naked_number Kind_naked_vec128.
+  Definition meet_naked_vec256s := meet_naked_number Kind_naked_vec256.
+  Definition meet_naked_vec512s := meet_naked_number Kind_naked_vec512.
+  Definition meet_naked_masks := meet_naked_number Kind_naked_mask.
+
+End Provers.
