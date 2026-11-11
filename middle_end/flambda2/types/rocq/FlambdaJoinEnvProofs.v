@@ -59,20 +59,41 @@ Lemma use_names_to_types :
   Typing_env.names_to_types Witness.use_env = use_entries.
 Proof. vm_compute. reflexivity. Qed.
 
-(* A use of the instance is its one use environment. *)
+Definition use_null_entries : Keyed.finite_map name _ :=
+  Eval vm_compute in Typing_env.names_to_types Witness.use_env_null.
+
+Lemma use_null_names_to_types :
+  Typing_env.names_to_types Witness.use_env_null = use_null_entries.
+Proof. vm_compute. reflexivity. Qed.
+
+(* A use of the instance is one of its two use environments. *)
 Lemma witness_use_at (index : Index.t) (use : Typing_env.t) :
-  use_at Witness.inputs index use -> use = Witness.use_env.
+  use_at Witness.inputs index use ->
+  use = Witness.use_env ∨ use = Witness.use_env_null.
 Proof.
   intros [id Hnth]. cbn in Hnth.
   destruct index as [ | [ | index]]; cbn in Hnth.
-  - injection Hnth as _ <-. reflexivity.
-  - injection Hnth as _ <-. reflexivity.
+  - injection Hnth as _ <-. left. reflexivity.
+  - injection Hnth as _ <-. right. reflexivity.
   - destruct index; discriminate.
 Qed.
 
 (* The stand-in for the join of types recognises one type. *)
 Lemma is_type_of_x_eq (t : flambda_type) :
   Witness.is_type_of_x t = true -> t = Witness.type_of_x.
+Proof.
+  destruct t as [ty | ty | k ty | ty | ty]; try discriminate.
+  destruct ty as [ | d | ]; try discriminate.
+  destruct d as [head | s]; try discriminate.
+  destruct head as [non_null is_null].
+  destruct non_null; try discriminate.
+  destruct is_null as [ | is_null]; try discriminate.
+  destruct is_null as [r' | ]; try discriminate.
+  cbn. destruct r'; intros Heq; try discriminate. reflexivity.
+Qed.
+
+Lemma is_type_of_x_null_eq (t : flambda_type) :
+  Witness.is_type_of_x_null t = true -> t = Witness.type_of_x_null.
 Proof.
   destruct t as [ty | ty | k ty | ty | ty]; try discriminate.
   destruct ty as [ | d | ]; try discriminate.
@@ -91,15 +112,21 @@ Proof.
     Hr Hsatisfied.
   unfold Witness.join_of_types in Hjoin.
   destruct ts as [ | binding ts]; [ discriminate | ].
-  destruct (forallb (fun binding => Witness.is_type_of_x (snd binding))
-              (binding :: ts)) eqn:Hall; [ | discriminate ].
+  destruct (forallb _ (binding :: ts)) eqn:Hall; [ | discriminate ].
   injection Hjoin as <- <-. split; [ reflexivity | ].
   rewrite forallb_forall in Hall. specialize (Hall _ Hin). cbn in Hall.
-  apply is_type_of_x_eq in Hall. subst t_index.
-  unfold Witness.type_of_x in *.
-  rewrite type_satisfied_value in *. cbn in *.
-  rewrite head_of_kind_value_satisfied_eq in *.
-  unfold variable_is in *. rewrite Hr. exact Hsatisfied.
+  apply orb_true_iff in Hall. destruct Hall as [Hall | Hall].
+  - apply is_type_of_x_eq in Hall. subst t_index.
+    unfold Witness.type_of_x in *.
+    rewrite type_satisfied_value in *. cbn in *.
+    rewrite head_of_kind_value_satisfied_eq in *.
+    unfold variable_is in *. rewrite Hr. exact Hsatisfied.
+  - apply is_type_of_x_null_eq in Hall. subst t_index.
+    unfold Witness.type_of_x, Witness.type_of_x_null in *.
+    rewrite type_satisfied_value in *. cbn in *.
+    rewrite head_of_kind_value_satisfied_eq in *.
+    unfold variable_is in *. rewrite Hr.
+    destruct Hsatisfied as [Hnull | [_ [[] _]]]. left. exact Hnull.
 Qed.
 
 (* ======================================================================== *)
@@ -114,6 +141,18 @@ Proof.
 Qed.
 
 Lemma use_invariant : typing_env_invariant Witness.use_env.
+Proof.
+  apply replace_equation_invariant.
+  - apply increment_scope_invariant. exact source_invariant.
+  - reflexivity.
+  - intros y [<- | []]. reflexivity.
+  - intros ty' binding_time_and_mode Hlookup. vm_compute in Hlookup.
+    injection Hlookup as <- _. reflexivity.
+  - intros alias Halias. discriminate.
+  - left. reflexivity.
+Qed.
+
+Lemma use_null_invariant : typing_env_invariant Witness.use_env_null.
 Proof.
   apply replace_equation_invariant.
   - apply increment_scope_invariant. exact source_invariant.
@@ -161,19 +200,42 @@ Proof.
   - intros simple kind [].
 Qed.
 
+Lemma use_null_no_bottom_types : no_bottom_types Witness.use_env_null.
+Proof.
+  intros _ n ty binding_time_and_mode Hlookup.
+  rewrite use_null_names_to_types in Hlookup.
+  unfold use_null_entries in Hlookup.
+  entries_cases Hlookup n; try discriminate;
+    injection Hlookup as <- _; reflexivity.
+Qed.
+
+Lemma use_null_kinded : typing_env_kinded Witness.use_env_null.
+Proof.
+  intros n ty binding_time_and_mode Hlookup.
+  rewrite use_null_names_to_types in Hlookup.
+  unfold use_null_entries in Hlookup.
+  entries_cases Hlookup n; try discriminate; injection Hlookup as <- _.
+  - intros simple kind [Heq | []]. injection Heq as <- <-.
+    eexists. vm_compute. reflexivity.
+  - intros simple kind [].
+Qed.
+
 Theorem witness_inputs_well_formed : witness_inputs_well_formed_statement.
 Proof.
   split; [ split; [ | split; [ | split; [ | split ] ] ] | ].
   - split; [ exact source_invariant | ].
-    intros index use Huse. apply witness_use_at in Huse. subst use.
-    exact use_invariant.
+    intros index use Huse.
+    destruct (witness_use_at _ _ Huse); subst use;
+      [ exact use_invariant | exact use_null_invariant ].
   - split; [ exact source_no_bottom_types | ].
-    intros index use Huse. apply witness_use_at in Huse. subst use.
-    exact use_no_bottom_types.
-  - intros index use Huse _. apply witness_use_at in Huse. subst use.
-    eexists. vm_compute. reflexivity.
+    intros index use Huse.
+    destruct (witness_use_at _ _ Huse); subst use;
+      [ exact use_no_bottom_types | exact use_null_no_bottom_types ].
+  - intros index use Huse _.
+    destruct (witness_use_at _ _ Huse); subst use;
+      eexists; vm_compute; reflexivity.
   - intros index use sym Huse Hdefined.
-    apply witness_use_at in Huse. subst use. discriminate.
+    destruct (witness_use_at _ _ Huse); subst use; discriminate.
   - split.
     + intros y Hknown. unfold knows, Typing_env.mem in Hknown.
       change (source Witness.inputs) with Witness.source_env in Hknown.
@@ -185,16 +247,19 @@ Proof.
       destruct (Pos.eqb y 1%positive) eqn:Hr;
         [ apply Pos.eqb_eq in Hr; subst y; reflexivity | discriminate ].
     + intros index use y Huse Hknown.
-      apply witness_use_at in Huse. subst use.
       unfold knows, Typing_env.mem in Hknown.
-      rewrite use_names_to_types in Hknown. unfold use_entries in Hknown.
-      cbn [Keyed.lookup name_eqb fst snd] in Hknown.
-      destruct (Pos.eqb y 2%positive) eqn:Hx;
-        [ apply Pos.eqb_eq in Hx; subst y; reflexivity | ].
-      destruct (Pos.eqb y 1%positive) eqn:Hr;
-        [ apply Pos.eqb_eq in Hr; subst y; reflexivity | discriminate ].
-  - intros index use Huse. apply witness_use_at in Huse. subst use.
-    exact use_kinded.
+      destruct (witness_use_at _ _ Huse); subst use;
+        [ rewrite use_names_to_types in Hknown; unfold use_entries in Hknown
+        | rewrite use_null_names_to_types in Hknown;
+          unfold use_null_entries in Hknown ];
+        cbn [Keyed.lookup name_eqb fst snd] in Hknown;
+        (destruct (Pos.eqb y 2%positive) eqn:Hx;
+           [ apply Pos.eqb_eq in Hx; subst y; reflexivity | ]);
+        (destruct (Pos.eqb y 1%positive) eqn:Hr;
+           [ apply Pos.eqb_eq in Hr; subst y; reflexivity | discriminate ]).
+  - intros index use Huse.
+    destruct (witness_use_at _ _ Huse); subst use;
+      [ exact use_kinded | exact use_null_kinded ].
 Qed.
 
 (* ======================================================================== *)
@@ -253,7 +318,7 @@ Proof. vm_compute. reflexivity. Qed.
 Theorem witness_use_not_admitted : witness_use_not_admitted_statement.
 Proof.
   exists witness_target, witness_analysis.
-  split; [ exact witness_join_result | ]. split.
+  split; [ exact witness_join_result | ]. split; [ | split ].
   - intros Hadmits.
     destruct (witness_run_satisfies (Static_env [] [])) as [Huse Hsource].
     destruct (Hadmits _ _ Huse Hsource)
@@ -277,6 +342,11 @@ Proof.
          (or_introl eq_refl) (or_introl (ex_intro _ _ eq_refl)))
       as [[v Hv] | [simples [kind [simple [v [Hdefinition _]]]]]];
       discriminate.
+  - intros Hjoined.
+    destruct (Hjoined Witness.x eq_refl) as [v Hv]; [ | discriminate ].
+    intros index use Huse _.
+    destruct (witness_use_at _ _ Huse); subst use;
+      eexists; eexists; split; vm_compute; reflexivity.
 Qed.
 
 Theorem transcribed_join_not_strict : transcribed_join_not_strict_statement.
