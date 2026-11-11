@@ -56,7 +56,8 @@
      and at an input where the variable has a value there is one, and
      the value has it ([types_hold]). A variable that is to be an
      alias of a variable that the join has made has the value of that
-     one, where it has a value ([alias_holds]). And each [Simple] of a
+     one, where it has a value, and is known to the inputs at which
+     that one has a definition ([alias_holds]). And each [Simple] of a
      definition is at the index of a joined environment, in its scope
      ([definitions_in_envs]).
    - The equations are asked of the runs whose blocks have tags in
@@ -214,18 +215,50 @@ Definition types_to_join_hold (s : Join_env.t) : Prop :=
     lookup x (Join_env.types_in_joined_envs s) = Some types ->
     types_hold s x types.
 
+(* Where a variable that is to be an alias of a variable that the join
+   has made is: every input at which the definition of that one has a
+   [Simple] knows it. (The vector of the definition is made of the
+   types that the inputs that know the variable have for it.) *)
+Definition alias_located (s : Join_env.t) (e x : variable) : Prop :=
+  ∀ (simples : Simples_in_joined_envs.t) (kind : flambda_kind)
+    (index : Index.t) (simple : simple),
+    lookup e (Join_env.definitions_of_existentials s) = Some (simples, kind)
+    ->
+    Simples_in_joined_envs.find index simples = Some simple ->
+    ∃ use : Typing_env.t,
+      Join_env.joined_env s index = Some use ∧ knows use x.
+
+(* A variable has an equation in the level kept with every joined
+   environment. *)
+Definition joined_everywhere (s : Join_env.t) (x : variable) : Prop :=
+  ∀ (index : Index.t) (use : Typing_env.t)
+    (equations : Keyed.finite_map name flambda_type),
+    Keyed.lookup Index.equal index (Join_env.joined_envs s)
+    = Some (use, equations) ->
+    Keyed.is_bound name_eqb (Name_var x) equations = true.
+
 (* A variable of the target that is to be an alias of a variable that
    the join has made has the value of that variable, at every input
-   where it has a value. *)
+   where it has a value. And two facts about where it comes from,
+   which say nothing of values: it is located ([alias_located]); and
+   if the source knows it, it has an equation in every level
+   ([joined_everywhere]: only the first phase of the join makes an
+   alias of a variable of the source, and it looks at the variables
+   that have one). With them, the converse of the first part follows
+   from two of the conditions on the runs of the compiler's join
+   ([aliases_have_values_of_values_statement],
+   FlambdaJoinDefineSpec.v). *)
 Definition alias_holds (s : Join_env.t) (e x : variable) : Prop :=
   exists_in_target_env kind_in_target_env s x = true
   ∧ is_existential s e
-  ∧ ∀ (index : Index.t) (use : Typing_env.t) (statics : static_env)
-      (valuation : env) (v : value),
-      Join_env.joined_env s index = Some use ->
-      typing_env_satisfied_strictly statics valuation use ->
-      lookup x (target_valuation s index use valuation) = Some v ->
-      lookup e (target_valuation s index use valuation) = Some v.
+  ∧ (∀ (index : Index.t) (use : Typing_env.t) (statics : static_env)
+       (valuation : env) (v : value),
+       Join_env.joined_env s index = Some use ->
+       typing_env_satisfied_strictly statics valuation use ->
+       lookup x (target_valuation s index use valuation) = Some v ->
+       lookup e (target_valuation s index use valuation) = Some v)
+  ∧ alias_located s e x
+  ∧ (knows (Join_env.source_env s) x -> joined_everywhere s x).
 
 Definition aliases_hold (s : Join_env.t) : Prop :=
   ∀ e x : variable,

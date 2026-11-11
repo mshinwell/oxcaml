@@ -1234,7 +1234,7 @@ Lemma alias_back (e x : variable) (v : value) :
   lookup e tv = Some v.
 Proof.
   intros Hx Hv. destruct s_true as [_ [[_ [_ [Haliases _]]] _]].
-  destruct (Haliases e x Hx) as [_ [_ Hforward]].
+  destruct (Haliases e x Hx) as [_ [_ [Hforward _]]].
   exact (Hforward index use statics valuation v use_at use_satisfied Hv).
 Qed.
 
@@ -1541,6 +1541,55 @@ Qed.
 End Define_run.
 
 (* ---------------------------------------------------------------------- *)
+(* The aliases have values                                                 *)
+(* ---------------------------------------------------------------------- *)
+
+Theorem aliases_have_values_of_values
+  : aliases_have_values_of_values_statement.
+Proof.
+  intros source s index use valuation [Hvalid [Hholds _]] Huse Himported
+    Hjoined e x v Hx Hv.
+  destruct Hholds as [_ [_ [Haliases _]]].
+  destruct (Haliases e x Hx)
+    as [Hexists [Hexistential [_ [Hlocated Hlevels]]]].
+  pose proof Hvalid as [_ [Hnew [[_ [_ Hdefined]] _]]].
+  pose proof (Hdefined e Hexistential) as Hbound.
+  apply is_bound_lookup in Hbound.
+  destruct Hbound as [[simples kind] Hdefinition].
+  destruct (existential_value s e simples kind index use valuation v Hvalid
+              Hdefinition Huse Hv) as [simple [Hfind _]].
+  destruct (Hlocated simples kind index simple Hdefinition Hfind)
+    as [use' [Huse' Hknows]].
+  rewrite Huse in Huse'. injection Huse' as <-.
+  assert (Hknown : known_to s use x = true).
+  { unfold known_to. unfold knows in Hknows. rewrite Hknows. reflexivity. }
+  rewrite (target_valuation_known s index use valuation x Hvalid Huse Hknown).
+  destruct (Typing_env.mem None (Join_env.source_env s) (Name_var x))
+    eqn:Hsource.
+  - exact (Hjoined x Hsource (Hlevels Hsource)).
+  - apply (Himported x); [ | exact Hknows ].
+    unfold exists_in_target_env, kind_in_target_env in Hexists.
+    unfold Join_env.source_env, Typing_env.mem in Hsource.
+    destruct (Keyed.lookup name_eqb (Name_var x)
+                (Typing_env.names_to_types
+                   (Bindings_in_target_env.source_env (Join_env.bindings s))))
+      as [[ty btm] | ]; [ discriminate | ].
+    destruct (lookup x
+                (Bindings_in_target_env.existential_variables
+                   (Join_env.bindings s))) as [k | ] eqn:Hexistential_x.
+    + exfalso.
+      assert (Hx_made : is_existential s x).
+      { unfold is_existential. apply is_bound_lookup. exists k.
+        exact Hexistential_x. }
+      exact (proj2 (Hnew x Hx_made) index use Huse Hknows).
+    + unfold is_imported. apply is_bound_lookup.
+      destruct (lookup x
+                  (Bindings_in_target_env.imported_variables
+                     (Join_env.bindings s))) as [k | ]; [ | discriminate ].
+      exists k. reflexivity.
+Qed.
+
+(* ---------------------------------------------------------------------- *)
 (* The relations kept by the rounds                                        *)
 (* ---------------------------------------------------------------------- *)
 
@@ -1798,15 +1847,23 @@ Lemma join_aliases_fold_kinded (p : Join_env.parameters) (fuel : nat)
        Name_var x ∈ names ->
        exists0 x = true ->
        types_hold s0 x (Join_env.types_of_name_in_levels envs (Name_var x))
-       ∧ ∀ (index index' : Index.t) (t t' : flambda_type),
-           Keyed.lookup Index.equal index
-             (Join_env.types_of_name_in_levels envs (Name_var x))
-           = Some t ->
-           Keyed.lookup Index.equal index'
-             (Join_env.types_of_name_in_levels envs (Name_var x))
-           = Some t' ->
-           FlambdaTypeGrammar.kind t = FlambdaTypeGrammar.kind t') ->
+       ∧ (∀ (index index' : Index.t) (t t' : flambda_type),
+            Keyed.lookup Index.equal index
+              (Join_env.types_of_name_in_levels envs (Name_var x))
+            = Some t ->
+            Keyed.lookup Index.equal index'
+              (Join_env.types_of_name_in_levels envs (Name_var x))
+            = Some t' ->
+            FlambdaTypeGrammar.kind t = FlambdaTypeGrammar.kind t')
+       ∧ (∀ (index : Index.t) (t : flambda_type) (use : Typing_env.t),
+            Keyed.lookup Index.equal index
+              (Join_env.types_of_name_in_levels envs (Name_var x))
+            = Some t ->
+            Join_env.joined_env s0 index = Some use ->
+            knows use x)
+       ∧ (knows (Join_env.source_env s0) x -> joined_everywhere s0 x)) ->
     later s0 s ->
+    same_envs s0 s ->
     state_holds s ->
     state_kinded s ->
     List.fold_left
@@ -1827,39 +1884,44 @@ Lemma join_aliases_fold_kinded (p : Join_env.parameters) (fuel : nat)
 Proof.
   intros Hfresh Heqb Hinvariant0 Hkinded0.
   induction names as [ | n names IH];
-    intros s s' Hnames Hlater Hholds Hstate Hfold.
+    intros s s' Hnames Hlater Hsame Hholds Hstate Hfold.
   - injection Hfold as <-. exact Hstate.
   - cbn [List.fold_left] in Hfold.
-    assert (Hrest :
-              ∀ x : variable,
-                Name_var x ∈ names ->
-                exists0 x = true ->
-                types_hold s0 x
-                  (Join_env.types_of_name_in_levels envs (Name_var x))
-                ∧ ∀ (index index' : Index.t) (t t' : flambda_type),
-                    Keyed.lookup Index.equal index
-                      (Join_env.types_of_name_in_levels envs (Name_var x))
-                    = Some t ->
-                    Keyed.lookup Index.equal index'
-                      (Join_env.types_of_name_in_levels envs (Name_var x))
-                    = Some t' ->
-                    FlambdaTypeGrammar.kind t = FlambdaTypeGrammar.kind t').
-    { intros x Hx. exact (Hnames x (or_intror Hx)). }
+    pose proof (fun x Hx => Hnames x (or_intror Hx)) as Hrest.
     destruct n as [x | sym];
-      [ | exact (IH s s' Hrest Hlater Hholds Hstate Hfold) ].
+      [ | exact (IH s s' Hrest Hlater Hsame Hholds Hstate Hfold) ].
     destruct (exists0 x) eqn:Hexists;
-      [ | exact (IH s s' Hrest Hlater Hholds Hstate Hfold) ].
+      [ | exact (IH s s' Hrest Hlater Hsame Hholds Hstate Hfold) ].
     destruct (Join_env.import_or_delay_n_way_join_type p fuel s x
                 (Join_env.types_of_name_in_levels envs (Name_var x)))
       as [s1 | ] eqn:Hs1.
-    + destruct (Hnames x (or_introl eq_refl) Hexists) as [Htypes Hkinds].
+    + destruct (Hnames x (or_introl eq_refl) Hexists)
+        as [Htypes [Hkinds [Hknown Hlevels]]].
       pose proof (later_envs_invariant _ _ Hlater Hinvariant0) as Hinvariant.
       pose proof (later_envs_kinded _ _ Hlater Hkinded0) as Hkinded.
       pose proof (later_types_hold _ _ _ _ Hlater Htypes) as Htypes_s.
+      assert (Hknown_s :
+                ∀ (index : Index.t) (t : flambda_type) (use : Typing_env.t),
+                  Keyed.lookup Index.equal index
+                    (Join_env.types_of_name_in_levels envs (Name_var x))
+                  = Some t ->
+                  Join_env.joined_env s index = Some use ->
+                  knows use x).
+      { intros index t use Ht Huse. rewrite (later_env _ _ _ Hlater) in Huse.
+        exact (Hknown index t use Ht Huse). }
+      assert (Hlevels_s :
+                knows (Join_env.source_env s) x -> joined_everywhere s x).
+      { intros Hk index use equations Hlookup.
+        rewrite (proj2 (proj2 (proj2 Hlater))) in Hk.
+        rewrite Hsame in Hlookup.
+        exact (Hlevels Hk index use equations Hlookup). }
       destruct (import_or_delay_holds p fuel s s1 x _ Hfresh Heqb
                   (proj1 (proj2 Hlater)) Hinvariant Hkinded Hholds Htypes_s
-                  Hkinds Hs1) as [Hlater1 Hholds1].
-      exact (IH s1 s' Hrest (later_trans _ _ _ Hlater Hlater1) Hholds1
+                  Hkinds Hknown_s Hlevels_s Hs1) as [Hlater1 Hholds1].
+      exact (IH s1 s' Hrest (later_trans _ _ _ Hlater Hlater1)
+               (same_envs_trans _ _ _ Hsame
+                  (import_or_delay_same_envs _ _ _ _ _ _ Hs1))
+               Hholds1
                (import_or_delay_kinded p fuel s s1 x _ Hfresh
                   (proj1 (proj2 Hlater)) Hstate Hinvariant Hkinded Htypes_s
                   Hkinds Hs1)
@@ -1892,14 +1954,24 @@ Proof.
            Hfresh Heqb Hinvariant0 Hkinded0
            (Join_env.names_with_equations_everywhere (Join_env.joined_envs s0))
            s0 s');
-    [ | exact (later_refl s0 Hvalid0) | exact Hholds0 | exact Hstate0
-      | exact Hjoin ].
+    [ | exact (later_refl s0 Hvalid0) | reflexivity | exact Hholds0
+      | exact Hstate0 | exact Hjoin ].
   intros x Hx Hexists. rewrite <- kind_in_target_env_exists in Hexists.
   pose proof (Hsource x Hexists) as Hknown.
-  split.
+  split; [ | split; [ | split ] ].
   - exact (level_types_hold s0 x Hvalid0 Hinvariant0 Hkinded0 Hlevels Hknown
              Hx).
   - exact (level_types_one_kind s0 x Hstate0 Hlevels Hknown).
+  - intros index t use Ht Huse. rewrite types_of_name_lookup in Ht.
+    destruct (Keyed.lookup Index.equal index (Join_env.joined_envs s0))
+      as [[use0 equations] | ] eqn:Hindex; [ | discriminate ].
+    destruct (Hlevels _ _ _ _ _ Hindex Ht) as [btm Hfound].
+    assert (Huse0 : Join_env.joined_env s0 index = Some use0).
+    { apply joined_env_lookup. exists equations. exact Hindex. }
+    rewrite Huse in Huse0. injection Huse0 as <-.
+    apply bound_knows. unfold Keyed.is_bound. rewrite Hfound. reflexivity.
+  - intros _ index use equations Hindex.
+    exact (names_everywhere_bound _ _ Hx _ _ _ Hindex).
 Qed.
 
 Section Rounds_kinded.

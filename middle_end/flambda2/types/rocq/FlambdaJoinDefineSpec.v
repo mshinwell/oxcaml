@@ -85,7 +85,9 @@
 
    - [aliases_have_values]: a variable of the target that is to be an
      alias of a variable that the join has made has a value where that
-     one has. The state only knows the converse ([alias_holds]).
+     one has. The state knows the converse ([alias_holds]), and this
+     follows from two conditions of the contract read on the state
+     ([aliases_have_values_of_values_statement]).
    - [relation_scrutinees_have_values]: where the variable that holds
      the result of a relation kept has a value, the variable that the
      relation is on has one.
@@ -185,15 +187,19 @@ Definition expand_variable_sound_statement : Prop :=
    the variable a value that it has not. The variable is one of the
    source that has an equation in the level of every input, or one
    brought in from the inputs that know it, and the vector has a
-   [Simple] exactly at the inputs that know the variable. So the
-   condition is expected to follow from two of the conditions of the
-   contract, [joined_variables_have_values] and
-   [imported_variables_have_values] (FlambdaJoinSpec.v), which say
-   that such a variable has a value at an input that knows it. That
-   is not proved: the state of the join does not record at which
-   inputs the vector of an alias has a [Simple], nor that an alias
-   that the source knows has an equation in every level. Discrepancies
-   T5-5 and T5-10. *)
+   [Simple] only at inputs that know the variable. So the condition
+   follows from two others, which say that such a variable has a
+   value at an input that knows it ([imported_have_values] and
+   [joined_have_values] below,
+   [aliases_have_values_of_values_statement]): the invariant of the
+   state records where an alias is known and that an alias that the
+   source knows has an equation in every level ([alias_holds],
+   FlambdaJoinStateSpec.v). Those two are two conditions of the
+   contract, [imported_variables_have_values] and
+   [joined_variables_have_values] (FlambdaJoinSpec.v), read on the
+   state of the join; the contract's are about the target answered
+   and the levels cut from the uses, and the step from them is not
+   stated yet. Discrepancies T5-5 and T5-10. *)
 Definition aliases_have_values (s : Join_env.t) (index : Index.t)
     (use : Typing_env.t) (valuation : env) : Prop :=
   ∀ (e x : variable) (v : value),
@@ -202,6 +208,32 @@ Definition aliases_have_values (s : Join_env.t) (index : Index.t)
         (Join_env.aliases_of_existentials s) e ->
     lookup e (target_valuation s index use valuation) = Some v ->
     ∃ w : value, lookup x (target_valuation s index use valuation) = Some w.
+
+(* At the run of an input, a variable that the join has brought in,
+   and that the input knows, has a value; and a variable of the source
+   that has an equation in the level of every joined environment has
+   one. *)
+Definition imported_have_values (s : Join_env.t) (use : Typing_env.t)
+    (valuation : env) : Prop :=
+  ∀ x : variable,
+    is_imported s x ->
+    knows use x ->
+    ∃ v : value, lookup x valuation = Some v.
+
+Definition joined_have_values (s : Join_env.t) (valuation : env) : Prop :=
+  ∀ x : variable,
+    knows (Join_env.source_env s) x ->
+    joined_everywhere s x ->
+    ∃ v : value, lookup x valuation = Some v.
+
+Definition aliases_have_values_of_values_statement : Prop :=
+  ∀ (source : Typing_env.t) (s : Join_env.t) (index : Index.t)
+    (use : Typing_env.t) (valuation : env),
+    state_true source s ->
+    Join_env.joined_env s index = Some use ->
+    imported_have_values s use valuation ->
+    joined_have_values s valuation ->
+    aliases_have_values s index use valuation.
 
 (* At the run of an input, where the variable that holds the result of
    a relation kept has a value, the variable that the relation is on
