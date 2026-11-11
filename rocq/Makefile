@@ -140,6 +140,14 @@ FLAMBDA2_EXTRACTED_DIR := $(ROOT)/middle_end/flambda2/tests/semantics/extracted
 FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaAliasesProofs.v \
   FlambdaAliasesSpec.v \
+  FlambdaBindingTime.v \
+  FlambdaEnvAliases.v \
+  FlambdaEnvAliasesInvariantProofs.v \
+  FlambdaEnvAliasesInvariantSpec.v \
+  FlambdaEnvAliasesProofs.v \
+  FlambdaEnvAliasesRenamingProofs.v \
+  FlambdaEnvAliasesRenamingSpec.v \
+  FlambdaEnvAliasesSpec.v \
   FlambdaTypeGrammar.v \
   FlambdaTypeGrammarProofs.v \
   FlambdaTypeMeaningBoolProofs.v \
