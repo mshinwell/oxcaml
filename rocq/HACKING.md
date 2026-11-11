@@ -708,6 +708,24 @@ in the compiler's style, so that it can be proposed upstream by itself.
   `Get_tag` relation that the types record is not changed. Tests:
   `testsuite/tests/flambda2/simplify/get_tag_of_immediate.ml` and
   `testsuite/tests/flambda2/get_tag_of_immediate_run.ml`.
+- A flag, `-flambda2-join-sharing {physical|structural|none}`
+  (`Oxcaml_flags.Flambda2.join_sharing`, `Flambda_features.join_sharing`;
+  `flambda2-join-sharing=structural` in `OCAMLPARAM`). The join of types
+  keeps a type as it is, and does not join it, where the joined
+  environments have it physically equal, in four places
+  (`Join_env.n_way_join_env_extension`,
+  `Join_env.import_or_delay_n_way_join_of_concrete_type`,
+  `Meet_and_n_way_join.n_way_join_int_indexed_product` and
+  `Meet_and_join.join_int_indexed_product`), so its result depends on
+  how types are shared in memory. The flag chooses the test there:
+  physical equality (the default: nothing changes without the flag), a
+  structural equality on types that is new (`Type_grammar.equal`,
+  `Type_descr.equal`), or none. The model ignores physical equality
+  (decision D30) and is compared with the compiler under `structural`.
+  Test: `middle_end/flambda2/tests/api_tests/join_sharing.ml`; its
+  expected file prints the stamps of variables, as `meet_test.expected`
+  does, and is to be regenerated when the joins create another number
+  of variables.
 
 ### Testing Simplify against the semantics
 
