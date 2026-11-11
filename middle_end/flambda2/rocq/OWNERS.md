@@ -224,6 +224,10 @@ pass into the validator.
     replaced by the `Simple` that a prover answers for the number
     inside; after `simplify/simplify_unary_primitive.ml` and
     `simplify/unboxing/unboxing_epa.ml`)
+  - `middle_end/flambda2/types/rocq/FlambdaSimplifyArith*` (the
+    arithmetic of tagged immediates replaced by a constant, by one of
+    its arguments or by `Invalid`, and the types of its result; after
+    `simplify/simplify_binary_primitive.ml`)
 - S2, switch. Owner of the first slice: T1, on
   `flambda2-rocq/T1-grammar`; the rest unassigned.
   - `middle_end/flambda2/types/rocq/FlambdaSimplifySwitch*` (the arms
