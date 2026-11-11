@@ -219,6 +219,9 @@ says so. Only the labels that this tree cites are listed.
 - **N1-7.** Some of Simplify's output depends on the order of names.
 - **N1-8.** A renaming with an import map is not a permutation, and
   renamings do not compose in general.
+- **N1-9.** The comparison of terms of the compiler (`Compare`) has no
+  case for a primitive of four arguments, so it judges a term that has
+  one different from itself.
 - **R1-1.** Unboxing records `Get_tag` on the paths where the value is
   an immediate, and supplies a dummy tag of zero.
 - **R1-2.** The types library evaluates `Is_null` of poison as false.
@@ -325,6 +328,8 @@ says so. Only the labels that this tree cites are listed.
 - **T5-5.** The n-way join gives a variable that only some uses define
   the join of its types at those uses, and nothing records that it means
   nothing at the others.
+- **T5-9.** The n-way join makes a variable of a kind for simples whose
+  kinds it does not look at.
 - **T5-10.** The n-way join takes every variable that a joined
   environment knows to have a value there, where it puts a relation back
   on a scrutinee and where it drops a bottom type.
