@@ -5,7 +5,7 @@ Joins: with -flambda2-join-sharing structural, but where the compiler's default 
 The ranges of numbers (52 constants): 52 as expected
 Constants of the compiler with the top bit set (12): 12 in the range of the model and unchanged by the round trip
 
-The comparison by text (5 cases): 5 as expected
+The comparison by text (6 cases): 6 as expected
 
 Raw types of the model (3000 cases, seeds 1000 to 3999)
   28 not converted: not in the compiler: a Rec_info type given by its head: the model has not got the expression

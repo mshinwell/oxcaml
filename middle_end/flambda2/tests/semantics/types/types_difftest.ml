@@ -1342,6 +1342,21 @@ let rename_own_variables (names : names) (printed : string) : string =
   copy 0;
   Buffer.contents buffer
 
+(* Whether two texts are the same but for how they are laid out. The lines of a
+   text are broken before its variables are renamed, so where they are broken
+   depends on how long the numbers of the variables were: two texts that differ
+   only there are one answer. Nothing else is forgiven: the printer brackets
+   every part of a type, so the words of a text in their order say what the type
+   is. *)
+let same_text (text : string) (text' : string) : bool =
+  let words text =
+    List.filter
+      (fun word -> not (String.equal word ""))
+      (String.split_on_char ' '
+         (String.map (fun c -> if Char.equal c '\n' then ' ' else c) text))
+  in
+  List.equal String.equal (words text) (words text')
+
 (* Types as printed, each written in one way. The variables that are not of the
    tests are renamed once, over the whole text: a variable that two of the types
    mention has one name in both, so two texts are equal only if one renaming of
@@ -1467,7 +1482,7 @@ let two_implementations (names : names) :
              variables in the two: the two results are compared as they are
              printed, with those variables named in the order they come. *)
           let printed joined = print_joined names joined in
-          if String.equal (printed of_binary) (printed of_n_way)
+          if same_text (printed of_binary) (printed of_n_way)
           then Agree
           else
             (* The two may differ in how much they keep: that is recorded and
@@ -2190,7 +2205,7 @@ let shared_and_not (names : names) (sharing : sharing) :
           else
             let shared = of_types t t in
             let not_shared = of_types t again in
-            if String.equal shared not_shared
+            if same_text shared not_shared
             then Agree
             else
               depends_on_sharing sharing
@@ -2284,7 +2299,7 @@ let shared_parts (names : names) (sharing : sharing) : parts comparison list =
             let right = to_compiler names right in
             let shared = result ~common:once ~common':once ~left ~right in
             let not_shared = result ~common:once ~common':again ~left ~right in
-            if String.equal shared not_shared
+            if same_text shared not_shared
             then Agree
             else
               depends_on_sharing sharing
@@ -2856,9 +2871,9 @@ let reached_by_a_name_only (names : names) : (string * bool) list =
   in
   [ ( "a variable that only a name of the tests reaches, of two numbers and of \
        two others, printed with the names",
-      not (String.equal (with_names [0; 1]) (with_names [2; 3])) );
+      not (same_text (with_names [0; 1]) (with_names [2; 3])) );
     ( "the same, printed from the parameter alone (one text)",
-      String.equal (parameter_only [0; 1]) (parameter_only [2; 3]) ) ]
+      same_text (parameter_only [0; 1]) (parameter_only [2; 3]) ) ]
 
 (* Where two answers of the compiler are compared as text, the variables that
    are not of the tests are renamed over the whole text. So two types that are
@@ -2871,21 +2886,34 @@ let comparison_by_text (names : names) =
   let text = print_with_own_variables names in
   let cases =
     [ ( "two aliases of one variable, and of another one",
-        String.equal (text [alias 1; alias 1]) (text [alias 2; alias 2]) );
+        same_text (text [alias 1; alias 1]) (text [alias 2; alias 2]) );
       ( "two aliases of one variable, and aliases of two",
         let of_one = text [alias 1; alias 1] in
         let of_two = text [alias 2; alias 3] in
-        not (String.equal of_one of_two) );
+        not (same_text of_one of_two) );
       ( "what a join says of one variable of its own, and of two",
         not
-          (String.equal
+          (same_text
              (print_joined names
                 { joined = alias 1; own = [own 1, alias 1]; own_in_terms = [] })
              (print_joined names
                 { joined = alias 2;
                   own = [own 2, alias 3; own 3, alias 3];
                   own_in_terms = []
-                })) ) ]
+                })) );
+      ( "a type with a variable of its own, and with one whose number is \
+         longer, so that the lines are broken elsewhere",
+        let variant i =
+          MT.create_variant false
+            (Known (MT.this_naked_immediate (N.z_of_int 0)))
+            (Known
+               (MT.row_like_for_blocks_create_at_least (N.z_of_int 0)
+                  (N.nat_of_int 1) (Scannable Value_only)
+                  [alias i]
+                  Heap))
+            No_extensions
+        in
+        same_text (text [variant 1]) (text [variant 100000]) ) ]
     @ reached_by_a_name_only names
   in
   let wrong = List.filter (fun (_, as_expected) -> not as_expected) cases in
