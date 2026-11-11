@@ -686,6 +686,15 @@ strict satisfaction, with no other premise), `expand_head_closed`,
   (`meet_disjunction_ok`, `FlambdaMeetScopesSpec.v`).
 - `reduce_head_of_kind_naked_immediate` is sound (T5b needs it too):
   done, with no premise but those of its statement.
+- The meet of two heads of naked immediates is right
+  (`meet_head_of_kind_naked_immediate_ok`,
+  `FlambdaMeetImmediateSpec.v`): done, for the type of the `Get_tag`
+  step that is true (section 8) and a meet of expanded types that,
+  beside its two contracts, adds nothing to the environment on two
+  types of different kinds (`meet_expanded_head_other_kinds`; the
+  transcribed meet has it at every fuel). The last is there so that
+  nothing is asked of the kinds of the names of relations, on which
+  a type that fits says nothing.
 - The two parameters are replaced by T1's and T2's predicates: done.
 
 For reviewers: whether a precision statement is wanted.
