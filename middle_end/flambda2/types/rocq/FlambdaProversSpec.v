@@ -61,7 +61,12 @@
      never narrower than where the primitive that asks has a value;
      that is for the statement that ties each to its primitive, which
      is to say that the primitive has a value only on the domain, and
-     not the converse.
+     not the converse. There is one exception:
+     [meet_project_value_slot_simple], whose domain asks more than
+     that the projection has a value. Its statement is conditional on
+     a premise that the machine does not give, and its [Invalid] is
+     not, by that statement alone, a reason to take a projection to
+     have no value (the section "Closures").
    Nothing is said of [Unknown], of [Need_meet], or of [None], which is
    a stop of the compiler (FlambdaProvers.v): a prover may answer any
    of them on any type. That a prover answers when the type decides
@@ -92,11 +97,22 @@
    immediates: of it the answer would be wrong. A well-formed type is
    not that type and has none as the immediates of a variant
    (conditions 2, 3 and 10 of FlambdaTypeWellFormedSpec.v); nothing
-   else of well-formedness is used here. The condition is on the types
-   of the environment too, since a prover expands names. That
+   else of well-formedness is used by these. The condition is on the
+   types of the environment too, since a prover expands names. That
    expanding the head of a well-formed type in such an environment
    gives a well-formed type is proved here, from the definitions of
    [expand_head] and [Typing_env.find].
+
+   Two other statements take well-formed types, each for a reason of
+   its own.
+   - [meet_single_closures_entry] answers that a type has no closure
+     where the one case of its closures is exact and has no function
+     type for its own slot, which the meaning of types does not say
+     (FlambdaTypeAccessSpec.v, discrepancy T1-7). A well-formed type
+     has no such case (condition 8).
+   - That [prove_unique_fully_constructed_immutable_heap_block]
+     answers a [Simple] for every field of the block needs a product
+     as wide as an exact size (condition 6).
 
    Poison (decision D26).
    - Under strict satisfaction a value that is poison has only types
@@ -233,10 +249,10 @@ Definition types_well_formed (tenv : Typing_env.t) : Prop :=
 (* CR mshinwell: this asks more of a type than the compiler checks:
    [type_well_formed] has conditions that only some of the creation
    functions establish (FlambdaTypeWellFormedSpec.v says which). The
-   provers that take it here use conditions 2, 3 and 10 only, which
-   exclude a type that the compiler's grammar has not; a statement
-   that took those three alone would hold of more types. Decision
-   D32. *)
+   provers that take it here use conditions 2, 3 and 10, which exclude
+   a type that the compiler's grammar has not, and two statements one
+   more each (conditions 6 and 8; the header says which); a statement
+   that took those alone would hold of more types. Decision D32. *)
 Definition well_formed_input (tenv : Typing_env.t) (t : flambda_type)
     : Prop :=
   types_well_formed tenv ∧ type_well_formed t = true.
@@ -881,3 +897,206 @@ Definition block_provers_silent_on_poison_statement : Prop :=
         (fun tenv t =>
            Provers.meet_block_field_simple tenv min_name_mode field_kind t
              field_index).
+
+(* ======================================================================== *)
+(* Closures                                                                 *)
+(* ======================================================================== *)
+
+(* The closures: the values that a call may have for its callee, and
+   from which a function slot or a value slot may be projected. *)
+Definition closures (statics : static_env) (v : value) : Prop :=
+  ∃ (slot : function_slot) (functions : list (function_slot * code_id))
+    (value_slots : list (value_slot * value)),
+    closure_in_set statics v = Some (slot, functions, value_slots).
+
+(* What [Provers.prove_single_closures_entry] answers: the value is the
+   closure at the function slot answered of a set of closures; the
+   entry answered holds of it; and the code of the function at that
+   slot is the code of the function type answered. The allocation mode
+   answered means nothing here. *)
+(* CR mshinwell: the code is the very code of the closure, as in the
+   meaning of a function type (FlambdaTypeMeaningSpec.v), which leaves
+   the age of code out. In the compiler the code id of a function type
+   stands for that code or a newer version of it
+   ([Code_age_relation]), and Simplify makes a direct call to the code
+   id answered. Until the meaning has code age, this says nothing of a
+   closure made with a newer version of the code than its type names.
+   No decision has a number. *)
+Definition single_closures_entry_holds (statics : static_env)
+    (valuation : env)
+    (x : function_slot * Alloc_mode.t * closures_entry * function_type)
+    (v : value) : Prop :=
+  let '(slot, _, entry, function_type) := x in
+  ∃ (functions : list (function_slot * code_id))
+    (value_slots : list (value_slot * value)),
+    closure_in_set statics v = Some (slot, functions, value_slots)
+    ∧ closures_entry_satisfied statics valuation v slot functions value_slots
+        entry
+    ∧ lookup slot functions = Some (function_type_code_id function_type).
+
+(* [Provers.prove_single_closures_entry]. *)
+Definition prove_single_closures_entry_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  prover_sound Provers.prove_single_closures_entry any_input
+    single_closures_entry_holds.
+
+(* [Provers.meet_single_closures_entry]: of the values of the type that
+   are closures. The type is to be well formed: where the closures of
+   the type are all at one slot of a set whose functions are known
+   exactly, and the entry has no function type for that slot, the
+   prover answers that the type has no closure, and the meaning of
+   types does not say so (FlambdaTypeAccessSpec.v, discrepancy T1-7).
+   A well-formed type has no such case (condition 8 of
+   FlambdaTypeWellFormedSpec.v). *)
+Definition meet_single_closures_entry_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  meet_shortcut_sound Provers.meet_single_closures_entry well_formed_input
+    closures single_closures_entry_holds.
+
+(* What a call reads of its callee, [closure_of], is then the code of
+   the function type answered. *)
+Definition single_closures_entry_code_statement : Prop :=
+  ∀ (statics : static_env) (valuation : env) (slot : function_slot)
+    (alloc_mode : Alloc_mode.t) (entry : closures_entry)
+    (function_type : function_type) (v : value),
+    single_closures_entry_holds statics valuation
+      (slot, alloc_mode, entry, function_type) v ->
+    ∃ value_slots : list (value_slot * value),
+      closure_of statics v
+      = Some (function_type_code_id function_type, value_slots).
+
+(* The value is a closure whose code is one of the code ids. The code
+   is the very code of the closure, as for
+   [single_closures_entry_holds]. *)
+Definition closure_code_among (statics : static_env)
+    (code_ids : list code_id) (v : value) : Prop :=
+  ∃ (code : code_id) (value_slots : list (value_slot * value)),
+    closure_of statics v = Some (code, value_slots) ∧ code ∈ code_ids.
+
+(* [Provers.prove_code_ids]. *)
+Definition prove_code_ids_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  prover_sound Provers.prove_code_ids any_input
+    (fun statics _ => closure_code_among statics).
+
+(* [Provers.meet_code_ids]: of the values of the type that are
+   closures. *)
+Definition meet_code_ids_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  meet_shortcut_sound Provers.meet_code_ids any_input closures
+    (fun statics _ => closure_code_among statics).
+
+(* The values from which a function slot is projected: the closures of
+   a set that has the slot, at whichever slot of it the projection
+   names ([project_function_slot] of FlambdaValueSpec.v, which is what
+   [Project_function_slot] is). *)
+Definition function_slot_projects (move_to : function_slot)
+    (statics : static_env) (v : value) : Prop :=
+  ∃ (move_from : function_slot) (closure : value),
+    project_function_slot statics move_from move_to v = Some closure.
+
+(* [Provers.meet_project_function_slot_simple], at any name mode and
+   function slot: of the values of the type from which the slot is
+   projected, the closure projected is the value of the [Simple]
+   answered. The prover is not told the slot that the projection is
+   from, and the answer is right for any: the projection has a value
+   only from the slot that the closure is at. *)
+Definition meet_project_function_slot_simple_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  ∀ (min_name_mode : Name_mode.t) (move_to : function_slot),
+    meet_shortcut_sound
+      (fun tenv t =>
+         Provers.meet_project_function_slot_simple tenv min_name_mode t
+           move_to)
+      any_input (function_slot_projects move_to)
+      (fun statics valuation s v =>
+         ∀ (move_from : function_slot) (closure : value),
+           project_function_slot statics move_from move_to v = Some closure ->
+           eval_simple valuation s = Some closure).
+
+(* The projection of a function slot has a value only on a value of
+   that domain. *)
+Definition project_function_slot_in_domain_statement : Prop :=
+  ∀ (statics : static_env) (move_from move_to : function_slot)
+    (v closure : value),
+    project_function_slot statics move_from move_to v = Some closure ->
+    function_slot_projects move_to statics v.
+
+(* The closures of a set that has a value slot, with contents of a
+   kind. This is narrower than where the projection of the slot has a
+   value ([project_value_slot] of FlambdaValueSpec.v, which is what
+   [Project_value_slot_from] is): the projection does not look at the
+   kind of the contents. *)
+(* CR mshinwell: a value slot of the model has no kind, and a set of
+   closures may have contents of any kind in a value slot. The
+   compiler's value slot has a kind ([Value_slot.kind]), and the
+   prover answers that the type has no closure where the type of the
+   slot is of another kind. So the kind is an argument here, and that
+   the contents are of that kind is a premise of the statement, which
+   nothing in the model gives: the projection of a slot whose contents
+   are a naked number has that number for value, where the prover,
+   asked at the kind value, answers [Invalid]
+   (FlambdaProversExamplesSpec.v has the example). The statement does
+   not justify that [Invalid] for the machine as it is. What would:
+   value slots with kinds in the model, and either a projection that
+   has no value on contents of another kind, or a condition on
+   well-formed terms that the contents of a slot are of its kind;
+   whether a condition on kinds may be asked of the compiler's terms
+   is for the rulings on kinds (discrepancy T6-4; decisions D9, D10,
+   D12 and D16). *)
+Definition value_slot_projects (value_slot_kind : flambda_kind)
+    (slot : value_slot) (statics : static_env) (v : value) : Prop :=
+  ∃ (project_from : function_slot) (contents : value),
+    project_value_slot statics project_from slot v = Some contents
+    ∧ kind_of_value contents = value_slot_kind.
+
+(* The projection of a value slot has a value in that domain if the
+   contents are of the kind: the second premise is the one that the
+   machine does not give. *)
+Definition project_value_slot_in_domain_statement : Prop :=
+  ∀ (statics : static_env) (project_from : function_slot)
+    (slot : value_slot) (value_slot_kind : flambda_kind)
+    (v contents : value),
+    project_value_slot statics project_from slot v = Some contents ->
+    kind_of_value contents = value_slot_kind ->
+    value_slot_projects value_slot_kind slot statics v.
+
+(* [Provers.meet_project_value_slot_simple], at any name mode, value
+   slot and kind, of the values of the type from which the slot is
+   projected with contents of that kind: the contents of the slot are
+   the value of the [Simple] answered, and if the prover answers
+   [Invalid] there is no such value. It says nothing of a closure
+   whose slot has contents of another kind. *)
+Definition meet_project_value_slot_simple_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  ∀ (min_name_mode : Name_mode.t) (slot : value_slot)
+    (value_slot_kind : flambda_kind),
+    meet_shortcut_sound
+      (fun tenv t =>
+         Provers.meet_project_value_slot_simple tenv min_name_mode t slot
+           value_slot_kind)
+      any_input (value_slot_projects value_slot_kind slot)
+      (fun statics valuation s v =>
+         ∀ (project_from : function_slot) (contents : value),
+           project_value_slot statics project_from slot v = Some contents ->
+           eval_simple valuation s = Some contents).
+
+(* On a type that has a value that is poison none of these answers
+   [Proved] or [Known_result] either. *)
+Definition closure_provers_silent_on_poison_statement : Prop :=
+  expand_head_sound_assumed ->
+  prover_silent_on_poison Provers.prove_single_closures_entry
+  ∧ meet_shortcut_silent_on_poison Provers.meet_single_closures_entry
+  ∧ prover_silent_on_poison Provers.prove_code_ids
+  ∧ meet_shortcut_silent_on_poison Provers.meet_code_ids
+  ∧ (∀ (min_name_mode : Name_mode.t) (move_to : function_slot),
+      meet_shortcut_silent_on_poison
+        (fun tenv t =>
+           Provers.meet_project_function_slot_simple tenv min_name_mode t
+             move_to))
+  ∧ ∀ (min_name_mode : Name_mode.t) (slot : value_slot)
+      (value_slot_kind : flambda_kind),
+      meet_shortcut_silent_on_poison
+        (fun tenv t =>
+           Provers.meet_project_value_slot_simple tenv min_name_mode t slot
+             value_slot_kind).

@@ -41,7 +41,7 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaMapSpec FlambdaMapProofs FlambdaValueSpec FlambdaValueProofs
   FlambdaPrimitiveModel FlambdaPrimitiveSpec FlambdaPrimitiveProofs
-  FlambdaSemanticsSpec.
+  FlambdaSemanticsSpec FlambdaSemanticsProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs FlambdaTypeWellFormedSpec
   FlambdaTypeWellFormedProofs FlambdaTypeEqualSpec FlambdaTypeEqualProofs
@@ -2358,6 +2358,509 @@ Proof.
   - exact (meet_block_field_simple_value_sound _ _ _).
 Qed.
 
+(* ======================================================================== *)
+(* Closures                                                                 *)
+(* ======================================================================== *)
+
+(* A closure has, at its slot, the head of the closures of which
+   nothing more is known. *)
+Definition any_closure_at (slot : function_slot)
+    : head_of_kind_value_non_null :=
+  Closures
+    (Row_like_for_closures
+       [(slot,
+         Row_like_case (Closures_entry [] [] [])
+           (Row_like_index
+              (Row_like_index_domain.At_least
+                 (Set_of_closures_contents [] []))
+              tt)
+           empty_env_extension)])
+    Alloc_mode.Heap.
+
+Lemma any_closure_at_satisfied (statics : static_env) (vars : env)
+    (v : value) (slot : function_slot)
+    (functions : list (function_slot * code_id))
+    (value_slots : list (value_slot * value)) :
+  closure_in_set statics v = Some (slot, functions, value_slots) ->
+  head_of_kind_value_non_null_satisfied statics vars v (any_closure_at slot).
+Proof.
+  intros Hclosure. apply non_null_value_satisfied.
+  apply
+    (proj2
+       (at_least_this_closure_satisfied statics vars v slot [] [] []
+          Alloc_mode.Heap)).
+  exists functions, value_slots. split; [ exact Hclosure | ].
+  split; [ reflexivity | ]. split; [ reflexivity | ].
+  apply closures_entry_lookup_iff.
+  split; [ | split ]; intros; simpl in *; discriminate.
+Qed.
+
+(* A head of another form has no closure. *)
+Lemma not_closures_head (statics : static_env) (vars : env) (v : value)
+    (head : head_of_kind_value_non_null) :
+  head_of_kind_value_non_null_satisfied statics vars v head ->
+  closures statics v ->
+  match head with
+  | Closures _ _ => True
+  | Variant _ _ _ _ _ _ | Mutable_block _ | Boxed_number _ _ _ | String _ =>
+    False
+  end.
+Proof.
+  intros Hhead [slot [functions [value_slots Hclosure]]].
+  pose proof
+    (heads_compatible_satisfied _ _ _ _ _
+       (any_closure_at_satisfied statics vars v slot functions value_slots
+          Hclosure)
+       Hhead)
+    as Hcompatible.
+  destruct head; exact Hcompatible.
+Qed.
+
+Lemma closures_domain (statics : static_env) (v : value) :
+  closures statics v ->
+  kind_of_value v = Value ∧ v <> Value_const Null ∧ closures statics v.
+Proof.
+  intros Hclosures. split; [ | split; [ | exact Hclosures ] ];
+    destruct Hclosures as [slot [functions [value_slots Hclosure]]].
+  - exact (closure_in_set_kind _ _ _ Hclosure).
+  - intros ->. discriminate Hclosure.
+Qed.
+
+(* The code of a closure at a slot is that of the function type that
+   an entry that holds of it has for the slot. *)
+Lemma find_function_type_own_code (statics : static_env) (valuation : env)
+    (v : value) (slot : function_slot)
+    (functions : list (function_slot * code_id))
+    (value_slots : list (value_slot * value)) (entry : closures_entry)
+    (exact : bool) (function_type : function_type) :
+  closure_in_set statics v = Some (slot, functions, value_slots) ->
+  closures_entry_satisfied statics valuation v slot functions value_slots
+    entry ->
+  closures_entry_find_function_type entry exact slot = Ok function_type ->
+  lookup slot functions = Some (function_type_code_id function_type).
+Proof.
+  intros Hclosure Hentry Hfind.
+  pose proof (closure_in_set_slot _ _ _ _ _ Hclosure) as Hbound.
+  unfold is_bound in Hbound.
+  destruct (lookup slot functions) as [code | ] eqn:Hcode;
+    [ | discriminate Hbound ].
+  rewrite
+    (find_function_type_satisfied _ _ _ _ _ _ _ _ _ _ _ Hentry Hfind Hcode).
+  reflexivity.
+Qed.
+
+Lemma single_closures_entry_of_singleton_sound (statics : static_env)
+    (valuation : env) (v : value) (alloc_mode : Alloc_mode.t) (exact : bool)
+    (slot : function_slot) (entry : closures_entry)
+    (functions : list (function_slot * code_id))
+    (value_slots : list (value_slot * value))
+    (x : function_slot * Alloc_mode.t * closures_entry * function_type) :
+  closure_in_set statics v = Some (slot, functions, value_slots) ->
+  closures_entry_satisfied statics valuation v slot functions value_slots
+    entry ->
+  Provers.single_closures_entry_of_singleton alloc_mode exact slot entry
+  = Generic_proof.Proved x ->
+  single_closures_entry_holds statics valuation x v.
+Proof.
+  intros Hclosure Hentry.
+  unfold Provers.single_closures_entry_of_singleton.
+  destruct (closures_entry_find_function_type entry exact slot)
+    as [ | function_type | ] eqn:Hfind;
+    try discriminate.
+  intros [= <-]. exists functions, value_slots.
+  split; [ exact Hclosure | ]. split; [ exact Hentry | ].
+  exact (find_function_type_own_code _ _ _ _ _ _ _ _ _ Hclosure Hentry Hfind).
+Qed.
+
+(* An entry of a case that is not exact is never said to have no
+   closure. *)
+Lemma single_closures_entry_of_incomplete (alloc_mode : Alloc_mode.t)
+    (slot : function_slot) (entry : closures_entry) :
+  Provers.single_closures_entry_of_singleton alloc_mode false slot entry
+  <> Generic_proof.Invalid.
+Proof.
+  unfold Provers.single_closures_entry_of_singleton.
+  destruct entry as [function_types closure_types value_slot_types]. simpl.
+  destruct (lookup slot function_types) as [[function_type | ] | ];
+    discriminate.
+Qed.
+
+Lemma prove_single_closures_entry_generic_value_sound :
+  generic_value_sound Provers.prove_single_closures_entry_generic_value
+    well_formed_head closures single_closures_entry_holds.
+Proof.
+  intros statics valuation tenv head v Hsat [_ Hwf] Hhead Hclosures.
+  pose proof (not_closures_head _ _ _ _ Hhead Hclosures) as Hnot.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    try exact Hnot.
+  rewrite closures_satisfied in Hhead.
+  destruct Hhead as [slot' [functions [value_slots [Hclosure Hrow]]]].
+  simpl in Hwf.
+  unfold Provers.prove_single_closures_entry_generic_value.
+  destruct (row_like_for_closures_get_single_tag by_function_slot)
+    as [[ | slot entry | slot entry] | ] eqn:Hsingle;
+    simpl; try exact I.
+  - destruct
+      (get_single_tag_satisfied statics valuation v slot' functions
+         value_slots by_function_slot slot entry)
+      as [-> Hentry];
+      [ rewrite Hsingle; reflexivity | exact Hrow | ].
+    destruct
+      (Provers.single_closures_entry_of_singleton alloc_mode true slot entry)
+      as [x | | ] eqn:Hof.
+    + exact
+        (single_closures_entry_of_singleton_sound _ _ _ _ _ _ _ _ _ _
+           Hclosure Hentry Hof).
+    + exact I.
+    + unfold Provers.single_closures_entry_of_singleton in Hof.
+      destruct (closures_entry_find_function_type entry true slot)
+        as [ | function_type | ] eqn:Hfind;
+        try discriminate Hof.
+      destruct by_function_slot as [known_closures].
+      destruct (get_single_tag_exact known_closures slot entry Hsingle)
+        as [contents [extension [Hlookup _]]].
+      specialize (Hlookup slot). rewrite Pos.eqb_refl in Hlookup.
+      apply (find_function_type_exact slot entry contents extension);
+        [ | exact Hfind ].
+      exact
+        (proj2
+           (proj1 (row_like_for_closures_well_formed_iff known_closures) Hwf)
+           slot _ Hlookup).
+  - destruct
+      (get_single_tag_satisfied statics valuation v slot' functions
+         value_slots by_function_slot slot entry)
+      as [-> Hentry];
+      [ rewrite Hsingle; reflexivity | exact Hrow | ].
+    destruct
+      (Provers.single_closures_entry_of_singleton alloc_mode false slot
+         entry)
+      as [x | | ] eqn:Hof.
+    + exact
+        (single_closures_entry_of_singleton_sound _ _ _ _ _ _ _ _ _ _
+           Hclosure Hentry Hof).
+    + exact I.
+    + exact (single_closures_entry_of_incomplete _ _ _ Hof).
+Qed.
+
+Lemma prove_single_closures_entry_generic_value_proved_sound :
+  generic_value_proved_sound Provers.prove_single_closures_entry_generic_value
+    any_head single_closures_entry_holds.
+Proof.
+  intros statics valuation tenv head v x Hsat _ Hhead Hproved.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    try discriminate Hproved.
+  rewrite closures_satisfied in Hhead.
+  destruct Hhead as [slot' [functions [value_slots [Hclosure Hrow]]]].
+  unfold Provers.prove_single_closures_entry_generic_value in Hproved.
+  destruct (row_like_for_closures_get_single_tag by_function_slot)
+    as [[ | slot entry | slot entry] | ] eqn:Hsingle;
+    simpl in Hproved; try discriminate Hproved;
+    injection Hproved as Hproved;
+    (destruct
+       (get_single_tag_satisfied statics valuation v slot' functions
+          value_slots by_function_slot slot entry)
+       as [-> Hentry];
+     [ rewrite Hsingle; reflexivity | exact Hrow | ]);
+    exact
+      (single_closures_entry_of_singleton_sound _ _ _ _ _ _ _ _ _ _
+         Hclosure Hentry Hproved).
+Qed.
+
+Lemma prove_single_closures_entry_sound_proof :
+  prover_sound Provers.prove_single_closures_entry any_input
+    single_closures_entry_holds.
+Proof.
+  apply (gen_value_to_proof_proved_sound _ any_input any_head).
+  - exact any_input_to_head.
+  - exact prove_single_closures_entry_generic_value_proved_sound.
+Qed.
+
+Lemma meet_single_closures_entry_sound_proof :
+  meet_shortcut_sound Provers.meet_single_closures_entry well_formed_input
+    closures single_closures_entry_holds.
+Proof.
+  apply
+    (gen_value_to_meet_sound _ well_formed_input well_formed_head closures).
+  - exact well_formed_input_to_head.
+  - exact closures_domain.
+  - exact prove_single_closures_entry_generic_value_sound.
+Qed.
+
+(* The fold of [Provers.add_code_id_of_case]: once it is unknown it
+   stays so; and if it ends known, every code id that it started with
+   is in its answer, and so is that of the function type that each
+   case gone through has for its own slot. *)
+Lemma add_code_id_fold_unknown
+    (cases : list (function_slot * row_like_closures_case)) :
+  List.fold_left Provers.add_code_id_of_case cases Or_unknown.Unknown
+  = Or_unknown.Unknown.
+Proof.
+  induction cases as [ | case cases IH]; [ reflexivity | exact IH ].
+Qed.
+
+Lemma add_code_id_fold
+    (cases : list (function_slot * row_like_closures_case)) :
+  ∀ acc code_ids : list code_id,
+    List.fold_left Provers.add_code_id_of_case cases (Or_unknown.Known acc)
+    = Or_unknown.Known code_ids ->
+    (∀ code : code_id, code ∈ acc -> code ∈ code_ids)
+    ∧ ∀ (slot : function_slot) (case : row_like_closures_case),
+        (slot, case) ∈ cases ->
+        ∃ function_type : function_type,
+          closures_entry_find_function_type (case_maps_to case) false slot
+          = Ok function_type
+          ∧ function_type_code_id function_type ∈ code_ids.
+Proof.
+  induction cases as [ | [slot' case'] cases IH]; intros acc code_ids Hfold.
+  - simpl in Hfold. injection Hfold as <-.
+    split; [ auto | intros slot case [] ].
+  - cbn [List.fold_left] in Hfold.
+    destruct
+      (Provers.add_code_id_of_case (Or_unknown.Known acc) (slot', case'))
+      as [acc' | ] eqn:Hadd;
+      [ | rewrite add_code_id_fold_unknown in Hfold; discriminate Hfold ].
+    destruct (IH acc' code_ids Hfold) as [Hacc Hcases].
+    unfold Provers.add_code_id_of_case in Hadd. simpl in Hadd.
+    destruct (case_maps_to case')
+      as [function_types closure_types value_slot_types] eqn:Hentry.
+    destruct (lookup slot' function_types) as [[function_type | ] | ]
+      eqn:Hlookup;
+      try discriminate Hadd.
+    injection Hadd as <-. split.
+    + intros code Hin. apply Hacc. right. exact Hin.
+    + intros slot case [Heq | Hin]; [ | exact (Hcases slot case Hin) ].
+      injection Heq as <- <-. exists function_type. split.
+      * rewrite Hentry. simpl. rewrite Hlookup. reflexivity.
+      * apply Hacc. left. reflexivity.
+Qed.
+
+Lemma prove_code_ids_generic_value_sound :
+  generic_value_sound Provers.prove_code_ids_generic_value any_head closures
+    (fun statics _ => closure_code_among statics).
+Proof.
+  intros statics valuation tenv head v Hsat _ Hhead Hclosures.
+  pose proof (not_closures_head _ _ _ _ Hhead Hclosures) as Hnot.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    try exact Hnot.
+  rewrite closures_satisfied in Hhead.
+  destruct Hhead as [slot [functions [value_slots [Hclosure Hrow]]]].
+  destruct by_function_slot as [known_closures].
+  apply row_like_for_closures_lookup_iff in Hrow.
+  destruct Hrow as [case [Hlookup [_ [Hentry _]]]].
+  unfold Provers.prove_code_ids_generic_value.
+  destruct
+    (List.fold_left Provers.add_code_id_of_case (compact known_closures)
+       (Or_unknown.Known []))
+    as [code_ids | ] eqn:Hfold;
+    [ | exact I ].
+  destruct (add_code_id_fold _ _ _ Hfold) as [_ Hcases].
+  destruct
+    (Hcases slot case
+       (proj2
+          (keyed_in_compact Pos.eqb pos_eqb_decides_equality slot case
+             known_closures)
+          Hlookup))
+    as [function_type [Hfind Hin]].
+  pose proof
+    (find_function_type_own_code _ _ _ _ _ _ _ _ _ Hclosure Hentry Hfind)
+    as Hcode.
+  destruct code_ids as [ | code_id code_ids]; simpl; [ destruct Hin | ].
+  exists (function_type_code_id function_type), value_slots.
+  split; [ | exact Hin ].
+  apply closure_in_set_of. exists slot, functions.
+  split; [ exact Hclosure | exact Hcode ].
+Qed.
+
+Lemma prove_code_ids_sound_proof :
+  prover_sound Provers.prove_code_ids any_input
+    (fun statics _ => closure_code_among statics).
+Proof.
+  intros statics valuation tenv t x v Hsat Hin Hv Hproved.
+  pose proof
+    (gen_value_to_proof_silent Provers.prove_code_ids_generic_value) as _.
+  unfold Provers.prove_code_ids, Provers.gen_value_to_proof in Hproved.
+  destruct (Provers.expand_head tenv t) as [d | ] eqn:Hd;
+    [ | discriminate ].
+  destruct d as [[ | [[ | head | ] [ | is_null]] | ] | oub | k oub | oub
+                | oub];
+    try discriminate Hproved.
+  pose proof (expanded_value_cases _ _ _ _ _ _ Hsat Hv Hd) as Hcases.
+  simpl in Hcases.
+  destruct Hcases as [[_ Hnot] | [_ Hhead]]; [ contradiction | ].
+  assert (Hclosures : closures statics v).
+  { destruct head as [is_int immediates get_tag blocks extensions is_unique
+                     | alloc_mode | k contents alloc_mode
+                     | by_function_slot alloc_mode | strs];
+      try discriminate Hproved.
+    rewrite closures_satisfied in Hhead.
+    destruct Hhead as [slot [functions [value_slots [Hclosure _]]]].
+    exists slot, functions, value_slots. exact Hclosure. }
+  pose proof
+    (prove_code_ids_generic_value_sound statics valuation tenv head v Hsat I
+       Hhead Hclosures)
+    as Hgen.
+  destruct (Provers.prove_code_ids_generic_value tenv head) as [[y | | ] | ];
+    try discriminate Hproved.
+  injection Hproved as ->. exact Hgen.
+Qed.
+
+Lemma meet_code_ids_sound_proof :
+  meet_shortcut_sound Provers.meet_code_ids any_input closures
+    (fun statics _ => closure_code_among statics).
+Proof.
+  apply (gen_value_to_meet_sound _ any_input any_head closures).
+  - exact any_input_to_head.
+  - exact closures_domain.
+  - exact prove_code_ids_generic_value_sound.
+Qed.
+
+Lemma meet_project_function_slot_simple_value_sound
+    (min_name_mode : Name_mode.t) (move_to : function_slot) :
+  generic_value_sound
+    (Provers.meet_project_function_slot_simple_value min_name_mode move_to)
+    any_head (function_slot_projects move_to)
+    (fun statics valuation s v =>
+       ∀ (move_from : function_slot) (closure : value),
+         project_function_slot statics move_from move_to v = Some closure ->
+         eval_simple valuation s = Some closure).
+Proof.
+  intros statics valuation tenv head v Hsat _ Hhead
+    [move_from [closure Hproject]].
+  destruct (project_function_slot_defined _ _ _ _ _ Hproject)
+    as [functions [value_slots [code [code' [Hclosure _]]]]].
+  assert (Hclosures : closures statics v).
+  { exists move_from, functions, value_slots. exact Hclosure. }
+  pose proof (not_closures_head _ _ _ _ Hhead Hclosures) as Hnot.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    try exact Hnot.
+  rewrite closures_satisfied in Hhead.
+  destruct Hhead as [slot [functions' [value_slots' [Hclosure' Hrow]]]].
+  rewrite Hclosure in Hclosure'. injection Hclosure' as <- <- <-.
+  unfold Provers.meet_project_function_slot_simple_value.
+  destruct (row_like_for_closures_get_closure by_function_slot move_to)
+    as [[ty | ] | ] eqn:Hget;
+    simpl; try exact I.
+  destruct (Provers.canonical_simple_of_alias tenv min_name_mode ty)
+    as [[s | ] | ] eqn:Hcanonical;
+    try exact I.
+  intros move_from' closure' Hproject'.
+  destruct (project_function_slot_defined _ _ _ _ _ Hproject')
+    as [functions' [value_slots' [code1 [code1' [Hclosure' _]]]]].
+  rewrite Hclosure in Hclosure'. injection Hclosure' as <- <- <-.
+  pose proof (get_closure_satisfied _ _ _ _ _ _ _ _ _ _ Hrow Hget Hproject')
+    as Hty.
+  exact (canonical_simple_of_alias_sound _ _ _ _ _ _ _ Hsat Hty Hcanonical).
+Qed.
+
+Lemma meet_project_function_slot_simple_sound_proof
+    (min_name_mode : Name_mode.t) (move_to : function_slot) :
+  meet_shortcut_sound
+    (fun tenv t =>
+       Provers.meet_project_function_slot_simple tenv min_name_mode t
+         move_to)
+    any_input (function_slot_projects move_to)
+    (fun statics valuation s v =>
+       ∀ (move_from : function_slot) (closure : value),
+         project_function_slot statics move_from move_to v = Some closure ->
+         eval_simple valuation s = Some closure).
+Proof.
+  apply
+    (gen_value_to_meet_sound _ any_input any_head
+       (function_slot_projects move_to)).
+  - exact any_input_to_head.
+  - intros statics v Hprojects.
+    split; [ | split; [ | exact Hprojects ] ];
+      destruct Hprojects as [move_from [closure Hproject]];
+      destruct (project_function_slot_defined _ _ _ _ _ Hproject)
+        as [functions [value_slots [code [code' [Hclosure _]]]]].
+    + exact (closure_in_set_kind _ _ _ Hclosure).
+    + intros ->. discriminate Hclosure.
+  - exact (meet_project_function_slot_simple_value_sound _ _).
+Qed.
+
+Lemma meet_project_value_slot_simple_value_sound
+    (min_name_mode : Name_mode.t) (slot : value_slot)
+    (value_slot_kind : flambda_kind) :
+  generic_value_sound
+    (Provers.meet_project_value_slot_simple_value min_name_mode slot
+       value_slot_kind)
+    any_head (value_slot_projects value_slot_kind slot)
+    (fun statics valuation s v =>
+       ∀ (project_from : function_slot) (contents : value),
+         project_value_slot statics project_from slot v = Some contents ->
+         eval_simple valuation s = Some contents).
+Proof.
+  intros statics valuation tenv head v Hsat _ Hhead
+    [project_from [contents [Hproject Hkind]]].
+  destruct (proj1 (project_value_slot_defined _ _ _ _ _) Hproject)
+    as [functions [value_slots [Hclosure Hcontents]]].
+  assert (Hclosures : closures statics v).
+  { exists project_from, functions, value_slots. exact Hclosure. }
+  pose proof (not_closures_head _ _ _ _ Hhead Hclosures) as Hnot.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents' alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    try exact Hnot.
+  rewrite closures_satisfied in Hhead.
+  destruct Hhead as [at_slot [functions' [value_slots' [Hclosure' Hrow]]]].
+  rewrite Hclosure in Hclosure'. injection Hclosure' as <- <- <-.
+  unfold Provers.meet_project_value_slot_simple_value.
+  destruct (row_like_for_closures_get_env_var by_function_slot slot)
+    as [[ty | ] | ] eqn:Hget;
+    simpl; try exact I.
+  pose proof (get_env_var_satisfied _ _ _ _ _ _ _ _ _ _ Hrow Hget Hcontents)
+    as Hty.
+  destruct (kind_eqb (kind ty) value_slot_kind) eqn:Hk; simpl.
+  - destruct (Provers.canonical_simple_of_alias tenv min_name_mode ty)
+      as [[s | ] | ] eqn:Hcanonical;
+      try exact I.
+    intros project_from' contents' Hproject'.
+    destruct (proj1 (project_value_slot_defined _ _ _ _ _) Hproject')
+      as [functions' [value_slots' [Hclosure' Hcontents']]].
+    rewrite Hclosure in Hclosure'. injection Hclosure' as <- <- <-.
+    rewrite Hcontents in Hcontents'. injection Hcontents' as <-.
+    exact
+      (canonical_simple_of_alias_sound _ _ _ _ _ _ _ Hsat Hty Hcanonical).
+  - pose proof (type_satisfied_kind _ _ _ _ Hty) as Hkind'.
+    rewrite Hkind in Hkind'. rewrite Hkind' in Hk.
+    rewrite kind_eqb_refl in Hk. discriminate Hk.
+Qed.
+
+Lemma meet_project_value_slot_simple_sound_proof
+    (min_name_mode : Name_mode.t) (slot : value_slot)
+    (value_slot_kind : flambda_kind) :
+  meet_shortcut_sound
+    (fun tenv t =>
+       Provers.meet_project_value_slot_simple tenv min_name_mode t slot
+         value_slot_kind)
+    any_input (value_slot_projects value_slot_kind slot)
+    (fun statics valuation s v =>
+       ∀ (project_from : function_slot) (contents : value),
+         project_value_slot statics project_from slot v = Some contents ->
+         eval_simple valuation s = Some contents).
+Proof.
+  apply
+    (gen_value_to_meet_sound _ any_input any_head
+       (value_slot_projects value_slot_kind slot)).
+  - exact any_input_to_head.
+  - intros statics v Hprojects.
+    split; [ | split; [ | exact Hprojects ] ];
+      destruct Hprojects as [project_from [contents [Hproject _]]];
+      destruct (proj1 (project_value_slot_defined _ _ _ _ _) Hproject)
+        as [functions [value_slots [Hclosure _]]].
+    + exact (closure_in_set_kind _ _ _ Hclosure).
+    + intros ->. discriminate Hclosure.
+  - exact (meet_project_value_slot_simple_value_sound _ _ _).
+Qed.
+
 End With_expand_head.
 
 (* ======================================================================== *)
@@ -2737,5 +3240,63 @@ Proof.
       as [[x | ] | ];
       [ intros _; exists x; reflexivity | discriminate | discriminate ].
   - intros min_name_mode field_kind field_index.
+    exact (gen_value_to_meet_silent Hexpand _).
+Qed.
+
+Theorem prove_single_closures_entry_sound
+  : prove_single_closures_entry_sound_statement.
+Proof. exact prove_single_closures_entry_sound_proof. Qed.
+
+Theorem meet_single_closures_entry_sound
+  : meet_single_closures_entry_sound_statement.
+Proof. exact meet_single_closures_entry_sound_proof. Qed.
+
+Theorem single_closures_entry_code : single_closures_entry_code_statement.
+Proof.
+  intros statics valuation slot alloc_mode entry function_type v
+    [functions [value_slots [Hclosure [_ Hcode]]]].
+  exists value_slots. apply closure_in_set_of. exists slot, functions.
+  split; [ exact Hclosure | exact Hcode ].
+Qed.
+
+Theorem prove_code_ids_sound : prove_code_ids_sound_statement.
+Proof. exact prove_code_ids_sound_proof. Qed.
+
+Theorem meet_code_ids_sound : meet_code_ids_sound_statement.
+Proof. exact meet_code_ids_sound_proof. Qed.
+
+Theorem meet_project_function_slot_simple_sound
+  : meet_project_function_slot_simple_sound_statement.
+Proof. exact meet_project_function_slot_simple_sound_proof. Qed.
+
+Theorem project_function_slot_in_domain
+  : project_function_slot_in_domain_statement.
+Proof.
+  intros statics move_from move_to v closure Hproject.
+  exists move_from, closure. exact Hproject.
+Qed.
+
+Theorem project_value_slot_in_domain
+  : project_value_slot_in_domain_statement.
+Proof.
+  intros statics project_from slot value_slot_kind v contents Hproject Hkind.
+  exists project_from, contents. split; [ exact Hproject | exact Hkind ].
+Qed.
+
+Theorem meet_project_value_slot_simple_sound
+  : meet_project_value_slot_simple_sound_statement.
+Proof. exact meet_project_value_slot_simple_sound_proof. Qed.
+
+Theorem closure_provers_silent_on_poison
+  : closure_provers_silent_on_poison_statement.
+Proof.
+  intros Hexpand. repeat split.
+  - exact (gen_value_to_proof_silent Hexpand _).
+  - exact (gen_value_to_meet_silent Hexpand _).
+  - exact (gen_value_to_proof_silent Hexpand _).
+  - exact (gen_value_to_meet_silent Hexpand _).
+  - intros min_name_mode move_to.
+    exact (gen_value_to_meet_silent Hexpand _).
+  - intros min_name_mode slot value_slot_kind.
     exact (gen_value_to_meet_silent Hexpand _).
 Qed.

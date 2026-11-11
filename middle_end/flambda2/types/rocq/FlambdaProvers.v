@@ -82,7 +82,15 @@
      [prove_unique_fully_constructed_immutable_heap_block] (697 to
      752);
    - [meet_block_field_simple_value], [meet_block_field_simple] (1112
-     to 1157).
+     to 1157);
+   - [prove_single_closures_entry_generic_value],
+     [meet_single_closures_entry], [prove_single_closures_entry],
+     [prove_code_ids_generic_value], [meet_code_ids], [prove_code_ids]
+     (835 to 901);
+   - [meet_project_function_slot_simple_value],
+     [meet_project_function_slot_simple],
+     [meet_project_value_slot_simple_value],
+     [meet_project_value_slot_simple] (1159 to 1212).
    The rest of the file is to follow, in the order of the plan.
 
    How the definitions differ from the compiler's.
@@ -154,6 +162,21 @@
      the types of the fields is [field_aliases_rev].
    - A string of a [String] head is the list of its bytes
      (FlambdaTypeGrammar.v), where the compiler has a [String_info.t].
+   - The local function [of_singleton_type] of
+     [prove_single_closures_entry_generic_value] is
+     [single_closures_entry_of_singleton], which takes the allocation
+     mode.
+   - [prove_code_ids_generic_value] folds over the cases of the
+     closures and leaves the fold by an exception at a case that has
+     no function type for its own slot. Here the function folded is
+     [add_code_id_of_case], which answers [Or_unknown.Unknown] from
+     there on; the fold is over the bindings of the map that count
+     ([compact] of FlambdaMapSpec.v), in their order in that list; and
+     a set of code ids is a list, to be compared as a set.
+   - A value slot of the model has no kind. The kind that
+     [meet_project_value_slot_simple_value] reads off the value slot
+     ([Value_slot.kind]) is an argument, the last of
+     [meet_project_value_slot_simple].
    - The arguments are in the compiler's order, the environment
      first; a labelled argument is an ordinary one. *)
 
@@ -1147,6 +1170,176 @@ Module Provers.
       : option (Meet_shortcut.t simple) :=
     gen_value_to_meet
       (meet_block_field_simple_value min_name_mode field_kind field_index)
+      tenv t.
+
+  (* The local function [of_singleton_type] of
+     [Provers.prove_single_closures_entry_generic_value]. *)
+  Definition single_closures_entry_of_singleton (alloc_mode : Alloc_mode.t)
+      (exact : bool) (slot : function_slot) (entry : closures_entry)
+      : Generic_proof.t
+          (function_slot * Alloc_mode.t * closures_entry * function_type) :=
+    match closures_entry_find_function_type entry exact slot with
+    | Bottom => Generic_proof.Invalid
+    | Unknown => Generic_proof.Unknown
+    | Ok function_type =>
+      Generic_proof.Proved (slot, alloc_mode, entry, function_type)
+    end.
+
+  (* [Provers.prove_single_closures_entry_generic_value]. *)
+  Definition prove_single_closures_entry_generic_value (tenv : Typing_env.t)
+      (value_head : head_of_kind_value_non_null)
+      : option
+          (Generic_proof.t
+             (function_slot * Alloc_mode.t * closures_entry * function_type)) :=
+    match value_head with
+    | Closures by_function_slot alloc_mode =>
+      let* single := row_like_for_closures_get_single_tag by_function_slot in
+      match single with
+      | No_singleton => Some Generic_proof.Unknown
+      | Exact_closure slot entry =>
+        Some (single_closures_entry_of_singleton alloc_mode true slot entry)
+      | Incomplete_closure slot entry =>
+        Some (single_closures_entry_of_singleton alloc_mode false slot entry)
+      end
+    | Variant _ _ _ _ _ _ | Mutable_block _ | Boxed_number _ _ _ | String _ =>
+      Some Generic_proof.Invalid
+    end.
+
+  (* [Provers.meet_single_closures_entry]. *)
+  Definition meet_single_closures_entry (tenv : Typing_env.t)
+      (t : flambda_type)
+      : option
+          (Meet_shortcut.t
+             (function_slot * Alloc_mode.t * closures_entry * function_type)) :=
+    gen_value_to_meet prove_single_closures_entry_generic_value tenv t.
+
+  (* [Provers.prove_single_closures_entry]. *)
+  Definition prove_single_closures_entry (tenv : Typing_env.t)
+      (t : flambda_type)
+      : option
+          (Proof_of_property.t
+             (function_slot * Alloc_mode.t * closures_entry * function_type)) :=
+    gen_value_to_proof prove_single_closures_entry_generic_value tenv t.
+
+  (* The function that [Provers.prove_code_ids_generic_value] folds over
+     the cases of the closures: the code id of the function type that
+     the case has for its own function slot, added to those found.
+     [Or_unknown.Unknown] is the exception [Unknown_code_id]: a case
+     that has no such function type, or an unknown one. *)
+  Definition add_code_id_of_case (acc : Or_unknown.t (list code_id))
+      (binding : function_slot * row_like_closures_case)
+      : Or_unknown.t (list code_id) :=
+    match acc with
+    | Or_unknown.Unknown => Or_unknown.Unknown
+    | Or_unknown.Known code_ids =>
+      match case_maps_to (snd binding) with
+      | Closures_entry function_types _ _ =>
+        match lookup (fst binding) function_types with
+        | Some Or_unknown.Unknown | None => Or_unknown.Unknown
+        | Some (Or_unknown.Known function_type) =>
+          Or_unknown.Known (function_type_code_id function_type :: code_ids)
+        end
+      end
+    end.
+
+  (* [Provers.prove_code_ids_generic_value]. *)
+  Definition prove_code_ids_generic_value (tenv : Typing_env.t)
+      (value_head : head_of_kind_value_non_null)
+      : option (Generic_proof.t (list code_id)) :=
+    match value_head with
+    | Closures (Row_like_for_closures known_closures) _ =>
+      match
+        List.fold_left add_code_id_of_case (compact known_closures)
+          (Or_unknown.Known [])
+      with
+      | Or_unknown.Unknown => Some Generic_proof.Unknown
+      | Or_unknown.Known code_ids =>
+        if Keyed.is_empty code_ids
+        then Some Generic_proof.Invalid
+        else Some (Generic_proof.Proved code_ids)
+      end
+    | Variant _ _ _ _ _ _ | Mutable_block _ | Boxed_number _ _ _ | String _ =>
+      Some Generic_proof.Invalid
+    end.
+
+  (* [Provers.meet_code_ids]. *)
+  Definition meet_code_ids (tenv : Typing_env.t) (t : flambda_type)
+      : option (Meet_shortcut.t (list code_id)) :=
+    gen_value_to_meet prove_code_ids_generic_value tenv t.
+
+  (* [Provers.prove_code_ids]. *)
+  Definition prove_code_ids (tenv : Typing_env.t) (t : flambda_type)
+      : option (Proof_of_property.t (list code_id)) :=
+    gen_value_to_proof prove_code_ids_generic_value tenv t.
+
+  (* [Provers.meet_project_function_slot_simple_value]. *)
+  Definition meet_project_function_slot_simple_value
+      (min_name_mode : Name_mode.t) (slot : function_slot)
+      (tenv : Typing_env.t) (value_head : head_of_kind_value_non_null)
+      : option (Generic_proof.t simple) :=
+    match value_head with
+    | Closures by_function_slot _ =>
+      let* closure :=
+        row_like_for_closures_get_closure by_function_slot slot
+      in
+      match closure with
+      | Or_unknown.Unknown => Some Generic_proof.Unknown
+      | Or_unknown.Known ty =>
+        let* canonical := canonical_simple_of_alias tenv min_name_mode ty in
+        match canonical with
+        | Some simple => Some (Generic_proof.Proved simple)
+        | None => Some Generic_proof.Unknown
+        end
+      end
+    | Variant _ _ _ _ _ _ | Mutable_block _ | Boxed_number _ _ _ | String _ =>
+      Some Generic_proof.Invalid
+    end.
+
+  (* [Provers.meet_project_function_slot_simple]. *)
+  Definition meet_project_function_slot_simple (tenv : Typing_env.t)
+      (min_name_mode : Name_mode.t) (t : flambda_type) (slot : function_slot)
+      : option (Meet_shortcut.t simple) :=
+    gen_value_to_meet
+      (meet_project_function_slot_simple_value min_name_mode slot) tenv t.
+
+  (* [Provers.meet_project_value_slot_simple_value]. The kind of the
+     value slot ([Value_slot.kind]) is an argument: a value slot of the
+     model has no kind. *)
+  Definition meet_project_value_slot_simple_value
+      (min_name_mode : Name_mode.t) (slot : value_slot)
+      (value_slot_kind : flambda_kind) (tenv : Typing_env.t)
+      (value_head : head_of_kind_value_non_null)
+      : option (Generic_proof.t simple) :=
+    match value_head with
+    | Closures by_function_slot _ =>
+      let* env_var :=
+        row_like_for_closures_get_env_var by_function_slot slot
+      in
+      match env_var with
+      | Or_unknown.Unknown => Some Generic_proof.Unknown
+      | Or_unknown.Known ty =>
+        if negb (kind_eqb (kind ty) value_slot_kind)
+        then Some Generic_proof.Invalid
+        else
+          let* canonical :=
+            canonical_simple_of_alias tenv min_name_mode ty
+          in
+          match canonical with
+          | Some simple => Some (Generic_proof.Proved simple)
+          | None => Some Generic_proof.Unknown
+          end
+      end
+    | Variant _ _ _ _ _ _ | Mutable_block _ | Boxed_number _ _ _ | String _ =>
+      Some Generic_proof.Invalid
+    end.
+
+  (* [Provers.meet_project_value_slot_simple]. *)
+  Definition meet_project_value_slot_simple (tenv : Typing_env.t)
+      (min_name_mode : Name_mode.t) (t : flambda_type) (slot : value_slot)
+      (value_slot_kind : flambda_kind) : option (Meet_shortcut.t simple) :=
+    gen_value_to_meet
+      (meet_project_value_slot_simple_value min_name_mode slot
+         value_slot_kind)
       tenv t.
 
 End Provers.

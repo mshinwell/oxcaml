@@ -36,6 +36,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaMapSpec FlambdaMapProofs FlambdaValueSpec FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
+  FlambdaTypeMeaningBoolSpec FlambdaTypeMeaningBoolProofs
   FlambdaTypeWellFormedSpec FlambdaTypeWellFormedProofs FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesProofs
   FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaTypingEnvProofs
@@ -146,4 +147,10 @@ Proof.
       reflexivity.
   - exact example_x_type_of_zero.
   - intros [i [Heq [Hin | []]]]. injection Heq as <-. discriminate Hin.
+Qed.
+
+Theorem example_value_slot_kind : example_value_slot_kind_statement.
+Proof.
+  split; [ | repeat split; vm_compute; reflexivity ].
+  apply (proj1 (type_satisfied_b_iff _ _ _ _)). vm_compute. reflexivity.
 Qed.

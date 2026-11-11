@@ -43,7 +43,9 @@
    that of null alone, and [x], a naked immediate whose type is the
    relation [Is_null] to [n]: what
    [Simplify_unary_primitive.simplify_is_null] gives the result of
-   [Is_null] of [n]. *)
+   [Is_null] of [n]. The last is a closure whose value slot holds a
+   naked float, of which the prover of the projection of that slot,
+   asked at the kind value, answers [Invalid]. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
@@ -185,3 +187,43 @@ Definition example_null_env_poison_statement : Prop :=
   ∧ type_satisfied empty_static_env valuation
       (Value_const (Naked_immediate 0)) example_x_type
   ∧ ~ naked_immediate_among [1] (Value_const (Naked_immediate 0)).
+
+(* ======================================================================== *)
+(* A value slot whose contents are not of the kind asked                    *)
+(* ======================================================================== *)
+
+Definition example_value_slot : value_slot := 1%positive.
+
+(* A closure of one function, whose value slot holds a naked float. *)
+Definition example_closure : value :=
+  Value_closure 1%positive
+    [(example_value_slot, Value_const (Naked_float 0))].
+
+(* Its type: the closure of a set of that one function and that value
+   slot, whose contents are a naked float. *)
+Definition example_closure_type : flambda_type :=
+  exactly_this_closure unnamed_function_slot
+    [(unnamed_function_slot, Or_unknown.Unknown)] []
+    [(example_value_slot, unknown (Naked_number Kind_naked_float))]
+    Alloc_mode.Heap.
+
+(* The closure has the type, and the projection of the slot has a
+   value, the naked float. Asked at the kind value,
+   [meet_project_value_slot_simple] answers [Invalid]; asked at the
+   kind of the contents it does not. The closure is not in the domain
+   of [meet_project_value_slot_simple_sound_statement] at the kind
+   value, so that statement stands; and it is why the statement does
+   not, alone, make [Invalid] right of the machine (discrepancy
+   T6-4). *)
+Definition example_value_slot_kind_statement : Prop :=
+  type_satisfied empty_static_env [] example_closure example_closure_type
+  ∧ project_value_slot empty_static_env unnamed_function_slot
+      example_value_slot example_closure
+    = Some (Value_const (Naked_float 0))
+  ∧ Provers.meet_project_value_slot_simple Typing_env.create
+      Name_mode.normal example_closure_type example_value_slot Value
+    = Some Meet_shortcut.Invalid
+  ∧ Provers.meet_project_value_slot_simple Typing_env.create
+      Name_mode.normal example_closure_type example_value_slot
+      (Naked_number Kind_naked_float)
+    = Some Meet_shortcut.Need_meet.
