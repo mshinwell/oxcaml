@@ -848,4 +848,8 @@ Not in the series:
   Both have the continuation of a trap action from the first commit,
   and `FlambdaFreeNamesSpec.v` states that they give one list on a
   term whose code is closed.
-- The leaf work of section 9.
+- The leaf work of section 9. The first item of it, the machine with
+  a stack and the statement that the two machines agree on a unit
+  whose binders are distinct and that passes `traps_well_formed`, is
+  done since, on `flambda2-rocq/C5-stack` (`FlambdaTrapSpec.v`): so
+  the condition on the stack no longer has only examples for it.
