@@ -267,6 +267,9 @@ stays C0's for now.
   S1's once it is staffed)
 - `middle_end/flambda2/rocq/FlambdaCse*` (another: a primitive already
   computed is not computed again; S5's once it is staffed)
+- `middle_end/flambda2/rocq/FlambdaStaticsOrder*` (another: the
+  bindings of a group of static bindings put in the order in which
+  another term has them; V1's once it is staffed)
 - `middle_end/flambda2/rocq/requests/V2-missing-constructs.md`
 
 ## V3: converter
