@@ -156,6 +156,11 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaTypeMeaningSpec.v \
   FlambdaTypesProofs.v \
   FlambdaTypesSpec.v \
+  FlambdaTypingEnv.v \
+  FlambdaTypingEnvExamplesProofs.v \
+  FlambdaTypingEnvExamplesSpec.v \
+  FlambdaTypingEnvProofs.v \
+  FlambdaTypingEnvSpec.v \
 )
 
 # The extraction writes one .ml and .mli per model into the loop directory;
