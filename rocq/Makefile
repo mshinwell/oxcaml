@@ -123,6 +123,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaFreshBindersSpec.v \
   FlambdaFreshQuantifierProofs.v \
   FlambdaFreshQuantifierSpec.v \
+  FlambdaIdentitiesProofs.v \
+  FlambdaIdentitiesSpec.v \
   FlambdaInlineFreshProofs.v \
   FlambdaInlineFreshSpec.v \
   FlambdaKindModel.v \
