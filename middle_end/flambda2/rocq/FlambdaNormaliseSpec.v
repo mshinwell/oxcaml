@@ -46,8 +46,9 @@
    the code inlined (FlambdaApplySpec.inlined_body) where that is sound
    ([inlinable_b], which decides FlambdaApplySpec.inlinable). It does not
    go into handlers or code: what is known where a handler is defined need
-   not hold where it runs, if a code id may be bound twice, and nothing
-   yet says that it is not.
+   not hold where it runs if a code id may be bound twice. In Flambda it
+   may not, static bindings being at toplevel only, but the model does not
+   yet say so (see the CR in FlambdaSemanticsSpec.v).
 
    [expr_in_scope] is the check that code is closed. It is a sufficient
    condition, by its soundness (in the Proofs file); nothing is claimed
