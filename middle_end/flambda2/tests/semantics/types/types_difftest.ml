@@ -1452,25 +1452,72 @@ let rec generate_value (names : names) r depth : V.value =
   | 7 ->
     let kind = G.pick r G.boxable_kinds in
     Value_boxed_number (const_of_number kind (N.z_of_int (G.below r 5)))
-  | 8 ->
-    Value_closure
-      ( G.pick r pool.code_ids,
-        Model_type.map N.compare_positive Fun.id
-          (G.list r ~max:2 (fun () ->
-               G.pick r pool.value_slots, generate_value names r (depth - 1)))
-      )
+  | 8 -> (
+    let value_slots =
+      Model_type.map N.compare_positive Fun.id
+        (G.list r ~max:2 (fun () ->
+             G.pick r pool.value_slots, generate_value names r (depth - 1)))
+    in
+    (* The closure of a set of one function with no slot named, or the closure
+       at one of the function slots of a set. *)
+    let functions =
+      if G.chance r ~percent:50
+      then []
+      else
+        List.filter_map
+          (fun slot ->
+            if G.chance r ~percent:70
+            then Some (slot, G.pick r pool.code_ids)
+            else None)
+          pool.function_slots
+    in
+    match functions with
+    | [] -> Value_closure (G.pick r pool.code_ids, value_slots)
+    | _ :: _ ->
+      Value_closure_of_set (fst (G.pick r functions), functions, value_slots))
   | _ -> Value_symbol (G.pick r pool.symbols)
 
 let generate_world (names : names) r : world =
   let pool = names.pool in
   let bind variables value = List.map (fun x -> x, value ()) variables in
+  (* A static set of closures with a function at each function slot of the pool,
+     whose closures are the symbols of the pool in their order. A symbol may be
+     bound to its closure of this set; where the others are not, the projection
+     of their slots from it gives a symbol that is something else, which the
+     machine allows. *)
+  let functions =
+    List.map (fun slot -> slot, G.pick r pool.code_ids) pool.function_slots
+  in
+  let closure_symbols =
+    List.filteri
+      (fun i _ -> i < List.length pool.symbols)
+      (List.mapi
+         (fun i slot ->
+           slot, List.nth pool.symbols (i mod List.length pool.symbols))
+         pool.function_slots)
+  in
+  let value_slots_of_the_set =
+    Model_type.map N.compare_positive Fun.id
+      (G.list r ~max:2 (fun () ->
+           G.pick r pool.value_slots, generate_value names r 1))
+  in
   { statics =
       { static_code = [];
         static_values =
           List.map
             (fun symbol : (_ * V.statically_allocated_value) ->
               ( symbol,
-                match G.below r 4 with
+                match G.below r 5 with
+                | 4 -> (
+                  match
+                    List.find_opt
+                      (fun (_, symbol') -> Stdlib.( = ) symbol symbol')
+                      closure_symbols
+                  with
+                  | Some (slot, _) ->
+                    Static_closure_of_set
+                      (slot, closure_symbols, functions, value_slots_of_the_set)
+                  | None -> Static_block (N.z_of_int 0, []))
                 | 0 ->
                   Static_closure
                     ( G.pick r pool.code_ids,
@@ -1606,11 +1653,15 @@ and values_for_head names world (head : MT.head_of_kind_value_non_null) :
           None)
       (values_for names world contents)
   | Closures (Row_like_for_closures cases, _) ->
-    (* A closure of each code, with the value slots of the index of each
-       case. *)
+    (* For each case, the closure at its function slot of a set with the
+       functions and the value slots of the index: each function has the code
+       that the case says, or else one code of the pool, tried in turn. Where
+       the set is of the one function with no slot named, also the closure that
+       names no slot. *)
     List.concat_map
-      (fun (_, (case : (_, _, _, _) MT.row_like_case)) ->
-        let (Closures_entry (_, _, value_slot_types) : MT.closures_entry) =
+      (fun (slot, (case : (_, _, _, _) MT.row_like_case)) ->
+        let (Closures_entry (function_types, _, value_slot_types)
+              : MT.closures_entry) =
           case.case_maps_to
         in
         let (contents : MT.set_of_closures_contents) =
@@ -1626,8 +1677,27 @@ and values_for_head names world (head : MT.head_of_kind_value_non_null) :
                 | None -> tagged 0 ))
             (Model_type.set N.compare_positive contents.contents_value_slots)
         in
-        List.map
-          (fun code : V.value -> Value_closure (code, value_slots))
+        let function_slots =
+          Model_type.set N.compare_positive (slot :: contents.contents_closures)
+        in
+        List.concat_map
+          (fun code : V.value list ->
+            let functions =
+              List.map
+                (fun slot ->
+                  ( slot,
+                    match List.assoc_opt slot function_types with
+                    | Some (Known { function_type_code_id }) ->
+                      function_type_code_id
+                    | Some Unknown | None -> code ))
+                function_slots
+            in
+            Value_closure_of_set (slot, functions, value_slots)
+            ::
+            (match functions with
+            | [(slot, code)] when Stdlib.( = ) slot V.unnamed_function_slot ->
+              [V.Value_closure (code, value_slots)]
+            | [] | _ :: _ -> []))
           names.pool.code_ids)
       cases
 
@@ -1872,6 +1942,14 @@ let semantic_comparisons (names : names) : semantic_case comparison list =
         | Some _ | None -> None)
       names.defined
   in
+  let contains ~part whole =
+    let length = String.length part in
+    let rec at i =
+      i + length <= String.length whole
+      && (String.equal (String.sub whole i length) part || at (i + 1))
+    in
+    at 0
+  in
   let meet_is_the_values_of_both (implementation : implementation) =
     { name =
         Printf.sprintf "meet (%s): a value of both types has the meet"
@@ -1918,22 +1996,14 @@ let semantic_comparisons (names : names) : semantic_case comparison list =
                   (Converter.name_to_model names.numbering name)
                   print_value value Model_type.print t
               in
-              (* What [reduce_inverse_relations] deduces from [Get_tag]. *)
-              let about_get_tag (t : MT.flambda_type) =
-                match t with
-                | Type_naked_immediate (Ok (No_alias head)) ->
-                  List.exists
-                    (fun ((relation : MT.Relation.t), _) ->
-                      match relation with
-                      | Get_tag -> true
-                      | Is_int | Is_null -> false)
-                    head.inverse_relations
-                | Type_naked_immediate (Unknown | Bottom | Ok (Equals _))
-                | Type_value _ | Type_naked_number _ | Type_rec_info _
-                | Type_region _ ->
-                  false
+              (* What [reduce_inverse_relations] deduces from [Get_tag]: one of
+                 the types has that relation somewhere, at the top or in the
+                 immediates of a variant. *)
+              let printed =
+                Format.asprintf "%a %a" Model_type.print first Model_type.print
+                  second
               in
-              if about_get_tag first || about_get_tag second
+              if contains ~part:"Get_tag " printed
               then Known_to_disagree ("T1-1", what)
               else Disagree what
             | None, (Some _ | None) ->
@@ -1946,14 +2016,6 @@ let semantic_comparisons (names : names) : semantic_case comparison list =
      it is right: where what the meet teaches of the names is true, a value of
      the meet has both types. Where it has not, the meet is larger than the two
      types together. *)
-  let contains ~part whole =
-    let length = String.length part in
-    let rec at i =
-      i + length <= String.length whole
-      && (String.equal (String.sub whole i length) part || at (i + 1))
-    in
-    at 0
-  in
   let meet_is_no_larger (implementation : implementation) =
     { name =
         Printf.sprintf "meet (%s): a value of the meet has both types"

@@ -147,26 +147,60 @@ where e0 : (Naked_immediate (Unknown [Is_null v9]))
 
 Two types of kind value and a world, for the meaning of meet and join (1500 cases, seeds 40000 to 41499)
   1500 converted
-  join (binary): a value of one of the types has the join: 1324 agree
-    176 not run: no value tried has either type
-  join (n-way): a value of one of the types has the join: 1324 agree
-    176 not run: no value tried has either type
-  meet (binary): a value of both types has the meet: 389 agree
-    1111 not run: no value tried has both types
-  meet (n-way): a value of both types has the meet: 389 agree
-    1111 not run: no value tried has both types
-  meet (binary): a value of the meet has both types: 389 agree, 31 disagree as recorded
-    229 not run: no value tried has the meet
+  join (binary): a value of one of the types has the join: 1306 agree
+    194 not run: no value tried has either type
+  join (n-way): a value of one of the types has the join: 1306 agree
+    194 not run: no value tried has either type
+  meet (binary): a value of both types has the meet: 400 agree, 1 disagree as recorded
+    1099 not run: no value tried has both types
+    recorded as T1-1 (seed 41019): a value has both types, and the meet says of v1, which is 1, that it has the type
+(Value
+ ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+   (get_tag None)
+   (blocks (Known
+            ((known_tags [2 -> Unknown]) (other_tags Bottom)
+             (alloc_mode Heap_or_local)))) (extensions No_extensions)
+   (is_unique false)) Not_null))
+    on the shrunk input:
+    (Value
+     ((Variant (is_int None)
+       (immediates (Known (Naked_immediate (Unknown [Get_tag v1]))))
+       (get_tag None) (blocks Unknown) (extensions No_extensions)
+       (is_unique false)) Not_null))
+    and
+    (Value (= 2))
+    in the world of seed 2956025295730891412
+  meet (n-way): a value of both types has the meet: 400 agree, 1 disagree as recorded
+    1099 not run: no value tried has both types
+    recorded as T1-1 (seed 41019): a value has both types, and the meet says of v1, which is 1, that it has the type
+(Value
+ ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+   (get_tag None)
+   (blocks (Known
+            ((known_tags [2 -> Unknown]) (other_tags Bottom)
+             (alloc_mode Heap_or_local)))) (extensions No_extensions)
+   (is_unique false)) Not_null))
+    on the shrunk input:
+    (Value
+     ((Variant (is_int None)
+       (immediates (Known (Naked_immediate (Unknown [Get_tag v1]))))
+       (get_tag None) (blocks Unknown) (extensions No_extensions)
+       (is_unique false)) Not_null))
+    and
+    (Value (= 2))
+    in the world of seed 2956025295730891412
+  meet (binary): a value of the meet has both types: 400 agree, 31 disagree as recorded
+    220 not run: no value tried has the meet
     613 not run: the meet is bottom: no value has it
-    238 not run: what the meet teaches is not true in the world
-    recorded as T7-4, the meet forgets what a variable of a type holds (seed 40056): the value 0 has the meet,
+    236 not run: what the meet teaches is not true in the world
+    recorded as T7-4, the meet forgets what a variable of a type holds (seed 40036): the value 0 has the meet,
 (Value (Unknown Not_null))
 and not both types
     on the shrunk input:
-    (Value (Unknown (Maybe_null (Some v4))))
-    and
     (Value (Unknown Not_null))
-    in the world of seed -166405389453425632
+    and
+    (Value (Unknown (Maybe_null (Some v4))))
+    in the world of seed 3902279894227382949
     recorded as T7-5, the meet with a mutable block keeps too much (seed 40139): the value 1 has the meet,
 (Value (= 1))
 and not both types
@@ -175,18 +209,18 @@ and not both types
     and
     (Value ((Mutable_block Heap_or_local) Not_null))
     in the world of seed 1686301183863193517
-  meet (n-way): a value of the meet has both types: 389 agree, 31 disagree as recorded
-    229 not run: no value tried has the meet
+  meet (n-way): a value of the meet has both types: 400 agree, 31 disagree as recorded
+    220 not run: no value tried has the meet
     613 not run: the meet is bottom: no value has it
-    238 not run: what the meet teaches is not true in the world
-    recorded as T7-4, the meet forgets what a variable of a type holds (seed 40056): the value 0 has the meet,
+    236 not run: what the meet teaches is not true in the world
+    recorded as T7-4, the meet forgets what a variable of a type holds (seed 40036): the value 0 has the meet,
 (Value (Unknown Not_null))
 and not both types
     on the shrunk input:
-    (Value (Unknown (Maybe_null (Some v4))))
-    and
     (Value (Unknown Not_null))
-    in the world of seed -166405389453425632
+    and
+    (Value (Unknown (Maybe_null (Some v4))))
+    in the world of seed 3902279894227382949
     recorded as T7-5, the meet with a mutable block keeps too much (seed 40139): the value 1 has the meet,
 (Value (= 1))
 and not both types
@@ -198,44 +232,44 @@ and not both types
 
 Two types of naked immediates and a world, for the meaning of meet and join (1500 cases, seeds 50000 to 51499)
   1500 converted
-  join (binary): a value of one of the types has the join: 1251 agree
-    249 not run: no value tried has either type
-  join (n-way): a value of one of the types has the join: 1251 agree
-    249 not run: no value tried has either type
-  meet (binary): a value of both types has the meet: 348 agree, 10 disagree as recorded
-    1142 not run: no value tried has both types
-    recorded as T1-1 (seed 50164): a value has both types, and the meet says of v1, which is 2, that it has the type
+  join (binary): a value of one of the types has the join: 1248 agree
+    252 not run: no value tried has either type
+  join (n-way): a value of one of the types has the join: 1248 agree
+    252 not run: no value tried has either type
+  meet (binary): a value of both types has the meet: 349 agree, 6 disagree as recorded
+    1145 not run: no value tried has both types
+    recorded as T1-1 (seed 50108): a value has both types, and the meet says of v1, which is 2, that it has the type
 (Value
  ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
    (get_tag None)
    (blocks (Known
-            ((known_tags [0 -> Unknown]) (other_tags Bottom)
+            ((known_tags [1 -> Unknown]) (other_tags Bottom)
              (alloc_mode Heap_or_local)))) (extensions No_extensions)
    (is_unique false)) Not_null))
     on the shrunk input:
     (Naked_immediate (Unknown [Get_tag v1]))
     and
-    (Naked_immediate ((Known [0]) []))
-    in the world of seed 4267628038553257423
-  meet (n-way): a value of both types has the meet: 348 agree, 10 disagree as recorded
-    1142 not run: no value tried has both types
-    recorded as T1-1 (seed 50164): a value has both types, and the meet says of v1, which is 2, that it has the type
+    (Naked_immediate ((Known [1]) []))
+    in the world of seed 4024614242837335847
+  meet (n-way): a value of both types has the meet: 349 agree, 6 disagree as recorded
+    1145 not run: no value tried has both types
+    recorded as T1-1 (seed 50108): a value has both types, and the meet says of v1, which is 2, that it has the type
 (Value
  ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
    (get_tag None)
    (blocks (Known
-            ((known_tags [0 -> Unknown]) (other_tags Bottom)
+            ((known_tags [1 -> Unknown]) (other_tags Bottom)
              (alloc_mode Heap_or_local)))) (extensions No_extensions)
    (is_unique false)) Not_null))
     on the shrunk input:
     (Naked_immediate (Unknown [Get_tag v1]))
     and
-    (Naked_immediate ((Known [0]) []))
-    in the world of seed 4267628038553257423
-  meet (binary): a value of the meet has both types: 348 agree, 6 disagree as recorded
+    (Naked_immediate ((Known [1]) []))
+    in the world of seed 4024614242837335847
+  meet (binary): a value of the meet has both types: 349 agree, 3 disagree as recorded
     160 not run: no value tried has the meet
     667 not run: the meet is bottom: no value has it
-    319 not run: what the meet teaches is not true in the world
+    321 not run: what the meet teaches is not true in the world
     recorded as T7-6, the meet forgets a relation of a naked immediate (seed 50247): the value # 2 has the meet,
 (Naked_immediate (= v4))
 and not both types
@@ -244,10 +278,10 @@ and not both types
     and
     (Naked_immediate ((Known [2]) [Is_null v3]))
     in the world of seed -4029428536059942018
-  meet (n-way): a value of the meet has both types: 348 agree, 6 disagree as recorded
+  meet (n-way): a value of the meet has both types: 349 agree, 3 disagree as recorded
     160 not run: no value tried has the meet
     667 not run: the meet is bottom: no value has it
-    319 not run: what the meet teaches is not true in the world
+    321 not run: what the meet teaches is not true in the world
     recorded as T7-6, the meet forgets a relation of a naked immediate (seed 50247): the value # 2 has the meet,
 (Naked_immediate (= v4))
 and not both types
