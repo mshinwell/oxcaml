@@ -427,11 +427,11 @@ Chosen joins
                               ((known_tags []) (other_tags Bottom)
                                (alloc_mode Heap_or_local))))
                      (extensions No_extensions) (is_unique false)) Not_null))
-    0: use 1; the binary join: yes; the n-way join: yes
+    0: use 1, use 2 not for the values tried of the variables it binds; the binary join: yes; the n-way join: yes
     (block 0 [4]): use 2; the binary join: yes; the n-way join: yes
     (block 0 [5]): use 2; the binary join: yes; the n-way join: yes
-    (block 0 [6]): no use; the binary join: not for the values tried of its own variables; the n-way join: not for the values tried of its own variables
-    1: no use; the binary join: not for the values tried of its own variables; the n-way join: not for the values tried of its own variables
+    (block 0 [6]): use 2 not for the values tried of the variables it binds; the binary join: not for the values tried of its own variables; the n-way join: not for the values tried of its own variables
+    1: use 2 not for the values tried of the variables it binds; the binary join: not for the values tried of its own variables; the n-way join: not for the values tried of its own variables
   The same, the variable known to be 4: its type is the alias of the constant
     at one use:
       (Value (= 0))
@@ -470,9 +470,9 @@ Chosen joins
          (extensions No_extensions) (is_unique false)) Not_null))
       where e0 : (Naked_immediate ((Known [0; 1]) [Is_int v9]))
       where v24 : (Value (= 4))
-    0: use 1; the binary join: yes; the n-way join: yes
+    0: use 1, use 2 not for the values tried of the variables it binds; the binary join: yes; the n-way join: yes
     (block 0 [4]): use 2; the binary join: yes; the n-way join: yes
-    (block 0 [5]): no use; the binary join: not for the values tried of its own variables; the n-way join: not for the values tried of its own variables
+    (block 0 [5]): use 2 not for the values tried of the variables it binds; the binary join: not for the values tried of its own variables; the n-way join: not for the values tried of its own variables
   The immediates 5 and 6 as a variant whose immediate case says that a
   variable is 1, and that it is 2 (R1-15)
     at one use:

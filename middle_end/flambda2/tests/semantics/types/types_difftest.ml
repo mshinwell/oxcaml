@@ -2213,18 +2213,23 @@ let chosen_joins (names : names) (cases : chosen_join list) =
         (fun (assignments, v) ->
           let world = { plain with vars = assignments @ plain.vars } in
           (* A value has the type of a use for some values of the variables that
-             the use binds. *)
-          let of_the_types =
-            List.filter_map
-              (fun (i, (locals, t)) ->
-                match
+             the use binds. Where the use binds some and no values are found for
+             them, it is not known whether the value has the type. *)
+          let of_each_use =
+            List.mapi
+              (fun i (locals, t) ->
+                ( string_of_int (i + 1),
                   has_joined names world v
-                    { joined = t; own = locals; own_in_terms = [] }
-                with
-                | Has -> Some (string_of_int (i + 1))
-                | Has_not | Unresolved -> None)
-              (List.mapi (fun i use -> i, use) uses)
+                    { joined = t; own = locals; own_in_terms = [] } ))
+              uses
           in
+          let uses_that answer =
+            List.filter_map
+              (fun (use, answer') ->
+                if Stdlib.( = ) answer answer' then Some use else None)
+              of_each_use
+          in
+          let of_the_types = uses_that Has in
           let of_a_join ((implementation : implementation), joined) =
             Option.map
               (fun joined ->
@@ -2242,11 +2247,21 @@ let chosen_joins (names : names) (cases : chosen_join list) =
                       "no: A DISAGREEMENT")))
               joined
           in
-          let answers =
+          let of_the_uses =
             (match of_the_types with
+              | [] -> []
+              | [use] -> ["use " ^ use]
+              | _ :: _ :: _ -> ["uses " ^ String.concat " and " of_the_types])
+            @ List.map
+                (fun use ->
+                  "use " ^ use
+                  ^ " not for the values tried of the variables it binds")
+                (uses_that Unresolved)
+          in
+          let answers =
+            (match of_the_uses with
             | [] -> "no use"
-            | [use] -> "use " ^ use
-            | _ :: _ :: _ -> "uses " ^ String.concat " and " of_the_types)
+            | _ :: _ -> String.concat ", " of_the_uses)
             :: List.filter_map of_a_join joins
           in
           line (fun ppf ->
