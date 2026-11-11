@@ -549,7 +549,8 @@ fails in an arm that is not run.
 
 Recommendation: (a) in this series; (b) as its own epoch, after C5's,
 whose forms it would otherwise have to be repaired for twice. Section
-12 is the plan of (b), more exactly than here.
+12 is (b) as it was then built, on `flambda2-rocq/C2-binders`: read it
+for what changes, and this section for the choice.
 
 Not a decision but to be known: partial and over-applications are
 undefined on the machine and should not be (section 8). Adding them to
@@ -629,11 +630,12 @@ the reports of partial applications are not).
 
 ## 12. The kind of a value is tested where it is bound (D10, the other option)
 
-This section is the plan of a second series, on `flambda2-rocq/C2-binders`.
-It is not in the series above, which landed with the machine testing
-kinds at a call only. It is to land after C5's exceptions and C4's
-heap. Nothing here is done yet; the proofs wait for the answers to
-this note.
+This section is the second series, on `flambda2-rocq/C2-binders`. It is
+not in the series above, which landed with the machine testing kinds at
+a call only. It is to land after C5's exceptions and C4's heap, and is
+to be rebased over them first. It is built: every file of the two
+Flambda 2 libraries is repaired, `make all` and the trust check pass,
+and the examples are run again (below).
 
 ### The two tests
 
@@ -667,67 +669,187 @@ kinds that the handler gives its parameters:
 Nothing more is needed. A call tests its arguments already (step B),
 and `my_closure` is bound to a closure, which is a `Value`. What is
 read from a value slot or from a field is tested by the `Let` that
-binds it. An exit through a continuation that is not bound is the
-interface of the term and is not tested. Poison of the right kind
-passes, as at a call.
+binds it. Poison of the right kind passes, as at a call.
+
+What the tests do not reach:
+
+- an exit through a continuation that is not bound. It is the interface
+  of the term, which says nothing of kinds;
+- what a field of a static block or a value slot holds, until a `Let`
+  binds it to a variable;
+- what a call returns, against the result arity of the code. The value
+  is tested where it arrives: against the kinds of the handler that the
+  return continuation stands for, if it stands for one. The comparison
+  of the two return arities at the call (step B) is a comparison of
+  annotations, as before.
+
+The review comment before `step` is reworded: it now says that the two
+tests are there, that nothing in the compiler says what such a term
+means (the compiler stops on one it sees), and what the other reading
+would give.
 
 ### What it gives
 
-In every run, with no premise: a variable bound by a `Let`, or as a
-parameter of a handler or of code, holds a value of the kind of its
-binder. The statement will be about a state: there is a list of kinds,
-one for each variable of the environment, which is the kind the binder
-gave. For a closed term it is the environment of kinds that
-`FlambdaWellKindedSpec.well_kinded` computes, and it is then right for
-every term and not only for those that pass the check.
+Three statements in `FlambdaWellKindedSpec.v`, with no premise on the
+term or on the state. Each is about the step that binds:
+
+| Statement | What it says |
+|---|---|
+| `let_binds_at_kind` | A `Let` that has a step binds its variable to the value of its defining expression, which is of the kind of the `Let`. |
+| `handler_binds_at_kinds` | A handler that runs has its parameters bound to values of the kinds it gives them, one kind for each value. |
+| `call_binds_at_kinds` | A call that has a step runs the body of the code called with its parameters bound to values of their kinds, and `my_closure` to a `Value`. |
+
+They are not a statement that a state is well-kinded, and the request
+does not claim one: `state_well_kinded` still needs the check as its
+premise. What follows from the three is that a variable, where it is
+read, holds a value of the kind of the binder that the term has in
+scope for it, provided no other binder of the same name comes between
+the step that bound it and the read. That proviso is the scoping of the
+term (distinct binders, section 3), and nothing in the series proves
+the consequence as one statement.
+
+How a proof gets the fact, without unfolding the machine:
+
+- `FlambdaSemanticsProofs.let_refines_step` and `let_equivalent_step`
+  give the hypothesis about the body one more fact,
+  `kind_of_value v = kind`. Both sides are a `Let` at the one kind.
+- `FlambdaContextProofs.handler_refines_at` and
+  `handler_refines_where` take the kinds of the handler, and give the
+  hypothesis about the handler `map kind_of_value vs = kinds` beside
+  `bind_params params vs def_vars = Some handler_vars`. So does the
+  relation of `transfer`.
+
+`kind_fault` has the two reasons more (`wrong_kind_bound`,
+`wrong_kinds_of_arguments`), so `well_kinded_no_kind_fault` and
+`well_kinded_unit_never_faults` say more with the same text.
 
 ### Statements that change
 
-No statement of the validator gains a premise:
-`validate_unit_sound` and `validate_unit_sound_everywhere` keep their
-text. No pass needs "the unit is well kinded". The reason: a pass that
-must stay an equivalence, and whose rewrite is right only where a kind
-is the expected one, can test that on the term, with the kinds of the
-variables in scope, which the binders now guarantee. Where the test
-fails the pass leaves the term as it is; on the units made from OCaml
-sources it never fails, as each passes the check of kinds.
+No statement of the validator gains a premise: `validate_unit_sound`
+and `validate_unit_sound_everywhere` keep their text, and no pass
+needs "the unit is well kinded". A pass that must stay an equivalence,
+and whose rewrite is right only where a kind is the expected one,
+tests that on the term, with the kinds of the variables in scope,
+which the binders now guarantee. Where the test fails the pass leaves
+the term as it is.
 
-- `remove_unused_total_lets_equivalent`,
-  `remove_unused_defined_lets_equivalent` (the term after is normalised
-  with them, so they must stay equivalences). Removing
-  `Let x kind d body` is an equivalence only if the value of `d` is of
-  kind `kind`. The functions test it: for a constant or a symbol on the
-  term; for a variable or a closure with the kinds of the variables in
-  scope, which `remove_unused_defined_lets` takes in place of its list
-  of variables. The statements keep their shape.
-- `thread_switches_equivalent`: the handler of no parameters that an
-  arm is threaded through must have no kinds either (a test on the
-  term), or the statement becomes a refinement; it is applied to the
-  term before only.
-- `let_cont_apply_cont` gains the premise that the values are of the
-  kinds of the handler. Its two companions bind the parameter by a
-  `Let` at the kind of the handler, which tests the same.
-- `inline_known_calls_equivalent` keeps its text and its function gets
-  simpler: the `Let`s of the inlined body test what the call tested, so
-  the guard `call_agrees_b` keeps the comparison of the arities, asks
-  that the code has as many kinds as parameters, and loses its
-  condition on the arguments. More calls are inlined in the term
-  after.
-- The step lemmas of `FlambdaSemanticsProofs.v`: `step_let` and the
-  three for a `Let` of a closure of a set or of a projection have the
-  test; `step_apply_cont_handler` gains the premise on the kinds.
-- `kind_fault` of `FlambdaWellKindedSpec.v` gains the two reasons, and
-  a new statement says what the tests give (above).
-- Unchanged as written, with proofs to repair: every refinement
-  (`unused_let`, `remove_unused_lets`, `inline_tail_conts`,
-  `collapse_switches`, `inline_calls`, `load_known_blocks_refines`,
-  `unbox_known_numbers_refines`); the equivalences that keep the `Let`
-  they rewrite (`fold_constants`, `follow_aliases`) or remove no `Let`
-  (`remove_unused_conts`, `merge_statics`, `drop_deleted_code`); the
-  statements about renaming, alpha-equivalence and the comparison; the
-  statements about sets of closures (their `Let`s are at `Value`, and
-  closures are); the eight statements of the types about a `Let`, of
-  which I have read two (`let_simple_canonical`, `inline_identity`).
+Statements whose text changes: three in `FlambdaControlFlowSpec.v`,
+each by one premise, and one of N3's in
+`FlambdaValidatorEquivarianceSpec.v`, where another goes.
+
+| Statement | The change |
+|---|---|
+| `let_cont_apply_cont` | new premise `map kind_of_value vs = hm_params_kinds metadata` |
+| `let_cont_recursive_apply_cont` | new premise `map kind_of_value vs = hm_params_kinds metadata` |
+| `let_cont_apply_cont_one_param` | new premise `hm_params_kinds metadata = [kind]` |
+| `remove_unused_defined_lets_equivariant` | about `kinds_in_scope` in place of a list of variables |
+| `simple_has_kind_b_equivariant` | removed with its function |
+
+- `let_cont_apply_cont`: its premises now say when the application has
+  a step: the arguments have values, of the kinds of the handler, and
+  as many as there are parameters. Without the new one the statement
+  is false: the application is undefined, and the handler under its
+  parameters need not be.
+- `let_cont_recursive_apply_cont`: the same, for the same reason. Its
+  right-hand side is the handler under its parameters, with no `Let`.
+- `let_cont_apply_cont_one_param`: the `Let` of its right-hand side is
+  at `kind`, which the statement quantified apart from the metadata.
+  The `Let` tests of the value what the application tests only if
+  `kind` is the kind that the handler gives. (The reviewer's example
+  against the statement as it was: metadata of one naked immediate,
+  `kind` `Value`, a tagged immediate as the argument.)
+- `remove_unused_defined_lets_equivariant`: the function commutes with
+  a renaming when the variables in scope are renamed with the term and
+  their kinds are kept (`rename_kinds_in_scope`, which is new, beside
+  `kinds_in_scope` in `FlambdaNormaliseSpec.v`). The same shape as
+  before. `call_agrees_b_equivariant` keeps its text. N3 was told
+  before the change.
+
+Statements whose text is the same and whose function changes: four,
+all in `FlambdaNormaliseSpec.v`. Each is still an equivalence.
+
+| Statement | What changes |
+|---|---|
+| `remove_unused_total_lets_equivalent` | `named_is_total` takes the kind of the `Let` |
+| `remove_unused_defined_lets_equivalent` | the function carries the kinds of the variables in scope; `named_defined` takes the kind of the `Let` |
+| `thread_switches_equivalent` | `thread_switch` asks that the handler give no kinds |
+| `inline_known_calls_equivalent` | `call_agrees_b` loses its condition on the arguments |
+
+- `named_is_total kind d`: a constant must be of that kind, and for a
+  symbol the kind must be `Value`.
+- `remove_unused_defined_lets` carries the variables in scope with the
+  kinds of their binders (`kinds_in_scope`: a `Let` adds its variable at
+  its kind, a handler its parameters at its kinds, by
+  `params_in_scope`), in place of the list of variables.
+  `named_defined kinds kind d`: a `Simple` must be of that kind
+  (`kind_of_simple_in_scope`), and for a closure the kind must be
+  `Value`. The statement is still about
+  `remove_unused_defined_lets []`.
+- `thread_switch` threads through a handler of no parameters only if it
+  gives no kinds either. A handler with no parameters and one kind
+  never runs, and an arm that applies it is undefined; threaded, the
+  arm would be defined.
+- `call_agrees_b` no longer asks that each argument be a constant or a
+  symbol of the kind of the arity: the `Let`s of the inlined body test
+  what the call tested. It keeps the two comparisons of arities, and
+  asks that the code give as many kinds as it has parameters, without
+  which a `Let` of the inlined body would be at a default kind. More
+  calls are inlined, in the term before and in the term after.
+  `simple_has_kind_b` is gone.
+
+Lemmas that others use (in `Proofs` files, so not statements to
+review): `step_let` and the three step lemmas for a `Let` of a closure
+of a set or of a projection have the test;
+`step_apply_cont_handler` has the premise on the kinds;
+`let_params_run` has the premise that the values are of the kinds
+given; `inline_equivalent` has the premise that the code gives as many
+kinds as parameters in place of the one on the kinds of the values;
+`unarize_per_parameter_eq` and `closure_of_kind` moved from
+`FlambdaWellKindedProofs.v` to `FlambdaSemanticsProofs.v`. T2's
+`handler_refines_under_where` takes the kinds of the handler and does
+not use them: `let_cont_handler_refines_under` could now ask its
+hypothesis at the kinds of the handler only, which is T2's to choose.
+
+Unchanged as written, proofs repaired: every refinement (`unused_let`,
+`remove_unused_lets`, `inline_tail_conts`, `collapse_switches`,
+`inline_calls`, `load_known_blocks_refines`,
+`unbox_known_numbers_refines`, `plug_refines`); the equivalences that
+keep the `Let` they rewrite (`fold_constants`, `follow_aliases`) or
+remove no `Let` (`remove_unused_conts`, `merge_statics`,
+`drop_deleted_code`, `plug_equivalent`); the statements about
+renaming, alpha-equivalence and the comparison (the comparison asks
+the same kinds and the same metadata on the two sides, so the two
+tests answer alike), `step_equivariant` among them (a renaming keeps
+kinds and values); the statements about sets of closures (their
+`Let`s are at `Value`, and closures are); the statements of the types
+about a `Let` or a handler in `FlambdaTypesSpec.v`,
+`FlambdaAliasesSpec.v` and `FlambdaTypingEnvRefinementSpec.v`; the
+other statements of `FlambdaValidatorEquivarianceSpec.v`.
+
+Not in this tree, and their owners' to carry (told, and agreed): V3's
+statements are refinements on the term before. Of V4's,
+`shortcut_switches` needs the test of `thread_switch`,
+`drop_unused_params` drops the kind at the position of the parameter
+it drops, and `loopify` compares the return arity.
+
+### Measured
+
+The compiler builds on the new extraction with no change to the test
+tool, which calls the passes through the validator. The 48 examples of
+`tests/semantics/` and the 16 of `tests/semantics/ocaml/` print what
+they printed, to the letter: 33 validated, 14 not validated, 7 with
+nothing to validate as the term before is undefined. So no example
+loses a validation to the test of `thread_switch` or to the tests of
+the two functions that remove a `Let`, and there is no choice to put
+to the human there. None gains one either: as section 7 measured, in
+no example does the term after Simplify keep a direct call of a symbol
+whose arguments are not all constants or symbols, which is what the
+guard of `inline_known_calls` refused.
+
+No example runs a `Let` or a handler on a value of another kind: the
+compiler stops on such a term where Simplify visits it, so the test
+tool cannot be given one that is executed. `kinds_dead_cont.fl` has
+one in an arm that is not run, and prints what it printed.
 
 ### For a pass that is being written now
 
@@ -740,12 +862,52 @@ one) changes what is tested: it stays a refinement in the direction
 only where the kind is known on the term. A `Let` that a rewrite makes
 must give the kind of the value it binds.
 
-### Proofs, and the order
+### Texts of other files that the series makes stale
 
-71 proofs in 13 files step through a `Let` or the application of a
-handler; most gain one case split. First the machine and its step
-lemmas; then `FlambdaWellKinded*` (the new statement); then the passes,
-owner by owner, each told before its statement is touched.
+The series changes no document or comment that is another owner's.
+These say what the machine does with the kind of a binder, and are to
+be reworded by their owners when it lands:
+
+- `rocq/HACKING.md`, the paragraph "The terms carry the compiler's
+  kinds": "Execution ignores all of it but at a call". To say instead:
+  execution tests them where a variable is bound, at a call, at a `Let`
+  and where a handler is applied, so the step that binds a variable
+  binds a value of the kind of its binder
+  (`FlambdaWellKindedSpec.let_binds_at_kind`,
+  `handler_binds_at_kinds`, `call_binds_at_kinds`); a proof gets the
+  fact from `let_refines_step`, `let_equivalent_step` and
+  `handler_refines_at`; the two tests of the binders are decision D10,
+  with a review comment before `step`. The paragraph after it lists
+  the faults of `kind_fault`, which has two more. The advice on
+  writing a rewrite could gain the paragraph "For a pass that is being
+  written now" above.
+- `DECISIONS.md`, the line of D10: "the machine does not test yet".
+- `types/rocq/FlambdaTypingEnvRefinementSpec.v`, the paragraph "Kinds"
+  of its header ("the machine looks at neither: it binds the value
+  that it is given, of whatever kind") and the comments before
+  `let_refines_under_statement` and
+  `let_simple_refines_under_statement` ("is not read: the machine does
+  not look at it"). The statements hold as written. With the series
+  they could ask less: the value bound by a `Let` is of the kind the
+  `Let` gives, and the values given to a handler are of the kinds of
+  its parameters, so the premise on the kind of the value and the
+  quantification over every choice of kinds are no longer needed
+  where the kind is the binder's.
+
+### The series, and what is left
+
+One commit of the model and its proofs, which cannot be cut smaller
+(the two tests break every proof that steps through a `Let` or a
+handler), between the plan and this document. 26 files change, about
+960 lines added and 430 removed. It is rebased over the integration
+branch as it is with N1's, N2's and N3's statements about renaming
+and T2's refinements under an environment (a58028a82b). Before it
+lands:
+the rebase over C5 and C4, whose new proofs get the same case splits;
+the reviewer's reading of the three new statements and of the four
+functions of `FlambdaNormaliseSpec.v`; the owners of
+`FlambdaControlFlowSpec.v`, `FlambdaNormaliseSpec.v` and
+`FlambdaValidatorEquivarianceSpec.v` to confirm the changes above.
 
 ## What is unfinished
 
@@ -761,4 +923,9 @@ owner by owner, each told before its statement is touched.
 - Partial applications, over-applications and tupled functions are not
   in the fragment (section 8).
 - The list of variables of known kind for `inline_known_calls` (C0's
-  sketch) is not built; section 7 says what is lost without it.
+  sketch) is not built; section 7 says what is lost without it. The
+  second series (section 12) makes it unnecessary: the inlined body
+  tests what the call tested.
+- The second series is not rebased over C5's exceptions and C4's heap,
+  and V2's newer units made from OCaml sources have not been run on
+  it.
