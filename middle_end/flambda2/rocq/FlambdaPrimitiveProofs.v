@@ -80,7 +80,8 @@ Proof. reflexivity. Qed.
 
 Lemma eval_prim_binary (statics : static_env) (p : binary_primitive)
     (v1 v2 : value) :
-  eval_prim statics (Binary p) [v1; v2] = eval_binary_primitive p v1 v2.
+  eval_prim statics (Binary p) [v1; v2]
+  = eval_binary_primitive statics p v1 v2.
 Proof. reflexivity. Qed.
 
 Lemma eval_prim_variadic (statics : static_env) (p : variadic_primitive)
@@ -97,7 +98,7 @@ Lemma eval_prim_arity (statics : static_env) (p : prim) (vs : list value)
     p = Unary p' ∧ vs = [v1] ∧ eval_unary_primitive statics p' v1 = Some v)
   ∨ (∃ (p' : binary_primitive) (v1 v2 : value),
       p = Binary p' ∧ vs = [v1; v2]
-      ∧ eval_binary_primitive p' v1 v2 = Some v)
+      ∧ eval_binary_primitive statics p' v1 v2 = Some v)
   ∨ (∃ p' : variadic_primitive,
       p = Variadic p' ∧ eval_variadic_primitive statics p' vs = Some v).
 Proof.
@@ -274,6 +275,26 @@ Proof.
   reflexivity.
 Qed.
 
+(* By cases on the binary primitives: only [Phys_equal] reads an
+   allocated value, and through an observation. *)
+Lemma eval_binary_primitive_static_values (statics statics' : static_env)
+    (p : binary_primitive) (v1 v2 : value) :
+  (∀ s : symbol,
+    Value_symbol s ∈ [v1; v2] ->
+    lookup s (static_values statics) = lookup s (static_values statics')) ->
+  eval_binary_primitive statics p v1 v2
+  = eval_binary_primitive statics' p v1 v2.
+Proof.
+  intros Hsame.
+  destruct p as [op | kind op | kind behaviour]; simpl; try reflexivity.
+  unfold eval_phys_equal.
+  rewrite (is_allocated_static_values statics statics' v1)
+    by (intros s ->; apply Hsame; left; reflexivity).
+  rewrite (is_allocated_static_values statics statics' v2)
+    by (intros s ->; apply Hsame; right; left; reflexivity).
+  reflexivity.
+Qed.
+
 (* By cases on the variadic primitives. *)
 Lemma eval_variadic_primitive_static_values (statics statics' : static_env)
     (p : variadic_primitive) (vs : list value) :
@@ -294,8 +315,9 @@ Proof.
   destruct p as [p | p | p];
     [ | | exact (eval_variadic_primitive_static_values _ _ p vs Hsame) ];
     destruct vs as [ | v1 [ | v2 [ | v3 vs]]]; simpl; try reflexivity.
-  apply eval_unary_primitive_static_values. intros s ->.
-  apply Hsame. left. reflexivity.
+  - apply eval_unary_primitive_static_values. intros s ->.
+    apply Hsame. left. reflexivity.
+  - exact (eval_binary_primitive_static_values _ _ p v1 v2 Hsame).
 Qed.
 
 (* A primitive does not look at the code. *)
@@ -505,6 +527,38 @@ Proof.
     intros s allocated Hin. apply Hextend. right. exact Hin.
 Qed.
 
+(* By cases on the binary primitives: [Phys_equal] has a value on an
+   allocated value by its being allocated, which is kept. *)
+Lemma eval_binary_primitive_statics_extend (statics statics' : static_env)
+    (p : binary_primitive) (v1 v2 result : value) :
+  (∀ (s : symbol) (allocated : statically_allocated_value),
+    Value_symbol s ∈ [v1; v2] ->
+    lookup s (static_values statics) = Some allocated ->
+    lookup s (static_values statics') = Some allocated) ->
+  eval_binary_primitive statics p v1 v2 = Some result ->
+  eval_binary_primitive statics' p v1 v2 = Some result.
+Proof.
+  intros Hextend.
+  destruct p as [op | kind op | kind behaviour]; simpl;
+    try exact (fun H => H).
+  unfold eval_phys_equal.
+  assert (Hv1 :
+    is_allocated statics v1 = true -> is_allocated statics' v1 = true).
+  { apply is_allocated_statics_extend. intros s allocated ->.
+    apply Hextend. left. reflexivity. }
+  assert (Hv2 :
+    is_allocated statics v2 = true -> is_allocated statics' v2 = true).
+  { apply is_allocated_statics_extend. intros s allocated ->.
+    apply Hextend. right. left. reflexivity. }
+  destruct (int_of_value Standard_tagged_immediate v1),
+    (int_of_value Standard_tagged_immediate v2);
+    try exact (fun H => H).
+  - destruct (is_allocated statics v2); [ | discriminate ].
+    rewrite (Hv2 eq_refl). exact (fun H => H).
+  - destruct (is_allocated statics v1); [ | discriminate ].
+    rewrite (Hv1 eq_refl). exact (fun H => H).
+Qed.
+
 (* By cases on the variadic primitives. *)
 Lemma eval_variadic_primitive_statics_extend
     (statics statics' : static_env) (p : variadic_primitive)
@@ -534,8 +588,9 @@ Proof.
     [ | | exact (eval_variadic_primitive_statics_extend _ _ p vs v Hextend) ];
     destruct vs as [ | v1 [ | v2 [ | v3 vs]]]; simpl;
     try exact (fun H => H).
-  apply eval_unary_primitive_statics_extend. intros s allocated ->.
-  apply Hextend. left. reflexivity.
+  - apply eval_unary_primitive_statics_extend. intros s allocated ->.
+    apply Hextend. left. reflexivity.
+  - exact (eval_binary_primitive_statics_extend _ _ p v1 v2 v Hextend).
 Qed.
 
 (* ======================================================================== *)
@@ -577,25 +632,50 @@ Proof.
     rewrite andb_false_r. discriminate.
 Qed.
 
-(* By cases on the binary primitives: a symbol is not an integer. *)
 Lemma int_of_value_symbol (kind : standard_int) (s : symbol) :
   int_of_value kind (Value_symbol s) = None.
 Proof. destruct kind; reflexivity. Qed.
 
-Lemma eval_binary_primitive_symbol (p : binary_primitive) (s : symbol)
-    (v1 v2 v : value) :
-  eval_binary_primitive p v1 v2 = Some v ->
-  v1 <> Value_symbol s ∧ v2 <> Value_symbol s.
+(* [Phys_equal] has a value on a symbol only if the symbol is
+   allocated, and so bound. *)
+Lemma eval_phys_equal_symbol_bound (statics : static_env) (s : symbol)
+    (v1 v2 : value) (same : bool) :
+  eval_phys_equal statics v1 v2 = Some same ->
+  v1 = Value_symbol s ∨ v2 = Value_symbol s ->
+  lookup s (static_values statics) <> None.
 Proof.
-  destruct p as [op | kind op | kind behaviour]; simpl;
-    unfold eval_phys_equal;
+  unfold eval_phys_equal. intros Heval [-> | ->]; revert Heval;
+    rewrite int_of_value_symbol;
     match goal with
-    | |- context [int_of_value ?kind v1] =>
-      (destruct (int_of_value kind v1) eqn:Hv1; [ | discriminate ]);
-      (destruct (int_of_value kind v2) eqn:Hv2; [ | discriminate ])
+    | |- context [int_of_value ?kind ?other] =>
+      destruct (int_of_value kind other)
     end;
-    intros _; split; intros ->; rewrite int_of_value_symbol in *;
-    discriminate.
+    try discriminate;
+    (destruct (is_allocated statics (Value_symbol s)) eqn:Hallocated;
+       [ | discriminate ]);
+    intros _; exact (is_allocated_symbol_bound statics s Hallocated).
+Qed.
+
+(* By cases on the binary primitives: a symbol is not an integer. *)
+Lemma eval_binary_primitive_symbol_bound (statics : static_env)
+    (p : binary_primitive) (s : symbol) (v1 v2 v : value) :
+  eval_binary_primitive statics p v1 v2 = Some v ->
+  v1 = Value_symbol s ∨ v2 = Value_symbol s ->
+  lookup s (static_values statics) <> None.
+Proof.
+  destruct p as [op | kind op | kind behaviour]; simpl.
+  - (* [Phys_equal] *)
+    destruct (eval_phys_equal statics v1 v2) as [same | ] eqn:Hsame;
+      [ | discriminate ].
+    intros _. exact (eval_phys_equal_symbol_bound statics s v1 v2 same Hsame).
+  - (* [Int_arith] *)
+    destruct (int_of_value kind v1) eqn:Hv1; [ | discriminate ].
+    destruct (int_of_value kind v2) eqn:Hv2; [ | discriminate ].
+    intros _ [-> | ->]; rewrite int_of_value_symbol in *; discriminate.
+  - (* [Int_comp] *)
+    destruct (int_of_value kind v1) eqn:Hv1; [ | discriminate ].
+    destruct (int_of_value kind v2) eqn:Hv2; [ | discriminate ].
+    intros _ [-> | ->]; rewrite int_of_value_symbol in *; discriminate.
 Qed.
 
 Theorem eval_prim_symbols_bound : eval_prim_symbols_bound_statement.
@@ -606,8 +686,8 @@ Proof.
        | [(p' & v1 & v2 & -> & -> & Hp) | (p' & -> & Hp)]].
   - destruct Hin as [-> | [ ]].
     exact (eval_unary_primitive_symbol_bound statics p' s v Hp).
-  - destruct (eval_binary_primitive_symbol p' s v1 v2 v Hp) as [Hv1 Hv2].
-    destruct Hin as [-> | [-> | [ ]]]; [ elim Hv1 | elim Hv2 ]; reflexivity.
+  - apply (eval_binary_primitive_symbol_bound statics p' s v1 v2 v Hp).
+    destruct Hin as [<- | [<- | [ ]]]; auto.
   - revert Hp. destruct p' as [[tag]]; simpl.
     destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) vs);
       [ | discriminate ].
@@ -722,31 +802,56 @@ Proof.
     exact (int_of_value_kind _ _ _ Hint).
 Qed.
 
+(* The arguments on which [Phys_equal] has a value are of kind
+   [Value]. *)
+Lemma eval_phys_equal_kinds (statics : static_env) (arg1 arg2 : value)
+    (same : bool) :
+  eval_phys_equal statics arg1 arg2 = Some same ->
+  kind_of_value arg1 = Value ∧ kind_of_value arg2 = Value.
+Proof.
+  unfold eval_phys_equal.
+  destruct (int_of_value Standard_tagged_immediate arg1) as [a | ] eqn:Ha,
+    (int_of_value Standard_tagged_immediate arg2) as [b | ] eqn:Hb;
+    try discriminate.
+  - intros _. split.
+    + exact (int_of_value_kind _ _ _ Ha).
+    + exact (int_of_value_kind _ _ _ Hb).
+  - destruct (is_allocated statics arg2) eqn:Hallocated; [ | discriminate ].
+    intros _. split.
+    + exact (int_of_value_kind _ _ _ Ha).
+    + exact (is_allocated_kind statics arg2 Hallocated).
+  - destruct (is_allocated statics arg1) eqn:Hallocated; [ | discriminate ].
+    intros _. split.
+    + exact (is_allocated_kind statics arg1 Hallocated).
+    + exact (int_of_value_kind _ _ _ Hb).
+Qed.
+
 (* By cases on the binary primitives. *)
-Lemma eval_binary_primitive_kinds (p : binary_primitive)
-    (arg1 arg2 v : value) :
-  eval_binary_primitive p arg1 arg2 = Some v ->
+Lemma eval_binary_primitive_kinds (statics : static_env)
+    (p : binary_primitive) (arg1 arg2 v : value) :
+  eval_binary_primitive statics p arg1 arg2 = Some v ->
   kind_of_value arg1 = fst (args_kind_of_binary_primitive p)
   ∧ kind_of_value arg2 = snd (args_kind_of_binary_primitive p)
   ∧ kind_of_value v = result_kind_of_binary_primitive p.
 Proof.
-  destruct p as [op | kind op | kind behaviour]; simpl;
-    unfold eval_phys_equal;
-    match goal with
-    | |- context [int_of_value ?kind arg1] =>
-      (destruct (int_of_value kind arg1) as [a | ] eqn:Ha;
-         [ | discriminate ]);
-      (destruct (int_of_value kind arg2) as [b | ] eqn:Hb;
-         [ | discriminate ]);
-      rewrite (int_of_value_kind _ _ _ Ha), (int_of_value_kind _ _ _ Hb)
-    end.
+  destruct p as [op | kind op | kind behaviour]; simpl.
   - (* [Phys_equal] *)
+    destruct (eval_phys_equal statics arg1 arg2) as [same | ] eqn:Hsame;
+      [ | discriminate ].
+    destruct (eval_phys_equal_kinds statics arg1 arg2 same Hsame)
+      as [-> ->].
     intros [= <-]. auto.
   - (* [Int_arith] *)
+    destruct (int_of_value kind arg1) as [a | ] eqn:Ha; [ | discriminate ].
+    destruct (int_of_value kind arg2) as [b | ] eqn:Hb; [ | discriminate ].
+    rewrite (int_of_value_kind _ _ _ Ha), (int_of_value_kind _ _ _ Hb).
     destruct (eval_int_arith (int_width kind) op a b) as [result | ];
       [ | discriminate ].
     intros [= <-]. simpl. rewrite kind_of_const_of_int. auto.
   - (* [Int_comp] *)
+    destruct (int_of_value kind arg1) as [a | ] eqn:Ha; [ | discriminate ].
+    destruct (int_of_value kind arg2) as [b | ] eqn:Hb; [ | discriminate ].
+    rewrite (int_of_value_kind _ _ _ Ha), (int_of_value_kind _ _ _ Hb).
     intros [= <-]. auto.
 Qed.
 
@@ -779,7 +884,7 @@ Proof.
     simpl.
   - apply eval_unary_primitive_kinds in Hp as [-> ->].
     rewrite kind_eqb_refl. auto.
-  - apply eval_binary_primitive_kinds in Hp as (-> & -> & ->).
+  - apply (eval_binary_primitive_kinds statics) in Hp as (-> & -> & ->).
     rewrite !kind_eqb_refl. auto.
   - exact (eval_variadic_primitive_kinds statics p' vs v Hp).
 Qed.
@@ -869,11 +974,11 @@ Qed.
 (* By cases on the binary primitives. *)
 Lemma eval_binary_primitive_preserves (p : binary_primitive)
     (arg1 arg2 v : value) :
-  eval_binary_primitive p arg1 arg2 = Some v -> P v.
+  eval_binary_primitive statics p arg1 arg2 = Some v -> P v.
 Proof.
   destruct p as [op | kind op | kind behaviour]; simpl.
   - (* [Phys_equal] *)
-    destruct (eval_phys_equal arg1 arg2); [ | discriminate ].
+    destruct (eval_phys_equal statics arg1 arg2); [ | discriminate ].
     intros [= <-]. apply naked_bool_preserved.
   - (* [Int_arith] *)
     destruct (int_of_value kind arg1) as [a | ]; [ | discriminate ].
@@ -913,7 +1018,7 @@ Proof.
          v1 v);
       [ | exact Hp ].
     apply Hargs. left. reflexivity.
-  - exact (eval_binary_primitive_preserves P Hnumbers p' v1 v2 v Hp).
+  - exact (eval_binary_primitive_preserves P statics Hnumbers p' v1 v2 v Hp).
   - exact
       (eval_variadic_primitive_preserves P statics Hblocks p' vs v Hargs Hp).
 Qed.
@@ -1159,11 +1264,12 @@ Qed.
 (* By cases on the binary primitives. *)
 Lemma eval_binary_primitive_in_range (p : binary_primitive)
     (arg1 arg2 v : value) :
-  eval_binary_primitive p arg1 arg2 = Some v -> value_in_range v = true.
+  eval_binary_primitive statics p arg1 arg2 = Some v ->
+  value_in_range v = true.
 Proof.
   destruct p as [op | kind op | kind behaviour]; simpl.
   - (* [Phys_equal] *)
-    destruct (eval_phys_equal arg1 arg2); [ | discriminate ].
+    destruct (eval_phys_equal statics arg1 arg2); [ | discriminate ].
     intros [= <-]. apply naked_bool_in_range.
   - (* [Int_arith] *)
     destruct (int_of_value kind arg1) as [a | ]; [ | discriminate ].
@@ -1212,7 +1318,7 @@ Proof.
   - apply (eval_unary_primitive_in_range statics p' v1 v);
       [ exact Hsymbols | | exact Hp' ].
     apply Hargs. left. reflexivity.
-  - exact (eval_binary_primitive_in_range p' v1 v2 v Hp').
+  - exact (eval_binary_primitive_in_range statics p' v1 v2 v Hp').
   - exact
       (eval_variadic_primitive_in_range statics p' vs v Hp Hargs Hp').
 Qed.
@@ -1387,17 +1493,24 @@ Proof.
 Qed.
 
 (* [Phys_equal] reads its arguments as tagged immediates, which are
-   constants. *)
+   constants, and by whether they are allocated, which the observations
+   say. *)
 Lemma related_eval_phys_equal (same : bool) (v1 v2 v1' v2' : value) :
   R v1 v1' ->
   R v2 v2' ->
-  eval_phys_equal v1 v2 = Some same ->
-  eval_phys_equal v1' v2' = Some same.
+  eval_phys_equal statics v1 v2 = Some same ->
+  eval_phys_equal statics' v1' v2' = Some same.
 Proof.
   intros Hr1 Hr2. unfold eval_phys_equal.
   rewrite (related_int_of_value _ v1 v1' Hr1),
     (related_int_of_value _ v2 v2' Hr2).
-  exact (fun H => H).
+  destruct (int_of_value Standard_tagged_immediate v1),
+    (int_of_value Standard_tagged_immediate v2);
+    try exact (fun H => H).
+  - destruct (is_allocated statics v2) eqn:Hallocated; [ | discriminate ].
+    rewrite (related_is_allocated v2 v2' Hr2 Hallocated). exact (fun H => H).
+  - destruct (is_allocated statics v1) eqn:Hallocated; [ | discriminate ].
+    rewrite (related_is_allocated v1 v1' Hr1 Hallocated). exact (fun H => H).
 Qed.
 
 (* On a value that is not a constant, [Is_null] answers no if it
@@ -1505,15 +1618,16 @@ Lemma eval_binary_primitive_related (p : binary_primitive)
     (v1 v2 v1' v2' result : value) :
   R v1 v1' ->
   R v2 v2' ->
-  eval_binary_primitive p v1 v2 = Some result ->
+  eval_binary_primitive statics p v1 v2 = Some result ->
   ∃ result' : value,
-    eval_binary_primitive p v1' v2' = Some result' ∧ R result result'.
+    eval_binary_primitive statics' p v1' v2' = Some result'
+    ∧ R result result'.
 Proof.
   intros Hr1 Hr2.
   destruct p as [op | kind op | kind behaviour];
     cbn [eval_binary_primitive].
   - (* [Phys_equal] *)
-    destruct (eval_phys_equal v1 v2) as [same | ] eqn:Hsame;
+    destruct (eval_phys_equal statics v1 v2) as [same | ] eqn:Hsame;
       [ | discriminate ].
     rewrite (related_eval_phys_equal same v1 v2 v1' v2' Hr1 Hr2 Hsame).
     intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
@@ -1731,6 +1845,39 @@ Proof. reflexivity. Qed.
 
 Example phys_eq_unbound_symbol :
   phys_equal Phys_eq (Value_symbol 1%positive) (Value_symbol 1%positive)
+  = None.
+Proof. reflexivity. Qed.
+
+Example phys_eq_immediate_and_block :
+  phys_equal Phys_eq (tagged 0) (Value_block 0 []) = Some (naked 0).
+Proof. reflexivity. Qed.
+
+Example phys_neq_closure_and_immediate :
+  phys_equal Phys_neq (Value_closure 1%positive []) (tagged 0)
+  = Some (naked 1).
+Proof. reflexivity. Qed.
+
+Example phys_eq_immediate_and_static_block :
+  eval_prim a_block (Binary (Phys_equal Phys_eq))
+    [tagged 10; Value_symbol 1%positive]
+  = Some (naked 0).
+Proof. reflexivity. Qed.
+
+Example phys_eq_immediate_and_unbound_symbol :
+  phys_equal Phys_eq (tagged 10) (Value_symbol 1%positive) = None.
+Proof. reflexivity. Qed.
+
+Example phys_eq_immediate_and_null :
+  phys_equal Phys_eq (tagged 0) (Value_const Null) = None.
+Proof. reflexivity. Qed.
+
+Example phys_eq_immediate_and_naked_immediate :
+  phys_equal Phys_eq (tagged 0) (naked 0) = None.
+Proof. reflexivity. Qed.
+
+Example phys_eq_static_block_with_itself :
+  eval_prim a_block (Binary (Phys_equal Phys_eq))
+    [Value_symbol 1%positive; Value_symbol 1%positive]
   = None.
 Proof. reflexivity. Qed.
 

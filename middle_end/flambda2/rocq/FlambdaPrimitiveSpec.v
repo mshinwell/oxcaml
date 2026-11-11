@@ -444,27 +444,29 @@ Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
    [Provers.prove_physical_equality], which on two constants answers
    whether they are the same constant.
 
-   It has a value on two tagged immediates only: whether they are the
-   same integer. *)
-(* CR mshinwell: [Phys_equal] has no value unless both arguments are
-   tagged immediates, where the machine compares any two words. This is
+   It has a value on two tagged immediates: whether they are the same
+   integer. And on a tagged immediate against an allocated value (a
+   block, a closure, a boxed number, a string, or a symbol bound to
+   one): they are not the same, as the word of the one is odd and that
+   of the other a pointer, and as [prove_physical_equality] answers. It
+   has no value on anything else. *)
+(* CR mshinwell: [Phys_equal] has no value on two allocated values, on
+   null or on poison, where the machine compares any two words. This is
    a first version, and not what the primitive is to mean in the end.
-   - On an allocated value (a block, a closure, a boxed number, a
-     string, a symbol bound to one) against anything, what it means is
-     part of the design of the heap, which is to extend this
-     definition. The allocated values of the model have no identity,
-     and the compiler shares equal immutable values (it makes one of
-     two equal [Make_block]s or [Box_number]s, and lifts constants),
-     which turns an answer of 0 into 1. Simplify answers 1 on the same
-     variable or symbol twice, and 0 on two different symbols, on a
-     symbol against a constant, on an immediate against an allocated
-     value and on allocated values of different sorts.
+   - On two allocated values, what it means is part of the design of
+     the heap, which is to extend this definition. The allocated values
+     of the model have no identity, and the compiler shares equal
+     immutable values (it makes one of two equal [Make_block]s or
+     [Box_number]s, and lifts constants), which turns an answer of 0
+     into 1. Simplify answers 1 on the same variable or symbol twice,
+     and 0 on two different symbols and on allocated values of
+     different sorts.
    - On null, the machine has the word 0, equal to itself and to no
-     tagged immediate, and Simplify folds two nulls to 1 and a null
-     against another constant to 0. No value here as for [Is_int] on
-     null, until the model says what null is.
+     tagged immediate or pointer, and Simplify folds two nulls to 1 and
+     a null against another constant or a symbol to 0. No value here
+     as for [Is_int] on null, until the model says what null is.
    - On poison, Simplify folds two poisons of the same kind and name to
-     1 and a poison against any other constant to 0
+     1 and a poison against any other constant or a symbol to 0
      ([Reg_width_const.equal]), and the backend makes a poison of kind
      [Value] a tagged immediate, which may be the other argument. No
      value is sound for both, and is right only if a poison is never
@@ -472,21 +474,28 @@ Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
    No value is conservative: it would be wrong only in that nothing is
    then proved of a program that compares such values, as library code
    does with [==]. Decision D19. *)
-Definition eval_phys_equal (v1 v2 : value) : option bool :=
-  let* a := int_of_value Standard_tagged_immediate v1 in
-  let* b := int_of_value Standard_tagged_immediate v2 in
-  Some (a =? b).
+Definition eval_phys_equal (statics : static_env) (v1 v2 : value)
+    : option bool :=
+  match
+    int_of_value Standard_tagged_immediate v1,
+    int_of_value Standard_tagged_immediate v2
+  with
+  | Some a, Some b => Some (a =? b)
+  | Some _, None => if is_allocated statics v2 then Some false else None
+  | None, Some _ => if is_allocated statics v1 then Some false else None
+  | None, None => None
+  end.
 
 (* A binary primitive applied to two values. For [Int_arith] and
    [Int_comp], both are integers of the kind the primitive carries. The
    result of a comparison, and of [Phys_equal], is a naked immediate:
    for [Phys_equal], 1 or 0 as the answer of [Phys_eq] is yes or no,
    and the other way round for [Phys_neq]. *)
-Definition eval_binary_primitive (p : binary_primitive) (v1 v2 : value)
-    : option value :=
+Definition eval_binary_primitive (statics : static_env)
+    (p : binary_primitive) (v1 v2 : value) : option value :=
   match p with
   | Phys_equal op =>
-    let* same := eval_phys_equal v1 v2 in
+    let* same := eval_phys_equal statics v1 v2 in
     Some
       (naked_bool
          match op with
@@ -540,7 +549,7 @@ Definition eval_prim (statics : static_env) (p : prim) (vs : list value)
     : option value :=
   match p, vs with
   | Unary p, [v] => eval_unary_primitive statics p v
-  | Binary p, [v1; v2] => eval_binary_primitive p v1 v2
+  | Binary p, [v1; v2] => eval_binary_primitive statics p v1 v2
   | Variadic p, vs => eval_variadic_primitive statics p vs
   | _, _ => None
   end.
