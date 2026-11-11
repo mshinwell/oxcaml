@@ -68,6 +68,22 @@
      has no type is found at the type of the values that are not null.
    - [typing_env_kinded tenv]: the last three together, the one premise
      about kinds that the statements about meet and the join take.
+   - [type_equations_kinded tenv ty] and [types_equations_kinded
+     tenv]: every name that has an equation in an extension inside the
+     type, and inside every type that the environment has for a name,
+     is in the environment of the kind of the type of that equation
+     ([equation_names_with_kinds], FlambdaTypeGrammar.v, lists them).
+     The compiler finds out where it adds the extension to an
+     environment: a meet reads the type of a name with the kind of the
+     type that it is about to give it. This one is for the meet, which
+     adds the extensions of the types that it meets. It is beside
+     [typing_env_kinded] and not a part of it: the statements about
+     the join are made of [typing_env_kinded] as it is, and do not say
+     that a join keeps this one.
+   Nothing here asks anything of the names of which a naked immediate
+   is the result of a relation ([inverse_relations]), which are of the
+   kind of values and which neither list has; no statement has needed
+   it.
    - [constants_of_kind tenv]: where the canonical element of a
      [Simple] is a constant, the constant is of the kind of the
      [Simple]. [Expand_head.expand_head] answers the type of the
@@ -81,9 +97,11 @@
    environment; that a [Simple] has one kind at most; what each
    function that builds an environment does to [simple_of_kind]; that
    each keeps [aliases_kinded], and [typing_env_kinded], under what it
-   needs; and what a kinded environment gives: the kind of a symbol, of
+   needs; what a kinded environment gives: the kind of a symbol, of
    a canonical element, of a constant that is one, and that a type
-   found is kinded.
+   found is kinded; and of the equations inside types, that they stay
+   kinded where the [Simple]s keep their kinds, that those of a type
+   found are kinded, and that each function keeps them kinded.
 
    The proofs are in FlambdaTypingEnvKindedProofs.v, which needs no
    review. *)
@@ -188,6 +206,31 @@ Definition symbols_of_kind_value (tenv : Typing_env.t) : Prop :=
 (* An environment is kinded. *)
 Definition typing_env_kinded (tenv : Typing_env.t) : Prop :=
   types_kinded tenv ∧ aliases_kinded tenv ∧ symbols_of_kind_value tenv.
+
+(* The equations inside a type are kinded in an environment: each name
+   that has an equation in an extension inside the type is, in the
+   environment, of the kind of the type of that equation. *)
+Definition type_equations_kinded (tenv : Typing_env.t) (ty : flambda_type)
+    : Prop :=
+  ∀ (n : name) (kind : flambda_kind),
+    (n, kind) ∈ equation_names_with_kinds ty ->
+    simple_of_kind tenv (simple_of_name n) kind.
+
+(* The same of every type that the environment has for a name. *)
+(* As for [types_kinded], this is a premise of the statements that need
+   it, and it is not claimed that the compiler's environments have it:
+   nothing checks the equations of an extension where a type that
+   holds it is made or given to a name. The compiler finds out where
+   it adds the extension to an environment ([Meet_env.add_equation]
+   reads the type of the name with the kind of the type of the
+   equation, [Typing_env.find] with a kind, a fatal error whatever the
+   flags if the two differ). *)
+Definition types_equations_kinded (tenv : Typing_env.t) : Prop :=
+  ∀ (n : name) (ty : flambda_type)
+    (binding_time_and_mode : Binding_time.With_name_mode.t),
+    Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
+    = Some (ty, binding_time_and_mode) ->
+    type_equations_kinded tenv ty.
 
 (* ======================================================================== *)
 (* The kind of a [Simple]                                                   *)
@@ -475,3 +518,75 @@ Definition add_alias_kinded_statement : Prop :=
     = Some (Ok result) ->
     typing_env_kinded tenv ->
     typing_env_kinded (Typing_env.add_alias_result_t result).
+
+(* ======================================================================== *)
+(* The equations inside types                                               *)
+(* ======================================================================== *)
+
+(* The equations inside a type stay kinded where the [Simple]s keep
+   their kinds. *)
+Definition type_equations_kinded_kept_statement : Prop :=
+  ∀ (tenv tenv' : Typing_env.t) (ty : flambda_type),
+    (∀ (s : simple) (kind : flambda_kind),
+      simple_of_kind tenv s kind -> simple_of_kind tenv' s kind) ->
+    type_equations_kinded tenv ty ->
+    type_equations_kinded tenv' ty.
+
+(* The equations inside the type found for a name are kinded. *)
+Definition find_equations_kinded_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (n : name) (kind : option flambda_kind)
+    (ty : flambda_type),
+    types_equations_kinded tenv ->
+    Typing_env.find tenv n kind = Some ty ->
+    type_equations_kinded tenv ty.
+
+(* The functions keep the equations inside the types of an environment
+   kinded. *)
+Definition create_equations_kinded_statement : Prop :=
+  types_equations_kinded Typing_env.create.
+
+Definition make_bottom_equations_kinded_statement : Prop :=
+  ∀ tenv : Typing_env.t,
+    types_equations_kinded tenv ->
+    types_equations_kinded (Typing_env.make_bottom tenv).
+
+Definition increment_scope_equations_kinded_statement : Prop :=
+  ∀ tenv : Typing_env.t,
+    types_equations_kinded tenv ->
+    types_equations_kinded (Typing_env.increment_scope tenv).
+
+Definition closure_env_equations_kinded_statement : Prop :=
+  ∀ tenv : Typing_env.t,
+    types_equations_kinded tenv ->
+    types_equations_kinded (Typing_env.closure_env tenv).
+
+Definition add_symbol_definition_equations_kinded_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (sym : symbol),
+    types_equations_kinded tenv ->
+    types_equations_kinded (Typing_env.add_symbol_definition tenv sym).
+
+(* A variable is defined that is not bound. *)
+Definition add_variable_definition_equations_kinded_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (var : variable) (kind : flambda_kind)
+    (name_mode : Name_mode.t),
+    Typing_env.mem None tenv (Name_var var) = false ->
+    types_equations_kinded tenv ->
+    types_equations_kinded
+      (Typing_env.add_variable_definition tenv var kind name_mode).
+
+(* A name gets a type of the kind that the name is of, the equations
+   inside which are kinded. *)
+Definition replace_equation_equations_kinded_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (n : name) (ty : flambda_type),
+    simple_of_kind tenv (simple_of_name n) (FlambdaTypeGrammar.kind ty) ->
+    type_equations_kinded tenv ty ->
+    types_equations_kinded tenv ->
+    types_equations_kinded (Typing_env.replace_equation tenv n ty).
+
+Definition add_alias_equations_kinded_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (canonical_element1 canonical_element2 : simple)
+    (result : Typing_env.add_alias_result),
+    Typing_env.add_alias tenv canonical_element1 canonical_element2
+    = Some (Ok result) ->
+    types_equations_kinded tenv ->
+    types_equations_kinded (Typing_env.add_alias_result_t result).

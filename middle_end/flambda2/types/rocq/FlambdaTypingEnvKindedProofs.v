@@ -720,3 +720,129 @@ Proof.
              Hc2 Hkind1 Hkind2 Hadd Haliases).
   - exact (symbols_of_kind_value_same tenv _ Hsame Hsymbols).
 Qed.
+
+(* ======================================================================== *)
+(* The equations inside types                                               *)
+(* ======================================================================== *)
+
+Theorem type_equations_kinded_kept : type_equations_kinded_kept_statement.
+Proof.
+  intros tenv tenv' ty Hkept Hkinded n kind Hin.
+  exact (Hkept _ kind (Hkinded n kind Hin)).
+Qed.
+
+Theorem find_equations_kinded : find_equations_kinded_statement.
+Proof.
+  intros tenv n kind ty Hkinded Hfind.
+  destruct (find_cases tenv n kind ty Hfind)
+    as [[binding_time_and_mode Hlookup] | [[k ->] | ->]].
+  - exact (Hkinded n ty binding_time_and_mode Hlookup).
+  - intros m kind' Hin.
+    rewrite (proj1 (proj2 equation_names_none) k) in Hin. destruct Hin.
+  - intros m kind' Hin. destruct Hin.
+Qed.
+
+Lemma types_equations_kinded_same (tenv tenv' : Typing_env.t) :
+  Typing_env.names_to_types tenv' = Typing_env.names_to_types tenv ->
+  (∀ (s : simple) (kind : flambda_kind),
+    simple_of_kind tenv s kind -> simple_of_kind tenv' s kind) ->
+  types_equations_kinded tenv ->
+  types_equations_kinded tenv'.
+Proof.
+  intros Htypes Hkept Hkinded n ty btm Hlookup. rewrite Htypes in Hlookup.
+  exact (type_equations_kinded_kept tenv tenv' ty Hkept
+           (Hkinded n ty btm Hlookup)).
+Qed.
+
+Theorem create_equations_kinded : create_equations_kinded_statement.
+Proof. intros n ty btm Hlookup. discriminate. Qed.
+
+Theorem make_bottom_equations_kinded
+    : make_bottom_equations_kinded_statement.
+Proof.
+  intros tenv Hequations.
+  apply (types_equations_kinded_same tenv);
+    [ reflexivity | | exact Hequations ].
+  intros s kind. apply make_bottom_simple_of_kind.
+Qed.
+
+Theorem increment_scope_equations_kinded
+    : increment_scope_equations_kinded_statement.
+Proof.
+  intros tenv Hequations.
+  apply (types_equations_kinded_same tenv);
+    [ reflexivity | | exact Hequations ].
+  intros s kind. apply increment_scope_simple_of_kind.
+Qed.
+
+Theorem closure_env_equations_kinded
+    : closure_env_equations_kinded_statement.
+Proof.
+  intros tenv Hequations.
+  apply (types_equations_kinded_same tenv);
+    [ reflexivity | | exact Hequations ].
+  intros s kind. apply closure_env_simple_of_kind.
+Qed.
+
+Theorem add_symbol_definition_equations_kinded
+    : add_symbol_definition_equations_kinded_statement.
+Proof.
+  intros tenv sym Hequations.
+  apply (types_equations_kinded_same tenv);
+    [ reflexivity | | exact Hequations ].
+  intros s kind Hs. apply add_symbol_definition_simple_of_kind. left.
+  exact Hs.
+Qed.
+
+Theorem add_variable_definition_equations_kinded
+    : add_variable_definition_equations_kinded_statement.
+Proof.
+  intros tenv var kind_of_var name_mode Hfresh Hequations.
+  (* A simple that was of a kind is not the variable. *)
+  assert (Hkept :
+    ∀ (s : simple) (kind : flambda_kind),
+      simple_of_kind tenv s kind ->
+      simple_of_kind
+        (Typing_env.add_variable_definition tenv var kind_of_var name_mode) s
+        kind).
+  { intros s kind Hs. apply add_variable_definition_simple_of_kind. right.
+    split; [ | exact Hs ]. intros ->.
+    apply (simple_of_kind_name_iff tenv (Name_var var) kind) in Hs.
+    pose proof (mem_fresh_lookup tenv var Hfresh) as Hnone.
+    destruct Hs as [[ty [btm [Hlookup _]]] | [_ [Hmem _]]]; congruence. }
+  intros n ty btm Hlookup. rewrite add_variable_definition_lookup in Hlookup.
+  destruct (keyed_eqb_spec name_eqb name_eqb_eq n (Name_var var))
+    as [-> | Hne].
+  - injection Hlookup as <- <-. intros m kind Hin.
+    rewrite (proj1 equation_names_none kind_of_var) in Hin. destruct Hin.
+  - exact (type_equations_kinded_kept tenv _ ty Hkept
+             (Hequations n ty btm Hlookup)).
+Qed.
+
+Theorem replace_equation_equations_kinded
+    : replace_equation_equations_kinded_statement.
+Proof.
+  intros tenv n ty Hkind Hty Hequations.
+  assert (Hkept :
+    ∀ (s : simple) (kind : flambda_kind),
+      simple_of_kind tenv s kind ->
+      simple_of_kind (Typing_env.replace_equation tenv n ty) s kind).
+  { intros s kind. apply (replace_equation_simple_of_kind tenv n ty s kind
+                            Hkind). }
+  intros m ty1 btm1 Hlookup.
+  destruct (replace_equation_lookup_cases tenv n ty m ty1 btm1 Hlookup)
+    as [[_ ->] | Hold].
+  - exact (type_equations_kinded_kept tenv _ ty Hkept Hty).
+  - exact (type_equations_kinded_kept tenv _ ty1 Hkept
+             (Hequations m ty1 btm1 Hold)).
+Qed.
+
+Theorem add_alias_equations_kinded : add_alias_equations_kinded_statement.
+Proof.
+  intros tenv c1 c2 result Hadd Hequations.
+  destruct (add_alias_frame tenv c1 c2 result Hadd)
+    as [_ [_ [_ [_ [Hsame _]]]]].
+  apply (types_equations_kinded_same tenv);
+    [ exact Hsame | | exact Hequations ].
+  intros s k. apply (add_alias_simple_of_kind tenv c1 c2 result s k Hadd).
+Qed.
