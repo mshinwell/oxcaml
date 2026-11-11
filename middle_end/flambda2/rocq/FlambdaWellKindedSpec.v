@@ -500,7 +500,9 @@ Definition well_kinded_unit (unit_return unit_exn : continuation) (e : expr)
    a closure may be among them. *)
 Fixpoint value_well_kinded (v : value) : bool :=
   match v with
-  | Value_const _ | Value_symbol _ | Value_boxed_number _ => true
+  | Value_const _ | Value_symbol _ | Value_boxed_number _
+  | Value_location _ =>
+    true
   | Value_closure _ value_slots | Value_closure_of_set _ _ value_slots =>
     forallb
       (fun '(slot, v) =>

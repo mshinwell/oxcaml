@@ -901,7 +901,7 @@ Proof.
   intros statics move_from move_to v w Hbound.
   unfold project_function_slot.
   destruct v as [c | code slots | slot decls slots | s | tag fields
-    | contents];
+    | contents | l];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros Hproject.
@@ -976,7 +976,7 @@ Proof.
   intros statics v slot decls slot_values Hstatics Hv.
   unfold closure_in_set.
   destruct v as [c | code slots | at_slot set_decls slots | s | tag fields
-    | contents];
+    | contents | l];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros [= <- <- <-]. split; [ exact (unnamed_set_well_formed code) | ].
@@ -1021,7 +1021,7 @@ Proof.
   intros statics move_from move_to v decls slot_values Hstatics.
   unfold closure_in_set, project_function_slot.
   destruct v as [c | code slots | at_slot set_decls slots | s | tag fields
-    | contents];
+    | contents | l];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros [= <- <- <-]. exact (project_unnamed_defined move_to code _).
@@ -1116,7 +1116,7 @@ Lemma project_function_slot_keeps_valid (statics : static_env)
 Proof.
   intros Hv. unfold project_function_slot.
   destruct v as [c | code slots | at_slot decls slots | s | tag fields
-    | contents];
+    | contents | l];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros Hproject.
@@ -1861,7 +1861,7 @@ Lemma closure_in_set_sets_are (statics : static_env) (v : value)
 Proof.
   intros Hstatics Hv. unfold closure_in_set.
   destruct v as [k | code slots | at_slot set_decls slots | s | tag fields
-    | contents];
+    | contents | l];
     [ | | | | discriminate .. ].
   - discriminate.
   - unfold Pv in Hv. simpl in Hv. apply andb_true_iff in Hv as [Hset Hslots].
@@ -1929,7 +1929,7 @@ Lemma project_function_slot_sets_are (statics : static_env)
 Proof.
   intros Hv. unfold project_function_slot.
   destruct v as [k | code slots | at_slot decls slots | s | tag fields
-    | contents];
+    | contents | l];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros Hproject.

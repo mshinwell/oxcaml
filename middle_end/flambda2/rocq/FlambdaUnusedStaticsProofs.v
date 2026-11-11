@@ -296,7 +296,7 @@ Lemma closure_of_erased (statics statics' : static_env) (v : value) :
 Proof.
   intros (_ & _ & Hvalues & Hvalues_avoid).
   destruct v as [c | code slots | fslot decls slots | s | tag fields
-    | contents]; simpl.
+    | contents | l]; simpl.
   - intros _. split; [ reflexivity | discriminate ].
   - intros Hv. apply andb_true_iff in Hv as [Hcode Hslots].
     split; [ reflexivity | ]. intros called slots' [= <- <-]. auto.
@@ -329,6 +329,7 @@ Proof.
         | exact Hslots ].
   - intros _. split; [ reflexivity | discriminate ].
   - intros _. split; [ reflexivity | discriminate ].
+  - intros _. split; [ reflexivity | discriminate ].
 Qed.
 
 (* A value that refers to no name removed is the same closure of a set
@@ -345,7 +346,7 @@ Lemma closure_in_set_erased (statics statics' : static_env) (v : value) :
 Proof.
   intros (_ & _ & Hvalues & Hvalues_avoid).
   destruct v as [c | code slots | fslot decls slots | s | tag fields
-    | contents]; simpl.
+    | contents | l]; simpl.
   - intros _. split; [ reflexivity | discriminate ].
   - intros Hv. apply andb_true_iff in Hv as [_ Hslots].
     split; [ reflexivity | ]. intros at_slot decls slots' [= _ _ <-].
@@ -365,6 +366,7 @@ Proof.
     + intros [= _ _ <-]. exact Hslots.
     + destruct (lookup fslot decls'); [ | discriminate ].
       simpl. intros [= _ _ <-]. exact Hslots.
+  - intros _. split; [ reflexivity | discriminate ].
   - intros _. split; [ reflexivity | discriminate ].
   - intros _. split; [ reflexivity | discriminate ].
 Qed.
@@ -418,7 +420,7 @@ Proof.
     destruct (Pos.eqb move_to unnamed_function_slot); [ | discriminate ].
     intros [= <-]. exact Hv. }
   destruct v as [c | code slots | fslot decls slots | s | tag fields
-    | contents]; simpl.
+    | contents | l]; simpl.
   - split; [ reflexivity | discriminate ].
   - split; [ reflexivity | exact Hunnamed ].
   - split; [ reflexivity | ]. intros w.
@@ -443,6 +445,7 @@ Proof.
       destruct (lookup move_to syms) as [s' | ] eqn:Hsym; [ | discriminate ].
       simpl. intros [= <-]. simpl.
       exact (lookup_closure_symbol_kept move_to syms s' Hsyms Hsym).
+  - split; [ reflexivity | discriminate ].
   - split; [ reflexivity | discriminate ].
   - split; [ reflexivity | discriminate ].
 Qed.

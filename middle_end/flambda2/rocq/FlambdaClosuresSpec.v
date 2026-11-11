@@ -433,7 +433,8 @@ Definition project_function_slot_bound_statement : Prop :=
    or the code that a value names are bound. *)
 Fixpoint value_valid (v : value) : bool :=
   match v with
-  | Value_const _ | Value_symbol _ | Value_boxed_number _ => true
+  | Value_const _ | Value_symbol _ | Value_boxed_number _ | Value_location _ =>
+    true
   | Value_closure _ value_slots =>
     forallb (fun '(_, contents) => value_valid contents) value_slots
   | Value_closure_of_set slot function_decls value_slots =>
@@ -769,7 +770,9 @@ Fixpoint value_sets_are (c : code_id)
     (closure_symbols : option (list (function_slot * symbol))) (v : value)
     : bool :=
   match v with
-  | Value_const _ | Value_symbol _ | Value_boxed_number _ => true
+  | Value_const _ | Value_symbol _ | Value_boxed_number _
+  | Value_location _ =>
+    true
   | Value_closure code value_slots =>
     set_is c function_decls closure_symbols [(unnamed_function_slot, code)]
       None

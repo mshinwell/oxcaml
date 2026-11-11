@@ -908,6 +908,7 @@ type observation =
   | String of string
   | Function
   | Dangling
+  | Location of int
   | Too_deep
 
 let rec observe depth (statics : Values.static_env) (v : Values.value) :
@@ -932,6 +933,7 @@ let rec observe depth (statics : Values.static_env) (v : Values.value) :
       Block (int_of_z tag, List.map (observe (depth - 1) statics) fields)
     | Value_boxed_number c ->
       Boxed (observe (depth - 1) statics (Values.Value_const c))
+    | Value_location l -> Location (int_of_positive l)
     | Value_symbol symbol -> (
       match Maps.lookup symbol statics.static_values with
       | None -> Dangling
@@ -959,6 +961,7 @@ let rec print_observation ppf (o : observation) =
   | String s -> Format.fprintf ppf "%S" s
   | Function -> Format.fprintf ppf "<fun>"
   | Dangling -> Format.fprintf ppf "<unbound symbol>"
+  | Location n -> Format.fprintf ppf "<location %d>" n
   | Too_deep -> Format.fprintf ppf "..."
 
 type outcome =
@@ -1171,6 +1174,9 @@ let print_prim ppf (p : Primitives.prim) =
       (int_comp behaviour)
   | Variadic (Make_block (Block_kind_values tag)) ->
     Format.fprintf ppf "Make_block %d" (int_of_z tag)
+  | Heap _ ->
+    (* The converter makes no primitive of the heap. *)
+    Format.pp_print_string ppf "<primitive of the heap>"
 
 let print_named ppf (d : Model.named) =
   match d with

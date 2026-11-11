@@ -80,7 +80,20 @@ type block_kind = Block_kind_values of coq_Z
 
 type variadic_primitive = Make_block of block_kind
 
+type cell_mutability =
+  | Cell_mutable
+  | Cell_immutable_unique
+
+type init_or_assign =
+  | Initialization
+  | Assignment
+
+type heap_primitive =
+  | Make_block_with_identity of cell_mutability * coq_Z
+  | Block_set of block_access_kind * init_or_assign * coq_Z
+
 type prim =
   | Unary of unary_primitive
   | Binary of binary_primitive
   | Variadic of variadic_primitive
+  | Heap of heap_primitive

@@ -57,7 +57,8 @@ Variable s : symbol.
    code. *)
 Fixpoint value_free (v : value) : bool :=
   match v with
-  | Value_const _ | Value_symbol _ | Value_boxed_number _ => true
+  | Value_const _ | Value_symbol _ | Value_boxed_number _
+  | Value_location _ => true
   | Value_closure code slots =>
     negb (Pos.eqb code id) && forallb (fun '(_, v) => value_free v) slots
   | Value_closure_of_set _ decls slots =>
@@ -213,7 +214,7 @@ Lemma closure_of_free (statics : static_env) (v : value) (code : code_id)
 Proof.
   intros [_ Hvalues].
   destruct v as [c | code' slots' | fslot decls slots' | sym | tag fields
-    | contents]; simpl; try discriminate.
+    | contents | loc]; simpl; try discriminate.
   - intros Hv [= <- <-]. apply andb_true_iff in Hv as [Hcode Hslots].
     split; [ exact Hslots | ]. intros ->.
     rewrite Pos.eqb_refl in Hcode. discriminate.
@@ -247,7 +248,7 @@ Lemma closure_in_set_free (statics : static_env) (v : value)
 Proof.
   intros [_ Hvalues].
   destruct v as [c | code' slots' | fslot decls' slots' | sym | tag fields
-    | contents]; simpl; try discriminate.
+    | contents | loc]; simpl; try discriminate.
   - intros Hv [= _ _ <-]. apply andb_true_iff in Hv as [_ Hslots].
     exact Hslots.
   - intros Hv. apply andb_true_iff in Hv as [_ Hslots].
@@ -282,7 +283,7 @@ Proof.
     destruct (Pos.eqb move_to unnamed_function_slot); [ | discriminate ].
     intros [= <-]. exact Hv. }
   destruct v as [c | code' slots' | fslot decls slots' | sym | tag fields
-    | contents]; try discriminate.
+    | contents | loc]; try discriminate.
   - exact Hunnamed.
   - destruct (Pos.eqb fslot move_from); [ | discriminate ].
     destruct (lookup fslot decls); [ | discriminate ].

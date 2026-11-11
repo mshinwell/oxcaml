@@ -44,11 +44,11 @@ let lift_named target d =
               Some (Bind_symbol (s, Static_const_boxed_number contents) :: [], s)
             | _ :: _ -> None))
         | _ -> None)
-      | Binary _ -> None
       | Variadic p0 ->
         let (Make_block kind) = p0 in
         let (Block_kind_values tag) = kind in
-        Some (Bind_symbol (s, Static_const_block (tag, fields)) :: [], s))
+        Some (Bind_symbol (s, Static_const_block (tag, fields)) :: [], s)
+      | _ -> None)
     | Set_of_closures (code0, value_slots) ->
       Some
         ( Bind_symbol (s, Static_const_set_of_closures (code0, value_slots))

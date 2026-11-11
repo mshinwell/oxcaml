@@ -62,6 +62,8 @@ let rec value_eqb v v' =
     | _ -> false)
   | Value_boxed_number c -> (
     match v' with Value_boxed_number c' -> const_eqb c c' | _ -> false)
+  | Value_location l -> (
+    match v' with Value_location l' -> Pos.eqb l l' | _ -> false)
 
 (** val is_poison_b : value -> bool **)
 

@@ -245,7 +245,8 @@ Proof. intros Hf. apply forallb_forall. intros a _. apply Hf. Qed.
 
 Fixpoint value_avoids_nothing (v : value) : value_avoids nothing v = true.
 Proof.
-  destruct v as [c | code slots | slot decls slots | s | tag fields | contents];
+  destruct v as [c | code slots | slot decls slots | s | tag fields | contents
+    | loc];
     simpl; try reflexivity.
   - induction slots as [ | [slot v] slots IH]; simpl; [ reflexivity | ].
     rewrite (value_avoids_nothing v). exact IH.

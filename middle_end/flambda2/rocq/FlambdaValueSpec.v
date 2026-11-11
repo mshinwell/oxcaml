@@ -91,6 +91,10 @@ Import ListNotations.
 (* Values                                                                   *)
 (* ======================================================================== *)
 
+(* A location: the name of a cell of the heap. It is compared by equality
+   only; nothing may depend on which number it is. *)
+Definition location : Type := positive.
+
 (* The values of variables: constants, closures made by a [Let], pointers
    to what symbols are bound to, and the immutable blocks and the boxed
    numbers that primitives make. A closure of a set of one function is
@@ -110,7 +114,8 @@ Inductive value : Type :=
       (value_slots : list (value_slot * value))
   | Value_symbol (s : symbol)
   | Value_block (tag : Z) (fields : list value)
-  | Value_boxed_number (contents : const).
+  | Value_boxed_number (contents : const)
+  | Value_location (l : location).
 
 (* The kind of a value. *)
 Definition kind_of_value (v : value) : flambda_kind :=
@@ -140,6 +145,29 @@ Record static_env : Type := Static_env {
 }.
 
 Definition empty_static_env : static_env := Static_env [] [].
+
+(* ======================================================================== *)
+(* The heap                                                                 *)
+(* ======================================================================== *)
+
+(* What a location is bound to: a block of values with an identity,
+   mutable or not ([cell_mutability], FlambdaPrimitiveModel.v). An
+   immutable block is a value and no cell. *)
+Inductive cell : Type :=
+  | Cell_block (mut : cell_mutability) (tag : Z) (fields : list value).
+
+(* The heap: a finite map of FlambdaMapSpec.v from locations to cells. A
+   write is a new binding in front. *)
+Definition heap : Type := list (location * cell).
+
+Definition empty_heap : heap := [].
+
+(* A value as a cell: a location, and what the heap binds it to. *)
+Definition cell_of (h : heap) (v : value) : option cell :=
+  match v with
+  | Value_location l => lookup l h
+  | _ => None
+  end.
 
 (* ======================================================================== *)
 (* Reading an allocated value                                               *)

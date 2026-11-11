@@ -103,6 +103,7 @@ Fixpoint value_avoids (D : dropped) (v : value) : bool :=
     && forallb (fun '(_, v) => value_avoids D v) slots
   | Value_block _ fields => forallb (value_avoids D) fields
   | Value_boxed_number _ => true
+  | Value_location _ => true
   end.
 
 Definition simple_avoids (D : dropped) (s : simple) : bool :=

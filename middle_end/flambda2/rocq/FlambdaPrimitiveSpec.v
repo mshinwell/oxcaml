@@ -815,11 +815,28 @@ Definition variadic_primitive_in_range (p : variadic_primitive) : bool :=
   | Make_block (Block_kind_values tag) => tag_in_range tag
   end.
 
+(* C4's prototype: the primitives of the heap carry the numbers of the
+   [Make_block] and the access that they stand for. *)
+Definition access_in_range (kind : block_access_kind) (field : Z) : bool :=
+  match kind with
+  | Block_access_values tag size _ =>
+    known_in_range tag_in_range tag
+    && known_in_range ocaml_int_in_range size
+    && ocaml_int_in_range field
+  end.
+
+Definition heap_primitive_in_range (p : heap_primitive) : bool :=
+  match p with
+  | Make_block_with_identity _ tag => tag_in_range tag
+  | Block_set kind _ field => access_in_range kind field
+  end.
+
 Definition prim_in_range (p : prim) : bool :=
   match p with
   | Unary p => unary_primitive_in_range p
   | Binary p => binary_primitive_in_range p
   | Variadic p => variadic_primitive_in_range p
+  | Heap p => heap_primitive_in_range p
   end.
 
 (* A value is in range: its constants are, and the tags of its blocks,
@@ -830,7 +847,7 @@ Fixpoint value_in_range (v : value) : bool :=
   | Value_const c | Value_boxed_number c => const_in_range c
   | Value_closure _ value_slots | Value_closure_of_set _ _ value_slots =>
     forallb (fun '(_, v) => value_in_range v) value_slots
-  | Value_symbol _ => true
+  | Value_symbol _ | Value_location _ => true
   | Value_block tag fields =>
     tag_in_range tag && forallb value_in_range fields
   end.
@@ -919,6 +936,14 @@ Definition result_kind_of_variadic_primitive (p : variadic_primitive)
   | Make_block _ => Value
   end.
 
+(* C4's prototype: the kinds of the results of the primitives of the
+   heap. *)
+Definition result_kind_of_heap_primitive (p : heap_primitive)
+    : flambda_kind :=
+  match p with
+  | Make_block_with_identity _ _ | Block_set _ _ _ => Value
+  end.
+
 (* [Flambda_primitive.result_kind']: the kind of the variable that a
    [Let] binds to the primitive. *)
 Definition prim_result_kind (p : prim) : flambda_kind :=
@@ -926,6 +951,7 @@ Definition prim_result_kind (p : prim) : flambda_kind :=
   | Unary p => result_kind_of_unary_primitive p
   | Binary p => result_kind_of_binary_primitive p
   | Variadic p => result_kind_of_variadic_primitive p
+  | Heap p => result_kind_of_heap_primitive p
   end.
 
 (* Whether arguments of these kinds are as many as the primitive takes,

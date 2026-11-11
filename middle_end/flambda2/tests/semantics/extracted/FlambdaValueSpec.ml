@@ -5,6 +5,8 @@ open FlambdaMapSpec
 open FlambdaModel
 open OxCamlOption
 
+type location = positive
+
 type value =
   | Value_const of const
   | Value_closure of code_id * (value_slot * value) list
@@ -13,6 +15,7 @@ type value =
   | Value_symbol of symbol
   | Value_block of coq_Z * value list
   | Value_boxed_number of const
+  | Value_location of location
 
 (** val kind_of_value : value -> flambda_kind **)
 

@@ -1207,7 +1207,7 @@ Lemma block_made_equivariant (r : renaming) (d : named) :
   = option_map (rename_known_block r) (block_made d).
 Proof.
   destruct d as [s | p args | | | | | ]; try reflexivity.
-  destruct p as [p | p | [[tag]]]; try reflexivity.
+  destruct p as [p | p | [[tag]] | p]; try reflexivity.
   simpl. unfold rename_known_block. simpl. rewrite !map_map. reflexivity.
 Qed.
 

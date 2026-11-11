@@ -252,7 +252,7 @@ Lemma closure_of_well_kinded (statics : static_env) (v : value)
   value_wk (Value_closure code vs) = true.
 Proof.
   intros Hv Hstatics.
-  destruct v as [c | code' vs' | slot decls vs' | sym | tag fields | c];
+  destruct v as [c | code' vs' | slot decls vs' | sym | tag fields | c | l];
     simpl; try discriminate.
   - intros [= <- <-]. exact Hv.
   - destruct (lookup slot decls); [ | discriminate ].
@@ -281,7 +281,7 @@ Lemma closure_in_set_well_kinded (statics : static_env) (v : value)
   value_wk (Value_closure_of_set slot decls vs) = true.
 Proof.
   intros Hv Hstatics.
-  destruct v as [c | code' vs' | slot' decls' vs' | sym | tag fields | c];
+  destruct v as [c | code' vs' | slot' decls' vs' | sym | tag fields | c | l];
     simpl; try discriminate.
   - intros [= <- <- <-]. exact Hv.
   - destruct (lookup slot' decls'); [ | discriminate ].
@@ -310,7 +310,7 @@ Lemma project_function_slot_well_kinded (statics : static_env)
   kind_of_value w = Value ∧ value_wk w = true.
 Proof.
   intros Hv. unfold project_function_slot.
-  destruct v as [c | code vs | slot decls vs | sym | tag fields | c];
+  destruct v as [c | code vs | slot decls vs | sym | tag fields | c | l];
     try discriminate.
   - destruct (Pos.eqb move_from unnamed_function_slot); [ | discriminate ].
     destruct (Pos.eqb move_to unnamed_function_slot); [ | discriminate ].

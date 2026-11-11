@@ -211,9 +211,38 @@ Inductive block_kind : Type :=
 Inductive variadic_primitive : Type :=
   | Make_block (kind : block_kind).
 
+(* C4's prototype. The primitives of the heap that are not above, under
+   one constructor of [prim] so that the prototype changes no
+   constructor that exists. In the change itself they are where the
+   compiler has them: [Make_block] gains its [Mutability.t], and
+   [Block_set] is a binary primitive. The load from a block that has an
+   identity is [Block_load] above, with its mutability, and the
+   comparison of two such blocks is [Phys_equal] above: the prototype
+   says what they do on a location (FlambdaHeapSpec.v). *)
+
+(* [Mutability.t] without [Immutable]: the mutability of a block that
+   has an identity. *)
+Inductive cell_mutability : Type :=
+  | Cell_mutable
+  | Cell_immutable_unique.
+
+(* [Flambda_primitive.Init_or_assign.t], without the mode of an
+   assignment. *)
+Inductive init_or_assign : Type :=
+  | Initialization
+  | Assignment.
+
+Inductive heap_primitive : Type :=
+  (* [Make_block (Values (tag, _), Mutable | Immutable_unique, Heap)]:
+     variadic. *)
+  | Make_block_with_identity (mut : cell_mutability) (tag : Z)
+  (* [Block_set { kind; init; field }]: binary. *)
+  | Block_set (kind : block_access_kind) (init : init_or_assign) (field : Z).
+
 (* [Flambda_primitive.Without_args.t]: a primitive without its
    arguments. *)
 Inductive prim : Type :=
   | Unary (p : unary_primitive)
   | Binary (p : binary_primitive)
-  | Variadic (p : variadic_primitive).
+  | Variadic (p : variadic_primitive)
+  | Heap (p : heap_primitive).

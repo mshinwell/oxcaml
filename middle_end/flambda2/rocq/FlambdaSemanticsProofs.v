@@ -448,7 +448,7 @@ Theorem closure_in_set_of : closure_in_set_of_statement.
 Proof.
   intros statics v code value_slots. unfold closure_of, closure_in_set.
   destruct v as [c | code' slots | slot decls slots | s | tag fields
-    | contents];
+    | contents | l];
     [ | | | | split; [ discriminate | intros (slot & decls & [=] & _) ] .. ].
   - split; [ discriminate | intros (slot & decls & [=] & _) ].
   - split.
@@ -480,7 +480,7 @@ Qed.
 Theorem closure_in_set_slot : closure_in_set_slot_statement.
 Proof.
   intros statics v slot decls slots. unfold closure_in_set, is_bound.
-  destruct v as [c | code vs | fslot fdecls vs | s | tag fields | contents];
+  destruct v as [c | code vs | fslot fdecls vs | s | tag fields | contents | l];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros [= <- <- _]. reflexivity.
@@ -550,7 +550,7 @@ Proof.
   intros statics move_from move_to v w.
   unfold project_function_slot, closure_in_set.
   destruct v as [c | code slots | slot decls slots | s | tag fields
-    | contents];
+    | contents | l];
     [ | | | | discriminate .. ].
   - discriminate.
   - intros Hproject.

@@ -194,7 +194,8 @@ Lemma closure_of_drop (statics : static_env) (v : value) (code : code_id)
     closure_of (trim_statics statics) v = Some (code, slots')
     ∧ same_kept_slots slots slots'.
 Proof.
-  destruct v as [ c | vcode vslots | vslot vdecls vslots | s | tag fields | c ];
+  destruct v as [ c | vcode vslots | vslot vdecls vslots | s | tag fields | c
+    | loc ];
     simpl; try discriminate.
   - intros H. exists slots. split; [ exact H | intros kept _; reflexivity ].
   - intros H. exists slots. split; [ exact H | intros kept _; reflexivity ].
@@ -217,7 +218,8 @@ Lemma closure_in_set_drop (statics : static_env) (v : value)
     closure_in_set (trim_statics statics) v = Some (at_slot, decls, slots')
     ∧ same_kept_slots slots slots'.
 Proof.
-  destruct v as [ c | vcode vslots | vslot vdecls vslots | s | tag fields | c ];
+  destruct v as [ c | vcode vslots | vslot vdecls vslots | s | tag fields | c
+    | loc ];
     simpl; try discriminate.
   - intros H. exists slots. split; [ exact H | intros kept _; reflexivity ].
   - intros H. exists slots. split; [ exact H | intros kept _; reflexivity ].

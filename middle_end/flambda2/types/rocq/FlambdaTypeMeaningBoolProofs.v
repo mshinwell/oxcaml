@@ -85,6 +85,7 @@ Hypothesis H_block :
   ∀ (tag : Z) (fields : list value),
     (∀ v : value, v ∈ fields -> P v) -> P (Value_block tag fields).
 Hypothesis H_boxed_number : ∀ c : const, P (Value_boxed_number c).
+Hypothesis H_location : ∀ l : location, P (Value_location l).
 
 Fixpoint value_induction (v : value) : P v :=
   match v with
@@ -98,6 +99,7 @@ Fixpoint value_induction (v : value) : P v :=
   | Value_block tag fields =>
     H_block tag fields (list_all P value_induction fields)
   | Value_boxed_number c => H_boxed_number c
+  | Value_location l => H_location l
   end.
 
 End Value_induction.
@@ -107,10 +109,10 @@ Proof.
   intros v.
   induction v
     as [c | code value_slots IH | slot decls value_slots IH | s
-       | tag fields IH | c]
+       | tag fields IH | c | l]
     using value_induction;
     intros [c' | code' value_slots' | slot' decls' value_slots' | s'
-           | tag' fields' | c'];
+           | tag' fields' | c' | l'];
     simpl; try (split; discriminate).
   - rewrite (const_eqb_eq c c'). split; [ intros ->; reflexivity | ].
     intros [= ->]. reflexivity.
@@ -140,6 +142,8 @@ Proof.
     + intros v v' Hin. exact (IH v Hin v').
   - rewrite (const_eqb_eq c c'). split; [ intros ->; reflexivity | ].
     intros [= ->]. reflexivity.
+  - rewrite Pos.eqb_eq. split; [ intros ->; reflexivity | ].
+    intros [= ->]. reflexivity.
 Qed.
 
 Theorem value_eqb_decides_equality : value_eqb_decides_equality_statement.
@@ -152,8 +156,8 @@ Proof. exact value_eqb_eq. Qed.
 Lemma is_poison_b_eq (v : value) : is_poison_b v = true <-> is_poison v.
 Proof.
   unfold is_poison.
-  destruct v as [c | code slots | slot decls slots | s | tag fields | c'];
-    [ destruct c | | | | | ]; simpl;
+  destruct v as [c | code slots | slot decls slots | s | tag fields | c' | l];
+    [ destruct c | | | | | | ]; simpl;
     first
       [ split; [ intros _; eexists; reflexivity | reflexivity ]
       | split; [ discriminate | intros [k Hv]; discriminate Hv ] ].
@@ -327,8 +331,8 @@ Lemma head_of_kind_naked_immediate_satisfied_b_eq (statics : static_env)
 Proof.
   unfold head_of_kind_naked_immediate_satisfied_b,
     head_of_kind_naked_immediate_satisfied.
-  destruct v as [c | code slots | slot decls slots | s | tag fields | c'];
-    [ destruct c | | | | | ];
+  destruct v as [c | code slots | slot decls slots | s | tag fields | c' | l];
+    [ destruct c | | | | | | ];
     try (split; [ discriminate | intros [? [Hv _]]; discriminate Hv ]).
   rewrite andb_true_iff, (every_b_every (Relation.t * name)%type),
     (every_in (Relation.t * name)%type).
@@ -356,7 +360,7 @@ Lemma naked_numbers_satisfied_b_eq (k : naked_number_kind) (v : value)
   <-> naked_numbers_satisfied k v numbers.
 Proof.
   unfold naked_numbers_satisfied_b, naked_numbers_satisfied.
-  destruct v as [c | code slots | slot decls slots | s | tag fields | c'];
+  destruct v as [c | code slots | slot decls slots | s | tag fields | c' | l];
     try (split; [ discriminate | intros [? [? [Hv _]]]; discriminate Hv ]).
   rewrite andb_true_iff, (kind_eqb_eq _ _). split.
   - intros [Hkind Hnumber].
