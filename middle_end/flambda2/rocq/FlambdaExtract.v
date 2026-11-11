@@ -53,9 +53,10 @@
 From Stdlib Require Extraction.
 From Stdlib Require Import ExtrOcamlBasic.
 From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
-  FlambdaSemanticsSpec FlambdaWellFormedSpec FlambdaCompareSpec
-  FlambdaNormaliseSpec FlambdaBlockLoadSpec FlambdaUnboxSpec
-  FlambdaUnusedContsSpec FlambdaUnusedStaticsSpec FlambdaValidateSpec.
+  FlambdaSemanticsSpec FlambdaWellFormedSpec FlambdaWellKindedSpec
+  FlambdaCompareSpec FlambdaNormaliseSpec FlambdaBlockLoadSpec
+  FlambdaUnboxSpec FlambdaUnusedContsSpec FlambdaUnusedStaticsSpec
+  FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 
 Extraction Language OCaml.
@@ -75,6 +76,7 @@ Set Extraction Output Directory ".".
 Separate Extraction
   all_among
   among
+  at_partial_or_over_application
   bind_closures
   collapse_switches
   compact
@@ -98,10 +100,13 @@ Separate Extraction
   let_closures
   load_known_blocks
   lookup
+  make_code_metadata
+  make_handler_metadata
   map_values
   merge
   merge_statics
   numbers_in_range
+  partial_or_over_application
   remove_unused_conts
   remove_unused_defined_lets
   remove_unused_lets
@@ -109,10 +114,12 @@ Separate Extraction
   rewrite_code
   run
   step
+  unarize
   unbind
   unbox_known_numbers
   union_with
   validate_unit
   well_formed_unit
+  well_kinded_unit
   without
   .

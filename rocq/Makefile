@@ -143,6 +143,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaValueSpec.v \
   FlambdaWellFormedProofs.v \
   FlambdaWellFormedSpec.v \
+  FlambdaWellKindedProofs.v \
+  FlambdaWellKindedSpec.v \
 )
 FLAMBDA2_EXTRACT := $(FLAMBDA2_DIR)/FlambdaExtract.v
 FLAMBDA2_EXTRACTED_DIR := $(ROOT)/middle_end/flambda2/tests/semantics/extracted
