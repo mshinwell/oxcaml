@@ -779,18 +779,6 @@ Proof.
     + intros x Hx. discriminate.
 Qed.
 
-(* The values that the definitions of a state have at an input. *)
-Definition value_of_definition (s : Join_env.t) (index : Index.t)
-    (valuation : env) (x : variable) : option value :=
-  match lookup x (Join_env.definitions_of_existentials s) with
-  | Some (simples, _) =>
-    match Simples_in_joined_envs.find index simples with
-    | Some simple => eval_simple valuation simple
-    | None => None
-    end
-  | None => None
-  end.
-
 Definition with_definitions (s : Join_env.t) (index : Index.t)
     (valuation : env) : env :=
   tabulate (value_of_definition s index valuation)

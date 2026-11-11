@@ -604,16 +604,30 @@ Definition imports_recorded (s : Join_env.t) : Prop :=
           Join_env.joined_env s index = Some use ∧ knows use x.
 
 (* The invariant of the state: [state_valid] of FlambdaJoinSpec.v. It
-   says so far what the names of the state are. What the equations
-   that the state keeps mean (those of the target made so far, the
-   types still to be joined, the aliases of the variables made) is to
-   be added with the proofs of the rounds; the functions below will
-   then have to be shown to keep that too. *)
+   says what the names of the state are. What the equations that the
+   state keeps mean (those of the target made so far, the types still
+   to be joined, the aliases of the variables made) is in
+   FlambdaJoinStateSpec.v, with the invariant that has both and the
+   functions below shown to keep it. *)
 Definition state_valid (s : Join_env.t) : Prop :=
   names_avoided s
   ∧ existentials_new s
   ∧ existentials_recorded s
   ∧ imports_recorded s.
+
+(* The value that the definition of a variable has at an input, under
+   a valuation of that input: that of the [Simple] that the definition
+   has there, if it has one. *)
+Definition value_of_definition (s : Join_env.t) (index : Index.t)
+    (valuation : env) (x : variable) : option value :=
+  match lookup x (Join_env.definitions_of_existentials s) with
+  | Some (simples, _) =>
+    match Simples_in_joined_envs.find index simples with
+    | Some simple => eval_simple valuation simple
+    | None => None
+    end
+  | None => None
+  end.
 
 (* What is asked of the source of new names. *)
 Definition fresh_avoids (p : Join_env.parameters) : Prop :=

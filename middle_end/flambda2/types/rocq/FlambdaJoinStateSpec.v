@@ -1,0 +1,349 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+
+(* What the state of the n-way join means: the invariant that the
+   whole join is proved from.
+
+   To be reviewed: every definition and statement of this file. The
+   proofs are in FlambdaJoinStateProofs.v.
+
+   FlambdaJoinEnvSpec.v has a first invariant of the state of a join
+   ([state_valid]), which is about its names. This file has what the
+   equations that the state keeps mean, and the invariant with both
+   ([state_true]).
+
+   - One valuation of the target for each valuation of an input
+     ([target_valuation]): a variable that the join has made has the
+     value of its definition at that input, a variable that the input
+     or the source knows has what the valuation of the input gives it,
+     and every other variable has no value. It extends the valuation
+     of the input, as the interface with the join of types asks of a
+     witness ([target_valuation_extends_statement]). A variable that
+     the join has brought in from other inputs has no value in it at
+     an input that does not know it: nothing is asked of such a
+     variable by the equations below, which speak of the value of a
+     variable only where it has one.
+   - What the state means ([state_holds]). Every equation of the
+     target made so far is true at every input: the value that its
+     variable has in the valuation of the target, if it has one, has
+     the type there ([equation_holds]). The types kept to be joined
+     for a variable are types of the environments of their indices,
+     and at an input where the variable has a value there is one, and
+     the value has it ([types_hold]). A variable that is to be an
+     alias of a variable that the join has made has the value of that
+     one, where it has a value ([alias_holds]). And each [Simple] of a
+     definition is at the index of a joined environment, in its scope
+     ([definitions_in_envs]).
+   - The equations are asked of the runs whose blocks have tags in
+     range ([tags_at], which is [blocks_have_tags] of FlambdaJoinSpec.v
+     for the variables that the input or the source knows): the rounds
+     need it where they recover a [Get_tag] relation. Nothing in this
+     file uses it yet.
+   - The invariant ([state_true]) is [state_valid], [state_holds], and
+     that the source of the state is a given one: the join of types is
+     known to keep the invariant that it is given, and this is what
+     tells that it keeps the source.
+   - The three functions that the join of types calls meet their
+     contracts of FlambdaJoinSpec.v with this invariant
+     ([n_way_join_simples_true_statement] and the two after it), and
+     the invariant has the witnesses that the interface asks for
+     ([state_true_has_witnesses_statement]). So a join of types that
+     is proved from those contracts keeps it.
+   - The state that a join starts from has it
+     ([created_state_true_statement]), and the first phase of the
+     join, which gives each variable of the source its alias or keeps
+     its types to be joined, keeps it
+     ([join_aliases_true_statement]).
+
+   What is asked of the parameters of the model's functions, besides
+   what FlambdaJoinEnvSpec.v asks: the equality of types that stands
+   for physical equality is sound for meaning ([parameters_type_eqb_sound]).
+
+   Not here yet: the rounds (under the contract of the join of types),
+   the definition of the variables of the target, and the contract of
+   the whole join. *)
+
+From Stdlib Require Import ZArith List Bool PeanoNat.
+From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
+  FlambdaMapSpec FlambdaSemanticsSpec.
+From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
+  FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
+  FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
+  FlambdaTypingEnvInvariantSpec FlambdaTypingEnvKindedSpec FlambdaJoinEnv
+  FlambdaJoinSpec FlambdaJoinEnvSpec.
+Import ListNotations.
+
+(* ======================================================================== *)
+(* One valuation of the target for each valuation of an input               *)
+(* ======================================================================== *)
+
+(* A variable that an input, or the source, knows. *)
+Definition known_to (s : Join_env.t) (use : Typing_env.t) (x : variable)
+    : bool :=
+  Typing_env.mem None use (Name_var x)
+  || Typing_env.mem None (Join_env.source_env s) (Name_var x).
+
+(* The valuation of the target that a valuation of an input gives: a
+   variable that the join has made has the value of its definition at
+   that input, if it has one; a variable that the input or the source
+   knows has what the valuation gives it; every other variable has no
+   value, whatever the valuation gives it. *)
+Definition target_valuation (s : Join_env.t) (index : Index.t)
+    (use : Typing_env.t) (valuation : env) : env :=
+  tabulate (value_of_definition s index valuation)
+    (domain (Join_env.definitions_of_existentials s))
+  ++ filter_bindings (fun x _ => known_to s use x) valuation.
+
+(* It is a witness of [valid_states_have_witnesses], and it gives the
+   variables that the source knows what they had. *)
+Definition target_valuation_extends_statement : Prop :=
+  ∀ (s : Join_env.t) (index : Index.t) (use : Typing_env.t) (valuation : env),
+    state_valid s ->
+    Join_env.joined_env s index = Some use ->
+    extends_input Join_env.joined_env Join_env.definitions_of_existentials s
+      index valuation (target_valuation s index use valuation)
+    ∧ agrees_on_known (Join_env.source_env s) valuation
+        (target_valuation s index use valuation).
+
+(* ======================================================================== *)
+(* What the state means                                                     *)
+(* ======================================================================== *)
+
+(* A variable that the target has so far, or that a joined environment
+   knows. *)
+Definition in_reach (s : Join_env.t) (x : variable) : Prop :=
+  exists_in_target_env kind_in_target_env s x = true
+  ∨ ∃ (index : Index.t) (use : Typing_env.t),
+      Join_env.joined_env s index = Some use ∧ knows use x.
+
+(* The blocks of a run have tags in range, for the variables that the
+   input or the source knows. *)
+Definition tags_at (s : Join_env.t) (use : Typing_env.t)
+    (statics : static_env) (valuation : env) : Prop :=
+  blocks_have_tags (fun x => known_to s use x = true) statics valuation.
+
+(* An equation of the target is true at every input: the variable is
+   one of the target, the type mentions variables in reach, and the
+   value that the variable has in the valuation of the target has the
+   type there. (The variables of the type need not be variables of the
+   target yet: the join adds an equation before it brings in the
+   variables of its type.) *)
+Definition equation_holds (s : Join_env.t) (x : variable)
+    (ty : flambda_type) : Prop :=
+  exists_in_target_env kind_in_target_env s x = true
+  ∧ (∀ y : variable, y ∈ free_variables ty -> in_reach s y)
+  ∧ ∀ (index : Index.t) (use : Typing_env.t) (statics : static_env)
+      (valuation : env) (v : value),
+      Join_env.joined_env s index = Some use ->
+      typing_env_satisfied_strictly statics valuation use ->
+      tags_at s use statics valuation ->
+      lookup x (target_valuation s index use valuation) = Some v ->
+      type_satisfied statics (target_valuation s index use valuation) v ty.
+
+Definition equations_hold (s : Join_env.t) : Prop :=
+  ∀ (x : variable) (ty : flambda_type),
+    lookup x (Join_env.types_in_target_env s) = Some ty ->
+    equation_holds s x ty.
+
+(* Types kept to be joined for a variable of the target are true of
+   it: each is a type of the environment of its index, in scope and
+   kinded there; and at an input where the variable has a value, there
+   is a type for that input, and the value has it. *)
+Definition types_hold (s : Join_env.t) (x : variable)
+    (types : Keyed.finite_map Index.t flambda_type) : Prop :=
+  exists_in_target_env kind_in_target_env s x = true
+  ∧ (∀ (index : Index.t) (t : flambda_type),
+       Keyed.lookup Index.equal index types = Some t ->
+       ∃ use : Typing_env.t,
+         Join_env.joined_env s index = Some use
+         ∧ type_in_scope use t
+         ∧ type_kinded use t)
+  ∧ ∀ (index : Index.t) (use : Typing_env.t) (statics : static_env)
+      (valuation : env) (v : value),
+      Join_env.joined_env s index = Some use ->
+      typing_env_satisfied_strictly statics valuation use ->
+      lookup x (target_valuation s index use valuation) = Some v ->
+      ∃ t : flambda_type,
+        Keyed.lookup Index.equal index types = Some t
+        ∧ type_satisfied statics valuation v t.
+
+Definition types_to_join_hold (s : Join_env.t) : Prop :=
+  ∀ (x : variable) (types : Keyed.finite_map Index.t flambda_type),
+    lookup x (Join_env.types_in_joined_envs s) = Some types ->
+    types_hold s x types.
+
+(* A variable of the target that is to be an alias of a variable that
+   the join has made has the value of that variable, at every input
+   where it has a value. *)
+Definition alias_holds (s : Join_env.t) (e x : variable) : Prop :=
+  exists_in_target_env kind_in_target_env s x = true
+  ∧ is_existential s e
+  ∧ ∀ (index : Index.t) (use : Typing_env.t) (statics : static_env)
+      (valuation : env) (v : value),
+      Join_env.joined_env s index = Some use ->
+      typing_env_satisfied_strictly statics valuation use ->
+      lookup x (target_valuation s index use valuation) = Some v ->
+      lookup e (target_valuation s index use valuation) = Some v.
+
+Definition aliases_hold (s : Join_env.t) : Prop :=
+  ∀ e x : variable,
+    x
+    ∈ Aliases_of_existentials.aliases_of_existential_var
+        (Join_env.aliases_of_existentials s) e ->
+    alias_holds s e x.
+
+(* A vector of [Simple]s is over the joined environments: each of its
+   [Simple]s is at the index of one of them, and in its scope. *)
+Definition vector_in_envs (s : Join_env.t)
+    (simples : Simples_in_joined_envs.t) : Prop :=
+  ∀ (index : Index.t) (simple : simple),
+    Simples_in_joined_envs.find index simples = Some simple ->
+    ∃ use : Typing_env.t,
+      Join_env.joined_env s index = Some use ∧ simple_in_scope use simple.
+
+Definition definitions_in_envs (s : Join_env.t) : Prop :=
+  ∀ (x : variable) (simples : Simples_in_joined_envs.t)
+    (kind : flambda_kind),
+    lookup x (Join_env.definitions_of_existentials s) = Some (simples, kind) ->
+    vector_in_envs s simples.
+
+(* What the state means: the four together. *)
+Definition state_holds (s : Join_env.t) : Prop :=
+  equations_hold s
+  ∧ types_to_join_hold s
+  ∧ aliases_hold s
+  ∧ definitions_in_envs s.
+
+(* The invariant of the state of a join whose source is [source]: its
+   names, what it means, and that its source is that one. *)
+Definition state_true (source : Typing_env.t) (s : Join_env.t) : Prop :=
+  state_valid s ∧ state_holds s ∧ Join_env.source_env s = source.
+
+(* ======================================================================== *)
+(* The invariant, and the functions that the join of types calls            *)
+(* ======================================================================== *)
+
+(* What is asked of the equality of types: if it finds the first equal
+   to the second, a value of the second has the first. (The join asks
+   it with the type of the least index first, and that is the type
+   that it keeps.) *)
+Definition parameters_type_eqb_sound (p : Join_env.parameters) : Prop :=
+  ∀ (t t' : flambda_type) (statics : static_env) (valuation : env)
+    (v : value),
+    Join_env.type_eqb p t t' = true ->
+    type_satisfied statics valuation v t' ->
+    type_satisfied statics valuation v t.
+
+(* The state that a join starts from has the invariant, if the names
+   to avoid include what the environments know. *)
+Definition created_state_true_statement : Prop :=
+  ∀ (avoid : list variable) (source : Typing_env.t) (envs : Joined_envs.t),
+    (∀ x : variable, knows source x -> x ∈ avoid) ->
+    (∀ (index : Index.t) (use : Typing_env.t) (x : variable),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       knows use x ->
+       x ∈ avoid) ->
+    state_true source
+      (Join_env.create envs
+         (Bindings_in_target_env.from_source_env avoid source)).
+
+(* What the interface asks of the invariant. *)
+Definition state_true_has_witnesses_statement : Prop :=
+  ∀ source : Typing_env.t,
+    valid_states_have_witnesses Join_env.joined_env
+      Join_env.definitions_of_existentials (state_true source).
+
+(* The three functions that the join of types calls meet their
+   contracts (FlambdaJoinSpec.v) with this invariant. *)
+Definition n_way_join_simples_true_statement : Prop :=
+  ∀ (p : Join_env.parameters) (fuel : nat) (source : Typing_env.t),
+    fresh_avoids p ->
+    parameters_type_eqb_sound p ->
+    n_way_join_simples_sound typing_env_invariant Join_env.joined_env
+      Join_env.definitions_of_existentials kind_in_target_env
+      (state_true source) state_kinded (Join_env.n_way_join_simples p fuel).
+
+Definition import_type_true_statement : Prop :=
+  ∀ (p : Join_env.parameters) (fuel : nat) (source : Typing_env.t),
+    fresh_avoids p ->
+    parameters_type_eqb_sound p ->
+    import_type_sound typing_env_invariant Join_env.joined_env
+      Join_env.definitions_of_existentials kind_in_target_env
+      (state_true source) state_kinded (Join_env.import_type p fuel).
+
+Definition n_way_join_env_extension_true_statement : Prop :=
+  ∀ (p : Join_env.parameters) (fuel : nat) (source : Typing_env.t),
+    fresh_avoids p ->
+    parameters_type_eqb_sound p ->
+    env_extension_eqb_sound p ->
+    n_way_join_env_extension_sound typing_env_invariant Join_env.joined_env
+      Join_env.definitions_of_existentials kind_in_target_env
+      (state_true source) state_kinded
+      (Join_env.n_way_join_env_extension p fuel).
+
+(* ======================================================================== *)
+(* The aliases of the variables of the source                               *)
+(* ======================================================================== *)
+
+(* The equations of the level kept with each joined environment are
+   types that the environment has. (The levels are cut from the
+   environments: [cut_equations_found_statement],
+   FlambdaTypingEnvInvariantSpec.v.) *)
+Definition levels_found (envs : Joined_envs.t) : Prop :=
+  ∀ (index : Index.t) (use : Typing_env.t)
+    (equations : Keyed.finite_map name flambda_type) (n : name)
+    (ty : flambda_type),
+    Keyed.lookup Index.equal index envs = Some (use, equations) ->
+    Keyed.lookup name_eqb n equations = Some ty ->
+    ∃ binding_time_and_mode : Binding_time.With_name_mode.t,
+      Keyed.lookup name_eqb n (Typing_env.names_to_types use)
+      = Some (ty, binding_time_and_mode).
+
+(* [join_aliases_into_bindings] keeps the invariant, from a state whose
+   variables are those of the source (the state that the join starts
+   from is one), if the state is kinded and the joined environments
+   have their invariant and are kinded. *)
+Definition join_aliases_true_statement : Prop :=
+  ∀ (p : Join_env.parameters) (fuel : nat) (source : Typing_env.t)
+    (s s' : Join_env.t),
+    fresh_avoids p ->
+    parameters_type_eqb_sound p ->
+    state_true source s ->
+    state_kinded s ->
+    joined_envs_are typing_env_invariant s ->
+    joined_envs_are typing_env_kinded s ->
+    levels_found (Join_env.joined_envs s) ->
+    (∀ x : variable,
+       exists_in_target_env kind_in_target_env s x = true -> knows source x)
+    ->
+    Join_env.join_aliases_into_bindings p fuel s (Join_env.joined_envs s)
+    = Some s' ->
+    state_true source s'
+    ∧ state_grows Join_env.joined_env Join_env.definitions_of_existentials
+        kind_in_target_env s s'.
