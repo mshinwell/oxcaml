@@ -77,9 +77,9 @@ Steps are those of the machine, before and after Simplify.
 | `tuple_swap.ml` | a pair built, swapped and taken apart: no block is left | 19, 4 | validated |
 | `closure_capture.ml` | inlines `make_adder` twice, makes the calls of the two closures direct, inlines them, reads the captured variable | 31, 4 | validated |
 | `higher_order.ml` | inlines `twice`, then the function passed to it, twice | 32, 5 | validated |
+| `match_variant.ml` | inlines `cells` three times and resolves the three matches: no test and no block is left | 66, 7 | validated |
+| `option_default.ml` | the `Some` built and matched goes | 32, 3 | validated |
 | `record_project.ml` | two records built by a function inlined twice, and read: none is left | 37, 8 | validated |
-| `match_variant.ml` | inlines `cells` three times and resolves the three matches: no test and no block is left | 66, 7 | the same, not validated: the continuations of the arms not taken are left in the term before, and the validator does not remove a continuation that is not used |
-| `option_default.ml` | the `Some` built and matched goes | 32, 3 | the same, not validated: as `match_variant.ml` |
 | `add_zero.ml` | makes `x + 0` into `x` | 8, 2 | the same, not validated: the validator folds a primitive applied to constants only, and knows no identity of arithmetic |
 | `int64_boxed.ml` | removes every box around 64-bit integer arithmetic | 22, 8 | the same, not validated: the validator does not unbox a number it has seen boxed |
 | `while_loop.ml` | a loop over two references, which the front end has made a recursive continuation; Simplify removes a tagging and untagging of the test, a continuation applied once and two parameters that are not used | 78, 45 | the same, not validated: the validator rewrites nothing inside the handler of a recursive continuation, and does not remove a parameter of a continuation |

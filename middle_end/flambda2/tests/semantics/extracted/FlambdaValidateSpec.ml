@@ -4,6 +4,7 @@ open FlambdaBlockLoadSpec
 open FlambdaCompareSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
+open FlambdaUnusedContsSpec
 open FlambdaUnusedStaticsSpec
 
 (** val iterate : nat -> (expr -> expr) -> expr -> expr **)
@@ -20,7 +21,9 @@ let normalise_code_before body =
           (follow_aliases []
              (load_known_blocks
                 (thread_switches
-                   (inline_tail_conts (collapse_switches (fold_constants body))))))))
+                   (inline_tail_conts
+                      (remove_unused_conts
+                         (collapse_switches (fold_constants body)))))))))
 
 (** val normalise_before_round : expr -> expr **)
 
@@ -35,8 +38,9 @@ let normalise_before_round e =
                       (load_known_blocks
                          (thread_switches
                             (inline_tail_conts
-                               (collapse_switches
-                                  (fold_constants (inline_calls [] e))))))))))))
+                               (remove_unused_conts
+                                  (collapse_switches
+                                     (fold_constants (inline_calls [] e)))))))))))))
 
 (** val normalise_before : nat -> expr -> expr **)
 

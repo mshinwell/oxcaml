@@ -4,6 +4,7 @@ open FlambdaBlockLoadSpec
 open FlambdaCompareSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
+open FlambdaUnusedContsSpec
 open FlambdaUnusedStaticsSpec
 
 val iterate : nat -> (expr -> expr) -> expr -> expr

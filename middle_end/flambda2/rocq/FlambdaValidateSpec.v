@@ -60,7 +60,7 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaCompareSpec FlambdaNormaliseSpec FlambdaBlockLoadSpec
-  FlambdaUnusedStaticsSpec.
+  FlambdaUnusedContsSpec FlambdaUnusedStaticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -84,7 +84,8 @@ Definition normalise_code_before (body : expr) : expr :=
              (load_known_blocks
                 (thread_switches
                    (inline_tail_conts
-                      (collapse_switches (fold_constants body)))))))).
+                      (remove_unused_conts
+                         (collapse_switches (fold_constants body))))))))).
 
 (* One round for the term before. Every rewrite refines. *)
 Definition normalise_before_round (e : expr) : expr :=
@@ -98,9 +99,10 @@ Definition normalise_before_round (e : expr) : expr :=
                       (load_known_blocks
                          (thread_switches
                             (inline_tail_conts
-                               (collapse_switches
-                                  (fold_constants
-                                     (inline_calls [] e)))))))))))).
+                               (remove_unused_conts
+                                  (collapse_switches
+                                     (fold_constants
+                                        (inline_calls [] e))))))))))))).
 
 Definition normalise_before (rounds : nat) (e : expr) : expr :=
   iterate rounds normalise_before_round e.
