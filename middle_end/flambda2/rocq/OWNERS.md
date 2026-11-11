@@ -192,7 +192,14 @@ All in `middle_end/flambda2/types/rocq/`, library `OxCamlFlambda2Types`.
   - `middle_end/flambda2/types/rocq/FlambdaReify*` (reification, after
     `types/reify.ml`)
 - T7, differential testing of types, and the converter between the
-  compiler's types and the model's. Owner: unassigned.
+  compiler's types and the model's. Owner: T7, on
+  `flambda2-rocq/T7-difftest`.
+  - `middle_end/flambda2/tests/semantics/types/` (the converter between
+    `Type_grammar.t` and the model's `flambda_type`, which is trusted;
+    the generator of types; the differential tests and their dune
+    rules). What it links of the model is extracted by
+    `FlambdaExtract.v`, which is C0's, into
+    `middle_end/flambda2/tests/semantics/extracted/`.
 
 ## S1 to S7: simplifier rewrites
 
