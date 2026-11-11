@@ -73,6 +73,18 @@ made by C0. On its own branch an owner may change C0's files to try the
 design out; that is the request, not the change.
 
 - C1, primitives as data. Owner: C1, on `flambda2-rocq/C1-primitives`.
+  - `middle_end/flambda2/rocq/requests/C1-primitives.md` (the request)
+    and `requests/C1-int-ops.py` beside it (the generator of the
+    examples that compare the integer primitives with a reference)
+  - `middle_end/flambda2/rocq/FlambdaPrimitive*` (the primitives, what
+    they compute and the laws they obey; adding a primitive changes
+    these files and no other `.v` file)
+  - `middle_end/flambda2/rocq/FlambdaKindModel.v` and
+    `middle_end/flambda2/rocq/FlambdaValueSpec.v`, created on the branch
+    by moving definitions out of `FlambdaModel.v` and
+    `FlambdaSemanticsSpec.v`, and `FlambdaValueProofs.v`, which proves
+    the statement of the second; the request proposes that they be C0's
+    once the epoch has applied it
 - C2, kinds and well-formed terms. Owner: C2, on
   `flambda2-rocq/C2-kinds`.
 - C3, sets of closures. Owner: C3, on `flambda2-rocq/C3-closures`.
