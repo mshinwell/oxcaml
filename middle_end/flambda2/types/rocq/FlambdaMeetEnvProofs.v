@@ -33,7 +33,7 @@
 From Stdlib Require Import ZArith List Bool Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaMapProofs FlambdaSemanticsSpec.
+  FlambdaMapProofs FlambdaSemanticsSpec FlambdaPrimitiveProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
   FlambdaTypeWellFormedSpec FlambdaTypeWellFormedProofs
@@ -117,8 +117,9 @@ Proof. reflexivity. Qed.
 Theorem add_variable_definition_keeps
     : add_variable_definition_keeps_statement.
 Proof.
-  intros menv var kind name_mode menv' (Hinvariant & Hwf & Hkinded & Hbottom)
+  intros menv var kind name_mode (Hinvariant & Hwf & Hkinded & Hbottom)
     Hfresh.
+  set (menv' := Meet_env.add_variable_definition menv var kind name_mode).
   set (tenv := Meet_env.typing_env menv) in *.
   set (tenv' := Typing_env.add_variable_definition tenv var kind name_mode).
   assert (Hnone :
@@ -1306,4 +1307,380 @@ Proof.
       exact (meet_env_extends_trans _ _ _ Hextends1 Hextends2).
 Qed.
 
+(* [add_env_extension ~raise_on_bottom:true]. *)
+Lemma add_env_extension0_keeps (menv menv' : Meet_env.t)
+    (extension : env_extension) :
+  typing_env_fits (Meet_env.typing_env menv) ->
+  env_extension_fits (Meet_env.typing_env menv) extension ->
+  env_extension_kinded (Meet_env.typing_env menv) extension ->
+  Meet_env.add_env_extension0 true menv extension mh
+  = Some (Or_bottom.Ok menv') ->
+  meet_env_kept menv menv'.
+Proof.
+  intros Hfits Hextension Hkinded Hadd.
+  destruct extension as [equations]. cbn in Hextension, Hkinded.
+  apply (add_equations0_keeps (Keyed.compact name_eqb equations) menv menv'
+           Hfits); [ | exact Hadd ].
+  intros n ty Hin. apply (keyed_in_compact name_eqb name_eqb_eq) in Hin.
+  split; [ exact (proj2 (Hextension n ty Hin)) | exact (Hkinded n ty Hin) ].
+Qed.
+
+(* Where the compiler catches the exception and makes the environment
+   bottom. *)
+Lemma bottom_on_exception_keeps (menv menv' : Meet_env.t)
+    (result : option (Or_bottom.t Meet_env.t)) :
+  typing_env_fits (Meet_env.typing_env menv) ->
+  (∀ menv1 : Meet_env.t,
+     result = Some (Or_bottom.Ok menv1) -> meet_env_kept menv menv1) ->
+  Meet_env.bottom_on_exception menv result = Some menv' ->
+  meet_env_kept menv menv'.
+Proof.
+  intros Hfits Hresult Hbottom.
+  destruct result as [ [ menv1 | ] | ]; cbn in Hbottom;
+    [ | | discriminate Hbottom ]; injection Hbottom as <-.
+  - exact (Hresult menv1 eq_refl).
+  - exact (make_bottom_keeps menv Hfits).
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+(* The meet of two types                                                    *)
+(* ------------------------------------------------------------------------ *)
+
+(* The canonical element that is asked for at the name mode of the
+   variables that exist only in types is the canonical element. *)
+Lemma get_canonical_simple_in_types (tenv : Typing_env.t) (s : simple)
+    (result : option simple) :
+  Typing_env.get_canonical_simple_exn tenv (Some Name_mode.in_types) None s
+  = Some result ->
+  result = Some (Typing_env.get_canonical_simple_ignoring_name_mode tenv s).
+Proof.
+  unfold Typing_env.get_canonical_simple_exn.
+  destruct (option_map Binding_time.With_name_mode.name_mode
+              (Typing_env.binding_time_and_mode_of_simple tenv s))
+    as [ name_mode | ]; [ | discriminate ].
+  cbv beta iota. intros [= <-].
+  rewrite get_canonical_simple_ignoring_name_mode_eq.
+  apply canonical_at_mode. apply name_mode_at_least_in_types.
+Qed.
+
+(* What [get_alias_then_canonical_simple_exn] answers at that name
+   mode. *)
+Lemma alias_then_canonical_cases (tenv : Typing_env.t) (ty : flambda_type)
+    (result : option simple) :
+  Typing_env.get_alias_then_canonical_simple_exn tenv
+    (Some Name_mode.in_types) None ty
+  = Some result ->
+  (get_alias_opt ty = None ∧ result = None)
+  ∨ ∃ alias : simple,
+      get_alias_opt ty = Some alias
+      ∧ result
+        = Some (Typing_env.get_canonical_simple_ignoring_name_mode tenv alias).
+Proof.
+  unfold Typing_env.get_alias_then_canonical_simple_exn.
+  destruct (get_alias_opt ty) as [ alias | ].
+  - intros Hcanonical. right. exists alias. split; [ reflexivity | ].
+    exact (get_canonical_simple_in_types tenv alias result Hcanonical).
+  - intros [= <-]. left. split; reflexivity.
+Qed.
+
+(* A type that is not an alias, expanded with no canonical element
+   given. *)
+Lemma expand_head0_concrete (tenv : Typing_env.t) (ty : flambda_type) :
+  get_alias_opt ty = None ->
+  expand_head0 tenv ty None = Expanded_type.of_non_alias_type ty.
+Proof. intros Halias. unfold expand_head0. rewrite Halias. reflexivity. Qed.
+
+(* The canonical element of the alias that a type that fits is. *)
+Lemma alias_canonical_of_kind (tenv : Typing_env.t) (ty : flambda_type)
+    (alias : simple) :
+  typing_env_fits tenv ->
+  type_fits tenv ty ->
+  get_alias_opt ty = Some alias ->
+  is_canonical (Typing_env.aliases tenv)
+    (Typing_env.get_canonical_simple_ignoring_name_mode tenv alias)
+  ∧ simple_of_kind tenv
+      (Typing_env.get_canonical_simple_ignoring_name_mode tenv alias)
+      (kind ty).
+Proof.
+  intros Hfits Hty Halias.
+  apply (canonical_of_kind tenv alias (kind ty) (proj1 Hfits)
+           (proj1 (proj2 (proj1 (proj2 (proj2 Hfits)))))).
+  exact (proj2 (proj2 Hty) alias (kind ty)
+           (alias_among_aliases ty alias Halias)).
+Qed.
+
+(* [Meet_env.meet]. *)
+Lemma meet_keeps (menv menv' : Meet_env.t) (t1 t2 : flambda_type)
+    (r : meet_return_value Expanded_type.t) :
+  typing_env_fits (Meet_env.typing_env menv) ->
+  type_fits (Meet_env.typing_env menv) t1 ->
+  type_fits (Meet_env.typing_env menv) t2 ->
+  Meet_env.meet menv t1 t2 mh = Some (Meet_result.Ok r menv') ->
+  meet_env_kept menv menv'
+  ∧ type_fits (Meet_env.typing_env menv')
+      match r with
+      | New_result expanded => Expanded_type.to_type expanded
+      | Right_input => t2
+      | Left_input | Both_inputs => t1
+      end.
+Proof.
+  intros Hfits Ht1 Ht2 Hmeet.
+  set (tenv := Meet_env.typing_env menv) in *.
+  unfold Meet_env.meet in Hmeet. fold tenv in Hmeet.
+  destruct (negb (kind_eqb (kind t1) (kind t2))) eqn:Hkinds;
+    [ discriminate Hmeet | ].
+  apply negb_false_iff, kind_eqb_eq in Hkinds.
+  destruct (Typing_env.get_alias_then_canonical_simple_exn tenv
+              (Some Name_mode.in_types) None t1)
+    as [ simple1 | ] eqn:Hsimple1; [ | discriminate Hmeet ].
+  destruct (Typing_env.get_alias_then_canonical_simple_exn tenv
+              (Some Name_mode.in_types) None t2)
+    as [ simple2 | ] eqn:Hsimple2; [ | discriminate Hmeet ].
+  cbv beta iota zeta in Hmeet.
+  (* What is kept by a function that adds an equation. *)
+  assert (Hkept :
+    ∀ ty : flambda_type,
+      type_fits tenv ty ->
+      meet_env_kept menv menv' ->
+      meet_env_kept menv menv' ∧ type_fits (Meet_env.typing_env menv') ty).
+  { intros ty Hty Hkept. split; [ exact Hkept | ].
+    exact (tenv_extends_type_fits _ _ _
+             (meet_env_extends_tenv _ _ (proj1 Hkept)) Hty). }
+  destruct (alias_then_canonical_cases tenv t1 simple1 Hsimple1)
+    as [ [Halias1 ->] | (alias1 & Halias1 & ->) ];
+    destruct (alias_then_canonical_cases tenv t2 simple2 Hsimple2)
+      as [ [Halias2 ->] | (alias2 & Halias2 & ->) ].
+  - (* Neither is an alias. *)
+    rewrite (expand_head0_concrete tenv t1 Halias1) in Hmeet.
+    destruct (Expanded_type.of_non_alias_type t1) as [ expanded1 | ]
+      eqn:Hexpanded1; [ | discriminate Hmeet ].
+    cbv beta iota in Hmeet.
+    rewrite (expand_head0_concrete tenv t2 Halias2) in Hmeet.
+    destruct (Expanded_type.of_non_alias_type t2) as [ expanded2 | ]
+      eqn:Hexpanded2; [ | discriminate Hmeet ].
+    cbv beta iota in Hmeet.
+    assert (Hinputs :
+      meet_inputs_well_formed tenv (Expanded_type.to_type expanded1)
+        (Expanded_type.to_type expanded2)).
+    { split; [ exact Hfits | ].
+      split; [ exact (type_fits_of_non_alias _ _ _ Hexpanded1 Ht1) | ].
+      split; [ exact (type_fits_of_non_alias _ _ _ Hexpanded2 Ht2) | ].
+      rewrite (proj2 (of_non_alias_type_kind _ _ Hexpanded1)).
+      rewrite (proj2 (of_non_alias_type_kind _ _ Hexpanded2)).
+      exact Hkinds. }
+    destruct (Hmh menv menv' expanded1 expanded2 r Hinputs Hmeet)
+      as (Hextends & Hfits' & Hanswer & _).
+    split; [ split; assumption | ].
+    assert (Htenv := meet_env_extends_tenv _ _ Hextends).
+    destruct r as [ | | | answer ].
+    + exact (tenv_extends_type_fits _ _ _ Htenv Ht1).
+    + exact (tenv_extends_type_fits _ _ _ Htenv Ht2).
+    + exact (tenv_extends_type_fits _ _ _ Htenv Ht1).
+    + exact Hanswer.
+  - (* The second is an alias: the first is added to what it is an
+       alias of. *)
+    rewrite (expand_head0_concrete tenv t1 Halias1) in Hmeet.
+    destruct (Expanded_type.of_non_alias_type t1) as [ expanded1 | ]
+      eqn:Hexpanded1; [ | discriminate Hmeet ].
+    cbv beta iota in Hmeet.
+    match type of Hmeet with
+    | context [ Meet_env.add_or_delay_concrete_equation_on_canonical
+                  ?rob ?env ?canonical ?expanded ?meet ] =>
+      destruct (Meet_env.add_or_delay_concrete_equation_on_canonical rob env
+                  canonical expanded meet)
+        as [ [ menv1 | ] | ] eqn:Hadd; try discriminate Hmeet
+    end.
+    injection Hmeet as <- <-.
+    destruct (of_non_alias_type_kind _ _ Hexpanded1) as [Hkind1 Hkind2].
+    destruct (alias_canonical_of_kind tenv t2 alias2 Hfits Ht2 Halias2)
+      as [_ Hkind_canonical].
+    apply (Hkept t2 Ht2).
+    apply (add_or_delay_concrete_equation_on_canonical_keeps menv menv1
+             (Typing_env.get_canonical_simple_ignoring_name_mode tenv alias2)
+             expanded1 Hfits).
+    + exact (type_fits_of_non_alias _ _ _ Hexpanded1 Ht1).
+    + rewrite Hkind1, Hkind2. reflexivity.
+    + rewrite Hkind2, Hkinds. exact Hkind_canonical.
+    + exact Hadd.
+  - (* The first is an alias. *)
+    rewrite (expand_head0_concrete tenv t2 Halias2) in Hmeet.
+    destruct (Expanded_type.of_non_alias_type t2) as [ expanded2 | ]
+      eqn:Hexpanded2; [ | discriminate Hmeet ].
+    cbv beta iota in Hmeet.
+    match type of Hmeet with
+    | context [ Meet_env.add_or_delay_concrete_equation_on_canonical
+                  ?rob ?env ?canonical ?expanded ?meet ] =>
+      destruct (Meet_env.add_or_delay_concrete_equation_on_canonical rob env
+                  canonical expanded meet)
+        as [ [ menv1 | ] | ] eqn:Hadd; try discriminate Hmeet
+    end.
+    injection Hmeet as <- <-.
+    destruct (of_non_alias_type_kind _ _ Hexpanded2) as [Hkind1 Hkind2].
+    destruct (alias_canonical_of_kind tenv t1 alias1 Hfits Ht1 Halias1)
+      as [_ Hkind_canonical].
+    apply (Hkept t1 Ht1).
+    apply (add_or_delay_concrete_equation_on_canonical_keeps menv menv1
+             (Typing_env.get_canonical_simple_ignoring_name_mode tenv alias1)
+             expanded2 Hfits).
+    + exact (type_fits_of_non_alias _ _ _ Hexpanded2 Ht2).
+    + rewrite Hkind1, Hkind2. reflexivity.
+    + rewrite Hkind2, <- Hkinds. exact Hkind_canonical.
+    + exact Hadd.
+  - (* Both are aliases: the two are made aliases. *)
+    match type of Hmeet with
+    | context [ Meet_env.add_alias_between_canonicals ?rob ?env ?kind ?c1
+                  ?c2 ?meet ] =>
+      destruct (Meet_env.add_alias_between_canonicals rob env kind c1 c2
+                  meet)
+        as [ [ menv1 | ] | ] eqn:Hadd; try discriminate Hmeet
+    end.
+    injection Hmeet as <- <-.
+    destruct (alias_canonical_of_kind tenv t1 alias1 Hfits Ht1 Halias1)
+      as [Hcanonical1 Hkind_canonical1].
+    destruct (alias_canonical_of_kind tenv t2 alias2 Hfits Ht2 Halias2)
+      as [Hcanonical2 Hkind_canonical2].
+    apply (Hkept t1 Ht1).
+    rewrite <- Hkinds in Hkind_canonical2.
+    exact (add_alias_between_canonicals_keeps menv menv1 (kind t1) _ _ Hfits
+             Hcanonical1 Hcanonical2 Hkind_canonical1 Hkind_canonical2 Hadd).
+Qed.
+
+(* The kind that [kind_of_simple] reads is the kind that the simple is
+   of, in an environment where a symbol is of the kind of values. *)
+Lemma kind_of_simple_of_kind (tenv : Typing_env.t) (s : simple)
+    (kind kind' : flambda_kind) :
+  symbols_of_kind_value tenv ->
+  simple_of_kind tenv s kind ->
+  kind_of_simple tenv s = Some kind' ->
+  kind' = kind.
+Proof.
+  intros Hsymbols Hkind Hread. destruct s as [ x | sym | c ].
+  - apply (simple_of_kind_name tenv (Name_var x)) in Hkind.
+    destruct Hkind as [ (ty & binding_time_and_mode & Hlookup & Hkind)
+                      | (Hnone & Hmem & _) ].
+    + unfold kind_of_simple, Typing_env.find,
+        Typing_env.find_with_binding_time_and_mode' in Hread.
+      rewrite Hlookup in Hread. cbn in Hread.
+      destruct (Typing_env.is_bottom tenv); cbn in Hread;
+        injection Hread as <-; [ rewrite kind_bottom | ]; exact Hkind.
+    + unfold Typing_env.mem in Hmem. rewrite Hnone in Hmem.
+      discriminate Hmem.
+  - injection Hread as <-. symmetry.
+    exact (symbol_of_kind_value tenv sym kind Hsymbols Hkind).
+  - injection Hread as <-. cbn in Hkind. rewrite kind_type_for_const in Hkind.
+    exact Hkind.
+Qed.
+
 End Keeps.
+
+(* ======================================================================== *)
+(* The statements about the functions that add an equation                  *)
+(* ======================================================================== *)
+
+Theorem add_equation_on_simple_keeps : add_equation_on_simple_keeps_statement.
+Proof.
+  intros mh menv menv' s ty Hmh Hfits Hty Hkind Hadd.
+  apply (bottom_on_exception_keeps menv menv' _ Hfits) in Hadd;
+    [ exact Hadd | ].
+  intros menv1 Hresult.
+  exact (add_equation_on_simple0_keeps mh Hmh menv menv1 s ty Hfits Hty Hkind
+           Hresult).
+Qed.
+
+Theorem add_equation_keeps : add_equation_keeps_statement.
+Proof.
+  intros mh menv menv' n ty Hmh Hfits Hty Hkind Hadd.
+  exact (add_equation_on_simple_keeps mh menv menv' (simple_of_name n) ty Hmh
+           Hfits Hty Hkind Hadd).
+Qed.
+
+Theorem add_equation_strict_keeps : add_equation_strict_keeps_statement.
+Proof.
+  intros mh menv menv' n ty Hmh Hfits Hty Hkind Hadd.
+  unfold Meet_env.add_equation_strict in Hadd.
+  destruct (Typing_env.is_bottom (Meet_env.typing_env menv));
+    [ discriminate Hadd | ].
+  exact (add_equation_on_simple0_keeps mh Hmh menv menv' (simple_of_name n) ty
+           Hfits Hty Hkind Hadd).
+Qed.
+
+Theorem add_env_extension_keeps : add_env_extension_keeps_statement.
+Proof.
+  intros mh menv menv' extension Hmh Hfits Hextension Hkinded Hadd.
+  apply (bottom_on_exception_keeps menv menv' _ Hfits) in Hadd;
+    [ exact Hadd | ].
+  intros menv1 Hresult.
+  exact (add_env_extension0_keeps mh Hmh menv menv1 extension Hfits
+           Hextension Hkinded Hresult).
+Qed.
+
+Theorem add_env_extension_strict_keeps
+    : add_env_extension_strict_keeps_statement.
+Proof.
+  intros mh menv menv' extension Hmh Hfits Hextension Hkinded Hadd.
+  unfold Meet_env.add_env_extension_strict in Hadd.
+  destruct (Typing_env.is_bottom (Meet_env.typing_env menv));
+    [ discriminate Hadd | ].
+  exact (add_env_extension0_keeps mh Hmh menv menv' extension Hfits
+           Hextension Hkinded Hadd).
+Qed.
+
+Theorem add_alias_keeps : add_alias_keeps_statement.
+Proof.
+  intros mh menv menv' s1 s2 kind Hmh Hfits Hkind1 Hkind2 Hadd.
+  assert (Hinvariant := proj1 Hfits).
+  destruct (proj1 (proj2 (proj2 Hfits))) as (_ & Haliases & Hsymbols).
+  set (tenv := Meet_env.typing_env menv) in *.
+  unfold Meet_env.add_alias, Meet_env.add_alias0 in Hadd. fold tenv in Hadd.
+  destruct (canonical_of_kind tenv s1 kind Hinvariant Haliases Hkind1)
+    as [Hcanonical1 Hkind_canonical1].
+  destruct (canonical_of_kind tenv s2 kind Hinvariant Haliases Hkind2)
+    as [Hcanonical2 Hkind_canonical2].
+  destruct (kind_of_simple tenv
+              (Typing_env.get_canonical_simple_ignoring_name_mode tenv s1))
+    as [ kind' | ] eqn:Hread; [ | discriminate Hadd ].
+  cbv beta iota in Hadd.
+  rewrite (kind_of_simple_of_kind tenv _ kind kind' Hsymbols Hkind_canonical1
+             Hread) in Hadd.
+  exact (add_alias_between_canonicals_keeps mh Hmh menv menv' kind _ _ Hfits
+           Hcanonical1 Hcanonical2 Hkind_canonical1 Hkind_canonical2 Hadd).
+Qed.
+
+Theorem add_equations_on_params_keeps
+    : add_equations_on_params_keeps_statement.
+Proof.
+  intros mh menv menv' params param_types Hmh. revert param_types menv menv'.
+  induction params as [ | param params IH ];
+    intros param_types menv menv' Hfits Hparams Hadd.
+  - destruct param_types as [ | ty param_types ]; [ | discriminate Hadd ].
+    injection Hadd as <-.
+    split; [ apply meet_env_extends_refl | exact Hfits ].
+  - destruct param_types as [ | ty param_types ]; [ discriminate Hadd | ].
+    apply Forall2_cons_iff in Hparams. destruct Hparams as [[Hty Hkind] Hrest].
+    cbn [Meet_env.add_equations_on_params] in Hadd.
+    destruct (Meet_env.add_equation menv (Name_var (fst param)) ty mh)
+      as [ menv1 | ] eqn:Hfirst; [ | discriminate Hadd ].
+    cbv beta iota in Hadd.
+    destruct (add_equation_keeps mh menv menv1 (Name_var (fst param)) ty Hmh
+                Hfits Hty Hkind Hfirst) as [Hextends1 Hfits1].
+    assert (Htenv := meet_env_extends_tenv _ _ Hextends1).
+    destruct (IH param_types menv1 menv' Hfits1) as [Hextends2 Hfits2].
+    + eapply Forall2_impl; [ | exact Hrest ].
+      intros param' ty' [Hty' Hkind']. split.
+      * exact (tenv_extends_type_fits _ _ _ Htenv Hty').
+      * exact (proj1 (proj2 (proj2 (proj2 (proj2 Htenv)))) _ _ Hkind').
+    + exact Hadd.
+    + split; [ | exact Hfits2 ].
+      exact (meet_env_extends_trans _ _ _ Hextends1 Hextends2).
+Qed.
+
+Theorem meet_type_keeps : meet_type_keeps_statement.
+Proof.
+  intros mh menv menv' t1 t2 r Hmh Hfits Ht1 Ht2 Hmeet.
+  unfold Meet_env.meet_type in Hmeet.
+  destruct (Meet_env.meet menv t1 t2 mh) as [ [ r0 | r0 menv0 ] | ]
+    eqn:Hmeet0; cbn in Hmeet; try discriminate Hmeet.
+  assert (Hkeeps := meet_keeps mh Hmh menv menv0 t1 t2 r0 Hfits Ht1 Ht2
+                      Hmeet0).
+  destruct r0 as [ | | | answer ]; injection Hmeet as <- <-; exact Hkeeps.
+Qed.
