@@ -102,19 +102,26 @@
    - Under strict satisfaction a value that is poison has only types
      that say no more of it than its kind, that it is the value of a
      name, or that it is not null (FlambdaTypeMeaningSpec.v). So on a
-     type that has a value that is poison no prover here answers
-     [Proved], and no meet shortcut [Known_result]
-     ([prover_silent_on_poison], [meet_shortcut_silent_on_poison],
-     [provers_silent_on_poison_statement]), but for [meet_is_null],
-     which answers [Known_result false] on a type of values that are
-     not null: poison is not null. The primitive [Is_null] has no value
-     on poison (FlambdaPrimitiveSpec.v), so nothing follows from that
-     answer where the value is poison. Only those two answers are
-     ruled out. A meet shortcut may answer [Invalid] on such a type,
-     and rightly, where the poison is outside its domain:
+     type that has a value that is poison the provers that the
+     statements of silence list do not answer [Proved], nor the meet
+     shortcuts that they list [Known_result]
+     ([prover_silent_on_poison], [meet_shortcut_silent_on_poison]; the
+     statements are those whose names end in
+     [silent_on_poison_statement]). Only those two answers are ruled
+     out. A meet shortcut may answer [Invalid] on such a type, and
+     rightly, where the poison is outside its domain:
      [meet_is_int_variant_only] answers [Invalid] on the unknown type
      of naked immediates, which a poison of that kind has. And a
      prover may stop.
+   - Two provers are in no such list. [meet_is_null] answers
+     [Known_result false] on a type of values that are not null:
+     poison is not null. The primitive [Is_null] has no value on
+     poison (FlambdaPrimitiveSpec.v), so nothing follows from that
+     answer where the value is poison. And
+     [prove_equals_to_simple_of_kind] answers the canonical element of
+     the alias that a type is, which has the value of the alias,
+     poison or not: of the alias of a poison constant it answers
+     [Proved] of that constant, and rightly.
    - A name that a prover reaches inside a type has its type, so what
      the prover finds of it is true of its value. In particular the
      three relations of a naked immediate are read soundly by
@@ -135,6 +142,19 @@
      [meet_naked_immediates] answers that it is 1 (discrepancy T6-1;
      T1-9 is the same). The statements for that notion, with the
      premise that the names reached hold no poison, are to follow.
+
+   A [Simple] that a prover answers. Where an answer is a [Simple],
+   the statement is that the [Simple] has a value in the valuation
+   ([eval_simple valuation s]). That is not yet that a term may use
+   it in place of what was asked about. A valuation gives values to
+   names that no term can mention (those of name mode [In_types],
+   those out of scope), and the environment of the machine agrees
+   with it only on the names in scope at the normal name mode
+   ([agrees_in_terms] of FlambdaTypingEnvSpec.v). A rewrite that puts
+   the [Simple] in a term needs that it is such a name, a symbol or a
+   constant, which is for its own statement to get from the name mode
+   that it asked the prover for, with the premises on the environment
+   that FlambdaTypingEnvSpec.v has for that; nothing here says it.
 
    What rests on another workstream, until its files are under this
    branch (FlambdaProversStandIn.v). Every statement here has the
@@ -528,3 +548,178 @@ Definition prove_is_int_get_tag_statement : Prop :=
     type_satisfied statics valuation v t ->
     Provers.prove_is_int tenv t = Some (Proof_of_property.Proved true) ->
     eval_prim statics (Unary Get_tag) [v] = None.
+
+(* ======================================================================== *)
+(* Aliases                                                                  *)
+(* ======================================================================== *)
+
+(* [Provers.prove_equals_to_simple_of_kind], at any kind: every value
+   of the type is the value of the [Simple] answered. It is not silent
+   on poison: the canonical element of an alias has the value of the
+   alias, poison or not (the aliases are exact,
+   FlambdaEnvAliasesSpec.v). *)
+Definition prove_equals_to_simple_of_kind_sound_statement : Prop :=
+  ∀ kind : flambda_kind,
+    prover_sound
+      (fun tenv t => Provers.prove_equals_to_simple_of_kind tenv t kind)
+      any_input
+      (fun _ valuation s v => eval_simple valuation s = Some v).
+
+(* The value is the tagged immediate of the number that is the value
+   of the [Simple]. *)
+Definition tagging_of (valuation : env) (s : simple) (v : value) : Prop :=
+  ∃ i : Z,
+    v = Value_const (Tagged_immediate i)
+    ∧ eval_simple valuation s = Some (Value_const (Naked_immediate i)).
+
+(* [Provers.prove_tagging_of_simple], at any name mode. It reads the
+   numbers of the immediates of a variant, so the type is to be well
+   formed. *)
+Definition prove_tagging_of_simple_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  ∀ min_name_mode : Name_mode.t,
+    prover_sound
+      (fun tenv t => Provers.prove_tagging_of_simple tenv min_name_mode t)
+      well_formed_input (fun _ => tagging_of).
+
+(* [Provers.meet_tagging_of_simple]: of the values of the type that
+   are tagged immediates. *)
+Definition meet_tagging_of_simple_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  ∀ min_name_mode : Name_mode.t,
+    meet_shortcut_sound
+      (fun tenv t => Provers.meet_tagging_of_simple tenv min_name_mode t)
+      well_formed_input tagged_immediates (fun _ => tagging_of).
+
+(* ======================================================================== *)
+(* Boxed numbers                                                            *)
+(* ======================================================================== *)
+
+(* The boxed numbers of a kind. [Unbox_number] of the kind has a value
+   only on one of them ([unbox_number_defined_statement]), and not on
+   every one: a boxed number whose contents are poison is one of
+   them, and the primitive has no value on it
+   (FlambdaPrimitiveSpec.v). *)
+Definition boxed_numbers (kind : boxable_number) (statics : static_env)
+    (v : value) : Prop :=
+  ∃ c : const,
+    boxed_number_of statics v = Some c
+    ∧ kind_of_const c = unboxed_kind kind.
+
+(* What [Provers.prove_is_a_boxed_or_tagged_number] answers: the value
+   is a tagged immediate; or it is a boxed number of the kind answered
+   whose contents have the type answered. The allocation mode answered
+   means nothing here. *)
+Definition boxed_or_tagged_number_is (statics : static_env)
+    (valuation : env) (x : Boxed_or_tagged_number.t) (v : value) : Prop :=
+  match x with
+  | Boxed_or_tagged_number.Tagged_immediate => is_immediate v
+  | Boxed_or_tagged_number.Boxed _ k contents =>
+    ∃ c : const,
+      boxed_number_of statics v = Some c
+      ∧ kind_of_const c = unboxed_kind k
+      ∧ type_satisfied statics valuation (Value_const c) contents
+  end.
+
+Definition prove_is_a_boxed_or_tagged_number_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  prover_sound Provers.prove_is_a_boxed_or_tagged_number any_input
+    boxed_or_tagged_number_is.
+
+Definition prove_is_a_tagged_immediate_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  prover_sound Provers.prove_is_a_tagged_immediate any_input
+    (fun _ _ _ v => is_immediate v).
+
+(* [Provers.prove_is_a_boxed_float32], ..., [prove_is_a_boxed_mask],
+   which are [Provers.prove_is_a_boxed_number] at the nine numbers. *)
+Definition prove_is_a_boxed_number_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  ∀ kind : boxable_number,
+    prover_sound (Provers.prove_is_a_boxed_number kind) any_input
+      (fun statics _ _ v => boxed_numbers kind statics v).
+
+(* [Provers.prove_is_or_is_not_a_boxed_float]. It answers that a value
+   is not a boxed float from the head of its type being of another
+   form: a block, a closure, a string and a boxed number of another
+   kind are not boxed floats for the machine, whose observations are
+   disjoint (FlambdaValueSpec.v). *)
+Definition prove_is_or_is_not_a_boxed_float_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  prover_sound Provers.prove_is_or_is_not_a_boxed_float any_input
+    (fun statics _ x v =>
+       if x
+       then boxed_numbers Boxable_naked_float statics v
+       else ~ boxed_numbers Boxable_naked_float statics v).
+
+(* [Provers.meet_boxed_float32_containing_simple], ...,
+   [meet_boxed_mask_containing_simple], which are
+   [Provers.meet_boxed_number_containing_simple] at the nine numbers:
+   of the values of the type that are boxed numbers of the kind, the
+   contents are the value of the [Simple] answered. *)
+Definition meet_boxed_number_containing_simple_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  ∀ (kind : boxable_number) (min_name_mode : Name_mode.t),
+    meet_shortcut_sound
+      (fun tenv t =>
+         Provers.meet_boxed_number_containing_simple kind tenv min_name_mode
+           t)
+      any_input (boxed_numbers kind)
+      (fun statics valuation s v =>
+         ∃ c : const,
+           boxed_number_of statics v = Some c
+           ∧ eval_simple valuation s = Some (Value_const c)).
+
+(* [Unbox_number] has a value only on a boxed number of its kind, and
+   its value is the contents. *)
+Definition unbox_number_defined_statement : Prop :=
+  ∀ (statics : static_env) (kind : boxable_number) (v r : value),
+    eval_prim statics (Unary (Unbox_number kind)) [v] = Some r ->
+    boxed_numbers kind statics v
+    ∧ ∃ c : const, boxed_number_of statics v = Some c ∧ r = Value_const c.
+
+(* ======================================================================== *)
+(* Strings                                                                  *)
+(* ======================================================================== *)
+
+(* The strings, and the value is one of the strings. *)
+Definition strings (statics : static_env) (v : value) : Prop :=
+  ∃ bytes : list Z, string_of statics v = Some bytes.
+
+Definition string_among (statics : static_env) (strs : list (list Z))
+    (v : value) : Prop :=
+  ∃ bytes : list Z, string_of statics v = Some bytes ∧ bytes ∈ strs.
+
+Definition prove_strings_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  prover_sound Provers.prove_strings any_input
+    (fun statics _ => string_among statics).
+
+Definition meet_strings_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  meet_shortcut_sound Provers.meet_strings any_input strings
+    (fun statics _ => string_among statics).
+
+(* On a type that has a value that is poison none of these answers
+   [Proved] or [Known_result] either. [prove_equals_to_simple_of_kind]
+   is not among them. *)
+Definition more_provers_silent_on_poison_statement : Prop :=
+  expand_head_sound_assumed ->
+  (∀ min_name_mode : Name_mode.t,
+    prover_silent_on_poison
+      (fun tenv t => Provers.prove_tagging_of_simple tenv min_name_mode t))
+  ∧ (∀ min_name_mode : Name_mode.t,
+      meet_shortcut_silent_on_poison
+        (fun tenv t => Provers.meet_tagging_of_simple tenv min_name_mode t))
+  ∧ prover_silent_on_poison Provers.prove_is_a_boxed_or_tagged_number
+  ∧ prover_silent_on_poison Provers.prove_is_a_tagged_immediate
+  ∧ (∀ kind : boxable_number,
+      prover_silent_on_poison (Provers.prove_is_a_boxed_number kind))
+  ∧ prover_silent_on_poison Provers.prove_is_or_is_not_a_boxed_float
+  ∧ (∀ (kind : boxable_number) (min_name_mode : Name_mode.t),
+      meet_shortcut_silent_on_poison
+        (fun tenv t =>
+           Provers.meet_boxed_number_containing_simple kind tenv
+             min_name_mode t))
+  ∧ prover_silent_on_poison Provers.prove_strings
+  ∧ meet_shortcut_silent_on_poison Provers.meet_strings.

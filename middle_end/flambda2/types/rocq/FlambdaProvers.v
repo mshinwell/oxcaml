@@ -61,7 +61,21 @@
      [meet_equals_tagged_immediates],
      [meet_equals_single_tagged_immediate] (308 to 369);
    - [meet_naked_number] and the eleven functions defined with it,
-     [meet_naked_float32s] to [meet_naked_masks] (371 to 520).
+     [meet_naked_float32s] to [meet_naked_masks] (371 to 520);
+   - [prove_equals_to_simple_of_kind] (105 to 127);
+   - [boxed_or_tagged_number], in a module of its name,
+     [prove_is_a_boxed_or_tagged_number_value], [prove_nothing],
+     [prove_is_a_boxed_or_tagged_number], [prove_is_a_tagged_immediate],
+     the nine [prove_is_a_boxed_float32] to [prove_is_a_boxed_mask],
+     [prove_is_or_is_not_a_boxed_float_value] and
+     [prove_is_or_is_not_a_boxed_float] (582 to 695);
+   - [prove_strings_value], [meet_strings], [prove_strings] (922 to
+     933);
+   - [tagging_proof_kind], [inspect_tagging_of_simple_value],
+     [prove_tagging_of_simple], [meet_tagging_of_simple] (935 to 991);
+   - [meet_boxed_number_containing_simple] and the nine functions
+     defined with it, [meet_boxed_float32_containing_simple] to
+     [meet_boxed_mask_containing_simple] (992 to 1110).
    The rest of the file is to follow, in the order of the plan.
 
    How the definitions differ from the compiler's.
@@ -110,6 +124,20 @@
      witness of it ([meet_naked_number_kind]), which has no case for
      the immediates. At [Kind_naked_immediate] it is no function of the
      compiler.
+   - The provers that answer a [Simple] call
+     [Typing_env.get_canonical_simple_exn] on the alias that a type is
+     ([Type_grammar.get_alias_exn]) and catch [Not_found] from either:
+     that is [canonical_simple_of_alias], whose inner [None] is that
+     exception. The local function [inspect_immediates] of
+     [inspect_tagging_of_simple_value] is [inspect_tagging_immediates].
+   - The nine [prove_is_a_boxed_*] are [prove_is_a_boxed_number], and
+     the nine [meet_boxed_*_containing_simple] are
+     [meet_boxed_number_containing_simple], each of which takes the
+     number boxed ([boxable_number]); the second takes it where the
+     compiler takes the function that reads the contents of a head of
+     that number.
+   - A string of a [String] head is the list of its bytes
+     (FlambdaTypeGrammar.v), where the compiler has a [String_info.t].
    - The arguments are in the compiler's order, the environment
      first; a labelled argument is an ordinary one. *)
 
@@ -118,8 +146,8 @@ From OxCamlStdlib Require Import OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaMapSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeAccessSpec FlambdaBindingTime FlambdaEnvAliases FlambdaTypingEnv
-  FlambdaProversStandIn.
+  FlambdaTypeEqualSpec FlambdaTypeAccessSpec FlambdaBindingTime
+  FlambdaEnvAliases FlambdaTypingEnv FlambdaProversStandIn.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -198,6 +226,14 @@ Module Generic_proof.
   Arguments Unknown {A}.
   Arguments Invalid {A}.
 End Generic_proof.
+
+(* [Provers.boxed_or_tagged_number]. *)
+Module Boxed_or_tagged_number.
+  Inductive t : Type :=
+    | Boxed (alloc_mode : Alloc_mode.t) (k : boxable_number)
+        (contents : flambda_type)
+    | Tagged_immediate.
+End Boxed_or_tagged_number.
 
 (* ======================================================================== *)
 (* The provers                                                              *)
@@ -643,5 +679,269 @@ Module Provers.
   Definition meet_naked_vec256s := meet_naked_number Kind_naked_vec256.
   Definition meet_naked_vec512s := meet_naked_number Kind_naked_vec512.
   Definition meet_naked_masks := meet_naked_number Kind_naked_mask.
+
+  (* [Typing_env.get_canonical_simple_exn env ~min_name_mode
+     (Type_grammar.get_alias_exn t)], as the provers call it: the
+     canonical element of the [Simple] that a type is an alias of. The
+     inner [None] is [Not_found], of either function, which the provers
+     catch with one handler. *)
+  Definition canonical_simple_of_alias (tenv : Typing_env.t)
+      (min_name_mode : Name_mode.t) (t : flambda_type)
+      : option (option simple) :=
+    match get_alias_opt t with
+    | None => Some None
+    | Some simple =>
+      Typing_env.get_canonical_simple_exn tenv (Some min_name_mode) None
+        simple
+    end.
+
+  (* [Provers.prove_equals_to_simple_of_kind]. *)
+  Definition prove_equals_to_simple_of_kind (tenv : Typing_env.t)
+      (t : flambda_type) (kind : flambda_kind)
+      : option (Proof_of_property.t simple) :=
+    let original_kind := FlambdaTypeGrammar.kind t in
+    if negb (kind_eqb original_kind kind)
+    then Some (wrong_kind Proof_of_property.Unknown)
+    else
+      let* canonical := canonical_simple_of_alias tenv Name_mode.normal t in
+      match canonical with
+      | None => Some Proof_of_property.Unknown
+      | Some simple => Some (Proof_of_property.Proved simple)
+      end.
+
+  (* [Provers.prove_is_a_boxed_or_tagged_number_value]. *)
+  Definition prove_is_a_boxed_or_tagged_number_value (tenv : Typing_env.t)
+      (value_head : head_of_kind_value_non_null)
+      : option (Generic_proof.t Boxed_or_tagged_number.t) :=
+    match value_head with
+    | Variant _ _ _ blocks _ _ =>
+      match blocks with
+      | Or_unknown.Unknown => Some Generic_proof.Unknown
+      | Or_unknown.Known blocks =>
+        if row_like_for_blocks_is_bottom blocks
+        then
+          Some (Generic_proof.Proved Boxed_or_tagged_number.Tagged_immediate)
+        else Some Generic_proof.Unknown
+      end
+    | Boxed_number k contents_ty alloc_mode =>
+      Some
+        (Generic_proof.Proved
+           (Boxed_or_tagged_number.Boxed alloc_mode k contents_ty))
+    | Mutable_block _ | Closures _ _ | String _ => Some Generic_proof.Unknown
+    end.
+
+  (* [Provers.prove_nothing]. *)
+  Definition prove_nothing {A : Type} (tenv : Typing_env.t)
+      (t : flambda_type) : option (Proof_of_property.t A) :=
+    Some Proof_of_property.Unknown.
+
+  (* [Provers.prove_is_a_boxed_or_tagged_number]. *)
+  Definition prove_is_a_boxed_or_tagged_number (tenv : Typing_env.t)
+      (t : flambda_type)
+      : option (Proof_of_property.t Boxed_or_tagged_number.t) :=
+    gen_value_to_proof prove_is_a_boxed_or_tagged_number_value tenv t.
+
+  (* [Provers.prove_is_a_tagged_immediate]. *)
+  Definition prove_is_a_tagged_immediate (tenv : Typing_env.t)
+      (t : flambda_type) : option (Proof_of_property.t unit) :=
+    let* proof := prove_is_a_boxed_or_tagged_number tenv t in
+    match proof with
+    | Proof_of_property.Proved Boxed_or_tagged_number.Tagged_immediate =>
+      Some (Proof_of_property.Proved tt)
+    | Proof_of_property.Proved _ => Some Proof_of_property.Unknown
+    | Proof_of_property.Unknown => Some Proof_of_property.Unknown
+    end.
+
+  (* [Provers.prove_is_a_boxed_float32], ..., [prove_is_a_boxed_mask]:
+     the nine are this one, which takes the number boxed. *)
+  Definition prove_is_a_boxed_number (kind : boxable_number)
+      (tenv : Typing_env.t) (t : flambda_type)
+      : option (Proof_of_property.t unit) :=
+    let* proof := prove_is_a_boxed_or_tagged_number tenv t in
+    match proof with
+    | Proof_of_property.Proved (Boxed_or_tagged_number.Boxed _ k _) =>
+      if boxable_number_eqb k kind
+      then Some (Proof_of_property.Proved tt)
+      else Some Proof_of_property.Unknown
+    | Proof_of_property.Proved _ => Some Proof_of_property.Unknown
+    | Proof_of_property.Unknown => Some Proof_of_property.Unknown
+    end.
+
+  Definition prove_is_a_boxed_float32 :=
+    prove_is_a_boxed_number Boxable_naked_float32.
+  Definition prove_is_a_boxed_float :=
+    prove_is_a_boxed_number Boxable_naked_float.
+  Definition prove_is_a_boxed_int32 :=
+    prove_is_a_boxed_number Boxable_naked_int32.
+  Definition prove_is_a_boxed_int64 :=
+    prove_is_a_boxed_number Boxable_naked_int64.
+  Definition prove_is_a_boxed_nativeint :=
+    prove_is_a_boxed_number Boxable_naked_nativeint.
+  Definition prove_is_a_boxed_vec128 :=
+    prove_is_a_boxed_number Boxable_naked_vec128.
+  Definition prove_is_a_boxed_vec256 :=
+    prove_is_a_boxed_number Boxable_naked_vec256.
+  Definition prove_is_a_boxed_vec512 :=
+    prove_is_a_boxed_number Boxable_naked_vec512.
+  Definition prove_is_a_boxed_mask :=
+    prove_is_a_boxed_number Boxable_naked_mask.
+
+  (* [Provers.prove_is_or_is_not_a_boxed_float_value]. *)
+  Definition prove_is_or_is_not_a_boxed_float_value (tenv : Typing_env.t)
+      (value_head : head_of_kind_value_non_null)
+      : option (Generic_proof.t bool) :=
+    match value_head with
+    | Boxed_number Boxable_naked_float _ _ =>
+      Some (Generic_proof.Proved true)
+    | _ => Some (Generic_proof.Proved false)
+    end.
+
+  (* [Provers.prove_is_or_is_not_a_boxed_float]. *)
+  Definition prove_is_or_is_not_a_boxed_float (tenv : Typing_env.t)
+      (t : flambda_type) : option (Proof_of_property.t bool) :=
+    gen_value_to_proof prove_is_or_is_not_a_boxed_float_value tenv t.
+
+  (* [Provers.prove_strings_value]. *)
+  Definition prove_strings_value (tenv : Typing_env.t)
+      (value_head : head_of_kind_value_non_null)
+      : option (Generic_proof.t (list (list Z))) :=
+    match value_head with
+    | String strs => Some (Generic_proof.Proved strs)
+    | Variant _ _ _ _ _ _ | Mutable_block _ | Boxed_number _ _ _
+    | Closures _ _ =>
+      Some Generic_proof.Invalid
+    end.
+
+  (* [Provers.meet_strings]. *)
+  Definition meet_strings (tenv : Typing_env.t) (t : flambda_type)
+      : option (Meet_shortcut.t (list (list Z))) :=
+    gen_value_to_meet prove_strings_value tenv t.
+
+  (* [Provers.prove_strings]. *)
+  Definition prove_strings (tenv : Typing_env.t) (t : flambda_type)
+      : option (Proof_of_property.t (list (list Z))) :=
+    gen_value_to_proof prove_strings_value tenv t.
+
+  (* [Provers.tagging_proof_kind]. *)
+  Inductive tagging_proof_kind : Type :=
+    | Prove
+    | Meet.
+
+  (* The local function [inspect_immediates] of
+     [Provers.inspect_tagging_of_simple_value]: a [Simple] whose value
+     is the number of the immediates of a variant. *)
+  Definition inspect_tagging_immediates (min_name_mode : Name_mode.t)
+      (tenv : Typing_env.t) (immediates : Or_unknown.t flambda_type)
+      : option (Generic_proof.t simple) :=
+    match immediates with
+    | Or_unknown.Unknown => Some Generic_proof.Unknown
+    | Or_unknown.Known t =>
+      let* from_alias := canonical_simple_of_alias tenv min_name_mode t in
+      match from_alias with
+      | Some simple => Some (Generic_proof.Proved simple)
+      | None =>
+        let* shortcut := meet_naked_immediates tenv t in
+        match shortcut with
+        | Meet_shortcut.Need_meet => Some Generic_proof.Unknown
+        | Meet_shortcut.Invalid => Some Generic_proof.Invalid
+        | Meet_shortcut.Known_result imms =>
+          match Keyed.get_singleton Z.eqb imms with
+          | Some imm =>
+            Some (Generic_proof.Proved (Const (Naked_immediate imm)))
+          | None => Some Generic_proof.Unknown
+          end
+        end
+      end
+    end.
+
+  (* [Provers.inspect_tagging_of_simple_value]. *)
+  Definition inspect_tagging_of_simple_value (proof_kind : tagging_proof_kind)
+      (min_name_mode : Name_mode.t) (tenv : Typing_env.t)
+      (value_head : head_of_kind_value_non_null)
+      : option (Generic_proof.t simple) :=
+    match value_head with
+    | Variant _ immediates _ blocks _ _ =>
+      match proof_kind, blocks with
+      | Prove, Or_unknown.Unknown => Some Generic_proof.Unknown
+      | Prove, Or_unknown.Known blocks =>
+        if row_like_for_blocks_is_bottom blocks
+        then inspect_tagging_immediates min_name_mode tenv immediates
+        else Some Generic_proof.Unknown
+      | Meet, _ => inspect_tagging_immediates min_name_mode tenv immediates
+      end
+    | Mutable_block _ | Boxed_number _ _ _ | String _ | Closures _ _ =>
+      Some Generic_proof.Unknown
+    end.
+
+  (* [Provers.prove_tagging_of_simple]. *)
+  Definition prove_tagging_of_simple (tenv : Typing_env.t)
+      (min_name_mode : Name_mode.t) (t : flambda_type)
+      : option (Proof_of_property.t simple) :=
+    gen_value_to_proof (inspect_tagging_of_simple_value Prove min_name_mode)
+      tenv t.
+
+  (* [Provers.meet_tagging_of_simple]. *)
+  Definition meet_tagging_of_simple (tenv : Typing_env.t)
+      (min_name_mode : Name_mode.t) (t : flambda_type)
+      : option (Meet_shortcut.t simple) :=
+    gen_value_to_meet (inspect_tagging_of_simple_value Meet min_name_mode)
+      tenv t.
+
+  (* [Provers.meet_boxed_number_containing_simple], which takes the
+     number boxed where the compiler takes the function that reads the
+     contents of a head of that number. *)
+  Definition meet_boxed_number_containing_simple (kind : boxable_number)
+      (tenv : Typing_env.t) (min_name_mode : Name_mode.t) (t : flambda_type)
+      : option (Meet_shortcut.t simple) :=
+    let contents_of_boxed_number (ty_value : head_of_kind_value_non_null)
+        : option flambda_type :=
+      match ty_value with
+      | Boxed_number k ty _ =>
+        if boxable_number_eqb k kind then Some ty else None
+      | Variant _ _ _ _ _ _ | Mutable_block _ | Closures _ _ | String _ =>
+        None
+      end
+    in
+    let* expanded := expand_head tenv t in
+    match expanded with
+    | Oub_value (Ok (Head_of_kind_value (Ok ty_value) _)) =>
+      match contents_of_boxed_number ty_value with
+      | None => Some Meet_shortcut.Invalid
+      | Some ty =>
+        let* canonical := canonical_simple_of_alias tenv min_name_mode ty in
+        match canonical with
+        | Some simple => Some (Meet_shortcut.Known_result simple)
+        | None => Some Meet_shortcut.Need_meet
+        end
+      end
+    | Oub_value (Ok (Head_of_kind_value Unknown _)) | Oub_value Unknown =>
+      Some Meet_shortcut.Need_meet
+    | Oub_value (Ok (Head_of_kind_value Bottom _)) | Oub_value Bottom =>
+      Some Meet_shortcut.Invalid
+    | Oub_naked_immediate _ | Oub_naked_number _ _ | Oub_rec_info _
+    | Oub_region _ =>
+      Some (wrong_kind Meet_shortcut.Invalid)
+    end.
+
+  (* [Provers.meet_boxed_float32_containing_simple], ...,
+     [meet_boxed_mask_containing_simple]. *)
+  Definition meet_boxed_float32_containing_simple :=
+    meet_boxed_number_containing_simple Boxable_naked_float32.
+  Definition meet_boxed_float_containing_simple :=
+    meet_boxed_number_containing_simple Boxable_naked_float.
+  Definition meet_boxed_int32_containing_simple :=
+    meet_boxed_number_containing_simple Boxable_naked_int32.
+  Definition meet_boxed_int64_containing_simple :=
+    meet_boxed_number_containing_simple Boxable_naked_int64.
+  Definition meet_boxed_nativeint_containing_simple :=
+    meet_boxed_number_containing_simple Boxable_naked_nativeint.
+  Definition meet_boxed_vec128_containing_simple :=
+    meet_boxed_number_containing_simple Boxable_naked_vec128.
+  Definition meet_boxed_vec256_containing_simple :=
+    meet_boxed_number_containing_simple Boxable_naked_vec256.
+  Definition meet_boxed_vec512_containing_simple :=
+    meet_boxed_number_containing_simple Boxable_naked_vec512.
+  Definition meet_boxed_mask_containing_simple :=
+    meet_boxed_number_containing_simple Boxable_naked_mask.
 
 End Provers.

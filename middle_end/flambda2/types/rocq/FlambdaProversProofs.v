@@ -44,10 +44,12 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs FlambdaTypeWellFormedSpec
-  FlambdaTypeWellFormedProofs FlambdaTypeAccessSpec FlambdaTypeAccessProofs
-  FlambdaBindingTime FlambdaEnvAliases
+  FlambdaTypeWellFormedProofs FlambdaTypeEqualSpec FlambdaTypeEqualProofs
+  FlambdaTypeAccessSpec FlambdaTypeAccessProofs FlambdaBindingTime
+  FlambdaEnvAliases
   FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
-  FlambdaProversStandIn FlambdaProvers FlambdaProversSpec.
+  FlambdaTypingEnvProofs FlambdaProversStandIn FlambdaProvers
+  FlambdaProversSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -1381,6 +1383,502 @@ Proof.
   discriminate Hnumber.
 Qed.
 
+(* ======================================================================== *)
+(* A proof that is made of a prover on heads of which only [Proved] is      *)
+(* sound                                                                    *)
+(* ======================================================================== *)
+
+(* The part of [generic_value_sound] that a proof needs: the answer
+   [Proved] holds of every value of the head. *)
+Definition generic_value_proved_sound {A : Type}
+    (prove_gen :
+      Typing_env.t -> head_of_kind_value_non_null
+      -> option (Generic_proof.t A))
+    (input : Typing_env.t -> head_of_kind_value_non_null -> Prop)
+    (holds : static_env -> env -> A -> value -> Prop) : Prop :=
+  ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
+    (head : head_of_kind_value_non_null) (v : value) (x : A),
+    typing_env_satisfied_strictly statics valuation tenv ->
+    input tenv head ->
+    head_of_kind_value_non_null_satisfied statics valuation v head ->
+    prove_gen tenv head = Some (Generic_proof.Proved x) ->
+    holds statics valuation x v.
+
+Lemma gen_value_to_proof_proved_sound {A : Type}
+    (prove_gen :
+      Typing_env.t -> head_of_kind_value_non_null
+      -> option (Generic_proof.t A))
+    (input : Typing_env.t -> flambda_type -> Prop)
+    (input_head : Typing_env.t -> head_of_kind_value_non_null -> Prop)
+    (holds : static_env -> env -> A -> value -> Prop) :
+  input_to_head input input_head ->
+  generic_value_proved_sound prove_gen input_head holds ->
+  prover_sound (Provers.gen_value_to_proof prove_gen) input holds.
+Proof.
+  intros Hinput Hgen statics valuation tenv t x v Hsat Hin Hv Hproved.
+  unfold Provers.gen_value_to_proof in Hproved.
+  destruct (Provers.expand_head tenv t) as [d | ] eqn:Hd;
+    [ | discriminate ].
+  destruct d as [[ | [[ | head | ] [ | is_null]] | ] | oub | k oub | oub
+                | oub];
+    try discriminate Hproved.
+  pose proof (expanded_value_cases _ _ _ _ _ _ Hsat Hv Hd) as Hcases.
+  simpl in Hcases.
+  destruct Hcases as [[_ Hnot] | [_ Hhead]]; [ contradiction | ].
+  destruct (prove_gen tenv head) as [[y | | ] | ] eqn:Hgen_eq;
+    try discriminate Hproved.
+  injection Hproved as ->.
+  exact
+    (Hgen statics valuation tenv head v x Hsat (Hinput _ _ _ _ Hin Hd) Hhead
+       Hgen_eq).
+Qed.
+
+(* ======================================================================== *)
+(* Aliases                                                                  *)
+(* ======================================================================== *)
+
+Lemma canonical_simple_of_alias_sound (statics : static_env)
+    (valuation : env) (tenv : Typing_env.t) (min_name_mode : Name_mode.t)
+    (t : flambda_type) (canonical : simple) (v : value) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  type_satisfied statics valuation v t ->
+  Provers.canonical_simple_of_alias tenv min_name_mode t
+  = Some (Some canonical) ->
+  eval_simple valuation canonical = Some v.
+Proof.
+  intros Hsat Hv. unfold Provers.canonical_simple_of_alias.
+  destruct (get_alias_opt t) as [s | ] eqn:Halias; [ | discriminate ].
+  intros Hcanonical.
+  rewrite
+    (get_canonical_simple_satisfied (fun _ => False) _ _ _ _ _ _ _ Hsat
+       Hcanonical).
+  exact (proj1 (proj1 (get_alias_satisfied _ _ _ _ _ Halias) Hv)).
+Qed.
+
+Lemma prove_equals_to_simple_of_kind_sound_proof (k : flambda_kind) :
+  prover_sound
+    (fun tenv t => Provers.prove_equals_to_simple_of_kind tenv t k)
+    any_input
+    (fun _ valuation s v => eval_simple valuation s = Some v).
+Proof.
+  intros statics valuation tenv t s v Hsat _ Hv Hproved.
+  unfold Provers.prove_equals_to_simple_of_kind in Hproved.
+  destruct (negb (kind_eqb (kind t) k)); [ discriminate Hproved | ].
+  destruct (Provers.canonical_simple_of_alias tenv Name_mode.normal t)
+    as [[canonical | ] | ] eqn:Hcanonical;
+    try discriminate Hproved.
+  injection Hproved as <-.
+  exact (canonical_simple_of_alias_sound _ _ _ _ _ _ _ Hsat Hv Hcanonical).
+Qed.
+
+(* The number of the immediates of a variant, as a [Simple]. *)
+Lemma inspect_tagging_immediates_sound (statics : static_env)
+    (valuation : env) (tenv : Typing_env.t) (min_name_mode : Name_mode.t)
+    (immediates : Or_unknown.t flambda_type) (i : Z) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  match immediates with
+  | Or_unknown.Unknown => True
+  | Or_unknown.Known ty =>
+    well_formed_input tenv ty
+    ∧ type_satisfied statics valuation (Value_const (Naked_immediate i)) ty
+  end ->
+  match Provers.inspect_tagging_immediates min_name_mode tenv immediates with
+  | Some (Generic_proof.Proved s) =>
+    eval_simple valuation s = Some (Value_const (Naked_immediate i))
+  | Some Generic_proof.Invalid => False
+  | Some Generic_proof.Unknown | None => True
+  end.
+Proof.
+  intros Hsat Himms. unfold Provers.inspect_tagging_immediates.
+  destruct immediates as [ty | ]; [ | exact I ].
+  destruct Himms as [Hinput Hty].
+  destruct (Provers.canonical_simple_of_alias tenv min_name_mode ty)
+    as [[canonical | ] | ] eqn:Hcanonical;
+    [ | | exact I ].
+  - exact (canonical_simple_of_alias_sound _ _ _ _ _ _ _ Hsat Hty Hcanonical).
+  - pose proof
+      (meet_naked_immediates_sound_proof _ _ _ _ _ Hsat Hinput Hty eq_refl)
+      as Hmeet.
+    destruct (Provers.meet_naked_immediates tenv ty) as [[imms | | ] | ];
+      try exact I; try exact Hmeet.
+    destruct (Keyed.get_singleton Z.eqb imms) as [imm | ] eqn:Hsingleton;
+      [ | exact I ].
+    destruct Hmeet as [i' [Heq Hin]]. injection Heq as <-.
+    rewrite (get_singleton_in _ _ _ Hsingleton Hin). reflexivity.
+Qed.
+
+Lemma inspect_tagging_of_simple_value_sound
+    (proof_kind : Provers.tagging_proof_kind) (min_name_mode : Name_mode.t) :
+  generic_value_sound
+    (Provers.inspect_tagging_of_simple_value proof_kind min_name_mode)
+    well_formed_head
+    (fun _ v =>
+       match proof_kind with
+       | Provers.Prove => True
+       | Provers.Meet => is_immediate v
+       end)
+    (fun _ => tagging_of).
+Proof.
+  intros statics valuation tenv head v Hsat Hinput Hhead Hdomain.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    simpl; try (destruct proof_kind; exact I).
+  assert (Hinspect :
+    (∃ i : Z,
+      v = Value_const (Tagged_immediate i)
+      ∧ match immediates with
+        | Or_unknown.Unknown => True
+        | Or_unknown.Known ty =>
+          type_satisfied statics valuation (Value_const (Naked_immediate i))
+            ty
+        end) ->
+    match
+      Provers.inspect_tagging_immediates min_name_mode tenv immediates
+    with
+    | Some (Generic_proof.Proved s) => tagging_of valuation s v
+    | Some Generic_proof.Invalid => False
+    | Some Generic_proof.Unknown | None => True
+    end).
+  { intros [i [-> Himms]].
+    pose proof
+      (inspect_tagging_immediates_sound statics valuation tenv min_name_mode
+         immediates i Hsat)
+      as Hsound.
+    match type of Hsound with
+    | ?P -> _ => assert (Hpremise : P)
+    end.
+    { destruct immediates as [ty | ]; [ | exact I ].
+      split; [ | exact Himms ].
+      exact (well_formed_head_immediates _ _ _ _ _ _ _ Hinput). }
+    specialize (Hsound Hpremise).
+    destruct (Provers.inspect_tagging_immediates min_name_mode tenv immediates)
+      as [[s | | ] | ];
+      try exact I; try exact Hsound.
+    exists i. split; [ reflexivity | exact Hsound ]. }
+  destruct proof_kind.
+  - destruct blocks as [blocks | ]; [ | exact I ].
+    destruct (row_like_for_blocks_is_bottom blocks) eqn:Hblocks; [ | exact I ].
+    apply Hinspect.
+    exact (variant_no_blocks _ _ _ _ _ _ _ _ _ Hhead Hblocks).
+  - assert (Hcase :
+      match blocks with
+      | Or_unknown.Unknown | Or_unknown.Known _ =>
+        match
+          Provers.inspect_tagging_immediates min_name_mode tenv immediates
+        with
+        | Some (Generic_proof.Proved s) => tagging_of valuation s v
+        | Some Generic_proof.Invalid => False
+        | Some Generic_proof.Unknown | None => True
+        end
+      end).
+    { assert (Himmediate :
+        ∃ i : Z,
+          v = Value_const (Tagged_immediate i)
+          ∧ match immediates with
+            | Or_unknown.Unknown => True
+            | Or_unknown.Known ty =>
+              type_satisfied statics valuation
+                (Value_const (Naked_immediate i)) ty
+            end).
+      { destruct (variant_cases _ _ _ _ _ _ _ _ _ Hhead)
+          as [Himmediate | [tag [fields [Hblock _]]]];
+          [ exact Himmediate | ].
+        rewrite (immediate_not_block statics v Hdomain) in Hblock.
+        discriminate Hblock. }
+      destruct blocks; exact (Hinspect Himmediate). }
+    destruct blocks; exact Hcase.
+Qed.
+
+Lemma prove_tagging_of_simple_sound_proof (min_name_mode : Name_mode.t) :
+  prover_sound
+    (fun tenv t => Provers.prove_tagging_of_simple tenv min_name_mode t)
+    well_formed_input (fun _ => tagging_of).
+Proof.
+  apply (gen_value_to_proof_sound _ well_formed_input well_formed_head).
+  - exact well_formed_input_to_head.
+  - exact (inspect_tagging_of_simple_value_sound Provers.Prove min_name_mode).
+Qed.
+
+Lemma meet_tagging_of_simple_sound_proof (min_name_mode : Name_mode.t) :
+  meet_shortcut_sound
+    (fun tenv t => Provers.meet_tagging_of_simple tenv min_name_mode t)
+    well_formed_input tagged_immediates (fun _ => tagging_of).
+Proof.
+  apply
+    (gen_value_to_meet_sound _ well_formed_input well_formed_head
+       (fun _ v => is_immediate v)).
+  - exact well_formed_input_to_head.
+  - intros statics v Himmediate.
+    split; [ exact (immediate_kind _ Himmediate) | ].
+    split; [ | exact Himmediate ].
+    destruct Himmediate as [i ->]. discriminate.
+  - exact (inspect_tagging_of_simple_value_sound Provers.Meet min_name_mode).
+Qed.
+
+(* ======================================================================== *)
+(* Boxed numbers                                                            *)
+(* ======================================================================== *)
+
+(* A boxed number of a kind has the head of the boxed numbers of that
+   kind of which nothing more is known. *)
+Lemma boxed_head_satisfied (statics : static_env) (vars : env) (v : value)
+    (k : boxable_number) :
+  boxed_numbers k statics v ->
+  head_of_kind_value_non_null_satisfied statics vars v
+    (Boxed_number k (unknown (unboxed_kind k)) Alloc_mode.Heap).
+Proof.
+  intros [c [Hboxed Hkind]]. rewrite boxed_number_satisfied.
+  exists c. split; [ exact Hboxed | ]. split; [ exact Hkind | ].
+  apply unknown_satisfied. exact Hkind.
+Qed.
+
+(* A head of another form, or of the boxed numbers of another kind,
+   has no boxed number of the kind. *)
+Lemma not_boxed_head (statics : static_env) (vars : env) (v : value)
+    (k : boxable_number) (head : head_of_kind_value_non_null) :
+  head_of_kind_value_non_null_satisfied statics vars v head ->
+  boxed_numbers k statics v ->
+  match head with
+  | Boxed_number k' _ _ => k = k'
+  | Variant _ _ _ _ _ _ | Mutable_block _ | Closures _ _ | String _ => False
+  end.
+Proof.
+  intros Hhead Hboxed.
+  pose proof
+    (heads_compatible_satisfied _ _ _ _ _
+       (boxed_head_satisfied statics vars v k Hboxed) Hhead)
+    as Hcompatible.
+  destruct head; exact Hcompatible.
+Qed.
+
+Lemma prove_is_a_boxed_or_tagged_number_value_sound :
+  generic_value_sound Provers.prove_is_a_boxed_or_tagged_number_value
+    any_head (fun _ _ => True) boxed_or_tagged_number_is.
+Proof.
+  intros statics valuation tenv head v Hsat _ Hhead _.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    simpl; try exact I.
+  - destruct blocks as [blocks | ]; [ | exact I ].
+    destruct (row_like_for_blocks_is_bottom blocks) eqn:Hblocks; [ | exact I ].
+    destruct (variant_no_blocks _ _ _ _ _ _ _ _ _ Hhead Hblocks)
+      as [i [-> _]].
+    exists i. reflexivity.
+  - rewrite boxed_number_satisfied in Hhead. exact Hhead.
+Qed.
+
+Lemma prove_is_a_boxed_or_tagged_number_sound_proof :
+  prover_sound Provers.prove_is_a_boxed_or_tagged_number any_input
+    boxed_or_tagged_number_is.
+Proof.
+  apply (gen_value_to_proof_sound _ any_input any_head).
+  - exact any_input_to_head.
+  - exact prove_is_a_boxed_or_tagged_number_value_sound.
+Qed.
+
+Lemma prove_is_a_tagged_immediate_sound_proof :
+  prover_sound Provers.prove_is_a_tagged_immediate any_input
+    (fun _ _ _ v => is_immediate v).
+Proof.
+  intros statics valuation tenv t x v Hsat Hin Hv Hproved.
+  unfold Provers.prove_is_a_tagged_immediate in Hproved.
+  destruct (Provers.prove_is_a_boxed_or_tagged_number tenv t)
+    as [[[alloc_mode k contents | ] | ] | ] eqn:Hnumber;
+    try discriminate Hproved.
+  exact
+    (prove_is_a_boxed_or_tagged_number_sound_proof _ _ _ _ _ _ Hsat Hin Hv
+       Hnumber).
+Qed.
+
+Lemma prove_is_a_boxed_number_sound_proof (kind : boxable_number) :
+  prover_sound (Provers.prove_is_a_boxed_number kind) any_input
+    (fun statics _ _ v => boxed_numbers kind statics v).
+Proof.
+  intros statics valuation tenv t x v Hsat Hin Hv Hproved.
+  unfold Provers.prove_is_a_boxed_number in Hproved.
+  destruct (Provers.prove_is_a_boxed_or_tagged_number tenv t)
+    as [[[alloc_mode k contents | ] | ] | ] eqn:Hnumber;
+    try discriminate Hproved.
+  destruct (boxable_number_eqb k kind) eqn:Hk; [ | discriminate Hproved ].
+  apply boxable_number_eqb_eq in Hk. subst k.
+  destruct
+    (prove_is_a_boxed_or_tagged_number_sound_proof _ _ _ _ _ _ Hsat Hin Hv
+       Hnumber)
+    as [c [Hboxed [Hkind _]]].
+  exists c. split; assumption.
+Qed.
+
+Lemma prove_is_or_is_not_a_boxed_float_value_sound :
+  generic_value_sound Provers.prove_is_or_is_not_a_boxed_float_value
+    any_head (fun _ _ => True)
+    (fun statics _ x v =>
+       if x
+       then boxed_numbers Boxable_naked_float statics v
+       else ~ boxed_numbers Boxable_naked_float statics v).
+Proof.
+  intros statics valuation tenv head v Hsat _ Hhead _.
+  pose proof (not_boxed_head _ _ _ Boxable_naked_float _ Hhead) as Hnot.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    simpl; try exact Hnot.
+  destruct k; simpl;
+    try (intros Hboxed; discriminate (Hnot Hboxed)).
+  rewrite boxed_number_satisfied in Hhead.
+  destruct Hhead as [c [Hboxed [Hkind _]]].
+  exists c. split; assumption.
+Qed.
+
+Lemma prove_is_or_is_not_a_boxed_float_sound_proof :
+  prover_sound Provers.prove_is_or_is_not_a_boxed_float any_input
+    (fun statics _ x v =>
+       if x
+       then boxed_numbers Boxable_naked_float statics v
+       else ~ boxed_numbers Boxable_naked_float statics v).
+Proof.
+  apply (gen_value_to_proof_sound _ any_input any_head).
+  - exact any_input_to_head.
+  - exact prove_is_or_is_not_a_boxed_float_value_sound.
+Qed.
+
+Lemma boxed_number_kind_not_null (statics : static_env) (v : value)
+    (k : boxable_number) :
+  boxed_numbers k statics v ->
+  kind_of_value v = Value ∧ v <> Value_const Null.
+Proof.
+  intros [c [Hboxed _]].
+  split; [ exact (boxed_number_of_kind _ _ _ Hboxed) | ].
+  intros ->. discriminate Hboxed.
+Qed.
+
+Lemma meet_boxed_number_containing_simple_sound_proof
+    (kind : boxable_number) (min_name_mode : Name_mode.t) :
+  meet_shortcut_sound
+    (fun tenv t =>
+       Provers.meet_boxed_number_containing_simple kind tenv min_name_mode t)
+    any_input (boxed_numbers kind)
+    (fun statics valuation s v =>
+       ∃ c : const,
+         boxed_number_of statics v = Some c
+         ∧ eval_simple valuation s = Some (Value_const c)).
+Proof.
+  intros statics valuation tenv t v Hsat _ Hv Hboxed.
+  destruct (boxed_number_kind_not_null _ _ _ Hboxed) as [Hkind Hnot_null].
+  unfold Provers.meet_boxed_number_containing_simple.
+  destruct (Provers.expand_head tenv t) as [d | ] eqn:Hd; [ | exact I ].
+  pose proof (expanded_kind _ _ _ _ _ _ Hsat Hv Hd) as Hk.
+  rewrite Hkind in Hk.
+  destruct d as [oub | oub | k oub | oub | oub]; try discriminate Hk.
+  pose proof (expanded_value_cases _ _ _ _ _ _ Hsat Hv Hd) as Hcases.
+  destruct oub as [ | [[ | head | ] is_null] | ]; simpl in Hcases |- *.
+  - exact I.
+  - exact I.
+  - destruct Hcases as [[Hnull _] | [_ Hhead]]; [ contradiction | ].
+    pose proof (not_boxed_head _ _ _ _ _ Hhead Hboxed) as Hnot.
+    destruct head as [is_int immediates get_tag blocks extensions is_unique
+                     | alloc_mode | k contents alloc_mode
+                     | by_function_slot alloc_mode | strs];
+      try exact Hnot.
+    subst k.
+    rewrite (proj2 (boxable_number_eqb_eq kind kind) eq_refl).
+    rewrite boxed_number_satisfied in Hhead.
+    destruct Hhead as [c [Hc [_ Hcontents]]].
+    destruct (Provers.canonical_simple_of_alias tenv min_name_mode contents)
+      as [[canonical | ] | ] eqn:Hcanonical;
+      try exact I.
+    exists c. split; [ exact Hc | ].
+    exact
+      (canonical_simple_of_alias_sound _ _ _ _ _ _ _ Hsat Hcontents
+         Hcanonical).
+  - destruct Hcases as [[Hnull _] | [_ []]]. contradiction.
+  - exact Hcases.
+Qed.
+
+Lemma meet_boxed_number_containing_simple_silent (kind : boxable_number)
+    (min_name_mode : Name_mode.t) :
+  meet_shortcut_silent_on_poison
+    (fun tenv t =>
+       Provers.meet_boxed_number_containing_simple kind tenv min_name_mode t).
+Proof.
+  intros statics valuation tenv t x v Hsat Hv Hpoison Hknown.
+  unfold Provers.meet_boxed_number_containing_simple in Hknown.
+  destruct (Provers.expand_head tenv t) as [d | ] eqn:Hd;
+    [ | discriminate ].
+  destruct d as [[ | [[ | head | ] is_null] | ] | oub | k oub | oub | oub];
+    try discriminate Hknown.
+  pose proof (expanded_value_cases _ _ _ _ _ _ Hsat Hv Hd) as Hcases.
+  simpl in Hcases.
+  destruct Hcases as [[Hnull _] | [_ Hhead]].
+  - exact (poison_not_null _ Hpoison Hnull).
+  - exact (poison_no_head _ _ _ _ Hpoison Hhead).
+Qed.
+
+(* ======================================================================== *)
+(* Strings                                                                  *)
+(* ======================================================================== *)
+
+Lemma string_head_satisfied (statics : static_env) (vars : env) (v : value)
+    (bytes : list Z) :
+  string_of statics v = Some bytes ->
+  head_of_kind_value_non_null_satisfied statics vars v (String [bytes]).
+Proof.
+  intros Hstring. rewrite string_satisfied.
+  exists bytes. split; [ exact Hstring | left; reflexivity ].
+Qed.
+
+Lemma prove_strings_value_sound :
+  generic_value_sound Provers.prove_strings_value any_head strings
+    (fun statics _ => string_among statics).
+Proof.
+  intros statics valuation tenv head v Hsat _ Hhead [bytes Hstring].
+  pose proof
+    (heads_compatible_satisfied _ _ _ _ _
+       (string_head_satisfied statics valuation v bytes Hstring) Hhead)
+    as Hcompatible.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    simpl; try exact Hcompatible.
+  rewrite string_satisfied in Hhead. exact Hhead.
+Qed.
+
+Lemma prove_strings_value_proved_sound :
+  generic_value_proved_sound Provers.prove_strings_value any_head
+    (fun statics _ => string_among statics).
+Proof.
+  intros statics valuation tenv head v x Hsat _ Hhead Hproved.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    try discriminate Hproved.
+  injection Hproved as <-.
+  rewrite string_satisfied in Hhead. exact Hhead.
+Qed.
+
+Lemma prove_strings_sound_proof :
+  prover_sound Provers.prove_strings any_input
+    (fun statics _ => string_among statics).
+Proof.
+  apply (gen_value_to_proof_proved_sound _ any_input any_head).
+  - exact any_input_to_head.
+  - exact prove_strings_value_proved_sound.
+Qed.
+
+Lemma meet_strings_sound_proof :
+  meet_shortcut_sound Provers.meet_strings any_input strings
+    (fun statics _ => string_among statics).
+Proof.
+  apply (gen_value_to_meet_sound _ any_input any_head strings).
+  - exact any_input_to_head.
+  - intros statics v [bytes Hstring].
+    split; [ exact (string_of_kind _ _ _ Hstring) | ].
+    split; [ | exists bytes; exact Hstring ].
+    intros ->. discriminate Hstring.
+  - exact prove_strings_value_sound.
+Qed.
+
 End With_expand_head.
 
 (* ======================================================================== *)
@@ -1561,4 +2059,106 @@ Proof.
     as Himmediate.
   simpl in Himmediate. rewrite eval_prim_unary. simpl.
   rewrite (immediate_not_block statics v Himmediate). reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* Aliases, boxed numbers and strings                                       *)
+(* ======================================================================== *)
+
+Theorem prove_equals_to_simple_of_kind_sound
+  : prove_equals_to_simple_of_kind_sound_statement.
+Proof. exact prove_equals_to_simple_of_kind_sound_proof. Qed.
+
+Theorem prove_tagging_of_simple_sound
+  : prove_tagging_of_simple_sound_statement.
+Proof. exact prove_tagging_of_simple_sound_proof. Qed.
+
+Theorem meet_tagging_of_simple_sound : meet_tagging_of_simple_sound_statement.
+Proof. exact meet_tagging_of_simple_sound_proof. Qed.
+
+Theorem prove_is_a_boxed_or_tagged_number_sound
+  : prove_is_a_boxed_or_tagged_number_sound_statement.
+Proof. exact prove_is_a_boxed_or_tagged_number_sound_proof. Qed.
+
+Theorem prove_is_a_tagged_immediate_sound
+  : prove_is_a_tagged_immediate_sound_statement.
+Proof. exact prove_is_a_tagged_immediate_sound_proof. Qed.
+
+Theorem prove_is_a_boxed_number_sound
+  : prove_is_a_boxed_number_sound_statement.
+Proof. exact prove_is_a_boxed_number_sound_proof. Qed.
+
+Theorem prove_is_or_is_not_a_boxed_float_sound
+  : prove_is_or_is_not_a_boxed_float_sound_statement.
+Proof. exact prove_is_or_is_not_a_boxed_float_sound_proof. Qed.
+
+Theorem meet_boxed_number_containing_simple_sound
+  : meet_boxed_number_containing_simple_sound_statement.
+Proof. exact meet_boxed_number_containing_simple_sound_proof. Qed.
+
+Theorem unbox_number_defined : unbox_number_defined_statement.
+Proof.
+  intros statics kind v r. rewrite eval_prim_unary.
+  change (eval_unary_primitive statics (Unbox_number kind) v)
+    with
+      (let* c := boxed_number_of statics v in
+       if is_number_of_kind kind c then Some (Value_const c) else None).
+  destruct (boxed_number_of statics v) as [c | ] eqn:Hboxed;
+    [ | discriminate ].
+  simpl. destruct (is_number_of_kind kind c) eqn:Hnumber; [ | discriminate ].
+  intros [= <-].
+  split; [ | exists c; split; first [ exact Hboxed | reflexivity ] ].
+  exists c. split; [ exact Hboxed | ].
+  destruct kind, c; try discriminate Hnumber; reflexivity.
+Qed.
+
+Theorem prove_strings_sound : prove_strings_sound_statement.
+Proof. exact prove_strings_sound_proof. Qed.
+
+Theorem meet_strings_sound : meet_strings_sound_statement.
+Proof. exact meet_strings_sound_proof. Qed.
+
+Lemma prover_silent_of_made {A B : Type}
+    (prover : Typing_env.t -> flambda_type -> option (Proof_of_property.t A))
+    (prover' : Typing_env.t -> flambda_type -> option (Proof_of_property.t B)) :
+  (∀ (tenv : Typing_env.t) (t : flambda_type) (y : B),
+    prover' tenv t = Some (Proof_of_property.Proved y) ->
+    ∃ x : A, prover tenv t = Some (Proof_of_property.Proved x)) ->
+  prover_silent_on_poison prover ->
+  prover_silent_on_poison prover'.
+Proof.
+  intros Hmade Hsilent statics valuation tenv t y v Hsat Hv Hpoison Hproved.
+  destruct (Hmade _ _ _ Hproved) as [x Hx].
+  exact (Hsilent _ _ _ _ _ _ Hsat Hv Hpoison Hx).
+Qed.
+
+Theorem more_provers_silent_on_poison
+  : more_provers_silent_on_poison_statement.
+Proof.
+  intros Hexpand.
+  assert (Hnumber :
+    prover_silent_on_poison Provers.prove_is_a_boxed_or_tagged_number).
+  { exact (gen_value_to_proof_silent Hexpand _). }
+  repeat split.
+  - intros min_name_mode. exact (gen_value_to_proof_silent Hexpand _).
+  - intros min_name_mode. exact (gen_value_to_meet_silent Hexpand _).
+  - exact Hnumber.
+  - apply (prover_silent_of_made Provers.prove_is_a_boxed_or_tagged_number);
+      [ | exact Hnumber ].
+    intros tenv t y. unfold Provers.prove_is_a_tagged_immediate.
+    destruct (Provers.prove_is_a_boxed_or_tagged_number tenv t)
+      as [[x | ] | ];
+      [ intros _; exists x; reflexivity | discriminate | discriminate ].
+  - intros kind.
+    apply (prover_silent_of_made Provers.prove_is_a_boxed_or_tagged_number);
+      [ | exact Hnumber ].
+    intros tenv t y. unfold Provers.prove_is_a_boxed_number.
+    destruct (Provers.prove_is_a_boxed_or_tagged_number tenv t)
+      as [[x | ] | ];
+      [ intros _; exists x; reflexivity | discriminate | discriminate ].
+  - exact (gen_value_to_proof_silent Hexpand _).
+  - intros kind min_name_mode.
+    exact (meet_boxed_number_containing_simple_silent Hexpand _ _).
+  - exact (gen_value_to_proof_silent Hexpand _).
+  - exact (gen_value_to_meet_silent Hexpand _).
 Qed.
