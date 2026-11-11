@@ -152,12 +152,14 @@
      The workstream on the unboxing of continuation parameters is to
      show what holds at a join that follows an unboxed continuation.
    - A source environment that holds the types of constants lifted in
-     other branches (discrepancy T5-4): on a path that did not define
-     such a symbol, no valuation satisfies the source. The workstream
-     on continuations is to show, for the inputs it gives the join,
-     that the valuation of a use satisfies the source too, once the
-     typing environment's owner has said where the type of a symbol may
-     be used (only where the symbol is bound).
+     other branches (discrepancy T5-4): if the type of such a symbol
+     were false on a path that did not define it, no valuation would
+     satisfy the source there. A reading of the compiler says that
+     what a branch lifts is static, and so true on every path (the CR
+     at [join_admits_use]). The workstream on continuations is to
+     show, for the inputs it gives the join, that the valuation of a
+     use satisfies the source too, once the typing environment's owner
+     has said where the type of a symbol may be used.
    - A use environment in which an alias is at a kind that is not the
      kind that the environment has for its target ([uses_kinded] fails;
      discrepancy T5-9). Ill-kinded code can make such environments, and
@@ -215,6 +217,13 @@
    ([transcribed_join_not_strict_statement]). The upper bound of the join of
    types ([n_way_join_type_sound]) has no such condition: it is of a
    value in hand.
+   A fourth condition, [added_equations_have_values], is for the join
+   that the meet calls: every variable that the join adds an equation
+   on has a value at the use. With it the witness gives each such
+   variable a value ([sound_join_where_equations_have_values]), which
+   the meet's contract for its join asks: the meet makes environment
+   extensions of the levels of environments, and an extension asks
+   that each of its names has a value.
 
    What the inputs must satisfy ([join_inputs_well_formed],
    [uses_kinded], and the source being satisfied with each use in
@@ -367,16 +376,22 @@ Definition definitions_hold
    is false of Simplify's inputs. It cannot be the premise that a use
    entails the source: an environment made from another by adding an
    equation does not entail it (the meet may forget what tied two
-   names), though the valuation at hand satisfies both. And it may not
-   hold of Simplify's joins: the source has the types of the constants
-   lifted while the body of the continuation was simplified, and on a
-   path that did not go through the branch that defines such a symbol
-   the symbol is bound to nothing, so its type is not true there. Two
-   owe it: the owner of the typing environment, to say where the type
-   of a symbol may be used (facts about a symbol may have to be asked
-   only where the symbol is bound); and the workstream on
-   continuations, to show it of the inputs it gives the join.
-   Discrepancy T5-4. *)
+   names), though the valuation at hand satisfies both. Whether it
+   holds of Simplify's joins is to be shown: the source has the types
+   of the constants lifted while the body of the continuation was
+   simplified, and if such a constant had a field computed in one
+   branch, its type would not be true on a path through another. A
+   reading of the compiler says that this does not happen: a constant
+   with a field computed at run time is bound only at the top level of
+   the unit (simplify/simplify_let_expr.ml, the test of
+   [at_unit_toplevel], which a handler keeps only if its body can
+   leave only through it: simplify/simplify_let_cont_expr.ml), and
+   what is lifted in a branch is static, so its type is true on every
+   path; small programs compiled with -O3 agree. That is a reading,
+   not a statement of the model. Two owe it: the owner of the typing
+   environment, to say where the type of a symbol may be used; and
+   the workstream on continuations, to show it of the inputs it gives
+   the join. Discrepancy T5-4. *)
 Definition join_admits_use (source use target : Typing_env.t)
     (definitions definitions_at_normal_mode
        : finite_map (Simples_in_joined_envs.t * flambda_kind))
@@ -957,6 +972,99 @@ Definition sound_join_where_values_are_read {A : Type}
     uses_kinded inputs ->
     join avoid inputs = Some (target, analysis) ->
     join_guarantees_where_values_are_read avoid inputs target analysis.
+
+(* A fourth condition on runs, and a stronger contract with it: for
+   the join that the meet calls. *)
+
+(* The equations that the target has in its last level and the source
+   has not there: those that the join added. *)
+Definition added_equation (source target : Typing_env.t) (x : variable)
+    (ty : flambda_type) : Prop :=
+  (Name_var x, ty)
+  ∈ Typing_env_level.equations
+      (Typing_env.One_level.level (Typing_env.current_level target))
+  ∧ ~ (Name_var x, ty)
+      ∈ Typing_env_level.equations
+          (Typing_env.One_level.level (Typing_env.current_level source)).
+
+(* Every variable that the join added an equation on has a value at
+   the use. *)
+(* CR mshinwell: nothing in the compiler establishes this. The join
+   adds an equation on a variable that it makes for a vector of
+   [Simple]s, which has a value at a use only if the vector has a
+   [Simple] there that has one; and on a variable that it brings in
+   from the uses that know it, which has no value on a run through a
+   use that does not (discrepancy T5-5). The environment answered is
+   satisfied on such a run all the same: a name with no value is asked
+   nothing ([sound_join_where_values_are_read] does not need this
+   condition, unless the meet that adds the equations does). But the
+   meet cuts a level of an environment into an environment extension
+   and adds it to another, and an extension asks that each of its names
+   has a value of the type of its equation
+   (FlambdaTypeMeaningSpec.v). So the meet's contract for the join
+   that it is given asks that the join adds no equation on a name with
+   no value, and the compiler's join has that only on the runs of this
+   condition. Discrepancies T5-5 and T5-10. *)
+Definition added_equations_have_values {A : Type} (inputs : join_inputs A)
+    (target : Typing_env.t)
+    (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind))
+    (index : Index.t) (valuation : env) : Prop :=
+  ∀ (x : variable) (ty : flambda_type),
+    added_equation (source inputs) target x ty ->
+    has_value_at_use definitions index valuation x.
+
+(* The target admits a use, for the valuations that have a property,
+   and the witness gives a value to every variable that the join added
+   an equation on. *)
+Definition join_admits_use_with_values (run : static_env -> env -> Prop)
+    (source use target : Typing_env.t)
+    (definitions definitions_at_normal_mode
+       : finite_map (Simples_in_joined_envs.t * flambda_kind))
+    (index : Index.t) : Prop :=
+  ∀ (statics : static_env) (valuation : env),
+    typing_env_satisfied_strictly statics valuation use ->
+    typing_env_satisfied_strictly statics valuation source ->
+    run statics valuation ->
+    ∃ valuation' : env,
+      typing_env_satisfied_strictly statics valuation' target
+      ∧ agrees_on_known use valuation valuation'
+      ∧ agrees_on_known source valuation valuation'
+      ∧ definitions_hold definitions index valuation valuation'
+      ∧ definitions_hold definitions_at_normal_mode index valuation
+          valuation'
+      ∧ ∀ (x : variable) (ty : flambda_type),
+          added_equation source target x ty ->
+          ∃ v : value, lookup x valuation' = Some v.
+
+(* The stronger contract, for the runs of the four conditions: what
+   the meet asks of the join that it calls, for the compiler's join. A
+   join that meets it meets [sound_join_where_values_are_read] on those
+   runs. *)
+Definition sound_join_where_equations_have_values {A : Type}
+    (join : join_of_environments A) : Prop :=
+  ∀ (avoid : list variable) (inputs : join_inputs A) (target : Typing_env.t)
+    (analysis : Analysis.t A),
+    join_inputs_well_formed avoid inputs ->
+    uses_kinded inputs ->
+    join avoid inputs = Some (target, analysis) ->
+    typing_env_well_formed target
+    ∧ no_bottom_types target
+    ∧ join_keeps_source (source inputs) target
+    ∧ join_introduces avoid inputs target
+    ∧ analysis_describes_uses inputs target analysis
+    ∧ ∀ (index : Index.t) (use : Typing_env.t),
+        use_at inputs index use ->
+        join_admits_use_with_values
+          (fun statics valuation =>
+             values_are_read inputs target
+               (Analysis.definitions_in_joined_envs analysis) index statics
+               valuation
+             ∧ added_equations_have_values inputs target
+                 (Analysis.definitions_in_joined_envs analysis) index
+                 valuation)
+          (source inputs) use target
+          (Analysis.definitions_in_joined_envs analysis)
+          (Analysis.canonical_definitions_at_normal_mode analysis) index.
 
 (* Precision, for one named case: a variable of the source that has, in
    the level cut from every use that is not bottom, an equation to the

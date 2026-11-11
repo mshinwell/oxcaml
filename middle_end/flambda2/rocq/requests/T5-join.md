@@ -285,14 +285,35 @@ the names to avoid include every known variable.
   the change to the compiler; it does not recover a relation on a
   variable that exists only in types and has no alias in terms, even
   one that has a value on every run.
+- **Equations on names with no value (T5-5), where the meet meets
+  them.** The level that the join adds has equations on variables
+  that it makes for a vector of simples, and on variables brought in
+  from some of the uses. On a run through a use where the vector has
+  no simple with a value, or that does not know the variable, the
+  name has no value. As an environment the target is satisfied (a
+  name with no value is asked nothing). The meet makes environment
+  extensions of levels, and an extension asks that each of its names
+  has a value; so the meet's contract for its join asks that no
+  equation is added on a name with no value. The compiler's join has
+  that only on the runs of a fourth condition,
+  `added_equations_have_values`, with which
+  `sound_join_where_equations_have_values` is the contract to prove
+  for the join that the meet calls. Nothing in the compiler
+  establishes the condition.
 - **R1-16** (an empty set given to
   `create_naked_immediates_non_empty` when every head reduces to
   bottom): not looked at further; still traced, not shown reachable.
 - **Lifted constants (T5-4).** The source holds the types of constants
-  lifted in other branches. On a path that did not define such a
-  symbol, the symbol is bound to nothing and its type is false, so no
-  valuation satisfies the source there. Not a join problem: facts
-  about a symbol may have to be asked only where the symbol is bound.
+  lifted in other branches. If such a constant had a field computed
+  in one branch, its type would be false on a path through another,
+  and no valuation would satisfy the source there. Looked for from
+  source and not found: a constant with a field computed at run time
+  is bound only at the top level of the unit, where every later
+  instruction passes it, and what a branch lifts is static
+  (`simplify/simplify_let_expr.ml`, `at_unit_toplevel`;
+  `simplify/simplify_let_cont_expr.ml`). So the premise that the
+  valuation satisfies the source is expected to hold on this count;
+  the continuations workstream still owes the statement.
 - **Kinds (T5-9).** See the third exclusion above.
 - **Imported variables defined twice (T4-1)**, in the meet's callers
   of the join; T4 has it.
@@ -429,7 +450,8 @@ I call (`add_variable_definition`, `add_env_extension`,
    that the join can leave their types alone. Recommendation: accept,
    and revisit with the unboxing workstream.
 3. **Lifted constants in the source (T5-4).** For T2 and the
-   continuations workstream; the join only needs the premise.
+   continuations workstream; the join only needs the premise. A
+   search from source found no program in which the premise fails.
 4. **Kinds (T5-9).** The contract has the premise that the use
    environments are kinded. Either the compiler's environments always
    are (then whoever states the kinds of environments proves it, and
