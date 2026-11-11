@@ -128,10 +128,15 @@
    The grammar does not enforce what the creation functions of the
    compiler check: that [immediates] is of kind naked immediate, the
    contents of a boxed number of the kind boxed, the closures of a
-   product of kind value, the numbers of a head not empty. A type that
-   breaks one of these has a meaning all the same (often that of
-   bottom). Stating them as a condition is for the operations on types
-   that need it. *)
+   product of kind value, the numbers of a head not empty. Nor does it
+   enforce what the raw constructors of the compiler leave to their
+   callers: that a product is no wider than the size of its index,
+   that the slots an entry speaks of are among those of its index,
+   that a shape is written in one way. A type that breaks one of these
+   has a meaning all the same (often that of bottom). The header of
+   FlambdaTypeMeaningSpec.v says which operations rely on which, and
+   what each gives; a condition that says them all of a type is to
+   come before those operations. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic.

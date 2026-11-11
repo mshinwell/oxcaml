@@ -68,7 +68,7 @@ Proof. destruct v; [ discriminate | discriminate | reflexivity ]. Qed.
 Lemma closure_of_kind (statics : static_env) (v : value)
     (closure : code_id * list (value_slot * value)) :
   closure_of statics v = Some closure -> kind_of_value v = Value.
-Proof. destruct v; [ discriminate | reflexivity | reflexivity ]. Qed.
+Proof. destruct v; try discriminate; reflexivity. Qed.
 
 Lemma closure_in_set_kind (statics : static_env) (v : value)
     (closure :
@@ -80,6 +80,13 @@ Proof.
   destruct (closure_of statics v) as [[code slots] | ] eqn:Hclosure;
     [ | discriminate ].
   intros _. exact (closure_of_kind _ _ _ Hclosure).
+Qed.
+
+Theorem closure_in_set_slot : closure_in_set_slot_statement.
+Proof.
+  intros statics v slot functions value_slots. unfold closure_in_set.
+  destruct (closure_of statics v) as [[code slots] | ]; [ | discriminate ].
+  intros [= <- <- _]. reflexivity.
 Qed.
 
 (* ======================================================================== *)
@@ -831,9 +838,11 @@ Lemma closures_entry_lookup_iff (statics : static_env) (vars : env)
     (closure_types value_slot_types : finite_map flambda_type) :
   closures_entry_satisfied statics vars v slot functions value_slots
     (Closures_entry function_types closure_types value_slot_types)
-  <-> (∀ (g : function_slot) (function_type : function_type),
+  <-> (∀ (g : function_slot) (function_type : function_type)
+         (code : code_id),
         lookup g function_types = Some (Or_unknown.Known function_type) ->
-        lookup g functions = Some (function_type_code_id function_type))
+        lookup g functions = Some code ->
+        code = function_type_code_id function_type)
       ∧ (∀ (g : function_slot) (ty : flambda_type) (closure : value),
           lookup g closure_types = Some ty ->
           project_function_slot statics slot g v = Some closure ->
@@ -850,6 +859,42 @@ Qed.
 
 Theorem closures_entry_lookup : closures_entry_lookup_statement.
 Proof. exact closures_entry_lookup_iff. Qed.
+
+Theorem closures_case_function_code : closures_case_function_code_statement.
+Proof.
+  intros statics vars v slot functions value_slots function_types
+    closure_types value_slot_types index extension g function_type
+    [Hindex [Hentry _]] Hamong Hfunction_type.
+  simpl in Hindex, Hentry.
+  apply closures_entry_lookup_iff in Hentry as [Hfunctions _].
+  assert (Hbound : is_bound g functions = true).
+  { rewrite <- among_domain. unfold closures_index_satisfied in Hindex.
+    unfold closures_index_contents in Hamong.
+    destruct (index_domain index) as [contents | contents].
+    - destruct Hindex as [Hsame _]. rewrite <- (Hsame g). exact Hamong.
+    - destruct Hindex as [Hall _].
+      exact (proj1 (all_among _ _) Hall g Hamong). }
+  unfold is_bound in Hbound.
+  destruct (lookup g functions) as [code | ] eqn:Hcode;
+    [ | discriminate Hbound ].
+  rewrite (Hfunctions g function_type code Hfunction_type Hcode).
+  reflexivity.
+Qed.
+
+Theorem closures_case_own_code : closures_case_own_code_statement.
+Proof.
+  intros statics vars v slot functions value_slots function_types
+    closure_types value_slot_types index extension function_type Hclosure
+    [_ [Hentry _]] Hfunction_type.
+  simpl in Hentry.
+  apply closures_entry_lookup_iff in Hentry as [Hfunctions _].
+  pose proof (closure_in_set_slot _ _ _ _ _ Hclosure) as Hbound.
+  unfold is_bound in Hbound.
+  destruct (lookup slot functions) as [code | ] eqn:Hcode;
+    [ | discriminate Hbound ].
+  rewrite (Hfunctions slot function_type code Hfunction_type Hcode).
+  reflexivity.
+Qed.
 
 Lemma env_extension_lookup_iff (statics : static_env) (vars : env)
     (equations : finite_name_map flambda_type) :
@@ -937,7 +982,11 @@ Qed.
    [Is_null] of poison and of a symbol that is not bound) and the two
    places where the compiler goes further than the meaning here (the
    block that [Meet] makes of the scrutinee of [Get_tag], and the types
-   that unboxing gives to poison); two kinds of
+   that unboxing gives to poison); two types that the n-way join makes
+   (one of a function that a set of closures has not, which the closure
+   has, and one that is no upper bound); two types that the
+   creation functions do not make (a product wider than its index, a
+   mixed record with no flat suffix); two kinds of
    the other naked numbers; null and its variable; variants with
    immediates, with blocks of a known tag, of other tags and of a tag
    with nothing known, with the variables and the extensions; the three
@@ -965,6 +1014,7 @@ Definition some_code : code_id := 1%positive.
 Definition other_code : code_id := 2%positive.
 Definition a_value_slot : value_slot := 1%positive.
 Definition other_value_slot : value_slot := 2%positive.
+Definition other_function_slot : function_slot := 2%positive.
 
 (* A block of tag 0 with two fields that are values; a boxed float; a
    string of two bytes; a closure with one value slot; a block of two
@@ -1043,8 +1093,9 @@ Ltac no :=
     | H : ∀ r n, (?r0, ?n0) = (r, n) ∨ _ -> _ |- _ =>
       specialize (H r0 n0 (or_introl eq_refl))
     | H : ∀ c, Some ?v = Some c -> _ |- _ => specialize (H v eq_refl)
-    | H : ∀ (g : positive) (function_type : function_type), _ |- _ =>
-      specialize (H 1%positive _ eq_refl)
+    | H : ∀ (g : positive) (function_type : function_type) (code : positive),
+        _ |- _ =>
+      specialize (H 1%positive _ _ eq_refl eq_refl)
     | H : ∀ name : positive, false = _ |- _ => specialize (H 1%positive)
     | _ => progress compute in *
     end;
@@ -1375,6 +1426,30 @@ Example other_tags_has_not
   : ~ has (Value_symbol a_block) (block_of_size_at_least 3).
 Proof. no. Qed.
 
+(* Two types that the creation functions of the compiler do not make,
+   and what the meaning says of them (see the header of the Spec, on
+   what the operations rely on). A product wider than the size of its
+   index says nothing of a field that a block has not: a block of two
+   fields has the type of the blocks of at least two fields whose third
+   field has no value. And a mixed record with no flat suffix is a
+   block of values. *)
+Example wide_product_has
+  : has (Value_symbol a_block)
+      (create_variant false
+         (Or_unknown.Known (bottom (Naked_number Kind_naked_immediate)))
+         (Or_unknown.Known
+            (row_like_for_blocks_create_at_least 0 2 (Scannable Value_only)
+               [unknown Value; unknown Value; bottom Value]
+               Alloc_mode.Heap))
+         No_extensions).
+Proof. yes. Qed.
+
+Example mixed_record_of_values_has
+  : has (Value_symbol a_block)
+      (immutable_block false 0 (Scannable (Mixed_record 2 []))
+         Alloc_mode.Heap [unknown Value; unknown Value]).
+Proof. yes. Qed.
+
 (* Blocks of a tag of which nothing more is known. *)
 Definition block_of_tag (tag : Z) : flambda_type :=
   create_variant false
@@ -1566,6 +1641,71 @@ Example at_least_other_value_slot_has_not
            [(other_value_slot, unknown Value)] Alloc_mode.Heap).
 Proof. no. Qed.
 
+(* A function type of a function that the set has not says nothing. The
+   type below is what the n-way join of the compiler makes of a set
+   with the one function at the slot of the closure and of a set with
+   a second function too: at least the first function, and the code of
+   both (see the header of the Spec, on products). The closure of the
+   first set has it, having no second function; and has it not if the
+   code of the function that it has is another. *)
+Definition join_of_closure_types (code : code_id) : flambda_type :=
+  create_closures Alloc_mode.Heap
+    (Row_like_for_closures
+       [(unnamed_function_slot,
+         Row_like_case
+           (Closures_entry
+              [(unnamed_function_slot,
+                Or_unknown.Known (Function_type code));
+               (other_function_slot,
+                Or_unknown.Known (Function_type other_code))]
+              [] [])
+           (Row_like_index
+              (Row_like_index_domain.At_least
+                 (Set_of_closures_contents [unnamed_function_slot] []))
+              tt)
+           empty_env_extension)]).
+
+Example closure_absent_function_has
+  : has (Value_symbol a_closure) (join_of_closure_types some_code).
+Proof. yes. Qed.
+
+Example closure_absent_function_has_not
+  : ~ has (Value_symbol a_closure) (join_of_closure_types other_code).
+Proof. no. Qed.
+
+(* Where the n-way join is not an upper bound. The first type below is
+   what a projection of a value slot records of a closure: at least
+   that value slot, and nothing of the code. Joined with the type of
+   exactly a closure at the same slot with a known code, the n-way
+   join gives the second: at least the value slot, and that code. The
+   closure has the first and not the second, its code being another. *)
+Definition closure_of_unknown_code : flambda_type :=
+  at_least_this_closure unnamed_function_slot [] []
+    [(a_value_slot, unknown Value)] Alloc_mode.Heap.
+
+Definition nway_join_with_known_code : flambda_type :=
+  create_closures Alloc_mode.Heap
+    (Row_like_for_closures
+       [(unnamed_function_slot,
+         Row_like_case
+           (Closures_entry
+              [(unnamed_function_slot,
+                Or_unknown.Known (Function_type other_code))]
+              [] [(a_value_slot, unknown Value)])
+           (Row_like_index
+              (Row_like_index_domain.At_least
+                 (Set_of_closures_contents [] [a_value_slot]))
+              tt)
+           empty_env_extension)]).
+
+Example nway_join_input_has
+  : has (Value_symbol a_closure) closure_of_unknown_code.
+Proof. yes. Qed.
+
+Example nway_join_has_not
+  : ~ has (Value_symbol a_closure) nway_join_with_known_code.
+Proof. no. Qed.
+
 (* [Mutable_block]: no value has it ([mutable_block_satisfied]), the
    machine having none; so there is no example of a value that has. *)
 
@@ -1627,10 +1767,13 @@ Lemma closure_of_extend (v : value)
     (closure : code_id * list (value_slot * value)) :
   closure_of statics v = Some closure -> closure_of statics' v = Some closure.
 Proof.
-  destruct v as [c | code slots | s]; simpl; try discriminate; [ auto | ].
-  destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hlookup;
-    [ | discriminate ].
-  rewrite (proj2 Hextend s allocated Hlookup). auto.
+  destruct v; simpl; try discriminate; auto.
+  match goal with
+  | |- context [lookup ?s (static_values statics)] =>
+    destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hlookup;
+      [ | discriminate ];
+    rewrite (proj2 Hextend s allocated Hlookup); auto
+  end.
 Qed.
 
 Lemma closure_in_set_extend (v : value)
@@ -2282,4 +2425,99 @@ Proof.
     [ left; exact Himmediate | ].
   right. apply blocks_with_these_tags_satisfied. exists n, fields.
   split; assumption.
+Qed.
+
+(* ======================================================================== *)
+(* What the operations on types rely on                                     *)
+(* ======================================================================== *)
+
+Theorem block_case_empty : block_case_empty_statement.
+Proof.
+  intros statics vars tag fields case ty Hwidth Hin Hempty
+    [[Hsize _] [Hfields _]].
+  apply In_nth_error in Hin as [i Hi].
+  assert (Hlength : length (case_maps_to case) <= length fields).
+  { unfold block_index_size in Hwidth.
+    destruct (index_domain (case_index case)); lia. }
+  assert (Hi' : i < length (case_maps_to case)).
+  { apply nth_error_Some. rewrite Hi. discriminate. }
+  destruct (nth_error fields i) as [field | ] eqn:Hfield.
+  - apply (Hempty field).
+    exact
+      (proj1 (fields_satisfied_nth_iff _ _ _) Hfields i ty field Hi Hfield).
+  - apply nth_error_None in Hfield. lia.
+Qed.
+
+Theorem closures_case_value_slot : closures_case_value_slot_statement.
+Proof.
+  intros statics vars v slot functions value_slots function_types
+    closure_types value_slot_types index extension w ty
+    [Hindex [Hentry _]] Hamong Hty.
+  simpl in Hindex, Hentry.
+  apply closures_entry_lookup_iff in Hentry as [_ [_ Hslots]].
+  assert (Hbound : is_bound w value_slots = true).
+  { rewrite <- among_domain. unfold closures_index_satisfied in Hindex.
+    unfold closures_index_contents in Hamong.
+    destruct (index_domain index) as [contents | contents].
+    - destruct Hindex as [_ Hsame]. rewrite <- (Hsame w). exact Hamong.
+    - destruct Hindex as [_ Hall].
+      exact (proj1 (all_among _ _) Hall w Hamong). }
+  unfold is_bound in Hbound.
+  destruct (lookup w value_slots) as [contents | ] eqn:Hcontents;
+    [ | discriminate Hbound ].
+  exists contents. split; [ reflexivity | ].
+  exact (Hslots w ty contents Hty Hcontents).
+Qed.
+
+(* The kinds of the fields of a mixed record give its shape back, and
+   are not those of a block of values if it has a flat suffix. *)
+Lemma map_naked_number_inj (kinds kinds' : list naked_number_kind) :
+  map Naked_number kinds = map Naked_number kinds' -> kinds = kinds'.
+Proof.
+  revert kinds'. induction kinds as [ | k kinds IH];
+    intros [ | k' kinds']; simpl; try discriminate; [ reflexivity | ].
+  intros [= -> Hkinds]. rewrite (IH kinds' Hkinds). reflexivity.
+Qed.
+
+Lemma mixed_kinds_inj (prefix prefix' : nat)
+    (suffix suffix' : list naked_number_kind) :
+  repeat Value prefix ++ map Naked_number suffix
+  = repeat Value prefix' ++ map Naked_number suffix' ->
+  prefix = prefix' ∧ suffix = suffix'.
+Proof.
+  revert prefix'. induction prefix as [ | prefix IH];
+    intros [ | prefix']; simpl.
+  - intros Hsuffix. split; [ reflexivity | ].
+    exact (map_naked_number_inj _ _ Hsuffix).
+  - destruct suffix; discriminate.
+  - destruct suffix'; discriminate.
+  - intros [= Hkinds]. destruct (IH prefix' Hkinds) as [-> ->].
+    split; reflexivity.
+Qed.
+
+Lemma values_not_mixed (size prefix : nat) (suffix : list naked_number_kind) :
+  repeat Value size = repeat Value prefix ++ map Naked_number suffix ->
+  suffix = [].
+Proof.
+  revert prefix. induction size as [ | size IH]; intros [ | prefix]; simpl.
+  - destruct suffix; [ reflexivity | discriminate ].
+  - discriminate.
+  - destruct suffix; [ reflexivity | discriminate ].
+  - intros [= Hkinds]. exact (IH prefix Hkinds).
+Qed.
+
+Theorem block_shapes_disjoint : block_shapes_disjoint_statement.
+Proof.
+  intros shape shape' tag fields Hcanonical Hcanonical' [Htag Hkinds]
+    [Htag' Hkinds'].
+  unfold no_scan_tag, double_array_tag in *.
+  destruct shape as [[ | prefix suffix] | ],
+    shape' as [[ | prefix' suffix'] | ];
+    simpl in *; try reflexivity; try lia.
+  - rewrite Hkinds in Hkinds'.
+    destruct (Hcanonical' (values_not_mixed _ _ _ Hkinds')).
+  - rewrite Hkinds' in Hkinds.
+    destruct (Hcanonical (values_not_mixed _ _ _ Hkinds)).
+  - rewrite Hkinds in Hkinds'.
+    destruct (mixed_kinds_inj _ _ _ _ Hkinds') as [-> ->]. reflexivity.
 Qed.

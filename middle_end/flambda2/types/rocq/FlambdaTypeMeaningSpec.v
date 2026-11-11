@@ -39,6 +39,15 @@
    made with [type_satisfied], so a mistake here is a mistake in all of
    them.
 
+   The compiler has two implementations of meet and join: [Meet_and_join]
+   (meet_and_join.ml, with join_levels_old.ml), which is the one it runs
+   unless told otherwise, at every optimisation level, and
+   [Meet_and_n_way_join], which it runs for the n-way join algorithm
+   and for match-in-match ([Meet.meet] chooses, by
+   [Flambda_features.use_n_way_join]). A function named below is in
+   both under that name unless one is said; where the two differ it is
+   said.
+
    The environment. A type mentions names: the [Simple] of an alias, the
    variables that hold the results of [Is_int], [Get_tag] and [Is_null],
    the names an environment extension has equations on. So a value has a
@@ -99,7 +108,26 @@
    - A product (the fields of a block, the closures and the value slots
      of a set of closures) says something of the components that exist
      and nothing of the others: an absent component is unknown, and what
-     exists is for the index of the case to say.
+     exists is for the index of the case to say ([Type_grammar]:
+     "{ 1 => Unknown; 2 => V } is equal to { 2 => V }"). The function
+     types of a set of closures are read in the same way: the code of a
+     function is said if the set has the function. The n-way join
+     needs that: it keeps a function type that only some of the types
+     joined have, under an index that no longer says that the set has
+     the function ([n_way_join_closures_entry]; the other join,
+     [join_closures_entry], keeps a function type only if all have
+     it). The closure of a set without the function has to have the
+     joined type ([closure_absent_function_has] in the Proofs). The
+     code of a function is known where the index says that the set has
+     it ([closures_case_function_code_statement]), and always for the
+     function at the slot of the closure itself
+     ([closures_case_own_code_statement]): those are the two cases in
+     which a prover reads a function type
+     ([Row_like_for_closures.get_single_tag], [Provers.prove_code_ids]).
+     Even read so, the n-way join is not always an upper bound: where
+     one type says nothing of the code of the function at the slot of
+     the closure and another names it, the joined type names it
+     ([nway_join_has_not] in the Proofs).
    - A relation is not the execution of its primitive
      ([relation_holds]). It relates a value and a number wherever the
      compiler records it of them, which is not where the primitive has
@@ -155,9 +183,70 @@
    - The code of a function type is the code of the closure, the very
      code id. The compiler means "that code or a newer version of it"
      ([Code_age_relation]); that is for the workstream on calls (S4) to
-     put here, with a relation between code ids.
+     put here, with a relation between code ids. Until then this is a
+     restriction and not only something left out: a closure made with
+     a newer version of the code has not, here, the type that names
+     the older one, and the compiler takes it to have it
+     ([meet_code_id] and the join of function types go by the
+     relation; [Simplify_apply_expr] compares the code of the type
+     with that of the call by it, and may make the call [Invalid]). So
+     what is stated of meet, join and reification with this meaning is
+     to leave out the types that name code, or to bring the relation
+     in; and the code id that a prover answers is not to be read as
+     the code of the closure at run time.
    - Allocation modes and [is_unique] mean nothing here: the machine has
-     no regions, and uniqueness is about what may be duplicated.
+     no regions, and uniqueness is about what may be duplicated. They
+     matter to the compiler: a prover answers with the allocation mode
+     of a type, or that a value holds nothing allocated locally
+     ([Provers.never_holds_locally_allocated_values]); [Reify] lifts
+     on the strength of that; and uniqueness is kept by meet and join
+     and goes from a type to the block that reification makes
+     ([Immutable_unique]). So what is stated with this meaning is
+     about which values a type has. It says nothing of locality, of
+     lifetime, of what may be duplicated or of whether lifting is
+     safe: those need an invariant or a richer machine. In particular
+     two values with equal contents are not thereby one symbol.
+
+   What the meaning does not need and the operations will. [Meet] makes
+   the meet of two products empty as soon as one component has no value
+   ([meet_mapping]), and takes two shapes that differ to have no block
+   in common ([meet_row_like_for_blocks]). Neither is true of the
+   meaning as it stands, for every type of the grammar: an empty block
+   has the type of the blocks of at least no field whose first field
+   has no value, and a block of one field that is a value has both the
+   shape [Value_only] and the shape [Mixed_record 1 []]
+   ([wide_product_has] and [mixed_record_of_values_has] in the Proofs).
+   They are true of the types in which:
+   - the product of a case of blocks is no wider than the size of its
+     index ([block_case_empty_statement]), and as wide if the size is
+     exact ([Reify] asserts that);
+   - the function types, the closure types and the value slot types of
+     a case of closures are of slots among those of its index
+     ([closures_case_function_code_statement],
+     [closures_case_value_slot_statement]), and an exact index has the
+     slot of the case among its closures;
+   - a shape is written in one way: a mixed record has a flat suffix
+     ([block_shapes_disjoint_statement]);
+   - the kinds are right: those that the creation functions check
+     (FlambdaTypeGrammar.v lists them), and those of the fields of a
+     block against its shape, which the compiler checks only with its
+     invariant checks on ([Row_like_for_blocks.check_field_tys]).
+   The creation functions of the compiler give such types. Its raw
+   constructors ([create_raw], which meet and join use) check nothing,
+   and the n-way join does not keep the second condition (see above,
+   on products). The statements named say what each condition gives,
+   for one case. A predicate that says the conditions of a whole type,
+   with the proof that the creation functions here establish it, is to
+   be in this library before meet is stated. It is not here yet, and
+   the meaning does not need it.
+
+   What an answer of a prover is about. The provers of the compiler come
+   in two forms ([Provers.gen_value_to_proof] and [gen_value_to_meet]).
+   A proof is about every value of the type. A meet shortcut is not: it
+   leaves out the alternatives on which the operation asked about has
+   no value (of a type that may be [Null] it answers for the part that
+   is not), so its answer is about the values of the type on which
+   that operation is defined, and is to be stated so.
 
    Where the machine is behind the grammar. The meaning is that of the
    machine of today (FlambdaSemanticsSpec.v), read through observations
@@ -306,6 +395,14 @@ Definition observations_disjoint_statement : Prop :=
     ∧ (closure_of statics v <> None
        -> boxed_number_of statics v = None ∧ string_of statics v = None)
     ∧ (boxed_number_of statics v <> None -> string_of statics v = None).
+
+(* A closure is the closure of one of the functions of its set. *)
+Definition closure_in_set_slot_statement : Prop :=
+  ∀ (statics : static_env) (v : value) (slot : function_slot)
+    (functions : list (function_slot * code_id))
+    (value_slots : list (value_slot * value)),
+    closure_in_set statics v = Some (slot, functions, value_slots) ->
+    is_bound slot functions = true.
 
 (* ======================================================================== *)
 (* The relations that types speak of                                        *)
@@ -658,17 +755,20 @@ with row_like_for_closures_satisfied (v : value) (slot : function_slot)
         slot known_closures
   end
 
-(* The functions whose code is known have that code; the closures of the
-   set and the value slots that exist have the types given. *)
+(* The functions of the set whose code is known have that code, and the
+   closures of the set and the value slots have the types given: each
+   if the set has it. What the set has is for the index of the case to
+   say, not for the entry. *)
 with closures_entry_satisfied (v : value) (slot : function_slot)
     (functions : list (function_slot * code_id))
     (value_slots : list (value_slot * value)) (entry : closures_entry)
     {struct entry} : Prop :=
   match entry with
   | Closures_entry function_types closure_types value_slot_types =>
-    (∀ (g : function_slot) (function_type : function_type),
+    (∀ (g : function_slot) (function_type : function_type) (code : code_id),
       lookup g function_types = Some (Or_unknown.Known function_type) ->
-      lookup g functions = Some (function_type_code_id function_type))
+      lookup g functions = Some code ->
+      code = function_type_code_id function_type)
     ∧ for_all_bindings
         (fun g ty =>
            ∀ closure : value,
@@ -1025,9 +1125,11 @@ Definition closures_entry_lookup_statement : Prop :=
     (closure_types value_slot_types : finite_map flambda_type),
     closures_entry_satisfied statics vars v slot functions value_slots
       (Closures_entry function_types closure_types value_slot_types)
-    <-> (∀ (g : function_slot) (function_type : function_type),
+    <-> (∀ (g : function_slot) (function_type : function_type)
+           (code : code_id),
           lookup g function_types = Some (Or_unknown.Known function_type) ->
-          lookup g functions = Some (function_type_code_id function_type))
+          lookup g functions = Some code ->
+          code = function_type_code_id function_type)
         ∧ (∀ (g : function_slot) (ty : flambda_type) (closure : value),
             lookup g closure_types = Some ty ->
             project_function_slot statics slot g v = Some closure ->
@@ -1036,6 +1138,57 @@ Definition closures_entry_lookup_statement : Prop :=
             lookup w value_slot_types = Some ty ->
             lookup w value_slots = Some contents ->
             type_satisfied statics vars contents ty).
+
+(* What a set of closures has for sure, by the index of its case. *)
+Definition closures_index_contents
+    (index : row_like_index set_of_closures_contents unit)
+    : set_of_closures_contents :=
+  match index_domain index with
+  | Row_like_index_domain.Known contents
+  | Row_like_index_domain.At_least contents => contents
+  end.
+
+(* A function that the index of a case says the set has, and whose code
+   the entry knows, is there with that code. It is what a prover reads:
+   [Row_like_for_closures.get_single_tag] asks that the slot be among
+   the closures of the index before the function type is looked at. *)
+Definition closures_case_function_code_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (v : value) (slot : function_slot)
+    (functions : list (function_slot * code_id))
+    (value_slots : list (value_slot * value))
+    (function_types : finite_map (Or_unknown.t function_type))
+    (closure_types value_slot_types : finite_map flambda_type)
+    (index : row_like_index set_of_closures_contents unit)
+    (extension : env_extension) (g : function_slot)
+    (function_type : function_type),
+    row_like_closures_case_satisfied statics vars v slot functions
+      value_slots
+      (Row_like_case
+         (Closures_entry function_types closure_types value_slot_types)
+         index extension) ->
+    among g (contents_closures (closures_index_contents index)) = true ->
+    lookup g function_types = Some (Or_unknown.Known function_type) ->
+    lookup g functions = Some (function_type_code_id function_type).
+
+(* The same of the function at the slot of the closure itself, which
+   the set has whatever the index says: [Provers.prove_code_ids] reads
+   its function type without looking at the index. *)
+Definition closures_case_own_code_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (v : value) (slot : function_slot)
+    (functions : list (function_slot * code_id))
+    (value_slots : list (value_slot * value))
+    (function_types : finite_map (Or_unknown.t function_type))
+    (closure_types value_slot_types : finite_map flambda_type)
+    (index : row_like_index set_of_closures_contents unit)
+    (extension : env_extension) (function_type : function_type),
+    closure_in_set statics v = Some (slot, functions, value_slots) ->
+    row_like_closures_case_satisfied statics vars v slot functions
+      value_slots
+      (Row_like_case
+         (Closures_entry function_types closure_types value_slot_types)
+         index extension) ->
+    lookup slot function_types = Some (Or_unknown.Known function_type) ->
+    lookup slot functions = Some (function_type_code_id function_type).
 
 (* The closure at a function slot of a set with exactly the functions
    and the value slots given, each as its type says. *)
@@ -1208,3 +1361,70 @@ Definition heads_compatible_satisfied_statement : Prop :=
     head_of_kind_value_non_null_satisfied statics vars v head ->
     head_of_kind_value_non_null_satisfied statics vars v head' ->
     heads_compatible head head'.
+
+(* ======================================================================== *)
+(* What the operations on types rely on                                     *)
+(* ======================================================================== *)
+
+(* [Meet] makes a product with a component of no value empty, and takes
+   two shapes that differ to have no block in common (see the header).
+   The statements below say on which conditions that is so, case by
+   case. The conditions are not part of the meaning. *)
+
+(* The size that the index of a case of blocks gives, exactly or from
+   below. *)
+Definition block_index_size (index : row_like_index nat block_shape) : nat :=
+  match index_domain index with
+  | Row_like_index_domain.Known size
+  | Row_like_index_domain.At_least size => size
+  end.
+
+(* A case of blocks whose product is no wider than the size of its
+   index admits no block if one of the types of the product has no
+   value: every type of the product is the type of a field. *)
+Definition block_case_empty_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (tag : Z) (fields : list value)
+    (case : row_like_block_case) (ty : flambda_type),
+    length (case_maps_to case) <= block_index_size (case_index case) ->
+    ty ∈ case_maps_to case ->
+    (∀ v : value, ~ type_satisfied statics vars v ty) ->
+    ~ row_like_block_case_satisfied statics vars tag fields case.
+
+(* A value slot that the index of a case of closures says the set has,
+   and of which the entry has a type, is there with contents of that
+   type. So the case admits no closure if that type has no value. *)
+Definition closures_case_value_slot_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (v : value) (slot : function_slot)
+    (functions : list (function_slot * code_id))
+    (value_slots : list (value_slot * value))
+    (function_types : finite_map (Or_unknown.t function_type))
+    (closure_types value_slot_types : finite_map flambda_type)
+    (index : row_like_index set_of_closures_contents unit)
+    (extension : env_extension) (w : value_slot) (ty : flambda_type),
+    row_like_closures_case_satisfied statics vars v slot functions
+      value_slots
+      (Row_like_case
+         (Closures_entry function_types closure_types value_slot_types)
+         index extension) ->
+    among w (contents_value_slots (closures_index_contents index)) = true ->
+    lookup w value_slot_types = Some ty ->
+    ∃ contents : value,
+      lookup w value_slots = Some contents
+      ∧ type_satisfied statics vars contents ty.
+
+(* A shape as the compiler writes it: a mixed record has a flat suffix,
+   and is [Value_only] otherwise. *)
+Definition block_shape_canonical (shape : block_shape) : Prop :=
+  match shape with
+  | Scannable (Mixed_record _ flat_suffix) => flat_suffix <> []
+  | Scannable Value_only | Float_record => True
+  end.
+
+(* Two such shapes that a block both has are one shape. *)
+Definition block_shapes_disjoint_statement : Prop :=
+  ∀ (shape shape' : block_shape) (tag : Z) (fields : list value),
+    block_shape_canonical shape ->
+    block_shape_canonical shape' ->
+    block_has_shape shape tag fields ->
+    block_has_shape shape' tag fields ->
+    shape = shape'.
