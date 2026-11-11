@@ -97,6 +97,18 @@
    carries a typing environment of the first model of the types
    ([rename_naive_typing_env]).
 
+   The checks of FlambdaWellFormedSpec.v, which say what a well-formed
+   unit is: where static bindings may be ([statics_at_toplevel], with
+   [raises_to], [handler_at_toplevel] and that file's
+   [free_continuations]), the static names bound ([static_names]), the
+   sets of closures ([sets_well_formed]), the numbers
+   ([numbers_in_range]), and the check itself ([well_formed_unit]),
+   given the two continuations of the unit, which are renamed with it
+   ([rename_unit_interface]); and the test of the states that the
+   machine makes undefined ([static_fault]). The three conditions of
+   [well_formed_unit] on binders are those of FlambdaBindersSpec.v,
+   which FlambdaAlphaSpec.v says are unchanged by a renaming.
+
    Nothing is trusted here. The proofs are in
    FlambdaValidatorEquivarianceProofs.v, which needs no review. *)
 
@@ -105,7 +117,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaNominalSpec FlambdaAlphaSpec
   FlambdaNormaliseSpec FlambdaEquivarianceSpec FlambdaUnusedContsSpec
-  FlambdaUnusedStaticsSpec FlambdaBlockLoadSpec FlambdaUnboxSpec.
+  FlambdaUnusedStaticsSpec FlambdaBlockLoadSpec FlambdaUnboxSpec
+  FlambdaWellFormedSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -341,3 +354,81 @@ Definition follow_aliases_equivariant_statement : Prop :=
 (* The pass as the validation runs it, with nothing known. *)
 Definition follow_aliases_unknowing_equivariant_statement : Prop :=
   rewrite_equivariant (follow_aliases []).
+
+(* ======================================================================== *)
+(* The checks of FlambdaWellFormedSpec.v                                    *)
+(* ======================================================================== *)
+
+(* The continuations that a term may apply and does not bind, as that
+   file computes them: those of the renamed term are the images of
+   those of the term, in the same order. *)
+Definition well_formed_free_continuations_equivariant_statement : Prop :=
+  ∀ (r : renaming) (e : expr),
+    free_continuations (rename_expr r e)
+    = map (rename_continuation r) (free_continuations e).
+
+Definition raises_to_equivariant_statement : Prop :=
+  ∀ (r : renaming) (k : continuation) (e : expr),
+    raises_to (rename_continuation r k) (rename_expr r e) = raises_to k e.
+
+(* Where static bindings may be. The exception continuation of the unit
+   is renamed with the term. *)
+Definition handler_at_toplevel_equivariant_statement : Prop :=
+  ∀ (r : renaming) (unit_exn k : continuation) (body : expr),
+    handler_at_toplevel (rename_continuation r unit_exn)
+      (rename_continuation r k) (rename_expr r body)
+    = handler_at_toplevel unit_exn k body.
+
+Definition statics_at_toplevel_equivariant_statement : Prop :=
+  ∀ (r : renaming) (unit_exn : continuation) (toplevel : bool) (e : expr),
+    statics_at_toplevel (rename_continuation r unit_exn) toplevel
+      (rename_expr r e)
+    = statics_at_toplevel unit_exn toplevel e.
+
+(* The static names that a term binds are those of the renamed term,
+   for a way of reading the names of a binding that does not look at
+   its variables and continuations. *)
+Definition static_names_equivariant_statement : Prop :=
+  ∀ (r : renaming) (names_of : static_binding -> list positive) (e : expr),
+    (∀ binding : static_binding,
+      names_of (rename_static_binding r binding) = names_of binding) ->
+    static_names names_of (rename_expr r e) = static_names names_of e.
+
+(* So the code ids and the symbols that a term binds, which are the two
+   ways used, are those of the renamed term. *)
+Definition bound_static_names_equivariant_statement : Prop :=
+  ∀ (r : renaming) (e : expr),
+    static_names code_ids_of_binding (rename_expr r e)
+    = static_names code_ids_of_binding e
+    ∧ static_names symbols_of_binding (rename_expr r e)
+      = static_names symbols_of_binding e.
+
+Definition sets_well_formed_equivariant_statement : Prop :=
+  ∀ (r : renaming) (e : expr),
+    sets_well_formed (rename_expr r e) = sets_well_formed e.
+
+Definition numbers_in_range_equivariant_statement : Prop :=
+  ∀ (r : renaming) (e : expr),
+    numbers_in_range (rename_expr r e) = numbers_in_range e.
+
+(* The action on what a unit is given by where it is run: its two
+   continuations are renamed. *)
+Definition rename_unit_interface (r : renaming) (u : unit_interface)
+    : unit_interface :=
+  Unit_interface (rename_continuation r (unit_return u))
+    (rename_continuation r (unit_exn u)).
+
+(* A renamed unit is well-formed when the unit is, what it is given
+   being renamed with it. Three of the conditions are those of
+   FlambdaBindersSpec.v, whose statements are in FlambdaAlphaSpec.v. *)
+Definition well_formed_unit_equivariant_statement : Prop :=
+  ∀ (r : renaming) (u : unit_interface) (e : expr),
+    well_formed_unit (rename_unit_interface r u) (rename_expr r e)
+    = well_formed_unit u e.
+
+(* The test of the states that the machine makes undefined to keep a
+   static binding from being executed twice, with the action of
+   FlambdaEquivarianceSpec.v on states. *)
+Definition static_fault_equivariant_statement : Prop :=
+  ∀ (r : renaming) (s : state),
+    static_fault (rename_state r s) = static_fault s.
