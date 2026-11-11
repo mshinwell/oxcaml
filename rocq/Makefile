@@ -89,6 +89,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaAlphaSpec.v \
   FlambdaApplyProofs.v \
   FlambdaApplySpec.v \
+  FlambdaBindersProofs.v \
+  FlambdaBindersSpec.v \
   FlambdaBlockLoadProofs.v \
   FlambdaBlockLoadSpec.v \
   FlambdaClosuresProofs.v \
@@ -101,6 +103,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaContextSpec.v \
   FlambdaControlFlowProofs.v \
   FlambdaControlFlowSpec.v \
+  FlambdaFreeNamesProofs.v \
+  FlambdaFreeNamesSpec.v \
   FlambdaKindModel.v \
   FlambdaMapProofs.v \
   FlambdaMapSpec.v \
@@ -112,6 +116,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaPrimitiveModel.v \
   FlambdaPrimitiveProofs.v \
   FlambdaPrimitiveSpec.v \
+  FlambdaScopeProofs.v \
+  FlambdaScopeSpec.v \
   FlambdaSemanticsProofs.v \
   FlambdaSemanticsSpec.v \
   FlambdaStaticProofs.v \
