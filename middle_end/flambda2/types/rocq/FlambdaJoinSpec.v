@@ -62,7 +62,9 @@
    is the source with one level more, and an analysis
    ([Analysis.t], FlambdaJoinEnv.v). Inside the join, types are joined
    from lists of pairs of an index and a type that holds in the
-   environment of that index ([n_way_join_type_sound]).
+   environment of that index ([n_way_join_type_sound]); the section
+   "The join of types, inside a join of environments" is the interface
+   between the two halves of the transcription.
 
    What is guaranteed ([join_guarantees]), for a use and a valuation
    that satisfies it strictly: some valuation satisfies the target
@@ -86,8 +88,7 @@
      target at a use leaves such a variable without a value, and a
      type that reaches it by an alias is satisfied by no value. The
      definitions for this are the typing environment's
-     ([typing_env_satisfied_strictly]); the module [Interim] below
-     holds them until that file has them.
+     ([typing_env_satisfied_strictly], [env_satisfies_strictly]).
    - Poison (decision D26). Typing facts are about values that are not
      poison. The contract is stated with strict satisfaction: at a use
      that holds, a name that holds poison has a type that poison has.
@@ -175,52 +176,6 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaJoinEnv
   FlambdaJoinTypes.
 Import ListNotations.
-
-(* ======================================================================== *)
-(* Strict satisfaction, until the typing environment's file has it          *)
-(* ======================================================================== *)
-
-(* These three definitions are the typing environment's, agreed with its
-   owner under these names; they are here until FlambdaTypingEnvSpec.v
-   has them, and then go. A valuation may leave a name that the
-   environment knows without a value; nothing is asked of such a
-   name. *)
-Module Interim.
-
-(* The environment is not bottom; every name with a type that has a
-   value in the valuation has a value of that type, or is exempt and
-   has a value of the kind of the type; and aliases have the same
-   value, or none has one. *)
-Definition typing_env_satisfied_but (exempt : name -> Prop)
-    (statics : static_env) (valuation : env) (tenv : Typing_env.t) : Prop :=
-  Typing_env.is_bottom tenv = false
-  ∧ (∀ (n : name) (ty : flambda_type)
-       (binding_time_and_mode : Binding_time.With_name_mode.t) (v : value),
-       Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
-       = Some (ty, binding_time_and_mode) ->
-       value_of_name valuation n = Some v ->
-       type_satisfied statics valuation v ty
-       ∨ (exempt n ∧ kind_of_value v = kind ty))
-  ∧ aliases_respected (Typing_env.aliases tenv) valuation.
-
-(* No name is exempt. *)
-Definition typing_env_satisfied_strictly (statics : static_env)
-    (valuation : env) (tenv : Typing_env.t) : Prop :=
-  typing_env_satisfied_but (fun _ => False) statics valuation tenv.
-
-(* The machine satisfies an environment strictly: some valuation does
-   that agrees with it on the variables that may occur in terms, and
-   the machine has a value for each of those. *)
-Definition env_satisfies_strictly (tenv : Typing_env.t)
-    (statics : static_env) (vars : env) : Prop :=
-  ∃ valuation : env,
-    typing_env_satisfied_strictly statics valuation tenv
-    ∧ agrees_in_terms tenv valuation vars
-    ∧ ∀ x : variable, in_scope_in_terms tenv x -> lookup x vars <> None.
-
-End Interim.
-
-Import Interim.
 
 (* ======================================================================== *)
 (* What is joined                                                           *)
@@ -458,11 +413,27 @@ Definition join_introduces {A : Type} (avoid : list variable)
           ∧ knows use x)
        ∨ among x avoid = false).
 
+(* A [Simple] is of a kind in an environment: the constant is of that
+   kind, or the environment has a type of that kind for the name. *)
+Definition simple_of_kind (tenv : Typing_env.t) (simple : simple)
+    (kind : flambda_kind) : Prop :=
+  match simple with
+  | Const c => FlambdaTypeGrammar.kind (type_for_const c) = kind
+  | Var x =>
+    ∃ ty : flambda_type,
+      Typing_env.find tenv (Name_var x) (Some kind) = Some ty
+  | Symbol s =>
+    ∃ ty : flambda_type,
+      Typing_env.find tenv (Name_symbol s) (Some kind) = Some ty
+  end.
+
 (* What the analysis speaks of. Its identifiers are those of uses that
-   are not bottom, by index. A definition is of a variable that
-   the target knows, at a use with an identifier, and is a [Simple] of
-   that use; a definition at the normal name mode is a [Simple] that
-   may occur in terms at that use. *)
+   are not bottom, by index. A definition is of a variable that the
+   target has, with the kind given, at a use with an identifier, and is
+   a [Simple] of that kind in that use; a definition at the normal name
+   mode is moreover a [Simple] that may occur in terms at that use.
+   (Simplify makes a parameter of the kind given and passes the
+   [Simple] for it.) *)
 Definition analysis_describes_uses {A : Type} (inputs : join_inputs A)
     (target : Typing_env.t) (analysis : Analysis.t A) : Prop :=
   (∀ (index : Index.t) (id : A),
@@ -475,22 +446,23 @@ Definition analysis_describes_uses {A : Type} (inputs : join_inputs A)
        lookup x (Analysis.definitions_in_joined_envs analysis)
        = Some (simples, kind) ->
        Simples_in_joined_envs.find index simples = Some simple ->
-       knows target x
+       simple_of_kind target (Var x) kind
        ∧ ∃ (id : A) (use : Typing_env.t),
            nth_error (uses inputs) index = Some (id, use)
            ∧ Keyed.lookup Index.equal index (Analysis.external_ids analysis)
              = Some id
-           ∧ Typing_env.mem_simple None use simple = true)
+           ∧ simple_of_kind use simple kind)
   ∧ (∀ (x : variable) (simples : Simples_in_joined_envs.t)
        (kind : flambda_kind) (index : Index.t) (simple : simple),
        lookup x (Analysis.canonical_definitions_at_normal_mode analysis)
        = Some (simples, kind) ->
        Simples_in_joined_envs.find index simples = Some simple ->
-       knows target x
+       simple_of_kind target (Var x) kind
        ∧ ∃ (id : A) (use : Typing_env.t),
            nth_error (uses inputs) index = Some (id, use)
            ∧ Keyed.lookup Index.equal index (Analysis.external_ids analysis)
              = Some id
+           ∧ simple_of_kind use simple kind
            ∧ Typing_env.mem_simple (Some Name_mode.normal) use simple = true).
 
 (* What a join guarantees of its result. *)
@@ -553,21 +525,57 @@ End Contract.
 (* The join of types, inside a join of environments                         *)
 (* ======================================================================== *)
 
-(* The functions that join types (meet_and_n_way_join.ml) thread the
-   state of the join of environments ([Join_env.t]) and are given, for
-   each type, the index of the environment in which it holds. What they
-   need of that state is here as two readings of it: the environment of
-   an index ([Join_env.joined_env]) and the definitions of the
-   existential variables made so far. The contract below is what the
-   join of environments assumes of the join of types that it is given
-   ([n_way_join_type] in join_env.ml), and what the functions of the
-   environment that the join of types calls must meet in their turn. *)
+(* This section is the interface between the two halves of the
+   transcription. The functions that join types (the join functions of
+   meet_and_n_way_join.ml, in FlambdaJoinTypes.v) thread the state of
+   the join of environments ([Join_env.t], in FlambdaJoinEnv.v) and are
+   given, for each type, the index of the environment in which it
+   holds. They call four functions of the environment side:
+   [Join_env.joined_env], [n_way_join_simples], [import_type] and
+   [n_way_join_env_extension]; and the environment side calls the join
+   of types, which it is given as an argument ([n_way_join_type]).
+
+   Neither half sees the other's definitions. The state is any type
+   with three readings: the environment of an index ([joined_env]), the
+   definitions of the existential variables made so far, and the
+   variables that exist in the target so far (those of the source, the
+   imported ones and the existential ones:
+   [Bindings_in_target_env.exists_in_target_env]); and with an
+   invariant, [state_valid], which is the environment side's and of
+   which the join of types knows only that the four functions keep it.
+   The four contracts below are what each half proves of its functions
+   and assumes of the other's. Each is in three parts: the invariant is
+   kept; the upper bound, under any valuation of the target that
+   extends that of the input; and scope, that what is answered mentions
+   only variables of the target.
+
+   The upper bounds speak of every valuation that extends that of an
+   input. That there is one is asked of the invariant
+   ([valid_states_have_witnesses]): it is where it is shown that the
+   variables that the join makes are new and that each has one
+   definition. Without it a step could add definitions that nothing
+   meets, and its upper bound would say nothing.
+
+   Every function is given types, [Simple]s and extensions that mention
+   only variables that the environment of their index knows
+   ([join_args_in_scope]): the environment side gives the types that an
+   input has for a name, and the join of types passes on their
+   components and what [Expand_head] answers in that environment. *)
 Section Join_of_types.
+
+Context (typing_env_well_formed : Typing_env.t -> Prop).
 
 Context {state : Type}
   (joined_env : state -> Index.t -> option Typing_env.t)
   (definitions_of_existentials :
-     state -> finite_map (Simples_in_joined_envs.t * flambda_kind)).
+     state -> finite_map (Simples_in_joined_envs.t * flambda_kind))
+  (exists_in_target_env : state -> variable -> bool)
+  (state_valid : state -> Prop).
+
+(* The environments joined are well formed. *)
+Definition joined_envs_well_formed (s : state) : Prop :=
+  ∀ (index : Index.t) (use : Typing_env.t),
+    joined_env s index = Some use -> typing_env_well_formed use.
 
 (* A valuation of the target extends a valuation of the input of index
    [index], as far as the state has fixed: it agrees on what that input
@@ -581,56 +589,163 @@ Definition extends_input (s : state) (index : Index.t)
     ∧ definitions_hold (definitions_of_existentials s) index valuation
         valuation'.
 
-(* A step of the join keeps the inputs and the definitions made. *)
+(* What the environment side must prove of its invariant: at a valid
+   state, every valuation that satisfies an input extends to a
+   valuation of the target. *)
+Definition valid_states_have_witnesses : Prop :=
+  ∀ (s : state) (index : Index.t) (use : Typing_env.t)
+    (statics : static_env) (valuation : env),
+    state_valid s ->
+    joined_env s index = Some use ->
+    typing_env_satisfied_strictly statics valuation use ->
+    ∃ valuation' : env, extends_input s index valuation valuation'.
+
+(* A step of the join keeps the inputs, the definitions made and the
+   variables of the target. *)
 Definition state_grows (s s' : state) : Prop :=
   (∀ index : Index.t, joined_env s' index = joined_env s index)
-  ∧ ∀ (x : variable) (definition : Simples_in_joined_envs.t * flambda_kind),
-      lookup x (definitions_of_existentials s) = Some definition ->
-      lookup x (definitions_of_existentials s') = Some definition.
+  ∧ (∀ (x : variable)
+       (definition : Simples_in_joined_envs.t * flambda_kind),
+       lookup x (definitions_of_existentials s) = Some definition ->
+       lookup x (definitions_of_existentials s') = Some definition)
+  ∧ ∀ x : variable,
+      exists_in_target_env s x = true -> exists_in_target_env s' x = true.
+
+(* What is given mentions only variables that an environment knows. *)
+Definition simple_in_scope (tenv : Typing_env.t) (simple : simple) : Prop :=
+  ∀ x : variable, x ∈ free_variables_of_simple simple -> knows tenv x.
+
+Definition type_in_scope (tenv : Typing_env.t) (ty : flambda_type) : Prop :=
+  ∀ x : variable, x ∈ free_variables ty -> knows tenv x.
+
+Definition env_extension_in_scope (tenv : Typing_env.t)
+    (extension : env_extension) : Prop :=
+  ∀ x : variable,
+    x ∈ free_variables_of_env_extension extension -> knows tenv x.
+
+(* Each thing given is in the scope of the environment of its index. *)
+Definition join_args_in_scope {X : Type}
+    (in_scope : Typing_env.t -> X -> Prop) (s : state)
+    (args : list (Index.t * X)) : Prop :=
+  ∀ (index : Index.t) (x : X),
+    In (index, x) args ->
+    ∃ use : Typing_env.t, joined_env s index = Some use ∧ in_scope use x.
+
+(* What is answered mentions only variables of the target. *)
+Definition simple_in_target (s : state) (simple : simple) : Prop :=
+  ∀ x : variable,
+    x ∈ free_variables_of_simple simple -> exists_in_target_env s x = true.
+
+Definition type_in_target (s : state) (ty : flambda_type) : Prop :=
+  ∀ x : variable, x ∈ free_variables ty -> exists_in_target_env s x = true.
+
+Definition env_extension_in_target (s : state) (extension : env_extension)
+    : Prop :=
+  ∀ x : variable,
+    x ∈ free_variables_of_env_extension extension ->
+    exists_in_target_env s x = true.
 
 (* The join of types: [Meet_and_n_way_join.n_way_join]. If it answers a
    type, then at each input a value of that input's type, under a
    valuation that satisfies the input, has the type answered under any
-   valuation of the target that extends it. Unknown says nothing. *)
+   valuation of the target that extends it. Unknown says nothing. This
+   is what the join of types is to be proved to meet, and what the join
+   of environments assumes of the one it is given. *)
 Definition n_way_join_type_sound
     (n_way_join :
        state -> list (Index.t * flambda_type)
        -> option (Or_unknown.t flambda_type * state)) : Prop :=
   ∀ (s s' : state) (ts : list (Index.t * flambda_type))
     (result : Or_unknown.t flambda_type),
+    state_valid s ->
+    joined_envs_well_formed s ->
+    join_args_in_scope type_in_scope s ts ->
     n_way_join s ts = Some (result, s') ->
-    state_grows s s'
-    ∧ ∀ (ty : flambda_type) (index : Index.t) (t_index : flambda_type)
-        (use : Typing_env.t) (statics : static_env)
-        (valuation valuation' : env) (v : value),
+    state_valid s'
+    ∧ state_grows s s'
+    ∧ ∀ ty : flambda_type,
         result = Or_unknown.Known ty ->
-        In (index, t_index) ts ->
-        joined_env s' index = Some use ->
-        typing_env_satisfied_strictly statics valuation use ->
-        extends_input s' index valuation valuation' ->
-        type_satisfied statics valuation v t_index ->
-        type_satisfied statics valuation' v ty.
+        type_in_target s' ty
+        ∧ ∀ (index : Index.t) (t_index : flambda_type)
+            (use : Typing_env.t) (statics : static_env)
+            (valuation valuation' : env) (v : value),
+            In (index, t_index) ts ->
+            joined_env s' index = Some use ->
+            typing_env_satisfied_strictly statics valuation use ->
+            extends_input s' index valuation valuation' ->
+            type_satisfied statics valuation v t_index ->
+            type_satisfied statics valuation' v ty.
 
 (* The join of [Simple]s: [Join_env.n_way_join_simples]. The [Simple]
    answered has, in the target, the value that each [Simple] given has
-   in its input. *)
+   in its input. Bottom is answered only for no [Simple]. *)
 Definition n_way_join_simples_sound
     (n_way_join_simples :
        state -> flambda_kind -> list (Index.t * simple)
        -> option (Or_bottom.t simple * state)) : Prop :=
   ∀ (s s' : state) (kind : flambda_kind) (simples : list (Index.t * simple))
     (result : Or_bottom.t simple),
+    state_valid s ->
+    joined_envs_well_formed s ->
+    join_args_in_scope simple_in_scope s simples ->
     n_way_join_simples s kind simples = Some (result, s') ->
-    state_grows s s'
-    ∧ ∀ (joined : simple) (index : Index.t) (simple : simple)
-        (use : Typing_env.t) (statics : static_env)
-        (valuation valuation' : env),
+    state_valid s'
+    ∧ state_grows s s'
+    ∧ (result = Or_bottom.Bottom -> simples = [])
+    ∧ ∀ joined : simple,
         result = Or_bottom.Ok joined ->
-        In (index, simple) simples ->
-        joined_env s' index = Some use ->
-        typing_env_satisfied_strictly statics valuation use ->
-        extends_input s' index valuation valuation' ->
-        eval_simple valuation' joined = eval_simple valuation simple.
+        simple_in_target s' joined
+        ∧ ∀ (index : Index.t) (simple : simple) (use : Typing_env.t)
+            (statics : static_env) (valuation valuation' : env),
+            In (index, simple) simples ->
+            joined_env s' index = Some use ->
+            typing_env_satisfied_strictly statics valuation use ->
+            extends_input s' index valuation valuation' ->
+            eval_simple valuation' joined = eval_simple valuation simple.
+
+(* [Join_env.import_type]: the variables of a type become variables of
+   the target. The join of types calls it on a type that it puts in its
+   answer as it stands. Nothing is said of values: a type means the
+   same under a valuation of the target that extends that of an input
+   whose environment knows its variables ([agrees_on_known]). *)
+Definition import_type_sound
+    (import_type : state -> flambda_type -> option state) : Prop :=
+  ∀ (s s' : state) (ty : flambda_type),
+    state_valid s ->
+    joined_envs_well_formed s ->
+    import_type s ty = Some s' ->
+    state_valid s' ∧ state_grows s s' ∧ type_in_target s' ty.
+
+(* The join of environment extensions:
+   [Join_env.n_way_join_env_extension]. The extension answered holds, in
+   the target, wherever one of the extensions given holds in its input.
+   Bottom is answered only for no extension. (The compiler's function
+   also takes the join of types and the meet, and uses neither.) *)
+Definition n_way_join_env_extension_sound
+    (n_way_join_env_extension :
+       state -> list (Index.t * env_extension)
+       -> option (Or_bottom.t (env_extension * state))) : Prop :=
+  ∀ (s : state) (extensions : list (Index.t * env_extension))
+    (result : Or_bottom.t (env_extension * state)),
+    state_valid s ->
+    joined_envs_well_formed s ->
+    join_args_in_scope env_extension_in_scope s extensions ->
+    n_way_join_env_extension s extensions = Some result ->
+    (result = Or_bottom.Bottom -> extensions = [])
+    ∧ ∀ (joined : env_extension) (s' : state),
+        result = Or_bottom.Ok (joined, s') ->
+        state_valid s'
+        ∧ state_grows s s'
+        ∧ env_extension_in_target s' joined
+        ∧ ∀ (index : Index.t) (extension : env_extension)
+            (use : Typing_env.t) (statics : static_env)
+            (valuation valuation' : env),
+            In (index, extension) extensions ->
+            joined_env s' index = Some use ->
+            typing_env_satisfied_strictly statics valuation use ->
+            extends_input s' index valuation valuation' ->
+            env_extension_satisfied statics valuation extension ->
+            env_extension_satisfied statics valuation' joined.
 
 End Join_of_types.
 
@@ -673,7 +788,7 @@ Definition join_admits_use_in_machine_statement : Prop :=
     ∃ valuation' : env,
       typing_env_satisfied_strictly statics valuation' target
       ∧ agrees_in_terms target valuation' vars
-      ∧ (∀ x : variable, in_scope_in_terms target x -> lookup x vars <> None)
+      ∧ bound_in_terms target vars
       ∧ ∀ (x : variable) (simples : Simples_in_joined_envs.t)
           (kind : flambda_kind) (simple : simple),
           lookup x definitions_at_normal_mode = Some (simples, kind) ->
@@ -720,6 +835,33 @@ Definition known_value_at_use_statement : Prop :=
     Simples_in_joined_envs.find index simples = Some simple ->
     Analysis.value_at_use simple = Or_unknown.Known c ->
     lookup x valuation' = Some (Value_const c).
+
+(* What the two lists that Simplify folds over hold
+   ([Analysis.values_at_uses], [Analysis.definitions_at_uses]): each
+   element is the identifier of an index and what the vector has at
+   that index, so what is said above of a definition at an index is
+   true of each element. *)
+Definition values_at_uses_found_statement : Prop :=
+  ∀ (A : Type) (external_ids : Keyed.finite_map Index.t A)
+    (simples : Simples_in_joined_envs.t)
+    (values : list (A * Or_unknown.t const)) (id : A)
+    (value : Or_unknown.t const),
+    Analysis.values_at_uses external_ids simples = Some values ->
+    In (id, value) values ->
+    ∃ (index : Index.t) (simple : simple),
+      Keyed.lookup Index.equal index external_ids = Some id
+      ∧ Simples_in_joined_envs.find index simples = Some simple
+      ∧ value = Analysis.value_at_use simple.
+
+Definition definitions_at_uses_found_statement : Prop :=
+  ∀ (A : Type) (external_ids : Keyed.finite_map Index.t A)
+    (simples : Simples_in_joined_envs.t) (definitions : list (A * simple))
+    (id : A) (simple : simple),
+    Analysis.definitions_at_uses external_ids simples = Some definitions ->
+    In (id, simple) definitions ->
+    ∃ index : Index.t,
+      Keyed.lookup Index.equal index external_ids = Some id
+      ∧ Simples_in_joined_envs.find index simples = Some simple.
 
 (* ======================================================================== *)
 (* The n-way join of closures entries is not an upper bound                 *)

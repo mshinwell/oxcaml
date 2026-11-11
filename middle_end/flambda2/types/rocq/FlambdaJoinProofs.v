@@ -35,10 +35,9 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec FlambdaMapProofs
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesProofs
-  FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaJoinEnv FlambdaJoinTypes
-  FlambdaJoinSpec.
+  FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaTypingEnvProofs FlambdaJoinEnv
+  FlambdaJoinTypes FlambdaJoinSpec.
 Import ListNotations.
-Import FlambdaJoinSpec.Interim.
 
 (* ======================================================================== *)
 (* Small facts                                                              *)
@@ -54,14 +53,14 @@ Proof.
     as [[ty binding_time_and_mode] | ]; [ reflexivity | discriminate ].
 Qed.
 
-(* The environment that knows nothing is satisfied strictly by every
+(* The environment that knows nothing is satisfied strictly by some
    valuation. *)
-Lemma create_satisfied_strictly (statics : static_env) (valuation : env) :
-  typing_env_satisfied_strictly statics valuation Typing_env.create.
+Lemma create_satisfied_strictly (statics : static_env) :
+  ∃ valuation : env,
+    typing_env_satisfied_strictly statics valuation Typing_env.create.
 Proof.
-  split; [ reflexivity | ]. split.
-  - intros n ty binding_time_and_mode v Hlookup. discriminate.
-  - apply empty_respected.
+  destruct (create_satisfied statics []) as [_ [valuation [Hsatisfied _]]].
+  exists valuation. exact Hsatisfied.
 Qed.
 
 (* The one use of a list of one. *)
@@ -129,11 +128,13 @@ Proof.
     as [_ [_ [_ [_ Hadmits]]]].
   assert (Huse : use_at inputs 0 Typing_env.create).
   { exists tt. reflexivity. }
-  destruct
-    (Hadmits 0 Typing_env.create Huse (Static_env [] []) []
-       (create_satisfied_strictly _ _))
-    as [valuation' [[Hnot_bottom _] _]].
-  discriminate.
+  destruct (create_satisfied_strictly (Static_env [] []))
+    as [valuation Hsatisfied].
+  destruct (Hadmits 0 Typing_env.create Huse _ valuation Hsatisfied)
+    as [valuation' [Htarget _]].
+  exact
+    (bottom_not_satisfied_but (fun _ => False) _ valuation'
+       (Typing_env.make_bottom (source inputs)) eq_refl Htarget).
 Qed.
 
 (* ======================================================================== *)
@@ -143,7 +144,7 @@ Qed.
 Theorem join_admits_use_in_machine : join_admits_use_in_machine_statement.
 Proof.
   intros use target definitions definitions_at_normal_mode index statics vars
-    Hadmits Hscope [valuation [Hsatisfied [Hterms Hbound]]].
+    Hadmits Hscope [Hbound [valuation [Hsatisfied Hterms]]].
   destruct (Hadmits statics valuation Hsatisfied)
     as [valuation' [Htarget [Hagrees [_ Hdefinitions]]]].
   exists valuation'. split; [ exact Htarget | ].
@@ -168,7 +169,7 @@ Proof.
        definitions_at_normal_mode index statics vars Hadmits Hscope
        Hsatisfies)
     as [valuation' [Htarget [Hterms [Hbound _]]]].
-  exists valuation'. split; [ exact Htarget | ]. split; assumption.
+  split; [ exact Hbound | ]. exists valuation'. split; assumption.
 Qed.
 
 (* Whether a variable may occur in terms depends on its binding time and
@@ -214,6 +215,89 @@ Proof.
   rewrite (Hdefinitions x simples kind simple Hlookup Hfind).
   destruct simple as [y | s | c']; cbn in Hvalue; try discriminate.
   injection Hvalue as <-. reflexivity.
+Qed.
+
+(* A binding of the bindings that count is what the map has for its
+   key. *)
+Lemma in_compact_lookup {A : Type} (bindings : Keyed.finite_map Index.t A)
+    (index : Index.t) (a : A) :
+  In (index, a) (Keyed.compact Index.equal bindings) ->
+  Keyed.lookup Index.equal index bindings = Some a.
+Proof.
+  unfold Keyed.compact, Keyed.tabulate. rewrite in_flat_map.
+  intros [key [_ Hin]].
+  destruct (Keyed.lookup Index.equal key bindings) as [a' | ] eqn:Hlookup;
+    [ | destruct Hin ].
+  destruct Hin as [Heq | []]. injection Heq as <- <-. exact Hlookup.
+Qed.
+
+Lemma values_of_bindings_found {A : Type}
+    (external_ids : Keyed.finite_map Index.t A)
+    (bindings : list (Index.t * simple))
+    (values : list (A * Or_unknown.t const)) (id : A)
+    (value : Or_unknown.t const) :
+  Analysis.values_of_bindings external_ids bindings = Some values ->
+  In (id, value) values ->
+  ∃ (index : Index.t) (simple : simple),
+    Keyed.lookup Index.equal index external_ids = Some id
+    ∧ In (index, simple) bindings
+    ∧ value = Analysis.value_at_use simple.
+Proof.
+  revert values. induction bindings as [ | [index simple] bindings IH];
+    intros values Hvalues Hin; cbn in Hvalues.
+  - injection Hvalues as <-. destruct Hin.
+  - destruct (Keyed.lookup Index.equal index external_ids)
+      as [external_id | ] eqn:Hid; [ | discriminate ].
+    destruct (Analysis.values_of_bindings external_ids bindings)
+      as [values' | ]; [ | discriminate ].
+    injection Hvalues as <-. destruct Hin as [Heq | Hin].
+    + injection Heq as <- <-. exists index, simple.
+      split; [ exact Hid | ]. split; [ left; reflexivity | reflexivity ].
+    + destruct (IH values' eq_refl Hin) as [index' [simple' [H1 [H2 H3]]]].
+      exists index', simple'. split; [ exact H1 | ].
+      split; [ right; exact H2 | exact H3 ].
+Qed.
+
+Theorem values_at_uses_found : values_at_uses_found_statement.
+Proof.
+  intros A external_ids simples values id value Hvalues Hin.
+  destruct (values_of_bindings_found _ _ _ _ _ Hvalues Hin)
+    as [index [simple [Hid [Hbinding Hvalue]]]].
+  exists index, simple. split; [ exact Hid | ].
+  split; [ exact (in_compact_lookup _ _ _ Hbinding) | exact Hvalue ].
+Qed.
+
+Lemma definitions_of_bindings_found {A : Type}
+    (external_ids : Keyed.finite_map Index.t A)
+    (bindings : list (Index.t * simple)) (definitions : list (A * simple))
+    (id : A) (simple : simple) :
+  Analysis.definitions_of_bindings external_ids bindings = Some definitions ->
+  In (id, simple) definitions ->
+  ∃ index : Index.t,
+    Keyed.lookup Index.equal index external_ids = Some id
+    ∧ In (index, simple) bindings.
+Proof.
+  revert definitions. induction bindings as [ | [index simple'] bindings IH];
+    intros definitions Hdefinitions Hin; cbn in Hdefinitions.
+  - injection Hdefinitions as <-. destruct Hin.
+  - destruct (Keyed.lookup Index.equal index external_ids)
+      as [external_id | ] eqn:Hid; [ | discriminate ].
+    destruct (Analysis.definitions_of_bindings external_ids bindings)
+      as [definitions' | ]; [ | discriminate ].
+    injection Hdefinitions as <-. destruct Hin as [Heq | Hin].
+    + injection Heq as <- <-. exists index.
+      split; [ exact Hid | left; reflexivity ].
+    + destruct (IH definitions' eq_refl Hin) as [index' [H1 H2]].
+      exists index'. split; [ exact H1 | right; exact H2 ].
+Qed.
+
+Theorem definitions_at_uses_found : definitions_at_uses_found_statement.
+Proof.
+  intros A external_ids simples definitions id simple Hdefinitions Hin.
+  destruct (definitions_of_bindings_found _ _ _ _ _ Hdefinitions Hin)
+    as [index [Hid Hbinding]].
+  exists index. split; [ exact Hid | ].
+  exact (in_compact_lookup _ _ _ Hbinding).
 Qed.
 
 (* ======================================================================== *)

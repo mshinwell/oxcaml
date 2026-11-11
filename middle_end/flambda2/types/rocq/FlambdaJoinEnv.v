@@ -72,7 +72,9 @@
      hold no data.
    - A fold is the list of what it visits, in the order of the map that
      the model has, which is not the compiler's (the order of the
-     keys). No statement depends on the order.
+     keys). No statement depends on the order. It visits the bindings
+     that count ([compact]): a map of the model is a list of which the
+     first binding of a key counts.
    - A fatal error of the compiler is [None]: in [values_at_uses] and
      [variables_created_at_join], an index with no external
      identifier.
@@ -158,17 +160,28 @@ Module Analysis.
     | Var _ | Symbol _ => Or_unknown.Unknown
     end.
 
-  Fixpoint values_at_uses {A : Type}
+  Fixpoint values_of_bindings {A : Type}
       (external_ids : Keyed.finite_map Index.t A)
-      (canonicals_in_joined_envs : Simples_in_joined_envs.t)
+      (canonicals_in_joined_envs : list (Index.t * simple))
       : option (list (A * Or_unknown.t const)) :=
     match canonicals_in_joined_envs with
     | [] => Some []
     | (index, simple) :: canonicals_in_joined_envs =>
       let* external_id := Keyed.lookup Index.equal index external_ids in
-      let* values := values_at_uses external_ids canonicals_in_joined_envs in
+      let* values :=
+        values_of_bindings external_ids canonicals_in_joined_envs
+      in
       Some ((external_id, value_at_use simple) :: values)
     end.
+
+  (* Each index of the vector is visited once: a binding that another
+     shadows is not one of the map. *)
+  Definition values_at_uses {A : Type}
+      (external_ids : Keyed.finite_map Index.t A)
+      (canonicals_in_joined_envs : Simples_in_joined_envs.t)
+      : option (list (A * Or_unknown.t const)) :=
+    values_of_bindings external_ids
+      (Keyed.compact Index.equal canonicals_in_joined_envs).
 
   (* [Join_env.Analysis.simple_refined_at_join]. *)
   Inductive simple_refined_at_join : Type :=
@@ -196,19 +209,26 @@ Module Analysis.
   (* The [Simple] that may be given, at each use, for a variable that
      the join made: [Simples_at_join.fold_definitions_at_uses]. [None]
      as for [values_at_uses]. *)
-  Fixpoint definitions_at_uses {A : Type}
+  Fixpoint definitions_of_bindings {A : Type}
       (external_ids : Keyed.finite_map Index.t A)
-      (canonicals_in_joined_envs : Simples_in_joined_envs.t)
+      (canonicals_in_joined_envs : list (Index.t * simple))
       : option (list (A * simple)) :=
     match canonicals_in_joined_envs with
     | [] => Some []
     | (index, simple) :: canonicals_in_joined_envs =>
       let* external_id := Keyed.lookup Index.equal index external_ids in
       let* definitions :=
-        definitions_at_uses external_ids canonicals_in_joined_envs
+        definitions_of_bindings external_ids canonicals_in_joined_envs
       in
       Some ((external_id, simple) :: definitions)
     end.
+
+  Definition definitions_at_uses {A : Type}
+      (external_ids : Keyed.finite_map Index.t A)
+      (canonicals_in_joined_envs : Simples_in_joined_envs.t)
+      : option (list (A * simple)) :=
+    definitions_of_bindings external_ids
+      (Keyed.compact Index.equal canonicals_in_joined_envs).
 
   (* [Join_env.Analysis.fold_variables_created_at_join]: the variables
      that have a definition at the normal name mode, each with that

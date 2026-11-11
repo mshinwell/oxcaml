@@ -32,8 +32,9 @@ entail the source:
    made is not specified (agreed with N1: the join takes `avoid`, and
    a `fresh` function is an argument of the implementation).
 4. **The analysis** (`analysis_describes_uses`): its identifiers are
-   those of uses that are not bottom; a definition at the normal name
-   mode is a `Simple` that may occur in terms at that use.
+   those of uses that are not bottom; a definition is of a variable of
+   the target of the kind given, by a `Simple` of that kind at the
+   use; one at the normal name mode may occur in terms at that use.
 5. The target is well formed (the typing environment's invariant, a
    parameter until that file names it).
 
@@ -50,8 +51,9 @@ reading of the join's state (`n_way_join_type_sound`,
 `n_way_join_simples_sound`): a value of an input's type has the joined
 type under any valuation of the target that extends that input's.
 
-Proved now (eight statements, no axioms): the three in-the-machine
-corollaries; what a constant in the analysis means; that the contract
+Proved now (ten statements, no axioms): the three in-the-machine
+corollaries; what a constant in the analysis means, and that the two
+lists Simplify folds over hold what the vectors have at their indices; that the contract
 is met by the join that answers the source and is not met by one that
 answers bottom (so it is neither contradictory nor empty); and the two
 about closures below.
@@ -84,9 +86,9 @@ about closures below.
   names bottom; the n-way one leaves them, reachable only through
   cases that are dead at those uses. So a valuation may leave a name
   without a value; a type that reaches it by an alias then has no
-  value. T2 is changing the typing environment's Spec to this
-  (`typing_env_satisfied_strictly`); a stand-in is in my Spec
-  (`Interim`) until then. T4 states the meet the same way.
+  value. The typing environment's Spec now has this
+  (`typing_env_satisfied_strictly`, T2); T4 states the meet the same
+  way.
 - **Poison (D26).** The contract needs strict satisfaction of the
   use: a name that holds poison must have a type poison has. With the
   exemption of names that hold poison the statement is false, for the
@@ -209,10 +211,28 @@ function of the state type and the three environment functions (a
 section); the environment join takes `n_way_join_type` and the meet's
 `meet_expanded_head` as arguments, as in the compiler. A third small
 file ties the knot with fuel, with T4's meet. The statements each side
-assumes of the other are in `FlambdaJoinSpec.v` (`extends_input`,
-`state_grows`, `n_way_join_type_sound`, `n_way_join_simples_sound`;
-`import_type` and `n_way_join_env_extension` are to be added in the
-same shape before the second agent starts).
+assumes of the other are in `FlambdaJoinSpec.v`, section "The join of
+types, inside a join of environments", and are fixed there:
+
+- the state is abstract, with three readings (`joined_env`,
+  `definitions_of_existentials`, `exists_in_target_env`) and an
+  invariant `state_valid` that is the environment side's;
+- four contracts, each "the invariant is kept, the state grows, the
+  answer is in the scope of the target, and the upper bound holds
+  under every valuation that `extends_input`":
+  `n_way_join_type_sound` (T proves it, E assumes it), and
+  `n_way_join_simples_sound`, `import_type_sound`,
+  `n_way_join_env_extension_sound` (E proves them, T assumes them);
+- every argument at an index mentions only variables that the
+  environment of that index knows (`join_args_in_scope`);
+- `valid_states_have_witnesses`, which E proves of its invariant: at a
+  valid state every valuation of an input extends to one of the
+  target. Without it the upper bounds could be vacuous (the reviewer's
+  point).
+
+T also needs from T4 `expand_head` and
+`reduce_head_of_kind_naked_immediate` with their statements, from T1
+`type_eqb`, and from C0 `Keyed.filter_map_fold_on`.
 
 **With T4 (agreed by message).** The meet's parameter is
 `join_scoped_envs meet_expanded_head cut_after initial_env
