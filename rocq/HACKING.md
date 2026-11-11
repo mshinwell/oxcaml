@@ -108,7 +108,7 @@ Each directory is a Rocq library (`rocq/Makefile` maps them):
 | `backend/rocq/`          | `OxCamlBackend`| Backend-wide definitions: the semantics of `Cmm.integer_comparison` (with `IntegerComparisonProofs.v`), the model's copy of `Operation.t` |
 | `backend/ssa/rocq/`      | `OxCamlSsa`    | The SSA graph as the models see it, each model split into Spec, implementation and Proofs files (see "The layout of a model"): `SsaModel.v` (the abstract interface), `SsaGraph*` (terminators, edges and uses), `SsaDominance*` (dominance, paths and program points), `SsaSemantics*` (execution of the restricted integer fragment), `SsaExecution*` (well-formedness and available-value equations), `SsaLiveness*` (reads before redefinition), `SsaProgress*` (the `finished_graph` contract, definedness and progress), `SsaContext*` (opaque surrounding computations and the `reached_header` contract) |
 | `backend/ssa/loop/rocq/` | `OxCamlLoop`   | The loop analyses, each an implementation file and a `*Proofs.v`; the operational proofs in `LoopExecutionProofs.v`, `LoopInvariantExecutionProofs.v`, `LoopCounterExecutionProofs.v`, `LoopValueSnapshotProofs.v`, `LoopGuardExecutionProofs.v`, `LoopRangeExecutionProofs.v`, `LoopLiveOutProofs.v` and `InductionRangeExecutionProofs.v`; the statements to review in `LoopEligibilitySpec.v`, `DeleteEmptyLoopsSpec.v` and `BoundsCheckExecutionSpec.v`, proved in `LoopEligibilityProofs.v`, `DeleteEmptyLoopsProofs.v` and `BoundsCheckExecutionProofs.v`; and `Extract.v`, which extracts the implementation |
-| `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, extracted for its tests only: `FlambdaMap*` (finite maps and sets keyed by names, the one representation of environments), `FlambdaKindModel.v` (the kinds), `FlambdaPrimitiveModel.v` (the primitives of the fragment covered so far), `FlambdaModel.v` (the terms of that fragment), `FlambdaValue*` (the values of the machine, and how an allocated value is read), `FlambdaPrimitive*` (what each primitive computes, and the laws that all of them obey), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaWellFormed*` (the well-formedness of a unit: static bindings at toplevel only, each static name bound once, whole sets of closures, numbers in range; and that what a static name is bound to never changes in a run), `FlambdaClosures*` (sets of closures of several functions: the derived forms that make one, the projections, and what a well-formed unit keeps true of its sets), `FlambdaRange*` (that the run of a unit whose numbers are in range holds no number out of range), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics), `FlambdaContext*` (contexts, and that refinement and equivalence are preserved under them), `FlambdaNominal*` (renamings, free names, and binders as name abstractions), `FlambdaAlpha*` (the group action, equivariance, and alpha-equivalence with its soundness), `FlambdaApply*` (function calls and inlining), `FlambdaStatic*` (first facts about `Let_static`), `FlambdaCompare*` (a decision that two expressions are the same up to bound names, proved sound), `FlambdaNormalise*` (normalising a term by proved rewrites: inlining direct calls of known code, removing unused `Let`s, folding constants), `FlambdaUnusedStatics*` (removing unused static bindings, under environments in which their names do not occur), `FlambdaValidate*` (the whole check of a unit before and after Simplify, and that what it accepts is correct for the unit run on its own); see "The semantics of Flambda 2" below |
+| `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, extracted for its tests only: `FlambdaMap*` (finite maps and sets keyed by names, the one representation of environments), `FlambdaKindModel.v` (the kinds), `FlambdaPrimitiveModel.v` (the primitives of the fragment covered so far), `FlambdaModel.v` (the terms of that fragment, which carry kinds and arities), `FlambdaValue*` (the values of the machine, and how an allocated value is read), `FlambdaPrimitive*` (what each primitive computes, and the laws that all of them obey), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaWellFormed*` (the well-formedness of a unit, given with its two continuations: static bindings at toplevel only, each static name bound once, variables and continuations in scope, the names of each binder distinct, code closed, whole sets of closures, numbers in range; and that what a static name is bound to never changes in a run), `FlambdaBinders*` (the free variables and the free continuations of a term, and the three conditions on names), `FlambdaScope*` (that the run of a unit that meets them reads no variable that has no value and leaves by one of its two continuations), `FlambdaWellKinded*` (a check of the kinds that a term carries, and what the machine makes undefined on account of kinds), `FlambdaClosures*` (sets of closures of several functions: the derived forms that make one, the projections, and what a well-formed unit keeps true of its sets), `FlambdaRange*` (that the run of a unit whose numbers are in range holds no number out of range), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics), `FlambdaContext*` (contexts, and that refinement and equivalence are preserved under them), `FlambdaNominal*` (renamings, free names, and binders as name abstractions), `FlambdaAlpha*` (the group action, equivariance, and alpha-equivalence with its soundness), `FlambdaApply*` (function calls and inlining), `FlambdaStatic*` (first facts about `Let_static`), `FlambdaCompare*` (a decision that two expressions are the same up to bound names, proved sound), `FlambdaNormalise*` (normalising a term by proved rewrites: inlining direct calls of known code, removing unused `Let`s, folding constants), `FlambdaUnusedStatics*` (removing unused static bindings, under environments in which their names do not occur), `FlambdaValidate*` (the whole check of a unit before and after Simplify, and that what it accepts is correct for the unit run on its own); see "The semantics of Flambda 2" below |
 | `middle_end/flambda2/types/rocq/` | `OxCamlFlambda2Types` | A first, naive model of Flambda types and typing environments, with nothing extracted: `FlambdaTypes*` (types, what it means to satisfy a typing environment, refinement relative to one, following aliases, going under a `Let`), `FlambdaAliases*` (following aliases through a whole term, an equivalence) |
 
 Put a definition or lemma where its OxCaml counterpart would live. A fact
@@ -443,6 +443,42 @@ be proved correct, built a fragment at a time. The files follow the same Spec/Pr
   the caller's, so returning is applying a continuation. A continuation
   name stands for a handler closure or, unbound, for a way out of the
   term (`resolve`).
+- The terms carry the compiler's kinds. A `Let` gives the kind of its
+  variable, a handler the kinds of its parameters, code the arity of
+  its parameters and that of its results, and an `Apply` the two
+  arities it is made at; an arity is `Flambda_arity.t` without
+  subkinds, unboxed products included. Execution ignores all of it but
+  at a call: `call_function` has no step unless the arguments are of
+  the kinds of the call's arity and the two arities of the call are
+  those of the code. Such a call is one that Simplify replaces by
+  `Invalid`, and well-typed programs give rise to them in branches
+  that never run, so it has to be undefined; so has a primitive on an
+  argument of another kind than it takes (`eval_prim_kinds`). A call
+  with fewer or more arguments than the code has parameters is
+  undefined too, where the compiler has a partial application or an
+  over-application: those are not in the fragment
+  (`FlambdaWellKindedSpec.at_partial_or_over_application` says when a
+  state is at one).
+- `FlambdaWellKindedSpec.well_kinded_unit` checks that the kinds a unit
+  carries agree with one another. A unit that passes it starts in a
+  well-kinded state, a step keeps a state well-kinded, and a
+  well-kinded state has none of the faults of `kind_fault` (it reads
+  no unbound variable, applies no handler to the wrong number of
+  arguments, and its `Switch` is on a naked immediate); a call that
+  does not agree with its code and a primitive on an argument of
+  another kind are not among those, and stay undefined. The check is a
+  sufficient condition and a diagnostic, which the test tool prints.
+  The compiler builds units that fail it, so it is not a condition of
+  `well_formed_unit` and no statement about the compiler's terms may
+  take it as a premise; the header of the file says why.
+- A unit is well-formed with respect to its interface
+  (`FlambdaWellFormedSpec.unit_interface`: the continuation it returns
+  to and its exception continuation). `well_formed_unit` is to be the
+  one definition of a well-formed unit:
+  `middle_end/flambda2/rocq/requests/C0-well-formed.md` has the table
+  of its conditions and of those to come. A condition on terms that
+  the compiler's units meet goes there, and not into a premise of the
+  statements that need it.
 - "Let symbol" is `Let_static`: a group of bindings of code ids to code
   and of symbols to static constants. It extends the static environment,
   a fourth component of the machine state that is global (closures do not
@@ -679,8 +715,8 @@ containment is proved); equivariance of execution in the continuations
 invariant that bound names are distinct from those in scope;
 removing an unused static binding (which needs the free symbols and code
 ids of terms, code and values); rewriting the body of code by what is
-known of the static environment; kinds on
-parameters and well-kindedness; mutable memory and effects, trap actions,
+known of the static environment; partial applications and
+over-applications; mutable memory and effects, trap actions,
 and any link to the simplifier's code.
 
 ### Changes to the compiler made on this branch
