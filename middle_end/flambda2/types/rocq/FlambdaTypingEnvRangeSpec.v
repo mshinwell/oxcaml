@@ -247,7 +247,9 @@ Definition satisfies_in_range_statics_extend_statement : Prop :=
 (* The variables are those of FlambdaTypingEnvExamplesSpec.v. [p]
    exists only in types and is, by its type, the tagged immediate of a
    number that no immediate of the machine is. [i] may occur in terms
-   and is [Is_int] of [p]. *)
+   and is [Is_int] of [p]. (The type of [p] is written with
+   [tag_immediate], so that it is not an alias: the environment has
+   its invariant.) *)
 Definition example_big_number : Z := 2 ^ 70.
 
 Definition example_out_of_range_env : Typing_env.t :=
@@ -258,7 +260,7 @@ Definition example_out_of_range_env : Typing_env.t :=
   in
   let tenv :=
     Typing_env.replace_equation tenv (Name_var example_p)
-      (these_tagged_immediates [example_big_number])
+      (tag_immediate (these_naked_immediates [example_big_number]))
   in
   let tenv :=
     Typing_env.add_variable_definition tenv example_i
@@ -270,14 +272,17 @@ Definition example_out_of_range_env : Typing_env.t :=
 Definition example_out_of_range_vars : env :=
   [(example_i, Value_const (Naked_immediate 1))].
 
-(* The machine that binds [i] to 1 is in range and satisfies the
+(* The environment has its invariant, and its types are well formed.
+   The machine that binds [i] to 1 is in range and satisfies the
    environment strictly, through the valuation that gives [p] that
    number. A valuation that satisfies the environment and agrees with
    the machine gives [p] a value, since [i] is the result of a
    relation on it, and so that number: none is in range. *)
 Definition example_out_of_range_statement : Prop :=
-  env_satisfies_strictly example_out_of_range_env empty_static_env
-    example_out_of_range_vars
+  typing_env_invariant example_out_of_range_env
+  ∧ types_well_formed example_out_of_range_env
+  ∧ env_satisfies_strictly example_out_of_range_env empty_static_env
+      example_out_of_range_vars
   ∧ env_in_range example_out_of_range_vars
   ∧ ~ env_satisfies_strictly_in_range example_out_of_range_env
         empty_static_env example_out_of_range_vars.

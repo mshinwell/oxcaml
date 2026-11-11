@@ -232,7 +232,16 @@ Qed.
 
 Theorem example_out_of_range : example_out_of_range_statement.
 Proof.
-  split; [ | split ].
+  split; [ | split; [ | split; [ | split ] ] ].
+  - (* The invariant: the test, and the equations of the levels. *)
+    split; [ vm_compute; reflexivity | ].
+    intros n ty Hlookup.
+    apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
+    vm_compute in Hlookup.
+    repeat (destruct Hlookup as [Hlookup | Hlookup];
+            [ injection Hlookup as <- <- | ]); [ .. | contradiction ];
+      eexists; vm_compute; reflexivity.
+  - apply types_well_formed_b_iff. vm_compute. reflexivity.
   - (* Satisfied, by the valuation that gives [p] the number. *)
     split.
     + intros x Hscope. apply in_scope_in_terms_lookup in Hscope.
@@ -264,7 +273,10 @@ Proof.
            exists 1, (tagged example_big_number).
            split; [ reflexivity | ]. split; [ reflexivity | ]. left.
            split; [ eexists; reflexivity | reflexivity ].
-        -- apply (proj2 (these_tagged_immediates_satisfied _ _ _
+        -- apply (proj2 (tag_immediate_satisfied _ _ _
+                           (these_naked_immediates [example_big_number]))).
+           exists example_big_number. split; [ reflexivity | ].
+           apply (proj2 (these_naked_immediates_satisfied _ _ _
                            [example_big_number])).
            eexists. split; [ reflexivity | left; reflexivity ].
       * intros x Hscope. apply in_scope_in_terms_lookup in Hscope.
@@ -290,9 +302,11 @@ Proof.
                   example_out_of_range_env (Name_var example_p) None _ w
                   Hsatisfied eq_refl Hw) as Hp.
     change (type_satisfied empty_static_env valuation w
-              (these_tagged_immediates [example_big_number])) in Hp.
-    apply these_tagged_immediates_satisfied in Hp.
-    destruct Hp as [j [-> [<- | []]]].
+              (tag_immediate (these_naked_immediates [example_big_number])))
+      in Hp.
+    apply tag_immediate_satisfied in Hp. destruct Hp as [j [-> Hj]].
+    apply these_naked_immediates_satisfied in Hj.
+    destruct Hj as [j' [[= <-] [<- | []]]].
     pose proof (Hrange example_p _ (lookup_in _ _ _ Hw)) as Hbad.
     vm_compute in Hbad. discriminate.
 Qed.
