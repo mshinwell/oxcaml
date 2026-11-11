@@ -582,7 +582,8 @@ End Contract.
    only variables that the environment of their index knows
    ([join_args_in_scope]): the environment side gives the types that an
    input has for a name, and the join of types passes on their
-   components and what [Expand_head] answers in that environment. *)
+   components and what [Expand_head] answers in that environment. And
+   each index is given once ([join_args_distinct]). *)
 Section Join_of_types.
 
 Context (typing_env_well_formed : Typing_env.t -> Prop).
@@ -653,6 +654,15 @@ Definition join_args_in_scope {X : Type}
     In (index, x) args ->
     ∃ use : Typing_env.t, joined_env s index = Some use ∧ in_scope use x.
 
+(* Each index is given once. The environment side gives the bindings of
+   a map from indices; the join of types passes on, for a component, at
+   most one thing for each element of a list that it was given, so its
+   lists keep this. (The join of [Simple]s makes a map of its list:
+   of two [Simple]s at one index it would keep one, and could not be an
+   upper bound of both.) *)
+Definition join_args_distinct {X : Type} (args : list (Index.t * X)) : Prop :=
+  NoDup (map fst args).
+
 (* What is answered mentions only variables of the target. *)
 Definition simple_in_target (s : state) (simple : simple) : Prop :=
   ∀ x : variable,
@@ -681,6 +691,7 @@ Definition n_way_join_type_sound
     (result : Or_unknown.t flambda_type),
     state_valid s ->
     joined_envs_well_formed s ->
+    join_args_distinct ts ->
     join_args_in_scope type_in_scope s ts ->
     n_way_join s ts = Some (result, s') ->
     state_valid s'
@@ -709,6 +720,7 @@ Definition n_way_join_simples_sound
     (result : Or_bottom.t simple),
     state_valid s ->
     joined_envs_well_formed s ->
+    join_args_distinct simples ->
     join_args_in_scope simple_in_scope s simples ->
     n_way_join_simples s kind simples = Some (result, s') ->
     state_valid s'
@@ -751,6 +763,7 @@ Definition n_way_join_env_extension_sound
     (result : Or_bottom.t (env_extension * state)),
     state_valid s ->
     joined_envs_well_formed s ->
+    join_args_distinct extensions ->
     join_args_in_scope env_extension_in_scope s extensions ->
     n_way_join_env_extension s extensions = Some result ->
     (result = Or_bottom.Bottom -> extensions = [])
