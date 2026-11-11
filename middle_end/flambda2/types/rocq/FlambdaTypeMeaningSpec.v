@@ -168,18 +168,23 @@
      [relation_get_tag_statement] has what does follow. Its other
      reductions are sound ([relation_is_null_statement],
      [relation_is_int_statement]).
-   - A poison value has no type but the unknown one of its kind, which
-     is the type the compiler gives the constant
-     ([More_type_creators.type_for_const]). Unboxing does not keep to
+   - Poison is a value of which a type can say little. The compiler
+     gives a poison constant the unknown type of its kind
+     ([More_type_creators.type_for_const]). Here a poison value has the
+     types that say no more of a value than its kind, that it is this
+     value, or that it is not [Null] (the unknown type, an alias to it,
+     [any_non_null_value]), and none that says what it is: it is no
+     immediate, no block, nothing allocated. Unboxing does not keep to
      that. For a field of a variant that is unboxed in turn, it passes
      poison on the paths where the argument has no such field, with 0
      for the tag and for [Is_int] of it (unboxing_epa.ml); and the
-     environment of the handler has the type and the relations of that
-     field on every path (build_unboxing_denv.ml, [denv_of_decision]).
-     On such a path they are not true here. Whether a type is to say
-     nothing of a poison value is open, and is not for this file alone
-     to settle: it asks what it is to put another value where a poison
-     value was.
+     environment of the handler has the shape and the relations of
+     that field on every path (build_unboxing_denv.ml,
+     [denv_of_decision]). On such a path that shape and those
+     relations do not hold of the poison value here. Whether a type is
+     to say nothing of a poison value is open, and is not for this
+     file alone to settle: it asks what it is to put another value
+     where a poison value was.
    - The code of a function type is the code of the closure, the very
      code id. The compiler means "that code or a newer version of it"
      ([Code_age_relation]); that is for the workstream on calls (S4) to
@@ -231,10 +236,13 @@
      (FlambdaTypeGrammar.v lists them), and those of the fields of a
      block against its shape, which the compiler checks only with its
      invariant checks on ([Row_like_for_blocks.check_field_tys]).
-   The creation functions of the compiler give such types. Its raw
-   constructors ([create_raw], which meet and join use) check nothing,
-   and the n-way join does not keep the second condition (see above,
-   on products). The statements named say what each condition gives,
+   The creation functions of the compiler give such types if their
+   callers give them what they expect, which they do not all check (a
+   closure at a slot that its set has, closure types of slots of the
+   set, field types of the kinds of the shape). Its raw constructors
+   ([create_raw], which meet and join use) check nothing, and the
+   n-way join does not keep the second condition (see above, on
+   products). The statements named say what each condition gives,
    for one case. A predicate that says the conditions of a whole type,
    with the proof that the creation functions here establish it, is to
    be in this library before meet is stated. It is not here yet, and
@@ -267,10 +275,9 @@
      a heap (C4) it is to mean a mutable block, and a mutable block is
      then to be a block of [Variant] too, as [Meet] has it.
    - There is no value of kind [Region] or [Rec_info] but [Poison].
-   - [Poison] is a value of its kind like another, of which nothing more
-     is true: it has the unknown type of its kind, at kind value it is
+   - [Poison] is a value of its kind like another: at kind value it is
      not [Null], and it is no immediate and nothing allocated (see the
-     choices above).
+     choices above for the types it has).
    - The primitives are abstract. When they are data (C1) the relations
      stay as they are, and what is to be proved is that the result of
      [Is_null], of [Is_int] of a variant and of [Get_tag], where there
