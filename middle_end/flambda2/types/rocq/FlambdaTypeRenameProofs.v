@@ -1767,7 +1767,7 @@ Context {K : Type} (eqb : K -> K -> bool) (f : K -> K).
 
 Hypothesis Hf : ∀ a b : K, eqb (f a) (f b) = eqb a b.
 
-Lemma keyed_among_map (key : K) (keys : list K) :
+Lemma keyed_among_map_keys (key : K) (keys : list K) :
   Keyed.among eqb (f key) (map f keys) = Keyed.among eqb key keys.
 Proof.
   unfold Keyed.among.
@@ -1781,7 +1781,7 @@ Lemma keyed_all_among_map (keys allowed : list K) :
 Proof.
   unfold Keyed.all_among.
   induction keys as [ | key keys IH]; simpl; [ reflexivity | ].
-  rewrite keyed_among_map, IH. reflexivity.
+  rewrite keyed_among_map_keys, IH. reflexivity.
 Qed.
 
 Lemma keyed_same_keys_b_map (keys keys' : list K) :
