@@ -126,6 +126,12 @@ FLAMBDA2_EXTRACTED_DIR := $(ROOT)/middle_end/flambda2/tests/semantics/extracted
 FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaAliasesProofs.v \
   FlambdaAliasesSpec.v \
+  FlambdaTypeGrammar.v \
+  FlambdaTypeGrammarProofs.v \
+  FlambdaTypeMeaningBoolProofs.v \
+  FlambdaTypeMeaningBoolSpec.v \
+  FlambdaTypeMeaningProofs.v \
+  FlambdaTypeMeaningSpec.v \
   FlambdaTypesProofs.v \
   FlambdaTypesSpec.v \
 )
