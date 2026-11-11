@@ -35,7 +35,8 @@
    The fragment has, with the compiler's names:
    - of [unary_primitive]: [Block_load] from an immutable block of
      values, [Is_int], [Is_null], [Get_tag], [Opaque_identity],
-     [Unbox_number], [Box_number], [Untag_immediate] and [Tag_immediate];
+     [Num_conv] between the integer kinds, [Unbox_number], [Box_number],
+     [Untag_immediate] and [Tag_immediate];
    - of [binary_primitive]: [Int_arith] and [Int_comp], at every
      [Standard_int.t], and [Phys_equal];
    - of [variadic_primitive]: [Make_block] of an immutable block of
@@ -76,6 +77,10 @@
      [Scalar.Signedness.t], which have the same constructors.
    - The constructors of [equality_comparison] are prefixed with
      [Phys_], for the same reason: the compiler's are [Eq] and [Neq].
+   - [Num_conv] is between two [Standard_int.t], where the compiler's is
+     between two [Standard_int_or_float.t], a record of [src] and
+     [dst]: the conversions to and from the two kinds of float are not
+     here, and the conversion must refuse them.
    - The unary [Int_arith] of the compiler is not here; when it is, it
      will need another name, as this [Int_arith] is the binary one.
 
@@ -110,6 +115,7 @@ Inductive unary_primitive : Type :=
   | Is_null
   | Get_tag
   | Opaque_identity (kind : flambda_kind)
+  | Num_conv (src dst : standard_int)
   | Unbox_number (kind : boxable_number)
   | Box_number (kind : boxable_number)
   | Untag_immediate

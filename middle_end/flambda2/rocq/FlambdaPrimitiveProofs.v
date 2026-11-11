@@ -251,7 +251,7 @@ Qed.
 Lemma eval_unary_primitive_static_values (p : unary_primitive) :
   eval_unary_primitive statics p v = eval_unary_primitive statics' p v.
 Proof.
-  destruct p as [[tag size field_kind] field | | | | | | | | ]; simpl;
+  destruct p as [[tag size field_kind] field | | | | | | | | | ]; simpl;
     unfold eval_is_int, eval_is_null, eval_block_load;
     rewrite ?block_of_static_values, ?is_allocated_static_values,
       ?boxed_number_of_static_values, ?bound_if_symbol_static_values;
@@ -611,15 +611,21 @@ Proof.
   destruct (lookup s (static_values statics)); discriminate.
 Qed.
 
+(* A symbol is not an integer. *)
+Lemma int_of_value_symbol (kind : standard_int) (s : symbol) :
+  int_of_value kind (Value_symbol s) = None.
+Proof. destruct kind; reflexivity. Qed.
+
 (* By cases on the unary primitives. *)
 Lemma eval_unary_primitive_symbol_bound (statics : static_env)
     (p : unary_primitive) (s : symbol) (v : value) :
   eval_unary_primitive statics p (Value_symbol s) = Some v ->
   lookup s (static_values statics) <> None.
 Proof.
-  destruct p as [[tag size field_kind] field | [ | ] | | | kind | kind
-                | kind | | ];
+  destruct p as [[tag size field_kind] field | [ | ] | | | kind | src dst
+                | kind | kind | | ];
     simpl; unfold eval_is_int, eval_is_null, eval_block_load; simpl;
+    rewrite ?int_of_value_symbol;
     try discriminate;
     try (destruct (lookup s (static_values statics)); discriminate).
   - destruct (is_allocated statics (Value_symbol s)) eqn:Hallocated;
@@ -631,10 +637,6 @@ Proof.
   - destruct (lookup s (static_values statics)); [ discriminate | ].
     rewrite andb_false_r. discriminate.
 Qed.
-
-Lemma int_of_value_symbol (kind : standard_int) (s : symbol) :
-  int_of_value kind (Value_symbol s) = None.
-Proof. destruct kind; reflexivity. Qed.
 
 (* [Phys_equal] has a value on a symbol only if the symbol is
    allocated, and so bound. *)
@@ -709,7 +711,8 @@ Lemma eval_unary_primitive_kinds (statics : static_env)
   kind_of_value arg = arg_kind_of_unary_primitive p
   ∧ kind_of_value v = result_kind_of_unary_primitive p.
 Proof.
-  destruct p as [access field | variant_only | | | kind | kind | kind | | ];
+  destruct p as [access field | variant_only | | | kind | src dst | kind
+                | kind | | ];
     cbn [eval_unary_primitive arg_kind_of_unary_primitive
          result_kind_of_unary_primitive].
   - (* [Block_load] *)
@@ -774,6 +777,11 @@ Proof.
       [ | discriminate ].
     destruct (bound_if_symbol statics arg); [ | discriminate ].
     apply kind_eqb_eq in Hkind. intros [= <-]. auto.
+  - (* [Num_conv] *)
+    destruct (int_of_value src arg) as [i | ] eqn:Hint; [ | discriminate ].
+    intros [= <-]. split.
+    + exact (int_of_value_kind _ _ _ Hint).
+    + apply kind_of_const_of_int.
   - (* [Unbox_number] *)
     destruct (boxed_number_of statics arg) as [c | ] eqn:Hboxed;
       [ | discriminate ].
@@ -924,7 +932,8 @@ Lemma eval_unary_primitive_preserves (p : unary_primitive) (arg v : value) :
   P arg -> eval_unary_primitive statics p arg = Some v -> P v.
 Proof.
   intros Harg.
-  destruct p as [access field | variant_only | | | kind | kind | kind | | ];
+  destruct p as [access field | variant_only | | | kind | src dst | kind
+                | kind | | ];
     cbn [eval_unary_primitive].
   - unfold eval_block_load. destruct access as [tag size field_kind].
     destruct (block_of statics arg) as [[block_tag fields] | ] eqn:Hblock;
@@ -955,6 +964,8 @@ Proof.
   - destruct (kind_eqb (kind_of_value arg) kind); [ | discriminate ].
     destruct (bound_if_symbol statics arg); [ | discriminate ].
     intros [= <-]. exact Harg.
+  - destruct (int_of_value src arg); [ | discriminate ].
+    intros [= <-]. apply Hnumbers.
   - destruct (boxed_number_of statics arg) as [c | ]; [ | discriminate ].
     destruct (is_number_of_kind kind c); [ | discriminate ].
     intros [= <-]. apply Hnumbers.
@@ -1041,6 +1052,60 @@ Qed.
 
 Lemma int_width_positive (kind : standard_int) : 1 <= int_width kind.
 Proof. destruct kind; simpl; lia. Qed.
+
+(* An integer that is in range is not changed by wrapping, so [Num_conv]
+   to a kind that holds the integer is the identity on it. *)
+Lemma wrap_of_in_range (width z : Z) :
+  1 <= width -> in_range width z = true -> wrap width z = z.
+Proof.
+  intros Hwidth Hrange. unfold in_range in Hrange. unfold wrap.
+  apply andb_true_iff in Hrange as [Hlow Hhigh].
+  apply Z.leb_le in Hlow. apply Z.ltb_lt in Hhigh.
+  assert (Hdouble : 2 ^ width = 2 * 2 ^ (width - 1)).
+  { rewrite <- Z.pow_succ_r by lia. f_equal. lia. }
+  rewrite Z.mod_small by lia. lia.
+Qed.
+
+(* The integers of a width are among those of a greater one. *)
+Lemma in_range_wider (width width' z : Z) :
+  1 <= width <= width' ->
+  in_range width z = true -> in_range width' z = true.
+Proof.
+  intros Hwidths Hrange. unfold in_range in *.
+  apply andb_true_iff in Hrange as [Hlow Hhigh].
+  apply Z.leb_le in Hlow. apply Z.ltb_lt in Hhigh.
+  assert (Hpow : 2 ^ (width - 1) <= 2 ^ (width' - 1))
+    by (apply Z.pow_le_mono_r; lia).
+  apply andb_true_iff. split; [ apply Z.leb_le | apply Z.ltb_lt ]; lia.
+Qed.
+
+(* [Num_conv] wraps, and its result is in the range of [dst]. *)
+Lemma eval_num_conv (statics : static_env) (src dst : standard_int)
+    (v : value) (i : Z) :
+  int_of_value src v = Some i ->
+  eval_prim statics (Unary (Num_conv src dst)) [v]
+  = Some (Value_const (const_of_int dst (wrap (int_width dst) i)))
+  ∧ in_range (int_width dst) (wrap (int_width dst) i) = true.
+Proof.
+  intros Hint. rewrite eval_prim_unary. simpl. rewrite Hint.
+  split; [ reflexivity | apply wrap_in_range, int_width_positive ].
+Qed.
+
+(* To a kind that is at least as wide, [Num_conv] keeps the integer. *)
+Lemma eval_num_conv_wider (statics : static_env) (src dst : standard_int)
+    (v : value) (i : Z) :
+  int_width src <= int_width dst ->
+  int_of_value src v = Some i ->
+  eval_prim statics (Unary (Num_conv src dst)) [v]
+  = Some (Value_const (const_of_int dst i)).
+Proof.
+  intros Hwidths Hint.
+  destruct (eval_num_conv statics src dst v i Hint) as [-> _].
+  apply int_of_value_const in Hint as [_ Hrange].
+  rewrite wrap_of_in_range; [ reflexivity | apply int_width_positive | ].
+  apply (in_range_wider (int_width src)); [ | exact Hrange ].
+  split; [ apply int_width_positive | exact Hwidths ].
+Qed.
 
 Lemma eval_int_arith_in_range (width : Z) (op : binary_int_arith_op)
     (a b result : Z) :
@@ -1206,7 +1271,8 @@ Lemma eval_unary_primitive_in_range (p : unary_primitive) (arg v : value) :
   value_in_range v = true.
 Proof.
   intros Hsymbols Harg.
-  destruct p as [access field | variant_only | | | kind | kind | kind | | ];
+  destruct p as [access field | variant_only | | | kind | src dst | kind
+                | kind | | ];
     cbn [eval_unary_primitive].
   - unfold eval_block_load. destruct access as [tag size field_kind].
     destruct (block_of statics arg) as [[block_tag fields] | ] eqn:Hblock;
@@ -1241,6 +1307,11 @@ Proof.
   - destruct (kind_eqb (kind_of_value arg) kind); [ | discriminate ].
     destruct (bound_if_symbol statics arg); [ | discriminate ].
     intros [= <-]. exact Harg.
+  - (* [Num_conv] *)
+    destruct (int_of_value src arg) as [i | ]; [ | discriminate ].
+    intros [= <-]. cbn [value_in_range].
+    rewrite const_in_range_const_of_int.
+    apply wrap_in_range, int_width_positive.
   - destruct (boxed_number_of statics arg) as [c | ] eqn:Hboxed;
       [ | discriminate ].
     destruct (is_number_of_kind kind c); [ | discriminate ].
@@ -1551,7 +1622,8 @@ Lemma eval_unary_primitive_related (p : unary_primitive)
 Proof.
   intros Hr.
   destruct (Hobserved v v' Hr) as (Hblocks & Hboxed & _ & _ & Hbound).
-  destruct p as [access field | variant_only | | | kind | kind | kind | | ];
+  destruct p as [access field | variant_only | | | kind | src dst | kind
+                | kind | | ];
     cbn [eval_unary_primitive].
   - unfold eval_block_load. destruct access as [tag size field_kind].
     destruct (block_of statics v) as [[block_tag fields] | ] eqn:Hv;
@@ -1592,6 +1664,10 @@ Proof.
     destruct (kind_eqb (kind_of_value v) kind); [ | discriminate ].
     destruct (bound_if_symbol statics v) eqn:Hv; [ | discriminate ].
     rewrite (Hbound eq_refl). intros [= <-]. exists v'. auto.
+  - (* [Num_conv] *)
+    destruct (int_of_value src v) as [i | ] eqn:Hv; [ | discriminate ].
+    rewrite (related_int _ v v' i Hr Hv), Hv.
+    intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
   - destruct (boxed_number_of statics v) as [c | ] eqn:Hv;
       [ | discriminate ].
     rewrite (Hboxed c eq_refl).
@@ -1887,6 +1963,64 @@ Proof. reflexivity. Qed.
 
 Example untag_immediate :
   unary empty_static_env Untag_immediate (tagged 5) = Some (naked 5).
+Proof. reflexivity. Qed.
+
+Definition num_conv (src dst : standard_int) (v : value) : option value :=
+  unary empty_static_env (Num_conv src dst) v.
+
+Example num_conv_immediate_to_int64 :
+  num_conv Standard_naked_immediate Standard_naked_int64 (naked min_int63)
+  = Some (Value_const (Naked_int64 min_int63)).
+Proof. reflexivity. Qed.
+
+Example num_conv_int64_to_immediate_wraps :
+  num_conv Standard_naked_int64 Standard_naked_immediate
+    (Value_const (Naked_int64 (max_int63 + 1)))
+  = Some (naked min_int63).
+Proof. reflexivity. Qed.
+
+Example num_conv_tagged_to_int8_wraps :
+  num_conv Standard_tagged_immediate Standard_naked_int8 (tagged 200)
+  = Some (Value_const (Naked_int8 (-56))).
+Proof. reflexivity. Qed.
+
+Example num_conv_int8_to_tagged :
+  num_conv Standard_naked_int8 Standard_tagged_immediate
+    (Value_const (Naked_int8 (-56)))
+  = Some (tagged (-56)).
+Proof. reflexivity. Qed.
+
+Example num_conv_int64_to_int32_wraps :
+  num_conv Standard_naked_int64 Standard_naked_int32
+    (Value_const (Naked_int64 4294967295))
+  = Some (Value_const (Naked_int32 (-1))).
+Proof. reflexivity. Qed.
+
+Example num_conv_nativeint_to_int64 :
+  num_conv Standard_naked_nativeint Standard_naked_int64
+    (Value_const (Naked_nativeint (-9223372036854775808)))
+  = Some (Value_const (Naked_int64 (-9223372036854775808))).
+Proof. reflexivity. Qed.
+
+Example num_conv_same_kind :
+  num_conv Standard_naked_int16 Standard_naked_int16
+    (Value_const (Naked_int16 (-32768)))
+  = Some (Value_const (Naked_int16 (-32768))).
+Proof. reflexivity. Qed.
+
+Example num_conv_wrong_kind :
+  num_conv Standard_naked_immediate Standard_naked_int64 (tagged 5) = None.
+Proof. reflexivity. Qed.
+
+Example num_conv_out_of_range :
+  num_conv Standard_naked_int8 Standard_naked_int64
+    (Value_const (Naked_int8 200))
+  = None.
+Proof. reflexivity. Qed.
+
+Example num_conv_of_block :
+  num_conv Standard_tagged_immediate Standard_naked_int64 (Value_block 0 [])
+  = None.
 Proof. reflexivity. Qed.
 
 Example is_int_of_immediate :

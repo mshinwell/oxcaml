@@ -386,6 +386,20 @@ Definition eval_block_load (statics : static_env) (kind : block_access_kind)
      constant is not boxed, and a boxed poison, which is a boxed number
      (FlambdaValueSpec.v), is not unboxed, as [is_number_of_kind] goes
      by the constructor of the constant.
+   - [Num_conv] changes an integer of the kind [src] into the integer
+     of the kind [dst] that is the same modulo two to the width of
+     [dst]: the same integer where [dst] holds it, as it does where it
+     is at least as wide as [src], and the integer wrapped where it
+     does not. This is what Simplify folds it to
+     ([Simplify_unary_primitive.Make_simplify_int_conv], with the
+     [to_immediate], [to_naked_int8], ... of [Number_adjuncts], each of
+     which keeps the low bits of the number and extends their sign),
+     and what the backend computes
+     ([Cmm_helpers.Scalar_type.Integral.static_cast]: nothing where
+     the destination holds every number of the source, a sign
+     extension of the low bits where it does not). Between the tagged
+     and the naked immediates it is [Untag_immediate] and
+     [Tag_immediate].
    - [Untag_immediate] and [Tag_immediate] change a tagged immediate into
      the naked immediate that is the same integer, and back. *)
 (* CR mshinwell: [Get_tag] has no value on what is not a block: a tagged
@@ -418,6 +432,9 @@ Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
     if kind_eqb (kind_of_value v) kind && bound_if_symbol statics v
     then Some v
     else None
+  | Num_conv src dst =>
+    let* i := int_of_value src v in
+    Some (Value_const (const_of_int dst (wrap (int_width dst) i)))
   | Unbox_number kind =>
     let* c := boxed_number_of statics v in
     if is_number_of_kind kind c then Some (Value_const c) else None
@@ -623,8 +640,8 @@ Definition unary_primitive_in_range (p : unary_primitive) : bool :=
     known_in_range tag_in_range tag
     && known_in_range ocaml_int_in_range size
     && ocaml_int_in_range field
-  | Is_int _ | Is_null | Get_tag | Opaque_identity _ | Unbox_number _
-  | Box_number _ | Untag_immediate | Tag_immediate =>
+  | Is_int _ | Is_null | Get_tag | Opaque_identity _ | Num_conv _ _
+  | Unbox_number _ | Box_number _ | Untag_immediate | Tag_immediate =>
     true
   end.
 
@@ -685,6 +702,7 @@ Definition arg_kind_of_unary_primitive (p : unary_primitive) : flambda_kind :=
   | Untag_immediate =>
     Value
   | Opaque_identity kind => kind
+  | Num_conv src _ => kind_of_standard_int src
   | Box_number kind => unboxed_kind kind
   | Tag_immediate => naked_immediate_kind
   end.
@@ -695,6 +713,7 @@ Definition result_kind_of_unary_primitive (p : unary_primitive)
   match p with
   | Is_int _ | Is_null | Get_tag | Untag_immediate => naked_immediate_kind
   | Opaque_identity kind => kind
+  | Num_conv _ dst => kind_of_standard_int dst
   | Unbox_number kind => unboxed_kind kind
   | Block_load _ _ | Box_number _ | Tag_immediate => Value
   end.
