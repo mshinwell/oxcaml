@@ -1,0 +1,8 @@
+let $s = "hello" in
+let o = %opaque ($s) in
+let n = %string_length (o) in
+let t = %tag_imm (n) in
+let m = %string_length ($s) in
+let u = %tag_imm (m) in
+let $camlString_length = Block 0 (t, u) in
+cont done ($camlString_length)

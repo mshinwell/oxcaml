@@ -1,0 +1,5 @@
+let $b = Block 0 (1, 2) in
+let n = %string_length ($b) in
+let t = %tag_imm (n) in
+let $camlString_length_of_block = Block 0 (t) in
+cont done ($camlString_length_of_block)
