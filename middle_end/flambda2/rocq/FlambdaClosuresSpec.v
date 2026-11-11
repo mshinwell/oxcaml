@@ -126,6 +126,25 @@
      that yet, so that [my_closure] is at the slot of the code that runs
      is said here of such code only.
 
+   The code of a closure does not say which set the closure belongs to,
+   and a rewrite inside the code of a function that uses what is known
+   of the other closures of its set needs to know. [sets_are] is a test
+   on a unit: every set that it makes with a given code is the one set
+   given, static with given symbols if that is asked.
+   - Every state of the run of a unit that passes the test holds
+     closures of that set only with that code
+     ([sets_are_kept_statement]), so a closure of the code is a closure
+     of the set ([closure_of_code_statement]). The unit need not be
+     well-formed.
+   - If it is, a closure of the code is at the slot of the code, the
+     projection of each other function slot of the set from it has a
+     value, and that value is a closure of the code of that slot, with
+     the same value slots ([sibling_of_code_statement]). Where the set
+     is static, the closure is the symbol of its slot and the projection
+     is the symbol of the other slot
+     ([sibling_symbol_of_code_statement]).
+   - The two example units pass the test ([parity_sets_are_statement]).
+
    The proofs are in FlambdaClosuresProofs.v, which needs no review. *)
 
 From Stdlib Require Import ZArith List.
@@ -576,6 +595,274 @@ Definition call_binds_my_closure_statement : Prop :=
     ∧ lookup (code_my_closure c) (state_vars s) = Some callee.
 
 (* ======================================================================== *)
+(* The set that a piece of code belongs to                                  *)
+(* ======================================================================== *)
+
+(* The code of a closure does not say which set the closure belongs to:
+   two sets of a unit may have the same code. A rewrite of the body of
+   code that uses what is known of the set of [my_closure], such as the
+   code or the symbols of the other closures of the set, is right only
+   of a unit in which every set that has the code is the one that the
+   rewrite knows. This section says what that asks of a unit and what
+   it gives. Simplify is in that position for the code that it makes: it
+   gives the code of the sets it simplifies new code ids, which no other
+   set has. *)
+
+Definition function_decls_eq_dec :
+  ∀ decls decls' : list (function_slot * code_id),
+    {decls = decls'} + {decls <> decls'}.
+Proof. apply list_eq_dec. decide equality; apply Pos.eq_dec. Defined.
+
+Definition closure_symbols_eq_dec :
+  ∀ symbols symbols' : list (function_slot * symbol),
+    {symbols = symbols'} + {symbols <> symbols'}.
+Proof. apply list_eq_dec. decide equality; apply Pos.eq_dec. Defined.
+
+(* What is asked of a set of closures, given by the function declarations
+   [decls] and, if it is static, the symbols [symbols] of its closures:
+   if it has the code [c], then its function declarations are
+   [function_decls]; and, where [closure_symbols] is given, it is static
+   and its closures are those symbols. *)
+Definition set_is (c : code_id)
+    (function_decls : list (function_slot * code_id))
+    (closure_symbols : option (list (function_slot * symbol)))
+    (decls : list (function_slot * code_id))
+    (symbols : option (list (function_slot * symbol))) : bool :=
+  negb (among c (map snd decls))
+  || ((if function_decls_eq_dec decls function_decls then true else false)
+      && match closure_symbols, symbols with
+         | None, _ => true
+         | Some expected, Some given =>
+           if closure_symbols_eq_dec given expected then true else false
+         | Some _, None => false
+         end).
+
+(* The same of the set that a defining expression or a static constant
+   makes. A set of one function with no function slot named is the set of
+   that function at [unnamed_function_slot], and has no symbols given. *)
+Definition named_set_is (c : code_id)
+    (function_decls : list (function_slot * code_id))
+    (closure_symbols : option (list (function_slot * symbol))) (d : named)
+    : bool :=
+  match d with
+  | Set_of_closures code _ =>
+    set_is c function_decls closure_symbols [(unnamed_function_slot, code)]
+      None
+  | Closure_of_set _ decls _ =>
+    set_is c function_decls closure_symbols decls None
+  | Simple _ | Prim _ _ | Project_value_slot _ _
+  | Project_value_slot_from _ _ _ | Project_function_slot _ _ _ =>
+    true
+  end.
+
+Definition static_const_set_is (c : code_id)
+    (function_decls : list (function_slot * code_id))
+    (closure_symbols : option (list (function_slot * symbol)))
+    (const : static_const) : bool :=
+  match const with
+  | Static_const_set_of_closures code _ =>
+    set_is c function_decls closure_symbols [(unnamed_function_slot, code)]
+      None
+  | Static_const_closure_of_set _ symbols decls _ =>
+    set_is c function_decls closure_symbols decls (Some symbols)
+  | Static_const_block _ _ | Static_const_boxed_number _
+  | Static_const_immutable_string _ =>
+    true
+  end.
+
+(* Every set of closures that the expression makes, in handlers and in
+   code too, is as [set_is] asks. *)
+Fixpoint sets_are (c : code_id)
+    (function_decls : list (function_slot * code_id))
+    (closure_symbols : option (list (function_slot * symbol))) (e : expr)
+    : bool :=
+  match e with
+  | Let _ _ d body =>
+    named_set_is c function_decls closure_symbols d
+    && sets_are c function_decls closure_symbols body
+  | Let_static bindings body =>
+    forallb (binding_sets_are c function_decls closure_symbols) bindings
+    && sets_are c function_decls closure_symbols body
+  | Let_cont_non_recursive _ h body =>
+    handler_sets_are c function_decls closure_symbols h
+    && sets_are c function_decls closure_symbols body
+  | Let_cont_recursive handlers body =>
+    forallb
+      (fun '(_, h) => handler_sets_are c function_decls closure_symbols h)
+      handlers
+    && sets_are c function_decls closure_symbols body
+  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => true
+  end
+with handler_sets_are (c : code_id)
+    (function_decls : list (function_slot * code_id))
+    (closure_symbols : option (list (function_slot * symbol)))
+    (h : continuation_handler) : bool :=
+  match h with
+  | Handler _ _ handler =>
+    sets_are c function_decls closure_symbols handler
+  end
+with binding_sets_are (c : code_id)
+    (function_decls : list (function_slot * code_id))
+    (closure_symbols : option (list (function_slot * symbol)))
+    (binding : static_binding) : bool :=
+  match binding with
+  | Bind_code _ code => code_sets_are c function_decls closure_symbols code
+  | Bind_deleted_code _ => true
+  | Bind_symbol _ const =>
+    static_const_set_is c function_decls closure_symbols const
+  end
+with code_sets_are (c : code_id)
+    (function_decls : list (function_slot * code_id))
+    (closure_symbols : option (list (function_slot * symbol)))
+    (code : code) : bool :=
+  match code with
+  | Code _ _ _ _ _ body =>
+    sets_are c function_decls closure_symbols body
+  end.
+
+(* The same of the closures in a value, and in what a symbol is bound
+   to. *)
+Fixpoint value_sets_are (c : code_id)
+    (function_decls : list (function_slot * code_id))
+    (closure_symbols : option (list (function_slot * symbol))) (v : value)
+    : bool :=
+  match v with
+  | Value_const _ | Value_symbol _ | Value_boxed_number _ => true
+  | Value_closure code value_slots =>
+    set_is c function_decls closure_symbols [(unnamed_function_slot, code)]
+      None
+    && forallb
+         (fun '(_, contents) =>
+            value_sets_are c function_decls closure_symbols contents)
+         value_slots
+  | Value_closure_of_set _ decls value_slots =>
+    set_is c function_decls closure_symbols decls None
+    && forallb
+         (fun '(_, contents) =>
+            value_sets_are c function_decls closure_symbols contents)
+         value_slots
+  | Value_block _ fields =>
+    forallb (value_sets_are c function_decls closure_symbols) fields
+  end.
+
+Definition allocated_sets_are (c : code_id)
+    (function_decls : list (function_slot * code_id))
+    (closure_symbols : option (list (function_slot * symbol)))
+    (allocated : statically_allocated_value) : bool :=
+  match allocated with
+  | Static_closure code value_slots =>
+    set_is c function_decls closure_symbols [(unnamed_function_slot, code)]
+      None
+    && forallb
+         (fun '(_, contents) =>
+            value_sets_are c function_decls closure_symbols contents)
+         value_slots
+  | Static_closure_of_set _ symbols decls value_slots =>
+    set_is c function_decls closure_symbols decls (Some symbols)
+    && forallb
+         (fun '(_, contents) =>
+            value_sets_are c function_decls closure_symbols contents)
+         value_slots
+  | Static_block _ fields =>
+    forallb (value_sets_are c function_decls closure_symbols) fields
+  | Static_boxed_number contents =>
+    value_sets_are c function_decls closure_symbols contents
+  | Static_string _ => true
+  end.
+
+Definition state_sets_are (c : code_id)
+    (function_decls : list (function_slot * code_id))
+    (closure_symbols : option (list (function_slot * symbol))) (s : state)
+    : Prop :=
+  state_values_all
+    (fun _ v => value_sets_are c function_decls closure_symbols v = true)
+    (fun _ allocated =>
+       allocated_sets_are c function_decls closure_symbols allocated = true)
+    s.
+
+(* Where the sets that a unit makes with the code [c] are all the one
+   set, every state of its run holds closures of that set only with that
+   code. Nothing is asked of the unit but that; it need not be
+   well-formed. *)
+Definition sets_are_kept_statement : Prop :=
+  ∀ (c : code_id) (function_decls : list (function_slot * code_id))
+    (closure_symbols : option (list (function_slot * symbol))) (e : expr)
+    (n : nat) (s : state),
+    sets_are c function_decls closure_symbols e = true ->
+    run n (State e [] [] empty_static_env) = Step s ->
+    state_sets_are c function_decls closure_symbols s.
+
+(* A closure of the code [c], in such a state, is a closure of the set:
+   its function declarations are [function_decls], and it is at a slot
+   of them that has [c]. *)
+Definition closure_of_code_statement : Prop :=
+  ∀ (c : code_id) (function_decls : list (function_slot * code_id))
+    (closure_symbols : option (list (function_slot * symbol))) (s : state)
+    (closure : simple) (v : value)
+    (slot_values : list (value_slot * value)),
+    state_sets_are c function_decls closure_symbols s ->
+    eval_simple (state_vars s) closure = Some v ->
+    closure_of (state_statics s) v = Some (c, slot_values) ->
+    ∃ slot : function_slot,
+      closure_in_set (state_statics s) v
+      = Some (slot, function_decls, slot_values)
+      ∧ lookup slot function_decls = Some c.
+
+(* What the code [c] of a function slot may take [my_closure] and its
+   siblings to be, in the run of a well-formed unit all of whose sets
+   with that code are the one set: a closure of that code is at the slot
+   of the code, the projection of every other function slot of the set
+   from it has a value, and that value is a closure of the code that the
+   set gives the slot, with the same value slots. So a call of it may be
+   made direct ([apply_sibling_statement] says so of a closure in
+   sight). Of [my_closure] this holds where the call binds it to the
+   closure called ([call_binds_my_closure_statement]). *)
+Definition sibling_of_code_statement : Prop :=
+  ∀ (u : unit_interface) (c : code_id)
+    (function_decls : list (function_slot * code_id))
+    (closure_symbols : option (list (function_slot * symbol))) (e : expr)
+    (n : nat) (s : state) (closure : simple) (v : value)
+    (slot_values : list (value_slot * value)) (slot sibling : function_slot)
+    (sibling_code : code_id),
+    well_formed_unit u e = true ->
+    sets_are c function_decls closure_symbols e = true ->
+    run n (State e [] [] empty_static_env) = Step s ->
+    eval_simple (state_vars s) closure = Some v ->
+    closure_of (state_statics s) v = Some (c, slot_values) ->
+    lookup slot function_decls = Some c ->
+    lookup sibling function_decls = Some sibling_code ->
+    ∃ w : value,
+      project_function_slot (state_statics s) slot sibling v = Some w
+      ∧ closure_of (state_statics s) w = Some (sibling_code, slot_values).
+
+(* The same where the one set is static, with the symbols
+   [closure_symbols]: a closure of the code [c] is the symbol of its
+   slot, and the projection of another function slot from it is the
+   symbol of that slot. This is what lets Simplify replace, in the code
+   of a function of a static set, the projection of a sibling from
+   [my_closure] by the sibling's symbol. *)
+Definition sibling_symbol_of_code_statement : Prop :=
+  ∀ (u : unit_interface) (c : code_id)
+    (function_decls : list (function_slot * code_id))
+    (closure_symbols : list (function_slot * symbol)) (e : expr) (n : nat)
+    (s : state) (closure : simple) (v : value)
+    (slot_values : list (value_slot * value)) (slot sibling : function_slot)
+    (sibling_code : code_id),
+    well_formed_unit u e = true ->
+    sets_are c function_decls (Some closure_symbols) e = true ->
+    run n (State e [] [] empty_static_env) = Step s ->
+    eval_simple (state_vars s) closure = Some v ->
+    closure_of (state_statics s) v = Some (c, slot_values) ->
+    lookup slot function_decls = Some c ->
+    lookup sibling function_decls = Some sibling_code ->
+    ∃ slot_symbol sibling_symbol : symbol,
+      lookup slot closure_symbols = Some slot_symbol
+      ∧ lookup sibling closure_symbols = Some sibling_symbol
+      ∧ v = Value_symbol slot_symbol
+      ∧ project_function_slot (state_statics s) slot sibling v
+        = Some (Value_symbol sibling_symbol).
+
+(* ======================================================================== *)
 (* An example: two functions that call each other                           *)
 (* ======================================================================== *)
 
@@ -695,6 +982,20 @@ Definition parity_well_formed_statement : Prop :=
     ∧ ∃ e : expr,
         parity_let i = Some e
         ∧ well_formed_unit (Unit_interface done error) e = true.
+
+(* In both, the sets that have the code of one of the two functions are
+   the one set of the unit, which in the static unit is static, with its
+   two symbols: the statements about the set that a piece of code
+   belongs to are about some unit. *)
+Definition parity_sets_are_statement : Prop :=
+  ∀ (i : Z) (c : code_id),
+    c ∈ [even_code; odd_code] ->
+    sets_are c parity_decls
+      (Some [(even_slot, even_symbol); (odd_slot, odd_symbol)])
+      (parity_static i)
+    = true
+    ∧ ∃ e : expr,
+        parity_let i = Some e ∧ sets_are c parity_decls None e = true.
 
 (* The static set with one of its two symbols bound, and the other
    projected from it. *)

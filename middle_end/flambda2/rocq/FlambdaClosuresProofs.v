@@ -1386,6 +1386,775 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* A test that the terms of a state keep passing                            *)
+(* ======================================================================== *)
+
+(* A test on expressions, on handlers and on code that goes down into
+   the parts of a term: every state of a run holds terms that pass it,
+   if the first does. The terms of a state are its expression, the
+   handlers that its continuations keep, and the code that is bound. *)
+Section Terms_kept.
+
+Variable Pe : expr -> bool.
+Variable Ph : continuation_handler -> bool.
+Variable Pc : code -> bool.
+
+Hypothesis Pe_let :
+  ∀ (x : variable) (kind : flambda_kind) (d : named) (body : expr),
+    Pe (Let x kind d body) = true -> Pe body = true.
+Hypothesis Pe_let_static :
+  ∀ (bindings : list static_binding) (body : expr),
+    Pe (Let_static bindings body) = true ->
+    Pe body = true
+    ∧ ∀ (id : code_id) (c : code), Bind_code id c ∈ bindings -> Pc c = true.
+Hypothesis Pe_let_cont :
+  ∀ (k : continuation) (h : continuation_handler) (body : expr),
+    Pe (Let_cont_non_recursive k h body) = true ->
+    Ph h = true ∧ Pe body = true.
+Hypothesis Pe_let_cont_rec :
+  ∀ (handlers : list (continuation * continuation_handler)) (body : expr),
+    Pe (Let_cont_recursive handlers body) = true ->
+    forallb (fun '(_, h) => Ph h) handlers = true ∧ Pe body = true.
+Hypothesis Pe_apply_cont : ∀ ac : apply_cont, Pe (Apply_cont ac) = true.
+Hypothesis Ph_handler :
+  ∀ (params : list variable) (metadata : handler_metadata) (handler : expr),
+    Ph (Handler params metadata handler) = true -> Pe handler = true.
+Hypothesis Pc_body : ∀ c : code, Pc c = true -> Pe (code_body c) = true.
+
+Fixpoint cont_terms_ok (c : cont_value) : Prop :=
+  match c with
+  | Outer _ => True
+  | Closure h _ conts recursive =>
+    Ph h = true
+    ∧ forallb (fun '(_, h) => Ph h) recursive = true
+    ∧ fold_right (fun kc acc => cont_terms_ok (snd kc) ∧ acc) True conts
+  end.
+
+Definition conts_terms_ok (conts : cont_env) : Prop :=
+  fold_right (fun kc acc => cont_terms_ok (snd kc) ∧ acc) True conts.
+
+Lemma conts_terms_ok_app (conts conts' : cont_env) :
+  conts_terms_ok conts -> conts_terms_ok conts' ->
+  conts_terms_ok (conts ++ conts').
+Proof.
+  unfold conts_terms_ok.
+  induction conts as [ | kc conts IH]; simpl; [ auto | ].
+  intros [Hc Hrest] H'. split; [ exact Hc | exact (IH Hrest H') ].
+Qed.
+
+Lemma resolve_terms_ok (k : continuation) (conts : cont_env) :
+  conts_terms_ok conts -> cont_terms_ok (resolve k conts).
+Proof.
+  unfold resolve, conts_terms_ok.
+  induction conts as [ | [k' c] conts IH]; simpl; [ intros _; exact I | ].
+  intros [Hc Hrest]. destruct (Pos.eqb k k'); [ exact Hc | exact (IH Hrest) ].
+Qed.
+
+Lemma rec_closures_terms_ok (vars : env) (conts : cont_env)
+    (all handlers : list (continuation * continuation_handler)) :
+  forallb (fun '(_, h) => Ph h) all = true ->
+  conts_terms_ok conts ->
+  forallb (fun '(_, h) => Ph h) handlers = true ->
+  conts_terms_ok (map (fun '(k, h) => (k, Closure h vars conts all)) handlers).
+Proof.
+  intros Hall Hconts. unfold conts_terms_ok.
+  induction handlers as [ | [k h] handlers IH]; simpl;
+    [ intros _; exact I | ].
+  intros H. apply andb_true_iff in H as [Hh Hrest].
+  split; [ | exact (IH Hrest) ].
+  split; [ exact Hh | ]. split; [ exact Hall | exact Hconts ].
+Qed.
+
+Definition code_terms_ok (statics : static_env) : Prop :=
+  ∀ (id : code_id) (c : code),
+    lookup id (static_code statics) = Some c -> Pc c = true.
+
+Lemma eval_static_bindings_code_terms_ok (vars : env)
+    (bindings : list static_binding) :
+  ∀ statics statics' : static_env,
+    (∀ (id : code_id) (c : code), Bind_code id c ∈ bindings -> Pc c = true) ->
+    code_terms_ok statics ->
+    eval_static_bindings vars bindings statics = Some statics' ->
+    code_terms_ok statics'.
+Proof.
+  induction bindings as [ | [id c | id | sym const] bindings IH];
+    intros statics statics'; simpl.
+  - intros _ Hok [= <-]. exact Hok.
+  - intros H Hok.
+    destruct (lookup id (static_code statics)); [ discriminate | ].
+    apply IH; [ intros id' c' Hin; apply (H id' c'); right; exact Hin | ].
+    intros id' c'. simpl.
+    destruct (Pos.eqb id' id);
+      [ intros [= <-]; apply (H id c); left; reflexivity | apply Hok ].
+  - intros H Hok.
+    apply IH; [ intros id' c' Hin; apply (H id' c'); right; exact Hin | ].
+    exact Hok.
+  - intros H Hok.
+    destruct (lookup sym (static_values statics)); [ discriminate | ].
+    destruct (eval_static_const vars const); simpl; [ | discriminate ].
+    apply IH; [ intros id' c' Hin; apply (H id' c'); right; exact Hin | ].
+    exact Hok.
+Qed.
+
+Definition terms_inv (s : state) : Prop :=
+  Pe (state_expr s) = true
+  ∧ conts_terms_ok (state_conts s)
+  ∧ code_terms_ok (state_statics s).
+
+Lemma terms_inv_step (s s' : state) :
+  terms_inv s -> step s = Step s' -> terms_inv s'.
+Proof.
+  intros (P & C & S) Hstep. rewrite (state_eta s) in Hstep.
+  set (vars := state_vars s) in *. set (conts := state_conts s) in *.
+  set (statics := state_statics s) in *.
+  destruct (state_expr s)
+    as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+       | scrutinee arms | ];
+    autorewrite with step in Hstep.
+  - (* Let *)
+    destruct (eval_named statics vars d); [ | discriminate ].
+    injection Hstep as <-. unfold terms_inv. simpl_state.
+    exact (conj (Pe_let x kind d body P) (conj C S)).
+  - (* Let_static *)
+    destruct (eval_static_bindings vars bindings statics) as [statics' | ]
+      eqn:Heval; [ | discriminate ].
+    injection Hstep as <-. unfold terms_inv. simpl_state.
+    destruct (Pe_let_static bindings body P) as [Pbody Pcode].
+    refine (conj Pbody (conj C _)).
+    exact (eval_static_bindings_code_terms_ok vars bindings statics statics'
+             Pcode S Heval).
+  - (* Let_cont_non_recursive *)
+    injection Hstep as <-. unfold terms_inv. simpl_state.
+    destruct (Pe_let_cont k h body P) as [Hh Pbody].
+    refine (conj Pbody (conj (conj _ C) S)).
+    simpl. exact (conj Hh (conj eq_refl C)).
+  - (* Let_cont_recursive *)
+    destruct (handlers_bind_statics handlers); [ discriminate | ].
+    injection Hstep as <-. unfold terms_inv. simpl_state.
+    destruct (Pe_let_cont_rec handlers body P) as [Phandlers Pbody].
+    refine (conj Pbody (conj (conts_terms_ok_app _ _ _ C) S)).
+    exact (rec_closures_terms_ok vars conts handlers handlers Phandlers C
+             Phandlers).
+  - (* Apply *)
+    destruct (eval_simple vars (ap_callee ap)) as [callee | ];
+      [ | discriminate ].
+    destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | discriminate ].
+    apply call_function_step in Hstep
+      as (called & slots & c & callee_vars & _ & Hlookup & _ & _ & _ & _
+          & ->).
+    unfold terms_inv. simpl_state.
+    refine (conj (Pc_body c (S called c Hlookup))
+              (conj (conj _ (conj _ I)) S));
+      apply resolve_terms_ok, C.
+  - (* Apply_cont *)
+    destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | discriminate ].
+    unfold apply_continuation, apply_cont_value in Hstep.
+    pose proof (resolve_terms_ok (ac_continuation ac) conts C) as Cr.
+    destruct (resolve (ac_continuation ac) conts)
+      as [[params metadata handler] def_vars def_conts recursive | k];
+      [ | discriminate ].
+    destruct (bind_params params vs def_vars); [ | discriminate ].
+    injection Hstep as <-. unfold terms_inv. simpl_state. simpl in Cr.
+    destruct Cr as (Hh & Hrec & Cdef).
+    refine (conj (Ph_handler params metadata handler Hh)
+              (conj (conts_terms_ok_app _ _ _ Cdef) S)).
+    exact (rec_closures_terms_ok def_vars def_conts recursive recursive Hrec
+             Cdef Hrec).
+  - (* Switch *)
+    destruct (eval_simple vars scrutinee) as [v | ]; [ | discriminate ].
+    destruct (naked_immediate_of_value v) as [i | ]; [ | discriminate ].
+    destruct (find_arm i arms) as [ac | ]; [ | discriminate ].
+    injection Hstep as <-. unfold terms_inv. simpl_state.
+    exact (conj (Pe_apply_cont ac) (conj C S)).
+  - discriminate.
+Qed.
+
+Lemma terms_inv_initial (e : expr) :
+  Pe e = true -> terms_inv (State e [] [] empty_static_env).
+Proof.
+  intros He. unfold terms_inv. simpl_state.
+  refine (conj He (conj I _)). intros id c [=].
+Qed.
+
+End Terms_kept.
+
+(* ======================================================================== *)
+(* The set that a piece of code belongs to                                  *)
+(* ======================================================================== *)
+
+(* What is found in a map is among what the map gives. *)
+Lemma lookup_among_snd (name : positive) (c : positive)
+    (bindings : list (positive * positive)) :
+  lookup name bindings = Some c -> among c (map snd bindings) = true.
+Proof.
+  intros Hlookup. unfold among. apply existsb_exists. exists c.
+  split; [ | apply Pos.eqb_refl ].
+  change c with (snd (name, c)). apply in_map, lookup_in, Hlookup.
+Qed.
+
+Section Sets_are.
+
+Variable c : code_id.
+Variable function_decls : list (function_slot * code_id).
+Variable closure_symbols : option (list (function_slot * symbol)).
+
+Let Pv (v : value) : Prop :=
+  value_sets_are c function_decls closure_symbols v = true.
+Let Qv (allocated : statically_allocated_value) : Prop :=
+  allocated_sets_are c function_decls closure_symbols allocated = true.
+
+(* A set that has the code and passes the test is the one set. *)
+Lemma set_is_decls (decls : list (function_slot * code_id))
+    (symbols : option (list (function_slot * symbol))) :
+  set_is c function_decls closure_symbols decls symbols = true ->
+  among c (map snd decls) = true ->
+  decls = function_decls
+  ∧ ∀ expected : list (function_slot * symbol),
+      closure_symbols = Some expected -> symbols = Some expected.
+Proof.
+  unfold set_is. intros H Hamong. rewrite Hamong in H. simpl in H.
+  apply andb_true_iff in H as [Hdecls Hsymbols].
+  destruct (function_decls_eq_dec decls function_decls) as [-> | ];
+    [ | discriminate ].
+  split; [ reflexivity | ].
+  intros expected ->. destruct symbols as [given | ]; [ | discriminate ].
+  destruct (closure_symbols_eq_dec given expected) as [-> | ];
+    [ reflexivity | discriminate ].
+Qed.
+
+(* The terms. *)
+Lemma sets_are_terms_inv_step (s s' : state) :
+  terms_inv (sets_are c function_decls closure_symbols)
+    (handler_sets_are c function_decls closure_symbols)
+    (code_sets_are c function_decls closure_symbols) s ->
+  step s = Step s' ->
+  terms_inv (sets_are c function_decls closure_symbols)
+    (handler_sets_are c function_decls closure_symbols)
+    (code_sets_are c function_decls closure_symbols) s'.
+Proof.
+  apply terms_inv_step.
+  - intros x kind d body H. simpl in H. apply andb_true_iff in H as [_ H].
+    exact H.
+  - intros bindings body H. simpl in H.
+    apply andb_true_iff in H as [Hbindings Hbody].
+    split; [ exact Hbody | ]. intros id code Hin.
+    rewrite forallb_forall in Hbindings. exact (Hbindings _ Hin).
+  - intros k h body H. simpl in H. apply andb_true_iff in H. exact H.
+  - intros handlers body H. simpl in H. apply andb_true_iff in H. exact H.
+  - intros ac. reflexivity.
+  - intros params metadata handler H. exact H.
+  - intros [params my_closure ret exn metadata body] H. exact H.
+Qed.
+
+(* The values. *)
+Lemma slot_values_sets_are_in (slot_values : list (value_slot * value)) :
+  forallb
+    (fun '(_, contents) =>
+       value_sets_are c function_decls closure_symbols contents)
+    slot_values
+  = true ->
+  ∀ (w : value_slot) (contents : value),
+    (w, contents) ∈ slot_values -> Pv contents.
+Proof.
+  intros H w contents Hin. rewrite forallb_forall in H.
+  exact (H (w, contents) Hin).
+Qed.
+
+Lemma statics_sets_are_lookup (statics : static_env) (s : symbol)
+    (allocated : statically_allocated_value) :
+  Forall (fun binding => Qv (snd binding)) (static_values statics) ->
+  lookup s (static_values statics) = Some allocated ->
+  Qv allocated.
+Proof.
+  intros Hstatics Hs. rewrite Forall_forall in Hstatics.
+  exact (Hstatics (s, allocated) (lookup_in _ _ _ Hs)).
+Qed.
+
+Lemma eval_simple_sets_are (vars : env) (s : simple) (v : value) :
+  env_values_all Pv vars -> eval_simple vars s = Some v -> Pv v.
+Proof.
+  intros Hvars. destruct s as [x | sym | k]; simpl.
+  - exact (env_values_all_lookup _ vars x v Hvars).
+  - intros [= <-]. reflexivity.
+  - intros [= <-]. reflexivity.
+Qed.
+
+Lemma eval_simples_sets_are (vars : env) :
+  env_values_all Pv vars ->
+  ∀ (args : list simple) (vs : list value),
+    eval_simples vars args = Some vs ->
+    forallb (value_sets_are c function_decls closure_symbols) vs = true.
+Proof.
+  intros Hvars. induction args as [ | s args IH]; intros vs; simpl.
+  - intros [= <-]. reflexivity.
+  - destruct (eval_simple vars s) as [v | ] eqn:Hs; [ | discriminate ].
+    destruct (eval_simples vars args) as [rest | ]; [ | discriminate ].
+    simpl. intros [= <-]. simpl.
+    rewrite (eval_simple_sets_are vars s v Hvars Hs). exact (IH rest eq_refl).
+Qed.
+
+Lemma eval_value_slots_sets_are (vars : env) :
+  env_values_all Pv vars ->
+  ∀ (value_slots : list (value_slot * simple))
+    (slot_values : list (value_slot * value)),
+    eval_value_slots vars value_slots = Some slot_values ->
+    forallb
+      (fun '(_, contents) =>
+         value_sets_are c function_decls closure_symbols contents)
+      slot_values
+    = true.
+Proof.
+  intros Hvars.
+  induction value_slots as [ | [slot s] value_slots IH]; intros slot_values;
+    simpl.
+  - intros [= <-]. reflexivity.
+  - destruct (eval_simple vars s) as [v | ] eqn:Hs; [ | discriminate ].
+    destruct (eval_value_slots vars value_slots) as [rest | ];
+      [ | discriminate ].
+    simpl. intros [= <-]. simpl.
+    rewrite (eval_simple_sets_are vars s v Hvars Hs). exact (IH rest eq_refl).
+Qed.
+
+Lemma values_sets_are_Forall (vs : list value) :
+  forallb (value_sets_are c function_decls closure_symbols) vs = true ->
+  Forall Pv vs.
+Proof.
+  intros H. rewrite forallb_forall in H. apply Forall_forall. exact H.
+Qed.
+
+(* A closure that passes the test, read as a closure of a set: if its
+   set has the code it is the one set, static if that is asked; and the
+   values of its value slots pass the test. *)
+Lemma closure_in_set_sets_are (statics : static_env) (v : value)
+    (slot : function_slot) (decls : list (function_slot * code_id))
+    (slot_values : list (value_slot * value)) :
+  Forall (fun binding => Qv (snd binding)) (static_values statics) ->
+  Pv v ->
+  closure_in_set statics v = Some (slot, decls, slot_values) ->
+  (among c (map snd decls) = true ->
+   decls = function_decls
+   ∧ ∀ expected : list (function_slot * symbol),
+       closure_symbols = Some expected ->
+       ∃ s : symbol,
+         v = Value_symbol s
+         ∧ lookup s (static_values statics)
+           = Some (Static_closure_of_set slot expected decls slot_values))
+  ∧ ∀ (w : value_slot) (contents : value),
+      (w, contents) ∈ slot_values -> Pv contents.
+Proof.
+  intros Hstatics Hv. unfold closure_in_set.
+  destruct v as [k | code slots | at_slot set_decls slots | s | tag fields
+    | contents];
+    [ | | | | discriminate .. ].
+  - discriminate.
+  - unfold Pv in Hv. simpl in Hv. apply andb_true_iff in Hv as [Hset Hslots].
+    intros [= <- <- <-].
+    split; [ | exact (slot_values_sets_are_in slots Hslots) ].
+    intros Hamong. destruct (set_is_decls _ _ Hset Hamong) as [Hdecls Hnone].
+    split; [ exact Hdecls | ]. intros expected Hexpected.
+    discriminate (Hnone expected Hexpected).
+  - unfold Pv in Hv. simpl in Hv. apply andb_true_iff in Hv as [Hset Hslots].
+    destruct (lookup at_slot set_decls); [ | discriminate ].
+    simpl. intros [= <- <- <-].
+    split; [ | exact (slot_values_sets_are_in slots Hslots) ].
+    intros Hamong. destruct (set_is_decls _ _ Hset Hamong) as [Hdecls Hnone].
+    split; [ exact Hdecls | ]. intros expected Hexpected.
+    discriminate (Hnone expected Hexpected).
+  - destruct (lookup s (static_values statics))
+      as [[code slots | at_slot syms set_decls slots | tag fields | contents
+          | bytes] | ] eqn:Hs;
+      try discriminate.
+    + pose proof (statics_sets_are_lookup statics s _ Hstatics Hs) as Hvalid.
+      unfold Qv in Hvalid. simpl in Hvalid.
+      apply andb_true_iff in Hvalid as [Hset Hslots].
+      intros [= <- <- <-].
+      split; [ | exact (slot_values_sets_are_in slots Hslots) ].
+      intros Hamong.
+      destruct (set_is_decls _ _ Hset Hamong) as [Hdecls Hnone].
+      split; [ exact Hdecls | ]. intros expected Hexpected.
+      discriminate (Hnone expected Hexpected).
+    + pose proof (statics_sets_are_lookup statics s _ Hstatics Hs) as Hvalid.
+      unfold Qv in Hvalid. simpl in Hvalid.
+      apply andb_true_iff in Hvalid as [Hset Hslots].
+      destruct (lookup at_slot set_decls); [ | discriminate ].
+      simpl. intros [= <- <- <-].
+      split; [ | exact (slot_values_sets_are_in slots Hslots) ].
+      intros Hamong.
+      destruct (set_is_decls _ _ Hset Hamong) as [Hdecls Hsymbols].
+      split; [ exact Hdecls | ]. intros expected Hexpected.
+      injection (Hsymbols expected Hexpected) as ->.
+      exists s. split; [ reflexivity | exact Hs ].
+Qed.
+
+Lemma value_sets_are_of_numbers : holds_of_numbers Pv.
+Proof. intros k. split; reflexivity. Qed.
+
+Lemma value_sets_are_of_blocks : holds_of_blocks Pv.
+Proof.
+  intros tag fields.
+  exact (forallb_forall (value_sets_are c function_decls closure_symbols)
+           fields).
+Qed.
+
+Lemma value_sets_are_in_static_blocks (statics : static_env) :
+  Forall (fun binding => Qv (snd binding)) (static_values statics) ->
+  holds_in_static_blocks statics Pv.
+Proof.
+  intros Hstatics s tag fields _ Hs v Hin.
+  pose proof (statics_sets_are_lookup statics s _ Hstatics Hs) as Hvalid.
+  unfold Qv in Hvalid. simpl in Hvalid. rewrite forallb_forall in Hvalid.
+  exact (Hvalid v Hin).
+Qed.
+
+Lemma project_function_slot_sets_are (statics : static_env)
+    (move_from move_to : function_slot) (v w : value) :
+  Pv v -> project_function_slot statics move_from move_to v = Some w -> Pv w.
+Proof.
+  intros Hv. unfold project_function_slot.
+  destruct v as [k | code slots | at_slot decls slots | s | tag fields
+    | contents];
+    [ | | | | discriminate .. ].
+  - discriminate.
+  - intros Hproject.
+    apply project_unnamed_function_slot in Hproject as (_ & _ & ->).
+    exact Hv.
+  - destruct (Pos.eqb at_slot move_from); [ | discriminate ].
+    destruct (lookup at_slot decls); [ | discriminate ].
+    destruct (lookup move_to decls); [ | discriminate ].
+    simpl. intros [= <-]. exact Hv.
+  - destruct (lookup s (static_values statics))
+      as [[code slots | at_slot syms decls slots | tag fields | contents
+          | bytes] | ];
+      try discriminate.
+    + intros Hproject.
+      apply project_unnamed_function_slot in Hproject as (_ & _ & ->).
+      reflexivity.
+    + destruct (Pos.eqb at_slot move_from); [ | discriminate ].
+      destruct (lookup at_slot decls); [ | discriminate ].
+      destruct (lookup move_to decls); [ | discriminate ].
+      destruct (lookup move_to syms); [ | discriminate ].
+      simpl. intros [= <-]. reflexivity.
+Qed.
+
+Lemma eval_named_sets_are (statics : static_env) (vars : env) (d : named)
+    (v : value) :
+  named_set_is c function_decls closure_symbols d = true ->
+  env_values_all Pv vars ->
+  Forall (fun binding => Qv (snd binding)) (static_values statics) ->
+  eval_named statics vars d = Some v ->
+  Pv v.
+Proof.
+  intros Hd Hvars Hstatics.
+  destruct d as [s | p args | code slots | slot decls slots | slot closure
+    | project_from slot closure | move_from move_to closure];
+    simpl.
+  - exact (eval_simple_sets_are vars s v Hvars).
+  - destruct (eval_simples vars args) as [vs | ] eqn:Hargs;
+      [ | discriminate ].
+    simpl. intros Hprim.
+    apply (eval_prim_preserves Pv statics p vs v value_sets_are_of_numbers
+             value_sets_are_of_blocks
+             (value_sets_are_in_static_blocks statics Hstatics));
+      [ | exact Hprim ].
+    pose proof (eval_simples_sets_are vars Hvars args vs Hargs) as Hvs.
+    rewrite forallb_forall in Hvs. exact Hvs.
+  - destruct (eval_value_slots vars slots) as [vs | ] eqn:Hslots;
+      [ | discriminate ].
+    simpl. intros [= <-]. unfold Pv. simpl. simpl in Hd. rewrite Hd.
+    exact (eval_value_slots_sets_are vars Hvars slots vs Hslots).
+  - destruct (lookup slot decls); [ | discriminate ].
+    destruct (eval_value_slots vars slots) as [vs | ] eqn:Hslots;
+      [ | discriminate ].
+    simpl. intros [= <-]. unfold Pv. simpl. simpl in Hd. rewrite Hd.
+    exact (eval_value_slots_sets_are vars Hvars slots vs Hslots).
+  - destruct (eval_simple vars closure) as [k | ] eqn:Hk; [ | discriminate ].
+    simpl.
+    destruct (closure_of statics k) as [[code slot_values] | ] eqn:Hclosure;
+      [ | discriminate ].
+    simpl. intros Hlookup.
+    destruct (proj1 (closure_in_set_of statics k code slot_values) Hclosure)
+      as (at_slot & decls & Hin_set & _).
+    destruct (closure_in_set_sets_are statics k at_slot decls slot_values
+                Hstatics (eval_simple_sets_are vars closure k Hvars Hk)
+                Hin_set)
+      as [_ Hslots].
+    exact (Hslots slot v (lookup_in _ _ _ Hlookup)).
+  - destruct (eval_simple vars closure) as [k | ] eqn:Hk; [ | discriminate ].
+    simpl. unfold project_value_slot.
+    destruct (closure_in_set statics k) as [[[at_slot decls] slot_values] | ]
+      eqn:Hin_set;
+      [ | discriminate ].
+    simpl. destruct (Pos.eqb at_slot project_from); [ | discriminate ].
+    intros Hlookup.
+    destruct (closure_in_set_sets_are statics k at_slot decls slot_values
+                Hstatics (eval_simple_sets_are vars closure k Hvars Hk)
+                Hin_set)
+      as [_ Hslots].
+    exact (Hslots slot v (lookup_in _ _ _ Hlookup)).
+  - destruct (eval_simple vars closure) as [k | ] eqn:Hk; [ | discriminate ].
+    simpl.
+    exact (project_function_slot_sets_are statics move_from move_to k v
+             (eval_simple_sets_are vars closure k Hvars Hk)).
+Qed.
+
+Lemma eval_static_const_sets_are (const : static_const) (vars : env)
+    (allocated : statically_allocated_value) :
+  static_const_set_is c function_decls closure_symbols const = true ->
+  env_values_all Pv vars ->
+  eval_static_const vars const = Some allocated ->
+  Qv allocated.
+Proof.
+  intros Hconst Hvars.
+  destruct const as [code slots | slot syms decls slots | tag fields
+    | contents | bytes];
+    simpl.
+  - destruct (eval_value_slots vars slots) as [vs | ] eqn:Hslots;
+      [ | discriminate ].
+    simpl. intros [= <-]. unfold Qv. simpl. simpl in Hconst. rewrite Hconst.
+    exact (eval_value_slots_sets_are vars Hvars slots vs Hslots).
+  - destruct (lookup slot decls); [ | discriminate ].
+    destruct (eval_value_slots vars slots) as [vs | ] eqn:Hslots;
+      [ | discriminate ].
+    simpl. intros [= <-]. unfold Qv. simpl. simpl in Hconst. rewrite Hconst.
+    exact (eval_value_slots_sets_are vars Hvars slots vs Hslots).
+  - destruct (eval_simples vars fields) as [vs | ] eqn:Hfields;
+      [ | discriminate ].
+    simpl. intros [= <-].
+    exact (eval_simples_sets_are vars Hvars fields vs Hfields).
+  - destruct (eval_simple vars contents) as [v | ] eqn:Hcontents;
+      [ | discriminate ].
+    simpl. intros [= <-].
+    exact (eval_simple_sets_are vars contents v Hvars Hcontents).
+  - intros [= <-]. reflexivity.
+Qed.
+
+Lemma eval_static_bindings_sets_are (vars : env) :
+  env_values_all Pv vars ->
+  ∀ (bindings : list static_binding) (statics statics' : static_env),
+    forallb (binding_sets_are c function_decls closure_symbols) bindings
+    = true ->
+    Forall (fun binding => Qv (snd binding)) (static_values statics) ->
+    eval_static_bindings vars bindings statics = Some statics' ->
+    Forall (fun binding => Qv (snd binding)) (static_values statics').
+Proof.
+  intros Hvars.
+  induction bindings as [ | [id code | id | sym const] bindings IH];
+    intros statics statics'; simpl.
+  - intros _ Hvalid [= <-]. exact Hvalid.
+  - intros H Hvalid. apply andb_true_iff in H as [_ Hrest].
+    destruct (lookup id (static_code statics)); [ discriminate | ].
+    apply (IH _ _ Hrest). exact Hvalid.
+  - intros Hrest Hvalid. exact (IH _ _ Hrest Hvalid).
+  - intros H Hvalid. apply andb_true_iff in H as [Hconst Hrest].
+    destruct (lookup sym (static_values statics)); [ discriminate | ].
+    destruct (eval_static_const vars const) as [allocated | ] eqn:Heval;
+      simpl; [ | discriminate ].
+    apply (IH _ _ Hrest). simpl. apply Forall_cons; [ | exact Hvalid ].
+    exact (eval_static_const_sets_are const vars allocated Hconst Hvars Heval).
+Qed.
+
+Lemma state_sets_are_step (s : state) :
+  sets_are c function_decls closure_symbols (state_expr s) = true ->
+  state_sets_are c function_decls closure_symbols s ->
+  match step s with
+  | Step s' => state_sets_are c function_decls closure_symbols s'
+  | Exit _ vs => Forall Pv vs
+  | Undefined => True
+  end.
+Proof.
+  intros P Hvalid.
+  apply (step_values_all
+           (fun _ v => value_sets_are c function_decls closure_symbols v = true)
+           (fun _ allocated =>
+              allocated_sets_are c function_decls closure_symbols allocated
+              = true)
+           s Hvalid).
+  - intros x kind d body v Hexpr Heval. rewrite Hexpr in P. simpl in P.
+    apply andb_true_iff in P as [Pd _].
+    destruct Hvalid as (Hvars & _ & Hstatics).
+    exact (eval_named_sets_are (state_statics s) (state_vars s) d v Pd Hvars
+             Hstatics Heval).
+  - intros bindings body statics' Hexpr Heval.
+    split; [ exact (fun v H => H) | ].
+    rewrite Hexpr in P. simpl in P. apply andb_true_iff in P as [Pbindings _].
+    destruct Hvalid as (Hvars & _ & Hstatics).
+    exact (eval_static_bindings_sets_are (state_vars s) Hvars bindings
+             (state_statics s) statics' Pbindings Hstatics Heval).
+  - intros ap callee vs _ Hcallee Hargs. destruct Hvalid as (Hvars & _).
+    split.
+    + exact (eval_simple_sets_are (state_vars s) (ap_callee ap) callee Hvars
+               Hcallee).
+    + exact (values_sets_are_Forall vs
+               (eval_simples_sets_are (state_vars s) Hvars (ap_args ap) vs
+                  Hargs)).
+  - intros ac vs _ Hargs. destruct Hvalid as (Hvars & _).
+    exact (values_sets_are_Forall vs
+             (eval_simples_sets_are (state_vars s) Hvars (ac_args ac) vs
+                Hargs)).
+Qed.
+
+Lemma state_sets_are_run (n : nat) :
+  ∀ s : state,
+    terms_inv (sets_are c function_decls closure_symbols)
+      (handler_sets_are c function_decls closure_symbols)
+      (code_sets_are c function_decls closure_symbols) s ->
+    state_sets_are c function_decls closure_symbols s ->
+    match run n s with
+    | Step s' => state_sets_are c function_decls closure_symbols s'
+    | Exit _ vs => Forall Pv vs
+    | Undefined => True
+    end.
+Proof.
+  induction n as [ | n IH]; intros s Hterms Hvalid; simpl.
+  - exact Hvalid.
+  - pose proof (state_sets_are_step s (proj1 Hterms) Hvalid) as Hstep.
+    destruct (step s) as [next | k vs | ] eqn:Hnext.
+    + exact (IH next (sets_are_terms_inv_step s next Hterms Hnext) Hstep).
+    + exact Hstep.
+    + exact I.
+Qed.
+
+End Sets_are.
+
+Theorem sets_are_kept : sets_are_kept_statement.
+Proof.
+  intros c function_decls closure_symbols e n s He Hrun.
+  pose proof
+    (state_sets_are_run c function_decls closure_symbols n
+       (State e [] [] empty_static_env)
+       (terms_inv_initial _ _ _ e He)
+       (conj (Forall_nil _) (conj I (Forall_nil _))))
+    as H.
+  rewrite Hrun in H. exact H.
+Qed.
+
+Theorem closure_of_code : closure_of_code_statement.
+Proof.
+  intros c function_decls closure_symbols s closure v slot_values
+    (Hvars & _ & Hstatics) Hv Hclosure.
+  destruct (proj1 (closure_in_set_of (state_statics s) v c slot_values)
+              Hclosure)
+    as (slot & decls & Hin_set & Hslot).
+  destruct (closure_in_set_sets_are c function_decls closure_symbols
+              (state_statics s) v slot decls slot_values Hstatics
+              (eval_simple_sets_are c function_decls closure_symbols
+                 (state_vars s) closure v Hvars Hv)
+              Hin_set)
+    as [Hdecls _].
+  destruct (Hdecls (lookup_among_snd slot c decls Hslot)) as [-> _].
+  exists slot. split; [ exact Hin_set | exact Hslot ].
+Qed.
+
+(* In the run of a well-formed unit all of whose sets with the code are
+   the one set, a closure of the code is at the slot that the set gives
+   the code. *)
+Lemma closure_of_code_at_slot (u : unit_interface) (c : code_id)
+    (function_decls : list (function_slot * code_id))
+    (closure_symbols : option (list (function_slot * symbol))) (e : expr)
+    (n : nat) (s : state) (closure : simple) (v : value)
+    (slot_values : list (value_slot * value)) (slot : function_slot) :
+  well_formed_unit u e = true ->
+  sets_are c function_decls closure_symbols e = true ->
+  run n (State e [] [] empty_static_env) = Step s ->
+  eval_simple (state_vars s) closure = Some v ->
+  closure_of (state_statics s) v = Some (c, slot_values) ->
+  lookup slot function_decls = Some c ->
+  closure_in_set (state_statics s) v
+  = Some (slot, function_decls, slot_values).
+Proof.
+  intros Hwf He Hrun Hv Hclosure Hslot.
+  pose proof (sets_are_kept c function_decls closure_symbols e n s He Hrun)
+    as Hsets.
+  destruct (closure_of_code c function_decls closure_symbols s closure v
+              slot_values Hsets Hv Hclosure)
+    as (at_slot & Hin_set & _).
+  destruct (well_formed_values_valid u e n s Hwf Hrun)
+    as (Hvars & _ & Hstatics).
+  destruct (closure_in_set_valid (state_statics s) v at_slot function_decls
+              slot_values Hstatics
+              (eval_simple_valid (state_vars s) closure v Hvars Hv) Hin_set)
+    as [Hset _].
+  unfold set_well_formed in Hset. apply andb_true_iff in Hset as [_ Hcodes].
+  rewrite (closure_code_determines_slot (state_statics s) v at_slot slot
+             function_decls slot_values slot_values c Hin_set Hcodes Hclosure
+             Hslot).
+  exact Hin_set.
+Qed.
+
+Theorem sibling_of_code : sibling_of_code_statement.
+Proof.
+  intros u c function_decls closure_symbols e n s closure v
+    slot_values slot sibling sibling_code Hwf He Hrun Hv Hclosure Hslot
+    Hsibling.
+  pose proof
+    (closure_of_code_at_slot u c function_decls closure_symbols e n s
+       closure v slot_values slot Hwf He Hrun Hv Hclosure Hslot)
+    as Hin_set.
+  destruct (well_formed_values_valid u e n s Hwf Hrun)
+    as (_ & _ & Hstatics).
+  assert (Hbound : is_bound sibling function_decls = true)
+    by (unfold is_bound; rewrite Hsibling; reflexivity).
+  destruct (project_function_slot_valid (state_statics s) slot sibling v
+              function_decls slot_values Hstatics Hin_set Hbound)
+    as [w Hproject].
+  exists w. split; [ exact Hproject | ].
+  destruct (project_function_slot_bound (state_statics s) slot sibling v w
+              (well_formed_sets_bound u e n s Hwf Hrun) Hproject)
+    as (decls' & slots' & Hin_set' & Hw).
+  rewrite Hin_set in Hin_set'. injection Hin_set' as <- <-.
+  apply (proj2 (closure_in_set_of (state_statics s) w sibling_code
+                  slot_values)).
+  exists sibling, function_decls. split; [ exact Hw | exact Hsibling ].
+Qed.
+
+Theorem sibling_symbol_of_code : sibling_symbol_of_code_statement.
+Proof.
+  intros u c function_decls symbols e n s closure v slot_values slot
+    sibling sibling_code Hwf He Hrun Hv Hclosure Hslot Hsibling.
+  pose proof
+    (closure_of_code_at_slot u c function_decls (Some symbols) e n s
+       closure v slot_values slot Hwf He Hrun Hv Hclosure Hslot)
+    as Hin_set.
+  destruct (sets_are_kept c function_decls (Some symbols) e n s He Hrun)
+    as (Hsets_vars & _ & Hsets_statics).
+  destruct (closure_in_set_sets_are c function_decls (Some symbols)
+              (state_statics s) v slot function_decls slot_values
+              Hsets_statics
+              (eval_simple_sets_are c function_decls (Some symbols)
+                 (state_vars s) closure v Hsets_vars Hv)
+              Hin_set)
+    as [Hone _].
+  destruct (Hone (lookup_among_snd slot c function_decls Hslot))
+    as [_ Hstatic].
+  destruct (Hstatic symbols eq_refl) as (slot_symbol & -> & Hbound_symbol).
+  destruct (well_formed_sets_bound u e n s Hwf Hrun slot_symbol slot
+              symbols function_decls slot_values Hbound_symbol)
+    as [Hslot_symbol _].
+  destruct (well_formed_values_valid u e n s Hwf Hrun)
+    as (_ & _ & Hstatics).
+  pose proof
+    (statics_valid_lookup (state_statics s) slot_symbol _ Hstatics
+       Hbound_symbol)
+    as Hvalid.
+  simpl in Hvalid. apply andb_true_iff in Hvalid as [Hvalid _].
+  apply andb_true_iff in Hvalid as [_ Hnames].
+  destruct (list_eq_dec Pos.eq_dec (map fst symbols) (map fst function_decls))
+    as [Hsame | ]; [ | discriminate ].
+  assert (Hsibling_bound : is_bound sibling symbols = true).
+  { apply (is_bound_same_names sibling symbols function_decls Hsame).
+    unfold is_bound. rewrite Hsibling. reflexivity. }
+  unfold is_bound in Hsibling_bound.
+  destruct (lookup sibling symbols) as [sibling_symbol | ]
+    eqn:Hsibling_symbol; [ | discriminate ].
+  exists slot_symbol, sibling_symbol.
+  split; [ exact Hslot_symbol | ]. split; [ reflexivity | ].
+  split; [ reflexivity | ].
+  unfold project_function_slot. cbv beta iota zeta.
+  rewrite Hbound_symbol, Pos.eqb_refl, Hslot, Hsibling. simpl.
+  rewrite Hsibling_symbol. reflexivity.
+Qed.
+
+(* ======================================================================== *)
 (* The example                                                              *)
 (* ======================================================================== *)
 
@@ -1420,6 +2189,13 @@ Proof.
     apply andb_true_iff. split; [ vm_compute; reflexivity | ].
     apply andb_true_iff. split; [ vm_compute; reflexivity | ].
     unfold apply_in_range. cbn. rewrite Hi. reflexivity.
+Qed.
+
+Theorem parity_sets_are : parity_sets_are_statement.
+Proof.
+  intros i c [<- | [<- | []]];
+    (split; [ vm_compute; reflexivity | ]);
+    eexists; (split; [ reflexivity | vm_compute; reflexivity ]).
 Qed.
 
 Theorem partial_static_set : partial_static_set_statement.
