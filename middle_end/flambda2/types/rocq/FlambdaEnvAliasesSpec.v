@@ -166,6 +166,11 @@ Local Open Scope Z_scope.
 (* The classes                                                              *)
 (* ======================================================================== *)
 
+(* [simple_equal] tells whether two simples are the same: the test to use
+   where simples are keys. *)
+Definition simple_equal_decides_equality_statement : Prop :=
+  decides_equality simple_equal.
+
 (* The structure has demoted the name [n] to [canonical_element]. *)
 Definition demoted_to (t : Aliases.t) (n : name) (canonical_element : simple)
     : Prop :=
@@ -461,6 +466,19 @@ Definition get_canonical_ignoring_name_mode_statement : Prop :=
 Definition canonical_element_canonical_statement : Prop :=
   ∀ (t : Aliases.t) (e : simple),
     aliases_consistent t -> is_canonical t (canonical_element_of t e).
+
+Definition canonical_element_idempotent_statement : Prop :=
+  ∀ (t : Aliases.t) (e : simple),
+    aliases_consistent t ->
+    canonical_element_of t (canonical_element_of t e)
+    = canonical_element_of t e.
+
+(* If it is a name, it is the name asked about or one that the structure
+   speaks of. *)
+Definition canonical_element_mentioned_statement : Prop :=
+  ∀ (t : Aliases.t) (n n' : name),
+    Aliases.get_canonical_ignoring_name_mode t n = simple_of_name n' ->
+    n' = n ∨ aliases_mention t n'.
 
 (* The canonical element of a class is earlier than every other element
    of the class. *)

@@ -81,6 +81,31 @@ Proof.
   destruct s; simpl; try discriminate. intros _. eexists. reflexivity.
 Qed.
 
+Lemma simple_equal_spec (s s' : simple) :
+  reflect (s = s') (simple_equal s s').
+Proof.
+  destruct s as [x | sym | c], s' as [x' | sym' | c']; simpl;
+    try (constructor; discriminate).
+  - destruct (Pos.eqb_spec x x') as [-> | Hne]; constructor;
+      [ reflexivity | intros [= Heq]; contradiction ].
+  - destruct (Pos.eqb_spec sym sym') as [-> | Hne]; constructor;
+      [ reflexivity | intros [= Heq]; contradiction ].
+  - destruct (keyed_eqb_spec const_eqb const_eqb_eq c c') as [-> | Hne];
+      constructor; [ reflexivity | intros [= Heq]; contradiction ].
+Qed.
+
+(* The proof to give with [simple_equal] wherever [Keyed] asks for one. *)
+Lemma simple_equal_eq : decides_equality simple_equal.
+Proof.
+  intros s s'. destruct (simple_equal_spec s s') as [Heq | Hne].
+  - split; [ intros _; exact Heq | reflexivity ].
+  - split; [ discriminate | intros Heq; contradiction ].
+Qed.
+
+Theorem simple_equal_decides_equality :
+  simple_equal_decides_equality_statement.
+Proof. exact simple_equal_eq. Qed.
+
 (* ======================================================================== *)
 (* The classes                                                              *)
 (* ======================================================================== *)
@@ -627,6 +652,26 @@ Proof.
     as [[Hself ->] | (n & canonical_element & _ & Hdemoted & _ & ->)].
   - exact Hself.
   - exact (Hcanonical n canonical_element Hdemoted).
+Qed.
+
+Theorem canonical_element_idempotent :
+  canonical_element_idempotent_statement.
+Proof.
+  intros t e Hconsistent. apply canonical_element_of_canonical.
+  apply canonical_element_canonical, Hconsistent.
+Qed.
+
+Theorem canonical_element_mentioned : canonical_element_mentioned_statement.
+Proof.
+  intros t n n' Hcanonical.
+  change (canonical_element_of t (simple_of_name n) = simple_of_name n')
+    in Hcanonical.
+  destruct (canonical_cases t (simple_of_name n))
+    as [[_ Hself] | (m & canonical_element & Hname & Hdemoted & _ & Hof)].
+  - left. rewrite Hself in Hcanonical.
+    symmetry. exact (simple_of_name_inj _ _ Hcanonical).
+  - right. right. left. exists m.
+    rewrite Hof in Hcanonical. rewrite <- Hcanonical. exact Hdemoted.
 Qed.
 
 Theorem canonical_element_earliest : canonical_element_earliest_statement.
