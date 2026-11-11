@@ -40,7 +40,11 @@
    yet: what is to be proved is [transcription_sound] of
    [meet_to_prove], and it is not among the statements of this file
    until it is. The statements that are here are proved in
-   FlambdaMeetProofs.v.
+   FlambdaMeetProofs.v. FlambdaMeetExamplesSpec.v has the examples of
+   this header, run on the functions: the input on which the
+   compiler's meet is not sound, a join that has the contract asked of
+   it, an equation that forgets, a meet through a name that holds
+   poison.
 
    The compiler. middle_end/flambda2/types/meet_and_n_way_join.ml (the
    functions from [meet] to [meet_function_type], and the helpers
