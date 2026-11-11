@@ -34,7 +34,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaBindersSpec FlambdaBindersProofs
   FlambdaSemanticsSpec FlambdaSemanticsProofs FlambdaContextSpec
   FlambdaContextProofs FlambdaNominalSpec FlambdaNominalProofs
-  FlambdaAlphaSpec.
+  FlambdaFreeNamesSpec FlambdaFreeNamesProofs FlambdaAlphaSpec.
 Import ListNotations.
 
 Lemma or_iff (A A' B B' : Prop) :
@@ -1420,4 +1420,306 @@ Proof.
   - exact Hclosed.
   - intros x _. apply lookup_rename_env.
   - intros k Hk. apply conts_agree_same, Hconts, Hk.
+Qed.
+
+(* ======================================================================== *)
+(* Alpha-equivalent expressions have distinct binders together              *)
+(* ======================================================================== *)
+
+Lemma plug_binders_distinct (c : context) (e e' : expr) :
+  binders_distinct e = binders_distinct e' ->
+  binders_distinct (plug c e) = binders_distinct (plug c e').
+Proof.
+  intros Hsame.
+  induction c
+    as [ | y kind d c IH | bindings c IH
+       | before id params my_closure ret exn metadata c IH after body
+       | k h c IH
+       | k params metadata c IH body | handlers c IH
+       | before k params metadata c IH after body ];
+    simpl.
+  - exact Hsame.
+  - exact IH.
+  - rewrite IH. reflexivity.
+  - rewrite !forallb_app. simpl. rewrite IH. reflexivity.
+  - rewrite IH. reflexivity.
+  - rewrite IH. reflexivity.
+  - rewrite IH. reflexivity.
+  - rewrite !map_app, !forallb_app. simpl. rewrite IH.
+    destruct before; reflexivity.
+Qed.
+
+Theorem alpha_equivalent_binders_distinct :
+  alpha_equivalent_binders_distinct_statement.
+Proof.
+  intros e e' Halpha.
+  induction Halpha
+    as [ e | e e' _ IH | e e' e'' _ IH _ IH' | c e e' _ IH
+       | s e _ _ _ | s x kind d body _ _ _ | s k h body _ _ _
+       | s k params metadata handler body _ _ _
+       | s before k params metadata handler after body _ _ _
+       | s before id c after body _ ].
+  - reflexivity.
+  - symmetry. exact IH.
+  - rewrite IH. exact IH'.
+  - apply plug_binders_distinct, IH.
+  - symmetry. apply binders_distinct_renamed.
+  - simpl. symmetry. apply binders_distinct_renamed.
+  - simpl. rewrite binders_distinct_renamed. reflexivity.
+  - change (binders_distinct (Let_cont_non_recursive k ?h body))
+      with (handler_binders_distinct h && binders_distinct body).
+    rewrite handler_binders_distinct_renamed. reflexivity.
+  - change (binders_distinct (Let_cont_recursive ?handlers body))
+      with (negb (Keyed.is_empty handlers) && distinct (map fst handlers)
+            && forallb (fun '(_, h) => handler_binders_distinct h) handlers
+            && binders_distinct body).
+    rewrite !map_app, !forallb_app.
+    change (forallb ?f ((k, ?h) :: after))
+      with (handler_binders_distinct h && forallb f after).
+    rewrite handler_binders_distinct_renamed.
+    destruct before; reflexivity.
+  - simpl. rewrite !forallb_app. simpl.
+    rewrite code_binders_distinct_renamed. reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* Alpha-equivalent expressions have the same free names, as functions      *)
+(* ======================================================================== *)
+
+(* What the rules keep: the free names, as sets, and whether the code is
+   closed. The three go together, since whether code is closed is said
+   by the free names of its body. *)
+Definition same_free_names (e e' : expr) : Prop :=
+  same_names (free_variables_of_expr e) (free_variables_of_expr e')
+  ∧ same_names (free_continuations_of_expr e)
+      (free_continuations_of_expr e')
+  ∧ code_closed e = code_closed e'.
+
+Lemma is_empty_same (names names' : list positive) :
+  same_names names names' ->
+  Keyed.is_empty names = Keyed.is_empty names'.
+Proof.
+  intros Hsame.
+  destruct names as [ | a names]; destruct names' as [ | b names'];
+    try reflexivity.
+  - specialize (Hsame b). rewrite among_cons, Pos.eqb_refl in Hsame.
+    discriminate Hsame.
+  - specialize (Hsame a). rewrite among_cons, Pos.eqb_refl in Hsame.
+    discriminate Hsame.
+Qed.
+
+Lemma without_same (bound names names' : list positive) :
+  same_names names names' ->
+  same_names (without bound names) (without bound names').
+Proof. intros Hsame name. rewrite !among_without, Hsame. reflexivity. Qed.
+
+Lemma all_among_same (names names' allowed : list positive) :
+  same_names names names' ->
+  FlambdaMapSpec.all_among names allowed
+  = FlambdaMapSpec.all_among names' allowed.
+Proof.
+  intros Hsame. apply eq_true_iff_eq. rewrite !all_among_iff.
+  split; intros Hall name Hname; apply Hall;
+    [ rewrite Hsame | rewrite <- Hsame ]; exact Hname.
+Qed.
+
+Lemma plug_same_free_names (c : context) (e e' : expr) :
+  same_free_names e e' -> same_free_names (plug c e) (plug c e').
+Proof.
+  intros Hsame.
+  induction c
+    as [ | y kind d c IH | bindings c IH
+       | before id params my_closure ret exn metadata c IH after body
+       | k h c IH
+       | k params metadata c IH body | handlers c IH
+       | before k params metadata c IH after body ];
+    [ exact Hsame | .. ];
+    destruct IH as [IHv [IHk IHc]]; (split; [ | split ]);
+    try (intros name; simpl; rewrite ?map_app, ?flat_map_app; simpl;
+         rewrite ?among_without, ?among_app; simpl;
+         rewrite ?among_without, ?among_app, ?IHv, ?IHk; reflexivity);
+    simpl; rewrite ?forallb_app; simpl; rewrite ?IHc; try reflexivity.
+  assert (Hv :
+    @Keyed.is_empty variable
+      (without (my_closure :: params) (free_variables_of_expr (plug c e)))
+    = @Keyed.is_empty variable
+        (without (my_closure :: params)
+           (free_variables_of_expr (plug c e'))))
+    by exact (is_empty_same _ _ (without_same _ _ _ IHv)).
+  assert (Hk :
+    @Keyed.is_empty continuation
+      (without [ret; exn] (free_continuations_of_expr (plug c e)))
+    = @Keyed.is_empty continuation
+        (without [ret; exn] (free_continuations_of_expr (plug c e'))))
+    by exact (is_empty_same _ _ (without_same _ _ _ IHk)).
+  rewrite Hv, Hk. reflexivity.
+Qed.
+
+Lemma map_fixed (f : positive -> positive) (names : list positive) :
+  (∀ name : positive, among name names = true -> f name = name) ->
+  map f names = names.
+Proof.
+  intros Hfixed. induction names as [ | name names IH]; [ reflexivity | ].
+  simpl. rewrite Hfixed, IH; [ reflexivity | | ].
+  - intros other Hother. apply Hfixed. rewrite among_cons, Hother.
+    apply orb_true_r.
+  - rewrite among_cons, Pos.eqb_refl. reflexivity.
+Qed.
+
+Lemma without_map_fixed (f : positive -> positive)
+    (bound names : list positive) :
+  (∀ x y : positive, Pos.eqb (f x) (f y) = Pos.eqb x y) ->
+  (∀ name : positive,
+     among name names = true -> among name bound = false -> f name = name) ->
+  without (map f bound) (map f names) = without bound names.
+Proof.
+  intros f_eqb Hfixed. rewrite (without_map_injective f f_eqb).
+  apply map_fixed. intros name Hname. rewrite among_without in Hname.
+  apply andb_true_iff in Hname. destruct Hname as [Hin Hout].
+  apply Hfixed; [ exact Hin | ]. apply negb_true_iff, Hout.
+Qed.
+
+Lemma alpha_equivalent_same_free_names (e e' : expr) :
+  alpha_equivalent e e' -> same_free_names e e'.
+Proof.
+  intros Halpha.
+  induction Halpha
+    as [ e | e e' _ IH | e e' e'' _ IH _ IH' | c e e' _ IH
+       | s e Hclosed Hvars Hconts | s x kind d body Hclosed Hvars Hconts
+       | s k h body Hclosed Hvars Hconts
+       | s k params metadata handler body Hclosed Hvars Hconts
+       | s before k params metadata handler after body Hclosed Hvars Hconts
+       | s before id c after body Hclosed ].
+  - repeat split.
+  - destruct IH as [IHv [IHk IHc]].
+    split; [ | split ].
+    + intros x. symmetry. apply IHv.
+    + intros k. symmetry. apply IHk.
+    + symmetry. exact IHc.
+  - destruct IH as [IHv [IHk IHc]]. destruct IH' as [IHv' [IHk' IHc']].
+    split; [ | split ].
+    + intros x. rewrite IHv. apply IHv'.
+    + intros k. rewrite IHk. apply IHk'.
+    + rewrite IHc. exact IHc'.
+  - apply plug_same_free_names, IH.
+  - (* The whole expression. *)
+    split; [ | split ].
+    + intros x. rewrite free_variables_of_expr_renamed, map_fixed;
+        [ reflexivity | ].
+      intros y Hy. apply Hvars, (var_free_agrees y e Hclosed), Hy.
+    + intros k. rewrite free_continuations_of_expr_renamed, map_fixed;
+        [ reflexivity | ].
+      intros k' Hk'. apply Hconts, (cont_free_agrees k' e Hclosed), Hk'.
+    + symmetry. apply code_closed_renamed.
+  - (* The variable of a [Let]. *)
+    split; [ | split ].
+    + intros y. simpl. rewrite free_variables_of_expr_renamed.
+      change [rename_variable s x] with (map (rename_variable s) [x]).
+      rewrite (without_map_fixed _ _ _ (rename_variable_eqb s));
+        [ reflexivity | ].
+      intros z Hz Hnot.
+      apply Hvars;
+        [ apply not_among_singleton, Hnot
+        | apply (var_free_agrees z body Hclosed), Hz ].
+    + intros k. simpl. rewrite free_continuations_of_expr_renamed, map_fixed;
+        [ reflexivity | ].
+      intros k' Hk'. apply Hconts, (cont_free_agrees k' body Hclosed), Hk'.
+    + simpl. symmetry. apply code_closed_renamed.
+  - (* The continuation of a [Let_cont]. *)
+    split; [ | split ].
+    + intros y. simpl. rewrite free_variables_of_expr_renamed, map_fixed;
+        [ reflexivity | ].
+      intros z Hz. apply Hvars, (var_free_agrees z body Hclosed), Hz.
+    + intros k'. simpl. rewrite free_continuations_of_expr_renamed.
+      change [rename_continuation s k]
+        with (map (rename_continuation s) [k]).
+      rewrite (without_map_fixed _ _ _ (rename_continuation_eqb s));
+        [ reflexivity | ].
+      intros k'' Hk'' Hnot.
+      apply Hconts;
+        [ apply not_among_singleton, Hnot
+        | apply (cont_free_agrees k'' body Hclosed), Hk'' ].
+    + simpl. rewrite code_closed_renamed. reflexivity.
+  - (* The parameters of a handler. *)
+    split; [ | split ].
+    + intros y. simpl. rewrite free_variables_of_expr_renamed.
+      rewrite (without_map_fixed _ _ _ (rename_variable_eqb s));
+        [ reflexivity | ].
+      intros z Hz Hnot.
+      apply Hvars;
+        [ apply not_among_in, Hnot
+        | apply (var_free_agrees z handler Hclosed), Hz ].
+    + intros k'. simpl. rewrite free_continuations_of_expr_renamed, map_fixed;
+        [ reflexivity | ].
+      intros k'' Hk''.
+      apply Hconts, (cont_free_agrees k'' handler Hclosed), Hk''.
+    + simpl. rewrite code_closed_renamed. reflexivity.
+  - (* The parameters of a handler of a recursive [Let_cont]. *)
+    split; [ | split ].
+    + intros y. simpl. rewrite !flat_map_app. simpl.
+      rewrite free_variables_of_expr_renamed.
+      rewrite (without_map_fixed _ _ _ (rename_variable_eqb s));
+        [ reflexivity | ].
+      intros z Hz Hnot.
+      apply Hvars;
+        [ apply not_among_in, Hnot
+        | apply (var_free_agrees z handler Hclosed), Hz ].
+    + intros k'. simpl. rewrite !map_app, !flat_map_app. simpl.
+      rewrite free_continuations_of_expr_renamed, map_fixed;
+        [ reflexivity | ].
+      intros k'' Hk''.
+      apply Hconts, (cont_free_agrees k'' handler Hclosed), Hk''.
+    + simpl. rewrite !forallb_app. simpl.
+      rewrite code_closed_renamed. reflexivity.
+  - (* The binders of code. *)
+    pose proof (code_is_closed_renamed s c) as Hrenamed.
+    rewrite Hclosed in Hrenamed.
+    assert (Hempty : ∀ c' : code,
+              code_is_closed c' = true ->
+              free_variables_of_code c' = []
+              ∧ free_continuations_of_code c' = []).
+    { intros [params my_closure ret exn code_body] Hc'.
+      simpl in Hc'. apply andb_true_iff in Hc'. destruct Hc' as [Hc' _].
+      apply andb_true_iff in Hc'. destruct Hc' as [Hv Hk].
+      split; apply is_empty_nil; assumption. }
+    destruct (Hempty c Hclosed) as [Hv Hk].
+    destruct (Hempty _ Hrenamed) as [Hv' Hk'].
+    split; [ | split ].
+    + intros y. simpl. rewrite !flat_map_app. simpl.
+      rewrite Hv, Hv'. reflexivity.
+    + intros k. simpl. rewrite !flat_map_app. simpl.
+      rewrite Hk, Hk'. reflexivity.
+    + simpl. rewrite !forallb_app. simpl. rewrite Hclosed, Hrenamed.
+      reflexivity.
+Qed.
+
+Theorem alpha_equivalent_free_variables :
+  alpha_equivalent_free_variables_statement.
+Proof.
+  intros e e' Halpha.
+  exact (proj1 (alpha_equivalent_same_free_names e e' Halpha)).
+Qed.
+
+Theorem alpha_equivalent_free_continuations :
+  alpha_equivalent_free_continuations_statement.
+Proof.
+  intros e e' Halpha.
+  exact (proj1 (proj2 (alpha_equivalent_same_free_names e e' Halpha))).
+Qed.
+
+Theorem alpha_equivalent_code_closed :
+  alpha_equivalent_code_closed_statement.
+Proof.
+  intros e e' Halpha.
+  exact (proj2 (proj2 (alpha_equivalent_same_free_names e e' Halpha))).
+Qed.
+
+Theorem alpha_equivalent_names_in_scope :
+  alpha_equivalent_names_in_scope_statement.
+Proof.
+  intros unit_return unit_exn e e' Halpha.
+  destruct (alpha_equivalent_same_free_names e e' Halpha) as [Hv [Hk _]].
+  unfold names_in_scope, names_among.
+  rewrite (all_among_same _ _ _ Hv), (all_among_same _ _ _ Hk).
+  reflexivity.
 Qed.

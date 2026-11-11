@@ -58,7 +58,11 @@
    - alpha-equivalence is equivariant, and alpha-equivalent expressions
      have the same free names, so the action and the support are those of
      the classes ([alpha_equivalent_equivariant_statement],
-     [alpha_equivalent_free_names_statement]);
+     [alpha_equivalent_free_names_statement]). The same holds of the
+     free names as functions, and alpha-equivalent expressions satisfy
+     the same of the three conditions on binders
+     ([alpha_equivalent_code_closed_statement] and the two after it),
+     so those are conditions on the classes;
    - alpha-equivalent expressions behave alike under every pair of
      environments ([alpha_equivalent_sound_statement]): the semantics, and
      with it [expr_equivalent] and [expr_refines], is one of the classes.
@@ -261,6 +265,35 @@ Definition alpha_equivalent_free_names_statement : Prop :=
     (∀ x : variable, var_free_in_expr x e <-> var_free_in_expr x e')
     ∧ (∀ k : continuation,
         cont_free_in_expr k e <-> cont_free_in_expr k e').
+
+(* The same of the free names as functions, which look into code. *)
+Definition alpha_equivalent_free_variables_statement : Prop :=
+  ∀ e e' : expr,
+    alpha_equivalent e e' ->
+    same_names (free_variables_of_expr e) (free_variables_of_expr e').
+
+Definition alpha_equivalent_free_continuations_statement : Prop :=
+  ∀ e e' : expr,
+    alpha_equivalent e e' ->
+    same_names (free_continuations_of_expr e)
+      (free_continuations_of_expr e').
+
+(* So the three conditions on binders are conditions on the classes:
+   alpha-equivalent expressions have their code closed together, their
+   binders distinct together (no rule relates a binder that repeats a
+   name to one that does not), and their names in scope together. *)
+Definition alpha_equivalent_code_closed_statement : Prop :=
+  ∀ e e' : expr, alpha_equivalent e e' -> code_closed e = code_closed e'.
+
+Definition alpha_equivalent_binders_distinct_statement : Prop :=
+  ∀ e e' : expr,
+    alpha_equivalent e e' -> binders_distinct e = binders_distinct e'.
+
+Definition alpha_equivalent_names_in_scope_statement : Prop :=
+  ∀ (unit_return unit_exn : continuation) (e e' : expr),
+    alpha_equivalent e e' ->
+    names_in_scope unit_return unit_exn e
+    = names_in_scope unit_return unit_exn e'.
 
 Definition alpha_equivalent_sound_statement : Prop :=
   ∀ e e' : expr, alpha_equivalent e e' -> expr_equivalent e e'.
