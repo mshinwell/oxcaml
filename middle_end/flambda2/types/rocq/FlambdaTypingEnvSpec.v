@@ -94,11 +94,23 @@
    others do not (the n-way join brings such a variable in with the
    join of its types at the uses that define it:
    types/env/join_env.ml); in a run that comes through one of the
-   others it stands for nothing. Of a name with no value nothing is
-   asked. The alias type of such a name is the type of no value
+   others it stands for nothing. The compiler also builds environments
+   that are not bottom in which a name has the type bottom: the binary
+   join works in one, in which the variables that it has not yet joined
+   have that type (types/join_levels_old.ml, with
+   [Meet_env.add_env_extension_maybe_bottom]). Of a name with no value
+   nothing is asked. The alias type of such a name is the type of no value
    (FlambdaTypeMeaningSpec.v), and no name that has a value is an alias
    of it (FlambdaEnvAliasesSpec.v): so where a type mentions it, the
-   type speaks of a case that is not the case in that run.
+   type speaks of a case that is not the case in that run. A name that
+   is reached through a value in hand, by an alias type that the value
+   has, has a value. A statement about a name that is not so reached
+   needs the premise that the name has a value: to add an equation on a
+   name ([Meet_env.add_equation]), or to conclude from the type of a
+   name being bottom that the program point is not reached. An
+   environment in which a variable that exists only in types has the
+   type bottom is satisfied, strictly, by the valuations that give the
+   variable no value.
 
    What it is to satisfy an environment, and what was decided.
    - Names. Every name that has a type ([names_to_types]) and a value
@@ -131,6 +143,17 @@
      and a meet that reaches [n] can answer bottom where there are
      values ([alias_has_type_found_statement] and
      FlambdaTypingEnvExamplesSpec.v).
+     To be strictly satisfied is not to be free of poison. A name may
+     hold poison where its type admits it (the unknown type, an alias
+     of a name that holds it); and a relation of a type says nothing of
+     a scrutinee that is poison (FlambdaTypeMeaningSpec.v), so a name
+     may hold 0 with the type "[Is_int] of [p]" where [p] holds poison.
+     What strictness gives is that the type found for a name is the
+     type of its value. A statement that reads a relation, or that
+     needs a value not to be poison, still has that case to deal with.
+     (Where no name holds poison the two notions are one,
+     [satisfied_no_poison_strictly_statement]; that is a narrower case
+     than to be strictly satisfied.)
      [typing_env_satisfied]: the names that hold poison are exempt
      (decision D26; there is a CR there). Typing facts are about values
      that are not poison: a name that is not poison has its type
@@ -208,11 +231,6 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
   FlambdaEnvAliasesSpec FlambdaTypingEnv.
 Import ListNotations.
-
-(* [kind_eqb] tells whether two kinds are the same. (To be the core's,
-   with [kind_eqb]: see FlambdaTypingEnv.v.) *)
-Definition kind_eqb_decides_equality_statement : Prop :=
-  decides_equality kind_eqb.
 
 (* ======================================================================== *)
 (* What satisfies a typing environment                                      *)

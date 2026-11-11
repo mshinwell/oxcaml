@@ -32,7 +32,7 @@
 From Stdlib Require Import ZArith List Bool Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaMapProofs FlambdaSemanticsSpec.
+  FlambdaMapProofs FlambdaPrimitiveProofs FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
   FlambdaBindingTime FlambdaEnvAliases FlambdaEnvAliasesSpec
@@ -42,26 +42,6 @@ Import ListNotations.
 (* ======================================================================== *)
 (* Kinds                                                                    *)
 (* ======================================================================== *)
-
-Lemma naked_number_kind_eqb_eq (k k' : naked_number_kind) :
-  naked_number_kind_eqb k k' = true <-> k = k'.
-Proof.
-  split; [ | intros <-; destruct k; reflexivity ].
-  destruct k, k'; simpl; try discriminate; reflexivity.
-Qed.
-
-Lemma kind_eqb_eq (k k' : flambda_kind) : kind_eqb k k' = true <-> k = k'.
-Proof.
-  split.
-  - destruct k as [ | n | | ], k' as [ | n' | | ]; simpl; try discriminate;
-      try reflexivity.
-    intros H. apply naked_number_kind_eqb_eq in H. congruence.
-  - intros <-. destruct k as [ | n | | ]; simpl; try reflexivity.
-    apply naked_number_kind_eqb_eq. reflexivity.
-Qed.
-
-Theorem kind_eqb_decides_equality : kind_eqb_decides_equality_statement.
-Proof. intros k k'. apply kind_eqb_eq. Qed.
 
 Lemma kind_bottom (k : flambda_kind) : kind (bottom k) = k.
 Proof. destruct k as [ | [] | | ]; reflexivity. Qed.

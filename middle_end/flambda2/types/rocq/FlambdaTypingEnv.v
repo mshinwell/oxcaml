@@ -149,8 +149,8 @@
      the bindings of the second where both have one
      ([union_right_biased], in [concat]) is the second followed by the
      first.
-   - [kind_eqb] is defined here until the core has it (workstream
-     C2). *)
+   - [Flambda_kind.equal] is the core's [kind_eqb]
+     (FlambdaKindModel.v). *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlOption.
@@ -162,34 +162,8 @@ Import ListNotations.
 Local Open Scope Z_scope.
 
 (* ======================================================================== *)
-(* Kinds and scopes                                                         *)
+(* Scopes                                                                   *)
 (* ======================================================================== *)
-
-(* [Flambda_kind.equal]. The two definitions are to be the core's, with
-   these names (workstream C2); they are here until it has them. *)
-Definition naked_number_kind_eqb (k k' : naked_number_kind) : bool :=
-  match k, k' with
-  | Kind_naked_immediate, Kind_naked_immediate
-  | Kind_naked_float32, Kind_naked_float32
-  | Kind_naked_float, Kind_naked_float
-  | Kind_naked_int8, Kind_naked_int8
-  | Kind_naked_int16, Kind_naked_int16
-  | Kind_naked_int32, Kind_naked_int32
-  | Kind_naked_int64, Kind_naked_int64
-  | Kind_naked_nativeint, Kind_naked_nativeint
-  | Kind_naked_vec128, Kind_naked_vec128
-  | Kind_naked_vec256, Kind_naked_vec256
-  | Kind_naked_vec512, Kind_naked_vec512
-  | Kind_naked_mask, Kind_naked_mask => true
-  | _, _ => false
-  end.
-
-Definition kind_eqb (k k' : flambda_kind) : bool :=
-  match k, k' with
-  | Value, Value | Region, Region | Rec_info, Rec_info => true
-  | Naked_number k, Naked_number k' => naked_number_kind_eqb k k'
-  | _, _ => false
-  end.
 
 (* [Scope.t]: the number of a level of a typing environment. *)
 Module Scope.

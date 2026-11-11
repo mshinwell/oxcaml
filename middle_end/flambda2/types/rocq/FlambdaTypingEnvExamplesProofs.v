@@ -528,6 +528,27 @@ Proof.
   destruct Hty as [i [[= <-] [Hi | []]]]. discriminate.
 Qed.
 
+Theorem example_absent_env_satisfied
+    : example_absent_env_satisfied_statement.
+Proof.
+  intros statics valuation. split.
+  - intros Hsatisfied.
+    destruct (lookup example_e valuation) as [v | ] eqn:Hvalue;
+      [ exfalso | reflexivity ].
+    apply (bottom_satisfied statics valuation v Value).
+    exact (find_satisfied_strictly statics valuation example_absent_env
+             (Name_var example_e) None (bottom Value) v Hsatisfied eq_refl
+             Hvalue).
+  - intros Hvalue. split; [ reflexivity | ].
+    split; [ | apply empty_respected ].
+    intros n ty btm v Hlookup Hv.
+    apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
+    vm_compute in Hlookup.
+    repeat (destruct Hlookup as [Hlookup | Hlookup];
+            [ injection Hlookup as <- <- <- | ]); [ .. | contradiction ].
+    all: change (lookup example_e valuation = Some v) in Hv; congruence.
+Qed.
+
 (* ======================================================================== *)
 (* A symbol                                                                 *)
 (* ======================================================================== *)

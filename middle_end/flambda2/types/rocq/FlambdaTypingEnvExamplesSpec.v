@@ -167,8 +167,9 @@ Definition example_env_wrong_type_statement : Prop :=
     ~ env_satisfies tenv empty_static_env
         (example_vars (tagged 9) (tagged 9)).
 
-(* ... nor where [y] and [p] hold different values, though each is of
-   its type: they are aliases... *)
+(* ... nor where [y] and [p] hold different values, though each is 7
+   or 8: the type of [y] is the alias of [p], and the aliases say that
+   the two are equal... *)
 Definition example_env_wrong_alias_statement : Prop :=
   ∀ tenv : Typing_env.t,
     example_env = Some tenv ->
@@ -348,6 +349,26 @@ Definition example_join_env_block_statement : Prop :=
 Definition example_join_env_wrong_block_statement : Prop :=
   ~ env_satisfies example_join_env empty_static_env
       [(example_q, Value_block 0 [tagged 5])].
+
+(* An environment that is not bottom, in which a variable that exists
+   only in types has the type bottom. [Meet_env] makes such
+   environments when it is told not to raise on bottom
+   ([add_concrete_equation_on_canonical_name], which then gives the name
+   the type bottom with [Typing_env.replace_equation]); the binary join
+   works in one. It is satisfied, strictly, by the valuations that give
+   the variable no value, and by no other. So that the type of a name
+   is bottom says that a program point is not reached only of a name
+   that has a value there. *)
+Definition example_absent_env : Typing_env.t :=
+  Typing_env.replace_equation
+    (Typing_env.add_variable_definition Typing_env.create example_e Value
+       Name_mode.in_types)
+    (Name_var example_e) (bottom Value).
+
+Definition example_absent_env_satisfied_statement : Prop :=
+  ∀ (statics : static_env) (valuation : env),
+    typing_env_satisfied_strictly statics valuation example_absent_env
+    <-> lookup example_e valuation = None.
 
 (* ======================================================================== *)
 (* A symbol                                                                 *)
