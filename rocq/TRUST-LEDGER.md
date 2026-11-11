@@ -83,16 +83,17 @@ it gave back.
   read against `terms/flambda_primitive.mli` and
   `simplify/simplify_*_primitive.ml`.
 - **The conversion of numeric constants**, in the same file (the section
-  "Numbers", `convert_const`, `convert_float32`, `convert_float` and the
-  boxed numbers of `convert_static_const`, about 100 lines): from the
-  compiler's integers of each width, and the bit patterns of its floats,
-  to the integer that a constant of the model carries. Trusted: that each
-  number is converted to itself, at every width and at its bounds. (It
-  was not so: until this conversion went through `int64`, `z_of_int`
-  converted the least tagged or naked immediate to -1, and what the tool
-  reported before then is not made good by the repair.) Constants of the
-  vector and mask kinds, and poison, are refused, so the tool does not
-  exercise what the model says of boxing and unboxing at those kinds.
+  "Numbers" and `convert_const`, about 75 lines; with the boxed numbers
+  also `convert_float32`, `convert_float` and the boxed numbers of
+  `convert_static_const`, about 105 lines in all): from the compiler's
+  integers of each width, and then the bit patterns of its floats, to the
+  integer that a constant of the model carries. Trusted: that each number
+  is converted to itself, at every width and at its bounds. (It was not
+  so: until this conversion went through `int64`, `z_of_int` converted
+  the least tagged or naked immediate to -1, and what the tool reported
+  before then is not made good by the repair.) Constants of the vector
+  and mask kinds, and poison, are refused, so the tool does not exercise
+  what the model says of boxing and unboxing at those kinds.
 - **The numbering of names**, in the same file (`Numbering`, about 30
   lines): each variable, continuation, symbol, code id and value slot of
   the compiler gets a number, the same throughout a unit. Trusted: that

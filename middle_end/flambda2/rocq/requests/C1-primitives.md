@@ -552,11 +552,12 @@ included. What a primitive computes is no longer trusted OCaml; it is
 `eval_prim`, a reviewed definition.
 
 The ledger also gets an item for something that was trusted all along
-without being named: "The conversion of numeric constants" (about 100
-lines), trusted to convert each number to itself at every width and at
-its bounds, which `z_of_int` did not. The tool refuses constants of the
-vector and mask kinds, and poison: the model has boxing and unboxing at
-those kinds, and the tool does not exercise them.
+without being named: "The conversion of numeric constants" (about 75
+lines at stage 1, 105 at stage 3), trusted to convert each number to
+itself at every width and at its bounds, which `z_of_int` did not. The
+tool refuses constants of the vector and mask kinds, and poison: the
+model has boxing and unboxing at those kinds, and the tool does not
+exercise them.
 
 Stays: the conversion of terms, the numbering and identification of
 names, what the tool reports.
