@@ -33,7 +33,7 @@
 From Stdlib Require Import ZArith List Bool Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaMapProofs FlambdaSemanticsSpec.
+  FlambdaMapProofs FlambdaSemanticsSpec FlambdaClosuresSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
   FlambdaBindingTime FlambdaEnvAliases FlambdaEnvAliasesSpec
@@ -331,9 +331,9 @@ Proof.
     split; [ exact Hextends | ]. split; [ exact Henv | ].
     split; [ | exact Hnames ].
     rewrite extract_value_map. apply Hfits, Ha.
-  - intros statics valuation Henv H1 H2.
+  - intros statics valuation Hstatics Henv H1 H2.
     apply Hsatisfied in H1. apply Hsatisfied in H2.
-    destruct (Hsound statics valuation Henv H1 H2)
+    destruct (Hsound statics valuation Hstatics Henv H1 H2)
       as (r & menv' & valuation' & -> & Hextended & Henv' & Ha & Hvalued).
     exists (map_return_value f r), menv', valuation'.
     split; [ apply map_result_ok_eq | ]. split; [ exact Hextended | ].
@@ -346,6 +346,7 @@ Lemma meet_call_ok_bottom {A : Type} (fits : Typing_env.t -> A -> Prop)
     (satisfied : static_env -> env -> A -> Prop) (menv : Meet_env.t)
     (a1 a2 : A) (r : meet_return_value unit) :
   (∀ (statics : static_env) (valuation : env),
+     statics_valid statics ->
      typing_env_satisfied_strictly statics valuation
        (Meet_env.typing_env menv) ->
      satisfied statics valuation a1 -> satisfied statics valuation a2 ->
@@ -355,8 +356,8 @@ Lemma meet_call_ok_bottom {A : Type} (fits : Typing_env.t -> A -> Prop)
 Proof.
   intros Hnone. split.
   - intros r' menv' Hresult. discriminate Hresult.
-  - intros statics valuation Henv H1 H2.
-    destruct (Hnone statics valuation Henv H1 H2).
+  - intros statics valuation Hstatics Henv H1 H2.
+    destruct (Hnone statics valuation Hstatics Henv H1 H2).
 Qed.
 
 (* A call that answers in the environment that it was given is right if
@@ -367,6 +368,7 @@ Lemma meet_call_ok_same_env {A : Type} (fits : Typing_env.t -> A -> Prop)
   typing_env_fits (Meet_env.typing_env menv) ->
   fits (Meet_env.typing_env menv) (extract_value r a1 a2) ->
   (∀ (statics : static_env) (valuation : env),
+     statics_valid statics ->
      satisfied statics valuation a1 -> satisfied statics valuation a2 ->
      satisfied statics valuation (extract_value r a1 a2)) ->
   meet_call_ok fits satisfied menv a1 a2
@@ -376,10 +378,10 @@ Proof.
   - intros r' menv' [= <- <-].
     split; [ apply meet_env_extends_refl | ]. split; [ assumption | ].
     split; [ assumption | apply new_names_avoided_refl ].
-  - intros statics valuation Hvaluation H1 H2.
+  - intros statics valuation Hstatics Hvaluation H1 H2.
     exists r, menv, valuation. split; [ reflexivity | ].
     split; [ apply extended_from_refl | ]. split; [ exact Hvaluation | ].
-    split; [ exact (Hsatisfied statics valuation H1 H2) | ].
+    split; [ exact (Hsatisfied statics valuation Hstatics H1 H2) | ].
     intros cut_after Hvalued. exact Hvalued.
 Qed.
 
@@ -392,11 +394,11 @@ Proof.
   - destruct (contents_is_bottom c1) eqn:Hb1;
       destruct (contents_is_bottom c2) eqn:Hb2; cbn in Hmeet.
     + injection Hmeet as <-. apply meet_call_ok_bottom.
-      intros statics valuation _ H1 _. exact (Hbottom _ _ _ Hb1 H1).
+      intros statics valuation _ _ H1 _. exact (Hbottom _ _ _ Hb1 H1).
     + injection Hmeet as <-. apply meet_call_ok_bottom.
-      intros statics valuation _ H1 _. exact (Hbottom _ _ _ Hb1 H1).
+      intros statics valuation _ _ H1 _. exact (Hbottom _ _ _ Hb1 H1).
     + injection Hmeet as <-. apply meet_call_ok_bottom.
-      intros statics valuation _ _ H2. exact (Hbottom _ _ _ Hb2 H2).
+      intros statics valuation _ _ _ H2. exact (Hbottom _ _ _ Hb2 H2).
     + destruct (meet_contents menv c1 c2) as [ result0 | ] eqn:Hcontents;
         [ | discriminate ].
       injection Hmeet as <-.
@@ -408,17 +410,17 @@ Proof.
       * exact (Hok menv c1 c2 result0 Henv Hfits1 Hfits2 Hcontents).
   - destruct (contents_is_bottom c1) eqn:Hb1; injection Hmeet as <-.
     + apply meet_call_ok_bottom.
-      intros statics valuation _ H1 _. exact (Hbottom _ _ _ Hb1 H1).
+      intros statics valuation _ _ H1 _. exact (Hbottom _ _ _ Hb1 H1).
     + apply meet_call_ok_same_env; [ exact Henv | exact Hfits1 | ].
-      intros statics valuation H1 _. exact H1.
+      intros statics valuation _ H1 _. exact H1.
   - destruct (contents_is_bottom c2) eqn:Hb2; injection Hmeet as <-.
     + apply meet_call_ok_bottom.
-      intros statics valuation _ _ H2. exact (Hbottom _ _ _ Hb2 H2).
+      intros statics valuation _ _ _ H2. exact (Hbottom _ _ _ Hb2 H2).
     + apply meet_call_ok_same_env; [ exact Henv | exact Hfits2 | ].
-      intros statics valuation _ H2. exact H2.
+      intros statics valuation _ _ H2. exact H2.
   - injection Hmeet as <-.
     apply meet_call_ok_same_env; [ exact Henv | exact I | ].
-    intros statics valuation _ _. exact I.
+    intros statics valuation _ _ _. exact I.
 Qed.
 
 (* What [combine_meet_return_values] answers for a pair: each part of
@@ -455,9 +457,10 @@ Proof.
   cbn in Hmeet.
   destruct result_a as [ r_a | res_a menv1 ].
   { injection Hmeet as <-. apply meet_call_ok_bottom.
-    intros statics valuation Hvaluation H1 H2.
+    intros statics valuation Hstatics Hvaluation H1 H2.
     apply Hsatisfied_c in H1. apply Hsatisfied_c in H2.
-    destruct (Hsound_a statics valuation Hvaluation (proj1 H1) (proj1 H2))
+    destruct (Hsound_a statics valuation Hstatics Hvaluation (proj1 H1)
+                (proj1 H2))
       as (r & menv' & valuation' & Hresult & _).
     discriminate Hresult. }
   destruct (Hkeeps_a res_a menv1 eq_refl)
@@ -471,12 +474,13 @@ Proof.
   cbn in Hmeet.
   destruct result_b as [ r_b | res_b menv2 ].
   { injection Hmeet as <-. apply meet_call_ok_bottom.
-    intros statics valuation Hvaluation H1 H2.
+    intros statics valuation Hstatics Hvaluation H1 H2.
     apply Hsatisfied_c in H1. apply Hsatisfied_c in H2.
-    destruct (Hsound_a statics valuation Hvaluation (proj1 H1) (proj1 H2))
+    destruct (Hsound_a statics valuation Hstatics Hvaluation (proj1 H1)
+                (proj1 H2))
       as (r & menv' & valuation1 & Hresult & Hextended1 & Hvaluation1 & _).
     injection Hresult as <- <-.
-    destruct (Hsound_b statics valuation1 Hvaluation1
+    destruct (Hsound_b statics valuation1 Hstatics Hvaluation1
                 (Hstable_b2 statics _ valuation valuation1 left_b Hlb
                    Hextended1 (proj2 H1))
                 (Hstable_b2 statics _ valuation valuation1 right_b Hrb
@@ -504,14 +508,14 @@ Proof.
       * exact (Hstable_b1 menv menv2 left_b Hextends Hlb).
       * exact (Hstable_b1 menv menv2 right_b Hextends Hrb).
       * exact Hanswer_b.
-  - intros statics valuation Hvaluation H1 H2.
+  - intros statics valuation Hstatics Hvaluation H1 H2.
     apply Hsatisfied_c in H1. apply Hsatisfied_c in H2.
     destruct H1 as [Hsla Hslb], H2 as [Hsra Hsrb].
-    destruct (Hsound_a statics valuation Hvaluation Hsla Hsra)
+    destruct (Hsound_a statics valuation Hstatics Hvaluation Hsla Hsra)
       as (r & menv' & valuation1 & Hresult & Hextended1 & Hvaluation1
           & Hsanswer_a & Hvalued1).
     injection Hresult as <- <-.
-    destruct (Hsound_b statics valuation1 Hvaluation1
+    destruct (Hsound_b statics valuation1 Hstatics Hvaluation1
                 (Hstable_b2 statics _ valuation valuation1 left_b Hlb
                    Hextended1 Hslb)
                 (Hstable_b2 statics _ valuation valuation1 right_b Hrb
@@ -598,13 +602,13 @@ Proof.
     rewrite Hn in Hn'. injection Hn' as <-. exists c, n. auto. }
   destruct (set_meet Z.eqb (fun s : list Z => s) menv t1 t2)
     as [ r | r env' ].
-  - apply meet_call_ok_bottom. intros statics valuation _ H1 H2.
+  - apply meet_call_ok_bottom. intros statics valuation _ _ H1 H2.
     destruct (Hboth H1 H2) as (c & n & _ & _ & _ & Hin1 & Hin2).
     exact (Hcases n (conj Hin1 Hin2)).
   - destruct Hcases as (-> & s & Hextract & Hmem & Hne).
     apply meet_call_ok_same_env; [ exact Henv | | ].
     + rewrite Hextract. exact (Hne Hf1 Hf2).
-    + intros statics valuation H1 H2. rewrite Hextract.
+    + intros statics valuation _ H1 H2. rewrite Hextract.
       destruct (Hboth H1 H2) as (c & n & Hv & Hk & Hn & Hin1 & Hin2).
       exists c, n. split; [ exact Hv | ]. split; [ exact Hk | ].
       split; [ exact Hn | ]. apply Hmem. split; assumption.
@@ -623,12 +627,12 @@ Proof.
   destruct input1 as [ | a1 | ], input2 as [ | a2 | ];
     try (injection Hmeet as <-).
   all: try (apply meet_call_ok_bottom;
-            intros statics valuation _ H1 H2;
+            intros statics valuation _ _ H1 H2;
             first [ exact (Hbottom _ _ H1) | exact (Hbottom _ _ H2) ]).
   all: try (apply meet_call_ok_same_env;
             [ exact Henv
             | first [ exact Hfits1 | exact Hfits2 ]
-            | intros statics valuation H1 H2;
+            | intros statics valuation _ H1 H2;
               first [ exact H1 | exact H2 ] ]).
   exact (Helt a1 a2 result Hfits1 Hfits2 Hmeet).
 Qed.
@@ -831,6 +835,7 @@ Lemma mapping_fold_ok (todo : list K) :
     (∀ acc' : mapping_acc K A,
        final = Some (Or_bottom.Ok acc') -> keeps (done ++ todo) acc')
     ∧ ∀ (statics : static_env) (valuation0 valuation : env),
+        statics_valid statics ->
         (∀ (key : K) (a : A),
            get_left key = Some a -> satisfied key statics valuation0 a) ->
         (∀ (key : K) (a : A),
@@ -845,7 +850,7 @@ Proof.
     intros done acc final Hkeeps Hfold.
   - cbn in Hfold. subst final. rewrite app_nil_r. split.
     + intros acc' [= <-]. exact Hkeeps.
-    + intros statics valuation0 valuation _ _ Hsound _.
+    + intros statics valuation0 valuation Hstatics _ _ Hsound _.
       exists acc, valuation. split; [ reflexivity | exact Hsound ].
   - cbn [List.fold_left] in Hfold.
     destruct Hkeeps as (Hextends & Henv & Hnames & Hkeys & Hfits).
@@ -854,6 +859,7 @@ Proof.
     + (* The step answered. *)
       assert (Hkeeps1 : keeps (done ++ [key]) acc1
         ∧ ∀ (statics : static_env) (valuation0 valuation : env),
+            statics_valid statics ->
             (∀ (key : K) (a : A),
                get_left key = Some a -> satisfied key statics valuation0 a) ->
             (∀ (key : K) (a : A),
@@ -876,7 +882,7 @@ Proof.
             split; [ rewrite Hkeys; reflexivity | ].
             intros key' a' [ [= <- <-] | Hin ]; [ | exact (Hfits _ _ Hin) ].
             exact (proj1 (Hstable key) menv (mapping_env acc) a Hextends Ha).
-          + intros statics valuation0 valuation Hsl Hsr
+          + intros statics valuation0 valuation Hstatics Hsl Hsr
               (Hextended & Hvaluation & Hvalued & Hsat).
             exists valuation. unfold sound. rewrite Henv1, Hmapping.
             split; [ exact Hextended | ]. split; [ exact Hvaluation | ].
@@ -907,7 +913,7 @@ Proof.
             split; [ rewrite Hkeys; reflexivity | ].
             intros key' a' [ [= <- <-] | Hin ]; [ exact Hanswer | ].
             exact (proj1 (Hstable key') _ _ a' Hextends1 (Hfits _ _ Hin)).
-          + intros statics valuation0 valuation Hsl Hsr
+          + intros statics valuation0 valuation Hstatics Hsl Hsr
               (Hextended & Hvaluation & Hvalued & Hsat).
             assert (Hsa : satisfied key statics valuation a).
             { exact (proj2 (Hstable key) statics _ valuation0 valuation a
@@ -915,7 +921,7 @@ Proof.
             assert (Hsb : satisfied key statics valuation b).
             { exact (proj2 (Hstable key) statics _ valuation0 valuation b
                        (Hright key b Hr) Hextended (Hsr key b Hr)). }
-            destruct (Hsound_data statics valuation Hvaluation Hsa Hsb)
+            destruct (Hsound_data statics valuation Hstatics Hvaluation Hsa Hsb)
               as (r & menv' & valuation1 & Hresult & Hextended1 & Hvaluation1
                   & Hsanswer & Hvalued1).
             injection Hresult as <- <-.
@@ -936,14 +942,15 @@ Proof.
         as [IHkeeps IHsound].
       rewrite <- app_assoc in IHkeeps. cbn [app] in IHkeeps.
       split; [ exact IHkeeps | ].
-      intros statics valuation0 valuation Hsl Hsr Hsound Hfinal.
-      destruct (Hsound1 statics valuation0 valuation Hsl Hsr Hsound)
+      intros statics valuation0 valuation Hstatics Hsl Hsr Hsound Hfinal.
+      destruct (Hsound1 statics valuation0 valuation Hstatics Hsl Hsr Hsound)
         as (valuation1 & Hsound_acc1).
-      exact (IHsound statics valuation0 valuation1 Hsl Hsr Hsound_acc1 Hfinal).
+      exact (IHsound statics valuation0 valuation1 Hstatics Hsl Hsr
+               Hsound_acc1 Hfinal).
     + (* The step answered bottom: the meet of a component did. *)
       rewrite (mapping_fold_bottom step todo (fun _ => eq_refl)) in Hfold.
       subst final. split; [ intros acc' Hfinal; discriminate Hfinal | ].
-      intros statics valuation0 valuation Hsl Hsr
+      intros statics valuation0 valuation Hstatics Hsl Hsr
         (Hextended & Hvaluation & Hvalued & Hsat) _.
       exfalso. unfold step, mapping_step in Hstep.
       destruct (get_left key) as [ a | ] eqn:Hl;
@@ -956,7 +963,7 @@ Proof.
       { exact (proj1 (Hstable key) menv _ b Hextends (Hright key b Hr)). }
       destruct (Hok key (mapping_env acc) a b _ Henv Ha Hb Hmeet)
         as [_ Hsound_data].
-      destruct (Hsound_data statics valuation Hvaluation
+      destruct (Hsound_data statics valuation Hstatics Hvaluation
                   (proj2 (Hstable key) statics _ valuation0 valuation a
                      (Hleft key a Hl) Hextended (Hsl key a Hl))
                   (proj2 (Hstable key) statics _ valuation0 valuation b
@@ -966,8 +973,8 @@ Proof.
     + (* The step stopped. *)
       rewrite (mapping_fold_none step todo (fun _ => eq_refl)) in Hfold.
       subst final. split; [ intros acc' Hfinal; discriminate Hfinal | ].
-      intros statics valuation0 valuation _ _ _ Hfinal. destruct Hfinal.
-      reflexivity.
+      intros statics valuation0 valuation Hstatics _ _ _ Hfinal.
+      destruct Hfinal. reflexivity.
 Qed.
 
 End Mapping.
@@ -1026,8 +1033,8 @@ Proof.
       split; [ exact Hnames | ].
       intros m Hm. exists (mapping res).
       split; [ exact (Hnew m Hm) | ]. split; [ exact Hkeys | exact Hfits ].
-    + intros statics valuation Hvaluation Hsl Hsr.
-      destruct (Hsound statics valuation valuation Hsl Hsr) as
+    + intros statics valuation Hstatics Hvaluation Hsl Hsr.
+      destruct (Hsound statics valuation valuation Hstatics Hsl Hsr) as
         (acc' & valuation' & Hacc' & Hextended & Hvaluation' & Hvalued
          & Hsat).
       { split; [ apply extended_from_refl | ]. split; [ exact Hvaluation | ].
@@ -1043,8 +1050,8 @@ Proof.
       exact (Hsat key a Hin).
   - injection Hmeet as <-. split.
     + intros r menv' Hresult. discriminate Hresult.
-    + intros statics valuation Hvaluation Hsl Hsr.
-      destruct (Hsound statics valuation valuation Hsl Hsr) as
+    + intros statics valuation Hstatics Hvaluation Hsl Hsr.
+      destruct (Hsound statics valuation valuation Hstatics Hsl Hsr) as
         (acc' & valuation' & Hacc' & _).
       { split; [ apply extended_from_refl | ]. split; [ exact Hvaluation | ].
         split; [ apply keeps_equations_valued_refl | ]. intros key a []. }

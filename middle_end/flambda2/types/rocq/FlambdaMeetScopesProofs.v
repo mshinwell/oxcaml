@@ -32,7 +32,7 @@
 From Stdlib Require Import ZArith List Bool Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaMapProofs FlambdaSemanticsSpec.
+  FlambdaMapProofs FlambdaSemanticsSpec FlambdaClosuresSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
   FlambdaTypeWellFormedSpec FlambdaTypeWellFormedProofs
@@ -1052,17 +1052,18 @@ Lemma add_optional_extension_sound (statics : static_env) (valuation : env)
     (result : Or_bottom.t Meet_env.t) :
   typing_env_fits (Meet_env.typing_env menv) ->
   optional_extension_fits (Meet_env.typing_env menv) extension ->
+  statics_valid statics ->
   typing_env_satisfied_strictly statics valuation (Meet_env.typing_env menv) ->
   optional_extension_satisfied statics valuation extension ->
   add_optional_extension mh (Or_bottom.Ok menv) extension = Some result ->
   meet_env_sound statics valuation menv result.
 Proof.
-  intros Hfits Hextension Hsatisfied Htrue Hadd.
+  intros Hfits Hextension Hstatics Hsatisfied Htrue Hadd.
   destruct extension as [ extension | ]; cbn in Hadd.
   - destruct Hextension as (_ & Hextension & Hkinded).
     exact (meet_env_add_env_extension_strict_sound mh statics valuation menv
              extension result Hkeeps Hsound Hfits Hextension Hkinded
-             Hsatisfied Htrue Hadd).
+             Hstatics Hsatisfied Htrue Hadd).
   - injection Hadd as <-. exists menv. split; [ reflexivity | ].
     exact (meet_env_added_refl statics valuation menv Hsatisfied).
 Qed.
@@ -1121,6 +1122,7 @@ Qed.
 (* One side loses no value. *)
 Lemma side_sound (statics : static_env) (valuation : env)
     (env1 env2 : Or_bottom.t Meet_env.t) (result : Meet_result.t C) :
+  statics_valid statics ->
   typing_env_satisfied_strictly statics valuation (Meet_env.typing_env base) ->
   optional_extension_satisfied statics valuation extension1 ->
   optional_extension_satisfied statics valuation extension2 ->
@@ -1138,9 +1140,9 @@ Lemma side_sound (statics : static_env) (valuation : env)
     ∧ keeps_equations_valued (Meet_env.typing_env base)
         (Meet_env.typing_env env_c) valuation valuation'.
 Proof.
-  intros Hsatisfied Htrue1 Htrue2 Hv1 Hv2 Hadd1 Hadd2 Hside.
+  intros Hstatics Hsatisfied Htrue1 Htrue2 Hv1 Hv2 Hadd1 Hadd2 Hside.
   destruct (add_optional_extension_sound statics valuation base extension1
-              env1 Hfits Hextension1 Hsatisfied Htrue1 Hadd1)
+              env1 Hfits Hextension1 Hstatics Hsatisfied Htrue1 Hadd1)
     as (menv1 & -> & valuation1 & Hextended1 & Hsatisfied1 & Hvalued1).
   destruct (add_optional_extension_keeps base menv1 extension1 Hfits
               Hextension1 Hadd1) as [[Hextends1 Hfits1] _].
@@ -1148,7 +1150,7 @@ Proof.
   assert (Hextension2' := optional_extension_fits_kept _ _ _ Hknows1
                             Hextension2).
   destruct (add_optional_extension_sound statics valuation1 menv1 extension2
-              env2 Hfits1 Hextension2' Hsatisfied1
+              env2 Hfits1 Hextension2' Hstatics Hsatisfied1
               (optional_extension_satisfied_extended statics _ valuation
                  valuation1 extension2 Hextension2 Hextended1 Htrue2) Hadd2)
     as (menv2 & -> & valuation2 & Hextended2 & Hsatisfied2 & Hvalued2).
@@ -1168,7 +1170,7 @@ Proof.
               (proj1 Hstable base menv2 c1 Hextends12 Hc1)
               (proj1 Hstable base menv2 c2 Hextends12 Hc2) Hmeet)
     as [_ Hlost].
-  destruct (Hlost statics valuation2 Hsatisfied2
+  destruct (Hlost statics valuation2 Hstatics Hsatisfied2
               (proj2 Hstable statics _ valuation valuation2 c1 Hc1 Hextended12
                  Hv1)
               (proj2 Hstable statics _ valuation valuation2 c2 Hc2 Hextended12
@@ -1346,6 +1348,7 @@ Qed.
 Lemma direct_return_sound {R : Type} (statics : static_env)
     (valuation valuation_s : env) (r : meet_return_value R)
     (result : Meet_result.t R) :
+  statics_valid statics ->
   typing_env_satisfied_strictly statics valuation tenv ->
   extended_from tenv valuation valuation_s ->
   typing_env_satisfied_strictly statics valuation_s stenv ->
@@ -1361,7 +1364,7 @@ Lemma direct_return_sound {R : Type} (statics : static_env)
     ∧ keeps_equations_valued tenv (Meet_env.typing_env result_env) valuation
         valuation'.
 Proof.
-  intros Hsatisfied Hextended Hsatisfied_s Hvalued_s Hreturn.
+  intros Hstatics Hsatisfied Hextended Hsatisfied_s Hvalued_s Hreturn.
   unfold direct_return in Hreturn.
   rewrite (scoped_cut tenv stenv alternative_scoped) in Hreturn.
   cbv beta iota in Hreturn.
@@ -1412,7 +1415,7 @@ Proof.
                  alternative_scoped))
     as (_ & Hextension & Hkinded).
   destruct (meet_env_add_env_extension_strict_sound mh statics valuation_s
-              menv1 _ added Hkeeps Hsound Hfits1 Hextension Hkinded
+              menv1 _ added Hkeeps Hsound Hfits1 Hextension Hkinded Hstatics
               Hsatisfied1 Htrue Hadd)
     as (menv2 & -> & valuation' & Hextended' & Hsatisfied' & Hvalued').
   injection Hreturn as <-.
@@ -1615,6 +1618,7 @@ Qed.
 Lemma joined_sound (scoped_env : Typing_env.t) (statics : static_env)
     (valuation : env) :
   scoped_env ∈ [tenv_a; tenv_b] ->
+  statics_valid statics ->
   typing_env_satisfied_strictly statics valuation tenv ->
   typing_env_satisfied_strictly statics valuation scoped_env ->
   equations_valued scoped_env (Typing_env.current_scope tenv) valuation ->
@@ -1767,6 +1771,7 @@ Qed.
 Lemma join_return_env_sound (statics : static_env)
     (valuation valuation_x : env) (scoped_x : Typing_env.t) :
   scoped_x = tenv_a ∨ scoped_x = tenv_b ->
+  statics_valid statics ->
   typing_env_satisfied_strictly statics valuation tenv ->
   extended_from tenv valuation valuation_x ->
   typing_env_satisfied_strictly statics valuation_x scoped_x ->
@@ -1779,10 +1784,10 @@ Lemma join_return_env_sound (statics : static_env)
     ∧ keeps_equations_valued tenv (Meet_env.typing_env menv2) valuation
         valuation'.
 Proof.
-  intros Hwhich Hsatisfied Hextended Hsatisfied_x Hvalued_x.
+  intros Hwhich Hstatics Hsatisfied Hextended Hsatisfied_x Hvalued_x.
   assert (Hin : scoped_x ∈ [tenv_a; tenv_b]).
   { destruct Hwhich as [ -> | -> ]; [ left | right; left ]; reflexivity. }
-  destruct (joined_sound scoped_x statics valuation_x Hin
+  destruct (joined_sound scoped_x statics valuation_x Hin Hstatics
               (satisfied_strictly_extended statics tenv valuation valuation_x
                  (proj1 (proj1 Hfits)) Hextended Hsatisfied)
               Hsatisfied_x
@@ -2076,6 +2081,7 @@ Proof.
   (* The two sides lose no value. *)
   assert (Hlost_a :
     ∀ (statics : static_env) (valuation : env),
+      statics_valid statics ->
       typing_env_satisfied_strictly statics valuation tenv ->
       satisfied_a statics valuation a1
       ∧ optional_extension_satisfied statics valuation (extension_when_a e1)
@@ -2091,11 +2097,11 @@ Proof.
         ∧ satisfied_a statics valuation' (extract_value r a1 a2)
         ∧ keeps_equations_valued (Meet_env.typing_env base_a)
             (Meet_env.typing_env env_a) valuation valuation').
-  { intros statics valuation Hsatisfied [Hv1 Htrue1] [Hv2 Htrue2].
+  { intros statics valuation Hstatics Hsatisfied [Hv1 Htrue1] [Hv2 Htrue2].
     destruct (side_sound fits_a satisfied_a mh meet_a Hkeeps Hsound Hstable_a
                 Hmeet_a base_a (extension_when_a e1) (extension_when_a e2) a1
                 a2 Hfits_base_a Hea1 Hea2 Ha1_fits Ha2_fits statics valuation
-                env_a1 env_a2 a_result
+                env_a1 env_a2 a_result Hstatics
                 (Hsatisfied_base_a statics valuation Hsatisfied) Htrue1 Htrue2
                 Hv1 Hv2 Ha1 Ha2 Ha3)
       as (r & env_a & valuation' & Heq & Hextended & Hrest).
@@ -2103,6 +2109,7 @@ Proof.
     split; [ exact (Hextended_base_a _ _ Hextended) | exact Hrest ]. }
   assert (Hlost_b :
     ∀ (statics : static_env) (valuation : env),
+      statics_valid statics ->
       typing_env_satisfied_strictly statics valuation tenv ->
       satisfied_b statics valuation b1
       ∧ optional_extension_satisfied statics valuation (extension_when_b e1)
@@ -2118,11 +2125,11 @@ Proof.
         ∧ satisfied_b statics valuation' (extract_value r b1 b2)
         ∧ keeps_equations_valued (Meet_env.typing_env base_b)
             (Meet_env.typing_env env_b) valuation valuation').
-  { intros statics valuation Hsatisfied [Hv1 Htrue1] [Hv2 Htrue2].
+  { intros statics valuation Hstatics Hsatisfied [Hv1 Htrue1] [Hv2 Htrue2].
     destruct (side_sound fits_b satisfied_b mh meet_b Hkeeps Hsound Hstable_b
                 Hmeet_b base_b (extension_when_b e1) (extension_when_b e2) b1
                 b2 Hfits_base_b Heb1 Heb2 Hb1_fits Hb2_fits statics valuation
-                env_b1 env_b2 b_result
+                env_b1 env_b2 b_result Hstatics
                 (Hsatisfied_base_b statics valuation Hsatisfied) Htrue1 Htrue2
                 Hv1 Hv2 Hb1 Hb2 Hb3)
       as (r & env_b & valuation' & Heq & Hextended & Hrest).
@@ -2156,12 +2163,12 @@ Proof.
     destruct a_result as [ ra0 | ra env_a ]; cbv beta iota in Hmeet.
   - (* Both sides are bottom. *)
     injection Hmeet as <-. split; [ intros r menv' Heq; discriminate Heq | ].
-    intros statics valuation Hsatisfied Hv1 Hv2. exfalso.
+    intros statics valuation Hstatics Hsatisfied Hv1 Hv2. exfalso.
     destruct (Hsides statics valuation Hv1 Hv2) as [ [Hs1 Hs2] | [Hs1 Hs2] ].
-    + destruct (Hlost_a statics valuation Hsatisfied Hs1 Hs2)
+    + destruct (Hlost_a statics valuation Hstatics Hsatisfied Hs1 Hs2)
         as (r & env_c & valuation' & Heq & _).
       discriminate Heq.
-    + destruct (Hlost_b statics valuation Hsatisfied Hs1 Hs2)
+    + destruct (Hlost_b statics valuation Hstatics Hsatisfied Hs1 Hs2)
         as (r & env_c & valuation' & Heq & _).
       discriminate Heq.
   - (* The second side is bottom. *)
@@ -2183,18 +2190,18 @@ Proof.
       * exact (proj1 disjunction_stable menv menv' x2 Hextends Hx2).
       * split; [ exact (Hkinds_a _ _ _ Hknows Hanswer_a) | ].
         split; [ apply Hbottom_b | split; exact I ].
-    + intros statics valuation Hsatisfied Hv1 Hv2.
+    + intros statics valuation Hstatics Hsatisfied Hv1 Hv2.
       destruct (Hsides statics valuation Hv1 Hv2) as [ [Hs1 Hs2] | [Hs1 Hs2] ].
-      2:{ destruct (Hlost_b statics valuation Hsatisfied Hs1 Hs2)
+      2:{ destruct (Hlost_b statics valuation Hstatics Hsatisfied Hs1 Hs2)
             as (r & env_c & valuation' & Heq & _).
           discriminate Heq. }
-      destruct (Hlost_a statics valuation Hsatisfied Hs1 Hs2)
+      destruct (Hlost_a statics valuation Hstatics Hsatisfied Hs1 Hs2)
         as (r & env_c & valuation_a & Heq & Hextended_a & Hsatisfied_a
             & Htrue_a & Hvalued_a).
       injection Heq as <- <-.
       destruct (direct_return_sound choices Hchoice mh Hkeeps Hsound menv
                   base_a env_a Hfits Hbase_a Hextends_a Hfits_a statics
-                  valuation valuation_a _ result Hsatisfied Hextended_a
+                  valuation valuation_a _ result Hstatics Hsatisfied Hextended_a
                   Hsatisfied_a Hvalued_a Hmeet)
         as (result_env & valuation' & -> & Hextended' & Hsatisfied'
             & Hvalued').
@@ -2236,18 +2243,18 @@ Proof.
       * exact (proj1 disjunction_stable menv menv' x2 Hextends Hx2).
       * split; [ apply Hbottom_a | ].
         split; [ exact (Hkinds_b _ _ _ Hknows Hanswer_b) | split; exact I ].
-    + intros statics valuation Hsatisfied Hv1 Hv2.
+    + intros statics valuation Hstatics Hsatisfied Hv1 Hv2.
       destruct (Hsides statics valuation Hv1 Hv2) as [ [Hs1 Hs2] | [Hs1 Hs2] ].
-      { destruct (Hlost_a statics valuation Hsatisfied Hs1 Hs2)
+      { destruct (Hlost_a statics valuation Hstatics Hsatisfied Hs1 Hs2)
           as (r & env_c & valuation' & Heq & _).
         discriminate Heq. }
-      destruct (Hlost_b statics valuation Hsatisfied Hs1 Hs2)
+      destruct (Hlost_b statics valuation Hstatics Hsatisfied Hs1 Hs2)
         as (r & env_c & valuation_b & Heq & Hextended_b & Hsatisfied_b
             & Htrue_b & Hvalued_b).
       injection Heq as <- <-.
       destruct (direct_return_sound choices Hchoice mh Hkeeps Hsound menv
                   base_b env_b Hfits Hbase_b Hextends_b Hfits_b statics
-                  valuation valuation_b _ result Hsatisfied Hextended_b
+                  valuation valuation_b _ result Hstatics Hsatisfied Hextended_b
                   Hsatisfied_b Hvalued_b Hmeet)
         as (result_env & valuation' & -> & Hextended' & Hsatisfied'
             & Hvalued').
@@ -2353,11 +2360,11 @@ Proof.
         split.
         -- exact (extension_fits_kept _ _ _ Hknows_a Hextension_a).
         -- exact (extension_fits_kept _ _ _ Hknows_b Hextension_b).
-    + intros statics valuation Hsatisfied Hv1 Hv2.
+    + intros statics valuation Hstatics Hsatisfied Hv1 Hv2.
       assert (Hbase_valued :=
         increment_scope_valued tenv valuation (proj1 Hfits)).
       destruct (Hsides statics valuation Hv1 Hv2) as [ [Hs1 Hs2] | [Hs1 Hs2] ].
-      * destruct (Hlost_a statics valuation Hsatisfied Hs1 Hs2)
+      * destruct (Hlost_a statics valuation Hstatics Hsatisfied Hs1 Hs2)
           as (r & env_c & valuation_a & Heq & Hextended_a & Hsatisfied_a
               & Htrue_a & Hvalued_a).
         injection Heq as <- <-.
@@ -2367,7 +2374,8 @@ Proof.
                     (fun x Hx => Hx) Hextends_b Hfits_b Hnames_b result_env
                     menv1 menv2 Hjoined Hdefined_a Hdefined_b statics
                     valuation valuation_a (Meet_env.typing_env env_a)
-                    (or_introl eq_refl) Hsatisfied Hextended_a Hsatisfied_a
+                    (or_introl eq_refl) Hstatics Hsatisfied Hextended_a
+                    Hsatisfied_a
                     Hvalued_a)
           as (valuation' & Hextended' & Hsatisfied' & Hvalued').
         assert (Hextended : extended_from tenv valuation valuation').
@@ -2398,7 +2406,7 @@ Proof.
               exact (scoped_extension_satisfied tenv _ Hfits_a Hscoped_a
                        statics valuation_a Hsatisfied_a
                        (Hvalued_a _ Hbase_valued)).
-      * destruct (Hlost_b statics valuation Hsatisfied Hs1 Hs2)
+      * destruct (Hlost_b statics valuation Hstatics Hsatisfied Hs1 Hs2)
           as (r & env_c & valuation_b & Heq & Hextended_b & Hsatisfied_b
               & Htrue_b & Hvalued_b).
         injection Heq as <- <-.
@@ -2409,7 +2417,8 @@ Proof.
                     (fun x Hx => Hx) Hextends_b Hfits_b Hnames_b result_env
                     menv1 menv2 Hjoined Hdefined_a Hdefined_b statics
                     valuation valuation_b (Meet_env.typing_env env_b)
-                    (or_intror eq_refl) Hsatisfied Hextended_b Hsatisfied_b
+                    (or_intror eq_refl) Hstatics Hsatisfied Hextended_b
+                    Hsatisfied_b
                     Hvalued_b)
           as (valuation' & Hextended' & Hsatisfied' & Hvalued').
         assert (Hextended : extended_from tenv valuation valuation').

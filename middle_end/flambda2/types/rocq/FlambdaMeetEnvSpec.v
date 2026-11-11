@@ -43,7 +43,9 @@
    valuation is supposed. The second (its name begins with [meet_env_]
    and ends in [_sound]) is about a valuation that satisfies the
    environment given, strictly, and under which what is added is
-   true: the name has a value, of the type given for it. Then the
+   true: the name has a value, of the type given for it. The static
+   environment is valid ([statics_valid]: FlambdaMeetSpec.v says
+   why). Then the
    function does not answer bottom, and a valuation that agrees with
    the first on what the environment knew satisfies the environment
    answered; and no equation has been added on a name that has no
@@ -109,7 +111,7 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec.
+  FlambdaSemanticsSpec FlambdaClosuresSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
   FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
@@ -305,6 +307,7 @@ Definition meet_env_add_equation_on_simple_sound_statement : Prop :=
     typing_env_fits (Meet_env.typing_env menv) ->
     type_fits (Meet_env.typing_env menv) ty ->
     simple_of_kind (Meet_env.typing_env menv) s (kind ty) ->
+    statics_valid statics ->
     typing_env_satisfied_strictly statics valuation (Meet_env.typing_env menv)
     ->
     eval_simple valuation s = Some v ->
@@ -321,6 +324,7 @@ Definition meet_env_add_equation_sound_statement : Prop :=
     typing_env_fits (Meet_env.typing_env menv) ->
     type_fits (Meet_env.typing_env menv) ty ->
     simple_of_kind (Meet_env.typing_env menv) (simple_of_name n) (kind ty) ->
+    statics_valid statics ->
     typing_env_satisfied_strictly statics valuation (Meet_env.typing_env menv)
     ->
     value_of_name valuation n = Some v ->
@@ -338,6 +342,7 @@ Definition meet_env_add_equation_strict_sound_statement : Prop :=
     typing_env_fits (Meet_env.typing_env menv) ->
     type_fits (Meet_env.typing_env menv) ty ->
     simple_of_kind (Meet_env.typing_env menv) (simple_of_name n) (kind ty) ->
+    statics_valid statics ->
     typing_env_satisfied_strictly statics valuation (Meet_env.typing_env menv)
     ->
     value_of_name valuation n = Some v ->
@@ -356,6 +361,7 @@ Definition meet_env_add_env_extension_sound_statement : Prop :=
     typing_env_fits (Meet_env.typing_env menv) ->
     env_extension_fits (Meet_env.typing_env menv) extension ->
     env_extension_kinded (Meet_env.typing_env menv) extension ->
+    statics_valid statics ->
     typing_env_satisfied_strictly statics valuation (Meet_env.typing_env menv)
     ->
     env_extension_satisfied statics valuation extension ->
@@ -372,6 +378,7 @@ Definition meet_env_add_env_extension_strict_sound_statement : Prop :=
     typing_env_fits (Meet_env.typing_env menv) ->
     env_extension_fits (Meet_env.typing_env menv) extension ->
     env_extension_kinded (Meet_env.typing_env menv) extension ->
+    statics_valid statics ->
     typing_env_satisfied_strictly statics valuation (Meet_env.typing_env menv)
     ->
     env_extension_satisfied statics valuation extension ->
@@ -388,6 +395,7 @@ Definition meet_env_add_alias_sound_statement : Prop :=
     typing_env_fits (Meet_env.typing_env menv) ->
     simple_of_kind (Meet_env.typing_env menv) s1 kind ->
     simple_of_kind (Meet_env.typing_env menv) s2 kind ->
+    statics_valid statics ->
     typing_env_satisfied_strictly statics valuation (Meet_env.typing_env menv)
     ->
     eval_simple valuation s1 = Some v ->
@@ -410,6 +418,7 @@ Definition meet_env_add_equations_on_params_sound_statement : Prop :=
          ∧ simple_of_kind (Meet_env.typing_env menv) (Var (fst param))
              (kind ty))
       params param_types ->
+    statics_valid statics ->
     typing_env_satisfied_strictly statics valuation (Meet_env.typing_env menv)
     ->
     Forall2

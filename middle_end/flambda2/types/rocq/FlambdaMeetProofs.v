@@ -33,7 +33,7 @@
 From Stdlib Require Import ZArith List Bool Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaMapProofs FlambdaSemanticsSpec.
+  FlambdaMapProofs FlambdaSemanticsSpec FlambdaClosuresSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
   FlambdaTypeWellFormedSpec FlambdaBindingTime FlambdaEnvAliases
@@ -50,10 +50,11 @@ Import ListNotations.
 
 Theorem meet_answers_bottom : meet_answers_bottom_statement.
 Proof.
-  intros meet Hsound statics valuation tenv t1 t2 v Hinputs Hsatisfied Hmeet
-    [Ht1 Ht2].
+  intros meet Hsound statics valuation tenv t1 t2 v Hinputs Hstatics
+    Hsatisfied Hmeet [Ht1 Ht2].
   destruct
-    (Hsound statics valuation tenv t1 t2 v _ Hinputs Hsatisfied Ht1 Ht2 Hmeet)
+    (Hsound statics valuation tenv t1 t2 v _ Hinputs Hstatics Hsatisfied Ht1
+       Ht2 Hmeet)
     as [t [tenv' [valuation' [Hresult _]]]].
   discriminate Hresult.
 Qed.
@@ -61,7 +62,7 @@ Qed.
 Theorem add_equation_no_poison : add_equation_no_poison_statement.
 Proof.
   intros add_equation Hsound statics valuation tenv tenv' n ty v Hfits Hty
-    Hsatisfied Hpoison Hvalue Hv Hadd.
+    Hstatics Hsatisfied Hpoison Hvalue Hv Hadd.
   apply (Hsound statics valuation tenv tenv' n ty v Hfits Hty); try assumption.
   apply satisfied_no_poison_strictly; assumption.
 Qed.

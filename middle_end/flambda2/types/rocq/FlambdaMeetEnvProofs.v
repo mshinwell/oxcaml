@@ -33,7 +33,8 @@
 From Stdlib Require Import ZArith List Bool Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaMapProofs FlambdaSemanticsSpec FlambdaPrimitiveProofs.
+  FlambdaMapProofs FlambdaSemanticsSpec FlambdaPrimitiveProofs
+  FlambdaClosuresSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
   FlambdaTypeWellFormedSpec FlambdaTypeWellFormedProofs
@@ -1963,6 +1964,7 @@ Variable mh : meet_expanded_head.
 Hypothesis Hkeeps : meet_expanded_head_keeps mh.
 Hypothesis Hsound : meet_expanded_head_sound mh.
 Variable statics : static_env.
+Hypothesis Hstatics : statics_valid statics.
 
 (* [replace_concrete_equation]: the name has a value, of the type. *)
 Lemma replace_concrete_equation_sound (tenv tenv' : Typing_env.t) (n : name)
@@ -2055,7 +2057,7 @@ Proof.
     exact (find_satisfied_strictly statics valuation _ n _ existing v
              Hsatisfied Hfind Hvalue). }
   destruct (Hsound statics valuation menv ty existing_ty v result0 Hinputs
-              Hsatisfied Hv Hv2 Hmeet)
+              Hstatics Hsatisfied Hv Hv2 Hmeet)
     as (r & menv1 & valuation1 & -> & Hextended1 & Hsatisfied1 & Hanswer
         & Hvalued1).
   assert (Hvalue1 : value_of_name valuation1 n = Some v).
@@ -2154,8 +2156,8 @@ Proof.
     - apply type_fits_create_const.
     - rewrite (proj2 (create_const_kind c)). symmetry. exact Hkind. }
   destruct (Hsound statics valuation menv ty _ (Value_const c) result0
-              Hinputs Hsatisfied Hv (create_const_sound statics valuation c)
-              Hmeet)
+              Hinputs Hstatics Hsatisfied Hv
+              (create_const_sound statics valuation c) Hmeet)
     as (r & menv1 & valuation1 & -> & Hextended1 & Hsatisfied1 & _
         & Hvalued1).
   cbn in Hadd. injection Hadd as <-.
@@ -2556,6 +2558,7 @@ Variable mh : meet_expanded_head.
 Hypothesis Hkeeps : meet_expanded_head_keeps mh.
 Hypothesis Hsound : meet_expanded_head_sound mh.
 Variable statics : static_env.
+Hypothesis Hstatics : statics_valid statics.
 
 (* The canonical element of the alias that a type is has the value
    that has the type. *)
@@ -2654,7 +2657,7 @@ Proof.
       rewrite (proj2 (of_non_alias_type_kind _ _ Hexpanded2)).
       exact Hkinds. }
     destruct (Hsound statics valuation menv expanded1 expanded2 v result
-                Hinputs Hsatisfied
+                Hinputs Hstatics Hsatisfied
                 (of_non_alias_type_sound _ _ _ _ _ Hexpanded1 Hv1)
                 (of_non_alias_type_sound _ _ _ _ _ Hexpanded2 Hv2) Hmeet)
       as (r & menv' & valuation' & -> & Hextended & Hsatisfied' & Hanswer
@@ -2683,7 +2686,7 @@ Proof.
     destruct (alias_canonical_of_kind tenv t2 alias2 Hfits Ht2 Halias2)
       as [_ Hkind_canonical].
     destruct (add_or_delay_concrete_equation_on_canonical_sound mh Hsound
-                statics menv
+                statics Hstatics menv
                 (Typing_env.get_canonical_simple_ignoring_name_mode tenv
                    alias2)
                 expanded1 valuation v result0 Hfits)
@@ -2714,7 +2717,7 @@ Proof.
     destruct (alias_canonical_of_kind tenv t1 alias1 Hfits Ht1 Halias1)
       as [_ Hkind_canonical].
     destruct (add_or_delay_concrete_equation_on_canonical_sound mh Hsound
-                statics menv
+                statics Hstatics menv
                 (Typing_env.get_canonical_simple_ignoring_name_mode tenv
                    alias1)
                 expanded2 valuation v result0 Hfits)
@@ -2743,7 +2746,7 @@ Proof.
       as [Hcanonical2 Hkind_canonical2].
     rewrite <- Hkinds in Hkind_canonical2.
     destruct (add_alias_between_canonicals_sound mh Hsound
-                statics menv (kind t1) _ _ valuation v result0 Hfits
+                statics Hstatics menv (kind t1) _ _ valuation v result0 Hfits
                 Hcanonical1 Hcanonical2 Hkind_canonical1 Hkind_canonical2
                 Hsatisfied
                 (alias_canonical_value tenv t1 alias1 valuation v Hsatisfied
@@ -2768,21 +2771,21 @@ Theorem meet_env_add_equation_on_simple_sound
     : meet_env_add_equation_on_simple_sound_statement.
 Proof.
   intros mh statics valuation menv menv' s ty v Hkeeps Hsound Hfits
-    Hty Hkind Hsatisfied Hvalue Hv Hadd.
+    Hty Hkind Hstatics Hsatisfied Hvalue Hv Hadd.
   apply (bottom_on_exception_sound statics menv menv' _ valuation) in Hadd;
     [ exact Hadd | ].
   intros result0 Hresult.
-  exact (add_equation_on_simple0_sound mh Hsound statics menv s ty
+  exact (add_equation_on_simple0_sound mh Hsound statics Hstatics menv s ty
            valuation v result0 Hfits Hty Hkind Hsatisfied Hvalue Hv Hresult).
 Qed.
 
 Theorem meet_env_add_equation_sound : meet_env_add_equation_sound_statement.
 Proof.
   intros mh statics valuation menv menv' n ty v Hkeeps Hsound Hfits
-    Hty Hkind Hsatisfied Hvalue Hv Hadd.
+    Hty Hkind Hstatics Hsatisfied Hvalue Hv Hadd.
   exact (meet_env_add_equation_on_simple_sound mh statics valuation
            menv menv' (simple_of_name n) ty v Hkeeps Hsound Hfits Hty Hkind
-           Hsatisfied Hvalue Hv Hadd).
+           Hstatics Hsatisfied Hvalue Hv Hadd).
 Qed.
 
 (* An environment that a valuation satisfies is not bottom. *)
@@ -2796,10 +2799,10 @@ Theorem meet_env_add_equation_strict_sound
     : meet_env_add_equation_strict_sound_statement.
 Proof.
   intros mh statics valuation menv n ty v result Hkeeps Hsound
-    Hfits Hty Hkind Hsatisfied Hvalue Hv Hadd.
+    Hfits Hty Hkind Hstatics Hsatisfied Hvalue Hv Hadd.
   unfold Meet_env.add_equation_strict in Hadd.
   rewrite (satisfied_not_bottom statics valuation _ Hsatisfied) in Hadd.
-  exact (add_equation_on_simple0_sound mh Hsound statics menv
+  exact (add_equation_on_simple0_sound mh Hsound statics Hstatics menv
            (simple_of_name n) ty valuation v result Hfits Hty Hkind Hsatisfied
            Hvalue Hv Hadd).
 Qed.
@@ -2808,11 +2811,11 @@ Theorem meet_env_add_env_extension_sound
     : meet_env_add_env_extension_sound_statement.
 Proof.
   intros mh statics valuation menv menv' extension Hkeeps Hsound
-    Hfits Hextension Hkinded Hsatisfied Htrue Hadd.
+    Hfits Hextension Hkinded Hstatics Hsatisfied Htrue Hadd.
   apply (bottom_on_exception_sound statics menv menv' _ valuation) in Hadd;
     [ exact Hadd | ].
   intros result0 Hresult.
-  exact (add_env_extension0_sound mh Hkeeps Hsound statics menv
+  exact (add_env_extension0_sound mh Hkeeps Hsound statics Hstatics menv
            extension valuation result0 Hfits Hextension Hkinded Hsatisfied
            Htrue Hresult).
 Qed.
@@ -2821,10 +2824,10 @@ Theorem meet_env_add_env_extension_strict_sound
     : meet_env_add_env_extension_strict_sound_statement.
 Proof.
   intros mh statics valuation menv extension result Hkeeps Hsound
-    Hfits Hextension Hkinded Hsatisfied Htrue Hadd.
+    Hfits Hextension Hkinded Hstatics Hsatisfied Htrue Hadd.
   unfold Meet_env.add_env_extension_strict in Hadd.
   rewrite (satisfied_not_bottom statics valuation _ Hsatisfied) in Hadd.
-  exact (add_env_extension0_sound mh Hkeeps Hsound statics menv
+  exact (add_env_extension0_sound mh Hkeeps Hsound statics Hstatics menv
            extension valuation result Hfits Hextension Hkinded Hsatisfied
            Htrue Hadd).
 Qed.
@@ -2832,7 +2835,7 @@ Qed.
 Theorem meet_env_add_alias_sound : meet_env_add_alias_sound_statement.
 Proof.
   intros mh statics valuation menv s1 s2 kind v result Hkeeps
-    Hsound Hfits Hkind1 Hkind2 Hsatisfied Hvalue1 Hvalue2 Hadd.
+    Hsound Hfits Hkind1 Hkind2 Hstatics Hsatisfied Hvalue1 Hvalue2 Hadd.
   assert (Hinvariant := proj1 Hfits).
   destruct (proj1 (proj2 (proj2 Hfits))) as (_ & Haliases & Hsymbols).
   set (tenv := Meet_env.typing_env menv) in *.
@@ -2848,7 +2851,7 @@ Proof.
   rewrite (kind_of_simple_of_kind tenv _ kind kind' Hsymbols Hkind_canonical1
              Hread) in Hadd.
   apply (add_alias_between_canonicals_sound mh Hsound
-           statics menv kind _ _ valuation v result Hfits Hcanonical1
+           statics Hstatics menv kind _ _ valuation v result Hfits Hcanonical1
            Hcanonical2 Hkind_canonical1 Hkind_canonical2 Hsatisfied);
     [ | | exact Hadd ].
   - rewrite (canonical_ignoring_name_mode_satisfied _ statics valuation tenv
@@ -2877,8 +2880,8 @@ Proof.
     Hsound.
   revert param_types menv menv' valuation.
   induction params as [ | param params IH ];
-    intros param_types menv menv' valuation Hfits Hparams Hsatisfied Htrue
-      Hadd.
+    intros param_types menv menv' valuation Hfits Hparams Hstatics Hsatisfied
+      Htrue Hadd.
   - destruct param_types as [ | ty param_types ]; [ | discriminate Hadd ].
     injection Hadd as <-.
     exact (meet_env_added_refl statics valuation menv Hsatisfied).
@@ -2894,7 +2897,7 @@ Proof.
                 Hkeeps Hfits Hty Hkind Hfirst) as [[Hextends1 Hfits1] _].
     destruct (meet_env_add_equation_sound mh statics valuation menv
                 menv1 (Name_var (fst param)) ty v Hkeeps Hsound Hfits Hty
-                Hkind Hsatisfied Hvalue Hv Hfirst)
+                Hkind Hstatics Hsatisfied Hvalue Hv Hfirst)
       as (valuation1 & Hextended1 & Hsatisfied1 & Hvalued1).
     assert (Htenv := meet_env_extends_tenv _ _ Hextends1).
     assert (Hboth := Forall2_and _ _ _ _ Hrest Htrue_rest).
@@ -2925,12 +2928,12 @@ Proof.
                 Hmeet) as ([[Hextends Hfits'] Hnames] & Hanswer & _).
     split; [ exact Hextends | ]. split; [ exact Hfits' | ].
     split; [ exact Hanswer | exact Hnames ].
-  - intros statics valuation Hsatisfied Hv1 Hv2.
+  - intros statics valuation Hstatics Hsatisfied Hv1 Hv2.
     unfold Meet_env.meet_type in Hmeet.
     destruct (Meet_env.meet menv t1 t2 mh) as [ result0 | ] eqn:Hmeet0;
       [ | discriminate Hmeet ].
     cbn in Hmeet. injection Hmeet as <-.
-    destruct (meet_env_meet_sound mh Hsound statics menv t1 t2
+    destruct (meet_env_meet_sound mh Hsound statics Hstatics menv t1 t2
                 valuation v result0 Hfits Ht1 Ht2 Hsatisfied Hv1 Hv2 Hmeet0)
       as (r & menv' & valuation' & -> & Hextended & Hsatisfied' & Hanswer
           & Hvalued).

@@ -33,12 +33,14 @@
 From Stdlib Require Import ZArith List Bool Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaMapProofs FlambdaSemanticsSpec.
+  FlambdaMapProofs FlambdaSemanticsSpec FlambdaClosuresSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
   FlambdaBindingTime FlambdaEnvAliases FlambdaEnvAliasesSpec
   FlambdaEnvAliasesProofs FlambdaTypingEnv FlambdaTypingEnvSpec
-  FlambdaTypingEnvProofs FlambdaTypingEnvExamplesProofs FlambdaMeetGrammar
+  FlambdaTypingEnvProofs FlambdaTypingEnvExamplesProofs
+  FlambdaTypingEnvInvariantSpec FlambdaTypingEnvInvariantProofs
+  FlambdaTypingEnvKindedSpec FlambdaTypingEnvKindedProofs FlambdaMeetGrammar
   FlambdaExpandHead FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec
   FlambdaMeetProofs FlambdaMeetEnvProofs FlambdaMeetExamplesSpec.
 Import ListNotations.
@@ -136,7 +138,8 @@ Proof.
   intros join Hinputs Hsound.
   destruct example_get_tag_env_satisfied as [Henv [Ht1 Ht2]].
   destruct (compiler_meet_get_tag join) as [t [tenv' [Hmeet Hnot]]].
-  destruct (Hsound _ _ _ _ _ _ _ Hinputs Henv Ht1 Ht2 Hmeet)
+  destruct (Hsound empty_static_env _ _ _ _ _ _ Hinputs (Forall_nil _) Henv
+              Ht1 Ht2 Hmeet)
     as [t0 [tenv0 [valuation' [Hresult [Hextended [Hsatisfied _]]]]]].
   injection Hresult as <- <-. exact (Hnot valuation' Hextended Hsatisfied).
 Qed.
@@ -150,7 +153,7 @@ Proof.
   intros meet_head initial_env result scoped_envs initial_tenv Hsound Hkeeps
     Hfits Hscoped Hagree Hjoin.
   injection Hjoin as <-. split; [ | split; [ | split; [ | split ] ] ].
-  - intros scoped_env statics valuation Hin Hinitial Hscoped_env _.
+  - intros scoped_env statics valuation Hin _ Hinitial Hscoped_env _.
     exists valuation. split; [ intros x _; reflexivity | ].
     split; [ exact Hinitial | ]. intros cut_after Hvalued. exact Hvalued.
   - repeat split; try reflexivity.
@@ -240,4 +243,56 @@ Proof.
   - apply (proj2 (any_non_null_value_satisfied _ _ _)).
     split; [ reflexivity | discriminate ].
   - intros join. vm_compute. reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* A static environment that is not valid                                   *)
+(* ======================================================================== *)
+
+Lemma example_closures_type_fits (n : Z) :
+  type_fits Typing_env.create (example_closures_type n).
+Proof.
+  split; [ reflexivity | ]. split; [ intros x Hin; destruct Hin | ].
+  split.
+  - intros s kind Hin. vm_compute in Hin.
+    destruct Hin as [ [= <- <-] | [] ]. reflexivity.
+  - intros m kind Hin. vm_compute in Hin. destruct Hin.
+Qed.
+
+Lemma example_closures_type_satisfied (n : Z) :
+  type_satisfied example_invalid_statics [] (Value_symbol example_set_symbol)
+    (example_closures_type n).
+Proof.
+  apply at_least_this_closure_satisfied.
+  exists example_set_functions, []. split; [ reflexivity | ].
+  split; [ reflexivity | ]. split; [ reflexivity | ].
+  vm_compute. split.
+  - intros g function_type code Hfunction _.
+    destruct g as [ g | g | ]; try discriminate Hfunction.
+    destruct g; discriminate Hfunction.
+  - split; [ | exact I ]. split; [ | exact I ].
+    intros _ closure Hprojection. discriminate Hprojection.
+Qed.
+
+Theorem meet_closures_invalid_statics
+    : meet_closures_invalid_statics_statement.
+Proof.
+  split.
+  { intros Hvalid. apply Forall_inv in Hvalid. vm_compute in Hvalid.
+    discriminate Hvalid. }
+  split.
+  { split.
+    - split; [ exact create_invariant | ].
+      split; [ exact create_types_well_formed | ].
+      split; [ exact create_kinded | ].
+      split; [ exact create_equations_kinded | ].
+      intros _ n ty binding_time_and_mode Hlookup. discriminate Hlookup.
+    - split; [ apply example_closures_type_fits | ].
+      split; [ apply example_closures_type_fits | reflexivity ]. }
+  split.
+  { split; [ reflexivity | ]. split; [ | apply empty_respected ].
+    intros n ty binding_time_and_mode v Hlookup. discriminate Hlookup. }
+  split; [ apply example_closures_type_satisfied | ].
+  split; [ apply example_closures_type_satisfied | ].
+  intros join. vm_compute. reflexivity.
 Qed.

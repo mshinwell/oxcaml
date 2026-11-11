@@ -69,7 +69,7 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec.
+  FlambdaSemanticsSpec FlambdaClosuresSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
   FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
@@ -133,8 +133,10 @@ Definition part_stable : Prop :=
 (* What one call of a meet answered is right. If it is not bottom, the
    environment answered is the first extended, it fits, the part
    answered fits it, and the variables that it knows and the first
-   did not are new ([new_names_avoided]). And no value is lost: under
-   a valuation that satisfies the environment and under which both
+   did not are new ([new_names_avoided]). And no value is lost: with
+   a static environment that is valid ([statics_valid],
+   FlambdaClosuresSpec.v; FlambdaMeetSpec.v says why), under a
+   valuation that satisfies the environment and under which both
    inputs are true, the answer is not bottom, and a valuation that
    agrees with the first on what the environment knew satisfies the
    environment answered and makes the part answered true; and no
@@ -150,6 +152,7 @@ Definition meet_call_ok (menv : Meet_env.t) (a1 a2 : A)
      ∧ fits (Meet_env.typing_env menv') (extract_value r a1 a2)
      ∧ new_names_avoided menv menv')
   ∧ ∀ (statics : static_env) (valuation : env),
+      statics_valid statics ->
       typing_env_satisfied_strictly statics valuation tenv ->
       satisfied statics valuation a1 ->
       satisfied statics valuation a2 ->
@@ -347,6 +350,7 @@ Definition meet_mapping_ok_statement : Prop :=
              ∧ ∀ (key : K) (a : A),
                  (key, a) ∈ l -> fits (Meet_env.typing_env menv') a)
     ∧ ∀ (statics : static_env) (valuation : env),
+        statics_valid statics ->
         typing_env_satisfied_strictly statics valuation tenv ->
         (∀ (key : K) (a : A),
            get_left key = Some a -> satisfied key statics valuation a) ->

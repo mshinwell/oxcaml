@@ -65,12 +65,24 @@
      to the name and the type of the values that are not null, and
      the meet of the two is bottom ([meet_through_poison_statement]).
      So the contract of a meet cannot be about
-     [typing_env_satisfied]. *)
+     [typing_env_satisfied].
+   - The static environment ("What satisfies an environment"). A
+     symbol is bound to a closure of a static set that has two
+     function slots and names a symbol for the first only: the static
+     environment is not valid. The symbol has two closures types, of
+     which one says that the closure at the second slot is the number
+     0 and the other that it is the number 1: the projection of the
+     second slot from the symbol has no value, and a closures type
+     asks nothing of a closure that the projection does not give. The
+     meet of the two types is bottom
+     ([meet_closures_invalid_statics_statement]). So the contracts
+     that say that no value is lost suppose a static environment that
+     is valid. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec.
+  FlambdaSemanticsSpec FlambdaClosuresSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
   FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
@@ -261,4 +273,51 @@ Definition meet_through_poison_statement : Prop :=
       any_non_null_value
   ∧ ∀ join : join_scoped_envs,
       compiler_meet join 2 example_null_env alias any_non_null_value
+      = Some Or_bottom.Bottom.
+
+(* ======================================================================== *)
+(* A static environment that is not valid                                   *)
+(* ======================================================================== *)
+
+Definition example_slot_f : function_slot := 1%positive.
+Definition example_slot_g : function_slot := 2%positive.
+Definition example_set_symbol : symbol := 1%positive.
+
+(* The functions of a set of closures that has two function slots. *)
+Definition example_set_functions : list (function_slot * code_id) :=
+  [(example_slot_f, 1%positive); (example_slot_g, 2%positive)].
+
+(* The symbol is bound to the closure at the first slot of a static set
+   with those functions, which names a symbol for the first slot and
+   none for the second. *)
+Definition example_invalid_statics : static_env :=
+  Static_env []
+    [(example_set_symbol,
+      Static_closure_of_set example_slot_f
+        [(example_slot_f, example_set_symbol)] example_set_functions [])].
+
+(* A closure at the first slot of a set that has at least the two
+   slots, in which the closure at the second slot is the number [n]. *)
+Definition example_closures_type (n : Z) : flambda_type :=
+  at_least_this_closure example_slot_f
+    [(example_slot_f, Or_unknown.Unknown);
+     (example_slot_g, Or_unknown.Unknown)]
+    [(example_slot_g, this_tagged_immediate n)] [] Alloc_mode.Heap.
+
+(* The static environment is not valid; the two types may be met in
+   the environment that has nothing; the symbol has both; and the meet
+   that is to be proved answers bottom, whatever the join. *)
+Definition meet_closures_invalid_statics_statement : Prop :=
+  ~ statics_valid example_invalid_statics
+  ∧ meet_inputs_well_formed Typing_env.create (example_closures_type 0)
+      (example_closures_type 1)
+  ∧ typing_env_satisfied_strictly example_invalid_statics []
+      Typing_env.create
+  ∧ type_satisfied example_invalid_statics []
+      (Value_symbol example_set_symbol) (example_closures_type 0)
+  ∧ type_satisfied example_invalid_statics []
+      (Value_symbol example_set_symbol) (example_closures_type 1)
+  ∧ ∀ join : join_scoped_envs,
+      meet_to_prove join 3 Typing_env.create (example_closures_type 0)
+        (example_closures_type 1)
       = Some Or_bottom.Bottom.

@@ -57,6 +57,9 @@ It is not proved yet, and is not among the statements of the file.
 `meet_sound`: if
 
 - the inputs are well formed (`meet_inputs_well_formed tenv t1 t2`),
+- the static environment is valid (`statics_valid statics`, of
+  `FlambdaClosuresSpec.v`: among other things, a static set of
+  closures names a symbol for each of its function slots),
 - a valuation satisfies the environment
   (`typing_env_satisfied_strictly statics valuation tenv`),
 - a value `v` has both types under it,
@@ -78,6 +81,19 @@ So: the values of both inputs are kept; one valuation accounts for all
 the equations and definitions returned; bottom is answered only when no
 value has both types (`meet_bottom_sound`, which follows:
 `meet_answers_bottom_statement`, proved).
+
+The static environment is supposed valid in every statement that says
+that no value is lost (this one, `meet_bottom_sound`, the three about
+`Typing_env`, `meet_expanded_head_sound`, J1 of the join). Without it
+`meet_sound` is false (R1): a static set of closures that names no
+symbol for one of its function slots has every closures type at that
+slot, by the meaning of closures types as T1 has it (what is asked of
+the function at a slot is asked of the symbol that the set names for
+it, and there is none), and the meet of two closure types of two
+codes at that slot is bottom. `meet_closures_invalid_statics`
+(`FlambdaMeetExamplesSpec.v`) is that case, proved. The other repair
+would be for the meaning to ask that the symbol be there; T1 keeps
+its meaning, and there is a `CR mshinwell` at `meet_sound`.
 
 With it: `meet_keeps_well_formed` (the answer may be met again),
 `meet_kinds`, `meet_bottom_env`; for `Typing_env.add_equation`,
@@ -645,6 +661,12 @@ From the proofs of the functions of `Meet_env` and the plan for
 equations; `meet_expanded_head_keeps` has `new_names_avoided`; the
 join's contract has the premise `scoped_envs_agree` and J5
 (section 5).
+
+From R1's review of `meet_disjunction_ok`: the statements that say
+that no value is lost suppose a valid static environment
+(`statics_valid statics`; section 2), and so do the second halves of
+`meet_call_ok` and `meet_mapping_ok` and the seven `meet_env_..._sound`
+statements.
 
 New: `add_env_extension_sound`, `add_equations_on_params_sound`,
 `fits_kinded`; `compiler_meet` and `meet_to_prove`; the examples; the

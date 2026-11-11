@@ -164,6 +164,18 @@
      answered. Meet adds an equation only to a name that it reached
      from the value in hand. The join is asked for the same, and the
      compiler's n-way join has it not: see below.
+   - The static environment is valid ([statics_valid],
+     FlambdaClosuresSpec.v): what each symbol is bound to is valid,
+     and so a static set of closures names a symbol for each of its
+     function slots. The states of a run of a well-formed unit have
+     it. Without it the meet of two closures types is wrong: a type
+     says of the closure at a function slot [g] of the set what holds
+     of the projection to [g] if there is one (the meaning of a
+     product: FlambdaTypeMeaningSpec.v), and from a symbol of a
+     static set that names no symbol for [g] there is none, though
+     the set has [g]. Such a value has two types whose closure types
+     at [g] have no value in common, and the meet of the two is
+     bottom. There is a CR at [meet_sound].
    An environment that is satisfied with the names that poison exempts
    set aside, by a valuation in which no name holds poison, is
    satisfied strictly ([satisfied_no_poison_strictly_statement],
@@ -488,7 +500,7 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec.
+  FlambdaSemanticsSpec FlambdaClosuresSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaTypeWellFormedSpec FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaTypingEnv
@@ -708,12 +720,27 @@ Definition env_extension_fits (tenv : Typing_env.t)
    satisfies the environment and gives [v] both types, the meet does
    not answer bottom, and a valuation that agrees with the first on
    what the environment knew satisfies the environment answered and
-   gives [v] the type answered. *)
+   gives [v] the type answered. The static environment is valid. *)
+(* CR mshinwell: that the static environment is valid is a premise of
+   every statement here that says that no value is lost, and of what
+   is asked of the join. It was added after review: without it the
+   statements are false of the model, though of no run. The reviewer's
+   case is a symbol bound to a closure of a static set that has the
+   function slots [f] and [g] and names a symbol for [f] only: the
+   projection of [g] from it has no value, a closures type asks
+   nothing of the closure at [g] then, and two such types whose
+   closure types at [g] do not meet are met to bottom
+   ([meet_closures_entry]). The other repair is in the meaning of a
+   closures type: that a closure type at [g] asks that the projection
+   have a value. The meaning was left as it is: a product says
+   something of the components that exist, and what exists is for
+   the index to say. *)
 Definition meet_sound (meet : meet_function) : Prop :=
   ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
     (t1 t2 : flambda_type) (v : value)
     (result : Or_bottom.t (flambda_type * Typing_env.t)),
     meet_inputs_well_formed tenv t1 t2 ->
+    statics_valid statics ->
     typing_env_satisfied_strictly statics valuation tenv ->
     type_satisfied statics valuation v t1 ->
     type_satisfied statics valuation v t2 ->
@@ -733,6 +760,7 @@ Definition meet_bottom_sound (meet : meet_function) : Prop :=
   ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
     (t1 t2 : flambda_type) (v : value),
     meet_inputs_well_formed tenv t1 t2 ->
+    statics_valid statics ->
     typing_env_satisfied_strictly statics valuation tenv ->
     meet tenv t1 t2 = Some Or_bottom.Bottom ->
     ~ (type_satisfied statics valuation v t1
@@ -796,6 +824,7 @@ Definition add_equation_sound (add_equation : add_equation_function)
     (n : name) (ty : flambda_type) (v : value),
     typing_env_fits tenv ->
     type_fits tenv ty ->
+    statics_valid statics ->
     typing_env_satisfied_strictly statics valuation tenv ->
     value_of_name valuation n = Some v ->
     type_satisfied statics valuation v ty ->
@@ -814,6 +843,7 @@ Definition add_equation_sound_no_poison
     (n : name) (ty : flambda_type) (v : value),
     typing_env_fits tenv ->
     type_fits tenv ty ->
+    statics_valid statics ->
     typing_env_satisfied statics valuation tenv ->
     (∀ n : name, ~ holds_poison valuation n) ->
     value_of_name valuation n = Some v ->
@@ -834,6 +864,7 @@ Definition add_env_extension_sound
     (extension : env_extension),
     typing_env_fits tenv ->
     env_extension_fits tenv extension ->
+    statics_valid statics ->
     typing_env_satisfied_strictly statics valuation tenv ->
     env_extension_satisfied statics valuation extension ->
     add_env_extension tenv extension = Some tenv' ->
@@ -852,6 +883,7 @@ Definition add_equations_on_params_sound
     (param_types : list flambda_type),
     typing_env_fits tenv ->
     (∀ ty : flambda_type, ty ∈ param_types -> type_fits tenv ty) ->
+    statics_valid statics ->
     typing_env_satisfied_strictly statics valuation tenv ->
     Forall2
       (fun (param : variable * flambda_kind) (ty : flambda_type) =>
@@ -918,6 +950,7 @@ Definition meet_expanded_head_sound (meet_head : meet_expanded_head) : Prop :=
     let tenv := Meet_env.typing_env menv in
     meet_inputs_well_formed tenv (Expanded_type.to_type expanded1)
       (Expanded_type.to_type expanded2) ->
+    statics_valid statics ->
     typing_env_satisfied_strictly statics valuation tenv ->
     type_satisfied statics valuation v (Expanded_type.to_type expanded1) ->
     type_satisfied statics valuation v (Expanded_type.to_type expanded2) ->
@@ -1023,6 +1056,7 @@ Definition join_scoped_envs_sound (join : join_scoped_envs) : Prop :=
        that has no value. *)
     (∀ (scoped_env : Typing_env.t) (statics : static_env) (valuation : env),
       scoped_env ∈ scoped_envs ->
+      statics_valid statics ->
       typing_env_satisfied_strictly statics valuation initial_tenv ->
       typing_env_satisfied_strictly statics valuation scoped_env ->
       equations_valued scoped_env (Typing_env.current_scope initial_tenv)
