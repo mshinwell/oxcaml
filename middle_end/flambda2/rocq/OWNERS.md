@@ -119,6 +119,8 @@ design out; that is the request, not the change.
   - `middle_end/flambda2/rocq/requests/C3-partial-application.md`
   - `middle_end/flambda2/rocq/FlambdaClosures*` (first facts about sets
     of closures; S4's once it is staffed)
+  - `middle_end/flambda2/rocq/FlambdaPartialApplication*` (what a call
+    with fewer or more arguments than parameters comes to)
   - `middle_end/flambda2/rocq/status/C3.md`
   - the examples `middle_end/flambda2/tests/semantics/set_*.fl`, with
     their `.expected` files

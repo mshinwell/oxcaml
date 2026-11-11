@@ -4,12 +4,13 @@ From C3, for C0 (who applies it), R2 (who reviews it), C2 (whose series
 on kinds and arities it is written over, and whose check it touches)
 and the human (section 7: the choices taken while he was away).
 
-It is a request and a design, with the definitions compiled; it is not
-yet a series. The definitions of section 3 are on the branch
-`flambda2-rocq/C3-partial-prototype`, over C2's series, where the
-`Spec` files build with them and the proofs about a call are not
-repaired. The series is to be made once C2's series is on the
-integration branch.
+It was written as a request and a design, with the definitions
+compiled on a prototype branch, before the series. The series has since
+been made, on the branch `flambda2-rocq/C3-partial`. Section 9 says
+where it differs from sections 2 to 5, which are left as they were
+written: the definitions have another shape; a direct call is a generic
+application too (choice 1 of section 7 was first taken the other way);
+and a call that gives a partial application no argument is undefined.
 
 ## Why
 
@@ -401,22 +402,38 @@ these calls goes.
 Each is to have a review comment for the human at the definition, in
 the series.
 
-1. **Only an indirect call is a generic application; a direct call
-   with another number of arguments than parameters is undefined.**
-   Simplify gives such a direct call the same meaning as an indirect
-   one; the backend stops on it. No term that the compiler makes has
-   one: closure conversion expands what it knows, and Simplify makes
-   the calls it knows exact. Undefined is the choice under which every
-   rewrite of such a call is a refinement. The other choice is to run
-   it as a generic application, by deleting two lines.
+1. **Every call is a generic application, a direct one too.** This
+   was first taken the other way (a direct call with another number of
+   arguments than parameters undefined) and changed while the series
+   was made. Simplify reads a call of any kind as a generic application
+   once it knows the callee; the backend reads a direct call as a full
+   call, and stops on one that is not. With a direct call exact and an
+   indirect one generic, "an indirect call of a known closure is a
+   direct call of its code" holds of full calls only. That is three
+   statements of the model (`apply_indirect_known_statement`,
+   `apply_sibling_statement`, and the canonicalisation by aliases,
+   which the validator runs and which has no arity of the code to test
+   with). So a direct call differs from an indirect one only in that
+   its callee must be a closure of the code named, which a partial
+   application is not. The machine then gives a meaning to direct calls
+   that the backend refuses. No term that the compiler makes is known
+   to have one, and nothing checks it: discrepancy C3-9, and a review
+   comment at `shape_of_closure_call`. The other choice is to make a
+   direct call that is not full undefined, and to give those three
+   statements a premise on the number of arguments.
 2. **One `Indirect` for both of the compiler's indirect call kinds.**
    The model does not tell `Indirect_known_arity` from
    `Indirect_unknown_arity`. The backend makes a full call of a
    known-arity one, so a known-arity call with another number of
    arguments is run by the model as a generic application and would
-   not be by the compiler. No term the compiler makes has one. The
-   other choice is a third call kind, exact like `Direct`; C2 agrees
-   to one `Indirect`.
+   not be by the compiler. No such term is known: closure conversion
+   makes no call of known arity, and Simplify marks a call so only
+   where its types say that every code the callee may have has the
+   arity of the call, or where it makes an indirect call of a direct
+   one. Nothing checks afterwards that a call so marked is full, which
+   is what the model would need of the compiler (discrepancy C3-9, and
+   the review comment at `shape_of_closure_call`). The other choice is
+   a third call kind, exact like `Direct`; C2 agrees to one `Indirect`.
 3. **A partial application is not a closure of code.** `closure_of`
    has no value on it, so the types say nothing of it but that it is a
    value, a direct call of it is undefined, and at exit it is compared
@@ -430,6 +447,24 @@ the series.
    recursive and makes the proofs about a call shorter, but the
    machine's steps then do not commute with a renaming of names, which
    the work on names relies on.
+
+5. **A call that gives a partial application no argument is
+   undefined.** The test of arities is made on the arguments kept
+   followed by those of the call, so without this a partial
+   application called with no argument would be a partial application
+   again. The compiler stops on a call with no argument of code that
+   has parameters, and the closure that it makes of a partial
+   application is of code with the parameters that are left. The other
+   choice is to let such a call return the partial application
+   unchanged.
+6. **Inlining asks that the call is full.** `inlinable` has one more
+   condition: as many arguments as the code has parameters, counted by
+   parameter. It already asked for as many values as the code has
+   variables; with a parameter that is an unboxed product of nothing
+   the two differ, and a call with as many values could be a partial
+   application or an over-application, which does not run the body
+   once. The validator's test (`inlinable_b`) makes the same
+   comparison.
 
 ## 8. The series, once C2's is on the integration branch
 
@@ -448,3 +483,131 @@ the series.
 
 Steps 1 and 2 are small and can be reviewed and applied first. Step 3
 is the epoch.
+
+## 9. The series as made
+
+On `flambda2-rocq/C3-partial`, over the series on kinds and the epoch
+of exceptions: the arities (step 1); the value, the continuation and
+the machine (step 2; the two constructors were a commit of their own,
+made by no step, until the series was put over the epoch of
+exceptions, whose proofs about a continuation it would have had to
+repair twice); the statements (step 3); then the test tool and its
+examples. What differs from sections 2 to 5:
+
+**Exceptions.** A call evaluates the extra arguments of its exception
+continuation and gives its callee that continuation with them
+(`with_extra_args`). What is left of an over-application keeps that
+continuation as it is, extra arguments included, so the full call and
+the call of its result raise to the same handler with the same extra
+arguments: the compiler's split gives both calls the exception
+continuation of the over-application. A partial application raises
+nothing, and the extra arguments of a call that makes one are
+evaluated and dropped. Nothing here has a trap action. The machine
+with a stack of handlers (`FlambdaTrapSpec.v`) says what the two sorts
+of call do there: the stream of exceptions changed it, with an entry
+of the stack for the full call inside an over-application.
+
+**The definitions** (`FlambdaSemanticsSpec.v`). Section 3's
+`applied_closure` and `call_function_returning` are not there. What a
+call is and what it does are two functions:
+
+- `call_code`: the full call of a closure of code, with the three
+  tests of the series on kinds;
+- `call_shape`: `Full_call`, `Over_call` or `Partial_call`, with what
+  each needs;
+- `shape_of_closure_call`: what the call of a closure is, or nothing
+  where it is undefined: full with as many arguments as parameters;
+  otherwise, the kinds of the arguments and the compiler's test of
+  arities permitting, an over-application or a partial application;
+- `shape_of_call`: the same of any callee; an indirect call of a
+  partial application, with one argument at least, is that of the
+  closure it keeps with all the arguments;
+- `run_call`: runs a shape, given what is done with a partial
+  application;
+- `apply_cont_value`, recursive on the continuation as in section 3,
+  and `call_function`, which is `run_call` of `shape_of_call` with the
+  partial application given to the return continuation.
+
+**The call kinds.** A direct call is a generic application too
+(section 7, choice 1). A call that gives a partial application no
+argument is undefined (choice 5).
+
+**Statements changed**, beyond section 4:
+
+- `call_at_wrong_kinds_undefined_statement` is restated by cases:
+  arguments not of the kinds of the call's arity; a full call at
+  arities that are not the code's; a call that is not full and fails
+  the compiler's test. `partial_or_over_application_undefined_statement`
+  and `at_partial_or_over_application` are removed (section 3 kept the
+  second for the tool, which no longer needs it).
+- `step_values_all_statement`: the new hypothesis is an equivalence,
+  `P` of a partial application if and only if `P` of the value it calls
+  and of its arguments, since a call both makes partial applications
+  and takes them apart.
+- `call_binds_my_closure_statement` and
+  `well_formed_call_binds_my_closure_statement` ask that the call is not
+  a partial application, which runs no code.
+- `inlinable` has the condition of choice 6, and so
+  `inline_identity_statement` (in the types' first model) a premise.
+- `relates_observations`, the premise of the law that primitives
+  compute alike on values that the observations read alike, has one
+  more clause: what is related to a partial application is a partial
+  application. A partial application is allocated, and `Is_int` looks.
+- `calls_code_binding_statics` looks through a partial application at
+  the closure it keeps.
+- `cont_in_range`, `cont_in_scope` and the relations between the
+  continuations of two runs have their case for what is left of an
+  over-application.
+
+**New statements** (`FlambdaPartialApplicationSpec.v`): a call with
+fewer arguments gives its return continuation a partial application; an
+indirect call of a partial application is the call of its closure with
+all the arguments, and a direct one, or one with no argument, or one
+whose own arguments are not of the kinds of its own arity, is
+undefined (the last is tested of the call itself, before the arguments
+that the partial application keeps are put in front: R2's finding, with
+an example of a partial application that no call makes, in which the
+test of all the arguments together would pass); a partial application
+whose result is at once called
+refines the one call with all the arguments; a call with more arguments
+is a full call that returns to what is left of the application, and
+what is left, applied, is an indirect call of the value returned; so
+an over-application is refined by the term that splits it, the full
+call followed, in a handler, by the call of its result
+(`over_application_split_statement`: the term of Simplify's
+`split_direct_over_application`, without the regions); two units, one
+of each sort, run, are well-formed and pass the check of kinds; two
+over-applications that raise, one in the full call and one in the call
+of its result, leave by the exception continuation with its extra
+argument; a call whose extra arguments have no value is undefined,
+even where it would make a partial application.
+
+**The proofs.** Section 5's two lemmas about a call are replaced by
+lemmas about the pieces (`call_code_step`, `call_code_cases`,
+`shape_of_closure_call_cases`, `shape_of_call_cases`), and each
+invariant or relation is proved of `call_code`, of `run_call` given
+what is wanted of the partial application, of `apply_cont_value` by
+induction on the continuation, and then of `call_function`. An
+invariant that asks something of the terms only goes through one
+generic lemma about where a call lands (`call_function_lands`).
+
+**Not done.**
+
+- The rewrite of the validator's normalisation that splits an
+  over-application of a function it knows, which is what such a unit
+  needs in order to validate. The statement that justifies it is
+  there (`over_application_split_statement`). The two runs are not
+  step for step the same (the handler takes a step that what is left
+  of the application does not, and a partial application may reach an
+  exit through several of them at once), so its proof is a simulation
+  in which one step, or an exit, is answered by several steps, with a
+  relation between the two sorts of continuation. Section 6 called it
+  one rewrite and an equivalence; it is a refinement, since the
+  over-application evaluates all its arguments, and tests their kinds,
+  before the full call.
+- `kind_fault` does not see a handler given the wrong number of
+  arguments by a call that returns a partial application, or by what
+  is left of an over-application. A well-kinded state has neither
+  fault; the test that says so only looks at an `Apply_cont`.
+- The partial application of a function that Simplify knows validates
+  only once values are compared up to a relation (section 6).
