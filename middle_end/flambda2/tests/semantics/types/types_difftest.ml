@@ -1296,10 +1296,18 @@ let rename_own_variables (names : names) (printed : string) : string =
   copy 0;
   Buffer.contents buffer
 
-(* A type as printed, written in one way. *)
-let print_with_own_variables (names : names) (m : MT.flambda_type) : string =
+(* Types as printed, each written in one way. The variables that are not of the
+   tests are renamed once, over the whole text: a variable that two of the types
+   mention has one name in both, so two texts are equal only if one renaming of
+   those variables takes the types of the one to the types of the other. *)
+let print_with_own_variables (names : names) (types : MT.flambda_type list) :
+    string =
   rename_own_variables names
-    (Format.asprintf "%a" Model_type.print (Model_type.normalise m))
+    (String.concat "\n"
+       (List.map
+          (fun m ->
+            Format.asprintf "%a" Model_type.print (Model_type.normalise m))
+          types))
 
 (* What a join gives, as printed: the type, then what is said of each of its own
    variables. *)
@@ -2128,9 +2136,7 @@ let shared_and_not (names : names) : MT.flambda_type comparison list =
   let meet implementation t t' =
     match meet_as_model names implementation t t' with
     | None -> "Bottom"
-    | Some (meet, types) ->
-      String.concat " "
-        (List.map (print_with_own_variables names) (meet :: types))
+    | Some (meet, types) -> print_with_own_variables names (meet :: types)
   in
   [ compare_results "join (binary) of a type with itself" (join binary);
     compare_results "join (n-way) of a type with itself" (join n_way);
@@ -2197,9 +2203,7 @@ let shared_parts (names : names) : parts comparison list =
   let meet implementation t t' =
     match meet_as_model names implementation t t' with
     | None -> "Bottom"
-    | Some (meet, types) ->
-      String.concat " "
-        (List.map (print_with_own_variables names) (meet :: types))
+    | Some (meet, types) -> print_with_own_variables names (meet :: types)
   in
   let compare_results name result =
     { name;
@@ -2624,6 +2628,44 @@ let the_chosen_joins (names : names) : chosen_join list =
     } ]
 
 (* ======================================================================== *)
+(* The comparison by text                                                   *)
+(* ======================================================================== *)
+
+(* Where two answers of the compiler are compared as text, the variables that
+   are not of the tests are renamed over the whole text. So two types that are
+   aliases of one such variable print as two types that are aliases of another
+   one do, and not as aliases of two different ones do: a renaming of each type
+   on its own would print all three alike. *)
+let comparison_by_text (names : names) =
+  let own i = N.positive_of_int (names.variables_of_the_tests + 1 + i) in
+  let alias i = MT.alias_type_of Value (Var (own i)) in
+  let text = print_with_own_variables names in
+  let cases =
+    [ ( "two aliases of one variable, and of another one",
+        String.equal (text [alias 1; alias 1]) (text [alias 2; alias 2]) );
+      ( "two aliases of one variable, and aliases of two",
+        let of_one = text [alias 1; alias 1] in
+        let of_two = text [alias 2; alias 3] in
+        not (String.equal of_one of_two) );
+      ( "what a join says of one variable of its own, and of two",
+        not
+          (String.equal
+             (print_joined names
+                { joined = alias 1; own = [own 1, alias 1]; own_in_terms = [] })
+             (print_joined names
+                { joined = alias 2;
+                  own = [own 2, alias 3; own 3, alias 3];
+                  own_in_terms = []
+                })) ) ]
+  in
+  let wrong = List.filter (fun (_, as_expected) -> not as_expected) cases in
+  Format.printf "@.The comparison by text (%d cases): %d as expected@."
+    (List.length cases)
+    (List.length cases - List.length wrong);
+  List.iter (fun (what, _) -> Format.printf "  WRONG: %s@." what) wrong;
+  failures := !failures + List.length wrong
+
+(* ======================================================================== *)
 (* The ranges of numbers                                                    *)
 (* ======================================================================== *)
 
@@ -2720,6 +2762,7 @@ let () =
      then "enabled"
      else "disabled");
   ranges_of_numbers ();
+  comparison_by_text names;
   run ~title:"Raw types of the model" ~seed:1000 ~count:3000
     ~generate:(fun r ->
       G.flambda_type { well_formed = false; depth = 3 } r names.pool)

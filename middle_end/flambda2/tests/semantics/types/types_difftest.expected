@@ -3,6 +3,8 @@ Stack allocation: enabled.
 
 The ranges of numbers (54 constants): 54 as expected
 
+The comparison by text (3 cases): 3 as expected
+
 Raw types of the model (3000 cases, seeds 1000 to 3999)
   28 not converted: not in the compiler: a Rec_info type given by its head: the model has not got the expression
   5 not converted: not in the compiler: a closure type that is not of kind value, in a closures entry
