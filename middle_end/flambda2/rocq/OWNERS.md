@@ -154,12 +154,16 @@ Owner: unassigned. The only stream besides C0 that edits these.
 
 ## V2: corpus and harness
 
-Owner: unassigned.
+Owner: V2, on `flambda2-rocq/V2-examples`, for the corpus; the tool
+stays C0's for now.
 
 - `middle_end/flambda2/tests/tools/flsemantics.ml`
 - `middle_end/flambda2/tests/semantics/*.fl` and their `.expected`
   files, but for an example that a stream adds for its own work, which
   is that stream's
+- `middle_end/flambda2/rocq/FlambdaBlockLoad*` (a normalisation for the
+  validator, written for the corpus: the load of a field of a block
+  that is known; V1's once it is staffed)
 
 ## V3: converter
 
