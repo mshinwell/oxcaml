@@ -222,6 +222,9 @@ pass into the validator.
   - `middle_end/flambda2/rocq/FlambdaUnusedSlots*` (the value slots of
     a static set of closures that nothing projects are removed; same
     stream)
+  - `middle_end/flambda2/rocq/FlambdaKnownSymbols*` (a primitive or a
+    projection applied to symbols that the unit binds to constants is
+    replaced by its value; same stream)
   - `middle_end/flambda2/rocq/FlambdaSimulationProofs.v` (simulations in
     which one step is answered by one or more; same stream, and used by
     the loops of V4)
