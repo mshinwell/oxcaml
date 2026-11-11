@@ -96,7 +96,8 @@
    such a predicate, at a value, is supported by the free names of the
    value ([equivariant_supports_statement]). So for an equivariant
    predicate the three readings agree with the free names of its
-   argument as the support ([some_any_nominal_statement]).
+   argument as the support ([some_any_nominal_statement], and
+   [some_any_names_nominal_statement] for several names).
 
    Several names at once. A binder of Flambda 2 may bind a list of
    names (the parameters of a handler, the continuations of a recursive
@@ -256,14 +257,17 @@ Definition propositions : contains_names Prop :=
 
 Definition propositions_nominal_statement : Prop := nominal propositions.
 
-(* An equivariant predicate of a name and a value is supported, at a
-   value, by the free names of the value. *)
+(* An equivariant predicate of two things that contain names is
+   supported, at a value of the second, by the free names of that value.
+   The first may be a name or a list of names. *)
 Definition equivariant_supports_statement : Prop :=
-  ∀ (X : Type) (N : contains_names X) (R : positive * X -> Prop) (x : X),
+  ∀ (B X : Type) (NB : contains_names B) (N : contains_names X)
+    (R : B * X -> Prop) (x : X),
+    nominal NB ->
     nominal N ->
-    equivariant (pair_names single_name N) propositions R ->
-    respects_equal (pair_names single_name N) propositions R ->
-    supports single_name (free_names N x) (fun name => R (name, x)).
+    equivariant (pair_names NB N) propositions R ->
+    respects_equal (pair_names NB N) propositions R ->
+    supports NB (free_names N x) (fun b => R (b, x)).
 
 Definition some_any_nominal_statement : Prop :=
   ∀ (X : Type) (N : contains_names X) (R : positive * X -> Prop) (x : X),
@@ -335,3 +339,20 @@ Definition for_fresh_names_iterated_statement : Prop :=
     supports list_of_names support P ->
     ((И[S count] names, P names)
      <-> И name, И[count] names, P (name :: names)).
+
+Definition some_any_names_nominal_statement : Prop :=
+  ∀ (count : nat) (X : Type) (N : contains_names X)
+    (R : list positive * X -> Prop) (x : X),
+    nominal N ->
+    equivariant (pair_names list_of_names N) propositions R ->
+    respects_equal (pair_names list_of_names N) propositions R ->
+    ((И[count] names, R (names, x))
+     <-> (∀ names : list positive,
+           length names = count ->
+           distinct_outside (free_names N x) names ->
+           R (names, x)))
+    ∧ ((И[count] names, R (names, x))
+       <-> (∃ names : list positive,
+             length names = count
+             ∧ distinct_outside (free_names N x) names
+             ∧ R (names, x))).

@@ -76,16 +76,18 @@
    length and the concretions at fresh names are equal
    ([equal_abstraction_names_fresh_statement]).
 
-   For a bindable that is not a name or a list of names there is no
-   such statement: the interface gives no way to make, from a bindable
-   and fresh names, the permutation that sends the one to the others
-   (the compiler's [Bindable.S] has [renaming] for that). So the
-   definition with permutations stays the one that holds for every
-   bindable, and the quantifier is a second way to read it for the two
-   bindables that the terms have. The work on general binders in the
-   literature defines equality of abstractions with a permutation too
-   (Urban and Kaliszyk, "General bindings and alpha-equivalence in
-   Nominal Isabelle", 2012).
+   So the equality with permutations stays the definition, and the
+   quantifier gives a second way to read it, for one name and for a
+   list of different names. That the names of one binder are different
+   is a condition of well-formedness
+   (FlambdaBindersSpec.binders_distinct), so every well-formed term
+   meets it. For a bindable that is not a name or a list of names there
+   is no such statement: the interface gives no way to make, from a
+   bindable and fresh names, the permutation that sends the one to the
+   others (the compiler's [Bindable.S] has [renaming] for that). The
+   work on general binders in the literature defines equality of
+   abstractions with a permutation too (Urban and Kaliszyk, "General
+   bindings and alpha-equivalence in Nominal Isabelle", 2012).
 
    Functions of an opened abstraction.
    [pattern_match_well_defined_statement] asks that no bound name be
@@ -99,6 +101,22 @@
    function applied at a fresh name to the concretion at that name
    gives equal results, whichever fresh names and whichever of two
    equal abstractions ([concretion_well_defined_statement]).
+
+   Functions that make fresh names. A function of the model that makes
+   names (a join that invents variables, inlining once it opens code at
+   fresh names) is extracted and run, so it takes the names to avoid
+   and makes its names with [fresh_name]: it computes one result, and a
+   statement about it is about that result. The quantifier does not
+   change that. What it can say is what the choice does not affect.
+   Write the function as one that is given the names it is to use,
+   [g (names, x)]. If [g] is equivariant, its result with those names
+   bound is the same abstraction whichever fresh names it is given
+   ([fresh_choice_statement]); and an equivariant property of the names
+   and the argument holds for all fresh names if it holds for some, in
+   particular for those that [fresh_name] gives
+   (FlambdaFreshQuantifierSpec.some_any_names_nominal_statement). The
+   names are fresh for the argument: the names to avoid that the caller
+   gives must include its free names.
 
    Nothing here mentions the terms of Flambda 2. Nothing is trusted. The
    proofs are in FlambdaFreshAbstractionProofs.v, which needs no
@@ -261,3 +279,22 @@ Definition concretion_well_defined_statement : Prop :=
     И fresh fresh',
       equal NX (f (fresh, concretion NT a fresh))
         (f (fresh', concretion NT a' fresh')).
+
+(* ======================================================================== *)
+(* Functions that make fresh names                                          *)
+(* ======================================================================== *)
+
+(* The result of an equivariant function of the names it is to use and
+   an argument, with those names bound, does not depend on the names,
+   so long as they are fresh for the argument. *)
+Definition fresh_choice_statement : Prop :=
+  ∀ (X Y : Type) (NX : contains_names X) (NY : contains_names Y)
+    (g : list positive * X -> Y) (x : X) (count : nat),
+    nominal NX ->
+    nominal NY ->
+    equivariant (pair_names list_of_names NX) NY g ->
+    respects_equal (pair_names list_of_names NX) NY g ->
+    И[count] names,
+      И[count] names',
+        equal_abstraction list_of_names NY (create names (g (names, x)))
+          (create names' (g (names', x))).

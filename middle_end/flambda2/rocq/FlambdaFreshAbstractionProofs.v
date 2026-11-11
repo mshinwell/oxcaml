@@ -291,3 +291,49 @@ Proof.
     as Hdefined.
   rewrite !pattern_match_swap in Hdefined. exact Hdefined.
 Qed.
+
+(* ======================================================================== *)
+(* Functions that make fresh names                                          *)
+(* ======================================================================== *)
+
+(* The swaps of the first names with the second open the first
+   abstraction, since an equivariant function invents no name: a free
+   name of its result that is not one of the names given is free in
+   the argument, and the swaps move no such name. They carry the first
+   result to the second because the function is equivariant. *)
+Theorem fresh_choice : fresh_choice_statement.
+Proof.
+  intros X Y NX NY g x count HX HY Hequivariant Hrespects.
+  pose proof (pair_nominal _ X list_of_names NX list_of_names_nominal HX)
+    as Hpair.
+  exists (free_names NX x). intros names Hlength [Hdistinct Houtside].
+  exists (free_names NX x ++ names). intros names' Hlength' Houtside'.
+  apply distinct_outside_app in Houtside' as [[_ Houtside'] Hdisjoint].
+  set (p := combine names names').
+  assert (Hfixes : fixes p (free_names NX x))
+    by (apply fixes_combine; assumption).
+  assert (Hmoved : map (permute p) names = names').
+  { apply permute_combine; [ congruence | exact Hdistinct | ].
+    exact Hdisjoint. }
+  exists p, identity_permutation.
+  split; [ | split; [ intros name _; reflexivity | split ] ].
+  - intros name Hname. rewrite among_free_names_abstraction in Hname.
+    apply andb_true_iff in Hname as [Hresult Hnot_given].
+    apply negb_true_iff in Hnot_given. simpl in Hresult, Hnot_given.
+    pose proof
+      (invents_no_names _ Y (pair_names list_of_names NX) NY g (names, x)
+         name Hpair HY Hequivariant Hrespects Hresult)
+      as Hargument.
+    simpl in Hargument. rewrite among_app, Hnot_given in Hargument.
+    exact (Hfixes name Hargument).
+  - simpl. rewrite Hmoved. symmetry.
+    exact (apply_renaming_identity list_of_names list_of_names_nominal
+             names').
+  - simpl. rewrite (apply_renaming_identity NY HY).
+    apply (equal_trans NY HY) with (g (names', apply_renaming NX p x)).
+    + apply (equal_sym NY HY).
+      pose proof (Hequivariant p (names, x)) as Hrenamed.
+      simpl in Hrenamed. rewrite Hmoved in Hrenamed. exact Hrenamed.
+    + apply Hrespects. split; [ reflexivity | ].
+      exact (apply_renaming_fixes NX HX p x Hfixes).
+Qed.

@@ -345,18 +345,19 @@ Qed.
    names. *)
 Theorem equivariant_supports : equivariant_supports_statement.
 Proof.
-  intros X N R x HN Hequivariant Hrespects p name Hfixes HR. simpl.
-  apply (Hrespects (permute p name, apply_renaming N p x)).
-  - split; [ reflexivity | ]. simpl.
+  intros B X NB N R x HB HN Hequivariant Hrespects p b Hfixes HR.
+  apply (Hrespects (apply_renaming NB p b, apply_renaming N p x)).
+  - split; [ apply (equal_refl NB HB) | ]. simpl.
     exact (apply_renaming_fixes N HN p x Hfixes).
-  - apply (Hequivariant p (name, x)). exact HR.
+  - apply (Hequivariant p (b, x)). exact HR.
 Qed.
 
 Theorem some_any_nominal : some_any_nominal_statement.
 Proof.
   intros X N R x HN Hequivariant Hrespects.
   exact (some_any (free_names N x) (fun name => R (name, x))
-           (equivariant_supports X N R x HN Hequivariant Hrespects)).
+           (equivariant_supports positive X single_name N R x
+              single_name_nominal HN Hequivariant Hrespects)).
 Qed.
 
 (* ======================================================================== *)
@@ -634,4 +635,12 @@ Proof.
   exists (name :: names).
   split; [ simpl; rewrite Hlength; reflexivity | ].
   split; [ apply distinct_outside_cons; assumption | exact HP ].
+Qed.
+
+Theorem some_any_names_nominal : some_any_names_nominal_statement.
+Proof.
+  intros count X N R x HN Hequivariant Hrespects.
+  exact (some_any_names count (free_names N x) (fun names => R (names, x))
+           (equivariant_supports (list positive) X list_of_names N R x
+              list_of_names_nominal HN Hequivariant Hrespects)).
 Qed.
