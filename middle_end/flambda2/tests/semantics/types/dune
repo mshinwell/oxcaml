@@ -1,0 +1,23 @@
+;; The types of the compiler against their Rocq model
+;; (middle_end/flambda2/types/rocq/), extracted with the machine of the
+;; semantics (../extracted/).
+;;
+;; The library is the converter between [Type_grammar.t] and the model's
+;; [flambda_type]: trusted, unverified OCaml, to be read against the two
+;; grammars (type_converter.ml says how).
+
+(library
+ (name flambda2_rocq_types_converter)
+ (modules model_numbers model_names model_type type_converter)
+ (libraries
+  ocamlfrontend
+  flambda2_algorithms
+  flambda2_bound_identifiers
+  flambda2_identifiers
+  flambda2_kinds
+  flambda2_lattices
+  flambda2_nominal
+  flambda2_numbers
+  flambda2_term_basics
+  flambda2_types
+  flambda2_rocq_semantics))
