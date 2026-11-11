@@ -1,0 +1,3 @@
+let a = %opaque (5) in
+let bucket = %block.[`0`].`toplevel` (a, 7) in
+cont error pop(regular error) (bucket)

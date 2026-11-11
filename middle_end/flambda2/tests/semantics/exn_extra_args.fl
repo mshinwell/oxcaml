@@ -1,0 +1,26 @@
+let code inline(never) size(9) raises (x) my_closure &my_region my_depth
+      -> k * e =
+  let c = %int_comp.`lt` (x, 3) in
+  (switch c
+     | 0 -> raising
+     | 1 -> k (x)
+     where raising =
+       let bucket = %block.[`0`].my_region (x, 7) in
+       cont e pop(regular e) (bucket))
+in
+let $Exn_extra_args_raises = closure raises @raises &toplevel in
+let a = %opaque (5) in
+let b = %opaque (30) in
+cont body push(handler)
+  where body =
+    (apply direct(raises &toplevel) $Exn_extra_args_raises (a)
+       -> returned * handler (b imm tagged)
+       where returned (r) =
+         cont leave pop(handler) (r))
+  where handler exn (e : val, extra : imm tagged) =
+    let payload = %block_load.[`0`] (e) in
+    let r = %int_barith.`add` (payload, extra) in
+    cont leave (r)
+  where leave (r) =
+    let $camlExn_extra_args = Block 0 (r, $Exn_extra_args_raises) in
+    cont done ($camlExn_extra_args)

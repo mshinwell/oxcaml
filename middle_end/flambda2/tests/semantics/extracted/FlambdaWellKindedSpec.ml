@@ -115,9 +115,18 @@ let static_const_well_kinded slots kinds = function
     | None -> false)
   | Static_const_immutable_string _ -> true
 
+(** val trap_action_in_scope : arity_env -> apply_cont -> bool **)
+
+let trap_action_in_scope conts ac =
+  match ac.ac_trap_action with
+  | Some action -> is_bound (trap_action_handler action) conts
+  | None -> true
+
 (** val apply_cont_well_kinded : kind_env -> arity_env -> apply_cont -> bool **)
 
 let apply_cont_well_kinded kinds conts ac =
+  trap_action_in_scope conts ac
+  &&
   match lookup ac.ac_continuation conts with
   | Some params_kinds ->
     has_arity (kinds_of_simples kinds ac.ac_args) params_kinds
@@ -126,10 +135,15 @@ let apply_cont_well_kinded kinds conts ac =
 (** val apply_well_kinded : kind_env -> arity_env -> apply_expr -> bool **)
 
 let apply_well_kinded kinds conts ap =
-  ((is_some (kind_of_simple kinds ap.ap_callee)
-   && is_some (kinds_of_simples kinds ap.ap_args))
+  (((is_some (kind_of_simple kinds ap.ap_callee)
+    && is_some (kinds_of_simples kinds ap.ap_args))
+   && has_arity
+        (kinds_of_simples kinds (exn_extra_simples ap))
+        (map snd ap.ap_exn_extra_args))
   && has_arity (lookup ap.ap_continuation conts) (unarize ap.ap_return_arity))
-  && has_arity (lookup ap.ap_exn_continuation conts) (Value :: [])
+  && has_arity
+       (lookup ap.ap_exn_continuation conts)
+       (Value :: map snd ap.ap_exn_extra_args)
 
 (** val well_kinded : slot_kinds -> kind_env -> arity_env -> expr -> bool **)
 

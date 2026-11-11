@@ -1,6 +1,7 @@
 open BinInt
 open BinNums
 open BinPos
+open Bool
 open Datatypes
 open FlambdaKindModel
 open FlambdaPrimitiveModel
@@ -275,10 +276,50 @@ let static_const_eq_dec const0 const' =
     | Static_const_immutable_string bytes0 -> list_eq_dec Z.eq_dec bytes bytes0
     | _ -> false)
 
+type raise_kind =
+  | Regular
+  | Reraise
+  | No_trace
+
+type trap_action =
+  | Push of continuation
+  | Pop of continuation * raise_kind option
+
 type apply_cont =
   { ac_continuation : continuation;
-    ac_args : simple list
+    ac_args : simple list;
+    ac_trap_action : trap_action option
   }
+
+(** val trap_action_handler : trap_action -> continuation **)
+
+let trap_action_handler = function
+  | Push exn_handler -> exn_handler
+  | Pop (exn_handler, _) -> exn_handler
+
+(** val apply_cont_continuations : apply_cont -> continuation list **)
+
+let apply_cont_continuations ac =
+  ac.ac_continuation
+  ::
+  (match ac.ac_trap_action with
+  | Some action -> trap_action_handler action :: []
+  | None -> [])
+
+(** val no_trap_action : apply_cont -> bool **)
+
+let no_trap_action ac =
+  match ac.ac_trap_action with Some _ -> false | None -> true
+
+(** val is_raise : apply_cont -> bool **)
+
+let is_raise ac =
+  match ac.ac_trap_action with
+  | Some t -> (
+    match t with
+    | Push _ -> false
+    | Pop (exn_handler, _) -> Pos.eqb ac.ac_continuation exn_handler)
+  | None -> false
 
 type call_kind =
   | Direct of code_id
@@ -290,19 +331,40 @@ type apply_expr =
     ap_args : simple list;
     ap_continuation : continuation;
     ap_exn_continuation : continuation;
+    ap_exn_extra_args : (simple * flambda_kind) list;
     ap_args_arity : arity;
     ap_return_arity : arity
   }
 
-type handler_metadata = { hm_params_kinds : flambda_kind list }
+(** val exn_extra_simples : apply_expr -> simple list **)
+
+let exn_extra_simples ap = map fst ap.ap_exn_extra_args
+
+(** val no_exn_extra_args : apply_expr -> bool **)
+
+let no_exn_extra_args ap =
+  match ap.ap_exn_extra_args with [] -> true | _ :: _ -> false
+
+type handler_metadata =
+  { hm_params_kinds : flambda_kind list;
+    hm_is_exn_handler : bool
+  }
 
 (** val make_handler_metadata : flambda_kind list -> handler_metadata **)
 
-let make_handler_metadata params_kinds = { hm_params_kinds = params_kinds }
+let make_handler_metadata params_kinds =
+  { hm_params_kinds = params_kinds; hm_is_exn_handler = false }
+
+(** val make_exn_handler_metadata : flambda_kind list -> handler_metadata **)
+
+let make_exn_handler_metadata params_kinds =
+  { hm_params_kinds = params_kinds; hm_is_exn_handler = true }
 
 (** val handler_metadata_eqb : handler_metadata -> handler_metadata -> bool **)
 
-let handler_metadata_eqb m m' = kinds_eqb m.hm_params_kinds m'.hm_params_kinds
+let handler_metadata_eqb m m' =
+  kinds_eqb m.hm_params_kinds m'.hm_params_kinds
+  && eqb m.hm_is_exn_handler m'.hm_is_exn_handler
 
 type code_metadata =
   { cm_params_arity : arity;
@@ -350,6 +412,11 @@ and code =
 
 let handler_kinds = function
   | Handler (_, metadata, _) -> metadata.hm_params_kinds
+
+(** val handler_is_exn_handler : continuation_handler -> bool **)
+
+let handler_is_exn_handler = function
+  | Handler (_, metadata, _) -> metadata.hm_is_exn_handler
 
 (** val code_params : code -> variable list **)
 

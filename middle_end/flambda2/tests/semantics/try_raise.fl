@@ -1,0 +1,16 @@
+let a = %opaque (5) in
+let c = %int_comp.`lt` (a, 3) in
+cont body push(handler)
+  where body =
+    (switch c
+       | 0 -> raising
+       | 1 -> leave pop(handler) (10)
+       where raising =
+         let bucket = %block.[`0`].`toplevel` (a, 7) in
+         cont handler pop(notrace handler) (bucket))
+  where handler exn (e : val) =
+    let payload = %block_load.[`0`] (e) in
+    cont leave (payload)
+  where leave (r) =
+    let $camlTry_raise = Block 0 (r) in
+    cont done ($camlTry_raise)

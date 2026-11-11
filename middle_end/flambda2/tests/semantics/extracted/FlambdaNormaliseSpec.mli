@@ -144,6 +144,8 @@ val merge_statics : expr -> expr
 
 val simple_eq_dec : simple -> simple -> bool
 
+val trap_action_eq_dec : trap_action -> trap_action -> bool
+
 val apply_cont_eq_dec : apply_cont -> apply_cont -> bool
 
 val collapse_switch : simple -> (coq_Z * apply_cont) list -> expr

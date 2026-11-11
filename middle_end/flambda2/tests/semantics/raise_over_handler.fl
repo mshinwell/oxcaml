@@ -1,0 +1,14 @@
+let a = %opaque (5) in
+cont body1 push(outer)
+  where body1 =
+    (cont body2 push(inner)
+       where body2 =
+         let bucket = %block.[`0`].`toplevel` (a, 7) in
+         cont outer pop(notrace outer) (bucket)
+       where inner exn (e : val) =
+         cont leave pop(outer) (1))
+  where outer exn (e : val) =
+    cont leave (2)
+  where leave (r) =
+    let $camlRaise_over_handler = Block 0 (r) in
+    cont done ($camlRaise_over_handler)

@@ -74,12 +74,13 @@ let apply_cont_avoids d ac = simples_avoid d ac.ac_args
 (** val apply_avoids : dropped -> apply_expr -> bool **)
 
 let apply_avoids d ap =
-  (simple_avoids d ap.ap_callee
-  &&
-  match ap.ap_call_kind with
-  | Direct code0 -> code_kept d code0
-  | Indirect -> true)
-  && simples_avoid d ap.ap_args
+  ((simple_avoids d ap.ap_callee
+   &&
+   match ap.ap_call_kind with
+   | Direct code0 -> code_kept d code0
+   | Indirect -> true)
+  && simples_avoid d ap.ap_args)
+  && simples_avoid d (exn_extra_simples ap)
 
 (** val expr_avoids : dropped -> expr -> bool **)
 

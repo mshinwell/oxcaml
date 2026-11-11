@@ -39,6 +39,11 @@ val static_const_eqb : name_map -> static_const -> static_const -> bool
 
 val call_kind_eqb : call_kind -> call_kind -> bool
 
+val raise_kind_eqb : raise_kind option -> raise_kind option -> bool
+
+val trap_action_eqb :
+  name_map -> trap_action option -> trap_action option -> bool
+
 val apply_cont_eqb : name_map -> name_map -> apply_cont -> apply_cont -> bool
 
 val apply_eqb : name_map -> name_map -> apply_expr -> apply_expr -> bool

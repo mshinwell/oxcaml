@@ -195,21 +195,65 @@ let call_kind_eqb kind kind' =
     match kind' with Direct code' -> Pos.eqb code0 code' | Indirect -> false)
   | Indirect -> ( match kind' with Direct _ -> false | Indirect -> true)
 
+(** val raise_kind_eqb : raise_kind option -> raise_kind option -> bool **)
+
+let raise_kind_eqb kind kind' =
+  match kind with
+  | Some r -> (
+    match r with
+    | Regular -> (
+      match kind' with
+      | Some r0 -> ( match r0 with Regular -> true | _ -> false)
+      | None -> false)
+    | Reraise -> (
+      match kind' with
+      | Some r0 -> ( match r0 with Reraise -> true | _ -> false)
+      | None -> false)
+    | No_trace -> (
+      match kind' with
+      | Some r0 -> ( match r0 with No_trace -> true | _ -> false)
+      | None -> false))
+  | None -> ( match kind' with Some _ -> false | None -> true)
+
+(** val trap_action_eqb : name_map -> trap_action option -> trap_action option
+    -> bool **)
+
+let trap_action_eqb km action action' =
+  match action with
+  | Some t -> (
+    match t with
+    | Push k -> (
+      match action' with
+      | Some t0 -> (
+        match t0 with Push k' -> names_match km k k' | Pop (_, _) -> false)
+      | None -> false)
+    | Pop (k, kind) -> (
+      match action' with
+      | Some t0 -> (
+        match t0 with
+        | Push _ -> false
+        | Pop (k', kind') -> names_match km k k' && raise_kind_eqb kind kind')
+      | None -> false))
+  | None -> ( match action' with Some _ -> false | None -> true)
+
 (** val apply_cont_eqb : name_map -> name_map -> apply_cont -> apply_cont ->
     bool **)
 
 let apply_cont_eqb vm km ac ac' =
-  names_match km ac.ac_continuation ac'.ac_continuation
-  && simples_eqb vm ac.ac_args ac'.ac_args
+  (names_match km ac.ac_continuation ac'.ac_continuation
+  && simples_eqb vm ac.ac_args ac'.ac_args)
+  && trap_action_eqb km ac.ac_trap_action ac'.ac_trap_action
 
 (** val apply_eqb : name_map -> name_map -> apply_expr -> apply_expr -> bool **)
 
 let apply_eqb vm km ap ap' =
-  (((((simple_eqb vm ap.ap_callee ap'.ap_callee
-      && call_kind_eqb ap.ap_call_kind ap'.ap_call_kind)
-     && simples_eqb vm ap.ap_args ap'.ap_args)
-    && names_match km ap.ap_continuation ap'.ap_continuation)
-   && names_match km ap.ap_exn_continuation ap'.ap_exn_continuation)
+  (((((((simple_eqb vm ap.ap_callee ap'.ap_callee
+        && call_kind_eqb ap.ap_call_kind ap'.ap_call_kind)
+       && simples_eqb vm ap.ap_args ap'.ap_args)
+      && names_match km ap.ap_continuation ap'.ap_continuation)
+     && names_match km ap.ap_exn_continuation ap'.ap_exn_continuation)
+    && simples_eqb vm (exn_extra_simples ap) (exn_extra_simples ap'))
+   && kinds_eqb (map snd ap.ap_exn_extra_args) (map snd ap'.ap_exn_extra_args))
   && arity_eqb ap.ap_args_arity ap'.ap_args_arity)
   && arity_eqb ap.ap_return_arity ap'.ap_return_arity
 

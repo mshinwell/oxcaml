@@ -55,6 +55,15 @@
    is run on each of the two units and its answers are printed; nothing depends
    on them.
 
+   Exceptions. The conversion gives each [Apply_cont] its trap action, with the
+   continuation it names and its raise kind; each call the extra arguments of
+   its exception continuation, with their kinds; and each handler whether it is
+   an exception handler. The machine reads the extra arguments only, so a
+   mistake there changes a run. The rest is read by the comparison of the
+   validator and by the checks of well-formedness, which say whether a unit
+   keeps its exception handlers apart and follows the discipline of trap
+   actions: a mistake there changes what those accept.
+
    Partial applications and over-applications are not in the model, where a call
    with more or fewer arguments than the code has parameters is undefined. A
    direct call that the compiler takes for one
@@ -502,12 +511,24 @@ let only_function function_decls =
     needs_named_function_slots ();
     None
 
+let convert_raise_kind (kind : Trap_action.Raise_kind.t) : Model.raise_kind =
+  match kind with
+  | Regular -> Regular
+  | Reraise -> Reraise
+  | No_trace -> No_trace
+
+let convert_trap_action (action : Trap_action.t) : Model.trap_action =
+  match action with
+  | Push { exn_handler } -> Push (Continuations.find exn_handler)
+  | Pop { exn_handler; raise_kind } ->
+    Pop
+      (Continuations.find exn_handler, Option.map convert_raise_kind raise_kind)
+
 let convert_apply_cont (ac : Apply_cont_expr.t) : Model.apply_cont =
-  (match Apply_cont_expr.trap_action ac with
-  | None -> ()
-  | Some _ -> unsupported "a trap action");
   { ac_continuation = Continuations.find (Apply_cont_expr.continuation ac);
-    ac_args = convert_simples (Apply_cont_expr.args ac)
+    ac_args = convert_simples (Apply_cont_expr.args ac);
+    ac_trap_action =
+      Option.map convert_trap_action (Apply_cont_expr.trap_action ac)
   }
 
 let convert_params (params : Bound_parameters.t) =
@@ -573,11 +594,15 @@ let rec convert_expr (e : Flambda.Expr.t) : Model.expr =
 
 and convert_handler ~invariant_params (handler : Flambda.Continuation_handler.t)
     : Model.continuation_handler =
+  let is_exn_handler = Flambda.Continuation_handler.is_exn_handler handler in
   Flambda.Continuation_handler.pattern_match handler ~f:(fun params ~handler ->
       let params = Bound_parameters.append invariant_params params in
+      let kinds = convert_params_kinds params in
       Model.Handler
         ( convert_params params,
-          Model.make_handler_metadata (convert_params_kinds params),
+          (if is_exn_handler
+           then Model.make_exn_handler_metadata kinds
+           else Model.make_handler_metadata kinds),
           convert_expr handler ))
 
 and convert_let (pattern : Bound_pattern.t) (defining_expr : Flambda.Named.t)
@@ -808,15 +833,18 @@ and convert_apply (apply : Apply_expr.t) : Model.apply_expr =
     | Never_returns -> unsupported "a call that never returns"
   in
   let exn_continuation = Apply_expr.exn_continuation apply in
-  (match Exn_continuation.extra_args exn_continuation with
-  | [] -> ()
-  | _ :: _ -> unsupported "extra arguments to an exception continuation");
   { ap_callee = callee;
     ap_call_kind = call_kind;
     ap_args = convert_simples (Apply_expr.args apply);
     ap_continuation = continuation;
     ap_exn_continuation =
       Continuations.find (Exn_continuation.exn_handler exn_continuation);
+    ap_exn_extra_args =
+      List.map
+        (fun (simple, kind) ->
+          ( convert_simple simple,
+            convert_kind (Flambda_kind.With_subkind.kind kind) ))
+        (Exn_continuation.extra_args exn_continuation);
     ap_args_arity = args_arity;
     ap_return_arity = return_arity
   }
@@ -1097,9 +1125,22 @@ let print_named ppf (d : Model.named) =
       (int_of_positive move_from)
       (int_of_positive move_to)
 
+let print_trap_action ppf (action : Model.trap_action option) =
+  match action with
+  | None -> ()
+  | Some (Push k) -> Format.fprintf ppf "@ push(%a)" print_cont k
+  | Some (Pop (k, kind)) ->
+    Format.fprintf ppf "@ pop(%s%a)"
+      (match kind with
+      | None -> ""
+      | Some Regular -> "regular "
+      | Some Reraise -> "reraise "
+      | Some No_trace -> "notrace ")
+      print_cont k
+
 let print_apply_cont ppf (ac : Model.apply_cont) =
-  Format.fprintf ppf "@[<hov 2>cont %a@ (%a)@]" print_cont ac.ac_continuation
-    print_simples ac.ac_args
+  Format.fprintf ppf "@[<hov 2>cont %a%a@ (%a)@]" print_cont ac.ac_continuation
+    print_trap_action ac.ac_trap_action print_simples ac.ac_args
 
 let rec print_expr ppf (e : Model.expr) =
   match e with
@@ -1119,12 +1160,17 @@ let rec print_expr ppf (e : Model.expr) =
            Format.fprintf ppf "%a %a" print_cont k print_handler handler))
       handlers print_expr body
   | Apply ap ->
-    Format.fprintf ppf "@[<hov 2>apply%s %a@ (%a)@ -> %a * %a@]"
+    Format.fprintf ppf "@[<hov 2>apply%s %a@ (%a)@ -> %a * %a%a@]"
       (match ap.ap_call_kind with
       | Direct code -> Printf.sprintf " direct(code%d)" (int_of_positive code)
       | Indirect -> "")
       print_simple ap.ap_callee print_simples ap.ap_args print_cont
       ap.ap_continuation print_cont ap.ap_exn_continuation
+      (fun ppf extra ->
+        match extra with
+        | [] -> ()
+        | _ :: _ -> Format.fprintf ppf "@ (%a)" print_simples extra)
+      (List.map fst ap.ap_exn_extra_args)
   | Apply_cont ac -> print_apply_cont ppf ac
   | Switch (scrutinee, arms) ->
     Format.fprintf ppf "@[<v 2>switch %a@ %a@]" print_simple scrutinee
@@ -1133,9 +1179,10 @@ let rec print_expr ppf (e : Model.expr) =
       arms
   | Invalid -> Format.fprintf ppf "invalid"
 
-and print_handler ppf (Model.Handler (params, _, handler)) =
-  Format.fprintf ppf "(%a) =@ @[<v>%a@]" (print_list print_var) params
-    print_expr handler
+and print_handler ppf (Model.Handler (params, metadata, handler)) =
+  Format.fprintf ppf "%s(%a) =@ @[<v>%a@]"
+    (if metadata.hm_is_exn_handler then "exn " else "")
+    (print_list print_var) params print_expr handler
 
 and print_binding ppf (binding : Model.static_binding) =
   match binding with
@@ -1244,6 +1291,7 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
     | Apply ap -> (
       in_simple owner ap.ap_callee;
       in_simples owner ap.ap_args;
+      in_simples owner (List.map fst ap.ap_exn_extra_args);
       match ap.ap_call_kind with
       | Direct code -> refer owner (Code_name code)
       | Indirect -> ())
@@ -1371,11 +1419,50 @@ let well_kinded (unit : converted) =
     unit.return_continuation unit.exn_continuation unit.body
 
 (* Static bindings at toplevel only, each name bound once, the sets of closures
-   whole, and the numbers in range (FlambdaWellFormedSpec.v). *)
+   whole, the numbers in range, exception handlers apart from the other
+   continuations, and the discipline of trap actions
+   (FlambdaWellFormedSpec.v). *)
 let well_formed (unit : converted) =
   Well_formed.well_formed_unit
     { unit_return = unit.return_continuation; unit_exn = unit.exn_continuation }
     unit.body
+
+(* A condition of well-formedness that a unit which is not well-formed fails. *)
+let why_not_well_formed (unit : converted) =
+  let exn = unit.exn_continuation in
+  if not (Well_formed.numbers_in_range unit.body)
+  then
+    (* The compiler's numbers are in range by their types, so this is a fault of
+       the conversion. *)
+    "a number out of its range: the tag of a block, a constant, the field or \
+     the size of a block load, a discriminant or a byte of a string"
+  else if not (Binders.names_in_scope unit.return_continuation exn unit.body)
+  then "a variable or a continuation that is used where nothing binds it"
+  else if not (Binders.binders_distinct unit.body)
+  then
+    "a name bound twice by one binder, the closure of code among its \
+     parameters, or a recursive group of no continuation"
+  else if not (Binders.code_closed unit.body)
+  then "code that uses a variable or a continuation that it does not bind"
+  else if not (Well_formed.sets_well_formed unit.body)
+  then
+    "a closure at a function slot that its set has not got, a function slot or \
+     a code id given twice in a set, the same code in two static sets of one \
+     group, or a static set of closures that is not bound whole"
+  else if not (Well_formed.unit_exn_handlers_well_formed exn unit.body)
+  then
+    "an exception handler that is applied as an ordinary continuation, takes \
+     no parameter or is recursive; a continuation that is used as an exception \
+     handler and is not marked as one; a continuation that the unit or code \
+     does not bind and that is used as an exception handler without being its \
+     exception continuation, or is given extra arguments; or the exception \
+     continuation of the unit or of code named by a trap action that is not \
+     that of a raise"
+  else if not (Well_formed.traps_well_formed exn unit.body)
+  then
+    "a trap action, a raise or a call that names a handler other than the one \
+     installed last, or a continuation entered with two stacks of handlers"
+  else "a static binding that is not at toplevel, or a name bound twice"
 
 (* The term before is checked before Simplify sees it, which is entitled to fail
    on one that is not well-formed. *)
@@ -1386,50 +1473,9 @@ let well_formed_before ~filename (before : Flambda_unit.t) =
     let ok = well_formed before in
     if not ok
     then
-      if not (Well_formed.numbers_in_range before.body)
-      then
-        (* The compiler's numbers are in range by their types, so this is a
-           fault of the conversion. *)
-        Format.printf
-          "%s: not checked: the term is not well-formed (a number out of its \
-           range: the tag of a block, a constant, the field or the size of a \
-           block load, a discriminant or a byte of a string)@."
-          filename
-      else if
-        not
-          (Binders.names_in_scope before.return_continuation
-             before.exn_continuation before.body)
-      then
-        Format.printf
-          "%s: not checked: the term is not well-formed (a variable or a \
-           continuation that is used where nothing binds it)@."
-          filename
-      else if not (Binders.binders_distinct before.body)
-      then
-        Format.printf
-          "%s: not checked: the term is not well-formed (a name bound twice by \
-           one binder, the closure of code among its parameters, or a \
-           recursive group of no continuation)@."
-          filename
-      else if not (Binders.code_closed before.body)
-      then
-        Format.printf
-          "%s: not checked: the term is not well-formed (code that uses a \
-           variable or a continuation that it does not bind)@."
-          filename
-      else if Well_formed.sets_well_formed before.body
-      then
-        Format.printf
-          "%s: not checked: the term is not well-formed (a static binding that \
-           is not at toplevel, or a name bound twice)@."
-          filename
-      else
-        Format.printf
-          "%s: not checked: the term is not well-formed (a closure at a \
-           function slot that its set has not got, a function slot or a code \
-           id given twice in a set, the same code in two static sets of one \
-           group, or a static set of closures that is not bound whole)@."
-          filename;
+      Format.printf "%s: not checked: the term is not well-formed (%s)@."
+        filename
+        (why_not_well_formed before);
     ok
 
 (* What the comparison of the two runs shows of one run, this shows of all. The
@@ -1480,7 +1526,9 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
     Format.printf "%s: not checked: the model has not got %s@." filename
       (Format.asprintf "%t" what)
   | _, after when not (well_formed after) ->
-    Format.printf "%s: the term after Simplify is NOT WELL-FORMED@." filename;
+    Format.printf "%s: the term after Simplify is NOT WELL-FORMED (%s)@."
+      filename
+      (why_not_well_formed after);
     exit 1
   | before, after ->
     let outcome_before, steps_before = run before in

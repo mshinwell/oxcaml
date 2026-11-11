@@ -52,7 +52,9 @@ let free_variables_of_apply_cont ac = free_variables_of_simples ac.ac_args
 let free_variables_of_apply ap =
   app
     (free_variables_of_simple ap.ap_callee)
-    (free_variables_of_simples ap.ap_args)
+    (app
+       (free_variables_of_simples ap.ap_args)
+       (free_variables_of_simples (exn_extra_simples ap)))
 
 (** val free_variables_of_expr : expr -> variable list **)
 
@@ -124,8 +126,9 @@ let rec free_continuations_of_expr = function
             handlers)
          (free_continuations_of_expr body))
   | Apply ap -> [ap.ap_continuation; ap.ap_exn_continuation]
-  | Apply_cont ac -> ac.ac_continuation :: []
-  | Switch (_, arms) -> map (fun arm -> (snd arm).ac_continuation) arms
+  | Apply_cont ac -> apply_cont_continuations ac
+  | Switch (_, arms) ->
+    flat_map (fun arm -> apply_cont_continuations (snd arm)) arms
   | Invalid -> []
 
 (** val free_continuations_of_handler : continuation_handler -> continuation

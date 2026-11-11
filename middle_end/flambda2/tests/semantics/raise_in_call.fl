@@ -1,0 +1,25 @@
+let code inline(never) size(9) raises (x) my_closure &my_region my_depth
+      -> k * e =
+  let c = %int_comp.`lt` (x, 3) in
+  (switch c
+     | 0 -> raising
+     | 1 -> k (x)
+     where raising =
+       let bucket = %block.[`0`].my_region (x, 7) in
+       cont e pop(regular e) (bucket))
+in
+let $Raise_in_call_raises = closure raises @raises &toplevel in
+let a = %opaque (5) in
+cont body push(handler)
+  where body =
+    (apply direct(raises &toplevel) $Raise_in_call_raises (a)
+       -> returned * handler
+       where returned (r) =
+         cont leave pop(handler) (r))
+  where handler exn (e : val) =
+    let payload = %block_load.[`0`] (e) in
+    let r = %int_barith.`add` (payload, 100) in
+    cont leave (r)
+  where leave (r) =
+    let $camlRaise_in_call = Block 0 (r, $Raise_in_call_raises) in
+    cont done ($camlRaise_in_call)

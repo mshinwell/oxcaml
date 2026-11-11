@@ -18,6 +18,7 @@ type cont_value =
       * (continuation * cont_value) list
       * (continuation * continuation_handler) list
   | Outer of continuation
+  | Extra_args of cont_value * value list
 
 type cont_env = (continuation * cont_value) list
 
@@ -67,6 +68,8 @@ type step_result =
   | Undefined
 
 val apply_cont_value : cont_value -> value list -> static_env -> step_result
+
+val with_extra_args : cont_value -> value list -> cont_value
 
 val apply_continuation :
   continuation -> value list -> cont_env -> static_env -> step_result

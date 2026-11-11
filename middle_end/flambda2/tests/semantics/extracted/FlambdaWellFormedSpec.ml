@@ -7,6 +7,7 @@ open FlambdaModel
 open FlambdaPrimitiveSpec
 open List
 open ListDef
+open OxCamlList
 
 (** val free_continuations : expr -> continuation list **)
 
@@ -27,14 +28,22 @@ let rec free_continuations = function
             handlers)
          (free_continuations body))
   | Apply ap -> [ap.ap_continuation; ap.ap_exn_continuation]
-  | Apply_cont ac -> ac.ac_continuation :: []
-  | Switch (_, arms) -> map (fun arm -> (snd arm).ac_continuation) arms
+  | Apply_cont ac -> apply_cont_continuations ac
+  | Switch (_, arms) ->
+    flat_map (fun arm -> apply_cont_continuations (snd arm)) arms
   | Invalid -> []
 
 (** val handler_free_continuations : continuation_handler -> continuation list **)
 
 and handler_free_continuations = function
   | Handler (_, _, handler) -> free_continuations handler
+
+(** val traps : continuation -> apply_cont -> bool **)
+
+let traps k ac =
+  match ac.ac_trap_action with
+  | Some action -> Pos.eqb k (trap_action_handler action)
+  | None -> false
 
 (** val raises_to : continuation -> expr -> bool **)
 
@@ -51,17 +60,21 @@ let rec raises_to k = function
       handlers
     || raises_to k body
   | Apply ap -> Pos.eqb k ap.ap_exn_continuation
-  | _ -> false
+  | Apply_cont ac -> traps k ac
+  | Switch (_, arms) -> existsb (fun arm -> traps k (snd arm)) arms
+  | Invalid -> false
 
 (** val handler_raises_to : continuation -> continuation_handler -> bool **)
 
 and handler_raises_to k = function
   | Handler (_, _, handler) -> raises_to k handler
 
-(** val handler_at_toplevel : continuation -> continuation -> expr -> bool **)
+(** val handler_at_toplevel : continuation -> continuation ->
+    continuation_handler -> expr -> bool **)
 
-let handler_at_toplevel unit_exn0 k body =
-  negb (raises_to k body) && all_among (free_continuations body) [k; unit_exn0]
+let handler_at_toplevel unit_exn0 k h body =
+  negb (handler_is_exn_handler h)
+  && all_among (free_continuations body) [k; unit_exn0]
 
 (** val statics_at_toplevel : continuation -> bool -> expr -> bool **)
 
@@ -72,7 +85,7 @@ let rec statics_at_toplevel unit_exn0 toplevel = function
     && statics_at_toplevel unit_exn0 toplevel body
   | Let_cont_non_recursive (k, h, body) ->
     handler_statics_at_toplevel unit_exn0
-      (toplevel && handler_at_toplevel unit_exn0 k body)
+      (toplevel && handler_at_toplevel unit_exn0 k h body)
       h
     && statics_at_toplevel unit_exn0 toplevel body
   | Let_cont_recursive (handlers, body) ->
@@ -301,7 +314,8 @@ let apply_cont_in_range ac = forallb simple_in_range ac.ac_args
 (** val apply_in_range : apply_expr -> bool **)
 
 let apply_in_range ap =
-  simple_in_range ap.ap_callee && forallb simple_in_range ap.ap_args
+  (simple_in_range ap.ap_callee && forallb simple_in_range ap.ap_args)
+  && forallb simple_in_range (exn_extra_simples ap)
 
 (** val arm_in_range : (coq_Z * apply_cont) -> bool **)
 
@@ -346,6 +360,356 @@ and binding_numbers_in_range = function
 and code_numbers_in_range = function
   | Code (_, _, _, _, _, body) -> numbers_in_range body
 
+(** val applies : continuation -> apply_cont -> bool **)
+
+let applies k ac = Pos.eqb k ac.ac_continuation && negb (is_raise ac)
+
+(** val applies_cont : continuation -> expr -> bool **)
+
+let rec applies_cont k = function
+  | Let (_, _, _, body) -> applies_cont k body
+  | Let_static (_, body) -> applies_cont k body
+  | Let_cont_non_recursive (_, h, body) ->
+    handler_applies_cont k h || applies_cont k body
+  | Let_cont_recursive (handlers, body) ->
+    existsb
+      (fun pat ->
+        let _, h = pat in
+        handler_applies_cont k h)
+      handlers
+    || applies_cont k body
+  | Apply ap -> Pos.eqb k ap.ap_continuation
+  | Apply_cont ac -> applies k ac
+  | Switch (_, arms) -> existsb (fun arm -> applies k (snd arm)) arms
+  | Invalid -> false
+
+(** val handler_applies_cont : continuation -> continuation_handler -> bool **)
+
+and handler_applies_cont k = function
+  | Handler (_, _, handler) -> applies_cont k handler
+
+(** val gives_extra_args : continuation -> expr -> bool **)
+
+let rec gives_extra_args k = function
+  | Let (_, _, _, body) -> gives_extra_args k body
+  | Let_static (_, body) -> gives_extra_args k body
+  | Let_cont_non_recursive (_, h, body) ->
+    handler_gives_extra_args k h || gives_extra_args k body
+  | Let_cont_recursive (handlers, body) ->
+    existsb
+      (fun pat ->
+        let _, h = pat in
+        handler_gives_extra_args k h)
+      handlers
+    || gives_extra_args k body
+  | Apply ap -> Pos.eqb k ap.ap_exn_continuation && negb (no_exn_extra_args ap)
+  | _ -> false
+
+(** val handler_gives_extra_args : continuation -> continuation_handler -> bool
+    **)
+
+and handler_gives_extra_args k = function
+  | Handler (_, _, handler) -> gives_extra_args k handler
+
+(** val traps_apart : continuation -> apply_cont -> bool **)
+
+let traps_apart k ac = traps k ac && negb (is_raise ac)
+
+(** val installs_or_removes : continuation -> expr -> bool **)
+
+let rec installs_or_removes k = function
+  | Let (_, _, _, body) -> installs_or_removes k body
+  | Let_static (_, body) -> installs_or_removes k body
+  | Let_cont_non_recursive (_, h, body) ->
+    handler_installs_or_removes k h || installs_or_removes k body
+  | Let_cont_recursive (handlers, body) ->
+    existsb
+      (fun pat ->
+        let _, h = pat in
+        handler_installs_or_removes k h)
+      handlers
+    || installs_or_removes k body
+  | Apply_cont ac -> traps_apart k ac
+  | Switch (_, arms) -> existsb (fun arm -> traps_apart k (snd arm)) arms
+  | _ -> false
+
+(** val handler_installs_or_removes : continuation -> continuation_handler ->
+    bool **)
+
+and handler_installs_or_removes k = function
+  | Handler (_, _, handler) -> installs_or_removes k handler
+
+(** val ways_out_well_formed : continuation -> expr -> bool **)
+
+let ways_out_well_formed exn e =
+  forallb
+    (fun k ->
+      (if Pos.eqb k exn
+       then negb (installs_or_removes k e)
+       else negb (raises_to k e))
+      && negb (gives_extra_args k e))
+    (free_continuations e)
+
+(** val takes_exception : continuation_handler -> bool **)
+
+let takes_exception = function
+  | Handler (params, _, _) -> (
+    match params with [] -> false | _ :: _ -> true)
+
+(** val exn_handlers_well_formed : expr -> bool **)
+
+let rec exn_handlers_well_formed = function
+  | Let (_, _, _, body) -> exn_handlers_well_formed body
+  | Let_static (bindings, body) ->
+    forallb binding_exn_handlers_well_formed bindings
+    && exn_handlers_well_formed body
+  | Let_cont_non_recursive (k, h, body) ->
+    ((if handler_is_exn_handler h
+      then negb (applies_cont k body) && takes_exception h
+      else negb (raises_to k body))
+    && handler_exn_handlers_well_formed h)
+    && exn_handlers_well_formed body
+  | Let_cont_recursive (handlers, body) ->
+    forallb
+      (fun pat ->
+        let k, h = pat in
+        ((negb (handler_is_exn_handler h) && negb (raises_to k body))
+        && negb
+             (existsb
+                (fun pat0 ->
+                  let _, h' = pat0 in
+                  handler_raises_to k h')
+                handlers))
+        && handler_exn_handlers_well_formed h)
+      handlers
+    && exn_handlers_well_formed body
+  | _ -> true
+
+(** val handler_exn_handlers_well_formed : continuation_handler -> bool **)
+
+and handler_exn_handlers_well_formed = function
+  | Handler (_, _, handler) -> exn_handlers_well_formed handler
+
+(** val binding_exn_handlers_well_formed : static_binding -> bool **)
+
+and binding_exn_handlers_well_formed = function
+  | Bind_code (_, c) -> code_exn_handlers_well_formed c
+  | _ -> true
+
+(** val code_exn_handlers_well_formed : code -> bool **)
+
+and code_exn_handlers_well_formed = function
+  | Code (_, _, _, exn, _, body) ->
+    (ways_out_well_formed exn body && negb (applies_cont exn body))
+    && exn_handlers_well_formed body
+
+(** val unit_exn_handlers_well_formed : continuation -> expr -> bool **)
+
+let unit_exn_handlers_well_formed unit_exn0 e =
+  (ways_out_well_formed unit_exn0 e && negb (applies_cont unit_exn0 e))
+  && exn_handlers_well_formed e
+
+type trap_stack = continuation list
+
+(** val trap_stack_eqb : trap_stack -> trap_stack -> bool **)
+
+let rec trap_stack_eqb ts ts' =
+  match ts with
+  | [] -> ( match ts' with [] -> true | _ :: _ -> false)
+  | k :: ts0 -> (
+    match ts' with
+    | [] -> false
+    | k' :: ts'0 -> Pos.eqb k k' && trap_stack_eqb ts0 ts'0)
+
+type demands = (continuation * trap_stack) list
+
+type entry =
+  | Not_entered
+  | Entered_with of trap_stack
+  | Entered_with_two_stacks
+
+(** val entry_of : continuation -> demands -> entry **)
+
+let entry_of k ds =
+  match map snd (filter (fun d -> Pos.eqb (fst d) k) ds) with
+  | [] -> Not_entered
+  | ts :: others ->
+    if forallb (trap_stack_eqb ts) others
+    then Entered_with ts
+    else Entered_with_two_stacks
+
+(** val leave_scope : continuation list -> demands -> demands option **)
+
+let leave_scope ks ds =
+  let outer = filter (fun d -> negb (among (fst d) ks)) ds in
+  if forallb (fun d -> forallb (fun k -> negb (among k (snd d))) ks) outer
+  then Some outer
+  else None
+
+(** val apply_cont_demands : trap_stack -> apply_cont -> demands option **)
+
+let apply_cont_demands ts ac =
+  match ac.ac_trap_action with
+  | Some t -> (
+    match t with
+    | Push k -> Some [k, ts; ac.ac_continuation, k :: ts]
+    | Pop (k, _) -> (
+      match ts with
+      | [] -> None
+      | top :: rest ->
+        if Pos.eqb top k then Some ((ac.ac_continuation, rest) :: []) else None)
+    )
+  | None -> Some ((ac.ac_continuation, ts) :: [])
+
+(** val apply_demands : trap_stack -> apply_expr -> demands option **)
+
+let apply_demands ts ap =
+  match ts with
+  | [] -> None
+  | top :: rest ->
+    if Pos.eqb top ap.ap_exn_continuation
+    then Some [ap.ap_continuation, ts; ap.ap_exn_continuation, rest]
+    else None
+
+(** val arms_demands : trap_stack -> (coq_Z * apply_cont) list -> demands option
+    **)
+
+let rec arms_demands ts = function
+  | [] -> Some []
+  | p :: arms0 -> (
+    let _, ac = p in
+    match apply_cont_demands ts ac with
+    | Some ds -> (
+      match arms_demands ts arms0 with
+      | Some ds' -> Some (app ds ds')
+      | None -> None)
+    | None -> None)
+
+(** val code_demands_met : continuation -> continuation -> demands -> bool **)
+
+let code_demands_met ret exn ds =
+  forallb
+    (fun d ->
+      if Pos.eqb (fst d) exn
+      then trap_stack_eqb (snd d) []
+      else Pos.eqb (fst d) ret && trap_stack_eqb (snd d) (exn :: []))
+    ds
+
+(** val iterate : nat -> ('a1 -> 'a1 option) -> 'a1 -> 'a1 option **)
+
+let rec iterate n f x =
+  match n with
+  | O -> Some x
+  | S n0 -> ( match f x with Some x0 -> iterate n0 f x0 | None -> None)
+
+(** val trap_demands : trap_stack -> expr -> demands option **)
+
+let rec trap_demands ts = function
+  | Let (_, _, _, body) -> trap_demands ts body
+  | Let_static (bindings, body) ->
+    if forallb binding_traps_well_formed bindings
+    then trap_demands ts body
+    else None
+  | Let_cont_non_recursive (k, h, body) -> (
+    if among k ts
+    then None
+    else
+      match trap_demands ts body with
+      | Some ds -> (
+        match leave_scope (k :: []) ds with
+        | Some outer -> (
+          match entry_of k ds with
+          | Not_entered -> Some outer
+          | Entered_with entered -> (
+            if among k entered
+            then None
+            else
+              match handler_trap_demands entered h with
+              | Some ds' -> Some (app outer ds')
+              | None -> None)
+          | Entered_with_two_stacks -> None)
+        | None -> None)
+      | None -> None)
+  | Let_cont_recursive (handlers, body) -> (
+    let ks = map fst handlers in
+    if existsb (fun k -> among k ts) ks
+    then None
+    else
+      match trap_demands ts body with
+      | Some ds -> (
+        let pass =
+         fun state ->
+          fold_left
+            (fun state0 pat ->
+              let k, h = pat in
+              match state0 with
+              | Some y -> (
+                let checked, ds0 = y in
+                if among k checked
+                then Some (checked, ds0)
+                else
+                  match entry_of k ds0 with
+                  | Not_entered -> Some (checked, ds0)
+                  | Entered_with entered -> (
+                    match handler_trap_demands entered h with
+                    | Some ds' -> Some (k :: checked, app ds0 ds')
+                    | None -> None)
+                  | Entered_with_two_stacks -> None)
+              | None -> None)
+            (Some state) handlers
+        in
+        match iterate (length handlers) pass ([], ds) with
+        | Some g ->
+          let checked, ds0 = g in
+          if
+            forallb
+              (fun k ->
+                match entry_of k ds0 with
+                | Not_entered -> true
+                | Entered_with _ -> among k checked
+                | Entered_with_two_stacks -> false)
+              ks
+          then leave_scope ks ds0
+          else None
+        | None -> None)
+      | None -> None)
+  | Apply ap -> apply_demands ts ap
+  | Apply_cont ac -> apply_cont_demands ts ac
+  | Switch (_, arms) -> arms_demands ts arms
+  | Invalid -> Some []
+
+(** val handler_trap_demands : trap_stack -> continuation_handler -> demands
+    option **)
+
+and handler_trap_demands ts = function
+  | Handler (_, _, handler) -> trap_demands ts handler
+
+(** val binding_traps_well_formed : static_binding -> bool **)
+
+and binding_traps_well_formed = function
+  | Bind_code (_, c) -> code_traps_well_formed c
+  | _ -> true
+
+(** val code_traps_well_formed : code -> bool **)
+
+and code_traps_well_formed = function
+  | Code (_, _, ret, exn, _, body) -> (
+    match trap_demands (exn :: []) body with
+    | Some ds -> code_demands_met ret exn ds
+    | None -> false)
+
+(** val traps_well_formed : continuation -> expr -> bool **)
+
+let traps_well_formed unit_exn0 e =
+  match trap_demands (unit_exn0 :: []) e with
+  | Some ds ->
+    forallb
+      (fun d ->
+        trap_stack_eqb (snd d)
+          (if Pos.eqb (fst d) unit_exn0 then [] else unit_exn0 :: []))
+      ds
+  | None -> false
+
 type unit_interface =
   { unit_return : continuation;
     unit_exn : continuation
@@ -354,11 +718,13 @@ type unit_interface =
 (** val well_formed_unit : unit_interface -> expr -> bool **)
 
 let well_formed_unit u e =
-  ((((((statics_at_toplevel u.unit_exn true e
-       && distinct (static_names code_ids_of_binding e))
-      && distinct (static_names symbols_of_binding e))
-     && names_in_scope u.unit_return u.unit_exn e)
-    && binders_distinct e)
-   && code_closed e)
-  && sets_well_formed e)
-  && numbers_in_range e
+  ((((((((statics_at_toplevel u.unit_exn true e
+         && distinct (static_names code_ids_of_binding e))
+        && distinct (static_names symbols_of_binding e))
+       && names_in_scope u.unit_return u.unit_exn e)
+      && binders_distinct e)
+     && code_closed e)
+    && sets_well_formed e)
+   && numbers_in_range e)
+  && unit_exn_handlers_well_formed u.unit_exn e)
+  && traps_well_formed u.unit_exn e

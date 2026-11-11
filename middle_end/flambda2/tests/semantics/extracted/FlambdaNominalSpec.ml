@@ -57,11 +57,18 @@ let rename_named r = function
   | Project_function_slot (move_from, move_to, closure) ->
     Project_function_slot (move_from, move_to, rename_simple r closure)
 
+(** val rename_trap_action : renaming -> trap_action -> trap_action **)
+
+let rename_trap_action r = function
+  | Push exn_handler -> Push (rename_continuation r exn_handler)
+  | Pop (exn_handler, kind) -> Pop (rename_continuation r exn_handler, kind)
+
 (** val rename_apply_cont : renaming -> apply_cont -> apply_cont **)
 
 let rename_apply_cont r ac =
   { ac_continuation = rename_continuation r ac.ac_continuation;
-    ac_args = map (rename_simple r) ac.ac_args
+    ac_args = map (rename_simple r) ac.ac_args;
+    ac_trap_action = option_map (rename_trap_action r) ac.ac_trap_action
   }
 
 (** val rename_static_const : renaming -> static_const -> static_const **)
@@ -91,6 +98,8 @@ let rename_apply r ap =
     ap_args = map (rename_simple r) ap.ap_args;
     ap_continuation = rename_continuation r ap.ap_continuation;
     ap_exn_continuation = rename_continuation r ap.ap_exn_continuation;
+    ap_exn_extra_args =
+      map (fun arg -> rename_simple r (fst arg), snd arg) ap.ap_exn_extra_args;
     ap_args_arity = ap.ap_args_arity;
     ap_return_arity = ap.ap_return_arity
   }

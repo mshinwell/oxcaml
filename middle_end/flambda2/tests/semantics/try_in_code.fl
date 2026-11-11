@@ -1,0 +1,56 @@
+let code inline(never) size(9) may_raise (x) my_closure &my_region my_depth
+      -> k * e =
+  let c = %int_comp.`lt` (x, 3) in
+  (switch c
+     | 0 -> raising
+     | 1 -> k (x)
+     where raising =
+       let bucket = %block.[`0`].my_region (x, 7) in
+       cont e pop(regular e) (bucket))
+in
+let code inline(never) size(30) guarded (g, x) my_closure &my_region my_depth
+      -> k * e =
+  cont body push(handler)
+    where body =
+      (apply &my_region g (x) -> after * handler
+         where after (r) =
+           let s = %int_barith.`add` (r, 1) in
+           cont k pop(handler) (s))
+    where handler exn (bucket : val) =
+      let field = %block_load.[`0`] (bucket) in
+      let c = %int_comp.`lt` (field, 10) in
+      (switch c
+         | 0 -> e pop(reraise e) (bucket)
+         | 1 -> caught
+         where caught =
+           let payload = %block_load.[`1`] (bucket) in
+           cont k (payload))
+in
+let $Try_in_code_may_raise = closure may_raise @may_raise &toplevel in
+let $Try_in_code_guarded = closure guarded @guarded &toplevel in
+let a = %opaque (5) in
+let b = %opaque (20) in
+let z = %opaque (1) in
+apply direct(guarded &toplevel) $Try_in_code_guarded ($Try_in_code_may_raise, a)
+  -> k1 * error
+  where k1 (r1) =
+    (apply direct(guarded &toplevel) $Try_in_code_guarded
+       ($Try_in_code_may_raise, z)
+       -> k2 * error
+       where k2 (r2) =
+         (cont body push(handler)
+            where body =
+              (apply direct(guarded &toplevel) $Try_in_code_guarded
+                 ($Try_in_code_may_raise, b)
+                 -> k3 * handler
+                 where k3 (r3) =
+                   cont leave pop(handler) (r3))
+            where handler exn (bucket : val) =
+              let field = %block_load.[`0`] (bucket) in
+              cont leave (field)
+            where leave (r3) =
+              let $camlTry_in_code =
+                Block 0
+                  (r1, r2, r3, $Try_in_code_may_raise, $Try_in_code_guarded)
+              in
+              cont done ($camlTry_in_code)))

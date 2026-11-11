@@ -7,16 +7,20 @@ open FlambdaModel
 open FlambdaPrimitiveSpec
 open List
 open ListDef
+open OxCamlList
 
 val free_continuations : expr -> continuation list
 
 val handler_free_continuations : continuation_handler -> continuation list
 
+val traps : continuation -> apply_cont -> bool
+
 val raises_to : continuation -> expr -> bool
 
 val handler_raises_to : continuation -> continuation_handler -> bool
 
-val handler_at_toplevel : continuation -> continuation -> expr -> bool
+val handler_at_toplevel :
+  continuation -> continuation -> continuation_handler -> expr -> bool
 
 val statics_at_toplevel : continuation -> bool -> expr -> bool
 
@@ -79,6 +83,71 @@ val handler_numbers_in_range : continuation_handler -> bool
 val binding_numbers_in_range : static_binding -> bool
 
 val code_numbers_in_range : code -> bool
+
+val applies : continuation -> apply_cont -> bool
+
+val applies_cont : continuation -> expr -> bool
+
+val handler_applies_cont : continuation -> continuation_handler -> bool
+
+val gives_extra_args : continuation -> expr -> bool
+
+val handler_gives_extra_args : continuation -> continuation_handler -> bool
+
+val traps_apart : continuation -> apply_cont -> bool
+
+val installs_or_removes : continuation -> expr -> bool
+
+val handler_installs_or_removes : continuation -> continuation_handler -> bool
+
+val ways_out_well_formed : continuation -> expr -> bool
+
+val takes_exception : continuation_handler -> bool
+
+val exn_handlers_well_formed : expr -> bool
+
+val handler_exn_handlers_well_formed : continuation_handler -> bool
+
+val binding_exn_handlers_well_formed : static_binding -> bool
+
+val code_exn_handlers_well_formed : code -> bool
+
+val unit_exn_handlers_well_formed : continuation -> expr -> bool
+
+type trap_stack = continuation list
+
+val trap_stack_eqb : trap_stack -> trap_stack -> bool
+
+type demands = (continuation * trap_stack) list
+
+type entry =
+  | Not_entered
+  | Entered_with of trap_stack
+  | Entered_with_two_stacks
+
+val entry_of : continuation -> demands -> entry
+
+val leave_scope : continuation list -> demands -> demands option
+
+val apply_cont_demands : trap_stack -> apply_cont -> demands option
+
+val apply_demands : trap_stack -> apply_expr -> demands option
+
+val arms_demands : trap_stack -> (coq_Z * apply_cont) list -> demands option
+
+val code_demands_met : continuation -> continuation -> demands -> bool
+
+val iterate : nat -> ('a1 -> 'a1 option) -> 'a1 -> 'a1 option
+
+val trap_demands : trap_stack -> expr -> demands option
+
+val handler_trap_demands : trap_stack -> continuation_handler -> demands option
+
+val binding_traps_well_formed : static_binding -> bool
+
+val code_traps_well_formed : code -> bool
+
+val traps_well_formed : continuation -> expr -> bool
 
 type unit_interface =
   { unit_return : continuation;

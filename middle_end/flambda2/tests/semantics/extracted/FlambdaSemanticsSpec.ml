@@ -18,6 +18,7 @@ type cont_value =
       * (continuation * cont_value) list
       * (continuation * continuation_handler) list
   | Outer of continuation
+  | Extra_args of cont_value * value list
 
 type cont_env = (continuation * cont_value) list
 
@@ -234,7 +235,7 @@ type step_result =
 (** val apply_cont_value : cont_value -> value list -> static_env -> step_result
     **)
 
-let apply_cont_value c vs statics =
+let rec apply_cont_value c vs statics =
   match c with
   | Closure (h, def_vars, def_conts, recursive) -> (
     let (Handler (params, _, handler)) = h in
@@ -249,6 +250,12 @@ let apply_cont_value c vs statics =
         }
     | None -> Undefined)
   | Outer k -> Exit (k, vs)
+  | Extra_args (c0, extra) -> apply_cont_value c0 (app vs extra) statics
+
+(** val with_extra_args : cont_value -> value list -> cont_value **)
+
+let with_extra_args c extra =
+  match extra with [] -> c | _ :: _ -> Extra_args (c, extra)
 
 (** val apply_continuation : continuation -> value list -> cont_env ->
     static_env -> step_result **)
@@ -353,12 +360,15 @@ let step s =
     match eval_simple vars ap.ap_callee with
     | Some callee -> (
       match eval_simples vars ap.ap_args with
-      | Some vs ->
-        call_function callee ap.ap_call_kind vs ap.ap_args_arity
-          ap.ap_return_arity
-          (resolve ap.ap_continuation conts)
-          (resolve ap.ap_exn_continuation conts)
-          statics
+      | Some vs -> (
+        match eval_simples vars (exn_extra_simples ap) with
+        | Some extra ->
+          call_function callee ap.ap_call_kind vs ap.ap_args_arity
+            ap.ap_return_arity
+            (resolve ap.ap_continuation conts)
+            (with_extra_args (resolve ap.ap_exn_continuation conts) extra)
+            statics
+        | None -> Undefined)
       | None -> Undefined)
     | None -> Undefined)
   | Apply_cont ac -> (

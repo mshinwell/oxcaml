@@ -1,5 +1,6 @@
 open BinPos
 open Datatypes
+open FlambdaMapSpec
 open FlambdaModel
 open List
 
@@ -18,9 +19,9 @@ let rec cont_free_b k = function
       handlers
     || cont_free_b k body
   | Apply ap -> Pos.eqb k ap.ap_continuation || Pos.eqb k ap.ap_exn_continuation
-  | Apply_cont ac -> Pos.eqb k ac.ac_continuation
+  | Apply_cont ac -> among k (apply_cont_continuations ac)
   | Switch (_, arms) ->
-    existsb (fun arm -> Pos.eqb k (snd arm).ac_continuation) arms
+    existsb (fun arm -> among k (apply_cont_continuations (snd arm))) arms
   | Invalid -> false
 
 (** val cont_free_in_handler_b : continuation -> continuation_handler -> bool **)

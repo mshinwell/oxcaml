@@ -1,5 +1,6 @@
 open BinPos
 open Datatypes
+open FlambdaMapSpec
 open FlambdaModel
 open List
 

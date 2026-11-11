@@ -103,7 +103,8 @@ let canonical_static_binding tenv = function
 
 let canonical_apply_cont tenv ac =
   { ac_continuation = ac.ac_continuation;
-    ac_args = map (canonical_simple tenv) ac.ac_args
+    ac_args = map (canonical_simple tenv) ac.ac_args;
+    ac_trap_action = ac.ac_trap_action
   }
 
 (** val canonical_call_kind : typing_env -> simple -> call_kind -> call_kind **)
@@ -127,6 +128,10 @@ let canonical_apply tenv ap =
     ap_args = map (canonical_simple tenv) ap.ap_args;
     ap_continuation = ap.ap_continuation;
     ap_exn_continuation = ap.ap_exn_continuation;
+    ap_exn_extra_args =
+      map
+        (fun arg -> canonical_simple tenv (fst arg), snd arg)
+        ap.ap_exn_extra_args;
     ap_args_arity = ap.ap_args_arity;
     ap_return_arity = ap.ap_return_arity
   }

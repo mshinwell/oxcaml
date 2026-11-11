@@ -1,6 +1,7 @@
 open BinInt
 open BinNums
 open BinPos
+open Bool
 open Datatypes
 open FlambdaKindModel
 open FlambdaPrimitiveModel
@@ -92,10 +93,28 @@ val simple_eq_dec : simple -> simple -> bool
 
 val static_const_eq_dec : static_const -> static_const -> bool
 
+type raise_kind =
+  | Regular
+  | Reraise
+  | No_trace
+
+type trap_action =
+  | Push of continuation
+  | Pop of continuation * raise_kind option
+
 type apply_cont =
   { ac_continuation : continuation;
-    ac_args : simple list
+    ac_args : simple list;
+    ac_trap_action : trap_action option
   }
+
+val trap_action_handler : trap_action -> continuation
+
+val apply_cont_continuations : apply_cont -> continuation list
+
+val no_trap_action : apply_cont -> bool
+
+val is_raise : apply_cont -> bool
 
 type call_kind =
   | Direct of code_id
@@ -107,13 +126,23 @@ type apply_expr =
     ap_args : simple list;
     ap_continuation : continuation;
     ap_exn_continuation : continuation;
+    ap_exn_extra_args : (simple * flambda_kind) list;
     ap_args_arity : arity;
     ap_return_arity : arity
   }
 
-type handler_metadata = { hm_params_kinds : flambda_kind list }
+val exn_extra_simples : apply_expr -> simple list
+
+val no_exn_extra_args : apply_expr -> bool
+
+type handler_metadata =
+  { hm_params_kinds : flambda_kind list;
+    hm_is_exn_handler : bool
+  }
 
 val make_handler_metadata : flambda_kind list -> handler_metadata
+
+val make_exn_handler_metadata : flambda_kind list -> handler_metadata
 
 val handler_metadata_eqb : handler_metadata -> handler_metadata -> bool
 
@@ -153,6 +182,8 @@ and code =
       * expr
 
 val handler_kinds : continuation_handler -> flambda_kind list
+
+val handler_is_exn_handler : continuation_handler -> bool
 
 val code_params : code -> variable list
 

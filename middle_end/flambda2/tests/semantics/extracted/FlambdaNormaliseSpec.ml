@@ -55,7 +55,7 @@ let static_binding_in_scope vs = function
     -> bool **)
 
 let apply_cont_in_scope vs ks ac =
-  among ac.ac_continuation ks && simples_in_scope vs ac.ac_args
+  all_among (apply_cont_continuations ac) ks && simples_in_scope vs ac.ac_args
 
 (** val expr_in_scope : variable list -> continuation list -> expr -> bool **)
 
@@ -75,9 +75,10 @@ let rec expr_in_scope vs ks = function
       handlers
     && expr_in_scope vs ks' body
   | Apply ap ->
-    ((simple_in_scope vs ap.ap_callee && simples_in_scope vs ap.ap_args)
-    && among ap.ap_continuation ks)
-    && among ap.ap_exn_continuation ks
+    (((simple_in_scope vs ap.ap_callee && simples_in_scope vs ap.ap_args)
+     && among ap.ap_continuation ks)
+    && among ap.ap_exn_continuation ks)
+    && simples_in_scope vs (exn_extra_simples ap)
   | Apply_cont ac -> apply_cont_in_scope vs ks ac
   | Switch (scrutinee, arms) ->
     simple_in_scope vs scrutinee
@@ -106,12 +107,14 @@ let var_in_simples x args =
 (** val inlinable_b : apply_expr -> code -> bool **)
 
 let inlinable_b ap c =
-  (((((expr_in_scope
-         (code_my_closure c :: code_params c)
-         [code_return_continuation c; code_exn_continuation c]
-         (code_body c)
-      && negb (Pos.eqb (code_return_continuation c) (code_exn_continuation c)))
-     && negb (Pos.eqb ap.ap_continuation ap.ap_exn_continuation))
+  ((((((expr_in_scope
+          (code_my_closure c :: code_params c)
+          [code_return_continuation c; code_exn_continuation c]
+          (code_body c)
+       && negb (Pos.eqb (code_return_continuation c) (code_exn_continuation c))
+       )
+      && negb (Pos.eqb ap.ap_continuation ap.ap_exn_continuation))
+     && no_exn_extra_args ap)
     && negb (var_in_simples (code_my_closure c) ap.ap_args))
    && forallb
         (fun param -> negb (var_in_simples param ap.ap_args))
@@ -239,7 +242,9 @@ let rec var_free_b x = function
         var_free_in_handler_b x h)
       handlers
     || var_free_b x body
-  | Apply ap -> var_in_simple x ap.ap_callee || var_in_simples x ap.ap_args
+  | Apply ap ->
+    (var_in_simple x ap.ap_callee || var_in_simples x ap.ap_args)
+    || var_in_simples x (exn_extra_simples ap)
   | Apply_cont ac -> var_in_simples x ac.ac_args
   | Switch (scrutinee, arms) ->
     var_in_simple x scrutinee
@@ -303,7 +308,7 @@ let rec inline_cont_at_tail k params metadata handler = function
       (inline_cont_at_tail k params metadata handler body0)
   | Apply_cont ac ->
     if
-      (Pos.eqb ac.ac_continuation k
+      ((Pos.eqb ac.ac_continuation k && no_trap_action ac)
       && Nat.eqb (length params) (length ac.ac_args))
       && forallb (fun param -> negb (var_in_simples param ac.ac_args)) params
     then Some (let_params params metadata.hm_params_kinds ac.ac_args handler)
@@ -629,13 +634,72 @@ let simple_eq_dec s s' =
   | Symbol s0 -> ( match s' with Symbol s1 -> Pos.eq_dec s0 s1 | _ -> false)
   | Const c -> ( match s' with Const c0 -> const_eq_dec c c0 | _ -> false)
 
+(** val trap_action_eq_dec : trap_action -> trap_action -> bool **)
+
+let trap_action_eq_dec action action' =
+  match action with
+  | Push exn_handler -> (
+    match action' with
+    | Push exn_handler0 ->
+      let rec f p x =
+        match p with
+        | Coq_xI p0 -> ( match x with Coq_xI p1 -> f p0 p1 | _ -> false)
+        | Coq_xO p0 -> ( match x with Coq_xO p1 -> f p0 p1 | _ -> false)
+        | Coq_xH -> ( match x with Coq_xH -> true | _ -> false)
+      in
+      f exn_handler exn_handler0
+    | Pop (_, _) -> false)
+  | Pop (exn_handler, kind) -> (
+    match action' with
+    | Push _ -> false
+    | Pop (exn_handler0, kind0) ->
+      if
+        let rec f p x =
+          match p with
+          | Coq_xI p0 -> ( match x with Coq_xI p1 -> f p0 p1 | _ -> false)
+          | Coq_xO p0 -> ( match x with Coq_xO p1 -> f p0 p1 | _ -> false)
+          | Coq_xH -> ( match x with Coq_xH -> true | _ -> false)
+        in
+        f exn_handler exn_handler0
+      then
+        match kind with
+        | Some a -> (
+          match kind0 with
+          | Some r -> (
+            match a with
+            | Regular -> ( match r with Regular -> true | _ -> false)
+            | Reraise -> ( match r with Reraise -> true | _ -> false)
+            | No_trace -> ( match r with No_trace -> true | _ -> false))
+          | None -> false)
+        | None -> ( match kind0 with Some _ -> false | None -> true)
+      else false)
+
 (** val apply_cont_eq_dec : apply_cont -> apply_cont -> bool **)
 
 let apply_cont_eq_dec ac ac' =
-  let { ac_continuation = ac_continuation0; ac_args = ac_args0 } = ac in
-  let { ac_continuation = ac_continuation1; ac_args = ac_args1 } = ac' in
+  let { ac_continuation = ac_continuation0;
+        ac_args = ac_args0;
+        ac_trap_action = ac_trap_action0
+      } =
+    ac
+  in
+  let { ac_continuation = ac_continuation1;
+        ac_args = ac_args1;
+        ac_trap_action = ac_trap_action1
+      } =
+    ac'
+  in
   if Pos.eq_dec ac_continuation0 ac_continuation1
-  then list_eq_dec simple_eq_dec ac_args0 ac_args1
+  then
+    if list_eq_dec simple_eq_dec ac_args0 ac_args1
+    then
+      match ac_trap_action0 with
+      | Some a -> (
+        match ac_trap_action1 with
+        | Some t -> trap_action_eq_dec a t
+        | None -> false)
+      | None -> ( match ac_trap_action1 with Some _ -> false | None -> true)
+    else false
   else false
 
 (** val collapse_switch : simple -> (coq_Z * apply_cont) list -> expr **)
@@ -722,7 +786,7 @@ let thread_arm k inner arm =
   | i, ac -> (
     match ac.ac_args with
     | [] ->
-      if Pos.eqb ac.ac_continuation k
+      if Pos.eqb ac.ac_continuation k && no_trap_action ac
       then
         match find_arm i inner with
         | Some ac' -> if Pos.eqb ac'.ac_continuation k then arm else i, ac'
@@ -733,7 +797,7 @@ let thread_arm k inner arm =
 (** val arms_apply : continuation -> (coq_Z * apply_cont) list -> bool **)
 
 let arms_apply k arms =
-  existsb (fun arm -> Pos.eqb (snd arm).ac_continuation k) arms
+  existsb (fun arm -> among k (apply_cont_continuations (snd arm))) arms
 
 (** val thread_switch : continuation -> continuation_handler -> expr -> expr **)
 

@@ -36,6 +36,8 @@ val kind_of_named : slot_kinds -> kind_env -> named -> flambda_kind option
 
 val static_const_well_kinded : slot_kinds -> kind_env -> static_const -> bool
 
+val trap_action_in_scope : arity_env -> apply_cont -> bool
+
 val apply_cont_well_kinded : kind_env -> arity_env -> apply_cont -> bool
 
 val apply_well_kinded : kind_env -> arity_env -> apply_expr -> bool

@@ -23,6 +23,8 @@ val rename_simple : renaming -> simple -> simple
 
 val rename_named : renaming -> named -> named
 
+val rename_trap_action : renaming -> trap_action -> trap_action
+
 val rename_apply_cont : renaming -> apply_cont -> apply_cont
 
 val rename_static_const : renaming -> static_const -> static_const
