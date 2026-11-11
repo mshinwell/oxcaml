@@ -375,6 +375,9 @@ says so. Only the labels that this tree cites are listed.
 - **T6-2.** The grammar of the model has a type of naked numbers at the
   kind of the immediates, of which four provers answer that it has no
   value.
+- **T6-4.** A value slot of the model has no kind;
+  `meet_project_value_slot_simple` answers `Invalid` where the type of
+  the slot is of another kind than that of the slot.
 - **T7-4.** The meet of a type with an `is_null` variable and a type
   that settles it forgets the variable.
 - **V2-2.** The fexpr printer drops the kinds of the fields of a
