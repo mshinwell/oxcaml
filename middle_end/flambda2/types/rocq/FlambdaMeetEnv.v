@@ -100,6 +100,21 @@
      ([record_demotion], [check_params_and_types]).
    - Coercions. A [Simple] has none (FlambdaModel.v), so the cases for
      a coercion that is not the identity are not there.
+   - A name that is no longer canonical. The model is stricter than
+     the compiler here (decision D32).
+     [add_concrete_equation_on_canonical_name] is given a name that is
+     canonical, meets the type to add with the type of the name, and
+     then gives the name the type answered
+     ([replace_concrete_equation]), taking the name to be canonical
+     still. Nothing in the compiler says that it is: the meet in
+     between may have made the name an alias of an earlier one, if the
+     types that it met lead back to the name. Where the type answered
+     has one constant for only value, the compiler then calls
+     [Typing_env.add_alias] on a name that is not canonical, which
+     [Aliases.add] forbids and does not check. The model answers
+     [None] there. Where the type answered is not such a type the
+     model does as the compiler does: the name, which is an alias in
+     the aliases, gets a type that is not an alias. Discrepancy T4-10.
    - [add_alias] reads the kind of a [Simple] from the environment
      ([kind_of_simple], FlambdaMeetGrammar.v): a variable of the model
      does not carry its kind.
@@ -227,7 +242,14 @@ Module Meet_env.
 
   (* [replace_concrete_equation]: the type of a name becomes a type that
      is not an alias; if that type has one constant for only value, the
-     name becomes an alias of the constant instead. *)
+     name becomes an alias of the constant instead. The model stops
+     ([None]) where the name is to become an alias of a constant and is
+     not canonical: see "The differences" in the header. *)
+  (* CR mshinwell: the model stops where the compiler goes on with a
+     name that is no longer canonical. Whether the meet in between can
+     demote the name, in an environment that Simplify builds, is not
+     known. If it cannot, what excludes it is to be a condition on
+     environments, and this test goes. Discrepancy T4-10. *)
   Definition replace_concrete_equation (tenv : Typing_env.t) (name : name)
       (ty : flambda_type) : option Typing_env.t :=
     let* singleton := must_be_singleton ty in
@@ -238,22 +260,29 @@ Module Meet_env.
       | Some _ => None
       end
     | Some const =>
-      let* result :=
-        Typing_env.add_alias tenv (simple_of_name name) (Const const)
-      in
-      match result with
-      | Bottom | Unknown => None
-      | Ok result =>
-        if name_eqb (Typing_env.demoted_name result) name
-           && simple_equal (Typing_env.canonical_element result) (Const const)
-        then
-          Some
-            (Typing_env.replace_equation
-               (Typing_env.add_alias_result_t result)
-               (Typing_env.demoted_name result)
-               (alias_type_of (kind_of_const const)
-                  (Typing_env.canonical_element result)))
-        else None
+      match
+        Aliases.canonical (Typing_env.aliases tenv) (simple_of_name name)
+      with
+      | Aliases.Alias_of_canonical _ => None
+      | Aliases.Is_canonical =>
+        let* result :=
+          Typing_env.add_alias tenv (simple_of_name name) (Const const)
+        in
+        match result with
+        | Bottom | Unknown => None
+        | Ok result =>
+          if name_eqb (Typing_env.demoted_name result) name
+             && simple_equal (Typing_env.canonical_element result)
+                  (Const const)
+          then
+            Some
+              (Typing_env.replace_equation
+                 (Typing_env.add_alias_result_t result)
+                 (Typing_env.demoted_name result)
+                 (alias_type_of (kind_of_const const)
+                    (Typing_env.canonical_element result)))
+          else None
+        end
       end
     end.
 
