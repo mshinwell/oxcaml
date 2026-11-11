@@ -220,3 +220,31 @@ Definition equation_names_create_variant_statement : Prop :=
            equation_names_of_env_extension when_immediate
            ++ equation_names_of_env_extension when_block
          end.
+
+(* ======================================================================== *)
+(* The variables of the aliases and of the names of equations are free      *)
+(* ======================================================================== *)
+
+(* A variable among the simples that [aliases_with_kinds] lists is a
+   free variable of the type: whoever brings the free variables of a
+   type into an environment has brought its aliases. *)
+Definition aliases_free_variables_statement : Prop :=
+  (∀ (t : flambda_type) (s : simple) (k : flambda_kind) (x : variable),
+    (s, k) ∈ aliases_with_kinds t ->
+    x ∈ free_variables_of_simple s -> x ∈ free_variables t)
+  ∧ (∀ (extension : env_extension) (s : simple) (k : flambda_kind)
+       (x : variable),
+      (s, k) ∈ aliases_of_env_extension extension ->
+      x ∈ free_variables_of_simple s ->
+      x ∈ free_variables_of_env_extension extension).
+
+(* The same of the names of equations. *)
+Definition equation_names_free_variables_statement : Prop :=
+  (∀ (t : flambda_type) (n : name) (k : flambda_kind) (x : variable),
+    (n, k) ∈ equation_names_with_kinds t ->
+    x ∈ free_variables_of_name n -> x ∈ free_variables t)
+  ∧ (∀ (extension : env_extension) (n : name) (k : flambda_kind)
+       (x : variable),
+      (n, k) ∈ equation_names_of_env_extension extension ->
+      x ∈ free_variables_of_name n ->
+      x ∈ free_variables_of_env_extension extension).
