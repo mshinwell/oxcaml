@@ -97,12 +97,13 @@
      Nothing is promised of a use that is satisfied only with the
      exemption of the names that hold poison ([typing_env_satisfied]):
      a join expands aliases, and through a name that is exempt that is
-     wrong (the CR at [join_admits_use]). A relation ([Is_int],
-     [Get_tag], [Is_null]) is never true of a scrutinee that holds
-     poison (the decision as revised). That is for the meaning of types
-     to say ([relation_holds]); until the grammar's owner has removed
-     its clauses for poison, the [relation_holds] that this file is
-     built on still holds, with any number, of a scrutinee that holds
+     wrong (the CR at [join_admits_use]). The relations [Is_int] and
+     [Get_tag] are never true of a scrutinee that holds poison, and
+     [Is_null] relates poison to 0 (the decision as revised and
+     amended). That is for the meaning of types to say
+     ([relation_holds]); until the grammar's change is under this
+     file, the [relation_holds] that it is built on still holds for
+     [Is_int] and [Get_tag], with any number, of a scrutinee that holds
      poison; no statement proved of this file depends on which. The
      relations that the join rebuilds on a scrutinee say again, from
      its side, a relation that the target has for another name: they
@@ -199,15 +200,19 @@
    A third thing that the compiler's join needs is asked of the inputs
    of every join, in the contract itself ([no_bottom_types], in
    [join_inputs_well_formed]; the target has it too): no name has the
-   type bottom in an environment that is not bottom. With it the
-   witness gives the variables that the use or the source knows
-   exactly what they had ([agrees_on_known]), and so satisfies the
-   source of the next join or meet: this was agreed with the owner of
-   the meet, which has the same condition and the same agreement.
+   type bottom in an environment that is not bottom. Without it the
+   target of the compiler's join may be bottom though no use is, where
+   every use has bottom for what a new variable stands for. The
+   witness of the contract gives the
+   variables that the use or the source knows exactly what they had
+   ([agrees_on_known]), and so satisfies the source of the next join or
+   meet: this was agreed with the owner of the meet, which has the
+   same condition and the same agreement. (That the compiler's join
+   has exact agreement is for the runs of the conditions above; the
+   condition on bottom types does not give it by itself.)
    An instance that shows that the transcription has not the strict
-   contract without the first condition is owed, and can be given now
-   that the functions are all transcribed, with a join of types to run
-   them with. The upper bound of the join of
+   contract without the first condition is in FlambdaJoinEnvSpec.v
+   ([transcribed_join_not_strict_statement]). The upper bound of the join of
    types ([n_way_join_type_sound]) has no such condition: it is of a
    value in hand.
 
@@ -315,10 +320,11 @@ Definition join_of_environments (A : Type) : Type :=
    the second satisfies every environment that the first satisfies and
    whose variables this one knows; that is what lets a caller go from
    one join, or meet, to the next with a valuation that satisfies the
-   source as well as the use. (The join of types drops a type that is
-   bottom, and the target could then force a value on a name that has
-   none at a use: [no_bottom_types] is asked of the inputs so that it
-   does not.) *)
+   source as well as the use. (The compiler's join can force a value on
+   a name that has none at a use, where the join of types leaves that
+   use out. So it has this only on the runs of
+   [sound_join_where_values_are_read]; [no_bottom_types] alone does not
+   give it.) *)
 Definition agrees_on_known (tenv : Typing_env.t) (valuation valuation' : env)
     : Prop :=
   ∀ x : variable, knows tenv x -> lookup x valuation' = lookup x valuation.
@@ -458,8 +464,9 @@ Definition binding_times_coherent {A : Type} (inputs : join_inputs A)
 Section Contract.
 
 (* The invariant of a typing environment (binding times that differ,
-   names that are bound where they are mentioned, kinds), which the
-   typing environment's file is to define under this name. *)
+   names that are bound where they are mentioned, levels that agree
+   with the types), which the typing environment's file defines. Kinds
+   are not part of it: [uses_kinded] is a premise of its own. *)
 Context (typing_env_well_formed : Typing_env.t -> Prop).
 
 (* Every environment given is well formed. *)
@@ -497,8 +504,11 @@ Definition avoids_known {A : Type} (avoid : list variable)
 (* No name has the type bottom, unless the environment is bottom. *)
 (* CR mshinwell: the model is stricter than the compiler here. A name
    with the type bottom has no value; the join of types leaves a bottom
-   type out, and the target could then force a value on the name at a
-   use where it has none, or be bottom though a use is not. The meet
+   type out, and the target could then be bottom though a use is not
+   (where every use has bottom for what a new variable stands for).
+   This is not what keeps the join from forcing a value on a name that
+   has none: a type may have no value without being bottom, and the
+   conditions on the runs are for that. The meet
    makes the whole environment bottom when a type becomes bottom, and
    the n-way join adds its equations with the meet's function, so the
    environments of that path are expected to have this; the binary join
@@ -844,8 +854,9 @@ Definition has_value_at_use
    that use it is a constant, or a variable older than [x]), the
    target is not satisfied; and a meet that later learns the value of
    [r] reduces the type of [x] from it, and may answer bottom on a run
-   that exists. Whether Simplify or the meet can make such inputs is
-   not known; no program shows it. Discrepancy T5-10. *)
+   that exists. Simplify can make such inputs: a program has been
+   compiled wrongly because of it, with the n-way join (the arm of a
+   switch on [r] that the run takes is deleted). Discrepancy T5-10. *)
 Definition scrutinees_have_values (target : Typing_env.t)
     (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind))
     (index : Index.t) (valuation : env) : Prop :=
@@ -901,10 +912,12 @@ Definition joined_variables_have_values {A : Type} (inputs : join_inputs A)
    that a use knows and the source does not is one that the branch
    bound, which has a value, or one that an earlier join in the branch
    made or brought in, which has none on the runs that came through
-   the uses that did not have it (discrepancy T5-5). Whether a join
-   can bring such a variable into its target on such a run, and then
-   ask a value of it, is not known; no program shows it. Discrepancy
-   T5-10. *)
+   the uses that did not have it (discrepancy T5-5). A program is
+   known that the compiler compiles wrongly through such a variable (a
+   later join reads its type at a use where it has no value, and the
+   program breaks [scrutinees_have_values]); none is known that breaks
+   this condition by itself, which needs a variable that two uses know
+   and the source does not. Discrepancy T5-10. *)
 Definition imported_variables_have_values {A : Type}
     (inputs : join_inputs A) (target : Typing_env.t) (index : Index.t)
     (valuation : env) : Prop :=
@@ -1314,15 +1327,13 @@ Definition n_way_join_simples_sound
 (* [Join_env.import_type]: the variables of a type become variables of
    the target. The join of types calls it on a type that it puts in its
    answer as it stands. Nothing is said of values, and nothing need be:
-   a value that has the type under a valuation of an input whose
-   environment knows its variables has it under a valuation of the
-   target that extends that one, since the variables keep the values
-   that they have ([agrees_on_known]) and the meaning of a type only
-   grows when variables are given values (a statement of the meaning of
-   types). The type need not mean the same under the two: a variable
-   with no value in the first may have one in the second, and then
-   more values have the type. At a state that is kinded, a type that
-   is kinded in one of the inputs is kinded in the target. *)
+   a type means the same under a valuation of an input whose
+   environment knows its variables and under a valuation of the target
+   that extends that one, since each of those variables has in the
+   second what it has in the first, a value or none
+   ([agrees_on_known]), and the meaning of a type depends only on what
+   its variables have. At a state that is kinded, a type that is kinded
+   in one of the inputs is kinded in the target. *)
 Definition import_type_sound
     (import_type : state -> flambda_type -> option state) : Prop :=
   ∀ (s s' : state) (ty : flambda_type),
