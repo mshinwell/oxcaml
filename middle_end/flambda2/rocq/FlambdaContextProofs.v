@@ -45,10 +45,14 @@
    the first body under the second environments. Values hold code ids and
    not code, so the values of the two runs stay equal.
 
-   The relations may rely on a property of the static environment that,
-   once it holds, holds of every extension ([statics_ok]): what a name is
-   bound to never changes (FlambdaWellFormedSpec.v), so a handler may be
-   rewritten using the bindings made before its definition. *)
+   The relations may rely on a predicate on states that a step keeps
+   ([inv]): corresponding handlers, and corresponding code, need only be
+   related from the states that have it, where they have it together. The
+   lemmas named [_from] are that. The lemmas named [_where] are the case
+   of a property of the static environment that, once it holds, holds of
+   every extension: what a name is bound to never changes
+   (FlambdaWellFormedSpec.v), so a handler may be rewritten using the
+   bindings made before its definition. *)
 
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
@@ -238,56 +242,63 @@ Qed.
 (* Related static environments                                              *)
 (* ======================================================================== *)
 
-(* The relation between the bodies of corresponding code. Code runs under
-   variables, continuations and a static environment that the call
-   decides, so the relation is not relative to any. *)
-Variable code_related : expr -> expr -> Prop.
+(* The relation between the bodies of corresponding code, given what the
+   code binds and its metadata. Code runs at a call: under its parameters
+   and [my_closure] bound and its two continuations, and under a static
+   environment that the call decides. So the relation may depend on the
+   first, and is not relative to the last. *)
+Variable code_related :
+  list variable -> variable -> continuation -> continuation ->
+  code_metadata -> expr -> expr -> Prop.
 
-Inductive codes_related : code -> code -> Prop :=
-  | Codes_related (params : list variable) (my_closure : variable)
+Inductive codes_related_where : code -> code -> Prop :=
+  | Codes_related_where (params : list variable) (my_closure : variable)
       (ret exn : continuation) (metadata : code_metadata)
       (body body' : expr) :
     binds_statics body = binds_statics body' ->
-    code_related body body' ->
-    codes_related (Code params my_closure ret exn metadata body)
+    code_related params my_closure ret exn metadata body body' ->
+    codes_related_where (Code params my_closure ret exn metadata body)
       (Code params my_closure ret exn metadata body')
-  | Codes_same (c : code) : codes_related c c.
+  | Codes_same_where (c : code) : codes_related_where c c.
 
-Inductive binding_related : static_binding -> static_binding -> Prop :=
-  | Binding_code (id : code_id) (c c' : code) :
-    codes_related c c' -> binding_related (Bind_code id c) (Bind_code id c')
-  | Binding_same (binding : static_binding) : binding_related binding binding.
+Inductive binding_related_where : static_binding -> static_binding -> Prop :=
+  | Binding_code_where (id : code_id) (c c' : code) :
+    codes_related_where c c' ->
+    binding_related_where (Bind_code id c) (Bind_code id c')
+  | Binding_same_where (binding : static_binding) :
+    binding_related_where binding binding.
 
 (* Static environments with the same statically allocated values and, for
    each code id, related code. Values hold code ids and not code, so they
    need no relation. *)
-Definition statics_related (statics statics' : static_env) : Prop :=
+Definition statics_related_where (statics statics' : static_env) : Prop :=
   Forall2
-    (fun ic ic' => fst ic = fst ic' ∧ codes_related (snd ic) (snd ic'))
+    (fun ic ic' =>
+       fst ic = fst ic' ∧ codes_related_where (snd ic) (snd ic'))
     (static_code statics) (static_code statics')
   ∧ static_values statics = static_values statics'.
 
-Lemma statics_related_refl (statics : static_env) :
-  statics_related statics statics.
+Lemma statics_related_where_refl (statics : static_env) :
+  statics_related_where statics statics.
 Proof.
   split; [ | reflexivity ].
   induction (static_code statics) as [ | ic code IH];
     [ apply Forall2_nil | ].
   apply Forall2_cons; [ | exact IH ].
-  split; [ reflexivity | apply Codes_same ].
+  split; [ reflexivity | apply Codes_same_where ].
 Qed.
 
-Lemma bindings_related_refl (bindings : list static_binding) :
-  Forall2 binding_related bindings bindings.
+Lemma bindings_related_where_refl (bindings : list static_binding) :
+  Forall2 binding_related_where bindings bindings.
 Proof.
   induction bindings as [ | binding bindings IH]; [ apply Forall2_nil | ].
-  apply Forall2_cons; [ apply Binding_same | exact IH ].
+  apply Forall2_cons; [ apply Binding_same_where | exact IH ].
 Qed.
 
 Lemma lookup_code_related (id : code_id) (statics statics' : static_env) :
-  statics_related statics statics' ->
+  statics_related_where statics statics' ->
   match lookup id (static_code statics), lookup id (static_code statics') with
-  | Some c, Some c' => codes_related c c'
+  | Some c, Some c' => codes_related_where c c'
   | None, None => True
   | _, _ => False
   end.
@@ -299,7 +310,7 @@ Proof.
 Qed.
 
 Lemma closure_of_related (statics statics' : static_env) (v : value) :
-  statics_related statics statics' ->
+  statics_related_where statics statics' ->
   closure_of statics v = closure_of statics' v.
 Proof.
   intros [_ Hvalues]. unfold closure_of. rewrite Hvalues. reflexivity.
@@ -307,7 +318,7 @@ Qed.
 
 Lemma project_value_slot_related (statics statics' : static_env)
     (project_from : function_slot) (slot : value_slot) (v : value) :
-  statics_related statics statics' ->
+  statics_related_where statics statics' ->
   project_value_slot statics project_from slot v
   = project_value_slot statics' project_from slot v.
 Proof.
@@ -317,7 +328,7 @@ Qed.
 
 Lemma project_function_slot_related (statics statics' : static_env)
     (move_from move_to : function_slot) (v : value) :
-  statics_related statics statics' ->
+  statics_related_where statics statics' ->
   project_function_slot statics move_from move_to v
   = project_function_slot statics' move_from move_to v.
 Proof.
@@ -327,7 +338,7 @@ Qed.
 
 Lemma eval_named_related (statics statics' : static_env) (vars : env)
     (d : named) :
-  statics_related statics statics' ->
+  statics_related_where statics statics' ->
   eval_named statics vars d = eval_named statics' vars d.
 Proof.
   intros Hstatics.
@@ -347,16 +358,16 @@ Qed.
 
 (* Related groups of bindings added to related static environments: both
    fail, or the results are related. *)
-Lemma eval_static_bindings_related (vars : env)
+Lemma eval_static_bindings_related_where (vars : env)
     (bindings bindings' : list static_binding) :
-  Forall2 binding_related bindings bindings' ->
+  Forall2 binding_related_where bindings bindings' ->
   ∀ statics statics' : static_env,
-    statics_related statics statics' ->
+    statics_related_where statics statics' ->
     match
       eval_static_bindings vars bindings statics,
       eval_static_bindings vars bindings' statics'
     with
-    | Some extended, Some extended' => statics_related extended extended'
+    | Some extended, Some extended' => statics_related_where extended extended'
     | None, None => True
     | _, _ => False
     end.
@@ -375,7 +386,7 @@ Proof.
       (lookup id (static_code statics')); try contradiction; [ exact I | ].
     apply IH. split; [ | exact Hvalues ].
     apply Forall2_cons; [ | exact Hcode ].
-    split; [ reflexivity | apply Codes_same ].
+    split; [ reflexivity | apply Codes_same_where ].
   - apply IH. split; assumption.
   - rewrite <- Hvalues.
     destruct (lookup sym (static_values statics)); [ exact I | ].
@@ -384,13 +395,32 @@ Proof.
     apply IH. split; [ exact Hcode | ]. simpl. rewrite Hvalues. reflexivity.
 Qed.
 
+(* What a call tests of the kinds of its arguments gives the kinds of the
+   arity of the code. *)
+Lemma unarize_per_parameter_unarize (a a' : arity) :
+  unarize_per_parameter a = unarize_per_parameter a' ->
+  unarize a = unarize a'.
+Proof.
+  unfold unarize, unarize_per_parameter. intros Heq.
+  rewrite !flat_map_concat_map, Heq. reflexivity.
+Qed.
+
+(* A closure is a value of kind [Value]. *)
+Lemma closure_of_kind (statics : static_env) (v : value) (called : code_id)
+    (slots : list (value_slot * value)) :
+  closure_of statics v = Some (called, slots) -> kind_of_value v = Value.
+Proof. destruct v; simpl; try discriminate; intros _; reflexivity. Qed.
+
 (* A call under related static environments: undefined under both, or it
    runs related bodies under the same variables, with the two
-   continuations of the code bound to what the caller gave. *)
+   continuations of the code bound to what the caller gave. The variables
+   are the parameters of the code, bound to the arguments, which are of
+   the kinds of its arity, and [my_closure], bound to the callee, which is
+   of kind [Value]. *)
 Lemma call_function_related (callee : value) (kind : call_kind)
     (vs : list value) (args_arity return_arity : arity)
     (statics statics' : static_env) :
-  statics_related statics statics' ->
+  statics_related_where statics statics' ->
   ((∀ return_to exn_to : cont_value,
      call_function callee kind vs args_arity return_arity return_to exn_to
        statics
@@ -399,8 +429,14 @@ Lemma call_function_related (callee : value) (kind : call_kind)
        call_function callee kind vs args_arity return_arity return_to exn_to
          statics'
        = Undefined))
-  ∨ (∃ (body body' : expr) (callee_vars : env) (ret exn : continuation),
-      (code_related body body' ∨ body = body')
+  ∨ (∃ (params : list variable) (my_closure : variable)
+       (ret exn : continuation) (metadata : code_metadata)
+       (body body' : expr) (callee_vars : env),
+      (code_related params my_closure ret exn metadata body body'
+       ∨ body = body')
+      ∧ bind_params params vs [(my_closure, callee)] = Some callee_vars
+      ∧ map kind_of_value vs = unarize (cm_params_arity metadata)
+      ∧ kind_of_value callee = Value
       ∧ (∀ return_to exn_to : cont_value,
           call_function callee kind vs args_arity return_arity return_to
             exn_to statics
@@ -416,8 +452,9 @@ Lemma call_function_related (callee : value) (kind : call_kind)
 Proof.
   intros Hstatics. unfold call_function.
   rewrite <- (closure_of_related statics statics' callee Hstatics).
-  destruct (closure_of statics callee) as [[called slots] | ];
+  destruct (closure_of statics callee) as [[called slots] | ] eqn:Hclosure;
     [ | left; split; reflexivity ].
+  pose proof (closure_of_kind _ _ _ _ Hclosure) as Hvalue.
   destruct
     (match kind with
      | Direct named => Pos.eqb called named
@@ -428,38 +465,45 @@ Proof.
   destruct (lookup called (static_code statics)) as [c | ],
     (lookup called (static_code statics')) as [c' | ];
     try contradiction; [ | left; split; reflexivity ].
-  destruct Hc
-    as [params my_closure ret exn metadata body body'
-          Hbinds Hbody
-       | c];
-    simpl.
-  - rewrite <- Hbinds.
-    destruct (binds_statics body); [ left; split; reflexivity | ].
-    destruct
-      (negb
-         (kinds_eqb (map kind_of_value vs) (unarize args_arity)
-          && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
-               (unarize_per_parameter (cm_params_arity metadata))
-          && arity_eqb return_arity (cm_result_arity metadata)));
-      [ left; split; reflexivity | ].
-    destruct (bind_params params vs [(my_closure, callee)])
-      as [callee_vars | ]; [ | left; split; reflexivity ].
-    right. exists body, body', callee_vars, ret, exn.
-    split; [ left; exact Hbody | split; reflexivity ].
-  - destruct (binds_statics (code_body c)); [ left; split; reflexivity | ].
-    destruct
-      (negb
-         (kinds_eqb (map kind_of_value vs) (unarize args_arity)
-          && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
-               (unarize_per_parameter (code_params_arity c))
-          && arity_eqb return_arity (code_result_arity c)));
-      [ left; split; reflexivity | ].
-    destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
-      as [callee_vars | ]; [ | left; split; reflexivity ].
-    right.
-    exists (code_body c), (code_body c), callee_vars,
-      (code_return_continuation c), (code_exn_continuation c).
-    split; [ right; reflexivity | split; reflexivity ].
+  (* Related code, or the same code: in both cases the two differ in
+     their bodies at most. *)
+  assert (Hcodes :
+    ∃ (params : list variable) (my_closure : variable)
+      (ret exn : continuation) (metadata : code_metadata)
+      (body body' : expr),
+      c = Code params my_closure ret exn metadata body
+      ∧ c' = Code params my_closure ret exn metadata body'
+      ∧ binds_statics body = binds_statics body'
+      ∧ (code_related params my_closure ret exn metadata body body'
+         ∨ body = body')).
+  { destruct Hc
+      as [params my_closure ret exn metadata body body' Hbinds Hbody
+         | [params my_closure ret exn metadata body]].
+    - exists params, my_closure, ret, exn, metadata, body, body'. auto.
+    - exists params, my_closure, ret, exn, metadata, body, body. auto. }
+  destruct Hcodes
+    as (params & my_closure & ret & exn & metadata & body & body' & -> & ->
+        & Hbinds & Hbody).
+  simpl. rewrite <- Hbinds.
+  destruct (binds_statics body); [ left; split; reflexivity | ].
+  destruct (kinds_eqb (map kind_of_value vs) (unarize args_arity))
+    eqn:Hkinds;
+    cbn [negb andb]; [ | left; split; reflexivity ].
+  destruct
+    (kinds_per_parameter_eqb (unarize_per_parameter args_arity)
+       (unarize_per_parameter (cm_params_arity metadata)))
+    eqn:Hper;
+    cbn [negb andb]; [ | left; split; reflexivity ].
+  destruct (arity_eqb return_arity (cm_result_arity metadata));
+    cbn [negb andb]; [ | left; split; reflexivity ].
+  destruct (bind_params params vs [(my_closure, callee)])
+    as [callee_vars | ] eqn:Hbind; [ | left; split; reflexivity ].
+  right.
+  exists params, my_closure, ret, exn, metadata, body, body', callee_vars.
+  apply kinds_eqb_eq in Hkinds. apply kinds_per_parameter_eqb_eq in Hper.
+  split; [ exact Hbody | ]. split; [ exact Hbind | ].
+  split; [ rewrite Hkinds; apply unarize_per_parameter_unarize, Hper | ].
+  split; [ exact Hvalue | split; reflexivity ].
 Qed.
 
 (* ======================================================================== *)
@@ -472,13 +516,19 @@ Qed.
    state ends at once, and that [related] carries from a handler to the
    corresponding one, under the variables of their closures with the
    parameters bound, and [code_related] from a body to the corresponding
-   one, under any environments. *)
-Variable statics_ok : static_env -> Prop.
+   one, where a call runs it.
 
-Hypothesis statics_ok_extend :
-  ∀ statics statics' : static_env,
-    statics_ok statics -> statics_extend statics statics' ->
-    statics_ok statics'.
+   The relations need only carry it from the states that have [inv], a
+   predicate on states that a step keeps. The state under the second
+   environments has [inv] all along. Where a closure is applied or code is
+   called, that state steps to the second handler or body, and the
+   induction is about the first under the same environments, which no run
+   need reach. So the relations are also asked to give [inv] of the first
+   there from [inv] of the second. *)
+Variable inv : state -> Prop.
+
+Hypothesis inv_step :
+  ∀ s s' : state, inv s -> step s = Step s' -> inv s'.
 
 Variable carried : state -> behaviour -> Prop.
 
@@ -493,35 +543,63 @@ Hypothesis carried_exit :
 Hypothesis carried_undefined :
   ∀ s : state, step s = Undefined -> carried s Goes_wrong.
 
+Hypothesis inv_related :
+  ∀ (params : list variable) (def_vars : env) (e e' : expr)
+    (vs : list value) (handler_vars : env) (conts : cont_env)
+    (statics : static_env),
+    related params def_vars e e' ->
+    bind_params params vs def_vars = Some handler_vars ->
+    inv (State e' handler_vars conts statics) ->
+    inv (State e handler_vars conts statics).
+
 Hypothesis carried_related :
   ∀ (params : list variable) (def_vars : env) (e e' : expr)
     (vs : list value) (handler_vars : env) (conts : cont_env)
     (statics : static_env) (b : behaviour),
     related params def_vars e e' ->
-    statics_ok statics ->
+    inv (State e handler_vars conts statics) ->
     bind_params params vs def_vars = Some handler_vars ->
     carried (State e handler_vars conts statics) b ->
     carried (State e' handler_vars conts statics) b.
 
+Hypothesis inv_code_related :
+  ∀ (params : list variable) (my_closure : variable)
+    (ret exn : continuation) (metadata : code_metadata) (e e' : expr)
+    (vs : list value) (callee : value) (callee_vars : env)
+    (return_to exn_to : cont_value) (statics : static_env),
+    code_related params my_closure ret exn metadata e e' ->
+    bind_params params vs [(my_closure, callee)] = Some callee_vars ->
+    map kind_of_value vs = unarize (cm_params_arity metadata) ->
+    kind_of_value callee = Value ->
+    inv (State e' callee_vars [(ret, return_to); (exn, exn_to)] statics) ->
+    inv (State e callee_vars [(ret, return_to); (exn, exn_to)] statics).
+
 Hypothesis carried_code_related :
-  ∀ (e e' : expr) (vars : env) (conts : cont_env) (statics : static_env)
-    (b : behaviour),
-    code_related e e' ->
-    statics_ok statics ->
-    carried (State e vars conts statics) b ->
-    carried (State e' vars conts statics) b.
+  ∀ (params : list variable) (my_closure : variable)
+    (ret exn : continuation) (metadata : code_metadata) (e e' : expr)
+    (vs : list value) (callee : value) (callee_vars : env)
+    (return_to exn_to : cont_value) (statics : static_env) (b : behaviour),
+    code_related params my_closure ret exn metadata e e' ->
+    inv (State e callee_vars [(ret, return_to); (exn, exn_to)] statics) ->
+    bind_params params vs [(my_closure, callee)] = Some callee_vars ->
+    map kind_of_value vs = unarize (cm_params_arity metadata) ->
+    kind_of_value callee = Value ->
+    carried (State e callee_vars [(ret, return_to); (exn, exn_to)] statics)
+      b ->
+    carried (State e' callee_vars [(ret, return_to); (exn, exn_to)] statics)
+      b.
 
 Lemma transfer (n : nat) :
   ∀ (e : expr) (vars : env) (conts conts' : cont_env)
     (statics statics' : static_env) (b : behaviour),
     cont_env_related conts conts' ->
-    statics_related statics statics' ->
-    statics_ok statics' ->
+    statics_related_where statics statics' ->
+    inv (State e vars conts' statics') ->
     ended (run n (State e vars conts statics)) b ->
     carried (State e vars conts' statics') b.
 Proof.
   induction n as [ | n IH];
-    intros e vars conts conts' statics statics' b Hrel Hstatics Hok Hended;
+    intros e vars conts conts' statics statics' b Hrel Hstatics Hinv Hended;
     [ destruct b; contradiction | ].
   rewrite run_succ in Hended.
   destruct e
@@ -530,37 +608,44 @@ Proof.
     autorewrite with step in Hended; simpl in Hended.
   - (* Let *)
     destruct (eval_named statics vars d) as [v | ] eqn:Hd; simpl in Hended.
-    + apply (carried_step _ (State body ((x, v) :: vars) conts' statics'));
-        [ rewrite step_let,
-            <- (eval_named_related statics statics' vars d Hstatics), Hd;
-          reflexivity
-        | ].
-      exact (IH _ _ _ _ _ _ _ Hrel Hstatics Hok Hended).
+    + assert (Hstep :
+        step (State (Let x kind d body) vars conts' statics')
+        = Step (State body ((x, v) :: vars) conts' statics')).
+      { rewrite step_let,
+          <- (eval_named_related statics statics' vars d Hstatics), Hd.
+        reflexivity. }
+      apply (carried_step _ _ _ Hstep).
+      exact
+        (IH _ _ _ _ _ _ _ Hrel Hstatics (inv_step _ _ Hinv Hstep) Hended).
     + apply ended_undefined in Hended. subst b.
       apply carried_undefined.
       rewrite step_let,
         <- (eval_named_related statics statics' vars d Hstatics), Hd.
       reflexivity.
   - (* Let_static: the same bindings, added to related environments *)
-    pose proof (eval_static_bindings_related vars bindings bindings
-      (bindings_related_refl bindings) statics statics' Hstatics)
+    pose proof (eval_static_bindings_related_where vars bindings bindings
+      (bindings_related_where_refl bindings) statics statics' Hstatics)
       as Hextended.
     destruct (eval_static_bindings vars bindings statics) as [extended | ],
       (eval_static_bindings vars bindings statics') as [extended' | ]
         eqn:Hbindings';
       try contradiction; simpl in Hended.
-    + apply (carried_step _ (State body vars conts' extended'));
-        [ rewrite step_let_static, Hbindings'; reflexivity | ].
-      refine (IH _ _ _ _ _ _ _ Hrel Hextended _ Hended).
-      exact (statics_ok_extend _ _ Hok
-        (eval_static_bindings_extend vars bindings statics' extended'
-           Hbindings')).
+    + assert (Hstep :
+        step (State (Let_static bindings body) vars conts' statics')
+        = Step (State body vars conts' extended')).
+      { rewrite step_let_static, Hbindings'. reflexivity. }
+      apply (carried_step _ _ _ Hstep).
+      exact
+        (IH _ _ _ _ _ _ _ Hrel Hextended (inv_step _ _ Hinv Hstep) Hended).
     + apply ended_undefined in Hended. subst b.
       apply carried_undefined. rewrite step_let_static, Hbindings'.
       reflexivity.
   - (* Let_cont_non_recursive *)
-    eapply carried_step; [ apply step_let_cont_non_recursive | ].
-    eapply IH; [ | exact Hstatics | exact Hok | exact Hended ].
+    pose proof (step_let_cont_non_recursive k h body vars conts' statics')
+      as Hstep.
+    apply (carried_step _ _ _ Hstep).
+    eapply IH;
+      [ | exact Hstatics | exact (inv_step _ _ Hinv Hstep) | exact Hended ].
     apply Forall2_cons; [ | exact Hrel ].
     split; [ reflexivity | ].
     apply Closure_related;
@@ -570,9 +655,15 @@ Proof.
       [ apply ended_undefined in Hended; subst b; apply carried_undefined;
         rewrite step_let_cont_recursive, Hbinds; reflexivity
       | ].
-    eapply carried_step;
-      [ rewrite step_let_cont_recursive, Hbinds; reflexivity | ].
-    eapply IH; [ | exact Hstatics | exact Hok | exact Hended ].
+    assert (Hstep :
+      step (State (Let_cont_recursive handlers body) vars conts' statics')
+      = Step
+          (State body vars (rec_closures handlers vars conts' ++ conts')
+             statics')).
+    { rewrite step_let_cont_recursive, Hbinds. reflexivity. }
+    apply (carried_step _ _ _ Hstep).
+    eapply IH;
+      [ | exact Hstatics | exact (inv_step _ _ Hinv Hstep) | exact Hended ].
     apply Forall2_app; [ | exact Hrel ].
     apply rec_closures_related; [ apply handlers_related_refl | exact Hrel ].
   - (* Apply: the same call of related code, returning to related
@@ -590,23 +681,35 @@ Proof.
                   (ap_args_arity ap) (ap_return_arity ap) statics statics'
                   Hstatics)
         as [[Hundefined Hundefined']
-           | (body & body' & callee_vars & ret & exn & Hbody & Hcall
+           | (params & my_closure & ret & exn & metadata & body & body'
+              & callee_vars & Hbody & Hbind & Hkinds & Hvalue & Hcall
               & Hcall')].
       * rewrite Hundefined in Hended. apply ended_undefined in Hended.
         subst b. apply carried_undefined.
         rewrite step_apply, Hcallee, Hargs, Hextra. apply Hundefined'.
       * rewrite Hcall in Hended.
-        assert (Hcarried :
-          carried
-            (State body callee_vars
-               [(ret, resolve (ap_continuation ap) conts');
-                (exn,
-                 with_extra_args (resolve (ap_exn_continuation ap) conts')
-                   extra)]
-               statics')
-            b).
-        { eapply IH; [ | exact Hstatics | exact Hok | exact Hended ].
-          apply Forall2_cons;
+        assert (Hstep :
+          step (State (Apply ap) vars conts' statics')
+          = Step
+              (State body' callee_vars
+                 [(ret, resolve (ap_continuation ap) conts');
+                  (exn,
+                   with_extra_args (resolve (ap_exn_continuation ap) conts')
+                     extra)]
+                 statics')).
+        { rewrite step_apply, Hcallee, Hargs, Hextra. apply Hcall'. }
+        pose proof (inv_step _ _ Hinv Hstep) as Hinv'.
+        assert (Hconts :
+          cont_env_related
+            [(ret, resolve (ap_continuation ap) conts);
+             (exn,
+              with_extra_args (resolve (ap_exn_continuation ap) conts)
+                extra)]
+            [(ret, resolve (ap_continuation ap) conts');
+             (exn,
+              with_extra_args (resolve (ap_exn_continuation ap) conts')
+                extra)]).
+        { apply Forall2_cons;
             [ split; [ reflexivity | apply resolve_related, Hrel ] | ].
           apply Forall2_cons;
             [ split;
@@ -614,16 +717,19 @@ Proof.
                 | apply with_extra_args_related, resolve_related, Hrel ]
             | ].
           apply Forall2_nil. }
-        apply (carried_step _
-          (State body' callee_vars
-             [(ret, resolve (ap_continuation ap) conts');
-              (exn,
-               with_extra_args (resolve (ap_exn_continuation ap) conts')
-                 extra)]
-             statics'));
-          [ rewrite step_apply, Hcallee, Hargs, Hextra; apply Hcall' | ].
-        destruct Hbody as [Hbody | <-]; [ | exact Hcarried ].
-        exact (carried_code_related _ _ _ _ _ _ Hbody Hok Hcarried).
+        apply (carried_step _ _ _ Hstep).
+        destruct Hbody as [Hbody | <-];
+          [ | exact (IH _ _ _ _ _ _ _ Hconts Hstatics Hinv' Hended) ].
+        (* The state of the second body has [inv]; so has that of the
+           first, which the induction is about. *)
+        pose proof
+          (inv_code_related _ _ _ _ _ _ _ _ _ _ _ _ _ Hbody Hbind Hkinds
+             Hvalue Hinv')
+          as Hfirst.
+        exact
+          (carried_code_related _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hbody Hfirst
+             Hbind Hkinds Hvalue
+             (IH _ _ _ _ _ _ _ Hconts Hstatics Hfirst Hended)).
     + apply ended_undefined in Hended. subst b.
       apply carried_undefined.
       rewrite step_apply, Hcallee, Hargs, Hextra. reflexivity.
@@ -660,25 +766,27 @@ Proof.
              (cont_args (resolve (ac_continuation ac) conts') vs) def_vars)
           as [handler_vars | ] eqn:Hbind;
           simpl in Hended.
-        -- assert (Hcarried :
-             carried
-               (State body handler_vars
-                  (rec_closures recursive' def_vars def_conts' ++ def_conts')
-                  statics')
-               b).
-           { eapply IH; [ | exact Hstatics | exact Hok | exact Hended ].
-             apply Forall2_app; [ | exact Hconts ].
+        -- pose proof
+             (step_apply_cont_target_handler _ _ _ statics' _ _ _ _ _ _ _ _
+                Hargs Hl' Hbind)
+             as Hstep.
+           pose proof (inv_step _ _ Hinv Hstep) as Hinv'.
+           assert (Hconts' :
+             cont_env_related
+               (rec_closures recursive def_vars def_conts ++ def_conts)
+               (rec_closures recursive' def_vars def_conts' ++ def_conts')).
+           { apply Forall2_app; [ | exact Hconts ].
              apply rec_closures_related; assumption. }
-           apply (carried_step _
-             (State body' handler_vars
-                (rec_closures recursive' def_vars def_conts' ++ def_conts')
-                statics')).
-           ++ exact
-                (step_apply_cont_target_handler _ _ _ _ _ _ _ _ _ _ _ _
-                   Hargs Hl' Hbind).
-           ++ destruct Hbody as [Hbody | <-]; [ | exact Hcarried ].
-              exact
-                (carried_related _ _ _ _ _ _ _ _ _ Hbody Hok Hbind Hcarried).
+           apply (carried_step _ _ _ Hstep).
+           destruct Hbody as [Hbody | <-];
+             [ | exact (IH _ _ _ _ _ _ _ Hconts' Hstatics Hinv' Hended) ].
+           (* The state of the second handler has [inv]; so has that of
+              the first, which the induction is about. *)
+           pose proof (inv_related _ _ _ _ _ _ _ _ Hbody Hbind Hinv')
+             as Hfirst.
+           exact
+             (carried_related _ _ _ _ _ _ _ _ _ Hbody Hfirst Hbind
+                (IH _ _ _ _ _ _ _ Hconts' Hstatics Hfirst Hended)).
         -- apply ended_undefined in Hended. subst b.
            apply carried_undefined. rewrite step_apply_cont, Hargs.
            unfold apply_continuation.
@@ -698,9 +806,13 @@ Proof.
         [ destruct (find_arm i arms) as [ac | ] eqn:Hfind; simpl in Hended
         | ]
       | ].
-    + apply (carried_step _ (State (Apply_cont ac) vars conts' statics'));
-        [ rewrite step_switch, Hscrutinee, Himmediate, Hfind; reflexivity | ].
-      exact (IH _ _ _ _ _ _ _ Hrel Hstatics Hok Hended).
+    + assert (Hstep :
+        step (State (Switch scrutinee arms) vars conts' statics')
+        = Step (State (Apply_cont ac) vars conts' statics')).
+      { rewrite step_switch, Hscrutinee, Himmediate, Hfind. reflexivity. }
+      apply (carried_step _ _ _ Hstep).
+      exact
+        (IH _ _ _ _ _ _ _ Hrel Hstatics (inv_step _ _ Hinv Hstep) Hended).
     + apply ended_undefined in Hended. subst b.
       apply carried_undefined.
       rewrite step_switch, Hscrutinee, Himmediate, Hfind. reflexivity.
@@ -717,6 +829,75 @@ Qed.
 End Transfer.
 
 (* ======================================================================== *)
+(* Relations that do not look at what the code binds                        *)
+(* ======================================================================== *)
+
+(* The relations on code, bindings and static environments for a relation
+   between the bodies alone: the instance of the ones above at a relation
+   that ignores what the code binds and its metadata. *)
+Section Bodies.
+
+Variable code_related : expr -> expr -> Prop.
+
+Definition ignoring_binders (params : list variable) (my_closure : variable)
+    (ret exn : continuation) (metadata : code_metadata)
+    : expr -> expr -> Prop :=
+  code_related.
+
+Definition codes_related : code -> code -> Prop :=
+  codes_related_where ignoring_binders.
+
+Definition binding_related : static_binding -> static_binding -> Prop :=
+  binding_related_where ignoring_binders.
+
+Definition statics_related : static_env -> static_env -> Prop :=
+  statics_related_where ignoring_binders.
+
+Lemma Codes_related (params : list variable) (my_closure : variable)
+    (ret exn : continuation) (metadata : code_metadata) (body body' : expr) :
+  binds_statics body = binds_statics body' ->
+  code_related body body' ->
+  codes_related (Code params my_closure ret exn metadata body)
+    (Code params my_closure ret exn metadata body').
+Proof. intros Hbinds Hbody. apply Codes_related_where; assumption. Qed.
+
+Lemma Codes_same (c : code) : codes_related c c.
+Proof. apply Codes_same_where. Qed.
+
+Lemma Binding_code (id : code_id) (c c' : code) :
+  codes_related c c' -> binding_related (Bind_code id c) (Bind_code id c').
+Proof. apply Binding_code_where. Qed.
+
+Lemma Binding_same (binding : static_binding) :
+  binding_related binding binding.
+Proof. apply Binding_same_where. Qed.
+
+Lemma statics_related_refl (statics : static_env) :
+  statics_related statics statics.
+Proof. apply statics_related_where_refl. Qed.
+
+Lemma bindings_related_refl (bindings : list static_binding) :
+  Forall2 binding_related bindings bindings.
+Proof. apply bindings_related_where_refl. Qed.
+
+Lemma eval_static_bindings_related (vars : env)
+    (bindings bindings' : list static_binding) :
+  Forall2 binding_related bindings bindings' ->
+  ∀ statics statics' : static_env,
+    statics_related statics statics' ->
+    match
+      eval_static_bindings vars bindings statics,
+      eval_static_bindings vars bindings' statics'
+    with
+    | Some extended, Some extended' => statics_related extended extended'
+    | None, None => True
+    | _, _ => False
+    end.
+Proof. apply eval_static_bindings_related_where. Qed.
+
+End Bodies.
+
+(* ======================================================================== *)
 (* Refinement under related environments                                    *)
 (* ======================================================================== *)
 
@@ -730,6 +911,370 @@ Definition exits_carried (s : state) (b : behaviour) : Prop :=
 
 Definition ends_or_wrong (s : state) (b : behaviour) : Prop :=
   b <> Diverges -> behaves s b ∨ behaves s Goes_wrong.
+
+(* ======================================================================== *)
+(* Refinement from the states that have a predicate                         *)
+(* ======================================================================== *)
+
+(* The two states have [inv] together, and the first, if it has it,
+   refines the second. *)
+Definition refines_from (inv : state -> Prop) (source target : state)
+    : Prop :=
+  (inv source <-> inv target) ∧ (inv source -> refines source target).
+
+Section From.
+
+(* A predicate on states that a step keeps. *)
+Variable inv : state -> Prop.
+
+Hypothesis inv_step :
+  ∀ s s' : state, inv s -> step s = Step s' -> inv s'.
+
+(* Relations between handlers, and between the bodies of code, from the
+   source to the target and back. Related expressions refine where they
+   run, from the states that have [inv], and have [inv] together there: a
+   handler under the variables of its closure with its parameters bound,
+   any continuations and any static environment; the body of code at a
+   call. The second is for [transfer], which goes through states that no
+   run of the two whole states need reach: an expression of one side under
+   the environments of the other. A step keeps [inv] along a run, which
+   says nothing of such a state; [inv] of it comes from [inv] of the
+   state with the corresponding expression, which a run does reach. *)
+Variable forwards backwards : list variable -> env -> expr -> expr -> Prop.
+
+Variable code_forwards code_backwards :
+  list variable -> variable -> continuation -> continuation ->
+  code_metadata -> expr -> expr -> Prop.
+
+Hypothesis forwards_refines :
+  ∀ (params : list variable) (def_vars : env) (source target : expr)
+    (vs : list value) (handler_vars : env) (conts : cont_env)
+    (statics : static_env),
+    forwards params def_vars source target ->
+    bind_params params vs def_vars = Some handler_vars ->
+    refines_from inv (State source handler_vars conts statics)
+      (State target handler_vars conts statics).
+
+Hypothesis backwards_refines :
+  ∀ (params : list variable) (def_vars : env) (target source : expr)
+    (vs : list value) (handler_vars : env) (conts : cont_env)
+    (statics : static_env),
+    backwards params def_vars target source ->
+    bind_params params vs def_vars = Some handler_vars ->
+    refines_from inv (State source handler_vars conts statics)
+      (State target handler_vars conts statics).
+
+Hypothesis code_forwards_refines :
+  ∀ (params : list variable) (my_closure : variable)
+    (ret exn : continuation) (metadata : code_metadata)
+    (source target : expr) (vs : list value) (callee : value)
+    (callee_vars : env) (return_to exn_to : cont_value)
+    (statics : static_env),
+    code_forwards params my_closure ret exn metadata source target ->
+    bind_params params vs [(my_closure, callee)] = Some callee_vars ->
+    map kind_of_value vs = unarize (cm_params_arity metadata) ->
+    kind_of_value callee = Value ->
+    refines_from inv
+      (State source callee_vars [(ret, return_to); (exn, exn_to)] statics)
+      (State target callee_vars [(ret, return_to); (exn, exn_to)] statics).
+
+Hypothesis code_backwards_refines :
+  ∀ (params : list variable) (my_closure : variable)
+    (ret exn : continuation) (metadata : code_metadata)
+    (target source : expr) (vs : list value) (callee : value)
+    (callee_vars : env) (return_to exn_to : cont_value)
+    (statics : static_env),
+    code_backwards params my_closure ret exn metadata target source ->
+    bind_params params vs [(my_closure, callee)] = Some callee_vars ->
+    map kind_of_value vs = unarize (cm_params_arity metadata) ->
+    kind_of_value callee = Value ->
+    refines_from inv
+      (State source callee_vars [(ret, return_to); (exn, exn_to)] statics)
+      (State target callee_vars [(ret, return_to); (exn, exn_to)] statics).
+
+(* An expression under environments refines it under ones whose closures
+   have refining handlers and whose code has refining bodies, when both
+   states have [inv]. The relations are needed in both directions, as the
+   two halves of [refines] run different sides. *)
+Lemma related_states_refines_from (e : expr) (vars : env)
+    (conts conts' : cont_env) (statics statics' : static_env) :
+  inv (State e vars conts statics) ->
+  inv (State e vars conts' statics') ->
+  cont_env_related forwards conts conts' ->
+  cont_env_related backwards conts' conts ->
+  statics_related_where code_forwards statics statics' ->
+  statics_related_where code_backwards statics' statics ->
+  refines (State e vars conts statics) (State e vars conts' statics').
+Proof.
+  intros Hinv Hinv' Hrel Hrel' Hstatics Hstatics'. split.
+  - intros k vs [n Hrun].
+    refine (transfer forwards code_forwards inv inv_step exits_carried
+      _ _ _ _ _ _ _ n e vars conts conts' statics statics' (Exits k vs) Hrel
+      Hstatics Hinv' _).
+    + intros s s' b Hstep.
+      destruct b as [k' vs' | | ]; unfold exits_carried; auto.
+      intros Hb. apply (step_behaves s (Exits k' vs')). rewrite Hstep.
+      exact Hb.
+    + intros s k' vs' Hstep. apply (step_behaves s (Exits k' vs')).
+      rewrite Hstep. reflexivity.
+    + intros s _. exact I.
+    + intros params def_vars source target vs' handler_vars conts''
+        statics'' Hrelated Hbind.
+      exact
+        (proj2 (proj1 (forwards_refines _ _ _ _ _ _ _ _ Hrelated Hbind))).
+    + intros params def_vars source target vs' handler_vars conts''
+        statics'' b Hrelated Hsource Hbind.
+      destruct b; unfold exits_carried; auto.
+      apply
+        (proj1
+           (proj2 (forwards_refines _ _ _ _ _ _ _ _ Hrelated Hbind)
+              Hsource)).
+    + intros params my_closure ret exn metadata source target vs' callee
+        callee_vars return_to exn_to statics'' Hrelated Hbind Hkinds Hvalue.
+      exact
+        (proj2
+           (proj1
+              (code_forwards_refines _ _ _ _ _ _ _ _ _ _ _ _ _ Hrelated
+                 Hbind Hkinds Hvalue))).
+    + intros params my_closure ret exn metadata source target vs' callee
+        callee_vars return_to exn_to statics'' b Hrelated Hsource Hbind
+        Hkinds Hvalue.
+      destruct b; unfold exits_carried; auto.
+      apply
+        (proj1
+           (proj2
+              (code_forwards_refines _ _ _ _ _ _ _ _ _ _ _ _ _ Hrelated
+                 Hbind Hkinds Hvalue)
+              Hsource)).
+    + rewrite Hrun. simpl. auto.
+  - intros b Hterm Hb. destruct (behaves_ended _ _ Hterm Hb) as [n Hended].
+    refine (transfer backwards code_backwards inv inv_step ends_or_wrong
+      _ _ _ _ _ _ _ n e vars conts' conts statics' statics b Hrel'
+      Hstatics' Hinv Hended Hterm).
+    + intros s s' b' Hstep Hcarried Hterm'.
+      destruct (Hcarried Hterm') as [Hb' | Hwrong]; [ left | right ];
+        [ apply (step_behaves s b') | apply (step_behaves s Goes_wrong) ];
+        rewrite Hstep; assumption.
+    + intros s k vs Hstep _. left. apply (step_behaves s (Exits k vs)).
+      rewrite Hstep. reflexivity.
+    + intros s Hstep _. left. apply (step_behaves s Goes_wrong).
+      rewrite Hstep. reflexivity.
+    + intros params def_vars target source vs handler_vars conts''
+        statics'' Hrelated Hbind.
+      exact
+        (proj1 (proj1 (backwards_refines _ _ _ _ _ _ _ _ Hrelated Hbind))).
+    + intros params def_vars target source vs handler_vars conts''
+        statics'' b' Hrelated Htarget Hbind Hcarried Hterm'.
+      destruct
+        (backwards_refines _ _ _ _ _ _ conts'' statics'' Hrelated Hbind)
+        as [Htogether Hrefines].
+      destruct (Hrefines (proj2 Htogether Htarget)) as [_ Hends].
+      destruct (Hcarried Hterm') as [Hb' | Hwrong];
+        [ exact (Hends b' Hterm' Hb') | ].
+      destruct (Hends Goes_wrong ltac:(discriminate) Hwrong); right;
+        assumption.
+    + intros params my_closure ret exn metadata target source vs callee
+        callee_vars return_to exn_to statics'' Hrelated Hbind Hkinds Hvalue.
+      exact
+        (proj1
+           (proj1
+              (code_backwards_refines _ _ _ _ _ _ _ _ _ _ _ _ _ Hrelated
+                 Hbind Hkinds Hvalue))).
+    + intros params my_closure ret exn metadata target source vs callee
+        callee_vars return_to exn_to statics'' b' Hrelated Htarget Hbind
+        Hkinds Hvalue Hcarried Hterm'.
+      destruct
+        (code_backwards_refines _ _ _ _ _ _ _ _ _ _ return_to exn_to
+           statics'' Hrelated Hbind Hkinds Hvalue)
+        as [Htogether Hrefines].
+      destruct (Hrefines (proj2 Htogether Htarget)) as [_ Hends].
+      destruct (Hcarried Hterm') as [Hb' | Hwrong];
+        [ exact (Hends b' Hterm' Hb') | ].
+      destruct (Hends Goes_wrong ltac:(discriminate) Hwrong); right;
+        assumption.
+Qed.
+
+(* The case of one static environment. *)
+Lemma related_envs_refines_from (e : expr) (vars : env)
+    (conts conts' : cont_env) (statics : static_env) :
+  inv (State e vars conts statics) ->
+  inv (State e vars conts' statics) ->
+  cont_env_related forwards conts conts' ->
+  cont_env_related backwards conts' conts ->
+  refines (State e vars conts statics) (State e vars conts' statics).
+Proof.
+  intros Hinv Hinv' Hrel Hrel'.
+  apply related_states_refines_from; try assumption;
+    apply statics_related_where_refl.
+Qed.
+
+(* A [Let_cont] refines the same with a handler replaced by a related
+   one, when both states have [inv]. *)
+Lemma let_cont_handler_refines_from (k : continuation)
+    (params : list variable) (metadata : handler_metadata)
+    (handler handler' body : expr) (vars : env) (conts : cont_env)
+    (statics : static_env) :
+  inv
+    (State
+       (Let_cont_non_recursive k (Handler params metadata handler) body)
+       vars conts statics) ->
+  inv
+    (State
+       (Let_cont_non_recursive k (Handler params metadata handler') body)
+       vars conts statics) ->
+  forwards params vars handler handler' ->
+  backwards params vars handler' handler ->
+  refines
+    (State
+       (Let_cont_non_recursive k (Handler params metadata handler) body)
+       vars conts statics)
+    (State
+       (Let_cont_non_recursive k (Handler params metadata handler') body)
+       vars conts statics).
+Proof.
+  intros Hinv Hinv' Hforwards Hbackwards.
+  apply let_cont_non_recursive_refines_step.
+  apply related_envs_refines_from;
+    [ exact
+        (inv_step _ _ Hinv
+           (step_let_cont_non_recursive k (Handler params metadata handler)
+              body vars conts statics))
+    | exact
+        (inv_step _ _ Hinv'
+           (step_let_cont_non_recursive k (Handler params metadata handler')
+              body vars conts statics))
+    | | ];
+    (apply Forall2_cons; [ | apply cont_env_related_refl ]);
+    (split; [ reflexivity | ]);
+    (apply Closure_related;
+      [ apply Handler_related; assumption | apply cont_env_related_refl
+      | apply Forall2_nil ]).
+Qed.
+
+(* The same for recursive handlers, any number of them replaced. *)
+Lemma let_cont_recursive_handlers_refine_from
+    (handlers handlers' : list (continuation * continuation_handler))
+    (body : expr) (vars : env) (conts : cont_env) (statics : static_env) :
+  inv (State (Let_cont_recursive handlers body) vars conts statics) ->
+  inv (State (Let_cont_recursive handlers' body) vars conts statics) ->
+  handlers_bind_statics handlers = handlers_bind_statics handlers' ->
+  handlers_related forwards vars handlers handlers' ->
+  handlers_related backwards vars handlers' handlers ->
+  refines (State (Let_cont_recursive handlers body) vars conts statics)
+    (State (Let_cont_recursive handlers' body) vars conts statics).
+Proof.
+  intros Hinv Hinv' Hbinds Hhandlers Hhandlers'.
+  apply let_cont_recursive_refines_step; [ exact Hbinds | intros Hnone ].
+  assert (Hstep :
+    ∀ group : list (continuation * continuation_handler),
+      handlers_bind_statics group = false ->
+      step (State (Let_cont_recursive group body) vars conts statics)
+      = Step
+          (State body vars (rec_closures group vars conts ++ conts) statics)).
+  { intros group Hgroup. rewrite step_let_cont_recursive, Hgroup.
+    reflexivity. }
+  apply related_envs_refines_from;
+    [ exact (inv_step _ _ Hinv (Hstep handlers Hnone))
+    | exact
+        (inv_step _ _ Hinv'
+           (Hstep handlers' (eq_trans (eq_sym Hbinds) Hnone)))
+    | | ];
+    (apply Forall2_app; [ | apply cont_env_related_refl ]);
+    (apply rec_closures_related; [ assumption | apply cont_env_related_refl ]).
+Qed.
+
+(* A [Let_static] refines the same with the body of a piece of code
+   replaced by a related one, when both states have [inv]. *)
+Lemma let_static_code_refines_from (before : list static_binding)
+    (id : code_id) (params : list variable) (my_closure : variable)
+    (ret exn : continuation) (metadata : code_metadata)
+    (code_body code_body' : expr) (after : list static_binding) (body : expr)
+    (vars : env) (conts : cont_env) (statics : static_env) :
+  inv
+    (State
+       (Let_static
+          (before
+           ++ Bind_code id
+                (Code params my_closure ret exn metadata code_body)
+           :: after)
+          body)
+       vars conts statics) ->
+  inv
+    (State
+       (Let_static
+          (before
+           ++ Bind_code id
+                (Code params my_closure ret exn metadata code_body')
+           :: after)
+          body)
+       vars conts statics) ->
+  binds_statics code_body = binds_statics code_body' ->
+  code_forwards params my_closure ret exn metadata code_body code_body' ->
+  code_backwards params my_closure ret exn metadata code_body' code_body ->
+  refines
+    (State
+       (Let_static
+          (before
+           ++ Bind_code id
+                (Code params my_closure ret exn metadata code_body)
+           :: after)
+          body)
+       vars conts statics)
+    (State
+       (Let_static
+          (before
+           ++ Bind_code id
+                (Code params my_closure ret exn metadata code_body')
+           :: after)
+          body)
+       vars conts statics).
+Proof.
+  intros Hinv Hinv' Hbinds Hforwards Hbackwards.
+  set (c := Code params my_closure ret exn metadata code_body) in *.
+  set (c' := Code params my_closure ret exn metadata code_body') in *.
+  assert (Hbindings :
+    ∀ (R :
+         list variable -> variable -> continuation -> continuation ->
+         code_metadata -> expr -> expr -> Prop)
+      (c1 c2 : code),
+      codes_related_where R c1 c2 ->
+      Forall2 (binding_related_where R) (before ++ Bind_code id c1 :: after)
+        (before ++ Bind_code id c2 :: after)).
+  { intros R c1 c2 Hc.
+    apply Forall2_app; [ apply bindings_related_where_refl | ].
+    apply Forall2_cons; [ | apply bindings_related_where_refl ].
+    apply Binding_code_where, Hc. }
+  pose proof (eval_static_bindings_related_where code_forwards vars _ _
+    (Hbindings code_forwards c c'
+       (Codes_related_where _ _ _ _ _ _ _ _ Hbinds Hforwards))
+    statics statics (statics_related_where_refl _ statics)) as Hthere.
+  pose proof (eval_static_bindings_related_where code_backwards vars _ _
+    (Hbindings code_backwards c' c
+       (Codes_related_where code_backwards params my_closure ret exn
+          metadata code_body' code_body (eq_sym Hbinds) Hbackwards))
+    statics statics (statics_related_where_refl _ statics)) as Hback.
+  apply let_static_refines_step.
+  destruct
+    (eval_static_bindings vars (before ++ Bind_code id c :: after) statics)
+    as [extended | ] eqn:Hextended,
+    (eval_static_bindings vars (before ++ Bind_code id c' :: after) statics)
+    as [extended' | ] eqn:Hextended';
+    try contradiction; [ | exact I ].
+  assert (Hstep :
+    ∀ (bindings : list static_binding) (extended'' : static_env),
+      eval_static_bindings vars bindings statics = Some extended'' ->
+      step (State (Let_static bindings body) vars conts statics)
+      = Step (State body vars conts extended'')).
+  { intros bindings extended'' Hbound.
+    rewrite step_let_static, Hbound. reflexivity. }
+  apply related_states_refines_from;
+    [ exact (inv_step _ _ Hinv (Hstep _ _ Hextended))
+    | exact (inv_step _ _ Hinv' (Hstep _ _ Hextended'))
+    | apply cont_env_related_refl | apply cont_env_related_refl
+    | exact Hthere | exact Hback ].
+Qed.
+
+End From.
 
 (* A handler refines another where it runs: under the variables of its
    closure with its parameters bound, any continuations, and any static
@@ -750,6 +1295,23 @@ Definition expr_refines_where (ok : static_env -> Prop)
     ok statics ->
     refines (State source vars conts statics)
       (State target vars conts statics).
+
+(* The body of code refines another where it runs: at a call, under its
+   parameters bound to values of the kinds of its arity and [my_closure] to
+   a value of kind [Value], any continuations, and any static environment
+   of which [ok] holds. The kinds are those of the values; nothing is
+   asked of the kinds that a term gives. *)
+Definition code_refines_where (ok : static_env -> Prop)
+    (params : list variable) (my_closure : variable)
+    (metadata : code_metadata) (source target : expr) : Prop :=
+  ∀ (vs : list value) (callee : value) (callee_vars : env)
+    (conts : cont_env) (statics : static_env),
+    ok statics ->
+    map kind_of_value vs = unarize (cm_params_arity metadata) ->
+    kind_of_value callee = Value ->
+    bind_params params vs [(my_closure, callee)] = Some callee_vars ->
+    refines (State source callee_vars conts statics)
+      (State target callee_vars conts statics).
 
 (* The same under any static environment. *)
 Definition handler_refines_at (params : list variable) (def_vars : env)
@@ -774,6 +1336,68 @@ Hypothesis ok_extend :
   ∀ statics statics' : static_env,
     ok statics -> statics_extend statics statics' -> ok statics'.
 
+(* [ok] of the static environment of a state: a predicate on states that
+   a step keeps, since a step extends the static environment, and that
+   does not look at the expression. The lemmas of this section are those
+   of the section above at this predicate. *)
+Definition statics_ok (s : state) : Prop := ok (state_statics s).
+
+Lemma statics_ok_step (s s' : state) :
+  statics_ok s -> step s = Step s' -> statics_ok s'.
+Proof.
+  intros Hok Hstep.
+  exact (ok_extend _ _ Hok (step_extends_statics s s' Hstep)).
+Qed.
+
+Lemma statics_ok_refines_from (source target : expr) (vars : env)
+    (conts : cont_env) (statics : static_env) :
+  (ok statics ->
+   refines (State source vars conts statics)
+     (State target vars conts statics)) ->
+  refines_from statics_ok (State source vars conts statics)
+    (State target vars conts statics).
+Proof.
+  intros Hrefines. split; [ split; intros Hok; exact Hok | exact Hrefines ].
+Qed.
+
+Lemma handler_refines_where_from (params : list variable) (def_vars : env)
+    (source target : expr) (vs : list value) (handler_vars : env)
+    (conts : cont_env) (statics : static_env) :
+  handler_refines_where ok params def_vars source target ->
+  bind_params params vs def_vars = Some handler_vars ->
+  refines_from statics_ok (State source handler_vars conts statics)
+    (State target handler_vars conts statics).
+Proof.
+  intros Hrefines Hbind. apply statics_ok_refines_from. intros Hok.
+  exact (Hrefines vs handler_vars conts statics Hok Hbind).
+Qed.
+
+Lemma expr_refines_where_from (source target : expr) (vars : env)
+    (conts : cont_env) (statics : static_env) :
+  expr_refines_where ok source target ->
+  refines_from statics_ok (State source vars conts statics)
+    (State target vars conts statics).
+Proof.
+  intros Hrefines. apply statics_ok_refines_from. intros Hok.
+  exact (Hrefines vars conts statics Hok).
+Qed.
+
+Lemma code_refines_where_from (params : list variable)
+    (my_closure : variable) (metadata : code_metadata)
+    (source target : expr) (vs : list value) (callee : value)
+    (callee_vars : env) (conts : cont_env) (statics : static_env) :
+  code_refines_where ok params my_closure metadata source target ->
+  bind_params params vs [(my_closure, callee)] = Some callee_vars ->
+  map kind_of_value vs = unarize (cm_params_arity metadata) ->
+  kind_of_value callee = Value ->
+  refines_from statics_ok (State source callee_vars conts statics)
+    (State target callee_vars conts statics).
+Proof.
+  intros Hrefines Hbind Hkinds Hvalue. apply statics_ok_refines_from.
+  intros Hok.
+  exact (Hrefines vs callee callee_vars conts statics Hok Hkinds Hvalue Hbind).
+Qed.
+
 (* An expression under environments refines it under ones whose closures
    have refining handlers and whose code has refining bodies. The
    relations are needed in both directions, as the two halves of [refines]
@@ -791,57 +1415,28 @@ Lemma related_states_refines (e : expr) (vars : env)
     statics' statics ->
   refines (State e vars conts statics) (State e vars conts' statics').
 Proof.
-  intros Hok Hok' Hrel Hrel' Hstatics Hstatics'. split.
-  - intros k vs [n Hrun].
-    refine (transfer (handler_refines_where ok) (expr_refines_where ok) ok
-      ok_extend exits_carried _ _ _ _ _
-      n e vars conts conts' statics statics' (Exits k vs) Hrel Hstatics
-      Hok' _).
-    + intros s s' b Hstep.
-      destruct b as [k' vs' | | ]; unfold exits_carried; auto.
-      intros Hb. apply (step_behaves s (Exits k' vs')). rewrite Hstep.
-      exact Hb.
-    + intros s k' vs' Hstep. apply (step_behaves s (Exits k' vs')).
-      rewrite Hstep. reflexivity.
-    + intros s _. exact I.
-    + intros params def_vars source target vs' handler_vars conts''
-        statics'' b Hrefines Hok'' Hbind.
-      destruct b; unfold exits_carried; auto.
-      apply (proj1 (Hrefines vs' handler_vars conts'' statics'' Hok'' Hbind)).
-    + intros source target vars' conts'' statics'' b Hrefines Hok''.
-      destruct b; unfold exits_carried; auto.
-      apply (proj1 (Hrefines vars' conts'' statics'' Hok'')).
-    + rewrite Hrun. simpl. auto.
-  - intros b Hterm Hb. destruct (behaves_ended _ _ Hterm Hb) as [n Hended].
-    refine (transfer
-      (fun params def_vars target source =>
-         handler_refines_where ok params def_vars source target)
-      (fun target source => expr_refines_where ok source target)
-      ok ok_extend ends_or_wrong _ _ _ _ _ n e vars conts' conts statics'
-      statics b Hrel' Hstatics' Hok Hended Hterm).
-    + intros s s' b' Hstep Hcarried Hterm'.
-      destruct (Hcarried Hterm') as [Hb' | Hwrong]; [ left | right ];
-        [ apply (step_behaves s b') | apply (step_behaves s Goes_wrong) ];
-        rewrite Hstep; assumption.
-    + intros s k vs Hstep _. left. apply (step_behaves s (Exits k vs)).
-      rewrite Hstep. reflexivity.
-    + intros s Hstep _. left. apply (step_behaves s Goes_wrong).
-      rewrite Hstep. reflexivity.
-    + intros params def_vars target source vs handler_vars conts''
-        statics'' b' Hrefines Hok'' Hbind Hcarried Hterm'.
-      destruct (Hrefines vs handler_vars conts'' statics'' Hok'' Hbind)
-        as [_ Hends].
-      destruct (Hcarried Hterm') as [Hb' | Hwrong];
-        [ exact (Hends b' Hterm' Hb') | ].
-      destruct (Hends Goes_wrong ltac:(discriminate) Hwrong); right;
-        assumption.
-    + intros target source vars' conts'' statics'' b' Hrefines Hok''
-        Hcarried Hterm'.
-      destruct (Hrefines vars' conts'' statics'' Hok'') as [_ Hends].
-      destruct (Hcarried Hterm') as [Hb' | Hwrong];
-        [ exact (Hends b' Hterm' Hb') | ].
-      destruct (Hends Goes_wrong ltac:(discriminate) Hwrong); right;
-        assumption.
+  intros Hok Hok' Hrel Hrel' Hstatics Hstatics'.
+  exact
+    (related_states_refines_from statics_ok statics_ok_step
+       (handler_refines_where ok)
+       (fun params def_vars target source =>
+          handler_refines_where ok params def_vars source target)
+       (ignoring_binders (expr_refines_where ok))
+       (ignoring_binders
+          (fun target source => expr_refines_where ok source target))
+       handler_refines_where_from
+       (fun params def_vars target source =>
+          handler_refines_where_from params def_vars source target)
+       (fun params my_closure ret exn metadata source target vs callee
+          callee_vars return_to exn_to statics'' Hrefines _ _ _ =>
+          expr_refines_where_from source target callee_vars
+            [(ret, return_to); (exn, exn_to)] statics'' Hrefines)
+       (fun params my_closure ret exn metadata target source vs callee
+          callee_vars return_to exn_to statics'' Hrefines _ _ _ =>
+          expr_refines_where_from source target callee_vars
+            [(ret, return_to); (exn, exn_to)] statics'' Hrefines)
+       e vars conts conts' statics statics' Hok Hok' Hrel Hrel' Hstatics
+       Hstatics').
 Qed.
 
 (* The case of one static environment. *)
@@ -903,6 +1498,61 @@ Proof.
   apply related_envs_refines; [ exact Hok | | ];
     (apply Forall2_app; [ | apply cont_env_related_refl ]);
     (apply rec_closures_related; [ assumption | apply cont_env_related_refl ]).
+Qed.
+
+(* A [Let_static] refines the same with the body of a piece of code
+   replaced by one that refines it where it runs. *)
+Lemma let_static_code_refines_where (before : list static_binding)
+    (id : code_id) (params : list variable) (my_closure : variable)
+    (ret exn : continuation) (metadata : code_metadata)
+    (code_body code_body' : expr) (after : list static_binding) (body : expr)
+    (vars : env) (conts : cont_env) (statics : static_env) :
+  ok statics ->
+  binds_statics code_body = binds_statics code_body' ->
+  code_refines_where ok params my_closure metadata code_body code_body' ->
+  refines
+    (State
+       (Let_static
+          (before
+           ++ Bind_code id
+                (Code params my_closure ret exn metadata code_body)
+           :: after)
+          body)
+       vars conts statics)
+    (State
+       (Let_static
+          (before
+           ++ Bind_code id
+                (Code params my_closure ret exn metadata code_body')
+           :: after)
+          body)
+       vars conts statics).
+Proof.
+  intros Hok Hbinds Hcode.
+  exact
+    (let_static_code_refines_from statics_ok statics_ok_step
+       (handler_refines_where ok)
+       (fun params def_vars target source =>
+          handler_refines_where ok params def_vars source target)
+       (fun params my_closure _ _ metadata =>
+          code_refines_where ok params my_closure metadata)
+       (fun params my_closure _ _ metadata target source =>
+          code_refines_where ok params my_closure metadata source target)
+       handler_refines_where_from
+       (fun params def_vars target source =>
+          handler_refines_where_from params def_vars source target)
+       (fun params my_closure ret exn metadata source target vs callee
+          callee_vars return_to exn_to statics' =>
+          code_refines_where_from params my_closure metadata source target
+            vs callee callee_vars [(ret, return_to); (exn, exn_to)]
+            statics')
+       (fun params my_closure ret exn metadata target source vs callee
+          callee_vars return_to exn_to statics' =>
+          code_refines_where_from params my_closure metadata source target
+            vs callee callee_vars [(ret, return_to); (exn, exn_to)]
+            statics')
+       before id params my_closure ret exn metadata code_body code_body'
+       after body vars conts statics Hok Hok Hbinds Hcode Hcode).
 Qed.
 
 End Where.
@@ -988,41 +1638,9 @@ Lemma let_static_code_refines (before : list static_binding) (id : code_id)
        vars conts statics).
 Proof.
   intros Hbinds Hcode.
-  set (c := Code params my_closure ret exn metadata code_body).
-  set (c' := Code params my_closure ret exn metadata code_body').
-  assert (Hbindings :
-    ∀ (R : expr -> expr -> Prop) (c1 c2 : code),
-      codes_related R c1 c2 ->
-      Forall2 (binding_related R) (before ++ Bind_code id c1 :: after)
-        (before ++ Bind_code id c2 :: after)).
-  { intros R c1 c2 Hc. apply Forall2_app; [ apply bindings_related_refl | ].
-    apply Forall2_cons; [ | apply bindings_related_refl ].
-    apply Binding_code, Hc. }
-  assert (Hwhere : expr_refines_where always code_body code_body')
-    by (intros vars' conts' statics' _; apply Hcode).
-  pose proof (eval_static_bindings_related (expr_refines_where always) vars
-    _ _
-    (Hbindings (expr_refines_where always) c c'
-       (Codes_related _ _ _ _ _ _ _ _ Hbinds Hwhere))
-    statics statics (statics_related_refl _ statics)) as Hforwards.
-  pose proof (eval_static_bindings_related
-    (fun target source => expr_refines_where always source target) vars _ _
-    (Hbindings _ c' c
-       (Codes_related
-          (fun target source => expr_refines_where always source target)
-          params my_closure ret exn metadata code_body'
-          code_body (eq_sym Hbinds) Hwhere))
-    statics statics (statics_related_refl _ statics)) as Hbackwards.
-  apply let_static_refines_step.
-  destruct
-    (eval_static_bindings vars (before ++ Bind_code id c :: after) statics)
-    as [extended | ],
-    (eval_static_bindings vars (before ++ Bind_code id c' :: after) statics)
-    as [extended' | ];
-    try contradiction; [ | exact I ].
-  apply (related_states_refines always always_extend);
-    [ exact I | exact I | apply cont_env_related_refl
-    | apply cont_env_related_refl | exact Hforwards | exact Hbackwards ].
+  apply (let_static_code_refines_where always always_extend);
+    [ exact I | exact Hbinds | ].
+  intros vs callee callee_vars conts' statics' _ _ _ _. apply Hcode.
 Qed.
 
 (* ======================================================================== *)
