@@ -113,7 +113,16 @@ design out; that is the request, not the change.
   - the examples `middle_end/flambda2/tests/semantics/set_*.fl`, with
     their `.expected` files
 - C4, heap. Owner: unassigned.
-- C5, exceptions. Owner: unassigned.
+- C5, exceptions. Owner: C5, on `flambda2-rocq/C5-epoch`.
+  - `middle_end/flambda2/rocq/requests/C5-exceptions.md` (the request)
+  - `middle_end/flambda2/rocq/FlambdaTrap*` (examples of the checks of
+    exception handlers and of trap actions, which are in
+    `FlambdaWellFormedSpec.v`; later, what is proved of them)
+  - `middle_end/flambda2/rocq/status/C5.md`
+  - the examples `middle_end/flambda2/tests/semantics/`
+    `exn_extra_args.fl`, `push_unit_return.fl`, `raise_in_call.fl`,
+    `raise_over_handler.fl`, `try_in_code.fl`, `try_raise.fl` and
+    `uncaught.fl`, with their `.expected` files
 
 ## T1 to T7: types
 

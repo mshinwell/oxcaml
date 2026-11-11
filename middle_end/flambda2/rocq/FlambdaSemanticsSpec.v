@@ -30,9 +30,9 @@
 
    This file is to be reviewed: [closure_of], [closure_in_set],
    [project_value_slot], [project_function_slot], [eval_named],
-   [eval_static_bindings],
-   [apply_cont_value], [call_function] and the rules of [step], then
-   [behaves], [equivalent] and [refines]. The values, the static
+   [eval_static_bindings], [apply_cont_value], [with_extra_args],
+   [call_function] and the rules of [step], then [behaves],
+   [equivalent] and [refines]. The values, the static
    environment and the reading of allocated values are in
    FlambdaValueSpec.v, and what the primitives compute is in
    FlambdaPrimitiveSpec.v; this file exports both.
@@ -73,6 +73,23 @@
    A function call ([call_function]) runs the body of the code of the
    closure called, with the code's return and exception continuations
    standing for the caller's. There is no stack.
+
+   Exceptions. An exception handler is a continuation; a raise is an
+   [Apply_cont] of it, the exception being the first argument; and a call
+   names the continuation that its exceptions go to, with extra
+   arguments, which the call evaluates: the callee raises to the caller's
+   handler applied to the exception followed by them ([with_extra_args]).
+   So where an exception goes is said by the term, as for any
+   continuation, and the machine has no stack of handlers: a trap action
+   ([Push], [Pop]) is not executed. The code that the backend makes does
+   have such a stack and goes by it, not by the names. The front end
+   builds terms in which the two cannot differ: a raise, and a call
+   that raises, names the handler installed last.
+   FlambdaWellFormedSpec.v has that discipline as a check of a term
+   ([traps_well_formed]); nothing here says what the backend's code
+   does. There are no backtraces, so the kind of a raise changes
+   nothing. The exception is any value: nothing here says what an
+   exception is made of.
 
    A set of closures has functions, each the code of a function slot, and
    value slots, which the functions share. Each closure of the set is a
@@ -538,6 +555,14 @@ Fixpoint apply_cont_value (c : cont_value) (vs : list value)
 (* The exception continuation that a call gives its callee: the caller's,
    to be applied to the exception followed by the extra arguments of the
    call. With no extra argument it is the caller's as it is. *)
+(* CR mshinwell: Extra arguments given to a way out of the term are not
+   undefined: the exit has the exception followed by them, as a way out
+   takes any number of values, whatever applies it. The exception
+   continuation of a unit, or of code, takes the exception alone, and
+   Simplify stops on a call that gives it more. Well-formedness refuses
+   such a call ([FlambdaWellFormedSpec.ways_out_well_formed]); the
+   machine has no test, as a way out has no arity to test against.
+   Discrepancy C5-5. *)
 Definition with_extra_args (c : cont_value) (extra : list value)
     : cont_value :=
   match extra with
