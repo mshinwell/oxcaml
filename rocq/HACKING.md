@@ -482,7 +482,9 @@ be proved correct, built a fragment at a time. The files follow the same Spec/Pr
   `Pos.eqb_eq`). The definitions on names are those of `Keyed` at
   `Pos.eqb` by computation, so a `keyed_...` lemma applies to them as it
   stands. A new operation goes in `Keyed` only, with a statement for any
-  key.
+  key. A lemma is proved once, on keys: the lemmas on names, in the last
+  part of the file, are each `exact` of the one on keys at `Pos.eqb`. To
+  add one on names, prove it on keys first.
 - To define something by recursion on a type that holds lists or maps of
   itself (the meaning of a type, a check of one), go through them with
   `every`, `Keyed.for_all_bindings` and `Keyed.at_binding`, or the tests
