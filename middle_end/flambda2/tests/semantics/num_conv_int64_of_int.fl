@@ -1,0 +1,12 @@
+let $three = 3L in
+let o = %opaque (5) in
+let u = %untag_imm (o) in
+let c = %num_conv.[`imm`].[`int64`] (u) in
+let b = %box_num.`int64`.`toplevel` (c) in
+let x = %unbox_num.`int64` ($three) in
+let y = %unbox_num.`int64` (b) in
+let s = %int_barith.`int64`.`add` (y, x) in
+let i = %num_conv.[`int64`].[`imm`] (s) in
+let a = %tag_imm (i) in
+let $camlNum_conv_int64_of_int = Block 0 (a) in
+cont done ($camlNum_conv_int64_of_int)

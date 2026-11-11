@@ -1,0 +1,5 @@
+let c = %num_conv.[`imm`].[`int64`] (5) in
+let i = %num_conv.[`int64`].[`imm`] (c) in
+let a = %tag_imm (i) in
+let $camlNum_conv_wrong_kind = Block 0 (a) in
+cont done ($camlNum_conv_wrong_kind)

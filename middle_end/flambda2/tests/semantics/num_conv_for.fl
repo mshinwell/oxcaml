@@ -1,0 +1,20 @@
+let start = %untag_imm (0) in
+let start64 = %num_conv.[`imm`].[`int64`] (start) in
+let n = %opaque (5) in
+let stop = %untag_imm (n) in
+let stop64 = %num_conv.[`imm`].[`int64`] (stop) in
+cont loop (start64, 0)
+  where rec loop (counter : int64, acc : imm tagged) =
+    let u = %num_conv.[`int64`].[`imm`] (counter) in
+    let i = %tag_imm (u) in
+    let acc2 = %int_barith.`add` (acc, i) in
+    let next = %int_barith.`int64`.`add` (counter, 1L) in
+    let c = %int_comp.`int64`.`le` (next, stop64) in
+    (switch c
+       | 0 -> finish (acc2)
+       | 1 -> again
+       where again =
+         cont loop (next, acc2))
+  where finish (r : imm tagged) =
+    let $camlNum_conv_for = Block 0 (r) in
+    cont done ($camlNum_conv_for)
