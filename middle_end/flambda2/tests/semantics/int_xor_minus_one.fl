@@ -1,0 +1,5 @@
+let x = %opaque (5) in
+let a = %int_barith.`xor` (x, -1) in
+let b = %int_barith.`xor` (-1, a) in
+let $camlInt_xor_minus_one = Block 0 (a, b) in
+cont done ($camlInt_xor_minus_one)

@@ -1,0 +1,14 @@
+let x = %opaque (5) in
+let a = %int_uarith.`not` (x) in
+let b = %int_uarith.`not` (a) in
+let c = %int_uarith.`not` (-1) in
+let d = %int_uarith.`int8`.`not` (-128s) in
+let e = %int_comp.`int8`.`eq` (d, 127s) in
+let f = %tag_imm (e) in
+let g = %int_uarith.`imm`.`not` (0i) in
+let h = %tag_imm (g) in
+let i = %int_uarith.`int64`.`not` (1L) in
+let j = %int_comp.`int64`.`eq` (i, -2L) in
+let k = %tag_imm (j) in
+let $camlInt_not = Block 0 (a, b, c, f, h, k) in
+cont done ($camlInt_not)
