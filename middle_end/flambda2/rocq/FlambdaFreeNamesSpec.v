@@ -40,9 +40,11 @@
      the test of inlining uses.
    None of them looks into code: each treats a binding of code as
    mentioning no variable and no continuation. The functions of
-   FlambdaBindersSpec.v do look into code. So the two sides differ
-   exactly on a term that binds code which is not closed, and agree
-   where [code_closed] holds, which is every well-formed term.
+   FlambdaBindersSpec.v do look into code. So the two sides can differ
+   only on a term that binds code which is not closed (they need not:
+   a binder around the code may bind what the code leaves free), and
+   they agree where [code_closed] holds, which is every well-formed
+   term.
 
    These statements are what lets the older definitions be restated as
    the one function, a statement at a time, without changing what any

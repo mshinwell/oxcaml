@@ -29,21 +29,38 @@
    variables and the free continuations of a term, and the three
    conditions on binders that a well-formed unit meets.
 
-   This file is to be reviewed: the free names against the compiler's
-   ([free_names] of [Flambda.Expr], [Let_expr], [Let_cont_expr],
-   [Continuation_handler], [Function_params_and_body] and
-   [Static_const_or_code] in terms/flambda.ml, and of [Code0] in
-   terms/code0.ml), and the three checks against rows 3, 5 and 6 of the
-   table of well-formedness (requests/C0-well-formed.md).
+   This file is to be reviewed: the scopes of the binders against the
+   compiler's name abstractions; the free names of what has no binder
+   against [Named.free_names], [Static_const_or_code.free_names] and
+   [Static_const_group.free_names] (terms/flambda.ml) and
+   [Code0.free_names] (terms/code0.ml); and the three checks against
+   rows 3, 5 and 6 of the table of well-formedness
+   (requests/C0-well-formed.md).
 
-   The names here are the variables and the continuations: the names
-   that a term binds and a renaming renames. Symbols, code ids, value
-   slots and function slots are global: no binder of a term hides one
-   and no renaming moves one, so they have no free occurrences to
-   compute. (That every symbol and code id mentioned is bound is row 4
-   of well-formedness, not this file's.)
+   The compiler has no function that computes the free names of an
+   expression: [Flambda.Expr], [Let_expr], [Let_cont_expr],
+   [Continuation_handler] and [Function_params_and_body] have no
+   [free_names]. A binder there is a name abstraction
+   (nominal/name_abstraction.ml) of the names bound and a body, read by
+   [pattern_match], and the free names of an abstraction are those of
+   its body less the names bound ([Name_abstraction.free_names]).
+   Whoever builds a term supplies the free names of its body
+   ([free_names_of_body] of [Let_expr.create] and of
+   [Function_params_and_body.create], [free_names_of_handler] of
+   [Continuation_handler.create]); Simplify accumulates them as it
+   rebuilds a term, and code keeps the summary it was created with
+   ([Code0.free_names]). The functions here compute what such a summary
+   is to be, for the fragment of the terms that the model has.
 
-   The binders, and where what they bind is in scope:
+   The names here are the variables and the continuations: the two
+   sorts that a renaming renames. Symbols, code ids, value slots and
+   function slots occur in terms too, and the compiler's
+   [Name_occurrences.t] records them; they are outside the functions
+   here, which are the free names of a term projected on these two
+   sorts. (That every symbol and code id mentioned is bound is row 4 of
+   well-formedness, not this file's.)
+
+   The binders of the fragment, and where what they bind is in scope:
    - [Let x d body]: [x], in [body]; not in [d];
    - [Handler params handler]: [params], in [handler];
    - [Let_cont_non_recursive k h body]: [k], in [body]; not in [h];
@@ -53,8 +70,11 @@
      body]: [params] and [my_closure], and the two continuations, in
      [body];
    - [Let_static bindings body]: no variable and no continuation.
-   Nothing else binds one. In particular [let_closures] binds each of
-   its variables by a [Let] of its own.
+   Nothing else in the fragment binds one. In particular [let_closures]
+   binds each of its variables by a [Let] of its own. (The compiler's
+   code also binds [my_depth] and its regions, and a recursive
+   [Let_cont] has parameters that its handlers share; the model has
+   neither.)
 
    The free names are lists, read as sets (FlambdaMapSpec.v): a name may
    be repeated, and only [among] is to be asked of them. The compiler's
