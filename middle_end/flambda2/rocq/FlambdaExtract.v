@@ -44,7 +44,8 @@
 
    The finite maps and the sets of names of FlambdaMapSpec.v are extracted
    in full, used by the machine or not, so that tests of what is built on
-   them have them.
+   them have them. Of its module [Keyed], for other keys, nothing is in
+   the list yet: an operation of it is added when a test tool asks.
 
    [bool], [option], [list], pairs and [unit] are extracted to OCaml's own
    (ExtrOcamlBasic); the numbers are extracted as they are, binary. *)

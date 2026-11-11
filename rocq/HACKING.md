@@ -539,9 +539,14 @@ be proved correct, built a fragment at a time. The files follow the same Spec/Pr
     are bound to (`eval_prim_static_values`, with the corollaries
     `eval_prim_same_static_values` and `eval_prim_consts`); if it has a
     value its arguments had the kinds it takes and the value has its
-    result kind (`eval_prim_kinds`); and it makes its value out of its
-    arguments (`eval_prim_preserves`). To reason about one primitive,
-    rewrite with the equations `eval_prim_unary` and `eval_prim_binary`.
+    result kind (`eval_prim_kinds`); it makes its value out of its
+    arguments (`eval_prim_preserves`); it keeps its value when the
+    static environment grows (`eval_prim_statics_extend`); and if it has
+    a value, no argument of it was a symbol bound to nothing
+    (`eval_prim_symbols_bound`; this is about the arguments themselves,
+    not about symbols inside their fields). To reason about one
+    primitive, rewrite with the equations `eval_prim_unary`,
+    `eval_prim_binary` and `eval_prim_variadic`.
   - Adding a primitive is leaf work in those three files: a constructor,
     a case of the evaluation and of the kinds, and a case in each proof
     of `FlambdaPrimitiveProofs.v` that goes by cases. Then teach the
