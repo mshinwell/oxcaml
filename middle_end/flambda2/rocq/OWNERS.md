@@ -207,6 +207,17 @@ pass into the validator.
 - S3, continuations. Owner: unassigned.
 - S4, calls. Owner: unassigned.
 - S5, lets, CSE and lifting. Owner: unassigned.
+  - `middle_end/flambda2/rocq/FlambdaLift*` (lifting a `Let` of a
+    closure, a block or a boxed number to a static binding, for the
+    validator; written on `flambda2-rocq/V3-lifting` by the stream that
+    the roster calls V3, which is not the converter of the section V3
+    below; S5's once it is staffed)
+  - `middle_end/flambda2/rocq/FlambdaMyClosure*` (in the code of a
+    closure that is a symbol, `my_closure` is the symbol; same stream)
+  - `middle_end/flambda2/rocq/FlambdaSimulationProofs.v` (simulations in
+    which one step is answered by one or more; same stream, and used by
+    the loops of V4)
+  - `middle_end/flambda2/rocq/status/V3.md`
 - S6, unboxing of continuation parameters. Owner: unassigned.
 - S7, the reaper. Out of scope for now, unassigned.
 

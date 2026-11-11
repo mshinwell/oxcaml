@@ -1,0 +1,514 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+(* Lifting: a [Let] of a closure, an immutable block or a boxed number
+   made a static binding of a symbol.
+
+   This file is to be reviewed: [lift_named] and [lift_expr], against
+   what Simplify does (below); [exits_plain]; [lift_unit], which is
+   extracted and run by the validation of
+   middle_end/flambda2/tests/semantics/; the relation [value_lifted];
+   and the statements.
+
+   What Simplify does. Where it simplifies a [Let] it may bind a symbol
+   in place of the variable and replace the variable by the symbol:
+   - a set of closures, when its variables are bound at normal name
+     mode and each of its value slots is a constant, a symbol, or a
+     variable defined at the toplevel of the unit or known to be a
+     projection from a symbol, with a coercion that has no free
+     variable (simplify/simplify_set_of_closures.ml,
+     [type_value_slots_and_make_lifting_decision_for_one_set], the
+     definition of [can_lift], and [simplify_and_lift_set_of_closures]);
+     a variable defined at toplevel, in a set that may be allocated
+     locally, must also be proved never to hold a local value
+     ([T.never_holds_locally_allocated_values]; a projection from a
+     symbol is exempt); the symbols are named after the function slots;
+   - the result of a primitive that only allocates, bound at normal name
+     mode, for which the simplification of the primitive asks for it
+     ([try_reify]), when the type that Simplify has of the result can be
+     rebuilt as a static constant: an immutable block of values, a boxed
+     number, an immutable array (simplify/simplify_named.ml,
+     [allow_lifting]; simplify/lifting/reification.ml, [try_to_reify],
+     [create_static_const] and [lift]; types/reify.ml, [reify]); the
+     symbol is named after the variable, unless an equal constant has
+     been lifted already, when the symbol of that one is used
+     ([DA.find_shareable_constant] in [lift]).
+   Neither asks that the [Let] is at the toplevel of the unit: a
+   constant whose parts are constants and symbols is lifted out of a
+   function or a loop, its binding being placed at toplevel. The model
+   has no name modes, no coercions and no local allocations, so none of
+   these conditions is one of [lift_named]: what it lifts that Simplify
+   would not is compared with a term in which it is not lifted, and
+   fails there.
+
+   What is here. [lift_expr] makes the [Let]s that it is told to into
+   static bindings, each where it stands:
+
+     Let x = Closure_of_set slot function_decls value_slots in body
+       becomes
+     Let_static (bind_closures closure_symbols function_decls value_slots)
+       (Let x = Symbol s in body)        with s the symbol of [slot]
+
+     Let x = Make_block tag fields in body
+       becomes
+     Let_static [Bind_symbol s (Static_const_block tag fields)]
+       (Let x = Symbol s in body)
+
+     Let x = Box_number kind contents in body
+       becomes
+     Let_static [Bind_symbol s (Static_const_boxed_number contents)]
+       (Let x = Symbol s in body)
+
+   and likewise the closure of a set of one function whose function slot
+   is not named ([Set_of_closures], to [Static_const_set_of_closures]):
+   the test tool still converts a unit that has only such sets to these
+   forms.
+
+   The variable stays, bound to the symbol; following the alias and
+   removing the [Let] are other passes
+   (../types/rocq/FlambdaAliasesSpec.follow_aliases,
+   FlambdaNormaliseSpec.remove_unused_lets). The fields and the value
+   slots are not touched: where one is a variable, the static constant
+   is computed where the [Let] was, from the same variable. The other
+   closures of a set are not looked for: a projection of a function slot
+   from [x] stays a projection, now from a symbol.
+
+   In the code of a lifted closure, [my_closure] is then the symbol:
+   Simplify simplifies the code where it lifts the set, with the type
+   of [my_closure] an alias of the symbol, so that a recursive function
+   calls itself through its symbol. [lift_unit] does it too, by
+   FlambdaMyClosureSpec.bind_my_closures, for the code ids and symbols
+   that the guess names, and checks what that needs: the unit lifted
+   makes no other closure of that code
+   (FlambdaMyClosureSpec.only_closures_of).
+
+   Which [Let]s, to which symbols, and which code is that of which
+   symbol, is a guess of the caller's ([lifting]), read off the term
+   after Simplify; nothing is believed of it. A [Let] is named by where
+   it is in the term ([path]: the handler of a non-recursive
+   continuation is to one side and what follows a binding to the
+   other), not by its variable, so that two [Let]s of one variable are
+   told apart and renaming the term changes nothing
+   ([lift_expr_equivariant_statement]). The bodies of code and the
+   handlers of recursive continuations are not gone into.
+
+   Why it is not a rewrite like the others. The variable was a closure,
+   and is now a symbol bound to that closure: different values. No
+   primitive and no rule of the machine tells them apart
+   (FlambdaValueSpec.v: every reading is an observation), but the
+   continuation that the term leaves through is given the value itself
+   ([Exits]). So the term lifted does not refine the term under all
+   environments, nor even run on its own, if a lifted value reaches the
+   exit. What is true is stated twice:
+
+   - [lift_simulates_statement]: run on their own, the term and the term
+     lifted end alike, with values at the exit that are the same up to
+     [value_lifted]: where the first has a closure, a block or a boxed
+     number, the second may have a symbol bound to it, here and inside
+     closures and blocks. The first premise is that the term lifted is a
+     well-formed unit (FlambdaWellFormedSpec.well_formed_unit), which is
+     what keeps each new binding from being executed twice and each new
+     symbol from being bound already: a [Let] in a loop or in code, or
+     two [Let]s given one symbol, are refused by it. The second is that
+     the term lifted makes one closure only, the symbol, of each code in
+     which [my_closure] was bound to a symbol.
+   - [lift_unit_program_refines_statement]: if moreover the term gives
+     only symbols and constants to the continuations it may leave
+     through ([exits_plain]), the values at the exit are equal, and the
+     term lifted refines the term, run on its own
+     (FlambdaUnusedStaticsSpec.program_refines). [lift_unit] checks
+     both, and this is the statement that
+     FlambdaValidateSpec.validate_unit uses. A unit made from an OCaml
+     source leaves with the symbol of its module block, and passes.
+
+   [exits_plain] is a check on a term, with a statement of its own
+   ([exits_plain_sound_statement]): a unit that passes it exits with symbols
+   and constants only. It follows the continuations in scope: one bound
+   by a [Let_cont], and the return continuation of code, never stand for
+   a way out, provided that every call returns to such a one; so a
+   variable may be given to them. Any other continuation, the exception
+   continuation of code included, may be the way out of the unit, and
+   is given symbols and constants only.
+
+   What is not here, and makes a unit "not validated" rather than
+   wrongly accepted:
+   - lifting out of a function or a loop, where the binding moves to
+     toplevel;
+   - the sharing of equal constants: a symbol is bound once, so two
+     [Let]s cannot be given the same symbol;
+   - immutable arrays, which the model has not got;
+   - a unit that gives a variable to its return continuation, or raises
+     a variable in code: see the CR at [exits_plain].
+
+   Identity. The model's [Make_block] is the immutable one only
+   (FlambdaPrimitiveModel.v) and its values have no identity, so nothing
+   lifted here has one. Simplify also lifts a block that is
+   [Immutable_unique] (reification.ml, [create_static_const]), out of
+   functions too, which changes how many blocks there are. When the
+   model has mutability, [lift_named] must fire on [Immutable] only.
+
+   The proofs are in FlambdaLiftProofs.v, which needs no review. They
+   need one law of the primitives that the others do not give: a
+   primitive applied to arguments related by [value_lifted] has a value
+   related to the value it had
+   (FlambdaPrimitiveSpec.eval_prim_related_statement). *)
+
+From Stdlib Require Import ZArith List Bool.
+From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaPrimitiveModel FlambdaSemanticsSpec FlambdaNominalSpec
+  FlambdaWellFormedSpec FlambdaClosuresSpec FlambdaUnusedStaticsSpec
+  FlambdaMyClosureSpec.
+Import ListNotations.
+
+(* ======================================================================== *)
+(* What is to be lifted                                                     *)
+(* ======================================================================== *)
+
+(* What a [Let] is to be bound to in place of what it makes: for a block
+   or a boxed number, a symbol; for a closure of a set, the symbols of
+   all the closures of the set, by function slot. *)
+Inductive lift_to : Type :=
+  | Lift_to_symbol (s : symbol)
+  | Lift_to_closure_symbols (closure_symbols : list (function_slot * symbol)).
+
+(* Where a [Let] is in a term: [root] for the term itself, [p~0] for what
+   follows the binding at [p], and [p~1] for the handler of the
+   non-recursive continuation bound at [p]. *)
+Definition path : Type := positive.
+
+(* The path of the term itself. *)
+Definition root : path := 1%positive.
+
+(* The guess: the [Let]s to lift, by their paths; the code ids whose
+   only closure is, once those are lifted, a symbol, with that symbol;
+   and the interface of the unit (the continuations that it returns and
+   raises to), which the check of well-formedness takes. *)
+Record lifting : Type := Lifting {
+  lifting_unit : unit_interface;
+  lifted_lets : list (path * lift_to);
+  lifted_my_closures : list (code_id * symbol)
+}.
+
+(* ======================================================================== *)
+(* The rewrite                                                              *)
+(* ======================================================================== *)
+
+(* The static bindings that stand for a defining expression, and the
+   symbol that stands for its value; none if the expression is not one
+   that is lifted, or not to this. For a closure, the set must have a
+   symbol for each of its function slots, in their order. *)
+Definition lift_named (target : lift_to) (d : named)
+    : option (list static_binding * symbol) :=
+  match target, d with
+  | Lift_to_symbol s,
+    Prim (Variadic (Make_block (Block_kind_values tag))) fields =>
+    Some ([Bind_symbol s (Static_const_block tag fields)], s)
+  | Lift_to_symbol s, Prim (Unary (Box_number _)) [contents] =>
+    Some ([Bind_symbol s (Static_const_boxed_number contents)], s)
+  | Lift_to_symbol s, Set_of_closures code value_slots =>
+    Some ([Bind_symbol s (Static_const_set_of_closures code value_slots)], s)
+  | Lift_to_closure_symbols closure_symbols,
+    Closure_of_set slot function_decls value_slots =>
+    match lookup slot closure_symbols with
+    | Some s =>
+      if
+        list_eq_dec Pos.eq_dec (map fst closure_symbols)
+          (map fst function_decls)
+      then
+        Some (bind_closures closure_symbols function_decls value_slots, s)
+      else None
+    | None => None
+    end
+  | _, _ => None
+  end.
+
+(* The term with the [Let]s at the paths given lifted. [at_path] is the
+   path of the term. *)
+Fixpoint lift_expr (lets : list (path * lift_to)) (at_path : path) (e : expr)
+    : expr :=
+  match e with
+  | Let x kind d body =>
+    let body := lift_expr lets (xO at_path) body in
+    match lookup at_path lets with
+    | Some target =>
+      match lift_named target d with
+      | Some (bindings, s) =>
+        Let_static bindings (Let x kind (Simple (Symbol s)) body)
+      | None => Let x kind d body
+      end
+    | None => Let x kind d body
+    end
+  | Let_static bindings body =>
+    Let_static bindings (lift_expr lets (xO at_path) body)
+  | Let_cont_non_recursive k h body =>
+    Let_cont_non_recursive k (lift_handler lets (xI at_path) h)
+      (lift_expr lets (xO at_path) body)
+  | Let_cont_recursive handlers body =>
+    Let_cont_recursive handlers (lift_expr lets (xO at_path) body)
+  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => e
+  end
+with lift_handler (lets : list (path * lift_to)) (at_path : path)
+    (h : continuation_handler) : continuation_handler :=
+  match h with
+  | Handler params metadata handler =>
+    Handler params metadata (lift_expr lets at_path handler)
+  end.
+
+(* ======================================================================== *)
+(* What a unit may exit with                                                *)
+(* ======================================================================== *)
+
+(* A symbol or a constant: what has the same value in every environment. *)
+Definition plain_simple (s : simple) : bool :=
+  match s with
+  | Symbol _ | Const _ => true
+  | Var _ => false
+  end.
+
+(* An application of a continuation that is in scope, or of symbols and
+   constants only. *)
+Definition apply_cont_exits_plain (scope : list continuation)
+    (ac : apply_cont) : bool :=
+  among (ac_continuation ac) scope || forallb plain_simple (ac_args ac).
+
+(* CR mshinwell: [exits_plain] refuses a unit that gives a variable to a
+   continuation it may leave through: one that returns a variable, one
+   in which code applies its exception continuation to a variable (a
+   raise of an exception that is not a constant), and one in which a
+   call gives a variable as an extra argument to an exception
+   continuation that is not bound around the call. A lifted value
+   would not always reach the exit in such a unit, so this is a choice,
+   made so that what is compared at the exit can stay equality. If an
+   exit compared values through symbols (decisions D1 and D6, with the
+   design of the heap), the check would go and
+   [lift_simulates_statement] would be the whole statement. *)
+
+(* The expression gives a variable only to continuations of [scope], and
+   every call in it returns to one. The exceptions of a call go to its
+   exception continuation with the extra arguments of the call after
+   them: that continuation is one of [scope], or the extra arguments
+   are symbols and constants. [scope] are continuations that do not
+   stand for a way out of the unit: those bound by a [Let_cont] around
+   the expression and, in code, the return continuation. *)
+Fixpoint exits_plain (scope : list continuation) (e : expr) : bool :=
+  match e with
+  | Let _ _ _ body => exits_plain scope body
+  | Let_static bindings body =>
+    forallb binding_exits_plain bindings && exits_plain scope body
+  | Let_cont_non_recursive k h body =>
+    handler_exits_plain scope h && exits_plain (k :: scope) body
+  | Let_cont_recursive handlers body =>
+    forallb
+      (fun '(_, h) => handler_exits_plain (map fst handlers ++ scope) h)
+      handlers
+    && exits_plain (map fst handlers ++ scope) body
+  | Apply ap =>
+    among (ap_continuation ap) scope
+    && (among (ap_exn_continuation ap) scope
+        || forallb plain_simple (exn_extra_simples ap))
+  | Apply_cont ac => apply_cont_exits_plain scope ac
+  | Switch _ arms =>
+    forallb (fun arm => apply_cont_exits_plain scope (snd arm)) arms
+  | Invalid => true
+  end
+with handler_exits_plain (scope : list continuation)
+    (h : continuation_handler) : bool :=
+  match h with
+  | Handler _ _ handler => exits_plain scope handler
+  end
+with binding_exits_plain (binding : static_binding) : bool :=
+  match binding with
+  | Bind_code _ c => code_exits_plain c
+  | Bind_deleted_code _ | Bind_symbol _ _ => true
+  end
+with code_exits_plain (c : code) : bool :=
+  match c with
+  | Code _ _ ret _ _ body => exits_plain [ret] body
+  end.
+
+(* A value that is a constant or a symbol. *)
+Definition plain_value (v : value) : Prop :=
+  match v with
+  | Value_const _ | Value_symbol _ => True
+  | _ => False
+  end.
+
+(* A unit that passes the check exits with constants and symbols only. *)
+Definition exits_plain_sound_statement : Prop :=
+  ∀ (e : expr) (n : nat) (k : continuation) (vs : list value),
+    exits_plain [] e = true ->
+    run n (State e [] [] empty_static_env) = Exit k vs ->
+    ∀ v : value, v ∈ vs -> plain_value v.
+
+(* ======================================================================== *)
+(* The check                                                                *)
+(* ======================================================================== *)
+
+(* The unit with the [Let]s of the guess lifted and, in the code that
+   the guess names, [my_closure] bound to the symbol given: if the unit
+   exits with symbols and constants only, the result is a well-formed
+   unit, and it makes no closure of that code but the symbol. *)
+Definition lift_unit (L : lifting) (e : expr) : option expr :=
+  let lifted :=
+    bind_my_closures (lifted_my_closures L)
+      (lift_expr (lifted_lets L) root e)
+  in
+  if
+    exits_plain [] e
+    && well_formed_unit (lifting_unit L) lifted
+    && only_closures_of (lifted_my_closures L) lifted
+  then Some lifted
+  else None.
+
+(* ======================================================================== *)
+(* A value, and the same value with symbols for some of its parts           *)
+(* ======================================================================== *)
+
+(* [value_lifted statics' v v']: [v'] is [v], but that where [v] has a
+   closure, a block or a boxed number, here or inside a closure or a
+   block, [v'] may have a symbol that [statics'] binds to it. For a
+   closure of a set with named function slots, [statics'] binds the
+   symbols of the whole set, each to the closure at its slot
+   ([static_set_bound]), and the set has a symbol for each function
+   slot. A constant is lifted to itself only, and so is a symbol.
+
+   The relation speaks of the second static environment only. A symbol
+   is related to itself whatever it is bound to, in either run
+   ([Lifted_symbol]): by itself that says nothing of what the two runs
+   read through it. It is one part of the simulation of
+   FlambdaLiftProofs.v, which has beside it that every symbol the first
+   run binds, the second binds to the same thing, lifted. A symbol that
+   only the second run binds, one of those given to a lifted [Let], may
+   be mentioned by the first term; nothing can be read through it
+   there, as every operation on a symbol bound to nothing is undefined
+   (FlambdaPrimitiveSpec.eval_prim_symbols_bound_statement, decision
+   D8), so the first run is undefined where the two would differ. *)
+Definition slot_lifted (R : value -> value -> Prop)
+    (slot slot' : value_slot * value) : Prop :=
+  fst slot = fst slot' ∧ R (snd slot) (snd slot').
+
+(* (The warning silenced is about induction schemes through the lists.) *)
+#[local] Set Warnings "-register-all".
+Inductive value_lifted (statics' : static_env) : value -> value -> Prop :=
+  | Lifted_const (c : const) :
+    value_lifted statics' (Value_const c) (Value_const c)
+  | Lifted_symbol (s : symbol) :
+    value_lifted statics' (Value_symbol s) (Value_symbol s)
+  | Lifted_boxed_number (c : const) :
+    value_lifted statics' (Value_boxed_number c) (Value_boxed_number c)
+  | Lifted_block (tag : Z) (fields fields' : list value) :
+    Forall2 (value_lifted statics') fields fields' ->
+    value_lifted statics' (Value_block tag fields) (Value_block tag fields')
+  | Lifted_closure (code : code_id)
+      (value_slots value_slots' : list (value_slot * value)) :
+    Forall2 (slot_lifted (value_lifted statics')) value_slots value_slots' ->
+    value_lifted statics' (Value_closure code value_slots)
+      (Value_closure code value_slots')
+  | Lifted_closure_of_set (slot : function_slot)
+      (function_decls : list (function_slot * code_id))
+      (value_slots value_slots' : list (value_slot * value)) :
+    Forall2 (slot_lifted (value_lifted statics')) value_slots value_slots' ->
+    value_lifted statics'
+      (Value_closure_of_set slot function_decls value_slots)
+      (Value_closure_of_set slot function_decls value_slots')
+  | Lifted_to_boxed_number (c : const) (s : symbol) :
+    lookup s (static_values statics')
+    = Some (Static_boxed_number (Value_const c)) ->
+    value_lifted statics' (Value_boxed_number c) (Value_symbol s)
+  | Lifted_to_block (tag : Z) (fields fields' : list value) (s : symbol) :
+    lookup s (static_values statics') = Some (Static_block tag fields') ->
+    Forall2 (value_lifted statics') fields fields' ->
+    value_lifted statics' (Value_block tag fields) (Value_symbol s)
+  | Lifted_to_closure (slot : function_slot)
+      (function_decls : list (function_slot * code_id))
+      (value_slots value_slots' : list (value_slot * value)) (s : symbol)
+      (closure_symbols : list (function_slot * symbol)) :
+    lookup slot closure_symbols = Some s ->
+    map fst closure_symbols = map fst function_decls ->
+    static_set_bound statics' closure_symbols function_decls value_slots' ->
+    Forall2 (slot_lifted (value_lifted statics')) value_slots value_slots' ->
+    value_lifted statics'
+      (Value_closure_of_set slot function_decls value_slots)
+      (Value_symbol s)
+  | Lifted_to_unnamed_closure (code : code_id)
+      (value_slots value_slots' : list (value_slot * value)) (s : symbol) :
+    lookup s (static_values statics')
+    = Some (Static_closure code value_slots') ->
+    Forall2 (slot_lifted (value_lifted statics')) value_slots value_slots' ->
+    value_lifted statics' (Value_closure code value_slots) (Value_symbol s).
+
+(* ======================================================================== *)
+(* The statements                                                           *)
+(* ======================================================================== *)
+
+(* The term lifted, with [my_closure] bound to its symbol in the code
+   that [known] names, run on its own, ends as the term does, up to
+   [value_lifted] at the exit: an exit of the term is one of the term
+   lifted, through the same continuation, with values lifted under the
+   static environment that the second run has reached; and if the term
+   lifted ends, so does the term, or it goes wrong. (By the first part
+   the term then ends alike, as a run has one behaviour.) *)
+Definition lift_simulates_statement : Prop :=
+  ∀ (u : unit_interface) (lets : list (path * lift_to))
+    (known : list (code_id * symbol)) (e : expr),
+    let lifted := bind_my_closures known (lift_expr lets root e) in
+    well_formed_unit u lifted = true ->
+    only_closures_of known lifted = true ->
+    (∀ (k : continuation) (vs : list value),
+      behaves (State e [] [] empty_static_env) (Exits k vs) ->
+      ∃ (n : nat) (last : state) (vs' : list value),
+        run n (State lifted [] [] empty_static_env) = Step last
+        ∧ step last = Exit k vs'
+        ∧ Forall2 (value_lifted (state_statics last)) vs vs')
+    ∧ (∀ b : behaviour,
+        b <> Diverges ->
+        behaves (State lifted [] [] empty_static_env) b ->
+        behaves (State e [] [] empty_static_env) Goes_wrong
+        ∨ ∃ (k : continuation) (vs : list value),
+            behaves (State e [] [] empty_static_env) (Exits k vs)).
+
+(* What [lift_unit] gives refines the unit, run on its own. *)
+Definition lift_unit_program_refines_statement : Prop :=
+  ∀ (L : lifting) (e e' : expr),
+    lift_unit L e = Some e' -> program_refines e e'.
+
+(* Lifting commutes with renaming: a [Let] is named by where it is. The
+   renaming is of variables and continuations, in code too: symbols,
+   code ids and slots are not renamed. *)
+Definition lift_expr_equivariant_statement : Prop :=
+  ∀ (r : renaming) (lets : list (path * lift_to)) (at_path : path)
+    (e : expr),
+    rename_expr r (lift_expr lets at_path e)
+    = lift_expr lets at_path (rename_expr r e).
+
+(* So does the check of the exits, the scope being renamed with the
+   term. *)
+Definition exits_plain_equivariant_statement : Prop :=
+  ∀ (r : renaming) (scope : list continuation) (e : expr),
+    exits_plain (map (rename_continuation r) scope) (rename_expr r e)
+    = exits_plain scope e.
