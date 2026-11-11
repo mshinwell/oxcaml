@@ -128,6 +128,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaInlineFreshProofs.v \
   FlambdaInlineFreshSpec.v \
   FlambdaKindModel.v \
+  FlambdaKnownSymbolsProofs.v \
+  FlambdaKnownSymbolsSpec.v \
   FlambdaLiftProofs.v \
   FlambdaLiftSpec.v \
   FlambdaMapProofs.v \
