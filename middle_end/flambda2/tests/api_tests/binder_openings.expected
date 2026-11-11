@@ -1,0 +1,8 @@
+A handler opened for printing: its parameter is the one it was built with: true; the same when it is opened again: true; the argument in its body is its parameter: true.
+Opened with [pattern_match]: its parameter is the one it was built with: false.
+After the renaming of x to y, opened for printing: its parameter is y: true; the argument in its body is its parameter: true.
+A unit opened for printing: it binds 10 variables and 5 continuations; the same ones when it is opened again: true.
+Opened with [pattern_match], it binds: 0 of the variables and 0 of the continuations.
+Opened for printing with -dfreshen, it binds: 0 of the variables and 0 of the continuations.
+The output of Simplify, opened for printing: 3 handlers, of which 3 are continuations whose environment was reported.
+The output of Simplify, opened with [pattern_match]: 3 handlers, of which 0 are continuations whose environment was reported.

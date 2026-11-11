@@ -940,6 +940,10 @@ module Continuation_handler = struct
     let<> params, { handler; _ } = t.cont_handler_abst in
     f params ~handler
 
+  let pattern_match_for_printing t ~f =
+    A.pattern_match_for_printing t.cont_handler_abst
+      ~f:(fun params ({ handler; _ } : T0.t) -> f params ~handler)
+
   let pattern_match' t ~f =
     A.pattern_match t.cont_handler_abst
       ~f:(fun params { handler; num_normal_occurrences_of_params } ->
@@ -1033,6 +1037,18 @@ module Function_params_and_body = struct
       ~my_alloc_mode:(BFF.my_alloc_mode bff) ~my_depth:(BFF.my_depth bff)
       ~free_names_of_body:free_names
 
+  let pattern_match_for_printing t ~f =
+    let module BFF = Bound_for_function in
+    A.pattern_match_for_printing t.abst
+      ~f:(fun bff ({ expr; free_names } : Base.t) ->
+        f
+          ~return_continuation:(BFF.return_continuation bff)
+          ~exn_continuation:(BFF.exn_continuation bff) (BFF.params bff)
+          ~body:expr ~my_closure:(BFF.my_closure bff)
+          ~is_my_closure_used:t.is_my_closure_used
+          ~my_alloc_mode:(BFF.my_alloc_mode bff) ~my_depth:(BFF.my_depth bff)
+          ~free_names_of_body:free_names)
+
   let pattern_match_pair t1 t2 ~f =
     A.pattern_match_pair t1.abst t2.abst
       ~f:(fun
@@ -1078,6 +1094,10 @@ module Let_expr = struct
     let open A in
     let<> bound_pattern, { body; _ } = t.let_abst in
     f bound_pattern ~body
+
+  let pattern_match_for_printing t ~f =
+    A.pattern_match_for_printing t.let_abst
+      ~f:(fun bound_pattern ({ body; _ } : T0.t) -> f bound_pattern ~body)
 
   let pattern_match' t ~f =
     A.pattern_match t.let_abst ~f:(fun bound_pattern t0 ->
@@ -1195,6 +1215,10 @@ module Non_recursive_let_cont_handler = struct
     Continuation_and_body.pattern_match t.continuation_and_body
       ~f:(fun continuation body -> f continuation ~body)
 
+  let pattern_match_for_printing t ~f =
+    Continuation_and_body.pattern_match_for_printing t.continuation_and_body
+      ~f:(fun continuation body -> f continuation ~body)
+
   let pattern_match_pair t1 t2 ~f =
     Continuation_and_body.pattern_match_pair t1.continuation_and_body
       t2.continuation_and_body ~f:(fun continuation body1 body2 ->
@@ -1241,6 +1265,12 @@ module Recursive_let_cont_handlers = struct
     let open! A0 in
     let<> invariant_params, handlers = handlers in
     f ~invariant_params ~body handlers
+
+  let pattern_match_for_printing t ~f =
+    A1.pattern_match_for_printing t ~f:(fun _ ({ body; handlers } : T1.t) ->
+        A0.pattern_match_for_printing handlers
+          ~f:(fun invariant_params handlers ->
+            f ~invariant_params ~body handlers))
 
   let pattern_match_pair t1 t2 ~f =
     A1.pattern_match_pair t1 t2

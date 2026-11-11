@@ -1,0 +1,18 @@
+let code size(5) add_one (x) my_closure &my_region my_depth -> k * e =
+  let y = %int_barith.`add` (x, 1) in
+  cont k (y)
+in
+let $Binder_openings_add_one = closure add_one @add_one &toplevel in
+cont loop (0, 0)
+  where rec loop (i, acc) =
+    let c = %int_comp.`lt` (i, 5) in
+    (switch c
+       | 0 -> finish (acc)
+       | 1 -> next
+       where next =
+         let acc2 = %int_barith.`add` (acc, i) in
+         let i2 = %int_barith.`add` (i, 1) in
+         cont loop (i2, acc2))
+  where finish (r) =
+    let $camlBinder_openings = Block 0 (r, $Binder_openings_add_one) in
+    cont done ($camlBinder_openings)

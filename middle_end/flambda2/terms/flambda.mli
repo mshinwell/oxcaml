@@ -248,6 +248,24 @@ module Let_expr : sig
   *)
   val pattern_match : t -> f:(Bound_pattern.t -> body:expr -> 'a) -> 'a
 
+  (* CR mshinwell: the functions [pattern_match_for_printing], here and in the
+     four modules below, are for printing and for tests only. They were exported
+     while you were away, so that tests can relate the names of a term to the
+     names in the typing environments that Simplify computed; to be confirmed or
+     reverted. Decision D33. *)
+
+  (** Like [pattern_match], but the bound names are not freshened (unless
+      [-dfreshen] is given): they are the names that the term has, that is to
+      say those it was built with, after any renaming that has since been
+      applied to it. This is how terms are opened for printing. It also serves
+      tests that must relate the names of a term to names recorded elsewhere,
+      for example in typing environments. It must not be used by code that
+      transforms terms. Note that the same name may be bound in several places
+      of a term. The same holds for the functions of this name in the modules
+      below. *)
+  val pattern_match_for_printing :
+    t -> f:(Bound_pattern.t -> body:expr -> 'a) -> 'a
+
   val pattern_match' :
     t ->
     f:
@@ -318,6 +336,13 @@ module Continuation_handler : sig
     'a
 
   val pattern_match : t -> f:(Bound_parameters.t -> handler:expr -> 'a) -> 'a
+
+  (* CR mshinwell: for printing and for tests only; see the CR at
+     [Let_expr.pattern_match_for_printing]. Decision D33. *)
+
+  (** Like [pattern_match], but see [Let_expr.pattern_match_for_printing]. *)
+  val pattern_match_for_printing :
+    t -> f:(Bound_parameters.t -> handler:expr -> 'a) -> 'a
 
   module Pattern_match_pair_error : sig
     type t = Parameter_lists_have_different_lengths
@@ -444,6 +469,13 @@ module Non_recursive_let_cont_handler : sig
       continuation and the expression over which it is scoped. *)
   val pattern_match : t -> f:(Continuation.t -> body:expr -> 'a) -> 'a
 
+  (* CR mshinwell: for printing and for tests only; see the CR at
+     [Let_expr.pattern_match_for_printing]. Decision D33. *)
+
+  (** Like [pattern_match], but see [Let_expr.pattern_match_for_printing]. *)
+  val pattern_match_for_printing :
+    t -> f:(Continuation.t -> body:expr -> 'a) -> 'a
+
   (** Deconstruct two continuation bindings using the same name. *)
   val pattern_match_pair :
     t -> t -> f:(Continuation.t -> body1:expr -> body2:expr -> 'a) -> 'a
@@ -464,6 +496,19 @@ module Recursive_let_cont_handlers : sig
   (** Deconstruct a continuation binding to get the bound continuations,
       together with the expressions and handlers over which they are scoped. *)
   val pattern_match :
+    t ->
+    f:
+      (invariant_params:Bound_parameters.t ->
+      body:expr ->
+      Continuation_handlers.t ->
+      'a) ->
+    'a
+
+  (* CR mshinwell: for printing and for tests only; see the CR at
+     [Let_expr.pattern_match_for_printing]. Decision D33. *)
+
+  (** Like [pattern_match], but see [Let_expr.pattern_match_for_printing]. *)
+  val pattern_match_for_printing :
     t ->
     f:
       (invariant_params:Bound_parameters.t ->
@@ -533,6 +578,25 @@ module Function_params_and_body : sig
       exn_continuation:Continuation.t
         (** To where we must jump if application of the function raises an
             exception. *) ->
+      Bound_parameters.t ->
+      body:expr ->
+      my_closure:Variable.t ->
+      is_my_closure_used:bool Or_unknown.t ->
+      my_alloc_mode:Alloc_mode.For_applications.t ->
+      my_depth:Variable.t ->
+      free_names_of_body:Name_occurrences.t Or_unknown.t ->
+      'a) ->
+    'a
+
+  (* CR mshinwell: for printing and for tests only; see the CR at
+     [Let_expr.pattern_match_for_printing]. Decision D33. *)
+
+  (** Like [pattern_match], but see [Let_expr.pattern_match_for_printing]. *)
+  val pattern_match_for_printing :
+    t ->
+    f:
+      (return_continuation:Continuation.t ->
+      exn_continuation:Continuation.t ->
       Bound_parameters.t ->
       body:expr ->
       my_closure:Variable.t ->
