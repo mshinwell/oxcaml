@@ -113,6 +113,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaContextWhereSpec.v \
   FlambdaControlFlowProofs.v \
   FlambdaControlFlowSpec.v \
+  FlambdaCseProofs.v \
+  FlambdaCseSpec.v \
   FlambdaEquivarianceProofs.v \
   FlambdaEquivarianceSpec.v \
   FlambdaFreeNamesProofs.v \
@@ -159,6 +161,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaStateSupportSpec.v \
   FlambdaStaticProofs.v \
   FlambdaStaticSpec.v \
+  FlambdaStaticsOrderProofs.v \
+  FlambdaStaticsOrderSpec.v \
   FlambdaTrapProofs.v \
   FlambdaTrapSpec.v \
   FlambdaUnboxProofs.v \
