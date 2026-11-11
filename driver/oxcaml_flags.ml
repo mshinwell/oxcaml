@@ -160,6 +160,7 @@ let ssa_bounds_check_elim = ref false       (* -ssa-bounds-check-elim *)
 
 type function_result_types = Never | Functors_only | All_functions
 type join_algorithm = Binary | N_way | Checked
+type join_sharing = Physical | Structural | No_sharing
 type reaper_preserve_direct_calls = Never | Always | Zero_alloc | Auto
 type opt_level = Oclassic | O2 | O3 | O4
 type 'a or_default = Set of 'a | Default
@@ -209,6 +210,7 @@ module Flambda2 = struct
     let cse_depth = 2
     let join_depth = 5
     let join_algorithm = Binary
+    let join_sharing = Physical
     let function_result_types : function_result_types = Never
     let enable_reaper = false
     let reaper_preserve_direct_calls : reaper_preserve_direct_calls = Auto
@@ -232,6 +234,7 @@ module Flambda2 = struct
     cse_depth : int;
     join_depth : int;
     join_algorithm : join_algorithm;
+    join_sharing : join_sharing;
     function_result_types : function_result_types;
     enable_reaper : bool;
     reaper_preserve_direct_calls : reaper_preserve_direct_calls;
@@ -253,6 +256,7 @@ module Flambda2 = struct
     cse_depth = Default.cse_depth;
     join_depth = Default.join_depth;
     join_algorithm = Default.join_algorithm;
+    join_sharing = Default.join_sharing;
     function_result_types = Default.function_result_types;
     enable_reaper = Default.enable_reaper;
     reaper_preserve_direct_calls = Default.reaper_preserve_direct_calls;
@@ -302,6 +306,7 @@ module Flambda2 = struct
   let cse_depth = ref Default
   let join_depth = ref Default
   let join_algorithm = ref Default
+  let join_sharing = ref Default
   let unicode = ref Default
   let kind_checks = ref Default
   let function_result_types = ref Default

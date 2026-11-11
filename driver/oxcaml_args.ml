@@ -663,6 +663,19 @@ let mk_flambda2_join_algorithm f =
       \       \"checked\" runs both algorithms and compares them (use for \
        debugging)." )
 
+let mk_flambda2_join_sharing f =
+  ( "-flambda2-join-sharing",
+    Arg.Symbol ([ "physical"; "structural"; "none" ], f),
+    Printf.sprintf
+      " Select how the join detects that the types it is given are all the\n\
+      \      same type, which it then keeps as it is instead of joining\n\
+      \      (Flambda 2 only)\n\
+      \      Valid values are: \n\
+      \       \"physical\" tests physical equality, so the result of a join\n\
+      \       depends on how types are shared in memory (default);\n\
+      \       \"structural\" tests structural equality;\n\
+      \       \"none\" never detects it, except when there is a single type." )
+
 let mk_flambda2_join_points f =
   ( "-flambda2-join-points",
     Arg.Unit f,
@@ -1532,6 +1545,7 @@ module type Oxcaml_options = sig
   val flambda2_basic_meet : unit -> unit
   val flambda2_advanced_meet : unit -> unit
   val flambda2_join_algorithm : string -> unit
+  val flambda2_join_sharing : string -> unit
   val flambda2_unbox_along_intra_function_control_flow : unit -> unit
   val no_flambda2_unbox_along_intra_function_control_flow : unit -> unit
   val flambda2_backend_cse_at_toplevel : unit -> unit
@@ -1757,6 +1771,7 @@ module Make_oxcaml_options (F : Oxcaml_options) = struct
       mk_flambda2_basic_meet F.flambda2_basic_meet;
       mk_flambda2_advanced_meet F.flambda2_advanced_meet;
       mk_flambda2_join_algorithm F.flambda2_join_algorithm;
+      mk_flambda2_join_sharing F.flambda2_join_sharing;
       mk_flambda2_unbox_along_intra_function_control_flow
         F.flambda2_unbox_along_intra_function_control_flow;
       mk_no_flambda2_unbox_along_intra_function_control_flow
@@ -2234,6 +2249,16 @@ module Oxcaml_options_impl = struct
     | "n-way" -> Flambda2.join_algorithm := Oxcaml_flags.Set Oxcaml_flags.N_way
     | "checked" ->
         Flambda2.join_algorithm := Oxcaml_flags.Set Oxcaml_flags.Checked
+    | _ -> () (* This should not occur as we use Arg.Symbol *)
+
+  let flambda2_join_sharing sharing =
+    match sharing with
+    | "physical" ->
+        Flambda2.join_sharing := Oxcaml_flags.Set Oxcaml_flags.Physical
+    | "structural" ->
+        Flambda2.join_sharing := Oxcaml_flags.Set Oxcaml_flags.Structural
+    | "none" ->
+        Flambda2.join_sharing := Oxcaml_flags.Set Oxcaml_flags.No_sharing
     | _ -> () (* This should not occur as we use Arg.Symbol *)
 
   let flambda2_unbox_along_intra_function_control_flow =
@@ -2822,6 +2847,14 @@ module Extra_params = struct
         | _ ->
             Misc.fatal_error
               "Syntax: flambda2-join-algorithm=binary|n-way|checked");
+        true
+    | "flambda2-join-sharing" ->
+        (match String.lowercase_ascii v with
+        | ("physical" | "structural" | "none") as v ->
+            Oxcaml_options_impl.flambda2_join_sharing v
+        | _ ->
+            Misc.fatal_error
+              "Syntax: flambda2-join-sharing=physical|structural|none");
         true
     | "flambda2-unbox-along-intra-function-control-flow" ->
         set Flambda2.unbox_along_intra_function_control_flow

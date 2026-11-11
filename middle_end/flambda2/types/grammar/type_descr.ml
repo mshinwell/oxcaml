@@ -96,6 +96,8 @@ module T : sig
     project_coercion:(Coercion.t -> Coercion.t Or_unknown.t) ->
     'head t ->
     'head t
+
+  val equal : equal_head:('head -> 'head -> bool) -> 'head t -> 'head t -> bool
 end = struct
   module Descr = struct
     type 'head t =
@@ -273,6 +275,16 @@ end = struct
       with
       | Not_expanded descr' -> if descr == descr' then t else Ok descr'
       | Expanded t' -> t')
+
+  let equal ~equal_head (t1 : _ t) (t2 : _ t) =
+    t1 == t2
+    ||
+    match t1, t2 with
+    | Unknown, Unknown | Bottom, Bottom -> true
+    | Ok (No_alias head1), Ok (No_alias head2) ->
+      head1 == head2 || equal_head (WCFN.descr head1) (WCFN.descr head2)
+    | Ok (Equals simple1), Ok (Equals simple2) -> Simple.equal simple1 simple2
+    | (Unknown | Bottom | Ok (No_alias _ | Equals _)), _ -> false
 end
 
 include T

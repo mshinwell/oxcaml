@@ -40,3 +40,26 @@
  (instrumentation (backend bisect_ppx))
  (modules datalog)
  (libraries flambda2_datalog))
+
+(rule
+ (target join_sharing.output)
+ (deps join_sharing.exe)
+ (action
+  (with-stderr-to
+   %{target}
+   (run %{deps}))))
+
+(rule
+ (alias runtest)
+ (action
+  (diff join_sharing.expected join_sharing.output)))
+
+(executable
+ (name join_sharing)
+ (modes native)
+ (instrumentation (backend bisect_ppx))
+ (modules join_sharing)
+ (libraries
+  ocamloptcomp ocamlfrontend
+  flambda2_bound_identifiers flambda2_cmx flambda2_identifiers flambda2_kinds
+  flambda2_nominal flambda2_numbers flambda2_term_basics flambda2_types))

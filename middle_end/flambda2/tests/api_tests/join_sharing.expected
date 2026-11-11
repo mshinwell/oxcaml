@@ -1,0 +1,410 @@
+env extension, binary join, physical:
+shared and unshared:
+y/0N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 2),
+        ((Val!
+          (Variant
+           (blocks (alloc_mode Heap)
+            (known
+             {(tag_0 => (Known 1),
+               ((Val! (Variant (tagged_imms (Naked_immediate (= a/1N))))))
+               (equations (b/2N : (Naked_immediate (= a/1N)))))
+              (tag_1 => (Known 0), ())}))))
+         (Val! (Variant (tagged_imms (Naked_immediate { 1 2 }))))))}))))
+
+env extension, binary join, structural:
+shared and unshared:
+y/3N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 2),
+        ((Val!
+          (Variant
+           (blocks (alloc_mode Heap)
+            (known
+             {(tag_0 => (Known 1),
+               ((Val! (Variant (tagged_imms (Naked_immediate (= a/4N))))))
+               (equations (b/5N : (Naked_immediate (= a/4N)))))
+              (tag_1 => (Known 0), ())}))))
+         (Val! (Variant (tagged_imms (Naked_immediate { 1 2 }))))))}))))
+
+env extension, binary join, none:
+shared and unshared:
+y/6N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 2),
+        ((Val!
+          (Variant
+           (blocks (alloc_mode Heap)
+            (known
+             {(tag_0 => (Known 1),
+               ((Val! (Variant (tagged_imms (Naked_immediate (= a/7N))))))
+               (equations (b/8N : (Naked_immediate (= a/7N)))))
+              (tag_1 => (Known 0), ())}))))
+         (Val! (Variant (tagged_imms (Naked_immediate { 1 2 }))))))}))))
+
+env extension, n-way join, physical:
+shared:
+y/9N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 2),
+        ((Val!
+          (Variant
+           (blocks (alloc_mode Heap)
+            (known
+             {(tag_0 => (Known 1),
+               ((Val! (Variant (tagged_imms (Naked_immediate (= a/10N))))))
+               (equations (b/11N : (Naked_immediate (= a/10N)))))
+              (tag_1 => (Known 0), ())}))))
+         (Val! (Variant (tagged_imms (Naked_immediate { 1 2 }))))))}))))
+unshared:
+y/9N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 2),
+        ((Val!
+          (Variant
+           (blocks (alloc_mode Heap)
+            (known
+             {(tag_0 => (Known 1),
+               ((Val! (Variant (tagged_imms (Naked_immediate (= a/10N)))))))
+              (tag_1 => (Known 0), ())}))))
+         (Val! (Variant (tagged_imms (Naked_immediate { 1 2 }))))))}))))
+
+env extension, n-way join, structural:
+shared and unshared:
+y/16N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 2),
+        ((Val!
+          (Variant
+           (blocks (alloc_mode Heap)
+            (known
+             {(tag_0 => (Known 1),
+               ((Val! (Variant (tagged_imms (Naked_immediate (= a/17N))))))
+               (equations (b/18N : (Naked_immediate (= a/17N)))))
+              (tag_1 => (Known 0), ())}))))
+         (Val! (Variant (tagged_imms (Naked_immediate { 1 2 }))))))}))))
+
+env extension, n-way join, none:
+shared and unshared:
+y/23N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 2),
+        ((Val!
+          (Variant
+           (blocks (alloc_mode Heap)
+            (known
+             {(tag_0 => (Known 1),
+               ((Val! (Variant (tagged_imms (Naked_immediate (= a/24N)))))))
+              (tag_1 => (Known 0), ())}))))
+         (Val! (Variant (tagged_imms (Naked_immediate { 1 2 }))))))}))))
+
+whole type, binary join, physical:
+shared and unshared:
+y/30N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 1),
+        ((Val! (Variant (tagged_imms (Naked_immediate (= a/31N))))))
+        (equations (b/32N : (Naked_immediate (= a/31N)))))
+       (tag_1 => (Known 0), ())}))))
+
+whole type, binary join, structural:
+shared and unshared:
+y/33N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 1),
+        ((Val! (Variant (tagged_imms (Naked_immediate (= a/34N))))))
+        (equations (b/35N : (Naked_immediate (= a/34N)))))
+       (tag_1 => (Known 0), ())}))))
+
+whole type, binary join, none:
+shared and unshared:
+y/36N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 1),
+        ((Val! (Variant (tagged_imms (Naked_immediate (= a/37N))))))
+        (equations (b/38N : (Naked_immediate (= a/37N)))))
+       (tag_1 => (Known 0), ())}))))
+
+whole type, n-way join, physical:
+shared:
+y/39N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 1),
+        ((Val! (Variant (tagged_imms (Naked_immediate (= a/40N))))))
+        (equations (b/41N : (Naked_immediate (= a/40N)))))
+       (tag_1 => (Known 0), ())}))))
+unshared:
+y/39N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 1),
+        ((Val! (Variant (tagged_imms (Naked_immediate (= a/40N)))))))
+       (tag_1 => (Known 0), ())}))))
+
+whole type, n-way join, structural:
+shared and unshared:
+y/42N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 1),
+        ((Val! (Variant (tagged_imms (Naked_immediate (= a/43N))))))
+        (equations (b/44N : (Naked_immediate (= a/43N)))))
+       (tag_1 => (Known 0), ())}))))
+
+whole type, n-way join, none:
+shared and unshared:
+y/45N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 1),
+        ((Val! (Variant (tagged_imms (Naked_immediate (= a/46N)))))))
+       (tag_1 => (Known 0), ())}))))
+
+block field, binary join, physical:
+shared and unshared:
+y/48N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 1),
+        ((Val!
+          (Variant
+           (blocks (alloc_mode Heap)
+            (known
+             {(tag_0 => (Known 1),
+               ((Val! (Variant (tagged_imms (Naked_immediate (= a/49N))))))
+               (equations (b/50N : (Naked_immediate (= a/49N)))))
+              (tag_1 => (Known 0), ())}))))))}))))
+
+block field, binary join, structural:
+shared and unshared:
+y/51N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 1),
+        ((Val!
+          (Variant
+           (blocks (alloc_mode Heap)
+            (known
+             {(tag_0 => (Known 1),
+               ((Val! (Variant (tagged_imms (Naked_immediate (= a/52N))))))
+               (equations (b/53N : (Naked_immediate (= a/52N)))))
+              (tag_1 => (Known 0), ())}))))))}))))
+
+block field, binary join, none:
+shared and unshared:
+y/54N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 1),
+        ((Val!
+          (Variant
+           (blocks (alloc_mode Heap)
+            (known
+             {(tag_0 => (Known 1),
+               ((Val! (Variant (tagged_imms (Naked_immediate (= a/55N))))))
+               (equations (b/56N : (Naked_immediate (= a/55N)))))
+              (tag_1 => (Known 0), ())}))))))}))))
+
+block field, n-way join, physical:
+shared:
+y/57N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 1),
+        ((Val!
+          (Variant
+           (blocks (alloc_mode Heap)
+            (known
+             {(tag_0 => (Known 1),
+               ((Val! (Variant (tagged_imms (Naked_immediate (= a/58N))))))
+               (equations (b/59N : (Naked_immediate (= a/58N)))))
+              (tag_1 => (Known 0), ())}))))))}))))
+unshared:
+y/57N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 1),
+        ((Val!
+          (Variant
+           (blocks (alloc_mode Heap)
+            (known
+             {(tag_0 => (Known 1),
+               ((Val! (Variant (tagged_imms (Naked_immediate (= a/58N)))))))
+              (tag_1 => (Known 0), ())}))))))}))))
+
+block field, n-way join, structural:
+shared and unshared:
+y/60N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 1),
+        ((Val!
+          (Variant
+           (blocks (alloc_mode Heap)
+            (known
+             {(tag_0 => (Known 1),
+               ((Val! (Variant (tagged_imms (Naked_immediate (= a/61N))))))
+               (equations (b/62N : (Naked_immediate (= a/61N)))))
+              (tag_1 => (Known 0), ())}))))))}))))
+
+block field, n-way join, none:
+shared and unshared:
+y/63N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known
+      {(tag_0 => (Known 1),
+        ((Val!
+          (Variant
+           (blocks (alloc_mode Heap)
+            (known
+             {(tag_0 => (Known 1),
+               ((Val! (Variant (tagged_imms (Naked_immediate (= a/64N)))))))
+              (tag_1 => (Known 0), ())}))))))}))))
+
+relation, binary join, physical:
+shared and unshared:
+t/67N: (Naked_immediate ⊤ (%get_tag x/66N))
+x/66N: (Val! ⊤)
+
+relation, binary join, structural:
+shared and unshared:
+t/70N: (Naked_immediate ⊤ (%get_tag x/69N))
+x/69N: (Val! ⊤)
+
+relation, binary join, none:
+shared and unshared:
+t/73N: (Naked_immediate ⊤ (%get_tag x/72N))
+x/72N: (Val! ⊤)
+
+relation, n-way join, physical:
+shared:
+t/76N: (Naked_immediate ⊤ (%get_tag x/75N))
+x/75N: (Val! (Variant (tagged_imms ⊤) (get_tag t/76N) (blocks⊤)))
+unshared:
+t/76N: (Naked_immediate ⊤)
+x/75N: (Val! ⊤)
+
+relation, n-way join, structural:
+shared and unshared:
+t/83N: (Naked_immediate ⊤ (%get_tag x/82N))
+x/82N: (Val! (Variant (tagged_imms ⊤) (get_tag t/83N) (blocks⊤)))
+
+relation, n-way join, none:
+shared and unshared:
+t/90N: (Naked_immediate ⊤)
+x/89N: (Val! ⊤)
+
+alias field, binary join, physical:
+shared:
+y/98N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known {(tag_0 => (Known 1), ((Val (= x/97N))))}))))
+unshared:
+y/98N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known {(tag_0 => (Known 1), ((Val (= z/96N))))}))))
+
+alias field, binary join, structural:
+shared and unshared:
+y/101N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known {(tag_0 => (Known 1), ((Val (= x/100N))))}))))
+
+alias field, binary join, none:
+shared and unshared:
+y/104N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known {(tag_0 => (Known 1), ((Val (= z/102N))))}))))
+
+alias field, n-way join, physical:
+shared:
+y/107N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known {(tag_0 => (Known 1), ((Val (= x/106N))))}))))
+unshared:
+y/107N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known {(tag_0 => (Known 1), ((Val (= z/105N))))}))))
+
+alias field, n-way join, structural:
+shared and unshared:
+y/110N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known {(tag_0 => (Known 1), ((Val (= x/109N))))}))))
+
+alias field, n-way join, none:
+shared and unshared:
+y/113N:
+  (Val!
+   (Variant
+    (blocks (alloc_mode Heap)
+     (known {(tag_0 => (Known 1), ((Val (= z/111N))))}))))
+

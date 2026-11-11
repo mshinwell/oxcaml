@@ -1047,11 +1047,21 @@ let rec import_or_delay_n_way_join_type env var types =
     import_or_delay_n_way_join_of_concrete_type env var types
 
 and import_or_delay_n_way_join_of_concrete_type env var types =
-  let _, any_ty =
+  let any_index, any_ty =
     try Index.Map.choose types
     with Not_found -> Misc.fatal_error "N-way join of zero types"
   in
-  if Index.Map.for_all (fun _ ty' -> any_ty == ty') types
+  (* If the type is the same in all the joined environments (in particular, if
+     there is a single joined environment), import it as it is. What "the same"
+     means is chosen by [Flambda_features.join_sharing]. *)
+  if
+    Index.Map.for_all
+      (fun index (ty' : Type_in_one_joined_env.t) ->
+        Index.equal index any_index
+        || TG.same_type_for_join
+             (any_ty : Type_in_one_joined_env.t :> TG.t)
+             (ty' : Type_in_one_joined_env.t :> TG.t))
+      types
   then
     let env =
       add_equation_in_target_env env
@@ -2015,11 +2025,22 @@ let n_way_join_env_extension ~n_way_join_type:_ ~meet_expanded_head:_ t
   match extensions with
   | [] -> Bottom
   | (_, first_extension) :: other_extensions ->
-    if
-      List.for_all
-        (fun (_, ext) ->
-          Name.Map.equal ( == ) (TEE.to_map ext) (TEE.to_map first_extension))
-        other_extensions
+    let same_extension_in_all_joined_envs =
+      match Flambda_features.join_sharing () with
+      | Physical | Structural ->
+        List.for_all
+          (fun (_, ext) ->
+            Name.Map.equal TG.same_type_for_join (TEE.to_map ext)
+              (TEE.to_map first_extension))
+          other_extensions
+      | No_sharing -> (
+        (* [Name.Map.equal] must not be used here: it takes maps that are
+           physically equal to be equal without looking at them. *)
+        match other_extensions with
+        | [] -> true
+        | _ :: _ -> false)
+    in
+    if same_extension_in_all_joined_envs
     then
       let t =
         TEE.fold first_extension t ~equation:(fun name ty env ->

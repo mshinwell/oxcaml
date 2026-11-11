@@ -3590,6 +3590,260 @@ and project_variant_extensions ~to_project ~expand
     then extensions
     else Ext { when_immediate = when_immediate'; when_block = when_block' }
 
+(* Structural equality. No environment is consulted. Physical equality is only
+   used as a shortcut: every function below holds of a value and itself. *)
+
+let equal_or_bottom equal (x1 : _ Or_bottom.t) (x2 : _ Or_bottom.t) =
+  match x1, x2 with
+  | Bottom, Bottom -> true
+  | Ok x1, Ok x2 -> equal x1 x2
+  | Bottom, Ok _ | Ok _, Bottom -> false
+
+let equal_array equal a1 a2 =
+  a1 == a2
+  || Int.equal (Array.length a1) (Array.length a2)
+     && Array.for_all2 equal a1 a2
+
+let equal_relation (relation1 : Variable.t option)
+    (relation2 : Variable.t option) =
+  Option.equal Variable.equal relation1 relation2
+
+let equal_is_null (is_null1 : is_null) (is_null2 : is_null) =
+  match is_null1, is_null2 with
+  | Not_null, Not_null -> true
+  | Maybe_null { is_null = is_null1 }, Maybe_null { is_null = is_null2 } ->
+    equal_relation is_null1 is_null2
+  | Not_null, Maybe_null _ | Maybe_null _, Not_null -> false
+
+let equal_row_like_index ~equal_lattice ~equal_shape
+    { domain = domain1; shape = shape1 } { domain = domain2; shape = shape2 } =
+  (match domain1, domain2 with
+    | Known lattice1, Known lattice2 | At_least lattice1, At_least lattice2 ->
+      equal_lattice lattice1 lattice2
+    | Known _, At_least _ | At_least _, Known _ -> false)
+  && equal_shape shape1 shape2
+
+(* The three constructors of [head_of_kind_naked_immediate] are compared through
+   the two accessors, so that the equality does not depend on which constructor
+   represents an empty map of relations. *)
+let equal_head_of_kind_naked_immediate head1 head2 =
+  head1 == head2
+  || Or_unknown.equal Target_ocaml_int.Set.equal (naked_immediates head1)
+       (naked_immediates head2)
+     && Relation.Map.equal Name.Set.equal (inverse_relations head1)
+          (inverse_relations head2)
+
+let rec equal t1 t2 =
+  t1 == t2
+  ||
+  match t1, t2 with
+  | Value ty1, Value ty2 ->
+    TD.equal ~equal_head:equal_head_of_kind_value ty1 ty2
+  | Naked_immediate ty1, Naked_immediate ty2 ->
+    TD.equal ~equal_head:equal_head_of_kind_naked_immediate ty1 ty2
+  | Naked_float32 ty1, Naked_float32 ty2 ->
+    TD.equal ~equal_head:Float32.Set.equal ty1 ty2
+  | Naked_float ty1, Naked_float ty2 ->
+    TD.equal ~equal_head:Float.Set.equal ty1 ty2
+  | Naked_int8 ty1, Naked_int8 ty2 ->
+    TD.equal ~equal_head:Int8.Set.equal ty1 ty2
+  | Naked_int16 ty1, Naked_int16 ty2 ->
+    TD.equal ~equal_head:Int16.Set.equal ty1 ty2
+  | Naked_int32 ty1, Naked_int32 ty2 ->
+    TD.equal ~equal_head:Int32.Set.equal ty1 ty2
+  | Naked_int64 ty1, Naked_int64 ty2 ->
+    TD.equal ~equal_head:Int64.Set.equal ty1 ty2
+  | Naked_nativeint ty1, Naked_nativeint ty2 ->
+    TD.equal ~equal_head:Targetint_32_64.Set.equal ty1 ty2
+  | Naked_vec128 ty1, Naked_vec128 ty2 ->
+    TD.equal ~equal_head:Vec128.Set.equal ty1 ty2
+  | Naked_vec256 ty1, Naked_vec256 ty2 ->
+    TD.equal ~equal_head:Vec256.Set.equal ty1 ty2
+  | Naked_vec512 ty1, Naked_vec512 ty2 ->
+    TD.equal ~equal_head:Vec512.Set.equal ty1 ty2
+  | Naked_mask ty1, Naked_mask ty2 ->
+    TD.equal ~equal_head:Mask.Set.equal ty1 ty2
+  | Rec_info ty1, Rec_info ty2 ->
+    TD.equal ~equal_head:Rec_info_expr.equal ty1 ty2
+  | Region ty1, Region ty2 -> TD.equal ~equal_head:(fun () () -> true) ty1 ty2
+  | ( ( Value _ | Naked_immediate _ | Naked_float32 _ | Naked_float _
+      | Naked_int8 _ | Naked_int16 _ | Naked_int32 _ | Naked_int64 _
+      | Naked_nativeint _ | Naked_vec128 _ | Naked_vec256 _ | Naked_vec512 _
+      | Naked_mask _ | Rec_info _ | Region _ ),
+      _ ) ->
+    false
+
+and equal_head_of_kind_value { non_null = non_null1; is_null = is_null1 }
+    { non_null = non_null2; is_null = is_null2 } =
+  equal_is_null is_null1 is_null2
+  && Or_unknown_or_bottom.equal equal_head_of_kind_value_non_null non_null1
+       non_null2
+
+and equal_head_of_kind_value_non_null head1 head2 =
+  head1 == head2
+  ||
+  match head1, head2 with
+  | ( Variant
+        { is_int = is_int1;
+          immediates = immediates1;
+          get_tag = get_tag1;
+          blocks = blocks1;
+          extensions = extensions1;
+          is_unique = is_unique1
+        },
+      Variant
+        { is_int = is_int2;
+          immediates = immediates2;
+          get_tag = get_tag2;
+          blocks = blocks2;
+          extensions = extensions2;
+          is_unique = is_unique2
+        } ) ->
+    Bool.equal is_unique1 is_unique2
+    && equal_relation is_int1 is_int2
+    && equal_relation get_tag1 get_tag2
+    && Or_unknown.equal equal immediates1 immediates2
+    && Or_unknown.equal equal_row_like_for_blocks blocks1 blocks2
+    && equal_variant_extensions extensions1 extensions2
+  | ( Mutable_block { alloc_mode = alloc_mode1 },
+      Mutable_block { alloc_mode = alloc_mode2 } ) ->
+    Alloc_mode.For_types.equal alloc_mode1 alloc_mode2
+  | Boxed_float32 (ty1, alloc_mode1), Boxed_float32 (ty2, alloc_mode2)
+  | Boxed_float (ty1, alloc_mode1), Boxed_float (ty2, alloc_mode2)
+  | Boxed_int32 (ty1, alloc_mode1), Boxed_int32 (ty2, alloc_mode2)
+  | Boxed_int64 (ty1, alloc_mode1), Boxed_int64 (ty2, alloc_mode2)
+  | Boxed_nativeint (ty1, alloc_mode1), Boxed_nativeint (ty2, alloc_mode2)
+  | Boxed_vec128 (ty1, alloc_mode1), Boxed_vec128 (ty2, alloc_mode2)
+  | Boxed_vec256 (ty1, alloc_mode1), Boxed_vec256 (ty2, alloc_mode2)
+  | Boxed_vec512 (ty1, alloc_mode1), Boxed_vec512 (ty2, alloc_mode2)
+  | Boxed_mask (ty1, alloc_mode1), Boxed_mask (ty2, alloc_mode2) ->
+    equal ty1 ty2 && Alloc_mode.For_types.equal alloc_mode1 alloc_mode2
+  | ( Closures { by_function_slot = by_function_slot1; alloc_mode = alloc_mode1 },
+      Closures
+        { by_function_slot = by_function_slot2; alloc_mode = alloc_mode2 } ) ->
+    equal_row_like_for_closures by_function_slot1 by_function_slot2
+    && Alloc_mode.For_types.equal alloc_mode1 alloc_mode2
+  | String strings1, String strings2 -> String_info.Set.equal strings1 strings2
+  | ( Array
+        { element_kind = element_kind1;
+          length = length1;
+          contents = contents1;
+          alloc_mode = alloc_mode1
+        },
+      Array
+        { element_kind = element_kind2;
+          length = length2;
+          contents = contents2;
+          alloc_mode = alloc_mode2
+        } ) ->
+    Or_unknown_or_bottom.equal K.With_subkind.equal element_kind1 element_kind2
+    && equal length1 length2
+    && Or_unknown.equal equal_array_contents contents1 contents2
+    && Alloc_mode.For_types.equal alloc_mode1 alloc_mode2
+  | ( ( Variant _ | Mutable_block _ | Boxed_float32 _ | Boxed_float _
+      | Boxed_int32 _ | Boxed_int64 _ | Boxed_nativeint _ | Boxed_vec128 _
+      | Boxed_vec256 _ | Boxed_vec512 _ | Boxed_mask _ | Closures _ | String _
+      | Array _ ),
+      _ ) ->
+    false
+
+and equal_row_like_block_case
+    ({ maps_to = maps_to1; index = index1; env_extension = env_extension1 } :
+      row_like_block_case)
+    ({ maps_to = maps_to2; index = index2; env_extension = env_extension2 } :
+      row_like_block_case) =
+  equal_row_like_index ~equal_lattice:Block_size.equal
+    ~equal_shape:K.Block_shape.equal index1 index2
+  && equal_int_indexed_product maps_to1 maps_to2
+  && equal_env_extension env_extension1 env_extension2
+
+and equal_row_like_for_blocks
+    { known_tags = known_tags1;
+      other_tags = other_tags1;
+      alloc_mode = alloc_mode1
+    }
+    { known_tags = known_tags2;
+      other_tags = other_tags2;
+      alloc_mode = alloc_mode2
+    } =
+  Tag.Map.equal
+    (Or_unknown.equal equal_row_like_block_case)
+    known_tags1 known_tags2
+  && equal_or_bottom equal_row_like_block_case other_tags1 other_tags2
+  && Alloc_mode.For_types.equal alloc_mode1 alloc_mode2
+
+and equal_row_like_for_closures { known_closures = known_closures1 }
+    { known_closures = known_closures2 } =
+  Function_slot.Map.equal
+    (fun { maps_to = maps_to1; index = index1; env_extension = env_extension1 }
+         { maps_to = maps_to2; index = index2; env_extension = env_extension2 }
+       ->
+      equal_row_like_index ~equal_lattice:Set_of_closures_contents.equal
+        ~equal_shape:(fun () () -> true)
+        index1 index2
+      && equal_closures_entry maps_to1 maps_to2
+      && equal_env_extension env_extension1 env_extension2)
+    known_closures1 known_closures2
+
+and equal_closures_entry
+    { function_types = function_types1;
+      closure_types = closure_types1;
+      value_slot_types = value_slot_types1
+    }
+    { function_types = function_types2;
+      closure_types = closure_types2;
+      value_slot_types = value_slot_types2
+    } =
+  Function_slot.Map.equal
+    (Or_unknown.equal equal_function_type)
+    function_types1 function_types2
+  && equal_function_slot_indexed_product closure_types1 closure_types2
+  && equal_value_slot_indexed_product value_slot_types1 value_slot_types2
+
+and equal_function_slot_indexed_product
+    { function_slot_components_by_index = components1 }
+    { function_slot_components_by_index = components2 } =
+  Function_slot.Map.equal equal components1 components2
+
+and equal_value_slot_indexed_product
+    { value_slot_components_by_index = components1 }
+    { value_slot_components_by_index = components2 } =
+  Value_slot.Map.equal equal components1 components2
+
+and equal_int_indexed_product fields1 fields2 =
+  equal_array equal fields1 fields2
+
+and equal_function_type { code_id = code_id1; rec_info = rec_info1 }
+    { code_id = code_id2; rec_info = rec_info2 } =
+  Code_id.equal code_id1 code_id2 && equal rec_info1 rec_info2
+
+and equal_array_contents (contents1 : array_contents)
+    (contents2 : array_contents) =
+  match contents1, contents2 with
+  | Mutable, Mutable -> true
+  | Immutable { fields = fields1 }, Immutable { fields = fields2 } ->
+    equal_array equal fields1 fields2
+  | Mutable, Immutable _ | Immutable _, Mutable -> false
+
+and equal_env_extension { equations = equations1 } { equations = equations2 } =
+  Name.Map.equal equal equations1 equations2
+
+and equal_variant_extensions (extensions1 : variant_extensions)
+    (extensions2 : variant_extensions) =
+  match extensions1, extensions2 with
+  | No_extensions, No_extensions -> true
+  | ( Ext { when_immediate = when_immediate1; when_block = when_block1 },
+      Ext { when_immediate = when_immediate2; when_block = when_block2 } ) ->
+    equal_env_extension when_immediate1 when_immediate2
+    && equal_env_extension when_block1 when_block2
+  | No_extensions, Ext _ | Ext _, No_extensions -> false
+
+let same_type_for_join t1 t2 =
+  match Flambda_features.join_sharing () with
+  | Physical -> t1 == t2
+  | Structural -> equal t1 t2
+  | No_sharing -> false
+
 let kind t =
   match t with
   | Value _ -> K.value

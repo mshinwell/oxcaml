@@ -128,6 +128,7 @@ val ssa_bounds_check_elim : bool ref
 type function_result_types = Never | Functors_only | All_functions
 type reaper_preserve_direct_calls = Never | Always | Zero_alloc | Auto
 type join_algorithm = Binary | N_way | Checked
+type join_sharing = Physical | Structural | No_sharing
 type opt_level = Oclassic | O2 | O3 | O4
 type 'a or_default = Set of 'a | Default
 
@@ -169,6 +170,7 @@ module Flambda2 : sig
     val cse_depth : int
     val join_depth : int
     val join_algorithm : join_algorithm
+    val join_sharing : join_sharing
     val function_result_types : function_result_types
     val enable_reaper : bool
     val reaper_preserve_direct_calls : reaper_preserve_direct_calls
@@ -193,6 +195,7 @@ module Flambda2 : sig
     cse_depth : int;
     join_depth : int;
     join_algorithm : join_algorithm;
+    join_sharing : join_sharing;
     function_result_types : function_result_types;
     enable_reaper : bool;
     reaper_preserve_direct_calls : reaper_preserve_direct_calls;
@@ -217,6 +220,7 @@ module Flambda2 : sig
   val cse_depth : int or_default ref
   val join_depth : int or_default ref
   val join_algorithm : join_algorithm or_default ref
+  val join_sharing : join_sharing or_default ref
   val enable_reaper : bool or_default ref
   val reaper_preserve_direct_calls : reaper_preserve_direct_calls or_default ref
   val reaper_local_fields : bool or_default ref

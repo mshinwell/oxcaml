@@ -3046,21 +3046,26 @@ and n_way_join_int_indexed_product env shape
         (Array.length first_fields)
         other_fields
     in
-    let all_phys_equal =
+    (* What "the same" means for two fields is chosen by
+       [Flambda_features.join_sharing]. *)
+    let all_the_same =
       try
         for index = 0 to length - 1 do
           let first_field = Array.unsafe_get first_fields index in
           if
             List.exists
               (fun (_, other_fields) ->
-                Array.unsafe_get other_fields index != first_field)
+                not
+                  (TG.same_type_for_join
+                     (Array.unsafe_get other_fields index)
+                     first_field))
               other_fields
           then raise_notrace Exit
         done;
         true
       with Exit -> false
     in
-    if all_phys_equal
+    if all_the_same
     then
       match
         List.find_map

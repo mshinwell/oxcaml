@@ -47,6 +47,18 @@ type join_algorithm = Oxcaml_flags.join_algorithm =
 
 val join_algorithm : unit -> join_algorithm
 
+(** How a join decides that the types it is given in the joined environments are
+    all the same type, in which case it keeps that type instead of joining.
+    [Physical] tests physical equality, so the result of a join depends on how
+    types are shared in memory. [Structural] tests [Type_grammar.equal].
+    [No_sharing] never decides so when there is more than one type. *)
+type join_sharing = Oxcaml_flags.join_sharing =
+  | Physical
+  | Structural
+  | No_sharing
+
+val join_sharing : unit -> join_sharing
+
 val enable_reaper : unit -> bool
 
 type reaper_preserve_direct_calls = Oxcaml_flags.reaper_preserve_direct_calls =

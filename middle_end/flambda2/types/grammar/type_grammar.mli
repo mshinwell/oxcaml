@@ -228,6 +228,20 @@ val remove_unused_value_slots_and_shortcut_aliases :
 val project_variables_out :
   to_project:Variable.Set.t -> expand:(Variable.t -> t) -> t -> t
 
+(** Structural equality of types. No environment is consulted, so two alias
+    types are equal only if they are aliases to the same [Simple], and a type is
+    not equal to its expansion. The result does not depend on how the two types
+    are shared in memory: physical equality is only used as a shortcut. *)
+val equal : t -> t -> bool
+
+(** Whether a join is to take [t1] and [t2], which are the types given for the
+    same thing by two of the environments being joined, as one type that it can
+    keep as it is instead of joining. The test used is chosen by
+    [Flambda_features.join_sharing]: physical equality, [equal], or none (the
+    answer is then always [false], so this must not be used to compare a type
+    with itself). *)
+val same_type_for_join : t -> t -> bool
+
 val kind : t -> Flambda_kind.t
 
 val alias_type_of : Flambda_kind.t -> Simple.t -> t

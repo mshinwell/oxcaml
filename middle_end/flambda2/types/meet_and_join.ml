@@ -2433,16 +2433,19 @@ and join_int_indexed_product env shape (fields1 : TG.Product.Int_indexed.t)
   let length2 = Array.length fields2 in
   let length = min length1 length2 in
   let exception Exit in
-  let all_phys_equal =
+  (* What "the same" means for two fields is chosen by
+     [Flambda_features.join_sharing]. *)
+  let all_the_same =
     try
       for index = 0 to length - 1 do
-        if fields1.(index) != fields2.(index) then raise Exit
+        if not (TG.same_type_for_join fields1.(index) fields2.(index))
+        then raise Exit
       done;
       true
     with Exit -> false
   in
   let fields =
-    if all_phys_equal
+    if all_the_same
     then
       if Int.equal length1 length
       then fields1
@@ -2451,7 +2454,7 @@ and join_int_indexed_product env shape (fields1 : TG.Product.Int_indexed.t)
         fields2)
     else
       Array.init length (fun index ->
-          if fields1.(index) == fields2.(index)
+          if TG.same_type_for_join fields1.(index) fields2.(index)
           then fields1.(index)
           else
             match join env fields1.(index) fields2.(index) with

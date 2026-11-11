@@ -88,6 +88,11 @@ val project_variables_out :
 val ids_for_export :
   ids_for_export_head:('head -> Ids_for_export.t) -> 'head t -> Ids_for_export.t
 
+(** Structural equality: both unknown, both bottom, aliases to the same
+    [Simple], or heads that [equal_head] holds of. Physical equality is only
+    used as a shortcut. *)
+val equal : equal_head:('head -> 'head -> bool) -> 'head t -> 'head t -> bool
+
 module Descr : sig
   type 'head t = private
     | No_alias of 'head

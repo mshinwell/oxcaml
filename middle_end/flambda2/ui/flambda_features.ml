@@ -83,6 +83,15 @@ let use_n_way_join () =
     false
   | N_way -> true
 
+type join_sharing = Oxcaml_flags.join_sharing =
+  | Physical
+  | Structural
+  | No_sharing
+
+let join_sharing () =
+  !Oxcaml_flags.Flambda2.join_sharing
+  |> with_default ~f:(fun d -> d.join_sharing)
+
 let enable_reaper () =
   !Oxcaml_flags.Flambda2.enable_reaper
   |> with_default ~f:(fun d -> d.enable_reaper)
