@@ -90,7 +90,8 @@
    - [meet_project_function_slot_simple_value],
      [meet_project_function_slot_simple],
      [meet_project_value_slot_simple_value],
-     [meet_project_value_slot_simple] (1159 to 1212).
+     [meet_project_value_slot_simple] (1159 to 1212);
+   - [prove_physical_equality] (1297 to 1624).
    The rest of the file is to follow, in the order of the plan.
 
    How the definitions differ from the compiler's.
@@ -173,6 +174,37 @@
      there on; the fold is over the bindings of the map that count
      ([compact] of FlambdaMapSpec.v), in their order in that list; and
      a set of code ids is a list, to be compared as a set.
+   - [prove_physical_equality] is in parts. Its local functions
+     [incompatible_naked_numbers] and [check_heads] are
+     [incompatible_naked_numbers] and [physical_equality_check_heads];
+     the case of two heads that are not null is
+     [physical_equality_of_heads], and that of two variants
+     [physical_equality_of_variants], whose local definitions
+     [immediates_equality] and [blocks_equality] are
+     [physical_equality_of_immediates] and
+     [physical_equality_of_blocks]; the two guards of its first two
+     cases are one test, [no_immediate_and_no_block], and its last
+     [match] is [physical_equality_of_parts]. The eleven cases of
+     [incompatible_naked_numbers] are one, at two kinds that are the
+     same. An assertion that fails is [None], as a stop.
+   - The cases of two heads in [physical_equality_of_heads] are not in
+     the compiler's order, and each pair of constructors is written
+     once. The compiler has, before the case of two variants, a case
+     for a variant whose blocks are bottom against a head that is not
+     a variant; it answers as the later cases do for that pair, but
+     against a mutable block, where the later case answers [Unknown]:
+     that is the case of a variant and a mutable block here. Two boxed
+     numbers of two kinds are the nine constructors taken two by two.
+     The tests of whether two heads may be null and of whether their
+     parts that are not null are known are nested here, in the
+     compiler's order.
+   - [Reg_width_const.equal] is [const_eqb] (FlambdaCompareSpec.v). A
+     poison constant of the model has a kind and no name, so two of
+     one kind are equal here, where the compiler's are equal only if
+     they have one name too: of two aliases of poison constants of one
+     kind and two names the compiler answers [Proved false], and this
+     [Proved true]. The test that two sets of strings have none in
+     common is on lists of bytes ([lists_eqb Z.eqb]).
    - A value slot of the model has no kind. The kind that
      [meet_project_value_slot_simple_value] reads off the value slot
      ([Value_slot.kind]) is an argument, the last of
@@ -183,9 +215,10 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
-  FlambdaMapSpec.
+  FlambdaMapSpec FlambdaCompareSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeEqualSpec FlambdaTypeAccessSpec FlambdaBindingTime
+  FlambdaTypeMeaningBoolSpec FlambdaTypeEqualSpec FlambdaTypeAccessSpec
+  FlambdaBindingTime
   FlambdaEnvAliases FlambdaTypingEnv FlambdaProversStandIn.
 Import ListNotations.
 
@@ -1341,5 +1374,229 @@ Module Provers.
       (meet_project_value_slot_simple_value min_name_mode slot
          value_slot_kind)
       tenv t.
+
+  (* The local function [incompatible_naked_numbers] of
+     [Provers.prove_physical_equality]: two types of naked numbers of
+     one kind, whose sets of numbers have none in common. *)
+  Definition incompatible_naked_numbers (tenv : Typing_env.t)
+      (t1 t2 : flambda_type) : option bool :=
+    let* expanded1 := expand_head tenv t1 in
+    let* expanded2 := expand_head tenv t2 in
+    match expanded1, expanded2 with
+    | Oub_naked_number k1 (Ok s1), Oub_naked_number k2 (Ok s2) =>
+      Some
+        (naked_number_kind_eqb k1 k2
+         && Keyed.is_empty (Keyed.inter Z.eqb s1 s2))
+    | _, _ => Some false
+    end.
+
+  (* The local definition [immediates_equality] of
+     [Provers.prove_physical_equality], for the immediates of two
+     variants. [Invalid]: neither can be an immediate. [Proved false]:
+     they are not both immediates and equal. [Proved true]: if both
+     are immediates, they are equal. The inner [None] is the
+     assertion that two singletons that meet are the same number. *)
+  Definition physical_equality_of_immediates (tenv : Typing_env.t)
+      (imms1 imms2 : flambda_type) : option (Generic_proof.t bool) :=
+    let* proof1 := prove_naked_immediates_generic tenv imms1 in
+    let* proof2 := prove_naked_immediates_generic tenv imms2 in
+    match proof1, proof2 with
+    | Generic_proof.Invalid, Generic_proof.Invalid =>
+      Some Generic_proof.Invalid
+    | Generic_proof.Invalid, _ | _, Generic_proof.Invalid =>
+      Some (Generic_proof.Proved false)
+    | Generic_proof.Unknown, _ | _, Generic_proof.Unknown =>
+      Some Generic_proof.Unknown
+    | Generic_proof.Proved imms1, Generic_proof.Proved imms2 =>
+      if Keyed.is_empty (Keyed.inter Z.eqb imms1 imms2)
+      then Some (Generic_proof.Proved false)
+      else
+        match
+          Keyed.get_singleton Z.eqb imms1, Keyed.get_singleton Z.eqb imms2
+        with
+        | None, _ | _, None => Some Generic_proof.Unknown
+        | Some imm1, Some imm2 =>
+          if Z.eqb imm1 imm2 then Some (Generic_proof.Proved true) else None
+        end
+    end.
+
+  (* The local definition [blocks_equality] of
+     [Provers.prove_physical_equality], for the blocks of two
+     variants, with the same reading of the answers. *)
+  Definition physical_equality_of_blocks (blocks1 blocks2 : row_like_for_blocks)
+      : Generic_proof.t bool :=
+    let is_bottom1 := row_like_for_blocks_is_bottom blocks1 in
+    let is_bottom2 := row_like_for_blocks_is_bottom blocks2 in
+    if is_bottom1 && is_bottom2
+    then Generic_proof.Invalid
+    else if is_bottom1 || is_bottom2
+    then Generic_proof.Proved false
+    else
+      match
+        row_like_for_blocks_get_singleton blocks1,
+        row_like_for_blocks_get_singleton blocks2
+      with
+      | None, _ | _, None => Generic_proof.Unknown
+      | Some (tag1, shape1, size1, _, _), Some (tag2, shape2, size2, _, _) =>
+        if Z.eqb tag1 tag2 && Nat.eqb size1 size2
+           && block_shape_eqb shape1 shape2
+        then Generic_proof.Unknown
+        else Generic_proof.Proved false
+      end.
+
+  (* The test of the first two cases of two variants in
+     [Provers.prove_physical_equality]: the immediates of one variant
+     are obviously bottom and the blocks of the other are bottom. *)
+  Definition no_immediate_and_no_block
+      (immediates : Or_unknown.t flambda_type)
+      (blocks : Or_unknown.t row_like_for_blocks) : bool :=
+    match immediates, blocks with
+    | Or_unknown.Known imms, Or_unknown.Known blocks =>
+      is_obviously_bottom imms && row_like_for_blocks_is_bottom blocks
+    | _, _ => false
+    end.
+
+  (* The last [match] of the case of two variants in
+     [Provers.prove_physical_equality]: the proof that the answers for
+     the immediates and for the blocks make. *)
+  Definition physical_equality_of_parts
+      (immediates_equality blocks_equality : Generic_proof.t bool)
+      : Proof_of_property.t bool :=
+    match immediates_equality, blocks_equality with
+    | Generic_proof.Proved b, Generic_proof.Invalid
+    | Generic_proof.Invalid, Generic_proof.Proved b =>
+      Proof_of_property.Proved b
+    | Generic_proof.Proved false, Generic_proof.Proved false =>
+      Proof_of_property.Proved false
+    | _, _ => Proof_of_property.Unknown
+    end.
+
+  (* The case of two variants of [Provers.prove_physical_equality]. *)
+  Definition physical_equality_of_variants (tenv : Typing_env.t)
+      (immediates1 immediates2 : Or_unknown.t flambda_type)
+      (blocks1 blocks2 : Or_unknown.t row_like_for_blocks)
+      : option (Proof_of_property.t bool) :=
+    if no_immediate_and_no_block immediates1 blocks2
+    then Some (Proof_of_property.Proved false)
+    else if no_immediate_and_no_block immediates2 blocks1
+    then Some (Proof_of_property.Proved false)
+    else
+      match immediates1, immediates2, blocks1, blocks2 with
+      | Or_unknown.Known imms1, Or_unknown.Known imms2,
+        Or_unknown.Known blocks1, Or_unknown.Known blocks2 =>
+        let* immediates_equality :=
+          physical_equality_of_immediates tenv imms1 imms2
+        in
+        let blocks_equality := physical_equality_of_blocks blocks1 blocks2 in
+        Some (physical_equality_of_parts immediates_equality blocks_equality)
+      | _, _, _, _ => Some Proof_of_property.Unknown
+      end.
+
+  (* The cases of two heads that are not null of
+     [Provers.prove_physical_equality]. *)
+  Definition physical_equality_of_heads (tenv : Typing_env.t)
+      (head1 head2 : head_of_kind_value_non_null)
+      : option (Proof_of_property.t bool) :=
+    match head1, head2 with
+    | Boxed_number k1 contents1 _, Boxed_number k2 contents2 _ =>
+      if boxable_number_eqb k1 k2
+      then
+        let* incompatible :=
+          incompatible_naked_numbers tenv contents1 contents2
+        in
+        if incompatible
+        then Some (Proof_of_property.Proved false)
+        else Some Proof_of_property.Unknown
+      else Some (Proof_of_property.Proved false)
+    | Closures _ _, Closures _ _ => Some Proof_of_property.Unknown
+    | String strs1, String strs2 =>
+      if Keyed.is_empty (Keyed.inter (lists_eqb Z.eqb) strs1 strs2)
+      then Some (Proof_of_property.Proved false)
+      else Some Proof_of_property.Unknown
+    | Variant _ immediates1 _ blocks1 _ _,
+      Variant _ immediates2 _ blocks2 _ _ =>
+      physical_equality_of_variants tenv immediates1 immediates2 blocks1
+        blocks2
+    | Variant _ _ _ blocks _ _, Mutable_block _
+    | Mutable_block _, Variant _ _ _ blocks _ _ =>
+      match blocks with
+      | Or_unknown.Known blocks =>
+        if row_like_for_blocks_is_bottom blocks
+        then Some (Proof_of_property.Proved false)
+        else Some Proof_of_property.Unknown
+      | Or_unknown.Unknown => Some Proof_of_property.Unknown
+      end
+    | Mutable_block _, Mutable_block _ => Some Proof_of_property.Unknown
+    | Boxed_number _ _ _,
+      (Variant _ _ _ _ _ _ | Mutable_block _ | Closures _ _ | String _)
+    | (Variant _ _ _ _ _ _ | Mutable_block _ | Closures _ _ | String _),
+      Boxed_number _ _ _ =>
+      Some (Proof_of_property.Proved false)
+    | Closures _ _, (Variant _ _ _ _ _ _ | Mutable_block _ | String _)
+    | (Variant _ _ _ _ _ _ | Mutable_block _ | String _), Closures _ _ =>
+      Some (Proof_of_property.Proved false)
+    | String _, (Variant _ _ _ _ _ _ | Mutable_block _)
+    | (Variant _ _ _ _ _ _ | Mutable_block _), String _ =>
+      Some (Proof_of_property.Proved false)
+    end.
+
+  (* The local function [check_heads] of
+     [Provers.prove_physical_equality]. *)
+  Definition physical_equality_check_heads (tenv : Typing_env.t)
+      (t1 t2 : flambda_type) : option (Proof_of_property.t bool) :=
+    let* expanded1 := expand_head tenv t1 in
+    let* expanded2 := expand_head tenv t2 in
+    match expanded1, expanded2 with
+    | (Oub_naked_immediate _ | Oub_naked_number _ _ | Oub_rec_info _
+      | Oub_region _), _
+    | _, (Oub_naked_immediate _ | Oub_naked_number _ _ | Oub_rec_info _
+         | Oub_region _) =>
+      Some (wrong_kind Proof_of_property.Unknown)
+    | Oub_value (Unknown | Bottom), _ | _, Oub_value (Unknown | Bottom) =>
+      Some Proof_of_property.Unknown
+    | Oub_value (Ok (Head_of_kind_value non_null1 is_null1)),
+      Oub_value (Ok (Head_of_kind_value non_null2 is_null2)) =>
+      match is_null1, is_null2 with
+      | Maybe_null _, Maybe_null _ =>
+        match non_null1, non_null2 with
+        | Bottom, Bottom => Some (Proof_of_property.Proved true)
+        | _, _ => Some Proof_of_property.Unknown
+        end
+      | Maybe_null _, Not_null | Not_null, Maybe_null _ =>
+        Some Proof_of_property.Unknown
+      | Not_null, Not_null =>
+        match non_null1, non_null2 with
+        | Ok head1, Ok head2 => physical_equality_of_heads tenv head1 head2
+        | _, _ => Some Proof_of_property.Unknown
+        end
+      end
+    end.
+
+  (* [Provers.prove_physical_equality]. *)
+  Definition prove_physical_equality (tenv : Typing_env.t)
+      (t1 t2 : flambda_type) : option (Proof_of_property.t bool) :=
+    match get_alias_opt t1, get_alias_opt t2 with
+    | Some s1, Some s2 =>
+      match s1, s2 with
+      | Const c1, Const c2 =>
+        if const_eqb c1 c2
+        then Some (Proof_of_property.Proved true)
+        else Some (Proof_of_property.Proved false)
+      | Const _, Symbol _ | Symbol _, Const _ =>
+        Some (Proof_of_property.Proved false)
+      | Symbol sym1, Symbol sym2 =>
+        if Pos.eqb sym1 sym2
+        then Some (Proof_of_property.Proved true)
+        else Some (Proof_of_property.Proved false)
+      | Var var1, Var var2 =>
+        if Pos.eqb var1 var2
+        then Some (Proof_of_property.Proved true)
+        else physical_equality_check_heads tenv t1 t2
+      | Const _, Var _ | Symbol _, Var _ | Var _, Const _ | Var _, Symbol _ =>
+        physical_equality_check_heads tenv t1 t2
+      end
+    | None, Some _ | Some _, None | None, None =>
+      physical_equality_check_heads tenv t1 t2
+    end.
 
 End Provers.

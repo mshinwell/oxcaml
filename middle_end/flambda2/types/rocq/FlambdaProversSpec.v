@@ -103,8 +103,8 @@
    gives a well-formed type is proved here, from the definitions of
    [expand_head] and [Typing_env.find].
 
-   Two other statements take well-formed types, each for a reason of
-   its own.
+   Three other statements take well-formed types, each for a reason
+   of its own.
    - [meet_single_closures_entry] answers that a type has no closure
      where the one case of its closures is exact and has no function
      type for its own slot, which the meaning of types does not say
@@ -113,6 +113,9 @@
    - That [prove_unique_fully_constructed_immutable_heap_block]
      answers a [Simple] for every field of the block needs a product
      as wide as an exact size (condition 6).
+   - [prove_physical_equality] takes two blocks of shapes that are
+     not equal to be two blocks, which is so of shapes written in one
+     way (condition 7).
 
    Poison (decision D26).
    - Under strict satisfaction a value that is poison has only types
@@ -250,9 +253,10 @@ Definition types_well_formed (tenv : Typing_env.t) : Prop :=
    [type_well_formed] has conditions that only some of the creation
    functions establish (FlambdaTypeWellFormedSpec.v says which). The
    provers that take it here use conditions 2, 3 and 10, which exclude
-   a type that the compiler's grammar has not, and two statements one
-   more each (conditions 6 and 8; the header says which); a statement
-   that took those alone would hold of more types. Decision D32. *)
+   a type that the compiler's grammar has not, and three statements
+   one more each (conditions 6, 7 and 8; the header says which); a
+   statement that took those alone would hold of more types. Decision
+   D32. *)
 Definition well_formed_input (tenv : Typing_env.t) (t : flambda_type)
     : Prop :=
   types_well_formed tenv ∧ type_well_formed t = true.
@@ -1100,3 +1104,42 @@ Definition closure_provers_silent_on_poison_statement : Prop :=
         (fun tenv t =>
            Provers.meet_project_value_slot_simple tenv min_name_mode t slot
              value_slot_kind).
+
+(* ======================================================================== *)
+(* Physical equality                                                        *)
+(* ======================================================================== *)
+
+(* [Provers.prove_physical_equality], of a value of each of two types:
+   [Proved true] says that they are the same value, and [Proved false]
+   that they are not. The types are to be well formed: the prover
+   reads the numbers of the immediates of two variants, and takes two
+   blocks of shapes that are not equal to be two blocks (conditions 2,
+   3, 7 and 10 of FlambdaTypeWellFormedSpec.v). *)
+(* CR mshinwell: this is about values of the model, which are not
+   addresses: two blocks, two boxed numbers or two closures with the
+   same contents are one value here, and may be two allocations when
+   the program runs. So [Proved false] says more here than that the
+   two are not physically equal, and [Proved true] says less than
+   that they are. The prover answers [Proved true] only of two types
+   of null, of two variants that are one tagged immediate, and of two
+   aliases of one constant, one symbol or one variable. Of two values
+   of kind value that are not poison, being the same value is there
+   being physically equal, whatever allocation is. The statement has
+   no such premise, and of two aliases of a naked constant or of a
+   poison constant it says that they are the same value and no more:
+   [Phys_equal] is of values of kind value, and what the compiler and
+   the backend make of the equality of two poison constants is
+   discrepancy P1-1. What [Phys_equal] is of two allocated values is
+   not in the model. Decision D19. *)
+Definition prove_physical_equality_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
+    (t1 t2 : flambda_type) (b : bool) (v1 v2 : value),
+    typing_env_satisfied_strictly statics valuation tenv ->
+    well_formed_input tenv t1 ->
+    well_formed_input tenv t2 ->
+    type_satisfied statics valuation v1 t1 ->
+    type_satisfied statics valuation v2 t2 ->
+    Provers.prove_physical_equality tenv t1 t2
+    = Some (Proof_of_property.Proved b) ->
+    if b then v1 = v2 else v1 <> v2.

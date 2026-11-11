@@ -41,9 +41,10 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaMapSpec FlambdaMapProofs FlambdaValueSpec FlambdaValueProofs
   FlambdaPrimitiveModel FlambdaPrimitiveSpec FlambdaPrimitiveProofs
-  FlambdaSemanticsSpec FlambdaSemanticsProofs.
+  FlambdaSemanticsSpec FlambdaSemanticsProofs FlambdaCompareSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs FlambdaTypeWellFormedSpec
+  FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs FlambdaTypeMeaningBoolSpec
+  FlambdaTypeMeaningBoolProofs FlambdaTypeWellFormedSpec
   FlambdaTypeWellFormedProofs FlambdaTypeEqualSpec FlambdaTypeEqualProofs
   FlambdaTypeAccessSpec FlambdaTypeAccessProofs FlambdaBindingTime
   FlambdaEnvAliases
@@ -2861,6 +2862,542 @@ Proof.
   - exact (meet_project_value_slot_simple_value_sound _ _ _).
 Qed.
 
+(* ======================================================================== *)
+(* Physical equality                                                        *)
+(* ======================================================================== *)
+
+Lemma in_inter_keyed {K : Type} (eqb : K -> K -> bool) (key : K)
+    (keys keys' : list K) :
+  decides_equality eqb ->
+  key ∈ keys -> key ∈ keys' -> key ∈ Keyed.inter eqb keys keys'.
+Proof.
+  intros Heqb Hin Hin'.
+  apply (keyed_among_in K eqb Heqb).
+  rewrite (keyed_among_inter K eqb Heqb).
+  rewrite (proj2 (keyed_among_in K eqb Heqb key keys) Hin).
+  rewrite (proj2 (keyed_among_in K eqb Heqb key keys') Hin').
+  reflexivity.
+Qed.
+
+(* Two sets with no member in common have no member in common. *)
+Lemma disjoint_not_both {K : Type} (eqb : K -> K -> bool) (key : K)
+    (keys keys' : list K) :
+  decides_equality eqb ->
+  Keyed.is_empty (Keyed.inter eqb keys keys') = true ->
+  key ∈ keys -> key ∈ keys' -> False.
+Proof.
+  intros Heqb Hempty Hin Hin'.
+  pose proof (in_inter_keyed eqb key keys keys' Heqb Hin Hin') as Hinter.
+  rewrite (is_empty_nil _ Hempty) in Hinter. exact Hinter.
+Qed.
+
+(* One value has not two types of naked numbers that
+   [Provers.incompatible_naked_numbers] tells apart. *)
+Lemma incompatible_naked_numbers_sound (statics : static_env)
+    (valuation : env) (tenv : Typing_env.t) (t1 t2 : flambda_type)
+    (v : value) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  type_satisfied statics valuation v t1 ->
+  type_satisfied statics valuation v t2 ->
+  Provers.incompatible_naked_numbers tenv t1 t2 <> Some true.
+Proof.
+  intros Hsat Hv1 Hv2. unfold Provers.incompatible_naked_numbers.
+  destruct (Provers.expand_head tenv t1) as [d1 | ] eqn:Hd1;
+    [ | discriminate ].
+  destruct (Provers.expand_head tenv t2) as [d2 | ] eqn:Hd2;
+    [ | discriminate ].
+  simpl.
+  destruct d1 as [oub1 | oub1 | k1 [ | s1 | ] | oub1 | oub1];
+    try discriminate;
+    destruct d2 as [oub2 | oub2 | k2 [ | s2 | ] | oub2 | oub2];
+    try discriminate.
+  intros [= Hincompatible]. apply andb_prop in Hincompatible.
+  destruct Hincompatible as [_ Hempty].
+  pose proof (expanded_naked_number_cases _ _ _ _ _ _ _ Hsat Hv1 Hd1) as H1.
+  pose proof (expanded_naked_number_cases _ _ _ _ _ _ _ Hsat Hv2 Hd2) as H2.
+  cbv beta iota in H1, H2.
+  destruct H1 as [c1 [n1 [-> [_ [Hn1 Hin1]]]]].
+  destruct H2 as [c2 [n2 [Heq [_ [Hn2 Hin2]]]]].
+  injection Heq as <-. rewrite Hn1 in Hn2. injection Hn2 as <-.
+  exact
+    (disjoint_not_both Z.eqb n1 s1 s2 z_eqb_decides_equality Hempty Hin1
+       Hin2).
+Qed.
+
+(* What [Provers.physical_equality_of_immediates] says of a naked
+   immediate of each type; and if it says that neither type has one,
+   neither has. *)
+Lemma physical_equality_of_immediates_sound (statics : static_env)
+    (valuation : env) (tenv : Typing_env.t) (imms1 imms2 : flambda_type)
+    (proof : Generic_proof.t bool) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  well_formed_input tenv imms1 ->
+  well_formed_input tenv imms2 ->
+  Provers.physical_equality_of_immediates tenv imms1 imms2 = Some proof ->
+  (∀ i1 i2 : Z,
+    type_satisfied statics valuation (Value_const (Naked_immediate i1))
+      imms1 ->
+    type_satisfied statics valuation (Value_const (Naked_immediate i2))
+      imms2 ->
+    match proof with
+    | Generic_proof.Proved b => if b then i1 = i2 else i1 <> i2
+    | Generic_proof.Invalid => False
+    | Generic_proof.Unknown => True
+    end)
+  ∧ (proof = Generic_proof.Invalid ->
+     ∀ i : Z,
+       ~ type_satisfied statics valuation (Value_const (Naked_immediate i))
+           imms1
+       ∧ ~ type_satisfied statics valuation
+             (Value_const (Naked_immediate i)) imms2).
+Proof.
+  intros Hsat Hwf1 Hwf2. unfold Provers.physical_equality_of_immediates.
+  pose proof
+    (fun i Hi =>
+       prove_naked_immediates_generic_sound statics valuation tenv imms1
+         (Value_const (Naked_immediate i)) Hsat Hwf1 Hi eq_refl)
+    as Hsound1.
+  pose proof
+    (fun i Hi =>
+       prove_naked_immediates_generic_sound statics valuation tenv imms2
+         (Value_const (Naked_immediate i)) Hsat Hwf2 Hi eq_refl)
+    as Hsound2.
+  destruct (Provers.prove_naked_immediates_generic tenv imms1)
+    as [proof1 | ];
+    [ | discriminate ].
+  destruct (Provers.prove_naked_immediates_generic tenv imms2)
+    as [proof2 | ];
+    [ | discriminate ].
+  simpl.
+  destruct proof1 as [set1 | | ], proof2 as [set2 | | ];
+    cbv beta iota in Hsound1, Hsound2.
+  - destruct (Keyed.is_empty (Keyed.inter Z.eqb set1 set2)) eqn:Hempty.
+    + intros [= <-]. split; [ | discriminate ].
+      intros i1 i2 H1 H2 Heq. subst i2.
+      destruct (Hsound1 _ H1) as [i [[= <-] Hin1]].
+      destruct (Hsound2 _ H2) as [i [[= <-] Hin2]].
+      exact
+        (disjoint_not_both Z.eqb i1 set1 set2 z_eqb_decides_equality Hempty
+           Hin1 Hin2).
+    + destruct (Keyed.get_singleton Z.eqb set1) as [imm1 | ] eqn:Hsingle1;
+        [ | intros [= <-]; split; [ intros; exact I | discriminate ] ].
+      destruct (Keyed.get_singleton Z.eqb set2) as [imm2 | ] eqn:Hsingle2;
+        [ | intros [= <-]; split; [ intros; exact I | discriminate ] ].
+      destruct (Z.eqb imm1 imm2) eqn:Hsame; [ | discriminate ].
+      intros [= <-]. split; [ | discriminate ].
+      intros i1 i2 H1 H2.
+      destruct (Hsound1 _ H1) as [i [[= <-] Hin1]].
+      destruct (Hsound2 _ H2) as [i [[= <-] Hin2]].
+      rewrite (get_singleton_in _ _ _ Hsingle1 Hin1).
+      rewrite (get_singleton_in _ _ _ Hsingle2 Hin2).
+      exact (proj1 (Z.eqb_eq _ _) Hsame).
+  - intros [= <-]. split; [ intros; exact I | discriminate ].
+  - intros [= <-]. split; [ | discriminate ].
+    intros i1 i2 H1 H2. destruct (Hsound2 _ H2).
+  - intros [= <-]. split; [ intros; exact I | discriminate ].
+  - intros [= <-]. split; [ intros; exact I | discriminate ].
+  - intros [= <-]. split; [ | discriminate ].
+    intros i1 i2 H1 H2. destruct (Hsound2 _ H2).
+  - intros [= <-]. split; [ | discriminate ].
+    intros i1 i2 H1 H2. destruct (Hsound1 _ H1).
+  - intros [= <-]. split; [ | discriminate ].
+    intros i1 i2 H1 H2. destruct (Hsound1 _ H1).
+  - intros [= <-]. split.
+    + intros i1 i2 H1 H2. exact (Hsound1 _ H1).
+    + intros _ i. split; intros Hi; [ exact (Hsound1 _ Hi) | ].
+      exact (Hsound2 _ Hi).
+Qed.
+
+(* The shape that [get_singleton] answers of a well-formed structure
+   is written in one way. *)
+Lemma get_singleton_canonical (blocks : row_like_for_blocks) (tag : Z)
+    (shape : block_shape) (size : nat) (tys : list flambda_type)
+    (alloc_mode : Alloc_mode.t) :
+  row_like_for_blocks_well_formed blocks = true ->
+  row_like_for_blocks_get_singleton blocks
+  = Some (tag, shape, size, tys, alloc_mode) ->
+  block_shape_canonical shape.
+Proof.
+  intros Hwf Hsingleton.
+  destruct blocks as [known_tags other_tags alloc_mode'].
+  destruct (get_singleton_case _ _ _ _ _ _ _ _ Hsingleton)
+    as [_ [case [Hlookup [_ [Hshape _]]]]].
+  specialize (Hlookup tag). rewrite Z.eqb_refl in Hlookup.
+  pose proof
+    (proj1
+       (proj2
+          (proj1
+             (row_like_for_blocks_well_formed_iff known_tags other_tags
+                alloc_mode')
+             Hwf))
+       tag case Hlookup)
+    as Hcase.
+  apply row_like_block_case_well_formed_iff in Hcase.
+  destruct Hcase as [_ [Hcanonical _]].
+  rewrite <- Hshape. exact Hcanonical.
+Qed.
+
+(* What [Provers.physical_equality_of_blocks] answers: unknown, if a
+   block is of both structures; that neither has a block, only if
+   neither has; and never that two blocks are the same. *)
+Lemma physical_equality_of_blocks_sound (statics : static_env)
+    (valuation : env) (blocks1 blocks2 : row_like_for_blocks) :
+  row_like_for_blocks_well_formed blocks1 = true ->
+  row_like_for_blocks_well_formed blocks2 = true ->
+  (∀ (tag : Z) (fields : list value),
+    row_like_for_blocks_satisfied statics valuation tag fields blocks1 ->
+    row_like_for_blocks_satisfied statics valuation tag fields blocks2 ->
+    Provers.physical_equality_of_blocks blocks1 blocks2
+    = Generic_proof.Unknown)
+  ∧ (Provers.physical_equality_of_blocks blocks1 blocks2
+     = Generic_proof.Invalid ->
+     ∀ (tag : Z) (fields : list value),
+       ~ row_like_for_blocks_satisfied statics valuation tag fields blocks1
+       ∧ ~ row_like_for_blocks_satisfied statics valuation tag fields
+             blocks2)
+  ∧ Provers.physical_equality_of_blocks blocks1 blocks2
+    <> Generic_proof.Proved true.
+Proof.
+  intros Hwf1 Hwf2. unfold Provers.physical_equality_of_blocks.
+  destruct (row_like_for_blocks_is_bottom blocks1) eqn:Hbottom1;
+    destruct (row_like_for_blocks_is_bottom blocks2) eqn:Hbottom2;
+    simpl.
+  - split; [ | split; [ | discriminate ] ].
+    + intros tag fields H1 _. exfalso.
+      exact (row_like_for_blocks_is_bottom_satisfied _ _ _ _ _ Hbottom1 H1).
+    + intros _ tag fields.
+      split;
+        [ exact (row_like_for_blocks_is_bottom_satisfied _ _ _ _ _ Hbottom1)
+        | exact (row_like_for_blocks_is_bottom_satisfied _ _ _ _ _ Hbottom2)
+        ].
+  - split; [ | split; discriminate ].
+    intros tag fields H1 _. exfalso.
+    exact (row_like_for_blocks_is_bottom_satisfied _ _ _ _ _ Hbottom1 H1).
+  - split; [ | split; discriminate ].
+    intros tag fields _ H2. exfalso.
+    exact (row_like_for_blocks_is_bottom_satisfied _ _ _ _ _ Hbottom2 H2).
+  - destruct (row_like_for_blocks_get_singleton blocks1)
+      as [[[[[tag1 shape1] size1] tys1] alloc_mode1] | ] eqn:Hsingle1;
+      [ | split; [ intros; reflexivity | split; discriminate ] ].
+    destruct (row_like_for_blocks_get_singleton blocks2)
+      as [[[[[tag2 shape2] size2] tys2] alloc_mode2] | ] eqn:Hsingle2;
+      [ | split; [ intros; reflexivity | split; discriminate ] ].
+    destruct
+      (Z.eqb tag1 tag2 && Nat.eqb size1 size2
+       && block_shape_eqb shape1 shape2)
+      eqn:Hsame;
+      [ split; [ intros; reflexivity | split; discriminate ] | ].
+    split; [ | split; discriminate ].
+    intros tag fields H1 H2. exfalso.
+    destruct (get_singleton_satisfied _ _ _ _ _ _ _ _ _ _ Hsingle1 H1)
+      as [-> [Hlength1 [Hshape1 _]]].
+    destruct (get_singleton_satisfied _ _ _ _ _ _ _ _ _ _ Hsingle2 H2)
+      as [Htag [Hlength2 [Hshape2 _]]].
+    subst tag2.
+    pose proof
+      (block_shapes_disjoint shape1 shape2 tag1 fields
+         (get_singleton_canonical _ _ _ _ _ _ Hwf1 Hsingle1)
+         (get_singleton_canonical _ _ _ _ _ _ Hwf2 Hsingle2) Hshape1 Hshape2)
+      as Hshape.
+    subst shape2. rewrite <- Hlength1, <- Hlength2 in Hsame.
+    rewrite Z.eqb_refl, Nat.eqb_refl in Hsame.
+    rewrite (proj2 (block_shape_eqb_eq shape1 shape1) eq_refl) in Hsame.
+    discriminate Hsame.
+Qed.
+
+(* The blocks of a well-formed variant are well formed. *)
+Lemma well_formed_head_blocks (tenv : Typing_env.t)
+    (is_int : option variable) (immediates : Or_unknown.t flambda_type)
+    (get_tag : option variable) (blocks : row_like_for_blocks)
+    (extensions : variant_extensions) (is_unique : bool) :
+  well_formed_head tenv
+    (Variant is_int immediates get_tag (Or_unknown.Known blocks) extensions
+       is_unique) ->
+  row_like_for_blocks_well_formed blocks = true.
+Proof.
+  intros [_ Hwf]. rewrite variant_well_formed in Hwf.
+  apply andb_prop in Hwf. destruct Hwf as [Hwf _].
+  apply andb_prop in Hwf. exact (proj2 Hwf).
+Qed.
+
+(* A variant with no immediate is not a variant with no block. *)
+Lemma no_immediate_and_no_block_sound (statics : static_env)
+    (valuation : env) (v1 v2 : value) (is_int1 is_int2 : option variable)
+    (immediates1 immediates2 : Or_unknown.t flambda_type)
+    (get_tag1 get_tag2 : option variable)
+    (blocks1 blocks2 : Or_unknown.t row_like_for_blocks)
+    (extensions1 extensions2 : variant_extensions)
+    (is_unique1 is_unique2 : bool) :
+  head_of_kind_value_non_null_satisfied statics valuation v1
+    (Variant is_int1 immediates1 get_tag1 blocks1 extensions1 is_unique1) ->
+  head_of_kind_value_non_null_satisfied statics valuation v2
+    (Variant is_int2 immediates2 get_tag2 blocks2 extensions2 is_unique2) ->
+  Provers.no_immediate_and_no_block immediates1 blocks2 = true ->
+  v1 <> v2.
+Proof.
+  intros Hhead1 Hhead2 Htest Heq. subst v2.
+  unfold Provers.no_immediate_and_no_block in Htest.
+  destruct immediates1 as [imms1 | ]; [ | discriminate Htest ].
+  destruct blocks2 as [blocks2 | ]; [ | discriminate Htest ].
+  apply andb_prop in Htest. destruct Htest as [Himms Hblocks].
+  destruct (variant_cases _ _ _ _ _ _ _ _ _ Hhead1)
+    as [[i [-> Hi]] | [tag [fields [Hblock _]]]].
+  - exact (is_obviously_bottom_satisfied _ _ _ _ Himms Hi).
+  - destruct (variant_cases _ _ _ _ _ _ _ _ _ Hhead2)
+      as [[i [-> _]] | [tag' [fields' [Hblock' Hrow]]]].
+    + discriminate Hblock.
+    + exact (row_like_for_blocks_is_bottom_satisfied _ _ _ _ _ Hblocks Hrow).
+Qed.
+
+(* How the answers for the immediates and for the blocks of two
+   variants make a proof. *)
+Lemma physical_equality_of_parts_cases
+    (immediates_equality blocks_equality : Generic_proof.t bool) (b : bool) :
+  Provers.physical_equality_of_parts immediates_equality blocks_equality
+  = Proof_of_property.Proved b ->
+  (blocks_equality = Generic_proof.Invalid
+   ∧ immediates_equality = Generic_proof.Proved b)
+  ∨ (immediates_equality = Generic_proof.Invalid
+     ∧ blocks_equality = Generic_proof.Proved b)
+  ∨ (b = false
+     ∧ immediates_equality = Generic_proof.Proved false
+     ∧ blocks_equality = Generic_proof.Proved false).
+Proof.
+  destruct immediates_equality as [[ | ] | | ],
+    blocks_equality as [[ | ] | | ];
+    simpl; try discriminate; intros [= <-]; auto.
+Qed.
+
+Lemma physical_equality_of_variants_sound (statics : static_env)
+    (valuation : env) (tenv : Typing_env.t) (v1 v2 : value)
+    (is_int1 is_int2 : option variable)
+    (immediates1 immediates2 : Or_unknown.t flambda_type)
+    (get_tag1 get_tag2 : option variable)
+    (blocks1 blocks2 : Or_unknown.t row_like_for_blocks)
+    (extensions1 extensions2 : variant_extensions)
+    (is_unique1 is_unique2 : bool) (b : bool) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  well_formed_head tenv
+    (Variant is_int1 immediates1 get_tag1 blocks1 extensions1 is_unique1) ->
+  well_formed_head tenv
+    (Variant is_int2 immediates2 get_tag2 blocks2 extensions2 is_unique2) ->
+  head_of_kind_value_non_null_satisfied statics valuation v1
+    (Variant is_int1 immediates1 get_tag1 blocks1 extensions1 is_unique1) ->
+  head_of_kind_value_non_null_satisfied statics valuation v2
+    (Variant is_int2 immediates2 get_tag2 blocks2 extensions2 is_unique2) ->
+  Provers.physical_equality_of_variants tenv immediates1 immediates2 blocks1
+    blocks2
+  = Some (Proof_of_property.Proved b) ->
+  if b then v1 = v2 else v1 <> v2.
+Proof.
+  intros Hsat Hwf1 Hwf2 Hhead1 Hhead2.
+  unfold Provers.physical_equality_of_variants.
+  destruct (Provers.no_immediate_and_no_block immediates1 blocks2)
+    eqn:Hguard1.
+  { intros [= <-].
+    exact
+      (no_immediate_and_no_block_sound _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+         Hhead1 Hhead2 Hguard1). }
+  destruct (Provers.no_immediate_and_no_block immediates2 blocks1)
+    eqn:Hguard2.
+  { intros [= <-] Heq.
+    exact
+      (no_immediate_and_no_block_sound _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+         Hhead2 Hhead1 Hguard2 (eq_sym Heq)). }
+  destruct immediates1 as [imms1 | ]; [ | discriminate ].
+  destruct immediates2 as [imms2 | ]; [ | discriminate ].
+  destruct blocks1 as [blocks1 | ]; [ | discriminate ].
+  destruct blocks2 as [blocks2 | ]; [ | discriminate ].
+  destruct (Provers.physical_equality_of_immediates tenv imms1 imms2)
+    as [immediates_equality | ] eqn:Himmediates;
+    [ | discriminate ].
+  simpl. intros [= Hresult].
+  destruct
+    (physical_equality_of_immediates_sound _ _ _ _ _ _ Hsat
+       (well_formed_head_immediates _ _ _ _ _ _ _ Hwf1)
+       (well_formed_head_immediates _ _ _ _ _ _ _ Hwf2) Himmediates)
+    as [Himms_values Himms_invalid].
+  destruct
+    (physical_equality_of_blocks_sound statics valuation blocks1 blocks2
+       (well_formed_head_blocks _ _ _ _ _ _ _ Hwf1)
+       (well_formed_head_blocks _ _ _ _ _ _ _ Hwf2))
+    as [Hblocks_common [Hblocks_invalid Hblocks_true]].
+  destruct (variant_cases _ _ _ _ _ _ _ _ _ Hhead1)
+    as [[i1 [-> Hi1]] | [tag1 [fields1 [Hblock1 Hrow1]]]];
+    destruct (variant_cases _ _ _ _ _ _ _ _ _ Hhead2)
+      as [[i2 [-> Hi2]] | [tag2 [fields2 [Hblock2 Hrow2]]]];
+    destruct (physical_equality_of_parts_cases _ _ _ Hresult)
+      as [[Hblocks Himms] | [[Himms Hblocks] | [-> [Himms Hblocks]]]].
+  - specialize (Himms_values i1 i2 Hi1 Hi2). rewrite Himms in Himms_values.
+    destruct b; [ rewrite Himms_values; reflexivity | ].
+    intros [= Heq]. exact (Himms_values Heq).
+  - destruct (proj1 (Himms_invalid Himms i1) Hi1).
+  - specialize (Himms_values i1 i2 Hi1 Hi2). rewrite Himms in Himms_values.
+    intros [= Heq]. exact (Himms_values Heq).
+  - destruct (proj2 (Hblocks_invalid Hblocks tag2 fields2) Hrow2).
+  - destruct (proj1 (Himms_invalid Himms i1) Hi1).
+  - intros <-. discriminate Hblock2.
+  - destruct (proj1 (Hblocks_invalid Hblocks tag1 fields1) Hrow1).
+  - destruct (proj2 (Himms_invalid Himms i2) Hi2).
+  - intros ->. discriminate Hblock1.
+  - destruct (proj1 (Hblocks_invalid Hblocks tag1 fields1) Hrow1).
+  - destruct b; [ contradiction | ].
+    intros <-. rewrite Hblock1 in Hblock2. injection Hblock2 as <- <-.
+    rewrite (Hblocks_common tag1 fields1 Hrow1 Hrow2) in Hblocks.
+    discriminate Hblocks.
+  - intros <-. rewrite Hblock1 in Hblock2. injection Hblock2 as <- <-.
+    rewrite (Hblocks_common tag1 fields1 Hrow1 Hrow2) in Hblocks.
+    discriminate Hblocks.
+Qed.
+
+Lemma physical_equality_of_heads_sound (statics : static_env)
+    (valuation : env) (tenv : Typing_env.t)
+    (head1 head2 : head_of_kind_value_non_null) (v1 v2 : value) (b : bool) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  well_formed_head tenv head1 ->
+  well_formed_head tenv head2 ->
+  head_of_kind_value_non_null_satisfied statics valuation v1 head1 ->
+  head_of_kind_value_non_null_satisfied statics valuation v2 head2 ->
+  Provers.physical_equality_of_heads tenv head1 head2
+  = Some (Proof_of_property.Proved b) ->
+  if b then v1 = v2 else v1 <> v2.
+Proof.
+  intros Hsat Hwf1 Hwf2 Hhead1 Hhead2 Hresult.
+  assert (Hcompatible : v1 = v2 -> heads_compatible head1 head2).
+  { intros <-. exact (heads_compatible_satisfied _ _ _ _ _ Hhead1 Hhead2). }
+  unfold Provers.physical_equality_of_heads in Hresult.
+  destruct head1 as [is_int1 immediates1 get_tag1 blocks1 extensions1
+                       is_unique1
+                    | alloc_mode1 | k1 contents1 alloc_mode1
+                    | by_function_slot1 alloc_mode1 | strs1];
+    try (rewrite mutable_block_head_satisfied in Hhead1; destruct Hhead1);
+    destruct head2 as [is_int2 immediates2 get_tag2 blocks2 extensions2
+                         is_unique2
+                      | alloc_mode2 | k2 contents2 alloc_mode2
+                      | by_function_slot2 alloc_mode2 | strs2];
+    try (rewrite mutable_block_head_satisfied in Hhead2; destruct Hhead2);
+    cbv beta iota in Hresult; unfold heads_compatible in Hcompatible;
+    try discriminate Hresult;
+    try (injection Hresult as <-; exact Hcompatible).
+  - exact
+      (physical_equality_of_variants_sound _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+         _ _ Hsat Hwf1 Hwf2 Hhead1 Hhead2 Hresult).
+  - destruct (boxable_number_eqb k1 k2) eqn:Hk.
+    + destruct
+        (Provers.incompatible_naked_numbers tenv contents1 contents2)
+        as [[ | ] | ] eqn:Hincompatible;
+        try discriminate Hresult.
+      injection Hresult as <-. intros Heq. subst v2.
+      rewrite boxed_number_satisfied in Hhead1, Hhead2.
+      destruct Hhead1 as [c1 [Hboxed1 [_ Hc1]]].
+      destruct Hhead2 as [c2 [Hboxed2 [_ Hc2]]].
+      rewrite Hboxed1 in Hboxed2. injection Hboxed2 as <-.
+      exact
+        (incompatible_naked_numbers_sound _ _ _ _ _ _ Hsat Hc1 Hc2
+           Hincompatible).
+    + injection Hresult as <-. intros Heq.
+      rewrite (Hcompatible Heq) in Hk.
+      rewrite (proj2 (boxable_number_eqb_eq k2 k2) eq_refl) in Hk.
+      discriminate Hk.
+  - destruct (Keyed.is_empty (Keyed.inter (lists_eqb Z.eqb) strs1 strs2))
+      eqn:Hempty;
+      [ | discriminate Hresult ].
+    injection Hresult as <-. intros Heq. subst v2.
+    rewrite string_satisfied in Hhead1, Hhead2.
+    destruct Hhead1 as [bytes1 [Hstring1 Hin1]].
+    destruct Hhead2 as [bytes2 [Hstring2 Hin2]].
+    rewrite Hstring1 in Hstring2. injection Hstring2 as <-.
+    exact
+      (disjoint_not_both (lists_eqb Z.eqb) bytes1 strs1 strs2 bytes_eqb_eq
+         Hempty Hin1 Hin2).
+Qed.
+
+Lemma physical_equality_check_heads_sound (statics : static_env)
+    (valuation : env) (tenv : Typing_env.t) (t1 t2 : flambda_type)
+    (v1 v2 : value) (b : bool) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  well_formed_input tenv t1 ->
+  well_formed_input tenv t2 ->
+  type_satisfied statics valuation v1 t1 ->
+  type_satisfied statics valuation v2 t2 ->
+  Provers.physical_equality_check_heads tenv t1 t2
+  = Some (Proof_of_property.Proved b) ->
+  if b then v1 = v2 else v1 <> v2.
+Proof.
+  intros Hsat Hin1 Hin2 Hv1 Hv2.
+  unfold Provers.physical_equality_check_heads.
+  destruct (Provers.expand_head tenv t1) as [d1 | ] eqn:Hd1;
+    [ | discriminate ].
+  destruct (Provers.expand_head tenv t2) as [d2 | ] eqn:Hd2;
+    [ | discriminate ].
+  simpl.
+  destruct d1 as [[ | [non_null1 is_null1] | ] | oub1 | k1 oub1 | oub1
+                 | oub1];
+    try discriminate;
+    destruct d2 as [[ | [non_null2 is_null2] | ] | oub2 | k2 oub2 | oub2
+                   | oub2];
+    try discriminate.
+  pose proof (expanded_value_cases _ _ _ _ _ _ Hsat Hv1 Hd1) as Hcases1.
+  pose proof (expanded_value_cases _ _ _ _ _ _ Hsat Hv2 Hd2) as Hcases2.
+  cbv beta iota in Hcases1, Hcases2.
+  destruct is_null1 as [ | x1], is_null2 as [ | x2]; try discriminate.
+  - destruct non_null1 as [ | head1 | ]; try discriminate;
+      destruct non_null2 as [ | head2 | ]; try discriminate.
+    intros Hresult.
+    destruct Hcases1 as [[_ Hnot] | [_ Hhead1]]; [ contradiction | ].
+    destruct Hcases2 as [[_ Hnot] | [_ Hhead2]]; [ contradiction | ].
+    exact
+      (physical_equality_of_heads_sound _ _ _ _ _ _ _ _ Hsat
+         (well_formed_input_to_head _ _ _ _ Hin1 Hd1)
+         (well_formed_input_to_head _ _ _ _ Hin2 Hd2) Hhead1 Hhead2 Hresult).
+  - destruct non_null1 as [ | head1 | ]; try discriminate;
+      destruct non_null2 as [ | head2 | ]; try discriminate.
+    intros [= <-].
+    destruct Hcases1 as [[-> _] | [_ []]].
+    destruct Hcases2 as [[-> _] | [_ []]]. reflexivity.
+Qed.
+
+Lemma prove_physical_equality_sound_proof (statics : static_env)
+    (valuation : env) (tenv : Typing_env.t) (t1 t2 : flambda_type)
+    (b : bool) (v1 v2 : value) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  well_formed_input tenv t1 ->
+  well_formed_input tenv t2 ->
+  type_satisfied statics valuation v1 t1 ->
+  type_satisfied statics valuation v2 t2 ->
+  Provers.prove_physical_equality tenv t1 t2
+  = Some (Proof_of_property.Proved b) ->
+  if b then v1 = v2 else v1 <> v2.
+Proof.
+  intros Hsat Hin1 Hin2 Hv1 Hv2.
+  pose proof
+    (physical_equality_check_heads_sound _ _ _ _ _ _ _ b Hsat Hin1 Hin2 Hv1
+       Hv2)
+    as Hcheck.
+  unfold Provers.prove_physical_equality.
+  destruct (get_alias_opt t1) as [s1 | ] eqn:Halias1;
+    [ | destruct (get_alias_opt t2); exact Hcheck ].
+  destruct (get_alias_opt t2) as [s2 | ] eqn:Halias2; [ | exact Hcheck ].
+  pose proof (proj1 (proj1 (get_alias_satisfied _ _ _ _ _ Halias1) Hv1))
+    as Hs1.
+  pose proof (proj1 (proj1 (get_alias_satisfied _ _ _ _ _ Halias2) Hv2))
+    as Hs2.
+  destruct s1 as [x1 | sym1 | c1], s2 as [x2 | sym2 | c2];
+    try exact Hcheck; simpl in Hs1, Hs2.
+  - destruct (Pos.eqb_spec x1 x2) as [-> | Hne]; [ | exact Hcheck ].
+    intros [= <-]. rewrite Hs1 in Hs2. injection Hs2 as <-. reflexivity.
+  - injection Hs1 as <-. injection Hs2 as <-.
+    destruct (Pos.eqb_spec sym1 sym2) as [-> | Hne]; intros [= <-];
+      [ reflexivity | ].
+    intros [= Heq]. exact (Hne Heq).
+  - injection Hs1 as <-. injection Hs2 as <-. intros [= <-]. discriminate.
+  - injection Hs1 as <-. injection Hs2 as <-. intros [= <-]. discriminate.
+  - injection Hs1 as <-. injection Hs2 as <-. unfold const_eqb.
+    destruct (const_eq_dec c1 c2) as [-> | Hne]; intros [= <-];
+      [ reflexivity | ].
+    intros [= Heq]. exact (Hne Heq).
+Qed.
+
 End With_expand_head.
 
 (* ======================================================================== *)
@@ -3300,3 +3837,7 @@ Proof.
   - intros min_name_mode slot value_slot_kind.
     exact (gen_value_to_meet_silent Hexpand _).
 Qed.
+
+Theorem prove_physical_equality_sound
+  : prove_physical_equality_sound_statement.
+Proof. exact prove_physical_equality_sound_proof. Qed.
