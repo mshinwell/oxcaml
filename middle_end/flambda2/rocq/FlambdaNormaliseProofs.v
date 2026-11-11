@@ -115,7 +115,7 @@ with handler_in_scope_sound (h : continuation_handler) :
     ∧ (∀ k : continuation, cont_free_in_handler k h -> k ∈ ks).
 Proof.
   - destruct e
-      as [ y d body | bindings body | k' h body | handlers body | ap | ac
+      as [ y kind d body | bindings body | k' h body | handlers body | ap | ac
          | scrutinee arms | ];
       intros vs ks Hscope; simpl in Hscope.
     + (* Let *)
@@ -203,7 +203,8 @@ Proof.
         apply andb_true_iff in Harms as [Hk _]. apply among_In, Hk.
     + (* Invalid *)
       split; intros ? [].
-  - destruct h as [params handler]. intros vs ks Hscope. simpl in Hscope.
+  - destruct h as [params metadata handler]. intros vs ks Hscope.
+    simpl in Hscope.
     destruct (expr_in_scope_sound handler _ _ Hscope) as [Hvars Hconts].
     split; [ | exact Hconts ].
     intros x [Hnotin Hx]. destruct (in_app_or _ _ _ (Hvars x Hx)); tauto.
@@ -341,11 +342,11 @@ Definition handlers_refine (ok : static_env -> Prop) (vars : env)
 (* Inlining leaves what binds something static as it is: what is inlined
    binds nothing. *)
 Lemma let_params_binds_statics (params : list variable) :
-  ∀ (args : list simple) (body : expr),
-    binds_statics (let_params params args body) = binds_statics body.
+  ∀ (kinds : list flambda_kind) (args : list simple) (body : expr),
+    binds_statics (let_params params kinds args body) = binds_statics body.
 Proof.
-  induction params as [ | param params IH]; intros [ | arg args] body; simpl;
-    auto.
+  induction params as [ | param params IH]; intros kinds [ | arg args] body;
+    simpl; auto.
 Qed.
 
 Lemma inlined_body_binds_statics (c : code) (r : renaming) (ap : apply_expr) :
@@ -379,18 +380,18 @@ Fixpoint inline_calls_binds_statics (e : expr) :
     binds_statics (inline_calls known e) = binds_statics e.
 Proof.
   destruct e
-    as [ x d body | bindings body | k h body | handlers body
+    as [ x kind d body | bindings body | k h body | handlers body
        | ap | ac | scrutinee arms | ];
     intros known; simpl; try reflexivity.
   - apply inline_calls_binds_statics.
   - rewrite inline_calls_binds_statics. f_equal.
     induction bindings as [ | [id c | id | sym const] bindings IH]; simpl;
       congruence.
-  - destruct h as [params handler]. simpl.
+  - destruct h as [params metadata handler]. simpl.
     rewrite !inline_calls_binds_statics. reflexivity.
   - rewrite inline_calls_binds_statics. f_equal.
-    induction handlers as [ | [k [params handler]] handlers IH]; simpl;
-      [ reflexivity | ].
+    induction handlers as [ | [k [params metadata handler]] handlers IH];
+      simpl; [ reflexivity | ].
     rewrite inline_calls_binds_statics, IH. reflexivity.
   - apply inline_apply_binds_statics.
 Qed.
@@ -402,7 +403,7 @@ Lemma inline_calls_handlers_bind_statics (known : list (code_id * code))
   = handlers_bind_statics handlers.
 Proof.
   unfold handlers_bind_statics.
-  induction handlers as [ | [k [params handler]] handlers IH]; simpl;
+  induction handlers as [ | [k [params metadata handler]] handlers IH]; simpl;
     [ reflexivity | ].
   rewrite inline_calls_binds_statics, IH. reflexivity.
 Qed.
@@ -428,7 +429,7 @@ Fixpoint inline_calls_refines_knowing (e : expr) :
       (State (inline_calls known e) vars conts statics).
 Proof.
   - destruct e
-      as [ x d body | bindings body | k h body | handlers body
+      as [ x kind d body | bindings body | k h body | handlers body
          | ap | ac | scrutinee arms | ];
       intros known vars conts statics Hknow; simpl;
       try apply refines_refl.
@@ -441,7 +442,8 @@ Proof.
         bindings_refine (statics_know known) bindings
           (map (inline_calls_in_binding known) bindings)).
       { induction bindings
-          as [ | [id [params my_closure ret exn code_body] | id | sym const]
+          as [ | [id [params my_closure ret exn metadata code_body] | id
+                 | sym const]
                  bindings IH];
           simpl.
         - split; apply Forall2_nil.
@@ -481,11 +483,11 @@ Proof.
       * apply inline_calls_refines_knowing.
         exact (eval_static_bindings_know vars bindings' known statics
           extended' Hknow Hbindings').
-    + destruct h as [params handler]. simpl.
+    + destruct h as [params metadata handler]. simpl.
       apply (refines_trans _
         (State
            (Let_cont_non_recursive k
-              (Handler params (inline_calls known handler)) body)
+              (Handler params metadata (inline_calls known handler)) body)
            vars conts statics)).
       * apply (let_cont_handler_refines_where (statics_know known)
           (statics_know_extend known)); [ exact Hknow | ].
@@ -504,7 +506,9 @@ Proof.
           handlers_refine (statics_know known) vars handlers
             (map (fun '(k, h) => (k, inline_calls_in_handler known h))
                handlers)).
-        { induction handlers as [ | [k [params handler]] handlers IH]; simpl.
+        { induction handlers
+            as [ | [k [params metadata handler]] handlers IH];
+            simpl.
           - split; apply Forall2_nil.
           - destruct IH as [Hforwards Hbackwards].
             split; (apply Forall2_cons; [ | assumption ]);
@@ -584,7 +588,7 @@ with var_free_in_handler_b_sound (x : variable) (h : continuation_handler)
   var_free_in_handler x h -> var_free_in_handler_b x h = true.
 Proof.
   - destruct e
-      as [ y d body | bindings body | k h body | handlers body | ap | ac
+      as [ y kind d body | bindings body | k h body | handlers body | ap | ac
          | scrutinee arms | ];
       simpl.
     + intros [Hx | [Hne Hx]]; apply orb_true_iff;
@@ -617,7 +621,7 @@ Proof.
       apply existsb_exists. exists arm.
       split; [ exact Hin | apply var_in_simples_sound, Hx ].
     + contradiction.
-  - destruct h as [params handler]. simpl. intros [Hnotin Hx].
+  - destruct h as [params metadata handler]. simpl. intros [Hnotin Hx].
     apply andb_true_iff. split.
     + apply negb_true_iff. destruct (among x params) eqn:Hin;
         [ | reflexivity ].
@@ -645,10 +649,10 @@ with remove_unused_lets_in_handler_refines (h : continuation_handler) :
       (Let_cont_non_recursive k (remove_unused_lets_in_handler h) body).
 Proof.
   - destruct e
-      as [ x d body | bindings body | k h body | handlers body | ap | ac
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
          | scrutinee arms | ];
       simpl; try apply expr_refines_refl.
-    + pose proof (plug_refines (Let_body x d Hole) _ _ (not_many _)
+    + pose proof (plug_refines (Let_body x kind d Hole) _ _ (not_many _)
         (remove_unused_lets_refines_aux body)) as Hbody.
       simpl in Hbody.
       destruct
@@ -668,9 +672,10 @@ Proof.
     + exact (plug_refines (Let_cont_recursive_body handlers Hole)
           _ _ (not_many _)
         (remove_unused_lets_refines_aux body)).
-  - destruct h as [params handler]. intros k body. simpl.
-    exact (plug_refines (Let_cont_non_recursive_handler k params Hole body)
-      _ _ (not_many _) (remove_unused_lets_refines_aux handler)).
+  - destruct h as [params metadata handler]. intros k body. simpl.
+    exact (plug_refines
+      (Let_cont_non_recursive_handler k params metadata Hole body) _ _
+      (not_many _) (remove_unused_lets_refines_aux handler)).
 Qed.
 
 Theorem remove_unused_lets_refines : remove_unused_lets_refines_statement.
@@ -714,21 +719,22 @@ Qed.
    binds the parameters and goes on, to the handler under environments
    that agree on its free variables. *)
 Lemma inline_cont_at_tail_refines (k : continuation) (params : list variable)
-    (handler : expr) (body : expr) :
+    (metadata : handler_metadata) (handler : expr) (body : expr) :
   ∀ inlined : expr,
-    inline_cont_at_tail k params handler body = Some inlined ->
+    inline_cont_at_tail k params metadata handler body = Some inlined ->
     ∀ (vars def_vars : env) (conts : cont_env) (statics : static_env),
       (∀ x : variable,
-        var_free_in_handler x (Handler params handler) ->
+        var_free_in_handler x (Handler params metadata handler) ->
         lookup x vars = lookup x def_vars) ->
       refines
         (State body vars
-           ((k, Closure (Handler params handler) def_vars conts []) :: conts)
+           ((k, Closure (Handler params metadata handler) def_vars conts [])
+            :: conts)
            statics)
         (State inlined vars conts statics).
 Proof.
   induction body
-    as [ x d body IH | bindings body IH | k' h body IH | handlers body IH
+    as [ x kind d body IH | bindings body IH | k' h body IH | handlers body IH
        | ap | ac | scrutinee arms | ];
     intros inlined Heq vars def_vars conts statics Hagree; simpl in Heq;
     try discriminate.
@@ -737,9 +743,10 @@ Proof.
     | context [if ?free then _ else _] => destruct free eqn:Hfree
     end;
       [ discriminate | ].
-    change (var_free_in_handler_b x (Handler params handler) = false)
+    change (var_free_in_handler_b x (Handler params metadata handler) = false)
       in Hfree.
-    destruct (inline_cont_at_tail k params handler body) as [body' | ];
+    destruct (inline_cont_at_tail k params metadata handler body)
+      as [body' | ];
       [ | discriminate ].
     simpl in Heq. injection Heq as <-.
     apply let_refines_step; [ reflexivity | intros v _ ].
@@ -747,7 +754,8 @@ Proof.
     destruct (Pos.eqb_spec y x) as [-> | _]; [ | exact (Hagree y Hy) ].
     apply var_free_in_handler_b_sound in Hy. congruence.
   - (* Let_static *)
-    destruct (inline_cont_at_tail k params handler body) as [body' | ];
+    destruct (inline_cont_at_tail k params metadata handler body)
+      as [body' | ];
       [ | discriminate ].
     simpl in Heq. injection Heq as <-.
     apply let_static_refines_step.
@@ -773,8 +781,8 @@ Proof.
           rewrite Hbind; reflexivity ].
     destruct (bind_params_defined params vs def_vars vars handler_vars Hbind)
       as [bound Hbound].
-    destruct (let_params_run params (ac_args ac) vs vars bound handler conts
-                statics Hargs)
+    destruct (let_params_run params (hm_params_kinds metadata) (ac_args ac)
+                vs vars bound handler conts statics Hargs)
       as [n Hrun]; [ | exact Hbound | ].
     { intros param Hin Hfree. apply var_in_simples_sound in Hfree.
       rewrite forallb_forall in Hcapture. specialize (Hcapture param Hin).
@@ -782,8 +790,8 @@ Proof.
     apply equivalent_refines.
     apply (equivalent_trans _ (State handler handler_vars conts statics)).
     { apply step_equivalent.
-      apply (step_apply_cont_handler _ _ _ _ vs params handler def_vars
-        conts []);
+      apply (step_apply_cont_handler _ _ _ _ vs params metadata handler
+        def_vars conts []);
         [ exact Hargs | rewrite Hk; apply resolve_head | exact Hbind ]. }
     apply (equivalent_trans _ (State handler bound conts statics)).
     { apply coincide_equivalent.
@@ -803,30 +811,32 @@ Fixpoint inline_tail_conts_refines_aux (e : expr) :
   expr_refines e (inline_tail_conts e).
 Proof.
   destruct e
-    as [ x d body | bindings body | k [params handler] body | handlers body
-       | ap | ac | scrutinee arms | ];
+    as [ x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
     simpl; try apply expr_refines_refl.
-  - exact (plug_refines (Let_body x d Hole) _ _ (not_many _)
+  - exact (plug_refines (Let_body x kind d Hole) _ _ (not_many _)
       (inline_tail_conts_refines_aux body)).
   - exact (plug_refines (Let_static_body bindings Hole) _ _ (not_many _)
       (inline_tail_conts_refines_aux body)).
   - assert (Hlayers :
-      expr_refines (Let_cont_non_recursive k (Handler params handler) body)
+      expr_refines
+        (Let_cont_non_recursive k (Handler params metadata handler) body)
         (Let_cont_non_recursive k
-           (Handler params (inline_tail_conts handler))
+           (Handler params metadata (inline_tail_conts handler))
            (inline_tail_conts body))).
     { apply (expr_refines_trans _
         (Let_cont_non_recursive k
-           (Handler params (inline_tail_conts handler)) body)).
+           (Handler params metadata (inline_tail_conts handler)) body)).
       - exact (plug_refines
-          (Let_cont_non_recursive_handler k params Hole body) _ _ (not_many _)
+          (Let_cont_non_recursive_handler k params metadata Hole body)
+          _ _ (not_many _)
           (inline_tail_conts_refines_aux handler)).
       - exact (plug_refines
           (Let_cont_non_recursive_body k
-             (Handler params (inline_tail_conts handler)) Hole)
+             (Handler params metadata (inline_tail_conts handler)) Hole)
           _ _ (not_many _) (inline_tail_conts_refines_aux body)). }
     destruct
-      (inline_cont_at_tail k params (inline_tail_conts handler)
+      (inline_cont_at_tail k params metadata (inline_tail_conts handler)
          (inline_tail_conts body))
       as [inlined | ] eqn:Hinline; [ | exact Hlayers ].
     apply (expr_refines_trans _ _ _ Hlayers). intros vars conts statics.
@@ -834,7 +844,8 @@ Proof.
       [ apply equivalent_refines, step_equivalent,
           step_let_cont_non_recursive
       | ].
-    apply (inline_cont_at_tail_refines k params _ _ inlined Hinline).
+    apply (inline_cont_at_tail_refines k params metadata _ _ inlined
+      Hinline).
     intros x _. reflexivity.
   - exact (plug_refines (Let_cont_recursive_body handlers Hole) _ _ (not_many _)
       (inline_tail_conts_refines_aux body)).
@@ -895,10 +906,10 @@ Fixpoint drop_deleted_code_equivalent_aux (e : expr) :
   expr_equivalent e (drop_deleted_code e).
 Proof.
   destruct e
-    as [ x d body | bindings body | k [params handler] body | handlers body
-       | ap | ac | scrutinee arms | ];
+    as [ x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
     simpl; try (intros vars conts statics; apply equivalent_refl).
-  - exact (plug_equivalent (Let_body x d Hole) _ _ (not_many _)
+  - exact (plug_equivalent (Let_body x kind d Hole) _ _ (not_many _)
       (drop_deleted_code_equivalent_aux body)).
   - apply (expr_equivalent_trans _
       (Let_static bindings (drop_deleted_code body))).
@@ -907,13 +918,14 @@ Proof.
     + apply let_static_if_any_equivalent.
   - apply (expr_equivalent_trans _
       (Let_cont_non_recursive k
-         (Handler params (drop_deleted_code handler)) body)).
+         (Handler params metadata (drop_deleted_code handler)) body)).
     + exact (plug_equivalent
-        (Let_cont_non_recursive_handler k params Hole body) _ _ (not_many _)
+        (Let_cont_non_recursive_handler k params metadata Hole body)
+        _ _ (not_many _)
         (drop_deleted_code_equivalent_aux handler)).
     + exact (plug_equivalent
         (Let_cont_non_recursive_body k
-           (Handler params (drop_deleted_code handler)) Hole)
+           (Handler params metadata (drop_deleted_code handler)) Hole)
         _ _ (not_many _) (drop_deleted_code_equivalent_aux body)).
   - exact (plug_equivalent (Let_cont_recursive_body handlers Hole)
         _ _ (not_many _)
@@ -971,26 +983,27 @@ Fixpoint fold_constants_equivalent_aux (e : expr) :
   expr_equivalent e (fold_constants e).
 Proof.
   destruct e
-    as [ x d body | bindings body | k [params handler] body | handlers body
-       | ap | ac | scrutinee arms | ];
+    as [ x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
     simpl; try (intros vars conts statics; apply equivalent_refl).
-  - apply (expr_equivalent_trans _ (Let x (fold_named d) body)).
+  - apply (expr_equivalent_trans _ (Let x kind (fold_named d) body)).
     + intros vars conts statics.
       apply let_equivalent_step;
         [ apply fold_named_sound | intros v _; apply equivalent_refl ].
-    + exact (plug_equivalent (Let_body x (fold_named d) Hole) _ _ (not_many _)
-        (fold_constants_equivalent_aux body)).
+    + exact (plug_equivalent (Let_body x kind (fold_named d) Hole) _ _
+        (not_many _) (fold_constants_equivalent_aux body)).
   - exact (plug_equivalent (Let_static_body bindings Hole) _ _ (not_many _)
       (fold_constants_equivalent_aux body)).
   - apply (expr_equivalent_trans _
-      (Let_cont_non_recursive k (Handler params (fold_constants handler))
-         body)).
+      (Let_cont_non_recursive k
+         (Handler params metadata (fold_constants handler)) body)).
     + exact (plug_equivalent
-        (Let_cont_non_recursive_handler k params Hole body) _ _ (not_many _)
+        (Let_cont_non_recursive_handler k params metadata Hole body)
+        _ _ (not_many _)
         (fold_constants_equivalent_aux handler)).
     + exact (plug_equivalent
         (Let_cont_non_recursive_body k
-           (Handler params (fold_constants handler)) Hole)
+           (Handler params metadata (fold_constants handler)) Hole)
         _ _ (not_many _) (fold_constants_equivalent_aux body)).
   - exact (plug_equivalent (Let_cont_recursive_body handlers Hole)
         _ _ (not_many _)
@@ -1007,10 +1020,11 @@ Proof. exact fold_constants_equivalent_aux. Qed.
 
 (* The defining expression has a value, so the [Let] takes its step; the
    body does not look at the variable. *)
-Lemma unused_total_let (x : variable) (d : named) (body : expr) :
+Lemma unused_total_let (x : variable) (kind : flambda_kind) (d : named)
+    (body : expr) :
   named_is_total d = true ->
   ~ var_free_in_expr x body ->
-  expr_equivalent (Let x d body) body.
+  expr_equivalent (Let x kind d body) body.
 Proof.
   intros Htotal Hunused vars conts statics.
   assert (Hvalue : ∃ v : value, eval_named statics vars d = Some v).
@@ -1030,10 +1044,10 @@ Fixpoint remove_unused_total_lets_equivalent_aux (e : expr) :
   expr_equivalent e (remove_unused_total_lets e).
 Proof.
   destruct e
-    as [ x d body | bindings body | k [params handler] body | handlers body
-       | ap | ac | scrutinee arms | ];
+    as [ x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
     simpl; try (intros vars conts statics; apply equivalent_refl).
-  - pose proof (plug_equivalent (Let_body x d Hole) _ _ (not_many _)
+  - pose proof (plug_equivalent (Let_body x kind d Hole) _ _ (not_many _)
       (remove_unused_total_lets_equivalent_aux body)) as Hbody.
     simpl in Hbody.
     destruct
@@ -1048,13 +1062,14 @@ Proof.
       (remove_unused_total_lets_equivalent_aux body)).
   - apply (expr_equivalent_trans _
       (Let_cont_non_recursive k
-         (Handler params (remove_unused_total_lets handler)) body)).
+         (Handler params metadata (remove_unused_total_lets handler)) body)).
     + exact (plug_equivalent
-        (Let_cont_non_recursive_handler k params Hole body) _ _ (not_many _)
+        (Let_cont_non_recursive_handler k params metadata Hole body)
+        _ _ (not_many _)
         (remove_unused_total_lets_equivalent_aux handler)).
     + exact (plug_equivalent
         (Let_cont_non_recursive_body k
-           (Handler params (remove_unused_total_lets handler)) Hole)
+           (Handler params metadata (remove_unused_total_lets handler)) Hole)
         _ _ (not_many _) (remove_unused_total_lets_equivalent_aux body)).
   - exact (plug_equivalent (Let_cont_recursive_body handlers Hole)
         _ _ (not_many _)
@@ -1131,10 +1146,10 @@ Proof.
     simpl. eauto.
 Qed.
 
-Lemma let_equivalent_bound (vs : list variable) (x : variable) (d : named)
-    (body body' : expr) :
+Lemma let_equivalent_bound (vs : list variable) (x : variable)
+    (kind : flambda_kind) (d : named) (body body' : expr) :
   expr_equivalent_bound (x :: vs) body body' ->
-  expr_equivalent_bound vs (Let x d body) (Let x d body').
+  expr_equivalent_bound vs (Let x kind d body) (Let x kind d body').
 Proof.
   intros Hbody vars conts statics Hbound.
   apply let_equivalent_step; [ reflexivity | intros v _ ].
@@ -1143,11 +1158,11 @@ Qed.
 
 (* The defining expression has a value, so the [Let] takes its step; the
    body does not look at the variable. *)
-Lemma unused_defined_let (vs : list variable) (x : variable) (d : named)
-    (body : expr) :
+Lemma unused_defined_let (vs : list variable) (x : variable)
+    (kind : flambda_kind) (d : named) (body : expr) :
   named_defined vs d = true ->
   ~ var_free_in_expr x body ->
-  expr_equivalent_bound vs (Let x d body) body.
+  expr_equivalent_bound vs (Let x kind d body) body.
 Proof.
   intros Hdefined Hunused vars conts statics Hbound.
   destruct (named_defined_sound vs vars statics d Hbound Hdefined) as [v Hd].
@@ -1161,11 +1176,11 @@ Qed.
 
 Lemma let_cont_handler_equivalent_bound (vs : list variable)
     (k : continuation) (params : list variable)
-    (handler handler' body : expr) :
+    (metadata : handler_metadata) (handler handler' body : expr) :
   expr_equivalent_bound (params ++ vs) handler handler' ->
   expr_equivalent_bound vs
-    (Let_cont_non_recursive k (Handler params handler) body)
-    (Let_cont_non_recursive k (Handler params handler') body).
+    (Let_cont_non_recursive k (Handler params metadata handler) body)
+    (Let_cont_non_recursive k (Handler params metadata handler') body).
 Proof.
   intros Hhandler vars conts statics Hbound.
   assert (Hruns :
@@ -1196,11 +1211,11 @@ Fixpoint remove_unused_defined_lets_equivalent_bound (e : expr) :
     expr_equivalent_bound vs e (remove_unused_defined_lets vs e).
 Proof.
   destruct e
-    as [ x d body | bindings body | k [params handler] body | handlers body
-       | ap | ac | scrutinee arms | ];
+    as [ x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
     intros vs; simpl;
     try (intros vars conts statics _; apply equivalent_refl).
-  - pose proof (let_equivalent_bound vs x d _ _
+  - pose proof (let_equivalent_bound vs x kind d _ _
       (remove_unused_defined_lets_equivalent_bound body (x :: vs)))
       as Hbody.
     destruct
@@ -1219,7 +1234,7 @@ Proof.
     apply (remove_unused_defined_lets_equivalent_bound body vs), Hbound.
   - apply (expr_equivalent_bound_trans vs _
       (Let_cont_non_recursive k
-         (Handler params
+         (Handler params metadata
             (remove_unused_defined_lets (params ++ vs) handler))
          body)).
     + apply let_cont_handler_equivalent_bound,
@@ -1374,18 +1389,18 @@ Fixpoint inline_known_calls_binds_statics (e : expr) :
     = binds_statics e.
 Proof.
   destruct e
-    as [ x d body | bindings body | k h body | handlers body
+    as [ x kind d body | bindings body | k h body | handlers body
        | ap | ac | scrutinee arms | ];
     intros known_code known_symbols; simpl; try reflexivity.
   - apply inline_known_calls_binds_statics.
   - rewrite inline_known_calls_binds_statics. f_equal.
     induction bindings as [ | [id c | id | sym const] bindings IH]; simpl;
       congruence.
-  - destruct h as [params handler]. simpl.
+  - destruct h as [params metadata handler]. simpl.
     rewrite !inline_known_calls_binds_statics. reflexivity.
   - rewrite inline_known_calls_binds_statics. f_equal.
-    induction handlers as [ | [k [params handler]] handlers IH]; simpl;
-      [ reflexivity | ].
+    induction handlers as [ | [k [params metadata handler]] handlers IH];
+      simpl; [ reflexivity | ].
     rewrite inline_known_calls_binds_statics, IH. reflexivity.
   - apply inline_known_apply_binds_statics.
 Qed.
@@ -1402,7 +1417,7 @@ Lemma inline_known_calls_handlers_bind_statics
   = handlers_bind_statics handlers.
 Proof.
   unfold handlers_bind_statics.
-  induction handlers as [ | [k [params handler]] handlers IH]; simpl;
+  induction handlers as [ | [k [params metadata handler]] handlers IH]; simpl;
     [ reflexivity | ].
   rewrite inline_known_calls_binds_statics, IH. reflexivity.
 Qed.
@@ -1418,7 +1433,7 @@ Fixpoint inline_known_calls_equivalent_knowing (e : expr) :
          statics).
 Proof.
   - destruct e
-      as [ x d body | bindings body | k h body | handlers body
+      as [ x kind d body | bindings body | k h body | handlers body
          | ap | ac | scrutinee arms | ];
       intros known_code known_symbols vars conts statics Hcode Hsymbols;
       simpl; try apply equivalent_refl.
@@ -1434,7 +1449,8 @@ Proof.
         ∧ bindings_refine (statics_know_both known_code known_symbols)
             bindings' bindings).
       { induction bindings
-          as [ | [id [params my_closure ret exn code_body] | id | sym const]
+          as [ | [id [params my_closure ret exn metadata code_body] | id
+                 | sym const]
                  bindings IH];
           simpl.
         - repeat split; apply Forall2_nil.
@@ -1488,11 +1504,11 @@ Proof.
              statics extended' Hcode Hbindings').
         -- exact (eval_static_bindings_know_symbols vars bindings'
              known_symbols statics extended' Hsymbols Hbindings').
-    + destruct h as [params handler]. simpl.
+    + destruct h as [params metadata handler]. simpl.
       apply (equivalent_trans _
         (State
            (Let_cont_non_recursive k
-              (Handler params
+              (Handler params metadata
                  (inline_known_calls known_code known_symbols handler))
               body)
            vars conts statics)).
@@ -1529,7 +1545,9 @@ Proof.
             handlers handlers'
           ∧ handlers_refine (statics_know_both known_code known_symbols)
               vars handlers' handlers).
-        { induction handlers as [ | [k [params handler]] handlers IH]; simpl.
+        { induction handlers
+            as [ | [k [params metadata handler]] handlers IH];
+            simpl.
           - repeat split; apply Forall2_nil.
           - destruct IH as [[Hforwards Hbackwards] [Hforwards' Hbackwards']].
             repeat split; (apply Forall2_cons; [ | assumption ]);
@@ -1647,16 +1665,16 @@ Fixpoint merge_statics_equivalent_aux (e : expr) :
   expr_equivalent e (merge_statics e).
 Proof.
   destruct e
-    as [ x d body | bindings body | k [params handler] body | handlers body
-       | ap | ac | scrutinee arms | ];
+    as [ x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
     simpl; try (intros vars conts statics; apply equivalent_refl).
-  - exact (plug_equivalent (Let_body x d Hole) _ _ (not_many _)
+  - exact (plug_equivalent (Let_body x kind d Hole) _ _ (not_many _)
       (merge_statics_equivalent_aux body)).
   - pose proof (plug_equivalent (Let_static_body bindings Hole) _ _ (not_many _)
       (merge_statics_equivalent_aux body)) as Hbody.
     simpl in Hbody.
     destruct (merge_statics body)
-      as [ x d body' | bindings' body' | k h body' | handlers body' | ap
+      as [ x kind' d body' | bindings' body' | k h body' | handlers body' | ap
          | ac | scrutinee arms | ];
       try (apply (expr_equivalent_trans _ _ _ Hbody), code_first_equivalent).
     apply (expr_equivalent_trans _ _ _ Hbody).
@@ -1666,14 +1684,15 @@ Proof.
       apply equivalent_sym, let_static_split.
     + apply code_first_equivalent.
   - apply (expr_equivalent_trans _
-      (Let_cont_non_recursive k (Handler params (merge_statics handler))
-         body)).
+      (Let_cont_non_recursive k
+         (Handler params metadata (merge_statics handler)) body)).
     + exact (plug_equivalent
-        (Let_cont_non_recursive_handler k params Hole body) _ _ (not_many _)
+        (Let_cont_non_recursive_handler k params metadata Hole body)
+        _ _ (not_many _)
         (merge_statics_equivalent_aux handler)).
     + exact (plug_equivalent
         (Let_cont_non_recursive_body k
-           (Handler params (merge_statics handler)) Hole)
+           (Handler params metadata (merge_statics handler)) Hole)
         _ _ (not_many _) (merge_statics_equivalent_aux body)).
   - exact (plug_equivalent (Let_cont_recursive_body handlers Hole)
         _ _ (not_many _)
@@ -1708,22 +1727,23 @@ Fixpoint collapse_switches_refines_aux (e : expr) :
   expr_refines e (collapse_switches e).
 Proof.
   destruct e
-    as [ x d body | bindings body | k [params handler] body | handlers body
-       | ap | ac | scrutinee arms | ];
+    as [ x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
     simpl; try apply expr_refines_refl.
-  - exact (plug_refines (Let_body x d Hole) _ _ (not_many _)
+  - exact (plug_refines (Let_body x kind d Hole) _ _ (not_many _)
       (collapse_switches_refines_aux body)).
   - exact (plug_refines (Let_static_body bindings Hole) _ _ (not_many _)
       (collapse_switches_refines_aux body)).
   - apply (expr_refines_trans _
-      (Let_cont_non_recursive k (Handler params (collapse_switches handler))
-         body)).
+      (Let_cont_non_recursive k
+         (Handler params metadata (collapse_switches handler)) body)).
     + exact (plug_refines
-        (Let_cont_non_recursive_handler k params Hole body) _ _ (not_many _)
+        (Let_cont_non_recursive_handler k params metadata Hole body)
+        _ _ (not_many _)
         (collapse_switches_refines_aux handler)).
     + exact (plug_refines
         (Let_cont_non_recursive_body k
-           (Handler params (collapse_switches handler)) Hole)
+           (Handler params metadata (collapse_switches handler)) Hole)
         _ _ (not_many _) (collapse_switches_refines_aux body)).
   - exact (plug_refines (Let_cont_recursive_body handlers Hole) _ _ (not_many _)
       (collapse_switches_refines_aux body)).
@@ -1741,20 +1761,21 @@ Fixpoint rewrite_code_binds_statics (f : expr -> expr) (e : expr) :
   binds_statics (rewrite_code f e) = binds_statics e.
 Proof.
   destruct e
-    as [ x d body | bindings body | k h body | handlers body
+    as [ x kind d body | bindings body | k h body | handlers body
        | ap | ac | scrutinee arms | ];
     simpl; try reflexivity.
   - apply rewrite_code_binds_statics.
   - rewrite rewrite_code_binds_statics. f_equal.
     induction bindings
-      as [ | [id [params my_closure ret exn code_body] | id | sym const]
+      as [ | [id [params my_closure ret exn metadata code_body] | id
+             | sym const]
              bindings IH];
       simpl; congruence.
-  - destruct h as [params handler]. simpl.
+  - destruct h as [params metadata handler]. simpl.
     rewrite !rewrite_code_binds_statics. reflexivity.
   - rewrite rewrite_code_binds_statics. f_equal.
-    induction handlers as [ | [k [params handler]] handlers IH]; simpl;
-      [ reflexivity | ].
+    induction handlers as [ | [k [params metadata handler]] handlers IH];
+      simpl; [ reflexivity | ].
     rewrite rewrite_code_binds_statics, IH. reflexivity.
 Qed.
 
@@ -1765,7 +1786,7 @@ Lemma rewrite_code_handlers_bind_statics (f : expr -> expr)
   = handlers_bind_statics handlers.
 Proof.
   unfold handlers_bind_statics.
-  induction handlers as [ | [k [params handler]] handlers IH]; simpl;
+  induction handlers as [ | [k [params metadata handler]] handlers IH]; simpl;
     [ reflexivity | ].
   rewrite rewrite_code_binds_statics, IH. reflexivity.
 Qed.
@@ -1797,7 +1818,8 @@ Lemma rewrite_bindings_refine (f : expr -> expr)
 Proof.
   intros Hf.
   induction bindings
-    as [ | [id [params my_closure ret exn code_body] | id | sym const]
+    as [ | [id [params my_closure ret exn metadata code_body] | id
+           | sym const]
            bindings [Hforwards Hbackwards]];
     simpl.
   - split; apply Forall2_nil.
@@ -1822,7 +1844,8 @@ Lemma rewrite_bindings_refined (f : expr -> expr)
 Proof.
   intros Hf.
   induction bindings
-    as [ | [id [params my_closure ret exn code_body] | id | sym const]
+    as [ | [id [params my_closure ret exn metadata code_body] | id
+           | sym const]
            bindings [Hforwards Hbackwards]];
     simpl.
   - split; apply Forall2_nil.
@@ -1844,10 +1867,13 @@ Qed.
    induction, and [Hf] what is assumed of the rewrite. *)
 Ltac rewrite_code_cases IH Hf :=
   match goal with
-  | |- expr_refines (Let ?x ?d ?body) (Let _ _ ?body') =>
+  | |- expr_refines (Let ?x ?kind ?d ?body) (Let _ _ _ ?body') =>
     first
-      [ exact (plug_refines (Let_body x d Hole) _ _ (not_many _) (IH body))
-      | exact (plug_refines (Let_body x d Hole) _ _ (not_many _) (IH body')) ]
+      [ exact
+          (plug_refines (Let_body x kind d Hole) _ _ (not_many _) (IH body))
+      | exact
+          (plug_refines (Let_body x kind d Hole) _ _ (not_many _) (IH body'))
+      ]
   | |- expr_refines (Let_static _ ?body) (Let_static _ ?body') =>
     eapply expr_refines_trans;
       [ apply let_static_bindings_refine;
@@ -1859,8 +1885,9 @@ Ltac rewrite_code_cases IH Hf :=
               (IH body))
           | exact (plug_refines (Let_static_body _ Hole) _ _ (not_many _)
               (IH body')) ] ]
-  | |- expr_refines (Let_cont_non_recursive ?k (Handler ?params ?handler) _)
-         (Let_cont_non_recursive _ (Handler _ ?handler') _) =>
+  | |- expr_refines
+         (Let_cont_non_recursive ?k (Handler ?params ?metadata ?handler) _)
+         (Let_cont_non_recursive _ (Handler _ _ ?handler') _) =>
     eapply expr_refines_trans;
       [ intros vars conts statics; apply let_cont_handler_refines_at;
         intros vs handler_vars conts' statics' _;
@@ -1883,16 +1910,16 @@ Fixpoint rewrite_code_refines_aux (f : expr -> expr)
   expr_refines e (rewrite_code f e).
 Proof.
   destruct e
-    as [ x d body | bindings body | k h body | handlers body
+    as [ x kind d body | bindings body | k h body | handlers body
        | ap | ac | scrutinee arms | ];
     simpl; try apply expr_refines_refl;
-    try (destruct h as [params handler]; simpl);
+    try (destruct h as [params metadata handler]; simpl);
     try (rewrite_code_cases (rewrite_code_refines_aux f Hf) Hf; fail).
   assert (Hhandlers :
     ∀ vars : env,
       handlers_refine always vars handlers
         (map (fun '(k, h) => (k, rewrite_code_in_handler f h)) handlers)).
-  { induction handlers as [ | [k [params handler]] handlers IH];
+  { induction handlers as [ | [k [params metadata handler]] handlers IH];
       intros vars; simpl.
     - split; apply Forall2_nil.
     - destruct (IH vars) as [Hforwards Hbackwards].
@@ -1915,17 +1942,17 @@ Fixpoint rewrite_code_refined_aux (f : expr -> expr)
   expr_refines (rewrite_code f e) e.
 Proof.
   destruct e
-    as [ x d body | bindings body | k h body | handlers body
+    as [ x kind d body | bindings body | k h body | handlers body
        | ap | ac | scrutinee arms | ];
     simpl; try apply expr_refines_refl;
-    try (destruct h as [params handler]; simpl);
+    try (destruct h as [params metadata handler]; simpl);
     try (rewrite_code_cases (rewrite_code_refined_aux f Hf) Hf; fail).
   assert (Hhandlers :
     ∀ vars : env,
       handlers_refine always vars
         (map (fun '(k, h) => (k, rewrite_code_in_handler f h)) handlers)
         handlers).
-  { induction handlers as [ | [k [params handler]] handlers IH];
+  { induction handlers as [ | [k [params metadata handler]] handlers IH];
       intros vars; simpl.
     - split; apply Forall2_nil.
     - destruct (IH vars) as [Hforwards Hbackwards].
@@ -1997,15 +2024,18 @@ Proof.
   cbn [option_map]. rewrite Harm. reflexivity.
 Qed.
 
-Lemma thread_arms_equivalent (k : continuation) (s : simple)
+Lemma thread_arms_equivalent (k : continuation)
+    (metadata : handler_metadata) (s : simple)
     (inner arms : list (Z * apply_cont)) (vars : env) (conts : cont_env)
     (statics : static_env) :
   equivalent
     (State (Switch s arms) vars
-       ((k, Closure (Handler [] (Switch s inner)) vars conts []) :: conts)
+       ((k, Closure (Handler [] metadata (Switch s inner)) vars conts [])
+        :: conts)
        statics)
     (State (Switch s (map (thread_arm k inner) arms)) vars
-       ((k, Closure (Handler [] (Switch s inner)) vars conts []) :: conts)
+       ((k, Closure (Handler [] metadata (Switch s inner)) vars conts [])
+        :: conts)
        statics).
 Proof.
   destruct (eval_simple vars s) as [v | ] eqn:Hs;
@@ -2034,7 +2064,7 @@ Proof.
   apply (equivalent_trans _ (State (Apply_cont ac') vars conts statics)).
   - eapply equivalent_trans;
       [ apply step_equivalent;
-        apply (step_apply_cont_handler _ _ _ _ [] [] (Switch s inner)
+        apply (step_apply_cont_handler _ _ _ _ [] [] metadata (Switch s inner)
           vars conts []);
         [ reflexivity | apply resolve_head | reflexivity ]
       | ].
@@ -2083,7 +2113,7 @@ Lemma thread_switch_equivalent (k : continuation) (h : continuation_handler)
   expr_equivalent (Let_cont_non_recursive k h body) (thread_switch k h body).
 Proof.
   unfold thread_switch.
-  destruct h as [[ | param params] handler];
+  destruct h as [[ | param params] metadata handler];
     try (intros vars conts statics; apply equivalent_refl).
   destruct handler; try (intros vars conts statics; apply equivalent_refl).
   destruct body; try (intros vars conts statics; apply equivalent_refl).
@@ -2102,26 +2132,27 @@ Fixpoint thread_switches_equivalent_aux (e : expr) :
   expr_equivalent e (thread_switches e).
 Proof.
   destruct e
-    as [ x d body | bindings body | k [params handler] body | handlers body
-       | ap | ac | scrutinee arms | ];
+    as [ x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
     simpl; try (intros vars conts statics; apply equivalent_refl).
-  - exact (plug_equivalent (Let_body x d Hole) _ _ (not_many _)
+  - exact (plug_equivalent (Let_body x kind d Hole) _ _ (not_many _)
       (thread_switches_equivalent_aux body)).
   - exact (plug_equivalent (Let_static_body bindings Hole) _ _ (not_many _)
       (thread_switches_equivalent_aux body)).
   - apply (expr_equivalent_trans _
-      (Let_cont_non_recursive k (Handler params (thread_switches handler))
-         body)).
+      (Let_cont_non_recursive k
+         (Handler params metadata (thread_switches handler)) body)).
     + exact (plug_equivalent
-        (Let_cont_non_recursive_handler k params Hole body) _ _ (not_many _)
+        (Let_cont_non_recursive_handler k params metadata Hole body)
+        _ _ (not_many _)
         (thread_switches_equivalent_aux handler)).
     + apply (expr_equivalent_trans _
         (Let_cont_non_recursive k
-           (Handler params (thread_switches handler))
+           (Handler params metadata (thread_switches handler))
            (thread_switches body))).
       * exact (plug_equivalent
           (Let_cont_non_recursive_body k
-             (Handler params (thread_switches handler)) Hole)
+             (Handler params metadata (thread_switches handler)) Hole)
           _ _ (not_many _) (thread_switches_equivalent_aux body)).
       * apply thread_switch_equivalent.
   - exact (plug_equivalent (Let_cont_recursive_body handlers Hole)

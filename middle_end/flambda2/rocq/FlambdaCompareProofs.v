@@ -177,7 +177,8 @@ Lemma apply_eqb_refl (vm km : name_map) (ap : apply_expr) :
   reflexive_map vm -> reflexive_map km -> apply_eqb vm km ap ap = true.
 Proof.
   intros Hvm Hkm. unfold apply_eqb.
-  rewrite !Hkm, simple_eqb_refl, simples_eqb_refl by exact Hvm.
+  rewrite !Hkm, simple_eqb_refl, simples_eqb_refl, !arity_eqb_refl
+    by exact Hvm.
   destruct (ap_call_kind ap); simpl; rewrite ?Pos.eqb_refl; reflexivity.
 Qed.
 
@@ -192,10 +193,10 @@ with binding_eqb_refl (binding : static_binding) :
 with code_eqb_refl (c : code) : code_eqb c c = true.
 Proof.
   - destruct e
-      as [ x d body | bindings body | k h body | handlers body | ap | ac
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
          | scrutinee arms | ];
       intros vm km Hvm Hkm; simpl.
-    + rewrite named_eqb_refl by exact Hvm.
+    + rewrite kind_eqb_refl, named_eqb_refl by exact Hvm.
       apply expr_eqb_refl; [ apply reflexive_map_cons, Hvm | exact Hkm ].
     + rewrite (expr_eqb_refl body vm km Hvm Hkm), andb_true_r.
       induction bindings as [ | binding bindings IH]; simpl; [ reflexivity | ].
@@ -213,18 +214,18 @@ Proof.
     + rewrite simple_eqb_refl by exact Hvm. apply forall2b_refl. intros arm.
       rewrite Z.eqb_refl, apply_cont_eqb_refl; auto.
     + reflexivity.
-  - destruct h as [params handler]. intros vm km Hvm Hkm. simpl.
+  - destruct h as [params metadata handler]. intros vm km Hvm Hkm. simpl.
     destruct (bind_names_refl params vm Hvm) as (vm' & -> & Hvm').
-    apply expr_eqb_refl; assumption.
+    rewrite handler_metadata_eqb_refl. apply expr_eqb_refl; assumption.
   - destruct binding as [id c | id | sym const]; intros vm Hvm; simpl.
     + rewrite Pos.eqb_refl, (code_eqb_refl c). reflexivity.
     + apply Pos.eqb_refl.
     + rewrite Pos.eqb_refl, static_const_eqb_refl; auto.
-  - destruct c as [params my_closure ret exn body]. simpl.
+  - destruct c as [params my_closure ret exn metadata body]. simpl.
     destruct (bind_names_refl params [(my_closure, my_closure)]
                 (reflexive_map_cons _ _ reflexive_map_nil))
       as (vm & -> & Hvm).
-    apply expr_eqb_refl; [ exact Hvm | ].
+    rewrite code_metadata_eqb_refl. apply expr_eqb_refl; [ exact Hvm | ].
     apply reflexive_map_cons, reflexive_map_cons, reflexive_map_nil.
 Qed.
 
@@ -809,11 +810,13 @@ Proof.
       result_related state_matches
         (apply_cont_value (Closure h vars conts recursive) vs statics)
         (apply_cont_value (Closure h' vars' conts' recursive') vs statics')).
-  { intros vm km km' [params handler] [params' handler'] vars vars' conts
-      conts' recursive recursive' Hnames Hh Hrec Hvars Hconts.
+  { intros vm km km' [params metadata handler]
+      [params' metadata' handler'] vars vars' conts conts' recursive
+      recursive' Hnames Hh Hrec Hvars Hconts.
     simpl in Hh |- *.
     destruct (bind_names params params' vm) as [vm' | ] eqn:Hbind;
       [ | discriminate ].
+    apply andb_true_iff in Hh as [_ Hh].
     pose proof (bind_params_match params params' vs vm vm' vars vars' _
       (fun x => var_free_in_expr x handler)
       (fun x Hx =>
@@ -863,11 +866,11 @@ Fixpoint expr_eqb_binds_statics (e : expr) :
     expr_eqb vm km e e' = true -> binds_statics e = binds_statics e'.
 Proof.
   destruct e
-    as [ x d body | bindings body | k h body | handlers body | ap | ac
+    as [ x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
     intros vm km
-      [ x' d' body' | bindings' body' | k' h' body' | handlers' body' | ap'
-      | ac' | scrutinee' arms' | ];
+      [ x' kind' d' body' | bindings' body' | k' h' body' | handlers' body'
+      | ap' | ac' | scrutinee' arms' | ];
     simpl; try discriminate; try reflexivity; intros Heq.
   - apply andb_true_iff in Heq as [_ Hbody].
     exact (expr_eqb_binds_statics body _ _ _ Hbody).
@@ -882,9 +885,11 @@ Proof.
     destruct binding, binding'; simpl in Hbinding; try discriminate;
       reflexivity.
   - apply andb_true_iff in Heq as [Hh Hbody].
-    destruct h as [params handler], h' as [params' handler'].
+    destruct h as [params metadata handler],
+      h' as [params' metadata' handler'].
     simpl in Hh |- *.
     destruct (bind_names params params' vm) as [vm' | ]; [ | discriminate ].
+    apply andb_true_iff in Hh as [_ Hh].
     rewrite (expr_eqb_binds_statics handler _ _ _ Hh),
       (expr_eqb_binds_statics body _ _ _ Hbody).
     reflexivity.
@@ -893,11 +898,12 @@ Proof.
     apply andb_true_iff in Heq as [Hhandlers Hbody].
     rewrite (expr_eqb_binds_statics body _ _ _ Hbody). f_equal.
     clear Hbody. revert handlers' Hhandlers.
-    induction handlers as [ | [k [params handler]] handlers IH];
-      intros [ | [k' [params' handler']] handlers']; simpl;
+    induction handlers as [ | [k [params metadata handler]] handlers IH];
+      intros [ | [k' [params' metadata' handler']] handlers']; simpl;
       try discriminate; [ reflexivity | ].
     intros Heq. apply andb_true_iff in Heq as [Hh Hrest].
     destruct (bind_names params params' vm) as [vm' | ]; [ | discriminate ].
+    apply andb_true_iff in Hh as [_ Hh].
     rewrite (expr_eqb_binds_statics handler _ _ _ Hh), (IH _ Hrest).
     reflexivity.
 Qed.
@@ -911,11 +917,12 @@ Lemma handlers_eqb_bind_statics (vm km : name_map)
     handlers_bind_statics handlers = handlers_bind_statics handlers'.
 Proof.
   unfold handlers_bind_statics.
-  induction handlers as [ | [k [params handler]] handlers IH];
-    intros [ | [k' [params' handler']] handlers']; simpl;
+  induction handlers as [ | [k [params metadata handler]] handlers IH];
+    intros [ | [k' [params' metadata' handler']] handlers']; simpl;
     try discriminate; [ reflexivity | ].
   intros Heq. apply andb_true_iff in Heq as [Hh Hrest].
   destruct (bind_names params params' vm) as [vm' | ]; [ | discriminate ].
+  apply andb_true_iff in Hh as [_ Hh].
   rewrite (expr_eqb_binds_statics handler _ _ _ Hh), (IH _ Hrest).
   reflexivity.
 Qed.
@@ -943,13 +950,14 @@ Proof.
     [ | exact I ].
   pose proof (lookup_code_match called statics statics' Hstatics) as Hc.
   destruct (lookup called (static_code statics))
-    as [[params my_closure ret exn body] | ],
+    as [[params my_closure ret exn metadata body] | ],
     (lookup called (static_code statics'))
-    as [[params' my_closure' ret' exn' body'] | ];
+    as [[params' my_closure' ret' exn' metadata' body'] | ];
     try contradiction; [ | exact I ].
   simpl in Hc |- *.
   destruct (bind_names params params' [(my_closure, my_closure')])
     as [vm | ] eqn:Hbind; [ | discriminate ].
+  apply andb_true_iff in Hc as [Hmetadata Hc].
   rewrite <- (expr_eqb_binds_statics body _ _ _ Hc).
   destruct (binds_statics body); [ exact I | ].
   pose proof (bind_params_match params params' vs _ vm
@@ -998,14 +1006,15 @@ Proof.
   intros [vm km e e' vars vars' conts conts' statics statics' He Hvars
             Hconts Hstatics].
   destruct e
-    as [ x d body | bindings body | k h body | handlers body | ap | ac
+    as [ x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ],
     e'
-    as [ x' d' body' | bindings' body' | k' h' body' | handlers' body' | ap'
-       | ac' | scrutinee' arms' | ];
+    as [ x' kind' d' body' | bindings' body' | k' h' body' | handlers' body'
+       | ap' | ac' | scrutinee' arms' | ];
     simpl in He; try discriminate; autorewrite with step; simpl.
   - (* Let *)
     apply andb_true_iff in He as [Hd Hbody].
+    apply andb_true_iff in Hd as [_ Hd].
     assert (Hvars_d :
       envs_match (fun y => var_free_in_named y d) vm vars vars')
       by (fewer_variables Hvars; left; assumption).
@@ -1069,6 +1078,8 @@ Proof.
       split; [ exact Hunbound | right; exact Hj ].
   - (* Apply *)
     unfold apply_eqb in He.
+    apply andb_true_iff in He as [He _].
+    apply andb_true_iff in He as [He _].
     apply andb_true_iff in He as [He Hexn].
     apply andb_true_iff in He as [He Hreturn].
     apply andb_true_iff in He as [He Hargs].

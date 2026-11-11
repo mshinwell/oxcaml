@@ -179,7 +179,7 @@ with var_free_agrees_handler (x : variable) (h : continuation_handler)
    <-> among x (free_variables_of_handler h) = true).
 Proof.
   - destruct e
-      as [ y d body | bindings body | k h body | handlers body | ap | ac
+      as [ y kind d body | bindings body | k h body | handlers body | ap | ac
          | scrutinee arms | ];
       intros Hcode; simpl in Hcode;
       cbn [var_free_in_expr free_variables_of_expr].
@@ -243,7 +243,7 @@ Proof.
       tauto.
     + (* Invalid *)
       simpl. split; [ intros [] | discriminate ].
-  - destruct h as [params handler]. intros Hcode. simpl in Hcode.
+  - destruct h as [params metadata handler]. intros Hcode. simpl in Hcode.
     cbn [var_free_in_handler free_variables_of_handler].
     rewrite among_without, andb_true_iff, negb_true_iff.
     pose proof (var_free_agrees_expr x handler Hcode) as Hhandler.
@@ -269,7 +269,7 @@ with cont_free_agrees_handler (k : continuation) (h : continuation_handler)
    <-> among k (free_continuations_of_handler h) = true).
 Proof.
   - destruct e
-      as [ y d body | bindings body | k' h body | handlers body | ap | ac
+      as [ y kind d body | bindings body | k' h body | handlers body | ap | ac
          | scrutinee arms | ];
       intros Hcode; simpl in Hcode;
       cbn [cont_free_in_expr free_continuations_of_expr].
@@ -324,7 +324,7 @@ Proof.
       * intros [arm [<- Hin]]. exists arm. split; [ exact Hin | reflexivity ].
     + (* Invalid *)
       simpl. split; [ intros [] | discriminate ].
-  - destruct h as [params handler]. intros Hcode.
+  - destruct h as [params metadata handler]. intros Hcode.
     exact (cont_free_agrees_expr k handler Hcode).
 Qed.
 
@@ -344,7 +344,7 @@ with free_continuations_agree_handler (h : continuation_handler)
   free_continuations_of_handler h = handler_free_continuations h.
 Proof.
   - destruct e
-      as [ y d body | bindings body | k' h body | handlers body | ap | ac
+      as [ y kind d body | bindings body | k' h body | handlers body | ap | ac
          | scrutinee arms | ];
       intros Hcode; simpl in Hcode;
       cbn [free_continuations_of_expr free_continuations];
@@ -373,7 +373,7 @@ Proof.
         rewrite (free_continuations_agree_handler h Hh), (IH Hrest).
         reflexivity. }
       rewrite Hgroup. reflexivity.
-  - destruct h as [params handler]. intros Hcode.
+  - destruct h as [params metadata handler]. intros Hcode.
     exact (free_continuations_agree_expr handler Hcode).
 Qed.
 
@@ -466,7 +466,7 @@ with handler_in_scope_names_among (h : continuation_handler) {struct h} :
     (handler_in_scope vs ks h = true <-> handler_names_among vs ks h = true).
 Proof.
   - destruct e
-      as [ x d body | bindings body | k h body | handlers body | ap | ac
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
          | scrutinee arms | ];
       intros vs ks Hcode; simpl in Hcode; unfold names_among;
       cbn [expr_in_scope free_variables_of_expr free_continuations_of_expr].
@@ -548,7 +548,8 @@ Proof.
       rewrite simple_in_scope_among, arms_in_scope_among. tauto.
     + (* Invalid *)
       simpl. tauto.
-  - destruct h as [params handler]. intros vs ks Hcode. simpl in Hcode.
+  - destruct h as [params metadata handler]. intros vs ks Hcode.
+    simpl in Hcode.
     rewrite handler_names_among_handler. cbn [handler_in_scope].
     exact (expr_in_scope_names_among handler (params ++ vs) ks Hcode).
 Qed.

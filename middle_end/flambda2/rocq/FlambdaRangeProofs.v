@@ -413,8 +413,9 @@ Lemma apply_cont_value_in_range (c : cont_value) (vs : list value)
   result_in_range (apply_cont_value c vs statics).
 Proof.
   intros Hc Hvs Hstatics.
-  destruct Hc as [k | [params handler] vars conts recursive Hh Hvars Hconts
-                        Hrecursive];
+  destruct Hc
+    as [k | [params metadata handler] vars conts recursive Hh Hvars Hconts
+          Hrecursive];
     simpl; [ exact Hvs | ].
   destruct (bind_params params vs vars) as [handler_vars | ] eqn:Hbind;
     [ | exact I ].
@@ -473,7 +474,7 @@ Proof.
   set (vars := state_vars s) in *. set (conts := state_conts s) in *.
   set (statics := state_statics s) in *.
   destruct (state_expr s)
-    as [x d body | bindings body | k h body | handlers body | ap | ac
+    as [x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
     autorewrite with step; simpl in Hexpr.
   - apply andb_true_iff in Hexpr as [Hd Hbody].
@@ -657,7 +658,7 @@ Fixpoint rename_numbers_in_range (r : renaming) (e : expr) :
   numbers_in_range (rename_expr r e) = numbers_in_range e.
 Proof.
   destruct e
-    as [ x d body | bindings body | k h body | handlers body | ap | ac
+    as [ x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
     simpl.
   - rewrite rename_named_in_range, rename_numbers_in_range. reflexivity.
@@ -665,11 +666,11 @@ Proof.
     induction bindings as [ | [id c | id | sym const] bindings IH]; simpl;
       [ reflexivity | rewrite IH; reflexivity .. | ].
     rewrite rename_static_const_in_range, IH. reflexivity.
-  - destruct h as [params handler]. simpl.
+  - destruct h as [params metadata handler]. simpl.
     rewrite !rename_numbers_in_range. reflexivity.
   - rewrite rename_numbers_in_range. f_equal.
-    induction handlers as [ | [k [params handler]] handlers IH]; simpl;
-      [ reflexivity | ].
+    induction handlers as [ | [k [params metadata handler]] handlers IH];
+      simpl; [ reflexivity | ].
     rewrite rename_numbers_in_range, IH. reflexivity.
   - apply rename_apply_in_range.
   - apply rename_apply_cont_in_range.

@@ -418,8 +418,8 @@ with load_blocks_in_handler_refines (h : continuation_handler) :
          vars conts statics).
 Proof.
   - destruct e
-      as [ x d body | bindings body | k h body | handlers body | ap | ac
-         | scrutinee arms | ];
+      as [ x kind d body | bindings body | k h body | handlers body | ap
+         | ac | scrutinee arms | ];
       intros known vars conts statics Hhold; simpl.
     + (* Let *)
       destruct (eval_named statics vars d) as [v | ] eqn:Hd.
@@ -454,7 +454,7 @@ Proof.
     + apply refines_refl.
     + apply refines_refl.
     + apply refines_refl.
-  - destruct h as [params handler].
+  - destruct h as [params metadata handler].
     intros known k body vars conts statics Hhold. simpl.
     apply (let_cont_handler_refines_where (symbols_hold known vars)
       (symbols_hold_extend known vars));

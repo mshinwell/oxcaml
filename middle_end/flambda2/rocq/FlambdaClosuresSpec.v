@@ -181,25 +181,29 @@ Definition project_function_slot_let_closures_statement : Prop :=
     (function_decls : list (function_slot * code_id))
     (value_slots : list (value_slot * simple))
     (move_from move_to : function_slot) (x_from x_to y : variable)
-    (code code' : code_id) (i j : nat) (body e e' : expr),
+    (kind : flambda_kind) (code code' : code_id) (i j : nat)
+    (body e e' : expr),
     distinct bound_vars = true ->
     nth_error bound_vars i = Some x_from ->
     nth_error function_decls i = Some (move_from, code) ->
     nth_error bound_vars j = Some x_to ->
     nth_error function_decls j = Some (move_to, code') ->
     let_closures bound_vars function_decls value_slots
-      (Let y (Project_function_slot move_from move_to (Var x_from)) body)
+      (Let y kind (Project_function_slot move_from move_to (Var x_from))
+         body)
     = Some e ->
     let_closures bound_vars function_decls value_slots
-      (Let y (Simple (Var x_to)) body)
+      (Let y kind (Simple (Var x_to)) body)
     = Some e' ->
     expr_equivalent e e'.
 
 (* A call of the closure projected from a closure of a set made by a
    [Let] is a direct call of the code of the slot projected. *)
 Definition apply_sibling_statement : Prop :=
-  ∀ (x : variable) (move_from move_to : function_slot) (closure : simple)
+  ∀ (x : variable) (kind : flambda_kind)
+    (move_from move_to : function_slot) (closure : simple)
     (args : list simple) (k exn : continuation)
+    (args_arity return_arity : arity)
     (function_decls : list (function_slot * code_id))
     (slot_values : list (value_slot * value)) (code : code_id) (vars : env)
     (conts : cont_env) (statics : static_env),
@@ -208,12 +212,16 @@ Definition apply_sibling_statement : Prop :=
     lookup move_to function_decls = Some code ->
     equivalent
       (State
-         (Let x (Project_function_slot move_from move_to closure)
-            (Apply (Apply_expr (Var x) Indirect args k exn)))
+         (Let x kind (Project_function_slot move_from move_to closure)
+            (Apply
+               (Apply_expr (Var x) Indirect args k exn args_arity
+                  return_arity)))
          vars conts statics)
       (State
-         (Let x (Project_function_slot move_from move_to closure)
-            (Apply (Apply_expr (Var x) (Direct code) args k exn)))
+         (Let x kind (Project_function_slot move_from move_to closure)
+            (Apply
+               (Apply_expr (Var x) (Direct code) args k exn args_arity
+                  return_arity)))
          vars conts statics).
 
 (* ======================================================================== *)
@@ -278,16 +286,18 @@ Definition project_function_slot_static_statement : Prop :=
     (function_decls : list (function_slot * code_id))
     (value_slots : list (value_slot * simple))
     (move_from move_to : function_slot) (s s' : symbol)
-    (code code' : code_id) (x : variable) (body : expr),
+    (code code' : code_id) (x : variable) (kind : flambda_kind)
+    (body : expr),
     (move_from, s) ∈ closure_symbols ->
     lookup move_to closure_symbols = Some s' ->
     lookup move_from function_decls = Some code ->
     lookup move_to function_decls = Some code' ->
     expr_equivalent
       (Let_static (bind_closures closure_symbols function_decls value_slots)
-         (Let x (Project_function_slot move_from move_to (Symbol s)) body))
+         (Let x kind (Project_function_slot move_from move_to (Symbol s))
+            body))
       (Let_static (bind_closures closure_symbols function_decls value_slots)
-         (Let x (Simple (Symbol s')) body)).
+         (Let x kind (Simple (Symbol s')) body)).
 
 (* The projection of a value slot from a symbol of a static set, with
    the binding of the set in sight, is what the set gives the slot. *)
@@ -296,15 +306,17 @@ Definition project_value_slot_static_statement : Prop :=
     (function_decls : list (function_slot * code_id))
     (value_slots : list (value_slot * simple))
     (project_from : function_slot) (s : symbol) (code : code_id)
-    (slot : value_slot) (contents : simple) (x : variable) (body : expr),
+    (slot : value_slot) (contents : simple) (x : variable)
+    (kind : flambda_kind) (body : expr),
     (project_from, s) ∈ closure_symbols ->
     lookup project_from function_decls = Some code ->
     lookup slot value_slots = Some contents ->
     expr_equivalent
       (Let_static (bind_closures closure_symbols function_decls value_slots)
-         (Let x (Project_value_slot_from project_from slot (Symbol s)) body))
+         (Let x kind (Project_value_slot_from project_from slot (Symbol s))
+            body))
       (Let_static (bind_closures closure_symbols function_decls value_slots)
-         (Let x (Simple contents) body)).
+         (Let x kind (Simple contents) body)).
 
 (* In a set whose functions have each their own code, as those of a
    well-formed unit have, the code that a closure runs says which
@@ -327,7 +339,7 @@ Definition closure_code_determines_slot_statement : Prop :=
    to be made is at a function slot that its set has not got. *)
 Definition makes_closure_outside_set (s : state) : bool :=
   match state_expr s with
-  | Let _ (Closure_of_set slot function_decls _) _ =>
+  | Let _ _ (Closure_of_set slot function_decls _) _ =>
     negb (is_bound slot function_decls)
   | Let_static bindings _ =>
     existsb
@@ -570,7 +582,8 @@ Definition call_binds_my_closure_statement : Prop :=
    (the primitives are abstract): the [Switch] gives the predecessor. A
    function reaches the other by projecting its function slot from
    [my_closure], and reads its answer at 0 from a value slot of the set,
-   also through [my_closure]. *)
+   also through [my_closure]. Numbers and answers are naked immediates,
+   and the code, the handlers and the calls say so. *)
 Section Parity.
 
 Let n : variable := 1%positive.
@@ -583,19 +596,23 @@ Let exn : continuation := 2%positive.
 Let call_other : continuation := 3%positive.
 Let at_zero : continuation := 4%positive.
 
+Definition parity_kind : flambda_kind := Naked_number Kind_naked_immediate.
+
+Definition parity_arity : arity := [Singleton parity_kind].
+
 Definition parity_code (this other : function_slot)
     (answer_slot : value_slot) : code :=
-  Code [n] my_closure ret exn
+  Code [n] my_closure ret exn (make_code_metadata parity_arity parity_arity)
     (Let_cont_non_recursive call_other
-       (Handler [predecessor]
-          (Let other_closure
+       (Handler [predecessor] (make_handler_metadata [parity_kind])
+          (Let other_closure Value
              (Project_function_slot this other (Var my_closure))
              (Apply
                 (Apply_expr (Var other_closure) Indirect [Var predecessor]
-                   ret exn))))
+                   ret exn parity_arity parity_arity))))
        (Let_cont_non_recursive at_zero
-          (Handler []
-             (Let answer_at_zero
+          (Handler [] (make_handler_metadata [])
+             (Let answer_at_zero parity_kind
                 (Project_value_slot_from this answer_slot (Var my_closure))
                 (Apply_cont (Apply_cont_expr ret [Var answer_at_zero]))))
           (Switch (Var n)
@@ -633,7 +650,7 @@ Definition parity_let (i : Z) : option expr :=
     (let_closures [even; odd] parity_decls parity_value_slots
        (Apply
           (Apply_expr (Var odd) Indirect [Const (Naked_immediate i)] done
-             error))).
+             error parity_arity parity_arity))).
 
 Definition even_symbol : symbol := 1%positive.
 Definition odd_symbol : symbol := 2%positive.
@@ -646,7 +663,8 @@ Definition parity_static (i : Z) : expr :=
           parity_decls parity_value_slots)
     (Apply
        (Apply_expr (Symbol odd_symbol) (Direct odd_code)
-          [Const (Naked_immediate i)] done error)).
+          [Const (Naked_immediate i)] done error parity_arity
+          parity_arity)).
 
 (* Run on their own, both say that 3 is odd and that 2 is not. *)
 Definition parity_let_statement : Prop :=
@@ -682,7 +700,8 @@ Definition parity_partial : expr :=
            (Static_const_closure_of_set even_slot
               [(even_slot, even_symbol); (odd_slot, odd_symbol)] parity_decls
               parity_value_slots)])
-    (Let odd (Project_function_slot even_slot odd_slot (Symbol even_symbol))
+    (Let odd Value
+       (Project_function_slot even_slot odd_slot (Symbol even_symbol))
        (Apply_cont (Apply_cont_expr done [Var odd]))).
 
 (* The machine gives the symbol that the set names for the other slot,

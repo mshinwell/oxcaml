@@ -45,7 +45,9 @@
      preserved by every context that relates a binder with its scope to
      its image under a renaming fixing the free names of the two. The
      rules for binders are those of FlambdaNominalSpec.v, read as the
-     definition of when two name abstractions are equal;
+     definition of when two name abstractions are equal. Kinds, arities
+     and metadata have no names in them: alpha-equivalent expressions
+     have the same ones;
    - alpha-equivalence is equivariant, and alpha-equivalent expressions
      have the same free names, so the action and the support are those of
      the classes ([alpha_equivalent_equivariant_statement],
@@ -133,14 +135,14 @@ Inductive alpha_equivalent : expr -> expr -> Prop :=
       cont_free_in_expr k e -> rename_continuation r k = k) ->
     alpha_equivalent e (rename_expr r e)
   (* The variable of a [Let], whose scope is the body. *)
-  | Alpha_let (r : renaming) (x : variable) (defining_expr : named)
-      (body : expr) :
+  | Alpha_let (r : renaming) (x : variable) (kind : flambda_kind)
+      (defining_expr : named) (body : expr) :
     (∀ y : variable,
       y <> x -> var_free_in_expr y body -> rename_variable r y = y) ->
     (∀ k : continuation,
       cont_free_in_expr k body -> rename_continuation r k = k) ->
-    alpha_equivalent (Let x defining_expr body)
-      (Let (rename_variable r x) defining_expr (rename_expr r body))
+    alpha_equivalent (Let x kind defining_expr body)
+      (Let (rename_variable r x) kind defining_expr (rename_expr r body))
   (* The continuation of a non-recursive [Let_cont], whose scope is the
      body. *)
   | Alpha_let_cont (r : renaming) (k : continuation)
@@ -154,29 +156,31 @@ Inductive alpha_equivalent : expr -> expr -> Prop :=
          (rename_expr r body))
   (* The parameters of a handler, whose scope is the handler. *)
   | Alpha_handler (r : renaming) (k : continuation) (params : list variable)
-      (handler body : expr) :
+      (metadata : handler_metadata) (handler body : expr) :
     (∀ y : variable,
       y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
     (∀ k' : continuation,
       cont_free_in_expr k' handler -> rename_continuation r k' = k') ->
     alpha_equivalent
-      (Let_cont_non_recursive k (Handler params handler) body)
-      (Let_cont_non_recursive k (rename_handler r (Handler params handler))
-         body)
+      (Let_cont_non_recursive k (Handler params metadata handler) body)
+      (Let_cont_non_recursive k
+         (rename_handler r (Handler params metadata handler)) body)
   (* The same for a handler of a recursive [Let_cont]. *)
   | Alpha_recursive_handler (r : renaming)
       (before : list (continuation * continuation_handler))
-      (k : continuation) (params : list variable) (handler : expr)
+      (k : continuation) (params : list variable)
+      (metadata : handler_metadata) (handler : expr)
       (after : list (continuation * continuation_handler)) (body : expr) :
     (∀ y : variable,
       y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
     (∀ k' : continuation,
       cont_free_in_expr k' handler -> rename_continuation r k' = k') ->
     alpha_equivalent
-      (Let_cont_recursive (before ++ (k, Handler params handler) :: after)
-         body)
       (Let_cont_recursive
-         (before ++ (k, rename_handler r (Handler params handler)) :: after)
+         (before ++ (k, Handler params metadata handler) :: after) body)
+      (Let_cont_recursive
+         (before
+          ++ (k, rename_handler r (Handler params metadata handler)) :: after)
          body).
 
 (* The continuations of a recursive [Let_cont] need no rule of their own:
@@ -224,7 +228,7 @@ Definition alpha_equivalent_sound_statement : Prop :=
    parameters. *)
 Inductive alpha_structural : expr -> expr -> Prop :=
   | Structural_let (r r' : renaming) (x x' : variable)
-      (defining_expr : named) (body body' : expr) :
+      (kind : flambda_kind) (defining_expr : named) (body body' : expr) :
     (∀ y : variable,
       y <> x -> var_free_in_expr y body -> rename_variable r y = y) ->
     (∀ k : continuation,
@@ -235,7 +239,8 @@ Inductive alpha_structural : expr -> expr -> Prop :=
       cont_free_in_expr k body' -> rename_continuation r' k = k) ->
     rename_variable r x = rename_variable r' x' ->
     alpha_structural (rename_expr r body) (rename_expr r' body') ->
-    alpha_structural (Let x defining_expr body) (Let x' defining_expr body')
+    alpha_structural (Let x kind defining_expr body)
+      (Let x' kind defining_expr body')
   | Structural_let_cont_non_recursive (r r' : renaming)
       (k k' : continuation) (handler handler' : continuation_handler)
       (body body' : expr) :
@@ -279,7 +284,7 @@ Inductive alpha_structural : expr -> expr -> Prop :=
 with alpha_structural_handler
     : continuation_handler -> continuation_handler -> Prop :=
   | Structural_handler (r r' : renaming) (params params' : list variable)
-      (handler handler' : expr) :
+      (metadata : handler_metadata) (handler handler' : expr) :
     (∀ y : variable,
       y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
     (∀ k : continuation,
@@ -291,8 +296,8 @@ with alpha_structural_handler
       cont_free_in_expr k handler' -> rename_continuation r' k = k) ->
     map (rename_variable r) params = map (rename_variable r') params' ->
     alpha_structural (rename_expr r handler) (rename_expr r' handler') ->
-    alpha_structural_handler (Handler params handler)
-      (Handler params' handler')
+    alpha_structural_handler (Handler params metadata handler)
+      (Handler params' metadata handler')
 with alpha_structural_handlers
     : list (continuation * continuation_handler) ->
       list (continuation * continuation_handler) -> Prop :=

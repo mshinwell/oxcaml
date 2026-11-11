@@ -123,8 +123,9 @@ Qed.
 (* ======================================================================== *)
 
 Lemma names_among_let (vs : list variable) (ks : list continuation)
-    (x : variable) (defining_expr : named) (body : expr) :
-  names_among vs ks (Let x defining_expr body) = true ->
+    (x : variable) (kind : flambda_kind) (defining_expr : named)
+    (body : expr) :
+  names_among vs ks (Let x kind defining_expr body) = true ->
   all_among (free_variables_of_named defining_expr) vs = true
   ∧ names_among (x :: vs) ks body = true.
 Proof.
@@ -171,8 +172,9 @@ Proof.
 Qed.
 
 Lemma handler_names_among_handler (vs : list variable)
-    (ks : list continuation) (params : list variable) (handler : expr) :
-  handler_names_among vs ks (Handler params handler)
+    (ks : list continuation) (params : list variable)
+    (metadata : handler_metadata) (handler : expr) :
+  handler_names_among vs ks (Handler params metadata handler)
   = names_among (params ++ vs) ks handler.
 Proof.
   unfold names_among, handler_names_among. simpl.
@@ -249,7 +251,7 @@ Lemma code_is_closed_no_free_names (c : code) :
   code_is_closed c = true ->
   free_variables_of_code c = [] ∧ free_continuations_of_code c = [].
 Proof.
-  destruct c as [params my_closure ret exn body]. simpl.
+  destruct c as [params my_closure ret exn metadata body]. simpl.
   rewrite !andb_true_iff. intros [[Hvars Hconts] _].
   split; apply is_empty_nil; assumption.
 Qed.

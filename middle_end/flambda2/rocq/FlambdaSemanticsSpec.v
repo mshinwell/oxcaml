@@ -146,6 +146,9 @@
    [refines_defined_statement] and [refines_antisymmetric_statement] say how
    the two are related.
 
+   Kinds. The kinds and arities that terms carry (FlambdaModel.v) have
+   no effect on execution.
+
    The primitives are those of FlambdaPrimitiveModel.v, and
    [FlambdaPrimitiveSpec.eval_prim] says what each computes. A law of a
    primitive (say, that an addition commutes) is a lemma about it.
@@ -437,7 +440,7 @@ Definition binding_binds (binding : static_binding) : bool :=
 
 Fixpoint binds_statics (e : expr) : bool :=
   match e with
-  | Let _ _ body => binds_statics body
+  | Let _ _ _ body => binds_statics body
   | Let_static bindings body =>
     existsb binding_binds bindings || binds_statics body
   | Let_cont_non_recursive _ h body =>
@@ -449,7 +452,7 @@ Fixpoint binds_statics (e : expr) : bool :=
   end
 with handler_binds_statics (h : continuation_handler) : bool :=
   match h with
-  | Handler _ handler => binds_statics handler
+  | Handler _ _ handler => binds_statics handler
   end.
 
 Definition handlers_bind_statics
@@ -509,7 +512,7 @@ Definition apply_cont_value (c : cont_value) (vs : list value)
     (statics : static_env) : step_result :=
   match c with
   | Outer k => Exit k vs
-  | Closure (Handler params handler) def_vars def_conts recursive =>
+  | Closure (Handler params _ handler) def_vars def_conts recursive =>
     match bind_params params vs def_vars with
     | Some handler_vars =>
       Step (State handler handler_vars
@@ -578,7 +581,7 @@ Definition call_function (callee : value) (kind : call_kind)
 
 Definition step (s : state) : step_result :=
   match s with
-  | State (Let x defining_expr body) vars conts statics =>
+  | State (Let x _ defining_expr body) vars conts statics =>
     match eval_named statics vars defining_expr with
     | Some v => Step (State body ((x, v) :: vars) conts statics)
     | None => Undefined
@@ -697,8 +700,9 @@ Definition step_values_all_statement : Prop :=
   ∀ (P : static_env -> value -> Prop)
     (Q : static_env -> statically_allocated_value -> Prop) (s : state),
     state_values_all P Q s ->
-    (∀ (x : variable) (defining_expr : named) (body : expr) (v : value),
-      state_expr s = Let x defining_expr body ->
+    (∀ (x : variable) (kind : flambda_kind) (defining_expr : named)
+       (body : expr) (v : value),
+      state_expr s = Let x kind defining_expr body ->
       eval_named (state_statics s) (state_vars s) defining_expr = Some v ->
       P (state_statics s) v) ->
     (∀ (bindings : list static_binding) (body : expr)

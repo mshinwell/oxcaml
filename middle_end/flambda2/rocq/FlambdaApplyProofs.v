@@ -38,8 +38,8 @@ Import ListNotations.
 
 Theorem apply_indirect_known : apply_indirect_known_statement.
 Proof.
-  intros callee args k exn v called slots vars conts statics Hcallee
-    Hclosure.
+  intros callee args k exn args_arity return_arity v called slots vars conts
+    statics Hcallee Hclosure.
   apply step_eq_equivalent. rewrite !step_apply. simpl. rewrite Hcallee.
   destruct (eval_simples vars args) as [vs | ]; [ | reflexivity ].
   unfold call_function. rewrite Hclosure, Pos.eqb_refl. reflexivity.
@@ -73,18 +73,19 @@ Qed.
 (* The [Let]s of [let_params] run to the body, with the parameters bound as
    a call binds them, provided no parameter is free in an argument. *)
 Lemma let_params_run (params : list variable) :
-  ∀ (args : list simple) (vs : list value) (vars bound : env) (body : expr)
-    (conts : cont_env) (statics : static_env),
+  ∀ (kinds : list flambda_kind) (args : list simple) (vs : list value)
+    (vars bound : env) (body : expr) (conts : cont_env)
+    (statics : static_env),
     eval_simples vars args = Some vs ->
     (∀ param : variable,
       param ∈ params -> ~ var_free_in_simples param args) ->
     bind_params params vs vars = Some bound ->
     ∃ n : nat,
-      run n (State (let_params params args body) vars conts statics)
+      run n (State (let_params params kinds args body) vars conts statics)
       = Step (State body bound conts statics).
 Proof.
   induction params as [ | param params IH];
-    intros args vs vars bound body conts statics Hargs Hfresh Hbind.
+    intros kinds args vs vars bound body conts statics Hargs Hfresh Hbind.
   - destruct vs; [ | discriminate ]. injection Hbind as <-.
     exists 0. reflexivity.
   - destruct vs as [ | v vs]; [ discriminate | ].
@@ -97,7 +98,8 @@ Proof.
     assert (Hnotfree : ~ var_free_in_simples param args).
     { intros Hfree. apply (Hfresh param (or_introl eq_refl)).
       apply Exists_cons_tl. exact Hfree. }
-    destruct (IH args vs ((param, v) :: vars) bound body conts statics)
+    destruct
+      (IH (tl kinds) args vs ((param, v) :: vars) bound body conts statics)
       as [n Hrun].
     + rewrite eval_simples_extend; assumption.
     + intros p Hin Hfree. apply (Hfresh p (or_intror Hin)).
@@ -180,9 +182,10 @@ Proof.
   (* the call *)
   eapply equivalent_trans; [ exact (step_equivalent _ _ Hstep) | ].
   (* the inlined body *)
-  destruct (let_params_run (code_params c) (ap_args ap) vs
-              ((code_my_closure c, callee) :: vars) (callee_vars ++ vars)
-              (rename_expr r (code_body c)) conts statics)
+  destruct (let_params_run (code_params c) (code_params_kinds c)
+              (ap_args ap) vs ((code_my_closure c, callee) :: vars)
+              (callee_vars ++ vars) (rename_expr r (code_body c)) conts
+              statics)
     as [n Hrun].
   { rewrite eval_simples_extend; assumption. }
   { exact Hparams. }
@@ -266,23 +269,24 @@ Qed.
 
 (* Where an argument has no value, the [Let]s of [let_params] go wrong. *)
 Lemma let_params_wrong (params : list variable) :
-  ∀ (args : list simple) (vars : env) (body : expr) (conts : cont_env)
-    (statics : static_env),
+  ∀ (kinds : list flambda_kind) (args : list simple) (vars : env)
+    (body : expr) (conts : cont_env) (statics : static_env),
     length params = length args ->
     eval_simples vars args = None ->
     (∀ param : variable,
       param ∈ params -> ~ var_free_in_simples param args) ->
-    behaves (State (let_params params args body) vars conts statics)
+    behaves (State (let_params params kinds args body) vars conts statics)
       Goes_wrong.
 Proof.
   induction params as [ | param params IH];
-    intros [ | arg args] vars body conts statics; simpl; try discriminate.
+    intros kinds [ | arg args] vars body conts statics; simpl;
+    try discriminate.
   intros [= Hlength] Hargs Hfresh.
   destruct (eval_simple vars arg) as [v | ] eqn:Harg.
   - destruct (eval_simples vars args) as [vs | ] eqn:Hrest;
       [ discriminate | ].
     apply (step_behaves _ Goes_wrong). rewrite step_let. simpl.
-    rewrite Harg. apply (IH args _ body conts statics Hlength).
+    rewrite Harg. apply (IH (tl kinds) args _ body conts statics Hlength).
     + rewrite eval_simples_extend; [ exact Hrest | ].
       intros Hfree. apply (Hfresh param (or_introl eq_refl)).
       apply Exists_cons_tl. exact Hfree.
@@ -329,9 +333,10 @@ Proof.
     { rewrite (eval_simples_length vars _ vs Hargs). exact Harity. }
     rewrite Hbind in Hstep.
     eapply equivalent_trans; [ exact (step_equivalent _ _ Hstep) | ].
-    destruct (let_params_run (code_params c) (ap_args ap) vs
-                ((code_my_closure c, callee) :: vars) (callee_vars ++ vars)
-                (rename_expr r (code_body c)) conts statics)
+    destruct (let_params_run (code_params c) (code_params_kinds c)
+                (ap_args ap) vs ((code_my_closure c, callee) :: vars)
+                (callee_vars ++ vars) (rename_expr r (code_body c)) conts
+                statics)
       as [n Hrun].
     { rewrite eval_simples_extend; assumption. }
     { exact Hparams. }

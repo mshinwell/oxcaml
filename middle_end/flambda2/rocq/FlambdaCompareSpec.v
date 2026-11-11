@@ -36,7 +36,8 @@
    of bound variables and of bound continuations met so far. A name bound
    on one side must be used where its partner is on the other; a name
    bound on neither must be the same on both. Symbols, code ids and value
-   slots must be the same. Code is compared as closed: only its own
+   slots must be the same, and so must kinds, arities and metadata, which
+   have no names in them. Code is compared as closed: only its own
    parameters, [my_closure] and continuations are paired.
 
    CR mshinwell: Code ids must be the same on the two sides, but Simplify
@@ -202,7 +203,9 @@ Definition apply_eqb (vm km : name_map) (ap ap' : apply_expr) : bool :=
   && call_kind_eqb (ap_call_kind ap) (ap_call_kind ap')
   && simples_eqb vm (ap_args ap) (ap_args ap')
   && names_match km (ap_continuation ap) (ap_continuation ap')
-  && names_match km (ap_exn_continuation ap) (ap_exn_continuation ap').
+  && names_match km (ap_exn_continuation ap) (ap_exn_continuation ap')
+  && arity_eqb (ap_args_arity ap) (ap_args_arity ap')
+  && arity_eqb (ap_return_arity ap) (ap_return_arity ap').
 
 (* ======================================================================== *)
 (* Expressions                                                              *)
@@ -210,8 +213,9 @@ Definition apply_eqb (vm km : name_map) (ap ap' : apply_expr) : bool :=
 
 Fixpoint expr_eqb (vm km : name_map) (e e' : expr) {struct e} : bool :=
   match e, e' with
-  | Let x d body, Let x' d' body' =>
-    named_eqb vm d d' && expr_eqb ((x, x') :: vm) km body body'
+  | Let x kind d body, Let x' kind' d' body' =>
+    kind_eqb kind kind' && named_eqb vm d d'
+    && expr_eqb ((x, x') :: vm) km body body'
   | Let_static bindings body, Let_static bindings' body' =>
     forall2b (binding_eqb vm) bindings bindings' && expr_eqb vm km body body'
   | Let_cont_non_recursive k h body, Let_cont_non_recursive k' h' body' =>
@@ -239,9 +243,11 @@ Fixpoint expr_eqb (vm km : name_map) (e e' : expr) {struct e} : bool :=
 with handler_eqb (vm km : name_map) (h h' : continuation_handler) {struct h}
     : bool :=
   match h, h' with
-  | Handler params handler, Handler params' handler' =>
+  | Handler params metadata handler, Handler params' metadata' handler' =>
     match bind_names params params' vm with
-    | Some vm' => expr_eqb vm' km handler handler'
+    | Some vm' =>
+      handler_metadata_eqb metadata metadata'
+      && expr_eqb vm' km handler handler'
     | None => false
     end
   end
@@ -256,10 +262,12 @@ with binding_eqb (vm : name_map) (binding binding' : static_binding)
   end
 with code_eqb (c c' : code) {struct c} : bool :=
   match c, c' with
-  | Code params my_closure ret exn body,
-    Code params' my_closure' ret' exn' body' =>
+  | Code params my_closure ret exn metadata body,
+    Code params' my_closure' ret' exn' metadata' body' =>
     match bind_names params params' [(my_closure, my_closure')] with
-    | Some vm => expr_eqb vm [(ret, ret'); (exn, exn')] body body'
+    | Some vm =>
+      code_metadata_eqb metadata metadata'
+      && expr_eqb vm [(ret, ret'); (exn, exn')] body body'
     | None => false
     end
   end.

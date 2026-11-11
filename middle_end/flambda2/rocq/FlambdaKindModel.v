@@ -36,7 +36,8 @@
    boxed form.
 
    What is left out: subkinds ([With_subkind]), the shapes of mixed blocks,
-   arities, and [Standard_int_or_float].
+   and [Standard_int_or_float]. Arities ([Flambda_arity.t]) are in
+   FlambdaModel.v.
 
    A constructor is prefixed where the compiler's name is that of a
    constant (FlambdaModel.v) or of another kind here. *)

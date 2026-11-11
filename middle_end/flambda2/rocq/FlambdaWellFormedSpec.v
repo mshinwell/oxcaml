@@ -122,7 +122,7 @@ Import ListNotations.
    does not bind itself. Code is closed, so bindings of code have none. *)
 Fixpoint free_continuations (e : expr) : list continuation :=
   match e with
-  | Let _ _ body | Let_static _ body => free_continuations body
+  | Let _ _ _ body | Let_static _ body => free_continuations body
   | Let_cont_non_recursive k h body =>
     handler_free_continuations h ++ without [k] (free_continuations body)
   | Let_cont_recursive handlers body =>
@@ -137,14 +137,14 @@ Fixpoint free_continuations (e : expr) : list continuation :=
 with handler_free_continuations (h : continuation_handler)
     : list continuation :=
   match h with
-  | Handler _ handler => free_continuations handler
+  | Handler _ _ handler => free_continuations handler
   end.
 
 (* Whether some call in the expression has [k] as its exception
    continuation. *)
 Fixpoint raises_to (k : continuation) (e : expr) : bool :=
   match e with
-  | Let _ _ body | Let_static _ body => raises_to k body
+  | Let _ _ _ body | Let_static _ body => raises_to k body
   | Let_cont_non_recursive _ h body =>
     handler_raises_to k h || raises_to k body
   | Let_cont_recursive handlers body =>
@@ -155,7 +155,7 @@ Fixpoint raises_to (k : continuation) (e : expr) : bool :=
   end
 with handler_raises_to (k : continuation) (h : continuation_handler) : bool :=
   match h with
-  | Handler _ handler => raises_to k handler
+  | Handler _ _ handler => raises_to k handler
   end.
 
 (* ======================================================================== *)
@@ -182,7 +182,7 @@ Definition handler_at_toplevel (unit_exn k : continuation) (body : expr)
 Fixpoint statics_at_toplevel (unit_exn : continuation) (toplevel : bool)
     (e : expr) : bool :=
   match e with
-  | Let _ _ body => statics_at_toplevel unit_exn toplevel body
+  | Let _ _ _ body => statics_at_toplevel unit_exn toplevel body
   | Let_static bindings body =>
     toplevel
     && forallb (binding_statics_at_toplevel unit_exn) bindings
@@ -200,7 +200,7 @@ Fixpoint statics_at_toplevel (unit_exn : continuation) (toplevel : bool)
 with handler_statics_at_toplevel (unit_exn : continuation) (toplevel : bool)
     (h : continuation_handler) : bool :=
   match h with
-  | Handler _ handler => statics_at_toplevel unit_exn toplevel handler
+  | Handler _ _ handler => statics_at_toplevel unit_exn toplevel handler
   end
 with binding_statics_at_toplevel (unit_exn : continuation)
     (binding : static_binding) : bool :=
@@ -210,7 +210,7 @@ with binding_statics_at_toplevel (unit_exn : continuation)
   end
 with code_statics_at_toplevel (unit_exn : continuation) (c : code) : bool :=
   match c with
-  | Code _ _ _ _ body => statics_at_toplevel unit_exn false body
+  | Code _ _ _ _ _ body => statics_at_toplevel unit_exn false body
   end.
 
 (* ======================================================================== *)
@@ -235,7 +235,7 @@ Definition symbols_of_binding (binding : static_binding) : list symbol :=
 Fixpoint static_names (names_of : static_binding -> list positive)
     (e : expr) : list positive :=
   match e with
-  | Let _ _ body => static_names names_of body
+  | Let _ _ _ body => static_names names_of body
   | Let_static bindings body =>
     flat_map names_of bindings ++ static_names names_of body
   | Let_cont_non_recursive _ h body =>
@@ -248,7 +248,7 @@ Fixpoint static_names (names_of : static_binding -> list positive)
 with handler_static_names (names_of : static_binding -> list positive)
     (h : continuation_handler) : list positive :=
   match h with
-  | Handler _ handler => static_names names_of handler
+  | Handler _ _ handler => static_names names_of handler
   end.
 
 (* ======================================================================== *)
@@ -377,7 +377,7 @@ Fixpoint static_sets_code_disjoint (bindings : list static_binding) : bool :=
    have no code in common. Code and handlers are looked into. *)
 Fixpoint sets_well_formed (e : expr) : bool :=
   match e with
-  | Let _ d body => named_sets_well_formed d && sets_well_formed body
+  | Let _ _ d body => named_sets_well_formed d && sets_well_formed body
   | Let_static bindings body =>
     forallb (static_set_whole bindings) bindings
     && static_sets_code_disjoint bindings
@@ -392,7 +392,7 @@ Fixpoint sets_well_formed (e : expr) : bool :=
   end
 with handler_sets_well_formed (h : continuation_handler) : bool :=
   match h with
-  | Handler _ handler => sets_well_formed handler
+  | Handler _ _ handler => sets_well_formed handler
   end
 with binding_sets_well_formed (binding : static_binding) : bool :=
   match binding with
@@ -401,7 +401,7 @@ with binding_sets_well_formed (binding : static_binding) : bool :=
   end
 with code_sets_well_formed (c : code) : bool :=
   match c with
-  | Code _ _ _ _ body => sets_well_formed body
+  | Code _ _ _ _ _ body => sets_well_formed body
   end.
 
 (* ======================================================================== *)
@@ -477,7 +477,7 @@ Definition arm_in_range (arm : Z * apply_cont) : bool :=
    looked into. *)
 Fixpoint numbers_in_range (e : expr) : bool :=
   match e with
-  | Let _ d body => named_in_range d && numbers_in_range body
+  | Let _ _ d body => named_in_range d && numbers_in_range body
   | Let_static bindings body =>
     forallb binding_numbers_in_range bindings && numbers_in_range body
   | Let_cont_non_recursive _ h body =>
@@ -493,7 +493,7 @@ Fixpoint numbers_in_range (e : expr) : bool :=
   end
 with handler_numbers_in_range (h : continuation_handler) : bool :=
   match h with
-  | Handler _ handler => numbers_in_range handler
+  | Handler _ _ handler => numbers_in_range handler
   end
 with binding_numbers_in_range (binding : static_binding) : bool :=
   match binding with
@@ -503,7 +503,7 @@ with binding_numbers_in_range (binding : static_binding) : bool :=
   end
 with code_numbers_in_range (c : code) : bool :=
   match c with
-  | Code _ _ _ _ body => numbers_in_range body
+  | Code _ _ _ _ _ body => numbers_in_range body
   end.
 
 (* ======================================================================== *)
@@ -592,7 +592,7 @@ Definition static_fault (s : state) : bool :=
   | Let_cont_recursive handlers _ => handlers_bind_statics handlers
   | Apply ap =>
     calls_code_binding_statics ap (state_vars s) (state_statics s)
-  | Let _ _ _ | Let_cont_non_recursive _ _ _ | Apply_cont _ | Switch _ _
+  | Let _ _ _ _ | Let_cont_non_recursive _ _ _ | Apply_cont _ | Switch _ _
   | Invalid =>
     false
   end.

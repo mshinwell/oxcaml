@@ -250,9 +250,9 @@ Proof. reflexivity. Qed.
 Theorem project_function_slot_let_closures :
   project_function_slot_let_closures_statement.
 Proof.
-  intros bound_vars decls value_slots move_from move_to x_from x_to y code
-    code' i j body e e' Hdistinct Hx_from Hfrom Hx_to Hto Hlet Hlet' vars
-    conts statics.
+  intros bound_vars decls value_slots move_from move_to x_from x_to y kind
+    code code' i j body e e' Hdistinct Hx_from Hfrom Hx_to Hto Hlet Hlet'
+    vars conts statics.
   destruct (eval_value_slots vars value_slots) as [slot_values | ] eqn:Hslots.
   - pose proof (let_closures_runs bound_vars decls value_slots _ e vars conts
                   statics slot_values Hlet Hdistinct Hslots) as Hrun.
@@ -286,14 +286,14 @@ Qed.
    is that of the slot. *)
 Theorem apply_sibling : apply_sibling_statement.
 Proof.
-  intros x move_from move_to closure args k exn decls slot_values code vars
-    conts statics Hclosure Hto.
+  intros x kind move_from move_to closure args k exn args_arity return_arity
+    decls slot_values code vars conts statics Hclosure Hto.
   apply let_equivalent_step; [ reflexivity | ].
   intros v. simpl. rewrite Hclosure. unfold project_function_slot.
   rewrite Pos.eqb_refl, Hto.
   destruct (lookup move_from decls); [ | discriminate ].
   simpl. intros [= <-].
-  apply (apply_indirect_known (Var x) args k exn
+  apply (apply_indirect_known (Var x) args k exn args_arity return_arity
            (Value_closure_of_set move_to decls slot_values) code slot_values).
   - simpl. rewrite Pos.eqb_refl. reflexivity.
   - simpl. rewrite Hto. reflexivity.
@@ -390,7 +390,7 @@ Theorem project_function_slot_static :
   project_function_slot_static_statement.
 Proof.
   intros closure_symbols decls value_slots move_from move_to s s' code code' x
-    body Hin Hsymbol Hfrom Hto vars conts statics.
+    kind body Hin Hsymbol Hfrom Hto vars conts statics.
   apply let_static_equivalent_step.
   destruct
     (eval_static_bindings vars
@@ -435,7 +435,7 @@ Qed.
 Theorem project_value_slot_static : project_value_slot_static_statement.
 Proof.
   intros closure_symbols decls value_slots project_from s code slot contents
-    x body Hin Hfrom Hslot vars conts statics.
+    x kind body Hin Hfrom Hslot vars conts statics.
   apply let_static_equivalent_step.
   destruct
     (eval_static_bindings vars
@@ -736,7 +736,7 @@ Proof.
   set (vars := state_vars s) in *. set (conts := state_conts s) in *.
   set (statics := state_statics s) in *.
   destruct (state_expr s)
-    as [ x d body | bindings body | k h body | handlers body | ap | ac
+    as [ x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
     autorewrite with step in Hstep.
   - (* Let *)
@@ -776,7 +776,8 @@ Proof.
       as (called & c & callee_vars & Hlookup & ->).
     unfold sets_inv. simpl_state.
     pose proof (S called c Hlookup) as Hc.
-    destruct c as [params my_closure ret exn body]. simpl in Hc |- *.
+    destruct c as [params my_closure ret exn metadata body].
+    simpl in Hc |- *.
     refine (conj Hc (conj (conj _ (conj _ I)) (conj S B)));
       apply resolve_sets_ok, C.
   - (* Apply_cont *)
@@ -784,7 +785,7 @@ Proof.
     unfold apply_continuation, apply_cont_value in Hstep.
     pose proof (resolve_sets_ok (ac_continuation ac) conts C) as Cr.
     destruct (resolve (ac_continuation ac) conts)
-      as [[params handler] def_vars def_conts recursive | k];
+      as [[params metadata handler] def_vars def_conts recursive | k];
       [ | discriminate ].
     destruct (bind_params params vs def_vars); [ | discriminate ].
     injection Hstep as <-. unfold sets_inv. simpl_state. simpl in Cr.
@@ -831,7 +832,7 @@ Proof.
   destruct (well_formed_sets_inv unit_exn e n s Hwf Hrun) as (P & _).
   unfold makes_closure_outside_set.
   destruct (state_expr s)
-    as [ x d body | bindings body | k h body | handlers body | ap | ac
+    as [ x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
     try reflexivity.
   - simpl in P. apply andb_true_iff in P as [Pd _].
@@ -1251,7 +1252,7 @@ Proof.
   intros (P & _) Hvalid.
   apply (step_values_all (fun _ v => value_valid v = true)
            (fun _ allocated => allocated_valid allocated = true) s Hvalid).
-  - intros x d body v Hexpr Heval. rewrite Hexpr in P. simpl in P.
+  - intros x kind d body v Hexpr Heval. rewrite Hexpr in P. simpl in P.
     apply andb_true_iff in P as [Pd _].
     destruct Hvalid as (Hvars & _ & Hstatics).
     exact (eval_named_valid (state_statics s) (state_vars s) d v Pd Hvars

@@ -58,47 +58,55 @@ Import ListNotations.
    bound by a [Let_static]. *)
 Inductive context : Type :=
   | Hole
-  | Let_body (x : variable) (defining_expr : named) (body : context)
+  | Let_body (x : variable) (kind : flambda_kind) (defining_expr : named)
+      (body : context)
   | Let_static_body (bindings : list static_binding) (body : context)
   | Let_static_code (before : list static_binding) (id : code_id)
       (params : list variable) (my_closure : variable)
       (return_continuation exn_continuation : continuation)
-      (code_body : context) (after : list static_binding) (body : expr)
+      (metadata : code_metadata) (code_body : context)
+      (after : list static_binding) (body : expr)
   | Let_cont_non_recursive_body (k : continuation)
       (handler : continuation_handler) (body : context)
   | Let_cont_non_recursive_handler (k : continuation)
-      (params : list variable) (handler : context) (body : expr)
+      (params : list variable) (metadata : handler_metadata)
+      (handler : context) (body : expr)
   | Let_cont_recursive_body
       (handlers : list (continuation * continuation_handler))
       (body : context)
   | Let_cont_recursive_handler
       (before : list (continuation * continuation_handler))
-      (k : continuation) (params : list variable) (handler : context)
+      (k : continuation) (params : list variable)
+      (metadata : handler_metadata) (handler : context)
       (after : list (continuation * continuation_handler)) (body : expr).
 
 Fixpoint plug (c : context) (e : expr) : expr :=
   match c with
   | Hole => e
-  | Let_body x defining_expr body => Let x defining_expr (plug body e)
+  | Let_body x kind defining_expr body =>
+    Let x kind defining_expr (plug body e)
   | Let_static_body bindings body => Let_static bindings (plug body e)
   | Let_static_code before id params my_closure return_continuation
-      exn_continuation code_body after body =>
+      exn_continuation metadata code_body after body =>
     Let_static
       (before
        ++ Bind_code id
             (Code params my_closure return_continuation exn_continuation
-               (plug code_body e))
+               metadata (plug code_body e))
        :: after)
       body
   | Let_cont_non_recursive_body k handler body =>
     Let_cont_non_recursive k handler (plug body e)
-  | Let_cont_non_recursive_handler k params handler body =>
-    Let_cont_non_recursive k (Handler params (plug handler e)) body
+  | Let_cont_non_recursive_handler k params metadata handler body =>
+    Let_cont_non_recursive k (Handler params metadata (plug handler e))
+      body
   | Let_cont_recursive_body handlers body =>
     Let_cont_recursive handlers (plug body e)
-  | Let_cont_recursive_handler before k params handler after body =>
+  | Let_cont_recursive_handler before k params metadata handler after body
+    =>
     Let_cont_recursive
-      (before ++ (k, Handler params (plug handler e)) :: after) body
+      (before ++ (k, Handler params metadata (plug handler e)) :: after)
+      body
   end.
 
 (* Whether the hole is in the body of code or in the handler of a
@@ -106,11 +114,12 @@ Fixpoint plug (c : context) (e : expr) : expr :=
 Fixpoint hole_runs_many_times (c : context) : bool :=
   match c with
   | Hole => false
-  | Let_body _ _ c | Let_static_body _ c | Let_cont_non_recursive_body _ _ c
-  | Let_cont_non_recursive_handler _ _ c _ | Let_cont_recursive_body _ c =>
+  | Let_body _ _ _ c | Let_static_body _ c
+  | Let_cont_non_recursive_body _ _ c
+  | Let_cont_non_recursive_handler _ _ _ c _ | Let_cont_recursive_body _ c =>
     hole_runs_many_times c
-  | Let_static_code _ _ _ _ _ _ _ _ _
-  | Let_cont_recursive_handler _ _ _ _ _ _ => true
+  | Let_static_code _ _ _ _ _ _ _ _ _ _
+  | Let_cont_recursive_handler _ _ _ _ _ _ _ => true
   end.
 
 Definition plug_refines_statement : Prop :=

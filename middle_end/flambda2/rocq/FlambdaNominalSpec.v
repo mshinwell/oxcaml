@@ -138,7 +138,8 @@ Definition rename_apply_cont (r : renaming) (ac : apply_cont) : apply_cont :=
 
 (* A renaming acts on the variables and the continuations of a term.
    Symbols and code ids are not renamed, and nor is code: it is closed, so
-   none of its names is one of the term around it. *)
+   none of its names is one of the term around it. Kinds, arities and
+   metadata have no names in them and are left as they are. *)
 Definition rename_static_const (r : renaming) (const : static_const)
     : static_const :=
   match const with
@@ -168,12 +169,13 @@ Definition rename_apply (r : renaming) (ap : apply_expr) : apply_expr :=
   Apply_expr (rename_simple r (ap_callee ap)) (ap_call_kind ap)
     (map (rename_simple r) (ap_args ap))
     (rename_continuation r (ap_continuation ap))
-    (rename_continuation r (ap_exn_continuation ap)).
+    (rename_continuation r (ap_exn_continuation ap)) (ap_args_arity ap)
+    (ap_return_arity ap).
 
 Fixpoint rename_expr (r : renaming) (e : expr) : expr :=
   match e with
-  | Let x defining_expr body =>
-    Let (rename_variable r x) (rename_named r defining_expr)
+  | Let x kind defining_expr body =>
+    Let (rename_variable r x) kind (rename_named r defining_expr)
       (rename_expr r body)
   | Let_static bindings body =>
     Let_static (map (rename_static_binding r) bindings) (rename_expr r body)
@@ -195,8 +197,8 @@ Fixpoint rename_expr (r : renaming) (e : expr) : expr :=
 with rename_handler (r : renaming) (h : continuation_handler)
     : continuation_handler :=
   match h with
-  | Handler params handler =>
-    Handler (map (rename_variable r) params) (rename_expr r handler)
+  | Handler params metadata handler =>
+    Handler (map (rename_variable r) params) metadata (rename_expr r handler)
   end.
 
 Definition rename_handlers (r : renaming)
@@ -259,7 +261,7 @@ Definition var_free_in_static_binding (x : variable)
    parameters. *)
 Fixpoint var_free_in_expr (x : variable) (e : expr) : Prop :=
   match e with
-  | Let y defining_expr body =>
+  | Let y _ defining_expr body =>
     var_free_in_named x defining_expr ∨ (x <> y ∧ var_free_in_expr x body)
   | Let_static bindings body =>
     Exists (var_free_in_static_binding x) bindings ∨ var_free_in_expr x body
@@ -277,14 +279,14 @@ Fixpoint var_free_in_expr (x : variable) (e : expr) : Prop :=
   end
 with var_free_in_handler (x : variable) (h : continuation_handler) : Prop :=
   match h with
-  | Handler params handler => x ∉ params ∧ var_free_in_expr x handler
+  | Handler params _ handler => x ∉ params ∧ var_free_in_expr x handler
   end.
 
 (* A non-recursive [Let_cont] binds its continuation in its body; a
    recursive one binds its continuations in its body and its handlers. *)
 Fixpoint cont_free_in_expr (k : continuation) (e : expr) : Prop :=
   match e with
-  | Let _ _ body | Let_static _ body => cont_free_in_expr k body
+  | Let _ _ _ body | Let_static _ body => cont_free_in_expr k body
   | Let_cont_non_recursive bound handler body =>
     cont_free_in_handler k handler ∨ (k <> bound ∧ cont_free_in_expr k body)
   | Let_cont_recursive handlers body =>
@@ -299,7 +301,7 @@ Fixpoint cont_free_in_expr (k : continuation) (e : expr) : Prop :=
 with cont_free_in_handler (k : continuation) (h : continuation_handler)
     : Prop :=
   match h with
-  | Handler _ handler => cont_free_in_expr k handler
+  | Handler _ _ handler => cont_free_in_expr k handler
   end.
 
 (* ======================================================================== *)
@@ -310,21 +312,23 @@ with cont_free_in_handler (k : continuation) (h : continuation_handler)
    body other than the bound variable may be applied to the bound variable
    and the body. *)
 Definition rename_let_statement : Prop :=
-  ∀ (r : renaming) (x : variable) (defining_expr : named) (body : expr),
+  ∀ (r : renaming) (x : variable) (kind : flambda_kind)
+    (defining_expr : named) (body : expr),
     (∀ y : variable,
       y <> x -> var_free_in_expr y body -> rename_variable r y = y) ->
     (∀ k : continuation,
       cont_free_in_expr k body -> rename_continuation r k = k) ->
-    expr_equivalent (Let x defining_expr body)
-      (Let (rename_variable r x) defining_expr (rename_expr r body)).
+    expr_equivalent (Let x kind defining_expr body)
+      (Let (rename_variable r x) kind defining_expr (rename_expr r body)).
 
 (* [Name_abstraction.pattern_match] on a [Let]: the bound variable becomes
    one that is not free in the body. *)
 Definition freshen_let_statement : Prop :=
-  ∀ (x fresh : variable) (defining_expr : named) (body : expr),
+  ∀ (x fresh : variable) (kind : flambda_kind) (defining_expr : named)
+    (body : expr),
     ~ var_free_in_expr fresh body ->
-    expr_equivalent (Let x defining_expr body)
-      (Let fresh defining_expr
+    expr_equivalent (Let x kind defining_expr body)
+      (Let fresh kind defining_expr
          (rename_expr (Renaming [(x, fresh)] []) body)).
 
 (* The continuation of a non-recursive [Let_cont]. *)
@@ -342,30 +346,32 @@ Definition rename_let_cont_statement : Prop :=
 (* The parameters of a continuation handler. *)
 Definition rename_handler_params_statement : Prop :=
   ∀ (r : renaming) (k : continuation) (params : list variable)
-    (handler body : expr),
+    (metadata : handler_metadata) (handler body : expr),
     (∀ y : variable,
       y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
     (∀ k' : continuation,
       cont_free_in_expr k' handler -> rename_continuation r k' = k') ->
     expr_equivalent
-      (Let_cont_non_recursive k (Handler params handler) body)
-      (Let_cont_non_recursive k (rename_handler r (Handler params handler))
-         body).
+      (Let_cont_non_recursive k (Handler params metadata handler) body)
+      (Let_cont_non_recursive k
+         (rename_handler r (Handler params metadata handler)) body).
 
 (* The parameters of one handler of a recursive [Let_cont]. *)
 Definition rename_recursive_handler_params_statement : Prop :=
   ∀ (r : renaming) (before : list (continuation * continuation_handler))
-    (k : continuation) (params : list variable) (handler : expr)
+    (k : continuation) (params : list variable)
+    (metadata : handler_metadata) (handler : expr)
     (after : list (continuation * continuation_handler)) (body : expr),
     (∀ y : variable,
       y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
     (∀ k' : continuation,
       cont_free_in_expr k' handler -> rename_continuation r k' = k') ->
     expr_equivalent
-      (Let_cont_recursive (before ++ (k, Handler params handler) :: after)
-         body)
       (Let_cont_recursive
-         (before ++ (k, rename_handler r (Handler params handler)) :: after)
+         (before ++ (k, Handler params metadata handler) :: after) body)
+      (Let_cont_recursive
+         (before
+          ++ (k, rename_handler r (Handler params metadata handler)) :: after)
          body).
 
 (* The continuations of a recursive [Let_cont], and the parameters of its
@@ -391,9 +397,10 @@ Definition rename_let_cont_recursive_statement : Prop :=
    a refinement: the defining expression may be undefined. (It has no
    other effect, there being none in this fragment.) *)
 Definition unused_let_statement : Prop :=
-  ∀ (x : variable) (defining_expr : named) (body : expr),
+  ∀ (x : variable) (kind : flambda_kind) (defining_expr : named)
+    (body : expr),
     ~ var_free_in_expr x body ->
-    expr_refines (Let x defining_expr body) body.
+    expr_refines (Let x kind defining_expr body) body.
 
 Definition unused_let_cont_statement : Prop :=
   ∀ (k : continuation) (handler : continuation_handler) (body : expr),

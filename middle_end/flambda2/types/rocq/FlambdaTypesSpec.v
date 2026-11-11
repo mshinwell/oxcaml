@@ -208,9 +208,10 @@ Definition apply_cont_canonical_statement : Prop :=
       (Apply_cont (Apply_cont_expr k (map (canonical_simple tenv) args))).
 
 Definition let_simple_canonical_statement : Prop :=
-  ∀ (tenv : typing_env) (x : variable) (s : simple) (body : expr),
-    expr_equivalent_in tenv (Let x (Simple s) body)
-      (Let x (Simple (canonical_simple tenv s)) body).
+  ∀ (tenv : typing_env) (x : variable) (kind : flambda_kind) (s : simple)
+    (body : expr),
+    expr_equivalent_in tenv (Let x kind (Simple s) body)
+      (Let x kind (Simple (canonical_simple tenv s)) body).
 
 (* A [Switch] whose scrutinee is known to be a constant is its arm for that
    constant. *)
@@ -228,20 +229,22 @@ Definition switch_known_statement : Prop :=
 (* Under a [Let], the body is rewritten knowing nothing new of the
    variable... *)
 Definition let_refines_in_statement : Prop :=
-  ∀ (tenv : typing_env) (x : variable) (defining_expr : named)
-    (body body' : expr),
+  ∀ (tenv : typing_env) (x : variable) (kind : flambda_kind)
+    (defining_expr : named) (body body' : expr),
     ~ var_in_typing_env x tenv ->
     expr_refines_in ((x, Unknown) :: tenv) body body' ->
-    expr_refines_in tenv (Let x defining_expr body)
-      (Let x defining_expr body').
+    expr_refines_in tenv (Let x kind defining_expr body)
+      (Let x kind defining_expr body').
 
 (* ... or, when it is bound to a [Simple], knowing that it is that. *)
 Definition let_simple_refines_in_statement : Prop :=
-  ∀ (tenv : typing_env) (x : variable) (s : simple) (body body' : expr),
+  ∀ (tenv : typing_env) (x : variable) (kind : flambda_kind) (s : simple)
+    (body body' : expr),
     ~ var_in_typing_env x tenv ->
     ~ var_free_in_simple x s ->
     expr_refines_in ((x, Equals s) :: tenv) body body' ->
-    expr_refines_in tenv (Let x (Simple s) body) (Let x (Simple s) body').
+    expr_refines_in tenv (Let x kind (Simple s) body)
+      (Let x kind (Simple s) body').
 
 Definition let_cont_body_refines_in_statement : Prop :=
   ∀ (tenv : typing_env) (k : continuation) (handler : continuation_handler)
@@ -269,19 +272,20 @@ Definition add_definitions_of_params (tenv : typing_env)
    parameters. *)
 Definition let_cont_handler_refines_in_statement : Prop :=
   ∀ (tenv : typing_env) (k : continuation) (params : list variable)
-    (handler handler' body : expr),
+    (metadata : handler_metadata) (handler handler' body : expr),
     (∀ param : variable,
       param ∈ params -> ~ var_in_typing_env param tenv) ->
     expr_refines_in (add_definitions_of_params tenv params) handler handler'
     ->
     expr_refines_in tenv
-      (Let_cont_non_recursive k (Handler params handler) body)
-      (Let_cont_non_recursive k (Handler params handler') body).
+      (Let_cont_non_recursive k (Handler params metadata handler) body)
+      (Let_cont_non_recursive k (Handler params metadata handler') body).
 
 Definition let_cont_recursive_handler_refines_in_statement : Prop :=
   ∀ (tenv : typing_env)
     (before : list (continuation * continuation_handler)) (k : continuation)
-    (params : list variable) (handler handler' : expr)
+    (params : list variable) (metadata : handler_metadata)
+    (handler handler' : expr)
     (after : list (continuation * continuation_handler)) (body : expr),
     (∀ param : variable,
       param ∈ params -> ~ var_in_typing_env param tenv) ->
@@ -289,26 +293,27 @@ Definition let_cont_recursive_handler_refines_in_statement : Prop :=
     expr_refines_in (add_definitions_of_params tenv params) handler handler'
     ->
     expr_refines_in tenv
-      (Let_cont_recursive (before ++ (k, Handler params handler) :: after)
-         body)
-      (Let_cont_recursive (before ++ (k, Handler params handler') :: after)
-         body).
+      (Let_cont_recursive
+         (before ++ (k, Handler params metadata handler) :: after) body)
+      (Let_cont_recursive
+         (before ++ (k, Handler params metadata handler') :: after) body).
 
 (* ======================================================================== *)
 (* An example: propagating a constant                                       *)
 (* ======================================================================== *)
 
 Definition let_const_apply_cont_statement : Prop :=
-  ∀ (x : variable) (c : const) (k : continuation),
+  ∀ (x : variable) (kind : flambda_kind) (c : const) (k : continuation),
     expr_refines
-      (Let x (Simple (Const c)) (Apply_cont (Apply_cont_expr k [Var x])))
+      (Let x kind (Simple (Const c))
+         (Apply_cont (Apply_cont_expr k [Var x])))
       (Apply_cont (Apply_cont_expr k [Const c])).
 
 Definition let_simple_apply_cont_statement : Prop :=
-  ∀ (x : variable) (s : simple) (k : continuation),
+  ∀ (x : variable) (kind : flambda_kind) (s : simple) (k : continuation),
     ~ var_free_in_simple x s ->
     expr_refines
-      (Let x (Simple s) (Apply_cont (Apply_cont_expr k [Var x])))
+      (Let x kind (Simple s) (Apply_cont (Apply_cont_expr k [Var x])))
       (Apply_cont (Apply_cont_expr k [s])).
 
 (* ======================================================================== *)
@@ -318,8 +323,9 @@ Definition let_simple_apply_cont_statement : Prop :=
 (* The code of the identity: it applies its return continuation to its
    parameter. *)
 Definition identity_code (x my_closure : variable) (ret exn : continuation)
-    : code :=
-  Code [x] my_closure ret exn (Apply_cont (Apply_cont_expr ret [Var x])).
+    (metadata : code_metadata) : code :=
+  Code [x] my_closure ret exn metadata
+    (Apply_cont (Apply_cont_expr ret [Var x])).
 
 (* A direct call of it, where its code is bound, refines the application
    of the call's continuation to the argument: the call is inlined, the
@@ -327,16 +333,22 @@ Definition identity_code (x my_closure : variable) (ret exn : continuation)
    bindings, then unused, go. The parameter and [my_closure] are taken not
    to be free in the argument, as they are when fresh; the two
    continuations of the call are taken to be different
-   (FlambdaApplySpec.v). *)
+   (FlambdaApplySpec.v). Whatever the code and the call are annotated
+   with. *)
 Definition inline_identity_statement : Prop :=
   ∀ (called : code_id) (x my_closure : variable) (ret exn : continuation)
-    (callee arg : simple) (k k_exn : continuation),
+    (metadata : code_metadata) (callee arg : simple) (k k_exn : continuation)
+    (args_arity return_arity : arity),
     ret <> exn ->
     k <> k_exn ->
     ~ var_free_in_simple x arg ->
     ~ var_free_in_simple my_closure arg ->
     expr_refines
-      (Let_static [Bind_code called (identity_code x my_closure ret exn)]
-         (Apply (Apply_expr callee (Direct called) [arg] k k_exn)))
-      (Let_static [Bind_code called (identity_code x my_closure ret exn)]
+      (Let_static
+         [Bind_code called (identity_code x my_closure ret exn metadata)]
+         (Apply
+            (Apply_expr callee (Direct called) [arg] k k_exn args_arity
+               return_arity)))
+      (Let_static
+         [Bind_code called (identity_code x my_closure ret exn metadata)]
          (Apply_cont (Apply_cont_expr k [arg]))).

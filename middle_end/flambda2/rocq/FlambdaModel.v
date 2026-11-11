@@ -54,14 +54,36 @@
      blocks and strings;
    - [Rec_info];
    - the other call kinds (methods, C calls, effects), [Never_returns],
-     partial and over-application, and the modes, arities and inlining
-     attributes of an [Apply];
+     partial and over-application, and the modes and inlining attributes
+     of an [Apply];
    - trap actions on [Apply_cont], and the [is_exn_handler] and [is_cold]
      flags of continuation handlers;
-   - the kinds of bound parameters and of results, subkinds, debuginfo, and
-     every annotation that has no effect on execution. The kinds are
-     defined, and a constant has one ([kind_of_const]), but no term
-     carries a kind yet and nothing is said to be well-kinded.
+   - subkinds and nullability ([Flambda_kind.With_subkind]), debuginfo,
+     and every annotation that has no effect on execution.
+
+   Kinds. A variable has a kind, given where it is bound: the compiler's
+   [Variable.kind]. A [Let] gives the kind of its variable; a
+   continuation handler gives the kinds of its parameters; code gives the
+   arity of its parameters and that of its results, and an [Apply] the
+   two arities it calls at ([Apply_expr.args_arity], [return_arity]). An
+   arity ([arity]) is the compiler's [Flambda_arity.t]: it keeps how the
+   parameters are grouped into unboxed products, which the compiler
+   compares at a call, while the parameters and the arguments themselves
+   are unarized, here as there. Execution (FlambdaSemanticsSpec.v) does
+   not look at any of these.
+
+   What a handler and code are annotated with is a record each
+   ([handler_metadata], [code_metadata]), so that a later annotation is
+   one more field and no term changes shape for it. Make one with
+   [make_handler_metadata] or [make_code_metadata], read it with its
+   projections, and bind it whole in a pattern; do not apply the
+   constructor of the record or take one apart by position. A field
+   added later is then given, by the function, the value that leaves a
+   term written before with its meaning.
+
+   Kinds, arities and the two records of metadata have no names in them.
+   Renaming a term leaves them as they are, and two terms that are the
+   same up to the names they bind have the same ones.
 
    Differences of presentation from the compiler:
    - Variables and continuations are plain names. The compiler works up to
@@ -77,6 +99,14 @@
    - A recursive [Let_cont] in the compiler has [invariant_params] shared
      by all its handlers; here every handler lists all its parameters, the
      invariant ones first.
+   - The kinds of the parameters of a handler are a list beside the list
+     of parameters ([hm_params_kinds]), where the compiler pairs each
+     parameter with its kind ([Bound_parameter.t]). Code has no such
+     list: the kinds of its parameters are those of its parameter arity,
+     unarized ([code_params_kinds]); in the compiler the two are kept
+     equal by construction. The compiler has no term in which the list
+     of kinds and the list of parameters differ in length; here there
+     are such terms, and nothing yet says that they are not well-formed.
    - A primitive application is a primitive with a list of arguments, where
      [Flambda_primitive.t] holds the arguments by arity. A primitive
      applied to the wrong number of arguments has no value
@@ -120,6 +150,7 @@
      number of a term is in its range. *)
 
 From Stdlib Require Import ZArith List.
+From OxCamlStdlib Require Import OxCamlLogic.
 From OxCamlFlambda2 Require Export FlambdaKindModel FlambdaPrimitiveModel.
 Import ListNotations.
 
@@ -173,6 +204,68 @@ Definition kind_of_const (c : const) : flambda_kind :=
   | Null => Value
   | Poison kind => kind
   end.
+
+(* ======================================================================== *)
+(* Arities                                                                  *)
+(* ======================================================================== *)
+
+(* [Flambda_arity.Component.t], without subkinds: what one parameter of a
+   function, or its result, is made of. An unboxed product stands for as
+   many variables as it has kinds in it, and the unboxed product of
+   nothing ("void") for none. (The warning silenced is about induction
+   schemes through the list, which nothing uses.) *)
+#[local] Set Warnings "-register-all".
+Inductive arity_component : Type :=
+  | Singleton (k : flambda_kind)
+  | Unboxed_product (components : list arity_component).
+
+(* [Flambda_arity.t] (at [`Complex]): one component to a parameter. *)
+Definition arity : Type := list arity_component.
+
+(* [Flambda_arity.Component.unarize]: the kinds of the variables that a
+   component stands for, left to right. *)
+Fixpoint unarize_component (c : arity_component) : list flambda_kind :=
+  match c with
+  | Singleton k => [k]
+  | Unboxed_product components => flat_map unarize_component components
+  end.
+
+(* [Flambda_arity.unarize]. *)
+Definition unarize (a : arity) : list flambda_kind :=
+  flat_map unarize_component a.
+
+(* [Flambda_arity.unarize_per_parameter]. *)
+Definition unarize_per_parameter (a : arity) : list (list flambda_kind) :=
+  map unarize_component a.
+
+(* [Flambda_arity.create_singletons]: the arity of parameters none of
+   which is an unboxed product. *)
+Definition arity_of_kinds (kinds : list flambda_kind) : arity :=
+  map Singleton kinds.
+
+Definition arity_component_eq_dec :
+  ∀ c c' : arity_component, {c = c'} + {c <> c'}.
+Proof.
+  fix eq_dec 1. intros [k | components] [k' | components'];
+    try (right; discriminate).
+  - destruct (kind_eq_dec k k') as [-> | Hne];
+      [ left; reflexivity | right; congruence ].
+  - destruct (list_eq_dec eq_dec components components') as [-> | Hne];
+      [ left; reflexivity | right; congruence ].
+Defined.
+
+(* [Flambda_arity.equal_ignoring_subkinds]: the same components, with the
+   same unboxed products in them. *)
+Definition arity_eqb (a a' : arity) : bool :=
+  if list_eq_dec arity_component_eq_dec a a' then true else false.
+
+(* Equality of lists of kinds, and of lists of those. *)
+Definition kinds_eqb (kinds kinds' : list flambda_kind) : bool :=
+  if list_eq_dec kind_eq_dec kinds kinds' then true else false.
+
+Definition kinds_per_parameter_eqb
+    (kinds kinds' : list (list flambda_kind)) : bool :=
+  if list_eq_dec (list_eq_dec kind_eq_dec) kinds kinds' then true else false.
 
 (* ======================================================================== *)
 (* Terms                                                                    *)
@@ -256,14 +349,50 @@ Inductive call_kind : Type :=
   | Direct (code : code_id)
   | Indirect.
 
-(* [Apply_expr.t]. *)
+(* [Apply_expr.t]. The arities are those the call is made at
+   ([Apply_expr.args_arity], [return_arity]): the kinds of its arguments,
+   which are unarized, grouped by parameter, and those of the results it
+   expects. *)
 Record apply_expr : Type := Apply_expr {
   ap_callee : simple;
   ap_call_kind : call_kind;
   ap_args : list simple;
   ap_continuation : continuation;
-  ap_exn_continuation : continuation
+  ap_exn_continuation : continuation;
+  ap_args_arity : arity;
+  ap_return_arity : arity
 }.
+
+(* What a continuation handler is annotated with: the kinds of its
+   parameters (those of its [Bound_parameters.t]), one to a parameter. *)
+Record handler_metadata : Type := Handler_metadata {
+  hm_params_kinds : list flambda_kind
+}.
+
+Definition make_handler_metadata (params_kinds : list flambda_kind)
+    : handler_metadata :=
+  {| hm_params_kinds := params_kinds |}.
+
+Definition handler_metadata_eqb (m m' : handler_metadata) : bool :=
+  kinds_eqb (hm_params_kinds m) (hm_params_kinds m').
+
+(* What code is annotated with, of [Code_metadata.t]: the arity of its
+   parameters ([params_arity]; unarized, it gives the kinds of the
+   parameters themselves) and that of its results ([result_arity];
+   unarized, it gives the kinds of the parameters of its return
+   continuation). *)
+Record code_metadata : Type := Code_metadata {
+  cm_params_arity : arity;
+  cm_result_arity : arity
+}.
+
+Definition make_code_metadata (params_arity result_arity : arity)
+    : code_metadata :=
+  {| cm_params_arity := params_arity; cm_result_arity := result_arity |}.
+
+Definition code_metadata_eqb (m m' : code_metadata) : bool :=
+  arity_eqb (cm_params_arity m) (cm_params_arity m')
+  && arity_eqb (cm_result_arity m) (cm_result_arity m').
 
 (* [Flambda.expr], [Flambda.continuation_handler],
    [Flambda.static_const_or_code] with the name it is bound to, and
@@ -275,9 +404,15 @@ Record apply_expr : Type := Apply_expr {
 
    The body of code runs with the parameters and the closure called
    ([my_closure]) as its only variables, and the return and exception
-   continuations as its only continuations. *)
+   continuations as its only continuations.
+
+   A [Let] gives the kind of its variable. A handler and code give the
+   kinds of their parameters, and code those of its results, in their
+   metadata. [my_closure] has kind [Value], and an exception continuation
+   takes one argument of kind [Value]. *)
 Inductive expr : Type :=
-  | Let (x : variable) (defining_expr : named) (body : expr)
+  | Let (x : variable) (kind : flambda_kind) (defining_expr : named)
+      (body : expr)
   | Let_static (bindings : list static_binding) (body : expr)
   | Let_cont_non_recursive (k : continuation)
       (handler : continuation_handler) (body : expr)
@@ -288,42 +423,63 @@ Inductive expr : Type :=
   | Switch (scrutinee : simple) (arms : list (Z * apply_cont))
   | Invalid
 with continuation_handler : Type :=
-  | Handler (params : list variable) (handler : expr)
+  | Handler (params : list variable) (metadata : handler_metadata)
+      (handler : expr)
 with static_binding : Type :=
   | Bind_code (id : code_id) (c : code)
   | Bind_deleted_code (id : code_id)
   | Bind_symbol (s : symbol) (const : static_const)
 with code : Type :=
   | Code (params : list variable) (my_closure : variable)
-      (return_continuation exn_continuation : continuation) (body : expr).
+      (return_continuation exn_continuation : continuation)
+      (metadata : code_metadata) (body : expr).
+
+(* The kinds of the parameters of a handler. *)
+Definition handler_kinds (h : continuation_handler) : list flambda_kind :=
+  match h with Handler _ metadata _ => hm_params_kinds metadata end.
 
 Definition code_params (c : code) : list variable :=
-  match c with Code params _ _ _ _ => params end.
+  match c with Code params _ _ _ _ _ => params end.
 
 Definition code_my_closure (c : code) : variable :=
-  match c with Code _ my_closure _ _ _ => my_closure end.
+  match c with Code _ my_closure _ _ _ _ => my_closure end.
 
 Definition code_return_continuation (c : code) : continuation :=
-  match c with Code _ _ return_continuation _ _ => return_continuation end.
+  match c with Code _ _ return_continuation _ _ _ => return_continuation end.
 
 Definition code_exn_continuation (c : code) : continuation :=
-  match c with Code _ _ _ exn_continuation _ => exn_continuation end.
+  match c with Code _ _ _ exn_continuation _ _ => exn_continuation end.
+
+(* The arities of the parameters of code, and of its results. *)
+Definition code_params_arity (c : code) : arity :=
+  match c with Code _ _ _ _ metadata _ => cm_params_arity metadata end.
+
+Definition code_result_arity (c : code) : arity :=
+  match c with Code _ _ _ _ metadata _ => cm_result_arity metadata end.
+
+(* The kinds of the parameters of code, and of the parameters of its
+   return continuation. *)
+Definition code_params_kinds (c : code) : list flambda_kind :=
+  unarize (code_params_arity c).
+
+Definition code_result_kinds (c : code) : list flambda_kind :=
+  unarize (code_result_arity c).
 
 Definition code_body (c : code) : expr :=
-  match c with Code _ _ _ _ body => body end.
+  match c with Code _ _ _ _ _ body => body end.
 
 (* ======================================================================== *)
 (* Sets of closures of several functions                                    *)
 (* ======================================================================== *)
 
 (* Each variable bound to the projection of its function slot from the
-   closure [base], which is at [base_slot]. *)
+   closure [base], which is at [base_slot]. A closure has kind [Value]. *)
 Fixpoint let_projections (base : variable) (base_slot : function_slot)
     (bound : list (variable * function_slot)) (body : expr) : expr :=
   match bound with
   | [] => body
   | (x, slot) :: bound =>
-    Let x (Project_function_slot base_slot slot (Var base))
+    Let x Value (Project_function_slot base_slot slot (Var base))
       (let_projections base base_slot bound body)
   end.
 
@@ -341,7 +497,7 @@ Definition let_closures (bound_vars : list variable)
     if Nat.eqb (length bound_vars) (length other_decls)
     then
       Some
-        (Let x (Closure_of_set slot function_decls value_slots)
+        (Let x Value (Closure_of_set slot function_decls value_slots)
            (let_projections x slot
               (combine bound_vars (map fst other_decls)) body))
     else None

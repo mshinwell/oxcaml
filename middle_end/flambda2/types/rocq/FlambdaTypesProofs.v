@@ -120,7 +120,7 @@ Qed.
 
 Theorem let_simple_canonical : let_simple_canonical_statement.
 Proof.
-  intros tenv x s body vars conts statics Hsat.
+  intros tenv x kind s body vars conts statics Hsat.
   apply let_equivalent_step; [ | intros v _; apply equivalent_refl ].
   exact (canonical_simple_sound tenv vars s Hsat).
 Qed.
@@ -175,14 +175,15 @@ Qed.
 
 Theorem let_refines_in : let_refines_in_statement.
 Proof.
-  intros tenv x d body body' Hfresh Hbody vars conts statics Hsat.
+  intros tenv x kind d body body' Hfresh Hbody vars conts statics Hsat.
   apply let_refines_step; [ reflexivity | intros v _ ].
   apply Hbody, env_satisfies_extend; [ exact Hsat | exact Hfresh | exact I ].
 Qed.
 
 Theorem let_simple_refines_in : let_simple_refines_in_statement.
 Proof.
-  intros tenv x s body body' Hfresh Hnotin Hbody vars conts statics Hsat.
+  intros tenv x kind s body body' Hfresh Hnotin Hbody vars conts statics
+    Hsat.
   apply let_refines_step; [ reflexivity | intros v Hs ]. simpl in Hs.
   apply Hbody, env_satisfies_extend; [ exact Hsat | exact Hfresh | ].
   destruct s as [y | sym | c]; simpl in *; try exact Hs.
@@ -245,8 +246,8 @@ Qed.
    bound. *)
 Theorem let_cont_handler_refines_in : let_cont_handler_refines_in_statement.
 Proof.
-  intros tenv k params handler handler' body Hfresh Hhandler vars conts
-    statics Hsat.
+  intros tenv k params metadata handler handler' body Hfresh Hhandler vars
+    conts statics Hsat.
   apply let_cont_handler_refines_at.
   intros vs handler_vars conts' statics' Hbind. apply Hhandler.
   exact (env_satisfies_params tenv params vs vars handler_vars Hsat Hfresh
@@ -256,8 +257,8 @@ Qed.
 Theorem let_cont_recursive_handler_refines_in :
   let_cont_recursive_handler_refines_in_statement.
 Proof.
-  intros tenv before k params handler handler' after body Hfresh Hbinds
-    Hhandler vars conts statics Hsat.
+  intros tenv before k params metadata handler handler' after body Hfresh
+    Hbinds Hhandler vars conts statics Hsat.
   apply let_cont_recursive_handler_refines_at; [ exact Hbinds | ].
   intros vs handler_vars conts' statics' Hbind. apply Hhandler.
   exact (env_satisfies_params tenv params vs vars handler_vars Hsat Hfresh
@@ -272,11 +273,13 @@ Qed.
    may be replaced; the [Let] is then unused. *)
 Theorem let_const_apply_cont : let_const_apply_cont_statement.
 Proof.
-  intros x c k.
+  intros x kind c k.
   assert (Hrewrite :
     expr_refines
-      (Let x (Simple (Const c)) (Apply_cont (Apply_cont_expr k [Var x])))
-      (Let x (Simple (Const c)) (Apply_cont (Apply_cont_expr k [Const c])))).
+      (Let x kind (Simple (Const c))
+         (Apply_cont (Apply_cont_expr k [Var x])))
+      (Let x kind (Simple (Const c))
+         (Apply_cont (Apply_cont_expr k [Const c])))).
   { apply expr_refines_in_empty, let_simple_refines_in.
     - unfold var_in_typing_env. intros (y & t & [] & _).
     - simpl. intros [].
@@ -287,7 +290,8 @@ Proof.
       exact Hcanonical. }
   assert (Hunused :
     expr_refines
-      (Let x (Simple (Const c)) (Apply_cont (Apply_cont_expr k [Const c])))
+      (Let x kind (Simple (Const c))
+         (Apply_cont (Apply_cont_expr k [Const c])))
       (Apply_cont (Apply_cont_expr k [Const c]))).
   { apply unused_let. simpl. unfold var_free_in_simples. intros Hfree.
     inversion Hfree as [? ? Hhead | ? ? Hrest];
@@ -299,11 +303,11 @@ Qed.
 
 Theorem let_simple_apply_cont : let_simple_apply_cont_statement.
 Proof.
-  intros x s k Hnotfree.
+  intros x kind s k Hnotfree.
   assert (Hrewrite :
     expr_refines
-      (Let x (Simple s) (Apply_cont (Apply_cont_expr k [Var x])))
-      (Let x (Simple s) (Apply_cont (Apply_cont_expr k [s])))).
+      (Let x kind (Simple s) (Apply_cont (Apply_cont_expr k [Var x])))
+      (Let x kind (Simple s) (Apply_cont (Apply_cont_expr k [s])))).
   { apply expr_refines_in_empty, let_simple_refines_in.
     - unfold var_in_typing_env. intros (y & t & [] & _).
     - exact Hnotfree.
@@ -314,7 +318,7 @@ Proof.
       exact Hcanonical. }
   assert (Hunused :
     expr_refines
-      (Let x (Simple s) (Apply_cont (Apply_cont_expr k [s])))
+      (Let x kind (Simple s) (Apply_cont (Apply_cont_expr k [s])))
       (Apply_cont (Apply_cont_expr k [s]))).
   { apply unused_let. simpl. unfold var_free_in_simples. intros Hfree.
     inversion Hfree as [? ? Hhead | ? ? Hrest];
@@ -330,23 +334,25 @@ Qed.
 
 Theorem inline_identity : inline_identity_statement.
 Proof.
-  intros called x my_closure ret exn callee arg k k_exn Hcode_conts
-    Hcall_conts Hx Hmy_closure.
-  set (bindings := [Bind_code called (identity_code x my_closure ret exn)]).
+  intros called x my_closure ret exn metadata callee arg k k_exn args_arity
+    return_arity Hcode_conts Hcall_conts Hx Hmy_closure.
+  set (bindings :=
+    [Bind_code called (identity_code x my_closure ret exn metadata)]).
+  set (ap :=
+    Apply_expr callee (Direct called) [arg] k k_exn args_arity return_arity).
+  set (kind := hd Value (unarize (cm_params_arity metadata))).
   destruct (inline_renaming_exists ret exn k k_exn Hcode_conts Hcall_conts)
     as (r & Hvars & Hret & Hexn).
   (* the call inlined *)
   assert (Hinline :
     expr_refines
+      (Let_static bindings (Apply ap))
       (Let_static bindings
-         (Apply (Apply_expr callee (Direct called) [arg] k k_exn)))
-      (Let_static bindings
-         (Let my_closure (Simple callee)
-            (Let x (Simple arg)
+         (Let my_closure Value (Simple callee)
+            (Let x kind (Simple arg)
                (Apply_cont (Apply_cont_expr k [Var x])))))).
-  { pose proof (inline_let_code
-      (Apply_expr callee (Direct called) [arg] k k_exn) called
-      (identity_code x my_closure ret exn) r eq_refl) as Hinline.
+  { pose proof (inline_let_code ap called
+      (identity_code x my_closure ret exn metadata) r eq_refl) as Hinline.
     unfold inlined_body, identity_code in Hinline. simpl in Hinline.
     unfold rename_apply_cont in Hinline. simpl in Hinline.
     rewrite Hret, Hvars in Hinline. apply Hinline.
@@ -368,19 +374,21 @@ Proof.
   assert (Hparam :
     expr_refines
       (Let_static bindings
-         (Let my_closure (Simple callee)
-            (Let x (Simple arg) (Apply_cont (Apply_cont_expr k [Var x])))))
+         (Let my_closure Value (Simple callee)
+            (Let x kind (Simple arg)
+               (Apply_cont (Apply_cont_expr k [Var x])))))
       (Let_static bindings
-         (Let my_closure (Simple callee)
+         (Let my_closure Value (Simple callee)
             (Apply_cont (Apply_cont_expr k [arg]))))).
   { exact (plug_refines
-      (Let_static_body bindings (Let_body my_closure (Simple callee) Hole))
-      _ _ (not_many _) (let_simple_apply_cont x arg k Hx)). }
+      (Let_static_body bindings
+         (Let_body my_closure Value (Simple callee) Hole))
+      _ _ (not_many _) (let_simple_apply_cont x kind arg k Hx)). }
   (* the first [Let] is unused *)
   assert (Hunused :
     expr_refines
       (Let_static bindings
-         (Let my_closure (Simple callee)
+         (Let my_closure Value (Simple callee)
             (Apply_cont (Apply_cont_expr k [arg]))))
       (Let_static bindings (Apply_cont (Apply_cont_expr k [arg])))).
   { apply (plug_refines (Let_static_body bindings Hole));

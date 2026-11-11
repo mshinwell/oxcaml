@@ -79,7 +79,7 @@ Qed.
    have a value, and then bind the variable to that value. *)
 Theorem project_static_closure : project_static_closure_statement.
 Proof.
-  intros s code slot contents x body vars conts statics.
+  intros s code slot contents x kind body vars conts statics.
   apply let_static_equivalent_step. simpl.
   destruct (lookup s (static_values statics)); [ exact I | ].
   destruct (eval_simple vars contents) as [v | ] eqn:Hcontents; simpl;
@@ -91,9 +91,10 @@ Qed.
 
 Theorem let_static_code_refines : let_static_code_refines_statement.
 Proof.
-  intros before id params my_closure ret exn code_body code_body' after body
-    Hbinds Hcode.
+  intros before id params my_closure ret exn metadata code_body code_body'
+    after body Hbinds Hcode.
   exact (plug_refines
-    (Let_static_code before id params my_closure ret exn Hole after body)
+    (Let_static_code before id params my_closure ret exn metadata Hole after
+       body)
     code_body code_body' (fun _ => Hbinds) Hcode).
 Qed.

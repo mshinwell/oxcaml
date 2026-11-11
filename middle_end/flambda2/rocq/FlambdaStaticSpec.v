@@ -65,30 +65,32 @@ Definition let_static_split_statement : Prop :=
 
 Definition project_static_closure_statement : Prop :=
   ∀ (s : symbol) (code : code_id) (slot : value_slot) (contents : simple)
-    (x : variable) (body : expr),
+    (x : variable) (kind : flambda_kind) (body : expr),
     expr_equivalent
       (Let_static
          [Bind_symbol s (Static_const_set_of_closures code [(slot, contents)])]
-         (Let x (Project_value_slot slot (Symbol s)) body))
+         (Let x kind (Project_value_slot slot (Symbol s)) body))
       (Let_static
          [Bind_symbol s (Static_const_set_of_closures code [(slot, contents)])]
-         (Let x (Simple contents) body)).
+         (Let x kind (Simple contents) body)).
 
 Definition let_static_code_refines_statement : Prop :=
   ∀ (before : list static_binding) (id : code_id) (params : list variable)
     (my_closure : variable) (ret exn : continuation)
-    (code_body code_body' : expr) (after : list static_binding)
-    (body : expr),
+    (metadata : code_metadata) (code_body code_body' : expr)
+    (after : list static_binding) (body : expr),
     binds_statics code_body = binds_statics code_body' ->
     expr_refines code_body code_body' ->
     expr_refines
       (Let_static
          (before
-          ++ Bind_code id (Code params my_closure ret exn code_body)
+          ++ Bind_code id
+               (Code params my_closure ret exn metadata code_body)
           :: after)
          body)
       (Let_static
          (before
-          ++ Bind_code id (Code params my_closure ret exn code_body')
+          ++ Bind_code id
+               (Code params my_closure ret exn metadata code_body')
           :: after)
          body).

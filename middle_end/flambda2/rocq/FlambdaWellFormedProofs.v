@@ -76,7 +76,7 @@ Proof.
   set (vars := state_vars s) in *. set (conts := state_conts s) in *.
   set (statics := state_statics s) in *.
   destruct (state_expr s)
-    as [x d body | bindings body | k h body | handlers body | ap | ac
+    as [x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
     autorewrite with step in Hstep.
   - destruct (eval_named statics vars d); [ | discriminate ].
@@ -99,7 +99,7 @@ Proof.
   - destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | discriminate ].
     unfold apply_continuation, apply_cont_value in Hstep.
     destruct (resolve (ac_continuation ac) conts)
-      as [[params handler] def_vars def_conts recursive | k];
+      as [[params metadata handler] def_vars def_conts recursive | k];
       [ | discriminate ].
     destruct (bind_params params vs def_vars); [ | discriminate ].
     injection Hstep as <-. apply statics_extend_refl.
@@ -206,12 +206,12 @@ Fixpoint statics_nowhere (e : expr) :
   ∧ static_names names_of e = [].
 Proof.
   destruct e
-    as [ x d body | bindings body | k h body | handlers body | ap | ac
+    as [ x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
     simpl; try (intros _; repeat split; reflexivity).
   - apply statics_nowhere.
   - discriminate.
-  - destruct h as [params handler]. simpl. intros H.
+  - destruct h as [params metadata handler]. simpl. intros H.
     apply andb_true_iff in H as [Hh Hb].
     destruct (statics_nowhere handler Hh) as (Ph & Bh & Nh).
     destruct (statics_nowhere body Hb) as (Pb & Bb & Nb).
@@ -229,8 +229,8 @@ Proof.
       ∧ flat_map (fun '(_, h) => handler_static_names names_of h) handlers
         = []).
     { clear Hb Pb Bb Nb.
-      induction handlers as [ | [k [params handler]] handlers IH]; simpl;
-        [ auto | ].
+      induction handlers as [ | [k [params metadata handler]] handlers IH];
+        simpl; [ auto | ].
       simpl in Hhs. apply andb_true_iff in Hhs as [Hh Hrest].
       destruct (statics_nowhere handler Hh) as (_ & Bh & Nh).
       destruct (IH Hrest) as [Bs Ns].
@@ -258,8 +258,8 @@ Lemma handlers_nowhere_facts
   ∧ flat_map (fun '(_, h) => handler_static_names names_of h) handlers = [].
 Proof.
   unfold handlers_nowhere, handlers_bind_statics.
-  induction handlers as [ | [k [params handler]] handlers IH]; simpl;
-    [ auto | ].
+  induction handlers as [ | [k [params metadata handler]] handlers IH];
+    simpl; [ auto | ].
   intros H. apply andb_true_iff in H as [Hh Hrest].
   destruct (statics_nowhere handler Hh) as (_ & Bh & Nh).
   destruct (IH Hrest) as [Bs Ns]. rewrite Bh, Nh, Bs, Ns. auto.
@@ -334,7 +334,8 @@ Lemma rec_closures_ok_aux (vars : env) (conts : cont_env)
       In n (conts_names conts).
 Proof.
   intros Hall Hconts. unfold handlers_nowhere, conts_ok, conts_names.
-  induction handlers as [ | [k [params handler]] handlers IH]; simpl.
+  induction handlers as [ | [k [params metadata handler]] handlers IH];
+    simpl.
   - intros _. split; [ exact I | intros n [] ].
   - intros H. apply andb_true_iff in H as [Hh Hrest].
     destruct (statics_nowhere handler Hh) as (Ph & _ & Nh).
@@ -406,7 +407,7 @@ Proof.
   set (vars := state_vars s) in *. set (conts := state_conts s) in *.
   set (statics := state_statics s) in *.
   destruct (state_expr s)
-    as [ x d body | bindings body | k h body | handlers body | ap | ac
+    as [ x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
     autorewrite with step in Hstep.
   - (* Let *)
@@ -436,7 +437,7 @@ Proof.
         Pbindings S Heval).
   - (* Let_cont_non_recursive *)
     injection Hstep as <-. unfold inv. simpl_state.
-    destruct h as [params handler]. simpl in P, D, X, F.
+    destruct h as [params metadata handler]. simpl in P, D, X, F.
     apply andb_true_iff in P as [Ph Pbody]. apply to_toplevel in Ph.
     refine
       (conj Pbody
@@ -483,7 +484,7 @@ Proof.
       as (called & c & callee_vars & Hlookup & ->).
     unfold inv. simpl_state.
     pose proof (S called c Hlookup) as Hc.
-    destruct c as [params my_closure ret exn body]. simpl in Hc |- *.
+    destruct c as [params my_closure ret exn metadata body]. simpl in Hc |- *.
     destruct (statics_nowhere body Hc) as (Pbody & _ & Nbody).
     destruct (resolve_ok (ap_continuation ap) conts C) as [C1 N1].
     destruct (resolve_ok (ap_exn_continuation ap) conts C) as [C2 N2].
@@ -502,7 +503,7 @@ Proof.
     unfold apply_continuation, apply_cont_value in Hstep.
     destruct (resolve_ok (ac_continuation ac) conts C) as [Cr Nr].
     destruct (resolve (ac_continuation ac) conts)
-      as [[params handler] def_vars def_conts recursive | k];
+      as [[params metadata handler] def_vars def_conts recursive | k];
       [ | discriminate ].
     destruct (bind_params params vs def_vars); [ | discriminate ].
     injection Hstep as <-. unfold inv. simpl_state. simpl in Cr, Nr.
@@ -579,7 +580,7 @@ Proof.
   destruct (lookup called (static_code statics)) as [c | ] eqn:Hlookup;
     [ | reflexivity ].
   pose proof (S called c Hlookup) as Hc.
-  destruct c as [params my_closure ret exn body]. simpl in Hc |- *.
+  destruct c as [params my_closure ret exn metadata body]. simpl in Hc |- *.
   apply (statics_nowhere body Hc).
 Qed.
 
@@ -664,7 +665,7 @@ Proof.
     Hrun) as Hsymbols.
   rewrite (state_eta s) in Hcode, Hsymbols. unfold static_fault.
   destruct (state_expr s)
-    as [ x d body | bindings body | k h body | handlers body | ap | ac
+    as [ x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
     try reflexivity.
   - rewrite (inv_no_rebinding unit_exn _ _ _ _ _ _ _ Hcode),

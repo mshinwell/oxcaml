@@ -205,8 +205,8 @@ Definition int8_add (a b : Z) : named :=
 (* In range: the greatest int8 and 1 are added, and a block with the
    greatest tag is made. *)
 Definition in_range_unit : expr :=
-  Let x (int8_add 127 1)
-    (Let y
+  Let x (Naked_number Kind_naked_int8) (int8_add 127 1)
+    (Let y Value
        (Prim (Variadic (Make_block (Block_kind_values 250)))
           [Const (Tagged_immediate 1)])
        (Apply_cont (Apply_cont_expr done [Var y; Var x]))).
@@ -221,7 +221,7 @@ Definition in_range_runs_statement : Prop :=
 (* A block with a tag that no block of the compiler has. The machine
    makes it. *)
 Definition tag_out_of_range_unit : expr :=
-  Let x (Prim (Variadic (Make_block (Block_kind_values 300))) [])
+  Let x Value (Prim (Variadic (Make_block (Block_kind_values 300))) [])
     (Apply_cont (Apply_cont_expr done [Var x])).
 
 Definition tag_out_of_range_statement : Prop :=
@@ -231,7 +231,8 @@ Definition tag_out_of_range_statement : Prop :=
 
 (* An int8 that is 200. The addition has no value on it. *)
 Definition constant_out_of_range_unit : expr :=
-  Let x (int8_add 200 0) (Apply_cont (Apply_cont_expr done [Var x])).
+  Let x (Naked_number Kind_naked_int8) (int8_add 200 0)
+    (Apply_cont (Apply_cont_expr done [Var x])).
 
 Definition constant_out_of_range_statement : Prop :=
   numbers_in_range constant_out_of_range_unit = false

@@ -166,7 +166,7 @@ Definition free_variables_of_apply (ap : apply_expr) : list variable :=
    code its parameters and [my_closure]. *)
 Fixpoint free_variables_of_expr (e : expr) : list variable :=
   match e with
-  | Let x defining_expr body =>
+  | Let x _ defining_expr body =>
     free_variables_of_named defining_expr
     ++ without [x] (free_variables_of_expr body)
   | Let_static bindings body =>
@@ -186,7 +186,7 @@ Fixpoint free_variables_of_expr (e : expr) : list variable :=
   end
 with free_variables_of_handler (h : continuation_handler) : list variable :=
   match h with
-  | Handler params handler => without params (free_variables_of_expr handler)
+  | Handler params _ handler => without params (free_variables_of_expr handler)
   end
 with free_variables_of_binding (binding : static_binding) : list variable :=
   match binding with
@@ -196,7 +196,7 @@ with free_variables_of_binding (binding : static_binding) : list variable :=
   end
 with free_variables_of_code (c : code) : list variable :=
   match c with
-  | Code params my_closure _ _ body =>
+  | Code params my_closure _ _ _ body =>
     without (my_closure :: params) (free_variables_of_expr body)
   end.
 
@@ -209,7 +209,7 @@ with free_variables_of_code (c : code) : list variable :=
    code binds its return and exception continuations. *)
 Fixpoint free_continuations_of_expr (e : expr) : list continuation :=
   match e with
-  | Let _ _ body => free_continuations_of_expr body
+  | Let _ _ _ body => free_continuations_of_expr body
   | Let_static bindings body =>
     flat_map free_continuations_of_binding bindings
     ++ free_continuations_of_expr body
@@ -228,7 +228,7 @@ Fixpoint free_continuations_of_expr (e : expr) : list continuation :=
 with free_continuations_of_handler (h : continuation_handler)
     : list continuation :=
   match h with
-  | Handler _ handler => free_continuations_of_expr handler
+  | Handler _ _ handler => free_continuations_of_expr handler
   end
 with free_continuations_of_binding (binding : static_binding)
     : list continuation :=
@@ -238,7 +238,7 @@ with free_continuations_of_binding (binding : static_binding)
   end
 with free_continuations_of_code (c : code) : list continuation :=
   match c with
-  | Code _ _ return_continuation exn_continuation body =>
+  | Code _ _ return_continuation exn_continuation _ body =>
     without [return_continuation; exn_continuation]
       (free_continuations_of_expr body)
   end.
@@ -294,7 +294,7 @@ Definition names_in_scope (unit_return unit_exn : continuation) (e : expr)
    code included; and a recursive [Let_cont] has a handler. *)
 Fixpoint binders_distinct (e : expr) : bool :=
   match e with
-  | Let _ _ body => binders_distinct body
+  | Let _ _ _ body => binders_distinct body
   | Let_static bindings body =>
     forallb binding_binders_distinct bindings && binders_distinct body
   | Let_cont_non_recursive _ h body =>
@@ -308,7 +308,7 @@ Fixpoint binders_distinct (e : expr) : bool :=
   end
 with handler_binders_distinct (h : continuation_handler) : bool :=
   match h with
-  | Handler params handler => distinct params && binders_distinct handler
+  | Handler params _ handler => distinct params && binders_distinct handler
   end
 with binding_binders_distinct (binding : static_binding) : bool :=
   match binding with
@@ -317,7 +317,7 @@ with binding_binders_distinct (binding : static_binding) : bool :=
   end
 with code_binders_distinct (c : code) : bool :=
   match c with
-  | Code params my_closure return_continuation exn_continuation body =>
+  | Code params my_closure return_continuation exn_continuation _ body =>
     distinct (my_closure :: params)
     && negb (Pos.eqb return_continuation exn_continuation)
     && binders_distinct body
@@ -343,7 +343,7 @@ with code_binders_distinct (c : code) : bool :=
    inside the body of code is asked the same. *)
 Fixpoint code_closed (e : expr) : bool :=
   match e with
-  | Let _ _ body => code_closed body
+  | Let _ _ _ body => code_closed body
   | Let_static bindings body =>
     forallb binding_code_closed bindings && code_closed body
   | Let_cont_non_recursive _ h body =>
@@ -355,7 +355,7 @@ Fixpoint code_closed (e : expr) : bool :=
   end
 with handler_code_closed (h : continuation_handler) : bool :=
   match h with
-  | Handler _ handler => code_closed handler
+  | Handler _ _ handler => code_closed handler
   end
 with binding_code_closed (binding : static_binding) : bool :=
   match binding with
@@ -364,7 +364,7 @@ with binding_code_closed (binding : static_binding) : bool :=
   end
 with code_is_closed (c : code) : bool :=
   match c with
-  | Code _ _ _ _ body =>
+  | Code _ _ _ _ _ body =>
     Keyed.is_empty (free_variables_of_code c)
     && Keyed.is_empty (free_continuations_of_code c)
     && code_closed body

@@ -76,34 +76,47 @@ Import ListNotations.
 
 Definition apply_indirect_known_statement : Prop :=
   ∀ (callee : simple) (args : list simple) (k exn : continuation)
-    (v : value) (called : code_id) (slots : list (value_slot * value))
-    (vars : env) (conts : cont_env) (statics : static_env),
+    (args_arity return_arity : arity) (v : value) (called : code_id)
+    (slots : list (value_slot * value)) (vars : env) (conts : cont_env)
+    (statics : static_env),
     eval_simple vars callee = Some v ->
     closure_of statics v = Some (called, slots) ->
     equivalent
-      (State (Apply (Apply_expr callee Indirect args k exn)) vars conts
-         statics)
-      (State (Apply (Apply_expr callee (Direct called) args k exn)) vars
-         conts statics).
+      (State
+         (Apply
+            (Apply_expr callee Indirect args k exn args_arity return_arity))
+         vars conts statics)
+      (State
+         (Apply
+            (Apply_expr callee (Direct called) args k exn args_arity
+               return_arity))
+         vars conts statics).
 
 (* ======================================================================== *)
 (* Inlining                                                                 *)
 (* ======================================================================== *)
 
-(* The parameters bound to the arguments, one [Let] each, around a body. *)
-Fixpoint let_params (params : list variable) (args : list simple)
-    (body : expr) : expr :=
+(* The parameters bound to the arguments, one [Let] each, around a body.
+   The [Let] of a parameter gives it the kind that the list of kinds has
+   for it. Every parameter that has an argument is bound, also where the
+   list of kinds is too short (the kind is then [Value]): the bindings
+   are those the call makes, whatever the term is annotated with. *)
+Fixpoint let_params (params : list variable) (kinds : list flambda_kind)
+    (args : list simple) (body : expr) : expr :=
   match params, args with
   | param :: params, arg :: args =>
-    Let param (Simple arg) (let_params params args body)
+    Let param (hd Value kinds) (Simple arg)
+      (let_params params (tl kinds) args body)
   | _, _ => body
   end.
 
 (* A call of code [c] inlined: [r] renames the continuations of the code
-   to those of the call. *)
+   to those of the call. The parameters have the kinds that the code
+   gives them, and [my_closure] the kind [Value]. *)
 Definition inlined_body (c : code) (r : renaming) (ap : apply_expr) : expr :=
-  Let (code_my_closure c) (Simple (ap_callee ap))
-    (let_params (code_params c) (ap_args ap) (rename_expr r (code_body c))).
+  Let (code_my_closure c) Value (Simple (ap_callee ap))
+    (let_params (code_params c) (code_params_kinds c) (ap_args ap)
+       (rename_expr r (code_body c))).
 
 (* What makes inlining a call [ap] of code [c] sound, [r] being the
    renaming of the code's continuations. *)

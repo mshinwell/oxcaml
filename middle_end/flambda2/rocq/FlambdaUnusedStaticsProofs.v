@@ -659,7 +659,7 @@ Fixpoint erase_binds_statics (e : expr) :
   binds_statics e = false -> binds_statics (erase_expr D e) = false.
 Proof.
   destruct e
-    as [ x d body | bindings body | k h body | handlers body | ap | ac
+    as [ x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
     simpl; try (intros _; reflexivity).
   - apply erase_binds_statics.
@@ -670,15 +670,15 @@ Proof.
     destruct (binding_kept D binding); simpl; [ | exact (IH Hrest) ].
     rewrite (IH Hrest), orb_false_r.
     destruct binding; simpl in Hbinding |- *; congruence.
-  - destruct h as [params handler]. simpl. intros Hbinds.
+  - destruct h as [params metadata handler]. simpl. intros Hbinds.
     apply orb_false_iff in Hbinds as [Hhandler Hbody].
     rewrite (erase_binds_statics handler Hhandler),
       (erase_binds_statics body Hbody).
     reflexivity.
   - intros Hbinds. apply orb_false_iff in Hbinds as [Hhandlers Hbody].
     rewrite (erase_binds_statics body Hbody), orb_false_r.
-    induction handlers as [ | [k [params handler]] handlers IH]; simpl;
-      [ reflexivity | ].
+    induction handlers as [ | [k [params metadata handler]] handlers IH];
+      simpl; [ reflexivity | ].
     simpl in Hhandlers.
     apply orb_false_iff in Hhandlers as [Hhandler Hrest].
     rewrite (erase_binds_statics handler Hhandler), (IH Hrest).
@@ -692,7 +692,7 @@ Lemma erase_handlers_bind_statics
   = false.
 Proof.
   unfold handlers_bind_statics.
-  induction handlers as [ | [k [params handler]] handlers IH]; simpl;
+  induction handlers as [ | [k [params metadata handler]] handlers IH]; simpl;
     [ reflexivity | ].
   intros Hbinds. apply orb_false_iff in Hbinds as [Hhandler Hrest].
   rewrite (erase_binds_statics handler Hhandler), (IH Hrest). reflexivity.
@@ -748,8 +748,9 @@ Lemma apply_cont_value_erased (c c' : cont_value) (vs : list value)
   result_simulated state_erased (apply_cont_value c vs statics)
     (apply_cont_value c' vs statics').
 Proof.
-  intros [k | [params handler] vars conts conts' recursive Hh Hvars Hconts
-               Hrec] Hvs Hstatics; simpl.
+  intros [k
+         | [params metadata handler] vars conts conts' recursive Hh Hvars
+             Hconts Hrec] Hvs Hstatics; simpl.
   - auto.
   - destruct (bind_params params vs vars) as [bound | ] eqn:Hbind; simpl;
       [ | exact I ].
@@ -786,7 +787,7 @@ Proof.
   destruct Hstatics as (Hcode & Hcode_avoids & Hvalues & Hvalues_avoid).
   rewrite (Hcode called Hkept).
   destruct (lookup called (static_code statics))
-    as [[params my_closure ret exn body] | ] eqn:Hlookup;
+    as [[params my_closure ret exn metadata body] | ] eqn:Hlookup;
     simpl; [ | exact I ].
   destruct (binds_statics body) eqn:Hbinds; [ exact I | ].
   rewrite (erase_binds_statics body Hbinds).
@@ -809,7 +810,7 @@ Lemma erased_step (s s' : state) :
 Proof.
   intros [e vars conts conts' statics statics' He Hvars Hconts Hstatics].
   destruct e
-    as [ x d body | bindings body | k h body | handlers body | ap | ac
+    as [ x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
     simpl in He |- *; autorewrite with step; simpl.
   - (* Let *)
@@ -891,7 +892,7 @@ with erase_code_binds_only_kept (D : dropped) (c : code) :
   code_binds_only_kept D c = true -> erase_code D c = c.
 Proof.
   - destruct e
-      as [ x d body | bindings body | k h body | handlers body | ap | ac
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
          | scrutinee arms | ];
       simpl; try reflexivity; intros Hkept.
     + rewrite (erase_binds_only_kept D body Hkept). reflexivity.
@@ -913,14 +914,15 @@ Proof.
       simpl in Hhandlers. apply andb_true_iff in Hhandlers as [Hh Hrest].
       rewrite (erase_handler_binds_only_kept D h Hh), (IH Hrest).
       reflexivity.
-  - destruct h as [params handler]. simpl. intros Hkept.
+  - destruct h as [params metadata handler]. simpl. intros Hkept.
     rewrite (erase_binds_only_kept D handler Hkept). reflexivity.
   - destruct binding as [id c | id | sym const]; simpl; intros Hkept.
     + apply andb_true_iff in Hkept as [Hid Hc].
       rewrite (erase_code_binds_only_kept D c Hc). auto.
     + auto.
     + auto.
-  - destruct c as [params my_closure ret exn body]. simpl. intros Hkept.
+  - destruct c as [params my_closure ret exn metadata body]. simpl.
+    intros Hkept.
     rewrite (erase_binds_only_kept D body Hkept). reflexivity.
 Qed.
 

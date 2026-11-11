@@ -44,12 +44,13 @@ Import ListNotations.
 (* Two steps of the left-hand side reach the right-hand side. *)
 Theorem let_cont_apply_cont : let_cont_apply_cont_statement.
 Proof.
-  intros k params handler args vars handler_vars conts statics vs Hargs
-    Hbind.
+  intros k params metadata handler args vars handler_vars conts statics
+    vs Hargs Hbind.
   eapply equivalent_trans;
     [ apply step_equivalent, step_let_cont_non_recursive | ].
   apply step_equivalent.
-  apply (step_apply_cont_handler _ _ _ _ vs params handler vars conts []);
+  apply (step_apply_cont_handler _ _ _ _ vs params metadata handler vars
+    conts []);
     [ exact Hargs | apply resolve_head | exact Hbind ].
 Qed.
 
@@ -58,7 +59,7 @@ Qed.
 Theorem let_cont_apply_cont_one_param :
   let_cont_apply_cont_one_param_statement.
 Proof.
-  intros k x handler arg vars conts statics.
+  intros k x metadata kind handler arg vars conts statics.
   eapply equivalent_trans;
     [ apply step_equivalent, step_let_cont_non_recursive | ].
   apply step_eq_equivalent. rewrite step_apply_cont, step_let. simpl.
@@ -69,15 +70,15 @@ Qed.
 Theorem let_cont_recursive_apply_cont :
   let_cont_recursive_apply_cont_statement.
 Proof.
-  intros k params handler handlers args vars handler_vars conts statics vs
-    Hstatics Hlookup Hargs Hbind.
+  intros k params metadata handler handlers args vars handler_vars conts
+    statics vs Hstatics Hlookup Hargs Hbind.
   eapply equivalent_trans;
     [ apply step_equivalent; rewrite step_let_cont_recursive, Hstatics;
       reflexivity
     | ].
   apply step_equivalent.
-  apply (step_apply_cont_handler _ _ _ _ vs params handler vars conts
-    handlers);
+  apply (step_apply_cont_handler _ _ _ _ vs params metadata handler vars
+    conts handlers);
     [ exact Hargs | | exact Hbind ].
   simpl. rewrite resolve_rec_closures, Hlookup. reflexivity.
 Qed.
@@ -86,7 +87,10 @@ Qed.
 Theorem loop_forever_diverges : loop_forever_diverges_statement.
 Proof.
   intros k vars conts statics.
-  set (handlers := [(k, Handler [] (Apply_cont (Apply_cont_expr k [])))]).
+  set (handlers :=
+    [(k,
+      Handler [] (make_handler_metadata [])
+        (Apply_cont (Apply_cont_expr k [])))]).
   set (looping :=
     State (Apply_cont (Apply_cont_expr k [])) vars
       (rec_closures handlers vars conts ++ conts) statics).
@@ -94,7 +98,8 @@ Proof.
     step (State (loop_forever k) vars conts statics) = Step looping).
   { unfold loop_forever. rewrite step_let_cont_recursive. reflexivity. }
   assert (Hstep : step looping = Step looping).
-  { apply (step_apply_cont_handler _ _ _ _ [] [] _ vars conts handlers);
+  { apply (step_apply_cont_handler _ _ _ _ [] [] (make_handler_metadata [])
+      _ vars conts handlers);
       [ reflexivity | | reflexivity ].
     rewrite resolve_rec_closures. simpl. rewrite Pos.eqb_refl.
     reflexivity. }

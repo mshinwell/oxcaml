@@ -68,7 +68,7 @@ Import ListNotations.
 (* Whether a continuation may be free in an expression. *)
 Fixpoint cont_free_b (k : continuation) (e : expr) : bool :=
   match e with
-  | Let _ _ body | Let_static _ body => cont_free_b k body
+  | Let _ _ _ body | Let_static _ body => cont_free_b k body
   | Let_cont_non_recursive bound h body =>
     cont_free_in_handler_b k h
     || (negb (Pos.eqb k bound) && cont_free_b k body)
@@ -85,12 +85,12 @@ Fixpoint cont_free_b (k : continuation) (e : expr) : bool :=
 with cont_free_in_handler_b (k : continuation) (h : continuation_handler)
     : bool :=
   match h with
-  | Handler _ handler => cont_free_b k handler
+  | Handler _ _ handler => cont_free_b k handler
   end.
 
 Fixpoint remove_unused_conts (e : expr) : expr :=
   match e with
-  | Let x d body => Let x d (remove_unused_conts body)
+  | Let x kind d body => Let x kind d (remove_unused_conts body)
   | Let_static bindings body => Let_static bindings (remove_unused_conts body)
   | Let_cont_non_recursive k h body =>
     let body' := remove_unused_conts body in
@@ -104,7 +104,8 @@ Fixpoint remove_unused_conts (e : expr) : expr :=
 with remove_unused_conts_in_handler (h : continuation_handler)
     : continuation_handler :=
   match h with
-  | Handler params handler => Handler params (remove_unused_conts handler)
+  | Handler params metadata handler =>
+    Handler params metadata (remove_unused_conts handler)
   end.
 
 Definition remove_unused_conts_equivalent_statement : Prop :=

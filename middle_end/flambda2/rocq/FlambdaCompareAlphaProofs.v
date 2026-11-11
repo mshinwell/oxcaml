@@ -40,9 +40,9 @@ From Stdlib Require Import ZArith List Bool Arith.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaPrimitiveSpec FlambdaPrimitiveProofs
-  FlambdaSemanticsSpec FlambdaContextSpec FlambdaNominalSpec
-  FlambdaNominalProofs FlambdaAlphaSpec FlambdaCompareSpec
-  FlambdaCompareProofs FlambdaCompareAlphaSpec.
+  FlambdaSemanticsSpec FlambdaSemanticsProofs FlambdaContextSpec
+  FlambdaNominalSpec FlambdaNominalProofs FlambdaAlphaSpec
+  FlambdaCompareSpec FlambdaCompareProofs FlambdaCompareAlphaSpec.
 Import ListNotations.
 
 Lemma const_eqb_eq (c c' : const) : const_eqb c c' = true -> c = c'.
@@ -199,13 +199,17 @@ Lemma apply_eqb_flip (vm km : name_map) (ap ap' : apply_expr) :
   apply_eqb (flip vm) (flip km) ap' ap = true.
 Proof.
   unfold apply_eqb. intros Heq.
+  apply andb_true_iff in Heq as [Heq Hreturn_arity].
+  apply andb_true_iff in Heq as [Heq Hargs_arity].
   apply andb_true_iff in Heq as [Heq Hexn].
   apply andb_true_iff in Heq as [Heq Hreturn].
   apply andb_true_iff in Heq as [Heq Hargs].
   apply andb_true_iff in Heq as [Hcallee Hkind].
   apply call_kind_eqb_eq in Hkind.
+  apply arity_eqb_eq in Hargs_arity, Hreturn_arity.
   rewrite !names_match_flip, Hexn, Hreturn, (simple_eqb_flip _ _ _ Hcallee),
-    (simples_eqb_flip _ _ _ Hargs), <- Hkind, call_kind_eqb_refl.
+    (simples_eqb_flip _ _ _ Hargs), <- Hkind, call_kind_eqb_refl,
+    <- Hargs_arity, <- Hreturn_arity, !arity_eqb_refl.
   reflexivity.
 Qed.
 
@@ -224,15 +228,17 @@ with code_eqb_flip (c : code) :
   ∀ c' : code, code_eqb c c' = true -> code_eqb c' c = true.
 Proof.
   - destruct e
-      as [ x d body | bindings body | k h body | handlers body | ap | ac
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
          | scrutinee arms | ];
       intros vm km
-        [ x' d' body' | bindings' body' | k' h' body' | handlers' body' | ap'
-        | ac' | scrutinee' arms' | ];
+        [ x' kind' d' body' | bindings' body' | k' h' body' | handlers' body'
+        | ap' | ac' | scrutinee' arms' | ];
       simpl; try discriminate; intros Heq.
     + (* Let *)
       apply andb_true_iff in Heq as [Hd Hbody].
-      rewrite (named_eqb_flip vm d d' Hd).
+      apply andb_true_iff in Hd as [Hkind Hd].
+      apply kind_eqb_eq in Hkind. subst kind'.
+      rewrite kind_eqb_refl, (named_eqb_flip vm d d' Hd).
       exact (expr_eqb_flip body _ _ _ Hbody).
     + (* Let_static *)
       apply andb_true_iff in Heq as [Hbindings Hbody].
@@ -272,10 +278,14 @@ Proof.
       rewrite Z.eqb_sym, Hz. apply apply_cont_eqb_flip, Hac.
     + (* Invalid *)
       reflexivity.
-  - destruct h as [params handler].
-    intros vm km [params' handler']. simpl. rewrite bind_names_flip.
+  - destruct h as [params metadata handler].
+    intros vm km [params' metadata' handler']. simpl.
+    rewrite bind_names_flip.
     destruct (bind_names params params' vm) as [vm' | ]; [ | discriminate ].
-    simpl. apply expr_eqb_flip.
+    simpl. intros Heq. apply andb_true_iff in Heq as [Hmetadata Heq].
+    apply handler_metadata_eqb_eq in Hmetadata. subst metadata'.
+    rewrite handler_metadata_eqb_refl.
+    exact (expr_eqb_flip handler _ _ _ Heq).
   - destruct binding as [id c | id | sym const];
       intros vm [id' c' | id' | sym' const']; simpl; try discriminate;
       intros Heq.
@@ -284,8 +294,8 @@ Proof.
     + rewrite Pos.eqb_sym. exact Heq.
     + apply andb_true_iff in Heq as [Hsym Hconst].
       rewrite Pos.eqb_sym, Hsym. apply static_const_eqb_flip, Hconst.
-  - destruct c as [params my_closure ret exn body].
-    intros [params' my_closure' ret' exn' body']. simpl.
+  - destruct c as [params my_closure ret exn metadata body].
+    intros [params' my_closure' ret' exn' metadata' body']. simpl.
     pose proof (bind_names_flip params params' [(my_closure, my_closure')])
       as Hflip.
     change (flip [(my_closure, my_closure')])
@@ -293,7 +303,10 @@ Proof.
     rewrite Hflip.
     destruct (bind_names params params' [(my_closure, my_closure')])
       as [vm | ]; [ | discriminate ].
-    simpl. apply (expr_eqb_flip body vm [(ret, ret'); (exn, exn')]).
+    simpl. intros Heq. apply andb_true_iff in Heq as [Hmetadata Heq].
+    apply code_metadata_eqb_eq in Hmetadata. subst metadata'.
+    rewrite code_metadata_eqb_refl.
+    exact (expr_eqb_flip body vm [(ret, ret'); (exn, exn')] _ Heq).
 Qed.
 
 (* ======================================================================== *)
@@ -546,19 +559,26 @@ Lemma apply_eqb_trans (ap ap' ap'' : apply_expr) :
   apply_eqb vm km ap ap'' = true.
 Proof.
   unfold apply_eqb. intros H1 H2.
+  apply andb_true_iff in H1 as [H1 Hreturn_arity1].
+  apply andb_true_iff in H1 as [H1 Hargs_arity1].
   apply andb_true_iff in H1 as [H1 Hexn1].
   apply andb_true_iff in H1 as [H1 Hreturn1].
   apply andb_true_iff in H1 as [H1 Hargs1].
   apply andb_true_iff in H1 as [Hcallee1 Hkind1].
+  apply andb_true_iff in H2 as [H2 Hreturn_arity2].
+  apply andb_true_iff in H2 as [H2 Hargs_arity2].
   apply andb_true_iff in H2 as [H2 Hexn2].
   apply andb_true_iff in H2 as [H2 Hreturn2].
   apply andb_true_iff in H2 as [H2 Hargs2].
   apply andb_true_iff in H2 as [Hcallee2 Hkind2].
   apply call_kind_eqb_eq in Hkind1, Hkind2.
+  apply arity_eqb_eq in Hargs_arity1, Hargs_arity2, Hreturn_arity1,
+    Hreturn_arity2.
   rewrite (Hkm _ _ _ Hexn1 Hexn2), (Hkm _ _ _ Hreturn1 Hreturn2),
     (simple_eqb_trans _ _ _ Hcallee1 Hcallee2),
     (simples_eqb_trans _ _ _ Hargs1 Hargs2), Hkind1, Hkind2,
-    call_kind_eqb_refl.
+    call_kind_eqb_refl, Hargs_arity1, Hargs_arity2, Hreturn_arity1,
+    Hreturn_arity2, !arity_eqb_refl.
   reflexivity.
 Qed.
 
@@ -594,19 +614,22 @@ with code_eqb_trans (c : code) :
     ∀ c'' : code, code_eqb c' c'' = true -> code_eqb c c'' = true.
 Proof.
   - destruct e
-      as [ x d body | bindings body | k h body | handlers body | ap | ac
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
          | scrutinee arms | ];
       intros vm1 vm2 vm km1 km2 km Hvm Hkm
-        [ x' d' body' | bindings' body' | k' h' body' | handlers' body' | ap'
-        | ac' | scrutinee' arms' | ];
+        [ x' kind' d' body' | bindings' body' | k' h' body' | handlers' body'
+        | ap' | ac' | scrutinee' arms' | ];
       simpl; try discriminate; intros H1
-        [ x'' d'' body'' | bindings'' body'' | k'' h'' body''
+        [ x'' kind'' d'' body'' | bindings'' body'' | k'' h'' body''
         | handlers'' body'' | ap'' | ac'' | scrutinee'' arms'' | ];
       simpl; try discriminate; intros H2.
     + (* Let *)
       apply andb_true_iff in H1 as [Hd1 Hbody1].
+      apply andb_true_iff in Hd1 as [Hkind1 Hd1].
       apply andb_true_iff in H2 as [Hd2 Hbody2].
-      rewrite (named_eqb_trans _ _ _ Hvm _ _ _ Hd1 Hd2).
+      apply andb_true_iff in Hd2 as [Hkind2 Hd2].
+      apply kind_eqb_eq in Hkind1, Hkind2. subst kind' kind''.
+      rewrite kind_eqb_refl, (named_eqb_trans _ _ _ Hvm _ _ _ Hd1 Hd2).
       exact (expr_eqb_trans body _ _ _ _ _ _
                (composes_cons _ _ _ x x' x'' Hvm) Hkm _ Hbody1 _ Hbody2).
     + (* Let_static *)
@@ -670,9 +693,9 @@ Proof.
       exact (apply_cont_eqb_trans _ _ _ Hvm _ _ _ Hkm _ _ _ Hac1 Hac2).
     + (* Invalid *)
       reflexivity.
-  - destruct h as [params handler].
-    intros vm1 vm2 vm km1 km2 km Hvm Hkm [params' handler'] H1
-      [params'' handler''] H2.
+  - destruct h as [params metadata handler].
+    intros vm1 vm2 vm km1 km2 km Hvm Hkm [params' metadata' handler'] H1
+      [params'' metadata'' handler''] H2.
     simpl in *. revert H1 H2.
     destruct (bind_names params params' vm1) as [vm1' | ] eqn:Hbind1;
       [ | discriminate ].
@@ -681,6 +704,10 @@ Proof.
     intros H1 H2.
     destruct (bind_names_composes params _ _ _ _ _ _ _ Hvm Hbind1 Hbind2)
       as (vm' & -> & Hvm').
+    apply andb_true_iff in H1 as [Hmetadata1 H1].
+    apply andb_true_iff in H2 as [Hmetadata2 H2].
+    apply handler_metadata_eqb_eq in Hmetadata1, Hmetadata2.
+    subst metadata' metadata''. rewrite handler_metadata_eqb_refl.
     exact (expr_eqb_trans handler _ _ _ _ _ _ Hvm' Hkm _ H1 _ H2).
   - destruct binding as [id c | id | sym const];
       intros vm1 vm2 vm Hvm [id' c' | id' | sym' const']; simpl;
@@ -696,9 +723,9 @@ Proof.
       apply Pos.eqb_eq in Hsym1, Hsym2. subst sym' sym''.
       rewrite Pos.eqb_refl.
       exact (static_const_eqb_trans _ _ _ Hvm _ _ _ Hconst1 Hconst2).
-  - destruct c as [params my_closure ret exn body].
-    intros [params' my_closure' ret' exn' body'] H1
-      [params'' my_closure'' ret'' exn'' body''] H2.
+  - destruct c as [params my_closure ret exn metadata body].
+    intros [params' my_closure' ret' exn' metadata' body'] H1
+      [params'' my_closure'' ret'' exn'' metadata'' body''] H2.
     simpl in *. revert H1 H2.
     destruct (bind_names params params' [(my_closure, my_closure')])
       as [vm1 | ] eqn:Hbind1; [ | discriminate ].
@@ -711,6 +738,10 @@ Proof.
                    composes_nil)
                 Hbind1 Hbind2)
       as (vm & -> & Hvm).
+    apply andb_true_iff in H1 as [Hmetadata1 H1].
+    apply andb_true_iff in H2 as [Hmetadata2 H2].
+    apply code_metadata_eqb_eq in Hmetadata1, Hmetadata2.
+    subst metadata' metadata''. rewrite code_metadata_eqb_refl.
     exact (expr_eqb_trans body _ _ _ _ _ _ Hvm
              (composes_cons _ _ _ ret ret' ret''
                 (composes_cons _ _ _ exn exn' exn'' composes_nil))
@@ -732,14 +763,14 @@ Lemma plug_eqb (c : context) :
     expr_eqb vm km (plug c e) (plug c e') = true.
 Proof.
   induction c
-    as [ | x d c IH | bindings c IH
-       | before id params my_closure ret exn c IH after body | k h c IH
-       | k params c IH body | handlers c IH
-       | before k params c IH after body ];
+    as [ | x kind d c IH | bindings c IH
+       | before id params my_closure ret exn metadata c IH after body
+       | k h c IH | k params metadata c IH body | handlers c IH
+       | before k params metadata c IH after body ];
     intros vm km e e' Hvm Hkm Heq; simpl.
   - exact (expr_eqb_trans e vm [] vm km [] km (composes_left vm)
              (composes_left km) e (expr_eqb_refl e vm km Hvm Hkm) e' Heq).
-  - rewrite named_eqb_refl by exact Hvm.
+  - rewrite kind_eqb_refl, named_eqb_refl by exact Hvm.
     apply IH; [ apply reflexive_map_cons, Hvm | exact Hkm | exact Heq ].
   - rewrite (IH vm km e e' Hvm Hkm Heq), andb_true_r.
     apply forall2b_refl. intros binding. apply binding_eqb_refl, Hvm.
@@ -754,6 +785,7 @@ Proof.
     destruct (bind_names_refl params [(my_closure, my_closure)]
                 (reflexive_map_cons _ _ reflexive_map_nil))
       as (vm0 & -> & Hvm0).
+    rewrite code_metadata_eqb_refl.
     apply IH; [ exact Hvm0 | | exact Heq ].
     apply reflexive_map_cons, reflexive_map_cons, reflexive_map_nil.
   - rewrite handler_eqb_refl by assumption.
@@ -762,7 +794,7 @@ Proof.
                (reflexive_map_cons _ _ Hkm)),
       andb_true_r.
     destruct (bind_names_refl params vm Hvm) as (vm0 & -> & Hvm0).
-    apply IH; assumption.
+    rewrite handler_metadata_eqb_refl. apply IH; assumption.
   - destruct (combine_names_refl (map fst handlers) km Hkm)
       as (km' & -> & Hkm').
     rewrite (IH vm km' e e' Hvm Hkm' Heq), andb_true_r.
@@ -782,7 +814,7 @@ Proof.
     apply forall2b_app; [ apply Hsame | ]. simpl.
     rewrite Hsame, andb_true_r.
     destruct (bind_names_refl params vm Hvm) as (vm0 & -> & Hvm0).
-    apply IH; assumption.
+    rewrite handler_metadata_eqb_refl. apply IH; assumption.
 Qed.
 
 (* ======================================================================== *)
@@ -807,9 +839,10 @@ Proof.
   intros e e' Halpha.
   induction Halpha
     as [ e | e e' _ IH | e e' e'' _ IH _ IH' | c e e' _ IH
-       | r e Hvars Hconts | r x d body Hvars Hconts
-       | r k h body Hvars Hconts | r k params handler body Hvars Hconts
-       | r before k params handler after body Hvars Hconts ].
+       | r e Hvars Hconts | r x kind d body Hvars Hconts
+       | r k h body Hvars Hconts
+       | r k params metadata handler body Hvars Hconts
+       | r before k params metadata handler after body Hvars Hconts ].
   - apply expr_eqb_reflexive.
   - apply expr_eqb_symmetric, IH.
   - exact (expr_eqb_transitive _ _ _ IH IH').

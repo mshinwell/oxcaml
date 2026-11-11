@@ -157,7 +157,7 @@ Definition apply_avoids (D : dropped) (ap : apply_expr) : bool :=
    bindings of those names. *)
 Fixpoint expr_avoids (D : dropped) (e : expr) : bool :=
   match e with
-  | Let _ d body => named_avoids D d && expr_avoids D body
+  | Let _ _ d body => named_avoids D d && expr_avoids D body
   | Let_static bindings body =>
     forallb (binding_avoids D) bindings && expr_avoids D body
   | Let_cont_non_recursive _ h body =>
@@ -174,7 +174,7 @@ Fixpoint expr_avoids (D : dropped) (e : expr) : bool :=
   end
 with handler_avoids (D : dropped) (h : continuation_handler) : bool :=
   match h with
-  | Handler _ handler => expr_avoids D handler
+  | Handler _ _ handler => expr_avoids D handler
   end
 with binding_avoids (D : dropped) (binding : static_binding) : bool :=
   match binding with
@@ -185,7 +185,7 @@ with binding_avoids (D : dropped) (binding : static_binding) : bool :=
   end
 with code_avoids (D : dropped) (c : code) : bool :=
   match c with
-  | Code _ _ _ _ body => expr_avoids D body
+  | Code _ _ _ _ _ body => expr_avoids D body
   end.
 
 (* ======================================================================== *)
@@ -209,7 +209,7 @@ Fixpoint keep_map {A : Type} (keep : A -> bool) (f : A -> A) (l : list A)
 
 Fixpoint erase_expr (D : dropped) (e : expr) : expr :=
   match e with
-  | Let x d body => Let x d (erase_expr D body)
+  | Let x kind d body => Let x kind d (erase_expr D body)
   | Let_static bindings body =>
     Let_static (keep_map (binding_kept D) (erase_binding D) bindings)
       (erase_expr D body)
@@ -223,7 +223,8 @@ Fixpoint erase_expr (D : dropped) (e : expr) : expr :=
 with erase_handler (D : dropped) (h : continuation_handler)
     : continuation_handler :=
   match h with
-  | Handler params handler => Handler params (erase_expr D handler)
+  | Handler params metadata handler =>
+    Handler params metadata (erase_expr D handler)
   end
 with erase_binding (D : dropped) (binding : static_binding) : static_binding :=
   match binding with
@@ -232,8 +233,8 @@ with erase_binding (D : dropped) (binding : static_binding) : static_binding :=
   end
 with erase_code (D : dropped) (c : code) : code :=
   match c with
-  | Code params my_closure ret exn body =>
-    Code params my_closure ret exn (erase_expr D body)
+  | Code params my_closure ret exn metadata body =>
+    Code params my_closure ret exn metadata (erase_expr D body)
   end.
 
 Definition drop_statics (D : dropped) (e : expr) : option expr :=
@@ -247,7 +248,7 @@ Definition drop_statics (D : dropped) (e : expr) : option expr :=
    one that is kept: the expression binds none of the names removed. *)
 Fixpoint binds_only_kept (D : dropped) (e : expr) : bool :=
   match e with
-  | Let _ _ body => binds_only_kept D body
+  | Let _ _ _ body => binds_only_kept D body
   | Let_static bindings body =>
     forallb (binding_binds_only_kept D) bindings && binds_only_kept D body
   | Let_cont_non_recursive _ h body =>
@@ -259,7 +260,7 @@ Fixpoint binds_only_kept (D : dropped) (e : expr) : bool :=
   end
 with handler_binds_only_kept (D : dropped) (h : continuation_handler) : bool :=
   match h with
-  | Handler _ handler => binds_only_kept D handler
+  | Handler _ _ handler => binds_only_kept D handler
   end
 with binding_binds_only_kept (D : dropped) (binding : static_binding)
     : bool :=
@@ -270,7 +271,7 @@ with binding_binds_only_kept (D : dropped) (binding : static_binding)
   end
 with code_binds_only_kept (D : dropped) (c : code) : bool :=
   match c with
-  | Code _ _ _ _ body => binds_only_kept D body
+  | Code _ _ _ _ _ body => binds_only_kept D body
   end.
 
 (* A handler, or code, that neither refers to a name removed nor binds

@@ -200,12 +200,12 @@ Proof.
   simpl state_expr in *. simpl state_vars in *. simpl state_conts in *.
   simpl state_statics in *. fold (code_all_closed statics) in Hstatics.
   destruct e
-    as [ x d body | bindings body | k h body | handlers body | ap | ac
+    as [ x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
     autorewrite with step.
   - (* Let *)
     destruct (eval_named statics vars d) as [v | ]; [ | exact I ].
-    destruct (names_among_let _ _ _ _ _ Hnames) as [_ Hbody].
+    destruct (names_among_let _ _ _ _ _ _ Hnames) as [_ Hbody].
     apply state_in_scope_intro; assumption.
   - (* Let_static *)
     destruct (eval_static_bindings vars bindings statics) as [statics' | ]
@@ -334,7 +334,7 @@ Lemma variables_read_free (e : expr) (x : variable) :
   x ∈ variables_read e -> x ∈ free_variables_of_expr e.
 Proof.
   destruct e
-    as [ y d body | bindings body | k h body | handlers body | ap | ac
+    as [ y kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
     simpl; try (intros []; fail); try (intros Hx; exact Hx).
   - intros Hx. apply in_or_app. left. exact Hx.

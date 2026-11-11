@@ -53,14 +53,14 @@ Import ListNotations.
    the arguments. The handler runs under the continuations of the
    [Let_cont], in which [k] is not bound, as it is not in scope there. *)
 Definition let_cont_apply_cont_statement : Prop :=
-  ∀ (k : continuation) (params : list variable) (handler : expr)
-    (args : list simple) (vars handler_vars : env) (conts : cont_env)
-    (statics : static_env) (vs : list value),
+  ∀ (k : continuation) (params : list variable) (metadata : handler_metadata)
+    (handler : expr) (args : list simple) (vars handler_vars : env)
+    (conts : cont_env) (statics : static_env) (vs : list value),
     eval_simples vars args = Some vs ->
     bind_params params vs vars = Some handler_vars ->
     equivalent
       (State
-         (Let_cont_non_recursive k (Handler params handler)
+         (Let_cont_non_recursive k (Handler params metadata handler)
             (Apply_cont (Apply_cont_expr k args)))
          vars conts statics)
       (State handler handler_vars conts statics).
@@ -68,21 +68,22 @@ Definition let_cont_apply_cont_statement : Prop :=
 (* The same with one parameter, as a rewrite of terms: the parameter becomes
    a [Let]. *)
 Definition let_cont_apply_cont_one_param_statement : Prop :=
-  ∀ (k : continuation) (x : variable) (handler : expr) (arg : simple),
+  ∀ (k : continuation) (x : variable) (metadata : handler_metadata)
+    (kind : flambda_kind) (handler : expr) (arg : simple),
     expr_equivalent
-      (Let_cont_non_recursive k (Handler [x] handler)
+      (Let_cont_non_recursive k (Handler [x] metadata handler)
          (Apply_cont (Apply_cont_expr k [arg])))
-      (Let x (Simple arg) handler).
+      (Let x kind (Simple arg) handler).
 
 (* Entering a recursive continuation: the handler runs with all the handlers
    of the [Let_cont] in scope. The handlers must bind nothing static. *)
 Definition let_cont_recursive_apply_cont_statement : Prop :=
-  ∀ (k : continuation) (params : list variable) (handler : expr)
-    (handlers : list (continuation * continuation_handler))
+  ∀ (k : continuation) (params : list variable) (metadata : handler_metadata)
+    (handler : expr) (handlers : list (continuation * continuation_handler))
     (args : list simple) (vars handler_vars : env) (conts : cont_env)
     (statics : static_env) (vs : list value),
     handlers_bind_statics handlers = false ->
-    lookup k handlers = Some (Handler params handler) ->
+    lookup k handlers = Some (Handler params metadata handler) ->
     eval_simples vars args = Some vs ->
     bind_params params vs vars = Some handler_vars ->
     equivalent
@@ -95,7 +96,9 @@ Definition let_cont_recursive_apply_cont_statement : Prop :=
 (* A continuation that only applies itself, applied. *)
 Definition loop_forever (k : continuation) : expr :=
   Let_cont_recursive
-    [(k, Handler [] (Apply_cont (Apply_cont_expr k [])))]
+    [(k,
+      Handler [] (make_handler_metadata [])
+        (Apply_cont (Apply_cont_expr k [])))]
     (Apply_cont (Apply_cont_expr k [])).
 
 Definition loop_forever_diverges_statement : Prop :=

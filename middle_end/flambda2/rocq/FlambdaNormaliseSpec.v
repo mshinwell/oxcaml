@@ -159,7 +159,8 @@ Definition apply_cont_in_scope (vs : list variable) (ks : list continuation)
 Fixpoint expr_in_scope (vs : list variable) (ks : list continuation)
     (e : expr) : bool :=
   match e with
-  | Let x d body => named_in_scope vs d && expr_in_scope (x :: vs) ks body
+  | Let x _ d body =>
+    named_in_scope vs d && expr_in_scope (x :: vs) ks body
   | Let_static bindings body =>
     forallb (static_binding_in_scope vs) bindings
     && expr_in_scope vs ks body
@@ -183,7 +184,7 @@ Fixpoint expr_in_scope (vs : list variable) (ks : list continuation)
 with handler_in_scope (vs : list variable) (ks : list continuation)
     (h : continuation_handler) : bool :=
   match h with
-  | Handler params handler => expr_in_scope (params ++ vs) ks handler
+  | Handler params _ handler => expr_in_scope (params ++ vs) ks handler
   end.
 
 (* ======================================================================== *)
@@ -248,7 +249,7 @@ Definition inline_apply (known : list (code_id * code)) (ap : apply_expr)
 
 Fixpoint inline_calls (known : list (code_id * code)) (e : expr) : expr :=
   match e with
-  | Let x d body => Let x d (inline_calls known body)
+  | Let x kind d body => Let x kind d (inline_calls known body)
   | Let_static bindings body =>
     let bindings := map (inline_calls_in_binding known) bindings in
     Let_static bindings (inline_calls (codes_of bindings known) body)
@@ -265,7 +266,8 @@ Fixpoint inline_calls (known : list (code_id * code)) (e : expr) : expr :=
 with inline_calls_in_handler (known : list (code_id * code))
     (h : continuation_handler) : continuation_handler :=
   match h with
-  | Handler params handler => Handler params (inline_calls known handler)
+  | Handler params metadata handler =>
+    Handler params metadata (inline_calls known handler)
   end
 with inline_calls_in_binding (known : list (code_id * code))
     (binding : static_binding) : static_binding :=
@@ -275,8 +277,8 @@ with inline_calls_in_binding (known : list (code_id * code))
   end
 with inline_calls_in_code (known : list (code_id * code)) (c : code) : code :=
   match c with
-  | Code params my_closure ret exn body =>
-    Code params my_closure ret exn (inline_calls known body)
+  | Code params my_closure ret exn metadata body =>
+    Code params my_closure ret exn metadata (inline_calls known body)
   end.
 
 Definition inline_calls_refines_statement : Prop :=
@@ -324,7 +326,7 @@ Definition var_in_static_binding (x : variable) (binding : static_binding)
 (* Whether a variable may be free in an expression. *)
 Fixpoint var_free_b (x : variable) (e : expr) : bool :=
   match e with
-  | Let y d body =>
+  | Let y _ d body =>
     var_in_named x d || (negb (Pos.eqb x y) && var_free_b x body)
   | Let_static bindings body =>
     existsb (var_in_static_binding x) bindings || var_free_b x body
@@ -343,7 +345,8 @@ Fixpoint var_free_b (x : variable) (e : expr) : bool :=
   end
 with var_free_in_handler_b (x : variable) (h : continuation_handler) : bool :=
   match h with
-  | Handler params handler => negb (among x params) && var_free_b x handler
+  | Handler params _ handler =>
+    negb (among x params) && var_free_b x handler
   end.
 
 (* Which primitives the normalisation may fold, and remove when unused:
@@ -366,10 +369,10 @@ Definition named_may_go (d : named) : bool :=
 
 Fixpoint remove_unused_lets (e : expr) : expr :=
   match e with
-  | Let x d body =>
+  | Let x kind d body =>
     let body' := remove_unused_lets body in
     if var_free_b x body' || negb (named_may_go d)
-    then Let x d body'
+    then Let x kind d body'
     else body'
   | Let_static bindings body => Let_static bindings (remove_unused_lets body)
   | Let_cont_non_recursive k h body =>
@@ -382,7 +385,8 @@ Fixpoint remove_unused_lets (e : expr) : expr :=
 with remove_unused_lets_in_handler (h : continuation_handler)
     : continuation_handler :=
   match h with
-  | Handler params handler => Handler params (remove_unused_lets handler)
+  | Handler params metadata handler =>
+    Handler params metadata (remove_unused_lets handler)
   end.
 
 Definition remove_unused_lets_refines_statement : Prop :=
@@ -396,21 +400,26 @@ Definition remove_unused_lets_refines_statement : Prop :=
    it, if it is a run of [Let]s ending so, none of which binds a variable
    of the handler. *)
 Fixpoint inline_cont_at_tail (k : continuation) (params : list variable)
-    (handler : expr) (body : expr) : option expr :=
+    (metadata : handler_metadata) (handler : expr) (body : expr)
+    : option expr :=
   match body with
-  | Let x d body =>
-    if var_free_in_handler_b x (Handler params handler)
+  | Let x kind d body =>
+    if var_free_in_handler_b x (Handler params metadata handler)
     then None
-    else option_map (Let x d) (inline_cont_at_tail k params handler body)
+    else
+      option_map (Let x kind d)
+        (inline_cont_at_tail k params metadata handler body)
   | Let_static bindings body =>
     option_map (Let_static bindings)
-      (inline_cont_at_tail k params handler body)
+      (inline_cont_at_tail k params metadata handler body)
   | Apply_cont ac =>
     if Pos.eqb (ac_continuation ac) k
        && Nat.eqb (length params) (length (ac_args ac))
        && forallb (fun param => negb (var_in_simples param (ac_args ac)))
             params
-    then Some (let_params params (ac_args ac) handler)
+    then
+      Some
+        (let_params params (hm_params_kinds metadata) (ac_args ac) handler)
     else None
   | Let_cont_non_recursive _ _ _ | Let_cont_recursive _ _ | Apply _
   | Switch _ _ | Invalid =>
@@ -419,14 +428,15 @@ Fixpoint inline_cont_at_tail (k : continuation) (params : list variable)
 
 Fixpoint inline_tail_conts (e : expr) : expr :=
   match e with
-  | Let x d body => Let x d (inline_tail_conts body)
+  | Let x kind d body => Let x kind d (inline_tail_conts body)
   | Let_static bindings body => Let_static bindings (inline_tail_conts body)
-  | Let_cont_non_recursive k (Handler params handler) body =>
+  | Let_cont_non_recursive k (Handler params metadata handler) body =>
     let handler' := inline_tail_conts handler in
     let body' := inline_tail_conts body in
-    match inline_cont_at_tail k params handler' body' with
+    match inline_cont_at_tail k params metadata handler' body' with
     | Some inlined => inlined
-    | None => Let_cont_non_recursive k (Handler params handler') body'
+    | None =>
+      Let_cont_non_recursive k (Handler params metadata handler') body'
     end
   | Let_cont_recursive handlers body =>
     Let_cont_recursive handlers (inline_tail_conts body)
@@ -455,12 +465,13 @@ Definition let_static_if_any (bindings : list static_binding) (body : expr)
 
 Fixpoint drop_deleted_code (e : expr) : expr :=
   match e with
-  | Let x d body => Let x d (drop_deleted_code body)
+  | Let x kind d body => Let x kind d (drop_deleted_code body)
   | Let_static bindings body =>
     let_static_if_any (filter binds_something bindings)
       (drop_deleted_code body)
-  | Let_cont_non_recursive k (Handler params handler) body =>
-    Let_cont_non_recursive k (Handler params (drop_deleted_code handler))
+  | Let_cont_non_recursive k (Handler params metadata handler) body =>
+    Let_cont_non_recursive k
+      (Handler params metadata (drop_deleted_code handler))
       (drop_deleted_code body)
   | Let_cont_recursive handlers body =>
     Let_cont_recursive handlers (drop_deleted_code body)
@@ -511,10 +522,10 @@ Definition fold_switch (scrutinee : simple) (arms : list (Z * apply_cont))
 
 Fixpoint fold_constants (e : expr) : expr :=
   match e with
-  | Let x d body => Let x (fold_named d) (fold_constants body)
+  | Let x kind d body => Let x kind (fold_named d) (fold_constants body)
   | Let_static bindings body => Let_static bindings (fold_constants body)
-  | Let_cont_non_recursive k (Handler params handler) body =>
-    Let_cont_non_recursive k (Handler params (fold_constants handler))
+  | Let_cont_non_recursive k (Handler params metadata handler) body =>
+    Let_cont_non_recursive k (Handler params metadata (fold_constants handler))
       (fold_constants body)
   | Let_cont_recursive handlers body =>
     Let_cont_recursive handlers (fold_constants body)
@@ -540,16 +551,16 @@ Definition named_is_total (d : named) : bool :=
 
 Fixpoint remove_unused_total_lets (e : expr) : expr :=
   match e with
-  | Let x d body =>
+  | Let x kind d body =>
     let body' := remove_unused_total_lets body in
     if named_is_total d && negb (var_free_b x body')
     then body'
-    else Let x d body'
+    else Let x kind d body'
   | Let_static bindings body =>
     Let_static bindings (remove_unused_total_lets body)
-  | Let_cont_non_recursive k (Handler params handler) body =>
+  | Let_cont_non_recursive k (Handler params metadata handler) body =>
     Let_cont_non_recursive k
-      (Handler params (remove_unused_total_lets handler))
+      (Handler params metadata (remove_unused_total_lets handler))
       (remove_unused_total_lets body)
   | Let_cont_recursive handlers body =>
     Let_cont_recursive handlers (remove_unused_total_lets body)
@@ -580,16 +591,17 @@ Definition named_defined (vs : list variable) (d : named) : bool :=
 
 Fixpoint remove_unused_defined_lets (vs : list variable) (e : expr) : expr :=
   match e with
-  | Let x d body =>
+  | Let x kind d body =>
     let body' := remove_unused_defined_lets (x :: vs) body in
     if named_defined vs d && negb (var_free_b x body')
     then body'
-    else Let x d body'
+    else Let x kind d body'
   | Let_static bindings body =>
     Let_static bindings (remove_unused_defined_lets vs body)
-  | Let_cont_non_recursive k (Handler params handler) body =>
+  | Let_cont_non_recursive k (Handler params metadata handler) body =>
     Let_cont_non_recursive k
-      (Handler params (remove_unused_defined_lets (params ++ vs) handler))
+      (Handler params metadata
+         (remove_unused_defined_lets (params ++ vs) handler))
       (remove_unused_defined_lets vs body)
   | Let_cont_recursive handlers body =>
     Let_cont_recursive handlers (remove_unused_defined_lets vs body)
@@ -648,7 +660,8 @@ Definition inline_known_apply (known_code : list (code_id * code))
 Fixpoint inline_known_calls (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id)) (e : expr) : expr :=
   match e with
-  | Let x d body => Let x d (inline_known_calls known_code known_symbols body)
+  | Let x kind d body =>
+    Let x kind d (inline_known_calls known_code known_symbols body)
   | Let_static bindings body =>
     let bindings :=
       map (inline_known_calls_in_binding known_code known_symbols) bindings
@@ -674,8 +687,9 @@ with inline_known_calls_in_handler (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id))
     (h : continuation_handler) : continuation_handler :=
   match h with
-  | Handler params handler =>
-    Handler params (inline_known_calls known_code known_symbols handler)
+  | Handler params metadata handler =>
+    Handler params metadata
+      (inline_known_calls known_code known_symbols handler)
   end
 with inline_known_calls_in_binding (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id))
@@ -688,8 +702,8 @@ with inline_known_calls_in_binding (known_code : list (code_id * code))
 with inline_known_calls_in_code (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id)) (c : code) : code :=
   match c with
-  | Code params my_closure ret exn body =>
-    Code params my_closure ret exn
+  | Code params my_closure ret exn metadata body =>
+    Code params my_closure ret exn metadata
       (inline_known_calls known_code known_symbols body)
   end.
 
@@ -713,15 +727,15 @@ Definition code_first (bindings : list static_binding) : list static_binding :=
 
 Fixpoint merge_statics (e : expr) : expr :=
   match e with
-  | Let x d body => Let x d (merge_statics body)
+  | Let x kind d body => Let x kind d (merge_statics body)
   | Let_static bindings body =>
     match merge_statics body with
     | Let_static bindings' body' =>
       Let_static (code_first (bindings ++ bindings')) body'
     | body' => Let_static (code_first bindings) body'
     end
-  | Let_cont_non_recursive k (Handler params handler) body =>
-    Let_cont_non_recursive k (Handler params (merge_statics handler))
+  | Let_cont_non_recursive k (Handler params metadata handler) body =>
+    Let_cont_non_recursive k (Handler params metadata (merge_statics handler))
       (merge_statics body)
   | Let_cont_recursive handlers body =>
     Let_cont_recursive handlers (merge_statics body)
@@ -758,10 +772,11 @@ Definition collapse_switch (scrutinee : simple)
 
 Fixpoint collapse_switches (e : expr) : expr :=
   match e with
-  | Let x d body => Let x d (collapse_switches body)
+  | Let x kind d body => Let x kind d (collapse_switches body)
   | Let_static bindings body => Let_static bindings (collapse_switches body)
-  | Let_cont_non_recursive k (Handler params handler) body =>
-    Let_cont_non_recursive k (Handler params (collapse_switches handler))
+  | Let_cont_non_recursive k (Handler params metadata handler) body =>
+    Let_cont_non_recursive k
+      (Handler params metadata (collapse_switches handler))
       (collapse_switches body)
   | Let_cont_recursive handlers body =>
     Let_cont_recursive handlers (collapse_switches body)
@@ -790,14 +805,15 @@ Definition rewrite_code_body (f : expr -> expr) (body : expr) : expr :=
 Definition rewrite_code_in_binding (f : expr -> expr)
     (binding : static_binding) : static_binding :=
   match binding with
-  | Bind_code id (Code params my_closure ret exn body) =>
-    Bind_code id (Code params my_closure ret exn (rewrite_code_body f body))
+  | Bind_code id (Code params my_closure ret exn metadata body) =>
+    Bind_code id
+      (Code params my_closure ret exn metadata (rewrite_code_body f body))
   | Bind_deleted_code _ | Bind_symbol _ _ => binding
   end.
 
 Fixpoint rewrite_code (f : expr -> expr) (e : expr) : expr :=
   match e with
-  | Let x d body => Let x d (rewrite_code f body)
+  | Let x kind d body => Let x kind d (rewrite_code f body)
   | Let_static bindings body =>
     Let_static (map (rewrite_code_in_binding f) bindings)
       (rewrite_code f body)
@@ -813,7 +829,8 @@ Fixpoint rewrite_code (f : expr -> expr) (e : expr) : expr :=
 with rewrite_code_in_handler (f : expr -> expr) (h : continuation_handler)
     : continuation_handler :=
   match h with
-  | Handler params handler => Handler params (rewrite_code f handler)
+  | Handler params metadata handler =>
+    Handler params metadata (rewrite_code f handler)
   end.
 
 (* A rewrite that refines, or is an equivalence, under all environments
@@ -863,7 +880,7 @@ Definition arms_apply (k : continuation) (arms : list (Z * apply_cont))
 Definition thread_switch (k : continuation) (h : continuation_handler)
     (body : expr) : expr :=
   match h, body with
-  | Handler [] (Switch inner_scrutinee inner), Switch scrutinee arms =>
+  | Handler [] _ (Switch inner_scrutinee inner), Switch scrutinee arms =>
     if simple_eq_dec scrutinee inner_scrutinee
     then
       let arms := map (thread_arm k inner) arms in
@@ -876,10 +893,10 @@ Definition thread_switch (k : continuation) (h : continuation_handler)
 
 Fixpoint thread_switches (e : expr) : expr :=
   match e with
-  | Let x d body => Let x d (thread_switches body)
+  | Let x kind d body => Let x kind d (thread_switches body)
   | Let_static bindings body => Let_static bindings (thread_switches body)
-  | Let_cont_non_recursive k (Handler params handler) body =>
-    thread_switch k (Handler params (thread_switches handler))
+  | Let_cont_non_recursive k (Handler params metadata handler) body =>
+    thread_switch k (Handler params metadata (thread_switches handler))
       (thread_switches body)
   | Let_cont_recursive handlers body =>
     Let_cont_recursive handlers (thread_switches body)

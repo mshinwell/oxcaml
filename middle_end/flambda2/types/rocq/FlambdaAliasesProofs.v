@@ -303,10 +303,10 @@ Proof.
     intros Hfree. apply var_in_value_slots_sound in Hfree. congruence.
 Qed.
 
-Lemma let_equivalent_in (tenv : typing_env) (x : variable) (d : named)
-    (body body' : expr) :
+Lemma let_equivalent_in (tenv : typing_env) (x : variable)
+    (kind : flambda_kind) (d : named) (body body' : expr) :
   expr_equivalent_in (typing_env_under_let tenv x d) body body' ->
-  expr_equivalent_in tenv (Let x d body) (Let x d body').
+  expr_equivalent_in tenv (Let x kind d body) (Let x kind d body').
 Proof.
   intros Hbody vars conts statics Hsat.
   apply let_equivalent_step; [ reflexivity | intros v Hd ].
@@ -329,11 +329,12 @@ Qed.
 (* A handler may be replaced by one equivalent to it under what is known
    where it is defined, less what mentions its parameters. *)
 Lemma let_cont_handler_equivalent_in (tenv : typing_env) (k : continuation)
-    (params : list variable) (handler handler' body : expr) :
+    (params : list variable) (metadata : handler_metadata)
+    (handler handler' body : expr) :
   expr_equivalent_in (drop_vars params tenv) handler handler' ->
   expr_equivalent_in tenv
-    (Let_cont_non_recursive k (Handler params handler) body)
-    (Let_cont_non_recursive k (Handler params handler') body).
+    (Let_cont_non_recursive k (Handler params metadata handler) body)
+    (Let_cont_non_recursive k (Handler params metadata handler') body).
 Proof.
   intros Hhandler vars conts statics Hsat.
   assert (Hruns :
@@ -373,12 +374,12 @@ with follow_aliases_in_handler_equivalent_in (h : continuation_handler) :
       (Let_cont_non_recursive k (follow_aliases_in_handler tenv h) body).
 Proof.
   - destruct e
-      as [ x d body | bindings body | k h body | handlers body | ap | ac
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
          | scrutinee arms | ];
       intros tenv; simpl.
     + (* Let *)
       apply (expr_equivalent_in_trans tenv _
-        (Let x (canonical_named tenv d) body)).
+        (Let x kind (canonical_named tenv d) body)).
       * intros vars conts statics Hsat.
         apply let_equivalent_step;
           [ apply (canonical_named_sound tenv vars statics d Hsat)
@@ -440,7 +441,7 @@ Proof.
         reflexivity.
     + (* Invalid *)
       intros vars conts statics Hsat. apply equivalent_refl.
-  - destruct h as [params handler]. intros tenv k body. simpl.
+  - destruct h as [params metadata handler]. intros tenv k body. simpl.
     apply let_cont_handler_equivalent_in, follow_aliases_equivalent_in.
 Qed.
 

@@ -267,8 +267,8 @@ Definition load_known_named (known : known_blocks) (d : named) : named :=
 
 Fixpoint load_blocks_knowing (known : known_blocks) (e : expr) : expr :=
   match e with
-  | Let x d body =>
-    Let x (load_known_named known d)
+  | Let x kind d body =>
+    Let x kind (load_known_named known d)
       (load_blocks_knowing (known_under_let known x d) body)
   | Let_static bindings body =>
     Let_static bindings
@@ -283,8 +283,9 @@ Fixpoint load_blocks_knowing (known : known_blocks) (e : expr) : expr :=
 with load_blocks_in_handler (known : known_blocks) (h : continuation_handler)
     : continuation_handler :=
   match h with
-  | Handler params handler =>
-    Handler params (load_blocks_knowing (forget_vars params known) handler)
+  | Handler params metadata handler =>
+    Handler params metadata
+      (load_blocks_knowing (forget_vars params known) handler)
   end.
 
 Definition load_known_blocks (e : expr) : expr :=

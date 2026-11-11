@@ -71,9 +71,11 @@ Variable related : list variable -> env -> expr -> expr -> Prop.
 
 Inductive handler_related (vars : env)
     : continuation_handler -> continuation_handler -> Prop :=
-  | Handler_related (params : list variable) (e e' : expr) :
+  | Handler_related (params : list variable) (metadata : handler_metadata)
+      (e e' : expr) :
     related params vars e e' ->
-    handler_related vars (Handler params e) (Handler params e')
+    handler_related vars (Handler params metadata e)
+      (Handler params metadata e')
   | Handler_same (h : continuation_handler) : handler_related vars h h.
 
 Definition handlers_related (vars : env)
@@ -139,8 +141,9 @@ Proof.
 Qed.
 
 Lemma handler_related_inv (vars : env) (params params' : list variable)
-    (e e' : expr) :
-  handler_related vars (Handler params e) (Handler params' e') ->
+    (metadata metadata' : handler_metadata) (e e' : expr) :
+  handler_related vars (Handler params metadata e)
+    (Handler params' metadata' e') ->
   params = params' ∧ (related params vars e e' ∨ e = e').
 Proof. intros Hrel. inversion Hrel; subst; auto. Qed.
 
@@ -202,11 +205,12 @@ Variable code_related : expr -> expr -> Prop.
 
 Inductive codes_related : code -> code -> Prop :=
   | Codes_related (params : list variable) (my_closure : variable)
-      (ret exn : continuation) (body body' : expr) :
+      (ret exn : continuation) (metadata : code_metadata)
+      (body body' : expr) :
     binds_statics body = binds_statics body' ->
     code_related body body' ->
-    codes_related (Code params my_closure ret exn body)
-      (Code params my_closure ret exn body')
+    codes_related (Code params my_closure ret exn metadata body)
+      (Code params my_closure ret exn metadata body')
   | Codes_same (c : code) : codes_related c c.
 
 Inductive binding_related : static_binding -> static_binding -> Prop :=
@@ -377,7 +381,10 @@ Proof.
   destruct (lookup called (static_code statics)) as [c | ],
     (lookup called (static_code statics')) as [c' | ];
     try contradiction; [ | left; split; reflexivity ].
-  destruct Hc as [params my_closure ret exn body body' Hbinds Hbody | c];
+  destruct Hc
+    as [params my_closure ret exn metadata body body'
+          Hbinds Hbody
+       | c];
     simpl.
   - rewrite <- Hbinds.
     destruct (binds_statics body); [ left; split; reflexivity | ].
@@ -457,7 +464,7 @@ Proof.
     [ destruct b; contradiction | ].
   rewrite run_succ in Hended.
   destruct e
-    as [ x d body | bindings body | k h body | handlers body | ap | ac
+    as [ x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
     autorewrite with step in Hended; simpl in Hended.
   - (* Let *)
@@ -557,9 +564,11 @@ Proof.
            (resolve_related (ac_continuation ac) _ _ Hrel))
         as Hclosure.
       destruct (resolve (ac_continuation ac) conts)
-        as [[params body] def_vars def_conts recursive | exit] eqn:Hl,
+        as [[params metadata body] def_vars def_conts recursive | exit]
+             eqn:Hl,
         (resolve (ac_continuation ac) conts')
-        as [[params' body'] def_vars' def_conts' recursive' | exit']
+        as [[params' metadata' body'] def_vars' def_conts' recursive'
+           | exit']
              eqn:Hl';
         try contradiction; simpl in Hended.
       * (* handlers: related closures *)
@@ -581,7 +590,7 @@ Proof.
                 (rec_closures recursive' def_vars def_conts' ++ def_conts')
                 statics')).
            ++ exact
-                (step_apply_cont_handler _ _ _ _ _ _ _ _ _ _ _ Hargs Hl'
+                (step_apply_cont_handler _ _ _ _ _ _ _ _ _ _ _ _ Hargs Hl'
                    Hbind).
            ++ destruct Hbody as [Hbody | <-]; [ | exact Hcarried ].
               exact
@@ -768,15 +777,18 @@ Qed.
 (* A [Let_cont] refines the same with a handler replaced by one that
    refines it where it runs. *)
 Lemma let_cont_handler_refines_where (k : continuation)
-    (params : list variable) (handler handler' body : expr) (vars : env)
-    (conts : cont_env) (statics : static_env) :
+    (params : list variable) (metadata : handler_metadata)
+    (handler handler' body : expr) (vars : env) (conts : cont_env)
+    (statics : static_env) :
   ok statics ->
   handler_refines_where ok params vars handler handler' ->
   refines
-    (State (Let_cont_non_recursive k (Handler params handler) body) vars
-       conts statics)
-    (State (Let_cont_non_recursive k (Handler params handler') body) vars
-       conts statics).
+    (State
+       (Let_cont_non_recursive k (Handler params metadata handler) body)
+       vars conts statics)
+    (State
+       (Let_cont_non_recursive k (Handler params metadata handler') body)
+       vars conts statics).
 Proof.
   intros Hok Hhandler. apply let_cont_non_recursive_refines_step.
   apply related_envs_refines; [ exact Hok | | ];
@@ -817,14 +829,16 @@ Lemma handler_refines_at_where (params : list variable) (def_vars : env)
 Proof. intros H vs handler_vars conts statics _. apply H. Qed.
 
 Lemma let_cont_handler_refines_at (k : continuation) (params : list variable)
-    (handler handler' body : expr) (vars : env) (conts : cont_env)
-    (statics : static_env) :
+    (metadata : handler_metadata) (handler handler' body : expr) (vars : env)
+    (conts : cont_env) (statics : static_env) :
   handler_refines_at params vars handler handler' ->
   refines
-    (State (Let_cont_non_recursive k (Handler params handler) body) vars
-       conts statics)
-    (State (Let_cont_non_recursive k (Handler params handler') body) vars
-       conts statics).
+    (State
+       (Let_cont_non_recursive k (Handler params metadata handler) body)
+       vars conts statics)
+    (State
+       (Let_cont_non_recursive k (Handler params metadata handler') body)
+       vars conts statics).
 Proof.
   intros Hhandler.
   apply (let_cont_handler_refines_where always always_extend);
@@ -833,19 +847,20 @@ Qed.
 
 Lemma let_cont_recursive_handler_refines_at
     (before : list (continuation * continuation_handler)) (k : continuation)
-    (params : list variable) (handler handler' : expr)
+    (params : list variable) (metadata : handler_metadata)
+    (handler handler' : expr)
     (after : list (continuation * continuation_handler)) (body : expr)
     (vars : env) (conts : cont_env) (statics : static_env) :
   binds_statics handler = binds_statics handler' ->
   handler_refines_at params vars handler handler' ->
   refines
     (State
-       (Let_cont_recursive (before ++ (k, Handler params handler) :: after)
-          body)
+       (Let_cont_recursive
+          (before ++ (k, Handler params metadata handler) :: after) body)
        vars conts statics)
     (State
-       (Let_cont_recursive (before ++ (k, Handler params handler') :: after)
-          body)
+       (Let_cont_recursive
+          (before ++ (k, Handler params metadata handler') :: after) body)
        vars conts statics).
 Proof.
   intros Hbinds Hhandler.
@@ -863,7 +878,8 @@ Qed.
 (* A [Let_static] refines the same with the body of a piece of code
    replaced by one that refines it. *)
 Lemma let_static_code_refines (before : list static_binding) (id : code_id)
-    (params : list variable) (my_closure : variable) (ret exn : continuation)
+    (params : list variable) (my_closure : variable)
+    (ret exn : continuation) (metadata : code_metadata)
     (code_body code_body' : expr) (after : list static_binding) (body : expr)
     (vars : env) (conts : cont_env) (statics : static_env) :
   binds_statics code_body = binds_statics code_body' ->
@@ -872,21 +888,23 @@ Lemma let_static_code_refines (before : list static_binding) (id : code_id)
     (State
        (Let_static
           (before
-           ++ Bind_code id (Code params my_closure ret exn code_body)
+           ++ Bind_code id
+                (Code params my_closure ret exn metadata code_body)
            :: after)
           body)
        vars conts statics)
     (State
        (Let_static
           (before
-           ++ Bind_code id (Code params my_closure ret exn code_body')
+           ++ Bind_code id
+                (Code params my_closure ret exn metadata code_body')
            :: after)
           body)
        vars conts statics).
 Proof.
   intros Hbinds Hcode.
-  set (c := Code params my_closure ret exn code_body).
-  set (c' := Code params my_closure ret exn code_body').
+  set (c := Code params my_closure ret exn metadata code_body).
+  set (c' := Code params my_closure ret exn metadata code_body').
   assert (Hbindings :
     ∀ (R : expr -> expr -> Prop) (c1 c2 : code),
       codes_related R c1 c2 ->
@@ -900,15 +918,15 @@ Proof.
   pose proof (eval_static_bindings_related (expr_refines_where always) vars
     _ _
     (Hbindings (expr_refines_where always) c c'
-       (Codes_related _ _ _ _ _ _ _ Hbinds Hwhere))
+       (Codes_related _ _ _ _ _ _ _ _ Hbinds Hwhere))
     statics statics (statics_related_refl _ statics)) as Hforwards.
   pose proof (eval_static_bindings_related
     (fun target source => expr_refines_where always source target) vars _ _
     (Hbindings _ c' c
        (Codes_related
           (fun target source => expr_refines_where always source target)
-          params my_closure ret exn code_body' code_body (eq_sym Hbinds)
-          Hwhere))
+          params my_closure ret exn metadata code_body'
+          code_body (eq_sym Hbinds) Hwhere))
     statics statics (statics_related_refl _ statics)) as Hbackwards.
   apply let_static_refines_step.
   destruct
@@ -936,10 +954,11 @@ Lemma plug_binds_statics (c : context) (e e' : expr) :
 Proof.
   intros Hbinds.
   induction c
-    as [ | x d c IH | bindings c IH
-       | before id params my_closure ret exn c IH after body | k h c IH
-       | k params c IH body | handlers c IH
-       | before k params c IH after body ];
+    as [ | x kind d c IH | bindings c IH
+       | before id params my_closure ret exn metadata c IH
+           after body
+       | k h c IH | k params metadata c IH body | handlers c IH
+       | before k params metadata c IH after body ];
     simpl; try congruence.
   - rewrite !existsb_app. reflexivity.
   - rewrite !existsb_app. simpl. rewrite IH. reflexivity.
@@ -952,10 +971,11 @@ Theorem plug_refines : plug_refines_statement.
 Proof.
   intros c source target Hbinds Hrefines.
   induction c
-    as [ | x d c IH | bindings c IH
-       | before id params my_closure ret exn c IH after body | k h c IH
-       | k params c IH body | handlers c IH
-       | before k params c IH after body ];
+    as [ | x kind d c IH | bindings c IH
+       | before id params my_closure ret exn metadata c IH
+           after body
+       | k h c IH | k params metadata c IH body | handlers c IH
+       | before k params metadata c IH after body ];
     simpl in Hbinds |- *; [ exact Hrefines | | | | | | | ];
     intros vars conts statics.
   - apply let_refines_step; [ reflexivity | intros v _ ]. apply IH, Hbinds.

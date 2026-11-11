@@ -176,7 +176,7 @@ Definition canonical_apply (tenv : typing_env) (ap : apply_expr) : apply_expr :=
   let callee := canonical_simple tenv (ap_callee ap) in
   Apply_expr callee (canonical_call_kind tenv callee (ap_call_kind ap))
     (map (canonical_simple tenv) (ap_args ap)) (ap_continuation ap)
-    (ap_exn_continuation ap).
+    (ap_exn_continuation ap) (ap_args_arity ap) (ap_return_arity ap).
 
 (* What is known in the body of a [Let] of [x] to [d]: nothing of the old
    [x], and that the new one is [d] if that is a [Simple] or a closure not
@@ -199,9 +199,9 @@ Definition typing_env_under_let (tenv : typing_env) (x : variable) (d : named)
 
 Fixpoint follow_aliases (tenv : typing_env) (e : expr) : expr :=
   match e with
-  | Let x d body =>
+  | Let x kind d body =>
     let d' := canonical_named tenv d in
-    Let x d' (follow_aliases (typing_env_under_let tenv x d') body)
+    Let x kind d' (follow_aliases (typing_env_under_let tenv x d') body)
   | Let_static bindings body =>
     Let_static (map (canonical_static_binding tenv) bindings)
       (follow_aliases tenv body)
@@ -220,8 +220,9 @@ Fixpoint follow_aliases (tenv : typing_env) (e : expr) : expr :=
 with follow_aliases_in_handler (tenv : typing_env) (h : continuation_handler)
     : continuation_handler :=
   match h with
-  | Handler params handler =>
-    Handler params (follow_aliases (drop_vars params tenv) handler)
+  | Handler params metadata handler =>
+    Handler params metadata
+      (follow_aliases (drop_vars params tenv) handler)
   end.
 
 Definition follow_aliases_equivalent_statement : Prop :=

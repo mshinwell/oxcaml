@@ -45,8 +45,8 @@ with cont_free_in_handler_b_sound (k : continuation)
   cont_free_in_handler k h -> cont_free_in_handler_b k h = true.
 Proof.
   - destruct e
-      as [ x d body | bindings body | bound h body | handlers body | ap | ac
-         | scrutinee arms | ];
+      as [ x kind d body | bindings body | bound h body | handlers body | ap
+         | ac | scrutinee arms | ];
       simpl.
     + apply (cont_free_b_sound k body).
     + apply (cont_free_b_sound k body).
@@ -69,7 +69,7 @@ Proof.
       apply existsb_exists. exists arm.
       split; [ exact Hin | apply Pos.eqb_refl ].
     + contradiction.
-  - destruct h as [params handler]. simpl.
+  - destruct h as [params metadata handler]. simpl.
     apply (cont_free_b_sound k handler).
 Qed.
 
@@ -79,21 +79,21 @@ Fixpoint remove_unused_conts_equivalent_aux (e : expr) :
   expr_equivalent e (remove_unused_conts e).
 Proof.
   destruct e
-    as [ x d body | bindings body | k [params handler] body | handlers body
-       | ap | ac | scrutinee arms | ];
+    as [ x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
     simpl; try (intros vars conts statics; apply equivalent_refl).
-  - exact (plug_equivalent (Let_body x d Hole) _ _ (not_many _)
+  - exact (plug_equivalent (Let_body x kind d Hole) _ _ (not_many _)
       (remove_unused_conts_equivalent_aux body)).
   - exact (plug_equivalent (Let_static_body bindings Hole) _ _ (not_many _)
       (remove_unused_conts_equivalent_aux body)).
   - pose proof (plug_equivalent
-      (Let_cont_non_recursive_body k (Handler params handler) Hole)
+      (Let_cont_non_recursive_body k (Handler params metadata handler) Hole)
       _ _ (not_many _) (remove_unused_conts_equivalent_aux body)) as Hbody.
     simpl in Hbody.
     destruct (cont_free_b k (remove_unused_conts body)) eqn:Hfree.
     + apply (expr_equivalent_trans _ _ _ Hbody).
       exact (plug_equivalent
-        (Let_cont_non_recursive_handler k params Hole
+        (Let_cont_non_recursive_handler k params metadata Hole
            (remove_unused_conts body))
         _ _ (not_many _) (remove_unused_conts_equivalent_aux handler)).
     + apply (expr_equivalent_trans _ _ _ Hbody), unused_let_cont.

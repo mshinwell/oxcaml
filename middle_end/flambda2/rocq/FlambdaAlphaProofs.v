@@ -193,7 +193,7 @@ with rename_handler_ext (h : continuation_handler) :
   rename_handler r h = rename_handler r' h.
 Proof.
   - destruct e
-      as [x d body | bindings body | k h body | handlers body | ap | ac
+      as [x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
       simpl.
     + rewrite same_variables, rename_named_ext, (rename_expr_ext body).
@@ -211,7 +211,7 @@ Proof.
     + rewrite rename_simple_ext. f_equal. apply map_ext. intros [i ac].
       simpl. rewrite rename_apply_cont_ext. reflexivity.
     + reflexivity.
-  - destruct h as [params handler]. simpl.
+  - destruct h as [params metadata handler]. simpl.
     rewrite (rename_expr_ext handler), (map_ext _ _ same_variables).
     reflexivity.
 Qed.
@@ -290,7 +290,7 @@ with rename_handler_compose (h : continuation_handler) :
   = rename_handler second (rename_handler first h).
 Proof.
   - destruct e
-      as [x d body | bindings body | k h body | handlers body | ap | ac
+      as [x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
       simpl.
     + rewrite rename_variable_compose, rename_named_compose,
@@ -309,7 +309,7 @@ Proof.
       induction arms as [ | [i ac] arms IH]; simpl; [ reflexivity | ].
       rewrite rename_apply_cont_compose, IH. reflexivity.
     + reflexivity.
-  - destruct h as [params handler]. simpl.
+  - destruct h as [params metadata handler]. simpl.
     rewrite (rename_expr_compose_aux handler). f_equal.
     rewrite map_map. apply map_ext. intros x.
     apply rename_variable_compose.
@@ -432,7 +432,7 @@ with var_free_in_handler_equivariant (r : renaming) (x : variable)
   <-> var_free_in_handler x h.
 Proof.
   - destruct e
-      as [y d body | bindings body | k h body | handlers body | ap | ac
+      as [y kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
       simpl.
     + apply or_iff; [ apply var_free_in_named_equivariant | ].
@@ -459,7 +459,7 @@ Proof.
       * rewrite !Exists_cons.
         apply or_iff; [ apply var_free_in_simples_equivariant | exact IH ].
     + reflexivity.
-  - destruct h as [params handler]. simpl.
+  - destruct h as [params metadata handler]. simpl.
     apply and_iff;
       [ apply not_iff_compat, in_map_rename_variable
       | apply (var_free_in_expr_equivariant r x handler) ].
@@ -484,7 +484,7 @@ with cont_free_in_handler_equivariant (r : renaming) (k : continuation)
   <-> cont_free_in_handler k h.
 Proof.
   - destruct e
-      as [y d body | bindings body | k' h body | handlers body | ap | ac
+      as [y kind d body | bindings body | k' h body | handlers body | ap | ac
        | scrutinee arms | ];
       simpl.
     + apply (cont_free_in_expr_equivariant r k body).
@@ -508,7 +508,7 @@ Proof.
         split;
           [ apply rename_continuation_injective | intros ->; reflexivity ].
     + reflexivity.
-  - destruct h as [params handler]. simpl.
+  - destruct h as [params metadata handler]. simpl.
     apply (cont_free_in_expr_equivariant r k handler).
 Qed.
 
@@ -548,9 +548,10 @@ Proof.
   intros Halpha.
   induction Halpha
     as [ e | e e' _ IH | e e' e'' _ IH _ IH' | c e e' _ IH
-       | r e Hvars Hconts | r x d body Hvars Hconts
-       | r k h body Hvars Hconts | r k params handler body Hvars Hconts
-       | r before k params handler after body Hvars Hconts ];
+       | r e Hvars Hconts | r x kind d body Hvars Hconts
+       | r k h body Hvars Hconts
+       | r k params metadata handler body Hvars Hconts
+       | r before k params metadata handler after body Hvars Hconts ];
     simpl; try congruence; rewrite ?rename_binds_statics;
     try reflexivity.
   - apply plug_binds_statics, IH.
@@ -562,9 +563,10 @@ Proof.
   intros e e' Halpha.
   induction Halpha
     as [ e | e e' _ IH | e e' e'' _ IH _ IH' | c e e' Hinner IH
-       | r e Hvars Hconts | r x d body Hvars Hconts
-       | r k h body Hvars Hconts | r k params handler body Hvars Hconts
-       | r before k params handler after body Hvars Hconts ].
+       | r e Hvars Hconts | r x kind d body Hvars Hconts
+       | r k h body Hvars Hconts
+       | r k params metadata handler body Hvars Hconts
+       | r before k params metadata handler after body Hvars Hconts ].
   - intros vars conts statics. apply equivalent_refl.
   - intros vars conts statics. apply equivalent_sym, IH.
   - intros vars conts statics.
@@ -589,40 +591,42 @@ Qed.
 Fixpoint hole_in_code (c : context) : bool :=
   match c with
   | Hole => false
-  | Let_static_code _ _ _ _ _ _ _ _ _ => true
-  | Let_body _ _ body | Let_static_body _ body
+  | Let_static_code _ _ _ _ _ _ _ _ _ _ => true
+  | Let_body _ _ _ body | Let_static_body _ body
   | Let_cont_non_recursive_body _ _ body | Let_cont_recursive_body _ body =>
     hole_in_code body
-  | Let_cont_non_recursive_handler _ _ handler _
-  | Let_cont_recursive_handler _ _ _ handler _ _ => hole_in_code handler
+  | Let_cont_non_recursive_handler _ _ _ handler _
+  | Let_cont_recursive_handler _ _ _ _ handler _ _ => hole_in_code handler
   end.
 
 Fixpoint rename_context (r : renaming) (c : context) : context :=
   match c with
   | Hole => Hole
-  | Let_body x d body => Let_body (rename_variable r x) (rename_named r d)
+  | Let_body x kind d body =>
+    Let_body (rename_variable r x) kind (rename_named r d)
       (rename_context r body)
   | Let_static_body bindings body =>
     Let_static_body (map (rename_static_binding r) bindings)
       (rename_context r body)
-  | Let_static_code before id params my_closure ret exn code_body after
-      body =>
+  | Let_static_code before id params my_closure ret exn metadata code_body
+      after body =>
     Let_static_code (map (rename_static_binding r) before) id params
-      my_closure ret exn code_body (map (rename_static_binding r) after)
-      (rename_expr r body)
+      my_closure ret exn metadata code_body
+      (map (rename_static_binding r) after) (rename_expr r body)
   | Let_cont_non_recursive_body k h body =>
     Let_cont_non_recursive_body (rename_continuation r k)
       (rename_handler r h) (rename_context r body)
-  | Let_cont_non_recursive_handler k params handler body =>
+  | Let_cont_non_recursive_handler k params metadata handler body =>
     Let_cont_non_recursive_handler (rename_continuation r k)
-      (map (rename_variable r) params) (rename_context r handler)
+      (map (rename_variable r) params) metadata (rename_context r handler)
       (rename_expr r body)
   | Let_cont_recursive_body handlers body =>
     Let_cont_recursive_body (rename_handlers r handlers)
       (rename_context r body)
-  | Let_cont_recursive_handler before k params handler after body =>
+  | Let_cont_recursive_handler before k params metadata handler after body
+    =>
     Let_cont_recursive_handler (rename_handlers r before)
-      (rename_continuation r k) (map (rename_variable r) params)
+      (rename_continuation r k) (map (rename_variable r) params) metadata
       (rename_context r handler) (rename_handlers r after)
       (rename_expr r body)
   end.
@@ -633,10 +637,10 @@ Lemma rename_plug (r : renaming) (c : context) (e : expr) :
       (if hole_in_code c then e else rename_expr r e).
 Proof.
   induction c
-    as [ | x d c IH | bindings c IH
-       | before id params my_closure ret exn c IH after body | k h c IH
-       | k params c IH body | handlers c IH
-       | before k params c IH after body ];
+    as [ | x kind d c IH | bindings c IH
+       | before id params my_closure ret exn metadata c IH after body
+       | k h c IH | k params metadata c IH body | handlers c IH
+       | before k params metadata c IH after body ];
     simpl; rewrite ?IH; try reflexivity.
   - rewrite map_app. reflexivity.
   - unfold rename_handlers. rewrite map_app. simpl. rewrite IH. reflexivity.
@@ -698,9 +702,10 @@ Proof.
   intros r e e' Halpha.
   induction Halpha
     as [ e | e e' _ IH | e e' e'' _ IH _ IH' | c e e' Halpha IH
-       | s e Hvars Hconts | s x d body Hvars Hconts
-       | s k h body Hvars Hconts | s k params handler body Hvars Hconts
-       | s before k params handler after body Hvars Hconts ].
+       | s e Hvars Hconts | s x kind d body Hvars Hconts
+       | s k h body Hvars Hconts
+       | s k params metadata handler body Hvars Hconts
+       | s before k params metadata handler after body Hvars Hconts ].
   - apply Alpha_refl.
   - apply Alpha_sym, IH.
   - exact (Alpha_trans _ _ _ IH IH').
@@ -736,7 +741,7 @@ Proof.
       by (rewrite !map_map; apply map_ext; intros x;
           apply conjugate_variable).
     apply (Alpha_handler (conjugate r s) (rename_continuation r k)
-      (map (rename_variable r) params) (rename_expr r handler)
+      (map (rename_variable r) params) metadata (rename_expr r handler)
       (rename_expr r body)).
     + intros y Hnotin Hy.
       apply conjugate_fixes_variable, Hvars;
@@ -752,7 +757,7 @@ Proof.
       by (rewrite !map_map; apply map_ext; intros x;
           apply conjugate_variable).
     apply (Alpha_recursive_handler (conjugate r s) (rename_handlers r before)
-      (rename_continuation r k) (map (rename_variable r) params)
+      (rename_continuation r k) (map (rename_variable r) params) metadata
       (rename_expr r handler) (rename_handlers r after)
       (rename_expr r body)).
     + intros y Hnotin Hy.
@@ -819,10 +824,10 @@ Lemma plug_var_free (c : context) (e e' : expr) :
 Proof.
   intros Hfree.
   induction c
-    as [ | y d c IH | bindings c IH
-       | before id params my_closure ret exn c IH after body | k h c IH
-       | k params c IH body | handlers c IH
-       | before k params c IH after body ];
+    as [ | y kind d c IH | bindings c IH
+       | before id params my_closure ret exn metadata c IH after body
+       | k h c IH | k params metadata c IH body | handlers c IH
+       | before k params metadata c IH after body ];
     intros x; simpl.
   - apply Hfree.
   - apply or_iff; [ reflexivity | ]. apply and_iff; [ reflexivity | apply IH ].
@@ -845,10 +850,10 @@ Lemma plug_cont_free (c : context) (e e' : expr) :
 Proof.
   intros Hfree.
   induction c
-    as [ | y d c IH | bindings c IH
-       | before id params my_closure ret exn c IH after body | k' h c IH
-       | k' params c IH body | handlers c IH
-       | before k' params c IH after body ];
+    as [ | y kind d c IH | bindings c IH
+       | before id params my_closure ret exn metadata c IH after body
+       | k' h c IH | k' params metadata c IH body | handlers c IH
+       | before k' params metadata c IH after body ];
     intros k; simpl.
   - apply Hfree.
   - apply IH.
@@ -872,9 +877,10 @@ Proof.
   induction Halpha
     as [ e | e e' _ [IHv IHk] | e e' e'' _ [IHv IHk] _ [IHv' IHk']
        | c e e' _ [IHv IHk]
-       | s e Hvars Hconts | s x d body Hvars Hconts
-       | s k h body Hvars Hconts | s k params handler body Hvars Hconts
-       | s before k params handler after body Hvars Hconts ].
+       | s e Hvars Hconts | s x kind d body Hvars Hconts
+       | s k h body Hvars Hconts
+       | s k params metadata handler body Hvars Hconts
+       | s before k params metadata handler after body Hvars Hconts ].
   - split; reflexivity.
   - split; intros; symmetry; [ apply IHv | apply IHk ].
   - split; intros y;
@@ -1025,13 +1031,15 @@ Lemma alpha_structural_sound_mutual :
 Proof.
   apply alpha_structural_induction.
   - (* Let *)
-    intros r r' x x' d body body' Hvars Hconts Hvars' Hconts' Hbound _ IH.
-    eapply Alpha_trans; [ exact (Alpha_let r x d body Hvars Hconts) | ].
+    intros r r' x x' kind d body body' Hvars Hconts Hvars' Hconts' Hbound _
+      IH.
+    eapply Alpha_trans; [ exact (Alpha_let r x kind d body Hvars Hconts) | ].
     eapply Alpha_trans;
-      [ exact (Alpha_context (Let_body (rename_variable r x) d Hole) _ _ IH)
+      [ exact
+          (Alpha_context (Let_body (rename_variable r x) kind d Hole) _ _ IH)
       | ].
     simpl. rewrite Hbound.
-    exact (Alpha_sym _ _ (Alpha_let r' x' d body' Hvars' Hconts')).
+    exact (Alpha_sym _ _ (Alpha_let r' x' kind d body' Hvars' Hconts')).
   - (* Let_cont_non_recursive *)
     intros r r' k k' h h' body body' _ [Hhandler _] Hvars Hconts Hvars' Hconts'
       Hbound _ IH.
@@ -1064,36 +1072,37 @@ Proof.
   - intros scrutinee arms. apply Alpha_refl.
   - apply Alpha_refl.
   - (* a handler *)
-    intros r r' params params' handler handler' Hvars Hconts Hvars' Hconts'
-      Hbound _ IH.
+    intros r r' params params' metadata handler handler' Hvars Hconts Hvars'
+      Hconts' Hbound _ IH.
     split.
     + intros k body.
       eapply Alpha_trans;
-        [ exact (Alpha_handler r k params handler body Hvars Hconts) | ].
+        [ exact (Alpha_handler r k params metadata handler body Hvars Hconts)
+        | ].
       eapply Alpha_trans;
         [ exact (Alpha_context
             (Let_cont_non_recursive_handler k
-               (map (rename_variable r) params) Hole body)
+               (map (rename_variable r) params) metadata Hole body)
             _ _ IH)
         | ].
       simpl. rewrite Hbound.
       exact (Alpha_sym _ _
-        (Alpha_handler r' k params' handler' body Hvars' Hconts')).
+        (Alpha_handler r' k params' metadata handler' body Hvars' Hconts')).
     + intros before k after body.
       eapply Alpha_trans;
-        [ exact (Alpha_recursive_handler r before k params handler after body
-            Hvars Hconts)
+        [ exact (Alpha_recursive_handler r before k params metadata handler
+            after body Hvars Hconts)
         | ].
       eapply Alpha_trans;
         [ exact (Alpha_context
             (Let_cont_recursive_handler before k
-               (map (rename_variable r) params) Hole after body)
+               (map (rename_variable r) params) metadata Hole after body)
             _ _ IH)
         | ].
       simpl. rewrite Hbound.
       exact (Alpha_sym _ _
-        (Alpha_recursive_handler r' before k params' handler' after body
-           Hvars' Hconts')).
+        (Alpha_recursive_handler r' before k params' metadata handler' after
+           body Hvars' Hconts')).
   - intros before body. apply Alpha_refl.
   - (* a handler and the handlers after it *)
     intros k h h' handlers handlers' _ [_ Hhandler] _ IH before body.

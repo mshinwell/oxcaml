@@ -213,8 +213,8 @@ Definition unbox_known_named (known : known_numbers) (d : named) : named :=
 
 Fixpoint unbox_numbers_knowing (known : known_numbers) (e : expr) : expr :=
   match e with
-  | Let x d body =>
-    Let x (unbox_known_named known d)
+  | Let x kind d body =>
+    Let x kind (unbox_known_named known d)
       (unbox_numbers_knowing (numbers_under_let known x d) body)
   | Let_static bindings body =>
     Let_static bindings
@@ -229,8 +229,8 @@ Fixpoint unbox_numbers_knowing (known : known_numbers) (e : expr) : expr :=
 with unbox_numbers_in_handler (known : known_numbers)
     (h : continuation_handler) : continuation_handler :=
   match h with
-  | Handler params handler =>
-    Handler params
+  | Handler params metadata handler =>
+    Handler params metadata
       (unbox_numbers_knowing (forget_wrapped_vars params known) handler)
   end.
 

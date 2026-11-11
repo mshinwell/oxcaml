@@ -165,7 +165,7 @@ Definition step_in_scope_statement : Prop :=
    the scrutinee of a [Switch]. A [Let_cont] reads none. *)
 Definition variables_read (e : expr) : list variable :=
   match e with
-  | Let _ defining_expr _ => free_variables_of_named defining_expr
+  | Let _ _ defining_expr _ => free_variables_of_named defining_expr
   | Let_static bindings _ =>
     flat_map
       (fun binding =>
