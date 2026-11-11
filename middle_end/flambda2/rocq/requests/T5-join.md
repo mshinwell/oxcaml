@@ -37,7 +37,9 @@ entail the source:
 5. The target is well formed (the typing environment's invariant, a
    parameter until that file names it).
 
-In the machine (`join_admits_use_in_machine_statement`, proved): a
+In the machine (`join_guarantees_in_machine_statement` and
+`join_admits_use_in_machine_statement`, proved): if a variable that
+may occur in terms in the source may occur in terms at each use, a
 state that satisfies a use satisfies the target, and the witness gives
 a variable with a normal-mode definition the value the machine has for
 that `Simple`. That is what entitles `join_points.ml` to add a
@@ -48,7 +50,7 @@ reading of the join's state (`n_way_join_type_sound`,
 `n_way_join_simples_sound`): a value of an input's type has the joined
 type under any valuation of the target that extends that input's.
 
-Proved now (seven statements, no axioms): the two in-the-machine
+Proved now (eight statements, no axioms): the three in-the-machine
 corollaries; what a constant in the analysis means; that the contract
 is met by the join that answers the source and is not met by one that
 answers bottom (so it is neither contradictory nor empty); and the two
@@ -102,11 +104,13 @@ about closures below.
   needs the functions). Aliases between source variables are a
   candidate second case, under `binding_times_coherent`; not promised.
 - **Physical equality (D30).** Not in the model. Three places in my
-  files change the result with sharing; X3's flag
-  `-flambda2-join-sharing` makes them a function of structure. X3
-  recommends `structural` (needs a boolean equality on types, T1's);
-  `none` is the fallback. The contract holds of either branch at each
-  place, so it does not wait for the choice.
+  files change the result with sharing. The human has chosen
+  `structural`: the model tests an equality of types there (T1's
+  `type_eqb`, a parameter until it exists), as the compiler does under
+  `-flambda2-join-sharing structural` (X3). The upper bound holds of
+  either branch at each place. What the test gives in precision (an
+  extension, or a field, equal in every input is kept as it is) will
+  be stated separately, with the functions.
 
 ## 4. The hypotheses of the header of `join_env.ml`
 
@@ -115,8 +119,9 @@ about closures below.
   `check_join_inputs` says it is false (in-types variables made for
   lifted constants), and the header's next paragraph says that symbols
   of other branches are missing. In the contract: not required;
-  replaced by `terms_in_scope_at_uses` and the semantic
-  `uses_refine_source`. Discrepancy T5-1.
+  replaced by the semantic `uses_refine_source`, and, only for the
+  caller to conclude of the machine, by `terms_in_scope_at_uses`.
+  Discrepancy T5-1.
 - **"Any symbol defined in one of the joined environments is also
   defined in the source environment."** Checked: only of the set of
   symbols that Simplify passes, not of the environments, and not for
@@ -213,10 +218,13 @@ same shape before the second agent starts).
 `join_scoped_envs meet_expanded_head cut_after initial_env
 initial_tenv scoped_envs : option Meet_env.t`. Fuel is inside. Rely:
 T4's `meet_expanded_head_sound`. Guarantee: T4's (J1) to (J4), which
-are items 1, 2, 3 and 5 above with no analysis. `Meet_env.t` carries
-the names to avoid. T4 defines `Meet_env.t`, `Expanded_type.t` and the
-functions on them that I call (`add_variable_definition`,
-`add_env_extension`, `make_bottom`).
+are items 1, 2, 3 and 5 above with no analysis. T4's premise on a
+scoped environment (`scoped_env_of`: whatever satisfies it satisfies
+the initial environment, with the same valuation) gives my
+`uses_refine_source`. `Meet_env.t` carries the names to avoid. T4
+defines `Meet_env.t`, `Expanded_type.t` and the functions on them that
+I call (`add_variable_definition`, `add_env_extension`,
+`make_bottom`).
 
 ## 7. What I need, by name
 

@@ -105,17 +105,16 @@
      ([join_to_source_sound_statement]). What is promised of precision
      is stated separately, for named cases: today one,
      [join_keeps_constants].
-   - Physical equality (decision D30) is not in the model. The three
+   - Physical equality (decision D30) is not in the model. In the three
      places where the compiler's result depends on it
      ([import_or_delay_n_way_join_of_concrete_type] and
      [n_way_join_env_extension] in join_env.ml,
-     [n_way_join_int_indexed_product] in meet_and_n_way_join.ml) are to
-     be transcribed as they behave under the compiler's flag that makes
-     the result a function of the structure of the inputs
-     (-flambda2-join-sharing, being added; with the value [structural]
-     the test is an equality of types, with [none] the shortcut is
-     taken only where there is one input). The contract holds of either
-     branch at each.
+     [n_way_join_int_indexed_product] in meet_and_n_way_join.ml) the
+     model tests an equality of types, as the compiler does under
+     -flambda2-join-sharing structural. The upper bound holds of either
+     branch at each; what the test gives in precision (an extension, or
+     a field, that is equal in every input is kept as it is) is to be
+     stated separately, with the functions.
    - That the join answers is not promised: [None] is a fatal error of
      the compiler or the model's fuel run out.
    - Code age, allocation modes and symbol projections have no meaning
@@ -131,9 +130,10 @@
      that no use has; and the second hypothesis itself says that a
      symbol lifted in one branch is not defined in the others. Nothing
      checks it. What the contract needs in its place:
+     [uses_refine_source] (what the source says holds at each use);
+     and, for the caller to conclude of the machine,
      [terms_in_scope_at_uses] (a variable that may occur in terms in
-     the source may occur in terms at each use), and
-     [uses_refine_source] (what the source says holds at each use).
+     the source may occur in terms at each use).
    - "Any symbol defined in one of the joined environments is also
      defined in the source environment." Required
      ([symbols_of_uses_in_source]), for the target to be well formed
@@ -348,6 +348,18 @@ Definition bound_strictly_earlier (tenv : Typing_env.t) (x y : variable)
         (Binding_time.With_name_mode.binding_time time_y)
       = true.
 
+(* A variable that may occur in terms in the source may occur in terms
+   at each use. The join does not need it: it is what the caller needs
+   to conclude of the machine ([join_guarantees_in_machine_statement]),
+   and it is what is left, for the variables of terms, of the first
+   hypothesis of the header of join_env.ml. *)
+Definition terms_in_scope_at_uses {A : Type} (inputs : join_inputs A)
+    : Prop :=
+  ∀ (index : Index.t) (use : Typing_env.t) (x : variable),
+    use_at inputs index use ->
+    in_scope_in_terms (source inputs) x ->
+    in_scope_in_terms use x.
+
 (* The third hypothesis of the header of join_env.ml: the variables of
    the source are bound in the same order at every use that knows them.
    It is not part of [join_inputs_well_formed]. *)
@@ -383,15 +395,6 @@ Definition cuts_defined {A : Type} (inputs : join_inputs A) : Prop :=
     ∃ level : Typing_env_level.t,
       Typing_env.cut use (cut_after inputs) = Some level.
 
-(* A variable that may occur in terms in the source may occur in terms
-   at each use. *)
-Definition terms_in_scope_at_uses {A : Type} (inputs : join_inputs A)
-    : Prop :=
-  ∀ (index : Index.t) (use : Typing_env.t) (x : variable),
-    use_at inputs index use ->
-    in_scope_in_terms (source inputs) x ->
-    in_scope_in_terms use x.
-
 (* A symbol that a use defines is defined in the source. *)
 Definition symbols_of_uses_in_source {A : Type} (inputs : join_inputs A)
     : Prop :=
@@ -412,7 +415,6 @@ Definition join_inputs_well_formed {A : Type} (avoid : list variable)
     (inputs : join_inputs A) : Prop :=
   environments_well_formed inputs
   ∧ cuts_defined inputs
-  ∧ terms_in_scope_at_uses inputs
   ∧ symbols_of_uses_in_source inputs
   ∧ avoids_known avoid inputs.
 
@@ -686,6 +688,20 @@ Definition join_admits_use_env_satisfies_statement : Prop :=
     (index : Index.t) (statics : static_env) (vars : env),
     join_admits_use use target definitions definitions_at_normal_mode index ->
     (∀ x : variable, in_scope_in_terms target x -> in_scope_in_terms use x) ->
+    env_satisfies_strictly use statics vars ->
+    env_satisfies_strictly target statics vars.
+
+(* The same of a join that meets the contract: if a variable that may
+   occur in terms in the source may occur in terms at each use, a state
+   of the machine that satisfies a use satisfies the target. *)
+Definition join_guarantees_in_machine_statement : Prop :=
+  ∀ (typing_env_well_formed : Typing_env.t -> Prop) (A : Type)
+    (avoid : list variable) (inputs : join_inputs A) (target : Typing_env.t)
+    (analysis : Analysis.t A) (index : Index.t) (use : Typing_env.t)
+    (statics : static_env) (vars : env),
+    join_guarantees typing_env_well_formed avoid inputs target analysis ->
+    terms_in_scope_at_uses inputs ->
+    use_at inputs index use ->
     env_satisfies_strictly use statics vars ->
     env_satisfies_strictly target statics vars.
 

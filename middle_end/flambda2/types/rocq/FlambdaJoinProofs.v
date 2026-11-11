@@ -110,12 +110,10 @@ Proof.
        uses := [(tt, Typing_env.create)] |}).
   assert (Hwell_formed : join_inputs_well_formed (fun _ => True) [] inputs).
   { split; [ split; [ exact I | intros; exact I ] | ].
-    split; [ | split; [ | split ] ].
+    split; [ | split ].
     - intros index use Huse _.
       apply use_at_singleton in Huse. subst use.
       exists Typing_env_level.empty. reflexivity.
-    - intros index use x Huse Hscope.
-      apply use_at_singleton in Huse. subst use. exact Hscope.
     - intros index use s Huse Hdefined.
       apply use_at_singleton in Huse. subst use. exact Hdefined.
     - split.
@@ -171,6 +169,42 @@ Proof.
        Hsatisfies)
     as [valuation' [Htarget [Hterms [Hbound _]]]].
   exists valuation'. split; [ exact Htarget | ]. split; assumption.
+Qed.
+
+(* Whether a variable may occur in terms depends on its binding time and
+   name mode and on the first binding time in scope. *)
+Lemma in_scope_in_terms_kept (source target : Typing_env.t) (x : variable) :
+  join_keeps_source source target ->
+  knows source x ->
+  in_scope_in_terms target x ->
+  in_scope_in_terms source x.
+Proof.
+  intros [Hnames [_ [_ [_ Hmin]]]].
+  unfold knows, in_scope_in_terms, Typing_env.mem.
+  destruct
+    (Keyed.lookup name_eqb (Name_var x) (Typing_env.names_to_types source))
+    as [[ty binding_time_and_mode] | ] eqn:Hsource; [ | discriminate ].
+  destruct (Hnames _ _ _ Hsource) as [ty' Htarget].
+  rewrite Htarget, Hmin. intros _ Hscope. exact Hscope.
+Qed.
+
+Theorem join_guarantees_in_machine : join_guarantees_in_machine_statement.
+Proof.
+  intros typing_env_well_formed A avoid inputs target analysis index use
+    statics vars [_ [Hkeeps [Hintroduces [_ Hadmits]]]] Hterms Huse
+    Hsatisfies.
+  apply
+    (join_admits_use_env_satisfies use target
+       (Analysis.definitions_in_joined_envs analysis)
+       (Analysis.canonical_definitions_at_normal_mode analysis) index
+       statics vars (Hadmits index use Huse)); [ | exact Hsatisfies ].
+  intros x Hscope. apply (Hterms index use x Huse).
+  destruct (Typing_env.mem None (source inputs) (Name_var x)) eqn:Hknown.
+  - exact (in_scope_in_terms_kept _ _ x Hkeeps Hknown Hscope).
+  - destruct (Hintroduces x (in_scope_in_terms_knows _ _ Hscope))
+      as [Hnot_in_scope _].
+    + unfold knows. rewrite Hknown. discriminate.
+    + contradiction.
 Qed.
 
 Theorem known_value_at_use : known_value_at_use_statement.
