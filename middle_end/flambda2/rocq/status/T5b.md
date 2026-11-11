@@ -1,9 +1,9 @@
 # T5b, the type traversal of the n-way join: status
 
-Branch `flambda2-rocq/T5b-join-types`, cut from T5's
-`flambda2-rocq/T5-join` at 132ba2d396 (on T2's 0ca4818b80, T1's
-e644383b6e, with T3's commits). Files, all in
-`middle_end/flambda2/types/rocq/`:
+Branch `flambda2-rocq/T5b-join-types`, on T5's
+`flambda2-rocq/T5-join` at c1d72470da (which is on T2's 1af641592c).
+T1's f90bcb7bf4 (the equality of types, monotonicity, D26 as amended)
+is not under it yet. Files, all in `middle_end/flambda2/types/rocq/`:
 
 - `FlambdaJoinTypes.v` (handed over by T5): the join functions of
   `types/meet_and_n_way_join.ml` and their helpers. Definitions only.
@@ -12,7 +12,78 @@ e644383b6e, with T3's commits). Files, all in
 - `FlambdaJoinTypesProofs.v`: the proofs.
 
 The interface is T5's `FlambdaJoinSpec.v`, section "The join of
-types, inside a join of environments". I do not change that file.
+types, inside a join of environments", as at 2eba490876 (with the
+kinds: `kind_in_target_env`, `state_kinded`). I do not change that
+file.
+
+## Done
+
+- The plan below.
+- First slice, transcription and proof: `join_alloc_mode`,
+  `n_way_join_unknown`, `deduce_is_int(_simple)`,
+  `deduce_get_tag(_simple)`, `n_way_join_relation_simples`, the
+  `is_null` part of `n_way_join_head_of_kind_value`
+  (`n_way_join_is_null`), `n_way_join_head_of_kind_naked_immediate`,
+  the eleven joins of the other naked numbers as one, `rec_info`,
+  `region`, `n_way_join_env_extension`.
+- `join_step_sound` (Spec): what it is for a function of the
+  traversal to be sound, for any things joined, in the words of
+  `n_way_join_type_sound`, kinds included.
+- One claim, `flat_heads_sound`: under `environment_side_sound` and
+  `reduce_head_of_kind_naked_immediate_sound`, the eight conjuncts
+  `n_way_join_unknown_sound`, `n_way_join_relation_simples_sound`,
+  `n_way_join_is_null_sound`,
+  `n_way_join_head_of_kind_naked_immediate_sound`,
+  `n_way_join_head_of_kind_naked_numbers_sound`,
+  `n_way_join_env_extension_sound_here`, `deduce_is_int_simple_sound`,
+  `deduce_get_tag_simple_sound`.
+- Validation at the tip: `make -C rocq -j16 all` (the claim is
+  listed), `make -C rocq assumptions` (the statements of the Flambda 2
+  libraries depend on no axiom). No OCaml or extracted file changes;
+  the semantics tests were not run.
+- Discrepancies T5b-1 and T5b-2.
+
+## In progress
+
+- Products, row-likes, variants, closures entries, then
+  `n_way_join` and `n_way_join_type_sound` (steps 2 to 4 of the plan).
+
+## Stand-ins carried
+
+Each is a copy under its owner's names, to go with a change of
+imports when the owner's file is under this branch.
+
+| What | Owner | Copied from |
+|------|-------|-------------|
+| `Expanded_type` (`head`, `t`, `create`, `kind`, `descr`, `create_bottom`, `create_unknown`, `create_value`, `create_naked_immediate`, `create_naked_number`, `create_rec_info`, `create_region`, `unknown_like`, `to_type`) | T4, `FlambdaExpandHead.v` | a6d0e5357f on `flambda2-rocq/T4-meet` (the text is that of abf0ffd6f6) |
+| `Keyed_fold.tabulate_fold_opt`, `filter_map_fold_on`, `filter_map_fold` | C0, to be in `Keyed` of `FlambdaMapSpec.v` | C0's message (not committed there yet); the text agreed |
+
+## Agreed with other streams
+
+- T5: the plan; `joined_env = None` is `None`; the first input is the
+  one of least index; in B3 the test is `type_eqb other first`. The
+  interface delta for kinds (2eba490876) is what the proofs are
+  against. A symbol answered by the join of simples at kind naked
+  immediate cannot happen under the contract's premises
+  (`n_way_join_simples_sound` says a symbol is answered only at kind
+  value); the two branches of the compiler for it are transcribed as
+  they are.
+- T4: the statements I take as premises are T4's
+  `expand_head_sound`, `expand_head_closed`, `expand_head_kinded`,
+  `expand_head_kind` (2ef422668c) and
+  `reduce_head_of_kind_naked_immediate_sound` (to come, needs D26 as
+  amended under T4's branch). `expand_head_kind` needs a premise on
+  the constants that are canonical (T4-7); I take it under the
+  abstract well-formedness of the interface. My
+  `n_way_join_expanded_head` goes by the head, not by the kind.
+- T1: `type_satisfied_monotone`, `type_satisfied_monotone_all`,
+  `type_eqb`, `type_equal_kind`, `type_equal_satisfied`,
+  `block_shape_eqb`, `boxable_number_eqb` are on f90bcb7bf4.
+  `block_shape_element_kind` is mine to define (T1 will take it).
+- C0: the fold, as above; I prove what I need from its equation.
+- The orchestrator: D26 amended (18:55 UTC) on my report: `Is_null`
+  relates poison to 0; only `Is_int` and `Get_tag` are never true of
+  a scrutinee that holds poison.
 
 ## The plan
 
@@ -152,22 +223,29 @@ is on my base.
 | `n_way_join_simples_sound`, `import_type_sound`, `n_way_join_env_extension_sound`, `valid_states_have_witnesses` (`FlambdaJoinSpec.v`) | T5 |
 | `expand_head`: a value of a type has the expanded type under a valuation that satisfies the environment strictly; the expansion is in scope and kinded where the type and the environment are; it is of the kind of the type | T4 (with T2) |
 | `reduce_head_of_kind_naked_immediate`: a number that has a head, under a valuation that satisfies the environment strictly, has the reduced head, which is then not bottom | T4 |
-| `type_eqb`: types that it identifies have the same kind and the same values | T1 (`FlambdaTypeEqualSpec.v`, 6175977ea4, not on my base) |
+| `type_eqb`: types that it identifies have the same kind and the same values | T1 (`FlambdaTypeEqualSpec.v`, on f90bcb7bf4, not under this branch yet) |
 | `type_satisfied` is monotone when variables with no value are given one (`type_satisfied_monotone_all`) | T1 |
 | the fold over a map that threads a state and may drop bindings (`Keyed.filter_map_fold_on`), with its equation | C0; a stand-in in my file until it lands |
 
-Stand-ins carried in my files until the base has the owner's: T4's
-`Expanded_type` (the type and its creation functions, copied from
-T4's `FlambdaExpandHead.v` under the same names), C0's fold.
+The stand-ins are listed above.
 
 ## Found so far
 
-- A pair of inputs on which, by reading, `n_way_join` does not
-  terminate: at each depth one input is an alias and the other is
-  not, so the join of simples is never reached and `Expand_head`
-  keeps supplying types from the environments. Not demonstrated. To
-  be written up as T5b-1 with the inputs, and given to T7 or X5.
+- T5b-1: `n_way_join` has no bound on its depth and no test for a
+  cycle (the binary join has one); on two inputs that are an alias
+  and a type in turn it does not terminate. By reading; not
+  demonstrated; T7 has the two environments.
+- T5b-2: the join gives an `is_null` variable to a join one of whose
+  inputs is `Not_null`, which says `Is_null` is 0 of a poison value
+  of that input. An unchecked assumption; it is why D26 was amended.
+- Met again here: R1-16 (the empty set given to
+  `create_naked_immediates_non_empty`: `None` in the model), X3-5
+  (the joined relations are dropped when the join of the variant is
+  unknown: transcribed as it is).
+- A mistake of mine that the proof found: a pattern in
+  `n_way_join_head_of_kind_naked_immediate` that kept the tail of
+  the set of numbers. Fixed before the first request.
 
 ## Open questions
 
-None yet for the human.
+None for the human.
