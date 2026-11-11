@@ -1881,3 +1881,89 @@ Proof.
       end;
     try congruence; try tauto.
 Qed.
+
+(* ======================================================================== *)
+(* What a relation says of the value it is about                            *)
+(* ======================================================================== *)
+
+Lemma find_tag_unknown_cases {A : Type} (tag : Z) (tags : list Z) :
+  find_tag tag (map (fun tag => (tag, @Or_unknown.Unknown A)) tags)
+  = if existsb (Z.eqb tag) tags then Some Or_unknown.Unknown else None.
+Proof.
+  induction tags as [ | tag' tags IH]; simpl; [ reflexivity | ].
+  destruct (Z.eqb tag tag'); [ reflexivity | exact IH ].
+Qed.
+
+Theorem blocks_with_these_tags_satisfied
+  : blocks_with_these_tags_satisfied_statement.
+Proof.
+  intros statics vars v tags alloc_mode. unfold blocks_with_these_tags.
+  rewrite (create_variant_satisfied statics vars v).
+  assert (Hrow :
+    ∀ (tag : Z) (fields : list value),
+      row_like_for_blocks_satisfied statics vars tag fields
+        (Row_like_for_blocks
+           (map (fun tag => (tag, Or_unknown.Unknown)) tags)
+           Or_bottom.Bottom alloc_mode)
+      <-> tag ∈ tags).
+  { intros tag fields. rewrite row_like_for_blocks_find_iff.
+    rewrite find_tag_unknown_cases.
+    destruct (existsb (Z.eqb tag) tags) eqn:Hamong.
+    - apply existsb_exists in Hamong as [tag' [Hin Heq]].
+      apply Z.eqb_eq in Heq as <-. tauto.
+    - split; [ intros [] | ]. intros Hin.
+      assert (existsb (Z.eqb tag) tags = true); [ | congruence ].
+      apply existsb_exists. exists tag. split; [ exact Hin | ].
+      apply Z.eqb_refl. }
+  split.
+  - intros [[i [_ [Hbottom _]]] | [tag [fields [Hblock [Hblocks _]]]]].
+    + destruct (bottom_satisfied _ _ _ _ Hbottom).
+    + exists tag, fields. split; [ exact Hblock | ].
+      exact (proj1 (Hrow tag fields) Hblocks).
+  - intros [tag [fields [Hblock Hin]]]. right. exists tag, fields.
+    split; [ exact Hblock | ]. split; [ | exact I ].
+    exact (proj2 (Hrow tag fields) Hin).
+Qed.
+
+Lemma allocated_kind (statics : static_env) (v : value) :
+  allocated statics v -> kind_of_value v = Value ∧ v <> Value_const Null.
+Proof.
+  intros Hallocated.
+  assert (Hkind : kind_of_value v = Value).
+  { destruct Hallocated as [H | [H | [H | H]]].
+    - destruct (block_of statics v) as [[tag fields] | ] eqn:Hblock;
+        [ exact (block_of_kind _ _ _ _ Hblock) | congruence ].
+    - destruct (closure_of statics v) as [closure | ] eqn:Hclosure;
+        [ exact (closure_of_kind _ _ _ Hclosure) | congruence ].
+    - destruct (boxed_number_of statics v) as [c | ] eqn:Hboxed;
+        [ exact (boxed_number_of_kind _ _ _ Hboxed) | congruence ].
+    - destruct (string_of statics v) as [bytes | ] eqn:Hstring;
+        [ exact (string_of_kind _ _ _ Hstring) | congruence ]. }
+  split; [ exact Hkind | ]. intros ->.
+  destruct Hallocated as [H | [H | [H | H]]]; apply H; reflexivity.
+Qed.
+
+Theorem relation_is_null : relation_is_null_statement.
+Proof.
+  intros statics vars w n [[-> ->] | [Hnot_null ->]].
+  - left. split; [ reflexivity | ]. apply null_satisfied. reflexivity.
+  - right. split; [ reflexivity | ]. apply any_non_null_value_satisfied.
+    destruct Hnot_null as [[i ->] | Hallocated];
+      [ split; [ reflexivity | discriminate ] | ].
+    exact (allocated_kind _ _ Hallocated).
+Qed.
+
+Theorem relation_is_int : relation_is_int_statement.
+Proof.
+  intros statics vars w n [[Himmediate ->] | [Hblock ->]].
+  - left. split; [ reflexivity | ].
+    apply any_tagged_immediate_satisfied. exact Himmediate.
+  - right. split; [ reflexivity | ]. apply any_block_satisfied. exact Hblock.
+Qed.
+
+Theorem relation_get_tag : relation_get_tag_statement.
+Proof.
+  intros statics vars w n tags alloc_mode [fields Hblock] Hin.
+  apply blocks_with_these_tags_satisfied. exists n, fields.
+  split; assumption.
+Qed.

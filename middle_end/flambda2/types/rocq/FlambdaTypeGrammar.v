@@ -98,6 +98,9 @@
    - [array_contents] is left out with [Array].
    - [env_extension] and [variant_extensions]: in full.
    - [Alloc_mode.For_types.t]: in full, wherever the compiler has it.
+     [Alloc_mode.For_types.unknown ()], which depends on whether stack
+     allocation is enabled, is [Heap_or_local] in the creation functions
+     here.
 
    Differences of presentation:
    - A record of the compiler that is defined with the types is a
@@ -662,6 +665,18 @@ Definition any_block : flambda_type :=
   create_variant false
     (Or_unknown.Known (bottom (Naked_number Kind_naked_immediate)))
     Or_unknown.Unknown No_extensions.
+
+(* [More_type_creators.blocks_with_these_tags], where it has an answer:
+   the blocks of one of the tags, of which nothing more is known. *)
+Definition blocks_with_these_tags (tags : list Z)
+    (alloc_mode : Alloc_mode.t) : flambda_type :=
+  create_variant false
+    (Or_unknown.Known (bottom (Naked_number Kind_naked_immediate)))
+    (Or_unknown.Known
+       (Row_like_for_blocks
+          (map (fun tag => (tag, Or_unknown.Unknown)) tags)
+          Or_bottom.Bottom alloc_mode))
+    No_extensions.
 
 (* [More_type_creators.immutable_block]: the blocks of a tag with fields
    of the types given, and no others. *)

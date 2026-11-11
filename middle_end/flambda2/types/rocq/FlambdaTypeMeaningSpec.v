@@ -813,6 +813,13 @@ Definition any_block_satisfied_statement : Prop :=
   ∀ (statics : static_env) (vars : env) (v : value),
     type_satisfied statics vars v any_block <-> is_block statics v.
 
+Definition blocks_with_these_tags_satisfied_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (v : value) (tags : list Z)
+    (alloc_mode : Alloc_mode.t),
+    type_satisfied statics vars v (blocks_with_these_tags tags alloc_mode)
+    <-> ∃ (tag : Z) (fields : list value),
+          block_of statics v = Some (tag, fields) ∧ tag ∈ tags.
+
 (* The fields of a block, by position. *)
 Definition fields_satisfied_nth_statement : Prop :=
   ∀ (P : value -> flambda_type -> Prop) (tys : list flambda_type)
@@ -947,6 +954,31 @@ Definition env_extension_lookup_statement : Prop :=
           lookup_name n equations = Some ty ->
           ∃ v : value,
             value_of_name vars n = Some v ∧ type_satisfied statics vars v ty).
+
+(* ======================================================================== *)
+(* What a relation says of the value it is about                            *)
+(* ======================================================================== *)
+
+(* What [Meet] deduces of a name from the result of a relation on it
+   ([reduce_inverse_relations]). *)
+Definition relation_is_null_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (w : value) (n : Z),
+    relation_holds statics Relation.Is_null w n ->
+    (n = 1%Z ∧ type_satisfied statics vars w null)
+    ∨ (n = 0%Z ∧ type_satisfied statics vars w any_non_null_value).
+
+Definition relation_is_int_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (w : value) (n : Z),
+    relation_holds statics Relation.Is_int w n ->
+    (n = 1%Z ∧ type_satisfied statics vars w any_tagged_immediate)
+    ∨ (n = 0%Z ∧ type_satisfied statics vars w any_block).
+
+Definition relation_get_tag_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (w : value) (n : Z)
+    (tags : list Z) (alloc_mode : Alloc_mode.t),
+    relation_holds statics Relation.Get_tag w n ->
+    n ∈ tags ->
+    type_satisfied statics vars w (blocks_with_these_tags tags alloc_mode).
 
 (* ======================================================================== *)
 (* What the meaning of a type depends on                                    *)
