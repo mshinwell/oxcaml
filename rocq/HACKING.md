@@ -691,6 +691,16 @@ in the compiler's style, so that it can be proposed upstream by itself.
   program could stop on an `Invalid` put in place of a live call, and
   the `zero_alloc` check could accept a function that allocates. Tests:
   `testsuite/tests/flambda2/n_way_join_function_types*.ml`.
+- `middle_end/flambda2/simplify/simplify_unary_primitive.ml`,
+  `simplify_get_tag`: `Get_tag` of an argument known to be a tagged
+  immediate (a constant, or a name whose type has no blocks) becomes
+  `Invalid`; nothing changes when the argument may be a block. The model
+  gives `Get_tag` of an immediate no value (decision D5). Before, the
+  primitive was left in the term in branches that are never executed,
+  which code using GADTs has. Provisional, with a `CR` at the place; the
+  `Get_tag` relation that the types record is not changed. Tests:
+  `testsuite/tests/flambda2/simplify/get_tag_of_immediate.ml` and
+  `testsuite/tests/flambda2/get_tag_of_immediate_run.ml`.
 
 ### Testing Simplify against the semantics
 
