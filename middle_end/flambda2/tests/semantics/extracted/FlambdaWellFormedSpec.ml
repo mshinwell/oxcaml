@@ -3,6 +3,7 @@ open BinPos
 open Datatypes
 open FlambdaMapSpec
 open FlambdaModel
+open FlambdaPrimitiveSpec
 open List
 open ListDef
 
@@ -259,10 +260,95 @@ and binding_sets_well_formed = function
 and code_sets_well_formed = function
   | Code (_, _, _, _, body) -> sets_well_formed body
 
+(** val simple_in_range : simple -> bool **)
+
+let simple_in_range = function Const c -> const_in_range c | _ -> true
+
+(** val value_slots_in_range : (value_slot * simple) list -> bool **)
+
+let value_slots_in_range value_slots =
+  forallb (fun slot -> simple_in_range (snd slot)) value_slots
+
+(** val named_in_range : named -> bool **)
+
+let named_in_range = function
+  | Simple s -> simple_in_range s
+  | Prim (p, args) -> prim_in_range p && forallb simple_in_range args
+  | Set_of_closures (_, value_slots) -> value_slots_in_range value_slots
+  | Closure_of_set (_, _, value_slots) -> value_slots_in_range value_slots
+  | Project_value_slot (_, closure) -> simple_in_range closure
+  | Project_value_slot_from (_, _, closure) -> simple_in_range closure
+  | Project_function_slot (_, _, closure) -> simple_in_range closure
+
+(** val static_const_in_range : static_const -> bool **)
+
+let static_const_in_range = function
+  | Static_const_set_of_closures (_, value_slots) ->
+    value_slots_in_range value_slots
+  | Static_const_closure_of_set (_, _, _, value_slots) ->
+    value_slots_in_range value_slots
+  | Static_const_block (tag, fields) ->
+    tag_in_range tag && forallb simple_in_range fields
+  | Static_const_boxed_number contents -> simple_in_range contents
+  | Static_const_immutable_string bytes -> forallb byte_in_range bytes
+
+(** val apply_cont_in_range : apply_cont -> bool **)
+
+let apply_cont_in_range ac = forallb simple_in_range ac.ac_args
+
+(** val apply_in_range : apply_expr -> bool **)
+
+let apply_in_range ap =
+  simple_in_range ap.ap_callee && forallb simple_in_range ap.ap_args
+
+(** val arm_in_range : (coq_Z * apply_cont) -> bool **)
+
+let arm_in_range arm =
+  ocaml_int_in_range (fst arm) && apply_cont_in_range (snd arm)
+
+(** val numbers_in_range : expr -> bool **)
+
+let rec numbers_in_range = function
+  | Let (_, d, body) -> named_in_range d && numbers_in_range body
+  | Let_static (bindings, body) ->
+    forallb binding_numbers_in_range bindings && numbers_in_range body
+  | Let_cont_non_recursive (_, h, body) ->
+    handler_numbers_in_range h && numbers_in_range body
+  | Let_cont_recursive (handlers, body) ->
+    forallb
+      (fun pat ->
+        let _, h = pat in
+        handler_numbers_in_range h)
+      handlers
+    && numbers_in_range body
+  | Apply ap -> apply_in_range ap
+  | Apply_cont ac -> apply_cont_in_range ac
+  | Switch (scrutinee, arms) ->
+    simple_in_range scrutinee && forallb arm_in_range arms
+  | Invalid -> true
+
+(** val handler_numbers_in_range : continuation_handler -> bool **)
+
+and handler_numbers_in_range = function
+  | Handler (_, handler) -> numbers_in_range handler
+
+(** val binding_numbers_in_range : static_binding -> bool **)
+
+and binding_numbers_in_range = function
+  | Bind_code (_, c) -> code_numbers_in_range c
+  | Bind_deleted_code _ -> true
+  | Bind_symbol (_, const) -> static_const_in_range const
+
+(** val code_numbers_in_range : code -> bool **)
+
+and code_numbers_in_range = function
+  | Code (_, _, _, _, body) -> numbers_in_range body
+
 (** val well_formed_unit : continuation -> expr -> bool **)
 
 let well_formed_unit unit_exn e =
-  ((statics_at_toplevel unit_exn true e
-   && distinct (static_names code_ids_of_binding e))
-  && distinct (static_names symbols_of_binding e))
-  && sets_well_formed e
+  (((statics_at_toplevel unit_exn true e
+    && distinct (static_names code_ids_of_binding e))
+   && distinct (static_names symbols_of_binding e))
+  && sets_well_formed e)
+  && numbers_in_range e

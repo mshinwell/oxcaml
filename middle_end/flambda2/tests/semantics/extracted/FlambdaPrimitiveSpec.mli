@@ -57,6 +57,24 @@ val eval_variadic_primitive :
 
 val eval_prim : static_env -> prim -> value list -> value option
 
+val tag_in_range : coq_Z -> bool
+
+val byte_in_range : coq_Z -> bool
+
+val ocaml_int_in_range : coq_Z -> bool
+
+val const_in_range : const -> bool
+
+val known_in_range : (coq_Z -> bool) -> coq_Z option -> bool
+
+val unary_primitive_in_range : unary_primitive -> bool
+
+val binary_primitive_in_range : binary_primitive -> bool
+
+val variadic_primitive_in_range : variadic_primitive -> bool
+
+val prim_in_range : prim -> bool
+
 val prim_eq_dec : prim -> prim -> bool
 
 val prim_eqb : prim -> prim -> bool

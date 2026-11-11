@@ -343,6 +343,104 @@ let eval_prim statics p vs =
         match l0 with [] -> eval_binary_primitive p0 v1 v2 | _ :: _ -> None)))
   | Variadic p0 -> eval_variadic_primitive statics p0 vs
 
+(** val tag_in_range : coq_Z -> bool **)
+
+let tag_in_range tag =
+  Z.leb Z0 tag
+  && Z.ltb tag
+       (Zpos
+          (Coq_xI (Coq_xI (Coq_xO (Coq_xI (Coq_xI (Coq_xI (Coq_xI Coq_xH))))))))
+
+(** val byte_in_range : coq_Z -> bool **)
+
+let byte_in_range byte =
+  Z.leb Z0 byte
+  && Z.ltb byte
+       (Zpos
+          (Coq_xO
+             (Coq_xO
+                (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH)))))))))
+
+(** val ocaml_int_in_range : coq_Z -> bool **)
+
+let ocaml_int_in_range i = in_range (int_width Standard_tagged_immediate) i
+
+(** val const_in_range : const -> bool **)
+
+let const_in_range = function
+  | Naked_immediate i -> ocaml_int_in_range i
+  | Tagged_immediate i -> ocaml_int_in_range i
+  | Naked_float32 i ->
+    in_range (Zpos (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH)))))) i
+  | Naked_float i ->
+    in_range (Zpos (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH)))))))
+      i
+  | Naked_int8 i -> in_range (Zpos (Coq_xO (Coq_xO (Coq_xO Coq_xH)))) i
+  | Naked_int16 i ->
+    in_range (Zpos (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH))))) i
+  | Naked_int32 i ->
+    in_range (Zpos (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH)))))) i
+  | Naked_int64 i ->
+    in_range (Zpos (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH)))))))
+      i
+  | Naked_nativeint i ->
+    in_range (Zpos (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH)))))))
+      i
+  | Naked_vec128 bits ->
+    in_range
+      (Zpos
+         (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH))))))))
+      bits
+  | Naked_vec256 bits ->
+    in_range
+      (Zpos
+         (Coq_xO
+            (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH)))))))))
+      bits
+  | Naked_vec512 bits ->
+    in_range
+      (Zpos
+         (Coq_xO
+            (Coq_xO
+               (Coq_xO
+                  (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH))))))))))
+      bits
+  | Naked_mask i ->
+    in_range (Zpos (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH)))))))
+      i
+  | _ -> true
+
+(** val known_in_range : (coq_Z -> bool) -> coq_Z option -> bool **)
+
+let known_in_range test = function Some z -> test z | None -> true
+
+(** val unary_primitive_in_range : unary_primitive -> bool **)
+
+let unary_primitive_in_range = function
+  | Block_load (kind, field) ->
+    let (Block_access_values (tag, size, _)) = kind in
+    (known_in_range tag_in_range tag && known_in_range ocaml_int_in_range size)
+    && ocaml_int_in_range field
+  | _ -> true
+
+(** val binary_primitive_in_range : binary_primitive -> bool **)
+
+let binary_primitive_in_range _ = true
+
+(** val variadic_primitive_in_range : variadic_primitive -> bool **)
+
+let variadic_primitive_in_range = function
+  | Make_block kind ->
+    let (Block_kind_values tag) = kind in
+    tag_in_range tag
+
+(** val prim_in_range : prim -> bool **)
+
+let prim_in_range = function
+  | Unary p0 -> unary_primitive_in_range p0
+  | Binary p0 -> binary_primitive_in_range p0
+  | Variadic p0 -> variadic_primitive_in_range p0
+
 (** val prim_eq_dec : prim -> prim -> bool **)
 
 let prim_eq_dec p p' =

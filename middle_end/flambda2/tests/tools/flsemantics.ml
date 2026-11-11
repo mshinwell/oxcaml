@@ -1236,8 +1236,8 @@ let convert_both (before : Flambda_unit.t) (after : Flambda_unit.t) =
     !newer_versions;
   before_converted, convert_unit after
 
-(* Static bindings at toplevel only, each name bound once, and the sets of
-   closures whole (FlambdaWellFormedSpec.v). *)
+(* Static bindings at toplevel only, each name bound once, the sets of closures
+   whole, and the numbers in range (FlambdaWellFormedSpec.v). *)
 let well_formed (unit : converted) =
   Well_formed.well_formed_unit unit.exn_continuation unit.body
 
@@ -1250,7 +1250,16 @@ let well_formed_before ~filename (before : Flambda_unit.t) =
     let ok = well_formed before in
     if not ok
     then
-      if Well_formed.sets_well_formed before.body
+      if not (Well_formed.numbers_in_range before.body)
+      then
+        (* The compiler's numbers are in range by their types, so this is a
+           fault of the conversion. *)
+        Format.printf
+          "%s: not checked: the term is not well-formed (a number out of its \
+           range: the tag of a block, a constant, the field or the size of a \
+           block load, a discriminant or a byte of a string)@."
+          filename
+      else if Well_formed.sets_well_formed before.body
       then
         Format.printf
           "%s: not checked: the term is not well-formed (a static binding that \

@@ -3,6 +3,7 @@ open BinPos
 open Datatypes
 open FlambdaMapSpec
 open FlambdaModel
+open FlambdaPrimitiveSpec
 open List
 open ListDef
 
@@ -55,5 +56,27 @@ val handler_sets_well_formed : continuation_handler -> bool
 val binding_sets_well_formed : static_binding -> bool
 
 val code_sets_well_formed : code -> bool
+
+val simple_in_range : simple -> bool
+
+val value_slots_in_range : (value_slot * simple) list -> bool
+
+val named_in_range : named -> bool
+
+val static_const_in_range : static_const -> bool
+
+val apply_cont_in_range : apply_cont -> bool
+
+val apply_in_range : apply_expr -> bool
+
+val arm_in_range : coq_Z * apply_cont -> bool
+
+val numbers_in_range : expr -> bool
+
+val handler_numbers_in_range : continuation_handler -> bool
+
+val binding_numbers_in_range : static_binding -> bool
+
+val code_numbers_in_range : code -> bool
 
 val well_formed_unit : continuation -> expr -> bool
