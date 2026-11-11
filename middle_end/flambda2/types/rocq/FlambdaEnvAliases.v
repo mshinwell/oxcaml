@@ -185,6 +185,70 @@ Module Alias_set.
     | Symbol symbol => make None [Name_symbol symbol]
     end.
 
+  (* Of several names the OCaml answers the one that an order on names
+     puts first; the model answers the first of its list. A set that
+     has a constant and names has no answer, in the OCaml as here. *)
+  Definition choose_opt (t : t) : option simple :=
+    match set_const t with
+    | Some const =>
+      if Keyed.is_empty (set_names t) then Some (Const const) else None
+    | None =>
+      match set_names t with
+      | [] => None
+      | name :: _ => Some (simple_of_name name)
+      end
+    end.
+
+  Definition get_singleton (t : t) : option simple :=
+    match set_const t with
+    | Some const =>
+      if Keyed.is_empty (set_names t) then Some (Const const) else None
+    | None =>
+      option_map simple_of_name (Keyed.get_singleton name_eqb (set_names t))
+    end.
+
+  Definition inter (t1 t2 : t) : t :=
+    let const :=
+      match set_const t1, set_const t2 with
+      | Some const1, Some const2 =>
+        if const_eqb const1 const2 then Some const1 else None
+      | _, _ => None
+      end
+    in
+    make const (Keyed.inter name_eqb (set_names t1) (set_names t2)).
+
+  Definition filter (t : t) (f : simple -> bool) : Alias_set.t :=
+    let const :=
+      match set_const t with
+      | Some const => if f (Const const) then Some const else None
+      | None => None
+      end
+    in
+    make const
+      (List.filter (fun name => f (simple_of_name name)) (set_names t)).
+
+  (* The best alias of the set: its constant; failing that a symbol;
+     failing that a variable. Of several symbols, or of several
+     variables, the OCaml answers the one that an order on names puts
+     first; the model answers the first of its list. *)
+  Definition find_best (t : t) : option simple :=
+    match set_const t with
+    | Some const => Some (Const const)
+    | None =>
+      let symbols := List.filter name_is_symbol (set_names t) in
+      let vars :=
+        List.filter (fun name => negb (name_is_symbol name)) (set_names t)
+      in
+      match symbols with
+      | symbol :: _ => Some (simple_of_name symbol)
+      | [] =>
+        match vars with
+        | var :: _ => Some (simple_of_name var)
+        | [] => None
+        end
+      end
+    end.
+
 End Alias_set.
 
 (* ======================================================================== *)
@@ -578,5 +642,64 @@ Definition get_canonical_ignoring_name_mode (t : t) (name : name) : simple :=
   | Is_canonical => elt
   | Alias_of_canonical canonical_element => canonical_element
   end.
+
+(* The function [add_alias] that the OCaml's [add_alias_set] defines for
+   itself: [elt], which is canonical, becomes an alias of
+   [canonical_element1], the canonical element so far, and the answer
+   has the canonical element of the two. [None] is a fatal error: one of
+   [add0], or two different constants ("Discovered Bottom during alias
+   join"). *)
+Definition add_alias_of_set {A : Type}
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (acc : t * simple) (elt : simple) : option (Aliases.t * simple) :=
+  let '(t, canonical_element1) := acc in
+  if simple_equal canonical_element1 elt
+  then Some (t, canonical_element1)
+  else
+    match
+      add0 binding_time_resolver binding_times_and_modes t canonical_element1
+        elt
+    with
+    | None => None
+    | Some Or_bottom.Bottom => None
+    | Some (Or_bottom.Ok (t, which_element)) =>
+      let canonical_element :=
+        match which_element with
+        | Demote_canonical_element1 => elt
+        | Demote_canonical_element2 => canonical_element1
+        end
+      in
+      Some (t, canonical_element)
+    end.
+
+(* [Aliases.add_alias_set]: [name] and every element of the set are now
+   aliases. The OCaml goes through the names of the set in the order of
+   names; the model in the order of its list. *)
+Definition add_alias_set {A : Type}
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : t) (name : name) (aliases : Alias_set.t) : option Aliases.t :=
+  let canonical := get_canonical_ignoring_name_mode t name in
+  let* acc :=
+    match Alias_set.set_const aliases with
+    | None => Some (t, canonical)
+    | Some c =>
+      add_alias_of_set binding_time_resolver binding_times_and_modes
+        (t, canonical) (Const c)
+    end
+  in
+  let* acc :=
+    fold_left
+      (fun acc name =>
+         let* acc := acc in
+         let elt := get_canonical_ignoring_name_mode (fst acc) name in
+         add_alias_of_set binding_time_resolver binding_times_and_modes acc
+           elt)
+      (Alias_set.set_names aliases) (Some acc)
+  in
+  Some (fst acc).
 
 End Aliases.

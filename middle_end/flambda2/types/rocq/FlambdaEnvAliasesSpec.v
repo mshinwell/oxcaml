@@ -144,9 +144,7 @@
      ([Name.compare]) puts first, and here the first of a list. The
      model has no such order; there is at most one earliest alias when
      the variables have different binding times.
-   - Not modelled yet: the rest of [Alias_set] ([inter], [filter],
-     [find_best], [get_singleton], [choose_opt]) and [add_alias_set].
-     [print] is not modelled.
+   - [print] is not modelled.
 
    What is stated of [Aliases.add], which is given two canonical
    elements found to be equal:
@@ -172,7 +170,9 @@
      question there).
    And of [Aliases.get_aliases]: a simple is in the set exactly when it
    is known to be equal to the element asked about
-   ([get_aliases_statement]).
+   ([get_aliases_statement]). The other functions on sets of aliases
+   and [Aliases.add_alias_set] are stated in
+   FlambdaEnvAliasesSetSpec.v.
 
    [aliases_well_formed] is the invariant that the statements use. It
    asks more than the compiler checks, and each of its parts says so
