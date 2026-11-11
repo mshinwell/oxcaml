@@ -454,8 +454,11 @@ be proved correct, built a fragment at a time. The files follow the same Spec/Pr
   (`Set_of_closures`, `Project_value_slot`,
   `Static_const_set_of_closures`) are a set of one function whose slot
   has no name; they are to be deleted, so write new statements with the
-  named forms. The terms can write sets that the compiler cannot make:
-  `FlambdaWellFormedSpec.sets_well_formed` refuses them, and
+  named forms. The terms can write sets that the compiler cannot make.
+  `FlambdaWellFormedSpec.sets_well_formed` checks the function slots of
+  a set, that its functions have each their own code, and that a static
+  set is bound whole, with no code in common between the sets of one
+  group; it does not yet ask that the value slots are distinct.
   `FlambdaClosuresSpec.v` has what the run of a well-formed unit keeps
   true of its sets.
 - The body of code bound by a `Let_static` may be rewritten: a context may
