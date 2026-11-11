@@ -203,7 +203,8 @@ Proof.
   destruct d as [s | p args | code slots | fslot decls slots | slot closure
     | pfrom slot closure | move_from move_to closure];
     try discriminate.
-  destruct p as [u | b | [[tag]]]; try discriminate.
+  destruct p as [u | b | v]; try discriminate.
+  destruct v as [kind]. destruct kind as [tag].
   simpl. intros [= <-]. exists args. auto.
 Qed.
 
@@ -372,8 +373,7 @@ Proof.
     as (vs & block_value & Hfields & Hblock & Hblock_of & Himmediate).
   simpl in Hd |- *. rewrite Hblock in Hd. simpl in Hd.
   rewrite eval_prim_unary in Hd.
-  destruct u as [kind field | variant_only | | | kind | kind | kind | | ];
-    simpl in Hresult; try discriminate Hresult.
+  destruct u; simpl in Hresult; try discriminate Hresult.
   - (* [Block_load] *)
     destruct (field_loaded_spec _ _ _ _ Hresult)
       as (tag & size & -> & Htag & Hsize & Hpos & Hnth).

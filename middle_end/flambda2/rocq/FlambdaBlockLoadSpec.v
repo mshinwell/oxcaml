@@ -234,9 +234,7 @@ Definition of_known_block (p : unary_primitive) (block : known_block)
   | Block_load kind field => field_loaded kind field block
   | Is_int _ => Some (Const (Naked_immediate 0))
   | Get_tag => Some (Const (Naked_immediate (fst block)))
-  | Is_null | Opaque_identity _ | Unbox_number _ | Box_number _
-  | Untag_immediate | Tag_immediate =>
-    None
+  | _ => None
   end.
 
 (* A primitive applied to arguments, as a unary primitive applied to
