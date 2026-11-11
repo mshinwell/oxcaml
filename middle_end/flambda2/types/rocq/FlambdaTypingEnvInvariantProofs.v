@@ -424,6 +424,28 @@ Proof.
     + rewrite Z.ltb_lt. reflexivity.
 Qed.
 
+Lemma variables_defined_b_iff (tenv : Typing_env.t) :
+  variables_defined_b tenv = true <-> variables_defined tenv.
+Proof.
+  unfold variables_defined_b, variables_defined. eapply iff_trans.
+  - apply (for_all_names_b_iff
+             (fun n _ =>
+                match n with
+                | Name_var x =>
+                  ∃ level : Typing_env_level.t,
+                    level ∈ all_levels tenv
+                    ∧ is_bound x (Typing_env_level.defined_vars level) = true
+                | Name_symbol _ => True
+                end)).
+    intros [x | s] entry _;
+      [ apply existsb_exists | split; [ intros _; exact I | reflexivity ] ].
+  - split.
+    + intros Hall x ty btm Hlookup.
+      exact (Hall (Name_var x) (ty, btm) Hlookup).
+    + intros Hall [x | s] [ty btm] Hlookup;
+        [ exact (Hall x ty btm Hlookup) | exact I ].
+Qed.
+
 Lemma aliases_known_b_iff (tenv : Typing_env.t) :
   aliases_known_b tenv = true <-> aliases_known tenv.
 Proof.
@@ -473,6 +495,7 @@ Proof.
     levels_pairwise_disjoint_b_iff, defined_variables_bound_b_iff,
     levels_indexed_b_iff, level_binding_times_recorded_b_iff,
     level_binding_times_in_range_b_iff, scopes_decreasing_b_iff,
+    variables_defined_b_iff,
     (aliases_consistent_b_iff (Typing_env.aliases tenv)),
     (name_modes_recorded_b_iff _ (Typing_env.names_to_types tenv)
        (Typing_env.aliases tenv)),
@@ -1292,6 +1315,7 @@ Lemma conditions_intro (tenv : Typing_env.t) :
   level_binding_times_recorded tenv ->
   level_binding_times_in_range tenv ->
   scopes_decreasing (all_scopes tenv) ->
+  variables_defined tenv ->
   aliases_consistent (Typing_env.aliases tenv) ->
   name_modes_recorded (Typing_env.names_to_types tenv)
     (Typing_env.aliases tenv) ->
@@ -1320,7 +1344,8 @@ Ltac invariant_parts Hinvariant :=
   destruct Hinvariant
     as [[[Hbounded [Hrange [Hdistinct [Hclosed [Hsymbols Hsym_recorded]]]]]
          [[Hdisjoint
-            [Hdefined [Hindexed [Hrecorded [Hlevel_range Hscopes]]]]]
+            [Hdefined
+               [Hindexed [Hrecorded [Hlevel_range [Hscopes Hvar_defined]]]]]]
           [Hconsistent [Hmodes [Hknown Hconcrete]]]]]
         Hagree].
 
@@ -1378,6 +1403,9 @@ Proof.
     exact (Hlevel_range level binding_time Hin).
   - split; [ | exact Hscopes ]. simpl.
     unfold Scope.next, Typing_env.current_scope. lia.
+  - intros x ty btm Hlookup.
+    destruct (Hvar_defined x ty btm Hlookup) as [level [Hin Hbound]].
+    exists level. split; [ right; exact Hin | exact Hbound ].
 Qed.
 
 Theorem closure_env_invariant : closure_env_invariant_statement.
@@ -1392,8 +1420,8 @@ Proof.
       | exact Hsym_recorded | exact Hdisjoint | exact Hdefined
       | exact Hindexed
       | exact Hrecorded | exact Hlevel_range | exact Hscopes
-      | exact Hconsistent | exact Hmodes | exact Hknown
-      | exact Hconcrete ].
+      | exact Hvar_defined | exact Hconsistent | exact Hmodes
+      | exact Hknown | exact Hconcrete ].
   destruct Hbounded as [Hearliest Hmin]. split; simpl; lia.
 Qed.
 
@@ -1422,7 +1450,8 @@ Proof.
       | exact Hsym_recorded | exact Hdisjoint | exact Hdefined
       | exact Hindexed
       | exact Hrecorded | exact Hlevel_range | exact Hscopes
-      | exact Hconsistent | exact Hmodes | exact Hconcrete ].
+      | exact Hvar_defined | exact Hconsistent | exact Hmodes
+      | exact Hconcrete ].
   - intros s ty btm Hlookup.
     exact (mem_add_symbol_definition tenv sym (Name_symbol s)
              (Hsymbols s ty btm Hlookup)).
@@ -1686,6 +1715,20 @@ Proof.
       * pose proof (Hlevel_range level binding_time (or_intror Hin) Hbt).
         lia.
     + exact Hscopes.
+    + intros x ty btm Hlookup. rewrite Hlevels.
+      destruct (Pos.eq_dec x var) as [-> | Hne].
+      * eexists. split; [ left; reflexivity | ].
+        rewrite add_definition_defined_vars. unfold is_bound.
+        rewrite lookup_cons, Pos.eqb_refl. reflexivity.
+      * rewrite Hother in Hlookup by congruence.
+        destruct (Hvar_defined x ty btm Hlookup) as [level [Hin Hbound]].
+        destruct Hin as [<- | Hin].
+        -- eexists. split; [ left; reflexivity | ].
+           rewrite add_definition_defined_vars. unfold is_bound.
+           rewrite lookup_cons.
+           destruct (Pos.eqb_spec x var) as [Heq | _];
+             [ contradiction | exact Hbound ].
+        -- exists level. split; [ right; exact Hin | exact Hbound ].
     + exact Hconsistent.
     + apply (name_modes_recorded_coincide _ _
                (Typing_env.names_to_types tenv)
@@ -2057,6 +2100,13 @@ Proof.
         exact (Hlevel_range _ binding_time (or_introl eq_refl) Hbt).
       * exact (Hlevel_range level binding_time (or_intror Hin) Hbt).
     + exact Hscopes.
+    + intros y ty1 btm1 Hlookup. rewrite Hlevels.
+      destruct (Hvariable y ty1 btm1 Hlookup) as [ty0 Hold].
+      destruct (Hvar_defined y ty0 btm1 Hold) as [level [Hin Hbound_y]].
+      destruct Hin as [<- | Hin].
+      * eexists. split; [ left; reflexivity | ].
+        rewrite add_or_replace_equation_defined_vars. exact Hbound_y.
+      * exists level. split; [ right; exact Hin | exact Hbound_y ].
     + rewrite Haliases. exact Hconsistent.
     + rewrite Haliases.
       apply (name_modes_recorded_coincide _ _
@@ -2217,7 +2267,7 @@ Proof.
       [ exact Hbounded | exact Hrange | exact Hdistinct | exact Hclosed
       | exact Hsymbols | exact Hsym_recorded | exact Hdisjoint
       | exact Hdefined | exact Hindexed | exact Hrecorded
-      | exact Hlevel_range | exact Hscopes ].
+      | exact Hlevel_range | exact Hscopes | exact Hvar_defined ].
   - exact (add_consistent _ _ _ _ c1 c2 added Hconsistent Hc1 Hc2 Hadded).
   - exact (add_name_modes_recorded _ _ _ _ c1 c2 added Hmodes Hadded).
   - assert (Hmentioned :

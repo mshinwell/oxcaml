@@ -105,6 +105,14 @@
      are before the next. By construction.
    - [scopes_decreasing]: each level has a greater scope than the one
      before it. By construction ([increment_scope]).
+   - [variables_defined]: a variable that has a type is defined by one
+     of the levels; the converse of [defined_variables_bound]. By
+     construction: of the variables of the unit being compiled only
+     [add_variable_definition] gives one an entry, and it defines it
+     in the current level. Nothing checks it. (The compiler also gives
+     an entry to a variable of another compilation unit that gets an
+     equation, which no level defines; the model has no such
+     variable.)
    - [levels_agree]: the equation that the latest level has for a name
      is the type that the environment has for the name. Stricter: the
      compiler relies on it ("We rely on the fact that equations in
@@ -583,6 +591,37 @@ Fixpoint scopes_decreasing_b (scopes : list Scope.t) : bool :=
     && scopes_decreasing_b scopes
   end.
 
+(* A variable that has a type is defined by one of the levels. *)
+(* The compiler's environments have this of the variables of the unit
+   being compiled, by the way they are made: only
+   [Typing_env.add_variable_definition] gives such a variable an
+   entry, and it defines the variable in the current level;
+   [Cached_level.replace_variable_binding] replaces an entry that there
+   is. Nothing checks it. A variable of another compilation unit gets
+   an entry where it gets an equation ([Typing_env.replace_equation],
+   at [Binding_time.imported_variables]), and no level defines it; the
+   model has no such variable. *)
+Definition variables_defined (tenv : Typing_env.t) : Prop :=
+  ∀ (x : variable) (ty : flambda_type)
+    (binding_time_and_mode : Binding_time.With_name_mode.t),
+    Keyed.lookup name_eqb (Name_var x) (Typing_env.names_to_types tenv)
+    = Some (ty, binding_time_and_mode) ->
+    ∃ level : Typing_env_level.t,
+      level ∈ all_levels tenv
+      ∧ is_bound x (Typing_env_level.defined_vars level) = true.
+
+Definition variables_defined_b (tenv : Typing_env.t) : bool :=
+  Keyed.for_all_bindings_b name_eqb
+    (fun n _ =>
+       match n with
+       | Name_var x =>
+         existsb
+           (fun level => is_bound x (Typing_env_level.defined_vars level))
+           (all_levels tenv)
+       | Name_symbol _ => true
+       end)
+    (Typing_env.names_to_types tenv).
+
 (* The equation that the latest level has for a name is the type that
    the environment has for the name. *)
 (* The model is stricter than the compiler here (decision D32). The
@@ -671,7 +710,8 @@ Definition typing_env_conditions (tenv : Typing_env.t) : Prop :=
      ∧ levels_indexed tenv
      ∧ level_binding_times_recorded tenv
      ∧ level_binding_times_in_range tenv
-     ∧ scopes_decreasing (all_scopes tenv))
+     ∧ scopes_decreasing (all_scopes tenv)
+     ∧ variables_defined tenv)
   ∧ (aliases_consistent (Typing_env.aliases tenv)
      ∧ name_modes_recorded (Typing_env.names_to_types tenv)
          (Typing_env.aliases tenv)
@@ -690,7 +730,8 @@ Definition typing_env_well_formed (tenv : Typing_env.t) : bool :=
       && levels_indexed_b tenv
       && level_binding_times_recorded_b tenv
       && level_binding_times_in_range_b tenv
-      && scopes_decreasing_b (all_scopes tenv))
+      && scopes_decreasing_b (all_scopes tenv)
+      && variables_defined_b tenv)
   && (aliases_consistent_b (Typing_env.aliases tenv)
       && name_modes_recorded_b (Typing_env.names_to_types tenv)
            (Typing_env.aliases tenv)
