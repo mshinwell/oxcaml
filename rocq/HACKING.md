@@ -458,7 +458,8 @@ be proved correct, built a fragment at a time. The files follow the same Spec/Pr
   undefined too, where the compiler has a partial application or an
   over-application: those are not in the fragment
   (`FlambdaWellKindedSpec.at_partial_or_over_application` says when a
-  state is at one).
+  state is at one; it asks as well that the arguments are of the kinds
+  of the call's arity).
 - `FlambdaWellKindedSpec.well_kinded_unit` checks that the kinds a unit
   carries agree with one another. A unit that passes it starts in a
   well-kinded state, a step keeps a state well-kinded, and a
@@ -468,9 +469,11 @@ be proved correct, built a fragment at a time. The files follow the same Spec/Pr
   does not agree with its code and a primitive on an argument of
   another kind are not among those, and stay undefined. The check is a
   sufficient condition and a diagnostic, which the test tool prints.
-  The compiler builds units that fail it, so it is not a condition of
-  `well_formed_unit` and no statement about the compiler's terms may
-  take it as a premise; the header of the file says why.
+  The compiler accepts terms that fail it, as it checks kinds only
+  where Simplify visits, and that the units it builds pass it is known
+  by experiment only; so it is not a condition of `well_formed_unit`
+  and no statement about the compiler's terms may take it as a
+  premise. The header of the file says more.
 - A unit is well-formed with respect to its interface
   (`FlambdaWellFormedSpec.unit_interface`: the continuation it returns
   to and its exception continuation). `well_formed_unit` is to be the
