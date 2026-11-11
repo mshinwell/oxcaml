@@ -101,6 +101,7 @@ Separate Extraction
   map_values
   merge
   merge_statics
+  numbers_in_range
   remove_unused_conts
   remove_unused_defined_lets
   remove_unused_lets

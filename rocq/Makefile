@@ -118,6 +118,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaPrimitiveModel.v \
   FlambdaPrimitiveProofs.v \
   FlambdaPrimitiveSpec.v \
+  FlambdaRangeProofs.v \
+  FlambdaRangeSpec.v \
   FlambdaScopeProofs.v \
   FlambdaScopeSpec.v \
   FlambdaSemanticsProofs.v \
