@@ -42,24 +42,6 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
 Import ListNotations.
 
 (* ======================================================================== *)
-(* What satisfies an environment                                            *)
-(* ======================================================================== *)
-
-Theorem satisfied_no_poison : satisfied_no_poison_statement.
-Proof.
-  intros statics valuation tenv [Hbottom [Hnames Haliases]] Hpoison.
-  split; [ exact Hbottom | ]. split; [ | exact Haliases ].
-  intros n ty binding_time_and_mode v Hlookup Hvalue.
-  destruct (Hnames n ty binding_time_and_mode Hlookup)
-    as [v' [Hvalue' Hsatisfied]].
-  assert (v' = v) as -> by congruence.
-  apply (satisfied_unless_poison_not_poison statics valuation v ty Hsatisfied).
-  intros k ->.
-  apply (Hpoison n ty binding_time_and_mode _ Hlookup Hvalue).
-  exists k. reflexivity.
-Qed.
-
-(* ======================================================================== *)
 (* What the contracts give                                                  *)
 (* ======================================================================== *)
 
@@ -78,7 +60,7 @@ Proof.
   intros type_well_formed typing_env_well_formed add_equation Hsound statics
     valuation tenv tenv' n ty v Hfits Hty Hsatisfied Hpoison Hvalue Hv Hadd.
   apply (Hsound statics valuation tenv tenv' n ty v Hfits Hty); try assumption.
-  apply satisfied_no_poison; assumption.
+  apply satisfied_no_poison_strictly; assumption.
 Qed.
 
 (* ======================================================================== *)

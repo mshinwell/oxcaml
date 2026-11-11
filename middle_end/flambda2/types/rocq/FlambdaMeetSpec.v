@@ -70,15 +70,12 @@
    how much the meet knows: see "Precision" below.
 
    What satisfies an environment. The contracts are about
-   [typing_env_satisfied_strictly]: every name that has a value in the
-   valuation has the type that the environment gives it, and aliases
-   have the same value. It differs in two ways from
-   [typing_env_satisfied] of FlambdaTypingEnvSpec.v as it is on this
-   branch, which asks nothing of the type of a name whose value is
-   poison (decision D26) and gives every name a value. Both were agreed
-   with T2 and T5; the notion is T2's, and is being added to
-   FlambdaTypingEnvSpec.v under this name. The definition here stands
-   in for it and goes when T2's is on this branch.
+   [typing_env_satisfied_strictly] of FlambdaTypingEnvSpec.v: every
+   name that has a value in the valuation has the type that the
+   environment gives it, and aliases have the same value. They are not
+   about [typing_env_satisfied], which asks nothing of the type of a
+   name that is exempt because of poison (decision D26). Two things
+   about the strict notion matter here.
    - Poison is a value like another. A meet reads the types of names:
      of the name that a type is an alias to, of the name of which a
      number is the result of a relation, of the names of an environment
@@ -96,7 +93,7 @@
      [add_equation] is not enough, and the contracts ask that every
      name has its type. A name may hold poison if its type is true of
      poison (the unknown type is). There is a CR at
-     [typing_env_satisfied_strictly] and one at [add_equation_sound].
+     [add_equation_sound].
    - A name may have no value. The n-way join defines, in the
      environment that it answers, variables that come from one of the
      environments joined, with the types they have there. Under a
@@ -108,11 +105,12 @@
      name with no value on behalf of a value that it has in hand. The
      variable is mentioned only in what is dead under that valuation:
      the case of another tag, the other side of a variant.
-   An environment that is satisfied as FlambdaTypingEnvSpec.v says, by
-   a valuation that gives poison to none of its names, is satisfied
-   strictly ([satisfied_no_poison_statement]). The environment of a
-   handler whose parameters unboxing gives poison to on some paths is
-   not, on those paths: the contracts say nothing there.
+   An environment that is satisfied with the names that poison exempts
+   set aside, by a valuation in which no name holds poison, is
+   satisfied strictly ([satisfied_no_poison_strictly_statement],
+   FlambdaTypingEnvSpec.v). The environment of a handler whose
+   parameters unboxing gives poison to on some paths is not, on those
+   paths: the contracts say nothing there.
 
    What is asked of the inputs ([meet_inputs_well_formed]).
    - The two types have one kind. A meet of types of two kinds is a
@@ -283,35 +281,6 @@ Import ListNotations.
 (* What satisfies an environment                                            *)
 (* ======================================================================== *)
 
-(* A valuation satisfies a typing environment strictly: the environment
-   is not bottom; every name that has a value has the type that the
-   environment gives it, poison or not; and names that are aliases have
-   the same value, or none. A name may have no value, and then nothing
-   is asked of it. This stands in for the definition of this name that
-   is to be in FlambdaTypingEnvSpec.v (see the header). *)
-(* CR mshinwell: the statements about meet are made of environments in
-   which a name that holds poison has a type that is true of poison.
-   The compiler does not state that and nothing checks it. Unboxing
-   gives the parameters that stand for the fields of an inactive case
-   of a variant their types on every path, and passes poison for them:
-   on such a path the environment of the handler is not satisfied
-   strictly, and the statements below say nothing. There the compiler
-   relies on no meet reading the type of a name that holds poison; if
-   one does, it may answer bottom, or add an equation that is not true,
-   at a point that is reached. The premise "the value of the name is
-   not poison" on the name that an equation is added to is not enough
-   (the header has the example). Decision D26. *)
-Definition typing_env_satisfied_strictly (statics : static_env)
-    (valuation : env) (tenv : Typing_env.t) : Prop :=
-  Typing_env.is_bottom tenv = false
-  ∧ (∀ (n : name) (ty : flambda_type)
-       (binding_time_and_mode : Binding_time.With_name_mode.t) (v : value),
-      Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
-      = Some (ty, binding_time_and_mode) ->
-      value_of_name valuation n = Some v ->
-      type_satisfied statics valuation v ty)
-  ∧ aliases_respected (Typing_env.aliases tenv) valuation.
-
 (* What a meet or a join may change of a valuation: nothing, on the
    variables that the environment [tenv] knows. A variable that had no
    value has none. The variables that are new may have any value, or
@@ -321,16 +290,6 @@ Definition extended_from (tenv : Typing_env.t) (valuation valuation' : env)
   ∀ x : variable,
     Typing_env.mem None tenv (Name_var x) = true ->
     lookup x valuation' = lookup x valuation.
-
-(* No name that the environment has a type for holds poison. *)
-Definition no_name_holds_poison (valuation : env) (tenv : Typing_env.t)
-    : Prop :=
-  ∀ (n : name) (ty : flambda_type)
-    (binding_time_and_mode : Binding_time.With_name_mode.t) (v : value),
-    Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
-    = Some (ty, binding_time_and_mode) ->
-    value_of_name valuation n = Some v ->
-    ~ is_poison v.
 
 (* ======================================================================== *)
 (* The functions                                                            *)
@@ -498,9 +457,9 @@ Definition add_equation_sound (add_equation : add_equation_function)
       extended_from tenv valuation valuation'
       ∧ typing_env_satisfied_strictly statics valuation' tenv'.
 
-(* The same from the premises of FlambdaTypingEnvSpec.v, where no name
-   of the environment holds poison. It follows from
-   [add_equation_sound] ([add_equation_no_poison_statement]). *)
+(* The same for [typing_env_satisfied], where no name holds poison. It
+   follows from [add_equation_sound]
+   ([add_equation_no_poison_statement]). *)
 Definition add_equation_sound_no_poison
     (add_equation : add_equation_function) : Prop :=
   ∀ (statics : static_env) (valuation : env) (tenv tenv' : Typing_env.t)
@@ -508,7 +467,7 @@ Definition add_equation_sound_no_poison
     typing_env_fits tenv ->
     type_fits tenv ty ->
     typing_env_satisfied statics valuation tenv ->
-    no_name_holds_poison valuation tenv ->
+    (∀ n : name, ~ holds_poison valuation n) ->
     value_of_name valuation n = Some v ->
     type_satisfied statics valuation v ty ->
     add_equation tenv n ty = Some tenv' ->
@@ -675,15 +634,6 @@ Definition get_tag_reduction_repaired_statement : Prop :=
 (* What the definitions give                                                *)
 (* ======================================================================== *)
 
-(* A valuation that satisfies an environment as FlambdaTypingEnvSpec.v
-   says, and gives poison to none of its names, satisfies it
-   strictly. *)
-Definition satisfied_no_poison_statement : Prop :=
-  ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t),
-    typing_env_satisfied statics valuation tenv ->
-    no_name_holds_poison valuation tenv ->
-    typing_env_satisfied_strictly statics valuation tenv.
-
 (* A meet that has its contract answers bottom only where no value has
    both types. *)
 Definition meet_answers_bottom_statement : Prop :=
@@ -692,8 +642,8 @@ Definition meet_answers_bottom_statement : Prop :=
     meet_sound type_well_formed typing_env_well_formed meet ->
     meet_bottom_sound type_well_formed typing_env_well_formed meet.
 
-(* [add_equation_sound] gives the statement from the premises of
-   FlambdaTypingEnvSpec.v. *)
+(* [add_equation_sound] gives the statement for
+   [typing_env_satisfied] where no name holds poison. *)
 Definition add_equation_no_poison_statement : Prop :=
   ∀ (type_well_formed : flambda_type -> bool)
     (typing_env_well_formed : Typing_env.t -> bool)
