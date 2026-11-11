@@ -1684,3 +1684,1050 @@ Proof.
                       Hmeet0).
   destruct r0 as [ | | | answer ]; injection Hmeet as <- <-; exact Hkeeps.
 Qed.
+
+(* ======================================================================== *)
+(* What the functions add is true                                           *)
+(* ======================================================================== *)
+
+(* A simple that the environment knows has the same value, or none,
+   under a valuation extended from another. *)
+Lemma eval_simple_extended (tenv : Typing_env.t) (valuation valuation' : env)
+    (s : simple) :
+  extended_from tenv valuation valuation' ->
+  Typing_env.mem_simple None tenv s = true ->
+  eval_simple valuation' s = eval_simple valuation s.
+Proof.
+  intros Hextended Hmem.
+  destruct s as [ x | sym | c ]; [ exact (Hextended x Hmem) | | ]; reflexivity.
+Qed.
+
+(* A value that has a type that fits has it under a valuation extended
+   from the first. *)
+Lemma type_satisfied_extended (statics : static_env) (tenv : Typing_env.t)
+    (valuation valuation' : env) (v : value) (ty : flambda_type) :
+  type_fits tenv ty ->
+  extended_from tenv valuation valuation' ->
+  type_satisfied statics valuation v ty ->
+  type_satisfied statics valuation' v ty.
+Proof.
+  intros (_ & Hclosed & _) Hextended.
+  apply (type_satisfied_coincide statics valuation valuation' v ty).
+  intros x Hin. symmetry. exact (Hextended x (Hclosed x Hin)).
+Qed.
+
+Lemma meet_env_added_refl (statics : static_env) (valuation : env)
+    (menv : Meet_env.t) :
+  typing_env_satisfied_strictly statics valuation (Meet_env.typing_env menv) ->
+  meet_env_added statics valuation menv menv.
+Proof.
+  intros Hsatisfied. exists valuation.
+  split; [ apply extended_from_refl | ].
+  split; [ exact Hsatisfied | apply keeps_equations_valued_refl ].
+Qed.
+
+(* What was added, after something else was. *)
+Lemma meet_env_added_trans (statics : static_env) (valuation valuation1 : env)
+    (menv menv1 menv2 : Meet_env.t) :
+  keeps_names (Meet_env.typing_env menv) (Meet_env.typing_env menv1) ->
+  extended_from (Meet_env.typing_env menv) valuation valuation1 ->
+  keeps_equations_valued (Meet_env.typing_env menv)
+    (Meet_env.typing_env menv1) valuation valuation1 ->
+  meet_env_added statics valuation1 menv1 menv2 ->
+  meet_env_added statics valuation menv menv2.
+Proof.
+  intros Hnames Hextended1 Hvalued1
+    (valuation2 & Hextended2 & Hsatisfied2 & Hvalued2).
+  exists valuation2.
+  split; [ exact (extended_from_trans _ _ _ _ _ Hnames Hextended1 Hextended2)
+         | ].
+  split; [ exact Hsatisfied2 | ].
+  exact (keeps_equations_valued_trans _ _ _ _ _ _ Hvalued1 Hvalued2).
+Qed.
+
+Section Sound.
+
+Variable mh : meet_expanded_head.
+Hypothesis Hkeeps : meet_expanded_head_keeps mh.
+Hypothesis Hsound : meet_expanded_head_sound mh.
+Hypothesis Hsingleton : must_be_singleton_exact.
+Variable statics : static_env.
+
+(* [replace_concrete_equation]: the name has a value, of the type. *)
+Lemma replace_concrete_equation_sound (tenv tenv' : Typing_env.t) (n : name)
+    (ty : flambda_type) (valuation : env) (v : value) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  value_of_name valuation n = Some v ->
+  type_satisfied statics valuation v ty ->
+  Meet_env.replace_concrete_equation tenv n ty = Some tenv' ->
+  typing_env_satisfied_strictly statics valuation tenv'
+  ∧ keeps_equations_valued tenv tenv' valuation valuation.
+Proof.
+  intros Hsatisfied Hvalue Hty Hreplace.
+  unfold Meet_env.replace_concrete_equation in Hreplace.
+  destruct (must_be_singleton ty) as [ [ const | ] | ] eqn:Hsing;
+    [ | | discriminate Hreplace ]; cbn in Hreplace.
+  - destruct (Aliases.canonical (Typing_env.aliases tenv) (simple_of_name n))
+      eqn:Hcanonical; [ | discriminate Hreplace ].
+    destruct (Typing_env.add_alias tenv (simple_of_name n) (Const const))
+      as [ [ | result | ] | ] eqn:Hadd; try discriminate Hreplace.
+    cbn in Hreplace.
+    destruct (name_eqb (Typing_env.demoted_name result) n
+              && simple_equal (Typing_env.canonical_element result)
+                   (Const const)) eqn:Hcheck; [ | discriminate Hreplace ].
+    injection Hreplace as <-.
+    apply andb_true_iff in Hcheck. destruct Hcheck as [Hdemoted Hconst].
+    apply name_eqb_eq in Hdemoted. apply simple_equal_eq in Hconst.
+    rewrite Hdemoted, Hconst.
+    assert (Hv : v = Value_const const).
+    { exact (Hsingleton statics valuation v ty const Hsing Hty). }
+    subst v.
+    assert (Hsatisfied1 :
+      typing_env_satisfied_strictly statics valuation
+        (Typing_env.add_alias_result_t result)).
+    { apply (add_alias_satisfied _ statics valuation tenv _ _ result
+               Hsatisfied Hadd).
+      exact Hvalue. }
+    split.
+    + apply replace_equation_satisfied; [ exact Hsatisfied1 | ].
+      intros v' Hv'. right. rewrite Hvalue in Hv'. injection Hv' as <-.
+      apply alias_satisfied. split; reflexivity.
+    + apply (keeps_equations_valued_trans _ _ _ _ _ _
+               (add_alias_valued tenv _ _ result Hadd valuation)).
+      exact (replace_equation_valued _ n _ valuation _ Hvalue).
+  - destruct (get_alias_opt ty); [ discriminate Hreplace | ].
+    injection Hreplace as <-. split.
+    + apply replace_equation_satisfied; [ exact Hsatisfied | ].
+      intros v' Hv'. right. rewrite Hvalue in Hv'. injection Hv' as <-.
+      exact Hty.
+    + exact (replace_equation_valued tenv n ty valuation v Hvalue).
+Qed.
+
+(* [add_concrete_equation_on_canonical_name]. *)
+Lemma add_concrete_equation_on_canonical_name_sound (menv : Meet_env.t)
+    (n : name) (ty : Expanded_type.t) (valuation : env) (v : value)
+    (result : Or_bottom.t Meet_env.t) :
+  typing_env_fits (Meet_env.typing_env menv) ->
+  type_fits (Meet_env.typing_env menv) (Expanded_type.to_type ty) ->
+  Expanded_type.kind ty = kind (Expanded_type.to_type ty) ->
+  typing_env_satisfied_strictly statics valuation (Meet_env.typing_env menv) ->
+  value_of_name valuation n = Some v ->
+  type_satisfied statics valuation v (Expanded_type.to_type ty) ->
+  Meet_env.add_concrete_equation_on_canonical_name true menv n ty mh
+  = Some result ->
+  meet_env_sound statics valuation menv result.
+Proof.
+  intros Hfits Hty Hcoherent Hsatisfied Hvalue Hv Hadd.
+  unfold Meet_env.add_concrete_equation_on_canonical_name in Hadd.
+  destruct (Typing_env.find (Meet_env.typing_env menv) n
+              (Some (Expanded_type.kind ty)))
+    as [ existing | ] eqn:Hfind; [ | discriminate Hadd ].
+  cbn in Hadd.
+  destruct (Expanded_type.of_non_alias_type existing)
+    as [ existing_ty | ] eqn:Hexisting; [ | discriminate Hadd ].
+  cbn in Hadd.
+  destruct (mh menv ty existing_ty) as [ result0 | ] eqn:Hmeet;
+    [ | discriminate Hadd ].
+  cbn in Hadd.
+  assert (Hinputs :
+    meet_inputs_well_formed (Meet_env.typing_env menv)
+      (Expanded_type.to_type ty) (Expanded_type.to_type existing_ty)).
+  { split; [ exact Hfits | ]. split; [ exact Hty | ]. split.
+    - exact (type_fits_of_non_alias _ _ _ Hexisting
+               (find_type_fits _ _ _ _ Hfits Hfind)).
+    - rewrite (proj2 (of_non_alias_type_kind _ _ Hexisting)).
+      rewrite (find_kind _ _ _ _ Hfind). symmetry. exact Hcoherent. }
+  assert (Hv2 :
+    type_satisfied statics valuation v (Expanded_type.to_type existing_ty)).
+  { apply (of_non_alias_type_sound _ _ _ _ _ Hexisting).
+    exact (find_satisfied_strictly statics valuation _ n _ existing v
+             Hsatisfied Hfind Hvalue). }
+  destruct (Hsound statics valuation menv ty existing_ty v result0 Hinputs
+              Hsatisfied Hv Hv2 Hmeet)
+    as (r & menv1 & valuation1 & -> & Hextended1 & Hsatisfied1 & Hanswer
+        & Hvalued1).
+  assert (Hvalue1 : value_of_name valuation1 n = Some v).
+  { unfold value_of_name in *.
+    rewrite (eval_simple_extended _ _ _ _ Hextended1); [ exact Hvalue | ].
+    rewrite mem_simple_of_name.
+    exact (simple_of_kind_mem _ n _ (proj1 Hfits)
+             (simple_of_kind_of_find _ _ _ _ Hfind)). }
+  assert (Hreplace :
+    ∀ (answer : Expanded_type.t) (tenv2 : Typing_env.t),
+      extract_value r ty existing_ty = answer ->
+      Meet_env.replace_concrete_equation (Meet_env.typing_env menv1) n
+        (Expanded_type.to_type answer)
+      = Some tenv2 ->
+      meet_env_sound statics valuation menv
+        (Or_bottom.Ok (Meet_env.with_typing_env menv1 tenv2))).
+  { intros answer tenv2 Hextract Hreplace. rewrite Hextract in Hanswer.
+    destruct (replace_concrete_equation_sound _ tenv2 n _ valuation1 v
+                Hsatisfied1 Hvalue1 Hanswer Hreplace)
+      as [Hsatisfied2 Hvalued2].
+    eexists. split; [ reflexivity | ]. exists valuation1.
+    split; [ exact Hextended1 | ]. split; [ exact Hsatisfied2 | ].
+    exact (keeps_equations_valued_trans _ _ _ _ _ _ Hvalued1 Hvalued2). }
+  assert (Hsame :
+    meet_env_sound statics valuation menv (Or_bottom.Ok menv1)).
+  { eexists. split; [ reflexivity | ]. exists valuation1. auto. }
+  destruct r as [ | | | answer ].
+  - destruct (Meet_env.replace_concrete_equation (Meet_env.typing_env menv1)
+                n (Expanded_type.to_type ty))
+      as [ tenv2 | ] eqn:Hreplaced; [ | discriminate Hadd ].
+    injection Hadd as <-. exact (Hreplace ty tenv2 eq_refl Hreplaced).
+  - injection Hadd as <-. exact Hsame.
+  - injection Hadd as <-. exact Hsame.
+  - destruct (Meet_env.replace_concrete_equation (Meet_env.typing_env menv1)
+                n (Expanded_type.to_type answer))
+      as [ tenv2 | ] eqn:Hreplaced; [ | discriminate Hadd ].
+    injection Hadd as <-. exact (Hreplace answer tenv2 eq_refl Hreplaced).
+Qed.
+
+(* [add_or_delay_concrete_equation_on_canonical_name]. *)
+Lemma add_or_delay_concrete_equation_on_canonical_name_sound
+    (menv : Meet_env.t) (n : name) (ty : Expanded_type.t) (valuation : env)
+    (v : value) (result : Or_bottom.t Meet_env.t) :
+  typing_env_fits (Meet_env.typing_env menv) ->
+  type_fits (Meet_env.typing_env menv) (Expanded_type.to_type ty) ->
+  Expanded_type.kind ty = kind (Expanded_type.to_type ty) ->
+  typing_env_satisfied_strictly statics valuation (Meet_env.typing_env menv) ->
+  value_of_name valuation n = Some v ->
+  type_satisfied statics valuation v (Expanded_type.to_type ty) ->
+  Meet_env.add_or_delay_concrete_equation_on_canonical_name true menv n ty mh
+  = Some result ->
+  meet_env_sound statics valuation menv result.
+Proof.
+  intros Hfits Hty Hcoherent Hsatisfied Hvalue Hv Hadd.
+  unfold Meet_env.add_or_delay_concrete_equation_on_canonical_name in Hadd.
+  destruct (Keyed.among name_eqb n (Meet_env.adding_equations_for_names menv)).
+  - injection Hadd as <-. exists menv. split; [ reflexivity | ].
+    exact (meet_env_added_refl statics valuation menv Hsatisfied).
+  - unfold Meet_env.adding_equation_for_name in Hadd.
+    cbv beta zeta in Hadd.
+    match type of Hadd with
+    | context [ Meet_env.add_concrete_equation_on_canonical_name ?rob ?env ?n
+                  ?ty ?meet ] =>
+      destruct (Meet_env.add_concrete_equation_on_canonical_name rob env n ty
+                  meet) as [ result0 | ] eqn:Hrun; [ | discriminate Hadd ];
+        destruct (add_concrete_equation_on_canonical_name_sound env n ty
+                    valuation v result0 Hfits Hty Hcoherent Hsatisfied Hvalue
+                    Hv Hrun) as (menv2 & -> & Hadded)
+    end.
+    cbv beta iota in Hadd. injection Hadd as <-.
+    eexists. split; [ reflexivity | exact Hadded ].
+Qed.
+
+(* [add_concrete_equation_on_const]. *)
+Lemma add_concrete_equation_on_const_sound (menv : Meet_env.t) (c : const)
+    (ty : Expanded_type.t) (valuation : env)
+    (result : Or_bottom.t Meet_env.t) :
+  typing_env_fits (Meet_env.typing_env menv) ->
+  type_fits (Meet_env.typing_env menv) (Expanded_type.to_type ty) ->
+  kind (type_for_const c) = kind (Expanded_type.to_type ty) ->
+  typing_env_satisfied_strictly statics valuation (Meet_env.typing_env menv) ->
+  type_satisfied statics valuation (Value_const c) (Expanded_type.to_type ty)
+  ->
+  Meet_env.add_concrete_equation_on_const true menv c ty mh = Some result ->
+  meet_env_sound statics valuation menv result.
+Proof.
+  intros Hfits Hty Hkind Hsatisfied Hv Hadd.
+  unfold Meet_env.add_concrete_equation_on_const in Hadd.
+  destruct (mh menv ty (Expanded_type.create_const c)) as [ result0 | ]
+    eqn:Hmeet; [ | discriminate Hadd ].
+  assert (Hinputs :
+    meet_inputs_well_formed (Meet_env.typing_env menv)
+      (Expanded_type.to_type ty)
+      (Expanded_type.to_type (Expanded_type.create_const c))).
+  { split; [ exact Hfits | ]. split; [ exact Hty | ]. split.
+    - split; [ apply to_type_create_const_well_formed | ]. split.
+      + intros x Hin. rewrite create_const_free_variables in Hin.
+        destruct Hin.
+      + apply create_const_kinded.
+    - rewrite (proj2 (create_const_kind c)). symmetry. exact Hkind. }
+  destruct (Hsound statics valuation menv ty _ (Value_const c) result0
+              Hinputs Hsatisfied Hv (create_const_sound statics valuation c)
+              Hmeet)
+    as (r & menv1 & valuation1 & -> & Hextended1 & Hsatisfied1 & _
+        & Hvalued1).
+  cbn in Hadd. injection Hadd as <-.
+  exists menv1. split; [ reflexivity | ]. exists valuation1. auto.
+Qed.
+
+(* [add_or_delay_concrete_equation_on_canonical]. *)
+Lemma add_or_delay_concrete_equation_on_canonical_sound (menv : Meet_env.t)
+    (canonical : simple) (ty : Expanded_type.t) (valuation : env) (v : value)
+    (result : Or_bottom.t Meet_env.t) :
+  typing_env_fits (Meet_env.typing_env menv) ->
+  type_fits (Meet_env.typing_env menv) (Expanded_type.to_type ty) ->
+  Expanded_type.kind ty = kind (Expanded_type.to_type ty) ->
+  simple_of_kind (Meet_env.typing_env menv) canonical
+    (kind (Expanded_type.to_type ty)) ->
+  typing_env_satisfied_strictly statics valuation (Meet_env.typing_env menv) ->
+  eval_simple valuation canonical = Some v ->
+  type_satisfied statics valuation v (Expanded_type.to_type ty) ->
+  Meet_env.add_or_delay_concrete_equation_on_canonical true menv canonical ty
+    mh
+  = Some result ->
+  meet_env_sound statics valuation menv result.
+Proof.
+  intros Hfits Hty Hcoherent Hkind Hsatisfied Hvalue Hv Hadd.
+  destruct canonical as [ x | sym | c ]; cbn in Hadd.
+  - exact (add_or_delay_concrete_equation_on_canonical_name_sound menv
+             (Name_var x) ty valuation v result Hfits Hty Hcoherent
+             Hsatisfied Hvalue Hv Hadd).
+  - exact (add_or_delay_concrete_equation_on_canonical_name_sound menv
+             (Name_symbol sym) ty valuation v result Hfits Hty Hcoherent
+             Hsatisfied Hvalue Hv Hadd).
+  - cbn in Hvalue. injection Hvalue as <-.
+    exact (add_concrete_equation_on_const_sound menv c ty valuation result
+             Hfits Hty Hkind Hsatisfied Hv Hadd).
+Qed.
+
+(* [record_demotion]: the name demoted and the canonical element have
+   one value. *)
+Lemma record_demotion_sound (menv : Meet_env.t) (kind : flambda_kind)
+    (demoted : name) (canonical : simple) (valuation : env) (v : value)
+    (result : Or_bottom.t Meet_env.t) :
+  typing_env_fits (Meet_env.typing_env menv) ->
+  ~ is_canonical (Typing_env.aliases (Meet_env.typing_env menv))
+      (simple_of_name demoted) ->
+  simple_of_kind (Meet_env.typing_env menv) (simple_of_name demoted) kind ->
+  simple_of_kind (Meet_env.typing_env menv) canonical kind ->
+  typing_env_satisfied_strictly statics valuation (Meet_env.typing_env menv) ->
+  value_of_name valuation demoted = Some v ->
+  eval_simple valuation canonical = Some v ->
+  Meet_env.record_demotion true menv kind demoted canonical mh = Some result ->
+  meet_env_sound statics valuation menv result.
+Proof.
+  intros Hfits Hnot_canonical Hkind_demoted Hkind_canonical Hsatisfied
+    Hvalue_demoted Hvalue_canonical Hrecord.
+  assert (Hinvariant := proj1 Hfits).
+  set (tenv := Meet_env.typing_env menv) in *.
+  unfold Meet_env.record_demotion in Hrecord.
+  fold tenv in Hrecord.
+  destruct (Typing_env.find tenv demoted (Some kind))
+    as [ ty_of_demoted | ] eqn:Hfind; [ | discriminate Hrecord ].
+  cbv beta iota in Hrecord.
+  set (alias := alias_type_of kind canonical) in *.
+  set (menv1 :=
+    Meet_env.map_typing_env menv
+      (fun tenv => Typing_env.replace_equation tenv demoted alias)) in *.
+  set (tenv1 := Typing_env.replace_equation tenv demoted alias).
+  assert (Hkind_alias :
+    simple_of_kind tenv (simple_of_name demoted)
+      (FlambdaTypeGrammar.kind alias)).
+  { unfold alias. rewrite kind_alias_type_of. exact Hkind_demoted. }
+  assert (Hextends1 : tenv_extends tenv tenv1).
+  { exact (replace_equation_tenv_extends tenv demoted alias Hinvariant
+             Hkind_alias). }
+  assert (Hfits1 : typing_env_fits tenv1).
+  { apply (replace_equation_fits tenv demoted alias Hinvariant Hkind_alias
+             Hfits).
+    - apply type_fits_alias; [ | exact Hkind_canonical ].
+      exact (simple_of_kind_mem_simple tenv canonical kind Hinvariant
+               Hkind_canonical).
+    - intros s _. exact Hnot_canonical.
+    - apply is_obviously_unknown_alias_type_of.
+    - apply is_obviously_bottom_alias_type_of. }
+  assert (Hfound :
+    type_satisfied statics valuation v ty_of_demoted
+    ∧ FlambdaTypeGrammar.kind ty_of_demoted = kind).
+  { split; [ | exact (find_kind _ _ _ _ Hfind) ].
+    exact (find_satisfied_strictly statics valuation tenv demoted _ _ v
+             Hsatisfied Hfind Hvalue_demoted). }
+  destruct Hfound as [Hv_found Hkind_found].
+  assert (Hkind_v : kind_of_value v = kind).
+  { rewrite <- Hkind_found.
+    exact (type_satisfied_kind statics valuation v _ Hv_found). }
+  assert (Hsatisfied1 : typing_env_satisfied_strictly statics valuation tenv1).
+  { apply replace_equation_satisfied; [ exact Hsatisfied | ].
+    intros v' Hv'. right. rewrite Hvalue_demoted in Hv'. injection Hv' as <-.
+    apply alias_satisfied. split; assumption. }
+  assert (Hvalued1 : keeps_equations_valued tenv tenv1 valuation valuation).
+  { exact (replace_equation_valued tenv demoted alias valuation v
+             Hvalue_demoted). }
+  change (Meet_env.typing_env menv1) with tenv1 in Hrecord.
+  destruct (expand_head0 tenv1 ty_of_demoted (Some (simple_of_name demoted)))
+    as [ expanded | ] eqn:Hexpand; [ | discriminate Hrecord ].
+  cbv beta iota in Hrecord.
+  assert (Hexpanded :
+    type_fits tenv1 (Expanded_type.to_type expanded)
+    ∧ Expanded_type.kind expanded = kind
+    ∧ FlambdaTypeGrammar.kind (Expanded_type.to_type expanded) = kind
+    ∧ type_satisfied statics valuation v (Expanded_type.to_type expanded)).
+  { unfold expand_head0 in Hexpand.
+    destruct (get_alias_opt ty_of_demoted) as [ s | ].
+    - unfold expand_head_of_alias_type in Hexpand.
+      assert (Hfound :
+        ∃ found : flambda_type,
+          Typing_env.find tenv1 demoted
+            (Some (FlambdaTypeGrammar.kind ty_of_demoted))
+          = Some found
+          ∧ Expanded_type.of_non_alias_type found = Some expanded).
+      { destruct demoted as [ x | sym ]; cbn [simple_of_name] in Hexpand;
+          destruct (Typing_env.find tenv1 _
+                      (Some (FlambdaTypeGrammar.kind ty_of_demoted)))
+            as [ found | ] eqn:Hfound; try discriminate Hexpand;
+          exists found; (split; [ reflexivity | exact Hexpand ]). }
+      destruct Hfound as (found & Hfound & Hof).
+      split.
+      { exact (type_fits_of_non_alias _ _ _ Hof
+                 (find_type_fits _ _ _ _ Hfits1 Hfound)). }
+      destruct (of_non_alias_type_kind _ _ Hof) as [-> ->].
+      rewrite (find_kind _ _ _ _ Hfound).
+      split; [ exact Hkind_found | ]. split; [ exact Hkind_found | ].
+      apply (of_non_alias_type_sound _ _ _ _ _ Hof).
+      exact (find_satisfied_strictly statics valuation tenv1 demoted _ _ v
+               Hsatisfied1 Hfound Hvalue_demoted).
+    - split.
+      { apply (type_fits_of_non_alias _ _ _ Hexpand).
+        apply (tenv_extends_type_fits _ _ _ Hextends1).
+        exact (find_type_fits _ _ _ _ Hfits Hfind). }
+      destruct (of_non_alias_type_kind _ _ Hexpand) as [-> ->].
+      split; [ exact Hkind_found | ]. split; [ exact Hkind_found | ].
+      exact (of_non_alias_type_sound _ _ _ _ _ Hexpand Hv_found). }
+  destruct Hexpanded as (Hty & Hkind1 & Hkind2 & Hv_expanded).
+  destruct (add_or_delay_concrete_equation_on_canonical_sound menv1 canonical
+              expanded valuation v result Hfits1 Hty)
+    as (menv2 & -> & Hadded); try assumption.
+  - rewrite Hkind1, Hkind2. reflexivity.
+  - rewrite Hkind2.
+    exact (proj1 (proj2 (proj2 (proj2 (proj2 Hextends1)))) _ _
+             Hkind_canonical).
+  - exists menv2. split; [ reflexivity | ].
+    apply (meet_env_added_trans statics valuation valuation menv menv1 menv2).
+    + exact (proj2 (proj2 (proj2 (proj2 (proj2 Hextends1))))).
+    + apply extended_from_refl.
+    + exact Hvalued1.
+    + exact Hadded.
+Qed.
+
+(* [add_alias_between_canonicals]: the two canonical elements have one
+   value. *)
+Lemma add_alias_between_canonicals_sound (menv : Meet_env.t)
+    (kind : flambda_kind) (canonical_element1 canonical_element2 : simple)
+    (valuation : env) (v : value) (result : Or_bottom.t Meet_env.t) :
+  typing_env_fits (Meet_env.typing_env menv) ->
+  is_canonical (Typing_env.aliases (Meet_env.typing_env menv))
+    canonical_element1 ->
+  is_canonical (Typing_env.aliases (Meet_env.typing_env menv))
+    canonical_element2 ->
+  simple_of_kind (Meet_env.typing_env menv) canonical_element1 kind ->
+  simple_of_kind (Meet_env.typing_env menv) canonical_element2 kind ->
+  typing_env_satisfied_strictly statics valuation (Meet_env.typing_env menv) ->
+  eval_simple valuation canonical_element1 = Some v ->
+  eval_simple valuation canonical_element2 = Some v ->
+  Meet_env.add_alias_between_canonicals true menv kind canonical_element1
+    canonical_element2 mh
+  = Some result ->
+  meet_env_sound statics valuation menv result.
+Proof.
+  intros Hfits Hc1 Hc2 Hkind1 Hkind2 Hsatisfied Hvalue1 Hvalue2 Hadd.
+  assert (Hinvariant := proj1 Hfits).
+  set (tenv := Meet_env.typing_env menv) in *.
+  assert (Hsame_env :
+    meet_env_sound statics valuation menv (Or_bottom.Ok menv)).
+  { exists menv. split; [ reflexivity | ].
+    exact (meet_env_added_refl statics valuation menv Hsatisfied). }
+  unfold Meet_env.add_alias_between_canonicals in Hadd. fold tenv in Hadd.
+  destruct (simple_equal canonical_element1 canonical_element2) eqn:Hsame.
+  { injection Hadd as <-. exact Hsame_env. }
+  destruct (Typing_env.add_alias tenv canonical_element1 canonical_element2)
+    as [ [ | result0 | ] | ] eqn:Halias; [ | | | discriminate Hadd ].
+  - injection Hadd as <-. exact Hsame_env.
+  - cbv beta iota in Hadd.
+    assert (Hdifferent : canonical_element1 <> canonical_element2).
+    { intros Heq. apply simple_equal_eq in Heq. rewrite Heq in Hsame.
+      discriminate Hsame. }
+    assert (Hextends1 := add_alias_tenv_extends tenv _ _ result0 Halias).
+    assert (Hfits1 :=
+      add_alias_fits tenv _ _ result0 Halias kind Hfits Hc1 Hc2
+        (simple_of_kind_mem_simple tenv _ kind Hinvariant Hkind1)
+        (simple_of_kind_mem_simple tenv _ kind Hinvariant Hkind2)
+        Hkind1 Hkind2).
+    destruct (add_alias_demoted tenv _ _ result0 Halias Hinvariant Hc1 Hc2
+                Hdifferent) as [Hwhich Hnot].
+    assert (Hsatisfied1 :
+      typing_env_satisfied_strictly statics valuation
+        (Typing_env.add_alias_result_t result0)).
+    { apply (add_alias_satisfied _ statics valuation tenv _ _ result0
+               Hsatisfied Halias).
+      rewrite Hvalue1, Hvalue2. reflexivity. }
+    set (tenv1 := Typing_env.add_alias_result_t result0) in *.
+    assert (Hkept :
+      ∀ s : simple, simple_of_kind tenv s kind -> simple_of_kind tenv1 s kind).
+    { intros s.
+      exact (proj1 (proj2 (proj2 (proj2 (proj2 Hextends1)))) s kind). }
+    destruct (record_demotion_sound (Meet_env.with_typing_env menv tenv1) kind
+                (Typing_env.demoted_name result0)
+                (Typing_env.canonical_element result0) valuation v result
+                Hfits1 Hnot)
+      as (menv2 & -> & Hadded); try assumption.
+    + apply Hkept. destruct Hwhich as [ [_ ->] | [_ ->] ]; assumption.
+    + apply Hkept. destruct Hwhich as [ [-> _] | [-> _] ]; assumption.
+    + unfold value_of_name.
+      destruct Hwhich as [ [_ ->] | [_ ->] ]; assumption.
+    + destruct Hwhich as [ [-> _] | [-> _] ]; assumption.
+    + exists menv2. split; [ reflexivity | ].
+      apply (meet_env_added_trans statics valuation valuation menv
+               (Meet_env.with_typing_env menv tenv1) menv2).
+      * exact (proj2 (proj2 (proj2 (proj2 (proj2 Hextends1))))).
+      * apply extended_from_refl.
+      * exact (add_alias_valued tenv _ _ result0 Halias valuation).
+      * exact Hadded.
+  - exfalso.
+    apply (add_alias_bottom valuation tenv _ _ Halias).
+    rewrite Hvalue1, Hvalue2. reflexivity.
+Qed.
+
+(* [add_equation_on_simple ~raise_on_bottom:true]: the simple has a
+   value, of the type. *)
+Lemma add_equation_on_simple0_sound (menv : Meet_env.t) (s : simple)
+    (ty : flambda_type) (valuation : env) (v : value)
+    (result : Or_bottom.t Meet_env.t) :
+  typing_env_fits (Meet_env.typing_env menv) ->
+  type_fits (Meet_env.typing_env menv) ty ->
+  simple_of_kind (Meet_env.typing_env menv) s (kind ty) ->
+  typing_env_satisfied_strictly statics valuation (Meet_env.typing_env menv) ->
+  eval_simple valuation s = Some v ->
+  type_satisfied statics valuation v ty ->
+  Meet_env.add_equation_on_simple0 true menv s ty mh = Some result ->
+  meet_env_sound statics valuation menv result.
+Proof.
+  intros Hfits Hty Hkind Hsatisfied Hvalue Hv Hadd.
+  assert (Hinvariant := proj1 Hfits).
+  assert (Hkinded := proj1 (proj2 (proj1 (proj2 (proj2 Hfits))))).
+  set (tenv := Meet_env.typing_env menv) in *.
+  unfold Meet_env.add_equation_on_simple0 in Hadd. fold tenv in Hadd.
+  destruct (canonical_of_kind tenv s (kind ty) Hinvariant Hkinded Hkind)
+    as [Hcanonical Hkind_canonical].
+  assert (Hvalue_canonical :
+    eval_simple valuation
+      (Typing_env.get_canonical_simple_ignoring_name_mode tenv s)
+    = Some v).
+  { rewrite (canonical_ignoring_name_mode_satisfied _ statics valuation tenv s
+               Hsatisfied).
+    exact Hvalue. }
+  destruct (get_alias_opt ty) as [ alias | ] eqn:Halias.
+  - assert (Hkind_alias : simple_of_kind tenv alias (kind ty)).
+    { exact (proj2 (proj2 Hty) alias (kind ty)
+               (alias_among_aliases ty alias Halias)). }
+    destruct (canonical_of_kind tenv alias (kind ty) Hinvariant Hkinded
+                Hkind_alias) as [Hcanonical2 Hkind_canonical2].
+    apply (add_alias_between_canonicals_sound menv (kind ty) _ _ valuation v
+             result Hfits Hcanonical Hcanonical2 Hkind_canonical
+             Hkind_canonical2 Hsatisfied Hvalue_canonical); [ | exact Hadd ].
+    rewrite (canonical_ignoring_name_mode_satisfied _ statics valuation tenv
+               alias Hsatisfied).
+    exact (proj1 (proj1 (get_alias_satisfied statics valuation v ty alias
+                           Halias) Hv)).
+  - destruct (Expanded_type.of_non_alias_type ty) as [ expanded | ]
+      eqn:Hexpanded; [ | discriminate Hadd ].
+    cbv beta iota in Hadd.
+    unfold Meet_env.add_concrete_equation_on_simple in Hadd.
+    fold tenv in Hadd.
+    destruct (of_non_alias_type_kind _ _ Hexpanded) as [Hkind1 Hkind2].
+    apply (add_or_delay_concrete_equation_on_canonical_sound menv
+             (Typing_env.get_canonical_simple_ignoring_name_mode tenv s)
+             expanded valuation v result Hfits); try assumption.
+    + exact (type_fits_of_non_alias _ _ _ Hexpanded Hty).
+    + rewrite Hkind1, Hkind2. reflexivity.
+    + rewrite Hkind2. exact Hkind_canonical.
+    + exact (of_non_alias_type_sound _ _ _ _ _ Hexpanded Hv).
+Qed.
+
+(* The equations of a list are true: each name has a value, of the
+   type. *)
+Definition equations_true (valuation : env)
+    (equations : list (name * flambda_type)) : Prop :=
+  ∀ (n : name) (ty : flambda_type),
+    (n, ty) ∈ equations ->
+    ∃ v : value,
+      value_of_name valuation n = Some v
+      ∧ type_satisfied statics valuation v ty.
+
+Lemma add_equations0_sound (equations : list (name * flambda_type)) :
+  ∀ (menv : Meet_env.t) (valuation : env) (result : Or_bottom.t Meet_env.t),
+    typing_env_fits (Meet_env.typing_env menv) ->
+    equations_fit (Meet_env.typing_env menv) equations ->
+    typing_env_satisfied_strictly statics valuation (Meet_env.typing_env menv)
+    ->
+    equations_true valuation equations ->
+    Meet_env.add_equations0 true menv equations mh = Some result ->
+    meet_env_sound statics valuation menv result.
+Proof.
+  induction equations as [ | [n ty] equations IH ];
+    intros menv valuation result Hfits Hequations Hsatisfied Htrue Hadd.
+  - injection Hadd as <-. exists menv. split; [ reflexivity | ].
+    exact (meet_env_added_refl statics valuation menv Hsatisfied).
+  - cbn [Meet_env.add_equations0] in Hadd.
+    destruct (Meet_env.add_equation0 true menv n ty mh)
+      as [ result1 | ] eqn:Hfirst; [ | discriminate Hadd ].
+    cbv beta iota in Hadd.
+    destruct (Hequations n ty (or_introl eq_refl)) as [Hty Hkind].
+    destruct (Htrue n ty (or_introl eq_refl)) as (v & Hvalue & Hv).
+    destruct (add_equation_on_simple0_sound menv (simple_of_name n) ty
+                valuation v result1 Hfits Hty Hkind Hsatisfied Hvalue Hv
+                Hfirst)
+      as (menv1 & -> & valuation1 & Hextended1 & Hsatisfied1 & Hvalued1).
+    destruct (add_equation_on_simple0_keeps mh Hkeeps menv menv1
+                (simple_of_name n) ty Hfits Hty Hkind Hfirst)
+      as [Hextends1 Hfits1].
+    assert (Htenv := meet_env_extends_tenv _ _ Hextends1).
+    destruct (IH menv1 valuation1 result Hfits1)
+      as (menv2 & -> & Hadded); try assumption.
+    + intros n' ty' Hin.
+      destruct (Hequations n' ty' (or_intror Hin)) as [Hty' Hkind'].
+      split.
+      * exact (tenv_extends_type_fits _ _ _ Htenv Hty').
+      * exact (proj1 (proj2 (proj2 (proj2 (proj2 Htenv)))) _ _ Hkind').
+    + intros n' ty' Hin.
+      destruct (Hequations n' ty' (or_intror Hin)) as [Hty' Hkind'].
+      destruct (Htrue n' ty' (or_intror Hin)) as (v' & Hvalue' & Hv').
+      exists v'. split.
+      * unfold value_of_name in *.
+        rewrite (eval_simple_extended _ _ _ _ Hextended1);
+          [ exact Hvalue' | ].
+        exact (simple_of_kind_mem_simple _ _ _ (proj1 Hfits) Hkind').
+      * exact (type_satisfied_extended statics _ _ _ v' ty' Hty' Hextended1
+                 Hv').
+    + exists menv2. split; [ reflexivity | ].
+      exact (meet_env_added_trans statics valuation valuation1 menv menv1
+               menv2 (proj2 (proj2 (proj2 (proj2 (proj2 Htenv))))) Hextended1
+               Hvalued1 Hadded).
+Qed.
+
+(* [add_env_extension ~raise_on_bottom:true]. *)
+Lemma add_env_extension0_sound (menv : Meet_env.t)
+    (extension : env_extension) (valuation : env)
+    (result : Or_bottom.t Meet_env.t) :
+  typing_env_fits (Meet_env.typing_env menv) ->
+  env_extension_fits (Meet_env.typing_env menv) extension ->
+  env_extension_kinded (Meet_env.typing_env menv) extension ->
+  typing_env_satisfied_strictly statics valuation (Meet_env.typing_env menv) ->
+  env_extension_satisfied statics valuation extension ->
+  Meet_env.add_env_extension0 true menv extension mh = Some result ->
+  meet_env_sound statics valuation menv result.
+Proof.
+  intros Hfits Hextension Hkinded Hsatisfied Htrue Hadd.
+  destruct extension as [equations]. cbn in Hextension, Hkinded.
+  apply (add_equations0_sound (Keyed.compact name_eqb equations) menv
+           valuation result Hfits); try assumption.
+  - intros n ty Hin. apply (keyed_in_compact name_eqb name_eqb_eq) in Hin.
+    split; [ exact (proj2 (Hextension n ty Hin)) | exact (Hkinded n ty Hin) ].
+  - intros n ty Hin. apply (keyed_in_compact name_eqb name_eqb_eq) in Hin.
+    exact (proj1 (env_extension_lookup statics valuation equations) Htrue n ty
+             Hin).
+Qed.
+
+(* Where the compiler catches the exception: there is none. *)
+Lemma bottom_on_exception_sound (menv menv' : Meet_env.t)
+    (result : option (Or_bottom.t Meet_env.t)) (valuation : env) :
+  (∀ result0 : Or_bottom.t Meet_env.t,
+     result = Some result0 -> meet_env_sound statics valuation menv result0)
+  ->
+  Meet_env.bottom_on_exception menv result = Some menv' ->
+  meet_env_added statics valuation menv menv'.
+Proof.
+  intros Hresult Hbottom.
+  destruct result as [ result0 | ]; [ | discriminate Hbottom ].
+  destruct (Hresult result0 eq_refl) as (menv1 & -> & Hadded).
+  cbn in Hbottom. injection Hbottom as <-. exact Hadded.
+Qed.
+
+End Sound.
+
+(* ------------------------------------------------------------------------ *)
+(* The meet of two types loses no value                                     *)
+(* ------------------------------------------------------------------------ *)
+
+Section Meet_sound.
+
+Variable mh : meet_expanded_head.
+Hypothesis Hkeeps : meet_expanded_head_keeps mh.
+Hypothesis Hsound : meet_expanded_head_sound mh.
+Hypothesis Hsingleton : must_be_singleton_exact.
+Variable statics : static_env.
+
+(* The canonical element of the alias that a type is has the value
+   that has the type. *)
+Lemma alias_canonical_value (tenv : Typing_env.t) (ty : flambda_type)
+    (alias : simple) (valuation : env) (v : value) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  get_alias_opt ty = Some alias ->
+  type_satisfied statics valuation v ty ->
+  eval_simple valuation
+    (Typing_env.get_canonical_simple_ignoring_name_mode tenv alias)
+  = Some v.
+Proof.
+  intros Hsatisfied Halias Hv.
+  rewrite (canonical_ignoring_name_mode_satisfied _ statics valuation tenv
+             alias Hsatisfied).
+  exact (proj1 (proj1 (get_alias_satisfied statics valuation v ty alias
+                         Halias) Hv)).
+Qed.
+
+(* [Meet_env.meet]. *)
+Lemma meet_env_meet_sound (menv : Meet_env.t) (t1 t2 : flambda_type)
+    (valuation : env) (v : value) (result : Meet_result.t Expanded_type.t) :
+  typing_env_fits (Meet_env.typing_env menv) ->
+  type_fits (Meet_env.typing_env menv) t1 ->
+  type_fits (Meet_env.typing_env menv) t2 ->
+  typing_env_satisfied_strictly statics valuation (Meet_env.typing_env menv) ->
+  type_satisfied statics valuation v t1 ->
+  type_satisfied statics valuation v t2 ->
+  Meet_env.meet menv t1 t2 mh = Some result ->
+  ∃ (r : meet_return_value Expanded_type.t) (menv' : Meet_env.t)
+    (valuation' : env),
+    result = Meet_result.Ok r menv'
+    ∧ extended_from (Meet_env.typing_env menv) valuation valuation'
+    ∧ typing_env_satisfied_strictly statics valuation'
+        (Meet_env.typing_env menv')
+    ∧ type_satisfied statics valuation' v
+        match r with
+        | New_result expanded => Expanded_type.to_type expanded
+        | Right_input => t2
+        | Left_input | Both_inputs => t1
+        end
+    ∧ keeps_equations_valued (Meet_env.typing_env menv)
+        (Meet_env.typing_env menv') valuation valuation'.
+Proof.
+  intros Hfits Ht1 Ht2 Hsatisfied Hv1 Hv2 Hmeet.
+  set (tenv := Meet_env.typing_env menv) in *.
+  unfold Meet_env.meet in Hmeet. fold tenv in Hmeet.
+  destruct (negb (kind_eqb (kind t1) (kind t2))) eqn:Hkinds;
+    [ discriminate Hmeet | ].
+  apply negb_false_iff, kind_eqb_eq in Hkinds.
+  destruct (Typing_env.get_alias_then_canonical_simple_exn tenv
+              (Some Name_mode.in_types) None t1)
+    as [ simple1 | ] eqn:Hsimple1; [ | discriminate Hmeet ].
+  destruct (Typing_env.get_alias_then_canonical_simple_exn tenv
+              (Some Name_mode.in_types) None t2)
+    as [ simple2 | ] eqn:Hsimple2; [ | discriminate Hmeet ].
+  cbv beta iota zeta in Hmeet.
+  (* What a function that adds an equation gives, for the input that
+     the answer is. *)
+  assert (Hadded :
+    ∀ (ty : flambda_type) (menv1 : Meet_env.t),
+      type_fits tenv ty ->
+      type_satisfied statics valuation v ty ->
+      meet_env_added statics valuation menv menv1 ->
+      ∃ valuation' : env,
+        extended_from tenv valuation valuation'
+        ∧ typing_env_satisfied_strictly statics valuation'
+            (Meet_env.typing_env menv1)
+        ∧ type_satisfied statics valuation' v ty
+        ∧ keeps_equations_valued tenv (Meet_env.typing_env menv1) valuation
+            valuation').
+  { intros ty menv1 Hty Hv (valuation1 & Hextended1 & Hsatisfied1 & Hvalued1).
+    exists valuation1. split; [ exact Hextended1 | ].
+    split; [ exact Hsatisfied1 | ]. split; [ | exact Hvalued1 ].
+    exact (type_satisfied_extended statics tenv _ _ v ty Hty Hextended1 Hv). }
+  destruct (alias_then_canonical_cases tenv t1 simple1 Hsimple1)
+    as [ [Halias1 ->] | (alias1 & Halias1 & ->) ];
+    destruct (alias_then_canonical_cases tenv t2 simple2 Hsimple2)
+      as [ [Halias2 ->] | (alias2 & Halias2 & ->) ].
+  - (* Neither is an alias. *)
+    rewrite (expand_head0_concrete tenv t1 Halias1) in Hmeet.
+    destruct (Expanded_type.of_non_alias_type t1) as [ expanded1 | ]
+      eqn:Hexpanded1; [ | discriminate Hmeet ].
+    cbv beta iota in Hmeet.
+    rewrite (expand_head0_concrete tenv t2 Halias2) in Hmeet.
+    destruct (Expanded_type.of_non_alias_type t2) as [ expanded2 | ]
+      eqn:Hexpanded2; [ | discriminate Hmeet ].
+    cbv beta iota in Hmeet.
+    assert (Hinputs :
+      meet_inputs_well_formed tenv (Expanded_type.to_type expanded1)
+        (Expanded_type.to_type expanded2)).
+    { split; [ exact Hfits | ].
+      split; [ exact (type_fits_of_non_alias _ _ _ Hexpanded1 Ht1) | ].
+      split; [ exact (type_fits_of_non_alias _ _ _ Hexpanded2 Ht2) | ].
+      rewrite (proj2 (of_non_alias_type_kind _ _ Hexpanded1)).
+      rewrite (proj2 (of_non_alias_type_kind _ _ Hexpanded2)).
+      exact Hkinds. }
+    destruct (Hsound statics valuation menv expanded1 expanded2 v result
+                Hinputs Hsatisfied
+                (of_non_alias_type_sound _ _ _ _ _ Hexpanded1 Hv1)
+                (of_non_alias_type_sound _ _ _ _ _ Hexpanded2 Hv2) Hmeet)
+      as (r & menv' & valuation' & -> & Hextended & Hsatisfied' & Hanswer
+          & Hvalued).
+    exists r, menv', valuation'. split; [ reflexivity | ].
+    split; [ exact Hextended | ]. split; [ exact Hsatisfied' | ].
+    split; [ | exact Hvalued ].
+    destruct r as [ | | | answer ].
+    + exact (type_satisfied_extended statics tenv _ _ v t1 Ht1 Hextended Hv1).
+    + exact (type_satisfied_extended statics tenv _ _ v t2 Ht2 Hextended Hv2).
+    + exact (type_satisfied_extended statics tenv _ _ v t1 Ht1 Hextended Hv1).
+    + exact Hanswer.
+  - (* The second is an alias. *)
+    rewrite (expand_head0_concrete tenv t1 Halias1) in Hmeet.
+    destruct (Expanded_type.of_non_alias_type t1) as [ expanded1 | ]
+      eqn:Hexpanded1; [ | discriminate Hmeet ].
+    cbv beta iota in Hmeet.
+    match type of Hmeet with
+    | context [ Meet_env.add_or_delay_concrete_equation_on_canonical
+                  ?rob ?env ?canonical ?expanded ?meet ] =>
+      destruct (Meet_env.add_or_delay_concrete_equation_on_canonical rob env
+                  canonical expanded meet)
+        as [ result0 | ] eqn:Hadd; [ | discriminate Hmeet ]
+    end.
+    destruct (of_non_alias_type_kind _ _ Hexpanded1) as [Hkind1 Hkind2].
+    destruct (alias_canonical_of_kind tenv t2 alias2 Hfits Ht2 Halias2)
+      as [_ Hkind_canonical].
+    destruct (add_or_delay_concrete_equation_on_canonical_sound mh Hsound
+                Hsingleton statics menv
+                (Typing_env.get_canonical_simple_ignoring_name_mode tenv
+                   alias2)
+                expanded1 valuation v result0 Hfits)
+      as (menv1 & -> & Hadded1); try assumption.
+    + exact (type_fits_of_non_alias _ _ _ Hexpanded1 Ht1).
+    + rewrite Hkind1, Hkind2. reflexivity.
+    + rewrite Hkind2, Hkinds. exact Hkind_canonical.
+    + exact (alias_canonical_value tenv t2 alias2 valuation v Hsatisfied
+               Halias2 Hv2).
+    + exact (of_non_alias_type_sound _ _ _ _ _ Hexpanded1 Hv1).
+    + cbv beta iota in Hmeet. injection Hmeet as <-.
+      destruct (Hadded t2 menv1 Ht2 Hv2 Hadded1) as (valuation' & Hresult).
+      exists Right_input, menv1, valuation'.
+      split; [ reflexivity | exact Hresult ].
+  - (* The first is an alias. *)
+    rewrite (expand_head0_concrete tenv t2 Halias2) in Hmeet.
+    destruct (Expanded_type.of_non_alias_type t2) as [ expanded2 | ]
+      eqn:Hexpanded2; [ | discriminate Hmeet ].
+    cbv beta iota in Hmeet.
+    match type of Hmeet with
+    | context [ Meet_env.add_or_delay_concrete_equation_on_canonical
+                  ?rob ?env ?canonical ?expanded ?meet ] =>
+      destruct (Meet_env.add_or_delay_concrete_equation_on_canonical rob env
+                  canonical expanded meet)
+        as [ result0 | ] eqn:Hadd; [ | discriminate Hmeet ]
+    end.
+    destruct (of_non_alias_type_kind _ _ Hexpanded2) as [Hkind1 Hkind2].
+    destruct (alias_canonical_of_kind tenv t1 alias1 Hfits Ht1 Halias1)
+      as [_ Hkind_canonical].
+    destruct (add_or_delay_concrete_equation_on_canonical_sound mh Hsound
+                Hsingleton statics menv
+                (Typing_env.get_canonical_simple_ignoring_name_mode tenv
+                   alias1)
+                expanded2 valuation v result0 Hfits)
+      as (menv1 & -> & Hadded1); try assumption.
+    + exact (type_fits_of_non_alias _ _ _ Hexpanded2 Ht2).
+    + rewrite Hkind1, Hkind2. reflexivity.
+    + rewrite Hkind2, <- Hkinds. exact Hkind_canonical.
+    + exact (alias_canonical_value tenv t1 alias1 valuation v Hsatisfied
+               Halias1 Hv1).
+    + exact (of_non_alias_type_sound _ _ _ _ _ Hexpanded2 Hv2).
+    + cbv beta iota in Hmeet. injection Hmeet as <-.
+      destruct (Hadded t1 menv1 Ht1 Hv1 Hadded1) as (valuation' & Hresult).
+      exists Left_input, menv1, valuation'.
+      split; [ reflexivity | exact Hresult ].
+  - (* Both are aliases. *)
+    match type of Hmeet with
+    | context [ Meet_env.add_alias_between_canonicals ?rob ?env ?kind ?c1
+                  ?c2 ?meet ] =>
+      destruct (Meet_env.add_alias_between_canonicals rob env kind c1 c2
+                  meet)
+        as [ result0 | ] eqn:Hadd; [ | discriminate Hmeet ]
+    end.
+    destruct (alias_canonical_of_kind tenv t1 alias1 Hfits Ht1 Halias1)
+      as [Hcanonical1 Hkind_canonical1].
+    destruct (alias_canonical_of_kind tenv t2 alias2 Hfits Ht2 Halias2)
+      as [Hcanonical2 Hkind_canonical2].
+    rewrite <- Hkinds in Hkind_canonical2.
+    destruct (add_alias_between_canonicals_sound mh Hsound Hsingleton
+                statics menv (kind t1) _ _ valuation v result0 Hfits
+                Hcanonical1 Hcanonical2 Hkind_canonical1 Hkind_canonical2
+                Hsatisfied
+                (alias_canonical_value tenv t1 alias1 valuation v Hsatisfied
+                   Halias1 Hv1)
+                (alias_canonical_value tenv t2 alias2 valuation v Hsatisfied
+                   Halias2 Hv2)
+                Hadd)
+      as (menv1 & -> & Hadded1).
+    cbv beta iota in Hmeet. injection Hmeet as <-.
+    destruct (Hadded t1 menv1 Ht1 Hv1 Hadded1) as (valuation' & Hresult).
+    exists Both_inputs, menv1, valuation'.
+    split; [ reflexivity | exact Hresult ].
+Qed.
+
+End Meet_sound.
+
+(* ======================================================================== *)
+(* The statements about what the functions add                              *)
+(* ======================================================================== *)
+
+Theorem meet_env_add_equation_on_simple_sound
+    : meet_env_add_equation_on_simple_sound_statement.
+Proof.
+  intros Hsingleton mh statics valuation menv menv' s ty v Hkeeps Hsound Hfits
+    Hty Hkind Hsatisfied Hvalue Hv Hadd.
+  apply (bottom_on_exception_sound statics menv menv' _ valuation) in Hadd;
+    [ exact Hadd | ].
+  intros result0 Hresult.
+  exact (add_equation_on_simple0_sound mh Hsound Hsingleton statics menv s ty
+           valuation v result0 Hfits Hty Hkind Hsatisfied Hvalue Hv Hresult).
+Qed.
+
+Theorem meet_env_add_equation_sound : meet_env_add_equation_sound_statement.
+Proof.
+  intros Hsingleton mh statics valuation menv menv' n ty v Hkeeps Hsound Hfits
+    Hty Hkind Hsatisfied Hvalue Hv Hadd.
+  exact (meet_env_add_equation_on_simple_sound Hsingleton mh statics valuation
+           menv menv' (simple_of_name n) ty v Hkeeps Hsound Hfits Hty Hkind
+           Hsatisfied Hvalue Hv Hadd).
+Qed.
+
+(* An environment that a valuation satisfies is not bottom. *)
+Lemma satisfied_not_bottom (statics : static_env) (valuation : env)
+    (tenv : Typing_env.t) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  Typing_env.is_bottom tenv = false.
+Proof. intros [Hnot_bottom _]. exact Hnot_bottom. Qed.
+
+Theorem meet_env_add_equation_strict_sound
+    : meet_env_add_equation_strict_sound_statement.
+Proof.
+  intros Hsingleton mh statics valuation menv n ty v result Hkeeps Hsound
+    Hfits Hty Hkind Hsatisfied Hvalue Hv Hadd.
+  unfold Meet_env.add_equation_strict in Hadd.
+  rewrite (satisfied_not_bottom statics valuation _ Hsatisfied) in Hadd.
+  exact (add_equation_on_simple0_sound mh Hsound Hsingleton statics menv
+           (simple_of_name n) ty valuation v result Hfits Hty Hkind Hsatisfied
+           Hvalue Hv Hadd).
+Qed.
+
+Theorem meet_env_add_env_extension_sound
+    : meet_env_add_env_extension_sound_statement.
+Proof.
+  intros Hsingleton mh statics valuation menv menv' extension Hkeeps Hsound
+    Hfits Hextension Hkinded Hsatisfied Htrue Hadd.
+  apply (bottom_on_exception_sound statics menv menv' _ valuation) in Hadd;
+    [ exact Hadd | ].
+  intros result0 Hresult.
+  exact (add_env_extension0_sound mh Hkeeps Hsound Hsingleton statics menv
+           extension valuation result0 Hfits Hextension Hkinded Hsatisfied
+           Htrue Hresult).
+Qed.
+
+Theorem meet_env_add_env_extension_strict_sound
+    : meet_env_add_env_extension_strict_sound_statement.
+Proof.
+  intros Hsingleton mh statics valuation menv extension result Hkeeps Hsound
+    Hfits Hextension Hkinded Hsatisfied Htrue Hadd.
+  unfold Meet_env.add_env_extension_strict in Hadd.
+  rewrite (satisfied_not_bottom statics valuation _ Hsatisfied) in Hadd.
+  exact (add_env_extension0_sound mh Hkeeps Hsound Hsingleton statics menv
+           extension valuation result Hfits Hextension Hkinded Hsatisfied
+           Htrue Hadd).
+Qed.
+
+Theorem meet_env_add_alias_sound : meet_env_add_alias_sound_statement.
+Proof.
+  intros Hsingleton mh statics valuation menv s1 s2 kind v result Hkeeps
+    Hsound Hfits Hkind1 Hkind2 Hsatisfied Hvalue1 Hvalue2 Hadd.
+  assert (Hinvariant := proj1 Hfits).
+  destruct (proj1 (proj2 (proj2 Hfits))) as (_ & Haliases & Hsymbols).
+  set (tenv := Meet_env.typing_env menv) in *.
+  unfold Meet_env.add_alias, Meet_env.add_alias0 in Hadd. fold tenv in Hadd.
+  destruct (canonical_of_kind tenv s1 kind Hinvariant Haliases Hkind1)
+    as [Hcanonical1 Hkind_canonical1].
+  destruct (canonical_of_kind tenv s2 kind Hinvariant Haliases Hkind2)
+    as [Hcanonical2 Hkind_canonical2].
+  destruct (kind_of_simple tenv
+              (Typing_env.get_canonical_simple_ignoring_name_mode tenv s1))
+    as [ kind' | ] eqn:Hread; [ | discriminate Hadd ].
+  cbv beta iota in Hadd.
+  rewrite (kind_of_simple_of_kind tenv _ kind kind' Hsymbols Hkind_canonical1
+             Hread) in Hadd.
+  apply (add_alias_between_canonicals_sound mh Hsound Hsingleton
+           statics menv kind _ _ valuation v result Hfits Hcanonical1
+           Hcanonical2 Hkind_canonical1 Hkind_canonical2 Hsatisfied);
+    [ | | exact Hadd ].
+  - rewrite (canonical_ignoring_name_mode_satisfied _ statics valuation tenv
+               s1 Hsatisfied).
+    exact Hvalue1.
+  - rewrite (canonical_ignoring_name_mode_satisfied _ statics valuation tenv
+               s2 Hsatisfied).
+    exact Hvalue2.
+Qed.
+
+Lemma Forall2_and {A B : Type} (P Q : A -> B -> Prop) (l1 : list A)
+    (l2 : list B) :
+  Forall2 P l1 l2 -> Forall2 Q l1 l2 ->
+  Forall2 (fun a b => P a b ∧ Q a b) l1 l2.
+Proof.
+  intros HP. induction HP as [ | a b l1 l2 Hab HP IH ]; intros HQ.
+  - constructor.
+  - apply Forall2_cons_iff in HQ. destruct HQ as [Hq HQ].
+    constructor; [ split; assumption | exact (IH HQ) ].
+Qed.
+
+Theorem meet_env_add_equations_on_params_sound
+    : meet_env_add_equations_on_params_sound_statement.
+Proof.
+  intros Hsingleton mh statics valuation menv menv' params param_types Hkeeps
+    Hsound.
+  revert param_types menv menv' valuation.
+  induction params as [ | param params IH ];
+    intros param_types menv menv' valuation Hfits Hparams Hsatisfied Htrue
+      Hadd.
+  - destruct param_types as [ | ty param_types ]; [ | discriminate Hadd ].
+    injection Hadd as <-.
+    exact (meet_env_added_refl statics valuation menv Hsatisfied).
+  - destruct param_types as [ | ty param_types ]; [ discriminate Hadd | ].
+    apply Forall2_cons_iff in Hparams. destruct Hparams as [[Hty Hkind] Hrest].
+    apply Forall2_cons_iff in Htrue.
+    destruct Htrue as [(v & Hvalue & Hv) Htrue_rest].
+    cbn [Meet_env.add_equations_on_params] in Hadd.
+    destruct (Meet_env.add_equation menv (Name_var (fst param)) ty mh)
+      as [ menv1 | ] eqn:Hfirst; [ | discriminate Hadd ].
+    cbv beta iota in Hadd.
+    destruct (add_equation_keeps mh menv menv1 (Name_var (fst param)) ty
+                Hkeeps Hfits Hty Hkind Hfirst) as [Hextends1 Hfits1].
+    destruct (meet_env_add_equation_sound Hsingleton mh statics valuation menv
+                menv1 (Name_var (fst param)) ty v Hkeeps Hsound Hfits Hty
+                Hkind Hsatisfied Hvalue Hv Hfirst)
+      as (valuation1 & Hextended1 & Hsatisfied1 & Hvalued1).
+    assert (Htenv := meet_env_extends_tenv _ _ Hextends1).
+    assert (Hboth := Forall2_and _ _ _ _ Hrest Htrue_rest).
+    apply (meet_env_added_trans statics valuation valuation1 menv menv1 menv'
+             (proj2 (proj2 (proj2 (proj2 (proj2 Htenv))))) Hextended1
+             Hvalued1).
+    apply (IH param_types menv1 menv' valuation1 Hfits1); try assumption.
+    + eapply Forall2_impl; [ | exact Hrest ].
+      intros param' ty' [Hty' Hkind']. split.
+      * exact (tenv_extends_type_fits _ _ _ Htenv Hty').
+      * exact (proj1 (proj2 (proj2 (proj2 (proj2 Htenv)))) _ _ Hkind').
+    + eapply Forall2_impl; [ | exact Hboth ].
+      intros param' ty' [[Hty' Hkind'] (v' & Hvalue' & Hv')].
+      exists v'. split.
+      * rewrite (Hextended1 (fst param')); [ exact Hvalue' | ].
+        exact (simple_of_kind_mem _ (Name_var (fst param')) _ (proj1 Hfits)
+                 Hkind').
+      * exact (type_satisfied_extended statics _ _ _ v' ty' Hty' Hextended1
+                 Hv').
+Qed.
+
+Theorem meet_type_ok : meet_type_ok_statement.
+Proof.
+  intros Hsingleton mh v Hkeeps Hsound menv t1 t2 result Hfits Ht1 Ht2 Hmeet.
+  split.
+  - intros r menv' ->.
+    destruct (meet_type_keeps mh menv menv' t1 t2 r Hkeeps Hfits Ht1 Ht2
+                Hmeet) as [[Hextends Hfits'] Hanswer].
+    split; [ exact Hextends | ]. split; [ exact Hfits' | exact Hanswer ].
+  - intros statics valuation Hsatisfied Hv1 Hv2.
+    unfold Meet_env.meet_type in Hmeet.
+    destruct (Meet_env.meet menv t1 t2 mh) as [ result0 | ] eqn:Hmeet0;
+      [ | discriminate Hmeet ].
+    cbn in Hmeet. injection Hmeet as <-.
+    destruct (meet_env_meet_sound mh Hsound Hsingleton statics menv t1 t2
+                valuation v result0 Hfits Ht1 Ht2 Hsatisfied Hv1 Hv2 Hmeet0)
+      as (r & menv' & valuation' & -> & Hextended & Hsatisfied' & Hanswer
+          & Hvalued).
+    destruct r as [ | | | answer ];
+      [ exists Left_input | exists Right_input | exists Both_inputs
+      | exists (New_result (Expanded_type.to_type answer)) ];
+      exists menv', valuation'; (split; [ reflexivity | ]);
+      (split; [ exact Hextended | ]); (split; [ exact Hsatisfied' | ]);
+      (split; [ exact Hanswer | exact Hvalued ]).
+Qed.
