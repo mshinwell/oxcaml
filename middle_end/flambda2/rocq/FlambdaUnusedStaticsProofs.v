@@ -147,6 +147,9 @@ Qed.
 Definition allocated_avoids (allocated : statically_allocated_value) : bool :=
   match allocated with
   | Static_closure code slots => code_kept D code && slot_values_avoid slots
+  | Static_closure_of_set _ symbols decls slots =>
+    closure_symbols_avoid D symbols && function_decls_avoid D decls
+    && slot_values_avoid slots
   | Static_block _ fields => forallb (value_avoids D) fields
   | Static_boxed_number contents => value_avoids D contents
   | Static_string _ => true
@@ -252,6 +255,35 @@ Proof.
     apply Hvalues_avoid, Hkept.
 Qed.
 
+(* The code of a function of a set none of whose code is removed is
+   kept, and so is the symbol of a closure of a static set none of whose
+   symbols is removed. *)
+Lemma lookup_function_decl_kept (slot : function_slot)
+    (decls : list (function_slot * code_id)) (code : code_id) :
+  function_decls_avoid D decls = true ->
+  lookup slot decls = Some code ->
+  code_kept D code = true.
+Proof.
+  unfold function_decls_avoid.
+  induction decls as [ | [slot' code'] decls IH]; simpl; [ discriminate | ].
+  intros Hav. apply andb_true_iff in Hav as [Hcode Hdecls].
+  destruct (Pos.eqb slot slot');
+    [ intros [= <-]; exact Hcode | exact (IH Hdecls) ].
+Qed.
+
+Lemma lookup_closure_symbol_kept (slot : function_slot)
+    (symbols : list (function_slot * symbol)) (s : symbol) :
+  closure_symbols_avoid D symbols = true ->
+  lookup slot symbols = Some s ->
+  symbol_kept D s = true.
+Proof.
+  unfold closure_symbols_avoid.
+  induction symbols as [ | [slot' s'] symbols IH]; simpl; [ discriminate | ].
+  intros Hav. apply andb_true_iff in Hav as [Hs Hsymbols].
+  destruct (Pos.eqb slot slot');
+    [ intros [= <-]; exact Hs | exact (IH Hsymbols) ].
+Qed.
+
 (* A value that refers to no name removed is the same closure under both
    static environments, of code that is kept. *)
 Lemma closure_of_erased (statics statics' : static_env) (v : value) :
@@ -263,20 +295,156 @@ Lemma closure_of_erased (statics statics' : static_env) (v : value) :
       code_kept D called = true ∧ slot_values_avoid slots = true).
 Proof.
   intros (_ & _ & Hvalues & Hvalues_avoid).
-  destruct v as [c | code slots | s | tag fields | contents]; simpl.
+  destruct v as [c | code slots | fslot decls slots | s | tag fields
+    | contents]; simpl.
   - intros _. split; [ reflexivity | discriminate ].
   - intros Hv. apply andb_true_iff in Hv as [Hcode Hslots].
     split; [ reflexivity | ]. intros called slots' [= <- <-]. auto.
+  - intros Hv. apply andb_true_iff in Hv as [Hdecls Hslots].
+    split; [ reflexivity | ]. intros called slots'.
+    destruct (lookup fslot decls) as [code | ] eqn:Hcode; [ | discriminate ].
+    simpl. intros [= <- <-].
+    split;
+      [ exact (lookup_function_decl_kept fslot decls code Hdecls Hcode)
+      | exact Hslots ].
   - intros Hkept. rewrite (Hvalues s Hkept). split; [ reflexivity | ].
     intros called slots.
     destruct (lookup s (static_values statics))
-      as [[code slots' | tag fields | contents | bytes] | ] eqn:Hlookup;
+      as [[code slots' | fslot syms decls slots' | tag fields | contents
+          | bytes] | ] eqn:Hlookup;
       try discriminate.
-    intros [= <- <-].
-    pose proof (Hvalues_avoid s _ Hkept Hlookup) as Hallocated.
-    simpl in Hallocated. apply andb_true_iff in Hallocated. exact Hallocated.
+    + intros [= <- <-].
+      pose proof (Hvalues_avoid s _ Hkept Hlookup) as Hallocated.
+      simpl in Hallocated. apply andb_true_iff in Hallocated.
+      exact Hallocated.
+    + pose proof (Hvalues_avoid s _ Hkept Hlookup) as Hallocated.
+      simpl in Hallocated.
+      apply andb_true_iff in Hallocated as [Hallocated Hslots].
+      apply andb_true_iff in Hallocated as [_ Hdecls].
+      destruct (lookup fslot decls) as [code | ] eqn:Hcode;
+        [ | discriminate ].
+      simpl. intros [= <- <-].
+      split;
+        [ exact (lookup_function_decl_kept fslot decls code Hdecls Hcode)
+        | exact Hslots ].
   - intros _. split; [ reflexivity | discriminate ].
   - intros _. split; [ reflexivity | discriminate ].
+Qed.
+
+(* A value that refers to no name removed is the same closure of a set
+   under both static environments, and its value slots refer to none. *)
+Lemma closure_in_set_erased (statics statics' : static_env) (v : value) :
+  statics_erased statics statics' ->
+  value_avoids D v = true ->
+  closure_in_set statics' v = closure_in_set statics v
+  ∧ (∀ (at_slot : function_slot)
+       (decls : list (function_slot * code_id))
+       (slots : list (value_slot * value)),
+      closure_in_set statics v = Some (at_slot, decls, slots) ->
+      slot_values_avoid slots = true).
+Proof.
+  intros (_ & _ & Hvalues & Hvalues_avoid).
+  destruct v as [c | code slots | fslot decls slots | s | tag fields
+    | contents]; simpl.
+  - intros _. split; [ reflexivity | discriminate ].
+  - intros Hv. apply andb_true_iff in Hv as [_ Hslots].
+    split; [ reflexivity | ]. intros at_slot decls slots' [= _ _ <-].
+    exact Hslots.
+  - intros Hv. apply andb_true_iff in Hv as [_ Hslots].
+    split; [ reflexivity | ]. intros at_slot decls' slots'.
+    destruct (lookup fslot decls); [ | discriminate ].
+    simpl. intros [= _ _ <-]. exact Hslots.
+  - intros Hkept. rewrite (Hvalues s Hkept). split; [ reflexivity | ].
+    intros at_slot decls slots.
+    destruct (lookup s (static_values statics))
+      as [[code slots' | fslot syms decls' slots' | tag fields | contents
+          | bytes] | ] eqn:Hlookup;
+      try discriminate;
+      pose proof (Hvalues_avoid s _ Hkept Hlookup) as Hallocated;
+      simpl in Hallocated; apply andb_true_iff in Hallocated as [_ Hslots].
+    + intros [= _ _ <-]. exact Hslots.
+    + destruct (lookup fslot decls'); [ | discriminate ].
+      simpl. intros [= _ _ <-]. exact Hslots.
+  - intros _. split; [ reflexivity | discriminate ].
+  - intros _. split; [ reflexivity | discriminate ].
+Qed.
+
+(* So a value slot projected from it is the same, and refers to none. *)
+Lemma project_value_slot_erased (statics statics' : static_env)
+    (project_from : function_slot) (slot : value_slot) (v : value) :
+  statics_erased statics statics' ->
+  value_avoids D v = true ->
+  project_value_slot statics' project_from slot v
+  = project_value_slot statics project_from slot v
+  ∧ (∀ w : value,
+      project_value_slot statics project_from slot v = Some w ->
+      value_avoids D w = true).
+Proof.
+  intros Hstatics Hv. unfold project_value_slot.
+  destruct (closure_in_set_erased statics statics' v Hstatics Hv)
+    as [Hsame Hslots].
+  rewrite Hsame. split; [ reflexivity | ].
+  destruct (closure_in_set statics v) as [[[at_slot decls] slots] | ];
+    [ | discriminate ].
+  destruct (Pos.eqb at_slot project_from); [ | discriminate ].
+  intros w.
+  exact (lookup_slot_avoids slot slots w (Hslots at_slot decls slots eq_refl)).
+Qed.
+
+(* The closure at another slot of the set of a value that refers to no
+   name removed is the same under both static environments, and refers
+   to none either: for a symbol, it is one of the symbols of its set,
+   which are kept with it. *)
+Lemma project_function_slot_erased (statics statics' : static_env)
+    (move_from move_to : function_slot) (v : value) :
+  statics_erased statics statics' ->
+  value_avoids D v = true ->
+  project_function_slot statics' move_from move_to v
+  = project_function_slot statics move_from move_to v
+  ∧ (∀ w : value,
+      project_function_slot statics move_from move_to v = Some w ->
+      value_avoids D w = true).
+Proof.
+  intros (_ & _ & Hvalues & Hvalues_avoid) Hv.
+  assert (Hunnamed :
+    ∀ w : value,
+      (if Pos.eqb move_from unnamed_function_slot
+       then if Pos.eqb move_to unnamed_function_slot then Some v else None
+       else None)
+      = Some w ->
+      value_avoids D w = true).
+  { intros w. destruct (Pos.eqb move_from unnamed_function_slot);
+      [ | discriminate ].
+    destruct (Pos.eqb move_to unnamed_function_slot); [ | discriminate ].
+    intros [= <-]. exact Hv. }
+  destruct v as [c | code slots | fslot decls slots | s | tag fields
+    | contents]; simpl.
+  - split; [ reflexivity | discriminate ].
+  - split; [ reflexivity | exact Hunnamed ].
+  - split; [ reflexivity | ]. intros w.
+    destruct (Pos.eqb fslot move_from); [ | discriminate ].
+    destruct (lookup fslot decls); [ | discriminate ].
+    destruct (lookup move_to decls); [ | discriminate ].
+    simpl. intros [= <-]. exact Hv.
+  - simpl in Hv. rewrite (Hvalues s Hv). split; [ reflexivity | ].
+    destruct (lookup s (static_values statics))
+      as [[code slots' | fslot syms decls slots' | tag fields | contents
+          | bytes] | ] eqn:Hlookup;
+      try discriminate.
+    + exact Hunnamed.
+    + pose proof (Hvalues_avoid s _ Hv Hlookup) as Hallocated.
+      simpl in Hallocated.
+      apply andb_true_iff in Hallocated as [Hallocated _].
+      apply andb_true_iff in Hallocated as [Hsyms _].
+      intros w. destruct (Pos.eqb fslot move_from); [ | discriminate ].
+      destruct (lookup fslot decls); [ | discriminate ].
+      destruct (lookup move_to decls); [ | discriminate ].
+      simpl.
+      destruct (lookup move_to syms) as [s' | ] eqn:Hsym; [ | discriminate ].
+      simpl. intros [= <-]. simpl.
+      exact (lookup_closure_symbol_kept move_to syms s' Hsyms Hsym).
+  - split; [ reflexivity | discriminate ].
+  - split; [ reflexivity | discriminate ].
 Qed.
 
 (* The primitives introduce no symbols and no code ids: referring to no
@@ -322,7 +490,8 @@ Lemma eval_named_erased (statics statics' : static_env) (vars : env)
       eval_named statics vars d = Some v -> value_avoids D v = true).
 Proof.
   intros Hstatics Hvars.
-  destruct d as [s | p args | code slots | slot closure]; simpl; intros Hd.
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure]; simpl; intros Hd.
   - split; [ reflexivity | ]. intros v.
     apply eval_simple_avoids; assumption.
   - destruct (eval_simples vars args) as [vs | ] eqn:Hargs; simpl;
@@ -336,6 +505,13 @@ Proof.
       [ | discriminate ].
     simpl. intros [= <-]. simpl. rewrite Hcode. simpl.
     exact (eval_value_slots_avoid vars slots Hvars evaluated Hslots Heval).
+  - apply andb_true_iff in Hd as [Hdecls Hslots].
+    split; [ reflexivity | ]. intros v.
+    destruct (lookup fslot decls) as [code | ]; [ | discriminate ]. simpl.
+    destruct (eval_value_slots vars slots) as [evaluated | ] eqn:Heval;
+      [ | discriminate ].
+    simpl. intros [= <-]. simpl. rewrite Hdecls. simpl.
+    exact (eval_value_slots_avoid vars slots Hvars evaluated Hslots Heval).
   - destruct (eval_simple vars closure) as [v | ] eqn:Hclosure; simpl;
       [ | split; [ reflexivity | discriminate ] ].
     destruct (closure_of_erased statics statics' v Hstatics
@@ -347,6 +523,14 @@ Proof.
     intros w.
     exact (lookup_slot_avoids slot slots w
       (proj2 (Hslots called slots eq_refl))).
+  - destruct (eval_simple vars closure) as [v | ] eqn:Hclosure; simpl;
+      [ | split; [ reflexivity | discriminate ] ].
+    exact (project_value_slot_erased statics statics' pfrom slot v Hstatics
+             (eval_simple_avoids vars closure v Hvars Hd Hclosure)).
+  - destruct (eval_simple vars closure) as [v | ] eqn:Hclosure; simpl;
+      [ | split; [ reflexivity | discriminate ] ].
+    exact (project_function_slot_erased statics statics' move_from move_to v
+             Hstatics (eval_simple_avoids vars closure v Hvars Hd Hclosure)).
 Qed.
 
 Lemma eval_static_const_avoids (vars : env) (const : static_const)
@@ -357,12 +541,19 @@ Lemma eval_static_const_avoids (vars : env) (const : static_const)
   allocated_avoids allocated = true.
 Proof.
   intros Hvars.
-  destruct const as [code slots | tag fields | contents | bytes]; simpl;
-    intros Hconst.
+  destruct const
+    as [code slots | fslot syms decls slots | tag fields | contents | bytes];
+    simpl; intros Hconst.
   - apply andb_true_iff in Hconst as [Hcode Hslots].
     destruct (eval_value_slots vars slots) as [evaluated | ] eqn:Heval;
       [ | discriminate ].
     simpl. intros [= <-]. simpl. rewrite Hcode. simpl.
+    exact (eval_value_slots_avoid vars slots Hvars evaluated Hslots Heval).
+  - apply andb_true_iff in Hconst as [Hconst Hslots].
+    destruct (lookup fslot decls) as [code | ]; [ | discriminate ]. simpl.
+    destruct (eval_value_slots vars slots) as [evaluated | ] eqn:Heval;
+      [ | discriminate ].
+    simpl. intros [= <-]. simpl. rewrite Hconst. simpl.
     exact (eval_value_slots_avoid vars slots Hvars evaluated Hslots Heval).
   - destruct (eval_simples vars fields) as [vs | ] eqn:Heval;
       [ | discriminate ].

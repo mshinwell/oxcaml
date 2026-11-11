@@ -427,7 +427,7 @@ Proof.
   - exact (fun H => H).
   - destruct (is_allocated statics v) eqn:Hallocated.
     + rewrite (is_allocated_statics_extend Hallocated). exact (fun H => H).
-    + destruct v as [[ ] | | | | ]; simpl; try discriminate;
+    + destruct v as [[ ] | | | | | ]; simpl; try discriminate;
         exact (fun H => H).
 Qed.
 

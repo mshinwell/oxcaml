@@ -261,17 +261,44 @@ Proof.
   intros [_ Hvalues]. unfold closure_of. rewrite Hvalues. reflexivity.
 Qed.
 
+Lemma project_value_slot_related (statics statics' : static_env)
+    (project_from : function_slot) (slot : value_slot) (v : value) :
+  statics_related statics statics' ->
+  project_value_slot statics project_from slot v
+  = project_value_slot statics' project_from slot v.
+Proof.
+  intros [_ Hvalues]. unfold project_value_slot, closure_in_set.
+  rewrite Hvalues. reflexivity.
+Qed.
+
+Lemma project_function_slot_related (statics statics' : static_env)
+    (move_from move_to : function_slot) (v : value) :
+  statics_related statics statics' ->
+  project_function_slot statics move_from move_to v
+  = project_function_slot statics' move_from move_to v.
+Proof.
+  intros [_ Hvalues]. unfold project_function_slot. rewrite Hvalues.
+  reflexivity.
+Qed.
+
 Lemma eval_named_related (statics statics' : static_env) (vars : env)
     (d : named) :
   statics_related statics statics' ->
   eval_named statics vars d = eval_named statics' vars d.
 Proof.
-  intros Hstatics. destruct d as [s | p args | code slots | slot closure];
+  intros Hstatics.
+  destruct d as
+    [s | p args | code slots | slot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure];
     simpl; try reflexivity.
   - destruct (eval_simples vars args) as [vs | ]; simpl; [ | reflexivity ].
     apply eval_prim_same_static_values, Hstatics.
   - destruct (eval_simple vars closure) as [v | ]; simpl; [ | reflexivity ].
     rewrite (closure_of_related statics statics' v Hstatics). reflexivity.
+  - destruct (eval_simple vars closure) as [v | ]; simpl; [ | reflexivity ].
+    apply project_value_slot_related, Hstatics.
+  - destruct (eval_simple vars closure) as [v | ]; simpl; [ | reflexivity ].
+    apply project_function_slot_related, Hstatics.
 Qed.
 
 (* Related groups of bindings added to related static environments: both

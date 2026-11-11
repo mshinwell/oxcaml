@@ -151,22 +151,25 @@ Qed.
 
 Lemma rename_named_ext (d : named) : rename_named r d = rename_named r' d.
 Proof.
-  destruct d as [s | p args | code slots | slot closure]; simpl;
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure]; simpl;
     rewrite ?rename_simple_ext, ?(map_ext _ _ rename_simple_ext);
-    try reflexivity.
-  f_equal. apply map_ext. intros [slot s]. simpl.
-  rewrite rename_simple_ext. reflexivity.
+    try reflexivity;
+    f_equal; apply map_ext; intros [slot s]; simpl;
+    rewrite rename_simple_ext; reflexivity.
 Qed.
 
 Lemma rename_static_binding_ext (binding : static_binding) :
   rename_static_binding r binding = rename_static_binding r' binding.
 Proof.
-  destruct binding as [id c | id | sym [code slots | tag fields | s | bytes]];
+  destruct binding
+    as [id c | id
+       | sym [code slots | fslot syms decls slots | tag fields | s | bytes]];
     simpl;
     rewrite ?rename_simple_ext, ?(map_ext _ _ rename_simple_ext);
-    try reflexivity.
-  do 2 f_equal. apply map_ext. intros [slot s]. simpl.
-  rewrite rename_simple_ext. reflexivity.
+    try reflexivity;
+    do 2 f_equal; apply map_ext; intros [slot s]; simpl;
+    rewrite rename_simple_ext; reflexivity.
 Qed.
 
 Lemma rename_apply_ext (ap : apply_expr) :
@@ -239,23 +242,26 @@ Lemma rename_named_compose (d : named) :
   rename_named (compose_renaming second first) d
   = rename_named second (rename_named first d).
 Proof.
-  destruct d as [s | p args | code slots | slot closure]; simpl;
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure]; simpl;
     rewrite ?rename_simple_compose, ?rename_simples_compose;
-    try reflexivity.
-  f_equal. rewrite map_map. apply map_ext. intros [slot s]. simpl.
-  rewrite rename_simple_compose. reflexivity.
+    try reflexivity;
+    f_equal; rewrite map_map; apply map_ext; intros [slot s]; simpl;
+    rewrite rename_simple_compose; reflexivity.
 Qed.
 
 Lemma rename_static_binding_compose (binding : static_binding) :
   rename_static_binding (compose_renaming second first) binding
   = rename_static_binding second (rename_static_binding first binding).
 Proof.
-  destruct binding as [id c | id | sym [code slots | tag fields | s | bytes]];
+  destruct binding
+    as [id c | id
+       | sym [code slots | fslot syms decls slots | tag fields | s | bytes]];
     simpl;
     rewrite ?rename_simple_compose, ?rename_simples_compose;
-    try reflexivity.
-  do 2 f_equal. rewrite map_map. apply map_ext. intros [slot s]. simpl.
-  rewrite rename_simple_compose. reflexivity.
+    try reflexivity;
+    do 2 f_equal; rewrite map_map; apply map_ext; intros [slot s]; simpl;
+    rewrite rename_simple_compose; reflexivity.
 Qed.
 
 Lemma rename_apply_compose (ap : apply_expr) :
@@ -357,13 +363,20 @@ Lemma var_free_in_named_equivariant (r : renaming) (x : variable)
   var_free_in_named (rename_variable r x) (rename_named r d)
   <-> var_free_in_named x d.
 Proof.
-  destruct d as [s | p args | code slots | slot closure]; simpl.
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure]; simpl.
   - apply var_free_in_simple_equivariant.
   - apply var_free_in_simples_equivariant.
   - induction slots as [ | [slot s] slots IH]; simpl.
     + split; intros Hfree; inversion Hfree.
     + rewrite !Exists_cons.
       apply or_iff; [ apply var_free_in_simple_equivariant | exact IH ].
+  - induction slots as [ | [slot s] slots IH]; simpl.
+    + split; intros Hfree; inversion Hfree.
+    + rewrite !Exists_cons.
+      apply or_iff; [ apply var_free_in_simple_equivariant | exact IH ].
+  - apply var_free_in_simple_equivariant.
+  - apply var_free_in_simple_equivariant.
   - apply var_free_in_simple_equivariant.
 Qed.
 
@@ -389,8 +402,11 @@ Proof.
   - split; intros Hfree; inversion Hfree.
   - rewrite !Exists_cons. apply or_iff; [ | exact IH ].
     destruct binding
-      as [id c | id | sym [code slots | tag fields | s | bytes]];
+      as [id c | id
+         | sym
+             [code slots | fslot syms decls slots | tag fields | s | bytes]];
       simpl; try reflexivity.
+    + apply var_free_in_value_slots_equivariant.
     + apply var_free_in_value_slots_equivariant.
     + apply var_free_in_simples_equivariant.
     + apply var_free_in_simple_equivariant.

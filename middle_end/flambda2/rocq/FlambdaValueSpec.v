@@ -31,9 +31,12 @@
    This file is to be reviewed: [value], [kind_of_value],
    [statically_allocated_value], the observations [closure_of],
    [block_of], [boxed_number_of] and [string_of], and the statement that
-   they are exclusive, which FlambdaValueProofs.v proves. The rest is
-   definitions. FlambdaSemanticsSpec.v exports this file, so a file that
-   imports the semantics has what is here.
+   they are exclusive, which FlambdaValueProofs.v proves; and the three
+   readings of a closure as one of a set, [closure_in_set],
+   [project_value_slot] and [project_function_slot], whose statements
+   are in FlambdaSemanticsSpec.v. The rest is definitions.
+   FlambdaSemanticsSpec.v exports this file, so a file that imports the
+   semantics has what is here.
 
    A value is a constant (a tagged immediate, a naked number of any kind,
    null or poison), a pointer to what a symbol is bound to, or something
@@ -50,6 +53,22 @@
    environment and answers the same for both. The observations are
    pairwise exclusive: a value is at most one of a closure, a block, a
    boxed number and a string ([observations_disjoint_statement]).
+
+   A closure is one of a set of closures. The closure of a set of one
+   function whose function slot has no name is its code and the values
+   of its value slots ([Value_closure], [Static_closure]). The closure
+   of a set of functions at named function slots is the slot it is at,
+   the code of every function slot of the set, and the values of the
+   value slots ([Value_closure_of_set]); the closures of one set differ
+   in that slot only, and a closure does not hold the others. A symbol
+   bound to a closure of a static set also has the symbols of the
+   closures of its set ([Static_closure_of_set]). [closure_of] reads
+   any of them as the code of its own function and the value slots;
+   [closure_in_set] as the slot, the set and the value slots, the
+   unnamed forms being at [unnamed_function_slot] of a set of that one
+   function. A value of the shape of a closure at a function slot that
+   its set has not got is not a closure: neither reads it. The header
+   of FlambdaSemanticsSpec.v says more of sets of closures.
 
    A boxed number is recognised by the kind of its contents, which is
    one of the naked number kinds that have a boxed form. So the contents
@@ -74,15 +93,21 @@ Import ListNotations.
 
 (* The values of variables: constants, closures made by a [Let], pointers
    to what symbols are bound to, and the immutable blocks and the boxed
-   numbers that primitives make. A closure is the code of its function and
-   the values of its value slots. The contents of a boxed number are a
-   constant, whose constructor says which number it is. (The warning
-   silenced is about induction schemes through the lists, which nothing
-   uses yet.) *)
+   numbers that primitives make. A closure of a set of one function is
+   the code of its function and the values of its value slots
+   ([Value_closure]). A closure of a set of functions at named slots is
+   the slot it is at, the code of each function slot of the set, and the
+   values of the value slots ([Value_closure_of_set]). The contents of a
+   boxed number are a constant, whose constructor says which number it
+   is. (The warning silenced is about induction schemes through the
+   lists, which nothing uses yet.) *)
 #[local] Set Warnings "-register-all".
 Inductive value : Type :=
   | Value_const (c : const)
   | Value_closure (code : code_id) (value_slots : list (value_slot * value))
+  | Value_closure_of_set (slot : function_slot)
+      (function_decls : list (function_slot * code_id))
+      (value_slots : list (value_slot * value))
   | Value_symbol (s : symbol)
   | Value_block (tag : Z) (fields : list value)
   | Value_boxed_number (contents : const).
@@ -94,9 +119,15 @@ Definition kind_of_value (v : value) : flambda_kind :=
   | _ => Value
   end.
 
-(* What a symbol points to. *)
+(* What a symbol points to. [Static_closure_of_set] is the closure at
+   [slot] of a static set; [closure_symbols] are the symbols of the
+   closures of the set. *)
 Inductive statically_allocated_value : Type :=
   | Static_closure (code : code_id) (value_slots : list (value_slot * value))
+  | Static_closure_of_set (slot : function_slot)
+      (closure_symbols : list (function_slot * symbol))
+      (function_decls : list (function_slot * code_id))
+      (value_slots : list (value_slot * value))
   | Static_block (tag : Z) (fields : list value)
   | Static_boxed_number (contents : value)
   | Static_string (bytes : list Z).
@@ -114,14 +145,135 @@ Definition empty_static_env : static_env := Static_env [] [].
 (* Reading an allocated value                                               *)
 (* ======================================================================== *)
 
-(* A value as a closure: one made by a [Let], or a symbol bound to one. *)
+(* A value as a closure: one made by a [Let], or a symbol bound to one.
+   The code is that of the function the closure is of: for a closure of a
+   set, the code of the slot it is at. *)
 Definition closure_of (statics : static_env) (v : value)
     : option (code_id * list (value_slot * value)) :=
   match v with
   | Value_closure code value_slots => Some (code, value_slots)
+  | Value_closure_of_set slot function_decls value_slots =>
+    let* code := lookup slot function_decls in
+    Some (code, value_slots)
   | Value_symbol s =>
     match lookup s (static_values statics) with
     | Some (Static_closure code value_slots) => Some (code, value_slots)
+    | Some (Static_closure_of_set slot _ function_decls value_slots) =>
+      let* code := lookup slot function_decls in
+      Some (code, value_slots)
+    | _ => None
+    end
+  | _ => None
+  end.
+
+(* The function slot that a closure of a set of one function, with no
+   function slot named, is taken to be at. *)
+Definition unnamed_function_slot : function_slot := 1%positive.
+
+(* A value as a closure of a set: the function slot it is at, the code of
+   each function slot of the set, and the values of the value slots. It
+   is defined where [closure_of] is, and the code [closure_of] gives is
+   that of the slot (FlambdaSemanticsSpec.closure_in_set_of_statement). *)
+
+(* CR mshinwell: A value of the shape of a closure at a function slot
+   that its set has not got is not a closure for [closure_in_set], nor
+   for [closure_of], so calling it or projecting from it is undefined.
+   No term makes one (FlambdaSemanticsSpec.eval_named), but a statement
+   about every environment speaks of them. The other choice is to read
+   it as a closure with no code. Decision D20. *)
+Definition closure_in_set (statics : static_env) (v : value)
+    : option
+        (function_slot * list (function_slot * code_id)
+         * list (value_slot * value)) :=
+  match v with
+  | Value_closure code value_slots =>
+    Some (unnamed_function_slot, [(unnamed_function_slot, code)], value_slots)
+  | Value_closure_of_set slot function_decls value_slots =>
+    let* _ := lookup slot function_decls in
+    Some (slot, function_decls, value_slots)
+  | Value_symbol s =>
+    match lookup s (static_values statics) with
+    | Some (Static_closure code value_slots) =>
+      Some
+        (unnamed_function_slot, [(unnamed_function_slot, code)], value_slots)
+    | Some (Static_closure_of_set slot _ function_decls value_slots) =>
+      let* _ := lookup slot function_decls in
+      Some (slot, function_decls, value_slots)
+    | _ => None
+    end
+  | _ => None
+  end.
+
+(* CR mshinwell: A projection that names another function slot than the
+   one its closure is at has no value ([project_value_slot],
+   [project_function_slot]), so a term that executes one is undefined;
+   and so has the projection of a function slot that the set has not
+   got, or for which a static set names no symbol. It is not certain
+   that this is right. Simplify answers such a projection from the type
+   of the closure where the type knows the result, without looking at
+   the slot named, and replaces it by [Invalid] where it does not; no
+   check is made where the term is built, and the native backend would
+   compute an address from the offsets of the two slots. If the compiler
+   could produce and execute a projection that names the wrong slot,
+   undefined would be wrong here. Decision D3. *)
+
+(* The value of the value slot [slot] of the set of which [v] is the
+   closure at [project_from]. There is none if [v] is not a closure at
+   [project_from], or if its set has no such value slot. *)
+Definition project_value_slot (statics : static_env)
+    (project_from : function_slot) (slot : value_slot) (v : value)
+    : option value :=
+  let* '(at_slot, _, value_slots) := closure_in_set statics v in
+  if Pos.eqb at_slot project_from then lookup slot value_slots else None.
+
+(* The closure at [move_to] of the set of which [v] is the closure at
+   [move_from]: the same set at the other slot, for a closure made by a
+   [Let]; the symbol of the other slot, for a symbol. There is none if
+   [v] is not a closure at [move_from], or if its set has no [move_to].
+   The closure of a set of one function, with no function slot named, is
+   its own closure at [unnamed_function_slot]. *)
+
+(* CR mshinwell: [project_function_slot] has no value on a closure at
+   another function slot than [move_from], as [project_value_slot] has
+   none on one at another than [project_from]: see the comment before
+   [project_value_slot]. Decision D3. *)
+
+(* CR mshinwell: From a symbol, [project_function_slot] gives the symbol
+   that the set names for [move_to], whatever that symbol is bound to,
+   and whether or not it is bound: nothing here checks that the symbols
+   of a static set are bound to its closures.
+   FlambdaWellFormedSpec.well_formed_unit asks it of a unit, and the run
+   of a well-formed unit keeps it
+   (FlambdaClosuresSpec.well_formed_sets_bound_statement). The other
+   choices are to check it here, which needs an equality test on values,
+   or to bind a static set with one binding. Decision D4. *)
+Definition project_function_slot (statics : static_env)
+    (move_from move_to : function_slot) (v : value) : option value :=
+  let unnamed :=
+    if Pos.eqb move_from unnamed_function_slot
+    then if Pos.eqb move_to unnamed_function_slot then Some v else None
+    else None
+  in
+  match v with
+  | Value_closure _ _ => unnamed
+  | Value_closure_of_set slot function_decls value_slots =>
+    if Pos.eqb slot move_from
+    then
+      let* _ := lookup slot function_decls in
+      let* _ := lookup move_to function_decls in
+      Some (Value_closure_of_set move_to function_decls value_slots)
+    else None
+  | Value_symbol s =>
+    match lookup s (static_values statics) with
+    | Some (Static_closure _ _) => unnamed
+    | Some (Static_closure_of_set slot closure_symbols function_decls _) =>
+      if Pos.eqb slot move_from
+      then
+        let* _ := lookup slot function_decls in
+        let* _ := lookup move_to function_decls in
+        let* s' := lookup move_to closure_symbols in
+        Some (Value_symbol s')
+      else None
     | _ => None
     end
   | _ => None

@@ -138,14 +138,31 @@ Definition value_slots_eqb (vm : name_map)
        Pos.eqb (fst slot) (fst slot') && simple_eqb vm (snd slot) (snd slot'))
     slots slots'.
 
+(* The same names, paired in the same order: the functions of a set with
+   their code ids, or its function slots with their symbols. *)
+Definition names_eqb (l l' : list (positive * positive)) : bool :=
+  forall2b
+    (fun a a' => Pos.eqb (fst a) (fst a') && Pos.eqb (snd a) (snd a')) l l'.
+
 Definition named_eqb (vm : name_map) (d d' : named) : bool :=
   match d, d' with
   | Simple s, Simple s' => simple_eqb vm s s'
   | Prim p args, Prim p' args' => prim_eqb p p' && simples_eqb vm args args'
   | Set_of_closures code slots, Set_of_closures code' slots' =>
     Pos.eqb code code' && value_slots_eqb vm slots slots'
+  | Closure_of_set slot decls slots, Closure_of_set slot' decls' slots' =>
+    Pos.eqb slot slot' && names_eqb decls decls'
+    && value_slots_eqb vm slots slots'
   | Project_value_slot slot closure, Project_value_slot slot' closure' =>
     Pos.eqb slot slot' && simple_eqb vm closure closure'
+  | Project_value_slot_from project_from slot closure,
+    Project_value_slot_from project_from' slot' closure' =>
+    Pos.eqb project_from project_from' && Pos.eqb slot slot'
+    && simple_eqb vm closure closure'
+  | Project_function_slot move_from move_to closure,
+    Project_function_slot move_from' move_to' closure' =>
+    Pos.eqb move_from move_from' && Pos.eqb move_to move_to'
+    && simple_eqb vm closure closure'
   | _, _ => false
   end.
 
@@ -155,6 +172,10 @@ Definition static_const_eqb (vm : name_map) (const const' : static_const)
   | Static_const_set_of_closures code slots,
     Static_const_set_of_closures code' slots' =>
     Pos.eqb code code' && value_slots_eqb vm slots slots'
+  | Static_const_closure_of_set slot symbols decls slots,
+    Static_const_closure_of_set slot' symbols' decls' slots' =>
+    Pos.eqb slot slot' && names_eqb symbols symbols' && names_eqb decls decls'
+    && value_slots_eqb vm slots slots'
   | Static_const_block tag fields, Static_const_block tag' fields' =>
     Z.eqb tag tag' && simples_eqb vm fields fields'
   | Static_const_boxed_number contents, Static_const_boxed_number contents' =>

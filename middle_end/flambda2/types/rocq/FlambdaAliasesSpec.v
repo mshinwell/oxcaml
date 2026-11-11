@@ -126,8 +126,14 @@ Definition canonical_named (tenv : typing_env) (d : named) : named :=
   | Prim p args => Prim p (map (canonical_simple tenv) args)
   | Set_of_closures code slots =>
     Set_of_closures code (canonical_value_slots tenv slots)
+  | Closure_of_set slot decls slots =>
+    Closure_of_set slot decls (canonical_value_slots tenv slots)
   | Project_value_slot slot closure =>
     canonical_project tenv slot (canonical_simple tenv closure)
+  | Project_value_slot_from project_from slot closure =>
+    Project_value_slot_from project_from slot (canonical_simple tenv closure)
+  | Project_function_slot move_from move_to closure =>
+    Project_function_slot move_from move_to (canonical_simple tenv closure)
   end.
 
 Definition canonical_static_const (tenv : typing_env) (const : static_const)
@@ -135,6 +141,9 @@ Definition canonical_static_const (tenv : typing_env) (const : static_const)
   match const with
   | Static_const_set_of_closures code slots =>
     Static_const_set_of_closures code (canonical_value_slots tenv slots)
+  | Static_const_closure_of_set slot symbols decls slots =>
+    Static_const_closure_of_set slot symbols decls
+      (canonical_value_slots tenv slots)
   | Static_const_block tag fields =>
     Static_const_block tag (map (canonical_simple tenv) fields)
   | Static_const_boxed_number contents =>
@@ -183,7 +192,9 @@ Definition typing_env_under_let (tenv : typing_env) (x : variable) (d : named)
     if var_in_value_slots x slots
     then drop_var x tenv
     else (x, Closure_of code slots) :: drop_var x tenv
-  | Prim _ _ | Project_value_slot _ _ => drop_var x tenv
+  | Prim _ _ | Closure_of_set _ _ _ | Project_value_slot _ _
+  | Project_value_slot_from _ _ _ | Project_function_slot _ _ _ =>
+    drop_var x tenv
   end.
 
 Fixpoint follow_aliases (tenv : typing_env) (e : expr) : expr :=

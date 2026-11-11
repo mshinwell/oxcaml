@@ -82,12 +82,25 @@ Definition symbol_kept (D : dropped) (s : symbol) : bool :=
 Definition code_kept (D : dropped) (id : code_id) : bool :=
   negb (among id (dropped_code D)).
 
+(* The code of every function of a set is kept, and so is the symbol of
+   every closure of a static set. *)
+Definition function_decls_avoid (D : dropped)
+    (decls : list (function_slot * code_id)) : bool :=
+  forallb (fun decl => code_kept D (snd decl)) decls.
+
+Definition closure_symbols_avoid (D : dropped)
+    (symbols : list (function_slot * symbol)) : bool :=
+  forallb (fun sym => symbol_kept D (snd sym)) symbols.
+
 Fixpoint value_avoids (D : dropped) (v : value) : bool :=
   match v with
   | Value_const _ => true
   | Value_symbol s => symbol_kept D s
   | Value_closure code slots =>
     code_kept D code && forallb (fun '(_, v) => value_avoids D v) slots
+  | Value_closure_of_set _ decls slots =>
+    function_decls_avoid D decls
+    && forallb (fun '(_, v) => value_avoids D v) slots
   | Value_block _ fields => forallb (value_avoids D) fields
   | Value_boxed_number _ => true
   end.
@@ -110,13 +123,20 @@ Definition named_avoids (D : dropped) (d : named) : bool :=
   | Simple s => simple_avoids D s
   | Prim _ args => simples_avoid D args
   | Set_of_closures code slots => code_kept D code && value_slots_avoid D slots
-  | Project_value_slot _ closure => simple_avoids D closure
+  | Closure_of_set _ decls slots =>
+    function_decls_avoid D decls && value_slots_avoid D slots
+  | Project_value_slot _ closure | Project_value_slot_from _ _ closure
+  | Project_function_slot _ _ closure =>
+    simple_avoids D closure
   end.
 
 Definition static_const_avoids (D : dropped) (const : static_const) : bool :=
   match const with
   | Static_const_set_of_closures code slots =>
     code_kept D code && value_slots_avoid D slots
+  | Static_const_closure_of_set _ symbols decls slots =>
+    closure_symbols_avoid D symbols && function_decls_avoid D decls
+    && value_slots_avoid D slots
   | Static_const_block _ fields => simples_avoid D fields
   | Static_const_boxed_number contents => simple_avoids D contents
   | Static_const_immutable_string _ => true
@@ -279,6 +299,9 @@ Definition allocated_free_of (D : dropped)
   match allocated with
   | Static_closure code slots =>
     code_kept D code && forallb (fun '(_, v) => value_avoids D v) slots
+  | Static_closure_of_set _ symbols decls slots =>
+    closure_symbols_avoid D symbols && function_decls_avoid D decls
+    && forallb (fun '(_, v) => value_avoids D v) slots
   | Static_block _ fields => forallb (value_avoids D) fields
   | Static_boxed_number contents => value_avoids D contents
   | Static_string _ => true

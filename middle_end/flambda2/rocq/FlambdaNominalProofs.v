@@ -100,7 +100,8 @@ Qed.
 
 Lemma rename_named_id (d : named) : rename_named identity_renaming d = d.
 Proof.
-  destruct d as [s | p args | code slots | slot closure]; simpl;
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure]; simpl;
     rewrite ?rename_simple_id, ?rename_simples_id, ?rename_value_slots_id;
     reflexivity.
 Qed.
@@ -108,7 +109,9 @@ Qed.
 Lemma rename_static_binding_id (binding : static_binding) :
   rename_static_binding identity_renaming binding = binding.
 Proof.
-  destruct binding as [id c | id | sym [code slots | tag fields | s | bytes]];
+  destruct binding
+    as [id c | id
+       | sym [code slots | fslot syms decls slots | tag fields | s | bytes]];
     simpl;
     rewrite ?rename_simple_id, ?rename_simples_id, ?rename_value_slots_id;
     reflexivity.
@@ -227,10 +230,15 @@ Lemma eval_named_renamed (r : renaming) (d : named) (vars vars' : env)
     lookup (rename_variable r x) vars' = lookup x vars) ->
   eval_named statics vars' (rename_named r d) = eval_named statics vars d.
 Proof.
-  intros Hvars. destruct d as [s | p args | code slots | slot closure]; simpl.
+  intros Hvars.
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure]; simpl.
   - apply eval_simple_renamed, Hvars.
   - rewrite (eval_simples_renamed r args vars vars' Hvars). reflexivity.
   - rewrite (eval_value_slots_renamed r slots vars vars' Hvars). reflexivity.
+  - rewrite (eval_value_slots_renamed r slots vars vars' Hvars). reflexivity.
+  - rewrite (eval_simple_renamed r closure vars vars' Hvars). reflexivity.
+  - rewrite (eval_simple_renamed r closure vars vars' Hvars). reflexivity.
   - rewrite (eval_simple_renamed r closure vars vars' Hvars). reflexivity.
 Qed.
 
@@ -242,7 +250,10 @@ Lemma eval_static_const_renamed (r : renaming) (const : static_const)
   eval_static_const vars' (rename_static_const r const)
   = eval_static_const vars const.
 Proof.
-  intros Hvars. destruct const as [code slots | tag fields | s | bytes]; simpl.
+  intros Hvars.
+  destruct const
+    as [code slots | fslot syms decls slots | tag fields | s | bytes]; simpl.
+  - rewrite (eval_value_slots_renamed r slots vars vars' Hvars). reflexivity.
   - rewrite (eval_value_slots_renamed r slots vars vars' Hvars). reflexivity.
   - rewrite (eval_simples_renamed r fields vars vars' Hvars). reflexivity.
   - rewrite (eval_simple_renamed r s vars vars' Hvars). reflexivity.

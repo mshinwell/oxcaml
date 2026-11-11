@@ -28,7 +28,9 @@
 (* Execution of the terms of FlambdaModel.v, and what it means for two
    terms to behave alike.
 
-   This file is to be reviewed: [eval_named], [eval_static_bindings],
+   This file is to be reviewed: [closure_of], [closure_in_set],
+   [project_value_slot], [project_function_slot], [eval_named],
+   [eval_static_bindings],
    [apply_cont_value], [call_function] and the rules of [step], then
    [behaves], [equivalent] and [refines]. The values, the static
    environment and the reading of allocated values are in
@@ -72,14 +74,73 @@
    closure called, with the code's return and exception continuations
    standing for the caller's. There is no stack.
 
+   A set of closures has functions, each the code of a function slot, and
+   value slots, which the functions share. Each closure of the set is a
+   value of its own: the set and the function slot the closure is at
+   ([Value_closure_of_set]). The closures of one set differ in that slot
+   only; a closure does not hold the others. Calling a closure runs the
+   code of its slot with [my_closure] bound to that closure, so the
+   functions of a set have each their own [my_closure], and reach one
+   another by projecting a function slot from it
+   ([project_function_slot]): that is how a set is recursive, and no value
+   is cyclic. The closures of a static set are symbols, each bound to its
+   closure with the symbols of the others ([Static_closure_of_set]);
+   projecting a function slot from a symbol gives the symbol of that
+   slot. A closure has no identity: two sets made alike are equal.
+
+   The closures of a set of one function whose function slot is not named
+   ([Value_closure], [Static_closure]) are those of the fragment before
+   function slots. They are read as the closure at
+   [unnamed_function_slot] of a set with that one function.
+
+   These definitions can express sets of closures that the compiler does
+   not make. In a set the compiler makes, every closure is at a function
+   slot of the set, no function slot and no value slot is given twice,
+   the functions have each their own code, and the symbols of a static
+   set are bound together, each to the closure at its slot. What the
+   machine does with the other sets is a choice, not a model of the
+   compiler:
+   - a closure at a function slot that is not among those of its set is
+     not made: making one is undefined
+     ([closure_of_set_made_statement],
+     [static_closure_of_set_made_statement]). A value of that shape may
+     still be in an environment given to a statement; it is not a closure
+     ([closure_in_set]), so calling it or projecting from it is undefined;
+   - where a function slot or a value slot is given twice, the first of
+     the two is the one found, as everywhere in FlambdaMapSpec.v. The
+     second is not removed: every value slot is evaluated where the set
+     is made, so a second one that has no value makes that undefined,
+     and the closure holds both lists as they were given;
+   - a set in which two function slots have the same code is made, and
+     each of its closures runs that code; so are two static sets of one
+     group that have the same code;
+   - a closure of code that is not bound is made, and calling it is
+     undefined, as for the closures of the fragment before;
+   - nothing checks that the symbols a static closure names as those of
+     the closures of its set are bound to them. A projection from it
+     gives the symbol named, bound or not, as a symbol is a value whether
+     or not it is bound. FlambdaClosuresSpec.v says what holds of a set
+     whose symbols are bound as [bind_closures] binds them
+     ([static_set_bound]).
+   A unit that makes only sets such as the compiler's is well-formed
+   (FlambdaWellFormedSpec.sets_well_formed, a check, which does not look
+   at value slots). The statements of this file are about every term and
+   every environment, those that no well-formed unit reaches included;
+   FlambdaClosuresSpec.v says what more holds of the run of a
+   well-formed unit.
+
    Execution is undefined ([Undefined]) at [Invalid], at an unbound variable,
    at a continuation or a function applied to the wrong number of
    arguments, at a [Switch] whose scrutinee is not a naked immediate with
    an arm, where a primitive has no value, at a call of what is not a
    closure, of a closure whose code is not bound, or directly of a closure
-   of other code than the one named, and at the projection of a value slot
-   from what is not a closure with that slot. A transformation may do
-   anything to a term whose
+   of other code than the one named, at the projection of a value slot
+   from what is not a closure with that slot, at the projection of a
+   value slot or of a function slot that names the function slot it
+   projects from, from what is not a closure at that function slot of a
+   set with the slot asked for, and where a closure is made, by a [Let] or
+   statically, at a function slot that is not among those of its set.
+   A transformation may do anything to a term whose
    execution is undefined: that is [refines], the statement of correctness
    to use for a transformation; [equivalent] is the stronger, symmetric one.
    [refines_defined_statement] and [refines_antisymmetric_statement] say how
@@ -167,13 +228,79 @@ Fixpoint eval_value_slots (vars : env)
     Some ((slot, v) :: vs)
   end.
 
+(* [closure_of] and [closure_in_set] see the same closures: the code of a
+   closure is the code of the function slot it is at. *)
+Definition closure_in_set_of_statement : Prop :=
+  ∀ (statics : static_env) (v : value) (code : code_id)
+    (value_slots : list (value_slot * value)),
+    closure_of statics v = Some (code, value_slots)
+    <-> ∃ (slot : function_slot)
+          (function_decls : list (function_slot * code_id)),
+          closure_in_set statics v = Some (slot, function_decls, value_slots)
+          ∧ lookup slot function_decls = Some code.
+
+(* A closure is at one of the function slots of its set. *)
+Definition closure_in_set_slot_statement : Prop :=
+  ∀ (statics : static_env) (v : value) (slot : function_slot)
+    (function_decls : list (function_slot * code_id))
+    (value_slots : list (value_slot * value)),
+    closure_in_set statics v = Some (slot, function_decls, value_slots) ->
+    is_bound slot function_decls = true.
+
+(* A value slot is projected only from a closure at [project_from], and is
+   then the value of the slot. *)
+Definition project_value_slot_defined_statement : Prop :=
+  ∀ (statics : static_env) (project_from : function_slot)
+    (slot : value_slot) (v w : value),
+    project_value_slot statics project_from slot v = Some w
+    <-> ∃ (function_decls : list (function_slot * code_id))
+          (value_slots : list (value_slot * value)),
+          closure_in_set statics v
+          = Some (project_from, function_decls, value_slots)
+          ∧ lookup slot value_slots = Some w.
+
+(* A function slot is projected only from a closure at [move_from] of a
+   set that has [move_to]. These are necessary conditions: from a symbol
+   the projection also needs the set to name a symbol for [move_to]. *)
+Definition project_function_slot_defined_statement : Prop :=
+  ∀ (statics : static_env) (move_from move_to : function_slot)
+    (v w : value),
+    project_function_slot statics move_from move_to v = Some w ->
+    ∃ (function_decls : list (function_slot * code_id))
+      (value_slots : list (value_slot * value)) (code code' : code_id),
+      closure_in_set statics v = Some (move_from, function_decls, value_slots)
+      ∧ lookup move_from function_decls = Some code
+      ∧ lookup move_to function_decls = Some code'.
+
+(* From a closure made by a [Let] it gives the closure of the same set at
+   the other slot. *)
+Definition project_function_slot_of_set_statement : Prop :=
+  ∀ (statics : static_env) (move_from move_to : function_slot)
+    (function_decls : list (function_slot * code_id))
+    (value_slots : list (value_slot * value)) (code code' : code_id),
+    lookup move_from function_decls = Some code ->
+    lookup move_to function_decls = Some code' ->
+    project_function_slot statics move_from move_to
+      (Value_closure_of_set move_from function_decls value_slots)
+    = Some (Value_closure_of_set move_to function_decls value_slots).
+
+(* CR mshinwell: Making a closure at a function slot that is not among
+   those of its set is undefined: the first line of the case
+   [Closure_of_set] here, and of [Static_const_closure_of_set] in
+   [eval_static_const]. No term of the compiler makes one, and
+   FlambdaWellFormedSpec.well_formed_unit refuses a unit that would. The
+   other choice is to make the value, which nothing then reads as a
+   closure ([closure_of] and [closure_in_set] have no value on it), and
+   to leave it to well-formedness. Decision D20. *)
+
 (* CR mshinwell: the projection of a value slot from what is not a closure,
-   or from a closure that has not got the slot, is undefined (the last case
-   of [eval_named]). Simplify makes such a projection [Invalid] where the
-   type of the closure shows it. Not certain: whether a term that the
-   compiler builds can project, in code that runs, a slot that the closure
-   has not got. Decision D3, which is about function slots; this is the
-   same question for value slots. *)
+   or from a closure that has not got the slot, is undefined (the cases
+   [Project_value_slot] and [Project_value_slot_from] of [eval_named]).
+   Simplify makes such a projection [Invalid] where the type of the
+   closure shows it. Not certain: whether a term that the compiler builds
+   can project, in code that runs, a slot that the closure has not got.
+   Decision D3, which is about function slots; this is the same question
+   for value slots. *)
 Definition eval_named (statics : static_env) (vars : env)
     (defining_expr : named) : option value :=
   match defining_expr with
@@ -184,18 +311,37 @@ Definition eval_named (statics : static_env) (vars : env)
   | Set_of_closures code value_slots =>
     let* vs := eval_value_slots vars value_slots in
     Some (Value_closure code vs)
+  | Closure_of_set slot function_decls value_slots =>
+    let* _ := lookup slot function_decls in
+    let* vs := eval_value_slots vars value_slots in
+    Some (Value_closure_of_set slot function_decls vs)
   | Project_value_slot slot closure =>
     let* v := eval_simple vars closure in
     let* called := closure_of statics v in
     lookup slot (snd called)
+  | Project_value_slot_from project_from slot closure =>
+    let* v := eval_simple vars closure in
+    project_value_slot statics project_from slot v
+  | Project_function_slot move_from move_to closure =>
+    let* v := eval_simple vars closure in
+    project_function_slot statics move_from move_to v
   end.
 
+(* CR mshinwell: As for [Closure_of_set] in [eval_named]: the constant of
+   a closure at a function slot that is not among those of its set has
+   no value (the first line of the case [Static_const_closure_of_set]),
+   so the group that binds it is undefined. Decision D20. *)
 Definition eval_static_const (vars : env) (const : static_const)
     : option statically_allocated_value :=
   match const with
   | Static_const_set_of_closures code value_slots =>
     let* vs := eval_value_slots vars value_slots in
     Some (Static_closure code vs)
+  | Static_const_closure_of_set slot closure_symbols function_decls
+      value_slots =>
+    let* _ := lookup slot function_decls in
+    let* vs := eval_value_slots vars value_slots in
+    Some (Static_closure_of_set slot closure_symbols function_decls vs)
   | Static_const_block tag fields =>
     let* vs := eval_simples vars fields in
     Some (Static_block tag vs)
@@ -204,6 +350,35 @@ Definition eval_static_const (vars : env) (const : static_const)
     Some (Static_boxed_number v)
   | Static_const_immutable_string bytes => Some (Static_string bytes)
   end.
+
+(* What is made at a function slot of a set, by a [Let] or statically, is
+   a closure at that slot of that set: a closure at a slot that its set
+   has not got is not made. *)
+Definition closure_of_set_made_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (slot : function_slot)
+    (function_decls : list (function_slot * code_id))
+    (value_slots : list (value_slot * simple)) (v : value),
+    eval_named statics vars (Closure_of_set slot function_decls value_slots)
+    = Some v ->
+    ∃ slot_values : list (value_slot * value),
+      eval_value_slots vars value_slots = Some slot_values
+      ∧ closure_in_set statics v = Some (slot, function_decls, slot_values).
+
+Definition static_closure_of_set_made_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (slot : function_slot)
+    (closure_symbols : list (function_slot * symbol))
+    (function_decls : list (function_slot * code_id))
+    (value_slots : list (value_slot * simple)) (s : symbol)
+    (allocated : statically_allocated_value),
+    eval_static_const vars
+      (Static_const_closure_of_set slot closure_symbols function_decls
+         value_slots)
+    = Some allocated ->
+    lookup s (static_values statics) = Some allocated ->
+    ∃ slot_values : list (value_slot * value),
+      eval_value_slots vars value_slots = Some slot_values
+      ∧ closure_in_set statics (Value_symbol s)
+        = Some (slot, function_decls, slot_values).
 
 (* CR mshinwell: binding a code id or a symbol that is bound already is
    undefined (the two cases of [eval_static_bindings] that find the name),
@@ -347,17 +522,6 @@ Definition apply_continuation (k : continuation) (vs : list value)
     (conts : cont_env) (statics : static_env) : step_result :=
   apply_cont_value (resolve k conts) vs statics.
 
-(* CR mshinwell: two calls are undefined in [call_function] on trust.
-   - A call of a closure whose code is not bound, deleted code included.
-     That is right if code is deleted only when it is never called, which
-     nothing checks. For the term after Simplify it is the safe side.
-   - A direct call of a closure of other code than the one named. The
-     backend would run the code named, with that closure. Not certain where
-     the two code ids are versions of one function: the compiler relates
-     them by its code age relation, which the model has not got.
-     Discrepancy C0-1.
-   No decision yet for either. *)
-
 (* Calling a closure runs the body of its code. The only variables are the
    parameters and the closure itself; the only continuations are the
    return and exception continuations of the code, which stand for what
@@ -365,6 +529,23 @@ Definition apply_continuation (k : continuation) (vs : list value)
    continuation the caller gave. A direct call must be to a closure of the
    code named. The body must bind nothing static: it would do so at each
    call. *)
+
+(* CR mshinwell: two calls are undefined in [call_function] on trust.
+   - A call of a closure whose code is not bound, or is deleted
+     ([call_function] finds no code), while the closure itself is made,
+     by every form of closure. It cannot be undefined where the closure
+     is made, as a group may bind a symbol to a closure before it binds
+     the code. It is right if code is deleted only when it is never
+     called, which nothing checks; for the term after Simplify it is the
+     safe side. It is not decided whether well-formedness is to ask that
+     the code of every closure is bound by the time it is called, as it
+     is to ask of the symbols a term mentions (decision D8). Decision
+     D20.
+   - A direct call of a closure of other code than the one named. The
+     backend would run the code named, with that closure. Not certain
+     where the two code ids are versions of one function: the compiler
+     relates them by its code age relation, which the model has not got.
+     Discrepancy C0-1; no decision yet. *)
 Definition call_function (callee : value) (kind : call_kind)
     (vs : list value) (return_to exn_to : cont_value) (statics : static_env)
     : step_result :=

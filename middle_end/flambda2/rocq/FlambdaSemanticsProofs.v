@@ -34,7 +34,7 @@
 From Stdlib Require Import ZArith List Arith Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec.
+  FlambdaMapProofs FlambdaSemanticsSpec.
 From OxCamlFlambda2 Require Export FlambdaValueProofs FlambdaPrimitiveProofs.
 Import ListNotations.
 
@@ -177,6 +177,100 @@ Proof.
   unfold apply_continuation. rewrite Hresolve. reflexivity.
 Qed.
 
+(* The way in which an [Apply] does not go wrong: its callee is a closure
+   of code that is bound, the code named if the call is direct, whose
+   body binds nothing static and has as many parameters as there are
+   arguments. The body runs with [my_closure] bound to the callee, which
+   for a closure of a set is the closure at the slot of that code. *)
+Lemma step_apply_closure (ap : apply_expr) (vars : env) (conts : cont_env)
+    (statics : static_env) (callee : value) (vs : list value)
+    (called : code_id) (slots : list (value_slot * value)) (c : code)
+    (callee_vars : env) :
+  eval_simple vars (ap_callee ap) = Some callee ->
+  eval_simples vars (ap_args ap) = Some vs ->
+  closure_of statics callee = Some (called, slots) ->
+  ap_call_kind ap = Indirect ∨ ap_call_kind ap = Direct called ->
+  lookup called (static_code statics) = Some c ->
+  binds_statics (code_body c) = false ->
+  bind_params (code_params c) vs [(code_my_closure c, callee)]
+  = Some callee_vars ->
+  step (State (Apply ap) vars conts statics)
+  = Step
+      (State (code_body c) callee_vars
+         [(code_return_continuation c, resolve (ap_continuation ap) conts);
+          (code_exn_continuation c, resolve (ap_exn_continuation ap) conts)]
+         statics).
+Proof.
+  intros Hcallee Hargs Hclosure Hkind Hcode Hbinds Hbind.
+  rewrite step_apply, Hcallee, Hargs. unfold call_function.
+  rewrite Hclosure.
+  assert (Hexpected :
+    match ap_call_kind ap with
+    | Direct named => Pos.eqb called named
+    | Indirect => true
+    end = true)
+    by (destruct Hkind as [-> | ->]; [ reflexivity | apply Pos.eqb_refl ]).
+  rewrite Hexpected, Hcode, Hbinds, Hbind. reflexivity.
+Qed.
+
+(* The [Let] of a closure of a new set, and of the projection of a
+   function slot. *)
+Lemma step_let_closure_of_set (x : variable) (slot : function_slot)
+    (function_decls : list (function_slot * code_id))
+    (value_slots : list (value_slot * simple)) (body : expr) (vars : env)
+    (conts : cont_env) (statics : static_env) :
+  step
+    (State (Let x (Closure_of_set slot function_decls value_slots) body) vars
+       conts statics)
+  = match lookup slot function_decls, eval_value_slots vars value_slots with
+    | Some _, Some vs =>
+      Step
+        (State body ((x, Value_closure_of_set slot function_decls vs) :: vars)
+           conts statics)
+    | _, _ => Undefined
+    end.
+Proof.
+  rewrite step_let. simpl.
+  destruct (lookup slot function_decls); [ | reflexivity ].
+  destruct (eval_value_slots vars value_slots); reflexivity.
+Qed.
+
+Lemma step_let_project_value_slot_from (x : variable)
+    (project_from : function_slot) (slot : value_slot) (closure : simple)
+    (body : expr) (vars : env) (conts : cont_env) (statics : static_env) :
+  step
+    (State (Let x (Project_value_slot_from project_from slot closure) body)
+       vars conts statics)
+  = match eval_simple vars closure with
+    | Some v =>
+      match project_value_slot statics project_from slot v with
+      | Some w => Step (State body ((x, w) :: vars) conts statics)
+      | None => Undefined
+      end
+    | None => Undefined
+    end.
+Proof.
+  rewrite step_let. simpl. destruct (eval_simple vars closure); reflexivity.
+Qed.
+
+Lemma step_let_project_function_slot (x : variable)
+    (move_from move_to : function_slot) (closure : simple) (body : expr)
+    (vars : env) (conts : cont_env) (statics : static_env) :
+  step
+    (State (Let x (Project_function_slot move_from move_to closure) body)
+       vars conts statics)
+  = match eval_simple vars closure with
+    | Some v =>
+      match project_function_slot statics move_from move_to v with
+      | Some w => Step (State body ((x, w) :: vars) conts statics)
+      | None => Undefined
+      end
+    | None => Undefined
+    end.
+Proof.
+  rewrite step_let. simpl. destruct (eval_simple vars closure); reflexivity.
+Qed.
+
 (* A [Switch] is undefined, or steps to the arm of its scrutinee. *)
 Lemma step_switch_cases (scrutinee : simple) (arms : list (Z * apply_cont))
     (vars : env) (conts : cont_env) (statics : static_env) :
@@ -204,6 +298,152 @@ Create Rewrite HintDb step.
 #[global] Hint Rewrite step_let step_let_static step_let_cont_non_recursive
   step_let_cont_recursive step_apply step_apply_cont step_switch
   step_invalid : step.
+
+(* ======================================================================== *)
+(* Closures of sets                                                         *)
+(* ======================================================================== *)
+
+Theorem closure_in_set_of : closure_in_set_of_statement.
+Proof.
+  intros statics v code value_slots. unfold closure_of, closure_in_set.
+  destruct v as [c | code' slots | slot decls slots | s | tag fields
+    | contents];
+    [ | | | | split; [ discriminate | intros (slot & decls & [=] & _) ] .. ].
+  - split; [ discriminate | intros (slot & decls & [=] & _) ].
+  - split.
+    + intros [= <- <-]. exists unnamed_function_slot. eexists.
+      split; [ reflexivity | apply lookup_head ].
+    + intros (slot & decls & [= <- <- <-] & Hcode).
+      rewrite lookup_head in Hcode. injection Hcode as <-. reflexivity.
+  - destruct (lookup slot decls) as [code' | ] eqn:Hslot; simpl.
+    + split.
+      * intros [= <- <-]. eauto.
+      * intros (slot' & decls' & [= <- <- <-] & Hcode). congruence.
+    + split; [ discriminate | intros (slot' & decls' & [=] & _) ].
+  - destruct (lookup s (static_values statics))
+      as [[code' slots | slot syms decls slots | tag fields | contents
+          | bytes] | ];
+      try (split; [ discriminate | intros (slot' & decls' & [=] & _) ]).
+    + split.
+      * intros [= <- <-]. exists unnamed_function_slot. eexists.
+        split; [ reflexivity | apply lookup_head ].
+      * intros (slot & decls & [= <- <- <-] & Hcode).
+        rewrite lookup_head in Hcode. injection Hcode as <-. reflexivity.
+    + destruct (lookup slot decls) as [code' | ] eqn:Hslot; simpl.
+      * split.
+        -- intros [= <- <-]. eauto.
+        -- intros (slot' & decls' & [= <- <- <-] & Hcode). congruence.
+      * split; [ discriminate | intros (slot' & decls' & [=] & _) ].
+Qed.
+
+Theorem closure_in_set_slot : closure_in_set_slot_statement.
+Proof.
+  intros statics v slot decls slots. unfold closure_in_set, is_bound.
+  destruct v as [c | code vs | fslot fdecls vs | s | tag fields | contents];
+    [ | | | | discriminate .. ].
+  - discriminate.
+  - intros [= <- <- _]. reflexivity.
+  - destruct (lookup fslot fdecls) as [code | ] eqn:Hslot; [ | discriminate ].
+    simpl. intros [= <- <- _]. rewrite Hslot. reflexivity.
+  - destruct (lookup s (static_values statics))
+      as [[code vs | fslot syms fdecls vs | tag fields | contents
+          | bytes] | ];
+      try discriminate.
+    + intros [= <- <- _]. reflexivity.
+    + destruct (lookup fslot fdecls) as [code | ] eqn:Hslot;
+        [ | discriminate ].
+      simpl. intros [= <- <- _]. rewrite Hslot. reflexivity.
+Qed.
+
+Theorem closure_of_set_made : closure_of_set_made_statement.
+Proof.
+  intros statics vars slot decls value_slots v. simpl.
+  destruct (lookup slot decls) as [code | ] eqn:Hslot; [ | discriminate ].
+  destruct (eval_value_slots vars value_slots) as [slot_values | ];
+    [ | discriminate ].
+  intros [= <-]. exists slot_values. simpl. rewrite Hslot. auto.
+Qed.
+
+Theorem static_closure_of_set_made : static_closure_of_set_made_statement.
+Proof.
+  intros statics vars slot symbols decls value_slots s allocated. simpl.
+  destruct (lookup slot decls) as [code | ] eqn:Hslot; [ | discriminate ].
+  destruct (eval_value_slots vars value_slots) as [slot_values | ];
+    [ | discriminate ].
+  intros [= <-] Hs. exists slot_values. simpl. rewrite Hs, Hslot. auto.
+Qed.
+
+Theorem project_value_slot_defined : project_value_slot_defined_statement.
+Proof.
+  intros statics project_from slot v w. unfold project_value_slot.
+  destruct (closure_in_set statics v) as [[[at_slot decls] slots] | ].
+  - destruct (Pos.eqb_spec at_slot project_from) as [-> | Hne].
+    + split; [ eauto | intros (decls' & slots' & [= <- <-] & Hslot) ].
+      exact Hslot.
+    + split; [ discriminate | intros (decls' & slots' & [= Heq _ _] & _) ].
+      contradiction.
+  - split; [ discriminate | intros (decls' & slots' & [=] & _) ].
+Qed.
+
+(* The projection from a closure of a set of one function with no
+   function slot named: it is defined at that slot only. *)
+Lemma project_unnamed_function_slot (move_from move_to : function_slot)
+    (v w : value) :
+  (if Pos.eqb move_from unnamed_function_slot
+   then if Pos.eqb move_to unnamed_function_slot then Some v else None
+   else None)
+  = Some w ->
+  move_from = unnamed_function_slot ∧ move_to = unnamed_function_slot
+  ∧ w = v.
+Proof.
+  destruct (Pos.eqb_spec move_from unnamed_function_slot) as [-> | _];
+    [ | discriminate ].
+  destruct (Pos.eqb_spec move_to unnamed_function_slot) as [-> | _];
+    [ | discriminate ].
+  intros [= <-]. auto.
+Qed.
+
+Theorem project_function_slot_defined :
+  project_function_slot_defined_statement.
+Proof.
+  intros statics move_from move_to v w.
+  unfold project_function_slot, closure_in_set.
+  destruct v as [c | code slots | slot decls slots | s | tag fields
+    | contents];
+    [ | | | | discriminate .. ].
+  - discriminate.
+  - intros Hproject.
+    apply project_unnamed_function_slot in Hproject as (-> & -> & _).
+    exists [(unnamed_function_slot, code)], slots, code, code.
+    rewrite lookup_head. auto.
+  - destruct (Pos.eqb_spec slot move_from) as [-> | _]; [ | discriminate ].
+    destruct (lookup move_from decls) as [code | ] eqn:Hfrom;
+      [ | discriminate ].
+    destruct (lookup move_to decls) as [code' | ] eqn:Hto; [ | discriminate ].
+    simpl. intros _. exists decls, slots, code, code'. auto.
+  - destruct (lookup s (static_values statics))
+      as [[code slots | slot syms decls slots | tag fields | contents
+          | bytes] | ];
+      try discriminate.
+    + intros Hproject.
+      apply project_unnamed_function_slot in Hproject as (-> & -> & _).
+      exists [(unnamed_function_slot, code)], slots, code, code.
+      rewrite lookup_head. auto.
+    + destruct (Pos.eqb_spec slot move_from) as [-> | _]; [ | discriminate ].
+      destruct (lookup move_from decls) as [code | ] eqn:Hfrom;
+        [ | discriminate ].
+      destruct (lookup move_to decls) as [code' | ] eqn:Hto;
+        [ | discriminate ].
+      simpl. intros _. exists decls, slots, code, code'. auto.
+Qed.
+
+Theorem project_function_slot_of_set :
+  project_function_slot_of_set_statement.
+Proof.
+  intros statics move_from move_to decls slots code code' Hfrom Hto.
+  unfold project_function_slot. rewrite Pos.eqb_refl, Hfrom, Hto.
+  reflexivity.
+Qed.
 
 (* ======================================================================== *)
 (* Bounded runs                                                             *)

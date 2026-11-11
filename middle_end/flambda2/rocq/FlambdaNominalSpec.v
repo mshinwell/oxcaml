@@ -121,8 +121,15 @@ Definition rename_named (r : renaming) (defining_expr : named) : named :=
   | Set_of_closures code value_slots =>
     Set_of_closures code
       (map (fun slot => (fst slot, rename_simple r (snd slot))) value_slots)
+  | Closure_of_set slot function_decls value_slots =>
+    Closure_of_set slot function_decls
+      (map (fun slot => (fst slot, rename_simple r (snd slot))) value_slots)
   | Project_value_slot slot closure =>
     Project_value_slot slot (rename_simple r closure)
+  | Project_value_slot_from project_from slot closure =>
+    Project_value_slot_from project_from slot (rename_simple r closure)
+  | Project_function_slot move_from move_to closure =>
+    Project_function_slot move_from move_to (rename_simple r closure)
   end.
 
 Definition rename_apply_cont (r : renaming) (ac : apply_cont) : apply_cont :=
@@ -137,6 +144,10 @@ Definition rename_static_const (r : renaming) (const : static_const)
   match const with
   | Static_const_set_of_closures code value_slots =>
     Static_const_set_of_closures code
+      (map (fun slot => (fst slot, rename_simple r (snd slot))) value_slots)
+  | Static_const_closure_of_set slot closure_symbols function_decls
+      value_slots =>
+    Static_const_closure_of_set slot closure_symbols function_decls
       (map (fun slot => (fst slot, rename_simple r (snd slot))) value_slots)
   | Static_const_block tag fields =>
     Static_const_block tag (map (rename_simple r) fields)
@@ -218,15 +229,18 @@ Definition var_free_in_named (x : variable) (defining_expr : named) : Prop :=
   match defining_expr with
   | Simple s => var_free_in_simple x s
   | Prim _ args => var_free_in_simples x args
-  | Set_of_closures _ value_slots =>
+  | Set_of_closures _ value_slots | Closure_of_set _ _ value_slots =>
     Exists (fun slot => var_free_in_simple x (snd slot)) value_slots
-  | Project_value_slot _ closure => var_free_in_simple x closure
+  | Project_value_slot _ closure | Project_value_slot_from _ _ closure
+  | Project_function_slot _ _ closure =>
+    var_free_in_simple x closure
   end.
 
 Definition var_free_in_static_const (x : variable) (const : static_const)
     : Prop :=
   match const with
-  | Static_const_set_of_closures _ value_slots =>
+  | Static_const_set_of_closures _ value_slots
+  | Static_const_closure_of_set _ _ _ value_slots =>
     Exists (fun slot => var_free_in_simple x (snd slot)) value_slots
   | Static_const_block _ fields => var_free_in_simples x fields
   | Static_const_boxed_number contents => var_free_in_simple x contents

@@ -116,21 +116,43 @@ Proof.
   rewrite Pos.eqb_refl, simple_eqb_refl; [ reflexivity | exact Hvm ].
 Qed.
 
+Lemma names_eqb_refl (l : list (positive * positive)) : names_eqb l l = true.
+Proof.
+  apply forall2b_refl. intros a. rewrite !Pos.eqb_refl. reflexivity.
+Qed.
+
+(* Lists of names that compare the same are the same. *)
+Lemma names_eqb_eq (l l' : list (positive * positive)) :
+  names_eqb l l' = true -> l = l'.
+Proof.
+  revert l'.
+  induction l as [ | [a b] l IH]; intros [ | [a' b'] l']; simpl;
+    try discriminate; [ reflexivity | ].
+  intros Heq. apply andb_true_iff in Heq as [Hab Hl].
+  apply andb_true_iff in Hab as [Ha Hb].
+  apply Pos.eqb_eq in Ha. apply Pos.eqb_eq in Hb. simpl in Ha, Hb.
+  subst a' b'. rewrite (IH l' Hl). reflexivity.
+Qed.
+
 Lemma named_eqb_refl (vm : name_map) (d : named) :
   reflexive_map vm -> named_eqb vm d d = true.
 Proof.
-  intros Hvm. destruct d as [s | p args | code slots | slot closure]; simpl;
+  intros Hvm.
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure]; simpl;
     rewrite ?prim_eqb_refl, ?Pos.eqb_refl, ?simple_eqb_refl,
-      ?simples_eqb_refl, ?value_slots_eqb_refl;
+      ?simples_eqb_refl, ?value_slots_eqb_refl, ?names_eqb_refl;
     auto.
 Qed.
 
 Lemma static_const_eqb_refl (vm : name_map) (const : static_const) :
   reflexive_map vm -> static_const_eqb vm const const = true.
 Proof.
-  intros Hvm. destruct const as [code slots | tag fields | s | bytes]; simpl;
+  intros Hvm.
+  destruct const
+    as [code slots | fslot syms decls slots | tag fields | s | bytes]; simpl;
     rewrite ?Pos.eqb_refl, ?Z.eqb_refl, ?simple_eqb_refl, ?simples_eqb_refl,
-      ?value_slots_eqb_refl;
+      ?value_slots_eqb_refl, ?names_eqb_refl;
     auto.
   apply forall2b_refl, Z.eqb_refl.
 Qed.
@@ -327,6 +349,26 @@ Proof.
   intros [_ Hvalues]. unfold closure_of. rewrite Hvalues. reflexivity.
 Qed.
 
+Lemma project_value_slot_match (statics statics' : static_env)
+    (project_from : function_slot) (slot : value_slot) (v : value) :
+  statics_match statics statics' ->
+  project_value_slot statics project_from slot v
+  = project_value_slot statics' project_from slot v.
+Proof.
+  intros [_ Hvalues]. unfold project_value_slot, closure_in_set.
+  rewrite Hvalues. reflexivity.
+Qed.
+
+Lemma project_function_slot_match (statics statics' : static_env)
+    (move_from move_to : function_slot) (v : value) :
+  statics_match statics statics' ->
+  project_function_slot statics move_from move_to v
+  = project_function_slot statics' move_from move_to v.
+Proof.
+  intros [_ Hvalues]. unfold project_function_slot. rewrite Hvalues.
+  reflexivity.
+Qed.
+
 Lemma eval_named_match (vm : name_map) (vars vars' : env)
     (statics statics' : static_env) (d d' : named) :
   envs_match vm vars vars' ->
@@ -335,8 +377,11 @@ Lemma eval_named_match (vm : name_map) (vars vars' : env)
   eval_named statics vars d = eval_named statics' vars' d'.
 Proof.
   intros Hmatch Hstatics.
-  destruct d as [s | p args | code slots | slot closure],
-    d' as [s' | p' args' | code' slots' | slot' closure'];
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure],
+    d' as [s' | p' args' | code' slots' | fslot' decls' slots'
+          | slot' closure' | pfrom' slot' closure'
+          | move_from' move_to' closure'];
     simpl; try discriminate; intros Heq.
   - exact (eval_simple_match vm vars vars' s s' Hmatch Heq).
   - apply andb_true_iff in Heq as [Hp Hargs]. apply prim_eqb_sound in Hp.
@@ -348,11 +393,31 @@ Proof.
     subst code'.
     rewrite (eval_value_slots_match vm vars vars' slots Hmatch slots' Hslots).
     reflexivity.
+  - apply andb_true_iff in Heq as [Heq Hslots].
+    apply andb_true_iff in Heq as [Hfslot Hdecls].
+    apply Pos.eqb_eq in Hfslot. apply names_eqb_eq in Hdecls.
+    subst fslot' decls'.
+    rewrite (eval_value_slots_match vm vars vars' slots Hmatch slots' Hslots).
+    reflexivity.
   - apply andb_true_iff in Heq as [Hslot Hclosure].
     apply Pos.eqb_eq in Hslot. subst slot'.
     rewrite (eval_simple_match vm vars vars' closure closure' Hmatch Hclosure).
     destruct (eval_simple vars' closure') as [v | ]; simpl; [ | reflexivity ].
     rewrite (closure_of_match statics statics' v Hstatics). reflexivity.
+  - apply andb_true_iff in Heq as [Heq Hclosure].
+    apply andb_true_iff in Heq as [Hfrom Hslot].
+    apply Pos.eqb_eq in Hfrom. apply Pos.eqb_eq in Hslot.
+    subst pfrom' slot'.
+    rewrite (eval_simple_match vm vars vars' closure closure' Hmatch Hclosure).
+    destruct (eval_simple vars' closure') as [v | ]; simpl; [ | reflexivity ].
+    apply project_value_slot_match, Hstatics.
+  - apply andb_true_iff in Heq as [Heq Hclosure].
+    apply andb_true_iff in Heq as [Hfrom Hto].
+    apply Pos.eqb_eq in Hfrom. apply Pos.eqb_eq in Hto.
+    subst move_from' move_to'.
+    rewrite (eval_simple_match vm vars vars' closure closure' Hmatch Hclosure).
+    destruct (eval_simple vars' closure') as [v | ]; simpl; [ | reflexivity ].
+    apply project_function_slot_match, Hstatics.
 Qed.
 
 Lemma forall2b_Z_eqb (l l' : list Z) : forall2b Z.eqb l l' = true -> l = l'.
@@ -370,11 +435,21 @@ Lemma eval_static_const_match (vm : name_map) (vars vars' : env)
   eval_static_const vars const = eval_static_const vars' const'.
 Proof.
   intros Hmatch.
-  destruct const as [code slots | tag fields | s | bytes],
-    const' as [code' slots' | tag' fields' | s' | bytes'];
+  destruct const
+    as [code slots | fslot syms decls slots | tag fields | s | bytes],
+    const'
+    as [code' slots' | fslot' syms' decls' slots' | tag' fields' | s'
+       | bytes'];
     simpl; try discriminate; intros Heq.
   - apply andb_true_iff in Heq as [Hcode Hslots]. apply Pos.eqb_eq in Hcode.
     subst code'.
+    rewrite (eval_value_slots_match vm vars vars' slots Hmatch slots' Hslots).
+    reflexivity.
+  - apply andb_true_iff in Heq as [Heq Hslots].
+    apply andb_true_iff in Heq as [Heq Hdecls].
+    apply andb_true_iff in Heq as [Hfslot Hsyms].
+    apply Pos.eqb_eq in Hfslot. apply names_eqb_eq in Hsyms.
+    apply names_eqb_eq in Hdecls. subst fslot' syms' decls'.
     rewrite (eval_value_slots_match vm vars vars' slots Hmatch slots' Hslots).
     reflexivity.
   - apply andb_true_iff in Heq as [Htag Hfields]. apply Z.eqb_eq in Htag.

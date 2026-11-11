@@ -32,9 +32,9 @@
    - the constants ([Reg_width_const.t]), in full but for the string of
      [Poison]; the kinds ([Flambda_kind.t]) are in FlambdaKindModel.v;
    - [Let] of one variable, bound to a [Simple], a primitive application, a
-     closure or the projection of a value slot; the primitives
-     ([Flambda_primitive.t]) are in FlambdaPrimitiveModel.v, a fragment of
-     their own;
+     closure of a new set of closures, or the projection of a value slot
+     or of a function slot; the primitives ([Flambda_primitive.t]) are in
+     FlambdaPrimitiveModel.v, a fragment of their own;
    - [Let] with the bound pattern [Static] ("let symbol"), here
      [Let_static]: a group of bindings of code ids to code and of symbols
      to static constants;
@@ -46,9 +46,10 @@
    - [Invalid].
 
    What is left out, and is to be added in later steps:
-   - sets of closures of several functions, with [Project_function_slot],
-     the bound pattern of [Let] for them, and static sets of closures
-     binding several symbols;
+   - of a set of closures: a function slot whose code is deleted
+     ([Function_declarations.Deleted]), the allocation mode (a set on the
+     stack is not told from one on the heap), [only_full_applications],
+     and everything about its layout in memory;
    - the static constants that are arrays or float blocks, and mutable
      blocks and strings;
    - [Rec_info];
@@ -80,8 +81,35 @@
      [Flambda_primitive.t] holds the arguments by arity. A primitive
      applied to the wrong number of arguments has no value
      (FlambdaPrimitiveSpec.v).
-   - [Project_value_slot], a unary primitive in the compiler, is a form of
-     [named] of its own, as its meaning is fixed by that of closures.
+   - [Project_value_slot] and [Project_function_slot], unary primitives in
+     the compiler, are forms of [named] of their own, as their meaning is
+     fixed by that of closures.
+   - A set of closures has two presentations. [Set_of_closures] and
+     [Static_const_set_of_closures] are a set of one function, whose
+     function slot is not named; [Project_value_slot] projects from a
+     closure whatever function slot it is at. [Closure_of_set] and
+     [Static_const_closure_of_set] are a set of any number of functions,
+     each at a named function slot; [Project_value_slot_from] is the
+     compiler's projection of a value slot, which names the function slot
+     of the closure it projects from ([project_from]).
+   - A [Let] binds one variable. The compiler's [Let] of a set of closures
+     binds one variable to each closure of the set
+     ([Bound_pattern.Set_of_closures]); here it is [let_closures]: a [Let]
+     of the first closure, and for each other closure a [Let] of its
+     projection from the first. Closures have no identity, so this is the
+     same.
+   - Likewise a [Let_static] binds one symbol to each closure of a static
+     set by a [Bind_symbol] of its own, which repeats the set and says
+     which symbols its other closures are bound to; the compiler binds
+     them all with one pattern ([Bound_static.Pattern.Set_of_closures]).
+   - Of the names in the forms of a set, a renaming acts on the variables
+     only: those of the value slots and of the closure projected from,
+     and the variables that [let_closures] binds, each by a [Let].
+     Function slots and value slots are not renamed, here or in the
+     compiler. Nor are the code ids of the functions and the symbols of
+     the closures of a static set, like every code id and symbol of the
+     model: the compiler's [Bound_pattern.Static] does not permute the
+     names it binds either.
    - The callee of an [Apply] is always given, where the compiler may omit
      it for a direct call.
    - The numbers in constants are integers: those of the floats and
@@ -92,13 +120,14 @@ From Stdlib Require Import ZArith List.
 From OxCamlFlambda2 Require Export FlambdaKindModel FlambdaPrimitiveModel.
 Import ListNotations.
 
-(* [Variable.t], [Continuation.t], [Symbol.t], [Code_id.t] and
-   [Value_slot.t]. *)
+(* [Variable.t], [Continuation.t], [Symbol.t], [Code_id.t], [Value_slot.t]
+   and [Function_slot.t]. *)
 Definition variable : Type := positive.
 Definition continuation : Type := positive.
 Definition symbol : Type := positive.
 Definition code_id : Type := positive.
 Definition value_slot : Type := positive.
+Definition function_slot : Type := positive.
 
 (* ======================================================================== *)
 (* Constants                                                                *)
@@ -153,23 +182,64 @@ Inductive simple : Type :=
   | Const (c : const).
 
 (* [Flambda.named]. A [Set_of_closures] has one function, given by its
-   code, and the values of its value slots. *)
+   code, and the values of its value slots.
+
+   [Closure_of_set] is the closure at [slot] of a new set of closures
+   ([Set_of_closures.t]): [function_decls] are its functions, the code of
+   each function slot in the order of [Function_declarations.funs_in_order],
+   and [value_slots] the values of its value slots, which its functions
+   share. [Project_value_slot_from] is the value of a value slot of the
+   set of which [closure] is the closure at [project_from], and
+   [Project_function_slot] the closure at [move_to] of the set of which
+   [closure] is the closure at [move_from]. *)
 Inductive named : Type :=
   | Simple (s : simple)
   | Prim (p : prim) (args : list simple)
   | Set_of_closures (code : code_id)
       (value_slots : list (value_slot * simple))
-  | Project_value_slot (slot : value_slot) (closure : simple).
+  | Closure_of_set (slot : function_slot)
+      (function_decls : list (function_slot * code_id))
+      (value_slots : list (value_slot * simple))
+  | Project_value_slot (slot : value_slot) (closure : simple)
+  | Project_value_slot_from (project_from : function_slot)
+      (slot : value_slot) (closure : simple)
+  | Project_function_slot (move_from move_to : function_slot)
+      (closure : simple).
 
 (* [Static_const.t]: what a symbol may be bound to. Its fields are
    [Simple]s, where the compiler has, for a boxed number, a constant or a
-   variable. A block is immutable. *)
+   variable. A block is immutable.
+
+   [Static_const_closure_of_set] is the closure at [slot] of a static set
+   of closures; [closure_symbols] are the symbols that the closures of the
+   set are bound to ([Bound_static.Pattern.Set_of_closures]), this one
+   included. *)
 Inductive static_const : Type :=
   | Static_const_set_of_closures (code : code_id)
+      (value_slots : list (value_slot * simple))
+  | Static_const_closure_of_set (slot : function_slot)
+      (closure_symbols : list (function_slot * symbol))
+      (function_decls : list (function_slot * code_id))
       (value_slots : list (value_slot * simple))
   | Static_const_block (tag : Z) (fields : list simple)
   | Static_const_boxed_number (contents : simple)
   | Static_const_immutable_string (bytes : list Z).
+
+(* Whether two simples, or two static constants, are the same. *)
+Definition simple_eq_dec : forall s s' : simple, {s = s'} + {s <> s'}.
+Proof.
+  decide equality; try apply Pos.eq_dec.
+  decide equality; try apply Z.eq_dec. repeat decide equality.
+Defined.
+
+Definition static_const_eq_dec :
+  forall const const' : static_const, {const = const'} + {const <> const'}.
+Proof.
+  decide equality;
+    try apply Pos.eq_dec; try apply Z.eq_dec; try apply simple_eq_dec;
+    apply list_eq_dec; try apply Z.eq_dec; try apply simple_eq_dec;
+    decide equality; try apply Pos.eq_dec; apply simple_eq_dec.
+Defined.
 
 (* [Apply_cont_expr.t]. *)
 Record apply_cont : Type := Apply_cont_expr {
@@ -238,3 +308,52 @@ Definition code_exn_continuation (c : code) : continuation :=
 
 Definition code_body (c : code) : expr :=
   match c with Code _ _ _ _ body => body end.
+
+(* ======================================================================== *)
+(* Sets of closures of several functions                                    *)
+(* ======================================================================== *)
+
+(* Each variable bound to the projection of its function slot from the
+   closure [base], which is at [base_slot]. *)
+Fixpoint let_projections (base : variable) (base_slot : function_slot)
+    (bound : list (variable * function_slot)) (body : expr) : expr :=
+  match bound with
+  | [] => body
+  | (x, slot) :: bound =>
+    Let x (Project_function_slot base_slot slot (Var base))
+      (let_projections base base_slot bound body)
+  end.
+
+(* The compiler's [Let] of a set of closures: the variables [bound_vars]
+   ([Bound_pattern.Set_of_closures]) are bound, in the order of the
+   functions of the set, to its closures. The first closure is made and
+   the others are projected from it. There must be as many variables as
+   functions, and at least one; otherwise there is no such term. *)
+Definition let_closures (bound_vars : list variable)
+    (function_decls : list (function_slot * code_id))
+    (value_slots : list (value_slot * simple)) (body : expr)
+    : option expr :=
+  match bound_vars, function_decls with
+  | x :: bound_vars, (slot, _) :: other_decls =>
+    if Nat.eqb (length bound_vars) (length other_decls)
+    then
+      Some
+        (Let x (Closure_of_set slot function_decls value_slots)
+           (let_projections x slot
+              (combine bound_vars (map fst other_decls)) body))
+    else None
+  | _, _ => None
+  end.
+
+(* The static set of closures whose closures are bound to
+   [closure_symbols], as the bindings of a [Let_static]: one for each
+   symbol. *)
+Definition bind_closures (closure_symbols : list (function_slot * symbol))
+    (function_decls : list (function_slot * code_id))
+    (value_slots : list (value_slot * simple)) : list static_binding :=
+  map
+    (fun '(slot, s) =>
+       Bind_symbol s
+         (Static_const_closure_of_set slot closure_symbols function_decls
+            value_slots))
+    closure_symbols.

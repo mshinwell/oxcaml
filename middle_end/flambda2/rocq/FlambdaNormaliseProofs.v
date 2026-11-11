@@ -74,10 +74,14 @@ Qed.
 Lemma named_in_scope_sound (vs : list variable) (d : named) (x : variable) :
   named_in_scope vs d = true -> var_free_in_named x d -> x ∈ vs.
 Proof.
-  destruct d as [s | p args | code slots | slot closure]; simpl.
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure]; simpl.
   - apply simple_in_scope_sound.
   - apply simples_in_scope_sound.
   - apply value_slots_in_scope_sound.
+  - apply value_slots_in_scope_sound.
+  - apply simple_in_scope_sound.
+  - apply simple_in_scope_sound.
   - apply simple_in_scope_sound.
 Qed.
 
@@ -88,8 +92,10 @@ Lemma static_binding_in_scope_sound (vs : list variable)
   x ∈ vs.
 Proof.
   destruct binding
-    as [id c | id | sym [code slots | tag fields | s | bytes]];
+    as [id c | id
+       | sym [code slots | fslot syms decls slots | tag fields | s | bytes]];
     simpl; try contradiction.
+  - apply value_slots_in_scope_sound.
   - apply value_slots_in_scope_sound.
   - apply simples_in_scope_sound.
   - apply simple_in_scope_sound.
@@ -545,10 +551,14 @@ Qed.
 Lemma var_in_named_sound (x : variable) (d : named) :
   var_free_in_named x d -> var_in_named x d = true.
 Proof.
-  destruct d as [s | p args | code slots | slot closure]; simpl.
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure]; simpl.
   - apply var_in_simple_sound.
   - apply var_in_simples_sound.
   - apply var_in_value_slots_sound.
+  - apply var_in_value_slots_sound.
+  - apply var_in_simple_sound.
+  - apply var_in_simple_sound.
   - apply var_in_simple_sound.
 Qed.
 
@@ -557,8 +567,10 @@ Lemma var_in_static_binding_sound (x : variable) (binding : static_binding) :
   var_in_static_binding x binding = true.
 Proof.
   destruct binding
-    as [id c | id | sym [code slots | tag fields | s | bytes]];
+    as [id c | id
+       | sym [code slots | fslot syms decls slots | tag fields | s | bytes]];
     simpl; try contradiction.
+  - apply var_in_value_slots_sound.
   - apply var_in_value_slots_sound.
   - apply var_in_simples_sound.
   - apply var_in_simple_sound.
@@ -931,7 +943,8 @@ Qed.
 Lemma fold_named_sound (statics : static_env) (vars : env) (d : named) :
   eval_named statics vars (fold_named d) = eval_named statics vars d.
 Proof.
-  destruct d as [s | p args | code slots | slot closure]; simpl;
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure]; simpl;
     try reflexivity.
   destruct (prim_may_fold p); [ | reflexivity ].
   destruct (consts_of_simples args) as [cs | ] eqn:Hconsts; [ | reflexivity ].
@@ -1001,7 +1014,8 @@ Lemma unused_total_let (x : variable) (d : named) (body : expr) :
 Proof.
   intros Htotal Hunused vars conts statics.
   assert (Hvalue : ∃ v : value, eval_named statics vars d = Some v).
-  { destruct d as [[y | sym | c] | p args | code slots | slot closure];
+  { destruct d as [[y | sym | c] | p args | code slots | fslot decls slots
+      | slot closure | pfrom slot closure | move_from move_to closure];
       simpl in Htotal; try discriminate; simpl; eauto. }
   destruct Hvalue as [v Hd].
   apply (equivalent_trans _ (State body ((x, v) :: vars) conts statics));
@@ -1101,10 +1115,17 @@ Lemma named_defined_sound (vs : list variable) (vars : env)
   named_defined vs d = true ->
   ∃ v : value, eval_named statics vars d = Some v.
 Proof.
-  intros Hbound. destruct d as [s | p args | code slots | slot closure];
+  intros Hbound.
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure];
     simpl; try discriminate.
   - apply simple_in_scope_defined, Hbound.
   - intros Hslots.
+    destruct (value_slots_defined vs vars slots Hbound Hslots)
+      as [evaluated ->].
+    simpl. eauto.
+  - intros Hdefined. apply andb_true_iff in Hdefined as [Hslot Hslots].
+    apply is_bound_lookup in Hslot as [code ->].
     destruct (value_slots_defined vs vars slots Hbound Hslots)
       as [evaluated ->].
     simpl. eauto.
@@ -1229,7 +1250,7 @@ Definition statics_know_symbols (known : list (symbol * option code_id))
   ∀ (s : symbol) (code : code_id),
     lookup s known = Some (Some code) ->
     ∃ slots : list (value_slot * value),
-      lookup s (static_values statics) = Some (Static_closure code slots).
+      closure_of statics (Value_symbol s) = Some (code, slots).
 
 Lemma eval_static_bindings_know_symbols (vars : env)
     (bindings : list static_binding) :
@@ -1242,7 +1263,10 @@ Proof.
     intros known statics extended Hknow; simpl.
   - intros [= <-]. exact Hknow.
   - destruct binding
-      as [id c | id | sym [code slots | tag fields | contents | bytes]];
+      as [id c | id
+         | sym
+             [code slots | fslot syms decls slots | tag fields | contents
+             | bytes]];
       simpl.
     + destruct (lookup id (static_code statics)); [ discriminate | ].
       apply IH. exact Hknow.
@@ -1252,6 +1276,14 @@ Proof.
         [ | discriminate ].
       apply IH. intros s code'. simpl.
       destruct (Pos.eqb s sym); [ intros [= <-]; eauto | apply Hknow ].
+    + destruct (lookup sym (static_values statics)); [ discriminate | ].
+      destruct (lookup fslot decls) as [code | ] eqn:Hcode; simpl;
+        [ | discriminate ].
+      destruct (eval_value_slots vars slots) as [evaluated | ]; simpl;
+        [ | discriminate ].
+      apply IH. intros s code'. simpl.
+      destruct (Pos.eqb s sym); [ | apply Hknow ].
+      intros [= <-]. simpl. rewrite Hcode. simpl. eauto.
     + destruct (lookup sym (static_values statics)); [ discriminate | ].
       destruct (eval_simples vars fields) as [vs | ]; simpl;
         [ | discriminate ].
@@ -1289,10 +1321,10 @@ Proof.
     [ | apply equivalent_refl ].
   apply andb_true_iff in Hcheck as [Hsame Hinlinable].
   apply Pos.eqb_eq in Hsame. subst code.
-  destruct (Hsymbols s called Hs) as [slots Hlookup].
+  destruct (Hsymbols s called Hs) as [slots Hclosure].
   apply (inline_equivalent ap called c _ (Value_symbol s) slots);
     [ exact Hkind | rewrite Hcallee; reflexivity
-    | simpl; rewrite Hlookup; reflexivity | exact (Hcode called c Hc)
+    | exact Hclosure | exact (Hcode called c Hc)
     | exact (inlinable_b_sound ap c Hinlinable) ].
 Qed.
 
@@ -1311,8 +1343,11 @@ Lemma statics_know_both_extend (known_code : list (code_id * code))
 Proof.
   intros [Hcode Hsymbols] Hextend. split.
   - exact (statics_know_extend known_code statics statics' Hcode Hextend).
-  - intros s code Hs. destruct (Hsymbols s code Hs) as [slots Hlookup].
-    exists slots. apply (proj2 Hextend), Hlookup.
+  - intros s code Hs. destruct (Hsymbols s code Hs) as [slots Hclosure].
+    exists slots. revert Hclosure. simpl.
+    destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hlookup;
+      [ | discriminate ].
+    rewrite (proj2 Hextend s allocated Hlookup). auto.
 Qed.
 
 Lemma inline_known_apply_binds_statics

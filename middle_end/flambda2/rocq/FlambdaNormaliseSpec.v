@@ -129,16 +129,20 @@ Definition named_in_scope (vs : list variable) (d : named) : bool :=
   match d with
   | Simple s => simple_in_scope vs s
   | Prim _ args => simples_in_scope vs args
-  | Set_of_closures _ slots =>
+  | Set_of_closures _ slots | Closure_of_set _ _ slots =>
     forallb (fun slot => simple_in_scope vs (snd slot)) slots
-  | Project_value_slot _ closure => simple_in_scope vs closure
+  | Project_value_slot _ closure | Project_value_slot_from _ _ closure
+  | Project_function_slot _ _ closure =>
+    simple_in_scope vs closure
   end.
 
 Definition static_binding_in_scope (vs : list variable)
     (binding : static_binding) : bool :=
   match binding with
   | Bind_code _ _ | Bind_deleted_code _ => true
-  | Bind_symbol _ (Static_const_set_of_closures _ slots) =>
+  | Bind_symbol _
+      (Static_const_set_of_closures _ slots
+      | Static_const_closure_of_set _ _ _ slots) =>
     forallb (fun slot => simple_in_scope vs (snd slot)) slots
   | Bind_symbol _ (Static_const_block _ fields) => simples_in_scope vs fields
   | Bind_symbol _ (Static_const_boxed_number contents) =>
@@ -296,15 +300,20 @@ Definition var_in_named (x : variable) (d : named) : bool :=
   match d with
   | Simple s => var_in_simple x s
   | Prim _ args => var_in_simples x args
-  | Set_of_closures _ slots => var_in_value_slots x slots
-  | Project_value_slot _ closure => var_in_simple x closure
+  | Set_of_closures _ slots | Closure_of_set _ _ slots =>
+    var_in_value_slots x slots
+  | Project_value_slot _ closure | Project_value_slot_from _ _ closure
+  | Project_function_slot _ _ closure =>
+    var_in_simple x closure
   end.
 
 Definition var_in_static_binding (x : variable) (binding : static_binding)
     : bool :=
   match binding with
   | Bind_code _ _ | Bind_deleted_code _ => false
-  | Bind_symbol _ (Static_const_set_of_closures _ slots) =>
+  | Bind_symbol _
+      (Static_const_set_of_closures _ slots
+      | Static_const_closure_of_set _ _ _ slots) =>
     var_in_value_slots x slots
   | Bind_symbol _ (Static_const_block _ fields) => var_in_simples x fields
   | Bind_symbol _ (Static_const_boxed_number contents) =>
@@ -349,7 +358,10 @@ Definition prim_may_fold (p : prim) : bool :=
 Definition named_may_go (d : named) : bool :=
   match d with
   | Prim p _ => prim_may_fold p
-  | Simple _ | Set_of_closures _ _ | Project_value_slot _ _ => true
+  | Simple _ | Set_of_closures _ _ | Closure_of_set _ _ _
+  | Project_value_slot _ _ | Project_value_slot_from _ _ _
+  | Project_function_slot _ _ _ =>
+    true
   end.
 
 Fixpoint remove_unused_lets (e : expr) : expr :=
@@ -480,7 +492,10 @@ Definition fold_named (d : named) : named :=
       end
     | None => d
     end
-  | Simple _ | Set_of_closures _ _ | Project_value_slot _ _ => d
+  | Simple _ | Set_of_closures _ _ | Closure_of_set _ _ _
+  | Project_value_slot _ _ | Project_value_slot_from _ _ _
+  | Project_function_slot _ _ _ =>
+    d
   end.
 
 Definition fold_switch (scrutinee : simple) (arms : list (Z * apply_cont))
@@ -517,7 +532,9 @@ Definition fold_constants_equivalent_statement : Prop :=
 Definition named_is_total (d : named) : bool :=
   match d with
   | Simple (Const _ | Symbol _) => true
-  | Simple (Var _) | Prim _ _ | Set_of_closures _ _ | Project_value_slot _ _ =>
+  | Simple (Var _) | Prim _ _ | Set_of_closures _ _ | Closure_of_set _ _ _
+  | Project_value_slot _ _ | Project_value_slot_from _ _ _
+  | Project_function_slot _ _ _ =>
     false
   end.
 
@@ -553,7 +570,12 @@ Definition named_defined (vs : list variable) (d : named) : bool :=
   | Simple s => simple_in_scope vs s
   | Set_of_closures _ slots =>
     forallb (fun slot => simple_in_scope vs (snd slot)) slots
-  | Prim _ _ | Project_value_slot _ _ => false
+  | Closure_of_set slot decls slots =>
+    is_bound slot decls
+    && forallb (fun slot => simple_in_scope vs (snd slot)) slots
+  | Prim _ _ | Project_value_slot _ _ | Project_value_slot_from _ _ _
+  | Project_function_slot _ _ _ =>
+    false
   end.
 
 Fixpoint remove_unused_defined_lets (vs : list variable) (e : expr) : expr :=
@@ -591,6 +613,9 @@ Fixpoint symbols_of (bindings : list static_binding)
   | [] => known
   | Bind_symbol s (Static_const_set_of_closures code _) :: bindings =>
     symbols_of bindings ((s, Some code) :: known)
+  | Bind_symbol s (Static_const_closure_of_set slot _ function_decls _)
+    :: bindings =>
+    symbols_of bindings ((s, lookup slot function_decls) :: known)
   | Bind_symbol s
       (Static_const_block _ _ | Static_const_boxed_number _
       | Static_const_immutable_string _)

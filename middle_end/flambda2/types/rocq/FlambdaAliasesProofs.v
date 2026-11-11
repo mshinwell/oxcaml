@@ -171,12 +171,17 @@ Lemma canonical_named_sound (tenv : typing_env) (vars : env)
   env_satisfies tenv vars ->
   eval_named statics vars (canonical_named tenv d) = eval_named statics vars d.
 Proof.
-  intros Hsat. destruct d as [s | p args | code slots | slot closure]; simpl.
+  intros Hsat.
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure]; simpl.
   - apply canonical_simple_sound, Hsat.
   - rewrite (canonical_simples_sound tenv vars args Hsat). reflexivity.
   - rewrite (canonical_value_slots_sound tenv vars slots Hsat). reflexivity.
+  - rewrite (canonical_value_slots_sound tenv vars slots Hsat). reflexivity.
   - rewrite (canonical_project_sound tenv vars statics slot _ Hsat). simpl.
     rewrite (canonical_simple_sound tenv vars closure Hsat). reflexivity.
+  - rewrite (canonical_simple_sound tenv vars closure Hsat). reflexivity.
+  - rewrite (canonical_simple_sound tenv vars closure Hsat). reflexivity.
 Qed.
 
 (* A call and the same call with its aliases followed and, if the callee
@@ -218,11 +223,16 @@ Proof.
   induction bindings as [ | binding bindings IH]; intros statics;
     [ reflexivity | ].
   destruct binding
-    as [id c | id | sym [code slots | tag fields | s | bytes]];
+    as [id c | id
+       | sym [code slots | fslot syms decls slots | tag fields | s | bytes]];
     simpl; try apply IH.
   - destruct (lookup id (static_code statics)); [ reflexivity | apply IH ].
   - destruct (lookup sym (static_values statics)); [ reflexivity | ].
     rewrite (canonical_value_slots_sound tenv vars slots Hsat).
+    destruct (eval_value_slots vars slots); simpl; [ apply IH | reflexivity ].
+  - destruct (lookup sym (static_values statics)); [ reflexivity | ].
+    rewrite (canonical_value_slots_sound tenv vars slots Hsat).
+    destruct (lookup fslot decls); simpl; [ | reflexivity ].
     destruct (eval_value_slots vars slots); simpl; [ apply IH | reflexivity ].
   - destruct (lookup sym (static_values statics)); [ reflexivity | ].
     rewrite (canonical_simples_sound tenv vars fields Hsat).
@@ -273,7 +283,8 @@ Proof.
       [ intros entry Hin; right; exact Hin | ].
     exact (env_satisfies_extend _ vars x v Unknown Hdropped
       (drop_var_fresh x tenv) I). }
-  destruct d as [s | p args | code slots | slot closure]; simpl;
+  destruct d as [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure]; simpl;
     try exact Hunknown.
   - destruct (var_in_simple x s) eqn:Hmention; [ exact Hunknown | ].
     apply (env_satisfies_extend _ vars x v (Equals s) Hdropped
