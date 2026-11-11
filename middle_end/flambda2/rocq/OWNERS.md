@@ -161,7 +161,15 @@ All in `middle_end/flambda2/types/rocq/`, library `OxCamlFlambda2Types`.
   - `middle_end/flambda2/types/rocq/FlambdaTypeProject.v`
     (`Type_grammar.project_variables_out`)
   - `middle_end/flambda2/rocq/requests/T5-join.md`
-- T6, provers and reification. Owner: unassigned.
+- T6, provers and reification. Owner: T6, on `flambda2-rocq/T6-provers`.
+  - `middle_end/flambda2/rocq/requests/T6-provers.md` (the plan: the
+    provers, the shape of their statements, the order)
+  - `middle_end/flambda2/types/rocq/FlambdaProvers*` (the provers,
+    after `types/provers.ml`; `FlambdaProversStandIn.v` is a copy of
+    T4's `Expanded_type` and `expand_head`, which goes when T4's file
+    is under the branch)
+  - `middle_end/flambda2/types/rocq/FlambdaReify*` (reification, after
+    `types/reify.ml`)
 - T7, differential testing of types, and the converter between the
   compiler's types and the model's. Owner: unassigned.
 
