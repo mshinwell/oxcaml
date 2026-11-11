@@ -1,0 +1,9 @@
+File "n_way_join_function_types_zero_alloc.ml", line 36, characters 5-15:
+36 | let[@zero_alloc] [@inline never] top (c1 : bool) (c2 : bool) (fa : bool)
+          ^^^^^^^^^^
+Error: Annotation check for zero_alloc failed on function N_way_join_function_types_zero_alloc.top (camlN_way_join_function_types_zero_alloc__top_6_15).
+
+File "n_way_join_function_types_zero_alloc.ml", line 27, characters 14-23:
+27 |     let res = w false r in
+                   ^^^^^^^^^
+Error: called function may allocate (direct call caml_apply2) (n_way_join_function_types_zero_alloc.ml:47,12--20)

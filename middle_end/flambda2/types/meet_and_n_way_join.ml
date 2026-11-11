@@ -2919,10 +2919,11 @@ and n_way_join_closures_entry env
           let function_types =
             Function_slot.Map.merge
               (fun _ vals_opt val2_opt ->
+                (* A function type is kept only if every input has one, as in
+                   [Meet_and_join.join_closures_entry]: an input without one
+                   says nothing of the code of that function. *)
                 match vals_opt, val2_opt with
-                | None, None -> None
-                | None, Some val2 -> Some [id2, val2]
-                | Some _, None -> vals_opt
+                | None, None | None, Some _ | Some _, None -> None
                 | Some vals, Some val2 -> Some ((id2, val2) :: vals))
               function_types function_types2
           in
