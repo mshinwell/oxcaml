@@ -17,15 +17,17 @@ in that definition.
   builds, GADTs and layout `any` included. A statement may take it as
   a premise. A unit made by the compiler that fails it is a finding:
   the condition is too strict, or the compiler is wrong.
-- **Agreement of kinds.** Real units have mismatches of kinds, so
-  "kinds agree wherever they meet" is never a premise of a statement
-  about the compiler's terms; such a mismatch is undefined where it is
-  executed, and that is the machine's business. C2's check
-  (`well_kinded_unit`, in its own file) is not that strict property,
-  which is defined nowhere. After the human's rulings it asks only for
-  the agreements on which the compiler stops whatever the flags. C2
-  proposes it as a condition of well-formedness; section 7 has the
-  question.
+- **Agreement of kinds.** Real units have mismatches of kinds, so no
+  statement about the compiler's terms takes agreement of kinds as a
+  premise; a mismatch is undefined where it is executed, and that is
+  the machine's business. C2's check (`well_kinded_unit`, in its own
+  file) asks for the agreements on which the compiler stops whatever
+  the flags. It is not a condition of well-formedness, and C2 does not
+  propose it as one: the compiler stops only where Simplify goes, and
+  R2 has a unit that the compiler compiles and the check refuses (a
+  mismatch in an arm that Simplify removes first; R2-11). The check is
+  a sufficient condition, proved, for the absence of certain faults,
+  and a diagnostic that the tool prints.
 
 The test for which layer a condition belongs to: can a unit that the
 compiler builds with its default flags break it, in a branch that
@@ -48,16 +50,22 @@ record of discrepancies.
 | 3 | Every variable and continuation used is in scope | C0, by N1's free names; in C2's checker today | Pass: `Typing_env` ("Variable ... not bound"), `Upwards_env.find_continuation`, when Simplify reaches the use; and the end of `simplify.ml` for the unit. No creation function |
 | 4 | Every symbol mentioned is bound (the human, D8); every code id mentioned is bound or deleted | C0 | Pass: `Typing_env` ("Symbol ... not bound"), for a symbol of the current unit; one of another unit comes from its `.cmx`. Code ids: `To_cmm_env` |
 | 5 | The names of one binder are distinct: parameters of a handler; those of code, with `my_closure`; continuations of a recursive group; the two continuations of code | C0, by N1's rules; C2's checker has the first two | Continuations of a group: creation function (`Bound_continuations.create`). Parameters: invariant check only (`Bound_parameters.create`, `Bound_for_function.create`). The two continuations of code: nothing found |
-| 6 | Code is closed: no free variable but its parameters and `my_closure`, no free continuation but its two | C0, by N1's free names; today a premise of `FlambdaApplySpec.inlinable` | Creation function (`Code0.create`), but of the free names its caller supplies, not of ones it computes (C0-5) |
+| 6 | Code is closed: no free variable but its parameters and `my_closure`, no free continuation but its two, which are binders (the human, D31) | C0, by N1's free names; today a premise of `FlambdaApplySpec.inlinable` | Creation function (`Code0.create`), but of the free names its caller supplies, not of ones it computes (C0-5) |
 | 7a | A closure is at a function slot of its set | C3 | Type: one pattern binds a variable for each function slot (`Bound_pattern.Set_of_closures`) |
 | 7b | The function slots of a set are distinct | C3 | Nothing: they are an association list whose invariant function has no caller (C3-5) |
 | 7c | The functions of a set have each their own code id (the human, D28) | C3 | Nothing; Simplify stops later with "code_id has been bound twice" (R2-7) |
 | 7d | A group binds a static set whole, each symbol at its slot (D4, option (a)) | C3 | Type (one pattern binds the set) and creation function (`Static_const.match_against_bound_static_pattern`, slots in order) |
 | 8 | The tag of every block made, by `Make_block` or statically, and the tag a `Block_load` names, is in `[0, 251)` (the human, D23). Proposed with it: a constant is in the range of its kind (D13) | C1 | Type (`Tag.Scannable.t`, whose creation function refuses others). Constants: type, I believe (`Reg_width_const`, not read); the fexpr parser wraps `int8` and `int16` (C1-11) |
-| 9 | Annotations are there and of the right length: as many kinds as parameters; as many arguments of a call as its own arity; as many arguments of an `Apply_cont` as the continuation has parameters | C2, the part of its check that is not agreement of kinds | Type: a parameter carries its kind (`Bound_parameter`). `Apply_cont`: pass (`Continuation_uses.add_use`). `Apply`: nothing by design; `simplify_apply_expr.ml` walks the two lists together and raises if they differ |
+| 9 | Annotations are of the right length: a handler has as many kinds as parameters, and code as many as its arity says | C2, with its first step | Type: a parameter carries its kind (`Bound_parameter`) |
 
-I read the compiler's files for rows 1 to 6, 7a, 7d, 9 and the tags;
-7b and 7c are as C3 and R2 report them.
+I read the compiler's files for rows 1 to 6, 7a, 7d and the tags; 7b
+and 7c are as C3 and R2 report them.
+
+Row 9 is only about binders. That a call has as many arguments as its
+own arity, or an `Apply_cont` as many as the continuation has
+parameters, is not a condition: a term the compiler accepts can break
+either in an arm that never runs, and the machine makes both undefined
+where they are executed.
 
 From the types (T1, T2): nothing is asked of terms so far. T1 uses
 `run_extends_statics`, which is a statement of this file, and its own
@@ -176,7 +184,7 @@ undefined cases would sit together.
   the place in the compiler, or "nothing".
 - Agreement of kinds is never such a premise. C2's statements about
   well-kinded units take `well_kinded_unit` as their own premise;
-  nothing else does until the question of section 7 is answered.
+  nothing else does.
 - Scope and free names are computed by one function, N1's. There are
   four today (`expr_in_scope`, `free_continuations`, the relations of
   `FlambdaNominalSpec.v`, C2's check); rows 3 and 6 are not a fifth.
@@ -209,24 +217,12 @@ undefined cases would sit together.
   recommendation, until an example needs otherwise: the machine makes
   a call of code that binds anything static undefined), or follow the
   compiler and allow a group of code alone anywhere.
-- **Is C2's check a condition of well-formedness?** It asks for the
-  agreements of kinds on which the compiler stops whatever the flags:
-  a `Let` against what it binds
-  (`Typing_env.add_variable_definition`), the arguments of an
-  `Apply_cont` against the parameters (`Continuation_uses.add_use`),
-  the scrutinee of a `Switch`, the return continuation of a call
-  against the call's return arity, a value slot and a field of a
-  static block against what they hold. What the compiler tolerates,
-  the check lets through. C2's position: every unit the compiler
-  builds therefore passes, so by the test of section 1 it is a tenth
-  row. Mine: not yet. That the compiler stops on a mismatch is
-  evidence about the code Simplify reaches; a unit as closure
-  conversion builds it could hold one in code that Simplify drops
-  first, and the evidence so far is hand-written programs. I recommend
-  it stays beside `well_formed_unit`, run by the tool and reported
-  separately, until C2 has argued from closure conversion that such
-  terms are not built, or a corpus of real units has been through it;
-  then it is one line to add.
+- **What an executed mismatch of kinds does, where the machine has no
+  test today**: at a binder, an argument of an `Apply_cont`, the
+  scrutinee of a `Switch`, a field of a static block, a value slot.
+  This is C2's question, in its request, with a `CR` in the `Spec`
+  file. It is here because the answer decides what is left for a
+  static condition to do; none is proposed.
 - **Constants in range** (D13) as part of row 8, like the tags.
 - **The classification of undefined behaviour**: wanted or not. It
   changes no existing statement; perhaps two days once C1, C2 and C3
