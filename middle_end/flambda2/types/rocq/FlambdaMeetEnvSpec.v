@@ -44,10 +44,8 @@
    ([add_variable_definition_keeps_statement]). The second asks that
    the variable is not bound (the compiler refuses one that is, when
    invariant checks are on, and the invariant of typing environments
-   is kept only then), and that the unknown type of the kind is well
-   formed, which is a fact about the predicate of well-formed types
-   that is a parameter here until that predicate is under this
-   branch. The functions that add an equation are to come. *)
+   is kept only then). The functions that add an equation are to
+   come. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
@@ -63,20 +61,18 @@ Import ListNotations.
 
 (* [Meet_env.make_bottom]. *)
 Definition make_bottom_keeps_statement : Prop :=
-  ∀ (type_well_formed : flambda_type -> bool) (menv : Meet_env.t),
-    typing_env_fits type_well_formed (Meet_env.typing_env menv) ->
+  ∀ menv : Meet_env.t,
+    typing_env_fits (Meet_env.typing_env menv) ->
     meet_env_extends menv (Meet_env.make_bottom menv)
-    ∧ typing_env_fits type_well_formed
-        (Meet_env.typing_env (Meet_env.make_bottom menv)).
+    ∧ typing_env_fits (Meet_env.typing_env (Meet_env.make_bottom menv)).
 
 (* [Meet_env.add_variable_definition], of a variable that is not
    bound. *)
 Definition add_variable_definition_keeps_statement : Prop :=
-  ∀ (type_well_formed : flambda_type -> bool) (menv : Meet_env.t)
-    (var : variable) (kind : flambda_kind) (name_mode : Name_mode.t),
+  ∀ (menv : Meet_env.t) (var : variable) (kind : flambda_kind)
+    (name_mode : Name_mode.t),
     let menv' := Meet_env.add_variable_definition menv var kind name_mode in
-    typing_env_fits type_well_formed (Meet_env.typing_env menv) ->
+    typing_env_fits (Meet_env.typing_env menv) ->
     Typing_env.mem None (Meet_env.typing_env menv) (Name_var var) = false ->
-    type_well_formed (unknown kind) = true ->
     meet_env_extends menv menv'
-    ∧ typing_env_fits type_well_formed (Meet_env.typing_env menv').
+    ∧ typing_env_fits (Meet_env.typing_env menv').

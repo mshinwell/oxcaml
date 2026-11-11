@@ -83,7 +83,7 @@ Proof. reflexivity. Qed.
 Theorem reduce_head_of_kind_naked_immediate_sound
     : reduce_head_of_kind_naked_immediate_sound_statement.
 Proof.
-  intros Hexact statics valuation tenv head v Henv (i & Hv & Himms & Hrels).
+  intros statics valuation tenv head v Henv (i & Hv & Himms & Hrels).
   unfold reduce_head_of_kind_naked_immediate.
   set (step := fun (state : Or_bottom.t reduce_acc)
                    (inverse : Relation.t * name) => _).
@@ -135,7 +135,8 @@ Proof.
         - rewrite eval_simple_const in Hcanonical.
           injection Hcanonical as Hc. subst w.
           destruct (Relation.of_const relation c) as [ imm | ] eqn:Hconst.
-          + assert (Himm : i = imm) by exact (Hexact _ _ _ _ _ Hholds Hconst).
+          + assert (Himm : i = imm)
+              by exact (relation_of_const_sound _ _ _ _ _ Hholds Hconst).
             subst imm.
             destruct (reduce_imms acc) as [ numbers | ] eqn:Hreduce.
             * destruct (Keyed.same_keys_b Z.eqb [i] numbers).
@@ -289,7 +290,7 @@ Proof. destruct r; reflexivity. Qed.
 
 Theorem map_result_ok : map_result_ok_statement.
 Proof.
-  intros type_well_formed A B fits_a satisfied_a fits_b satisfied_b f menv a1
+  intros A B fits_a satisfied_a fits_b satisfied_b f menv a1
     a2 result Hfits Hsatisfied [Hkeeps Hsound].
   split.
   - intros r' menv' Hresult.
@@ -309,8 +310,7 @@ Proof.
 Qed.
 
 (* A call that answers bottom is right if nothing has both inputs. *)
-Lemma meet_call_ok_bottom (type_well_formed : flambda_type -> bool)
-    {A : Type} (fits : Typing_env.t -> A -> Prop)
+Lemma meet_call_ok_bottom {A : Type} (fits : Typing_env.t -> A -> Prop)
     (satisfied : static_env -> env -> A -> Prop) (menv : Meet_env.t)
     (a1 a2 : A) (r : meet_return_value unit) :
   (∀ (statics : static_env) (valuation : env),
@@ -318,7 +318,7 @@ Lemma meet_call_ok_bottom (type_well_formed : flambda_type -> bool)
        (Meet_env.typing_env menv) ->
      satisfied statics valuation a1 -> satisfied statics valuation a2 ->
      False) ->
-  meet_call_ok type_well_formed fits satisfied menv a1 a2
+  meet_call_ok fits satisfied menv a1 a2
     (Meet_result.Bottom r).
 Proof.
   intros Hnone. split.
@@ -329,16 +329,15 @@ Qed.
 
 (* A call that answers in the environment that it was given is right if
    what it answers fits and is true where both inputs are. *)
-Lemma meet_call_ok_same_env (type_well_formed : flambda_type -> bool)
-    {A : Type} (fits : Typing_env.t -> A -> Prop)
+Lemma meet_call_ok_same_env {A : Type} (fits : Typing_env.t -> A -> Prop)
     (satisfied : static_env -> env -> A -> Prop) (menv : Meet_env.t)
     (a1 a2 : A) (r : meet_return_value A) :
-  typing_env_fits type_well_formed (Meet_env.typing_env menv) ->
+  typing_env_fits (Meet_env.typing_env menv) ->
   fits (Meet_env.typing_env menv) (extract_value r a1 a2) ->
   (∀ (statics : static_env) (valuation : env),
      satisfied statics valuation a1 -> satisfied statics valuation a2 ->
      satisfied statics valuation (extract_value r a1 a2)) ->
-  meet_call_ok type_well_formed fits satisfied menv a1 a2
+  meet_call_ok fits satisfied menv a1 a2
     (Meet_result.Ok r menv).
 Proof.
   intros Henv Hfits Hsatisfied. split.
@@ -353,7 +352,7 @@ Qed.
 
 Theorem meet_unknown_ok : meet_unknown_ok_statement.
 Proof.
-  intros type_well_formed A fits satisfied meet_contents contents_is_bottom
+  intros A fits satisfied meet_contents contents_is_bottom
     Hbottom Hok menv x1 x2 result Henv Hfits1 Hfits2 Hmeet.
   unfold meet_unknown in Hmeet.
   destruct x1 as [ c1 | ], x2 as [ c2 | ].
@@ -368,7 +367,7 @@ Proof.
     + destruct (meet_contents menv c1 c2) as [ result0 | ] eqn:Hcontents;
         [ | discriminate ].
       injection Hmeet as <-.
-      apply (map_result_ok type_well_formed A (Or_unknown.t A) fits satisfied
+      apply (map_result_ok A (Or_unknown.t A) fits satisfied
                (or_unknown_fits fits) (or_unknown_satisfied satisfied)
                Or_unknown.Known menv c1 c2 result0).
       * intros tenv a Ha. exact Ha.
@@ -411,7 +410,7 @@ Qed.
 
 Theorem combine_results2_ok : combine_results2_ok_statement.
 Proof.
-  intros type_well_formed A B C fits_a satisfied_a fits_b satisfied_b fits_c
+  intros A B C fits_a satisfied_a fits_b satisfied_b fits_c
     satisfied_c meet_a meet_b rebuild menv left_a right_a left_b right_b
     result tenv [Hstable_a1 Hstable_a2] [Hstable_b1 Hstable_b2] Hok_a Hok_b
     Hfits_c Hsatisfied_c Henv Hla Hra Hlb Hrb Hmeet.
@@ -545,7 +544,7 @@ Qed.
 
 Theorem naked_number_meet_ok : naked_number_meet_ok_statement.
 Proof.
-  intros type_well_formed k v menv t1 t2 result Henv Hf1 Hf2 [= <-].
+  intros k v menv t1 t2 result Henv Hf1 Hf2 [= <-].
   unfold meet_head_of_kind_naked_number.
   assert (Hcases :=
     set_meet_cases Z (list Z) Z.eqb (fun s => s) menv t1 t2
@@ -580,7 +579,7 @@ Qed.
 Theorem meet_or_unknown_or_bottom_ok
     : meet_or_unknown_or_bottom_ok_statement.
 Proof.
-  intros type_well_formed A B fits satisfied inj meet_elt menv input1 input2
+  intros A B fits satisfied inj meet_elt menv input1 input2
     result tenv Helt Hbottom Henv Hfits1 Hfits2 Hmeet.
   unfold meet_or_unknown_or_bottom in Hmeet.
   destruct input1 as [ | a1 | ], input2 as [ | a2 | ];
@@ -745,7 +744,6 @@ Qed.
 
 Section Mapping.
 
-Variable type_well_formed : flambda_type -> bool.
 Context {K A : Type}.
 Variable fits : Typing_env.t -> A -> Prop.
 Variable satisfied : K -> static_env -> env -> A -> Prop.
@@ -755,7 +753,7 @@ Variable menv : Meet_env.t.
 
 Hypothesis Hstable : ∀ key : K, part_stable fits (satisfied key).
 Hypothesis Hok :
-  ∀ key : K, part_meet_ok type_well_formed fits (satisfied key) meet_data.
+  ∀ key : K, part_meet_ok fits (satisfied key) meet_data.
 Hypothesis Hleft :
   ∀ (key : K) (a : A),
     get_left key = Some a -> fits (Meet_env.typing_env menv) a.
@@ -769,7 +767,7 @@ Let step (state : mapping_state K A) (key : K) : mapping_state K A :=
 (* What the fold keeps, whatever the values. *)
 Let keeps (done : list K) (acc : mapping_acc K A) : Prop :=
   meet_env_extends menv (mapping_env acc)
-  ∧ typing_env_fits type_well_formed (Meet_env.typing_env (mapping_env acc))
+  ∧ typing_env_fits (Meet_env.typing_env (mapping_env acc))
   ∧ map fst (mapping acc) = rev done
   ∧ ∀ (key : K) (a : A),
       (key, a) ∈ mapping acc ->
@@ -933,7 +931,7 @@ End Mapping.
 
 Theorem meet_mapping_ok : meet_mapping_ok_statement.
 Proof.
-  intros type_well_formed K A M fits satisfied meet_data fold2 keys get_left
+  intros K A M fits satisfied meet_data fold2 keys get_left
     get_right menv left right rebuild result tenv Hfold2 Hstable Hok Henv
     Hleft Hright Hmeet.
   rewrite meet_mapping_unfold, Hfold2 in Hmeet.
@@ -944,14 +942,14 @@ Proof.
        mapping_env := menv |}) in Hmeet.
   assert (Hinit :
     meet_env_extends menv (mapping_env init)
-    ∧ typing_env_fits type_well_formed (Meet_env.typing_env (mapping_env init))
+    ∧ typing_env_fits (Meet_env.typing_env (mapping_env init))
     ∧ map fst (mapping init) = rev []
     ∧ ∀ (key : K) (a : A),
         (key, a) ∈ mapping init ->
         fits (Meet_env.typing_env (mapping_env init)) a).
   { split; [ apply meet_env_extends_refl | ]. split; [ exact Henv | ].
     split; [ reflexivity | ]. intros key a []. }
-  destruct (mapping_fold_ok type_well_formed fits satisfied meet_data get_left
+  destruct (mapping_fold_ok fits satisfied meet_data get_left
               get_right menv Hstable Hok Hleft Hright keys [] init _ Hinit
               eq_refl)
     as [Hkeeps Hsound].

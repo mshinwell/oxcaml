@@ -181,7 +181,7 @@
      slots, value slots and the names of an extension in the order of
      its maps; here they are gone through in the order in which the
      first map lists them, then those that only the second has
-     ([keys_of_both], FlambdaMeetGrammar.v). The extra variables of
+     ([Keyed.keys_of_both], FlambdaMapSpec.v). The extra variables of
      [meet_row_like] are defined in the order in which the cases were
      met, where the compiler defines them in the order of the
      variables. So this file is the compiler's algorithm on maps whose
@@ -225,8 +225,9 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeMeaningBoolSpec FlambdaBindingTime FlambdaEnvAliases
-  FlambdaTypingEnv FlambdaMeetGrammar FlambdaExpandHead FlambdaMeetEnv.
+  FlambdaTypeMeaningBoolSpec FlambdaTypeEqualSpec FlambdaBindingTime
+  FlambdaEnvAliases FlambdaTypingEnv FlambdaMeetGrammar FlambdaExpandHead
+  FlambdaMeetEnv.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -397,7 +398,7 @@ Definition map_meet {K A : Type} (eqb : K -> K -> bool)
         K -> option A -> option A -> mapping_state K A -> mapping_state K A)
       (m1 m2 : Keyed.finite_map K A) (init : mapping_state K A)
       : mapping_state K A :=
-    fold2_on eqb (keys_of_both eqb m1 m2) f m1 m2 init
+    Keyed.fold2_on eqb (Keyed.keys_of_both eqb m1 m2) f m1 m2 init
   in
   let rebuild (l : list (K * A)) : Keyed.finite_map K A :=
     fold_left (fun m binding => binding :: m) l []
@@ -794,11 +795,14 @@ Definition define_in_types (env : Meet_env.t) (var : variable)
    in an environment. *)
 Definition add_defined_vars (env : Meet_env.t) (level : Typing_env_level.t)
     : option Meet_env.t :=
-  fold_on_defined_vars
-    (fun var kind env =>
-       let* env := env in
-       define_in_types env var kind)
-    level (Some env).
+  let* env :=
+    Typing_env_level.fold_on_defined_vars
+      (fun var kind env =>
+         let* env := env in
+         define_in_types env var kind)
+      level (Some env)
+  in
+  env.
 
 (* [meet_disjunction]: the meet of two things that are each one of two
    alternatives, [a] or [b] (an immediate or a block; not null or
@@ -1459,7 +1463,7 @@ Definition merge_fold_failing {K A B C S : Type} (eqb : K -> K -> bool)
     (m1 : Keyed.finite_map K A) (m2 : Keyed.finite_map K B) (init : S)
     : option (Keyed.finite_map K C * S) :=
   let '(out, state) :=
-    merge_fold_on eqb keys
+    Keyed.merge_fold_on eqb keys
       (fun key a b (state : option S) =>
          match state with
          | None => (None, None)
@@ -1503,7 +1507,7 @@ Definition meet_row_like_for_blocks (env : Meet_env.t)
           Keyed.finite_map Z (Or_unknown.t row_like_block_case))
         (state : row_like_state) :=
       merge_fold_failing Z.eqb
-        (sort_numbers (keys_of_both Z.eqb known1 known2))
+        (sort_numbers (Keyed.keys_of_both Z.eqb known1 known2))
         merge_case known1 known2 state
     in
     combine_results2 env
@@ -1539,7 +1543,8 @@ Definition meet_row_like_for_closures (env : Meet_env.t)
             (option (Or_unknown.t row_like_closures_case) * row_like_state))
         (known1 known2 : finite_map row_like_closures_case)
         (state : row_like_state) :=
-      merge_fold_failing Pos.eqb (keys_of_both Pos.eqb known1 known2)
+      merge_fold_failing Pos.eqb
+        (Keyed.keys_of_both Pos.eqb known1 known2)
         (fun fslot case1 case2 state =>
            let case1 := option_map Or_unknown.Known case1 in
            let case2 := option_map Or_unknown.Known case2 in
@@ -1818,7 +1823,7 @@ Definition meet_head_of_kind_value_non_null (env : Meet_env.t)
       end
     end
   | Boxed_number k1 n1 alloc_mode1, Boxed_number k2 n2 alloc_mode2 =>
-    if naked_number_kind_eqb k1 k2
+    if boxable_number_eqb k1 k2
     then
       combine_results2 env meet
         (fun env alloc_mode1 alloc_mode2 =>

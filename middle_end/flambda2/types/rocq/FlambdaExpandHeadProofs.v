@@ -39,8 +39,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaBindingTime FlambdaEnvAliases FlambdaEnvAliasesSpec
   FlambdaEnvAliasesProofs FlambdaTypingEnv FlambdaTypingEnvSpec
   FlambdaTypingEnvProofs FlambdaTypingEnvInvariantSpec
-  FlambdaTypingEnvKindedSpec
-  FlambdaTypingEnvInvariantProofs FlambdaMeetGrammar FlambdaExpandHead
+  FlambdaTypingEnvInvariantProofs FlambdaTypingEnvKindedSpec
+  FlambdaTypingEnvKindedProofs FlambdaMeetGrammar FlambdaExpandHead
   FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec FlambdaExpandHeadSpec.
 Import ListNotations.
 
@@ -173,20 +173,6 @@ Qed.
 
 Lemma bottom_aliases (k : flambda_kind) : aliases_with_kinds (bottom k) = [].
 Proof. destruct k as [ | [] | | ]; reflexivity. Qed.
-
-Lemma find_kinded (tenv : Typing_env.t) (n : name)
-    (kind : option flambda_kind) (ty : flambda_type) :
-  typing_env_kinded tenv ->
-  Typing_env.find tenv n kind = Some ty ->
-  type_kinded tenv ty.
-Proof.
-  intros Hkinded Hfind.
-  destruct (find_cases tenv n kind ty Hfind)
-    as [[binding_time_and_mode Hlookup] | [[k ->] | ->]].
-  - exact (Hkinded n ty binding_time_and_mode Hlookup).
-  - intros s kind' Hin. rewrite bottom_aliases in Hin. destruct Hin.
-  - intros s kind' Hin. destruct Hin.
-Qed.
 
 (* ======================================================================== *)
 (* The statements                                                           *)

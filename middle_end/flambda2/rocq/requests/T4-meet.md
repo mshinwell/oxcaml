@@ -132,8 +132,7 @@ Why, agreed with T2 and T5:
   have no value on poison; T1 changes `relation_holds`; T2's
   `typing_env_satisfied` exempts a name whose type is a relation on a
   name that holds poison (done). The contract has no premise for it.
-  Until T1's change is on this branch, `meet_sound` is false of the
-  transcribed meet here, and the header says so. `Is_null` keeps its
+  T1's change is under this branch. `Is_null` keeps its
   clause (it relates poison to 0): the n-way join needs it, and what
   meet deduces from 0, `any_non_null_value`, poison has. T4-5.
 - **A name with no value whose type is a relation on a name that holds
@@ -174,12 +173,19 @@ fits it, and the two types have one kind.
   kinds (it stops with a fatal error where they are wrong); the n-way
   join does, of the environments it is given, so meet takes them and
   gives them back. It is a premise about kinds, with a `CR mshinwell`
-  (D10, D12, D32; T5-9). The traversal `aliases_with_kinds` is T5's.
+  (D10, D12, D32; T5-9). The traversal `aliases_with_kinds` is T5's,
+  and is in T1's file; `type_kinded` is T2's.
 - An environment fits (`typing_env_fits`) if it has the invariant of
-  typing environments (`typing_env_invariant`, T2's), no name has an
-  obviously bottom type in
-  it unless it is bottom (`no_bottom_types`), and each of its types
-  fits it. `no_bottom_types` is there for the n-way join, which passes
+  typing environments (`typing_env_invariant`, T2's), its types are
+  well formed (`types_well_formed`, T2's), it is kinded
+  (`typing_env_kinded`, T2's: its types are kinded in it, two simples
+  that it knows to be equal are of one kind, and a symbol that has a
+  type has one of kind `Value`), and no name has an obviously bottom
+  type in it unless it is bottom (`no_bottom_types`). Each of its
+  types then fits it (`fits_types`, proved). That a symbol's type is
+  of kind `Value` is new with the move to T2's predicate:
+  `Meet_env.add_alias` takes a symbol to be of that kind.
+  `no_bottom_types` is there for the n-way join, which passes
   over an obviously bottom type and can then make the name an alias of
   what it is in the other environments joined, giving a value to a
   name that had none. The compiler's join needs it and it is not
@@ -189,13 +195,13 @@ fits it, and the two types have one kind.
   condition; there is a `CR mshinwell` (T5-10).
 
 `type_well_formed : flambda_type -> bool` is T1's
-(`FlambdaTypeWellFormedSpec.v`, not on the branch this one is made
-from) and is still a parameter of the contracts (a `Section`). The
-condition on the environment is T2's `typing_env_invariant`
-(`FlambdaTypingEnvInvariantSpec.v`); it was a parameter too, until T2
-had stated that the invariant is kept by `Typing_env.add_alias` and
-`Typing_env.replace_equation` each on its own, which are the two steps
-of `record_demotion`. What meet needs of
+(`FlambdaTypeWellFormedSpec.v`). It was a parameter of the contracts
+until that file was under this branch, and is not any more: the
+contracts are about T1's predicate. The condition on the environment
+is T2's `typing_env_invariant` (`FlambdaTypingEnvInvariantSpec.v`); it
+was a parameter too, until T2 had stated that the invariant is kept by
+`Typing_env.add_alias` and `Typing_env.replace_equation` each on its
+own, which are the two steps of `record_demotion`. What meet needs of
 `type_well_formed`, agreed with T1:
 
 - (a) the product of a case of blocks is no wider than the size of its
@@ -416,8 +422,8 @@ passes 0.
   T1: `relation_holds Get_tag` relates a block to its tag only if the
   tag is in range, so the rule is used once, where a relation is made
   from a primitive, and the contract of meet has no premise for it.
-  Until T1's change is on this branch `get_tag_reduction_repaired`
-  has the range, and that the value is not poison, as premises.
+  `get_tag_reduction_repaired` has no premise but the relation, now
+  that T1's change is under this branch.
 
 No miscompiled program is known (T1-1 says why T1 thinks none arises).
 
@@ -495,14 +501,14 @@ function what the model has and every difference.
   that the answer does not depend on the order.
 - `FlambdaMeetGrammar.v` holds what the transcription needs of other
   streams' files, each definition to move to its owner under the same
-  name: for T1, `naked_number_kind_eqb`, `block_shape_eqb`,
-  `const_of_naked_number`, `must_be_singleton`,
-  `head_of_kind_value_null`, `head_of_kind_value_tagged_immediate`,
-  the three functions on `set_of_closures_contents`, and T5's
-  `aliases_with_kinds`; for T2, `fold_on_defined_vars` and
-  `kind_of_simple`; for C0, `fold2_on`, `keys_of_both` and
-  `merge_fold_on` (the forms agreed with C0, which take the equality
-  first).
+  name: for T1, `const_of_naked_number`, `must_be_singleton`,
+  `head_of_kind_value_null`, `head_of_kind_value_tagged_immediate`
+  and the three functions on `set_of_closures_contents` (they are in
+  T1's third request); for T2, `kind_of_simple`. What was there for
+  C0 (`fold2_on`, `keys_of_both`, `merge_fold_on`), and of T1's and
+  T2's what is merged (`naked_number_kind_eqb`, `block_shape_eqb`,
+  `aliases_with_kinds`, `fold_on_defined_vars`), is gone: the
+  transcription uses the owners' definitions.
 - The functions extract. For the differential tests (T7): what is
   compared with the compiler is `Meet.meet join compiler_choices
   fuel`, with the join read as the compiler under
@@ -616,7 +622,7 @@ strict satisfaction, with no other premise), `expand_head_closed`,
 - The proofs of the contract for `meet_to_prove`, with the join's
   contract as a hypothesis; then that some fuel is enough.
 - `reduce_head_of_kind_naked_immediate` is sound (T5b needs it too):
-  when T1's change to relations is on this branch.
-- Replace the two parameters by T1's and T2's predicates.
+  done, with no premise but those of its statement.
+- The two parameters are replaced by T1's and T2's predicates: done.
 
 For reviewers: whether a precision statement is wanted.

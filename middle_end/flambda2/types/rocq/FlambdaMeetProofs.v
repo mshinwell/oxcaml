@@ -36,8 +36,10 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
-  FlambdaBindingTime FlambdaEnvAliases FlambdaEnvAliasesSpec
-  FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaTypingEnvProofs
+  FlambdaTypeWellFormedSpec FlambdaBindingTime FlambdaEnvAliases
+  FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
+  FlambdaTypingEnvProofs FlambdaTypingEnvInvariantSpec
+  FlambdaTypingEnvInvariantProofs FlambdaTypingEnvKindedSpec
   FlambdaMeetGrammar FlambdaExpandHead FlambdaMeetEnv FlambdaMeet
   FlambdaMeetSpec.
 Import ListNotations.
@@ -48,8 +50,8 @@ Import ListNotations.
 
 Theorem meet_answers_bottom : meet_answers_bottom_statement.
 Proof.
-  intros type_well_formed meet Hsound statics valuation tenv t1 t2 v Hinputs
-    Hsatisfied Hmeet [Ht1 Ht2].
+  intros meet Hsound statics valuation tenv t1 t2 v Hinputs Hsatisfied Hmeet
+    [Ht1 Ht2].
   destruct
     (Hsound statics valuation tenv t1 t2 v _ Hinputs Hsatisfied Ht1 Ht2 Hmeet)
     as [t [tenv' [valuation' [Hresult _]]]].
@@ -58,17 +60,22 @@ Qed.
 
 Theorem add_equation_no_poison : add_equation_no_poison_statement.
 Proof.
-  intros type_well_formed add_equation Hsound statics valuation tenv tenv' n
-    ty v Hfits Hty Hsatisfied Hpoison Hvalue Hv Hadd.
+  intros add_equation Hsound statics valuation tenv tenv' n ty v Hfits Hty
+    Hsatisfied Hpoison Hvalue Hv Hadd.
   apply (Hsound statics valuation tenv tenv' n ty v Hfits Hty); try assumption.
   apply satisfied_no_poison_strictly; assumption.
 Qed.
 
-Theorem fits_kinded : fits_kinded_statement.
+Theorem fits_types : fits_types_statement.
 Proof.
-  intros type_well_formed tenv [_ [_ [_ Hfits]]] n ty binding_time_and_mode
-    Hlookup.
-  exact (proj2 (proj2 (Hfits n ty binding_time_and_mode Hlookup))).
+  intros tenv n ty binding_time_and_mode
+    ([Hwf _] & Htypes & (Hkinded & _) & _) Hlookup.
+  apply typing_env_well_formed_iff in Hwf.
+  destruct Hwf as ((_ & _ & _ & Hclosed & _) & _).
+  split; [ exact (Htypes n ty binding_time_and_mode Hlookup) | ]. split.
+  - intros x Hin. rewrite mem_var_is_bound.
+    exact (Hclosed n ty binding_time_and_mode x Hlookup Hin).
+  - exact (Hkinded n ty binding_time_and_mode Hlookup).
 Qed.
 
 (* ======================================================================== *)
@@ -113,17 +120,17 @@ Qed.
 
 Theorem get_tag_reduction_repaired : get_tag_reduction_repaired_statement.
 Proof.
-  intros statics vars w n numbers alloc_mode Hrelation Hin Hnot_poison Hrange.
+  intros statics vars w n numbers alloc_mode Hrelation Hin.
   unfold immediate_or_blocks_with_these_tags.
   apply (create_variant_satisfied statics vars w).
-  destruct Hrelation as [[i ->] | [[fields Hblock] | Hpoison]];
-    [ | | contradiction ].
+  destruct Hrelation as [[i ->] | [[fields Hblock] Hrange]].
   - left. exists i. split; [ reflexivity | ]. split; exact I.
   - right. exists n, fields. split; [ exact Hblock | ]. split; [ | exact I ].
     apply row_like_for_blocks_find.
-    destruct Hrange as [[i Himmediate] | Htag].
-    + subst w. discriminate Hblock.
-    + rewrite (lookup_among_unknown_cases n _
-                 (tag_among_tags n numbers Hin Htag)).
-      exact I.
+    assert (Htag : is_tag n = true).
+    { unfold FlambdaTypeMeaningSpec.is_tag in Hrange. unfold is_tag.
+      apply andb_true_iff. split; apply Z.leb_le; lia. }
+    rewrite (lookup_among_unknown_cases n _
+               (tag_among_tags n numbers Hin Htag)).
+    exact I.
 Qed.

@@ -48,9 +48,9 @@
    - names ([expand_head_closed_statement]): if the types of the
      environment mention only variables that it knows, and the type
      does, so does the type expanded;
-   - kinds of aliases ([expand_head_kinded_statement]): if the
-     environment and the type are kinded (FlambdaMeetSpec.v), so is
-     the type expanded;
+   - kinds of aliases ([expand_head_kinded_statement]): if the types
+     of the environment and the type are kinded
+     (FlambdaTypingEnvKindedSpec.v), so is the type expanded;
    - the kind ([expand_head_kind_statement]): the type expanded is of
      the kind of the type, if the type is kinded and the environment
      has [constants_of_kind]. The compiler does not check this where
@@ -118,7 +118,7 @@ Definition expand_head_closed_statement : Prop :=
 (* The type expanded is kinded. *)
 Definition expand_head_kinded_statement : Prop :=
   ∀ (tenv : Typing_env.t) (ty : flambda_type) (expanded : Expanded_type.t),
-    typing_env_kinded tenv ->
+    types_kinded tenv ->
     type_kinded tenv ty ->
     expand_head tenv ty = Some expanded ->
     type_kinded tenv (Expanded_type.to_type expanded).

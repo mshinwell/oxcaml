@@ -118,11 +118,8 @@
      hold of poison, or the strictly satisfied environment
      [p : unknown], [t : Get_tag of p], with [p] holding poison and
      [t] holding 0, would make the meet of [= t] with the number 0
-     unsound. FlambdaTypeMeaningSpec.v is being changed to say so
-     ([relation_holds] without its clauses for poison in these two
-     cases). On this branch it still has them, and with them
-     [meet_sound] is false of the meet transcribed; the contracts are
-     written for the meaning as revised and are to be proved on it.
+     unsound. FlambdaTypeMeaningSpec.v says so ([relation_holds] has
+     no clause for poison in these two cases).
      [Is_null] relates poison to 0, as it does every value that is not
      null, and stays so: from 0 meet deduces the type of the values
      that are not null, which poison has.
@@ -182,10 +179,8 @@
      and then the answer is bottom whatever the kinds
      ([meet_bottom_env]).
    - The types, and the types of the environment, are well formed:
-     [type_well_formed], which is T1's (FlambdaTypeWellFormedSpec.v,
-     which is not on the branch that this one is made from) and is a
-     parameter of the contracts until it is. What meet needs of it, as
-     agreed with T1: (a) the product of a case of blocks is no wider
+     [type_well_formed] (FlambdaTypeWellFormedSpec.v). What meet
+     needs of it: (a) the product of a case of blocks is no wider
      than the size of its index; (b) the function types, the closure
      types and the value slot types of a case of closures are of slots
      among those of its index, and an exact index has the slot of the
@@ -200,12 +195,12 @@
      and its raw constructors check nothing (discrepancy T1-5): here
      the model is stricter than the compiler (decision D32), and the
      file that defines the predicate says so at each condition. The
-     n-way join, as it is on this branch, does not keep (b): it keeps
-     a function type under an index that does not say that the set
-     has the function (T1-4). On such a type the meet answers bottom
-     for two function types of one slot with different code, and a
-     closure of a set without that slot has both types (discrepancy
-     T4-3).
+     n-way join did not keep (b), until it was changed to keep a
+     function type only if every input has one: it kept a function
+     type under an index that does not say that the set has the
+     function (T1-4). On such a type the meet answers bottom for two
+     function types of one slot with different code, and a closure of
+     a set without that slot has both types (discrepancy T4-3).
      That a type is not an alias to a poison constant is not asked:
      the compiler makes such types
      ([Typing_env.type_simple_in_term_exn]), and nothing goes wrong
@@ -219,19 +214,25 @@
      kinds: where they are wrong it stops with a fatal error
      ([Typing_env.find] with a kind, [Meet_env.add_equation]). The
      join that it calls does (below), so meet has to be given them and
-     to give them back. There is a CR at [type_kinded]. With it goes a
-     condition on the environment: two simples that it knows to be
-     equal are of one kind ([aliases_kinded],
-     FlambdaTypingEnvKindedSpec.v, with its own CR). A meet that makes
-     a name an alias of another writes on it an alias type of the kind
-     of the name, and that type is kinded only if the other is of that
-     kind.
+     to give them back. There is a CR at [type_fits]. With it go two
+     conditions on the environment, which with the kinds of its types
+     make it kinded ([typing_env_kinded],
+     FlambdaTypingEnvKindedSpec.v, with its own CRs): two simples
+     that it knows to be equal are of one kind ([aliases_kinded]), and
+     a symbol that has a type has one of the kind of values
+     ([symbols_of_kind_value]). A meet that makes a name an alias of
+     another writes on it an alias type of the kind of the name, and
+     that type is kinded only if the other is of that kind; and
+     [Meet_env.add_alias] takes a symbol to be of the kind of
+     values.
    - The environment is well formed: it has the invariant of typing
      environments ([typing_env_invariant],
      FlambdaTypingEnvInvariantSpec.v): binding times, levels and
      scopes, the aliases, and that its types mention only variables
-     that it knows. The invariant is stricter than what the compiler
-     checks, and that file says where. It holds of the environments
+     that it knows; and its types are well formed
+     ([types_well_formed], in the same file, beside the invariant).
+     The invariant is stricter than what the compiler checks, and
+     that file says where. It holds of the environments
      that a meet goes through, also between the two steps in which a
      name is made an alias of another and is given the alias for a
      type: the statements of that file about [Typing_env.add_alias]
@@ -437,17 +438,16 @@
    it can be run and compared ([compiler_meet]), and the function with
    the type that is true can be proved ([meet_to_prove]).
    (Discrepancies T1-1, R3-2; in both files.)
-   Two things that statement supposes of the value, which the relation
-   is to give when FlambdaTypeMeaningSpec.v has changed. It is not
-   poison (above). And if it is a block, its tag is one of the numbers
-   that are tags: the step drops the others ("no blocks exist with
-   this tag"), and a block of the model may have any number for its
-   tag. That the blocks of a run have tags in range is a rule of well
-   formed terms (decision D23), which the contract of a meet, being
-   about any value, has not; so the relation [Get_tag] is to relate a
-   block to its tag only if the tag is in range, as agreed with T1,
-   and the rule is used where a relation is made from a primitive.
-   (Discrepancy T4-6.)
+   Two things that statement needs of the value, which the relation
+   gives. It is not poison (above). And if it is a block, its tag is
+   one of the numbers that are tags: the step drops the others ("no
+   blocks exist with this tag"), and a block of the model may have
+   any number for its tag. That the blocks of a run have tags in
+   range is a rule of well formed terms (decision D23), which the
+   contract of a meet, being about any value, has not; so the
+   relation [Get_tag] relates a block to its tag only if the tag is
+   in range, and the rule is used where a relation is made from a
+   primitive. (Discrepancy T4-6.)
 
    Known differences between what the compiler does and what is said
    here, each recorded: T4-1 (after the join, meet defines again the
@@ -471,10 +471,11 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
-  FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
-  FlambdaTypingEnvInvariantSpec FlambdaTypingEnvKindedSpec
-  FlambdaMeetGrammar FlambdaExpandHead FlambdaMeetEnv FlambdaMeet.
+  FlambdaTypeMeaningSpec FlambdaTypeWellFormedSpec FlambdaBindingTime
+  FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaTypingEnv
+  FlambdaTypingEnvSpec FlambdaTypingEnvInvariantSpec
+  FlambdaTypingEnvKindedSpec FlambdaMeetGrammar FlambdaExpandHead
+  FlambdaMeetEnv FlambdaMeet.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -572,40 +573,13 @@ Definition join_scoped_envs : Type :=
 (* ======================================================================== *)
 
 (* That a [Simple] is of a kind in an environment ([simple_of_kind]),
-   and that two [Simple]s that an environment knows to be equal are of
-   one kind ([aliases_kinded]), are the typing environment's
-   (FlambdaTypingEnvKindedSpec.v). *)
-
-(* A type is kinded in an environment: each of its aliases is at the
-   kind that the environment has for its target, and its relation
-   variables are naked immediates there ([aliases_with_kinds],
-   FlambdaMeetGrammar.v). *)
-(* CR mshinwell: this is a premise of the contracts, and it is about
-   kinds, on which the model may not ask more than the compiler
-   (decisions D10, D12 and D32). It is not claimed that the
-   environments of the compiler have it. A type does not say at which
-   kind the target of an alias is bound, and ill-kinded code, which
-   Simplify must accept, may give a name an alias at another kind. The
-   compiler does not check it where a type is made. It stops with a
-   fatal error where it follows such an alias ([Typing_env.find] with
-   a kind; "Kind mismatch upon meet"), so a meet answers nothing on
-   one, and soundness does not need the premise. The n-way join needs
-   it of the environments that it is given (it makes a variable of the
-   kind of the types joined for the [Simple]s that they are aliases
-   to, and does not look at their kinds), so the meet that calls it
-   needs it of its own inputs. Whether an environment that is not
-   kinded can reach a meet is not known. Discrepancy T5-9. *)
-Definition type_kinded (tenv : Typing_env.t) (ty : flambda_type) : Prop :=
-  ∀ (s : simple) (kind : flambda_kind),
-    (s, kind) ∈ aliases_with_kinds ty -> simple_of_kind tenv s kind.
-
-(* An environment is kinded: every type that it has for a name is. *)
-Definition typing_env_kinded (tenv : Typing_env.t) : Prop :=
-  ∀ (n : name) (ty : flambda_type)
-    (binding_time_and_mode : Binding_time.With_name_mode.t),
-    Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
-    = Some (ty, binding_time_and_mode) ->
-    type_kinded tenv ty.
+   that a type is kinded there ([type_kinded]: each of its aliases is
+   at the kind that the environment has for its target, and its
+   relation variables are naked immediates there), and that an
+   environment is kinded ([typing_env_kinded]: its types are, two
+   [Simple]s that it knows to be equal are of one kind, and a symbol
+   that has a type has one of the kind of values) are the typing
+   environment's (FlambdaTypingEnvKindedSpec.v). *)
 
 (* No name has a type that is obviously bottom, in an environment that
    is not bottom. *)
@@ -635,20 +609,31 @@ Definition no_bottom_types (tenv : Typing_env.t) : Prop :=
     = Some (ty, binding_time_and_mode) ->
     is_obviously_bottom ty = false.
 
-Section Contracts.
-
-(* [type_well_formed] is T1's (FlambdaTypeWellFormedSpec.v; see the
-   header): the conditions on a type that the compiler's functions
-   establish and meet relies on. Until it is on this branch the
-   contracts take it as a parameter. *)
-Variable type_well_formed : flambda_type -> bool.
-
 (* ======================================================================== *)
 (* What is asked of the inputs                                              *)
 (* ======================================================================== *)
 
-(* A type that may be met in an environment: it is well formed, the
-   environment knows its variables, and it is kinded there. *)
+(* A type that may be met in an environment: it is well formed
+   ([type_well_formed], FlambdaTypeWellFormedSpec.v: the conditions on
+   a type that the compiler's functions establish and meet relies
+   on), the environment knows its variables, and it is kinded
+   there. *)
+(* CR mshinwell: that the type is kinded is a premise of the
+   contracts, and it is about kinds, on which the model may not ask
+   more than the compiler (decisions D10, D12 and D32). It is not
+   claimed that the environments of the compiler have it. A type does
+   not say at which kind the target of an alias is bound, and
+   ill-kinded code, which Simplify must accept, may give a name an
+   alias at another kind. The compiler does not check it where a type
+   is made. It stops with a fatal error where it follows such an alias
+   ([Typing_env.find] with a kind; "Kind mismatch upon meet"), so a
+   meet answers nothing on one, and soundness does not need the
+   premise. The n-way join needs it of the environments that it is
+   given (it makes a variable of the kind of the types joined for the
+   [Simple]s that they are aliases to, and does not look at their
+   kinds), so the meet that calls it needs it of its own inputs.
+   Whether an environment that is not kinded can reach a meet is not
+   known. Discrepancy T5-9. *)
 Definition type_fits (tenv : Typing_env.t) (t : flambda_type) : Prop :=
   type_well_formed t = true
   ∧ (∀ x : variable,
@@ -656,18 +641,14 @@ Definition type_fits (tenv : Typing_env.t) (t : flambda_type) : Prop :=
   ∧ type_kinded tenv t.
 
 (* An environment in which a meet may be made: it has the invariant of
-   typing environments, no name has an obviously bottom type in it
-   unless it is bottom, two simples that it knows to be equal are of
-   one kind, and each of its types fits it. *)
+   typing environments, its types are well formed, it is kinded, and
+   no name has an obviously bottom type in it unless it is bottom.
+   Each of its types then fits it ([fits_types_statement]). *)
 Definition typing_env_fits (tenv : Typing_env.t) : Prop :=
   typing_env_invariant tenv
-  ∧ no_bottom_types tenv
-  ∧ aliases_kinded tenv
-  ∧ ∀ (n : name) (ty : flambda_type)
-      (binding_time_and_mode : Binding_time.With_name_mode.t),
-      Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
-      = Some (ty, binding_time_and_mode) ->
-      type_fits tenv ty.
+  ∧ types_well_formed tenv
+  ∧ typing_env_kinded tenv
+  ∧ no_bottom_types tenv.
 
 Definition meet_inputs_well_formed (tenv : Typing_env.t)
     (t1 t2 : flambda_type) : Prop :=
@@ -1016,8 +997,6 @@ Definition transcription_sound
   ∀ (join : join_scoped_envs) (fuel : nat),
     join_scoped_envs_sound join -> meet_contract (meet_of join fuel).
 
-End Contracts.
-
 (* ======================================================================== *)
 (* The transcribed meet                                                     *)
 (* ======================================================================== *)
@@ -1040,8 +1019,7 @@ Definition compiler_meet (join : join_scoped_envs) (fuel : nat)
    the step for [Get_tag] adds [immediate_or_blocks_with_these_tags],
    a variable that the environment knows is not defined again, and the
    variables of a single case are lifted. The statement to come is
-   [transcription_sound type_well_formed meet_to_prove], for T1's
-   predicate. *)
+   [transcription_sound meet_to_prove]. *)
 Definition meet_to_prove (join : join_scoped_envs) (fuel : nat)
     : meet_function :=
   Meet.meet join repaired_choices fuel.
@@ -1062,16 +1040,13 @@ Definition get_tag_reduction_unsound_statement : Prop :=
 
 (* With the other type it is, for the tags that the step computes from
    the numbers: those that are tags of blocks ([is_tag], FlambdaMeet.v).
-   Two premises on the value are what the relation is to give once
-   FlambdaTypeMeaningSpec.v has changed (see the header): it is not
-   poison, and if it is a block its tag is in range. *)
+   The relation gives that the value is not poison, and that if it is
+   a block its tag is in range (see the header). *)
 Definition get_tag_reduction_repaired_statement : Prop :=
   ∀ (statics : static_env) (vars : env) (w : value) (n : Z) (numbers : list Z)
     (alloc_mode : Alloc_mode.t),
     relation_holds statics Relation.Get_tag w n ->
     n ∈ numbers ->
-    ~ is_poison w ->
-    is_immediate w ∨ is_tag n = true ->
     type_satisfied statics vars w
       (immediate_or_blocks_with_these_tags
          (Keyed.dedup Z.eqb (filter is_tag numbers)) alloc_mode).
@@ -1083,20 +1058,20 @@ Definition get_tag_reduction_repaired_statement : Prop :=
 (* A meet that has its contract answers bottom only where no value has
    both types. *)
 Definition meet_answers_bottom_statement : Prop :=
-  ∀ (type_well_formed : flambda_type -> bool) (meet : meet_function),
-    meet_sound type_well_formed meet ->
-    meet_bottom_sound type_well_formed meet.
+  ∀ meet : meet_function, meet_sound meet -> meet_bottom_sound meet.
 
 (* [add_equation_sound] gives the statement for
    [typing_env_satisfied] where no name holds poison. *)
 Definition add_equation_no_poison_statement : Prop :=
-  ∀ (type_well_formed : flambda_type -> bool)
-    (add_equation : add_equation_function),
-    add_equation_sound type_well_formed add_equation ->
-    add_equation_sound_no_poison type_well_formed add_equation.
+  ∀ add_equation : add_equation_function,
+    add_equation_sound add_equation ->
+    add_equation_sound_no_poison add_equation.
 
-(* What fits is kinded. *)
-Definition fits_kinded_statement : Prop :=
-  ∀ (type_well_formed : flambda_type -> bool) (tenv : Typing_env.t),
-    typing_env_fits type_well_formed tenv ->
-    typing_env_kinded tenv.
+(* Each type of an environment that fits, fits it. *)
+Definition fits_types_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (n : name) (ty : flambda_type)
+    (binding_time_and_mode : Binding_time.With_name_mode.t),
+    typing_env_fits tenv ->
+    Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
+    = Some (ty, binding_time_and_mode) ->
+    type_fits tenv ty.

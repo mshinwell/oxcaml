@@ -43,9 +43,9 @@
      ([example_get_tag_env_satisfied_statement]). The compiler's meet
      answers an environment that no valuation that keeps the value of
      the scrutinee satisfies ([compiler_meet_get_tag_statement]); so
-     it has not [meet_sound], whatever the join and whatever is asked
-     of well formed types, if this input is one that a meet may be
-     given ([compiler_meet_not_sound_statement]). The meet that is to
+     it has not [meet_sound], whatever the join, if this input is
+     one that a meet may be given
+     ([compiler_meet_not_sound_statement]). The meet that is to
      be proved answers an environment that the same valuation
      satisfies ([meet_to_prove_get_tag_statement]). It calls the join,
      the scrutinee being now an immediate or a block; the join given
@@ -159,13 +159,13 @@ Definition compiler_meet_get_tag_statement : Prop :=
             valuation' ->
           ~ typing_env_satisfied_strictly empty_static_env valuation' tenv'.
 
-(* So the compiler's meet has not [meet_sound], whatever is asked of
-   well formed types, if this input is one that a meet may be given. *)
+(* So the compiler's meet has not [meet_sound], whatever the join, if
+   this input is one that a meet may be given. *)
 Definition compiler_meet_not_sound_statement : Prop :=
-  ∀ (type_well_formed : flambda_type -> bool) (join : join_scoped_envs),
-    meet_inputs_well_formed type_well_formed example_get_tag_env
-      example_tag_type example_zero_type ->
-    ~ meet_sound type_well_formed (compiler_meet join 3).
+  ∀ join : join_scoped_envs,
+    meet_inputs_well_formed example_get_tag_env example_tag_type
+      example_zero_type ->
+    ~ meet_sound (compiler_meet join 3).
 
 (* ======================================================================== *)
 (* A join that has its contract                                             *)
@@ -178,8 +178,7 @@ Definition forgetful_join : join_scoped_envs :=
     Some initial_env.
 
 Definition forgetful_join_sound_statement : Prop :=
-  ∀ type_well_formed : flambda_type -> bool,
-    join_scoped_envs_sound type_well_formed forgetful_join.
+  join_scoped_envs_sound forgetful_join.
 
 (* With that join, the meet that is to be proved answers, on the input
    above, an environment that the run satisfies, and a type that the

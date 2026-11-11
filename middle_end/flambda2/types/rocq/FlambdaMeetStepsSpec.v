@@ -49,11 +49,7 @@
      ([Relation.of_const]), and the relation goes; a name replaces the
      name. That the number so read is the number that the relation
      relates the constant to is a statement of
-     FlambdaTypeMeaningSpec.v, which on the branch that this one is
-     made from still has the older meaning of relations, in which
-     [Is_int] relates a poison constant to every number. Until the
-     amended statement is under this file it is a premise here
-     ([relation_of_const_exact]), which is then to go.
+     FlambdaTypeMeaningSpec.v ([relation_of_const_sound_statement]).
    - What it is for the meet of a part of a type to be right
      ([meet_call_ok], [part_meet_ok]): the two halves of the contract
      of the whole meet, for a part of any type, given what it is for
@@ -85,23 +81,8 @@ Import ListNotations.
 (* The relations of a naked immediate, reduced                              *)
 (* ======================================================================== *)
 
-(* The compiler's reading of a relation on a constant is the relation:
-   if a relation relates a constant to a number, and the compiler reads
-   a number for it, it is that one. This is the statement
-   [relation_of_const_sound_statement] of FlambdaTypeMeaningSpec.v as
-   it is once [Is_int] and [Get_tag] relate no poison (decision D26,
-   as revised): the owner of that file has proved it on its own branch.
-   It is false of the meaning on the branch that this one is made from.
-   It is here as a premise and is to be replaced by that theorem. *)
-Definition relation_of_const_exact : Prop :=
-  ∀ (statics : static_env) (relation : Relation.t) (c : const) (i n : Z),
-    relation_holds statics relation (Value_const c) i ->
-    Relation.of_const relation c = Or_bottom.Ok n ->
-    i = n.
-
 (* [reduce_head_of_kind_naked_immediate] loses no value. *)
 Definition reduce_head_of_kind_naked_immediate_sound_statement : Prop :=
-  relation_of_const_exact ->
   ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
     (head : head_of_kind_naked_immediate) (v : value),
     typing_env_satisfied_strictly statics valuation tenv ->
@@ -125,10 +106,6 @@ Definition reduce_head_of_kind_naked_immediate_sound_statement : Prop :=
    well formed and the environment knows its names, at their kinds)
    and to be true of the value in hand under a valuation
    ([satisfied]). *)
-
-Section Parts.
-
-Variable type_well_formed : flambda_type -> bool.
 
 Section Part.
 
@@ -167,7 +144,7 @@ Definition meet_call_ok (menv : Meet_env.t) (a1 a2 : A)
   (∀ (r : meet_return_value A) (menv' : Meet_env.t),
      result = Meet_result.Ok r menv' ->
      meet_env_extends menv menv'
-     ∧ typing_env_fits type_well_formed (Meet_env.typing_env menv')
+     ∧ typing_env_fits (Meet_env.typing_env menv')
      ∧ fits (Meet_env.typing_env menv') (extract_value r a1 a2))
   ∧ ∀ (statics : static_env) (valuation : env),
       typing_env_satisfied_strictly statics valuation tenv ->
@@ -190,7 +167,7 @@ Definition meet_call_ok (menv : Meet_env.t) (a1 a2 : A)
 Definition part_meet_ok
     (meet : Meet_env.t -> A -> A -> option (Meet_result.t A)) : Prop :=
   ∀ (menv : Meet_env.t) (a1 a2 : A) (result : Meet_result.t A),
-    typing_env_fits type_well_formed (Meet_env.typing_env menv) ->
+    typing_env_fits (Meet_env.typing_env menv) ->
     fits (Meet_env.typing_env menv) a1 ->
     fits (Meet_env.typing_env menv) a2 ->
     meet menv a1 a2 = Some result ->
@@ -215,12 +192,10 @@ Definition or_unknown_satisfied {A : Type}
   | Or_unknown.Known a => satisfied statics valuation a
   end.
 
-End Parts.
-
 (* [map_result]: the answer of a meet of parts, as the answer of the
    meet of what the parts are made into by [f]. *)
 Definition map_result_ok_statement : Prop :=
-  ∀ (type_well_formed : flambda_type -> bool) (A B : Type)
+  ∀ (A B : Type)
     (fits_a : Typing_env.t -> A -> Prop)
     (satisfied_a : static_env -> env -> A -> Prop)
     (fits_b : Typing_env.t -> B -> Prop)
@@ -230,22 +205,22 @@ Definition map_result_ok_statement : Prop :=
     (∀ (statics : static_env) (valuation : env) (a : A),
        satisfied_b statics valuation (f a) <-> satisfied_a statics valuation a)
     ->
-    meet_call_ok type_well_formed fits_a satisfied_a menv a1 a2 result ->
-    meet_call_ok type_well_formed fits_b satisfied_b menv (f a1) (f a2)
+    meet_call_ok fits_a satisfied_a menv a1 a2 result ->
+    meet_call_ok fits_b satisfied_b menv (f a1) (f a2)
       (map_result f result).
 
 (* [meet_unknown]. What it is given to say that a thing known is
    bottom must be right: such a thing is true of nothing. *)
 Definition meet_unknown_ok_statement : Prop :=
-  ∀ (type_well_formed : flambda_type -> bool) (A : Type)
+  ∀ (A : Type)
     (fits : Typing_env.t -> A -> Prop)
     (satisfied : static_env -> env -> A -> Prop)
     (meet_contents : Meet_env.t -> A -> A -> option (Meet_result.t A))
     (contents_is_bottom : A -> bool),
     (∀ (statics : static_env) (valuation : env) (a : A),
        contents_is_bottom a = true -> ~ satisfied statics valuation a) ->
-    part_meet_ok type_well_formed fits satisfied meet_contents ->
-    part_meet_ok type_well_formed (or_unknown_fits fits)
+    part_meet_ok fits satisfied meet_contents ->
+    part_meet_ok (or_unknown_fits fits)
       (or_unknown_satisfied satisfied)
       (meet_unknown meet_contents contents_is_bottom).
 
@@ -254,7 +229,7 @@ Definition meet_unknown_ok_statement : Prop :=
    made of two parts that fit must fit, and it must be true exactly
    when its parts are. *)
 Definition combine_results2_ok_statement : Prop :=
-  ∀ (type_well_formed : flambda_type -> bool) (A B C : Type)
+  ∀ (A B C : Type)
     (fits_a : Typing_env.t -> A -> Prop)
     (satisfied_a : static_env -> env -> A -> Prop)
     (fits_b : Typing_env.t -> B -> Prop)
@@ -268,22 +243,22 @@ Definition combine_results2_ok_statement : Prop :=
     let tenv := Meet_env.typing_env menv in
     part_stable fits_a satisfied_a ->
     part_stable fits_b satisfied_b ->
-    part_meet_ok type_well_formed fits_a satisfied_a meet_a ->
-    part_meet_ok type_well_formed fits_b satisfied_b meet_b ->
+    part_meet_ok fits_a satisfied_a meet_a ->
+    part_meet_ok fits_b satisfied_b meet_b ->
     (∀ (tenv : Typing_env.t) (a : A) (b : B),
        fits_a tenv a -> fits_b tenv b -> fits_c tenv (rebuild a b)) ->
     (∀ (statics : static_env) (valuation : env) (a : A) (b : B),
        satisfied_c statics valuation (rebuild a b)
        <-> satisfied_a statics valuation a ∧ satisfied_b statics valuation b)
     ->
-    typing_env_fits type_well_formed tenv ->
+    typing_env_fits tenv ->
     fits_a tenv left_a ->
     fits_a tenv right_a ->
     fits_b tenv left_b ->
     fits_b tenv right_b ->
     combine_results2 menv meet_a meet_b left_a right_a left_b right_b rebuild
     = Some result ->
-    meet_call_ok type_well_formed fits_c satisfied_c menv
+    meet_call_ok fits_c satisfied_c menv
       (rebuild left_a left_b) (rebuild right_a right_b) result.
 
 (* [meet_or_unknown_or_bottom]: the meet of two things of which either
@@ -292,7 +267,7 @@ Definition combine_results2_ok_statement : Prop :=
    (itself, or an expanded type); what is made of bottom is true of
    nothing. *)
 Definition meet_or_unknown_or_bottom_ok_statement : Prop :=
-  ∀ (type_well_formed : flambda_type -> bool) (A B : Type)
+  ∀ (A B : Type)
     (fits : Typing_env.t -> B -> Prop)
     (satisfied : static_env -> env -> B -> Prop)
     (inj : or_unknown_or_bottom A -> B)
@@ -304,15 +279,15 @@ Definition meet_or_unknown_or_bottom_ok_statement : Prop :=
        fits tenv (inj (Ok a1)) ->
        fits tenv (inj (Ok a2)) ->
        meet_elt menv a1 a2 = Some result ->
-       meet_call_ok type_well_formed fits satisfied menv (inj (Ok a1))
+       meet_call_ok fits satisfied menv (inj (Ok a1))
          (inj (Ok a2)) result) ->
     (∀ (statics : static_env) (valuation : env),
        ~ satisfied statics valuation (inj Bottom)) ->
-    typing_env_fits type_well_formed tenv ->
+    typing_env_fits tenv ->
     fits tenv (inj input1) ->
     fits tenv (inj input2) ->
     meet_or_unknown_or_bottom meet_elt menv input1 input2 = Some result ->
-    meet_call_ok type_well_formed fits satisfied menv (inj input1)
+    meet_call_ok fits satisfied menv (inj input1)
       (inj input2) result.
 
 (* ======================================================================== *)
@@ -330,7 +305,7 @@ Definition meet_or_unknown_or_bottom_ok_statement : Prop :=
    valuation answered. Of an answer that is an input nothing is said
    here: an input stays as it was. *)
 Definition meet_mapping_ok_statement : Prop :=
-  ∀ (type_well_formed : flambda_type -> bool) (K A M : Type)
+  ∀ (K A M : Type)
     (fits : Typing_env.t -> A -> Prop)
     (satisfied : K -> static_env -> env -> A -> Prop)
     (meet_data : Meet_env.t -> A -> A -> option (Meet_result.t A))
@@ -351,15 +326,15 @@ Definition meet_mapping_ok_statement : Prop :=
            keys init) ->
     (∀ key : K, part_stable fits (satisfied key)) ->
     (∀ key : K,
-       part_meet_ok type_well_formed fits (satisfied key) meet_data) ->
-    typing_env_fits type_well_formed tenv ->
+       part_meet_ok fits (satisfied key) meet_data) ->
+    typing_env_fits tenv ->
     (∀ (key : K) (a : A), get_left key = Some a -> fits tenv a) ->
     (∀ (key : K) (a : A), get_right key = Some a -> fits tenv a) ->
     meet_mapping meet_data fold2 menv left right rebuild = Some result ->
     (∀ (r : meet_return_value M) (menv' : Meet_env.t),
        result = Meet_result.Ok r menv' ->
        meet_env_extends menv menv'
-       ∧ typing_env_fits type_well_formed (Meet_env.typing_env menv')
+       ∧ typing_env_fits (Meet_env.typing_env menv')
        ∧ ∀ m : M,
            r = New_result m ->
            ∃ l : list (K * A),
@@ -416,9 +391,8 @@ Definition set_meet_cases_statement : Prop :=
 (* The meet of two heads of naked numbers of a kind other than the
    immediates: the sets of numbers. A head fits if it is not empty. *)
 Definition naked_number_meet_ok_statement : Prop :=
-  ∀ (type_well_formed : flambda_type -> bool) (k : naked_number_kind)
-    (v : value),
-    part_meet_ok type_well_formed
+  ∀ (k : naked_number_kind) (v : value),
+    part_meet_ok
       (fun (_ : Typing_env.t) (numbers : list Z) => numbers <> [])
       (fun (_ : static_env) (_ : env) (numbers : list Z) =>
          naked_numbers_satisfied k v numbers)
