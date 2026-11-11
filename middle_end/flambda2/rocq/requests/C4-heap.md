@@ -605,8 +605,8 @@ as soon as a rewrite deletes an allocation.
 Agreed with N1 (recorded in `status/C4.md`):
 
 - Locations are an instance of N1's generic interface
-  (`FlambdaNameAbstractionSpec.v` on its branch), which takes one sort
-  of name at a time. The action is a separate family of functions that
+  (`FlambdaNameAbstractionSpec.v`), which takes one sort of name at a
+  time. The action is a separate family of functions that
   take a `FlambdaNominalSpec.permutation` of locations; `renaming`
   (variables and continuations) gains no field. Terms hold no location
   and values hold no variable or continuation, so the two actions never
@@ -619,7 +619,8 @@ Agreed with N1 (recorded in `status/C4.md`):
   law: a permutation that fixes the locations of a thing fixes the
   thing).
 - `fresh_location` is N1's `fresh_name` on the domain of the heap, the
-  only function that looks at numbers.
+  only function that looks at numbers. The prototype defines it so:
+  `fresh_location h := fresh_name (domain h)`.
 - `step` is a function, and is equivariant for locations up to the
   choice of the fresh name:
   `step (π · s) = Step s1 -> step s = Step s2 -> ∃ π', π' agrees with π
@@ -1516,8 +1517,12 @@ What is agreed with N1 is in section 2.2. Written out:
 
 None of this is in the prototype but `locations_of_value` and
 `fresh_location` with its one lemma. It is leaf work in new files once
-the heap is in the state, and I would do it against N1's interface
-when that lands.
+the heap is in the state, against N1's interface, which is on the
+integration branch. N1 has said that it will state first, of the
+prototype's machine, the part that concerns its own names: a renaming
+of variables and continuations acts on the expression, the
+environments and the code of a `heap_state`, leaves the heap and every
+value alone, and commutes with `heap_step`.
 
 ## 6. Well-formedness
 
@@ -1584,27 +1589,31 @@ such a use.
 
 ### 7.1 Measured on the prototype
 
-**A new form of value.** `Value_location` with the types of the heap:
-the whole tree builds after 5 lines in 3 files
-(`FlambdaUnusedStaticsSpec.value_avoids`, one case;
-`FlambdaUnusedStaticsProofs.closure_of_erased`, one branch;
-`FlambdaPrimitiveProofs.v`, one pattern). Nothing in the types
-library on the integration branch breaks. T1's files on its branch
-match on values and will need the case.
+**A new form of value, and the primitives under one constructor.**
+Measured on the integration branch at 1160b780f0, file by file and
+owner by owner, in `requests/C4-heap-fallout.md`: `Value_location`
+with the types of the heap, the primitives under `Heap`, and the
+repairs that they force, in eighteen files, most of them one more
+name in a pattern. The types library is among them (four of its
+files, T1's and T6's). No statement of an existing `Spec` file
+changes.
 
-**The primitives.** Under one constructor, as in the prototype: three
-patterns and one branch in `FlambdaPrimitiveProofs.v`, one case of
-`prim_result_kind`. Placed by arity, as in the change: a case for
-each new constructor in each of the five laws of `eval_prim`, all
-trivial since `eval_prim` has no value on a primitive of the heap.
-`exec_prim` and its four laws are 230 lines of proof in
-`FlambdaHeapProofs.v`.
+**The primitives placed by arity**, as in the change and not in the
+prototype: a case for each new constructor in each of the laws of
+`eval_prim`, all trivial since `eval_prim` has no value on a
+primitive of the heap. Not measured.
 
-**The heap in the state** (D7). I wrote the script that adds the
-argument and ran it, then stopped: what is left after it is binders
-and the names in `intros`, by hand, in every proof that builds a
-state, and finishing it would have shown nothing about the design. The
-counts, on 0a2933e7c9:
+**The heap in the state** (D7). What follows in this section is an
+old measurement, on 0a2933e7c9, before C2's kinds, C3's sets of
+closures and the types; it has not been repeated, and its numbers are
+not those of today. A plain search for applications of `State` finds
+a third more on 1160b780f0 than it finds on 0a2933e7c9 (234 against
+176, in 32 files against 18; the script finds a few more than the
+search does). I wrote the script that adds the argument and ran it,
+then stopped: what is left after it is binders and the names in
+`intros`, by hand, in every proof that builds a state, and finishing
+it would have shown nothing about the design. The counts, on
+0a2933e7c9:
 
 - 188 applications of `State` in 18 files; the script
   (kept by the team, outside the tree) adds the heap to each,
@@ -1638,7 +1647,18 @@ component that nothing reads. It is of the size of C2's first step
   fields of a cell are well-kinded values; its preservation theorem
   then needs, of `exec_prim`, the law that C1 gives it for
   `eval_prim` (the value of a primitive is of its result kind), which
-  is one more law by cases.
+  is one more law by cases. Neither is in the prototype, and both are
+  owed at the epoch of the primitives. So is a third thing:
+  `FlambdaPrimitiveSpec.prim_args_well_kinded`, by which C2's checker
+  tests the kinds of the arguments of a primitive, is false on every
+  primitive under `Heap` (they fall to its last case). The primitives
+  of the heap must be given their cases there, and `exec_prim` the law
+  that `eval_prim_kinds_statement` is for `eval_prim` (a primitive
+  that has a value was given arguments of its kinds), or the checker
+  refuses every program that allocates. The prototype is not affected
+  (`eval_prim` has no value on a primitive of the heap, and the
+  conversion makes none), and no new premise on kinds is asked of a
+  term: the machine tests the kind where a cell is made or written.
 - **C3 (closures of a set), first.** One more form of value and of
   static value. Rule 3 of the relation reads closures through
   `closure_in_set` in place of `closure_of` (same function slot, same
@@ -2034,6 +2054,10 @@ Left:
 - Lifting is proved for a block and for closures. It is not stated
   for a boxed number, and no statement moves the `Let_static` to
   toplevel (section 4.2).
+- Kinds and valid values do not reach the heap: C2's
+  `state_well_kinded` and C3's `state_valid` do not visit cells, and
+  `prim_args_well_kinded` is false on the primitives of the heap. All
+  three are owed at the epoch of the primitives (section 7.2).
 - Decision 4 is at its first stage: field stability (section 8.4) is
   not in the prototype.
 - The primitives are under one constructor; `Block_load` with its
