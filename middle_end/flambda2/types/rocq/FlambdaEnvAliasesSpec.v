@@ -156,10 +156,14 @@
      ([add_bottom_statement]); neither of the model's two fatal errors
      for two different canonical elements of a consistent structure
      ([add_defined_statement]), which says nothing of the compiler's
-     resolver, total here;
+     resolver, total here; of a canonical name and a constant, the name
+     is demoted ([add_name_constant_statement]);
    - the classes afterwards ([add_canonical_element_statement],
      [add_aliased_statement]): the two classes are merged and the
-     others are as they were;
+     others are as they were; what was canonical is, but for the name
+     demoted ([add_is_canonical_statement]); what was the same on each
+     class and on the two arguments is the same on each class
+     ([add_classes_uniform_statement]);
    - an environment that respects the structure and gives the two the
      same value respects the result ([add_respected_statement]);
    - the invariant is kept, part by part: consistency always, the name
@@ -531,6 +535,13 @@ Definition canonical_element_mentioned_statement : Prop :=
     Aliases.get_canonical_ignoring_name_mode t n = simple_of_name n' ->
     n' = n ∨ aliases_mention t n'.
 
+(* A name that the structure does not speak of is its own canonical
+   element. *)
+Definition canonical_element_unmentioned_statement : Prop :=
+  ∀ (t : Aliases.t) (n : name),
+    ~ aliases_mention t n ->
+    Aliases.get_canonical_ignoring_name_mode t n = simple_of_name n.
+
 (* The canonical element of a class is earlier than every other element
    of the class. *)
 Definition canonical_element_earliest_statement : Prop :=
@@ -780,6 +791,28 @@ Definition add_defined_statement : Prop :=
       canonical_element1 canonical_element2
     <> None.
 
+(* A canonical name and a constant: [add] answers, whichever comes
+   first, and it is the name that is demoted. *)
+Definition add_name_constant_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (n : name) (c : const),
+    aliases_consistent t ->
+    is_canonical t (simple_of_name n) ->
+    (∃ result : Aliases.add_result,
+      Aliases.add binding_time_resolver binding_times_and_modes t
+        (simple_of_name n) (Const c)
+      = Some (Or_bottom.Ok result)
+      ∧ Aliases.demoted_name result = n
+      ∧ Aliases.canonical_element result = Const c)
+    ∧ (∃ result : Aliases.add_result,
+        Aliases.add binding_time_resolver binding_times_and_modes t (Const c)
+          (simple_of_name n)
+        = Some (Or_bottom.Ok result)
+        ∧ Aliases.demoted_name result = n
+        ∧ Aliases.canonical_element result = Const c).
+
 (* The classes after [add]: the class of the name demoted is merged into
    that of the canonical element, and every other class is as it was.
    As an equation: the canonical element of a simple is the new
@@ -822,6 +855,50 @@ Definition add_aliased_statement : Prop :=
      <-> aliased t e e'
          ∨ (aliased t e canonical_element1 ∧ aliased t e' canonical_element2)
          ∨ (aliased t e canonical_element2 ∧ aliased t e' canonical_element1)).
+
+(* What is canonical afterwards: what was, but for the name demoted. So
+   [add] of two different canonical elements leaves one canonical name
+   fewer. The two have to be different: [add] of a name and itself
+   answers the structure as it was, with that name as the name demoted
+   and as the canonical element. *)
+Definition add_is_canonical_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple)
+    (result : Aliases.add_result) (e : simple),
+    aliases_consistent t ->
+    is_canonical t canonical_element1 ->
+    is_canonical t canonical_element2 ->
+    canonical_element1 <> canonical_element2 ->
+    Aliases.add binding_time_resolver binding_times_and_modes t
+      canonical_element1 canonical_element2
+    = Some (Or_bottom.Ok result) ->
+    (is_canonical (Aliases.add_result_t result) e
+     <-> is_canonical t e ∧ e <> simple_of_name (Aliases.demoted_name result)).
+
+(* Whatever is the same on the simples of each class, and on the two
+   arguments, is the same on the simples of each class afterwards. The
+   structure has no kinds and [add] compares none; with the kind that
+   the typing environment gives a simple as the property, this is how
+   the classes stay of one kind. *)
+Definition add_classes_uniform_statement : Prop :=
+  ∀ (A B : Type)
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple)
+    (result : Aliases.add_result) (property : simple -> B),
+    aliases_consistent t ->
+    is_canonical t canonical_element1 ->
+    is_canonical t canonical_element2 ->
+    Aliases.add binding_time_resolver binding_times_and_modes t
+      canonical_element1 canonical_element2
+    = Some (Or_bottom.Ok result) ->
+    (∀ e e' : simple, aliased t e e' -> property e = property e') ->
+    property canonical_element1 = property canonical_element2 ->
+    ∀ e e' : simple,
+      aliased (Aliases.add_result_t result) e e' -> property e = property e'.
 
 (* [add] keeps respect: an environment that respects the structure and
    gives the two arguments the same value respects the result. Nothing

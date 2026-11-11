@@ -1885,6 +1885,163 @@ Proof.
     subst; intuition congruence.
 Qed.
 
+Theorem canonical_element_unmentioned :
+  canonical_element_unmentioned_statement.
+Proof.
+  intros t n Hunmentioned. unfold Aliases.get_canonical_ignoring_name_mode.
+  rewrite canonical_of_name.
+  destruct (Keyed.lookup name_eqb n (Aliases.canonical_elements t))
+    as [canonical_element | ] eqn:Hlookup;
+    [ | reflexivity ].
+  exfalso. apply Hunmentioned. left. exists canonical_element. exact Hlookup.
+Qed.
+
+Lemma add_name_constant_either {A : Type}
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (n : name) (c : const)
+    (canonical_element1 canonical_element2 : simple) :
+  aliases_consistent t ->
+  is_canonical t (simple_of_name n) ->
+  (canonical_element1 = simple_of_name n ∧ canonical_element2 = Const c)
+  ∨ (canonical_element1 = Const c ∧ canonical_element2 = simple_of_name n) ->
+  ∃ result : Aliases.add_result,
+    Aliases.add binding_time_resolver binding_times_and_modes t
+      canonical_element1 canonical_element2
+    = Some (Or_bottom.Ok result)
+    ∧ Aliases.demoted_name result = n
+    ∧ Aliases.canonical_element result = Const c.
+Proof.
+  intros Hconsistent Hcanonical Harguments.
+  destruct
+    (Aliases.add binding_time_resolver binding_times_and_modes t
+       canonical_element1 canonical_element2)
+    as [[result | ] | ] eqn:Hadd.
+  - exists result. split; [ reflexivity | ].
+    pose proof
+      (add_result A binding_time_resolver binding_times_and_modes t
+         canonical_element1 canonical_element2 result Hadd)
+      as Hresult.
+    destruct Harguments as [[-> ->] | [-> ->]].
+    + rewrite
+        (proj2
+           (constant_earliest A binding_time_resolver binding_times_and_modes
+              c (simple_of_name n) n))
+        in Hresult.
+      destruct Hresult as [Hcanonical_element Hdemoted].
+      split; [ apply simple_of_name_inj, Hdemoted | exact Hcanonical_element ].
+    + rewrite
+        (proj1
+           (constant_earliest A binding_time_resolver binding_times_and_modes
+              c (simple_of_name n) n))
+        in Hresult.
+      destruct Hresult as [Hcanonical_element Hdemoted].
+      split; [ apply simple_of_name_inj, Hdemoted | exact Hcanonical_element ].
+  - exfalso.
+    apply add_bottom in Hadd as (c1 & c2 & Hfirst & Hsecond & _).
+    destruct Harguments as [[-> _] | [_ ->]]; destruct n; discriminate.
+  - exfalso. revert Hadd.
+    apply add_defined; try assumption.
+    + destruct Harguments as [[-> ->] | [-> ->]];
+        [ exact Hcanonical | reflexivity ].
+    + destruct Harguments as [[-> ->] | [-> ->]];
+        [ reflexivity | exact Hcanonical ].
+    + destruct Harguments as [[-> ->] | [-> ->]]; destruct n; discriminate.
+Qed.
+
+Theorem add_name_constant : add_name_constant_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes t n c Hconsistent
+    Hcanonical.
+  split; apply add_name_constant_either; auto.
+Qed.
+
+(* In a consistent structure the canonical simples are those that are
+   their own canonical element. *)
+Lemma is_canonical_iff (t : Aliases.t) (e : simple) :
+  aliases_consistent t ->
+  (is_canonical t e <-> canonical_element_of t e = e).
+Proof.
+  intros [Hcanonical _]. split; [ apply canonical_element_of_canonical | ].
+  intros Hself.
+  destruct (canonical_cases t e)
+    as [[His_canonical _]
+       | (n & canonical_element & -> & Hdemoted & _ & Hcanonical_element)];
+    [ exact His_canonical | ].
+  rewrite Hcanonical_element in Hself. subst canonical_element.
+  pose proof (Hcanonical n _ Hdemoted) as His_canonical.
+  unfold is_canonical in His_canonical.
+  rewrite canonical_of_name in His_canonical.
+  unfold demoted_to in Hdemoted. rewrite Hdemoted in His_canonical.
+  discriminate.
+Qed.
+
+Theorem add_is_canonical : add_is_canonical_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes t canonical_element1
+    canonical_element2 result e Hconsistent Hcanonical1 Hcanonical2
+    Hdifferent Hadd.
+  pose proof
+    (add_consistent A binding_time_resolver binding_times_and_modes t
+       canonical_element1 canonical_element2 result Hconsistent Hcanonical1
+       Hcanonical2 Hadd)
+    as Hconsistent'.
+  rewrite (is_canonical_iff _ e Hconsistent'),
+    (is_canonical_iff t e Hconsistent).
+  rewrite
+    (add_canonical_element A binding_time_resolver binding_times_and_modes t
+       canonical_element1 canonical_element2 result e Hconsistent Hcanonical1
+       Hcanonical2 Hadd).
+  (* The canonical element and the name demoted are the two arguments:
+     different, and canonical before. *)
+  assert
+    (Harguments
+      : Aliases.canonical_element result
+        <> simple_of_name (Aliases.demoted_name result)
+        ∧ is_canonical t (Aliases.canonical_element result)
+        ∧ is_canonical t (simple_of_name (Aliases.demoted_name result))).
+  { pose proof
+      (add_result A binding_time_resolver binding_times_and_modes t
+         canonical_element1 canonical_element2 result Hadd)
+      as Hresult.
+    destruct
+      (Aliases.defined_earlier binding_time_resolver binding_times_and_modes
+         canonical_element1 canonical_element2);
+      destruct Hresult as [-> ->]; auto. }
+  destruct Harguments as (Hapart & Hcanonical & Hdemoted).
+  apply canonical_element_of_canonical in Hcanonical, Hdemoted.
+  destruct
+    (simple_equal (canonical_element_of t e)
+       (simple_of_name (Aliases.demoted_name result)))
+    eqn:Hequal.
+  - apply simple_equal_eq in Hequal. split.
+    + intros Hself. exfalso. subst e. rewrite Hcanonical in Hequal.
+      exact (Hapart Hequal).
+    + intros [Hself Hnot_demoted]. exfalso. apply Hnot_demoted.
+      rewrite <- Hself. exact Hequal.
+  - split; [ | tauto ].
+    intros Hself. split; [ exact Hself | ].
+    intros ->. rewrite Hdemoted in Hequal.
+    rewrite (proj2 (simple_equal_eq _ _) eq_refl) in Hequal. discriminate.
+Qed.
+
+Theorem add_classes_uniform : add_classes_uniform_statement.
+Proof.
+  intros A B binding_time_resolver binding_times_and_modes t
+    canonical_element1 canonical_element2 result property Hconsistent
+    Hcanonical1 Hcanonical2 Hadd Huniform Harguments e e' Haliased.
+  apply
+    (add_aliased A binding_time_resolver binding_times_and_modes t
+       canonical_element1 canonical_element2 result e e' Hconsistent
+       Hcanonical1 Hcanonical2 Hadd)
+    in Haliased as [Hbefore | [[Hfirst Hsecond] | [Hfirst Hsecond]]].
+  - apply Huniform, Hbefore.
+  - rewrite (Huniform _ _ Hfirst), (Huniform _ _ Hsecond). exact Harguments.
+  - rewrite (Huniform _ _ Hfirst), (Huniform _ _ Hsecond).
+    exact (eq_sym Harguments).
+Qed.
+
 Theorem add_name_modes_recorded : add_name_modes_recorded_statement.
 Proof.
   intros A binding_time_resolver binding_times_and_modes t canonical_element1
