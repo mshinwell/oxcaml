@@ -187,8 +187,9 @@
      environment is true on those paths:
      - a relation says nothing of a value that is poison: [Is_int] and
        [Get_tag] relate poison to every number ([relation_holds]).
-       [Is_null] relates it to 0, as it does every value of kind value
-       that is not [Null];
+       [Is_null] relates a poison of kind value to 0, as it does every
+       value of that kind that is not [Null], and no other poison to
+       anything;
      - what satisfies a typing environment is to ask nothing of the
        type of a name whose value is poison. That is for the file that
        defines one to say;
@@ -311,7 +312,10 @@
      of a variant and of [Get_tag], where the primitive has one, is
      related to the value ([primitive_related_statement]). A constant
      is a tagged immediate here whatever its number; the primitives
-     have a value only on one in the range of the machine.
+     have a value only on one in the range of the machine. The two
+     part only on a constant out of range, which no well-formed term
+     is to have (decision D32, with D13): the difference goes when
+     that is a condition of FlambdaWellFormedSpec.v.
 
    The statements say what each form of type means for the types built
    by the creation functions of the compiler, as an equivalence. The
@@ -404,8 +408,8 @@ Definition is_poison (v : value) : Prop :=
    of that value". It is a relation of the types, not the execution of
    the primitive (see the header):
    - [Is_null]: the value is of kind value, and the number is 1 if it is
-     [Null] and 0 if it is not. So it is 0 of poison, and of a symbol
-     that is not bound;
+     [Null] and 0 if it is not. So it is 0 of a poison of kind value,
+     and of a symbol that is not bound;
    - [Is_int]: the value is a tagged immediate and the number is 1, or
      it is a block and the number is 0;
    - [Get_tag]: the value is a block and the number is its tag, or it
@@ -420,10 +424,10 @@ Definition is_poison (v : value) : Prop :=
    parameter, and no meet of its type to bottom, is reachable where
    it holds poison, and nothing in the compiler checks that.
    Decision D26. *)
-(* CR mshinwell: [Is_null] relates poison to 0, which is the compiler's
-   reading of a poison constant ([Reg_width_const.is_null]); the
-   primitive has no value on poison in the machine. Whether it is to
-   have one is open. Decision D8. *)
+(* CR mshinwell: [Is_null] relates a poison of kind value to 0, which
+   is the compiler's reading of a poison constant
+   ([Reg_width_const.is_null]); the primitive has no value on poison
+   in the machine. Whether it is to have one is open. Decision D8. *)
 Definition relation_holds (statics : static_env) (relation : Relation.t)
     (v : value) (n : Z) : Prop :=
   match relation with
