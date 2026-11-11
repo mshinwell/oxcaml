@@ -1,0 +1,8 @@
+let x = %opaque (3) in
+let c = %int_comp.`le` (x, 0) in
+let b = %tag_imm (c) in
+let n = %boolean_not (b) in
+let m = %boolean_not (n) in
+let k = %boolean_not (1) in
+let $camlBoolean_not = Block 0 (n, m, k) in
+cont done ($camlBoolean_not)

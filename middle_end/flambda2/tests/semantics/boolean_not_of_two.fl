@@ -1,0 +1,3 @@
+let n = %boolean_not (2) in
+let $camlBoolean_not_of_two = Block 0 (n) in
+cont done ($camlBoolean_not_of_two)
