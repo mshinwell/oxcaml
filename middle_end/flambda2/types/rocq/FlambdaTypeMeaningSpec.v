@@ -1288,8 +1288,29 @@ Definition env_extension_satisfied_statics_extend_statement : Prop :=
     env_extension_satisfied statics vars extension ->
     env_extension_satisfied statics' vars extension.
 
-(* The meaning of a type depends on the environment only through the
-   values of the variables that the type mentions. *)
+(* The meaning of a type reads the environment only to find the value
+   of a variable that the type mentions, and never asks that a variable
+   have none. So a type keeps its values when the environment gives a
+   value to more variables and keeps the values of those that had one:
+   what a join adds for a variable that only some of its inputs
+   define takes nothing from what was known. *)
+Definition type_satisfied_monotone_statement : Prop :=
+  ∀ (statics : static_env) (vars vars' : env) (v : value) (t : flambda_type),
+    (∀ (x : variable) (w : value),
+      x ∈ free_variables t ->
+      lookup x vars = Some w -> lookup x vars' = Some w) ->
+    type_satisfied statics vars v t -> type_satisfied statics vars' v t.
+
+Definition env_extension_satisfied_monotone_statement : Prop :=
+  ∀ (statics : static_env) (vars vars' : env) (extension : env_extension),
+    (∀ (x : variable) (w : value),
+      x ∈ free_variables_of_env_extension extension ->
+      lookup x vars = Some w -> lookup x vars' = Some w) ->
+    env_extension_satisfied statics vars extension ->
+    env_extension_satisfied statics vars' extension.
+
+(* So the meaning of a type depends on the environment only through
+   the values of the variables that the type mentions. *)
 Definition type_satisfied_coincide_statement : Prop :=
   ∀ (statics : static_env) (vars vars' : env) (v : value) (t : flambda_type),
     (∀ x : variable, x ∈ free_variables t -> lookup x vars = lookup x vars') ->

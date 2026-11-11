@@ -2149,46 +2149,50 @@ Qed.
 (* The variables that the meaning of a type depends on                      *)
 (* ======================================================================== *)
 
-(* Two environments give the same values to some variables. *)
-Definition agree (vars vars' : env) (xs : list variable) : Prop :=
-  ∀ x : variable, x ∈ xs -> lookup x vars = lookup x vars'.
+(* An environment keeps the values that another gives to some
+   variables: it may give a value to more of them. The meaning of a
+   type reads the environment only to find a value in it, so what
+   holds under the one holds under the other. *)
+Definition keeps (vars vars' : env) (xs : list variable) : Prop :=
+  ∀ (x : variable) (w : value),
+    x ∈ xs -> lookup x vars = Some w -> lookup x vars' = Some w.
 
-Lemma agree_app (vars vars' : env) (xs ys : list variable) :
-  agree vars vars' (xs ++ ys) <-> agree vars vars' xs ∧ agree vars vars' ys.
+Lemma keeps_app (vars vars' : env) (xs ys : list variable) :
+  keeps vars vars' (xs ++ ys) <-> keeps vars vars' xs ∧ keeps vars vars' ys.
 Proof.
-  unfold agree. split.
-  - intros Hagree. split; intros x Hin; apply Hagree, in_or_app; auto.
-  - intros [Hxs Hys] x Hin. apply in_app_or in Hin as [Hin | Hin]; auto.
+  unfold keeps. split.
+  - intros Hkeeps. split; intros x w Hin; apply Hkeeps, in_or_app; auto.
+  - intros [Hxs Hys] x w Hin. apply in_app_or in Hin as [Hin | Hin]; auto.
 Qed.
 
-Lemma agree_flat_map {A : Type} (vars vars' : env) (f : A -> list variable)
+Lemma keeps_flat_map {A : Type} (vars vars' : env) (f : A -> list variable)
     (l : list A) (a : A) :
-  agree vars vars' (flat_map f l) -> a ∈ l -> agree vars vars' (f a).
+  keeps vars vars' (flat_map f l) -> a ∈ l -> keeps vars vars' (f a).
 Proof.
-  intros Hagree Hin x Hx. apply Hagree, in_flat_map. exists a. auto.
+  intros Hkeeps Hin x w Hx. apply Hkeeps, in_flat_map. exists a. auto.
 Qed.
 
-Lemma agree_eval_simple (vars vars' : env) (s : simple) :
-  agree vars vars' (free_variables_of_simple s) ->
-  eval_simple vars s = eval_simple vars' s.
+Lemma keeps_eval_simple (vars vars' : env) (s : simple) (v : value) :
+  keeps vars vars' (free_variables_of_simple s) ->
+  eval_simple vars s = Some v -> eval_simple vars' s = Some v.
 Proof.
-  destruct s as [x | sym | c]; simpl; [ | reflexivity | reflexivity ].
-  intros Hagree. apply Hagree. left. reflexivity.
+  destruct s as [x | sym | c]; simpl; [ | auto | auto ].
+  intros Hkeeps. apply Hkeeps. left. reflexivity.
 Qed.
 
-Lemma agree_variable_is (vars vars' : env) (x : option variable) (n : Z) :
-  agree vars vars' (free_variables_of_option x) ->
+Lemma keeps_variable_is (vars vars' : env) (x : option variable) (n : Z) :
+  keeps vars vars' (free_variables_of_option x) ->
   variable_is vars x n -> variable_is vars' x n.
 Proof.
   destruct x as [x | ]; simpl; [ | auto ].
-  intros Hagree. rewrite (Hagree x (or_introl eq_refl)). auto.
+  intros Hkeeps. apply Hkeeps. left. reflexivity.
 Qed.
 
-Lemma agree_descr {head : Type} (vars vars' : env) (k : flambda_kind)
+Lemma keeps_descr {head : Type} (vars vars' : env) (k : flambda_kind)
     (free_variables_of_head : head -> list variable)
     (head_satisfied head_satisfied' : head -> Prop) (v : value)
     (ty : type_descr head) :
-  agree vars vars' (free_variables_of_descr free_variables_of_head ty) ->
+  keeps vars vars' (free_variables_of_descr free_variables_of_head ty) ->
   (∀ h : head,
     ty = Ok (No_alias h) -> head_satisfied h -> head_satisfied' h) ->
   descr_satisfied vars k head_satisfied v ty ->
@@ -2196,30 +2200,31 @@ Lemma agree_descr {head : Type} (vars vars' : env) (k : flambda_kind)
 Proof.
   destruct ty as [ | [h | s] | ]; simpl; [ auto | | | auto ].
   - intros _ Hhead. exact (Hhead h eq_refl).
-  - intros Hagree _. rewrite (agree_eval_simple _ _ _ Hagree). auto.
+  - intros Hkeeps _ [Hs Hkind].
+    split; [ exact (keeps_eval_simple _ _ _ _ Hkeeps Hs) | exact Hkind ].
 Qed.
 
-Lemma type_satisfied_agree_all (statics : static_env) :
+Lemma type_satisfied_monotone_all (statics : static_env) :
   (∀ (t : flambda_type) (vars vars' : env) (v : value),
-    agree vars vars' (free_variables t) ->
+    keeps vars vars' (free_variables t) ->
     type_satisfied statics vars v t -> type_satisfied statics vars' v t)
   ∧ (∀ (head : head_of_kind_value) (vars vars' : env) (v : value),
-      agree vars vars' (free_variables_of_head_of_kind_value head) ->
+      keeps vars vars' (free_variables_of_head_of_kind_value head) ->
       head_of_kind_value_satisfied statics vars v head ->
       head_of_kind_value_satisfied statics vars' v head)
   ∧ (∀ (head : head_of_kind_value_non_null) (vars vars' : env) (v : value),
-      agree vars vars' (free_variables_of_head_of_kind_value_non_null head) ->
+      keeps vars vars' (free_variables_of_head_of_kind_value_non_null head) ->
       head_of_kind_value_non_null_satisfied statics vars v head ->
       head_of_kind_value_non_null_satisfied statics vars' v head)
   ∧ (∀ (blocks : row_like_for_blocks) (vars vars' : env) (tag : Z)
        (fields : list value),
-      agree vars vars' (free_variables_of_row_like_for_blocks blocks) ->
+      keeps vars vars' (free_variables_of_row_like_for_blocks blocks) ->
       row_like_for_blocks_satisfied statics vars tag fields blocks ->
       row_like_for_blocks_satisfied statics vars' tag fields blocks)
   ∧ (∀ (closures : row_like_for_closures) (vars vars' : env) (v : value)
        (slot : function_slot) (functions : list (function_slot * code_id))
        (value_slots : list (value_slot * value)),
-      agree vars vars' (free_variables_of_row_like_for_closures closures) ->
+      keeps vars vars' (free_variables_of_row_like_for_closures closures) ->
       row_like_for_closures_satisfied statics vars v slot functions
         value_slots closures ->
       row_like_for_closures_satisfied statics vars' v slot functions
@@ -2227,198 +2232,218 @@ Lemma type_satisfied_agree_all (statics : static_env) :
   ∧ (∀ (entry : closures_entry) (vars vars' : env) (v : value)
        (slot : function_slot) (functions : list (function_slot * code_id))
        (value_slots : list (value_slot * value)),
-      agree vars vars' (free_variables_of_closures_entry entry) ->
+      keeps vars vars' (free_variables_of_closures_entry entry) ->
       closures_entry_satisfied statics vars v slot functions value_slots
         entry ->
       closures_entry_satisfied statics vars' v slot functions value_slots
         entry)
   ∧ (∀ (extension : env_extension) (vars vars' : env),
-      agree vars vars' (free_variables_of_env_extension extension) ->
+      keeps vars vars' (free_variables_of_env_extension extension) ->
       env_extension_satisfied statics vars extension ->
       env_extension_satisfied statics vars' extension).
 Proof.
   apply types_induction.
   - (* Type_value *)
-    intros ty Hhead vars vars' v Hagree. autorewrite with type_satisfied.
-    apply (agree_descr _ _ _ _ _ _ _ _ Hagree).
-    intros h ->. exact (Hhead vars vars' v Hagree).
+    intros ty Hhead vars vars' v Hkeeps. autorewrite with type_satisfied.
+    apply (keeps_descr _ _ _ _ _ _ _ _ Hkeeps).
+    intros h ->. exact (Hhead vars vars' v Hkeeps).
   - (* Type_naked_immediate *)
-    intros ty vars vars' v Hagree. autorewrite with type_satisfied.
-    apply (agree_descr _ _ _ _ _ _ _ _ Hagree).
-    intros head ->. simpl in Hagree.
+    intros ty vars vars' v Hkeeps. autorewrite with type_satisfied.
+    apply (keeps_descr _ _ _ _ _ _ _ _ Hkeeps).
+    intros head ->. simpl in Hkeeps.
     intros [i [Hv [Hnumbers Hrelations]]]. exists i.
     split; [ exact Hv | ]. split; [ exact Hnumbers | ].
     intros relation n Hin. destruct (Hrelations relation n Hin) as [w [Hw H]].
     exists w. split; [ | exact H ]. unfold value_of_name in *.
-    rewrite <- Hw. symmetry. apply agree_eval_simple.
-    exact (agree_flat_map _ _ _ _ (relation, n) Hagree Hin).
-  - intros k ty vars vars' v Hagree. autorewrite with type_satisfied.
-    apply (agree_descr _ _ _ _ _ _ _ _ Hagree). auto.
-  - intros ty vars vars' v Hagree. autorewrite with type_satisfied.
-    apply (agree_descr _ _ _ _ _ _ _ _ Hagree). auto.
-  - intros ty vars vars' v Hagree. autorewrite with type_satisfied.
-    apply (agree_descr _ _ _ _ _ _ _ _ Hagree). auto.
+    apply (keeps_eval_simple vars vars' _ w); [ | exact Hw ].
+    exact (keeps_flat_map _ _ _ _ (relation, n) Hkeeps Hin).
+  - intros k ty vars vars' v Hkeeps. autorewrite with type_satisfied.
+    apply (keeps_descr _ _ _ _ _ _ _ _ Hkeeps). auto.
+  - intros ty vars vars' v Hkeeps. autorewrite with type_satisfied.
+    apply (keeps_descr _ _ _ _ _ _ _ _ Hkeeps). auto.
+  - intros ty vars vars' v Hkeeps. autorewrite with type_satisfied.
+    apply (keeps_descr _ _ _ _ _ _ _ _ Hkeeps). auto.
   - (* Head_of_kind_value *)
-    intros non_null is_null Hnon_null vars vars' v Hagree.
-    simpl in Hagree. apply agree_app in Hagree as [Hagree_head Hagree_null].
+    intros non_null is_null Hnon_null vars vars' v Hkeeps.
+    simpl in Hkeeps. apply keeps_app in Hkeeps as [Hkeeps_head Hkeeps_null].
     autorewrite with type_satisfied.
     intros [[Hnull His_null] | [Hnot_null [Hhead His_null]]].
     + left. split; [ exact Hnull | ].
       destruct is_null as [ | is_null]; [ exact His_null | ].
-      exact (agree_variable_is _ _ _ _ Hagree_null His_null).
+      exact (keeps_variable_is _ _ _ _ Hkeeps_null His_null).
     + right. split; [ exact Hnot_null | ]. split.
       * destruct non_null as [ | head | ]; auto.
-        exact (Hnon_null vars vars' v Hagree_head Hhead).
+        exact (Hnon_null vars vars' v Hkeeps_head Hhead).
       * destruct is_null as [ | is_null]; [ exact His_null | ].
-        exact (agree_variable_is _ _ _ _ Hagree_null His_null).
+        exact (keeps_variable_is _ _ _ _ Hkeeps_null His_null).
   - (* Variant *)
     intros is_int immediates get_tag blocks extensions is_unique Himmediates
-      Hblocks Hextensions vars vars' v Hagree.
-    simpl in Hagree.
-    apply agree_app in Hagree as [Hagree_is_int Hagree].
-    apply agree_app in Hagree as [Hagree_immediates Hagree].
-    apply agree_app in Hagree as [Hagree_get_tag Hagree].
-    apply agree_app in Hagree as [Hagree_blocks Hagree_extensions].
+      Hblocks Hextensions vars vars' v Hkeeps.
+    simpl in Hkeeps.
+    apply keeps_app in Hkeeps as [Hkeeps_is_int Hkeeps].
+    apply keeps_app in Hkeeps as [Hkeeps_immediates Hkeeps].
+    apply keeps_app in Hkeeps as [Hkeeps_get_tag Hkeeps].
+    apply keeps_app in Hkeeps as [Hkeeps_blocks Hkeeps_extensions].
     autorewrite with type_satisfied.
     intros [[i [Hv [His_int [Himmediate Hextension]]]]
            | [tag [fields [Hblock [His_int [Hget_tag [Hrow Hextension]]]]]]].
     + left. exists i. split; [ exact Hv | ].
-      split; [ exact (agree_variable_is _ _ _ _ Hagree_is_int His_int) | ].
+      split; [ exact (keeps_variable_is _ _ _ _ Hkeeps_is_int His_int) | ].
       split.
       * destruct immediates as [ty | ]; [ | exact I ].
-        exact (Himmediates vars vars' _ Hagree_immediates Himmediate).
+        exact (Himmediates vars vars' _ Hkeeps_immediates Himmediate).
       * destruct extensions as [ | when_immediate when_block]; [ exact I | ].
-        apply agree_app in Hagree_extensions as [Hagree_immediate _].
-        exact (proj1 Hextensions vars vars' Hagree_immediate Hextension).
+        apply keeps_app in Hkeeps_extensions as [Hkeeps_immediate _].
+        exact (proj1 Hextensions vars vars' Hkeeps_immediate Hextension).
     + right. exists tag, fields. split; [ exact Hblock | ].
-      split; [ exact (agree_variable_is _ _ _ _ Hagree_is_int His_int) | ].
-      split; [ exact (agree_variable_is _ _ _ _ Hagree_get_tag Hget_tag) | ].
+      split; [ exact (keeps_variable_is _ _ _ _ Hkeeps_is_int His_int) | ].
+      split; [ exact (keeps_variable_is _ _ _ _ Hkeeps_get_tag Hget_tag) | ].
       split.
       * destruct blocks as [blocks | ]; [ | exact I ].
-        exact (Hblocks vars vars' tag fields Hagree_blocks Hrow).
+        exact (Hblocks vars vars' tag fields Hkeeps_blocks Hrow).
       * destruct extensions as [ | when_immediate when_block]; [ exact I | ].
-        apply agree_app in Hagree_extensions as [_ Hagree_block].
-        exact (proj2 Hextensions vars vars' Hagree_block Hextension).
+        apply keeps_app in Hkeeps_extensions as [_ Hkeeps_block].
+        exact (proj2 Hextensions vars vars' Hkeeps_block Hextension).
   - (* Mutable_block *)
     intros alloc_mode vars vars' v _. autorewrite with type_satisfied. auto.
   - (* Boxed_number *)
-    intros k contents alloc_mode Hcontents vars vars' v Hagree.
+    intros k contents alloc_mode Hcontents vars vars' v Hkeeps.
     autorewrite with type_satisfied.
     intros [c [Hboxed [Hkind Hc]]]. exists c.
     split; [ exact Hboxed | ]. split; [ exact Hkind | ].
-    exact (Hcontents vars vars' _ Hagree Hc).
+    exact (Hcontents vars vars' _ Hkeeps Hc).
   - (* Closures *)
-    intros by_function_slot alloc_mode Hclosures vars vars' v Hagree.
+    intros by_function_slot alloc_mode Hclosures vars vars' v Hkeeps.
     autorewrite with type_satisfied.
     intros [slot [functions [value_slots [Hclosure Hrow]]]].
     exists slot, functions, value_slots. split; [ exact Hclosure | ].
-    exact (Hclosures vars vars' v slot functions value_slots Hagree Hrow).
+    exact (Hclosures vars vars' v slot functions value_slots Hkeeps Hrow).
   - (* String *)
     intros strs vars vars' v _. autorewrite with type_satisfied. auto.
   - (* Row_like_for_blocks *)
     intros known_tags other_tags alloc_mode Hknown Hother vars vars' tag
-      fields Hagree.
-    simpl in Hagree. apply agree_app in Hagree as [Hagree_known Hagree_other].
+      fields Hkeeps.
+    simpl in Hkeeps. apply keeps_app in Hkeeps as [Hkeeps_known Hkeeps_other].
     rewrite !row_like_for_blocks_find_iff.
     assert (Hcase :
       ∀ case : row_like_block_case,
         P_block_case
           (fun t =>
              ∀ (vars vars' : env) (v : value),
-               agree vars vars' (free_variables t) ->
+               keeps vars vars' (free_variables t) ->
                type_satisfied statics vars v t ->
                type_satisfied statics vars' v t)
           (fun extension =>
              ∀ vars vars' : env,
-               agree vars vars' (free_variables_of_env_extension extension) ->
+               keeps vars vars' (free_variables_of_env_extension extension) ->
                env_extension_satisfied statics vars extension ->
                env_extension_satisfied statics vars' extension)
           case ->
-        agree vars vars'
+        keeps vars vars'
           (free_variables_of_block_case free_variables
              free_variables_of_env_extension case) ->
         row_like_block_case_satisfied statics vars tag fields case ->
         row_like_block_case_satisfied statics vars' tag fields case).
-    { intros case [Htypes Hextension] Hagree [Hindex [Hfields Hext]].
-      apply agree_app in Hagree as [Hagree_fields Hagree_extension].
+    { intros case [Htypes Hextension] Hkeeps [Hindex [Hfields Hext]].
+      apply keeps_app in Hkeeps as [Hkeeps_fields Hkeeps_extension].
       split; [ exact Hindex | ].
-      split; [ | exact (Hextension vars vars' Hagree_extension Hext) ].
+      split; [ | exact (Hextension vars vars' Hkeeps_extension Hext) ].
       apply (fields_satisfied_impl _ _ _ _) with (2 := Hfields).
       intros ty Hin v.
       exact (Htypes ty Hin vars vars' v
-               (agree_flat_map _ _ _ _ ty Hagree_fields Hin)). }
+               (keeps_flat_map _ _ _ _ ty Hkeeps_fields Hin)). }
     destruct (Keyed.lookup Z.eqb tag known_tags) as [[case | ] | ] eqn:Hfind.
     + apply (keyed_lookup_in Z.eqb Z.eqb_eq) in Hfind.
       apply (Hcase case (Hknown tag case Hfind)).
-      exact (agree_flat_map _ _ _ _ _ Hagree_known Hfind).
+      exact (keeps_flat_map _ _ _ _ _ Hkeeps_known Hfind).
     + auto.
     + destruct other_tags as [case | ]; [ | auto ].
-      exact (Hcase case Hother Hagree_other).
+      exact (Hcase case Hother Hkeeps_other).
   - (* Row_like_for_closures *)
     intros known_closures Hknown vars vars' v slot functions value_slots
-      Hagree.
+      Hkeeps.
     rewrite !row_like_for_closures_lookup_iff.
     intros [case [Hlookup [Hindex [Hentry Hextension]]]]. exists case.
     split; [ exact Hlookup | ]. apply lookup_in in Hlookup.
     destruct (Hknown slot case Hlookup) as [IHentry IHextension].
-    simpl in Hagree.
-    apply (agree_flat_map _ _ _ _ _ Hagree) in Hlookup. simpl in Hlookup.
-    apply agree_app in Hlookup as [Hagree_entry Hagree_extension].
+    simpl in Hkeeps.
+    apply (keeps_flat_map _ _ _ _ _ Hkeeps) in Hlookup. simpl in Hlookup.
+    apply keeps_app in Hlookup as [Hkeeps_entry Hkeeps_extension].
     split; [ exact Hindex | ].
-    split; [ | exact (IHextension vars vars' Hagree_extension Hextension) ].
-    exact (IHentry vars vars' v slot functions value_slots Hagree_entry
+    split; [ | exact (IHextension vars vars' Hkeeps_extension Hextension) ].
+    exact (IHentry vars vars' v slot functions value_slots Hkeeps_entry
              Hentry).
   - (* Closures_entry *)
     intros function_types closure_types value_slot_types Hclosures Hslots
-      vars vars' v slot functions value_slots Hagree.
-    simpl in Hagree.
-    apply agree_app in Hagree as [Hagree_closures Hagree_slots].
+      vars vars' v slot functions value_slots Hkeeps.
+    simpl in Hkeeps.
+    apply keeps_app in Hkeeps as [Hkeeps_closures Hkeeps_slots].
     rewrite !closures_entry_lookup_iff.
     intros [Hfunctions [Hclosure_types Hvalue_slots]].
     split; [ exact Hfunctions | ]. split.
     + intros g ty closure Hlookup Hproject.
       pose proof (lookup_in _ _ _ Hlookup) as Hin.
       apply (Hclosures g ty Hin vars vars').
-      * exact (agree_flat_map _ _ _ _ _ Hagree_closures Hin).
+      * exact (keeps_flat_map _ _ _ _ _ Hkeeps_closures Hin).
       * exact (Hclosure_types g ty closure Hlookup Hproject).
     + intros w ty contents Hlookup Hcontents.
       pose proof (lookup_in _ _ _ Hlookup) as Hin.
       apply (Hslots w ty Hin vars vars').
-      * exact (agree_flat_map _ _ _ _ _ Hagree_slots Hin).
+      * exact (keeps_flat_map _ _ _ _ _ Hkeeps_slots Hin).
       * exact (Hvalue_slots w ty contents Hlookup Hcontents).
   - (* Env_extension *)
-    intros equations Htypes vars vars' Hagree.
-    simpl in Hagree.
+    intros equations Htypes vars vars' Hkeeps.
+    simpl in Hkeeps.
     rewrite !env_extension_lookup_iff.
     intros Hequations n ty Hlookup.
     destruct (Hequations n ty Hlookup) as [v [Hv Hty]]. exists v.
     pose proof (keyed_lookup_in name_eqb name_eqb_eq _ _ _ Hlookup) as Hin.
-    pose proof (agree_flat_map _ _ _ _ _ Hagree Hin) as Hagree_binding.
-    simpl in Hagree_binding.
-    apply agree_app in Hagree_binding as [Hagree_name Hagree_ty]. split.
-    + unfold value_of_name.
-      rewrite <- (agree_eval_simple vars vars' _ Hagree_name). exact Hv.
-    + exact (Htypes n ty Hin vars vars' v Hagree_ty Hty).
+    pose proof (keeps_flat_map _ _ _ _ _ Hkeeps Hin) as Hkeeps_binding.
+    simpl in Hkeeps_binding.
+    apply keeps_app in Hkeeps_binding as [Hkeeps_name Hkeeps_ty]. split.
+    + exact (keeps_eval_simple vars vars' _ v Hkeeps_name Hv).
+    + exact (Htypes n ty Hin vars vars' v Hkeeps_ty Hty).
 Qed.
 
-Lemma agree_sym (vars vars' : env) (xs : list variable) :
-  agree vars vars' xs -> agree vars' vars xs.
-Proof. intros Hagree x Hin. symmetry. exact (Hagree x Hin). Qed.
+Theorem type_satisfied_monotone : type_satisfied_monotone_statement.
+Proof.
+  intros statics vars vars' v t Hkeeps.
+  exact (proj1 (type_satisfied_monotone_all statics) t vars vars' v Hkeeps).
+Qed.
+
+Theorem env_extension_satisfied_monotone
+  : env_extension_satisfied_monotone_statement.
+Proof.
+  intros statics vars vars' extension Hkeeps.
+  destruct (type_satisfied_monotone_all statics)
+    as [_ [_ [_ [_ [_ [_ Hextension]]]]]].
+  exact (Hextension extension vars vars' Hkeeps).
+Qed.
+
+(* Two environments that give the same values to some variables keep
+   each other's. *)
+Lemma agree_keeps (vars vars' : env) (xs : list variable) :
+  (∀ x : variable, x ∈ xs -> lookup x vars = lookup x vars') ->
+  keeps vars vars' xs ∧ keeps vars' vars xs.
+Proof.
+  intros Hagree.
+  split; intros x w Hin Hlookup;
+    [ rewrite <- (Hagree x Hin) | rewrite (Hagree x Hin) ]; exact Hlookup.
+Qed.
 
 Theorem type_satisfied_coincide : type_satisfied_coincide_statement.
 Proof.
   intros statics vars vars' v t Hagree.
-  destruct (type_satisfied_agree_all statics) as [Htype _].
-  split; apply Htype; [ exact Hagree | exact (agree_sym _ _ _ Hagree) ].
+  destruct (agree_keeps _ _ _ Hagree) as [Hkeeps Hkeeps'].
+  split; apply type_satisfied_monotone; assumption.
 Qed.
 
 Theorem env_extension_satisfied_coincide
   : env_extension_satisfied_coincide_statement.
 Proof.
   intros statics vars vars' extension Hagree.
-  destruct (type_satisfied_agree_all statics)
-    as [_ [_ [_ [_ [_ [_ Hextension]]]]]].
-  split; apply Hextension; [ exact Hagree | exact (agree_sym _ _ _ Hagree) ].
+  destruct (agree_keeps _ _ _ Hagree) as [Hkeeps Hkeeps'].
+  split; apply env_extension_satisfied_monotone; assumption.
 Qed.
 
 Theorem type_satisfied_bind : type_satisfied_bind_statement.
