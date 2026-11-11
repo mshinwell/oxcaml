@@ -252,18 +252,15 @@ Definition statics_extend (statics statics' : static_env) : Prop :=
       lookup s (static_values statics) = Some allocated ->
       lookup s (static_values statics') = Some allocated).
 
-Definition statics_of (s : state) : static_env :=
-  match s with
-  | State _ _ _ statics => statics
-  end.
-
 Definition step_extends_statics_statement : Prop :=
   ∀ s s' : state,
-    step s = Step s' -> statics_extend (statics_of s) (statics_of s').
+    step s = Step s' ->
+    statics_extend (state_statics s) (state_statics s').
 
 Definition run_extends_statics_statement : Prop :=
   ∀ (n : nat) (s s' : state),
-    run n s = Step s' -> statics_extend (statics_of s) (statics_of s').
+    run n s = Step s' ->
+    statics_extend (state_statics s) (state_statics s').
 
 (* ======================================================================== *)
 (* A well-formed unit does nothing that is forbidden                        *)
@@ -306,16 +303,15 @@ Definition calls_code_binding_statics (ap : apply_expr) (vars : env)
 (* The state is one the machine makes undefined to keep static bindings
    from being executed twice. *)
 Definition static_fault (s : state) : bool :=
-  match s with
-  | State (Let_static bindings _) _ _ statics =>
-    rebinds code_ids_of_binding (code_id_bound statics) bindings
-    || rebinds symbols_of_binding (symbol_bound statics) bindings
-  | State (Let_cont_recursive handlers _) _ _ _ =>
-    handlers_bind_statics handlers
-  | State (Apply ap) vars _ statics =>
-    calls_code_binding_statics ap vars statics
-  | State (Let _ _ _ | Let_cont_non_recursive _ _ _ | Apply_cont _
-          | Switch _ _ | Invalid) _ _ _ =>
+  match state_expr s with
+  | Let_static bindings _ =>
+    rebinds code_ids_of_binding (code_id_bound (state_statics s)) bindings
+    || rebinds symbols_of_binding (symbol_bound (state_statics s)) bindings
+  | Let_cont_recursive handlers _ => handlers_bind_statics handlers
+  | Apply ap =>
+    calls_code_binding_statics ap (state_vars s) (state_statics s)
+  | Let _ _ _ | Let_cont_non_recursive _ _ _ | Apply_cont _ | Switch _ _
+  | Invalid =>
     false
   end.
 

@@ -236,7 +236,12 @@ let naked_immediate_of_value = function
   | Value_const c -> ( match c with Naked_immediate i -> Some i | _ -> None)
   | _ -> None
 
-type state = State of expr * env * cont_env * static_env
+type state =
+  { state_expr : expr;
+    state_vars : env;
+    state_conts : cont_env;
+    state_statics : static_env
+  }
 
 type step_result =
   | Step of state
@@ -253,11 +258,12 @@ let apply_cont_value c vs statics =
     match bind_params params vs def_vars with
     | Some handler_vars ->
       Step
-        (State
-           ( handler,
-             handler_vars,
-             app (rec_closures recursive def_vars def_conts) def_conts,
-             statics ))
+        { state_expr = handler;
+          state_vars = handler_vars;
+          state_conts =
+            app (rec_closures recursive def_vars def_conts) def_conts;
+          state_statics = statics
+        }
     | None -> Undefined)
   | Outer k -> Exit (k, vs)
 
@@ -291,12 +297,13 @@ let call_function callee kind vs return_to exn_to statics =
           with
           | Some callee_vars ->
             Step
-              (State
-                 ( code_body c,
-                   callee_vars,
-                   [ code_return_continuation c, return_to;
-                     code_exn_continuation c, exn_to ],
-                   statics ))
+              { state_expr = code_body c;
+                state_vars = callee_vars;
+                state_conts =
+                  [ code_return_continuation c, return_to;
+                    code_exn_continuation c, exn_to ];
+                state_statics = statics
+              }
           | None -> Undefined)
       | None -> Undefined
     else Undefined
@@ -304,53 +311,84 @@ let call_function callee kind vs return_to exn_to statics =
 
 (** val step : state -> step_result **)
 
-let step = function
-  | State (e, vars, conts, statics) -> (
-    match e with
-    | Let (x, defining_expr, body) -> (
-      match eval_named statics vars defining_expr with
-      | Some v -> Step (State (body, (x, v) :: vars, conts, statics))
-      | None -> Undefined)
-    | Let_static (bindings, body) -> (
-      match eval_static_bindings vars bindings statics with
-      | Some statics' -> Step (State (body, vars, conts, statics'))
-      | None -> Undefined)
-    | Let_cont_non_recursive (k, h, body) ->
+let step s =
+  let { state_expr = state_expr0;
+        state_vars = vars;
+        state_conts = conts;
+        state_statics = statics
+      } =
+    s
+  in
+  match state_expr0 with
+  | Let (x, defining_expr, body) -> (
+    match eval_named statics vars defining_expr with
+    | Some v ->
       Step
-        (State (body, vars, (k, Closure (h, vars, conts, [])) :: conts, statics))
-    | Let_cont_recursive (handlers, body) ->
-      if handlers_bind_statics handlers
-      then Undefined
-      else
-        Step
-          (State
-             (body, vars, app (rec_closures handlers vars conts) conts, statics))
-    | Apply ap -> (
-      match eval_simple vars ap.ap_callee with
-      | Some callee -> (
-        match eval_simples vars ap.ap_args with
-        | Some vs ->
-          call_function callee ap.ap_call_kind vs
-            (resolve ap.ap_continuation conts)
-            (resolve ap.ap_exn_continuation conts)
-            statics
+        { state_expr = body;
+          state_vars = (x, v) :: vars;
+          state_conts = conts;
+          state_statics = statics
+        }
+    | None -> Undefined)
+  | Let_static (bindings, body) -> (
+    match eval_static_bindings vars bindings statics with
+    | Some statics' ->
+      Step
+        { state_expr = body;
+          state_vars = vars;
+          state_conts = conts;
+          state_statics = statics'
+        }
+    | None -> Undefined)
+  | Let_cont_non_recursive (k, h, body) ->
+    Step
+      { state_expr = body;
+        state_vars = vars;
+        state_conts = (k, Closure (h, vars, conts, [])) :: conts;
+        state_statics = statics
+      }
+  | Let_cont_recursive (handlers, body) ->
+    if handlers_bind_statics handlers
+    then Undefined
+    else
+      Step
+        { state_expr = body;
+          state_vars = vars;
+          state_conts = app (rec_closures handlers vars conts) conts;
+          state_statics = statics
+        }
+  | Apply ap -> (
+    match eval_simple vars ap.ap_callee with
+    | Some callee -> (
+      match eval_simples vars ap.ap_args with
+      | Some vs ->
+        call_function callee ap.ap_call_kind vs
+          (resolve ap.ap_continuation conts)
+          (resolve ap.ap_exn_continuation conts)
+          statics
+      | None -> Undefined)
+    | None -> Undefined)
+  | Apply_cont ac -> (
+    match eval_simples vars ac.ac_args with
+    | Some vs -> apply_continuation ac.ac_continuation vs conts statics
+    | None -> Undefined)
+  | Switch (scrutinee, arms) -> (
+    match eval_simple vars scrutinee with
+    | Some v -> (
+      match naked_immediate_of_value v with
+      | Some i -> (
+        match find_arm i arms with
+        | Some ac ->
+          Step
+            { state_expr = Apply_cont ac;
+              state_vars = vars;
+              state_conts = conts;
+              state_statics = statics
+            }
         | None -> Undefined)
       | None -> Undefined)
-    | Apply_cont ac -> (
-      match eval_simples vars ac.ac_args with
-      | Some vs -> apply_continuation ac.ac_continuation vs conts statics
-      | None -> Undefined)
-    | Switch (scrutinee, arms) -> (
-      match eval_simple vars scrutinee with
-      | Some v -> (
-        match naked_immediate_of_value v with
-        | Some i -> (
-          match find_arm i arms with
-          | Some ac -> Step (State (Apply_cont ac, vars, conts, statics))
-          | None -> Undefined)
-        | None -> Undefined)
-      | None -> Undefined)
-    | Invalid -> Undefined)
+    | None -> Undefined)
+  | Invalid -> Undefined
 
 (** val run : nat -> state -> step_result **)
 

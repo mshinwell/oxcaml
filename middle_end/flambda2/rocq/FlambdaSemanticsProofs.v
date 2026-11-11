@@ -35,6 +35,22 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
+(* States                                                                   *)
+(* ======================================================================== *)
+
+(* A state is its components. A proof about any state [s] rewrites with
+   this and goes by cases on [state_expr s]; it does not destruct [s],
+   which would name the components by their position. *)
+Lemma state_eta (s : state) :
+  s = State (state_expr s) (state_vars s) (state_conts s) (state_statics s).
+Proof. destruct s. reflexivity. Qed.
+
+(* Reduces the projections of states that are given by their components,
+   and nothing else. *)
+Ltac simpl_state :=
+  cbn [state_expr state_vars state_conts state_statics] in *.
+
+(* ======================================================================== *)
 (* Bounded runs                                                             *)
 (* ======================================================================== *)
 

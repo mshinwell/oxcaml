@@ -76,7 +76,12 @@ val find_arm : coq_Z -> (coq_Z * apply_cont) list -> apply_cont option
 
 val naked_immediate_of_value : value -> coq_Z option
 
-type state = State of expr * env * cont_env * static_env
+type state =
+  { state_expr : expr;
+    state_vars : env;
+    state_conts : cont_env;
+    state_statics : static_env
+  }
 
 type step_result =
   | Step of state

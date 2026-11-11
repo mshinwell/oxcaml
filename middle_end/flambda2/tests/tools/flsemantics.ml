@@ -591,8 +591,7 @@ let run (unit : converted) : outcome * int =
       | Step state -> go (steps + 1) state
       | Undefined -> Undefined, steps
       | Exit (k, values) ->
-        let (State (_, _, _, statics)) = state in
-        let values = List.map (observe 50 statics) values in
+        let values = List.map (observe 50 state.state_statics) values in
         ( (if k = unit.return_continuation
            then Returns values
            else if k = unit.exn_continuation
@@ -600,7 +599,12 @@ let run (unit : converted) : outcome * int =
            else Exits_elsewhere),
           steps )
   in
-  go 0 (State (unit.body, [], [], Semantics.empty_static_env))
+  go 0
+    { state_expr = unit.body;
+      state_vars = [];
+      state_conts = [];
+      state_statics = Semantics.empty_static_env
+    }
 
 (* ---- Printing model terms ---------------------------------------------- *)
 

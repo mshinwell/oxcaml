@@ -330,8 +330,17 @@ Definition naked_immediate_of_value (v : value) : option Z :=
 (* Steps                                                                    *)
 (* ======================================================================== *)
 
-Inductive state : Type :=
-  | State (e : expr) (vars : env) (conts : cont_env) (statics : static_env).
+(* A state of the machine: the expression to run, the values of its
+   variables, what its continuations stand for, and the static
+   environment. It is a record, so that a property of a state can name the
+   components it is about ([state_statics s]) and say nothing of the
+   others. *)
+Record state : Type := State {
+  state_expr : expr;
+  state_vars : env;
+  state_conts : cont_env;
+  state_statics : static_env
+}.
 
 (* What one step of a state, or a bounded run, comes to: another state, the
    application of an unbound continuation, or undefined behaviour. *)

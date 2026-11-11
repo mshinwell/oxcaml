@@ -82,8 +82,10 @@ Qed.
 
 Theorem step_extends_statics : step_extends_statics_statement.
 Proof.
-  intros [e vars conts statics] s' Hstep.
-  destruct e
+  intros s s' Hstep. rewrite (state_eta s) in Hstep.
+  set (vars := state_vars s) in *. set (conts := state_conts s) in *.
+  set (statics := state_statics s) in *.
+  destruct (state_expr s)
     as [x d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
     simpl in Hstep.
@@ -418,35 +420,35 @@ Proof.
 Qed.
 
 Definition inv (s : state) : Prop :=
-  match s with
-  | State e vars conts statics =>
-    statics_at_toplevel unit_exn true e = true
-    ∧ NoDup (static_names names_of e)
-    ∧ conts_ok conts
-    ∧ (∀ n : positive,
-        In n (static_names names_of e) -> ~ In n (conts_names conts))
-    ∧ (∀ n : positive,
-        In n (static_names names_of e) ∨ In n (conts_names conts) ->
-        is_bound statics n = false)
-    ∧ code_ok statics
-  end.
+  statics_at_toplevel unit_exn true (state_expr s) = true
+  ∧ NoDup (static_names names_of (state_expr s))
+  ∧ conts_ok (state_conts s)
+  ∧ (∀ n : positive,
+      In n (static_names names_of (state_expr s)) ->
+      ~ In n (conts_names (state_conts s)))
+  ∧ (∀ n : positive,
+      In n (static_names names_of (state_expr s))
+      ∨ In n (conts_names (state_conts s)) ->
+      is_bound (state_statics s) n = false)
+  ∧ code_ok (state_statics s).
 
 Lemma inv_step (s s' : state) : inv s -> step s = Step s' -> inv s'.
 Proof.
-  destruct s as [e vars conts statics].
-  intros (P & D & C & X & F & S) Hstep.
-  destruct e
+  intros (P & D & C & X & F & S) Hstep. rewrite (state_eta s) in Hstep.
+  set (vars := state_vars s) in *. set (conts := state_conts s) in *.
+  set (statics := state_statics s) in *.
+  destruct (state_expr s)
     as [ x d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
     simpl in Hstep.
   - (* Let *)
     destruct (eval_named statics vars d); [ | discriminate ].
-    injection Hstep as <-. simpl in P, D, X, F.
+    injection Hstep as <-. unfold inv. simpl_state. simpl in P, D, X, F.
     exact (conj P (conj D (conj C (conj X (conj F S))))).
   - (* Let_static *)
     destruct (eval_static_bindings vars bindings statics) as [statics' | ]
       eqn:Heval; [ | discriminate ].
-    injection Hstep as <-. simpl in P, D, X, F.
+    injection Hstep as <-. unfold inv. simpl_state. simpl in P, D, X, F.
     apply andb_true_iff in P as [Pbindings Pbody].
     refine
       (conj Pbody (conj (nodup_app_r _ _ D) (conj C (conj _ (conj _ _))))).
@@ -465,9 +467,9 @@ Proof.
     + exact (eval_static_bindings_code_ok vars bindings statics statics'
         Pbindings S Heval).
   - (* Let_cont_non_recursive *)
-    injection Hstep as <-. destruct h as [params handler].
-    simpl in P, D, X, F. apply andb_true_iff in P as [Ph Pbody].
-    apply to_toplevel in Ph.
+    injection Hstep as <-. unfold inv. simpl_state.
+    destruct h as [params handler]. simpl in P, D, X, F.
+    apply andb_true_iff in P as [Ph Pbody]. apply to_toplevel in Ph.
     refine
       (conj Pbody
          (conj (nodup_app_r _ _ D) (conj (conj _ C) (conj _ (conj _ S))))).
@@ -490,7 +492,7 @@ Proof.
         -- right. exact Hn.
   - (* Let_cont_recursive *)
     destruct (handlers_bind_statics handlers); [ discriminate | ].
-    injection Hstep as <-. simpl in P, D, X, F.
+    injection Hstep as <-. unfold inv. simpl_state. simpl in P, D, X, F.
     apply andb_true_iff in P as [Phandlers Pbody].
     destruct (handlers_nowhere_facts handlers Phandlers) as [_ Hnone].
     rewrite Hnone in D, X, F. simpl in D, X, F.
@@ -511,6 +513,7 @@ Proof.
     destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | discriminate ].
     apply call_function_step in Hstep
       as (called & c & callee_vars & Hlookup & ->).
+    unfold inv. simpl_state.
     pose proof (S called c Hlookup) as Hc.
     destruct c as [params my_closure ret exn body]. simpl in Hc |- *.
     destruct (statics_nowhere body Hc) as (Pbody & _ & Nbody).
@@ -534,7 +537,7 @@ Proof.
       as [[params handler] def_vars def_conts recursive | k];
       [ | discriminate ].
     destruct (bind_params params vs def_vars); [ | discriminate ].
-    injection Hstep as <-. simpl in Cr, Nr.
+    injection Hstep as <-. unfold inv. simpl_state. simpl in Cr, Nr.
     destruct Cr as (Ph & Dh & Xh & Hrec & Cdef).
     destruct (rec_closures_ok def_vars def_conts recursive Hrec Cdef)
       as [Crec Nrec].
@@ -552,7 +555,7 @@ Proof.
     destruct (eval_simple vars scrutinee) as [v | ]; [ | discriminate ].
     destruct (naked_immediate_of_value v) as [i | ]; [ | discriminate ].
     destruct (find_arm i arms); [ | discriminate ].
-    injection Hstep as <-.
+    injection Hstep as <-. unfold inv. simpl_state.
     refine
       (conj eq_refl (conj (NoDup_nil _) (conj C (conj _ (conj _ S))))).
     + intros n [].
@@ -689,11 +692,11 @@ Proof.
     (well_formed_inv unit_exn symbols_of_binding symbol_bound e
        (fun _ => eq_refl) P Dsymbols)
     Hrun) as Hsymbols.
-  destruct s as [e' vars conts statics].
-  destruct e'
+  rewrite (state_eta s) in Hcode, Hsymbols. unfold static_fault.
+  destruct (state_expr s)
     as [ x d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
-    simpl; try reflexivity.
+    try reflexivity.
   - rewrite (inv_no_rebinding unit_exn _ _ _ _ _ _ _ Hcode),
       (inv_no_rebinding unit_exn _ _ _ _ _ _ _ Hsymbols).
     reflexivity.

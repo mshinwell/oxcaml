@@ -80,7 +80,10 @@ Theorem loop_forever_diverges : loop_forever_diverges_statement.
 Proof.
   intros k vars conts statics.
   apply (step_behaves _ Diverges). simpl.
-  set (looping := State _ _ _ statics).
+  match goal with
+  | |- ∀ fuel : nat, ∃ s' : state, run fuel ?s = Step s' =>
+    set (looping := s)
+  end.
   assert (Hstep : step looping = Step looping).
   { subst looping. simpl. unfold apply_continuation, resolve. simpl.
     rewrite Pos.eqb_refl. reflexivity. }
