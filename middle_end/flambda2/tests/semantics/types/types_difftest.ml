@@ -64,6 +64,8 @@ module MK = Flambda2_rocq_semantics.FlambdaKindModel
 module MT = Flambda2_rocq_semantics.FlambdaTypeGrammar
 module V = Flambda2_rocq_semantics.FlambdaValueSpec
 module Meaning = Flambda2_rocq_semantics.FlambdaTypeMeaningBoolSpec
+module Primitive_spec = Flambda2_rocq_semantics.FlambdaPrimitiveSpec
+module Z = Flambda2_rocq_semantics.BinInt.Z
 module Converter = Flambda2_rocq_types_converter.Type_converter
 module Model_names = Flambda2_rocq_types_converter.Model_names
 module Model_type = Flambda2_rocq_types_converter.Model_type
@@ -2802,70 +2804,110 @@ let comparison_by_text (names : names) =
 (* ======================================================================== *)
 
 (* Numbers of the model at the ends of the range of each kind, and the numbers
-   next to them outside: the converter takes the first to the compiler and back
-   unchanged, and refuses the second. A signed integer has four (the greatest,
-   the least, and the one beyond each); a bit pattern has four (zero, the
-   greatest, the one beyond it, and -1), and a float32 two more from 2^63 up. *)
+   next to them outside. An integer of n bits has four (the greatest, the least,
+   and the one beyond each), and so has a bit pattern of n bits, which is read
+   as such an integer. Of each, [const_in_range] of the model
+   (FlambdaPrimitiveSpec.v) says whether it is in range; the converter takes one
+   that is to the compiler and back unchanged, and refuses one that is not. The
+   numbers are made with the arithmetic of the model, not with the functions of
+   model_numbers.ml that are under test.
+
+   Then constants made in the compiler whose top bit is set (the floats that are
+   minus zero, patterns of ones): the converter gives for each a constant that
+   is in the range of the model, and takes it back to the same constant of the
+   compiler. *)
 let ranges_of_numbers () =
-  let two_to n = N.z_of_int64 (Int64.shift_left 1L n) in
-  let less_one n = N.z_of_int64 (Int64.pred (Int64.shift_left 1L n)) in
-  let minus_two_to n = N.z_of_int64 (Int64.neg (Int64.shift_left 1L n)) in
-  let below_minus_two_to n =
-    N.z_of_int64 (Int64.pred (Int64.neg (Int64.shift_left 1L n)))
-  in
-  let all_ones count = N.z_of_words (List.init count (fun _ -> -1L)) in
-  let next_word count = N.z_of_words (List.init count (fun _ -> 0L) @ [1L]) in
-  let minus_one = N.z_of_int (-1) in
-  (* -(2^63 + 1), the number below the least integer of 64 bits. *)
-  let below_the_least_int64 : N.z =
-    match N.z_of_words [Int64.succ Int64.min_int] with
-    | Zpos magnitude -> Zneg magnitude
-    | Z0 | Zneg _ -> assert false
-  in
-  let signed (const : N.z -> M.const) bits =
-    [ const (less_one (bits - 1)), true;
-      const (two_to (bits - 1)), false;
-      const (minus_two_to (bits - 1)), true;
-      const (below_minus_two_to (bits - 1)), false ]
-  in
-  let pattern (const : N.z -> M.const) ~last ~after =
-    [ const (N.z_of_int 0), true;
-      const last, true;
-      const after, false;
-      const minus_one, false ]
+  let z = N.z_of_int in
+  let ends (const : N.z -> M.const) ~bits =
+    let limit = Z.pow (z 2) (z (bits - 1)) in
+    [ const (Z.sub limit (z 1)), true;
+      const limit, false;
+      const (Z.opp limit), true;
+      const (Z.sub (Z.opp limit) (z 1)), false ]
   in
   let cases : (M.const * bool) list =
-    signed (fun i -> Naked_immediate i) 63
-    @ signed (fun i -> Tagged_immediate i) 63
-    @ signed (fun i -> Naked_int8 i) 8
-    @ signed (fun i -> Naked_int16 i) 16
-    @ signed (fun i -> Naked_int32 i) 32
-    @ [ M.Naked_int64 (N.z_of_int64 Int64.max_int), true;
-        M.Naked_int64 (N.z_of_words [Int64.min_int]), false;
-        M.Naked_int64 (N.z_of_int64 Int64.min_int), true;
-        M.Naked_int64 below_the_least_int64, false;
-        M.Naked_nativeint (N.z_of_int64 Int64.max_int), true;
-        M.Naked_nativeint (N.z_of_words [Int64.min_int]), false;
-        M.Naked_nativeint (N.z_of_int64 Int64.min_int), true;
-        M.Naked_nativeint below_the_least_int64, false ]
-    @ pattern (fun f -> Naked_float32 f) ~last:(less_one 32) ~after:(two_to 32)
-    @ [ M.Naked_float32 (N.z_of_words [Int64.min_int]), false;
-        M.Naked_float32 (all_ones 1), false ]
-    @ pattern (fun f -> Naked_float f) ~last:(all_ones 1) ~after:(next_word 1)
-    @ pattern (fun m -> Naked_mask m) ~last:(all_ones 1) ~after:(next_word 1)
-    @ pattern (fun v -> Naked_vec128 v) ~last:(all_ones 2) ~after:(next_word 2)
-    @ pattern (fun v -> Naked_vec256 v) ~last:(all_ones 4) ~after:(next_word 4)
-    @ pattern (fun v -> Naked_vec512 v) ~last:(all_ones 8) ~after:(next_word 8)
+    ends (fun i -> Naked_immediate i) ~bits:63
+    @ ends (fun i -> Tagged_immediate i) ~bits:63
+    @ ends (fun i -> Naked_int8 i) ~bits:8
+    @ ends (fun i -> Naked_int16 i) ~bits:16
+    @ ends (fun i -> Naked_int32 i) ~bits:32
+    @ ends (fun i -> Naked_int64 i) ~bits:64
+    @ ends (fun i -> Naked_nativeint i) ~bits:64
+    @ ends (fun f -> Naked_float32 f) ~bits:32
+    @ ends (fun f -> Naked_float f) ~bits:64
+    @ ends (fun m -> Naked_mask m) ~bits:64
+    @ ends (fun v -> Naked_vec128 v) ~bits:128
+    @ ends (fun v -> Naked_vec256 v) ~bits:256
+    @ ends (fun v -> Naked_vec512 v) ~bits:512
   in
   let wrong =
     List.filter
       (fun (const, in_range) ->
+        (not (Bool.equal (Primitive_spec.const_in_range const) in_range))
+        ||
         match Converter.const_of_model machine_width const with
         | converted ->
           let back = Converter.const_to_model converted in
           not (in_range && Stdlib.( = ) back const)
         | exception Converter.Not_in_the_compiler _ -> in_range)
       cases
+  in
+  let ones = -1L and top = Int64.min_int in
+  let module Float32 = Numeric_types.Float32_by_bit_pattern in
+  let module Float = Numeric_types.Float_by_bit_pattern in
+  let module Vec128 = Vector_types.Vec128.Bit_pattern in
+  let module Vec256 = Vector_types.Vec256.Bit_pattern in
+  let module Vec512 = Vector_types.Vec512.Bit_pattern in
+  let module Mask = Vector_types.Mask.Bit_pattern in
+  let module RWC = Reg_width_const in
+  (* A vector whose most significant word is [high], the others [low]. *)
+  let vec128 ~low ~high =
+    RWC.naked_vec128 (Vec128.of_bits { word0 = low; word1 = high })
+  in
+  let vec256 ~low ~high =
+    RWC.naked_vec256
+      (Vec256.of_bits { word0 = low; word1 = low; word2 = low; word3 = high })
+  in
+  let vec512 ~low ~high =
+    RWC.naked_vec512
+      (Vec512.of_bits
+         { word0 = low;
+           word1 = low;
+           word2 = low;
+           word3 = low;
+           word4 = low;
+           word5 = low;
+           word6 = low;
+           word7 = high
+         })
+  in
+  let from_the_compiler : (string * RWC.t) list =
+    [ ( "the float32 that is minus zero",
+        RWC.naked_float32 (Float32.of_bits Int32.min_int) );
+      "a float32 of ones", RWC.naked_float32 (Float32.of_bits (-1l));
+      "the float that is minus zero", RWC.naked_float (Float.of_bits top);
+      "a float of ones", RWC.naked_float (Float.of_bits ones);
+      ( "a mask with its top bit only",
+        RWC.naked_mask (Mask.of_bits { word0 = top }) );
+      "a mask of ones", RWC.naked_mask (Mask.of_bits { word0 = ones });
+      "a vec128 with its top bit only", vec128 ~low:0L ~high:top;
+      "a vec128 of ones", vec128 ~low:ones ~high:ones;
+      "a vec256 with its top bit only", vec256 ~low:0L ~high:top;
+      "a vec256 of ones", vec256 ~low:ones ~high:ones;
+      "a vec512 with its top bit only", vec512 ~low:0L ~high:top;
+      "a vec512 of ones", vec512 ~low:ones ~high:ones ]
+  in
+  let wrong_from_the_compiler =
+    List.filter
+      (fun ((_ : string), const) ->
+        let converted = Converter.const_to_model const in
+        not
+          (Primitive_spec.const_in_range converted
+          &&
+          match Converter.const_of_model machine_width converted with
+          | back -> RWC.equal back const
+          | exception Converter.Not_in_the_compiler _ -> false))
+      from_the_compiler
   in
   Format.printf "@.The ranges of numbers (%d constants): %d as expected@."
     (List.length cases)
@@ -2874,10 +2916,20 @@ let ranges_of_numbers () =
     (fun (const, in_range) ->
       Format.printf "  WRONG: %a is %s@." Model_type.print_const const
         (if in_range
-         then "refused or changed, and is in range"
-         else "accepted, and is out of range"))
+         then
+           "refused, changed or not in the range of the model, and is in range"
+         else "accepted, or in the range of the model, and is out of range"))
     wrong;
-  failures := !failures + List.length wrong
+  Format.printf
+    "Constants of the compiler with the top bit set (%d): %d in the range of \
+     the model and unchanged by the round trip@."
+    (List.length from_the_compiler)
+    (List.length from_the_compiler - List.length wrong_from_the_compiler);
+  List.iter
+    (fun (what, _) -> Format.printf "  WRONG: %s@." what)
+    wrong_from_the_compiler;
+  failures
+    := !failures + List.length wrong + List.length wrong_from_the_compiler
 
 (* ======================================================================== *)
 (* The tests                                                                *)

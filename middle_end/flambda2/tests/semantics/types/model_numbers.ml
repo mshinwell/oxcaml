@@ -35,11 +35,14 @@
 
    An integer of the compiler (an immediate, an [int8] to a [nativeint], a tag,
    a size) is the [Z] of its signed value. A bit pattern (a float, a vector, a
-   mask) is the [Z] of its bits read as a number that is not negative: the 64
-   bits of a float, and for a vector its words, [word0] the least significant.
-   Back from the model, a number that is outside the range of what it is to
-   become has no conversion: the functions answer [None], and never reduce a
-   number modulo anything. *)
+   mask) is the [Z] of its bits read as an integer in two's complement, as the
+   integers are: of 32 bits for a float32, of 64 for a float and for a mask, and
+   of 128, 256 and 512 for the vectors, whose words are given with [word0] the
+   least significant. This is the reading of [const_in_range]
+   (middle_end/flambda2/rocq/FlambdaPrimitiveSpec.v) and of the converter of
+   terms (middle_end/flambda2/tests/tools/flsemantics.ml). Back from the model,
+   a number that is outside the range of what it is to become has no conversion:
+   the functions answer [None], and never reduce a number modulo anything. *)
 
 module Numbers = Flambda2_rocq_semantics.BinNums
 module Datatypes = Flambda2_rocq_semantics.Datatypes
@@ -88,7 +91,7 @@ let word_of_bits (bits : bool list) : int64 option =
            Int64.logor (Int64.shift_left word 1) (if bit then 1L else 0L))
          bits 0L)
 
-(* ---- Bit patterns: numbers that are not negative ---------------------- *)
+(* ---- Words read as a number that is not negative ----------------------- *)
 
 (* The number whose 64-bit words are given, the least significant first. *)
 let z_of_words (words : int64 list) : z =
@@ -142,6 +145,66 @@ let int64_of_z (z : z) : int64 option =
     | Some _ | None -> None)
 
 let z_of_int (n : int) : z = z_of_int64 (Int64.of_int n)
+
+(* ---- Integers of several words, in two's complement -------------------- *)
+
+(* One more than the number whose bits are given, least significant first. *)
+let rec successor_of_bits (bits : bool list) : bool list =
+  match bits with
+  | [] -> [true]
+  | false :: bits -> true :: bits
+  | true :: bits -> false :: successor_of_bits bits
+
+(* The integer whose 64-bit words are given, the least significant first, in
+   two's complement: it is negative when the top bit of the last word is set,
+   and its magnitude is then one more than the number whose bits are the
+   complements of the bits given. *)
+let z_of_signed_words (words : int64 list) : z =
+  let negative =
+    match List.rev words with
+    | [] -> false
+    | top :: _ -> Int64.compare top 0L < 0
+  in
+  if not negative
+  then z_of_words words
+  else
+    let complement = List.map not (List.concat_map bits_of_word words) in
+    match positive_of_bits (successor_of_bits complement) with
+    | None -> Z0
+    | Some p -> Zneg p
+
+(* The [count] 64-bit words, the least significant first, of an integer in two's
+   complement; [None] if it does not fit in that many words. A number that is
+   not negative fits if its top bit is clear. A negative number -m fits if m - 1
+   does with its top bit clear, and its bits are the complements of the bits of
+   m - 1. *)
+let signed_words_of_z ~count (z : z) : int64 list option =
+  let top_bit_clear words =
+    match List.rev words with
+    | [] -> true
+    | top :: _ -> Int64.compare top 0L >= 0
+  in
+  let rec predecessor_of_bits (bits : bool list) : bool list =
+    (* Of a number that is not zero. *)
+    match bits with
+    | [] -> []
+    | true :: bits -> false :: bits
+    | false :: bits -> true :: predecessor_of_bits bits
+  in
+  match z with
+  | Z0 | Zpos _ -> (
+    match words_of_z ~count z with
+    | Some words when top_bit_clear words -> Some words
+    | Some _ | None -> None)
+  | Zneg p -> (
+    let less_one : z =
+      match positive_of_bits (predecessor_of_bits (bits_of_positive p)) with
+      | None -> Z0
+      | Some p -> Zpos p
+    in
+    match words_of_z ~count less_one with
+    | Some words when top_bit_clear words -> Some (List.map Int64.lognot words)
+    | Some _ | None -> None)
 
 let int_of_z (z : z) : int option =
   match int64_of_z z with

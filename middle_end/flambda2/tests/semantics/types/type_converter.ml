@@ -108,8 +108,9 @@ type machine_width = Target_system.Machine_width.t
 (* ======================================================================== *)
 
 (* Each sort of number of the compiler, to the model and back. An integer is its
-   signed value and a bit pattern is read without a sign (model_numbers.ml).
-   Back, [None] is a number outside the range. *)
+   signed value, and a bit pattern is read as an integer in two's complement of
+   as many bits as it has (model_numbers.ml). Back, [None] is a number outside
+   the range. *)
 
 let z_of_target_int (i : Target_ocaml_int.t) : N.z =
   N.z_of_int64 (Target_ocaml_int.to_int64 i)
@@ -121,25 +122,6 @@ let target_int_of_z (machine_width : machine_width) (z : N.z) :
   Option.bind (N.int64_of_z z) (fun n ->
       let i = Target_ocaml_int.of_int64 machine_width n in
       if I64.equal (Target_ocaml_int.to_int64 i) n then Some i else None)
-
-let z_of_float32 (f : Float32.t) : N.z =
-  N.z_of_words [I64.logand (I64.of_int32 (Float32.to_bits f)) 0xFFFFFFFFL]
-
-let float32_of_z (z : N.z) : Float32.t option =
-  match N.words_of_z ~count:1 z with
-  | Some [word]
-    when I64.compare word 0L >= 0 && I64.compare word 0xFFFFFFFFL <= 0 ->
-    (* The word is read without a sign by [words_of_z]; as an [int64] one from
-       2^63 up is negative, so both bounds are asked. *)
-    Some (Float32.of_bits (I64.to_int32 word))
-  | Some _ | None -> None
-
-let z_of_float (f : Float.t) : N.z = N.z_of_words [Float.to_bits f]
-
-let float_of_z (z : N.z) : Float.t option =
-  match N.words_of_z ~count:1 z with
-  | Some [word] -> Some (Float.of_bits word)
-  | Some _ | None -> None
 
 let z_of_int8 (i : Int8.t) : N.z = N.z_of_int (Int8.to_int i)
 
@@ -167,6 +149,18 @@ let z_of_int64 (i : int64) : N.z = N.z_of_int64 i
 
 let int64_of_z (z : N.z) : int64 option = N.int64_of_z z
 
+(* The 32 bits of a float32 and the 64 of a float, as the integers of those
+   widths. *)
+let z_of_float32 (f : Float32.t) : N.z = z_of_int32 (Float32.to_bits f)
+
+let float32_of_z (z : N.z) : Float32.t option =
+  Option.map Float32.of_bits (int32_of_z z)
+
+let z_of_float (f : Float.t) : N.z = z_of_int64 (Float.to_bits f)
+
+let float_of_z (z : N.z) : Float.t option =
+  Option.map Float.of_bits (int64_of_z z)
+
 let z_of_nativeint (i : Targetint_32_64.t) : N.z =
   N.z_of_int64 (Targetint_32_64.to_int64 i)
 
@@ -179,19 +173,19 @@ let nativeint_of_z (machine_width : machine_width) (z : N.z) :
 
 let z_of_vec128 (v : Vec128.t) : N.z =
   let ({ word0; word1 } : Vec128.bits) = Vec128.to_bits v in
-  N.z_of_words [word0; word1]
+  N.z_of_signed_words [word0; word1]
 
 let vec128_of_z (z : N.z) : Vec128.t option =
-  match N.words_of_z ~count:2 z with
+  match N.signed_words_of_z ~count:2 z with
   | Some [word0; word1] -> Some (Vec128.of_bits { word0; word1 })
   | Some _ | None -> None
 
 let z_of_vec256 (v : Vec256.t) : N.z =
   let ({ word0; word1; word2; word3 } : Vec256.bits) = Vec256.to_bits v in
-  N.z_of_words [word0; word1; word2; word3]
+  N.z_of_signed_words [word0; word1; word2; word3]
 
 let vec256_of_z (z : N.z) : Vec256.t option =
-  match N.words_of_z ~count:4 z with
+  match N.signed_words_of_z ~count:4 z with
   | Some [word0; word1; word2; word3] ->
     Some (Vec256.of_bits { word0; word1; word2; word3 })
   | Some _ | None -> None
@@ -201,10 +195,10 @@ let z_of_vec512 (v : Vec512.t) : N.z =
       =
     Vec512.to_bits v
   in
-  N.z_of_words [word0; word1; word2; word3; word4; word5; word6; word7]
+  N.z_of_signed_words [word0; word1; word2; word3; word4; word5; word6; word7]
 
 let vec512_of_z (z : N.z) : Vec512.t option =
-  match N.words_of_z ~count:8 z with
+  match N.signed_words_of_z ~count:8 z with
   | Some [word0; word1; word2; word3; word4; word5; word6; word7] ->
     Some
       (Vec512.of_bits
@@ -213,12 +207,10 @@ let vec512_of_z (z : N.z) : Vec512.t option =
 
 let z_of_mask (m : Mask.t) : N.z =
   let ({ word0 } : Mask.bits) = Mask.to_bits m in
-  N.z_of_words [word0]
+  z_of_int64 word0
 
 let mask_of_z (z : N.z) : Mask.t option =
-  match N.words_of_z ~count:1 z with
-  | Some [word0] -> Some (Mask.of_bits { word0 })
-  | Some _ | None -> None
+  Option.map (fun word0 -> Mask.of_bits { word0 }) (int64_of_z z)
 
 (* A number of the model as a number of the compiler, or a refusal. *)
 let in_range what (of_z : N.z -> 'a option) (z : N.z) : 'a =

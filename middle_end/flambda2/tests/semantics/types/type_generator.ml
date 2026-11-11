@@ -137,20 +137,15 @@ let is_naked_immediate (k : MK.naked_number_kind) =
 let small_number r = N.z_of_int (below r 7 - 2)
 
 (* A number of a kind: small, and in range unless the type is to be one that the
-   compiler cannot build. *)
-let number config r (k : MK.naked_number_kind) : N.z =
+   compiler cannot build. A bit pattern is an integer in two's complement as the
+   integers are, so a small negative number is a pattern whose top bits are
+   set. *)
+let number config r (_ : MK.naked_number_kind) : N.z =
   if (not config.well_formed) && chance r ~percent:3
   then
-    (* Out of the range of every kind but the 512-bit vectors. *)
+    (* 2^256: out of the range of every kind but the 512-bit vectors. *)
     N.z_of_words [0L; 0L; 0L; 0L; 1L]
-  else
-    match k with
-    | Kind_naked_immediate | Kind_naked_int8 | Kind_naked_int16
-    | Kind_naked_int32 | Kind_naked_int64 | Kind_naked_nativeint ->
-      small_number r
-    | Kind_naked_float32 | Kind_naked_float | Kind_naked_vec128
-    | Kind_naked_vec256 | Kind_naked_vec512 | Kind_naked_mask ->
-      N.z_of_int (below r 5)
+  else small_number r
 
 let alloc_mode config r : MT.Alloc_mode.t =
   if (not config.well_formed) && chance r ~percent:3

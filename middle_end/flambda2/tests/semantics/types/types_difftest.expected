@@ -1,7 +1,8 @@
 The types of the compiler against the Rocq model.
 Stack allocation: enabled.
 
-The ranges of numbers (54 constants): 54 as expected
+The ranges of numbers (52 constants): 52 as expected
+Constants of the compiler with the top bit set (12): 12 in the range of the model and unchanged by the round trip
 
 The comparison by text (3 cases): 3 as expected
 
@@ -304,17 +305,17 @@ Two types of one of the other kinds and a world, for the meaning of meet and joi
     44 not run: no value tried has either type
   join (n-way): a value of one of the types has the join: 513 agree
     44 not run: no value tried has either type
-  meet (binary): a value of both types has the meet: 216 agree
-    341 not run: no value tried has both types
-  meet (n-way): a value of both types has the meet: 216 agree
-    341 not run: no value tried has both types
-  meet (binary): a value of the meet has both types: 216 agree
+  meet (binary): a value of both types has the meet: 201 agree
+    356 not run: no value tried has both types
+  meet (n-way): a value of both types has the meet: 201 agree
+    356 not run: no value tried has both types
+  meet (binary): a value of the meet has both types: 201 agree
     34 not run: no value tried has the meet
-    303 not run: the meet is bottom: no value has it
+    318 not run: the meet is bottom: no value has it
     4 not run: what the meet teaches is not true in the world
-  meet (n-way): a value of the meet has both types: 216 agree
+  meet (n-way): a value of the meet has both types: 201 agree
     34 not run: no value tried has the meet
-    303 not run: the meet is bottom: no value has it
+    318 not run: the meet is bottom: no value has it
     4 not run: what the meet teaches is not true in the world
 
 Chosen pairs of types, for the meaning of meet and join (3 cases, seeds 60000 to 60002)
