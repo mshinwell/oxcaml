@@ -105,6 +105,10 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaControlFlowSpec.v \
   FlambdaFreeNamesProofs.v \
   FlambdaFreeNamesSpec.v \
+  FlambdaFreshAbstractionProofs.v \
+  FlambdaFreshAbstractionSpec.v \
+  FlambdaFreshQuantifierProofs.v \
+  FlambdaFreshQuantifierSpec.v \
   FlambdaKindModel.v \
   FlambdaMapProofs.v \
   FlambdaMapSpec.v \
