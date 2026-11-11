@@ -345,6 +345,19 @@ Definition resolved_binding_time
 (* Of two variables, the earlier is the one with the lesser binding time
    in the typing environment; where the two have the same, the one with
    the lesser binding time by the resolver. *)
+
+(* CR mshinwell: two variables with the same binding time in the typing
+   environment are ordered here by what the resolver says, and are not
+   ordered if it says the same of both. In the compiler the resolver is
+   asked only for variables of one compilation unit, and for the unit
+   being compiled it stops with a fatal error
+   ([Typing_env.binding_time_resolver], [Compilenv.get_unit]); so the
+   compiler has no order there, and relies on such variables having
+   different binding times, which nothing states (a comment in
+   [Typing_env_level.concat] says that a join may give several variables
+   one binding time). It is not certain what is meant: that such a tie
+   never reaches the aliases, or that an order is missing. Discrepancy
+   T3-1; no decision yet. *)
 Definition variable_earlier_statement : Prop :=
   ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
     (binding_times_and_modes
