@@ -171,7 +171,8 @@ review: $(SOURCES:.v=.vo)
 # : Prop]) must be proved as the theorem [X] of the matching Proofs module
 # (HACKING.md, "The layout of a model"). Each is checked by defining a
 # constant of the statement's type whose body is the theorem; on success the
-# claims checked are listed.
+# claims checked are listed. The constant is named after the Spec file and
+# the statement, so that two Spec files may each have a statement of one name.
 SPECS := $(patsubst %,OxCamlSsa:%,$(filter %Spec.v,$(SSA))) \
   $(patsubst %,OxCamlLoop:%,$(filter %Spec.v,$(LOOP))) \
   $(patsubst %,OxCamlFlambda2:%,$(filter %Spec.v,$(FLAMBDA2))) \
@@ -189,8 +190,8 @@ claims: $(SOURCES:.v=.vo)
 	        's/^Definition \([A-Za-z0-9_]*\)_statement : Prop.*/\1/p' $$spec); \
 	    do \
 	      printf 'From %s Require %s %s.\n' $$lib $$module $$proofs; \
-	      printf 'Definition %s_claim : %s.%s_statement := %s.%s.\n' \
-	        $$claim $$module $$claim $$proofs $$claim; \
+	      printf 'Definition %s_%s_claim : %s.%s_statement := %s.%s.\n' \
+	        $$module $$claim $$module $$claim $$proofs $$claim; \
 	      printf '%s.%s proves %s.%s_statement\n' \
 	        $$proofs $$claim $$module $$claim >> "$$claims_dir/list"; \
 	    done; \
