@@ -48,5 +48,32 @@ val inter_with :
   ('a1 -> 'a2 -> 'a3) -> 'a1 finite_map -> 'a2 finite_map -> 'a3 finite_map
 
 module Keyed : sig
+  type ('k, 'a) finite_map = ('k * 'a) list
+
+  val among : ('a1 -> 'a1 -> bool) -> 'a1 -> 'a1 list -> bool
+
+  val all_among : ('a1 -> 'a1 -> bool) -> 'a1 list -> 'a1 list -> bool
+
+  val distinct : ('a1 -> 'a1 -> bool) -> 'a1 list -> bool
+
+  val same_keys_b : ('a1 -> 'a1 -> bool) -> 'a1 list -> 'a1 list -> bool
+
   val is_empty : 'a1 list -> bool
+
+  val lookup : ('a1 -> 'a1 -> bool) -> 'a1 -> ('a1 * 'a2) list -> 'a2 option
+
+  val is_bound : ('a1 -> 'a1 -> bool) -> 'a1 -> ('a1, 'a2) finite_map -> bool
+
+  val for_all_bindings_b :
+    ('a1 -> 'a1 -> bool) ->
+    ('a1 -> 'a2 -> bool) ->
+    ('a1, 'a2) finite_map ->
+    bool
+
+  val at_binding_b :
+    ('a1 -> 'a1 -> bool) ->
+    ('a2 -> bool) ->
+    'a1 ->
+    ('a1, 'a2) finite_map ->
+    bool
 end

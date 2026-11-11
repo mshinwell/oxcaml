@@ -116,7 +116,66 @@ let inter_with f bindings bindings' =
     bindings bindings'
 
 module Keyed = struct
+  type ('k, 'a) finite_map = ('k * 'a) list
+
+  (** val among : ('a1 -> 'a1 -> bool) -> 'a1 -> 'a1 list -> bool **)
+
+  let among eqb0 key keys = existsb (eqb0 key) keys
+
+  (** val all_among : ('a1 -> 'a1 -> bool) -> 'a1 list -> 'a1 list -> bool **)
+
+  let all_among eqb0 keys allowed =
+    forallb (fun key -> among eqb0 key allowed) keys
+
+  (** val distinct : ('a1 -> 'a1 -> bool) -> 'a1 list -> bool **)
+
+  let rec distinct eqb0 = function
+    | [] -> true
+    | key :: keys0 -> negb (among eqb0 key keys0) && distinct eqb0 keys0
+
+  (** val same_keys_b : ('a1 -> 'a1 -> bool) -> 'a1 list -> 'a1 list -> bool **)
+
+  let same_keys_b eqb0 keys keys' =
+    all_among eqb0 keys keys' && all_among eqb0 keys' keys
+
   (** val is_empty : 'a1 list -> bool **)
 
   let is_empty = function [] -> true | _ :: _ -> false
+
+  (** val lookup : ('a1 -> 'a1 -> bool) -> 'a1 -> ('a1 * 'a2) list -> 'a2 option
+      **)
+
+  let rec lookup eqb0 key = function
+    | [] -> None
+    | p :: bindings0 ->
+      let bound, a = p in
+      if eqb0 key bound then Some a else lookup eqb0 key bindings0
+
+  (** val is_bound : ('a1 -> 'a1 -> bool) -> 'a1 -> ('a1, 'a2) finite_map ->
+      bool **)
+
+  let is_bound eqb0 key bindings =
+    match lookup eqb0 key bindings with Some _ -> true | None -> false
+
+  (** val for_all_bindings_b : ('a1 -> 'a1 -> bool) -> ('a1 -> 'a2 -> bool) ->
+      ('a1, 'a2) finite_map -> bool **)
+
+  let for_all_bindings_b eqb0 p bindings =
+    let rec for_all_bindings_b0 seen = function
+      | [] -> true
+      | p0 :: bindings1 ->
+        let key, a = p0 in
+        (among eqb0 key seen || p key a)
+        && for_all_bindings_b0 (key :: seen) bindings1
+    in
+    for_all_bindings_b0 [] bindings
+
+  (** val at_binding_b : ('a1 -> 'a1 -> bool) -> ('a2 -> bool) -> 'a1 -> ('a1,
+      'a2) finite_map -> bool **)
+
+  let rec at_binding_b eqb0 p key = function
+    | [] -> true
+    | p0 :: bindings0 ->
+      let bound, a = p0 in
+      if eqb0 key bound then p a else at_binding_b eqb0 p key bindings0
 end

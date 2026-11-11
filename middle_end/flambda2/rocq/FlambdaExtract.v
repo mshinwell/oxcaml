@@ -59,6 +59,10 @@ From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
   FlambdaUnboxSpec FlambdaUnusedContsSpec FlambdaUnusedStaticsSpec
   FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
+From OxCamlFlambda2Types Require Import FlambdaTypeEqualSpec.
+From OxCamlFlambda2Types Require Import FlambdaTypeGrammar.
+From OxCamlFlambda2Types Require Import FlambdaTypeMeaningBoolSpec.
+From OxCamlFlambda2Types Require Import FlambdaTypeWellFormedSpec.
 
 Extraction Language OCaml.
 
@@ -75,6 +79,59 @@ Set Extraction Output Directory ".".
    nothing, and the closing full stop has a line of its own for the same
    reason. *)
 Separate Extraction
+  FlambdaTypeEqualSpec.type_eqb
+  FlambdaTypeGrammar.Relation.of_const
+  FlambdaTypeGrammar.alias_type_of
+  FlambdaTypeGrammar.any_block
+  FlambdaTypeGrammar.any_non_null_value
+  FlambdaTypeGrammar.any_tagged_immediate
+  FlambdaTypeGrammar.at_least_this_closure
+  FlambdaTypeGrammar.blocks_with_these_tags
+  FlambdaTypeGrammar.bottom
+  FlambdaTypeGrammar.box_number
+  FlambdaTypeGrammar.create_closures
+  FlambdaTypeGrammar.create_variant
+  FlambdaTypeGrammar.double_array_tag
+  FlambdaTypeGrammar.empty_env_extension
+  FlambdaTypeGrammar.exactly_this_closure
+  FlambdaTypeGrammar.field_kinds
+  FlambdaTypeGrammar.free_variables
+  FlambdaTypeGrammar.get_alias_opt
+  FlambdaTypeGrammar.get_tag_for_block
+  FlambdaTypeGrammar.immutable_block
+  FlambdaTypeGrammar.is_int_for_scrutinee
+  FlambdaTypeGrammar.is_null_for_scrutinee
+  FlambdaTypeGrammar.is_obviously_bottom
+  FlambdaTypeGrammar.is_obviously_unknown
+  FlambdaTypeGrammar.kind
+  FlambdaTypeGrammar.mutable_block
+  FlambdaTypeGrammar.name_eqb
+  FlambdaTypeGrammar.no_scan_tag
+  FlambdaTypeGrammar.non_null_value
+  FlambdaTypeGrammar.null
+  FlambdaTypeGrammar.row_like_for_blocks_bottom
+  FlambdaTypeGrammar.row_like_for_blocks_create_at_least
+  FlambdaTypeGrammar.row_like_for_blocks_create_at_least_unknown_tag
+  FlambdaTypeGrammar.row_like_for_blocks_create_exactly
+  FlambdaTypeGrammar.row_like_for_blocks_is_bottom
+  FlambdaTypeGrammar.simple_of_name
+  FlambdaTypeGrammar.tag_immediate
+  FlambdaTypeGrammar.these_naked_immediates
+  FlambdaTypeGrammar.these_tagged_immediates
+  FlambdaTypeGrammar.this_const
+  FlambdaTypeGrammar.this_immutable_string
+  FlambdaTypeGrammar.this_naked_immediate
+  FlambdaTypeGrammar.this_tagged_immediate
+  FlambdaTypeGrammar.type_for_const
+  FlambdaTypeGrammar.unknown
+  FlambdaTypeMeaningBoolSpec.env_extension_satisfied_b
+  FlambdaTypeMeaningBoolSpec.is_poison_b
+  FlambdaTypeMeaningBoolSpec.relation_holds_b
+  FlambdaTypeMeaningBoolSpec.row_like_block_case_satisfied_b
+  FlambdaTypeMeaningBoolSpec.row_like_closures_case_satisfied_b
+  FlambdaTypeMeaningBoolSpec.type_satisfied_b
+  FlambdaTypeMeaningBoolSpec.value_eqb
+  FlambdaTypeWellFormedSpec.type_well_formed
   all_among
   among
   at_partial_or_over_application
