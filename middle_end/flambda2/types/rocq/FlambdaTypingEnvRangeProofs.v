@@ -42,7 +42,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypingEnvProofs FlambdaTypingEnvInvariantSpec
   FlambdaTypingEnvInvariantProofs FlambdaTypingEnvOperationsSpec
   FlambdaTypingEnvOperationsProofs FlambdaTypingEnvRefinementSpec
-  FlambdaTypingEnvRefinementProofs FlambdaTypingEnvRangeSpec.
+  FlambdaTypingEnvRefinementProofs FlambdaTypingEnvExamplesSpec
+  FlambdaTypingEnvRangeSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -223,4 +224,75 @@ Proof.
   split; [ | split; [ exact Hagrees | exact Hvaluation ] ].
   exact (satisfied_but_statics_extend _ statics statics' valuation tenv
            Hextend Hsatisfied).
+Qed.
+
+(* ======================================================================== *)
+(* An example                                                               *)
+(* ======================================================================== *)
+
+Theorem example_out_of_range : example_out_of_range_statement.
+Proof.
+  split; [ | split ].
+  - (* Satisfied, by the valuation that gives [p] the number. *)
+    split.
+    + intros x Hscope. apply in_scope_in_terms_lookup in Hscope.
+      destruct Hscope as [ty [btm [Hlookup Hmode]]].
+      apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
+      vm_compute in Hlookup.
+      repeat (destruct Hlookup as [Hlookup | Hlookup];
+              [ injection Hlookup as <- <- <- | ]); [ .. | contradiction ];
+        try (vm_compute in Hmode; discriminate);
+        eexists; reflexivity.
+    + exists [(example_i, Value_const (Naked_immediate 1));
+              (example_p, tagged example_big_number)].
+      split.
+      * split; [ reflexivity | ]. split; [ | apply empty_respected ].
+        intros n ty btm v Hlookup Hvalue.
+        apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
+        vm_compute in Hlookup.
+        repeat (destruct Hlookup as [Hlookup | Hlookup];
+                [ injection Hlookup as <- <- <- | ]); [ .. | contradiction ].
+        all: cbv in Hvalue; injection Hvalue as <-; right.
+        all: try (first
+                    [ apply (proj2 (unknown_satisfied _ _ _ Value))
+                    | apply (proj2
+                               (unknown_satisfied _ _ _
+                                  (Naked_number Kind_naked_immediate))) ];
+                  reflexivity).
+        -- apply (proj2 (is_int_for_scrutinee_satisfied _ _ _
+                           (Name_var example_p))).
+           exists 1, (tagged example_big_number).
+           split; [ reflexivity | ]. split; [ reflexivity | ]. left.
+           split; [ eexists; reflexivity | reflexivity ].
+        -- apply (proj2 (these_tagged_immediates_satisfied _ _ _
+                           [example_big_number])).
+           eexists. split; [ reflexivity | left; reflexivity ].
+      * intros x Hscope. apply in_scope_in_terms_lookup in Hscope.
+        destruct Hscope as [ty [btm [Hlookup Hmode]]].
+        apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
+        vm_compute in Hlookup.
+        repeat (destruct Hlookup as [Hlookup | Hlookup];
+                [ injection Hlookup as <- <- <- | ]); [ .. | contradiction ];
+          try (vm_compute in Hmode; discriminate);
+          reflexivity.
+  - intros x v [[= <- <-] | []]. reflexivity.
+  - (* A valuation that satisfies it gives [p] the number. *)
+    intros [_ [valuation [Hsatisfied [Hagrees Hrange]]]].
+    assert (Hi :
+      lookup example_i valuation = Some (Value_const (Naked_immediate 1))).
+    { rewrite (Hagrees example_i); reflexivity. }
+    pose proof (find_satisfied_strictly empty_static_env valuation
+                  example_out_of_range_env (Name_var example_i) None _ _
+                  Hsatisfied eq_refl Hi) as Hrelation.
+    apply is_int_for_scrutinee_satisfied in Hrelation.
+    destruct Hrelation as [i [w [_ [Hw _]]]].
+    pose proof (find_satisfied_strictly empty_static_env valuation
+                  example_out_of_range_env (Name_var example_p) None _ w
+                  Hsatisfied eq_refl Hw) as Hp.
+    change (type_satisfied empty_static_env valuation w
+              (these_tagged_immediates [example_big_number])) in Hp.
+    apply these_tagged_immediates_satisfied in Hp.
+    destruct Hp as [j [-> [<- | []]]].
+    pose proof (Hrange example_p _ (lookup_in _ _ _ Hw)) as Hbad.
+    vm_compute in Hbad. discriminate.
 Qed.

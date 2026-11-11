@@ -66,14 +66,21 @@
      environments takes, for any variables;
    - a valuation that agrees with the machine gives every variable
      that may occur in a term the value that the machine has for it,
-     so such a variable has a value in the run. (For a variable that
-     exists only in types the machine gives none.)
+     so such a variable has a value in the run. (Of a variable that
+     exists only in types no agreement is asked: the valuation need
+     not give it what the machine has, if the machine has anything
+     for it.)
    - the environment that knows nothing is satisfied so by any
      machine, and one that the machine's variables satisfy is, if they
      are in range;
    - the steps keep it: a new scope, a variable defined, parameters
      defined, a type given to a variable in scope, two [Simple]s made
-     equal, and the static environment growing.
+     equal, and the static environment growing;
+   - an environment that a machine in range satisfies strictly, and
+     through no valuation in range: a variable that exists only in
+     types is, by its type, a number that no tagged immediate of the
+     machine is, and a variable of the machine is the result of a
+     relation on it ([example_out_of_range_statement]).
 
    Not here: a notion of refinement for runs in range. The statements
    that go under a handler (FlambdaTypingEnvRefinementSpec.v) are of
@@ -92,8 +99,10 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
   FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
-  FlambdaTypingEnvInvariantSpec.
+  FlambdaTypingEnvInvariantSpec FlambdaTypingEnvExamplesSpec.
 Import ListNotations.
+
+Local Open Scope Z_scope.
 
 (* ======================================================================== *)
 (* Satisfaction through a valuation in range                                *)
@@ -230,3 +239,45 @@ Definition satisfies_in_range_statics_extend_statement : Prop :=
     statics_extend statics statics' ->
     env_satisfies_strictly_in_range tenv statics vars ->
     env_satisfies_strictly_in_range tenv statics' vars.
+
+(* ======================================================================== *)
+(* An example                                                               *)
+(* ======================================================================== *)
+
+(* The variables are those of FlambdaTypingEnvExamplesSpec.v. [p]
+   exists only in types and is, by its type, the tagged immediate of a
+   number that no immediate of the machine is. [i] may occur in terms
+   and is [Is_int] of [p]. *)
+Definition example_big_number : Z := 2 ^ 70.
+
+Definition example_out_of_range_env : Typing_env.t :=
+  let tenv := Typing_env.create in
+  let tenv :=
+    Typing_env.add_variable_definition tenv example_p Value
+      Name_mode.in_types
+  in
+  let tenv :=
+    Typing_env.replace_equation tenv (Name_var example_p)
+      (these_tagged_immediates [example_big_number])
+  in
+  let tenv :=
+    Typing_env.add_variable_definition tenv example_i
+      (Naked_number Kind_naked_immediate) Name_mode.normal
+  in
+  Typing_env.replace_equation tenv (Name_var example_i)
+    (is_int_for_scrutinee (Name_var example_p)).
+
+Definition example_out_of_range_vars : env :=
+  [(example_i, Value_const (Naked_immediate 1))].
+
+(* The machine that binds [i] to 1 is in range and satisfies the
+   environment strictly, through the valuation that gives [p] that
+   number. A valuation that satisfies the environment and agrees with
+   the machine gives [p] a value, since [i] is the result of a
+   relation on it, and so that number: none is in range. *)
+Definition example_out_of_range_statement : Prop :=
+  env_satisfies_strictly example_out_of_range_env empty_static_env
+    example_out_of_range_vars
+  ∧ env_in_range example_out_of_range_vars
+  ∧ ~ env_satisfies_strictly_in_range example_out_of_range_env
+        empty_static_env example_out_of_range_vars.
