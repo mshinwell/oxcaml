@@ -279,6 +279,20 @@ let convert_standard_int (kind : Flambda_kind.Standard_int.t) :
   | Naked_int64 -> Standard_naked_int64
   | Naked_nativeint -> Standard_naked_nativeint
 
+(* The integers among the kinds that [Num_conv] converts between: the model has
+   not got the conversions to and from the floats. *)
+let convert_standard_int_or_float (kind : Flambda_kind.Standard_int_or_float.t)
+    : Kinds.standard_int option =
+  match kind with
+  | Tagged_immediate -> Some Standard_tagged_immediate
+  | Naked_immediate -> Some Standard_naked_immediate
+  | Naked_int8 -> Some Standard_naked_int8
+  | Naked_int16 -> Some Standard_naked_int16
+  | Naked_int32 -> Some Standard_naked_int32
+  | Naked_int64 -> Some Standard_naked_int64
+  | Naked_nativeint -> Some Standard_naked_nativeint
+  | Naked_float32 | Naked_float -> None
+
 let convert_boxable_number (kind : Flambda_kind.Boxable_number.t) :
     Kinds.boxable_number =
   match kind with
@@ -306,8 +320,7 @@ let convert_or_unknown convert (known : _ Flambda2_lattices.Or_unknown.t) =
 let convert_unary_primitive (p : P.unary_primitive) :
     Primitives.unary_primitive option =
   match p with
-  | Block_load
-      { kind = Values { tag; size; field_kind }; mut = Immutable; field } ->
+  | Block_load { kind = Values { tag; size; field_kind }; mut; field } ->
     let field_kind : Primitives.block_access_field_kind =
       match field_kind with Any_value -> Any_value | Immediate -> Immediate
     in
@@ -317,13 +330,31 @@ let convert_unary_primitive (p : P.unary_primitive) :
           convert_or_unknown Target_ocaml_int.to_int size,
           field_kind )
     in
-    Some (Block_load (kind, z_of_int (Target_ocaml_int.to_int field)))
+    let mut : Primitives.mutability =
+      match mut with
+      | Mutable -> Mutable
+      | Immutable -> Immutable
+      | Immutable_unique -> Immutable_unique
+    in
+    Some (Block_load (kind, mut, z_of_int (Target_ocaml_int.to_int field)))
   | Block_load _ -> None
   | Is_int { variant_only } -> Some (Is_int variant_only)
   | Is_null -> Some Is_null
   | Get_tag -> Some Get_tag
+  | String_length String -> Some String_length
+  | String_length Bytes -> None
   | Opaque_identity { middle_end_only = _; kind } ->
     Some (Opaque_identity (convert_kind kind))
+  | Int_arith (kind, Not) ->
+    Some (Unary_int_arith (convert_standard_int kind, Not))
+  | Int_arith (_, Swap_byte_endianness) -> None
+  | Num_conv { src; dst } -> (
+    match
+      convert_standard_int_or_float src, convert_standard_int_or_float dst
+    with
+    | Some src, Some dst -> Some (Num_conv (src, dst))
+    | None, _ | _, None -> None)
+  | Boolean_not -> Some Boolean_not
   | Unbox_number kind -> Some (Unbox_number (convert_boxable_number kind))
   | Box_number (kind, Heap _) -> Some (Box_number (convert_boxable_number kind))
   | Box_number (_, Local _) -> None
@@ -343,6 +374,9 @@ let convert_int_arith_op (op : P.binary_int_arith_op) :
   | Or -> Or
   | Xor -> Xor
 
+let convert_int_shift_op (op : P.int_shift_op) : Primitives.int_shift_op =
+  match op with Lsl -> Lsl | Lsr -> Lsr | Asr -> Asr
+
 let convert_int_comparison (cmp : P.signed_or_unsigned P.comparison) :
     Primitives.int_comparison =
   match cmp with
@@ -356,8 +390,17 @@ let convert_int_comparison (cmp : P.signed_or_unsigned P.comparison) :
 let convert_binary_primitive (p : P.binary_primitive) :
     Primitives.binary_primitive option =
   match p with
+  | String_or_bigstring_load (String, Eight) ->
+    Some (String_or_bigstring_load Eight)
+  | String_or_bigstring_load (String, Eight_signed) ->
+    Some (String_or_bigstring_load Eight_signed)
+  | String_or_bigstring_load _ -> None
+  | Phys_equal Eq -> Some (Phys_equal Phys_eq)
+  | Phys_equal Neq -> Some (Phys_equal Phys_neq)
   | Int_arith (kind, op) ->
     Some (Int_arith (convert_standard_int kind, convert_int_arith_op op))
+  | Int_shift (kind, op) ->
+    Some (Int_shift (convert_standard_int kind, convert_int_shift_op op))
   | Int_comp (kind, Yielding_bool cmp) ->
     let behaviour : Primitives.int_comparison_behaviour =
       Yielding_bool (convert_int_comparison cmp)
@@ -1053,11 +1096,25 @@ let string_of_signedness (signedness : Primitives.signedness) =
 let print_prim ppf (p : Primitives.prim) =
   let unary (p : Primitives.unary_primitive) =
     match p with
-    | Block_load (_, field) -> Printf.sprintf "Block_load %d" (int_of_z field)
+    | Block_load (_, mut, field) ->
+      Printf.sprintf "Block_load%s %d"
+        (match mut with
+        | Mutable -> " mut"
+        | Immutable -> ""
+        | Immutable_unique -> " immut_uniq")
+        (int_of_z field)
     | Is_int variant_only -> if variant_only then "Is_int" else "Is_int_generic"
     | Is_null -> "Is_null"
     | Get_tag -> "Get_tag"
+    | String_length -> "String_length"
     | Opaque_identity _ -> "Opaque_identity"
+    | Unary_int_arith (kind, Not) ->
+      Printf.sprintf "Int_arith %s not" (string_of_standard_int kind)
+    | Num_conv (src, dst) ->
+      Printf.sprintf "Num_conv %s %s"
+        (string_of_standard_int src)
+        (string_of_standard_int dst)
+    | Boolean_not -> "Boolean_not"
     | Unbox_number _ -> "Unbox_number"
     | Box_number _ -> "Box_number"
     | Untag_immediate -> "Untag_immediate"
@@ -1091,10 +1148,20 @@ let print_prim ppf (p : Primitives.prim) =
   in
   match p with
   | Unary p -> Format.pp_print_string ppf (unary p)
+  | Binary (String_or_bigstring_load Eight) ->
+    Format.pp_print_string ppf "String_load 8"
+  | Binary (String_or_bigstring_load Eight_signed) ->
+    Format.pp_print_string ppf "String_load 8s"
+  | Binary (Phys_equal Phys_eq) -> Format.pp_print_string ppf "Phys_equal eq"
+  | Binary (Phys_equal Phys_neq) -> Format.pp_print_string ppf "Phys_equal neq"
   | Binary (Int_arith (kind, op)) ->
     Format.fprintf ppf "Int_arith %s %s"
       (string_of_standard_int kind)
       (int_arith op)
+  | Binary (Int_shift (kind, op)) ->
+    Format.fprintf ppf "Int_shift %s %s"
+      (string_of_standard_int kind)
+      (match op with Lsl -> "lsl" | Lsr -> "lsr" | Asr -> "asr")
   | Binary (Int_comp (kind, behaviour)) ->
     Format.fprintf ppf "Int_comp %s %s"
       (string_of_standard_int kind)

@@ -120,7 +120,8 @@ let field_loaded kind field block =
 
 let of_known_block p block =
   match p with
-  | Block_load (kind, field) -> field_loaded kind field block
+  | Block_load (kind, mut, field) -> (
+    match mut with Mutable -> None | _ -> field_loaded kind field block)
   | Is_int _ -> Some (Const (Naked_immediate Z0))
   | Get_tag -> Some (Const (Naked_immediate (fst block)))
   | _ -> None

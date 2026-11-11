@@ -51,11 +51,21 @@ module Z : sig
 
   val rem : coq_Z -> coq_Z -> coq_Z
 
+  val div2 : coq_Z -> coq_Z
+
+  val shiftl : coq_Z -> coq_Z -> coq_Z
+
+  val shiftr : coq_Z -> coq_Z -> coq_Z
+
   val coq_lor : coq_Z -> coq_Z -> coq_Z
 
   val coq_land : coq_Z -> coq_Z -> coq_Z
 
   val coq_lxor : coq_Z -> coq_Z -> coq_Z
 
+  val pred : coq_Z -> coq_Z
+
   val eq_dec : coq_Z -> coq_Z -> bool
+
+  val lnot : coq_Z -> coq_Z
 end

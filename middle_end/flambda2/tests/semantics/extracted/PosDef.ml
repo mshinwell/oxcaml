@@ -134,6 +134,17 @@ module Pos = struct
     | Coq_xO n' -> iter f (iter f x n') n'
     | Coq_xH -> f x
 
+  (** val div2 : positive -> positive **)
+
+  let div2 = function Coq_xI p0 -> p0 | Coq_xO p0 -> p0 | Coq_xH -> Coq_xH
+
+  (** val div2_up : positive -> positive **)
+
+  let div2_up = function
+    | Coq_xI p0 -> succ p0
+    | Coq_xO p0 -> p0
+    | Coq_xH -> Coq_xH
+
   (** val compare_cont : comparison -> positive -> positive -> comparison **)
 
   let rec compare_cont r x y =

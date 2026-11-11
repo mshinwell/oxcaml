@@ -213,6 +213,24 @@ module Z = struct
 
   let rem a b = snd (quotrem a b)
 
+  (** val div2 : coq_Z -> coq_Z **)
+
+  let div2 = function
+    | Z0 -> Z0
+    | Zpos p -> ( match p with Coq_xH -> Z0 | _ -> Zpos (Pos.div2 p))
+    | Zneg p -> Zneg (Pos.div2_up p)
+
+  (** val shiftl : coq_Z -> coq_Z -> coq_Z **)
+
+  let shiftl a = function
+    | Z0 -> a
+    | Zpos p -> Pos.iter (mul (Zpos (Coq_xO Coq_xH))) a p
+    | Zneg p -> Pos.iter div2 a p
+
+  (** val shiftr : coq_Z -> coq_Z -> coq_Z **)
+
+  let shiftr a n = shiftl a (opp n)
+
   (** val coq_lor : coq_Z -> coq_Z -> coq_Z **)
 
   let coq_lor a b =
@@ -263,6 +281,10 @@ module Z = struct
       | Zpos b0 -> Zneg (N.succ_pos (N.coq_lxor (Pos.pred_N a0) (Npos b0)))
       | Zneg b0 -> of_N (N.coq_lxor (Pos.pred_N a0) (Pos.pred_N b0)))
 
+  (** val pred : coq_Z -> coq_Z **)
+
+  let pred x = add x (Zneg Coq_xH)
+
   (** val eq_dec : coq_Z -> coq_Z -> bool **)
 
   let eq_dec x y =
@@ -270,4 +292,8 @@ module Z = struct
     | Z0 -> ( match y with Z0 -> true | _ -> false)
     | Zpos p -> ( match y with Zpos p0 -> BinPos.Pos.eq_dec p p0 | _ -> false)
     | Zneg p -> ( match y with Zneg p0 -> BinPos.Pos.eq_dec p p0 | _ -> false)
+
+  (** val lnot : coq_Z -> coq_Z **)
+
+  let lnot a = pred (opp a)
 end

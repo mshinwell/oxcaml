@@ -136,6 +136,26 @@ let eval_int_arith width op a b =
   | Or -> Some (wrap width (Z.coq_lor a b))
   | Xor -> Some (wrap width (Z.coq_lxor a b))
 
+(** val eval_unary_int_arith : coq_Z -> unary_int_arith_op -> coq_Z -> coq_Z **)
+
+let eval_unary_int_arith width _ a = wrap width (Z.lnot a)
+
+(** val shift_bound : standard_int -> coq_Z **)
+
+let shift_bound kind =
+  match kind with
+  | Standard_tagged_immediate ->
+    Zpos (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH))))))
+  | _ -> int_width kind
+
+(** val eval_int_shift : coq_Z -> int_shift_op -> coq_Z -> coq_Z -> coq_Z **)
+
+let eval_int_shift width op a amount =
+  match op with
+  | Lsl -> wrap width (Z.shiftl a amount)
+  | Lsr -> wrap width (Z.shiftr (unsigned width a) amount)
+  | Asr -> wrap width (Z.shiftr a amount)
+
 (** val eval_int_comparison : coq_Z -> int_comparison -> coq_Z -> coq_Z -> bool
     **)
 
@@ -254,7 +274,7 @@ let eval_block_load statics kind field v =
 
 let eval_unary_primitive statics p v =
   match p with
-  | Block_load (kind, field) -> eval_block_load statics kind field v
+  | Block_load (kind, _, field) -> eval_block_load statics kind field v
   | Is_int variant_only ->
     option_map naked_bool (eval_is_int statics variant_only v)
   | Is_null -> option_map naked_bool (eval_is_null statics v)
@@ -264,10 +284,38 @@ let eval_unary_primitive statics p v =
       let tag, _ = p0 in
       Some (Value_const (Naked_immediate tag))
     | None -> None)
+  | String_length -> (
+    match string_of statics v with
+    | Some bytes ->
+      let length0 = Z.of_nat (length bytes) in
+      if in_range (int_width Standard_naked_immediate) length0
+      then Some (Value_const (Naked_immediate length0))
+      else None
+    | None -> None)
   | Opaque_identity kind ->
     if kind_eqb (kind_of_value v) kind && bound_if_symbol statics v
     then Some v
     else None
+  | Unary_int_arith (kind, op) -> (
+    match int_of_value kind v with
+    | Some a ->
+      Some
+        (Value_const
+           (const_of_int kind (eval_unary_int_arith (int_width kind) op a)))
+    | None -> None)
+  | Num_conv (src, dst) -> (
+    match int_of_value src v with
+    | Some i -> Some (Value_const (const_of_int dst (wrap (int_width dst) i)))
+    | None -> None)
+  | Boolean_not -> (
+    match int_of_value Standard_tagged_immediate v with
+    | Some i ->
+      if Z.eqb i Z0
+      then Some (Value_const (Tagged_immediate (Zpos Coq_xH)))
+      else if Z.eqb i (Zpos Coq_xH)
+      then Some (Value_const (Tagged_immediate Z0))
+      else None
+    | None -> None)
   | Unbox_number kind -> (
     match boxed_number_of statics v with
     | Some c -> if is_number_of_kind kind c then Some (Value_const c) else None
@@ -286,11 +334,65 @@ let eval_unary_primitive statics p v =
     | Some i -> Some (Value_const (Tagged_immediate i))
     | None -> None)
 
-(** val eval_binary_primitive : binary_primitive -> value -> value -> value
-    option **)
+(** val eval_string_load : static_env -> string_accessor_width -> value -> value
+    -> value option **)
 
-let eval_binary_primitive p v1 v2 =
+let eval_string_load statics width v1 v2 =
+  match string_of statics v1 with
+  | Some bytes -> (
+    match int_of_value Standard_naked_nativeint v2 with
+    | Some index ->
+      if Z.leb Z0 index
+      then
+        match nth_error bytes (Z.to_nat index) with
+        | Some byte -> (
+          match width with
+          | Eight ->
+            Some
+              (Value_const
+                 (Naked_immediate
+                    (Z.modulo byte
+                       (Zpos
+                          (Coq_xO
+                             (Coq_xO
+                                (Coq_xO
+                                   (Coq_xO
+                                      (Coq_xO (Coq_xO (Coq_xO (Coq_xO Coq_xH))))))))))))
+          | Eight_signed ->
+            Some
+              (Value_const
+                 (Naked_int8
+                    (wrap (Zpos (Coq_xO (Coq_xO (Coq_xO Coq_xH)))) byte))))
+        | None -> None
+      else None
+    | None -> None)
+  | None -> None
+
+(** val eval_phys_equal : static_env -> value -> value -> bool option **)
+
+let eval_phys_equal statics v1 v2 =
+  match int_of_value Standard_tagged_immediate v1 with
+  | Some a -> (
+    match int_of_value Standard_tagged_immediate v2 with
+    | Some b -> Some (Z.eqb a b)
+    | None -> if is_allocated statics v2 then Some false else None)
+  | None -> (
+    match int_of_value Standard_tagged_immediate v2 with
+    | Some _ -> if is_allocated statics v1 then Some false else None
+    | None -> None)
+
+(** val eval_binary_primitive : static_env -> binary_primitive -> value -> value
+    -> value option **)
+
+let eval_binary_primitive statics p v1 v2 =
   match p with
+  | String_or_bigstring_load width -> eval_string_load statics width v1 v2
+  | Phys_equal op -> (
+    match eval_phys_equal statics v1 v2 with
+    | Some same ->
+      Some
+        (naked_bool (match op with Phys_eq -> same | Phys_neq -> negb same))
+    | None -> None)
   | Int_arith (kind, op) -> (
     match int_of_value kind v1 with
     | Some a -> (
@@ -299,6 +401,19 @@ let eval_binary_primitive p v1 v2 =
         match eval_int_arith (int_width kind) op a b with
         | Some result -> Some (Value_const (const_of_int kind result))
         | None -> None)
+      | None -> None)
+    | None -> None)
+  | Int_shift (kind, op) -> (
+    match int_of_value kind v1 with
+    | Some a -> (
+      match int_of_value Standard_naked_immediate v2 with
+      | Some amount ->
+        if Z.leb Z0 amount && Z.ltb amount (shift_bound kind)
+        then
+          Some
+            (Value_const
+               (const_of_int kind (eval_int_shift (int_width kind) op a amount)))
+        else None
       | None -> None)
     | None -> None)
   | Int_comp (kind, behaviour) -> (
@@ -340,7 +455,9 @@ let eval_prim statics p vs =
       match l with
       | [] -> None
       | v2 :: l0 -> (
-        match l0 with [] -> eval_binary_primitive p0 v1 v2 | _ :: _ -> None)))
+        match l0 with
+        | [] -> eval_binary_primitive statics p0 v1 v2
+        | _ :: _ -> None)))
   | Variadic p0 -> eval_variadic_primitive statics p0 vs
 
 (** val tag_in_range : coq_Z -> bool **)
@@ -417,7 +534,7 @@ let known_in_range test = function Some z -> test z | None -> true
 (** val unary_primitive_in_range : unary_primitive -> bool **)
 
 let unary_primitive_in_range = function
-  | Block_load (kind, field) ->
+  | Block_load (kind, _, field) ->
     let (Block_access_values (tag, size, _)) = kind in
     (known_in_range tag_in_range tag && known_in_range ocaml_int_in_range size)
     && ocaml_int_in_range field
@@ -448,8 +565,11 @@ let naked_immediate_kind = Naked_number Kind_naked_immediate
 (** val result_kind_of_unary_primitive : unary_primitive -> flambda_kind **)
 
 let result_kind_of_unary_primitive = function
-  | Block_load (_, _) -> Value
+  | Block_load (_, _, _) -> Value
   | Opaque_identity kind -> kind
+  | Unary_int_arith (kind, _) -> kind_of_standard_int kind
+  | Num_conv (_, dst) -> kind_of_standard_int dst
+  | Boolean_not -> Value
   | Unbox_number kind -> unboxed_kind kind
   | Box_number _ -> Value
   | Tag_immediate -> Value
@@ -458,8 +578,13 @@ let result_kind_of_unary_primitive = function
 (** val result_kind_of_binary_primitive : binary_primitive -> flambda_kind **)
 
 let result_kind_of_binary_primitive = function
+  | String_or_bigstring_load width -> (
+    match width with
+    | Eight -> naked_immediate_kind
+    | Eight_signed -> Naked_number Kind_naked_int8)
   | Int_arith (kind, _) -> kind_of_standard_int kind
-  | Int_comp (_, _) -> naked_immediate_kind
+  | Int_shift (kind, _) -> kind_of_standard_int kind
+  | _ -> naked_immediate_kind
 
 (** val result_kind_of_variadic_primitive : variadic_primitive -> flambda_kind **)
 
@@ -480,9 +605,9 @@ let prim_eq_dec p p' =
     match p' with
     | Unary p1 -> (
       match p0 with
-      | Block_load (kind, field) -> (
+      | Block_load (kind, mut, field) -> (
         match p1 with
-        | Block_load (kind0, field0) ->
+        | Block_load (kind0, mut0, field0) ->
           let (Block_access_values (tag, size, field_kind)) = kind in
           let (Block_access_values (tag0, size0, field_kind0)) = kind0 in
           if
@@ -563,70 +688,216 @@ let prim_eq_dec p p' =
               | Any_value -> (
                 match field_kind0 with
                 | Any_value -> (
-                  match field with
-                  | Z0 -> ( match field0 with Z0 -> true | _ -> false)
-                  | Zpos p2 -> (
-                    match field0 with
-                    | Zpos p3 ->
-                      let rec f p4 x =
-                        match p4 with
-                        | Coq_xI p5 -> (
-                          match x with Coq_xI p6 -> f p5 p6 | _ -> false)
-                        | Coq_xO p5 -> (
-                          match x with Coq_xO p6 -> f p5 p6 | _ -> false)
-                        | Coq_xH -> (
-                          match x with Coq_xH -> true | _ -> false)
-                      in
-                      f p2 p3
+                  match mut with
+                  | Mutable -> (
+                    match mut0 with
+                    | Mutable -> (
+                      match field with
+                      | Z0 -> ( match field0 with Z0 -> true | _ -> false)
+                      | Zpos p2 -> (
+                        match field0 with
+                        | Zpos p3 ->
+                          let rec f p4 x =
+                            match p4 with
+                            | Coq_xI p5 -> (
+                              match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                            | Coq_xO p5 -> (
+                              match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                            | Coq_xH -> (
+                              match x with Coq_xH -> true | _ -> false)
+                          in
+                          f p2 p3
+                        | _ -> false)
+                      | Zneg p2 -> (
+                        match field0 with
+                        | Zneg p3 ->
+                          let rec f p4 x =
+                            match p4 with
+                            | Coq_xI p5 -> (
+                              match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                            | Coq_xO p5 -> (
+                              match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                            | Coq_xH -> (
+                              match x with Coq_xH -> true | _ -> false)
+                          in
+                          f p2 p3
+                        | _ -> false))
                     | _ -> false)
-                  | Zneg p2 -> (
-                    match field0 with
-                    | Zneg p3 ->
-                      let rec f p4 x =
-                        match p4 with
-                        | Coq_xI p5 -> (
-                          match x with Coq_xI p6 -> f p5 p6 | _ -> false)
-                        | Coq_xO p5 -> (
-                          match x with Coq_xO p6 -> f p5 p6 | _ -> false)
-                        | Coq_xH -> (
-                          match x with Coq_xH -> true | _ -> false)
-                      in
-                      f p2 p3
+                  | Immutable -> (
+                    match mut0 with
+                    | Immutable -> (
+                      match field with
+                      | Z0 -> ( match field0 with Z0 -> true | _ -> false)
+                      | Zpos p2 -> (
+                        match field0 with
+                        | Zpos p3 ->
+                          let rec f p4 x =
+                            match p4 with
+                            | Coq_xI p5 -> (
+                              match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                            | Coq_xO p5 -> (
+                              match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                            | Coq_xH -> (
+                              match x with Coq_xH -> true | _ -> false)
+                          in
+                          f p2 p3
+                        | _ -> false)
+                      | Zneg p2 -> (
+                        match field0 with
+                        | Zneg p3 ->
+                          let rec f p4 x =
+                            match p4 with
+                            | Coq_xI p5 -> (
+                              match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                            | Coq_xO p5 -> (
+                              match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                            | Coq_xH -> (
+                              match x with Coq_xH -> true | _ -> false)
+                          in
+                          f p2 p3
+                        | _ -> false))
+                    | _ -> false)
+                  | Immutable_unique -> (
+                    match mut0 with
+                    | Immutable_unique -> (
+                      match field with
+                      | Z0 -> ( match field0 with Z0 -> true | _ -> false)
+                      | Zpos p2 -> (
+                        match field0 with
+                        | Zpos p3 ->
+                          let rec f p4 x =
+                            match p4 with
+                            | Coq_xI p5 -> (
+                              match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                            | Coq_xO p5 -> (
+                              match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                            | Coq_xH -> (
+                              match x with Coq_xH -> true | _ -> false)
+                          in
+                          f p2 p3
+                        | _ -> false)
+                      | Zneg p2 -> (
+                        match field0 with
+                        | Zneg p3 ->
+                          let rec f p4 x =
+                            match p4 with
+                            | Coq_xI p5 -> (
+                              match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                            | Coq_xO p5 -> (
+                              match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                            | Coq_xH -> (
+                              match x with Coq_xH -> true | _ -> false)
+                          in
+                          f p2 p3
+                        | _ -> false))
                     | _ -> false))
                 | Immediate -> false)
               | Immediate -> (
                 match field_kind0 with
                 | Any_value -> false
                 | Immediate -> (
-                  match field with
-                  | Z0 -> ( match field0 with Z0 -> true | _ -> false)
-                  | Zpos p2 -> (
-                    match field0 with
-                    | Zpos p3 ->
-                      let rec f p4 x =
-                        match p4 with
-                        | Coq_xI p5 -> (
-                          match x with Coq_xI p6 -> f p5 p6 | _ -> false)
-                        | Coq_xO p5 -> (
-                          match x with Coq_xO p6 -> f p5 p6 | _ -> false)
-                        | Coq_xH -> (
-                          match x with Coq_xH -> true | _ -> false)
-                      in
-                      f p2 p3
+                  match mut with
+                  | Mutable -> (
+                    match mut0 with
+                    | Mutable -> (
+                      match field with
+                      | Z0 -> ( match field0 with Z0 -> true | _ -> false)
+                      | Zpos p2 -> (
+                        match field0 with
+                        | Zpos p3 ->
+                          let rec f p4 x =
+                            match p4 with
+                            | Coq_xI p5 -> (
+                              match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                            | Coq_xO p5 -> (
+                              match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                            | Coq_xH -> (
+                              match x with Coq_xH -> true | _ -> false)
+                          in
+                          f p2 p3
+                        | _ -> false)
+                      | Zneg p2 -> (
+                        match field0 with
+                        | Zneg p3 ->
+                          let rec f p4 x =
+                            match p4 with
+                            | Coq_xI p5 -> (
+                              match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                            | Coq_xO p5 -> (
+                              match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                            | Coq_xH -> (
+                              match x with Coq_xH -> true | _ -> false)
+                          in
+                          f p2 p3
+                        | _ -> false))
                     | _ -> false)
-                  | Zneg p2 -> (
-                    match field0 with
-                    | Zneg p3 ->
-                      let rec f p4 x =
-                        match p4 with
-                        | Coq_xI p5 -> (
-                          match x with Coq_xI p6 -> f p5 p6 | _ -> false)
-                        | Coq_xO p5 -> (
-                          match x with Coq_xO p6 -> f p5 p6 | _ -> false)
-                        | Coq_xH -> (
-                          match x with Coq_xH -> true | _ -> false)
-                      in
-                      f p2 p3
+                  | Immutable -> (
+                    match mut0 with
+                    | Immutable -> (
+                      match field with
+                      | Z0 -> ( match field0 with Z0 -> true | _ -> false)
+                      | Zpos p2 -> (
+                        match field0 with
+                        | Zpos p3 ->
+                          let rec f p4 x =
+                            match p4 with
+                            | Coq_xI p5 -> (
+                              match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                            | Coq_xO p5 -> (
+                              match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                            | Coq_xH -> (
+                              match x with Coq_xH -> true | _ -> false)
+                          in
+                          f p2 p3
+                        | _ -> false)
+                      | Zneg p2 -> (
+                        match field0 with
+                        | Zneg p3 ->
+                          let rec f p4 x =
+                            match p4 with
+                            | Coq_xI p5 -> (
+                              match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                            | Coq_xO p5 -> (
+                              match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                            | Coq_xH -> (
+                              match x with Coq_xH -> true | _ -> false)
+                          in
+                          f p2 p3
+                        | _ -> false))
+                    | _ -> false)
+                  | Immutable_unique -> (
+                    match mut0 with
+                    | Immutable_unique -> (
+                      match field with
+                      | Z0 -> ( match field0 with Z0 -> true | _ -> false)
+                      | Zpos p2 -> (
+                        match field0 with
+                        | Zpos p3 ->
+                          let rec f p4 x =
+                            match p4 with
+                            | Coq_xI p5 -> (
+                              match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                            | Coq_xO p5 -> (
+                              match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                            | Coq_xH -> (
+                              match x with Coq_xH -> true | _ -> false)
+                          in
+                          f p2 p3
+                        | _ -> false)
+                      | Zneg p2 -> (
+                        match field0 with
+                        | Zneg p3 ->
+                          let rec f p4 x =
+                            match p4 with
+                            | Coq_xI p5 -> (
+                              match x with Coq_xI p6 -> f p5 p6 | _ -> false)
+                            | Coq_xO p5 -> (
+                              match x with Coq_xO p6 -> f p5 p6 | _ -> false)
+                            | Coq_xH -> (
+                              match x with Coq_xH -> true | _ -> false)
+                          in
+                          f p2 p3
+                        | _ -> false))
                     | _ -> false)))
             else false
           else false
@@ -642,6 +913,7 @@ let prim_eq_dec p p' =
         | _ -> false)
       | Is_null -> ( match p1 with Is_null -> true | _ -> false)
       | Get_tag -> ( match p1 with Get_tag -> true | _ -> false)
+      | String_length -> ( match p1 with String_length -> true | _ -> false)
       | Opaque_identity kind -> (
         match p1 with
         | Opaque_identity kind0 -> (
@@ -679,6 +951,164 @@ let prim_eq_dec p p' =
           | Region -> ( match kind0 with Region -> true | _ -> false)
           | Rec_info -> ( match kind0 with Rec_info -> true | _ -> false))
         | _ -> false)
+      | Unary_int_arith (kind, _) -> (
+        match p1 with
+        | Unary_int_arith (kind0, _) -> (
+          match kind with
+          | Standard_tagged_immediate -> (
+            match kind0 with Standard_tagged_immediate -> true | _ -> false)
+          | Standard_naked_immediate -> (
+            match kind0 with Standard_naked_immediate -> true | _ -> false)
+          | Standard_naked_int8 -> (
+            match kind0 with Standard_naked_int8 -> true | _ -> false)
+          | Standard_naked_int16 -> (
+            match kind0 with Standard_naked_int16 -> true | _ -> false)
+          | Standard_naked_int32 -> (
+            match kind0 with Standard_naked_int32 -> true | _ -> false)
+          | Standard_naked_int64 -> (
+            match kind0 with Standard_naked_int64 -> true | _ -> false)
+          | Standard_naked_nativeint -> (
+            match kind0 with Standard_naked_nativeint -> true | _ -> false))
+        | _ -> false)
+      | Num_conv (src, dst) -> (
+        match p1 with
+        | Num_conv (src0, dst0) -> (
+          match src with
+          | Standard_tagged_immediate -> (
+            match src0 with
+            | Standard_tagged_immediate -> (
+              match dst with
+              | Standard_tagged_immediate -> (
+                match dst0 with Standard_tagged_immediate -> true | _ -> false)
+              | Standard_naked_immediate -> (
+                match dst0 with Standard_naked_immediate -> true | _ -> false)
+              | Standard_naked_int8 -> (
+                match dst0 with Standard_naked_int8 -> true | _ -> false)
+              | Standard_naked_int16 -> (
+                match dst0 with Standard_naked_int16 -> true | _ -> false)
+              | Standard_naked_int32 -> (
+                match dst0 with Standard_naked_int32 -> true | _ -> false)
+              | Standard_naked_int64 -> (
+                match dst0 with Standard_naked_int64 -> true | _ -> false)
+              | Standard_naked_nativeint -> (
+                match dst0 with Standard_naked_nativeint -> true | _ -> false))
+            | _ -> false)
+          | Standard_naked_immediate -> (
+            match src0 with
+            | Standard_naked_immediate -> (
+              match dst with
+              | Standard_tagged_immediate -> (
+                match dst0 with Standard_tagged_immediate -> true | _ -> false)
+              | Standard_naked_immediate -> (
+                match dst0 with Standard_naked_immediate -> true | _ -> false)
+              | Standard_naked_int8 -> (
+                match dst0 with Standard_naked_int8 -> true | _ -> false)
+              | Standard_naked_int16 -> (
+                match dst0 with Standard_naked_int16 -> true | _ -> false)
+              | Standard_naked_int32 -> (
+                match dst0 with Standard_naked_int32 -> true | _ -> false)
+              | Standard_naked_int64 -> (
+                match dst0 with Standard_naked_int64 -> true | _ -> false)
+              | Standard_naked_nativeint -> (
+                match dst0 with Standard_naked_nativeint -> true | _ -> false))
+            | _ -> false)
+          | Standard_naked_int8 -> (
+            match src0 with
+            | Standard_naked_int8 -> (
+              match dst with
+              | Standard_tagged_immediate -> (
+                match dst0 with Standard_tagged_immediate -> true | _ -> false)
+              | Standard_naked_immediate -> (
+                match dst0 with Standard_naked_immediate -> true | _ -> false)
+              | Standard_naked_int8 -> (
+                match dst0 with Standard_naked_int8 -> true | _ -> false)
+              | Standard_naked_int16 -> (
+                match dst0 with Standard_naked_int16 -> true | _ -> false)
+              | Standard_naked_int32 -> (
+                match dst0 with Standard_naked_int32 -> true | _ -> false)
+              | Standard_naked_int64 -> (
+                match dst0 with Standard_naked_int64 -> true | _ -> false)
+              | Standard_naked_nativeint -> (
+                match dst0 with Standard_naked_nativeint -> true | _ -> false))
+            | _ -> false)
+          | Standard_naked_int16 -> (
+            match src0 with
+            | Standard_naked_int16 -> (
+              match dst with
+              | Standard_tagged_immediate -> (
+                match dst0 with Standard_tagged_immediate -> true | _ -> false)
+              | Standard_naked_immediate -> (
+                match dst0 with Standard_naked_immediate -> true | _ -> false)
+              | Standard_naked_int8 -> (
+                match dst0 with Standard_naked_int8 -> true | _ -> false)
+              | Standard_naked_int16 -> (
+                match dst0 with Standard_naked_int16 -> true | _ -> false)
+              | Standard_naked_int32 -> (
+                match dst0 with Standard_naked_int32 -> true | _ -> false)
+              | Standard_naked_int64 -> (
+                match dst0 with Standard_naked_int64 -> true | _ -> false)
+              | Standard_naked_nativeint -> (
+                match dst0 with Standard_naked_nativeint -> true | _ -> false))
+            | _ -> false)
+          | Standard_naked_int32 -> (
+            match src0 with
+            | Standard_naked_int32 -> (
+              match dst with
+              | Standard_tagged_immediate -> (
+                match dst0 with Standard_tagged_immediate -> true | _ -> false)
+              | Standard_naked_immediate -> (
+                match dst0 with Standard_naked_immediate -> true | _ -> false)
+              | Standard_naked_int8 -> (
+                match dst0 with Standard_naked_int8 -> true | _ -> false)
+              | Standard_naked_int16 -> (
+                match dst0 with Standard_naked_int16 -> true | _ -> false)
+              | Standard_naked_int32 -> (
+                match dst0 with Standard_naked_int32 -> true | _ -> false)
+              | Standard_naked_int64 -> (
+                match dst0 with Standard_naked_int64 -> true | _ -> false)
+              | Standard_naked_nativeint -> (
+                match dst0 with Standard_naked_nativeint -> true | _ -> false))
+            | _ -> false)
+          | Standard_naked_int64 -> (
+            match src0 with
+            | Standard_naked_int64 -> (
+              match dst with
+              | Standard_tagged_immediate -> (
+                match dst0 with Standard_tagged_immediate -> true | _ -> false)
+              | Standard_naked_immediate -> (
+                match dst0 with Standard_naked_immediate -> true | _ -> false)
+              | Standard_naked_int8 -> (
+                match dst0 with Standard_naked_int8 -> true | _ -> false)
+              | Standard_naked_int16 -> (
+                match dst0 with Standard_naked_int16 -> true | _ -> false)
+              | Standard_naked_int32 -> (
+                match dst0 with Standard_naked_int32 -> true | _ -> false)
+              | Standard_naked_int64 -> (
+                match dst0 with Standard_naked_int64 -> true | _ -> false)
+              | Standard_naked_nativeint -> (
+                match dst0 with Standard_naked_nativeint -> true | _ -> false))
+            | _ -> false)
+          | Standard_naked_nativeint -> (
+            match src0 with
+            | Standard_naked_nativeint -> (
+              match dst with
+              | Standard_tagged_immediate -> (
+                match dst0 with Standard_tagged_immediate -> true | _ -> false)
+              | Standard_naked_immediate -> (
+                match dst0 with Standard_naked_immediate -> true | _ -> false)
+              | Standard_naked_int8 -> (
+                match dst0 with Standard_naked_int8 -> true | _ -> false)
+              | Standard_naked_int16 -> (
+                match dst0 with Standard_naked_int16 -> true | _ -> false)
+              | Standard_naked_int32 -> (
+                match dst0 with Standard_naked_int32 -> true | _ -> false)
+              | Standard_naked_int64 -> (
+                match dst0 with Standard_naked_int64 -> true | _ -> false)
+              | Standard_naked_nativeint -> (
+                match dst0 with Standard_naked_nativeint -> true | _ -> false))
+            | _ -> false))
+        | _ -> false)
+      | Boolean_not -> ( match p1 with Boolean_not -> true | _ -> false)
       | Unbox_number kind -> (
         match p1 with
         | Unbox_number kind0 -> (
@@ -733,6 +1163,22 @@ let prim_eq_dec p p' =
     match p' with
     | Binary p1 -> (
       match p0 with
+      | String_or_bigstring_load width -> (
+        match p1 with
+        | String_or_bigstring_load width0 -> (
+          match width with
+          | Eight -> (
+            match width0 with Eight -> true | Eight_signed -> false)
+          | Eight_signed -> (
+            match width0 with Eight -> false | Eight_signed -> true))
+        | _ -> false)
+      | Phys_equal op -> (
+        match p1 with
+        | Phys_equal op0 -> (
+          match op with
+          | Phys_eq -> ( match op0 with Phys_eq -> true | Phys_neq -> false)
+          | Phys_neq -> ( match op0 with Phys_eq -> false | Phys_neq -> true))
+        | _ -> false)
       | Int_arith (kind, op) -> (
         match p1 with
         | Int_arith (kind0, op0) -> (
@@ -940,10 +1386,70 @@ let prim_eq_dec p p' =
               | Or -> ( match op0 with Or -> true | _ -> false)
               | Xor -> ( match op0 with Xor -> true | _ -> false))
             | _ -> false))
-        | Int_comp (_, _) -> false)
+        | _ -> false)
+      | Int_shift (kind, op) -> (
+        match p1 with
+        | Int_shift (kind0, op0) -> (
+          match kind with
+          | Standard_tagged_immediate -> (
+            match kind0 with
+            | Standard_tagged_immediate -> (
+              match op with
+              | Lsl -> ( match op0 with Lsl -> true | _ -> false)
+              | Lsr -> ( match op0 with Lsr -> true | _ -> false)
+              | Asr -> ( match op0 with Asr -> true | _ -> false))
+            | _ -> false)
+          | Standard_naked_immediate -> (
+            match kind0 with
+            | Standard_naked_immediate -> (
+              match op with
+              | Lsl -> ( match op0 with Lsl -> true | _ -> false)
+              | Lsr -> ( match op0 with Lsr -> true | _ -> false)
+              | Asr -> ( match op0 with Asr -> true | _ -> false))
+            | _ -> false)
+          | Standard_naked_int8 -> (
+            match kind0 with
+            | Standard_naked_int8 -> (
+              match op with
+              | Lsl -> ( match op0 with Lsl -> true | _ -> false)
+              | Lsr -> ( match op0 with Lsr -> true | _ -> false)
+              | Asr -> ( match op0 with Asr -> true | _ -> false))
+            | _ -> false)
+          | Standard_naked_int16 -> (
+            match kind0 with
+            | Standard_naked_int16 -> (
+              match op with
+              | Lsl -> ( match op0 with Lsl -> true | _ -> false)
+              | Lsr -> ( match op0 with Lsr -> true | _ -> false)
+              | Asr -> ( match op0 with Asr -> true | _ -> false))
+            | _ -> false)
+          | Standard_naked_int32 -> (
+            match kind0 with
+            | Standard_naked_int32 -> (
+              match op with
+              | Lsl -> ( match op0 with Lsl -> true | _ -> false)
+              | Lsr -> ( match op0 with Lsr -> true | _ -> false)
+              | Asr -> ( match op0 with Asr -> true | _ -> false))
+            | _ -> false)
+          | Standard_naked_int64 -> (
+            match kind0 with
+            | Standard_naked_int64 -> (
+              match op with
+              | Lsl -> ( match op0 with Lsl -> true | _ -> false)
+              | Lsr -> ( match op0 with Lsr -> true | _ -> false)
+              | Asr -> ( match op0 with Asr -> true | _ -> false))
+            | _ -> false)
+          | Standard_naked_nativeint -> (
+            match kind0 with
+            | Standard_naked_nativeint -> (
+              match op with
+              | Lsl -> ( match op0 with Lsl -> true | _ -> false)
+              | Lsr -> ( match op0 with Lsr -> true | _ -> false)
+              | Asr -> ( match op0 with Asr -> true | _ -> false))
+            | _ -> false))
+        | _ -> false)
       | Int_comp (kind, behaviour) -> (
         match p1 with
-        | Int_arith (_, _) -> false
         | Int_comp (kind0, behaviour0) -> (
           match kind with
           | Standard_tagged_immediate -> (
@@ -1344,7 +1850,8 @@ let prim_eq_dec p p' =
                     match s0 with Signed -> true | Unsigned -> false)
                   | Unsigned -> (
                     match s0 with Signed -> false | Unsigned -> true))))
-            | _ -> false))))
+            | _ -> false))
+        | _ -> false))
     | _ -> false)
   | Variadic p0 -> (
     match p' with

@@ -26,6 +26,12 @@ val int_of_value : standard_int -> value -> coq_Z option
 val eval_int_arith :
   coq_Z -> binary_int_arith_op -> coq_Z -> coq_Z -> coq_Z option
 
+val eval_unary_int_arith : coq_Z -> unary_int_arith_op -> coq_Z -> coq_Z
+
+val shift_bound : standard_int -> coq_Z
+
+val eval_int_shift : coq_Z -> int_shift_op -> coq_Z -> coq_Z -> coq_Z
+
 val eval_int_comparison : coq_Z -> int_comparison -> coq_Z -> coq_Z -> bool
 
 val eval_int_comp : coq_Z -> int_comparison_behaviour -> coq_Z -> coq_Z -> coq_Z
@@ -50,7 +56,13 @@ val eval_block_load :
 val eval_unary_primitive :
   static_env -> unary_primitive -> value -> value option
 
-val eval_binary_primitive : binary_primitive -> value -> value -> value option
+val eval_string_load :
+  static_env -> string_accessor_width -> value -> value -> value option
+
+val eval_phys_equal : static_env -> value -> value -> bool option
+
+val eval_binary_primitive :
+  static_env -> binary_primitive -> value -> value -> value option
 
 val eval_variadic_primitive :
   static_env -> variadic_primitive -> value list -> value option
