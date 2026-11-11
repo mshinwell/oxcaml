@@ -30,9 +30,9 @@
 
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaSemanticsProofs FlambdaNominalSpec FlambdaNominalProofs
-  FlambdaApplySpec.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
+  FlambdaNominalSpec FlambdaNominalProofs FlambdaApplySpec.
 Import ListNotations.
 
 Theorem apply_indirect_known : apply_indirect_known_statement.

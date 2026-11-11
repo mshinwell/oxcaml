@@ -80,6 +80,7 @@ LOOP := $(addprefix $(LOOP_DIR)/, \
   BoundsCheckExecutionProofs.v)
 EXTRACT := $(LOOP_DIR)/Extract.v
 FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
+  FlambdaMapSpec.v FlambdaMapProofs.v \
   FlambdaModel.v FlambdaSemanticsSpec.v FlambdaSemanticsProofs.v \
   FlambdaWellFormedSpec.v FlambdaWellFormedProofs.v \
   FlambdaControlFlowSpec.v FlambdaControlFlowProofs.v \

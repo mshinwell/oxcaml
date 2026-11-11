@@ -1,6 +1,6 @@
 open Datatypes
+open FlambdaMapSpec
 open FlambdaModel
-open FlambdaNormaliseSpec
 open List
 open ListDef
 

@@ -30,10 +30,10 @@
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaSemanticsProofs FlambdaContextProofs FlambdaNominalSpec
-  FlambdaNominalProofs FlambdaApplyProofs FlambdaNormaliseSpec
-  FlambdaNormaliseProofs.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaSemanticsSpec FlambdaSemanticsProofs FlambdaContextProofs
+  FlambdaNominalSpec FlambdaNominalProofs FlambdaApplyProofs
+  FlambdaNormaliseSpec FlambdaNormaliseProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaTypesProofs
   FlambdaAliasesSpec.
 Import ListNotations.

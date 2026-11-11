@@ -39,8 +39,8 @@
 
 From Stdlib Require Import ZArith List Bool Arith.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaSemanticsProofs FlambdaCompareSpec.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaSemanticsSpec FlambdaSemanticsProofs FlambdaCompareSpec.
 Import ListNotations.
 
 (* ======================================================================== *)

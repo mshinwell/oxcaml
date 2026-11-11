@@ -92,7 +92,7 @@
 
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption.
-From OxCamlFlambda2 Require Import FlambdaModel.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -114,15 +114,8 @@ Inductive value : Type :=
    one. *)
 Parameter eval_prim : prim -> list value -> option value.
 
-(* The first binding of a name. *)
-Fixpoint lookup {A : Type} (name : positive) (bindings : list (positive * A))
-    : option A :=
-  match bindings with
-  | [] => None
-  | (bound, a) :: bindings =>
-    if Pos.eqb name bound then Some a else lookup name bindings
-  end.
-
+(* An environment is a finite map of FlambdaMapSpec.v: an association
+   list, of which [lookup] finds the first binding of a name. *)
 Definition env : Type := list (variable * value).
 
 (* What a symbol points to. *)

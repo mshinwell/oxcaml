@@ -30,9 +30,9 @@
 
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaSemanticsProofs FlambdaContextSpec FlambdaContextProofs
-  FlambdaStaticSpec.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaSemanticsSpec FlambdaSemanticsProofs FlambdaContextSpec
+  FlambdaContextProofs FlambdaStaticSpec.
 Import ListNotations.
 
 (* Binding a group is binding its first part, then the rest. *)

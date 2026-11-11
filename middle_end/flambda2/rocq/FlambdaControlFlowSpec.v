@@ -40,7 +40,8 @@
 
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaSemanticsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)

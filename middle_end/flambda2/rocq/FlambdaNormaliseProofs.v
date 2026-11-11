@@ -30,11 +30,11 @@
 
 From Stdlib Require Import ZArith List Bool Arith.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaWellFormedSpec FlambdaWellFormedProofs
-  FlambdaSemanticsProofs FlambdaNominalSpec FlambdaNominalProofs
-  FlambdaControlFlowSpec FlambdaControlFlowProofs FlambdaContextSpec
-  FlambdaContextProofs FlambdaApplySpec FlambdaApplyProofs
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaMapProofs FlambdaSemanticsSpec FlambdaWellFormedSpec
+  FlambdaWellFormedProofs FlambdaSemanticsProofs FlambdaNominalSpec
+  FlambdaNominalProofs FlambdaControlFlowSpec FlambdaControlFlowProofs
+  FlambdaContextSpec FlambdaContextProofs FlambdaApplySpec FlambdaApplyProofs
   FlambdaStaticSpec FlambdaStaticProofs FlambdaNormaliseSpec.
 Import ListNotations.
 
@@ -42,19 +42,11 @@ Import ListNotations.
 (* Names in scope                                                           *)
 (* ======================================================================== *)
 
-Lemma name_in_In (name : positive) (names : list positive) :
-  name_in name names = true -> name ∈ names.
-Proof.
-  unfold name_in. intros Hin. apply existsb_exists in Hin.
-  destruct Hin as (name' & Hin & Heq). apply Pos.eqb_eq in Heq.
-  subst name'. exact Hin.
-Qed.
-
 Lemma simple_in_scope_sound (vs : list variable) (s : simple) (x : variable) :
   simple_in_scope vs s = true -> var_free_in_simple x s -> x ∈ vs.
 Proof.
   destruct s as [y | sym | c]; simpl; try contradiction.
-  intros Hin ->. apply name_in_In, Hin.
+  intros Hin ->. apply among_In, Hin.
 Qed.
 
 Lemma simples_in_scope_sound (vs : list variable) (args : list simple)
@@ -101,15 +93,6 @@ Proof.
   - apply value_slots_in_scope_sound.
   - apply simples_in_scope_sound.
   - apply simple_in_scope_sound.
-Qed.
-
-Lemma lookup_none_not_in {A : Type} (name : positive)
-    (bindings : list (positive * A)) :
-  lookup name bindings = None -> name ∉ map fst bindings.
-Proof.
-  induction bindings as [ | [bound a] bindings IH]; simpl; [ auto | ].
-  destruct (Pos.eqb_spec name bound) as [-> | Hne]; [ discriminate | ].
-  intros Hlookup [Heq | Hin]; [ congruence | exact (IH Hlookup Hin) ].
 Qed.
 
 (* What the check means: the free names of the expression are among those
@@ -191,13 +174,13 @@ Proof.
       * intros x [Hx | Hx];
           [ exact (simple_in_scope_sound vs _ x Hcallee Hx)
           | exact (simples_in_scope_sound vs _ x Hargs Hx) ].
-      * intros k [-> | ->]; apply name_in_In; assumption.
+      * intros k [-> | ->]; apply among_In; assumption.
     + (* Apply_cont *)
       unfold apply_cont_in_scope in Hscope.
       apply andb_true_iff in Hscope as [Hk Hargs].
       split.
       * intros x Hx. exact (simples_in_scope_sound vs _ x Hargs Hx).
-      * intros k ->. apply name_in_In, Hk.
+      * intros k ->. apply among_In, Hk.
     + (* Switch *)
       apply andb_true_iff in Hscope as [Hscrutinee Harms].
       rewrite forallb_forall in Harms.
@@ -211,7 +194,7 @@ Proof.
       * intros k Hk. apply Exists_exists in Hk.
         destruct Hk as (arm & Hin & ->).
         specialize (Harms arm Hin). unfold apply_cont_in_scope in Harms.
-        apply andb_true_iff in Harms as [Hk _]. apply name_in_In, Hk.
+        apply andb_true_iff in Harms as [Hk _]. apply among_In, Hk.
     + (* Invalid *)
       split; intros ? [].
   - destruct h as [params handler]. intros vs ks Hscope. simpl in Hscope.
@@ -581,13 +564,6 @@ Proof.
   - apply var_in_simple_sound.
 Qed.
 
-Lemma name_in_complete (name : positive) (names : list positive) :
-  name ∈ names -> name_in name names = true.
-Proof.
-  intros Hin. apply existsb_exists. exists name.
-  split; [ exact Hin | apply Pos.eqb_refl ].
-Qed.
-
 (* The test says yes of every variable that is free. *)
 Fixpoint var_free_b_sound (x : variable) (e : expr) {struct e} :
   var_free_in_expr x e -> var_free_b x e = true
@@ -631,9 +607,9 @@ Proof.
     + contradiction.
   - destruct h as [params handler]. simpl. intros [Hnotin Hx].
     apply andb_true_iff. split.
-    + apply negb_true_iff. destruct (name_in x params) eqn:Hin;
+    + apply negb_true_iff. destruct (among x params) eqn:Hin;
         [ | reflexivity ].
-      apply name_in_In in Hin. contradiction.
+      apply among_In in Hin. contradiction.
     + apply (var_free_b_sound x handler), Hx.
 Qed.
 
@@ -1103,7 +1079,7 @@ Lemma simple_in_scope_defined (vs : list variable) (vars : env) (s : simple) :
   ∃ v : value, eval_simple vars s = Some v.
 Proof.
   intros Hbound. destruct s as [x | sym | c]; simpl; eauto.
-  intros Hin. apply Hbound, name_in_In, Hin.
+  intros Hin. apply Hbound, among_In, Hin.
 Qed.
 
 Lemma value_slots_defined (vs : list variable) (vars : env)

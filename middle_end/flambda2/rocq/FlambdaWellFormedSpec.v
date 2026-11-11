@@ -79,21 +79,13 @@
 
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaSemanticsSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
 (* Where control may go                                                     *)
 (* ======================================================================== *)
-
-Definition among (name : positive) (names : list positive) : bool :=
-  existsb (Pos.eqb name) names.
-
-Definition all_among (names allowed : list positive) : bool :=
-  forallb (fun name => among name allowed) names.
-
-Definition without (bound names : list positive) : list positive :=
-  filter (fun name => negb (among name bound)) names.
 
 (* The continuations an expression may apply, or give to a call, that it
    does not bind itself. Code is closed, so bindings of code have none. *)
@@ -219,12 +211,6 @@ with handler_static_names (names_of : static_binding -> list positive)
     (h : continuation_handler) : list positive :=
   match h with
   | Handler _ handler => static_names names_of handler
-  end.
-
-Fixpoint distinct (names : list positive) : bool :=
-  match names with
-  | [] => true
-  | name :: names => negb (among name names) && distinct names
   end.
 
 (* ======================================================================== *)

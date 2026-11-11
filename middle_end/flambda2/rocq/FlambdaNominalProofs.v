@@ -37,8 +37,9 @@
 
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaSemanticsProofs FlambdaNominalSpec.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
+  FlambdaNominalSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -757,18 +758,6 @@ Proof.
       split; [ exact Hunbound | left; exact Hk' ].
     + intros Hunbound. apply conts_agree_same, Hconts.
       split; [ exact Hunbound | right; exact Hk ].
-Qed.
-
-Lemma lookup_app {A : Type} (name : positive)
-    (bindings bindings' : list (positive * A)) :
-  lookup name (bindings ++ bindings')
-  = match lookup name bindings with
-    | Some a => Some a
-    | None => lookup name bindings'
-    end.
-Proof.
-  induction bindings as [ | [bound a] bindings IH]; simpl; [ reflexivity | ].
-  destruct (Pos.eqb name bound); [ reflexivity | exact IH ].
 Qed.
 
 (* The parameters of one handler of a recursive group: that handler is

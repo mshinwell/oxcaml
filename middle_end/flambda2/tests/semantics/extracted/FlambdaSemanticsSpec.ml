@@ -2,6 +2,7 @@ open BinInt
 open BinNums
 open BinPos
 open Datatypes
+open FlambdaMapSpec
 open FlambdaModel
 open List
 open ListDef
@@ -14,14 +15,6 @@ type value =
 (** val eval_prim : prim -> value list -> value option **)
 
 let eval_prim = fun p vs -> Obj.obj (!Prim_hook.eval_prim p (Obj.repr vs))
-
-(** val lookup : positive -> (positive * 'a1) list -> 'a1 option **)
-
-let rec lookup name = function
-  | [] -> None
-  | p :: bindings0 ->
-    let bound, a = p in
-    if Pos.eqb name bound then Some a else lookup name bindings0
 
 type env = (variable * value) list
 

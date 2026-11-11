@@ -4,14 +4,13 @@ open Bool
 open Datatypes
 open FlambdaApplySpec
 open FlambdaCompareSpec
+open FlambdaMapSpec
 open FlambdaModel
 open FlambdaNominalSpec
 open FlambdaSemanticsSpec
 open List
 open ListDef
 open PeanoNat
-
-val name_in : positive -> positive list -> bool
 
 val simple_in_scope : variable list -> simple -> bool
 

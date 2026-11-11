@@ -63,8 +63,8 @@
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaNormaliseSpec.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaSemanticsSpec FlambdaNormaliseSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -77,10 +77,10 @@ Record dropped : Type := Dropped {
 }.
 
 Definition symbol_kept (D : dropped) (s : symbol) : bool :=
-  negb (name_in s (dropped_symbols D)).
+  negb (among s (dropped_symbols D)).
 
 Definition code_kept (D : dropped) (id : code_id) : bool :=
-  negb (name_in id (dropped_code D)).
+  negb (among id (dropped_code D)).
 
 Fixpoint value_avoids (D : dropped) (v : value) : bool :=
   match v with

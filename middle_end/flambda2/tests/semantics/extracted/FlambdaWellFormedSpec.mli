@@ -1,15 +1,10 @@
 open BinNums
 open BinPos
 open Datatypes
+open FlambdaMapSpec
 open FlambdaModel
 open List
 open ListDef
-
-val among : positive -> positive list -> bool
-
-val all_among : positive list -> positive list -> bool
-
-val without : positive list -> positive list -> positive list
 
 val free_continuations : expr -> continuation list
 
@@ -38,7 +33,5 @@ val static_names : (static_binding -> positive list) -> expr -> positive list
 
 val handler_static_names :
   (static_binding -> positive list) -> continuation_handler -> positive list
-
-val distinct : positive list -> bool
 
 val well_formed_unit : continuation -> expr -> bool

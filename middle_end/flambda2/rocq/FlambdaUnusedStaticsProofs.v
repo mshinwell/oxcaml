@@ -37,8 +37,9 @@
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaSemanticsProofs FlambdaNormaliseSpec FlambdaUnusedStaticsSpec.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
+  FlambdaNormaliseSpec FlambdaUnusedStaticsSpec.
 Import ListNotations.
 
 Section Erasure.
@@ -708,16 +709,6 @@ Proof.
   destruct (IH Hrest) as [Hav Hsame].
   rewrite Havoids, Hav, (erase_handler_binds_only_kept D h Hkept), Hsame.
   auto.
-Qed.
-
-Lemma lookup_forallb {A : Type} (f : A -> bool) (name : positive) (a : A)
-    (bindings : list (positive * A)) :
-  forallb (fun '(_, a) => f a) bindings = true ->
-  lookup name bindings = Some a -> f a = true.
-Proof.
-  induction bindings as [ | [bound b] bindings IH]; simpl; [ discriminate | ].
-  intros Hall. apply andb_true_iff in Hall as [Hb Hrest].
-  destruct (Pos.eqb name bound); [ intros [= <-]; exact Hb | exact (IH Hrest) ].
 Qed.
 
 Lemma env_free_of_avoids (D : dropped) (vars : env) :

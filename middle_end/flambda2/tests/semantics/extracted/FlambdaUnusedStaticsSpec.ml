@@ -1,6 +1,6 @@
 open Datatypes
+open FlambdaMapSpec
 open FlambdaModel
-open FlambdaNormaliseSpec
 open List
 open ListDef
 
@@ -11,11 +11,11 @@ type dropped =
 
 (** val symbol_kept : dropped -> symbol -> bool **)
 
-let symbol_kept d s = negb (name_in s d.dropped_symbols)
+let symbol_kept d s = negb (among s d.dropped_symbols)
 
 (** val code_kept : dropped -> code_id -> bool **)
 
-let code_kept d id = negb (name_in id d.dropped_code)
+let code_kept d id = negb (among id d.dropped_code)
 
 (** val simple_avoids : dropped -> simple -> bool **)
 

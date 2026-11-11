@@ -1,21 +1,10 @@
 open BinNums
 open BinPos
 open Datatypes
+open FlambdaMapSpec
 open FlambdaModel
 open List
 open ListDef
-
-(** val among : positive -> positive list -> bool **)
-
-let among name names = existsb (Pos.eqb name) names
-
-(** val all_among : positive list -> positive list -> bool **)
-
-let all_among names allowed = forallb (fun name -> among name allowed) names
-
-(** val without : positive list -> positive list -> positive list **)
-
-let without bound names = filter (fun name -> negb (among name bound)) names
 
 (** val free_continuations : expr -> continuation list **)
 
@@ -141,12 +130,6 @@ let rec static_names names_of = function
 
 and handler_static_names names_of = function
   | Handler (_, handler) -> static_names names_of handler
-
-(** val distinct : positive list -> bool **)
-
-let rec distinct = function
-  | [] -> true
-  | name :: names0 -> negb (among name names0) && distinct names0
 
 (** val well_formed_unit : continuation -> expr -> bool **)
 

@@ -6,24 +6,32 @@ that make the repository safe for parallel work.
 
 ## Done
 
-- Item 2, the state as a record. `state` is a `Record` with the
-  projections `state_expr`, `state_vars`, `state_conts` and
-  `state_statics`; no proof destructs a state by position
-  (`FlambdaSemanticsProofs.state_eta` and `simpl_state` are what to use).
-
 - Item 1, the step lemmas. `FlambdaSemanticsProofs.v` has one equation
   for each construct (`step_let`, ..., `step_invalid`), `step` is opaque
   after them, and every proof goes through them. Checked by one build in
   which `step` was a `Parameter` with only those eight equations: all the
   other proofs built unchanged.
+- Item 2, the state as a record. `state` is a `Record` with the
+  projections `state_expr`, `state_vars`, `state_conts` and
+  `state_statics`; no proof destructs a state by position
+  (`FlambdaSemanticsProofs.state_eta` and `simpl_state` are what to use).
+- Item 3, finite maps. `FlambdaMapSpec.v` and `FlambdaMapProofs.v`:
+  association lists keyed by `positive`, first binding wins, and lists of
+  names as sets. `lookup`, `among`, `all_among`, `without` and `distinct`
+  moved there; `is_bound`, `unbind`, `map_values`, `domain`, `tabulate`,
+  `compact`, `filter_bindings`, `merge`, `union_with`, `inter_with`,
+  `inter` and `dedup` are new, each with a statement of what it does to
+  `lookup` or `among`. The lemmas that were scattered (`lookup_app`,
+  `lookup_fresh`, `among_In`, `distinct_NoDup`, ...) are in
+  `FlambdaMapProofs.v`. The header of the Spec says why lists and what
+  was rejected.
 
 ## In progress
 
-- Item 3, finite maps.
+- Item 4, one expected file per example.
 
 ## To do
 
-- Item 4, one expected file per example.
 - Item 5, the lists of `rocq/Makefile` and of `FlambdaExtract.v`.
 - Item 6, the rule for the extracted files.
 - Item 7, the trust ledger.
@@ -55,3 +63,14 @@ this list.
 - `FlambdaWellFormedSpec.static_fault` matches on `state_expr s` and
   reads `state_vars s` and `state_statics s`, where it matched on
   `State e vars _ statics`. The cases and what each answers are the same.
+- `lookup` moved, as it was, from `FlambdaSemanticsSpec.v` to
+  `FlambdaMapSpec.v`; `among`, `all_among`, `without` and `distinct`
+  moved, as they were, from `FlambdaWellFormedSpec.v` to
+  `FlambdaMapSpec.v`.
+- `FlambdaNormaliseSpec.name_in` is gone: it was the same function as
+  `among` (`existsb (Pos.eqb name) names`). `simple_in_scope`,
+  `apply_cont_in_scope`, `expr_in_scope` and `var_free_in_handler_b` of
+  `FlambdaNormaliseSpec.v`, and `symbol_kept` and `code_kept` of
+  `FlambdaUnusedStaticsSpec.v`, say `among` where they said `name_in`.
+- New, in `FlambdaMapSpec.v`: the definitions listed under item 3 and
+  sixteen statements about them. No statement that existed mentions them.

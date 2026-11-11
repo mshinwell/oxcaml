@@ -30,9 +30,10 @@
 
 From Stdlib Require Import ZArith List Setoid.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaSemanticsProofs FlambdaContextSpec FlambdaContextProofs
-  FlambdaNominalSpec FlambdaNominalProofs FlambdaAlphaSpec.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
+  FlambdaContextSpec FlambdaContextProofs FlambdaNominalSpec
+  FlambdaNominalProofs FlambdaAlphaSpec.
 Import ListNotations.
 
 Lemma or_iff (A A' B B' : Prop) :

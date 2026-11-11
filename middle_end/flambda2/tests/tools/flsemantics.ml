@@ -51,6 +51,7 @@ open Flambda2_kinds
 open Flambda2_numbers
 open Flambda2_bound_identifiers
 open Flambda2_term_basics
+module Maps = Flambda2_rocq_semantics.FlambdaMapSpec
 module Model = Flambda2_rocq_semantics.FlambdaModel
 module Semantics = Flambda2_rocq_semantics.FlambdaSemanticsSpec
 module Normalise = Flambda2_rocq_semantics.FlambdaNormaliseSpec
@@ -502,7 +503,7 @@ let rec observe depth (statics : Semantics.static_env) (v : Semantics.value) :
     | Value_const _ -> Naked ("number", 0)
     | Value_closure _ -> Function
     | Value_symbol symbol -> (
-      match Semantics.lookup symbol statics.static_values with
+      match Maps.lookup symbol statics.static_values with
       | None -> Dangling
       | Some (Static_closure _) -> Function
       | Some (Static_block (tag, fields)) ->

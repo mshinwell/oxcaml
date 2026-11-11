@@ -59,8 +59,8 @@
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaNominalSpec FlambdaNormaliseSpec.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaSemanticsSpec FlambdaNominalSpec FlambdaNormaliseSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec.
 Import ListNotations.
 

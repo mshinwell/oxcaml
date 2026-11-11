@@ -108,20 +108,17 @@
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaNominalSpec FlambdaApplySpec FlambdaCompareSpec.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaSemanticsSpec FlambdaNominalSpec FlambdaApplySpec FlambdaCompareSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
 (* Names in scope                                                           *)
 (* ======================================================================== *)
 
-Definition name_in (name : positive) (names : list positive) : bool :=
-  existsb (Pos.eqb name) names.
-
 Definition simple_in_scope (vs : list variable) (s : simple) : bool :=
   match s with
-  | Var x => name_in x vs
+  | Var x => among x vs
   | Symbol _ | Const _ => true
   end.
 
@@ -151,7 +148,7 @@ Definition static_binding_in_scope (vs : list variable)
 
 Definition apply_cont_in_scope (vs : list variable) (ks : list continuation)
     (ac : apply_cont) : bool :=
-  name_in (ac_continuation ac) ks && simples_in_scope vs (ac_args ac).
+  among (ac_continuation ac) ks && simples_in_scope vs (ac_args ac).
 
 (* Every variable and continuation the expression uses is bound in it or is
    one of those given. *)
@@ -171,8 +168,8 @@ Fixpoint expr_in_scope (vs : list variable) (ks : list continuation)
   | Apply ap =>
     simple_in_scope vs (ap_callee ap)
     && simples_in_scope vs (ap_args ap)
-    && name_in (ap_continuation ap) ks
-    && name_in (ap_exn_continuation ap) ks
+    && among (ap_continuation ap) ks
+    && among (ap_exn_continuation ap) ks
   | Apply_cont ac => apply_cont_in_scope vs ks ac
   | Switch scrutinee arms =>
     simple_in_scope vs scrutinee
@@ -337,7 +334,7 @@ Fixpoint var_free_b (x : variable) (e : expr) : bool :=
   end
 with var_free_in_handler_b (x : variable) (h : continuation_handler) : bool :=
   match h with
-  | Handler params handler => negb (name_in x params) && var_free_b x handler
+  | Handler params handler => negb (among x params) && var_free_b x handler
   end.
 
 (* Which primitives the normalisation may fold, and remove when unused.

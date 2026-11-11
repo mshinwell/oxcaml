@@ -52,9 +52,9 @@
 
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaSemanticsProofs FlambdaWellFormedSpec FlambdaWellFormedProofs
-  FlambdaContextSpec.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaSemanticsSpec FlambdaSemanticsProofs FlambdaWellFormedSpec
+  FlambdaWellFormedProofs FlambdaContextSpec.
 Import ListNotations.
 
 (* ======================================================================== *)

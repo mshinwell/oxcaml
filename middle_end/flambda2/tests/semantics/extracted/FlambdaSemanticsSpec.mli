@@ -2,6 +2,7 @@ open BinInt
 open BinNums
 open BinPos
 open Datatypes
+open FlambdaMapSpec
 open FlambdaModel
 open List
 open ListDef
@@ -12,8 +13,6 @@ type value =
   | Value_symbol of symbol
 
 val eval_prim : prim -> value list -> value option
-
-val lookup : positive -> (positive * 'a1) list -> 'a1 option
 
 type env = (variable * value) list
 

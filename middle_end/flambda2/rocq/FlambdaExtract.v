@@ -45,14 +45,18 @@
    primitives it knows and what they compute. Nothing proved in Rocq
    depends on that choice.
 
+   The finite maps and the sets of names of FlambdaMapSpec.v are extracted
+   in full, used by the machine or not, so that tests of what is built on
+   them have them.
+
    [bool], [option], [list], pairs and [unit] are extracted to OCaml's own
    (ExtrOcamlBasic); the numbers are extracted as they are, binary. *)
 
 From Stdlib Require Extraction.
 From Stdlib Require Import ExtrOcamlBasic.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaWellFormedSpec FlambdaCompareSpec FlambdaNormaliseSpec
-  FlambdaUnusedStaticsSpec FlambdaValidateSpec.
+From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
+  FlambdaSemanticsSpec FlambdaWellFormedSpec FlambdaCompareSpec
+  FlambdaNormaliseSpec FlambdaUnusedStaticsSpec FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 
 Extraction Language OCaml.
@@ -78,4 +82,6 @@ Separate Extraction step run kind_of_const empty_static_env expr_eqb
   inline_calls inline_tail_conts remove_unused_lets drop_deleted_code
   fold_constants remove_unused_total_lets remove_unused_defined_lets
   inline_known_calls merge_statics collapse_switches drop_statics
-  follow_aliases well_formed_unit rewrite_code validate_unit.
+  follow_aliases well_formed_unit rewrite_code validate_unit
+  lookup is_bound unbind map_values domain compact filter_bindings merge
+  union_with inter_with among all_among without inter distinct dedup.

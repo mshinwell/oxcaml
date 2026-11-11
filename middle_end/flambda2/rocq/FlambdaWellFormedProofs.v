@@ -30,8 +30,9 @@
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaSemanticsProofs FlambdaWellFormedSpec.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
+  FlambdaWellFormedSpec.
 Import ListNotations.
 
 Lemma statics_extend_refl (statics : static_env) :
@@ -43,17 +44,6 @@ Lemma statics_extend_trans (statics statics' statics'' : static_env) :
   statics_extend statics' statics'' ->
   statics_extend statics statics''.
 Proof. intros [Hcode Hvalues] [Hcode' Hvalues']. split; auto. Qed.
-
-(* A binding added for a name that was not bound. *)
-Lemma lookup_fresh {A : Type} (name fresh : positive) (a added : A)
-    (bindings : list (positive * A)) :
-  lookup fresh bindings = None ->
-  lookup name bindings = Some a ->
-  lookup name ((fresh, added) :: bindings) = Some a.
-Proof.
-  intros Hfresh Hname. simpl.
-  destruct (Pos.eqb_spec name fresh) as [-> | _]; [ congruence | exact Hname ].
-Qed.
 
 Lemma eval_static_bindings_extend (vars : env)
     (bindings : list static_binding) :
@@ -140,28 +130,6 @@ Qed.
    names of a handler are not among those of the continuations its
    closure holds: a continuation is not in scope in its own handler, so
    once a handler runs, nothing can run it again. *)
-
-Lemma among_In (name : positive) (names : list positive) :
-  among name names = true <-> In name names.
-Proof.
-  unfold among. rewrite existsb_exists. split.
-  - intros [x [Hin Heq]]. apply Pos.eqb_eq in Heq. subst x. exact Hin.
-  - intros Hin. exists name. split; [ exact Hin | apply Pos.eqb_refl ].
-Qed.
-
-Lemma distinct_NoDup (names : list positive) :
-  distinct names = true <-> NoDup names.
-Proof.
-  induction names as [ | n names IH]; simpl.
-  - split; [ intros _; apply NoDup_nil | reflexivity ].
-  - rewrite andb_true_iff, negb_true_iff, IH. split.
-    + intros [Hn Hd]. apply NoDup_cons; [ | exact Hd ].
-      intros Hin. apply among_In in Hin. congruence.
-    + intros H. inversion H as [ | ? ? Hn Hd]. subst.
-      split; [ | exact Hd ].
-      destruct (among n names) eqn:Hamong; [ | reflexivity ].
-      apply among_In in Hamong. contradiction.
-Qed.
 
 Lemma nodup_app_l {A : Type} (l l' : list A) : NoDup (l ++ l') -> NoDup l.
 Proof.

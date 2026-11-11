@@ -1,8 +1,8 @@
 open BinPos
 open Datatypes
+open FlambdaMapSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
-open FlambdaSemanticsSpec
 open FlambdaTypesSpec
 open List
 open ListDef

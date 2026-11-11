@@ -4,6 +4,7 @@ open Bool
 open Datatypes
 open FlambdaApplySpec
 open FlambdaCompareSpec
+open FlambdaMapSpec
 open FlambdaModel
 open FlambdaNominalSpec
 open FlambdaSemanticsSpec
@@ -11,13 +12,9 @@ open List
 open ListDef
 open PeanoNat
 
-(** val name_in : positive -> positive list -> bool **)
-
-let name_in name names = existsb (Pos.eqb name) names
-
 (** val simple_in_scope : variable list -> simple -> bool **)
 
-let simple_in_scope vs = function Var x -> name_in x vs | _ -> true
+let simple_in_scope vs = function Var x -> among x vs | _ -> true
 
 (** val simples_in_scope : variable list -> simple list -> bool **)
 
@@ -48,7 +45,7 @@ let static_binding_in_scope vs = function
     -> bool **)
 
 let apply_cont_in_scope vs ks ac =
-  name_in ac.ac_continuation ks && simples_in_scope vs ac.ac_args
+  among ac.ac_continuation ks && simples_in_scope vs ac.ac_args
 
 (** val expr_in_scope : variable list -> continuation list -> expr -> bool **)
 
@@ -68,8 +65,8 @@ let rec expr_in_scope vs ks = function
     && expr_in_scope vs ks' body
   | Apply ap ->
     ((simple_in_scope vs ap.ap_callee && simples_in_scope vs ap.ap_args)
-    && name_in ap.ap_continuation ks)
-    && name_in ap.ap_exn_continuation ks
+    && among ap.ap_continuation ks)
+    && among ap.ap_exn_continuation ks
   | Apply_cont ac -> apply_cont_in_scope vs ks ac
   | Switch (scrutinee, arms) ->
     simple_in_scope vs scrutinee
@@ -236,7 +233,7 @@ let rec var_free_b x = function
 (** val var_free_in_handler_b : variable -> continuation_handler -> bool **)
 
 and var_free_in_handler_b x = function
-  | Handler (params, handler) -> negb (name_in x params) && var_free_b x handler
+  | Handler (params, handler) -> negb (among x params) && var_free_b x handler
 
 (** val prim_may_fold : prim -> bool **)
 
