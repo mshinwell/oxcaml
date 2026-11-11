@@ -80,7 +80,10 @@
      ([group_continuations_nominal_statement]). No name is asked to
      be distinct: the equality of the interface is by permutations,
      and a permutation keeps apart what a list repeats and what it
-     does not.
+     does not. For groups whose binders repeat no name the converse
+     holds too ([group_abstraction_iff_statement]): the abstractions
+     are equal exactly when the terms are alpha-equivalent, that is,
+     exactly when the groups agree at fresh continuations.
 
    The interface has pairs and no lists. A list of things that contain
    names is given here ([list_names]), for any such things, with its
@@ -213,3 +216,20 @@ Definition group_abstraction_statement : Prop :=
     length (bound a) = length (fst (scope a)) ->
     equal_abstraction list_of_names group_continuations a a' ->
     alpha_equivalent (group_term a) (group_term a').
+
+(* For groups whose binders repeat no name the two are one relation:
+   the terms are alpha-equivalent exactly when the abstractions are
+   equal. So, by [alpha_let_cont_recursive_iff_statement], two groups
+   are equal as name abstractions exactly when they agree at fresh
+   continuations ([alpha_group]). Each abstraction is asked to have
+   as many bound continuations as handlers, since the term keeps
+   neither a continuation without a handler nor a handler without a
+   continuation, and the equality of abstractions sees both. *)
+Definition group_abstraction_iff_statement : Prop :=
+  ∀ a a' : name_abstraction (list continuation) group_scope,
+    length (bound a) = length (fst (scope a)) ->
+    length (bound a') = length (fst (scope a')) ->
+    binders_distinct (group_term a) = true ->
+    binders_distinct (group_term a') = true ->
+    (equal_abstraction list_of_names group_continuations a a'
+     <-> alpha_equivalent (group_term a) (group_term a')).

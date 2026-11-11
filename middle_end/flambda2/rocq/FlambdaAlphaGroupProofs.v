@@ -816,3 +816,232 @@ Proof.
   - exact (Alpha_context (Let_cont_recursive_body _ Hole) _ _ Hbodies).
   - exact (group_same_names _ _ _ Hhandlers (map (permute p') ks') []).
 Qed.
+
+(* ======================================================================== *)
+(* Alpha-equivalent groups are equal abstractions                           *)
+(* ======================================================================== *)
+
+(* Two handlers that agree at fresh parameters are equal. *)
+Lemma alpha_handlers_equal (h h' : group_handler) :
+  distinct (bound (snd h)) = true ->
+  distinct (bound (snd h')) = true ->
+  alpha_handlers (handler_of h) (handler_of h') ->
+  equal group_handler_continuations h h'.
+Proof.
+  destruct h as [metadata [params handler]],
+    h' as [metadata' [params' handler']].
+  cbn [handler_of fst snd bound scope alpha_handlers].
+  intros Hdistinct Hdistinct' (Hlength & Hmetadata & Hfresh).
+  split; [ exact Hmetadata | ]. cbn [snd].
+  destruct
+    (for_fresh_names_elim _ _
+       ((params ++ free_variables_of_expr (proj1_sig handler))
+        ++ params' ++ free_variables_of_expr (proj1_sig handler'))
+       Hfresh)
+    as (zs & Hcount & Houtside & Hscopes).
+  apply distinct_outside_app in Houtside as [Houtside Houtside'].
+  pose proof Houtside as Hfree.
+  apply distinct_outside_app in Hfree as [Hparams [_ Hfree]].
+  pose proof Houtside' as Hfree'.
+  apply distinct_outside_app in Hfree' as [Hparams' [_ Hfree']].
+  exists (combine params zs), (combine params' zs).
+  unfold opens, free_names_abstraction. simpl.
+  split; [ | split; [ | split ] ].
+  - intros name Hname. rewrite among_without in Hname.
+    apply andb_true_iff in Hname as [Hname Hnot].
+    apply negb_true_iff in Hnot.
+    apply permute_combine_other; [ exact Hnot | ].
+    destruct (among name zs) eqn:Hamong; [ | reflexivity ].
+    apply Hfree in Hamong. congruence.
+  - intros name Hname. rewrite among_without in Hname.
+    apply andb_true_iff in Hname as [Hname Hnot].
+    apply negb_true_iff in Hnot.
+    apply permute_combine_other; [ exact Hnot | ].
+    destruct (among name zs) eqn:Hamong; [ | reflexivity ].
+    apply Hfree' in Hamong. congruence.
+  - exact
+      (eq_trans (permute_combine params zs (eq_sym Hcount) Hdistinct Hparams)
+         (eq_sym
+            (permute_combine params' zs
+               (eq_sym (eq_trans Hcount Hlength)) Hdistinct' Hparams'))).
+  - unfold alpha_equivalent_closed. rewrite !rename_closed_expr_term.
+    exact Hscopes.
+Qed.
+
+Lemma alpha_handlers_all_equal (hs : list group_handler) :
+  ∀ hs' : list group_handler,
+    Forall (fun h => distinct (bound (snd h)) = true) hs ->
+    Forall (fun h => distinct (bound (snd h)) = true) hs' ->
+    Forall2 alpha_handlers (map handler_of hs) (map handler_of hs') ->
+    Forall2 (equal group_handler_continuations) hs hs'.
+Proof.
+  induction hs as [ | h hs IH]; intros [ | h' hs'] Hdistinct Hdistinct' Hall;
+    cbn [map] in Hall; inversion Hall as [ | ? ? ? ? Hfirst Hrest]; subst;
+    [ constructor | ].
+  inversion Hdistinct as [ | ? ? Hh Hhs]; subst.
+  inversion Hdistinct' as [ | ? ? Hh' Hhs']; subst.
+  constructor;
+    [ exact (alpha_handlers_equal h h' Hh Hh' Hfirst)
+    | exact (IH hs' Hhs Hhs' Hrest) ].
+Qed.
+
+(* The parameters of the handlers of a group whose binders are
+   distinct. *)
+Lemma group_params_distinct (ks : list continuation) :
+  ∀ hs : list group_handler,
+    length ks = length hs ->
+    forallb (fun '(_, h) => handler_binders_distinct h)
+      (combine ks (map handler_of hs))
+    = true ->
+    Forall (fun h => distinct (bound (snd h)) = true) hs.
+Proof.
+  induction ks as [ | k ks IH]; intros [ | h hs] Hlength Hall;
+    cbn [length map combine forallb] in Hlength, Hall;
+    try discriminate Hlength; constructor.
+  - apply andb_true_iff in Hall as [Hfirst _].
+    unfold handler_of in Hfirst. cbn [handler_binders_distinct] in Hfirst.
+    apply andb_true_iff in Hfirst as [Hparams _]. exact Hparams.
+  - injection Hlength as Hlength.
+    apply andb_true_iff in Hall as [_ Hall]. exact (IH hs Hlength Hall).
+Qed.
+
+Lemma length_group (ks : list continuation) :
+  ∀ hs : list group_handler,
+    length ks = length hs ->
+    length (combine ks (map handler_of hs)) = length ks.
+Proof.
+  induction ks as [ | k ks IH]; intros [ | h hs] Hlength;
+    cbn [map combine length] in Hlength |- *; try discriminate Hlength;
+    [ reflexivity | ].
+  injection Hlength as Hlength. rewrite (IH hs Hlength). reflexivity.
+Qed.
+
+Lemma map_snd_combine {A B : Type} (l : list A) :
+  ∀ l' : list B, length l = length l' -> map snd (combine l l') = l'.
+Proof.
+  induction l as [ | a l IH]; intros [ | b l'] Hlength;
+    cbn [length map combine snd] in Hlength |- *; try discriminate Hlength;
+    [ reflexivity | ].
+  injection Hlength as Hlength. rewrite (IH l' Hlength). reflexivity.
+Qed.
+
+(* What a group gives when its continuations are exchanged for new
+   ones: the permutation opens the abstraction, the bound names become
+   the new ones, and the handlers of the renamed term are those of the
+   renamed scope. *)
+Lemma group_swapped (ks zks : list continuation) (hs : list group_handler)
+    (body : closed_expr) :
+  length ks = length hs ->
+  length zks = length ks ->
+  distinct ks = true ->
+  distinct_outside
+    (ks
+     ++ flat_map (free_names group_handler_continuations) hs
+     ++ free_continuations_of_expr (proj1_sig body))
+    zks ->
+  fixes (combine ks zks)
+    (without ks
+       (flat_map (free_names group_handler_continuations) hs
+        ++ free_continuations_of_expr (proj1_sig body)))
+  ∧ map (permute (combine ks zks)) ks = zks
+  ∧ map snd
+      (rename_handlers (swap_continuations ks zks)
+         (combine ks (map handler_of hs)))
+    = map handler_of
+        (map (apply_renaming group_handler_continuations (combine ks zks))
+           hs).
+Proof.
+  intros Hlength Hcount Hdistinct Houtside.
+  apply distinct_outside_app in Houtside as [Hnames [_ Hfree]].
+  split; [ | split ].
+  - intros name Hname. rewrite among_without in Hname.
+    apply andb_true_iff in Hname as [Hname Hnot].
+    apply negb_true_iff in Hnot.
+    apply permute_combine_other; [ exact Hnot | ].
+    destruct (among name zks) eqn:Hamong; [ | reflexivity ].
+    apply Hfree in Hamong. congruence.
+  - exact (permute_combine ks zks (eq_sym Hcount) Hdistinct Hnames).
+  - change (swap_continuations ks zks)
+      with (continuations_renaming (combine ks zks)).
+    rewrite group_renamed. apply map_snd_combine.
+    rewrite !length_map. exact Hlength.
+Qed.
+
+Theorem group_abstraction_iff : group_abstraction_iff_statement.
+Proof.
+  intros a a' Hlength Hlength' Hdistinct Hdistinct'.
+  split; [ apply group_abstraction; exact Hlength | ].
+  destruct a as [ks [hs body]], a' as [ks' [hs' body']].
+  unfold group_term in *. cbn [bound scope fst snd] in *.
+  intros Halpha.
+  assert (Hclosed :
+    code_closed
+      (Let_cont_recursive (combine ks (map handler_of hs)) (proj1_sig body))
+    = true).
+  { cbn [code_closed]. rewrite group_handlers_closed.
+    exact (proj2_sig body). }
+  assert (Hclosed' :
+    code_closed
+      (Let_cont_recursive (combine ks' (map handler_of hs'))
+         (proj1_sig body'))
+    = true).
+  { cbn [code_closed]. rewrite group_handlers_closed.
+    exact (proj2_sig body'). }
+  apply (alpha_let_cont_recursive_iff _ _ _ _ Hclosed Hclosed' Hdistinct
+           Hdistinct')
+    in Halpha.
+  destruct Halpha as [_ Hfresh].
+  (* The names and the parameters are distinct. *)
+  pose proof (group_names_distinct _ _ Hdistinct) as Hnames.
+  pose proof (group_names_distinct _ _ Hdistinct') as Hnames'.
+  rewrite (map_fst_group ks hs Hlength) in Hnames.
+  rewrite (map_fst_group ks' hs' Hlength') in Hnames'.
+  cbn [binders_distinct] in Hdistinct, Hdistinct'.
+  apply andb_true_iff in Hdistinct as [Hdistinct _].
+  apply andb_true_iff in Hdistinct as [_ Hparams].
+  apply andb_true_iff in Hdistinct' as [Hdistinct' _].
+  apply andb_true_iff in Hdistinct' as [_ Hparams'].
+  apply (group_params_distinct ks hs Hlength) in Hparams.
+  apply (group_params_distinct ks' hs' Hlength') in Hparams'.
+  (* Fresh continuations for both groups. *)
+  destruct
+    (for_fresh_names_elim _ _
+       ((ks
+         ++ flat_map (free_names group_handler_continuations) hs
+         ++ free_continuations_of_expr (proj1_sig body))
+        ++ ks'
+        ++ flat_map (free_names group_handler_continuations) hs'
+        ++ free_continuations_of_expr (proj1_sig body'))
+       Hfresh)
+    as (zks & Hcount & Houtside & Hhandlers & Hbodies).
+  apply distinct_outside_app in Houtside as [Houtside Houtside'].
+  rewrite (map_fst_group ks hs Hlength), (map_fst_group ks' hs' Hlength')
+    in Hhandlers, Hbodies.
+  assert (Hcount_ks : length zks = length ks).
+  { exact (eq_trans Hcount (length_group ks hs Hlength)). }
+  assert (Hsame : length ks = length ks').
+  { pose proof (Forall2_length Hhandlers) as Hboth.
+    rewrite !length_map in Hboth. unfold rename_handlers in Hboth.
+    rewrite !length_map in Hboth.
+    exact
+      (eq_trans (eq_sym (length_group ks hs Hlength))
+         (eq_trans Hboth (length_group ks' hs' Hlength'))). }
+  destruct (group_swapped ks zks hs body Hlength Hcount_ks Hnames Houtside)
+    as (Hopens & Hmoved & Hrenamed).
+  destruct
+    (group_swapped ks' zks hs' body' Hlength' (eq_trans Hcount_ks Hsame)
+       Hnames' Houtside')
+    as (Hopens' & Hmoved' & Hrenamed').
+  rewrite Hrenamed, Hrenamed' in Hhandlers.
+  exists (combine ks zks), (combine ks' zks).
+  split; [ exact Hopens | ]. split; [ exact Hopens' | ].
+  split; [ exact (eq_trans Hmoved (eq_sym Hmoved')) | ].
+  split.
+  - apply alpha_handlers_all_equal; [ | | exact Hhandlers ].
+    + clear -Hparams. induction Hparams as [ | [metadata h] hs Hh _ IH];
+        cbn [map]; constructor; [ exact Hh | exact IH ].
+    + clear -Hparams'. induction Hparams' as [ | [metadata h] hs Hh _ IH];
+        cbn [map]; constructor; [ exact Hh | exact IH ].
+  - simpl. unfold alpha_equivalent_closed.
+    rewrite !rename_closed_expr_term. exact Hbodies.
+Qed.
