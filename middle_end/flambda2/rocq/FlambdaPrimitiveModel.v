@@ -37,7 +37,7 @@
      values, [Is_int], [Is_null], [Get_tag], [Opaque_identity],
      [Unbox_number], [Box_number], [Untag_immediate] and [Tag_immediate];
    - of [binary_primitive]: [Int_arith] and [Int_comp], at every
-     [Standard_int.t];
+     [Standard_int.t], and [Phys_equal];
    - of [variadic_primitive]: [Make_block] of an immutable block of
      values.
    Every other primitive is left out. The conversion from the compiler's
@@ -74,6 +74,8 @@
      Rocq's.
    - [signedness] is both [Flambda_primitive.signed_or_unsigned] and
      [Scalar.Signedness.t], which have the same constructors.
+   - The constructors of [equality_comparison] are prefixed with
+     [Phys_], for the same reason: the compiler's are [Eq] and [Neq].
    - The unary [Int_arith] of the compiler is not here; when it is, it
      will need another name, as this [Int_arith] is the binary one.
 
@@ -138,8 +140,14 @@ Inductive int_comparison_behaviour : Type :=
   | Yielding_bool (c : int_comparison)
   | Yielding_int_like_compare_functions (s : signedness).
 
+(* [Flambda_primitive.equality_comparison]. *)
+Inductive equality_comparison : Type :=
+  | Phys_eq
+  | Phys_neq.
+
 (* [Flambda_primitive.binary_primitive]. *)
 Inductive binary_primitive : Type :=
+  | Phys_equal (op : equality_comparison)
   | Int_arith (kind : standard_int) (op : binary_int_arith_op)
   | Int_comp (kind : standard_int) (behaviour : int_comparison_behaviour).
 

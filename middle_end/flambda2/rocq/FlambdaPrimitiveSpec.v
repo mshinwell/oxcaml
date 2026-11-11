@@ -435,12 +435,64 @@ Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
     Some (Value_const (Tagged_immediate i))
   end.
 
-(* A binary primitive applied to two values: both integers of the kind
-   the primitive carries. The result of a comparison is a naked
-   immediate. *)
+(* [Phys_equal]: whether two values of kind [Value] are the same value.
+   The compiler compares the two machine words
+   ([To_cmm_primitive.phys_equal]), which for two tagged immediates is
+   whether they are the same integer. It is what [=] and [<>] at type
+   [int] of the source become ([Lambda_to_flambda_primitives], at
+   [Pphys_equal]), as well as [==] and [!=]. Simplify folds it by
+   [Provers.prove_physical_equality], which on two constants answers
+   whether they are the same constant.
+
+   It has a value on two tagged immediates only: whether they are the
+   same integer. *)
+(* CR mshinwell: [Phys_equal] has no value unless both arguments are
+   tagged immediates, where the machine compares any two words. This is
+   a first version, and not what the primitive is to mean in the end.
+   - On an allocated value (a block, a closure, a boxed number, a
+     string, a symbol bound to one) against anything, what it means is
+     part of the design of the heap, which is to extend this
+     definition. The allocated values of the model have no identity,
+     and the compiler shares equal immutable values (it makes one of
+     two equal [Make_block]s or [Box_number]s, and lifts constants),
+     which turns an answer of 0 into 1. Simplify answers 1 on the same
+     variable or symbol twice, and 0 on two different symbols, on a
+     symbol against a constant, on an immediate against an allocated
+     value and on allocated values of different sorts.
+   - On null, the machine has the word 0, equal to itself and to no
+     tagged immediate, and Simplify folds two nulls to 1 and a null
+     against another constant to 0. No value here as for [Is_int] on
+     null, until the model says what null is.
+   - On poison, Simplify folds two poisons of the same kind and name to
+     1 and a poison against any other constant to 0
+     ([Reg_width_const.equal]), and the backend makes a poison of kind
+     [Value] a tagged immediate, which may be the other argument. No
+     value is sound for both, and is right only if a poison is never
+     the argument of a [Phys_equal] that is executed.
+   No value is conservative: it would be wrong only in that nothing is
+   then proved of a program that compares such values, as library code
+   does with [==]. Decision D19. *)
+Definition eval_phys_equal (v1 v2 : value) : option bool :=
+  let* a := int_of_value Standard_tagged_immediate v1 in
+  let* b := int_of_value Standard_tagged_immediate v2 in
+  Some (a =? b).
+
+(* A binary primitive applied to two values. For [Int_arith] and
+   [Int_comp], both are integers of the kind the primitive carries. The
+   result of a comparison, and of [Phys_equal], is a naked immediate:
+   for [Phys_equal], 1 or 0 as the answer of [Phys_eq] is yes or no,
+   and the other way round for [Phys_neq]. *)
 Definition eval_binary_primitive (p : binary_primitive) (v1 v2 : value)
     : option value :=
   match p with
+  | Phys_equal op =>
+    let* same := eval_phys_equal v1 v2 in
+    Some
+      (naked_bool
+         match op with
+         | Phys_eq => same
+         | Phys_neq => negb same
+         end)
   | Int_arith kind op =>
     let* a := int_of_value kind v1 in
     let* b := int_of_value kind v2 in
@@ -569,7 +621,7 @@ Definition unary_primitive_in_range (p : unary_primitive) : bool :=
 
 Definition binary_primitive_in_range (p : binary_primitive) : bool :=
   match p with
-  | Int_arith _ _ | Int_comp _ _ => true
+  | Phys_equal _ | Int_arith _ _ | Int_comp _ _ => true
   end.
 
 Definition variadic_primitive_in_range (p : variadic_primitive) : bool :=
@@ -642,6 +694,7 @@ Definition result_kind_of_unary_primitive (p : unary_primitive)
 Definition args_kind_of_binary_primitive (p : binary_primitive)
     : flambda_kind * flambda_kind :=
   match p with
+  | Phys_equal _ => (Value, Value)
   | Int_arith kind _ | Int_comp kind _ =>
     (kind_of_standard_int kind, kind_of_standard_int kind)
   end.
@@ -651,7 +704,7 @@ Definition result_kind_of_binary_primitive (p : binary_primitive)
     : flambda_kind :=
   match p with
   | Int_arith kind _ => kind_of_standard_int kind
-  | Int_comp _ _ => naked_immediate_kind
+  | Phys_equal _ | Int_comp _ _ => naked_immediate_kind
   end.
 
 (* [Flambda_primitive.args_kind_of_variadic_primitive]: the kind that

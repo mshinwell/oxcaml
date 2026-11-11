@@ -587,9 +587,13 @@ Lemma eval_binary_primitive_symbol (p : binary_primitive) (s : symbol)
   eval_binary_primitive p v1 v2 = Some v ->
   v1 <> Value_symbol s ∧ v2 <> Value_symbol s.
 Proof.
-  destruct p as [kind op | kind behaviour]; simpl;
-    (destruct (int_of_value kind v1) eqn:Hv1; [ | discriminate ]);
-    (destruct (int_of_value kind v2) eqn:Hv2; [ | discriminate ]);
+  destruct p as [op | kind op | kind behaviour]; simpl;
+    unfold eval_phys_equal;
+    match goal with
+    | |- context [int_of_value ?kind v1] =>
+      (destruct (int_of_value kind v1) eqn:Hv1; [ | discriminate ]);
+      (destruct (int_of_value kind v2) eqn:Hv2; [ | discriminate ])
+    end;
     intros _; split; intros ->; rewrite int_of_value_symbol in *;
     discriminate.
 Qed.
@@ -726,14 +730,24 @@ Lemma eval_binary_primitive_kinds (p : binary_primitive)
   ∧ kind_of_value arg2 = snd (args_kind_of_binary_primitive p)
   ∧ kind_of_value v = result_kind_of_binary_primitive p.
 Proof.
-  destruct p as [kind op | kind behaviour]; simpl;
-    (destruct (int_of_value kind arg1) as [a | ] eqn:Ha; [ | discriminate ]);
-    (destruct (int_of_value kind arg2) as [b | ] eqn:Hb; [ | discriminate ]);
-    rewrite (int_of_value_kind _ _ _ Ha), (int_of_value_kind _ _ _ Hb).
-  - destruct (eval_int_arith (int_width kind) op a b) as [result | ];
+  destruct p as [op | kind op | kind behaviour]; simpl;
+    unfold eval_phys_equal;
+    match goal with
+    | |- context [int_of_value ?kind arg1] =>
+      (destruct (int_of_value kind arg1) as [a | ] eqn:Ha;
+         [ | discriminate ]);
+      (destruct (int_of_value kind arg2) as [b | ] eqn:Hb;
+         [ | discriminate ]);
+      rewrite (int_of_value_kind _ _ _ Ha), (int_of_value_kind _ _ _ Hb)
+    end.
+  - (* [Phys_equal] *)
+    intros [= <-]. auto.
+  - (* [Int_arith] *)
+    destruct (eval_int_arith (int_width kind) op a b) as [result | ];
       [ | discriminate ].
     intros [= <-]. simpl. rewrite kind_of_const_of_int. auto.
-  - intros [= <-]. auto.
+  - (* [Int_comp] *)
+    intros [= <-]. auto.
 Qed.
 
 (* By cases on the variadic primitives. *)
@@ -857,12 +871,19 @@ Lemma eval_binary_primitive_preserves (p : binary_primitive)
     (arg1 arg2 v : value) :
   eval_binary_primitive p arg1 arg2 = Some v -> P v.
 Proof.
-  destruct p as [kind op | kind behaviour]; simpl;
-    (destruct (int_of_value kind arg1) as [a | ]; [ | discriminate ]);
-    (destruct (int_of_value kind arg2) as [b | ]; [ | discriminate ]).
-  - destruct (eval_int_arith (int_width kind) op a b); [ | discriminate ].
+  destruct p as [op | kind op | kind behaviour]; simpl.
+  - (* [Phys_equal] *)
+    destruct (eval_phys_equal arg1 arg2); [ | discriminate ].
+    intros [= <-]. apply naked_bool_preserved.
+  - (* [Int_arith] *)
+    destruct (int_of_value kind arg1) as [a | ]; [ | discriminate ].
+    destruct (int_of_value kind arg2) as [b | ]; [ | discriminate ].
+    destruct (eval_int_arith (int_width kind) op a b); [ | discriminate ].
     intros [= <-]. apply Hnumbers.
-  - intros [= <-]. apply Hnumbers.
+  - (* [Int_comp] *)
+    destruct (int_of_value kind arg1) as [a | ]; [ | discriminate ].
+    destruct (int_of_value kind arg2) as [b | ]; [ | discriminate ].
+    intros [= <-]. apply Hnumbers.
 Qed.
 
 (* By cases on the variadic primitives. *)
@@ -1140,10 +1161,15 @@ Lemma eval_binary_primitive_in_range (p : binary_primitive)
     (arg1 arg2 v : value) :
   eval_binary_primitive p arg1 arg2 = Some v -> value_in_range v = true.
 Proof.
-  destruct p as [kind op | kind behaviour]; simpl;
-    (destruct (int_of_value kind arg1) as [a | ]; [ | discriminate ]);
-    (destruct (int_of_value kind arg2) as [b | ]; [ | discriminate ]).
-  - destruct (eval_int_arith (int_width kind) op a b) as [result | ]
+  destruct p as [op | kind op | kind behaviour]; simpl.
+  - (* [Phys_equal] *)
+    destruct (eval_phys_equal arg1 arg2); [ | discriminate ].
+    intros [= <-]. apply naked_bool_in_range.
+  - (* [Int_arith] *)
+    destruct (int_of_value kind arg1) as [a | ]; [ | discriminate ].
+    destruct (int_of_value kind arg2) as [b | ]; [ | discriminate ].
+    simpl.
+    destruct (eval_int_arith (int_width kind) op a b) as [result | ]
       eqn:Harith;
       [ | discriminate ].
     intros [= <-]. cbn [value_in_range].
@@ -1151,7 +1177,10 @@ Proof.
     exact
       (eval_int_arith_in_range _ op a b result (int_width_positive kind)
          Harith).
-  - intros [= <-]. cbn [value_in_range const_in_range].
+  - (* [Int_comp] *)
+    destruct (int_of_value kind arg1) as [a | ]; [ | discriminate ].
+    destruct (int_of_value kind arg2) as [b | ]; [ | discriminate ].
+    intros [= <-]. cbn [value_in_range const_in_range].
     apply eval_int_comp_in_range.
 Qed.
 
@@ -1288,6 +1317,18 @@ Proof.
   symmetry. exact (Hconst_r v _ Hr).
 Qed.
 
+(* So related values are the same integer of a kind, or neither is
+   one. *)
+Lemma related_int_of_value (kind : standard_int) (v v' : value) :
+  R v v' -> int_of_value kind v' = int_of_value kind v.
+Proof.
+  intros Hr.
+  destruct (int_of_value kind v) as [i | ] eqn:Hint.
+  - rewrite (related_int _ v v' i Hr Hint). exact Hint.
+  - destruct (int_of_value kind v') as [i | ] eqn:Hint'; [ | reflexivity ].
+    rewrite (related_int_r _ v v' i Hr Hint') in Hint'. congruence.
+Qed.
+
 Lemma related_is_tagged_immediate (v v' : value) :
   R v v' -> is_tagged_immediate v' = is_tagged_immediate v.
 Proof.
@@ -1343,6 +1384,20 @@ Proof.
     rewrite (related_is_block v v' Hr Hv). exact (fun H => H).
   - destruct (is_allocated statics v) eqn:Hv; [ | discriminate ].
     rewrite (related_is_allocated v v' Hr Hv). exact (fun H => H).
+Qed.
+
+(* [Phys_equal] reads its arguments as tagged immediates, which are
+   constants. *)
+Lemma related_eval_phys_equal (same : bool) (v1 v2 v1' v2' : value) :
+  R v1 v1' ->
+  R v2 v2' ->
+  eval_phys_equal v1 v2 = Some same ->
+  eval_phys_equal v1' v2' = Some same.
+Proof.
+  intros Hr1 Hr2. unfold eval_phys_equal.
+  rewrite (related_int_of_value _ v1 v1' Hr1),
+    (related_int_of_value _ v2 v2' Hr2).
+  exact (fun H => H).
 Qed.
 
 (* On a value that is not a constant, [Is_null] answers no if it
@@ -1444,7 +1499,8 @@ Proof.
     intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
 Qed.
 
-(* By cases on the binary primitives: both arguments are integers. *)
+(* By cases on the binary primitives: the arguments are integers, but
+   for those of [Phys_equal]. *)
 Lemma eval_binary_primitive_related (p : binary_primitive)
     (v1 v2 v1' v2' result : value) :
   R v1 v1' ->
@@ -1454,14 +1510,26 @@ Lemma eval_binary_primitive_related (p : binary_primitive)
     eval_binary_primitive p v1' v2' = Some result' ∧ R result result'.
 Proof.
   intros Hr1 Hr2.
-  destruct p as [kind op | kind behaviour]; simpl;
-    (destruct (int_of_value kind v1) as [a | ] eqn:Hv1; [ | discriminate ]);
-    (destruct (int_of_value kind v2) as [b | ] eqn:Hv2; [ | discriminate ]);
+  destruct p as [op | kind op | kind behaviour];
+    cbn [eval_binary_primitive].
+  - (* [Phys_equal] *)
+    destruct (eval_phys_equal v1 v2) as [same | ] eqn:Hsame;
+      [ | discriminate ].
+    rewrite (related_eval_phys_equal same v1 v2 v1' v2' Hr1 Hr2 Hsame).
+    intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
+  - (* [Int_arith] *)
+    destruct (int_of_value kind v1) as [a | ] eqn:Hv1; [ | discriminate ].
+    destruct (int_of_value kind v2) as [b | ] eqn:Hv2; [ | discriminate ].
     rewrite (related_int kind v1 v1' a Hr1 Hv1),
       (related_int kind v2 v2' b Hr2 Hv2), Hv1, Hv2.
-  - destruct (eval_int_arith (int_width kind) op a b); [ | discriminate ].
+    destruct (eval_int_arith (int_width kind) op a b); [ | discriminate ].
     intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
-  - intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
+  - (* [Int_comp] *)
+    destruct (int_of_value kind v1) as [a | ] eqn:Hv1; [ | discriminate ].
+    destruct (int_of_value kind v2) as [b | ] eqn:Hv2; [ | discriminate ].
+    rewrite (related_int kind v1 v1' a Hr1 Hv1),
+      (related_int kind v2 v2' b Hr2 Hv2), Hv1, Hv2.
+    intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
 Qed.
 
 (* By cases on the variadic primitives. *)
@@ -1618,6 +1686,52 @@ Example compare_like_functions :
   int_comp Standard_naked_int64 (Yielding_int_like_compare_functions Signed)
     (Value_const (Naked_int64 5)) (Value_const (Naked_int64 9))
   = Some (naked (-1)).
+Proof. reflexivity. Qed.
+
+Definition phys_equal (op : equality_comparison) (a b : value)
+    : option value :=
+  eval_prim empty_static_env (Binary (Phys_equal op)) [a; b].
+
+Example phys_eq_same_immediate :
+  phys_equal Phys_eq (tagged 5) (tagged 5) = Some (naked 1).
+Proof. reflexivity. Qed.
+
+Example phys_eq_other_immediate :
+  phys_equal Phys_eq (tagged 5) (tagged (-5)) = Some (naked 0).
+Proof. reflexivity. Qed.
+
+Example phys_neq_same_immediate :
+  phys_equal Phys_neq (tagged 5) (tagged 5) = Some (naked 0).
+Proof. reflexivity. Qed.
+
+Example phys_neq_other_immediate :
+  phys_equal Phys_neq (tagged min_int63) (tagged max_int63) = Some (naked 1).
+Proof. reflexivity. Qed.
+
+Example phys_eq_out_of_range :
+  phys_equal Phys_eq (tagged (max_int63 + 1)) (tagged (max_int63 + 1)) = None.
+Proof. reflexivity. Qed.
+
+Example phys_eq_naked_immediates :
+  phys_equal Phys_eq (naked 5) (naked 5) = None.
+Proof. reflexivity. Qed.
+
+Example phys_eq_null :
+  phys_equal Phys_eq (Value_const Null) (Value_const Null) = None.
+Proof. reflexivity. Qed.
+
+Example phys_eq_poison :
+  phys_equal Phys_eq (Value_const (Poison Value)) (tagged 5) = None.
+Proof. reflexivity. Qed.
+
+Example phys_eq_blocks :
+  phys_equal Phys_eq (Value_block 0 [tagged 1]) (Value_block 0 [tagged 1])
+  = None.
+Proof. reflexivity. Qed.
+
+Example phys_eq_unbound_symbol :
+  phys_equal Phys_eq (Value_symbol 1%positive) (Value_symbol 1%positive)
+  = None.
 Proof. reflexivity. Qed.
 
 Example tag_immediate :
