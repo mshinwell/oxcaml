@@ -84,7 +84,8 @@
    of a type gives. There are two here: none ([any_input]), and that
    the type and the types of the environment are well formed
    ([well_formed_input], with [type_well_formed] of
-   FlambdaTypeWellFormedSpec.v).
+   FlambdaTypeWellFormedSpec.v and [types_well_formed] of
+   FlambdaTypingEnvInvariantSpec.v).
 
    Where well-formedness is needed, and why. The provers that read the
    numbers of a type of naked immediates
@@ -218,7 +219,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaTypeWellFormedSpec FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaTypingEnv
-  FlambdaTypingEnvSpec FlambdaProversStandIn FlambdaProvers.
+  FlambdaTypingEnvSpec FlambdaTypingEnvInvariantSpec FlambdaProversStandIn
+  FlambdaProvers.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -242,16 +244,10 @@ Definition expand_head_sound_assumed : Prop :=
 (* No condition on what a prover is asked. *)
 Definition any_input (tenv : Typing_env.t) (t : flambda_type) : Prop := True.
 
-(* Every type that the environment has for a name is well formed. *)
-Definition types_well_formed (tenv : Typing_env.t) : Prop :=
-  ∀ (n : name) (ty : flambda_type)
-    (binding_time_and_mode : Binding_time.With_name_mode.t),
-    Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
-    = Some (ty, binding_time_and_mode) ->
-    type_well_formed ty = true.
-
 (* The type that a prover is asked about is well formed, and so are the
-   types of the environment. *)
+   types of the environment ([types_well_formed] of
+   FlambdaTypingEnvInvariantSpec.v: every type that the environment
+   has for a name is well formed). *)
 (* CR mshinwell: this asks more of a type than the compiler checks:
    [type_well_formed] has conditions that only some of the creation
    functions establish (FlambdaTypeWellFormedSpec.v says which). The

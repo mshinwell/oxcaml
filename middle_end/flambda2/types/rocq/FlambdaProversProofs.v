@@ -49,7 +49,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeAccessSpec FlambdaTypeAccessProofs FlambdaBindingTime
   FlambdaEnvAliases
   FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
-  FlambdaTypingEnvProofs FlambdaProversStandIn FlambdaProvers
+  FlambdaTypingEnvProofs FlambdaTypingEnvInvariantSpec
+  FlambdaTypingEnvInvariantProofs FlambdaProversStandIn FlambdaProvers
   FlambdaProversSpec.
 Import ListNotations.
 
@@ -104,30 +105,6 @@ Proof.
       [ exact Hwf
       | apply unknown_well_formed
       | apply bottom_well_formed ].
-Qed.
-
-Lemma find_well_formed (tenv : Typing_env.t) (n : name)
-    (kind : option flambda_kind) (ty : flambda_type) :
-  types_well_formed tenv ->
-  Typing_env.find tenv n kind = Some ty ->
-  type_well_formed ty = true.
-Proof.
-  intros Htypes.
-  unfold Typing_env.find, Typing_env.find_with_binding_time_and_mode'.
-  destruct (Keyed.lookup name_eqb n (Typing_env.names_to_types tenv))
-    as [[ty' binding_time_and_mode] | ] eqn:Hlookup.
-  - destruct (Typing_env.check_optional_kind_matches ty' kind);
-      [ | discriminate ].
-    destruct (Typing_env.is_bottom tenv); simpl; intros [= <-].
-    + apply bottom_well_formed.
-    + exact (Htypes _ _ _ Hlookup).
-  - destruct n as [x | sym]; [ discriminate | ].
-    destruct
-      (among sym (Typing_env.defined_symbols tenv)
-       && Typing_env.check_optional_kind_matches
-            (fst Typing_env.initial_symbol_type) kind);
-      [ | discriminate ].
-    simpl. intros [= <-]. exact any_non_null_value_well_formed.
 Qed.
 
 Lemma create_const_well_formed (c : const) :
