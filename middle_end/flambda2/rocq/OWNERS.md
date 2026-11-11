@@ -124,7 +124,20 @@ All in `middle_end/flambda2/types/rocq/`, library `OxCamlFlambda2Types`.
   - `middle_end/flambda2/types/rocq/FlambdaTypeGrammar*` (the grammar
     of types)
   - `middle_end/flambda2/types/rocq/FlambdaTypeMeaning*` (what a type
-    means: `type_satisfied`)
+    means: `type_satisfied`; `FlambdaTypeMeaningBool*` is the meaning
+    as a test)
+  - `middle_end/flambda2/types/rocq/FlambdaTypeWellFormed*` (when a
+    type is well formed)
+  - `middle_end/flambda2/types/rocq/FlambdaTypeEqual*` (when two types
+    are the same type, after `Type_grammar.equal`)
+  - `middle_end/flambda2/types/rocq/FlambdaTypeAliasKinds*` (the
+    aliases of a type with their kinds)
+  - `middle_end/flambda2/types/rocq/FlambdaTypeRename*` (renaming the
+    variables of a type, and the names that a type mentions)
+  - `middle_end/flambda2/types/rocq/FlambdaTypeNominal*` (types as
+    things that contain names)
+  - `middle_end/flambda2/types/rocq/FlambdaTypeAccess*` (what the
+    provers and reification read of a type)
 - T2, typing environment. Owner: T2, on `flambda2-rocq/T2-env`.
   - `middle_end/flambda2/types/rocq/FlambdaBindingTime.v` (binding times
     and name modes, after `types/env/binding_time.ml` and

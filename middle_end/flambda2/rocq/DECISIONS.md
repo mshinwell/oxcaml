@@ -271,6 +271,8 @@ says so. Only the labels that this tree cites are listed.
   a set of strings is not empty; the kind of an alias to a constant.
 - **T1-8.** The `Get_tag` reduction of meet takes a number that is no
   tag to be the tag of no block, and the machine has blocks of any tag.
+- **T1-9.** A prover reads `Is_null` of a name of type `Null` as 1, and
+  the relation of the model gives 0 when that name holds poison.
 - **T2-1.** `Typing_env.replace_equation` on a name that is not bound
   records an equation that the environment cannot see.
 - **T2-2.** The invariants of the typing environment are checked only
@@ -308,5 +310,14 @@ says so. Only the labels that this tree cites are listed.
   prefers a `Phantom` alias to an earlier `Normal` one.
 - **T3-7.** `find_best` and the tie in `find_earliest_alias` depend on
   the order of names; the model takes the first of a list.
+- **T5-5.** The n-way join gives a variable that only some uses define
+  the join of its types at those uses, and nothing records that it means
+  nothing at the others.
+- **T5-10.** The n-way join takes every variable that a joined
+  environment knows to have a value there, where it puts a relation back
+  on a scrutinee and where it drops a bottom type.
+- **T6-1.** A prover answers what the environment says of a name, which
+  is not true of a name that holds poison (one case reaches a number
+  that is not poison).
 - **V2-2.** The fexpr printer drops the kinds of the fields of a
   `Make_block`, and the parser reads back `any_value` for each.
