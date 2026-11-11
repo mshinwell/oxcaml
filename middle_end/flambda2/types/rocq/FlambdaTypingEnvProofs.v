@@ -106,6 +106,47 @@ Lemma value_of_name_var (valuation : env) (x : variable) :
   value_of_name valuation (Name_var x) = lookup x valuation.
 Proof. reflexivity. Qed.
 
+(* Whether a name holds poison depends on its value alone. *)
+Lemma holds_poison_coincide (valuation valuation' : env) (n : name) :
+  value_of_name valuation n = value_of_name valuation' n ->
+  holds_poison valuation n ->
+  holds_poison valuation' n.
+Proof.
+  intros Hsame [w [Hw Hpoison]]. exists w.
+  split; [ rewrite <- Hsame; exact Hw | exact Hpoison ].
+Qed.
+
+(* The scrutinee of a relation of a type, if it is a variable, is a
+   variable of the type. *)
+Lemma relation_scrutinee_free (head : head_of_kind_naked_immediate)
+    (relation : Relation.t) (y : variable) :
+  (relation, Name_var y) ∈ inverse_relations head ->
+  y ∈ free_variables (Type_naked_immediate (Ok (No_alias head))).
+Proof.
+  intros Hin. simpl. unfold free_variables_of_naked_immediate.
+  apply in_flat_map. exists (relation, Name_var y).
+  split; [ exact Hin | left; reflexivity ].
+Qed.
+
+(* Valuations that give the variables of a type the same values agree on
+   whether the type is a relation on a name that holds poison. *)
+Lemma relation_on_poison_coincide (valuation valuation' : env)
+    (ty : flambda_type) :
+  (∀ y : variable,
+    y ∈ free_variables ty -> lookup y valuation = lookup y valuation') ->
+  relation_on_poison valuation ty ->
+  relation_on_poison valuation' ty.
+Proof.
+  intros Hsame [head [relation [scrutinee [-> [Hin Hpoison]]]]].
+  exists head, relation, scrutinee. split; [ reflexivity | ].
+  split; [ exact Hin | ].
+  apply (holds_poison_coincide valuation valuation' scrutinee);
+    [ | exact Hpoison ].
+  destruct scrutinee as [y | sym]; [ | reflexivity ].
+  rewrite !value_of_name_var. apply Hsame.
+  exact (relation_scrutinee_free head relation y Hin).
+Qed.
+
 (* ======================================================================== *)
 (* Reading the lookup functions back                                        *)
 (* ======================================================================== *)
@@ -268,7 +309,10 @@ Theorem satisfied_no_poison_strictly
     : satisfied_no_poison_strictly_statement.
 Proof.
   intros statics valuation tenv Hno_poison.
-  apply satisfied_but_weaken. exact Hno_poison.
+  apply satisfied_but_weaken.
+  intros n [Hpoison | [ty [btm [_ [head [relation [scrutinee Hrelation]]]]]]].
+  - exact (Hno_poison n Hpoison).
+  - exact (Hno_poison scrutinee (proj2 (proj2 Hrelation))).
 Qed.
 
 Theorem env_satisfies_strictly_env_satisfies
@@ -331,17 +375,23 @@ Theorem typing_env_satisfied_coincide
     : typing_env_satisfied_coincide_statement.
 Proof.
   intros statics valuation valuation' tenv Hsame Hsatisfied.
-  apply (satisfied_but_coincide (holds_poison valuation) statics valuation
-           valuation' tenv Hsame) in Hsatisfied.
+  apply (satisfied_but_coincide (exempt_by_poison valuation tenv) statics
+           valuation valuation' tenv Hsame) in Hsatisfied.
   destruct Hsatisfied as [Hbottom [Htypes Hrespected]].
   split; [ exact Hbottom | ]. split; [ | exact Hrespected ].
   intros n ty binding_time_and_mode v Hlookup Hvalue.
-  apply (has_type_unless_weaken (holds_poison valuation n));
+  apply (has_type_unless_weaken (exempt_by_poison valuation tenv n));
     [ | exact (Htypes n ty binding_time_and_mode v Hlookup Hvalue) ].
-  intros [w [Hw Hpoison]]. exists w. split; [ | exact Hpoison ].
-  rewrite <- (mentions_value_of_name tenv valuation valuation' n ty
-                binding_time_and_mode Hsame Hlookup).
-  exact Hw.
+  intros [Hpoison | [ty' [btm [Hlookup' Hrelation]]]].
+  - left. apply (holds_poison_coincide valuation valuation' n);
+      [ | exact Hpoison ].
+    exact (mentions_value_of_name tenv valuation valuation' n ty
+             binding_time_and_mode Hsame Hlookup).
+  - right. exists ty', btm. split; [ exact Hlookup' | ].
+    apply (relation_on_poison_coincide valuation valuation' ty');
+      [ | exact Hrelation ].
+    intros y Hy. apply Hsame. right. left. exists n, ty', btm.
+    split; [ exact Hlookup' | exact Hy ].
 Qed.
 
 (* The variables in scope, and what the machine and a valuation have
@@ -468,16 +518,39 @@ Proof.
            Hsatisfied Hfind Hvalue).
 Qed.
 
+(* In an environment that is not bottom, the type found for a name
+   that has an entry is the type of the entry. *)
+Lemma find_lookup (tenv : Typing_env.t) (n : name)
+    (kind : option flambda_kind) (ty ty' : flambda_type)
+    (binding_time_and_mode : Binding_time.With_name_mode.t) :
+  Typing_env.is_bottom tenv = false ->
+  Typing_env.find tenv n kind = Some ty ->
+  Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
+  = Some (ty', binding_time_and_mode) ->
+  ty = ty'.
+Proof.
+  intros Hbottom Hfind Hlookup. revert Hfind.
+  unfold Typing_env.find, Typing_env.find_with_binding_time_and_mode'.
+  rewrite Hlookup, Hbottom.
+  destruct (Typing_env.check_optional_kind_matches ty' kind);
+    [ | discriminate ].
+  intros [= <-]. reflexivity.
+Qed.
+
 Theorem find_not_poison : find_not_poison_statement.
 Proof.
   intros statics valuation tenv n kind ty v Hsatisfied Hfind Hvalue
-    Hnot_poison.
-  apply (has_type_unless_not_exempt (holds_poison valuation n) statics
-           valuation v ty).
-  - exact (find_satisfied (holds_poison valuation) statics valuation tenv n
-             kind ty v Hsatisfied Hfind Hvalue).
-  - intros [w [Hw Hpoison]]. rewrite Hvalue in Hw. injection Hw as <-.
-    exact (Hnot_poison Hpoison).
+    Hnot_poison Hnot_relation.
+  apply (has_type_unless_not_exempt (exempt_by_poison valuation tenv n)
+           statics valuation v ty).
+  - exact (find_satisfied (exempt_by_poison valuation tenv) statics valuation
+             tenv n kind ty v Hsatisfied Hfind Hvalue).
+  - intros [[w [Hw Hpoison]] | [ty' [btm [Hlookup Hrelation]]]].
+    + rewrite Hvalue in Hw. injection Hw as <-.
+      exact (Hnot_poison Hpoison).
+    + rewrite (find_lookup tenv n kind ty ty' btm (proj1 Hsatisfied) Hfind
+                 Hlookup) in Hnot_relation.
+      exact (Hnot_relation Hrelation).
 Qed.
 
 Theorem find_kind : find_kind_statement.
@@ -544,10 +617,11 @@ Proof.
     Hscope Hfind.
   destruct (Hbound x Hscope) as [v Hv]. exists v.
   split; [ exact Hv | ].
-  apply (has_type_unless_kind (holds_poison valuation (Name_var x)) statics
-           valuation v ty).
-  apply (find_satisfied (holds_poison valuation) statics valuation tenv
-           (Name_var x) None ty v Hsatisfied Hfind).
+  apply (has_type_unless_kind
+           (exempt_by_poison valuation tenv (Name_var x)) statics valuation v
+           ty).
+  apply (find_satisfied (exempt_by_poison valuation tenv) statics valuation
+           tenv (Name_var x) None ty v Hsatisfied Hfind).
   rewrite (agrees_value_of_name tenv valuation vars x Hagrees Hscope).
   exact Hv.
 Qed.
@@ -568,13 +642,17 @@ Qed.
 Theorem find_variable_in_terms : find_variable_in_terms_statement.
 Proof.
   intros tenv statics vars x kind ty v [_ [valuation [Hsatisfied Hagrees]]]
-    Hscope Hfind Hfree Hv Hnot_poison.
+    Hscope Hfind Hfree Hv Hnot_poison Hnot_relation.
   apply (type_satisfied_agrees tenv statics valuation vars v ty Hagrees
            Hfree).
   apply (find_not_poison statics valuation tenv (Name_var x) kind ty v
-           Hsatisfied Hfind); [ | exact Hnot_poison ].
-  rewrite (agrees_value_of_name tenv valuation vars x Hagrees Hscope).
-  exact Hv.
+           Hsatisfied Hfind); [ | exact Hnot_poison | ].
+  - rewrite (agrees_value_of_name tenv valuation vars x Hagrees Hscope).
+    exact Hv.
+  - intros Hrelation. apply Hnot_relation.
+    apply (relation_on_poison_coincide valuation vars ty);
+      [ | exact Hrelation ].
+    intros y Hy. exact (Hagrees y (Hfree y Hy)).
 Qed.
 
 Theorem find_symbol_in_terms : find_symbol_in_terms_statement.
@@ -583,9 +661,17 @@ Proof.
     Hfind Hfree.
   apply (type_satisfied_agrees tenv statics valuation vars (Value_symbol s)
            ty Hagrees Hfree).
-  apply (find_not_poison statics valuation tenv (Name_symbol s) kind ty
-           (Value_symbol s) Hsatisfied Hfind); [ reflexivity | ].
-  intros [k Hpoison]. discriminate.
+  destruct (find_satisfied (exempt_by_poison valuation tenv) statics
+              valuation tenv (Name_symbol s) kind ty (Value_symbol s)
+              Hsatisfied Hfind eq_refl) as [[Hexempt Hkind] | Hty];
+    [ exfalso | exact Hty ].
+  destruct Hexempt
+    as [[w [Hw [k Hpoison]]] | [ty' [btm [Hlookup Hrelation]]]].
+  - rewrite value_of_name_symbol in Hw. injection Hw as <-. discriminate.
+  - rewrite (find_lookup tenv (Name_symbol s) kind ty ty' btm
+               (proj1 Hsatisfied) Hfind Hlookup) in Hkind.
+    destruct Hrelation as [head [relation [scrutinee [-> _]]]].
+    discriminate.
 Qed.
 
 (* ======================================================================== *)

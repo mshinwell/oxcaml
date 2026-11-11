@@ -144,27 +144,29 @@
      values ([alias_has_type_found_statement] and
      FlambdaTypingEnvExamplesSpec.v).
      To be strictly satisfied is not to be free of poison. A name may
-     hold poison where its type admits it (the unknown type, an alias
-     of a name that holds it); and a relation of a type says nothing of
-     a scrutinee that is poison (FlambdaTypeMeaningSpec.v), so a name
-     may hold 0 with the type "[Is_int] of [p]" where [p] holds poison.
-     What strictness gives is that the type found for a name is the
-     type of its value. A statement that reads a relation, or that
-     needs a value not to be poison, still has that case to deal with.
-     (Where no name holds poison the two notions are one,
+     hold poison where its type admits it: the unknown type, an alias
+     of a name that holds it, the type of the values that are not null.
+     But a relation of a type ([Is_int], [Get_tag], [Is_null]) is never
+     true of a scrutinee that holds poison (FlambdaTypeMeaningSpec.v;
+     decision D26 as revised), so under strict satisfaction a statement
+     that reads a relation has no case of poison. (Where no name holds
+     poison the two notions are one,
      [satisfied_no_poison_strictly_statement]; that is a narrower case
      than to be strictly satisfied.)
-     [typing_env_satisfied]: the names that hold poison are exempt
-     (decision D26; there is a CR there). Typing facts are about values
-     that are not poison: a name that is not poison has its type
-     ([find_not_poison_statement]), and a use of a fact has the other
-     case to deal with. Nothing else follows from it. It is there for
-     what unboxing does: the parameters that stand for the fields of an
-     inactive case of a variant are given their types on every path,
-     and hold poison. Until then the environments that Simplify builds
-     are strictly satisfied. Inside a type nothing changes: the fields
-     of a block that is not poison have their types as
-     FlambdaTypeMeaningSpec.v says, poison or not.
+     [typing_env_satisfied]: the names that hold poison are exempt,
+     and those whose type is a relation on a name that holds poison
+     ([exempt_by_poison]; decision D26; there is a CR there). Typing
+     facts are about values that are not poison: a name that is not
+     exempt has its type ([find_not_poison_statement]), and a use of a
+     fact has the other case to deal with. Nothing else follows from
+     it. It is there for what unboxing does: the parameters that stand
+     for the fields of an inactive case of a variant are given their
+     types on every path, and hold poison; and where such a field is
+     unboxed in turn, its [Is_int] and tag parameters are given the
+     relations to it as their types, and hold 0. Until then the
+     environments that Simplify builds are strictly satisfied. Inside a
+     type nothing changes: the fields of a block that is not poison
+     have their types as FlambdaTypeMeaningSpec.v says, poison or not.
      The exemption of poison is by the value that the valuation gives,
      for every name. It cannot be only for the names in scope: a
      parameter that holds poison may be captured by a closure, and is
@@ -280,8 +282,30 @@ Definition typing_env_satisfied_strictly (statics : static_env)
 Definition holds_poison (valuation : env) (n : name) : Prop :=
   ∃ v : value, value_of_name valuation n = Some v ∧ is_poison v.
 
-(* A valuation satisfies a typing environment: the names that hold
-   poison are exempt. *)
+(* A type is, at its head, a relation on a name that holds poison. This
+   is the type that unboxing gives the [Is_int] or the tag parameter of
+   a field of an inactive case of a variant; the parameter holds 0, and
+   no relation is true of a scrutinee that holds poison. *)
+Definition relation_on_poison (valuation : env) (ty : flambda_type) : Prop :=
+  ∃ (head : head_of_kind_naked_immediate) (relation : Relation.t)
+    (scrutinee : name),
+    ty = Type_naked_immediate (Ok (No_alias head))
+    ∧ (relation, scrutinee) ∈ inverse_relations head
+    ∧ holds_poison valuation scrutinee.
+
+(* The names that are exempt where poison is: a name that holds poison,
+   and a name whose type is a relation on a name that holds poison. *)
+Definition exempt_by_poison (valuation : env) (tenv : Typing_env.t)
+    (n : name) : Prop :=
+  holds_poison valuation n
+  ∨ ∃ (ty : flambda_type)
+      (binding_time_and_mode : Binding_time.With_name_mode.t),
+      Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
+      = Some (ty, binding_time_and_mode)
+      ∧ relation_on_poison valuation ty.
+
+(* A valuation satisfies a typing environment: the names that are
+   exempt where poison is are exempt. *)
 (* CR mshinwell: nothing is asked of the type of a name whose value is
    poison. That is a decision of the model, which the compiler does not
    state. Unboxing gives the parameters that stand for the fields of an
@@ -289,7 +313,9 @@ Definition holds_poison (valuation : env) (n : name) : Prop :=
    poison for them (simplify/unboxing/unboxing_epa.ml,
    build_unboxing_denv.ml). It relies on there being no strict use of
    such a parameter where it holds poison, and no meet of its type to
-   bottom there; nothing checks either. Decision D26. *)
+   bottom there; nothing checks either. The same of the [Is_int] and
+   tag parameters of such a field that is unboxed in turn, for which
+   unboxing passes 0. Decision D26. *)
 (* CR mshinwell: a valuation may give poison to a variable that exists
    only in types, of which nothing is then asked: the exemption of
    poison is by the value, for every name, and not only for the names
@@ -300,7 +326,8 @@ Definition holds_poison (valuation : env) (n : name) : Prop :=
    choice made. Decision D26. *)
 Definition typing_env_satisfied (statics : static_env) (valuation : env)
     (tenv : Typing_env.t) : Prop :=
-  typing_env_satisfied_but (holds_poison valuation) statics valuation tenv.
+  typing_env_satisfied_but (exempt_by_poison valuation tenv) statics
+    valuation tenv.
 
 (* A variable may occur in a term simplified under the typing
    environment: it is bound there, with the normal name mode, and is not
@@ -525,8 +552,9 @@ Definition alias_has_type_found_statement : Prop :=
     type_satisfied statics valuation v (alias_type_of k (simple_of_name n)) ->
     type_satisfied statics valuation v ty.
 
-(* Where the names that hold poison are exempt: a name whose value is
-   not poison has the type found for it. *)
+(* Where poison is exempt: a name whose value is not poison has the
+   type found for it, unless that type is a relation on a name that
+   holds poison. *)
 Definition find_not_poison_statement : Prop :=
   ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
     (n : name) (kind : option flambda_kind) (ty : flambda_type) (v : value),
@@ -534,6 +562,7 @@ Definition find_not_poison_statement : Prop :=
     Typing_env.find tenv n kind = Some ty ->
     value_of_name valuation n = Some v ->
     ~ is_poison v ->
+    ~ relation_on_poison valuation ty ->
     type_satisfied statics valuation v ty.
 
 (* The type found is of the kind asked for. *)
@@ -563,9 +592,10 @@ Definition in_scope_in_terms_bound_statement : Prop :=
 
 (* The type of a variable in scope is the type of the value that the
    machine has for it, if the type mentions only variables in scope:
-   strictly; and where the names that hold poison are exempt, unless
-   that value is poison. (A type that mentions other variables is about
-   the values that the valuation gives them: [find_satisfied_statement].) *)
+   strictly; and where poison is exempt, unless that value is poison or
+   the type is a relation on a variable that holds poison. (A type that
+   mentions other variables is about the values that the valuation
+   gives them: [find_satisfied_statement].) *)
 Definition find_variable_in_terms_strictly_statement : Prop :=
   ∀ (tenv : Typing_env.t) (statics : static_env) (vars : env)
     (x : variable) (kind : option flambda_kind) (ty : flambda_type)
@@ -587,6 +617,7 @@ Definition find_variable_in_terms_statement : Prop :=
     (∀ y : variable, y ∈ free_variables ty -> in_scope_in_terms tenv y) ->
     lookup x vars = Some v ->
     ~ is_poison v ->
+    ~ relation_on_poison vars ty ->
     type_satisfied statics vars v ty.
 
 (* The type of a symbol is the type of the pointer that the symbol is,

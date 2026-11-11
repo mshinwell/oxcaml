@@ -197,11 +197,10 @@ Theorem example_env_poison : example_env_poison_statement.
 Proof.
   intros tenv Henv. apply typing_env_satisfied_env_satisfies.
   - exact (example_env_bound tenv _ _ Henv).
-  - apply (example_env_typing_env_satisfied
-             (holds_poison (example_vars (poison Value) (poison Value))));
-      [ exact Henv | ].
+  - unfold typing_env_satisfied.
+    apply example_env_typing_env_satisfied; [ exact Henv | ].
     left. split; [ | reflexivity ].
-    exists (poison Value). split; [ reflexivity | ].
+    left. exists (poison Value). split; [ reflexivity | ].
     exists Value. reflexivity.
 Qed.
 
@@ -246,14 +245,80 @@ Proof.
            (example_vars (tagged 9) (tagged 9)) (tagged 9));
     [ discriminate | discriminate | ].
   apply (find_variable_in_terms _ _ _ example_p None _ _ Hsatisfies eq_refl
-           eq_refl); [ intros y [] | reflexivity | ].
-  intros [k Hpoison]. discriminate.
+           eq_refl); [ intros y [] | reflexivity | | ].
+  - intros [k Hpoison]. discriminate.
+  - intros [head [relation [scrutinee [Hty _]]]]. discriminate.
 Qed.
 
 Theorem example_env_canonical : example_env_canonical_statement.
 Proof.
   intros tenv Henv. vm_compute in Henv. injection Henv as <-.
   vm_compute. reflexivity.
+Qed.
+
+(* The machine binds the two variables of the environment with the
+   relation. *)
+Lemma example_relation_env_bound (vi vp : value) :
+  bound_in_terms example_relation_env [(example_i, vi); (example_p, vp)].
+Proof.
+  intros x Hscope. apply in_scope_in_terms_lookup in Hscope.
+  destruct Hscope as [ty [btm [Hlookup _]]].
+  apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
+  vm_compute in Hlookup.
+  repeat (destruct Hlookup as [Hlookup | Hlookup];
+          [ injection Hlookup as <- <- <- | ]); [ .. | contradiction ];
+    eexists; reflexivity.
+Qed.
+
+Theorem example_relation_env_immediate
+    : example_relation_env_immediate_statement.
+Proof.
+  apply satisfied_strictly_env_satisfies;
+    [ apply example_relation_env_bound | ].
+  split; [ reflexivity | ]. split; [ | apply empty_respected ].
+  intros n ty btm v Hlookup Hvalue.
+  apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
+  vm_compute in Hlookup.
+  repeat (destruct Hlookup as [Hlookup | Hlookup];
+          [ injection Hlookup as <- <- <- | ]); [ .. | contradiction ].
+  all: cbv in Hvalue; injection Hvalue as <-; right.
+  all: try (first
+              [ apply (proj2 (unknown_satisfied _ _ _ Value))
+              | apply (proj2
+                         (unknown_satisfied _ _ _
+                            (Naked_number Kind_naked_immediate))) ];
+            reflexivity).
+  apply (proj2 (is_int_for_scrutinee_satisfied _ _ _ (Name_var example_p))).
+  exists 1, (tagged 5). split; [ reflexivity | ].
+  split; [ reflexivity | ]. left.
+  split; [ exists 5; reflexivity | reflexivity ].
+Qed.
+
+Theorem example_relation_env_poison : example_relation_env_poison_statement.
+Proof.
+  apply typing_env_satisfied_env_satisfies;
+    [ apply example_relation_env_bound | ].
+  split; [ reflexivity | ]. split; [ | apply empty_respected ].
+  intros n ty btm v Hlookup Hvalue.
+  apply (keyed_lookup_in name_eqb name_eqb_eq) in Hlookup.
+  vm_compute in Hlookup.
+  repeat (destruct Hlookup as [Hlookup | Hlookup];
+          [ injection Hlookup as <- <- <- | ]); [ .. | contradiction ].
+  all: cbv in Hvalue; injection Hvalue as <-.
+  all: try (right;
+            first
+              [ apply (proj2 (unknown_satisfied _ _ _ Value))
+              | apply (proj2
+                         (unknown_satisfied _ _ _
+                            (Naked_number Kind_naked_immediate))) ];
+            reflexivity).
+  (* [i] is exempt: its type is a relation on [p], which holds poison. *)
+  left. split; [ | reflexivity ].
+  right. eexists. eexists. split; [ reflexivity | ].
+  eexists. exists Relation.Is_int, (Name_var example_p).
+  split; [ reflexivity | ]. split; [ left; reflexivity | ].
+  exists (poison Value). split; [ reflexivity | ].
+  exists Value. reflexivity.
 Qed.
 
 (* Where the environment is satisfied, [y] and [p] hold the same. *)
@@ -391,8 +456,9 @@ Proof.
       (Value_closure example_f [(example_w, tagged 9)])
       example_closure_type).
   { apply (find_not_poison empty_static_env valuation _ (Name_var example_c)
-             None _ _ Hsatisfied eq_refl); [ exact Hc | ].
-    intros [k Hpoison]. discriminate. }
+             None _ _ Hsatisfied eq_refl); [ exact Hc | | ].
+    - intros [k Hpoison]. discriminate.
+    - intros [head [relation [scrutinee [Hty _]]]]. discriminate. }
   apply exactly_this_closure_satisfied in Hty.
   destruct Hty as [functions [value_slots [[= <- <-] [_ [_ Hentry]]]]].
   apply closures_entry_lookup_iff in Hentry.
@@ -404,8 +470,9 @@ Proof.
   apply (not_tagged_7_or_8 empty_static_env valuation (tagged 9));
     [ discriminate | discriminate | ].
   apply (find_not_poison empty_static_env valuation _ (Name_var example_p)
-           None _ _ Hsatisfied eq_refl); [ exact Hp | ].
-  intros [k Hpoison]. discriminate.
+           None _ _ Hsatisfied eq_refl); [ exact Hp | | ].
+  - intros [k Hpoison]. discriminate.
+  - intros [head [relation [scrutinee [Hty _]]]]. discriminate.
 Qed.
 
 (* ======================================================================== *)
@@ -508,8 +575,9 @@ Proof.
       example_join_type).
   { apply (find_not_poison empty_static_env valuation example_join_env
              (Name_var example_q) None _ _ Hsatisfied eq_refl);
-      [ exact Hq | ].
-    intros [k Hpoison]. discriminate. }
+      [ exact Hq | | ].
+    - intros [k Hpoison]. discriminate.
+    - intros [head [relation [scrutinee [Hty _]]]]. discriminate. }
   apply example_join_type_block in Hty.
   apply immutable_block_satisfied in Hty.
   destruct Hty as [fields [[= <-] [_ Hfields]]].
@@ -522,8 +590,9 @@ Proof.
       (these_tagged_immediates [4])).
   { apply (find_not_poison empty_static_env valuation example_join_env
              (Name_var example_e) None _ _ Hsatisfied eq_refl);
-      [ exact He | ].
-    intros [k Hpoison]. discriminate. }
+      [ exact He | | ].
+    - intros [k Hpoison]. discriminate.
+    - intros [head [relation [scrutinee [Hty _]]]]. discriminate. }
   apply these_tagged_immediates_satisfied in Hty.
   destruct Hty as [i [[= <-] [Hi | []]]]. discriminate.
 Qed.

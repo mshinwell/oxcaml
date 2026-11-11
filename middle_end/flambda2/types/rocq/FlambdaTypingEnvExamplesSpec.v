@@ -227,8 +227,40 @@ Definition example_env_poison_alias_type_statement : Prop :=
           (example_vars (poison Value) (poison Value)) (poison Value)
           (these_tagged_immediates [7; 8]).
 
-(* ... and is not where [y], an alias of [p], holds something else: the
-   aliases are exact, poison or not... *)
+(* A relation on a name that holds poison. Where a field of an inactive
+   case of a variant is unboxed in turn, unboxing passes poison for the
+   field and 0 for the parameter that stands for [Is_int] of it, whose
+   type is that relation. Here [p] is the field and [i] the parameter.
+   Where [p] holds an immediate and [i] holds 1 the environment is
+   satisfied strictly... *)
+Definition example_i : variable := 8%positive.
+
+Definition example_relation_env : Typing_env.t :=
+  let tenv := Typing_env.create in
+  let tenv :=
+    Typing_env.add_variable_definition tenv example_p Value Name_mode.normal
+  in
+  let tenv :=
+    Typing_env.add_variable_definition tenv example_i
+      (Naked_number Kind_naked_immediate) Name_mode.normal
+  in
+  Typing_env.replace_equation tenv (Name_var example_i)
+    (is_int_for_scrutinee (Name_var example_p)).
+
+Definition example_relation_env_immediate_statement : Prop :=
+  env_satisfies_strictly example_relation_env empty_static_env
+    [(example_i, Value_const (Naked_immediate 1)); (example_p, tagged 5)].
+
+(* ... and where [p] holds poison and [i] holds 0 it is satisfied with
+   poison exempt: no relation is true of a scrutinee that holds poison,
+   and [i], whose type is a relation on [p], is exempt with [p]. *)
+Definition example_relation_env_poison_statement : Prop :=
+  env_satisfies example_relation_env empty_static_env
+    [(example_i, Value_const (Naked_immediate 0)); (example_p, poison Value)].
+
+(* Back to the first environment: it is not satisfied where [y], an
+   alias of [p], holds something else than [p]: the aliases are exact,
+   poison or not... *)
 Definition example_env_poison_alias_statement : Prop :=
   ∀ tenv : Typing_env.t,
     example_env = Some tenv ->
