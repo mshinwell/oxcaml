@@ -234,9 +234,23 @@ place in that order. The order means nothing: make takes the dependencies
 between the files from `rocq dep`, the review document orders the files
 itself, and what is extracted does not depend on the order of the names.
 `make claims` finds the Spec files of these lists by their suffix too.
-Only the integrator edits these lists (`middle_end/flambda2/rocq/`
-`PARALLEL-PLAN.md`, section 7): a workstream says in its merge request
-which lines it needs.
+
+These lists are the integrator's (`middle_end/flambda2/rocq/OWNERS.md`),
+but a workstream cannot build a new file without its line, nor can whoever
+reviews the branch. So a workstream asks for its lines with a commit:
+
+- The lines go in one commit of their own, the last on the branch, with
+  the subject `Flambda 2 Rocq: <stream>: lines for the shared lists`. It
+  touches nothing but these lists, and adds only lines for that stream's
+  own files, each in its place in the order. No other commit of the
+  branch touches the lists.
+- To add a line later, amend that commit if it is still the last. If
+  other commits have followed it, move it back to the end before asking
+  for a merge: `git rebase --onto <it>^ <it>` takes it out of the branch
+  and `git cherry-pick <it>` puts it on top. Neither runs the commit
+  hooks, so reread the messages.
+- The integrator checks the commit at the merge, and refuses a branch
+  whose lists differ from the integration branch's in any other way.
 
 ## The layout of a model
 
@@ -671,8 +685,8 @@ not a proof.
   `git checkout -- middle_end/flambda2/tests/semantics/extracted` puts
   them back, which a rebase needs first. When a branch is merged, the
   integrator runs `make -C rocq all` on the result and commits what it
-  regenerates with the merge. `prim_hook.ml`, written by hand, is the
-  integrator's like the rest of the directory.
+  regenerates, on top of the branch. `prim_hook.ml`, written by hand, is
+  the integrator's like the rest of the directory.
 - Trusted and unverified: the conversion from Flambda terms to model
   terms, and the meaning the tool gives to the few primitives it knows,
   which the model leaves abstract. Read both in `flsemantics.ml`. The
