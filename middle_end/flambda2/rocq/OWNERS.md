@@ -264,6 +264,16 @@ Owner: N2.
 - `middle_end/flambda2/rocq/FlambdaInlineFresh*`
 - `middle_end/flambda2/rocq/requests/N2-fresh-quantifier.md`
 
+## N3: the validator commutes with renaming
+
+Owner: N3, on `flambda2-rocq/N3-equivariance`. N1 leads the work on
+names.
+
+- `middle_end/flambda2/rocq/FlambdaValidatorEquivariance*` (each
+  rewrite and each check of the validator commutes with renaming:
+  what `NAMES.md`, section 7, owes for the files of V1 and V2 and for
+  the checks of `FlambdaWellFormedSpec.v`)
+
 ## R1, R2: reviewers
 
 Owner: R1, on `flambda2-rocq/R1-review`. R2 is unassigned. They write
