@@ -28,7 +28,7 @@
 (* The older definitions of free names and of scope say the same as the
    functions of FlambdaBindersSpec.v, on a term whose code is closed.
 
-   This file is to be reviewed: the four statements.
+   This file is to be reviewed: the six statements.
 
    The model has four older accounts of which names a term uses:
    - the relations [var_free_in_expr] and [cont_free_in_expr] of
@@ -44,7 +44,9 @@
    only on a term that binds code which is not closed (they need not:
    a binder around the code may bind what the code leaves free), and
    they agree where [code_closed] holds, which is every well-formed
-   term.
+   term. On every term, a name that is free by a relation is among the
+   free names given by the function ([var_free_among_statement],
+   [cont_free_among_statement]): the functions look at more.
 
    These statements are what lets the older definitions be restated as
    the one function, a statement at a time, without changing what any
@@ -72,6 +74,23 @@ Definition cont_free_agrees_statement : Prop :=
     code_closed e = true ->
     (cont_free_in_expr k e
      <-> among k (free_continuations_of_expr e) = true).
+
+(* Whatever the code, a name that is free by the relation is among the
+   free names: the function looks into code and the relation does not.
+   A statement whose premise is that a name is not free may so be
+   restated by the function with no premise on code. The restated
+   statement is not the same statement: where code is not closed its
+   premise asks more (a name that only code mentions is among the free
+   names and is not free by the relation). Where code is closed the two
+   premises are the same. *)
+Definition var_free_among_statement : Prop :=
+  ∀ (x : variable) (e : expr),
+    var_free_in_expr x e -> among x (free_variables_of_expr e) = true.
+
+Definition cont_free_among_statement : Prop :=
+  ∀ (k : continuation) (e : expr),
+    cont_free_in_expr k e ->
+    among k (free_continuations_of_expr e) = true.
 
 (* The two functions for the free continuations give the same list. *)
 Definition free_continuations_agree_statement : Prop :=

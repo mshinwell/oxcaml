@@ -332,6 +332,156 @@ Theorem cont_free_agrees : cont_free_agrees_statement.
 Proof. exact cont_free_agrees_expr. Qed.
 
 (* ======================================================================== *)
+(* Free by a relation is among the free names, whatever the code            *)
+(* ======================================================================== *)
+
+Lemma var_free_in_bindings_among_all (x : variable)
+    (bindings : list static_binding) :
+  Exists (var_free_in_static_binding x) bindings ->
+  among x (flat_map free_variables_of_binding bindings) = true.
+Proof.
+  intros Hfree. apply among_flat_map. apply Exists_exists in Hfree.
+  destruct Hfree as [binding [Hin Hbinding]]. apply Exists_exists.
+  exists binding. split; [ exact Hin | ].
+  destruct binding as [id c | id | s const];
+    cbn [var_free_in_static_binding] in Hbinding;
+    [ destruct Hbinding | destruct Hbinding | ].
+  apply var_free_in_static_const_among, Hbinding.
+Qed.
+
+Fixpoint var_free_among_expr (x : variable) (e : expr) {struct e} :
+  var_free_in_expr x e -> among x (free_variables_of_expr e) = true
+with var_free_among_handler (x : variable) (h : continuation_handler)
+    {struct h} :
+  var_free_in_handler x h -> among x (free_variables_of_handler h) = true.
+Proof.
+  - destruct e
+      as [ y kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      cbn [var_free_in_expr free_variables_of_expr].
+    + (* Let *)
+      rewrite among_app, orb_true_iff, among_without, andb_true_iff.
+      rewrite negb_true_iff.
+      pose proof (var_free_in_named_among x d) as Hd.
+      pose proof (var_free_among_expr x body) as Hbody.
+      pose proof (not_among_singleton x y) as Hy.
+      tauto.
+    + (* Let_static *)
+      rewrite among_app, orb_true_iff.
+      pose proof (var_free_in_bindings_among_all x bindings) as Hgroup.
+      pose proof (var_free_among_expr x body) as Hbody.
+      tauto.
+    + (* Let_cont_non_recursive *)
+      rewrite among_app, orb_true_iff.
+      pose proof (var_free_among_handler x h) as Hh.
+      pose proof (var_free_among_expr x body) as Hbody.
+      tauto.
+    + (* Let_cont_recursive *)
+      rewrite among_app, orb_true_iff.
+      pose proof (var_free_among_expr x body) as Hbody.
+      assert (Hgroup :
+        any_handler (var_free_in_handler x) handlers ->
+        among x
+          (flat_map (fun '(_, h) => free_variables_of_handler h) handlers)
+        = true).
+      { clear Hbody.
+        induction handlers as [ | [k h] handlers IH]; [ intros [] | ].
+        cbn [any_handler flat_map]. rewrite among_app, orb_true_iff.
+        pose proof (var_free_among_handler x h) as Hh.
+        tauto. }
+      tauto.
+    + (* Apply *)
+      unfold free_variables_of_apply. rewrite among_app, orb_true_iff.
+      pose proof (var_free_in_simple_among x (ap_callee ap)) as Hcallee.
+      pose proof (var_free_in_simples_among x (ap_args ap)) as Hargs.
+      tauto.
+    + (* Apply_cont *)
+      unfold free_variables_of_apply_cont. apply var_free_in_simples_among.
+    + (* Switch *)
+      rewrite among_app, orb_true_iff, among_flat_map.
+      pose proof (var_free_in_simple_among x scrutinee) as Hscrutinee.
+      assert (Harms :
+        Exists (fun arm => var_free_in_simples x (ac_args (snd arm))) arms
+        <-> Exists
+              (fun arm : Z * apply_cont =>
+                 among x (free_variables_of_apply_cont (snd arm)) = true)
+              arms).
+      { apply Exists_equiv. intros arm. apply var_free_in_simples_among. }
+      tauto.
+    + (* Invalid *)
+      intros [].
+  - destruct h as [params metadata handler].
+    cbn [var_free_in_handler free_variables_of_handler].
+    rewrite among_without, andb_true_iff, negb_true_iff.
+    pose proof (var_free_among_expr x handler) as Hhandler.
+    pose proof (not_among_in x params) as Hparams.
+    tauto.
+Qed.
+
+Theorem var_free_among : var_free_among_statement.
+Proof. exact var_free_among_expr. Qed.
+
+Fixpoint cont_free_among_expr (k : continuation) (e : expr) {struct e} :
+  cont_free_in_expr k e -> among k (free_continuations_of_expr e) = true
+with cont_free_among_handler (k : continuation) (h : continuation_handler)
+    {struct h} :
+  cont_free_in_handler k h ->
+  among k (free_continuations_of_handler h) = true.
+Proof.
+  - destruct e
+      as [ y kind d body | bindings body | k' h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      cbn [cont_free_in_expr free_continuations_of_expr].
+    + (* Let *)
+      exact (cont_free_among_expr k body).
+    + (* Let_static *)
+      intros Hbody. rewrite among_app, (cont_free_among_expr k body Hbody).
+      apply orb_true_r.
+    + (* Let_cont_non_recursive *)
+      rewrite among_app, orb_true_iff, among_without, andb_true_iff.
+      rewrite negb_true_iff.
+      pose proof (cont_free_among_handler k h) as Hh.
+      pose proof (cont_free_among_expr k body) as Hbody.
+      pose proof (not_among_singleton k k') as Hk'.
+      tauto.
+    + (* Let_cont_recursive *)
+      rewrite among_without, andb_true_iff, negb_true_iff, among_app.
+      rewrite orb_true_iff.
+      pose proof (cont_free_among_expr k body) as Hbody.
+      assert (Hunbound :
+        lookup k handlers = None <-> among k (map fst handlers) = false).
+      { rewrite <- is_bound_among. unfold is_bound.
+        destruct (lookup k handlers); split; congruence. }
+      assert (Hgroup :
+        any_handler (cont_free_in_handler k) handlers ->
+        among k
+          (flat_map (fun '(_, h) => free_continuations_of_handler h)
+             handlers)
+        = true).
+      { clear Hbody Hunbound.
+        induction handlers as [ | [k0 h] handlers IH]; [ intros [] | ].
+        cbn [any_handler flat_map]. rewrite among_app, orb_true_iff.
+        pose proof (cont_free_among_handler k h) as Hh.
+        tauto. }
+      tauto.
+    + (* Apply *)
+      rewrite among_In. simpl.
+      intros [-> | ->]; [ left | right; left ]; reflexivity.
+    + (* Apply_cont *)
+      apply among_singleton.
+    + (* Switch *)
+      rewrite among_In, in_map_iff, Exists_exists.
+      intros [arm [Hin ->]]. exists arm. split; [ reflexivity | exact Hin ].
+    + (* Invalid *)
+      intros [].
+  - destruct h as [params metadata handler].
+    exact (cont_free_among_expr k handler).
+Qed.
+
+Theorem cont_free_among : cont_free_among_statement.
+Proof. exact cont_free_among_expr. Qed.
+
+(* ======================================================================== *)
 (* The free continuations as a list                                         *)
 (* ======================================================================== *)
 
