@@ -37,7 +37,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaBlockLoadProofs FlambdaUnboxSpec FlambdaUnboxProofs
   FlambdaUnusedContsSpec FlambdaUnusedContsProofs FlambdaUnusedStaticsSpec
   FlambdaUnusedStaticsProofs FlambdaLiftSpec FlambdaLiftProofs
-  FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs FlambdaValidateSpec.
+  FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs FlambdaKnownSymbolsSpec
+  FlambdaKnownSymbolsProofs FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec
   FlambdaAliasesProofs.
 Import ListNotations.
@@ -166,6 +167,26 @@ Proof.
   exact (lift_unit_program_refines L e e' Hlift).
 Qed.
 
+Lemma with_known_program_refines (e : expr) :
+  program_refines e (with_known e).
+Proof.
+  unfold with_known.
+  destruct (fold_known_unit e) as [e' | ] eqn:Hfold; [ | apply refines_refl ].
+  exact (fold_known_unit_program_refines e e' Hfold).
+Qed.
+
+Lemma normalise_lifted_program_refines (rounds : nat) :
+  ∀ e : expr, program_refines e (normalise_lifted rounds e).
+Proof.
+  unfold normalise_lifted.
+  induction rounds as [ | rounds IH]; intros e; simpl;
+    [ apply refines_refl | ].
+  apply (refines_trans _ _ _
+    (expr_refines_program _ _ (normalise_before_round_refines e))).
+  apply (refines_trans _ _ _ (with_known_program_refines _)).
+  apply IH.
+Qed.
+
 Lemma without_slots_program_refines (slots : list value_slot) (e : expr) :
   program_refines e (without_slots slots e).
 Proof.
@@ -192,7 +213,7 @@ Proof.
         (expr_eqb [] []
            (without_statics unused
               (without_slots slots
-                 (normalise_before rounds (with_lifting L before))))
+                 (normalise_lifted rounds (with_lifting L before))))
            (normalise_after rounds after));
         intros [H | H]; discriminate H.
 Qed.
@@ -224,12 +245,12 @@ Proof.
           (expr_eqb [] []
              (without_statics unused
                 (without_slots slots
-                   (normalise_before rounds (with_lifting L before))))
+                   (normalise_lifted rounds (with_lifting L before))))
              (normalise_after rounds after)) eqn:Hlifted;
           [ intros _ | intros H; contradiction H; reflexivity ].
         apply (refines_trans _ _ _ (with_lifting_program_refines L _)).
         apply (refines_trans _ _ _
-          (expr_refines_program _ _ (normalise_before_refines rounds _))).
+          (normalise_lifted_program_refines rounds _)).
         apply (refines_trans _ _ _ (without_slots_program_refines slots _)).
         apply (refines_trans _ _ _
           (without_statics_program_refines unused _)).

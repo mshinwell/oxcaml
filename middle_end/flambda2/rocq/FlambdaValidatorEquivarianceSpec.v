@@ -152,10 +152,11 @@
    [without_statics]; and the check, [validate_unit]. The check is
    given what to lift (FlambdaLiftSpec.lifting), which holds the two
    continuations of the unit, so a renaming acts on it
-   ([rename_lifting], which is to be reviewed); the lifting and the
-   removal of unused value slots commute with renaming by the
-   statements of FlambdaLiftSpec.v, of FlambdaMyClosureSpec.v and of
-   FlambdaUnusedSlotsSpec.v.
+   ([rename_lifting], which is to be reviewed); the lifting, the
+   removal of unused value slots and the folding on known symbols
+   commute with renaming by the statements of FlambdaLiftSpec.v, of
+   FlambdaMyClosureSpec.v, of FlambdaUnusedSlotsSpec.v and of
+   FlambdaKnownSymbolsSpec.v.
 
    Rewrites that make names. A rewrite that makes names with
    FlambdaNameAbstractionSpec.fresh_name, outside the names of the term

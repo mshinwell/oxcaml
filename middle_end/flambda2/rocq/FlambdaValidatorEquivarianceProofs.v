@@ -49,6 +49,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaCompareSpec FlambdaCompareAlphaSpec FlambdaCompareAlphaProofs
   FlambdaMyClosureSpec FlambdaMyClosureProofs FlambdaLiftSpec
   FlambdaLiftProofs FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs
+  FlambdaKnownSymbolsSpec FlambdaKnownSymbolsProofs
   FlambdaInlineFreshProofs FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
@@ -3494,13 +3495,192 @@ Proof.
   destruct (slots_unused slots e); reflexivity.
 Qed.
 
+(* The folding on known symbols. What is known has no variable in it,
+   so a renaming leaves it as it is. *)
+Lemma rename_closed_simple (r : renaming) (s : simple) :
+  closed_simple s = true -> rename_simple r s = s.
+Proof. destruct s; simpl; [ discriminate | reflexivity | reflexivity ]. Qed.
+
+Lemma closed_simple_renamed (r : renaming) (s : simple) :
+  closed_simple (rename_simple r s) = closed_simple s.
+Proof. destruct s; reflexivity. Qed.
+
+Lemma rename_closed_value_slots (r : renaming)
+    (slots : list (value_slot * simple)) :
+  forallb (fun slot => closed_simple (snd slot)) slots = true ->
+  map (fun slot => (fst slot, rename_simple r (snd slot))) slots = slots.
+Proof.
+  induction slots as [ | [slot s] slots IH]; simpl; [ reflexivity | ].
+  intros H. apply andb_true_iff in H as [Hs Hslots].
+  rewrite (rename_closed_simple r s Hs), (IH Hslots). reflexivity.
+Qed.
+
+Lemma closed_value_slots_renamed (r : renaming)
+    (slots : list (value_slot * simple)) :
+  forallb (fun slot => closed_simple (snd slot))
+    (map (fun slot => (fst slot, rename_simple r (snd slot))) slots)
+  = forallb (fun slot => closed_simple (snd slot)) slots.
+Proof.
+  induction slots as [ | [slot s] slots IH]; simpl; [ reflexivity | ].
+  rewrite closed_simple_renamed, IH. reflexivity.
+Qed.
+
+Lemma rename_closed_simples (r : renaming) (args : list simple) :
+  forallb closed_simple args = true -> map (rename_simple r) args = args.
+Proof.
+  induction args as [ | s args IH]; simpl; [ reflexivity | ].
+  intros H. apply andb_true_iff in H as [Hs Hargs].
+  rewrite (rename_closed_simple r s Hs), (IH Hargs). reflexivity.
+Qed.
+
+Lemma closed_simples_renamed (r : renaming) (args : list simple) :
+  forallb closed_simple (map (rename_simple r) args)
+  = forallb closed_simple args.
+Proof.
+  induction args as [ | s args IH]; simpl; [ reflexivity | ].
+  rewrite closed_simple_renamed, IH. reflexivity.
+Qed.
+
+Lemma rename_closed_static_const (r : renaming) (const : static_const) :
+  closed_static_const const = true -> rename_static_const r const = const.
+Proof.
+  destruct const as [code slots | fslot syms decls slots | tag fields
+    | contents | bytes];
+    simpl; intros Hclosed.
+  - rewrite (rename_closed_value_slots r slots Hclosed). reflexivity.
+  - rewrite (rename_closed_value_slots r slots Hclosed). reflexivity.
+  - rewrite (rename_closed_simples r fields Hclosed). reflexivity.
+  - rewrite (rename_closed_simple r contents Hclosed). reflexivity.
+  - reflexivity.
+Qed.
+
+Lemma closed_static_const_renamed (r : renaming) (const : static_const) :
+  closed_static_const (rename_static_const r const)
+  = closed_static_const const.
+Proof.
+  destruct const as [code slots | fslot syms decls slots | tag fields
+    | contents | bytes];
+    simpl.
+  - apply closed_value_slots_renamed.
+  - apply closed_value_slots_renamed.
+  - apply closed_simples_renamed.
+  - apply closed_simple_renamed.
+  - reflexivity.
+Qed.
+
+Lemma known_of_binding_renamed (r : renaming) (binding : static_binding) :
+  known_of_binding (rename_static_binding r binding)
+  = known_of_binding binding.
+Proof.
+  destruct binding as [id c | id | sym const]; try reflexivity.
+  cbn [rename_static_binding known_of_binding].
+  rewrite closed_static_const_renamed.
+  destruct (closed_static_const const) eqn:Hclosed; [ | reflexivity ].
+  rewrite (rename_closed_static_const r const Hclosed). reflexivity.
+Qed.
+
+Fixpoint known_bindings_renamed (r : renaming) (e : expr) {struct e} :
+  known_bindings (rename_expr r e) = known_bindings e
+with known_bindings_of_handler_renamed (r : renaming)
+    (h : continuation_handler) {struct h} :
+  known_bindings_of_handler (rename_handler r h)
+  = known_bindings_of_handler h.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      simpl; try reflexivity.
+    + apply known_bindings_renamed.
+    + rewrite known_bindings_renamed. f_equal.
+      induction bindings as [ | binding bindings IH]; simpl; [ reflexivity | ].
+      rewrite known_of_binding_renamed, IH. reflexivity.
+    + rewrite known_bindings_of_handler_renamed, known_bindings_renamed.
+      reflexivity.
+    + rewrite known_bindings_renamed. f_equal.
+      induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
+      rewrite known_bindings_of_handler_renamed, IH. reflexivity.
+  - destruct h as [params metadata handler]. simpl.
+    apply known_bindings_renamed.
+Qed.
+
+Lemma binding_bound_as_renamed (r : renaming)
+    (known : list (symbol * static_const)) (binding : static_binding) :
+  binding_bound_as known (rename_static_binding r binding)
+  = binding_bound_as known binding.
+Proof.
+  destruct binding as [id c | id | sym const]; try reflexivity.
+  cbn [rename_static_binding binding_bound_as].
+  destruct (lookup sym known) as [expected | ]; [ | reflexivity ].
+  rewrite closed_static_const_renamed.
+  destruct (closed_static_const const) eqn:Hclosed; [ | reflexivity ].
+  rewrite (rename_closed_static_const r const Hclosed). reflexivity.
+Qed.
+
+Fixpoint bound_as_renamed (r : renaming)
+    (known : list (symbol * static_const)) (e : expr) {struct e} :
+  bound_as known (rename_expr r e) = bound_as known e
+with handler_bound_as_renamed (r : renaming)
+    (known : list (symbol * static_const)) (h : continuation_handler)
+    {struct h} :
+  handler_bound_as known (rename_handler r h) = handler_bound_as known h
+with code_of_binding_bound_as_renamed (r : renaming)
+    (known : list (symbol * static_const)) (binding : static_binding)
+    {struct binding} :
+  code_of_binding_bound_as known (rename_static_binding r binding)
+  = code_of_binding_bound_as known binding
+with code_bound_as_renamed (r : renaming)
+    (known : list (symbol * static_const)) (c : code) {struct c} :
+  code_bound_as known (rename_code r c) = code_bound_as known c.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      simpl; try reflexivity.
+    + apply bound_as_renamed.
+    + rewrite bound_as_renamed. f_equal. f_equal.
+      * induction bindings as [ | binding bindings IH]; simpl;
+          [ reflexivity | ].
+        rewrite binding_bound_as_renamed, IH. reflexivity.
+      * induction bindings as [ | binding bindings IH]; simpl;
+          [ reflexivity | ].
+        rewrite code_of_binding_bound_as_renamed, IH. reflexivity.
+    + rewrite handler_bound_as_renamed, bound_as_renamed. reflexivity.
+    + rewrite bound_as_renamed. f_equal.
+      induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
+      rewrite handler_bound_as_renamed, IH. reflexivity.
+  - destruct h as [params metadata handler]. simpl. apply bound_as_renamed.
+  - destruct binding as [id c | id | sym const]; simpl; try reflexivity.
+    apply code_bound_as_renamed.
+  - destruct c as [params my_closure ret exn metadata body]. simpl.
+    apply bound_as_renamed.
+Qed.
+
+Lemma with_known_equivariant : rewrite_equivariant with_known.
+Proof.
+  intros r e. unfold with_known, fold_known_unit. cbv zeta.
+  rewrite known_bindings_renamed, bound_as_renamed.
+  destruct (bound_as (known_bindings e) e); [ | reflexivity ].
+  symmetry. apply fold_known_equivariant.
+Qed.
+
+Lemma normalise_lifted_round_equivariant :
+  rewrite_equivariant normalise_lifted_round.
+Proof.
+  intros r e. unfold normalise_lifted_round.
+  rewrite normalise_before_round_equivariant. apply with_known_equivariant.
+Qed.
+
+Lemma normalise_lifted_equivariant (rounds : nat) :
+  rewrite_equivariant (normalise_lifted rounds).
+Proof. apply iterate_equivariant, normalise_lifted_round_equivariant. Qed.
+
 Theorem validate_unit_equivariant : validate_unit_equivariant_statement.
 Proof.
   intros r rounds unused slots L before after. unfold validate_unit.
   rewrite with_lifting_renamed.
-  rewrite !normalise_before_equivariant, normalise_after_equivariant,
-    without_slots_equivariant, !without_statics_equivariant,
-    !expr_eqb_renamed.
+  rewrite normalise_before_equivariant, normalise_after_equivariant,
+    normalise_lifted_equivariant, without_slots_equivariant,
+    !without_statics_equivariant, !expr_eqb_renamed.
   reflexivity.
 Qed.
 
