@@ -76,11 +76,11 @@
    takes the one that an order on names puts first, which renaming need
    not keep (FlambdaEnvAliasesSpec.v, "Differences").
 
-   The forms are those of the laws of a thing that contains names, as
-   the stream on nominal sets states them after the compiler's
-   [Contains_names.S] (its interface is not in the tree yet): the
-   structure is to be an instance of it, for variables, with [=] as its
-   equality.
+   The structure is an instance, for variables and with [=] as its
+   equality, of the interface for things that contain names
+   (FlambdaNameAbstractionSpec.v, after the compiler's
+   [Contains_names.S]): [aliases_contains_names], which has the laws of
+   that interface ([aliases_nominal_statement]).
 
    The proofs are in FlambdaEnvAliasesRenamingProofs.v, which needs no
    review. *)
@@ -88,7 +88,8 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec FlambdaNominalSpec FlambdaAlphaSpec.
+  FlambdaSemanticsSpec FlambdaNominalSpec FlambdaAlphaSpec
+  FlambdaNameAbstractionSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
   FlambdaEnvAliasesSpec.
@@ -320,3 +321,18 @@ Definition rename_well_formed_statement : Prop :=
     aliases_well_formed (rename_resolver r binding_time_resolver)
       (rename_binding_times r binding_times_and_modes) (rename_aliases r t)
     <-> aliases_well_formed binding_time_resolver binding_times_and_modes t.
+
+(* ======================================================================== *)
+(* The structure as a thing that contains names                             *)
+(* ======================================================================== *)
+
+(* [Contains_names.S] for the aliases, the names being the variables: a
+   permutation of variables acts by [rename_aliases], the free names
+   are the free variables, and equality is [=]. *)
+Definition aliases_contains_names : Nominal.contains_names Aliases.t :=
+  Nominal.Contains_names (fun p t => rename_aliases (Renaming p []) t)
+    aliases_free_variables eq.
+
+(* It has the laws of the interface. *)
+Definition aliases_nominal_statement : Prop :=
+  Nominal.nominal aliases_contains_names.

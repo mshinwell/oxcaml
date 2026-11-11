@@ -32,7 +32,7 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec FlambdaMapProofs
   FlambdaSemanticsSpec FlambdaNominalSpec FlambdaNominalProofs FlambdaAlphaSpec
-  FlambdaAlphaProofs.
+  FlambdaAlphaProofs FlambdaNameAbstractionSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesProofs
@@ -1188,4 +1188,30 @@ Proof.
     exists (Name_var x, aliases).
     split; [ apply (keyed_lookup_in name_eqb name_eqb_eq), Hlookup | ].
     apply in_or_app. left. left. reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* The structure as a thing that contains names                             *)
+(* ======================================================================== *)
+
+Theorem aliases_nominal : aliases_nominal_statement.
+Proof.
+  constructor; unfold aliases_contains_names;
+    cbn [Nominal.apply_renaming Nominal.free_names Nominal.equal].
+  - reflexivity.
+  - intros t t' Hequal. symmetry. exact Hequal.
+  - intros t t' t'' -> ->. reflexivity.
+  - intros t. apply rename_aliases_identity.
+  - intros second first t.
+    apply (rename_aliases_compose (Renaming second []) (Renaming first []) t).
+  - intros p p' t Hsame. apply rename_aliases_extensional. intros x.
+    apply Hsame.
+  - intros p t t' ->. reflexivity.
+  - intros p t x. rewrite rename_free_variables.
+    apply
+      (among_renamed Pos.eqb (rename_variable (Renaming p []))
+         (rename_variable_eqb (Renaming p []))).
+  - intros t t' -> x. reflexivity.
+  - intros p t Hfixes. apply rename_aliases_fixes. intros x Hx.
+    apply Hfixes, Hx.
 Qed.
