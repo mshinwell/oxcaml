@@ -41,9 +41,10 @@
    unboxes its arguments and boxes its result, and the result of one is
    the argument of the next. Every conditional is made of the second:
    the front end tags the result of a comparison, a boolean, and untags
-   it for the [Switch]. There are no types of numbers in the model yet,
-   so [unbox_known_numbers] does it where the number is known from the
-   term alone. It goes through a term keeping ([known_numbers]):
+   it for the [Switch]. This normalisation uses no types: it does the
+   same where the number is known from the term alone, by a fact that
+   can be read off a [Let] or a static binding. It goes through a term
+   keeping ([known_numbers]):
 
    - for a variable bound by a [Let] to [Box_number kind] or to
      [Tag_immediate] applied to a [Simple], how it was wrapped and that
