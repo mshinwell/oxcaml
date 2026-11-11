@@ -1,12 +1,12 @@
 # T5b, the type traversal of the n-way join: status
 
-Branch `flambda2-rocq/T5b-join-types`, on T5's `flambda2-rocq/T5-join`
-(which is on T2's branch, and that on the integration branch). Under
-it now: T1's second request (the equality of types, the boxable
-numbers, D26 as amended in `relation_holds`), T2's kinds of
-environments, the folds of `Keyed`, T1's third request, and T5's
-proofs that the three functions of the environment side meet their
-contracts. Not under it yet: T4's files. Files, all in
+The series is merged into the integration branch (the type
+traversal and the assembled conditional theorem; the reviewer's
+scope is those, not the join of environments end to end). What
+follows the merge is on `flambda2-rocq/T5b-join-types`, which is on
+T5's `flambda2-rocq/T5-join`. Not under it yet: T4's files. (My work
+on slices of the meet, for T4, is on `flambda2-rocq/T5b-meet`, with
+a status file of its own there.) Files, all in
 `middle_end/flambda2/types/rocq/`:
 
 - `FlambdaJoinTypes.v`: the join functions of
@@ -61,6 +61,11 @@ types, inside a join of environments". I do not change that file.
   the environments joined, nor about the tests of equality.
   `n_way_join_of_types_keeps_definitions`: the same function keeps
   the definitions, with no premise. T5 asked for both.
+- `n_way_join_of_types_true` (after the merge): the same contract at
+  T5's `state_true source`, the invariant that says what the state
+  means, for every `source`; one premise more,
+  `parameters_type_eqb_sound p`. It is the hypothesis of T5's
+  statements about the rounds (`first_phases_true`).
 - Twenty-nine examples, each an equation proved by computation:
   unions of sets of numbers and of strings, constants and other
   aliases, unknown and bottom inputs, heads of two forms, blocks of
@@ -73,7 +78,13 @@ types, inside a join of environments". I do not change that file.
   T5b-3). The environment side of the
   examples is a stub defined in the file, not the join of
   environments; the two tests of equality are T1's. No answer was
-  read off a run of the compiler.
+  read off a run of the compiler. T7 has since run them through the
+  compiler's join of environments: no unexpected answer in the cases
+  compared (the header of the file says how they were run, what the
+  compiler does where the stub makes a variable, and which four were
+  not run). The example of the two mutable blocks was not compared
+  as it is written (`Heap` and `Local`): `Heap` and `Heap_or_local`
+  were compared in its place.
 - Proved on the way, each stated with its proof in
   `FlambdaJoinTypesProofs.v`, in the form of `join_step_sound` or
   what it becomes for a function that takes several lists or may
@@ -93,18 +104,18 @@ types, inside a join of environments". I do not change that file.
 
 ## Reviews
 
-Reviewer R4.
+Reviewer R4. Signed, and merged: the functions; the five slices of
+proofs; the two statements of `FlambdaJoinTypesKeepsSpec.v`; the
+definition and the first two statements of
+`FlambdaJoinTypesWithEnvSpec.v`; the examples.
 
-- Heads with no types inside (the first slice): signed, with one fix
-  of wording in the header of the Spec, made.
-- Products and closures entries; row-like structures: being read.
-- Variants and heads of kind value; expanded heads, the body, the
-  bound on the depth and the two closed statements: asked.
-- The two statements of `FlambdaJoinTypesKeepsSpec.v`: signed.
-- The definition and the two statements of
-  `FlambdaJoinTypesWithEnvSpec.v`, and the examples (the stub
-  environment side and each equation against the compiler's code):
-  asked.
+- R4 found a fatal error of the compiler that the transcription
+  lacked ("Found so far"); two examples on inputs that the
+  compiler's creation functions refuse (a record of floats at tag
+  0; closure types that are not of kind value); and one on an input
+  that no closure has (a known index without the function slot of
+  its case: the raw creation function accepts it, and the
+  well-formedness of types does not). Repaired before the merge.
 - R4 asked that the premise `joined_envs_constants_of_kind` stay in
   the statements that are for any well-formedness of environments,
   and go only where the invariant gives that aliases are
@@ -112,6 +123,8 @@ Reviewer R4.
 - R4 asked where the kind of an expansion comes from, and that no
   condition on kinds be hidden in the well-formedness of
   environments: see "Decided overnight".
+- To be asked: `n_way_join_of_types_true_statement`, and the
+  paragraph of the header of the examples about the run.
 
 ## Stand-ins carried
 
@@ -358,8 +371,8 @@ is on my base.
   answers a type of another kind than the types given. An unchecked
   assumption (that aliases are of one kind); the example
   `example_join_alias_of_another_kind` shows the first on the stub.
-  The test that would show it in the compiler is described in the
-  entry and was not run.
+  T7 ran the test in the compiler: `Meet_env.add_equation` accepts
+  the alias, and the n-way join stops at the `assert false`.
 - Met again here: R1-16 (the empty set given to
   `create_naked_immediates_non_empty`: `None` in the model), X3-5
   (the joined relations are dropped when the join of the variant is
@@ -382,17 +395,21 @@ is on my base.
   T4's files are under this branch: a change of imports, two
   arguments and two premises fewer in `n_way_join_of_types` and its
   statement; no proof changes shape.
-- The examples against the compiler by running: asked of T7.
 - Arrays, when the grammar has them (`Array`,
   `n_way_join_array_contents`, `join_array_element_kinds`).
 - Code age and `rec_info`, with the function types.
 
 ## Asked of me next
 
-- T5 is proving a stronger invariant of the state (`state_true`: the
-  equations of the target made so far are true) and will ask for
-  `n_way_join_type_sound` of `n_way_join_of_types` at it: an
-  instance of `n_way_join_sound`, when T5 sends its statements.
+- By T5, for the meet (T4): a fifth part of the kinds clause of the
+  contract, that the names of the equations of the extensions inside
+  the type answered are at the kinds of their types. It can hold of
+  the traversal: the extensions of an answer come from the join of
+  extensions of the environment side, from types imported as they
+  stand, or from an expansion, so it needs the same of those three
+  and a premise on the types given; here it is a third list threaded
+  beside the variables and the aliases through `join_step_sound`.
+  T5 writes the contract first.
 
 ## Open questions
 

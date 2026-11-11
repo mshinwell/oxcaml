@@ -47,10 +47,29 @@
 
    What they are not. No answer here was read off a run of the
    compiler: each is what the transcription computes, and was compared
-   with the compiler's code by reading. Comparing them by running is
-   for the differential tests of the types library. And the
-   environment side is not the compiler's, so an example says nothing
-   of what the join of environments does with the variables made here.
+   with the compiler's code by reading. And the environment side is
+   not the compiler's, so an example says nothing of what the join of
+   environments does with the variables made here.
+
+   They have since been compared with the compiler by running, by the
+   workstream of the differential tests of the types library. The
+   types of an example were given as the types of an argument at the
+   uses of a continuation and joined by
+   the compiler's n-way join of environments (the join of types cannot
+   be called alone from outside the types library). No answer of the
+   compiler was unexpected in the cases compared. Where no variable
+   is made, the compiler answers what is written here, sets compared
+   as sets. Where a variable is made for [Get_tag] or for [Is_int],
+   the compiler makes one, whose type is the two numbers with the
+   relation. Where one is made for the [Simple]s of an alias that is
+   mentioned once, the join of environments puts the join of their
+   types in its place. The last example stops the compiler at the
+   [assert false] that it names. The example of the two mutable
+   blocks was not compared as it is written, of the modes [Heap] and
+   [Local]: the compiler has no function that makes the mode [Local]
+   of a type, and the modes [Heap] and [Heap_or_local] were compared
+   in its place. Not run: no type, types of two kinds, the bound on
+   the depth, closure types of another kind.
 
    The environment side of the examples is a stub: the least that
    lets the traversal run on types whose only aliases are to constants
