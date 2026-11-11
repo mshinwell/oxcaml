@@ -41,13 +41,17 @@ that make the repository safe for parallel work.
   order itself, preferring the reading order they had. The lists of the
   other libraries are as they were.
 
+- Item 6, the extracted files. The rule (only the integrator commits
+  `tests/semantics/extracted/`; a workstream branch regenerates and does
+  not commit) is in `rocq/HACKING.md`, under "Testing Simplify against
+  the semantics". This branch commits them, as integrator work.
+
 ## In progress
 
-- Item 6, the rule for the extracted files.
+- Item 7, the trust ledger.
 
 ## To do
 
-- Item 7, the trust ledger.
 - Item 8, the ownership table.
 
 ## Blocked

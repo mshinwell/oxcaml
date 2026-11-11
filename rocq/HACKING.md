@@ -139,7 +139,9 @@ With Rocq and the repository's `ocamlformat` on `PATH`:
    and how many loops were deleted or checks removed from it, and the
    unit test alias
    `dune build @oxcaml/tests/backend/ssa/runtest`), then `make -s fmt`.
-5. Commit the `.v` files and the regenerated `.ml`/`.mli` together.
+5. Commit the `.v` files and the regenerated `.ml`/`.mli` together. (Not
+   so for the Flambda 2 semantics on a workstream branch: see "Who commits
+   the extracted files" under "Testing Simplify against the semantics".)
 
 After renaming or moving `.v` files, stale `.vo` files can shadow the new
 ones: `touch` the sources (or `make -C rocq clean`) before rebuilding.
@@ -641,6 +643,19 @@ not a proof.
   `tests/semantics/extracted/` (`make -C rocq all` regenerates it; the
   files are committed; `prim_hook.ml` there is written by hand). No part
   of the compiler is built from it.
+- Who commits the extracted files. Only the integrator commits
+  `tests/semantics/extracted/`, on the integration branch. They are
+  generated, one file from many sources, so two workstream branches that
+  each committed them would conflict at every merge, in files nobody
+  wrote. On a workstream branch, run `make -C rocq all` before the tests,
+  which regenerates the files where the tests find them, and leave them
+  out of your commits: stage the files you changed by name, not with
+  `git add -A`. `git status` will go on showing them as modified;
+  `git checkout -- middle_end/flambda2/tests/semantics/extracted` puts
+  them back, which a rebase needs first. When a branch is merged, the
+  integrator runs `make -C rocq all` on the result and commits what it
+  regenerates with the merge. `prim_hook.ml`, written by hand, is the
+  integrator's like the rest of the directory.
 - Trusted and unverified: the conversion from Flambda terms to model
   terms, and the meaning the tool gives to the few primitives it knows,
   which the model leaves abstract. Read both in `flsemantics.ml`.
