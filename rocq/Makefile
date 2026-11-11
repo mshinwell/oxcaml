@@ -248,7 +248,6 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaProversExamplesSpec.v \
   FlambdaProversProofs.v \
   FlambdaProversSpec.v \
-  FlambdaProversStandIn.v \
   FlambdaReify.v \
   FlambdaReifyProofs.v \
   FlambdaReifySpec.v \
