@@ -491,7 +491,7 @@ not a proof.
   The decision is `FlambdaCompareSpec.expr_eqb`, equality up to bound
   names, after the term before has been normalised by rewrites proved to
   refine it: `inline_calls` (direct calls of code bound by an enclosing
-  `Let_static`, in handlers too but not in the bodies of code), `fold_constants`, `collapse_switches` (a `Switch` whose
+  `Let_static`, in handlers and in the bodies of code too), `fold_constants`, `collapse_switches` (a `Switch` whose
   arms are all the same), `inline_tail_conts` (a continuation applied
   once at the end of its scope), `follow_aliases`, `remove_unused_lets`
   and `drop_deleted_code`, gone round until nothing changes as
@@ -524,6 +524,11 @@ not a proof.
   are the ones ending in `_where` in `FlambdaContextProofs.v`, which take
   a property of the static environment that every extension keeps
   (`inline_in_handler.fl` needs them).
+- Only the two inlining passes go into the bodies of code by
+  themselves, as they need what is known there. The others are applied
+  to the bodies by `rewrite_code`, which takes any rewrite and is proved
+  to refine, or to be an equivalence, when the rewrite does under all
+  environments (`inline_in_code.fl` needs both).
 - `showcase.fl` is the example to read first: direct and indirect calls,
   a closure with a value slot, nested switches and a join, all inlined by
   Simplify and validated. `switch_nested.fl` is a known gap: Simplify

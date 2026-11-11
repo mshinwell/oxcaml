@@ -78,4 +78,4 @@ Separate Extraction step run kind_of_const empty_static_env expr_eqb
   inline_calls inline_tail_conts remove_unused_lets drop_deleted_code
   fold_constants remove_unused_total_lets remove_unused_defined_lets
   inline_known_calls merge_statics collapse_switches drop_statics
-  follow_aliases well_formed_unit.
+  follow_aliases well_formed_unit rewrite_code.

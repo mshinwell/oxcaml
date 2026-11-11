@@ -1,5 +1,6 @@
 open BinNums
 open BinPos
+open Bool
 open Datatypes
 open FlambdaApplySpec
 open FlambdaCompareSpec
@@ -145,7 +146,8 @@ let rec inline_calls known e =
   match e with
   | Let (x, d, body) -> Let (x, d, inline_calls known body)
   | Let_static (bindings, body) ->
-    Let_static (bindings, inline_calls (codes_of bindings known) body)
+    let bindings0 = map (inline_calls_in_binding known) bindings in
+    Let_static (bindings0, inline_calls (codes_of bindings0 known) body)
   | Let_cont_non_recursive (k, h, body) ->
     Let_cont_non_recursive
       (k, inline_calls_in_handler known h, inline_calls known body)
@@ -165,6 +167,20 @@ let rec inline_calls known e =
 
 and inline_calls_in_handler known = function
   | Handler (params, handler) -> Handler (params, inline_calls known handler)
+
+(** val inline_calls_in_binding : (code_id * code) list -> static_binding ->
+    static_binding **)
+
+and inline_calls_in_binding known binding =
+  match binding with
+  | Bind_code (id, c) -> Bind_code (id, inline_calls_in_code known c)
+  | _ -> binding
+
+(** val inline_calls_in_code : (code_id * code) list -> code -> code **)
+
+and inline_calls_in_code known = function
+  | Code (params, my_closure, ret, exn, body) ->
+    Code (params, my_closure, ret, exn, inline_calls known body)
 
 (** val var_in_simple : variable -> simple -> bool **)
 
@@ -476,11 +492,14 @@ let rec inline_known_calls known_code known_symbols e =
   | Let (x, d, body) ->
     Let (x, d, inline_known_calls known_code known_symbols body)
   | Let_static (bindings, body) ->
+    let bindings0 =
+      map (inline_known_calls_in_binding known_code known_symbols) bindings
+    in
     Let_static
-      ( bindings,
+      ( bindings0,
         inline_known_calls
-          (codes_of bindings known_code)
-          (symbols_of bindings known_symbols)
+          (codes_of bindings0 known_code)
+          (symbols_of bindings0 known_symbols)
           body )
   | Let_cont_non_recursive (k, h, body) ->
     Let_cont_non_recursive
@@ -504,6 +523,27 @@ let rec inline_known_calls known_code known_symbols e =
 and inline_known_calls_in_handler known_code known_symbols = function
   | Handler (params, handler) ->
     Handler (params, inline_known_calls known_code known_symbols handler)
+
+(** val inline_known_calls_in_binding : (code_id * code) list -> (symbol *
+    code_id option) list -> static_binding -> static_binding **)
+
+and inline_known_calls_in_binding known_code known_symbols binding =
+  match binding with
+  | Bind_code (id, c) ->
+    Bind_code (id, inline_known_calls_in_code known_code known_symbols c)
+  | _ -> binding
+
+(** val inline_known_calls_in_code : (code_id * code) list -> (symbol * code_id
+    option) list -> code -> code **)
+
+and inline_known_calls_in_code known_code known_symbols = function
+  | Code (params, my_closure, ret, exn, body) ->
+    Code
+      ( params,
+        my_closure,
+        ret,
+        exn,
+        inline_known_calls known_code known_symbols body )
 
 (** val binds_code : static_binding -> bool **)
 
@@ -579,3 +619,44 @@ let rec collapse_switches e =
     Let_cont_recursive (handlers, collapse_switches body)
   | Switch (scrutinee, arms) -> collapse_switch scrutinee arms
   | _ -> e
+
+(** val rewrite_code_body : (expr -> expr) -> expr -> expr **)
+
+let rewrite_code_body f body =
+  let body' = f body in
+  if eqb (binds_statics body) (binds_statics body') then body' else body
+
+(** val rewrite_code_in_binding : (expr -> expr) -> static_binding ->
+    static_binding **)
+
+let rewrite_code_in_binding f binding =
+  match binding with
+  | Bind_code (id, c) ->
+    let (Code (params, my_closure, ret, exn, body)) = c in
+    Bind_code (id, Code (params, my_closure, ret, exn, rewrite_code_body f body))
+  | _ -> binding
+
+(** val rewrite_code : (expr -> expr) -> expr -> expr **)
+
+let rec rewrite_code f e =
+  match e with
+  | Let (x, d, body) -> Let (x, d, rewrite_code f body)
+  | Let_static (bindings, body) ->
+    Let_static (map (rewrite_code_in_binding f) bindings, rewrite_code f body)
+  | Let_cont_non_recursive (k, h, body) ->
+    Let_cont_non_recursive (k, rewrite_code_in_handler f h, rewrite_code f body)
+  | Let_cont_recursive (handlers, body) ->
+    Let_cont_recursive
+      ( map
+          (fun pat ->
+            let k, h = pat in
+            k, rewrite_code_in_handler f h)
+          handlers,
+        rewrite_code f body )
+  | _ -> e
+
+(** val rewrite_code_in_handler : (expr -> expr) -> continuation_handler ->
+    continuation_handler **)
+
+and rewrite_code_in_handler f = function
+  | Handler (params, handler) -> Handler (params, rewrite_code f handler)

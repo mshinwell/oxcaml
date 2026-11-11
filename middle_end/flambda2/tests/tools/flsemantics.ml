@@ -953,7 +953,14 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
           |> Normalise.inline_tail_conts |> Aliases.follow_aliases []
           |> Normalise.fold_constants |> Normalise.remove_unused_lets
           |> Normalise.remove_unused_defined_lets []
-          |> Normalise.drop_deleted_code |> Normalise.merge_statics)
+          |> Normalise.drop_deleted_code |> Normalise.merge_statics
+          (* the same in the bodies of code, where [inline_calls] has been *)
+          |> Normalise.rewrite_code (fun body ->
+              Normalise.fold_constants body
+              |> Normalise.collapse_switches |> Normalise.inline_tail_conts
+              |> Aliases.follow_aliases [] |> Normalise.fold_constants
+              |> Normalise.remove_unused_lets
+              |> Normalise.remove_unused_defined_lets []))
         before.body
     in
     let normalised_after =
@@ -963,7 +970,11 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
           |> Normalise.inline_known_calls [] []
           |> Normalise.fold_constants
           |> Normalise.remove_unused_defined_lets []
-          |> Normalise.drop_deleted_code |> Normalise.merge_statics)
+          |> Normalise.drop_deleted_code |> Normalise.merge_statics
+          |> Normalise.rewrite_code (fun body ->
+              Aliases.follow_aliases [] body
+              |> Normalise.fold_constants
+              |> Normalise.remove_unused_defined_lets []))
         after.body
     in
     let validated_as_is = Compare.expr_eqb [] [] before.body after.body in

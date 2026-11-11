@@ -31,7 +31,7 @@
 From Stdlib Require Import ZArith List Bool Arith.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaWellFormedSpec
+  FlambdaWellFormedSpec FlambdaWellFormedProofs
   FlambdaSemanticsProofs FlambdaNominalSpec FlambdaNominalProofs
   FlambdaControlFlowSpec FlambdaControlFlowProofs FlambdaContextSpec
   FlambdaContextProofs FlambdaApplySpec FlambdaApplyProofs
@@ -394,7 +394,9 @@ Proof.
        | ap | ac | scrutinee arms | ];
     intros known; simpl; try reflexivity.
   - apply inline_calls_binds_statics.
-  - rewrite inline_calls_binds_statics. reflexivity.
+  - rewrite inline_calls_binds_statics. f_equal.
+    induction bindings as [ | [id c | id | sym const] bindings IH]; simpl;
+      congruence.
   - destruct h as [params handler]. simpl.
     rewrite !inline_calls_binds_statics. reflexivity.
   - rewrite inline_calls_binds_statics. f_equal.
@@ -416,6 +418,17 @@ Proof.
   rewrite inline_calls_binds_statics, IH. reflexivity.
 Qed.
 
+(* Groups of bindings whose code has bodies that refine their
+   counterparts, in the two forms that
+   FlambdaContextProofs.related_states_refines asks for. *)
+Definition bindings_refine (ok : static_env -> Prop)
+    (bindings bindings' : list static_binding) : Prop :=
+  Forall2 (binding_related (expr_refines_where ok)) bindings bindings'
+  ∧ Forall2
+      (binding_related
+         (fun target source => expr_refines_where ok source target))
+      bindings' bindings.
+
 (* Down the term, with the static environment binding what is known: at
    once in a body, and from then on in a handler. *)
 Fixpoint inline_calls_refines_knowing (e : expr) :
@@ -435,14 +448,55 @@ Proof.
           [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity
           | apply inline_calls_refines_knowing, Hknow ].
       * apply goes_wrong_refines. exists 1. simpl. rewrite Hd. reflexivity.
-    + destruct (eval_static_bindings vars bindings statics) as [extended | ]
-        eqn:Hbindings.
+    + (* the code of the group is rewritten: the body under the one
+         static environment refines it under the other; then down the
+         body, the static environment binding the code as rewritten *)
+      assert (Hrefine :
+        bindings_refine (statics_know known) bindings
+          (map (inline_calls_in_binding known) bindings)).
+      { induction bindings
+          as [ | [id [params my_closure ret exn code_body] | id | sym const]
+                 bindings IH];
+          simpl.
+        - split; apply Forall2_nil.
+        - destruct IH as [Hforwards Hbackwards].
+          split; (apply Forall2_cons; [ | assumption ]);
+            apply Binding_code, Codes_related;
+            first
+              [ apply inline_calls_binds_statics
+              | symmetry; apply inline_calls_binds_statics
+              | intros vars' conts' statics' Hknow';
+                apply inline_calls_refines_knowing, Hknow' ].
+        - destruct IH as [Hforwards Hbackwards].
+          split; (apply Forall2_cons; [ apply Binding_same | assumption ]).
+        - destruct IH as [Hforwards Hbackwards].
+          split; (apply Forall2_cons; [ apply Binding_same | assumption ]). }
+      remember (map (inline_calls_in_binding known) bindings) as bindings'
+        eqn:Hdef.
+      clear Hdef. destruct Hrefine as [Hforwards Hbackwards].
+      apply (fun H =>
+        eval_static_bindings_related _ vars _ _ H statics statics
+          (statics_related_refl _ statics)) in Hforwards, Hbackwards.
+      destruct (eval_static_bindings vars bindings statics) as [extended | ]
+        eqn:Hbindings,
+        (eval_static_bindings vars bindings' statics) as [extended' | ]
+          eqn:Hbindings';
+        try contradiction.
       * eapply refines_step;
           [ simpl; rewrite Hbindings; reflexivity
-          | simpl; rewrite Hbindings; reflexivity | ].
-        apply inline_calls_refines_knowing.
-        exact (eval_static_bindings_know vars bindings known statics extended
-          Hknow Hbindings).
+          | simpl; rewrite Hbindings'; reflexivity | ].
+        apply (refines_trans _ (State body vars conts extended')).
+        -- apply (related_states_refines (statics_know known)
+             (statics_know_extend known));
+             [ exact (statics_know_extend known _ _ Hknow
+                 (eval_static_bindings_extend vars _ _ _ Hbindings))
+             | exact (statics_know_extend known _ _ Hknow
+                 (eval_static_bindings_extend vars _ _ _ Hbindings'))
+             | apply cont_env_related_refl | apply cont_env_related_refl
+             | exact Hforwards | exact Hbackwards ].
+        -- apply inline_calls_refines_knowing.
+           exact (eval_static_bindings_know vars bindings' known statics
+             extended' Hknow Hbindings').
       * apply goes_wrong_refines. exists 1. simpl. rewrite Hbindings.
         reflexivity.
     + destruct h as [params handler]. simpl.
@@ -1340,7 +1394,9 @@ Proof.
        | ap | ac | scrutinee arms | ];
     intros known_code known_symbols; simpl; try reflexivity.
   - apply inline_known_calls_binds_statics.
-  - rewrite inline_known_calls_binds_statics. reflexivity.
+  - rewrite inline_known_calls_binds_statics. f_equal.
+    induction bindings as [ | [id c | id | sym const] bindings IH]; simpl;
+      congruence.
   - destruct h as [params handler]. simpl.
     rewrite !inline_known_calls_binds_statics. reflexivity.
   - rewrite inline_known_calls_binds_statics. f_equal.
@@ -1387,17 +1443,73 @@ Proof.
           [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity
           | apply inline_known_calls_equivalent_knowing; assumption ].
       * apply (equivalent_of_run 1 1). simpl. rewrite Hd. reflexivity.
-    + destruct (eval_static_bindings vars bindings statics) as [extended | ]
-        eqn:Hbindings.
+    + assert (Hrefine :
+        let bindings' :=
+          map (inline_known_calls_in_binding known_code known_symbols)
+            bindings
+        in
+        bindings_refine (statics_know_both known_code known_symbols)
+          bindings bindings'
+        ∧ bindings_refine (statics_know_both known_code known_symbols)
+            bindings' bindings).
+      { induction bindings
+          as [ | [id [params my_closure ret exn code_body] | id | sym const]
+                 bindings IH];
+          simpl.
+        - repeat split; apply Forall2_nil.
+        - destruct IH as [[Hf Hb] [Hf' Hb']].
+          repeat split; (apply Forall2_cons; [ | assumption ]);
+            apply Binding_code, Codes_related;
+            first
+              [ apply inline_known_calls_binds_statics
+              | symmetry; apply inline_known_calls_binds_statics
+              | intros vars' conts' statics' [Hcode' Hsymbols'];
+                first
+                  [ apply equivalent_refines,
+                      inline_known_calls_equivalent_knowing; assumption
+                  | apply equivalent_refines, equivalent_sym,
+                      inline_known_calls_equivalent_knowing; assumption ] ].
+        - destruct IH as [[Hf Hb] [Hf' Hb']].
+          repeat split;
+            (apply Forall2_cons; [ apply Binding_same | assumption ]).
+        - destruct IH as [[Hf Hb] [Hf' Hb']].
+          repeat split;
+            (apply Forall2_cons; [ apply Binding_same | assumption ]). }
+      remember
+        (map (inline_known_calls_in_binding known_code known_symbols)
+           bindings)
+        as bindings' eqn:Hdef.
+      clear Hdef. simpl in Hrefine.
+      destruct Hrefine as [[Hf Hb] [Hf' Hb']].
+      apply (fun H =>
+        eval_static_bindings_related _ vars _ _ H statics statics
+          (statics_related_refl _ statics)) in Hf, Hb, Hf', Hb'.
+      destruct (eval_static_bindings vars bindings statics) as [extended | ]
+        eqn:Hbindings,
+        (eval_static_bindings vars bindings' statics) as [extended' | ]
+          eqn:Hbindings';
+        try contradiction.
       * eapply equivalent_step;
           [ simpl; rewrite Hbindings; reflexivity
-          | simpl; rewrite Hbindings; reflexivity | ].
-        apply inline_known_calls_equivalent_knowing.
-        -- exact (eval_static_bindings_know vars bindings known_code statics
-             extended Hcode Hbindings).
-        -- exact (eval_static_bindings_know_symbols vars bindings
-             known_symbols statics extended Hsymbols Hbindings).
-      * apply (equivalent_of_run 1 1). simpl. rewrite Hbindings.
+          | simpl; rewrite Hbindings'; reflexivity | ].
+        assert (Hok : statics_know_both known_code known_symbols statics)
+          by (split; assumption).
+        pose proof (statics_know_both_extend known_code known_symbols _ _
+          Hok (eval_static_bindings_extend vars _ _ _ Hbindings)) as Hext.
+        pose proof (statics_know_both_extend known_code known_symbols _ _
+          Hok (eval_static_bindings_extend vars _ _ _ Hbindings')) as Hext'.
+        apply (equivalent_trans _ (State body vars conts extended')).
+        -- apply refines_antisymmetric;
+             apply (related_states_refines
+               (statics_know_both known_code known_symbols)
+               (statics_know_both_extend known_code known_symbols));
+             try assumption; apply cont_env_related_refl.
+        -- apply inline_known_calls_equivalent_knowing.
+           ++ exact (eval_static_bindings_know vars bindings' known_code
+                statics extended' Hcode Hbindings').
+           ++ exact (eval_static_bindings_know_symbols vars bindings'
+                known_symbols statics extended' Hsymbols Hbindings').
+      * apply (equivalent_of_run 1 1). simpl. rewrite Hbindings, Hbindings'.
         reflexivity.
     + destruct h as [params handler]. simpl.
       apply (equivalent_trans _
@@ -1644,3 +1756,232 @@ Qed.
 
 Theorem collapse_switches_refines : collapse_switches_refines_statement.
 Proof. exact collapse_switches_refines_aux. Qed.
+
+(* ======================================================================== *)
+(* Rewriting the bodies of code                                             *)
+(* ======================================================================== *)
+
+Fixpoint rewrite_code_binds_statics (f : expr -> expr) (e : expr) :
+  binds_statics (rewrite_code f e) = binds_statics e.
+Proof.
+  destruct e
+    as [ x d body | bindings body | k h body | handlers body
+       | ap | ac | scrutinee arms | ];
+    simpl; try reflexivity.
+  - apply rewrite_code_binds_statics.
+  - rewrite rewrite_code_binds_statics. f_equal.
+    induction bindings
+      as [ | [id [params my_closure ret exn code_body] | id | sym const]
+             bindings IH];
+      simpl; congruence.
+  - destruct h as [params handler]. simpl.
+    rewrite !rewrite_code_binds_statics. reflexivity.
+  - rewrite rewrite_code_binds_statics. f_equal.
+    induction handlers as [ | [k [params handler]] handlers IH]; simpl;
+      [ reflexivity | ].
+    rewrite rewrite_code_binds_statics, IH. reflexivity.
+Qed.
+
+Lemma rewrite_code_handlers_bind_statics (f : expr -> expr)
+    (handlers : list (continuation * continuation_handler)) :
+  handlers_bind_statics
+    (map (fun '(k, h) => (k, rewrite_code_in_handler f h)) handlers)
+  = handlers_bind_statics handlers.
+Proof.
+  unfold handlers_bind_statics.
+  induction handlers as [ | [k [params handler]] handlers IH]; simpl;
+    [ reflexivity | ].
+  rewrite rewrite_code_binds_statics, IH. reflexivity.
+Qed.
+
+(* A group of bindings may be replaced by one whose code has bodies that
+   refine. *)
+Lemma let_static_bindings_refine (bindings bindings' : list static_binding)
+    (body : expr) :
+  bindings_refine always bindings bindings' ->
+  expr_refines (Let_static bindings body) (Let_static bindings' body).
+Proof.
+  intros [Hforwards Hbackwards] vars conts statics.
+  apply (fun H =>
+    eval_static_bindings_related _ vars _ _ H statics statics
+      (statics_related_refl _ statics)) in Hforwards, Hbackwards.
+  destruct (eval_static_bindings vars bindings statics) as [extended | ]
+    eqn:Hbindings,
+    (eval_static_bindings vars bindings' statics) as [extended' | ]
+      eqn:Hbindings';
+    try contradiction.
+  - eapply refines_step;
+      [ simpl; rewrite Hbindings; reflexivity
+      | simpl; rewrite Hbindings'; reflexivity | ].
+    apply (related_states_refines always always_extend);
+      [ exact I | exact I | apply cont_env_related_refl
+      | apply cont_env_related_refl | exact Hforwards | exact Hbackwards ].
+  - apply goes_wrong_refines. exists 1. simpl. rewrite Hbindings.
+    reflexivity.
+Qed.
+
+Lemma rewrite_bindings_refine (f : expr -> expr)
+    (bindings : list static_binding) :
+  (∀ e : expr, expr_refines e (f e)) ->
+  bindings_refine always bindings (map (rewrite_code_in_binding f) bindings).
+Proof.
+  intros Hf.
+  induction bindings
+    as [ | [id [params my_closure ret exn code_body] | id | sym const]
+           bindings [Hforwards Hbackwards]];
+    simpl.
+  - split; apply Forall2_nil.
+  - unfold rewrite_code_body.
+    destruct (Bool.eqb (binds_statics code_body)
+                (binds_statics (f code_body))) eqn:Hbinds;
+      [ apply eqb_prop in Hbinds | ];
+      split; (apply Forall2_cons; [ | assumption ]);
+      try apply Binding_same;
+      apply Binding_code, Codes_related;
+      first
+        [ exact Hbinds | exact (eq_sym Hbinds)
+        | intros vars conts statics _; apply Hf ].
+  - split; (apply Forall2_cons; [ apply Binding_same | assumption ]).
+  - split; (apply Forall2_cons; [ apply Binding_same | assumption ]).
+Qed.
+
+Lemma rewrite_bindings_refined (f : expr -> expr)
+    (bindings : list static_binding) :
+  (∀ e : expr, expr_refines (f e) e) ->
+  bindings_refine always (map (rewrite_code_in_binding f) bindings) bindings.
+Proof.
+  intros Hf.
+  induction bindings
+    as [ | [id [params my_closure ret exn code_body] | id | sym const]
+           bindings [Hforwards Hbackwards]];
+    simpl.
+  - split; apply Forall2_nil.
+  - unfold rewrite_code_body.
+    destruct (Bool.eqb (binds_statics code_body)
+                (binds_statics (f code_body))) eqn:Hbinds;
+      [ apply eqb_prop in Hbinds | ];
+      split; (apply Forall2_cons; [ | assumption ]);
+      try apply Binding_same;
+      apply Binding_code, Codes_related;
+      first
+        [ exact Hbinds | exact (eq_sym Hbinds)
+        | intros vars conts statics _; apply Hf ].
+  - split; (apply Forall2_cons; [ apply Binding_same | assumption ]).
+  - split; (apply Forall2_cons; [ apply Binding_same | assumption ]).
+Qed.
+
+(* The same script proves the rewrite in the two directions: [IH] is the
+   induction, and [Hf] what is assumed of the rewrite. *)
+Ltac rewrite_code_cases IH Hf :=
+  match goal with
+  | |- expr_refines (Let ?x ?d ?body) (Let _ _ ?body') =>
+    first
+      [ exact (plug_refines (Let_body x d Hole) _ _ (not_many _) (IH body))
+      | exact (plug_refines (Let_body x d Hole) _ _ (not_many _) (IH body')) ]
+  | |- expr_refines (Let_static _ ?body) (Let_static _ ?body') =>
+    eapply expr_refines_trans;
+      [ apply let_static_bindings_refine;
+        first
+          [ apply rewrite_bindings_refine, Hf
+          | apply rewrite_bindings_refined, Hf ]
+      | first
+          [ exact (plug_refines (Let_static_body _ Hole) _ _ (not_many _)
+              (IH body))
+          | exact (plug_refines (Let_static_body _ Hole) _ _ (not_many _)
+              (IH body')) ] ]
+  | |- expr_refines (Let_cont_non_recursive ?k (Handler ?params ?handler) _)
+         (Let_cont_non_recursive _ (Handler _ ?handler') _) =>
+    eapply expr_refines_trans;
+      [ intros vars conts statics; apply let_cont_handler_refines_at;
+        intros vs handler_vars conts' statics' _;
+        first [ apply (IH handler) | apply (IH handler') ]
+      | match goal with
+        | |- expr_refines (Let_cont_non_recursive _ ?h ?body) _ =>
+          first
+            [ exact (plug_refines (Let_cont_non_recursive_body k h Hole) _ _
+                (not_many _) (IH body))
+            | match goal with
+              | |- expr_refines _ (Let_cont_non_recursive _ _ ?body') =>
+                exact (plug_refines (Let_cont_non_recursive_body k h Hole)
+                  _ _ (not_many _) (IH body'))
+              end ]
+        end ]
+  end.
+
+Fixpoint rewrite_code_refines_aux (f : expr -> expr)
+    (Hf : ∀ e : expr, expr_refines e (f e)) (e : expr) {struct e} :
+  expr_refines e (rewrite_code f e).
+Proof.
+  destruct e
+    as [ x d body | bindings body | k h body | handlers body
+       | ap | ac | scrutinee arms | ];
+    simpl; try apply expr_refines_refl;
+    try (destruct h as [params handler]; simpl);
+    try (rewrite_code_cases (rewrite_code_refines_aux f Hf) Hf; fail).
+  assert (Hhandlers :
+    ∀ vars : env,
+      handlers_refine always vars handlers
+        (map (fun '(k, h) => (k, rewrite_code_in_handler f h)) handlers)).
+  { induction handlers as [ | [k [params handler]] handlers IH];
+      intros vars; simpl.
+    - split; apply Forall2_nil.
+    - destruct (IH vars) as [Hforwards Hbackwards].
+      split; (apply Forall2_cons; [ | assumption ]);
+        (split; [ reflexivity | ]); apply Handler_related;
+        intros vs handler_vars conts statics _ _;
+        apply (rewrite_code_refines_aux f Hf handler). }
+  eapply expr_refines_trans;
+    [ | exact (plug_refines (Let_cont_recursive_body _ Hole) _ _ (not_many _)
+          (rewrite_code_refines_aux f Hf body)) ].
+  intros vars conts statics.
+  destruct (Hhandlers vars) as [Hforwards Hbackwards].
+  apply (let_cont_recursive_handlers_refine_where always always_extend);
+    [ exact I | symmetry; apply rewrite_code_handlers_bind_statics
+    | exact Hforwards | exact Hbackwards ].
+Qed.
+
+Fixpoint rewrite_code_refined_aux (f : expr -> expr)
+    (Hf : ∀ e : expr, expr_refines (f e) e) (e : expr) {struct e} :
+  expr_refines (rewrite_code f e) e.
+Proof.
+  destruct e
+    as [ x d body | bindings body | k h body | handlers body
+       | ap | ac | scrutinee arms | ];
+    simpl; try apply expr_refines_refl;
+    try (destruct h as [params handler]; simpl);
+    try (rewrite_code_cases (rewrite_code_refined_aux f Hf) Hf; fail).
+  assert (Hhandlers :
+    ∀ vars : env,
+      handlers_refine always vars
+        (map (fun '(k, h) => (k, rewrite_code_in_handler f h)) handlers)
+        handlers).
+  { induction handlers as [ | [k [params handler]] handlers IH];
+      intros vars; simpl.
+    - split; apply Forall2_nil.
+    - destruct (IH vars) as [Hforwards Hbackwards].
+      split; (apply Forall2_cons; [ | assumption ]);
+        (split; [ reflexivity | ]); apply Handler_related;
+        intros vs handler_vars conts statics _ _;
+        apply (rewrite_code_refined_aux f Hf handler). }
+  eapply expr_refines_trans;
+    [ | exact (plug_refines (Let_cont_recursive_body _ Hole) _ _ (not_many _)
+          (rewrite_code_refined_aux f Hf body)) ].
+  intros vars conts statics.
+  destruct (Hhandlers vars) as [Hforwards Hbackwards].
+  apply (let_cont_recursive_handlers_refine_where always always_extend);
+    [ exact I | apply rewrite_code_handlers_bind_statics
+    | exact Hforwards | exact Hbackwards ].
+Qed.
+
+Theorem rewrite_code_refines : rewrite_code_refines_statement.
+Proof. exact rewrite_code_refines_aux. Qed.
+
+Theorem rewrite_code_equivalent : rewrite_code_equivalent_statement.
+Proof.
+  intros f Hf e vars conts statics. apply refines_antisymmetric.
+  - apply (rewrite_code_refines_aux f).
+    intros e'. apply expr_equivalent_refines, Hf.
+  - apply (rewrite_code_refined_aux f).
+    intros e' vars' conts' statics'.
+    apply equivalent_refines, equivalent_sym, Hf.
+Qed.

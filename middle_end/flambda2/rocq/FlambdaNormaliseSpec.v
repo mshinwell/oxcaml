@@ -41,16 +41,16 @@
    equivalences, as the chain runs from the one to the other.
 
    [inline_calls] is for the term before. It goes down the term, into the
-   handlers of continuations too, keeping the code that the [Let_static]s
-   passed have bound ([known]), and replaces a direct call of known code by
-   the code inlined (FlambdaApplySpec.inlined_body) where that is sound
-   ([inlinable_b], which decides FlambdaApplySpec.inlinable). What is
-   known where a handler is defined holds where it runs, however much
-   later: a code id is bound once (FlambdaWellFormedSpec.v).
-
-   CR mshinwell: it does not go into the bodies of code. Rewriting them
-   changes what the code ids are bound to, so the two runs no longer have
-   the same static environment for the calls inlined to be those of.
+   handlers of continuations and the bodies of code too, keeping the code
+   that the [Let_static]s passed have bound ([known]), and replaces a
+   direct call of known code by the code inlined
+   (FlambdaApplySpec.inlined_body) where that is sound ([inlinable_b],
+   which decides FlambdaApplySpec.inlinable). What is known where a
+   handler or code is defined holds where it runs, however much later: a
+   code id is bound once (FlambdaWellFormedSpec.v). The body of code is
+   rewritten with what was known before its group of bindings, so nothing
+   is inlined into itself; and what a group makes known is its code as
+   rewritten.
 
    [expr_in_scope] is the check that code is closed. It is a sufficient
    condition, by its soundness (in the Proofs file); nothing is claimed
@@ -249,6 +249,7 @@ Fixpoint inline_calls (known : list (code_id * code)) (e : expr) : expr :=
   match e with
   | Let x d body => Let x d (inline_calls known body)
   | Let_static bindings body =>
+    let bindings := map (inline_calls_in_binding known) bindings in
     Let_static bindings (inline_calls (codes_of bindings known) body)
   | Let_cont_non_recursive k h body =>
     Let_cont_non_recursive k (inline_calls_in_handler known h)
@@ -264,6 +265,17 @@ with inline_calls_in_handler (known : list (code_id * code))
     (h : continuation_handler) : continuation_handler :=
   match h with
   | Handler params handler => Handler params (inline_calls known handler)
+  end
+with inline_calls_in_binding (known : list (code_id * code))
+    (binding : static_binding) : static_binding :=
+  match binding with
+  | Bind_code id c => Bind_code id (inline_calls_in_code known c)
+  | Bind_deleted_code _ | Bind_symbol _ _ => binding
+  end
+with inline_calls_in_code (known : list (code_id * code)) (c : code) : code :=
+  match c with
+  | Code params my_closure ret exn body =>
+    Code params my_closure ret exn (inline_calls known body)
   end.
 
 Definition inline_calls_refines_statement : Prop :=
@@ -613,6 +625,9 @@ Fixpoint inline_known_calls (known_code : list (code_id * code))
   match e with
   | Let x d body => Let x d (inline_known_calls known_code known_symbols body)
   | Let_static bindings body =>
+    let bindings :=
+      map (inline_known_calls_in_binding known_code known_symbols) bindings
+    in
     Let_static bindings
       (inline_known_calls (codes_of bindings known_code)
          (symbols_of bindings known_symbols) body)
@@ -636,6 +651,21 @@ with inline_known_calls_in_handler (known_code : list (code_id * code))
   match h with
   | Handler params handler =>
     Handler params (inline_known_calls known_code known_symbols handler)
+  end
+with inline_known_calls_in_binding (known_code : list (code_id * code))
+    (known_symbols : list (symbol * option code_id))
+    (binding : static_binding) : static_binding :=
+  match binding with
+  | Bind_code id c =>
+    Bind_code id (inline_known_calls_in_code known_code known_symbols c)
+  | Bind_deleted_code _ | Bind_symbol _ _ => binding
+  end
+with inline_known_calls_in_code (known_code : list (code_id * code))
+    (known_symbols : list (symbol * option code_id)) (c : code) : code :=
+  match c with
+  | Code params my_closure ret exn body =>
+    Code params my_closure ret exn
+      (inline_known_calls known_code known_symbols body)
   end.
 
 Definition inline_known_calls_equivalent_statement : Prop :=
@@ -716,3 +746,59 @@ Fixpoint collapse_switches (e : expr) : expr :=
 
 Definition collapse_switches_refines_statement : Prop :=
   ∀ e : expr, expr_refines e (collapse_switches e).
+
+(* ======================================================================== *)
+(* Rewriting the bodies of code                                             *)
+(* ======================================================================== *)
+
+(* The rewrites above that need to know nothing of where they are applied
+   do not go into the bodies of code. [rewrite_code] applies one to the
+   body of every piece of code a term binds, wherever the binding is. The
+   body is left alone if the rewrite would change whether it binds
+   something static, as the body of code may bind nothing static
+   (FlambdaSemanticsSpec.binds_statics). *)
+Definition rewrite_code_body (f : expr -> expr) (body : expr) : expr :=
+  let body' := f body in
+  if Bool.eqb (binds_statics body) (binds_statics body') then body'
+  else body.
+
+Definition rewrite_code_in_binding (f : expr -> expr)
+    (binding : static_binding) : static_binding :=
+  match binding with
+  | Bind_code id (Code params my_closure ret exn body) =>
+    Bind_code id (Code params my_closure ret exn (rewrite_code_body f body))
+  | Bind_deleted_code _ | Bind_symbol _ _ => binding
+  end.
+
+Fixpoint rewrite_code (f : expr -> expr) (e : expr) : expr :=
+  match e with
+  | Let x d body => Let x d (rewrite_code f body)
+  | Let_static bindings body =>
+    Let_static (map (rewrite_code_in_binding f) bindings)
+      (rewrite_code f body)
+  | Let_cont_non_recursive k h body =>
+    Let_cont_non_recursive k (rewrite_code_in_handler f h)
+      (rewrite_code f body)
+  | Let_cont_recursive handlers body =>
+    Let_cont_recursive
+      (map (fun '(k, h) => (k, rewrite_code_in_handler f h)) handlers)
+      (rewrite_code f body)
+  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => e
+  end
+with rewrite_code_in_handler (f : expr -> expr) (h : continuation_handler)
+    : continuation_handler :=
+  match h with
+  | Handler params handler => Handler params (rewrite_code f handler)
+  end.
+
+(* A rewrite that refines, or is an equivalence, under all environments
+   is one when applied to the bodies of code. *)
+Definition rewrite_code_refines_statement : Prop :=
+  ∀ f : expr -> expr,
+    (∀ e : expr, expr_refines e (f e)) ->
+    ∀ e : expr, expr_refines e (rewrite_code f e).
+
+Definition rewrite_code_equivalent_statement : Prop :=
+  ∀ f : expr -> expr,
+    (∀ e : expr, expr_equivalent e (f e)) ->
+    ∀ e : expr, expr_equivalent e (rewrite_code f e).

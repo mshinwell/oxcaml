@@ -23,6 +23,7 @@
     (run ../tools/flsemantics.exe const_block.fl)
     (run ../tools/flsemantics.exe indirect_higher_order.fl)
     (run ../tools/flsemantics.exe inline_direct.fl)
+    (run ../tools/flsemantics.exe inline_in_code.fl)
     (run ../tools/flsemantics.exe inline_in_handler.fl)
     (run ../tools/flsemantics.exe rec_cont.fl)
     (run ../tools/flsemantics.exe showcase.fl)

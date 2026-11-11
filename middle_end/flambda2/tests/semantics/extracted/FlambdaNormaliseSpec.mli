@@ -1,5 +1,6 @@
 open BinNums
 open BinPos
+open Bool
 open Datatypes
 open FlambdaApplySpec
 open FlambdaCompareSpec
@@ -44,6 +45,11 @@ val inline_calls : (code_id * code) list -> expr -> expr
 
 val inline_calls_in_handler :
   (code_id * code) list -> continuation_handler -> continuation_handler
+
+val inline_calls_in_binding :
+  (code_id * code) list -> static_binding -> static_binding
+
+val inline_calls_in_code : (code_id * code) list -> code -> code
 
 val var_in_simple : variable -> simple -> bool
 
@@ -109,6 +115,15 @@ val inline_known_calls_in_handler :
   continuation_handler ->
   continuation_handler
 
+val inline_known_calls_in_binding :
+  (code_id * code) list ->
+  (symbol * code_id option) list ->
+  static_binding ->
+  static_binding
+
+val inline_known_calls_in_code :
+  (code_id * code) list -> (symbol * code_id option) list -> code -> code
+
 val binds_code : static_binding -> bool
 
 val code_first : static_binding list -> static_binding list
@@ -122,3 +137,12 @@ val apply_cont_eq_dec : apply_cont -> apply_cont -> bool
 val collapse_switch : simple -> (coq_Z * apply_cont) list -> expr
 
 val collapse_switches : expr -> expr
+
+val rewrite_code_body : (expr -> expr) -> expr -> expr
+
+val rewrite_code_in_binding : (expr -> expr) -> static_binding -> static_binding
+
+val rewrite_code : (expr -> expr) -> expr -> expr
+
+val rewrite_code_in_handler :
+  (expr -> expr) -> continuation_handler -> continuation_handler
