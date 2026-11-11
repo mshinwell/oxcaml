@@ -38,7 +38,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
   FlambdaBindingTime FlambdaEnvAliases FlambdaEnvAliasesSpec
   FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaTypingEnvProofs
-  FlambdaExpandHead FlambdaMeetEnv FlambdaMeetSpec.
+  FlambdaMeetGrammar FlambdaExpandHead FlambdaMeetEnv FlambdaMeet
+  FlambdaMeetSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -61,6 +62,13 @@ Proof.
     valuation tenv tenv' n ty v Hfits Hty Hsatisfied Hpoison Hvalue Hv Hadd.
   apply (Hsound statics valuation tenv tenv' n ty v Hfits Hty); try assumption.
   apply satisfied_no_poison_strictly; assumption.
+Qed.
+
+Theorem fits_kinded : fits_kinded_statement.
+Proof.
+  intros type_well_formed typing_env_well_formed tenv [_ Hfits] n ty
+    binding_time_and_mode Hlookup.
+  exact (proj2 (proj2 (Hfits n ty binding_time_and_mode Hlookup))).
 Qed.
 
 (* ======================================================================== *)
@@ -90,9 +98,22 @@ Proof.
   - destruct (Z.eqb tag tag'); [ reflexivity | exact (IH Hin) ].
 Qed.
 
+(* A number among some numbers that is a tag is among the tags that the
+   step computes. *)
+Lemma tag_among_tags (n : Z) (numbers : list Z) :
+  n ∈ numbers -> is_tag n = true ->
+  n ∈ Keyed.dedup Z.eqb (filter is_tag numbers).
+Proof.
+  intros Hin Htag.
+  apply (keyed_among_in Z Z.eqb z_eqb_decides_equality).
+  rewrite (keyed_among_dedup Z Z.eqb z_eqb_decides_equality).
+  apply (keyed_among_in Z Z.eqb z_eqb_decides_equality).
+  apply filter_In. split; assumption.
+Qed.
+
 Theorem get_tag_reduction_repaired : get_tag_reduction_repaired_statement.
 Proof.
-  intros statics vars w n tags alloc_mode Hrelation Hin Hnot_poison.
+  intros statics vars w n numbers alloc_mode Hrelation Hin Hnot_poison Hrange.
   unfold immediate_or_blocks_with_these_tags.
   apply (create_variant_satisfied statics vars w).
   destruct Hrelation as [[i ->] | [[fields Hblock] | Hpoison]];
@@ -100,5 +121,9 @@ Proof.
   - left. exists i. split; [ reflexivity | ]. split; exact I.
   - right. exists n, fields. split; [ exact Hblock | ]. split; [ | exact I ].
     apply row_like_for_blocks_find.
-    rewrite (lookup_among_unknown_cases n tags Hin). exact I.
+    destruct Hrange as [[i Himmediate] | Htag].
+    + subst w. discriminate Hblock.
+    + rewrite (lookup_among_unknown_cases n _
+                 (tag_among_tags n numbers Hin Htag)).
+      exact I.
 Qed.
