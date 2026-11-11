@@ -31,7 +31,8 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
+  FlambdaMapProofs FlambdaBindersSpec FlambdaSemanticsSpec
+  FlambdaSemanticsProofs FlambdaScopeSpec FlambdaScopeProofs
   FlambdaWellFormedSpec.
 Import ListNotations.
 
@@ -625,6 +626,9 @@ Proof.
   intros u e n s Hwf Hrun. unfold well_formed_unit in Hwf.
   apply andb_true_iff in Hwf as [Hwf _].
   apply andb_true_iff in Hwf as [Hwf _].
+  apply andb_true_iff in Hwf as [Hwf _].
+  apply andb_true_iff in Hwf as [Hwf _].
+  apply andb_true_iff in Hwf as [Hwf _].
   apply andb_true_iff in Hwf as [Hwf Dsymbols].
   apply andb_true_iff in Hwf as [P Dcode].
   pose proof (inv_run (unit_exn u) code_ids_of_binding code_id_bound
@@ -647,4 +651,15 @@ Proof.
     reflexivity.
   - exact (inv_no_recursive_statics (unit_exn u) _ _ _ _ _ _ _ Hcode).
   - exact (inv_no_call_binding_statics (unit_exn u) _ _ _ _ _ _ Hcode).
+Qed.
+
+Theorem well_formed_names_bound : well_formed_names_bound_statement.
+Proof.
+  intros u e n Hwf. unfold well_formed_unit in Hwf.
+  apply andb_true_iff in Hwf as [Hwf _].
+  apply andb_true_iff in Hwf as [Hwf _].
+  apply andb_true_iff in Hwf as [Hwf Hclosed].
+  apply andb_true_iff in Hwf as [Hwf _].
+  apply andb_true_iff in Hwf as [_ Hnames].
+  exact (unit_run (unit_return u) (unit_exn u) e n Hnames Hclosed).
 Qed.

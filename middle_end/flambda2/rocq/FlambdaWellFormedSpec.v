@@ -35,7 +35,10 @@
    match_against_bound_static_pattern) and what it assumes
    (terms/function_declarations.ml, create), [numbers_in_range] against
    the types of the compiler's numbers (the comment of its section says
-   which), [well_formed_unit], and the two statements.
+   which), [well_formed_unit], and the statements. Three of the
+   conditions of [well_formed_unit] are defined in FlambdaBindersSpec.v
+   and are reviewed there, against the compiler's binders:
+   [names_in_scope], [binders_distinct] and [code_closed].
 
    Flambda permits a [Let_static] at the toplevel of a compilation unit
    only, so that it is executed once, before anything that follows it.
@@ -56,6 +59,26 @@
    also that no code id or symbol is bound twice, that the sets of
    closures of the unit are whole ([sets_well_formed]), and that its
    numbers are in range ([numbers_in_range]).
+
+   It asks three things of the variables and the continuations of the
+   unit as well, which are rows 3, 5 and 6 of the table of
+   requests/C0-well-formed.md:
+   - every variable and every continuation that the unit uses is bound
+     around the use, but for the two continuations of its interface
+     ([names_in_scope]);
+   - the names that one binder binds are distinct: the parameters of a
+     handler; the parameters of code and its [my_closure], which is so
+     not one of them; the two continuations of code; the continuations
+     of a recursive group, which is not empty ([binders_distinct]);
+   - code is closed: its body uses no variable but its parameters and
+     [my_closure], and no continuation but its two ([code_closed]).
+   In the last two the model asks more than the compiler checks, by the
+   ruling that it may where the condition ought to be an invariant;
+   FlambdaBindersSpec.v says at each definition what the compiler does.
+   What they give is that the run of a well-formed unit reads no
+   variable that has no value and leaves only by a continuation of its
+   interface ([well_formed_names_bound_statement], from
+   FlambdaScopeSpec.v).
 
    The model can express sets of closures that the compiler does not
    make (FlambdaSemanticsSpec.v says what the machine does with them).
@@ -111,7 +134,7 @@
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec.
+  FlambdaBindersSpec FlambdaSemanticsSpec FlambdaScopeSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -522,12 +545,18 @@ Record unit_interface : Type := Unit_interface {
 }.
 
 (* A unit, with its interface: its static bindings are at toplevel, and
-   bind each code id and each symbol once; its sets of closures are
-   whole; its numbers are in range. *)
+   bind each code id and each symbol once; its variables and its
+   continuations are in scope, the names of each binder are distinct and
+   its code is closed; its sets of closures are whole; its numbers are in
+   range. The conditions are in the order of the rows of the table of
+   requests/C0-well-formed.md (1, 2, 3, 5, 6, 7 and 8). *)
 Definition well_formed_unit (u : unit_interface) (e : expr) : bool :=
   statics_at_toplevel (unit_exn u) true e
   && distinct (static_names code_ids_of_binding e)
   && distinct (static_names symbols_of_binding e)
+  && names_in_scope (unit_return u) (unit_exn u) e
+  && binders_distinct e
+  && code_closed e
   && sets_well_formed e
   && numbers_in_range e.
 
@@ -613,3 +642,22 @@ Definition well_formed_never_faults_statement : Prop :=
     well_formed_unit u e = true ->
     run n (State e [] [] empty_static_env) = Step s ->
     static_fault s = false.
+
+(* ======================================================================== *)
+(* A well-formed unit reads no name that is not bound                       *)
+(* ======================================================================== *)
+
+(* No state of the run of a well-formed unit reads a variable that has no
+   value, and if the run ends, it is by the continuation that the unit
+   returns to or by its exception continuation. This is
+   FlambdaScopeSpec.unit_run_statement of a well-formed unit; the test
+   [reads_unbound_variable] is defined there. It says nothing yet of
+   symbols and code ids: that is row 4 of the table. *)
+Definition well_formed_names_bound_statement : Prop :=
+  ∀ (u : unit_interface) (e : expr) (n : nat),
+    well_formed_unit u e = true ->
+    match run n (State e [] [] empty_static_env) with
+    | Step s => reads_unbound_variable s = false
+    | Exit k _ => k = unit_return u ∨ k = unit_exn u
+    | Undefined => True
+    end.

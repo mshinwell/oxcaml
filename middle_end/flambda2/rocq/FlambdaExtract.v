@@ -53,7 +53,8 @@
 From Stdlib Require Extraction.
 From Stdlib Require Import ExtrOcamlBasic.
 From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
-  FlambdaSemanticsSpec FlambdaWellFormedSpec FlambdaWellKindedSpec
+  FlambdaBindersSpec FlambdaSemanticsSpec FlambdaWellFormedSpec
+  FlambdaWellKindedSpec
   FlambdaCompareSpec FlambdaNormaliseSpec FlambdaBlockLoadSpec
   FlambdaUnboxSpec FlambdaUnusedContsSpec FlambdaUnusedStaticsSpec
   FlambdaValidateSpec.
@@ -78,6 +79,8 @@ Separate Extraction
   among
   at_partial_or_over_application
   bind_closures
+  binders_distinct
+  code_closed
   collapse_switches
   compact
   dedup
@@ -105,6 +108,7 @@ Separate Extraction
   map_values
   merge
   merge_statics
+  names_in_scope
   numbers_in_range
   partial_or_over_application
   remove_unused_conts
