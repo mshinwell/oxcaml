@@ -100,6 +100,7 @@ module Binders = Flambda2_rocq_semantics.FlambdaBindersSpec
 module Validate = Flambda2_rocq_semantics.FlambdaValidateSpec
 module Lift = Flambda2_rocq_semantics.FlambdaLiftSpec
 module My_closure = Flambda2_rocq_semantics.FlambdaMyClosureSpec
+module Unused_slots = Flambda2_rocq_semantics.FlambdaUnusedSlotsSpec
 module Numbers = Flambda2_rocq_semantics.BinNums
 module P = Flambda_primitive
 
@@ -1540,6 +1541,42 @@ let lifting_guess ~unit (before : Model.expr) (after : Model.expr) :
   in
   { lifting_unit = unit; lifted_lets = lets; lifted_my_closures = my_closures }
 
+(* ---- Value slots that Simplify removed --------------------------------- *)
+
+(* The value slots that the static sets of closures of the term before have and
+   those of the term after have not, and that nothing in the term before
+   projects. This is a guess: FlambdaUnusedSlotsSpec.drop_unused_slots checks
+   that nothing projects them, and the comparison of the two terms the rest. *)
+let unused_slots_guess (before : Model.expr) (after : Model.expr) :
+    Model.value_slot list =
+  let rec static_slots (e : Model.expr) =
+    match e with
+    | Let (_, _, _, body) -> static_slots body
+    | Let_static (bindings, body) ->
+      List.concat_map
+        (fun (binding : Model.static_binding) ->
+          match binding with
+          | Bind_symbol (_, Static_const_set_of_closures (_, slots))
+          | Bind_symbol (_, Static_const_closure_of_set (_, _, _, slots)) ->
+            List.map fst slots
+          | Bind_symbol
+              ( _,
+                ( Static_const_block _ | Static_const_boxed_number _
+                | Static_const_immutable_string _ ) )
+          | Bind_code _ | Bind_deleted_code _ ->
+            [])
+        bindings
+      @ static_slots body
+    | Let_cont_non_recursive (_, Handler (_, _, handler), body) ->
+      static_slots body @ static_slots handler
+    | Let_cont_recursive (_, body) -> static_slots body
+    | Apply _ | Apply_cont _ | Switch _ | Invalid -> []
+  in
+  let kept = static_slots after in
+  List.sort_uniq compare (static_slots before)
+  |> List.filter (fun slot ->
+      (not (List.mem slot kept)) && Unused_slots.slots_unused [slot] before)
+
 (* ---- The check -------------------------------------------------------- *)
 
 (* Whether a code id is used: called, made a closure of, or bound to code. Being
@@ -1701,8 +1738,9 @@ let well_formed_before ~filename (before : Flambda_unit.t) =
    named here and compares again. Which names those are is a guess that it
    checks. Failing that too, it is asked again, with the [Let]s that Simplify
    seems to have made static bindings: it lifts them in the term before as it
-   was given, if it may, normalises the result and compares again. That is a
-   guess too. *)
+   was given, if it may, normalises the result, removes the value slots of its
+   static sets of closures that the term after has not got, and compares again.
+   Those are guesses too. *)
 let validate ~(outcome_before : outcome) (before : converted)
     (after : converted) =
   let inlined = Normalise.inline_calls [] before.body in
@@ -1720,32 +1758,35 @@ let validate ~(outcome_before : outcome) (before : converted)
     }
   in
   let validation =
-    Validate.validate_unit rounds unused nothing_lifted before.body after.body
+    Validate.validate_unit rounds unused [] nothing_lifted before.body
+      after.body
   in
-  (* The term before that was compared last, and how it was made. *)
-  let validation, compared, how =
+  (* The term before that was compared last, how it was made, and whether value
+     slots were removed from it. *)
+  let validation, compared, how, slots_removed =
     let not_lifted =
       ( validation,
         Validate.without_statics unused normalised_before,
-        "normalised" )
+        "normalised",
+        false )
     in
     match validation with
     | Not_validated -> (
       let lifting =
         lifting_guess ~unit:(interface before) before.body normalised_after
       in
-      match
-        ( lifting.lifted_lets,
-          lifting.lifted_my_closures,
-          Lift.lift_unit lifting before.body )
-      with
-      | [], [], _ | _, _, None -> not_lifted
-      | _, _, Some lifted ->
+      match Lift.lift_unit lifting before.body with
+      | None -> not_lifted
+      | Some lifted -> (
         let lifted = Validate.normalise_before rounds lifted in
+        let slots = unused_slots_guess lifted normalised_after in
+        let lifted = Validate.without_slots slots lifted in
         let unused = unused_statics lifted in
-        ( Validate.validate_unit rounds unused lifting before.body after.body,
+        ( Validate.validate_unit rounds unused slots lifting before.body
+            after.body,
           Validate.without_statics unused lifted,
-          "lifted and normalised" ))
+          "lifted and normalised",
+          match slots with [] -> false | _ :: _ -> true )))
     | Same_up_to_bound_names | Same_once_normalised
     | Same_once_unused_statics_removed | Same_once_lifted ->
       not_lifted
@@ -1757,8 +1798,13 @@ let validate ~(outcome_before : outcome) (before : converted)
     | Same_once_unused_statics_removed ->
       "validated: the same once normalised and unused static bindings removed"
     | Same_once_lifted ->
-      "validated: the same once closures and blocks are lifted to symbols and \
-       the terms normalised"
+      if slots_removed
+      then
+        "validated: the same once closures and blocks are lifted to symbols, \
+         the terms normalised and unused value slots removed"
+      else
+        "validated: the same once closures and blocks are lifted to symbols \
+         and the terms normalised"
     | Not_validated ->
       if outcome_before = Undefined
       then "nothing to validate, as the term before is undefined"

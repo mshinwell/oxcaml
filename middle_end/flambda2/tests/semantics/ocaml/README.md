@@ -88,4 +88,5 @@ Steps are those of the machine, before and after Simplify.
 | `factorial.ml` | makes the closure of `factorial` a symbol | 70, 46 | the same, not validated: lifting to a symbol |
 | `mutual_recursion.ml` | makes the set of two closures static | 130, 70 | the same, not validated: lifting to symbols |
 | `exported_function.ml` | inlines the call; the exported closure becomes a symbol | 14, 6 | validated, the closure lifted to a symbol in the term before |
+| `exported_two_functions.ml` | two exported functions, the second calling the first: inlines the calls, makes both closures symbols, and removes from the second the value slot that held the first | 22, 10 | validated, the closures lifted to symbols and the unused value slot removed in the term before |
 | `match_variant_local.ml` | | | not checked: `Begin_region`, `End_region` and a local allocation |

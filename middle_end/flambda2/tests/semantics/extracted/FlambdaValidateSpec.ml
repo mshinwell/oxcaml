@@ -7,6 +7,7 @@ open FlambdaModel
 open FlambdaNormaliseSpec
 open FlambdaUnboxSpec
 open FlambdaUnusedContsSpec
+open FlambdaUnusedSlotsSpec
 open FlambdaUnusedStaticsSpec
 
 (** val iterate : nat -> (expr -> expr) -> expr -> expr **)
@@ -79,6 +80,11 @@ let without_statics d e =
 
 let with_lifting l e = match lift_unit l e with Some e' -> e' | None -> e
 
+(** val without_slots : value_slot list -> expr -> expr **)
+
+let without_slots slots e =
+  match drop_unused_slots slots e with Some e' -> e' | None -> e
+
 type validation =
   | Same_up_to_bound_names
   | Same_once_normalised
@@ -86,10 +92,10 @@ type validation =
   | Same_once_lifted
   | Not_validated
 
-(** val validate_unit : nat -> dropped -> lifting -> expr -> expr -> validation
-    **)
+(** val validate_unit : nat -> dropped -> value_slot list -> lifting -> expr ->
+    expr -> validation **)
 
-let validate_unit rounds unused l before after =
+let validate_unit rounds unused slots l before after =
   if expr_eqb [] [] before after
   then Same_up_to_bound_names
   else
@@ -102,7 +108,8 @@ let validate_unit rounds unused l before after =
     else if
       expr_eqb [] []
         (without_statics unused
-           (normalise_before rounds (with_lifting l before)))
+           (without_slots slots
+              (normalise_before rounds (with_lifting l before))))
         after0
     then Same_once_lifted
     else Not_validated
