@@ -61,7 +61,7 @@ types, inside a join of environments". I do not change that file.
   the environments joined, nor about the tests of equality.
   `n_way_join_of_types_keeps_definitions`: the same function keeps
   the definitions, with no premise. T5 asked for both.
-- Twenty-eight examples, each an equation proved by computation:
+- Twenty-nine examples, each an equation proved by computation:
   unions of sets of numbers and of strings, constants and other
   aliases, unknown and bottom inputs, heads of two forms, blocks of
   one tag (fields joined, or kept where they are the same; two
@@ -69,7 +69,8 @@ types, inside a join of environments". I do not change that file.
   constant constructor and a block (a variable for `Is_int`), two
   variants, closures (one code, two codes, one input with no
   function type: T1-4), and the answers that are `None` (no type,
-  two kinds, the bound reached, T5b-3). The environment side of the
+  two kinds, the bound reached, a closure type of another kind,
+  T5b-3). The environment side of the
   examples is a stub defined in the file, not the join of
   environments; the two tests of equality are T1's. No answer was
   read off a run of the compiler.
@@ -207,7 +208,7 @@ The thirty join functions:
 | `n_way_join_row_like_for_closures` | 2851-2893 | in full |
 | `n_way_join_closures_entry` | 2895-2953 | in full (the function types are there already) |
 | `n_way_join_generic_product` | 2955-3008 | in full |
-| `n_way_join_function_slot_indexed_product`, `n_way_join_value_slot_indexed_product` | 3010-3034 | in full |
+| `n_way_join_function_slot_indexed_product`, `n_way_join_value_slot_indexed_product` | 3010-3034 | in full; the first with the test of kinds of the creation function of its product |
 | `n_way_join_int_indexed_product` | 3036-3096 | in full, with the test of `-flambda2-join-sharing structural` in place of `!=` |
 | `n_way_join_function_type` | 3098-3131 | there already; no `rec_info` in the grammar |
 | `n_way_join_env_extension` | 3133-3139 | in full: the environment's function, bottom made the empty extension |
@@ -219,7 +220,9 @@ of kinds that `n_way_join` tests, a head of another kind in
 empty set given to `create_naked_immediates_non_empty` (R1-16), a
 symbol answered by the join of the `is_null` simples, the two fatal
 errors of `n_way_join_row_like_for_closures`, a field index outside a
-mixed shape. No other `None` but fuel.
+mixed shape, a joined closure type that is not of kind value (the
+test of `Product.Function_slot_indexed.create`, which R4 found
+missing from the transcription). No other `None` but fuel.
 
 ## The shape of the recursion
 
@@ -362,6 +365,12 @@ is on my base.
   (the joined relations are dropped when the join of the variant is
   unknown: transcribed as it is), T4-7 (the kind of an expansion:
   "Decided overnight").
+- A mistake of mine that the reviewer found: the creation function of
+  a product of function slots stops on a component that is not of
+  kind value, and the transcription did not. Fixed; every creation
+  function that the join functions call was then read for such a
+  test, and that one is the only one (the empty set of R1-16 was
+  there already).
 - A mistake of mine that the proof found: a pattern in
   `n_way_join_head_of_kind_naked_immediate` that kept the tail of
   the set of numbers. Fixed before the first request.
