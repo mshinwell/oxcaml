@@ -759,6 +759,15 @@ Variable choices : meet_choices.
 (* [meet_expanded_head], of less fuel. *)
 Variable meet_expanded_head_rec : meet_expanded_head.
 
+(* The extension that has the equations of a level
+   ([Typing_env_level.as_extension_without_bindings], which
+   [Meet_env.cut_as_extension] and [meet_row_like] apply to the level
+   that [Typing_env.cut] answers): of the equations that the level has
+   for a name, the latest only. The compiler's level is a map and has
+   one. *)
+Definition extension_of_level (level : Typing_env_level.t) : env_extension :=
+  Env_extension (Keyed.compact name_eqb (Typing_env_level.equations level)).
+
 (* [meet]. Here the recursion goes to the meet of less fuel. *)
 Definition meet (env : Meet_env.t) (t1 t2 : flambda_type)
     : option (Meet_result.t flambda_type) :=
@@ -809,7 +818,7 @@ Definition meet_disjunction {A B : Type}
            (Meet_env.names_to_avoid scoped_env))
         level
     in
-    let ext := Env_extension (Typing_env_level.equations level) in
+    let ext := extension_of_level level in
     let* added :=
       Meet_env.add_env_extension_strict initial_env ext meet_expanded_head_rec
     in
@@ -911,12 +920,8 @@ Definition meet_disjunction {A B : Type}
          && Typing_env_level.is_empty when_b_level
       then No_extensions
       else
-        let when_a :=
-          Env_extension (Typing_env_level.equations when_a_level)
-        in
-        let when_b :=
-          Env_extension (Typing_env_level.equations when_b_level)
-        in
+        let when_a := extension_of_level when_a_level in
+        let when_b := extension_of_level when_b_level in
         Ext when_a when_b
     in
     let env_extension_result : meet_return_value unit :=
@@ -1031,7 +1036,7 @@ Definition meet_row_like (initial_env : Meet_env.t) (known1 known2 : known)
         (rev (Typing_env_level.defined_variables_with_kinds level))
     in
     Some
-      (Env_extension (Typing_env_level.equations level),
+      (extension_of_level level,
        {| extra_variables := extra;
           result_env := result_env state;
           result_is_t1 := result_is_t1 state;
