@@ -191,14 +191,20 @@ Proof.
     injection Hlookup as <- _; reflexivity.
 Qed.
 
+Lemma source_kinded : typing_env_kinded Witness.source_env.
+Proof.
+  apply add_variable_definition_kinded; [ reflexivity | reflexivity | ].
+  apply add_variable_definition_kinded; [ reflexivity | reflexivity | ].
+  exact create_kinded.
+Qed.
+
 Lemma use_kinded : typing_env_kinded Witness.use_env.
 Proof.
-  intros n ty binding_time_and_mode Hlookup.
-  rewrite use_names_to_types in Hlookup. unfold use_entries in Hlookup.
-  entries_cases Hlookup n; try discriminate; injection Hlookup as <- _.
+  apply replace_equation_kinded.
+  - eexists. vm_compute. reflexivity.
   - intros simple kind [Heq | []]. injection Heq as <- <-.
     eexists. vm_compute. reflexivity.
-  - intros simple kind [].
+  - apply increment_scope_kinded. exact source_kinded.
 Qed.
 
 Lemma use_null_no_bottom_types : no_bottom_types Witness.use_env_null.
@@ -212,13 +218,11 @@ Qed.
 
 Lemma use_null_kinded : typing_env_kinded Witness.use_env_null.
 Proof.
-  intros n ty binding_time_and_mode Hlookup.
-  rewrite use_null_names_to_types in Hlookup.
-  unfold use_null_entries in Hlookup.
-  entries_cases Hlookup n; try discriminate; injection Hlookup as <- _.
+  apply replace_equation_kinded.
+  - eexists. vm_compute. reflexivity.
   - intros simple kind [Heq | []]. injection Heq as <- <-.
     eexists. vm_compute. reflexivity.
-  - intros simple kind [].
+  - apply increment_scope_kinded. exact source_kinded.
 Qed.
 
 Theorem witness_inputs_well_formed : witness_inputs_well_formed_statement.

@@ -35,7 +35,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec FlambdaMapProofs
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesProofs
-  FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaTypingEnvProofs FlambdaJoinEnv
+  FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaTypingEnvProofs
+  FlambdaTypingEnvKindedSpec FlambdaTypingEnvKindedProofs FlambdaJoinEnv
   FlambdaJoinTypes FlambdaJoinSpec.
 Import ListNotations.
 
@@ -139,8 +140,8 @@ Proof.
       + intros index use x Huse Hknown.
         apply use_at_singleton in Huse. subst use. discriminate. }
   assert (Hkinded : uses_kinded inputs).
-  { intros index use Huse n ty binding_time_and_mode Hlookup.
-    apply use_at_singleton in Huse. subst use. discriminate. }
+  { intros index use Huse. apply use_at_singleton in Huse. subst use.
+    exact create_kinded. }
   destruct (Hsound [] inputs _ _ Hwell_formed Hkinded eq_refl)
     as [_ [_ [_ [_ [_ Hadmits]]]]].
   assert (Huse : use_at inputs 0 Typing_env.create).
