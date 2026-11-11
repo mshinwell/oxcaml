@@ -253,6 +253,16 @@ Owner: N2.
 
 - `middle_end/flambda2/rocq/FlambdaFreshQuantifier*`
 - `middle_end/flambda2/rocq/FlambdaFreshAbstraction*`
+- `middle_end/flambda2/rocq/FlambdaFreshBinders*`
+- `middle_end/flambda2/rocq/FlambdaCompareConverse*` (N2's, though it
+  matches the pattern of V1's section: the converse of the comparison,
+  which N1 left to N2)
+- `middle_end/flambda2/rocq/FlambdaAlphaFresh*` and
+  `middle_end/flambda2/rocq/FlambdaAlphaGroup*` (N2's, though they
+  match the pattern of N1's section: alpha-equivalence at each binder
+  by the quantifier, N1 agreeing)
+- `middle_end/flambda2/rocq/FlambdaInlineFresh*`
+- `middle_end/flambda2/rocq/requests/N2-fresh-quantifier.md`
 
 ## R1, R2: reviewers
 
