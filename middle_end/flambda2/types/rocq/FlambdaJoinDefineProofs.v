@@ -32,7 +32,8 @@
 From Stdlib Require Import ZArith List Bool PeanoNat Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
-  FlambdaMapSpec FlambdaMapProofs FlambdaSemanticsSpec FlambdaPrimitiveProofs.
+  FlambdaMapSpec FlambdaMapProofs FlambdaSemanticsSpec FlambdaPrimitiveProofs
+  FlambdaRangeSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
   FlambdaTypeProject FlambdaBindingTime FlambdaEnvAliases
@@ -41,8 +42,10 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypingEnvInvariantProofs FlambdaTypingEnvKindedSpec
   FlambdaTypingEnvKindedProofs FlambdaJoinEnv FlambdaJoinSpec
   FlambdaJoinEnvSpec FlambdaJoinEnvProofs FlambdaJoinStateSpec
-  FlambdaJoinStateProofs FlambdaJoinTypes FlambdaJoinTypesKeepsSpec
-  FlambdaJoinTypesKeepsProofs FlambdaJoinDefineSpec.
+  FlambdaJoinStateProofs FlambdaTypeEqualSpec FlambdaJoinTypes
+  FlambdaJoinTypesSpec FlambdaJoinTypesKeepsSpec FlambdaJoinTypesKeepsProofs
+  FlambdaJoinTypesWithEnvSpec FlambdaJoinTypesWithEnvProofs
+  FlambdaJoinDefineSpec.
 Import ListNotations.
 
 (* ---------------------------------------------------------------------- *)
@@ -2978,6 +2981,7 @@ Proof.
               Hstate3 Hkinded3 Hrelations3 Hnonempty3 Hdefine)
     as [kept [equations [relation_equations [menv' [Hkept [Hadd1 [Hadd2
           Hruns]]]]]]].
+  unfold join_adds_true.
   exists s3, relations3, kept, equations, relation_equations, menv', target'.
   split; [ exact Htrue3 | ]. split; [ exact Hstate3 | ].
   split; [ exact Hrelations3 | ]. split; [ exact Huse3 | ].
@@ -3019,4 +3023,56 @@ Proof.
            index use statics valuation _ Hnormal); [ | exact Hsatisfied
                                                      | exact Hdefinitions ].
   unfold Join_env.joined_env in Huse. rewrite Henvs3 in Huse. exact Huse.
+Qed.
+
+Theorem compiler_join_true : compiler_join_true_statement.
+Proof.
+  intros A meet_env meet_expanded_head ops p fuel fuel_of_env fuel_of_types
+    expand_head reduce mh avoid inputs target analysis Hfresh Heqb Hextension
+    Hconst Hexpand Hreduce Hinputs Hkinded Hagree Hsome Hjoin.
+  exact (join_with_true A meet_env meet_expanded_head ops p fuel
+           Join_env.compiler_choices
+           (n_way_join_of_types p fuel_of_env expand_head reduce
+              fuel_of_types)
+           mh avoid inputs target analysis
+           (n_way_join_of_types_true (source inputs) p fuel_of_env expand_head
+              reduce fuel_of_types Hfresh Heqb Hextension Hexpand Hreduce)
+           (n_way_join_keeps_envs p fuel_of_env fuel_of_types expand_head
+              reduce type_eqb block_shape_eqb)
+           Hfresh Heqb Hconst Hinputs Hkinded Hagree Hsome Hjoin).
+Qed.
+
+(* ---------------------------------------------------------------------- *)
+(* The valuation of the target is in range                                 *)
+(* ---------------------------------------------------------------------- *)
+
+Lemma in_tabulate {A : Type} (f : positive -> option A)
+    (names : list positive) (x : positive) (a : A) :
+  (x, a) ∈ tabulate f names -> f x = Some a.
+Proof.
+  unfold tabulate. intros Hin. apply in_flat_map in Hin.
+  destruct Hin as [name [_ Hin]]. destruct (f name) as [a' | ] eqn:Hf;
+    [ | destruct Hin ].
+  destruct Hin as [Heq | []]. injection Heq as <- <-. exact Hf.
+Qed.
+
+Theorem target_valuation_in_range : target_valuation_in_range_statement.
+Proof.
+  intros s index use valuation Hdefinitions Hrange x v Hin.
+  unfold target_valuation in Hin. apply in_app_or in Hin.
+  destruct Hin as [Hin | Hin].
+  - apply in_tabulate in Hin. unfold value_of_definition in Hin.
+    destruct (lookup x (Join_env.definitions_of_existentials s))
+      as [[simples kind] | ] eqn:Hdefinition; [ | discriminate ].
+    destruct (Simples_in_joined_envs.find index simples) as [simple | ]
+      eqn:Hfind; [ | discriminate ].
+    destruct simple as [y | sym | c]; cbn in Hin.
+    + exact (Hrange y v (lookup_in y v valuation Hin)).
+    + injection Hin as <-. reflexivity.
+    + injection Hin as <-.
+      exact (Hdefinitions x simples kind index c Hdefinition Hfind).
+  - unfold filter_bindings in Hin. apply in_tabulate in Hin.
+    destruct (lookup x valuation) as [v' | ] eqn:Hlookup; [ | discriminate ].
+    destruct (known_to s use x); [ | discriminate ].
+    injection Hin as <-. exact (Hrange x v' (lookup_in x v' valuation Hlookup)).
 Qed.
