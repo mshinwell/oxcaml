@@ -817,6 +817,7 @@ Lemma well_formed_sets_inv (unit_exn : continuation) (e : expr) (n : nat)
   sets_inv s.
 Proof.
   intros Hwf. unfold well_formed_unit in Hwf.
+  apply andb_true_iff in Hwf as [Hwf _].
   apply andb_true_iff in Hwf as [_ Hsets].
   apply sets_inv_run. unfold sets_inv. simpl_state.
   refine (conj Hsets (conj I (conj _ _))).
@@ -1392,10 +1393,24 @@ Proof.
     reflexivity.
 Qed.
 
+(* The conditions that do not look at the numbers are computed; the
+   argument is the one number of the two units that is not given. *)
 Theorem parity_well_formed : parity_well_formed_statement.
 Proof.
-  intros i. split; [ vm_compute; reflexivity | ].
-  eexists. split; [ reflexivity | vm_compute; reflexivity ].
+  intros i Hi. split.
+  - unfold well_formed_unit. apply andb_true_iff.
+    split; [ vm_compute; reflexivity | ].
+    unfold FlambdaClosuresSpec.parity_static. cbn [numbers_in_range].
+    apply andb_true_iff. split; [ vm_compute; reflexivity | ].
+    unfold apply_in_range. cbn. rewrite Hi. reflexivity.
+  - eexists. split; [ reflexivity | ].
+    unfold well_formed_unit. apply andb_true_iff.
+    split; [ vm_compute; reflexivity | ].
+    cbn [numbers_in_range].
+    apply andb_true_iff. split; [ vm_compute; reflexivity | ].
+    apply andb_true_iff. split; [ vm_compute; reflexivity | ].
+    apply andb_true_iff. split; [ vm_compute; reflexivity | ].
+    unfold apply_in_range. cbn. rewrite Hi. reflexivity.
 Qed.
 
 Theorem partial_static_set : partial_static_set_statement.

@@ -567,6 +567,12 @@ Proof.
   rewrite Hrun in Hresult. apply forallb_forall. exact Hresult.
 Qed.
 
+Theorem well_formed_in_range : well_formed_in_range_statement.
+Proof.
+  intros unit_exn e n s Hwf. unfold well_formed_unit in Hwf.
+  apply andb_true_iff in Hwf as [_ He]. exact (run_in_range e n s He).
+Qed.
+
 (* ======================================================================== *)
 (* What a state in range holds                                              *)
 (* ======================================================================== *)

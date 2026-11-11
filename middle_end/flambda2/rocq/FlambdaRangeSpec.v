@@ -48,9 +48,11 @@
    range too ([run_in_range_statement],
    [run_exit_in_range_statement]).
 
-   Two things follow for a state of such a run, and so for every state
-   of the run of a well-formed unit once the check is a condition of
-   well-formedness.
+   The check is a condition of well-formedness
+   (FlambdaWellFormedSpec.well_formed_unit), so every state of the run
+   of a well-formed unit is in range
+   ([well_formed_in_range_statement]). Two things follow for such a
+   state.
    - Every block that a variable holds, made by a primitive or static,
      has a tag that the compiler's blocks can have, and so have the
      blocks in its fields ([blocks_in_range_statement]). The machine
@@ -146,6 +148,13 @@ Definition run_exit_in_range_statement : Prop :=
     numbers_in_range e = true ->
     run n (State e [] [] empty_static_env) = Exit k vs ->
     ∀ v : value, v ∈ vs -> value_in_range v = true.
+
+(* So is every state of the run of a well-formed unit. *)
+Definition well_formed_in_range_statement : Prop :=
+  ∀ (unit_exn : continuation) (e : expr) (n : nat) (s : state),
+    well_formed_unit unit_exn e = true ->
+    run n (State e [] [] empty_static_env) = Step s ->
+    state_in_range s.
 
 (* ======================================================================== *)
 (* What a state in range holds                                              *)

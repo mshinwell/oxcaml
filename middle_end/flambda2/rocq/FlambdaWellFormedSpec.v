@@ -33,8 +33,9 @@
    Downwards_env.at_unit_toplevel), [sets_well_formed] against what the
    compiler checks of a set of closures (terms/static_const.ml,
    match_against_bound_static_pattern) and what it assumes
-   (terms/function_declarations.ml, create), [well_formed_unit], and the
-   two statements.
+   (terms/function_declarations.ml, create), [numbers_in_range] against
+   the types of the compiler's numbers (the comment of its section says
+   which), [well_formed_unit], and the two statements.
 
    Flambda permits a [Let_static] at the toplevel of a compilation unit
    only, so that it is executed once, before anything that follows it.
@@ -52,8 +53,9 @@
 
    [statics_at_toplevel] is this as a check, carrying down the term
    whether it is at toplevel, as Simplify does. [well_formed_unit] asks
-   also that no code id or symbol is bound twice, and that the sets of
-   closures of the unit are whole ([sets_well_formed]).
+   also that no code id or symbol is bound twice, that the sets of
+   closures of the unit are whole ([sets_well_formed]), and that its
+   numbers are in range ([numbers_in_range]).
 
    The model can express sets of closures that the compiler does not
    make (FlambdaSemanticsSpec.v says what the machine does with them).
@@ -427,7 +429,8 @@ with code_sets_well_formed (c : code) : bool :=
    and the arithmetic has no value on a constant out of range.
 
    FlambdaRangeSpec.v says what the check gives: in the run of a unit
-   that passes, every number that a state holds is in range. *)
+   that passes, and so of a well-formed unit, every number that a state
+   holds is in range. *)
 
 Definition simple_in_range (s : simple) : bool :=
   match s with
@@ -509,12 +512,13 @@ with code_numbers_in_range (c : code) : bool :=
 
 (* A unit, with its exception continuation: its static bindings are at
    toplevel, and bind each code id and each symbol once; its sets of
-   closures are whole. *)
+   closures are whole; its numbers are in range. *)
 Definition well_formed_unit (unit_exn : continuation) (e : expr) : bool :=
   statics_at_toplevel unit_exn true e
   && distinct (static_names code_ids_of_binding e)
   && distinct (static_names symbols_of_binding e)
-  && sets_well_formed e.
+  && sets_well_formed e
+  && numbers_in_range e.
 
 (* ======================================================================== *)
 (* What is bound stays bound                                                *)

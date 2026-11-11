@@ -664,9 +664,12 @@ Definition parity_static_statement : Prop :=
       (Exits done [Value_const (Naked_immediate answer)]).
 
 (* Both are well-formed units: the statements about well-formed units
-   are about some unit with a set of two functions. *)
+   are about some unit with a set of two functions. The argument [i] is
+   a naked immediate of the unit, so it has to be one: a well-formed
+   unit has its numbers in range. *)
 Definition parity_well_formed_statement : Prop :=
   ∀ i : Z,
+    ocaml_int_in_range i = true ->
     well_formed_unit error (parity_static i) = true
     ∧ ∃ e : expr, parity_let i = Some e ∧ well_formed_unit error e = true.
 
