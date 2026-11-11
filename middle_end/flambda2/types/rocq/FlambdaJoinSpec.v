@@ -67,15 +67,16 @@
    between the two halves of the transcription.
 
    What is guaranteed ([join_guarantees]), for a use and a valuation
-   that satisfies it strictly: some valuation satisfies the target
-   strictly, gives every variable that the use knows and that had a
-   value that value, and gives every variable that has a definition in
-   the analysis the value, at that use, of the [Simple] that the
-   analysis says, if it has one. It is one valuation for the whole
-   target: every equation of the target, on the names of the source and
-   on the names that the join made, holds under it together. A variable
-   of the target that the use does not know, and that no alias forces,
-   has no value in it.
+   that satisfies the use and the source strictly: some valuation
+   satisfies the target strictly, gives every variable that the use or
+   the source knows and that had a value that value, and gives every
+   variable that has a definition in the analysis the value, at that
+   use, of the [Simple] that the analysis says, if it has one. It is
+   one valuation for the whole target: every equation of the target, on
+   the names of the source and on the names that the join made, holds
+   under it together. A variable of the target that neither the use nor
+   the source knows may be left without a value in it; nothing here
+   says whether it is.
 
    The decisions this rests on, and what is not promised.
    - Valuations are partial and satisfaction is strict. The n-way join
@@ -85,8 +86,8 @@
      covers only some uses (the contributors of one case of a row-like
      structure). At another use no value need have that type: the
      variable means nothing there. So the valuation that witnesses the
-     target at a use leaves such a variable without a value, and a
-     type that reaches it by an alias is satisfied by no value. The
+     target at a use may leave such a variable without a value, and a
+     type that reaches it by an alias is then satisfied by no value. The
      definitions for this are the typing environment's
      ([typing_env_satisfied_strictly], [env_satisfies_strictly]).
    - Poison (decision D26). Typing facts are about values that are not
@@ -95,12 +96,18 @@
      Nothing is promised of a use that is satisfied only with the
      exemption of the names that hold poison ([typing_env_satisfied]):
      a join expands aliases, and through a name that is exempt that is
-     wrong (the CR at [join_admits_use]). A relation says nothing of a
-     scrutinee that is poison: that is in the meaning of types
-     ([relation_holds]), and the relations that the join rebuilds are
-     true in that sense. Aliases are exact: the target's are respected
-     by the witness, and a variable with a definition has exactly the
-     value of its definition, poison included.
+     wrong (the CR at [join_admits_use]). A relation ([Is_int],
+     [Get_tag], [Is_null]) is never true of a scrutinee that holds
+     poison (the decision as revised). That is for the meaning of types
+     to say ([relation_holds]); until the grammar's owner has removed
+     its clauses for poison, the [relation_holds] that this file is
+     built on still holds, with any number, of a scrutinee that holds
+     poison; no statement proved of this file depends on which. The
+     relations that the join rebuilds on a scrutinee say again, from
+     its side, a relation that the target has for another name: they
+     are true where that one is. Aliases are exact: the target's are
+     respected by the witness, and a variable with a definition has
+     exactly the value of its definition, poison included.
    - No leastness, and no equality with the binary join. The join that
      answers the source and says nothing meets this contract
      ([join_to_source_sound_statement]). What is promised of precision
@@ -118,6 +125,13 @@
      stated separately, with the functions.
    - That the join answers is not promised: [None] is a fatal error of
      the compiler or the model's fuel run out.
+   - That the target is kinded ([typing_env_kinded]) is not promised.
+     So the contract does not give, by itself, the premise
+     [uses_kinded] of a later join of which the target, or an
+     environment made from it, is a use. It is to be stated with the
+     functions, and needs more of the inputs than is asked here: at
+     least that the source is kinded, and that the source and the uses
+     have the variables that they share at the same kinds.
    - Code age, allocation modes and symbol projections have no meaning
      here (FlambdaTypeMeaningSpec.v, FlambdaTypingEnv.v).
 
@@ -179,20 +193,21 @@
      which is not promised yet.
    Each difference is recorded as a discrepancy (T5-1 to T5-3).
 
-   The known failure. The n-way join of two closure types is not an
-   upper bound where one says nothing of the code of a function and the
-   other names it: [n_way_join_closures_entry] keeps a function type
-   that only some of the entries joined have
-   ([n_way_join_function_types] in FlambdaJoinTypes.v is that part of
-   it). [n_way_join_closures_entry_not_upper_bound_statement] is the
-   instance. So no transcription of the compiler's function can meet
-   [n_way_join_type_sound], and the contract is not weakened for it.
-   With the one change of [n_way_join_function_types_proposed], which
-   keeps a function type only if every entry has one, a closures entry
+   The failure that was found, and repaired. The n-way join of two
+   closure types was not an upper bound where one says nothing of the
+   code of a function and the other names it:
+   [n_way_join_closures_entry] kept a function type that only some of
+   the entries joined have ([n_way_join_function_types_before_fix] in
+   FlambdaJoinTypes.v is that part of it as it was).
+   [n_way_join_function_types_before_fix_unsound_statement] is
+   the instance: no transcription of that function could meet
+   [n_way_join_type_sound], and the contract was not weakened for it.
+   The compiler has since been changed (on the integration branch) to
+   keep a function type only if every entry has one;
+   [n_way_join_function_types] is that, and with it a closures entry
    that holds with the function types of one of the entries joined
-   holds with those joined
-   ([n_way_join_function_types_proposed_sound_statement]).
-   Discrepancies T1-4 and R3-7; a program that the compiler miscompiles
+   holds with those joined ([n_way_join_function_types_sound_statement]).
+   Discrepancies T1-4 and R3-7; a program that the compiler miscompiled
    because of it is in the record of reproductions. *)
 
 From Stdlib Require Import ZArith List Bool PeanoNat.
@@ -791,8 +806,13 @@ Definition joined_envs_well_formed (s : state) : Prop :=
   ∀ (index : Index.t) (use : Typing_env.t),
     joined_env s index = Some use -> typing_env_well_formed use.
 
-(* The environments joined are kinded. (The join of types needs it of
-   the types that it expands in them.) *)
+(* The environments joined are kinded. The join of types needs it of
+   the types that it expands in them; the environment side, of the
+   types that it looks up in them when it imports a variable or makes
+   one for [Simple]s. It is a premise of each of the four contracts
+   and not a part of [state_valid]: the environments joined do not
+   change in a join ([state_grows]), so whoever has it at the first
+   call has it at every later one. *)
 Definition joined_envs_kinded (s : state) : Prop :=
   ∀ (index : Index.t) (use : Typing_env.t),
     joined_env s index = Some use -> typing_env_kinded use.
@@ -928,6 +948,7 @@ Definition n_way_join_simples_sound
     (result : Or_bottom.t simple),
     state_valid s ->
     joined_envs_well_formed s ->
+    joined_envs_kinded s ->
     join_args_distinct simples ->
     join_args_in_scope (fun use simple => simple_of_kind use simple kind) s
       simples ->
@@ -949,14 +970,21 @@ Definition n_way_join_simples_sound
 
 (* [Join_env.import_type]: the variables of a type become variables of
    the target. The join of types calls it on a type that it puts in its
-   answer as it stands. Nothing is said of values: a type means the
-   same under a valuation of the target that extends that of an input
-   whose environment knows its variables ([agrees_on_known]). *)
+   answer as it stands. Nothing is said of values, and nothing need be:
+   a value that has the type under a valuation of an input whose
+   environment knows its variables has it under a valuation of the
+   target that extends that one, since the variables keep the values
+   that they have ([agrees_on_known]) and the meaning of a type only
+   grows when variables are given values (a statement of the meaning of
+   types). The type need not mean the same under the two: a variable
+   with no value in the first may have one in the second, and then
+   more values have the type. *)
 Definition import_type_sound
     (import_type : state -> flambda_type -> option state) : Prop :=
   ∀ (s s' : state) (ty : flambda_type),
     state_valid s ->
     joined_envs_well_formed s ->
+    joined_envs_kinded s ->
     import_type s ty = Some s' ->
     state_valid s' ∧ state_grows s s' ∧ type_in_target s' ty.
 
@@ -973,6 +1001,7 @@ Definition n_way_join_env_extension_sound
     (result : Or_bottom.t (env_extension * state)),
     state_valid s ->
     joined_envs_well_formed s ->
+    joined_envs_kinded s ->
     join_args_distinct extensions ->
     join_args_in_scope env_extension_in_scope s extensions ->
     n_way_join_env_extension s extensions = Some result ->
@@ -1132,11 +1161,11 @@ Definition closures_type_with (slot : function_slot)
 (* There are two closure types that differ only in their function
    types, and a value that has the first, such that the value has not
    the type whose function types are those that the compiler's n-way
-   join makes of the two. (The first says nothing of the code of the
-   closure's own function, the second names a code, and the value's
-   code is another.) So [n_way_join_closures_entry] does not meet
-   [n_way_join_type_sound]. *)
-Definition n_way_join_closures_entry_not_upper_bound_statement : Prop :=
+   join made of the two before it was changed. (The first says nothing
+   of the code of the closure's own function, the second names a code,
+   and the value's code is another.) So [n_way_join_closures_entry]
+   did not meet [n_way_join_type_sound]. *)
+Definition n_way_join_function_types_before_fix_unsound_statement : Prop :=
   ∃ (statics : static_env) (vars : env) (v : value) (slot : function_slot)
     (index : row_like_index set_of_closures_contents unit)
     (closure_types value_slot_types : finite_map flambda_type)
@@ -1147,14 +1176,14 @@ Definition n_way_join_closures_entry_not_upper_bound_statement : Prop :=
          function_types0)
     ∧ ~ type_satisfied statics vars v
           (closures_type_with slot index closure_types value_slot_types
-             (n_way_join_function_types
+             (n_way_join_function_types_before_fix
                 [(0, function_types0); (1, function_types1)])).
 
-(* With the change proposed, the function types joined say of the code
-   of a function only what every entry says: a closures entry that
-   holds with the function types of one of the entries joined holds
-   with the function types joined. *)
-Definition n_way_join_function_types_proposed_sound_statement : Prop :=
+(* With the change, the function types joined say of the code of a
+   function only what every entry says: a closures entry that holds
+   with the function types of one of the entries joined holds with the
+   function types joined. *)
+Definition n_way_join_function_types_sound_statement : Prop :=
   ∀ (statics : static_env) (vars : env) (v : value) (slot : function_slot)
     (functions : list (function_slot * code_id))
     (value_slots : list (value_slot * value))
@@ -1166,5 +1195,5 @@ Definition n_way_join_function_types_proposed_sound_statement : Prop :=
     closures_entry_satisfied statics vars v slot functions value_slots
       (Closures_entry function_types closure_types value_slot_types) ->
     closures_entry_satisfied statics vars v slot functions value_slots
-      (Closures_entry (n_way_join_function_types_proposed entries)
+      (Closures_entry (n_way_join_function_types entries)
          closure_types value_slot_types).

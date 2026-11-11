@@ -327,8 +327,8 @@ Qed.
 (* The instance is that of the examples of the meaning of types: the
    type that a projection of a value slot gives a closure, joined with
    one that names a code other than the closure's. *)
-Theorem n_way_join_closures_entry_not_upper_bound
-  : n_way_join_closures_entry_not_upper_bound_statement.
+Theorem n_way_join_function_types_before_fix_unsound
+  : n_way_join_function_types_before_fix_unsound_statement.
 Proof.
   exists Examples.statics, Examples.vars, (Value_symbol Examples.a_closure),
     unnamed_function_slot,
@@ -396,8 +396,8 @@ Proof.
     apply Pos.eqb_eq in Hall. symmetry. exact Hall.
 Qed.
 
-(* One step of the gathering proposed. *)
-Definition gather_step_proposed
+(* One step of the gathering. *)
+Definition gather_step
     (function_types : finite_map (list (Index.t * Or_unknown.t function_type)))
     (entry : Index.t * finite_map (Or_unknown.t function_type))
     : finite_map (list (Index.t * Or_unknown.t function_type)) :=
@@ -409,19 +409,19 @@ Definition gather_step_proposed
        end)
     function_types (snd entry).
 
-Lemma lookup_gather_step_proposed
+Lemma lookup_gather_step
     (function_types : finite_map (list (Index.t * Or_unknown.t function_type)))
     (entry : Index.t * finite_map (Or_unknown.t function_type))
     (g : function_slot)
     (contributors : list (Index.t * Or_unknown.t function_type)) :
-  lookup g (gather_step_proposed function_types entry) = Some contributors ->
+  lookup g (gather_step function_types entry) = Some contributors ->
   ∃ (vals : list (Index.t * Or_unknown.t function_type))
     (val2 : Or_unknown.t function_type),
     lookup g function_types = Some vals
     ∧ lookup g (snd entry) = Some val2
     ∧ contributors = (fst entry, val2) :: vals.
 Proof.
-  unfold gather_step_proposed. rewrite lookup_merge; [ | reflexivity ].
+  unfold gather_step. rewrite lookup_merge; [ | reflexivity ].
   destruct (lookup g function_types) as [vals | ]; [ | discriminate ].
   destruct (lookup g (snd entry)) as [val2 | ]; [ | discriminate ].
   intros Heq. injection Heq as <-. exists vals, val2. repeat split.
@@ -429,12 +429,12 @@ Qed.
 
 (* What is gathered for a slot holds a function type of every entry gone
    through, and what was gathered before. *)
-Lemma lookup_fold_gather_proposed
+Lemma lookup_fold_gather
     (entries : list (Index.t * finite_map (Or_unknown.t function_type)))
     (function_types : finite_map (list (Index.t * Or_unknown.t function_type)))
     (g : function_slot)
     (contributors : list (Index.t * Or_unknown.t function_type)) :
-  lookup g (List.fold_left gather_step_proposed entries function_types)
+  lookup g (List.fold_left gather_step entries function_types)
   = Some contributors ->
   (∃ vals : list (Index.t * Or_unknown.t function_type),
      lookup g function_types = Some vals
@@ -452,7 +452,7 @@ Proof.
     exists contributors. split; [ exact Hlookup | ]. intros; assumption.
   - cbn in Hlookup.
     destruct (IH _ Hlookup) as [[vals1 [Hstep Hincluded]] Hentries].
-    destruct (lookup_gather_step_proposed _ _ _ _ Hstep)
+    destruct (lookup_gather_step _ _ _ _ Hstep)
       as [vals [val2 [Hvals [Hval2 Heq]]]].
     subst vals1. split.
     + exists vals. split; [ exact Hvals | ].
@@ -463,13 +463,13 @@ Proof.
       * exact (Hentries index function_types' Hin).
 Qed.
 
-Lemma lookup_gather_function_types_proposed
+Lemma lookup_gather_function_types
     (entries : list (Index.t * finite_map (Or_unknown.t function_type)))
     (g : function_slot)
     (contributors : list (Index.t * Or_unknown.t function_type))
     (index : Index.t)
     (function_types : finite_map (Or_unknown.t function_type)) :
-  lookup g (gather_function_types_proposed entries) = Some contributors ->
+  lookup g (gather_function_types entries) = Some contributors ->
   In (index, function_types) entries ->
   ∃ func_type : Or_unknown.t function_type,
     lookup g function_types = Some func_type
@@ -480,10 +480,10 @@ Proof.
   cbn in Hlookup.
   change
     (lookup g
-       (List.fold_left gather_step_proposed entries
+       (List.fold_left gather_step entries
           (map_values (fun func_type => [(id1, func_type)]) function_types1))
      = Some contributors) in Hlookup.
-  destruct (lookup_fold_gather_proposed _ _ _ _ Hlookup)
+  destruct (lookup_fold_gather _ _ _ _ Hlookup)
     as [[vals [Hvals Hincluded]] Hentries].
   destruct Hin as [Heq | Hin]; [ | exact (Hentries _ _ Hin) ].
   injection Heq as <- <-.
@@ -493,21 +493,21 @@ Proof.
   apply Hincluded. left. reflexivity.
 Qed.
 
-Theorem n_way_join_function_types_proposed_sound
-  : n_way_join_function_types_proposed_sound_statement.
+Theorem n_way_join_function_types_sound
+  : n_way_join_function_types_sound_statement.
 Proof.
   intros statics vars v slot functions value_slots entries index
     function_types closure_types value_slot_types Hin.
   rewrite !closures_entry_lookup_iff.
   intros [Hfunctions Hrest]. split; [ | exact Hrest ].
   intros g joined code Hlookup Hcode.
-  unfold n_way_join_function_types_proposed in Hlookup.
+  unfold n_way_join_function_types in Hlookup.
   rewrite lookup_map_values in Hlookup.
-  destruct (lookup g (gather_function_types_proposed entries))
+  destruct (lookup g (gather_function_types entries))
     as [contributors | ] eqn:Hgathered; [ | discriminate ].
   injection Hlookup as Hjoined.
   destruct
-    (lookup_gather_function_types_proposed _ _ _ _ _ Hgathered Hin)
+    (lookup_gather_function_types _ _ _ _ _ Hgathered Hin)
     as [func_type [Hfunc_type Hcontributor]].
   destruct (n_way_join_function_type_known _ _ _ _ Hjoined Hcontributor)
     as [func_type' [Heq Hsame_code]].

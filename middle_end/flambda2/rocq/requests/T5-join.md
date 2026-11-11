@@ -1,6 +1,6 @@
 # T5: the contract of the n-way join, and how to divide the work
 
-Branch `flambda2-rocq/T5-join`. For the reviewer (R1), the orchestrator
+Branch `flambda2-rocq/T5-join`. For the reviewer, the orchestrator
 and the human. The contract is `types/rocq/FlambdaJoinSpec.v`; this
 note explains it, says what is not settled, and proposes how to split
 the transcription. Paths are from `middle_end/flambda2/`.
@@ -40,6 +40,13 @@ in the meet: the environment of the meet), a scope, and a list of
 5. The target is well formed (the typing environment's invariant, a
    parameter until that file names it).
 
+Not in the guarantee: that the target is kinded. So the contract does
+not by itself discharge `uses_kinded` at a later join that has the
+target, or an environment made from it, as a use. That needs more of
+the inputs than is asked today (at least a kinded source, and the
+source and the uses agreeing on the kinds of the variables they
+share); it will be stated with the functions.
+
 In the machine (`join_guarantees_in_machine_statement` and
 `join_admits_use_in_machine_statement`, proved): if a variable that
 may occur in terms in the source may occur in terms at each use, a
@@ -58,7 +65,8 @@ corollaries; what a constant in the analysis means, and that the two
 lists Simplify folds over hold what the vectors have at their indices;
 that the contract is met by the join that answers the source and is
 not met by one that answers bottom (so it is neither contradictory nor
-empty); and the two about closures below.
+empty); and the two about closures below (the function as it was is
+not an upper bound; as changed it is).
 
 **What it does not yet cover of Simplify's joins.** The contract is a
 foundation for runs in which one valuation satisfies a use and the
@@ -114,9 +122,12 @@ source strictly, through environments that are kinded. Outside it:
   exemption of names that hold poison the statement is false, for the
   join and for anything that expands an alias (example in the comment
   at `join_admits_use`). So nothing is promised of a use made by
-  variant unboxing with poison arguments. Relations say nothing of a
-  poison scrutinee (T1's `relation_holds`); aliases and definitions
-  are exact.
+  variant unboxing with poison arguments. A relation (`Is_int`,
+  `Get_tag`, `Is_null`) is never true of a scrutinee that holds poison
+  (D26 as revised at 18:30 UTC). T1 is removing the poison clauses of
+  `relation_holds`; until that reaches this branch the definition it
+  builds on still has them, and nothing proved here depends on which.
+  Aliases and definitions are exact.
 - **Not promised:** leastness; equality with the binary join; that
   the join answers (no fatal error, enough fuel); anything about code
   age, allocation modes, symbol projections.
@@ -163,22 +174,23 @@ Also required and not in the header: every environment well formed;
 
 ## 5. The known failure, and what else was found
 
-- **Closures (T1-4, R3-7).** `n_way_join_closures_entry` keeps a
-  function type that only some entries have (the cases
-  `None, Some val2` and `Some _, None` of its merge).
-  `n_way_join_function_types` in `FlambdaJoinTypes.v` is that part,
-  transcribed. `n_way_join_closures_entry_not_upper_bound_statement`
+- **Closures (T1-4, R3-7): found, shown, and repaired.**
+  `n_way_join_closures_entry` kept a function type that only some
+  entries have (the cases `None, Some val2` and `Some _, None` of its
+  merge). `n_way_join_function_types_before_fix` in
+  `FlambdaJoinTypes.v` is that part as it was, and
+  `n_way_join_function_types_before_fix_unsound_statement`
   (proved) gives two closure types that differ only in function types
   and a value that has the first and not the type with the joined
-  function types. The contract is not weakened. The change that
-  repairs it: in that merge, answer `None` unless both sides have a
-  function type (as `n_way_join_generic_product` and the binary
-  `join_closures_entry` do).
-  `n_way_join_function_types_proposed_sound_statement` (proved) says
-  the changed function is an upper bound for closures entries. X2 has
-  since shown the failure end to end (a correct program aborts with
-  `-O3` and the n-way join) and is making the same change on its
-  branch.
+  function types. The contract was not weakened. X2 showed the failure
+  end to end (a correct program aborts with `-O3` and the n-way join)
+  and made the change that repairs it: the merge answers `None` unless
+  both sides have a function type (as `n_way_join_generic_product`
+  and the binary `join_closures_entry` do). The human has taken that
+  change for the integration branch, so it is the compiler that is
+  transcribed: `n_way_join_function_types`, with
+  `n_way_join_function_types_sound_statement` (proved). The entry
+  stays in the record of discrepancies as demonstrated and fixed.
 - **R1-16** (an empty set given to
   `create_naked_immediates_non_empty` when every head reduces to
   bottom): not looked at further; still traced, not shown reachable.
@@ -224,7 +236,8 @@ Two halves, with `FlambdaJoinSpec.v` between them.
 (`generic_merge_map_known`, `n_way_join_unknown`, `deduce_is_int`,
 `deduce_get_tag`, `n_way_join_relation_simples`).
 - `FlambdaJoinTypes.v` (handed over; it has the function-types part
-  today), `FlambdaJoinTypesSpec.v`, `FlambdaJoinTypesProofs.v`:
+  today, as changed and as it was), `FlambdaJoinTypesSpec.v`,
+  `FlambdaJoinTypesProofs.v`:
   `n_way_join_type_sound`, by T1's `types_induction`, from the
   statements of the three environment functions.
 
@@ -239,12 +252,19 @@ types, inside a join of environments", and are fixed there:
 - the state is abstract, with three readings (`joined_env`,
   `definitions_of_existentials`, `exists_in_target_env`) and an
   invariant `state_valid` that is the environment side's;
-- four contracts, each "the invariant is kept, the state grows, the
-  answer is in the scope of the target, and the upper bound holds
-  under every valuation that `extends_input`":
+- four contracts, each with the premises that the environments joined
+  are well formed and kinded (they do not change during a join, so
+  kindedness is a premise and not a part of `state_valid`), and each
+  "the invariant is kept, the state grows, the answer is in the scope
+  of the target, and the upper bound holds under every valuation that
+  `extends_input`":
   `n_way_join_type_sound` (T proves it, E assumes it), and
   `n_way_join_simples_sound`, `import_type_sound`,
-  `n_way_join_env_extension_sound` (E proves them, T assumes them);
+  `n_way_join_env_extension_sound` (E proves them, T assumes them).
+  `import_type_sound` says nothing of values: a value that has the
+  type at an input keeps it in the target because variables keep
+  their values and the meaning of a type grows with the valuation
+  (T1's `type_satisfied_monotone_all`); the type may gain values;
 - every argument at an index mentions only variables that the
   environment of that index knows (`join_args_in_scope`), each index
   is given once (`join_args_distinct`), and the types given are kinded
@@ -299,14 +319,9 @@ I call (`add_variable_definition`, `add_env_extension`,
 
 ## 8. Questions for the human
 
-1. **Closures.** (a) The model's `n_way_join_closures_entry` follows
-   the proposed change, the compiler is changed to match (one merge),
-   and the soundness theorem has no exception; (b) the model follows
-   the compiler and the theorem excludes closure types that differ in
-   function types. Recommendation: (a). Meanwhile both versions of
-   that part are in `FlambdaJoinTypes.v`; the entry will be
-   transcribed with the proposed one, and the compiler's kept beside
-   it for the differential tests.
+1. **Closures.** Answered: the human has taken the change to the
+   compiler, and the model follows the changed function. No exception
+   in the soundness theorem.
 2. **Poison at joins.** Nothing is promised of a use satisfied only
    with the D26 exemption. Either that is accepted (the proof of
    unboxing must then treat a join after an unboxed continuation

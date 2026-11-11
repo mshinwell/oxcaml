@@ -33,10 +33,17 @@
    definitions only. What the join guarantees is FlambdaJoinSpec.v.
 
    It is the first part of the transcription: the one function of the
-   thirty that is known not to give an upper bound, so that
+   thirty that was found not to give an upper bound, so that
    FlambdaJoinSpec.v can state the failure of a function of the model
    and not of a type written by hand. The others are to come, and the
    header will then say function by function what the model has.
+
+   The compiler that is transcribed is the one with the change that
+   repairs that function: in [n_way_join_closures_entry], the merge of
+   the function types answers [None] unless both sides have a function
+   type. The integration branch has taken that change; a tree that has
+   not it yet has, in that merge, the cases [None, Some val2] and
+   [Some _, None] that [gather_function_types_before_fix] has here.
 
    What is here:
    - [n_way_join_function_type]: the compiler's function of that name.
@@ -52,17 +59,18 @@
      With invariant checks the compiler stops on an empty list; without
      them it answers unknown, as here.
    - [n_way_join_function_types]: of [n_way_join_closures_entry], the
-     part that joins the function types of the entries. For each
-     function slot that some entry has a function type for, it joins
-     the function types of the entries that have one. An entry that has
-     none for the slot is left out of that join: it is not taken to
-     say that the code is unknown.
-   - [n_way_join_function_types_proposed]: not in the compiler. The
-     same with the one change that makes it an upper bound: a function
-     slot is kept only if every entry has a function type for it, as
+     part that joins the function types of the entries. A function slot
+     is kept only if every entry has a function type for it, as
      [n_way_join_generic_product] does for the closures and the value
      slots, and as the binary join does ([join_closures_entry] in
      meet_and_join.ml).
+   - [n_way_join_function_types_before_fix]: the same part as it was
+     before the change. For each function slot that some entry has a
+     function type for, it joins the function types of the entries that
+     have one. An entry that has none for the slot is left out of that
+     join: it is not taken to say that the code is unknown. It is not
+     an upper bound (FlambdaJoinSpec.v), and is kept only as the record
+     of that; nothing else is to use it.
 
    The lists of contributors are in the reverse of the order of the
    entries, as in the compiler; [n_way_join_function_type] does not
@@ -105,9 +113,35 @@ Definition n_way_join_function_type
   end.
 
 (* The function types of the entries, slot by slot, as
-   [n_way_join_closures_entry] gathers them: the entries that have none
-   for a slot are not among its contributors. *)
+   [n_way_join_closures_entry] gathers them: a slot is kept only if
+   every entry has a function type for it. *)
 Definition gather_function_types
+    (entries : list (Index.t * finite_map (Or_unknown.t function_type)))
+    : finite_map (list (Index.t * Or_unknown.t function_type)) :=
+  match entries with
+  | [] => []
+  | (id1, function_types1) :: entries =>
+    fold_left
+      (fun function_types entry =>
+         merge
+           (fun vals_opt val2_opt =>
+              match vals_opt, val2_opt with
+              | None, _ | _, None => None
+              | Some vals, Some val2 => Some ((fst entry, val2) :: vals)
+              end)
+           function_types (snd entry))
+      entries
+      (map_values (fun func_type => [(id1, func_type)]) function_types1)
+  end.
+
+Definition n_way_join_function_types
+    (entries : list (Index.t * finite_map (Or_unknown.t function_type)))
+    : finite_map (Or_unknown.t function_type) :=
+  map_values n_way_join_function_type (gather_function_types entries).
+
+(* The same before the change: the entries that have no function type
+   for a slot are not among its contributors, and the slot is kept. *)
+Definition gather_function_types_before_fix
     (entries : list (Index.t * finite_map (Or_unknown.t function_type)))
     : finite_map (list (Index.t * Or_unknown.t function_type)) :=
   match entries with
@@ -128,33 +162,8 @@ Definition gather_function_types
       (map_values (fun func_type => [(id1, func_type)]) function_types1)
   end.
 
-Definition n_way_join_function_types
+Definition n_way_join_function_types_before_fix
     (entries : list (Index.t * finite_map (Or_unknown.t function_type)))
     : finite_map (Or_unknown.t function_type) :=
-  map_values n_way_join_function_type (gather_function_types entries).
-
-(* The same, keeping a slot only if every entry has a function type for
-   it. *)
-Definition gather_function_types_proposed
-    (entries : list (Index.t * finite_map (Or_unknown.t function_type)))
-    : finite_map (list (Index.t * Or_unknown.t function_type)) :=
-  match entries with
-  | [] => []
-  | (id1, function_types1) :: entries =>
-    fold_left
-      (fun function_types entry =>
-         merge
-           (fun vals_opt val2_opt =>
-              match vals_opt, val2_opt with
-              | None, _ | _, None => None
-              | Some vals, Some val2 => Some ((fst entry, val2) :: vals)
-              end)
-           function_types (snd entry))
-      entries
-      (map_values (fun func_type => [(id1, func_type)]) function_types1)
-  end.
-
-Definition n_way_join_function_types_proposed
-    (entries : list (Index.t * finite_map (Or_unknown.t function_type)))
-    : finite_map (Or_unknown.t function_type) :=
-  map_values n_way_join_function_type (gather_function_types_proposed entries).
+  map_values n_way_join_function_type
+    (gather_function_types_before_fix entries).
