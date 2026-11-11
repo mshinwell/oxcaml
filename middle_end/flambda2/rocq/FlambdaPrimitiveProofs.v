@@ -33,8 +33,8 @@
    [eval_prim] is opaque after this file. A proof that is not about one
    primitive goes through the laws ([eval_prim_static_values],
    [eval_prim_statics_extend], [eval_prim_kinds],
-   [eval_prim_preserves]); one that is rewrites with [eval_prim_unary]
-   or [eval_prim_binary].
+   [eval_prim_preserves]); one that is rewrites with [eval_prim_unary],
+   [eval_prim_binary] or [eval_prim_variadic].
 
    To add a primitive, add its case where a proof here goes by cases on
    the primitives: each such proof says so. No proof here names the
@@ -82,6 +82,11 @@ Lemma eval_prim_binary (statics : static_env) (p : binary_primitive)
   eval_prim statics (Binary p) [v1; v2] = eval_binary_primitive p v1 v2.
 Proof. reflexivity. Qed.
 
+Lemma eval_prim_variadic (statics : static_env) (p : variadic_primitive)
+    (vs : list value) :
+  eval_prim statics (Variadic p) vs = eval_variadic_primitive p vs.
+Proof. reflexivity. Qed.
+
 (* A primitive that has a value was applied to as many arguments as it
    takes. (By cases on the arities.) *)
 Lemma eval_prim_arity (statics : static_env) (p : prim) (vs : list value)
@@ -91,12 +96,16 @@ Lemma eval_prim_arity (statics : static_env) (p : prim) (vs : list value)
     p = Unary p' ∧ vs = [v1] ∧ eval_unary_primitive statics p' v1 = Some v)
   ∨ (∃ (p' : binary_primitive) (v1 v2 : value),
       p = Binary p' ∧ vs = [v1; v2]
-      ∧ eval_binary_primitive p' v1 v2 = Some v).
+      ∧ eval_binary_primitive p' v1 v2 = Some v)
+  ∨ (∃ p' : variadic_primitive,
+      p = Variadic p' ∧ eval_variadic_primitive p' vs = Some v).
 Proof.
-  destruct p as [p | p], vs as [ | v1 [ | v2 [ | v3 vs]]]; simpl;
-    try discriminate; intros Heval.
-  - left. exists p, v1. auto.
-  - right. exists p, v1, v2. auto.
+  destruct p as [p | p | p].
+  - destruct vs as [ | v1 [ | v2 vs]]; simpl; try discriminate.
+    intros Heval. left. exists p, v1. auto.
+  - destruct vs as [ | v1 [ | v2 [ | v3 vs]]]; simpl; try discriminate.
+    intros Heval. right. left. exists p, v1, v2. auto.
+  - rewrite eval_prim_variadic. intros Heval. right. right. exists p. auto.
 Qed.
 
 (* ======================================================================== *)
@@ -159,6 +168,26 @@ Lemma boxed_number_of_kind (statics : static_env) (v : value) (c : const) :
   boxed_number_of statics v = Some c -> kind_of_value v = Value.
 Proof. destruct v; simpl; try discriminate; reflexivity. Qed.
 
+(* A block is one made by a primitive, or what a symbol is bound to. *)
+Lemma block_of_cases (statics : static_env) (v : value) (tag : Z)
+    (fields : list value) :
+  block_of statics v = Some (tag, fields) ->
+  v = Value_block tag fields
+  ∨ ∃ s : symbol,
+      v = Value_symbol s
+      ∧ lookup s (static_values statics) = Some (Static_block tag fields).
+Proof.
+  destruct v; simpl; try discriminate.
+  - match goal with
+    | |- context [lookup ?s ?values] =>
+      destruct (lookup s values) as [allocated | ] eqn:Hlookup;
+        [ destruct allocated | ]
+    end;
+      try discriminate.
+    intros [= <- <-]. right. eexists. split; [ reflexivity | exact Hlookup ].
+  - intros [= <- <-]. left. reflexivity.
+Qed.
+
 Lemma is_number_of_kind_kind (kind : boxable_number) (c : const) :
   is_number_of_kind kind c = true -> kind_of_const c = unboxed_kind kind.
 Proof. destruct kind, c; simpl; try discriminate; reflexivity. Qed.
@@ -213,7 +242,8 @@ Qed.
 Lemma eval_unary_primitive_static_values (p : unary_primitive) :
   eval_unary_primitive statics p v = eval_unary_primitive statics' p v.
 Proof.
-  destruct p; simpl; unfold eval_is_int, eval_is_null;
+  destruct p as [[tag size field_kind] field | | | | | | | | ]; simpl;
+    unfold eval_is_int, eval_is_null, eval_block_load;
     rewrite ?block_of_static_values, ?is_allocated_static_values,
       ?boxed_number_of_static_values;
     reflexivity.
@@ -224,7 +254,7 @@ End Static_values.
 Theorem eval_prim_static_values : eval_prim_static_values_statement.
 Proof.
   intros statics statics' p vs Hsame.
-  destruct p as [p | p], vs as [ | v1 [ | v2 [ | v3 vs]]]; simpl;
+  destruct p as [p | p | p], vs as [ | v1 [ | v2 [ | v3 vs]]]; simpl;
     try reflexivity.
   apply eval_unary_primitive_static_values. intros s ->.
   apply Hsame. left. reflexivity.
@@ -364,6 +394,16 @@ Proof.
         exact (fun H => H).
 Qed.
 
+Lemma eval_block_load_statics_extend (kind : block_access_kind) (field : Z)
+    (loaded : value) :
+  eval_block_load statics kind field v = Some loaded ->
+  eval_block_load statics' kind field v = Some loaded.
+Proof.
+  unfold eval_block_load. destruct kind as [tag size field_kind].
+  destruct (block_of statics v) as [block | ] eqn:Hblock; [ | discriminate ].
+  rewrite (block_of_statics_extend _ Hblock). exact (fun H => H).
+Qed.
+
 (* By cases on the unary primitives: one that reads an allocated value
    does so through an observation, and has no value where the
    observation has no answer. *)
@@ -373,6 +413,7 @@ Lemma eval_unary_primitive_statics_extend (p : unary_primitive)
   eval_unary_primitive statics' p v = Some result.
 Proof.
   destruct p; simpl; try exact (fun H => H);
+    try apply eval_block_load_statics_extend;
     match goal with
     | |- context [eval_is_int statics ?variant_only v] =>
       destruct (eval_is_int statics variant_only v) eqn:Hvalue;
@@ -395,7 +436,7 @@ End Statics_extend.
 Theorem eval_prim_statics_extend : eval_prim_statics_extend_statement.
 Proof.
   intros statics statics' p vs v Hextend.
-  destruct p as [p | p], vs as [ | v1 [ | v2 [ | v3 vs]]]; simpl;
+  destruct p as [p | p | p], vs as [ | v1 [ | v2 [ | v3 vs]]]; simpl;
     try exact (fun H => H).
   apply eval_unary_primitive_statics_extend. intros s allocated ->.
   apply Hextend. left. reflexivity.
@@ -412,9 +453,28 @@ Lemma eval_unary_primitive_kinds (statics : static_env)
   kind_of_value arg = arg_kind_of_unary_primitive p
   ∧ kind_of_value v = result_kind_of_unary_primitive p.
 Proof.
-  destruct p as [variant_only | | | kind | kind | kind | | ];
+  destruct p as [access field | variant_only | | | kind | kind | kind | | ];
     cbn [eval_unary_primitive arg_kind_of_unary_primitive
          result_kind_of_unary_primitive].
+  - (* [Block_load] *)
+    unfold eval_block_load. destruct access as [tag size field_kind].
+    destruct (block_of statics arg) as [[block_tag fields] | ] eqn:Hblock;
+      [ | discriminate ].
+    assert (Harg : kind_of_value arg = Value)
+      by (apply (block_of_kind statics); rewrite Hblock; reflexivity).
+    destruct
+      (known_is tag block_tag && known_is size (Z.of_nat (length fields))
+       && (0 <=? field));
+      [ | discriminate ].
+    destruct (nth_error fields (Z.to_nat field)) as [loaded | ];
+      [ | discriminate ].
+    destruct field_kind.
+    + destruct (kind_eqb (kind_of_value loaded) Value) eqn:Hkind;
+        [ | discriminate ].
+      intros [= <-]. split; [ exact Harg | apply kind_eqb_eq, Hkind ].
+    + destruct (is_tagged_immediate loaded) eqn:Htagged; [ | discriminate ].
+      intros [= <-]. split; [ exact Harg | ].
+      exact (is_tagged_immediate_kind loaded Htagged).
   - (* [Is_int] *)
     unfold eval_is_int.
     destruct (is_tagged_immediate arg) eqn:Htagged.
@@ -503,15 +563,37 @@ Proof.
   - intros [= <-]. auto.
 Qed.
 
+(* By cases on the variadic primitives. *)
+Lemma eval_variadic_primitive_kinds (p : variadic_primitive)
+    (args : list value) (v : value) :
+  eval_variadic_primitive p args = Some v ->
+  forallb (fun kind => kind_eqb kind (args_kind_of_variadic_primitive p))
+    (map kind_of_value args)
+  = true
+  ∧ kind_of_value v = result_kind_of_variadic_primitive p.
+Proof.
+  destruct p as [[tag]]; simpl.
+  destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) args)
+    eqn:Hargs;
+    [ | discriminate ].
+  intros [= <-]. split; [ | reflexivity ]. clear tag.
+  induction args as [ | arg args IH]; simpl in *; [ reflexivity | ].
+  apply andb_true_iff in Hargs as [Harg Hargs]. rewrite Harg.
+  exact (IH Hargs).
+Qed.
+
 Theorem eval_prim_kinds : eval_prim_kinds_statement.
 Proof.
   intros statics p vs v Heval.
   destruct (eval_prim_arity statics p vs v Heval)
-    as [(p' & v1 & -> & -> & Hp) | (p' & v1 & v2 & -> & -> & Hp)]; simpl.
+    as [(p' & v1 & -> & -> & Hp)
+       | [(p' & v1 & v2 & -> & -> & Hp) | (p' & -> & Hp)]];
+    simpl.
   - apply eval_unary_primitive_kinds in Hp as [-> ->].
     rewrite kind_eqb_refl. auto.
   - apply eval_binary_primitive_kinds in Hp as (-> & -> & ->).
     rewrite !kind_eqb_refl. auto.
+  - exact (eval_variadic_primitive_kinds p' vs v Hp).
 Qed.
 
 (* ======================================================================== *)
@@ -529,13 +611,48 @@ Hypothesis Hstatic : holds_in_static_blocks statics P.
 Lemma naked_bool_preserved (b : bool) : P (naked_bool b).
 Proof. apply Hnumbers. Qed.
 
+(* The fields of a block with the property have it, whether the block
+   was made by a primitive or is what a symbol is bound to. *)
+Lemma block_of_fields_preserved (arg : value) (tag : Z)
+    (fields : list value) :
+  P arg ->
+  block_of statics arg = Some (tag, fields) ->
+  ∀ v : value, v ∈ fields -> P v.
+Proof.
+  intros Harg Hblock.
+  destruct (block_of_cases statics arg tag fields Hblock)
+    as [-> | (s & -> & Hlookup)].
+  - exact (proj1 (Hblocks tag fields) Harg).
+  - exact (Hstatic s tag fields Harg Hlookup).
+Qed.
+
 (* By cases on the unary primitives. *)
 Lemma eval_unary_primitive_preserves (p : unary_primitive) (arg v : value) :
   P arg -> eval_unary_primitive statics p arg = Some v -> P v.
 Proof.
   intros Harg.
-  destruct p as [variant_only | | | kind | kind | kind | | ];
+  destruct p as [access field | variant_only | | | kind | kind | kind | | ];
     cbn [eval_unary_primitive].
+  - unfold eval_block_load. destruct access as [tag size field_kind].
+    destruct (block_of statics arg) as [[block_tag fields] | ] eqn:Hblock;
+      [ | discriminate ].
+    destruct
+      (known_is tag block_tag && known_is size (Z.of_nat (length fields))
+       && (0 <=? field));
+      [ | discriminate ].
+    destruct (nth_error fields (Z.to_nat field)) as [loaded | ] eqn:Hnth;
+      [ | discriminate ].
+    pose proof
+      (block_of_fields_preserved arg block_tag fields Harg Hblock loaded
+         (nth_error_In _ _ Hnth))
+      as Hloaded.
+    destruct
+      (match field_kind with
+       | Any_value => kind_eqb (kind_of_value loaded) Value
+       | Immediate => is_tagged_immediate loaded
+       end);
+      [ | discriminate ].
+    intros [= <-]. exact Hloaded.
   - destruct (eval_is_int statics variant_only arg); [ | discriminate ].
     intros [= <-]. apply naked_bool_preserved.
   - destruct (eval_is_null statics arg); [ | discriminate ].
@@ -573,17 +690,34 @@ Proof.
   - intros [= <-]. apply Hnumbers.
 Qed.
 
+(* By cases on the variadic primitives. *)
+Lemma eval_variadic_primitive_preserves (p : variadic_primitive)
+    (args : list value) (v : value) :
+  (∀ arg : value, arg ∈ args -> P arg) ->
+  eval_variadic_primitive p args = Some v ->
+  P v.
+Proof.
+  intros Hargs. destruct p as [[tag]]; simpl.
+  destruct (forallb (fun v => kind_eqb (kind_of_value v) Value) args);
+    [ | discriminate ].
+  intros [= <-]. exact (proj2 (Hblocks tag args) Hargs).
+Qed.
+
 End Preserves.
 
 Theorem eval_prim_preserves : eval_prim_preserves_statement.
 Proof.
   intros P statics p vs v Hnumbers Hblocks Hstatic Hargs Heval.
   destruct (eval_prim_arity statics p vs v Heval)
-    as [(p' & v1 & -> & -> & Hp) | (p' & v1 & v2 & -> & -> & Hp)].
-  - apply (eval_unary_primitive_preserves P statics Hnumbers p' v1 v);
+    as [(p' & v1 & -> & -> & Hp)
+       | [(p' & v1 & v2 & -> & -> & Hp) | (p' & -> & Hp)]].
+  - apply
+      (eval_unary_primitive_preserves P statics Hnumbers Hblocks Hstatic p'
+         v1 v);
       [ | exact Hp ].
     apply Hargs. left. reflexivity.
   - exact (eval_binary_primitive_preserves P Hnumbers p' v1 v2 v Hp).
+  - exact (eval_variadic_primitive_preserves P Hblocks p' vs v Hargs Hp).
 Qed.
 
 (* ======================================================================== *)
@@ -869,6 +1003,57 @@ Example unbox_number_of_other_kind :
   unary a_boxed_int64 (Unbox_number Boxable_naked_float)
     (Value_symbol 1%positive)
   = None.
+Proof. reflexivity. Qed.
+
+Example make_block :
+  eval_prim empty_static_env (Variadic (Make_block (Block_kind_values 3)))
+    [tagged 10; tagged 20]
+  = Some (Value_block 3 [tagged 10; tagged 20]).
+Proof. reflexivity. Qed.
+
+Example make_block_of_naked_number :
+  eval_prim empty_static_env (Variadic (Make_block (Block_kind_values 3)))
+    [tagged 10; naked 20]
+  = None.
+Proof. reflexivity. Qed.
+
+Definition load (tag size : option Z) (field : Z) : unary_primitive :=
+  Block_load (Block_access_values tag size Any_value) field.
+
+Example block_load :
+  unary empty_static_env (load (Some 3) (Some 2) 1)
+    (Value_block 3 [tagged 10; tagged 20])
+  = Some (tagged 20).
+Proof. reflexivity. Qed.
+
+Example block_load_from_static_block :
+  unary a_block (load None None 0) (Value_symbol 1%positive)
+  = Some (tagged 10).
+Proof. reflexivity. Qed.
+
+Example block_load_out_of_bounds :
+  unary a_block (load None None 2) (Value_symbol 1%positive) = None.
+Proof. reflexivity. Qed.
+
+Example block_load_negative_field :
+  unary a_block (load None None (-1)) (Value_symbol 1%positive) = None.
+Proof. reflexivity. Qed.
+
+Example block_load_wrong_tag :
+  unary a_block (load (Some 0) None 0) (Value_symbol 1%positive) = None.
+Proof. reflexivity. Qed.
+
+Example block_load_wrong_size :
+  unary a_block (load None (Some 3) 0) (Value_symbol 1%positive) = None.
+Proof. reflexivity. Qed.
+
+Example block_load_from_closure :
+  unary empty_static_env (load None None 0) (Value_closure 1%positive [])
+  = None.
+Proof. reflexivity. Qed.
+
+Example get_tag_of_made_block :
+  unary empty_static_env Get_tag (Value_block 3 []) = Some (naked 3).
 Proof. reflexivity. Qed.
 
 Example opaque_identity :

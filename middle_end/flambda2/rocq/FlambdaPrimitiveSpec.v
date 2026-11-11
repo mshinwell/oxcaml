@@ -31,10 +31,11 @@
    This file is to be reviewed: [eval_prim] and what it is made of, against
    middle_end/flambda2/terms/flambda_primitive.mli for what each primitive
    is, and against middle_end/flambda2/simplify/simplify_unary_primitive.ml,
-   simplify_binary_primitive.ml and number_adjuncts.ml for what Simplify
-   takes each to compute; the kinds, against [arg_kind_of_unary_primitive],
-   [args_kind_of_binary_primitive] and the [result_kind_of_] functions of
-   flambda_primitive.ml; and the statements at the end.
+   simplify_binary_primitive.ml, simplify_variadic_primitive.ml and
+   number_adjuncts.ml for what Simplify takes each to compute; the kinds,
+   against [arg_kind_of_unary_primitive], [args_kind_of_binary_primitive],
+   [args_kind_of_variadic_primitive] and the [result_kind_of_] functions
+   of flambda_primitive.ml; and the statements at the end.
 
    [eval_prim statics p vs] is the value of the primitive [p] applied to
    the values [vs], if it has one. Where it has none the term is
@@ -75,7 +76,7 @@
    [eval_prim] is opaque after FlambdaPrimitiveProofs.v, as [step] is, so
    that no proof elsewhere comes to depend on which primitives there are.
    A proof about one primitive rewrites with the equation of its arity
-   there ([eval_prim_unary], [eval_prim_binary]).
+   there ([eval_prim_unary], [eval_prim_binary], [eval_prim_variadic]).
 
    The proofs are in FlambdaPrimitiveProofs.v, which needs no review. *)
 
@@ -259,6 +260,44 @@ Definition is_number_of_kind (kind : boxable_number) (c : const) : bool :=
   | _, _ => false
   end.
 
+(* What is known of a tag or a size is right. *)
+Definition known_is (known : option Z) (actual : Z) : bool :=
+  match known with
+  | Some expected => expected =? actual
+  | None => true
+  end.
+
+(* [Block_load]: the field of an immutable block of values, the first
+   being field 0. It has no value on what is not a block; on a block
+   whose tag or whose number of fields is not the one the access kind
+   gives, where it gives one; on a field that the block has not got; on
+   a field that is not of kind [Value]; or, where the access kind says
+   that the field is an immediate, on one that is not a tagged
+   immediate. Simplify
+   ([Simplify_unary_primitive.simplify_immutable_block_load0]) takes the
+   block to have that tag and that field only where it does not already
+   know the field, when it reads it whatever the tag; it does not use
+   the size. *)
+Definition eval_block_load (statics : static_env) (kind : block_access_kind)
+    (field : Z) (v : value) : option value :=
+  match kind with
+  | Block_access_values tag size field_kind =>
+    let* '(block_tag, fields) := block_of statics v in
+    if known_is tag block_tag
+       && known_is size (Z.of_nat (length fields))
+       && (0 <=? field)
+    then
+      let* loaded := nth_error fields (Z.to_nat field) in
+      if
+        match field_kind with
+        | Any_value => kind_eqb (kind_of_value loaded) Value
+        | Immediate => is_tagged_immediate loaded
+        end
+      then Some loaded
+      else None
+    else None
+  end.
+
 (* A unary primitive applied to a value.
    - [Get_tag] is the tag of a block, and has no value on anything else,
      a closure, a boxed number and a string included: Simplify takes its
@@ -278,6 +317,7 @@ Definition is_number_of_kind (kind : boxable_number) (c : const) : bool :=
 Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
     (v : value) : option value :=
   match p with
+  | Block_load kind field => eval_block_load statics kind field v
   | Is_int variant_only =>
     option_map naked_bool (eval_is_int statics variant_only v)
   | Is_null => option_map naked_bool (eval_is_null statics v)
@@ -322,6 +362,22 @@ Definition eval_binary_primitive (p : binary_primitive) (v1 v2 : value)
          (Naked_immediate (eval_int_comp (int_width kind) behaviour a b)))
   end.
 
+(* A variadic primitive applied to values. [Make_block] makes an
+   immutable block of its arguments, with the tag it carries. It has no
+   value if an argument is not of kind [Value]. A block of no fields is
+   made like another: the compiler's backend refuses to allocate one
+   ([To_cmm_primitive.check_alloc_fields]) and relies on Simplify's
+   having made it a symbol, which is an obligation of the compiler and
+   not a reason for the term to be undefined. *)
+Definition eval_variadic_primitive (p : variadic_primitive)
+    (vs : list value) : option value :=
+  match p with
+  | Make_block (Block_kind_values tag) =>
+    if forallb (fun v => kind_eqb (kind_of_value v) Value) vs
+    then Some (Value_block tag vs)
+    else None
+  end.
+
 (* The value of a primitive applied to the values of its arguments, if it
    has one. *)
 Definition eval_prim (statics : static_env) (p : prim) (vs : list value)
@@ -329,6 +385,7 @@ Definition eval_prim (statics : static_env) (p : prim) (vs : list value)
   match p, vs with
   | Unary p, [v] => eval_unary_primitive statics p v
   | Binary p, [v1; v2] => eval_binary_primitive p v1 v2
+  | Variadic p, vs => eval_variadic_primitive p vs
   | _, _ => None
   end.
 
@@ -342,7 +399,9 @@ Definition naked_immediate_kind : flambda_kind :=
 (* [Flambda_primitive.arg_kind_of_unary_primitive]. *)
 Definition arg_kind_of_unary_primitive (p : unary_primitive) : flambda_kind :=
   match p with
-  | Is_int _ | Is_null | Get_tag | Unbox_number _ | Untag_immediate => Value
+  | Block_load _ _ | Is_int _ | Is_null | Get_tag | Unbox_number _
+  | Untag_immediate =>
+    Value
   | Opaque_identity kind => kind
   | Box_number kind => unboxed_kind kind
   | Tag_immediate => naked_immediate_kind
@@ -355,7 +414,7 @@ Definition result_kind_of_unary_primitive (p : unary_primitive)
   | Is_int _ | Is_null | Get_tag | Untag_immediate => naked_immediate_kind
   | Opaque_identity kind => kind
   | Unbox_number kind => unboxed_kind kind
-  | Box_number _ | Tag_immediate => Value
+  | Block_load _ _ | Box_number _ | Tag_immediate => Value
   end.
 
 (* [Flambda_primitive.args_kind_of_binary_primitive]. *)
@@ -374,12 +433,28 @@ Definition result_kind_of_binary_primitive (p : binary_primitive)
   | Int_comp _ _ => naked_immediate_kind
   end.
 
+(* [Flambda_primitive.args_kind_of_variadic_primitive]: the kind that
+   every argument has (the compiler's [Variadic_all_of_kind]). *)
+Definition args_kind_of_variadic_primitive (p : variadic_primitive)
+    : flambda_kind :=
+  match p with
+  | Make_block _ => Value
+  end.
+
+(* [Flambda_primitive.result_kind_of_variadic_primitive']. *)
+Definition result_kind_of_variadic_primitive (p : variadic_primitive)
+    : flambda_kind :=
+  match p with
+  | Make_block _ => Value
+  end.
+
 (* [Flambda_primitive.result_kind']: the kind of the variable that a
    [Let] binds to the primitive. *)
 Definition prim_result_kind (p : prim) : flambda_kind :=
   match p with
   | Unary p => result_kind_of_unary_primitive p
   | Binary p => result_kind_of_binary_primitive p
+  | Variadic p => result_kind_of_variadic_primitive p
   end.
 
 (* Whether arguments of these kinds are as many as the primitive takes,
@@ -391,6 +466,9 @@ Definition prim_args_well_kinded (p : prim) (kinds : list flambda_kind)
   | Binary p, [kind1; kind2] =>
     kind_eqb kind1 (fst (args_kind_of_binary_primitive p))
     && kind_eqb kind2 (snd (args_kind_of_binary_primitive p))
+  | Variadic p, kinds =>
+    forallb (fun kind => kind_eqb kind (args_kind_of_variadic_primitive p))
+      kinds
   | _, _ => false
   end.
 

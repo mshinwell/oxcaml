@@ -33,11 +33,13 @@
    computes is FlambdaPrimitiveSpec.v.
 
    The fragment has, with the compiler's names:
-   - of [unary_primitive]: [Is_int], [Is_null], [Get_tag],
-     [Opaque_identity], [Unbox_number], [Box_number], [Untag_immediate]
-     and [Tag_immediate];
+   - of [unary_primitive]: [Block_load] from an immutable block of
+     values, [Is_int], [Is_null], [Get_tag], [Opaque_identity],
+     [Unbox_number], [Box_number], [Untag_immediate] and [Tag_immediate];
    - of [binary_primitive]: [Int_arith] and [Int_comp], at every
-     [Standard_int.t].
+     [Standard_int.t];
+   - of [variadic_primitive]: [Make_block] of an immutable block of
+     values.
    Every other primitive is left out. The conversion from the compiler's
    terms must refuse a primitive that is not here, and a primitive whose
    fields have a value that is not here; it must never approximate one.
@@ -45,8 +47,21 @@
    Differences from the compiler:
    - [Opaque_identity] has no [middle_end_only], which has no effect on
      execution.
-   - [Box_number] has no allocation mode: it is the boxing on the heap,
-     and the conversion must refuse a local one.
+   - [Box_number] and [Make_block] have no allocation mode: they are the
+     allocations on the heap, and the conversion must refuse a local one.
+   - [Block_load] and [Make_block] have no mutability: they are those of
+     immutable blocks ([Immutable], not [Immutable_unique]), and the
+     conversion must refuse the others. The only [Block_access_kind.t]
+     and [Block_kind.t] are those of blocks of values, [Values]; an
+     [Or_unknown.t] is an [option], [Unknown] being [None].
+   - [Block_kind.Values] has no list of the kinds of the fields. In the
+     compiler each has a subkind, which Simplify takes an argument that
+     is a variable to be of ([Simplify_variadic_primitive]). The model
+     has no subkinds, so the conversion must refuse a list that says
+     more of a field than [any_value].
+   - A tag is any integer, where the compiler's [Tag.Scannable.t] is at
+     least 0 and below 251. A block kind or an access kind with another
+     tag is one the compiler cannot build; nothing here refuses it.
    - The comparisons are those of integers only: the compiler's
      [comparison] and [comparison_behaviour] are polymorphic in the
      signedness so as to serve the floats too, which are not here. Their
@@ -70,8 +85,19 @@ Inductive signedness : Type :=
   | Signed
   | Unsigned.
 
+(* [Flambda_primitive.Block_access_field_kind.t]. *)
+Inductive block_access_field_kind : Type :=
+  | Any_value
+  | Immediate.
+
+(* [Flambda_primitive.Block_access_kind.t]. *)
+Inductive block_access_kind : Type :=
+  | Block_access_values (tag : option Z) (size : option Z)
+      (field_kind : block_access_field_kind).
+
 (* [Flambda_primitive.unary_primitive]. *)
 Inductive unary_primitive : Type :=
+  | Block_load (kind : block_access_kind) (field : Z)
   | Is_int (variant_only : bool)
   | Is_null
   | Get_tag
@@ -111,8 +137,17 @@ Inductive binary_primitive : Type :=
   | Int_arith (kind : standard_int) (op : binary_int_arith_op)
   | Int_comp (kind : standard_int) (behaviour : int_comparison_behaviour).
 
+(* [Flambda_primitive.Block_kind.t]. *)
+Inductive block_kind : Type :=
+  | Block_kind_values (tag : Z).
+
+(* [Flambda_primitive.variadic_primitive]. *)
+Inductive variadic_primitive : Type :=
+  | Make_block (kind : block_kind).
+
 (* [Flambda_primitive.Without_args.t]: a primitive without its
    arguments. *)
 Inductive prim : Type :=
   | Unary (p : unary_primitive)
-  | Binary (p : binary_primitive).
+  | Binary (p : binary_primitive)
+  | Variadic (p : variadic_primitive).
