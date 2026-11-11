@@ -835,9 +835,11 @@ known. Do not change the compiler to remove a discrepancy, and do not
 weaken a statement to hide one: model what the compiler does where that
 is sound, say so in the header of the `Spec` file, and record the
 entry. An entry has a label, the stream that recorded it and a number
-(`C3-1`), and comments and documents cite it by the label. A mistake in
-the model that is then fixed is not an entry, unless it is not clear
-which side is wrong.
+(`C3-1`), and comments and documents cite it by the label. What each
+label cited in the tree stands for, and each decision cited as `D<n>`,
+is said in a line or two in `middle_end/flambda2/rocq/DECISIONS.md`. A
+mistake in the model that is then fixed is not an entry, unless it is
+not clear which side is wrong.
 
 ## Extraction pitfalls
 

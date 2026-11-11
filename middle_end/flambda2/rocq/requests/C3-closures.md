@@ -756,8 +756,8 @@ take `well_formed_unit` as a premise then say of such sets is in
 section 4.
 
 It does not yet refuse a unit that mentions a symbol or the code of a
-closure that nothing binds. The human has ruled on symbols (D8 of the
-team's list: an operation on a symbol that is not bound is undefined,
+closure that nothing binds. The human has ruled on symbols (D8 of
+`DECISIONS.md`: an operation on a symbol that is not bound is undefined,
 and well-formedness excludes such terms). The condition is about every
 mention of a symbol, not only those of sets, so it is C0's: row 4 of
 `requests/C0-well-formed.md`, written after this series, with the
@@ -1317,7 +1317,7 @@ lemma, and its proof needed no edit (section 4).
      and the two statements.
 6. **Answered: two functions of a set may not have the same code id.**
    (Section 2, "Sets that share code"; discrepancy R2-7;
-   D28 of the team's list.) The question was whether Simplify's failure
+   D28 of `DECISIONS.md`.) The question was whether Simplify's failure
    on such a set is a missing check or a rule of Flambda 2. The human:
    "that sounds like a problem with the model; this is not a
    well-formed term". So it is a rule, and `well_formed_unit` asks for
