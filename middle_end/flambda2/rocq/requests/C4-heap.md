@@ -1642,9 +1642,9 @@ then stopped: what is left after it is binders and the names in
 it would have shown nothing about the design. The counts, on
 0a2933e7c9:
 
-- 188 applications of `State` in 18 files; the script
-  (kept by the team, outside the tree) adds the heap to each,
-  named after the static environment beside it. `FlambdaSemanticsSpec.v`
+- 188 applications of `State` in 18 files; a script, not committed,
+  adds the heap to each, named after the static environment beside
+  it. `FlambdaSemanticsSpec.v`
   is right after it but for two lines.
 - 69 statements, lemmas and auxiliary propositions in 12 files build a
   state and gain a binder for the heap (21 of them the step lemmas and
