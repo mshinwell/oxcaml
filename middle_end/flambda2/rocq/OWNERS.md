@@ -324,15 +324,19 @@ Owner: N2.
   changed for it by C0's leave; that file stays C0's)
 - `middle_end/flambda2/rocq/requests/N2-fresh-quantifier.md`
 
-## N3: the validator commutes with renaming
+## N3: what commutes with renaming
 
-Owner: N3, on `flambda2-rocq/N3-equivariance`. N1 leads the work on
-names.
+Owner: N3, on `flambda2-rocq/N3-equivariance` for the validator and on
+`flambda2-rocq/N3-types` for the types. N1 leads the work on names.
 
 - `middle_end/flambda2/rocq/FlambdaValidatorEquivariance*` (each
   rewrite and each check of the validator commutes with renaming:
   what `NAMES.md`, section 7, owes for the files of V1 and V2 and for
   the checks of `FlambdaWellFormedSpec.v`)
+- `middle_end/flambda2/types/rocq/FlambdaEnvRename*` (the action of a
+  renaming on a typing environment and on its levels, their free
+  variables, and that the functions of `FlambdaTypingEnv.v` commute
+  with it; the file of the environment and its statements stay T2's)
 
 ## R1, R2: reviewers
 
