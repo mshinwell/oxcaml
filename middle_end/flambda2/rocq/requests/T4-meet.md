@@ -58,14 +58,17 @@ It is not proved yet, and is not among the statements of the file.
 - a value `v` has both types under it,
 - and `meet tenv t1 t2 = Some result`,
 
-then `result` is `Ok (t, tenv')`, and there is a valuation that gives
-every variable that `tenv` knows, and that had a value, the value it
-had (`extended_from`), satisfies `tenv'`, and gives `v` the type `t`.
-A variable that had no value may be given one: the n-way join requires
-it (it makes a variable an alias of a constant where the other inputs
-have for it a type that nothing has). The meaning of a type reads the
-valuation only positively, so a type that held still holds; T1 is
-stating that (`type_satisfied_monotone`).
+then `result` is `Ok (t, tenv')`, and there is a valuation that has the
+same value, or none, as the first for every variable that `tenv` knows
+(`extended_from`), satisfies `tenv'`, and gives `v` the type `t`. The
+agreement is exact, so that what the first valuation satisfied over
+the variables that `tenv` knows, the second satisfies (T2's
+`satisfied_but_coincide`). For a while it was weaker (a variable
+without a value could be given one), to match the n-way join; R1
+showed that the meet of an alternative of a disjunction could then not
+give the join a valuation that still satisfies the environment of the
+whole meet, and T5 found that the join can keep exact agreement if no
+name has an obviously bottom type (section 4).
 
 So: the values of both inputs are kept; one valuation accounts for all
 the equations and definitions returned; bottom is answered only when no
@@ -169,7 +172,15 @@ fits it, and the two types have one kind.
   gives them back. It is a premise about kinds, with a `CR mshinwell`
   (D10, D12, D32; T5-9). The traversal `aliases_with_kinds` is T5's.
 - An environment fits (`typing_env_fits`) if it is well formed
-  (`typing_env_well_formed`) and each of its types fits it.
+  (`typing_env_well_formed`), no name has an obviously bottom type in
+  it unless it is bottom (`no_bottom_types`), and each of its types
+  fits it. `no_bottom_types` is there for the n-way join, which passes
+  over an obviously bottom type and can then make the name an alias of
+  what it is in the other environments joined, giving a value to a
+  name that had none. The model is stricter than the compiler here
+  (the binary join makes such environments with
+  `Meet_env.add_env_extension_maybe_bottom`); meet keeps the
+  condition; there is a `CR mshinwell` (T5-10).
 
 `type_well_formed : flambda_type -> bool` is T1's
 (`FlambdaTypeWellFormedSpec.v`, not on the branch this one is made
@@ -221,9 +232,8 @@ extended, it fits, and the type answered fits it and is of the kind of
 the inputs; no value and no valuation is supposed):
 
 - J1: a valuation that satisfies `initial_tenv` and one of the scoped
-  environments extends to one that satisfies the result and keeps the
-  value of every variable that this scoped environment knows and that
-  had one;
+  environments extends to one that satisfies the result and agrees
+  with it on every variable that this scoped environment knows;
 - J2: the result is `initial_env` extended (`meet_env_extends`): same
   scope, earlier levels and `adding_equations_for_names`; every name it
   knew still has a type of the same kind, binding time and name mode;
@@ -245,24 +255,32 @@ bottom); R1 ran it on both of the compiler's meets, and
 every name of `initial_tenv` with its binding time and a type of the
 same kind. T5 has made the matching change (its premise on the source
 is per valuation), and asks the scoped environments to be kinded,
-which `scoped_env_of` gives. `forgetful_join_sound` (proved) shows
-that the contract can be had: the join that answers `initial_env` has
-it.
+which `scoped_env_of` gives. The join needs the environment of the
+meet to be satisfied by that valuation: for a name that every
+environment joined has an equation on, it answers the meet of the
+joined type with the type that `initial_tenv` records. The meet
+supplies it by exact agreement: the valuation that an alternative
+answers agrees with the one before on what `initial_tenv` knows.
+`forgetful_join_sound` (proved) shows that the contract can be had:
+the join that answers `initial_env` has it.
 
-Open, found by T5 (T5-10): the n-way join may not have J1. Where the
-type joined for a name `x` is a variant with a variable `r` for
-`Is_int`, it gives `r` the type "`Is_int` of `x`"
-(`recover_inverse_relations`), also where `x` has no value in the run
-(it was imported by an earlier join from other uses) and `r` has one.
-T5 offered to weaken the conclusion (the names whose type is a
-relation on a name with no value exempt). That does not work for the
-meet that follows: it reads the relation on behalf of the value of
-`r` and adds an equation to `x`, whose stored type nothing constrains
-when it has no value, and the meet of the two can be bottom. A premise
-that the valuation gives every known variable a value I cannot supply
-after a join that imports from a subset. J1 stays as it is, as the
-hypothesis under which the meet is to be proved; the question is with
-the orchestrator.
+Found by T5 (T5-10), and decided: the compiler's n-way join has J1
+only under a condition on what it is given. Where the type joined for
+a name `x` is a variant with a variable `r` for `Is_int`, it gives `r`
+the type "`Is_int` of `x`" (`recover_inverse_relations`), also where
+`x` has no value in the run (it was imported by an earlier join from
+other uses) and `r` has one. Weakening the conclusion of J1 (the names
+whose type is a relation on a name with no value exempt) does not work
+for the meet that follows: it reads the relation on behalf of the
+value of `r` and adds an equation to `x`, whose stored type nothing
+constrains when it has no value, and the meet of the two can be
+bottom. A premise that the valuation gives every known variable a
+value cannot be supplied after a join that imports from a subset. So
+J1 stays strict, as the hypothesis under which the meet is to be
+proved; T5 states the condition under which the compiler's join has
+it (the scrutinee of every relation recovered has a value in every
+run in which the result has one), and the instance of the meet for
+the compiler's own join carries that condition.
 
 Physical equality in the join: X3's audit finds four uses that change a
 result, all in the join. The behaviour to assume of the parameter is
@@ -403,9 +421,13 @@ function what the model has and every difference.
   expanded types as a parameter; so each function is a plain
   definition in a section, and one fixpoint on the fuel,
   `Meet.meet_expanded_head`, ties them. The parameters of what is
-  exported: the join, the type that the `Get_tag` step adds, whether a
-  variable that the environment knows is defined again after a join
-  (T4-1), and the fuel. `Meet.meet`, `Meet.meet_shape`, and
+  exported: the join; a record of the three places where the meet can
+  do other than the compiler (`meet_choices`: the type that the
+  `Get_tag` step adds; whether a variable that the environment knows
+  is defined again after a join, T4-1; whether the variables of a
+  single case of a row-like structure are lifted, T4-9), with
+  `compiler_choices` and `repaired_choices`; and the fuel.
+  `Meet.meet`, `Meet.meet_shape`, and
   `Flambda2_types.add_equation`, `add_equations_on_params`,
   `add_env_extension`, `add_is_null_relation`, `add_is_int_relation`,
   `add_get_tag_relation`.
@@ -416,8 +438,16 @@ function what the model has and every difference.
   blocks are gone through in the order of their tags, as in the
   compiler; function slots, value slots and the names of an extension
   in the order of the lists, which is not the compiler's (it goes by
-  its maps). The converter from the compiler's types is to list the
-  bindings in the compiler's order.
+  its maps). So the file is the compiler's algorithm on maps in
+  another order, and it is not claimed that the two answer the same
+  thing: the order can show in which fatal error or bottom comes
+  first, in what a later meet reads, in the binding times of variables
+  defined after a join, and in the order of the bindings answered; and
+  giving the inputs in the compiler's order does not remove that, the
+  maps and levels built on the way being lists in the order in which
+  they were built. A comparison with the compiler is to be made up to
+  the order of bindings and to binding times, until a statement says
+  that the answer does not depend on the order.
 - `FlambdaMeetGrammar.v` holds what the transcription needs of other
   streams' files, each definition to move to its owner under the same
   name: for T1, `naked_number_kind_eqb`, `block_shape_eqb`,
@@ -429,13 +459,12 @@ function what the model has and every difference.
   `merge_fold_on` (the forms agreed with C0, which take the equality
   first).
 - The functions extract. For the differential tests (T7): the
-  compiler is `Meet.meet join blocks_with_these_tags true fuel`, with
-  the join read as the compiler under
-  `-flambda2-join-sharing structural`.
+  compiler is `Meet.meet join compiler_choices fuel`, with the join
+  read as the compiler under `-flambda2-join-sharing structural`.
 
 ## 12. Discrepancies recorded
 
-In `discrepancies/T4.md` of the team directory:
+The entries of this stream:
 
 - T4-1: after the n-way join, `meet_disjunction` and `meet_row_like`
   define again every variable of the branch levels, among them those
@@ -462,6 +491,18 @@ In `discrepancies/T4.md` of the team directory:
   `CR mshinwell`; it belongs with T2's invariant.
 - T4-8: `is_int_for_scrutinee` says 1 for every constant scrutinee,
   `Null` included; `Relation.of_const` says 0 for `Null`.
+- T4-9 (found by R1): where `meet_row_like` keeps one case only
+  (`need_join` is false) it makes no extension of the case and does
+  not record the variables that the environment of the case defines;
+  the join is then given that one environment and keeps of its
+  variables those that the equations it joins mention. A variable
+  that a meet inside the case defined, and that only the type answered
+  mentions, is then unknown to the environment answered, and the type
+  answered does not fit it. `meet_disjunction` defines such variables
+  again after its join. The transcription has the compiler's
+  behaviour and the other as a choice
+  (`lift_variables_of_single_case`); the contract is to be proved of
+  the meet that lifts.
 
 ## 13. The questions of the first request, as answered
 
@@ -475,9 +516,9 @@ In `discrepancies/T4.md` of the team directory:
    function types (it keeps one only if every input has one). When
    that fix is on the integration branch the n-way join keeps
    condition (b) for function types, and the entry will say so.
-4. **T4-1.** Transcribed as the compiler has it, as a parameter
-   (`define_again`); the contract is to be proved of the meet that
-   defines only what the result does not know.
+4. **T4-1.** Transcribed as the compiler has it, as a choice
+   (`define_again` in `meet_choices`); the contract is to be proved of
+   the meet that defines only what the result does not know.
 
 ## 14. What changed since the first request
 
@@ -493,8 +534,9 @@ From R1's review of the contract:
 - Condition (f) is gone (section 4).
 - Poison under a relation, and tags out of range (sections 3 and 8).
 
-From T5: the frame condition is "a variable that had a value keeps
-it"; `type_fits` has kindedness.
+From T5: `type_fits` has kindedness; `typing_env_fits` has
+`no_bottom_types`. The frame condition is exact agreement, as in the
+first request.
 
 From T2: its strict notion replaces my stand-in; `satisfied_no_poison`
 is T2's `satisfied_no_poison_strictly`.
