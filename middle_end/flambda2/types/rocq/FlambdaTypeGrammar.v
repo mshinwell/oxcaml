@@ -136,8 +136,9 @@
    that a shape is written in one way. A type that breaks one of these
    has a meaning all the same (often that of bottom). The header of
    FlambdaTypeMeaningSpec.v says which operations rely on which, and
-   what each gives; a condition that says them all of a type is to
-   come before those operations. *)
+   what each gives; [type_well_formed], in FlambdaTypeWellFormedSpec.v,
+   is the test that says them all of a type, with where the compiler
+   establishes each. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic.

@@ -254,21 +254,23 @@
      slot of the case among its closures;
    - a shape is written in one way: a mixed record has a flat suffix
      ([block_shapes_disjoint_statement]);
-   - the kinds are right: those that the creation functions check
-     (FlambdaTypeGrammar.v lists them), and those of the fields of a
-     block against its shape, which the compiler checks only with its
-     invariant checks on ([Row_like_for_blocks.check_field_tys]).
+   - the kinds are right where the creation functions of the compiler
+     check them (FlambdaTypeGrammar.v lists them).
    The creation functions of the compiler give such types if their
    callers give them what they expect, which they do not all check (a
    closure at a slot that its set has, closure types of slots of the
-   set, field types of the kinds of the shape). Its raw constructors
-   ([create_raw], which meet and join use) check nothing, and the
-   n-way join does not keep the second condition (see above, on
-   products). The statements named say what each condition gives,
-   for one case. A predicate that says the conditions of a whole type,
-   with the proof that the creation functions here establish it, is to
-   be in this library before meet is stated. It is not here yet, and
-   the meaning does not need it.
+   set). Its raw constructors ([create_raw], which meet and join use)
+   check nothing, and the n-way join does not keep the second
+   condition (see above, on products). The statements named say what
+   each condition gives, for one case. FlambdaTypeWellFormedSpec.v has
+   the conditions of a whole type as one test, [type_well_formed],
+   with where the compiler establishes each, and the proof that the
+   creation functions here give well-formed types. The meaning does
+   not need it. The kinds of the fields of a block against its shape
+   are not among the conditions: the compiler checks them only with
+   its invariant checks on ([Row_like_for_blocks.check_field_tys]),
+   and code whose kinds do not agree, which real programs have, makes
+   types that break them.
 
    What an answer of a prover is about. The provers of the compiler come
    in two forms ([Provers.gen_value_to_proof] and [gen_value_to_meet]).
