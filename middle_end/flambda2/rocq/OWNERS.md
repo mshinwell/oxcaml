@@ -167,6 +167,8 @@ stays C0's for now.
 - `middle_end/flambda2/rocq/FlambdaBlockLoad*` (a normalisation for the
   validator, written for the corpus: the load of a field of a block
   that is known; V1's once it is staffed)
+- `middle_end/flambda2/rocq/FlambdaUnusedConts*` (another: removing a
+  continuation that is not used; S3's once it is staffed)
 
 ## V3: converter
 
