@@ -160,6 +160,34 @@ Definition simple_of_kind_unique_statement : Prop :=
   ∀ (tenv : Typing_env.t) (s : simple) (kind kind' : flambda_kind),
     simple_of_kind tenv s kind -> simple_of_kind tenv s kind' -> kind = kind'.
 
+(* A [Simple] keeps its kind from one environment to another in which
+   every name that had a type has one of the same kind, every symbol
+   that was defined is defined, and a symbol that had no type has none
+   or one of the kind of values. *)
+Definition simple_of_kind_kept_statement : Prop :=
+  ∀ (tenv tenv' : Typing_env.t) (s : simple) (kind : flambda_kind),
+    (∀ (n : name) (ty : flambda_type)
+       (binding_time_and_mode : Binding_time.With_name_mode.t),
+      Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
+      = Some (ty, binding_time_and_mode) ->
+      ∃ (ty' : flambda_type)
+        (binding_time_and_mode' : Binding_time.With_name_mode.t),
+        Keyed.lookup name_eqb n (Typing_env.names_to_types tenv')
+        = Some (ty', binding_time_and_mode')
+        ∧ FlambdaTypeGrammar.kind ty' = FlambdaTypeGrammar.kind ty) ->
+    (∀ sym : symbol,
+      among sym (Typing_env.defined_symbols tenv) = true ->
+      among sym (Typing_env.defined_symbols tenv') = true) ->
+    (∀ (sym : symbol) (ty : flambda_type)
+       (binding_time_and_mode : Binding_time.With_name_mode.t),
+      Keyed.lookup name_eqb (Name_symbol sym) (Typing_env.names_to_types tenv)
+      = None ->
+      Keyed.lookup name_eqb (Name_symbol sym) (Typing_env.names_to_types tenv')
+      = Some (ty, binding_time_and_mode) ->
+      FlambdaTypeGrammar.kind ty = Value) ->
+    simple_of_kind tenv s kind ->
+    simple_of_kind tenv' s kind.
+
 (* ======================================================================== *)
 (* What the functions do to the kind of a [Simple]                          *)
 (* ======================================================================== *)

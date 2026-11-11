@@ -141,6 +141,32 @@ Proof.
     rewrite Hsymbols. reflexivity.
 Qed.
 
+Theorem simple_of_kind_kept : simple_of_kind_kept_statement.
+Proof.
+  intros tenv tenv' s kind Hentries Hsymbols Hvalue.
+  assert (Hname :
+    ∀ n : name,
+      simple_of_kind tenv (simple_of_name n) kind ->
+      simple_of_kind tenv' (simple_of_name n) kind).
+  { intros n. rewrite !simple_of_kind_name_iff.
+    intros [[ty [btm [Hlookup Hkind]]] | [Hnone [Hmem ->]]].
+    - destruct (Hentries n ty btm Hlookup) as [ty' [btm' [Hlookup' Hkind']]].
+      left. exists ty', btm'. split; [ exact Hlookup' | congruence ].
+    - destruct n as [x | sym].
+      + rewrite mem_var_is_bound in Hmem. unfold Keyed.is_bound in Hmem.
+        rewrite Hnone in Hmem. discriminate.
+      + destruct (Keyed.lookup name_eqb (Name_symbol sym)
+                    (Typing_env.names_to_types tenv'))
+          as [[ty btm] | ] eqn:Hlookup'.
+        * left. exists ty, btm. split; [ reflexivity | ].
+          exact (Hvalue sym ty btm Hnone Hlookup').
+        * right. split; [ reflexivity | ]. split; [ | reflexivity ].
+          exact (Hsymbols sym Hmem). }
+  destruct s as [x | sym | c]; [ | | exact (fun H => H) ].
+  - exact (Hname (Name_var x)).
+  - exact (Hname (Name_symbol sym)).
+Qed.
+
 (* ======================================================================== *)
 (* What the functions do to the kind of a [Simple]                          *)
 (* ======================================================================== *)
