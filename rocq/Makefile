@@ -114,6 +114,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaSemanticsSpec.v \
   FlambdaStaticProofs.v \
   FlambdaStaticSpec.v \
+  FlambdaUnusedContsProofs.v \
+  FlambdaUnusedContsSpec.v \
   FlambdaUnusedStaticsProofs.v \
   FlambdaUnusedStaticsSpec.v \
   FlambdaValidateProofs.v \

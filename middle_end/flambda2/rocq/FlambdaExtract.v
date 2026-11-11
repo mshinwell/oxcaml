@@ -54,8 +54,8 @@ From Stdlib Require Extraction.
 From Stdlib Require Import ExtrOcamlBasic.
 From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
   FlambdaSemanticsSpec FlambdaWellFormedSpec FlambdaCompareSpec
-  FlambdaNormaliseSpec FlambdaBlockLoadSpec FlambdaUnusedStaticsSpec
-  FlambdaValidateSpec.
+  FlambdaNormaliseSpec FlambdaBlockLoadSpec FlambdaUnusedContsSpec
+  FlambdaUnusedStaticsSpec FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 
 Extraction Language OCaml.
@@ -101,6 +101,7 @@ Separate Extraction
   map_values
   merge
   merge_statics
+  remove_unused_conts
   remove_unused_defined_lets
   remove_unused_lets
   remove_unused_total_lets
