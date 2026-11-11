@@ -137,9 +137,9 @@ Lemma relation_on_poison_coincide (valuation valuation' : env)
   relation_on_poison valuation ty ->
   relation_on_poison valuation' ty.
 Proof.
-  intros Hsame [head [relation [scrutinee [-> [Hin Hpoison]]]]].
+  intros Hsame [head [relation [scrutinee [-> [Hin [Hwhich Hpoison]]]]]].
   exists head, relation, scrutinee. split; [ reflexivity | ].
-  split; [ exact Hin | ].
+  split; [ exact Hin | ]. split; [ exact Hwhich | ].
   apply (holds_poison_coincide valuation valuation' scrutinee);
     [ | exact Hpoison ].
   destruct scrutinee as [y | sym]; [ | reflexivity ].
@@ -312,7 +312,7 @@ Proof.
   apply satisfied_but_weaken.
   intros n [Hpoison | [ty [btm [_ [head [relation [scrutinee Hrelation]]]]]]].
   - exact (Hno_poison n Hpoison).
-  - exact (Hno_poison scrutinee (proj2 (proj2 Hrelation))).
+  - exact (Hno_poison scrutinee (proj2 (proj2 (proj2 Hrelation)))).
 Qed.
 
 Theorem env_satisfies_strictly_env_satisfies

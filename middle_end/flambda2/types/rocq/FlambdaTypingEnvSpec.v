@@ -146,31 +146,36 @@
      To be strictly satisfied is not to be free of poison. A name may
      hold poison where its type admits it: the unknown type, an alias
      of a name that holds it, the type of the values that are not null.
-     By decision D26 as revised, a relation of a type ([Is_int],
-     [Get_tag], [Is_null]) is never true of a scrutinee that holds
-     poison. So a value that has a type with a relation has a scrutinee
-     that is not poison, and a statement that reads a relation from the
+     By decision D26 as amended, the relations [Is_int] and [Get_tag]
+     of a type are never true of a scrutinee that holds poison. So a
+     value that has a type with one of those two has a scrutinee that
+     is not poison, and a statement that reads one of them from the
      type of a name that has a value has no case of poison; of a name
      with no value the type says nothing, as above. This is so once
      FlambdaTypeMeaningSpec.v says it: until then [Is_int] and
      [Get_tag] there hold of a scrutinee that is poison, and such a
-     statement has that case to deal with. (Where no name holds poison
-     the two notions are one, [satisfied_no_poison_strictly_statement];
-     that is a narrower case than to be strictly satisfied.)
+     statement has that case to deal with. [Is_null] is not so: it
+     relates poison of kind value to 0, since poison is not null, and a
+     statement that reads it has the case of a scrutinee that holds
+     poison.
+     (Where no name holds poison the two notions are one,
+     [satisfied_no_poison_strictly_statement]; that is a narrower case
+     than to be strictly satisfied.)
      [typing_env_satisfied]: the names that hold poison are exempt,
-     and those whose type is a relation on a name that holds poison
-     ([exempt_by_poison]; decision D26; there is a CR there). Typing
-     facts are about values that are not poison: a name that is not
-     exempt has its type ([find_not_poison_statement]), and a use of a
-     fact has the other case to deal with. Nothing else follows from
-     it. It is there for what unboxing does: the parameters that stand
-     for the fields of an inactive case of a variant are given their
-     types on every path, and hold poison; and where such a field is
-     unboxed in turn, its [Is_int] and tag parameters are given the
-     relations to it as their types, and hold 0. Until then the
-     environments that Simplify builds are strictly satisfied. Inside a
-     type nothing changes: the fields of a block that is not poison
-     have their types as FlambdaTypeMeaningSpec.v says, poison or not.
+     and those whose type is an [Is_int] or a [Get_tag] relation on a
+     name that holds poison ([exempt_by_poison]; decision D26; there is
+     a CR there). Typing facts are about values that are not poison: a
+     name that is not exempt has its type
+     ([find_not_poison_statement]), and a use of a fact has the other
+     case to deal with. Nothing else follows from it. It is there for
+     what unboxing does: the parameters that stand for the fields of an
+     inactive case of a variant are given their types on every path,
+     and hold poison; and where such a field is unboxed in turn, its
+     [Is_int] and tag parameters are given the relations to it as their
+     types, and hold 0. Until then the environments that Simplify
+     builds are strictly satisfied. Inside a type nothing changes: the
+     fields of a block that is not poison have their types as
+     FlambdaTypeMeaningSpec.v says, poison or not.
      The exemption of poison is by the value that the valuation gives,
      for every name. It cannot be only for the names in scope: a
      parameter that holds poison may be captured by a closure, and is
@@ -286,19 +291,25 @@ Definition typing_env_satisfied_strictly (statics : static_env)
 Definition holds_poison (valuation : env) (n : name) : Prop :=
   ∃ v : value, value_of_name valuation n = Some v ∧ is_poison v.
 
-(* A type is, at its head, a relation on a name that holds poison. This
-   is the type that unboxing gives the [Is_int] or the tag parameter of
-   a field of an inactive case of a variant; the parameter holds 0, and
-   no relation is true of a scrutinee that holds poison. *)
+(* A type is, at its head, an [Is_int] or a [Get_tag] relation on a
+   name that holds poison. This is the type that unboxing gives the
+   [Is_int] or the tag parameter of a field of an inactive case of a
+   variant; the parameter holds 0, and neither relation is true of a
+   scrutinee that holds poison. [Is_null] is not among them: it relates
+   poison of kind value to 0 (FlambdaTypeMeaningSpec.v), so that
+   relation on a name that holds poison is true at 0 and exempts no
+   name. *)
 Definition relation_on_poison (valuation : env) (ty : flambda_type) : Prop :=
   ∃ (head : head_of_kind_naked_immediate) (relation : Relation.t)
     (scrutinee : name),
     ty = Type_naked_immediate (Ok (No_alias head))
     ∧ (relation, scrutinee) ∈ inverse_relations head
+    ∧ (relation = Relation.Is_int ∨ relation = Relation.Get_tag)
     ∧ holds_poison valuation scrutinee.
 
 (* The names that are exempt where poison is: a name that holds poison,
-   and a name whose type is a relation on a name that holds poison. *)
+   and a name whose type is an [Is_int] or a [Get_tag] relation on a
+   name that holds poison. *)
 Definition exempt_by_poison (valuation : env) (tenv : Typing_env.t)
     (n : name) : Prop :=
   holds_poison valuation n

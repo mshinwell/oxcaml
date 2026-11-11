@@ -317,6 +317,7 @@ Proof.
   right. eexists. eexists. split; [ reflexivity | ].
   eexists. exists Relation.Is_int, (Name_var example_p).
   split; [ reflexivity | ]. split; [ left; reflexivity | ].
+  split; [ left; reflexivity | ].
   exists (poison Value). split; [ reflexivity | ].
   exists Value. reflexivity.
 Qed.
