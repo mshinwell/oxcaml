@@ -182,6 +182,11 @@ says so. Only the labels that this tree cites are listed.
 - **C3-8.** The model can write a set of closures in which a value slot
   is given twice; the compiler cannot, and the fexpr parser accepts one
   and keeps the second value.
+- **N1-3.** That the names of a binder are distinct is checked for
+  continuations always, and for parameters only with invariant checks
+  on.
+- **N1-4.** That code is closed is a claim of whoever creates it,
+  checked only for the form of the claim.
 - **R1-1.** Unboxing records `Get_tag` on the paths where the value is
   an immediate, and supplies a dummy tag of zero.
 - **R1-2.** The types library evaluates `Is_null` of poison as false.

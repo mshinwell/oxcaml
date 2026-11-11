@@ -70,8 +70,6 @@ section:
 
 - `middle_end/flambda2/rocq/FlambdaControlFlow*` (S3, with S2 for the
   switches)
-- `middle_end/flambda2/rocq/FlambdaNominal*` (N1)
-- `middle_end/flambda2/rocq/FlambdaAlpha*` (N1)
 - `middle_end/flambda2/rocq/FlambdaApply*` (S4)
 - `middle_end/flambda2/rocq/FlambdaStatic*` (S5)
 
@@ -184,7 +182,18 @@ Owner: unassigned.
 
 ## N1: nominal loose ends
 
-Owner: unassigned. See the files kept for it under C0.
+Owner: N1.
+
+- `middle_end/flambda2/rocq/FlambdaNominal*` and
+  `middle_end/flambda2/rocq/FlambdaAlpha*` (C0's until the step that
+  retired one bisimulation)
+- `middle_end/flambda2/rocq/FlambdaCompareAlpha*`
+- `middle_end/flambda2/rocq/FlambdaBinders*` (the free names of a term,
+  and the checks of rows 3, 5 and 6 of well-formedness; that they are
+  conjuncts of `well_formed_unit` is C0's to write)
+- `middle_end/flambda2/rocq/FlambdaScope*`
+- `middle_end/flambda2/rocq/FlambdaFreeNames*`
+- `middle_end/flambda2/rocq/FlambdaNameAbstraction*`
 
 ## R1, R2: reviewers
 
