@@ -199,7 +199,15 @@
      reading of an equation (a statement about a name that is not
      reached through a value in hand needs the premise that the name
      has a value).
-   A third thing that the compiler's join needs is asked of the inputs
+   - [blocks_have_tags]: every block that a [Simple] of known
+     variables evaluates to in the run has its tag in range. This one
+     is not a condition on the compiler: it is a rule of well-formed
+     terms (decision D23), which the states of the run of a
+     well-formed unit have (FlambdaRangeSpec.v); the way from those
+     states to a valuation of a typing environment is owed (the CR
+     there). The join needs it where it makes a [Get_tag] relation
+     from the variable that a type of variants has for the tag.
+   Another thing that the compiler's join needs is asked of the inputs
    of every join, in the contract itself ([no_bottom_types], in
    [join_inputs_well_formed]; the target has it too): no name has the
    type bottom in an environment that is not bottom. Without it the
@@ -217,7 +225,7 @@
    ([transcribed_join_not_strict_statement]). The upper bound of the join of
    types ([n_way_join_type_sound]) has no such condition: it is of a
    value in hand.
-   A fourth condition, [added_equations_have_values], is for the join
+   One more condition, [added_equations_have_values], is for the join
    that the meet calls: every variable that the join adds an equation
    on has a value at the use. With it the witness gives each such
    variable a value ([sound_join_where_equations_have_values]), which
@@ -809,7 +817,52 @@ Definition imported_variables_have_values {A : Type}
     knows target x ->
     ∃ v : value, lookup x valuation = Some v.
 
-(* The run has the values that the join reads. *)
+(* Every block that a [Simple] of known variables evaluates to in the
+   run has its tag in range. As for [has_value_at_use], what the
+   valuation gives to a variable that is not known says nothing of the
+   run, and nothing is asked of it. *)
+(* CR mshinwell: this is a rule of well-formed terms and not something
+   that the compiler is to establish, or tests at a join: the machine
+   makes a block of any tag, and the terms of the compiler have tags in
+   range (decision D23). The machine's side of it is stated: every
+   state of the run of a well-formed unit is in range
+   ([well_formed_in_range_statement], FlambdaRangeSpec.v), and in such
+   a state a block that a variable holds has its tag in range
+   ([blocks_in_range_statement]), as has every static block
+   ([statics_in_range]). What is owed is the way from there to this
+   predicate, which is about a valuation of a typing environment and
+   not about the variables of the machine. A valuation that represents
+   the run gives the variables that may occur in terms what the
+   machine has; the others, which exist only in types, have values
+   that earlier joins and meets chose, and those have to be shown to
+   be values of the run. And the predicate asks a tag in range of the
+   static block of every symbol, mentioned by the term or not, since a
+   symbol has no free variable: that is asked of the whole static
+   environment. So that a term is well formed does not by itself give
+   this predicate of a valuation. The join needs it
+   where it makes a [Get_tag] relation from the variable that a type of
+   variants has for the tag ([recover_inverse_relations]): the type
+   says of a block of any tag that the variable holds its tag, and the
+   relation relates a block to its tag only if the tag is in range
+   (FlambdaTypeMeaningSpec.v, [relation_holds]). Without the condition
+   the statement is false of the transcription, whatever the compiler
+   does: a use where [x] is a block of tag 300, of a type of variants
+   with no immediates whose variable [g] for the tag holds 300, is
+   satisfied, and the target says of [g] that it is the [Get_tag] of
+   [x], which no number is. The meet uses the same rule where a
+   relation is made from a primitive. The other way to have it is for
+   a type of variants to ask of its blocks a tag in range; that is for
+   the owner of the meaning of types. *)
+Definition blocks_have_tags (known : variable -> Prop) (statics : static_env)
+    (valuation : env) : Prop :=
+  ∀ (simple : simple) (v : value) (tag : Z) (fields : list value),
+    (∀ x : variable, x ∈ free_variables_of_simple simple -> known x) ->
+    eval_simple valuation simple = Some v ->
+    block_of statics v = Some (tag, fields) ->
+    is_tag tag.
+
+(* The run has the values that the join reads, and its blocks have
+   tags in range. *)
 Definition values_are_read {A : Type} (inputs : join_inputs A)
     (target : Typing_env.t)
     (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind))
@@ -817,7 +870,8 @@ Definition values_are_read {A : Type} (inputs : join_inputs A)
   scrutinees_have_values (known_at_use inputs index) target definitions
     index valuation
   ∧ joined_variables_have_values inputs valuation
-  ∧ imported_variables_have_values inputs target index valuation.
+  ∧ imported_variables_have_values inputs target index valuation
+  ∧ blocks_have_tags (known_at_use inputs index) statics valuation.
 
 (* What the compiler's join guarantees of its result: [join_guarantees]
    with the upper bound for those runs only. *)
@@ -850,7 +904,7 @@ Definition sound_join_where_values_are_read {A : Type}
     join avoid inputs = Some (target, analysis) ->
     join_guarantees_where_values_are_read avoid inputs target analysis.
 
-(* A fourth condition on runs, and a stronger contract with it: for
+(* One more condition on runs, and a stronger contract with it: for
    the join that the meet calls. *)
 
 (* The equations that the target has in its last level and the source
@@ -914,7 +968,7 @@ Definition join_admits_use_with_values (run : static_env -> env -> Prop)
           added_equation source target x ty ->
           ∃ v : value, lookup x valuation' = Some v.
 
-(* The stronger contract, for the runs of the four conditions: what
+(* The stronger contract, for the runs that have that condition too: what
    the meet asks of the join that it calls, for the compiler's join. A
    join that meets it meets [sound_join_where_values_are_read] on those
    runs. *)
@@ -1387,14 +1441,15 @@ Definition sound_join_where_values_are_read_of_sound_statement : Prop :=
     sound_join_of_environments typing_env_well_formed join ->
     sound_join_where_values_are_read typing_env_well_formed join.
 
-(* A join that meets the contract for the runs of three conditions
-   meets the stronger one for the runs of four. The witness is the
-   same: a variable that the join added an equation on has a value at
-   the use by the fourth condition, as a variable that the use or the
+(* A join that meets the contract for the runs that have the values
+   that the join reads meets the stronger one, for the runs that have
+   one more condition. The witness is the same: a variable that the
+   join added an equation on has a value at the use by that condition
+   ([added_equations_have_values]), as a variable that the use or the
    source knows, and then the witness has that value for it
    ([agrees_on_known]); or by its definition there, and then the
    witness has the value of the definition ([definitions_hold]). So the
-   fourth condition asks nothing more of the join: it is what the
+   condition asks nothing more of the join: it is what the
    caller gives to be told that those variables have values. *)
 Definition equations_have_values_of_values_are_read_statement : Prop :=
   ∀ (typing_env_well_formed : Typing_env.t -> Prop) (A : Type)
