@@ -1,0 +1,1348 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+
+(* Proofs of the statements of FlambdaTypingEnvInvariantSpec.v. Nothing
+   here needs review. *)
+
+From Stdlib Require Import ZArith List Bool Lia Setoid.
+From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaMapProofs FlambdaPrimitiveProofs FlambdaSemanticsSpec.
+From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
+  FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaBindingTime
+  FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesProofs
+  FlambdaEnvAliasesInvariantSpec FlambdaEnvAliasesInvariantProofs
+  FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaTypingEnvProofs
+  FlambdaTypingEnvInvariantSpec.
+Import ListNotations.
+
+Local Open Scope Z_scope.
+
+(* ======================================================================== *)
+(* The tests and the conditions                                             *)
+(* ======================================================================== *)
+
+(* A test that goes through a map of names answers [true] exactly when
+   what it tests holds of every binding that counts. *)
+Lemma for_all_names_b_iff {A : Type} (P : name -> A -> Prop)
+    (p : name -> A -> bool) (m : Keyed.finite_map name A) :
+  (∀ (n : name) (a : A),
+     Keyed.lookup name_eqb n m = Some a -> (p n a = true <-> P n a)) ->
+  (Keyed.for_all_bindings_b name_eqb p m = true
+   <-> (∀ (n : name) (a : A), Keyed.lookup name_eqb n m = Some a -> P n a)).
+Proof.
+  intros Hreflects. eapply iff_trans.
+  - exact (keyed_for_all_bindings_b_reflects name_eqb name_eqb_eq P p m
+             Hreflects).
+  - exact (keyed_for_all_bindings_lookup name name_eqb name_eqb_eq A P m).
+Qed.
+
+Lemma binding_times_bounded_b_iff (tenv : Typing_env.t) :
+  binding_times_bounded_b tenv = true <-> binding_times_bounded tenv.
+Proof.
+  unfold binding_times_bounded_b, binding_times_bounded.
+  rewrite andb_true_iff, !Z.leb_le. reflexivity.
+Qed.
+
+Lemma binding_times_in_range_b_iff (tenv : Typing_env.t) :
+  binding_times_in_range_b tenv = true <-> binding_times_in_range tenv.
+Proof.
+  unfold binding_times_in_range_b, binding_times_in_range.
+  eapply iff_trans.
+  - apply (for_all_names_b_iff
+             (fun n entry =>
+                match n with
+                | Name_var _ =>
+                  Binding_time.earliest_var <= binding_time_of entry
+                  ∧ binding_time_of entry < Typing_env.next_binding_time tenv
+                | Name_symbol _ => True
+                end)).
+    intros [x | s] entry _.
+    + rewrite andb_true_iff, Z.leb_le, Z.ltb_lt. reflexivity.
+    + split; [ intros _; exact I | reflexivity ].
+  - split.
+    + intros Hall x ty btm Hlookup.
+      exact (Hall (Name_var x) (ty, btm) Hlookup).
+    + intros Hall [x | s] [ty btm] Hlookup;
+        [ exact (Hall x ty btm Hlookup) | exact I ].
+Qed.
+
+Lemma binding_times_distinct_b_iff (tenv : Typing_env.t) :
+  binding_times_distinct_b tenv = true <-> binding_times_distinct tenv.
+Proof.
+  unfold binding_times_distinct_b, binding_times_distinct.
+  eapply iff_trans.
+  - apply (for_all_names_b_iff
+             (fun n entry =>
+                ∀ (n' : name)
+                  (entry' : flambda_type * Binding_time.With_name_mode.t),
+                  Keyed.lookup name_eqb n' (Typing_env.names_to_types tenv)
+                  = Some entry' ->
+                  match n, n' with
+                  | Name_var x, Name_var y =>
+                    x = y ∨ binding_time_of entry <> binding_time_of entry'
+                  | _, _ => True
+                  end)).
+    intros n entry _. apply for_all_names_b_iff. intros n' entry' _.
+    destruct n as [x | s], n' as [y | s'];
+      try (split; [ intros _; exact I | reflexivity ]).
+    rewrite orb_true_iff, Pos.eqb_eq, negb_true_iff, Z.eqb_neq. reflexivity.
+  - split.
+    + intros Hall x y ty ty' btm btm' Hx Hy Htime.
+      destruct (Hall (Name_var x) (ty, btm) Hx (Name_var y) (ty', btm') Hy)
+        as [Heq | Hne]; [ exact Heq | exfalso; exact (Hne Htime) ].
+    + intros Hall [x | s] [ty btm] Hx [y | s'] [ty' btm'] Hy; try exact I.
+      destruct (Z.eq_dec (binding_time_of (ty, btm))
+                  (binding_time_of (ty', btm'))) as [Heq | Hne];
+        [ left; exact (Hall x y ty ty' btm btm' Hx Hy Heq)
+        | right; exact Hne ].
+Qed.
+
+Lemma types_closed_b_iff (tenv : Typing_env.t) :
+  types_closed_b tenv = true <-> types_closed tenv.
+Proof.
+  unfold types_closed_b, types_closed. eapply iff_trans.
+  - apply (for_all_names_b_iff
+             (fun _ entry =>
+                ∀ x : variable,
+                  x ∈ free_variables (fst entry) ->
+                  Keyed.is_bound name_eqb (Name_var x)
+                    (Typing_env.names_to_types tenv)
+                  = true)).
+    intros n entry _. apply forallb_forall.
+  - split.
+    + intros Hall n ty btm x Hlookup. exact (Hall n (ty, btm) Hlookup x).
+    + intros Hall n [ty btm] Hlookup x. exact (Hall n ty btm x Hlookup).
+Qed.
+
+Lemma symbols_defined_b_iff (tenv : Typing_env.t) :
+  symbols_defined_b tenv = true <-> symbols_defined tenv.
+Proof.
+  unfold symbols_defined_b, symbols_defined. eapply iff_trans.
+  - apply (for_all_names_b_iff
+             (fun n _ =>
+                match n with
+                | Name_symbol s =>
+                  among s (Typing_env.defined_symbols tenv) = true
+                | Name_var _ => True
+                end)).
+    intros [x | s] entry _; [ | reflexivity ].
+    split; [ intros _; exact I | reflexivity ].
+  - split.
+    + intros Hall s ty btm Hlookup.
+      exact (Hall (Name_symbol s) (ty, btm) Hlookup).
+    + intros Hall [x | s] [ty btm] Hlookup;
+        [ exact I | exact (Hall s ty btm Hlookup) ].
+Qed.
+
+(* Two maps bind no key in common when the intersection of their
+   domains is empty. *)
+Lemma is_empty_inter_domain {K A B : Type} (eqb : K -> K -> bool)
+    (Heqb : decides_equality eqb) (m : Keyed.finite_map K A)
+    (m' : Keyed.finite_map K B) :
+  Keyed.is_empty
+    (Keyed.inter eqb (Keyed.domain eqb m) (Keyed.domain eqb m'))
+  = true
+  <-> (∀ key : K,
+        Keyed.is_bound eqb key m = true -> Keyed.is_bound eqb key m' = false).
+Proof.
+  eapply iff_trans; [ apply (keyed_is_empty_among K eqb Heqb) | ].
+  split; intros Hall key.
+  - intros Hm. specialize (Hall key).
+    rewrite (keyed_among_inter K eqb Heqb), !(keyed_among_domain K eqb Heqb),
+      Hm in Hall.
+    exact Hall.
+  - rewrite (keyed_among_inter K eqb Heqb), !(keyed_among_domain K eqb Heqb).
+    destruct (Keyed.is_bound eqb key m) eqn:Hm;
+      [ exact (Hall key Hm) | reflexivity ].
+Qed.
+
+Theorem levels_disjoint_b_iff : levels_disjoint_b_iff_statement.
+Proof.
+  intros earlier later. unfold levels_disjoint_b, levels_disjoint.
+  rewrite andb_true_iff.
+  rewrite (is_empty_inter_domain Z.eqb z_eqb_decides_equality).
+  rewrite <- (is_empty_inter_domain Pos.eqb pos_eqb_decides_equality
+                (Typing_env_level.defined_vars earlier)
+                (Typing_env_level.defined_vars later)).
+  reflexivity.
+Qed.
+
+Theorem concat_defined : concat_defined_statement.
+Proof.
+  intros earlier later.
+  rewrite <- (levels_disjoint_b_iff earlier later).
+  unfold Typing_env_level.concat, levels_disjoint_b.
+  match goal with
+  | |- context [if ?test then _ else _] => destruct test
+  end.
+  - split; [ reflexivity | discriminate ].
+  - split; [ intros Hne; exfalso; apply Hne; reflexivity | discriminate ].
+Qed.
+
+Lemma levels_pairwise_disjoint_b_iff (levels : list Typing_env_level.t) :
+  levels_pairwise_disjoint_b levels = true <-> levels_pairwise_disjoint levels.
+Proof.
+  induction levels as [ | later levels IH]; simpl.
+  - split; [ intros _; exact I | reflexivity ].
+  - rewrite andb_true_iff, IH, forallb_forall.
+    split; intros [Hall Hrest]; (split; [ | exact Hrest ]);
+      intros earlier Hin; apply levels_disjoint_b_iff, Hall, Hin.
+Qed.
+
+Lemma defined_variables_bound_b_iff (tenv : Typing_env.t) :
+  defined_variables_bound_b tenv = true <-> defined_variables_bound tenv.
+Proof.
+  unfold defined_variables_bound_b, defined_variables_bound.
+  rewrite forallb_forall.
+  assert (Hlevel :
+    ∀ level : Typing_env_level.t,
+      for_all_bindings_b
+        (fun x k =>
+           match
+             Keyed.lookup name_eqb (Name_var x)
+               (Typing_env.names_to_types tenv)
+           with
+           | Some (ty, _) => kind_eqb (kind ty) k
+           | None => false
+           end)
+        (Typing_env_level.defined_vars level)
+      = true
+      <-> (∀ (x : variable) (k : flambda_kind),
+            lookup x (Typing_env_level.defined_vars level) = Some k ->
+            ∃ (ty : flambda_type)
+              (binding_time_and_mode : Binding_time.With_name_mode.t),
+              Keyed.lookup name_eqb (Name_var x)
+                (Typing_env.names_to_types tenv)
+              = Some (ty, binding_time_and_mode)
+              ∧ kind ty = k)).
+  { intros level. eapply iff_trans.
+    - apply (keyed_for_all_bindings_b_reflects Pos.eqb
+               pos_eqb_decides_equality
+               (fun x k =>
+                  ∃ (ty : flambda_type)
+                    (binding_time_and_mode : Binding_time.With_name_mode.t),
+                    Keyed.lookup name_eqb (Name_var x)
+                      (Typing_env.names_to_types tenv)
+                    = Some (ty, binding_time_and_mode)
+                    ∧ kind ty = k)).
+      intros x k _.
+      destruct (Keyed.lookup name_eqb (Name_var x)
+                  (Typing_env.names_to_types tenv)) as [[ty btm] | ].
+      + rewrite (kind_eqb_eq (kind ty) k). split.
+        * intros Hkind. exists ty, btm. split; [ reflexivity | exact Hkind ].
+        * intros [ty' [btm' [[= <- <-] Hkind]]]. exact Hkind.
+      + split; [ discriminate | ].
+        intros [ty [btm [Hnone _]]]. discriminate.
+    - exact (for_all_bindings_lookup _ _ _). }
+  split.
+  - intros Hall level x k Hin.
+    exact (proj1 (Hlevel level) (Hall level Hin) x k).
+  - intros Hall level Hin. apply Hlevel. intros x k.
+    exact (Hall level x k Hin).
+Qed.
+
+Lemma level_binding_times_in_range_b_iff (tenv : Typing_env.t) :
+  level_binding_times_in_range_b tenv = true
+  <-> level_binding_times_in_range tenv.
+Proof.
+  unfold level_binding_times_in_range_b, level_binding_times_in_range.
+  rewrite forallb_forall. split.
+  - intros Hall level binding_time Hin Hbound.
+    specialize (Hall level Hin). rewrite forallb_forall in Hall.
+    apply Z.ltb_lt, Hall.
+    apply (keyed_among_in Z Z.eqb z_eqb_decides_equality).
+    rewrite (keyed_among_domain Z Z.eqb z_eqb_decides_equality).
+    exact Hbound.
+  - intros Hall level Hin. apply forallb_forall. intros binding_time Hkey.
+    apply Z.ltb_lt, (Hall level binding_time Hin).
+    rewrite <- (keyed_among_domain Z Z.eqb z_eqb_decides_equality).
+    apply (keyed_among_in Z Z.eqb z_eqb_decides_equality). exact Hkey.
+Qed.
+
+Lemma scopes_decreasing_b_iff (scopes : list Scope.t) :
+  scopes_decreasing_b scopes = true <-> scopes_decreasing scopes.
+Proof.
+  induction scopes as [ | later scopes IH]; simpl.
+  - split; [ intros _; exact I | reflexivity ].
+  - rewrite andb_true_iff, IH.
+    destruct scopes as [ | earlier scopes].
+    + split; intros [_ Hrest]; (split; [ | exact Hrest ]);
+        [ exact I | reflexivity ].
+    + rewrite Z.ltb_lt. reflexivity.
+Qed.
+
+Lemma aliases_known_b_iff (tenv : Typing_env.t) :
+  aliases_known_b tenv = true <-> aliases_known tenv.
+Proof.
+  unfold aliases_known_b, aliases_known, demoted_to.
+  apply (for_all_names_b_iff
+           (fun n canonical_element =>
+              Typing_env.mem None tenv n = true
+              ∧ Typing_env.mem_simple None tenv canonical_element = true)).
+  intros n canonical_element _. apply andb_true_iff.
+Qed.
+
+Lemma canonical_names_concrete_b_iff (tenv : Typing_env.t) :
+  canonical_names_concrete_b tenv = true <-> canonical_names_concrete tenv.
+Proof.
+  unfold canonical_names_concrete_b, canonical_names_concrete.
+  eapply iff_trans.
+  - apply (for_all_names_b_iff
+             (fun n entry =>
+                ∀ alias : simple,
+                  get_alias_opt (fst entry) = Some alias ->
+                  ~ is_canonical (Typing_env.aliases tenv)
+                      (simple_of_name n))).
+    intros n entry _.
+    destruct (get_alias_opt (fst entry)) as [alias | ].
+    + rewrite negb_true_iff. split.
+      * intros Hfalse alias' _ Hcanonical.
+        apply is_canonical_b_iff in Hcanonical. congruence.
+      * intros Hnot.
+        destruct (is_canonical_b (Typing_env.aliases tenv) (simple_of_name n))
+          eqn:Htest; [ exfalso | reflexivity ].
+        apply (Hnot alias eq_refl). apply is_canonical_b_iff. exact Htest.
+    + split; [ intros _ alias Hnone; discriminate | reflexivity ].
+  - split.
+    + intros Hall n ty btm alias Hlookup.
+      exact (Hall n (ty, btm) Hlookup alias).
+    + intros Hall n [ty btm] Hlookup alias.
+      exact (Hall n ty btm alias Hlookup).
+Qed.
+
+Theorem typing_env_well_formed_iff : typing_env_well_formed_iff_statement.
+Proof.
+  intros tenv. unfold typing_env_well_formed, typing_env_conditions.
+  rewrite !andb_true_iff.
+  rewrite binding_times_bounded_b_iff, binding_times_in_range_b_iff,
+    binding_times_distinct_b_iff, types_closed_b_iff, symbols_defined_b_iff,
+    levels_pairwise_disjoint_b_iff, defined_variables_bound_b_iff,
+    level_binding_times_in_range_b_iff, scopes_decreasing_b_iff,
+    (aliases_consistent_b_iff (Typing_env.aliases tenv)),
+    (name_modes_recorded_b_iff _ (Typing_env.names_to_types tenv)
+       (Typing_env.aliases tenv)),
+    aliases_known_b_iff, canonical_names_concrete_b_iff.
+  tauto.
+Qed.
+
+(* ======================================================================== *)
+(* What the invariant gives                                                 *)
+(* ======================================================================== *)
+
+(* A variable is bound when it has an entry. *)
+Lemma mem_var_lookup (tenv : Typing_env.t) (x : variable) :
+  Typing_env.mem None tenv (Name_var x) = true
+  <-> ∃ (ty : flambda_type)
+        (binding_time_and_mode : Binding_time.With_name_mode.t),
+        Keyed.lookup name_eqb (Name_var x) (Typing_env.names_to_types tenv)
+        = Some (ty, binding_time_and_mode).
+Proof.
+  unfold Typing_env.mem.
+  destruct (Keyed.lookup name_eqb (Name_var x)
+              (Typing_env.names_to_types tenv)) as [[ty btm] | ].
+  - split; [ intros _; exists ty, btm; reflexivity | reflexivity ].
+  - split; [ discriminate | intros [ty [btm Hnone]]; discriminate ].
+Qed.
+
+Lemma mem_var_is_bound (tenv : Typing_env.t) (x : variable) :
+  Typing_env.mem None tenv (Name_var x)
+  = Keyed.is_bound name_eqb (Name_var x) (Typing_env.names_to_types tenv).
+Proof.
+  unfold Typing_env.mem, Keyed.is_bound.
+  destruct (Keyed.lookup name_eqb (Name_var x)
+              (Typing_env.names_to_types tenv)) as [[ty btm] | ];
+    reflexivity.
+Qed.
+
+Theorem well_formed_binding_times_distinct
+    : well_formed_binding_times_distinct_statement.
+Proof.
+  intros tenv x y Hwf Hx Hy Htime.
+  apply typing_env_well_formed_iff in Hwf.
+  destruct Hwf as [[_ [_ [Hdistinct _]]] _].
+  apply mem_var_lookup in Hx. destruct Hx as [ty [btm Hx]].
+  apply mem_var_lookup in Hy. destruct Hy as [ty' [btm' Hy]].
+  apply (Hdistinct x y ty ty' btm btm' Hx Hy).
+  revert Htime. unfold binding_time_in, Aliases.binding_time_and_name_mode.
+  rewrite Hx, Hy. exact (fun Htime => Htime).
+Qed.
+
+Theorem well_formed_mentioned_known : well_formed_mentioned_known_statement.
+Proof.
+  intros tenv n Hwf Hmention.
+  apply typing_env_well_formed_iff in Hwf.
+  destruct Hwf as [_ [_ [[_ Hlisted] [_ [Hknown _]]]]].
+  assert (Hcanonical :
+    ∀ n' : name,
+      demoted_to (Typing_env.aliases tenv) n' (simple_of_name n) ->
+      Typing_env.mem None tenv n = true).
+  { intros n' Hdemoted. destruct (Hknown n' _ Hdemoted) as [_ Hmem].
+    destruct n; exact Hmem. }
+  destruct Hmention
+    as [[c Hdemoted] | [[n' Hdemoted] | [[c Hlisted'] | [n' Hlisted']]]].
+  - exact (proj1 (Hknown n c Hdemoted)).
+  - exact (Hcanonical n' Hdemoted).
+  - exact (proj1 (Hknown n c (proj2 (Hlisted n c) Hlisted'))).
+  - exact (Hcanonical n' (proj2 (Hlisted n' (simple_of_name n)) Hlisted')).
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+(* Cutting                                                                  *)
+(* ------------------------------------------------------------------------ *)
+
+Lemma is_bound_app {A : Type} (x : positive) (m m' : finite_map A) :
+  is_bound x (m ++ m') = is_bound x m || is_bound x m'.
+Proof.
+  unfold is_bound. rewrite lookup_app. destruct (lookup x m); reflexivity.
+Qed.
+
+Lemma keyed_is_bound_app {K A : Type} (eqb : K -> K -> bool) (key : K)
+    (m m' : Keyed.finite_map K A) :
+  Keyed.is_bound eqb key (m ++ m')
+  = Keyed.is_bound eqb key m || Keyed.is_bound eqb key m'.
+Proof.
+  unfold Keyed.is_bound. rewrite keyed_lookup_app.
+  destruct (Keyed.lookup eqb key m); reflexivity.
+Qed.
+
+(* What [Typing_env_level.concat] answers. *)
+Lemma concat_some (earlier later result : Typing_env_level.t) :
+  Typing_env_level.concat earlier later = Some result ->
+  result
+  = Typing_env_level.create
+      (Typing_env_level.defined_vars later
+       ++ Typing_env_level.defined_vars earlier)
+      (Typing_env_level.binding_times later
+       ++ Typing_env_level.binding_times earlier)
+      (Typing_env_level.equations later
+       ++ Typing_env_level.equations earlier).
+Proof.
+  unfold Typing_env_level.concat.
+  match goal with
+  | |- context [if ?test then _ else _] => destruct test
+  end; [ | discriminate ].
+  intros [= <-]. reflexivity.
+Qed.
+
+(* A level that is disjoint from two levels is disjoint from their
+   concatenation. *)
+Lemma levels_disjoint_concat (level earlier later result : Typing_env_level.t)
+    :
+  Typing_env_level.concat earlier later = Some result ->
+  levels_disjoint level earlier ->
+  levels_disjoint level later ->
+  levels_disjoint level result.
+Proof.
+  intros Hconcat [Hvars Htimes] [Hvars' Htimes'].
+  apply concat_some in Hconcat. subst result. split.
+  - intros x Hx. simpl. rewrite is_bound_app, (Hvars x Hx), (Hvars' x Hx).
+    reflexivity.
+  - intros binding_time Hbt. simpl.
+    rewrite keyed_is_bound_app, (Htimes binding_time Hbt),
+      (Htimes' binding_time Hbt).
+    reflexivity.
+Qed.
+
+Lemma cut_loop_defined (cut_after : Scope.t)
+    (levels : list Typing_env.One_level.t) :
+  ∀ result : Typing_env_level.t,
+    (∀ earlier : Typing_env_level.t,
+      earlier ∈ map Typing_env.One_level.level levels ->
+      levels_disjoint earlier result) ->
+    levels_pairwise_disjoint (map Typing_env.One_level.level levels) ->
+    ∃ level : Typing_env_level.t,
+      Typing_env.cut_loop cut_after result levels = Some level.
+Proof.
+  induction levels as [ | one_level levels IH]; intros result Hresult Hlevels.
+  - exists result. reflexivity.
+  - simpl. destruct (cut_after <? Typing_env.One_level.scope one_level);
+      [ | exists result; reflexivity ].
+    destruct Hlevels as [Hone Hlevels].
+    destruct (Typing_env_level.concat (Typing_env.One_level.level one_level)
+                result) as [result' | ] eqn:Hconcat.
+    + simpl. apply IH; [ | exact Hlevels ].
+      intros earlier Hin.
+      apply (levels_disjoint_concat earlier _ _ _ Hconcat).
+      * exact (Hone earlier Hin).
+      * apply Hresult. right. exact Hin.
+    + exfalso. apply (proj2 (concat_defined _ _)) in Hconcat;
+        [ exact Hconcat | ].
+      apply Hresult. left. reflexivity.
+Qed.
+
+Theorem cut_defined : cut_defined_statement.
+Proof.
+  intros tenv cut_after Hwf.
+  apply typing_env_well_formed_iff in Hwf.
+  destruct Hwf as [_ [[[Hcurrent Hprev] _] _]].
+  unfold Typing_env.cut.
+  destruct (Typing_env.current_scope tenv <=? cut_after);
+    [ exists Typing_env_level.empty; reflexivity | ].
+  apply cut_loop_defined; [ exact Hcurrent | exact Hprev ].
+Qed.
+
+(* The level that [cut_loop] answers is the one it is given followed by
+   the levels that it has gone through, which are the first of those
+   that it is given. *)
+Lemma cut_loop_parts (cut_after : Scope.t)
+    (levels : list Typing_env.One_level.t) :
+  ∀ result level : Typing_env_level.t,
+    Typing_env.cut_loop cut_after result levels = Some level ->
+    ∃ taken rest : list Typing_env_level.t,
+      map Typing_env.One_level.level levels = taken ++ rest
+      ∧ Typing_env_level.equations level
+        = Typing_env_level.equations result
+          ++ flat_map Typing_env_level.equations taken
+      ∧ Typing_env_level.defined_vars level
+        = Typing_env_level.defined_vars result
+          ++ flat_map Typing_env_level.defined_vars taken.
+Proof.
+  induction levels as [ | one_level levels IH]; intros result level.
+  - intros [= <-]. exists [], []. simpl. rewrite !app_nil_r.
+    split; [ reflexivity | split; reflexivity ].
+  - simpl. destruct (cut_after <? Typing_env.One_level.scope one_level).
+    + destruct (Typing_env_level.concat
+                  (Typing_env.One_level.level one_level) result)
+        as [result' | ] eqn:Hconcat; [ | discriminate ].
+      simpl. intros Hloop.
+      destruct (IH result' level Hloop)
+        as [taken [rest [Hlevels [Hequations Hdefined]]]].
+      apply concat_some in Hconcat. subst result'. simpl in *.
+      exists (Typing_env.One_level.level one_level :: taken), rest.
+      split; [ rewrite Hlevels; reflexivity | ]. simpl.
+      rewrite Hequations, Hdefined, <- !app_assoc.
+      split; reflexivity.
+    + intros [= <-].
+      exists [], (Typing_env.One_level.level one_level
+                    :: map Typing_env.One_level.level levels).
+      simpl. rewrite !app_nil_r.
+      split; [ reflexivity | split; reflexivity ].
+Qed.
+
+Theorem cut_equations_found : cut_equations_found_statement.
+Proof.
+  intros tenv cut_after level n ty Hagree. unfold Typing_env.cut.
+  destruct (Typing_env.current_scope tenv <=? cut_after).
+  - intros [= <-]. discriminate.
+  - intros Hloop Hlookup.
+    destruct (cut_loop_parts _ _ _ _ Hloop)
+      as [taken [rest [Hlevels [Hequations _]]]].
+    apply (Hagree n ty). unfold all_equations, all_levels. simpl.
+    rewrite Hlevels, flat_map_app, app_assoc, <- Hequations.
+    rewrite keyed_lookup_app, Hlookup. reflexivity.
+Qed.
+
+(* What is found in the bindings of several levels is found in those of
+   one of them. *)
+Lemma lookup_flat_map {A B : Type} (f : A -> finite_map B) (x : positive)
+    (b : B) (l : list A) :
+  lookup x (flat_map f l) = Some b -> ∃ a : A, a ∈ l ∧ lookup x (f a) = Some b.
+Proof.
+  induction l as [ | a l IH]; simpl; [ discriminate | ].
+  rewrite lookup_app. destruct (lookup x (f a)) as [b' | ] eqn:Hlookup.
+  - intros [= ->]. exists a. split; [ left; reflexivity | exact Hlookup ].
+  - intros Hrest. destruct (IH Hrest) as [a' [Hin Ha']].
+    exists a'. split; [ right; exact Hin | exact Ha' ].
+Qed.
+
+Theorem cut_defined_variables_found : cut_defined_variables_found_statement.
+Proof.
+  intros tenv cut_after level x k Hwf.
+  apply typing_env_well_formed_iff in Hwf.
+  destruct Hwf as [_ [[_ [Hdefined _]] _]].
+  unfold Typing_env.cut.
+  destruct (Typing_env.current_scope tenv <=? cut_after).
+  - intros [= <-]. discriminate.
+  - intros Hloop Hlookup.
+    destruct (cut_loop_parts _ _ _ _ Hloop)
+      as [taken [rest [Hlevels [_ Hvars]]]].
+    rewrite Hvars, lookup_app in Hlookup.
+    destruct (lookup x
+                (Typing_env_level.defined_vars
+                   (Typing_env.One_level.level
+                      (Typing_env.current_level tenv))))
+      as [k' | ] eqn:Hcurrent.
+    + injection Hlookup as ->.
+      apply (Hdefined _ x k (or_introl eq_refl) Hcurrent).
+    + destruct (lookup_flat_map _ x k taken Hlookup) as [l [Hin Hl]].
+      apply (Hdefined l x k); [ | exact Hl ].
+      right. rewrite Hlevels. apply in_or_app. left. exact Hin.
+Qed.
+
+(* ======================================================================== *)
+(* The functions keep the invariant                                         *)
+(* ======================================================================== *)
+
+Lemma conditions_intro (tenv : Typing_env.t) :
+  binding_times_bounded tenv ->
+  binding_times_in_range tenv ->
+  binding_times_distinct tenv ->
+  types_closed tenv ->
+  symbols_defined tenv ->
+  levels_pairwise_disjoint (all_levels tenv) ->
+  defined_variables_bound tenv ->
+  level_binding_times_in_range tenv ->
+  scopes_decreasing (all_scopes tenv) ->
+  aliases_consistent (Typing_env.aliases tenv) ->
+  name_modes_recorded (Typing_env.names_to_types tenv)
+    (Typing_env.aliases tenv) ->
+  aliases_known tenv ->
+  canonical_names_concrete tenv ->
+  typing_env_conditions tenv.
+Proof. unfold typing_env_conditions. tauto. Qed.
+
+Lemma invariant_intro (tenv : Typing_env.t) :
+  typing_env_conditions tenv -> levels_agree tenv -> typing_env_invariant tenv.
+Proof.
+  intros Hconditions Hagree. split; [ | exact Hagree ].
+  apply typing_env_well_formed_iff. exact Hconditions.
+Qed.
+
+Lemma invariant_elim (tenv : Typing_env.t) :
+  typing_env_invariant tenv -> typing_env_conditions tenv ∧ levels_agree tenv.
+Proof.
+  intros [Hwf Hagree].
+  split; [ apply typing_env_well_formed_iff; exact Hwf | exact Hagree ].
+Qed.
+
+(* The parts of the invariant, each under the name used below. *)
+Ltac invariant_parts Hinvariant :=
+  apply invariant_elim in Hinvariant;
+  destruct Hinvariant
+    as [[[Hbounded [Hrange [Hdistinct [Hclosed Hsymbols]]]]
+         [[Hdisjoint [Hdefined [Hlevel_range Hscopes]]]
+          [Hconsistent [Hmodes [Hknown Hconcrete]]]]]
+        Hagree].
+
+(* Every name that the aliases speak of is bound. *)
+Lemma mentioned_known (tenv : Typing_env.t) (n : name) :
+  aliases_consistent (Typing_env.aliases tenv) ->
+  aliases_known tenv ->
+  aliases_mention (Typing_env.aliases tenv) n ->
+  Typing_env.mem None tenv n = true.
+Proof.
+  intros [_ Hlisted] Hknown Hmention.
+  assert (Hcanonical :
+    ∀ n' : name,
+      demoted_to (Typing_env.aliases tenv) n' (simple_of_name n) ->
+      Typing_env.mem None tenv n = true).
+  { intros n' Hdemoted. destruct (Hknown n' _ Hdemoted) as [_ Hmem].
+    destruct n; exact Hmem. }
+  destruct Hmention
+    as [[c Hdemoted] | [[n' Hdemoted] | [[c Hlisted'] | [n' Hlisted']]]].
+  - exact (proj1 (Hknown n c Hdemoted)).
+  - exact (Hcanonical n' Hdemoted).
+  - exact (proj1 (Hknown n c (proj2 (Hlisted n c) Hlisted'))).
+  - exact (Hcanonical n' (proj2 (Hlisted n' (simple_of_name n)) Hlisted')).
+Qed.
+
+Theorem create_invariant : create_invariant_statement.
+Proof.
+  split; [ reflexivity | ]. intros n ty Hlookup. discriminate.
+Qed.
+
+Theorem make_bottom_invariant : make_bottom_invariant_statement.
+Proof. intros tenv Hinvariant. exact Hinvariant. Qed.
+
+Theorem increment_scope_invariant : increment_scope_invariant_statement.
+Proof.
+  intros tenv Hinvariant. invariant_parts Hinvariant.
+  apply invariant_intro; [ | exact Hagree ].
+  apply conditions_intro;
+    try first
+      [ exact Hbounded | exact Hrange | exact Hdistinct | exact Hclosed
+      | exact Hsymbols | exact Hconsistent | exact Hmodes | exact Hknown
+      | exact Hconcrete ].
+  - (* The new level is empty. *)
+    split; [ | exact Hdisjoint ].
+    intros earlier _. split; intros key _; reflexivity.
+  - intros level x k [<- | Hin]; [ discriminate | ].
+    exact (Hdefined level x k Hin).
+  - intros level binding_time [<- | Hin]; [ discriminate | ].
+    exact (Hlevel_range level binding_time Hin).
+  - split; [ | exact Hscopes ]. simpl.
+    unfold Scope.next, Typing_env.current_scope. lia.
+Qed.
+
+Theorem closure_env_invariant : closure_env_invariant_statement.
+Proof.
+  intros tenv Hinvariant. unfold Typing_env.closure_env.
+  apply increment_scope_invariant.
+  invariant_parts Hinvariant.
+  apply invariant_intro; [ | exact Hagree ].
+  apply conditions_intro;
+    try first
+      [ exact Hrange | exact Hdistinct | exact Hclosed | exact Hsymbols
+      | exact Hdisjoint | exact Hdefined | exact Hlevel_range
+      | exact Hscopes | exact Hconsistent | exact Hmodes | exact Hknown
+      | exact Hconcrete ].
+  destruct Hbounded as [Hearliest Hmin]. split; simpl; lia.
+Qed.
+
+(* A name that is bound stays bound when a symbol is defined. *)
+Lemma mem_add_symbol_definition (tenv : Typing_env.t) (sym : symbol)
+    (n : name) :
+  Typing_env.mem None tenv n = true ->
+  Typing_env.mem None (Typing_env.add_symbol_definition tenv sym) n = true.
+Proof.
+  destruct n as [x | s]; [ exact (fun Hmem => Hmem) | ].
+  intros Hmem.
+  change (among s (sym :: Typing_env.defined_symbols tenv) = true).
+  rewrite among_cons.
+  change (among s (Typing_env.defined_symbols tenv) = true) in Hmem.
+  rewrite Hmem. apply orb_true_r.
+Qed.
+
+Theorem add_symbol_definition_invariant
+    : add_symbol_definition_invariant_statement.
+Proof.
+  intros tenv sym Hinvariant. invariant_parts Hinvariant.
+  apply invariant_intro; [ | exact Hagree ].
+  apply conditions_intro;
+    try first
+      [ exact Hbounded | exact Hrange | exact Hdistinct | exact Hclosed
+      | exact Hdisjoint | exact Hdefined | exact Hlevel_range
+      | exact Hscopes | exact Hconsistent | exact Hmodes | exact Hconcrete ].
+  - intros s ty btm Hlookup.
+    exact (mem_add_symbol_definition tenv sym (Name_symbol s)
+             (Hsymbols s ty btm Hlookup)).
+  - intros n c Hdemoted. destruct (Hknown n c Hdemoted) as [Hn Hc].
+    split; [ exact (mem_add_symbol_definition tenv sym n Hn) | ].
+    destruct c as [x | s | k]; [ | | reflexivity ].
+    + exact (mem_add_symbol_definition tenv sym (Name_var x) Hc).
+    + exact (mem_add_symbol_definition tenv sym (Name_symbol s) Hc).
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+(* Defining a variable                                                      *)
+(* ------------------------------------------------------------------------ *)
+
+Lemma free_variables_unknown (kind : flambda_kind) :
+  free_variables (unknown kind) = [].
+Proof. destruct kind as [ | [] | | ]; reflexivity. Qed.
+
+Lemma get_alias_opt_unknown (kind : flambda_kind) :
+  get_alias_opt (unknown kind) = None.
+Proof. destruct kind as [ | [] | | ]; reflexivity. Qed.
+
+Lemma add_variable_definition_lookup (tenv : Typing_env.t) (var : variable)
+    (kind : flambda_kind) (name_mode : Name_mode.t) (n : name) :
+  Keyed.lookup name_eqb n
+    (Typing_env.names_to_types
+       (Typing_env.add_variable_definition tenv var kind name_mode))
+  = if name_eqb n (Name_var var)
+    then
+      Some
+        (unknown kind,
+         Binding_time.With_name_mode.create
+           (Typing_env.next_binding_time tenv) name_mode)
+    else Keyed.lookup name_eqb n (Typing_env.names_to_types tenv).
+Proof. reflexivity. Qed.
+
+Lemma mem_fresh_lookup (tenv : Typing_env.t) (var : variable) :
+  Typing_env.mem None tenv (Name_var var) = false ->
+  Keyed.lookup name_eqb (Name_var var) (Typing_env.names_to_types tenv)
+  = None.
+Proof.
+  rewrite mem_var_is_bound. unfold Keyed.is_bound.
+  destruct (Keyed.lookup name_eqb (Name_var var)
+              (Typing_env.names_to_types tenv));
+    [ discriminate | reflexivity ].
+Qed.
+
+Lemma add_definition_defined_vars (level : Typing_env_level.t)
+    (var : variable) (kind : flambda_kind) (binding_time : Binding_time.t) :
+  Typing_env_level.defined_vars
+    (Typing_env_level.add_definition level var kind binding_time)
+  = (var, kind) :: Typing_env_level.defined_vars level.
+Proof. reflexivity. Qed.
+
+Lemma add_definition_is_bound_time (level : Typing_env_level.t)
+    (var : variable) (kind : flambda_kind)
+    (binding_time binding_time' : Binding_time.t) :
+  Keyed.is_bound Z.eqb binding_time'
+    (Typing_env_level.binding_times
+       (Typing_env_level.add_definition level var kind binding_time))
+  = (binding_time' =? binding_time)
+    || Keyed.is_bound Z.eqb binding_time'
+         (Typing_env_level.binding_times level).
+Proof.
+  unfold Keyed.is_bound. simpl.
+  destruct (binding_time' =? binding_time); reflexivity.
+Qed.
+
+Theorem add_variable_definition_invariant
+    : add_variable_definition_invariant_statement.
+Proof.
+  intros tenv var kind name_mode Hinvariant Hfresh.
+  apply mem_fresh_lookup in Hfresh.
+  invariant_parts Hinvariant.
+  destruct Hbounded as [Hearliest Hmin].
+  set (tenv' := Typing_env.add_variable_definition tenv var kind name_mode).
+  set (entry :=
+         (unknown kind,
+          Binding_time.With_name_mode.create
+            (Typing_env.next_binding_time tenv) name_mode)).
+  (* The new entry, and the entries of the other names. *)
+  assert (Hnew :
+    Keyed.lookup name_eqb (Name_var var) (Typing_env.names_to_types tenv')
+    = Some entry).
+  { unfold tenv'.
+    rewrite add_variable_definition_lookup,
+      (keyed_eqb_refl name_eqb name_eqb_eq).
+    reflexivity. }
+  assert (Hother :
+    ∀ n : name,
+      n <> Name_var var ->
+      Keyed.lookup name_eqb n (Typing_env.names_to_types tenv')
+      = Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)).
+  { intros n Hne. unfold tenv'. rewrite add_variable_definition_lookup.
+    destruct (keyed_eqb_spec name_eqb name_eqb_eq n (Name_var var));
+      [ contradiction | reflexivity ]. }
+  assert (Hold :
+    ∀ (n : name) (old : flambda_type * Binding_time.With_name_mode.t),
+      Keyed.lookup name_eqb n (Typing_env.names_to_types tenv) = Some old ->
+      Keyed.lookup name_eqb n (Typing_env.names_to_types tenv') = Some old).
+  { intros n old Hlookup. rewrite Hother; [ exact Hlookup | ].
+    intros ->. congruence. }
+  assert (Hmem :
+    ∀ n : name,
+      Typing_env.mem None tenv n = true ->
+      Typing_env.mem None tenv' n = true).
+  { intros [x | s] Hn; [ | exact Hn ].
+    rewrite mem_var_is_bound in *.
+    apply keyed_is_bound_lookup in Hn. destruct Hn as [old Hlookup].
+    apply keyed_is_bound_lookup. exists old. exact (Hold _ _ Hlookup). }
+  assert (Hlevels :
+    all_levels tenv'
+    = Typing_env_level.add_definition
+        (Typing_env.One_level.level (Typing_env.current_level tenv)) var kind
+        (Typing_env.next_binding_time tenv)
+      :: map Typing_env.One_level.level (Typing_env.prev_levels tenv))
+    by reflexivity.
+  assert (Hnext :
+    Typing_env.next_binding_time tenv'
+    = Typing_env.next_binding_time tenv + 1) by reflexivity.
+  destruct Hdisjoint as [Hcurrent Hprev].
+  apply invariant_intro.
+  - apply conditions_intro.
+    + split; [ exact Hearliest | ].
+      change (Typing_env.min_binding_time tenv
+              <= Typing_env.next_binding_time tenv').
+      lia.
+    + intros x ty btm Hlookup. rewrite Hnext.
+      destruct (Pos.eq_dec x var) as [-> | Hne].
+      * rewrite Hnew in Hlookup. injection Hlookup as <- <-. simpl. lia.
+      * rewrite Hother in Hlookup by congruence.
+        destruct (Hrange x ty btm Hlookup). lia.
+    + intros x y ty ty' btm btm' Hx Hy Htime.
+      destruct (Pos.eq_dec x var) as [-> | Hx_ne],
+        (Pos.eq_dec y var) as [-> | Hy_ne].
+      * reflexivity.
+      * exfalso. rewrite Hnew in Hx. injection Hx as <- <-.
+        rewrite Hother in Hy by congruence.
+        destruct (Hrange y ty' btm' Hy) as [_ Hlt]. simpl in Htime. lia.
+      * exfalso. rewrite Hnew in Hy. injection Hy as <- <-.
+        rewrite Hother in Hx by congruence.
+        destruct (Hrange x ty btm Hx) as [_ Hlt]. simpl in Htime. lia.
+      * rewrite Hother in Hx by congruence.
+        rewrite Hother in Hy by congruence.
+        exact (Hdistinct x y ty ty' btm btm' Hx Hy Htime).
+    + intros n ty btm x Hlookup Hin.
+      destruct (keyed_eqb_spec name_eqb name_eqb_eq n (Name_var var))
+        as [-> | Hne].
+      * rewrite Hnew in Hlookup. injection Hlookup as <- <-.
+        rewrite free_variables_unknown in Hin. destruct Hin.
+      * rewrite Hother in Hlookup by exact Hne.
+        pose proof (Hclosed n ty btm x Hlookup Hin) as Hbound.
+        apply keyed_is_bound_lookup in Hbound.
+        destruct Hbound as [old Hlookup'].
+        apply keyed_is_bound_lookup. exists old. exact (Hold _ _ Hlookup').
+    + intros s ty btm Hlookup. rewrite Hother in Hlookup by discriminate.
+      exact (Hsymbols s ty btm Hlookup).
+    + rewrite Hlevels. split; [ | exact Hprev ].
+      intros earlier Hin. destruct (Hcurrent earlier Hin) as [Hvars Htimes].
+      split.
+      * intros x Hx. rewrite add_definition_defined_vars.
+        unfold is_bound. rewrite lookup_cons.
+        destruct (Pos.eqb_spec x var) as [-> | Hne];
+          [ exfalso | exact (Hvars x Hx) ].
+        apply is_bound_lookup in Hx. destruct Hx as [k Hk].
+        destruct (Hdefined earlier var k (or_intror Hin) Hk)
+          as [ty [btm [Hlookup _]]].
+        congruence.
+      * intros binding_time Hbt. rewrite add_definition_is_bound_time.
+        destruct (Z.eqb_spec binding_time (Typing_env.next_binding_time tenv))
+          as [-> | Hne]; [ exfalso | exact (Htimes binding_time Hbt) ].
+        pose proof (Hlevel_range earlier _ (or_intror Hin) Hbt). lia.
+    + intros level x k Hin Hlookup. rewrite Hlevels in Hin.
+      destruct Hin as [<- | Hin].
+      * rewrite add_definition_defined_vars, lookup_cons in Hlookup.
+        destruct (Pos.eqb_spec x var) as [-> | Hne].
+        -- injection Hlookup as <-. exists (fst entry), (snd entry).
+           split; [ exact Hnew | apply kind_unknown ].
+        -- destruct (Hdefined _ x k (or_introl eq_refl) Hlookup)
+             as [ty [btm [Hty Hkind]]].
+           exists ty, btm. split; [ exact (Hold _ _ Hty) | exact Hkind ].
+      * destruct (Hdefined level x k (or_intror Hin) Hlookup)
+          as [ty [btm [Hty Hkind]]].
+        exists ty, btm. split; [ exact (Hold _ _ Hty) | exact Hkind ].
+    + intros level binding_time Hin Hbt. rewrite Hnext.
+      rewrite Hlevels in Hin. destruct Hin as [<- | Hin].
+      * rewrite add_definition_is_bound_time in Hbt.
+        destruct (Z.eq_dec binding_time (Typing_env.next_binding_time tenv))
+          as [-> | Hne]; [ lia | ].
+        apply Z.eqb_neq in Hne. rewrite Hne in Hbt.
+        pose proof (Hlevel_range _ binding_time (or_introl eq_refl) Hbt).
+        lia.
+      * pose proof (Hlevel_range level binding_time (or_intror Hin) Hbt).
+        lia.
+    + exact Hscopes.
+    + exact Hconsistent.
+    + apply (name_modes_recorded_coincide _ _
+               (Typing_env.names_to_types tenv)
+               (Typing_env.names_to_types tenv') (Typing_env.aliases tenv));
+        [ | exact Hmodes ].
+      intros n Hmention.
+      pose proof (mentioned_known tenv n Hconsistent Hknown Hmention)
+        as Hbound.
+      destruct n as [x | s]; [ | reflexivity ].
+      unfold Aliases.compute_name_mode_unscoped,
+        Aliases.binding_time_and_name_mode.
+      cbn [simple_of_name]. rewrite Hother; [ reflexivity | ].
+      intros [= ->]. rewrite mem_var_is_bound in Hbound.
+      unfold Keyed.is_bound in Hbound. rewrite Hfresh in Hbound.
+      discriminate.
+    + intros n c Hdemoted. destruct (Hknown n c Hdemoted) as [Hn Hc].
+      split; [ exact (Hmem n Hn) | ].
+      destruct c as [x | s | k];
+        [ exact (Hmem (Name_var x) Hc) | exact (Hmem (Name_symbol s) Hc)
+        | reflexivity ].
+    + intros n ty btm alias Hlookup Halias.
+      destruct (keyed_eqb_spec name_eqb name_eqb_eq n (Name_var var))
+        as [-> | Hne].
+      * rewrite Hnew in Hlookup. injection Hlookup as <- <-.
+        rewrite get_alias_opt_unknown in Halias. discriminate.
+      * rewrite Hother in Hlookup by exact Hne.
+        exact (Hconcrete n ty btm alias Hlookup Halias).
+  - intros n ty Hlookup. destruct (Hagree n ty Hlookup) as [btm Hbtm].
+    exists btm. exact (Hold _ _ Hbtm).
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+(* A new type for a name                                                    *)
+(* ------------------------------------------------------------------------ *)
+
+Lemma add_or_replace_equation_defined_vars (level : Typing_env_level.t)
+    (n : name) (ty : flambda_type) :
+  Typing_env_level.defined_vars
+    (Typing_env_level.add_or_replace_equation level n ty)
+  = Typing_env_level.defined_vars level.
+Proof.
+  unfold Typing_env_level.add_or_replace_equation.
+  destruct (is_obviously_unknown ty); reflexivity.
+Qed.
+
+Lemma add_or_replace_equation_binding_times (level : Typing_env_level.t)
+    (n : name) (ty : flambda_type) :
+  Typing_env_level.binding_times
+    (Typing_env_level.add_or_replace_equation level n ty)
+  = Typing_env_level.binding_times level.
+Proof.
+  unfold Typing_env_level.add_or_replace_equation.
+  destruct (is_obviously_unknown ty); reflexivity.
+Qed.
+
+Lemma add_or_replace_equation_unknown (level : Typing_env_level.t)
+    (n : name) (ty : flambda_type) :
+  is_obviously_unknown ty = true ->
+  Typing_env_level.equations
+    (Typing_env_level.add_or_replace_equation level n ty)
+  = Keyed.unbind name_eqb n (Typing_env_level.equations level).
+Proof.
+  intros Hunknown. unfold Typing_env_level.add_or_replace_equation.
+  rewrite Hunknown. reflexivity.
+Qed.
+
+Lemma add_or_replace_equation_known (level : Typing_env_level.t)
+    (n : name) (ty : flambda_type) :
+  is_obviously_unknown ty = false ->
+  Typing_env_level.equations
+    (Typing_env_level.add_or_replace_equation level n ty)
+  = (n, ty) :: Typing_env_level.equations level.
+Proof.
+  intros Hunknown. unfold Typing_env_level.add_or_replace_equation.
+  rewrite Hunknown. reflexivity.
+Qed.
+
+(* What [replace_equation] does to the types and the aliases, for a
+   name that is bound: an entry is added for the name, with the binding
+   time and the name mode that a variable had. *)
+Lemma replace_equation_shape (tenv : Typing_env.t) (n : name)
+    (ty : flambda_type) :
+  Typing_env.mem None tenv n = true ->
+  ∃ binding_time_and_mode : Binding_time.With_name_mode.t,
+    Typing_env.names_to_types (Typing_env.replace_equation tenv n ty)
+    = (n, (ty, binding_time_and_mode)) :: Typing_env.names_to_types tenv
+    ∧ Typing_env.aliases (Typing_env.replace_equation tenv n ty)
+      = Typing_env.aliases tenv
+    ∧ (∀ (x : variable) (ty' : flambda_type)
+         (binding_time_and_mode' : Binding_time.With_name_mode.t),
+        n = Name_var x ->
+        Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
+        = Some (ty', binding_time_and_mode') ->
+        binding_time_and_mode = binding_time_and_mode').
+Proof.
+  intros Hmem. destruct n as [x | s].
+  - apply mem_var_lookup in Hmem. destruct Hmem as [ty0 [btm0 Hlookup]].
+    exists btm0. split; [ | split ].
+    + unfold Typing_env.replace_equation, Typing_env.names_to_types,
+        Typing_env.with_current_level in *.
+      cbn [Typing_env.just_after_level].
+      unfold Cached_level.replace_variable_binding. rewrite Hlookup.
+      reflexivity.
+    + unfold Typing_env.replace_equation, Typing_env.names_to_types,
+        Typing_env.aliases, Typing_env.with_current_level in *.
+      cbn [Typing_env.just_after_level].
+      unfold Cached_level.replace_variable_binding. rewrite Hlookup.
+      reflexivity.
+    + intros x' ty' btm' [= <-] Hlookup'. rewrite Hlookup in Hlookup'.
+      injection Hlookup' as _ <-. reflexivity.
+  - exists (Binding_time.With_name_mode.create Binding_time.symbols
+              Name_mode.normal).
+    split; [ reflexivity | ]. split; [ reflexivity | ].
+    intros x ty' btm' Hx. discriminate.
+Qed.
+
+Theorem replace_equation_invariant : replace_equation_invariant_statement.
+Proof.
+  intros tenv n ty Hinvariant Hbound Hfree Hkind Halias Hunknown.
+  invariant_parts Hinvariant.
+  destruct (replace_equation_shape tenv n ty Hbound)
+    as [btm_new [Hmap [Haliases Hbtm]]].
+  set (tenv' := Typing_env.replace_equation tenv n ty) in *.
+  (* The new entry, and the entries of the other names. *)
+  assert (Hnew :
+    Keyed.lookup name_eqb n (Typing_env.names_to_types tenv')
+    = Some (ty, btm_new)).
+  { rewrite Hmap. apply (keyed_lookup_head name_eqb name_eqb_eq). }
+  assert (Hother :
+    ∀ m : name,
+      m <> n ->
+      Keyed.lookup name_eqb m (Typing_env.names_to_types tenv')
+      = Keyed.lookup name_eqb m (Typing_env.names_to_types tenv)).
+  { intros m Hne. rewrite Hmap.
+    apply (keyed_lookup_other name_eqb name_eqb_eq). exact Hne. }
+  (* A variable keeps its binding time and its name mode. *)
+  assert (Hvariable :
+    ∀ (y : variable) (ty1 : flambda_type)
+      (btm1 : Binding_time.With_name_mode.t),
+      Keyed.lookup name_eqb (Name_var y) (Typing_env.names_to_types tenv')
+      = Some (ty1, btm1) ->
+      ∃ ty0 : flambda_type,
+        Keyed.lookup name_eqb (Name_var y) (Typing_env.names_to_types tenv)
+        = Some (ty0, btm1)).
+  { intros y ty1 btm1 Hlookup.
+    destruct (keyed_eqb_spec name_eqb name_eqb_eq (Name_var y) n)
+      as [Heq | Hne].
+    - subst n. rewrite Hnew in Hlookup. injection Hlookup as <- <-.
+      apply mem_var_lookup in Hbound. destruct Hbound as [ty0 [btm0 Hold]].
+      exists ty0. rewrite (Hbtm y ty0 btm0 eq_refl Hold). exact Hold.
+    - rewrite (Hother _ Hne) in Hlookup. exists ty1. exact Hlookup. }
+  (* A name that is bound stays bound. *)
+  assert (Hstays :
+    ∀ m : name,
+      Keyed.is_bound name_eqb m (Typing_env.names_to_types tenv) = true ->
+      Keyed.is_bound name_eqb m (Typing_env.names_to_types tenv') = true).
+  { intros m Hm.
+    destruct (keyed_eqb_spec name_eqb name_eqb_eq m n) as [-> | Hne].
+    - apply keyed_is_bound_lookup. eexists. exact Hnew.
+    - unfold Keyed.is_bound. rewrite (Hother _ Hne). exact Hm. }
+  assert (Hmem :
+    ∀ m : name,
+      Typing_env.mem None tenv m = true ->
+      Typing_env.mem None tenv' m = true).
+  { intros [x | s] Hm; [ | exact Hm ].
+    rewrite mem_var_is_bound in *. exact (Hstays _ Hm). }
+  assert (Hlevels :
+    all_levels tenv'
+    = Typing_env_level.add_or_replace_equation
+        (Typing_env.One_level.level (Typing_env.current_level tenv)) n ty
+      :: map Typing_env.One_level.level (Typing_env.prev_levels tenv))
+    by reflexivity.
+  apply invariant_intro.
+  - apply conditions_intro.
+    + exact Hbounded.
+    + intros x ty1 btm1 Hlookup.
+      destruct (Hvariable x ty1 btm1 Hlookup) as [ty0 Hold].
+      exact (Hrange x ty0 btm1 Hold).
+    + intros x y ty1 ty2 btm1 btm2 Hx Hy Htime.
+      destruct (Hvariable x ty1 btm1 Hx) as [tyx Hx'].
+      destruct (Hvariable y ty2 btm2 Hy) as [tyy Hy'].
+      exact (Hdistinct x y tyx tyy btm1 btm2 Hx' Hy' Htime).
+    + intros m ty1 btm1 x Hlookup Hin. apply Hstays.
+      destruct (keyed_eqb_spec name_eqb name_eqb_eq m n) as [-> | Hne].
+      * rewrite Hnew in Hlookup. injection Hlookup as <- <-.
+        rewrite <- mem_var_is_bound. exact (Hfree x Hin).
+      * rewrite (Hother _ Hne) in Hlookup.
+        exact (Hclosed m ty1 btm1 x Hlookup Hin).
+    + intros s ty1 btm1 Hlookup.
+      destruct (keyed_eqb_spec name_eqb name_eqb_eq (Name_symbol s) n)
+        as [Heq | Hne].
+      * subst n. exact Hbound.
+      * rewrite (Hother _ Hne) in Hlookup.
+        exact (Hsymbols s ty1 btm1 Hlookup).
+    + rewrite Hlevels. destruct Hdisjoint as [Hcurrent Hprev].
+      split; [ | exact Hprev ].
+      intros earlier Hin. destruct (Hcurrent earlier Hin) as [Hvars Htimes].
+      split.
+      * intros x Hx. rewrite add_or_replace_equation_defined_vars.
+        exact (Hvars x Hx).
+      * intros binding_time Hbt.
+        rewrite add_or_replace_equation_binding_times.
+        exact (Htimes binding_time Hbt).
+    + intros level x k Hin Hlookup. rewrite Hlevels in Hin.
+      assert (Hold :
+        ∃ (ty1 : flambda_type) (btm1 : Binding_time.With_name_mode.t),
+          Keyed.lookup name_eqb (Name_var x) (Typing_env.names_to_types tenv)
+          = Some (ty1, btm1)
+          ∧ kind ty1 = k).
+      { destruct Hin as [<- | Hin].
+        - rewrite add_or_replace_equation_defined_vars in Hlookup.
+          exact (Hdefined _ x k (or_introl eq_refl) Hlookup).
+        - exact (Hdefined level x k (or_intror Hin) Hlookup). }
+      destruct Hold as [ty1 [btm1 [Hty1 Hkind1]]].
+      destruct (keyed_eqb_spec name_eqb name_eqb_eq (Name_var x) n)
+        as [Heq | Hne].
+      * subst n. exists ty, btm_new. split; [ exact Hnew | ].
+        rewrite (Hkind ty1 btm1 Hty1). exact Hkind1.
+      * exists ty1, btm1.
+        split; [ rewrite (Hother _ Hne); exact Hty1 | exact Hkind1 ].
+    + intros level binding_time Hin Hbt. rewrite Hlevels in Hin.
+      destruct Hin as [<- | Hin].
+      * rewrite add_or_replace_equation_binding_times in Hbt.
+        exact (Hlevel_range _ binding_time (or_introl eq_refl) Hbt).
+      * exact (Hlevel_range level binding_time (or_intror Hin) Hbt).
+    + exact Hscopes.
+    + rewrite Haliases. exact Hconsistent.
+    + rewrite Haliases.
+      apply (name_modes_recorded_coincide _ _
+               (Typing_env.names_to_types tenv)
+               (Typing_env.names_to_types tenv') (Typing_env.aliases tenv));
+        [ | exact Hmodes ].
+      intros m _. destruct m as [y | s]; [ | reflexivity ].
+      unfold Aliases.compute_name_mode_unscoped,
+        Aliases.binding_time_and_name_mode.
+      cbn [simple_of_name].
+      destruct (Keyed.lookup name_eqb (Name_var y)
+                  (Typing_env.names_to_types tenv'))
+        as [[ty1 btm1] | ] eqn:Hlookup.
+      * destruct (Hvariable y ty1 btm1 Hlookup) as [ty0 Hold].
+        rewrite Hold. reflexivity.
+      * destruct (Keyed.lookup name_eqb (Name_var y)
+                    (Typing_env.names_to_types tenv))
+          as [[ty0 btm0] | ] eqn:Hold; [ exfalso | reflexivity ].
+        pose proof (Hstays (Name_var y)) as Hbound_y.
+        unfold Keyed.is_bound in Hbound_y.
+        rewrite Hold, Hlookup in Hbound_y.
+        specialize (Hbound_y eq_refl). discriminate.
+    + intros m c Hdemoted. rewrite Haliases in Hdemoted.
+      destruct (Hknown m c Hdemoted) as [Hm Hc].
+      split; [ exact (Hmem m Hm) | ].
+      destruct c as [x | s | k];
+        [ exact (Hmem (Name_var x) Hc) | exact (Hmem (Name_symbol s) Hc)
+        | reflexivity ].
+    + intros m ty1 btm1 alias Hlookup Halias1. rewrite Haliases.
+      destruct (keyed_eqb_spec name_eqb name_eqb_eq m n) as [-> | Hne].
+      * rewrite Hnew in Hlookup. injection Hlookup as <- <-.
+        exact (Halias alias Halias1).
+      * rewrite (Hother _ Hne) in Hlookup.
+        exact (Hconcrete m ty1 btm1 alias Hlookup Halias1).
+  - (* The equations of the levels. *)
+    assert (Hall :
+      all_equations tenv'
+      = Typing_env_level.equations
+          (Typing_env_level.add_or_replace_equation
+             (Typing_env.One_level.level (Typing_env.current_level tenv)) n
+             ty)
+        ++ flat_map Typing_env_level.equations
+             (map Typing_env.One_level.level (Typing_env.prev_levels tenv)))
+      by reflexivity.
+    assert (Hagree' :
+      ∀ (m : name) (ty1 : flambda_type),
+        m <> n ->
+        match
+          Keyed.lookup name_eqb m
+            (Typing_env_level.equations
+               (Typing_env.One_level.level (Typing_env.current_level tenv)))
+        with
+        | Some ty2 => Some ty2
+        | None =>
+          Keyed.lookup name_eqb m
+            (flat_map Typing_env_level.equations
+               (map Typing_env.One_level.level (Typing_env.prev_levels tenv)))
+        end
+        = Some ty1 ->
+        ∃ btm : Binding_time.With_name_mode.t,
+          Keyed.lookup name_eqb m (Typing_env.names_to_types tenv')
+          = Some (ty1, btm)).
+    { intros m ty1 Hne Hlookup. destruct (Hagree m ty1) as [btm1 Hbtm1].
+      - unfold all_equations, all_levels. simpl.
+        rewrite keyed_lookup_app. exact Hlookup.
+      - exists btm1. rewrite (Hother _ Hne). exact Hbtm1. }
+    intros m ty1 Hlookup. rewrite Hall, keyed_lookup_app in Hlookup.
+    destruct (is_obviously_unknown ty) eqn:Hobvious.
+    + rewrite (add_or_replace_equation_unknown _ n ty Hobvious),
+        (keyed_lookup_unbind name name_eqb name_eqb_eq) in Hlookup.
+      destruct (keyed_eqb_spec name_eqb name_eqb_eq m n) as [Heq | Hne].
+      * subst m. destruct Hunknown as [Hfalse | Hnone]; [ discriminate | ].
+        cbn in Hlookup. rewrite Hnone in Hlookup. discriminate.
+      * exact (Hagree' m ty1 Hne Hlookup).
+    + rewrite (add_or_replace_equation_known _ n ty Hobvious),
+        keyed_lookup_cons in Hlookup.
+      destruct (keyed_eqb_spec name_eqb name_eqb_eq m n) as [Heq | Hne].
+      * subst m. cbn in Hlookup. injection Hlookup as <-.
+        exists btm_new. exact Hnew.
+      * exact (Hagree' m ty1 Hne Hlookup).
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+(* Two canonical elements made aliases                                      *)
+(* ------------------------------------------------------------------------ *)
+
+(* What [Typing_env.add_alias] answers. *)
+Lemma add_alias_some (tenv : Typing_env.t)
+    (canonical_element1 canonical_element2 : simple)
+    (result : Typing_env.add_alias_result) :
+  Typing_env.add_alias tenv canonical_element1 canonical_element2
+  = Some (Ok result) ->
+  ∃ added : Aliases.add_result,
+    Aliases.add (Typing_env.binding_time_resolver tenv)
+      (Typing_env.names_to_types tenv) (Typing_env.aliases tenv)
+      canonical_element1 canonical_element2
+    = Some (Or_bottom.Ok added)
+    ∧ Typing_env.add_alias_result_t result
+      = Typing_env.with_aliases tenv (Aliases.add_result_t added).
+Proof.
+  unfold Typing_env.add_alias, Typing_env.aliases_add.
+  destruct (Aliases.add _ _ _ canonical_element1 canonical_element2)
+    as [[added | ] | ]; try discriminate.
+  intros [= <-]. exists added. split; reflexivity.
+Qed.
+
+(* A simple that is canonical after [Aliases.add] was canonical
+   before. *)
+Lemma add_canonical_before {A : Type}
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple)
+    (added : Aliases.add_result) (e : simple) :
+  aliases_consistent t ->
+  is_canonical t canonical_element1 ->
+  is_canonical t canonical_element2 ->
+  Aliases.add binding_time_resolver binding_times_and_modes t
+    canonical_element1 canonical_element2
+  = Some (Or_bottom.Ok added) ->
+  is_canonical (Aliases.add_result_t added) e ->
+  is_canonical t e.
+Proof.
+  intros Hconsistent Hc1 Hc2 Hadd Hafter.
+  destruct (canonical_cases t e)
+    as [[Hcanonical _] | [n [c [-> [Hdemoted [_ Hof]]]]]];
+    [ exact Hcanonical | exfalso ].
+  pose proof (add_canonical_element A binding_time_resolver
+                binding_times_and_modes t canonical_element1
+                canonical_element2 added (simple_of_name n) Hconsistent Hc1
+                Hc2 Hadd) as Hequation.
+  rewrite (canonical_element_of_canonical _ _ Hafter), Hof in Hequation.
+  assert (Hc : is_canonical t c) by exact (proj1 Hconsistent n c Hdemoted).
+  assert (Hn : ~ is_canonical t (simple_of_name n)).
+  { unfold is_canonical. rewrite canonical_of_name.
+    unfold demoted_to in Hdemoted. rewrite Hdemoted. discriminate. }
+  destruct (simple_equal c (simple_of_name (Aliases.demoted_name added))).
+  - pose proof (add_result A binding_time_resolver binding_times_and_modes t
+                  canonical_element1 canonical_element2 added Hadd)
+      as Hresult.
+    destruct (Aliases.defined_earlier binding_time_resolver
+                binding_times_and_modes canonical_element1
+                canonical_element2);
+      destruct Hresult as [Hcanonical _];
+      rewrite Hcanonical in Hequation; rewrite Hequation in Hn;
+      [ exact (Hn Hc1) | exact (Hn Hc2) ].
+  - rewrite Hequation in Hn. exact (Hn Hc).
+Qed.
+
+Theorem add_alias_invariant : add_alias_invariant_statement.
+Proof.
+  intros tenv c1 c2 result Hinvariant Hc1 Hc2 Hbound1 Hbound2 Hadd.
+  destruct (add_alias_some tenv c1 c2 result Hadd) as [added [Hadded ->]].
+  invariant_parts Hinvariant.
+  apply invariant_intro; [ | exact Hagree ].
+  apply conditions_intro;
+    try first
+      [ exact Hbounded | exact Hrange | exact Hdistinct | exact Hclosed
+      | exact Hsymbols | exact Hdisjoint | exact Hdefined
+      | exact Hlevel_range | exact Hscopes ].
+  - exact (add_consistent _ _ _ _ c1 c2 added Hconsistent Hc1 Hc2 Hadded).
+  - exact (add_name_modes_recorded _ _ _ _ c1 c2 added Hmodes Hadded).
+  - assert (Hmentioned :
+      ∀ n : name,
+        aliases_mention (Aliases.add_result_t added) n ->
+        Typing_env.mem None tenv n = true).
+    { intros n Hmention.
+      destruct (add_mentioned _ _ _ _ c1 c2 added n Hadded Hmention)
+        as [Hold | [Heq | Heq]].
+      - exact (mentioned_known tenv n Hconsistent Hknown Hold).
+      - rewrite <- Heq in Hbound1. destruct n; exact Hbound1.
+      - rewrite <- Heq in Hbound2. destruct n; exact Hbound2. }
+    intros n c Hdemoted. split.
+    + apply (Hmentioned n). left. exists c. exact Hdemoted.
+    + destruct c as [x | s | k]; [ | | reflexivity ].
+      * apply (Hmentioned (Name_var x)). right. left. exists n.
+        exact Hdemoted.
+      * apply (Hmentioned (Name_symbol s)). right. left. exists n.
+        exact Hdemoted.
+  - intros n ty btm alias Hlookup Halias Hcanonical.
+    apply (Hconcrete n ty btm alias Hlookup Halias).
+    exact (add_canonical_before _ _ _ c1 c2 added _ Hconsistent Hc1 Hc2
+             Hadded Hcanonical).
+Qed.
+
+Theorem add_alias_defined : add_alias_defined_statement.
+Proof.
+  intros tenv c1 c2 Hinvariant Hc1 Hc2 Hne.
+  invariant_parts Hinvariant.
+  unfold Typing_env.add_alias, Typing_env.aliases_add.
+  pose proof (add_defined _ (Typing_env.binding_time_resolver tenv)
+                (Typing_env.names_to_types tenv) (Typing_env.aliases tenv)
+                c1 c2 Hconsistent Hc1 Hc2 Hne) as Hanswers.
+  destruct (Aliases.add _ _ _ c1 c2) as [[added | ] | ];
+    [ discriminate | discriminate | contradiction ].
+Qed.
