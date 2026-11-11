@@ -597,6 +597,8 @@ Qed.
 Theorem well_formed_in_range : well_formed_in_range_statement.
 Proof.
   intros u e n s Hwf. unfold well_formed_unit in Hwf.
+  apply andb_true_iff in Hwf as [Hwf _].
+  apply andb_true_iff in Hwf as [Hwf _].
   apply andb_true_iff in Hwf as [_ He]. exact (run_in_range e n s He).
 Qed.
 

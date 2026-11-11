@@ -656,6 +656,8 @@ Proof.
   apply andb_true_iff in Hwf as [Hwf _].
   apply andb_true_iff in Hwf as [Hwf _].
   apply andb_true_iff in Hwf as [Hwf _].
+  apply andb_true_iff in Hwf as [Hwf _].
+  apply andb_true_iff in Hwf as [Hwf _].
   apply andb_true_iff in Hwf as [Hwf Dsymbols].
   apply andb_true_iff in Hwf as [P Dcode].
   pose proof (inv_run (unit_exn u) code_ids_of_binding code_id_bound
@@ -683,6 +685,8 @@ Qed.
 Theorem well_formed_names_bound : well_formed_names_bound_statement.
 Proof.
   intros u e n Hwf. unfold well_formed_unit in Hwf.
+  apply andb_true_iff in Hwf as [Hwf _].
+  apply andb_true_iff in Hwf as [Hwf _].
   apply andb_true_iff in Hwf as [Hwf _].
   apply andb_true_iff in Hwf as [Hwf _].
   apply andb_true_iff in Hwf as [Hwf Hclosed].

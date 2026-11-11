@@ -847,6 +847,8 @@ Lemma well_formed_sets_inv (u : unit_interface) (e : expr) (n : nat)
 Proof.
   intros Hwf. unfold well_formed_unit in Hwf.
   apply andb_true_iff in Hwf as [Hwf _].
+  apply andb_true_iff in Hwf as [Hwf _].
+  apply andb_true_iff in Hwf as [Hwf _].
   apply andb_true_iff in Hwf as [_ Hsets].
   apply sets_inv_run. unfold sets_inv. simpl_state.
   refine (conj Hsets (conj I (conj _ _))).
@@ -1654,6 +1656,8 @@ Proof.
     apply andb_true_iff in Hwf as [Hwf _].
     apply andb_true_iff in Hwf as [Hwf _].
     apply andb_true_iff in Hwf as [Hwf _].
+    apply andb_true_iff in Hwf as [Hwf _].
+    apply andb_true_iff in Hwf as [Hwf _].
     apply andb_true_iff in Hwf as [_ Hbinders]. exact Hbinders. }
   assert (Hinv :
     terms_inv binders_distinct handler_binders_distinct
@@ -2327,14 +2331,18 @@ Qed.
 Theorem parity_well_formed : parity_well_formed_statement.
 Proof.
   intros i Hi. split.
-  - unfold well_formed_unit. apply andb_true_iff.
-    split; [ vm_compute; reflexivity | ].
+  - unfold well_formed_unit.
+    apply andb_true_iff. split; [ | vm_compute; reflexivity ].
+    apply andb_true_iff. split; [ | vm_compute; reflexivity ].
+    apply andb_true_iff. split; [ vm_compute; reflexivity | ].
     unfold FlambdaClosuresSpec.parity_static. cbn [numbers_in_range].
     apply andb_true_iff. split; [ vm_compute; reflexivity | ].
     unfold apply_in_range. cbn. rewrite Hi. reflexivity.
   - eexists. split; [ reflexivity | ].
-    unfold well_formed_unit. apply andb_true_iff.
-    split; [ vm_compute; reflexivity | ].
+    unfold well_formed_unit.
+    apply andb_true_iff. split; [ | vm_compute; reflexivity ].
+    apply andb_true_iff. split; [ | vm_compute; reflexivity ].
+    apply andb_true_iff. split; [ vm_compute; reflexivity | ].
     cbn [numbers_in_range].
     apply andb_true_iff. split; [ vm_compute; reflexivity | ].
     apply andb_true_iff. split; [ vm_compute; reflexivity | ].

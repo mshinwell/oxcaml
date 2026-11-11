@@ -123,7 +123,14 @@
    [raises_to], [handler_at_toplevel] and that file's
    [free_continuations]), the static names bound ([static_names]), the
    sets of closures ([sets_well_formed]), the numbers
-   ([numbers_in_range]), and the check itself ([well_formed_unit]),
+   ([numbers_in_range]), the exception handlers
+   ([unit_exn_handlers_well_formed], with [exn_handlers_well_formed],
+   [ways_out_well_formed] and the three tests of how a term uses a
+   continuation), the trap actions ([traps_well_formed], with
+   [trap_demands], which carries the stack of the handlers installed
+   and answers demands on continuations: a renaming acts on the two,
+   [rename_trap_stack] and [rename_demands], which are to be
+   reviewed), and the check itself ([well_formed_unit]),
    given the two continuations of the unit, which are renamed with it
    ([rename_unit_interface]); and the test of the states that the
    machine makes undefined ([static_fault]). The three conditions of
@@ -407,12 +414,14 @@ Definition raises_to_equivariant_statement : Prop :=
     raises_to (rename_continuation r k) (rename_expr r e) = raises_to k e.
 
 (* Where static bindings may be. The exception continuation of the unit
-   is renamed with the term. *)
+   is renamed with the term. Whether a handler says that it is an
+   exception handler is in its metadata, which a renaming keeps. *)
 Definition handler_at_toplevel_equivariant_statement : Prop :=
-  ∀ (r : renaming) (unit_exn k : continuation) (body : expr),
+  ∀ (r : renaming) (unit_exn k : continuation) (h : continuation_handler)
+    (body : expr),
     handler_at_toplevel (rename_continuation r unit_exn)
-      (rename_continuation r k) (rename_expr r body)
-    = handler_at_toplevel unit_exn k body.
+      (rename_continuation r k) (rename_handler r h) (rename_expr r body)
+    = handler_at_toplevel unit_exn k h body.
 
 Definition statics_at_toplevel_equivariant_statement : Prop :=
   ∀ (r : renaming) (unit_exn : continuation) (toplevel : bool) (e : expr),
@@ -445,6 +454,67 @@ Definition sets_well_formed_equivariant_statement : Prop :=
 Definition numbers_in_range_equivariant_statement : Prop :=
   ∀ (r : renaming) (e : expr),
     numbers_in_range (rename_expr r e) = numbers_in_range e.
+
+(* Exception handlers are apart from the other continuations: the
+   tests of how a term uses a continuation ([applies_cont],
+   [gives_extra_args], [installs_or_removes]), the check of the
+   continuations that code or a unit does not bind
+   ([ways_out_well_formed]), and the check of a term and of a unit. *)
+Definition applies_cont_equivariant_statement : Prop :=
+  ∀ (r : renaming) (k : continuation) (e : expr),
+    applies_cont (rename_continuation r k) (rename_expr r e)
+    = applies_cont k e.
+
+Definition gives_extra_args_equivariant_statement : Prop :=
+  ∀ (r : renaming) (k : continuation) (e : expr),
+    gives_extra_args (rename_continuation r k) (rename_expr r e)
+    = gives_extra_args k e.
+
+Definition installs_or_removes_equivariant_statement : Prop :=
+  ∀ (r : renaming) (k : continuation) (e : expr),
+    installs_or_removes (rename_continuation r k) (rename_expr r e)
+    = installs_or_removes k e.
+
+Definition ways_out_well_formed_equivariant_statement : Prop :=
+  ∀ (r : renaming) (exn : continuation) (e : expr),
+    ways_out_well_formed (rename_continuation r exn) (rename_expr r e)
+    = ways_out_well_formed exn e.
+
+Definition exn_handlers_well_formed_equivariant_statement : Prop :=
+  ∀ (r : renaming) (e : expr),
+    exn_handlers_well_formed (rename_expr r e) = exn_handlers_well_formed e.
+
+Definition unit_exn_handlers_well_formed_equivariant_statement : Prop :=
+  ∀ (r : renaming) (unit_exn : continuation) (e : expr),
+    unit_exn_handlers_well_formed (rename_continuation r unit_exn)
+      (rename_expr r e)
+    = unit_exn_handlers_well_formed unit_exn e.
+
+(* The discipline of trap actions. The check follows a term with the
+   stack of the exception handlers installed, and answers what the term
+   asks of the continuations that it does not bind: each one it may go
+   to, with the stack when it gets there. Both hold names of
+   continuations. The action on the two: every continuation is
+   renamed, and the order of a stack and of the demands is kept. *)
+Definition rename_trap_stack (r : renaming) (ts : trap_stack) : trap_stack :=
+  map (rename_continuation r) ts.
+
+Definition rename_demands (r : renaming) (ds : demands) : demands :=
+  map (fun d => (rename_continuation r (fst d), rename_trap_stack r (snd d)))
+    ds.
+
+(* The demands of the renamed term under the renamed stack are those of
+   the term, renamed; where the term does not follow the discipline,
+   the renamed term does not either. *)
+Definition trap_demands_equivariant_statement : Prop :=
+  ∀ (r : renaming) (ts : trap_stack) (e : expr),
+    trap_demands (rename_trap_stack r ts) (rename_expr r e)
+    = option_map (rename_demands r) (trap_demands ts e).
+
+Definition traps_well_formed_equivariant_statement : Prop :=
+  ∀ (r : renaming) (unit_exn : continuation) (e : expr),
+    traps_well_formed (rename_continuation r unit_exn) (rename_expr r e)
+    = traps_well_formed unit_exn e.
 
 (* The action on what a unit is given by where it is run: its two
    continuations are renamed. *)

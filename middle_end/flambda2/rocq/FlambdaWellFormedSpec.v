@@ -64,8 +64,10 @@
    [statics_at_toplevel] is this as a check, carrying down the term
    whether it is at toplevel, as Simplify does. [well_formed_unit] asks
    also that no code id or symbol is bound twice, that the sets of
-   closures of the unit are whole ([sets_well_formed]), and that its
-   numbers are in range ([numbers_in_range]).
+   closures of the unit are whole ([sets_well_formed]), that its
+   numbers are in range ([numbers_in_range]), and that its exception
+   handlers and trap actions are in order
+   ([unit_exn_handlers_well_formed], [traps_well_formed]).
 
    It asks three things of the variables and the continuations of the
    unit as well, which are rows 3, 5 and 6 of the table of
@@ -147,9 +149,9 @@
      one stack, however it is reached; code returns, and a unit ends,
      with the stack they started with.
    Both are stricter than anything the compiler checks; the comment at
-   each definition says what the compiler does check. Neither is among
-   the conditions of [well_formed_unit] yet. There is no statement yet
-   of what they buy: it needs a machine with a stack of handlers.
+   each definition says what the compiler does check. Both are
+   conditions of [well_formed_unit]. There is no statement yet of what
+   they buy: it needs a machine with a stack of handlers.
    FlambdaTrapProofs.v has examples of terms that each accepts and
    refuses.
 
@@ -173,9 +175,11 @@
    non-recursive continuation is out of scope in its own handler, which
    is enough for the handler to run once at most.
 
-   The model does not mark exception handlers, so [raises_to] finds them:
-   a continuation is one when a call names it as its exception
-   continuation.
+   A handler says whether it is an exception handler
+   (FlambdaModel.handler_is_exn_handler), and toplevel goes by that.
+   [raises_to] says whether an expression uses a continuation as one: a
+   call names it as its exception continuation, or a trap action names
+   it.
 
    The proofs are in FlambdaWellFormedProofs.v, which needs no review. *)
 
@@ -242,11 +246,15 @@ with handler_raises_to (k : continuation) (h : continuation_handler) : bool :=
 (* Static bindings are at toplevel                                          *)
 (* ======================================================================== *)
 
-(* Whether the handler of the non-recursive continuation [k], bound at
-   toplevel around [body], is at toplevel too. *)
-Definition handler_at_toplevel (unit_exn k : continuation) (body : expr)
-    : bool :=
-  negb (raises_to k body)
+(* Whether the handler [h] of the non-recursive continuation [k], bound
+   at toplevel around [body], is at toplevel too: it is not an exception
+   handler, and all [body] can do is to apply [k] or raise to the
+   exception continuation of the unit. In a well-formed unit a handler
+   that is not an exception handler is not used as one
+   ([exn_handlers_well_formed]). *)
+Definition handler_at_toplevel (unit_exn k : continuation)
+    (h : continuation_handler) (body : expr) : bool :=
+  negb (handler_is_exn_handler h)
   && all_among (free_continuations body) [k; unit_exn].
 
 (* CR mshinwell: this refuses a [Let_static] that is not at toplevel even
@@ -269,7 +277,7 @@ Fixpoint statics_at_toplevel (unit_exn : continuation) (toplevel : bool)
     && statics_at_toplevel unit_exn toplevel body
   | Let_cont_non_recursive k h body =>
     handler_statics_at_toplevel unit_exn
-      (toplevel && handler_at_toplevel unit_exn k body) h
+      (toplevel && handler_at_toplevel unit_exn k h body) h
     && statics_at_toplevel unit_exn toplevel body
   | Let_cont_recursive handlers body =>
     forallb (fun '(_, h) => handler_statics_at_toplevel unit_exn false h)
@@ -1053,8 +1061,11 @@ Record unit_interface : Type := Unit_interface {
    bind each code id and each symbol once; its variables and its
    continuations are in scope, the names of each binder are distinct and
    its code has no free name but its own binders; its sets of closures
-   are whole; its numbers are in range. The conditions are in the order of the rows of the table of
-   requests/C0-well-formed.md (1, 2, 3, 5, 6, 7 and 8). *)
+   are whole; its numbers are in range; its exception handlers are
+   apart from its other continuations; and it follows the discipline of
+   trap actions. The conditions are in the order of the rows of the
+   table of requests/C0-well-formed.md (1, 2, 3, 5, 6, 7 and 8), then
+   rows 11 and 12 of requests/C5-exceptions.md. *)
 Definition well_formed_unit (u : unit_interface) (e : expr) : bool :=
   statics_at_toplevel (unit_exn u) true e
   && distinct (static_names code_ids_of_binding e)
@@ -1063,7 +1074,9 @@ Definition well_formed_unit (u : unit_interface) (e : expr) : bool :=
   && binders_distinct e
   && code_closed e
   && sets_well_formed e
-  && numbers_in_range e.
+  && numbers_in_range e
+  && unit_exn_handlers_well_formed (unit_exn u) e
+  && traps_well_formed (unit_exn u) e.
 
 (* ======================================================================== *)
 (* What is bound stays bound                                                *)

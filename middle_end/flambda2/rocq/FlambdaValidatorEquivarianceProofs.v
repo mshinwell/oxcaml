@@ -1841,11 +1841,17 @@ Qed.
 Theorem raises_to_equivariant : raises_to_equivariant_statement.
 Proof. exact raises_to_equivariant_aux. Qed.
 
+Lemma handler_is_exn_handler_renamed (r : renaming)
+    (h : continuation_handler) :
+  handler_is_exn_handler (rename_handler r h) = handler_is_exn_handler h.
+Proof. destruct h; reflexivity. Qed.
+
 Theorem handler_at_toplevel_equivariant :
   handler_at_toplevel_equivariant_statement.
 Proof.
-  intros r unit_exn k body. unfold handler_at_toplevel.
-  rewrite raises_to_equivariant_aux, well_formed_free_continuations_renamed.
+  intros r unit_exn k h body. unfold handler_at_toplevel.
+  rewrite handler_is_exn_handler_renamed,
+    well_formed_free_continuations_renamed.
   f_equal.
   exact
     (all_among_map_injective (rename_continuation r)
@@ -2220,6 +2226,775 @@ Qed.
 Theorem numbers_in_range_equivariant : numbers_in_range_equivariant_statement.
 Proof. exact numbers_in_range_renamed. Qed.
 
+(* Exception handlers. *)
+
+Lemma is_raise_renamed (r : renaming) (ac : apply_cont) :
+  is_raise (rename_apply_cont r ac) = is_raise ac.
+Proof.
+  unfold is_raise. simpl.
+  destruct (ac_trap_action ac) as [[k | k kind] | ]; simpl; try reflexivity.
+  apply rename_continuation_eqb.
+Qed.
+
+Lemma applies_renamed (r : renaming) (k : continuation) (ac : apply_cont) :
+  applies (rename_continuation r k) (rename_apply_cont r ac) = applies k ac.
+Proof.
+  unfold applies. rewrite is_raise_renamed. simpl.
+  rewrite rename_continuation_eqb. reflexivity.
+Qed.
+
+Lemma traps_apart_renamed (r : renaming) (k : continuation)
+    (ac : apply_cont) :
+  traps_apart (rename_continuation r k) (rename_apply_cont r ac)
+  = traps_apart k ac.
+Proof.
+  unfold traps_apart. rewrite traps_renamed, is_raise_renamed. reflexivity.
+Qed.
+
+Lemma gives_extra_args_apply_renamed (r : renaming) (k : continuation)
+    (ap : apply_expr) :
+  Pos.eqb (rename_continuation r k) (ap_exn_continuation (rename_apply r ap))
+  && negb (no_exn_extra_args (rename_apply r ap))
+  = Pos.eqb k (ap_exn_continuation ap) && negb (no_exn_extra_args ap).
+Proof.
+  rewrite no_exn_extra_args_renamed. simpl.
+  rewrite rename_continuation_eqb. reflexivity.
+Qed.
+
+Fixpoint applies_cont_renamed (r : renaming) (k : continuation) (e : expr) :
+  applies_cont (rename_continuation r k) (rename_expr r e) = applies_cont k e
+with handler_applies_cont_renamed (r : renaming) (k : continuation)
+    (h : continuation_handler) :
+  handler_applies_cont (rename_continuation r k) (rename_handler r h)
+  = handler_applies_cont k h.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k' h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      simpl; try reflexivity.
+    + apply applies_cont_renamed.
+    + apply applies_cont_renamed.
+    + rewrite handler_applies_cont_renamed, applies_cont_renamed.
+      reflexivity.
+    + rewrite applies_cont_renamed. f_equal.
+      induction handlers as [ | [k' h] handlers IH]; simpl; [ reflexivity | ].
+      rewrite (handler_applies_cont_renamed r k h), IH. reflexivity.
+    + apply rename_continuation_eqb.
+    + exact (applies_renamed r k ac).
+    + apply existsb_map_with. intros arm.
+      exact (applies_renamed r k (snd arm)).
+  - destruct h as [params metadata handler]. simpl.
+    apply applies_cont_renamed.
+Qed.
+
+Fixpoint gives_extra_args_renamed (r : renaming) (k : continuation)
+    (e : expr) :
+  gives_extra_args (rename_continuation r k) (rename_expr r e)
+  = gives_extra_args k e
+with handler_gives_extra_args_renamed (r : renaming) (k : continuation)
+    (h : continuation_handler) :
+  handler_gives_extra_args (rename_continuation r k) (rename_handler r h)
+  = handler_gives_extra_args k h.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k' h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      cbn [rename_expr gives_extra_args]; try reflexivity.
+    + apply gives_extra_args_renamed.
+    + apply gives_extra_args_renamed.
+    + rewrite handler_gives_extra_args_renamed, gives_extra_args_renamed.
+      reflexivity.
+    + rewrite gives_extra_args_renamed. f_equal.
+      induction handlers as [ | [k' h] handlers IH]; cbn [map existsb];
+        [ reflexivity | ].
+      rewrite (handler_gives_extra_args_renamed r k h), IH. reflexivity.
+    + apply gives_extra_args_apply_renamed.
+  - destruct h as [params metadata handler].
+    cbn [rename_handler handler_gives_extra_args].
+    apply gives_extra_args_renamed.
+Qed.
+
+Fixpoint installs_or_removes_renamed (r : renaming) (k : continuation)
+    (e : expr) :
+  installs_or_removes (rename_continuation r k) (rename_expr r e)
+  = installs_or_removes k e
+with handler_installs_or_removes_renamed (r : renaming) (k : continuation)
+    (h : continuation_handler) :
+  handler_installs_or_removes (rename_continuation r k) (rename_handler r h)
+  = handler_installs_or_removes k h.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k' h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      cbn [rename_expr installs_or_removes]; try reflexivity.
+    + apply installs_or_removes_renamed.
+    + apply installs_or_removes_renamed.
+    + rewrite handler_installs_or_removes_renamed,
+        installs_or_removes_renamed.
+      reflexivity.
+    + rewrite installs_or_removes_renamed. f_equal.
+      induction handlers as [ | [k' h] handlers IH]; cbn [map existsb];
+        [ reflexivity | ].
+      rewrite (handler_installs_or_removes_renamed r k h), IH. reflexivity.
+    + apply traps_apart_renamed.
+    + apply existsb_map_with. intros arm. cbn [snd].
+      apply traps_apart_renamed.
+  - destruct h as [params metadata handler].
+    cbn [rename_handler handler_installs_or_removes].
+    apply installs_or_removes_renamed.
+Qed.
+
+Lemma ways_out_well_formed_renamed (r : renaming) (exn : continuation)
+    (e : expr) :
+  ways_out_well_formed (rename_continuation r exn) (rename_expr r e)
+  = ways_out_well_formed exn e.
+Proof.
+  unfold ways_out_well_formed. rewrite well_formed_free_continuations_renamed.
+  apply forallb_map_with. intros k.
+  rewrite rename_continuation_eqb, installs_or_removes_renamed,
+    raises_to_equivariant_aux, gives_extra_args_renamed.
+  reflexivity.
+Qed.
+
+Lemma takes_exception_renamed (r : renaming) (h : continuation_handler) :
+  takes_exception (rename_handler r h) = takes_exception h.
+Proof. destruct h as [[ | param params] metadata handler]; reflexivity. Qed.
+
+Lemma handlers_raise_to_renamed (r : renaming) (k : continuation)
+    (handlers : list (continuation * continuation_handler)) :
+  existsb (fun '(_, h) => handler_raises_to (rename_continuation r k) h)
+    (rename_handlers r handlers)
+  = existsb (fun '(_, h) => handler_raises_to k h) handlers.
+Proof.
+  unfold rename_handlers. apply existsb_map_with. intros [k' h].
+  apply handler_raises_to_equivariant.
+Qed.
+
+Fixpoint exn_handlers_well_formed_renamed (r : renaming) (e : expr)
+    {struct e} :
+  exn_handlers_well_formed (rename_expr r e) = exn_handlers_well_formed e
+with handler_exn_handlers_well_formed_renamed (r : renaming)
+    (h : continuation_handler) {struct h} :
+  handler_exn_handlers_well_formed (rename_handler r h)
+  = handler_exn_handlers_well_formed h
+with binding_exn_handlers_well_formed_renamed (r : renaming)
+    (binding : static_binding) {struct binding} :
+  binding_exn_handlers_well_formed (rename_static_binding r binding)
+  = binding_exn_handlers_well_formed binding
+with code_exn_handlers_well_formed_renamed (r : renaming) (c : code)
+    {struct c} :
+  code_exn_handlers_well_formed (rename_code r c)
+  = code_exn_handlers_well_formed c.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      cbn [rename_expr exn_handlers_well_formed]; try reflexivity.
+    + apply exn_handlers_well_formed_renamed.
+    + rewrite exn_handlers_well_formed_renamed. f_equal.
+      induction bindings as [ | binding bindings IH]; cbn [map forallb];
+        [ reflexivity | ].
+      rewrite (binding_exn_handlers_well_formed_renamed r binding), IH.
+      reflexivity.
+    + rewrite handler_is_exn_handler_renamed, applies_cont_renamed,
+        takes_exception_renamed, raises_to_equivariant_aux,
+        handler_exn_handlers_well_formed_renamed,
+        exn_handlers_well_formed_renamed.
+      reflexivity.
+    + rewrite exn_handlers_well_formed_renamed. f_equal.
+      assert
+        (Hgroup :
+          ∀ group : list (continuation * continuation_handler),
+            forallb
+              (fun '(k, h) =>
+                 (negb (handler_is_exn_handler h)
+                  && negb (raises_to k (rename_expr r body))
+                  && negb
+                       (existsb (fun '(_, h') => handler_raises_to k h')
+                          (rename_handlers r group))
+                  && handler_exn_handlers_well_formed h)%bool)
+              (map
+                 (fun '(k, h) =>
+                    (rename_continuation r k, rename_handler r h))
+                 handlers)
+            = forallb
+                (fun '(k, h) =>
+                   (negb (handler_is_exn_handler h)
+                    && negb (raises_to k body)
+                    && negb
+                         (existsb (fun '(_, h') => handler_raises_to k h')
+                            group)
+                    && handler_exn_handlers_well_formed h)%bool)
+                handlers).
+      { intros group.
+        induction handlers as [ | [k h] handlers IH]; cbn [map forallb];
+          [ reflexivity | ].
+        rewrite IH, handler_is_exn_handler_renamed, raises_to_equivariant_aux,
+          handlers_raise_to_renamed,
+          (handler_exn_handlers_well_formed_renamed r h).
+        reflexivity. }
+      exact (Hgroup handlers).
+  - destruct h as [params metadata handler].
+    cbn [rename_handler handler_exn_handlers_well_formed].
+    apply exn_handlers_well_formed_renamed.
+  - destruct binding as [id c | id | sym const];
+      cbn [rename_static_binding binding_exn_handlers_well_formed];
+      try reflexivity.
+    apply code_exn_handlers_well_formed_renamed.
+  - destruct c as [params my_closure ret exn metadata body].
+    cbn [rename_code code_exn_handlers_well_formed].
+    rewrite ways_out_well_formed_renamed, applies_cont_renamed,
+      exn_handlers_well_formed_renamed.
+    reflexivity.
+Qed.
+
+Lemma unit_exn_handlers_well_formed_renamed (r : renaming)
+    (unit_exn : continuation) (e : expr) :
+  unit_exn_handlers_well_formed (rename_continuation r unit_exn)
+    (rename_expr r e)
+  = unit_exn_handlers_well_formed unit_exn e.
+Proof.
+  unfold unit_exn_handlers_well_formed.
+  rewrite ways_out_well_formed_renamed, applies_cont_renamed,
+    exn_handlers_well_formed_renamed.
+  reflexivity.
+Qed.
+
+Theorem applies_cont_equivariant : applies_cont_equivariant_statement.
+Proof. exact applies_cont_renamed. Qed.
+
+Theorem gives_extra_args_equivariant :
+  gives_extra_args_equivariant_statement.
+Proof. exact gives_extra_args_renamed. Qed.
+
+Theorem installs_or_removes_equivariant :
+  installs_or_removes_equivariant_statement.
+Proof. exact installs_or_removes_renamed. Qed.
+
+Theorem ways_out_well_formed_equivariant :
+  ways_out_well_formed_equivariant_statement.
+Proof. exact ways_out_well_formed_renamed. Qed.
+
+Theorem exn_handlers_well_formed_equivariant :
+  exn_handlers_well_formed_equivariant_statement.
+Proof. exact exn_handlers_well_formed_renamed. Qed.
+
+Theorem unit_exn_handlers_well_formed_equivariant :
+  unit_exn_handlers_well_formed_equivariant_statement.
+Proof. exact unit_exn_handlers_well_formed_renamed. Qed.
+
+(* Trap actions. *)
+
+Lemma among_trap_stack_renamed (r : renaming) (k : continuation)
+    (ts : trap_stack) :
+  among (rename_continuation r k) (rename_trap_stack r ts) = among k ts.
+Proof. apply among_rename_continuation. Qed.
+
+Lemma trap_stack_eqb_renamed (r : renaming) (ts : trap_stack) :
+  ∀ ts' : trap_stack,
+    trap_stack_eqb (rename_trap_stack r ts) (rename_trap_stack r ts')
+    = trap_stack_eqb ts ts'.
+Proof.
+  unfold rename_trap_stack.
+  induction ts as [ | k ts IH]; intros [ | k' ts']; simpl; try reflexivity.
+  rewrite rename_continuation_eqb, IH. reflexivity.
+Qed.
+
+Definition rename_entry (r : renaming) (entered : entry) : entry :=
+  match entered with
+  | Not_entered => Not_entered
+  | Entered_with ts => Entered_with (rename_trap_stack r ts)
+  | Entered_with_two_stacks => Entered_with_two_stacks
+  end.
+
+Lemma map_snd_rename_demands (r : renaming) (ds : demands) :
+  map snd (rename_demands r ds) = map (rename_trap_stack r) (map snd ds).
+Proof. unfold rename_demands. rewrite !map_map. reflexivity. Qed.
+
+Lemma rename_demands_app (r : renaming) (ds ds' : demands) :
+  rename_demands r (ds ++ ds') = rename_demands r ds ++ rename_demands r ds'.
+Proof. apply map_app. Qed.
+
+Lemma filter_demands_renamed (r : renaming) (k : continuation)
+    (ds : demands) :
+  filter (fun d => Pos.eqb (fst d) (rename_continuation r k))
+    (rename_demands r ds)
+  = rename_demands r (filter (fun d => Pos.eqb (fst d) k) ds).
+Proof.
+  unfold rename_demands. apply filter_map_with. intros d. cbn [fst].
+  apply rename_continuation_eqb.
+Qed.
+
+Definition entry_of_stacks (stacks : list trap_stack) : entry :=
+  match stacks with
+  | [] => Not_entered
+  | ts :: others =>
+    if forallb (trap_stack_eqb ts) others then Entered_with ts
+    else Entered_with_two_stacks
+  end.
+
+Lemma entry_of_stacks_renamed (r : renaming) (stacks : list trap_stack) :
+  entry_of_stacks (map (rename_trap_stack r) stacks)
+  = rename_entry r (entry_of_stacks stacks).
+Proof.
+  destruct stacks as [ | ts others]; [ reflexivity | ].
+  cbn [map entry_of_stacks].
+  rewrite (forallb_map_with _ _ (trap_stack_eqb ts))
+    by (intros ts'; apply trap_stack_eqb_renamed).
+  destruct (forallb (trap_stack_eqb ts) others); reflexivity.
+Qed.
+
+Lemma entry_of_renamed (r : renaming) (k : continuation) (ds : demands) :
+  entry_of (rename_continuation r k) (rename_demands r ds)
+  = rename_entry r (entry_of k ds).
+Proof.
+  change
+    (entry_of_stacks
+       (map snd
+          (filter (fun d => Pos.eqb (fst d) (rename_continuation r k))
+             (rename_demands r ds)))
+     = rename_entry r
+         (entry_of_stacks
+            (map snd (filter (fun d => Pos.eqb (fst d) k) ds)))).
+  rewrite filter_demands_renamed, map_snd_rename_demands.
+  apply entry_of_stacks_renamed.
+Qed.
+
+Definition leave_scope_with (keep clear : continuation * trap_stack -> bool)
+    (ds : demands) : option demands :=
+  if forallb clear (filter keep ds) then Some (filter keep ds) else None.
+
+Lemma leave_scope_with_renamed
+    (g : continuation * trap_stack -> continuation * trap_stack)
+    (keep keep' clear clear' : continuation * trap_stack -> bool)
+    (ds : demands) :
+  (∀ d : continuation * trap_stack, keep' (g d) = keep d) ->
+  (∀ d : continuation * trap_stack, clear' (g d) = clear d) ->
+  leave_scope_with keep' clear' (map g ds)
+  = option_map (map g) (leave_scope_with keep clear ds).
+Proof.
+  intros Hkeep Hclear. unfold leave_scope_with.
+  rewrite (filter_map_with keep' g keep ds Hkeep),
+    (forallb_map_with clear' g clear _ Hclear).
+  destruct (forallb clear (filter keep ds)); reflexivity.
+Qed.
+
+Lemma leave_scope_renamed (r : renaming) (ks : list continuation)
+    (ds : demands) :
+  leave_scope (map (rename_continuation r) ks) (rename_demands r ds)
+  = option_map (rename_demands r) (leave_scope ks ds).
+Proof.
+  apply
+    (leave_scope_with_renamed
+       (fun d => (rename_continuation r (fst d), rename_trap_stack r (snd d)))
+       (fun d => negb (among (fst d) ks))
+       (fun d => negb (among (fst d) (map (rename_continuation r) ks)))
+       (fun d => forallb (fun k => negb (among k (snd d))) ks)
+       (fun d =>
+          forallb (fun k => negb (among k (snd d)))
+            (map (rename_continuation r) ks))
+       ds).
+  - intros d. cbn [fst]. rewrite among_rename_continuation. reflexivity.
+  - intros d. cbn [snd]. apply forallb_map_with. intros k.
+    rewrite among_trap_stack_renamed. reflexivity.
+Qed.
+
+Lemma apply_cont_demands_renamed (r : renaming) (ts : trap_stack)
+    (ac : apply_cont) :
+  apply_cont_demands (rename_trap_stack r ts) (rename_apply_cont r ac)
+  = option_map (rename_demands r) (apply_cont_demands ts ac).
+Proof.
+  unfold apply_cont_demands. simpl.
+  destruct (ac_trap_action ac) as [[k | k kind] | ]; simpl; try reflexivity.
+  destruct ts as [ | top rest]; simpl; [ reflexivity | ].
+  rewrite rename_continuation_eqb. destruct (Pos.eqb top k); reflexivity.
+Qed.
+
+Lemma apply_demands_renamed (r : renaming) (ts : trap_stack)
+    (ap : apply_expr) :
+  apply_demands (rename_trap_stack r ts) (rename_apply r ap)
+  = option_map (rename_demands r) (apply_demands ts ap).
+Proof.
+  unfold apply_demands. destruct ts as [ | top rest]; simpl; [ reflexivity | ].
+  rewrite rename_continuation_eqb.
+  destruct (Pos.eqb top (ap_exn_continuation ap)); reflexivity.
+Qed.
+
+Lemma arms_demands_renamed (r : renaming) (ts : trap_stack)
+    (arms : list (Z * apply_cont)) :
+  arms_demands (rename_trap_stack r ts)
+    (map (fun arm => (fst arm, rename_apply_cont r (snd arm))) arms)
+  = option_map (rename_demands r) (arms_demands ts arms).
+Proof.
+  induction arms as [ | [i ac] arms IH]; [ reflexivity | ].
+  cbn [map arms_demands fst snd]. rewrite apply_cont_demands_renamed, IH.
+  destruct (apply_cont_demands ts ac) as [ds | ]; [ | reflexivity ].
+  destruct (arms_demands ts arms) as [ds' | ]; [ | reflexivity ].
+  cbn [option_map]. rewrite rename_demands_app. reflexivity.
+Qed.
+
+Lemma code_demands_met_renamed (r : renaming) (ret exn : continuation)
+    (ds : demands) :
+  code_demands_met (rename_continuation r ret) (rename_continuation r exn)
+    (rename_demands r ds)
+  = code_demands_met ret exn ds.
+Proof.
+  unfold code_demands_met, rename_demands. apply forallb_map_with. intros d.
+  cbn [fst snd]. rewrite !rename_continuation_eqb.
+  match goal with
+  | |- (if ?c then _ else _) = (if ?c' then _ else _) =>
+    change c' with c; destruct c
+  end.
+  - exact (trap_stack_eqb_renamed r (snd d) []).
+  - apply (f_equal2 andb); [ reflexivity | ].
+    exact (trap_stack_eqb_renamed r (snd d) [exn]).
+Qed.
+
+Lemma fold_left_renamed {S B B' : Type} (g : S -> S) (gb : B -> B')
+    (step : S -> B -> S) (step' : S -> B' -> S) (l : list B) :
+  Forall (fun b => ∀ s : S, step' (g s) (gb b) = g (step s b)) l ->
+  ∀ s : S,
+    List.fold_left step' (map gb l) (g s) = g (List.fold_left step l s).
+Proof.
+  induction 1 as [ | b l Hb Hl IH]; intros s; simpl; [ reflexivity | ].
+  rewrite Hb. apply IH.
+Qed.
+
+(* A recursive group: the passes over its handlers, with the function
+   that gives the demands of a handler as an argument. *)
+Definition group_pass
+    (demands_of : trap_stack -> continuation_handler -> option demands)
+    (handlers : list (continuation * continuation_handler))
+    (state : group_state) : option group_state :=
+  fold_left
+    (fun state '(k, h) =>
+       let* '(checked, ds) := state in
+       if among k checked then Some (checked, ds)
+       else
+         match entry_of k ds with
+         | Not_entered => Some (checked, ds)
+         | Entered_with entered =>
+           let* ds' := demands_of entered h in
+           Some (k :: checked, ds ++ ds')
+         | Entered_with_two_stacks => None
+         end)
+    (Some state) handlers.
+
+Definition group_demands
+    (demands_of : trap_stack -> continuation_handler -> option demands)
+    (handlers : list (continuation * continuation_handler)) (ds : demands)
+    : option demands :=
+  let* '(checked, ds) :=
+    FlambdaWellFormedSpec.iterate (length handlers)
+      (group_pass demands_of handlers) ([], ds)
+  in
+  if forallb
+       (fun k =>
+          match entry_of k ds with
+          | Not_entered => true
+          | Entered_with _ => among k checked
+          | Entered_with_two_stacks => false
+          end)
+       (map fst handlers)
+  then leave_scope (map fst handlers) ds
+  else None.
+
+Lemma trap_demands_recursive (ts : trap_stack)
+    (handlers : list (continuation * continuation_handler)) (body : expr) :
+  trap_demands ts (Let_cont_recursive handlers body)
+  = if existsb (fun k => among k ts) (map fst handlers) then None
+    else
+      let* ds := trap_demands ts body in
+      group_demands handler_trap_demands handlers ds.
+Proof. reflexivity. Qed.
+
+Definition rename_group_state (r : renaming) (state : group_state)
+    : group_state :=
+  (map (rename_continuation r) (fst state), rename_demands r (snd state)).
+
+Section Group.
+
+Variable r : renaming.
+Variables demands_of demands_of'
+  : trap_stack -> continuation_handler -> option demands.
+
+Definition demands_of_renamed (h : continuation_handler) : Prop :=
+  ∀ ts : trap_stack,
+    demands_of' (rename_trap_stack r ts) (rename_handler r h)
+    = option_map (rename_demands r) (demands_of ts h).
+
+Lemma group_step_renamed (k : continuation) (h : continuation_handler)
+    (state : option group_state) :
+  demands_of_renamed h ->
+  (let* '(checked, ds) := option_map (rename_group_state r) state in
+   if among (rename_continuation r k) checked then Some (checked, ds)
+   else
+     match entry_of (rename_continuation r k) ds with
+     | Not_entered => Some (checked, ds)
+     | Entered_with entered =>
+       let* ds' := demands_of' entered (rename_handler r h) in
+       Some (rename_continuation r k :: checked, ds ++ ds')
+     | Entered_with_two_stacks => None
+     end)
+  = option_map (rename_group_state r)
+      (let* '(checked, ds) := state in
+       if among k checked then Some (checked, ds)
+       else
+         match entry_of k ds with
+         | Not_entered => Some (checked, ds)
+         | Entered_with entered =>
+           let* ds' := demands_of entered h in
+           Some (k :: checked, ds ++ ds')
+         | Entered_with_two_stacks => None
+         end).
+Proof.
+  intros Hh. destruct state as [[checked ds] | ]; [ | reflexivity ].
+  cbn [option_map rename_group_state fst snd].
+  rewrite among_rename_continuation.
+  destruct (among k checked); [ reflexivity | ].
+  rewrite entry_of_renamed.
+  destruct (entry_of k ds) as [ | entered | ]; try reflexivity.
+  cbn [rename_entry]. rewrite Hh.
+  destruct (demands_of entered h) as [ds' | ]; [ | reflexivity ].
+  cbn [option_map rename_group_state fst snd map].
+  apply f_equal. apply (f_equal2 pair); [ reflexivity | ].
+  symmetry. apply map_app.
+Qed.
+
+Lemma group_fold_renamed
+    (handlers : list (continuation * continuation_handler)) :
+  Forall (fun entry => demands_of_renamed (snd entry)) handlers ->
+  ∀ state : option group_state,
+    fold_left
+      (fun state '(k, h) =>
+         let* '(checked, ds) := state in
+         if among k checked then Some (checked, ds)
+         else
+           match entry_of k ds with
+           | Not_entered => Some (checked, ds)
+           | Entered_with entered =>
+             let* ds' := demands_of' entered h in
+             Some (k :: checked, ds ++ ds')
+           | Entered_with_two_stacks => None
+           end)
+      (option_map (rename_group_state r) state) (rename_handlers r handlers)
+    = option_map (rename_group_state r)
+        (fold_left
+           (fun state '(k, h) =>
+              let* '(checked, ds) := state in
+              if among k checked then Some (checked, ds)
+              else
+                match entry_of k ds with
+                | Not_entered => Some (checked, ds)
+                | Entered_with entered =>
+                  let* ds' := demands_of entered h in
+                  Some (k :: checked, ds ++ ds')
+                | Entered_with_two_stacks => None
+                end)
+           state handlers).
+Proof.
+  intros Hhandlers state. unfold fold_left, rename_handlers.
+  apply (fold_left_renamed (option_map (rename_group_state r))).
+  refine (Forall_impl _ _ Hhandlers).
+  intros [k h] Hh s. exact (group_step_renamed k h s Hh).
+Qed.
+
+Lemma group_pass_renamed
+    (handlers : list (continuation * continuation_handler))
+    (state : group_state) :
+  Forall (fun entry => demands_of_renamed (snd entry)) handlers ->
+  group_pass demands_of' (rename_handlers r handlers)
+    (rename_group_state r state)
+  = option_map (rename_group_state r) (group_pass demands_of handlers state).
+Proof.
+  intros Hhandlers. exact (group_fold_renamed handlers Hhandlers (Some state)).
+Qed.
+
+Lemma iterate_renamed {A : Type} (g : A -> A) (f f' : A -> option A)
+    (n : nat) :
+  (∀ x : A, f' (g x) = option_map g (f x)) ->
+  ∀ x : A,
+    FlambdaWellFormedSpec.iterate n f' (g x)
+    = option_map g (FlambdaWellFormedSpec.iterate n f x).
+Proof.
+  intros Hf. induction n as [ | n IH]; intros x; [ reflexivity | ].
+  cbn [FlambdaWellFormedSpec.iterate]. rewrite Hf.
+  destruct (f x) as [y | ]; [ | reflexivity ].
+  cbn [option_map]. apply IH.
+Qed.
+
+Lemma group_demands_renamed
+    (handlers : list (continuation * continuation_handler)) (ds : demands) :
+  Forall (fun entry => demands_of_renamed (snd entry)) handlers ->
+  group_demands demands_of' (rename_handlers r handlers)
+    (rename_demands r ds)
+  = option_map (rename_demands r) (group_demands demands_of handlers ds).
+Proof.
+  intros Hhandlers. unfold group_demands.
+  replace (length (rename_handlers r handlers)) with (length handlers)
+    by (unfold rename_handlers; rewrite length_map; reflexivity).
+  change ([], rename_demands r ds) with (rename_group_state r ([], ds)).
+  rewrite
+    (iterate_renamed (rename_group_state r) (group_pass demands_of handlers)
+       (group_pass demands_of' (rename_handlers r handlers)) (length handlers)
+       (fun state => group_pass_renamed handlers state Hhandlers)).
+  destruct
+    (FlambdaWellFormedSpec.iterate (length handlers)
+       (group_pass demands_of handlers) ([], ds))
+    as [[checked ds'] | ];
+    [ | reflexivity ].
+  cbn [option_map rename_group_state fst snd].
+  rewrite map_fst_rename_handlers.
+  rewrite
+    (forallb_map_with _ _
+       (fun k =>
+          match entry_of k ds' with
+          | Not_entered => true
+          | Entered_with _ => among k checked
+          | Entered_with_two_stacks => false
+          end)).
+  - rewrite leave_scope_renamed.
+    destruct
+      (forallb
+         (fun k =>
+            match entry_of k ds' with
+            | Not_entered => true
+            | Entered_with _ => among k checked
+            | Entered_with_two_stacks => false
+            end)
+         (map fst handlers));
+      reflexivity.
+  - intros k. rewrite entry_of_renamed.
+    destruct (entry_of k ds') as [ | entered | ]; cbn [rename_entry];
+      try reflexivity.
+    apply among_rename_continuation.
+Qed.
+
+End Group.
+
+Fixpoint trap_demands_renamed (r : renaming) (e : expr) {struct e} :
+  ∀ ts : trap_stack,
+    trap_demands (rename_trap_stack r ts) (rename_expr r e)
+    = option_map (rename_demands r) (trap_demands ts e)
+with handler_trap_demands_renamed (r : renaming) (h : continuation_handler)
+    {struct h} :
+  ∀ ts : trap_stack,
+    handler_trap_demands (rename_trap_stack r ts) (rename_handler r h)
+    = option_map (rename_demands r) (handler_trap_demands ts h)
+with binding_traps_well_formed_renamed (r : renaming)
+    (binding : static_binding) {struct binding} :
+  binding_traps_well_formed (rename_static_binding r binding)
+  = binding_traps_well_formed binding
+with code_traps_well_formed_renamed (r : renaming) (c : code) {struct c} :
+  code_traps_well_formed (rename_code r c) = code_traps_well_formed c.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      intros ts.
+    + cbn [rename_expr trap_demands]. apply trap_demands_renamed.
+    + cbn [rename_expr trap_demands].
+      replace
+        (forallb binding_traps_well_formed
+           (map (rename_static_binding r) bindings))
+        with (forallb binding_traps_well_formed bindings).
+      * destruct (forallb binding_traps_well_formed bindings);
+          [ apply trap_demands_renamed | reflexivity ].
+      * induction bindings as [ | binding bindings IH]; cbn [map forallb];
+          [ reflexivity | ].
+        rewrite (binding_traps_well_formed_renamed r binding), <- IH.
+        reflexivity.
+    + cbn [rename_expr trap_demands]. rewrite among_trap_stack_renamed.
+      destruct (among k ts); [ reflexivity | ].
+      rewrite (trap_demands_renamed r body ts).
+      destruct (trap_demands ts body) as [ds | ]; [ | reflexivity ].
+      cbn [option_map].
+      change [rename_continuation r k]
+        with (map (rename_continuation r) [k]).
+      rewrite leave_scope_renamed, entry_of_renamed.
+      destruct (leave_scope [k] ds) as [outer | ]; [ | reflexivity ].
+      destruct (entry_of k ds) as [ | entered | ]; try reflexivity.
+      cbn [option_map rename_entry].
+      rewrite among_trap_stack_renamed.
+      destruct (among k entered); [ reflexivity | ].
+      rewrite (handler_trap_demands_renamed r h entered).
+      destruct (handler_trap_demands entered h) as [ds' | ];
+        [ | reflexivity ].
+      cbn [option_map]. rewrite rename_demands_app.
+      reflexivity.
+    + assert
+        (Hhandlers :
+          Forall
+            (fun entry =>
+               demands_of_renamed r handler_trap_demands
+                 handler_trap_demands (snd entry))
+            handlers).
+      { induction handlers as [ | [k h] handlers IH]; constructor;
+          [ | exact IH ].
+        intros ts'. apply handler_trap_demands_renamed. }
+      cbn [rename_expr].
+      change
+        (map (fun '(k, h) => (rename_continuation r k, rename_handler r h))
+           handlers)
+        with (rename_handlers r handlers).
+      rewrite !trap_demands_recursive, map_fst_rename_handlers.
+      rewrite
+        (existsb_map_with _ _ (fun k => among k ts))
+        by (intros k; apply among_trap_stack_renamed).
+      destruct (existsb (fun k => among k ts) (map fst handlers));
+        [ reflexivity | ].
+      rewrite (trap_demands_renamed r body ts).
+      destruct (trap_demands ts body) as [ds | ]; [ | reflexivity ].
+      cbn [option_map].
+      exact
+        (group_demands_renamed r handler_trap_demands handler_trap_demands
+           handlers ds Hhandlers).
+    + cbn [rename_expr trap_demands]. apply apply_demands_renamed.
+    + cbn [rename_expr trap_demands]. apply apply_cont_demands_renamed.
+    + cbn [rename_expr trap_demands]. apply arms_demands_renamed.
+    + reflexivity.
+  - destruct h as [params metadata handler]. intros ts.
+    cbn [rename_handler handler_trap_demands]. apply trap_demands_renamed.
+  - destruct binding as [id c | id | sym const];
+      cbn [rename_static_binding binding_traps_well_formed];
+      try reflexivity.
+    apply code_traps_well_formed_renamed.
+  - destruct c as [params my_closure ret exn metadata body].
+    cbn [rename_code code_traps_well_formed].
+    change [rename_continuation r exn] with (rename_trap_stack r [exn]).
+    rewrite (trap_demands_renamed r body [exn]).
+    destruct (trap_demands [exn] body) as [ds | ]; [ | reflexivity ].
+    cbn [option_map]. apply code_demands_met_renamed.
+Qed.
+
+Lemma traps_well_formed_renamed (r : renaming) (unit_exn : continuation)
+    (e : expr) :
+  traps_well_formed (rename_continuation r unit_exn) (rename_expr r e)
+  = traps_well_formed unit_exn e.
+Proof.
+  unfold traps_well_formed.
+  change [rename_continuation r unit_exn]
+    with (rename_trap_stack r [unit_exn]).
+  rewrite (trap_demands_renamed r e [unit_exn]).
+  destruct (trap_demands [unit_exn] e) as [ds | ]; [ | reflexivity ].
+  cbn [option_map]. unfold rename_demands. apply forallb_map_with. intros d.
+  cbn [fst snd]. rewrite rename_continuation_eqb.
+  match goal with
+  | |- trap_stack_eqb _ (if ?c then _ else _)
+       = trap_stack_eqb _ (if ?c' then _ else _) =>
+    change c' with c; destruct c
+  end.
+  - exact (trap_stack_eqb_renamed r (snd d) []).
+  - exact (trap_stack_eqb_renamed r (snd d) [unit_exn]).
+Qed.
+
+Theorem trap_demands_equivariant : trap_demands_equivariant_statement.
+Proof. intros r ts e. apply trap_demands_renamed. Qed.
+
+Theorem traps_well_formed_equivariant :
+  traps_well_formed_equivariant_statement.
+Proof. exact traps_well_formed_renamed. Qed.
+
 Theorem well_formed_unit_equivariant : well_formed_unit_equivariant_statement.
 Proof.
   intros r u e. unfold well_formed_unit, rename_unit_interface.
@@ -2229,7 +3004,8 @@ Proof.
     (static_names_renamed r _ (symbols_of_binding_renamed r)),
     names_in_scope_equivariant, binders_distinct_equivariant,
     code_closed_equivariant, sets_well_formed_renamed,
-    numbers_in_range_renamed.
+    numbers_in_range_renamed, unit_exn_handlers_well_formed_renamed,
+    traps_well_formed_renamed.
   reflexivity.
 Qed.
 
