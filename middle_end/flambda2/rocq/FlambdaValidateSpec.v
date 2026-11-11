@@ -41,26 +41,30 @@
    (FlambdaCompareSpec.expr_eqb). Failing that, it removes from the term
    before the static bindings of the names given
    (FlambdaUnusedStaticsSpec.drop_statics) and compares again. Failing
-   that too, it starts again from the term before as it was given: it
-   makes the [Let]s given static bindings of the symbols given
+   that too, it starts again from the term before as it was given. For
+   each of the liftings given, in turn ([lifted_in_turn]), it makes the
+   [Let]s given static bindings of the symbols given
    (FlambdaLiftSpec.lift_unit, which says what is lifted and under which
-   conditions), normalises the result, each round followed by using
+   conditions) and normalises the result, each round followed by using
    what is known of the static closures whose bindings are in sight
    (FlambdaKnownClosuresSpec.use_known_closures: a value slot is read,
    a call is made direct) and by replacing the primitives and the
    projections applied to symbols that the unit binds to constants by
    their values (FlambdaKnownSymbolsSpec.fold_known_unit;
-   [normalise_lifted]),
-   removes from the static sets of closures the value slots given, if
-   nothing projects them (FlambdaUnusedSlotsSpec.drop_unused_slots),
-   removes the static bindings of the names given, and compares; in
-   this comparison the bindings of code of both terms are first moved
-   up to the head of what they are in
-   (FlambdaFloatCodeSpec.float_code), as the two terms do not bind the
-   code of a lifted closure in the same place. The lifting comes first
-   because the normalisation unfolds calls: a [Let] in the body of a
-   function would be many [Let]s afterwards, and a closure that nothing
-   uses would be gone. What is known of the symbols is used in every
+   [normalise_lifted]). Then it removes from the static sets of closures
+   the value slots given, if nothing projects them
+   (FlambdaUnusedSlotsSpec.drop_unused_slots), removes the static
+   bindings of the names given, and compares; in this comparison the
+   bindings of code of both terms are first moved up to the head of
+   what they are in (FlambdaFloatCodeSpec.float_code), as the two terms
+   do not bind the code of a lifted closure in the same place. The
+   first lifting comes before any normalisation because the
+   normalisation unfolds calls: a [Let] in the body of a function would
+   be many [Let]s afterwards, and a closure that nothing uses would be
+   gone. A later lifting names [Let]s of the term as the liftings before
+   it and the normalisation have left it: those that the inlining of a
+   call has brought out of a function, which Simplify lifts where it
+   inlines the call. What is known of the symbols is used in every
    round because they enable one another: a round puts a symbol where
    a variable stood for it; what is known of the symbol then puts what
    a projection of it gives in place of the projection, and the code of
@@ -210,6 +214,17 @@ Definition normalise_lifted_round (e : expr) : expr :=
 Definition normalise_lifted (rounds : nat) (e : expr) : expr :=
   iterate rounds normalise_lifted_round e.
 
+(* The term with each of the liftings given applied in turn, each
+   followed by that normalisation. A lifting after the first names
+   [Let]s of the term that those before it give. *)
+Fixpoint lifted_in_turn (rounds : nat) (Ls : list lifting) (e : expr)
+    : expr :=
+  match Ls with
+  | [] => e
+  | L :: Ls =>
+    lifted_in_turn rounds Ls (normalise_lifted rounds (with_lifting L e))
+  end.
+
 (* The value slots given removed from the static sets of closures, if
    nothing projects them. *)
 Definition without_slots (slots : list value_slot) (e : expr) : expr :=
@@ -231,7 +246,7 @@ Inductive validation : Type :=
   | Not_validated.
 
 Definition validate_unit (rounds : nat) (unused : dropped)
-    (slots : list value_slot) (L : lifting) (before after : expr)
+    (slots : list value_slot) (Ls : list lifting) (before after : expr)
     : validation :=
   if expr_eqb [] [] before after then Same_up_to_bound_names
   else
@@ -244,8 +259,7 @@ Definition validate_unit (rounds : nat) (unused : dropped)
       expr_eqb [] []
         (float_code
            (without_statics unused
-              (without_slots slots
-                 (normalise_lifted rounds (with_lifting L before)))))
+              (without_slots slots (lifted_in_turn rounds Ls before))))
         (float_code after)
     then Same_once_lifted
     else Not_validated.
@@ -257,17 +271,18 @@ Definition validate_unit (rounds : nat) (unused : dropped)
 (* A unit that is validated refines the unit it came from, run on its own
    from empty environments. *)
 Definition validate_unit_sound_statement : Prop :=
-  ∀ (rounds : nat) (unused : dropped) (slots : list value_slot) (L : lifting)
-    (before after : expr),
-    validate_unit rounds unused slots L before after <> Not_validated ->
+  ∀ (rounds : nat) (unused : dropped) (slots : list value_slot)
+    (Ls : list lifting) (before after : expr),
+    validate_unit rounds unused slots Ls before after <> Not_validated ->
     program_refines before after.
 
 (* It does so under all environments if no static binding was removed and
    nothing was lifted. *)
 Definition validate_unit_sound_everywhere_statement : Prop :=
-  ∀ (rounds : nat) (unused : dropped) (slots : list value_slot) (L : lifting)
-    (before after : expr),
-    validate_unit rounds unused slots L before after = Same_up_to_bound_names
-    ∨ validate_unit rounds unused slots L before after
+  ∀ (rounds : nat) (unused : dropped) (slots : list value_slot)
+    (Ls : list lifting) (before after : expr),
+    validate_unit rounds unused slots Ls before after
+    = Same_up_to_bound_names
+    ∨ validate_unit rounds unused slots Ls before after
       = Same_once_normalised ->
     expr_refines before after.

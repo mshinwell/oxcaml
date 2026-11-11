@@ -219,6 +219,15 @@ Proof.
   apply IH.
 Qed.
 
+Lemma lifted_in_turn_program_refines (rounds : nat) (Ls : list lifting) :
+  ∀ e : expr, program_refines e (lifted_in_turn rounds Ls e).
+Proof.
+  induction Ls as [ | L Ls IH]; intros e; simpl; [ apply refines_refl | ].
+  apply (refines_trans _ _ _ (with_lifting_program_refines L _)).
+  apply (refines_trans _ _ _ (normalise_lifted_program_refines rounds _)).
+  apply IH.
+Qed.
+
 Lemma without_slots_program_refines (slots : list value_slot) (e : expr) :
   program_refines e (without_slots slots e).
 Proof.
@@ -231,7 +240,7 @@ Qed.
 Theorem validate_unit_sound_everywhere :
   validate_unit_sound_everywhere_statement.
 Proof.
-  intros rounds unused slots L before after. unfold validate_unit.
+  intros rounds unused slots Ls before after. unfold validate_unit.
   destruct (expr_eqb [] [] before after) eqn:Hsame.
   - intros _. apply expr_equivalent_refines, expr_eqb_sound, Hsame.
   - destruct (expr_eqb [] [] (normalise_before rounds before)
@@ -245,15 +254,14 @@ Proof.
         (expr_eqb [] []
            (float_code
               (without_statics unused
-                 (without_slots slots
-                    (normalise_lifted rounds (with_lifting L before)))))
+                 (without_slots slots (lifted_in_turn rounds Ls before))))
            (float_code (normalise_after rounds after)));
         intros [H | H]; discriminate H.
 Qed.
 
 Theorem validate_unit_sound : validate_unit_sound_statement.
 Proof.
-  intros rounds unused slots L before after. unfold validate_unit.
+  intros rounds unused slots Ls before after. unfold validate_unit.
   destruct (expr_eqb [] [] before after) eqn:Hsame.
   - intros _.
     apply expr_refines_program, expr_equivalent_refines, expr_eqb_sound,
@@ -279,12 +287,11 @@ Proof.
              (float_code
                 (without_statics unused
                    (without_slots slots
-                      (normalise_lifted rounds (with_lifting L before)))))
+                      (lifted_in_turn rounds Ls before))))
              (float_code (normalise_after rounds after))) eqn:Hlifted;
           [ intros _ | intros H; contradiction H; reflexivity ].
-        apply (refines_trans _ _ _ (with_lifting_program_refines L _)).
         apply (refines_trans _ _ _
-          (normalise_lifted_program_refines rounds _)).
+          (lifted_in_turn_program_refines rounds Ls _)).
         apply (refines_trans _ _ _ (without_slots_program_refines slots _)).
         apply (refines_trans _ _ _
           (without_statics_program_refines unused _)).

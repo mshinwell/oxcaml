@@ -4321,14 +4321,25 @@ Lemma normalise_lifted_equivariant (rounds : nat) :
   rewrite_equivariant (normalise_lifted rounds).
 Proof. apply iterate_equivariant, normalise_lifted_round_equivariant. Qed.
 
+(* The liftings in turn. *)
+Lemma lifted_in_turn_renamed (r : renaming) (rounds : nat)
+    (Ls : list lifting) :
+  ∀ e : expr,
+    lifted_in_turn rounds (map (rename_lifting r) Ls) (rename_expr r e)
+    = rename_expr r (lifted_in_turn rounds Ls e).
+Proof.
+  induction Ls as [ | L Ls IH]; intros e; cbn [map lifted_in_turn];
+    [ reflexivity | ].
+  rewrite with_lifting_renamed, normalise_lifted_equivariant. apply IH.
+Qed.
+
 Theorem validate_unit_equivariant : validate_unit_equivariant_statement.
 Proof.
-  intros r rounds unused slots L before after. unfold validate_unit.
-  rewrite with_lifting_renamed.
+  intros r rounds unused slots Ls before after. unfold validate_unit.
+  rewrite lifted_in_turn_renamed.
   rewrite normalise_before_equivariant, normalise_after_equivariant,
-    normalise_lifted_equivariant, without_slots_equivariant,
-    !without_statics_equivariant, !float_code_rewrite_equivariant,
-    !expr_eqb_renamed.
+    without_slots_equivariant, !without_statics_equivariant,
+    !float_code_rewrite_equivariant, !expr_eqb_renamed.
   reflexivity.
 Qed.
 
