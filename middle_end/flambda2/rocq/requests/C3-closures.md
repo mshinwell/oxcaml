@@ -616,8 +616,9 @@ at one slot, and the code called is the code of that slot
 (`closure_of`). So each function of a set gets the closure at its own
 slot, or the symbol of that closure if it was called through a symbol.
 (Unless a parameter of the code has the name of its `my_closure`, which
-then hides it: the parameters are bound after it. Nothing asks yet
-that the binders of code are distinct; "Sets that share code" below.)
+then hides it: the parameters are bound after it. Well-formedness now
+asks that the binders of code are distinct, so no code of a well-formed
+unit has such a parameter; "Sets that share code" below.)
 
 **The projections are constructs of `named`**, like today's
 `Project_value_slot`, and not primitives: their meaning needs the static
@@ -648,19 +649,14 @@ full.
 **Calls, and what a GADT can produce.** The human's rule is that
 whatever programs with GADTs and the layout `any` can produce must be
 undefined in the model: a call whose arities are not those of the code
-called is the case that matters here. The change neither adds to what
-the machine checks of a call nor takes from it, because it does not
-touch `Apply`, `call_function` or `step`. What the machine checks at
-this stage is less than the rule asks. `call_function` binds the
-parameters of the code to the arguments (`bind_params`) and has no
-step if they are not as many; and a direct call has no step unless the
-closure is of the code it names. That is all: a call with as many
-arguments as parameters has a step whatever their kinds, and whatever
-the arity of the call as a product or of its result, with a closure of
-a set as with any other. Making those calls undefined is C2's work
-(the arities of the call compared with those of the code, in
-`call_function`); the full test of arities has not landed with this
-change. What the change does ensure is that the test will be made in
+called is the case that matters here. The change neither added to what
+the machine checks of a call nor took from it, because it did not
+touch `Apply`, `call_function` or `step`: at that stage a call with as
+many arguments as parameters had a step whatever their kinds. The
+series on kinds has since made such a call undefined
+(`requests/C2-kinds.md`): `call_function` compares the kinds of the
+arguments with the arity of the call, and the arities of the call with
+those of the code, and has no step where they differ. The test is made in
 the same place and on the same code for a closure of a set: a call
 reads its callee with `closure_of`, which for a closure of a set gives
 the code of the closure's own slot. `step_apply_closure`
@@ -803,10 +799,13 @@ its set has that code, whichever closure of the set it is; and where
 `my_closure` stands for the closure called, the projections that the
 code makes from `my_closure`, which name that slot, do not name a wrong
 one. `my_closure` stands for it unless a parameter of the code has the
-same name: a call binds `my_closure` and then the parameters, and
-`well_formed_unit` does not yet ask that the binders of code are
-distinct (R2). As a fact about every closure in a state of a run it is
-part of the invariant on values (section 8).
+same name: a call binds `my_closure` and then the parameters.
+`well_formed_unit` asks that the binders of code are distinct
+(`FlambdaBindersSpec.binders_distinct`; R2's finding), so in the run of
+a well-formed unit it does stand for it
+(`well_formed_call_binds_my_closure_statement`). As a fact about every
+closure in a state of a run it is part of the invariant on values
+(section 8).
 
 What the rule does not give: the code of a closure does not determine
 its set. Two sets of a unit may have the same code ids, with other
@@ -1398,8 +1397,8 @@ a primitive preserves a predicate on values; no axiom. It turns "a term
 cannot make one" (section 4) into "a well-formed unit never holds one",
 and with `closure_code_determines_slot_statement` it gives: in the run
 of a well-formed unit, a closure that is called is at the slot of the
-code called, and so is the `my_closure` of that code where no parameter
-of the code has its name (the next paragraph).
+code called, and so is the `my_closure` of that code (the next
+paragraph).
 
 Done after the epoch, in `FlambdaClosuresSpec.v`: `value_valid` and
 `allocated_valid` (what a symbol is bound to), and eight statements.
@@ -1411,10 +1410,13 @@ traversal of where a state holds values
 calls is at the only slot of its set that has the code called.
 `call_binds_my_closure_statement` says that a call binds `my_closure`
 to the closure called where `my_closure` is not also a parameter of
-the code. So the fact about `my_closure` holds of code whose binders
-are distinct; it holds of every well-formed unit only once that is a
-condition of well-formedness, which it is not yet (R2's finding: a
-parameter of the same name hides `my_closure`).
+the code (R2's finding: a parameter of the same name hides
+`my_closure`). That the binders of code are distinct is now a condition
+of well-formedness, and two statements added since say what it gives:
+the code that the run of a well-formed unit binds has distinct binders
+(`well_formed_code_binders_statement`), and so a call in such a run
+binds `my_closure` to the closure called with no premise on the code
+(`well_formed_call_binds_my_closure_statement`).
 `closure_in_set_valid_statement`,
 `project_function_slot_valid_statement`, `eval_named_valid_statement`
 and `eval_static_const_valid_statement` are what the invariant is made

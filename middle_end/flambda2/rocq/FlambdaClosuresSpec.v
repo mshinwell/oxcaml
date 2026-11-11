@@ -122,9 +122,13 @@
      ([well_formed_closure_slot_statement]).
    - A call binds [my_closure] to the closure called, where [my_closure]
      is not also a parameter of the code
-     ([call_binds_my_closure_statement]). [well_formed_unit] does not ask
-     that yet, so that [my_closure] is at the slot of the code that runs
-     is said here of such code only.
+     ([call_binds_my_closure_statement]). The code that the run of a
+     well-formed unit binds has distinct binders
+     ([well_formed_code_binders_statement]), so in such a run a call of
+     a closure that has a step runs the body of its code with
+     [my_closure] bound to the closure called
+     ([well_formed_call_binds_my_closure_statement]), which is at the
+     slot of that code.
 
    The code of a closure does not say which set the closure belongs to,
    and a rewrite inside the code of a function that uses what is known
@@ -152,7 +156,7 @@
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec FlambdaWellFormedSpec.
+  FlambdaSemanticsSpec FlambdaBindersSpec FlambdaWellFormedSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -559,12 +563,12 @@ Definition well_formed_exit_valid_statement : Prop :=
    It says nothing by itself of [my_closure] in the body of that code.
    A call binds [my_closure] to the closure called and then the
    parameters to the arguments (FlambdaSemanticsSpec.call_function), so
-   a parameter of the same name as [my_closure] hides it, and
-   [well_formed_unit] does not ask today that there is none: that the
-   binders of code are distinct is a condition of well-formedness still
-   to come. Where [my_closure] is not a parameter, the body starts with
-   it bound to the closure called ([call_binds_my_closure_statement]),
-   and then [my_closure] is at the slot of the code that runs. *)
+   a parameter of the same name as [my_closure] would hide it. Where
+   [my_closure] is not a parameter, the body starts with it bound to the
+   closure called ([call_binds_my_closure_statement]), and then
+   [my_closure] is at the slot of the code that runs. A well-formed
+   unit has no such parameter
+   ([well_formed_call_binds_my_closure_statement]). *)
 Definition well_formed_closure_slot_statement : Prop :=
   ∀ (u : unit_interface) (e : expr) (n : nat) (s : state)
     (closure : simple) (v : value) (slot slot' : function_slot)
@@ -595,6 +599,36 @@ Definition call_binds_my_closure_statement : Prop :=
     among (code_my_closure c) (code_params c) = false ->
     state_expr s = code_body c
     ∧ lookup (code_my_closure c) (state_vars s) = Some callee.
+
+(* The code that the run of a well-formed unit binds has distinct
+   binders (FlambdaBindersSpec.code_binders_distinct, which is what
+   well-formedness asks of the code of the unit): [my_closure] and the
+   parameters are different names, and so are the return and the
+   exception continuations. *)
+Definition well_formed_code_binders_statement : Prop :=
+  ∀ (u : unit_interface) (e : expr) (n : nat) (s : state) (id : code_id)
+    (c : code),
+    well_formed_unit u e = true ->
+    run n (State e [] [] empty_static_env) = Step s ->
+    lookup id (static_code (state_statics s)) = Some c ->
+    code_binders_distinct c = true.
+
+(* So in the run of a well-formed unit a call of a closure, if it has a
+   step, runs the body of the code of the closure with [my_closure]
+   bound to the closure called. *)
+Definition well_formed_call_binds_my_closure_statement : Prop :=
+  ∀ (u : unit_interface) (e : expr) (n : nat) (s s' : state)
+    (ap : apply_expr) (callee : value) (called : code_id)
+    (slot_values : list (value_slot * value)) (c : code),
+    well_formed_unit u e = true ->
+    run n (State e [] [] empty_static_env) = Step s ->
+    state_expr s = Apply ap ->
+    eval_simple (state_vars s) (ap_callee ap) = Some callee ->
+    closure_of (state_statics s) callee = Some (called, slot_values) ->
+    lookup called (static_code (state_statics s)) = Some c ->
+    step s = Step s' ->
+    state_expr s' = code_body c
+    ∧ lookup (code_my_closure c) (state_vars s') = Some callee.
 
 (* ======================================================================== *)
 (* The set that a piece of code belongs to                                  *)

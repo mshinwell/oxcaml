@@ -33,8 +33,9 @@ From Stdlib Require Import ZArith List Arith Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaPrimitiveProofs FlambdaSemanticsSpec
-  FlambdaSemanticsProofs FlambdaWellFormedSpec FlambdaWellFormedProofs
-  FlambdaApplySpec FlambdaApplyProofs FlambdaClosuresSpec.
+  FlambdaSemanticsProofs FlambdaBindersSpec FlambdaWellFormedSpec
+  FlambdaWellFormedProofs FlambdaApplySpec FlambdaApplyProofs
+  FlambdaClosuresSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -1576,7 +1577,72 @@ Proof.
   refine (conj He (conj I _)). intros id c [=].
 Qed.
 
+Lemma terms_inv_run (n : nat) :
+  ∀ s s' : state, terms_inv s -> run n s = Step s' -> terms_inv s'.
+Proof.
+  induction n as [ | n IH]; intros s s' Hinv; simpl.
+  - intros [= <-]. exact Hinv.
+  - destruct (step s) as [next | k vs | ] eqn:Hstep; try discriminate.
+    exact (IH next s' (terms_inv_step s next Hinv Hstep)).
+Qed.
+
 End Terms_kept.
+
+(* ======================================================================== *)
+(* The binders of the code that a well-formed unit binds                    *)
+(* ======================================================================== *)
+
+Theorem well_formed_code_binders : well_formed_code_binders_statement.
+Proof.
+  intros u e n s id c Hwf Hrun Hlookup.
+  assert (Hbinders : binders_distinct e = true).
+  { unfold well_formed_unit in Hwf.
+    apply andb_true_iff in Hwf as [Hwf _].
+    apply andb_true_iff in Hwf as [Hwf _].
+    apply andb_true_iff in Hwf as [Hwf _].
+    apply andb_true_iff in Hwf as [_ Hbinders]. exact Hbinders. }
+  assert (Hinv :
+    terms_inv binders_distinct handler_binders_distinct
+      code_binders_distinct s).
+  { refine
+      (terms_inv_run binders_distinct handler_binders_distinct
+         code_binders_distinct _ _ _ _ _ _ _ n _ s
+         (terms_inv_initial _ _ _ e Hbinders) Hrun).
+    - intros x kind d body H. exact H.
+    - intros bindings body H. simpl in H.
+      apply andb_true_iff in H as [Hbindings Hbody].
+      split; [ exact Hbody | ]. intros id' c' Hin.
+      rewrite forallb_forall in Hbindings. exact (Hbindings _ Hin).
+    - intros k h body H. simpl in H. apply andb_true_iff in H. exact H.
+    - intros handlers body H. simpl in H.
+      apply andb_true_iff in H as [H Hbody].
+      apply andb_true_iff in H as [_ Hhandlers]. split; assumption.
+    - intros ac. reflexivity.
+    - intros params metadata handler H. simpl in H.
+      apply andb_true_iff in H as [_ H]. exact H.
+    - intros [params my_closure ret exn metadata body] H. simpl in H |- *.
+      apply andb_true_iff in H as [_ H]. exact H. }
+  destruct Hinv as (_ & _ & Hcode). exact (Hcode id c Hlookup).
+Qed.
+
+Theorem well_formed_call_binds_my_closure :
+  well_formed_call_binds_my_closure_statement.
+Proof.
+  intros u e n s s' ap callee called slot_values c Hwf Hrun Hexpr Hcallee
+    Hclosure Hcode Hstep.
+  pose proof (well_formed_code_binders u e n s called c Hwf Hrun Hcode)
+    as Hc.
+  rewrite (state_eta s), Hexpr, step_apply, Hcallee in Hstep.
+  destruct (eval_simples (state_vars s) (ap_args ap)) as [vs | ];
+    [ | discriminate ].
+  apply
+    (call_binds_my_closure callee _ vs _ _ _ _ _ s' called slot_values c
+       Hstep Hclosure Hcode).
+  destruct c as [params my_closure ret exn metadata body].
+  simpl in Hc |- *.
+  apply andb_true_iff in Hc as [Hc _]. apply andb_true_iff in Hc as [Hc _].
+  apply andb_true_iff in Hc as [Hc _]. apply negb_true_iff in Hc. exact Hc.
+Qed.
 
 (* ======================================================================== *)
 (* The set that a piece of code belongs to                                  *)
