@@ -35,9 +35,10 @@
    order ([Aliases.name_defined_earlier], [Aliases.defined_earlier]) and
    the three functions that give a name its binding time and name mode
    ([Aliases.binding_time_and_name_mode], [Aliases.compute_name_mode],
-   [Aliases.compute_name_mode_unscoped]). The queries there are written
-   as the OCaml is, but need not be read: what they answer is stated
-   here. Binding times and name modes are FlambdaBindingTime.v.
+   [Aliases.compute_name_mode_unscoped]). The queries and [Aliases.add]
+   are written there as the OCaml is, but need not be read: what they
+   answer is stated here. Binding times and name modes are
+   FlambdaBindingTime.v.
 
    The structure. The simplifier learns that a name is equal to another
    name or to a constant (an [Equals] type), and keeps what it has
@@ -147,8 +148,31 @@
      [find_best], [get_singleton], [choose_opt]) and [add_alias_set].
      [print] is not modelled.
 
-   Nothing is stated here yet of [Aliases.add], [Aliases.get_aliases],
-   [Aliases.invariant] and [Aliases.invariant_add_result].
+   What is stated of [Aliases.add], which is given two canonical
+   elements found to be equal:
+   - what it answers ([add_result_statement]): the canonical element of
+     the merged class and the name demoted are its two arguments, the
+     later of them demoted; bottom exactly for two different constants
+     ([add_bottom_statement]); no fatal error for two different
+     canonical elements of a consistent structure
+     ([add_defined_statement]);
+   - the classes afterwards ([add_canonical_element_statement],
+     [add_aliased_statement]): the two classes are merged and the
+     others are as they were;
+   - an environment that respects the structure and gives the two the
+     same value respects the result ([add_respected_statement]);
+   - the invariant is kept, part by part: consistency always, the name
+     modes recorded always, the order only if one of the two arguments
+     is earlier than the other ([add_earliest_statement], and the
+     question there).
+   And of [Aliases.get_aliases]: a simple is in the set exactly when it
+   is known to be equal to the element asked about
+   ([get_aliases_statement]).
+
+   Nothing is stated here yet of [Aliases.invariant] and
+   [Aliases.invariant_add_result], the model's copies of the checks that
+   the OCaml makes under a flag; [aliases_well_formed] is the invariant
+   that the statements use.
 
    The proofs are in FlambdaEnvAliasesProofs.v, which needs no review. *)
 
@@ -665,3 +689,304 @@ Definition no_alias_statement : Prop :=
            name_mode_at_least order min_name_mode ->
            ~ alias_candidate binding_times_and_modes t
                (canonical_element_of t element) min_binding_time order n).
+
+(* ======================================================================== *)
+(* Adding an alias                                                          *)
+(* ======================================================================== *)
+
+(* [Aliases.add] is given two canonical elements that have been found to
+   be equal. Three statements say what it answers, whatever the
+   structure. First, when it succeeds: the canonical element of the
+   merged class and the name that was demoted are the two arguments,
+   the later of the two demoted; if neither is earlier than the other,
+   the first is demoted. *)
+Definition add_result_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple)
+    (result : Aliases.add_result),
+    Aliases.add binding_time_resolver binding_times_and_modes t
+      canonical_element1 canonical_element2
+    = Some (Or_bottom.Ok result) ->
+    if Aliases.defined_earlier binding_time_resolver binding_times_and_modes
+         canonical_element1 canonical_element2
+    then
+      Aliases.canonical_element result = canonical_element1
+      ∧ simple_of_name (Aliases.demoted_name result) = canonical_element2
+    else
+      Aliases.canonical_element result = canonical_element2
+      ∧ simple_of_name (Aliases.demoted_name result) = canonical_element1.
+
+(* Second: the answer is bottom exactly when the two are different
+   constants, which are never equal. *)
+Definition add_bottom_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple),
+    Aliases.add binding_time_resolver binding_times_and_modes t
+      canonical_element1 canonical_element2
+    = Some Or_bottom.Bottom
+    <-> (∃ c1 c2 : const,
+          canonical_element1 = Const c1
+          ∧ canonical_element2 = Const c2
+          ∧ c1 <> c2).
+
+(* Third: there is no fatal error when the structure is consistent and
+   the two are canonical and different, which is what [aliases.mli]
+   asks of the caller. *)
+Definition add_defined_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple),
+    aliases_consistent t ->
+    is_canonical t canonical_element1 ->
+    is_canonical t canonical_element2 ->
+    canonical_element1 <> canonical_element2 ->
+    Aliases.add binding_time_resolver binding_times_and_modes t
+      canonical_element1 canonical_element2
+    <> None.
+
+(* The classes after [add]: the class of the name demoted is merged into
+   that of the canonical element, and every other class is as it was.
+   As an equation: the canonical element of a simple is the new
+   canonical element if it was the one demoted, and has not changed
+   otherwise. *)
+Definition add_canonical_element_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple)
+    (result : Aliases.add_result) (e : simple),
+    aliases_consistent t ->
+    is_canonical t canonical_element1 ->
+    is_canonical t canonical_element2 ->
+    Aliases.add binding_time_resolver binding_times_and_modes t
+      canonical_element1 canonical_element2
+    = Some (Or_bottom.Ok result) ->
+    canonical_element_of (Aliases.add_result_t result) e
+    = if simple_equal (canonical_element_of t e)
+           (simple_of_name (Aliases.demoted_name result))
+      then Aliases.canonical_element result
+      else canonical_element_of t e.
+
+(* The same as a relation: two simples are known to be equal afterwards
+   exactly when they were before, or one was known to be equal to one
+   argument and the other to the other. *)
+Definition add_aliased_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple)
+    (result : Aliases.add_result) (e e' : simple),
+    aliases_consistent t ->
+    is_canonical t canonical_element1 ->
+    is_canonical t canonical_element2 ->
+    Aliases.add binding_time_resolver binding_times_and_modes t
+      canonical_element1 canonical_element2
+    = Some (Or_bottom.Ok result) ->
+    (aliased (Aliases.add_result_t result) e e'
+     <-> aliased t e e'
+         ∨ (aliased t e canonical_element1 ∧ aliased t e' canonical_element2)
+         ∨ (aliased t e canonical_element2 ∧ aliased t e' canonical_element1)).
+
+(* [add] keeps respect: an environment that respects the structure and
+   gives the two arguments the same value respects the result. Nothing
+   is asked of the structure or of the arguments. *)
+Definition add_respected_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple)
+    (result : Aliases.add_result) (vars : env),
+    Aliases.add binding_time_resolver binding_times_and_modes t
+      canonical_element1 canonical_element2
+    = Some (Or_bottom.Ok result) ->
+    aliases_respected t vars ->
+    eval_simple vars canonical_element1
+    = eval_simple vars canonical_element2 ->
+    aliases_respected (Aliases.add_result_t result) vars.
+
+(* [add] keeps the three parts of the invariant, each under what it
+   needs. Consistency: the two arguments are canonical. *)
+Definition add_consistent_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple)
+    (result : Aliases.add_result),
+    aliases_consistent t ->
+    is_canonical t canonical_element1 ->
+    is_canonical t canonical_element2 ->
+    Aliases.add binding_time_resolver binding_times_and_modes t
+      canonical_element1 canonical_element2
+    = Some (Or_bottom.Ok result) ->
+    aliases_consistent (Aliases.add_result_t result).
+
+(* The name modes recorded: nothing more. *)
+Definition add_name_modes_recorded_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple)
+    (result : Aliases.add_result),
+    name_modes_recorded binding_times_and_modes t ->
+    Aliases.add binding_time_resolver binding_times_and_modes t
+      canonical_element1 canonical_element2
+    = Some (Or_bottom.Ok result) ->
+    name_modes_recorded binding_times_and_modes (Aliases.add_result_t result).
+
+(* The order: one of the two arguments is earlier than the other. *)
+Definition comparable {A : Type}
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (e e' : simple) : Prop :=
+  Aliases.defined_earlier binding_time_resolver binding_times_and_modes e e'
+  = true
+  ∨ Aliases.defined_earlier binding_time_resolver binding_times_and_modes
+      e' e
+    = true.
+
+(* CR mshinwell: [add] of two canonical elements neither of which is
+   earlier than the other (two symbols; two variables with the same
+   binding times) is not said here to keep
+   [canonical_elements_earliest], and does not: it demotes its first
+   argument. In the compiler the same [add] succeeds, and its result
+   fails [invariant] and [invariant_add_result], which are run only
+   with heavy invariant checks. Two different symbols are never equal
+   when the program runs, so it is not certain whether [add] is meant
+   never to be given two symbols, or to answer bottom for them, or
+   whether [invariant] is too strong. Discrepancy T3-2; no decision
+   yet. *)
+Definition add_earliest_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple)
+    (result : Aliases.add_result),
+    aliases_consistent t ->
+    canonical_elements_earliest binding_time_resolver
+      binding_times_and_modes t ->
+    is_canonical t canonical_element1 ->
+    is_canonical t canonical_element2 ->
+    comparable binding_time_resolver binding_times_and_modes
+      canonical_element1 canonical_element2 ->
+    Aliases.add binding_time_resolver binding_times_and_modes t
+      canonical_element1 canonical_element2
+    = Some (Or_bottom.Ok result) ->
+    canonical_elements_earliest binding_time_resolver
+      binding_times_and_modes (Aliases.add_result_t result).
+
+(* Two different simples are comparable unless they are two constants,
+   two symbols, or two variables with the same binding time in the
+   typing environment. The compiler relies on different variables
+   having different binding times there (see the question at
+   [variable_earlier_statement]); the typing environment is to say
+   that they have. *)
+Definition simples_comparable_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (e e' : simple),
+    e <> e' ->
+    match e, e' with
+    | Const _, Const _ | Symbol _, Symbol _ => True
+    | Var x, Var y =>
+      binding_time_in binding_times_and_modes x
+      <> binding_time_in binding_times_and_modes y ->
+      comparable binding_time_resolver binding_times_and_modes e e'
+    | _, _ => comparable binding_time_resolver binding_times_and_modes e e'
+    end.
+
+(* The three together: [add] keeps the invariant. The structure that
+   knows nothing has it. *)
+Definition add_well_formed_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple)
+    (result : Aliases.add_result),
+    aliases_well_formed binding_time_resolver binding_times_and_modes t ->
+    is_canonical t canonical_element1 ->
+    is_canonical t canonical_element2 ->
+    comparable binding_time_resolver binding_times_and_modes
+      canonical_element1 canonical_element2 ->
+    Aliases.add binding_time_resolver binding_times_and_modes t
+      canonical_element1 canonical_element2
+    = Some (Or_bottom.Ok result) ->
+    aliases_well_formed binding_time_resolver binding_times_and_modes
+      (Aliases.add_result_t result).
+
+Definition empty_well_formed_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t)),
+    aliases_well_formed binding_time_resolver binding_times_and_modes
+      Aliases.empty.
+
+(* The names that the structure speaks of afterwards are among those it
+   spoke of and the two arguments. *)
+Definition add_mentioned_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple)
+    (result : Aliases.add_result) (n : name),
+    Aliases.add binding_time_resolver binding_times_and_modes t
+      canonical_element1 canonical_element2
+    = Some (Or_bottom.Ok result) ->
+    aliases_mention (Aliases.add_result_t result) n ->
+    aliases_mention t n
+    ∨ simple_of_name n = canonical_element1
+    ∨ simple_of_name n = canonical_element2.
+
+(* The invariant reads the typing environment only through the binding
+   time and the name mode that it gives the names the structure speaks
+   of. So it is kept by a change of the types, and by a new entry for a
+   name that the structure does not speak of. *)
+Definition well_formed_coincide_statement : Prop :=
+  ∀ (A A' : Type)
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (binding_times_and_modes'
+      : Keyed.finite_map name (A' * Binding_time.With_name_mode.t))
+    (t : Aliases.t),
+    (∀ n : name,
+      aliases_mention t n ->
+      Aliases.binding_time_and_name_mode binding_times_and_modes
+        (simple_of_name n)
+      = Aliases.binding_time_and_name_mode binding_times_and_modes'
+          (simple_of_name n)) ->
+    aliases_well_formed binding_time_resolver binding_times_and_modes t ->
+    aliases_well_formed binding_time_resolver binding_times_and_modes' t.
+
+(* ======================================================================== *)
+(* The aliases of an element                                                *)
+(* ======================================================================== *)
+
+(* A simple is in a set of aliases. *)
+Definition alias_set_has (set : Aliases.Alias_set.t) (e : simple) : Prop :=
+  match e with
+  | Var x => Name_var x ∈ Aliases.Alias_set.set_names set
+  | Symbol s => Name_symbol s ∈ Aliases.Alias_set.set_names set
+  | Const c => Aliases.Alias_set.set_const set = Some c
+  end.
+
+(* [Aliases.get_aliases] answers the class of the element: the simples
+   known to be equal to it, itself among them. *)
+Definition get_aliases_statement : Prop :=
+  ∀ (t : Aliases.t) (element e : simple),
+    aliases_consistent t ->
+    (alias_set_has (Aliases.get_aliases t element) e <-> aliased t e element).
+
+(* Every simple of the set has the value of the element, with nothing
+   asked of the structure. *)
+Definition respected_aliases_statement : Prop :=
+  ∀ (t : Aliases.t) (vars : env) (element e : simple),
+    aliases_respected t vars ->
+    alias_set_has (Aliases.get_aliases t element) e ->
+    eval_simple vars e = eval_simple vars element.

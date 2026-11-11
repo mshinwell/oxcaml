@@ -1065,6 +1065,1132 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* Adding an alias                                                          *)
+(* ======================================================================== *)
+
+Lemma simple_equal_names (n n' : name) :
+  simple_equal (simple_of_name n) (simple_of_name n') = name_eqb n n'.
+Proof. destruct n, n'; reflexivity. Qed.
+
+(* A map that binds each name of a list to one thing. *)
+Lemma lookup_constant_map {B : Type} (b : B) (n : name) (names : list name) :
+  Keyed.lookup name_eqb n (map (fun alias => (alias, b)) names)
+  = if Keyed.among name_eqb n names then Some b else None.
+Proof.
+  induction names as [ | first names IH]; simpl; [ reflexivity | ].
+  destruct (name_eqb n first); [ reflexivity | exact IH ].
+Qed.
+
+Lemma among_all (aliases : Aliases.Aliases_of_canonical_element.t)
+    (n : name) :
+  Keyed.among name_eqb n (Aliases.Aliases_of_canonical_element.all aliases)
+  = Aliases.Aliases_of_canonical_element.mem aliases n.
+Proof. apply (keyed_among_domain name name_eqb name_eqb_eq). Qed.
+
+Lemma mem_union (aliases aliases' : Aliases.Aliases_of_canonical_element.t)
+    (n : name) :
+  Aliases.Aliases_of_canonical_element.mem
+    (Aliases.Aliases_of_canonical_element.union aliases aliases') n
+  = Aliases.Aliases_of_canonical_element.mem aliases n
+    || Aliases.Aliases_of_canonical_element.mem aliases' n.
+Proof.
+  unfold Aliases.Aliases_of_canonical_element.mem,
+    Aliases.Aliases_of_canonical_element.union, Keyed.is_bound.
+  rewrite keyed_lookup_app.
+  destruct (Keyed.lookup name_eqb n aliases); reflexivity.
+Qed.
+
+Lemma simple_equal_name_const (n : name) (c : const) :
+  simple_equal (simple_of_name n) (Const c) = false.
+Proof. destruct n; reflexivity. Qed.
+
+Lemma simple_equal_const_name (c : const) (n : name) :
+  simple_equal (Const c) (simple_of_name n) = false.
+Proof. destruct n; reflexivity. Qed.
+
+Lemma get_aliases_of_name (t : Aliases.t) (n : name) :
+  Aliases.get_aliases_of_canonical_element t (simple_of_name n)
+  = match Keyed.lookup name_eqb n (Aliases.aliases_of_canonical_names t) with
+    | None => Aliases.Aliases_of_canonical_element.empty
+    | Some aliases => aliases
+    end.
+Proof. destruct n; reflexivity. Qed.
+
+Lemma get_aliases_of_const (t : Aliases.t) (c : const) :
+  Aliases.get_aliases_of_canonical_element t (Const c)
+  = match Keyed.lookup const_eqb c (Aliases.aliases_of_consts t) with
+    | None => Aliases.Aliases_of_canonical_element.empty
+    | Some aliases => aliases
+    end.
+Proof. reflexivity. Qed.
+
+(* What [add_alias_between_canonical_elements] makes of the structure,
+   where the two elements are different: every lookup in the new maps, in
+   terms of the old ones. [aliases] is the new list of aliases of the
+   canonical element: the name demoted, its aliases, and those the
+   canonical element had. *)
+Lemma add_alias_between_canonical_elements_ok {A : Type}
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t t' : Aliases.t) (canonical_element to_be_demoted : simple) :
+  Aliases.add_alias_between_canonical_elements binding_times_and_modes t
+    canonical_element to_be_demoted
+  = Some (Or_bottom.Ok t') ->
+  canonical_element <> to_be_demoted ->
+  ∃ (name_to_be_demoted : name)
+    (aliases : Aliases.Aliases_of_canonical_element.t),
+    to_be_demoted = simple_of_name name_to_be_demoted
+    ∧ aliases
+      = (name_to_be_demoted,
+         Aliases.compute_name_mode_unscoped binding_times_and_modes
+           to_be_demoted)
+        :: Aliases.get_aliases_of_canonical_element t to_be_demoted
+        ++ Aliases.get_aliases_of_canonical_element t canonical_element
+    ∧ Aliases.Aliases_of_canonical_element.mem
+        (Aliases.get_aliases_of_canonical_element t to_be_demoted
+         ++ Aliases.get_aliases_of_canonical_element t canonical_element)
+        name_to_be_demoted
+      = false
+    ∧ (∀ n : name,
+        Keyed.lookup name_eqb n (Aliases.canonical_elements t')
+        = if name_eqb n name_to_be_demoted
+          then Some canonical_element
+          else if Aliases.Aliases_of_canonical_element.mem
+                    (Aliases.get_aliases_of_canonical_element t
+                       to_be_demoted)
+                    n
+          then Some canonical_element
+          else Keyed.lookup name_eqb n (Aliases.canonical_elements t))
+    ∧ (∀ e : simple,
+        Aliases.get_aliases_of_canonical_element t' e
+        = if simple_equal e canonical_element
+          then aliases
+          else if simple_equal e to_be_demoted
+          then Aliases.Aliases_of_canonical_element.empty
+          else Aliases.get_aliases_of_canonical_element t e).
+Proof.
+  unfold Aliases.add_alias_between_canonical_elements.
+  intros Hadd Hne.
+  destruct (simple_equal_spec canonical_element to_be_demoted)
+    as [Heq | _]; [ contradiction | ].
+  destruct (name_of_simple to_be_demoted) as [name_to_be_demoted | ]
+    eqn:Hname; [ | discriminate Hadd ].
+  apply name_of_simple_some in Hname.
+  unfold Aliases.Aliases_of_canonical_element.add in Hadd.
+  destruct (Aliases.Aliases_of_canonical_element.mem _ name_to_be_demoted)
+    eqn:Hfresh; [ discriminate Hadd | ].
+  exists name_to_be_demoted. eexists.
+  split; [ exact Hname | ]. split; [ reflexivity | ].
+  split; [ exact Hfresh | ].
+  (* The new structure, whichever kind of simple the canonical element
+     is. *)
+  assert (Ht' :
+    Aliases.canonical_elements t'
+    = (name_to_be_demoted, canonical_element)
+      :: map (fun alias => (alias, canonical_element))
+           (Aliases.Aliases_of_canonical_element.all
+              (Aliases.get_aliases_of_canonical_element t to_be_demoted))
+      ++ Aliases.canonical_elements t).
+  { destruct canonical_element; injection Hadd as <-; reflexivity. }
+  split.
+  - intros n. rewrite Ht'. cbn [Keyed.lookup].
+    destruct (name_eqb n name_to_be_demoted); [ reflexivity | ].
+    rewrite keyed_lookup_app, lookup_constant_map, among_all.
+    destruct (Aliases.Aliases_of_canonical_element.mem _ n); reflexivity.
+  - intros e.
+    (* The two inverse maps of the new structure. *)
+    assert (Hmaps :
+      (∃ canonical_name : name,
+         canonical_element = simple_of_name canonical_name
+         ∧ Aliases.aliases_of_canonical_names t'
+           = (canonical_name,
+              (name_to_be_demoted,
+               Aliases.compute_name_mode_unscoped binding_times_and_modes
+                 to_be_demoted)
+              :: Aliases.get_aliases_of_canonical_element t to_be_demoted
+              ++ Aliases.get_aliases_of_canonical_element t
+                   canonical_element)
+             :: Keyed.unbind name_eqb name_to_be_demoted
+                  (Aliases.aliases_of_canonical_names t)
+         ∧ Aliases.aliases_of_consts t' = Aliases.aliases_of_consts t)
+      ∨ (∃ c : const,
+           canonical_element = Const c
+           ∧ Aliases.aliases_of_canonical_names t'
+             = Keyed.unbind name_eqb name_to_be_demoted
+                 (Aliases.aliases_of_canonical_names t)
+           ∧ Aliases.aliases_of_consts t'
+             = (c,
+                (name_to_be_demoted,
+                 Aliases.compute_name_mode_unscoped binding_times_and_modes
+                   to_be_demoted)
+                :: Aliases.get_aliases_of_canonical_element t to_be_demoted
+                ++ Aliases.get_aliases_of_canonical_element t
+                     canonical_element)
+               :: Aliases.aliases_of_consts t)).
+    { destruct canonical_element as [x | sym | c]; injection Hadd as <-;
+        [ left; exists (Name_var x) | left; exists (Name_symbol sym)
+        | right; exists c ];
+        repeat split; reflexivity. }
+    clear Hadd Ht' Hfresh. subst to_be_demoted.
+    remember (Aliases.get_aliases_of_canonical_element t
+                (simple_of_name name_to_be_demoted)) as of_demoted
+      eqn:Hof_demoted.
+    remember (Aliases.get_aliases_of_canonical_element t canonical_element)
+      as of_canonical eqn:Hof_canonical.
+    clear Hof_demoted Hof_canonical.
+    destruct (name_of_simple e) as [n | ] eqn:He;
+      [ apply name_of_simple_some in He
+      | apply name_of_simple_none in He as [c' He] ];
+      subst e;
+      destruct Hmaps as [(canonical_name & Hcanonical & Hnames & Hconsts)
+                        | (c & Hcanonical & Hnames & Hconsts)];
+      subst canonical_element;
+      rewrite ?get_aliases_of_name, ?get_aliases_of_const, ?simple_equal_names,
+        ?simple_equal_name_const, ?simple_equal_const_name, ?Hnames,
+        ?Hconsts;
+      cbn [Keyed.lookup simple_equal].
+    + destruct (name_eqb n canonical_name); [ reflexivity | ].
+      rewrite (keyed_lookup_unbind name name_eqb name_eqb_eq).
+      destruct (name_eqb n name_to_be_demoted); reflexivity.
+    + rewrite (keyed_lookup_unbind name name_eqb name_eqb_eq).
+      destruct (name_eqb n name_to_be_demoted); reflexivity.
+    + reflexivity.
+    + destruct (const_eqb c' c); reflexivity.
+Qed.
+
+(* [add] in one equation: which of the two is to be demoted, and then
+   [add_alias_between_canonical_elements]. *)
+Lemma add_eq {A : Type}
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple) :
+  Aliases.add binding_time_resolver binding_times_and_modes t
+    canonical_element1 canonical_element2
+  = let '(canonical_element, to_be_demoted) :=
+      if Aliases.defined_earlier binding_time_resolver
+           binding_times_and_modes canonical_element1 canonical_element2
+      then (canonical_element1, canonical_element2)
+      else (canonical_element2, canonical_element1)
+    in
+    match
+      Aliases.add_alias_between_canonical_elements binding_times_and_modes
+        t canonical_element to_be_demoted
+    with
+    | None => None
+    | Some Or_bottom.Bottom => Some Or_bottom.Bottom
+    | Some (Or_bottom.Ok t') =>
+      match name_of_simple to_be_demoted with
+      | None => None
+      | Some n =>
+        Some (Or_bottom.Ok (Aliases.make_add_result t' n canonical_element))
+      end
+    end.
+Proof.
+  unfold Aliases.add, Aliases.add0, Aliases.add_alias,
+    Aliases.choose_canonical_element_to_be_demoted.
+  destruct (Aliases.defined_earlier binding_time_resolver
+              binding_times_and_modes canonical_element1 canonical_element2);
+    cbv beta iota zeta;
+    destruct (Aliases.add_alias_between_canonical_elements _ _ _ _)
+      as [[t' | ] | ];
+    reflexivity.
+Qed.
+
+Lemma add_ok {A : Type}
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple)
+    (result : Aliases.add_result) :
+  Aliases.add binding_time_resolver binding_times_and_modes t
+    canonical_element1 canonical_element2
+  = Some (Or_bottom.Ok result) ->
+  (if Aliases.defined_earlier binding_time_resolver binding_times_and_modes
+        canonical_element1 canonical_element2
+   then
+     Aliases.canonical_element result = canonical_element1
+     ∧ simple_of_name (Aliases.demoted_name result) = canonical_element2
+   else
+     Aliases.canonical_element result = canonical_element2
+     ∧ simple_of_name (Aliases.demoted_name result) = canonical_element1)
+  ∧ Aliases.add_alias_between_canonical_elements binding_times_and_modes t
+      (Aliases.canonical_element result)
+      (simple_of_name (Aliases.demoted_name result))
+    = Some (Or_bottom.Ok (Aliases.add_result_t result)).
+Proof.
+  rewrite add_eq.
+  destruct (Aliases.defined_earlier binding_time_resolver
+              binding_times_and_modes canonical_element1 canonical_element2);
+    cbv beta iota zeta;
+    destruct (Aliases.add_alias_between_canonical_elements _ _ _ _)
+      as [[t' | ] | ] eqn:Hbetween;
+    try discriminate;
+    match goal with
+    | |- context [name_of_simple ?d] =>
+      destruct (name_of_simple d) as [n | ] eqn:Hname
+    end;
+    try discriminate;
+    intros [= <-]; apply name_of_simple_some in Hname;
+    cbn [Aliases.canonical_element Aliases.demoted_name Aliases.add_result_t];
+    rewrite <- Hname; auto.
+Qed.
+
+Theorem add_result : add_result_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes t canonical_element1
+    canonical_element2 result Hadd.
+  exact (proj1 (add_ok _ _ _ _ _ _ Hadd)).
+Qed.
+
+(* The two arguments of [add] are the canonical element and the name
+   demoted, in one order or the other. *)
+Lemma add_arguments {A : Type}
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple)
+    (result : Aliases.add_result) :
+  Aliases.add binding_time_resolver binding_times_and_modes t
+    canonical_element1 canonical_element2
+  = Some (Or_bottom.Ok result) ->
+  (Aliases.canonical_element result = canonical_element1
+   ∧ simple_of_name (Aliases.demoted_name result) = canonical_element2)
+  ∨ (Aliases.canonical_element result = canonical_element2
+     ∧ simple_of_name (Aliases.demoted_name result) = canonical_element1).
+Proof.
+  intros Hadd. pose proof (add_result _ _ _ _ _ _ _ Hadd) as Hresult.
+  destruct (Aliases.defined_earlier _ _ _ _); auto.
+Qed.
+
+(* What is earlier than something is not a constant. *)
+Lemma defined_earlier_name {A : Type}
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (e e' : simple) :
+  Aliases.defined_earlier binding_time_resolver binding_times_and_modes e e'
+  = true ->
+  ∃ n : name, e' = simple_of_name n.
+Proof.
+  unfold Aliases.defined_earlier.
+  destruct (name_of_simple e') as [n | ] eqn:Hname; [ | discriminate ].
+  intros _. exists n. apply name_of_simple_some, Hname.
+Qed.
+
+(* [add_alias_between_canonical_elements] answers bottom when it is to
+   demote a constant, and stops with a fatal error when the name to be
+   demoted is already listed among the aliases of one of the two. *)
+Lemma add_alias_between_canonical_elements_bottom {A : Type}
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element to_be_demoted : simple) :
+  Aliases.add_alias_between_canonical_elements binding_times_and_modes t
+    canonical_element to_be_demoted
+  = Some Or_bottom.Bottom
+  <-> canonical_element <> to_be_demoted
+      ∧ (∃ c : const, to_be_demoted = Const c).
+Proof.
+  unfold Aliases.add_alias_between_canonical_elements.
+  destruct (simple_equal_spec canonical_element to_be_demoted) as [Heq | Hne].
+  - split; [ discriminate | intros [Hne _]; contradiction ].
+  - destruct (name_of_simple to_be_demoted) as [n | ] eqn:Hname.
+    + split.
+      * destruct (Aliases.Aliases_of_canonical_element.add _ _ _);
+          [ destruct canonical_element | ]; discriminate.
+      * intros [_ [c ->]]. discriminate Hname.
+    + split; [ | reflexivity ]. intros _.
+      split; [ exact Hne | exact (name_of_simple_none _ Hname) ].
+Qed.
+
+Lemma add_alias_between_canonical_elements_none {A : Type}
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element : simple) (name_to_be_demoted : name) :
+  Aliases.add_alias_between_canonical_elements binding_times_and_modes t
+    canonical_element (simple_of_name name_to_be_demoted)
+  = None ->
+  listed_alias t (simple_of_name name_to_be_demoted) name_to_be_demoted
+  ∨ listed_alias t canonical_element name_to_be_demoted.
+Proof.
+  unfold Aliases.add_alias_between_canonical_elements.
+  destruct (simple_equal _ _); [ discriminate | ].
+  rewrite name_of_simple_of_name.
+  unfold Aliases.Aliases_of_canonical_element.add.
+  destruct (Aliases.Aliases_of_canonical_element.mem _ name_to_be_demoted)
+    eqn:Hmem.
+  - intros _. rewrite mem_union in Hmem.
+    apply orb_true_iff in Hmem. exact Hmem.
+  - destruct canonical_element; discriminate.
+Qed.
+
+Theorem add_bottom : add_bottom_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes t canonical_element1
+    canonical_element2.
+  rewrite add_eq.
+  (* The answer is bottom when that of
+     [add_alias_between_canonical_elements] is. *)
+  assert (Hbottom :
+    ∀ canonical_element to_be_demoted : simple,
+      match
+        Aliases.add_alias_between_canonical_elements binding_times_and_modes
+          t canonical_element to_be_demoted
+      with
+      | None => None
+      | Some Or_bottom.Bottom => Some Or_bottom.Bottom
+      | Some (Or_bottom.Ok t') =>
+        match name_of_simple to_be_demoted with
+        | None => None
+        | Some n =>
+          Some
+            (Or_bottom.Ok (Aliases.make_add_result t' n canonical_element))
+        end
+      end
+      = Some Or_bottom.Bottom
+      <-> canonical_element <> to_be_demoted
+          ∧ (∃ c : const, to_be_demoted = Const c)).
+  { intros canonical_element to_be_demoted.
+    rewrite <- (add_alias_between_canonical_elements_bottom
+                  binding_times_and_modes t).
+    destruct (Aliases.add_alias_between_canonical_elements _ _ _ _)
+      as [[t' | ] | ];
+      [ destruct (name_of_simple to_be_demoted) | | ];
+      split; solve [ discriminate | reflexivity ]. }
+  destruct (Aliases.defined_earlier binding_time_resolver
+              binding_times_and_modes canonical_element1 canonical_element2)
+    eqn:Hearlier; cbv beta iota zeta; rewrite Hbottom.
+  - (* The second is to be demoted, and it is a name. *)
+    destruct (defined_earlier_name _ _ _ _ Hearlier) as [n ->].
+    split.
+    + intros [_ [c Hconst]]. destruct n; discriminate Hconst.
+    + intros (c1 & c2 & _ & Hconst & _). destruct n; discriminate Hconst.
+  - (* The first is to be demoted. If it is a constant, so is the
+       second, as a constant is earlier than any name. *)
+    split.
+    + intros [Hne [c1 ->]].
+      destruct canonical_element2 as [x | sym | c2];
+        try discriminate Hearlier.
+      exists c1, c2. repeat split. intros ->. contradiction.
+    + intros (c1 & c2 & -> & -> & Hne).
+      split; [ intros [= ->]; contradiction | exists c1; reflexivity ].
+Qed.
+
+Theorem add_defined : add_defined_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes t canonical_element1
+    canonical_element2 [_ Hlisted] Hcanonical1 Hcanonical2 Hne.
+  rewrite add_eq.
+  (* A canonical name is not listed among the aliases of anything. *)
+  assert (Hnone :
+    ∀ canonical_element to_be_demoted : simple,
+      is_canonical t to_be_demoted ->
+      canonical_element <> to_be_demoted ->
+      match
+        Aliases.add_alias_between_canonical_elements binding_times_and_modes
+          t canonical_element to_be_demoted
+      with
+      | None => None
+      | Some Or_bottom.Bottom => Some Or_bottom.Bottom
+      | Some (Or_bottom.Ok t') =>
+        match name_of_simple to_be_demoted with
+        | None => None
+        | Some n =>
+          Some
+            (Or_bottom.Ok (Aliases.make_add_result t' n canonical_element))
+        end
+      end
+      <> None).
+  { intros canonical_element to_be_demoted Hcanonical Hdifferent.
+    destruct (name_of_simple to_be_demoted) as [n | ] eqn:Hname.
+    - apply name_of_simple_some in Hname. subst to_be_demoted.
+      destruct (Aliases.add_alias_between_canonical_elements _ _ _ _)
+        as [[t' | ] | ] eqn:Hbetween; try discriminate.
+      exfalso.
+      unfold is_canonical in Hcanonical.
+      rewrite canonical_of_name in Hcanonical.
+      destruct (add_alias_between_canonical_elements_none _ _ _ _ Hbetween)
+        as [Hself | Hother];
+        apply Hlisted in Hself || apply Hlisted in Hother;
+        unfold demoted_to in *;
+        [ rewrite Hself in Hcanonical | rewrite Hother in Hcanonical ];
+        discriminate Hcanonical.
+    - apply name_of_simple_none in Hname as [c Hconst].
+      rewrite (proj2 (add_alias_between_canonical_elements_bottom _ t
+                        canonical_element to_be_demoted));
+        [ discriminate | ].
+      split; [ exact Hdifferent | exists c; exact Hconst ]. }
+  destruct (Aliases.defined_earlier binding_time_resolver
+              binding_times_and_modes canonical_element1 canonical_element2);
+    cbv beta iota zeta; apply Hnone; auto.
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+(* The structure after [add]                                                *)
+(* ------------------------------------------------------------------------ *)
+
+(* [t'] is [t] with the class of the canonical name [demoted] merged into
+   that of [canonical_element]: what is demoted to what, and what is
+   listed for what, in terms of [t]. *)
+Definition merged (t t' : Aliases.t) (canonical_element : simple)
+    (demoted : name) : Prop :=
+  (∀ (n : name) (e : simple),
+    demoted_to t' n e
+    <-> (e = canonical_element
+         ∧ (n = demoted ∨ listed_alias t (simple_of_name demoted) n))
+        ∨ (n <> demoted
+           ∧ ~ listed_alias t (simple_of_name demoted) n
+           ∧ demoted_to t n e))
+  ∧ (∀ (e : simple) (n : name),
+      listed_alias t' e n
+      <-> (e = canonical_element
+           ∧ (n = demoted
+              ∨ listed_alias t (simple_of_name demoted) n
+              ∨ listed_alias t canonical_element n))
+          ∨ (e <> canonical_element
+             ∧ e <> simple_of_name demoted
+             ∧ listed_alias t e n)).
+
+(* A successful [add] leaves the structure as it is, if its two arguments
+   are the same, or merges the two classes. *)
+Lemma add_merged {A : Type}
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple)
+    (result : Aliases.add_result) :
+  Aliases.add binding_time_resolver binding_times_and_modes t
+    canonical_element1 canonical_element2
+  = Some (Or_bottom.Ok result) ->
+  (Aliases.canonical_element result
+   = simple_of_name (Aliases.demoted_name result)
+   ∧ Aliases.add_result_t result = t)
+  ∨ (Aliases.canonical_element result
+     <> simple_of_name (Aliases.demoted_name result)
+     ∧ merged t (Aliases.add_result_t result)
+         (Aliases.canonical_element result) (Aliases.demoted_name result)
+     ∧ ∀ (e : simple) (n : name) (name_mode : Name_mode.t),
+         Keyed.lookup name_eqb n
+           (Aliases.get_aliases_of_canonical_element
+              (Aliases.add_result_t result) e)
+         = Some name_mode ->
+         (n = Aliases.demoted_name result
+          ∧ name_mode
+            = Aliases.compute_name_mode_unscoped binding_times_and_modes
+                (simple_of_name n))
+         ∨ (∃ e' : simple,
+             Keyed.lookup name_eqb n
+               (Aliases.get_aliases_of_canonical_element t e')
+             = Some name_mode)).
+Proof.
+  intros Hadd. apply add_ok in Hadd as [_ Hbetween].
+  set (canonical_element := Aliases.canonical_element result) in *.
+  set (demoted := Aliases.demoted_name result) in *.
+  set (t' := Aliases.add_result_t result) in *.
+  destruct (simple_equal_spec canonical_element (simple_of_name demoted))
+    as [Heq | Hne].
+  - left. split; [ exact Heq | ].
+    unfold Aliases.add_alias_between_canonical_elements in Hbetween.
+    rewrite Heq in Hbetween.
+    destruct (simple_equal_spec (simple_of_name demoted)
+                (simple_of_name demoted)) as [_ | Hne];
+      [ | contradiction ].
+    injection Hbetween as <-. reflexivity.
+  - right. split; [ exact Hne | ].
+    destruct (add_alias_between_canonical_elements_ok _ _ _ _ _ Hbetween Hne)
+      as (name_to_be_demoted & aliases & Hname & Haliases & _ & Hcanonical
+          & Hlisted).
+    apply simple_of_name_inj in Hname. subst name_to_be_demoted.
+    (* What is listed in the new list of aliases of the canonical
+       element. *)
+    assert (Hmem :
+      ∀ n : name,
+        Aliases.Aliases_of_canonical_element.mem aliases n = true
+        <-> n = demoted
+            ∨ listed_alias t (simple_of_name demoted) n
+            ∨ listed_alias t canonical_element n).
+    { intros n. subst aliases. unfold listed_alias.
+      unfold Aliases.Aliases_of_canonical_element.mem at 1.
+      unfold Keyed.is_bound. cbn [Keyed.lookup].
+      destruct (keyed_eqb_spec name_eqb name_eqb_eq n demoted)
+        as [-> | Hdifferent]; [ split; auto | ].
+      fold (Keyed.is_bound name_eqb n
+              (Aliases.get_aliases_of_canonical_element t
+                 (simple_of_name demoted)
+               ++ Aliases.get_aliases_of_canonical_element t
+                    canonical_element)).
+      change (Keyed.is_bound name_eqb n
+                (Aliases.get_aliases_of_canonical_element t
+                   (simple_of_name demoted)
+                 ++ Aliases.get_aliases_of_canonical_element t
+                      canonical_element))
+        with (Aliases.Aliases_of_canonical_element.mem
+                (Aliases.Aliases_of_canonical_element.union
+                   (Aliases.get_aliases_of_canonical_element t
+                      (simple_of_name demoted))
+                   (Aliases.get_aliases_of_canonical_element t
+                      canonical_element))
+                n).
+      rewrite mem_union, orb_true_iff. split; [ auto | ].
+      intros [Heq | Hor]; [ contradiction | exact Hor ]. }
+    split; [ split | ].
+    + (* What is demoted. *)
+      intros n e. unfold demoted_to. rewrite Hcanonical.
+      fold (listed_alias t (simple_of_name demoted) n).
+      destruct (keyed_eqb_spec name_eqb name_eqb_eq n demoted)
+        as [-> | Hdifferent].
+      * split.
+        -- intros [= <-]. left. auto.
+        -- intros [[-> _] | [Hdifferent _]];
+             [ reflexivity | contradiction ].
+      * unfold listed_alias.
+        destruct (Aliases.Aliases_of_canonical_element.mem
+                    (Aliases.get_aliases_of_canonical_element t
+                       (simple_of_name demoted))
+                    n) eqn:Hof_demoted.
+        -- split.
+           ++ intros [= <-]. left. auto.
+           ++ intros [[-> _] | (_ & Hnot & _)];
+                [ reflexivity | contradiction ].
+        -- split.
+           ++ intros Hold. right. repeat split; auto; discriminate.
+           ++ intros [[_ [Heq | Hyes]] | (_ & _ & Hold)];
+                [ contradiction | discriminate Hyes | exact Hold ].
+    + (* What is listed. *)
+      intros e n. unfold listed_alias at 1. rewrite Hlisted.
+      destruct (simple_equal_spec e canonical_element) as [-> | Hother].
+      * rewrite Hmem. split.
+        -- intros Hor. left. auto.
+        -- intros [[_ Hor] | [Hother _]]; [ exact Hor | contradiction ].
+      * destruct (simple_equal_spec e (simple_of_name demoted))
+          as [-> | Hother'].
+        -- split; [ discriminate | ].
+           intros [[Heq _] | (_ & Hself & _)]; contradiction.
+        -- split.
+           ++ intros Hold. right. auto.
+           ++ intros [[Heq _] | (_ & _ & Hold)];
+                [ contradiction | exact Hold ].
+    + (* The name modes recorded. *)
+      intros e n name_mode. rewrite Hlisted.
+      destruct (simple_equal e canonical_element).
+      * subst aliases. cbn [Keyed.lookup].
+        destruct (keyed_eqb_spec name_eqb name_eqb_eq n demoted)
+          as [-> | Hdifferent].
+        -- intros [= <-]. left. auto.
+        -- rewrite keyed_lookup_app. intros Hlookup. right.
+           destruct (Keyed.lookup name_eqb n
+                       (Aliases.get_aliases_of_canonical_element t
+                          (simple_of_name demoted))) eqn:Hof_demoted.
+           ++ exists (simple_of_name demoted). congruence.
+           ++ exists canonical_element. exact Hlookup.
+      * destruct (simple_equal e (simple_of_name demoted));
+          [ discriminate | ].
+        intros Hlookup. right. exists e. exact Hlookup.
+Qed.
+
+Theorem add_respected : add_respected_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes t canonical_element1
+    canonical_element2 result vars Hadd Hrespected Hvalues.
+  (* The name demoted has the value of the canonical element. *)
+  assert (Hdemoted :
+    value_of_name vars (Aliases.demoted_name result)
+    = eval_simple vars (Aliases.canonical_element result)).
+  { unfold value_of_name.
+    destruct (add_arguments _ _ _ _ _ _ Hadd) as [[Hc Hd] | [Hc Hd]];
+      rewrite Hc, Hd; congruence. }
+  destruct (add_merged _ _ _ _ _ _ Hadd)
+    as [[_ ->] | (_ & [Hdem Hlis] & _)]; [ exact Hrespected | ].
+  destruct Hrespected as [Hcanonical Hlisted]. split.
+  - intros n e Hd. apply Hdem in Hd as [[-> [-> | Hl]] | (_ & _ & Hold)].
+    + exact Hdemoted.
+    + rewrite (Hlisted _ _ Hl). exact Hdemoted.
+    + exact (Hcanonical _ _ Hold).
+  - intros e n Hl.
+    apply Hlis in Hl as [[-> [-> | [Hl | Hl]]] | (_ & _ & Hold)].
+    + exact Hdemoted.
+    + rewrite (Hlisted _ _ Hl). exact Hdemoted.
+    + exact (Hlisted _ _ Hl).
+    + exact (Hlisted _ _ Hold).
+Qed.
+
+(* A name that is canonical has not been demoted. *)
+Lemma canonical_not_demoted (t : Aliases.t) (n : name) (e : simple) :
+  is_canonical t (simple_of_name n) -> ~ demoted_to t n e.
+Proof.
+  unfold is_canonical, demoted_to. rewrite canonical_of_name.
+  intros Hcanonical Hdemoted. rewrite Hdemoted in Hcanonical.
+  discriminate Hcanonical.
+Qed.
+
+(* The two arguments of [add] being canonical, so are the canonical
+   element and the name demoted. *)
+Lemma add_canonical_arguments {A : Type}
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (canonical_element1 canonical_element2 : simple)
+    (result : Aliases.add_result) :
+  is_canonical t canonical_element1 ->
+  is_canonical t canonical_element2 ->
+  Aliases.add binding_time_resolver binding_times_and_modes t
+    canonical_element1 canonical_element2
+  = Some (Or_bottom.Ok result) ->
+  is_canonical t (Aliases.canonical_element result)
+  ∧ is_canonical t (simple_of_name (Aliases.demoted_name result)).
+Proof.
+  intros Hcanonical1 Hcanonical2 Hadd.
+  destruct (add_arguments _ _ _ _ _ _ Hadd) as [[-> ->] | [-> ->]]; auto.
+Qed.
+
+Theorem add_consistent : add_consistent_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes t canonical_element1
+    canonical_element2 result [Hcanonical Hlisted] Hcanonical1 Hcanonical2
+    Hadd.
+  destruct (add_canonical_arguments _ _ _ _ _ _ Hcanonical1 Hcanonical2 Hadd)
+    as [Hcanonical_c Hcanonical_d].
+  destruct (add_merged _ _ _ _ _ _ Hadd)
+    as [[_ ->] | (Hne & [Hdem Hlis] & _)]; [ split; assumption | ].
+  set (canonical_element := Aliases.canonical_element result) in *.
+  set (demoted := Aliases.demoted_name result) in *.
+  set (t' := Aliases.add_result_t result) in *.
+  (* What was canonical, but for the name demoted, still is. *)
+  assert (Hstay :
+    ∀ e : simple,
+      is_canonical t e -> e <> simple_of_name demoted -> is_canonical t' e).
+  { intros e He Hother.
+    destruct (name_of_simple e) as [n | ] eqn:Hname.
+    - apply name_of_simple_some in Hname. subst e.
+      unfold is_canonical. rewrite canonical_of_name.
+      destruct (Keyed.lookup name_eqb n (Aliases.canonical_elements t'))
+        as [e | ] eqn:Hlookup; [ exfalso | reflexivity ].
+      apply Hdem in Hlookup as [[_ [-> | Hl]] | (_ & _ & Hold)].
+      + apply Hother. reflexivity.
+      + exact (canonical_not_demoted t n _ He (proj2 (Hlisted _ _) Hl)).
+      + exact (canonical_not_demoted t n _ He Hold).
+    - apply name_of_simple_none in Hname as [c ->]. reflexivity. }
+  split.
+  - intros n e Hd. apply Hdem in Hd as [[-> _] | (_ & Hnot & Hold)].
+    + apply Hstay; assumption.
+    + apply Hstay; [ exact (Hcanonical _ _ Hold) | ].
+      intros ->. apply Hnot, Hlisted, Hold.
+  - intros n e. split.
+    + intros Hd. apply Hlis.
+      apply Hdem in Hd as [[-> Hor] | (_ & Hnot & Hold)].
+      * left. split; [ reflexivity | ]. destruct Hor; auto.
+      * destruct (simple_equal_spec e canonical_element) as [-> | Hother].
+        -- left. split; [ reflexivity | ]. right. right.
+           apply Hlisted, Hold.
+        -- right. repeat split; [ exact Hother | | apply Hlisted, Hold ].
+           intros ->. apply Hnot, Hlisted, Hold.
+    + intros Hl. apply Hdem.
+      apply Hlis in Hl as [[-> Hor] | (Hother & Hother' & Hold)].
+      * destruct Hor as [-> | [Hl | Hl]]; [ left; auto | left; auto | ].
+        apply Hlisted in Hl.
+        destruct (keyed_eqb_spec name_eqb name_eqb_eq n demoted)
+          as [-> | Hdifferent]; [ left; auto | ].
+        destruct (Aliases.Aliases_of_canonical_element.mem
+                    (Aliases.get_aliases_of_canonical_element t
+                       (simple_of_name demoted))
+                    n) eqn:Hof_demoted.
+        -- left. auto.
+        -- right. repeat split; [ exact Hdifferent | | exact Hl ].
+           unfold listed_alias. rewrite Hof_demoted. discriminate.
+      * apply Hlisted in Hold. right. repeat split; [ | | exact Hold ].
+        -- intros ->.
+           exact (canonical_not_demoted t demoted e Hcanonical_d Hold).
+        -- intros Hl. apply Hlisted in Hl. unfold demoted_to in *.
+           rewrite Hold in Hl. injection Hl as ->. contradiction.
+Qed.
+
+Theorem add_canonical_element : add_canonical_element_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes t canonical_element1
+    canonical_element2 result e [Hcanonical Hlisted] Hcanonical1 Hcanonical2
+    Hadd.
+  destruct (add_canonical_arguments _ _ _ _ _ _ Hcanonical1 Hcanonical2 Hadd)
+    as [Hcanonical_c Hcanonical_d].
+  destruct (add_merged _ _ _ _ _ _ Hadd)
+    as [[Heq ->] | (Hne & [Hdem Hlis] & _)].
+  - (* The two arguments were the same: nothing has changed. *)
+    destruct (simple_equal_spec (canonical_element_of t e)
+                (simple_of_name (Aliases.demoted_name result)))
+      as [Hdemoted | _]; [ | reflexivity ].
+    rewrite Heq. exact Hdemoted.
+  - set (canonical_element := Aliases.canonical_element result) in *.
+    set (demoted := Aliases.demoted_name result) in *.
+    set (t' := Aliases.add_result_t result) in *.
+    destruct (canonical_cases t' e)
+      as [[Hself ->] | (n & e' & -> & Hd & _ & ->)].
+    + (* [e] is canonical afterwards: it was, and it is not the name
+         demoted. *)
+      destruct (canonical_cases t e)
+        as [[_ ->] | (n & e' & -> & Hd & _ & _)].
+      * destruct (simple_equal_spec e (simple_of_name demoted))
+          as [-> | _]; [ exfalso | reflexivity ].
+        apply (canonical_not_demoted t' demoted canonical_element Hself).
+        apply Hdem. left. auto.
+      * exfalso.
+        assert (Hafter : ∃ e'' : simple, demoted_to t' n e'').
+        { destruct (keyed_eqb_spec name_eqb name_eqb_eq n demoted)
+            as [-> | Hdifferent].
+          - exists canonical_element. apply Hdem. left. auto.
+          - destruct (Aliases.Aliases_of_canonical_element.mem
+                        (Aliases.get_aliases_of_canonical_element t
+                           (simple_of_name demoted))
+                        n) eqn:Hof_demoted.
+            + exists canonical_element. apply Hdem. left. auto.
+            + exists e'. apply Hdem. right.
+              repeat split; [ exact Hdifferent | | exact Hd ].
+              unfold listed_alias. rewrite Hof_demoted. discriminate. }
+        destruct Hafter as [e'' Hafter].
+        exact (canonical_not_demoted t' n e'' Hself Hafter).
+    + (* [e] is a name that is demoted afterwards. *)
+      apply Hdem in Hd as [[-> Hor] | (_ & Hnot & Hold)].
+      * (* To the canonical element: it was the name demoted, or one of
+           its aliases. *)
+        assert (Hbefore :
+          canonical_element_of t (simple_of_name n) = simple_of_name demoted).
+        { destruct Hor as [-> | Hl].
+          - exact (canonical_element_of_canonical t _ Hcanonical_d).
+          - apply canonical_element_of_demoted, Hlisted, Hl. }
+        rewrite Hbefore.
+        destruct (simple_equal_spec (simple_of_name demoted)
+                    (simple_of_name demoted));
+          [ reflexivity | contradiction ].
+      * (* As before. *)
+        rewrite (canonical_element_of_demoted t n e' Hold).
+        destruct (simple_equal_spec e' (simple_of_name demoted))
+          as [-> | _]; [ exfalso | reflexivity ].
+        apply Hnot, Hlisted, Hold.
+Qed.
+
+Theorem add_aliased : add_aliased_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes t canonical_element1
+    canonical_element2 result e e' Hconsistent Hcanonical1 Hcanonical2 Hadd.
+  unfold aliased.
+  rewrite !(add_canonical_element _ _ _ _ _ _ _ _ Hconsistent Hcanonical1
+              Hcanonical2 Hadd).
+  rewrite (canonical_element_of_canonical t _ Hcanonical1).
+  rewrite (canonical_element_of_canonical t _ Hcanonical2).
+  generalize (canonical_element_of t e) (canonical_element_of t e').
+  intros c c'.
+  destruct (add_arguments _ _ _ _ _ _ Hadd) as [[-> ->] | [-> ->]];
+    destruct (simple_equal_spec c canonical_element2);
+    destruct (simple_equal_spec c' canonical_element2);
+    destruct (simple_equal_spec c canonical_element1);
+    destruct (simple_equal_spec c' canonical_element1);
+    subst; intuition congruence.
+Qed.
+
+Theorem add_name_modes_recorded : add_name_modes_recorded_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes t canonical_element1
+    canonical_element2 result Hrecorded Hadd.
+  destruct (add_merged _ _ _ _ _ _ Hadd) as [[_ ->] | (_ & _ & Hmodes)];
+    [ exact Hrecorded | ].
+  intros e n name_mode Hlookup.
+  destruct (Hmodes e n name_mode Hlookup) as [[_ ->] | [e' Hold]];
+    [ reflexivity | exact (Hrecorded e' n name_mode Hold) ].
+Qed.
+
+Theorem add_earliest : add_earliest_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes t canonical_element1
+    canonical_element2 result [_ Hlisted] Hearliest Hcanonical1 Hcanonical2
+    Hcomparable Hadd.
+  (* The canonical element is earlier than the name demoted. *)
+  assert (Hdemoted :
+    Aliases.defined_earlier binding_time_resolver binding_times_and_modes
+      (Aliases.canonical_element result)
+      (simple_of_name (Aliases.demoted_name result))
+    = true).
+  { pose proof (add_result _ _ _ _ _ _ _ Hadd) as Hresult.
+    destruct (Aliases.defined_earlier binding_time_resolver
+                binding_times_and_modes canonical_element1
+                canonical_element2) eqn:Hearlier;
+      destruct Hresult as [-> ->]; [ exact Hearlier | ].
+    destruct Hcomparable as [Hfirst | Hsecond]; [ congruence | exact Hsecond ].
+  }
+  destruct (add_merged _ _ _ _ _ _ Hadd)
+    as [[_ ->] | (_ & [Hdem _] & _)]; [ exact Hearliest | ].
+  intros n e Hd. apply Hdem in Hd as [[-> [-> | Hl]] | (_ & _ & Hold)].
+  - exact Hdemoted.
+  - (* An alias of the name demoted: the order is transitive. *)
+    apply (proj2 (defined_earlier_strict A binding_time_resolver
+                    binding_times_and_modes _
+                    (simple_of_name (Aliases.demoted_name result)) _));
+      [ exact Hdemoted | ].
+    apply Hearliest, Hlisted, Hl.
+  - exact (Hearliest _ _ Hold).
+Qed.
+
+Theorem simples_comparable : simples_comparable_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes e e' Hne.
+  destruct e as [x | s | c], e' as [y | s' | c']; try exact I;
+    unfold comparable;
+    try (left; reflexivity); try (right; reflexivity).
+  intros Htimes.
+  change (Var x) with (simple_of_name (Name_var x)).
+  change (Var y) with (simple_of_name (Name_var y)).
+  rewrite !defined_earlier_names.
+  destruct (Z.lt_trichotomy (binding_time_in binding_times_and_modes x)
+              (binding_time_in binding_times_and_modes y))
+    as [Hlt | [Heq | Hgt]]; [ | contradiction | ].
+  - left. apply variable_earlier. left. exact Hlt.
+  - right. apply variable_earlier. left. lia.
+Qed.
+
+Theorem add_mentioned : add_mentioned_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes t canonical_element1
+    canonical_element2 result n Hadd Hmention.
+  destruct (add_merged _ _ _ _ _ _ Hadd)
+    as [[_ Hsame] | (_ & [Hdem Hlis] & _)].
+  { rewrite Hsame in Hmention. left. exact Hmention. }
+  (* It was mentioned, or is the canonical element or the name demoted. *)
+  assert (Hgoal :
+    aliases_mention t n
+    ∨ simple_of_name n = Aliases.canonical_element result
+    ∨ n = Aliases.demoted_name result).
+  { destruct Hmention as [[e Hd] | [[n' Hd] | [[e Hl] | [n' Hl]]]].
+    - apply Hdem in Hd as [[_ [-> | Hl]] | (_ & _ & Hold)].
+      + auto.
+      + left. right. right. left. eexists. exact Hl.
+      + left. left. exists e. exact Hold.
+    - apply Hdem in Hd as [[Heq _] | (_ & _ & Hold)].
+      + auto.
+      + left. right. left. exists n'. exact Hold.
+    - apply Hlis in Hl as [[_ [-> | [Hl | Hl]]] | (_ & _ & Hold)].
+      + auto.
+      + left. right. right. left. eexists. exact Hl.
+      + left. right. right. left. eexists. exact Hl.
+      + left. right. right. left. exists e. exact Hold.
+    - apply Hlis in Hl as [[Heq _] | (_ & _ & Hold)].
+      + auto.
+      + left. right. right. right. exists n'. exact Hold. }
+  destruct Hgoal as [Hbefore | [Hcanonical | ->]]; [ left; exact Hbefore | | ];
+    destruct (add_arguments _ _ _ _ _ _ Hadd) as [[Hc Hd] | [Hc Hd]];
+    rewrite <- ?Hc, <- ?Hd; auto.
+Qed.
+
+(* The order reads the typing environment only through the binding times
+   it gives the two simples. *)
+Lemma defined_earlier_coincide {A A' : Type}
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (binding_times_and_modes'
+      : Keyed.finite_map name (A' * Binding_time.With_name_mode.t))
+    (e e' : simple) :
+  Aliases.binding_time_and_name_mode binding_times_and_modes e
+  = Aliases.binding_time_and_name_mode binding_times_and_modes' e ->
+  Aliases.binding_time_and_name_mode binding_times_and_modes e'
+  = Aliases.binding_time_and_name_mode binding_times_and_modes' e' ->
+  Aliases.defined_earlier binding_time_resolver binding_times_and_modes e e'
+  = Aliases.defined_earlier binding_time_resolver binding_times_and_modes'
+      e e'.
+Proof.
+  intros He He'.
+  destruct e as [x | s | c], e' as [y | s' | c']; try reflexivity.
+  - change (Var x) with (simple_of_name (Name_var x)).
+    change (Var y) with (simple_of_name (Name_var y)).
+    rewrite !defined_earlier_names, !name_defined_earlier_variables.
+    unfold binding_time_in. cbn [simple_of_name] in *. rewrite He, He'.
+    reflexivity.
+  - (* Two symbols: neither is earlier, whatever the environment. *)
+    change (Symbol s) with (simple_of_name (Name_symbol s)).
+    change (Symbol s') with (simple_of_name (Name_symbol s')).
+    rewrite !defined_earlier_names.
+    rewrite !(proj2 (symbol_earlier _ _ _ s' 1%positive (Name_symbol s))).
+    reflexivity.
+Qed.
+
+Theorem well_formed_coincide : well_formed_coincide_statement.
+Proof.
+  intros A A' binding_time_resolver binding_times_and_modes
+    binding_times_and_modes' t Hsame (Hconsistent & Hearliest & Hrecorded).
+  split; [ exact Hconsistent | split ].
+  - intros n e Hd.
+    rewrite <- (defined_earlier_coincide binding_time_resolver
+                  binding_times_and_modes binding_times_and_modes').
+    + exact (Hearliest n e Hd).
+    + destruct (name_of_simple e) as [n' | ] eqn:Hname.
+      * apply name_of_simple_some in Hname. subst e. apply Hsame.
+        right. left. exists n. exact Hd.
+      * apply name_of_simple_none in Hname as [c ->]. reflexivity.
+    + apply Hsame. left. exists e. exact Hd.
+  - intros e n name_mode Hlookup.
+    rewrite (Hrecorded e n name_mode Hlookup).
+    unfold Aliases.compute_name_mode_unscoped.
+    rewrite Hsame; [ reflexivity | ].
+    right. right. left. exists e. apply mem_lookup. exists name_mode.
+    exact Hlookup.
+Qed.
+
+Theorem empty_well_formed : empty_well_formed_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes.
+  assert (Hdemoted :
+    ∀ (n : name) (e : simple), ~ demoted_to Aliases.empty n e).
+  { intros n e Hd. discriminate Hd. }
+  assert (Hlisted :
+    ∀ (e : simple) (n : name) (name_mode : Name_mode.t),
+      Keyed.lookup name_eqb n
+        (Aliases.get_aliases_of_canonical_element Aliases.empty e)
+      <> Some name_mode).
+  { intros [x | s | c] n name_mode Hlookup; discriminate Hlookup. }
+  split; [ split | split ].
+  - intros n e Hd. destruct (Hdemoted n e Hd).
+  - intros n e. split.
+    + intros Hd. destruct (Hdemoted n e Hd).
+    + intros Hl. apply mem_lookup in Hl as [name_mode Hl].
+      destruct (Hlisted e n name_mode Hl).
+  - intros n e Hd. destruct (Hdemoted n e Hd).
+  - intros e n name_mode Hl. destruct (Hlisted e n name_mode Hl).
+Qed.
+
+Theorem add_well_formed : add_well_formed_statement.
+Proof.
+  intros A binding_time_resolver binding_times_and_modes t canonical_element1
+    canonical_element2 result (Hconsistent & Hearliest & Hrecorded)
+    Hcanonical1 Hcanonical2 Hcomparable Hadd.
+  split; [ | split ].
+  - exact (add_consistent _ _ _ _ _ _ _ Hconsistent Hcanonical1 Hcanonical2
+             Hadd).
+  - exact (add_earliest _ _ _ _ _ _ _ Hconsistent Hearliest Hcanonical1
+             Hcanonical2 Hcomparable Hadd).
+  - exact (add_name_modes_recorded _ _ _ _ _ _ _ Hrecorded Hadd).
+Qed.
+
+(* ======================================================================== *)
+(* The aliases of an element                                                *)
+(* ======================================================================== *)
+
+Lemma get_aliases_eq (t : Aliases.t) (element : simple) :
+  Aliases.get_aliases t element
+  = Aliases.Alias_set.create_aliases_of_element
+      (canonical_element_of t element)
+      (Aliases.Aliases_of_canonical_element.all
+         (Aliases.get_aliases_of_canonical_element t
+            (canonical_element_of t element))).
+Proof. reflexivity. Qed.
+
+Lemma alias_set_has_name (set : Aliases.Alias_set.t) (n : name) :
+  alias_set_has set (simple_of_name n)
+  <-> n ∈ Aliases.Alias_set.set_names set.
+Proof. destruct n; reflexivity. Qed.
+
+Lemma set_names_create (canonical_element : simple) (names : list name) :
+  Aliases.Alias_set.set_names
+    (Aliases.Alias_set.create_aliases_of_element canonical_element names)
+  = match name_of_simple canonical_element with
+    | Some canonical_name => canonical_name :: names
+    | None => names
+    end.
+Proof. destruct canonical_element; reflexivity. Qed.
+
+Lemma set_const_create (canonical_element : simple) (names : list name)
+    (c : const) :
+  Aliases.Alias_set.set_const
+    (Aliases.Alias_set.create_aliases_of_element canonical_element names)
+  = Some c
+  <-> canonical_element = Const c.
+Proof.
+  destruct canonical_element; simpl; split; intros Heq;
+    solve [ discriminate | congruence ].
+Qed.
+
+(* The names of the list of aliases of a canonical element are those
+   listed for it. *)
+Lemma in_all_listed (t : Aliases.t) (canonical_element : simple) (n : name) :
+  n ∈ Aliases.Aliases_of_canonical_element.all
+        (Aliases.get_aliases_of_canonical_element t canonical_element)
+  <-> listed_alias t canonical_element n.
+Proof.
+  rewrite <- (keyed_among_in name name_eqb name_eqb_eq), among_all.
+  reflexivity.
+Qed.
+
+Theorem get_aliases : get_aliases_statement.
+Proof.
+  intros t element e Hconsistent. rewrite get_aliases_eq. unfold aliased.
+  pose proof (canonical_element_canonical t element Hconsistent)
+    as Hcanonical.
+  generalize dependent (canonical_element_of t element).
+  intros canonical_element Hcanonical.
+  destruct (name_of_simple e) as [n | ] eqn:Hname.
+  - apply name_of_simple_some in Hname. subst e.
+    rewrite alias_set_has_name, set_names_create. split.
+    + intros Hin.
+      assert (Hlisted :
+        n ∈ Aliases.Aliases_of_canonical_element.all
+              (Aliases.get_aliases_of_canonical_element t canonical_element)
+        -> canonical_element_of t (simple_of_name n) = canonical_element).
+      { intros Hall. apply canonical_element_of_demoted.
+        apply Hconsistent, in_all_listed, Hall. }
+      destruct (name_of_simple canonical_element) as [canonical_name | ]
+        eqn:Hcanonical_name; [ | exact (Hlisted Hin) ].
+      destruct Hin as [<- | Hin]; [ | exact (Hlisted Hin) ].
+      apply name_of_simple_some in Hcanonical_name. subst canonical_element.
+      exact (canonical_element_of_canonical t _ Hcanonical).
+    + intros Hof.
+      destruct (canonical_cases t (simple_of_name n))
+        as [[_ Hself] | (n' & e & Hn & Hd & _ & He)].
+      * rewrite Hself in Hof. subst canonical_element.
+        rewrite name_of_simple_of_name. left. reflexivity.
+      * apply simple_of_name_inj in Hn. subst n'. rewrite He in Hof. subst e.
+        assert (Hall :
+          n ∈ Aliases.Aliases_of_canonical_element.all
+                (Aliases.get_aliases_of_canonical_element t
+                   canonical_element)).
+        { apply in_all_listed, Hconsistent, Hd. }
+        destruct (name_of_simple canonical_element);
+          [ right; exact Hall | exact Hall ].
+  - apply name_of_simple_none in Hname as [c ->].
+    change (alias_set_has ?set (Const c))
+      with (Aliases.Alias_set.set_const set = Some c).
+    rewrite set_const_create.
+    split; intros Heq; [ rewrite Heq; reflexivity | ].
+    symmetry. exact Heq.
+Qed.
+
+Theorem respected_aliases : respected_aliases_statement.
+Proof.
+  intros t vars element e Hrespected Hhas.
+  rewrite get_aliases_eq in Hhas.
+  rewrite <- (respected_canonical_element_of t vars element Hrespected).
+  generalize dependent (canonical_element_of t element).
+  intros canonical_element Hhas.
+  destruct (name_of_simple e) as [n | ] eqn:Hname.
+  - apply name_of_simple_some in Hname. subst e.
+    rewrite alias_set_has_name, set_names_create in Hhas.
+    assert (Hlisted :
+      n ∈ Aliases.Aliases_of_canonical_element.all
+            (Aliases.get_aliases_of_canonical_element t canonical_element)
+      -> eval_simple vars (simple_of_name n)
+         = eval_simple vars canonical_element).
+    { intros Hall. apply in_all_listed in Hall.
+      exact (proj2 Hrespected canonical_element n Hall). }
+    destruct (name_of_simple canonical_element) as [canonical_name | ]
+      eqn:Hcanonical_name; [ | exact (Hlisted Hhas) ].
+    destruct Hhas as [<- | Hin]; [ | exact (Hlisted Hin) ].
+    apply name_of_simple_some in Hcanonical_name. rewrite Hcanonical_name.
+    reflexivity.
+  - apply name_of_simple_none in Hname as [c ->].
+    change (Aliases.Alias_set.set_const
+              (Aliases.Alias_set.create_aliases_of_element canonical_element
+                 (Aliases.Aliases_of_canonical_element.all
+                    (Aliases.get_aliases_of_canonical_element t
+                       canonical_element)))
+            = Some c) in Hhas.
+    apply set_const_create in Hhas. rewrite Hhas. reflexivity.
+Qed.
+
+(* ======================================================================== *)
 (* Examples                                                                 *)
 (* ======================================================================== *)
 
@@ -1249,6 +2375,33 @@ Proof.
     destruct (Hlisted canonical_element n name_mode Hl) as (-> & -> & ->).
     reflexivity.
 Qed.
+
+(* The same from the statements about [add]: the structure that knows
+   nothing is well formed, [x] and [y] are canonical in it, and one is
+   earlier than the other. *)
+Example two_variables_well_formed_by_add :
+  aliases_well_formed resolver times x_y.
+Proof.
+  apply (add_well_formed unit resolver times Aliases.empty (Var y) (Var x)
+           (Aliases.make_add_result x_y (Name_var y) (Var x))).
+  - apply empty_well_formed.
+  - reflexivity.
+  - reflexivity.
+  - right. reflexivity.
+  - reflexivity.
+Qed.
+
+(* After it, [x] and [y] are known to be equal, and [w] is known to be
+   equal only to itself. *)
+Example two_variables_aliased :
+  aliased x_y (Var x) (Var y) ∧ ~ aliased x_y (Var w) (Var x).
+Proof. split; [ reflexivity | discriminate ]. Qed.
+
+(* The aliases of [y]: itself and [x]. *)
+Example aliases_of_two_variables :
+  Aliases.get_aliases x_y (Var y)
+  = Aliases.Alias_set.make None [Name_var x; Name_var y].
+Proof. reflexivity. Qed.
 
 (* ------------------------------------------------------------------------ *)
 (* A variable and a constant                                                *)
