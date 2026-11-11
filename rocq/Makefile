@@ -181,6 +181,9 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaEnvAliasesSetProofs.v \
   FlambdaEnvAliasesSetSpec.v \
   FlambdaEnvAliasesSpec.v \
+  FlambdaExpandHead.v \
+  FlambdaExpandHeadProofs.v \
+  FlambdaExpandHeadSpec.v \
   FlambdaJoinEnv.v \
   FlambdaJoinEnvProofs.v \
   FlambdaJoinEnvSpec.v \
@@ -197,6 +200,17 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaJoinTypesSpec.v \
   FlambdaJoinTypesWithEnvProofs.v \
   FlambdaJoinTypesWithEnvSpec.v \
+  FlambdaMeet.v \
+  FlambdaMeetEnv.v \
+  FlambdaMeetEnvProofs.v \
+  FlambdaMeetEnvSpec.v \
+  FlambdaMeetExamplesProofs.v \
+  FlambdaMeetExamplesSpec.v \
+  FlambdaMeetGrammar.v \
+  FlambdaMeetProofs.v \
+  FlambdaMeetSpec.v \
+  FlambdaMeetStepsProofs.v \
+  FlambdaMeetStepsSpec.v \
   FlambdaProvers.v \
   FlambdaProversExamplesProofs.v \
   FlambdaProversExamplesSpec.v \
