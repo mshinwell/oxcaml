@@ -954,6 +954,71 @@ Qed.
 Theorem kind_rename_type : kind_rename_type_statement.
 Proof. intros r [ty | ty | k ty | ty | ty]; reflexivity. Qed.
 
+Lemma row_like_for_blocks_is_bottom_renamed (r : renaming)
+    (blocks : row_like_for_blocks) :
+  row_like_for_blocks_is_bottom (rename_row_like_for_blocks r blocks)
+  = row_like_for_blocks_is_bottom blocks.
+Proof.
+  destruct blocks as [[ | binding known_tags] [other | ] alloc_mode];
+    reflexivity.
+Qed.
+
+Lemma simple_must_be_const_renamed (r : renaming) (s : simple) :
+  simple_must_be_const (rename_simple r s) = simple_must_be_const s.
+Proof. destruct s; reflexivity. Qed.
+
+Theorem must_be_singleton_rename_type :
+  must_be_singleton_rename_type_statement.
+Proof.
+  intros r.
+  pose (P_type :=
+          fun t : flambda_type =>
+            must_be_singleton (rename_type r t) = must_be_singleton t).
+  pose (P_non_null :=
+          fun head : head_of_kind_value_non_null =>
+            match head with
+            | Variant _ (Or_unknown.Known immediates) _ _ _ _ =>
+              P_type immediates
+            | _ => True
+            end).
+  pose (P_head :=
+          fun head : head_of_kind_value =>
+            match head with
+            | Head_of_kind_value (Ok head) _ => P_non_null head
+            | _ => True
+            end).
+  apply
+    (types_induction P_type P_head P_non_null (fun _ => True) (fun _ => True)
+       (fun _ => True) (fun _ => True));
+    subst P_type P_head P_non_null; try (intros; exact I).
+  - (* Type_value *)
+    intros [ | [[[ | head | ] null] | s] | ] Hhead; simpl; try reflexivity;
+      [ | rewrite simple_must_be_const_renamed; reflexivity ].
+    destruct head
+      as [is_int [immediates | ] get_tag [blocks | ] extensions is_unique
+         | alloc_mode | k contents alloc_mode | closures alloc_mode | strs];
+      destruct null as [ | null]; simpl; try reflexivity;
+      rewrite row_like_for_blocks_is_bottom_renamed;
+      destruct (row_like_for_blocks_is_bottom blocks); simpl;
+      try reflexivity.
+    simpl in Hhead. rewrite Hhead. reflexivity.
+  - (* Type_naked_immediate *)
+    intros [ | [head | s] | ]; simpl; try reflexivity.
+    rewrite simple_must_be_const_renamed. reflexivity.
+  - (* Type_naked_number *)
+    intros k [ | [numbers | s] | ]; simpl; try reflexivity.
+    rewrite simple_must_be_const_renamed. reflexivity.
+  - (* Type_rec_info *)
+    intros ty. reflexivity.
+  - (* Type_region *)
+    intros ty. reflexivity.
+  - (* Head_of_kind_value *)
+    intros [ | head | ] null Hhead; simpl; auto.
+  - (* Variant *)
+    intros is_int [immediates | ] get_tag blocks extensions is_unique
+      Himmediates _ _; simpl; auto.
+Qed.
+
 (* ======================================================================== *)
 (* The aliases of a renamed type                                            *)
 (* ======================================================================== *)

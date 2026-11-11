@@ -73,15 +73,20 @@
    never [Bottom]. Of a type that is not well formed the reading is
    wrong: the meaning does not ask an entry to have a function type.
 
+   The last section says that each of these functions commutes with
+   the renaming of variables (FlambdaTypeRenameSpec.v), which a
+   function that reads types owes to the interface for things that
+   contain names.
+
    The proofs are in FlambdaTypeAccessProofs.v, which needs no
    review. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
-  FlambdaMapSpec FlambdaValueSpec FlambdaSemanticsSpec.
+  FlambdaMapSpec FlambdaValueSpec FlambdaSemanticsSpec FlambdaNominalSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeMeaningSpec FlambdaTypeWellFormedSpec.
+  FlambdaTypeMeaningSpec FlambdaTypeWellFormedSpec FlambdaTypeRenameSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -444,3 +449,83 @@ Definition get_env_var_satisfied_statement : Prop :=
     = Some (Or_unknown.Known ty) ->
     lookup w value_slots = Some contents ->
     type_satisfied statics vars contents ty.
+
+(* ======================================================================== *)
+(* The answers on a renamed type                                            *)
+(* ======================================================================== *)
+
+(* What each function answers of a renamed structure is its answer,
+   renamed. A tag, a size, a shape, a slot and a function type hold no
+   variable, so the answers made of those are the same. *)
+
+(* The answer of [get_single_tag], renamed: the entry is. *)
+Definition rename_get_single_tag_result (r : renaming)
+    (result : get_single_tag_result) : get_single_tag_result :=
+  match result with
+  | No_singleton => No_singleton
+  | Exact_closure slot entry =>
+    Exact_closure slot (rename_closures_entry r entry)
+  | Incomplete_closure slot entry =>
+    Incomplete_closure slot (rename_closures_entry r entry)
+  end.
+
+Definition all_tags_rename_statement : Prop :=
+  ∀ (r : renaming) (blocks : row_like_for_blocks),
+    row_like_for_blocks_all_tags (rename_row_like_for_blocks r blocks)
+    = row_like_for_blocks_all_tags blocks
+    ∧ row_like_for_blocks_all_tags_and_sizes
+        (rename_row_like_for_blocks r blocks)
+      = row_like_for_blocks_all_tags_and_sizes blocks.
+
+Definition get_singleton_rename_statement : Prop :=
+  ∀ (r : renaming) (blocks : row_like_for_blocks),
+    row_like_for_blocks_get_singleton (rename_row_like_for_blocks r blocks)
+    = option_map
+        (fun singleton =>
+           match singleton with
+           | (tag, shape, size, tys, alloc_mode) =>
+             (tag, shape, size, map (rename_type r) tys, alloc_mode)
+           end)
+        (row_like_for_blocks_get_singleton blocks).
+
+Definition get_field_rename_statement : Prop :=
+  ∀ (r : renaming) (blocks : row_like_for_blocks) (index : nat),
+    row_like_for_blocks_get_field (rename_row_like_for_blocks r blocks) index
+    = or_unknown_or_bottom_map (rename_type r)
+        (row_like_for_blocks_get_field blocks index).
+
+Definition find_function_type_rename_statement : Prop :=
+  ∀ (r : renaming) (entry : closures_entry) (exact : bool)
+    (slot : function_slot),
+    closures_entry_find_function_type (rename_closures_entry r entry) exact
+      slot
+    = closures_entry_find_function_type entry exact slot.
+
+(* The answer of [get_single_tag] is renamed, and the entry read from
+   it with it. *)
+Definition get_single_tag_rename_statement : Prop :=
+  ∀ (r : renaming) (closures : row_like_for_closures),
+    row_like_for_closures_get_single_tag
+      (rename_row_like_for_closures r closures)
+    = option_map (rename_get_single_tag_result r)
+        (row_like_for_closures_get_single_tag closures)
+    ∧ single_closures_entry
+        (row_like_for_closures_get_single_tag
+           (rename_row_like_for_closures r closures))
+      = option_map
+          (fun answer => (fst answer, rename_closures_entry r (snd answer)))
+          (single_closures_entry
+             (row_like_for_closures_get_single_tag closures)).
+
+Definition get_closure_rename_statement : Prop :=
+  ∀ (r : renaming) (closures : row_like_for_closures),
+    (∀ slot : function_slot,
+      row_like_for_closures_get_closure
+        (rename_row_like_for_closures r closures) slot
+      = option_map (or_unknown_map (rename_type r))
+          (row_like_for_closures_get_closure closures slot))
+    ∧ (∀ slot : value_slot,
+        row_like_for_closures_get_env_var
+          (rename_row_like_for_closures r closures) slot
+        = option_map (or_unknown_map (rename_type r))
+            (row_like_for_closures_get_env_var closures slot)).

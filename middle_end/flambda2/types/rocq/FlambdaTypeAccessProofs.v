@@ -32,10 +32,12 @@
 From Stdlib Require Import ZArith List Bool Lia Setoid.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
-  FlambdaMapSpec FlambdaMapProofs FlambdaValueSpec FlambdaSemanticsSpec.
+  FlambdaMapSpec FlambdaMapProofs FlambdaValueSpec FlambdaSemanticsSpec
+  FlambdaNominalSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
-  FlambdaTypeWellFormedSpec FlambdaTypeWellFormedProofs FlambdaTypeAccessSpec.
+  FlambdaTypeWellFormedSpec FlambdaTypeWellFormedProofs FlambdaTypeRenameSpec
+  FlambdaTypeAccessSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -309,4 +311,156 @@ Proof.
   - destruct (row_like_for_closures_get_single_tag closures)
       as [[ | slot1 entry1 | slot1 entry1] | ];
       simpl in Hsingle; try discriminate Hsingle; discriminate.
+Qed.
+
+(* ======================================================================== *)
+(* The answers on a renamed type                                            *)
+(* ======================================================================== *)
+
+(* The one binding of a map, and a test of its bindings, under a
+   function on what it binds. *)
+Lemma keyed_get_singleton_binding_map_values {K A B : Type}
+    (eqb : K -> K -> bool) (Heqb : decides_equality eqb) (f : A -> B)
+    (m : Keyed.finite_map K A) :
+  Keyed.get_singleton_binding eqb (Keyed.map_values f m)
+  = option_map (fun binding => (fst binding, f (snd binding)))
+      (Keyed.get_singleton_binding eqb m).
+Proof.
+  destruct (Keyed.get_singleton_binding eqb m) as [[key a] | ] eqn:Hm; simpl.
+  - apply (keyed_get_singleton_binding K eqb Heqb). intros key'.
+    rewrite keyed_lookup_map_values,
+      (proj1 (keyed_get_singleton_binding K eqb Heqb A key a m) Hm key').
+    destruct (eqb key' key); reflexivity.
+  - destruct (Keyed.get_singleton_binding eqb (Keyed.map_values f m))
+      as [[key b] | ] eqn:Hmapped;
+      [ | reflexivity ].
+    pose proof (proj1 (keyed_get_singleton_binding K eqb Heqb B key b _)
+                  Hmapped)
+      as Hlookup.
+    pose proof (Hlookup key) as Hkey.
+    rewrite keyed_lookup_map_values, (proj2 (Heqb key key) eq_refl) in Hkey.
+    destruct (Keyed.lookup eqb key m) as [a | ] eqn:Hfound;
+      [ | discriminate Hkey ].
+    assert (Hsingle : Keyed.get_singleton_binding eqb m = Some (key, a)).
+    { apply (keyed_get_singleton_binding K eqb Heqb). intros key'.
+      specialize (Hlookup key'). rewrite keyed_lookup_map_values in Hlookup.
+      destruct (eqb key' key) eqn:Hsame.
+      - apply Heqb in Hsame. subst key'. exact Hfound.
+      - destruct (Keyed.lookup eqb key' m); [ discriminate Hlookup | ].
+        reflexivity. }
+    rewrite Hsingle in Hm. discriminate Hm.
+Qed.
+
+Lemma keyed_for_all_bindings_b_map_values {K A B : Type}
+    (eqb : K -> K -> bool) (Heqb : decides_equality eqb) (f : A -> B)
+    (p : K -> B -> bool) (q : K -> A -> bool) (m : Keyed.finite_map K A) :
+  (∀ (key : K) (a : A), p key (f a) = q key a) ->
+  Keyed.for_all_bindings_b eqb p (Keyed.map_values f m)
+  = Keyed.for_all_bindings_b eqb q m.
+Proof.
+  intros Hpq. apply eq_true_iff_eq.
+  rewrite !(keyed_for_all_bindings_b K eqb Heqb),
+    !(keyed_for_all_bindings_lookup K eqb Heqb).
+  split.
+  - intros Hall key a Hlookup. rewrite <- Hpq. apply Hall.
+    rewrite keyed_lookup_map_values, Hlookup. reflexivity.
+  - intros Hall key b Hlookup. rewrite keyed_lookup_map_values in Hlookup.
+    destruct (Keyed.lookup eqb key m) as [a | ] eqn:Hfound;
+      [ | discriminate Hlookup ].
+    injection Hlookup as <-. rewrite Hpq. exact (Hall key a Hfound).
+Qed.
+
+Lemma block_case_size_and_shape_renamed (r : renaming)
+    (case : Or_unknown.t row_like_block_case) :
+  block_case_size_and_shape
+    (or_unknown_map
+       (rename_block_case (rename_type r) (rename_env_extension r)) case)
+  = block_case_size_and_shape case.
+Proof. destruct case as [case | ]; reflexivity. Qed.
+
+Theorem all_tags_rename : all_tags_rename_statement.
+Proof.
+  intros r [known_tags [other | ] alloc_mode]; simpl;
+    [ split; reflexivity | ].
+  split.
+  - unfold Keyed.domain, Keyed.map_values. rewrite map_map. reflexivity.
+  - rewrite (keyed_for_all_bindings_b_map_values Z.eqb Z.eqb_eq _ _
+               (fun _ case =>
+                  match block_case_size_and_shape case with
+                  | Some _ => true
+                  | None => false
+                  end));
+      [ | intros key case; rewrite block_case_size_and_shape_renamed;
+          reflexivity ].
+    match goal with
+    | |- (if ?test then _ else _) = _ => destruct test
+    end; [ | reflexivity ].
+    f_equal. unfold Keyed.map_values. rewrite map_map. apply map_ext.
+    intros [tag case]. simpl. rewrite block_case_size_and_shape_renamed.
+    reflexivity.
+Qed.
+
+Theorem get_singleton_rename : get_singleton_rename_statement.
+Proof.
+  intros r [known_tags [other | ] alloc_mode]; simpl; [ reflexivity | ].
+  rewrite (keyed_get_singleton_binding_map_values Z.eqb Z.eqb_eq).
+  unfold row_like_block_case in *.
+  destruct (Keyed.get_singleton_binding Z.eqb known_tags)
+    as [[tag [case | ]] | ]; simpl; try reflexivity.
+  destruct (index_domain (case_index case)); reflexivity.
+Qed.
+
+Theorem get_field_rename : get_field_rename_statement.
+Proof.
+  intros r blocks index. unfold row_like_for_blocks_get_field.
+  rewrite get_singleton_rename.
+  destruct (row_like_for_blocks_get_singleton blocks)
+    as [[[[[tag shape] size] tys] alloc_mode] | ]; simpl; [ | reflexivity ].
+  destruct (Nat.leb size index); [ reflexivity | ].
+  rewrite nth_error_map. destruct (nth_error tys index); reflexivity.
+Qed.
+
+Theorem find_function_type_rename : find_function_type_rename_statement.
+Proof.
+  intros r [function_types closure_types value_slot_types] exact slot.
+  reflexivity.
+Qed.
+
+Theorem get_single_tag_rename : get_single_tag_rename_statement.
+Proof.
+  intros r [known_closures].
+  assert (Hresult :
+            row_like_for_closures_get_single_tag
+              (rename_row_like_for_closures r
+                 (Row_like_for_closures known_closures))
+            = option_map (rename_get_single_tag_result r)
+                (row_like_for_closures_get_single_tag
+                   (Row_like_for_closures known_closures))).
+  { simpl.
+    rewrite (keyed_get_singleton_binding_map_values Pos.eqb Pos.eqb_eq).
+    unfold row_like_closures_case in *.
+    destruct (Keyed.get_singleton_binding Pos.eqb known_closures)
+      as [[slot case] | ]; simpl; [ | reflexivity ].
+    destruct (index_domain (case_index case)) as [contents | contents];
+      destruct (among slot (contents_closures contents)); reflexivity. }
+  split; [ exact Hresult | ]. rewrite Hresult.
+  destruct (row_like_for_closures_get_single_tag
+              (Row_like_for_closures known_closures))
+    as [[ | slot entry | slot entry] | ]; reflexivity.
+Qed.
+
+Theorem get_closure_rename : get_closure_rename_statement.
+Proof.
+  intros r closures.
+  unfold row_like_for_closures_get_closure,
+    row_like_for_closures_get_env_var.
+  rewrite (proj1 (get_single_tag_rename r closures)).
+  split; intros slot;
+    destruct (row_like_for_closures_get_single_tag closures)
+      as [[ | slot0 [function_types closure_types value_slot_types]
+           | slot0 [function_types closure_types value_slot_types]] | ];
+    simpl; try reflexivity; rewrite lookup_map_values;
+    match goal with
+    | |- context [lookup slot ?m] => destruct (lookup slot m)
+    end; reflexivity.
 Qed.

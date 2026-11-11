@@ -54,7 +54,11 @@
    renaming says are not used
    ([Set_of_closures_contents.apply_renaming],
    [apply_renaming_value_slot_indexed_product]). Here a symbol and a
-   code id are fixed and nothing is dropped. The compiler keeps the
+   code id are fixed and nothing is dropped. The compiler also renames
+   the variables of a [Rec_info_expr.t], in the head of a type of kind
+   [Rec_info] and in the [rec_info] of a function type. The grammar
+   has neither (FlambdaTypeGrammar.v), so there is nothing of them to
+   rename here, nor to list in [free_names]. The compiler keeps the
    parts that do not change as they are in memory, which the model
    does not see.
 
@@ -70,9 +74,12 @@
    the free variables of a type rename it alike, so that one that
    fixes them leaves it as it is; the free variables, the free names
    and the aliases of a renamed type are those of the type, renamed;
-   its kind is the same; and a value has the renamed type under the
-   renamed environment exactly when it has the type under the
-   environment.
+   its kind is the same, and so is the constant that
+   [must_be_singleton] reads of it; a value has the renamed type under
+   the renamed environment exactly when it has the type under the
+   environment; the tests of types do not see a renaming; and the
+   names of the equations of a renamed type are those of the type,
+   renamed.
 
    The proofs are in FlambdaTypeRenameProofs.v, which needs no
    review. *)
@@ -489,6 +496,12 @@ Definition aliases_with_kinds_rename_type_statement : Prop :=
 (* Its kind is that of the type. *)
 Definition kind_rename_type_statement : Prop :=
   ∀ (r : renaming) (t : flambda_type), kind (rename_type r t) = kind t.
+
+(* The constant that it shows for its only value, if it shows one, is
+   that of the type: a constant holds no variable. *)
+Definition must_be_singleton_rename_type_statement : Prop :=
+  ∀ (r : renaming) (t : flambda_type),
+    must_be_singleton (rename_type r t) = must_be_singleton t.
 
 (* The meaning of types is equivariant: a value has the renamed type
    under the renamed environment exactly when it has the type under
