@@ -798,16 +798,18 @@ Definition keeps_names (tenv tenv' : Typing_env.t) : Prop :=
       ∧ kind ty' = kind ty.
 
 (* An environment of a meet after some of the meet: its typing
-   environment has the same scope and the same earlier levels, the
-   names it knew are known with their binding times and name modes and
-   with types of the same kinds, the names that equations are being
-   added to are the same, and no name to avoid is forgotten. *)
+   environment has the same scope, the same earlier levels and the
+   same symbols defined, the names it knew are known with their
+   binding times and name modes and with types of the same kinds, the
+   names that equations are being added to are the same, and no name
+   to avoid is forgotten. *)
 Definition meet_env_extends (menv menv' : Meet_env.t) : Prop :=
   let tenv := Meet_env.typing_env menv in
   let tenv' := Meet_env.typing_env menv' in
   Typing_env.current_scope tenv' = Typing_env.current_scope tenv
   ∧ Typing_env.prev_levels tenv' = Typing_env.prev_levels tenv
   ∧ Typing_env.min_binding_time tenv' = Typing_env.min_binding_time tenv
+  ∧ Typing_env.defined_symbols tenv' = Typing_env.defined_symbols tenv
   ∧ Meet_env.adding_equations_for_names menv'
     = Meet_env.adding_equations_for_names menv
   ∧ (∀ x : variable,
@@ -842,7 +844,13 @@ Definition meet_expanded_head_sound (meet_head : meet_expanded_head) : Prop :=
 (* What the meet of expanded types keeps, whatever the values:
    [meet_keeps_well_formed] for it. The environment answered is the
    first extended, it fits, and the type answered fits it and is of the
-   kind of the inputs. No value and no valuation is supposed. *)
+   kind of the inputs. The type answered is not obviously bottom (a
+   meet of types that have no value in common answers bottom, and no
+   type), and it is not obviously unknown unless it is the second
+   input, or both: [Meet_env] gives the type answered to a name, where
+   it is the first input or a new type, and the typing environment is
+   to be given neither kind of type there. No value and no valuation
+   is supposed. *)
 Definition meet_expanded_head_keeps (meet_head : meet_expanded_head) : Prop :=
   ∀ (menv menv' : Meet_env.t) (expanded1 expanded2 : Expanded_type.t)
     (r : meet_return_value Expanded_type.t),
@@ -856,7 +864,10 @@ Definition meet_expanded_head_keeps (meet_head : meet_expanded_head) : Prop :=
     meet_env_extends menv menv'
     ∧ typing_env_fits (Meet_env.typing_env menv')
     ∧ type_fits (Meet_env.typing_env menv') answered
-    ∧ kind answered = kind (Expanded_type.to_type expanded1).
+    ∧ kind answered = kind (Expanded_type.to_type expanded1)
+    ∧ is_obviously_bottom answered = false
+    ∧ (is_obviously_unknown answered = true ->
+       r = Right_input ∨ r = Both_inputs).
 
 (* What meet gives the join: an environment made from [initial_tenv] by
    adding definitions and equations. It fits, and it has what
