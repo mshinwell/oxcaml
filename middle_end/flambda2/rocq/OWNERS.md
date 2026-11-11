@@ -156,7 +156,10 @@ All in `middle_end/flambda2/types/rocq/`, library `OxCamlFlambda2Types`.
   - `middle_end/flambda2/types/rocq/FlambdaJoin*` (the n-way join of
     typing environments and of types, after `types/env/join_env.ml`,
     `types/join_levels.ml` and the join functions of
-    `types/meet_and_n_way_join.ml`; what a join guarantees)
+    `types/meet_and_n_way_join.ml`; what a join guarantees).
+    `FlambdaJoinTypes*` are T5b's, on `flambda2-rocq/T5b-join-types`.
+  - `middle_end/flambda2/types/rocq/FlambdaTypeProject.v`
+    (`Type_grammar.project_variables_out`)
   - `middle_end/flambda2/rocq/requests/T5-join.md`
 - T6, provers and reification. Owner: unassigned.
 - T7, differential testing of types, and the converter between the

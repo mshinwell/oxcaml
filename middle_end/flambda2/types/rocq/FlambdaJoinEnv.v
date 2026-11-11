@@ -30,9 +30,11 @@
 
    This file is to be reviewed line by line against
    middle_end/flambda2/types/env/join_env.ml, as FlambdaTypingEnv.v is
-   against typing_env.ml. It holds definitions only, in modules that
-   have the compiler's names. What the join guarantees is
-   FlambdaJoinSpec.v.
+   against typing_env.ml, and its last function against the n-way
+   entry of types/join_levels.ml. It holds definitions only, in modules
+   that have the compiler's names. What the join guarantees is
+   FlambdaJoinSpec.v. [Type_grammar.project_variables_out], which the
+   join calls, is FlambdaTypeProject.v.
 
    What is here, against join_env.ml, in the order of that file:
    - [Index]: the environments joined are numbered from 0 in the order
@@ -72,9 +74,12 @@
      [add_inverse_relation_to_env_extension] and
      [recover_inverse_relations]; [n_way_join_round], and the two loops
      of [cut_and_n_way_join0] ([n_way_join_delayed_equations],
-     [n_way_join_loop]); and what the join of types calls:
-     [joined_env], [import_type], [n_way_join_simples],
-     [n_way_join_env_extension].
+     [n_way_join_loop]); what the join of types calls: [joined_env],
+     [import_type], [n_way_join_simples], [n_way_join_env_extension];
+     [move_definition], [move_equation], [move_inverse_relation] and
+     [define_or_eliminate_variables_and_add_equations]; [cut_for_join],
+     [cut_and_n_way_join0] and [cut_and_n_way_join], which is the join
+     that the meet calls.
    - [Analysis.t]: the three fields of the compiler's record;
      [Analysis.simple_refined_at_join], with
      [Variable_refined_at_join.fold_values_at_uses] as the list
@@ -82,11 +87,9 @@
      [Simples_at_join.fold_definitions_at_uses] as the list
      [variables_created_at_join]: what Simplify reads
      (simplify/join_points.ml, simplify_switch_expr.ml,
-     specialization_cost.ml).
-   To come: [define_or_eliminate_variables_and_add_equations] (with
-   [Type_grammar.project_variables_out]), [cut_and_n_way_join0],
-   [cut_and_n_way_join], [cut_and_n_way_join_with_analysis] and
-   [Analysis.create].
+     specialization_cost.ml); and [Analysis.create].
+   - [cut_and_n_way_join_with_analysis], after the analysis here, and
+     [Join_levels.cut_and_n_way_join] for the n-way algorithm.
 
    The differences:
    - A [Simple] of the model has no coercion (the terms have no
@@ -102,7 +105,21 @@
      is given a function [fresh] and the bindings carry the names to
      avoid; the variable made is [fresh] of those names and is added to
      them. Which variable is made is not specified
-     (FlambdaJoinSpec.v).
+     (FlambdaJoinSpec.v). The join that Simplify calls is given the
+     names to avoid; the one that the meet calls takes them from the
+     environment of the meet and gives that of the target those that
+     it made as well, so that the joins of two branches of a meet do
+     not make one variable twice.
+   - The environment of the meet. Its functions are given to the join
+     in a record ([meet_env_functions]), with the meet of expanded
+     types that they take; the model's are in the files of the meet.
+   - The variable that stands for an existential variable that has
+     aliases among the variables of the target. The compiler takes the
+     least of them in the order of variables; the model, the one that
+     the target binds first ([choose_alias]). The others become its
+     aliases in either case, so the environments differ in which
+     variable holds the type, the definition of the analysis and the
+     inverse relations before the equations are added.
    - Kinds of variables. A variable of the compiler carries its kind
      ([Variable.kind]), and [import_var_transitive] reads it. A
      variable of the model is a number. The kind of a variable that is
@@ -120,7 +137,10 @@
      the compiler, which ends because a variable is imported once.
      Here each takes the function that imports a variable, and
      [import_var_transitive] is defined last by recursion on fuel. The
-     loop of [n_way_join_delayed_equations] takes fuel too. The loop of
+     loop of [n_way_join_delayed_equations] takes fuel too, and so
+     does [expand_variable], the function that gives the type to put
+     for a variable that is removed (in the compiler it ends because
+     such a variable is mentioned once). The loop of
      [add_inverse_relation_to_env_extension] follows aliases until it
      has seen a name twice; here it has also a bound on the number of
      steps.
@@ -159,14 +179,16 @@
      relation is to be added. The checks that the compiler makes only
      with [Flambda_features.check_light_invariants] are not made.
    - [machine_width], [Analysis.print] and the symbol projections
-     ([n_way_join_symbol_projections]) are left out: the model's
-     environment has no symbol projections (FlambdaTypingEnv.v). *)
+     ([n_way_join_symbol_projections], and the second component of
+     [cut_for_join]) are left out: the model's environment has no
+     symbol projections (FlambdaTypingEnv.v). The handler that prints
+     the levels when the join stops with a fatal error is left out. *)
 
 From Stdlib Require Import ZArith List Bool PeanoNat.
 From OxCamlStdlib Require Import OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec.
-From OxCamlFlambda2Types Require Import FlambdaTypeGrammar FlambdaBindingTime
-  FlambdaEnvAliases FlambdaTypingEnv.
+From OxCamlFlambda2Types Require Import FlambdaTypeGrammar FlambdaTypeProject
+  FlambdaBindingTime FlambdaEnvAliases FlambdaTypingEnv.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -1360,7 +1382,346 @@ Module Join_env.
       else Some (Or_bottom.Ok (empty_env_extension, env))
     end.
 
+  (* ---------------------------------------------------------------- *)
+  (* Defining the variables of the target                              *)
+  (* ---------------------------------------------------------------- *)
+
+  (* What the join uses of the environment of the meet
+     (types/env/meet_env.ml), as functions that it is given:
+     [Meet_env.create], [current_typing_env], [add_variable_definition],
+     [add_env_extension] (which is given the meet of expanded types;
+     [None] is a fatal error or no fuel), [make_bottom] and
+     [final_typing_env]. The last two fields are not in the compiler:
+     the environment of the meet carries the names that new variables
+     must avoid (FlambdaMeetEnv.v). *)
+  Record meet_env_functions (meet_env meet_expanded_head : Type) : Type := {
+    create_meet_env : Typing_env.t -> meet_env;
+    current_typing_env : meet_env -> Typing_env.t;
+    add_variable_definition :
+      meet_env -> variable -> flambda_kind -> Name_mode.t -> meet_env;
+    add_env_extension :
+      meet_env -> env_extension -> meet_expanded_head -> option meet_env;
+    make_bottom : meet_env -> meet_env;
+    final_typing_env : meet_env -> Typing_env.t;
+    names_to_avoid : meet_env -> list variable;
+    with_names_to_avoid : meet_env -> list variable -> meet_env
+  }.
+
+  Arguments create_meet_env {meet_env meet_expanded_head} _.
+  Arguments current_typing_env {meet_env meet_expanded_head} _.
+  Arguments add_variable_definition {meet_env meet_expanded_head} _.
+  Arguments add_env_extension {meet_env meet_expanded_head} _.
+  Arguments make_bottom {meet_env meet_expanded_head} _.
+  Arguments final_typing_env {meet_env meet_expanded_head} _.
+  Arguments names_to_avoid {meet_env meet_expanded_head} _.
+  Arguments with_names_to_avoid {meet_env meet_expanded_head} _.
+
+  (* [move_definition]. *)
+  Definition move_definition
+      (definitions : finite_map (Simples_in_joined_envs.t * flambda_kind))
+      (from to_ : variable)
+      : finite_map (Simples_in_joined_envs.t * flambda_kind) :=
+    match lookup from definitions with
+    | None => definitions
+    | Some defn => (to_, defn) :: unbind from definitions
+    end.
+
+  (* [move_equation]. [None] is a fatal error of the compiler: the
+     variable that the equation is moved to has one. *)
+  Definition move_equation (equations : finite_map flambda_type)
+      (from to_ : variable) : option (finite_map flambda_type) :=
+    if is_bound to_ equations
+    then None
+    else
+      match lookup from equations with
+      | None => Some equations
+      | Some ty => Some ((to_, ty) :: unbind from equations)
+      end.
+
+  (* [move_inverse_relation]. *)
+  Definition move_inverse_relation (relations : inverse_relations)
+      (from to_ : variable) : inverse_relations :=
+    match lookup from relations with
+    | None => relations
+    | Some names =>
+      let relations := unbind from relations in
+      (to_,
+       names
+       ++ match lookup to_ relations with
+          | Some existing => existing
+          | None => []
+          end)
+      :: relations
+    end.
+
+  (* A variable is among [names_in_inverse_relations]: it holds the
+     result of a relation, or a relation is on it. *)
+  Definition in_inverse_relations (relations : inverse_relations)
+      (var : variable) : bool :=
+    is_bound var relations
+    || existsb
+         (fun binding =>
+            existsb (fun pair => name_eqb (snd pair) (Name_var var))
+              (snd binding))
+         (compact relations).
+
+  Definition count_occurrences (var : variable) (vars : list variable) : nat :=
+    length (filter (Pos.eqb var) vars).
+
+  (* The variable that stands for an existential variable, among the
+     variables of the target that are its aliases: the one that the
+     target binds first. (The compiler takes the least in the order of
+     variables, [Set.choose_opt]; the model does not order names.) The
+     outer [None] is for a variable that the target does not bind. *)
+  Fixpoint earliest_bound (tenv : Typing_env.t) (best : variable)
+      (candidates : list variable) : option variable :=
+    match candidates with
+    | [] => Some best
+    | var :: candidates =>
+      let* time := Typing_env.binding_time_and_mode tenv (Name_var var) in
+      let* best_time :=
+        Typing_env.binding_time_and_mode tenv (Name_var best)
+      in
+      earliest_bound tenv
+        (if Binding_time.strictly_earlier
+              (Binding_time.With_name_mode.binding_time time)
+              (Binding_time.With_name_mode.binding_time best_time)
+         then var
+         else best)
+        candidates
+    end.
+
+  Definition choose_alias (tenv : Typing_env.t) (aliases : list variable)
+      : option (option variable) :=
+    match aliases with
+    | [] => Some None
+    | var :: aliases => option_map Some (earliest_bound tenv var aliases)
+    end.
+
+  (* [expand], in [define_or_eliminate_variables_and_add_equations]:
+     the type to put for a variable that is removed, in which the
+     variables that are removed have been replaced in turn. The
+     compiler's recursion ends because a variable that is removed is
+     mentioned once; here it is on fuel. [None] is also the compiler's
+     [assert]: the variable is not one of those removed. *)
+  Fixpoint expand_variable (fuel : nat) (to_expand : finite_map flambda_type)
+      (var : variable) : option flambda_type :=
+    match fuel with
+    | O => None
+    | S fuel =>
+      let* ty := lookup var to_expand in
+      match get_alias_opt ty with
+      | None =>
+        project_variables_out (domain to_expand)
+          (expand_variable fuel to_expand) ty
+      | Some (Var var') =>
+        if among var' (domain to_expand)
+        then expand_variable fuel to_expand var'
+        else Some ty
+      | Some (Symbol _) | Some (Const _) => Some ty
+      end
+    end.
+
+  (* [define_or_eliminate_variables_and_add_equations]: the imported
+     variables are defined in the target; each existential variable is
+     replaced by a variable of the target that is its alias, if it has
+     one, or removed if it is mentioned once and has no part in an
+     inverse relation, or defined; and the equations, with the types of
+     the variables removed put in their place, are added to the target,
+     and then the inverse relations. It answers the target and the
+     definitions of the variables that are left. *)
+  Definition define_or_eliminate_variables_and_add_equations
+      {meet_env meet_expanded_head : Type}
+      (ops : meet_env_functions meet_env meet_expanded_head) (fuel : nat)
+      (meet_expanded_head_fn : meet_expanded_head) (env : t)
+      (source_env : meet_env) (relations : inverse_relations)
+      : option
+          (meet_env * finite_map (Simples_in_joined_envs.t * flambda_kind)) :=
+    let target_env :=
+      List.fold_left
+        (fun target_env binding =>
+           add_variable_definition ops target_env (fst binding) (snd binding)
+             Name_mode.in_types)
+        (Bindings_in_target_env.imported_variables_in_order (bindings env))
+        source_env
+    in
+    let equations := types_in_target_env env in
+    let free_vars_in_equations :=
+      flat_map (fun binding => free_variables (snd binding))
+        (compact equations)
+    in
+    let unique_occurrence_is_in_equations (var : variable) : bool :=
+      negb (in_inverse_relations relations var)
+      && Nat.leb (count_occurrences var free_vars_in_equations) 1
+    in
+    let tenv_of_aliases := current_typing_env ops target_env in
+    let* '(target_env, to_expand, equations, relations, definitions) :=
+      List.fold_left
+        (fun acc binding =>
+           let* '(target_env, to_expand, equations, relations, definitions) :=
+             acc
+           in
+           let var := fst binding in
+           let var_kind := snd binding in
+           let aliases_of_var :=
+             Aliases_of_existentials.aliases_of_existential_var
+               (aliases_of_existentials env) var
+           in
+           let* canon := choose_alias tenv_of_aliases aliases_of_var in
+           match canon with
+           | None =>
+             if unique_occurrence_is_in_equations var
+             then
+               let ty :=
+                 match lookup var equations with
+                 | Some ty => ty
+                 | None => unknown var_kind
+                 end
+               in
+               Some
+                 (target_env, (var, ty) :: to_expand, unbind var equations,
+                  relations, unbind var definitions)
+             else
+               Some
+                 (add_variable_definition ops target_env var var_kind
+                    Name_mode.in_types,
+                  to_expand, equations, relations, definitions)
+           | Some canon_var =>
+             let demoted_aliases :=
+               filter (fun alias => negb (Pos.eqb alias canon_var))
+                 aliases_of_var
+             in
+             let definitions := move_definition definitions var canon_var in
+             let* equations := move_equation equations var canon_var in
+             let relations := move_inverse_relation relations var canon_var in
+             let ty := alias_type_of var_kind (Var canon_var) in
+             let equations :=
+               List.fold_left
+                 (fun equations alias => (alias, ty) :: equations)
+                 demoted_aliases equations
+             in
+             Some
+               (target_env, (var, ty) :: to_expand, equations, relations,
+                definitions)
+           end)
+        (Bindings_in_target_env.existential_variables_in_order (bindings env))
+        (Some
+           (target_env, [], equations, relations,
+            definitions_of_existentials env))
+    in
+    let to_project := domain to_expand in
+    let expand := expand_variable fuel to_expand in
+    let* equations :=
+      traverse
+        (fun binding =>
+           let* ty := project_variables_out to_project expand (snd binding) in
+           Some (Name_var (fst binding), ty))
+        (compact equations)
+    in
+    let* equations_for_inverse_relations :=
+      traverse
+        (fun binding =>
+           let* ty :=
+             project_variables_out to_project expand
+               (Type_naked_immediate
+                  (Ok
+                     (No_alias
+                        (Head_of_kind_naked_immediate Or_unknown.Unknown
+                           (snd binding)))))
+           in
+           Some (Name_var (fst binding), ty))
+        (compact relations)
+    in
+    let* target_env :=
+      add_env_extension ops target_env (Env_extension equations)
+        meet_expanded_head_fn
+    in
+    let* target_env :=
+      add_env_extension ops target_env
+        (Env_extension equations_for_inverse_relations) meet_expanded_head_fn
+    in
+    Some (target_env, definitions).
+
+  (* ---------------------------------------------------------------- *)
+  (* Cut and n-way join                                                *)
+  (* ---------------------------------------------------------------- *)
+
+  (* [cut_for_join], for each environment that is not bottom: the
+     equations of the level cut from it. [None] is a fatal error of
+     [Typing_env.cut]. *)
+  Fixpoint cut_for_joins (cut_after : Scope.t)
+      (envs : list (Index.t * Typing_env.t)) : option Joined_envs.t :=
+    match envs with
+    | [] => Some []
+    | (index, tenv) :: envs =>
+      let* rest := cut_for_joins cut_after envs in
+      if Typing_env.is_bottom tenv
+      then Some rest
+      else
+        let* level := Typing_env.cut tenv cut_after in
+        Some ((index, (tenv, Typing_env_level.equations level)) :: rest)
+    end.
+
+  (* [cut_and_n_way_join0]: the target, the definitions of the
+     variables that the join made, and (not in the compiler) the names
+     that a later join must avoid. If no environment is joined, the
+     target is bottom. *)
+  Definition cut_and_n_way_join0 {meet_env meet_expanded_head : Type}
+      (ops : meet_env_functions meet_env meet_expanded_head) (p : parameters)
+      (fuel : nat) (n_way_join_type : n_way_join_type)
+      (meet_expanded_head_fn : meet_expanded_head) (avoid : list variable)
+      (source_env : meet_env) (source_tenv : Typing_env.t)
+      (equations_to_join : Joined_envs.t)
+      : option
+          (meet_env * finite_map (Simples_in_joined_envs.t * flambda_kind)
+           * list variable) :=
+    if Keyed.is_empty equations_to_join
+    then Some (make_bottom ops source_env, [], avoid)
+    else
+      let empty_bindings :=
+        Bindings_in_target_env.from_source_env avoid source_tenv
+      in
+      let empty_env := create equations_to_join empty_bindings in
+      let* env :=
+        join_aliases_into_bindings p fuel empty_env equations_to_join
+      in
+      let* '(relations, env) :=
+        n_way_join_delayed_equations fuel n_way_join_type env []
+          (new_equations_in_joined_envs env empty_env)
+      in
+      let* '(relations, env) :=
+        n_way_join_loop (join_depth p) p fuel n_way_join_type env relations
+          (new_definitions_of_existentials env empty_env)
+      in
+      let* '(target_env, definitions) :=
+        define_or_eliminate_variables_and_add_equations ops fuel
+          meet_expanded_head_fn env source_env relations
+      in
+      Some
+        (target_env, definitions,
+         Bindings_in_target_env.names_to_avoid (bindings env)).
+
+  (* [Join_env.cut_and_n_way_join]: the join that the meet calls. The
+     names to avoid are those of the environment of the meet, and the
+     target has those and the ones that the join made. *)
+  Definition cut_and_n_way_join {meet_env meet_expanded_head : Type}
+      (ops : meet_env_functions meet_env meet_expanded_head) (p : parameters)
+      (fuel : nat) (n_way_join_type : n_way_join_type)
+      (meet_expanded_head_fn : meet_expanded_head) (cut_after : Scope.t)
+      (source_env : meet_env) (source_tenv : Typing_env.t)
+      (joined_envs : list Typing_env.t) : option meet_env :=
+    let* equations_to_join :=
+      cut_for_joins cut_after (Index.number joined_envs)
+    in
+    let* '(target_env, _, names) :=
+      cut_and_n_way_join0 ops p fuel n_way_join_type meet_expanded_head_fn
+        (names_to_avoid ops source_env) source_env source_tenv
+        equations_to_join
+    in
+    Some (with_names_to_avoid ops target_env names).
+
 End Join_env.
+
 
 (* ======================================================================== *)
 (* The analysis of a join                                                   *)
@@ -1485,4 +1846,138 @@ Module Analysis.
          (fst binding, fst (snd binding), snd (snd binding)))
       (compact (canonical_definitions_at_normal_mode analysis)).
 
+  (* The canonical elements of the [Simple]s of a vector that may occur
+     in terms, each in its environment. The outer [None] is a fatal
+     error of the compiler (an index with no environment, a name that
+     is not bound); the inner one is its [Not_found]: one of them has
+     no alias that may occur in terms. *)
+  Fixpoint simples_at_normal_mode (joined_envs : Joined_envs.t)
+      (simples : list (Index.t * simple))
+      : option (option Simples_in_joined_envs.t) :=
+    match simples with
+    | [] => Some (Some [])
+    | (index, simple) :: simples =>
+      let* typing_env := Joined_envs.get_nth_joined_env joined_envs index in
+      let* canonical :=
+        Typing_env.get_canonical_simple_exn typing_env
+          (Some Name_mode.normal) None simple
+      in
+      let* rest := simples_at_normal_mode joined_envs simples in
+      Some
+        match canonical, rest with
+        | Some canonical, Some rest => Some ((index, canonical) :: rest)
+        | _, _ => None
+        end
+    end.
+
+  (* The definitions that are, at every index, a [Simple] that may
+     occur in terms. *)
+  Fixpoint definitions_at_normal_mode (joined_envs : Joined_envs.t)
+      (definitions :
+         list (variable * (Simples_in_joined_envs.t * flambda_kind)))
+      : option (finite_map (Simples_in_joined_envs.t * flambda_kind)) :=
+    match definitions with
+    | [] => Some []
+    | (var, (simples, kind)) :: definitions =>
+      let* at_normal_mode :=
+        simples_at_normal_mode joined_envs
+          (Keyed.compact Index.equal simples)
+      in
+      let* rest := definitions_at_normal_mode joined_envs definitions in
+      Some
+        match at_normal_mode with
+        | Some simples => (var, (simples, kind)) :: rest
+        | None => rest
+        end
+    end.
+
+  (* [Join_env.Analysis.create]. *)
+  Definition create {A : Type} (external_ids : Keyed.finite_map Index.t A)
+      (joined_envs : Joined_envs.t)
+      (definitions_in_joined_envs :
+         finite_map (Simples_in_joined_envs.t * flambda_kind))
+      : option (t A) :=
+    let* canonical_definitions_at_normal_mode :=
+      definitions_at_normal_mode joined_envs
+        (compact definitions_in_joined_envs)
+    in
+    Some
+      {| definitions_in_joined_envs := definitions_in_joined_envs;
+         canonical_definitions_at_normal_mode :=
+           canonical_definitions_at_normal_mode;
+         external_ids := external_ids |}.
+
 End Analysis.
+
+(* ======================================================================== *)
+(* The join that Simplify calls                                             *)
+(* ======================================================================== *)
+
+(* [Join_env.cut_and_n_way_join_with_analysis]: the environments that
+   are bottom are left out, with their identifiers; the target is the
+   source with the level that the join makes; the analysis is made of
+   the definitions that are left. The first argument is the names that
+   new variables must avoid, which the compiler has no need of. *)
+Definition cut_and_n_way_join_with_analysis {A meet_env meet_expanded_head
+    : Type}
+    (ops : Join_env.meet_env_functions meet_env meet_expanded_head)
+    (p : Join_env.parameters) (fuel : nat)
+    (n_way_join_type : Join_env.n_way_join_type)
+    (meet_expanded_head_fn : meet_expanded_head) (avoid : list variable)
+    (cut_after : Scope.t) (source_tenv : Typing_env.t)
+    (joined_envs : list (A * Typing_env.t))
+    : option (Typing_env.t * Analysis.t A) :=
+  let numbered := Index.number joined_envs in
+  let external_ids :=
+    flat_map
+      (fun binding =>
+         if Typing_env.is_bottom (snd (snd binding))
+         then []
+         else [(fst binding, fst (snd binding))])
+      numbered
+  in
+  let* equations_to_join :=
+    Join_env.cut_for_joins cut_after
+      (map (fun binding => (fst binding, snd (snd binding))) numbered)
+  in
+  let source_env := Join_env.create_meet_env ops source_tenv in
+  let* '(target_env, definitions, _) :=
+    Join_env.cut_and_n_way_join0 ops p fuel n_way_join_type
+      meet_expanded_head_fn avoid source_env source_tenv equations_to_join
+  in
+  let target_env := Join_env.final_typing_env ops target_env in
+  let* join_analysis :=
+    Analysis.create external_ids equations_to_join definitions
+  in
+  Some (target_env, join_analysis).
+
+(* [Join_levels.cut_and_n_way_join] (types/join_levels.ml) where the
+   join algorithm is the n-way one: the two checks of
+   [check_join_inputs] (each parameter of the continuation, and each
+   symbol of a constant lifted while its body was simplified, is
+   defined in the environment at the fork), then the join, with the
+   uses in the reverse of the order given. So the index of a use is
+   its position from the end of the list that Simplify gives. *)
+Definition join_levels_cut_and_n_way_join {A meet_env meet_expanded_head
+    : Type}
+    (ops : Join_env.meet_env_functions meet_env meet_expanded_head)
+    (p : Join_env.parameters) (fuel : nat)
+    (n_way_join_type : Join_env.n_way_join_type)
+    (meet_expanded_head_fn : meet_expanded_head) (avoid : list variable)
+    (definition_typing_env : Typing_env.t)
+    (ts_and_use_ids : list (Typing_env.t * A)) (params : list variable)
+    (cut_after : Scope.t) (extra_lifted_consts_in_use_envs : list symbol)
+    : option (Typing_env.t * Analysis.t A) :=
+  if forallb
+       (fun param =>
+          Typing_env.mem None definition_typing_env (Name_var param))
+       params
+     && forallb
+          (fun symbol =>
+             Typing_env.mem None definition_typing_env (Name_symbol symbol))
+          extra_lifted_consts_in_use_envs
+  then
+    cut_and_n_way_join_with_analysis ops p fuel n_way_join_type
+      meet_expanded_head_fn avoid cut_after definition_typing_env
+      (rev (map (fun use => (snd use, fst use)) ts_and_use_ids))
+  else None.
