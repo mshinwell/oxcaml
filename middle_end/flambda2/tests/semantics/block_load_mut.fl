@@ -1,0 +1,7 @@
+let x = %opaque (1) in
+let p = %block.[`0`].`toplevel` (x, 2) in
+let a = %block_load.mut.[`0`] (p) in
+let b = %block_load.mut.[`1`] (p) in
+let c = %int_barith.`add` (a, b) in
+let $camlBlock_load_mut = Block 0 (c) in
+cont done ($camlBlock_load_mut)

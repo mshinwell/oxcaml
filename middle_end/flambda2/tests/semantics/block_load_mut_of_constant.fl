@@ -1,0 +1,3 @@
+let a = %block_load.mut.[`0`] (5) in
+let $camlBlock_load_mut_of_constant = Block 0 (a) in
+cont done ($camlBlock_load_mut_of_constant)
