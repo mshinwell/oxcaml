@@ -287,6 +287,11 @@ pass into the validator.
   - `middle_end/flambda2/rocq/FlambdaKnownSymbols*` (a primitive or a
     projection applied to symbols that the unit binds to constants is
     replaced by its value; same stream)
+  - `middle_end/flambda2/rocq/FlambdaKnownClosures*` (a value slot of a
+    static closure whose binding is in sight is read, and a call of
+    one is made direct; same stream)
+  - `middle_end/flambda2/rocq/FlambdaFloatCode*` (the bindings of code
+    moved up to the head of what they are in; same stream)
   - `middle_end/flambda2/rocq/FlambdaSimulationProofs.v` (simulations in
     which one step is answered by one or more; same stream, and used by
     the loops of V4)
