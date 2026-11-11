@@ -1,0 +1,149 @@
+# Who owns which file of the Flambda 2 Rocq work
+
+This is the ownership table of `PARALLEL-PLAN.md` (sections 6 and 7): for
+each workstream, its owner and the files only that owner edits. A file
+has one owner. If you need a change in a file you do not own, ask its
+owner; do not make it.
+
+How to read it and keep it current:
+
+- A stream is owned by the agent working on it, named by the stream
+  (`C0`, `V1`, ...). "Unassigned" means no agent has the stream yet; the
+  orchestrator says when one does, and the integrator records it here.
+- A pattern such as `FlambdaNormalise*` covers the files that match it
+  now and later, in the directory given.
+- A new file is its creator's. Add it to your own stream's section in the
+  commit that creates it, unless a pattern there covers it already. Edit
+  no section but your own: two streams then never change the same lines
+  of this file.
+- `middle_end/flambda2/rocq/status/<stream>.md` is its stream's, and
+  needs no entry.
+- A file that no section covers is C0's.
+- C0 keeps the layout of this file; the sections are their streams'.
+
+Paths are from the root of the repository.
+
+## C0: core owner and integrator
+
+Owner: C0. Phase 0 was done as C0, and what it created is C0's.
+
+- `middle_end/flambda2/rocq/FlambdaModel.v`
+- `middle_end/flambda2/rocq/FlambdaSemantics*`
+- `middle_end/flambda2/rocq/FlambdaContext*`
+- `middle_end/flambda2/rocq/FlambdaWellFormed*`
+- `middle_end/flambda2/rocq/FlambdaMap*` (Phase 0: finite maps and sets
+  of names)
+- `middle_end/flambda2/rocq/FlambdaExtract.v`
+- `middle_end/flambda2/rocq/OWNERS.md` (Phase 0: its layout; see above)
+- `middle_end/flambda2/rocq/status/phase0.md` (Phase 0)
+- `middle_end/flambda2/tests/semantics/extracted/` (generated; only the
+  integrator commits it, see `rocq/HACKING.md`)
+- `middle_end/flambda2/tests/semantics/dune`,
+  `middle_end/flambda2/tests/semantics/gen_rules.sh` and
+  `middle_end/flambda2/tests/semantics/run/dune` (Phase 0: the rules that
+  run the examples; the examples themselves are V2's)
+- `rocq/Makefile`
+- `rocq/HACKING.md`
+- `rocq/review-pdf.pl`
+- the integration branch
+
+Files that exist and that the plan gives to no stream. They are C0's
+until the orchestrator says otherwise; the stream in brackets is the one
+whose subject they are, as a proposal:
+
+- `middle_end/flambda2/rocq/FlambdaControlFlow*` (S3, with S2 for the
+  switches)
+- `middle_end/flambda2/rocq/FlambdaNominal*` (N1)
+- `middle_end/flambda2/rocq/FlambdaAlpha*` (N1)
+- `middle_end/flambda2/rocq/FlambdaApply*` (S4)
+- `middle_end/flambda2/rocq/FlambdaStatic*` (S5)
+
+## C1 to C5: core changes
+
+Each is designed by its owner and applied by C0, one at a time
+(`PARALLEL-PLAN.md`, section 7, "Core change requests"). The owner edits
+its design note and the new files it creates, and lists them here; the
+changes to C0's files are made by C0.
+
+- C1, primitives as data. Owner: unassigned.
+- C2, kinds and well-formed terms. Owner: unassigned.
+- C3, sets of closures. Owner: unassigned.
+- C4, heap. Owner: unassigned.
+- C5, exceptions. Owner: unassigned.
+
+## T1 to T7: types
+
+All in `middle_end/flambda2/types/rocq/`, library `OxCamlFlambda2Types`.
+
+- T1, grammar and meaning. Owner: unassigned.
+  - `middle_end/flambda2/types/rocq/FlambdaTypes*` (today's naive model,
+    which T1 replaces)
+- T2, typing environment. Owner: unassigned.
+- T3, aliases. Owner: unassigned.
+  - `middle_end/flambda2/types/rocq/FlambdaAliases*` (today's, which T3
+    replaces; `follow_aliases` is used by the validator, so a change to
+    it is agreed with V1)
+- T4, meet. Owner: unassigned.
+- T5, join. Owner: unassigned.
+- T6, provers and reification. Owner: unassigned.
+- T7, differential testing of types, and the converter between the
+  compiler's types and the model's. Owner: unassigned.
+
+## S1 to S7: simplifier rewrites
+
+Each is a pass with its proof in a file pair of its own, which its owner
+creates and lists here, and the `.fl` examples that need it. V1 wires the
+pass into the validator.
+
+- S1, primitives through types. Owner: unassigned.
+- S2, switch. Owner: unassigned.
+- S3, continuations. Owner: unassigned.
+- S4, calls. Owner: unassigned.
+- S5, lets, CSE and lifting. Owner: unassigned.
+- S6, unboxing of continuation parameters. Owner: unassigned.
+- S7, the reaper. Out of scope for now, unassigned.
+
+## V1: validator
+
+Owner: unassigned. The only stream besides C0 that edits these.
+
+- `middle_end/flambda2/rocq/FlambdaValidate*`
+- `middle_end/flambda2/rocq/FlambdaCompare*`
+- `middle_end/flambda2/rocq/FlambdaNormalise*`
+- `middle_end/flambda2/rocq/FlambdaUnusedStatics*`
+
+## V2: corpus and harness
+
+Owner: unassigned.
+
+- `middle_end/flambda2/tests/tools/flsemantics.ml`
+- `middle_end/flambda2/tests/semantics/*.fl` and their `.expected`
+  files, but for an example that a stream adds for its own work, which
+  is that stream's
+
+## V3: converter
+
+Owner: unassigned.
+
+- the conversion from the compiler's terms to the model's. It is in
+  `middle_end/flambda2/tests/tools/flsemantics.ml`, which is V2's, until
+  V3 moves it to a file of its own; until then a change to it is agreed
+  between the two.
+
+## N1: nominal loose ends
+
+Owner: unassigned. See the files proposed for it under C0.
+
+## R1, R2: reviewers
+
+Owner: unassigned. They write no proofs.
+
+- `ROCQ-REVIEW-GUIDE.md`
+- `rocq/TRUST-LEDGER.md` (Phase 0 wrote the first version, and C0 keeps
+  it until a reviewer has the stream; no stream may add to it without a
+  reviewer's sign-off)
+
+## The human
+
+- `middle_end/flambda2/rocq/PARALLEL-PLAN.md`
+- the decisions listed in its section 7 ("Decisions that are a human's")

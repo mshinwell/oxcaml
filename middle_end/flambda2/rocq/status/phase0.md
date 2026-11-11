@@ -54,13 +54,20 @@ that make the repository safe for parallel work.
   the ledger's section "Flambda 2" (seven axioms, all about the
   primitives). Each failure was provoked once to see it fail.
 
+- Item 8, the ownership table. `OWNERS.md`, beside the plan: one section
+  for each stream, with its owner and its files, so that two streams
+  never edit the same lines of it. What Phase 0 created is C0's, but for
+  the trust ledger, which is the reviewers'. S7 is out of scope for now
+  and unassigned. Five existing file pairs are given to no stream by the
+  plan (see "Open questions").
+
 ## In progress
 
-- Item 8, the ownership table.
+- The final validation: `make -s test`.
 
 ## To do
 
-- The final validation: `make -s test`.
+Nothing else.
 
 ## Blocked
 
@@ -68,7 +75,20 @@ Nothing.
 
 ## Open questions
 
-None yet.
+For the orchestrator or the human; none blocks anything.
+
+- The plan gives no owner to `FlambdaControlFlow*`, `FlambdaNominal*`,
+  `FlambdaAlpha*`, `FlambdaApply*` and `FlambdaStatic*`. `OWNERS.md` puts
+  them with C0 and proposes S3 (with S2), N1, N1, S4 and S5.
+- The converter (V3) is inside `flsemantics.ml`, which is V2's.
+- The statements still build states with the constructor `State`, which
+  names every field in order, so a field added to the state (a heap) will
+  touch each of them. That is a change of what they say, and a human's
+  to design (plan, C4); the record only frees what observes a state.
+- `make -s fmt` fails here in `scripts/80ch.sh`, which wants a branch
+  `main` with an upstream; `SKIP_80CH=1 make -s fmt` is clean.
+- `make -C rocq review` stops at LuaLaTeX here (`newunicodechar.sty` is
+  not installed); the script gets as far as writing the document.
 
 ## Spec text changed
 
