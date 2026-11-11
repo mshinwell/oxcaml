@@ -89,7 +89,9 @@
    - [levels_indexed]: the variables that a level has by binding time
      are those that it defines. Checked by [Typing_env_level.create]
      when invariant checks are on; [fold_on_defined_vars] relies on it
-     whatever the flags. Stricter (discrepancy T2-2).
+     whatever the flags. Stricter (discrepancy T2-2). With it
+     [fold_on_defined_vars] always answers
+     ([fold_on_defined_vars_defined_statement]).
    - [level_binding_times_recorded]: a variable that a level has at a
      binding time has that binding time in the environment. By
      construction: [add_variable_definition] gives the level and the
@@ -776,6 +778,49 @@ Definition cut_indexed_statement : Prop :=
           ∧ Binding_time.With_name_mode.binding_time binding_time_and_mode
             = binding_time.
 
+(* [Typing_env_level.fold_on_defined_vars] goes through the variables
+   that a level has at a binding time... *)
+Definition variables_in_order_indexed_statement : Prop :=
+  ∀ (level : Typing_env_level.t) (x : variable),
+    x ∈ Typing_env_level.variables_in_order level
+    <-> ∃ binding_time : Binding_time.t, indexed_at level binding_time x.
+
+(* ... by binding time: one that it comes to before another is at a
+   binding time that is not later. *)
+Definition variables_in_order_sorted_statement : Prop :=
+  ∀ (level : Typing_env_level.t) (before between after : list variable)
+    (x y : variable),
+    Typing_env_level.variables_in_order level
+    = before ++ x :: between ++ y :: after ->
+    ∃ binding_time binding_time' : Binding_time.t,
+      indexed_at level binding_time x
+      ∧ indexed_at level binding_time' y
+      ∧ binding_time <= binding_time'.
+
+(* On a level that has its index it goes through the variables that
+   the level defines, and it answers: the exception of the compiler
+   does not happen. What it answers is the fold, with the kind of each
+   variable. *)
+Definition variables_in_order_defined_statement : Prop :=
+  ∀ (level : Typing_env_level.t) (x : variable),
+    level_indexed level ->
+    (x ∈ Typing_env_level.variables_in_order level
+     <-> is_bound x (Typing_env_level.defined_vars level) = true).
+
+Definition fold_on_defined_vars_defined_statement : Prop :=
+  ∀ (A : Type) (f : variable -> flambda_kind -> A -> A)
+    (level : Typing_env_level.t) (init : A),
+    level_indexed level ->
+    Typing_env_level.fold_on_defined_vars f level init
+    = Some
+        (List.fold_left
+           (fun acc x =>
+              match Typing_env_level.find_kind level x with
+              | Some kind => f x kind acc
+              | None => acc
+              end)
+           (Typing_env_level.variables_in_order level) init).
+
 (* ======================================================================== *)
 (* The functions keep the invariant                                         *)
 (* ======================================================================== *)
@@ -812,6 +857,16 @@ Definition add_variable_definition_invariant_statement : Prop :=
     Typing_env.mem None tenv (Name_var var) = false ->
     typing_env_invariant
       (Typing_env.add_variable_definition tenv var kind name_mode).
+
+(* Parameters are defined: they are different variables, and none is
+   bound. *)
+Definition add_definitions_of_params_invariant_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (params : list (variable * flambda_kind)),
+    typing_env_invariant tenv ->
+    distinct (map fst params) = true ->
+    (∀ x : variable,
+      x ∈ map fst params -> Typing_env.mem None tenv (Name_var x) = false) ->
+    typing_env_invariant (Typing_env.add_definitions_of_params tenv params).
 
 (* A name gets a new type. The name is bound; the variables of the type
    are bound; the type has the kind of the one that the name had; if

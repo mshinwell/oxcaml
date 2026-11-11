@@ -56,6 +56,14 @@
      variable that is not bound in an environment that is well formed.
      The other way: what satisfies the new environment satisfies the
      old.
+   - [add_definitions_of_params]: the valuation with the parameters
+     bound as the machine binds them, each to a value of its kind,
+     satisfies the new environment, if the parameters are different
+     variables that the environment does not mention.
+   - [replace_equation] and [add_alias]: what each leaves as it is
+     ([replace_equation_frame_statement], the two on [lookup],
+     [add_alias_frame_statement]), for the statements about
+     [Meet_env], which calls them in turn.
    - [replace_equation]: a valuation that satisfies the environment
      satisfies the new one if the value of the name, if it has one, has
      the new type. The other way, what satisfies the new environment
@@ -162,6 +170,31 @@ Definition add_variable_definition_satisfied_inv_statement : Prop :=
       (Typing_env.add_variable_definition tenv var kind name_mode) ->
     typing_env_satisfied_but exempt statics valuation tenv.
 
+(* A variable that the environment with a variable defined mentions is
+   that variable, or one that the environment mentioned. *)
+Definition add_variable_definition_mentions_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (var : variable) (kind : flambda_kind)
+    (name_mode : Name_mode.t) (x : variable),
+    typing_env_mentions
+      (Typing_env.add_variable_definition tenv var kind name_mode) x ->
+    x = var ∨ typing_env_mentions tenv x.
+
+(* Parameters are defined, and the valuation binds them as the machine
+   does at a call or a jump ([bind_params]), each to a value of its
+   kind: they are different variables, and the environment mentions
+   none of them. *)
+Definition add_definitions_of_params_satisfied_bind_statement : Prop :=
+  ∀ (exempt : name -> Prop) (statics : static_env)
+    (valuation valuation' : env) (tenv : Typing_env.t)
+    (params : list (variable * flambda_kind)) (vs : list value),
+    typing_env_satisfied_but exempt statics valuation tenv ->
+    distinct (map fst params) = true ->
+    (∀ x : variable, x ∈ map fst params -> ~ typing_env_mentions tenv x) ->
+    Forall2 (fun param v => kind_of_value v = snd param) params vs ->
+    bind_params (map fst params) vs valuation = Some valuation' ->
+    typing_env_satisfied_but exempt statics valuation'
+      (Typing_env.add_definitions_of_params tenv params).
+
 (* ======================================================================== *)
 (* A new type for a name                                                    *)
 (* ======================================================================== *)
@@ -176,6 +209,50 @@ Definition replace_equation_satisfied_statement : Prop :=
       has_type_unless (exempt n) statics valuation v ty) ->
     typing_env_satisfied_but exempt statics valuation
       (Typing_env.replace_equation tenv n ty).
+
+(* What [Typing_env.replace_equation] leaves as it is: all but the
+   type of the name and the equations of the current level. *)
+Definition replace_equation_frame_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (n : name) (ty : flambda_type),
+    let tenv' := Typing_env.replace_equation tenv n ty in
+    Typing_env.defined_symbols tenv' = Typing_env.defined_symbols tenv
+    ∧ Typing_env.prev_levels tenv' = Typing_env.prev_levels tenv
+    ∧ Typing_env.current_scope tenv' = Typing_env.current_scope tenv
+    ∧ Typing_env_level.defined_vars
+        (Typing_env.One_level.level (Typing_env.current_level tenv'))
+      = Typing_env_level.defined_vars
+          (Typing_env.One_level.level (Typing_env.current_level tenv))
+    ∧ Typing_env_level.binding_times
+        (Typing_env.One_level.level (Typing_env.current_level tenv'))
+      = Typing_env_level.binding_times
+          (Typing_env.One_level.level (Typing_env.current_level tenv))
+    ∧ Typing_env.next_binding_time tenv' = Typing_env.next_binding_time tenv
+    ∧ Typing_env.min_binding_time tenv' = Typing_env.min_binding_time tenv
+    ∧ Typing_env.is_bottom tenv' = Typing_env.is_bottom tenv
+    ∧ Typing_env.aliases tenv' = Typing_env.aliases tenv.
+
+(* The type of another name, with its binding time and its name mode,
+   is as it was. *)
+Definition replace_equation_lookup_other_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (n m : name) (ty : flambda_type),
+    m <> n ->
+    Keyed.lookup name_eqb m
+      (Typing_env.names_to_types (Typing_env.replace_equation tenv n ty))
+    = Keyed.lookup name_eqb m (Typing_env.names_to_types tenv).
+
+(* A variable that has a type gets the new one and keeps its binding
+   time and its name mode; one that has none gets none. A symbol gets
+   the type, with the binding time and the name mode of symbols. *)
+Definition replace_equation_lookup_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (n : name) (ty : flambda_type),
+    Keyed.lookup name_eqb n
+      (Typing_env.names_to_types (Typing_env.replace_equation tenv n ty))
+    = match n with
+      | Name_var _ =>
+        option_map (fun entry => (ty, snd entry))
+          (Keyed.lookup name_eqb n (Typing_env.names_to_types tenv))
+      | Name_symbol _ => Some (ty, Binding_time.With_name_mode.symbols)
+      end.
 
 (* The other way, the value of the name is to have the type that the
    name had: nothing in [Typing_env.replace_equation] makes the new
@@ -210,6 +287,32 @@ Definition add_alias_satisfied_statement : Prop :=
     = eval_simple valuation canonical_element2 ->
     typing_env_satisfied_but exempt statics valuation
       (Typing_env.add_alias_result_t result).
+
+(* What [Typing_env.add_alias] answers: the environment with the
+   aliases that [Aliases.add] answers, and nothing else changed; the
+   canonical element and the name demoted are those of [Aliases.add]. *)
+Definition add_alias_frame_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (canonical_element1 canonical_element2 : simple)
+    (result : Typing_env.add_alias_result),
+    Typing_env.add_alias tenv canonical_element1 canonical_element2
+    = Some (Ok result) ->
+    let tenv' := Typing_env.add_alias_result_t result in
+    (∃ added : Aliases.add_result,
+      Aliases.add (Typing_env.binding_time_resolver tenv)
+        (Typing_env.names_to_types tenv) (Typing_env.aliases tenv)
+        canonical_element1 canonical_element2
+      = Some (Or_bottom.Ok added)
+      ∧ Typing_env.aliases tenv' = Aliases.add_result_t added
+      ∧ Typing_env.canonical_element result
+        = Aliases.canonical_element added
+      ∧ Typing_env.demoted_name result = Aliases.demoted_name added)
+    ∧ Typing_env.defined_symbols tenv' = Typing_env.defined_symbols tenv
+    ∧ Typing_env.prev_levels tenv' = Typing_env.prev_levels tenv
+    ∧ Typing_env.current_level tenv' = Typing_env.current_level tenv
+    ∧ Typing_env.names_to_types tenv' = Typing_env.names_to_types tenv
+    ∧ Typing_env.next_binding_time tenv' = Typing_env.next_binding_time tenv
+    ∧ Typing_env.min_binding_time tenv' = Typing_env.min_binding_time tenv
+    ∧ Typing_env.is_bottom tenv' = Typing_env.is_bottom tenv.
 
 (* Where the answer is bottom the two are different constants: no
    valuation gives them the same value. *)

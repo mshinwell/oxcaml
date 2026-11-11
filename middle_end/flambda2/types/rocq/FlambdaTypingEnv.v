@@ -99,8 +99,7 @@
    - printing;
    - not yet here: [aliases_of_simple] and [compute_joined_aliases]
      (they need [Aliases.Alias_set.filter] and [Aliases.add_alias_set]),
-     [free_names_transitive], [Typing_env_level.fold_on_defined_vars],
-     and [Typing_env_extension].
+     [free_names_transitive], and [Typing_env_extension].
 
    The differences:
    - A fatal error of the compiler that no flag guards is [None]: of
@@ -149,6 +148,15 @@
      the bindings of the second where both have one
      ([union_right_biased], in [concat]) is the second followed by the
      first.
+   - The variables that a level has at one binding time are a set in
+     the compiler and a list here, to which [add_definition] conses.
+     [Typing_env_level.fold_on_defined_vars] goes through the binding
+     times in increasing order, as the compiler does, and through the
+     variables of one binding time in the order of the list, where the
+     compiler goes through its set in its order on variables (by
+     compilation unit and stamp), which the model's names have not.
+     Where each binding time has one variable, as in the levels of an
+     environment, the two are the same.
    - [Flambda_kind.equal] is the core's [kind_eqb]
      (FlambdaKindModel.v). *)
 
@@ -265,6 +273,48 @@ Module Typing_env_level.
 
   Definition as_extension_without_bindings (level : t) : env_extension :=
     Env_extension (equations level).
+
+  (* Binding times in increasing order. *)
+  Fixpoint insert_binding_time (binding_time : Binding_time.t)
+      (sorted : list Binding_time.t) : list Binding_time.t :=
+    match sorted with
+    | [] => [binding_time]
+    | first :: rest =>
+      if binding_time <=? first
+      then binding_time :: sorted
+      else first :: insert_binding_time binding_time rest
+    end.
+
+  Definition sort_binding_times (binding_times : list Binding_time.t)
+      : list Binding_time.t :=
+    fold_right insert_binding_time [] binding_times.
+
+  (* The variables that the level has by binding time, those of the
+     earliest binding time first. Those of one binding time are in the
+     order of the list that the model has for them; the compiler has a
+     set there, and goes through it in its order on variables. *)
+  Definition variables_in_order (level : t) : list variable :=
+    flat_map
+      (fun binding_time =>
+         match Keyed.lookup Z.eqb binding_time (binding_times level) with
+         | Some vars => vars
+         | None => []
+         end)
+      (sort_binding_times (Keyed.domain Z.eqb (binding_times level))).
+
+  (* [f] is given, by binding time, each variable that the level has at
+     one, with the kind that the level defines it with. [None] is the
+     compiler's exception [Not_found], which nothing catches: the level
+     has at a binding time a variable that it does not define. *)
+  Definition fold_on_defined_vars {A : Type}
+      (f : variable -> flambda_kind -> A -> A) (level : t) (init : A)
+      : option A :=
+    fold_left
+      (fun acc var =>
+         let* acc := acc in
+         let* kind := find_kind level var in
+         Some (f var kind acc))
+      (variables_in_order level) (Some init).
 
 End Typing_env_level.
 

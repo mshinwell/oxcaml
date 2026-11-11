@@ -135,6 +135,57 @@ Proof.
     as [-> | Hne]; [ congruence | exact Hlookup ].
 Qed.
 
+Theorem add_variable_definition_mentions
+    : add_variable_definition_mentions_statement.
+Proof.
+  intros tenv var kind name_mode x Hmentions.
+  destruct (Pos.eq_dec x var) as [-> | Hne]; [ left; reflexivity | right ].
+  destruct Hmentions
+    as [[ty [btm Hlookup]] | [[n [ty [btm [Hlookup Hin]]]] | Hmention]].
+  - left. rewrite add_variable_definition_lookup in Hlookup.
+    destruct (keyed_eqb_spec name_eqb name_eqb_eq (Name_var x)
+                (Name_var var)) as [Heq | _]; [ congruence | ].
+    exists ty, btm. exact Hlookup.
+  - rewrite add_variable_definition_lookup in Hlookup.
+    destruct (keyed_eqb_spec name_eqb name_eqb_eq n (Name_var var))
+      as [-> | _].
+    + injection Hlookup as <- <-. rewrite free_variables_unknown in Hin.
+      destruct Hin.
+    + right. left. exists n, ty, btm. split; [ exact Hlookup | exact Hin ].
+  - right. right. exact Hmention.
+Qed.
+
+Theorem add_definitions_of_params_satisfied_bind
+    : add_definitions_of_params_satisfied_bind_statement.
+Proof.
+  intros exempt statics valuation valuation' tenv params.
+  revert valuation tenv.
+  induction params as [ | [x kind] params IH];
+    intros valuation tenv vs Hsatisfied Hdistinct Hfresh Hkinds Hbind.
+  - inversion Hkinds; subst. simpl in Hbind. injection Hbind as <-.
+    exact Hsatisfied.
+  - inversion Hkinds as [ | param v params' vs' Hkind Hrest]; subst.
+    simpl in Hbind.
+    change (negb (among x (map fst params)) && distinct (map fst params)
+            = true) in Hdistinct.
+    apply andb_true_iff in Hdistinct. destruct Hdistinct as [Hx Hdistinct].
+    apply negb_true_iff in Hx.
+    apply (IH ((x, v) :: valuation)
+             (Typing_env.add_variable_definition tenv x kind
+                Name_mode.normal) vs').
+    + apply add_variable_definition_satisfied_bind;
+        [ exact Hsatisfied | | exact Hkind ].
+      apply Hfresh. left. reflexivity.
+    + exact Hdistinct.
+    + intros y Hin Hmentions.
+      apply add_variable_definition_mentions in Hmentions.
+      destruct Hmentions as [-> | Hmentions].
+      * apply among_In in Hin. congruence.
+      * exact (Hfresh y (or_intror Hin) Hmentions).
+    + exact Hrest.
+    + exact Hbind.
+Qed.
+
 (* ======================================================================== *)
 (* A new type for a name                                                    *)
 (* ======================================================================== *)
@@ -215,21 +266,39 @@ Proof.
     [ apply Hcons | intros Hlookup; right; exact Hlookup ].
 Qed.
 
-(* The entries of the other names are as they were. *)
-Lemma replace_equation_lookup_other (tenv : Typing_env.t) (n : name)
-    (ty : flambda_type) (m : name) :
-  m <> n ->
-  Keyed.lookup name_eqb m
-    (Typing_env.names_to_types (Typing_env.replace_equation tenv n ty))
-  = Keyed.lookup name_eqb m (Typing_env.names_to_types tenv).
+Theorem replace_equation_frame : replace_equation_frame_statement.
 Proof.
-  intros Hne. rewrite replace_equation_names_to_types.
+  intros tenv n ty. cbv zeta.
+  repeat (split; [ reflexivity | ]).
+  split; [ apply add_or_replace_equation_defined_vars | ].
+  split; [ apply add_or_replace_equation_binding_times | ].
+  repeat (split; [ reflexivity | ]).
+  apply replace_equation_aliases.
+Qed.
+
+Theorem replace_equation_lookup_other
+    : replace_equation_lookup_other_statement.
+Proof.
+  intros tenv n m ty Hne.
+  rewrite replace_equation_names_to_types.
   destruct n as [x | s].
   - destruct (Keyed.lookup name_eqb (Name_var x)
                 (Typing_env.names_to_types tenv)) as [[ty0 btm0] | ];
       [ | reflexivity ].
     apply (keyed_lookup_other name_eqb name_eqb_eq). exact Hne.
   - apply (keyed_lookup_other name_eqb name_eqb_eq). exact Hne.
+Qed.
+
+Theorem replace_equation_lookup : replace_equation_lookup_statement.
+Proof.
+  intros tenv n ty. rewrite replace_equation_names_to_types.
+  destruct n as [x | s].
+  - destruct (Keyed.lookup name_eqb (Name_var x)
+                (Typing_env.names_to_types tenv))
+      as [[ty0 btm0] | ] eqn:Hlookup.
+    + apply (keyed_lookup_head name_eqb name_eqb_eq).
+    + exact Hlookup.
+  - apply (keyed_lookup_head name_eqb name_eqb_eq).
 Qed.
 
 Theorem replace_equation_satisfied : replace_equation_satisfied_statement.
@@ -255,7 +324,7 @@ Proof.
     destruct (keyed_eqb_spec name_eqb name_eqb_eq m n) as [-> | Hne].
     + exact (Hold ty1 btm1 v Hlookup Hvalue).
     + apply (Htypes m ty1 btm1 v); [ | exact Hvalue ].
-      rewrite (replace_equation_lookup_other tenv n ty m Hne).
+      rewrite (replace_equation_lookup_other tenv n m ty Hne).
       exact Hlookup.
   - rewrite replace_equation_aliases in Hrespected. exact Hrespected.
 Qed.
@@ -272,6 +341,18 @@ Proof.
   split; [ exact Hbottom | ]. split; [ exact Htypes | ].
   exact (add_respected _ _ _ _ c1 c2 added valuation Hadded Hrespected
            Hsame).
+Qed.
+
+Theorem add_alias_frame : add_alias_frame_statement.
+Proof.
+  intros tenv c1 c2 result Hadd. cbv zeta.
+  unfold Typing_env.add_alias, Typing_env.aliases_add in Hadd.
+  destruct (Aliases.add (Typing_env.binding_time_resolver tenv)
+              (Typing_env.names_to_types tenv) (Typing_env.aliases tenv) c1
+              c2) as [[added | ] | ] eqn:Hadded; try discriminate.
+  injection Hadd as <-.
+  split; [ | repeat split ].
+  exists added. repeat split.
 Qed.
 
 Theorem add_alias_bottom : add_alias_bottom_statement.

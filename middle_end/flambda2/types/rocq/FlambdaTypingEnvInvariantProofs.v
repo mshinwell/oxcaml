@@ -29,7 +29,7 @@
 (* Proofs of the statements of FlambdaTypingEnvInvariantSpec.v. Nothing
    here needs review. *)
 
-From Stdlib Require Import ZArith List Bool Lia Setoid.
+From Stdlib Require Import ZArith List Bool Lia Setoid Sorted.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaPrimitiveProofs FlambdaSemanticsSpec.
@@ -827,6 +827,190 @@ Proof.
         exact (Hrecorded _ binding_time x (or_introl eq_refl) Hx).
 Qed.
 
+(* ------------------------------------------------------------------------ *)
+(* Going through the variables of a level                                   *)
+(* ------------------------------------------------------------------------ *)
+
+Lemma insert_binding_time_in (binding_time : Binding_time.t)
+    (sorted : list Binding_time.t) (t : Binding_time.t) :
+  t ∈ Typing_env_level.insert_binding_time binding_time sorted
+  <-> t = binding_time ∨ t ∈ sorted.
+Proof.
+  induction sorted as [ | first rest IH]; simpl.
+  - intuition congruence.
+  - destruct (binding_time <=? first); simpl;
+      [ intuition congruence | rewrite IH; intuition congruence ].
+Qed.
+
+Lemma sort_binding_times_cons (first : Binding_time.t)
+    (rest : list Binding_time.t) :
+  Typing_env_level.sort_binding_times (first :: rest)
+  = Typing_env_level.insert_binding_time first
+      (Typing_env_level.sort_binding_times rest).
+Proof. reflexivity. Qed.
+
+Lemma sort_binding_times_in (times : list Binding_time.t)
+    (t : Binding_time.t) :
+  t ∈ Typing_env_level.sort_binding_times times <-> t ∈ times.
+Proof.
+  induction times as [ | first rest IH]; [ reflexivity | ].
+  rewrite sort_binding_times_cons, insert_binding_time_in, IH. simpl.
+  intuition congruence.
+Qed.
+
+Lemma insert_binding_time_sorted (binding_time : Binding_time.t)
+    (sorted : list Binding_time.t) :
+  StronglySorted Z.le sorted ->
+  StronglySorted Z.le
+    (Typing_env_level.insert_binding_time binding_time sorted).
+Proof.
+  induction sorted as [ | first rest IH]; intros Hsorted; simpl.
+  - constructor; constructor.
+  - apply StronglySorted_inv in Hsorted. destruct Hsorted as [Hrest Hfirst].
+    destruct (Z.leb_spec binding_time first) as [Hle | Hgt].
+    + constructor; [ constructor; assumption | ].
+      constructor; [ exact Hle | ].
+      apply Forall_forall. intros t Hin. rewrite Forall_forall in Hfirst.
+      pose proof (Hfirst t Hin). lia.
+    + constructor; [ exact (IH Hrest) | ].
+      apply Forall_forall. intros t Hin.
+      apply insert_binding_time_in in Hin.
+      destruct Hin as [-> | Hin]; [ lia | ].
+      rewrite Forall_forall in Hfirst. exact (Hfirst t Hin).
+Qed.
+
+Lemma sort_binding_times_sorted (times : list Binding_time.t) :
+  StronglySorted Z.le (Typing_env_level.sort_binding_times times).
+Proof.
+  induction times as [ | first rest IH]; [ constructor | ].
+  rewrite sort_binding_times_cons. apply insert_binding_time_sorted.
+  exact IH.
+Qed.
+
+Lemma strongly_sorted_order (l1 l2 l3 : list Z) (a b : Z) :
+  StronglySorted Z.le (l1 ++ a :: l2 ++ b :: l3) -> a <= b.
+Proof.
+  induction l1 as [ | c l1 IH]; simpl; intros Hsorted;
+    apply StronglySorted_inv in Hsorted.
+  - destruct Hsorted as [_ Hall]. rewrite Forall_forall in Hall.
+    apply Hall. apply in_or_app. right. left. reflexivity.
+  - exact (IH (proj1 Hsorted)).
+Qed.
+
+(* Of two elements of a list made of pieces, the first is in a piece
+   that is the piece of the second or comes before it. *)
+Lemma flat_map_order {A B : Type} (g : A -> list B) (l : list A) :
+  ∀ (before between after : list B) (x y : B),
+    flat_map g l = before ++ x :: between ++ y :: after ->
+    ∃ a b : A,
+      x ∈ g a
+      ∧ y ∈ g b
+      ∧ (a = b ∨ ∃ l1 l2 l3 : list A, l = l1 ++ a :: l2 ++ b :: l3).
+Proof.
+  induction l as [ | c l IH]; intros before between after x y Heq.
+  - simpl in Heq. destruct before; discriminate.
+  - simpl in Heq. apply app_eq_app in Heq.
+    destruct Heq as [rest [[Hc Hrest] | [Hbefore Hrest]]].
+    + destruct rest as [ | x' rest].
+      * simpl in Hrest. symmetry in Hrest.
+        destruct (IH [] between after x y Hrest)
+          as [a [b [Hx [Hy Horder]]]].
+        exists a, b. split; [ exact Hx | ]. split; [ exact Hy | ].
+        destruct Horder as [-> | [l1 [l2 [l3 ->]]]];
+          [ left; reflexivity | right ].
+        exists (c :: l1), l2, l3. reflexivity.
+      * simpl in Hrest. injection Hrest as <- Hrest.
+        assert (Hx : x ∈ g c).
+        { rewrite Hc. apply in_or_app. right. left. reflexivity. }
+        assert (Hy : y ∈ rest ∨ y ∈ flat_map g l).
+        { apply in_app_or. rewrite <- Hrest. apply in_or_app. right. left.
+          reflexivity. }
+        destruct Hy as [Hy | Hy].
+        -- exists c, c. split; [ exact Hx | ].
+           split; [ | left; reflexivity ].
+           rewrite Hc. apply in_or_app. right. right. exact Hy.
+        -- apply in_flat_map in Hy. destruct Hy as [b [Hb Hy]].
+           apply in_split in Hb. destruct Hb as [l2 [l3 ->]].
+           exists c, b. split; [ exact Hx | ]. split; [ exact Hy | ].
+           right. exists [], l2, l3. reflexivity.
+    + destruct (IH rest between after x y Hrest)
+        as [a [b [Hx [Hy Horder]]]].
+      exists a, b. split; [ exact Hx | ]. split; [ exact Hy | ].
+      destruct Horder as [-> | [l1 [l2 [l3 ->]]]];
+        [ left; reflexivity | right ].
+      exists (c :: l1), l2, l3. reflexivity.
+Qed.
+
+(* The variables that a level has for a binding time are at it. *)
+Lemma bucket_indexed_at (level : Typing_env_level.t)
+    (binding_time : Binding_time.t) (x : variable) :
+  x ∈ match
+        Keyed.lookup Z.eqb binding_time
+          (Typing_env_level.binding_times level)
+      with
+      | Some vars => vars
+      | None => []
+      end ->
+  indexed_at level binding_time x.
+Proof.
+  unfold indexed_at.
+  destruct (Keyed.lookup Z.eqb binding_time
+              (Typing_env_level.binding_times level)) as [vars | ];
+    [ | intros [] ].
+  intros Hin. exists vars. split; [ reflexivity | exact Hin ].
+Qed.
+
+Theorem variables_in_order_indexed : variables_in_order_indexed_statement.
+Proof.
+  intros level x. unfold Typing_env_level.variables_in_order.
+  rewrite in_flat_map. split.
+  - intros [binding_time [_ Hin]]. exists binding_time.
+    exact (bucket_indexed_at level binding_time x Hin).
+  - intros [binding_time [vars [Hlookup Hin]]]. exists binding_time. split.
+    + apply sort_binding_times_in.
+      apply (keyed_among_in Z Z.eqb z_eqb_decides_equality).
+      rewrite (keyed_among_domain Z Z.eqb z_eqb_decides_equality).
+      apply keyed_is_bound_lookup. exists vars. exact Hlookup.
+    + rewrite Hlookup. exact Hin.
+Qed.
+
+Theorem variables_in_order_sorted : variables_in_order_sorted_statement.
+Proof.
+  intros level before between after x y Heq.
+  unfold Typing_env_level.variables_in_order in Heq.
+  destruct (flat_map_order _ _ _ _ _ _ _ Heq) as [a [b [Hx [Hy Horder]]]].
+  exists a, b. split; [ exact (bucket_indexed_at level a x Hx) | ].
+  split; [ exact (bucket_indexed_at level b y Hy) | ].
+  destruct Horder as [-> | [l1 [l2 [l3 Hsplit]]]]; [ apply Z.le_refl | ].
+  apply (strongly_sorted_order l1 l2 l3 a b). rewrite <- Hsplit.
+  apply sort_binding_times_sorted.
+Qed.
+
+Theorem variables_in_order_defined : variables_in_order_defined_statement.
+Proof.
+  intros level x Hlevel. rewrite (variables_in_order_indexed level x).
+  symmetry. exact (Hlevel x).
+Qed.
+
+Theorem fold_on_defined_vars_defined : fold_on_defined_vars_defined_statement.
+Proof.
+  intros A f level init Hlevel.
+  unfold Typing_env_level.fold_on_defined_vars, Typing_env_level.find_kind.
+  assert (Hall :
+    ∀ x : variable,
+      x ∈ Typing_env_level.variables_in_order level ->
+      ∃ kind : flambda_kind,
+        lookup x (Typing_env_level.defined_vars level) = Some kind).
+  { intros x Hin. apply (variables_in_order_defined level x Hlevel) in Hin.
+    apply is_bound_lookup in Hin. exact Hin. }
+  revert init Hall. generalize (Typing_env_level.variables_in_order level).
+  intros vars. induction vars as [ | x vars IH]; intros init Hall;
+    [ reflexivity | ].
+  destruct (Hall x (or_introl eq_refl)) as [kind Hkind].
+  cbn [List.fold_left]. rewrite Hkind. cbn. apply IH.
+  intros y Hin. apply Hall. right. exact Hin.
+Qed.
+
 (* ======================================================================== *)
 (* The functions keep the invariant                                         *)
 (* ======================================================================== *)
@@ -1262,6 +1446,39 @@ Proof.
         exact (Hconcrete n ty btm alias Hlookup Halias).
   - intros n ty Hlookup. destruct (Hagree n ty Hlookup) as [btm Hbtm].
     exists btm. exact (Hold _ _ Hbtm).
+Qed.
+
+Lemma mem_add_variable_definition (tenv : Typing_env.t) (var : variable)
+    (kind : flambda_kind) (name_mode : Name_mode.t) (x : variable) :
+  x <> var ->
+  Typing_env.mem None
+    (Typing_env.add_variable_definition tenv var kind name_mode) (Name_var x)
+  = Typing_env.mem None tenv (Name_var x).
+Proof.
+  intros Hne. rewrite !mem_var_is_bound. unfold Keyed.is_bound.
+  rewrite add_variable_definition_lookup.
+  destruct (keyed_eqb_spec name_eqb name_eqb_eq (Name_var x) (Name_var var))
+    as [Heq | _]; [ congruence | reflexivity ].
+Qed.
+
+Theorem add_definitions_of_params_invariant
+    : add_definitions_of_params_invariant_statement.
+Proof.
+  intros tenv params. revert tenv.
+  induction params as [ | [x kind] params IH];
+    intros tenv Hinvariant Hdistinct Hfresh; [ exact Hinvariant | ].
+  change (negb (among x (map fst params)) && distinct (map fst params)
+          = true) in Hdistinct.
+  apply andb_true_iff in Hdistinct. destruct Hdistinct as [Hx Hdistinct].
+  apply negb_true_iff in Hx.
+  apply (IH (Typing_env.add_variable_definition tenv x kind
+               Name_mode.normal)).
+  - apply add_variable_definition_invariant; [ exact Hinvariant | ].
+    apply Hfresh. left. reflexivity.
+  - exact Hdistinct.
+  - intros y Hin. rewrite mem_add_variable_definition.
+    + apply Hfresh. right. exact Hin.
+    + intros ->. apply among_In in Hin. congruence.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
