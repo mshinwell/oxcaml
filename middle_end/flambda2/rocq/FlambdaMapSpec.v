@@ -32,10 +32,11 @@
    end, which say what each operation does in terms of [lookup] and
    [among]. Whatever maps names to things or collects names, in the
    semantics and in the types alike, is to be built with what is here: a
-   file must not define its own lookup, membership test or merge. The
-   lemmas are in FlambdaMapProofs.v, which needs no review; a lemma about
-   these operations that is not about one construct of the terms belongs
-   there, and nowhere else.
+   file must not define its own lookup, membership test or merge. (The
+   typing environment of today is not built so, and is not a map: see
+   the end of this comment.) The lemmas are in FlambdaMapProofs.v, which
+   needs no review; a lemma about these operations that is not about one
+   construct of the terms belongs there, and nowhere else.
 
    Names. Variables, continuations, symbols, code ids and value slots are
    all [positive] (FlambdaModel.v), so one map and one set serve where the
@@ -96,7 +97,24 @@
      for when a map has to be gone through.
    - Only [lookup] and consing may look at the list. Go through the
      other operations and their lemmas, so that a faster representation
-     can be put under them one day without touching their users. *)
+     can be put under them one day without touching their users.
+
+   An exception, for now: the typing environment. [typing_env] of
+   FlambdaTypesSpec.v (in types/rocq) has the type of a map of types,
+   [list (variable * flambda_type)], and is not one. It is a list of
+   constraints: [env_satisfies] asks for every pair in the list, not for
+   the first pair of each variable, so a variable listed twice has to
+   have both types. [[(x, Unknown); (x, Bottom)]] and [[(x, Unknown)]]
+   are [map_equal] and mean different things: no environment of values
+   satisfies the first, and any that binds [x] satisfies the second. So
+   [compact], or putting for a typing environment another that is
+   [map_equal] to it, need not preserve [env_satisfies], and what is
+   stated here by [lookup] says nothing of what a [typing_env] means.
+   When the typing environment is rebuilt on these maps, with one type
+   for each variable, what it asks of a variable must still be the
+   conjunction of the constraints the list had for it (the meet of its
+   types, not the first of them), and the migration has to prove that:
+   that [env_satisfies] is preserved. *)
 
 From Stdlib Require Import PArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
