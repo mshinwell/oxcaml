@@ -111,6 +111,10 @@ All in `middle_end/flambda2/types/rocq/`, library `OxCamlFlambda2Types`.
 - T1, grammar and meaning. Owner: T1, on `flambda2-rocq/T1-grammar`.
   - `middle_end/flambda2/types/rocq/FlambdaTypes*` (today's naive model,
     which T1 replaces)
+  - `middle_end/flambda2/types/rocq/FlambdaTypeGrammar*` (the grammar
+    of types)
+  - `middle_end/flambda2/types/rocq/FlambdaTypeMeaning*` (what a type
+    means: `type_satisfied`)
 - T2, typing environment. Owner: unassigned.
 - T3, aliases. Owner: unassigned.
   - `middle_end/flambda2/types/rocq/FlambdaAliases*` (today's, which T3
