@@ -812,9 +812,9 @@ Proof.
     exact (IH next s' (sets_inv_step s next Hinv Hstep)).
 Qed.
 
-Lemma well_formed_sets_inv (unit_exn : continuation) (e : expr) (n : nat)
+Lemma well_formed_sets_inv (u : unit_interface) (e : expr) (n : nat)
     (s : state) :
-  well_formed_unit unit_exn e = true ->
+  well_formed_unit u e = true ->
   run n (State e [] [] empty_static_env) = Step s ->
   sets_inv s.
 Proof.
@@ -829,8 +829,8 @@ Qed.
 
 Theorem well_formed_makes_closures : well_formed_makes_closures_statement.
 Proof.
-  intros unit_exn e n s Hwf Hrun.
-  destruct (well_formed_sets_inv unit_exn e n s Hwf Hrun) as (P & _).
+  intros u e n s Hwf Hrun.
+  destruct (well_formed_sets_inv u e n s Hwf Hrun) as (P & _).
   unfold makes_closure_outside_set.
   destruct (state_expr s)
     as [ x kind d body | bindings body | k h body | handlers body | ap | ac
@@ -865,8 +865,8 @@ Qed.
 
 Theorem well_formed_sets_bound : well_formed_sets_bound_statement.
 Proof.
-  intros unit_exn e n s Hwf Hrun.
-  destruct (well_formed_sets_inv unit_exn e n s Hwf Hrun) as (_ & _ & _ & B).
+  intros u e n s Hwf Hrun.
+  destruct (well_formed_sets_inv u e n s Hwf Hrun) as (_ & _ & _ & B).
   exact B.
 Qed.
 
@@ -1305,10 +1305,10 @@ Proof. exact (conj (Forall_nil _) (conj I (Forall_nil _))). Qed.
 
 Theorem well_formed_values_valid : well_formed_values_valid_statement.
 Proof.
-  intros unit_exn e n s Hwf Hrun.
+  intros u e n s Hwf Hrun.
   pose proof
     (state_valid_run n (State e [] [] empty_static_env)
-       (well_formed_sets_inv unit_exn e 0 _ Hwf eq_refl)
+       (well_formed_sets_inv u e 0 _ Hwf eq_refl)
        (initial_state_valid e))
     as H.
   rewrite Hrun in H. exact H.
@@ -1316,10 +1316,10 @@ Qed.
 
 Theorem well_formed_exit_valid : well_formed_exit_valid_statement.
 Proof.
-  intros unit_exn e n k vs Hwf Hrun.
+  intros u e n k vs Hwf Hrun.
   pose proof
     (state_valid_run n (State e [] [] empty_static_env)
-       (well_formed_sets_inv unit_exn e 0 _ Hwf eq_refl)
+       (well_formed_sets_inv u e 0 _ Hwf eq_refl)
        (initial_state_valid e))
     as H.
   rewrite Hrun in H. rewrite Forall_forall in H. exact H.
@@ -1327,9 +1327,9 @@ Qed.
 
 Theorem well_formed_closure_slot : well_formed_closure_slot_statement.
 Proof.
-  intros unit_exn e n s closure v slot slot' decls slot_values slot_values'
+  intros u e n s closure v slot slot' decls slot_values slot_values'
     code Hwf Hrun Hv Hin_set Hclosure Hslot'.
-  destruct (well_formed_values_valid unit_exn e n s Hwf Hrun)
+  destruct (well_formed_values_valid u e n s Hwf Hrun)
     as (Hvars & _ & Hstatics).
   destruct (closure_in_set_valid (state_statics s) v slot decls slot_values
               Hstatics (eval_simple_valid (state_vars s) closure v Hvars Hv)

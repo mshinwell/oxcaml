@@ -510,11 +510,22 @@ with code_numbers_in_range (c : code) : bool :=
 (* Well-formed units                                                        *)
 (* ======================================================================== *)
 
-(* A unit, with its exception continuation: its static bindings are at
-   toplevel, and bind each code id and each symbol once; its sets of
-   closures are whole; its numbers are in range. *)
-Definition well_formed_unit (unit_exn : continuation) (e : expr) : bool :=
-  statics_at_toplevel unit_exn true e
+(* What a unit is given by where it is run: the continuation that it
+   returns to and its exception continuation. This stands for the
+   compiler's [Flambda_unit.t] less its body (return_continuation and
+   exn_continuation there); what else of it a condition comes to need
+   is to be a field here, so that no use of [well_formed_unit]
+   changes. *)
+Record unit_interface : Type := Unit_interface {
+  unit_return : continuation;
+  unit_exn : continuation
+}.
+
+(* A unit, with its interface: its static bindings are at toplevel, and
+   bind each code id and each symbol once; its sets of closures are
+   whole; its numbers are in range. *)
+Definition well_formed_unit (u : unit_interface) (e : expr) : bool :=
+  statics_at_toplevel (unit_exn u) true e
   && distinct (static_names code_ids_of_binding e)
   && distinct (static_names symbols_of_binding e)
   && sets_well_formed e
@@ -598,7 +609,7 @@ Definition static_fault (s : state) : bool :=
   end.
 
 Definition well_formed_never_faults_statement : Prop :=
-  ∀ (unit_exn : continuation) (e : expr) (n : nat) (s : state),
-    well_formed_unit unit_exn e = true ->
+  ∀ (u : unit_interface) (e : expr) (n : nat) (s : state),
+    well_formed_unit u e = true ->
     run n (State e [] [] empty_static_env) = Step s ->
     static_fault s = false.

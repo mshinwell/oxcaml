@@ -622,19 +622,19 @@ Qed.
 
 Theorem well_formed_never_faults : well_formed_never_faults_statement.
 Proof.
-  intros unit_exn e n s Hwf Hrun. unfold well_formed_unit in Hwf.
+  intros u e n s Hwf Hrun. unfold well_formed_unit in Hwf.
   apply andb_true_iff in Hwf as [Hwf _].
   apply andb_true_iff in Hwf as [Hwf _].
   apply andb_true_iff in Hwf as [Hwf Dsymbols].
   apply andb_true_iff in Hwf as [P Dcode].
-  pose proof (inv_run unit_exn code_ids_of_binding code_id_bound
+  pose proof (inv_run (unit_exn u) code_ids_of_binding code_id_bound
     code_bound_after n _ s
-    (well_formed_inv unit_exn code_ids_of_binding code_id_bound e
+    (well_formed_inv (unit_exn u) code_ids_of_binding code_id_bound e
        (fun _ => eq_refl) P Dcode)
     Hrun) as Hcode.
-  pose proof (inv_run unit_exn symbols_of_binding symbol_bound
+  pose proof (inv_run (unit_exn u) symbols_of_binding symbol_bound
     symbol_bound_after n _ s
-    (well_formed_inv unit_exn symbols_of_binding symbol_bound e
+    (well_formed_inv (unit_exn u) symbols_of_binding symbol_bound e
        (fun _ => eq_refl) P Dsymbols)
     Hrun) as Hsymbols.
   rewrite (state_eta s) in Hcode, Hsymbols. unfold static_fault.
@@ -642,9 +642,9 @@ Proof.
     as [ x kind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
     try reflexivity.
-  - rewrite (inv_no_rebinding unit_exn _ _ _ _ _ _ _ Hcode),
-      (inv_no_rebinding unit_exn _ _ _ _ _ _ _ Hsymbols).
+  - rewrite (inv_no_rebinding (unit_exn u) _ _ _ _ _ _ _ Hcode),
+      (inv_no_rebinding (unit_exn u) _ _ _ _ _ _ _ Hsymbols).
     reflexivity.
-  - exact (inv_no_recursive_statics unit_exn _ _ _ _ _ _ _ Hcode).
-  - exact (inv_no_call_binding_statics unit_exn _ _ _ _ _ _ Hcode).
+  - exact (inv_no_recursive_statics (unit_exn u) _ _ _ _ _ _ _ Hcode).
+  - exact (inv_no_call_binding_statics (unit_exn u) _ _ _ _ _ _ Hcode).
 Qed.

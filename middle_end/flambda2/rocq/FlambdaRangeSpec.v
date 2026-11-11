@@ -151,8 +151,8 @@ Definition run_exit_in_range_statement : Prop :=
 
 (* So is every state of the run of a well-formed unit. *)
 Definition well_formed_in_range_statement : Prop :=
-  ∀ (unit_exn : continuation) (e : expr) (n : nat) (s : state),
-    well_formed_unit unit_exn e = true ->
+  ∀ (u : unit_interface) (e : expr) (n : nat) (s : state),
+    well_formed_unit u e = true ->
     run n (State e [] [] empty_static_env) = Step s ->
     state_in_range s.
 

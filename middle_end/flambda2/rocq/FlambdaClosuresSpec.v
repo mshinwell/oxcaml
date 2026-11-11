@@ -355,8 +355,8 @@ Definition makes_closure_outside_set (s : state) : bool :=
   end.
 
 Definition well_formed_makes_closures_statement : Prop :=
-  ∀ (unit_exn : continuation) (e : expr) (n : nat) (s : state),
-    well_formed_unit unit_exn e = true ->
+  ∀ (u : unit_interface) (e : expr) (n : nat) (s : state),
+    well_formed_unit u e = true ->
     run n (State e [] [] empty_static_env) = Step s ->
     makes_closure_outside_set s = false.
 
@@ -376,8 +376,8 @@ Definition static_sets_bound (statics : static_env) : Prop :=
     ∧ static_set_bound statics closure_symbols function_decls slot_values.
 
 Definition well_formed_sets_bound_statement : Prop :=
-  ∀ (unit_exn : continuation) (e : expr) (n : nat) (s : state),
-    well_formed_unit unit_exn e = true ->
+  ∀ (u : unit_interface) (e : expr) (n : nat) (s : state),
+    well_formed_unit u e = true ->
     run n (State e [] [] empty_static_env) = Step s ->
     static_sets_bound (state_statics s).
 
@@ -516,15 +516,15 @@ Definition eval_static_const_valid_statement : Prop :=
 (* Every state of the run of a well-formed unit holds valid values only,
    and if the run ends, it ends with valid values. *)
 Definition well_formed_values_valid_statement : Prop :=
-  ∀ (unit_exn : continuation) (e : expr) (n : nat) (s : state),
-    well_formed_unit unit_exn e = true ->
+  ∀ (u : unit_interface) (e : expr) (n : nat) (s : state),
+    well_formed_unit u e = true ->
     run n (State e [] [] empty_static_env) = Step s ->
     state_valid s.
 
 Definition well_formed_exit_valid_statement : Prop :=
-  ∀ (unit_exn : continuation) (e : expr) (n : nat) (k : continuation)
+  ∀ (u : unit_interface) (e : expr) (n : nat) (k : continuation)
     (vs : list value),
-    well_formed_unit unit_exn e = true ->
+    well_formed_unit u e = true ->
     run n (State e [] [] empty_static_env) = Exit k vs ->
     ∀ v : value, v ∈ vs -> value_valid v = true.
 
@@ -545,11 +545,11 @@ Definition well_formed_exit_valid_statement : Prop :=
    it bound to the closure called ([call_binds_my_closure_statement]),
    and then [my_closure] is at the slot of the code that runs. *)
 Definition well_formed_closure_slot_statement : Prop :=
-  ∀ (unit_exn : continuation) (e : expr) (n : nat) (s : state)
+  ∀ (u : unit_interface) (e : expr) (n : nat) (s : state)
     (closure : simple) (v : value) (slot slot' : function_slot)
     (function_decls : list (function_slot * code_id))
     (slot_values slot_values' : list (value_slot * value)) (code : code_id),
-    well_formed_unit unit_exn e = true ->
+    well_formed_unit u e = true ->
     run n (State e [] [] empty_static_env) = Step s ->
     eval_simple (state_vars s) closure = Some v ->
     closure_in_set (state_statics s) v
@@ -691,8 +691,10 @@ Definition parity_static_statement : Prop :=
 Definition parity_well_formed_statement : Prop :=
   ∀ i : Z,
     ocaml_int_in_range i = true ->
-    well_formed_unit error (parity_static i) = true
-    ∧ ∃ e : expr, parity_let i = Some e ∧ well_formed_unit error e = true.
+    well_formed_unit (Unit_interface done error) (parity_static i) = true
+    ∧ ∃ e : expr,
+        parity_let i = Some e
+        ∧ well_formed_unit (Unit_interface done error) e = true.
 
 (* The static set with one of its two symbols bound, and the other
    projected from it. *)
@@ -712,6 +714,6 @@ Definition parity_partial : expr :=
 Definition partial_static_set_statement : Prop :=
   behaves (State parity_partial [] [] empty_static_env)
     (Exits done [Value_symbol odd_symbol])
-  ∧ well_formed_unit error parity_partial = false.
+  ∧ well_formed_unit (Unit_interface done error) parity_partial = false.
 
 End Parity.
