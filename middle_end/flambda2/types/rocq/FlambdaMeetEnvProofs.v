@@ -1749,7 +1749,6 @@ Section Sound.
 Variable mh : meet_expanded_head.
 Hypothesis Hkeeps : meet_expanded_head_keeps mh.
 Hypothesis Hsound : meet_expanded_head_sound mh.
-Hypothesis Hsingleton : must_be_singleton_exact.
 Variable statics : static_env.
 
 (* [replace_concrete_equation]: the name has a value, of the type. *)
@@ -1779,7 +1778,8 @@ Proof.
     apply name_eqb_eq in Hdemoted. apply simple_equal_eq in Hconst.
     rewrite Hdemoted, Hconst.
     assert (Hv : v = Value_const const).
-    { exact (Hsingleton statics valuation v ty const Hsing Hty). }
+    { exact (must_be_singleton_satisfied statics valuation v ty const Hsing
+               Hty). }
     subst v.
     assert (Hsatisfied1 :
       typing_env_satisfied_strictly statics valuation
@@ -2345,7 +2345,6 @@ Section Meet_sound.
 Variable mh : meet_expanded_head.
 Hypothesis Hkeeps : meet_expanded_head_keeps mh.
 Hypothesis Hsound : meet_expanded_head_sound mh.
-Hypothesis Hsingleton : must_be_singleton_exact.
 Variable statics : static_env.
 
 (* The canonical element of the alias that a type is has the value
@@ -2474,7 +2473,7 @@ Proof.
     destruct (alias_canonical_of_kind tenv t2 alias2 Hfits Ht2 Halias2)
       as [_ Hkind_canonical].
     destruct (add_or_delay_concrete_equation_on_canonical_sound mh Hsound
-                Hsingleton statics menv
+                statics menv
                 (Typing_env.get_canonical_simple_ignoring_name_mode tenv
                    alias2)
                 expanded1 valuation v result0 Hfits)
@@ -2505,7 +2504,7 @@ Proof.
     destruct (alias_canonical_of_kind tenv t1 alias1 Hfits Ht1 Halias1)
       as [_ Hkind_canonical].
     destruct (add_or_delay_concrete_equation_on_canonical_sound mh Hsound
-                Hsingleton statics menv
+                statics menv
                 (Typing_env.get_canonical_simple_ignoring_name_mode tenv
                    alias1)
                 expanded2 valuation v result0 Hfits)
@@ -2533,7 +2532,7 @@ Proof.
     destruct (alias_canonical_of_kind tenv t2 alias2 Hfits Ht2 Halias2)
       as [Hcanonical2 Hkind_canonical2].
     rewrite <- Hkinds in Hkind_canonical2.
-    destruct (add_alias_between_canonicals_sound mh Hsound Hsingleton
+    destruct (add_alias_between_canonicals_sound mh Hsound
                 statics menv (kind t1) _ _ valuation v result0 Hfits
                 Hcanonical1 Hcanonical2 Hkind_canonical1 Hkind_canonical2
                 Hsatisfied
@@ -2558,20 +2557,20 @@ End Meet_sound.
 Theorem meet_env_add_equation_on_simple_sound
     : meet_env_add_equation_on_simple_sound_statement.
 Proof.
-  intros Hsingleton mh statics valuation menv menv' s ty v Hkeeps Hsound Hfits
+  intros mh statics valuation menv menv' s ty v Hkeeps Hsound Hfits
     Hty Hkind Hsatisfied Hvalue Hv Hadd.
   apply (bottom_on_exception_sound statics menv menv' _ valuation) in Hadd;
     [ exact Hadd | ].
   intros result0 Hresult.
-  exact (add_equation_on_simple0_sound mh Hsound Hsingleton statics menv s ty
+  exact (add_equation_on_simple0_sound mh Hsound statics menv s ty
            valuation v result0 Hfits Hty Hkind Hsatisfied Hvalue Hv Hresult).
 Qed.
 
 Theorem meet_env_add_equation_sound : meet_env_add_equation_sound_statement.
 Proof.
-  intros Hsingleton mh statics valuation menv menv' n ty v Hkeeps Hsound Hfits
+  intros mh statics valuation menv menv' n ty v Hkeeps Hsound Hfits
     Hty Hkind Hsatisfied Hvalue Hv Hadd.
-  exact (meet_env_add_equation_on_simple_sound Hsingleton mh statics valuation
+  exact (meet_env_add_equation_on_simple_sound mh statics valuation
            menv menv' (simple_of_name n) ty v Hkeeps Hsound Hfits Hty Hkind
            Hsatisfied Hvalue Hv Hadd).
 Qed.
@@ -2586,11 +2585,11 @@ Proof. intros [Hnot_bottom _]. exact Hnot_bottom. Qed.
 Theorem meet_env_add_equation_strict_sound
     : meet_env_add_equation_strict_sound_statement.
 Proof.
-  intros Hsingleton mh statics valuation menv n ty v result Hkeeps Hsound
+  intros mh statics valuation menv n ty v result Hkeeps Hsound
     Hfits Hty Hkind Hsatisfied Hvalue Hv Hadd.
   unfold Meet_env.add_equation_strict in Hadd.
   rewrite (satisfied_not_bottom statics valuation _ Hsatisfied) in Hadd.
-  exact (add_equation_on_simple0_sound mh Hsound Hsingleton statics menv
+  exact (add_equation_on_simple0_sound mh Hsound statics menv
            (simple_of_name n) ty valuation v result Hfits Hty Hkind Hsatisfied
            Hvalue Hv Hadd).
 Qed.
@@ -2598,12 +2597,12 @@ Qed.
 Theorem meet_env_add_env_extension_sound
     : meet_env_add_env_extension_sound_statement.
 Proof.
-  intros Hsingleton mh statics valuation menv menv' extension Hkeeps Hsound
+  intros mh statics valuation menv menv' extension Hkeeps Hsound
     Hfits Hextension Hkinded Hsatisfied Htrue Hadd.
   apply (bottom_on_exception_sound statics menv menv' _ valuation) in Hadd;
     [ exact Hadd | ].
   intros result0 Hresult.
-  exact (add_env_extension0_sound mh Hkeeps Hsound Hsingleton statics menv
+  exact (add_env_extension0_sound mh Hkeeps Hsound statics menv
            extension valuation result0 Hfits Hextension Hkinded Hsatisfied
            Htrue Hresult).
 Qed.
@@ -2611,18 +2610,18 @@ Qed.
 Theorem meet_env_add_env_extension_strict_sound
     : meet_env_add_env_extension_strict_sound_statement.
 Proof.
-  intros Hsingleton mh statics valuation menv extension result Hkeeps Hsound
+  intros mh statics valuation menv extension result Hkeeps Hsound
     Hfits Hextension Hkinded Hsatisfied Htrue Hadd.
   unfold Meet_env.add_env_extension_strict in Hadd.
   rewrite (satisfied_not_bottom statics valuation _ Hsatisfied) in Hadd.
-  exact (add_env_extension0_sound mh Hkeeps Hsound Hsingleton statics menv
+  exact (add_env_extension0_sound mh Hkeeps Hsound statics menv
            extension valuation result Hfits Hextension Hkinded Hsatisfied
            Htrue Hadd).
 Qed.
 
 Theorem meet_env_add_alias_sound : meet_env_add_alias_sound_statement.
 Proof.
-  intros Hsingleton mh statics valuation menv s1 s2 kind v result Hkeeps
+  intros mh statics valuation menv s1 s2 kind v result Hkeeps
     Hsound Hfits Hkind1 Hkind2 Hsatisfied Hvalue1 Hvalue2 Hadd.
   assert (Hinvariant := proj1 Hfits).
   destruct (proj1 (proj2 (proj2 Hfits))) as (_ & Haliases & Hsymbols).
@@ -2638,7 +2637,7 @@ Proof.
   cbv beta iota in Hadd.
   rewrite (kind_of_simple_of_kind tenv _ kind kind' Hsymbols Hkind_canonical1
              Hread) in Hadd.
-  apply (add_alias_between_canonicals_sound mh Hsound Hsingleton
+  apply (add_alias_between_canonicals_sound mh Hsound
            statics menv kind _ _ valuation v result Hfits Hcanonical1
            Hcanonical2 Hkind_canonical1 Hkind_canonical2 Hsatisfied);
     [ | | exact Hadd ].
@@ -2664,7 +2663,7 @@ Qed.
 Theorem meet_env_add_equations_on_params_sound
     : meet_env_add_equations_on_params_sound_statement.
 Proof.
-  intros Hsingleton mh statics valuation menv menv' params param_types Hkeeps
+  intros mh statics valuation menv menv' params param_types Hkeeps
     Hsound.
   revert param_types menv menv' valuation.
   induction params as [ | param params IH ];
@@ -2683,7 +2682,7 @@ Proof.
     cbv beta iota in Hadd.
     destruct (add_equation_keeps mh menv menv1 (Name_var (fst param)) ty
                 Hkeeps Hfits Hty Hkind Hfirst) as [Hextends1 Hfits1].
-    destruct (meet_env_add_equation_sound Hsingleton mh statics valuation menv
+    destruct (meet_env_add_equation_sound mh statics valuation menv
                 menv1 (Name_var (fst param)) ty v Hkeeps Hsound Hfits Hty
                 Hkind Hsatisfied Hvalue Hv Hfirst)
       as (valuation1 & Hextended1 & Hsatisfied1 & Hvalued1).
@@ -2709,7 +2708,7 @@ Qed.
 
 Theorem meet_type_ok : meet_type_ok_statement.
 Proof.
-  intros Hsingleton mh v Hkeeps Hsound menv t1 t2 result Hfits Ht1 Ht2 Hmeet.
+  intros mh v Hkeeps Hsound menv t1 t2 result Hfits Ht1 Ht2 Hmeet.
   split.
   - intros r menv' ->.
     destruct (meet_type_keeps mh menv menv' t1 t2 r Hkeeps Hfits Ht1 Ht2
@@ -2720,7 +2719,7 @@ Proof.
     destruct (Meet_env.meet menv t1 t2 mh) as [ result0 | ] eqn:Hmeet0;
       [ | discriminate Hmeet ].
     cbn in Hmeet. injection Hmeet as <-.
-    destruct (meet_env_meet_sound mh Hsound Hsingleton statics menv t1 t2
+    destruct (meet_env_meet_sound mh Hsound statics menv t1 t2
                 valuation v result0 Hfits Ht1 Ht2 Hsatisfied Hv1 Hv2 Hmeet0)
       as (r & menv' & valuation' & -> & Hextended & Hsatisfied' & Hanswer
           & Hvalued).

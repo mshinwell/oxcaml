@@ -43,10 +43,11 @@
    valuation is supposed. The second (its name begins with [meet_env_]
    and ends in [_sound]) is about a valuation that satisfies the
    environment given, strictly, and under which what is added is
-   true: the name has a value, of the type given for it. Then the function does not answer bottom,
-   and a valuation that agrees with the first on what the environment
-   knew satisfies the environment answered; and no equation has been
-   added on a name that has no value ([meet_env_added]). The second
+   true: the name has a value, of the type given for it. Then the
+   function does not answer bottom, and a valuation that agrees with
+   the first on what the environment knew satisfies the environment
+   answered; and no equation has been added on a name that has no
+   value ([meet_env_added]). The second
    statement supposes of the meet of expanded types both
    [meet_expanded_head_keeps] and [meet_expanded_head_sound].
 
@@ -98,15 +99,7 @@
    an equation, and of [Meet_env.meet_type], for which the two forms
    are put together as [part_meet_ok] of FlambdaMeetStepsSpec.v
    ([meet_type_ok_statement]): the meet of two types is right, given
-   a meet of expanded types that is.
-
-   One premise of the second form is a stand-in
-   ([must_be_singleton_exact]): the constant that [must_be_singleton]
-   answers is the only value of the type. It is a statement of
-   FlambdaTypeMeaningSpec.v on the branch of its owner, about the
-   function as that file is to have it; the function is in
-   FlambdaMeetGrammar.v until then. The premise is to go when that
-   statement is under this file. *)
+   a meet of expanded types that is. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
@@ -271,18 +264,6 @@ Definition meet_type_keeps_statement : Prop :=
 (* What the functions add is true                                           *)
 (* ======================================================================== *)
 
-(* The constant that [must_be_singleton] answers is the only value of
-   the type. This is [must_be_singleton_satisfied_statement] of
-   FlambdaTypeMeaningSpec.v as its owner has stated and proved it on
-   its own branch, word for word. It is here as a premise and is to be
-   replaced by that theorem. *)
-Definition must_be_singleton_exact : Prop :=
-  ∀ (statics : static_env) (vars : env) (v : value) (t : flambda_type)
-    (c : const),
-    must_be_singleton t = Some (Some c) ->
-    type_satisfied statics vars v t ->
-    v = Value_const c.
-
 (* What was added to an environment is true: a valuation that agrees
    with [valuation] on what the first environment knew satisfies the
    second strictly, and no equation has been added on a name that has
@@ -305,7 +286,6 @@ Definition meet_env_sound (statics : static_env) (valuation : env)
 (* [Meet_env.add_equation_on_simple]: the [Simple] has a value, of the
    type. *)
 Definition meet_env_add_equation_on_simple_sound_statement : Prop :=
-  must_be_singleton_exact ->
   ∀ (mh : meet_expanded_head) (statics : static_env) (valuation : env)
     (menv menv' : Meet_env.t) (s : simple) (ty : flambda_type) (v : value),
     meet_expanded_head_keeps mh ->
@@ -322,7 +302,6 @@ Definition meet_env_add_equation_on_simple_sound_statement : Prop :=
 
 (* [Meet_env.add_equation]. *)
 Definition meet_env_add_equation_sound_statement : Prop :=
-  must_be_singleton_exact ->
   ∀ (mh : meet_expanded_head) (statics : static_env) (valuation : env)
     (menv menv' : Meet_env.t) (n : name) (ty : flambda_type) (v : value),
     meet_expanded_head_keeps mh ->
@@ -339,7 +318,6 @@ Definition meet_env_add_equation_sound_statement : Prop :=
 
 (* [Meet_env.add_equation_strict]. *)
 Definition meet_env_add_equation_strict_sound_statement : Prop :=
-  must_be_singleton_exact ->
   ∀ (mh : meet_expanded_head) (statics : static_env) (valuation : env)
     (menv : Meet_env.t) (n : name) (ty : flambda_type) (v : value)
     (result : Or_bottom.t Meet_env.t),
@@ -359,7 +337,6 @@ Definition meet_env_add_equation_strict_sound_statement : Prop :=
    that each of its names has a value, of the type of its equation
    (FlambdaTypeMeaningSpec.v). *)
 Definition meet_env_add_env_extension_sound_statement : Prop :=
-  must_be_singleton_exact ->
   ∀ (mh : meet_expanded_head) (statics : static_env) (valuation : env)
     (menv menv' : Meet_env.t) (extension : env_extension),
     meet_expanded_head_keeps mh ->
@@ -375,7 +352,6 @@ Definition meet_env_add_env_extension_sound_statement : Prop :=
 
 (* [Meet_env.add_env_extension_strict]. *)
 Definition meet_env_add_env_extension_strict_sound_statement : Prop :=
-  must_be_singleton_exact ->
   ∀ (mh : meet_expanded_head) (statics : static_env) (valuation : env)
     (menv : Meet_env.t) (extension : env_extension)
     (result : Or_bottom.t Meet_env.t),
@@ -392,7 +368,6 @@ Definition meet_env_add_env_extension_strict_sound_statement : Prop :=
 
 (* [Meet_env.add_alias]: the two [Simple]s have one value. *)
 Definition meet_env_add_alias_sound_statement : Prop :=
-  must_be_singleton_exact ->
   ∀ (mh : meet_expanded_head) (statics : static_env) (valuation : env)
     (menv : Meet_env.t) (s1 s2 : simple) (kind : flambda_kind) (v : value)
     (result : Or_bottom.t Meet_env.t),
@@ -411,7 +386,6 @@ Definition meet_env_add_alias_sound_statement : Prop :=
 (* [Meet_env.add_equations_on_params]: each parameter has a value, of
    the type given for it. *)
 Definition meet_env_add_equations_on_params_sound_statement : Prop :=
-  must_be_singleton_exact ->
   ∀ (mh : meet_expanded_head) (statics : static_env) (valuation : env)
     (menv menv' : Meet_env.t) (params : list (variable * flambda_kind))
     (param_types : list flambda_type),
@@ -439,7 +413,6 @@ Definition meet_env_add_equations_on_params_sound_statement : Prop :=
    (FlambdaMeetStepsSpec.v): the part is a type, which fits as a type
    does and is true where the value in hand has it. *)
 Definition meet_type_ok_statement : Prop :=
-  must_be_singleton_exact ->
   ∀ (mh : meet_expanded_head) (v : value),
     meet_expanded_head_keeps mh ->
     meet_expanded_head_sound mh ->
