@@ -1,9 +1,9 @@
 # N2: the freshness quantifier. Answer, survey and recommendation
 
-Branch `flambda2-rocq/N2-fresh-quantifier`, in new files only, on N1's
-series as it is over C2's epoch (`flambda2-rocq/N1-alpha-classes`: step
-3b, in which the renaming enters code, and the statements on the
-classes that follow it). The question was the human's: can the
+Branch `flambda2-rocq/N2-fresh-quantifier`, in new files only, on the
+integration branch after C2's epoch and N1's step 3b (in which the
+renaming enters code) with the statements on the classes that follow
+it. The question was the human's: can the
 quantifier of the papers on nominal sets be used here, the reversed N
 that reads "for all but finitely many names"; would it make statements
 easier; and it would be good to have.
@@ -91,7 +91,9 @@ of every other binder: the continuation of a `Let_cont`, the
 parameters of its handler and the binders of code
 (`FlambdaAlphaFreshSpec.v`), and the continuations of a recursive
 `Let_cont` (`FlambdaAlphaGroupSpec.v`), which is also shown to be a
-name abstraction of N1's interface, the one binder that was not.
+name abstraction of N1's interface, the one binder that was not: for
+groups whose binders repeat no name, the abstractions are equal
+exactly when the terms are alpha-equivalent.
 
 **It makes some statements easier, and they are the ones about
 equality, not the ones about rewrites.** The rule that comes out of the
@@ -205,21 +207,22 @@ what to review it against.
 | `FlambdaFreshBindersSpec.v`, `Proofs` | 11 | The binders of the terms: opening at a fresh name, comparing two binders at one fresh name |
 | `FlambdaCompareConverseSpec.v`, `Proofs` | 3 | The comparison accepts only alpha-equivalent terms; a `Let` as a name abstraction |
 | `FlambdaAlphaFreshSpec.v`, `Proofs` | 6 | The other binders that are not recursive as name abstractions: alpha-equivalence at each is agreement of the scopes at fresh names |
-| `FlambdaAlphaGroupSpec.v`, `Proofs` | 5 | The continuations of a recursive `Let_cont`: the same equivalence, and the group as a name abstraction of N1's interface; lists of things that contain names |
-| `FlambdaInlineFreshSpec.v`, `Proofs` | 5 | Inlining a call at fresh variables: the refinement with no premise about capture, and that the choice of the variables does not matter |
+| `FlambdaAlphaGroupSpec.v`, `Proofs` | 6 | The continuations of a recursive `Let_cont`: the same equivalence, and the group as a name abstraction of N1's interface, equal to another exactly when the terms are alpha-equivalent; lists of things that contain names |
+| `FlambdaInlineFreshSpec.v`, `Proofs` | 7 | Inlining a call at fresh variables: the refinement with no premise about capture, and that the choice of the variables does not matter |
 
 The first two mention no term of Flambda 2 and depend only on N1's
-interface (`FlambdaNameAbstractionSpec.v`); they are on the integration
-branch. (`fresh_names` and the statement that its names are fresh have
-since moved from the Proofs file of the first into its Spec file, a
-function that makes names having to be read; that is a change to a
-file already merged, of twenty lines; R1 has approved it.) The other
-five depend on the term-level files as they are after N1's step 3b
-and the statements that follow it, and wait for them. They are written
-for the terms as C2's epoch made them: a `Let` has the kind of its
-variable, a handler and code their metadata, and the two sides of a
-rule that compares two binders have the same kind or metadata, as the
-comparison asks.
+interface (`FlambdaNameAbstractionSpec.v`). (`fresh_names` and the
+statement that its names are fresh moved from the Proofs file of the
+first into its Spec file after it was merged, a function that makes
+names having to be read; R1 approved it.) The other five depend on
+the term-level files as they are after N1's step 3b and the
+statements that follow it. All seven are on the integration branch
+(the series that ends at 1160b780f0), but for the three statements
+that came after its review: the two of inlining in a state and
+`group_abstraction_iff`. They are written for the terms as C2's epoch
+made them: a `Let` has the kind of its variable, a handler and code
+their metadata, and the two sides of a rule that compares two binders
+have the same kind or metadata, as the comparison asks.
 
 **The quantifier.** `for_fresh P` is
 `∃ avoid, ∀ name, among name avoid = false -> P name`. Why this form:
@@ -460,6 +463,16 @@ which are given for any things that contain names (`list_names`,
 `list_nominal`). With this every binder of the table of `NAMES.md`
 section 3 is a name abstraction of the interface.
 
+For groups whose binders repeat no name the converse holds, so the
+two accounts are one relation (`group_abstraction_iff`): the
+abstractions are equal in N1's sense exactly when the terms are
+alpha-equivalent, that is, by `alpha_let_cont_recursive_iff`, exactly
+when the groups agree at fresh continuations. The proof takes the
+fresh continuations and the fresh parameters that the agreement
+gives and uses them as the permutations that open the abstractions;
+it needs the parameters of each handler distinct, which is why the
+premise is there in this direction and not in the other.
+
 ### 4.5 The validator's comparison
 
 `expr_eqb` keeps pairs of bound names and makes no fresh name; neither
@@ -527,11 +540,34 @@ stands: the binders of closed code are renamed where the code is
 bound (N1's `rename_code_binders`); the opened code meets `inlinable`;
 and the code is renamed back. So nothing of the machine is used.
 
-Not done: the form in which the code is found in the static
-environment of a state (`inline_statement`), which needs the renaming
-of the binders of code in a static environment; and an `inline_calls`
-that freshens, which would take the names to avoid and whose statement
-would be the "any" reading.
+The same is given of a state, as `inline_statement` is, for a pass
+that inlines the calls of the code it has seen bound
+(`inline_at_state`, `inline_fresh_state`):
+
+    ap_call_kind ap = Direct called ->
+    lookup called (static_code statics) = Some c ->
+    inlinable_at_fresh ap c r ->
+    length fresh = length (code_variables c) ->
+    distinct_outside
+      (code_variables c ++ free_variables_of_simples (ap_args ap)) fresh ->
+    refines (State (Apply ap) vars conts statics)
+      (State (inlined_at fresh c r ap) vars conts statics)
+
+The proof is the same three steps with the code replaced by the
+opened code in the static environment: two static environments that
+have, at each code id, code that the comparison accepts give
+equivalent states (the bisimulation of `FlambdaCompareProofs.v`).
+
+Not done: an `inline_calls` that freshens, which would take the names
+to avoid and whose statement would be the "any" reading. It is a pass
+of the validator, and its owner (V2) does not want one now: no call
+of the validator's examples is refused because of capture (V2
+counted, over 462 units, before Simplify and after each round of the
+validator's normalisation: the only calls with an argument that
+mentions `my_closure` or a parameter of the code called are recursive
+calls in the body of the code itself, which are not inlined). If a
+case appears, V2 changes the function that inlines one call and needs
+from here only that its test gives `inlinable_at_fresh`.
 
 ### 4.7 The join
 
@@ -690,14 +726,10 @@ With the quantifier:
 
 ## 8. What is not done
 
-- Inlining at fresh names in the form of `inline_statement`, with the
-  code in the static environment, and an `inline_calls` that freshens
-  (section 4.6). The form with the binding of the code in sight is
-  done.
-- That equality of two groups as name abstractions
-  (`group_abstraction`) and their agreement at fresh continuations
-  (`alpha_group`) are one relation. Each is shown to give
-  alpha-equivalent terms, and the second to be given by them.
+- An `inline_calls` that freshens (section 4.6): its owner does not
+  want one now. The refinement itself is done in both forms, with the
+  binding of the code in sight and with the code in the static
+  environment of a state.
 - The form with the quantifier for a list of bound names that repeats
   a name ("the two lists repeat alike"). N1 does not want it:
   well-formedness excludes such lists.
