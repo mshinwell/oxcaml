@@ -44,7 +44,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaApplySpec FlambdaNormaliseSpec FlambdaEquivarianceSpec
   FlambdaEquivarianceProofs FlambdaUnusedContsSpec FlambdaUnusedStaticsSpec
   FlambdaPrimitiveModel FlambdaPrimitiveSpec FlambdaBlockLoadSpec
-  FlambdaUnboxSpec FlambdaWellFormedSpec FlambdaCompareSpec
+  FlambdaUnboxSpec FlambdaWellFormedSpec FlambdaWellKindedSpec
+  FlambdaCompareSpec
   FlambdaCompareAlphaSpec FlambdaCompareAlphaProofs FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
@@ -2297,6 +2298,251 @@ Proof.
   destruct (drop_statics D e) as [e' | ]; cbn [option_map]; [ | reflexivity ].
   rewrite drop_deleted_code_equivariant_aux, merge_statics_equivariant_aux.
   reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* FlambdaWellKindedSpec.v                                                  *)
+(* ======================================================================== *)
+
+(* A map whose keys are renamed, and what they are bound to kept. *)
+Lemma lookup_map_keys_injective {A : Type} (f : positive -> positive)
+    (x : positive) (l : finite_map A) :
+  (∀ a b : positive, Pos.eqb (f a) (f b) = Pos.eqb a b) ->
+  lookup (f x) (Keyed.map_keys f l) = lookup x l.
+Proof.
+  intros Hf. unfold Keyed.map_keys, Keyed.map_bindings.
+  induction l as [ | [y a] l IH]; simpl; [ reflexivity | ].
+  rewrite Hf. destruct (Pos.eqb x y); [ reflexivity | exact IH ].
+Qed.
+
+Lemma handler_kinds_renamed (r : renaming) (h : continuation_handler) :
+  handler_kinds (rename_handler r h) = handler_kinds h.
+Proof. destruct h; reflexivity. Qed.
+
+Lemma kind_of_simple_renamed (r : renaming) (kinds : kind_env) (s : simple) :
+  kind_of_simple (rename_kind_env r kinds) (rename_simple r s)
+  = kind_of_simple kinds s.
+Proof.
+  destruct s as [x | sym | c]; simpl; try reflexivity.
+  apply lookup_map_keys_injective, rename_variable_eqb.
+Qed.
+
+Lemma kinds_of_simples_renamed (r : renaming) (kinds : kind_env)
+    (args : list simple) :
+  kinds_of_simples (rename_kind_env r kinds) (map (rename_simple r) args)
+  = kinds_of_simples kinds args.
+Proof.
+  induction args as [ | s args IH]; simpl; [ reflexivity | ].
+  rewrite kind_of_simple_renamed, IH. reflexivity.
+Qed.
+
+Lemma bind_param_kinds_renamed (r : renaming) (params : list variable) :
+  ∀ (params_kinds : list flambda_kind) (kinds : kind_env),
+    bind_param_kinds (map (rename_variable r) params) params_kinds
+      (rename_kind_env r kinds)
+    = option_map (rename_kind_env r)
+        (bind_param_kinds params params_kinds kinds).
+Proof.
+  induction params as [ | x params IH]; intros [ | k params_kinds] kinds;
+    simpl; try reflexivity.
+  exact (IH params_kinds ((x, k) :: kinds)).
+Qed.
+
+Lemma handler_arities_renamed (r : renaming)
+    (handlers : list (continuation * continuation_handler)) :
+  handler_arities (rename_handlers r handlers)
+  = rename_arity_env r (handler_arities handlers).
+Proof.
+  unfold handler_arities, rename_handlers, rename_arity_env, Keyed.map_keys,
+    Keyed.map_bindings, map_values.
+  induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
+  rewrite handler_kinds_renamed, IH. reflexivity.
+Qed.
+
+Lemma value_slots_well_kinded_renamed (r : renaming) (slots : slot_kinds)
+    (kinds : kind_env) (value_slots : list (value_slot * simple)) :
+  value_slots_well_kinded slots (rename_kind_env r kinds)
+    (map (fun slot => (fst slot, rename_simple r (snd slot))) value_slots)
+  = value_slots_well_kinded slots kinds value_slots.
+Proof.
+  unfold value_slots_well_kinded. apply forallb_map_with. intros [slot s].
+  simpl. rewrite kind_of_simple_renamed. reflexivity.
+Qed.
+
+Lemma kind_of_named_renamed (r : renaming) (slots : slot_kinds)
+    (kinds : kind_env) (d : named) :
+  kind_of_named slots (rename_kind_env r kinds) (rename_named r d)
+  = kind_of_named slots kinds d.
+Proof.
+  destruct d; cbn [rename_named kind_of_named];
+    rewrite ?kind_of_simple_renamed, ?kinds_of_simples_renamed,
+      ?value_slots_well_kinded_renamed;
+    reflexivity.
+Qed.
+
+Lemma static_const_well_kinded_renamed (r : renaming) (slots : slot_kinds)
+    (kinds : kind_env) (const : static_const) :
+  static_const_well_kinded slots (rename_kind_env r kinds)
+    (rename_static_const r const)
+  = static_const_well_kinded slots kinds const.
+Proof.
+  destruct const; cbn [rename_static_const static_const_well_kinded];
+    rewrite ?kind_of_simple_renamed, ?value_slots_well_kinded_renamed;
+    try reflexivity.
+  apply forallb_map_with. intros s. rewrite kind_of_simple_renamed.
+  reflexivity.
+Qed.
+
+Lemma apply_cont_well_kinded_renamed (r : renaming) (kinds : kind_env)
+    (conts : arity_env) (ac : apply_cont) :
+  apply_cont_well_kinded (rename_kind_env r kinds) (rename_arity_env r conts)
+    (rename_apply_cont r ac)
+  = apply_cont_well_kinded kinds conts ac.
+Proof.
+  unfold apply_cont_well_kinded, rename_arity_env. simpl.
+  rewrite (lookup_map_keys_injective _ _ _ (rename_continuation_eqb r)),
+    kinds_of_simples_renamed.
+  reflexivity.
+Qed.
+
+Lemma apply_well_kinded_renamed (r : renaming) (kinds : kind_env)
+    (conts : arity_env) (ap : apply_expr) :
+  apply_well_kinded (rename_kind_env r kinds) (rename_arity_env r conts)
+    (rename_apply r ap)
+  = apply_well_kinded kinds conts ap.
+Proof.
+  unfold apply_well_kinded, rename_arity_env. simpl.
+  rewrite !(lookup_map_keys_injective _ _ _ (rename_continuation_eqb r)),
+    kind_of_simple_renamed, kinds_of_simples_renamed.
+  reflexivity.
+Qed.
+
+Fixpoint well_kinded_renamed (r : renaming) (slots : slot_kinds) (e : expr)
+    {struct e} :
+  ∀ (kinds : kind_env) (conts : arity_env),
+    well_kinded slots (rename_kind_env r kinds) (rename_arity_env r conts)
+      (rename_expr r e)
+    = well_kinded slots kinds conts e
+with handler_well_kinded_renamed (r : renaming) (slots : slot_kinds)
+    (h : continuation_handler) {struct h} :
+  ∀ (kinds : kind_env) (conts : arity_env),
+    handler_well_kinded slots (rename_kind_env r kinds)
+      (rename_arity_env r conts) (rename_handler r h)
+    = handler_well_kinded slots kinds conts h
+with binding_well_kinded_renamed (r : renaming) (slots : slot_kinds)
+    (binding : static_binding) {struct binding} :
+  ∀ kinds : kind_env,
+    binding_well_kinded slots (rename_kind_env r kinds)
+      (rename_static_binding r binding)
+    = binding_well_kinded slots kinds binding
+with code_well_kinded_renamed (r : renaming) (slots : slot_kinds) (c : code)
+    {struct c} :
+  code_well_kinded slots (rename_code r c) = code_well_kinded slots c.
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      intros kinds conts; cbn [rename_expr well_kinded].
+    + rewrite kind_of_named_renamed. f_equal.
+      exact (well_kinded_renamed r slots body ((x, kind) :: kinds) conts).
+    + rewrite well_kinded_renamed. f_equal.
+      induction bindings as [ | binding bindings IH]; cbn [map forallb];
+        [ reflexivity | ].
+      rewrite (binding_well_kinded_renamed r slots binding), IH. reflexivity.
+    + rewrite handler_well_kinded_renamed, handler_kinds_renamed. f_equal.
+      exact
+        (well_kinded_renamed r slots body kinds
+           ((k, handler_kinds h) :: conts)).
+    + change
+        (map (fun '(k, h) => (rename_continuation r k, rename_handler r h))
+           handlers)
+        with (rename_handlers r handlers).
+      rewrite handler_arities_renamed.
+      replace
+        (rename_arity_env r (handler_arities handlers)
+         ++ rename_arity_env r conts)
+        with (rename_arity_env r (handler_arities handlers ++ conts))
+        by apply map_app.
+      rewrite well_kinded_renamed. f_equal.
+      generalize (handler_arities handlers ++ conts). intros conts'.
+      unfold rename_handlers.
+      induction handlers as [ | [k h] handlers IH]; cbn [map forallb];
+        [ reflexivity | ].
+      rewrite (handler_well_kinded_renamed r slots h), IH. reflexivity.
+    + apply apply_well_kinded_renamed.
+    + apply apply_cont_well_kinded_renamed.
+    + rewrite kind_of_simple_renamed. f_equal. apply forallb_map_with.
+      intros arm. apply apply_cont_well_kinded_renamed.
+    + reflexivity.
+  - destruct h as [params metadata handler]. intros kinds conts.
+    cbn [rename_handler handler_well_kinded].
+    rewrite (distinct_map_injective _ (rename_variable_eqb r)),
+      bind_param_kinds_renamed.
+    destruct (bind_param_kinds params (hm_params_kinds metadata) kinds)
+      as [handler_kinds | ];
+      cbn [option_map]; [ | reflexivity ].
+    rewrite well_kinded_renamed. reflexivity.
+  - destruct binding as [id c | id | sym const]; intros kinds;
+      cbn [rename_static_binding binding_well_kinded].
+    + apply code_well_kinded_renamed.
+    + reflexivity.
+    + apply static_const_well_kinded_renamed.
+  - destruct c as [params my_closure ret exn metadata body].
+    cbn [rename_code code_well_kinded].
+    change (rename_variable r my_closure :: map (rename_variable r) params)
+      with (map (rename_variable r) (my_closure :: params)).
+    rewrite (distinct_map_injective _ (rename_variable_eqb r)).
+    change [(rename_variable r my_closure, Value)]
+      with (rename_kind_env r [(my_closure, Value)]).
+    rewrite bind_param_kinds_renamed.
+    destruct
+      (bind_param_kinds params (unarize (cm_params_arity metadata))
+         [(my_closure, Value)])
+      as [body_kinds | ];
+      cbn [option_map]; [ | reflexivity ].
+    f_equal.
+    exact
+      (well_kinded_renamed r slots body body_kinds
+         [(ret, unarize (cm_result_arity metadata)); (exn, [Value])]).
+Qed.
+
+Theorem handler_kinds_equivariant : handler_kinds_equivariant_statement.
+Proof. exact handler_kinds_renamed. Qed.
+
+Theorem kind_of_simple_equivariant : kind_of_simple_equivariant_statement.
+Proof. exact kind_of_simple_renamed. Qed.
+
+Theorem kinds_of_simples_equivariant : kinds_of_simples_equivariant_statement.
+Proof. exact kinds_of_simples_renamed. Qed.
+
+Theorem kind_of_named_equivariant : kind_of_named_equivariant_statement.
+Proof. exact kind_of_named_renamed. Qed.
+
+Theorem bind_param_kinds_equivariant : bind_param_kinds_equivariant_statement.
+Proof. exact bind_param_kinds_renamed. Qed.
+
+Theorem static_const_well_kinded_equivariant :
+  static_const_well_kinded_equivariant_statement.
+Proof. exact static_const_well_kinded_renamed. Qed.
+
+Theorem apply_cont_well_kinded_equivariant :
+  apply_cont_well_kinded_equivariant_statement.
+Proof. exact apply_cont_well_kinded_renamed. Qed.
+
+Theorem apply_well_kinded_equivariant :
+  apply_well_kinded_equivariant_statement.
+Proof. exact apply_well_kinded_renamed. Qed.
+
+Theorem well_kinded_equivariant : well_kinded_equivariant_statement.
+Proof.
+  intros r slots kinds conts e. apply well_kinded_renamed.
+Qed.
+
+Theorem well_kinded_unit_equivariant : well_kinded_unit_equivariant_statement.
+Proof.
+  intros r slots unit_return unit_exn e. unfold well_kinded_unit.
+  exact
+    (well_kinded_renamed r slots e [] (unit_arities unit_return unit_exn)).
 Qed.
 
 (* ======================================================================== *)

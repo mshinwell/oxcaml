@@ -130,6 +130,16 @@
    [well_formed_unit] on binders are those of FlambdaBindersSpec.v,
    which FlambdaAlphaSpec.v says are unchanged by a renaming.
 
+   The check of kinds of FlambdaWellKindedSpec.v, which the test tool
+   runs on a unit before and after Simplify: the kind that is found
+   for a [Simple] and for a defining expression, the checks of a
+   static constant, of an application of a continuation and of a call,
+   the check of a term ([well_kinded]) and that of a unit
+   ([well_kinded_unit]). The check is given the kinds of the variables
+   and the kinds of the parameters of the continuations in scope,
+   which hold names, so a renaming acts on them ([rename_kind_env],
+   [rename_arity_env], which are to be reviewed).
+
    The normalisations of FlambdaValidateSpec.v: [iterate] of a rewrite
    that commutes, [normalise_before], [normalise_after] and
    [without_statics]; and the check, [validate_unit].
@@ -143,7 +153,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaNominalSpec FlambdaAlphaSpec
   FlambdaNormaliseSpec FlambdaEquivarianceSpec FlambdaUnusedContsSpec
   FlambdaUnusedStaticsSpec FlambdaBlockLoadSpec FlambdaUnboxSpec
-  FlambdaWellFormedSpec FlambdaValidateSpec.
+  FlambdaWellFormedSpec FlambdaWellKindedSpec FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -481,6 +491,91 @@ Definition normalise_after_equivariant_statement : Prop :=
    refers to them. *)
 Definition without_statics_equivariant_statement : Prop :=
   ∀ D : dropped, rewrite_equivariant (without_statics D).
+
+(* ======================================================================== *)
+(* The check of kinds of FlambdaWellKindedSpec.v                            *)
+(* ======================================================================== *)
+
+(* The check of kinds is given the kinds of the variables in scope and
+   the kinds of the parameters of the continuations in scope. The
+   action on the two: each name is renamed and keeps what it is bound
+   to. The kinds of the value slots are keyed by slots, which no
+   renaming changes. *)
+Definition rename_kind_env (r : renaming) (kinds : kind_env) : kind_env :=
+  Keyed.map_keys (rename_variable r) kinds.
+
+Definition rename_arity_env (r : renaming) (conts : arity_env) : arity_env :=
+  Keyed.map_keys (rename_continuation r) conts.
+
+(* The kinds of the parameters of a handler have no names in them. *)
+Definition handler_kinds_equivariant_statement : Prop :=
+  ∀ (r : renaming) (h : continuation_handler),
+    handler_kinds (rename_handler r h) = handler_kinds h.
+
+(* The kind that is found for a [Simple], for the arguments of a
+   primitive or of a call, and for a defining expression. *)
+Definition kind_of_simple_equivariant_statement : Prop :=
+  ∀ (r : renaming) (kinds : kind_env) (s : simple),
+    kind_of_simple (rename_kind_env r kinds) (rename_simple r s)
+    = kind_of_simple kinds s.
+
+Definition kinds_of_simples_equivariant_statement : Prop :=
+  ∀ (r : renaming) (kinds : kind_env) (args : list simple),
+    kinds_of_simples (rename_kind_env r kinds) (map (rename_simple r) args)
+    = kinds_of_simples kinds args.
+
+Definition kind_of_named_equivariant_statement : Prop :=
+  ∀ (r : renaming) (slots : slot_kinds) (kinds : kind_env) (d : named),
+    kind_of_named slots (rename_kind_env r kinds) (rename_named r d)
+    = kind_of_named slots kinds d.
+
+(* The kinds of parameters are bound for the renamed parameters as for
+   the parameters. *)
+Definition bind_param_kinds_equivariant_statement : Prop :=
+  ∀ (r : renaming) (params : list variable) (params_kinds : list flambda_kind)
+    (kinds : kind_env),
+    bind_param_kinds (map (rename_variable r) params) params_kinds
+      (rename_kind_env r kinds)
+    = option_map (rename_kind_env r)
+        (bind_param_kinds params params_kinds kinds).
+
+(* The checks of a static constant, of an application of a
+   continuation and of a call. *)
+Definition static_const_well_kinded_equivariant_statement : Prop :=
+  ∀ (r : renaming) (slots : slot_kinds) (kinds : kind_env)
+    (const : static_const),
+    static_const_well_kinded slots (rename_kind_env r kinds)
+      (rename_static_const r const)
+    = static_const_well_kinded slots kinds const.
+
+Definition apply_cont_well_kinded_equivariant_statement : Prop :=
+  ∀ (r : renaming) (kinds : kind_env) (conts : arity_env) (ac : apply_cont),
+    apply_cont_well_kinded (rename_kind_env r kinds) (rename_arity_env r conts)
+      (rename_apply_cont r ac)
+    = apply_cont_well_kinded kinds conts ac.
+
+Definition apply_well_kinded_equivariant_statement : Prop :=
+  ∀ (r : renaming) (kinds : kind_env) (conts : arity_env) (ap : apply_expr),
+    apply_well_kinded (rename_kind_env r kinds) (rename_arity_env r conts)
+      (rename_apply r ap)
+    = apply_well_kinded kinds conts ap.
+
+(* The check of a term, what is in scope being renamed with the term;
+   and the check of a unit, its two continuations being renamed with
+   it. *)
+Definition well_kinded_equivariant_statement : Prop :=
+  ∀ (r : renaming) (slots : slot_kinds) (kinds : kind_env) (conts : arity_env)
+    (e : expr),
+    well_kinded slots (rename_kind_env r kinds) (rename_arity_env r conts)
+      (rename_expr r e)
+    = well_kinded slots kinds conts e.
+
+Definition well_kinded_unit_equivariant_statement : Prop :=
+  ∀ (r : renaming) (slots : slot_kinds) (unit_return unit_exn : continuation)
+    (e : expr),
+    well_kinded_unit slots (rename_continuation r unit_return)
+      (rename_continuation r unit_exn) (rename_expr r e)
+    = well_kinded_unit slots unit_return unit_exn e.
 
 (* ======================================================================== *)
 (* The check                                                                *)
