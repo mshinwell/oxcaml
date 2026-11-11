@@ -9,6 +9,7 @@ open FlambdaPrimitiveSpec
 open FlambdaValueSpec
 open List
 open ListDef
+open PeanoNat
 
 type env = (variable * value) list
 
@@ -20,6 +21,7 @@ type cont_value =
       * (continuation * continuation_handler) list
   | Outer of continuation
   | Extra_args of cont_value * value list
+  | Over_application of value list * arity * arity * cont_value * cont_value
 
 type cont_env = (continuation * cont_value) list
 
@@ -78,9 +80,9 @@ let eval_named statics vars = function
     match eval_simples vars args with
     | Some vs -> eval_prim statics p vs
     | None -> None)
-  | Set_of_closures (code, value_slots) -> (
+  | Set_of_closures (code0, value_slots) -> (
     match eval_value_slots vars value_slots with
-    | Some vs -> Some (Value_closure (code, vs))
+    | Some vs -> Some (Value_closure (code0, vs))
     | None -> None)
   | Closure_of_set (slot, function_decls, value_slots) -> (
     match lookup slot function_decls with
@@ -109,9 +111,9 @@ let eval_named statics vars = function
     option **)
 
 let eval_static_const vars = function
-  | Static_const_set_of_closures (code, value_slots) -> (
+  | Static_const_set_of_closures (code0, value_slots) -> (
     match eval_value_slots vars value_slots with
-    | Some vs -> Some (Static_closure (code, vs))
+    | Some vs -> Some (Static_closure (code0, vs))
     | None -> None)
   | Static_const_closure_of_set
       (slot, closure_symbols, function_decls, value_slots) -> (
@@ -233,6 +235,130 @@ type step_result =
   | Exit of continuation * value list
   | Undefined
 
+(** val with_extra_args : cont_value -> value list -> cont_value **)
+
+let with_extra_args c extra =
+  match extra with [] -> c | _ :: _ -> Extra_args (c, extra)
+
+(** val call_code : value -> code -> value list -> arity -> arity -> cont_value
+    -> cont_value -> static_env -> step_result **)
+
+let call_code closure c vs args_arity return_arity return_to exn_to statics =
+  if binds_statics (code_body c)
+  then Undefined
+  else if
+    negb
+      ((kinds_eqb (map kind_of_value vs) (unarize args_arity)
+       && kinds_per_parameter_eqb
+            (unarize_per_parameter args_arity)
+            (unarize_per_parameter (code_params_arity c)))
+      && arity_eqb return_arity (code_result_arity c))
+  then Undefined
+  else
+    match
+      bind_params (code_params c) vs ((code_my_closure c, closure) :: [])
+    with
+    | Some callee_vars ->
+      Step
+        { state_expr = code_body c;
+          state_vars = callee_vars;
+          state_conts =
+            [ code_return_continuation c, return_to;
+              code_exn_continuation c, exn_to ];
+          state_statics = statics
+        }
+    | None -> Undefined
+
+type call_shape =
+  | Full_call of value * code * value list * arity
+  | Over_call of value * code * value list * value list * arity * arity
+  | Partial_call of value
+
+(** val shape_of_closure_call : static_env -> value -> call_kind -> value list
+    -> arity -> arity -> call_shape option **)
+
+let shape_of_closure_call statics closure kind vs args_arity return_arity =
+  match closure_of statics closure with
+  | Some p ->
+    let called, _ = p in
+    let expected =
+      match kind with
+      | Direct named0 -> Pos.eqb called named0
+      | Indirect -> true
+    in
+    if expected
+    then
+      match lookup called statics.static_code with
+      | Some c ->
+        let provided = length args_arity in
+        let params = length (code_params_arity c) in
+        if Nat.eqb provided params
+        then Some (Full_call (closure, c, vs, args_arity))
+        else if
+          negb
+            (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+            && partial_or_over_application args_arity return_arity
+                 (code_params_arity c) (code_result_arity c))
+        then None
+        else if Nat.ltb params provided
+        then
+          let size = cardinal_unarized (code_params_arity c) in
+          Some
+            (Over_call
+               ( closure,
+                 c,
+                 firstn size vs,
+                 skipn size vs,
+                 firstn params args_arity,
+                 partially_apply args_arity params ))
+        else
+          Some
+            (Partial_call (Value_partial_application (closure, vs, args_arity)))
+      | None -> None
+    else None
+  | None -> None
+
+(** val shape_of_call : static_env -> value -> call_kind -> value list -> arity
+    -> arity -> call_shape option **)
+
+let shape_of_call statics callee kind vs args_arity return_arity =
+  match kind with
+  | Direct _ ->
+    shape_of_closure_call statics callee kind vs args_arity return_arity
+  | Indirect -> (
+    match partial_application_of callee with
+    | Some p -> (
+      let p0, applied_arity = p in
+      let closure, applied = p0 in
+      match args_arity with
+      | [] -> None
+      | _ :: _ ->
+        if kinds_eqb (map kind_of_value vs) (unarize args_arity)
+        then
+          shape_of_closure_call statics closure Indirect (app applied vs)
+            (app applied_arity args_arity)
+            return_arity
+        else None)
+    | None ->
+      shape_of_closure_call statics callee kind vs args_arity return_arity)
+
+(** val run_call : (value -> step_result) -> call_shape option -> arity ->
+    cont_value -> cont_value -> static_env -> step_result **)
+
+let run_call return_partial shape return_arity return_to exn_to statics =
+  match shape with
+  | Some c0 -> (
+    match c0 with
+    | Full_call (closure, c, vs, args_arity) ->
+      call_code closure c vs args_arity return_arity return_to exn_to statics
+    | Over_call (closure, c, vs, remaining, args_arity, remaining_arity) ->
+      call_code closure c vs args_arity (code_result_arity c)
+        (Over_application
+           (remaining, remaining_arity, return_arity, return_to, exn_to))
+        exn_to statics
+    | Partial_call partial -> return_partial partial)
+  | None -> Undefined
+
 (** val apply_cont_value : cont_value -> value list -> static_env -> step_result
     **)
 
@@ -255,11 +381,19 @@ let rec apply_cont_value c vs statics =
     else Undefined
   | Outer k -> Exit (k, vs)
   | Extra_args (c0, extra) -> apply_cont_value c0 (app vs extra) statics
-
-(** val with_extra_args : cont_value -> value list -> cont_value **)
-
-let with_extra_args c extra =
-  match extra with [] -> c | _ :: _ -> Extra_args (c, extra)
+  | Over_application
+      (remaining, remaining_arity, return_arity, return_to, exn_to) -> (
+    match vs with
+    | [] -> Undefined
+    | v :: l -> (
+      match l with
+      | [] ->
+        run_call
+          (fun partial -> apply_cont_value return_to (partial :: []) statics)
+          (shape_of_call statics v Indirect remaining remaining_arity
+             return_arity)
+          return_arity return_to exn_to statics
+      | _ :: _ -> Undefined))
 
 (** val apply_continuation : continuation -> value list -> cont_env ->
     static_env -> step_result **)
@@ -272,45 +406,10 @@ let apply_continuation k vs conts statics =
 
 let call_function callee kind vs args_arity return_arity return_to exn_to
     statics =
-  match closure_of statics callee with
-  | Some p ->
-    let called, _ = p in
-    let expected =
-      match kind with
-      | Direct named0 -> Pos.eqb called named0
-      | Indirect -> true
-    in
-    if expected
-    then
-      match lookup called statics.static_code with
-      | Some c -> (
-        if binds_statics (code_body c)
-        then Undefined
-        else if
-          negb
-            ((kinds_eqb (map kind_of_value vs) (unarize args_arity)
-             && kinds_per_parameter_eqb
-                  (unarize_per_parameter args_arity)
-                  (unarize_per_parameter (code_params_arity c)))
-            && arity_eqb return_arity (code_result_arity c))
-        then Undefined
-        else
-          match
-            bind_params (code_params c) vs ((code_my_closure c, callee) :: [])
-          with
-          | Some callee_vars ->
-            Step
-              { state_expr = code_body c;
-                state_vars = callee_vars;
-                state_conts =
-                  [ code_return_continuation c, return_to;
-                    code_exn_continuation c, exn_to ];
-                state_statics = statics
-              }
-          | None -> Undefined)
-      | None -> Undefined
-    else Undefined
-  | None -> Undefined
+  run_call
+    (fun partial -> apply_cont_value return_to (partial :: []) statics)
+    (shape_of_call statics callee kind vs args_arity return_arity)
+    return_arity return_to exn_to statics
 
 (** val step : state -> step_result **)
 

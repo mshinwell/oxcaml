@@ -5,52 +5,56 @@ open FlambdaModel
 open FlambdaUnusedContsSpec
 open List
 open ListDef
+open PeanoNat
 
-(** val is_self_tail_call : variable -> continuation -> continuation ->
+(** val is_self_tail_call : variable -> arity -> continuation -> continuation ->
     apply_expr -> bool **)
 
-let is_self_tail_call my_closure ret exn ap =
-  (((match ap.ap_callee with Var x -> Pos.eqb x my_closure | _ -> false)
+let is_self_tail_call my_closure params_arity ret exn ap =
+  ((((match ap.ap_callee with Var x -> Pos.eqb x my_closure | _ -> false)
+    && Nat.eqb (length ap.ap_args_arity) (length params_arity))
    && Pos.eqb ap.ap_continuation ret)
   && Pos.eqb ap.ap_exn_continuation exn)
   && no_exn_extra_args ap
 
-(** val loop_calls : variable -> continuation -> continuation -> continuation ->
-    expr -> expr **)
+(** val loop_calls : variable -> arity -> continuation -> continuation ->
+    continuation -> expr -> expr **)
 
-let rec loop_calls my_closure ret exn self e =
+let rec loop_calls my_closure params_arity ret exn self e =
   match e with
   | Let (x, kind, d, body) ->
-    Let (x, kind, d, loop_calls my_closure ret exn self body)
+    Let (x, kind, d, loop_calls my_closure params_arity ret exn self body)
   | Let_static (bindings, body) ->
-    Let_static (bindings, loop_calls my_closure ret exn self body)
+    Let_static (bindings, loop_calls my_closure params_arity ret exn self body)
   | Let_cont_non_recursive (k, h, body) ->
     Let_cont_non_recursive
       ( k,
-        loop_calls_in_handler my_closure ret exn self h,
-        loop_calls my_closure ret exn self body )
+        loop_calls_in_handler my_closure params_arity ret exn self h,
+        loop_calls my_closure params_arity ret exn self body )
   | Let_cont_recursive (handlers, body) ->
     Let_cont_recursive
       ( map
           (fun pat ->
             let k, h = pat in
-            k, loop_calls_in_handler my_closure ret exn self h)
+            k, loop_calls_in_handler my_closure params_arity ret exn self h)
           handlers,
-        loop_calls my_closure ret exn self body )
+        loop_calls my_closure params_arity ret exn self body )
   | Apply ap ->
-    if is_self_tail_call my_closure ret exn ap
+    if is_self_tail_call my_closure params_arity ret exn ap
     then
       Apply_cont
         { ac_continuation = self; ac_args = ap.ap_args; ac_trap_action = None }
     else e
   | _ -> e
 
-(** val loop_calls_in_handler : variable -> continuation -> continuation ->
-    continuation -> continuation_handler -> continuation_handler **)
+(** val loop_calls_in_handler : variable -> arity -> continuation ->
+    continuation -> continuation -> continuation_handler -> continuation_handler
+    **)
 
-and loop_calls_in_handler my_closure ret exn self = function
+and loop_calls_in_handler my_closure params_arity ret exn self = function
   | Handler (params, metadata, handler) ->
-    Handler (params, metadata, loop_calls my_closure ret exn self handler)
+    Handler
+      (params, metadata, loop_calls my_closure params_arity ret exn self handler)
 
 (** val loop_safe : variable -> continuation -> continuation -> continuation ->
     expr -> bool **)
@@ -94,7 +98,7 @@ let loop_handler self c =
   Handler
     ( code_params c,
       make_handler_metadata (code_params_kinds c),
-      loop_calls (code_my_closure c)
+      loop_calls (code_my_closure c) (code_params_arity c)
         (code_return_continuation c)
         (code_exn_continuation c) self (code_body c) )
 
@@ -121,7 +125,7 @@ let looped_code self c =
 
 let loopable self c =
   let looped =
-    loop_calls (code_my_closure c)
+    loop_calls (code_my_closure c) (code_params_arity c)
       (code_return_continuation c)
       (code_exn_continuation c) self (code_body c)
   in

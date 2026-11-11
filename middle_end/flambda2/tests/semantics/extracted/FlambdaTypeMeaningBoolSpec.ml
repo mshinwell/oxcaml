@@ -64,6 +64,12 @@ let rec value_eqb v v' =
     match v' with Value_boxed_number c' -> const_eqb c c' | _ -> false)
   | Value_location l -> (
     match v' with Value_location l' -> Pos.eqb l l' | _ -> false)
+  | Value_partial_application (callee, args, args_arity) -> (
+    match v' with
+    | Value_partial_application (callee', args', args_arity') ->
+      (value_eqb callee callee' && lists_eqb value_eqb args args')
+      && arity_eqb args_arity args_arity'
+    | _ -> false)
 
 (** val is_poison_b : value -> bool **)
 

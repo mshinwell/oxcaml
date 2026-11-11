@@ -106,6 +106,54 @@ let kinds_eqb kinds kinds' =
 let kinds_per_parameter_eqb kinds kinds' =
   if list_eq_dec (list_eq_dec kind_eq_dec) kinds kinds' then true else false
 
+(** val cardinal_unarized : arity -> nat **)
+
+let cardinal_unarized a = length (unarize a)
+
+(** val partially_apply : arity -> nat -> arity **)
+
+let partially_apply a provided = skipn provided a
+
+(** val kinds_agree_on_prefix : flambda_kind list list -> flambda_kind list list
+    -> bool **)
+
+let rec kinds_agree_on_prefix params args =
+  match params with
+  | [] -> true
+  | param :: params0 -> (
+    match args with
+    | [] -> true
+    | arg :: args0 -> kinds_eqb param arg && kinds_agree_on_prefix params0 args0
+    )
+
+(** val is_one_param_of_kind_value : arity -> bool **)
+
+let is_one_param_of_kind_value = function
+  | [] -> false
+  | a0 :: l -> (
+    match a0 with
+    | Singleton k -> (
+      match k with
+      | Value -> ( match l with [] -> true | _ :: _ -> false)
+      | _ -> false)
+    | Unboxed_product _ -> false)
+
+(** val partial_or_over_application : arity -> arity -> arity -> arity -> bool **)
+
+let partial_or_over_application args_arity return_arity params_arity
+    result_arity =
+  let provided = length args_arity in
+  let params = length params_arity in
+  kinds_agree_on_prefix
+    (unarize_per_parameter params_arity)
+    (unarize_per_parameter args_arity)
+  &&
+  if Nat.ltb params provided
+  then is_one_param_of_kind_value result_arity
+  else
+    (Nat.ltb O provided && Nat.ltb provided params)
+    && is_one_param_of_kind_value return_arity
+
 type simple =
   | Var of variable
   | Symbol of symbol

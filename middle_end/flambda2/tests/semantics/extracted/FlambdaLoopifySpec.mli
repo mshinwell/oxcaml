@@ -5,15 +5,23 @@ open FlambdaModel
 open FlambdaUnusedContsSpec
 open List
 open ListDef
+open PeanoNat
 
 val is_self_tail_call :
-  variable -> continuation -> continuation -> apply_expr -> bool
+  variable -> arity -> continuation -> continuation -> apply_expr -> bool
 
 val loop_calls :
-  variable -> continuation -> continuation -> continuation -> expr -> expr
+  variable ->
+  arity ->
+  continuation ->
+  continuation ->
+  continuation ->
+  expr ->
+  expr
 
 val loop_calls_in_handler :
   variable ->
+  arity ->
   continuation ->
   continuation ->
   continuation ->

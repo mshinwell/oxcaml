@@ -9,6 +9,7 @@ open FlambdaPrimitiveSpec
 open FlambdaValueSpec
 open List
 open ListDef
+open PeanoNat
 
 type env = (variable * value) list
 
@@ -20,6 +21,7 @@ type cont_value =
       * (continuation * continuation_handler) list
   | Outer of continuation
   | Extra_args of cont_value * value list
+  | Over_application of value list * arity * arity * cont_value * cont_value
 
 type cont_env = (continuation * cont_value) list
 
@@ -68,9 +70,52 @@ type step_result =
   | Exit of continuation * value list
   | Undefined
 
-val apply_cont_value : cont_value -> value list -> static_env -> step_result
-
 val with_extra_args : cont_value -> value list -> cont_value
+
+val call_code :
+  value ->
+  code ->
+  value list ->
+  arity ->
+  arity ->
+  cont_value ->
+  cont_value ->
+  static_env ->
+  step_result
+
+type call_shape =
+  | Full_call of value * code * value list * arity
+  | Over_call of value * code * value list * value list * arity * arity
+  | Partial_call of value
+
+val shape_of_closure_call :
+  static_env ->
+  value ->
+  call_kind ->
+  value list ->
+  arity ->
+  arity ->
+  call_shape option
+
+val shape_of_call :
+  static_env ->
+  value ->
+  call_kind ->
+  value list ->
+  arity ->
+  arity ->
+  call_shape option
+
+val run_call :
+  (value -> step_result) ->
+  call_shape option ->
+  arity ->
+  cont_value ->
+  cont_value ->
+  static_env ->
+  step_result
+
+val apply_cont_value : cont_value -> value list -> static_env -> step_result
 
 val apply_continuation :
   continuation -> value list -> cont_env -> static_env -> step_result

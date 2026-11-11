@@ -16,6 +16,7 @@ type value =
   | Value_block of coq_Z * value list
   | Value_boxed_number of const
   | Value_location of location
+  | Value_partial_application of value * value list * arity
 
 val kind_of_value : value -> flambda_kind
 
@@ -63,5 +64,7 @@ val boxable_contents : const -> const option
 val boxed_number_of : static_env -> value -> const option
 
 val string_of : static_env -> value -> coq_Z list option
+
+val partial_application_of : value -> ((value * value list) * arity) option
 
 val is_allocated : static_env -> value -> bool

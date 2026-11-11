@@ -1999,7 +1999,8 @@ and values_for_head names world (head : MT.head_of_kind_value_non_null) :
                 (fun i : V.value -> Value_const (Tagged_immediate i))
                 (naked_immediate_of_const c)
             | Value_closure _ | Value_closure_of_set _ | Value_symbol _
-            | Value_block _ | Value_boxed_number _ | Value_location _ ->
+            | Value_block _ | Value_boxed_number _ | Value_location _
+            | Value_partial_application _ ->
               None)
           (values_for names world t))
     @
@@ -2023,7 +2024,8 @@ and values_for_head names world (head : MT.head_of_kind_value_non_null) :
         match v with
         | Value_const c -> Some (Value_boxed_number c)
         | Value_closure _ | Value_closure_of_set _ | Value_symbol _
-        | Value_block _ | Value_boxed_number _ | Value_location _ ->
+        | Value_block _ | Value_boxed_number _ | Value_location _
+        | Value_partial_application _ ->
           None)
       (values_for names world contents)
   | Closures (Row_like_for_closures cases, _) ->
@@ -2096,7 +2098,9 @@ let rec parts_of_value (v : V.value) : V.value list =
     []
   | Value_block (_, fields) -> List.concat_map parts_of_value fields
   | Value_closure (_, value_slots) | Value_closure_of_set (_, _, value_slots) ->
-    List.concat_map (fun (_, v) -> parts_of_value v) value_slots)
+    List.concat_map (fun (_, v) -> parts_of_value v) value_slots
+  | Value_partial_application (callee, args, _) ->
+    parts_of_value callee @ List.concat_map parts_of_value args)
 
 (* A join may make variables of its own, which stand for some value. A value has
    what a join gives if, with the parameter holding the value and for some
@@ -2179,6 +2183,10 @@ let print_value ppf (v : V.value) =
     | Value_boxed_number c ->
       Format.fprintf ppf "(boxed %a)" Model_type.print_const c
     | Value_location l -> Format.fprintf ppf "<location %a>" N.print_positive l
+    | Value_partial_application (callee, args, _) ->
+      Format.fprintf ppf "@[<hov 1>(partial %a@ %a)@]" print callee
+        (Model_type.print_list print)
+        args
     | Value_closure (code, value_slots) ->
       Format.fprintf ppf "@[<hov 1>(closure code%a@ %a)@]" N.print_positive code
         print_value_slots value_slots

@@ -16,6 +16,7 @@ type value =
   | Value_block of coq_Z * value list
   | Value_boxed_number of const
   | Value_location of location
+  | Value_partial_application of value * value list * arity
 
 (** val kind_of_value : value -> flambda_kind **)
 
@@ -196,9 +197,18 @@ let string_of statics = function
     | None -> None)
   | _ -> None
 
+(** val partial_application_of : value -> ((value * value list) * arity) option
+    **)
+
+let partial_application_of = function
+  | Value_partial_application (callee, args, args_arity) ->
+    Some ((callee, args), args_arity)
+  | _ -> None
+
 (** val is_allocated : static_env -> value -> bool **)
 
 let is_allocated statics v =
-  ((is_some (closure_of statics v) || is_some (block_of statics v))
-  || is_some (boxed_number_of statics v))
-  || is_some (string_of statics v)
+  (((is_some (closure_of statics v) || is_some (block_of statics v))
+   || is_some (boxed_number_of statics v))
+  || is_some (string_of statics v))
+  || is_some (partial_application_of v)

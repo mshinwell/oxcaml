@@ -46,14 +46,14 @@
    the kinds of its parameters, code its two arities and each call the two it is
    made at, with their unboxed products, and it keeps the kinds of the value
    slots it meets. The machine makes a call undefined that does not agree with
-   its code (FlambdaSemanticsSpec.call_function), so a mistake here in the
-   arities of a call or of code would make a run undefined that should not be:
-   that is trusted too. Two things are cross-checked as the conversion goes: an
-   arity as converted, unarized by the model, has the kinds that the compiler's
-   own unarizing gives; and the parameter arity of code, unarized, has the kinds
-   of the parameters of its body. The check of kinds of FlambdaWellKindedSpec.v
-   is run on each of the two units and its answers are printed; nothing depends
-   on them.
+   its code (FlambdaSemanticsSpec.call_code), so a mistake here in the arities
+   of a call or of code would make a run undefined that should not be: that is
+   trusted too. Two things are cross-checked as the conversion goes: an arity as
+   converted, unarized by the model, has the kinds that the compiler's own
+   unarizing gives; and the parameter arity of code, unarized, has the kinds of
+   the parameters of its body. The check of kinds of FlambdaWellKindedSpec.v is
+   run on each of the two units and its answers are printed; nothing depends on
+   them.
 
    Exceptions. The conversion gives each [Apply_cont] its trap action, with the
    continuation it names and its raise kind; each call the extra arguments of
@@ -64,17 +64,14 @@
    keeps its exception handlers apart and follows the discipline of trap
    actions: a mistake there changes what those accept.
 
-   Partial applications and over-applications are not in the model, where a call
-   with more or fewer arguments than the code has parameters is undefined. A
-   direct call that the compiler takes for one
-   (FlambdaWellKindedSpec.partial_or_over_application, against the arities of
-   the code named, when the unit binds it) is reported as unsupported. An
-   indirect one cannot be told from the term: a run that stops at one is
-   reported as such, and not as undefined, and then nothing is decided of the
-   example: the two runs are not compared and the validation is not attempted,
-   as what it would accept is true of the model only. Tupled functions, which a
-   call of unknown arity applies to one argument that is the tuple, are not in
-   the model either: code that is tupled is reported as unsupported. *)
+   Partial applications and over-applications are in the model: a call with
+   fewer or more arguments than the code of its callee has parameters is one,
+   whatever its kind (FlambdaSemanticsSpec.shape_of_closure_call), and an
+   application is converted with its arguments and its arities as they are. A
+   partial application is a value of the model that the compiler has not got as
+   such; at the end of a run it is observed as a function is. Tupled functions,
+   which a call of unknown arity applies to one argument that is the tuple, are
+   not in the model: code that is tupled is reported as unsupported. *)
 
 (* The matches below name the few constructs and primitives the model has and
    send every other to [unsupported]; they are meant to stay as they are when
@@ -617,10 +614,6 @@ let convert_bound_var (bound_var : Bound_var.t) =
   let var = Bound_var.var bound_var in
   Variables.find var, convert_kind (Variable.kind var)
 
-(* The arities of the code that the unit has bound so far, for the calls that
-   name it. *)
-let code_arities : (Code_id.t * (Model.arity * Model.arity)) list ref = ref []
-
 (* The code that is a newer version of other code, with that code, and the code
    that is bound as deleted, noted as a unit is converted. *)
 let newer_versions : (Code_id.t * Code_id.t) list ref = ref []
@@ -641,7 +634,6 @@ let reset_conversion () =
   slot_kinds := [];
   depth_variables := Variable.Set.empty;
   named_function_slots := false;
-  code_arities := [];
   newer_versions := [];
   deleted_code := []
 
@@ -880,8 +872,6 @@ and convert_code (code : Flambda.Function_params_and_body.t Code0.t) :
       let result_arity = convert_arity (Code0.result_arity code) in
       if Model.unarize params_arity <> convert_params_kinds params
       then unsupported "code whose parameters are not those of its arity";
-      code_arities
-        := (Code0.code_id code, (params_arity, result_arity)) :: !code_arities;
       Model.Code
         ( convert_params params,
           Variables.find my_closure,
@@ -901,13 +891,6 @@ and convert_apply (apply : Apply_expr.t) : Model.apply_expr =
   let call_kind : Model.call_kind =
     match Apply_expr.call_kind apply with
     | Function { function_call = Direct code_id; _ } ->
-      (match List.assoc_opt code_id !code_arities with
-      | Some (params_arity, result_arity) ->
-        if
-          Well_kinded.partial_or_over_application args_arity return_arity
-            params_arity result_arity
-        then unsupported "a partial application or an over-application"
-      | None -> ());
       Direct (Code_ids.find code_id)
     | Function
         { function_call = Indirect_unknown_arity | Indirect_known_arity _; _ }
@@ -941,7 +924,9 @@ and convert_apply (apply : Apply_expr.t) : Model.apply_expr =
 (* ---- Running ---------------------------------------------------------- *)
 
 (* What is observed of a value: what it is, through the symbols it points to. A
-   closure is not looked into: its code differs before and after. *)
+   closure is not looked into: its code differs before and after. A partial
+   application is observed as a closure is: Simplify makes a closure of one
+   whose function it knows. *)
 type observation =
   | Tagged of int
   | Naked of string * int64
@@ -971,7 +956,8 @@ let rec observe depth (statics : Values.static_env) (v : Values.value) :
     | Value_const (Naked_float bits) -> Naked ("float", int64_of_z bits)
     | Value_const Null -> Null
     | Value_const _ -> Naked ("number", 0L)
-    | Value_closure _ | Value_closure_of_set _ -> Function
+    | Value_closure _ | Value_closure_of_set _ | Value_partial_application _ ->
+      Function
     | Value_block (tag, fields) ->
       Block (int_of_z tag, List.map (observe (depth - 1) statics) fields)
     | Value_boxed_number c ->
@@ -1012,7 +998,6 @@ type outcome =
   | Raises of observation list
   | Exits_elsewhere
   | Undefined
-  | Partial_or_over_application
   | Still_running
 
 let print_outcome ppf (outcome : outcome) =
@@ -1028,10 +1013,6 @@ let print_outcome ppf (outcome : outcome) =
     Format.fprintf ppf "@[<hov 2>raises@ %a@]" print_values values
   | Exits_elsewhere -> Format.fprintf ppf "applies an unbound continuation"
   | Undefined -> Format.fprintf ppf "undefined"
-  | Partial_or_over_application ->
-    Format.fprintf ppf
-      "stops at a partial application or an over-application, which the model \
-       has not got"
   | Still_running -> Format.fprintf ppf "still running when the fuel ran out"
 
 let fuel = 1_000_000
@@ -1071,11 +1052,7 @@ let run (unit : converted) : outcome * int =
     else
       match Semantics.step state with
       | Step state -> go (steps + 1) state
-      | Undefined ->
-        ( (if Well_kinded.at_partial_or_over_application state
-           then Partial_or_over_application
-           else Undefined),
-          steps )
+      | Undefined -> Undefined, steps
       | Exit (k, values) ->
         let values = List.map (observe 50 state.state_statics) values in
         ( (if k = unit.return_continuation
@@ -1960,19 +1937,8 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
     Format.printf "  calls outside code: %d before, %d after@."
       (calls_outside_code before.body)
       (calls_outside_code after.body);
-    (* A run that stops at a partial application or an over-application stops
-       where the model says less than the compiler: nothing is decided, whatever
-       the other run does, and the validation, which is about the model, is not
-       attempted. *)
-    let outside_the_model =
-      match outcome_before, outcome_after with
-      | Partial_or_over_application, _ | _, Partial_or_over_application -> true
-      | _, _ -> false
-    in
     let verdict, ok =
       match outcome_before, outcome_after with
-      | Partial_or_over_application, _ | _, Partial_or_over_application ->
-        "not decided, as a run meets what the model has not got", true
       | Undefined, _ -> "anything goes, as the run before is undefined", true
       | Still_running, _ | _, Still_running -> "not decided", true
       | _, _ ->
@@ -1981,9 +1947,7 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
         else "DIFFERENT", false
     in
     Format.printf "  %s@." verdict;
-    if outside_the_model
-    then Format.printf "  not validated: no validation is attempted@."
-    else validate ~outcome_before before after;
+    validate ~outcome_before before after;
     if not ok then exit 1
 
 let check_file filename =

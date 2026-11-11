@@ -1,0 +1,13 @@
+let code size(1) first (x, y) my_closure &my_region my_depth -> k * e =
+  cont k (x)
+in
+let code size(1) identity (x) my_closure &my_region my_depth -> k * e =
+  cont k (x)
+in
+let $First = closure first &toplevel in
+let $Identity = closure identity &toplevel in
+let f = %opaque ($Identity) in
+apply &toplevel f ($First, 1, 2) -> k1 * error
+  where k1 (r) =
+    let $camlApply_over = Block 0 (r) in
+    cont done ($camlApply_over)

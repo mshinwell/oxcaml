@@ -3,12 +3,9 @@ open FlambdaKindModel
 open FlambdaMapSpec
 open FlambdaModel
 open FlambdaPrimitiveSpec
-open FlambdaSemanticsSpec
-open FlambdaValueSpec
 open List
 open ListDef
 open OxCamlOption
-open PeanoNat
 
 type kind_env = flambda_kind finite_map
 
@@ -218,66 +215,3 @@ let unit_arities unit_return unit_exn =
 
 let well_kinded_unit slots unit_return unit_exn e =
   well_kinded slots [] (unit_arities unit_return unit_exn) e
-
-(** val kinds_agree_on_prefix : flambda_kind list list -> flambda_kind list list
-    -> bool **)
-
-let rec kinds_agree_on_prefix params args =
-  match params with
-  | [] -> true
-  | param :: params0 -> (
-    match args with
-    | [] -> true
-    | arg :: args0 -> kinds_eqb param arg && kinds_agree_on_prefix params0 args0
-    )
-
-(** val is_one_param_of_kind_value : arity -> bool **)
-
-let is_one_param_of_kind_value = function
-  | [] -> false
-  | a0 :: l -> (
-    match a0 with
-    | Singleton k -> (
-      match k with
-      | Value -> ( match l with [] -> true | _ :: _ -> false)
-      | _ -> false)
-    | Unboxed_product _ -> false)
-
-(** val partial_or_over_application : arity -> arity -> arity -> arity -> bool **)
-
-let partial_or_over_application args_arity return_arity params_arity
-    result_arity =
-  let provided = length args_arity in
-  let params = length params_arity in
-  kinds_agree_on_prefix
-    (unarize_per_parameter params_arity)
-    (unarize_per_parameter args_arity)
-  &&
-  if Nat.ltb params provided
-  then is_one_param_of_kind_value result_arity
-  else
-    (Nat.ltb O provided && Nat.ltb provided params)
-    && is_one_param_of_kind_value return_arity
-
-(** val at_partial_or_over_application : state -> bool **)
-
-let at_partial_or_over_application s =
-  match s.state_expr with
-  | Apply ap -> (
-    match eval_simple s.state_vars ap.ap_callee with
-    | Some callee -> (
-      match eval_simples s.state_vars ap.ap_args with
-      | Some vs -> (
-        match closure_of s.state_statics callee with
-        | Some p -> (
-          let called, _ = p in
-          match lookup called s.state_statics.static_code with
-          | Some c ->
-            kinds_eqb (map kind_of_value vs) (unarize ap.ap_args_arity)
-            && partial_or_over_application ap.ap_args_arity ap.ap_return_arity
-                 (code_params_arity c) (code_result_arity c)
-          | None -> false)
-        | None -> false)
-      | None -> false)
-    | None -> false)
-  | _ -> false

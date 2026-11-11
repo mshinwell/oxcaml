@@ -3,12 +3,9 @@ open FlambdaKindModel
 open FlambdaMapSpec
 open FlambdaModel
 open FlambdaPrimitiveSpec
-open FlambdaSemanticsSpec
-open FlambdaValueSpec
 open List
 open ListDef
 open OxCamlOption
-open PeanoNat
 
 type kind_env = flambda_kind finite_map
 
@@ -48,12 +45,3 @@ val unit_arities : continuation -> continuation -> arity_env
 
 val well_kinded_unit :
   slot_kinds -> continuation -> continuation -> expr -> bool
-
-val kinds_agree_on_prefix :
-  flambda_kind list list -> flambda_kind list list -> bool
-
-val is_one_param_of_kind_value : arity -> bool
-
-val partial_or_over_application : arity -> arity -> arity -> arity -> bool
-
-val at_partial_or_over_application : state -> bool

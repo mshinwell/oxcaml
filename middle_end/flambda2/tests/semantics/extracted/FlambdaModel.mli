@@ -61,6 +61,17 @@ val kinds_eqb : flambda_kind list -> flambda_kind list -> bool
 val kinds_per_parameter_eqb :
   flambda_kind list list -> flambda_kind list list -> bool
 
+val cardinal_unarized : arity -> nat
+
+val partially_apply : arity -> nat -> arity
+
+val kinds_agree_on_prefix :
+  flambda_kind list list -> flambda_kind list list -> bool
+
+val is_one_param_of_kind_value : arity -> bool
+
+val partial_or_over_application : arity -> arity -> arity -> arity -> bool
+
 type simple =
   | Var of variable
   | Symbol of symbol
