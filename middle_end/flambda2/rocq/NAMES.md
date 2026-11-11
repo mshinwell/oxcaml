@@ -11,8 +11,11 @@ Two sorts of name are bound by terms and moved by renamings: variables
 and continuations. Symbols, code ids, value slots and function slots
 are global: no renaming moves one. A run-time value holds no variable
 and no continuation (a closure holds code ids and values), so nothing
-is renamed in a value. If a new place comes to hold names (the
-locations of a heap), it is a sort of its own.
+is renamed in a value. If a new place comes to hold names, it is a
+sort of its own. The locations of the heap (`FlambdaHeapSpec.v`) are
+one: no renaming of variables or of continuations moves a location,
+and the permutations of locations, when they are defined, move nothing
+in a term.
 
 Names are compared by equality only. The one function that looks at
 the number of a name is `fresh_name` (`FlambdaNameAbstractionSpec.v`),
@@ -33,6 +36,7 @@ which gives a name outside a list of names.
 | `FlambdaFreeNamesSpec.v` | The older accounts of free names agree with the one function where code is closed, and what is free by them is among the free names on every term |
 | `FlambdaCanonicalFreeNamesSpec.v` | The statements about binders, and the rules of `alpha_equivalent`, written with the one function for the free names |
 | `FlambdaStateSupportSpec.v` | Every expression and every state has a finite support: with the action, the states are a nominal set |
+| `FlambdaHeapEquivarianceSpec.v` | The action on the states of the machine with a heap, which leaves the heap alone; a step, a run and a behaviour of that machine commute with it; its refinements are preserved by renaming; its states have a finite support |
 | `FlambdaFreshQuantifierSpec.v`, `FlambdaFreshAbstractionSpec.v` | The quantifier "for all but finitely many names"; `fresh_names`; equal abstractions of one name and of a list of distinct names, said with the quantifier |
 | `FlambdaFreshBindersSpec.v`, `FlambdaAlphaFreshSpec.v`, `FlambdaAlphaGroupSpec.v` | For each binder, the rule that compares two binders at fresh names, and that it can be read both ways on terms with distinct binders and closed code; the recursive group as a name abstraction |
 | `FlambdaCompareConverseSpec.v` | What the comparison accepts is alpha-equivalent, on terms with distinct binders and closed code |
@@ -104,6 +108,11 @@ Execution commutes with renaming, with no condition:
 `step (rename_state r s) = rename_result r (step s)`, and the same of
 `run` and of `behaves`. So a rewrite that is correct with one choice of
 names is correct with every other.
+
+The same holds of the machine with a heap (`heap_step`, `heap_run`,
+`heap_behaves`, and its refinements `heap_refines` and
+`heap_expr_refines`): the action renames the state without its heap
+and leaves the heap as it is, since a cell holds values.
 
 ## 5. The same up to bound names
 

@@ -346,6 +346,9 @@ Owner: N1.
 - `middle_end/flambda2/rocq/FlambdaNominalInstances*`
 - `middle_end/flambda2/rocq/FlambdaCanonicalFreeNames*`
 - `middle_end/flambda2/rocq/FlambdaStateSupport*`
+- `middle_end/flambda2/rocq/FlambdaHeapEquivariance*` (N1's, though the
+  name matches the pattern of the heap's files: the renamings of
+  variables and continuations on the machine with a heap)
 - `middle_end/flambda2/rocq/NAMES.md`
 
 ## N2: the freshness quantifier
