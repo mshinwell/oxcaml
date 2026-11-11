@@ -34,8 +34,9 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaSemanticsProofs FlambdaCompareSpec FlambdaCompareProofs
   FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaBlockLoadSpec
-  FlambdaBlockLoadProofs FlambdaUnusedContsSpec FlambdaUnusedContsProofs
-  FlambdaUnusedStaticsSpec FlambdaUnusedStaticsProofs FlambdaValidateSpec.
+  FlambdaBlockLoadProofs FlambdaUnboxSpec FlambdaUnboxProofs
+  FlambdaUnusedContsSpec FlambdaUnusedContsProofs FlambdaUnusedStaticsSpec
+  FlambdaUnusedStaticsProofs FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec
   FlambdaAliasesProofs.
 Import ListNotations.
@@ -67,6 +68,7 @@ Ltac refinement_step :=
     | apply inline_tail_conts_refines
     | apply remove_unused_lets_refines
     | apply load_known_blocks_refines
+    | apply unbox_known_numbers_refines
     | apply expr_equivalent_refines; equivalence_step ].
 
 Lemma normalise_code_before_refines (body : expr) :

@@ -4,6 +4,7 @@ open FlambdaBlockLoadSpec
 open FlambdaCompareSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
+open FlambdaUnboxSpec
 open FlambdaUnusedContsSpec
 open FlambdaUnusedStaticsSpec
 

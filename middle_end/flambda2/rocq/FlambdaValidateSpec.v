@@ -60,7 +60,7 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaCompareSpec FlambdaNormaliseSpec FlambdaBlockLoadSpec
-  FlambdaUnusedContsSpec FlambdaUnusedStaticsSpec.
+  FlambdaUnboxSpec FlambdaUnusedContsSpec FlambdaUnusedStaticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -81,11 +81,12 @@ Definition normalise_code_before (body : expr) : expr :=
     (remove_unused_lets
        (fold_constants
           (follow_aliases []
-             (load_known_blocks
-                (thread_switches
-                   (inline_tail_conts
-                      (remove_unused_conts
-                         (collapse_switches (fold_constants body))))))))).
+             (unbox_known_numbers
+                (load_known_blocks
+                   (thread_switches
+                      (inline_tail_conts
+                         (remove_unused_conts
+                            (collapse_switches (fold_constants body)))))))))).
 
 (* One round for the term before. Every rewrite refines. *)
 Definition normalise_before_round (e : expr) : expr :=
@@ -96,13 +97,14 @@ Definition normalise_before_round (e : expr) : expr :=
              (remove_unused_lets
                 (fold_constants
                    (follow_aliases []
-                      (load_known_blocks
-                         (thread_switches
-                            (inline_tail_conts
-                               (remove_unused_conts
-                                  (collapse_switches
-                                     (fold_constants
-                                        (inline_calls [] e))))))))))))).
+                      (unbox_known_numbers
+                         (load_known_blocks
+                            (thread_switches
+                               (inline_tail_conts
+                                  (remove_unused_conts
+                                     (collapse_switches
+                                        (fold_constants
+                                           (inline_calls [] e)))))))))))))).
 
 Definition normalise_before (rounds : nat) (e : expr) : expr :=
   iterate rounds normalise_before_round e.

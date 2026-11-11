@@ -80,8 +80,8 @@ Steps are those of the machine, before and after Simplify.
 | `match_variant.ml` | inlines `cells` three times and resolves the three matches: no test and no block is left | 66, 7 | validated |
 | `option_default.ml` | the `Some` built and matched goes | 32, 3 | validated |
 | `record_project.ml` | two records built by a function inlined twice, and read: none is left | 37, 8 | validated |
+| `int64_boxed.ml` | removes every box around 64-bit integer arithmetic | 22, 8 | validated |
 | `add_zero.ml` | makes `x + 0` into `x` | 8, 2 | the same, not validated: the validator folds a primitive applied to constants only, and knows no identity of arithmetic |
-| `int64_boxed.ml` | removes every box around 64-bit integer arithmetic | 22, 8 | the same, not validated: the validator does not unbox a number it has seen boxed |
 | `while_loop.ml` | a loop over two references, which the front end has made a recursive continuation; Simplify removes a tagging and untagging of the test, a continuation applied once and two parameters that are not used | 78, 45 | the same, not validated: the validator rewrites nothing inside the handler of a recursive continuation, and does not remove a parameter of a continuation |
 | `tail_loop.ml` | makes the tail call of `sum` a jump, and the closure of `sum` a symbol | 128, 83 | the same, not validated: lifting to a symbol, and the loop |
 | `factorial.ml` | makes the closure of `factorial` a symbol | 70, 46 | the same, not validated: lifting to a symbol |
