@@ -2154,6 +2154,30 @@ Proof.
   rewrite Hsibling_symbol. reflexivity.
 Qed.
 
+Theorem set_of_code_bound : set_of_code_bound_statement.
+Proof.
+  intros u c function_decls symbols e n s closure v slot_values Hwf
+    He Hrun Hv Hclosure.
+  pose proof (sets_are_kept c function_decls (Some symbols) e n s He Hrun)
+    as Hsets.
+  destruct (closure_of_code c function_decls (Some symbols) s closure v
+              slot_values Hsets Hv Hclosure)
+    as (slot & Hin_set & Hslot).
+  destruct Hsets as (Hsets_vars & _ & Hsets_statics).
+  destruct (closure_in_set_sets_are c function_decls (Some symbols)
+              (state_statics s) v slot function_decls slot_values
+              Hsets_statics
+              (eval_simple_sets_are c function_decls (Some symbols)
+                 (state_vars s) closure v Hsets_vars Hv)
+              Hin_set)
+    as [Hone _].
+  destruct (Hone (lookup_among_snd slot c function_decls Hslot))
+    as [_ Hstatic].
+  destruct (Hstatic symbols eq_refl) as (slot_symbol & -> & Hbound_symbol).
+  exact (proj2 (well_formed_sets_bound u e n s Hwf Hrun slot_symbol
+                  slot symbols function_decls slot_values Hbound_symbol)).
+Qed.
+
 (* ======================================================================== *)
 (* The example                                                              *)
 (* ======================================================================== *)

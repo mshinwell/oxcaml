@@ -142,7 +142,9 @@
      the same value slots ([sibling_of_code_statement]). Where the set
      is static, the closure is the symbol of its slot and the projection
      is the symbol of the other slot
-     ([sibling_symbol_of_code_statement]).
+     ([sibling_symbol_of_code_statement]), and the symbols of the set
+     are bound to its closures ([set_of_code_bound_statement]), which is
+     the premise [static_set_bound] of [project_static_set_statement].
    - The two example units pass the test ([parity_sets_are_statement]).
 
    The proofs are in FlambdaClosuresProofs.v, which needs no review. *)
@@ -861,6 +863,27 @@ Definition sibling_symbol_of_code_statement : Prop :=
       ∧ v = Value_symbol slot_symbol
       ∧ project_function_slot (state_statics s) slot sibling v
         = Some (Value_symbol sibling_symbol).
+
+(* And the static set is bound: wherever a closure of the code [c] is in
+   sight, every symbol of [closure_symbols] is bound to the closure of
+   the set at its slot, with the value slots of the closure in sight.
+   This is the premise [static_set_bound] of
+   [project_static_set_statement], which so holds of every symbol of the
+   set, in the code of each of its functions, with no premise about the
+   static environment. *)
+Definition set_of_code_bound_statement : Prop :=
+  ∀ (u : unit_interface) (c : code_id)
+    (function_decls : list (function_slot * code_id))
+    (closure_symbols : list (function_slot * symbol)) (e : expr) (n : nat)
+    (s : state) (closure : simple) (v : value)
+    (slot_values : list (value_slot * value)),
+    well_formed_unit u e = true ->
+    sets_are c function_decls (Some closure_symbols) e = true ->
+    run n (State e [] [] empty_static_env) = Step s ->
+    eval_simple (state_vars s) closure = Some v ->
+    closure_of (state_statics s) v = Some (c, slot_values) ->
+    static_set_bound (state_statics s) closure_symbols function_decls
+      slot_values.
 
 (* ======================================================================== *)
 (* An example: two functions that call each other                           *)
