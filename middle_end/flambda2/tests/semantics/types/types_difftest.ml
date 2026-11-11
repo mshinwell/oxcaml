@@ -2817,6 +2817,359 @@ let the_chosen_joins (names : names) : chosen_join list =
     } ]
 
 (* ======================================================================== *)
+(* Examples of the join of types                                            *)
+(* ======================================================================== *)
+
+(* Small joins whose answers were written down from a transcription of the n-way
+   join of types into the model, without running the compiler. Each is run here:
+   the types are the types of the argument at the uses of a continuation, and
+   the answer is the type of the parameter in the joined environment, which is
+   compared with the answer written down.
+
+   Where the transcription makes a variable, the compiler makes one of its own
+   and gives it a type in the joined environment. The join of environments then
+   projects out a variable that is mentioned once and is not what [Is_int],
+   [Get_tag] or [Is_null] answers: its type is put in its place
+   ([Join_env.define_or_eliminate_variables_and_add_equations]). So: - where the
+   variable is for [Is_int] or [Get_tag], the answer written down has a variable
+   that is not of the tests there, the two are compared as text with those
+   variables renamed, and what the compiler says of its variable is shown; -
+   where it is another variable, mentioned once, the answer here has in its
+   place the type that the notes of the transcription say the variable has, the
+   join of the types of what it stands for; three examples that are not from the
+   transcription mention the variable twice, where it stays.
+
+   A difference does not fail the test: it is shown, for the owner of the
+   transcription to say which side is wrong. *)
+type written_down =
+  | Answer of MT.flambda_type
+  | No_answer of string
+      (** There is nothing to compare, and why: what the compiler does is shown.
+      *)
+
+type example_of_join =
+  { example : string;
+    (* What every use knows of variables of the tests. *)
+    knowing : (M.variable * MT.flambda_type) list;
+    inputs : MT.flambda_type list;
+    answer : written_down
+  }
+
+let examples_of_joins (names : names) : example_of_join list =
+  let z = N.z_of_int in
+  let numbers = List.map z in
+  let own i = N.positive_of_int (names.variables_with_a_name + i) in
+  let x, y =
+    match names.pool.value_variables with
+    | x :: y :: _ -> x, y
+    | [] | [_] -> assert false
+  in
+  let function_slot = List.hd names.pool.function_slots in
+  let value_slot = List.hd names.pool.value_slots in
+  let code, other_code =
+    match names.pool.code_ids with
+    | code :: other_code :: _ -> code, other_code
+    | [] | [_] -> assert false
+  in
+  let naked_immediate : MK.flambda_kind = Naked_number Kind_naked_immediate in
+  let tagged = MT.these_tagged_immediates in
+  let constant i = MT.this_tagged_immediate (z i) in
+  let alias variable = MT.alias_type_of Value (Var variable) in
+  let floats numbers : MT.flambda_type =
+    Type_naked_number (Kind_naked_float, Ok (No_alias numbers))
+  in
+  (* A variant with the variables given for [Is_int] and [Get_tag], the
+     immediates given, and for each tag listed the blocks on the heap of exactly
+     the fields given, which are values. *)
+  let variant is_int immediates get_tag blocks : MT.flambda_type =
+    MT.non_null_value
+      (Variant
+         ( is_int,
+           Known immediates,
+           get_tag,
+           Known
+             (Row_like_for_blocks
+                ( List.map
+                    (fun (tag, fields) ->
+                      ( z tag,
+                        MT.Or_unknown.Known
+                          ({ case_maps_to = fields;
+                             case_index =
+                               { index_domain =
+                                   Known (N.nat_of_int (List.length fields));
+                                 index_shape = Scannable Value_only
+                               };
+                             case_env_extension = MT.empty_env_extension
+                           }
+                            : MT.row_like_block_case) ))
+                    blocks,
+                  Bottom,
+                  Heap )),
+           No_extensions,
+           false ))
+  in
+  let block tag fields =
+    MT.immutable_block false (z tag) (Scannable Value_only) Heap fields
+  in
+  let closure function_types value_slot_type =
+    MT.exactly_this_closure function_slot
+      (List.map
+         (fun code_id ->
+           ( function_slot,
+             MT.Or_unknown.Known
+               ({ function_type_code_id = code_id } : MT.function_type) ))
+         function_types)
+      []
+      [value_slot, value_slot_type]
+      Heap
+  in
+  let example ?(knowing = []) example inputs answer =
+    { example; knowing; inputs; answer = Answer answer }
+  in
+  let no_answer example inputs why =
+    { example; knowing = []; inputs; answer = No_answer why }
+  in
+  [ example "two sets of naked immediates"
+      [ MT.these_naked_immediates (numbers [1; 2]);
+        MT.these_naked_immediates (numbers [2; 3]) ]
+      (MT.these_naked_immediates (numbers [1; 2; 3]));
+    example "two sets of tagged immediates"
+      [tagged (numbers [1; 2]); tagged (numbers [3; 4])]
+      (tagged (numbers [3; 4; 1; 2]));
+    example "two boxed floats"
+      [ MT.box_number Boxable_naked_float (floats (numbers [1; 2])) Heap;
+        MT.box_number Boxable_naked_float (floats (numbers [3])) Heap ]
+      (MT.box_number Boxable_naked_float (floats (numbers [1; 2; 3])) Heap);
+    example "two strings"
+      [ MT.this_immutable_string (numbers [104; 105]);
+        MT.this_immutable_string (numbers [111]) ]
+      (MT.non_null_value (String [numbers [104; 105]; numbers [111]]));
+    example "one constant twice"
+      [MT.this_tagged_immediate (z 5); MT.this_tagged_immediate (z 5)]
+      (MT.this_tagged_immediate (z 5));
+    no_answer "two constants"
+      [MT.this_tagged_immediate (z 5); MT.this_tagged_immediate (z 6)]
+      "the transcription makes a variable and answers an alias to it; here the \
+       parameter is that variable, and the answer is its type";
+    example
+      "two constants in a field (a variable is made, mentioned once: its type \
+       is in its place)"
+      [block 0 [constant 5]; block 0 [constant 6]]
+      (block 0 [tagged (numbers [5; 6])]);
+    example
+      "two constants in two fields (not from the transcription: one variable \
+       is made, mentioned twice)"
+      [block 0 [constant 5; constant 5]; block 0 [constant 6; constant 6]]
+      (block 0 [alias (own 1); alias (own 1)]);
+    example "a constant and a set"
+      [MT.this_tagged_immediate (z 5); tagged (numbers [1; 2])]
+      (tagged (numbers [1; 2; 5]));
+    example "a set and the unknown type"
+      [MT.these_naked_immediates (numbers [1; 2]); MT.unknown naked_immediate]
+      (MT.unknown naked_immediate);
+    example "a set and bottom"
+      [MT.these_naked_immediates (numbers [1; 2]); MT.bottom naked_immediate]
+      (MT.these_naked_immediates (numbers [1; 2]));
+    example "bottom twice" [MT.bottom Value; MT.bottom Value] (MT.bottom Value);
+    example "a string and a tagged immediate"
+      [MT.this_immutable_string (numbers [104; 105]); MT.any_tagged_immediate]
+      MT.any_non_null_value;
+    example "null and a tagged immediate"
+      [MT.null; MT.any_tagged_immediate]
+      (Type_value
+         (Ok
+            (No_alias
+               (Head_of_kind_value
+                  ( Ok
+                      (Variant
+                         ( None,
+                           Unknown,
+                           None,
+                           Known MT.row_like_for_blocks_bottom,
+                           No_extensions,
+                           false )),
+                    Maybe_null None )))));
+    example "two mutable blocks, on the heap and local"
+      [MT.mutable_block Heap; MT.mutable_block Local]
+      (MT.mutable_block Heap_or_local);
+    example "two mutable blocks, on the heap and on the heap or local"
+      [MT.mutable_block Heap; MT.mutable_block Heap_or_local]
+      (MT.mutable_block Heap_or_local);
+    example "blocks of one tag and one size"
+      [block 0 [tagged (numbers [1; 2])]; block 0 [tagged (numbers [3; 4])]]
+      (block 0 [tagged (numbers [1; 2; 3; 4])]);
+    example "blocks whose field is one variable"
+      [block 0 [alias x]; block 0 [alias x]]
+      (block 0 [alias x]);
+    example
+      "blocks whose fields are two variables of which nothing is known (a \
+       variable is made, mentioned once: its type is in its place)"
+      [block 0 [alias x]; block 0 [alias y]]
+      (block 0 [MT.unknown Value]);
+    example
+      "blocks whose fields are two variables known to be numbers (the same)"
+      ~knowing:[x, tagged (numbers [1; 2]); y, tagged (numbers [3; 4])]
+      [block 0 [alias x]; block 0 [alias y]]
+      (block 0 [tagged (numbers [1; 2; 3; 4])]);
+    example
+      "blocks with two fields that are two variables of which nothing is known \
+       (not from the transcription: one variable is made, mentioned twice)"
+      [block 0 [alias x; alias x]; block 0 [alias y; alias y]]
+      (block 0 [alias (own 1); alias (own 1)]);
+    example
+      "blocks with two fields that are two variables known to be numbers (not \
+       from the transcription: the same)"
+      ~knowing:[x, tagged (numbers [1; 2]); y, tagged (numbers [3; 4])]
+      [block 0 [alias x; alias x]; block 0 [alias y; alias y]]
+      (block 0 [alias (own 1); alias (own 1)]);
+    example "blocks of one tag and two sizes"
+      [ block 0 [tagged (numbers [1; 2])];
+        block 0 [tagged (numbers [3; 4]); MT.any_tagged_immediate] ]
+      (MT.create_variant false
+         (Known (MT.bottom naked_immediate))
+         (Known
+            (MT.row_like_for_blocks_create_at_least (z 0) (N.nat_of_int 1)
+               (Scannable Value_only)
+               [tagged (numbers [1; 2; 3; 4])]
+               Heap))
+         No_extensions);
+    example "blocks of one tag and two shapes"
+      [ block 0 [MT.any_tagged_immediate];
+        MT.immutable_block false (z 0) Float_record Heap
+          [MT.any_tagged_immediate] ]
+      (MT.blocks_with_these_tags [z 0] Heap);
+    example "blocks of two tags (a variable is made for Get_tag)"
+      [ block 0 [MT.any_tagged_immediate];
+        block 1 [tagged (numbers [1; 2]); MT.any_tagged_immediate] ]
+      (variant None
+         (MT.bottom naked_immediate)
+         (Some (own 1))
+         [ 0, [MT.any_tagged_immediate];
+           1, [tagged (numbers [1; 2]); MT.any_tagged_immediate] ]);
+    example "an immediate and a block (a variable is made for Is_int)"
+      [MT.this_tagged_immediate (z 0); block 0 [MT.any_tagged_immediate]]
+      (variant
+         (Some (own 1))
+         (MT.this_naked_immediate (z 0))
+         None
+         [0, [MT.any_tagged_immediate]]);
+    example "two variants"
+      [ variant None
+          (MT.this_naked_immediate (z 0))
+          None
+          [ 0, [tagged (numbers [1; 2])];
+            1, [tagged (numbers [3; 4]); MT.any_tagged_immediate] ];
+        variant None
+          (MT.these_naked_immediates (numbers [0; 1]))
+          None
+          [1, [tagged (numbers [5; 6]); MT.any_tagged_immediate]] ]
+      (variant None
+         (MT.these_naked_immediates (numbers [0; 1]))
+         None
+         [ 0, [tagged (numbers [1; 2])];
+           1, [tagged (numbers [3; 4; 5; 6]); MT.any_tagged_immediate] ]);
+    example "two closures of one code"
+      [ closure [code] (tagged (numbers [1; 2]));
+        closure [code] (tagged (numbers [3; 4])) ]
+      (closure [code] (tagged (numbers [3; 4; 1; 2])));
+    example "two closures of two codes"
+      [ closure [code] (tagged (numbers [1; 2]));
+        closure [other_code] (tagged (numbers [3; 4])) ]
+      (MT.exactly_this_closure function_slot
+         [function_slot, MT.Or_unknown.Unknown]
+         []
+         [value_slot, tagged (numbers [3; 4; 1; 2])]
+         Heap);
+    example "two closures, one without a function type"
+      [ closure [code] (tagged (numbers [1; 2]));
+        closure [] (tagged (numbers [3; 4])) ]
+      (MT.at_least_this_closure function_slot [] []
+         [value_slot, tagged (numbers [3; 4; 1; 2])]
+         Heap);
+    no_answer
+      "a tagged immediate and an alias of kind value to a naked immediate \
+       (T5b-3)"
+      [ MT.any_tagged_immediate;
+        Type_value (Ok (Equals (Const (Naked_immediate (z 1))))) ]
+      "the transcription has no answer: it is where the compiler is thought to \
+       stop" ]
+
+let run_examples_of_joins (names : names) =
+  Format.printf
+    "@.Examples of the join of types, written down from a transcription: the \
+     n-way join of the compiler on the same types@.";
+  let text t = print_with_own_variables names [t] in
+  let examples = examples_of_joins names in
+  let different = ref 0 in
+  List.iter
+    (fun { example; knowing; inputs; answer } ->
+      let result =
+        match
+          ( List.map (to_compiler names) inputs,
+            List.map
+              (fun (variable, t) ->
+                let variable =
+                  Converter.variable_of_model names.numbering variable
+                in
+                Name.var variable, to_compiler names t)
+              knowing )
+        with
+        | exception Converter.Not_in_the_compiler what ->
+          Error ("not run, not in the compiler: " ^ what)
+        | types, known -> (
+          let kind = MT.kind (List.hd inputs) in
+          match
+            or_fatal_error (fun () ->
+                match join names n_way ~known:(fun _ -> known) kind types with
+                | joined -> Ok joined
+                | exception Converter.Not_in_the_model what ->
+                  Error ("the answer is not in the model: " ^ what)
+                | exception Not_defined what ->
+                  Error
+                    (what
+                   ^ " is in the answer and the environment does not define it"
+                    )
+                | exception Assert_failure (file, _, _) ->
+                  Error
+                    ("the compiler stops: an assertion of "
+                   ^ Filename.basename file ^ " fails"))
+          with
+          | Ok result -> result
+          | Error line -> Error ("the compiler stops: " ^ general line))
+      in
+      match result, answer with
+      | Error why, No_answer note ->
+        Format.printf "  %s: %s (%s)@." example why note
+      | Error why, Answer _ ->
+        incr different;
+        Format.printf "  %s: NOT COMPARED: %s@." example why
+      | Ok joined, No_answer note ->
+        Format.printf "  @[<v>%s: the compiler answers@ %s@ (%s)@]@." example
+          (print_joined names joined)
+          note
+      | Ok joined, Answer answer ->
+        if
+          Model_type.same joined.joined answer
+          && match joined.own with [] -> true | _ :: _ -> false
+        then Format.printf "  %s: as written down@." example
+        else if same_text (text joined.joined) (text answer)
+        then
+          Format.printf
+            "  @[<v>%s: as written down, with the compiler's variables:@ %s@]@."
+            example
+            (print_joined names joined)
+        else (
+          incr different;
+          Format.printf
+            "  @[<v>%s: DIFFERENT. Written down:@ %s@ the compiler answers:@ \
+             %s@]@."
+            example (text answer)
+            (print_joined names joined)))
+    examples;
+  Format.printf "  %d of %d differ or could not be compared@." !different
+    (List.length examples)
+
+(* ======================================================================== *)
 (* The comparison by text                                                   *)
 (* ======================================================================== *)
 
@@ -3220,6 +3573,7 @@ let () =
     ~print:print_semantic_case
     (semantic_comparisons names);
   chosen_joins names (the_chosen_joins names);
+  run_examples_of_joins names;
   let with_itself ~title sharing =
     run ~title ~seed:70000 ~count:1500
       ~generate:(fun r ->
