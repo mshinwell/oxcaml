@@ -162,6 +162,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaEnvAliasesProofs.v \
   FlambdaEnvAliasesRenamingProofs.v \
   FlambdaEnvAliasesRenamingSpec.v \
+  FlambdaEnvAliasesSetProofs.v \
+  FlambdaEnvAliasesSetSpec.v \
   FlambdaEnvAliasesSpec.v \
   FlambdaTypeAccessProofs.v \
   FlambdaTypeAccessSpec.v \
