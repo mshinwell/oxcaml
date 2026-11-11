@@ -609,6 +609,42 @@ Proof.
   - exact (poison_no_head _ _ _ _ Hpoison Hhead).
 Qed.
 
+(* The answer [Known_result] of a prover made with
+   [Provers.gen_value_to_meet] holds of every value of the type that
+   is not null, if the answer [Proved] of the prover on heads holds of
+   every value of the head. *)
+Lemma gen_value_to_meet_known_sound {A : Type}
+    (prove_gen :
+      Typing_env.t -> head_of_kind_value_non_null
+      -> option (Generic_proof.t A))
+    (holds : static_env -> env -> A -> value -> Prop)
+    (statics : static_env) (valuation : env) (tenv : Typing_env.t)
+    (t : flambda_type) (x : A) (v : value) :
+  (∀ (head : head_of_kind_value_non_null),
+    head_of_kind_value_non_null_satisfied statics valuation v head ->
+    prove_gen tenv head = Some (Generic_proof.Proved x) ->
+    holds statics valuation x v) ->
+  typing_env_satisfied_strictly statics valuation tenv ->
+  type_satisfied statics valuation v t ->
+  v <> Value_const Null ->
+  Provers.gen_value_to_meet prove_gen tenv t
+  = Some (Meet_shortcut.Known_result x) ->
+  holds statics valuation x v.
+Proof.
+  intros Hgen Hsat Hv Hnot_null Hknown.
+  unfold Provers.gen_value_to_meet in Hknown.
+  destruct (Provers.expand_head tenv t) as [d | ] eqn:Hd;
+    [ | discriminate ].
+  destruct d as [[ | [[ | head | ] is_null] | ] | oub | k oub | oub | oub];
+    try discriminate Hknown.
+  pose proof (expanded_value_cases _ _ _ _ _ _ Hsat Hv Hd) as Hcases.
+  simpl in Hcases.
+  destruct Hcases as [[Hnull _] | [_ Hhead]]; [ contradiction | ].
+  destruct (prove_gen tenv head) as [[y | | ] | ] eqn:Hproved;
+    try discriminate Hknown.
+  injection Hknown as ->. exact (Hgen head Hhead Hproved).
+Qed.
+
 (* ======================================================================== *)
 (* The scrutinee questions                                                  *)
 (* ======================================================================== *)
@@ -2835,6 +2871,64 @@ Proof.
   - exact (meet_project_value_slot_simple_value_sound _ _ _).
 Qed.
 
+Lemma meet_project_value_slot_simple_known_proof (statics : static_env)
+    (valuation : env) (tenv : Typing_env.t) (min_name_mode : Name_mode.t)
+    (t : flambda_type) (slot : value_slot) (value_slot_kind : flambda_kind)
+    (s : simple) (v : value) :
+  typing_env_satisfied_strictly statics valuation tenv ->
+  type_satisfied statics valuation v t ->
+  Provers.meet_project_value_slot_simple tenv min_name_mode t slot
+    value_slot_kind
+  = Some (Meet_shortcut.Known_result s) ->
+  ∀ (project_from : function_slot) (contents : value),
+    project_value_slot statics project_from slot v = Some contents ->
+    eval_simple valuation s = Some contents.
+Proof.
+  intros Hsat Hv Hknown project_from contents Hproject.
+  destruct (proj1 (project_value_slot_defined _ _ _ _ _) Hproject)
+    as [functions [value_slots [Hclosure Hcontents]]].
+  assert (Hnot_null : v <> Value_const Null).
+  { intros ->. discriminate Hclosure. }
+  revert project_from contents functions value_slots Hproject Hclosure
+    Hcontents.
+  refine
+    (gen_value_to_meet_known_sound
+       (Provers.meet_project_value_slot_simple_value min_name_mode slot
+          value_slot_kind)
+       (fun statics valuation s v =>
+          ∀ (project_from : function_slot) (contents : value)
+            (functions : list (function_slot * code_id))
+            (value_slots : list (value_slot * value)),
+            project_value_slot statics project_from slot v = Some contents ->
+            closure_in_set statics v
+            = Some (project_from, functions, value_slots) ->
+            lookup slot value_slots = Some contents ->
+            eval_simple valuation s = Some contents)
+       statics valuation tenv t s v _ Hsat Hv Hnot_null Hknown).
+  intros head Hhead Hproved project_from contents functions value_slots _
+    Hclosure Hcontents.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents' alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    try discriminate Hproved.
+  rewrite closures_satisfied in Hhead.
+  destruct Hhead as [at_slot [functions' [value_slots' [Hclosure' Hrow]]]].
+  rewrite Hclosure in Hclosure'. injection Hclosure' as <- <- <-.
+  unfold Provers.meet_project_value_slot_simple_value in Hproved.
+  destruct (row_like_for_closures_get_env_var by_function_slot slot)
+    as [[ty | ] | ] eqn:Hget;
+    simpl in Hproved; try discriminate Hproved.
+  pose proof (get_env_var_satisfied _ _ _ _ _ _ _ _ _ _ Hrow Hget Hcontents)
+    as Hty.
+  destruct (kind_eqb (kind ty) value_slot_kind); simpl in Hproved;
+    [ | discriminate Hproved ].
+  destruct (Provers.canonical_simple_of_alias tenv min_name_mode ty)
+    as [[s' | ] | ] eqn:Hcanonical;
+    try discriminate Hproved.
+  injection Hproved as <-.
+  exact (canonical_simple_of_alias_sound _ _ _ _ _ _ _ Hsat Hty Hcanonical).
+Qed.
+
 (* ======================================================================== *)
 (* Physical equality                                                        *)
 (* ======================================================================== *)
@@ -3791,6 +3885,10 @@ Qed.
 Theorem meet_project_value_slot_simple_sound
   : meet_project_value_slot_simple_sound_statement.
 Proof. exact meet_project_value_slot_simple_sound_proof. Qed.
+
+Theorem meet_project_value_slot_simple_known
+  : meet_project_value_slot_simple_known_statement.
+Proof. exact meet_project_value_slot_simple_known_proof. Qed.
 
 Theorem closure_provers_silent_on_poison
   : closure_provers_silent_on_poison_statement.

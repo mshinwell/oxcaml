@@ -66,7 +66,8 @@
      that the projection has a value. Its statement is conditional on
      a premise that the machine does not give, and its [Invalid] is
      not, by that statement alone, a reason to take a projection to
-     have no value (the section "Closures").
+     have no value (the section "Closures"). Its [Known_result] is
+     right without the premise, and has a statement of its own.
    Nothing is said of [Unknown], of [Need_meet], or of [None], which is
    a stop of the compiler (FlambdaProvers.v): a prover may answer any
    of them on any type. That a prover answers when the type decides
@@ -1032,6 +1033,27 @@ Definition meet_project_value_slot_simple_sound_statement : Prop :=
          ∀ (project_from : function_slot) (contents : value),
            project_value_slot statics project_from slot v = Some contents ->
            eval_simple valuation s = Some contents).
+
+(* The answer [Known_result] of [Provers.meet_project_value_slot_simple]
+   needs no premise on the kind of the contents: of every value of the
+   type from which the slot is projected, whatever the kind of what is
+   projected, the contents are the value of the [Simple] answered.
+   The prover answers [Known_result] only where the type that the
+   closures have for the slot is of the kind asked, and the contents
+   of the slot of a closure of the type have that type. So the premise
+   on the kind is needed for the answer [Invalid] alone. *)
+Definition meet_project_value_slot_simple_known_statement : Prop :=
+  ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
+    (min_name_mode : Name_mode.t) (t : flambda_type) (slot : value_slot)
+    (value_slot_kind : flambda_kind) (s : simple) (v : value),
+    typing_env_satisfied_strictly statics valuation tenv ->
+    type_satisfied statics valuation v t ->
+    Provers.meet_project_value_slot_simple tenv min_name_mode t slot
+      value_slot_kind
+    = Some (Meet_shortcut.Known_result s) ->
+    ∀ (project_from : function_slot) (contents : value),
+      project_value_slot statics project_from slot v = Some contents ->
+      eval_simple valuation s = Some contents.
 
 (* On a type that has a value that is poison none of these answers
    [Proved] or [Known_result] either. *)
