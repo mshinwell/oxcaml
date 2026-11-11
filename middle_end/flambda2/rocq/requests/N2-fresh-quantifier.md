@@ -217,12 +217,13 @@ first into its Spec file after it was merged, a function that makes
 names having to be read; R1 approved it.) The other five depend on
 the term-level files as they are after N1's step 3b and the
 statements that follow it. All seven are on the integration branch
-(the series that ends at 1160b780f0), but for the three statements
-that came after its review: the two of inlining in a state and
-`group_abstraction_iff`. They are written for the terms as C2's epoch
-made them: a `Let` has the kind of its variable, a handler and code
-their metadata, and the two sides of a rule that compares two binders
-have the same kind or metadata, as the comparison asks.
+(the series that ends at 1160b780f0; the three statements that came
+after its review, the two of inlining in a state and
+`group_abstraction_iff`, at 909cda2dd4 and c88adfa3ba). They are
+written for the terms as C2's epoch made them: a `Let` has the kind
+of its variable, a handler and code their metadata, and the two sides
+of a rule that compares two binders have the same kind or metadata,
+as the comparison asks.
 
 **The quantifier.** `for_fresh P` is
 `∃ avoid, ∀ name, among name avoid = false -> P name`. Why this form:
