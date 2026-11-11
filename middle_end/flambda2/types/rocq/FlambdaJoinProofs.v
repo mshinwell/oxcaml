@@ -115,6 +115,38 @@ Proof.
   exact (Hadmits index use Huse statics valuation Hsatisfied Hsource).
 Qed.
 
+Theorem equations_have_values_of_values_are_read
+  : equations_have_values_of_values_are_read_statement.
+Proof.
+  intros typing_env_well_formed A join Hsound avoid inputs target analysis
+    Hwell_formed Hkinded Hjoin.
+  destruct (Hsound avoid inputs target analysis Hwell_formed Hkinded Hjoin)
+    as [Htarget [Hno_bottom [Hkeeps [Hintroduces [Hanalysis Hadmits]]]]].
+  split; [ exact Htarget | ]. split; [ exact Hno_bottom | ].
+  split; [ exact Hkeeps | ].
+  split; [ exact Hintroduces | ]. split; [ exact Hanalysis | ].
+  intros index use Huse statics valuation Hsatisfied Hsource [Hread Hadded].
+  destruct (Hadmits index use Huse statics valuation Hsatisfied Hsource Hread)
+    as [valuation'
+          [Htarget' [Hagrees [Hagrees_source [Hdefinitions Hnormal]]]]].
+  exists valuation'.
+  split; [ exact Htarget' | ]. split; [ exact Hagrees | ].
+  split; [ exact Hagrees_source | ]. split; [ exact Hdefinitions | ].
+  split; [ exact Hnormal | ].
+  intros x ty Hequation.
+  destruct (Hadded x ty Hequation)
+    as [[Hknown [v Hv]]
+       | [simples [kind [simple [v [Hdefinition [Hfind Hv]]]]]]].
+  - exists v. destruct Hknown as [Hknown | [use' [Huse' Hknown]]].
+    + rewrite (Hagrees_source x Hknown). exact Hv.
+    + assert (Hsame : use' = use).
+      { destruct Huse as [id Hid]. destruct Huse' as [id' Hid'].
+        rewrite Hid in Hid'. injection Hid' as _ Hsame. symmetry.
+        exact Hsame. }
+      subst use'. rewrite (Hagrees x Hknown). exact Hv.
+  - exists v. exact (Hdefinitions x simples kind simple v Hdefinition Hfind Hv).
+Qed.
+
 Theorem join_to_bottom_unsound : join_to_bottom_unsound_statement.
 Proof.
   intros Hsound.

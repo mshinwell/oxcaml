@@ -1387,6 +1387,21 @@ Definition sound_join_where_values_are_read_of_sound_statement : Prop :=
     sound_join_of_environments typing_env_well_formed join ->
     sound_join_where_values_are_read typing_env_well_formed join.
 
+(* A join that meets the contract for the runs of three conditions
+   meets the stronger one for the runs of four. The witness is the
+   same: a variable that the join added an equation on has a value at
+   the use by the fourth condition, as a variable that the use or the
+   source knows, and then the witness has that value for it
+   ([agrees_on_known]); or by its definition there, and then the
+   witness has the value of the definition ([definitions_hold]). So the
+   fourth condition asks nothing more of the join: it is what the
+   caller gives to be told that those variables have values. *)
+Definition equations_have_values_of_values_are_read_statement : Prop :=
+  ∀ (typing_env_well_formed : Typing_env.t -> Prop) (A : Type)
+    (join : join_of_environments A),
+    sound_join_where_values_are_read typing_env_well_formed join ->
+    sound_join_where_equations_have_values typing_env_well_formed join.
+
 (* And it is not met by everything: the join that answers a bottom
    environment does not meet it. *)
 Definition join_to_bottom_unsound_statement : Prop :=
