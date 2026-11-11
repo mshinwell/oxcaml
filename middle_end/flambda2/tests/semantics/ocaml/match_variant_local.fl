@@ -1,0 +1,73 @@
+let $camlMatch_variant_local__first_const_0 = Block 0 () in
+(let code inline(always) size(44)
+       cells_0
+         (shape/75 : [ 0 | 0 of imm tagged |1 of imm tagged * imm tagged ])
+         my_closure/76 &my_alloc_region/77 my_depth/78
+         -> k/28 * k/29
+         : imm tagged =
+   let next_depth/79 = rec_info (succ my_depth/78) in
+   (let prim/89 = %is_int (shape/75) in
+    let is_scrutinee_int/90 = %tag_imm (prim/89) in
+    let untagged/91 = %untag_imm (is_scrutinee_int/90) in
+    switch untagged/91
+      | 0 -> k/32
+      | 1 -> k/33)
+     where k/33 =
+       let untagged/88 = %untag_imm (shape/75) in
+       cont k/28 (1)
+     where k/32 =
+       let prim/85 = %get_tag (shape/75) in
+       let scrutinee_tag/86 = %tag_imm (prim/85) in
+       let untagged/87 = %untag_imm (scrutinee_tag/86) in
+       switch untagged/87
+         | 0 -> k/30
+         | 1 -> k/31
+     where k/31 =
+       let Pfield/82 = %block_load.[`1`] (shape/75) in
+       let Pfield/83 = %block_load.[`0`] (shape/75) in
+       let int_mul/84 = %int_barith.mul (Pfield/83, Pfield/82) in
+       cont k/28 (int_mul/84)
+     where k/30 =
+       let n/80 = %block_load.[`0`] (shape/75) in
+       let int_mul/81 = %int_barith.mul (n/80, n/80) in
+       cont k/28 (int_mul/81)
+ in
+ let cells/92 = closure cells_0 @cells &toplevel in
+ (let region/95 = %begin_region () in
+  let ghost_region/96 = %begin_ghost_region () in
+  apply direct(cells_0 &toplevel)
+    (cells/92 : _ -> imm tagged) (0) -> k/36 * error
+    where k/36 (apply_result/100 : imm tagged) =
+      ((let Popaque/107 = %opaque (5) in
+        let Pmakeblock/108 =
+          %block.[`0`].`toplevel`.local[region/95] (Popaque/107)
+        in
+        apply direct(cells_0 &toplevel)
+          (cells/92 : _ -> imm tagged) (Pmakeblock/108) -> k/37 * error)
+         where k/37 (apply_result/101 : imm tagged) =
+           ((let Popaque/105 = %opaque (3) in
+             let Pmakeblock/106 =
+               %block.[`1`].`toplevel`.local[region/95] (Popaque/105, 4)
+             in
+             apply direct(cells_0 &toplevel)
+               (cells/92 : _ -> imm tagged) (Pmakeblock/106) -> k/38 * error)
+              where k/38 (apply_result/102 : imm tagged) =
+                let int_add/103 =
+                  %int_barith.add (apply_result/102, apply_result/101)
+                in
+                let int_add/104 =
+                  %int_barith.add (int_add/103, apply_result/100)
+                in
+                cont k/35 (int_add/104)))
+    where k/35 (region_return/97 : imm tagged) =
+      let unit/98 = %end_region (region/95) in
+      let unit/99 = %end_ghost_region (ghost_region/96) in
+      cont k/34 (region_return/97))
+   where k/34 (result/93 : imm tagged) =
+     let Pmakeblock/94 = %block.[`0`].`toplevel` (result/93) in
+     cont k/27 (Pmakeblock/94))
+  where k/27 define_root_symbol (module_block/73) =
+    let field_0/74 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/73)
+    in
+    let $camlMatch_variant_local = Block 0 (field_0/74) in
+    cont done ($camlMatch_variant_local)

@@ -161,6 +161,9 @@ stays C0's for now.
 - `middle_end/flambda2/tests/semantics/*.fl` and their `.expected`
   files, but for an example that a stream adds for its own work, which
   is that stream's
+- `middle_end/flambda2/tests/semantics/ocaml/` (units made from OCaml
+  sources: the sources, the terms, the expected files, the script that
+  makes a term and the dune rules)
 - `middle_end/flambda2/rocq/FlambdaBlockLoad*` (a normalisation for the
   validator, written for the corpus: the load of a field of a block
   that is known; V1's once it is staffed)

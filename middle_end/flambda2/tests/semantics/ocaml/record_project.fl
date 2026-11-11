@@ -1,0 +1,47 @@
+let $camlRecord_project__first_const_0 = Block 0 () in
+(let code inline(always) size(16)
+       add_0
+         (p/57 : [ 0 of imm tagged * imm tagged ],
+          q/58 : [ 0 of imm tagged * imm tagged ])
+         my_closure/59 &my_alloc_region/60 my_depth/61
+         -> k/16 * k/17
+         : [ 0 of imm tagged * imm tagged ] =
+   let next_depth/62 = rec_info (succ my_depth/61) in
+   let Pfield/63 = %block_load.[`1`] (q/58) in
+   let Pfield/64 = %block_load.[`1`] (p/57) in
+   let int_add/65 = %int_barith.add (Pfield/64, Pfield/63) in
+   let Pfield/66 = %block_load.[`0`] (q/58) in
+   let Pfield/67 = %block_load.[`0`] (p/57) in
+   let int_add/68 = %int_barith.add (Pfield/67, Pfield/66) in
+   let Pmakeblock/69 =
+     %block.[`0`].my_alloc_region/60 (int_add/68, int_add/65)
+   in
+   cont k/16 (Pmakeblock/69)
+ in
+ let add/70 = closure add_0 @add &toplevel in
+ (let Popaque/78 = %opaque (4) in
+  let Pmakeblock/79 = %block.[`0`].`toplevel` (3, Popaque/78) in
+  let Popaque/80 = %opaque (1) in
+  let Pmakeblock/81 = %block.[`0`].`toplevel` (Popaque/80, 2) in
+  apply direct(add_0 &toplevel)
+    (add/70 : _ -> [ 0 of imm tagged * imm tagged ])
+      (Pmakeblock/81, Pmakeblock/79)
+      -> k/19 * error)
+   where k/19 (r/73 : [ 0 of imm tagged * imm tagged ]) =
+     (apply direct(add_0 &toplevel)
+        (add/70 : _ -> [ 0 of imm tagged * imm tagged ])
+          (r/73, r/73)
+          -> k/20 * error
+        where k/20 (s/74 : [ 0 of imm tagged * imm tagged ]) =
+          let Pfield/75 = %block_load.[`1`] (s/74) in
+          let Pfield/76 = %block_load.[`0`] (s/74) in
+          let int_mul/77 = %int_barith.mul (Pfield/76, Pfield/75) in
+          cont k/18 (int_mul/77))
+   where k/18 (result/71 : imm tagged) =
+     let Pmakeblock/72 = %block.[`0`].`toplevel` (result/71) in
+     cont k/15 (Pmakeblock/72))
+  where k/15 define_root_symbol (module_block/55) =
+    let field_0/56 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/55)
+    in
+    let $camlRecord_project = Block 0 (field_0/56) in
+    cont done ($camlRecord_project)

@@ -1,0 +1,58 @@
+let $camlMutual_recursion__first_const_0 = Block 0 () in
+(let code rec size(23)
+       even_0 (n/57 : imm tagged)
+         my_closure/58 &my_alloc_region/59 my_depth/60
+         -> k/24 * k/25
+         : imm tagged =
+   let next_depth/61 = rec_info (succ my_depth/60) in
+   let odd/62 = %project_function_slot.[even].[odd] (my_closure/58) in
+   (let prim/64 = %int_comp.le (n/57, 0) in
+    let int_lessequal/65 = %tag_imm (prim/64) in
+    (let untagged/66 = %untag_imm (int_lessequal/65) in
+     switch untagged/66
+       | 0 -> k/27
+       | 1 -> k/24 (1))
+      where k/27 =
+        cont k/26)
+     where k/26 =
+       let int_sub/63 = %int_barith.sub (n/57, 1) in
+       apply direct(odd_1 &my_alloc_region/59)
+         (odd/62 ~ depth my_depth/60 -> next_depth/61 : _ -> imm tagged)
+           (int_sub/63)
+           -> k/24 * k/25
+ and code rec size(23)
+       odd_1 (n/67 : imm tagged)
+         my_closure/68 &my_alloc_region/69 my_depth/70
+         -> k/28 * k/29
+         : imm tagged =
+   let next_depth/71 = rec_info (succ my_depth/70) in
+   let even/72 = %project_function_slot.[odd].[even] (my_closure/68) in
+   (let prim/74 = %int_comp.le (n/67, 0) in
+    let int_lessequal/75 = %tag_imm (prim/74) in
+    (let untagged/76 = %untag_imm (int_lessequal/75) in
+     switch untagged/76
+       | 0 -> k/31
+       | 1 -> k/28 (0))
+      where k/31 =
+        cont k/30)
+     where k/30 =
+       let int_sub/73 = %int_barith.sub (n/67, 1) in
+       apply direct(even_0 &my_alloc_region/69)
+         (even/72 ~ depth my_depth/70 -> next_depth/71 : _ -> imm tagged)
+           (int_sub/73)
+           -> k/28 * k/29
+ in
+ let even/77 = closure even_0 @even &toplevel
+ and odd/78 = closure odd_1 @odd &toplevel
+ in
+ (let Popaque/81 = %opaque (10) in
+  apply direct(even_0 &toplevel)
+    (even/77 : _ -> imm tagged) (Popaque/81) -> k/32 * error)
+   where k/32 (result/79 : imm tagged) =
+     let Pmakeblock/80 = %block.[`0`].`toplevel` (result/79) in
+     cont k/23 (Pmakeblock/80))
+  where k/23 define_root_symbol (module_block/55) =
+    let field_0/56 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/55)
+    in
+    let $camlMutual_recursion = Block 0 (field_0/56) in
+    cont done ($camlMutual_recursion)

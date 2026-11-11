@@ -1,0 +1,7 @@
+tuple_swap.fl:
+  before Simplify (19 steps): returns [0: 9]
+  after Simplify (4 steps): returns [0: 9]
+  calls outside code: 0 before, 0 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same once normalised and unused static bindings removed

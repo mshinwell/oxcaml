@@ -1,0 +1,51 @@
+let $camlClosure_capture__first_const_0 = Block 0 () in
+(let code size(4)
+       `fn[closure_capture.ml:10,28--42]_1` (x/51 : imm tagged)
+         my_closure/52 &my_alloc_region/53 my_depth/54
+         -> k/24 * k/25
+         : imm tagged =
+   let next_depth/55 = rec_info (succ my_depth/54) in
+   let n/56 =
+     %project_value_slot.[`fn[closure_capture.ml:10,28--42]`].[n]
+       (my_closure/52)
+   in
+   let int_add/57 = %int_barith.add (x/51, n/56) in
+   cont k/24 (int_add/57)
+ in
+ let code inline(always) size(13)
+       make_adder_0 (n/58 : imm tagged)
+         my_closure/59 &my_alloc_region/60 my_depth/61
+         -> k/26 * k/27
+         : val =
+   let next_depth/62 = rec_info (succ my_depth/61) in
+   let `fn[closure_capture.ml:10,28--42]/63` =
+     closure `fn[closure_capture.ml:10,28--42]_1`
+       @`fn[closure_capture.ml:10,28--42]` &my_alloc_region/60
+   with { n = n/58 }
+   in
+   cont k/26 (`fn[closure_capture.ml:10,28--42]/63`)
+ in
+ let make_adder/64 = closure make_adder_0 @make_adder &toplevel in
+ apply direct(make_adder_0 &toplevel)
+   (make_adder/64 : _ -> val) (5) -> k/29 * error
+   where k/29 (add5/67 : val) =
+     (apply direct(make_adder_0 &toplevel)
+        (make_adder/64 : _ -> val) (7) -> k/30 * error
+        where k/30 (add7/68 : val) =
+          (apply &toplevel add7/68 (2) -> k/31 * error
+             where k/31 (apply_result/69 : imm tagged) =
+               ((let Popaque/72 = %opaque (1) in
+                 apply &toplevel add5/67 (Popaque/72) -> k/32 * error)
+                  where k/32 (apply_result/70 : imm tagged) =
+                    let int_add/71 =
+                      %int_barith.add (apply_result/70, apply_result/69)
+                    in
+                    cont k/28 (int_add/71))))
+   where k/28 (result/65 : imm tagged) =
+     let Pmakeblock/66 = %block.[`0`].`toplevel` (result/65) in
+     cont k/23 (Pmakeblock/66))
+  where k/23 define_root_symbol (module_block/49) =
+    let field_0/50 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/49)
+    in
+    let $camlClosure_capture = Block 0 (field_0/50) in
+    cont done ($camlClosure_capture)

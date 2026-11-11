@@ -1,0 +1,7 @@
+exported_function.fl:
+  before Simplify (14 steps): returns [0: <fun>; 4]
+  after Simplify (6 steps): returns [0: <fun>; 4]
+  calls outside code: 1 before, 0 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  not validated

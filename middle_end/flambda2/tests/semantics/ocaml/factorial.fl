@@ -1,0 +1,38 @@
+let $camlFactorial__first_const_0 = Block 0 () in
+(let code rec size(27)
+       factorial_0 (n/37 : imm tagged)
+         my_closure/38 &my_alloc_region/39 my_depth/40
+         -> k/18 * k/19
+         : imm tagged =
+   let next_depth/41 = rec_info (succ my_depth/40) in
+   (let prim/45 = %int_comp.le (n/37, 1) in
+    let int_lessequal/46 = %tag_imm (prim/45) in
+    (let untagged/47 = %untag_imm (int_lessequal/46) in
+     switch untagged/47
+       | 0 -> k/22
+       | 1 -> k/18 (1))
+      where k/22 =
+        cont k/20)
+     where k/20 =
+       ((let int_sub/44 = %int_barith.sub (n/37, 1) in
+         apply direct(factorial_0 &my_alloc_region/39)
+           (my_closure/38 ~ depth my_depth/40 -> next_depth/41
+            : _ -> imm tagged)
+             (int_sub/44)
+             -> k/21 * k/19)
+          where k/21 (apply_result/42 : imm tagged) =
+            let int_mul/43 = %int_barith.mul (n/37, apply_result/42) in
+            cont k/18 (int_mul/43))
+ in
+ let factorial/48 = closure factorial_0 @factorial &toplevel in
+ (let Popaque/51 = %opaque (5) in
+  apply direct(factorial_0 &toplevel)
+    (factorial/48 : _ -> imm tagged) (Popaque/51) -> k/23 * error)
+   where k/23 (result/49 : imm tagged) =
+     let Pmakeblock/50 = %block.[`0`].`toplevel` (result/49) in
+     cont k/17 (Pmakeblock/50))
+  where k/17 define_root_symbol (module_block/35) =
+    let field_0/36 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/35)
+    in
+    let $camlFactorial = Block 0 (field_0/36) in
+    cont done ($camlFactorial)

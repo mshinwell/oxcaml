@@ -1,0 +1,7 @@
+match_variant.fl:
+  before Simplify (66 steps): returns [0: 38]
+  after Simplify (7 steps): returns [0: 38]
+  calls outside code: 3 before, 0 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  not validated

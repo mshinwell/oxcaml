@@ -1,0 +1,41 @@
+let $camlConstant_folding__first_const_0 = Block 0 () in
+(let code size(5)
+       square_0 (x/43 : imm tagged)
+         my_closure/44 &my_alloc_region/45 my_depth/46
+         -> k/20 * k/21
+         : imm tagged =
+   let next_depth/47 = rec_info (succ my_depth/46) in
+   let int_mul/48 = %int_barith.mul (x/43, x/43) in
+   cont k/20 (int_mul/48)
+ in
+ let square/49 = closure square_0 @square &toplevel in
+ apply direct(square_0 &toplevel)
+   (square/49 : _ -> imm tagged) (8) -> k/23 * error
+   where k/23 (apply_result/52 : imm tagged) =
+     (apply direct(square_0 &toplevel)
+        (square/49 : _ -> imm tagged) (7) -> k/24 * error
+        where k/24 (apply_result/53 : imm tagged) =
+          let x/54 = %int_barith.add (apply_result/53, apply_result/52) in
+          ((let prim/58 = %int_comp.lt (x/54, 0) in
+            let int_lessthan/59 = %tag_imm (prim/58) in
+            (let untagged/60 = %untag_imm (int_lessthan/59) in
+             switch untagged/60
+               | 0 -> k/26
+               | 1 -> k/22 (0))
+              where k/26 =
+                cont k/25)
+             where k/25 =
+               let prim/55 = %int_comp.lt (100, x/54) in
+               let int_lessthan/56 = %tag_imm (prim/55) in
+               let untagged/57 = %untag_imm (int_lessthan/56) in
+               switch untagged/57
+                 | 0 -> k/22 (x/54)
+                 | 1 -> k/22 (100)))
+   where k/22 (result/50 : imm tagged) =
+     let Pmakeblock/51 = %block.[`0`].`toplevel` (result/50) in
+     cont k/19 (Pmakeblock/51))
+  where k/19 define_root_symbol (module_block/41) =
+    let field_0/42 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/41)
+    in
+    let $camlConstant_folding = Block 0 (field_0/42) in
+    cont done ($camlConstant_folding)

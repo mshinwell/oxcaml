@@ -1,0 +1,24 @@
+;; Units made from OCaml sources, checked against the Rocq semantics of
+;; Flambda 2 as the examples of the directory above are (see README.md).
+;;
+;; For each X.ml here (with X.mli if there is one), X.fl is the term that
+;; the compiler gives to Simplify, as from_ocaml.sh makes it, and X.expected
+;; is what the test tool prints of it. Both are kept, so that the term can
+;; be read without building anything. The rules, which gen_rules.sh writes
+;; from the files that are here, make X.fl again and compare, and run the
+;; tool on X.fl and compare. `dune promote` updates either.
+;;
+;; To add an example, add X.ml (and X.mli), X.fl and X.expected, and
+;; nothing else. As in the directory above, the rules are included by
+;; run/dune and not by this file.
+
+(rule
+ (deps
+  (glob_files *.ml)
+  (glob_files *.mli)
+  (glob_files *.fl)
+  (glob_files *.expected))
+ (action
+  (with-stdout-to
+   dune.inc
+   (run sh %{dep:gen_rules.sh} %{deps}))))

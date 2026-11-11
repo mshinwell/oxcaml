@@ -1,0 +1,7 @@
+inline_function.fl:
+  before Simplify (20 steps): returns [0: 25]
+  after Simplify (4 steps): returns [0: 25]
+  calls outside code: 2 before, 0 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same once normalised and unused static bindings removed
