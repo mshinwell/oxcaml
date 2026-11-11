@@ -143,7 +143,9 @@ its meaning and prove the statement; neither is shown.
 TEX
   { title => 'Flambda 2', guide => [],
     libraries => [qw(OxCamlFlambda2 OxCamlFlambda2Types)],
-    order => [qw(FlambdaModel FlambdaMapSpec FlambdaSemanticsSpec
+    order => [qw(FlambdaKindModel FlambdaPrimitiveModel FlambdaModel
+      FlambdaMapSpec FlambdaValueSpec FlambdaPrimitiveSpec
+      FlambdaSemanticsSpec
       FlambdaWellFormedSpec FlambdaControlFlowSpec FlambdaContextSpec
       FlambdaNominalSpec FlambdaAlphaSpec FlambdaApplySpec FlambdaStaticSpec
       FlambdaCompareSpec FlambdaNormaliseSpec FlambdaUnusedStaticsSpec

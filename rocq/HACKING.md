@@ -108,7 +108,7 @@ Each directory is a Rocq library (`rocq/Makefile` maps them):
 | `backend/rocq/`          | `OxCamlBackend`| Backend-wide definitions: the semantics of `Cmm.integer_comparison` (with `IntegerComparisonProofs.v`), the model's copy of `Operation.t` |
 | `backend/ssa/rocq/`      | `OxCamlSsa`    | The SSA graph as the models see it, each model split into Spec, implementation and Proofs files (see "The layout of a model"): `SsaModel.v` (the abstract interface), `SsaGraph*` (terminators, edges and uses), `SsaDominance*` (dominance, paths and program points), `SsaSemantics*` (execution of the restricted integer fragment), `SsaExecution*` (well-formedness and available-value equations), `SsaLiveness*` (reads before redefinition), `SsaProgress*` (the `finished_graph` contract, definedness and progress), `SsaContext*` (opaque surrounding computations and the `reached_header` contract) |
 | `backend/ssa/loop/rocq/` | `OxCamlLoop`   | The loop analyses, each an implementation file and a `*Proofs.v`; the operational proofs in `LoopExecutionProofs.v`, `LoopInvariantExecutionProofs.v`, `LoopCounterExecutionProofs.v`, `LoopValueSnapshotProofs.v`, `LoopGuardExecutionProofs.v`, `LoopRangeExecutionProofs.v`, `LoopLiveOutProofs.v` and `InductionRangeExecutionProofs.v`; the statements to review in `LoopEligibilitySpec.v`, `DeleteEmptyLoopsSpec.v` and `BoundsCheckExecutionSpec.v`, proved in `LoopEligibilityProofs.v`, `DeleteEmptyLoopsProofs.v` and `BoundsCheckExecutionProofs.v`; and `Extract.v`, which extracts the implementation |
-| `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, with nothing extracted: `FlambdaMap*` (finite maps and sets keyed by names, the one representation of environments), `FlambdaModel.v` (the terms of the fragment covered so far), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaWellFormed*` (static bindings at toplevel only, the well-formedness of a unit; and that what a static name is bound to never changes in a run), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics), `FlambdaContext*` (contexts, and that refinement and equivalence are preserved under them), `FlambdaNominal*` (renamings, free names, and binders as name abstractions), `FlambdaAlpha*` (the group action, equivariance, and alpha-equivalence with its soundness), `FlambdaApply*` (function calls and inlining), `FlambdaStatic*` (first facts about `Let_static`), `FlambdaCompare*` (a decision that two expressions are the same up to bound names, proved sound), `FlambdaNormalise*` (normalising a term by proved rewrites: inlining direct calls of known code, removing unused `Let`s, folding constants), `FlambdaUnusedStatics*` (removing unused static bindings, under environments in which their names do not occur), `FlambdaValidate*` (the whole check of a unit before and after Simplify, and that what it accepts is correct for the unit run on its own); see "The semantics of Flambda 2" below |
+| `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, extracted for its tests only: `FlambdaMap*` (finite maps and sets keyed by names, the one representation of environments), `FlambdaKindModel.v` (the kinds), `FlambdaPrimitiveModel.v` (the primitives of the fragment covered so far), `FlambdaModel.v` (the terms of that fragment), `FlambdaValue*` (the values of the machine, and how an allocated value is read), `FlambdaPrimitive*` (what each primitive computes, and the laws that all of them obey), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaWellFormed*` (static bindings at toplevel only, the well-formedness of a unit; and that what a static name is bound to never changes in a run), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics), `FlambdaContext*` (contexts, and that refinement and equivalence are preserved under them), `FlambdaNominal*` (renamings, free names, and binders as name abstractions), `FlambdaAlpha*` (the group action, equivariance, and alpha-equivalence with its soundness), `FlambdaApply*` (function calls and inlining), `FlambdaStatic*` (first facts about `Let_static`), `FlambdaCompare*` (a decision that two expressions are the same up to bound names, proved sound), `FlambdaNormalise*` (normalising a term by proved rewrites: inlining direct calls of known code, removing unused `Let`s, folding constants), `FlambdaUnusedStatics*` (removing unused static bindings, under environments in which their names do not occur), `FlambdaValidate*` (the whole check of a unit before and after Simplify, and that what it accepts is correct for the unit run on its own); see "The semantics of Flambda 2" below |
 | `middle_end/flambda2/types/rocq/` | `OxCamlFlambda2Types` | A first, naive model of Flambda types and typing environments, with nothing extracted: `FlambdaTypes*` (types, what it means to satisfy a typing environment, refinement relative to one, following aliases, going under a `Let`), `FlambdaAliases*` (following aliases through a whole term, an equivalence) |
 
 Put a definition or lemma where its OxCaml counterpart would live. A fact
@@ -403,10 +403,10 @@ header.
 
 ## The semantics of Flambda 2
 
-`middle_end/flambda2/rocq/` is separate from the SSA models: it extracts
-nothing and no pass depends on it. Its aim is a semantics of Flambda 2
-against which the simplifier's transformations can be proved correct, built
-a fragment at a time. The files follow the same Spec/Proofs split, and
+`middle_end/flambda2/rocq/` is separate from the SSA models: no pass
+depends on it, and what it extracts is for its tests only. Its aim is a
+semantics of Flambda 2 against which the simplifier's transformations can
+be proved correct, built a fragment at a time. The files follow the same Spec/Proofs split, and
 `make claims` checks its statements too.
 
 - The work is planned for many people and agents at once:
@@ -526,10 +526,38 @@ a fragment at a time. The files follow the same Spec/Proofs split, and
   first steps come to the same thing, `step_undefined_refines` where the
   source is undefined. `FlambdaControlFlowProofs.v` has the worked
   examples.
-- Primitives are abstract (`prim`, `eval_prim`), with no axioms. A law of a
-  primitive is to be stated about `eval_prim`: as an axiom, listed in the
-  header of the file stating it, or as a lemma once the primitive has a
-  definition.
+- Primitives are data: `FlambdaPrimitiveModel.v` has their types, a
+  fragment of `flambda_primitive.mli` with the compiler's names, and
+  `FlambdaPrimitiveSpec.eval_prim` says what each computes on the values
+  of its arguments, given the static environment. Where it has no value
+  the term is undefined. There is no axiom about them.
+  - Nothing outside the three `FlambdaPrimitive*` files looks inside a
+    primitive, and `eval_prim` is opaque once `FlambdaPrimitiveProofs.v`
+    is loaded, as `step` is. Elsewhere use the laws that every primitive
+    obeys, stated in `FlambdaPrimitiveSpec.v`: its value depends on the
+    static environment only through what the symbols among its arguments
+    are bound to (`eval_prim_static_values`, with the corollaries
+    `eval_prim_same_static_values` and `eval_prim_consts`); if it has a
+    value its arguments had the kinds it takes and the value has its
+    result kind (`eval_prim_kinds`); and it makes its value out of its
+    arguments (`eval_prim_preserves`). To reason about one primitive,
+    rewrite with the equations `eval_prim_unary` and `eval_prim_binary`.
+  - Adding a primitive is leaf work in those three files: a constructor,
+    a case of the evaluation and of the kinds, and a case in each proof
+    of `FlambdaPrimitiveProofs.v` that goes by cases. Then teach the
+    conversion in `flsemantics.ml` and add an example.
+  - The signature of `eval_prim` and the statements of the laws are what
+    the rest of the model is built on: a change to one of them is a core
+    change, though the file is not a core file.
+- The values of the machine are in `FlambdaValueSpec.v`. To ask what a
+  value is, use an observation (`closure_of`, `block_of`,
+  `boxed_number_of`, `string_of`, and `kind_of_value`): it takes the
+  static environment, and answers the same for a value made as the term
+  runs and for a symbol bound to the same thing. Do not match on the
+  constructors of `value` for that. Where a definition by cases on
+  `value` treats what is left alike, end it with a wildcard, so that a
+  new form of value does not stop it compiling; a proof by cases names
+  them all.
 
 - A rewrite between expressions applies inside any term
   (`FlambdaContextSpec.v`: `plug_refines`, `plug_equivalent`). The proof
@@ -632,10 +660,11 @@ not a proof.
   scope), `drop_deleted_code` and `merge_statics` (one group for
   `Let_static`s that follow one another, code before symbols).
   `fold_constants` asks `eval_prim` for the value of a primitive on
-  constants, so it assumes nothing of the primitives. Which primitives
-  are folded, and removed when unused, is the tool's to say
-  (`prim_may_fold`): all but `Opaque_identity`, which Simplify leaves
-  alone, so that an example can have values Simplify knows nothing of.
+  constants, under the empty static environment: on constants a
+  primitive does not look at it (`eval_prim_consts`). Which primitives
+  are folded, and removed when unused, is `prim_may_fold`: all but
+  `Opaque_identity`, which Simplify leaves alone, so that an example can
+  have values Simplify knows nothing of.
 - A `Let_static` is permitted at the toplevel of a unit only
   (`FlambdaWellFormedSpec.well_formed_unit`, after Simplify's
   `at_unit_toplevel`). The tool checks the term before, and does not give
@@ -682,8 +711,8 @@ not a proof.
   Its proof is a simulation that lets the second state do anything once
   the first is undefined (`FlambdaSemanticsProofs.simulation_refines`),
   under the invariant that nothing reachable refers to a name removed;
-  that needs an axiom, that the primitives introduce no symbols or code
-  ids (`eval_prim_avoids`).
+  that needs the primitives to introduce no symbols or code ids, which is
+  a lemma (`eval_prim_avoids`, an instance of `eval_prim_preserves`).
 - Setting `FLSEMANTICS_PRINT_TERMS` makes the tool print the two
   normalised terms of an example that is not validated, which is how to
   find the rewrite that is missing.
@@ -698,8 +727,8 @@ not a proof.
   it to `FlambdaExtract.v`, and chain it in `flsemantics.ml`.
 - The machine is extracted by `FlambdaExtract.v` into
   `tests/semantics/extracted/` (`make -C rocq all` regenerates it; the
-  files are committed; `prim_hook.ml` there is written by hand). No part
-  of the compiler is built from it.
+  files are committed, and none is written by hand). No part of the
+  compiler is built from it.
 - Who commits the extracted files. Only the integrator commits
   `tests/semantics/extracted/`, on the integration branch. They are
   generated, one file from many sources, so two workstream branches that
@@ -711,8 +740,7 @@ not a proof.
   `git checkout -- middle_end/flambda2/tests/semantics/extracted` puts
   them back, which a rebase needs first. When a branch is merged, the
   integrator runs `make -C rocq all` on the result and commits what it
-  regenerates, on top of the branch. `prim_hook.ml`, written by hand, is
-  the integrator's like the rest of the directory.
+  regenerates, on top of the branch.
 - The test tool and the examples come last. The compiler must build at
   every commit of the integration branch, and `make -s boot-compiler`
   type-checks `flsemantics.ml` against the extracted files that are
@@ -724,10 +752,11 @@ not a proof.
   The integrator does not fast-forward that last commit: it makes one
   commit of it and of the regenerated files together.
 - Trusted and unverified: the conversion from Flambda terms to model
-  terms, and the meaning the tool gives to the few primitives it knows,
-  which the model leaves abstract. Read both in `flsemantics.ml`. The
-  whole list, with the axioms about the primitives, is the section
-  "Flambda 2" of `rocq/TRUST-LEDGER.md`.
+  terms, primitives and constants included. It must send each to the one
+  of the same name, and refuse what the model has not got; read it in
+  `flsemantics.ml`. What a primitive computes is not trusted OCaml: it is
+  `eval_prim`, a definition to be reviewed. The whole list is the section
+  "Flambda 2" of `rocq/TRUST-LEDGER.md`, which has no axiom.
 - A construct or primitive the conversion does not know makes the example
   "not checked"; it is never run as if undefined, which would pass for
   nothing. When the model gains a construct, teach the conversion and add

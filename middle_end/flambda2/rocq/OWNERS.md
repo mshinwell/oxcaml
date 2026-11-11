@@ -29,7 +29,16 @@ Paths are from the root of the repository.
 Owner: C0. Phase 0 was done as C0, and what it created is C0's.
 
 - `middle_end/flambda2/rocq/FlambdaModel.v`
+- `middle_end/flambda2/rocq/FlambdaKindModel.v` (the kinds, moved out of
+  `FlambdaModel.v` by the change that made the primitives data)
+- `middle_end/flambda2/rocq/FlambdaValue*` (the values of the machine
+  and their observations, moved out of `FlambdaSemanticsSpec.v` by the
+  same change)
 - `middle_end/flambda2/rocq/FlambdaSemantics*`
+- the signature of `eval_prim` and the statements of the laws of
+  `middle_end/flambda2/rocq/FlambdaPrimitiveSpec.v`. The file is C1's,
+  and a primitive is added there without asking; a change to the
+  signature or to a law is a core change
 - `middle_end/flambda2/rocq/FlambdaContext*`
 - `middle_end/flambda2/rocq/FlambdaWellFormed*`
 - `middle_end/flambda2/rocq/FlambdaMap*` (Phase 0: finite maps and sets
@@ -78,13 +87,11 @@ design out; that is the request, not the change.
     examples that compare the integer primitives with a reference)
   - `middle_end/flambda2/rocq/FlambdaPrimitive*` (the primitives, what
     they compute and the laws they obey; adding a primitive changes
-    these files and no other `.v` file)
-  - `middle_end/flambda2/rocq/FlambdaKindModel.v` and
-    `middle_end/flambda2/rocq/FlambdaValueSpec.v`, created on the branch
-    by moving definitions out of `FlambdaModel.v` and
-    `FlambdaSemanticsSpec.v`, and `FlambdaValueProofs.v`, which proves
-    the statement of the second; the request proposes that they be C0's
-    once the epoch has applied it
+    these files and no other `.v` file; see C0's section for what of
+    them is the core's)
+  - the conversion of primitives and of constants in
+    `middle_end/flambda2/tests/tools/flsemantics.ml`, until V3 has an
+    owner
 - C2, kinds and well-formed terms. Owner: C2, on
   `flambda2-rocq/C2-kinds`.
 - C3, sets of closures. Owner: C3, on `flambda2-rocq/C3-closures`.
@@ -149,7 +156,8 @@ Owner: unassigned.
   `middle_end/flambda2/tests/tools/flsemantics.ml`, which is V2's. It
   is moved to a file of its own when V2 and V3 both have owners, and
   not before; from then until it has moved, a change to it is agreed
-  between the two.
+  between the two. Until V3 has an owner, the part of it that converts
+  primitives and constants is C1's.
 
 ## N1: nominal loose ends
 
