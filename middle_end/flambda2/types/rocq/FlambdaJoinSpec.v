@@ -121,6 +121,22 @@
    - Code age, allocation modes and symbol projections have no meaning
      here (FlambdaTypeMeaningSpec.v, FlambdaTypingEnv.v).
 
+   What this contract does not yet cover of Simplify's joins. It is a
+   foundation for inputs that are satisfied strictly and that entail
+   the source; two kinds of input that Simplify makes are outside it.
+   - A use environment in which a parameter that holds poison has a
+     type that poison has not: variant unboxing makes these (decision
+     D26, discrepancy T5-7). Such a use is not satisfied strictly, and
+     nothing here says that the handler's environment holds after it.
+     The workstream on the unboxing of continuation parameters is to
+     show what holds at a join that follows an unboxed continuation.
+   - A source environment that holds the types of constants lifted in
+     other branches (discrepancy T5-4): on a path that did not define
+     such a symbol, [uses_refine_source] is not established. The
+     workstream on continuations is to establish it for the inputs it
+     gives the join, once the typing environment's owner has said where
+     the type of a symbol may be used (only where the symbol is bound).
+
    What the inputs must satisfy ([join_inputs_well_formed],
    [uses_refine_source]), against the three hypotheses of the header of
    join_env.ml.
@@ -247,7 +263,11 @@ Definition definitions_hold
    join answers [x : block of one field {5, 7}], which the value of [x]
    at the first use has not. The compiler does the same, relying on a
    parameter that holds poison never being read; nothing checks that.
-   Decision D26. *)
+   So this contract does not cover the joins that follow an unboxed
+   continuation: the workstream on the unboxing of continuation
+   parameters owes the statement of what holds there (for instance
+   that the environment tells which names may hold poison, and that the
+   join leaves their types alone). Decision D26; discrepancy T5-7. *)
 Definition join_admits_use (use target : Typing_env.t)
     (definitions definitions_at_normal_mode
        : finite_map (Simples_in_joined_envs.t * flambda_kind))
@@ -277,10 +297,12 @@ Definition join_admits_use (use target : Typing_env.t)
    the source has the types of the constants lifted while the body of
    the continuation was simplified, and on a path that did not go
    through the branch that defines such a symbol the symbol is bound to
-   nothing, so its type is not true there. That is for the workstream
-   on continuations and the owner of the typing environment: facts
-   about a symbol may have to be asked only where the symbol is bound.
-   Discrepancy T5-4. *)
+   nothing, so its type is not true there. So this premise is not
+   established for Simplify's joins at toplevel. Two owe it: the owner
+   of the typing environment, to say where the type of a symbol may be
+   used (facts about a symbol may have to be asked only where the
+   symbol is bound); and the workstream on continuations, to prove the
+   premise of the inputs it gives the join. Discrepancy T5-4. *)
 Definition use_refines_source (source use : Typing_env.t) : Prop :=
   ∀ (statics : static_env) (valuation : env),
     typing_env_satisfied_strictly statics valuation use ->

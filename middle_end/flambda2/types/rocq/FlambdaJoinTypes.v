@@ -43,6 +43,12 @@
      A function type of the model has no [rec_info]
      (FlambdaTypeGrammar.v), so the join of the [rec_info]s is not
      there, nor the join environment, which only that join threads.
+     A consequence for the differential tests: where every function
+     type is known and all name one code, the model answers that code;
+     the compiler answers unknown instead if the join of the
+     [rec_info]s is unknown (their heads differ). So the compiler's
+     answer may be unknown where the model's is known, never the
+     reverse, and never a different code.
      With invariant checks the compiler stops on an empty list; without
      them it answers unknown, as here.
    - [n_way_join_function_types]: of [n_way_join_closures_entry], the

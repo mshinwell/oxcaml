@@ -53,10 +53,19 @@ type under any valuation of the target that extends that input's.
 
 Proved now (ten statements, no axioms): the three in-the-machine
 corollaries; what a constant in the analysis means, and that the two
-lists Simplify folds over hold what the vectors have at their indices; that the contract
-is met by the join that answers the source and is not met by one that
-answers bottom (so it is neither contradictory nor empty); and the two
-about closures below.
+lists Simplify folds over hold what the vectors have at their indices;
+that the contract is met by the join that answers the source and is
+not met by one that answers bottom (so it is neither contradictory nor
+empty); and the two about closures below.
+
+**What it does not yet cover of Simplify's joins.** The contract is a
+foundation for uses that are satisfied strictly and that entail the
+source. Outside it: a use made by variant unboxing with a poison
+argument (D26, T5-7; the unboxing workstream owes what holds at a join
+after an unboxed continuation), and a source that holds the types of
+constants lifted in other branches (T5-4; the continuations workstream
+owes `uses_refine_source` for its inputs, once T2 has said where the
+type of a symbol may be used).
 
 ## 2. What Simplify may read of the analysis
 
