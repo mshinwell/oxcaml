@@ -972,8 +972,9 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
       || Compare.expr_eqb [] [] normalised_before normalised_after
     in
     (* Failing that, the static bindings of the term before that nothing uses
-       are removed, which is proved to refine it for a term run on its own and
-       not under every environment (FlambdaUnusedStaticsSpec.v), and the
+       are removed, which is proved to refine it under every environment in
+       which the names removed do not occur, a unit run on its own being a case,
+       and not under every environment (FlambdaUnusedStaticsSpec.v), and the
        comparison made again. *)
     let without_unused_statics =
       match
@@ -996,8 +997,8 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
        then "validated: the same once normalised"
        else if validated_as_a_unit
        then
-         "validated for the unit run on its own: the same once normalised and \
-          unused static bindings removed"
+         "validated where the names removed are fresh: the same once \
+          normalised and unused static bindings removed"
        else if outcome_before = Undefined
        then "nothing to validate, as the term before is undefined"
        else "not validated");

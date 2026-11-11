@@ -647,13 +647,155 @@ Qed.
 
 End Erasure.
 
+(* ======================================================================== *)
+(* Environments in which the names removed do not occur                     *)
+(* ======================================================================== *)
+
+(* Erasing changes nothing in what binds none of the names removed. *)
+Fixpoint erase_binds_only_kept (D : dropped) (e : expr) :
+  binds_only_kept D e = true -> erase_expr D e = e
+with erase_handler_binds_only_kept (D : dropped) (h : continuation_handler) :
+  handler_binds_only_kept D h = true -> erase_handler D h = h
+with erase_binding_binds_only_kept (D : dropped) (binding : static_binding) :
+  binding_binds_only_kept D binding = true ->
+  binding_kept D binding = true ∧ erase_binding D binding = binding
+with erase_code_binds_only_kept (D : dropped) (c : code) :
+  code_binds_only_kept D c = true -> erase_code D c = c.
+Proof.
+  - destruct e
+      as [ x d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      simpl; try reflexivity; intros Hkept.
+    + rewrite (erase_binds_only_kept D body Hkept). reflexivity.
+    + apply andb_true_iff in Hkept as [Hbindings Hbody].
+      rewrite (erase_binds_only_kept D body Hbody). f_equal.
+      induction bindings as [ | binding bindings IH]; simpl;
+        [ reflexivity | ].
+      simpl in Hbindings. apply andb_true_iff in Hbindings as [Hbinding Hrest].
+      destruct (erase_binding_binds_only_kept D binding Hbinding)
+        as [Hkept Hsame].
+      rewrite Hkept, Hsame, (IH Hrest). reflexivity.
+    + apply andb_true_iff in Hkept as [Hh Hbody].
+      rewrite (erase_handler_binds_only_kept D h Hh),
+        (erase_binds_only_kept D body Hbody).
+      reflexivity.
+    + apply andb_true_iff in Hkept as [Hhandlers Hbody].
+      rewrite (erase_binds_only_kept D body Hbody). f_equal.
+      induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
+      simpl in Hhandlers. apply andb_true_iff in Hhandlers as [Hh Hrest].
+      rewrite (erase_handler_binds_only_kept D h Hh), (IH Hrest).
+      reflexivity.
+  - destruct h as [params handler]. simpl. intros Hkept.
+    rewrite (erase_binds_only_kept D handler Hkept). reflexivity.
+  - destruct binding as [id c | id | sym const]; simpl; intros Hkept.
+    + apply andb_true_iff in Hkept as [Hid Hc].
+      rewrite (erase_code_binds_only_kept D c Hc). auto.
+    + auto.
+    + auto.
+  - destruct c as [params my_closure ret exn body]. simpl. intros Hkept.
+    rewrite (erase_binds_only_kept D body Hkept). reflexivity.
+Qed.
+
+Lemma erase_handlers_free_of (D : dropped)
+    (handlers : list (continuation * continuation_handler)) :
+  forallb (fun '(_, h) => handler_free_of D h) handlers = true ->
+  handlers_avoid D handlers = true ∧ erase_handlers D handlers = handlers.
+Proof.
+  unfold handlers_avoid, erase_handlers.
+  induction handlers as [ | [k h] handlers IH]; simpl; [ auto | ].
+  intros Hfree. apply andb_true_iff in Hfree as [Hh Hrest].
+  apply andb_true_iff in Hh as [Havoids Hkept].
+  destruct (IH Hrest) as [Hav Hsame].
+  rewrite Havoids, Hav, (erase_handler_binds_only_kept D h Hkept), Hsame.
+  auto.
+Qed.
+
+Lemma lookup_forallb {A : Type} (f : A -> bool) (name : positive) (a : A)
+    (bindings : list (positive * A)) :
+  forallb (fun '(_, a) => f a) bindings = true ->
+  lookup name bindings = Some a -> f a = true.
+Proof.
+  induction bindings as [ | [bound b] bindings IH]; simpl; [ discriminate | ].
+  intros Hall. apply andb_true_iff in Hall as [Hb Hrest].
+  destruct (Pos.eqb name bound); [ intros [= <-]; exact Hb | exact (IH Hrest) ].
+Qed.
+
+Lemma env_free_of_avoids (D : dropped) (vars : env) :
+  env_free_of D vars = true -> env_avoids D vars.
+Proof.
+  intros Hfree x v Hlookup.
+  exact (lookup_forallb (value_avoids D) x v vars Hfree Hlookup).
+Qed.
+
+(* A continuation in which the names removed do not occur is its own
+   erasure. *)
+Fixpoint cont_free_of_erased (D : dropped) (c : cont_value) :
+  cont_free_of D c = true -> cont_erased D c c.
+Proof.
+  destruct c as [h vars conts recursive | k]; simpl;
+    [ | intros _; apply Outer_erased ].
+  intros Hfree.
+  apply andb_true_iff in Hfree as [Hfree Hrecursive].
+  apply andb_true_iff in Hfree as [Hfree Hconts].
+  apply andb_true_iff in Hfree as [Hh Hvars].
+  apply andb_true_iff in Hh as [Havoids Hkept].
+  destruct (erase_handlers_free_of D recursive Hrecursive) as [Hav Hsame].
+  pose proof (Closure_erased D h vars conts conts recursive Havoids
+    (env_free_of_avoids D vars Hvars)) as Hclosure.
+  rewrite (erase_handler_binds_only_kept D h Hkept), Hsame in Hclosure.
+  apply Hclosure; [ | exact Hav ].
+  clear Hclosure.
+  induction conts as [ | [k c] conts IH]; simpl; [ apply Forall2_nil | ].
+  simpl in Hconts. apply andb_true_iff in Hconts as [Hc Hrest].
+  apply Forall2_cons; [ | exact (IH Hrest) ].
+  split; [ reflexivity | exact (cont_free_of_erased D c Hc) ].
+Qed.
+
+Lemma statics_free_of_erased (D : dropped) (statics : static_env) :
+  statics_free_of D statics = true -> statics_erased D statics statics.
+Proof.
+  unfold statics_free_of. intros Hfree.
+  apply andb_true_iff in Hfree as [Hcode Hvalues].
+  assert (Hc :
+    ∀ (id : code_id) (c : code),
+      lookup id (static_code statics) = Some c -> code_free_of D c = true)
+    by (intros id c; apply (lookup_forallb (code_free_of D)), Hcode).
+  split; [ | split; [ | split ] ].
+  - intros id _. destruct (lookup id (static_code statics)) as [c | ] eqn:Hid;
+      [ | reflexivity ].
+    simpl. specialize (Hc id c Hid).
+    apply andb_true_iff in Hc as [_ Hkept].
+    rewrite (erase_code_binds_only_kept D c Hkept). reflexivity.
+  - intros id c _ Hid. specialize (Hc id c Hid).
+    apply andb_true_iff in Hc as [Havoids _]. exact Havoids.
+  - reflexivity.
+  - intros s allocated _ Hs.
+    pose proof (lookup_forallb (allocated_free_of D) s allocated _ Hvalues Hs)
+      as Hallocated.
+    destruct allocated; exact Hallocated.
+Qed.
+
 Theorem drop_statics_refines : drop_statics_refines_statement.
 Proof.
   intros D e e'. unfold drop_statics.
   destruct (expr_avoids D e) eqn:He; [ | discriminate ].
-  intros [= <-].
+  intros [= <-] vars conts statics Hfree.
+  unfold envs_free_of in Hfree.
+  apply andb_true_iff in Hfree as [Hfree Hstatics].
+  apply andb_true_iff in Hfree as [Hvars Hconts].
   apply (simulation_refines (state_erased D) (erased_step D)).
-  apply State_erased; [ exact He | | apply Forall2_nil | ].
-  - intros x v [=].
-  - repeat split; simpl; intros; try reflexivity; discriminate.
+  apply State_erased;
+    [ exact He | exact (env_free_of_avoids D vars Hvars) |
+    | exact (statics_free_of_erased D statics Hstatics) ].
+  induction conts as [ | [k c] conts IH]; simpl; [ apply Forall2_nil | ].
+  simpl in Hconts. apply andb_true_iff in Hconts as [Hc Hrest].
+  apply Forall2_cons; [ | exact (IH Hrest) ].
+  split; [ reflexivity | exact (cont_free_of_erased D c Hc) ].
+Qed.
+
+Theorem drop_statics_program_refines :
+  drop_statics_program_refines_statement.
+Proof.
+  intros D e e' Hdrop.
+  exact (drop_statics_refines D e e' Hdrop [] [] empty_static_env eq_refl).
 Qed.

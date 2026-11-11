@@ -30,15 +30,17 @@
    This file is to be reviewed: [expr_avoids] and [erase_expr], which are
    extracted and run by the validation of
    middle_end/flambda2/tests/semantics/; the axiom about the primitives;
-   and the statement.
+   [envs_free_of]; and the statements.
 
    Simplify removes the code and the symbols that nothing refers to any
    more. Removing a static binding is not sound under every environment:
    a value already there may be a closure of the code, or the symbol, and
    then the term with the binding can call it or look into it and the term
-   without cannot. It is sound for a term run on its own, from empty
-   environments, and that is what is stated ([program_refines]): nothing
-   then refers to the names removed but what the term itself builds.
+   without cannot. It is sound under every environment in which the names
+   removed do not occur ([envs_free_of]), which is what is stated: the
+   names a term binds are fresh, in Flambda. A term run on its own, from
+   empty environments, is a case
+   ([drop_statics_program_refines_statement]).
 
    [drop_statics] takes the names to remove ([dropped]). It checks that
    nothing in the term refers to any of them, outside the bindings that go
@@ -223,8 +225,93 @@ Definition drop_statics (D : dropped) (e : expr) : option expr :=
   if expr_avoids D e then Some (erase_expr D e) else None.
 
 (* ======================================================================== *)
-(* The statement                                                            *)
+(* Environments in which the names removed do not occur                     *)
 (* ======================================================================== *)
+
+(* Every binding of the expression, in its handlers and its code too, is
+   one that is kept: the expression binds none of the names removed. *)
+Fixpoint binds_only_kept (D : dropped) (e : expr) : bool :=
+  match e with
+  | Let _ _ body => binds_only_kept D body
+  | Let_static bindings body =>
+    forallb (binding_binds_only_kept D) bindings && binds_only_kept D body
+  | Let_cont_non_recursive _ h body =>
+    handler_binds_only_kept D h && binds_only_kept D body
+  | Let_cont_recursive handlers body =>
+    forallb (fun '(_, h) => handler_binds_only_kept D h) handlers
+    && binds_only_kept D body
+  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => true
+  end
+with handler_binds_only_kept (D : dropped) (h : continuation_handler) : bool :=
+  match h with
+  | Handler _ handler => binds_only_kept D handler
+  end
+with binding_binds_only_kept (D : dropped) (binding : static_binding)
+    : bool :=
+  match binding with
+  | Bind_code id c => code_kept D id && code_binds_only_kept D c
+  | Bind_deleted_code _ => true
+  | Bind_symbol s _ => symbol_kept D s
+  end
+with code_binds_only_kept (D : dropped) (c : code) : bool :=
+  match c with
+  | Code _ _ _ _ body => binds_only_kept D body
+  end.
+
+(* A handler, or code, that neither refers to a name removed nor binds
+   one. *)
+Definition handler_free_of (D : dropped) (h : continuation_handler) : bool :=
+  handler_avoids D h && handler_binds_only_kept D h.
+
+Definition code_free_of (D : dropped) (c : code) : bool :=
+  code_avoids D c && code_binds_only_kept D c.
+
+Definition env_free_of (D : dropped) (vars : env) : bool :=
+  forallb (fun '(_, v) => value_avoids D v) vars.
+
+Fixpoint cont_free_of (D : dropped) (c : cont_value) : bool :=
+  match c with
+  | Outer _ => true
+  | Closure h vars conts recursive =>
+    handler_free_of D h
+    && env_free_of D vars
+    && forallb (fun '(_, c) => cont_free_of D c) conts
+    && forallb (fun '(_, h) => handler_free_of D h) recursive
+  end.
+
+Definition allocated_free_of (D : dropped)
+    (allocated : statically_allocated_value) : bool :=
+  match allocated with
+  | Static_closure code slots =>
+    code_kept D code && forallb (fun '(_, v) => value_avoids D v) slots
+  | Static_block _ fields => forallb (value_avoids D) fields
+  | Static_boxed_number contents => value_avoids D contents
+  | Static_string _ => true
+  end.
+
+Definition statics_free_of (D : dropped) (statics : static_env) : bool :=
+  forallb (fun '(_, c) => code_free_of D c) (static_code statics)
+  && forallb (fun '(_, allocated) => allocated_free_of D allocated)
+       (static_values statics).
+
+(* The names removed occur nowhere in the environments: no value refers
+   to one, and no handler or code refers to one or binds one. *)
+Definition envs_free_of (D : dropped) (vars : env) (conts : cont_env)
+    (statics : static_env) : bool :=
+  env_free_of D vars
+  && forallb (fun '(_, c) => cont_free_of D c) conts
+  && statics_free_of D statics.
+
+(* ======================================================================== *)
+(* The statements                                                           *)
+(* ======================================================================== *)
+
+Definition drop_statics_refines_statement : Prop :=
+  ∀ (D : dropped) (e e' : expr),
+    drop_statics D e = Some e' ->
+    ∀ (vars : env) (conts : cont_env) (statics : static_env),
+      envs_free_of D vars conts statics = true ->
+      refines (State e vars conts statics) (State e' vars conts statics).
 
 (* Refinement of terms run on their own. Refinement under all environments
    ([expr_refines]) implies it. *)
@@ -232,6 +319,6 @@ Definition program_refines (source target : expr) : Prop :=
   refines (State source [] [] empty_static_env)
     (State target [] [] empty_static_env).
 
-Definition drop_statics_refines_statement : Prop :=
+Definition drop_statics_program_refines_statement : Prop :=
   ∀ (D : dropped) (e e' : expr),
     drop_statics D e = Some e' -> program_refines e e'.
