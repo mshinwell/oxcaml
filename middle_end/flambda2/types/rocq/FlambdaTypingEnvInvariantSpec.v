@@ -135,9 +135,16 @@
      checks are on; [Expand_head] relies on it always. Stricter
      (discrepancy T2-2).
 
-   What is not here, and is to come: that every type is well formed
-   (FlambdaTypeWellFormedSpec.v); the free names of an environment and
-   its renaming.
+   Beside the invariant for now: that every type that the environment
+   has for a name is well formed ([types_well_formed], with the test of
+   FlambdaTypeWellFormedSpec.v). Every function keeps it, with the
+   premise for [replace_equation] that the type given is well formed.
+   It is to be a conjunct of the invariant when the meet says that the
+   types that it answers are well formed; until then
+   [replace_equation_invariant_statement] does not ask it.
+
+   What is not here, and is to come: the free names of an environment
+   and its renaming.
 
    What is not here because it is not so: that a name that is not
    canonical has the alias type of its canonical element. It has it
@@ -168,8 +175,9 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
-  FlambdaEnvAliasesSpec FlambdaEnvAliasesInvariantSpec FlambdaTypingEnv.
+  FlambdaTypeWellFormedSpec FlambdaTypeMeaningSpec FlambdaBindingTime
+  FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesInvariantSpec
+  FlambdaTypingEnv.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -1012,3 +1020,80 @@ Definition add_alias_defined_statement : Prop :=
     is_canonical (Typing_env.aliases tenv) canonical_element2 ->
     canonical_element1 <> canonical_element2 ->
     Typing_env.add_alias tenv canonical_element1 canonical_element2 <> None.
+
+(* ======================================================================== *)
+(* Well-formed types                                                        *)
+(* ======================================================================== *)
+
+(* Every type that the environment has for a name is well formed. *)
+(* This is beside the invariant for now, and is to be a conjunct of it.
+   The test of well-formed types is meant to be true of every type
+   that the compiler builds (FlambdaTypeWellFormedSpec.v says, for each
+   of its conditions, where the compiler establishes it and where
+   nothing does). *)
+Definition types_well_formed (tenv : Typing_env.t) : Prop :=
+  ∀ (n : name) (ty : flambda_type)
+    (binding_time_and_mode : Binding_time.With_name_mode.t),
+    Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
+    = Some (ty, binding_time_and_mode) ->
+    type_well_formed ty = true.
+
+Definition types_well_formed_b (tenv : Typing_env.t) : bool :=
+  Keyed.for_all_bindings_b name_eqb
+    (fun _ entry => type_well_formed (fst entry))
+    (Typing_env.names_to_types tenv).
+
+Definition types_well_formed_b_iff_statement : Prop :=
+  ∀ tenv : Typing_env.t,
+    types_well_formed_b tenv = true <-> types_well_formed tenv.
+
+(* The type found for a name is well formed. *)
+Definition find_well_formed_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (n : name) (kind : option flambda_kind)
+    (ty : flambda_type),
+    types_well_formed tenv ->
+    Typing_env.find tenv n kind = Some ty ->
+    type_well_formed ty = true.
+
+Definition create_types_well_formed_statement : Prop :=
+  types_well_formed Typing_env.create.
+
+Definition make_bottom_types_well_formed_statement : Prop :=
+  ∀ tenv : Typing_env.t,
+    types_well_formed tenv -> types_well_formed (Typing_env.make_bottom tenv).
+
+Definition increment_scope_types_well_formed_statement : Prop :=
+  ∀ tenv : Typing_env.t,
+    types_well_formed tenv ->
+    types_well_formed (Typing_env.increment_scope tenv).
+
+Definition closure_env_types_well_formed_statement : Prop :=
+  ∀ tenv : Typing_env.t,
+    types_well_formed tenv -> types_well_formed (Typing_env.closure_env tenv).
+
+Definition add_symbol_definition_types_well_formed_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (sym : symbol),
+    types_well_formed tenv ->
+    types_well_formed (Typing_env.add_symbol_definition tenv sym).
+
+Definition add_variable_definition_types_well_formed_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (var : variable) (kind : flambda_kind)
+    (name_mode : Name_mode.t),
+    types_well_formed tenv ->
+    types_well_formed
+      (Typing_env.add_variable_definition tenv var kind name_mode).
+
+(* A name gets a type that is well formed. *)
+Definition replace_equation_types_well_formed_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (n : name) (ty : flambda_type),
+    type_well_formed ty = true ->
+    types_well_formed tenv ->
+    types_well_formed (Typing_env.replace_equation tenv n ty).
+
+Definition add_alias_types_well_formed_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (canonical_element1 canonical_element2 : simple)
+    (result : Typing_env.add_alias_result),
+    Typing_env.add_alias tenv canonical_element1 canonical_element2
+    = Some (Ok result) ->
+    types_well_formed tenv ->
+    types_well_formed (Typing_env.add_alias_result_t result).

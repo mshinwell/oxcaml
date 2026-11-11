@@ -34,7 +34,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaPrimitiveProofs FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaBindingTime
+  FlambdaTypeGrammarProofs FlambdaTypeWellFormedSpec
+  FlambdaTypeWellFormedProofs FlambdaTypeMeaningSpec FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesProofs
   FlambdaEnvAliasesInvariantSpec FlambdaEnvAliasesInvariantProofs
   FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaTypingEnvProofs
@@ -1795,6 +1796,82 @@ Proof.
   rewrite Hunknown. reflexivity.
 Qed.
 
+(* What [replace_equation] does to the types of the names: nothing for
+   a variable that is not bound, and otherwise an entry for the name. *)
+Lemma replace_equation_names_to_types (tenv : Typing_env.t) (n : name)
+    (ty : flambda_type) :
+  Typing_env.names_to_types (Typing_env.replace_equation tenv n ty)
+  = match n with
+    | Name_var _ =>
+      match Keyed.lookup name_eqb n (Typing_env.names_to_types tenv) with
+      | Some (_, binding_time_and_mode) =>
+        (n, (ty, binding_time_and_mode)) :: Typing_env.names_to_types tenv
+      | None => Typing_env.names_to_types tenv
+      end
+    | Name_symbol _ =>
+      (n,
+       (ty,
+        Binding_time.With_name_mode.create Binding_time.symbols
+          Name_mode.normal))
+      :: Typing_env.names_to_types tenv
+    end.
+Proof.
+  destruct n as [x | s]; [ | reflexivity ].
+  unfold Typing_env.replace_equation, Typing_env.names_to_types,
+    Typing_env.with_current_level.
+  cbn [Typing_env.just_after_level].
+  unfold Cached_level.replace_variable_binding.
+  destruct (Keyed.lookup name_eqb (Name_var x)
+              (Cached_level.names_to_types (Typing_env.just_after_level tenv)))
+    as [[ty0 btm0] | ]; reflexivity.
+Qed.
+
+Lemma replace_equation_aliases (tenv : Typing_env.t) (n : name)
+    (ty : flambda_type) :
+  Typing_env.aliases (Typing_env.replace_equation tenv n ty)
+  = Typing_env.aliases tenv.
+Proof.
+  destruct n as [x | s]; [ | reflexivity ].
+  unfold Typing_env.replace_equation, Typing_env.aliases,
+    Typing_env.with_current_level.
+  cbn [Typing_env.just_after_level].
+  unfold Cached_level.replace_variable_binding.
+  destruct (Keyed.lookup name_eqb (Name_var x)
+              (Cached_level.names_to_types (Typing_env.just_after_level tenv)))
+    as [[ty0 btm0] | ]; reflexivity.
+Qed.
+
+(* An entry afterwards is the new one of the name, or one that was
+   there. *)
+Lemma replace_equation_lookup_cases (tenv : Typing_env.t) (n : name)
+    (ty : flambda_type) (m : name) (ty1 : flambda_type)
+    (btm1 : Binding_time.With_name_mode.t) :
+  Keyed.lookup name_eqb m
+    (Typing_env.names_to_types (Typing_env.replace_equation tenv n ty))
+  = Some (ty1, btm1) ->
+  (m = n ∧ ty1 = ty)
+  ∨ Keyed.lookup name_eqb m (Typing_env.names_to_types tenv)
+    = Some (ty1, btm1).
+Proof.
+  rewrite replace_equation_names_to_types.
+  assert (Hcons :
+    ∀ btm : Binding_time.With_name_mode.t,
+      Keyed.lookup name_eqb m
+        ((n, (ty, btm)) :: Typing_env.names_to_types tenv)
+      = Some (ty1, btm1) ->
+      (m = n ∧ ty1 = ty)
+      ∨ Keyed.lookup name_eqb m (Typing_env.names_to_types tenv)
+        = Some (ty1, btm1)).
+  { intros btm. rewrite keyed_lookup_cons.
+    destruct (keyed_eqb_spec name_eqb name_eqb_eq m n) as [Heq | Hne].
+    - intros [= <- _]. left. split; [ exact Heq | reflexivity ].
+    - intros Hlookup. right. exact Hlookup. }
+  destruct n as [x | s]; [ | apply Hcons ].
+  destruct (Keyed.lookup name_eqb (Name_var x)
+              (Typing_env.names_to_types tenv)) as [[ty0 btm0] | ];
+    [ apply Hcons | intros Hlookup; right; exact Hlookup ].
+Qed.
+
 (* What [replace_equation] does to the types and the aliases, for a
    name that is bound: an entry is added for the name, with the binding
    time and the name mode that a variable had. *)
@@ -2176,4 +2253,76 @@ Proof.
                 c1 c2 Hconsistent Hc1 Hc2 Hne) as Hanswers.
   destruct (Aliases.add _ _ _ c1 c2) as [[added | ] | ];
     [ discriminate | discriminate | contradiction ].
+Qed.
+
+(* ======================================================================== *)
+(* Well-formed types                                                        *)
+(* ======================================================================== *)
+
+Theorem types_well_formed_b_iff : types_well_formed_b_iff_statement.
+Proof.
+  intros tenv. unfold types_well_formed_b, types_well_formed.
+  eapply iff_trans.
+  - apply (for_all_names_b_iff
+             (fun _ entry => type_well_formed (fst entry) = true)).
+    intros n entry _. reflexivity.
+  - split.
+    + intros Hall n ty btm Hlookup. exact (Hall n (ty, btm) Hlookup).
+    + intros Hall n [ty btm] Hlookup. exact (Hall n ty btm Hlookup).
+Qed.
+
+Theorem find_well_formed : find_well_formed_statement.
+Proof.
+  intros tenv n kind ty Hwf Hfind.
+  destruct (find_cases tenv n kind ty Hfind)
+    as [[binding_time_and_mode Hlookup] | [[k ->] | ->]].
+  - exact (Hwf n ty binding_time_and_mode Hlookup).
+  - apply bottom_well_formed.
+  - apply any_non_null_value_well_formed.
+Qed.
+
+Theorem create_types_well_formed : create_types_well_formed_statement.
+Proof. intros n ty btm Hlookup. discriminate. Qed.
+
+Theorem make_bottom_types_well_formed
+    : make_bottom_types_well_formed_statement.
+Proof. intros tenv Hwf. exact Hwf. Qed.
+
+Theorem increment_scope_types_well_formed
+    : increment_scope_types_well_formed_statement.
+Proof. intros tenv Hwf. exact Hwf. Qed.
+
+Theorem closure_env_types_well_formed
+    : closure_env_types_well_formed_statement.
+Proof. intros tenv Hwf. exact Hwf. Qed.
+
+Theorem add_symbol_definition_types_well_formed
+    : add_symbol_definition_types_well_formed_statement.
+Proof. intros tenv sym Hwf. exact Hwf. Qed.
+
+Theorem add_variable_definition_types_well_formed
+    : add_variable_definition_types_well_formed_statement.
+Proof.
+  intros tenv var kind name_mode Hwf n ty btm Hlookup.
+  rewrite add_variable_definition_lookup in Hlookup.
+  destruct (name_eqb n (Name_var var)).
+  - injection Hlookup as <- <-. apply unknown_well_formed.
+  - exact (Hwf n ty btm Hlookup).
+Qed.
+
+Theorem replace_equation_types_well_formed
+    : replace_equation_types_well_formed_statement.
+Proof.
+  intros tenv n ty Hty Hwf m ty1 btm1 Hlookup.
+  destruct (replace_equation_lookup_cases tenv n ty m ty1 btm1 Hlookup)
+    as [[_ ->] | Hold].
+  - exact Hty.
+  - exact (Hwf m ty1 btm1 Hold).
+Qed.
+
+Theorem add_alias_types_well_formed : add_alias_types_well_formed_statement.
+Proof.
+  intros tenv c1 c2 result Hadd Hwf.
+  destruct (add_alias_some tenv c1 c2 result Hadd) as [added [_ ->]].
+  exact Hwf.
 Qed.
