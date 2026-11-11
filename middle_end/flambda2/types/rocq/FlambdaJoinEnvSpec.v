@@ -355,9 +355,15 @@ Definition keeps_definitions (s s' : Join_env.t) : Prop :=
       lookup x (Join_env.definitions_of_existentials s) = Some definition ->
       lookup x (Join_env.definitions_of_existentials s') = Some definition.
 
-(* What is supposed of the join of types here. A join of types that
-   has its contract ([n_way_join_type_sound]) answers a state that has
-   grown. *)
+(* What is supposed of the join of types in the statements below: at
+   every state and for every list of types, the state that it answers
+   keeps the definitions. This is more than the contract of the join of
+   types gives ([n_way_join_type_sound] has [state_grows] only at a
+   valid state, for well-formed and kinded inputs, distinct indices and
+   types in scope and kinded), and it is not shown of the model's join
+   of types. To use the statements below of the whole join, either
+   this is proved of that function, or they are stated again with the
+   premises of the calls that the rounds make. *)
 Definition join_of_types_keeps_definitions
     (n_way_join_type : Join_env.n_way_join_type) : Prop :=
   ∀ (s s' : Join_env.t) (ts : list (Index.t * flambda_type))
@@ -366,8 +372,10 @@ Definition join_of_types_keeps_definitions
     keeps_definitions s s'.
 
 (* Every relation of the second map is in the first, or is on a
-   variable for which the test answered [true], in a state between the
-   two given. *)
+   variable for which the test answered [true] in some state [s0] that
+   keeps the definitions of [s] and whose definitions [s'] keeps.
+   (Nothing else is said of [s0]: it is not said to be a state that
+   the join went through.) *)
 Definition recorded_where_chosen (choices : Join_env.choices)
     (s s' : Join_env.t) (relations relations' : Join_env.inverse_relations)
     : Prop :=

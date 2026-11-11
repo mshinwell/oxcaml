@@ -1260,8 +1260,10 @@ Module Join_env.
      terms: a canonical element at the normal name mode, which is what
      [Analysis.create] asks of the definitions that it keeps for
      Simplify. That the element answered is bound at that mode is
-     asked again: in an environment that has its invariant it is, and
-     with the test nothing need be supposed of the environment. *)
+     asked again. In an environment that has its invariant it is, if
+     the [Simple] asked about is bound there (a symbol that is not
+     defined is answered for itself, and is not bound); with the test
+     nothing need be supposed of the environment or of the [Simple]. *)
   Definition has_alias_in_terms (tenv : Typing_env.t) (simple : simple)
       : bool :=
     match
