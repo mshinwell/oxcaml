@@ -133,7 +133,7 @@ Qed.
 
 Theorem compiler_meet_not_sound : compiler_meet_not_sound_statement.
 Proof.
-  intros type_well_formed typing_env_well_formed join Hinputs Hsound.
+  intros type_well_formed join Hinputs Hsound.
   destruct example_get_tag_env_satisfied as [Henv [Ht1 Ht2]].
   destruct (compiler_meet_get_tag join) as [t [tenv' [Hmeet Hnot]]].
   destruct (Hsound _ _ _ _ _ _ _ Hinputs Henv Ht1 Ht2 Hmeet)
@@ -147,8 +147,8 @@ Qed.
 
 Theorem forgetful_join_sound : forgetful_join_sound_statement.
 Proof.
-  intros type_well_formed typing_env_well_formed meet_head initial_env result
-    scoped_envs initial_tenv Hsound Hkeeps Hfits Hscoped Hjoin.
+  intros type_well_formed meet_head initial_env result scoped_envs
+    initial_tenv Hsound Hkeeps Hfits Hscoped Hjoin.
   injection Hjoin as <-. split; [ | split; [ | split ] ].
   - intros scoped_env statics valuation Hin Hinitial Hscoped_env.
     exists valuation. split; [ | exact Hinitial ].

@@ -204,9 +204,16 @@
      ([Typing_env.find] with a kind, [Meet_env.add_equation]). The
      join that it calls does (below), so meet has to be given them and
      to give them back. There is a CR at [type_kinded].
-   - The environment is well formed: [typing_env_well_formed], which
-     is T2's (FlambdaTypingEnvInvariantSpec.v) and is a parameter here
-     for now: binding times, levels and scopes, the aliases.
+   - The environment is well formed: it has the invariant of typing
+     environments ([typing_env_invariant],
+     FlambdaTypingEnvInvariantSpec.v): binding times, levels and
+     scopes, the aliases, and that its types mention only variables
+     that it knows. The invariant is stricter than what the compiler
+     checks, and that file says where. It holds of the environments
+     that a meet goes through, also between the two steps in which a
+     name is made an alias of another and is given the alias for a
+     type: the statements of that file about [Typing_env.add_alias]
+     and [Typing_env.replace_equation] are for those steps.
    - No name has a type that is obviously bottom, unless the
      environment is bottom ([no_bottom_types]). A name with such a
      type has no value. The n-way join passes over an obviously bottom
@@ -432,7 +439,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
   FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
-  FlambdaMeetGrammar FlambdaExpandHead FlambdaMeetEnv FlambdaMeet.
+  FlambdaTypingEnvInvariantSpec FlambdaMeetGrammar FlambdaExpandHead
+  FlambdaMeetEnv FlambdaMeet.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -563,13 +571,11 @@ Definition no_bottom_types (tenv : Typing_env.t) : Prop :=
 
 Section Contracts.
 
-(* [type_well_formed] is T1's (FlambdaTypeWellFormedSpec.v) and
-   [typing_env_well_formed] is to be T2's (see the header): the
-   conditions on a type and on an environment that the compiler's
-   functions establish and meet relies on. Until both are on this
-   branch the contracts take them as parameters. *)
+(* [type_well_formed] is T1's (FlambdaTypeWellFormedSpec.v; see the
+   header): the conditions on a type that the compiler's functions
+   establish and meet relies on. Until it is on this branch the
+   contracts take it as a parameter. *)
 Variable type_well_formed : flambda_type -> bool.
-Variable typing_env_well_formed : Typing_env.t -> bool.
 
 (* ======================================================================== *)
 (* What is asked of the inputs                                              *)
@@ -583,11 +589,11 @@ Definition type_fits (tenv : Typing_env.t) (t : flambda_type) : Prop :=
       x ∈ free_variables t -> Typing_env.mem None tenv (Name_var x) = true)
   ∧ type_kinded tenv t.
 
-(* An environment in which a meet may be made: it is well formed, no
-   name has an obviously bottom type in it unless it is bottom, and
-   each of its types fits it. *)
+(* An environment in which a meet may be made: it has the invariant of
+   typing environments, no name has an obviously bottom type in it
+   unless it is bottom, and each of its types fits it. *)
 Definition typing_env_fits (tenv : Typing_env.t) : Prop :=
-  typing_env_well_formed tenv = true
+  typing_env_invariant tenv
   ∧ no_bottom_types tenv
   ∧ ∀ (n : name) (ty : flambda_type)
       (binding_time_and_mode : Binding_time.With_name_mode.t),
@@ -930,8 +936,8 @@ Definition compiler_meet (join : join_scoped_envs) (fuel : nat)
    the step for [Get_tag] adds [immediate_or_blocks_with_these_tags],
    a variable that the environment knows is not defined again, and the
    variables of a single case are lifted. The statement to come is
-   [transcription_sound type_well_formed typing_env_well_formed
-   meet_to_prove], for T1's and T2's predicates. *)
+   [transcription_sound type_well_formed meet_to_prove], for T1's
+   predicate. *)
 Definition meet_to_prove (join : join_scoped_envs) (fuel : nat)
     : meet_function :=
   Meet.meet join repaired_choices fuel.
@@ -973,24 +979,20 @@ Definition get_tag_reduction_repaired_statement : Prop :=
 (* A meet that has its contract answers bottom only where no value has
    both types. *)
 Definition meet_answers_bottom_statement : Prop :=
-  ∀ (type_well_formed : flambda_type -> bool)
-    (typing_env_well_formed : Typing_env.t -> bool) (meet : meet_function),
-    meet_sound type_well_formed typing_env_well_formed meet ->
-    meet_bottom_sound type_well_formed typing_env_well_formed meet.
+  ∀ (type_well_formed : flambda_type -> bool) (meet : meet_function),
+    meet_sound type_well_formed meet ->
+    meet_bottom_sound type_well_formed meet.
 
 (* [add_equation_sound] gives the statement for
    [typing_env_satisfied] where no name holds poison. *)
 Definition add_equation_no_poison_statement : Prop :=
   ∀ (type_well_formed : flambda_type -> bool)
-    (typing_env_well_formed : Typing_env.t -> bool)
     (add_equation : add_equation_function),
-    add_equation_sound type_well_formed typing_env_well_formed add_equation ->
-    add_equation_sound_no_poison type_well_formed typing_env_well_formed
-      add_equation.
+    add_equation_sound type_well_formed add_equation ->
+    add_equation_sound_no_poison type_well_formed add_equation.
 
 (* What fits is kinded. *)
 Definition fits_kinded_statement : Prop :=
-  ∀ (type_well_formed : flambda_type -> bool)
-    (typing_env_well_formed : Typing_env.t -> bool) (tenv : Typing_env.t),
-    typing_env_fits type_well_formed typing_env_well_formed tenv ->
+  ∀ (type_well_formed : flambda_type -> bool) (tenv : Typing_env.t),
+    typing_env_fits type_well_formed tenv ->
     typing_env_kinded tenv.

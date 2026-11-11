@@ -171,8 +171,9 @@ fits it, and the two types have one kind.
   join does, of the environments it is given, so meet takes them and
   gives them back. It is a premise about kinds, with a `CR mshinwell`
   (D10, D12, D32; T5-9). The traversal `aliases_with_kinds` is T5's.
-- An environment fits (`typing_env_fits`) if it is well formed
-  (`typing_env_well_formed`), no name has an obviously bottom type in
+- An environment fits (`typing_env_fits`) if it has the invariant of
+  typing environments (`typing_env_invariant`, T2's), no name has an
+  obviously bottom type in
   it unless it is bottom (`no_bottom_types`), and each of its types
   fits it. `no_bottom_types` is there for the n-way join, which passes
   over an obviously bottom type and can then make the name an alias of
@@ -185,11 +186,12 @@ fits it, and the two types have one kind.
 
 `type_well_formed : flambda_type -> bool` is T1's
 (`FlambdaTypeWellFormedSpec.v`, not on the branch this one is made
-from); `typing_env_well_formed : Typing_env.t -> bool` is T2's
-(`FlambdaTypingEnvInvariantSpec.v`, with `typing_env_invariant`, now on
-this branch). Both are still parameters of the contracts (a `Section`):
-T2's is to replace its parameter once it is checked that the invariant
-holds at the environments in the middle of a meet. What meet needs of
+from) and is still a parameter of the contracts (a `Section`). The
+condition on the environment is T2's `typing_env_invariant`
+(`FlambdaTypingEnvInvariantSpec.v`); it was a parameter too, until T2
+had stated that the invariant is kept by `Typing_env.add_alias` and
+`Typing_env.replace_equation` each on its own, which are the two steps
+of `record_demotion`. What meet needs of
 `type_well_formed`, agreed with T1:
 
 - (a) the product of a case of blocks is no wider than the size of its

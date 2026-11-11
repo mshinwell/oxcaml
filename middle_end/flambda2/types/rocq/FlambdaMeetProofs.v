@@ -48,8 +48,8 @@ Import ListNotations.
 
 Theorem meet_answers_bottom : meet_answers_bottom_statement.
 Proof.
-  intros type_well_formed typing_env_well_formed meet Hsound statics
-    valuation tenv t1 t2 v Hinputs Hsatisfied Hmeet [Ht1 Ht2].
+  intros type_well_formed meet Hsound statics valuation tenv t1 t2 v Hinputs
+    Hsatisfied Hmeet [Ht1 Ht2].
   destruct
     (Hsound statics valuation tenv t1 t2 v _ Hinputs Hsatisfied Ht1 Ht2 Hmeet)
     as [t [tenv' [valuation' [Hresult _]]]].
@@ -58,16 +58,16 @@ Qed.
 
 Theorem add_equation_no_poison : add_equation_no_poison_statement.
 Proof.
-  intros type_well_formed typing_env_well_formed add_equation Hsound statics
-    valuation tenv tenv' n ty v Hfits Hty Hsatisfied Hpoison Hvalue Hv Hadd.
+  intros type_well_formed add_equation Hsound statics valuation tenv tenv' n
+    ty v Hfits Hty Hsatisfied Hpoison Hvalue Hv Hadd.
   apply (Hsound statics valuation tenv tenv' n ty v Hfits Hty); try assumption.
   apply satisfied_no_poison_strictly; assumption.
 Qed.
 
 Theorem fits_kinded : fits_kinded_statement.
 Proof.
-  intros type_well_formed typing_env_well_formed tenv [_ [_ Hfits]] n ty
-    binding_time_and_mode Hlookup.
+  intros type_well_formed tenv [_ [_ Hfits]] n ty binding_time_and_mode
+    Hlookup.
   exact (proj2 (proj2 (Hfits n ty binding_time_and_mode Hlookup))).
 Qed.
 
