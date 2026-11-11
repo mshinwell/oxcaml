@@ -38,6 +38,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesProofs
   FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaTypingEnvProofs
   FlambdaTypingEnvInvariantSpec FlambdaTypingEnvInvariantProofs
+  FlambdaTypingEnvKindedSpec FlambdaTypingEnvKindedProofs
   FlambdaJoinEnv FlambdaJoinSpec FlambdaJoinEnvSpec.
 Import ListNotations.
 
@@ -2061,4 +2062,1216 @@ Proof.
     split; [ intros x [] | ].
     intros index extension use statics valuation valuation' _ _ _ _ _.
     apply env_extension_lookup. intros n ty Hlookup. discriminate.
+Qed.
+
+(* ======================================================================== *)
+(* The state of a join: kinds                                               *)
+(* ======================================================================== *)
+
+Definition vector_of_kind (s : Join_env.t)
+    (simples : Simples_in_joined_envs.t) (kind : flambda_kind) : Prop :=
+  ∀ (index : Index.t) (simple : simple) (use : Typing_env.t),
+    Simples_in_joined_envs.find index simples = Some simple ->
+    Join_env.joined_env s index = Some use ->
+    simple_of_kind use simple kind.
+
+Lemma same_readings_kinded (s s' : Join_env.t) :
+  same_readings s s' -> state_kinded s -> state_kinded s'.
+Proof.
+  destruct s, s'. unfold same_readings. cbn.
+  intros [-> [-> [-> ->]]] Hkinded. exact Hkinded.
+Qed.
+
+Lemma existential_keeps_kinded (p : Join_env.parameters) (s s' : Join_env.t)
+    (canonicals : Simples_in_joined_envs.t) (kind : flambda_kind)
+    (x : variable) :
+  fresh_avoids p ->
+  state_valid s ->
+  state_kinded s ->
+  vector_of_kind s canonicals kind ->
+  Join_env.existential_for_these_canonicals p s canonicals kind = (x, s') ->
+  state_kinded s'.
+Proof.
+  intros Hfresh Hvalid Hkinded Hvector Hmake.
+  pose proof Hvalid as Hvalid0.
+  destruct Hvalid
+    as [[Hsource [Huses Hexistentials]]
+          [Hnew [[Hrecorded Hvectors] [Himported Himports]]]].
+  unfold Join_env.existential_for_these_canonicals,
+    Bindings_in_target_env.existential_for_these_simples in Hmake.
+  destruct (Bindings_in_target_env.has_existential_for_these_simples
+              (Join_env.bindings s) canonicals) as [existing | ] eqn:Hhas.
+  - destruct (Hvectors _ _ Hhas) as [simples' [kind' [Hdefinition Hequal]]].
+    assert (Hbound : is_bound existing (Join_env.definitions_of_existentials s)
+                     = true).
+    { apply is_bound_lookup. eexists. exact Hdefinition. }
+    rewrite Hbound in Hmake. injection Hmake as <- <-.
+    match goal with
+    | |- state_kinded ?s' =>
+      assert (Hsame : same_readings s s') by (repeat split)
+    end.
+    exact (same_readings_kinded _ _ Hsame Hkinded).
+  - set (x0 :=
+           Join_env.fresh p
+             (Bindings_in_target_env.names_to_avoid (Join_env.bindings s)))
+      in *.
+    assert (Hx0 : ~ x0 ∈ names_to_avoid s) by apply Hfresh.
+    assert (Hunbound :
+              is_bound x0 (Join_env.definitions_of_existentials s) = false).
+    { destruct (is_bound x0 (Join_env.definitions_of_existentials s))
+        eqn:Hb; [ | reflexivity ].
+      exfalso. apply is_bound_lookup in Hb. destruct Hb as [[simples k] Hd].
+      apply Hx0. apply Hexistentials. unfold is_existential.
+      apply is_bound_lookup. exists k. exact (Hrecorded _ _ _ Hd). }
+    clearbody x0. cbv beta iota zeta in Hmake.
+    rewrite Hunbound in Hmake. injection Hmake as <- <-.
+    destruct Hkinded as [Hsources [Himports_kinded Hdefinitions]].
+    split; [ exact Hsources | ]. split; [ exact Himports_kinded | ].
+    intros y simples k index simple use Hy Hfind Huse.
+    cbn [Join_env.definitions_of_existentials lookup] in Hy.
+    destruct (Pos.eqb y x0).
+    + injection Hy as <- <-. exact (Hvector _ _ _ Hfind Huse).
+    + exact (Hdefinitions _ _ _ _ _ _ Hy Hfind Huse).
+Qed.
+
+Lemma get_alias_in_aliases (ty : flambda_type) (alias : simple) :
+  get_alias_opt ty = Some alias -> (alias, kind ty) ∈ aliases_with_kinds ty.
+Proof.
+  destruct ty as [ty | ty | k ty | ty | ty];
+    destruct ty as [ | [head | s] | ]; cbn; try discriminate;
+    intros H; injection H as <-; left; reflexivity.
+Qed.
+
+Lemma get_alias_alias_type_of (kind : flambda_kind) (simple : simple) :
+  get_alias_opt (alias_type_of kind simple) = Some simple.
+Proof. destruct kind as [ | k | | ]; [ | destruct k | | ]; reflexivity. Qed.
+
+Lemma types_of_imported_var_spec
+    (envs :
+       list (Index.t * (Typing_env.t * Keyed.finite_map name flambda_type)))
+    (var : variable) (kind : flambda_kind) :
+  ∀ types : Keyed.finite_map Index.t flambda_type,
+    Joined_envs.types_of_imported_var envs var kind = Some types ->
+    (∀ (index : Index.t) (env : Typing_env.t)
+       (equations : Keyed.finite_map name flambda_type),
+       (index, (env, equations)) ∈ envs ->
+       knows env var ->
+       ∃ ty : flambda_type,
+         Typing_env.find env (Name_var var) (Some kind) = Some ty)
+    ∧ ∀ (index : Index.t) (ty : flambda_type),
+        (index, ty) ∈ types ->
+        ∃ (env : Typing_env.t)
+          (equations : Keyed.finite_map name flambda_type),
+          (index, (env, equations)) ∈ envs
+          ∧ Typing_env.find env (Name_var var) (Some kind) = Some ty.
+Proof.
+  induction envs as [ | [index0 [env0 equations0]] envs IH]; intros types H.
+  - injection H as <-. split; [ intros index env equations [] | ].
+    intros index ty [].
+  - cbn [Joined_envs.types_of_imported_var] in H.
+    destruct (Joined_envs.types_of_imported_var envs var kind)
+      as [types0 | ]; [ | discriminate ].
+    destruct (IH _ eq_refl) as [Hknown Hfound].
+    destruct (Typing_env.mem None env0 (Name_var var)) eqn:Hmem.
+    + destruct (Typing_env.find env0 (Name_var var) (Some kind)) as [ty0 | ]
+        eqn:Hfind; [ | discriminate ].
+      injection H as <-. split.
+      * intros index env equations [Heq | Hin] Hk.
+        -- injection Heq as <- <- <-. exists ty0. exact Hfind.
+        -- exact (Hknown _ _ _ Hin Hk).
+      * intros index ty [Heq | Hin].
+        -- injection Heq as <- <-. exists env0, equations0.
+           split; [ left; reflexivity | exact Hfind ].
+        -- destruct (Hfound _ _ Hin) as [env [equations [Hin' Hfind']]].
+           exists env, equations. split; [ right; exact Hin' | exact Hfind' ].
+    + injection H as <-. split.
+      * intros index env equations [Heq | Hin] Hk.
+        -- injection Heq as <- <- <-. unfold knows in Hk. congruence.
+        -- exact (Hknown _ _ _ Hin Hk).
+      * intros index ty Hin.
+        destruct (Hfound _ _ Hin) as [env [equations [Hin' Hfind']]].
+        exists env, equations. split; [ right; exact Hin' | exact Hfind' ].
+Qed.
+
+Lemma canonicals_of_alias_types_spec (envs : Joined_envs.t) :
+  ∀ (types : list (Index.t * flambda_type))
+    (canonicals : Simples_in_joined_envs.t),
+    Joined_envs.canonicals_of_alias_types envs types = Some (Some canonicals)
+    ->
+    ∀ (index : Index.t) (canonical : simple),
+      (index, canonical) ∈ canonicals ->
+      ∃ (ty : flambda_type) (env : Typing_env.t) (alias : simple),
+        (index, ty) ∈ types
+        ∧ Joined_envs.get_nth_joined_env envs index = Some env
+        ∧ get_alias_opt ty = Some alias
+        ∧ canonical
+          = Typing_env.get_canonical_simple_ignoring_name_mode env alias.
+Proof.
+  induction types as [ | [index0 ty0] types IH]; intros canonicals H.
+  - injection H as <-. intros index canonical [].
+  - cbn [Joined_envs.canonicals_of_alias_types] in H.
+    destruct (Joined_envs.get_nth_joined_env envs index0) as [env0 | ]
+      eqn:Hnth; [ | discriminate ].
+    destruct (Joined_envs.canonicals_of_alias_types envs types)
+      as [[canonicals0 | ] | ]; try discriminate.
+    + destruct (get_alias_opt ty0) as [alias0 | ] eqn:Halias;
+        [ | discriminate ].
+      injection H as <-. intros index canonical [Heq | Hin].
+      * injection Heq as <- <-. exists ty0, env0, alias0.
+        split; [ left; reflexivity | ].
+        split; [ exact Hnth | split; [ exact Halias | reflexivity ] ].
+      * destruct (IH _ eq_refl _ _ Hin) as [ty [env [alias [Hin' Hrest]]]].
+        exists ty, env, alias. split; [ right; exact Hin' | exact Hrest ].
+    + destruct (get_alias_opt ty0); discriminate.
+Qed.
+
+Section Kinds.
+
+(* What is supposed of a kinded environment. *)
+Variable env_kinded : Typing_env.t -> Prop.
+
+Hypothesis canonical_kinded :
+  ∀ (tenv : Typing_env.t) (s : simple) (kind : flambda_kind),
+    typing_env_invariant tenv ->
+    env_kinded tenv ->
+    simple_of_kind tenv s kind ->
+    simple_of_kind tenv
+      (Typing_env.get_canonical_simple_ignoring_name_mode tenv s) kind.
+
+Hypothesis symbol_kinded :
+  ∀ (tenv : Typing_env.t) (s : symbol) (kind : flambda_kind),
+    env_kinded tenv -> simple_of_kind tenv (Symbol s) kind -> kind = Value.
+
+Hypothesis find_kinded :
+  ∀ (tenv : Typing_env.t) (n : name) (kind : option flambda_kind)
+    (ty : flambda_type),
+    env_kinded tenv -> Typing_env.find tenv n kind = Some ty ->
+    type_kinded tenv ty.
+
+Abbreviation envs_invariant := (joined_envs_are typing_env_invariant).
+
+Abbreviation envs_kinded := (joined_envs_are env_kinded).
+
+Lemma grows_envs_invariant (s s' : Join_env.t) :
+  grows s s' -> envs_invariant s -> envs_invariant s'.
+Proof.
+  intros [Henvs _] H index use Huse. rewrite Henvs in Huse.
+  exact (H _ _ Huse).
+Qed.
+
+Lemma grows_envs_kinded (s s' : Join_env.t) :
+  grows s s' -> envs_kinded s -> envs_kinded s'.
+Proof.
+  intros [Henvs _] H index use Huse. rewrite Henvs in Huse.
+  exact (H _ _ Huse).
+Qed.
+
+(* What is shown of a function that imports a variable, for kinds. *)
+Definition import_keeps_kinded
+    (import_var : Join_env.t -> variable -> option Join_env.t) : Prop :=
+  ∀ (s s' : Join_env.t) (x : variable),
+    state_valid s ->
+    state_kinded s ->
+    envs_invariant s ->
+    envs_kinded s ->
+    import_var s x = Some s' ->
+    state_kinded s'.
+
+Lemma import_vars_keeps_kinded
+    (import_var : Join_env.t -> variable -> option Join_env.t)
+    (vars : list variable) :
+  import_keeps import_var ->
+  import_keeps_kinded import_var ->
+  ∀ s s' : Join_env.t,
+    state_valid s ->
+    state_kinded s ->
+    envs_invariant s ->
+    envs_kinded s ->
+    List.fold_left
+      (fun env var =>
+         let* env := env in
+         import_var env var)
+      vars (Some s)
+    = Some s' ->
+    state_kinded s'.
+Proof.
+  intros Himport Himport_kinded.
+  induction vars as [ | var vars IH];
+    intros s s' Hvalid Hkinded Hinvariant Henvs Hfold.
+  - injection Hfold as <-. exact Hkinded.
+  - cbn [List.fold_left] in Hfold.
+    destruct (import_var s var) as [s1 | ] eqn:Hvar.
+    + destruct (Himport _ _ _ Hvalid Hvar) as [Hvalid1 [Hgrows1 _]].
+      apply (IH s1 s' Hvalid1); try assumption.
+      * exact (Himport_kinded _ _ _ Hvalid Hkinded Hinvariant Henvs Hvar).
+      * exact (grows_envs_invariant _ _ Hgrows1 Hinvariant).
+      * exact (grows_envs_kinded _ _ Hgrows1 Henvs).
+    + exfalso. clear -Hfold.
+      induction vars as [ | var' vars IH]; [ discriminate | exact (IH Hfold) ].
+Qed.
+
+Lemma add_alias_keeps_kinded (p : Join_env.parameters) (s : Join_env.t)
+    (kind : flambda_kind) (var : variable)
+    (canonicals : Simples_in_joined_envs.t) :
+  fresh_avoids p ->
+  state_valid s ->
+  state_kinded s ->
+  vector_of_kind s canonicals kind ->
+  state_kinded (Join_env.add_alias_of_existential p s kind var canonicals).
+Proof.
+  intros Hfresh Hvalid Hkinded Hvector.
+  unfold Join_env.add_alias_of_existential.
+  destruct (Join_env.existential_for_these_canonicals p s canonicals kind)
+    as [x s1] eqn:Hmake.
+  pose proof (existential_keeps_kinded _ _ _ _ _ _ Hfresh Hvalid Hkinded
+                Hvector Hmake) as Hkinded1.
+  match goal with
+  | |- state_kinded ?s' =>
+    assert (Hsame : same_readings s1 s') by (repeat split)
+  end.
+  exact (same_readings_kinded _ _ Hsame Hkinded1).
+Qed.
+
+Lemma add_equation_keeps_kinded (s s' : Join_env.t) (x : variable)
+    (ty : flambda_type) :
+  state_kinded s ->
+  Join_env.add_equation_in_target_env s x ty = Some s' ->
+  state_kinded s'.
+Proof.
+  intros Hkinded Hadd.
+  exact (same_readings_kinded _ _ (add_equation_same_readings _ _ _ _ Hadd)
+           Hkinded).
+Qed.
+
+Lemma add_equals_keeps_kinded (p : Join_env.parameters)
+    (import_var : Join_env.t -> variable -> option Join_env.t)
+    (s s' : Join_env.t) (kind : flambda_kind) (var : variable)
+    (simples : Simples_in_joined_envs.t) :
+  fresh_avoids p ->
+  import_keeps import_var ->
+  import_keeps_kinded import_var ->
+  state_valid s ->
+  state_kinded s ->
+  envs_invariant s ->
+  envs_kinded s ->
+  vector_of_kind s simples kind ->
+  Join_env.add_equals_in_joined_envs_with p import_var s kind var simples
+  = Some s' ->
+  state_kinded s'.
+Proof.
+  intros Hfresh Himport Himport_kinded Hvalid Hkinded Hinvariant Henvs
+    Hvector Hadd.
+  unfold Join_env.add_equals_in_joined_envs_with in Hadd.
+  destruct (Join_env.n_way_join_canonical_simples s simples)
+    as [[canonical | imported | canonicals] | ] eqn:Hcanonical;
+    [ | | | discriminate ].
+  - exact (add_equation_keeps_kinded _ _ _ _ Hkinded Hadd).
+  - destruct (import_var s imported) as [s1 | ] eqn:Hvar; [ | discriminate ].
+    apply (add_equation_keeps_kinded _ _ _ _
+             (Himport_kinded _ _ _ Hvalid Hkinded Hinvariant Henvs Hvar) Hadd).
+  - injection Hadd as <-.
+    pose proof (canonical_simples_cases _ _ _ Hcanonical) as Hcases.
+    cbn in Hcases. subst canonicals.
+    exact (add_alias_keeps_kinded _ _ _ _ _ Hfresh Hvalid Hkinded Hvector).
+Qed.
+
+Lemma concrete_keeps_kinded (p : Join_env.parameters)
+    (import_var : Join_env.t -> variable -> option Join_env.t)
+    (s s' : Join_env.t) (var : variable)
+    (types : Keyed.finite_map Index.t flambda_type) :
+  import_keeps import_var ->
+  import_keeps_kinded import_var ->
+  state_valid s ->
+  state_kinded s ->
+  envs_invariant s ->
+  envs_kinded s ->
+  Join_env.import_or_delay_n_way_join_of_concrete_type_with p import_var s var
+    types
+  = Some s' ->
+  state_kinded s'.
+Proof.
+  intros Himport Himport_kinded Hvalid Hkinded Hinvariant Henvs Hconcrete.
+  unfold Join_env.import_or_delay_n_way_join_of_concrete_type_with
+    in Hconcrete.
+  destruct (Index.choose types) as [[index any_ty] | ]; [ | discriminate ].
+  destruct (forallb _ _).
+  - destruct (Join_env.add_equation_in_target_env s var any_ty)
+      as [s1 | ] eqn:Hadd; [ | discriminate ].
+    pose proof (add_equation_same_readings _ _ _ _ Hadd) as Hsame.
+    apply (import_vars_keeps_kinded import_var (free_variables any_ty) Himport
+             Himport_kinded s1 s').
+    + exact (same_readings_valid _ _ Hsame Hvalid).
+    + exact (same_readings_kinded _ _ Hsame Hkinded).
+    + exact (grows_envs_invariant _ _ (same_readings_grows _ _ Hsame)
+               Hinvariant).
+    + exact (grows_envs_kinded _ _ (same_readings_grows _ _ Hsame) Henvs).
+    + exact Hconcrete.
+  - injection Hconcrete as <-.
+    exact (same_readings_kinded _ _ (add_equations_same_readings s var types)
+             Hkinded).
+Qed.
+
+Lemma with_import_keeps_kinded (s : Join_env.t) (x : variable)
+    (kind : flambda_kind) :
+  (∀ (index : Index.t) (use : Typing_env.t),
+     Join_env.joined_env s index = Some use ->
+     knows use x ->
+     simple_of_kind use (Var x) kind) ->
+  state_kinded s ->
+  state_kinded (with_import s x kind).
+Proof.
+  intros Hx [Hsources [Himports Hdefinitions]].
+  unfold with_import, Bindings_in_target_env.import_from_all_envs.
+  destruct (is_bound x
+              (Bindings_in_target_env.imported_variables
+                 (Join_env.bindings s))).
+  - split; [ exact Hsources | split; [ exact Himports | exact Hdefinitions ] ].
+  - split; [ exact Hsources | split; [ | exact Hdefinitions ] ].
+    intros y k index use Hy Huse Hknown.
+    cbn [Join_env.bindings Bindings_in_target_env.imported_variables lookup]
+      in Hy.
+    destruct (Pos.eqb y x) eqn:Heq.
+    + apply Pos.eqb_eq in Heq. subst y. injection Hy as <-.
+      exact (Hx _ _ Huse Hknown).
+    + exact (Himports _ _ _ _ Hy Huse Hknown).
+Qed.
+
+Lemma joined_env_in_compact (s : Join_env.t) (index : Index.t)
+    (use : Typing_env.t) :
+  Join_env.joined_env s index = Some use ->
+  ∃ equations : Keyed.finite_map name flambda_type,
+    (index, (use, equations))
+    ∈ Keyed.compact Index.equal (Join_env.joined_envs s).
+Proof.
+  unfold Join_env.joined_env, Joined_envs.get_nth_joined_env. intros Huse.
+  destruct (Keyed.lookup Index.equal index (Join_env.joined_envs s))
+    as [[use0 equations] | ] eqn:Hlookup; [ | discriminate ].
+  injection Huse as <-. exists equations.
+  apply (keyed_in_compact Index.equal index_equal_decides). exact Hlookup.
+Qed.
+
+Lemma in_compact_joined_env (s : Join_env.t) (index : Index.t)
+    (use : Typing_env.t) (equations : Keyed.finite_map name flambda_type) :
+  (index, (use, equations))
+  ∈ Keyed.compact Index.equal (Join_env.joined_envs s) ->
+  Join_env.joined_env s index = Some use.
+Proof.
+  intros Hin. apply (keyed_in_compact Index.equal index_equal_decides) in Hin.
+  unfold Join_env.joined_env, Joined_envs.get_nth_joined_env.
+  rewrite Hin. reflexivity.
+Qed.
+
+Lemma import_body_keeps_kinded (p : Join_env.parameters)
+    (import_var : Join_env.t -> variable -> option Join_env.t) :
+  fresh_avoids p ->
+  import_keeps import_var ->
+  import_keeps_kinded import_var ->
+  import_keeps_kinded (Join_env.import_var_transitive_body p import_var).
+Proof.
+  intros Hfresh Himport Himport_kinded s s' x Hvalid Hkinded Hinvariant Henvs
+    Hbody.
+  unfold Join_env.import_var_transitive_body in Hbody.
+  destruct (Source_env.exists_in_source_env (Join_env.source_env s) x)
+    eqn:Hsource; [ injection Hbody as <-; exact Hkinded | ].
+  destruct (among x (Join_env.imported_vars s));
+    [ injection Hbody as <-; exact Hkinded | ].
+  destruct (Joined_envs.kind_of_imported_var (Join_env.joined_envs s) x)
+    as [kind | ] eqn:Hkind; [ | discriminate ].
+  cbv zeta in Hbody. fold (with_import s x kind) in Hbody.
+  assert (Hunknown : ~ knows (Join_env.source_env s) x).
+  { unfold knows. unfold Source_env.exists_in_source_env in Hsource.
+    rewrite Hsource. discriminate. }
+  destruct (with_import_keeps s x kind Hvalid Hunknown
+              (kind_of_imported_var_known _ _ _ Hkind))
+    as [Hvalid1 [Hgrows1 _]].
+  destruct (Joined_envs.find_imported_var _ x kind) as [types | ] eqn:Htypes;
+    [ | discriminate ].
+  destruct (types_of_imported_var_spec _ _ _ _ Htypes) as [Hknown Hfound].
+  assert (Hx :
+            ∀ (index : Index.t) (use : Typing_env.t),
+              Join_env.joined_env s index = Some use ->
+              knows use x ->
+              simple_of_kind use (Var x) kind).
+  { intros index use Huse Hk.
+    destruct (joined_env_in_compact _ _ _ Huse) as [equations Hin].
+    exact (Hknown _ _ _ Hin Hk). }
+  pose proof (with_import_keeps_kinded s x kind Hx Hkinded) as Hkinded1.
+  pose proof (grows_envs_invariant _ _ Hgrows1 Hinvariant) as Hinvariant1.
+  pose proof (grows_envs_kinded _ _ Hgrows1 Henvs) as Henvs1.
+  destruct (existsb _ _).
+  - destruct
+      (Joined_envs.get_alias_then_canonical_simple_ignoring_name_mode_exn
+         _ _) as [[canonical_simples | ] | ] eqn:Hcanonicals;
+      try discriminate.
+    apply (add_equals_keeps_kinded p import_var (with_import s x kind) s'
+             kind x canonical_simples Hfresh Himport Himport_kinded Hvalid1
+             Hkinded1 Hinvariant1 Henvs1);
+      [ | exact Hbody ].
+    intros index c use Hfind Huse.
+    apply (keyed_lookup_in Index.equal index_equal_decides) in Hfind.
+    destruct (canonicals_of_alias_types_spec _ _ _ Hcanonicals _ _ Hfind)
+      as [ty' [env [alias [Hin' [Hnth [Halias ->]]]]]].
+    change (Join_env.joined_env s index = Some use) in Huse.
+    change (Join_env.joined_env s index = Some env) in Hnth.
+    rewrite Huse in Hnth. injection Hnth as <-.
+    apply (keyed_in_compact Index.equal index_equal_decides) in Hin'.
+    rewrite (keyed_lookup_map_values Index.t Index.equal) in Hin'.
+    destruct (Keyed.lookup Index.equal index types) as [ty0 | ] eqn:Hty0;
+      [ | discriminate ].
+    injection Hin' as Hty'.
+    apply (keyed_lookup_in Index.equal index_equal_decides) in Hty0.
+    destruct (Hfound _ _ Hty0) as [env0 [equations0 [Hin0 Hfind0]]].
+    pose proof (in_compact_joined_env _ _ _ _ Hin0) as Huse0.
+    change (Join_env.joined_env s index = Some env0) in Huse0.
+    rewrite Huse in Huse0. injection Huse0 as <-.
+    apply (canonical_kinded use alias kind (Hinvariant _ _ Huse)
+             (Henvs _ _ Huse)).
+    destruct (get_alias_opt ty0) as [alias0 | ] eqn:Halias0.
+    + subst ty'. rewrite Halias0 in Halias. injection Halias as <-.
+      pose proof (get_alias_in_aliases _ _ Halias0) as Hmember.
+      rewrite (find_kind _ _ _ _ Hfind0) in Hmember.
+      exact (find_kinded _ _ _ _ (Henvs _ _ Huse) Hfind0 _ _ Hmember).
+    + subst ty'. rewrite get_alias_alias_type_of in Halias.
+      injection Halias as <-. exists ty0. exact Hfind0.
+  - exact (concrete_keeps_kinded _ _ _ _ _ _ Himport Himport_kinded Hvalid1
+             Hkinded1 Hinvariant1 Henvs1 Hbody).
+Qed.
+
+Lemma import_var_keeps_kinded (p : Join_env.parameters) (fuel : nat) :
+  fresh_avoids p ->
+  import_keeps_kinded (Join_env.import_var_transitive p fuel).
+Proof.
+  intros Hfresh. induction fuel as [ | fuel IH].
+  - intros s s' x _ _ _ _ H. discriminate.
+  - exact (import_body_keeps_kinded p _ Hfresh (import_var_keeps p fuel Hfresh)
+             IH).
+Qed.
+
+
+(* ---------------------------------------------------------------------- *)
+(* The kind of a variable of the target, from a joined environment         *)
+(* ---------------------------------------------------------------------- *)
+
+Lemma simple_of_kind_var_known (tenv : Typing_env.t) (x : variable)
+    (kind : flambda_kind) :
+  simple_of_kind tenv (Var x) kind -> knows tenv x.
+Proof.
+  intros [ty Hfind]. unfold knows, Typing_env.mem.
+  unfold Typing_env.find, Typing_env.find_with_binding_time_and_mode' in Hfind.
+  destruct (Keyed.lookup name_eqb (Name_var x)
+              (Typing_env.names_to_types tenv))
+    as [[ty0 time] | ]; [ reflexivity | discriminate ].
+Qed.
+
+Lemma kind_in_target_of_use (s : Join_env.t) (index : Index.t)
+    (use : Typing_env.t) (x : variable) (kind : flambda_kind) :
+  state_valid s ->
+  state_kinded s ->
+  Join_env.joined_env s index = Some use ->
+  simple_of_kind use (Var x) kind ->
+  exists_in_target s x = true ->
+  kind_in_target_env s x = Some kind.
+Proof.
+  intros [_ [Hnew _]] [Hsources [Himports _]] Huse Hkind Hexists.
+  unfold exists_in_target_env in Hexists. unfold kind_in_target_env in *.
+  destruct (Keyed.lookup name_eqb (Name_var x)
+              (Typing_env.names_to_types
+                 (Bindings_in_target_env.source_env (Join_env.bindings s))))
+    as [[ty time] | ] eqn:Hsource.
+  - rewrite (Hsources _ _ _ _ _ _ Huse Hkind Hsource). reflexivity.
+  - destruct (lookup x
+                (Bindings_in_target_env.existential_variables
+                   (Join_env.bindings s))) as [k | ] eqn:Hexistential.
+    + exfalso.
+      assert (Hx : is_existential s x).
+      { unfold is_existential. apply is_bound_lookup. exists k.
+        exact Hexistential. }
+      exact (proj2 (Hnew x Hx) _ _ Huse
+               (simple_of_kind_var_known _ _ _ Hkind)).
+    + destruct (lookup x
+                  (Bindings_in_target_env.imported_variables
+                     (Join_env.bindings s))) as [k | ] eqn:Himported;
+        [ | discriminate ].
+      pose proof (Himports _ _ _ _ Himported Huse
+                    (simple_of_kind_var_known _ _ _ Hkind)) as Hk.
+      rewrite (simple_of_kind_unique _ _ _ _ Hk Hkind). reflexivity.
+Qed.
+
+(* A simple that is of a kind in a joined environment, and whose
+   variables are in the target, is of that kind in the target. *)
+Lemma simple_kind_in_target_of_use (s : Join_env.t) (index : Index.t)
+    (use : Typing_env.t) (simple : simple) (kind : flambda_kind) :
+  state_valid s ->
+  state_kinded s ->
+  envs_kinded s ->
+  Join_env.joined_env s index = Some use ->
+  simple_of_kind use simple kind ->
+  simple_in_target kind_in_target_env s simple ->
+  simple_of_kind_in_target kind_in_target_env s simple kind.
+Proof.
+  intros Hvalid Hkinded Henvs Huse Hkind Hin.
+  destruct simple as [x | sym | c].
+  - apply (kind_in_target_of_use s index use x kind Hvalid Hkinded Huse Hkind).
+    apply Hin. left. reflexivity.
+  - exact (symbol_kinded _ _ _ (Henvs _ _ Huse) Hkind).
+  - exact Hkind.
+Qed.
+
+
+(* ---------------------------------------------------------------------- *)
+(* The join of simples: kinds                                              *)
+(* ---------------------------------------------------------------------- *)
+
+(* A name that is bound is of some kind. *)
+Lemma bound_has_kind (tenv : Typing_env.t) (n : name) :
+  Typing_env.mem None tenv n = true ->
+  ∃ kind : flambda_kind, simple_of_kind tenv (simple_of_name n) kind.
+Proof.
+  intros Hmem.
+  destruct (Keyed.lookup name_eqb n (Typing_env.names_to_types tenv))
+    as [[ty time] | ] eqn:Hlookup.
+  - exists (kind ty). apply simple_of_kind_name. left. exists ty, time.
+    split; [ exact Hlookup | reflexivity ].
+  - exists Value. apply simple_of_kind_name. right.
+    split; [ exact Hlookup | split; [ exact Hmem | reflexivity ] ].
+Qed.
+
+(* A name that is not its own canonical simple is bound. *)
+Lemma demoted_name_known (tenv : Typing_env.t) (n : name) :
+  typing_env_invariant tenv ->
+  Typing_env.get_canonical_simple_ignoring_name_mode tenv (simple_of_name n)
+  <> simple_of_name n ->
+  Typing_env.mem None tenv n = true.
+Proof.
+  intros [Hwf _] Hne.
+  apply (well_formed_mentioned_known tenv n Hwf).
+  left. unfold demoted_to.
+  assert (Hcanonical :
+            Aliases.get_canonical_ignoring_name_mode (Typing_env.aliases tenv)
+              n
+            <> simple_of_name n).
+  { destruct n as [x | sym]; exact Hne. }
+  unfold Aliases.get_canonical_ignoring_name_mode, Aliases.canonical
+    in Hcanonical.
+  assert (Hname : name_of_simple (simple_of_name n) = Some n).
+  { destruct n; reflexivity. }
+  rewrite Hname in Hcanonical.
+  destruct (Keyed.lookup name_eqb n
+              (Aliases.canonical_elements (Typing_env.aliases tenv)))
+    as [canonical | ]; [ | contradiction ].
+  exists canonical. reflexivity.
+Qed.
+
+(* A simple whose canonical simple is of a kind is of that kind. *)
+Lemma kind_of_canonical (tenv : Typing_env.t) (simple : simple)
+    (kind : flambda_kind) :
+  typing_env_invariant tenv ->
+  env_kinded tenv ->
+  simple_of_kind tenv
+    (Typing_env.get_canonical_simple_ignoring_name_mode tenv simple) kind ->
+  simple_of_kind tenv simple kind.
+Proof.
+  intros Hinvariant Henv Hkind.
+  destruct (simple_equal
+              (Typing_env.get_canonical_simple_ignoring_name_mode tenv simple)
+              simple) eqn:Hsame.
+  - apply simple_equal_decides_equality in Hsame. rewrite Hsame in Hkind.
+    exact Hkind.
+  - assert (Hne :
+              Typing_env.get_canonical_simple_ignoring_name_mode tenv simple
+              <> simple).
+    { intros Habs. apply simple_equal_decides_equality in Habs. congruence. }
+    assert (Hbound : ∃ n : name, simple = simple_of_name n).
+    { destruct simple as [x | sym | c];
+        [ exists (Name_var x); reflexivity
+        | exists (Name_symbol sym); reflexivity
+        | exfalso; apply Hne; reflexivity ]. }
+    destruct Hbound as [n ->].
+    destruct (bound_has_kind tenv n (demoted_name_known tenv n Hinvariant Hne))
+      as [kind' Hkind'].
+    pose proof (canonical_kinded _ _ _ Hinvariant Henv Hkind') as Hcanonical.
+    rewrite (simple_of_kind_unique _ _ _ _ Hkind Hcanonical). exact Hkind'.
+Qed.
+
+Lemma canonical_simples_binding (envs : Joined_envs.t)
+    (simples : list (Index.t * simple)) (canonicals : Simples_in_joined_envs.t)
+    (index : Index.t) (canonical : simple) :
+  Joined_envs.get_canonical_simples_ignoring_name_mode envs simples
+  = Some canonicals ->
+  Simples_in_joined_envs.find index canonicals = Some canonical ->
+  ∃ simple : FlambdaModel.simple, (index, simple) ∈ simples.
+Proof.
+  intros Hcanonicals Hfind.
+  destruct (canonical_simples_fold envs _ _ _ Hcanonicals) as [Hkeys _].
+  apply (keyed_lookup_in Index.equal index_equal_decides) in Hfind.
+  assert (Hin : index ∈ map fst canonicals).
+  { apply in_map_iff. exists (index, canonical).
+    split; [ reflexivity | exact Hfind ]. }
+  rewrite Hkeys, app_nil_r in Hin. apply in_rev in Hin.
+  apply in_map_iff in Hin. destruct Hin as [[index' simple] [Heq Hin]].
+  cbn in Heq. subst index'. exists simple. exact Hin.
+Qed.
+
+Lemma n_way_join_simples_kinds_in :
+  ∀ (p : Join_env.parameters) (fuel : nat) (s s' : Join_env.t)
+    (kind : flambda_kind) (simples : list (Index.t * simple))
+    (result : Or_bottom.t simple),
+    fresh_avoids p ->
+    state_valid s ->
+    envs_invariant s ->
+    envs_kinded s ->
+    join_args_distinct simples ->
+    join_args_in_scope Join_env.joined_env
+      (fun use simple => simple_of_kind use simple kind) s simples ->
+    Join_env.n_way_join_simples p fuel s kind simples = Some (result, s') ->
+    (∀ sym : symbol, result = Or_bottom.Ok (Symbol sym) -> kind = Value)
+    ∧ (state_kinded s ->
+       state_kinded s'
+       ∧ ∀ joined : simple,
+           result = Or_bottom.Ok joined ->
+           simple_of_kind_in_target kind_in_target_env s' joined kind).
+Proof.
+  intros p fuel s s' kind simples result Hfresh Hvalid Hinvariant Henvs
+    Hdistinct Hscope Hjoin.
+  unfold Join_env.n_way_join_simples in Hjoin.
+  destruct simples as [ | [index0 simple0] rest].
+  { injection Hjoin as <- <-. split; [ intros sym H; discriminate | ].
+    intros Hkinded. split; [ exact Hkinded | intros joined H; discriminate ]. }
+  set (simples := (index0, simple0) :: rest) in *.
+  assert (Hin0 : (index0, simple0) ∈ simples) by (left; reflexivity).
+  clearbody simples.
+  destruct (Joined_envs.get_canonical_simples_ignoring_name_mode
+              (Join_env.joined_envs s) simples)
+    as [canonicals | ] eqn:Hcanonicals; [ | discriminate ].
+  destruct (Join_env.n_way_join_canonical_simples s canonicals)
+    as [canonical | ] eqn:Hcanonical; [ | discriminate ].
+  pose proof (canonical_simples_cases _ _ _ Hcanonical) as Hcases.
+  (* Each simple given, its environment and its canonical simple. *)
+  assert (Hgiven :
+            ∀ (index : Index.t) (simple : simple),
+              (index, simple) ∈ simples ->
+              ∃ use : Typing_env.t,
+                Join_env.joined_env s index = Some use
+                ∧ Simples_in_joined_envs.find index canonicals
+                  = Some
+                      (Typing_env.get_canonical_simple_ignoring_name_mode use
+                         simple)
+                ∧ simple_of_kind use
+                    (Typing_env.get_canonical_simple_ignoring_name_mode use
+                       simple)
+                    kind).
+  { intros index simple Hin.
+    destruct (Hscope _ _ Hin) as [use [Huse Hkind]].
+    destruct (canonical_simples_find _ _ _ _ _ Hcanonicals Hdistinct Hin)
+      as [env [Hnth Hfind]].
+    unfold Join_env.joined_env in Huse. rewrite Hnth in Huse.
+    injection Huse as <-. exists env. split; [ exact Hnth | ].
+    split; [ exact Hfind | ].
+    exact (canonical_kinded _ _ _ (Hinvariant _ _ Hnth) (Henvs _ _ Hnth)
+             Hkind). }
+  assert (Hvector : vector_of_kind s canonicals kind).
+  { intros index c use Hfind Huse.
+    destruct (canonical_simples_binding _ _ _ _ _ Hcanonicals Hfind)
+      as [simple Hin].
+    destruct (Hgiven _ _ Hin) as [use' [Huse' [Hfind' Hkind']]].
+    rewrite Huse in Huse'. injection Huse' as <-.
+    rewrite Hfind in Hfind'. injection Hfind' as ->. exact Hkind'. }
+  destruct (Hgiven _ _ Hin0) as [use0 [Huse0 [Hfind0 Hkind0]]].
+  (* What stands for the vector is of the kind, in the first
+     environment. *)
+  assert (Hstands_kind :
+            ∀ joined : simple,
+              stands_in_for s canonicals joined ->
+              simple_of_kind use0 joined kind).
+  { intros joined Hstands.
+    destruct (Hstands _ _ Hfind0) as [Heq | [env [Henv Heq]]].
+    - rewrite <- Heq. exact Hkind0.
+    - rewrite Huse0 in Henv. injection Henv as <-.
+      apply (kind_of_canonical use0 joined kind (Hinvariant _ _ Huse0)
+               (Henvs _ _ Huse0)).
+      rewrite <- Heq. exact Hkind0. }
+  destruct canonical as [joined0 | var | canonicals'].
+  - injection Hjoin as <- <-. destruct Hcases as [Hstands Hsource].
+    pose proof (Hstands_kind _ Hstands) as Hkind.
+    split.
+    + intros sym Heq. injection Heq as ->.
+      exact (symbol_kinded _ _ _ (Henvs _ _ Huse0) Hkind).
+    + intros Hkinded. split; [ exact Hkinded | ].
+      intros joined Heq. injection Heq as <-.
+      apply (simple_kind_in_target_of_use s index0 use0 joined0 kind Hvalid
+               Hkinded Henvs Huse0 Hkind).
+      intros x Hx. rewrite kind_in_target_env_exists.
+      unfold Bindings_in_target_env.exists_in_target_env.
+      pose proof (Hsource x Hx) as Hexists.
+      unfold Join_env.source_env in Hexists. rewrite Hexists. reflexivity.
+  - destruct (Join_env.import_var_transitive p fuel s var) as [s1 | ]
+      eqn:Himport; [ | discriminate ].
+    injection Hjoin as <- <-.
+    split; [ intros sym H; discriminate | ].
+    intros Hkinded.
+    destruct (import_var_keeps p fuel Hfresh _ _ _ Hvalid Himport)
+      as [Hvalid1 [Hgrows1 Hexists1]].
+    pose proof (import_var_keeps_kinded p fuel Hfresh _ _ _ Hvalid Hkinded
+                  Hinvariant Henvs Himport) as Hkinded1.
+    split; [ exact Hkinded1 | ].
+    intros joined Heq. injection Heq as <-.
+    assert (Huse1 : Join_env.joined_env s1 index0 = Some use0).
+    { destruct Hgrows1 as [Henvs1 _]. rewrite Henvs1. exact Huse0. }
+    exact (kind_in_target_of_use s1 index0 use0 var kind Hvalid1 Hkinded1 Huse1
+             (Hstands_kind _ Hcases) Hexists1).
+  - subst canonicals'.
+    destruct (Join_env.existential_for_these_canonicals p s canonicals kind)
+      as [x s1] eqn:Hmake.
+    injection Hjoin as <- <-.
+    split; [ intros sym H; discriminate | ].
+    intros Hkinded.
+    destruct (existential_keeps _ _ _ _ _ _ Hfresh Hvalid Hmake)
+      as [Hvalid1 [Hgrows1 [Hexistential
+                              [simples' [kind' [Hdefinition Hequal]]]]]].
+    pose proof (existential_keeps_kinded _ _ _ _ _ _ Hfresh Hvalid Hkinded
+                  Hvector Hmake) as Hkinded1.
+    split; [ exact Hkinded1 | ].
+    intros joined Heq. injection Heq as <-.
+    assert (Huse1 : Join_env.joined_env s1 index0 = Some use0).
+    { destruct Hgrows1 as [Henvs1 _]. rewrite Henvs1. exact Huse0. }
+    destruct Hkinded1 as [_ [_ Hdefinitions1]].
+    rewrite (simples_equal_find _ _ Hequal) in Hfind0.
+    pose proof (Hdefinitions1 _ _ _ _ _ _ Hdefinition Hfind0 Huse1) as Hkind'.
+    rewrite (simple_of_kind_unique _ _ _ _ Hkind' Hkind0) in Hdefinition.
+    destruct Hvalid1 as [_ [Hnew1 [[Hrecorded1 _] _]]].
+    cbn. unfold kind_in_target_env.
+    destruct (Hnew1 x Hexistential) as [Hunknown _].
+    unfold knows, Typing_env.mem, Join_env.source_env in Hunknown.
+    destruct (Keyed.lookup name_eqb (Name_var x)
+                (Typing_env.names_to_types
+                   (Bindings_in_target_env.source_env (Join_env.bindings s1))))
+      as [[ty time] | ]; [ exfalso; apply Hunknown; reflexivity | ].
+    rewrite (Hrecorded1 _ _ _ Hdefinition). reflexivity.
+Qed.
+
+
+(* ---------------------------------------------------------------------- *)
+(* Importing a type, and the join of extensions: kinds                     *)
+(* ---------------------------------------------------------------------- *)
+
+(* What is supposed of the aliases of a type: they are made of its
+   free variables. *)
+Hypothesis aliases_free :
+  ∀ (ty : flambda_type) (simple : simple) (kind : flambda_kind) (x : variable),
+    (simple, kind) ∈ aliases_with_kinds ty ->
+    x ∈ free_variables_of_simple simple ->
+    x ∈ free_variables ty.
+
+Hypothesis aliases_free_extension :
+  ∀ (extension : env_extension) (simple : simple) (kind : flambda_kind)
+    (x : variable),
+    (simple, kind) ∈ aliases_of_env_extension extension ->
+    x ∈ free_variables_of_simple simple ->
+    x ∈ free_variables_of_env_extension extension.
+
+Lemma import_type_kinds_in :
+  ∀ (p : Join_env.parameters) (fuel : nat) (s s' : Join_env.t)
+    (ty : flambda_type),
+    fresh_avoids p ->
+    state_valid s ->
+    envs_invariant s ->
+    envs_kinded s ->
+    Join_env.import_type p fuel s ty = Some s' ->
+    state_kinded s ->
+    (∃ (index : Index.t) (use : Typing_env.t),
+       Join_env.joined_env s index = Some use ∧ type_kinded use ty) ->
+    state_kinded s' ∧ type_kinded_in_target kind_in_target_env s' ty.
+Proof.
+  intros p fuel s s' ty Hfresh Hvalid Hinvariant Henvs Himport Hkinded
+    [index [use [Huse Hty]]].
+  destruct (import_type_valid p fuel s s' ty Hfresh Hvalid Himport)
+    as [Hvalid' [Hgrows' Htarget]].
+  assert (Hkinded' : state_kinded s').
+  { exact (import_vars_keeps_kinded _ (free_variables ty)
+             (import_var_keeps p fuel Hfresh)
+             (import_var_keeps_kinded p fuel Hfresh) s s' Hvalid Hkinded
+             Hinvariant Henvs Himport). }
+  split; [ exact Hkinded' | ].
+  intros simple kind Hmember.
+  assert (Huse' : Join_env.joined_env s' index = Some use).
+  { destruct Hgrows' as [Henvs' _]. rewrite Henvs'. exact Huse. }
+  apply (simple_kind_in_target_of_use s' index use simple kind Hvalid'
+           Hkinded' (grows_envs_kinded _ _ Hgrows' Henvs) Huse'
+           (Hty _ _ Hmember)).
+  intros x Hx. apply Htarget. exact (aliases_free _ _ _ _ Hmember Hx).
+Qed.
+
+Lemma import_name_keeps_kinded (p : Join_env.parameters) (fuel : nat)
+    (s s' : Join_env.t) (n : name) :
+  fresh_avoids p ->
+  state_valid s ->
+  state_kinded s ->
+  envs_invariant s ->
+  envs_kinded s ->
+  Join_env.import_name_transitive p fuel s n = Some s' ->
+  state_kinded s'.
+Proof.
+  intros Hfresh Hvalid Hkinded Hinvariant Henvs Himport.
+  destruct n as [x | sym].
+  - exact (import_var_keeps_kinded p fuel Hfresh _ _ _ Hvalid Hkinded
+             Hinvariant Henvs Himport).
+  - injection Himport as <-. exact Hkinded.
+Qed.
+
+Lemma import_equations_keeps_kinded (p : Join_env.parameters) (fuel : nat) :
+  fresh_avoids p ->
+  ∀ (equations : list (name * flambda_type)) (s s' : Join_env.t),
+    state_valid s ->
+    state_kinded s ->
+    envs_invariant s ->
+    envs_kinded s ->
+    List.fold_left
+      (fun env equation =>
+         let* env := env in
+         let* env :=
+           Join_env.import_name_transitive p fuel env (fst equation)
+         in
+         Join_env.import_type_transitive p fuel env (snd equation))
+      equations (Some s)
+    = Some s' ->
+    state_kinded s'.
+Proof.
+  intros Hfresh.
+  induction equations as [ | [n ty] equations IH];
+    intros s s' Hvalid Hkinded Hinvariant Henvs Hfold.
+  - injection Hfold as <-. exact Hkinded.
+  - cbn [List.fold_left fst snd] in Hfold.
+    destruct (Join_env.import_name_transitive p fuel s n) as [s1 | ]
+      eqn:Hname.
+    + destruct (import_name_keeps _ _ _ _ _ Hfresh Hvalid Hname)
+        as [Hvalid1 [Hgrows1 _]].
+      pose proof (import_name_keeps_kinded _ _ _ _ _ Hfresh Hvalid Hkinded
+                    Hinvariant Henvs Hname) as Hkinded1.
+      pose proof (grows_envs_invariant _ _ Hgrows1 Hinvariant) as Hinvariant1.
+      pose proof (grows_envs_kinded _ _ Hgrows1 Henvs) as Henvs1.
+      destruct (Join_env.import_type_transitive p fuel s1 ty) as [s2 | ]
+        eqn:Htype.
+      * destruct (import_type_valid p fuel s1 s2 ty Hfresh Hvalid1 Htype)
+          as [Hvalid2 [Hgrows2 _]].
+        apply (IH s2 s' Hvalid2); try assumption.
+        -- exact (import_vars_keeps_kinded _ (free_variables ty)
+                    (import_var_keeps p fuel Hfresh)
+                    (import_var_keeps_kinded p fuel Hfresh) s1 s2 Hvalid1
+                    Hkinded1 Hinvariant1 Henvs1 Htype).
+        -- exact (grows_envs_invariant _ _ Hgrows2 Hinvariant1).
+        -- exact (grows_envs_kinded _ _ Hgrows2 Henvs1).
+      * exfalso. clear -Hfold.
+        induction equations as [ | e equations IH];
+          [ discriminate | exact (IH Hfold) ].
+    + exfalso. clear -Hfold.
+      induction equations as [ | e equations IH];
+        [ discriminate | exact (IH Hfold) ].
+Qed.
+
+Lemma n_way_join_env_extension_kinds_in :
+  ∀ (p : Join_env.parameters) (fuel : nat) (s : Join_env.t)
+    (extensions : list (Index.t * env_extension))
+    (result : Or_bottom.t (env_extension * Join_env.t)),
+    fresh_avoids p ->
+    state_valid s ->
+    envs_invariant s ->
+    envs_kinded s ->
+    Join_env.n_way_join_env_extension p fuel s extensions = Some result ->
+    state_kinded s ->
+    join_args_in_scope Join_env.joined_env env_extension_kinded s extensions
+    ->
+    ∀ (joined : env_extension) (s' : Join_env.t),
+      result = Or_bottom.Ok (joined, s') ->
+      state_kinded s'
+      ∧ env_extension_kinded_in_target kind_in_target_env s' joined.
+Proof.
+  intros p fuel s extensions result Hfresh Hvalid Hinvariant Henvs Hjoin
+    Hkinded Hscope joined s' Hresult.
+  unfold Join_env.n_way_join_env_extension in Hjoin.
+  destruct extensions as [ | [index0 first] others]; [ | ].
+  { injection Hjoin as <-. discriminate. }
+  destruct (forallb _ others).
+  - destruct (List.fold_left _ (Join_env.equations_of first) (Some s))
+      as [s1 | ] eqn:Hfold; [ | discriminate ].
+    injection Hjoin as <-. injection Hresult as <- <-.
+    destruct (Hscope index0 first (or_introl eq_refl))
+      as [use0 [Huse0 Hfirst]].
+    destruct first as [equations]. cbn [Join_env.equations_of] in Hfold.
+    destruct (import_equations_keeps p fuel Hfresh _ _ _ Hvalid Hfold)
+      as [Hvalid1 [Hgrows1 Hexists1]].
+    pose proof (import_equations_keeps_kinded p fuel Hfresh _ _ _ Hvalid
+                  Hkinded Hinvariant Henvs Hfold) as Hkinded1.
+    split; [ exact Hkinded1 | ].
+    intros simple kind Hmember.
+    assert (Huse1 : Join_env.joined_env s1 index0 = Some use0).
+    { destruct Hgrows1 as [Henvs1 _]. rewrite Henvs1. exact Huse0. }
+    apply (simple_kind_in_target_of_use s1 index0 use0 simple kind Hvalid1
+             Hkinded1 (grows_envs_kinded _ _ Hgrows1 Henvs) Huse1
+             (Hfirst _ _ Hmember)).
+    intros x Hx. apply Hexists1.
+    exact (aliases_free_extension _ _ _ _ Hmember Hx).
+  - injection Hjoin as <-. injection Hresult as <- <-.
+    split; [ exact Hkinded | ].
+    intros simple kind Hmember. destruct Hmember.
+Qed.
+
+End Kinds.
+
+Theorem created_state_kinded : created_state_kinded_statement.
+Proof.
+  intros avoid source envs Hsource.
+  split; [ exact Hsource | ]. split.
+  - intros x kind index use Hx. discriminate.
+  - intros x simples kind index simple use Hx. discriminate.
+Qed.
+
+Theorem n_way_join_simples_kinds : n_way_join_simples_kinds_statement.
+Proof.
+  intros env_kinded p fuel s s' kind simples result
+    [Hcanonical [Hsymbol Hfind]] Hfresh Hvalid Hinvariant Henvs Hdistinct
+    Hscope Hjoin.
+  eapply (n_way_join_simples_kinds_in env_kinded); eassumption.
+Qed.
+
+Theorem import_type_kinds : import_type_kinds_statement.
+Proof.
+  intros env_kinded p fuel s s' ty [Hcanonical [Hsymbol Hfind]] [Hfree _]
+    Hfresh Hvalid Hinvariant Henvs Himport Hkinded Hty.
+  eapply (import_type_kinds_in env_kinded); eassumption.
+Qed.
+
+Theorem n_way_join_env_extension_kinds
+  : n_way_join_env_extension_kinds_statement.
+Proof.
+  intros env_kinded p fuel s extensions result [Hcanonical [Hsymbol Hfind]]
+    [_ Hfree] Hfresh Hvalid Hinvariant Henvs Hjoin Hkinded Hscope joined s'
+    Hresult.
+  eapply (n_way_join_env_extension_kinds_in env_kinded); eassumption.
+Qed.
+
+(* ======================================================================== *)
+(* The definitions are kept at every state                                  *)
+(* ======================================================================== *)
+
+Lemma same_readings_keeps (s s' : Join_env.t) :
+  same_readings s s' -> keeps_definitions s s'.
+Proof.
+  destruct s, s'. unfold same_readings. cbn. intros [-> [_ [-> _]]].
+  split; [ intros index; reflexivity | intros x definition H; exact H ].
+Qed.
+
+Lemma existential_keeps_definitions (p : Join_env.parameters)
+    (s s' : Join_env.t) (canonicals : Simples_in_joined_envs.t)
+    (kind : flambda_kind) (x : variable) :
+  Join_env.existential_for_these_canonicals p s canonicals kind = (x, s') ->
+  keeps_definitions s s'.
+Proof.
+  unfold Join_env.existential_for_these_canonicals. intros Hmake.
+  destruct (Bindings_in_target_env.existential_for_these_simples
+              (Join_env.fresh p) (Join_env.bindings s) canonicals kind)
+    as [x0 bindings0].
+  injection Hmake as _ <-.
+  split; [ intros index; reflexivity | ].
+  intros y definition Hy. cbn [Join_env.definitions_of_existentials].
+  destruct (is_bound x0 (Join_env.definitions_of_existentials s)) eqn:Hbound;
+    [ exact Hy | ].
+  cbn [lookup]. destruct (Pos.eqb y x0) eqn:Heq; [ | exact Hy ].
+  apply Pos.eqb_eq in Heq. subst y. unfold is_bound in Hbound.
+  rewrite Hy in Hbound. discriminate.
+Qed.
+
+Definition import_keeps_definitions
+    (import_var : Join_env.t -> variable -> option Join_env.t) : Prop :=
+  ∀ (s s' : Join_env.t) (x : variable),
+    import_var s x = Some s' -> keeps_definitions s s'.
+
+Lemma import_vars_keeps_definitions
+    (import_var : Join_env.t -> variable -> option Join_env.t)
+    (vars : list variable) :
+  import_keeps_definitions import_var ->
+  ∀ s s' : Join_env.t,
+    List.fold_left
+      (fun env var =>
+         let* env := env in
+         import_var env var)
+      vars (Some s)
+    = Some s' ->
+    keeps_definitions s s'.
+Proof.
+  intros Himport.
+  induction vars as [ | var vars IH]; intros s s' Hfold.
+  - injection Hfold as <-. apply keeps_definitions_refl.
+  - cbn [List.fold_left] in Hfold.
+    destruct (import_var s var) as [s1 | ] eqn:Hvar.
+    + exact (keeps_definitions_trans _ _ _ (Himport _ _ _ Hvar)
+               (IH _ _ Hfold)).
+    + exfalso. clear -Hfold.
+      induction vars as [ | var' vars IH]; [ discriminate | exact (IH Hfold) ].
+Qed.
+
+Lemma add_equation_keeps_definitions (s s' : Join_env.t) (x : variable)
+    (ty : flambda_type) :
+  Join_env.add_equation_in_target_env s x ty = Some s' ->
+  keeps_definitions s s'.
+Proof.
+  intros Hadd.
+  exact (same_readings_keeps _ _ (add_equation_same_readings _ _ _ _ Hadd)).
+Qed.
+
+Lemma add_alias_keeps_definitions (p : Join_env.parameters) (s : Join_env.t)
+    (kind : flambda_kind) (var : variable)
+    (canonicals : Simples_in_joined_envs.t) :
+  keeps_definitions s
+    (Join_env.add_alias_of_existential p s kind var canonicals).
+Proof.
+  unfold Join_env.add_alias_of_existential.
+  destruct (Join_env.existential_for_these_canonicals p s canonicals kind)
+    as [x s1] eqn:Hmake.
+  apply (keeps_definitions_trans _ _ _
+           (existential_keeps_definitions _ _ _ _ _ _ Hmake)).
+  apply same_readings_keeps. repeat split.
+Qed.
+
+Lemma add_equals_keeps_definitions (p : Join_env.parameters)
+    (import_var : Join_env.t -> variable -> option Join_env.t)
+    (s s' : Join_env.t) (kind : flambda_kind) (var : variable)
+    (simples : Simples_in_joined_envs.t) :
+  import_keeps_definitions import_var ->
+  Join_env.add_equals_in_joined_envs_with p import_var s kind var simples
+  = Some s' ->
+  keeps_definitions s s'.
+Proof.
+  intros Himport Hadd.
+  unfold Join_env.add_equals_in_joined_envs_with in Hadd.
+  destruct (Join_env.n_way_join_canonical_simples s simples)
+    as [[canonical | imported | canonicals] | ]; [ | | | discriminate ].
+  - exact (add_equation_keeps_definitions _ _ _ _ Hadd).
+  - destruct (import_var s imported) as [s1 | ] eqn:Hvar; [ | discriminate ].
+    exact (keeps_definitions_trans _ _ _ (Himport _ _ _ Hvar)
+             (add_equation_keeps_definitions _ _ _ _ Hadd)).
+  - injection Hadd as <-. apply add_alias_keeps_definitions.
+Qed.
+
+Lemma concrete_keeps_definitions (p : Join_env.parameters)
+    (import_var : Join_env.t -> variable -> option Join_env.t)
+    (s s' : Join_env.t) (var : variable)
+    (types : Keyed.finite_map Index.t flambda_type) :
+  import_keeps_definitions import_var ->
+  Join_env.import_or_delay_n_way_join_of_concrete_type_with p import_var s var
+    types
+  = Some s' ->
+  keeps_definitions s s'.
+Proof.
+  intros Himport Hconcrete.
+  unfold Join_env.import_or_delay_n_way_join_of_concrete_type_with
+    in Hconcrete.
+  destruct (Index.choose types) as [[index any_ty] | ]; [ | discriminate ].
+  destruct (forallb _ _).
+  - destruct (Join_env.add_equation_in_target_env s var any_ty)
+      as [s1 | ] eqn:Hadd; [ | discriminate ].
+    exact (keeps_definitions_trans _ _ _
+             (add_equation_keeps_definitions _ _ _ _ Hadd)
+             (import_vars_keeps_definitions _ _ Himport _ _ Hconcrete)).
+  - injection Hconcrete as <-. apply same_readings_keeps.
+    apply add_equations_same_readings.
+Qed.
+
+Lemma import_body_keeps_definitions (p : Join_env.parameters)
+    (import_var : Join_env.t -> variable -> option Join_env.t) :
+  import_keeps_definitions import_var ->
+  import_keeps_definitions (Join_env.import_var_transitive_body p import_var).
+Proof.
+  intros Himport s s' x Hbody.
+  unfold Join_env.import_var_transitive_body in Hbody.
+  destruct (Source_env.exists_in_source_env (Join_env.source_env s) x);
+    [ injection Hbody as <-; apply keeps_definitions_refl | ].
+  destruct (among x (Join_env.imported_vars s));
+    [ injection Hbody as <-; apply keeps_definitions_refl | ].
+  destruct (Joined_envs.kind_of_imported_var (Join_env.joined_envs s) x)
+    as [kind | ]; [ | discriminate ].
+  cbv zeta in Hbody. fold (with_import s x kind) in Hbody.
+  assert (Hfirst : keeps_definitions s (with_import s x kind)).
+  { split; [ intros index; reflexivity | intros y definition H; exact H ]. }
+  apply (keeps_definitions_trans _ _ _ Hfirst).
+  destruct (Joined_envs.find_imported_var _ x kind) as [types | ];
+    [ | discriminate ].
+  destruct (existsb _ _).
+  - destruct
+      (Joined_envs.get_alias_then_canonical_simple_ignoring_name_mode_exn
+         _ _) as [[canonical_simples | ] | ]; try discriminate.
+    exact (add_equals_keeps_definitions _ _ _ _ _ _ _ Himport Hbody).
+  - exact (concrete_keeps_definitions _ _ _ _ _ _ Himport Hbody).
+Qed.
+
+Lemma import_var_keeps_definitions (p : Join_env.parameters) (fuel : nat) :
+  import_keeps_definitions (Join_env.import_var_transitive p fuel).
+Proof.
+  induction fuel as [ | fuel IH].
+  - intros s s' x H. discriminate.
+  - exact (import_body_keeps_definitions p _ IH).
+Qed.
+
+Theorem import_type_keeps_definitions
+  : import_type_keeps_definitions_statement.
+Proof.
+  intros p fuel s s' ty Himport.
+  exact (import_vars_keeps_definitions _ (free_variables ty)
+           (import_var_keeps_definitions p fuel) s s' Himport).
+Qed.
+
+Theorem n_way_join_simples_keeps_definitions
+  : n_way_join_simples_keeps_definitions_statement.
+Proof.
+  intros p fuel s s' kind simples result Hjoin.
+  unfold Join_env.n_way_join_simples in Hjoin.
+  destruct simples as [ | first rest].
+  { injection Hjoin as _ <-. apply keeps_definitions_refl. }
+  destruct (Joined_envs.get_canonical_simples_ignoring_name_mode _ _)
+    as [canonicals | ]; [ | discriminate ].
+  destruct (Join_env.n_way_join_canonical_simples s canonicals)
+    as [[simple0 | var | canonicals'] | ]; [ | | | discriminate ].
+  - injection Hjoin as _ <-. apply keeps_definitions_refl.
+  - destruct (Join_env.import_var_transitive p fuel s var) as [s1 | ]
+      eqn:Himport; [ | discriminate ].
+    injection Hjoin as _ <-.
+    exact (import_var_keeps_definitions p fuel _ _ _ Himport).
+  - destruct (Join_env.existential_for_these_canonicals p s canonicals' kind)
+      as [x s1] eqn:Hmake.
+    injection Hjoin as _ <-.
+    exact (existential_keeps_definitions _ _ _ _ _ _ Hmake).
+Qed.
+
+Theorem n_way_join_env_extension_keeps_definitions
+  : n_way_join_env_extension_keeps_definitions_statement.
+Proof.
+  intros p fuel s s' extensions joined Hjoin.
+  unfold Join_env.n_way_join_env_extension in Hjoin.
+  destruct extensions as [ | [index0 first] others]; [ discriminate | ].
+  destruct (forallb _ others).
+  - destruct (List.fold_left _ (Join_env.equations_of first) (Some s))
+      as [s1 | ] eqn:Hfold; [ | discriminate ].
+    injection Hjoin as _ <-. revert s Hfold.
+    generalize (Join_env.equations_of first) as equations.
+    induction equations as [ | [n ty] equations IH]; intros s Hfold.
+    + injection Hfold as <-. apply keeps_definitions_refl.
+    + cbn [List.fold_left fst snd] in Hfold.
+      destruct (Join_env.import_name_transitive p fuel s n) as [s2 | ]
+        eqn:Hname.
+      * assert (Hfirst : keeps_definitions s s2).
+        { destruct n as [x | sym].
+          - exact (import_var_keeps_definitions p fuel _ _ _ Hname).
+          - injection Hname as <-. apply keeps_definitions_refl. }
+        destruct (Join_env.import_type_transitive p fuel s2 ty) as [s3 | ]
+          eqn:Htype.
+        -- exact (keeps_definitions_trans _ _ _ Hfirst
+                    (keeps_definitions_trans _ _ _
+                       (import_type_keeps_definitions p fuel _ _ _ Htype)
+                       (IH _ Hfold))).
+        -- exfalso. clear -Hfold.
+           induction equations as [ | e equations IH];
+             [ discriminate | exact (IH Hfold) ].
+      * exfalso. clear -Hfold.
+        induction equations as [ | e equations IH];
+          [ discriminate | exact (IH Hfold) ].
+  - injection Hjoin as _ <-. apply keeps_definitions_refl.
 Qed.
