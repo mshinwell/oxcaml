@@ -358,3 +358,280 @@ Proof.
   exact (some_any (free_names N x) (fun name => R (name, x))
            (equivariant_supports X N R x HN Hequivariant Hrespects)).
 Qed.
+
+(* ======================================================================== *)
+(* Several fresh names                                                      *)
+(* ======================================================================== *)
+
+(* As many names as asked for, different from one another and outside a
+   list: [fresh_name], again and again. *)
+Fixpoint fresh_names (count : nat) (avoid : list positive) : list positive :=
+  match count with
+  | O => []
+  | S count =>
+    let name := fresh_name avoid in
+    name :: fresh_names count (name :: avoid)
+  end.
+
+Lemma fresh_names_length (count : nat) (avoid : list positive) :
+  length (fresh_names count avoid) = count.
+Proof.
+  revert avoid. induction count as [ | count IH]; intros avoid; simpl;
+    [ reflexivity | rewrite IH; reflexivity ].
+Qed.
+
+Lemma fresh_names_outside (count : nat) (avoid : list positive) :
+  distinct_outside avoid (fresh_names count avoid).
+Proof.
+  revert avoid. induction count as [ | count IH]; intros avoid.
+  - split; [ reflexivity | intros name Hname; discriminate ].
+  - cbn [fresh_names]. set (first := fresh_name avoid).
+    destruct (IH (first :: avoid)) as [Hdistinct Houtside]. split.
+    + cbn [distinct]. rewrite Hdistinct, andb_true_r.
+      destruct (among first (fresh_names count (first :: avoid)))
+        eqn:Hamong; [ | reflexivity ].
+      apply Houtside, among_cons_false in Hamong as [Hfirst _].
+      contradiction.
+    + intros name Hname. rewrite among_cons in Hname.
+      apply orb_true_iff in Hname as [Hname | Hname].
+      * apply Pos.eqb_eq in Hname. subst name. apply fresh_name_fresh.
+      * apply Houtside, among_cons_false in Hname as [_ Hname].
+        exact Hname.
+Qed.
+
+Lemma distinct_outside_app (avoid avoid' names : list positive) :
+  distinct_outside (avoid ++ avoid') names ->
+  distinct_outside avoid names ∧ distinct_outside avoid' names.
+Proof.
+  intros [Hdistinct Houtside].
+  split; (split; [ exact Hdistinct | ]); intros name Hname;
+    apply Houtside, among_app_false in Hname as [Hname Hname'];
+    assumption.
+Qed.
+
+Lemma distinct_outside_cons (avoid : list positive) (name : positive)
+    (names : list positive) :
+  among name avoid = false ->
+  distinct_outside (name :: avoid) names ->
+  distinct_outside avoid (name :: names).
+Proof.
+  intros Hname [Hdistinct Houtside]. split.
+  - cbn [distinct]. rewrite Hdistinct, andb_true_r.
+    destruct (among name names) eqn:Hamong; [ | reflexivity ].
+    apply Houtside, among_cons_false in Hamong as [Hdifferent _].
+    contradiction.
+  - intros other Hother. rewrite among_cons in Hother.
+    apply orb_true_iff in Hother as [Hother | Hother].
+    + apply Pos.eqb_eq in Hother. subst other. exact Hname.
+    + apply Houtside, among_cons_false in Hother as [_ Hother].
+      exact Hother.
+Qed.
+
+Theorem for_fresh_names_elim : for_fresh_names_elim_statement.
+Proof.
+  intros count P avoid [avoid' Hall].
+  exists (fresh_names count (avoid' ++ avoid)).
+  destruct
+    (distinct_outside_app avoid' avoid _
+       (fresh_names_outside count (avoid' ++ avoid)))
+    as [Houtside' Houtside].
+  split; [ apply fresh_names_length | ].
+  split; [ exact Houtside | ].
+  apply Hall; [ apply fresh_names_length | exact Houtside' ].
+Qed.
+
+Theorem for_fresh_names_none : for_fresh_names_none_statement.
+Proof.
+  intros P. split.
+  - intros [avoid Hall]. apply Hall; [ reflexivity | ].
+    split; [ reflexivity | intros name Hname; discriminate ].
+  - intros HP. exists []. intros names Hlength _.
+    destruct names; [ exact HP | discriminate ].
+Qed.
+
+Theorem for_fresh_names_next : for_fresh_names_next_statement.
+Proof.
+  intros count P [avoid Hall]. exists avoid. intros name Hname.
+  exists (name :: avoid). intros names Hlength Houtside.
+  apply Hall; [ simpl; rewrite Hlength; reflexivity | ].
+  apply distinct_outside_cons; assumption.
+Qed.
+
+(* The swaps of two lists of names, one after another. *)
+
+Lemma permute_combine_other (names names' : list positive)
+    (name : positive) :
+  among name names = false ->
+  among name names' = false ->
+  permute (combine names names') name = name.
+Proof.
+  revert names'. induction names as [ | first names IH];
+    intros [ | first' names'] Hname Hname'; try reflexivity.
+  apply among_cons_false in Hname as [Hfirst Hname].
+  apply among_cons_false in Hname' as [Hfirst' Hname'].
+  cbn [combine permute]. rewrite (IH names' Hname Hname').
+  apply swap_other; assumption.
+Qed.
+
+Lemma map_swap_other (a b : positive) (names : list positive) :
+  among a names = false -> among b names = false ->
+  map (swap a b) names = names.
+Proof.
+  induction names as [ | first names IH]; [ reflexivity | ].
+  intros Ha Hb. apply among_cons_false in Ha as [Ha_first Ha].
+  apply among_cons_false in Hb as [Hb_first Hb]. cbn [map].
+  rewrite (IH Ha Hb), swap_other; [ reflexivity | | ]; congruence.
+Qed.
+
+(* They send the first list to the second, when each list has different
+   names and the two have none in common. *)
+Lemma permute_combine (names names' : list positive) :
+  length names = length names' ->
+  distinct names = true ->
+  distinct_outside names names' ->
+  map (permute (combine names names')) names = names'.
+Proof.
+  revert names'. induction names as [ | first names IH];
+    intros [ | first' names'] Hlength Hdistinct [Hdistinct' Houtside];
+    try discriminate; [ reflexivity | ].
+  cbn [distinct] in Hdistinct, Hdistinct'.
+  apply andb_true_iff in Hdistinct as [Hfirst Hdistinct].
+  apply andb_true_iff in Hdistinct' as [Hfirst' Hdistinct'].
+  apply negb_true_iff in Hfirst, Hfirst'.
+  assert (Hhead : among first' (first :: names) = false)
+    by (apply Houtside; rewrite among_cons, Pos.eqb_refl; reflexivity).
+  apply among_cons_false in Hhead as [Hhead_first Hhead].
+  assert (Htail :
+    ∀ name : positive,
+      among name names' = true -> among name (first :: names) = false)
+    by (intros name Hname; apply Houtside; rewrite among_cons, Hname;
+        apply orb_true_r).
+  assert (Hfirst_names' : among first names' = false).
+  { destruct (among first names') eqn:Hamong; [ | reflexivity ].
+    apply Htail, among_cons_false in Hamong as [Hdifferent _].
+    contradiction. }
+  cbn [combine map permute].
+  rewrite (permute_combine_other names names' first Hfirst Hfirst_names'),
+    swap_first.
+  f_equal.
+  rewrite <- (map_map (permute (combine names names')) (swap first first')).
+  rewrite IH.
+  - apply map_swap_other; assumption.
+  - simpl in Hlength. congruence.
+  - exact Hdistinct.
+  - split; [ exact Hdistinct' | ]. intros name Hname.
+    apply Htail, among_cons_false in Hname as [_ Hname]. exact Hname.
+Qed.
+
+Lemma fixes_combine (support names names' : list positive) :
+  (∀ name : positive, among name names = true -> among name support = false)
+  ->
+  (∀ name : positive, among name names' = true -> among name support = false)
+  ->
+  fixes (combine names names') support.
+Proof.
+  intros Houtside Houtside' name Hname.
+  apply permute_combine_other.
+  - destruct (among name names) eqn:Hamong; [ | reflexivity ].
+    apply Houtside in Hamong. congruence.
+  - destruct (among name names') eqn:Hamong; [ | reflexivity ].
+    apply Houtside' in Hamong. congruence.
+Qed.
+
+(* A predicate that holds of one list of different names outside its
+   support holds of every other of the same length: go by a third list
+   that has no name of either. *)
+Lemma supported_names_move (support : list positive)
+    (P : list positive -> Prop) (names names' : list positive) :
+  supports list_of_names support P ->
+  length names = length names' ->
+  distinct_outside support names ->
+  distinct_outside (support ++ names) names' ->
+  P names -> P names'.
+Proof.
+  intros Hsupports Hlength [Hdistinct Houtside] Houtside' HP.
+  destruct (distinct_outside_app support names names' Houtside')
+    as [[Hdistinct' Hsupport'] Hnames'].
+  pose proof
+    (Hsupports (combine names names') names
+       (fixes_combine support names names' Houtside Hsupport') HP)
+    as Hmoved.
+  simpl in Hmoved.
+  rewrite (permute_combine names names' Hlength Hdistinct Hnames') in Hmoved.
+  exact Hmoved.
+Qed.
+
+Lemma supported_names_some_any (support : list positive)
+    (P : list positive -> Prop) (names names' : list positive) :
+  supports list_of_names support P ->
+  length names = length names' ->
+  distinct_outside support names ->
+  distinct_outside support names' ->
+  P names -> P names'.
+Proof.
+  intros Hsupports Hlength Houtside Houtside' HP.
+  set (between :=
+    fresh_names (length names) ((support ++ names) ++ support ++ names')).
+  pose proof
+    (fresh_names_outside (length names)
+       ((support ++ names) ++ support ++ names'))
+    as Hbetween.
+  apply distinct_outside_app in Hbetween as [Hbetween Hbetween'].
+  fold between in Hbetween, Hbetween'.
+  assert (Hlength_between : length between = length names)
+    by apply fresh_names_length.
+  assert (HP_between : P between).
+  { apply (supported_names_move support P names between); try assumption.
+    symmetry. exact Hlength_between. }
+  apply (supported_names_move support P between names'); try assumption.
+  - congruence.
+  - apply (distinct_outside_app support names between Hbetween).
+  - (* The names of [names'] are outside [between], since those of
+       [between] are outside [names']. *)
+    destruct Houtside' as [Hdistinct' Hsupport']. split; [ exact Hdistinct' | ].
+    intros name Hname. apply among_app_false.
+    split; [ exact (Hsupport' name Hname) | ].
+    destruct (among name between) eqn:Hamong; [ | reflexivity ].
+    destruct Hbetween' as [_ Hbetween'].
+    apply Hbetween', among_app_false in Hamong as [_ Hamong]. congruence.
+Qed.
+
+Theorem some_any_names : some_any_names_statement.
+Proof.
+  intros count support P Hsupports.
+  assert (Hsome :
+    (∃ names : list positive,
+      length names = count ∧ distinct_outside support names ∧ P names) ->
+    И[count] names, P names).
+  { intros (witness & Hlength & Houtside & HP). exists support.
+    intros names Hlength' Houtside'.
+    apply (supported_names_some_any support P witness names);
+      solve [ assumption | congruence ]. }
+  split; split.
+  - intros Hfresh names Hlength Houtside.
+    destruct (for_fresh_names_elim count P support Hfresh)
+      as (witness & Hlength' & Houtside' & HP).
+    apply (supported_names_some_any support P witness names);
+      solve [ assumption | congruence ].
+  - intros Hall. exists support. exact Hall.
+  - apply for_fresh_names_elim.
+  - exact Hsome.
+Qed.
+
+Theorem for_fresh_names_iterated : for_fresh_names_iterated_statement.
+Proof.
+  intros count support P Hsupports.
+  split; [ apply for_fresh_names_next | ].
+  intros Hfresh. apply (some_any_names (S count) support P Hsupports).
+  destruct
+    (for_fresh_elim (fun name => И[count] names, P (name :: names)) support
+       Hfresh)
+    as (name & Hname & Hfresh').
+  destruct
+    (for_fresh_names_elim count (fun names => P (name :: names))
+       (name :: support) Hfresh')
+    as (names & Hlength & Houtside & HP).
+  exists (name :: names).
+  split; [ simpl; rewrite Hlength; reflexivity | ].
+  split; [ apply distinct_outside_cons; assumption | exact HP ].
+Qed.

@@ -98,6 +98,16 @@
    predicate the three readings agree with the free names of its
    argument as the support ([some_any_nominal_statement]).
 
+   Several names at once. A binder of Flambda 2 may bind a list of
+   names (the parameters of a handler, the continuations of a recursive
+   group), and what is fresh for it is a list of as many names, all
+   different. [И[n] names, P names] says that [P] holds of every list of
+   [n] different names outside some finite set ([for_fresh_names]). It
+   gives the quantifier taken [n] times, one name after another
+   ([for_fresh_names_next_statement]), and is the same thing for a
+   predicate with a support ([for_fresh_names_iterated_statement]); the
+   three readings agree for it too ([some_any_names_statement]).
+
    Nothing here mentions the terms of Flambda 2. Nothing is trusted. The
    proofs are in FlambdaFreshQuantifierProofs.v, which needs no review. *)
 
@@ -266,3 +276,62 @@ Definition some_any_nominal_statement : Prop :=
     ∧ ((И name, R (name, x))
        <-> (∃ name : positive,
              among name (free_names N x) = false ∧ R (name, x))).
+
+(* ======================================================================== *)
+(* Several fresh names                                                      *)
+(* ======================================================================== *)
+
+(* The names of a list are different from one another and outside a
+   set. *)
+Definition distinct_outside (avoid names : list positive) : Prop :=
+  distinct names = true
+  ∧ ∀ name : positive, among name names = true -> among name avoid = false.
+
+(* [P] holds of every list of [count] different names outside a finite
+   set. *)
+Definition for_fresh_names (count : nat) (P : list positive -> Prop)
+    : Prop :=
+  ∃ avoid : list positive,
+    ∀ names : list positive,
+      length names = count -> distinct_outside avoid names -> P names.
+
+Notation "'И' [ n ] x , P" := (for_fresh_names n (fun x => P))
+  (at level 10, x name, P at level 200,
+   format "'[  ' '[  ' 'И' [ n ]  x ']' ,  '/' P ']'") : type_scope.
+
+(* Elimination: such a list can be had outside any finite set. *)
+Definition for_fresh_names_elim_statement : Prop :=
+  ∀ (count : nat) (P : list positive -> Prop) (avoid : list positive),
+    (И[count] names, P names) ->
+    ∃ names : list positive,
+      length names = count ∧ distinct_outside avoid names ∧ P names.
+
+(* No name, and one name more. *)
+Definition for_fresh_names_none_statement : Prop :=
+  ∀ P : list positive -> Prop, (И[0] names, P names) <-> P [].
+
+Definition for_fresh_names_next_statement : Prop :=
+  ∀ (count : nat) (P : list positive -> Prop),
+    (И[S count] names, P names) ->
+    И name, И[count] names, P (name :: names).
+
+(* For a predicate with a support the three readings agree, and the
+   quantifier is the one for a single name, repeated. *)
+Definition some_any_names_statement : Prop :=
+  ∀ (count : nat) (support : list positive) (P : list positive -> Prop),
+    supports list_of_names support P ->
+    ((И[count] names, P names)
+     <-> (∀ names : list positive,
+           length names = count -> distinct_outside support names ->
+           P names))
+    ∧ ((И[count] names, P names)
+       <-> (∃ names : list positive,
+             length names = count
+             ∧ distinct_outside support names
+             ∧ P names)).
+
+Definition for_fresh_names_iterated_statement : Prop :=
+  ∀ (count : nat) (support : list positive) (P : list positive -> Prop),
+    supports list_of_names support P ->
+    ((И[S count] names, P names)
+     <-> И name, И[count] names, P (name :: names)).
