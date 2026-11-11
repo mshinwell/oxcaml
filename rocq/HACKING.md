@@ -540,10 +540,12 @@ not a proof.
   environments (`inline_in_code.fl` needs both).
 - `showcase.fl` is the example to read first: direct and indirect calls,
   a closure with a value slot, nested switches and a join, all inlined by
-  Simplify and validated. `switch_nested.fl` is a known gap: Simplify
-  uses what a `Switch` arm tells it of the scrutinee in the continuation
-  the arm goes to, which needs what is known at the uses of a
-  continuation to reach its handler.
+  Simplify and validated. In `switch_nested.fl` Simplify uses what a
+  `Switch` arm tells it of the scrutinee in the continuation the arm goes
+  to. The normalisation has one case of that, `thread_switches`: an arm
+  that goes to a handler which is a `Switch` on the same scrutinee goes
+  where that one's arm does. What is known at the uses of a continuation
+  does not reach its handler in general.
 - Removing a static binding that nothing uses is not sound under every
   environment (a value already there may be a closure of the code), only
   under those in which the names removed do not occur

@@ -146,3 +146,15 @@ val rewrite_code : (expr -> expr) -> expr -> expr
 
 val rewrite_code_in_handler :
   (expr -> expr) -> continuation_handler -> continuation_handler
+
+val thread_arm :
+  continuation ->
+  (coq_Z * apply_cont) list ->
+  coq_Z * apply_cont ->
+  coq_Z * apply_cont
+
+val arms_apply : continuation -> (coq_Z * apply_cont) list -> bool
+
+val thread_switch : continuation -> continuation_handler -> expr -> expr
+
+val thread_switches : expr -> expr

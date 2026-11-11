@@ -802,3 +802,64 @@ Definition rewrite_code_equivalent_statement : Prop :=
   ∀ f : expr -> expr,
     (∀ e : expr, expr_equivalent e (f e)) ->
     ∀ e : expr, expr_equivalent e (rewrite_code f e).
+
+(* ======================================================================== *)
+(* A switch whose arm goes to a switch on the same scrutinee                *)
+(* ======================================================================== *)
+
+(* Where the body of a [Let_cont] is a [Switch], and the handler takes no
+   parameters and is a [Switch] on the same scrutinee, an arm of the body
+   that applies the continuation may go at once where the arm of the
+   handler for the same value goes: the handler runs under the variables
+   of the [Let_cont], so the scrutinee has the same value in it. The arm
+   of the handler must not be to a continuation of the name being bound,
+   which in the handler is another one. The [Let_cont] goes if no arm
+   applies its continuation any more. Simplify does as much from what an
+   arm tells it of the scrutinee. *)
+Definition thread_arm (k : continuation) (inner : list (Z * apply_cont))
+    (arm : Z * apply_cont) : Z * apply_cont :=
+  let (i, ac) := arm in
+  match ac_args ac with
+  | [] =>
+    if Pos.eqb (ac_continuation ac) k
+    then
+      match find_arm i inner with
+      | Some ac' => if Pos.eqb (ac_continuation ac') k then arm else (i, ac')
+      | None => arm
+      end
+    else arm
+  | _ :: _ => arm
+  end.
+
+Definition arms_apply (k : continuation) (arms : list (Z * apply_cont))
+    : bool :=
+  existsb (fun arm => Pos.eqb (ac_continuation (snd arm)) k) arms.
+
+Definition thread_switch (k : continuation) (h : continuation_handler)
+    (body : expr) : expr :=
+  match h, body with
+  | Handler [] (Switch inner_scrutinee inner), Switch scrutinee arms =>
+    if simple_eq_dec scrutinee inner_scrutinee
+    then
+      let arms := map (thread_arm k inner) arms in
+      if arms_apply k arms
+      then Let_cont_non_recursive k h (Switch scrutinee arms)
+      else Switch scrutinee arms
+    else Let_cont_non_recursive k h body
+  | _, _ => Let_cont_non_recursive k h body
+  end.
+
+Fixpoint thread_switches (e : expr) : expr :=
+  match e with
+  | Let x d body => Let x d (thread_switches body)
+  | Let_static bindings body => Let_static bindings (thread_switches body)
+  | Let_cont_non_recursive k (Handler params handler) body =>
+    thread_switch k (Handler params (thread_switches handler))
+      (thread_switches body)
+  | Let_cont_recursive handlers body =>
+    Let_cont_recursive handlers (thread_switches body)
+  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => e
+  end.
+
+Definition thread_switches_equivalent_statement : Prop :=
+  ∀ e : expr, expr_equivalent e (thread_switches e).

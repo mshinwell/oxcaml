@@ -80,7 +80,9 @@ Definition normalise_code_before (body : expr) : expr :=
     (remove_unused_lets
        (fold_constants
           (follow_aliases []
-             (inline_tail_conts (collapse_switches (fold_constants body)))))).
+             (thread_switches
+                (inline_tail_conts
+                   (collapse_switches (fold_constants body))))))).
 
 (* One round for the term before. Every rewrite refines. *)
 Definition normalise_before_round (e : expr) : expr :=
@@ -91,9 +93,10 @@ Definition normalise_before_round (e : expr) : expr :=
              (remove_unused_lets
                 (fold_constants
                    (follow_aliases []
-                      (inline_tail_conts
-                         (collapse_switches
-                            (fold_constants (inline_calls [] e)))))))))).
+                      (thread_switches
+                         (inline_tail_conts
+                            (collapse_switches
+                               (fold_constants (inline_calls [] e))))))))))).
 
 Definition normalise_before (rounds : nat) (e : expr) : expr :=
   iterate rounds normalise_before_round e.

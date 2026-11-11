@@ -660,3 +660,60 @@ let rec rewrite_code f e =
 
 and rewrite_code_in_handler f = function
   | Handler (params, handler) -> Handler (params, rewrite_code f handler)
+
+(** val thread_arm : continuation -> (coq_Z * apply_cont) list -> (coq_Z *
+    apply_cont) -> coq_Z * apply_cont **)
+
+let thread_arm k inner arm =
+  match arm with
+  | i, ac -> (
+    match ac.ac_args with
+    | [] ->
+      if Pos.eqb ac.ac_continuation k
+      then
+        match find_arm i inner with
+        | Some ac' -> if Pos.eqb ac'.ac_continuation k then arm else i, ac'
+        | None -> arm
+      else arm
+    | _ :: _ -> arm)
+
+(** val arms_apply : continuation -> (coq_Z * apply_cont) list -> bool **)
+
+let arms_apply k arms =
+  existsb (fun arm -> Pos.eqb (snd arm).ac_continuation k) arms
+
+(** val thread_switch : continuation -> continuation_handler -> expr -> expr **)
+
+let thread_switch k h body =
+  let (Handler (params, handler)) = h in
+  match params with
+  | [] -> (
+    match handler with
+    | Switch (inner_scrutinee, inner) -> (
+      match body with
+      | Switch (scrutinee, arms) ->
+        if simple_eq_dec scrutinee inner_scrutinee
+        then
+          let arms0 = map (thread_arm k inner) arms in
+          if arms_apply k arms0
+          then Let_cont_non_recursive (k, h, Switch (scrutinee, arms0))
+          else Switch (scrutinee, arms0)
+        else Let_cont_non_recursive (k, h, body)
+      | _ -> Let_cont_non_recursive (k, h, body))
+    | _ -> Let_cont_non_recursive (k, h, body))
+  | _ :: _ -> Let_cont_non_recursive (k, h, body)
+
+(** val thread_switches : expr -> expr **)
+
+let rec thread_switches e =
+  match e with
+  | Let (x, d, body) -> Let (x, d, thread_switches body)
+  | Let_static (bindings, body) -> Let_static (bindings, thread_switches body)
+  | Let_cont_non_recursive (k, handler0, body) ->
+    let (Handler (params, handler)) = handler0 in
+    thread_switch k
+      (Handler (params, thread_switches handler))
+      (thread_switches body)
+  | Let_cont_recursive (handlers, body) ->
+    Let_cont_recursive (handlers, thread_switches body)
+  | _ -> e

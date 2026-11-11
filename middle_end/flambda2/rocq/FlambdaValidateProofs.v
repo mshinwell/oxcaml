@@ -55,7 +55,8 @@ Ltac equivalence_step :=
     | apply remove_unused_defined_lets_equivalent
     | apply drop_deleted_code_equivalent
     | apply merge_statics_equivalent
-    | apply inline_known_calls_equivalent ].
+    | apply inline_known_calls_equivalent
+    | apply thread_switches_equivalent ].
 
 Ltac refinement_step :=
   first

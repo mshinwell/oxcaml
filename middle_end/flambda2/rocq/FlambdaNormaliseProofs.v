@@ -1985,3 +1985,175 @@ Proof.
     intros e' vars' conts' statics'.
     apply equivalent_refines, equivalent_sym, Hf.
 Qed.
+
+(* ======================================================================== *)
+(* A switch whose arm goes to a switch on the same scrutinee                *)
+(* ======================================================================== *)
+
+Lemma step_eq_equivalent (s s' : state) : step s = step s' -> equivalent s s'.
+Proof.
+  intros Hstep b. split; intros Hb; apply step_behaves;
+    [ rewrite <- Hstep | rewrite Hstep ]; apply step_behaves; exact Hb.
+Qed.
+
+(* A continuation that is not the one applied may be left out. *)
+Lemma apply_cont_skip (ac : apply_cont) (vars : env) (k : continuation)
+    (c : cont_value) (conts : cont_env) (statics : static_env) :
+  ac_continuation ac <> k ->
+  step (State (Apply_cont ac) vars ((k, c) :: conts) statics)
+  = step (State (Apply_cont ac) vars conts statics).
+Proof.
+  intros Hk. simpl. destruct (eval_simples vars (ac_args ac)); [ | reflexivity ].
+  unfold apply_continuation, resolve. simpl.
+  destruct (Pos.eqb_spec (ac_continuation ac) k); [ contradiction | ].
+  reflexivity.
+Qed.
+
+Lemma thread_arm_fst (k : continuation) (inner : list (Z * apply_cont))
+    (i : Z) (ac : apply_cont) :
+  fst (thread_arm k inner (i, ac)) = i.
+Proof.
+  unfold thread_arm. destruct (ac_args ac); [ | reflexivity ].
+  destruct (Pos.eqb (ac_continuation ac) k); [ | reflexivity ].
+  destruct (find_arm i inner) as [ac' | ]; [ | reflexivity ].
+  destruct (Pos.eqb (ac_continuation ac') k); reflexivity.
+Qed.
+
+Lemma find_arm_thread (k : continuation) (inner : list (Z * apply_cont))
+    (i : Z) (arms : list (Z * apply_cont)) :
+  find_arm i (map (thread_arm k inner) arms)
+  = option_map (fun ac => snd (thread_arm k inner (i, ac))) (find_arm i arms).
+Proof.
+  induction arms as [ | [d ac] arms IH]; [ reflexivity | ].
+  cbn [map find_arm].
+  pose proof (thread_arm_fst k inner d ac) as Hfst.
+  destruct (thread_arm k inner (d, ac)) as [d' ac'] eqn:Harm.
+  simpl in Hfst. subst d'.
+  destruct (Z.eqb_spec i d) as [-> | _]; [ | exact IH ].
+  cbn [option_map]. rewrite Harm. reflexivity.
+Qed.
+
+Lemma thread_arms_equivalent (k : continuation) (s : simple)
+    (inner arms : list (Z * apply_cont)) (vars : env) (conts : cont_env)
+    (statics : static_env) :
+  equivalent
+    (State (Switch s arms) vars
+       ((k, Closure (Handler [] (Switch s inner)) vars conts []) :: conts)
+       statics)
+    (State (Switch s (map (thread_arm k inner) arms)) vars
+       ((k, Closure (Handler [] (Switch s inner)) vars conts []) :: conts)
+       statics).
+Proof.
+  destruct (eval_simple vars s) as [v | ] eqn:Hs;
+    [ | apply (equivalent_of_run 1 1); simpl; rewrite Hs; reflexivity ].
+  destruct (naked_immediate_of_value v) as [i | ] eqn:Hi;
+    [ | apply (equivalent_of_run 1 1); simpl; rewrite Hs, Hi; reflexivity ].
+  destruct (find_arm i arms) as [ac | ] eqn:Hfind;
+    [ | apply (equivalent_of_run 1 1); simpl;
+        rewrite Hs, Hi, find_arm_thread, Hfind; reflexivity ].
+  eapply equivalent_trans;
+    [ apply step_equivalent; simpl; rewrite Hs, Hi, Hfind; reflexivity | ].
+  eapply equivalent_trans;
+    [ | apply equivalent_sym, step_equivalent; simpl;
+        rewrite Hs, Hi, find_arm_thread, Hfind; reflexivity ].
+  unfold thread_arm. destruct ac as [applied args]. simpl.
+  destruct args; [ | apply equivalent_refl ].
+  destruct (Pos.eqb_spec applied k) as [-> | _]; [ | apply equivalent_refl ].
+  destruct (find_arm i inner) as [ac' | ] eqn:Hinner;
+    [ | apply equivalent_refl ].
+  destruct (Pos.eqb_spec (ac_continuation ac') k) as [ | Hother];
+    [ apply equivalent_refl | ].
+  simpl.
+  apply (equivalent_trans _ (State (Apply_cont ac') vars conts statics)).
+  - apply (equivalent_of_run 2 0). simpl.
+    unfold apply_continuation, resolve. simpl. rewrite Pos.eqb_refl. simpl.
+    rewrite Hs, Hi, Hinner. reflexivity.
+  - apply equivalent_sym, step_eq_equivalent, apply_cont_skip, Hother.
+Qed.
+
+Lemma find_arm_not_applying (k : continuation) (i : Z)
+    (arms : list (Z * apply_cont)) (ac : apply_cont) :
+  arms_apply k arms = false ->
+  find_arm i arms = Some ac -> ac_continuation ac <> k.
+Proof.
+  unfold arms_apply.
+  induction arms as [ | [d ac'] arms IH]; simpl; [ discriminate | ].
+  intros H. apply orb_false_iff in H as [Hhead Hrest].
+  destruct (Z.eqb i d); [ | exact (IH Hrest) ].
+  intros [= <-]. apply Pos.eqb_neq, Hhead.
+Qed.
+
+Lemma switch_skip (k : continuation) (c : cont_value) (s : simple)
+    (arms : list (Z * apply_cont)) (vars : env) (conts : cont_env)
+    (statics : static_env) :
+  arms_apply k arms = false ->
+  equivalent (State (Switch s arms) vars ((k, c) :: conts) statics)
+    (State (Switch s arms) vars conts statics).
+Proof.
+  intros Harms.
+  destruct (eval_simple vars s) as [v | ] eqn:Hs;
+    [ | apply (equivalent_of_run 1 1); simpl; rewrite Hs; reflexivity ].
+  destruct (naked_immediate_of_value v) as [i | ] eqn:Hi;
+    [ | apply (equivalent_of_run 1 1); simpl; rewrite Hs, Hi; reflexivity ].
+  destruct (find_arm i arms) as [ac | ] eqn:Hfind;
+    [ | apply (equivalent_of_run 1 1); simpl; rewrite Hs, Hi, Hfind;
+        reflexivity ].
+  eapply equivalent_step;
+    [ simpl; rewrite Hs, Hi, Hfind; reflexivity
+    | simpl; rewrite Hs, Hi, Hfind; reflexivity | ].
+  apply step_eq_equivalent, apply_cont_skip.
+  exact (find_arm_not_applying k i arms ac Harms Hfind).
+Qed.
+
+Lemma thread_switch_equivalent (k : continuation) (h : continuation_handler)
+    (body : expr) :
+  expr_equivalent (Let_cont_non_recursive k h body) (thread_switch k h body).
+Proof.
+  unfold thread_switch.
+  destruct h as [[ | param params] handler];
+    try (intros vars conts statics; apply equivalent_refl).
+  destruct handler; try (intros vars conts statics; apply equivalent_refl).
+  destruct body; try (intros vars conts statics; apply equivalent_refl).
+  destruct (simple_eq_dec scrutinee0 scrutinee) as [-> | _];
+    [ | intros vars conts statics; apply equivalent_refl ].
+  intros vars conts statics.
+  destruct (arms_apply k (map (thread_arm k arms) arms0)) eqn:Happly.
+  - eapply equivalent_step; [ reflexivity | reflexivity | ].
+    apply thread_arms_equivalent.
+  - eapply equivalent_trans; [ apply step_equivalent; reflexivity | ].
+    eapply equivalent_trans; [ apply thread_arms_equivalent | ].
+    apply switch_skip, Happly.
+Qed.
+
+Fixpoint thread_switches_equivalent_aux (e : expr) :
+  expr_equivalent e (thread_switches e).
+Proof.
+  destruct e
+    as [ x d body | bindings body | k [params handler] body | handlers body
+       | ap | ac | scrutinee arms | ];
+    simpl; try (intros vars conts statics; apply equivalent_refl).
+  - exact (plug_equivalent (Let_body x d Hole) _ _ (not_many _)
+      (thread_switches_equivalent_aux body)).
+  - exact (plug_equivalent (Let_static_body bindings Hole) _ _ (not_many _)
+      (thread_switches_equivalent_aux body)).
+  - apply (expr_equivalent_trans _
+      (Let_cont_non_recursive k (Handler params (thread_switches handler))
+         body)).
+    + exact (plug_equivalent
+        (Let_cont_non_recursive_handler k params Hole body) _ _ (not_many _)
+        (thread_switches_equivalent_aux handler)).
+    + apply (expr_equivalent_trans _
+        (Let_cont_non_recursive k
+           (Handler params (thread_switches handler))
+           (thread_switches body))).
+      * exact (plug_equivalent
+          (Let_cont_non_recursive_body k
+             (Handler params (thread_switches handler)) Hole)
+          _ _ (not_many _) (thread_switches_equivalent_aux body)).
+      * apply thread_switch_equivalent.
+  - exact (plug_equivalent (Let_cont_recursive_body handlers Hole)
+      _ _ (not_many _) (thread_switches_equivalent_aux body)).
+Qed.
+
+Theorem thread_switches_equivalent : thread_switches_equivalent_statement.
+Proof. exact thread_switches_equivalent_aux. Qed.
