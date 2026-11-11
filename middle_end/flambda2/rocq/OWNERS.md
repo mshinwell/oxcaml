@@ -287,6 +287,11 @@ Owner: N2.
   match the pattern of N1's section: alpha-equivalence at each binder
   by the quantifier, N1 agreeing)
 - `middle_end/flambda2/rocq/FlambdaInlineFresh*`
+- `middle_end/flambda2/rocq/FlambdaContextWhere*` (N2's, though it
+  matches the pattern of C0's section: rewriting in a handler or in the
+  body of code from the states that have a predicate that a step
+  keeps. Its lemmas are in C0's `FlambdaContextProofs.v`, which N2
+  changed for it by C0's leave; that file stays C0's)
 - `middle_end/flambda2/rocq/requests/N2-fresh-quantifier.md`
 
 ## N3: the validator commutes with renaming

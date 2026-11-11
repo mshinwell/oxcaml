@@ -109,6 +109,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaCompareSpec.v \
   FlambdaContextProofs.v \
   FlambdaContextSpec.v \
+  FlambdaContextWhereProofs.v \
+  FlambdaContextWhereSpec.v \
   FlambdaControlFlowProofs.v \
   FlambdaControlFlowSpec.v \
   FlambdaEquivarianceProofs.v \
