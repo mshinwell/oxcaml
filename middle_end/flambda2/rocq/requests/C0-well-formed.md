@@ -2,7 +2,9 @@
 
 Owner: C0. For the human. Nothing is restructured by this note: it
 says what the definition would be, what it would come with, in what
-order, and what is asked of C1, C2, C3 and N1.
+order, and what is asked of C1, C2, C3 and N1. Revised after R2's
+review of it; R2 checked the table against the compiler's files and
+ran two probes, and its findings are cited by number.
 
 The compiler has no single definition of a well-formed Flambda 2 term.
 This work is to end with one: `FlambdaWellFormedSpec.well_formed_unit`.
@@ -13,22 +15,26 @@ in that definition.
 
 ## 1. Two layers, kept apart
 
-- **Well-formed** (`well_formed_unit`): true of every unit the compiler
-  builds, GADTs and layout `any` included. A statement may take it as
-  a premise. A unit made by the compiler that fails it is a finding:
-  the condition is too strict, or the compiler is wrong.
+- **Well-formed** (`well_formed_unit`): meant to be true of every unit
+  the compiler builds, GADTs and layout `any` included, in the
+  fragment the model has. That is the aim and not a result: row 1 is
+  stricter than the compiler today, a unit that mentions another unit
+  is left out, and no corpus has been through it. A statement may take
+  it as a premise. A unit made by the compiler that fails it is a
+  finding: the condition is too strict, or the compiler is wrong.
 - **Agreement of kinds.** Real units have mismatches of kinds, so no
   statement about the compiler's terms takes agreement of kinds as a
   premise; a mismatch is undefined where it is executed, and that is
   the machine's business. C2's check (`well_kinded_unit`, in its own
   file) asks for the agreements that the compiler tests by a check
   that is always on. It is not a condition of well-formedness, and C2
-  does not propose it as one: the compiler stops only where Simplify
-  goes, and
-  R2 has a unit that the compiler compiles and the check refuses (a
-  mismatch in an arm that Simplify removes first; R2-11). The check is
-  a sufficient condition, proved, for the absence of certain faults,
-  and a diagnostic that the tool prints.
+  does not propose it as one: such a check stops the compiler only if
+  Simplify visits the place, and R2 has a unit that the compiler
+  compiles and the check refuses (a mismatch in an arm that Simplify
+  removes first; R2-11). A corpus could refute "every unit passes" and
+  could not establish it. The check is a sufficient condition, proved,
+  for the absence of certain faults, and a diagnostic that the tool
+  prints. It is never a gate.
 
 The test for which layer a condition belongs to: can a unit that the
 compiler builds break it, in a branch that never runs? If so it is not
@@ -39,38 +45,58 @@ checks of kinds: the only such checks are the ones that are always on.
 
 ## 2. The conditions of well-formedness
 
-"Where the compiler establishes it" is one of: a **type** that cannot
-express the bad term; a **creation function** that checks; a **pass**
-that always stops when it meets the bad term; an **invariant check**
-that runs only with `-flambda2-invariants`; or
-**nothing**. A row that says nothing, or only an invariant check, is
-an unchecked assumption of the compiler, and has an entry in the
-record of discrepancies.
+"Where the compiler establishes it" is one of:
+
+- a **type** that cannot express the bad term;
+- a **creation function** that always checks, so that no term has it,
+  visited or not;
+- a check made **when visited**: a pass stops when it reaches or opens
+  the construct. It says nothing of code that no pass visits;
+- an **invariant check**, which runs only with `-flambda2-invariants`;
+- **nothing**.
+
+Where a pass stops only by accident, on something else than the
+condition, the row says so.
+
+Only the first two establish a condition of every term. A row with
+none of them is an unchecked assumption of the compiler, and has an
+entry in the record of discrepancies.
 
 | | Condition | Owner | Where the compiler establishes it |
 |-|-----------|-------|-----------------------------------|
-| 1 | Static bindings are at toplevel | C0; there today | Pass: `simplify_named.ml`, the case `Static_consts`, for a group that binds a symbol. A group of code only may be anywhere; the model refuses it (C0-3). What toplevel is has no one statement (`Downwards_env.at_unit_toplevel`, set and cleared in `simplify_let_cont_expr.ml`) |
-| 2 | A symbol or code id is bound once in the unit | C0; there today | Nothing, across the unit (C0-4). Within one group: invariant check (`Bound_static.create`). Within one handler: pass (`Flow_acc.record_symbol_binding`). `Typing_env.add_symbol_definition` has a note that redefinition is not checked |
-| 3 | Every variable and continuation used is in scope | C0, by N1's free names; in C2's checker today | Pass: `Typing_env` ("Variable ... not bound"), `Upwards_env.find_continuation`, when Simplify reaches the use; and the end of `simplify.ml` for the unit. No creation function |
-| 4 | Every symbol mentioned is bound (the human, D8); every code id mentioned is bound or deleted | C0 | Pass: `Typing_env` ("Symbol ... not bound"), for a symbol of the current unit; one of another unit comes from its `.cmx`. Code ids: `To_cmm_env` |
-| 5 | The names of one binder are distinct: parameters of a handler; those of code, with `my_closure`; continuations of a recursive group; the two continuations of code | C0, by N1's rules; C2's checker has the first two | Continuations of a group: creation function (`Bound_continuations.create`). Parameters: invariant check only (`Bound_parameters.create`, `Bound_for_function.create`). The two continuations of code: nothing found |
+| 1 | Static bindings are at toplevel | C0; there today | When visited: `simplify_named.ml`, the case `Static_consts`, for a group that binds a symbol. A group of code only may be anywhere; the model refuses it (C0-3). What toplevel is has no one statement (`Downwards_env.at_unit_toplevel`, set and cleared in `simplify_let_cont_expr.ml`) |
+| 2 | A symbol or code id is bound once in the unit | C0; there today | No check of the whole unit found (C0-4). Within one group: invariant check (`Bound_static.create`). Within the handler being traversed, when visited: `Flow_acc.record_symbol_binding` and `record_code_id_binding` (`flow_acc.ml`, 179 to 208). `Typing_env.add_symbol_definition` has a note that redefinition is not checked |
+| 3 | Every variable and continuation used is in scope; the body of code under its own binders alone (row 6) | C0, by N1's free names; in C2's checker today | When visited: `Typing_env` ("Variable ... not bound"), `Upwards_env.find_continuation`; and the end of `simplify.ml` for the unit. No creation function |
+| 4 | Every symbol mentioned is bound (the human, D8), and every code id mentioned is bound or declared deleted, by the rule of scope in section 3 | C0 | When visited: `Typing_env` ("Symbol ... not bound"), for a symbol of the current unit; one of another unit comes from its `.cmx`. Code ids: `To_cmm_env` |
+| 5 | The names of one binder are distinct: parameters of a handler; those of code, with `my_closure`; continuations of a recursive group, which has at least one; the two continuations of code | C0, by N1's rules; C2's checker has the first two | Continuations of a group, distinct and not none: creation function (`Bound_continuations.create`; the model accepts and runs an empty group, R2-17). Parameters: invariant check only, and a weaker one: it compares whole parameters (variable, subkind and debug uid), so two parameters with one variable and different subkinds pass it (R2-16). The two continuations of code: nothing found |
 | 6 | Code is closed: no free variable but its parameters and `my_closure`, no free continuation but its two, which are binders (the human, D31) | C0, by N1's free names; today a premise of `FlambdaApplySpec.inlinable` | Creation function (`Code0.create`), but of the free names its caller supplies, not of ones it computes (C0-5) |
-| 7a | A closure is at a function slot of its set | C3 | Type: one pattern binds a variable for each function slot (`Bound_pattern.Set_of_closures`) |
-| 7b | The function slots of a set are distinct | C3 | Nothing: they are an association list whose invariant function has no caller (C3-5) |
-| 7c | The functions of a set have each their own code id (the human, D28) | C3 | Nothing; Simplify stops later with "code_id has been bound twice" (R2-7) |
-| 7d | A group binds a static set whole, each symbol at its slot (D4, option (a)) | C3 | Type (one pattern binds the set) and creation function (`Static_const.match_against_bound_static_pattern`, slots in order) |
-| 7e | The sets that one group binds have no code id in common; sets of different groups may (the human, on R2-15) | C3 | Nothing; Simplify keeps one map from old to new code ids for a group (as R2 reports; C3 is to give the function) |
+| 7a | A closure is at a function slot of its set | C3 | In the compiler the closures of a set are bound by position, so the bad term there is a pattern with more or fewer names than the set has functions. Not a type: the pattern is a plain list (`Bound_pattern.Set_of_closures`). For a `Let` the lengths are not checked where it is built (`Let.create` checks the constructors only), and list operations fail later (C3-4, R2-9). For a static set the function slots are checked when the group is taken apart (7d) |
+| 7b | The function slots of a set are distinct | C3 | No check where a set is built: they are an association list whose stated precondition is not enforced and whose invariant function has no caller (C3-5). When visited, by accident: Simplify stops on an assertion for a set made by a `Let` (`simplify_set_of_closures.ml`, 822) and in `Flow_acc` for a static one |
+| 7c | The functions of a set have each their own code id (the human, D28) | C3 | No check where a set is built. When visited: Simplify gives each old code id one new one, and `Flow_acc.record_code_id_binding` stops on the second binding of it ("code_id has been bound twice"; R2-7, C3-3) |
+| 7d | A group binds a static set whole, each symbol at its slot (D4, option (a)) | C3 | The set is bound by one pattern. That the slots agree, in order, is checked when a group is taken apart (`Static_const.match_against_bound_static_pattern`, `static_const.ml`, 779 to 798; called by Simplify, the printer and other passes), not when it is created: `Let.create` checks only that the pattern and what it binds are of the same variety |
+| 7e | The sets that one group binds have no code id in common; sets of different groups may (the human, on R2-15) | C3 | No check where a group is built. When visited: Simplify makes one map from old to new code ids for all the sets of a group (`Simplify_set_of_closures_context.compute_old_to_new_code_ids_all_sets`), so two sets with one code id bind one new id twice and `Flow_acc.record_code_id_binding` stops (R2-15). A set made by a `Let` has a map of its own, which is why the rule stops at a group |
+| 7f | The value slots of a set are distinct | C0, agreed with C3 | Type: a map (`Simple.t Value_slot.Map.t`, `set_of_closures.ml`). The fexpr parser accepts a slot written twice and keeps the second (C3-8) |
 | 8 | The tag of every block made, by `Make_block` or statically, and the tag a `Block_load` names, is in `[0, 251)` (the human, D23). Proposed with it: a constant is in the range of its kind (D13) | C1 | Type (`Tag.Scannable.t`, whose creation function refuses others). Constants: type, I believe (`Reg_width_const`, not read); the fexpr parser wraps `int8` and `int16` (C1-11) |
-| 9 | Annotations are of the right length: a handler has as many kinds as parameters, and code as many as its arity says | C2, with its first step | Type: a parameter carries its kind (`Bound_parameter`) |
+| 9a | A handler has as many kinds as parameters | C2, with its first step | Type: a parameter carries its kind (`Bound_parameter`) |
+| 9b | Code has as many parameters as its declared arity has components, unarized | C2, with its first step | Nothing checks that the arity in the metadata of code agrees with its parameters (C2-6); the producers make one from the other |
+| 9c | A call has as many arguments as its own arity has components, unarized | C2, with its first step | Creation function (`Apply_expr.create`, `apply_expr.ml`, 207 to 232) |
+| 10 | The arms of a `Switch` have distinct discriminants | C0 | Type: a map |
 
-I read the compiler's files for rows 1 to 6, 7a, 7d and the tags; 7b
-and 7c are as C3 and R2 report them.
+I read the compiler's files for rows 1 to 6, 7d, 9c and the tags; R2
+read them for rows 2, 5, 7a to 7d and 9, and corrected 2, 5, 7a, 7d
+and 9; C3 gave the functions for 7a to 7f.
 
-Row 9 is only about binders. That a call has as many arguments as its
-own arity, or an `Apply_cont` as many as the continuation has
-parameters, is not a condition: a term the compiler accepts can break
-either in an arm that never runs, and the machine makes both undefined
-where they are executed.
+That an `Apply_cont` has as many arguments as the continuation has
+parameters is not a condition. The compiler checks it when the use is
+visited (`Continuation_uses.add_use`), a term it accepts can break it
+in an arm that never runs, and the machine makes it undefined where it
+is executed.
+
+Rows 7f and 10 are there because the model's value slots and arms are
+lists, of which the first of two wins. They could instead be left out,
+with a sentence that well-formedness admits more than the compiler on
+purpose; I include them, since each is one line and the rule of this
+note is that a term the compiler cannot build is not well-formed.
 
 From the types (T1, T2): nothing is asked of terms so far. T1 uses
 `run_extends_statics`, which is a statement of this file, and its own
@@ -84,10 +110,7 @@ so that the gaps show:
   `flambda.ml` says are not checked. With C5;
 - a symbol or code id of another unit; that a unit binds its module
   symbol. The model has one unit;
-- a new version of code and the code it replaces (C0-1). With S4;
-- distinct value slots of a set and distinct arms of a `Switch`. The
-  compiler's are maps (type); the model's are lists, and the first
-  wins. A condition, or left so: small either way.
+- a new version of code and the code it replaces (C0-1). With S4.
 
 Not well-formedness, and kept out:
 
@@ -122,7 +145,8 @@ the term that uses nothing of the machine; and their conjunction.
       && code_closed e                 (* 6 *)
       && sets_well_formed e            (* 7 *)
       && tags_in_range e               (* 8 *)
-      && annotations_well_formed u e.  (* 9 *)
+      && annotations_well_formed u e   (* 9 *)
+      && switch_arms_distinct e.       (* 10 *)
 
 The record stands for `Flambda_unit.t`: a later field (the kinds of
 the value slots for C2, the module symbol) then changes no call.
@@ -132,15 +156,35 @@ A stream writes its check and I apply it at its merge, with its row of
 the header; a reviewer reads the row against the compiler. What a
 stream proves about its condition may stay in its own files.
 
-Row 4 needs care in one place, which the header will state: a symbol
-bound at toplevel is in scope in what follows it and also in the
-handler of an enclosing toplevel continuation, since that handler runs
-after the body. Simplify makes such terms: a constant lifted while the
-body is simplified is known in the handler and placed in the body
-(`simplify_let_cont_expr.ml`, `consts_lifted_after_fork`). Row 1
-already has the definition of such handlers. C1 has proposed this row
-too, and has made every primitive have no value on a symbol that is
-not bound, with a law that says so; that change is with its reviewer.
+Row 4 is not a lookup in what the unit declares somewhere, nor a
+plain lexical rule. Its scope, which the header will state:
+
+- in a group, the closure symbols of the group are in scope in every
+  definition of the group; its other symbols are in scope in the
+  definitions that follow them, and in the closures and the code of
+  the group. That is the order in which Simplify processes a group:
+  closure symbols declared first, the other constants in order, the
+  closures last (`simplify_static_const.ml`, 318 to 343);
+- after a group, all it binds is in scope in the body;
+- a symbol bound at toplevel in the body of a `Let_cont` is also in
+  scope in the handler, when the handler is at toplevel (row 1 has
+  the definition): the handler runs after the body. Simplify makes
+  such terms: a constant lifted while the body is simplified is known
+  in the handler and placed in the body (`simplify_let_cont_expr.ml`,
+  `consts_lifted_after_fork`);
+- the body of code sees what is in scope where the code is bound. If
+  closure conversion turns out to bind code before a symbol its body
+  mentions, this is too strict, and the rule for code becomes "bound
+  before a closure of the code is made"; to be settled against
+  `close_program` when the row is written;
+- a code id declared deleted is in scope and is not code: a
+  `Bind_deleted_code` binds nothing, and a call of a closure of it
+  stays undefined when executed (section 4, the list).
+
+C1 has made every primitive have no value on a symbol given to it that
+is not bound, with a law that says so. The law is about the arguments
+themselves; that no such symbol is inside a field, or returned, is
+this row's to give.
 
 ## 4. The theorems
 
@@ -149,15 +193,21 @@ each stream proves:
 
 - `well_formed_state : state -> Prop`, a definition to be reviewed:
   what a run keeps. One part for each row that says something of a
-  run. (For rows 1 and 2 it exists, as `inv` in the `Proofs` file; it
-  moves to the `Spec` file.)
+  run. It is about everything a state holds and not only the
+  expression left to run: the values of the variables, down the fields
+  of blocks and the value slots of closures; the handlers and the
+  environments that continuations keep; the static values and the
+  code; and, at an exit, the arguments. (For rows 1 and 2 it exists,
+  as `inv` in the `Proofs` file; it moves to the `Spec` file.)
 - A unit that passes starts in a well-formed state, and **a step keeps
   a state well-formed**.
 - **A well-formed state does none of the things the conditions are
   there to exclude**, each a test on a state:
   - it does not read a variable, continuation, symbol or code id that
-    is not bound (rows 3 and 4; this is the theorem asked for with
-    D8);
+    is not bound (rows 3, 4 and 6; this is the theorem asked for with
+    D8). Row 6 is needed for it: a call enters the body of code with
+    its parameters and `my_closure` and nothing of where the code was
+    defined, so only closed code reads no unbound variable there;
   - it does not bind a static name twice, call code whose body binds
     one, or define a recursive handler that does (rows 1 and 2;
     today's `static_fault`);
@@ -169,21 +219,32 @@ each stream proves:
 
 Each condition also comes with a unit of the examples that passes and
 a term that fails, kept as a statement that shows what then goes wrong
-(C3's `partial_static_set_statement` is the pattern). Rows 5 and 6
-exclude nothing at run time; each names instead one proved statement
-that is false without it.
+(C3's `partial_static_set_statement` is the pattern). Rows 5, 7f, 9
+and 10 exclude nothing at run time; each names instead one proved
+statement that is false without it.
 
 Later, and I think worth having: every way a step can be undefined is
 either one of the tests above or is on one list, written as a function
 of the state (`Invalid`; a primitive with no value; a `Switch` with no
-arm; a call of what is not a closure, of other code, at other
-arities; a projection at the wrong slot). That list would be the
-model's whole account of undefined behaviour in one definition, where
-today it is spread over the machine, and it is where the `CR`s on
-undefined cases would sit together.
+arm; a call of what is not a closure, of deleted code, of other code,
+at other arities; a projection at the wrong slot). That list would be
+the model's whole account of undefined behaviour in one definition,
+where today it is spread over the machine, and it is where the `CR`s
+on undefined cases would sit together. The human has said yes to it
+(section 7).
 
 ## 5. Rules for the streams
 
+- Where a condition is stricter than what the compiler checks (it
+  ought to be an invariant, and the compiler checks nothing, or less,
+  or only with its invariant checks on), a comment at its definition
+  in `FlambdaWellFormedSpec.v` says so: that the model is stricter
+  here, what the compiler does (the file and the function, or
+  nothing), and the number of the discrepancy. This is the human's
+  rule (D32). Today that is rows 1, 2, 5, 6, 7b, 7c, 7e, 9b and the
+  constants of row 8. It is a plain comment and not a `CR`: a `CR`
+  marks something undefined that may be wrong. It never applies to
+  kinds, where the model is not stricter than the compiler.
 - No `Spec` file keeps a condition on terms as its own premise if the
   compiler's terms always satisfy it. It is proposed as a row, with
   the place in the compiler, or "nothing".
@@ -204,31 +265,43 @@ undefined cases would sit together.
 
 ## 6. Order, and what it costs
 
-1. Mine, between two epochs, one reviewer, about a day: the header as
-   the table; the record; the two checks there today under the names
-   above; `well_formed_state` and "a step keeps it" stated for them.
-   No file moves and the tool changes by one line.
-2. With C3's epoch: row 7, as its request already has it.
-3. After C3's epoch, mine, about two days: row 4 with its theorem.
-   Symbols are not names that a binder renames, so it does not wait
-   for N1; it does wait for C3, which changes what mentions a symbol.
-4. With C1, a leaf: row 8. With C2's first step: row 9.
-5. Rows 3, 5 and 6 when N1's pilot is judged, since they are to use
-   its free names.
+1. Done: rows 7a to 7e, with C3's epoch, as conjunct
+   `sets_well_formed`.
+2. Now, mine, comments only, for a reviewer: the comments that the
+   rule of section 5 asks for at the conditions in the file today
+   (rows 1, 2, 7b, 7c, 7e).
+3. Mine, one reviewer, about a day: the header as the table; the
+   record; the checks there today under the names above; rows 7f and
+   10; `well_formed_state` and "a step keeps it" stated for them. No
+   file moves and the tool changes by one line.
+4. Mine, about two days: row 4 with its theorem. Symbols are not names
+   that a binder renames, so it does not wait for N1. Then the
+   classification of undefined behaviour, about two days.
+5. With C1, a leaf: row 8, tags and constants. With C2's first step:
+   row 9.
+6. Rows 3, 5 and 6: N1 writes them on its one function for free
+   names, with the invariant of a state that goes with rows 3 and 6,
+   and I apply them. They come after C3's epoch and do not wait for
+   C2.
 
-## 7. For the human
+## 7. Answered by the human
 
-- **Row 1 is stricter than the compiler** (C0-3). Keep it so (my
-  recommendation, until an example needs otherwise: the machine makes
-  a call of code that binds anything static undefined), or follow the
-  compiler and allow a group of code alone anywhere.
-- **What an executed mismatch of kinds does, where the machine has no
-  test today**: at a binder, an argument of an `Apply_cont`, the
-  scrutinee of a `Switch`, a field of a static block, a value slot.
-  This is C2's question, in its request, with a `CR` in the `Spec`
-  file. It is here because the answer decides what is left for a
-  static condition to do; none is proposed.
-- **Constants in range** (D13) as part of row 8, like the tags.
-- **The classification of undefined behaviour**: wanted or not. It
-  changes no existing statement; perhaps two days once C1, C2 and C3
-  are in.
+The three questions of this section were put to the human, who said
+yes to each (D32): "I think the model can be stricter than the
+compiler in terms of various things, yes. The compiler probably
+doesn't thoroughly check some things that ought to be invariants."
+
+- **Row 1 stays stricter than the compiler** (C0-3): a group that
+  binds only code is refused away from toplevel, though the compiler
+  lets it through.
+- **Constants in range** (D13) are part of row 8, with the tags. C1
+  writes the check.
+- **The classification of undefined behaviour** in one definition is
+  wanted. It comes after C3's epoch and after row 4, since the list is
+  what is left when the conditions are in.
+
+Still open, and C2's to put: what an executed mismatch of kinds does
+where the machine has no test today (a binder, an argument of an
+`Apply_cont`, the scrutinee of a `Switch`, a field of a static block,
+a value slot). It is in C2's request, with a `CR` in the `Spec` file.
+No static condition is proposed for it.
