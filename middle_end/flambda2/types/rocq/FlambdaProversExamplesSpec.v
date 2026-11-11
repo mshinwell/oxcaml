@@ -56,7 +56,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
   FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
-  FlambdaProversStandIn FlambdaProvers FlambdaProversSpec.
+  FlambdaExpandHead FlambdaProvers FlambdaProversSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.

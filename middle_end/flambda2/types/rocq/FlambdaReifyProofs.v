@@ -40,7 +40,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeWellFormedProofs FlambdaTypeAccessSpec FlambdaTypeAccessProofs
   FlambdaBindingTime FlambdaEnvAliases FlambdaEnvAliasesSpec
   FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaTypingEnvProofs
-  FlambdaProversStandIn FlambdaProvers FlambdaProversSpec
+  FlambdaExpandHead FlambdaProvers FlambdaProversSpec
   FlambdaProversProofs FlambdaReify FlambdaReifySpec.
 Import ListNotations.
 
@@ -169,10 +169,6 @@ Qed.
 (* Reification                                                              *)
 (* ======================================================================== *)
 
-Section With_expand_head.
-
-Hypothesis expand_head_sound : expand_head_sound_assumed.
-
 Lemma reify_expanded_sound (statics : static_env) (valuation : env)
     (tenv : Typing_env.t)
     (var_allowed : Alloc_mode.t -> variable -> option bool)
@@ -193,7 +189,7 @@ Proof.
   pose proof (provers_expand_head_well_formed _ _ _ Hin Hd) as Hwf.
   destruct d as [oub | oub | k oub | oub | oub].
   - (* Kind value. *)
-    pose proof (expanded_value_cases expand_head_sound _ _ _ _ _ _ Hsat Hv Hd)
+    pose proof (expanded_value_cases _ _ _ _ _ _ Hsat Hv Hd)
       as Hcases.
     destruct oub as [ | [non_null is_null] | ];
       [ intros [= <-]; exact Htry | | destruct Hcases ].
@@ -216,7 +212,7 @@ Proof.
         simpl; [ | | discriminate ].
       * (* No immediate: a block. *)
         destruct
-          (variant_no_immediates expand_head_sound _ _ _ _ _ _ _ _ _ _ Hsat
+          (variant_no_immediates _ _ _ _ _ _ _ _ _ _ Hsat
              Hhead Himms)
           as [_ [tag' [fields [Hblock Hblocks]]]].
         destruct (row_like_for_blocks_get_singleton blocks)
@@ -280,7 +276,7 @@ Proof.
         destruct (variant_no_blocks _ _ _ _ _ _ _ _ _ Hhead Hbottom)
           as [i [-> Hi]].
         pose proof
-          (meet_naked_immediates_sound_proof expand_head_sound statics
+          (meet_naked_immediates_sound_proof statics
              valuation tenv imms (Value_const (Naked_immediate i)) Hsat
              (well_formed_head_immediates _ _ _ _ _ _ _ Hwf_head) Hi
              eq_refl)
@@ -306,7 +302,7 @@ Proof.
         Reify.unboxed_number_kind k <> Kind_naked_immediate).
       { destruct k; discriminate. }
       pose proof
-        (meet_naked_number_sound_proof expand_head_sound
+        (meet_naked_number_sound_proof
            (Reify.unboxed_number_kind k) Hnot_immediate statics valuation
            tenv contents (Value_const c) Hsat I Hc Hkind')
         as Hmeet.
@@ -325,19 +321,19 @@ Proof.
       reflexivity.
   - (* Kind naked immediate. *)
     pose proof
-      (expanded_naked_immediate_cases expand_head_sound _ _ _ _ _ _ Hsat Hv
+      (expanded_naked_immediate_cases _ _ _ _ _ _ Hsat Hv
          Hd)
       as Hcases.
     destruct oub as [ | head | ];
       [ intros [= <-]; exact Htry | | destruct Hcases ].
-    pose proof (expanded_kind expand_head_sound _ _ _ _ _ _ Hsat Hv Hd)
+    pose proof (expanded_kind _ _ _ _ _ _ Hsat Hv Hd)
       as Hkind.
-    pose proof (expand_head_descr_sound expand_head_sound _ _ _ _ _ _ Hsat Hv
+    pose proof (expand_head_descr_sound _ _ _ _ _ _ Hsat Hv
                   Hd)
       as Hexpanded.
     simpl in Hkind, Hexpanded.
     pose proof
-      (meet_naked_immediates_sound_proof expand_head_sound statics valuation
+      (meet_naked_immediates_sound_proof statics valuation
          tenv (Type_naked_immediate (Ok (No_alias head))) v Hsat
          (conj (proj1 Hin) Hwf) Hexpanded Hkind)
       as Hmeet.
@@ -353,7 +349,7 @@ Proof.
     reflexivity.
   - (* A kind of naked numbers. *)
     pose proof
-      (expanded_naked_number_cases expand_head_sound _ _ _ _ _ _ _ Hsat Hv
+      (expanded_naked_number_cases _ _ _ _ _ _ _ Hsat Hv
          Hd)
       as Hcases.
     destruct oub as [ | numbers | ];
@@ -365,14 +361,14 @@ Proof.
     rewrite (get_singleton_in _ _ _ Hsingleton Hin_numbers).
     reflexivity.
   - (* Rec_info. *)
-    pose proof (expand_head_descr_sound expand_head_sound _ _ _ _ _ _ Hsat Hv
+    pose proof (expand_head_descr_sound _ _ _ _ _ _ Hsat Hv
                   Hd)
       as Hexpanded.
     destruct oub as [ | head | ]; intros [= <-]; try exact Htry.
     simpl in Hexpanded.
     exact (bottom_satisfied statics valuation v Rec_info Hexpanded).
   - (* Region. *)
-    pose proof (expand_head_descr_sound expand_head_sound _ _ _ _ _ _ Hsat Hv
+    pose proof (expand_head_descr_sound _ _ _ _ _ _ Hsat Hv
                   Hd)
       as Hexpanded.
     destruct oub as [ | head | ]; intros [= <-]; try exact Htry.
@@ -414,8 +410,6 @@ Proof.
       (reify_expanded_sound _ _ _ _ Reification_result.Cannot_reify _ _ _
          Hsat Hin Hv I).
 Qed.
-
-End With_expand_head.
 
 Theorem reify_sound : reify_sound_statement.
 Proof. exact reify_sound_proof. Qed.

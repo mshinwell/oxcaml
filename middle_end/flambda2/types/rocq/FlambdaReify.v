@@ -89,7 +89,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaMapSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeAccessSpec FlambdaBindingTime FlambdaEnvAliases
-  FlambdaTypingEnv FlambdaProversStandIn FlambdaProvers.
+  FlambdaTypingEnv FlambdaExpandHead FlambdaProvers.
 Import ListNotations.
 
 (* [Reify.to_lift]. *)

@@ -231,7 +231,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningBoolSpec FlambdaTypeEqualSpec FlambdaTypeAccessSpec
   FlambdaBindingTime
-  FlambdaEnvAliases FlambdaTypingEnv FlambdaProversStandIn.
+  FlambdaEnvAliases FlambdaTypingEnv FlambdaExpandHead.
 Import ListNotations.
 
 (* ======================================================================== *)

@@ -50,8 +50,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaEnvAliases
   FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
   FlambdaTypingEnvProofs FlambdaTypingEnvInvariantSpec
-  FlambdaTypingEnvInvariantProofs FlambdaProversStandIn FlambdaProvers
-  FlambdaProversSpec.
+  FlambdaTypingEnvInvariantProofs FlambdaExpandHead FlambdaExpandHeadSpec
+  FlambdaExpandHeadProofs FlambdaProvers FlambdaProversSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -304,12 +304,8 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
-(* The provers, under the soundness of [expand_head]                        *)
+(* The provers, by the soundness of [expand_head]                           *)
 (* ======================================================================== *)
-
-Section With_expand_head.
-
-Hypothesis expand_head_sound : expand_head_sound_assumed.
 
 Lemma expand_head_descr_sound (statics : static_env) (valuation : env)
     (tenv : Typing_env.t) (t : flambda_type) (d : descr_oub) (v : value) :
@@ -3375,8 +3371,6 @@ Proof.
     intros [= Heq]. exact (Hne Heq).
 Qed.
 
-End With_expand_head.
-
 (* ======================================================================== *)
 (* The statements                                                           *)
 (* ======================================================================== *)
@@ -3417,17 +3411,16 @@ Proof. exact meet_naked_number_sound_proof. Qed.
 
 Theorem provers_silent_on_poison : provers_silent_on_poison_statement.
 Proof.
-  intros Hexpand.
   repeat split.
-  - exact (gen_value_to_proof_silent Hexpand _).
-  - exact (gen_value_to_meet_silent Hexpand _).
-  - exact (prove_is_not_a_pointer_silent Hexpand).
-  - exact (gen_value_to_proof_silent Hexpand _).
-  - exact (meet_naked_immediates_silent Hexpand).
-  - exact (gen_value_to_proof_silent Hexpand _).
-  - exact (gen_value_to_meet_silent Hexpand _).
-  - exact (meet_equals_single_tagged_immediate_silent Hexpand).
-  - exact (meet_naked_number_silent Hexpand).
+  - exact (gen_value_to_proof_silent _).
+  - exact (gen_value_to_meet_silent _).
+  - exact (prove_is_not_a_pointer_silent).
+  - exact (gen_value_to_proof_silent _).
+  - exact (meet_naked_immediates_silent).
+  - exact (gen_value_to_proof_silent _).
+  - exact (gen_value_to_meet_silent _).
+  - exact (meet_equals_single_tagged_immediate_silent).
+  - exact (meet_naked_number_silent).
 Qed.
 
 Theorem meet_is_null_poison : meet_is_null_poison_statement.
@@ -3541,8 +3534,8 @@ Qed.
 
 Theorem prove_is_int_is_int : prove_is_int_is_int_statement.
 Proof.
-  intros Hexpand statics valuation tenv t b v r Hsat Hv Hproved Heval.
-  pose proof (prove_is_int_sound Hexpand _ _ _ _ _ _ Hsat I Hv Hproved)
+  intros statics valuation tenv t b v r Hsat Hv Hproved Heval.
+  pose proof (prove_is_int_sound _ _ _ _ _ _ Hsat I Hv Hproved)
     as Hb.
   destruct (is_int_defined _ _ _ _ Heval) as [_ [b' [-> Hb']]].
   rewrite (is_int_is_unique _ _ _ Hb Hb'). reflexivity.
@@ -3550,8 +3543,8 @@ Qed.
 
 Theorem prove_is_int_get_tag : prove_is_int_get_tag_statement.
 Proof.
-  intros Hexpand statics valuation tenv t v Hsat Hv Hproved.
-  pose proof (prove_is_int_sound Hexpand _ _ _ _ _ _ Hsat I Hv Hproved)
+  intros statics valuation tenv t v Hsat Hv Hproved.
+  pose proof (prove_is_int_sound _ _ _ _ _ _ Hsat I Hv Hproved)
     as Himmediate.
   simpl in Himmediate. rewrite eval_prim_unary. simpl.
   rewrite (immediate_not_block statics v Himmediate). reflexivity.
@@ -3631,13 +3624,12 @@ Qed.
 Theorem more_provers_silent_on_poison
   : more_provers_silent_on_poison_statement.
 Proof.
-  intros Hexpand.
   assert (Hnumber :
     prover_silent_on_poison Provers.prove_is_a_boxed_or_tagged_number).
-  { exact (gen_value_to_proof_silent Hexpand _). }
+  { exact (gen_value_to_proof_silent _). }
   repeat split.
-  - intros min_name_mode. exact (gen_value_to_proof_silent Hexpand _).
-  - intros min_name_mode. exact (gen_value_to_meet_silent Hexpand _).
+  - intros min_name_mode. exact (gen_value_to_proof_silent _).
+  - intros min_name_mode. exact (gen_value_to_meet_silent _).
   - exact Hnumber.
   - apply (prover_silent_of_made Provers.prove_is_a_boxed_or_tagged_number);
       [ | exact Hnumber ].
@@ -3652,11 +3644,11 @@ Proof.
     destruct (Provers.prove_is_a_boxed_or_tagged_number tenv t)
       as [[x | ] | ];
       [ intros _; exists x; reflexivity | discriminate | discriminate ].
-  - exact (gen_value_to_proof_silent Hexpand _).
+  - exact (gen_value_to_proof_silent _).
   - intros kind min_name_mode.
-    exact (meet_boxed_number_containing_simple_silent Hexpand _ _).
-  - exact (gen_value_to_proof_silent Hexpand _).
-  - exact (gen_value_to_meet_silent Hexpand _).
+    exact (meet_boxed_number_containing_simple_silent _ _).
+  - exact (gen_value_to_proof_silent _).
+  - exact (gen_value_to_meet_silent _).
 Qed.
 
 (* ======================================================================== *)
@@ -3724,14 +3716,13 @@ Qed.
 Theorem block_provers_silent_on_poison
   : block_provers_silent_on_poison_statement.
 Proof.
-  intros Hexpand.
   assert (Hunique :
     prover_silent_on_poison
       (Provers.gen_value_to_proof Provers.prove_unique_tag_and_size_value)).
-  { exact (gen_value_to_proof_silent Hexpand _). }
+  { exact (gen_value_to_proof_silent _). }
   repeat split.
-  - exact (gen_value_to_proof_silent Hexpand _).
-  - exact (gen_value_to_meet_silent Hexpand _).
+  - exact (gen_value_to_proof_silent _).
+  - exact (gen_value_to_meet_silent _).
   - apply
       (prover_silent_of_made
          (Provers.gen_value_to_proof Provers.prove_unique_tag_and_size_value));
@@ -3754,7 +3745,7 @@ Proof.
       as [[x | ] | ];
       [ intros _; exists x; reflexivity | discriminate | discriminate ].
   - intros min_name_mode field_kind field_index.
-    exact (gen_value_to_meet_silent Hexpand _).
+    exact (gen_value_to_meet_silent _).
 Qed.
 
 Theorem prove_single_closures_entry_sound
@@ -3804,15 +3795,15 @@ Proof. exact meet_project_value_slot_simple_sound_proof. Qed.
 Theorem closure_provers_silent_on_poison
   : closure_provers_silent_on_poison_statement.
 Proof.
-  intros Hexpand. repeat split.
-  - exact (gen_value_to_proof_silent Hexpand _).
-  - exact (gen_value_to_meet_silent Hexpand _).
-  - exact (gen_value_to_proof_silent Hexpand _).
-  - exact (gen_value_to_meet_silent Hexpand _).
+  repeat split.
+  - exact (gen_value_to_proof_silent _).
+  - exact (gen_value_to_meet_silent _).
+  - exact (gen_value_to_proof_silent _).
+  - exact (gen_value_to_meet_silent _).
   - intros min_name_mode move_to.
-    exact (gen_value_to_meet_silent Hexpand _).
+    exact (gen_value_to_meet_silent _).
   - intros min_name_mode slot value_slot_kind.
-    exact (gen_value_to_meet_silent Hexpand _).
+    exact (gen_value_to_meet_silent _).
 Qed.
 
 Theorem prove_physical_equality_sound

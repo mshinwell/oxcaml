@@ -93,11 +93,6 @@
    variant and of a type of naked immediates, which
    [Provers.meet_naked_immediates] reads.
 
-   The statement of soundness has the premise
-   [expand_head_sound_assumed], as in FlambdaProversSpec.v, until the
-   proof of the workstream on meet is under this branch. The statement
-   on kinds and the examples have not.
-
    The proofs are in FlambdaReifyProofs.v, which needs no review. *)
 
 From Stdlib Require Import ZArith List Bool.
@@ -107,7 +102,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaTypeWellFormedSpec FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaTypingEnv
-  FlambdaTypingEnvSpec FlambdaProversStandIn FlambdaProvers
+  FlambdaTypingEnvSpec FlambdaExpandHead FlambdaProvers
   FlambdaProversSpec FlambdaReify.
 Import ListNotations.
 
@@ -137,7 +132,6 @@ Definition reification_holds (statics : static_env) (valuation : env)
 
 (* [Reify.reify], whatever the conditions for lifting a variable. *)
 Definition reify_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   ∀ (allowed_if_free_vars_defined_in : Typing_env.t)
     (var_is_defined_at_toplevel var_is_symbol_projection : variable -> bool)
     (statics : static_env) (valuation : env) (tenv : Typing_env.t)

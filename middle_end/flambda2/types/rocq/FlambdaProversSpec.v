@@ -179,14 +179,13 @@
    that it asked the prover for, with the premises on the environment
    that FlambdaTypingEnvSpec.v has for that; nothing here says it.
 
-   What rests on another workstream, until its files are under this
-   branch (FlambdaProversStandIn.v). Every statement here has the
-   premise [expand_head_sound_assumed]: expanding the head of a type
-   keeps its values. It is, word for word, the statement that the
-   workstream on meet (T4) proves of [expand_head] on its branch
-   [flambda2-rocq/T4-meet], and it goes when the proof is here. Where
-   a prover reads a row-like structure it is through the functions of
-   FlambdaTypeAccessSpec.v, with the statements there.
+   What rests on other files. A prover expands the head of a type
+   with [expand_head] of FlambdaExpandHead.v, and every statement
+   here rests on what FlambdaExpandHeadSpec.v says of it: expanding
+   the head of a type keeps its values
+   ([expand_head_sound_statement]). Where a prover reads a row-like
+   structure it is through the functions of FlambdaTypeAccessSpec.v,
+   with the statements there.
 
    What is not said.
    - Code age, allocation modes and uniqueness: nothing in these
@@ -219,23 +218,9 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaTypeWellFormedSpec FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaTypingEnv
-  FlambdaTypingEnvSpec FlambdaTypingEnvInvariantSpec FlambdaProversStandIn
+  FlambdaTypingEnvSpec FlambdaTypingEnvInvariantSpec FlambdaExpandHead
   FlambdaProvers.
 Import ListNotations.
-
-(* ======================================================================== *)
-(* What is assumed of other workstreams                                     *)
-(* ======================================================================== *)
-
-(* Expanding the head of a type keeps its values: the statement that
-   the workstream on meet (T4) proves of [expand_head] on its branch. *)
-Definition expand_head_sound_assumed : Prop :=
-  ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
-    (ty : flambda_type) (expanded : Expanded_type.t) (v : value),
-    typing_env_satisfied_strictly statics valuation tenv ->
-    type_satisfied statics valuation v ty ->
-    expand_head tenv ty = Some expanded ->
-    type_satisfied statics valuation v (Expanded_type.to_type expanded).
 
 (* ======================================================================== *)
 (* The two forms of statement                                               *)
@@ -388,33 +373,28 @@ Definition tagged_immediates (statics : static_env) (v : value) : Prop :=
    [variant_only] ([Obj.is_int]), so it answers of every value: a boxed
    number, a closure or a string is not a tagged immediate. *)
 Definition prove_is_int_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   prover_sound Provers.prove_is_int any_input (fun _ _ => is_int_is).
 
 (* [Provers.meet_is_int_variant_only]: of the values of the type that
    are a tagged immediate or a block. On a type of boxed numbers, of
    closures or of strings it answers that there is none. *)
 Definition meet_is_int_variant_only_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   meet_shortcut_sound Provers.meet_is_int_variant_only any_input variants
     (fun _ _ => is_int_is).
 
 (* [Provers.prove_is_not_a_pointer]. *)
 Definition prove_is_not_a_pointer_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   prover_sound Provers.prove_is_not_a_pointer any_input
     (fun _ _ => is_not_a_pointer_is).
 
 (* [Provers.prove_get_tag]: every value of the type is a block, with
    one of the tags. *)
 Definition prove_get_tag_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   prover_sound Provers.prove_get_tag any_input
     (fun statics _ => block_with_tag_among statics).
 
 (* [Provers.meet_is_null]: of the values of kind value. *)
 Definition meet_is_null_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   meet_shortcut_sound Provers.meet_is_null any_input (values_of_kind Value)
     (fun _ _ => is_null_is).
 
@@ -426,7 +406,6 @@ Definition meet_is_null_sound_statement : Prop :=
    takes in what the relations of the type say of its number: each is
    read from the type that the environment has for the name. *)
 Definition meet_naked_immediates_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   meet_shortcut_sound Provers.meet_naked_immediates well_formed_input
     (values_of_kind (Naked_number Kind_naked_immediate))
     (fun _ _ => naked_immediate_among).
@@ -434,21 +413,18 @@ Definition meet_naked_immediates_sound_statement : Prop :=
 (* [Provers.prove_equals_tagged_immediates]: every value of the type is
    a tagged immediate, one of the numbers. *)
 Definition prove_equals_tagged_immediates_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   prover_sound Provers.prove_equals_tagged_immediates well_formed_input
     (fun _ _ => tagged_immediate_among).
 
 (* [Provers.meet_equals_tagged_immediates]: of the values of the type
    that are tagged immediates. *)
 Definition meet_equals_tagged_immediates_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   meet_shortcut_sound Provers.meet_equals_tagged_immediates
     well_formed_input tagged_immediates
     (fun _ _ => tagged_immediate_among).
 
 (* [Provers.meet_equals_single_tagged_immediate]: the one number. *)
 Definition meet_equals_single_tagged_immediate_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   meet_shortcut_sound Provers.meet_equals_single_tagged_immediate
     well_formed_input tagged_immediates
     (fun _ _ imm v => v = Value_const (Tagged_immediate imm)).
@@ -459,7 +435,6 @@ Definition meet_equals_single_tagged_immediate_sound_statement : Prop :=
    kind, one of those answered ([naked_numbers_satisfied],
    FlambdaTypeMeaningSpec.v). *)
 Definition meet_naked_number_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   ∀ kind : naked_number_kind,
     kind <> Kind_naked_immediate ->
     meet_shortcut_sound (Provers.meet_naked_number kind) any_input
@@ -473,7 +448,6 @@ Definition meet_naked_number_sound_statement : Prop :=
 (* On a type that has a value that is poison none of these answers
    [Proved] or [Known_result]. [meet_is_null] is not among them. *)
 Definition provers_silent_on_poison_statement : Prop :=
-  expand_head_sound_assumed ->
   prover_silent_on_poison Provers.prove_is_int
   ∧ meet_shortcut_silent_on_poison Provers.meet_is_int_variant_only
   ∧ prover_silent_on_poison Provers.prove_is_not_a_pointer
@@ -489,7 +463,6 @@ Definition provers_silent_on_poison_statement : Prop :=
 (* [meet_is_null] says of a poison of kind value that it is not null,
    where the type says so, and never that it is. *)
 Definition meet_is_null_poison_statement : Prop :=
-  expand_head_sound_assumed ->
   ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
     (t : flambda_type) (v : value),
     typing_env_satisfied_strictly statics valuation tenv ->
@@ -547,7 +520,6 @@ Definition untag_immediate_defined_statement : Prop :=
    value of the type on which it has a value: the primitive may be
    replaced by the constant. *)
 Definition prove_is_int_is_int_statement : Prop :=
-  expand_head_sound_assumed ->
   ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
     (t : flambda_type) (b : bool) (v r : value),
     typing_env_satisfied_strictly statics valuation tenv ->
@@ -560,7 +532,6 @@ Definition prove_is_int_is_int_statement : Prop :=
    immediate, [Get_tag] has no value on any: the primitive may be
    replaced by [Invalid]. *)
 Definition prove_is_int_get_tag_statement : Prop :=
-  expand_head_sound_assumed ->
   ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
     (t : flambda_type) (v : value),
     typing_env_satisfied_strictly statics valuation tenv ->
@@ -595,7 +566,6 @@ Definition tagging_of (valuation : env) (s : simple) (v : value) : Prop :=
    numbers of the immediates of a variant, so the type is to be well
    formed. *)
 Definition prove_tagging_of_simple_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   ∀ min_name_mode : Name_mode.t,
     prover_sound
       (fun tenv t => Provers.prove_tagging_of_simple tenv min_name_mode t)
@@ -604,7 +574,6 @@ Definition prove_tagging_of_simple_sound_statement : Prop :=
 (* [Provers.meet_tagging_of_simple]: of the values of the type that
    are tagged immediates. *)
 Definition meet_tagging_of_simple_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   ∀ min_name_mode : Name_mode.t,
     meet_shortcut_sound
       (fun tenv t => Provers.meet_tagging_of_simple tenv min_name_mode t)
@@ -641,19 +610,16 @@ Definition boxed_or_tagged_number_is (statics : static_env)
   end.
 
 Definition prove_is_a_boxed_or_tagged_number_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   prover_sound Provers.prove_is_a_boxed_or_tagged_number any_input
     boxed_or_tagged_number_is.
 
 Definition prove_is_a_tagged_immediate_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   prover_sound Provers.prove_is_a_tagged_immediate any_input
     (fun _ _ _ v => is_immediate v).
 
 (* [Provers.prove_is_a_boxed_float32], ..., [prove_is_a_boxed_mask],
    which are [Provers.prove_is_a_boxed_number] at the nine numbers. *)
 Definition prove_is_a_boxed_number_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   ∀ kind : boxable_number,
     prover_sound (Provers.prove_is_a_boxed_number kind) any_input
       (fun statics _ _ v => boxed_numbers kind statics v).
@@ -664,7 +630,6 @@ Definition prove_is_a_boxed_number_sound_statement : Prop :=
    kind are not boxed floats for the machine, whose observations are
    disjoint (FlambdaValueSpec.v). *)
 Definition prove_is_or_is_not_a_boxed_float_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   prover_sound Provers.prove_is_or_is_not_a_boxed_float any_input
     (fun statics _ x v =>
        if x
@@ -677,7 +642,6 @@ Definition prove_is_or_is_not_a_boxed_float_sound_statement : Prop :=
    of the values of the type that are boxed numbers of the kind, the
    contents are the value of the [Simple] answered. *)
 Definition meet_boxed_number_containing_simple_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   ∀ (kind : boxable_number) (min_name_mode : Name_mode.t),
     meet_shortcut_sound
       (fun tenv t =>
@@ -710,12 +674,10 @@ Definition string_among (statics : static_env) (strs : list (list Z))
   ∃ bytes : list Z, string_of statics v = Some bytes ∧ bytes ∈ strs.
 
 Definition prove_strings_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   prover_sound Provers.prove_strings any_input
     (fun statics _ => string_among statics).
 
 Definition meet_strings_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   meet_shortcut_sound Provers.meet_strings any_input strings
     (fun statics _ => string_among statics).
 
@@ -723,7 +685,6 @@ Definition meet_strings_sound_statement : Prop :=
    [Proved] or [Known_result] either. [prove_equals_to_simple_of_kind]
    is not among them. *)
 Definition more_provers_silent_on_poison_statement : Prop :=
-  expand_head_sound_assumed ->
   (∀ min_name_mode : Name_mode.t,
     prover_silent_on_poison
       (fun tenv t => Provers.prove_tagging_of_simple tenv min_name_mode t))
@@ -769,14 +730,12 @@ Definition variant_like (statics : static_env) (proof : variant_like_proof)
 (* [Provers.prove_variant_like]. It reads the numbers of the immediates
    of the variant, so the type is to be well formed. *)
 Definition prove_variant_like_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   prover_sound Provers.prove_variant_like well_formed_input
     (fun statics _ => variant_like statics).
 
 (* [Provers.meet_variant_like]: of the values of the type that are a
    tagged immediate or a block. *)
 Definition meet_variant_like_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   meet_shortcut_sound Provers.meet_variant_like well_formed_input variants
     (fun statics _ => variant_like statics).
 
@@ -791,7 +750,6 @@ Definition block_of_tag_shape_and_size (statics : static_env)
 
 (* [Provers.prove_unique_tag_and_size]. *)
 Definition prove_unique_tag_and_size_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   prover_sound Provers.prove_unique_tag_and_size any_input
     (fun statics _ => block_of_tag_shape_and_size statics).
 
@@ -805,7 +763,6 @@ Definition prove_unique_tag_and_size_sound_statement : Prop :=
    for a well-formed type. The allocation mode that the prover asks
    for means nothing here. *)
 Definition prove_unique_immutable_heap_block_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   prover_sound Provers.prove_unique_fully_constructed_immutable_heap_block
     any_input
     (fun statics valuation x v =>
@@ -832,7 +789,6 @@ Definition prove_unique_immutable_heap_block_sound_statement : Prop :=
    case. Nothing is said of where the block is allocated, nor that a
    block made of the same fields is the same block. *)
 Definition prove_unique_immutable_heap_block_fields_statement : Prop :=
-  expand_head_sound_assumed ->
   prover_sound Provers.prove_unique_fully_constructed_immutable_heap_block
     well_formed_input
     (fun statics valuation x v =>
@@ -859,7 +815,6 @@ Definition block_field_loads (field_kind : flambda_kind) (field_index : nat)
    is no such value where the type of the field is of another kind
    than the one asked: a field of another kind is not in the domain. *)
 Definition meet_block_field_simple_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   ∀ (min_name_mode : Name_mode.t) (field_kind : flambda_kind)
     (field_index : nat),
     meet_shortcut_sound
@@ -889,7 +844,6 @@ Definition block_load_defined_statement : Prop :=
 (* On a type that has a value that is poison none of these answers
    [Proved] or [Known_result] either. *)
 Definition block_provers_silent_on_poison_statement : Prop :=
-  expand_head_sound_assumed ->
   prover_silent_on_poison Provers.prove_variant_like
   ∧ meet_shortcut_silent_on_poison Provers.meet_variant_like
   ∧ prover_silent_on_poison Provers.prove_unique_tag_and_size
@@ -940,7 +894,6 @@ Definition single_closures_entry_holds (statics : static_env)
 
 (* [Provers.prove_single_closures_entry]. *)
 Definition prove_single_closures_entry_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   prover_sound Provers.prove_single_closures_entry any_input
     single_closures_entry_holds.
 
@@ -953,7 +906,6 @@ Definition prove_single_closures_entry_sound_statement : Prop :=
    A well-formed type has no such case (condition 8 of
    FlambdaTypeWellFormedSpec.v). *)
 Definition meet_single_closures_entry_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   meet_shortcut_sound Provers.meet_single_closures_entry well_formed_input
     closures single_closures_entry_holds.
 
@@ -979,14 +931,12 @@ Definition closure_code_among (statics : static_env)
 
 (* [Provers.prove_code_ids]. *)
 Definition prove_code_ids_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   prover_sound Provers.prove_code_ids any_input
     (fun statics _ => closure_code_among statics).
 
 (* [Provers.meet_code_ids]: of the values of the type that are
    closures. *)
 Definition meet_code_ids_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   meet_shortcut_sound Provers.meet_code_ids any_input closures
     (fun statics _ => closure_code_among statics).
 
@@ -1006,7 +956,6 @@ Definition function_slot_projects (move_to : function_slot)
    from, and the answer is right for any: the projection has a value
    only from the slot that the closure is at. *)
 Definition meet_project_function_slot_simple_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   ∀ (min_name_mode : Name_mode.t) (move_to : function_slot),
     meet_shortcut_sound
       (fun tenv t =>
@@ -1072,7 +1021,6 @@ Definition project_value_slot_in_domain_statement : Prop :=
    [Invalid] there is no such value. It says nothing of a closure
    whose slot has contents of another kind. *)
 Definition meet_project_value_slot_simple_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   ∀ (min_name_mode : Name_mode.t) (slot : value_slot)
     (value_slot_kind : flambda_kind),
     meet_shortcut_sound
@@ -1088,7 +1036,6 @@ Definition meet_project_value_slot_simple_sound_statement : Prop :=
 (* On a type that has a value that is poison none of these answers
    [Proved] or [Known_result] either. *)
 Definition closure_provers_silent_on_poison_statement : Prop :=
-  expand_head_sound_assumed ->
   prover_silent_on_poison Provers.prove_single_closures_entry
   ∧ meet_shortcut_silent_on_poison Provers.meet_single_closures_entry
   ∧ prover_silent_on_poison Provers.prove_code_ids
@@ -1132,7 +1079,6 @@ Definition closure_provers_silent_on_poison_statement : Prop :=
    discrepancy P1-1. What [Phys_equal] is of two allocated values is
    not in the model. Decision D19. *)
 Definition prove_physical_equality_sound_statement : Prop :=
-  expand_head_sound_assumed ->
   ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
     (t1 t2 : flambda_type) (b : bool) (v1 v2 : value),
     typing_env_satisfied_strictly statics valuation tenv ->

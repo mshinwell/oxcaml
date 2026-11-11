@@ -40,7 +40,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeWellFormedSpec FlambdaTypeWellFormedProofs FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesProofs
   FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaTypingEnvProofs
-  FlambdaProversStandIn FlambdaProvers FlambdaProversSpec
+  FlambdaExpandHead FlambdaProvers FlambdaProversSpec
   FlambdaProversExamplesSpec.
 Import ListNotations.
 Local Open Scope Z_scope.
