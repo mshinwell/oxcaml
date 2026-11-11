@@ -154,3 +154,12 @@ Proof.
   split; [ | repeat split; vm_compute; reflexivity ].
   apply (proj1 (type_satisfied_b_iff _ _ _ _)). vm_compute. reflexivity.
 Qed.
+
+Theorem example_blocks : example_blocks_statement.
+Proof. repeat split; vm_compute; reflexivity. Qed.
+
+Theorem example_closures : example_closures_statement.
+Proof. repeat split; vm_compute; reflexivity. Qed.
+
+Theorem example_physical_equality : example_physical_equality_statement.
+Proof. repeat split; vm_compute; reflexivity. Qed.

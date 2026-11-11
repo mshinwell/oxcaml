@@ -43,9 +43,11 @@
    that of null alone, and [x], a naked immediate whose type is the
    relation [Is_null] to [n]: what
    [Simplify_unary_primitive.simplify_is_null] gives the result of
-   [Is_null] of [n]. The last is a closure whose value slot holds a
-   naked float, of which the prover of the projection of that slot,
-   asked at the kind value, answers [Invalid]. *)
+   [Is_null] of [n]. Then a closure whose value slot holds a naked
+   float, of which the prover of the projection of that slot, asked
+   at the kind value, answers [Invalid]. The last are the answers of
+   the provers of blocks, of closures and of physical equality, in the
+   empty environment. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
@@ -227,3 +229,123 @@ Definition example_value_slot_kind_statement : Prop :=
       Name_mode.normal example_closure_type example_value_slot
       (Naked_number Kind_naked_float)
     = Some Meet_shortcut.Need_meet.
+
+(* ======================================================================== *)
+(* Blocks, closures and physical equality                                   *)
+(* ======================================================================== *)
+
+(* A block of tag 0 whose two fields are the constants 1 and 2; and
+   one whose fields are a tagged immediate and a block of which
+   nothing more is known. *)
+Definition example_pair : flambda_type :=
+  immutable_block false 0 (Scannable Value_only) Alloc_mode.Heap
+    [this_tagged_immediate 1; this_tagged_immediate 2].
+
+Definition example_opaque_pair : flambda_type :=
+  immutable_block false 0 (Scannable Value_only) Alloc_mode.Heap
+    [any_tagged_immediate; any_block].
+
+(* The constructors of a block type, its tag and size, its fields as
+   [Simple]s where they are known, and one field: the field that the
+   block has not, and a field asked at another kind than its type has,
+   are [Invalid]. *)
+Definition example_blocks_statement : Prop :=
+  Provers.prove_variant_like Typing_env.create example_opaque_pair
+  = Some
+      (Proof_of_property.Proved
+         (Variant_like_proof (Or_unknown.Known [])
+            [(0, (2%nat, Scannable Value_only))]))
+  ∧ Provers.prove_unique_tag_and_size Typing_env.create example_opaque_pair
+    = Some (Proof_of_property.Proved (0, Scannable Value_only, 2%nat))
+  ∧ Provers.prove_unique_fully_constructed_immutable_heap_block
+      Typing_env.create example_pair
+    = Some
+        (Proof_of_property.Proved
+           (0, Scannable Value_only, 2%nat,
+            [Const (Tagged_immediate 1); Const (Tagged_immediate 2)]))
+  ∧ Provers.prove_unique_fully_constructed_immutable_heap_block
+      Typing_env.create example_opaque_pair
+    = Some Proof_of_property.Unknown
+  ∧ Provers.meet_block_field_simple Typing_env.create Name_mode.normal Value
+      example_pair 1%nat
+    = Some (Meet_shortcut.Known_result (Const (Tagged_immediate 2)))
+  ∧ Provers.meet_block_field_simple Typing_env.create Name_mode.normal Value
+      example_pair 2%nat
+    = Some Meet_shortcut.Invalid
+  ∧ Provers.meet_block_field_simple Typing_env.create Name_mode.normal
+      (Naked_number Kind_naked_float) example_pair 1%nat
+    = Some Meet_shortcut.Invalid
+  ∧ Provers.meet_block_field_simple Typing_env.create Name_mode.normal Value
+      example_opaque_pair 1%nat
+    = Some Meet_shortcut.Need_meet.
+
+Definition example_function_slot : function_slot := 5%positive.
+Definition example_code : code_id := 7%positive.
+
+(* The closure of a set of one function, of known code, with one value
+   slot that holds the constant 7. *)
+Definition example_closure_with_code_type : flambda_type :=
+  exactly_this_closure example_function_slot
+    [(example_function_slot,
+      Or_unknown.Known (Function_type example_code))]
+    []
+    [(example_value_slot, this_tagged_immediate 7)] Alloc_mode.Heap.
+
+(* The entry and the code of a closure type, and the two projections.
+   A block type has no closure. *)
+Definition example_closures_statement : Prop :=
+  Provers.prove_single_closures_entry Typing_env.create
+    example_closure_with_code_type
+  = Some
+      (Proof_of_property.Proved
+         (example_function_slot, Alloc_mode.Heap,
+          Closures_entry
+            [(example_function_slot,
+              Or_unknown.Known (Function_type example_code))]
+            []
+            [(example_value_slot, this_tagged_immediate 7)],
+          Function_type example_code))
+  ∧ Provers.prove_code_ids Typing_env.create example_closure_with_code_type
+    = Some (Proof_of_property.Proved [example_code])
+  ∧ Provers.meet_code_ids Typing_env.create any_block
+    = Some Meet_shortcut.Invalid
+  ∧ Provers.meet_project_value_slot_simple Typing_env.create
+      Name_mode.normal example_closure_with_code_type example_value_slot
+      Value
+    = Some (Meet_shortcut.Known_result (Const (Tagged_immediate 7)))
+  ∧ Provers.meet_project_function_slot_simple Typing_env.create
+      Name_mode.normal example_closure_with_code_type example_function_slot
+    = Some Meet_shortcut.Need_meet
+  ∧ Provers.meet_project_function_slot_simple Typing_env.create
+      Name_mode.normal any_block example_function_slot
+    = Some Meet_shortcut.Invalid.
+
+(* A boxed float of one number. *)
+Definition example_boxed_float_of (bits : Z) : flambda_type :=
+  box_number Boxable_naked_float
+    (Type_naked_number Kind_naked_float (Ok (No_alias [bits])))
+    Alloc_mode.Heap.
+
+(* Physical equality: one constant and two; a block and a tagged
+   immediate; two blocks of which nothing is known; a block and a
+   boxed float; two boxed floats of two numbers; null and null. *)
+Definition example_physical_equality_statement : Prop :=
+  Provers.prove_physical_equality Typing_env.create (this_tagged_immediate 1)
+    (this_tagged_immediate 1)
+  = Some (Proof_of_property.Proved true)
+  ∧ Provers.prove_physical_equality Typing_env.create
+      (this_tagged_immediate 1) (this_tagged_immediate 2)
+    = Some (Proof_of_property.Proved false)
+  ∧ Provers.prove_physical_equality Typing_env.create any_block
+      any_tagged_immediate
+    = Some (Proof_of_property.Proved false)
+  ∧ Provers.prove_physical_equality Typing_env.create any_block any_block
+    = Some Proof_of_property.Unknown
+  ∧ Provers.prove_physical_equality Typing_env.create any_block
+      example_boxed_float
+    = Some (Proof_of_property.Proved false)
+  ∧ Provers.prove_physical_equality Typing_env.create
+      (example_boxed_float_of 5) (example_boxed_float_of 6)
+    = Some (Proof_of_property.Proved false)
+  ∧ Provers.prove_physical_equality Typing_env.create null null
+    = Some (Proof_of_property.Proved true).
