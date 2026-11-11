@@ -506,7 +506,11 @@ Definition must_be_singleton_rename_type_statement : Prop :=
 
 (* The meaning of types is equivariant: a value has the renamed type
    under the renamed environment exactly when it has the type under
-   the environment. The value is not renamed: it holds no variable. *)
+   the environment. The value is not renamed: it holds no variable.
+   FlambdaTypeNominalSpec.v has the two statements in the form of the
+   interface for things that contain names, with [env_names] for the
+   environment ([type_satisfied_equivariant_statement],
+   [env_extension_satisfied_equivariant_statement]). *)
 Definition type_satisfied_rename_statement : Prop :=
   ∀ (r : renaming) (statics : static_env) (vars : env) (v : value)
     (t : flambda_type),

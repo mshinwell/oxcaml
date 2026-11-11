@@ -49,13 +49,19 @@
    of the model moves them.
 
    The statements: the two instances have the laws of the interface
-   ([Nominal.nominal]), and [kind], [type_well_formed] and [type_eqb]
+   ([Nominal.nominal]); [kind], [type_well_formed] and [type_eqb]
    are equivariant functions into types with no names, in the sense
-   of the interface ([Nominal.equivariant]). All are the theorems of
-   FlambdaTypeRenameProofs.v, put in the form of the interface; the
-   equivariance of the meaning is there
-   ([type_satisfied_rename_statement]), an environment not being a
-   thing that contains names yet.
+   of the interface ([Nominal.equivariant]); and the meaning of types
+   is an equivariant function of the environment and the type into
+   the propositions. There the environment is the instance
+   [env_names] of FlambdaNominalInstancesSpec.v, whose action is
+   [rename_env], and the propositions are the instance [propositions]
+   of FlambdaFreshQuantifierSpec.v, which are the same when they are
+   equivalent. All are the theorems of FlambdaTypeRenameProofs.v, put
+   in the form of the interface.
+
+   [variables_renaming], the renaming that permutes the variables and
+   no continuation, is that of FlambdaNominalInstancesSpec.v.
 
    The proofs are in FlambdaTypeNominalProofs.v, which needs no
    review. *)
@@ -63,14 +69,14 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
-  FlambdaMapSpec FlambdaNominalSpec FlambdaNameAbstractionSpec.
+  FlambdaMapSpec FlambdaValueSpec FlambdaSemanticsSpec FlambdaNominalSpec
+  FlambdaNameAbstractionSpec FlambdaNominalInstancesSpec
+  FlambdaFreshQuantifierSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeWellFormedSpec FlambdaTypeEqualSpec FlambdaTypeRenameSpec.
+  FlambdaTypeMeaningSpec FlambdaTypeWellFormedSpec FlambdaTypeEqualSpec
+  FlambdaTypeRenameSpec.
 Import ListNotations.
 Import Nominal.
-
-(* The renaming that permutes the variables and no continuation. *)
-Definition variables_renaming (p : permutation) : renaming := Renaming p [].
 
 Definition type_names : contains_names flambda_type :=
   Contains_names (fun p t => rename_type (variables_renaming p) t)
@@ -96,3 +102,21 @@ Definition type_well_formed_equivariant_statement : Prop :=
 Definition type_eqb_equivariant_statement : Prop :=
   equivariant (pair_names type_names type_names) (no_names bool)
     (fun types => type_eqb (fst types) (snd types)).
+
+(* The meaning: whether a value has a type under an environment, as a
+   function of the environment and the type. The value holds no
+   variable. The static environment is kept as it is: the meaning
+   reads of it what the symbols are bound to, which is made of values,
+   and not its code. *)
+Definition type_satisfied_equivariant_statement : Prop :=
+  ∀ (statics : static_env) (v : value),
+    equivariant (pair_names env_names type_names) propositions
+      (fun vars_and_type =>
+         type_satisfied statics (fst vars_and_type) v (snd vars_and_type)).
+
+Definition env_extension_satisfied_equivariant_statement : Prop :=
+  ∀ statics : static_env,
+    equivariant (pair_names env_names env_extension_names) propositions
+      (fun vars_and_extension =>
+         env_extension_satisfied statics (fst vars_and_extension)
+           (snd vars_and_extension)).

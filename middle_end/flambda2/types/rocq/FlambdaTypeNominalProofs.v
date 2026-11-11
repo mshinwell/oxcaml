@@ -31,11 +31,13 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
-  FlambdaMapSpec FlambdaMapProofs FlambdaNominalSpec FlambdaNominalProofs
-  FlambdaAlphaSpec FlambdaNameAbstractionSpec FlambdaNameAbstractionProofs.
+  FlambdaMapSpec FlambdaMapProofs FlambdaValueSpec FlambdaSemanticsSpec
+  FlambdaNominalSpec FlambdaNominalProofs FlambdaAlphaSpec
+  FlambdaNameAbstractionSpec FlambdaNameAbstractionProofs
+  FlambdaNominalInstancesSpec FlambdaFreshQuantifierSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeWellFormedSpec FlambdaTypeEqualSpec FlambdaTypeRenameSpec
-  FlambdaTypeRenameProofs FlambdaTypeNominalSpec.
+  FlambdaTypeMeaningSpec FlambdaTypeWellFormedSpec FlambdaTypeEqualSpec
+  FlambdaTypeRenameSpec FlambdaTypeRenameProofs FlambdaTypeNominalSpec.
 Import ListNotations.
 Import Nominal.
 
@@ -106,3 +108,17 @@ Proof. intros p t. simpl. apply (proj1 type_well_formed_rename). Qed.
 
 Theorem type_eqb_equivariant : type_eqb_equivariant_statement.
 Proof. intros p [t t']. simpl. apply (proj1 type_eqb_rename). Qed.
+
+Theorem type_satisfied_equivariant : type_satisfied_equivariant_statement.
+Proof.
+  intros statics v p [vars t]. simpl.
+  apply (type_satisfied_rename (variables_renaming p) statics vars v t).
+Qed.
+
+Theorem env_extension_satisfied_equivariant
+  : env_extension_satisfied_equivariant_statement.
+Proof.
+  intros statics p [vars extension]. simpl.
+  apply (env_extension_satisfied_rename (variables_renaming p) statics vars
+           extension).
+Qed.
