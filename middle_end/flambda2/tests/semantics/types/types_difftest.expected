@@ -1,0 +1,253 @@
+The types of the compiler against the Rocq model.
+Stack allocation: enabled.
+
+Raw types of the model (3000 cases, seeds 1000 to 3999)
+  28 not converted: not in the compiler: a Rec_info type given by its head: the model has not got the expression
+  5 not converted: not in the compiler: a closure type that is not of kind value, in a closures entry
+  1 not converted: not in the compiler: a head with no number (the bits of a float)
+  1 not converted: not in the compiler: a head with no number (the bits of a floatN)
+  1 not converted: not in the compiler: a head with no number (the bits of a vecN)
+  29 not converted: not in the compiler: a type of naked numbers of kind naked immediate (the type of naked immediates is another constructor)
+  1 not converted: not in the compiler: no code id is numbered 
+  17 not converted: not in the compiler: no function slot is numbered 
+  14 not converted: not in the compiler: no symbol is numbered 
+  9 not converted: not in the compiler: no value slot is numbered 
+  35 not converted: not in the compiler: no variable is numbered 
+  24 not converted: not in the compiler: the allocation mode Local, which no function of the compiler makes
+  5 not converted: not in the compiler: the number N is not a byte
+  19 not converted: not in the compiler: the number N is not a tag
+  5 not converted: not in the compiler: the number NbN is not a nativeint
+  3 not converted: not in the compiler: the number NbN is not an immediate
+  10 not converted: not in the compiler: the number NbN is not an int
+  9 not converted: not in the compiler: the number NbN is not the bits of a float
+  4 not converted: not in the compiler: the number NbN is not the bits of a mask
+  7 not converted: not in the compiler: the number NbN is not the bits of a vec
+  2773 converted
+  the round trip from the model (to the compiler and back): 2773 agree
+  kind: 2773 agree
+  get_alias_opt: 2773 agree
+  is_obviously_bottom: 2773 agree
+  is_obviously_unknown: 2773 agree
+  free_variables against free_names, without shadowed bindings: 2773 agree
+  free_variables includes free_names, with shadowed bindings: 2773 agree
+
+Types of the model that the compiler's functions make (3000 cases, seeds 5000 to 7999)
+  34 not converted: not in the compiler: a Rec_info type given by its head: the model has not got the expression
+  2966 converted
+  the round trip from the model (to the compiler and back): 2966 agree
+  kind: 2966 agree
+  get_alias_opt: 2966 agree
+  is_obviously_bottom: 2966 agree
+  is_obviously_unknown: 2966 agree
+  free_variables against free_names, without shadowed bindings: 2966 agree
+  free_variables includes free_names, with shadowed bindings: 2966 agree
+  the round trip from the compiler, as printed: 2966 agree
+  the round trip from the compiler, for the compiler's equality: 2953 agree, 13 disagree as recorded
+    recorded as T7-2 (seed 5132): the compiler's equality is not asked: it may overflow the stack on a type with an extension within an extension
+    on the shrunk input:
+    (Value
+     ((Closures
+       [2 ->
+         ((At_least (closures [2] value_slots [2]))
+          ((function_types []) (closure_types []) (value_slot_types []))
+          [v1 ->
+            (Value
+             ((Variant (is_int None) (immediates Unknown) (get_tag None)
+               (blocks (Known
+                        ((known_tags [3 ->
+                                       (Known
+                                        ((Known 0) Value_only []
+                                         [v2 -> (Value Unknown)]))])
+                         (other_tags Bottom) (alloc_mode Heap))))
+               (extensions No_extensions) (is_unique false)) Not_null))])]
+       Heap) Not_null))
+
+The creation functions (6000 cases, seeds 20000 to 25999)
+  6000 converted
+  unknown: 212 agree
+  bottom: 213 agree
+  alias_type_of: 192 agree
+  type_for_const: 216 agree
+  null: 233 agree
+  any_non_null_value: 203 agree
+  this_tagged_immediate: 193 agree
+  this_naked_immediate: 236 agree
+  these_naked_immediates: 210 agree
+  these_tagged_immediates: 212 agree
+  any_tagged_immediate: 241 agree
+  any_block: 202 agree
+  tag_immediate: 225 agree
+  box_number: 205 agree
+  mutable_block: 218 agree
+  this_immutable_string: 212 agree
+  create_variant: 207 agree
+  create_closures: 200 agree
+  blocks_with_these_tags: 222 agree
+  immutable_block: 210 agree
+  row_like_for_blocks_create_exactly: 207 agree
+  row_like_for_blocks_create_at_least: 235 agree
+  row_like_for_blocks_create_at_least_unknown_tag: 190 agree
+  is_int_for_scrutinee: 218 agree
+  get_tag_for_block: 258 agree
+  is_null_for_scrutinee: 218 agree
+  exactly_this_closure: 203 agree
+  at_least_this_closure: 209 agree
+  a creation function that is not in the list above: 0 agree
+
+A relation and a constant (600 cases, seeds 30000 to 30599)
+  600 converted
+  Relation.of_const: 600 agree
+
+Raw row-like structures of blocks (1000 cases, seeds 31000 to 31999)
+  4 not converted: not in the compiler: a Rec_info type given by its head: the model has not got the expression
+  4 not converted: not in the compiler: a head with no number (an intN)
+  4 not converted: not in the compiler: no function slot is numbered 
+  5 not converted: not in the compiler: no symbol is numbered 
+  14 not converted: not in the compiler: no variable is numbered 
+  41 not converted: not in the compiler: the allocation mode Local, which no function of the compiler makes
+  2 not converted: not in the compiler: the number N is not a byte
+  57 not converted: not in the compiler: the number N is not a tag
+  1 not converted: not in the compiler: the number NbN is not a nativeint
+  2 not converted: not in the compiler: the number NbN is not an int
+  6 not converted: not in the compiler: the number NbN is not the bits of a float
+  1 not converted: not in the compiler: the number NbN is not the bits of a mask
+  1 not converted: not in the compiler: the number NbN is not the bits of a vec
+  858 converted
+  Row_like_for_blocks.is_bottom: 858 agree
+
+Two types of kind value, for the two meets and the two joins (1000 cases, seeds 9000 to 9999)
+  1000 converted
+  meet: the binary and the n-way implementation: 1000 agree
+  join: the binary and the n-way implementation: 791 agree, 209 disagree as recorded
+    recorded as T7-3, the binary join is unknown and the n-way join is not (seed 9007): the binary join gives
+(Value Unknown)
+the n-way join
+(Value (Unknown (Maybe_null (Some e0))))
+    on the shrunk input:
+    (Value (Unknown (Maybe_null (Some v4))))
+    and
+    (Value (Unknown Not_null))
+    recorded as T7-3, the two joins know different things (seed 9001): the binary join gives
+(Value
+ ((Variant (is_int None) (immediates Unknown) (get_tag None) (blocks Unknown)
+   (extensions No_extensions) (is_unique false)) (Maybe_null None)))
+the n-way join
+(Value (Unknown (Maybe_null (Some e0))))
+    on the shrunk input:
+    (Value
+     ((Variant (is_int None) (immediates Unknown) (get_tag None)
+       (blocks Unknown) (extensions No_extensions) (is_unique false))
+      Not_null))
+    and
+    (Value (Bottom (Maybe_null (Some v4))))
+
+Two types of kind value and a world, for the meaning of meet and join (1500 cases, seeds 40000 to 41499)
+  1500 converted
+  join (binary): a value of one of the types has the join: 1324 agree
+    176 not run: no value tried has either type
+  join (n-way): a value of one of the types has the join: 1324 agree
+    176 not run: no value tried has either type
+  meet (binary): a value of both types has the meet: 1500 agree
+  meet (n-way): a value of both types has the meet: 1500 agree
+  meet (binary): a value of the meet has both types: 1231 agree, 31 disagree as recorded
+    238 not run: what the meet teaches is not true in the world
+    recorded as T7-4, the meet forgets what a variable of a type holds (seed 40056): the value 0 has the meet,
+(Value (Unknown Not_null))
+and not both types
+    on the shrunk input:
+    (Value (Unknown (Maybe_null (Some v4))))
+    and
+    (Value (Unknown Not_null))
+    in the world of seed -166405389453425632
+    recorded as T7-5, the meet with a mutable block keeps too much (seed 40139): the value 1 has the meet,
+(Value (= 1))
+and not both types
+    on the shrunk input:
+    (Value (= 1))
+    and
+    (Value ((Mutable_block Heap_or_local) Not_null))
+    in the world of seed 1686301183863193517
+  meet (n-way): a value of the meet has both types: 1231 agree, 31 disagree as recorded
+    238 not run: what the meet teaches is not true in the world
+    recorded as T7-4, the meet forgets what a variable of a type holds (seed 40056): the value 0 has the meet,
+(Value (Unknown Not_null))
+and not both types
+    on the shrunk input:
+    (Value (Unknown (Maybe_null (Some v4))))
+    and
+    (Value (Unknown Not_null))
+    in the world of seed -166405389453425632
+    recorded as T7-5, the meet with a mutable block keeps too much (seed 40139): the value 1 has the meet,
+(Value (= 1))
+and not both types
+    on the shrunk input:
+    (Value (= 1))
+    and
+    (Value ((Mutable_block Heap_or_local) Not_null))
+    in the world of seed 1686301183863193517
+
+Two types of naked immediates and a world, for the meaning of meet (1500 cases, seeds 50000 to 51499)
+  1500 converted
+  join (binary): a value of one of the types has the join: 0 agree
+    1500 not run: the parameter of the joins is of kind value
+  join (n-way): a value of one of the types has the join: 0 agree
+    1500 not run: the parameter of the joins is of kind value
+  meet (binary): a value of both types has the meet: 1490 agree, 10 disagree as recorded
+    recorded as T1-1 (seed 50164): a value has both types, and the meet says of v1, which is 2, that it has the type
+(Value
+ ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+   (get_tag None)
+   (blocks (Known
+            ((known_tags [0 -> Unknown]) (other_tags Bottom)
+             (alloc_mode Heap_or_local)))) (extensions No_extensions)
+   (is_unique false)) Not_null))
+    on the shrunk input:
+    (Naked_immediate (Unknown [Get_tag v1]))
+    and
+    (Naked_immediate ((Known [0]) []))
+    in the world of seed 4267628038553257423
+  meet (n-way): a value of both types has the meet: 1490 agree, 10 disagree as recorded
+    recorded as T1-1 (seed 50164): a value has both types, and the meet says of v1, which is 2, that it has the type
+(Value
+ ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+   (get_tag None)
+   (blocks (Known
+            ((known_tags [0 -> Unknown]) (other_tags Bottom)
+             (alloc_mode Heap_or_local)))) (extensions No_extensions)
+   (is_unique false)) Not_null))
+    on the shrunk input:
+    (Naked_immediate (Unknown [Get_tag v1]))
+    and
+    (Naked_immediate ((Known [0]) []))
+    in the world of seed 4267628038553257423
+  meet (binary): a value of the meet has both types: 1175 agree, 6 disagree as recorded
+    319 not run: what the meet teaches is not true in the world
+    recorded as T7-6, the meet forgets a relation of a naked immediate (seed 50247): the value # 2 has the meet,
+(Naked_immediate (= v4))
+and not both types
+    on the shrunk input:
+    (Naked_immediate (= v4))
+    and
+    (Naked_immediate ((Known [2]) [Is_null v3]))
+    in the world of seed -4029428536059942018
+  meet (n-way): a value of the meet has both types: 1175 agree, 6 disagree as recorded
+    319 not run: what the meet teaches is not true in the world
+    recorded as T7-6, the meet forgets a relation of a naked immediate (seed 50247): the value # 2 has the meet,
+(Naked_immediate (= v4))
+and not both types
+    on the shrunk input:
+    (Naked_immediate (= v4))
+    and
+    (Naked_immediate ((Known [2]) [Is_null v3]))
+    in the world of seed -4029428536059942018
+
+Chosen pairs of types, for the meaning of meet and join (3 cases, seeds 60000 to 60002)
+  3 converted
+  join (binary): a value of one of the types has the join: 3 agree
+  join (n-way): a value of one of the types has the join: 3 agree
+  meet (binary): a value of both types has the meet: 3 agree
+  meet (n-way): a value of both types has the meet: 3 agree
+  meet (binary): a value of the meet has both types: 3 agree
+  meet (n-way): a value of the meet has both types: 3 agree
+
+No disagreement.
