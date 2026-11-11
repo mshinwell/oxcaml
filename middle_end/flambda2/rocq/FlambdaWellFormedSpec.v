@@ -64,9 +64,12 @@
    continuation with static bindings postdominates its body is left to
    the check here.
 
-   CR mshinwell: nothing here says that a well-formed unit is never
-   undefined for one of these reasons. It needs that a toplevel handler
-   runs once at most.
+   A well-formed unit, run on its own, is never undefined for one of
+   these reasons ([well_formed_never_faults_statement]): [static_fault]
+   is the three of them, as a test on a state. The proof does not use
+   that a handler with static bindings postdominates its body: a
+   non-recursive continuation is out of scope in its own handler, which
+   is enough for the handler to run once at most.
 
    The model does not mark exception handlers, so [raises_to] finds them:
    a continuation is one when a call names it as its exception
@@ -261,3 +264,63 @@ Definition step_extends_statics_statement : Prop :=
 Definition run_extends_statics_statement : Prop :=
   ∀ (n : nat) (s s' : state),
     run n s = Step s' -> statics_extend (statics_of s) (statics_of s').
+
+(* ======================================================================== *)
+(* A well-formed unit does nothing that is forbidden                        *)
+(* ======================================================================== *)
+
+Definition code_id_bound (statics : static_env) (id : code_id) : bool :=
+  match lookup id (static_code statics) with
+  | Some _ => true
+  | None => false
+  end.
+
+Definition symbol_bound (statics : static_env) (s : symbol) : bool :=
+  match lookup s (static_values statics) with
+  | Some _ => true
+  | None => false
+  end.
+
+(* A group binds a name twice, or a name that is bound already. *)
+Definition rebinds (names_of : static_binding -> list positive)
+    (is_bound : positive -> bool) (bindings : list static_binding) : bool :=
+  negb (distinct (flat_map names_of bindings))
+  || existsb is_bound (flat_map names_of bindings).
+
+(* The callee is a closure of code whose body binds something static. *)
+Definition calls_code_binding_statics (ap : apply_expr) (vars : env)
+    (statics : static_env) : bool :=
+  match eval_simple vars (ap_callee ap) with
+  | Some callee =>
+    match closure_of statics callee with
+    | Some (called, _) =>
+      match lookup called (static_code statics) with
+      | Some c => binds_statics (code_body c)
+      | None => false
+      end
+    | None => false
+    end
+  | None => false
+  end.
+
+(* The state is one the machine makes undefined to keep static bindings
+   from being executed twice. *)
+Definition static_fault (s : state) : bool :=
+  match s with
+  | State (Let_static bindings _) _ _ statics =>
+    rebinds code_ids_of_binding (code_id_bound statics) bindings
+    || rebinds symbols_of_binding (symbol_bound statics) bindings
+  | State (Let_cont_recursive handlers _) _ _ _ =>
+    handlers_bind_statics handlers
+  | State (Apply ap) vars _ statics =>
+    calls_code_binding_statics ap vars statics
+  | State (Let _ _ _ | Let_cont_non_recursive _ _ _ | Apply_cont _
+          | Switch _ _ | Invalid) _ _ _ =>
+    false
+  end.
+
+Definition well_formed_never_faults_statement : Prop :=
+  ∀ (unit_exn : continuation) (e : expr) (n : nat) (s : state),
+    well_formed_unit unit_exn e = true ->
+    run n (State e [] [] empty_static_env) = Step s ->
+    static_fault s = false.

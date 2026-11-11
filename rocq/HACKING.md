@@ -524,7 +524,11 @@ not a proof.
   of code or of a recursive handler must therefore keep whether it binds
   something static (the premise of `plug_refines` for such a context),
   and code is inlined only if its body binds nothing static
-  (`FlambdaApplySpec.inlinable`). A rewrite inside a handler may then
+  (`FlambdaApplySpec.inlinable`). A well-formed unit run on its own never
+  meets one of these three (`well_formed_never_faults`). The invariant of
+  the proof is about the names a state may still bind: they are distinct,
+  none is bound, and those of a handler are not among those of the
+  continuations its closure holds. A rewrite inside a handler may then
   rely on what was bound where the handler is defined: the lemmas for it
   are the ones ending in `_where` in `FlambdaContextProofs.v`, which take
   a property of the static environment that every extension keeps
