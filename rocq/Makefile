@@ -176,6 +176,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaTypingEnvExamplesSpec.v \
   FlambdaTypingEnvInvariantProofs.v \
   FlambdaTypingEnvInvariantSpec.v \
+  FlambdaTypingEnvKindedProofs.v \
+  FlambdaTypingEnvKindedSpec.v \
   FlambdaTypingEnvOperationsProofs.v \
   FlambdaTypingEnvOperationsSpec.v \
   FlambdaTypingEnvProofs.v \
