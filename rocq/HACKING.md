@@ -582,7 +582,14 @@ be proved correct, built a fragment at a time. The files follow the same Spec/Pr
     primitive carries itself are in range, and each symbol among the
     arguments is bound to something in range, since a primitive reads
     through a symbol: unboxing a symbol bound to a boxed number out of
-    range would give that number). To reason about one primitive,
+    range would give that number); and it does not tell apart values
+    that the observations read alike (`eval_prim_related`: where it has
+    a value on some arguments it has a related one on arguments related
+    to them, for a relation that `respects_observations`, such as the
+    one between a block and a symbol bound to an equal block. The law
+    goes one way. It is why no primitive may have a value that depends
+    on which allocation an immutable value is). To reason about one
+    primitive,
     rewrite with the equations `eval_prim_unary`, `eval_prim_binary`
     and `eval_prim_variadic`.
   - Adding a primitive is leaf work in those three files: a constructor,
