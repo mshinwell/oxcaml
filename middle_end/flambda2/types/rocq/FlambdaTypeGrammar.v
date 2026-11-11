@@ -412,16 +412,6 @@ Definition kind (t : flambda_type) : flambda_kind :=
   | Type_region _ => Region
   end.
 
-(* [Flambda_kind.Boxable_number.t]: the kinds of the numbers that can be
-   boxed. *)
-Definition boxable_number (k : naked_number_kind) : bool :=
-  match k with
-  | Kind_naked_float32 | Kind_naked_float | Kind_naked_int32
-  | Kind_naked_int64 | Kind_naked_nativeint | Kind_naked_vec128
-  | Kind_naked_vec256 | Kind_naked_vec512 | Kind_naked_mask => true
-  | Kind_naked_immediate | Kind_naked_int8 | Kind_naked_int16 => false
-  end.
-
 (* The kinds of the fields of a block of [size] fields of a shape
    ([Flambda_kind.Block_shape.element_kind], for each field). A mixed
    block has the size that its shape gives it. *)

@@ -93,8 +93,9 @@
    - The heads of kind value are disjoint: a block, a boxed number, a
      closure and a string are four different things
      ([meet_head_of_kind_value_non_null]: "This assumes that all the
-     different constructors are incompatible"). The observations below
-     are disjoint to match ([observations_disjoint_statement]).
+     different constructors are incompatible"). The observations of the
+     machine are disjoint to match ([observations_disjoint_statement],
+     in FlambdaValueSpec.v).
    - The variables [is_int], [get_tag] and [is_null] of a type and the
      relations of a naked immediate say the same thing from two sides,
      and the compiler records the two together
@@ -156,10 +157,9 @@
        [reduce_head_of_kind_naked_immediate] drops the relation. The
        primitive has no value on an immediate, and nothing here gives
        it one.
-     The result of a primitive, where it has one, is to be related:
-     that is for the simplification of the primitives to prove, and is
-     all that ties the two. Where a primitive has a result is not said
-     here.
+     The result of a primitive, where it has one, is related
+     ([primitive_related_statement]), and that is all that ties the
+     two. Where a primitive has a result is not said here.
    - One reduction of [Meet] is not sound for this meaning, nor for any
      under which the environments that unboxing makes are true: from a
      relation [Get_tag] whose number is among some tags,
@@ -259,11 +259,16 @@
    Where the machine is behind the grammar. The meaning is that of the
    machine of today (FlambdaSemanticsSpec.v), read through observations
    so that it changes with the machine and not with this file:
-   - Blocks and boxed numbers exist only behind symbols ([Static_block],
-     [Static_boxed_number]). Workstream C1 adds [Value_block] and
-     [Value_boxed_number] and defines [block_of], [boxed_number_of],
-     [string_of] and [kind_of_value] in the semantics, as they are
-     here; the four definitions here go then.
+   - Blocks, boxed numbers and strings are read through the machine's
+     [block_of], [boxed_number_of] and [string_of], and the kind of a
+     value is the machine's [kind_of_value] (FlambdaValueSpec.v). A
+     block or a boxed number is a value by itself or what a symbol is
+     bound to, and what is said here of the one is said of the other. The
+     two are different values all the same, and an alias tells them
+     apart: a type [Equals s] is of the value of [s] and no other, so
+     not of a symbol bound to a block with the tag and the fields of
+     the block that [s] is. What is stated of lifting has to allow for
+     that.
    - Closures are of sets of one function whose slot has no name. As
      agreed with workstream C3, such a closure is read as the closure at
      [unnamed_function_slot] of a set with that one function. C3 adds
@@ -277,11 +282,15 @@
    - There is no value of kind [Region] or [Rec_info] but [Poison].
    - [Poison] is a value of its kind like another: at kind value it is
      not [Null], and it is no immediate and nothing allocated (see the
-     choices above for the types it has).
-   - The primitives are abstract. When they are data (C1) the relations
-     stay as they are, and what is to be proved is that the result of
-     [Is_null], of [Is_int] of a variant and of [Get_tag], where there
-     is one, is related to the value.
+     choices above for the types it has). The contents of a boxed
+     number may be poison; such a box has a type [Boxed_number] only if
+     poison has the type of the contents.
+   - The primitives are data (FlambdaPrimitiveSpec.v), and the relations
+     are not defined with them. The result of [Is_null], of [Is_int]
+     of a variant and of [Get_tag], where the primitive has one, is
+     related to the value ([primitive_related_statement]). A constant
+     is a tagged immediate here whatever its number; the primitives
+     have a value only on one in the range of the machine.
 
    The statements say what each form of type means for the types built
    by the creation functions of the compiler, as an equivalence. The
@@ -301,15 +310,11 @@ Import ListNotations.
 (* What the meaning reads of a value                                        *)
 (* ======================================================================== *)
 
-(* Every definition of this section but [number_of_const] is to be the
-   core's (see the header): it is here until the machine has it. *)
-
-(* The kind of a value. *)
-Definition kind_of_value (v : value) : flambda_kind :=
-  match v with
-  | Value_const c => kind_of_const c
-  | Value_closure _ _ | Value_symbol _ => Value
-  end.
+(* The meaning reads a value through the observations of the machine
+   (FlambdaValueSpec.v): [kind_of_value], [block_of], [boxed_number_of],
+   [string_of] and [closure_of]. What is defined here is the number of
+   a constant, and the reading of a closure as one of a set, which is to
+   be the machine's (see the header). *)
 
 (* The number that a constant is, if it is one. *)
 Definition number_of_const (c : const) : option Z :=
@@ -319,46 +324,6 @@ Definition number_of_const (c : const) : option Z :=
   | Naked_nativeint i | Naked_vec128 i | Naked_vec256 i | Naked_vec512 i
   | Naked_mask i => Some i
   | Null | Poison _ => None
-  end.
-
-(* A value as an immutable block: its tag and its fields. *)
-Definition block_of (statics : static_env) (v : value)
-    : option (Z * list value) :=
-  match v with
-  | Value_symbol s =>
-    match lookup s (static_values statics) with
-    | Some (Static_block tag fields) => Some (tag, fields)
-    | _ => None
-    end
-  | Value_const _ | Value_closure _ _ => None
-  end.
-
-(* A value as a boxed number: the number inside, of a kind that can be
-   boxed. *)
-Definition boxed_number_of (statics : static_env) (v : value)
-    : option const :=
-  match v with
-  | Value_symbol s =>
-    match lookup s (static_values statics) with
-    | Some (Static_boxed_number (Value_const c)) =>
-      match kind_of_const c with
-      | Naked_number k => if boxable_number k then Some c else None
-      | _ => None
-      end
-    | _ => None
-    end
-  | Value_const _ | Value_closure _ _ => None
-  end.
-
-(* A value as a string: its bytes. *)
-Definition string_of (statics : static_env) (v : value) : option (list Z) :=
-  match v with
-  | Value_symbol s =>
-    match lookup s (static_values statics) with
-    | Some (Static_string bytes) => Some bytes
-    | _ => None
-    end
-  | Value_const _ | Value_closure _ _ => None
   end.
 
 (* The function slot of a closure of the machine of today, whose sets of
@@ -392,17 +357,6 @@ Definition project_function_slot (statics : static_env)
   | None => None
   end.
 
-(* The four ways in which a value is allocated are exclusive. *)
-Definition observations_disjoint_statement : Prop :=
-  ∀ (statics : static_env) (v : value),
-    (block_of statics v <> None
-     -> closure_of statics v = None
-        ∧ boxed_number_of statics v = None
-        ∧ string_of statics v = None)
-    ∧ (closure_of statics v <> None
-       -> boxed_number_of statics v = None ∧ string_of statics v = None)
-    ∧ (boxed_number_of statics v <> None -> string_of statics v = None).
-
 (* A closure is the closure of one of the functions of its set. *)
 Definition closure_in_set_slot_statement : Prop :=
   ∀ (statics : static_env) (v : value) (slot : function_slot)
@@ -415,7 +369,7 @@ Definition closure_in_set_slot_statement : Prop :=
 (* The relations that types speak of                                        *)
 (* ======================================================================== *)
 
-Definition is_tagged_immediate (v : value) : Prop :=
+Definition is_immediate (v : value) : Prop :=
   ∃ i : Z, v = Value_const (Tagged_immediate i).
 
 Definition is_block (statics : static_env) (v : value) : Prop :=
@@ -437,11 +391,29 @@ Definition relation_holds (statics : static_env) (relation : Relation.t)
     (v = Value_const Null ∧ n = 1%Z)
     ∨ (kind_of_value v = Value ∧ v <> Value_const Null ∧ n = 0%Z)
   | Relation.Is_int =>
-    (is_tagged_immediate v ∧ n = 1%Z) ∨ (is_block statics v ∧ n = 0%Z)
+    (is_immediate v ∧ n = 1%Z) ∨ (is_block statics v ∧ n = 0%Z)
   | Relation.Get_tag =>
-    is_tagged_immediate v
+    is_immediate v
     ∨ ∃ fields : list value, block_of statics v = Some (n, fields)
   end.
+
+(* The primitive of a relation: the one whose result the compiler
+   records with it ([Simplify_unary_primitive.simplify_is_null],
+   [simplify_is_int] with [variant_only], [simplify_get_tag]). *)
+Definition primitive_of_relation (relation : Relation.t) : prim :=
+  match relation with
+  | Relation.Is_null => Unary Is_null
+  | Relation.Is_int => Unary (Is_int true)
+  | Relation.Get_tag => Unary Get_tag
+  end.
+
+(* The result of the primitive, where it has one, is related to its
+   argument. *)
+Definition primitive_related_statement : Prop :=
+  ∀ (statics : static_env) (relation : Relation.t) (v : value) (n : Z),
+    eval_prim statics (primitive_of_relation relation) [v]
+    = Some (Value_const (Naked_immediate n)) ->
+    relation_holds statics relation v n.
 
 (* ======================================================================== *)
 (* Maps of types                                                            *)
@@ -840,7 +812,7 @@ Definition is_int_for_scrutinee_satisfied_statement : Prop :=
     <-> ∃ (i : Z) (w : value),
           v = Value_const (Naked_immediate i)
           ∧ value_of_name vars scrutinee = Some w
-          ∧ ((is_tagged_immediate w ∧ i = 1%Z)
+          ∧ ((is_immediate w ∧ i = 1%Z)
              ∨ (is_block statics w ∧ i = 0%Z)).
 
 (* The scrutinee may be an immediate, as a parameter that is unboxed
@@ -851,7 +823,7 @@ Definition get_tag_for_block_satisfied_statement : Prop :=
     <-> ∃ (i : Z) (w : value),
           v = Value_const (Naked_immediate i)
           ∧ value_of_name vars block = Some w
-          ∧ (is_tagged_immediate w
+          ∧ (is_immediate w
              ∨ ∃ fields : list value, block_of statics w = Some (i, fields)).
 
 Definition is_null_for_scrutinee_satisfied_statement : Prop :=
@@ -969,7 +941,7 @@ Definition create_variant_satisfied_statement : Prop :=
 Definition any_tagged_immediate_satisfied_statement : Prop :=
   ∀ (statics : static_env) (vars : env) (v : value),
     type_satisfied statics vars v any_tagged_immediate
-    <-> is_tagged_immediate v.
+    <-> is_immediate v.
 
 Definition tag_immediate_satisfied_statement : Prop :=
   ∀ (statics : static_env) (vars : env) (v : value) (t : flambda_type),
@@ -1228,7 +1200,7 @@ Definition relation_get_tag_statement : Prop :=
     (tags : list Z) (alloc_mode : Alloc_mode.t),
     relation_holds statics Relation.Get_tag w n ->
     n ∈ tags ->
-    is_tagged_immediate w
+    is_immediate w
     ∨ type_satisfied statics vars w (blocks_with_these_tags tags alloc_mode).
 
 (* ======================================================================== *)

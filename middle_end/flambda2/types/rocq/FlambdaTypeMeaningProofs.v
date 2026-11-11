@@ -34,7 +34,8 @@
 From Stdlib Require Import ZArith List Bool Lia Setoid.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaMapProofs FlambdaSemanticsSpec FlambdaWellFormedSpec.
+  FlambdaMapProofs FlambdaSemanticsSpec FlambdaValueProofs
+  FlambdaPrimitiveProofs FlambdaWellFormedSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec.
 Import ListNotations.
@@ -43,32 +44,23 @@ Import ListNotations.
 (* What the meaning reads of a value                                        *)
 (* ======================================================================== *)
 
-Theorem observations_disjoint : observations_disjoint_statement.
-Proof.
-  intros statics v. unfold block_of, boxed_number_of, string_of.
-  destruct v as [c | code slots | s]; simpl;
-    [ repeat split; congruence | repeat split; congruence | ].
-  destruct (lookup s (static_values statics)) as [[ | | [] | ] | ];
-    repeat split; congruence.
-Qed.
-
 Lemma block_of_kind (statics : static_env) (v : value) (tag : Z)
     (fields : list value) :
   block_of statics v = Some (tag, fields) -> kind_of_value v = Value.
-Proof. destruct v; [ discriminate | discriminate | reflexivity ]. Qed.
+Proof. destruct v; try discriminate; intros _; reflexivity. Qed.
 
 Lemma boxed_number_of_kind (statics : static_env) (v : value) (c : const) :
   boxed_number_of statics v = Some c -> kind_of_value v = Value.
-Proof. destruct v; [ discriminate | discriminate | reflexivity ]. Qed.
+Proof. destruct v; try discriminate; intros _; reflexivity. Qed.
 
 Lemma string_of_kind (statics : static_env) (v : value) (bytes : list Z) :
   string_of statics v = Some bytes -> kind_of_value v = Value.
-Proof. destruct v; [ discriminate | discriminate | reflexivity ]. Qed.
+Proof. destruct v; try discriminate; intros _; reflexivity. Qed.
 
 Lemma closure_of_kind (statics : static_env) (v : value)
     (closure : code_id * list (value_slot * value)) :
   closure_of statics v = Some closure -> kind_of_value v = Value.
-Proof. destruct v; try discriminate; reflexivity. Qed.
+Proof. destruct v; try discriminate; intros _; reflexivity. Qed.
 
 Lemma closure_in_set_kind (statics : static_env) (v : value)
     (closure :
@@ -87,6 +79,80 @@ Proof.
   intros statics v slot functions value_slots. unfold closure_in_set.
   destruct (closure_of statics v) as [[code slots] | ]; [ | discriminate ].
   intros [= <- <- _]. reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* Which value a value is                                                   *)
+(* ======================================================================== *)
+
+(* A definition by cases on the value where the meaning says "it is
+   [Null]", "it is a tagged immediate" or "it is a naked immediate": the
+   three lemmas below say what such a case analysis comes to, so that a
+   proof need not look at the constructors of values. *)
+
+Lemma null_or_not {A : Type} (v : value) (a b : A) :
+  (v = Value_const Null
+   ∧ match v with
+     | Value_const Null => a
+     | _ => b
+     end
+     = a)
+  ∨ (v <> Value_const Null
+     ∧ match v with
+       | Value_const Null => a
+       | _ => b
+       end
+       = b).
+Proof.
+  destruct v as [c | code slots | s | tag fields | c'];
+    [ destruct c | | | | ];
+    first
+      [ left; split; reflexivity
+      | right; split; [ discriminate | reflexivity ] ].
+Qed.
+
+Lemma tagged_immediate_or_not {A : Type} (v : value) (a : Z -> A) (b : A) :
+  (∃ i : Z,
+    v = Value_const (Tagged_immediate i)
+    ∧ match v with
+      | Value_const (Tagged_immediate i) => a i
+      | _ => b
+      end
+      = a i)
+  ∨ ((∀ i : Z, v <> Value_const (Tagged_immediate i))
+     ∧ match v with
+       | Value_const (Tagged_immediate i) => a i
+       | _ => b
+       end
+       = b).
+Proof.
+  destruct v as [c | code slots | s | tag fields | c'];
+    [ destruct c | | | | ];
+    first
+      [ left; eexists; split; reflexivity
+      | right; split; [ intros ?; discriminate | reflexivity ] ].
+Qed.
+
+Lemma naked_immediate_or_not {A : Type} (v : value) (a : Z -> A) (b : A) :
+  (∃ i : Z,
+    v = Value_const (Naked_immediate i)
+    ∧ match v with
+      | Value_const (Naked_immediate i) => a i
+      | _ => b
+      end
+      = a i)
+  ∨ ((∀ i : Z, v <> Value_const (Naked_immediate i))
+     ∧ match v with
+       | Value_const (Naked_immediate i) => a i
+       | _ => b
+       end
+       = b).
+Proof.
+  destruct v as [c | code slots | s | tag fields | c'];
+    [ destruct c | | | | ];
+    first
+      [ left; eexists; split; reflexivity
+      | right; split; [ intros ?; discriminate | reflexivity ] ].
 Qed.
 
 (* ======================================================================== *)
@@ -579,6 +645,58 @@ Proof.
     + left. split; reflexivity.
     + right. split; [ exact Hkind | ].
       split; [ discriminate | reflexivity ].
+Qed.
+
+(* The result of a primitive is related to its argument. *)
+
+Lemma tagged_immediate_is_immediate (v : value) :
+  FlambdaPrimitiveSpec.is_tagged_immediate v = true -> is_immediate v.
+Proof.
+  destruct v as [c | code slots | s | tag fields | c]; try discriminate.
+  destruct c; try discriminate. intros _. eexists. reflexivity.
+Qed.
+
+Lemma allocated_not_null (statics : static_env) (v : value) :
+  is_allocated statics v = true ->
+  kind_of_value v = Value ∧ v <> Value_const Null.
+Proof.
+  destruct v as [c | code slots | s | tag fields | c]; try discriminate;
+    intros _; (split; [ reflexivity | discriminate ]).
+Qed.
+
+Theorem primitive_related : primitive_related_statement.
+Proof.
+  intros statics relation v n.
+  destruct relation; simpl; rewrite eval_prim_unary; simpl.
+  - unfold eval_is_null.
+    destruct (null_or_not v (Some true)
+                (if FlambdaPrimitiveSpec.is_tagged_immediate v
+                    || is_allocated statics v
+                 then Some false
+                 else None))
+      as [[-> _] | [Hnot_null ->]].
+    + simpl. intros [= <-]. left. split; reflexivity.
+    + destruct (FlambdaPrimitiveSpec.is_tagged_immediate v) eqn:Himmediate;
+        simpl.
+      * intros [= <-]. right.
+        destruct (tagged_immediate_is_immediate v Himmediate) as [i ->].
+        split; [ reflexivity | ]. split; [ discriminate | reflexivity ].
+      * destruct (is_allocated statics v) eqn:Hallocated; [ | discriminate ].
+        intros [= <-]. right.
+        destruct (allocated_not_null statics v Hallocated) as [Hkind _].
+        split; [ exact Hkind | ]. split; [ exact Hnot_null | reflexivity ].
+  - unfold eval_is_int.
+    destruct (FlambdaPrimitiveSpec.is_tagged_immediate v) eqn:Himmediate;
+      simpl.
+    + intros [= <-]. left.
+      split; [ exact (tagged_immediate_is_immediate v Himmediate) | ].
+      reflexivity.
+    + destruct (block_of statics v) as [[tag fields] | ] eqn:Hblock;
+        [ | discriminate ].
+      simpl. intros [= <-]. right.
+      split; [ exists tag, fields; exact Hblock | reflexivity ].
+  - destruct (block_of statics v) as [[tag fields] | ]; [ | discriminate ].
+    simpl. intros [= <-]. right. exists fields. reflexivity.
 Qed.
 
 Theorem these_tagged_immediates_satisfied
@@ -1669,7 +1787,8 @@ Hypothesis Hextend : statics_extend statics statics'.
 Lemma block_of_extend (v : value) (block : Z * list value) :
   block_of statics v = Some block -> block_of statics' v = Some block.
 Proof.
-  destruct v as [c | code slots | s]; simpl; try discriminate.
+  destruct v as [c | code slots | s | tag fields | c]; simpl;
+    try discriminate; auto.
   destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hlookup;
     [ | discriminate ].
   rewrite (proj2 Hextend s allocated Hlookup). auto.
@@ -1678,7 +1797,8 @@ Qed.
 Lemma boxed_number_of_extend (v : value) (c : const) :
   boxed_number_of statics v = Some c -> boxed_number_of statics' v = Some c.
 Proof.
-  destruct v as [c' | code slots | s]; simpl; try discriminate.
+  destruct v as [c' | code slots | s | tag fields | c']; simpl;
+    try discriminate; auto.
   destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hlookup;
     [ | discriminate ].
   rewrite (proj2 Hextend s allocated Hlookup). auto.
@@ -1687,7 +1807,8 @@ Qed.
 Lemma string_of_extend (v : value) (bytes : list Z) :
   string_of statics v = Some bytes -> string_of statics' v = Some bytes.
 Proof.
-  destruct v as [c | code slots | s]; simpl; try discriminate.
+  destruct v as [c | code slots | s | tag fields | c]; simpl;
+    try discriminate; auto.
   destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hlookup;
     [ | discriminate ].
   rewrite (proj2 Hextend s allocated Hlookup). auto.
