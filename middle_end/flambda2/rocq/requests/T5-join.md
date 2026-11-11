@@ -17,8 +17,7 @@ in the meet: the environment of the meet), a scope, and a list of
 
 1. **Upper bound under one extension** (`join_admits_use`). For each
    use and each valuation that satisfies that use and the source
-   strictly and gives a value to every variable of the use (see
-   below), some valuation satisfies the target strictly, gives every
+   strictly, some valuation satisfies the target strictly, gives every
    variable that the use or the source knows, and that had a value,
    that value, and gives every variable that has a definition in the
    analysis the value of that definition at that use, where it has
@@ -50,29 +49,40 @@ later join gets `uses_kinded`, and a meet the kinds it asks (T4 needs
 this for a meet that follows a disjunction). To be proved of the
 transcription.
 
-**Restricted to valuations that are total on the use (T5-10).**
-`join_admits_use` has the premise `total_on use valuation`: the
-valuation gives a value to every variable the use knows. A strict
-valuation need not, and the target of an n-way join is satisfied on
-some runs only by one that does not (the variables imported from the
-other uses, T5-5). But the compiler's join reads "the environment has
-a type for `x`" as "`x` has a value": where `recover_inverse_relations`
-puts a relation back on a scrutinee (the result of the relation may
-have a value at a use where the scrutinee has none), and where a name
-has the type bottom at a use (the type joiner drops it; the target may
-then force a value on the name, or be bottom). Without the premise the
-upper bound is not expected to hold of the transcription, so it is
-not claimed: the unrestricted statement is kept as
-`join_admits_use_of_any`, for the refuting instance, which is owed
-when the functions are all transcribed. The premise is not kept by the
-join itself, so the contract says nothing of a second join, or a meet,
-on a run that came through a use that did not define an imported
-variable. A weaker conclusion instead (target satisfied but for the
-results of relations on names with no value) was rejected with T4 and
-the reviewer: the meet that follows reduces the scrutinee's type from
-such a result and can answer bottom on a run that exists. What callers
-can ask of their inputs so that the imports do no harm is open
-(question 5 below).
+**The compiler's join and names with no value (T5-10).** The contract
+is strict: `join_admits_use` speaks of every valuation that satisfies
+the use and the source strictly, and one may give no value to a
+variable the use knows (the target of an n-way join is satisfied on
+some runs only by such a valuation: the variables imported from the
+other uses, T5-5). That is what the meet assumes of its join. The
+compiler's join does not have it: it reads "the environment has a
+type for `x`" as "`x` has a value". So what is to be proved of the
+transcription is `sound_join_where_values_are_read`: the same
+contract for the runs that satisfy two named conditions, and inputs
+that satisfy a third:
+
+- `scrutinees_have_values`: for every relation the target has on a
+  variable (put back by `recover_inverse_relations` whenever every
+  joined environment has a type for the scrutinee), the scrutinee has
+  a value in every run in which the result has one. Nothing in the
+  compiler establishes it; a `CR mshinwell` is there.
+- `joined_variables_have_values`: a variable of the source that every
+  live use has an equation on has a value in the run (otherwise the
+  meet of its source type with the joined type may be bottom on a run
+  that exists). This is what "an equation is added on a name where
+  the name has a value" gives a caller.
+- `uses_without_bottom_types`: no name has the type bottom at a live
+  use (the type joiner drops such a type; the target may then force a
+  value on the name, or be bottom).
+
+A join that has the strict contract has this one
+(`sound_join_where_values_are_read_of_sound`, proved). An instance
+showing that the transcription lacks the strict contract without the
+first condition is owed; it needs the functions to be all transcribed.
+A weaker conclusion (target satisfied but for the results of such
+relations) was rejected with T4 and the reviewer: the meet that
+follows reduces the scrutinee's type from such a result and can
+answer bottom on a run that exists.
 
 In the machine (`join_guarantees_in_machine_statement` and
 `join_admits_use_in_machine_statement`, proved): if a variable that
@@ -87,7 +97,7 @@ reading of the join's state (`n_way_join_type_sound`,
 `n_way_join_simples_sound`): a value of an input's type has the joined
 type under any valuation of the target that extends that input's.
 
-Proved now (ten statements, no axioms): the three in-the-machine
+Proved now (eleven statements, no axioms): the three in-the-machine
 corollaries; what a constant in the analysis means, and that the two
 lists Simplify folds over hold what the vectors have at their indices;
 that the contract is met by the join that answers the source and is
@@ -97,10 +107,8 @@ not an upper bound; as changed it is).
 
 **What it does not yet cover of Simplify's joins.** The contract is a
 foundation for runs in which one valuation satisfies a use and the
-source strictly and is total on the use, through environments that
-are kinded. Outside it:
+source strictly, through environments that are kinded. Outside it:
 
-- a run on which a variable the use knows has no value (above);
 - a use made by variant unboxing with a poison argument (D26, T5-7;
   the unboxing workstream owes what holds at a join after an unboxed
   continuation);
@@ -218,8 +226,8 @@ Also required and not in the header: every environment well formed;
   and the binary `join_closures_entry` do). The human has taken that
   change for the integration branch, so it is the compiler that is
   transcribed: `n_way_join_function_types`, with
-  `n_way_join_function_types_sound_statement` (proved). The entry
-  stays in the record of discrepancies as demonstrated and fixed.
+  `n_way_join_function_types_sound_statement` (proved). T1-4 is
+  now a discrepancy that was demonstrated and fixed.
 - **R1-16** (an empty set given to
   `create_naked_immediates_non_empty` when every head reduces to
   bottom): not looked at further; still traced, not shown reachable.
@@ -378,12 +386,13 @@ I call (`add_variable_definition`, `add_env_extension`,
    mean nothing on some runs, and the compiler goes on treating every
    variable of an environment as having a value (the relations it
    recovers at the next join; the reductions of the meet). The model
-   can state the join only for runs on which every variable of the
-   use has a value, and the join does not keep that. Either an
-   argument is found that the imported variables are never reached on
-   the other runs in a way that matters (an invariant of how Simplify
-   and the meet use environments, not known today), or the compiler
-   should not recover a relation on a scrutinee that was imported, or
-   should record which variables may mean nothing. A program that
-   shows wrong code would settle which; a shape for one is in T5-10.
-   No recommendation yet beyond asking X2 or X5 to try the shape.
+   proves the compiler's join only for runs on which each recovered
+   scrutinee has a value where the result of its relation has one,
+   and nothing establishes that. Either an argument is found that an
+   imported variable is never reached on the other runs in a way that
+   matters (an invariant of how Simplify and the meet use
+   environments, not known today), or the compiler should not recover
+   a relation on a scrutinee that was imported, or should record
+   which variables may mean nothing. A program that shows wrong code
+   would settle which; a shape for one has been given to the agent
+   that reproduces candidates.

@@ -92,11 +92,24 @@ Proof.
     + intros index id Hlookup. discriminate.
     + intros x simples kind index simple Hlookup. discriminate.
     + intros x simples kind index simple Hlookup. discriminate.
-  - intros index use Huse statics valuation _ Hsatisfied _.
+  - intros index use Huse statics valuation _ Hsatisfied.
     exists valuation. split; [ exact Hsatisfied | ].
     split; [ intros x v _ Hvalue; exact Hvalue | ].
     split; [ intros x v _ Hvalue; exact Hvalue | ].
     split; intros x simples kind simple v Hlookup; discriminate.
+Qed.
+
+Theorem sound_join_where_values_are_read_of_sound
+  : sound_join_where_values_are_read_of_sound_statement.
+Proof.
+  intros typing_env_well_formed A join Hsound avoid inputs target analysis
+    Hwell_formed Hkinded _ Hjoin.
+  destruct (Hsound avoid inputs target analysis Hwell_formed Hkinded Hjoin)
+    as [Htarget [Hkeeps [Hintroduces [Hanalysis Hadmits]]]].
+  split; [ exact Htarget | ]. split; [ exact Hkeeps | ].
+  split; [ exact Hintroduces | ]. split; [ exact Hanalysis | ].
+  intros index use Huse statics valuation Hsatisfied Hsource _.
+  exact (Hadmits index use Huse statics valuation Hsatisfied Hsource).
 Qed.
 
 Theorem join_to_bottom_unsound : join_to_bottom_unsound_statement.
@@ -127,11 +140,8 @@ Proof.
   { exists tt. reflexivity. }
   destruct (create_satisfied_strictly (Static_env [] []))
     as [valuation Hsatisfied].
-  assert (Htotal : total_on Typing_env.create valuation).
-  { intros x Hknown. discriminate. }
   destruct
-    (Hadmits 0 Typing_env.create Huse _ valuation Hsatisfied Hsatisfied
-       Htotal)
+    (Hadmits 0 Typing_env.create Huse _ valuation Hsatisfied Hsatisfied)
     as [valuation' [Htarget _]].
   exact
     (bottom_not_satisfied_but (fun _ => False) _ valuation'
@@ -164,8 +174,8 @@ Theorem join_admits_use_in_machine : join_admits_use_in_machine_statement.
 Proof.
   intros source use target definitions definitions_at_normal_mode index
     statics vars Hadmits Hscope
-    [Hbound [valuation [Huse [Hsource [Htotal Hterms]]]]].
-  destruct (Hadmits statics valuation Huse Hsource Htotal)
+    [Hbound [valuation [Huse [Hsource Hterms]]]].
+  destruct (Hadmits statics valuation Huse Hsource)
     as [valuation' [Htarget [Hagrees [_ [_ Hdefinitions]]]]].
   exists valuation'. split; [ exact Htarget | ].
   split; [ | split ].
