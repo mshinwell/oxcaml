@@ -1,0 +1,36 @@
+let $camlExported_apply__first_const_0 = Block 0 () in
+(let code size(3)
+       succ_0 (x/47 : imm tagged)
+         my_closure/48 &my_alloc_region/49 my_depth/50
+         -> k/16 * k/17
+         : imm tagged =
+   let next_depth/51 = rec_info (succ my_depth/50) in
+   let int_add/52 = %int_barith.add (x/47, 1) in
+   cont k/16 (int_add/52)
+ in
+ let code size(6)
+       apply_1 (f/53 : val, x/54)
+         my_closure/55 &my_alloc_region/56 my_depth/57
+         -> k/18 * k/19 =
+   let next_depth/58 = rec_info (succ my_depth/57) in
+   apply &my_alloc_region/56 f/53 (x/54) -> k/18 * k/19
+ in
+ let succ/59 = closure succ_0 @`succ` &toplevel in
+ let apply/60 = closure apply_1 @`apply` &toplevel in
+ (let Popaque/63 = %opaque (3) in
+  apply direct(apply_1 &toplevel)
+    (apply/60 : _ -> imm tagged) (succ/59, Popaque/63) -> k/20 * error)
+   where k/20 (result/61 : imm tagged) =
+     let Pmakeblock/62 =
+       %block.[`0`].`toplevel` (succ/59, apply/60, result/61)
+     in
+     cont k/15 (Pmakeblock/62))
+  where k/15 define_root_symbol (module_block/43) =
+    let field_0/44 = %block_load.tag[`0`].`size`[`3`].[`0`] (module_block/43)
+    in
+    let field_1/45 = %block_load.tag[`0`].`size`[`3`].[`1`] (module_block/43)
+    in
+    let field_2/46 = %block_load.tag[`0`].`size`[`3`].[`2`] (module_block/43)
+    in
+    let $camlExported_apply = Block 0 (field_0/44, field_1/45, field_2/46) in
+    cont done ($camlExported_apply)

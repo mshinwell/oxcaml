@@ -101,6 +101,7 @@ module Validate = Flambda2_rocq_semantics.FlambdaValidateSpec
 module Lift = Flambda2_rocq_semantics.FlambdaLiftSpec
 module My_closure = Flambda2_rocq_semantics.FlambdaMyClosureSpec
 module Unused_slots = Flambda2_rocq_semantics.FlambdaUnusedSlotsSpec
+module Float_code = Flambda2_rocq_semantics.FlambdaFloatCodeSpec
 module Numbers = Flambda2_rocq_semantics.BinNums
 module P = Flambda_primitive
 
@@ -1797,10 +1798,11 @@ let well_formed_before ~filename (before : Flambda_unit.t) =
    named here and compares again. Which names those are is a guess that it
    checks. Failing that too, it is asked again, with the [Let]s that Simplify
    seems to have made static bindings: it lifts them in the term before as it
-   was given, if it may, normalises the result, uses what the unit binds its
-   symbols to, removes the value slots of its static sets of closures that the
-   term after has not got, and compares again. What is lifted and which slots
-   are guesses too. *)
+   was given, if it may, normalises the result, reads the value slots of static
+   closures and uses what the unit binds its symbols to, removes the value slots
+   of its static sets of closures that the term after has not got, moves the
+   bindings of code of both terms up, and compares again. What is lifted and
+   which slots are guesses too. *)
 let validate ~(outcome_before : outcome) (before : converted)
     (after : converted) =
   let inlined = Normalise.inline_calls [] before.body in
@@ -1821,12 +1823,13 @@ let validate ~(outcome_before : outcome) (before : converted)
     Validate.validate_unit rounds unused [] nothing_lifted before.body
       after.body
   in
-  (* The term before that was compared last, how it was made, and whether value
-     slots were removed from it. *)
-  let validation, compared, how, slots_removed =
+  (* The two terms that were compared last, how the term before was made, and
+     whether value slots were removed from it. *)
+  let validation, compared, compared_after, how, slots_removed =
     let not_lifted =
       ( validation,
         Validate.without_statics unused normalised_before,
+        normalised_after,
         "normalised",
         false )
     in
@@ -1838,15 +1841,18 @@ let validate ~(outcome_before : outcome) (before : converted)
       match Lift.lift_unit lifting before.body with
       | None -> not_lifted
       | Some lifted -> (
-        (* As [validate_unit] does: what the unit binds its symbols to is used
-           in every round of the normalisation. *)
+        (* As [validate_unit] does: the value slots of static closures are read
+           and what the unit binds its symbols to is used in every round of the
+           normalisation, and the bindings of code of both terms are moved up
+           before the comparison. *)
         let lifted = Validate.normalise_lifted rounds lifted in
         let slots = unused_slots_guess lifted normalised_after in
         let lifted = Validate.without_slots slots lifted in
         let unused = unused_statics lifted in
         ( Validate.validate_unit rounds unused slots lifting before.body
             after.body,
-          Validate.without_statics unused lifted,
+          Float_code.float_code (Validate.without_statics unused lifted),
+          Float_code.float_code normalised_after,
           "lifted and normalised",
           match slots with [] -> false | _ :: _ -> true )))
     | Same_up_to_bound_names | Same_once_normalised
@@ -1876,7 +1882,7 @@ let validate ~(outcome_before : outcome) (before : converted)
     Format.printf
       "@[<v 2>  the term before, %s:@ %a@]@.@[<v 2>  the term after, \
        normalised:@ %a@]@."
-      how print_expr compared print_expr normalised_after
+      how print_expr compared print_expr compared_after
   | Not_validated | Same_up_to_bound_names | Same_once_normalised
   | Same_once_unused_statics_removed | Same_once_lifted ->
     ()
