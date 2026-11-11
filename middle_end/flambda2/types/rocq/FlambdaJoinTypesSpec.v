@@ -88,12 +88,10 @@
      head of naked immediates, under a valuation that satisfies an
      environment strictly, has the head as the function reduces it in
      that environment; in particular the function does not answer
-     bottom. The owner of the meet proves it. It is true only if a
+     bottom. The owner of the meet proves it. It is true because a
      relation [Is_int] or [Get_tag] is never true of a scrutinee that
-     holds poison (decision D26, as amended), which the meaning of
-     types that this file is built on does not say yet: until it does,
-     the premise cannot be met where an [Is_int] relation is on a name
-     whose canonical element is a poison constant.
+     holds poison (decision D26, as amended; [relation_holds] of
+     FlambdaTypeMeaningSpec.v).
    - [expand_head_sound]: a value that has a type has the type as
      [Expand_head] expands it, under a valuation that satisfies the
      environment strictly; the expanded type is in the scope of the
@@ -108,20 +106,22 @@
      of the well-formedness of environments. [Expand_head] answers the
      type of such a constant whatever the kind of the alias
      (discrepancy T4-7), so without it the join of aliases of one kind
-     could be a type of another. It follows from the aliases of an
-     environment being consistent and of one kind ([aliases_kinded] of
-     that file), which the meet keeps; the contract of the join of
-     types does not ask that of the environments joined, so it is
-     asked here. (A condition of structure would give it too, that
-     the type an environment has for a name that is not canonical is
-     the alias type of its canonical element; the compiler's
-     environments do not all have that one: a later demotion of the
-     canonical element leaves the type as it was, and discrepancy
-     T4-10 is another way.)
+     could be a type of another. It follows from [joined_envs_kinded]
+     where the well-formedness of environments has their aliases
+     consistent: an environment that is kinded has its aliases of one
+     kind ([aliases_kinded] of that file). This file is for any
+     well-formedness, so it is asked here;
+     FlambdaJoinTypesWithEnvSpec.v, which is at the invariant of
+     typing environments, does not ask it. (A condition of structure
+     would give it too, that the type an environment has for a name
+     that is not canonical is the alias type of its canonical element;
+     the compiler's environments do not all have that one: a later
+     demotion of the canonical element leaves the type as it was, and
+     discrepancy T4-10 is another way.)
    - [type_eqb_sound] and [block_shape_eqb_sound]: two types that the
      test of structural equality identifies have the same values, and
      two shapes that the test of shapes identifies are one shape. The
-     owner of the grammar proves them of its tests.
+     tests of FlambdaTypeEqualSpec.v have them.
 
    What is found of the compiler on the way is said at the function
    concerned, in FlambdaJoinTypes.v, and recorded as a discrepancy
@@ -301,15 +301,16 @@ Definition expand_head_sound : Prop :=
 (* CR mshinwell: this is a premise about kinds, and the compiler does
    not check it: [Expand_head] answers the type of a constant that is
    the canonical element of an alias, whatever the kind of the alias
-   (discrepancy T4-7), and [Aliases.add] does not look at kinds. It is
-   a premise of its own because the contract of the join of types has
-   none that gives it: [joined_envs_kinded] is about the aliases
-   inside the types of an environment, not about what the environment
-   knows to be equal. It would follow from [aliases_kinded] of the
-   environments joined, if the contract asked that with the rest of
-   the kinds. Whether ill-kinded code that the compiler accepts can
-   make a name of one kind an alias of a constant of another is not
-   known. Decisions D10 and D12. *)
+   (discrepancy T4-7), and [Aliases.add] does not look at kinds. It
+   follows from the kinds premise of the contract,
+   [joined_envs_kinded], which asks that the aliases of each
+   environment joined are of one kind, where the well-formedness of
+   environments has the aliases consistent
+   (FlambdaJoinTypesWithEnvSpec.v); it is a premise here because this
+   file is for any well-formedness. Whether ill-kinded code that the
+   compiler accepts can make a name of one kind an alias of a constant
+   of another is not known (discrepancy T5b-3). Decisions D10 and
+   D12. *)
 Definition joined_envs_constants_of_kind : Prop :=
   ∀ (s : state) (index : Index.t) (use : Typing_env.t),
     state_valid s ->
@@ -362,7 +363,9 @@ Definition answer_kinded_in_target {Y : Type}
    under each valuation of the target that extends one that satisfies
    the environment of the thing's index; and if the state given is
    kinded, so is the state answered, and the answer is kinded in the
-   target. This is [n_way_join_type_sound], for any things. *)
+   target. This is [n_way_join_type_sound], for any things, but for
+   one clause of it that is of types only and is not said here: that
+   the type answered is of the kind of each type given. *)
 Definition join_step_sound {X Y : Type}
     (variables_of_arg : X -> list variable)
     (aliases_of_arg : X -> list (simple * flambda_kind))
