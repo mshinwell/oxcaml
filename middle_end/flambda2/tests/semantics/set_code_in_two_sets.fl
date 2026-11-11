@@ -1,0 +1,21 @@
+let code size(5) f (x) my_closure &my_region my_depth -> k * e =
+  let n = %project_value_slot.[f].[n] (my_closure) in
+  let r = %int_barith.`add` (x, n) in
+  cont k (r)
+and code size(5) g (x) my_closure &my_region my_depth -> k * e =
+  cont k (x)
+in
+let one = %opaque (1) in
+let two = %opaque (2) in
+let c1 = closure f @f &toplevel
+and d1 = closure g @g &toplevel
+with { n = one } in
+let c2 = closure f @f &toplevel
+and d2 = closure g @g &toplevel
+with { n = two } in
+apply &toplevel c1 (10) -> k1 * error
+  where k1 (a) =
+    apply &toplevel c2 (a) -> k2 * error
+  where k2 (b) =
+    let $camlSet_code_in_two_sets = Block 0 (b) in
+    cont done ($camlSet_code_in_two_sets)

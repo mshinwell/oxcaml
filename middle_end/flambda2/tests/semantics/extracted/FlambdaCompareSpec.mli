@@ -31,6 +31,8 @@ val simples_eqb : name_map -> simple list -> simple list -> bool
 val value_slots_eqb :
   name_map -> (value_slot * simple) list -> (value_slot * simple) list -> bool
 
+val names_eqb : (positive * positive) list -> (positive * positive) list -> bool
+
 val named_eqb : name_map -> named -> named -> bool
 
 val static_const_eqb : name_map -> static_const -> static_const -> bool

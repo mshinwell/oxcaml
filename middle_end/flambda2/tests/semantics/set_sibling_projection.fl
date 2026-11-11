@@ -1,0 +1,20 @@
+let code size(5) add_n (x) my_closure &my_region my_depth -> k * e =
+  let n = %project_value_slot.[add_n].[n] (my_closure) in
+  let r = %int_barith.`add` (x, n) in
+  cont k (r)
+and code size(5) mul_n (x) my_closure &my_region my_depth -> k * e =
+  let n = %project_value_slot.[mul_n].[n] (my_closure) in
+  let r = %int_barith.`mul` (x, n) in
+  cont k (r)
+in
+let ten = %opaque (10) in
+let add_ten = closure add_n @add_n &toplevel
+and mul_ten = closure mul_n @mul_n &toplevel
+with { n = ten } in
+let also_mul_ten = %project_function_slot.[add_n].[mul_n] (add_ten) in
+apply &toplevel also_mul_ten (3) -> k1 * error
+  where k1 (thirty) =
+    apply &toplevel add_ten (thirty) -> k2 * error
+  where k2 (forty) =
+    let $camlSet_sibling_projection = Block 0 (forty) in
+    cont done ($camlSet_sibling_projection)

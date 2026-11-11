@@ -30,7 +30,11 @@ let named_in_scope vs = function
   | Prim (_, args) -> simples_in_scope vs args
   | Set_of_closures (_, slots) ->
     forallb (fun slot -> simple_in_scope vs (snd slot)) slots
+  | Closure_of_set (_, _, slots) ->
+    forallb (fun slot -> simple_in_scope vs (snd slot)) slots
   | Project_value_slot (_, closure) -> simple_in_scope vs closure
+  | Project_value_slot_from (_, _, closure) -> simple_in_scope vs closure
+  | Project_function_slot (_, _, closure) -> simple_in_scope vs closure
 
 (** val static_binding_in_scope : variable list -> static_binding -> bool **)
 
@@ -38,6 +42,8 @@ let static_binding_in_scope vs = function
   | Bind_symbol (_, const0) -> (
     match const0 with
     | Static_const_set_of_closures (_, slots) ->
+      forallb (fun slot -> simple_in_scope vs (snd slot)) slots
+    | Static_const_closure_of_set (_, _, _, slots) ->
       forallb (fun slot -> simple_in_scope vs (snd slot)) slots
     | Static_const_block (_, fields) -> simples_in_scope vs fields
     | Static_const_boxed_number contents -> simple_in_scope vs contents
@@ -197,7 +203,10 @@ let var_in_named x = function
   | Simple s -> var_in_simple x s
   | Prim (_, args) -> var_in_simples x args
   | Set_of_closures (_, slots) -> var_in_value_slots x slots
+  | Closure_of_set (_, _, slots) -> var_in_value_slots x slots
   | Project_value_slot (_, closure) -> var_in_simple x closure
+  | Project_value_slot_from (_, _, closure) -> var_in_simple x closure
+  | Project_function_slot (_, _, closure) -> var_in_simple x closure
 
 (** val var_in_static_binding : variable -> static_binding -> bool **)
 
@@ -205,6 +214,7 @@ let var_in_static_binding x = function
   | Bind_symbol (_, const0) -> (
     match const0 with
     | Static_const_set_of_closures (_, slots) -> var_in_value_slots x slots
+    | Static_const_closure_of_set (_, _, _, slots) -> var_in_value_slots x slots
     | Static_const_block (_, fields) -> var_in_simples x fields
     | Static_const_boxed_number contents -> var_in_simple x contents
     | Static_const_immutable_string _ -> false)
@@ -419,6 +429,9 @@ let named_defined vs = function
   | Simple s -> simple_in_scope vs s
   | Set_of_closures (_, slots) ->
     forallb (fun slot -> simple_in_scope vs (snd slot)) slots
+  | Closure_of_set (slot, decls, slots) ->
+    is_bound slot decls
+    && forallb (fun slot0 -> simple_in_scope vs (snd slot0)) slots
   | _ -> false
 
 (** val remove_unused_defined_lets : variable list -> expr -> expr **)
@@ -454,6 +467,8 @@ let rec symbols_of bindings known =
       match const0 with
       | Static_const_set_of_closures (code0, _) ->
         symbols_of bindings0 ((s, Some code0) :: known)
+      | Static_const_closure_of_set (slot, _, function_decls, _) ->
+        symbols_of bindings0 ((s, lookup slot function_decls) :: known)
       | _ -> symbols_of bindings0 ((s, None) :: known))
     | _ -> symbols_of bindings0 known)
 

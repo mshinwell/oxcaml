@@ -1,4 +1,5 @@
 open BinNums
+open BinPos
 open FlambdaKindModel
 open FlambdaMapSpec
 open FlambdaModel
@@ -7,6 +8,8 @@ open OxCamlOption
 type value =
   | Value_const of const
   | Value_closure of code_id * (value_slot * value) list
+  | Value_closure_of_set of
+      function_slot * (function_slot * code_id) list * (value_slot * value) list
   | Value_symbol of symbol
   | Value_block of coq_Z * value list
   | Value_boxed_number of const
@@ -17,6 +20,11 @@ let kind_of_value = function Value_const c -> kind_of_const c | _ -> Value
 
 type statically_allocated_value =
   | Static_closure of code_id * (value_slot * value) list
+  | Static_closure_of_set of
+      function_slot
+      * (function_slot * symbol) list
+      * (function_slot * code_id) list
+      * (value_slot * value) list
   | Static_block of coq_Z * value list
   | Static_boxed_number of value
   | Static_string of coq_Z list
@@ -35,11 +43,106 @@ let empty_static_env = { static_code = []; static_values = [] }
 
 let closure_of statics = function
   | Value_closure (code0, value_slots) -> Some (code0, value_slots)
+  | Value_closure_of_set (slot, function_decls, value_slots) -> (
+    match lookup slot function_decls with
+    | Some code0 -> Some (code0, value_slots)
+    | None -> None)
   | Value_symbol s -> (
     match lookup s statics.static_values with
     | Some s0 -> (
       match s0 with
       | Static_closure (code0, value_slots) -> Some (code0, value_slots)
+      | Static_closure_of_set (slot, _, function_decls, value_slots) -> (
+        match lookup slot function_decls with
+        | Some code0 -> Some (code0, value_slots)
+        | None -> None)
+      | _ -> None)
+    | None -> None)
+  | _ -> None
+
+(** val unnamed_function_slot : function_slot **)
+
+let unnamed_function_slot = Coq_xH
+
+(** val closure_in_set : static_env -> value -> ((function_slot * (function_slot
+    * code_id) list) * (value_slot * value) list) option **)
+
+let closure_in_set statics = function
+  | Value_closure (code0, value_slots) ->
+    Some
+      ( (unnamed_function_slot, (unnamed_function_slot, code0) :: []),
+        value_slots )
+  | Value_closure_of_set (slot, function_decls, value_slots) -> (
+    match lookup slot function_decls with
+    | Some _ -> Some ((slot, function_decls), value_slots)
+    | None -> None)
+  | Value_symbol s -> (
+    match lookup s statics.static_values with
+    | Some s0 -> (
+      match s0 with
+      | Static_closure (code0, value_slots) ->
+        Some
+          ( (unnamed_function_slot, (unnamed_function_slot, code0) :: []),
+            value_slots )
+      | Static_closure_of_set (slot, _, function_decls, value_slots) -> (
+        match lookup slot function_decls with
+        | Some _ -> Some ((slot, function_decls), value_slots)
+        | None -> None)
+      | _ -> None)
+    | None -> None)
+  | _ -> None
+
+(** val project_value_slot : static_env -> function_slot -> value_slot -> value
+    -> value option **)
+
+let project_value_slot statics project_from slot v =
+  match closure_in_set statics v with
+  | Some p ->
+    let p0, value_slots = p in
+    let at_slot, _ = p0 in
+    if Pos.eqb at_slot project_from then lookup slot value_slots else None
+  | None -> None
+
+(** val project_function_slot : static_env -> function_slot -> function_slot ->
+    value -> value option **)
+
+let project_function_slot statics move_from move_to v =
+  let unnamed =
+    if Pos.eqb move_from unnamed_function_slot
+    then if Pos.eqb move_to unnamed_function_slot then Some v else None
+    else None
+  in
+  match v with
+  | Value_closure (_, _) -> unnamed
+  | Value_closure_of_set (slot, function_decls, value_slots) ->
+    if Pos.eqb slot move_from
+    then
+      match lookup slot function_decls with
+      | Some _ -> (
+        match lookup move_to function_decls with
+        | Some _ ->
+          Some (Value_closure_of_set (move_to, function_decls, value_slots))
+        | None -> None)
+      | None -> None
+    else None
+  | Value_symbol s -> (
+    match lookup s statics.static_values with
+    | Some s0 -> (
+      match s0 with
+      | Static_closure (_, _) -> unnamed
+      | Static_closure_of_set (slot, closure_symbols, function_decls, _) ->
+        if Pos.eqb slot move_from
+        then
+          match lookup slot function_decls with
+          | Some _ -> (
+            match lookup move_to function_decls with
+            | Some _ -> (
+              match lookup move_to closure_symbols with
+              | Some s' -> Some (Value_symbol s')
+              | None -> None)
+            | None -> None)
+          | None -> None
+        else None
       | _ -> None)
     | None -> None)
   | _ -> None

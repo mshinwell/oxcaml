@@ -1,0 +1,1 @@
+set_static_group_shared_code.fl: not checked: the term is not well-formed (a closure at a function slot that its set has not got, a function slot or a code id given twice in a set, the same code in two static sets of one group, or a static set of closures that is not bound whole)

@@ -1,0 +1,27 @@
+let code rec size(30) even (n) my_closure &my_region my_depth -> k * e =
+  let is_zero = %int_comp.`eq` (n, 0) in
+  switch is_zero
+    | 0 -> not_zero
+    | 1 -> k (1)
+    where not_zero =
+      let odd = %project_function_slot.[even].[odd] (my_closure) in
+      let m = %int_barith.`sub` (n, 1) in
+      apply &my_region odd (m) -> k * e
+and code rec size(30) odd (n) my_closure &my_region my_depth -> k * e =
+  let is_zero = %int_comp.`eq` (n, 0) in
+  switch is_zero
+    | 0 -> not_zero
+    | 1 -> k (0)
+    where not_zero =
+      let even = %project_function_slot.[odd].[even] (my_closure) in
+      let m = %int_barith.`sub` (n, 1) in
+      apply &my_region even (m) -> k * e
+in
+let $Set_mutual_recursion_even = closure even @even &toplevel
+and $Set_mutual_recursion_odd = closure odd @odd &toplevel
+in
+let seven = %opaque (7) in
+apply &toplevel $Set_mutual_recursion_odd (seven) -> k1 * error
+  where k1 (is_odd) =
+    let $camlSet_mutual_recursion = Block 0 (is_odd) in
+    cont done ($camlSet_mutual_recursion)

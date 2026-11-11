@@ -131,9 +131,138 @@ let rec static_names names_of = function
 and handler_static_names names_of = function
   | Handler (_, handler) -> static_names names_of handler
 
+(** val set_well_formed : function_slot -> (function_slot * code_id) list ->
+    bool **)
+
+let set_well_formed slot function_decls =
+  (is_bound slot function_decls && distinct (map fst function_decls))
+  && distinct (map snd function_decls)
+
+(** val named_sets_well_formed : named -> bool **)
+
+let named_sets_well_formed = function
+  | Closure_of_set (slot, function_decls, _) ->
+    set_well_formed slot function_decls
+  | _ -> true
+
+(** val binds_symbol_to : symbol -> static_const -> static_binding -> bool **)
+
+let binds_symbol_to s const = function
+  | Bind_symbol (s', const') ->
+    Pos.eqb s s' && if static_const_eq_dec const const' then true else false
+  | _ -> false
+
+(** val static_set_whole : static_binding list -> static_binding -> bool **)
+
+let static_set_whole bindings = function
+  | Bind_symbol (s, const) -> (
+    match const with
+    | Static_const_closure_of_set
+        (slot, closure_symbols, function_decls, value_slots) ->
+      ((set_well_formed slot function_decls
+       &&
+       if
+         list_eq_dec Pos.eq_dec (map fst closure_symbols)
+           (map fst function_decls)
+       then true
+       else false)
+      &&
+      match lookup slot closure_symbols with
+      | Some s' -> Pos.eqb s s'
+      | None -> false)
+      && forallb
+           (fun pat ->
+             let slot', s' = pat in
+             existsb
+               (binds_symbol_to s'
+                  (Static_const_closure_of_set
+                     (slot', closure_symbols, function_decls, value_slots)))
+               bindings)
+           closure_symbols
+    | _ -> true)
+  | _ -> true
+
+(** val static_set_code_ids : static_binding -> code_id list **)
+
+let static_set_code_ids = function
+  | Bind_symbol (_, const) -> (
+    match const with
+    | Static_const_set_of_closures (code0, _) -> code0 :: []
+    | Static_const_closure_of_set (_, _, function_decls, _) ->
+      map snd function_decls
+    | _ -> [])
+  | _ -> []
+
+(** val binds_symbol_of_set : static_binding -> static_binding -> bool **)
+
+let binds_symbol_of_set binding binding' =
+  match binding with
+  | Bind_symbol (_, const) -> (
+    match const with
+    | Static_const_closure_of_set (_, closure_symbols, _, _) -> (
+      match binding' with
+      | Bind_symbol (s', _) -> among s' (map snd closure_symbols)
+      | _ -> false)
+    | _ -> false)
+  | _ -> false
+
+(** val static_sets_code_disjoint : static_binding list -> bool **)
+
+let rec static_sets_code_disjoint = function
+  | [] -> true
+  | binding :: bindings0 ->
+    forallb
+      (fun binding' ->
+        binds_symbol_of_set binding binding'
+        ||
+        match
+          inter (static_set_code_ids binding) (static_set_code_ids binding')
+        with
+        | [] -> true
+        | _ :: _ -> false)
+      bindings0
+    && static_sets_code_disjoint bindings0
+
+(** val sets_well_formed : expr -> bool **)
+
+let rec sets_well_formed = function
+  | Let (_, d, body) -> named_sets_well_formed d && sets_well_formed body
+  | Let_static (bindings, body) ->
+    ((forallb (static_set_whole bindings) bindings
+     && static_sets_code_disjoint bindings)
+    && forallb binding_sets_well_formed bindings)
+    && sets_well_formed body
+  | Let_cont_non_recursive (_, h, body) ->
+    handler_sets_well_formed h && sets_well_formed body
+  | Let_cont_recursive (handlers, body) ->
+    forallb
+      (fun pat ->
+        let _, h = pat in
+        handler_sets_well_formed h)
+      handlers
+    && sets_well_formed body
+  | _ -> true
+
+(** val handler_sets_well_formed : continuation_handler -> bool **)
+
+and handler_sets_well_formed = function
+  | Handler (_, handler) -> sets_well_formed handler
+
+(** val binding_sets_well_formed : static_binding -> bool **)
+
+and binding_sets_well_formed = function
+  | Bind_code (_, c) -> code_sets_well_formed c
+  | _ -> true
+
+(** val code_sets_well_formed : code -> bool **)
+
+and code_sets_well_formed = function
+  | Code (_, _, _, _, body) -> sets_well_formed body
+
 (** val well_formed_unit : continuation -> expr -> bool **)
 
 let well_formed_unit unit_exn e =
-  (statics_at_toplevel unit_exn true e
-  && distinct (static_names code_ids_of_binding e))
-  && distinct (static_names symbols_of_binding e)
+  ((statics_at_toplevel unit_exn true e
+   && distinct (static_names code_ids_of_binding e))
+  && distinct (static_names symbols_of_binding e))
+  && sets_well_formed e

@@ -161,6 +161,7 @@ module Continuations = Numbering (Continuation)
 module Symbols = Numbering (Symbol)
 module Code_ids = Numbering (Code_id)
 module Value_slots = Numbering (Value_slot)
+module Function_slots = Numbering (Function_slot)
 
 (* ---- Primitives ------------------------------------------------------- *)
 
@@ -349,18 +350,59 @@ let convert_value_slots (slots : Simple.t Value_slot.Map.t) =
   Value_slot.Map.bindings slots
   |> List.map (fun (slot, s) -> Value_slots.find slot, convert_simple s)
 
-(* A set of closures of one function. *)
+(* The model has two presentations of a set of closures (FlambdaModel.v): a set
+   of one function whose function slot is not named, and a set of any number of
+   functions at named function slots. A unit is converted with the first if all
+   its sets have one function and it projects no function slot, so that such a
+   unit is converted as it was before the model had function slots; otherwise
+   all its sets are converted with the second. The two units of a check are
+   converted alike ([convert_both]).
+
+   This switch is to go: once the normalisations know the sets with named
+   function slots as well as the others, every unit is to be converted with
+   them, and the first presentation deleted from the model. *)
+let named_function_slots = ref false
+
+exception Needs_named_function_slots
+
+let needs_named_function_slots () =
+  if not !named_function_slots then raise Needs_named_function_slots
+
+(* Runs a conversion; if it meets something that needs named function slots,
+   runs it again with them. *)
+let with_function_slots convert =
+  try convert ()
+  with Needs_named_function_slots ->
+    named_function_slots := true;
+    convert ()
+
+(* The functions of a set, in order, and its value slots. *)
 let convert_set_of_closures (set : Set_of_closures.t) =
   let funs =
     Function_declarations.funs_in_order (Set_of_closures.function_decls set)
   in
-  match Function_slot.Lmap.bindings funs with
-  | [ ( _,
-        (Code_id { code_id; _ } :
-          Function_declarations.code_id_in_function_declaration) ) ] ->
-    Code_ids.find code_id, convert_value_slots (Set_of_closures.value_slots set)
-  | [(_, Deleted _)] -> unsupported "a closure of deleted code"
-  | [] | _ :: _ :: _ -> unsupported "a set of closures of several functions"
+  let function_decls =
+    List.map
+      (fun ( function_slot,
+             (code_id : Function_declarations.code_id_in_function_declaration)
+           ) ->
+        match code_id with
+        | Code_id { code_id; _ } ->
+          Function_slots.find function_slot, Code_ids.find code_id
+        | Deleted _ -> unsupported "a closure of deleted code")
+      (Function_slot.Lmap.bindings funs)
+  in
+  function_decls, convert_value_slots (Set_of_closures.value_slots set)
+
+(* The code of a set of one function, whose function slot is then left
+   unnamed. *)
+let only_function function_decls =
+  match function_decls with
+  | [(_, code)] when not !named_function_slots -> Some code
+  | [] -> unsupported "a set of closures of no function"
+  | _ :: _ ->
+    needs_named_function_slots ();
+    None
 
 let convert_apply_cont (ac : Apply_cont_expr.t) : Model.apply_cont =
   (match Apply_cont_expr.trap_action ac with
@@ -435,12 +477,24 @@ and convert_let (pattern : Bound_pattern.t) (defining_expr : Flambda.Named.t)
       ( Variables.find (Bound_var.var bound_var),
         convert_prim prim,
         convert_expr body )
-  | Set_of_closures [bound_var], Set_of_closures (set, _) ->
-    let code, slots = convert_set_of_closures set in
-    Model.Let
-      ( Variables.find (Bound_var.var bound_var),
-        Set_of_closures (code, slots),
-        convert_expr body )
+  | Set_of_closures bound_vars, Set_of_closures (set, _) -> (
+    let function_decls, slots = convert_set_of_closures set in
+    let bound_vars =
+      List.map
+        (fun bound_var -> Variables.find (Bound_var.var bound_var))
+        bound_vars
+    in
+    match only_function function_decls, bound_vars with
+    | Some code, [bound_var] ->
+      Model.Let (bound_var, Set_of_closures (code, slots), convert_expr body)
+    | Some _, ([] | _ :: _ :: _) ->
+      unsupported "the binding %a" Bound_pattern.print pattern
+    | None, _ -> (
+      match
+        Model.let_closures bound_vars function_decls slots (convert_expr body)
+      with
+      | Some e -> e
+      | None -> unsupported "the binding %a" Bound_pattern.print pattern))
   | Static bound_static, Static_consts group ->
     let bindings =
       Flambda.Static_const_group.match_against_bound_static group bound_static
@@ -455,14 +509,30 @@ and convert_let (pattern : Bound_pattern.t) (defining_expr : Flambda.Named.t)
           deleted_code := code_id :: !deleted_code;
           Model.Bind_deleted_code (Code_ids.find code_id) :: bindings)
         ~set_of_closures:(fun bindings ~closure_symbols set ->
-          match Function_slot.Lmap.bindings closure_symbols with
-          | [(_, symbol)] ->
-            let code, slots = convert_set_of_closures set in
+          let function_decls, slots = convert_set_of_closures set in
+          let closure_symbols =
+            List.map
+              (fun (function_slot, symbol) ->
+                Function_slots.find function_slot, Symbols.find symbol)
+              (Function_slot.Lmap.bindings closure_symbols)
+          in
+          match only_function function_decls, closure_symbols with
+          | Some code, [(_, symbol)] ->
             Model.Bind_symbol
-              (Symbols.find symbol, Static_const_set_of_closures (code, slots))
+              (symbol, Static_const_set_of_closures (code, slots))
             :: bindings
-          | [] | _ :: _ :: _ ->
-            unsupported "a set of closures of several functions")
+          | Some _, ([] | _ :: _ :: _) ->
+            unsupported "the binding %a" Bound_pattern.print pattern
+          | None, _ ->
+            if
+              not
+                (List.equal ( = )
+                   (List.map fst closure_symbols)
+                   (List.map fst function_decls))
+            then unsupported "the binding %a" Bound_pattern.print pattern;
+            List.rev_append
+              (Model.bind_closures closure_symbols function_decls slots)
+              bindings)
         ~block_like:(fun bindings symbol const ->
           Model.Bind_symbol (Symbols.find symbol, convert_static_const const)
           :: bindings)
@@ -475,8 +545,19 @@ and convert_let (pattern : Bound_pattern.t) (defining_expr : Flambda.Named.t)
 
 and convert_prim (prim : P.t) : Model.named =
   match prim with
-  | Unary (Project_value_slot { value_slot; _ }, closure) ->
-    Project_value_slot (Value_slots.find value_slot, convert_simple closure)
+  | Unary (Project_value_slot { project_from; value_slot }, closure) ->
+    let slot = Value_slots.find value_slot in
+    if !named_function_slots
+    then
+      Project_value_slot_from
+        (Function_slots.find project_from, slot, convert_simple closure)
+    else Project_value_slot (slot, convert_simple closure)
+  | Unary (Project_function_slot { move_from; move_to }, closure) ->
+    needs_named_function_slots ();
+    Project_function_slot
+      ( Function_slots.find move_from,
+        Function_slots.find move_to,
+        convert_simple closure )
   | Unary (p, arg) -> (
     match convert_unary_primitive p with
     | Some p -> Prim (Unary p, [convert_simple arg])
@@ -622,7 +703,7 @@ let rec observe depth (statics : Values.static_env) (v : Values.value) :
     | Value_const (Naked_float bits) -> Naked ("float", int64_of_z bits)
     | Value_const Null -> Null
     | Value_const _ -> Naked ("number", 0L)
-    | Value_closure _ -> Function
+    | Value_closure _ | Value_closure_of_set _ -> Function
     | Value_block (tag, fields) ->
       Block (int_of_z tag, List.map (observe (depth - 1) statics) fields)
     | Value_boxed_number c ->
@@ -630,7 +711,7 @@ let rec observe depth (statics : Values.static_env) (v : Values.value) :
     | Value_symbol symbol -> (
       match Maps.lookup symbol statics.static_values with
       | None -> Dangling
-      | Some (Static_closure _) -> Function
+      | Some (Static_closure _ | Static_closure_of_set _) -> Function
       | Some (Static_block (tag, fields)) ->
         Block (int_of_z tag, List.map (observe (depth - 1) statics) fields)
       | Some (Static_boxed_number v) -> Boxed (observe (depth - 1) statics v)
@@ -762,6 +843,13 @@ let print_value_slots ppf slots =
       Format.fprintf ppf "%d = %a" (int_of_positive slot) print_simple s)
     ppf slots
 
+let print_function_decls ppf function_decls =
+  print_list
+    (fun ppf (slot, code) ->
+      Format.fprintf ppf "f%d = code%d" (int_of_positive slot)
+        (int_of_positive code))
+    ppf function_decls
+
 let string_of_standard_int (kind : Kinds.standard_int) =
   match kind with
   | Standard_tagged_immediate -> "tagged_imm"
@@ -835,8 +923,20 @@ let print_named ppf (d : Model.named) =
   | Set_of_closures (code, slots) ->
     Format.fprintf ppf "@[<hov 2>closure code%d@ {%a}@]" (int_of_positive code)
       print_value_slots slots
+  | Closure_of_set (slot, function_decls, slots) ->
+    Format.fprintf ppf "@[<hov 2>closure f%d of@ {%a}@ {%a}@]"
+      (int_of_positive slot) print_function_decls function_decls
+      print_value_slots slots
   | Project_value_slot (slot, closure) ->
     Format.fprintf ppf "%a.slot%d" print_simple closure (int_of_positive slot)
+  | Project_value_slot_from (project_from, slot, closure) ->
+    Format.fprintf ppf "%a.(f%d).slot%d" print_simple closure
+      (int_of_positive project_from)
+      (int_of_positive slot)
+  | Project_function_slot (move_from, move_to, closure) ->
+    Format.fprintf ppf "%a.(f%d -> f%d)" print_simple closure
+      (int_of_positive move_from)
+      (int_of_positive move_to)
 
 let print_apply_cont ppf (ac : Model.apply_cont) =
   Format.fprintf ppf "@[<hov 2>cont %a@ (%a)@]" print_cont ac.ac_continuation
@@ -889,6 +989,16 @@ and print_binding ppf (binding : Model.static_binding) =
   | Bind_symbol (sym, Static_const_set_of_closures (code, slots)) ->
     Format.fprintf ppf "@[<hov 2>$%d = closure code%d@ {%a}@]"
       (int_of_positive sym) (int_of_positive code) print_value_slots slots
+  | Bind_symbol
+      (sym, Static_const_closure_of_set (slot, symbols, function_decls, slots))
+    ->
+    Format.fprintf ppf "@[<hov 2>$%d = closure f%d of@ {%a}@ at {%a}@ {%a}@]"
+      (int_of_positive sym) (int_of_positive slot) print_function_decls
+      function_decls
+      (print_list (fun ppf (slot, sym) ->
+           Format.fprintf ppf "f%d = $%d" (int_of_positive slot)
+             (int_of_positive sym)))
+      symbols print_value_slots slots
   | Bind_symbol (sym, Static_const_block (tag, fields)) ->
     Format.fprintf ppf "@[<hov 2>$%d = Block %d@ (%a)@]" (int_of_positive sym)
       (int_of_z tag) print_simples fields
@@ -925,10 +1035,17 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
     match e with
     | Let (_, d, body) ->
       (match d with
-      | Simple s | Project_value_slot (_, s) -> in_simple owner s
+      | Simple s
+      | Project_value_slot (_, s)
+      | Project_value_slot_from (_, _, s)
+      | Project_function_slot (_, _, s) ->
+        in_simple owner s
       | Prim (_, args) -> in_simples owner args
       | Set_of_closures (code, slots) ->
         refer owner (Code_name code);
+        in_slots owner slots
+      | Closure_of_set (_, decls, slots) ->
+        List.iter (fun (_, code) -> refer owner (Code_name code)) decls;
         in_slots owner slots);
       in_expr owner body
     | Let_static (bindings, body) ->
@@ -945,6 +1062,12 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
             match const with
             | Static_const_set_of_closures (code, slots) ->
               refer owner (Code_name code);
+              in_slots owner slots
+            | Static_const_closure_of_set (_, symbols, function_decls, slots) ->
+              List.iter (fun (_, sym) -> refer owner (Symbol_name sym)) symbols;
+              List.iter
+                (fun (_, code) -> refer owner (Code_name code))
+                function_decls;
               in_slots owner slots
             | Static_const_block (_, fields) -> in_simples owner fields
             | Static_const_boxed_number contents -> in_simple owner contents
@@ -1012,6 +1135,8 @@ let rec code_id_used (id : Model.code_id) (e : Model.expr) =
       bound = id || code_id_used id body
     | Bind_deleted_code _ -> false
     | Bind_symbol (_, Static_const_set_of_closures (code, _)) -> code = id
+    | Bind_symbol (_, Static_const_closure_of_set (_, _, function_decls, _)) ->
+      List.exists (fun (_, code) -> code = id) function_decls
     | Bind_symbol
         ( _,
           ( Static_const_block _ | Static_const_boxed_number _
@@ -1021,7 +1146,14 @@ let rec code_id_used (id : Model.code_id) (e : Model.expr) =
   match e with
   | Let (_, Set_of_closures (code, _), body) ->
     code = id || code_id_used id body
-  | Let (_, (Simple _ | Prim _ | Project_value_slot _), body) ->
+  | Let (_, Closure_of_set (_, function_decls, _), body) ->
+    List.exists (fun (_, code) -> code = id) function_decls
+    || code_id_used id body
+  | Let
+      ( _,
+        ( Simple _ | Prim _ | Project_value_slot _ | Project_value_slot_from _
+        | Project_function_slot _ ),
+        body ) ->
     code_id_used id body
   | Let_static (bindings, body) ->
     List.exists in_binding bindings || code_id_used id body
@@ -1051,6 +1183,7 @@ let rec code_id_used (id : Model.code_id) (e : Model.expr) =
    itself; see the CR in middle_end/flambda2/rocq/FlambdaCompareSpec.v for what
    that takes. *)
 let convert_both (before : Flambda_unit.t) (after : Flambda_unit.t) =
+  with_function_slots @@ fun () ->
   let before_converted = convert_unit before in
   Continuations.alias
     (Flambda_unit.return_continuation after)
@@ -1070,24 +1203,33 @@ let convert_both (before : Flambda_unit.t) (after : Flambda_unit.t) =
     !newer_versions;
   before_converted, convert_unit after
 
-(* Static bindings at toplevel only, each name bound once
-   (FlambdaWellFormedSpec.v). *)
+(* Static bindings at toplevel only, each name bound once, and the sets of
+   closures whole (FlambdaWellFormedSpec.v). *)
 let well_formed (unit : converted) =
   Well_formed.well_formed_unit unit.exn_continuation unit.body
 
 (* The term before is checked before Simplify sees it, which is entitled to fail
    on one that is not well-formed. *)
 let well_formed_before ~filename (before : Flambda_unit.t) =
-  match convert_unit before with
+  match with_function_slots (fun () -> convert_unit before) with
   | exception Unsupported _ -> true
   | before ->
     let ok = well_formed before in
     if not ok
     then
-      Format.printf
-        "%s: not checked: the term is not well-formed (a static binding that \
-         is not at toplevel, or a name bound twice)@."
-        filename;
+      if Well_formed.sets_well_formed before.body
+      then
+        Format.printf
+          "%s: not checked: the term is not well-formed (a static binding that \
+           is not at toplevel, or a name bound twice)@."
+          filename
+      else
+        Format.printf
+          "%s: not checked: the term is not well-formed (a closure at a \
+           function slot that its set has not got, a function slot or a code \
+           id given twice in a set, the same code in two static sets of one \
+           group, or a static set of closures that is not bound whole)@."
+          filename;
     ok
 
 let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
@@ -1165,6 +1307,7 @@ let check_file filename =
     Test_utils.dump_error e;
     exit 1
   | Ok unit ->
+    named_function_slots := false;
     let unit_info = Parse_flambda.make_unit_info ~filename in
     let comp_unit = Unit_info.modname unit_info in
     Env.set_current_unit unit_info;

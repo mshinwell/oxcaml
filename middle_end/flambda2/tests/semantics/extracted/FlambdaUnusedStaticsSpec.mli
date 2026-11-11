@@ -13,6 +13,10 @@ val symbol_kept : dropped -> symbol -> bool
 
 val code_kept : dropped -> code_id -> bool
 
+val function_decls_avoid : dropped -> (function_slot * code_id) list -> bool
+
+val closure_symbols_avoid : dropped -> (function_slot * symbol) list -> bool
+
 val simple_avoids : dropped -> simple -> bool
 
 val simples_avoid : dropped -> simple list -> bool

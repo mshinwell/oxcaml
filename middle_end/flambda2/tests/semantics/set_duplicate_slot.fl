@@ -1,0 +1,14 @@
+let code size(5) f (x) my_closure &my_region my_depth -> k * e =
+  cont k (x)
+and code size(5) g (x) my_closure &my_region my_depth -> k * e =
+  let r = %int_barith.`add` (x, 1) in
+  cont k (r)
+in
+let a = %opaque (5) in
+let cf = closure f @f &toplevel
+and cg = closure g @f &toplevel
+in
+apply &toplevel cg (a) -> k1 * error
+  where k1 (r) =
+    let $camlSet_duplicate_slot = Block 0 (r) in
+    cont done ($camlSet_duplicate_slot)

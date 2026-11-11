@@ -1,0 +1,24 @@
+let code size(5) f (x) my_closure &my_region my_depth -> k * e =
+  let n = %project_value_slot.[f].[n] (my_closure) in
+  let r = %int_barith.`add` (x, n) in
+  cont k (r)
+and code size(5) g (x) my_closure &my_region my_depth -> k * e =
+  cont k (x)
+in
+let set_of_closures
+  $First_f = closure f @f &toplevel
+  and $First_g = closure g @g &toplevel
+  with { n = 1 }
+end
+and set_of_closures
+  $Second_f = closure f @f &toplevel
+  and $Second_g = closure g @g &toplevel
+  with { n = 2 }
+end
+in
+apply &toplevel $First_f (10) -> k1 * error
+  where k1 (a) =
+    apply &toplevel $Second_f (a) -> k2 * error
+  where k2 (b) =
+    let $camlSet_static_group_shared_code = Block 0 (b) in
+    cont done ($camlSet_static_group_shared_code)

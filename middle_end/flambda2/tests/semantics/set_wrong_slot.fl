@@ -1,0 +1,15 @@
+let code size(5) f (x) my_closure &my_region my_depth -> k * e =
+  cont k (x)
+and code size(5) g (x) my_closure &my_region my_depth -> k * e =
+  let r = %int_barith.`add` (x, 1) in
+  cont k (r)
+in
+let $Set_wrong_slot_f = closure f @f &toplevel
+and $Set_wrong_slot_g = closure g @g &toplevel
+in
+let a = %opaque (5) in
+let c = %project_function_slot.[g].[f] ($Set_wrong_slot_f) in
+apply &toplevel c (a) -> k1 * error
+  where k1 (r) =
+    let $camlSet_wrong_slot = Block 0 (r) in
+    cont done ($camlSet_wrong_slot)

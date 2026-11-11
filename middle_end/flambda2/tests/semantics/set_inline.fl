@@ -1,0 +1,20 @@
+let code size(5) add (x, y) my_closure &my_region my_depth -> k * e =
+  let r = %int_barith.`add` (x, y) in
+  cont k (r)
+and code size(5) mul (x, y) my_closure &my_region my_depth -> k * e =
+  let r = %int_barith.`mul` (x, y) in
+  cont k (r)
+in
+let $Set_inline_add = closure add @add &toplevel
+and $Set_inline_mul = closure mul @mul &toplevel
+in
+let a = %opaque (3) in
+let b = %opaque (4) in
+apply direct(add &toplevel) inlined(always) $Set_inline_add (a, b)
+  -> k1 * error
+  where k1 (sum) =
+    apply direct(mul &toplevel) inlined(always) $Set_inline_mul (sum, b)
+      -> k2 * error
+  where k2 (scaled) =
+    let $camlSet_inline = Block 0 (scaled) in
+    cont done ($camlSet_inline)

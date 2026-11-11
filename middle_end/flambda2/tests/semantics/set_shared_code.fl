@@ -1,0 +1,11 @@
+let code size(5) f (x) my_closure &my_region my_depth -> k * e =
+  cont k (x)
+in
+let a = %opaque (5) in
+let cf = closure f @f &toplevel
+and cg = closure f @g &toplevel
+in
+apply &toplevel cg (a) -> k1 * error
+  where k1 (r) =
+    let $camlSet_shared_code = Block 0 (r) in
+    cont done ($camlSet_shared_code)

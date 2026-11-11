@@ -1,6 +1,12 @@
+open BinInt
 open BinNums
+open BinPos
+open Datatypes
 open FlambdaKindModel
 open FlambdaPrimitiveModel
+open List
+open ListDef
+open PeanoNat
 
 type variable = positive
 
@@ -11,6 +17,8 @@ type symbol = positive
 type code_id = positive
 
 type value_slot = positive
+
+type function_slot = positive
 
 type const =
   | Naked_immediate of coq_Z
@@ -56,13 +64,166 @@ type named =
   | Simple of simple
   | Prim of prim * simple list
   | Set_of_closures of code_id * (value_slot * simple) list
+  | Closure_of_set of
+      function_slot
+      * (function_slot * code_id) list
+      * (value_slot * simple) list
   | Project_value_slot of value_slot * simple
+  | Project_value_slot_from of function_slot * value_slot * simple
+  | Project_function_slot of function_slot * function_slot * simple
 
 type static_const =
   | Static_const_set_of_closures of code_id * (value_slot * simple) list
+  | Static_const_closure_of_set of
+      function_slot
+      * (function_slot * symbol) list
+      * (function_slot * code_id) list
+      * (value_slot * simple) list
   | Static_const_block of coq_Z * simple list
   | Static_const_boxed_number of simple
   | Static_const_immutable_string of coq_Z list
+
+(** val simple_eq_dec : simple -> simple -> bool **)
+
+let simple_eq_dec s s' =
+  match s with
+  | Var x -> ( match s' with Var x0 -> Pos.eq_dec x x0 | _ -> false)
+  | Symbol s0 -> ( match s' with Symbol s1 -> Pos.eq_dec s0 s1 | _ -> false)
+  | Const c -> (
+    match s' with
+    | Const c0 -> (
+      match c with
+      | Naked_immediate i -> (
+        match c0 with Naked_immediate i0 -> Z.eq_dec i i0 | _ -> false)
+      | Tagged_immediate i -> (
+        match c0 with Tagged_immediate i0 -> Z.eq_dec i i0 | _ -> false)
+      | Naked_float32 bits -> (
+        match c0 with Naked_float32 bits0 -> Z.eq_dec bits bits0 | _ -> false)
+      | Naked_float bits -> (
+        match c0 with Naked_float bits0 -> Z.eq_dec bits bits0 | _ -> false)
+      | Naked_int8 i -> (
+        match c0 with Naked_int8 i0 -> Z.eq_dec i i0 | _ -> false)
+      | Naked_int16 i -> (
+        match c0 with Naked_int16 i0 -> Z.eq_dec i i0 | _ -> false)
+      | Naked_int32 i -> (
+        match c0 with Naked_int32 i0 -> Z.eq_dec i i0 | _ -> false)
+      | Naked_int64 i -> (
+        match c0 with Naked_int64 i0 -> Z.eq_dec i i0 | _ -> false)
+      | Naked_nativeint i -> (
+        match c0 with Naked_nativeint i0 -> Z.eq_dec i i0 | _ -> false)
+      | Naked_vec128 bits -> (
+        match c0 with Naked_vec128 bits0 -> Z.eq_dec bits bits0 | _ -> false)
+      | Naked_vec256 bits -> (
+        match c0 with Naked_vec256 bits0 -> Z.eq_dec bits bits0 | _ -> false)
+      | Naked_vec512 bits -> (
+        match c0 with Naked_vec512 bits0 -> Z.eq_dec bits bits0 | _ -> false)
+      | Naked_mask bits -> (
+        match c0 with Naked_mask bits0 -> Z.eq_dec bits bits0 | _ -> false)
+      | Null -> ( match c0 with Null -> true | _ -> false)
+      | Poison kind -> (
+        match c0 with
+        | Poison kind0 -> (
+          match kind with
+          | Value -> ( match kind0 with Value -> true | _ -> false)
+          | Naked_number k -> (
+            match kind0 with
+            | Naked_number k0 -> (
+              match k with
+              | Kind_naked_immediate -> (
+                match k0 with Kind_naked_immediate -> true | _ -> false)
+              | Kind_naked_float32 -> (
+                match k0 with Kind_naked_float32 -> true | _ -> false)
+              | Kind_naked_float -> (
+                match k0 with Kind_naked_float -> true | _ -> false)
+              | Kind_naked_int8 -> (
+                match k0 with Kind_naked_int8 -> true | _ -> false)
+              | Kind_naked_int16 -> (
+                match k0 with Kind_naked_int16 -> true | _ -> false)
+              | Kind_naked_int32 -> (
+                match k0 with Kind_naked_int32 -> true | _ -> false)
+              | Kind_naked_int64 -> (
+                match k0 with Kind_naked_int64 -> true | _ -> false)
+              | Kind_naked_nativeint -> (
+                match k0 with Kind_naked_nativeint -> true | _ -> false)
+              | Kind_naked_vec128 -> (
+                match k0 with Kind_naked_vec128 -> true | _ -> false)
+              | Kind_naked_vec256 -> (
+                match k0 with Kind_naked_vec256 -> true | _ -> false)
+              | Kind_naked_vec512 -> (
+                match k0 with Kind_naked_vec512 -> true | _ -> false)
+              | Kind_naked_mask -> (
+                match k0 with Kind_naked_mask -> true | _ -> false))
+            | _ -> false)
+          | Region -> ( match kind0 with Region -> true | _ -> false)
+          | Rec_info -> ( match kind0 with Rec_info -> true | _ -> false))
+        | _ -> false))
+    | _ -> false)
+
+(** val static_const_eq_dec : static_const -> static_const -> bool **)
+
+let static_const_eq_dec const0 const' =
+  match const0 with
+  | Static_const_set_of_closures (code0, value_slots) -> (
+    match const' with
+    | Static_const_set_of_closures (code1, value_slots0) ->
+      if Pos.eq_dec code0 code1
+      then
+        list_eq_dec
+          (fun x y ->
+            let a, b = x in
+            let v, s = y in
+            if Pos.eq_dec a v then simple_eq_dec b s else false)
+          value_slots value_slots0
+      else false
+    | _ -> false)
+  | Static_const_closure_of_set
+      (slot, closure_symbols, function_decls, value_slots) -> (
+    match const' with
+    | Static_const_closure_of_set
+        (slot0, closure_symbols0, function_decls0, value_slots0) ->
+      if Pos.eq_dec slot slot0
+      then
+        if
+          list_eq_dec
+            (fun x y ->
+              let a, b = x in
+              let f, s = y in
+              if Pos.eq_dec a f then Pos.eq_dec b s else false)
+            closure_symbols closure_symbols0
+        then
+          if
+            list_eq_dec
+              (fun x y ->
+                let a, b = x in
+                let f, c = y in
+                if Pos.eq_dec a f then Pos.eq_dec b c else false)
+              function_decls function_decls0
+          then
+            list_eq_dec
+              (fun x y ->
+                let a, b = x in
+                let v, s = y in
+                if Pos.eq_dec a v then simple_eq_dec b s else false)
+              value_slots value_slots0
+          else false
+        else false
+      else false
+    | _ -> false)
+  | Static_const_block (tag, fields) -> (
+    match const' with
+    | Static_const_block (tag0, fields0) ->
+      if Z.eq_dec tag tag0
+      then list_eq_dec simple_eq_dec fields fields0
+      else false
+    | _ -> false)
+  | Static_const_boxed_number contents -> (
+    match const' with
+    | Static_const_boxed_number contents0 -> simple_eq_dec contents contents0
+    | _ -> false)
+  | Static_const_immutable_string bytes -> (
+    match const' with
+    | Static_const_immutable_string bytes0 -> list_eq_dec Z.eq_dec bytes bytes0
+    | _ -> false)
 
 type apply_cont =
   { ac_continuation : continuation;
@@ -122,3 +283,51 @@ let code_exn_continuation = function
 (** val code_body : code -> expr **)
 
 let code_body = function Code (_, _, _, _, body) -> body
+
+(** val let_projections : variable -> function_slot -> (variable *
+    function_slot) list -> expr -> expr **)
+
+let rec let_projections base base_slot bound body =
+  match bound with
+  | [] -> body
+  | p :: bound0 ->
+    let x, slot = p in
+    Let
+      ( x,
+        Project_function_slot (base_slot, slot, Var base),
+        let_projections base base_slot bound0 body )
+
+(** val let_closures : variable list -> (function_slot * code_id) list ->
+    (value_slot * simple) list -> expr -> expr option **)
+
+let let_closures bound_vars function_decls value_slots body =
+  match bound_vars with
+  | [] -> None
+  | x :: bound_vars0 -> (
+    match function_decls with
+    | [] -> None
+    | p :: other_decls ->
+      let slot, _ = p in
+      if Nat.eqb (length bound_vars0) (length other_decls)
+      then
+        Some
+          (Let
+             ( x,
+               Closure_of_set (slot, function_decls, value_slots),
+               let_projections x slot
+                 (combine bound_vars0 (map fst other_decls))
+                 body ))
+      else None)
+
+(** val bind_closures : (function_slot * symbol) list -> (function_slot *
+    code_id) list -> (value_slot * simple) list -> static_binding list **)
+
+let bind_closures closure_symbols function_decls value_slots =
+  map
+    (fun pat ->
+      let slot, s = pat in
+      Bind_symbol
+        ( s,
+          Static_const_closure_of_set
+            (slot, closure_symbols, function_decls, value_slots) ))
+    closure_symbols

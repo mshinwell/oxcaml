@@ -69,14 +69,23 @@ let canonical_named tenv = function
   | Prim (p, args) -> Prim (p, map (canonical_simple tenv) args)
   | Set_of_closures (code, slots) ->
     Set_of_closures (code, canonical_value_slots tenv slots)
+  | Closure_of_set (slot, decls, slots) ->
+    Closure_of_set (slot, decls, canonical_value_slots tenv slots)
   | Project_value_slot (slot, closure) ->
     canonical_project tenv slot (canonical_simple tenv closure)
+  | Project_value_slot_from (project_from, slot, closure) ->
+    Project_value_slot_from (project_from, slot, canonical_simple tenv closure)
+  | Project_function_slot (move_from, move_to, closure) ->
+    Project_function_slot (move_from, move_to, canonical_simple tenv closure)
 
 (** val canonical_static_const : typing_env -> static_const -> static_const **)
 
 let canonical_static_const tenv = function
   | Static_const_set_of_closures (code, slots) ->
     Static_const_set_of_closures (code, canonical_value_slots tenv slots)
+  | Static_const_closure_of_set (slot, symbols, decls, slots) ->
+    Static_const_closure_of_set
+      (slot, symbols, decls, canonical_value_slots tenv slots)
   | Static_const_block (tag, fields) ->
     Static_const_block (tag, map (canonical_simple tenv) fields)
   | Static_const_boxed_number contents ->

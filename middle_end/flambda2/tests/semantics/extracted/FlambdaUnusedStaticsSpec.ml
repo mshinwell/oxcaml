@@ -17,6 +17,18 @@ let symbol_kept d s = negb (among s d.dropped_symbols)
 
 let code_kept d id = negb (among id d.dropped_code)
 
+(** val function_decls_avoid : dropped -> (function_slot * code_id) list -> bool
+    **)
+
+let function_decls_avoid d decls =
+  forallb (fun decl -> code_kept d (snd decl)) decls
+
+(** val closure_symbols_avoid : dropped -> (function_slot * symbol) list -> bool
+    **)
+
+let closure_symbols_avoid d symbols =
+  forallb (fun sym -> symbol_kept d (snd sym)) symbols
+
 (** val simple_avoids : dropped -> simple -> bool **)
 
 let simple_avoids d = function Symbol sym -> symbol_kept d sym | _ -> true
@@ -37,13 +49,20 @@ let named_avoids d = function
   | Prim (_, args) -> simples_avoid d args
   | Set_of_closures (code0, slots) ->
     code_kept d code0 && value_slots_avoid d slots
+  | Closure_of_set (_, decls, slots) ->
+    function_decls_avoid d decls && value_slots_avoid d slots
   | Project_value_slot (_, closure) -> simple_avoids d closure
+  | Project_value_slot_from (_, _, closure) -> simple_avoids d closure
+  | Project_function_slot (_, _, closure) -> simple_avoids d closure
 
 (** val static_const_avoids : dropped -> static_const -> bool **)
 
 let static_const_avoids d = function
   | Static_const_set_of_closures (code0, slots) ->
     code_kept d code0 && value_slots_avoid d slots
+  | Static_const_closure_of_set (_, symbols, decls, slots) ->
+    (closure_symbols_avoid d symbols && function_decls_avoid d decls)
+    && value_slots_avoid d slots
   | Static_const_block (_, fields) -> simples_avoid d fields
   | Static_const_boxed_number contents -> simple_avoids d contents
   | Static_const_immutable_string _ -> true

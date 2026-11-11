@@ -111,6 +111,14 @@ let value_slots_eqb vm slots slots' =
       Pos.eqb (fst slot) (fst slot') && simple_eqb vm (snd slot) (snd slot'))
     slots slots'
 
+(** val names_eqb : (positive * positive) list -> (positive * positive) list ->
+    bool **)
+
+let names_eqb l l' =
+  forall2b
+    (fun a a' -> Pos.eqb (fst a) (fst a') && Pos.eqb (snd a) (snd a'))
+    l l'
+
 (** val named_eqb : name_map -> named -> named -> bool **)
 
 let named_eqb vm d d' =
@@ -125,10 +133,28 @@ let named_eqb vm d d' =
     | Set_of_closures (code', slots') ->
       Pos.eqb code0 code' && value_slots_eqb vm slots slots'
     | _ -> false)
+  | Closure_of_set (slot, decls, slots) -> (
+    match d' with
+    | Closure_of_set (slot', decls', slots') ->
+      (Pos.eqb slot slot' && names_eqb decls decls')
+      && value_slots_eqb vm slots slots'
+    | _ -> false)
   | Project_value_slot (slot, closure) -> (
     match d' with
     | Project_value_slot (slot', closure') ->
       Pos.eqb slot slot' && simple_eqb vm closure closure'
+    | _ -> false)
+  | Project_value_slot_from (project_from, slot, closure) -> (
+    match d' with
+    | Project_value_slot_from (project_from', slot', closure') ->
+      (Pos.eqb project_from project_from' && Pos.eqb slot slot')
+      && simple_eqb vm closure closure'
+    | _ -> false)
+  | Project_function_slot (move_from, move_to, closure) -> (
+    match d' with
+    | Project_function_slot (move_from', move_to', closure') ->
+      (Pos.eqb move_from move_from' && Pos.eqb move_to move_to')
+      && simple_eqb vm closure closure'
     | _ -> false)
 
 (** val static_const_eqb : name_map -> static_const -> static_const -> bool **)
@@ -139,6 +165,13 @@ let static_const_eqb vm const0 const' =
     match const' with
     | Static_const_set_of_closures (code', slots') ->
       Pos.eqb code0 code' && value_slots_eqb vm slots slots'
+    | _ -> false)
+  | Static_const_closure_of_set (slot, symbols, decls, slots) -> (
+    match const' with
+    | Static_const_closure_of_set (slot', symbols', decls', slots') ->
+      ((Pos.eqb slot slot' && names_eqb symbols symbols')
+      && names_eqb decls decls')
+      && value_slots_eqb vm slots slots'
     | _ -> false)
   | Static_const_block (tag, fields) -> (
     match const' with

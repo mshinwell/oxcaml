@@ -80,12 +80,27 @@ let eval_named statics vars = function
     match eval_value_slots vars value_slots with
     | Some vs -> Some (Value_closure (code, vs))
     | None -> None)
+  | Closure_of_set (slot, function_decls, value_slots) -> (
+    match lookup slot function_decls with
+    | Some _ -> (
+      match eval_value_slots vars value_slots with
+      | Some vs -> Some (Value_closure_of_set (slot, function_decls, vs))
+      | None -> None)
+    | None -> None)
   | Project_value_slot (slot, closure) -> (
     match eval_simple vars closure with
     | Some v -> (
       match closure_of statics v with
       | Some called -> lookup slot (snd called)
       | None -> None)
+    | None -> None)
+  | Project_value_slot_from (project_from, slot, closure) -> (
+    match eval_simple vars closure with
+    | Some v -> project_value_slot statics project_from slot v
+    | None -> None)
+  | Project_function_slot (move_from, move_to, closure) -> (
+    match eval_simple vars closure with
+    | Some v -> project_function_slot statics move_from move_to v
     | None -> None)
 
 (** val eval_static_const : env -> static_const -> statically_allocated_value
@@ -95,6 +110,15 @@ let eval_static_const vars = function
   | Static_const_set_of_closures (code, value_slots) -> (
     match eval_value_slots vars value_slots with
     | Some vs -> Some (Static_closure (code, vs))
+    | None -> None)
+  | Static_const_closure_of_set
+      (slot, closure_symbols, function_decls, value_slots) -> (
+    match lookup slot function_decls with
+    | Some _ -> (
+      match eval_value_slots vars value_slots with
+      | Some vs ->
+        Some (Static_closure_of_set (slot, closure_symbols, function_decls, vs))
+      | None -> None)
     | None -> None)
   | Static_const_block (tag, fields) -> (
     match eval_simples vars fields with

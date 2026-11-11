@@ -45,8 +45,17 @@ let rename_named r = function
   | Set_of_closures (code, value_slots) ->
     Set_of_closures
       (code, map (fun slot -> fst slot, rename_simple r (snd slot)) value_slots)
+  | Closure_of_set (slot, function_decls, value_slots) ->
+    Closure_of_set
+      ( slot,
+        function_decls,
+        map (fun slot0 -> fst slot0, rename_simple r (snd slot0)) value_slots )
   | Project_value_slot (slot, closure) ->
     Project_value_slot (slot, rename_simple r closure)
+  | Project_value_slot_from (project_from, slot, closure) ->
+    Project_value_slot_from (project_from, slot, rename_simple r closure)
+  | Project_function_slot (move_from, move_to, closure) ->
+    Project_function_slot (move_from, move_to, rename_simple r closure)
 
 (** val rename_apply_cont : renaming -> apply_cont -> apply_cont **)
 
@@ -61,6 +70,13 @@ let rename_static_const r = function
   | Static_const_set_of_closures (code, value_slots) ->
     Static_const_set_of_closures
       (code, map (fun slot -> fst slot, rename_simple r (snd slot)) value_slots)
+  | Static_const_closure_of_set
+      (slot, closure_symbols, function_decls, value_slots) ->
+    Static_const_closure_of_set
+      ( slot,
+        closure_symbols,
+        function_decls,
+        map (fun slot0 -> fst slot0, rename_simple r (snd slot0)) value_slots )
   | Static_const_block (tag, fields) ->
     Static_const_block (tag, map (rename_simple r) fields)
   | Static_const_boxed_number contents ->

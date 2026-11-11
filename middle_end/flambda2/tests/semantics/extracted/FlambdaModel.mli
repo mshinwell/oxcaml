@@ -1,6 +1,12 @@
+open BinInt
 open BinNums
+open BinPos
+open Datatypes
 open FlambdaKindModel
 open FlambdaPrimitiveModel
+open List
+open ListDef
+open PeanoNat
 
 type variable = positive
 
@@ -11,6 +17,8 @@ type symbol = positive
 type code_id = positive
 
 type value_slot = positive
+
+type function_slot = positive
 
 type const =
   | Naked_immediate of coq_Z
@@ -40,13 +48,28 @@ type named =
   | Simple of simple
   | Prim of prim * simple list
   | Set_of_closures of code_id * (value_slot * simple) list
+  | Closure_of_set of
+      function_slot
+      * (function_slot * code_id) list
+      * (value_slot * simple) list
   | Project_value_slot of value_slot * simple
+  | Project_value_slot_from of function_slot * value_slot * simple
+  | Project_function_slot of function_slot * function_slot * simple
 
 type static_const =
   | Static_const_set_of_closures of code_id * (value_slot * simple) list
+  | Static_const_closure_of_set of
+      function_slot
+      * (function_slot * symbol) list
+      * (function_slot * code_id) list
+      * (value_slot * simple) list
   | Static_const_block of coq_Z * simple list
   | Static_const_boxed_number of simple
   | Static_const_immutable_string of coq_Z list
+
+val simple_eq_dec : simple -> simple -> bool
+
+val static_const_eq_dec : static_const -> static_const -> bool
 
 type apply_cont =
   { ac_continuation : continuation;
@@ -94,3 +117,19 @@ val code_return_continuation : code -> continuation
 val code_exn_continuation : code -> continuation
 
 val code_body : code -> expr
+
+val let_projections :
+  variable -> function_slot -> (variable * function_slot) list -> expr -> expr
+
+val let_closures :
+  variable list ->
+  (function_slot * code_id) list ->
+  (value_slot * simple) list ->
+  expr ->
+  expr option
+
+val bind_closures :
+  (function_slot * symbol) list ->
+  (function_slot * code_id) list ->
+  (value_slot * simple) list ->
+  static_binding list
