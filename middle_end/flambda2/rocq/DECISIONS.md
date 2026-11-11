@@ -218,6 +218,8 @@ says so. Only the labels that this tree cites are listed.
   compiler; the model can write an empty one.
 - **R3-2.** The reverse reduction of `Get_tag` discards the possibility
   of an immediate.
+- **R3-7.** The n-way join can say what the code of a closure is when
+  one of its inputs does not (with T1-4).
 - **R3-15.** In the model, the immediates of a type include raw integers
   that are out of range for the compiler.
 - **T1-1.** After unboxing, the compiler's own types say that the

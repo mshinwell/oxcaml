@@ -660,6 +660,22 @@ known of the static environment; kinds on
 parameters and well-kindedness; mutable memory and effects, trap actions,
 and any link to the simplifier's code.
 
+### Changes to the compiler made on this branch
+
+The work on the semantics does not change the compiler: where the model
+and the compiler part ways, the difference is recorded and the model
+follows the compiler. The exceptions are listed here, each made at the
+request of the branch's owner, each a commit of its own with a subject
+in the compiler's style, so that it can be proposed upstream by itself.
+
+- `middle_end/flambda2/types/meet_and_n_way_join.ml`,
+  `n_way_join_closures_entry`: the n-way join keeps the function type of
+  a function slot only if every input has one, as the binary join does
+  (discrepancies T1-4 and R3-7). Before, with the n-way join, a correct
+  program could stop on an `Invalid` put in place of a live call, and
+  the `zero_alloc` check could accept a function that allocates. Tests:
+  `testsuite/tests/flambda2/n_way_join_function_types*.ml`.
+
 ### Testing Simplify against the semantics
 
 `middle_end/flambda2/tests/semantics/` checks the real simplifier against
