@@ -877,6 +877,441 @@ Proof.
     apply (Hreflects a Hlookup).
 Qed.
 
+(* ------------------------------------------------------------------------ *)
+(* Changing the keys                                                        *)
+(* ------------------------------------------------------------------------ *)
+
+(* An [f] that sends different keys to different keys keeps the test. *)
+Lemma keyed_eqb_injective {K K' : Type} (eqb : K -> K -> bool)
+    (eqb' : K' -> K' -> bool) (Heqb : decides_equality eqb)
+    (Heqb' : decides_equality eqb') (f : K -> K') :
+  (∀ key key' : K, f key = f key' -> key = key') ->
+  ∀ key key' : K, eqb' (f key) (f key') = eqb key key'.
+Proof.
+  intros Hf key key'.
+  destruct (keyed_eqb_spec eqb Heqb key key') as [-> | Hne].
+  - apply (keyed_eqb_refl eqb' Heqb').
+  - destruct (keyed_eqb_spec eqb' Heqb' (f key) (f key')) as [Heq | _];
+      [ | reflexivity ].
+    elim Hne. exact (Hf _ _ Heq).
+Qed.
+
+Lemma keyed_map_bindings_keys {K K' A B : Type} (f : K -> K') (g : A -> B)
+    (bindings : Keyed.finite_map K A) :
+  map fst (Keyed.map_bindings f g bindings) = map f (map fst bindings).
+Proof.
+  unfold Keyed.map_bindings.
+  induction bindings as [ | [bound a] bindings IH]; simpl;
+    [ reflexivity | rewrite IH; reflexivity ].
+Qed.
+
+Theorem keyed_lookup_map_bindings : keyed_lookup_map_bindings_statement.
+Proof.
+  intros K K' eqb eqb' Heqb Heqb' A B f g Hf key bindings.
+  unfold Keyed.map_bindings.
+  induction bindings as [ | [bound a] bindings IH]; simpl; [ reflexivity | ].
+  rewrite (keyed_eqb_injective eqb eqb' Heqb Heqb' f Hf).
+  destruct (eqb key bound); [ reflexivity | exact IH ].
+Qed.
+
+Theorem keyed_lookup_map_bindings_off_image :
+  keyed_lookup_map_bindings_off_image_statement.
+Proof.
+  intros K K' eqb' Heqb' A B f g key' bindings Hoff.
+  unfold Keyed.map_bindings.
+  induction bindings as [ | [bound a] bindings IH]; simpl; [ reflexivity | ].
+  destruct (keyed_eqb_spec eqb' Heqb' key' (f bound)) as [Heq | _];
+    [ | exact IH ].
+  elim (Hoff bound). symmetry. exact Heq.
+Qed.
+
+Theorem keyed_lookup_map_bindings_inverse :
+  keyed_lookup_map_bindings_inverse_statement.
+Proof.
+  intros K K' eqb eqb' Heqb Heqb' A B f f_inverse g Hinverse key' bindings.
+  unfold Keyed.map_bindings.
+  induction bindings as [ | [bound a] bindings IH]; simpl.
+  - destruct (eqb' (f (f_inverse key')) key'); reflexivity.
+  - destruct (keyed_eqb_spec eqb' Heqb' key' (f bound)) as [-> | Hne].
+    + rewrite Hinverse, (keyed_eqb_refl eqb' Heqb'),
+        (keyed_eqb_refl eqb Heqb).
+      reflexivity.
+    + rewrite IH.
+      destruct (keyed_eqb_spec eqb' Heqb' (f (f_inverse key')) key')
+        as [Himage | _];
+        [ | reflexivity ].
+      destruct (keyed_eqb_spec eqb Heqb (f_inverse key') bound)
+        as [Hbound | _];
+        [ | reflexivity ].
+      elim Hne. rewrite <- Hbound. symmetry. exact Himage.
+Qed.
+
+Theorem keyed_among_map : keyed_among_map_statement.
+Proof.
+  intros K K' eqb eqb' Heqb Heqb' f Hf key keys. unfold Keyed.among.
+  induction keys as [ | first keys IH]; simpl; [ reflexivity | ].
+  rewrite (keyed_eqb_injective eqb eqb' Heqb Heqb' f Hf), IH. reflexivity.
+Qed.
+
+(* Whether a key is [f] of one of the keys of a list. *)
+Lemma keyed_among_map_in {K K' : Type} (eqb' : K' -> K' -> bool)
+    (Heqb' : decides_equality eqb') (f : K -> K') (key' : K')
+    (keys : list K) :
+  Keyed.among eqb' key' (map f keys) = true
+  <-> ∃ key : K, key ∈ keys ∧ f key = key'.
+Proof.
+  split.
+  - intros H. apply (keyed_among_in K' eqb' Heqb') in H.
+    apply in_map_iff in H. destruct H as (key & Hkey & Hin).
+    exists key. split; assumption.
+  - intros (key & Hin & Hkey). apply (keyed_among_in K' eqb' Heqb').
+    apply in_map_iff. exists key. split; assumption.
+Qed.
+
+Theorem keyed_domain_map_bindings : keyed_domain_map_bindings_statement.
+Proof.
+  intros K K' eqb eqb' Heqb Heqb' A B f g bindings key'.
+  unfold Keyed.domain.
+  rewrite (keyed_among_dedup K' eqb' Heqb'), keyed_map_bindings_keys.
+  apply eq_true_iff_eq. split; intros H.
+  - apply (keyed_among_map_in eqb' Heqb') in H.
+    destruct H as (key & Hin & Hkey).
+    apply (keyed_among_map_in eqb' Heqb'). exists key.
+    split; [ | exact Hkey ].
+    apply (keyed_among_in K eqb Heqb).
+    rewrite (keyed_among_dedup K eqb Heqb).
+    apply (keyed_among_in K eqb Heqb). exact Hin.
+  - apply (keyed_among_map_in eqb' Heqb') in H.
+    destruct H as (key & Hin & Hkey).
+    apply (keyed_among_map_in eqb' Heqb'). exists key.
+    split; [ | exact Hkey ].
+    apply (keyed_among_in K eqb Heqb).
+    rewrite <- (keyed_among_dedup K eqb Heqb).
+    apply (keyed_among_in K eqb Heqb). exact Hin.
+Qed.
+
+Theorem keyed_map_bindings_map_equal :
+  keyed_map_bindings_map_equal_statement.
+Proof.
+  intros K K' eqb eqb' Heqb Heqb' A B f g Hf bindings bindings' Hequal key'.
+  assert (Himage :
+            ∀ (m : Keyed.finite_map K A) (b : B),
+              Keyed.lookup eqb' key' (Keyed.map_bindings f g m) = Some b ->
+              ∃ key : K, f key = key').
+  { intros m b Hlookup. apply (keyed_lookup_in eqb' Heqb') in Hlookup.
+    apply (in_map fst) in Hlookup.
+    rewrite keyed_map_bindings_keys in Hlookup. simpl in Hlookup.
+    apply in_map_iff in Hlookup. destruct Hlookup as (key & Hkey & _).
+    exists key. exact Hkey. }
+  assert (Hsame :
+            ∀ key : K,
+              Keyed.lookup eqb' (f key) (Keyed.map_bindings f g bindings)
+              = Keyed.lookup eqb' (f key) (Keyed.map_bindings f g bindings')).
+  { intros key.
+    rewrite !(keyed_lookup_map_bindings K K' eqb eqb' Heqb Heqb' A B f g Hf).
+    rewrite (Hequal key). reflexivity. }
+  destruct (Keyed.lookup eqb' key' (Keyed.map_bindings f g bindings))
+    as [b | ] eqn:Hleft.
+  - destruct (Himage bindings b Hleft) as (key & <-).
+    rewrite <- Hsame. symmetry. exact Hleft.
+  - destruct (Keyed.lookup eqb' key' (Keyed.map_bindings f g bindings'))
+      as [b' | ] eqn:Hright;
+      [ | reflexivity ].
+    destruct (Himage bindings' b' Hright) as (key & <-).
+    rewrite Hsame in Hleft. congruence.
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+(* Folds that thread a state                                                *)
+(* ------------------------------------------------------------------------ *)
+
+Lemma keyed_fold2_on_nil {K : Type} (eqb : K -> K -> bool) {A B S : Type}
+    (f : K -> option A -> option B -> S -> S) (m1 : Keyed.finite_map K A)
+    (m2 : Keyed.finite_map K B) (init : S) :
+  Keyed.fold2_on eqb [] f m1 m2 init = init.
+Proof. reflexivity. Qed.
+
+Lemma keyed_fold2_on_cons {K : Type} (eqb : K -> K -> bool) {A B S : Type}
+    (f : K -> option A -> option B -> S -> S) (key : K) (keys : list K)
+    (m1 : Keyed.finite_map K A) (m2 : Keyed.finite_map K B) (init : S) :
+  Keyed.fold2_on eqb (key :: keys) f m1 m2 init
+  = Keyed.fold2_on eqb keys f m1 m2
+      (f key (Keyed.lookup eqb key m1) (Keyed.lookup eqb key m2) init).
+Proof. reflexivity. Qed.
+
+Theorem keyed_among_keys_of_both : keyed_among_keys_of_both_statement.
+Proof.
+  intros K eqb Heqb A B key m1 m2. unfold Keyed.keys_of_both.
+  rewrite (keyed_among_dedup K eqb Heqb), keyed_among_app,
+    !keyed_is_bound_among.
+  reflexivity.
+Qed.
+
+Theorem keyed_keys_of_both_distinct : keyed_keys_of_both_distinct_statement.
+Proof.
+  intros K eqb Heqb A B m1 m2. apply (keyed_dedup_distinct K eqb Heqb).
+Qed.
+
+(* One step of [tabulate_fold], by projections. *)
+Lemma keyed_tabulate_fold_cons {K A S : Type} (f : K -> S -> option A * S)
+    (key : K) (keys : list K) (s : S) :
+  Keyed.tabulate_fold f (key :: keys) s
+  = (match fst (f key s) with
+     | Some a => (key, a) :: fst (Keyed.tabulate_fold f keys (snd (f key s)))
+     | None => fst (Keyed.tabulate_fold f keys (snd (f key s)))
+     end,
+     snd (Keyed.tabulate_fold f keys (snd (f key s)))).
+Proof.
+  simpl. destruct (f key s) as [a s']. simpl.
+  destruct (Keyed.tabulate_fold f keys s') as [bindings s'']. reflexivity.
+Qed.
+
+Theorem keyed_tabulate_fold_stateless :
+  keyed_tabulate_fold_stateless_statement.
+Proof.
+  intros K A S f keys s. induction keys as [ | key keys IH];
+    [ reflexivity | ].
+  rewrite keyed_tabulate_fold_cons. cbn [fst snd]. rewrite IH.
+  cbn [fst snd]. unfold Keyed.tabulate. simpl.
+  destruct (f key); reflexivity.
+Qed.
+
+(* A fold over two lists of keys, one after the other. *)
+Lemma keyed_tabulate_fold_app {K A S : Type} (f : K -> S -> option A * S)
+    (keys keys' : list K) :
+  ∀ s : S,
+    Keyed.tabulate_fold f (keys ++ keys') s
+    = (fst (Keyed.tabulate_fold f keys s)
+       ++ fst
+            (Keyed.tabulate_fold f keys'
+               (snd (Keyed.tabulate_fold f keys s))),
+       snd
+         (Keyed.tabulate_fold f keys' (snd (Keyed.tabulate_fold f keys s)))).
+Proof.
+  induction keys as [ | key keys IH]; intros s.
+  - simpl. destruct (Keyed.tabulate_fold f keys' s); reflexivity.
+  - change ((key :: keys) ++ keys') with (key :: (keys ++ keys')).
+    rewrite !keyed_tabulate_fold_cons, IH. cbn [fst snd].
+    destruct (fst (f key s)); reflexivity.
+Qed.
+
+(* The map binds none but the keys given. *)
+Lemma keyed_tabulate_fold_keys {K A S : Type} (f : K -> S -> option A * S)
+    (keys : list K) :
+  ∀ (s : S) (key : K),
+    key ∈ map fst (fst (Keyed.tabulate_fold f keys s)) -> key ∈ keys.
+Proof.
+  induction keys as [ | first keys IH]; intros s key.
+  - simpl. exact (fun H => H).
+  - rewrite keyed_tabulate_fold_cons. cbn [fst snd].
+    destruct (fst (f first s)) as [a | ]; simpl.
+    + intros [-> | Hin]; [ left; reflexivity | right; exact (IH _ _ Hin) ].
+    + intros Hin. right. exact (IH _ _ Hin).
+Qed.
+
+Theorem keyed_lookup_tabulate_fold_other :
+  keyed_lookup_tabulate_fold_other_statement.
+Proof.
+  intros K eqb Heqb A S f key keys s Hamong.
+  destruct (Keyed.lookup eqb key (fst (Keyed.tabulate_fold f keys s)))
+    as [a | ] eqn:Hlookup;
+    [ | reflexivity ].
+  apply (keyed_lookup_in eqb Heqb) in Hlookup.
+  apply (in_map fst) in Hlookup. simpl in Hlookup.
+  apply keyed_tabulate_fold_keys in Hlookup.
+  apply (keyed_among_in K eqb Heqb) in Hlookup. congruence.
+Qed.
+
+(* A key of a list of distinct keys is not among those before it nor
+   among those after it. *)
+Lemma keyed_distinct_app_cons {K : Type} (eqb : K -> K -> bool)
+    (Heqb : decides_equality eqb) (before : list K) (key : K)
+    (after : list K) :
+  Keyed.distinct eqb (before ++ key :: after) = true ->
+  Keyed.among eqb key before = false ∧ Keyed.among eqb key after = false.
+Proof.
+  intros H. apply (keyed_distinct_NoDup eqb Heqb) in H.
+  apply NoDup_remove_2 in H.
+  split.
+  - destruct (Keyed.among eqb key before) eqn:Hamong; [ | reflexivity ].
+    elim H. apply in_or_app. left.
+    apply (keyed_among_in K eqb Heqb). exact Hamong.
+  - destruct (Keyed.among eqb key after) eqn:Hamong; [ | reflexivity ].
+    elim H. apply in_or_app. right.
+    apply (keyed_among_in K eqb Heqb). exact Hamong.
+Qed.
+
+Theorem keyed_lookup_tabulate_fold : keyed_lookup_tabulate_fold_statement.
+Proof.
+  intros K eqb Heqb A S f before key after s Hdistinct.
+  destruct (keyed_distinct_app_cons eqb Heqb before key after Hdistinct)
+    as [Hbefore Hafter].
+  rewrite keyed_tabulate_fold_app. cbn [fst snd].
+  rewrite keyed_lookup_app,
+    (keyed_lookup_tabulate_fold_other K eqb Heqb A S f key before s Hbefore).
+  rewrite keyed_tabulate_fold_cons. cbn [fst snd].
+  destruct (fst (f key (snd (Keyed.tabulate_fold f before s)))) as [a | ].
+  - apply (keyed_lookup_head eqb Heqb).
+  - apply (keyed_lookup_tabulate_fold_other K eqb Heqb). exact Hafter.
+Qed.
+
+Theorem keyed_merge_fold_on : keyed_merge_fold_on_statement.
+Proof.
+  intros K eqb A B C S keys f m1 m2 init. unfold Keyed.merge_fold_on.
+  enough
+    (H :
+       ∀ (keys : list K) (acc : Keyed.finite_map K C) (s : S),
+         List.fold_left
+           (fun (acc : Keyed.finite_map K C * S) key =>
+              let '(c, s) :=
+                f key (Keyed.lookup eqb key m1) (Keyed.lookup eqb key m2)
+                  (snd acc)
+              in
+              (match c with
+               | Some c => fst acc ++ [(key, c)]
+               | None => fst acc
+               end,
+               s))
+           keys (acc, s)
+         = (acc
+            ++ fst
+                 (Keyed.tabulate_fold
+                    (fun key =>
+                       f key (Keyed.lookup eqb key m1)
+                         (Keyed.lookup eqb key m2))
+                    keys s),
+            snd
+              (Keyed.tabulate_fold
+                 (fun key =>
+                    f key (Keyed.lookup eqb key m1) (Keyed.lookup eqb key m2))
+                 keys s))).
+  { refine (eq_trans (H keys [] init) _). simpl.
+    destruct
+      (Keyed.tabulate_fold
+         (fun key =>
+            f key (Keyed.lookup eqb key m1) (Keyed.lookup eqb key m2))
+         keys init);
+      reflexivity. }
+  clear keys init. induction keys as [ | key keys IH]; intros acc s.
+  - simpl. rewrite app_nil_r. reflexivity.
+  - cbn [List.fold_left]. rewrite keyed_tabulate_fold_cons. cbn [fst snd].
+    destruct (f key (Keyed.lookup eqb key m1) (Keyed.lookup eqb key m2) s)
+      as [c s'].
+    cbn [fst snd]. rewrite IH.
+    destruct c as [c | ]; [ | reflexivity ].
+    rewrite <- app_assoc. reflexivity.
+Qed.
+
+Theorem keyed_merge_fold_stateless : keyed_merge_fold_stateless_statement.
+Proof.
+  intros K eqb A B C S f m1 m2 init. unfold Keyed.merge_fold.
+  rewrite keyed_merge_fold_on.
+  exact
+    (keyed_tabulate_fold_stateless K C S
+       (fun key => f (Keyed.lookup eqb key m1) (Keyed.lookup eqb key m2))
+       (Keyed.keys_of_both eqb m1 m2) init).
+Qed.
+
+Theorem keyed_tabulate_fold_opt_total :
+  keyed_tabulate_fold_opt_total_statement.
+Proof.
+  intros K A S f keys. induction keys as [ | key keys IH]; intros s;
+    [ reflexivity | ].
+  simpl. destruct (f key s) as [a s']. rewrite IH.
+  destruct (Keyed.tabulate_fold f keys s') as [bindings s'']. reflexivity.
+Qed.
+
+(* Two functions that answer the same give the same fold. *)
+Lemma keyed_tabulate_fold_opt_ext {K A S : Type}
+    (f f' : K -> S -> option (option A * S)) (keys : list K) :
+  (∀ (key : K) (s : S), f key s = f' key s) ->
+  ∀ s : S, Keyed.tabulate_fold_opt f keys s = Keyed.tabulate_fold_opt f' keys s.
+Proof.
+  intros Hext. induction keys as [ | key keys IH]; intros s; simpl;
+    [ reflexivity | ].
+  rewrite <- Hext. destruct (f key s) as [[a s'] | ]; [ | reflexivity ].
+  rewrite IH. reflexivity.
+Qed.
+
+Theorem keyed_tabulate_fold_opt_invariant :
+  keyed_tabulate_fold_opt_invariant_statement.
+Proof.
+  intros K A S f P Q keys.
+  induction keys as [ | key keys IH]; intros s s' bindings Hstep Hs; simpl.
+  - intros [= <- <-].
+    split; [ exact Hs | split; [ exact I | intros key [] ] ].
+  - destruct (f key s) as [[a s1] | ] eqn:Hf; [ | discriminate ].
+    destruct (Keyed.tabulate_fold_opt f keys s1) as [[rest s2] | ] eqn:Hrest;
+      [ | discriminate ].
+    intros [= <- <-].
+    destruct (Hstep key s s1 a (or_introl eq_refl) Hs Hf) as [Hs1 Ha].
+    destruct
+      (IH s1 s2 rest
+         (fun key' t t' a' Hin => Hstep key' t t' a' (or_intror Hin)) Hs1
+         Hrest)
+      as (Hs2 & Hrest_q & Hkeys).
+    split; [ exact Hs2 | ].
+    destruct a as [a | ]; simpl.
+    + split; [ split; [ exact (Ha a eq_refl) | exact Hrest_q ] | ].
+      intros key' [<- | Hin];
+        [ left; reflexivity | right; exact (Hkeys key' Hin) ].
+    + split; [ exact Hrest_q | ].
+      intros key' Hin. right. exact (Hkeys key' Hin).
+Qed.
+
+(* The same of a fold that cannot fail. *)
+Lemma keyed_tabulate_fold_invariant {K A S : Type}
+    (f : K -> S -> option A * S) (P : S -> Prop) (Q : K -> A -> Prop)
+    (keys : list K) (s : S) :
+  (∀ (key : K) (s : S),
+     key ∈ keys ->
+     P s ->
+     P (snd (f key s)) ∧ ∀ a : A, fst (f key s) = Some a -> Q key a) ->
+  P s ->
+  P (snd (Keyed.tabulate_fold f keys s))
+  ∧ every (fun binding => Q (fst binding) (snd binding))
+      (fst (Keyed.tabulate_fold f keys s)).
+Proof.
+  intros Hstep Hs.
+  destruct
+    (keyed_tabulate_fold_opt_invariant K A S (fun key s => Some (f key s)) P
+       Q keys s
+       (snd (Keyed.tabulate_fold f keys s))
+       (fst (Keyed.tabulate_fold f keys s)))
+    as (H1 & H2 & _).
+  - intros key t t' a Hin Ht [= Hf].
+    destruct (Hstep key t Hin Ht) as [Hp Hq]. rewrite Hf in Hp, Hq.
+    split; [ exact Hp | exact Hq ].
+  - exact Hs.
+  - rewrite keyed_tabulate_fold_opt_total.
+    destruct (Keyed.tabulate_fold f keys s); reflexivity.
+  - exact (conj H1 H2).
+Qed.
+
+Theorem keyed_filter_map_fold_stateless :
+  keyed_filter_map_fold_stateless_statement.
+Proof.
+  intros K eqb A B S f bindings s.
+  unfold Keyed.filter_map_fold, Keyed.filter_map_fold_on.
+  pose
+    (h :=
+       fun key =>
+         match Keyed.lookup eqb key bindings with
+         | Some a => f key a
+         | None => None
+         end).
+  refine
+    (eq_trans
+       (keyed_tabulate_fold_opt_ext _ (fun key s => Some (h key, s)) _ _ _) _).
+  - intros key s0. unfold h.
+    destruct (Keyed.lookup eqb key bindings); reflexivity.
+  - refine
+      (eq_trans
+         (keyed_tabulate_fold_opt_total K B S (fun key s => (h key, s)) _ _)
+         _).
+    exact (f_equal Some (keyed_tabulate_fold_stateless K B S h _ _)).
+Qed.
+
 (* ======================================================================== *)
 (* Names                                                                    *)
 (* ======================================================================== *)

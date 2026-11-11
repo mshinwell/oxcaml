@@ -132,6 +132,15 @@
      Those that go through a map ([Keyed.for_all_bindings],
      [Keyed.at_binding] and their tests) have short names on names;
      these are abbreviations, not definitions.
+   - Changing the keys of a map ([Keyed.map_bindings], [Keyed.map_keys])
+     and the folds that thread a state ([Keyed.fold2], [Keyed.merge_fold],
+     [Keyed.tabulate_fold], [Keyed.tabulate_fold_opt],
+     [Keyed.filter_map_fold] and those that take the keys to go through)
+     are in [Keyed] only. A fold goes through the keys in the order of
+     the list it is given, or, over a map, in the order of [domain]: the
+     latest bound first. The statements say what a fold binds each key
+     to and in which state it asks, so that nothing need be proved by
+     the order in which a map happens to list its keys.
 
    Why the test is an argument, and what was rejected.
    - A copy of the definitions and of the statements for integers, and
@@ -673,6 +682,131 @@ Definition at_binding_b {A : Type} (p : A -> bool) (key : K)
       if eqb key bound then p a else at_binding_b bindings
     end.
 
+(* Changing the keys. *)
+
+(* The map that binds [f] of each key to [g] of what the key was bound
+   to. It is meant for an [f] that sends different keys to different
+   keys, as a renaming does. With another [f], the bindings of two keys
+   that [f] sends to one key are both kept, and the first of them is the
+   one that counts. *)
+Definition map_bindings {K' A B : Type} (f : K -> K') (g : A -> B)
+    (bindings : finite_map K A) : finite_map K' B :=
+  map (fun binding => (f (fst binding), g (snd binding))) bindings.
+
+(* [map_bindings] that leaves what the keys are bound to as it is. *)
+Definition map_keys {K' A : Type} (f : K -> K') (bindings : finite_map K A)
+    : finite_map K' A :=
+  map_bindings f (fun a => a) bindings.
+
+(* Folds that thread a state. *)
+
+(* A fold over the keys given, in their order, with what each of two maps
+   binds a key to. *)
+Definition fold2_on {A B S : Type} (keys : list K)
+    (f : K -> option A -> option B -> S -> S) (m1 : finite_map K A)
+    (m2 : finite_map K B) (init : S) : S :=
+  List.fold_left
+    (fun acc key => f key (lookup key m1) (lookup key m2) acc)
+    keys init.
+
+(* The keys of both maps, each once, those of the first map before those
+   of the second. These are the keys that [merge] goes through. *)
+Definition keys_of_both {A B : Type} (m1 : finite_map K A)
+    (m2 : finite_map K B) : list K :=
+  dedup (map fst m1 ++ map fst m2).
+
+(* [fold2_on], over the keys of both maps. *)
+Definition fold2 {A B S : Type} (f : K -> option A -> option B -> S -> S)
+    (m1 : finite_map K A) (m2 : finite_map K B) (init : S) : S :=
+  fold2_on (keys_of_both m1 m2) f m1 m2 init.
+
+(* [tabulate] with a state: the keys are gone through in their order,
+   [f] is given the state as the keys before have left it, and the map
+   binds each key to what [f] answers for it, if it answers something. *)
+Fixpoint tabulate_fold {A S : Type} (f : K -> S -> option A * S)
+    (keys : list K) (s : S) : finite_map K A * S :=
+  match keys with
+  | [] => ([], s)
+  | key :: keys =>
+    let (a, s) := f key s in
+    let (bindings, s) := tabulate_fold f keys s in
+    (match a with
+     | Some a => (key, a) :: bindings
+     | None => bindings
+     end,
+     s)
+  end.
+
+(* [fold2_on] that also builds the map of what [f] answers at each key:
+   [tabulate_fold] of what the two maps bind each key to
+   ([keyed_merge_fold_on_statement]). *)
+Definition merge_fold_on {A B C S : Type} (keys : list K)
+    (f : K -> option A -> option B -> S -> option C * S)
+    (m1 : finite_map K A) (m2 : finite_map K B) (init : S)
+    : finite_map K C * S :=
+  List.fold_left
+    (fun (acc : finite_map K C * S) key =>
+       let '(c, s) := f key (lookup key m1) (lookup key m2) (snd acc) in
+       (match c with
+        | Some c => fst acc ++ [(key, c)]
+        | None => fst acc
+        end,
+        s))
+    keys ([], init).
+
+(* [Map.merge] with a state and with the key: [merge_fold_on], over the
+   keys of both maps. [f] is asked only for keys that one of the maps
+   binds. *)
+Definition merge_fold {A B C S : Type}
+    (f : K -> option A -> option B -> S -> option C * S)
+    (m1 : finite_map K A) (m2 : finite_map K B) (init : S)
+    : finite_map K C * S :=
+  merge_fold_on (keys_of_both m1 m2) f m1 m2 init.
+
+(* [tabulate_fold] with an [f] that may fail: the fold stops at the first
+   key for which [f] answers [None], and then answers [None] itself. *)
+Fixpoint tabulate_fold_opt {A S : Type}
+    (f : K -> S -> option (option A * S)) (keys : list K) (s : S)
+    : option (finite_map K A * S) :=
+  match keys with
+  | [] => Some ([], s)
+  | key :: keys =>
+    match f key s with
+    | None => None
+    | Some (a, s) =>
+      match tabulate_fold_opt f keys s with
+      | None => None
+      | Some (bindings, s) =>
+        Some
+          (match a with
+           | Some a => (key, a) :: bindings
+           | None => bindings
+           end,
+           s)
+      end
+    end
+  end.
+
+(* [tabulate_fold_opt] over the keys given, with what the map binds each
+   to; a key that the map does not bind is passed over. *)
+Definition filter_map_fold_on {A B S : Type} (keys : list K)
+    (f : K -> A -> S -> option (option B * S)) (bindings : finite_map K A)
+    (s : S) : option (finite_map K B * S) :=
+  tabulate_fold_opt
+    (fun key s =>
+       match lookup key bindings with
+       | Some a => f key a s
+       | None => Some (None, s)
+       end)
+    keys s.
+
+(* [Map.filter_map] with a state and a failure: each key that the map
+   binds is visited once, with what [lookup] finds for it. *)
+Definition filter_map_fold {A B S : Type}
+    (f : K -> A -> S -> option (option B * S)) (bindings : finite_map K A)
+    (s : S) : option (finite_map K B * S) :=
+  filter_map_fold_on (domain bindings) f bindings s.
+
 End Keys.
 
 End Keyed.
@@ -947,3 +1081,177 @@ Definition for_all_bindings_lookup_statement : Prop :=
 Definition at_binding_lookup_statement : Prop :=
   ∀ (A : Type) (P : A -> Prop) (name : positive) (m : finite_map A),
     at_binding P name m <-> (∀ a : A, lookup name m = Some a -> P a).
+
+(* Changing the keys. The statements are for an [f] that sends different
+   keys to different keys, but for the two that say so. *)
+
+Definition keyed_lookup_map_bindings_statement : Prop :=
+  ∀ (K K' : Type) (eqb : K -> K -> bool) (eqb' : K' -> K' -> bool),
+    decides_equality eqb ->
+    decides_equality eqb' ->
+    ∀ (A B : Type) (f : K -> K') (g : A -> B),
+      (∀ key key' : K, f key = f key' -> key = key') ->
+      ∀ (key : K) (bindings : Keyed.finite_map K A),
+        Keyed.lookup eqb' (f key) (Keyed.map_bindings f g bindings)
+        = option_map g (Keyed.lookup eqb key bindings).
+
+(* The same, for an [f] that is given with a function that undoes it, as
+   a renaming is: a key that is not [f] of a key is not bound. *)
+Definition keyed_lookup_map_bindings_inverse_statement : Prop :=
+  ∀ (K K' : Type) (eqb : K -> K -> bool) (eqb' : K' -> K' -> bool),
+    decides_equality eqb ->
+    decides_equality eqb' ->
+    ∀ (A B : Type) (f : K -> K') (f_inverse : K' -> K) (g : A -> B),
+      (∀ key : K, f_inverse (f key) = key) ->
+      ∀ (key' : K') (bindings : Keyed.finite_map K A),
+        Keyed.lookup eqb' key' (Keyed.map_bindings f g bindings)
+        = if eqb' (f (f_inverse key')) key'
+          then option_map g (Keyed.lookup eqb (f_inverse key') bindings)
+          else None.
+
+(* Whatever [f] is, a key that is not [f] of a key is not bound. *)
+Definition keyed_lookup_map_bindings_off_image_statement : Prop :=
+  ∀ (K K' : Type) (eqb' : K' -> K' -> bool),
+    decides_equality eqb' ->
+    ∀ (A B : Type) (f : K -> K') (g : A -> B) (key' : K')
+      (bindings : Keyed.finite_map K A),
+      (∀ key : K, f key <> key') ->
+      Keyed.lookup eqb' key' (Keyed.map_bindings f g bindings) = None.
+
+Definition keyed_among_map_statement : Prop :=
+  ∀ (K K' : Type) (eqb : K -> K -> bool) (eqb' : K' -> K' -> bool),
+    decides_equality eqb ->
+    decides_equality eqb' ->
+    ∀ f : K -> K',
+      (∀ key key' : K, f key = f key' -> key = key') ->
+      ∀ (key : K) (keys : list K),
+        Keyed.among eqb' (f key) (map f keys) = Keyed.among eqb key keys.
+
+(* Whatever [f] is, the keys bound are [f] of the keys that were. *)
+Definition keyed_domain_map_bindings_statement : Prop :=
+  ∀ (K K' : Type) (eqb : K -> K -> bool) (eqb' : K' -> K' -> bool),
+    decides_equality eqb ->
+    decides_equality eqb' ->
+    ∀ (A B : Type) (f : K -> K') (g : A -> B)
+      (bindings : Keyed.finite_map K A),
+      Keyed.same_keys eqb'
+        (Keyed.domain eqb' (Keyed.map_bindings f g bindings))
+        (map f (Keyed.domain eqb bindings)).
+
+Definition keyed_map_bindings_map_equal_statement : Prop :=
+  ∀ (K K' : Type) (eqb : K -> K -> bool) (eqb' : K' -> K' -> bool),
+    decides_equality eqb ->
+    decides_equality eqb' ->
+    ∀ (A B : Type) (f : K -> K') (g : A -> B),
+      (∀ key key' : K, f key = f key' -> key = key') ->
+      ∀ bindings bindings' : Keyed.finite_map K A,
+        Keyed.map_equal eqb bindings bindings' ->
+        Keyed.map_equal eqb' (Keyed.map_bindings f g bindings)
+          (Keyed.map_bindings f g bindings').
+
+(* Folds that thread a state. *)
+
+Definition keyed_among_keys_of_both_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (A B : Type) (key : K) (m1 : Keyed.finite_map K A)
+      (m2 : Keyed.finite_map K B),
+      Keyed.among eqb key (Keyed.keys_of_both eqb m1 m2)
+      = Keyed.is_bound eqb key m1 || Keyed.is_bound eqb key m2.
+
+Definition keyed_keys_of_both_distinct_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (A B : Type) (m1 : Keyed.finite_map K A) (m2 : Keyed.finite_map K B),
+      Keyed.distinct eqb (Keyed.keys_of_both eqb m1 m2) = true.
+
+(* With an [f] that leaves the state alone, [tabulate_fold] is
+   [tabulate]. *)
+Definition keyed_tabulate_fold_stateless_statement : Prop :=
+  ∀ (K A S : Type) (f : K -> option A) (keys : list K) (s : S),
+    Keyed.tabulate_fold (fun key s => (f key, s)) keys s
+    = (Keyed.tabulate f keys, s).
+
+(* What [tabulate_fold] binds a key to: what [f] answers for it in the
+   state that the keys before it have left. The keys are distinct, as
+   the keys of a map gone through are. *)
+Definition keyed_lookup_tabulate_fold_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (A S : Type) (f : K -> S -> option A * S) (before : list K) (key : K)
+      (after : list K) (s : S),
+      Keyed.distinct eqb (before ++ key :: after) = true ->
+      Keyed.lookup eqb key
+        (fst (Keyed.tabulate_fold f (before ++ key :: after) s))
+      = fst (f key (snd (Keyed.tabulate_fold f before s))).
+
+Definition keyed_lookup_tabulate_fold_other_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (A S : Type) (f : K -> S -> option A * S) (key : K) (keys : list K)
+      (s : S),
+      Keyed.among eqb key keys = false ->
+      Keyed.lookup eqb key (fst (Keyed.tabulate_fold f keys s)) = None.
+
+(* [merge_fold_on] is [tabulate_fold] of what the two maps bind each key
+   to, so what is said of [tabulate_fold] is said of it. *)
+Definition keyed_merge_fold_on_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool) (A B C S : Type) (keys : list K)
+    (f : K -> option A -> option B -> S -> option C * S)
+    (m1 : Keyed.finite_map K A) (m2 : Keyed.finite_map K B) (init : S),
+    Keyed.merge_fold_on eqb keys f m1 m2 init
+    = Keyed.tabulate_fold
+        (fun key => f key (Keyed.lookup eqb key m1) (Keyed.lookup eqb key m2))
+        keys init.
+
+(* With an [f] that looks at neither the key nor the state, [merge_fold]
+   is [merge]. *)
+Definition keyed_merge_fold_stateless_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool) (A B C S : Type)
+    (f : option A -> option B -> option C) (m1 : Keyed.finite_map K A)
+    (m2 : Keyed.finite_map K B) (init : S),
+    Keyed.merge_fold eqb (fun _ a b s => (f a b, s)) m1 m2 init
+    = (Keyed.merge eqb f m1 m2, init).
+
+(* With an [f] that never fails, [tabulate_fold_opt] is
+   [tabulate_fold]. *)
+Definition keyed_tabulate_fold_opt_total_statement : Prop :=
+  ∀ (K A S : Type) (f : K -> S -> option A * S) (keys : list K) (s : S),
+    Keyed.tabulate_fold_opt (fun key s => Some (f key s)) keys s
+    = Some (Keyed.tabulate_fold f keys s).
+
+(* What a fold that did not fail has done: if each step keeps [I] of the
+   state and gives [Q] of what it binds the key to, then [I] holds of
+   the state at the end and [Q] of every binding of the map; and the map
+   binds none but the keys given. *)
+Definition keyed_tabulate_fold_opt_invariant_statement : Prop :=
+  ∀ (K A S : Type) (f : K -> S -> option (option A * S)) (I : S -> Prop)
+    (Q : K -> A -> Prop) (keys : list K) (s s' : S)
+    (bindings : Keyed.finite_map K A),
+    (∀ (key : K) (s s' : S) (a : option A),
+       key ∈ keys ->
+       I s ->
+       f key s = Some (a, s') ->
+       I s' ∧ ∀ a' : A, a = Some a' -> Q key a') ->
+    I s ->
+    Keyed.tabulate_fold_opt f keys s = Some (bindings, s') ->
+    I s'
+    ∧ every (fun binding => Q (fst binding) (snd binding)) bindings
+    ∧ ∀ key : K, key ∈ map fst bindings -> key ∈ keys.
+
+(* With an [f] that neither fails nor looks at the state,
+   [filter_map_fold] binds each key that the map binds to what [f] makes
+   of what it was bound to, if it makes something. *)
+Definition keyed_filter_map_fold_stateless_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool) (A B S : Type) (f : K -> A -> option B)
+    (bindings : Keyed.finite_map K A) (s : S),
+    Keyed.filter_map_fold eqb (fun key a s => Some (f key a, s)) bindings s
+    = Some
+        (Keyed.tabulate
+           (fun key =>
+              match Keyed.lookup eqb key bindings with
+              | Some a => f key a
+              | None => None
+              end)
+           (Keyed.domain eqb bindings),
+         s).
