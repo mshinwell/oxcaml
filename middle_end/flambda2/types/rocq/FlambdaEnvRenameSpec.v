@@ -82,7 +82,22 @@
      renamed are the renamed free variables. So a level and an
      environment are things that contain names, with the laws of the
      interface ([level_names_nominal_statement],
-     [typing_env_names_nominal_statement]).
+     [typing_env_names_nominal_statement]);
+   - the functions of a level ([Typing_env_level]) and of what the
+     environment knows of its names ([Cached_level]) commute with
+     renaming.
+
+   Each statement about a function is an equation and holds of every
+   level or environment: nothing is asked of it, its invariant
+   included. One has a premise, on an argument that is a function
+   ([Typing_env_level.fold_on_defined_vars]). No function here makes a
+   name, and none goes by the order of names. Where the order in which
+   names were bound matters (the variables of a level in order), it
+   is read from binding times, which a name keeps when it is renamed;
+   and a tie is settled by the order of a list of the model, which the
+   action keeps. The compiler settles such a tie by an order on names
+   (FlambdaEnvAliasesSpec.v, "Differences"; FlambdaTypingEnv.v, on
+   [fold_on_defined_vars]).
 
    Nothing is trusted here. The proofs are in FlambdaEnvRenameProofs.v,
    which needs no review. *)
@@ -268,3 +283,118 @@ Definition level_names_nominal_statement : Prop := nominal level_names.
 
 Definition typing_env_names_nominal_statement : Prop :=
   nominal typing_env_names.
+
+(* ======================================================================== *)
+(* The functions of a level                                                 *)
+(* ======================================================================== *)
+
+Definition level_empty_equivariant_statement : Prop :=
+  ∀ r : renaming,
+    rename_level r Typing_env_level.empty = Typing_env_level.empty.
+
+Definition level_defined_variables_equivariant_statement : Prop :=
+  ∀ (r : renaming) (level : Typing_env_level.t),
+    Typing_env_level.defined_variables (rename_level r level)
+    = map (rename_variable r) (Typing_env_level.defined_variables level).
+
+Definition level_defined_names_equivariant_statement : Prop :=
+  ∀ (r : renaming) (level : Typing_env_level.t),
+    Typing_env_level.defined_names (rename_level r level)
+    = map (rename_name r) (Typing_env_level.defined_names level).
+
+Definition level_find_kind_equivariant_statement : Prop :=
+  ∀ (r : renaming) (level : Typing_env_level.t) (var : variable),
+    Typing_env_level.find_kind (rename_level r level) (rename_variable r var)
+    = Typing_env_level.find_kind level var.
+
+Definition level_variable_is_defined_equivariant_statement : Prop :=
+  ∀ (r : renaming) (level : Typing_env_level.t) (var : variable),
+    Typing_env_level.variable_is_defined (rename_level r level)
+      (rename_variable r var)
+    = Typing_env_level.variable_is_defined level var.
+
+Definition level_is_empty_equivariant_statement : Prop :=
+  ∀ (r : renaming) (level : Typing_env_level.t),
+    Typing_env_level.is_empty (rename_level r level)
+    = Typing_env_level.is_empty level.
+
+Definition level_add_definition_equivariant_statement : Prop :=
+  ∀ (r : renaming) (level : Typing_env_level.t) (var : variable)
+    (kind : flambda_kind) (binding_time : Binding_time.t),
+    Typing_env_level.add_definition (rename_level r level)
+      (rename_variable r var) kind binding_time
+    = rename_level r
+        (Typing_env_level.add_definition level var kind binding_time).
+
+Definition level_add_or_replace_equation_equivariant_statement : Prop :=
+  ∀ (r : renaming) (level : Typing_env_level.t) (name : name)
+    (ty : flambda_type),
+    Typing_env_level.add_or_replace_equation (rename_level r level)
+      (rename_name r name) (rename_type r ty)
+    = rename_level r (Typing_env_level.add_or_replace_equation level name ty).
+
+(* Where the two levels cannot be made one, the two renamed cannot. *)
+Definition level_concat_equivariant_statement : Prop :=
+  ∀ (r : renaming) (earlier later : Typing_env_level.t),
+    Typing_env_level.concat (rename_level r earlier) (rename_level r later)
+    = option_map (rename_level r) (Typing_env_level.concat earlier later).
+
+Definition level_as_extension_equivariant_statement : Prop :=
+  ∀ (r : renaming) (level : Typing_env_level.t),
+    Typing_env_level.as_extension_without_bindings (rename_level r level)
+    = rename_env_extension r
+        (Typing_env_level.as_extension_without_bindings level).
+
+(* The variables of a level in the order of their binding times, and
+   within one binding time in the order of the model's list: a renaming
+   keeps both. *)
+Definition level_variables_in_order_equivariant_statement : Prop :=
+  ∀ (r : renaming) (level : Typing_env_level.t),
+    Typing_env_level.variables_in_order (rename_level r level)
+    = map (rename_variable r) (Typing_env_level.variables_in_order level).
+
+(* The fold over the variables that a level defines, for a function that
+   commutes with the renaming of the variable it is given and of what it
+   accumulates. *)
+Definition level_fold_on_defined_vars_equivariant_statement : Prop :=
+  ∀ (A : Type) (r : renaming) (rename_acc : A -> A)
+    (f f' : variable -> flambda_kind -> A -> A) (level : Typing_env_level.t)
+    (init : A),
+    (∀ (var : variable) (kind : flambda_kind) (acc : A),
+      f' (rename_variable r var) kind (rename_acc acc)
+      = rename_acc (f var kind acc)) ->
+    Typing_env_level.fold_on_defined_vars f' (rename_level r level)
+      (rename_acc init)
+    = option_map rename_acc
+        (Typing_env_level.fold_on_defined_vars f level init).
+
+(* ======================================================================== *)
+(* What the environment knows of its names                                  *)
+(* ======================================================================== *)
+
+Definition cached_level_empty_equivariant_statement : Prop :=
+  ∀ r : renaming, rename_cached_level r Cached_level.empty = Cached_level.empty.
+
+Definition cached_level_add_or_replace_binding_equivariant_statement : Prop :=
+  ∀ (r : renaming) (cached : Cached_level.t) (name : name)
+    (ty : flambda_type) (binding_time : Binding_time.t)
+    (name_mode : Name_mode.t),
+    Cached_level.add_or_replace_binding (rename_cached_level r cached)
+      (rename_name r name) (rename_type r ty) binding_time name_mode
+    = rename_cached_level r
+        (Cached_level.add_or_replace_binding cached name ty binding_time
+           name_mode).
+
+Definition cached_level_replace_variable_binding_equivariant_statement : Prop :=
+  ∀ (r : renaming) (cached : Cached_level.t) (var : variable)
+    (ty : flambda_type),
+    Cached_level.replace_variable_binding (rename_cached_level r cached)
+      (rename_variable r var) (rename_type r ty)
+    = rename_cached_level r
+        (Cached_level.replace_variable_binding cached var ty).
+
+Definition cached_level_with_aliases_equivariant_statement : Prop :=
+  ∀ (r : renaming) (cached : Cached_level.t) (aliases : Aliases.t),
+    Cached_level.with_aliases (rename_cached_level r cached)
+      (rename_aliases r aliases)
+    = rename_cached_level r (Cached_level.with_aliases cached aliases).

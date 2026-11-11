@@ -560,3 +560,277 @@ Proof.
   - intros p tenv Hfixes. apply rename_typing_env_fixes.
     intros x Hin. exact (fixes_in p _ x Hfixes Hin).
 Qed.
+
+(* ======================================================================== *)
+(* Lookups and domains of renamed maps                                      *)
+(* ======================================================================== *)
+
+(* The lemmas of FlambdaEnvAliasesRenamingProofs.v on maps whose keys
+   are renamed, for the two sorts of keys here: names and variables. *)
+Lemma lookup_named_renamed {B C : Type} (r : renaming) (g : B -> C)
+    (n : name) (bindings : Keyed.finite_map name B) :
+  Keyed.lookup name_eqb (rename_name r n)
+    (Keyed.map_bindings (rename_name r) g bindings)
+  = option_map g (Keyed.lookup name_eqb n bindings).
+Proof.
+  exact (lookup_renamed name_eqb (rename_name r) (name_eqb_renamed r) g n
+           bindings).
+Qed.
+
+Lemma domain_named_renamed {B C : Type} (r : renaming) (g : B -> C)
+    (bindings : Keyed.finite_map name B) :
+  Keyed.domain name_eqb (Keyed.map_bindings (rename_name r) g bindings)
+  = map (rename_name r) (Keyed.domain name_eqb bindings).
+Proof.
+  exact (domain_renamed name_eqb (rename_name r) (name_eqb_renamed r) g
+           bindings).
+Qed.
+
+Lemma unbind_named_renamed {B C : Type} (r : renaming) (g : B -> C)
+    (n : name) (bindings : Keyed.finite_map name B) :
+  Keyed.unbind name_eqb (rename_name r n)
+    (Keyed.map_bindings (rename_name r) g bindings)
+  = Keyed.map_bindings (rename_name r) g (Keyed.unbind name_eqb n bindings).
+Proof.
+  exact (unbind_renamed name_eqb (rename_name r) (name_eqb_renamed r) g n
+           bindings).
+Qed.
+
+Lemma compact_named_renamed {B C : Type} (r : renaming) (g : B -> C)
+    (bindings : Keyed.finite_map name B) :
+  Keyed.compact name_eqb (Keyed.map_bindings (rename_name r) g bindings)
+  = Keyed.map_bindings (rename_name r) g (Keyed.compact name_eqb bindings).
+Proof.
+  unfold Keyed.compact. rewrite domain_named_renamed.
+  apply (tabulate_renamed (rename_name r) g). intros n.
+  apply lookup_named_renamed.
+Qed.
+
+Lemma lookup_variable_renamed {B C : Type} (r : renaming) (g : B -> C)
+    (x : variable) (bindings : finite_map B) :
+  lookup (rename_variable r x)
+    (Keyed.map_bindings (rename_variable r) g bindings)
+  = option_map g (lookup x bindings).
+Proof.
+  exact (lookup_renamed Pos.eqb (rename_variable r) (rename_variable_eqb r) g
+           x bindings).
+Qed.
+
+Lemma domain_variable_renamed {B C : Type} (r : renaming) (g : B -> C)
+    (bindings : finite_map B) :
+  domain (Keyed.map_bindings (rename_variable r) g bindings)
+  = map (rename_variable r) (domain bindings).
+Proof.
+  exact (domain_renamed Pos.eqb (rename_variable r) (rename_variable_eqb r) g
+           bindings).
+Qed.
+
+Lemma dedup_variables_renamed (r : renaming) (vars : list variable) :
+  dedup (map (rename_variable r) vars) = map (rename_variable r) (dedup vars).
+Proof.
+  exact (dedup_renamed Pos.eqb (rename_variable r) (rename_variable_eqb r)
+           vars).
+Qed.
+
+Lemma inter_variables_renamed (r : renaming) (vars vars' : list variable) :
+  inter (map (rename_variable r) vars) (map (rename_variable r) vars')
+  = map (rename_variable r) (inter vars vars').
+Proof.
+  unfold inter. apply filter_renamed. intros x.
+  exact
+    (FlambdaEnvAliasesRenamingProofs.among_keys_renamed Pos.eqb
+       (rename_variable r) (rename_variable_eqb r) x vars').
+Qed.
+
+Lemma domain_map_values_keyed {K A B : Type} (eqb : K -> K -> bool)
+    (f : A -> B) (bindings : Keyed.finite_map K A) :
+  Keyed.domain eqb (Keyed.map_values f bindings) = Keyed.domain eqb bindings.
+Proof.
+  unfold Keyed.domain, Keyed.map_values. rewrite map_map. reflexivity.
+Qed.
+
+Lemma flat_map_each_mapped {A C D : Type} (f : A -> list C)
+    (f' : A -> list D) (g : C -> D) (l : list A) :
+  (∀ a : A, f' a = map g (f a)) -> flat_map f' l = map g (flat_map f l).
+Proof.
+  intros Hf. induction l as [ | a l IH]; simpl; [ reflexivity | ].
+  rewrite Hf, IH, map_app. reflexivity.
+Qed.
+
+Lemma some_if_mapped {A B : Type} (c : bool) (g : A -> B) (a : A) (b : B) :
+  g a = b ->
+  (if c then Some b else None) = option_map g (if c then Some a else None).
+Proof. intros <-. destruct c; reflexivity. Qed.
+
+(* The variables that a level has at a binding time, if it has some. *)
+Lemma consed_to_found {A B : Type} (f : A -> B) (a : A)
+    (found : option (list A)) :
+  match option_map (map f) found with
+  | Some prev => f a :: prev
+  | None => [f a]
+  end
+  = map f match found with
+          | Some prev => a :: prev
+          | None => [a]
+          end.
+Proof. destruct found; reflexivity. Qed.
+
+Lemma dedup_of_found (r : renaming) (found : option (list variable)) :
+  match option_map (map (rename_variable r)) found with
+  | Some vars => dedup vars
+  | None => []
+  end
+  = map (rename_variable r) match found with
+                            | Some vars => dedup vars
+                            | None => []
+                            end.
+Proof.
+  destruct found as [vars | ]; simpl; [ | reflexivity ].
+  apply dedup_variables_renamed.
+Qed.
+
+(* ======================================================================== *)
+(* The functions of a level                                                 *)
+(* ======================================================================== *)
+
+Theorem level_empty_equivariant : level_empty_equivariant_statement.
+Proof. intros r. reflexivity. Qed.
+
+Theorem level_defined_variables_equivariant :
+  level_defined_variables_equivariant_statement.
+Proof.
+  intros r [defined_vars binding_times equations].
+  exact (domain_variable_renamed r (fun kind => kind) defined_vars).
+Qed.
+
+Theorem level_defined_names_equivariant :
+  level_defined_names_equivariant_statement.
+Proof.
+  intros r level. unfold Typing_env_level.defined_names.
+  rewrite level_defined_variables_equivariant, !map_map. reflexivity.
+Qed.
+
+Theorem level_find_kind_equivariant : level_find_kind_equivariant_statement.
+Proof.
+  intros r [defined_vars binding_times equations] var.
+  unfold Typing_env_level.find_kind, rename_level. simpl.
+  unfold Keyed.map_keys.
+  rewrite (lookup_variable_renamed r (fun kind => kind) var defined_vars).
+  destruct (lookup var defined_vars); reflexivity.
+Qed.
+
+Theorem level_variable_is_defined_equivariant :
+  level_variable_is_defined_equivariant_statement.
+Proof.
+  intros r [defined_vars binding_times equations] var.
+  unfold Typing_env_level.variable_is_defined, rename_level, is_bound. simpl.
+  unfold Keyed.map_keys.
+  rewrite (lookup_variable_renamed r (fun kind => kind) var defined_vars).
+  destruct (lookup var defined_vars); reflexivity.
+Qed.
+
+Theorem level_is_empty_equivariant : level_is_empty_equivariant_statement.
+Proof.
+  intros r [defined_vars binding_times equations].
+  unfold Typing_env_level.is_empty, rename_level. simpl.
+  unfold Keyed.map_keys, Keyed.map_bindings, Keyed.map_values.
+  rewrite !is_empty_map. reflexivity.
+Qed.
+
+Theorem level_add_definition_equivariant :
+  level_add_definition_equivariant_statement.
+Proof.
+  intros r [defined_vars binding_times equations] var kind binding_time.
+  unfold Typing_env_level.add_definition, rename_level. simpl.
+  rewrite keyed_lookup_map_values.
+  apply level_eq; [ reflexivity | | reflexivity ].
+  apply f_equal2; [ | reflexivity ]. apply f_equal.
+  apply (consed_to_found (rename_variable r)).
+Qed.
+
+Theorem level_add_or_replace_equation_equivariant :
+  level_add_or_replace_equation_equivariant_statement.
+Proof.
+  intros r [defined_vars binding_times equations] n ty.
+  unfold Typing_env_level.add_or_replace_equation, rename_level. simpl.
+  rewrite is_obviously_unknown_renamed.
+  destruct (is_obviously_unknown ty); [ | reflexivity ].
+  apply level_eq; try reflexivity. apply unbind_named_renamed.
+Qed.
+
+Theorem level_concat_equivariant : level_concat_equivariant_statement.
+Proof.
+  intros r [defined_vars binding_times equations]
+    [defined_vars' binding_times' equations'].
+  unfold Typing_env_level.concat, rename_level. simpl.
+  unfold Keyed.map_keys.
+  rewrite !domain_variable_renamed, inter_variables_renamed, is_empty_map,
+    !domain_map_values_keyed.
+  apply (some_if_mapped _ (rename_level r)). unfold rename_level. simpl.
+  unfold Keyed.map_keys, Keyed.map_bindings, Keyed.map_values.
+  rewrite !map_app. reflexivity.
+Qed.
+
+Theorem level_as_extension_equivariant :
+  level_as_extension_equivariant_statement.
+Proof.
+  intros r [defined_vars binding_times equations].
+  unfold Typing_env_level.as_extension_without_bindings, rename_level. simpl.
+  f_equal. exact (compact_named_renamed r (rename_type r) equations).
+Qed.
+
+Theorem level_variables_in_order_equivariant :
+  level_variables_in_order_equivariant_statement.
+Proof.
+  intros r [defined_vars binding_times equations].
+  unfold Typing_env_level.variables_in_order, rename_level. simpl.
+  rewrite domain_map_values_keyed. apply flat_map_each_mapped.
+  intros binding_time. rewrite keyed_lookup_map_values.
+  apply (dedup_of_found r).
+Qed.
+
+Theorem level_fold_on_defined_vars_equivariant :
+  level_fold_on_defined_vars_equivariant_statement.
+Proof.
+  intros A r rename_acc f f' level init Hf.
+  unfold Typing_env_level.fold_on_defined_vars.
+  rewrite level_variables_in_order_equivariant.
+  change (Some (rename_acc init)) with (option_map rename_acc (Some init)).
+  generalize (Some init) as acc.
+  induction (Typing_env_level.variables_in_order level) as [ | var vars IH];
+    intros acc; simpl; [ reflexivity | ].
+  rewrite <- IH. f_equal. destruct acc as [acc | ]; simpl; [ | reflexivity ].
+  rewrite level_find_kind_equivariant.
+  destruct (Typing_env_level.find_kind level var) as [kind | ]; simpl;
+    [ | reflexivity ].
+  rewrite Hf. reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* What the environment knows of its names                                  *)
+(* ======================================================================== *)
+
+Theorem cached_level_empty_equivariant :
+  cached_level_empty_equivariant_statement.
+Proof. intros r. reflexivity. Qed.
+
+Theorem cached_level_add_or_replace_binding_equivariant :
+  cached_level_add_or_replace_binding_equivariant_statement.
+Proof. intros r cached n ty binding_time name_mode. reflexivity. Qed.
+
+Theorem cached_level_replace_variable_binding_equivariant :
+  cached_level_replace_variable_binding_equivariant_statement.
+Proof.
+  intros r [names_to_types aliases] var ty.
+  unfold Cached_level.replace_variable_binding, rename_cached_level. simpl.
+  change (Name_var (rename_variable r var))
+    with (rename_name r (Name_var var)).
+  rewrite lookup_named_renamed.
+  destruct (Keyed.lookup name_eqb (Name_var var) names_to_types)
+    as [[ty' binding_time] | ];
+    reflexivity.
+Qed.
+
+Theorem cached_level_with_aliases_equivariant :
+  cached_level_with_aliases_equivariant_statement.
+Proof. intros r cached aliases. reflexivity. Qed.
