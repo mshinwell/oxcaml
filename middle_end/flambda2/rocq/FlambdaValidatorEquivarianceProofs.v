@@ -45,6 +45,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaEquivarianceProofs FlambdaUnusedContsSpec FlambdaUnusedStaticsSpec
   FlambdaPrimitiveModel FlambdaPrimitiveSpec FlambdaBlockLoadSpec
   FlambdaUnboxSpec FlambdaValidatorEquivarianceSpec.
+From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -1439,3 +1440,236 @@ Theorem unbox_known_numbers_equivariant :
 Proof.
   intros r e. exact (unbox_numbers_knowing_equivariant_aux r e no_numbers).
 Qed.
+
+(* ======================================================================== *)
+(* Following aliases                                                        *)
+(* ======================================================================== *)
+
+Lemma find_alias_equivariant (r : renaming) (tenv : typing_env)
+    (x : variable) :
+  find_alias (rename_naive_typing_env r tenv) (rename_variable r x)
+  = option_map (rename_simple r) (find_alias tenv x).
+Proof.
+  unfold rename_naive_typing_env.
+  induction tenv as [ | [y t] tenv IH]; simpl; [ reflexivity | ].
+  destruct t as [ | | s | code slots]; simpl; try exact IH.
+  rewrite rename_variable_eqb. destruct (Pos.eqb x y); [ reflexivity | ].
+  exact IH.
+Qed.
+
+Lemma canonical_simple_equivariant (r : renaming) (tenv : typing_env)
+    (s : simple) :
+  canonical_simple (rename_naive_typing_env r tenv) (rename_simple r s)
+  = rename_simple r (canonical_simple tenv s).
+Proof.
+  destruct s as [x | sym | c]; simpl; try reflexivity.
+  rewrite find_alias_equivariant. destruct (find_alias tenv x); reflexivity.
+Qed.
+
+Lemma canonical_simples_equivariant (r : renaming) (tenv : typing_env)
+    (args : list simple) :
+  map (canonical_simple (rename_naive_typing_env r tenv))
+    (map (rename_simple r) args)
+  = map (rename_simple r) (map (canonical_simple tenv) args).
+Proof.
+  rewrite !map_map. apply map_ext. intros s.
+  apply canonical_simple_equivariant.
+Qed.
+
+Lemma canonical_value_slots_equivariant (r : renaming) (tenv : typing_env)
+    (slots : list (value_slot * simple)) :
+  canonical_value_slots (rename_naive_typing_env r tenv)
+    (map (fun slot => (fst slot, rename_simple r (snd slot))) slots)
+  = map (fun slot => (fst slot, rename_simple r (snd slot)))
+      (canonical_value_slots tenv slots).
+Proof.
+  unfold canonical_value_slots. rewrite !map_map. apply map_ext.
+  intros slot. simpl. rewrite canonical_simple_equivariant. reflexivity.
+Qed.
+
+(* The action on the closure that a variable is known to be. *)
+Definition rename_known_closure (r : renaming)
+    (closure : code_id * list (value_slot * simple))
+    : code_id * list (value_slot * simple) :=
+  (fst closure,
+   map (fun slot => (fst slot, rename_simple r (snd slot))) (snd closure)).
+
+Lemma find_closure_equivariant (r : renaming) (tenv : typing_env)
+    (x : variable) :
+  find_closure (rename_naive_typing_env r tenv) (rename_variable r x)
+  = option_map (rename_known_closure r) (find_closure tenv x).
+Proof.
+  unfold rename_naive_typing_env.
+  induction tenv as [ | [y t] tenv IH]; simpl; [ reflexivity | ].
+  destruct t as [ | | s | code slots]; simpl; try exact IH.
+  rewrite rename_variable_eqb. destruct (Pos.eqb x y); [ reflexivity | ].
+  exact IH.
+Qed.
+
+Lemma closure_of_simple_equivariant (r : renaming) (tenv : typing_env)
+    (s : simple) :
+  closure_of_simple (rename_naive_typing_env r tenv) (rename_simple r s)
+  = option_map (rename_known_closure r) (closure_of_simple tenv s).
+Proof.
+  destruct s; simpl; [ apply find_closure_equivariant | | ]; reflexivity.
+Qed.
+
+Lemma canonical_project_equivariant (r : renaming) (tenv : typing_env)
+    (slot : value_slot) (closure : simple) :
+  canonical_project (rename_naive_typing_env r tenv) slot
+    (rename_simple r closure)
+  = rename_named r (canonical_project tenv slot closure).
+Proof.
+  unfold canonical_project. rewrite closure_of_simple_equivariant.
+  destruct (closure_of_simple tenv closure) as [[code slots] | ];
+    cbn [option_map rename_known_closure fst snd]; [ | reflexivity ].
+  rewrite lookup_value_slots_renamed. destruct (lookup slot slots); reflexivity.
+Qed.
+
+Lemma canonical_named_equivariant (r : renaming) (tenv : typing_env)
+    (d : named) :
+  canonical_named (rename_naive_typing_env r tenv) (rename_named r d)
+  = rename_named r (canonical_named tenv d).
+Proof.
+  destruct d; cbn [rename_named canonical_named];
+    rewrite ?canonical_simple_equivariant, ?canonical_simples_equivariant,
+      ?canonical_value_slots_equivariant;
+    try reflexivity.
+  apply canonical_project_equivariant.
+Qed.
+
+Lemma canonical_static_binding_equivariant (r : renaming)
+    (tenv : typing_env) (binding : static_binding) :
+  canonical_static_binding (rename_naive_typing_env r tenv)
+    (rename_static_binding r binding)
+  = rename_static_binding r (canonical_static_binding tenv binding).
+Proof.
+  destruct binding as [id c | id | sym const]; try reflexivity.
+  destruct const;
+    cbn [rename_static_binding rename_static_const canonical_static_binding
+         canonical_static_const];
+    rewrite ?canonical_simple_equivariant, ?canonical_simples_equivariant,
+      ?canonical_value_slots_equivariant;
+    reflexivity.
+Qed.
+
+Lemma canonical_apply_cont_equivariant (r : renaming) (tenv : typing_env)
+    (ac : apply_cont) :
+  canonical_apply_cont (rename_naive_typing_env r tenv)
+    (rename_apply_cont r ac)
+  = rename_apply_cont r (canonical_apply_cont tenv ac).
+Proof.
+  unfold canonical_apply_cont, rename_apply_cont.
+  cbn [ac_continuation ac_args]. rewrite canonical_simples_equivariant.
+  reflexivity.
+Qed.
+
+Lemma canonical_call_kind_equivariant (r : renaming) (tenv : typing_env)
+    (callee : simple) (kind : call_kind) :
+  canonical_call_kind (rename_naive_typing_env r tenv)
+    (rename_simple r callee) kind
+  = canonical_call_kind tenv callee kind.
+Proof.
+  unfold canonical_call_kind. rewrite closure_of_simple_equivariant.
+  destruct kind as [called | ],
+    (closure_of_simple tenv callee) as [[code slots] | ];
+    reflexivity.
+Qed.
+
+Lemma canonical_apply_equivariant (r : renaming) (tenv : typing_env)
+    (ap : apply_expr) :
+  canonical_apply (rename_naive_typing_env r tenv) (rename_apply r ap)
+  = rename_apply r (canonical_apply tenv ap).
+Proof.
+  unfold canonical_apply, rename_apply.
+  cbn [ap_callee ap_call_kind ap_args ap_continuation ap_exn_continuation].
+  rewrite canonical_simple_equivariant, canonical_call_kind_equivariant,
+    canonical_simples_equivariant.
+  reflexivity.
+Qed.
+
+Lemma var_in_type_equivariant (r : renaming) (x : variable)
+    (t : flambda_type) :
+  var_in_type (rename_variable r x) (rename_naive_type r t) = var_in_type x t.
+Proof.
+  destruct t; simpl;
+    [ reflexivity | reflexivity | apply var_in_simple_equivariant
+    | apply var_in_value_slots_equivariant ].
+Qed.
+
+Lemma drop_var_equivariant (r : renaming) (x : variable) (tenv : typing_env) :
+  drop_var (rename_variable r x) (rename_naive_typing_env r tenv)
+  = rename_naive_typing_env r (drop_var x tenv).
+Proof.
+  unfold drop_var, rename_naive_typing_env. apply filter_map_with.
+  intros [y t]. simpl.
+  rewrite rename_variable_eqb, var_in_type_equivariant. reflexivity.
+Qed.
+
+Lemma drop_vars_equivariant (r : renaming) (xs : list variable)
+    (tenv : typing_env) :
+  drop_vars (map (rename_variable r) xs) (rename_naive_typing_env r tenv)
+  = rename_naive_typing_env r (drop_vars xs tenv).
+Proof.
+  unfold drop_vars. induction xs as [ | x xs IH]; simpl; [ reflexivity | ].
+  rewrite IH. apply drop_var_equivariant.
+Qed.
+
+Lemma typing_env_under_let_equivariant (r : renaming) (tenv : typing_env)
+    (x : variable) (d : named) :
+  typing_env_under_let (rename_naive_typing_env r tenv) (rename_variable r x)
+    (rename_named r d)
+  = rename_naive_typing_env r (typing_env_under_let tenv x d).
+Proof.
+  destruct d as [s | p args | code slots | | | | ];
+    cbn [rename_named typing_env_under_let];
+    try apply drop_var_equivariant.
+  - rewrite var_in_simple_equivariant, drop_var_equivariant.
+    destruct (var_in_simple x s); reflexivity.
+  - rewrite var_in_value_slots_equivariant, drop_var_equivariant.
+    destruct (var_in_value_slots x slots); reflexivity.
+Qed.
+
+Fixpoint follow_aliases_equivariant_aux (r : renaming) (e : expr) :
+  ∀ tenv : typing_env,
+    follow_aliases (rename_naive_typing_env r tenv) (rename_expr r e)
+    = rename_expr r (follow_aliases tenv e)
+with follow_aliases_in_handler_equivariant (r : renaming)
+    (h : continuation_handler) :
+  ∀ tenv : typing_env,
+    follow_aliases_in_handler (rename_naive_typing_env r tenv)
+      (rename_handler r h)
+    = rename_handler r (follow_aliases_in_handler tenv h).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      intros tenv; cbn [rename_expr follow_aliases].
+    + rewrite canonical_named_equivariant, typing_env_under_let_equivariant,
+        follow_aliases_equivariant_aux.
+      reflexivity.
+    + rewrite follow_aliases_equivariant_aux, !map_map. f_equal.
+      apply map_ext. intros binding.
+      apply canonical_static_binding_equivariant.
+    + rewrite follow_aliases_in_handler_equivariant,
+        follow_aliases_equivariant_aux.
+      reflexivity.
+    + rewrite follow_aliases_equivariant_aux. reflexivity.
+    + rewrite canonical_apply_equivariant. reflexivity.
+    + rewrite canonical_apply_cont_equivariant. reflexivity.
+    + rewrite canonical_simple_equivariant, !map_map. f_equal.
+      apply map_ext. intros arm. cbn [fst snd].
+      rewrite canonical_apply_cont_equivariant. reflexivity.
+    + reflexivity.
+  - destruct h as [params metadata handler]. intros tenv.
+    cbn [rename_handler follow_aliases_in_handler].
+    rewrite drop_vars_equivariant, follow_aliases_equivariant_aux.
+    reflexivity.
+Qed.
+
+Theorem follow_aliases_equivariant : follow_aliases_equivariant_statement.
+Proof. intros r tenv e. apply follow_aliases_equivariant_aux. Qed.
+
+Theorem follow_aliases_unknowing_equivariant :
+  follow_aliases_unknowing_equivariant_statement.
+Proof. intros r e. exact (follow_aliases_equivariant_aux r e []). Qed.

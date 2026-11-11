@@ -92,7 +92,10 @@
    [rename_known_numbers], which are to be reviewed), and each pass
    commutes with renaming when what it knows is renamed with the term.
    As the validation runs them, with nothing known, they are rewrites
-   that take a term and nothing else.
+   that take a term and nothing else. A third pass is of the same
+   kind: FlambdaAliasesSpec.follow_aliases, of the types library, which
+   carries a typing environment of the first model of the types
+   ([rename_naive_typing_env]).
 
    Nothing is trusted here. The proofs are in
    FlambdaValidatorEquivarianceProofs.v, which needs no review. *)
@@ -103,6 +106,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaNominalSpec FlambdaAlphaSpec
   FlambdaNormaliseSpec FlambdaEquivarianceSpec FlambdaUnusedContsSpec
   FlambdaUnusedStaticsSpec FlambdaBlockLoadSpec FlambdaUnboxSpec.
+From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
 (* A rewrite of terms that takes nothing but the term commutes with
@@ -302,3 +306,38 @@ Definition unbox_numbers_knowing_equivariant_statement : Prop :=
 
 Definition unbox_known_numbers_equivariant_statement : Prop :=
   rewrite_equivariant unbox_known_numbers.
+
+(* ======================================================================== *)
+(* The types library: following aliases                                     *)
+(* ======================================================================== *)
+
+(* FlambdaAliasesSpec.follow_aliases carries a typing environment of the
+   first model of the types (FlambdaTypesSpec.v): variables, each with
+   what is known of it, which may hold variables. A renaming acts on
+   both. *)
+Definition rename_naive_type (r : renaming) (t : flambda_type)
+    : flambda_type :=
+  match t with
+  | Unknown => Unknown
+  | Bottom => Bottom
+  | Equals s => Equals (rename_simple r s)
+  | Closure_of code value_slots =>
+    Closure_of code
+      (map (fun slot => (fst slot, rename_simple r (snd slot))) value_slots)
+  end.
+
+Definition rename_naive_typing_env (r : renaming) (tenv : typing_env)
+    : typing_env :=
+  map
+    (fun entry =>
+       (rename_variable r (fst entry), rename_naive_type r (snd entry)))
+    tenv.
+
+Definition follow_aliases_equivariant_statement : Prop :=
+  ∀ (r : renaming) (tenv : typing_env) (e : expr),
+    follow_aliases (rename_naive_typing_env r tenv) (rename_expr r e)
+    = rename_expr r (follow_aliases tenv e).
+
+(* The pass as the validation runs it, with nothing known. *)
+Definition follow_aliases_unknowing_equivariant_statement : Prop :=
+  rewrite_equivariant (follow_aliases []).
