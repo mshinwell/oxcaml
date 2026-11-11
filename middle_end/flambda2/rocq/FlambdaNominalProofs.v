@@ -128,18 +128,39 @@ Proof.
   rewrite IH. reflexivity.
 Qed.
 
+Lemma rename_exn_extra_args_id (extra : list (simple * flambda_kind)) :
+  map (fun arg => (rename_simple identity_renaming (fst arg), snd arg))
+    extra
+  = extra.
+Proof.
+  induction extra as [ | [s kind] extra IH]; simpl; [ reflexivity | ].
+  rewrite rename_simple_id, IH. reflexivity.
+Qed.
+
+(* The extra arguments of a renamed call are those of the call,
+   renamed. *)
+Lemma exn_extra_simples_rename (r : renaming) (ap : apply_expr) :
+  exn_extra_simples (rename_apply r ap)
+  = map (rename_simple r) (exn_extra_simples ap).
+Proof. unfold exn_extra_simples. simpl. rewrite !map_map. reflexivity. Qed.
+
 Lemma rename_apply_id (ap : apply_expr) :
   rename_apply identity_renaming ap = ap.
 Proof.
   destruct ap. unfold rename_apply. simpl.
-  rewrite rename_simple_id, rename_simples_id. reflexivity.
+  rewrite rename_simple_id, rename_simples_id, rename_exn_extra_args_id.
+  reflexivity.
 Qed.
+
+Lemma rename_trap_action_id (action : option trap_action) :
+  option_map (rename_trap_action identity_renaming) action = action.
+Proof. destruct action as [[k | k kind] | ]; reflexivity. Qed.
 
 Lemma rename_apply_cont_id (ac : apply_cont) :
   rename_apply_cont identity_renaming ac = ac.
 Proof.
   destruct ac. unfold rename_apply_cont. simpl.
-  rewrite rename_simples_id. reflexivity.
+  rewrite rename_simples_id, rename_trap_action_id. reflexivity.
 Qed.
 
 (* By induction on the expression, its handlers and its code included. *)
@@ -409,20 +430,28 @@ Qed.
 
 Lemma apply_cont_eqb_renamed (km : name_map) (ac : apply_cont) :
   matched (fun x => var_free_in_simples x (ac_args ac)) ->
-  names_match km (ac_continuation ac)
-    (rename_continuation r (ac_continuation ac))
-  = true ->
+  (∀ k : continuation,
+    k ∈ apply_cont_continuations ac ->
+    names_match km k (rename_continuation r k) = true) ->
   apply_cont_eqb vm km ac (rename_apply_cont r ac) = true.
 Proof.
-  intros Hfree Hk. unfold apply_cont_eqb. simpl. rewrite Hk.
-  apply simples_eqb_renamed, Hfree.
+  intros Hfree Hk. unfold apply_cont_eqb. simpl.
+  rewrite (Hk (ac_continuation ac) (or_introl eq_refl)).
+  rewrite simples_eqb_renamed by exact Hfree. simpl.
+  unfold apply_cont_continuations in Hk.
+  destruct (ac_trap_action ac) as [[k | k kind] | ]; simpl;
+    [ | | reflexivity ].
+  - apply Hk. right. left. reflexivity.
+  - rewrite (Hk k (or_intror (or_introl eq_refl))).
+    destruct kind as [[ | | ] | ]; reflexivity.
 Qed.
 
 Lemma apply_eqb_renamed (km : name_map) (ap : apply_expr) :
   matched
     (fun x =>
        var_free_in_simple x (ap_callee ap)
-       ∨ var_free_in_simples x (ap_args ap)) ->
+       ∨ var_free_in_simples x (ap_args ap)
+       ∨ var_free_in_simples x (exn_extra_simples ap)) ->
   names_match km (ap_continuation ap)
     (rename_continuation r (ap_continuation ap))
   = true ->
@@ -431,11 +460,14 @@ Lemma apply_eqb_renamed (km : name_map) (ap : apply_expr) :
   = true ->
   apply_eqb vm km ap (rename_apply r ap) = true.
 Proof.
-  intros Hfree Hreturn Hexn. unfold apply_eqb. simpl.
-  rewrite Hreturn, Hexn, simple_eqb_renamed, simples_eqb_renamed.
-  - destruct (ap_call_kind ap); simpl;
+  intros Hfree Hreturn Hexn. unfold apply_eqb.
+  rewrite exn_extra_simples_rename. simpl.
+  rewrite Hreturn, Hexn, simple_eqb_renamed, !simples_eqb_renamed.
+  - rewrite map_map. simpl. rewrite kinds_eqb_refl.
+    destruct (ap_call_kind ap); simpl;
       rewrite ?Pos.eqb_refl, !arity_eqb_refl; reflexivity.
-  - intros x Hx. apply Hfree. right. exact Hx.
+  - intros x Hx. apply Hfree. right. right. exact Hx.
+  - intros x Hx. apply Hfree. right. left. exact Hx.
   - intros x Hx. apply Hfree. left. exact Hx.
 Qed.
 
@@ -570,8 +602,7 @@ Proof.
       apply apply_eqb_renamed; [ exact Hvars | | ]; apply Hconts; simpl;
         [ left | right ]; reflexivity.
     + (* Apply_cont *)
-      apply apply_cont_eqb_renamed; [ exact Hvars | ].
-      apply Hconts. reflexivity.
+      apply apply_cont_eqb_renamed; [ exact Hvars | exact Hconts ].
     + (* Switch *)
       rewrite simple_eqb_renamed
         by (intros x Hx; apply Hvars; left; exact Hx).
@@ -579,8 +610,8 @@ Proof.
       apply apply_cont_eqb_renamed.
       * intros x Hx. apply Hvars. right. apply Exists_exists.
         exists arm. split; assumption.
-      * apply Hconts, Exists_exists. exists arm.
-        split; [ exact Hin | reflexivity ].
+      * intros k Hk. apply Hconts, Exists_exists. exists arm.
+        split; assumption.
     + (* Invalid *)
       reflexivity.
   - destruct h as [params metadata handler].

@@ -105,6 +105,25 @@ Proof. reflexivity. Qed.
 Lemma step_apply (ap : apply_expr) (vars : env) (conts : cont_env)
     (statics : static_env) :
   step (State (Apply ap) vars conts statics)
+  = match
+      eval_simple vars (ap_callee ap), eval_simples vars (ap_args ap),
+      eval_simples vars (exn_extra_simples ap)
+    with
+    | Some callee, Some vs, Some extra =>
+      call_function callee (ap_call_kind ap) vs (ap_args_arity ap)
+        (ap_return_arity ap) (resolve (ap_continuation ap) conts)
+        (with_extra_args (resolve (ap_exn_continuation ap) conts) extra)
+        statics
+    | _, _, _ => Undefined
+    end.
+Proof. reflexivity. Qed.
+
+(* A call with no extra argument for its exception continuation gives its
+   callee that continuation as it is. *)
+Lemma step_apply_no_extra_args (ap : apply_expr) (vars : env)
+    (conts : cont_env) (statics : static_env) :
+  ap_exn_extra_args ap = [] ->
+  step (State (Apply ap) vars conts statics)
   = match eval_simple vars (ap_callee ap), eval_simples vars (ap_args ap) with
     | Some callee, Some vs =>
       call_function callee (ap_call_kind ap) vs (ap_args_arity ap)
@@ -112,7 +131,12 @@ Lemma step_apply (ap : apply_expr) (vars : env) (conts : cont_env)
         (resolve (ap_exn_continuation ap) conts) statics
     | _, _ => Undefined
     end.
-Proof. reflexivity. Qed.
+Proof.
+  intros Hextra. rewrite step_apply. unfold exn_extra_simples.
+  rewrite Hextra. simpl.
+  destruct (eval_simple vars (ap_callee ap)); [ | reflexivity ].
+  destruct (eval_simples vars (ap_args ap)); reflexivity.
+Qed.
 
 Lemma step_apply_cont (ac : apply_cont) (vars : env) (conts : cont_env)
     (statics : static_env) :
@@ -143,6 +167,73 @@ Proof. reflexivity. Qed.
 Lemma step_invalid (vars : env) (conts : cont_env) (statics : static_env) :
   step (State Invalid vars conts statics) = Undefined.
 Proof. reflexivity. Qed.
+
+(* A continuation with extra arguments is, in the end, a handler or a way
+   out, applied to more arguments: [cont_target] is which, and
+   [cont_args] the arguments it is applied to when the continuation is
+   applied to [vs]. A proof about applying a continuation rewrites with
+   [apply_cont_value_target] and goes by the two cases of
+   [cont_target_cases]. *)
+Fixpoint cont_target (c : cont_value) : cont_value :=
+  match c with
+  | Extra_args c _ => cont_target c
+  | Closure _ _ _ _ | Outer _ => c
+  end.
+
+Fixpoint cont_args (c : cont_value) (vs : list value) : list value :=
+  match c with
+  | Extra_args c extra => cont_args c (vs ++ extra)
+  | Closure _ _ _ _ | Outer _ => vs
+  end.
+
+Lemma apply_cont_value_target (c : cont_value) (vs : list value)
+    (statics : static_env) :
+  apply_cont_value c vs statics
+  = apply_cont_value (cont_target c) (cont_args c vs) statics.
+Proof.
+  revert vs.
+  induction c as [h def_vars def_conts recursive | k | c IH extra];
+    intros vs; simpl; [ reflexivity | reflexivity | apply IH ].
+Qed.
+
+Lemma cont_target_cases (c : cont_value) :
+  (∃ (h : continuation_handler) (def_vars : env) (def_conts : cont_env)
+     (recursive : list (continuation * continuation_handler)),
+    cont_target c = Closure h def_vars def_conts recursive)
+  ∨ (∃ k : continuation, cont_target c = Outer k).
+Proof.
+  induction c as [h def_vars def_conts recursive | k | c IH extra]; simpl.
+  - left. exists h, def_vars, def_conts, recursive. reflexivity.
+  - right. exists k. reflexivity.
+  - exact IH.
+Qed.
+
+Lemma cont_target_not_extra_args (c c' : cont_value) (extra : list value) :
+  cont_target c <> Extra_args c' extra.
+Proof.
+  destruct (cont_target_cases c)
+    as [(h & def_vars & def_conts & recursive & ->) | (k & ->)];
+    discriminate.
+Qed.
+
+Lemma cont_target_with_extra_args (c : cont_value) (extra : list value) :
+  cont_target (with_extra_args c extra) = cont_target c.
+Proof. destruct extra; reflexivity. Qed.
+
+(* Applying a continuation leaves the static environment as it is. *)
+Lemma apply_cont_value_statics (c : cont_value) (vs : list value)
+    (statics : static_env) (s : state) :
+  apply_cont_value c vs statics = Step s -> state_statics s = statics.
+Proof.
+  revert vs.
+  induction c as [[params handler] def_vars def_conts recursive | k
+                 | c IH extra];
+    intros vs; simpl.
+  - destruct (bind_params params vs def_vars); [ | discriminate ].
+    intros [= <-]. reflexivity.
+  - discriminate.
+  - apply IH.
+Qed.
 
 (* The two ways in which an [Apply_cont] does not go wrong: its
    continuation stands for a handler, which runs under the environments of
@@ -177,19 +268,57 @@ Proof.
   unfold apply_continuation. rewrite Hresolve. reflexivity.
 Qed.
 
+(* The same two, of a continuation that may have extra arguments. *)
+Lemma step_apply_cont_target_handler (ac : apply_cont) (vars : env)
+    (conts : cont_env) (statics : static_env) (vs : list value)
+    (params : list variable) (metadata : handler_metadata) (handler : expr)
+    (def_vars : env) (def_conts : cont_env)
+    (recursive : list (continuation * continuation_handler))
+    (handler_vars : env) :
+  eval_simples vars (ac_args ac) = Some vs ->
+  cont_target (resolve (ac_continuation ac) conts)
+  = Closure (Handler params metadata handler) def_vars def_conts recursive ->
+  bind_params params (cont_args (resolve (ac_continuation ac) conts) vs)
+    def_vars
+  = Some handler_vars ->
+  step (State (Apply_cont ac) vars conts statics)
+  = Step
+      (State handler handler_vars
+         (rec_closures recursive def_vars def_conts ++ def_conts) statics).
+Proof.
+  intros Hargs Htarget Hbind. rewrite step_apply_cont, Hargs.
+  unfold apply_continuation. rewrite apply_cont_value_target, Htarget.
+  simpl. rewrite Hbind. reflexivity.
+Qed.
+
+Lemma step_apply_cont_target_exit (ac : apply_cont) (vars : env)
+    (conts : cont_env) (statics : static_env) (vs : list value)
+    (k : continuation) :
+  eval_simples vars (ac_args ac) = Some vs ->
+  cont_target (resolve (ac_continuation ac) conts) = Outer k ->
+  step (State (Apply_cont ac) vars conts statics)
+  = Exit k (cont_args (resolve (ac_continuation ac) conts) vs).
+Proof.
+  intros Hargs Htarget. rewrite step_apply_cont, Hargs.
+  unfold apply_continuation. rewrite apply_cont_value_target, Htarget.
+  reflexivity.
+Qed.
+
 (* The way in which an [Apply] does not go wrong: its callee is a closure
    of code that is bound, the code named if the call is direct, whose
    body binds nothing static and has as many parameters as there are
-   arguments, and the call agrees with the code in the three ways of
+   arguments, the extra arguments of its exception continuation have
+   values, and the call agrees with the code in the three ways of
    [call_function]. The body runs with [my_closure] bound to the callee,
    which for a closure of a set is the closure at the slot of that
    code. *)
 Lemma step_apply_closure (ap : apply_expr) (vars : env) (conts : cont_env)
-    (statics : static_env) (callee : value) (vs : list value)
+    (statics : static_env) (callee : value) (vs extra : list value)
     (called : code_id) (slots : list (value_slot * value)) (c : code)
     (callee_vars : env) :
   eval_simple vars (ap_callee ap) = Some callee ->
   eval_simples vars (ap_args ap) = Some vs ->
+  eval_simples vars (exn_extra_simples ap) = Some extra ->
   closure_of statics callee = Some (called, slots) ->
   ap_call_kind ap = Indirect ∨ ap_call_kind ap = Direct called ->
   lookup called (static_code statics) = Some c ->
@@ -205,12 +334,13 @@ Lemma step_apply_closure (ap : apply_expr) (vars : env) (conts : cont_env)
   = Step
       (State (code_body c) callee_vars
          [(code_return_continuation c, resolve (ap_continuation ap) conts);
-          (code_exn_continuation c, resolve (ap_exn_continuation ap) conts)]
+          (code_exn_continuation c,
+           with_extra_args (resolve (ap_exn_continuation ap) conts) extra)]
          statics).
 Proof.
-  intros Hcallee Hargs Hclosure Hkind Hcode Hbinds Hkinds Hparams Hresult
-    Hbind.
-  rewrite step_apply, Hcallee, Hargs. unfold call_function.
+  intros Hcallee Hargs Hextra Hclosure Hkind Hcode Hbinds Hkinds Hparams
+    Hresult Hbind.
+  rewrite step_apply, Hcallee, Hargs, Hextra. unfold call_function.
   rewrite Hclosure.
   assert (Hexpected :
     match ap_call_kind ap with
@@ -1432,17 +1562,30 @@ Lemma apply_cont_value_values_all (Q : state -> Prop) (c : cont_value)
   | Undefined => True
   end.
 Proof.
-  intros Hc Hvs Hstate.
-  destruct c as [[params handler] def_vars def_conts recursive | k]; simpl;
-    [ | exact Hvs ].
-  destruct Hc as [Hdef_vars Hdef_conts].
-  destruct (bind_params params vs def_vars) as [handler_vars | ] eqn:Hbind;
-    [ | exact I ].
-  apply Hstate.
-  - exact (bind_params_values_all params vs def_vars handler_vars Hvs
-             Hdef_vars Hbind).
-  - apply conts_values_all_app; [ | exact Hdef_conts ].
-    apply rec_closures_values_all; assumption.
+  intros Hc Hvs Hstate. revert vs Hvs.
+  induction c as [[params handler] def_vars def_conts recursive | k
+                 | c IH extra];
+    intros vs Hvs; simpl; [ | exact Hvs | ].
+  - destruct Hc as [Hdef_vars Hdef_conts].
+    destruct (bind_params params vs def_vars) as [handler_vars | ] eqn:Hbind;
+      [ | exact I ].
+    apply Hstate.
+    + exact (bind_params_values_all params vs def_vars handler_vars Hvs
+               Hdef_vars Hbind).
+    + apply conts_values_all_app; [ | exact Hdef_conts ].
+      apply rec_closures_values_all; assumption.
+  - destruct Hc as [Hextra Hc]. apply (IH Hc).
+    apply Forall_app. split; assumption.
+Qed.
+
+(* The exception continuation that a call gives its callee. *)
+Lemma with_extra_args_values_all (c : cont_value) (extra : list value) :
+  cont_values_all P c ->
+  Forall P extra ->
+  cont_values_all P (with_extra_args c extra).
+Proof.
+  intros Hc Hextra. destruct extra as [ | v extra]; simpl;
+    [ exact Hc | split; [ exact Hextra | exact Hc ] ].
 Qed.
 
 End Values_all.
@@ -1452,12 +1595,18 @@ Fixpoint cont_values_all_impl (P P' : value -> Prop)
     (Himpl : ∀ v : value, P v -> P' v) (c : cont_value) :
   cont_values_all P c -> cont_values_all P' c.
 Proof.
-  destruct c as [h vars conts recursive | k]; simpl; [ | auto ].
-  intros [Hvars Hconts]. split.
-  - exact (Forall_impl _ (fun binding => Himpl (snd binding)) Hvars).
-  - induction conts as [ | [k c] conts IH]; simpl; [ exact I | ].
-    destruct Hconts as [Hc Hrest].
-    split; [ exact (cont_values_all_impl P P' Himpl c Hc) | exact (IH Hrest) ].
+  destruct c as [h vars conts recursive | k | c extra]; simpl;
+    [ | auto | ].
+  - intros [Hvars Hconts]. split.
+    + exact (Forall_impl _ (fun binding => Himpl (snd binding)) Hvars).
+    + induction conts as [ | [k c] conts IH]; simpl; [ exact I | ].
+      destruct Hconts as [Hc Hrest].
+      split;
+        [ exact (cont_values_all_impl P P' Himpl c Hc) | exact (IH Hrest) ].
+  - intros [Hextra Hc].
+    split;
+      [ exact (Forall_impl _ Himpl Hextra)
+      | exact (cont_values_all_impl P P' Himpl c Hc) ].
 Qed.
 
 Lemma conts_values_all_impl (P P' : value -> Prop) (conts : cont_env) :
@@ -1511,7 +1660,10 @@ Proof.
       [ | exact I ].
     destruct (eval_simples vars (ap_args ap)) as [vs | ] eqn:Hargs;
       [ | exact I ].
-    destruct (Happly ap callee vs eq_refl Hcallee Hargs) as [Hcallee_ok Hvs].
+    destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ]
+      eqn:Hextra; [ | exact I ].
+    destruct (Happly ap callee vs extra eq_refl Hcallee Hargs Hextra)
+      as (Hcallee_ok & Hvs & Hextra_ok).
     unfold call_function.
     destruct (closure_of statics callee) as [[called slots] | ];
       [ | exact I ].
@@ -1539,7 +1691,9 @@ Proof.
         [ | exact Hbind ].
       apply Forall_cons; [ exact Hcallee_ok | apply Forall_nil ].
     + split; [ apply resolve_values_all, Hconts | ].
-      split; [ apply resolve_values_all, Hconts | exact I ].
+      split; [ | exact I ].
+      apply with_extra_args_values_all;
+        [ apply resolve_values_all, Hconts | exact Hextra_ok ].
   - (* Apply_cont *)
     destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hargs;
       [ | exact I ].

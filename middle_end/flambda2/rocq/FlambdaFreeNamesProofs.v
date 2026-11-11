@@ -224,9 +224,11 @@ Proof.
         tauto. }
       tauto.
     + (* Apply *)
-      unfold free_variables_of_apply. rewrite among_app, orb_true_iff.
+      unfold free_variables_of_apply. rewrite !among_app, !orb_true_iff.
       pose proof (var_free_in_simple_among x (ap_callee ap)) as Hcallee.
       pose proof (var_free_in_simples_among x (ap_args ap)) as Hargs.
+      pose proof (var_free_in_simples_among x (exn_extra_simples ap))
+        as Hextra.
       tauto.
     + (* Apply_cont *)
       unfold free_variables_of_apply_cont. apply var_free_in_simples_among.
@@ -317,11 +319,10 @@ Proof.
       * intros [-> | ->]; [ left | right; left ]; reflexivity.
       * intros [<- | [<- | []]]; [ left | right ]; reflexivity.
     + (* Apply_cont *)
-      symmetry. apply among_singleton.
+      symmetry. apply among_In.
     + (* Switch *)
-      rewrite among_In, in_map_iff, Exists_exists. split.
-      * intros [arm [Hin ->]]. exists arm. split; [ reflexivity | exact Hin ].
-      * intros [arm [<- Hin]]. exists arm. split; [ exact Hin | reflexivity ].
+      rewrite among_In, in_flat_map, Exists_exists.
+      split; intros [arm [Hin Hk]]; exists arm; split; assumption.
     + (* Invalid *)
       simpl. split; [ intros [] | discriminate ].
   - destruct h as [params metadata handler]. intros Hcode.
@@ -391,9 +392,11 @@ Proof.
         tauto. }
       tauto.
     + (* Apply *)
-      unfold free_variables_of_apply. rewrite among_app, orb_true_iff.
+      unfold free_variables_of_apply. rewrite !among_app, !orb_true_iff.
       pose proof (var_free_in_simple_among x (ap_callee ap)) as Hcallee.
       pose proof (var_free_in_simples_among x (ap_args ap)) as Hargs.
+      pose proof (var_free_in_simples_among x (exn_extra_simples ap))
+        as Hextra.
       tauto.
     + (* Apply_cont *)
       unfold free_variables_of_apply_cont. apply var_free_in_simples_among.
@@ -468,10 +471,10 @@ Proof.
       rewrite among_In. simpl.
       intros [-> | ->]; [ left | right; left ]; reflexivity.
     + (* Apply_cont *)
-      apply among_singleton.
+      apply among_In.
     + (* Switch *)
-      rewrite among_In, in_map_iff, Exists_exists.
-      intros [arm [Hin ->]]. exists arm. split; [ reflexivity | exact Hin ].
+      rewrite among_In, in_flat_map, Exists_exists.
+      intros [arm [Hin Hk]]. exists arm. split; assumption.
     + (* Invalid *)
       intros [].
   - destruct h as [params metadata handler].
@@ -595,12 +598,13 @@ Lemma arms_in_scope_among (vs : list variable) (ks : list continuation)
         (flat_map (fun arm => free_variables_of_apply_cont (snd arm)) arms)
         vs
       = true
-      ∧ all_among (map (fun arm => ac_continuation (snd arm)) arms) ks
+      ∧ all_among
+          (flat_map (fun arm => apply_cont_continuations (snd arm)) arms) ks
         = true.
 Proof.
   induction arms as [ | [i ac] arms IH]; [ simpl; tauto | ].
-  cbn [forallb flat_map map snd].
-  rewrite andb_true_iff, IH, all_among_app, all_among_cons, !andb_true_iff.
+  cbn [forallb flat_map snd].
+  rewrite andb_true_iff, IH, !all_among_app, !andb_true_iff.
   unfold apply_cont_in_scope at 1.
   rewrite andb_true_iff, simples_in_scope_among.
   unfold free_variables_of_apply_cont. tauto.
@@ -682,16 +686,14 @@ Proof.
       tauto.
     + (* Apply *)
       unfold free_variables_of_apply.
-      rewrite !andb_true_iff, all_among_app, andb_true_iff.
-      rewrite simple_in_scope_among, simples_in_scope_among.
+      rewrite !andb_true_iff, !all_among_app, !andb_true_iff.
+      rewrite simple_in_scope_among, !simples_in_scope_among.
       rewrite !all_among_cons, !andb_true_iff.
       assert (Hnil : all_among [] ks = true) by reflexivity.
       tauto.
     + (* Apply_cont *)
       unfold apply_cont_in_scope, free_variables_of_apply_cont.
-      rewrite !andb_true_iff, simples_in_scope_among, all_among_cons.
-      rewrite andb_true_iff.
-      assert (Hnil : all_among [] ks = true) by reflexivity.
+      rewrite !andb_true_iff, simples_in_scope_among.
       tauto.
     + (* Switch *)
       rewrite !andb_true_iff, all_among_app, andb_true_iff.

@@ -61,7 +61,7 @@ Definition let_cont_apply_cont_statement : Prop :=
     equivalent
       (State
          (Let_cont_non_recursive k (Handler params metadata handler)
-            (Apply_cont (Apply_cont_expr k args)))
+            (Apply_cont (Apply_cont_expr k args None)))
          vars conts statics)
       (State handler handler_vars conts statics).
 
@@ -72,7 +72,7 @@ Definition let_cont_apply_cont_one_param_statement : Prop :=
     (kind : flambda_kind) (handler : expr) (arg : simple),
     expr_equivalent
       (Let_cont_non_recursive k (Handler [x] metadata handler)
-         (Apply_cont (Apply_cont_expr k [arg])))
+         (Apply_cont (Apply_cont_expr k [arg] None)))
       (Let x kind (Simple arg) handler).
 
 (* Entering a recursive continuation: the handler runs with all the handlers
@@ -88,7 +88,8 @@ Definition let_cont_recursive_apply_cont_statement : Prop :=
     bind_params params vs vars = Some handler_vars ->
     equivalent
       (State
-         (Let_cont_recursive handlers (Apply_cont (Apply_cont_expr k args)))
+         (Let_cont_recursive handlers
+            (Apply_cont (Apply_cont_expr k args None)))
          vars conts statics)
       (State handler handler_vars
          (rec_closures handlers vars conts ++ conts) statics).
@@ -98,8 +99,8 @@ Definition loop_forever (k : continuation) : expr :=
   Let_cont_recursive
     [(k,
       Handler [] (make_handler_metadata [])
-        (Apply_cont (Apply_cont_expr k [])))]
-    (Apply_cont (Apply_cont_expr k [])).
+        (Apply_cont (Apply_cont_expr k [] None)))]
+    (Apply_cont (Apply_cont_expr k [] None)).
 
 Definition loop_forever_diverges_statement : Prop :=
   ∀ (k : continuation) (vars : env) (conts : cont_env) (statics : static_env),

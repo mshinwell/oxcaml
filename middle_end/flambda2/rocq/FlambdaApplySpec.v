@@ -78,7 +78,8 @@ Import ListNotations.
 (* ======================================================================== *)
 
 Definition apply_indirect_known_statement : Prop :=
-  ∀ (callee : simple) (args : list simple) (k exn : continuation)
+  ∀ (callee : simple) (args : list simple)
+    (extra : list (simple * flambda_kind)) (k exn : continuation)
     (args_arity return_arity : arity) (v : value) (called : code_id)
     (slots : list (value_slot * value)) (vars : env) (conts : cont_env)
     (statics : static_env),
@@ -87,11 +88,12 @@ Definition apply_indirect_known_statement : Prop :=
     equivalent
       (State
          (Apply
-            (Apply_expr callee Indirect args k exn args_arity return_arity))
+            (Apply_expr callee Indirect args k exn extra args_arity
+               return_arity))
          vars conts statics)
       (State
          (Apply
-            (Apply_expr callee (Direct called) args k exn args_arity
+            (Apply_expr callee (Direct called) args k exn extra args_arity
                return_arity))
          vars conts statics).
 
@@ -135,6 +137,9 @@ Definition inlinable (ap : apply_expr) (c : code) (r : renaming) : Prop :=
   ∧ (∀ x : variable, rename_variable r x = x)
   ∧ rename_continuation r (code_return_continuation c) = ap_continuation ap
   ∧ rename_continuation r (code_exn_continuation c) = ap_exn_continuation ap
+  (* the exception continuation of the call takes the exception alone: the
+     exception continuation of the code does *)
+  ∧ ap_exn_extra_args ap = []
   (* the bindings do not capture *)
   ∧ ~ var_free_in_simples (code_my_closure c) (ap_args ap)
   ∧ (∀ param : variable,

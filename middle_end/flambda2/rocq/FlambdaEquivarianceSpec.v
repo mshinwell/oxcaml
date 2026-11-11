@@ -44,7 +44,9 @@
      (FlambdaAlphaSpec.rename_env);
    - a continuation closure has its handler, its environments and the
      handlers defined with it renamed, and a way out of the term is
-     renamed, as it is observed;
+     renamed, as it is observed; a continuation with the extra
+     arguments of a call kept ([Extra_args]) is renamed inside, the
+     arguments being values, which hold no variables or continuations;
    - the static environment has its code renamed. Symbols, code ids and
      slots are fixed by the action;
    - a state, the result of a step and a behaviour are renamed
@@ -111,7 +113,9 @@ Import ListNotations.
 (* ======================================================================== *)
 
 (* A continuation closure is renamed throughout; a way out of the term is
-   a continuation, and is renamed. *)
+   a continuation, and is renamed. The extra arguments that a
+   continuation is kept with are values, which hold no variables or
+   continuations. *)
 Fixpoint rename_cont_value (r : renaming) (c : cont_value) : cont_value :=
   match c with
   | Closure h vars conts recursive =>
@@ -120,6 +124,7 @@ Fixpoint rename_cont_value (r : renaming) (c : cont_value) : cont_value :=
          conts)
       (rename_handlers r recursive)
   | Outer k => Outer (rename_continuation r k)
+  | Extra_args c extra => Extra_args (rename_cont_value r c) extra
   end.
 
 Definition rename_cont_env (r : renaming) (conts : cont_env) : cont_env :=

@@ -98,6 +98,35 @@ Lemma bytes_eqb_eq (bytes bytes' : list Z) :
   forall2b Z.eqb bytes bytes' = true -> bytes = bytes'.
 Proof. apply forall2b_eq. intros a b. apply Z.eqb_eq. Qed.
 
+Lemma raise_kind_eqb_eq (kind kind' : option raise_kind) :
+  raise_kind_eqb kind kind' = true -> kind = kind'.
+Proof.
+  destruct kind as [[ | | ] | ], kind' as [[ | | ] | ]; simpl;
+    try discriminate; reflexivity.
+Qed.
+
+Lemma trap_action_eqb_nil (action action' : option trap_action) :
+  trap_action_eqb [] action action' = true -> action = action'.
+Proof.
+  destruct action as [[k | k kind] | ], action' as [[k' | k' kind'] | ];
+    simpl; try discriminate; intros Heq.
+  - apply names_match_nil in Heq. congruence.
+  - apply andb_true_iff in Heq as [Hk Hkind]. apply names_match_nil in Hk.
+    apply raise_kind_eqb_eq in Hkind. congruence.
+  - reflexivity.
+Qed.
+
+(* Two lists of pairs with the same first components and the same
+   second components. *)
+Lemma pairs_eq {A B : Type} (l : list (A * B)) :
+  ∀ l' : list (A * B),
+    map fst l = map fst l' -> map snd l = map snd l' -> l = l'.
+Proof.
+  induction l as [ | [a b] l IH]; intros [ | [a' b'] l']; simpl;
+    try discriminate; [ reflexivity | ].
+  intros [= -> Hfst] [= -> Hsnd]. rewrite (IH l' Hfst Hsnd). reflexivity.
+Qed.
+
 (* Read each test of a conjunction back as an equation. *)
 Ltac tests_to_equations :=
   repeat match goal with
@@ -114,6 +143,9 @@ Ltac tests_to_equations :=
       apply value_slots_eqb_nil in H
     | H : forall2b Z.eqb _ _ = true |- _ => apply bytes_eqb_eq in H
     | H : arity_eqb _ _ = true |- _ => apply arity_eqb_eq in H
+    | H : kinds_eqb _ _ = true |- _ => apply kinds_eqb_eq in H
+    | H : trap_action_eqb [] _ _ = true |- _ =>
+      apply trap_action_eqb_nil in H
     end.
 
 Lemma named_eqb_nil (d d' : named) : named_eqb [] d d' = true -> d = d'.
@@ -139,8 +171,13 @@ Qed.
 Lemma apply_eqb_nil (ap ap' : apply_expr) :
   apply_eqb [] [] ap ap' = true -> ap = ap'.
 Proof.
-  destruct ap, ap'. unfold apply_eqb. simpl. intros Heq.
-  tests_to_equations. congruence.
+  destruct ap, ap'. unfold apply_eqb, exn_extra_simples. simpl. intros Heq.
+  tests_to_equations.
+  match goal with
+  | Hfst : map fst ?l = map fst ?l', Hsnd : map snd ?l = map snd ?l' |- _ =>
+    pose proof (pairs_eq l l' Hfst Hsnd)
+  end.
+  congruence.
 Qed.
 
 Lemma arms_eqb_nil (arms arms' : list (Z * apply_cont)) :

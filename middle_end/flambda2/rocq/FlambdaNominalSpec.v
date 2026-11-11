@@ -149,9 +149,17 @@ Definition rename_named (r : renaming) (defining_expr : named) : named :=
     Project_function_slot move_from move_to (rename_simple r closure)
   end.
 
+Definition rename_trap_action (r : renaming) (action : trap_action)
+    : trap_action :=
+  match action with
+  | Push exn_handler => Push (rename_continuation r exn_handler)
+  | Pop exn_handler kind => Pop (rename_continuation r exn_handler) kind
+  end.
+
 Definition rename_apply_cont (r : renaming) (ac : apply_cont) : apply_cont :=
   Apply_cont_expr (rename_continuation r (ac_continuation ac))
-    (map (rename_simple r) (ac_args ac)).
+    (map (rename_simple r) (ac_args ac))
+    (option_map (rename_trap_action r) (ac_trap_action ac)).
 
 (* A renaming acts on the variables and the continuations of a term.
    Symbols, code ids, value slots and function slots are not renamed.
@@ -178,8 +186,10 @@ Definition rename_apply (r : renaming) (ap : apply_expr) : apply_expr :=
   Apply_expr (rename_simple r (ap_callee ap)) (ap_call_kind ap)
     (map (rename_simple r) (ap_args ap))
     (rename_continuation r (ap_continuation ap))
-    (rename_continuation r (ap_exn_continuation ap)) (ap_args_arity ap)
-    (ap_return_arity ap).
+    (rename_continuation r (ap_exn_continuation ap))
+    (map (fun arg => (rename_simple r (fst arg), snd arg))
+       (ap_exn_extra_args ap))
+    (ap_args_arity ap) (ap_return_arity ap).
 
 (* [apply_renaming], [apply_renaming_continuation_handler],
    [apply_renaming_static_const_or_code] and
@@ -301,6 +311,7 @@ Fixpoint var_free_in_expr (x : variable) (e : expr) : Prop :=
     any_handler (var_free_in_handler x) handlers ∨ var_free_in_expr x body
   | Apply ap =>
     var_free_in_simple x (ap_callee ap) ∨ var_free_in_simples x (ap_args ap)
+    ∨ var_free_in_simples x (exn_extra_simples ap)
   | Apply_cont ac => var_free_in_simples x (ac_args ac)
   | Switch scrutinee arms =>
     var_free_in_simple x scrutinee
@@ -313,7 +324,9 @@ with var_free_in_handler (x : variable) (h : continuation_handler) : Prop :=
   end.
 
 (* A non-recursive [Let_cont] binds its continuation in its body; a
-   recursive one binds its continuations in its body and its handlers. *)
+   recursive one binds its continuations in its body and its handlers. The
+   continuation that a trap action names is free as the one applied is
+   ([Name_occurrences] counts the two apart). *)
 Fixpoint cont_free_in_expr (k : continuation) (e : expr) : Prop :=
   match e with
   | Let _ _ _ body | Let_static _ body => cont_free_in_expr k body
@@ -324,8 +337,9 @@ Fixpoint cont_free_in_expr (k : continuation) (e : expr) : Prop :=
     ∧ (any_handler (cont_free_in_handler k) handlers
        ∨ cont_free_in_expr k body)
   | Apply ap => k = ap_continuation ap ∨ k = ap_exn_continuation ap
-  | Apply_cont ac => k = ac_continuation ac
-  | Switch _ arms => Exists (fun arm => k = ac_continuation (snd arm)) arms
+  | Apply_cont ac => k ∈ apply_cont_continuations ac
+  | Switch _ arms =>
+    Exists (fun arm => k ∈ apply_cont_continuations (snd arm)) arms
   | Invalid => False
   end
 with cont_free_in_handler (k : continuation) (h : continuation_handler)

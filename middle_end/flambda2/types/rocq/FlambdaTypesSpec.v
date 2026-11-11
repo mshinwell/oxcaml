@@ -204,8 +204,8 @@ Definition canonical_simple_sound_statement : Prop :=
 
 Definition apply_cont_canonical_statement : Prop :=
   ∀ (tenv : typing_env) (k : continuation) (args : list simple),
-    expr_equivalent_in tenv (Apply_cont (Apply_cont_expr k args))
-      (Apply_cont (Apply_cont_expr k (map (canonical_simple tenv) args))).
+    expr_equivalent_in tenv (Apply_cont (Apply_cont_expr k args None))
+      (Apply_cont (Apply_cont_expr k (map (canonical_simple tenv) args) None)).
 
 Definition let_simple_canonical_statement : Prop :=
   ∀ (tenv : typing_env) (x : variable) (kind : flambda_kind) (s : simple)
@@ -306,15 +306,15 @@ Definition let_const_apply_cont_statement : Prop :=
   ∀ (x : variable) (kind : flambda_kind) (c : const) (k : continuation),
     expr_refines
       (Let x kind (Simple (Const c))
-         (Apply_cont (Apply_cont_expr k [Var x])))
-      (Apply_cont (Apply_cont_expr k [Const c])).
+         (Apply_cont (Apply_cont_expr k [Var x] None)))
+      (Apply_cont (Apply_cont_expr k [Const c] None)).
 
 Definition let_simple_apply_cont_statement : Prop :=
   ∀ (x : variable) (kind : flambda_kind) (s : simple) (k : continuation),
     ~ var_free_in_simple x s ->
     expr_refines
-      (Let x kind (Simple s) (Apply_cont (Apply_cont_expr k [Var x])))
-      (Apply_cont (Apply_cont_expr k [s])).
+      (Let x kind (Simple s) (Apply_cont (Apply_cont_expr k [Var x] None)))
+      (Apply_cont (Apply_cont_expr k [s] None)).
 
 (* ======================================================================== *)
 (* An example: inlining the identity function                               *)
@@ -325,7 +325,7 @@ Definition let_simple_apply_cont_statement : Prop :=
 Definition identity_code (x my_closure : variable) (ret exn : continuation)
     (metadata : code_metadata) : code :=
   Code [x] my_closure ret exn metadata
-    (Apply_cont (Apply_cont_expr ret [Var x])).
+    (Apply_cont (Apply_cont_expr ret [Var x] None)).
 
 (* A direct call of it, where its code is bound, refines the application
    of the call's continuation to the argument: the call is inlined, the
@@ -347,8 +347,8 @@ Definition inline_identity_statement : Prop :=
       (Let_static
          [Bind_code called (identity_code x my_closure ret exn metadata)]
          (Apply
-            (Apply_expr callee (Direct called) [arg] k k_exn args_arity
+            (Apply_expr callee (Direct called) [arg] k k_exn [] args_arity
                return_arity)))
       (Let_static
          [Bind_code called (identity_code x my_closure ret exn metadata)]
-         (Apply_cont (Apply_cont_expr k [arg]))).
+         (Apply_cont (Apply_cont_expr k [arg] None))).

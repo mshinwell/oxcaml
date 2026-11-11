@@ -172,20 +172,37 @@ Proof.
     rewrite rename_simple_ext; reflexivity.
 Qed.
 
+Lemma rename_exn_extra_args_ext (extra : list (simple * flambda_kind)) :
+  map (fun arg => (rename_simple r (fst arg), snd arg)) extra
+  = map (fun arg => (rename_simple r' (fst arg), snd arg)) extra.
+Proof.
+  apply map_ext. intros [s kind]. simpl. rewrite rename_simple_ext.
+  reflexivity.
+Qed.
+
 Lemma rename_apply_ext (ap : apply_expr) :
   rename_apply r ap = rename_apply r' ap.
 Proof.
   unfold rename_apply.
   rewrite !same_continuations, rename_simple_ext,
-    (map_ext _ _ rename_simple_ext).
+    (map_ext _ _ rename_simple_ext), rename_exn_extra_args_ext.
   reflexivity.
+Qed.
+
+Lemma rename_trap_action_ext (action : trap_action) :
+  rename_trap_action r action = rename_trap_action r' action.
+Proof.
+  destruct action as [k | k kind]; simpl; rewrite same_continuations;
+    reflexivity.
 Qed.
 
 Lemma rename_apply_cont_ext (ac : apply_cont) :
   rename_apply_cont r ac = rename_apply_cont r' ac.
 Proof.
   unfold rename_apply_cont.
-  rewrite same_continuations, (map_ext _ _ rename_simple_ext). reflexivity.
+  rewrite same_continuations, (map_ext _ _ rename_simple_ext).
+  destruct (ac_trap_action ac) as [action | ]; simpl;
+    rewrite ?rename_trap_action_ext; reflexivity.
 Qed.
 
 Fixpoint rename_expr_ext (e : expr) : rename_expr r e = rename_expr r' e
@@ -282,14 +299,36 @@ Proof.
   rewrite map_map. apply map_ext. intros x. apply rename_variable_compose.
 Qed.
 
+Lemma rename_exn_extra_args_compose
+    (extra : list (simple * flambda_kind)) :
+  map
+    (fun arg => (rename_simple (compose_renaming second first) (fst arg),
+                 snd arg))
+    extra
+  = map (fun arg => (rename_simple second (fst arg), snd arg))
+      (map (fun arg => (rename_simple first (fst arg), snd arg)) extra).
+Proof.
+  rewrite map_map. apply map_ext. intros [s kind]. simpl.
+  rewrite rename_simple_compose. reflexivity.
+Qed.
+
 Lemma rename_apply_compose (ap : apply_expr) :
   rename_apply (compose_renaming second first) ap
   = rename_apply second (rename_apply first ap).
 Proof.
   unfold rename_apply. simpl.
   rewrite !rename_continuation_compose, rename_simple_compose,
-    rename_simples_compose.
+    rename_simples_compose, rename_exn_extra_args_compose.
   reflexivity.
+Qed.
+
+Lemma rename_trap_action_compose (action : option trap_action) :
+  option_map (rename_trap_action (compose_renaming second first)) action
+  = option_map (rename_trap_action second)
+      (option_map (rename_trap_action first) action).
+Proof.
+  destruct action as [[k | k kind] | ]; simpl;
+    rewrite ?rename_continuation_compose; reflexivity.
 Qed.
 
 Lemma rename_apply_cont_compose (ac : apply_cont) :
@@ -297,7 +336,9 @@ Lemma rename_apply_cont_compose (ac : apply_cont) :
   = rename_apply_cont second (rename_apply_cont first ac).
 Proof.
   unfold rename_apply_cont. simpl.
-  rewrite rename_continuation_compose, rename_simples_compose. reflexivity.
+  rewrite rename_continuation_compose, rename_simples_compose,
+    rename_trap_action_compose.
+  reflexivity.
 Qed.
 
 Fixpoint rename_expr_compose_aux (e : expr) :
@@ -482,9 +523,9 @@ Proof.
       induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
       apply or_iff;
         [ apply (var_free_in_handler_equivariant r x h) | exact IH ].
-    + apply or_iff;
-        [ apply var_free_in_simple_equivariant
-        | apply var_free_in_simples_equivariant ].
+    + rewrite exn_extra_simples_rename.
+      apply or_iff; [ apply var_free_in_simple_equivariant | ].
+      apply or_iff; apply var_free_in_simples_equivariant.
     + apply var_free_in_simples_equivariant.
     + apply or_iff; [ apply var_free_in_simple_equivariant | ].
       induction arms as [ | [i ac] arms IH]; simpl.
@@ -505,6 +546,25 @@ Lemma lookup_renamed_none (r : renaming) (k : continuation)
 Proof.
   rewrite lookup_rename_handlers.
   destruct (lookup k handlers); simpl; split; congruence.
+Qed.
+
+Lemma apply_cont_continuations_renamed (r : renaming) (ac : apply_cont) :
+  apply_cont_continuations (rename_apply_cont r ac)
+  = map (rename_continuation r) (apply_cont_continuations ac).
+Proof.
+  unfold apply_cont_continuations, rename_apply_cont. simpl.
+  destruct (ac_trap_action ac) as [[k | k kind] | ]; reflexivity.
+Qed.
+
+Lemma apply_cont_continuations_equivariant (r : renaming) (k : continuation)
+    (ac : apply_cont) :
+  rename_continuation r k ∈ apply_cont_continuations (rename_apply_cont r ac)
+  <-> k ∈ apply_cont_continuations ac.
+Proof.
+  rewrite apply_cont_continuations_renamed, in_map_iff. split.
+  - intros (k' & Heq & Hin). apply rename_continuation_injective in Heq.
+    subst k'. exact Hin.
+  - intros Hin. exists k. auto.
 Qed.
 
 Fixpoint cont_free_in_expr_equivariant (r : renaming) (k : continuation)
@@ -534,12 +594,11 @@ Proof.
     + apply or_iff;
         (split;
           [ apply rename_continuation_injective | intros ->; reflexivity ]).
-    + split; [ apply rename_continuation_injective | intros ->; reflexivity ].
+    + apply apply_cont_continuations_equivariant.
     + induction arms as [ | [i ac] arms IH]; simpl.
       * split; intros Hfree; inversion Hfree.
-      * rewrite !Exists_cons. apply or_iff; [ | exact IH ]. simpl.
-        split;
-          [ apply rename_continuation_injective | intros ->; reflexivity ].
+      * rewrite !Exists_cons. apply or_iff; [ | exact IH ].
+        apply apply_cont_continuations_equivariant.
     + reflexivity.
   - destruct h as [params metadata handler]. simpl.
     apply (cont_free_in_expr_equivariant r k handler).
@@ -681,9 +740,10 @@ Lemma free_variables_of_apply_renamed (ap : apply_expr) :
   free_variables_of_apply (rename_apply r ap)
   = map (rename_variable r) (free_variables_of_apply ap).
 Proof.
-  unfold free_variables_of_apply, rename_apply. simpl.
-  rewrite map_app, free_variables_of_simple_renamed,
-    free_variables_of_simples_renamed.
+  unfold free_variables_of_apply. rewrite exn_extra_simples_rename.
+  unfold rename_apply. simpl.
+  rewrite !map_app, free_variables_of_simple_renamed,
+    !free_variables_of_simples_renamed.
   reflexivity.
 Qed.
 
@@ -789,8 +849,11 @@ Proof.
       rewrite map_app, (free_continuations_of_handler_renamed h), IH.
       reflexivity.
     + reflexivity.
-    + reflexivity.
-    + rewrite !map_map. apply map_ext. intros [i ac]. reflexivity.
+    + apply (apply_cont_continuations_renamed r).
+    + induction arms as [ | [i ac] arms IH]; [ reflexivity | ].
+      cbn [map flat_map snd].
+      rewrite map_app, (apply_cont_continuations_renamed r), IH.
+      reflexivity.
     + reflexivity.
   - destruct h as [params metadata handler].
     cbn [rename_handler free_continuations_of_handler].

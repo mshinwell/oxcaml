@@ -31,10 +31,10 @@
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaSemanticsProofs FlambdaContextSpec FlambdaContextProofs
-  FlambdaNominalSpec FlambdaNominalProofs FlambdaNormaliseProofs
-  FlambdaUnusedContsSpec.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaMapProofs FlambdaSemanticsSpec FlambdaSemanticsProofs
+  FlambdaContextSpec FlambdaContextProofs FlambdaNominalSpec
+  FlambdaNominalProofs FlambdaNormaliseProofs FlambdaUnusedContsSpec.
 Import ListNotations.
 
 (* The test says yes of every continuation that is free. *)
@@ -64,10 +64,11 @@ Proof.
         | right; exact (IH Hk) ].
     + intros [-> | ->]; apply orb_true_iff;
         [ left | right ]; apply Pos.eqb_refl.
-    + intros ->. apply Pos.eqb_refl.
-    + intros Hk. apply Exists_exists in Hk. destruct Hk as (arm & Hin & ->).
-      apply existsb_exists. exists arm.
-      split; [ exact Hin | apply Pos.eqb_refl ].
+    + intros Hk.
+      exact (proj2 (among_In k (apply_cont_continuations ac)) Hk).
+    + intros Hk. apply Exists_exists in Hk. destruct Hk as (arm & Hin & Hk).
+      apply existsb_exists. exists arm. split; [ exact Hin | ].
+      exact (proj2 (among_In k (apply_cont_continuations (snd arm))) Hk).
     + contradiction.
   - destruct h as [params metadata handler]. simpl.
     apply (cont_free_b_sound k handler).

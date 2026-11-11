@@ -90,9 +90,9 @@ Proof.
   set (handlers :=
     [(k,
       Handler [] (make_handler_metadata [])
-        (Apply_cont (Apply_cont_expr k [])))]).
+        (Apply_cont (Apply_cont_expr k [] None)))]).
   set (looping :=
-    State (Apply_cont (Apply_cont_expr k [])) vars
+    State (Apply_cont (Apply_cont_expr k [] None)) vars
       (rec_closures handlers vars conts ++ conts) statics).
   assert (Hfirst :
     step (State (loop_forever k) vars conts statics) = Step looping).

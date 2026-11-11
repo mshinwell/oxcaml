@@ -157,7 +157,8 @@ Definition static_binding_in_scope (vs : list variable)
 
 Definition apply_cont_in_scope (vs : list variable) (ks : list continuation)
     (ac : apply_cont) : bool :=
-  among (ac_continuation ac) ks && simples_in_scope vs (ac_args ac).
+  all_among (apply_cont_continuations ac) ks
+  && simples_in_scope vs (ac_args ac).
 
 (* Every variable and continuation the expression uses is bound in it or is
    one of those given. *)
@@ -180,6 +181,7 @@ Fixpoint expr_in_scope (vs : list variable) (ks : list continuation)
     && simples_in_scope vs (ap_args ap)
     && among (ap_continuation ap) ks
     && among (ap_exn_continuation ap) ks
+    && simples_in_scope vs (exn_extra_simples ap)
   | Apply_cont ac => apply_cont_in_scope vs ks ac
   | Switch scrutinee arms =>
     simple_in_scope vs scrutinee
@@ -215,6 +217,7 @@ Definition inlinable_b (ap : apply_expr) (c : code) : bool :=
     [code_return_continuation c; code_exn_continuation c] (code_body c)
   && negb (Pos.eqb (code_return_continuation c) (code_exn_continuation c))
   && negb (Pos.eqb (ap_continuation ap) (ap_exn_continuation ap))
+  && no_exn_extra_args ap
   && negb (var_in_simples (code_my_closure c) (ap_args ap))
   && forallb (fun param => negb (var_in_simples param (ap_args ap)))
        (code_params c)
@@ -342,6 +345,7 @@ Fixpoint var_free_b (x : variable) (e : expr) : bool :=
     || var_free_b x body
   | Apply ap =>
     var_in_simple x (ap_callee ap) || var_in_simples x (ap_args ap)
+    || var_in_simples x (exn_extra_simples ap)
   | Apply_cont ac => var_in_simples x (ac_args ac)
   | Switch scrutinee arms =>
     var_in_simple x scrutinee
@@ -403,7 +407,9 @@ Definition remove_unused_lets_refines_statement : Prop :=
 
 (* [body] with the handler in place of the application of [k] that ends
    it, if it is a run of [Let]s ending so, none of which binds a variable
-   of the handler. *)
+   of the handler. The application must have no trap action: the handler
+   in its place would not perform it (Simplify does not inline a
+   continuation that is applied with one). *)
 Fixpoint inline_cont_at_tail (k : continuation) (params : list variable)
     (metadata : handler_metadata) (handler : expr) (body : expr)
     : option expr :=
@@ -419,6 +425,7 @@ Fixpoint inline_cont_at_tail (k : continuation) (params : list variable)
       (inline_cont_at_tail k params metadata handler body)
   | Apply_cont ac =>
     if Pos.eqb (ac_continuation ac) k
+       && no_trap_action ac
        && Nat.eqb (length params) (length (ac_args ac))
        && forallb (fun param => negb (var_in_simples param (ac_args ac)))
             params
@@ -778,10 +785,17 @@ Definition merge_statics_equivalent_statement : Prop :=
 Definition simple_eq_dec : ∀ s s' : simple, {s = s'} + {s <> s'}.
 Proof. decide equality; try apply Pos.eq_dec; apply const_eq_dec. Defined.
 
+Definition trap_action_eq_dec :
+  ∀ action action' : trap_action, {action = action'} + {action <> action'}.
+Proof. repeat decide equality. Defined.
+
 Definition apply_cont_eq_dec :
   ∀ ac ac' : apply_cont, {ac = ac'} + {ac <> ac'}.
 Proof.
-  decide equality; [ apply (list_eq_dec simple_eq_dec) | apply Pos.eq_dec ].
+  decide equality;
+    [ decide equality; apply trap_action_eq_dec
+    | apply (list_eq_dec simple_eq_dec)
+    | apply Pos.eq_dec ].
 Defined.
 
 Definition collapse_switch (scrutinee : simple)
@@ -881,15 +895,16 @@ Definition rewrite_code_equivalent_statement : Prop :=
    handler for the same value goes: the handler runs under the variables
    of the [Let_cont], so the scrutinee has the same value in it. The arm
    of the handler must not be to a continuation of the name being bound,
-   which in the handler is another one. The [Let_cont] goes if no arm
-   applies its continuation any more. Simplify does as much from what an
-   arm tells it of the scrutinee. *)
+   which in the handler is another one. An arm that has a trap action
+   stays as it is. The [Let_cont] goes if no arm names its continuation
+   any more. Simplify does as much from what an arm tells it of the
+   scrutinee. *)
 Definition thread_arm (k : continuation) (inner : list (Z * apply_cont))
     (arm : Z * apply_cont) : Z * apply_cont :=
   let (i, ac) := arm in
   match ac_args ac with
   | [] =>
-    if Pos.eqb (ac_continuation ac) k
+    if Pos.eqb (ac_continuation ac) k && no_trap_action ac
     then
       match find_arm i inner with
       | Some ac' => if Pos.eqb (ac_continuation ac') k then arm else (i, ac')
@@ -901,7 +916,7 @@ Definition thread_arm (k : continuation) (inner : list (Z * apply_cont))
 
 Definition arms_apply (k : continuation) (arms : list (Z * apply_cont))
     : bool :=
-  existsb (fun arm => Pos.eqb (ac_continuation (snd arm)) k) arms.
+  existsb (fun arm => among k (apply_cont_continuations (snd arm))) arms.
 
 Definition thread_switch (k : continuation) (h : continuation_handler)
     (body : expr) : expr :=

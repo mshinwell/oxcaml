@@ -97,9 +97,14 @@ Definition env_in_range (vars : env) : Prop :=
 (* What a continuation stands for is in range: a way out is; a handler
    with the environments of its definition is when the handler, the
    values of its variables, what its continuations stand for, and the
-   handlers defined with it are. *)
+   handlers defined with it are; a continuation with extra arguments is
+   when the continuation inside and the extra arguments are. *)
 Inductive cont_in_range : cont_value -> Prop :=
   | Outer_in_range (k : continuation) : cont_in_range (Outer k)
+  | Extra_args_in_range (c : cont_value) (extra : list value) :
+    cont_in_range c ->
+    forallb value_in_range extra = true ->
+    cont_in_range (Extra_args c extra)
   | Closure_in_range (h : continuation_handler) (vars : env)
       (conts : list (continuation * cont_value))
       (recursive : list (continuation * continuation_handler)) :
@@ -209,7 +214,7 @@ Definition in_range_unit : expr :=
     (Let y Value
        (Prim (Variadic (Make_block (Block_kind_values 250)))
           [Const (Tagged_immediate 1)])
-       (Apply_cont (Apply_cont_expr done [Var y; Var x]))).
+       (Apply_cont (Apply_cont_expr done [Var y; Var x] None))).
 
 Definition in_range_runs_statement : Prop :=
   numbers_in_range in_range_unit = true
@@ -222,7 +227,7 @@ Definition in_range_runs_statement : Prop :=
    makes it. *)
 Definition tag_out_of_range_unit : expr :=
   Let x Value (Prim (Variadic (Make_block (Block_kind_values 300))) [])
-    (Apply_cont (Apply_cont_expr done [Var x])).
+    (Apply_cont (Apply_cont_expr done [Var x] None)).
 
 Definition tag_out_of_range_statement : Prop :=
   numbers_in_range tag_out_of_range_unit = false
@@ -232,7 +237,7 @@ Definition tag_out_of_range_statement : Prop :=
 (* An int8 that is 200. The addition has no value on it. *)
 Definition constant_out_of_range_unit : expr :=
   Let x (Naked_number Kind_naked_int8) (int8_add 200 0)
-    (Apply_cont (Apply_cont_expr done [Var x])).
+    (Apply_cont (Apply_cont_expr done [Var x] None)).
 
 Definition constant_out_of_range_statement : Prop :=
   numbers_in_range constant_out_of_range_unit = false

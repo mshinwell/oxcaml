@@ -198,8 +198,10 @@ Theorem alpha_handlers_repeated_parameter
 Proof.
   set (metadata := make_handler_metadata [Value; Value]).
   exists
-    (Handler [1; 1] metadata (Apply_cont (Apply_cont_expr 1 [Var 1])))%positive,
-    (Handler [2; 3] metadata (Apply_cont (Apply_cont_expr 1 [Var 3])))%positive.
+    (Handler [1; 1] metadata
+       (Apply_cont (Apply_cont_expr 1 [Var 1] None)))%positive,
+    (Handler [2; 3] metadata
+       (Apply_cont (Apply_cont_expr 1 [Var 3] None)))%positive.
   split; [ | split; [ reflexivity | split; [ reflexivity | ] ] ].
   2: { intros k body Hdistinct Halpha.
        apply alpha_equivalent_binders_distinct in Halpha.
@@ -219,8 +221,8 @@ Proof.
   unfold swap_variables. cbn [rename_expr].
   unfold rename_apply_cont, rename_simple, rename_variable,
     rename_continuation.
-  cbn [map ac_args ac_continuation variable_permutation
-       continuation_permutation combine permute].
+  cbn [map ac_args ac_continuation ac_trap_action option_map
+       variable_permutation continuation_permutation combine permute].
   unfold swap. rewrite !Pos.eqb_refl.
   rewrite (Pos.eqb_sym a b) in Hab. rewrite Hb1, Hb2, Hab.
   apply Alpha_refl.

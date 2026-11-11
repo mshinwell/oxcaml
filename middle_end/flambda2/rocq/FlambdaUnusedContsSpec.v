@@ -62,7 +62,8 @@
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec.
+From OxCamlFlambda2 Require Import FlambdaSemanticsSpec.
 Import ListNotations.
 
 (* Whether a continuation may be free in an expression. *)
@@ -77,9 +78,9 @@ Fixpoint cont_free_b (k : continuation) (e : expr) : bool :=
     || cont_free_b k body
   | Apply ap =>
     Pos.eqb k (ap_continuation ap) || Pos.eqb k (ap_exn_continuation ap)
-  | Apply_cont ac => Pos.eqb k (ac_continuation ac)
+  | Apply_cont ac => among k (apply_cont_continuations ac)
   | Switch _ arms =>
-    existsb (fun arm => Pos.eqb k (ac_continuation (snd arm))) arms
+    existsb (fun arm => among k (apply_cont_continuations (snd arm))) arms
   | Invalid => false
   end
 with cont_free_in_handler_b (k : continuation) (h : continuation_handler)

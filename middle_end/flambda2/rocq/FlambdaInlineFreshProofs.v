@@ -129,7 +129,8 @@ Lemma opened_inlinable (ap : apply_expr) (c : code) (r : renaming)
     (code_variables c ++ free_variables_of_simples (ap_args ap)) fresh ->
   inlinable ap (open_code fresh c) r.
 Proof.
-  intros (Hclosed & Hdistinct & Hvars & Hret & Hexn & Harity & Hstatics)
+  intros
+    (Hclosed & Hdistinct & Hvars & Hret & Hexn & Hextra & Harity & Hstatics)
     Hlength Houtside.
   apply distinct_outside_app in Houtside as [Houtside [_ Hargs]].
   pose proof (open_code_variables fresh c Hlength Hdistinct Houtside)
@@ -166,6 +167,7 @@ Proof.
   split; [ exact Hvars | ].
   split; [ rewrite open_code_return; exact Hret | ].
   split; [ rewrite open_code_exn; exact Hexn | ].
+  split; [ exact Hextra | ].
   split.
   { apply Hnot_free. unfold code_variables.
     rewrite among_cons, Pos.eqb_refl. reflexivity. }
@@ -632,7 +634,7 @@ Proof.
   { intros x Hx. apply (var_free_agrees x _ Hclosed_first) in Hx.
     unfold first in Hx.
     cbn [free_variables_of_expr free_variables_of_named] in Hx.
-    unfold free_variables_of_apply. rewrite among_app.
+    unfold free_variables_of_apply. rewrite !among_app.
     rewrite among_app, among_without in Hx.
     apply orb_true_iff in Hx as [Hx | Hx]; [ rewrite Hx; reflexivity | ].
     apply andb_true_iff in Hx as [Hx Hnot]. apply negb_true_iff in Hnot.
@@ -641,7 +643,7 @@ Proof.
       (let_params_free_variables rest (code_params_kinds c) (ap_args ap)
          (opened_body zs) x Hcount Hx)
       as [Hargs | [Hbody Hrest]];
-      [ rewrite Hargs; apply orb_true_r | ].
+      [ rewrite Hargs; cbn [orb]; apply orb_true_r | ].
     apply (opened_body_free_variables zs x Hzs) in Hbody.
     rewrite Hzs_shape, among_cons, Hnot, Hrest in Hbody.
     discriminate Hbody. }
@@ -657,7 +659,7 @@ Proof.
   assert (Hargs : map (rename_simple p) (ap_args ap) = ap_args ap).
   { apply rename_simples_fixes. intros x Hx.
     apply (swap_fixes_call zs ws x Hzs Hws).
-    unfold free_variables_of_apply. rewrite among_app, Hx.
+    unfold free_variables_of_apply. rewrite !among_app, Hx. cbn [orb].
     apply orb_true_r. }
   assert (Hmoved : map (rename_variable p) (z :: rest) = w :: rest').
   { destruct Hzs as [Hlength [Hdistinct_zs _]]. destruct Hws as [Hlength' _].

@@ -277,9 +277,9 @@ Proof.
   assert (Hrewrite :
     expr_refines
       (Let x kind (Simple (Const c))
-         (Apply_cont (Apply_cont_expr k [Var x])))
+         (Apply_cont (Apply_cont_expr k [Var x] None)))
       (Let x kind (Simple (Const c))
-         (Apply_cont (Apply_cont_expr k [Const c])))).
+         (Apply_cont (Apply_cont_expr k [Const c] None)))).
   { apply expr_refines_in_empty, let_simple_refines_in.
     - unfold var_in_typing_env. intros (y & t & [] & _).
     - simpl. intros [].
@@ -291,8 +291,8 @@ Proof.
   assert (Hunused :
     expr_refines
       (Let x kind (Simple (Const c))
-         (Apply_cont (Apply_cont_expr k [Const c])))
-      (Apply_cont (Apply_cont_expr k [Const c]))).
+         (Apply_cont (Apply_cont_expr k [Const c] None)))
+      (Apply_cont (Apply_cont_expr k [Const c] None))).
   { apply unused_let. simpl. unfold var_free_in_simples. intros Hfree.
     inversion Hfree as [? ? Hhead | ? ? Hrest];
       [ exact Hhead | inversion Hrest ]. }
@@ -306,8 +306,8 @@ Proof.
   intros x kind s k Hnotfree.
   assert (Hrewrite :
     expr_refines
-      (Let x kind (Simple s) (Apply_cont (Apply_cont_expr k [Var x])))
-      (Let x kind (Simple s) (Apply_cont (Apply_cont_expr k [s])))).
+      (Let x kind (Simple s) (Apply_cont (Apply_cont_expr k [Var x] None)))
+      (Let x kind (Simple s) (Apply_cont (Apply_cont_expr k [s] None)))).
   { apply expr_refines_in_empty, let_simple_refines_in.
     - unfold var_in_typing_env. intros (y & t & [] & _).
     - exact Hnotfree.
@@ -318,8 +318,8 @@ Proof.
       exact Hcanonical. }
   assert (Hunused :
     expr_refines
-      (Let x kind (Simple s) (Apply_cont (Apply_cont_expr k [s])))
-      (Apply_cont (Apply_cont_expr k [s]))).
+      (Let x kind (Simple s) (Apply_cont (Apply_cont_expr k [s] None)))
+      (Apply_cont (Apply_cont_expr k [s] None))).
   { apply unused_let. simpl. unfold var_free_in_simples. intros Hfree.
     inversion Hfree as [? ? Hhead | ? ? Hrest];
       [ exact (Hnotfree Hhead) | inversion Hrest ]. }
@@ -339,7 +339,8 @@ Proof.
   set (bindings :=
     [Bind_code called (identity_code x my_closure ret exn metadata)]).
   set (ap :=
-    Apply_expr callee (Direct called) [arg] k k_exn args_arity return_arity).
+    Apply_expr callee (Direct called) [arg] k k_exn [] args_arity
+      return_arity).
   set (kind := hd Value (unarize (cm_params_arity metadata))).
   destruct (inline_renaming_exists ret exn k k_exn Hcode_conts Hcall_conts)
     as (r & Hvars & Hret & Hexn).
@@ -350,7 +351,7 @@ Proof.
       (Let_static bindings
          (Let my_closure Value (Simple callee)
             (Let x kind (Simple arg)
-               (Apply_cont (Apply_cont_expr k [Var x])))))).
+               (Apply_cont (Apply_cont_expr k [Var x] None)))))).
   { pose proof (inline_let_code ap called
       (identity_code x my_closure ret exn metadata) r eq_refl) as Hinline.
     unfold inlined_body, identity_code in Hinline. simpl in Hinline.
@@ -360,7 +361,7 @@ Proof.
     - intros y Hy. unfold var_free_in_simples in Hy.
       inversion Hy as [? ? Hhead | ? ? Hrest]; [ | inversion Hrest ].
       right. left. simpl in Hhead. symmetry. exact Hhead.
-    - intros j ->. left. reflexivity.
+    - intros j [<- | []]. left. reflexivity.
     - exact Hvars.
     - exact Hret.
     - exact Hexn.
@@ -376,10 +377,10 @@ Proof.
       (Let_static bindings
          (Let my_closure Value (Simple callee)
             (Let x kind (Simple arg)
-               (Apply_cont (Apply_cont_expr k [Var x])))))
+               (Apply_cont (Apply_cont_expr k [Var x] None)))))
       (Let_static bindings
          (Let my_closure Value (Simple callee)
-            (Apply_cont (Apply_cont_expr k [arg]))))).
+            (Apply_cont (Apply_cont_expr k [arg] None))))).
   { exact (plug_refines
       (Let_static_body bindings
          (Let_body my_closure Value (Simple callee) Hole))
@@ -389,8 +390,8 @@ Proof.
     expr_refines
       (Let_static bindings
          (Let my_closure Value (Simple callee)
-            (Apply_cont (Apply_cont_expr k [arg]))))
-      (Let_static bindings (Apply_cont (Apply_cont_expr k [arg])))).
+            (Apply_cont (Apply_cont_expr k [arg] None))))
+      (Let_static bindings (Apply_cont (Apply_cont_expr k [arg] None)))).
   { apply (plug_refines (Let_static_body bindings Hole));
       [ apply not_many | ].
     apply unused_let. simpl. unfold var_free_in_simples. intros Hfree.

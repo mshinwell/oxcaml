@@ -702,10 +702,19 @@ Lemma apply_cont_well_kinded_weaken (kinds : kind_env)
   apply_cont_well_kinded kinds conts ac = true ->
   apply_cont_well_kinded kinds conts' ac = true.
 Proof.
-  intros Hincluded. unfold apply_cont_well_kinded.
-  destruct (lookup (ac_continuation ac) conts) as [params_arity | ] eqn:Hk;
-    [ | discriminate ].
-  rewrite (Hincluded _ _ Hk). auto.
+  intros Hincluded. unfold apply_cont_well_kinded. intros Hac.
+  apply andb_true_iff in Hac as [Htrap Hac]. apply andb_true_iff. split.
+  - unfold trap_action_in_scope in *.
+    destruct (ac_trap_action ac) as [action | ]; [ | reflexivity ].
+    unfold is_bound in *.
+    destruct (lookup (trap_action_handler action) conts) as [found | ]
+      eqn:Hk;
+      [ | discriminate ].
+    rewrite (Hincluded _ _ Hk). reflexivity.
+  - destruct (lookup (ac_continuation ac) conts) as [params_arity | ]
+      eqn:Hk;
+      [ | discriminate ].
+    rewrite (Hincluded _ _ Hk). exact Hac.
 Qed.
 
 Lemma has_arity_weaken (conts conts' : arity_env) (k : continuation)
@@ -841,6 +850,113 @@ Proof.
   exact (eval_simples_well_kinded vars args vs Hvars Hvs).
 Qed.
 
+(* The exception continuation that a call gives its callee: the caller's
+   takes the exception followed by the extra arguments, and with those
+   kept it takes the exception alone. *)
+Lemma with_extra_args_well_kinded (c : cont_value) (extra : list value)
+    (kinds : list flambda_kind) :
+  cont_wk c = true ->
+  arity_of_cont outer c = Value :: kinds ->
+  map kind_of_value extra = kinds ->
+  forallb value_wk extra = true ->
+  cont_wk (with_extra_args c extra) = true
+  ∧ arity_of_cont outer (with_extra_args c extra) = [Value].
+Proof.
+  intros Hc Harity Hkinds Hextra.
+  destruct extra as [ | v extra]; [ simpl in *; subst kinds; auto | ].
+  remember (v :: extra) as given eqn:Hgiven.
+  assert (Hlength : (length (Value :: kinds) - length given = 1)%nat).
+  { rewrite <- Hkinds. cbn [length]. rewrite length_map. lia. }
+  assert (Hwith : with_extra_args c given = Extra_args c given)
+    by (rewrite Hgiven; reflexivity).
+  rewrite Hwith. cbn [cont_well_kinded arity_of_cont].
+  rewrite Harity, Hlength, Hc, Hextra. cbn [skipn firstn].
+  rewrite Hkinds, kinds_eqb_refl. auto.
+Qed.
+
+(* What applying a well-kinded continuation to well-kinded values of the
+   kinds of its parameters comes to. By induction on the continuation:
+   one that has extra arguments is the one inside, applied to more. *)
+Lemma apply_cont_value_well_kinded (c : cont_value) :
+  ∀ (vs : list value) (statics : static_env),
+    cont_wk c = true ->
+    map kind_of_value vs = arity_of_cont outer c ->
+    forallb value_wk vs = true ->
+    statics_wk statics = true ->
+    match apply_cont_value c vs statics with
+    | Step s' => state_wk s' = true
+    | Exit k vs' =>
+      lookup k outer = Some (map kind_of_value vs')
+      ∧ forallb value_wk vs' = true
+    | Undefined => True
+    end.
+Proof.
+  induction c
+    as [[params metadata handler] def_vars def_conts recursive | k
+       | c IH extra];
+    intros vs statics Hc Hkinds Hvs_wk Hstatics.
+  - cbn [apply_cont_value].
+    destruct (bind_params params vs def_vars) as [handler_vars | ] eqn:Hbind;
+      [ | exact I ].
+    simpl in Hkinds.
+    rewrite cont_well_kinded_closure in Hc.
+    apply andb_true_iff in Hc as [Hc Hrecursive].
+    apply andb_true_iff in Hc as [Hc Hh].
+    apply andb_true_iff in Hc as [Hdef_vars Hdef_conts].
+    simpl in Hh. apply andb_true_iff in Hh as [_ Hh].
+    pose proof (bind_params_kinds params vs def_vars handler_vars Hbind)
+      as Hkinds_bound.
+    rewrite Hkinds in Hkinds_bound. rewrite Hkinds_bound in Hh.
+    apply state_well_kinded_intro; [ | | | exact Hstatics ].
+    + rewrite arities_of_rec_closures. exact Hh.
+    + exact (bind_params_well_kinded params vs def_vars handler_vars Hvs_wk
+        Hdef_vars Hbind).
+    + exact (rec_closures_well_kinded def_vars def_conts recursive Hdef_vars
+        Hdef_conts Hrecursive).
+  - cbn [apply_cont_value]. simpl in Hc, Hkinds. unfold is_bound in Hc.
+    destruct (lookup k outer) as [found | ]; [ | discriminate ].
+    rewrite Hkinds. auto.
+  - cbn [apply_cont_value]. cbn [cont_well_kinded] in Hc.
+    apply andb_true_iff in Hc as [Hc Hextra_kinds].
+    apply andb_true_iff in Hc as [Hc Hextra].
+    apply kinds_eqb_eq in Hextra_kinds. cbn [arity_of_cont] in Hkinds.
+    apply (IH (vs ++ extra) statics Hc); [ | | exact Hstatics ].
+    + rewrite map_app, Hkinds, Hextra_kinds. apply firstn_skipn.
+    + rewrite forallb_app, Hvs_wk, Hextra. reflexivity.
+Qed.
+
+(* A well-kinded continuation given as many values as it has parameters
+   is not given the wrong number. *)
+Lemma right_number_given (c : cont_value) :
+  ∀ given : nat,
+    cont_wk c = true ->
+    given = length (arity_of_cont outer c) ->
+    wrong_number_given c given = false.
+Proof.
+  induction c
+    as [[params metadata handler] def_vars def_conts recursive | k
+       | c IH extra];
+    intros given Hc Hgiven.
+  - simpl in Hgiven |- *. rewrite cont_well_kinded_closure in Hc.
+    apply andb_true_iff in Hc as [Hc _]. apply andb_true_iff in Hc as [_ Hh].
+    simpl in Hh. apply andb_true_iff in Hh as [_ Hh].
+    destruct
+      (bind_param_kinds params (hm_params_kinds metadata)
+         (kinds_of_env def_vars))
+      as [handler_kinds | ] eqn:Hbind; [ | discriminate ].
+    rewrite (bind_param_kinds_length _ _ _ _ Hbind), Hgiven, Nat.eqb_refl.
+    reflexivity.
+  - reflexivity.
+  - cbn [wrong_number_given]. cbn [cont_well_kinded] in Hc.
+    apply andb_true_iff in Hc as [Hc Hextra_kinds].
+    apply andb_true_iff in Hc as [Hc _].
+    apply kinds_eqb_eq in Hextra_kinds. cbn [arity_of_cont] in Hgiven.
+    apply (IH _ Hc). rewrite Hgiven.
+    apply (f_equal (@length _)) in Hextra_kinds.
+    rewrite length_map, length_skipn in Hextra_kinds.
+    rewrite length_firstn. lia.
+Qed.
+
 Lemma step_well_kinded_here (s s' : state) :
   state_wk s = true -> step s = Step s' -> state_wk s' = true.
 Proof.
@@ -897,11 +1013,15 @@ Proof.
     simpl in He. unfold apply_well_kinded in He.
     apply andb_true_iff in He as [He Hexn].
     apply andb_true_iff in He as [He Hreturn].
+    apply andb_true_iff in He as [He Hextra].
     clear He. apply has_arity_eq in Hreturn, Hexn.
     destruct (eval_simple vars (ap_callee ap)) as [callee | ] eqn:Hcallee;
       [ | discriminate ].
     destruct (eval_simples vars (ap_args ap)) as [vs | ] eqn:Hvs;
       [ | discriminate ].
+    destruct (eval_args vars (exn_extra_simples ap) _ Hvars Hextra)
+      as (extra & Hextra_values & Hextra_kinds & Hextra_wk).
+    rewrite Hextra_values in Hstep.
     pose proof (eval_simples_well_kinded vars _ vs Hvars Hvs) as Hvs_wk.
     (* The call tests that the arguments have the kinds of its arity. *)
     apply call_function_step in Hstep
@@ -915,6 +1035,10 @@ Proof.
       as [Hreturn_wk Hreturn_to].
     destruct (resolve_well_kinded conts _ _ Hconts Hexn)
       as [Hexn_wk Hexn_to].
+    destruct
+      (with_extra_args_well_kinded _ extra _ Hexn_wk Hexn_to Hextra_kinds
+         Hextra_wk)
+      as [Hraise_wk Hraise_to].
     (* The code called is well-kinded. *)
     pose proof Hstatics as Hc. apply andb_true_iff in Hc as [Hc _].
     apply (lookup_forallb (code_well_kinded slots) called c _) in Hc;
@@ -928,8 +1052,8 @@ Proof.
     pose proof (code_body_well_kinded c _ Hc Hkinds_bound) as Hbody.
     apply state_well_kinded_intro; [ | | | exact Hstatics ].
     + refine (well_kinded_weaken (code_body c) _ _ _ _ Hbody).
-      unfold arities_of_conts. simpl.
-      rewrite Hreturn_to, Hexn_to, Hreturn_arity.
+      unfold arities_of_conts. cbn [map_values map fst snd app].
+      rewrite Hreturn_to, Hraise_to, Hreturn_arity.
       exact
         (map_included_app_r
            [(code_return_continuation c, code_result_kinds c);
@@ -939,37 +1063,22 @@ Proof.
         (bind_params_well_kinded (code_params c) vs _ callee_vars Hvs_wk _
            Hbind).
       simpl. rewrite Hcallee_wk. reflexivity.
-    + unfold conts_well_kinded. simpl. rewrite Hreturn_wk, Hexn_wk.
-      reflexivity.
+    + unfold conts_well_kinded. cbn [forallb].
+      rewrite Hreturn_wk, Hraise_wk. reflexivity.
   - (* Apply_cont *)
     simpl in He. unfold apply_cont_well_kinded in He.
+    apply andb_true_iff in He as [_ He].
     destruct (lookup (ac_continuation ac) (arities_of_conts outer conts))
       as [params_arity | ] eqn:Hk; [ | discriminate ].
     destruct (eval_args vars (ac_args ac) params_arity Hvars He)
       as (vs & Hvs & Hkinds & Hvs_wk).
     rewrite Hvs in Hstep. unfold apply_continuation in Hstep.
     destruct (resolve_well_kinded conts _ _ Hconts Hk) as [Hc Harity].
-    destruct (resolve (ac_continuation ac) conts)
-      as [[params metadata handler] def_vars def_conts recursive | k'];
-      simpl in Hstep; [ | discriminate ].
-    destruct (bind_params params vs def_vars) as [handler_vars | ] eqn:Hbind;
-      [ | discriminate ].
-    injection Hstep as <-. simpl in Harity.
-    rewrite <- Harity in *. clear Harity params_arity.
-    rewrite cont_well_kinded_closure in Hc.
-    apply andb_true_iff in Hc as [Hc Hrecursive].
-    apply andb_true_iff in Hc as [Hc Hh].
-    apply andb_true_iff in Hc as [Hdef_vars Hdef_conts].
-    simpl in Hh. apply andb_true_iff in Hh as [_ Hh].
-    pose proof (bind_params_kinds params vs def_vars handler_vars Hbind)
-      as Hkinds_bound.
-    rewrite Hkinds in Hkinds_bound. rewrite Hkinds_bound in Hh.
-    apply state_well_kinded_intro; [ | | | exact Hstatics ].
-    + rewrite arities_of_rec_closures. exact Hh.
-    + exact (bind_params_well_kinded params vs def_vars handler_vars Hvs_wk
-        Hdef_vars Hbind).
-    + exact (rec_closures_well_kinded def_vars def_conts recursive Hdef_vars
-        Hdef_conts Hrecursive).
+    rewrite <- Harity in Hkinds.
+    pose proof
+      (apply_cont_value_well_kinded _ vs statics Hc Hkinds Hvs_wk Hstatics)
+      as Hresult.
+    rewrite Hstep in Hresult. exact Hresult.
   - (* Switch *)
     destruct (eval_simple vars scrutinee) as [v | ]; [ | discriminate ].
     destruct (naked_immediate_of_value v) as [i | ]; [ | discriminate ].
@@ -1119,18 +1228,22 @@ Proof.
   - (* Apply *)
     unfold apply_well_kinded in He.
     apply andb_true_iff in He as [He _]. apply andb_true_iff in He as [He _].
+    apply andb_true_iff in He as [He Hextra].
     apply andb_true_iff in He as [Hcallee Hargs].
+    apply has_arity_eq in Hextra.
     destruct (kinds_of_simples (kinds_of_env vars) (ap_args ap))
       as [ks | ] eqn:Hks;
       [ clear Hargs; rename Hks into Hargs | discriminate ].
     destruct (kind_of_simple (kinds_of_env vars) (ap_callee ap))
       as [k | ] eqn:Hk; [ | discriminate ].
-    simpl. rewrite (bound_of_kind vars _ k Hk).
+    simpl. rewrite (bound_of_kind vars _ k Hk), existsb_app.
     rewrite
-      (none_unbound vars _ (proj2 (kinds_of_simples_each _ _ _ Hargs))).
+      (none_unbound vars _ (proj2 (kinds_of_simples_each _ _ _ Hargs))),
+      (none_unbound vars _ (proj2 (kinds_of_simples_each _ _ _ Hextra))).
     reflexivity.
   - (* Apply_cont *)
     unfold apply_cont_well_kinded in He.
+    apply andb_true_iff in He as [_ He].
     destruct (lookup (ac_continuation ac) (arities_of_conts outer conts))
       as [params_arity | ] eqn:Hk; [ | discriminate ].
     apply has_arity_eq in He.
@@ -1138,20 +1251,8 @@ Proof.
     simpl. rewrite (none_unbound vars (ac_args ac) Heach). simpl.
     unfold wrong_number_of_arguments.
     destruct (resolve_well_kinded conts _ _ Hconts Hk) as [Hc Harity].
-    destruct (resolve (ac_continuation ac) conts)
-      as [[params metadata handler] def_vars def_conts recursive | k'];
-      [ | reflexivity ].
-    simpl in Harity.
-    rewrite <- Harity in *. clear Harity params_arity.
-    rewrite cont_well_kinded_closure in Hc.
-    apply andb_true_iff in Hc as [Hc _]. apply andb_true_iff in Hc as [_ Hh].
-    simpl in Hh. apply andb_true_iff in Hh as [_ Hh].
-    destruct
-      (bind_param_kinds params (hm_params_kinds metadata)
-         (kinds_of_env def_vars))
-      as [handler_kinds | ] eqn:Hbind; [ | discriminate ].
-    rewrite (bind_param_kinds_length _ _ _ _ Hbind), Hlength, Nat.eqb_refl.
-    reflexivity.
+    apply (right_number_given _ _ Hc). rewrite Harity. symmetry.
+    exact Hlength.
   - (* Switch *)
     apply andb_true_iff in He as [Hscrutinee _].
     apply has_kind_eq in Hscrutinee.
@@ -1169,7 +1270,8 @@ Lemma exit_well_kinded_here (s : state) (k : continuation)
   ∧ forallb value_wk vs = true.
 Proof.
   intros Hs Hstep.
-  destruct (state_well_kinded_elim s Hs) as (He & Hvars & Hconts & _).
+  destruct (state_well_kinded_elim s Hs)
+    as (He & Hvars & Hconts & Hstatics).
   rewrite (state_eta s) in Hstep.
   set (vars := state_vars s) in *. set (conts := state_conts s) in *.
   set (statics := state_statics s) in *.
@@ -1185,25 +1287,27 @@ Proof.
       [ | discriminate ].
     destruct (eval_simples vars (ap_args ap)) as [args | ];
       [ | discriminate ].
+    destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
+      [ | discriminate ].
     destruct
       (call_function_cases callee (ap_call_kind ap) args (ap_args_arity ap)
          (ap_return_arity ap) statics)
       as [Hundefined | (body & callee_vars & ret & exn & Hcall)];
       [ rewrite Hundefined in Hstep | rewrite Hcall in Hstep ]; discriminate.
   - simpl in He. unfold apply_cont_well_kinded in He.
+    apply andb_true_iff in He as [_ He].
     destruct (lookup (ac_continuation ac) (arities_of_conts outer conts))
       as [params_arity | ] eqn:Hk; [ | discriminate ].
     destruct (eval_args vars (ac_args ac) params_arity Hvars He)
       as (args & Hargs & Hkinds & Hargs_wk).
     rewrite Hargs in Hstep. unfold apply_continuation in Hstep.
     destruct (resolve_well_kinded conts _ _ Hconts Hk) as [Hc Harity].
-    destruct (resolve (ac_continuation ac) conts)
-      as [[params metadata handler] def_vars def_conts recursive | k'];
-      simpl in Hstep.
-    + destruct (bind_params params args def_vars); discriminate.
-    + injection Hstep as -> ->. simpl in Hc, Harity. unfold is_bound in Hc.
-      destruct (lookup k outer) as [found | ]; [ | discriminate ].
-      rewrite Harity, Hkinds. auto.
+    rewrite <- Harity in Hkinds.
+    pose proof
+      (apply_cont_value_well_kinded _ args statics Hc Hkinds Hargs_wk
+         Hstatics)
+      as Hresult.
+    rewrite Hstep in Hresult. exact Hresult.
   - destruct (eval_simple vars scrutinee) as [v | ]; [ | discriminate ].
     destruct (naked_immediate_of_value v) as [i | ]; [ | discriminate ].
     destruct (find_arm i arms); discriminate.
@@ -1233,10 +1337,13 @@ Proof.
   intros ap vars conts statics callee vs called value_slots c Hcallee Hvs
     Hclosure Hcode Hmismatch.
   rewrite step_apply, Hcallee, Hvs.
+  destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
+    [ | reflexivity ].
   destruct
     (call_function callee (ap_call_kind ap) vs (ap_args_arity ap)
        (ap_return_arity ap) (resolve (ap_continuation ap) conts)
-       (resolve (ap_exn_continuation ap) conts) statics)
+       (with_extra_args (resolve (ap_exn_continuation ap) conts) extra)
+       statics)
     as [s | k values | ] eqn:Hcall; [ | | reflexivity ].
   - apply call_function_step in Hcall
       as (called' & value_slots' & c' & callee_vars & Hclosure' & Hcode'
@@ -1270,11 +1377,16 @@ Proof.
   destruct (lookup called (static_code (state_statics s))) as [c | ]
     eqn:Hcode; [ | discriminate ].
   intros Hpartial. apply andb_true_iff in Hpartial as [_ Hpartial].
+  destruct (eval_simples (state_vars s) (exn_extra_simples ap))
+    as [extra | ];
+    [ | reflexivity ].
   destruct
     (call_function callee (ap_call_kind ap) vs (ap_args_arity ap)
        (ap_return_arity ap)
        (resolve (ap_continuation ap) (state_conts s))
-       (resolve (ap_exn_continuation ap) (state_conts s)) (state_statics s))
+       (with_extra_args (resolve (ap_exn_continuation ap) (state_conts s))
+          extra)
+       (state_statics s))
     as [s' | k values | ] eqn:Hcall; [ | | reflexivity ].
   - apply call_function_step in Hcall
       as (called' & slots' & c' & callee_vars & Hclosure' & Hcode' & _
@@ -1388,16 +1500,17 @@ Definition example_code : code :=
     (make_code_metadata [Singleton naked_immediate] [Singleton Value])
     (Let 3%positive Value (Project_value_slot 1%positive (Var 2%positive))
        (Switch (Var 1%positive)
-          [(0%Z, Apply_cont_expr 3%positive [Var 3%positive]);
-           (1%Z, Apply_cont_expr 3%positive [Const (Tagged_immediate 7)])])).
+          [(0%Z, Apply_cont_expr 3%positive [Var 3%positive] None);
+           (1%Z,
+            Apply_cont_expr 3%positive [Const (Tagged_immediate 7)] None)])).
 
 Definition example_call (args_arity : arity) (arg : simple) : expr :=
   Let_cont_non_recursive 5%positive
     (Handler [5%positive] (make_handler_metadata [Value])
-       (Apply_cont (Apply_cont_expr 1%positive [Var 5%positive])))
+       (Apply_cont (Apply_cont_expr 1%positive [Var 5%positive] None)))
     (Apply
        (Apply_expr (Symbol 1%positive) (Direct 1%positive) [arg] 5%positive
-          2%positive args_arity [Singleton Value])).
+          2%positive [] args_arity [Singleton Value])).
 
 Definition example_unit (call : expr) : expr :=
   Let_static
@@ -1471,7 +1584,7 @@ Proof. reflexivity. Qed.
 
 Example example_apply_cont_kind_refused :
   well_kinded_unit [] 1%positive 2%positive
-    (Apply_cont (Apply_cont_expr 1%positive [Const (Naked_immediate 0)]))
+    (Apply_cont (Apply_cont_expr 1%positive [Const (Naked_immediate 0)] None))
   = false.
 Proof. reflexivity. Qed.
 
@@ -1483,8 +1596,8 @@ Proof. reflexivity. Qed.
    defined. *)
 Definition example_dead_arm : expr :=
   Switch (Const (Naked_immediate 0))
-    [(0%Z, Apply_cont_expr 1%positive [Const (Tagged_immediate 5)]);
-     (1%Z, Apply_cont_expr 1%positive [Const (Naked_immediate 1)])].
+    [(0%Z, Apply_cont_expr 1%positive [Const (Tagged_immediate 5)] None);
+     (1%Z, Apply_cont_expr 1%positive [Const (Naked_immediate 1)] None)].
 
 Example example_dead_arm_refused :
   well_kinded_unit [] 1%positive 2%positive example_dead_arm = false.
@@ -1501,7 +1614,7 @@ Proof. vm_compute. reflexivity. Qed.
 Definition example_call_of_number : expr :=
   Let 4%positive naked_immediate (Simple (Const (Naked_immediate 0)))
     (Apply
-       (Apply_expr (Var 4%positive) Indirect [] 1%positive 2%positive []
+       (Apply_expr (Var 4%positive) Indirect [] 1%positive 2%positive [] []
           [Singleton Value])).
 
 Example example_call_of_number_passes :
@@ -1517,7 +1630,7 @@ Proof. vm_compute. reflexivity. Qed.
    check and have no value: the unit is undefined. *)
 Definition example_prim (p : unary_primitive) (kind : flambda_kind) : expr :=
   Let 4%positive kind (Prim (Unary p) [Const (Naked_immediate 1)])
-    (Apply_cont (Apply_cont_expr 1%positive [Const (Tagged_immediate 5)])).
+    (Apply_cont (Apply_cont_expr 1%positive [Const (Tagged_immediate 5)] None)).
 
 Example example_opaque_passes :
   well_kinded_unit [] 1%positive 2%positive
@@ -1558,7 +1671,7 @@ Definition product_code : code :=
     (make_code_metadata [pair] [Unboxed_product [Singleton Value; pair]])
     (Apply_cont
        (Apply_cont_expr 4%positive
-          [Var 1%positive; Var 2%positive; Var 1%positive])).
+          [Var 1%positive; Var 2%positive; Var 1%positive] None)).
 
 Definition product_unit (args_arity return_arity : arity) : expr :=
   Let_static
@@ -1567,11 +1680,11 @@ Definition product_unit (args_arity return_arity : arity) : expr :=
     (Let_cont_non_recursive 5%positive
        (Handler [5%positive; 6%positive; 7%positive]
           (make_handler_metadata [Value; Value; Value])
-          (Apply_cont (Apply_cont_expr 1%positive [Var 6%positive])))
+          (Apply_cont (Apply_cont_expr 1%positive [Var 6%positive] None)))
        (Apply
           (Apply_expr (Symbol 1%positive) (Direct 1%positive)
              [Const (Tagged_immediate 1); Const (Tagged_immediate 2)]
-             5%positive 2%positive args_arity return_arity))).
+             5%positive 2%positive [] args_arity return_arity))).
 
 (* At the arities of the code, the unit passes the check and runs. *)
 Example product_passes :
@@ -1634,13 +1747,13 @@ Proof. vm_compute. reflexivity. Qed.
 Definition two_parameter_code : code :=
   Code [1%positive; 2%positive] 3%positive 4%positive 5%positive
     (make_code_metadata [Singleton Value; Singleton Value] [Singleton Value])
-    (Apply_cont (Apply_cont_expr 4%positive [Var 1%positive])).
+    (Apply_cont (Apply_cont_expr 4%positive [Var 1%positive] None)).
 
 Definition partial_application_of (arg : simple) : state :=
   State
     (Apply
        (Apply_expr (Symbol 1%positive) (Direct 1%positive) [arg] 1%positive
-          2%positive [Singleton Value] [Singleton Value]))
+          2%positive [] [Singleton Value] [Singleton Value]))
     [] []
     (Static_env [(1%positive, two_parameter_code)]
        [(1%positive, Static_closure 1%positive [])]).

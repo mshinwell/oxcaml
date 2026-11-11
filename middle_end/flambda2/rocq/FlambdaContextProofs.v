@@ -100,6 +100,9 @@ Inductive closure_related : cont_value -> cont_value -> Prop :=
     handlers_related vars recursive recursive' ->
     closure_related (Closure h vars conts recursive)
       (Closure h' vars conts' recursive')
+  | Extra_args_related (c c' : cont_value) (extra : list value) :
+    closure_related c c' ->
+    closure_related (Extra_args c extra) (Extra_args c' extra)
   | Closure_same (c : cont_value) : closure_related c c.
 
 Definition cont_env_related (conts conts' : cont_env) : Prop :=
@@ -130,14 +133,51 @@ Lemma closure_related_inv (c c' : cont_value) :
     vars = vars' ∧ handler_related vars h h' ∧ cont_env_related conts conts'
     ∧ handlers_related vars recursive recursive'
   | Outer k, Outer k' => k = k'
+  | Extra_args c extra, Extra_args c' extra' =>
+    extra = extra' ∧ closure_related c c'
   | _, _ => False
   end.
 Proof.
   intros Hrel. inversion Hrel; subst.
   - auto.
-  - destruct c' as [h vars conts recursive | k]; [ | reflexivity ].
+  - auto.
+  - destruct c' as [h vars conts recursive | k | c extra];
+      [ | reflexivity | split; [ reflexivity | apply Closure_same ] ].
     split; [ reflexivity | ]. split; [ apply Handler_same | ].
     split; [ apply cont_env_related_refl | apply handlers_related_refl ].
+Qed.
+
+(* Related continuations are, under their extra arguments, related
+   handlers or the same way out, applied to the same arguments. *)
+Lemma closure_related_target (c : cont_value) :
+  ∀ c' : cont_value,
+    closure_related c c' ->
+    closure_related (cont_target c) (cont_target c')
+    ∧ ∀ vs : list value, cont_args c vs = cont_args c' vs.
+Proof.
+  induction c as [h def_vars def_conts recursive | k | c IH extra];
+    intros c' Hrel.
+  - pose proof (closure_related_inv _ _ Hrel) as Hinv.
+    destruct c' as [h' def_vars' def_conts' recursive' | k' | c' extra'];
+      try contradiction.
+    split; [ exact Hrel | reflexivity ].
+  - pose proof (closure_related_inv _ _ Hrel) as Hinv.
+    destruct c' as [h' def_vars' def_conts' recursive' | k' | c' extra'];
+      try contradiction.
+    split; [ exact Hrel | reflexivity ].
+  - pose proof (closure_related_inv _ _ Hrel) as Hinv.
+    destruct c' as [h' def_vars' def_conts' recursive' | k' | c' extra'];
+      try contradiction.
+    destruct Hinv as [<- Hinner]. destruct (IH c' Hinner) as [Htarget Hargs].
+    split; [ exact Htarget | ]. intros vs. simpl. apply Hargs.
+Qed.
+
+Lemma with_extra_args_related (c c' : cont_value) (extra : list value) :
+  closure_related c c' ->
+  closure_related (with_extra_args c extra) (with_extra_args c' extra).
+Proof.
+  intros Hrel. destruct extra; simpl;
+    [ exact Hrel | apply Extra_args_related, Hrel ].
 Qed.
 
 Lemma handler_related_inv (vars : env) (params params' : list variable)
@@ -540,7 +580,11 @@ Proof.
     destruct (eval_simple vars (ap_callee ap)) as [closure | ] eqn:Hcallee;
       simpl in Hended;
       [ destruct (eval_simples vars (ap_args ap)) as [vs | ] eqn:Hargs;
-        simpl in Hended
+        simpl in Hended;
+        [ destruct (eval_simples vars (exn_extra_simples ap))
+            as [extra | ] eqn:Hextra;
+          simpl in Hended
+        | ]
       | ].
     + destruct (call_function_related closure (ap_call_kind ap) vs
                   (ap_args_arity ap) (ap_return_arity ap) statics statics'
@@ -549,30 +593,40 @@ Proof.
            | (body & body' & callee_vars & ret & exn & Hbody & Hcall
               & Hcall')].
       * rewrite Hundefined in Hended. apply ended_undefined in Hended.
-        subst b. apply carried_undefined. rewrite step_apply, Hcallee, Hargs.
-        apply Hundefined'.
+        subst b. apply carried_undefined.
+        rewrite step_apply, Hcallee, Hargs, Hextra. apply Hundefined'.
       * rewrite Hcall in Hended.
         assert (Hcarried :
           carried
             (State body callee_vars
                [(ret, resolve (ap_continuation ap) conts');
-                (exn, resolve (ap_exn_continuation ap) conts')]
+                (exn,
+                 with_extra_args (resolve (ap_exn_continuation ap) conts')
+                   extra)]
                statics')
             b).
         { eapply IH; [ | exact Hstatics | exact Hok | exact Hended ].
           apply Forall2_cons;
             [ split; [ reflexivity | apply resolve_related, Hrel ] | ].
           apply Forall2_cons;
-            [ split; [ reflexivity | apply resolve_related, Hrel ] | ].
+            [ split;
+                [ reflexivity
+                | apply with_extra_args_related, resolve_related, Hrel ]
+            | ].
           apply Forall2_nil. }
         apply (carried_step _
           (State body' callee_vars
              [(ret, resolve (ap_continuation ap) conts');
-              (exn, resolve (ap_exn_continuation ap) conts')]
+              (exn,
+               with_extra_args (resolve (ap_exn_continuation ap) conts')
+                 extra)]
              statics'));
-          [ rewrite step_apply, Hcallee, Hargs; apply Hcall' | ].
+          [ rewrite step_apply, Hcallee, Hargs, Hextra; apply Hcall' | ].
         destruct Hbody as [Hbody | <-]; [ | exact Hcarried ].
         exact (carried_code_related _ _ _ _ _ _ Hbody Hok Hcarried).
+    + apply ended_undefined in Hended. subst b.
+      apply carried_undefined.
+      rewrite step_apply, Hcallee, Hargs, Hextra. reflexivity.
     + apply ended_undefined in Hended. subst b.
       apply carried_undefined. rewrite step_apply, Hcallee, Hargs. reflexivity.
     + apply ended_undefined in Hended. subst b.
@@ -581,23 +635,31 @@ Proof.
     destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hargs;
       simpl in Hended.
     + unfold apply_continuation in Hended.
-      pose proof
-        (closure_related_inv _ _
+      rewrite apply_cont_value_target in Hended.
+      destruct
+        (closure_related_target _ _
            (resolve_related (ac_continuation ac) _ _ Hrel))
-        as Hclosure.
-      destruct (resolve (ac_continuation ac) conts)
-        as [[params metadata body] def_vars def_conts recursive | exit]
+        as [Htarget Hcargs].
+      pose proof (closure_related_inv _ _ Htarget) as Hclosure.
+      rewrite Hcargs in Hended. clear Htarget.
+      destruct (cont_target (resolve (ac_continuation ac) conts))
+        as [[params metadata body] def_vars def_conts recursive | exit
+           | c extra]
              eqn:Hl,
-        (resolve (ac_continuation ac) conts')
+        (cont_target (resolve (ac_continuation ac) conts'))
         as [[params' metadata' body'] def_vars' def_conts' recursive'
-           | exit']
+           | exit' | c' extra']
              eqn:Hl';
-        try contradiction; simpl in Hended.
+        try contradiction; simpl in Hended;
+        [ | | destruct (cont_target_not_extra_args _ _ _ Hl) ].
       * (* handlers: related closures *)
         destruct Hclosure as (<- & Hh & Hconts & Hrec).
         apply handler_related_inv in Hh as [<- Hbody].
-        destruct (bind_params params vs def_vars) as [handler_vars | ]
-          eqn:Hbind; simpl in Hended.
+        destruct
+          (bind_params params
+             (cont_args (resolve (ac_continuation ac) conts') vs) def_vars)
+          as [handler_vars | ] eqn:Hbind;
+          simpl in Hended.
         -- assert (Hcarried :
              carried
                (State body handler_vars
@@ -612,19 +674,20 @@ Proof.
                 (rec_closures recursive' def_vars def_conts' ++ def_conts')
                 statics')).
            ++ exact
-                (step_apply_cont_handler _ _ _ _ _ _ _ _ _ _ _ _ Hargs Hl'
-                   Hbind).
+                (step_apply_cont_target_handler _ _ _ _ _ _ _ _ _ _ _ _
+                   Hargs Hl' Hbind).
            ++ destruct Hbody as [Hbody | <-]; [ | exact Hcarried ].
               exact
                 (carried_related _ _ _ _ _ _ _ _ _ Hbody Hok Hbind Hcarried).
         -- apply ended_undefined in Hended. subst b.
            apply carried_undefined. rewrite step_apply_cont, Hargs.
-           unfold apply_continuation. rewrite Hl'. simpl. rewrite Hbind.
+           unfold apply_continuation.
+           rewrite apply_cont_value_target, Hl'. simpl. rewrite Hbind.
            reflexivity.
       * (* ways out: the same exit *)
         subst exit'. apply ended_exit in Hended. subst b.
         apply carried_exit.
-        exact (step_apply_cont_exit _ _ _ _ _ _ Hargs Hl').
+        exact (step_apply_cont_target_exit _ _ _ _ _ _ Hargs Hl').
     + apply ended_undefined in Hended. subst b.
       apply carried_undefined. rewrite step_apply_cont, Hargs. reflexivity.
   - (* Switch *)

@@ -206,12 +206,12 @@ Lemma names_among_switch_arm (vs : list variable) (ks : list continuation)
   (i, ac) ∈ arms ->
   names_among vs ks (Apply_cont ac) = true.
 Proof.
-  unfold names_among. simpl. rewrite all_among_app, !andb_true_iff.
+  unfold names_among.
+  cbn [free_variables_of_expr free_continuations_of_expr].
+  rewrite all_among_app, !andb_true_iff.
   intros [[_ Hvars] Hconts] Hin. split.
   - exact (proj1 (all_among_flat_map _ arms vs) Hvars (i, ac) Hin).
-  - split; [ | reflexivity ].
-    apply (all_among_among _ ks _ Hconts), among_In.
-    exact (in_map (fun arm => ac_continuation (snd arm)) arms (i, ac) Hin).
+  - exact (proj1 (all_among_flat_map _ arms ks) Hconts (i, ac) Hin).
 Qed.
 
 (* More names may be allowed. *)

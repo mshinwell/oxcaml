@@ -242,24 +242,49 @@ Proof.
   - apply supported_none. reflexivity.
 Qed.
 
+Lemma trap_action_supported (action : option trap_action) :
+  supported (fun r => option_map (rename_trap_action r)) action.
+Proof.
+  destruct action as [[k | k kind] | ];
+    [ | | apply supported_none; reflexivity ].
+  - exact (supported1 rename_continuation
+             (fun r => option_map (rename_trap_action r))
+             (fun k => Some (Push k)) k (fun r => eq_refl)
+             (supported_continuation k)).
+  - exact (supported1 rename_continuation
+             (fun r => option_map (rename_trap_action r))
+             (fun k => Some (Pop k kind)) k (fun r => eq_refl)
+             (supported_continuation k)).
+Qed.
+
 Lemma apply_cont_supported (ac : apply_cont) :
   supported rename_apply_cont ac.
 Proof.
-  destruct ac as [k args].
-  exact (supported2 _ _ rename_apply_cont Apply_cont_expr k args
+  destruct ac as [k args action].
+  exact (supported3 _ _ _ rename_apply_cont Apply_cont_expr k args action
            (fun r => eq_refl) (supported_continuation k)
-           (simples_supported args)).
+           (simples_supported args) (trap_action_supported action)).
 Qed.
 
 Lemma apply_supported (ap : apply_expr) : supported rename_apply ap.
 Proof.
-  destruct ap as [callee kind args k k_exn args_arity return_arity].
-  exact (supported4 _ _ _ _ rename_apply
-           (fun callee args k k_exn =>
-              Apply_expr callee kind args k k_exn args_arity return_arity)
-           callee args k k_exn (fun r => eq_refl) (simple_supported callee)
-           (simples_supported args) (supported_continuation k)
-           (supported_continuation k_exn)).
+  destruct ap as [callee kind args k k_exn extra args_arity return_arity].
+  refine (supported5 _ _ _ _
+            (fun r => map (fun arg => (rename_simple r (fst arg), snd arg)))
+            rename_apply
+            (fun callee args k k_exn extra =>
+               Apply_expr callee kind args k k_exn extra args_arity
+                 return_arity)
+            callee args k k_exn extra (fun r => eq_refl)
+            (simple_supported callee) (simples_supported args)
+            (supported_continuation k) (supported_continuation k_exn) _).
+  apply
+    (supported_map (fun r arg => (rename_simple r (fst arg), snd arg))).
+  induction extra as [ | [arg kind'] extra IH]; constructor; [ | exact IH ].
+  exact (supported1 rename_simple
+           (fun r arg' => (rename_simple r (fst arg'), snd arg'))
+           (fun arg' => (arg', kind')) arg (fun r => eq_refl)
+           (simple_supported arg)).
 Qed.
 
 Lemma arms_supported (arms : list (Z * apply_cont)) :
@@ -380,7 +405,7 @@ Qed.
 Fixpoint cont_value_supported (c : cont_value) {struct c} :
   supported rename_cont_value c.
 Proof.
-  destruct c as [h vars conts recursive | k].
+  destruct c as [h vars conts recursive | k | c extra].
   - refine (supported4 rename_handler rename_env
               (fun r =>
                  map
@@ -400,6 +425,9 @@ Proof.
              (cont_value_supported c)).
   - exact (supported1 _ rename_cont_value Outer k (fun r => eq_refl)
              (supported_continuation k)).
+  - exact (supported1 rename_cont_value rename_cont_value
+             (fun c => Extra_args c extra) c (fun r => eq_refl)
+             (cont_value_supported c)).
 Qed.
 
 Lemma cont_env_supported (conts : cont_env) :

@@ -192,8 +192,13 @@ Lemma canonical_apply_equivalent (tenv : typing_env) (ap : apply_expr)
   equivalent (State (Apply ap) vars conts statics)
     (State (Apply (canonical_apply tenv ap)) vars conts statics).
 Proof.
-  intros Hsat. apply step_eq_equivalent. rewrite !step_apply. simpl.
-  rewrite (canonical_simples_sound tenv vars (ap_args ap) Hsat).
+  intros Hsat. apply step_eq_equivalent. rewrite !step_apply.
+  assert (Hextras : exn_extra_simples (canonical_apply tenv ap)
+                    = map (canonical_simple tenv) (exn_extra_simples ap))
+    by (unfold exn_extra_simples; simpl; rewrite !map_map; reflexivity).
+  rewrite Hextras. simpl.
+  rewrite (canonical_simples_sound tenv vars (ap_args ap) Hsat),
+    (canonical_simples_sound tenv vars (exn_extra_simples ap) Hsat).
   unfold canonical_call_kind.
   destruct (ap_call_kind ap) as [code | ];
     [ rewrite (canonical_simple_sound tenv vars (ap_callee ap) Hsat);
@@ -208,6 +213,8 @@ Proof.
   rewrite (canonical_simple_sound tenv vars (ap_callee ap) Hsat) in Heval.
   rewrite (canonical_simple_sound tenv vars (ap_callee ap) Hsat), Heval.
   destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | reflexivity ].
+  destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
+    [ | reflexivity ].
   unfold call_function. simpl. rewrite Pos.eqb_refl. reflexivity.
 Qed.
 

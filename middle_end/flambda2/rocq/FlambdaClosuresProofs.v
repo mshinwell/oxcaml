@@ -287,15 +287,16 @@ Qed.
    is that of the slot. *)
 Theorem apply_sibling : apply_sibling_statement.
 Proof.
-  intros x kind move_from move_to closure args k exn args_arity return_arity
-    decls slot_values code vars conts statics Hclosure Hto.
+  intros x kind move_from move_to closure args k exn extra args_arity
+    return_arity decls slot_values code vars conts statics Hclosure Hto.
   apply let_equivalent_step; [ reflexivity | ].
   intros v. simpl. rewrite Hclosure. unfold project_function_slot.
   rewrite Pos.eqb_refl, Hto.
   destruct (lookup move_from decls); [ | discriminate ].
   simpl. intros [= <-].
-  apply (apply_indirect_known (Var x) args k exn args_arity return_arity
-           (Value_closure_of_set move_to decls slot_values) code slot_values).
+  apply (apply_indirect_known (Var x) args extra k exn args_arity
+           return_arity (Value_closure_of_set move_to decls slot_values) code
+           slot_values).
   - simpl. rewrite Pos.eqb_refl. reflexivity.
   - simpl. rewrite Hto. reflexivity.
 Qed.
@@ -654,6 +655,7 @@ Qed.
 Fixpoint cont_sets_ok (c : cont_value) : Prop :=
   match c with
   | Outer _ => True
+  | Extra_args c' _ => cont_sets_ok c'
   | Closure h _ conts recursive =>
     handler_sets_well_formed h = true
     ∧ forallb (fun '(_, h) => handler_sets_well_formed h) recursive = true
@@ -721,6 +723,33 @@ Proof.
     apply (IH _ _ H). exact Hok.
 Qed.
 
+Lemma with_extra_args_sets_ok (c : cont_value) (extra : list value) :
+  cont_sets_ok c -> cont_sets_ok (with_extra_args c extra).
+Proof. destruct extra; intros Hc; exact Hc. Qed.
+
+(* Applying a continuation whose sets are well-formed gives a handler and
+   continuations of which the same holds. *)
+Lemma apply_cont_value_sets_ok (c : cont_value) :
+  ∀ (vs : list value) (statics : static_env) (s' : state),
+    cont_sets_ok c ->
+    apply_cont_value c vs statics = Step s' ->
+    sets_well_formed (state_expr s') = true
+    ∧ conts_sets_ok (state_conts s')
+    ∧ state_statics s' = statics.
+Proof.
+  induction c as [[params metadata handler] def_vars def_conts recursive | k
+                 | c IH extra];
+    intros vs statics s'; simpl.
+  - intros (Ph & Hrec & Cdef).
+    destruct (bind_params params vs def_vars); [ | discriminate ].
+    intros [= <-]. simpl_state.
+    refine (conj Ph (conj (conts_sets_ok_app _ _ _ Cdef) eq_refl)).
+    exact (rec_closures_sets_ok def_vars def_conts recursive recursive Hrec
+             Cdef Hrec).
+  - intros _ [=].
+  - intros Hc. exact (IH (vs ++ extra) statics s' Hc).
+Qed.
+
 (* What holds of every state of the run of a well-formed unit: the sets
    of all the terms it holds are well-formed, and the static sets are
    bound. *)
@@ -773,6 +802,8 @@ Proof.
     destruct (eval_simple vars (ap_callee ap)) as [callee | ];
       [ | discriminate ].
     destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | discriminate ].
+    destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
+      [ | discriminate ].
     apply call_function_step in Hstep
       as (called & slots & c & callee_vars & _ & Hlookup & _ & _ & _ & _
           & ->).
@@ -780,21 +811,16 @@ Proof.
     pose proof (S called c Hlookup) as Hc.
     destruct c as [params my_closure ret exn metadata body].
     simpl in Hc |- *.
-    refine (conj Hc (conj (conj _ (conj _ I)) (conj S B)));
-      apply resolve_sets_ok, C.
+    refine (conj Hc (conj (conj _ (conj _ I)) (conj S B))).
+    + apply resolve_sets_ok, C.
+    + apply with_extra_args_sets_ok, resolve_sets_ok, C.
   - (* Apply_cont *)
     destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | discriminate ].
-    unfold apply_continuation, apply_cont_value in Hstep.
-    pose proof (resolve_sets_ok (ac_continuation ac) conts C) as Cr.
-    destruct (resolve (ac_continuation ac) conts)
-      as [[params metadata handler] def_vars def_conts recursive | k];
-      [ | discriminate ].
-    destruct (bind_params params vs def_vars); [ | discriminate ].
-    injection Hstep as <-. unfold sets_inv. simpl_state. simpl in Cr.
-    destruct Cr as (Ph & Hrec & Cdef).
-    refine (conj Ph (conj (conts_sets_ok_app _ _ _ Cdef) (conj S B))).
-    exact (rec_closures_sets_ok def_vars def_conts recursive recursive Hrec
-             Cdef Hrec).
+    unfold apply_continuation in Hstep.
+    destruct (apply_cont_value_sets_ok _ vs statics s'
+                (resolve_sets_ok (ac_continuation ac) conts C) Hstep)
+      as (Ph & Cs & Hstatics).
+    unfold sets_inv. rewrite Hstatics. exact (conj Ph (conj Cs (conj S B))).
   - (* Switch *)
     destruct (eval_simple vars scrutinee) as [v | ]; [ | discriminate ].
     destruct (naked_immediate_of_value v) as [i | ]; [ | discriminate ].
@@ -1268,14 +1294,17 @@ Proof.
     destruct Hvalid as (Hvars & _ & Hstatics).
     exact (eval_static_bindings_valid (state_vars s) bindings Hvars bindings
              (state_statics s) statics' Pwhole Hstatics Heval).
-  - intros ap callee vs _ Hcallee Hargs.
+  - intros ap callee vs extra _ Hcallee Hargs Hextra.
     destruct Hvalid as (Hvars & _).
-    split.
+    split; [ | split ].
     + exact (eval_simple_valid (state_vars s) (ap_callee ap) callee Hvars
                Hcallee).
     + exact (values_valid_Forall vs
                (eval_simples_valid (state_vars s) Hvars (ap_args ap) vs
                   Hargs)).
+    + exact (values_valid_Forall extra
+               (eval_simples_valid (state_vars s) Hvars
+                  (exn_extra_simples ap) extra Hextra)).
   - intros ac vs _ Hargs. destruct Hvalid as (Hvars & _).
     exact (values_valid_Forall vs
              (eval_simples_valid (state_vars s) Hvars (ac_args ac) vs Hargs)).
@@ -1429,6 +1458,7 @@ Fixpoint cont_terms_ok (c : cont_value) : Prop :=
     Ph h = true
     ∧ forallb (fun '(_, h) => Ph h) recursive = true
     ∧ fold_right (fun kc acc => cont_terms_ok (snd kc) ∧ acc) True conts
+  | Extra_args c' _ => cont_terms_ok c'
   end.
 
 Definition conts_terms_ok (conts : cont_env) : Prop :=
@@ -1464,6 +1494,34 @@ Proof.
   intros H. apply andb_true_iff in H as [Hh Hrest].
   split; [ | exact (IH Hrest) ].
   split; [ exact Hh | ]. split; [ exact Hall | exact Hconts ].
+Qed.
+
+Lemma with_extra_args_terms_ok (c : cont_value) (extra : list value) :
+  cont_terms_ok c -> cont_terms_ok (with_extra_args c extra).
+Proof. destruct extra; intros Hc; exact Hc. Qed.
+
+(* Applying a continuation whose terms are kept gives a handler and
+   continuations of which the same holds. *)
+Lemma apply_cont_value_terms_ok (c : cont_value) :
+  ∀ (vs : list value) (statics : static_env) (s' : state),
+    cont_terms_ok c ->
+    apply_cont_value c vs statics = Step s' ->
+    Pe (state_expr s') = true
+    ∧ conts_terms_ok (state_conts s')
+    ∧ state_statics s' = statics.
+Proof.
+  induction c as [[params metadata handler] def_vars def_conts recursive | k
+                 | c IH extra];
+    intros vs statics s'; simpl.
+  - intros (Hh & Hrec & Cdef).
+    destruct (bind_params params vs def_vars); [ | discriminate ].
+    intros [= <-]. simpl_state.
+    refine (conj (Ph_handler params metadata handler Hh)
+              (conj (conts_terms_ok_app _ _ _ Cdef) eq_refl)).
+    exact (rec_closures_terms_ok def_vars def_conts recursive recursive Hrec
+             Cdef Hrec).
+  - intros _ [=].
+  - intros Hc. exact (IH (vs ++ extra) statics s' Hc).
 Qed.
 
 Definition code_terms_ok (statics : static_env) : Prop :=
@@ -1540,27 +1598,23 @@ Proof.
     destruct (eval_simple vars (ap_callee ap)) as [callee | ];
       [ | discriminate ].
     destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | discriminate ].
+    destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
+      [ | discriminate ].
     apply call_function_step in Hstep
       as (called & slots & c & callee_vars & _ & Hlookup & _ & _ & _ & _
           & ->).
     unfold terms_inv. simpl_state.
     refine (conj (Pc_body c (S called c Hlookup))
-              (conj (conj _ (conj _ I)) S));
-      apply resolve_terms_ok, C.
+              (conj (conj _ (conj _ I)) S)).
+    + apply resolve_terms_ok, C.
+    + apply with_extra_args_terms_ok, resolve_terms_ok, C.
   - (* Apply_cont *)
     destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | discriminate ].
-    unfold apply_continuation, apply_cont_value in Hstep.
-    pose proof (resolve_terms_ok (ac_continuation ac) conts C) as Cr.
-    destruct (resolve (ac_continuation ac) conts)
-      as [[params metadata handler] def_vars def_conts recursive | k];
-      [ | discriminate ].
-    destruct (bind_params params vs def_vars); [ | discriminate ].
-    injection Hstep as <-. unfold terms_inv. simpl_state. simpl in Cr.
-    destruct Cr as (Hh & Hrec & Cdef).
-    refine (conj (Ph_handler params metadata handler Hh)
-              (conj (conts_terms_ok_app _ _ _ Cdef) S)).
-    exact (rec_closures_terms_ok def_vars def_conts recursive recursive Hrec
-             Cdef Hrec).
+    unfold apply_continuation in Hstep.
+    destruct (apply_cont_value_terms_ok _ vs statics s'
+                (resolve_terms_ok (ac_continuation ac) conts C) Hstep)
+      as (Hh & Cs & Hstatics).
+    unfold terms_inv. rewrite Hstatics. exact (conj Hh (conj Cs S)).
   - (* Switch *)
     destruct (eval_simple vars scrutinee) as [v | ]; [ | discriminate ].
     destruct (naked_immediate_of_value v) as [i | ]; [ | discriminate ].
@@ -1634,6 +1688,9 @@ Proof.
     as Hc.
   rewrite (state_eta s), Hexpr, step_apply, Hcallee in Hstep.
   destruct (eval_simples (state_vars s) (ap_args ap)) as [vs | ];
+    [ | discriminate ].
+  destruct (eval_simples (state_vars s) (exn_extra_simples ap))
+    as [extra | ];
     [ | discriminate ].
   apply
     (call_binds_my_closure callee _ vs _ _ _ _ _ s' called slot_values c
@@ -2046,13 +2103,17 @@ Proof.
     destruct Hvalid as (Hvars & _ & Hstatics).
     exact (eval_static_bindings_sets_are (state_vars s) Hvars bindings
              (state_statics s) statics' Pbindings Hstatics Heval).
-  - intros ap callee vs _ Hcallee Hargs. destruct Hvalid as (Hvars & _).
-    split.
+  - intros ap callee vs extra _ Hcallee Hargs Hextra.
+    destruct Hvalid as (Hvars & _).
+    split; [ | split ].
     + exact (eval_simple_sets_are (state_vars s) (ap_callee ap) callee Hvars
                Hcallee).
     + exact (values_sets_are_Forall vs
                (eval_simples_sets_are (state_vars s) Hvars (ap_args ap) vs
                   Hargs)).
+    + exact (values_sets_are_Forall extra
+               (eval_simples_sets_are (state_vars s) Hvars
+                  (exn_extra_simples ap) extra Hextra)).
   - intros ac vs _ Hargs. destruct Hvalid as (Hvars & _).
     exact (values_sets_are_Forall vs
              (eval_simples_sets_are (state_vars s) Hvars (ac_args ac) vs

@@ -86,6 +86,12 @@ Proof.
   destruct (Pos.eqb k k'); [ intros [= <-]; exact Hc | exact (IH Hrest) ].
 Qed.
 
+(* The exception continuation that a call gives its callee. *)
+Lemma with_extra_args_in_scope (outer : list continuation) (c : cont_value)
+    (extra : list value) :
+  cont_in_scope outer c -> cont_in_scope outer (with_extra_args c extra).
+Proof. intros Hc. destruct extra; exact Hc. Qed.
+
 (* What a continuation that is bound or is a way out stands for. *)
 Lemma resolve_in_scope (outer : list continuation) (k : continuation)
     (conts : cont_env) :
@@ -249,6 +255,8 @@ Proof.
   - (* Apply *)
     destruct (eval_simple vars (ap_callee ap)) as [callee | ]; [ | exact I ].
     destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | exact I ].
+    destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
+      [ | exact I ].
     unfold call_function.
     destruct (closure_of statics callee) as [[called slots] | ];
       [ | exact I ].
@@ -286,7 +294,9 @@ Proof.
           destruct (Pos.eqb k' (code_exn_continuation c)); simpl in *;
           auto; discriminate.
     + split; [ exact (resolve_in_scope _ _ _ Hconts Hreturn) | ].
-      split; [ exact (resolve_in_scope _ _ _ Hconts Hexn) | exact I ].
+      split; [ | exact I ].
+      apply with_extra_args_in_scope.
+      exact (resolve_in_scope _ _ _ Hconts Hexn).
   - (* Apply_cont *)
     destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | exact I ].
     unfold apply_continuation.
@@ -294,9 +304,11 @@ Proof.
       (resolve_in_scope outer (ac_continuation ac) conts Hconts
          (names_among_apply_cont _ _ _ Hnames))
       as Hc.
-    destruct (resolve (ac_continuation ac) conts)
-      as [[params handler] def_vars def_conts recursive | k']; simpl;
-      [ | exact Hc ].
+    revert Hc vs. generalize (resolve (ac_continuation ac) conts).
+    intros c.
+    induction c
+      as [[params handler] def_vars def_conts recursive | k' | c IH extra];
+      intros Hc vs; simpl; [ | exact Hc | exact (IH Hc (vs ++ extra)) ].
     destruct (bind_params params vs def_vars) as [handler_vars | ] eqn:Hbind;
       [ | exact I ].
     destruct Hc as ([Hh Hh_closed] & Hrecursive & Hdef_conts).

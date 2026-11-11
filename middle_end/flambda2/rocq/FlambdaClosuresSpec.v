@@ -228,6 +228,7 @@ Definition apply_sibling_statement : Prop :=
   ∀ (x : variable) (kind : flambda_kind)
     (move_from move_to : function_slot) (closure : simple)
     (args : list simple) (k exn : continuation)
+    (extra : list (simple * flambda_kind))
     (args_arity return_arity : arity)
     (function_decls : list (function_slot * code_id))
     (slot_values : list (value_slot * value)) (code : code_id) (vars : env)
@@ -239,14 +240,14 @@ Definition apply_sibling_statement : Prop :=
       (State
          (Let x kind (Project_function_slot move_from move_to closure)
             (Apply
-               (Apply_expr (Var x) Indirect args k exn args_arity
+               (Apply_expr (Var x) Indirect args k exn extra args_arity
                   return_arity)))
          vars conts statics)
       (State
          (Let x kind (Project_function_slot move_from move_to closure)
             (Apply
-               (Apply_expr (Var x) (Direct code) args k exn args_arity
-                  return_arity)))
+               (Apply_expr (Var x) (Direct code) args k exn extra
+                  args_arity return_arity)))
          vars conts statics).
 
 (* ======================================================================== *)
@@ -961,17 +962,21 @@ Definition parity_code (this other : function_slot)
              (Project_function_slot this other (Var my_closure))
              (Apply
                 (Apply_expr (Var other_closure) Indirect [Var predecessor]
-                   ret exn parity_arity parity_arity))))
+                   ret exn [] parity_arity parity_arity))))
        (Let_cont_non_recursive at_zero
           (Handler [] (make_handler_metadata [])
              (Let answer_at_zero parity_kind
                 (Project_value_slot_from this answer_slot (Var my_closure))
-                (Apply_cont (Apply_cont_expr ret [Var answer_at_zero]))))
+                (Apply_cont (Apply_cont_expr ret [Var answer_at_zero] None))))
           (Switch (Var n)
-             [(0%Z, Apply_cont_expr at_zero []);
-              (1%Z, Apply_cont_expr call_other [Const (Naked_immediate 0)]);
-              (2%Z, Apply_cont_expr call_other [Const (Naked_immediate 1)]);
-              (3%Z, Apply_cont_expr call_other [Const (Naked_immediate 2)])]))).
+             [(0%Z, Apply_cont_expr at_zero [] None);
+              (1%Z,
+               Apply_cont_expr call_other [Const (Naked_immediate 0)] None);
+              (2%Z,
+               Apply_cont_expr call_other [Const (Naked_immediate 1)] None);
+              (3%Z,
+               Apply_cont_expr call_other [Const (Naked_immediate 2)]
+                 None)]))).
 
 Definition even_slot : function_slot := 1%positive.
 Definition odd_slot : function_slot := 2%positive.
@@ -1002,7 +1007,7 @@ Definition parity_let (i : Z) : option expr :=
     (let_closures [even; odd] parity_decls parity_value_slots
        (Apply
           (Apply_expr (Var odd) Indirect [Const (Naked_immediate i)] done
-             error parity_arity parity_arity))).
+             error [] parity_arity parity_arity))).
 
 Definition even_symbol : symbol := 1%positive.
 Definition odd_symbol : symbol := 2%positive.
@@ -1015,7 +1020,7 @@ Definition parity_static (i : Z) : expr :=
           parity_decls parity_value_slots)
     (Apply
        (Apply_expr (Symbol odd_symbol) (Direct odd_code)
-          [Const (Naked_immediate i)] done error parity_arity
+          [Const (Naked_immediate i)] done error [] parity_arity
           parity_arity)).
 
 (* Run on their own, both say that 3 is odd and that 2 is not. *)
@@ -1070,7 +1075,7 @@ Definition parity_partial : expr :=
               parity_value_slots)])
     (Let odd Value
        (Project_function_slot even_slot odd_slot (Symbol even_symbol))
-       (Apply_cont (Apply_cont_expr done [Var odd]))).
+       (Apply_cont (Apply_cont_expr done [Var odd] None))).
 
 (* The machine gives the symbol that the set names for the other slot,
    which is bound to nothing. The unit is not well-formed. *)

@@ -160,7 +160,8 @@ Definition free_variables_of_apply_cont (ac : apply_cont) : list variable :=
 
 Definition free_variables_of_apply (ap : apply_expr) : list variable :=
   free_variables_of_simple (ap_callee ap)
-  ++ free_variables_of_simples (ap_args ap).
+  ++ free_variables_of_simples (ap_args ap)
+  ++ free_variables_of_simples (exn_extra_simples ap).
 
 (* A [Let] binds its variable in its body, a handler its parameters, and
    code its parameters and [my_closure]. *)
@@ -221,8 +222,9 @@ Fixpoint free_continuations_of_expr (e : expr) : list continuation :=
       (flat_map (fun '(_, h) => free_continuations_of_handler h) handlers
        ++ free_continuations_of_expr body)
   | Apply ap => [ap_continuation ap; ap_exn_continuation ap]
-  | Apply_cont ac => [ac_continuation ac]
-  | Switch _ arms => map (fun arm => ac_continuation (snd arm)) arms
+  | Apply_cont ac => apply_cont_continuations ac
+  | Switch _ arms =>
+    flat_map (fun arm => apply_cont_continuations (snd arm)) arms
   | Invalid => []
   end
 with free_continuations_of_handler (h : continuation_handler)

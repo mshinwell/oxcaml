@@ -151,7 +151,8 @@ Definition apply_avoids (D : dropped) (ap : apply_expr) : bool :=
      | Direct code => code_kept D code
      | Indirect => true
      end
-  && simples_avoid D (ap_args ap).
+  && simples_avoid D (ap_args ap)
+  && simples_avoid D (exn_extra_simples ap).
 
 (* Nothing in the expression refers to a name removed, outside the
    bindings of those names. *)
@@ -293,6 +294,7 @@ Fixpoint cont_free_of (D : dropped) (c : cont_value) : bool :=
     && env_free_of D vars
     && forallb (fun '(_, c) => cont_free_of D c) conts
     && forallb (fun '(_, h) => handler_free_of D h) recursive
+  | Extra_args c extra => cont_free_of D c && forallb (value_avoids D) extra
   end.
 
 Definition allocated_free_of (D : dropped)

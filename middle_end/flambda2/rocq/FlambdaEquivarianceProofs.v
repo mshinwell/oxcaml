@@ -196,7 +196,8 @@ Qed.
 Fixpoint rename_cont_value_id (c : cont_value) :
   rename_cont_value identity_renaming c = c.
 Proof.
-  destruct c as [h vars conts recursive | k]; simpl; [ | reflexivity ].
+  destruct c as [h vars conts recursive | k | c extra]; simpl;
+    [ | reflexivity | rewrite (rename_cont_value_id c); reflexivity ].
   rewrite rename_handler_id, rename_env_id,
     rename_handlers_id.
   f_equal.
@@ -249,8 +250,9 @@ Qed.
 Fixpoint rename_cont_value_ext (c : cont_value) :
   rename_cont_value r c = rename_cont_value r' c.
 Proof.
-  destruct c as [h vars conts recursive | k]; simpl;
-    [ | rewrite same_continuations; reflexivity ].
+  destruct c as [h vars conts recursive | k | c extra]; simpl;
+    [ | rewrite same_continuations; reflexivity
+      | rewrite (rename_cont_value_ext c); reflexivity ].
   rewrite
     (rename_handler_ext r r' same_variables same_continuations h),
     rename_env_ext, rename_handlers_ext.
@@ -316,8 +318,9 @@ Fixpoint rename_cont_value_compose (c : cont_value) :
   rename_cont_value (compose_renaming second first) c
   = rename_cont_value second (rename_cont_value first c).
 Proof.
-  destruct c as [h vars conts recursive | k]; simpl;
-    [ | rewrite rename_continuation_compose; reflexivity ].
+  destruct c as [h vars conts recursive | k | c extra]; simpl;
+    [ | rewrite rename_continuation_compose; reflexivity
+      | rewrite (rename_cont_value_compose c); reflexivity ].
   rewrite rename_handler_compose, rename_env_compose,
     rename_handlers_compose.
   f_equal.
@@ -542,8 +545,11 @@ Lemma apply_cont_value_equivariant (r : renaming) (c : cont_value)
     (rename_static_env r statics)
   = rename_result r (apply_cont_value c vs statics).
 Proof.
-  destruct c as [[params metadata handler] def_vars def_conts recursive | k];
-    simpl; [ | reflexivity ].
+  revert vs.
+  induction c
+    as [[params metadata handler] def_vars def_conts recursive | k
+       | c IH extra];
+    intros vs; simpl; [ | reflexivity | apply IH ].
   rewrite bind_params_equivariant.
   destruct (bind_params params vs def_vars) as [handler_vars | ]; simpl;
     [ | reflexivity ].
@@ -551,6 +557,12 @@ Proof.
   rewrite rename_cont_env_app, <- rec_closures_equivariant.
   reflexivity.
 Qed.
+
+Lemma with_extra_args_equivariant (r : renaming) (c : cont_value)
+    (extra : list value) :
+  with_extra_args (rename_cont_value r c) extra
+  = rename_cont_value r (with_extra_args c extra).
+Proof. destruct extra; reflexivity. Qed.
 
 Lemma call_function_equivariant (r : renaming) (callee : value)
     (kind : call_kind) (vs : list value) (args_arity return_arity : arity)
@@ -620,7 +632,12 @@ Proof.
       [ | reflexivity ].
     destruct (eval_simples (state_vars s) (ap_args ap)) as [vs | ];
       [ | reflexivity ].
-    rewrite !resolve_equivariant. apply call_function_equivariant.
+    rewrite exn_extra_simples_rename, eval_simples_equivariant.
+    destruct (eval_simples (state_vars s) (exn_extra_simples ap))
+      as [extra | ];
+      [ | reflexivity ].
+    rewrite !resolve_equivariant, with_extra_args_equivariant.
+    apply call_function_equivariant.
   - (* Apply_cont *)
     simpl. rewrite eval_simples_equivariant.
     destruct (eval_simples (state_vars s) (ac_args ac)) as [vs | ];
@@ -897,9 +914,13 @@ Lemma apply_cont_in_scope_equivariant (r : renaming) (vs : list variable)
     (map (rename_continuation r) ks) (rename_apply_cont r ac)
   = apply_cont_in_scope vs ks ac.
 Proof.
-  unfold apply_cont_in_scope. simpl.
-  rewrite among_rename_continuation, simples_in_scope_equivariant.
-  reflexivity.
+  unfold apply_cont_in_scope.
+  rewrite apply_cont_continuations_renamed.
+  generalize (apply_cont_continuations ac). intros l. simpl.
+  rewrite simples_in_scope_equivariant. f_equal.
+  unfold FlambdaMapSpec.all_among.
+  induction l as [ | k l IH]; simpl; [ reflexivity | ].
+  rewrite among_rename_continuation, IH. reflexivity.
 Qed.
 
 Lemma map_fst_rename_handlers (r : renaming)
@@ -944,8 +965,8 @@ Proof.
       rewrite (expr_in_scope_equivariant r body vs ks'). f_equal.
       induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
       rewrite (handler_in_scope_equivariant r h vs ks'), IH. reflexivity.
-    + rewrite simple_in_scope_equivariant, simples_in_scope_equivariant,
-        !among_rename_continuation.
+    + rewrite exn_extra_simples_rename, simple_in_scope_equivariant,
+        !simples_in_scope_equivariant, !among_rename_continuation.
       reflexivity.
     + apply apply_cont_in_scope_equivariant.
     + rewrite simple_in_scope_equivariant. f_equal.
@@ -988,9 +1009,13 @@ Proof.
     (expr_in_scope_equivariant r body (my_closure :: params) [ret; exn])
     as Hscope.
   simpl in Hscope.
+  assert (Hextra : no_exn_extra_args (rename_apply r ap)
+                   = no_exn_extra_args ap).
+  { unfold no_exn_extra_args. simpl.
+    destruct (ap_exn_extra_args ap); reflexivity. }
   rewrite Hscope, !rename_continuation_eqb, var_in_simples_equivariant,
     params_not_in_args_equivariant, !length_map,
-    rename_binds_statics.
+    rename_binds_statics, Hextra.
   reflexivity.
 Qed.
 

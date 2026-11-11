@@ -638,7 +638,20 @@ Inductive cont_erased : cont_value -> cont_value -> Prop :=
       conts conts' ->
     handlers_avoid recursive = true ->
     cont_erased (Closure h vars conts recursive)
-      (Closure (erase_handler D h) vars conts' (erase_handlers recursive)).
+      (Closure (erase_handler D h) vars conts' (erase_handlers recursive))
+  | Extra_args_erased (c c' : cont_value) (extra : list value) :
+    cont_erased c c' ->
+    forallb (value_avoids D) extra = true ->
+    cont_erased (Extra_args c extra) (Extra_args c' extra).
+
+Lemma with_extra_args_erased (c c' : cont_value) (extra : list value) :
+  cont_erased c c' ->
+  forallb (value_avoids D) extra = true ->
+  cont_erased (with_extra_args c extra) (with_extra_args c' extra).
+Proof.
+  intros Hc Hextra. destruct extra; simpl in *;
+    [ exact Hc | apply Extra_args_erased; assumption ].
+Qed.
 
 Definition conts_erased (conts conts' : cont_env) : Prop :=
   Forall2 (fun kc kc' => fst kc = fst kc' ∧ cont_erased (snd kc) (snd kc'))
@@ -748,9 +761,13 @@ Lemma apply_cont_value_erased (c c' : cont_value) (vs : list value)
   result_simulated state_erased (apply_cont_value c vs statics)
     (apply_cont_value c' vs statics').
 Proof.
-  intros [k
-         | [params metadata handler] vars conts conts' recursive Hh Hvars
-             Hconts Hrec] Hvs Hstatics; simpl.
+  intros Hc Hvs Hstatics. revert vs Hvs.
+  induction Hc
+    as [k
+       | [params metadata handler] vars conts conts' recursive Hh Hvars
+           Hconts Hrec
+       | c c' extra Hc IH Hextra];
+    intros vs Hvs; simpl.
   - auto.
   - destruct (bind_params params vs vars) as [bound | ] eqn:Hbind; simpl;
       [ | exact I ].
@@ -758,6 +775,7 @@ Proof.
       [ exact Hh
       | exact (bind_params_avoids params vs vars bound Hvs Hvars Hbind)
       | apply rec_closures_erased; assumption | exact Hstatics ].
+  - apply IH. rewrite forallb_app, Hvs, Hextra. reflexivity.
 Qed.
 
 Lemma call_function_erased (callee : value) (kind : call_kind)
@@ -854,16 +872,23 @@ Proof.
     apply rec_closures_erased; assumption.
   - (* Apply *)
     unfold apply_avoids in He.
+    apply andb_true_iff in He as [He Hextra].
     apply andb_true_iff in He as [He Hargs].
     apply andb_true_iff in He as [Hcallee _].
     destruct (eval_simple vars (ap_callee ap)) as [callee | ] eqn:Heval;
       [ | exact I ].
     destruct (eval_simples vars (ap_args ap)) as [vs | ] eqn:Hevals;
       [ | exact I ].
+    destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ]
+      eqn:Hevals_extra;
+      [ | exact I ].
     apply call_function_erased;
       [ exact (eval_simple_avoids vars _ callee Hvars Hcallee Heval)
       | exact (eval_simples_avoid vars _ Hvars vs Hargs Hevals)
-      | apply resolve_erased, Hconts | apply resolve_erased, Hconts
+      | apply resolve_erased, Hconts
+      | apply with_extra_args_erased;
+        [ apply resolve_erased, Hconts
+        | exact (eval_simples_avoid vars _ Hvars extra Hextra Hevals_extra) ]
       | exact Hstatics ].
   - (* Apply_cont *)
     destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hevals;
@@ -962,8 +987,11 @@ Qed.
 Fixpoint cont_free_of_erased (D : dropped) (c : cont_value) :
   cont_free_of D c = true -> cont_erased D c c.
 Proof.
-  destruct c as [h vars conts recursive | k]; simpl;
-    [ | intros _; apply Outer_erased ].
+  destruct c as [h vars conts recursive | k | c extra]; simpl;
+    [ | intros _; apply Outer_erased
+    | intros Hfree; apply andb_true_iff in Hfree as [Hc Hextra];
+      apply Extra_args_erased;
+      [ exact (cont_free_of_erased D c Hc) | exact Hextra ] ].
   intros Hfree.
   apply andb_true_iff in Hfree as [Hfree Hrecursive].
   apply andb_true_iff in Hfree as [Hfree Hconts].

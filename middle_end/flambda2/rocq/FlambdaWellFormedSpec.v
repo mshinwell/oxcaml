@@ -157,8 +157,9 @@ Fixpoint free_continuations (e : expr) : list continuation :=
       (flat_map (fun '(_, h) => handler_free_continuations h) handlers
        ++ free_continuations body)
   | Apply ap => [ap_continuation ap; ap_exn_continuation ap]
-  | Apply_cont ac => [ac_continuation ac]
-  | Switch _ arms => map (fun arm => ac_continuation (snd arm)) arms
+  | Apply_cont ac => apply_cont_continuations ac
+  | Switch _ arms =>
+    flat_map (fun arm => apply_cont_continuations (snd arm)) arms
   | Invalid => []
   end
 with handler_free_continuations (h : continuation_handler)
@@ -167,8 +168,14 @@ with handler_free_continuations (h : continuation_handler)
   | Handler _ _ handler => free_continuations handler
   end.
 
-(* Whether some call in the expression has [k] as its exception
-   continuation. *)
+(* Whether the expression uses [k] as an exception handler: some call
+   has it as its exception continuation, or some trap action names it. *)
+Definition traps (k : continuation) (ac : apply_cont) : bool :=
+  match ac_trap_action ac with
+  | Some action => Pos.eqb k (trap_action_handler action)
+  | None => false
+  end.
+
 Fixpoint raises_to (k : continuation) (e : expr) : bool :=
   match e with
   | Let _ _ _ body | Let_static _ body => raises_to k body
@@ -178,7 +185,9 @@ Fixpoint raises_to (k : continuation) (e : expr) : bool :=
     existsb (fun '(_, h) => handler_raises_to k h) handlers
     || raises_to k body
   | Apply ap => Pos.eqb k (ap_exn_continuation ap)
-  | Apply_cont _ | Switch _ _ | Invalid => false
+  | Apply_cont ac => traps k ac
+  | Switch _ arms => existsb (fun arm => traps k (snd arm)) arms
+  | Invalid => false
   end
 with handler_raises_to (k : continuation) (h : continuation_handler) : bool :=
   match h with
@@ -495,7 +504,9 @@ Definition apply_cont_in_range (ac : apply_cont) : bool :=
   forallb simple_in_range (ac_args ac).
 
 Definition apply_in_range (ap : apply_expr) : bool :=
-  simple_in_range (ap_callee ap) && forallb simple_in_range (ap_args ap).
+  simple_in_range (ap_callee ap)
+  && forallb simple_in_range (ap_args ap)
+  && forallb simple_in_range (exn_extra_simples ap).
 
 Definition arm_in_range (arm : Z * apply_cont) : bool :=
   ocaml_int_in_range (fst arm) && apply_cont_in_range (snd arm).

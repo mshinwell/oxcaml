@@ -180,13 +180,18 @@ Definition env : Type := list (variable * value).
    environments of its definition. For a handler of a recursive
    [Let_cont], [recursive] is all the handlers of that [Let_cont], which
    are in scope in the handler; it is empty for a non-recursive one.
-   [Outer] is a way out of the whole term, by the continuation named. *)
+   [Outer] is a way out of the whole term, by the continuation named.
+   [Extra_args] is a continuation that is to be given, after the arguments
+   it is applied to, the values kept here: it is what a call with extra
+   arguments for its exception continuation gives its callee to raise
+   to. *)
 #[local] Set Warnings "-register-all".
 Inductive cont_value : Type :=
   | Closure (h : continuation_handler) (vars : env)
       (conts : list (continuation * cont_value))
       (recursive : list (continuation * continuation_handler))
-  | Outer (k : continuation).
+  | Outer (k : continuation)
+  | Extra_args (c : cont_value) (extra : list value).
 
 Definition cont_env : Type := list (continuation * cont_value).
 
@@ -513,8 +518,10 @@ Inductive step_result : Type :=
 
 (* Applying a handler runs it under the environments of its definition,
    with its parameters bound and, for a recursive one, the handlers defined
-   with it in scope again. Applying a way out ends execution. *)
-Definition apply_cont_value (c : cont_value) (vs : list value)
+   with it in scope again. Applying a way out ends execution. Applying a
+   continuation that has extra arguments applies it to the arguments
+   followed by those. *)
+Fixpoint apply_cont_value (c : cont_value) (vs : list value)
     (statics : static_env) : step_result :=
   match c with
   | Outer k => Exit k vs
@@ -525,6 +532,17 @@ Definition apply_cont_value (c : cont_value) (vs : list value)
         (rec_closures recursive def_vars def_conts ++ def_conts) statics)
     | None => Undefined
     end
+  | Extra_args c extra => apply_cont_value c (vs ++ extra) statics
+  end.
+
+(* The exception continuation that a call gives its callee: the caller's,
+   to be applied to the exception followed by the extra arguments of the
+   call. With no extra argument it is the caller's as it is. *)
+Definition with_extra_args (c : cont_value) (extra : list value)
+    : cont_value :=
+  match extra with
+  | [] => c
+  | _ :: _ => Extra_args c extra
   end.
 
 Definition apply_continuation (k : continuation) (vs : list value)
@@ -656,12 +674,16 @@ Definition step (s : state) : step_result :=
       Step
         (State body vars (rec_closures handlers vars conts ++ conts) statics)
   | State (Apply ap) vars conts statics =>
-    match eval_simple vars (ap_callee ap), eval_simples vars (ap_args ap) with
-    | Some callee, Some vs =>
+    match
+      eval_simple vars (ap_callee ap), eval_simples vars (ap_args ap),
+      eval_simples vars (exn_extra_simples ap)
+    with
+    | Some callee, Some vs, Some extra =>
       call_function callee (ap_call_kind ap) vs (ap_args_arity ap)
         (ap_return_arity ap) (resolve (ap_continuation ap) conts)
-        (resolve (ap_exn_continuation ap) conts) statics
-    | _, _ => Undefined
+        (with_extra_args (resolve (ap_exn_continuation ap) conts) extra)
+        statics
+    | _, _, _ => Undefined
     end
   | State (Apply_cont ac) vars conts statics =>
     match eval_simples vars (ac_args ac) with
@@ -711,7 +733,8 @@ Definition env_values_all (P : value -> Prop) (vars : env) : Prop :=
 
 (* A continuation holds the values of the environment that its closure
    keeps, and those that the continuations it keeps hold. A way out holds
-   none. *)
+   none. A continuation with extra arguments holds those, and what the
+   continuation inside holds. *)
 Fixpoint cont_values_all (P : value -> Prop) (c : cont_value) : Prop :=
   match c with
   | Outer _ => True
@@ -720,6 +743,7 @@ Fixpoint cont_values_all (P : value -> Prop) (c : cont_value) : Prop :=
     ∧ fold_right
         (fun binding rest => cont_values_all P (snd binding) ∧ rest) True
         conts
+  | Extra_args c extra => Forall P extra ∧ cont_values_all P c
   end.
 
 Definition conts_values_all (P : value -> Prop) (conts : cont_env) : Prop :=
@@ -747,10 +771,12 @@ Definition state_values_all (P : static_env -> value -> Prop)
    - at a [Let_static] whose bindings evaluate, that [P] is kept by the
      static environment that results, and [Q] of everything bound in it;
    - at an [Apply] and at an [Apply_cont], [P] of the values of the
-     simples that the step reads and passes on: the callee and the
-     arguments. The value of a variable satisfies [P] already; this is
-     for the constants and the symbols among them, of which [P] need
-     not hold in general (a symbol that is not bound).
+     simples that the step reads and passes on: the callee, the
+     arguments, and the extra arguments of the exception continuation
+     of a call, which the continuation given to the callee keeps. The
+     value of a variable satisfies [P] already; this is for the
+     constants and the symbols among them, of which [P] need not hold
+     in general (a symbol that is not bound).
    What a call or the application of a continuation binds are those
    values, so nothing more is asked for them. *)
 Definition step_values_all_statement : Prop :=
@@ -770,11 +796,14 @@ Definition step_values_all_statement : Prop :=
       (∀ v : value, P (state_statics s) v -> P statics' v)
       ∧ Forall (fun binding => Q statics' (snd binding))
           (static_values statics')) ->
-    (∀ (ap : apply_expr) (callee : value) (vs : list value),
+    (∀ (ap : apply_expr) (callee : value) (vs extra : list value),
       state_expr s = Apply ap ->
       eval_simple (state_vars s) (ap_callee ap) = Some callee ->
       eval_simples (state_vars s) (ap_args ap) = Some vs ->
-      P (state_statics s) callee ∧ Forall (P (state_statics s)) vs) ->
+      eval_simples (state_vars s) (exn_extra_simples ap) = Some extra ->
+      P (state_statics s) callee
+      ∧ Forall (P (state_statics s)) vs
+      ∧ Forall (P (state_statics s)) extra) ->
     (∀ (ac : apply_cont) (vs : list value),
       state_expr s = Apply_cont ac ->
       eval_simples (state_vars s) (ac_args ac) = Some vs ->

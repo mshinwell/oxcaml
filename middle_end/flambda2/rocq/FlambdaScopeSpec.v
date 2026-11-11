@@ -102,10 +102,12 @@ Definition handler_scoped (vs : list variable) (ks : list continuation)
    continuations of its recursive group and those it keeps: the handler
    is scoped by these, and so is every handler of the group, since each
    becomes such a closure when this one is applied. The continuations
-   kept are in scope in turn. *)
+   kept are in scope in turn. A continuation with extra arguments is in
+   scope when the one inside is: the extra arguments are values. *)
 Fixpoint cont_in_scope (outer : list continuation) (c : cont_value) : Prop :=
   match c with
   | Outer k => among k outer = true
+  | Extra_args c _ => cont_in_scope outer c
   | Closure h vars conts recursive =>
     let vs := map fst vars in
     let ks := map fst recursive ++ map fst conts ++ outer in

@@ -412,20 +412,33 @@ Lemma apply_cont_value_in_range (c : cont_value) (vs : list value)
   statics_in_range statics ->
   result_in_range (apply_cont_value c vs statics).
 Proof.
-  intros Hc Hvs Hstatics.
-  destruct Hc
-    as [k | [params metadata handler] vars conts recursive Hh Hvars Hconts
-          Hrecursive];
-    simpl; [ exact Hvs | ].
-  destruct (bind_params params vs vars) as [handler_vars | ] eqn:Hbind;
-    [ | exact I ].
-  repeat split; simpl.
-  - exact Hh.
-  - exact (bind_params_in_range params vs vars handler_vars Hvs Hvars Hbind).
-  - apply conts_in_range_app; [ | exact Hconts ].
-    exact (rec_closures_in_range recursive vars conts Hrecursive Hvars Hconts).
-  - exact (proj1 Hstatics).
-  - exact (proj2 Hstatics).
+  intros Hc Hvs Hstatics. revert vs Hvs.
+  induction Hc
+    as [ k | c extra Hc IH Hextra
+       | [params metadata handler] vars conts recursive Hh Hvars Hconts _
+           Hrecursive ];
+    intros vs Hvs; simpl; [ exact Hvs | | ].
+  - apply IH. rewrite forallb_app, Hvs, Hextra. reflexivity.
+  - destruct (bind_params params vs vars) as [handler_vars | ] eqn:Hbind;
+      [ | exact I ].
+    repeat split; simpl.
+    + exact Hh.
+    + exact (bind_params_in_range params vs vars handler_vars Hvs Hvars
+               Hbind).
+    + apply conts_in_range_app; [ | exact Hconts ].
+      exact (rec_closures_in_range recursive vars conts Hrecursive Hvars
+               Hconts).
+    + exact (proj1 Hstatics).
+    + exact (proj2 Hstatics).
+Qed.
+
+Lemma with_extra_args_in_range (c : cont_value) (extra : list value) :
+  cont_in_range c ->
+  forallb value_in_range extra = true ->
+  cont_in_range (with_extra_args c extra).
+Proof.
+  intros Hc Hextra. destruct extra as [ | v extra]; simpl;
+    [ exact Hc | constructor; assumption ].
 Qed.
 
 Lemma call_function_in_range (callee : value) (kind : call_kind)
@@ -511,16 +524,20 @@ Proof.
     exact
       (rec_closures_in_range handlers vars conts
          (handlers_in_range handlers Hhandlers) Hvars Hconts).
-  - apply andb_true_iff in Hexpr as [Hcallee Hargs].
+  - apply andb_true_iff in Hexpr as [Hexpr Hextra].
+    apply andb_true_iff in Hexpr as [Hcallee Hargs].
     destruct (eval_simple vars (ap_callee ap)) as [callee | ] eqn:Hc;
       [ | exact I ].
     destruct (eval_simples vars (ap_args ap)) as [vs | ] eqn:Hvs;
       [ | exact I ].
+    destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ]
+      eqn:Hextras; [ | exact I ].
     apply call_function_in_range; try assumption.
     + exact (eval_simple_in_range vars Hvars _ callee Hcallee Hc).
     + exact (eval_simples_in_range vars Hvars _ vs Hargs Hvs).
     + apply resolve_in_range, Hconts.
-    + apply resolve_in_range, Hconts.
+    + apply with_extra_args_in_range; [ apply resolve_in_range, Hconts | ].
+      exact (eval_simples_in_range vars Hvars _ extra Hextra Hextras).
   - destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hvs;
       [ | exact I ].
     unfold apply_continuation.
@@ -659,7 +676,13 @@ Proof. unfold apply_cont_in_range. simpl. apply rename_simples_in_range. Qed.
 Lemma rename_apply_in_range (r : renaming) (ap : apply_expr) :
   apply_in_range (rename_apply r ap) = apply_in_range ap.
 Proof.
-  unfold apply_in_range. simpl.
+  assert (Hextra :
+    forallb simple_in_range (exn_extra_simples (rename_apply r ap))
+    = forallb simple_in_range (exn_extra_simples ap)).
+  { unfold exn_extra_simples. simpl. rewrite map_map. simpl.
+    rewrite <- (map_map fst (rename_simple r)).
+    apply rename_simples_in_range. }
+  unfold apply_in_range. rewrite Hextra. simpl.
   rewrite rename_simple_in_range, rename_simples_in_range. reflexivity.
 Qed.
 

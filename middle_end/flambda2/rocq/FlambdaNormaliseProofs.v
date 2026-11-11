@@ -102,6 +102,20 @@ Proof.
   - apply simple_in_scope_sound.
 Qed.
 
+Lemma all_among_In (names allowed : list positive) (k : positive) :
+  FlambdaMapSpec.all_among names allowed = true -> k ∈ names -> k ∈ allowed.
+Proof.
+  unfold FlambdaMapSpec.all_among. rewrite forallb_forall. intros Hall Hin.
+  apply among_In, Hall, Hin.
+Qed.
+
+Lemma no_exn_extra_args_nil (ap : apply_expr) :
+  no_exn_extra_args ap = true -> ap_exn_extra_args ap = [].
+Proof.
+  unfold no_exn_extra_args.
+  destruct (ap_exn_extra_args ap); [ reflexivity | discriminate ].
+Qed.
+
 (* What the check means: the free names of the expression are among those
    given. *)
 Fixpoint expr_in_scope_sound (e : expr) :
@@ -174,20 +188,22 @@ Proof.
         apply in_app_or in Hin. destruct Hin as [Hin | Hin]; [ | exact Hin ].
         destruct (lookup_none_not_in k handlers Hunbound Hin).
     + (* Apply *)
+      apply andb_true_iff in Hscope as [Hscope Hextra].
       apply andb_true_iff in Hscope as [Hscope Hexn].
       apply andb_true_iff in Hscope as [Hscope Hreturn].
       apply andb_true_iff in Hscope as [Hcallee Hargs].
       split.
-      * intros x [Hx | Hx];
+      * intros x [Hx | [Hx | Hx]];
           [ exact (simple_in_scope_sound vs _ x Hcallee Hx)
-          | exact (simples_in_scope_sound vs _ x Hargs Hx) ].
+          | exact (simples_in_scope_sound vs _ x Hargs Hx)
+          | exact (simples_in_scope_sound vs _ x Hextra Hx) ].
       * intros k [-> | ->]; apply among_In; assumption.
     + (* Apply_cont *)
       unfold apply_cont_in_scope in Hscope.
-      apply andb_true_iff in Hscope as [Hk Hargs].
+      apply andb_true_iff in Hscope as [Hks Hargs].
       split.
       * intros x Hx. exact (simples_in_scope_sound vs _ x Hargs Hx).
-      * intros k ->. apply among_In, Hk.
+      * intros k Hk. exact (all_among_In _ _ k Hks Hk).
     + (* Switch *)
       apply andb_true_iff in Hscope as [Hscrutinee Harms].
       rewrite forallb_forall in Harms.
@@ -199,9 +215,10 @@ Proof.
         apply andb_true_iff in Harms as [_ Hargs].
         exact (simples_in_scope_sound vs _ x Hargs Hx).
       * intros k Hk. apply Exists_exists in Hk.
-        destruct Hk as (arm & Hin & ->).
+        destruct Hk as (arm & Hin & Hk).
         specialize (Harms arm Hin). unfold apply_cont_in_scope in Harms.
-        apply andb_true_iff in Harms as [Hk _]. apply among_In, Hk.
+        apply andb_true_iff in Harms as [Hks _].
+        exact (all_among_In _ _ k Hks Hk).
     + (* Invalid *)
       split; intros ? [].
   - destruct h as [params metadata handler]. intros vs ks Hscope.
@@ -258,6 +275,8 @@ Proof.
   apply andb_true_iff in Hb as [Hb Harity].
   apply andb_true_iff in Hb as [Hb Hparams].
   apply andb_true_iff in Hb as [Hb Hmy_closure].
+  apply andb_true_iff in Hb as [Hb Hextra].
+  apply no_exn_extra_args_nil in Hextra.
   apply andb_true_iff in Hb as [Hb Hcall].
   apply andb_true_iff in Hb as [Hscope Hcode].
   apply negb_true_iff, Pos.eqb_neq in Hcode.
@@ -270,7 +289,9 @@ Proof.
     (conj _
        (conj _
           (conj Hfix
-             (conj Hret (conj Hexn (conj _ (conj _ (conj _ Hstatic)))))))).
+             (conj Hret
+                (conj Hexn
+                   (conj Hextra (conj _ (conj _ (conj _ Hstatic))))))))).
   - intros x Hx. destruct (Hvars x Hx) as [<- | Hin]; auto.
   - intros k Hk. destruct (Hconts k Hk) as [<- | [<- | []]]; auto.
   - intros Hfree. apply var_in_simples_sound in Hfree.
@@ -612,8 +633,9 @@ Proof.
       apply orb_true_iff. destruct Hx as [Hx | Hx];
         [ left; apply (var_free_in_handler_b_sound x h), Hx
         | right; exact (IH Hx) ].
-    + intros [Hx | Hx]; apply orb_true_iff;
-        [ left; apply var_in_simple_sound, Hx
+    + intros [Hx | [Hx | Hx]]; rewrite !orb_true_iff;
+        [ left; left; apply var_in_simple_sound, Hx
+        | left; right; apply var_in_simples_sound, Hx
         | right; apply var_in_simples_sound, Hx ].
     + apply var_in_simples_sound.
     + intros [Hx | Hx]; apply orb_true_iff;
@@ -766,12 +788,14 @@ Proof.
   - (* Apply_cont *)
     destruct
       (Pos.eqb (ac_continuation ac) k
+       && no_trap_action ac
        && Nat.eqb (length params) (length (ac_args ac))
        && forallb (fun param => negb (var_in_simples param (ac_args ac)))
             params)
       eqn:Hcheck; [ | discriminate ].
     injection Heq as <-.
     apply andb_true_iff in Hcheck as [Hcheck Hcapture].
+    apply andb_true_iff in Hcheck as [Hcheck _].
     apply andb_true_iff in Hcheck as [Hk _]. apply Pos.eqb_eq in Hk.
     destruct (eval_simples vars (ac_args ac)) as [vs | ] eqn:Hargs;
       [ | apply step_undefined_refines; rewrite step_apply_cont, Hargs;
@@ -2035,7 +2059,8 @@ Lemma thread_arm_fst (k : continuation) (inner : list (Z * apply_cont))
   fst (thread_arm k inner (i, ac)) = i.
 Proof.
   unfold thread_arm. destruct (ac_args ac); [ | reflexivity ].
-  destruct (Pos.eqb (ac_continuation ac) k); [ | reflexivity ].
+  destruct (Pos.eqb (ac_continuation ac) k && no_trap_action ac);
+    [ | reflexivity ].
   destruct (find_arm i inner) as [ac' | ]; [ | reflexivity ].
   destruct (Pos.eqb (ac_continuation ac') k); reflexivity.
 Qed.
@@ -2083,9 +2108,11 @@ Proof.
   eapply equivalent_trans;
     [ | apply equivalent_sym, step_equivalent;
         rewrite step_switch, Hs, Hi, find_arm_thread, Hfind; reflexivity ].
-  unfold thread_arm. destruct ac as [applied args]. simpl.
+  unfold thread_arm. destruct ac as [applied args trap]. simpl.
   destruct args; [ | apply equivalent_refl ].
   destruct (Pos.eqb_spec applied k) as [-> | _]; [ | apply equivalent_refl ].
+  destruct trap as [action | ]; [ apply equivalent_refl | ].
+  unfold no_trap_action. simpl.
   destruct (find_arm i inner) as [ac' | ] eqn:Hinner;
     [ | apply equivalent_refl ].
   destruct (Pos.eqb_spec (ac_continuation ac') k) as [ | Hother];
@@ -2112,7 +2139,9 @@ Proof.
   induction arms as [ | [d ac'] arms IH]; simpl; [ discriminate | ].
   intros H. apply orb_false_iff in H as [Hhead Hrest].
   destruct (Z.eqb i d); [ | exact (IH Hrest) ].
-  intros [= <-]. apply Pos.eqb_neq, Hhead.
+  intros [= <-]. unfold among, apply_cont_continuations in Hhead.
+  simpl in Hhead. apply orb_false_iff in Hhead as [Hhead _].
+  apply Pos.eqb_neq in Hhead. congruence.
 Qed.
 
 Lemma switch_skip (k : continuation) (c : cont_value) (s : simple)

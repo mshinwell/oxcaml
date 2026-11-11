@@ -166,18 +166,31 @@ Proof.
   apply forall2b_refl, Z.eqb_refl.
 Qed.
 
+Lemma raise_kind_eqb_refl (kind : option raise_kind) :
+  raise_kind_eqb kind kind = true.
+Proof. destruct kind as [[ | | ] | ]; reflexivity. Qed.
+
+Lemma trap_action_eqb_refl (km : name_map) (action : option trap_action) :
+  reflexive_map km -> trap_action_eqb km action action = true.
+Proof.
+  intros Hkm. destruct action as [[k | k kind] | ]; simpl;
+    rewrite ?Hkm, ?raise_kind_eqb_refl; reflexivity.
+Qed.
+
 Lemma apply_cont_eqb_refl (vm km : name_map) (ac : apply_cont) :
   reflexive_map vm -> reflexive_map km -> apply_cont_eqb vm km ac ac = true.
 Proof.
   intros Hvm Hkm. unfold apply_cont_eqb.
-  rewrite Hkm, simples_eqb_refl; [ reflexivity | exact Hvm ].
+  rewrite Hkm, simples_eqb_refl, trap_action_eqb_refl;
+    [ reflexivity | exact Hkm | exact Hvm ].
 Qed.
 
 Lemma apply_eqb_refl (vm km : name_map) (ap : apply_expr) :
   reflexive_map vm -> reflexive_map km -> apply_eqb vm km ap ap = true.
 Proof.
   intros Hvm Hkm. unfold apply_eqb.
-  rewrite !Hkm, simple_eqb_refl, simples_eqb_refl, !arity_eqb_refl
+  rewrite !Hkm, simple_eqb_refl, !simples_eqb_refl, kinds_eqb_refl,
+    !arity_eqb_refl
     by exact Hvm.
   destruct (ap_call_kind ap); simpl; rewrite ?Pos.eqb_refl; reflexivity.
 Qed.
@@ -606,7 +619,18 @@ Inductive cont_matches : cont_value -> cont_value -> Prop :=
       names_match km k k' = true ->
       cont_matches (resolve k conts) (resolve k' conts')) ->
     cont_matches (Closure h vars conts recursive)
-      (Closure h' vars' conts' recursive').
+      (Closure h' vars' conts' recursive')
+  | Extra_args_matches (c c' : cont_value) (extra : list value) :
+    cont_matches c c' ->
+    cont_matches (Extra_args c extra) (Extra_args c' extra).
+
+Lemma with_extra_args_matches (c c' : cont_value) (extra : list value) :
+  cont_matches c c' ->
+  cont_matches (with_extra_args c extra) (with_extra_args c' extra).
+Proof.
+  intros Hc. destruct extra; simpl;
+    [ exact Hc | apply Extra_args_matches, Hc ].
+Qed.
 
 (* As [envs_match]: the names that matter are the free continuations of
    what is about to run. *)
@@ -788,9 +812,10 @@ Lemma apply_cont_value_match (c c' : cont_value) (vs : list value)
   result_related state_matches (apply_cont_value c vs statics)
     (apply_cont_value c' vs statics').
 Proof.
-  intros Hc Hstatics.
+  intros Hc Hstatics. revert vs.
   assert (Hclosure :
-    ∀ (vm km km' : name_map) (h h' : continuation_handler)
+    ∀ (vs : list value) (vm km km' : name_map)
+      (h h' : continuation_handler)
       (vars vars' : env) (conts conts' : cont_env)
       (recursive recursive' : list (continuation * continuation_handler)),
       combine_names (map fst recursive) (map fst recursive') km = Some km' ->
@@ -810,7 +835,7 @@ Proof.
       result_related state_matches
         (apply_cont_value (Closure h vars conts recursive) vs statics)
         (apply_cont_value (Closure h' vars' conts' recursive') vs statics')).
-  { intros vm km km' [params metadata handler]
+  { intros vs vm km km' [params metadata handler]
       [params' metadata' handler'] vars vars' conts conts' recursive
       recursive' Hnames Hh Hrec Hvars Hconts.
     simpl in Hh |- *.
@@ -838,17 +863,30 @@ Proof.
       destruct (lookup_none_or_in k recursive) as [Hunbound | Hin];
         [ right | left; exact Hin ].
       split; [ left; exact Hk | exact Hunbound ]. }
-  destruct Hc
-    as [[h vars conts recursive | exit]
+  assert (Hsame :
+    ∀ (c : cont_value) (vs : list value),
+      result_related state_matches (apply_cont_value c vs statics)
+        (apply_cont_value c vs statics')).
+  { intros c0.
+    induction c0 as [h vars conts recursive | exit | c0 IH extra];
+      intros vs.
+    - destruct (closure_matches_itself h vars conts recursive)
+        as (km' & Hnames & Hh & Hrec).
+      exact (Hclosure vs [] [] km' h h vars vars conts conts recursive
+        recursive Hnames Hh Hrec (envs_match_same _ vars)
+        (conts_match_same _ conts)).
+    - simpl. auto.
+    - simpl. apply IH. }
+  induction Hc
+    as [c
        | vm km km' h h' vars vars' conts conts' recursive recursive' Hnames
-           Hh Hrec Hvars Hconts].
-  - destruct (closure_matches_itself h vars conts recursive)
-      as (km' & Hnames & Hh & Hrec).
-    exact (Hclosure [] [] km' h h vars vars conts conts recursive recursive
-      Hnames Hh Hrec (envs_match_same _ vars) (conts_match_same _ conts)).
-  - simpl. auto.
-  - exact (Hclosure vm km km' h h' vars vars' conts conts' recursive
+           Hh Hrec Hvars Hconts _
+       | c c' extra Hc IH];
+    intros vs.
+  - apply Hsame.
+  - exact (Hclosure vs vm km km' h h' vars vars' conts conts' recursive
       recursive' Hnames Hh Hrec Hvars Hconts).
+  - simpl. apply IH.
 Qed.
 
 Lemma call_kind_eqb_eq (kind kind' : call_kind) :
@@ -1092,6 +1130,8 @@ Proof.
     apply andb_true_iff in He as [He Hreturn_arity].
     apply andb_true_iff in He as [He Hargs_arity].
     apply arity_eqb_eq in Hargs_arity, Hreturn_arity.
+    apply andb_true_iff in He as [He _].
+    apply andb_true_iff in He as [He Hextra].
     apply andb_true_iff in He as [He Hexn].
     apply andb_true_iff in He as [He Hreturn].
     apply andb_true_iff in He as [He Hargs].
@@ -1102,23 +1142,32 @@ Proof.
       by (fewer_variables Hvars; left; assumption).
     assert (Hvars_args :
       envs_match (fun y => var_free_in_simples y (ap_args ap)) vm vars vars')
-      by (fewer_variables Hvars; right; assumption).
+      by (fewer_variables Hvars; right; left; assumption).
+    assert (Hvars_extra :
+      envs_match (fun y => var_free_in_simples y (exn_extra_simples ap)) vm
+        vars vars')
+      by (fewer_variables Hvars; right; right; assumption).
     rewrite (eval_simple_match vm vars vars' _ _ Hvars_callee Hcallee),
-      (eval_simples_match vm vars vars' _ Hvars_args _ Hargs), <- Hkind,
+      (eval_simples_match vm vars vars' _ Hvars_args _ Hargs),
+      (eval_simples_match vm vars vars' _ Hvars_extra _ Hextra), <- Hkind,
       <- Hargs_arity, <- Hreturn_arity.
     destruct (eval_simple vars' (ap_callee ap')) as [callee | ];
       [ | exact I ].
     destruct (eval_simples vars' (ap_args ap')) as [vs | ]; [ | exact I ].
+    destruct (eval_simples vars' (exn_extra_simples ap')) as [extra | ];
+      [ | exact I ].
     apply call_function_match;
       [ exact Hstatics
       | exact (Hconts _ _ (or_introl eq_refl) Hreturn)
-      | exact (Hconts _ _ (or_intror eq_refl) Hexn) ].
+      | apply with_extra_args_matches;
+        exact (Hconts _ _ (or_intror eq_refl) Hexn) ].
   - (* Apply_cont *)
-    unfold apply_cont_eqb in He. apply andb_true_iff in He as [Hk Hargs].
+    unfold apply_cont_eqb in He. apply andb_true_iff in He as [He Htrap].
+    apply andb_true_iff in He as [Hk Hargs].
     rewrite (eval_simples_match vm vars vars' _ Hvars _ Hargs).
     destruct (eval_simples vars' (ac_args ac')) as [vs | ]; [ | exact I ].
     apply apply_cont_value_match;
-      [ exact (Hconts _ _ eq_refl Hk) | exact Hstatics ].
+      [ exact (Hconts _ _ (or_introl eq_refl) Hk) | exact Hstatics ].
   - (* Switch *)
     apply andb_true_iff in He as [Hscrutinee Harms].
     assert (Hvars_scrutinee :

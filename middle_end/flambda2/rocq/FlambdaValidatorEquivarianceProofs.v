@@ -114,13 +114,51 @@ Proof.
   apply rename_simple_injective in Hs. apply IH in Hargs. congruence.
 Qed.
 
+Lemma rename_trap_action_injective (r : renaming)
+    (action action' : option trap_action) :
+  option_map (rename_trap_action r) action
+  = option_map (rename_trap_action r) action' ->
+  action = action'.
+Proof.
+  destruct action as [[k | k kind] | ], action' as [[k' | k' kind'] | ];
+    simpl; intros Heq; try discriminate; try reflexivity;
+    injection Heq as Hk; apply rename_continuation_injective in Hk;
+    congruence.
+Qed.
+
+Lemma no_trap_action_renamed (r : renaming) (ac : apply_cont) :
+  no_trap_action (rename_apply_cont r ac) = no_trap_action ac.
+Proof.
+  unfold no_trap_action. simpl. destruct (ac_trap_action ac); reflexivity.
+Qed.
+
+Lemma no_exn_extra_args_renamed (r : renaming) (ap : apply_expr) :
+  no_exn_extra_args (rename_apply r ap) = no_exn_extra_args ap.
+Proof.
+  unfold no_exn_extra_args. simpl.
+  destruct (ap_exn_extra_args ap); reflexivity.
+Qed.
+
+(* Whether a continuation is among those that an [Apply_cont] names. *)
+Lemma among_apply_cont_continuations_renamed (r : renaming)
+    (k : continuation) (ac : apply_cont) :
+  among (rename_continuation r k)
+    (apply_cont_continuations (rename_apply_cont r ac))
+  = among k (apply_cont_continuations ac).
+Proof.
+  rewrite apply_cont_continuations_renamed.
+  apply among_rename_continuation.
+Qed.
+
 Lemma rename_apply_cont_injective (r : renaming) (ac ac' : apply_cont) :
   rename_apply_cont r ac = rename_apply_cont r ac' -> ac = ac'.
 Proof.
-  destruct ac as [k args], ac' as [k' args']. unfold rename_apply_cont.
-  simpl. intros Heq. injection Heq as Hk Hargs.
+  destruct ac as [k args trap], ac' as [k' args' trap'].
+  unfold rename_apply_cont. simpl. intros Heq.
+  injection Heq as Hk Hargs Htrap.
   apply rename_continuation_injective in Hk.
-  apply rename_simples_injective in Hargs. congruence.
+  apply rename_simples_injective in Hargs.
+  apply rename_trap_action_injective in Htrap. congruence.
 Qed.
 
 (* ======================================================================== *)
@@ -193,7 +231,8 @@ Proof.
     + rewrite var_free_b_equivariant_aux. f_equal.
       induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
       rewrite (var_free_in_handler_b_equivariant r x h), IH. reflexivity.
-    + rewrite var_in_simple_equivariant, var_in_simples_equivariant.
+    + rewrite exn_extra_simples_rename, var_in_simple_equivariant,
+        !var_in_simples_equivariant.
       reflexivity.
     + apply var_in_simples_equivariant.
     + rewrite var_in_simple_equivariant. f_equal.
@@ -334,10 +373,11 @@ Proof.
     destruct (inline_cont_at_tail k params metadata handler body); reflexivity.
   - rewrite IH.
     destruct (inline_cont_at_tail k params metadata handler body); reflexivity.
-  - rewrite rename_continuation_eqb, !length_map,
+  - rewrite rename_continuation_eqb, no_trap_action_renamed, !length_map,
       params_not_in_args_equivariant.
     destruct
       (Pos.eqb (ac_continuation ac) k
+       && no_trap_action ac
        && Nat.eqb (length params) (length (ac_args ac))
        && forallb (fun param => negb (var_in_simples param (ac_args ac)))
             params);
@@ -645,10 +685,15 @@ Lemma thread_arm_equivariant (r : renaming) (k : continuation)
   = (fst (thread_arm k inner arm),
      rename_apply_cont r (snd (thread_arm k inner arm))).
 Proof.
-  destruct arm as [i [k' args]]. unfold thread_arm.
-  cbn [fst snd rename_apply_cont ac_args ac_continuation].
-  destruct args as [ | arg args]; [ | reflexivity ]. cbn [map].
-  rewrite rename_continuation_eqb. destruct (Pos.eqb k' k); [ | reflexivity ].
+  destruct arm as [i ac]. unfold thread_arm. cbn [fst snd].
+  change (ac_args (rename_apply_cont r ac))
+    with (map (rename_simple r) (ac_args ac)).
+  destruct (ac_args ac) as [ | arg args]; [ | reflexivity ]. cbn [map].
+  change (ac_continuation (rename_apply_cont r ac))
+    with (rename_continuation r (ac_continuation ac)).
+  rewrite rename_continuation_eqb, no_trap_action_renamed.
+  destruct (Pos.eqb (ac_continuation ac) k && no_trap_action ac);
+    [ | reflexivity ].
   rewrite find_arm_renamed.
   destruct (find_arm i inner) as [ac' | ]; cbn [option_map];
     [ | reflexivity ].
@@ -662,8 +707,8 @@ Lemma arms_apply_equivariant (r : renaming) (k : continuation)
     (map (fun arm => (fst arm, rename_apply_cont r (snd arm))) arms)
   = arms_apply k arms.
 Proof.
-  unfold arms_apply. apply existsb_map_with. intros arm.
-  apply rename_continuation_eqb.
+  unfold arms_apply. apply existsb_map_with. intros arm. cbn [snd].
+  apply among_apply_cont_continuations_renamed.
 Qed.
 
 Lemma thread_switch_equivariant (r : renaming) (k : continuation)
@@ -801,8 +846,9 @@ Proof.
       induction handlers as [ | [k' h] handlers IH]; simpl; [ reflexivity | ].
       rewrite (cont_free_in_handler_b_equivariant r k h), IH. reflexivity.
     + rewrite !rename_continuation_eqb. reflexivity.
-    + apply rename_continuation_eqb.
-    + apply existsb_map_with. intros arm. apply rename_continuation_eqb.
+    + exact (among_apply_cont_continuations_renamed r k ac).
+    + apply existsb_map_with. intros arm.
+      exact (among_apply_cont_continuations_renamed r k (snd arm)).
     + reflexivity.
   - destruct h as [params metadata handler]. simpl.
     apply cont_free_b_equivariant_aux.
@@ -893,7 +939,9 @@ Lemma apply_avoids_renamed (r : renaming) (ap : apply_expr) :
   apply_avoids D (rename_apply r ap) = apply_avoids D ap.
 Proof.
   unfold apply_avoids. simpl.
-  rewrite simple_avoids_renamed, simples_avoid_renamed. reflexivity.
+  rewrite exn_extra_simples_rename, simple_avoids_renamed,
+    !simples_avoid_renamed.
+  reflexivity.
 Qed.
 
 Fixpoint expr_avoids_renamed (r : renaming) (e : expr) :
@@ -1039,7 +1087,8 @@ Qed.
 Fixpoint cont_free_of_renamed (r : renaming) (c : cont_value) :
   cont_free_of D (rename_cont_value r c) = cont_free_of D c.
 Proof.
-  destruct c as [h vars conts recursive | k]; simpl; [ | reflexivity ].
+  destruct c as [h vars conts recursive | k | c extra]; simpl;
+    [ | reflexivity | rewrite (cont_free_of_renamed r c); reflexivity ].
   rewrite handler_free_of_renamed, env_free_of_renamed,
     handlers_free_of_renamed.
   do 2 f_equal.
@@ -1579,15 +1628,29 @@ Proof.
     reflexivity.
 Qed.
 
+Lemma canonical_exn_extra_args_equivariant (r : renaming) (tenv : typing_env)
+    (extra : list (simple * flambda_kind)) :
+  map
+    (fun arg =>
+       (canonical_simple (rename_naive_typing_env r tenv) (fst arg), snd arg))
+    (map (fun arg => (rename_simple r (fst arg), snd arg)) extra)
+  = map (fun arg => (rename_simple r (fst arg), snd arg))
+      (map (fun arg => (canonical_simple tenv (fst arg), snd arg)) extra).
+Proof.
+  rewrite !map_map. apply map_ext. intros [s kind]. cbn [fst snd].
+  rewrite canonical_simple_equivariant. reflexivity.
+Qed.
+
 Lemma canonical_apply_equivariant (r : renaming) (tenv : typing_env)
     (ap : apply_expr) :
   canonical_apply (rename_naive_typing_env r tenv) (rename_apply r ap)
   = rename_apply r (canonical_apply tenv ap).
 Proof.
   unfold canonical_apply, rename_apply.
-  cbn [ap_callee ap_call_kind ap_args ap_continuation ap_exn_continuation].
+  cbn [ap_callee ap_call_kind ap_args ap_continuation ap_exn_continuation
+       ap_exn_extra_args ap_args_arity ap_return_arity].
   rewrite canonical_simple_equivariant, canonical_call_kind_equivariant,
-    canonical_simples_equivariant.
+    canonical_simples_equivariant, canonical_exn_extra_args_equivariant.
   reflexivity.
 Qed.
 
@@ -1725,8 +1788,10 @@ Proof.
       rewrite map_app, (handler_free_continuations_renamed r h), IH.
       reflexivity.
     + reflexivity.
-    + reflexivity.
-    + rewrite !map_map. apply map_ext. intros [i ac]. reflexivity.
+    + apply apply_cont_continuations_renamed.
+    + induction arms as [ | [i ac] arms IH]; [ reflexivity | ].
+      cbn [map flat_map fst snd].
+      rewrite map_app, apply_cont_continuations_renamed, IH. reflexivity.
     + reflexivity.
   - destruct h as [params metadata handler].
     cbn [rename_handler handler_free_continuations].
@@ -1736,6 +1801,15 @@ Qed.
 Theorem well_formed_free_continuations_equivariant :
   well_formed_free_continuations_equivariant_statement.
 Proof. exact well_formed_free_continuations_renamed. Qed.
+
+Lemma traps_renamed (r : renaming) (k : continuation) (ac : apply_cont) :
+  traps (rename_continuation r k) (rename_apply_cont r ac) = traps k ac.
+Proof.
+  unfold traps. simpl.
+  destruct (ac_trap_action ac) as [[k' | k' kind] | ]; simpl;
+    [ apply rename_continuation_eqb | apply rename_continuation_eqb
+    | reflexivity ].
+Qed.
 
 Fixpoint raises_to_equivariant_aux (r : renaming) (k : continuation)
     (e : expr) :
@@ -1757,6 +1831,9 @@ Proof.
       induction handlers as [ | [k' h] handlers IH]; simpl; [ reflexivity | ].
       rewrite (handler_raises_to_equivariant r k h), IH. reflexivity.
     + apply rename_continuation_eqb.
+    + exact (traps_renamed r k ac).
+    + apply existsb_map_with. intros arm.
+      exact (traps_renamed r k (snd arm)).
   - destruct h as [params metadata handler]. simpl.
     apply raises_to_equivariant_aux.
 Qed.
@@ -2090,8 +2167,10 @@ Proof. apply simples_in_range_renamed. Qed.
 Lemma apply_in_range_renamed (r : renaming) (ap : apply_expr) :
   apply_in_range (rename_apply r ap) = apply_in_range ap.
 Proof.
-  unfold apply_in_range, rename_apply. cbn [ap_callee ap_args].
-  rewrite simple_in_range_renamed, simples_in_range_renamed. reflexivity.
+  unfold apply_in_range.
+  rewrite exn_extra_simples_rename. unfold rename_apply.
+  cbn [ap_callee ap_args].
+  rewrite simple_in_range_renamed, !simples_in_range_renamed. reflexivity.
 Qed.
 
 Fixpoint numbers_in_range_renamed (r : renaming) (e : expr) :
@@ -2393,13 +2472,39 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma is_bound_map_keys_injective {A : Type} (f : positive -> positive)
+    (x : positive) (l : finite_map A) :
+  (∀ a b : positive, Pos.eqb (f a) (f b) = Pos.eqb a b) ->
+  is_bound (f x) (Keyed.map_keys f l) = is_bound x l.
+Proof.
+  intros Hf. unfold is_bound. rewrite (lookup_map_keys_injective _ _ _ Hf).
+  reflexivity.
+Qed.
+
+Lemma trap_action_in_scope_renamed (r : renaming) (conts : arity_env)
+    (ac : apply_cont) :
+  trap_action_in_scope (rename_arity_env r conts) (rename_apply_cont r ac)
+  = trap_action_in_scope conts ac.
+Proof.
+  unfold trap_action_in_scope, rename_arity_env. simpl.
+  destruct (ac_trap_action ac) as [[k | k kind] | ]; simpl;
+    [ | | reflexivity ];
+    apply is_bound_map_keys_injective, rename_continuation_eqb.
+Qed.
+
+Lemma exn_extra_kinds_renamed (r : renaming) (ap : apply_expr) :
+  map snd (ap_exn_extra_args (rename_apply r ap))
+  = map snd (ap_exn_extra_args ap).
+Proof. simpl. rewrite map_map. reflexivity. Qed.
+
 Lemma apply_cont_well_kinded_renamed (r : renaming) (kinds : kind_env)
     (conts : arity_env) (ac : apply_cont) :
   apply_cont_well_kinded (rename_kind_env r kinds) (rename_arity_env r conts)
     (rename_apply_cont r ac)
   = apply_cont_well_kinded kinds conts ac.
 Proof.
-  unfold apply_cont_well_kinded, rename_arity_env. simpl.
+  unfold apply_cont_well_kinded. rewrite trap_action_in_scope_renamed.
+  unfold rename_arity_env. simpl.
   rewrite (lookup_map_keys_injective _ _ _ (rename_continuation_eqb r)),
     kinds_of_simples_renamed.
   reflexivity.
@@ -2411,9 +2516,11 @@ Lemma apply_well_kinded_renamed (r : renaming) (kinds : kind_env)
     (rename_apply r ap)
   = apply_well_kinded kinds conts ap.
 Proof.
-  unfold apply_well_kinded, rename_arity_env. simpl.
+  unfold apply_well_kinded.
+  rewrite exn_extra_simples_rename, !exn_extra_kinds_renamed.
+  unfold rename_arity_env. simpl.
   rewrite !(lookup_map_keys_injective _ _ _ (rename_continuation_eqb r)),
-    kind_of_simple_renamed, kinds_of_simples_renamed.
+    kind_of_simple_renamed, !kinds_of_simples_renamed.
   reflexivity.
 Qed.
 

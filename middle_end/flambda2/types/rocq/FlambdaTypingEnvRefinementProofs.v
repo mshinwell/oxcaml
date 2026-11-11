@@ -114,7 +114,7 @@ Qed.
 
 Theorem apply_cont_canonical : apply_cont_canonical_statement.
 Proof.
-  intros tenv k args args' Hargs vars conts statics Hsat.
+  intros tenv k args args' action Hargs vars conts statics Hsat.
   apply step_eq_equivalent. rewrite !step_apply_cont. simpl.
   rewrite (canonical_in_terms_simples tenv statics vars args args' Hsat
              Hargs).

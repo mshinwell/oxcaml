@@ -40,8 +40,9 @@
      to static constants;
    - [Let_cont], non-recursive and recursive;
    - [Apply] of a function, direct or indirect, with a return continuation
-     and an exception continuation;
-   - [Apply_cont];
+     and an exception continuation, which may have extra arguments
+     ([Exn_continuation.t]);
+   - [Apply_cont], with its trap action ([Trap_action.t]);
    - [Switch];
    - [Invalid].
 
@@ -56,8 +57,9 @@
    - the other call kinds (methods, C calls, effects), [Never_returns],
      partial and over-application, and the modes and inlining attributes
      of an [Apply];
-   - trap actions on [Apply_cont], and the [is_exn_handler] and [is_cold]
-     flags of continuation handlers;
+   - the [is_exn_handler] and [is_cold] flags of continuation handlers, and
+     the [is_applied_with_traps] of a non-recursive [Let_cont], which says
+     of its body what can be read there;
    - subkinds and nullability ([Flambda_kind.With_subkind]), debuginfo,
      and every annotation that has no effect on execution.
 
@@ -65,7 +67,8 @@
    [Variable.kind]. A [Let] gives the kind of its variable; a
    continuation handler gives the kinds of its parameters; code gives the
    arity of its parameters and that of its results, and an [Apply] the
-   two arities it calls at ([Apply_expr.args_arity], [return_arity]). An
+   two arities it calls at ([Apply_expr.args_arity], [return_arity]) and
+   the kind of each extra argument of its exception continuation. An
    arity ([arity]) is the compiler's [Flambda_arity.t]: it keeps how the
    parameters are grouped into unboxed products, which the compiler
    compares at a call, while the parameters and the arguments themselves
@@ -142,6 +145,9 @@
      names it binds either.
    - The callee of an [Apply] is always given, where the compiler may omit
      it for a direct call.
+   - The exception continuation of an [Apply] is two fields, the handler
+     and the extra arguments with their kinds, where the compiler has an
+     [Exn_continuation.t].
    - The numbers in constants are integers: those of the floats and
      vectors are bit patterns, as in the compiler. No type here
      restricts one to its range, nor a tag, nor any other number of a
@@ -337,11 +343,56 @@ Proof.
     decide equality; try apply Pos.eq_dec; apply simple_eq_dec.
 Defined.
 
-(* [Apply_cont_expr.t]. *)
+(* [Trap_action.Raise_kind.t]: whether a raise records a backtrace. *)
+Inductive raise_kind : Type :=
+  | Regular
+  | Reraise
+  | No_trace.
+
+(* [Trap_action.t]: what an [Apply_cont] does to the stack of exception
+   handlers installed, before it applies its continuation. [Push] installs
+   a handler. [Pop] removes the one installed last, which the compiler
+   expects to be the one named. *)
+Inductive trap_action : Type :=
+  | Push (exn_handler : continuation)
+  | Pop (exn_handler : continuation) (kind : option raise_kind).
+
+(* [Apply_cont_expr.t]. An [Apply_cont] whose trap action pops the
+   continuation that it applies is a raise ([Apply_cont_expr.is_raise]):
+   the exception is its first argument. *)
 Record apply_cont : Type := Apply_cont_expr {
   ac_continuation : continuation;
-  ac_args : list simple
+  ac_args : list simple;
+  ac_trap_action : option trap_action
 }.
+
+(* The continuation that a trap action names. *)
+Definition trap_action_handler (action : trap_action) : continuation :=
+  match action with
+  | Push exn_handler | Pop exn_handler _ => exn_handler
+  end.
+
+(* The continuations that an [Apply_cont] names: the one it applies, and
+   the one of its trap action if it has one. *)
+Definition apply_cont_continuations (ac : apply_cont) : list continuation :=
+  ac_continuation ac
+  :: match ac_trap_action ac with
+     | Some action => [trap_action_handler action]
+     | None => []
+     end.
+
+Definition no_trap_action (ac : apply_cont) : bool :=
+  match ac_trap_action ac with
+  | None => true
+  | Some _ => false
+  end.
+
+(* [Apply_cont_expr.is_raise]. *)
+Definition is_raise (ac : apply_cont) : bool :=
+  match ac_trap_action ac with
+  | Some (Pop exn_handler _) => Pos.eqb (ac_continuation ac) exn_handler
+  | Some (Push _) | None => false
+  end.
 
 (* [Call_kind.Function_call.t]: the code called is known, or it is that of
    whatever closure the callee turns out to be. *)
@@ -349,19 +400,33 @@ Inductive call_kind : Type :=
   | Direct (code : code_id)
   | Indirect.
 
-(* [Apply_expr.t]. The arities are those the call is made at
-   ([Apply_expr.args_arity], [return_arity]): the kinds of its arguments,
-   which are unarized, grouped by parameter, and those of the results it
-   expects. *)
+(* [Apply_expr.t]. An exception raised by the call goes to the exception
+   continuation, which is applied to the exception followed by the extra
+   arguments, each given with its kind ([Exn_continuation.t]). The
+   arities are those the call is made at ([Apply_expr.args_arity],
+   [return_arity]): the kinds of its arguments, which are unarized,
+   grouped by parameter, and those of the results it expects. *)
 Record apply_expr : Type := Apply_expr {
   ap_callee : simple;
   ap_call_kind : call_kind;
   ap_args : list simple;
   ap_continuation : continuation;
   ap_exn_continuation : continuation;
+  ap_exn_extra_args : list (simple * flambda_kind);
   ap_args_arity : arity;
   ap_return_arity : arity
 }.
+
+(* The extra arguments of the exception continuation of a call, without
+   their kinds. *)
+Definition exn_extra_simples (ap : apply_expr) : list simple :=
+  map fst (ap_exn_extra_args ap).
+
+Definition no_exn_extra_args (ap : apply_expr) : bool :=
+  match ap_exn_extra_args ap with
+  | [] => true
+  | _ :: _ => false
+  end.
 
 (* What a continuation handler is annotated with: the kinds of its
    parameters (those of its [Bound_parameters.t]), one to a parameter. *)

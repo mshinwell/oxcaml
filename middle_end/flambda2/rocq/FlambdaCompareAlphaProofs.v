@@ -191,8 +191,17 @@ Lemma apply_cont_eqb_flip (vm km : name_map) (ac ac' : apply_cont) :
   apply_cont_eqb (flip vm) (flip km) ac' ac = true.
 Proof.
   unfold apply_cont_eqb. intros Heq.
+  apply andb_true_iff in Heq as [Heq Htrap].
   apply andb_true_iff in Heq as [Hk Hargs].
-  rewrite names_match_flip, Hk. apply simples_eqb_flip, Hargs.
+  rewrite names_match_flip, Hk, (simples_eqb_flip _ _ _ Hargs). simpl.
+  destruct (ac_trap_action ac) as [[k | k kind] | ],
+    (ac_trap_action ac') as [[k' | k' kind'] | ];
+    simpl in Htrap |- *; try discriminate; try reflexivity.
+  - rewrite names_match_flip. exact Htrap.
+  - apply andb_true_iff in Htrap as [Hk' Hkind].
+    rewrite names_match_flip, Hk'. simpl.
+    destruct kind as [[ | | ] | ], kind' as [[ | | ] | ];
+      simpl in Hkind |- *; try discriminate; reflexivity.
 Qed.
 
 Lemma apply_eqb_flip (vm km : name_map) (ap ap' : apply_expr) :
@@ -202,14 +211,17 @@ Proof.
   unfold apply_eqb. intros Heq.
   apply andb_true_iff in Heq as [Heq Hreturn_arity].
   apply andb_true_iff in Heq as [Heq Hargs_arity].
+  apply andb_true_iff in Heq as [Heq Hkinds].
+  apply andb_true_iff in Heq as [Heq Hextra].
   apply andb_true_iff in Heq as [Heq Hexn].
   apply andb_true_iff in Heq as [Heq Hreturn].
   apply andb_true_iff in Heq as [Heq Hargs].
   apply andb_true_iff in Heq as [Hcallee Hkind].
-  apply call_kind_eqb_eq in Hkind.
+  apply call_kind_eqb_eq in Hkind. apply kinds_eqb_eq in Hkinds.
   apply arity_eqb_eq in Hargs_arity, Hreturn_arity.
   rewrite !names_match_flip, Hexn, Hreturn, (simple_eqb_flip _ _ _ Hcallee),
-    (simples_eqb_flip _ _ _ Hargs), <- Hkind, call_kind_eqb_refl,
+    (simples_eqb_flip _ _ _ Hargs), (simples_eqb_flip _ _ _ Hextra),
+    <- Hkind, call_kind_eqb_refl, <- Hkinds, kinds_eqb_refl,
     <- Hargs_arity, <- Hreturn_arity, !arity_eqb_refl.
   reflexivity.
 Qed.
@@ -549,9 +561,23 @@ Lemma apply_cont_eqb_trans (ac ac' ac'' : apply_cont) :
   apply_cont_eqb vm km ac ac'' = true.
 Proof.
   unfold apply_cont_eqb. intros H1 H2.
+  apply andb_true_iff in H1 as [H1 Htrap1].
   apply andb_true_iff in H1 as [Hk1 Hargs1].
+  apply andb_true_iff in H2 as [H2 Htrap2].
   apply andb_true_iff in H2 as [Hk2 Hargs2].
-  rewrite (Hkm _ _ _ Hk1 Hk2). exact (simples_eqb_trans _ _ _ Hargs1 Hargs2).
+  rewrite (Hkm _ _ _ Hk1 Hk2), (simples_eqb_trans _ _ _ Hargs1 Hargs2).
+  simpl.
+  destruct (ac_trap_action ac) as [[k | k kind] | ],
+    (ac_trap_action ac') as [[k' | k' kind'] | ];
+    simpl in Htrap1; try discriminate;
+    destruct (ac_trap_action ac'') as [[k'' | k'' kind''] | ];
+    simpl in Htrap2 |- *; try discriminate; try reflexivity.
+  - exact (Hkm _ _ _ Htrap1 Htrap2).
+  - apply andb_true_iff in Htrap1 as [Hk1' Hkind1].
+    apply andb_true_iff in Htrap2 as [Hk2' Hkind2].
+    rewrite (Hkm _ _ _ Hk1' Hk2'). simpl.
+    destruct kind as [[ | | ] | ], kind' as [[ | | ] | ];
+      simpl in Hkind1; try discriminate; exact Hkind2.
 Qed.
 
 Lemma apply_eqb_trans (ap ap' ap'' : apply_expr) :
@@ -562,24 +588,30 @@ Proof.
   unfold apply_eqb. intros H1 H2.
   apply andb_true_iff in H1 as [H1 Hreturn_arity1].
   apply andb_true_iff in H1 as [H1 Hargs_arity1].
+  apply andb_true_iff in H1 as [H1 Hkinds1].
+  apply andb_true_iff in H1 as [H1 Hextra1].
   apply andb_true_iff in H1 as [H1 Hexn1].
   apply andb_true_iff in H1 as [H1 Hreturn1].
   apply andb_true_iff in H1 as [H1 Hargs1].
   apply andb_true_iff in H1 as [Hcallee1 Hkind1].
   apply andb_true_iff in H2 as [H2 Hreturn_arity2].
   apply andb_true_iff in H2 as [H2 Hargs_arity2].
+  apply andb_true_iff in H2 as [H2 Hkinds2].
+  apply andb_true_iff in H2 as [H2 Hextra2].
   apply andb_true_iff in H2 as [H2 Hexn2].
   apply andb_true_iff in H2 as [H2 Hreturn2].
   apply andb_true_iff in H2 as [H2 Hargs2].
   apply andb_true_iff in H2 as [Hcallee2 Hkind2].
   apply call_kind_eqb_eq in Hkind1, Hkind2.
+  apply kinds_eqb_eq in Hkinds1, Hkinds2.
   apply arity_eqb_eq in Hargs_arity1, Hargs_arity2, Hreturn_arity1,
     Hreturn_arity2.
   rewrite (Hkm _ _ _ Hexn1 Hexn2), (Hkm _ _ _ Hreturn1 Hreturn2),
     (simple_eqb_trans _ _ _ Hcallee1 Hcallee2),
-    (simples_eqb_trans _ _ _ Hargs1 Hargs2), Hkind1, Hkind2,
-    call_kind_eqb_refl, Hargs_arity1, Hargs_arity2, Hreturn_arity1,
-    Hreturn_arity2, !arity_eqb_refl.
+    (simples_eqb_trans _ _ _ Hargs1 Hargs2),
+    (simples_eqb_trans _ _ _ Hextra1 Hextra2), Hkind1, Hkind2,
+    call_kind_eqb_refl, Hkinds1, Hkinds2, kinds_eqb_refl, Hargs_arity1,
+    Hargs_arity2, Hreturn_arity1, Hreturn_arity2, !arity_eqb_refl.
   reflexivity.
 Qed.
 
@@ -863,13 +895,13 @@ Qed.
 Definition repeats_parameter : expr :=
   Let_cont_non_recursive 1%positive
     (Handler [2%positive; 2%positive] (make_handler_metadata [Value; Value])
-       (Apply_cont (Apply_cont_expr 3%positive [Var 2%positive])))
+       (Apply_cont (Apply_cont_expr 3%positive [Var 2%positive] None)))
     Invalid.
 
 Definition repeats_no_parameter : expr :=
   Let_cont_non_recursive 1%positive
     (Handler [2%positive; 4%positive] (make_handler_metadata [Value; Value])
-       (Apply_cont (Apply_cont_expr 3%positive [Var 4%positive])))
+       (Apply_cont (Apply_cont_expr 3%positive [Var 4%positive] None)))
     Invalid.
 
 Theorem expr_eqb_repeated_parameter : expr_eqb_repeated_parameter_statement.
@@ -888,12 +920,12 @@ Qed.
 Definition open_code : code :=
   Code [] 5%positive 6%positive 7%positive
     (make_code_metadata [] [Singleton Value])
-    (Apply_cont (Apply_cont_expr 6%positive [Var 2%positive])).
+    (Apply_cont (Apply_cont_expr 6%positive [Var 2%positive] None)).
 
 Definition binds_around_open_code (x : variable) : expr :=
   Let x Value (Simple (Const (Tagged_immediate 0%Z)))
     (Let_static [Bind_code 1%positive open_code]
-       (Apply_cont (Apply_cont_expr 3%positive [Var x]))).
+       (Apply_cont (Apply_cont_expr 3%positive [Var x] None))).
 
 (* The variables of the [Let]s, down the bodies, whose body has code
    that is not closed. No rule of [alpha_equivalent] renames one, so
@@ -1100,13 +1132,26 @@ Proof.
     reflexivity.
 Qed.
 
+Lemma trap_action_eqb_equivariant (km : name_map)
+    (action action' : option trap_action) :
+  trap_action_eqb (rename_name_map kf km)
+    (option_map (rename_trap_action r) action)
+    (option_map (rename_trap_action r) action')
+  = trap_action_eqb km action action'.
+Proof.
+  destruct action as [[k | k kind] | ], action' as [[k' | k' kind'] | ];
+    simpl; try reflexivity;
+    rewrite (names_match_renamed kf (rename_continuation_eqb r));
+    reflexivity.
+Qed.
+
 Lemma apply_cont_eqb_equivariant (vm km : name_map) (ac ac' : apply_cont) :
   apply_cont_eqb (rename_name_map vf vm) (rename_name_map kf km)
     (rename_apply_cont r ac) (rename_apply_cont r ac')
   = apply_cont_eqb vm km ac ac'.
 Proof.
   unfold apply_cont_eqb. simpl.
-  rewrite simples_eqb_equivariant.
+  rewrite simples_eqb_equivariant, trap_action_eqb_equivariant.
   rewrite (names_match_renamed kf (rename_continuation_eqb r)).
   reflexivity.
 Qed.
@@ -1116,10 +1161,10 @@ Lemma apply_eqb_equivariant (vm km : name_map) (ap ap' : apply_expr) :
     (rename_apply r ap) (rename_apply r ap')
   = apply_eqb vm km ap ap'.
 Proof.
-  unfold apply_eqb. simpl.
-  rewrite simple_eqb_equivariant, simples_eqb_equivariant.
+  unfold apply_eqb. rewrite !exn_extra_simples_rename. simpl.
+  rewrite simple_eqb_equivariant, !simples_eqb_equivariant.
   rewrite !(names_match_renamed kf (rename_continuation_eqb r)).
-  reflexivity.
+  rewrite !map_map. reflexivity.
 Qed.
 
 Fixpoint expr_eqb_renamed (e : expr) {struct e} :

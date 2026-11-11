@@ -176,10 +176,11 @@ Definition canonical_in_terms (tenv : Typing_env.t) (s canonical : simple)
       = Some (Some (ty, canonical)).
 
 Definition apply_cont_canonical_statement : Prop :=
-  ∀ (tenv : Typing_env.t) (k : continuation) (args args' : list simple),
+  ∀ (tenv : Typing_env.t) (k : continuation) (args args' : list simple)
+    (action : option trap_action),
     Forall2 (canonical_in_terms tenv) args args' ->
-    expr_equivalent_under tenv (Apply_cont (Apply_cont_expr k args))
-      (Apply_cont (Apply_cont_expr k args')).
+    expr_equivalent_under tenv (Apply_cont (Apply_cont_expr k args action))
+      (Apply_cont (Apply_cont_expr k args' action)).
 
 Definition let_simple_canonical_statement : Prop :=
   ∀ (tenv : Typing_env.t) (x : variable) (kind : flambda_kind)
@@ -437,10 +438,11 @@ Definition example_constant_propagated_statement : Prop :=
     expr_refines
       (Let example_p Value (Simple (Const (Tagged_immediate 7)))
          (Let example_x Value (Simple (Var example_p))
-            (Apply_cont (Apply_cont_expr k [Var example_x]))))
+            (Apply_cont (Apply_cont_expr k [Var example_x] None))))
       (Let example_p Value (Simple (Const (Tagged_immediate 7)))
          (Let example_x Value (Simple (Const (Tagged_immediate 7)))
-            (Apply_cont (Apply_cont_expr k [Const (Tagged_immediate 7)])))).
+            (Apply_cont
+               (Apply_cont_expr k [Const (Tagged_immediate 7)] None)))).
 
 (* [let i = 1 in switch i with 0 -> k0 | 1 -> k1]: the scrutinee is
    known to be the constant, so the [Switch] is its arm. *)
@@ -450,10 +452,11 @@ Definition example_switch_known_statement : Prop :=
       (Let example_i (Naked_number Kind_naked_immediate)
          (Simple (Const (Naked_immediate 1)))
          (Switch (Var example_i)
-            [(0, Apply_cont_expr k0 []); (1, Apply_cont_expr k1 [])]))
+            [(0, Apply_cont_expr k0 [] None);
+             (1, Apply_cont_expr k1 [] None)]))
       (Let example_i (Naked_number Kind_naked_immediate)
          (Simple (Const (Naked_immediate 1)))
-         (Apply_cont (Apply_cont_expr k1 []))).
+         (Apply_cont (Apply_cont_expr k1 [] None))).
 
 (* A loop:
 
@@ -477,17 +480,17 @@ Definition example_loop_handler (k j exit : continuation) (result : simple)
     (Let example_x Value (Simple (Const (Tagged_immediate 7)))
        (Let_cont_non_recursive j
           (Handler [] (make_handler_metadata [])
-             (Apply_cont (Apply_cont_expr exit [result])))
+             (Apply_cont (Apply_cont_expr exit [result] None)))
           (Switch (Var example_p)
-             [(0, Apply_cont_expr k [Const (Naked_immediate 1)]);
-              (1, Apply_cont_expr j [])]))).
+             [(0, Apply_cont_expr k [Const (Naked_immediate 1)] None);
+              (1, Apply_cont_expr j [] None)]))).
 
 Definition example_loop_statement : Prop :=
   ∀ k j exit : continuation,
     expr_refines
       (Let_cont_recursive
          [(k, example_loop_handler k j exit (Var example_x))]
-         (Apply_cont (Apply_cont_expr k [Const (Naked_immediate 0)])))
+         (Apply_cont (Apply_cont_expr k [Const (Naked_immediate 0)] None)))
       (Let_cont_recursive
          [(k, example_loop_handler k j exit (Const (Tagged_immediate 7)))]
-         (Apply_cont (Apply_cont_expr k [Const (Naked_immediate 0)]))).
+         (Apply_cont (Apply_cont_expr k [Const (Naked_immediate 0)] None))).

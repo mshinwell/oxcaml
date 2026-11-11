@@ -91,7 +91,9 @@
    - the scrutinee of a [Switch] is a naked immediate;
    - the return continuation of an [Apply] takes parameters of the kinds
      of the return arity the call is made at, unarized, and its exception
-     continuation takes one argument of kind [Value];
+     continuation takes one argument of kind [Value] followed by the
+     extra arguments of the call, each of which is of the kind it is
+     given with;
    - a handler has as many kinds as parameters and its parameters are
      distinct ([Bound_parameters.create]), as are the parameters of code
      and its [my_closure] ([Bound_for_function.create]);
@@ -351,26 +353,42 @@ Definition static_const_well_kinded (kinds : kind_env)
   | Static_const_immutable_string _ => true
   end.
 
-(* The arguments are in scope and have the kinds of the parameters of the
-   continuation, which is in scope. *)
-Definition apply_cont_well_kinded (kinds : kind_env) (conts : arity_env)
-    (ac : apply_cont) : bool :=
-  match lookup (ac_continuation ac) conts with
-  | Some params_kinds =>
-    has_arity (kinds_of_simples kinds (ac_args ac)) params_kinds
-  | None => false
+(* The continuation that a trap action names is in scope. *)
+Definition trap_action_in_scope (conts : arity_env) (ac : apply_cont)
+    : bool :=
+  match ac_trap_action ac with
+  | Some action => is_bound (trap_action_handler action) conts
+  | None => true
   end.
 
+(* The arguments are in scope and have the kinds of the parameters of the
+   continuation, which is in scope, as is the continuation of the trap
+   action. *)
+Definition apply_cont_well_kinded (kinds : kind_env) (conts : arity_env)
+    (ac : apply_cont) : bool :=
+  trap_action_in_scope conts ac
+  && match lookup (ac_continuation ac) conts with
+     | Some params_kinds =>
+       has_arity (kinds_of_simples kinds (ac_args ac)) params_kinds
+     | None => false
+     end.
+
 (* The callee and the arguments are in scope, whatever their kinds. The
-   return continuation takes what the call says it returns, and the
-   exception continuation one [Value]. *)
+   extra arguments of the exception continuation are in scope and of the
+   kinds they are given with. The return continuation takes what the
+   call says it returns, and the exception continuation one [Value]
+   followed by the extra arguments
+   ([Exn_continuation.arity]). *)
 Definition apply_well_kinded (kinds : kind_env) (conts : arity_env)
     (ap : apply_expr) : bool :=
   is_some (kind_of_simple kinds (ap_callee ap))
   && is_some (kinds_of_simples kinds (ap_args ap))
+  && has_arity (kinds_of_simples kinds (exn_extra_simples ap))
+       (map snd (ap_exn_extra_args ap))
   && has_arity (lookup (ap_continuation ap) conts)
        (unarize (ap_return_arity ap))
-  && has_arity (lookup (ap_exn_continuation ap) conts) [Value].
+  && has_arity (lookup (ap_exn_continuation ap) conts)
+       (Value :: map snd (ap_exn_extra_args ap)).
 
 (* CR mshinwell: the check answers no where the kind of a [Let] is not
    that of its defining expression, an argument of an [Apply_cont] is
@@ -503,8 +521,10 @@ Definition kinds_of_env (vars : env) : kind_env :=
    of a handler, or the ones [outer] gives a way out of the term. A way
    out that [outer] does not bind is not well-kinded
    ([cont_well_kinded]); the answer for it is only there to make the
-   function total. *)
-Definition arity_of_cont (outer : arity_env) (c : cont_value)
+   function total. A continuation that has extra arguments takes what
+   the continuation inside does but for the last ones, which the extra
+   arguments are. *)
+Fixpoint arity_of_cont (outer : arity_env) (c : cont_value)
     : list flambda_kind :=
   match c with
   | Closure h _ _ _ => handler_kinds h
@@ -513,6 +533,9 @@ Definition arity_of_cont (outer : arity_env) (c : cont_value)
     | Some params_kinds => params_kinds
     | None => []
     end
+  | Extra_args c extra =>
+    let params_kinds := arity_of_cont outer c in
+    firstn (length params_kinds - length extra) params_kinds
   end.
 
 (* The kinds of the parameters of the continuations of an environment;
@@ -524,10 +547,18 @@ Definition arities_of_conts (outer : arity_env) (conts : cont_env)
 
 (* A way out of the term is one [outer] has. A handler closure keeps
    well-kinded environments, under which its handler is well-kinded, and
-   so are the handlers defined with it, which are in scope in it. *)
+   so are the handlers defined with it, which are in scope in it. The
+   extra arguments of a continuation are well-kinded values, of the
+   kinds of the last parameters of the continuation inside. *)
 Fixpoint cont_well_kinded (outer : arity_env) (c : cont_value) : bool :=
   match c with
   | Outer k => is_bound k outer
+  | Extra_args c extra =>
+    cont_well_kinded outer c
+    && forallb value_well_kinded extra
+    && kinds_eqb (map kind_of_value extra)
+         (skipn (length (arity_of_cont outer c) - length extra)
+            (arity_of_cont outer c))
   | Closure h vars conts recursive =>
     env_well_kinded vars
     && forallb (fun '(_, c) => cont_well_kinded outer c) conts
@@ -604,7 +635,7 @@ Definition simples_read (e : expr) : list simple :=
   | Let _ _ (Project_function_slot _ _ closure) _ =>
     [closure]
   | Let_static bindings _ => flat_map simples_of_binding bindings
-  | Apply ap => ap_callee ap :: ap_args ap
+  | Apply ap => ap_callee ap :: ap_args ap ++ exn_extra_simples ap
   | Apply_cont ac => ac_args ac
   | Switch scrutinee _ => [scrutinee]
   | Let_cont_non_recursive _ _ _ | Let_cont_recursive _ _ | Invalid => []
@@ -614,14 +645,20 @@ Definition unbound (vars : env) (s : simple) : bool :=
   negb (is_some (eval_simple vars s)).
 
 (* The continuation stands for a handler that has not as many parameters
-   as there are arguments. *)
+   as the values it is given: [given] of them, and the extra arguments
+   that the continuation has. *)
+Fixpoint wrong_number_given (c : cont_value) (given : nat) : bool :=
+  match c with
+  | Closure (Handler params _ _) _ _ _ =>
+    negb (Nat.eqb (length params) given)
+  | Outer _ => false
+  | Extra_args c extra => wrong_number_given c (given + length extra)
+  end.
+
 Definition wrong_number_of_arguments (ac : apply_cont) (conts : cont_env)
     : bool :=
-  match resolve (ac_continuation ac) conts with
-  | Closure (Handler params _ _) _ _ _ =>
-    negb (Nat.eqb (length params) (length (ac_args ac)))
-  | Outer _ => false
-  end.
+  wrong_number_given (resolve (ac_continuation ac) conts)
+    (length (ac_args ac)).
 
 (* The state is undefined for a reason that kinds rule out: it reads an
    unbound variable; it applies a handler to the wrong number of

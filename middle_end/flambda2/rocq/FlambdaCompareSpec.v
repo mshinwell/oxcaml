@@ -194,9 +194,31 @@ Definition call_kind_eqb (kind kind' : call_kind) : bool :=
   | _, _ => false
   end.
 
+Definition raise_kind_eqb (kind kind' : option raise_kind) : bool :=
+  match kind, kind' with
+  | None, None
+  | Some Regular, Some Regular
+  | Some Reraise, Some Reraise
+  | Some No_trace, Some No_trace =>
+    true
+  | _, _ => false
+  end.
+
+(* [Trap_action.compare], up to the names bound. *)
+Definition trap_action_eqb (km : name_map)
+    (action action' : option trap_action) : bool :=
+  match action, action' with
+  | None, None => true
+  | Some (Push k), Some (Push k') => names_match km k k'
+  | Some (Pop k kind), Some (Pop k' kind') =>
+    names_match km k k' && raise_kind_eqb kind kind'
+  | _, _ => false
+  end.
+
 Definition apply_cont_eqb (vm km : name_map) (ac ac' : apply_cont) : bool :=
   names_match km (ac_continuation ac) (ac_continuation ac')
-  && simples_eqb vm (ac_args ac) (ac_args ac').
+  && simples_eqb vm (ac_args ac) (ac_args ac')
+  && trap_action_eqb km (ac_trap_action ac) (ac_trap_action ac').
 
 Definition apply_eqb (vm km : name_map) (ap ap' : apply_expr) : bool :=
   simple_eqb vm (ap_callee ap) (ap_callee ap')
@@ -204,6 +226,9 @@ Definition apply_eqb (vm km : name_map) (ap ap' : apply_expr) : bool :=
   && simples_eqb vm (ap_args ap) (ap_args ap')
   && names_match km (ap_continuation ap) (ap_continuation ap')
   && names_match km (ap_exn_continuation ap) (ap_exn_continuation ap')
+  && simples_eqb vm (exn_extra_simples ap) (exn_extra_simples ap')
+  && kinds_eqb (map snd (ap_exn_extra_args ap))
+       (map snd (ap_exn_extra_args ap'))
   && arity_eqb (ap_args_arity ap) (ap_args_arity ap')
   && arity_eqb (ap_return_arity ap) (ap_return_arity ap').
 

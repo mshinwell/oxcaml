@@ -162,7 +162,7 @@ Definition canonical_static_binding (tenv : typing_env)
 Definition canonical_apply_cont (tenv : typing_env) (ac : apply_cont)
     : apply_cont :=
   Apply_cont_expr (ac_continuation ac)
-    (map (canonical_simple tenv) (ac_args ac)).
+    (map (canonical_simple tenv) (ac_args ac)) (ac_trap_action ac).
 
 (* A call of a known closure is a direct call of its code. *)
 Definition canonical_call_kind (tenv : typing_env) (callee : simple)
@@ -176,7 +176,10 @@ Definition canonical_apply (tenv : typing_env) (ap : apply_expr) : apply_expr :=
   let callee := canonical_simple tenv (ap_callee ap) in
   Apply_expr callee (canonical_call_kind tenv callee (ap_call_kind ap))
     (map (canonical_simple tenv) (ap_args ap)) (ap_continuation ap)
-    (ap_exn_continuation ap) (ap_args_arity ap) (ap_return_arity ap).
+    (ap_exn_continuation ap)
+    (map (fun arg => (canonical_simple tenv (fst arg), snd arg))
+       (ap_exn_extra_args ap))
+    (ap_args_arity ap) (ap_return_arity ap).
 
 (* What is known in the body of a [Let] of [x] to [d]: nothing of the old
    [x], and that the new one is [d] if that is a [Simple] or a closure not

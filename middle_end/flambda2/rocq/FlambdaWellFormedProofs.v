@@ -92,6 +92,8 @@ Proof.
   - destruct (eval_simple vars (ap_callee ap)) as [callee | ];
       [ | discriminate ].
     destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | discriminate ].
+    destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
+      [ | discriminate ].
     destruct
       (call_function_cases callee (ap_call_kind ap) vs (ap_args_arity ap)
          (ap_return_arity ap) statics)
@@ -100,12 +102,9 @@ Proof.
     + rewrite Hcall in Hstep. injection Hstep as <-.
       apply statics_extend_refl.
   - destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | discriminate ].
-    unfold apply_continuation, apply_cont_value in Hstep.
-    destruct (resolve (ac_continuation ac) conts)
-      as [[params metadata handler] def_vars def_conts recursive | k];
-      [ | discriminate ].
-    destruct (bind_params params vs def_vars); [ | discriminate ].
-    injection Hstep as <-. apply statics_extend_refl.
+    unfold apply_continuation in Hstep.
+    apply apply_cont_value_statics in Hstep. rewrite Hstep.
+    apply statics_extend_refl.
   - destruct (eval_simple vars scrutinee) as [v | ]; [ | discriminate ].
     destruct (naked_immediate_of_value v) as [i | ]; [ | discriminate ].
     destruct (find_arm i arms); [ | discriminate ].
@@ -247,6 +246,7 @@ Fixpoint cont_names (c : cont_value) : list positive :=
   | Closure h _ conts _ =>
     handler_static_names names_of h
     ++ flat_map (fun kc => cont_names (snd kc)) conts
+  | Extra_args c _ => cont_names c
   end.
 
 Definition conts_names (conts : cont_env) : list positive :=
@@ -263,7 +263,24 @@ Fixpoint cont_ok (c : cont_value) : Prop :=
         ~ In n (flat_map (fun kc => cont_names (snd kc)) conts))
     ∧ handlers_nowhere recursive
     ∧ fold_right (fun kc acc => cont_ok (snd kc) ∧ acc) True conts
+  | Extra_args c _ => cont_ok c
   end.
+
+(* Extra arguments change nothing: what holds of a continuation holds of
+   the handler or the way out that it is in the end. *)
+Lemma cont_target_ok (c : cont_value) :
+  cont_ok c ->
+  cont_ok (cont_target c) ∧ cont_names (cont_target c) = cont_names c.
+Proof.
+  induction c as [h def_vars def_conts recursive | k | c IH extra]; simpl;
+    [ auto | auto | exact IH ].
+Qed.
+
+Lemma with_extra_args_ok (c : cont_value) (extra : list value) :
+  cont_ok c ->
+  cont_ok (with_extra_args c extra)
+  ∧ cont_names (with_extra_args c extra) = cont_names c.
+Proof. destruct extra; simpl; auto. Qed.
 
 Definition conts_ok (conts : cont_env) : Prop :=
   fold_right (fun kc acc => cont_ok (snd kc) ∧ acc) True conts.
@@ -454,6 +471,8 @@ Proof.
     destruct (eval_simple vars (ap_callee ap)) as [callee | ];
       [ | discriminate ].
     destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | discriminate ].
+    destruct (eval_simples vars (exn_extra_simples ap)) as [extra | ];
+      [ | discriminate ].
     apply call_function_step in Hstep
       as (called & slots & c & callee_vars & _ & Hlookup & _ & _ & _ & _
           & ->).
@@ -463,11 +482,13 @@ Proof.
     destruct (statics_nowhere body Hc) as (Pbody & _ & Nbody).
     destruct (resolve_ok (ap_continuation ap) conts C) as [C1 N1].
     destruct (resolve_ok (ap_exn_continuation ap) conts C) as [C2 N2].
+    destruct (with_extra_args_ok _ extra C2) as [C2' N2'].
+    rewrite <- N2' in N2.
     rewrite Nbody.
     refine
       (conj Pbody
          (conj (NoDup_nil _)
-            (conj (conj C1 (conj C2 I)) (conj _ (conj _ S))))).
+            (conj (conj C1 (conj C2' I)) (conj _ (conj _ S))))).
     + intros n [].
     + intros n [[] | Hn]. apply F. right.
       unfold conts_names in Hn. simpl in Hn. rewrite app_nil_r in Hn.
@@ -475,13 +496,19 @@ Proof.
       destruct Hn as [Hn | Hn]; [ exact (N1 n Hn) | exact (N2 n Hn) ].
   - (* Apply_cont *)
     destruct (eval_simples vars (ac_args ac)) as [vs | ]; [ | discriminate ].
-    unfold apply_continuation, apply_cont_value in Hstep.
+    unfold apply_continuation in Hstep.
+    rewrite apply_cont_value_target in Hstep.
     destruct (resolve_ok (ac_continuation ac) conts C) as [Cr Nr].
-    destruct (resolve (ac_continuation ac) conts)
-      as [[params metadata handler] def_vars def_conts recursive | k];
-      [ | discriminate ].
-    destruct (bind_params params vs def_vars); [ | discriminate ].
-    injection Hstep as <-. unfold inv. simpl_state. simpl in Cr, Nr.
+    destruct (cont_target_ok _ Cr) as [Ct Nt]. rewrite <- Nt in Nr.
+    clear Cr Nt.
+    destruct (cont_target_cases (resolve (ac_continuation ac) conts))
+      as [([params metadata handler] & def_vars & def_conts & recursive
+           & Htarget)
+         | (k & Htarget)];
+      rewrite Htarget in Hstep, Ct, Nr; simpl in Hstep; [ | discriminate ].
+    destruct (bind_params params _ def_vars); [ | discriminate ].
+    injection Hstep as <-. unfold inv. simpl_state. simpl in Ct, Nr.
+    rename Ct into Cr.
     destruct Cr as (Ph & Dh & Xh & Hrec & Cdef).
     destruct (rec_closures_ok def_vars def_conts recursive Hrec Cdef)
       as [Crec Nrec].
