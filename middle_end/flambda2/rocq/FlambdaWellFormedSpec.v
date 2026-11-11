@@ -138,6 +138,13 @@ Definition handler_at_toplevel (unit_exn k : continuation) (body : expr)
   negb (raises_to k body)
   && all_among (free_continuations body) [k; unit_exn].
 
+(* CR mshinwell: this refuses a [Let_static] that is not at toplevel even
+   when it binds only code. The compiler stops on one that binds a symbol
+   and lets one of code alone through (simplify/simplify_named.ml, the case
+   [Static_consts]). So the condition is stricter than the compiler, and a
+   unit that the compiler builds could fail it; none of the examples does.
+   Discrepancy C0-3; no decision yet. *)
+
 (* Every [Let_static] of the expression is at toplevel, given whether the
    expression itself is ([toplevel]) and the exception continuation of the
    unit. *)

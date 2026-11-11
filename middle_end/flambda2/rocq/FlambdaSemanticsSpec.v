@@ -167,6 +167,13 @@ Fixpoint eval_value_slots (vars : env)
     Some ((slot, v) :: vs)
   end.
 
+(* CR mshinwell: the projection of a value slot from what is not a closure,
+   or from a closure that has not got the slot, is undefined (the last case
+   of [eval_named]). Simplify makes such a projection [Invalid] where the
+   type of the closure shows it. Not certain: whether a term that the
+   compiler builds can project, in code that runs, a slot that the closure
+   has not got. Decision D3, which is about function slots; this is the
+   same question for value slots. *)
 Definition eval_named (statics : static_env) (vars : env)
     (defining_expr : named) : option value :=
   match defining_expr with
@@ -198,6 +205,14 @@ Definition eval_static_const (vars : env) (const : static_const)
   | Static_const_immutable_string bytes => Some (Static_string bytes)
   end.
 
+(* CR mshinwell: binding a code id or a symbol that is bound already is
+   undefined (the two cases of [eval_static_bindings] that find the name),
+   so that what a name is bound to never changes. A well-formed unit never
+   does it (FlambdaWellFormedSpec.v). Not certain that every unit the
+   compiler builds is such: nothing there checks, across a unit, that a
+   symbol or a code id is bound once. Discrepancy C0-4; no decision is
+   asked yet. *)
+
 (* The static environment with a group of bindings added. Deleted code is
    not bound. A code id or a symbol is bound once: binding one that is
    bound already, by this group or by an earlier one, is undefined. So
@@ -225,6 +240,16 @@ Fixpoint eval_static_bindings (vars : env) (bindings : list static_binding)
            ((s, allocated) :: static_values statics))
     end
   end.
+
+(* CR mshinwell: a call of code whose body binds something static is
+   undefined, and so is a recursive [Let_cont] one of whose handlers does
+   ([call_function] and [step], by [binds_statics]). For a binding of a
+   symbol this follows the compiler, which stops on one that is not at
+   toplevel. For a group that binds only code the compiler has no such
+   check (simplify/simplify_named.ml, the case [Static_consts]). So if a
+   pass leaves code bound inside a function or a loop, the model calls
+   undefined a term that the compiler runs. Discrepancy C0-3; no decision
+   yet. *)
 
 (* Whether an expression has a [Let_static] that binds something, in its
    body or in a handler. The code that a [Let_static] binds is not looked
@@ -321,6 +346,17 @@ Definition apply_cont_value (c : cont_value) (vs : list value)
 Definition apply_continuation (k : continuation) (vs : list value)
     (conts : cont_env) (statics : static_env) : step_result :=
   apply_cont_value (resolve k conts) vs statics.
+
+(* CR mshinwell: two calls are undefined in [call_function] on trust.
+   - A call of a closure whose code is not bound, deleted code included.
+     That is right if code is deleted only when it is never called, which
+     nothing checks. For the term after Simplify it is the safe side.
+   - A direct call of a closure of other code than the one named. The
+     backend would run the code named, with that closure. Not certain where
+     the two code ids are versions of one function: the compiler relates
+     them by its code age relation, which the model has not got.
+     Discrepancy C0-1.
+   No decision yet for either. *)
 
 (* Calling a closure runs the body of its code. The only variables are the
    parameters and the closure itself; the only continuations are the
