@@ -357,6 +357,12 @@ it, in its own worktree, named `flambda2-rocq/<stream>` (for example
 `flambda2-rocq/T4-meet`). Rebase on the integration branch at least
 daily. Merge small and often: a branch that lives a week will not merge.
 
+**Commits.** Commit to your own branch without asking, whenever the work
+is in a state worth keeping. Only C0 commits to the integration branch.
+Nobody pushes. Never pass `--no-verify`: if a hook refuses a commit,
+reword it. If something cannot be done from your own worktree, report it
+and take another task; do not ask for wider permissions.
+
 **Ownership.** A file has one owner. Only the owner edits it. If you
 need a change in a file you do not own, ask its owner; do not make it.
 New work goes in new files, which you then own. The table is checked in
