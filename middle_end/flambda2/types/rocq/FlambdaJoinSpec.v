@@ -868,6 +868,14 @@ Definition scrutinees_have_values (target : Typing_env.t)
    meet may be bottom.) Whoever adds an equation on a name is to add it
    where the name has a value: that is the typing environment's reading
    of an equation, and what a caller shows this from. *)
+(* CR mshinwell: what establishes this in the compiler is a discipline
+   and not a check. Simplify adds an equation on a variable that a term
+   has just bound or that it reaches through a value in hand, and the
+   meet likewise; a join adds one on a variable of its source only if
+   every use has one, and then the variable has a value by this same
+   condition at that join. So it is expected of every join that
+   Simplify and the meet perform, and the meet can keep it as it goes;
+   nothing states it. Discrepancy T5-10. *)
 Definition joined_variables_have_values {A : Type} (inputs : join_inputs A)
     (valuation : env) : Prop :=
   ∀ x : variable,
@@ -889,6 +897,14 @@ Definition joined_variables_have_values {A : Type} (inputs : join_inputs A)
    of types, where it sees that; and a type that has one value makes
    the variable an alias of a constant. So of a variable with no value
    at the use the target may ask a value.) *)
+(* CR mshinwell: nothing in the compiler establishes this. A variable
+   that a use knows and the source does not is one that the branch
+   bound, which has a value, or one that an earlier join in the branch
+   made or brought in, which has none on the runs that came through
+   the uses that did not have it (discrepancy T5-5). Whether a join
+   can bring such a variable into its target on such a run, and then
+   ask a value of it, is not known; no program shows it. Discrepancy
+   T5-10. *)
 Definition imported_variables_have_values {A : Type}
     (inputs : join_inputs A) (target : Typing_env.t) (index : Index.t)
     (valuation : env) : Prop :=
