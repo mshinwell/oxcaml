@@ -3109,6 +3109,60 @@ Proof.
            Hextensions joined s' Hresult).
 Qed.
 
+(* ---------------------------------------------------------------------- *)
+(* The names of the equations inside what is answered                      *)
+(* ---------------------------------------------------------------------- *)
+
+Theorem import_type_equations_kinded : import_type_equations_kinded_statement.
+Proof.
+  intros p fuel Hfresh s s' ty Hvalid Hinvariant Henvs Hkinded
+    [index [use [Huse Hty]]] Himport.
+  destruct (import_type_valid p fuel s s' ty Hfresh Hvalid Himport)
+    as [Hvalid' [Hgrows' Htarget]].
+  pose proof (import_vars_keeps_kinded _ (free_variables ty)
+                (import_var_keeps p fuel Hfresh)
+                (import_var_keeps_kinded p fuel Hfresh) s s' Hvalid Hkinded
+                Hinvariant Henvs Himport) as Hkinded'.
+  intros n kind Hmember.
+  assert (Huse' : Join_env.joined_env s' index = Some use).
+  { destruct Hgrows' as [Henvs' _]. rewrite Henvs'. exact Huse. }
+  apply (simple_kind_in_target_of_use s' index use (simple_of_name n) kind
+           Hvalid' Hkinded' (grows_envs_kinded _ _ Hgrows' Henvs) Huse'
+           (Hty _ _ Hmember)).
+  intros x Hx. apply Htarget.
+  exact (proj1 equation_names_free_variables ty n kind x Hmember Hx).
+Qed.
+
+Theorem n_way_join_env_extension_equations_kinded
+  : n_way_join_env_extension_equations_kinded_statement.
+Proof.
+  intros p fuel Hfresh s s' extensions joined Hvalid Hinvariant Henvs Hkinded
+    Hscope Hjoin.
+  unfold Join_env.n_way_join_env_extension in Hjoin.
+  destruct extensions as [ | [index0 first] others]; [ discriminate | ].
+  destruct (forallb _ others).
+  - destruct (List.fold_left _ (Join_env.equations_of first) (Some s))
+      as [s1 | ] eqn:Hfold; [ | discriminate ].
+    injection Hjoin as <- <-.
+    destruct (Hscope index0 first (or_introl eq_refl))
+      as [use0 [Huse0 Hfirst]].
+    pose proof Hfold as Hfold'. destruct first as [equations].
+    cbn [Join_env.equations_of] in Hfold'.
+    destruct (import_equations_keeps p fuel Hfresh _ _ _ Hvalid Hfold')
+      as [Hvalid1 [Hgrows1 Hexists1]].
+    pose proof (import_equations_keeps_kinded p fuel Hfresh _ _ _ Hvalid
+                  Hkinded Hinvariant Henvs Hfold') as Hkinded1.
+    intros n kind Hmember.
+    assert (Huse1 : Join_env.joined_env s1 index0 = Some use0).
+    { destruct Hgrows1 as [Henvs1 _]. rewrite Henvs1. exact Huse0. }
+    apply (simple_kind_in_target_of_use s1 index0 use0 (simple_of_name n)
+             kind Hvalid1 Hkinded1 (grows_envs_kinded _ _ Hgrows1 Henvs) Huse1
+             (Hfirst _ _ Hmember)).
+    intros x Hx. apply Hexists1.
+    exact (proj2 equation_names_free_variables _ n kind x Hmember Hx).
+  - injection Hjoin as <- <-. intros n kind Hmember. destruct Hmember.
+Qed.
+
 (* ======================================================================== *)
 (* The definitions are kept at every state                                  *)
 (* ======================================================================== *)

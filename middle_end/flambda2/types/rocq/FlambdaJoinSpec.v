@@ -1419,6 +1419,105 @@ Definition n_way_join_env_extension_sound
          result = Or_bottom.Ok (joined, s') ->
          state_kinded s' ∧ env_extension_kinded_in_target s' joined).
 
+(* The equations inside what is answered. A type has names with
+   equations inside it (in the extensions of the cases of a row-like
+   structure and of a variant), each at the kind of the type of its
+   equation ([equation_names_with_kinds], FlambdaTypeGrammar.v). An
+   environment in which a meet may be made has the names of the
+   equations inside its types at those kinds ([types_equations_kinded],
+   FlambdaTypingEnvKindedSpec.v), and the target of a join is to be
+   such an environment. So, at a state that is kinded, what is answered
+   is to have the names of its equations at their kinds in the target,
+   if what is given has them at their kinds in the environments
+   joined. These are three contracts of their own, beside the four
+   above, and not a part of them: a join of types, an import and a
+   join of extensions that are to be used for a target in which a meet
+   is made are asked both. (The join of [Simple]s answers no
+   equation.) *)
+
+(* The names of the equations inside a type are of the kinds of their
+   types in the target so far, as [type_equations_kinded] is for an
+   environment. *)
+Definition type_equations_kinded_in_target (s : state) (ty : flambda_type)
+    : Prop :=
+  ∀ (n : name) (kind : flambda_kind),
+    (n, kind) ∈ equation_names_with_kinds ty ->
+    simple_of_kind_in_target s (simple_of_name n) kind.
+
+(* The same of an extension: the names of its equations, and of the
+   equations inside their types. *)
+Definition env_extension_equations_kinded (tenv : Typing_env.t)
+    (extension : env_extension) : Prop :=
+  ∀ (n : name) (kind : flambda_kind),
+    (n, kind) ∈ equation_names_of_env_extension extension ->
+    simple_of_kind tenv (simple_of_name n) kind.
+
+Definition env_extension_equations_kinded_in_target (s : state)
+    (extension : env_extension) : Prop :=
+  ∀ (n : name) (kind : flambda_kind),
+    (n, kind) ∈ equation_names_of_env_extension extension ->
+    simple_of_kind_in_target s (simple_of_name n) kind.
+
+(* The environments joined have the names of the equations inside
+   their types at the kinds of those equations. The join of types
+   needs it of the types that it expands in them. *)
+Definition joined_envs_equations_kinded (s : state) : Prop :=
+  ∀ (index : Index.t) (use : Typing_env.t),
+    joined_env s index = Some use -> types_equations_kinded use.
+
+(* The join of types, under the premises of [n_way_join_type_sound]:
+   if the types given have the names of their equations at their
+   kinds, each in the environment of its index, the type answered has
+   them at their kinds in the target. *)
+Definition n_way_join_type_equations_kinded
+    (n_way_join :
+       state -> list (Index.t * flambda_type)
+       -> option (Or_unknown.t flambda_type * state)) : Prop :=
+  ∀ (s s' : state) (ts : list (Index.t * flambda_type)) (ty : flambda_type),
+    state_valid s ->
+    joined_envs_well_formed s ->
+    joined_envs_kinded s ->
+    joined_envs_equations_kinded s ->
+    join_args_distinct ts ->
+    join_args_in_scope type_in_scope s ts ->
+    join_args_in_scope type_kinded s ts ->
+    join_args_in_scope type_equations_kinded s ts ->
+    state_kinded s ->
+    n_way_join s ts = Some (Or_unknown.Known ty, s') ->
+    type_equations_kinded_in_target s' ty.
+
+(* The import of a type: the type has in the target the names of its
+   equations at the kinds at which an input has them. *)
+Definition import_type_equations_kinded
+    (import_type : state -> flambda_type -> option state) : Prop :=
+  ∀ (s s' : state) (ty : flambda_type),
+    state_valid s ->
+    joined_envs_well_formed s ->
+    joined_envs_kinded s ->
+    state_kinded s ->
+    (∃ (index : Index.t) (use : Typing_env.t),
+       joined_env s index = Some use ∧ type_equations_kinded use ty) ->
+    import_type s ty = Some s' ->
+    type_equations_kinded_in_target s' ty.
+
+(* The join of environment extensions: if each extension given has the
+   names of its equations at their kinds in its input, the one
+   answered has them at their kinds in the target. *)
+Definition n_way_join_env_extension_equations_kinded
+    (n_way_join_env_extension :
+       state -> list (Index.t * env_extension)
+       -> option (Or_bottom.t (env_extension * state))) : Prop :=
+  ∀ (s s' : state) (extensions : list (Index.t * env_extension))
+    (joined : env_extension),
+    state_valid s ->
+    joined_envs_well_formed s ->
+    joined_envs_kinded s ->
+    state_kinded s ->
+    join_args_in_scope env_extension_equations_kinded s extensions ->
+    n_way_join_env_extension s extensions = Some (Or_bottom.Ok (joined, s'))
+    ->
+    env_extension_equations_kinded_in_target s' joined.
+
 End Join_of_types.
 
 (* ======================================================================== *)

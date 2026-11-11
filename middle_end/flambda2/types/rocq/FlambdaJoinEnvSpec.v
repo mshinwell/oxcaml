@@ -848,6 +848,27 @@ Definition n_way_join_env_extension_sound_statement : Prop :=
       Join_env.definitions_of_existentials kind_in_target_env state_valid
       state_kinded (Join_env.n_way_join_env_extension p fuel).
 
+(* The same two functions, against the contracts for the names of the
+   equations inside what is answered
+   ([import_type_equations_kinded] and
+   [n_way_join_env_extension_equations_kinded], FlambdaJoinSpec.v):
+   the type imported and the extension answered are those given, and
+   their variables are variables of the target at the kinds that the
+   inputs have them. *)
+Definition import_type_equations_kinded_statement : Prop :=
+  ∀ (p : Join_env.parameters) (fuel : nat),
+    fresh_avoids p ->
+    import_type_equations_kinded typing_env_invariant Join_env.joined_env
+      kind_in_target_env state_valid state_kinded
+      (Join_env.import_type p fuel).
+
+Definition n_way_join_env_extension_equations_kinded_statement : Prop :=
+  ∀ (p : Join_env.parameters) (fuel : nat),
+    fresh_avoids p ->
+    n_way_join_env_extension_equations_kinded typing_env_invariant
+      Join_env.joined_env kind_in_target_env state_valid state_kinded
+      (Join_env.n_way_join_env_extension p fuel).
+
 (* ======================================================================== *)
 (* The definitions are kept at every state                                  *)
 (* ======================================================================== *)
