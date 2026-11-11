@@ -501,39 +501,6 @@ Fixpoint is_null_simples (heads : list (Index.t * head_of_kind_value))
 Definition strings_union (strs strs' : list (list Z)) : list (list Z) :=
   Keyed.dedup (lists_eqb Z.eqb) (strs ++ strs').
 
-(* [Set_of_closures_contents.equal] and [inter]. *)
-Definition set_of_closures_contents_equal
-    (contents contents' : set_of_closures_contents) : bool :=
-  Keyed.same_keys_b Pos.eqb (contents_closures contents)
-    (contents_closures contents')
-  && Keyed.same_keys_b Pos.eqb (contents_value_slots contents)
-       (contents_value_slots contents').
-
-Definition set_of_closures_contents_inter
-    (contents contents' : set_of_closures_contents)
-    : set_of_closures_contents :=
-  Set_of_closures_contents
-    (Keyed.inter Pos.eqb (contents_closures contents)
-       (contents_closures contents'))
-    (Keyed.inter Pos.eqb (contents_value_slots contents)
-       (contents_value_slots contents')).
-
-(* [Flambda_kind.Block_shape.element_kind]: the kind of the field at an
-   index of a block of a shape. [None] is the exception of the
-   compiler for an index outside the fields of a mixed shape. *)
-Definition block_shape_element_kind (shape : block_shape) (index : nat)
-    : option flambda_kind :=
-  match shape with
-  | Scannable Value_only => Some Value
-  | Scannable (Mixed_record value_prefix_size flat_suffix) =>
-    if Nat.ltb index value_prefix_size
-    then Some Value
-    else
-      option_map Naked_number
-        (nth_error flat_suffix (index - value_prefix_size))
-  | Float_record => Some (Naked_number Kind_naked_float)
-  end.
-
 (* [More_type_creators.unknown_from_shape]. *)
 Definition unknown_from_shape (shape : block_shape) (index : nat)
     : option flambda_type :=

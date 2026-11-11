@@ -59,7 +59,7 @@ Qed.
 
 Theorem n_way_join_of_types_sound : n_way_join_of_types_sound_statement.
 Proof.
-  intros Hfree p fuel_of_env expand_head reduce_head_of_kind_naked_immediate
+  intros p fuel_of_env expand_head reduce_head_of_kind_naked_immediate
     fuel Hfresh Heqb Hexpand Hreduce.
   unfold n_way_join_of_types.
   apply FlambdaJoinTypesProofs.n_way_join_sound.
@@ -70,11 +70,11 @@ Proof.
       | ].
     split;
       [ exact
-          (FlambdaJoinEnvProofs.import_type_sound Hfree p fuel_of_env Hfresh)
+          (FlambdaJoinEnvProofs.import_type_sound p fuel_of_env Hfresh)
       | ].
     exact
-      (FlambdaJoinEnvProofs.n_way_join_env_extension_sound Hfree p
-         fuel_of_env Hfresh Heqb).
+      (FlambdaJoinEnvProofs.n_way_join_env_extension_sound p fuel_of_env
+         Hfresh Heqb).
   - exact joined_envs_have_constants_of_kind.
   - exact Hexpand.
   - exact Hreduce.

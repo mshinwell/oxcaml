@@ -61,11 +61,9 @@
      functions of the workstream on meet, whose files are not under
      this one, and stay arguments of [n_way_join_of_types];
    - what the theorems about the functions of the environment side
-     assume (FlambdaJoinEnvSpec.v): [aliases_are_free_variables], a
-     fact about the grammar that is proved in a file not yet under
-     this one; [fresh_avoids], of the source of new names; and
-     [env_extension_eqb_sound], of the equality of extensions that the
-     join of environments is given.
+     assume (FlambdaJoinEnvSpec.v): [fresh_avoids], of the source of
+     new names, and [env_extension_eqb_sound], of the equality of
+     extensions that the join of environments is given.
 
    What is assumed in FlambdaJoinTypesSpec.v and not here:
    - the premise about the constants of the environments joined
@@ -111,7 +109,6 @@ Definition n_way_join_of_types (p : Join_env.parameters)
 (* It meets the contract that the join of environments assumes of the
    join of types that it is given. *)
 Definition n_way_join_of_types_sound_statement : Prop :=
-  aliases_are_free_variables ->
   ∀ (p : Join_env.parameters) (fuel_of_env : nat)
     (expand_head : Typing_env.t -> flambda_type -> option Expanded_type.t)
     (reduce_head_of_kind_naked_immediate :
