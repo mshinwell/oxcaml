@@ -332,9 +332,12 @@ Definition example_body_env_wrong_slot_statement : Prop :=
 (* The environment of the handler of a continuation with one parameter
    [q], which one use calls with the immediate 0 and another with a
    block of tag 0 whose one field is a variable bound at that use,
-   known there to be the tagged immediate 4. The join makes that
-   variable existential, [e], with its type, and gives [q] the type
-   "the immediate 0, or a block of tag 0 whose field is [e]". *)
+   known there to be the tagged immediate 4 or 5. The join brings that
+   variable in, [e], in types only and with its type, and gives [q] the
+   type "the immediate 0, or a block of tag 0 whose field is [e]". (The
+   differential tests of the types run the compiler's two joins on
+   this: both answer so; the n-way join also gives the variant a
+   variable for [Is_int] of [q].) *)
 Definition example_q : variable := 6%positive.
 Definition example_e : variable := 7%positive.
 
@@ -357,7 +360,7 @@ Definition example_join_env : Typing_env.t :=
   in
   let tenv :=
     Typing_env.replace_equation tenv (Name_var example_e)
-      (these_tagged_immediates [4])
+      (these_tagged_immediates [4; 5])
   in
   Typing_env.replace_equation tenv (Name_var example_q) example_join_type.
 
@@ -376,11 +379,11 @@ Definition example_join_env_block_statement : Prop :=
   env_satisfies_strictly example_join_env empty_static_env
     [(example_q, Value_block 0 [tagged 4])].
 
-(* ... and the environment is not satisfied where the field is 5: [e]
-   would have to be 5, as the field is, and its type says 4. *)
+(* ... and the environment is not satisfied where the field is 6: [e]
+   would have to be 6, as the field is, and its type says 4 or 5. *)
 Definition example_join_env_wrong_block_statement : Prop :=
   ~ env_satisfies example_join_env empty_static_env
-      [(example_q, Value_block 0 [tagged 5])].
+      [(example_q, Value_block 0 [tagged 6])].
 
 (* An environment that is not bottom, in which a variable that exists
    only in types has the type bottom. [Meet_env] makes such

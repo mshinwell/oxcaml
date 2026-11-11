@@ -556,7 +556,7 @@ Proof.
         constructor; [ | constructor ].
         apply (proj2 (alias_satisfied _ _ _ Value (Var example_e))).
         split; reflexivity.
-      * apply (proj2 (these_tagged_immediates_satisfied _ _ _ [4])).
+      * apply (proj2 (these_tagged_immediates_satisfied _ _ _ [4; 5])).
         exists 4. split; [ reflexivity | left; reflexivity ].
     + intros x Hscope. apply example_join_env_scope in Hscope. subst x.
       reflexivity.
@@ -571,7 +571,7 @@ Proof.
   cbv -[lookup] in Hq. cbn in Hq.
   (* ... which has the type of [q], so that [e] is its field... *)
   assert (Hty :
-    type_satisfied empty_static_env valuation (Value_block 0 [tagged 5])
+    type_satisfied empty_static_env valuation (Value_block 0 [tagged 6])
       example_join_type).
   { apply (find_not_poison empty_static_env valuation example_join_env
              (Name_var example_q) None _ _ Hsatisfied eq_refl);
@@ -586,15 +586,15 @@ Proof.
   destruct Halias as [He _].
   (* ... and [e] is 4. *)
   assert (Hty :
-    type_satisfied empty_static_env valuation (tagged 5)
-      (these_tagged_immediates [4])).
+    type_satisfied empty_static_env valuation (tagged 6)
+      (these_tagged_immediates [4; 5])).
   { apply (find_not_poison empty_static_env valuation example_join_env
              (Name_var example_e) None _ _ Hsatisfied eq_refl);
       [ exact He | | ].
     - intros [k Hpoison]. discriminate.
     - intros [head [relation [scrutinee [Hty _]]]]. discriminate. }
   apply these_tagged_immediates_satisfied in Hty.
-  destruct Hty as [i [[= <-] [Hi | []]]]. discriminate.
+  destruct Hty as [i [[= <-] [Hi | [Hi | []]]]]; discriminate.
 Qed.
 
 Theorem example_absent_env_satisfied
