@@ -1,9 +1,12 @@
 # Phase 0: status
 
+Phase 0 is merged: R1 signed it off and the integration branch took it
+at 8b868e3a73. This file is its record and is no longer kept current;
+what is open now is in `C0.md`.
+
 Branch `flambda2-rocq/phase0`, on `flambda2-rocq-semantics` at
 5035780e42. The task is section 4 of `PARALLEL-PLAN.md`: the eight items
-that make the repository safe for parallel work. All eight are done and
-the branch is ready for review.
+that make the repository safe for parallel work. All eight are done.
 
 ## Done
 
@@ -22,7 +25,9 @@ the branch is ready for review.
   moved there; `is_bound`, `unbind`, `map_values`, `domain`, `tabulate`,
   `compact`, `filter_bindings`, `merge`, `union_with`, `inter_with`,
   `inter` and `dedup` are new, each with a statement of what it does to
-  `lookup` or `among`. The lemmas that were scattered (`lookup_app`,
+  `lookup` or `among`; so are the type `finite_map` and the relations
+  `same_names`, `map_equal` and `map_included`, which are what the
+  statements are written with. The lemmas that were scattered (`lookup_app`,
   `lookup_fresh`, `among_In`, `distinct_NoDup`, ...) are in
   `FlambdaMapProofs.v`. The header of the Spec says why lists and what
   was rejected.
@@ -140,6 +145,12 @@ this list.
   `apply_cont_in_scope`, `expr_in_scope` and `var_free_in_handler_b` of
   `FlambdaNormaliseSpec.v`, and `symbol_kept` and `code_kept` of
   `FlambdaUnusedStaticsSpec.v`, say `among` where they said `name_in`.
-- New, in `FlambdaMapSpec.v`: the definitions listed under item 3 and
-  sixteen statements about them. No statement that existed mentions them.
+- New, in `FlambdaMapSpec.v`, sixteen definitions: the type
+  `finite_map`; on sets of names, `inter`, `dedup` and the relation
+  `same_names`; on maps, `is_bound`, `unbind`, `map_values`, `domain`,
+  `tabulate`, `compact`, `filter_bindings`, `merge`, `union_with`,
+  `inter_with` and the relations `map_equal` and `map_included`. And
+  sixteen statements about them. No statement that existed mentions
+  them. (The first version of this list left out `finite_map`,
+  `same_names`, `map_equal` and `map_included`; R1 found that.)
 - The `Spec` files that use `lookup` or `among` import `FlambdaMapSpec`.
