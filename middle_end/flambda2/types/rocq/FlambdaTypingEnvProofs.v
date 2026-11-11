@@ -296,6 +296,17 @@ Proof.
            kind ty' binding_time_and_mode Hsatisfied Hfind).
 Qed.
 
+Theorem find_not_poison : find_not_poison_statement.
+Proof.
+  intros statics valuation tenv n kind ty v Hsatisfied Hfind Hvalue
+    Hnot_poison.
+  destruct (find_satisfied statics valuation tenv n kind ty Hsatisfied Hfind)
+    as [v' [Hvalue' Hty]].
+  rewrite Hvalue in Hvalue'. injection Hvalue' as <-.
+  exact (satisfied_unless_poison_not_poison statics valuation v ty Hty
+           Hnot_poison).
+Qed.
+
 Theorem find_kind : find_kind_statement.
 Proof.
   intros tenv n k ty. unfold Typing_env.find,
