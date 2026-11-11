@@ -150,12 +150,18 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaEnvAliasesRenamingProofs.v \
   FlambdaEnvAliasesRenamingSpec.v \
   FlambdaEnvAliasesSpec.v \
+  FlambdaTypeAliasKindsProofs.v \
+  FlambdaTypeAliasKindsSpec.v \
+  FlambdaTypeEqualProofs.v \
+  FlambdaTypeEqualSpec.v \
   FlambdaTypeGrammar.v \
   FlambdaTypeGrammarProofs.v \
   FlambdaTypeMeaningBoolProofs.v \
   FlambdaTypeMeaningBoolSpec.v \
   FlambdaTypeMeaningProofs.v \
   FlambdaTypeMeaningSpec.v \
+  FlambdaTypeWellFormedProofs.v \
+  FlambdaTypeWellFormedSpec.v \
   FlambdaTypesProofs.v \
   FlambdaTypesSpec.v \
   FlambdaTypingEnv.v \
