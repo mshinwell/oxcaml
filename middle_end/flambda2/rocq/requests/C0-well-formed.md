@@ -17,14 +17,19 @@ in that definition.
   builds, GADTs and layout `any` included. A statement may take it as
   a premise. A unit made by the compiler that fails it is a finding:
   the condition is too strict, or the compiler is wrong.
-- **Well-kinded** (C2's check, in its own file): kinds agree wherever
-  they meet. Real units may fail it, so it is never a premise of a
-  statement about the compiler's terms. A mismatch of kinds is
-  undefined where it is executed, and that is the machine's business.
+- **Agreement of kinds.** Real units have mismatches of kinds, so
+  "kinds agree wherever they meet" is never a premise of a statement
+  about the compiler's terms; such a mismatch is undefined where it is
+  executed, and that is the machine's business. C2's check
+  (`well_kinded_unit`, in its own file) is not that strict property,
+  which is defined nowhere. After the human's rulings it asks only for
+  the agreements on which the compiler stops whatever the flags. C2
+  proposes it as a condition of well-formedness; section 7 has the
+  question.
 
-The test for which layer a condition belongs to: can a unit that
-passes through the compiler with its default flags break it, in a
-branch that never runs? If so it is not well-formedness.
+The test for which layer a condition belongs to: can a unit that the
+compiler builds with its default flags break it, in a branch that
+never runs? If so it is not well-formedness.
 
 ## 2. The conditions of well-formedness
 
@@ -48,7 +53,7 @@ record of discrepancies.
 | 7b | The function slots of a set are distinct | C3 | Nothing: they are an association list whose invariant function has no caller (C3-5) |
 | 7c | The functions of a set have each their own code id (the human, D28) | C3 | Nothing; Simplify stops later with "code_id has been bound twice" (R2-7) |
 | 7d | A group binds a static set whole, each symbol at its slot (D4, option (a)) | C3 | Type (one pattern binds the set) and creation function (`Static_const.match_against_bound_static_pattern`, slots in order) |
-| 8 | The tag of every block made, by `Make_block` or statically, is in `[0, 251)` (the human, D23). Proposed with it: a constant is in the range of its kind (D13) | C1 | Type (`Tag.Scannable.t`, whose creation function refuses others). Constants: type, I believe (`Reg_width_const`, not read); the fexpr parser wraps `int8` and `int16` (C1-11) |
+| 8 | The tag of every block made, by `Make_block` or statically, and the tag a `Block_load` names, is in `[0, 251)` (the human, D23). Proposed with it: a constant is in the range of its kind (D13) | C1 | Type (`Tag.Scannable.t`, whose creation function refuses others). Constants: type, I believe (`Reg_width_const`, not read); the fexpr parser wraps `int8` and `int16` (C1-11) |
 | 9 | Annotations are there and of the right length: as many kinds as parameters; as many arguments of a call as its own arity; as many arguments of an `Apply_cont` as the continuation has parameters | C2, the part of its check that is not agreement of kinds | Type: a parameter carries its kind (`Bound_parameter`). `Apply_cont`: pass (`Continuation_uses.add_use`). `Apply`: nothing by design; `simplify_apply_expr.ml` walks the two lists together and raises if they differ |
 
 I read the compiler's files for rows 1 to 6, 7a, 7d, 9 and the tags;
@@ -73,7 +78,7 @@ so that the gaps show:
 
 Not well-formedness, and kept out:
 
-- agreement of kinds (layer two), and everything else that is
+- agreement of kinds (section 1), and everything else that is
   undefined only when executed;
 - what holds only after Simplify (no `Switch` on a constant, no
   over-application of a direct call);
@@ -117,7 +122,12 @@ stream proves about its condition may stay in its own files.
 Row 4 needs care in one place, which the header will state: a symbol
 bound at toplevel is in scope in what follows it and also in the
 handler of an enclosing toplevel continuation, since that handler runs
-after the body. Row 1 already has the definition of such handlers.
+after the body. Simplify makes such terms: a constant lifted while the
+body is simplified is known in the handler and placed in the body
+(`simplify_let_cont_expr.ml`, `consts_lifted_after_fork`). Row 1
+already has the definition of such handlers. C1 has proposed this row
+too, and has made every primitive have no value on a symbol that is
+not bound, with a law that says so; that change is with its reviewer.
 
 ## 4. The theorems
 
@@ -164,7 +174,9 @@ undefined cases would sit together.
 - No `Spec` file keeps a condition on terms as its own premise if the
   compiler's terms always satisfy it. It is proposed as a row, with
   the place in the compiler, or "nothing".
-- The well-kinded layer is never such a premise.
+- Agreement of kinds is never such a premise. C2's statements about
+  well-kinded units take `well_kinded_unit` as their own premise;
+  nothing else does until the question of section 7 is answered.
 - Scope and free names are computed by one function, N1's. There are
   four today (`expr_in_scope`, `free_continuations`, the relations of
   `FlambdaNominalSpec.v`, C2's check); rows 3 and 6 are not a fifth.
@@ -197,13 +209,24 @@ undefined cases would sit together.
   recommendation, until an example needs otherwise: the machine makes
   a call of code that binds anything static undefined), or follow the
   compiler and allow a group of code alone anywhere.
-- **Some agreement of kinds stops the compiler whatever the flags**:
-  the arguments of an `Apply_cont` against the continuation's
-  parameters (`Continuation_uses.add_use`), and a variable against the
-  kind it is defined at (`Typing_env.add_variable_definition`). Units
-  with GADTs get through both. They could be rows of well-formedness;
-  I recommend they stay in the well-kinded layer until a corpus of
-  real units has been through C2's check.
+- **Is C2's check a condition of well-formedness?** It asks for the
+  agreements of kinds on which the compiler stops whatever the flags:
+  a `Let` against what it binds
+  (`Typing_env.add_variable_definition`), the arguments of an
+  `Apply_cont` against the parameters (`Continuation_uses.add_use`),
+  the scrutinee of a `Switch`, the return continuation of a call
+  against the call's return arity, a value slot and a field of a
+  static block against what they hold. What the compiler tolerates,
+  the check lets through. C2's position: every unit the compiler
+  builds therefore passes, so by the test of section 1 it is a tenth
+  row. Mine: not yet. That the compiler stops on a mismatch is
+  evidence about the code Simplify reaches; a unit as closure
+  conversion builds it could hold one in code that Simplify drops
+  first, and the evidence so far is hand-written programs. I recommend
+  it stays beside `well_formed_unit`, run by the tool and reported
+  separately, until C2 has argued from closure conversion that such
+  terms are not built, or a corpus of real units has been through it;
+  then it is one line to add.
 - **Constants in range** (D13) as part of row 8, like the tags.
 - **The classification of undefined behaviour**: wanted or not. It
   changes no existing statement; perhaps two days once C1, C2 and C3
