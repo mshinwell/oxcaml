@@ -534,23 +534,27 @@ Definition example_join_bound_reached_statement : Prop :=
   = None.
 
 (* The closures of a set have types, slot by slot, which are of kind
-   value. Here the type that each input has for the function slot is
-   of kind naked immediate, and so is their join: the compiler stops
-   where it makes the product of the joined types
-   ([Product.Function_slot_indexed.create]). The types of value slots
-   may be of any kind. *)
+   value: the compiler's creation function of the product stops on
+   another kind ([Product.Function_slot_indexed.create]), where a type
+   is made and where the join makes the product of the joined types.
+   Here the two inputs are of kind value, and the compiler can make
+   them: the type that the first has for the function slot is an alias
+   of kind value to a naked immediate, and the second has the unknown
+   type. The alias expands to a head of naked immediates, the join of
+   it and of an unknown type is the unknown type of naked immediates,
+   and the product of the joined types is refused. *)
 Definition example_join_closure_types_of_another_kind_statement : Prop :=
   example_join 3
     [exactly_this_closure example_join_function_slot
        [(example_join_function_slot,
          Or_unknown.Known (Function_type 1%positive))]
-       [(example_join_function_slot, these_naked_immediates [1; 2])] []
-       Alloc_mode.Heap;
+       [(example_join_function_slot,
+         alias_type_of Value (Const (Naked_immediate 1)))]
+       [] Alloc_mode.Heap;
      exactly_this_closure example_join_function_slot
        [(example_join_function_slot,
          Or_unknown.Known (Function_type 1%positive))]
-       [(example_join_function_slot, these_naked_immediates [3; 4])] []
-       Alloc_mode.Heap]
+       [(example_join_function_slot, unknown Value)] [] Alloc_mode.Heap]
   = None.
 
 (* An alias of kind value to a naked immediate, beside a type of kind
