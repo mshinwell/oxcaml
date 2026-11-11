@@ -711,7 +711,21 @@ Definition n_way_join_type_sound
 
 (* The join of [Simple]s: [Join_env.n_way_join_simples]. The [Simple]
    answered has, in the target, the value that each [Simple] given has
-   in its input. Bottom is answered only for no [Simple]. *)
+   in its input. Bottom is answered only for no [Simple].
+
+   Kinds. The caller is not asked that each [Simple] be of the kind
+   given in its environment, and the join of types need not know it
+   (an alias inside a type is not known to be at the kind that the
+   environment has for its target: ill-kinded code makes such types).
+   The invariant of the environment side does say that an existential
+   variable is of the kind of each [Simple] of its definition, which
+   the analysis promises ([analysis_describes_uses]); the model's
+   function keeps it by answering [None] when a [Simple] given is not
+   of the kind. The compiler does not test this here. It stops with a
+   fatal error later, when it looks the [Simple]s up at that kind
+   ([find_simples_in_joined_envs]) or meets the joined type with the
+   variable's ([Typing_env.find] and the meet both test kinds whatever
+   the flags), unless the depth limit of the join is reached first. *)
 Definition n_way_join_simples_sound
     (n_way_join_simples :
        state -> flambda_kind -> list (Index.t * simple)
