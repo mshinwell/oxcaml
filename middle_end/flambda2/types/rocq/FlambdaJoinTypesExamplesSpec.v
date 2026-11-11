@@ -66,10 +66,9 @@
    - a type that is not an alias expands to itself; an alias to a
      naked or a tagged immediate expands as [Expand_head] expands it,
      whatever the kind of the alias; another alias is not expanded;
-   - a head of naked immediates reduces to itself;
-   - two types are found equal if they are aliases of one kind to the
-     same [Simple]; two shapes are equal if both are of values only,
-     or both of floats.
+   - a head of naked immediates reduces to itself.
+   The two tests of equality are not stubs: they are those of
+   FlambdaTypeEqualSpec.v.
 
    The sets of numbers of the model are lists. The order of the
    numbers in an answer is the one that the transcription makes, and
@@ -84,7 +83,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
-  FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaJoinEnv FlambdaJoinTypes.
+  FlambdaTypeEqualSpec FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaJoinEnv
+  FlambdaJoinTypes.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -158,27 +158,13 @@ Definition example_reduce (_ : Typing_env.t)
     : Or_bottom.t head_of_kind_naked_immediate :=
   Or_bottom.Ok head.
 
-Definition example_type_eqb (ty ty' : flambda_type) : bool :=
-  match get_alias_opt ty, get_alias_opt ty' with
-  | Some simple, Some simple' =>
-    kind_eqb (kind ty) (kind ty') && simple_equal simple simple'
-  | _, _ => false
-  end.
-
-Definition example_block_shape_eqb (shape shape' : block_shape) : bool :=
-  match shape, shape' with
-  | Scannable Value_only, Scannable Value_only => true
-  | Float_record, Float_record => true
-  | _, _ => false
-  end.
-
 (* The join of types of the examples, with the bound on its depth, from
    the state 1. *)
 Definition example_join (fuel : nat) (ts : list flambda_type)
     : option (Or_unknown.t flambda_type * positive) :=
   n_way_join example_joined_env example_n_way_join_simples example_import_type
     example_n_way_join_env_extension example_expand_head example_reduce
-    example_type_eqb example_block_shape_eqb fuel 1%positive
+    type_eqb block_shape_eqb fuel 1%positive
     (combine (seq 0 (length ts)) ts).
 
 (* ======================================================================== *)
@@ -255,15 +241,15 @@ Definition example_join_tagged_immediates_statement : Prop :=
 (* The contents of boxed floats are joined. *)
 Definition example_join_boxed_floats_statement : Prop :=
   example_join 2
-    [box_number Kind_naked_float
+    [box_number Boxable_naked_float
        (Type_naked_number Kind_naked_float (Ok (No_alias [1; 2])))
        Alloc_mode.Heap;
-     box_number Kind_naked_float
+     box_number Boxable_naked_float
        (Type_naked_number Kind_naked_float (Ok (No_alias [3])))
        Alloc_mode.Heap]
   = Some
       (Or_unknown.Known
-         (box_number Kind_naked_float
+         (box_number Boxable_naked_float
             (Type_naked_number Kind_naked_float (Ok (No_alias [1; 2; 3])))
             Alloc_mode.Heap),
        1%positive).
@@ -394,16 +380,17 @@ Definition example_join_fields_of_two_variables_statement : Prop :=
    as many fields as the smaller, those fields joined. *)
 Definition example_join_two_sizes_statement : Prop :=
   example_join 3
-    [example_join_block 0 [any_tagged_immediate];
-     example_join_block 0 [any_tagged_immediate; any_tagged_immediate]]
+    [example_join_block 0 [these_tagged_immediates [1; 2]];
+     example_join_block 0
+       [these_tagged_immediates [3; 4]; any_tagged_immediate]]
   = Some
       (Or_unknown.Known
          (create_variant false
             (Or_unknown.Known (bottom example_join_naked_immediate))
             (Or_unknown.Known
                (row_like_for_blocks_create_at_least 0 1
-                  (Scannable Value_only) [any_tagged_immediate]
-                  Alloc_mode.Heap))
+                  (Scannable Value_only)
+                  [these_tagged_immediates [1; 2; 3; 4]] Alloc_mode.Heap))
             No_extensions),
        1%positive).
 
