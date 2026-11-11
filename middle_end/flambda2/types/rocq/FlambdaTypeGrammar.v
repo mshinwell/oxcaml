@@ -1315,3 +1315,324 @@ with equation_names_of_env_extension (extension : env_extension)
          :: equation_names_with_kinds (snd binding))
       equations
   end.
+
+(* ======================================================================== *)
+(* More creation functions                                                  *)
+(* ======================================================================== *)
+
+(* The other creation functions of more_type_creators.ml and of
+   type_grammar.ml: those that Simplify gives to the results of
+   primitives, and to what a primitive takes apart. Each is made of the
+   functions above. Where the compiler has one function for each kind
+   of number ([these_naked_floats], [this_boxed_int64],
+   [boxed_nativeint_alias_to], ...) there is one function here, which
+   takes the kind.
+
+   Not here: [tag_int8], [tag_int16] and their [alias_to] (the machine
+   has no primitive that makes a tagged immediate of a small integer);
+   [variant], [Row_like_for_blocks.create_exactly_multiple] and
+   [unknown_with_subkind] at a subkind that says something (the model
+   has no subkinds); the types of arrays; [check_equation], which
+   answers nothing. *)
+
+(* [More_type_creators.unknown_like] and [bottom_like]. *)
+Definition unknown_like (t : flambda_type) : flambda_type :=
+  unknown (kind t).
+
+Definition bottom_like (t : flambda_type) : flambda_type :=
+  bottom (kind t).
+
+(* [More_type_creators.unknown_from_shape]. [None] is the exception of
+   [Flambda_kind.Block_shape.element_kind]. *)
+Definition unknown_from_shape (shape : block_shape) (index : nat)
+    : option flambda_type :=
+  option_map unknown (block_shape_element_kind shape index).
+
+(* [More_type_creators.unknown_with_subkind], at the subkind of a
+   kind that says nothing ([Flambda_kind.With_subkind.anything]),
+   which is all that the model has. At the kind of values that is not
+   [unknown Value] but a head that says nothing: a value that is not
+   null, of which nothing is known, or null. The two have the same
+   values. The compiler gives a smaller type for a subkind that says
+   more (a value that is not null, a boxed number, a variant with
+   some constructors, ...). *)
+Definition unknown_with_subkind (k : flambda_kind) : flambda_type :=
+  match k with
+  | Value =>
+    Type_value (Ok (No_alias (Head_of_kind_value Unknown (Maybe_null None))))
+  | Naked_number _ | Region | Rec_info => unknown k
+  end.
+
+(* [More_type_creators.unknown_types_from_arity]: such a type for each
+   kind of an arity. *)
+Definition unknown_types_from_arity (a : arity) : list flambda_type :=
+  map unknown_with_subkind (unarize a).
+
+(* [More_type_creators.kind_for_const]. *)
+Definition kind_for_const (c : const) : flambda_kind :=
+  kind (type_for_const c).
+
+(* [More_type_creators.is_alias_of_name]. *)
+Definition is_alias_of_name (t : flambda_type) (n : name) : bool :=
+  match get_alias_opt t with
+  | Some (Var x) => name_eqb (Name_var x) n
+  | Some (Symbol s) => name_eqb (Name_symbol s) n
+  | Some (Const _) | None => false
+  end.
+
+(* [Type_grammar.these_naked_float32s], [these_naked_floats], ...,
+   [these_naked_masks], and [these_naked_immediates] at the kind of the
+   immediates: the numbers of a kind that are in a set. As
+   [these_naked_immediates] above, a set that is written with one
+   number is an alias to the constant. *)
+Definition these_naked_numbers (k : naked_number_kind) (numbers : list Z)
+    : flambda_type :=
+  match k with
+  | Kind_naked_immediate => these_naked_immediates numbers
+  | _ =>
+    match numbers with
+    | [] => bottom (Naked_number k)
+    | [i] => this_const (const_of_naked_number k i)
+    | _ => Type_naked_number k (Ok (No_alias numbers))
+    end
+  end.
+
+(* [Target_ocaml_int.all_bools]. *)
+Definition all_bools : list Z := [0%Z; 1%Z].
+
+(* [More_type_creators.any_tagged_bool] and [any_naked_bool]. *)
+Definition any_tagged_bool : flambda_type :=
+  these_tagged_immediates all_bools.
+
+Definition any_naked_bool : flambda_type :=
+  these_naked_immediates all_bools.
+
+(* [More_type_creators.any_tagged_immediate_or_null]. *)
+Definition any_tagged_immediate_or_null : flambda_type :=
+  Type_value
+    (Ok
+       (No_alias
+          (Head_of_kind_value
+             (Ok
+                (Variant None Or_unknown.Unknown None
+                   (Or_unknown.Known row_like_for_blocks_bottom)
+                   No_extensions false))
+             (Maybe_null None)))).
+
+(* [Type_grammar.tagged_immediate_alias_to]: the tagged immediate
+   whose number a variable holds. *)
+Definition tagged_immediate_alias_to (naked_immediate : variable)
+    : flambda_type :=
+  tag_immediate
+    (alias_type_of (Naked_number Kind_naked_immediate) (Var naked_immediate)).
+
+(* The kind of the numbers that a boxable number boxes:
+   [unboxed_kind k] is [Naked_number (unboxed_number_kind k)]. *)
+Definition unboxed_number_kind (k : boxable_number) : naked_number_kind :=
+  match k with
+  | Boxable_naked_float32 => Kind_naked_float32
+  | Boxable_naked_float => Kind_naked_float
+  | Boxable_naked_int32 => Kind_naked_int32
+  | Boxable_naked_int64 => Kind_naked_int64
+  | Boxable_naked_nativeint => Kind_naked_nativeint
+  | Boxable_naked_vec128 => Kind_naked_vec128
+  | Boxable_naked_vec256 => Kind_naked_vec256
+  | Boxable_naked_vec512 => Kind_naked_vec512
+  | Boxable_naked_mask => Kind_naked_mask
+  end.
+
+(* [Type_grammar.boxed_float32_alias_to], [boxed_float_alias_to], ...,
+   [boxed_mask_alias_to]: the boxed number whose contents a variable
+   holds. *)
+Definition boxed_number_alias_to (k : boxable_number)
+    (naked_number : variable) (alloc_mode : Alloc_mode.t) : flambda_type :=
+  box_number k (alias_type_of (unboxed_kind k) (Var naked_number)) alloc_mode.
+
+(* [More_type_creators.this_boxed_float32], ..., [this_boxed_mask]. *)
+Definition this_boxed_number (k : boxable_number) (i : Z)
+    (alloc_mode : Alloc_mode.t) : flambda_type :=
+  box_number k (this_const (const_of_naked_number (unboxed_number_kind k) i))
+    alloc_mode.
+
+(* [More_type_creators.these_boxed_float32s], [these_boxed_floats],
+   [these_boxed_int32s], [these_boxed_int64s] and
+   [these_boxed_nativeints]; the compiler has none for the vectors and
+   the masks. *)
+Definition these_boxed_numbers (k : boxable_number) (numbers : list Z)
+    (alloc_mode : Alloc_mode.t) : flambda_type :=
+  box_number k (these_naked_numbers (unboxed_number_kind k) numbers)
+    alloc_mode.
+
+(* [More_type_creators.any_boxed_float32], [any_boxed_float],
+   [any_boxed_int32], [any_boxed_int64] and [any_boxed_nativeint]. *)
+Definition any_boxed_number (k : boxable_number) : flambda_type :=
+  box_number k (unknown (unboxed_kind k)) Alloc_mode.Heap_or_local.
+
+(* [Type_grammar.Row_like_for_blocks.open_or_closed]. *)
+Module Open_or_closed.
+  Inductive t : Type :=
+    | Open (tag : Or_unknown.t Z)
+    | Closed (tag : Z).
+End Open_or_closed.
+
+(* [Type_grammar.Row_like_for_blocks.create]: blocks of one case, of
+   the size of the product, exactly or at least. A record of floats
+   has the tag of one, whatever is known of the tag. [None] is a fatal
+   error of the compiler: a tag that the shape cannot have. The
+   compiler also checks, when its invariants are checked, that the
+   types are of the kinds that the shape gives ([check_field_tys]).
+   That check is left out here, and it is no part of well-formedness
+   either (FlambdaTypeWellFormedSpec.v says why). A field of a block
+   of the shape has no type of another kind, so a product that breaks
+   it admits no block. *)
+Definition row_like_for_blocks_create (shape : block_shape)
+    (field_tys : list flambda_type) (open_or_closed : Open_or_closed.t)
+    (alloc_mode : Alloc_mode.t) : option row_like_for_blocks :=
+  let tag : Or_unknown.t Z :=
+    match open_or_closed with
+    | Open_or_closed.Open tag => tag
+    | Open_or_closed.Closed tag => Or_unknown.Known tag
+    end
+  in
+  let tag : option (Or_unknown.t Z) :=
+    match tag with
+    | Or_unknown.Unknown =>
+      match shape with
+      | Scannable _ => Some Or_unknown.Unknown
+      | Float_record => Some (Or_unknown.Known double_array_tag)
+      end
+    | Or_unknown.Known tag =>
+      match shape with
+      | Scannable _ =>
+        if Z.ltb tag no_scan_tag then Some (Or_unknown.Known tag) else None
+      | Float_record =>
+        if Z.eqb tag double_array_tag
+        then Some (Or_unknown.Known tag)
+        else None
+      end
+    end
+  in
+  let size := length field_tys in
+  match tag, open_or_closed with
+  | None, _ => None
+  | Some (Or_unknown.Known tag), Open_or_closed.Open _ =>
+    Some
+      (row_like_for_blocks_create_at_least tag size shape field_tys alloc_mode)
+  | Some Or_unknown.Unknown, Open_or_closed.Open _ =>
+    Some
+      (row_like_for_blocks_create_at_least_unknown_tag size shape field_tys
+         alloc_mode)
+  | Some (Or_unknown.Known tag), Open_or_closed.Closed _ =>
+    Some
+      (row_like_for_blocks_create_exactly tag size shape field_tys alloc_mode)
+  | Some Or_unknown.Unknown, Open_or_closed.Closed _ => None
+  end.
+
+(* An unknown type for each of the first [n] fields of a block of a
+   shape. [None] where the shape does not give the kind of one. *)
+Fixpoint unknown_types_from_shape (shape : block_shape) (n : nat)
+    : option (list flambda_type) :=
+  match n with
+  | O => Some []
+  | S index =>
+    match
+      unknown_types_from_shape shape index, unknown_from_shape shape index
+    with
+    | Some before, Some ty => Some (before ++ [ty])
+    | _, _ => None
+    end
+  end.
+
+(* The types of the first [n] fields of a block of which a variable
+   holds the field before the [n]th: unknown at the kind that the
+   shape gives each, but the last, which is an alias. *)
+Definition size_at_least_field_tys (shape : block_shape)
+    (field_n_minus_one : variable) (n : nat) : option (list flambda_type) :=
+  match n with
+  | O => Some []
+  | S index =>
+    match
+      unknown_types_from_shape shape index,
+      block_shape_element_kind shape index
+    with
+    | Some before, Some field_kind =>
+      Some (before ++ [alias_type_of field_kind (Var field_n_minus_one)])
+    | _, _ => None
+    end
+  end.
+
+(* [More_type_creators.immutable_block_with_size_at_least]: the blocks
+   of at least [n] fields, of a tag if it is known and of a shape, of
+   which a variable holds the field at [n - 1]. This is what a load of
+   that field says of the block. [None] where the compiler stops: a
+   field outside the shape, or a tag that the shape cannot have. *)
+Definition immutable_block_with_size_at_least (tag : Or_unknown.t Z)
+    (n : nat) (shape : block_shape) (field_n_minus_one : variable)
+    : option flambda_type :=
+  match size_at_least_field_tys shape field_n_minus_one n with
+  | None => None
+  | Some field_tys =>
+    match
+      row_like_for_blocks_create shape field_tys (Open_or_closed.Open tag)
+        Alloc_mode.Heap_or_local
+    with
+    | None => None
+    | Some blocks =>
+      Some
+        (create_variant false
+           (Or_unknown.Known (bottom (Naked_number Kind_naked_immediate)))
+           (Or_unknown.Known blocks) No_extensions)
+    end
+  end.
+
+(* [More_type_creators.closure_with_at_least_these_function_slots]:
+   the closure at a function slot of a set of which each of the
+   function slots given is held by the simple given with it. This is
+   what a projection of a function slot says of the closure projected
+   from. *)
+Definition closure_with_at_least_these_function_slots
+    (this_function_slot : function_slot)
+    (function_slots_and_bindings : finite_map simple) : flambda_type :=
+  at_least_this_closure this_function_slot
+    (map_values (fun _ => Or_unknown.Unknown) function_slots_and_bindings)
+    (map_values (alias_type_of Value) function_slots_and_bindings) []
+    Alloc_mode.Heap_or_local.
+
+(* [More_type_creators.static_closure_with_this_code]: a closure whose
+   own function has the code given and, if a symbol is given, from
+   which the projection of its own function slot, where it has a
+   value, is the symbol. It has a value where what the symbols are
+   bound to is valid ([well_formed_closures_case_closure_type_statement],
+   in FlambdaTypeWellFormedSpec.v). *)
+Definition static_closure_with_this_code (this_function_slot : function_slot)
+    (closure_symbol : option symbol) (code : code_id) : flambda_type :=
+  at_least_this_closure this_function_slot
+    [(this_function_slot, Or_unknown.Known (Function_type code))]
+    [(this_function_slot,
+      match closure_symbol with
+      | Some closure_symbol => alias_type_of Value (Symbol closure_symbol)
+      | None => unknown Value
+      end)]
+    [] Alloc_mode.Heap_or_local.
+
+(* [More_type_creators.closure_with_at_least_these_value_slots]: the
+   closure at a function slot of a set of which each of the value
+   slots given is held by the variable given with it, at the kind
+   given. *)
+Definition closure_with_at_least_these_value_slots
+    (this_function_slot : function_slot)
+    (value_slots : finite_map (variable * flambda_kind)) : flambda_type :=
+  at_least_this_closure this_function_slot [] []
+    (map_values
+       (fun value_slot => alias_type_of (snd value_slot) (Var (fst value_slot)))
+       value_slots)
+    Alloc_mode.Heap_or_local.
+
+(* [More_type_creators.closure_with_at_least_this_value_slot]: what a
+   projection of a value slot says of the closure projected from. *)
+Definition closure_with_at_least_this_value_slot
+    (this_function_slot : function_slot) (value_slot : value_slot)
+    (value_slot_var : variable) (value_slot_kind : flambda_kind)
+    : flambda_type :=
+  closure_with_at_least_these_value_slots this_function_slot
+    [(value_slot, (value_slot_var, value_slot_kind))].
