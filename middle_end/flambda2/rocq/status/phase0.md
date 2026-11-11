@@ -26,13 +26,19 @@ that make the repository safe for parallel work.
   `FlambdaMapProofs.v`. The header of the Spec says why lists and what
   was rejected.
 
+- Item 4, one expected file per example. `X.expected` beside each
+  `X.fl` in `tests/semantics/`; the dune rules are generated from the
+  directory listing (`gen_rules.sh`, included by `run/dune` with
+  `dynamic_include`), so adding an example touches no shared file. The
+  eighteen expected files, concatenated in the order the old dune file
+  ran the examples, are the old `semantics.expected` byte for byte.
+
 ## In progress
 
-- Item 4, one expected file per example.
+- Item 5, the lists of `rocq/Makefile` and of `FlambdaExtract.v`.
 
 ## To do
 
-- Item 5, the lists of `rocq/Makefile` and of `FlambdaExtract.v`.
 - Item 6, the rule for the extracted files.
 - Item 7, the trust ledger.
 - Item 8, the ownership table.

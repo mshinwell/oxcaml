@@ -1,0 +1,7 @@
+inline_in_code.fl:
+  before Simplify (5 steps): returns [0: <fun>; <fun>]
+  after Simplify (7 steps): returns [0: <fun>; <fun>]
+  calls outside code: 0 before, 0 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same once normalised

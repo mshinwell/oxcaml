@@ -1,0 +1,7 @@
+indirect_higher_order.fl:
+  before Simplify (14 steps): returns [0: 42; <fun>]
+  after Simplify (16 steps): returns [0: 42; <fun>]
+  calls outside code: 1 before, 1 after
+  the same
+  calls outside code once those of known code are inlined: 2
+  validated: the same once normalised

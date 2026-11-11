@@ -633,9 +633,15 @@ not a proof.
 - To run:
   `dune build --root=. --workspace=duneconf/main.ws
   @middle_end/flambda2/tests/semantics/runtest` (after
-  `make -s boot-compiler`). The expected output is `semantics.expected`.
-  To add an example, add the `.fl` file, whose module symbol must match
-  its name, and a line in the `dune` file there.
+  `make -s boot-compiler`). The expected output of `X.fl` is
+  `X.expected`, beside it.
+- To add an example, add `X.fl`, whose module symbol must match its name,
+  and `X.expected`; `dune promote` writes the latter from what the tool
+  printed. Nothing else is to be touched: there is no list of examples.
+  The dune rules are generated from the `.fl` files that are there
+  (`gen_rules.sh`, included by `run/dune`; the `dune` file says why it
+  takes two directories), so two branches that each add an example do not
+  meet in any file.
 
 ## Extraction pitfalls
 

@@ -1,0 +1,7 @@
+showcase.fl:
+  before Simplify (39 steps): returns [0: 100; 7]
+  after Simplify (18 steps): returns [0: 100; 7]
+  calls outside code: 3 before, 0 after
+  the same
+  calls outside code once those of known code are inlined: 2
+  validated: the same once normalised and unused static bindings removed

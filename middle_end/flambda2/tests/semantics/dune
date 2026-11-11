@@ -1,42 +1,26 @@
 ;; Simplify checked against the Rocq semantics of Flambda 2: each example
-;; is run before and after Simplify on the machine extracted from
+;; X.fl is run before and after Simplify on the machine extracted from
 ;; middle_end/flambda2/rocq/FlambdaSemanticsSpec.v, and what the two runs
 ;; come to is compared (see ../tools/flsemantics.ml). The tool fails if
-;; they differ; what it prints is kept in semantics.expected.
+;; they differ; what it prints is kept in X.expected, beside X.fl.
 ;;
-;; To add an example, add the .fl file (its module symbol must match its
-;; name) and a line for it here. Each is run on its own, as the compiler
-;; keeps its symbols from one unit to the next.
+;; To add an example, add X.fl (its module symbol must match its name) and
+;; X.expected, and nothing else: there is no list of examples to add it
+;; to. `dune promote` writes X.expected, or updates it, from what the tool
+;; printed. Each example is run on its own, as the compiler keeps its
+;; symbols from one unit to the next.
+;;
+;; The rules are made from the .fl files that are here: gen_rules.sh writes
+;; one rule to run each example and one to compare what it prints with
+;; its expected file. They are included by run/dune and not by this file,
+;; which dune has to read before it can say which .fl files are here. The
+;; runtest alias of this directory takes in that of run/.
 
 (rule
- (target semantics.output)
  (deps
-  ../tools/flsemantics.exe
-  (glob_files *.fl))
+  (glob_files *.fl)
+  (glob_files *.expected))
  (action
   (with-stdout-to
-   %{target}
-   (progn
-    (run ../tools/flsemantics.exe apply_direct.fl)
-    (run ../tools/flsemantics.exe arith.fl)
-    (run ../tools/flsemantics.exe closure_slot.fl)
-    (run ../tools/flsemantics.exe const_block.fl)
-    (run ../tools/flsemantics.exe indirect_higher_order.fl)
-    (run ../tools/flsemantics.exe inline_direct.fl)
-    (run ../tools/flsemantics.exe inline_in_code.fl)
-    (run ../tools/flsemantics.exe inline_in_handler.fl)
-    (run ../tools/flsemantics.exe rec_cont.fl)
-    (run ../tools/flsemantics.exe showcase.fl)
-    (run ../tools/flsemantics.exe static_in_loop.fl)
-    (run ../tools/flsemantics.exe switch.fl)
-    (run ../tools/flsemantics.exe switch_nested.fl)
-    (run ../tools/flsemantics.exe switch_on_call.fl)
-    (run ../tools/flsemantics.exe switch_same_arms.fl)
-    (run ../tools/flsemantics.exe unchanged.fl)
-    (run ../tools/flsemantics.exe undefined_source.fl)
-    (run ../tools/flsemantics.exe unsupported_primitive.fl)))))
-
-(rule
- (alias runtest)
- (action
-  (diff semantics.expected semantics.output)))
+   dune.inc
+   (run sh %{dep:gen_rules.sh} %{deps}))))

@@ -1,0 +1,7 @@
+inline_in_handler.fl:
+  before Simplify (12 steps): returns [0: 21; <fun>]
+  after Simplify (10 steps): returns [0: 21; <fun>]
+  calls outside code: 1 before, 0 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same once normalised
