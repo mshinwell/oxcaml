@@ -106,21 +106,25 @@
      contracts ask that every name has its type. A name may hold
      poison if its type is true of poison (the unknown type is). There
      is a CR at [add_equation_sound].
-   - No relation is true of a scrutinee that holds poison (decision
-     D26, as revised). From "[t] is [Get_tag] of [p]" and the numbers
-     that [t] may be, meet gives [p] a type of blocks, and from
-     [Is_int] a type of blocks or of immediates
-     ([reduce_inverse_relations]); and it reads a relation on a name
-     that is an alias of a constant as a number, 1 for [Is_int] of a
-     poison constant ([Relation.of_const]). None of these types is
-     true of poison. So a relation must not hold of poison, or the
-     strictly satisfied environment [p : unknown], [t : Get_tag of p],
-     with [p] holding poison and [t] holding 0, would make the meet of
-     [= t] with the number 0 unsound. FlambdaTypeMeaningSpec.v is
-     being changed to say so ([relation_holds] without its clauses
-     for poison). On this branch it still has them, and with them
+   - The relations [Is_int] and [Get_tag] are not true of a scrutinee
+     that holds poison (decision D26, as revised). From "[t] is
+     [Get_tag] of [p]" and the numbers that [t] may be, meet gives [p]
+     a type of blocks, and from [Is_int] a type of blocks or of
+     immediates ([reduce_inverse_relations]); and it reads a relation
+     on a name that is an alias of a constant as a number, 1 for
+     [Is_int] of a poison constant ([Relation.of_const]). None of
+     these types is true of poison. So these two relations must not
+     hold of poison, or the strictly satisfied environment
+     [p : unknown], [t : Get_tag of p], with [p] holding poison and
+     [t] holding 0, would make the meet of [= t] with the number 0
+     unsound. FlambdaTypeMeaningSpec.v is being changed to say so
+     ([relation_holds] without its clauses for poison in these two
+     cases). On this branch it still has them, and with them
      [meet_sound] is false of the meet transcribed; the contracts are
      written for the meaning as revised and are to be proved on it.
+     [Is_null] relates poison to 0, as it does every value that is not
+     null, and stays so: from 0 meet deduces the type of the values
+     that are not null, which poison has.
      The relations that unboxing gives the [Is_int] and tag parameters
      of a field of an inactive case, which are on a parameter that
      holds poison, are part of what [typing_env_satisfied] exempts,
@@ -248,6 +252,16 @@
    adding definitions and equations ([scoped_env_of]): each fits, and
    has every name of the first with its binding time and a type of the
    same kind.
+   Whether the n-way join has the first clause is in question
+   (discrepancy T5-10): where the type joined for a name [x] is a
+   variant with a variable [r] for [Is_int], the join gives [r] the
+   type "[Is_int] of [x]" ([recover_inverse_relations]), also where
+   [x] has no value in the run and [r] has one, and that type is true
+   of no number then. The clause is not weakened for it: a meet that
+   follows reads the relation on behalf of the value of [r] and adds
+   an equation to [x], whose type nothing ties to anything if it has
+   no value, so with [r] exempt that meet could answer bottom for a
+   value that has both types.
 
    Code ids. A function type names its code exactly
    (FlambdaTypeMeaningSpec.v); the code age relation is not in the

@@ -1,18 +1,29 @@
-# T4: the contract of the meet of types
+# T4: the meet of types: its contract and its functions
 
-First request of the meet stream: what a meet guarantees, as definitions
-and statements, before any function is transcribed. It is for review by
-R1, and for T5 (the join), T2 (the environment) and T1 (the types) to
-check what is asked of them.
+Second request of the meet stream. The first was the contract alone,
+before any function; R1 reviewed it. This one has the contract as
+revised after that review, the functions transcribed, statements about
+them that are proved by running them, and what expanding the head of a
+type keeps. It is for review by R1, and for T5 and T5b (the join), T2
+(the environment) and T1 (the types) to check what is asked of them.
+Section 14 says what changed since the first request.
 
 Files, in `middle_end/flambda2/types/rocq/`:
 
 - `FlambdaMeetSpec.v`: the contract. To be reviewed.
-- `FlambdaMeetProofs.v`: the five closed statements, proved.
-- `FlambdaExpandHead.v`, `FlambdaMeetEnv.v`: the types that the join is
-  written against (`Expanded_type.t`, `Meet_env.t`, `Meet_result.t`,
-  `meet_expanded_head`). Definitions only; to be reviewed against
-  `types/expand_head.ml` and `types/env/meet_env.ml`.
+- `FlambdaMeetProofs.v`: its five closed statements, proved.
+- `FlambdaMeetEnv.v`: the functions of `types/env/meet_env.ml`.
+  `FlambdaExpandHead.v`: `Expanded_type` and `expand_head` of
+  `types/expand_head.ml`. `FlambdaMeet.v`: the meet of
+  `types/meet_and_n_way_join.ml`, `types/meet.ml`, and what
+  `types/flambda2_types.ml` adds to `Typing_env`. Definitions only; to
+  be reviewed against those files.
+- `FlambdaMeetGrammar.v`: definitions that belong in the files of T1,
+  T2 and C0 and wait for them there.
+- `FlambdaMeetExamplesSpec.v`, `FlambdaMeetExamplesProofs.v`: eight
+  statements about the transcribed functions, proved by running them.
+- `FlambdaExpandHeadSpec.v`, `FlambdaExpandHeadProofs.v`: what
+  `expand_head` keeps, six statements, proved.
 
 The compiler read: `types/meet_and_n_way_join.ml` (lines 1 to 1883, the
 meet), `types/meet.ml`, `types/env/meet_env.ml`, `types/expand_head.ml`,
@@ -34,10 +45,10 @@ the compiler the meet proper calls the join at two places only,
 A contract is a proposition about a function of the type that the
 compiler's function has (`meet_function`, `add_equation_function`,
 `meet_expanded_head`, `join_scoped_envs`). `None` is a fatal error of
-the compiler, or a meet that ran out of fuel. The statement that the
-transcribed meet has its contract will have the form
-`transcription_sound`: for every join that has `join_scoped_envs_sound`
-and every fuel, `meet_contract`.
+the compiler, or a meet that ran out of fuel. What is to be proved of
+the transcribed meet is `transcription_sound meet_to_prove`: for every
+join that has `join_scoped_envs_sound` and every fuel, `meet_contract`.
+It is not proved yet, and is not among the statements of the file.
 
 `meet_sound`: if
 
@@ -47,9 +58,14 @@ and every fuel, `meet_contract`.
 - a value `v` has both types under it,
 - and `meet tenv t1 t2 = Some result`,
 
-then `result` is `Ok (t, tenv')`, and there is a valuation that has the
-same value, or none, as the first for every variable that `tenv` knows
-(`extended_from`), satisfies `tenv'`, and gives `v` the type `t`.
+then `result` is `Ok (t, tenv')`, and there is a valuation that gives
+every variable that `tenv` knows, and that had a value, the value it
+had (`extended_from`), satisfies `tenv'`, and gives `v` the type `t`.
+A variable that had no value may be given one: the n-way join requires
+it (it makes a variable an alias of a constant where the other inputs
+have for it a type that nothing has). The meaning of a type reads the
+valuation only positively, so a type that held still holds; T1 is
+stating that (`type_satisfied_monotone`).
 
 So: the values of both inputs are kept; one valuation accounts for all
 the equations and definitions returned; bottom is answered only when no
@@ -57,25 +73,25 @@ value has both types (`meet_bottom_sound`, which follows:
 `meet_answers_bottom_statement`, proved).
 
 With it: `meet_keeps_well_formed` (the answer may be met again),
-`meet_kinds`, `meet_bottom_env`, and for `Typing_env.add_equation`,
-`add_equation_sound`.
+`meet_kinds`, `meet_bottom_env`; for `Typing_env.add_equation`,
+`add_equation_sound`; and for `Typing_env.add_env_extension` and
+`add_equations_on_params`, `add_env_extension_sound` and
+`add_equations_on_params_sound`, each with the premise that every name
+concerned has a value of the type given for it.
 
 Not claimed: that the type answered has no more values than each input
 (section 9).
 
 ## 3. What satisfies an environment, and poison (D26)
 
-The contracts use `typing_env_satisfied_strictly`: the environment is
-not bottom; every name that has a value in the valuation has the type
-the environment gives it, poison or not; aliases have the same value. A
-name may have no value. This is not T2's `typing_env_satisfied` as it is
-on this branch, which exempts a name whose value is poison and gives
-every name a value. T2 is adding the strict notion, with partial
-valuations, to `FlambdaTypingEnvSpec.v` under this name and with these
-arguments; my definition is a stand-in and goes when T2's is on my
-branch.
+The contracts use T2's `typing_env_satisfied_strictly`
+(`FlambdaTypingEnvSpec.v`): the environment is not bottom; every name
+that has a value in the valuation has the type the environment gives
+it, poison or not; aliases have the same value. A name may have no
+value. They do not use `typing_env_satisfied`, which exempts the names
+that poison touches.
 
-Why, both found while writing this and agreed with T2 and T5:
+Why, agreed with T2 and T5:
 
 - **The exemption for poison is not enough, and a premise on one name is
   not either.** A meet reads the types of names (the target of an
@@ -98,14 +114,34 @@ Why, both found while writing this and agreed with T2 and T5:
   a live place has no value either, so the meet never reads the type of
   a name with no value for a value it has in hand.
 
-The premise that the orchestrator asked for is therefore the strictness
-of the environment. It is the compiler's unchecked assumption, and there
-are two `CR mshinwell`, at `typing_env_satisfied_strictly` and at
-`add_equation_sound`. In the words of D26: `satisfied_no_poison`
-(proved) says that an environment satisfied in T2's sense by a valuation
-that gives poison to none of its names is satisfied strictly, and
-`add_equation_no_poison` (proved from the contract) is `add_equation`
-with that premise.
+- **A relation on a scrutinee that holds poison** (found by R1; D26 as
+  revised). `p : unknown` holding poison and `t : Get_tag of p` holding
+  0 was a strictly satisfied environment while T1's `relation_holds`
+  related poison to every number; the meet of `= t` with the number 0
+  gives `p` a type of blocks, which poison has not (for `Is_int`,
+  `any_block`; and `Relation.of_const` reads `Is_int` of a poison
+  constant as 1). Ruled: `Is_int` and `Get_tag` are not true of a
+  scrutinee that holds poison, as in the core, where the primitives
+  have no value on poison; T1 changes `relation_holds`; T2's
+  `typing_env_satisfied` exempts a name whose type is a relation on a
+  name that holds poison (done). The contract has no premise for it.
+  Until T1's change is on this branch, `meet_sound` is false of the
+  transcribed meet here, and the header says so. `Is_null` keeps its
+  clause (it relates poison to 0): the n-way join needs it, and what
+  meet deduces from 0, `any_non_null_value`, poison has. T4-5.
+- **A name with no value whose type is a relation on a name that holds
+  poison** (R3) is strictly satisfied and harmless to meet: a meet
+  makes a deduction only on behalf of a value in hand, and what tells
+  it that a name has a value is the type that this value has (an
+  alias, a relation, an equation of an extension). The functions that
+  have no value in hand take the premise that the name has one.
+
+The premise is therefore the strictness of the environment. It is the
+compiler's unchecked assumption, and there is a `CR mshinwell` at
+`add_equation_sound`. `add_equation_no_poison` (proved from the
+contract) is `add_equation` for `typing_env_satisfied` where no name
+holds poison. `meet_through_poison` (proved by running the meet) is
+the first example above.
 
 What the contracts do not cover: a handler in which unboxing has given
 types to parameters that hold poison on the path taken. There the
@@ -124,17 +160,25 @@ has passed the alternative to the orchestrator (question 2 below).
 fits it, and the two types have one kind.
 
 - A type fits an environment (`type_fits`) if it is well formed
-  (`type_well_formed`) and the environment knows its variables.
+  (`type_well_formed`), the environment knows its variables, and it is
+  kinded there (`type_kinded`): each alias is at the kind that the
+  environment has for its target, and the variables for `Is_int`,
+  `Get_tag` and `Is_null` are naked immediates. Meet does not need the
+  kinds (it stops with a fatal error where they are wrong); the n-way
+  join does, of the environments it is given, so meet takes them and
+  gives them back. It is a premise about kinds, with a `CR mshinwell`
+  (D10, D12, D32; T5-9). The traversal `aliases_with_kinds` is T5's.
 - An environment fits (`typing_env_fits`) if it is well formed
   (`typing_env_well_formed`) and each of its types fits it.
 
-`type_well_formed : flambda_type -> bool` is T1's next request
-(`FlambdaTypeWellFormedSpec.v`, with one predicate for each head and for
-an extension); `typing_env_well_formed : Typing_env.t -> bool` is in
-T2's second request (or a `Prop`, `typing_env_invariant`, if a part
-cannot be boolean). Until they exist they are parameters of the
-contracts (a `Section`). What meet needs of `type_well_formed`, agreed
-with T1:
+`type_well_formed : flambda_type -> bool` is T1's
+(`FlambdaTypeWellFormedSpec.v`, not on the branch this one is made
+from); `typing_env_well_formed : Typing_env.t -> bool` is T2's
+(`FlambdaTypingEnvInvariantSpec.v`, with `typing_env_invariant`, now on
+this branch). Both are still parameters of the contracts (a `Section`):
+T2's is to replace its parameter once it is checked that the invariant
+holds at the environments in the middle of a meet. What meet needs of
+`type_well_formed`, agreed with T1:
 
 - (a) the product of a case of blocks is no wider than the size of its
   index (`meet_mapping` makes a product with an empty component empty);
@@ -144,13 +188,15 @@ with T1:
 - (c) shapes are written in one way (`meet_row_like_for_blocks` compares
   them with `equal`);
 - (d) kinds: the immediates of a variant, the contents of a boxed
-  number, the closure types, the fields of a block against its shape;
+  number, the closure types;
 - (e) a set of numbers that is a head is not empty (`set_meet` answers
-  an input unchanged when one set is included in the other);
-- (f) no type is an alias to a poison constant (`Relation.of_const`
-  reads `Is_int` of one as 1; the relation says nothing of poison).
+  an input unchanged when one set is included in the other). Here the
+  model is stricter than the compiler (D32); T1 has it as a condition.
 
-(e) and (f) are new to T1's list; T1 has taken (e).
+That a type is not an alias to a poison constant was asked in the
+first request and is not any more (R1): the compiler makes such types
+(`Typing_env.type_simple_in_term_exn`), and the revised meaning of
+relations makes them harmless.
 
 The n-way join does not keep (b) (T1-4). So the types that it answers
 are not all inputs that this contract covers: see T4-3.
@@ -168,11 +214,16 @@ Contract (`join_scoped_envs_sound`), for a call as meet makes it
 (`initial_tenv` is the typing environment of `initial_env`, `cut_after`
 its scope, every scoped environment made from it by adding definitions
 and equations: `scoped_env_of`), supposing that the
-`meet_expanded_head` given has `meet_expanded_head_sound`:
+`meet_expanded_head` given has its contract, which is in two parts:
+`meet_expanded_head_sound` (what it says of values) and
+`meet_expanded_head_keeps` (the environment answered is the first
+extended, it fits, and the type answered fits it and is of the kind of
+the inputs; no value and no valuation is supposed):
 
-- J1: a valuation that satisfies one of the scoped environments extends
-  to one that satisfies the result and agrees with it on every variable
-  that this scoped environment knows;
+- J1: a valuation that satisfies `initial_tenv` and one of the scoped
+  environments extends to one that satisfies the result and keeps the
+  value of every variable that this scoped environment knows and that
+  had one;
 - J2: the result is `initial_env` extended (`meet_env_extends`): same
   scope, earlier levels and `adding_equations_for_names`; every name it
   knew still has a type of the same kind, binding time and name mode;
@@ -181,11 +232,37 @@ and equations: `scoped_env_of`), supposing that the
   result;
 - J4: the result fits.
 
-T5 has said it can give J2 to J4 as written, and J1 once the strict
-notion with partial valuations is T2's (it could not with a strict
-notion and total valuations; that is what changed section 3). T5 asked
-for the premise that what satisfies a scoped environment satisfies
-`initial_tenv`; it is in `scoped_env_of`, for me to establish.
+J1 is about one valuation and both environments. The first request
+had instead, in `scoped_env_of`, that whatever satisfies a scoped
+environment satisfies `initial_tenv`. R1 showed that meet cannot give
+that: adding an equation can forget. With
+`x : Value (unknown, may be null, is_null = z)`, adding
+`x : any_non_null_value` answers `x : any_non_null_value` and says
+nothing of `z` any more (`meet_disjunction`, where one alternative is
+bottom); R1 ran it on both of the compiler's meets, and
+`add_equation_forgets` proves it of the transcribed function.
+`scoped_env_of` now says that the scoped environment fits and has
+every name of `initial_tenv` with its binding time and a type of the
+same kind. T5 has made the matching change (its premise on the source
+is per valuation), and asks the scoped environments to be kinded,
+which `scoped_env_of` gives. `forgetful_join_sound` (proved) shows
+that the contract can be had: the join that answers `initial_env` has
+it.
+
+Open, found by T5 (T5-10): the n-way join may not have J1. Where the
+type joined for a name `x` is a variant with a variable `r` for
+`Is_int`, it gives `r` the type "`Is_int` of `x`"
+(`recover_inverse_relations`), also where `x` has no value in the run
+(it was imported by an earlier join from other uses) and `r` has one.
+T5 offered to weaken the conclusion (the names whose type is a
+relation on a name with no value exempt). That does not work for the
+meet that follows: it reads the relation on behalf of the value of
+`r` and adds an equation to `x`, whose stored type nothing constrains
+when it has no value, and the meet of the two can be bottom. A premise
+that the valuation gives every known variable a value I cannot supply
+after a join that imports from a subset. J1 stays as it is, as the
+hypothesis under which the meet is to be proved; the question is with
+the orchestrator.
 
 Physical equality in the join: X3's audit finds four uses that change a
 result, all in the join. The behaviour to assume of the parameter is
@@ -241,7 +318,12 @@ passes 0.
 - The contract is stated as it should be; T1's meaning is not changed.
 - Proved: `get_tag_reduction_unsound`: a value that is not poison, a
   number that `Get_tag` relates to it, and the value has not the type
-  that the step adds.
+  that the step adds. On the transcribed functions:
+  `compiler_meet_get_tag` (the meet answers an environment that no
+  valuation that keeps the scrutinee satisfies) and
+  `compiler_meet_not_sound` (so the compiler's meet has not
+  `meet_sound`, whatever the join and whatever well-formedness asks,
+  if the input below is well formed).
 - The input on which any meet that makes this step fails `meet_sound`:
   the environment `p : Variant (get_tag = tag)`,
   `tag : (numbers unknown, Get_tag p)`, as
@@ -250,16 +332,29 @@ passes 0.
   of `= tag` with the type of the naked immediate 0. The value 0 has
   both types. The environment answered has
   `p : blocks_with_these_tags [0]`, which no valuation that keeps `p`
-  satisfies. The lemma about the transcribed function comes with the
-  function.
+  satisfies. `example_get_tag_env_made` proves that
+  `add_get_tag_relation` makes that environment.
 - The change that makes it hold: build the type with
   `~immediates:Unknown` instead of the bottom type of naked immediates
   (`immediate_or_blocks_with_these_tags`). Proved:
-  `get_tag_reduction_repaired`. Nothing is lost where the name is
-  already known to be a block.
-- Plan: the transcription takes the type added in this case as a
-  parameter. With the compiler's type it is the function T7 compares;
-  with the repaired type it is the function that is proved.
+  `get_tag_reduction_repaired`, for the tags that the step computes,
+  and `meet_to_prove_get_tag` (on the same input the repaired meet
+  answers an environment that the run satisfies). Nothing is lost
+  where the name is already known to be a block.
+- The transcription takes the type added in this case as a parameter.
+  With the compiler's type it is the function T7 compares
+  (`compiler_meet`); with the repaired type it is the function that is
+  to be proved (`meet_to_prove`).
+- Tags out of range (found by R1; T4-6). The step keeps of the numbers
+  those that are tags of blocks (0 to 255) and drops the others. A
+  block of the model may have any integer for its tag (that tags are
+  in range is a rule of well-formed terms, D23), so a block of tag 999
+  with the numbers {0, 999} would get "block with tag 0". Agreed with
+  T1: `relation_holds Get_tag` relates a block to its tag only if the
+  tag is in range, so the rule is used once, where a relation is made
+  from a primitive, and the contract of meet has no premise for it.
+  Until T1's change is on this branch `get_tag_reduction_repaired`
+  has the range, and that the value is not poison, as premises.
 
 No miscompiled program is known (T1-1 says why T1 thinks none arises).
 
@@ -292,24 +387,51 @@ place of fuel would need that argument before a single function could
 be defined; `types_induction` does not apply, the recursion not being
 on a type.
 
-## 11. The transcription, in outline
+## 11. The transcription
 
-Under the compiler's names, in `FlambdaMeetEnv.v` (the functions of
-`meet_env.ml`, with `meet_expanded_head` as an argument as there),
-`FlambdaExpandHead.v` (`expand_head0`, `expand_head`) and a new
-`FlambdaMeet.v` (the helpers and the 33 functions, in a `Section` with
-the join and the type of the `Get_tag` step as variables). The header
-will say function by function what the model has. Differences known
-now: `Dfs` only; no coercions; no arrays (`meet_array_type`,
-`meet_array_contents`, `meet_array_element_kinds` left out, as `Array`
-is in the grammar); the eleven `meet_head_of_kind_naked_*` are one; no
-`rec_info`; no code age; exceptions (`Bottom_equation`,
-`Bottom_result`) become results; the references of `meet_row_like`
-become a state threaded through a fold. For that fold C0 is adding
-`Keyed.fold2_on`, `fold2` and `merge_fold` to the map module, with the
-order of the keys an argument: tags in numeric order, as the compiler;
-slots in the order of the lists, which is not the compiler's (it goes
-by stamps), a difference to record.
+Under the compiler's names. Each file's header says function by
+function what the model has and every difference.
+
+- `FlambdaMeetEnv.v`: the functions of `meet_env.ml` for its default
+  strategy (`Dfs`: no delayed equation), with `meet_expanded_head` as
+  an argument as there. The exception `Bottom_equation` is an
+  `Or_bottom.t`; a fatal error is `None`.
+- `FlambdaExpandHead.v`: `Expanded_type`, `expand_head_of_alias_type`,
+  `expand_head0`, `expand_head`.
+- `FlambdaMeet.v`: the helpers and the functions of the meet. Every
+  cycle among them goes through `meet`, which is given the meet of
+  expanded types as a parameter; so each function is a plain
+  definition in a section, and one fixpoint on the fuel,
+  `Meet.meet_expanded_head`, ties them. The parameters of what is
+  exported: the join, the type that the `Get_tag` step adds, whether a
+  variable that the environment knows is defined again after a join
+  (T4-1), and the fuel. `Meet.meet`, `Meet.meet_shape`, and
+  `Flambda2_types.add_equation`, `add_equations_on_params`,
+  `add_env_extension`, `add_is_null_relation`, `add_is_int_relation`,
+  `add_get_tag_relation`.
+- Differences: `Dfs` only; no coercions; no arrays; the eleven
+  `meet_head_of_kind_naked_*` are one; no `rec_info`; no code age;
+  exceptions become results; the references of `meet_row_like` become
+  a record that is handed on; names to avoid (section 6). The cases of
+  blocks are gone through in the order of their tags, as in the
+  compiler; function slots, value slots and the names of an extension
+  in the order of the lists, which is not the compiler's (it goes by
+  its maps). The converter from the compiler's types is to list the
+  bindings in the compiler's order.
+- `FlambdaMeetGrammar.v` holds what the transcription needs of other
+  streams' files, each definition to move to its owner under the same
+  name: for T1, `naked_number_kind_eqb`, `block_shape_eqb`,
+  `const_of_naked_number`, `must_be_singleton`,
+  `head_of_kind_value_null`, `head_of_kind_value_tagged_immediate`,
+  the three functions on `set_of_closures_contents`, and T5's
+  `aliases_with_kinds`; for T2, `fold_on_defined_vars` and
+  `kind_of_simple`; for C0, `fold2_on`, `keys_of_both` and
+  `merge_fold_on` (the forms agreed with C0, which take the equality
+  first).
+- The functions extract. For the differential tests (T7): the
+  compiler is `Meet.meet join blocks_with_these_tags true fuel`, with
+  the join read as the compiler under
+  `-flambda2-join-sharing structural`.
 
 ## 12. Discrepancies recorded
 
@@ -331,41 +453,65 @@ In `discrepancies/T4.md` of the team directory:
   meet answers bottom for two different code ids at such a slot, and a
   closure whose set has no such slot has both types. Same root as T1-4.
 - T4-4: code age (section 7).
+- T4-5: a relation on a scrutinee that holds poison (section 3).
+- T4-6: tags out of range in the `Get_tag` reduction (section 8).
+- T4-7: `expand_head` answers the type of a constant for an alias
+  whose canonical element is a constant, whatever the kind of the
+  alias (`expand_head_other_kind`). So "the type expanded is of the
+  kind of the type" needs a premise, `constants_of_kind`, with a
+  `CR mshinwell`; it belongs with T2's invariant.
+- T4-8: `is_int_for_scrutinee` says 1 for every constant scrutinee,
+  `Null` included; `Relation.of_const` says 0 for `Null`.
 
-## 13. Questions
+## 13. The questions of the first request, as answered
 
-For the human or the orchestrator:
+1. **The `Get_tag` step.** Prove the meet with the repaired type and
+   keep the compiler's as a second instance for the tests. Done as
+   far as the functions and the instance; the proof is next.
+2. **Poison.** The handlers that unboxing makes stay outside the
+   contracts. Since then D26 was revised for relations (section 3).
+3. **T4-3.** Goes to the developers with T1-4, which was demonstrated
+   as a miscompilation; the human has taken a fix of the n-way join of
+   function types (it keeps one only if every input has one). When
+   that fix is on the integration branch the n-way join keeps
+   condition (b) for function types, and the entry will say so.
+4. **T4-1.** Transcribed as the compiler has it, as a parameter
+   (`define_again`); the contract is to be proved of the meet that
+   defines only what the result does not know.
 
-1. **The `Get_tag` step.** (a) Prove the meet with the repaired type and
-   keep the compiler's as a second instance for the tests (what I plan);
-   (b) prove with a premise that excludes scrutinees that may be
-   immediates; (c) change the compiler first. Recommendation: (a), and
-   the one-line change to the compiler (`~immediates:Unknown`) offered
-   to the developers.
-2. **Poison.** The contracts say nothing where a name holds poison and
-   its type is not true of poison. (a) Leave it: the proof of unboxing
-   (S6) handles those paths itself. (b) The machine's valuation gives
-   no value to such parameters and to what depends on them, the
-   contracts apply, and a rewrite that uses a fact about a variable
-   needs "it has a value" (T2's analysis, section 3). Recommendation:
-   (b) when S6 is designed; nothing in this request waits for it.
-3. **T4-3.** The meet is right only if a function type is under an
-   index that has its slot; the n-way join answers types where it is
-   not. Either the join is changed to drop such function types (the
-   binary join's rule), or the meet's bottom for two code ids is wrong
-   for some closures. Recommendation: treat it with T1-4 as one
-   candidate for the developers; meanwhile the contract keeps (b) as a
-   premise, and the theorem about a meet after an n-way join will have
-   it as a stated gap.
+## 14. What changed since the first request
 
-4. **T4-1.** (a) Transcribe the second definition as it is, for the
-   comparison with the compiler, and prove the contract for a meet that
-   defines only the variables that the result of the join does not
-   know (one test of `Typing_env.mem` in `add_defined_vars`); (b) the
-   same test proposed to the developers. Recommendation: both; it is
-   the same treatment as the `Get_tag` step, and X2 or T7 should first
-   see whether "Cannot rebind" can be provoked.
+From R1's review of the contract:
 
-For reviewers: whether `meet_env_extends` and the frame parts of
-`meet_expanded_head_sound` belong in a reviewed contract or with the
-transcription; whether a precision statement is wanted.
+- `meet_expanded_head_sound` is split: the semantic part, and
+  `meet_expanded_head_keeps` with the frame, the fit and the kind of
+  the answer, which supposes no value. The join's contract supposes
+  both.
+- `scoped_env_of` lost "what satisfies the scoped environment
+  satisfies `initial_tenv`"; J1 is about a valuation that satisfies
+  both (section 5).
+- Condition (f) is gone (section 4).
+- Poison under a relation, and tags out of range (sections 3 and 8).
+
+From T5: the frame condition is "a variable that had a value keeps
+it"; `type_fits` has kindedness.
+
+From T2: its strict notion replaces my stand-in; `satisfied_no_poison`
+is T2's `satisfied_no_poison_strictly`.
+
+New: `add_env_extension_sound`, `add_equations_on_params_sound`,
+`fits_kinded`; `compiler_meet` and `meet_to_prove`; the examples; the
+statements about `expand_head` (asked for by T5b, for the type
+traversal of the join): `expand_head_sound` (values are kept, under
+strict satisfaction, with no other premise), `expand_head_closed`,
+`expand_head_kinded`, `expand_head_kind`, `expand_head_head_of_kind`.
+
+## 15. Next
+
+- The proofs of the contract for `meet_to_prove`, with the join's
+  contract as a hypothesis; then that some fuel is enough.
+- `reduce_head_of_kind_naked_immediate` is sound (T5b needs it too):
+  when T1's change to relations is on this branch.
+- Replace the two parameters by T1's and T2's predicates.
+
+For reviewers: whether a precision statement is wanted.

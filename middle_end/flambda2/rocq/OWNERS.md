@@ -153,8 +153,9 @@ All in `middle_end/flambda2/types/rocq/`, library `OxCamlFlambda2Types`.
   - `middle_end/flambda2/types/rocq/FlambdaEnvAliases*` (the aliases of
     the typing environment, after `types/env/aliases.ml`)
 - T4, meet. Owner: T4, on `flambda2-rocq/T4-meet`.
-  - `middle_end/flambda2/types/rocq/FlambdaExpandHead.v` (expanded
-    types, after `types/expand_head.ml`)
+  - `middle_end/flambda2/types/rocq/FlambdaExpandHead*` (expanded
+    types and `expand_head`, after `types/expand_head.ml`, and what
+    expanding keeps)
   - `middle_end/flambda2/types/rocq/FlambdaMeet*` (the environment of a
     meet, after `types/env/meet_env.ml`; the contract of meet; the meet,
     after `types/meet_and_n_way_join.ml` and `types/meet.ml`)
