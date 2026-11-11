@@ -13,15 +13,17 @@ in the meet: the environment of the meet), a scope, and a list of
 **use** environments with the caller's identifiers. It answers the
 **target** (the source with one more level) and an **analysis**.
 
-`join_guarantees`, for inputs that are well formed and whose uses
-entail the source:
+`join_guarantees`, for inputs that are well formed and kinded:
 
 1. **Upper bound under one extension** (`join_admits_use`). For each
-   use and each valuation that satisfies it strictly, some valuation
-   satisfies the target strictly, gives every variable the use knows
-   the value it had (or none, if it had none), and gives every variable
-   that has a definition in the analysis the value of that definition
-   at that use. One valuation for all the equations of the target.
+   use and each valuation that satisfies that use and the source
+   strictly, some valuation satisfies the target strictly, gives every
+   variable that the use or the source knows, and that had a value,
+   that value, and gives every variable that has a definition in the
+   analysis the value of that definition at that use, where it has
+   one. One valuation for all the equations of the target. (A variable
+   with no value may get one: the join can make it an alias of a
+   constant where the use has for it a type that nothing has.)
 2. **The target is the source extended** (`join_keeps_source`): same
    earlier levels, scope, symbols; every name keeps its binding time
    and name mode.
@@ -59,13 +61,22 @@ not met by one that answers bottom (so it is neither contradictory nor
 empty); and the two about closures below.
 
 **What it does not yet cover of Simplify's joins.** The contract is a
-foundation for uses that are satisfied strictly and that entail the
-source. Outside it: a use made by variant unboxing with a poison
-argument (D26, T5-7; the unboxing workstream owes what holds at a join
-after an unboxed continuation), and a source that holds the types of
-constants lifted in other branches (T5-4; the continuations workstream
-owes `uses_refine_source` for its inputs, once T2 has said where the
-type of a symbol may be used).
+foundation for runs in which one valuation satisfies a use and the
+source strictly, through environments that are kinded. Outside it:
+
+- a use made by variant unboxing with a poison argument (D26, T5-7;
+  the unboxing workstream owes what holds at a join after an unboxed
+  continuation);
+- a source that holds the types of constants lifted in other branches
+  (T5-4; the continuations workstream owes that the valuation of a use
+  satisfies the source, once T2 has said where the type of a symbol
+  may be used);
+- a use environment that is not kinded: an alias at a kind that is not
+  the kind the environment has for its target (T5-9). Ill-kinded code
+  may make these; the compiler's join does not test for them when it
+  makes a variable of a kind for simples, and with the depth limit it
+  can answer without ever testing. `uses_kinded` is a premise, not an
+  invariant claimed of the compiler's inputs.
 
 ## 2. What Simplify may read of the analysis
 
@@ -130,9 +141,11 @@ type of a symbol may be used).
   `check_join_inputs` says it is false (in-types variables made for
   lifted constants), and the header's next paragraph says that symbols
   of other branches are missing. In the contract: not required;
-  replaced by the semantic `uses_refine_source`, and, only for the
-  caller to conclude of the machine, by `terms_in_scope_at_uses`.
-  Discrepancy T5-1.
+  replaced by the premise, for each valuation, that it satisfies the
+  source as well as the use (that a use entails the source is false
+  even of the environments the meet makes: R1's example, T7-4), and,
+  only for the caller to conclude of the machine, by
+  `terms_in_scope_at_uses`. Discrepancy T5-1.
 - **"Any symbol defined in one of the joined environments is also
   defined in the source environment."** Checked: only of the set of
   symbols that Simplify passes, not of the environments, and not for
@@ -171,10 +184,10 @@ Also required and not in the header: every environment well formed;
   bottom): not looked at further; still traced, not shown reachable.
 - **Lifted constants (T5-4).** The source holds the types of constants
   lifted in other branches. On a path that did not define such a
-  symbol, the symbol is bound to nothing and its type is false, so
-  `uses_refine_source` may not hold of Simplify's own inputs. Not a
-  join problem: facts about a symbol may have to be asked only where
-  the symbol is bound.
+  symbol, the symbol is bound to nothing and its type is false, so no
+  valuation satisfies the source there. Not a join problem: facts
+  about a symbol may have to be asked only where the symbol is bound.
+- **Kinds (T5-9).** See the third exclusion above.
 - **Imported variables defined twice (T4-1)**, in the meet's callers
   of the join; T4 has it.
 - **Order of names (T5-6):** the representative of an existential's
@@ -233,7 +246,11 @@ types, inside a join of environments", and are fixed there:
   `n_way_join_simples_sound`, `import_type_sound`,
   `n_way_join_env_extension_sound` (E proves them, T assumes them);
 - every argument at an index mentions only variables that the
-  environment of that index knows (`join_args_in_scope`);
+  environment of that index knows (`join_args_in_scope`), each index
+  is given once (`join_args_distinct`), and the types given are kinded
+  in their environment (`type_kinded`, defined with
+  `aliases_with_kinds`), so that the simples given to the join of
+  simples are of the kind given;
 - `valid_states_have_witnesses`, which E proves of its invariant: at a
   valid state every valuation of an input extends to one of the
   target. Without it the upper bounds could be vacuous (the reviewer's
@@ -247,10 +264,9 @@ T also needs from T4 `expand_head` and
 `join_scoped_envs meet_expanded_head cut_after initial_env
 initial_tenv scoped_envs : option Meet_env.t`. Fuel is inside. Rely:
 T4's `meet_expanded_head_sound`. Guarantee: T4's (J1) to (J4), which
-are items 1, 2, 3 and 5 above with no analysis. T4's premise on a
-scoped environment (`scoped_env_of`: whatever satisfies it satisfies
-the initial environment, with the same valuation) gives my
-`uses_refine_source`. `Meet_env.t` carries the names to avoid. T4
+are items 1, 2, 3 and 5 above with no analysis. Both of us ask, for
+each valuation, that it satisfy the initial environment as well as the
+scoped one. `Meet_env.t` carries the names to avoid. T4
 defines `Meet_env.t`, `Expanded_type.t` and the functions on them that
 I call (`add_variable_definition`, `add_env_extension`,
 `make_bottom`).
@@ -299,3 +315,11 @@ I call (`add_variable_definition`, `add_env_extension`,
    and revisit with the unboxing workstream.
 3. **Lifted constants in the source (T5-4).** For T2 and the
    continuations workstream; the join only needs the premise.
+4. **Kinds (T5-9).** The contract has the premise that the use
+   environments are kinded. Either the compiler's environments always
+   are (then whoever states the kinds of environments proves it, and
+   the join's unchecked path is unreachable), or the join should test
+   the kinds of the simples when it makes a variable for them (one
+   test in `existential_for_these_canonicals`). Recommendation: find
+   out which with a reproducer (X2 or X5), and keep the premise
+   meanwhile.

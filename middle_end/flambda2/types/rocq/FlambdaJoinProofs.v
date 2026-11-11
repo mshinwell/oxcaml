@@ -82,7 +82,7 @@ Qed.
 Theorem join_to_source_sound : join_to_source_sound_statement.
 Proof.
   intros typing_env_well_formed A avoid inputs target analysis
-    [[Hsource _] _] Hrefine Hjoin.
+    [[Hsource _] _] _ Hjoin.
   injection Hjoin as <- <-.
   split; [ exact Hsource | ]. split; [ | split; [ | split ] ].
   - split; [ | repeat split ].
@@ -92,12 +92,11 @@ Proof.
     + intros index id Hlookup. discriminate.
     + intros x simples kind index simple Hlookup. discriminate.
     + intros x simples kind index simple Hlookup. discriminate.
-  - intros index use Huse statics valuation Hsatisfied.
-    destruct (Hrefine index use Huse statics valuation Hsatisfied)
-      as [valuation0 [Hsource0 Hagrees]].
-    exists valuation0. split; [ exact Hsource0 | ].
-    split; [ exact Hagrees | ].
-    split; intros x simples kind simple Hlookup; discriminate.
+  - intros index use Huse statics valuation _ Hsatisfied.
+    exists valuation. split; [ exact Hsatisfied | ].
+    split; [ intros x v _ Hvalue; exact Hvalue | ].
+    split; [ intros x v _ Hvalue; exact Hvalue | ].
+    split; intros x simples kind simple v Hlookup; discriminate.
 Qed.
 
 Theorem join_to_bottom_unsound : join_to_bottom_unsound_statement.
@@ -119,18 +118,17 @@ Proof.
       + intros x Hknown. discriminate.
       + intros index use x Huse Hknown.
         apply use_at_singleton in Huse. subst use. discriminate. }
-  assert (Hrefine : uses_refine_source inputs).
-  { intros index use Huse statics valuation Hsatisfied.
-    apply use_at_singleton in Huse. subst use.
-    exists valuation. split; [ exact Hsatisfied | ].
-    intros x _. reflexivity. }
-  destruct (Hsound [] inputs _ _ Hwell_formed Hrefine eq_refl)
+  assert (Hkinded : uses_kinded inputs).
+  { intros index use Huse n ty binding_time_and_mode Hlookup.
+    apply use_at_singleton in Huse. subst use. discriminate. }
+  destruct (Hsound [] inputs _ _ Hwell_formed Hkinded eq_refl)
     as [_ [_ [_ [_ Hadmits]]]].
   assert (Huse : use_at inputs 0 Typing_env.create).
   { exists tt. reflexivity. }
   destruct (create_satisfied_strictly (Static_env [] []))
     as [valuation Hsatisfied].
-  destruct (Hadmits 0 Typing_env.create Huse _ valuation Hsatisfied)
+  destruct
+    (Hadmits 0 Typing_env.create Huse _ valuation Hsatisfied Hsatisfied)
     as [valuation' [Htarget _]].
   exact
     (bottom_not_satisfied_but (fun _ => False) _ valuation'
@@ -141,33 +139,55 @@ Qed.
 (* In the machine                                                           *)
 (* ======================================================================== *)
 
+(* A [Simple] that may occur in terms at a use has a value in the
+   machine, which a valuation that agrees with it has too. *)
+Lemma eval_simple_in_terms (use : Typing_env.t) (valuation vars : env)
+    (simple : simple) :
+  bound_in_terms use vars ->
+  agrees_in_terms use valuation vars ->
+  Typing_env.mem_simple (Some Name_mode.normal) use simple = true ->
+  ∃ v : value,
+    eval_simple vars simple = Some v ∧ eval_simple valuation simple = Some v.
+Proof.
+  intros Hbound Hterms Hnormal.
+  destruct simple as [y | s | c]; cbn in *.
+  - destruct (Hbound y Hnormal) as [v Hv]. exists v.
+    split; [ exact Hv | ]. rewrite (Hterms y Hnormal). exact Hv.
+  - eexists. split; reflexivity.
+  - eexists. split; reflexivity.
+Qed.
+
 Theorem join_admits_use_in_machine : join_admits_use_in_machine_statement.
 Proof.
-  intros use target definitions definitions_at_normal_mode index statics vars
-    Hadmits Hscope [Hbound [valuation [Hsatisfied Hterms]]].
-  destruct (Hadmits statics valuation Hsatisfied)
-    as [valuation' [Htarget [Hagrees [_ Hdefinitions]]]].
+  intros source use target definitions definitions_at_normal_mode index
+    statics vars Hadmits Hscope
+    [Hbound [valuation [Huse [Hsource Hterms]]]].
+  destruct (Hadmits statics valuation Huse Hsource)
+    as [valuation' [Htarget [Hagrees [_ [_ Hdefinitions]]]]].
   exists valuation'. split; [ exact Htarget | ].
   split; [ | split ].
-  - intros x Hx. rewrite (Hagrees x).
-    + apply Hterms. apply Hscope. exact Hx.
-    + apply in_scope_in_terms_knows. apply Hscope. exact Hx.
+  - intros x Hx. specialize (Hscope x Hx).
+    destruct (Hbound x Hscope) as [v Hv]. rewrite Hv.
+    apply (Hagrees x v (in_scope_in_terms_knows _ _ Hscope)).
+    rewrite (Hterms x Hscope). exact Hv.
   - intros x Hx. apply Hbound. apply Hscope. exact Hx.
   - intros x simples kind simple Hlookup Hfind Hnormal.
-    rewrite (Hdefinitions x simples kind simple Hlookup Hfind).
-    destruct simple as [y | s | c]; cbn in *; [ | reflexivity | reflexivity ].
-    apply Hterms. exact Hnormal.
+    destruct (eval_simple_in_terms use valuation vars simple Hbound Hterms
+                Hnormal)
+      as [v [Hvars Hvaluation]].
+    rewrite Hvars.
+    exact (Hdefinitions x simples kind simple v Hlookup Hfind Hvaluation).
 Qed.
 
 Theorem join_admits_use_env_satisfies
   : join_admits_use_env_satisfies_statement.
 Proof.
-  intros use target definitions definitions_at_normal_mode index statics vars
-    Hadmits Hscope Hsatisfies.
+  intros source use target definitions definitions_at_normal_mode index
+    statics vars Hadmits Hscope Hsatisfied.
   destruct
-    (join_admits_use_in_machine use target definitions
+    (join_admits_use_in_machine source use target definitions
        definitions_at_normal_mode index statics vars Hadmits Hscope
-       Hsatisfies)
+       Hsatisfied)
     as [valuation' [Htarget [Hterms [Hbound _]]]].
   split; [ exact Hbound | ]. exists valuation'. split; assumption.
 Qed.
@@ -193,12 +213,12 @@ Theorem join_guarantees_in_machine : join_guarantees_in_machine_statement.
 Proof.
   intros typing_env_well_formed A avoid inputs target analysis index use
     statics vars [_ [Hkeeps [Hintroduces [_ Hadmits]]]] Hterms Huse
-    Hsatisfies.
+    Hsatisfied.
   apply
-    (join_admits_use_env_satisfies use target
+    (join_admits_use_env_satisfies (source inputs) use target
        (Analysis.definitions_in_joined_envs analysis)
        (Analysis.canonical_definitions_at_normal_mode analysis) index
-       statics vars (Hadmits index use Huse)); [ | exact Hsatisfies ].
+       statics vars (Hadmits index use Huse)); [ | exact Hsatisfied ].
   intros x Hscope. apply (Hterms index use x Huse).
   destruct (Typing_env.mem None (source inputs) (Name_var x)) eqn:Hknown.
   - exact (in_scope_in_terms_kept _ _ x Hkeeps Hknown Hscope).
@@ -212,7 +232,7 @@ Theorem known_value_at_use : known_value_at_use_statement.
 Proof.
   intros definitions index valuation valuation' x simples kind simple c
     Hdefinitions Hlookup Hfind Hvalue.
-  rewrite (Hdefinitions x simples kind simple Hlookup Hfind).
+  apply (Hdefinitions x simples kind simple _ Hlookup Hfind).
   destruct simple as [y | s | c']; cbn in Hvalue; try discriminate.
   injection Hvalue as <-. reflexivity.
 Qed.
