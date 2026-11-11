@@ -9,7 +9,8 @@ How to read it and keep it current:
 
 - A stream is owned by the agent working on it, named by the stream
   (`C0`, `V1`, ...). "Unassigned" means no agent has the stream yet; the
-  orchestrator says when one does, and the integrator records it here.
+  orchestrator says when one does, and the integrator records it here,
+  with the stream's branch.
 - A pattern such as `FlambdaNormalise*` covers the files that match it
   now and later, in the directory given.
 - A new file is its creator's. Add it to your own stream's section in the
@@ -33,7 +34,9 @@ Owner: C0. Phase 0 was done as C0, and what it created is C0's.
 - `middle_end/flambda2/rocq/FlambdaWellFormed*`
 - `middle_end/flambda2/rocq/FlambdaMap*` (Phase 0: finite maps and sets
   of names)
-- `middle_end/flambda2/rocq/FlambdaExtract.v`
+- `middle_end/flambda2/rocq/FlambdaExtract.v` (a stream asks for names
+  in its list with a commit of its own: `rocq/HACKING.md`, "Adding a
+  module")
 - `middle_end/flambda2/rocq/OWNERS.md` (Phase 0: its layout; see above)
 - `middle_end/flambda2/rocq/status/phase0.md` (Phase 0)
 - `middle_end/flambda2/tests/semantics/extracted/` (generated; only the
@@ -42,14 +45,16 @@ Owner: C0. Phase 0 was done as C0, and what it created is C0's.
   `middle_end/flambda2/tests/semantics/gen_rules.sh` and
   `middle_end/flambda2/tests/semantics/run/dune` (Phase 0: the rules that
   run the examples; the examples themselves are V2's)
-- `rocq/Makefile`
+- `rocq/Makefile` (a stream asks for lines in its lists in the same way
+  as for `FlambdaExtract.v`)
 - `rocq/HACKING.md`
 - `rocq/review-pdf.pl`
 - the integration branch
 
 Files that exist and that the plan gives to no stream. They are C0's
-until the orchestrator says otherwise; the stream in brackets is the one
-whose subject they are, as a proposal:
+until the stream in brackets, whose subject they are, has an owner; then
+they are that stream's, and the integrator moves the line to its
+section:
 
 - `middle_end/flambda2/rocq/FlambdaControlFlow*` (S3, with S2 for the
   switches)
@@ -62,12 +67,15 @@ whose subject they are, as a proposal:
 
 Each is designed by its owner and applied by C0, one at a time
 (`PARALLEL-PLAN.md`, section 7, "Core change requests"). The owner edits
-its design note and the new files it creates, and lists them here; the
-changes to C0's files are made by C0.
+its design note, under `middle_end/flambda2/rocq/requests/`, and the new
+files it creates, and lists them here; the changes to C0's files are
+made by C0. On its own branch an owner may change C0's files to try the
+design out; that is the request, not the change.
 
-- C1, primitives as data. Owner: unassigned.
-- C2, kinds and well-formed terms. Owner: unassigned.
-- C3, sets of closures. Owner: unassigned.
+- C1, primitives as data. Owner: C1, on `flambda2-rocq/C1-primitives`.
+- C2, kinds and well-formed terms. Owner: C2, on
+  `flambda2-rocq/C2-kinds`.
+- C3, sets of closures. Owner: C3, on `flambda2-rocq/C3-closures`.
 - C4, heap. Owner: unassigned.
 - C5, exceptions. Owner: unassigned.
 
@@ -75,7 +83,7 @@ changes to C0's files are made by C0.
 
 All in `middle_end/flambda2/types/rocq/`, library `OxCamlFlambda2Types`.
 
-- T1, grammar and meaning. Owner: unassigned.
+- T1, grammar and meaning. Owner: T1, on `flambda2-rocq/T1-grammar`.
   - `middle_end/flambda2/types/rocq/FlambdaTypes*` (today's naive model,
     which T1 replaces)
 - T2, typing environment. Owner: unassigned.
@@ -126,22 +134,23 @@ Owner: unassigned.
 Owner: unassigned.
 
 - the conversion from the compiler's terms to the model's. It is in
-  `middle_end/flambda2/tests/tools/flsemantics.ml`, which is V2's, until
-  V3 moves it to a file of its own; until then a change to it is agreed
+  `middle_end/flambda2/tests/tools/flsemantics.ml`, which is V2's. It
+  is moved to a file of its own when V2 and V3 both have owners, and
+  not before; from then until it has moved, a change to it is agreed
   between the two.
 
 ## N1: nominal loose ends
 
-Owner: unassigned. See the files proposed for it under C0.
+Owner: unassigned. See the files kept for it under C0.
 
 ## R1, R2: reviewers
 
-Owner: unassigned. They write no proofs.
+Owner: R1, on `flambda2-rocq/R1-review`. R2 is unassigned. They write
+no proofs.
 
 - `ROCQ-REVIEW-GUIDE.md`
-- `rocq/TRUST-LEDGER.md` (Phase 0 wrote the first version, and C0 keeps
-  it until a reviewer has the stream; no stream may add to it without a
-  reviewer's sign-off)
+- `rocq/TRUST-LEDGER.md` (Phase 0 wrote the first version; no stream
+  may add to it without a reviewer's sign-off)
 
 ## The human
 
