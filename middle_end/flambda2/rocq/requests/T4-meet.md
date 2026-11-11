@@ -45,7 +45,11 @@ the compiler the meet proper calls the join at two places only,
 A contract is a proposition about a function of the type that the
 compiler's function has (`meet_function`, `add_equation_function`,
 `meet_expanded_head`, `join_scoped_envs`). `None` is a fatal error of
-the compiler, or a meet that ran out of fuel. What is to be proved of
+the compiler, or a meet that ran out of fuel, or, at one place of the
+transcribed functions, a state at which the model stops and the
+compiler goes on (T4-10, section 12): there the compiler answers and
+the model does not, whatever the fuel and whatever the choices of
+section 11. What is to be proved of
 the transcribed meet is `transcription_sound meet_to_prove`: for every
 join that has `join_scoped_envs_sound` and every fuel, `meet_contract`.
 It is not proved yet, and is not among the statements of the file.
@@ -305,16 +309,23 @@ bottom. A premise that the valuation gives every known variable a
 value cannot be supplied after a join that imports from a subset. So
 J1 stays strict, as the hypothesis under which the meet is to be
 proved; T5 states the three conditions on a run under which the
-compiler's join has it (`scrutinees_have_values`,
-`joined_variables_have_values`, `imported_variables_have_values`, in
-`FlambdaJoinSpec.v`). The instance of the meet for the compiler's own
-join is owed, and its obligation is not discharged: that every join
-that a meet makes is made on runs that have the three conditions.
-They are hypotheses of that instance wherever the meet is not shown
-to establish them, with a `CR mshinwell`: nothing in the compiler is
-known to establish the first and the third, and X2 has an OCaml
-program on which the first fails and the code compiled with the n-way
-join answers a wrong number.
+compiler's join has what J1 says of the environment
+(`scrutinees_have_values`, `joined_variables_have_values`,
+`imported_variables_have_values`, in `FlambdaJoinSpec.v`). What J1
+says of equations (`keeps_equations_valued`) needs a fourth: every
+variable that has an equation in the level that the join adds has a
+value at the use that the run goes through. The compiler's join gives
+an equation to a variable that it makes for the simples of a type at
+the uses, and to one that it brings in from some of the uses, and
+either may have no value on a run through another use (T5-5). T5
+states the fourth with the three. The instance of the meet for the
+compiler's own join is owed, and its obligation is not discharged:
+that every join that a meet makes is made on runs that have the four
+conditions. They are hypotheses of that instance wherever the meet is
+not shown to establish them, with a `CR mshinwell`: nothing in the
+compiler is known to establish the first, the third and the fourth,
+and X2 has an OCaml program on which the first fails and the code
+compiled with the n-way join answers a wrong number.
 
 Physical equality in the join: X3's audit finds four uses that change a
 result, all in the join. The behaviour to assume of the parameter is
@@ -492,9 +503,14 @@ function what the model has and every difference.
   `kind_of_simple`; for C0, `fold2_on`, `keys_of_both` and
   `merge_fold_on` (the forms agreed with C0, which take the equality
   first).
-- The functions extract. For the differential tests (T7): the
-  compiler is `Meet.meet join compiler_choices fuel`, with the join
-  read as the compiler under `-flambda2-join-sharing structural`.
+- The functions extract. For the differential tests (T7): what is
+  compared with the compiler is `Meet.meet join compiler_choices
+  fuel`, with the join read as the compiler under
+  `-flambda2-join-sharing structural`. It is the compiler's algorithm
+  but for the `None` of T4-10, which no choice governs: on an input
+  that reaches it the compiler answers and this function does not, and
+  the comparison is to account for such an input (and for the order of
+  the maps, above).
 
 ## 12. Discrepancies recorded
 
@@ -536,7 +552,20 @@ The entries of this stream:
   again after its join. The transcription has the compiler's
   behaviour and the other as a choice
   (`lift_variables_of_single_case`); the contract is to be proved of
-  the meet that lifts.
+  the meet that lifts. X2 reproduced it on the compiler's own library
+  of types (the variable must occur twice in the type answered).
+- T4-10: `add_concrete_equation_on_canonical_name` is given a
+  canonical name, meets the type to add with the type of the name,
+  and gives the name the type answered, taking the name to be
+  canonical still. The meet in between can have made the name an
+  alias of an earlier one, if the types met lead back to the name.
+  Where the type answered has one constant for only value the
+  compiler then calls `Typing_env.add_alias` on a name that is not
+  canonical, which `Aliases.add` forbids and does not check. The
+  model answers `None` there (a `CR mshinwell` at the test,
+  `replace_concrete_equation` in `FlambdaMeetEnv.v`); it is not shown
+  that no input reaches it. Candidate; whether an environment that
+  Simplify builds can reach it is not known.
 
 ## 13. The questions of the first request, as answered
 
