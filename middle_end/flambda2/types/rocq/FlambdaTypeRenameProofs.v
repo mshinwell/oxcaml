@@ -1984,3 +1984,136 @@ Proof.
         as [_ [_ [_ [_ [_ [_ Hextension]]]]]].
       exact (Hextension extension extension').
 Qed.
+
+(* ======================================================================== *)
+(* The names of the equations of a renamed type                             *)
+(* ======================================================================== *)
+
+Section Renamed_equation_names.
+
+Variable r : renaming.
+
+Let rename_equation (equation : name * flambda_kind) : name * flambda_kind :=
+  (rename_name r (fst equation), snd equation).
+
+Let type_renamed (t : flambda_type) : Prop :=
+  equation_names_with_kinds (rename_type r t)
+  = map rename_equation (equation_names_with_kinds t).
+
+Let extension_renamed (extension : env_extension) : Prop :=
+  equation_names_of_env_extension (rename_env_extension r extension)
+  = map rename_equation (equation_names_of_env_extension extension).
+
+Lemma equation_names_of_block_case_renamed (case : row_like_block_case) :
+  P_block_case type_renamed extension_renamed case ->
+  equation_names_of_block_case equation_names_with_kinds
+    equation_names_of_env_extension
+    (rename_block_case (rename_type r) (rename_env_extension r) case)
+  = map rename_equation
+      (equation_names_of_block_case equation_names_with_kinds
+         equation_names_of_env_extension case).
+Proof.
+  destruct case as [maps_to index extension].
+  unfold rename_block_case, equation_names_of_block_case. simpl.
+  intros [Htypes Hextension]. simpl in Htypes, Hextension.
+  rewrite map_app, flat_map_map', map_flat_map', Hextension. f_equal.
+  apply flat_map_ext_in'. exact Htypes.
+Qed.
+
+Lemma equation_names_renamed_all :
+  (∀ t : flambda_type, type_renamed t)
+  ∧ (∀ head : head_of_kind_value,
+      equation_names_of_head_of_kind_value
+        (rename_head_of_kind_value r head)
+      = map rename_equation (equation_names_of_head_of_kind_value head))
+  ∧ (∀ head : head_of_kind_value_non_null,
+      equation_names_of_head_of_kind_value_non_null
+        (rename_head_of_kind_value_non_null r head)
+      = map rename_equation
+          (equation_names_of_head_of_kind_value_non_null head))
+  ∧ (∀ blocks : row_like_for_blocks,
+      equation_names_of_row_like_for_blocks
+        (rename_row_like_for_blocks r blocks)
+      = map rename_equation (equation_names_of_row_like_for_blocks blocks))
+  ∧ (∀ closures : row_like_for_closures,
+      equation_names_of_row_like_for_closures
+        (rename_row_like_for_closures r closures)
+      = map rename_equation
+          (equation_names_of_row_like_for_closures closures))
+  ∧ (∀ entry : closures_entry,
+      equation_names_of_closures_entry (rename_closures_entry r entry)
+      = map rename_equation (equation_names_of_closures_entry entry))
+  ∧ (∀ extension : env_extension, extension_renamed extension).
+Proof.
+  apply types_induction.
+  - (* Type_value *)
+    intros ty Hhead. unfold type_renamed.
+    destruct ty as [ | [head | s] | ]; simpl; try reflexivity.
+    exact Hhead.
+  - intros ty. unfold type_renamed. reflexivity.
+  - intros k ty. unfold type_renamed. reflexivity.
+  - intros ty. unfold type_renamed. reflexivity.
+  - intros ty. unfold type_renamed. reflexivity.
+  - (* Head_of_kind_value *)
+    intros non_null is_null Hnon_null.
+    destruct non_null as [ | head | ]; simpl; try reflexivity.
+    exact Hnon_null.
+  - (* Variant *)
+    intros is_int immediates get_tag blocks extensions is_unique Himmediates
+      Hblocks Hextensions.
+    destruct extensions as [ | when_immediate when_block].
+    + destruct immediates as [ty | ], blocks as [row | ]; simpl;
+        rewrite ?map_app, ?Himmediates, ?Hblocks;
+        reflexivity.
+    + destruct Hextensions as [Himmediate Hblock].
+      destruct immediates as [ty | ], blocks as [row | ]; simpl;
+        rewrite ?map_app, ?Himmediates, ?Hblocks, Himmediate, Hblock;
+        reflexivity.
+  - (* Mutable_block *)
+    reflexivity.
+  - (* Boxed_number *)
+    intros k contents alloc_mode Hcontents. exact Hcontents.
+  - (* Closures *)
+    intros by_function_slot alloc_mode Hclosures. exact Hclosures.
+  - (* String *)
+    reflexivity.
+  - (* Row_like_for_blocks *)
+    intros known_tags other_tags alloc_mode Hknown Hother. simpl.
+    unfold Keyed.map_values.
+    rewrite map_app, flat_map_map', map_flat_map'. f_equal.
+    + apply flat_map_ext_in'. intros [tag [case | ]] Hin; simpl;
+        [ | reflexivity ].
+      exact (equation_names_of_block_case_renamed case (Hknown tag case Hin)).
+    + destruct other_tags as [case | ]; simpl; [ | reflexivity ].
+      exact (equation_names_of_block_case_renamed case Hother).
+  - (* Row_like_for_closures *)
+    intros known_closures Hknown. simpl. unfold map_values.
+    rewrite flat_map_map', map_flat_map'. apply flat_map_ext_in'.
+    intros [slot [entry index extension]] Hin.
+    destruct (Hknown slot _ Hin) as [Hentry Hextension].
+    simpl in Hentry, Hextension. simpl.
+    rewrite map_app, Hentry, Hextension. reflexivity.
+  - (* Closures_entry *)
+    intros function_types closure_types value_slot_types Hclosures Hslots.
+    simpl. unfold map_values.
+    rewrite !flat_map_map', map_app, !map_flat_map'. f_equal;
+      apply flat_map_ext_in'; intros [slot ty] Hin; simpl;
+      [ exact (Hclosures slot ty Hin) | exact (Hslots slot ty Hin) ].
+  - (* Env_extension *)
+    intros equations Htypes. unfold extension_renamed. simpl.
+    rewrite flat_map_map', map_flat_map'. apply flat_map_ext_in'.
+    intros [n ty] Hin. simpl.
+    rewrite (Htypes n ty Hin), kind_rename_type. reflexivity.
+Qed.
+
+End Renamed_equation_names.
+
+Theorem equation_names_rename_type : equation_names_rename_type_statement.
+Proof.
+  split.
+  - intros r t. exact (proj1 (equation_names_renamed_all r) t).
+  - intros r extension.
+    destruct (equation_names_renamed_all r)
+      as [_ [_ [_ [_ [_ [_ Hextension]]]]]].
+    exact (Hextension extension).
+Qed.

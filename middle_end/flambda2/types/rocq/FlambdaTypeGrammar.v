@@ -911,7 +911,8 @@ with free_variables_of_env_extension (extension : env_extension)
    Not listed, though each is a name at a kind: the names of which a
    naked immediate is the result of a relation, which are of kind value,
    and the names that an environment extension has an equation on, each
-   of the kind of its type.
+   of the kind of its type ([equation_names_with_kinds], at the end of
+   this file, lists those).
 
    A type says at which kind each of these stands and not that it is of
    that kind: nothing here, nor in the compiler, checks one against the
@@ -1196,3 +1197,121 @@ Definition set_of_closures_contents_inter
        (contents_closures contents'))
     (Keyed.inter Pos.eqb (contents_value_slots contents)
        (contents_value_slots contents')).
+
+(* ======================================================================== *)
+(* The names of equations, with their kinds                                 *)
+(* ======================================================================== *)
+
+(* The names that have an equation in an environment extension inside a
+   type, at any depth, each with the kind of the type of its equation.
+   They are what [aliases_with_kinds] leaves out of an extension: with
+   them, a type says at which kind each name of its equations stands.
+   The recursion is that of [free_variables]. A pair may be listed more
+   than once, and the pairs of a binding of a map that is shadowed are
+   listed too. The compiler has no such function; meet needs it to say
+   that adding the extension of a case to an environment keeps the
+   kinds of the environment. *)
+
+(* The two arguments stand for the functions being defined below. *)
+Definition equation_names_of_block_case
+    (equation_names_with_kinds : flambda_type -> list (name * flambda_kind))
+    (equation_names_of_env_extension
+      : env_extension -> list (name * flambda_kind))
+    (case : row_like_block_case) : list (name * flambda_kind) :=
+  flat_map equation_names_with_kinds (case_maps_to case)
+  ++ equation_names_of_env_extension (case_env_extension case).
+
+Fixpoint equation_names_with_kinds (t : flambda_type)
+    : list (name * flambda_kind) :=
+  match t with
+  | Type_value (Ok (No_alias head)) =>
+    equation_names_of_head_of_kind_value head
+  | Type_value _ | Type_naked_immediate _ | Type_naked_number _ _
+  | Type_rec_info _ | Type_region _ => []
+  end
+
+with equation_names_of_head_of_kind_value (head : head_of_kind_value)
+    : list (name * flambda_kind) :=
+  match head with
+  | Head_of_kind_value (Ok head) _ =>
+    equation_names_of_head_of_kind_value_non_null head
+  | Head_of_kind_value _ _ => []
+  end
+
+with equation_names_of_head_of_kind_value_non_null
+    (head : head_of_kind_value_non_null) : list (name * flambda_kind) :=
+  match head with
+  | Variant _ immediates _ blocks extensions _ =>
+    match immediates with
+    | Or_unknown.Known ty => equation_names_with_kinds ty
+    | Or_unknown.Unknown => []
+    end
+    ++ match blocks with
+       | Or_unknown.Known blocks =>
+         equation_names_of_row_like_for_blocks blocks
+       | Or_unknown.Unknown => []
+       end
+    ++ match extensions with
+       | No_extensions => []
+       | Ext when_immediate when_block =>
+         equation_names_of_env_extension when_immediate
+         ++ equation_names_of_env_extension when_block
+       end
+  | Mutable_block _ | String _ => []
+  | Boxed_number _ contents _ => equation_names_with_kinds contents
+  | Closures by_function_slot _ =>
+    equation_names_of_row_like_for_closures by_function_slot
+  end
+
+with equation_names_of_row_like_for_blocks (blocks : row_like_for_blocks)
+    : list (name * flambda_kind) :=
+  match blocks with
+  | Row_like_for_blocks known_tags other_tags _ =>
+    flat_map
+      (fun case =>
+         match snd case with
+         | Or_unknown.Known case =>
+           equation_names_of_block_case equation_names_with_kinds
+             equation_names_of_env_extension case
+         | Or_unknown.Unknown => []
+         end)
+      known_tags
+    ++ match other_tags with
+       | Or_bottom.Ok case =>
+         equation_names_of_block_case equation_names_with_kinds
+           equation_names_of_env_extension case
+       | Or_bottom.Bottom => []
+       end
+  end
+
+with equation_names_of_row_like_for_closures
+    (closures : row_like_for_closures) : list (name * flambda_kind) :=
+  match closures with
+  | Row_like_for_closures known_closures =>
+    flat_map
+      (fun case =>
+         equation_names_of_closures_entry (case_maps_to (snd case))
+         ++ equation_names_of_env_extension (case_env_extension (snd case)))
+      known_closures
+  end
+
+with equation_names_of_closures_entry (entry : closures_entry)
+    : list (name * flambda_kind) :=
+  match entry with
+  | Closures_entry _ closure_types value_slot_types =>
+    flat_map (fun binding => equation_names_with_kinds (snd binding))
+      closure_types
+    ++ flat_map (fun binding => equation_names_with_kinds (snd binding))
+         value_slot_types
+  end
+
+with equation_names_of_env_extension (extension : env_extension)
+    : list (name * flambda_kind) :=
+  match extension with
+  | Env_extension equations =>
+    flat_map
+      (fun binding =>
+         (fst binding, kind (snd binding))
+         :: equation_names_with_kinds (snd binding))
+      equations
+  end.

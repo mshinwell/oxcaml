@@ -134,3 +134,31 @@ Proof.
   intros slot function_types closure_types value_slot_types alloc_mode.
   split; simpl; rewrite !app_nil_r; reflexivity.
 Qed.
+
+(* ======================================================================== *)
+(* The names of equations, with their kinds                                 *)
+(* ======================================================================== *)
+
+Theorem equation_names_none : equation_names_none_statement.
+Proof.
+  split; [ intros [ | [] | | ]; reflexivity | ].
+  split; [ intros [ | [] | | ]; reflexivity | ].
+  split; [ intros [ | [] | | ] s; reflexivity | ].
+  intros c. destruct c as [ | | | | | | | | | | | | | | k];
+    try reflexivity.
+  destruct k as [ | [] | | ]; reflexivity.
+Qed.
+
+Theorem equation_names_of_equations
+  : equation_names_of_equations_statement.
+Proof.
+  intros equations n ty Hin. simpl. split.
+  - apply in_flat_map. exists (n, ty). split; [ exact Hin | ].
+    left. reflexivity.
+  - intros equation Hequation. apply in_flat_map. exists (n, ty).
+    split; [ exact Hin | ]. right. exact Hequation.
+Qed.
+
+Theorem equation_names_create_variant
+  : equation_names_create_variant_statement.
+Proof. intros is_unique immediates blocks extensions. reflexivity. Qed.

@@ -37,6 +37,10 @@
    formed: a type made by a creation function has the aliases of the
    types it is made of, and no other but its own.
 
+   The last section says the same of [equation_names_with_kinds], the
+   names that have an equation in an extension inside a type, with the
+   kinds of their equations.
+
    Each statement holds by computation. The proofs are in
    FlambdaTypeAliasKindsProofs.v, which needs no review. *)
 
@@ -168,3 +172,51 @@ Definition aliases_with_kinds_this_closure_statement : Prop :=
            value_slot_types alloc_mode)
       = aliases_of_closures_entry
           (Closures_entry function_types closure_types value_slot_types).
+
+(* ======================================================================== *)
+(* The names of equations, with their kinds                                 *)
+(* ======================================================================== *)
+
+(* The types that hold no extension have none. *)
+Definition equation_names_none_statement : Prop :=
+  (∀ k : flambda_kind, equation_names_with_kinds (unknown k) = [])
+  ∧ (∀ k : flambda_kind, equation_names_with_kinds (bottom k) = [])
+  ∧ (∀ (k : flambda_kind) (s : simple),
+      equation_names_with_kinds (alias_type_of k s) = [])
+  ∧ (∀ c : const, equation_names_with_kinds (type_for_const c) = []).
+
+(* An extension has the name of each of its equations, at the kind of
+   the type of the equation, and the names of the equations inside
+   that type. *)
+Definition equation_names_of_equations_statement : Prop :=
+  ∀ (equations : Keyed.finite_map name flambda_type) (n : name)
+    (ty : flambda_type),
+    (n, ty) ∈ equations ->
+    (n, kind ty) ∈ equation_names_of_env_extension (Env_extension equations)
+    ∧ ∀ equation : name * flambda_kind,
+        equation ∈ equation_names_with_kinds ty ->
+        equation ∈ equation_names_of_env_extension (Env_extension equations).
+
+(* A variant has those of its immediates, of its blocks and of its two
+   extensions. *)
+Definition equation_names_create_variant_statement : Prop :=
+  ∀ (is_unique : bool) (immediates : Or_unknown.t flambda_type)
+    (blocks : Or_unknown.t row_like_for_blocks)
+    (extensions : variant_extensions),
+    equation_names_with_kinds
+      (create_variant is_unique immediates blocks extensions)
+    = match immediates with
+      | Or_unknown.Known ty => equation_names_with_kinds ty
+      | Or_unknown.Unknown => []
+      end
+      ++ match blocks with
+         | Or_unknown.Known blocks =>
+           equation_names_of_row_like_for_blocks blocks
+         | Or_unknown.Unknown => []
+         end
+      ++ match extensions with
+         | No_extensions => []
+         | Ext when_immediate when_block =>
+           equation_names_of_env_extension when_immediate
+           ++ equation_names_of_env_extension when_block
+         end.

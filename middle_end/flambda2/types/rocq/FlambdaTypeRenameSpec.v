@@ -526,3 +526,18 @@ Definition type_eqb_rename_statement : Prop :=
       env_extension_eqb (rename_env_extension r extension)
         (rename_env_extension r extension')
       = env_extension_eqb extension extension').
+
+(* ======================================================================== *)
+(* The names of the equations of a renamed type                             *)
+(* ======================================================================== *)
+
+(* They are those of the type, renamed, at the same kinds. *)
+Definition equation_names_rename_type_statement : Prop :=
+  (∀ (r : renaming) (t : flambda_type),
+    equation_names_with_kinds (rename_type r t)
+    = map (fun equation => (rename_name r (fst equation), snd equation))
+        (equation_names_with_kinds t))
+  ∧ (∀ (r : renaming) (extension : env_extension),
+      equation_names_of_env_extension (rename_env_extension r extension)
+      = map (fun equation => (rename_name r (fst equation), snd equation))
+          (equation_names_of_env_extension extension)).
