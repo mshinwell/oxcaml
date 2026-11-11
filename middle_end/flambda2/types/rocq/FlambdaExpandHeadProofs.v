@@ -39,6 +39,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaBindingTime FlambdaEnvAliases FlambdaEnvAliasesSpec
   FlambdaEnvAliasesProofs FlambdaTypingEnv FlambdaTypingEnvSpec
   FlambdaTypingEnvProofs FlambdaTypingEnvInvariantSpec
+  FlambdaTypingEnvKindedSpec
   FlambdaTypingEnvInvariantProofs FlambdaMeetGrammar FlambdaExpandHead
   FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec FlambdaExpandHeadSpec.
 Import ListNotations.

@@ -219,7 +219,13 @@
      kinds: where they are wrong it stops with a fatal error
      ([Typing_env.find] with a kind, [Meet_env.add_equation]). The
      join that it calls does (below), so meet has to be given them and
-     to give them back. There is a CR at [type_kinded].
+     to give them back. There is a CR at [type_kinded]. With it goes a
+     condition on the environment: two simples that it knows to be
+     equal are of one kind ([aliases_kinded],
+     FlambdaTypingEnvKindedSpec.v, with its own CR). A meet that makes
+     a name an alias of another writes on it an alias type of the kind
+     of the name, and that type is kinded only if the other is of that
+     kind.
    - The environment is well formed: it has the invariant of typing
      environments ([typing_env_invariant],
      FlambdaTypingEnvInvariantSpec.v): binding times, levels and
@@ -464,8 +470,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
   FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
-  FlambdaTypingEnvInvariantSpec FlambdaMeetGrammar FlambdaExpandHead
-  FlambdaMeetEnv FlambdaMeet.
+  FlambdaTypingEnvInvariantSpec FlambdaTypingEnvKindedSpec
+  FlambdaMeetGrammar FlambdaExpandHead FlambdaMeetEnv FlambdaMeet.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -554,19 +560,10 @@ Definition join_scoped_envs : Type :=
 (* Kinds                                                                    *)
 (* ======================================================================== *)
 
-(* A [Simple] is of a kind in an environment: the constant is of that
-   kind, or the environment has a type of that kind for the name. *)
-Definition simple_of_kind (tenv : Typing_env.t) (simple : simple)
-    (kind : flambda_kind) : Prop :=
-  match simple with
-  | Const c => FlambdaTypeGrammar.kind (type_for_const c) = kind
-  | Var x =>
-    ∃ ty : flambda_type,
-      Typing_env.find tenv (Name_var x) (Some kind) = Some ty
-  | Symbol s =>
-    ∃ ty : flambda_type,
-      Typing_env.find tenv (Name_symbol s) (Some kind) = Some ty
-  end.
+(* That a [Simple] is of a kind in an environment ([simple_of_kind]),
+   and that two [Simple]s that an environment knows to be equal are of
+   one kind ([aliases_kinded]), are the typing environment's
+   (FlambdaTypingEnvKindedSpec.v). *)
 
 (* A type is kinded in an environment: each of its aliases is at the
    kind that the environment has for its target, and its relation
@@ -649,10 +646,12 @@ Definition type_fits (tenv : Typing_env.t) (t : flambda_type) : Prop :=
 
 (* An environment in which a meet may be made: it has the invariant of
    typing environments, no name has an obviously bottom type in it
-   unless it is bottom, and each of its types fits it. *)
+   unless it is bottom, two simples that it knows to be equal are of
+   one kind, and each of its types fits it. *)
 Definition typing_env_fits (tenv : Typing_env.t) : Prop :=
   typing_env_invariant tenv
   ∧ no_bottom_types tenv
+  ∧ aliases_kinded tenv
   ∧ ∀ (n : name) (ty : flambda_type)
       (binding_time_and_mode : Binding_time.With_name_mode.t),
       Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)

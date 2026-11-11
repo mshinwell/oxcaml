@@ -73,8 +73,9 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
   FlambdaEnvAliasesSpec FlambdaTypingEnv FlambdaTypingEnvSpec
-  FlambdaTypingEnvInvariantSpec FlambdaMeetGrammar FlambdaExpandHead
-  FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec.
+  FlambdaTypingEnvInvariantSpec FlambdaTypingEnvKindedSpec
+  FlambdaMeetGrammar FlambdaExpandHead FlambdaMeetEnv FlambdaMeet
+  FlambdaMeetSpec.
 Import ListNotations.
 
 (* The kind of a head of an expanded type. *)
@@ -87,26 +88,11 @@ Definition head_kind (head : Expanded_type.head) : flambda_kind :=
   | Expanded_type.Head_region _ => Region
   end.
 
-(* Where the canonical element of a [Simple] of some kind is a
-   constant, the constant is of that kind. The canonical element is
-   the one that [expand_head] asks for, of a name mode that may be
-   that of the variables that exist only in types. *)
-(* CR mshinwell: this is a premise about kinds, on which the model may
-   not ask more than the compiler (decisions D10, D12 and D32). The
-   compiler does not check it: [Typing_env.add_alias] and
-   [Aliases.add] do not look at kinds, and
-   [Meet_env.add_concrete_equation_on_const] meets the type of the
-   constant with the type given, which is a fatal error if the kinds
-   differ, only when a name is made an alias of a constant by a meet.
-   Whether ill-kinded code can make a name of one kind an alias of a
-   constant of another is not known. It belongs with the invariant of
-   an environment. *)
-Definition constants_of_kind (tenv : Typing_env.t) : Prop :=
-  ∀ (s : simple) (kind : flambda_kind) (c : const),
-    simple_of_kind tenv s kind ->
-    Typing_env.get_canonical_simple_exn tenv (Some Name_mode.in_types) None s
-    = Some (Some (Const c)) ->
-    FlambdaTypeGrammar.kind (type_for_const c) = kind.
+(* That a constant which is the canonical element of a [Simple] of
+   some kind is of that kind is [constants_of_kind], of
+   FlambdaTypingEnvKindedSpec.v. It follows from the condition that
+   two [Simple]s known to be equal are of one kind
+   ([aliases_kinded_constants_of_kind_statement] there). *)
 
 (* Values are kept. *)
 Definition expand_head_sound_statement : Prop :=
