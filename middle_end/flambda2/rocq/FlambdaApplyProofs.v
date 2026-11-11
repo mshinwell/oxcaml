@@ -210,9 +210,12 @@ Qed.
 Theorem inline_let_code : inline_let_code_statement.
 Proof.
   intros ap called c r Hkind Hinlinable vars conts statics.
-  eapply refines_step; [ reflexivity | reflexivity | ].
-  apply (inline ap called c r); [ exact Hkind | | exact Hinlinable ].
-  simpl. rewrite Pos.eqb_refl. reflexivity.
+  destruct (lookup called (static_code statics)) as [bound | ] eqn:Hbound.
+  - apply goes_wrong_refines, (step_behaves _ Goes_wrong). simpl.
+    rewrite Hbound. reflexivity.
+  - eapply refines_step; [ simpl; rewrite Hbound; reflexivity .. | ].
+    apply (inline ap called c r); [ exact Hkind | | exact Hinlinable ].
+    simpl. rewrite Pos.eqb_refl. reflexivity.
 Qed.
 
 (* Swap the return continuation with the call's, then what the exception

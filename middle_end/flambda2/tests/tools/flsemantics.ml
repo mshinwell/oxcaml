@@ -57,12 +57,13 @@ module Compare = Flambda2_rocq_semantics.FlambdaCompareSpec
 module Normalise = Flambda2_rocq_semantics.FlambdaNormaliseSpec
 module Aliases = Flambda2_rocq_semantics.FlambdaAliasesSpec
 module Unused_statics = Flambda2_rocq_semantics.FlambdaUnusedStaticsSpec
+module Well_formed = Flambda2_rocq_semantics.FlambdaWellFormedSpec
 module Numbers = Flambda2_rocq_semantics.BinNums
 module P = Flambda_primitive
 
-exception Unsupported of string
+exception Unsupported of (Format.formatter -> unit)
 
-let unsupported fmt = Format.kasprintf (fun msg -> raise (Unsupported msg)) fmt
+let unsupported fmt = Format.kdprintf (fun msg -> raise (Unsupported msg)) fmt
 
 (* ---- Numbers ---------------------------------------------------------- *)
 
@@ -877,10 +878,34 @@ let convert_both (before : Flambda_unit.t) (after : Flambda_unit.t) =
     !newer_versions;
   before_converted, convert_unit after
 
+(* Static bindings at toplevel only, each name bound once
+   (FlambdaWellFormedSpec.v). *)
+let well_formed (unit : converted) =
+  Well_formed.well_formed_unit unit.exn_continuation unit.body
+
+(* The term before is checked before Simplify sees it, which is entitled to fail
+   on one that is not well-formed. *)
+let well_formed_before ~filename (before : Flambda_unit.t) =
+  match convert_unit before with
+  | exception Unsupported _ -> true
+  | before ->
+    let ok = well_formed before in
+    if not ok
+    then
+      Format.printf
+        "%s: not checked: the term is not well-formed (a static binding that \
+         is not at toplevel, or a name bound twice)@."
+        filename;
+    ok
+
 let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
   match convert_both before after with
   | exception Unsupported what ->
-    Format.printf "%s: not checked: the model has not got %s@." filename what
+    Format.printf "%s: not checked: the model has not got %s@." filename
+      (Format.asprintf "%t" what)
+  | _, after when not (well_formed after) ->
+    Format.printf "%s: the term after Simplify is NOT WELL-FORMED@." filename;
+    exit 1
   | before, after ->
     let outcome_before, steps_before = run before in
     let outcome_after, steps_after = run after in
@@ -996,16 +1021,19 @@ let check_file filename =
     let comp_unit = Unit_info.modname unit_info in
     Env.set_current_unit unit_info;
     let fl2 = Fexpr_to_flambda.conv comp_unit unit in
-    let null_formatter =
-      Format.make_formatter (fun _ _ _ -> ()) (fun () -> ())
-    in
-    let result =
-      Flambda2.flambda_to_flambda ~ppf_dump:null_formatter
-        ~prefixname:(Filename.chop_extension filename)
-        ~machine_width:Sixty_four ~code_slot_offsets:fl2.code_slot_offsets
-        fl2.unit
-    in
-    check ~filename:(Filename.basename filename) fl2.unit result.flambda
+    let filename_shown = Filename.basename filename in
+    if well_formed_before ~filename:filename_shown fl2.unit
+    then
+      let null_formatter =
+        Format.make_formatter (fun _ _ _ -> ()) (fun () -> ())
+      in
+      let result =
+        Flambda2.flambda_to_flambda ~ppf_dump:null_formatter
+          ~prefixname:(Filename.chop_extension filename)
+          ~machine_width:Sixty_four ~code_slot_offsets:fl2.code_slot_offsets
+          fl2.unit
+      in
+      check ~filename:filename_shown fl2.unit result.flambda
 
 module Options = Oxcaml_args.Make_optcomp_options (Oxcaml_args.Default.Optmain)
 

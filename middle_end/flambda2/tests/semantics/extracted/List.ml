@@ -1,3 +1,5 @@
+open Datatypes
+
 (** val list_eq_dec : ('a1 -> 'a1 -> bool) -> 'a1 list -> 'a1 list -> bool **)
 
 let rec list_eq_dec eq_dec l l' =
@@ -7,6 +9,10 @@ let rec list_eq_dec eq_dec l l' =
     match l' with
     | [] -> false
     | a0 :: l1 -> if eq_dec a a0 then list_eq_dec eq_dec l0 l1 else false)
+
+(** val flat_map : ('a1 -> 'a2 list) -> 'a1 list -> 'a2 list **)
+
+let rec flat_map f = function [] -> [] | x :: l0 -> app (f x) (flat_map f l0)
 
 (** val fold_right : ('a2 -> 'a1 -> 'a1) -> 'a1 -> 'a2 list -> 'a1 **)
 

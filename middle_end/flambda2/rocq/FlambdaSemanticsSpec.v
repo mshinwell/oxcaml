@@ -47,22 +47,13 @@
    from. So a group of bindings may be recursive, and static data cyclic.
    A [Let_static] is executed where it stands; nothing lifts it.
 
-   CR mshinwell: Flambda does not permit a [Let] with the bound pattern
-   [Static] anywhere but at the toplevel of a compilation unit, and this
-   model does: it gives a meaning to a [Let_static] in the body of code
-   or in the handler of a recursive continuation, which no Flambda term
-   has. Toplevel is as Simplify decides it
-   (simplify/simplify_let_cont_expr.ml, at_unit_toplevel): the body of the
-   unit; the body of a [Let] or of a [Let_cont] that is at toplevel; and
-   the handler of a non-recursive continuation, not an exception handler,
-   bound at toplevel, whose body can only return through that
-   continuation and only raise to the exception continuation of the unit,
-   so that the handler postdominates the body. Nothing under a function
-   is. The model needs that as a well-formedness condition on terms.
-   Under it a static binding is executed at most once in a run of a unit,
-   so what a symbol or a code id is bound to never changes once bound,
-   and what is known of the static environment where a handler or a
-   piece of code is defined still holds where it runs.
+   Flambda permits a [Let_static] at the toplevel of a compilation unit
+   only: FlambdaWellFormedSpec.v has the condition. The machine has no
+   notion of where a term stands, so it does not enforce the condition as
+   such. It makes undefined what the condition is there to prevent,
+   binding a code id or a symbol that is bound already; what a name is
+   bound to then never changes in a run, and what is known of the static
+   environment where a handler is defined still holds where it runs.
 
    A continuation with no binding stands for a way out of the term: the
    return or exception continuation of the enclosing unit. Applying one
@@ -251,21 +242,31 @@ Definition eval_static_const (vars : env) (const : static_const)
   end.
 
 (* The static environment with a group of bindings added. Deleted code is
-   not bound. *)
+   not bound. A code id or a symbol is bound once: binding one that is
+   bound already, by this group or by an earlier one, is undefined. So
+   what a name is bound to never changes (FlambdaWellFormedSpec.v). *)
 Fixpoint eval_static_bindings (vars : env) (bindings : list static_binding)
     (statics : static_env) : option static_env :=
   match bindings with
   | [] => Some statics
   | Bind_code id c :: bindings =>
-    eval_static_bindings vars bindings
-      (Static_env ((id, c) :: static_code statics) (static_values statics))
+    match lookup id (static_code statics) with
+    | Some _ => None
+    | None =>
+      eval_static_bindings vars bindings
+        (Static_env ((id, c) :: static_code statics) (static_values statics))
+    end
   | Bind_deleted_code _ :: bindings =>
     eval_static_bindings vars bindings statics
   | Bind_symbol s const :: bindings =>
-    let* allocated := eval_static_const vars const in
-    eval_static_bindings vars bindings
-      (Static_env (static_code statics)
-         ((s, allocated) :: static_values statics))
+    match lookup s (static_values statics) with
+    | Some _ => None
+    | None =>
+      let* allocated := eval_static_const vars const in
+      eval_static_bindings vars bindings
+        (Static_env (static_code statics)
+           ((s, allocated) :: static_values statics))
+    end
   end.
 
 (* Binds parameters to arguments; there must be as many of each. *)

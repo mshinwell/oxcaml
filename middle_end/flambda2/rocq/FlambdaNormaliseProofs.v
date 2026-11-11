@@ -31,6 +31,7 @@
 From Stdlib Require Import ZArith List Bool Arith.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
+  FlambdaWellFormedSpec
   FlambdaSemanticsProofs FlambdaNominalSpec FlambdaNominalProofs
   FlambdaControlFlowSpec FlambdaControlFlowProofs FlambdaContextSpec
   FlambdaContextProofs FlambdaApplySpec FlambdaApplyProofs
@@ -301,10 +302,12 @@ Proof.
     intros known statics extended Hknow; simpl.
   - intros [= <-]. exact Hknow.
   - destruct binding as [id c | id | sym const].
-    + apply IH. intros id' c'. simpl.
+    + destruct (lookup id (static_code statics)); [ discriminate | ].
+      apply IH. intros id' c'. simpl.
       destruct (Pos.eqb id' id); [ auto | apply Hknow ].
     + apply IH, Hknow.
-    + destruct (eval_static_const vars const) as [allocated | ]; simpl;
+    + destruct (lookup sym (static_values statics)); [ discriminate | ].
+      destruct (eval_static_const vars const) as [allocated | ]; simpl;
         [ | discriminate ].
       apply IH. exact Hknow.
 Qed.
@@ -324,37 +327,90 @@ Proof.
     (Hknow called c Hlookup) (inlinable_b_sound ap c Hinlinable)).
 Qed.
 
-(* Down the bodies, with the static environment binding what is known. *)
-Lemma inline_calls_refines_knowing (e : expr) :
+Lemma statics_know_extend (known : list (code_id * code))
+    (statics statics' : static_env) :
+  statics_know known statics -> statics_extend statics statics' ->
+  statics_know known statics'.
+Proof. intros Hknow [Hcode _] id c Hid. apply Hcode, Hknow, Hid. Qed.
+
+(* Handlers that refine each other's counterparts where they run, in the
+   two forms that FlambdaContextProofs.related_envs_refines asks for. *)
+Definition handlers_refine (ok : static_env -> Prop) (vars : env)
+    (handlers handlers' : list (continuation * continuation_handler))
+    : Prop :=
+  handlers_related (handler_refines_where ok) vars handlers handlers'
+  ∧ handlers_related
+      (fun params def_vars target source =>
+         handler_refines_where ok params def_vars source target)
+      vars handlers' handlers.
+
+(* Down the term, with the static environment binding what is known: at
+   once in a body, and from then on in a handler. *)
+Fixpoint inline_calls_refines_knowing (e : expr) :
   ∀ (known : list (code_id * code)) (vars : env) (conts : cont_env)
     (statics : static_env),
     statics_know known statics ->
     refines (State e vars conts statics)
       (State (inline_calls known e) vars conts statics).
 Proof.
-  induction e
-    as [ x d body IH | bindings body IH | k h body IH | handlers body IH
-       | ap | ac | scrutinee arms | ];
-    intros known vars conts statics Hknow; simpl;
-    try apply refines_refl.
-  - destruct (eval_named statics vars d) as [v | ] eqn:Hd.
-    + eapply refines_step;
-        [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity
-        | apply IH, Hknow ].
-    + apply goes_wrong_refines. exists 1. simpl. rewrite Hd. reflexivity.
-  - destruct (eval_static_bindings vars bindings statics) as [extended | ]
-      eqn:Hbindings.
-    + eapply refines_step;
-        [ simpl; rewrite Hbindings; reflexivity
-        | simpl; rewrite Hbindings; reflexivity | ].
-      apply IH.
-      exact (eval_static_bindings_know vars bindings known statics extended
-        Hknow Hbindings).
-    + apply goes_wrong_refines. exists 1. simpl. rewrite Hbindings.
-      reflexivity.
-  - eapply refines_step; [ reflexivity | reflexivity | apply IH, Hknow ].
-  - eapply refines_step; [ reflexivity | reflexivity | apply IH, Hknow ].
-  - apply inline_apply_refines, Hknow.
+  - destruct e
+      as [ x d body | bindings body | k h body | handlers body
+         | ap | ac | scrutinee arms | ];
+      intros known vars conts statics Hknow; simpl;
+      try apply refines_refl.
+    + destruct (eval_named statics vars d) as [v | ] eqn:Hd.
+      * eapply refines_step;
+          [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity
+          | apply inline_calls_refines_knowing, Hknow ].
+      * apply goes_wrong_refines. exists 1. simpl. rewrite Hd. reflexivity.
+    + destruct (eval_static_bindings vars bindings statics) as [extended | ]
+        eqn:Hbindings.
+      * eapply refines_step;
+          [ simpl; rewrite Hbindings; reflexivity
+          | simpl; rewrite Hbindings; reflexivity | ].
+        apply inline_calls_refines_knowing.
+        exact (eval_static_bindings_know vars bindings known statics extended
+          Hknow Hbindings).
+      * apply goes_wrong_refines. exists 1. simpl. rewrite Hbindings.
+        reflexivity.
+    + destruct h as [params handler]. simpl.
+      apply (refines_trans _
+        (State
+           (Let_cont_non_recursive k
+              (Handler params (inline_calls known handler)) body)
+           vars conts statics)).
+      * apply (let_cont_handler_refines_where (statics_know known)
+          (statics_know_extend known)); [ exact Hknow | ].
+        intros vs handler_vars conts' statics' Hknow' _.
+        apply inline_calls_refines_knowing, Hknow'.
+      * eapply refines_step;
+          [ reflexivity | reflexivity
+          | apply inline_calls_refines_knowing, Hknow ].
+    + apply (refines_trans _
+        (State
+           (Let_cont_recursive
+              (map (fun '(k, h) => (k, inline_calls_in_handler known h))
+                 handlers)
+              body)
+           vars conts statics)).
+      * assert (Hhandlers :
+          handlers_refine (statics_know known) vars handlers
+            (map (fun '(k, h) => (k, inline_calls_in_handler known h))
+               handlers)).
+        { induction handlers as [ | [k [params handler]] handlers IH]; simpl.
+          - split; apply Forall2_nil.
+          - destruct IH as [Hforwards Hbackwards].
+            split; (apply Forall2_cons; [ | assumption ]);
+              (split; [ reflexivity | ]); apply Handler_related;
+              intros vs handler_vars conts' statics' Hknow' _;
+              apply inline_calls_refines_knowing, Hknow'. }
+        destruct Hhandlers as [Hforwards Hbackwards].
+        apply (let_cont_recursive_handlers_refine_where (statics_know known)
+          (statics_know_extend known)); assumption.
+      * eapply refines_step;
+          [ reflexivity | reflexivity
+          | apply inline_calls_refines_knowing, Hknow ].
+    + apply inline_apply_refines, Hknow.
 Qed.
 
 Theorem inline_calls_refines : inline_calls_refines_statement.
@@ -715,8 +771,12 @@ Lemma eval_static_bindings_filter (vars : env)
 Proof.
   induction bindings as [ | binding bindings IH]; intros statics;
     [ reflexivity | ].
-  destruct binding as [id c | id | sym const]; simpl; try apply IH.
-  destruct (eval_static_const vars const); simpl; [ apply IH | reflexivity ].
+  destruct binding as [id c | id | sym const]; simpl.
+  - destruct (lookup id (static_code statics)); [ reflexivity | apply IH ].
+  - apply IH.
+  - destruct (lookup sym (static_values statics)); [ reflexivity | ].
+    destruct (eval_static_const vars const); simpl;
+      [ apply IH | reflexivity ].
 Qed.
 
 (* A group and the group without its bindings of deleted code, the
@@ -1104,21 +1164,26 @@ Proof.
   - destruct binding
       as [id c | id | sym [code slots | tag fields | contents | bytes]];
       simpl.
-    + apply IH. exact Hknow.
+    + destruct (lookup id (static_code statics)); [ discriminate | ].
+      apply IH. exact Hknow.
     + apply IH, Hknow.
-    + destruct (eval_value_slots vars slots) as [evaluated | ]; simpl;
+    + destruct (lookup sym (static_values statics)); [ discriminate | ].
+      destruct (eval_value_slots vars slots) as [evaluated | ]; simpl;
         [ | discriminate ].
       apply IH. intros s code'. simpl.
       destruct (Pos.eqb s sym); [ intros [= <-]; eauto | apply Hknow ].
-    + destruct (eval_simples vars fields) as [vs | ]; simpl;
+    + destruct (lookup sym (static_values statics)); [ discriminate | ].
+      destruct (eval_simples vars fields) as [vs | ]; simpl;
         [ | discriminate ].
       apply IH. intros s code'. simpl.
       destruct (Pos.eqb s sym); [ discriminate | apply Hknow ].
-    + destruct (eval_simple vars contents) as [v | ]; simpl;
+    + destruct (lookup sym (static_values statics)); [ discriminate | ].
+      destruct (eval_simple vars contents) as [v | ]; simpl;
         [ | discriminate ].
       apply IH. intros s code'. simpl.
       destruct (Pos.eqb s sym); [ discriminate | apply Hknow ].
-    + apply IH. intros s code'. simpl.
+    + destruct (lookup sym (static_values statics)); [ discriminate | ].
+      apply IH. intros s code'. simpl.
       destruct (Pos.eqb s sym); [ discriminate | apply Hknow ].
 Qed.
 
@@ -1151,7 +1216,26 @@ Proof.
     | exact (inlinable_b_sound ap c Hinlinable) ].
 Qed.
 
-Lemma inline_known_calls_equivalent_knowing (e : expr) :
+Definition statics_know_both (known_code : list (code_id * code))
+    (known_symbols : list (symbol * option code_id)) (statics : static_env)
+    : Prop :=
+  statics_know known_code statics
+  ∧ statics_know_symbols known_symbols statics.
+
+Lemma statics_know_both_extend (known_code : list (code_id * code))
+    (known_symbols : list (symbol * option code_id))
+    (statics statics' : static_env) :
+  statics_know_both known_code known_symbols statics ->
+  statics_extend statics statics' ->
+  statics_know_both known_code known_symbols statics'.
+Proof.
+  intros [Hcode Hsymbols] Hextend. split.
+  - exact (statics_know_extend known_code statics statics' Hcode Hextend).
+  - intros s code Hs. destruct (Hsymbols s code Hs) as [slots Hlookup].
+    exists slots. apply (proj2 Hextend), Hlookup.
+Qed.
+
+Fixpoint inline_known_calls_equivalent_knowing (e : expr) :
   ∀ (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id)) (vars : env)
     (conts : cont_env) (statics : static_env),
@@ -1161,32 +1245,91 @@ Lemma inline_known_calls_equivalent_knowing (e : expr) :
       (State (inline_known_calls known_code known_symbols e) vars conts
          statics).
 Proof.
-  induction e
-    as [ x d body IH | bindings body IH | k h body IH | handlers body IH
-       | ap | ac | scrutinee arms | ];
-    intros known_code known_symbols vars conts statics Hcode Hsymbols; simpl;
-    try apply equivalent_refl.
-  - destruct (eval_named statics vars d) as [v | ] eqn:Hd.
-    + eapply equivalent_step;
-        [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity
-        | apply IH; assumption ].
-    + apply (equivalent_of_run 1 1). simpl. rewrite Hd. reflexivity.
-  - destruct (eval_static_bindings vars bindings statics) as [extended | ]
-      eqn:Hbindings.
-    + eapply equivalent_step;
-        [ simpl; rewrite Hbindings; reflexivity
-        | simpl; rewrite Hbindings; reflexivity | ].
-      apply IH.
-      * exact (eval_static_bindings_know vars bindings known_code statics
-          extended Hcode Hbindings).
-      * exact (eval_static_bindings_know_symbols vars bindings known_symbols
-          statics extended Hsymbols Hbindings).
-    + apply (equivalent_of_run 1 1). simpl. rewrite Hbindings. reflexivity.
-  - eapply equivalent_step;
-      [ reflexivity | reflexivity | apply IH; assumption ].
-  - eapply equivalent_step;
-      [ reflexivity | reflexivity | apply IH; assumption ].
-  - apply inline_known_apply_equivalent; assumption.
+  - destruct e
+      as [ x d body | bindings body | k h body | handlers body
+         | ap | ac | scrutinee arms | ];
+      intros known_code known_symbols vars conts statics Hcode Hsymbols;
+      simpl; try apply equivalent_refl.
+    + destruct (eval_named statics vars d) as [v | ] eqn:Hd.
+      * eapply equivalent_step;
+          [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity
+          | apply inline_known_calls_equivalent_knowing; assumption ].
+      * apply (equivalent_of_run 1 1). simpl. rewrite Hd. reflexivity.
+    + destruct (eval_static_bindings vars bindings statics) as [extended | ]
+        eqn:Hbindings.
+      * eapply equivalent_step;
+          [ simpl; rewrite Hbindings; reflexivity
+          | simpl; rewrite Hbindings; reflexivity | ].
+        apply inline_known_calls_equivalent_knowing.
+        -- exact (eval_static_bindings_know vars bindings known_code statics
+             extended Hcode Hbindings).
+        -- exact (eval_static_bindings_know_symbols vars bindings
+             known_symbols statics extended Hsymbols Hbindings).
+      * apply (equivalent_of_run 1 1). simpl. rewrite Hbindings.
+        reflexivity.
+    + destruct h as [params handler]. simpl.
+      apply (equivalent_trans _
+        (State
+           (Let_cont_non_recursive k
+              (Handler params
+                 (inline_known_calls known_code known_symbols handler))
+              body)
+           vars conts statics)).
+      * apply refines_antisymmetric;
+          apply (let_cont_handler_refines_where
+            (statics_know_both known_code known_symbols)
+            (statics_know_both_extend known_code known_symbols));
+          try (split; assumption);
+          intros vs handler_vars conts' statics' [Hcode' Hsymbols'] _;
+          apply equivalent_refines; [ | apply equivalent_sym ];
+          apply inline_known_calls_equivalent_knowing; assumption.
+      * eapply equivalent_step;
+          [ reflexivity | reflexivity
+          | apply inline_known_calls_equivalent_knowing; assumption ].
+    + apply (equivalent_trans _
+        (State
+           (Let_cont_recursive
+              (map
+                 (fun '(k, h) =>
+                    (k,
+                     inline_known_calls_in_handler known_code known_symbols
+                       h))
+                 handlers)
+              body)
+           vars conts statics)).
+      * assert (Hhandlers :
+          let handlers' :=
+            map
+              (fun '(k, h) =>
+                 (k,
+                  inline_known_calls_in_handler known_code known_symbols h))
+              handlers
+          in
+          handlers_refine (statics_know_both known_code known_symbols) vars
+            handlers handlers'
+          ∧ handlers_refine (statics_know_both known_code known_symbols)
+              vars handlers' handlers).
+        { induction handlers as [ | [k [params handler]] handlers IH]; simpl.
+          - repeat split; apply Forall2_nil.
+          - destruct IH as [[Hforwards Hbackwards] [Hforwards' Hbackwards']].
+            repeat split; (apply Forall2_cons; [ | assumption ]);
+              (split; [ reflexivity | ]); apply Handler_related;
+              intros vs handler_vars conts' statics' [Hcode' Hsymbols'] _;
+              try (apply equivalent_refines,
+                     inline_known_calls_equivalent_knowing; assumption);
+              apply equivalent_refines, equivalent_sym,
+                inline_known_calls_equivalent_knowing; assumption. }
+        destruct Hhandlers
+          as [[Hforwards Hbackwards] [Hforwards' Hbackwards']].
+        apply refines_antisymmetric;
+          apply (let_cont_recursive_handlers_refine_where
+            (statics_know_both known_code known_symbols)
+            (statics_know_both_extend known_code known_symbols));
+          try assumption; split; assumption.
+      * eapply equivalent_step;
+          [ reflexivity | reflexivity
+          | apply inline_known_calls_equivalent_knowing; assumption ].
+    + apply inline_known_apply_equivalent; assumption.
 Qed.
 
 Theorem inline_known_calls_equivalent :
@@ -1218,14 +1361,20 @@ Proof.
   destruct binding as [id c | id | sym' const']; simpl in Hbinding;
     try discriminate.
   - change
-      (eval_static_bindings vars (codes ++ Bind_symbol sym const :: rest)
-         (Static_env ((id, c) :: static_code statics)
-            (static_values statics))
+      (match lookup id (static_code statics) with
+       | Some _ => None
+       | None =>
+         eval_static_bindings vars (codes ++ Bind_symbol sym const :: rest)
+           (Static_env ((id, c) :: static_code statics)
+              (static_values statics))
+       end
        = eval_static_bindings vars
            (Bind_symbol sym const :: Bind_code id c :: codes ++ rest)
            statics).
     rewrite (IH Hcodes). simpl.
-    destruct (eval_static_const vars const); reflexivity.
+    destruct (lookup id (static_code statics)),
+      (lookup sym (static_values statics)),
+      (eval_static_const vars const); reflexivity.
   - change
       (eval_static_bindings vars (codes ++ Bind_symbol sym const :: rest)
          statics
@@ -1233,7 +1382,8 @@ Proof.
            (Bind_symbol sym const :: Bind_deleted_code id :: codes ++ rest)
            statics).
     rewrite (IH Hcodes). simpl.
-    destruct (eval_static_const vars const); reflexivity.
+    destruct (lookup sym (static_values statics)),
+      (eval_static_const vars const); reflexivity.
 Qed.
 
 Lemma filter_binds_code (bindings : list static_binding) :
@@ -1254,11 +1404,12 @@ Proof.
   induction bindings as [ | binding bindings IH]; intros statics;
     [ reflexivity | ].
   destruct binding as [id c | id | sym const]; simpl.
-  - apply IH.
+  - destruct (lookup id (static_code statics)); [ reflexivity | apply IH ].
   - apply IH.
   - rewrite (eval_static_bindings_symbol_later vars sym const _ _
       (filter_binds_code bindings)).
-    simpl. destruct (eval_static_const vars const); simpl;
+    simpl. destruct (lookup sym (static_values statics)); [ reflexivity | ].
+    destruct (eval_static_const vars const); simpl;
       [ apply IH | reflexivity ].
 Qed.
 

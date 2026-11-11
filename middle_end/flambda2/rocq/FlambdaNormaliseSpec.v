@@ -40,15 +40,17 @@
    before may be refinements; those applied to the term after must be
    equivalences, as the chain runs from the one to the other.
 
-   [inline_calls] is for the term before. It goes down the bodies of [Let],
-   [Let_static] and [Let_cont], keeping the code that the [Let_static]s
+   [inline_calls] is for the term before. It goes down the term, into the
+   handlers of continuations too, keeping the code that the [Let_static]s
    passed have bound ([known]), and replaces a direct call of known code by
    the code inlined (FlambdaApplySpec.inlined_body) where that is sound
-   ([inlinable_b], which decides FlambdaApplySpec.inlinable). It does not
-   go into handlers or code: what is known where a handler is defined need
-   not hold where it runs if a code id may be bound twice. In Flambda it
-   may not, static bindings being at toplevel only, but the model does not
-   yet say so (see the CR in FlambdaSemanticsSpec.v).
+   ([inlinable_b], which decides FlambdaApplySpec.inlinable). What is
+   known where a handler is defined holds where it runs, however much
+   later: a code id is bound once (FlambdaWellFormedSpec.v).
+
+   CR mshinwell: it does not go into the bodies of code. Rewriting them
+   changes what the code ids are bound to, so the two runs no longer have
+   the same static environment for the calls inlined to be those of.
 
    [expr_in_scope] is the check that code is closed. It is a sufficient
    condition, by its soundness (in the Proofs file); nothing is claimed
@@ -78,7 +80,8 @@
    [inline_known_calls] is inlining as an equivalence, for either term:
    it inlines a direct call only where the callee is a symbol that a
    [Let_static] passed has bound to a closure of the code called, so that
-   the call cannot be undefined for being of something else.
+   the call cannot be undefined for being of something else. It goes
+   where [inline_calls] goes.
 
    [merge_statics], for either term, makes one group of [Let_static]s that
    follow one another, and puts the code of a group before its symbols.
@@ -247,11 +250,19 @@ Fixpoint inline_calls (known : list (code_id * code)) (e : expr) : expr :=
   | Let_static bindings body =>
     Let_static bindings (inline_calls (codes_of bindings known) body)
   | Let_cont_non_recursive k h body =>
-    Let_cont_non_recursive k h (inline_calls known body)
+    Let_cont_non_recursive k (inline_calls_in_handler known h)
+      (inline_calls known body)
   | Let_cont_recursive handlers body =>
-    Let_cont_recursive handlers (inline_calls known body)
+    Let_cont_recursive
+      (map (fun '(k, h) => (k, inline_calls_in_handler known h)) handlers)
+      (inline_calls known body)
   | Apply ap => inline_apply known ap
   | Apply_cont _ | Switch _ _ | Invalid => e
+  end
+with inline_calls_in_handler (known : list (code_id * code))
+    (h : continuation_handler) : continuation_handler :=
+  match h with
+  | Handler params handler => Handler params (inline_calls known handler)
   end.
 
 Definition inline_calls_refines_statement : Prop :=
@@ -605,13 +616,25 @@ Fixpoint inline_known_calls (known_code : list (code_id * code))
       (inline_known_calls (codes_of bindings known_code)
          (symbols_of bindings known_symbols) body)
   | Let_cont_non_recursive k h body =>
-    Let_cont_non_recursive k h
+    Let_cont_non_recursive k
+      (inline_known_calls_in_handler known_code known_symbols h)
       (inline_known_calls known_code known_symbols body)
   | Let_cont_recursive handlers body =>
-    Let_cont_recursive handlers
+    Let_cont_recursive
+      (map
+         (fun '(k, h) =>
+            (k, inline_known_calls_in_handler known_code known_symbols h))
+         handlers)
       (inline_known_calls known_code known_symbols body)
   | Apply ap => inline_known_apply known_code known_symbols ap
   | Apply_cont _ | Switch _ _ | Invalid => e
+  end
+with inline_known_calls_in_handler (known_code : list (code_id * code))
+    (known_symbols : list (symbol * option code_id))
+    (h : continuation_handler) : continuation_handler :=
+  match h with
+  | Handler params handler =>
+    Handler params (inline_known_calls known_code known_symbols handler)
   end.
 
 Definition inline_known_calls_equivalent_statement : Prop :=

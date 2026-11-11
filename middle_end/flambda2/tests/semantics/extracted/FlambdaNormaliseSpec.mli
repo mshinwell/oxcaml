@@ -42,6 +42,9 @@ val inline_apply : (code_id * code) list -> apply_expr -> expr
 
 val inline_calls : (code_id * code) list -> expr -> expr
 
+val inline_calls_in_handler :
+  (code_id * code) list -> continuation_handler -> continuation_handler
+
 val var_in_simple : variable -> simple -> bool
 
 val var_in_value_slots : variable -> (value_slot * simple) list -> bool
@@ -99,6 +102,12 @@ val inline_known_apply :
 
 val inline_known_calls :
   (code_id * code) list -> (symbol * code_id option) list -> expr -> expr
+
+val inline_known_calls_in_handler :
+  (code_id * code) list ->
+  (symbol * code_id option) list ->
+  continuation_handler ->
+  continuation_handler
 
 val binds_code : static_binding -> bool
 

@@ -47,8 +47,12 @@ Lemma eval_static_bindings_app (vars : env)
 Proof.
   induction bindings as [ | binding bindings IH]; intros statics;
     [ reflexivity | ].
-  destruct binding as [id c | id | sym const]; simpl; try apply IH.
-  destruct (eval_static_const vars const); simpl; [ apply IH | reflexivity ].
+  destruct binding as [id c | id | sym const]; simpl.
+  - destruct (lookup id (static_code statics)); [ reflexivity | apply IH ].
+  - apply IH.
+  - destruct (lookup sym (static_values statics)); [ reflexivity | ].
+    destruct (eval_static_const vars const); simpl;
+      [ apply IH | reflexivity ].
 Qed.
 
 Theorem let_static_split : let_static_split_statement.
@@ -65,6 +69,7 @@ Theorem project_static_closure : project_static_closure_statement.
 Proof.
   intros s code slot contents x body vars conts statics.
   apply (equivalent_of_run 2 2). simpl.
+  destruct (lookup s (static_values statics)); [ reflexivity | ].
   destruct (eval_simple vars contents) as [v | ] eqn:Hcontents; simpl;
     [ | reflexivity ].
   rewrite !Pos.eqb_refl. simpl. rewrite ?Pos.eqb_refl, ?Hcontents.

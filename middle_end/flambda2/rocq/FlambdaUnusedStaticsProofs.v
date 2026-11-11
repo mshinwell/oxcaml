@@ -362,15 +362,23 @@ Proof.
   - intros _ Hstatics. exists statics'. auto.
   - intros Hav Hstatics. apply andb_true_iff in Hav as [Hbinding Hrest].
     destruct binding as [id c | id | sym const]; simpl in Hbinding |- *.
-    + destruct (code_kept D id) eqn:Hkept; simpl.
-      * apply (IH _ _ Hrest), statics_erased_add_code; assumption.
+    + destruct (lookup id (static_code statics)) eqn:Hbound; [ exact I | ].
+      destruct (code_kept D id) eqn:Hkept; simpl.
+      * destruct Hstatics as [Hcode Hothers].
+        rewrite (Hcode id Hkept), Hbound. simpl.
+        apply (IH _ _ Hrest), statics_erased_add_code;
+          [ exact (conj Hcode Hothers) | assumption .. ].
       * apply (IH _ _ Hrest), statics_erased_drop_code; assumption.
     + exact (IH _ _ Hrest Hstatics).
-    + destruct (eval_static_const vars const) as [allocated | ] eqn:Hconst;
+    + destruct (lookup sym (static_values statics)) eqn:Hbound;
+        [ exact I | ].
+      destruct (eval_static_const vars const) as [allocated | ] eqn:Hconst;
         simpl; [ | exact I ].
       destruct (symbol_kept D sym) eqn:Hkept; simpl.
-      * rewrite Hconst. simpl.
-        apply (IH _ _ Hrest), statics_erased_add_value; [ exact Hstatics | ].
+      * destruct Hstatics as (Hcode & Hcode_avoids & Hvalues & Hothers).
+        rewrite (Hvalues sym Hkept), Hbound, Hconst. simpl.
+        apply (IH _ _ Hrest), statics_erased_add_value;
+          [ exact (conj Hcode (conj Hcode_avoids (conj Hvalues Hothers))) | ].
         exact (eval_static_const_avoids vars const allocated Hvars Hbinding
           Hconst).
       * apply (IH _ _ Hrest), statics_erased_drop_value; assumption.

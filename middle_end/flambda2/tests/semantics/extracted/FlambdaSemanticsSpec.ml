@@ -154,20 +154,26 @@ let rec eval_static_bindings vars bindings statics =
   | [] -> Some statics
   | s0 :: bindings0 -> (
     match s0 with
-    | Bind_code (id, c) ->
-      eval_static_bindings vars bindings0
-        { static_code = (id, c) :: statics.static_code;
-          static_values = statics.static_values
-        }
+    | Bind_code (id, c) -> (
+      match lookup id statics.static_code with
+      | Some _ -> None
+      | None ->
+        eval_static_bindings vars bindings0
+          { static_code = (id, c) :: statics.static_code;
+            static_values = statics.static_values
+          })
     | Bind_deleted_code _ -> eval_static_bindings vars bindings0 statics
     | Bind_symbol (s, const0) -> (
-      match eval_static_const vars const0 with
-      | Some allocated ->
-        eval_static_bindings vars bindings0
-          { static_code = statics.static_code;
-            static_values = (s, allocated) :: statics.static_values
-          }
-      | None -> None))
+      match lookup s statics.static_values with
+      | Some _ -> None
+      | None -> (
+        match eval_static_const vars const0 with
+        | Some allocated ->
+          eval_static_bindings vars bindings0
+            { static_code = statics.static_code;
+              static_values = (s, allocated) :: statics.static_values
+            }
+        | None -> None)))
 
 (** val bind_params : variable list -> value list -> env -> env option **)
 

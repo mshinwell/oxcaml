@@ -405,16 +405,22 @@ Proof.
   induction bindings as [ | binding bindings IH];
     intros [ | binding' bindings'] statics statics'; simpl; try discriminate;
     [ intros _ Hstatics; exact Hstatics | ].
-  intros Heq [Hcode Hvalues]. apply andb_true_iff in Heq as [Hbinding Hrest].
+  intros Heq Hstatics. pose proof Hstatics as [Hcode Hvalues].
+  apply andb_true_iff in Heq as [Hbinding Hrest].
   destruct binding as [id c | id | sym const],
     binding' as [id' c' | id' | sym' const'];
     simpl in Hbinding; try discriminate.
   - apply andb_true_iff in Hbinding as [Hid Hc]. apply Pos.eqb_eq in Hid.
-    subst id'. apply (IH bindings' _ _ Hrest). split; [ | exact Hvalues ].
+    subst id'.
+    pose proof (lookup_code_match id statics statics' Hstatics) as Hid.
+    destruct (lookup id (static_code statics)),
+      (lookup id (static_code statics')); try contradiction; [ exact I | ].
+    apply (IH bindings' _ _ Hrest). split; [ | exact Hvalues ].
     apply Forall2_cons; [ split; [ reflexivity | exact Hc ] | exact Hcode ].
   - apply (IH bindings' _ _ Hrest). split; assumption.
   - apply andb_true_iff in Hbinding as [Hsym Hconst].
-    apply Pos.eqb_eq in Hsym. subst sym'.
+    apply Pos.eqb_eq in Hsym. subst sym'. rewrite <- Hvalues.
+    destruct (lookup sym (static_values statics)); [ exact I | ].
     rewrite (eval_static_const_match vm vars vars' const const' Hmatch Hconst).
     destruct (eval_static_const vars' const') as [allocated | ]; simpl;
       [ | exact I ].

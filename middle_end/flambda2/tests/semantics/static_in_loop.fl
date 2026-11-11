@@ -1,0 +1,4 @@
+cont loop (0)
+  where rec loop (i) =
+    let $camlStatic_in_loop = Block 0 (i) in
+    cont done ($camlStatic_in_loop)

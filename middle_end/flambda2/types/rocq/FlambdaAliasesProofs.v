@@ -220,12 +220,18 @@ Proof.
   destruct binding
     as [id c | id | sym [code slots | tag fields | s | bytes]];
     simpl; try apply IH.
-  - rewrite (canonical_value_slots_sound tenv vars slots Hsat).
+  - destruct (lookup id (static_code statics)); [ reflexivity | apply IH ].
+  - destruct (lookup sym (static_values statics)); [ reflexivity | ].
+    rewrite (canonical_value_slots_sound tenv vars slots Hsat).
     destruct (eval_value_slots vars slots); simpl; [ apply IH | reflexivity ].
-  - rewrite (canonical_simples_sound tenv vars fields Hsat).
+  - destruct (lookup sym (static_values statics)); [ reflexivity | ].
+    rewrite (canonical_simples_sound tenv vars fields Hsat).
     destruct (eval_simples vars fields); simpl; [ apply IH | reflexivity ].
-  - rewrite (canonical_simple_sound tenv vars s Hsat).
+  - destruct (lookup sym (static_values statics)); [ reflexivity | ].
+    rewrite (canonical_simple_sound tenv vars s Hsat).
     destruct (eval_simple vars s); simpl; [ apply IH | reflexivity ].
+  - destruct (lookup sym (static_values statics)); [ reflexivity | ].
+    apply IH.
 Qed.
 
 Lemma find_arm_canonical (tenv : typing_env) (i : Z)

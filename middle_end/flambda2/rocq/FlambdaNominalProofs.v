@@ -266,7 +266,11 @@ Proof.
       lookup (rename_variable r x) vars' = lookup x vars).
   { intros x Hx. apply Hvars. apply Exists_cons_tl. exact Hx. }
   destruct binding as [id c | id | sym const]; simpl;
-    [ apply IH, Hrest | apply IH, Hrest | ].
+    [ destruct (lookup id (static_code statics));
+        [ reflexivity | apply IH, Hrest ]
+    | apply IH, Hrest
+    | ].
+  destruct (lookup sym (static_values statics)); [ reflexivity | ].
   rewrite (eval_static_const_renamed r const vars vars').
   - destruct (eval_static_const vars const); simpl;
       [ apply IH, Hrest | reflexivity ].

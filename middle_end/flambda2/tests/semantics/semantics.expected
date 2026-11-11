@@ -40,6 +40,13 @@ inline_direct.fl:
   the same
   calls outside code once those of known code are inlined: 0
   validated: the same once normalised
+inline_in_handler.fl:
+  before Simplify (12 steps): returns [0: 21; <fun>]
+  after Simplify (10 steps): returns [0: 21; <fun>]
+  calls outside code: 1 before, 0 after
+  the same
+  calls outside code once those of known code are inlined: 0
+  validated: the same once normalised
 rec_cont.fl:
   before Simplify (43 steps): returns [0: 10]
   after Simplify (44 steps): returns [0: 10]
@@ -54,6 +61,7 @@ showcase.fl:
   the same
   calls outside code once those of known code are inlined: 2
   validated for the unit run on its own: the same once normalised and unused static bindings removed
+static_in_loop.fl: not checked: the term is not well-formed (a static binding that is not at toplevel, or a name bound twice)
 switch.fl:
   before Simplify (5 steps): returns [0: 20]
   after Simplify (1 steps): returns [0: 20]

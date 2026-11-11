@@ -81,6 +81,7 @@ LOOP := $(addprefix $(LOOP_DIR)/, \
 EXTRACT := $(LOOP_DIR)/Extract.v
 FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaModel.v FlambdaSemanticsSpec.v FlambdaSemanticsProofs.v \
+  FlambdaWellFormedSpec.v FlambdaWellFormedProofs.v \
   FlambdaControlFlowSpec.v FlambdaControlFlowProofs.v \
   FlambdaContextSpec.v FlambdaContextProofs.v \
   FlambdaNominalSpec.v FlambdaNominalProofs.v FlambdaAlphaSpec.v \

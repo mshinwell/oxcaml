@@ -146,11 +146,24 @@ let rec inline_calls known e =
   | Let_static (bindings, body) ->
     Let_static (bindings, inline_calls (codes_of bindings known) body)
   | Let_cont_non_recursive (k, h, body) ->
-    Let_cont_non_recursive (k, h, inline_calls known body)
+    Let_cont_non_recursive
+      (k, inline_calls_in_handler known h, inline_calls known body)
   | Let_cont_recursive (handlers, body) ->
-    Let_cont_recursive (handlers, inline_calls known body)
+    Let_cont_recursive
+      ( map
+          (fun pat ->
+            let k, h = pat in
+            k, inline_calls_in_handler known h)
+          handlers,
+        inline_calls known body )
   | Apply ap -> inline_apply known ap
   | _ -> e
+
+(** val inline_calls_in_handler : (code_id * code) list -> continuation_handler
+    -> continuation_handler **)
+
+and inline_calls_in_handler known = function
+  | Handler (params, handler) -> Handler (params, inline_calls known handler)
 
 (** val var_in_simple : variable -> simple -> bool **)
 
@@ -470,12 +483,26 @@ let rec inline_known_calls known_code known_symbols e =
           body )
   | Let_cont_non_recursive (k, h, body) ->
     Let_cont_non_recursive
-      (k, h, inline_known_calls known_code known_symbols body)
+      ( k,
+        inline_known_calls_in_handler known_code known_symbols h,
+        inline_known_calls known_code known_symbols body )
   | Let_cont_recursive (handlers, body) ->
     Let_cont_recursive
-      (handlers, inline_known_calls known_code known_symbols body)
+      ( map
+          (fun pat ->
+            let k, h = pat in
+            k, inline_known_calls_in_handler known_code known_symbols h)
+          handlers,
+        inline_known_calls known_code known_symbols body )
   | Apply ap -> inline_known_apply known_code known_symbols ap
   | _ -> e
+
+(** val inline_known_calls_in_handler : (code_id * code) list -> (symbol *
+    code_id option) list -> continuation_handler -> continuation_handler **)
+
+and inline_known_calls_in_handler known_code known_symbols = function
+  | Handler (params, handler) ->
+    Handler (params, inline_known_calls known_code known_symbols handler)
 
 (** val binds_code : static_binding -> bool **)
 
