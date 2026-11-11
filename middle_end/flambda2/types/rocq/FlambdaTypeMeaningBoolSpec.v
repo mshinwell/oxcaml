@@ -116,6 +116,9 @@ Definition is_poison_b (v : value) : bool :=
   | _ => false
   end.
 
+(* [is_tag]. *)
+Definition is_tag_b (n : Z) : bool := Z.leb 0 n && Z.leb n 255.
+
 (* [relation_holds]. *)
 Definition relation_holds_b (statics : static_env) (relation : Relation.t)
     (v : value) (n : Z) : bool :=
@@ -126,25 +129,23 @@ Definition relation_holds_b (statics : static_env) (relation : Relation.t)
     | _ => kind_eqb (kind_of_value v) Value && Z.eqb n 0
     end
   | Relation.Is_int =>
-    is_poison_b v
-    || match v with
-       | Value_const (Tagged_immediate _) => Z.eqb n 1
-       | _ =>
-         match block_of statics v with
-         | Some _ => Z.eqb n 0
-         | None => false
-         end
-       end
+    match v with
+    | Value_const (Tagged_immediate _) => Z.eqb n 1
+    | _ =>
+      match block_of statics v with
+      | Some _ => Z.eqb n 0
+      | None => false
+      end
+    end
   | Relation.Get_tag =>
-    is_poison_b v
-    || match v with
-       | Value_const (Tagged_immediate _) => true
-       | _ =>
-         match block_of statics v with
-         | Some (tag, _) => Z.eqb tag n
-         | None => false
-         end
-       end
+    match v with
+    | Value_const (Tagged_immediate _) => true
+    | _ =>
+      match block_of statics v with
+      | Some (tag, _) => Z.eqb tag n && is_tag_b n
+      | None => false
+      end
+    end
   end.
 
 Definition relation_holds_b_iff_statement : Prop :=

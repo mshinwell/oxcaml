@@ -141,39 +141,44 @@
        a variable [is_null] admits all these. The primitive has no
        value on a symbol that is not bound, which no well-formed term
        uses, nor on poison.
-     - [Is_int] relates a tagged immediate to 1 and a block to 0. It
-       says nothing of poison, which it relates to every number (see
-       below, on poison), and it relates no other value. The compiler
-       records it for [Is_int { variant_only = true }]
+     - [Is_int] relates a tagged immediate to 1 and a block to 0, and
+       no other value: none that is poison (see below, on poison). The
+       compiler records it for
+       [Is_int { variant_only = true }]
        ([Simplify_unary_primitive.simplify_is_int]) and for a parameter
        that is unboxed as a variant, of a scrutinee that it takes to be
        a variant and not null ([add_is_int_relation]). Its reading of a
        constant is wider, 0 for [Null] and 1 for every other constant
        ([Relation.of_const]); the two agree where this one says
-       something of a constant that is not poison
-       ([relation_of_const_sound_statement]).
-     - [Get_tag] relates a block to its tag, and a tagged immediate to
-       any number, as it does poison. Unboxing records it of a
-       parameter that may be an
-       immediate (simplify/unboxing/build_unboxing_denv.ml), and passes
-       the tag 0 on the paths where it is one (unboxing_epa.ml,
+       something of a constant ([relation_of_const_sound_statement]).
+     - [Get_tag] relates a block to its tag, if that is a tag (a number
+       from 0 to 255, [is_tag]), and a tagged immediate to any number;
+       it relates no value that is poison. The machine does not test
+       the tag of a block that it makes; a well-formed term makes none
+       out of range (decision D23 of the project), and [Meet] takes a
+       number that is no tag to be the tag of no block
+       ([Tag.create_from_targetint], in [reduce_inverse_relations]).
+       Unboxing records the relation of a
+       parameter that may be an immediate
+       (simplify/unboxing/build_unboxing_denv.ml), and passes the tag 0
+       on the paths where it is one (unboxing_epa.ml,
        [compute_extra_args_for_variant]); [add_get_tag_relation] keeps
        the immediates for that reason, and on a constant
        [reduce_head_of_kind_naked_immediate] drops the relation. The
        primitive has no value on an immediate, and nothing here gives
        it one.
-     The result of a primitive, where it has one, is related
-     ([primitive_related_statement]), and that is all that ties the
-     two. Where a primitive has a result is not said here.
+     The result of a primitive, where it has one, is related, that of
+     [Get_tag] if it is a tag ([primitive_related_statement]), and
+     that is all that ties the two. Where a primitive has a result is
+     not said here.
    - One reduction of [Meet] is not sound for this meaning, nor for any
      under which the environments that unboxing makes are true: from a
      relation [Get_tag] whose number is among some tags,
      [reduce_inverse_relations] makes the name a block with one of
      those tags, where it may be an immediate.
      [relation_get_tag_statement] has what does follow. Its other
-     reductions are sound ([relation_is_null_statement]), that of
-     [Is_int] for a value that is not poison
-     ([relation_is_int_statement]).
+     reductions are sound ([relation_is_null_statement],
+     [relation_is_int_statement]).
    - Poison. A fact of the types is about a value that is not poison
      (decision D26 of the project). The compiler gives a poison
      constant the unknown type of its kind
@@ -183,30 +188,38 @@
      such field, with 0 for the tag and for [Is_int] of it
      (unboxing_epa.ml); and the environment of the handler has the
      shape and the relations of that field on every path
-     (build_unboxing_denv.ml, [denv_of_decision]). So that such an
-     environment is true on those paths:
-     - a relation says nothing of a value that is poison: [Is_int] and
-       [Get_tag] relate poison to every number ([relation_holds]).
-       [Is_null] relates a poison of kind value to 0, as it does every
-       value of that kind that is not [Null], and no other poison to
-       anything;
-     - what satisfies a typing environment is to ask nothing of the
-       type of a name whose value is poison. That is for the file that
-       defines one to say;
-     - the types of a poison value are as they were. It has the types
-       that say no more of a value than its kind, that it is this
-       value, or that it is not [Null] (the unknown type, an alias to
-       it, [any_non_null_value]), and none that says what it is: it is
-       no immediate, no block, nothing allocated. The equations of an
-       environment extension inside a type are of every value, poison
-       included.
+     (build_unboxing_denv.ml, [denv_of_decision]). Such an environment
+     is not true on those paths: not of the name that holds poison,
+     nor of the names that hold the 0s. Here:
+     - [Is_int] and [Get_tag] hold of no value that is poison
+       ([relation_holds]): what [Meet] concludes from them, an
+       immediate or a block, poison is not. So a variant, which is the
+       type that has variables for the two, is no type of poison;
+     - [Is_null] relates a poison of kind value to 0, as it does every
+       value of that kind that is not [Null]: what [Meet] concludes
+       from it, a value that is not [Null], poison is. So a type whose
+       part that is not null admits poison (the unknown one) admits it
+       still when it may be null, with a variable [is_null] that holds
+       0 or with none; one whose part that is not null says what the
+       value is admits no poison either way. The join relies on it: of
+       a type of values that are not [Null] and one with such a
+       variable it makes a type with a variable, which holds 0 where
+       the first held;
+     - what satisfies a typing environment is to set aside the names
+       that hold poison and those whose type is a relation [Is_int] or
+       [Get_tag] on one of them. That is for the file that defines one
+       to say;
+     - the types of a poison value are otherwise as they were. It has
+       the types that say no more of a value than its kind, that it is
+       this value, or that it is not [Null] (the unknown type, an alias
+       to it, [any_non_null_value]), and none that says what it is: it
+       is no immediate, no block, nothing allocated. The equations of
+       an environment extension inside a type are of every value,
+       poison included.
      The compiler relies on something that nothing in it checks: where
      a parameter holds poison, no use that reads it and no meet of its
-     type to bottom is reachable. And what is concluded from a
-     relation has the case of poison to set aside
-     ([relation_is_int_statement], [relation_get_tag_statement]): a
-     statement that uses a fact about a name is to treat apart the
-     case in which the name holds poison.
+     type to bottom is reachable. A statement that uses a fact about a
+     name is to treat apart the case in which the name holds poison.
    - The code of a function type is the code of the closure, the very
      code id. The compiler means "that code or a newer version of it"
      ([Code_age_relation]); that is for the workstream on calls (S4) to
@@ -367,6 +380,9 @@ Definition is_block (statics : static_env) (v : value) : Prop :=
 Definition is_poison (v : value) : Prop :=
   ∃ k : flambda_kind, v = Value_const (Poison k).
 
+(* A number is a tag: [Tag.create_from_targetint] has a tag for it. *)
+Definition is_tag (n : Z) : Prop := (0 <= n <= 255)%Z.
+
 (* What a type means by "this number is [Is_null], [Is_int] or [Get_tag]
    of that value". It is a relation of the types, not the execution of
    the primitive (see the header):
@@ -375,22 +391,34 @@ Definition is_poison (v : value) : Prop :=
      and of a symbol that is not bound;
    - [Is_int]: the value is a tagged immediate and the number is 1, or
      it is a block and the number is 0;
-   - [Get_tag]: the value is a block and the number is its tag, or it
-     is a tagged immediate, and then nothing is said of the number.
-   [Is_int] and [Get_tag] say nothing of a value that is poison: they
-   relate it to every number. *)
-(* CR mshinwell: that [Is_int] and [Get_tag] relate poison to every
-   number is a decision of the model, taken so that the environments
-   that unboxing makes are true: it records these relations, with the
-   number 0, of parameters that hold poison on the paths of the
-   constant constructors. It is right only if no use that reads such a
-   parameter, and no meet of its type to bottom, is reachable where
-   it holds poison, and nothing in the compiler checks that.
-   Decision D26. *)
-(* CR mshinwell: [Is_null] relates a poison of kind value to 0, which
-   is the compiler's reading of a poison constant
-   ([Reg_width_const.is_null]); the primitive has no value on poison
-   in the machine. Whether it is to have one is open. Decision D8. *)
+   - [Get_tag]: the value is a block and the number is its tag, which
+     is a tag; or the value is a tagged immediate, and then nothing is
+     said of the number.
+   [Is_int] and [Get_tag] hold of no value that is poison. *)
+(* CR mshinwell: that [Is_int] and [Get_tag] hold of no poison is a
+   decision of the model. It agrees with the machine, in which the two
+   primitives have no value on poison, which is itself open (decision
+   D8). It makes false the environments that unboxing makes, on the
+   paths where a parameter holds poison: unboxing records these
+   relations, with the number 0, of such parameters, and what satisfies
+   an environment is to set those names aside. That is right only if no
+   use that reads such a parameter, and no meet of its type to bottom,
+   is reachable where it holds poison, and nothing in the compiler
+   checks that. Decision D26. *)
+(* CR mshinwell: [Is_null] relates a poison of kind value to 0. The
+   relation is about whether the value is [Null], and a poison is not:
+   that is the compiler's reading of a poison constant
+   ([Reg_width_const.is_null]), and what its join of types takes for
+   granted. The primitive is a use that reads the value, and has none
+   on poison in the machine; whether it is to have one is open.
+   Decisions D8 and D26. *)
+(* CR mshinwell: [Get_tag] relates a block to its tag only if the tag
+   is from 0 to 255. The machine makes a block of any tag and does not
+   test it; the terms of the compiler have tags in range, which is to
+   be a condition of well-formed terms. The other choice is to relate
+   every block to its tag, and to make "every block has a tag in
+   range" a premise of what is stated of meet, of join and of the
+   provers. Decision D23. *)
 Definition relation_holds (statics : static_env) (relation : Relation.t)
     (v : value) (n : Z) : Prop :=
   match relation with
@@ -398,13 +426,11 @@ Definition relation_holds (statics : static_env) (relation : Relation.t)
     (v = Value_const Null ∧ n = 1%Z)
     ∨ (kind_of_value v = Value ∧ v <> Value_const Null ∧ n = 0%Z)
   | Relation.Is_int =>
-    (is_immediate v ∧ n = 1%Z)
-    ∨ (is_block statics v ∧ n = 0%Z)
-    ∨ is_poison v
+    (is_immediate v ∧ n = 1%Z) ∨ (is_block statics v ∧ n = 0%Z)
   | Relation.Get_tag =>
     is_immediate v
-    ∨ (∃ fields : list value, block_of statics v = Some (n, fields))
-    ∨ is_poison v
+    ∨ ((∃ fields : list value, block_of statics v = Some (n, fields))
+       ∧ is_tag n)
   end.
 
 (* The primitive of a relation: the one whose result the compiler
@@ -418,11 +444,14 @@ Definition primitive_of_relation (relation : Relation.t) : prim :=
   end.
 
 (* The result of the primitive, where it has one, is related to its
-   argument. *)
+   argument: that of [Get_tag] if it is a tag, which the machine does
+   not test and the tag of a block of a well-formed term is (decision
+   D23). *)
 Definition primitive_related_statement : Prop :=
   ∀ (statics : static_env) (relation : Relation.t) (v : value) (n : Z),
     eval_prim statics (primitive_of_relation relation) [v]
     = Some (Value_const (Naked_immediate n)) ->
+    (relation = Relation.Get_tag -> is_tag n) ->
     relation_holds statics relation v n.
 
 (* ======================================================================== *)
@@ -829,17 +858,14 @@ Definition type_naked_number_satisfied_statement : Prop :=
           ∧ n ∈ numbers.
 
 (* A number that a relation relates to the value of a name. The three
-   statements spell [relation_holds] out. The type of the result of
-   [Is_int] has 0 and 1 only, whatever the value is. *)
+   statements spell [relation_holds] out. *)
 Definition is_int_for_scrutinee_satisfied_statement : Prop :=
   ∀ (statics : static_env) (vars : env) (v : value) (scrutinee : name),
     type_satisfied statics vars v (is_int_for_scrutinee scrutinee)
     <-> ∃ (i : Z) (w : value),
           v = Value_const (Naked_immediate i)
           ∧ value_of_name vars scrutinee = Some w
-          ∧ ((is_immediate w ∧ i = 1%Z)
-             ∨ (is_block statics w ∧ i = 0%Z)
-             ∨ (is_poison w ∧ (i = 0%Z ∨ i = 1%Z))).
+          ∧ ((is_immediate w ∧ i = 1%Z) ∨ (is_block statics w ∧ i = 0%Z)).
 
 (* The scrutinee may be an immediate, as a parameter that is unboxed
    may be; the number is then any number. *)
@@ -850,9 +876,9 @@ Definition get_tag_for_block_satisfied_statement : Prop :=
           v = Value_const (Naked_immediate i)
           ∧ value_of_name vars block = Some w
           ∧ (is_immediate w
-             ∨ (∃ fields : list value,
-                 block_of statics w = Some (i, fields))
-             ∨ is_poison w).
+             ∨ ((∃ fields : list value,
+                  block_of statics w = Some (i, fields))
+                ∧ is_tag i)).
 
 Definition is_null_for_scrutinee_satisfied_statement : Prop :=
   ∀ (statics : static_env) (vars : env) (v : value) (scrutinee : name),
@@ -867,7 +893,8 @@ Definition is_null_for_scrutinee_satisfied_statement : Prop :=
 (* The two sides of a relation agree: the variable of a type holds a
    number that the relation relates to each value of the type. For
    [Get_tag] the variable need hold nothing where the value is an
-   immediate. *)
+   immediate, and the number is to be a tag: a variant with a variable
+   [get_tag] is still a type of a block whose tag is out of range. *)
 Definition is_null_coherent_statement : Prop :=
   ∀ (statics : static_env) (vars : env) (v : value)
     (non_null : or_unknown_or_bottom head_of_kind_value_non_null)
@@ -897,22 +924,22 @@ Definition get_tag_coherent_statement : Prop :=
     head_of_kind_value_non_null_satisfied statics vars v
       (Variant is_int immediates (Some get_tag) blocks extensions is_unique) ->
     lookup get_tag vars = Some (Value_const (Naked_immediate n)) ->
+    is_tag n ->
     relation_holds statics Relation.Get_tag v n.
 
 (* The compiler's reading of a relation on a constant
    ([Relation.of_const], which [reduce_head_of_kind_naked_immediate]
    uses) is sound: if a relation relates a constant to a number, and the
    compiler gives a number for it, it is that one. For [Is_null] it is
-   exact on the constants of kind value. For [Is_int] it is not: the
-   compiler gives 0 for [Null] and 1 for every other constant, poison
-   and the naked numbers included; the relation holds of the tagged
-   immediates, and of poison with every number, so that on a poison
-   constant the compiler's 1 is not the only number related. *)
+   exact on the constants of kind value, poison included. For [Is_int]
+   it is not: the compiler gives 0 for [Null] and 1 for every other
+   constant, poison and the naked numbers included, and the relation
+   holds of the tagged immediates only. *)
 Definition relation_of_const_sound_statement : Prop :=
   ∀ (statics : static_env) (relation : Relation.t) (c : const) (i n : Z),
     relation_holds statics relation (Value_const c) i ->
     Relation.of_const relation c = Or_bottom.Ok n ->
-    i = n ∨ (relation = Relation.Is_int ∧ is_poison (Value_const c)).
+    i = n.
 
 Definition is_null_of_const_statement : Prop :=
   ∀ (statics : static_env) (c : const) (n : Z),
@@ -1208,11 +1235,10 @@ Definition env_extension_lookup_statement : Prop :=
 (* ======================================================================== *)
 
 (* What follows for a value from the number that a relation relates it
-   to. For [Is_null] it is what [Meet] deduces
-   ([reduce_inverse_relations]), and for [Is_int] too if the value is
-   not poison. For [Get_tag] it is less: [Meet] makes the value a block
-   with one of the tags, and it may be an immediate (see the header),
-   or poison. *)
+   to. For [Is_null] and [Is_int] it is what [Meet] deduces
+   ([reduce_inverse_relations]). For [Get_tag] it is less: [Meet] makes
+   the value a block with one of the numbers that are tags, and it may
+   be an immediate (see the header). *)
 Definition relation_is_null_statement : Prop :=
   ∀ (statics : static_env) (vars : env) (w : value) (n : Z),
     relation_holds statics Relation.Is_null w n ->
@@ -1223,8 +1249,7 @@ Definition relation_is_int_statement : Prop :=
   ∀ (statics : static_env) (vars : env) (w : value) (n : Z),
     relation_holds statics Relation.Is_int w n ->
     (n = 1%Z ∧ type_satisfied statics vars w any_tagged_immediate)
-    ∨ (n = 0%Z ∧ type_satisfied statics vars w any_block)
-    ∨ is_poison w.
+    ∨ (n = 0%Z ∧ type_satisfied statics vars w any_block).
 
 (* CR mshinwell: this is less than [reduce_inverse_relations] concludes,
    in both implementations of meet: it makes the value a block with one
@@ -1237,10 +1262,11 @@ Definition relation_get_tag_statement : Prop :=
   ∀ (statics : static_env) (vars : env) (w : value) (n : Z)
     (tags : list Z) (alloc_mode : Alloc_mode.t),
     relation_holds statics Relation.Get_tag w n ->
-    n ∈ tags ->
     is_immediate w
-    ∨ type_satisfied statics vars w (blocks_with_these_tags tags alloc_mode)
-    ∨ is_poison w.
+    ∨ (is_tag n
+       ∧ (n ∈ tags ->
+          type_satisfied statics vars w
+            (blocks_with_these_tags tags alloc_mode))).
 
 (* ======================================================================== *)
 (* What the meaning of a type depends on                                    *)

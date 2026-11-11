@@ -159,6 +159,11 @@ Proof.
       | split; [ discriminate | intros [k Hv]; discriminate Hv ] ].
 Qed.
 
+Lemma is_tag_b_eq (n : Z) : is_tag_b n = true <-> is_tag n.
+Proof.
+  unfold is_tag_b, is_tag. rewrite andb_true_iff, !Z.leb_le. reflexivity.
+Qed.
+
 Lemma relation_holds_b_eq (statics : static_env) (relation : Relation.t)
     (v : value) (n : Z) :
   relation_holds_b statics relation v n = true
@@ -177,71 +182,43 @@ Proof.
       * intros [Hkind ->]. right. auto.
       * intros [[Hnull _] | [Hkind [_ ->]]];
           [ destruct (Hnot_null Hnull) | split; [ exact Hkind | reflexivity ] ].
-  - rewrite orb_true_iff, is_poison_b_eq.
-    assert (Hrest :
-      match v with
-      | Value_const (Tagged_immediate _) => Z.eqb n 1
-      | _ =>
-        match block_of statics v with
-        | Some _ => Z.eqb n 0
-        | None => false
-        end
-      end
-      = true
-      <-> ((∃ i : Z, v = Value_const (Tagged_immediate i)) ∧ n = 1%Z)
-          ∨ ((∃ (tag : Z) (fields : list value),
-               block_of statics v = Some (tag, fields))
-             ∧ n = 0%Z)).
-    { destruct (tagged_immediate_or_not v (fun _ => Z.eqb n 1)
-                  match block_of statics v with
-                  | Some _ => Z.eqb n 0
-                  | None => false
-                  end)
-        as [[i [-> _]] | [Hnot_immediate ->]].
-      - simpl. rewrite Z.eqb_eq. split.
-        + intros ->. left. split; [ exists i; reflexivity | reflexivity ].
-        + intros [[_ ->] | [[tag [fields Hblock]] _]];
-            [ reflexivity | discriminate Hblock ].
-      - destruct (block_of statics v) as [[tag fields] | ].
-        + rewrite Z.eqb_eq. split.
-          * intros ->. right.
-            split; [ exists tag, fields; reflexivity | reflexivity ].
-          * intros [[[i Hv] _] | [_ ->]];
-              [ destruct (Hnot_immediate i Hv) | reflexivity ].
-        + split; [ discriminate | ].
-          intros [[[i Hv] _] | [[tag [fields Hblock]] _]];
-            [ destruct (Hnot_immediate i Hv) | discriminate Hblock ]. }
-    rewrite Hrest. tauto.
-  - rewrite orb_true_iff, is_poison_b_eq.
-    assert (Hrest :
-      match v with
-      | Value_const (Tagged_immediate _) => true
-      | _ =>
-        match block_of statics v with
-        | Some (tag, _) => Z.eqb tag n
-        | None => false
-        end
-      end
-      = true
-      <-> (∃ i : Z, v = Value_const (Tagged_immediate i))
-          ∨ (∃ fields : list value, block_of statics v = Some (n, fields))).
-    { destruct (tagged_immediate_or_not v (fun _ => true)
-                  match block_of statics v with
-                  | Some (tag, _) => Z.eqb tag n
-                  | None => false
-                  end)
-        as [[i [-> _]] | [Hnot_immediate ->]].
-      - simpl.
-        split; [ intros _; left; exists i; reflexivity | reflexivity ].
-      - destruct (block_of statics v) as [[tag fields] | ].
-        + rewrite Z.eqb_eq. split.
-          * intros ->. right. exists fields. reflexivity.
-          * intros [[i Hv] | [fields' [= -> _]]];
-              [ destruct (Hnot_immediate i Hv) | reflexivity ].
-        + split; [ discriminate | ].
-          intros [[i Hv] | [fields Hblock]];
-            [ destruct (Hnot_immediate i Hv) | discriminate Hblock ]. }
-    rewrite Hrest. tauto.
+  - destruct (tagged_immediate_or_not v (fun _ => Z.eqb n 1)
+                match block_of statics v with
+                | Some _ => Z.eqb n 0
+                | None => false
+                end)
+      as [[i [-> _]] | [Hnot_immediate ->]].
+    + simpl. rewrite Z.eqb_eq. split.
+      * intros ->. left. split; [ exists i; reflexivity | reflexivity ].
+      * intros [[_ ->] | [[tag [fields Hblock]] _]];
+          [ reflexivity | discriminate Hblock ].
+    + destruct (block_of statics v) as [[tag fields] | ].
+      * rewrite Z.eqb_eq. split.
+        -- intros ->. right.
+           split; [ exists tag, fields; reflexivity | reflexivity ].
+        -- intros [[[i Hv] _] | [_ ->]];
+             [ destruct (Hnot_immediate i Hv) | reflexivity ].
+      * split; [ discriminate | ].
+        intros [[[i Hv] _] | [[tag [fields Hblock]] _]];
+          [ destruct (Hnot_immediate i Hv) | discriminate Hblock ].
+  - destruct (tagged_immediate_or_not v (fun _ => true)
+                match block_of statics v with
+                | Some (tag, _) => Z.eqb tag n && is_tag_b n
+                | None => false
+                end)
+      as [[i [-> _]] | [Hnot_immediate ->]].
+    + simpl.
+      split; [ intros _; left; exists i; reflexivity | reflexivity ].
+    + destruct (block_of statics v) as [[tag fields] | ].
+      * rewrite andb_true_iff, Z.eqb_eq, is_tag_b_eq. split.
+        -- intros [-> Htag]. right.
+           split; [ exists fields; reflexivity | exact Htag ].
+        -- intros [[i Hv] | [[fields' [= -> _]] Htag]];
+             [ destruct (Hnot_immediate i Hv)
+             | split; [ reflexivity | exact Htag ] ].
+      * split; [ discriminate | ].
+        intros [[i Hv] | [[fields Hblock] _]];
+          [ destruct (Hnot_immediate i Hv) | discriminate Hblock ].
 Qed.
 
 Theorem relation_holds_b_iff : relation_holds_b_iff_statement.

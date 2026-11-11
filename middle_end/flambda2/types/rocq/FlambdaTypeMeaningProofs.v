@@ -548,15 +548,10 @@ Proof.
   rewrite (relation_type_satisfied statics vars v Relation.Is_int). simpl.
   split.
   - intros [i [w [Hv [Hnumbers [Hw Hholds]]]]]. exists i, w.
-    split; [ exact Hv | ]. split; [ exact Hw | ].
-    destruct Hholds as [H | [H | H]];
-      [ left; exact H | right; left; exact H | right; right ].
-    split; [ exact H | ]. destruct Hnumbers as [<- | [<- | []]]; auto.
+    split; [ exact Hv | ]. split; [ exact Hw | exact Hholds ].
   - intros [i [w [Hv [Hw Hholds]]]]. exists i, w.
-    split; [ exact Hv | ]. split; [ | split; [ exact Hw | ] ].
-    + destruct Hholds as [[_ ->] | [[_ ->] | [_ [-> | ->]]]]; auto.
-    + destruct Hholds as [H | [H | [H _]]];
-        [ left; exact H | right; left; exact H | right; right; exact H ].
+    split; [ exact Hv | ]. split; [ | split; [ exact Hw | exact Hholds ] ].
+    destruct Hholds as [[_ ->] | [_ ->]]; auto.
 Qed.
 
 Theorem get_tag_for_block_satisfied : get_tag_for_block_satisfied_statement.
@@ -603,7 +598,7 @@ Proof.
   intros [[i [Hv [His_int _]]] | [tag [fields [Hblock [His_int _]]]]].
   - exists 1%Z. split; [ exact His_int | ]. left.
     split; [ exists i; exact Hv | reflexivity ].
-  - exists 0%Z. split; [ exact His_int | ]. right. left.
+  - exists 0%Z. split; [ exact His_int | ]. right.
     split; [ exists tag, fields; exact Hblock | reflexivity ].
 Qed.
 
@@ -612,10 +607,10 @@ Proof.
   intros statics vars v is_int immediates get_tag blocks extensions
     is_unique n.
   rewrite variant_satisfied. simpl.
-  intros [[i [Hv _]] | [tag [fields [Hblock [_ [Hget_tag _]]]]]] Hn.
+  intros [[i [Hv _]] | [tag [fields [Hblock [_ [Hget_tag _]]]]]] Hn Htag.
   - left. exists i. exact Hv.
-  - right. left. exists fields. rewrite Hget_tag in Hn. injection Hn as <-.
-    exact Hblock.
+  - right. rewrite Hget_tag in Hn. injection Hn as <-.
+    split; [ exists fields; exact Hblock | exact Htag ].
 Qed.
 
 (* The compiler's reading of a relation on a constant. *)
@@ -624,15 +619,13 @@ Theorem relation_of_const_sound : relation_of_const_sound_statement.
 Proof.
   intros statics relation c i n Hholds Hof_const.
   destruct relation; simpl in Hholds.
-  - left. destruct Hholds as [[[= ->] ->] | [_ [Hnot_null ->]]].
+  - destruct Hholds as [[[= ->] ->] | [_ [Hnot_null ->]]].
     + injection Hof_const as <-. reflexivity.
     + destruct c; try (injection Hof_const as <-; reflexivity).
       destruct (Hnot_null eq_refl).
-  - destruct Hholds
-      as [[[j [= ->]] ->] | [[[tag [fields Hblock]] _] | Hpoison]].
-    + left. injection Hof_const as <-. reflexivity.
+  - destruct Hholds as [[[j [= ->]] ->] | [[tag [fields Hblock]] _]].
+    + injection Hof_const as <-. reflexivity.
     + discriminate Hblock.
-    + right. split; [ reflexivity | exact Hpoison ].
   - discriminate Hof_const.
 Qed.
 
@@ -678,28 +671,29 @@ Proof.
                  then Some false
                  else None))
       as [[-> _] | [Hnot_null ->]].
-    + simpl. intros [= <-]. left. split; reflexivity.
+    + simpl. intros [= <-] _. left. split; reflexivity.
     + destruct (FlambdaPrimitiveSpec.is_tagged_immediate v) eqn:Himmediate;
         simpl.
-      * intros [= <-]. right.
+      * intros [= <-] _. right.
         destruct (tagged_immediate_is_immediate v Himmediate) as [i ->].
         split; [ reflexivity | ]. split; [ discriminate | reflexivity ].
       * destruct (is_allocated statics v) eqn:Hallocated; [ | discriminate ].
-        intros [= <-]. right.
+        intros [= <-] _. right.
         destruct (allocated_not_null statics v Hallocated) as [Hkind _].
         split; [ exact Hkind | ]. split; [ exact Hnot_null | reflexivity ].
   - unfold eval_is_int.
     destruct (FlambdaPrimitiveSpec.is_tagged_immediate v) eqn:Himmediate;
       simpl.
-    + intros [= <-]. left.
+    + intros [= <-] _. left.
       split; [ exact (tagged_immediate_is_immediate v Himmediate) | ].
       reflexivity.
     + destruct (block_of statics v) as [[tag fields] | ] eqn:Hblock;
         [ | discriminate ].
-      simpl. intros [= <-]. right. left.
+      simpl. intros [= <-] _. right.
       split; [ exists tag, fields; exact Hblock | reflexivity ].
   - destruct (block_of statics v) as [[tag fields] | ]; [ | discriminate ].
-    simpl. intros [= <-]. right. left. exists fields. reflexivity.
+    simpl. intros [= <-] Htag. right.
+    split; [ exists fields; reflexivity | exact (Htag eq_refl) ].
 Qed.
 
 Theorem these_tagged_immediates_satisfied
@@ -1119,6 +1113,7 @@ Ltac yes :=
       | match goal with
         | H : False |- _ => destruct H
         | H : _ ∨ _ |- _ => destruct H
+        | H : ∃ _, _ |- _ => destruct H
         | H : ?a = ?a |- _ => clear H
         | H : _ = _ |- _ => discriminate H
         | H : (_, _) = (_, _) |- _ => injection H as <- <-
@@ -1142,6 +1137,8 @@ Ltac no :=
     | H : Value_const _ = Value_const _ |- _ => injection H as H; subst
     | H : ?a = ?a -> _ |- _ => specialize (H eq_refl)
     | H : ?a <> ?a |- _ => destruct (H eq_refl)
+    | H : (∃ k : flambda_kind, _) -> False |- _ =>
+      destruct H; eexists; reflexivity
     | H : ∀ r n, (?r0, ?n0) = (r, n) ∨ _ -> _ |- _ =>
       specialize (H r0 n0 (or_introl eq_refl))
     | H : ∀ c, Some ?v = Some c -> _ |- _ => specialize (H v eq_refl)
@@ -1253,19 +1250,18 @@ Proof. no. Qed.
 (* A field that is unboxed in turn as a variant, on a path where the
    parameter it is a field of holds an immediate: [poison] is the
    parameter for the field, and [zero] stands for its extra parameters
-   for [Is_int] and [Get_tag], to which 0 is passed on this path. The
-   two types that build_unboxing_denv.ml records for those hold: a
-   relation says nothing of a value that is poison. The type recorded
-   for the field does not hold of the poison value: that is for what
-   satisfies an environment to set aside (see the header of the Spec, on
-   poison). *)
-Example unboxed_poison_is_int_has
-  : has (naked 0) (is_int_for_scrutinee (Name_var poison)).
-Proof. yes. Qed.
+   for [Is_int] and [Get_tag], to which 0 is passed on this path. None
+   of the three types that build_unboxing_denv.ml records holds there:
+   the two relations hold of no value that is poison, and a poison
+   value is no variant. That is for what satisfies an environment to
+   set aside (see the header of the Spec, on poison). *)
+Example unboxed_poison_is_int_has_not
+  : ~ has (naked 0) (is_int_for_scrutinee (Name_var poison)).
+Proof. no. Qed.
 
-Example unboxed_poison_tag_has
-  : has (naked 0) (get_tag_for_block (Name_var poison)).
-Proof. yes. Qed.
+Example unboxed_poison_tag_has_not
+  : ~ has (naked 0) (get_tag_for_block (Name_var poison)).
+Proof. no. Qed.
 
 Example unboxed_poison_has_not
   : ~ has (Value_const (Poison Value))
@@ -1273,16 +1269,6 @@ Example unboxed_poison_has_not
            (Variant (Some zero) Or_unknown.Unknown (Some zero)
               Or_unknown.Unknown No_extensions false)).
 Proof. no. Qed.
-
-(* The type of the result of [Is_int] has 0 and 1 only, of poison too;
-   that of [Get_tag] has every number. *)
-Example unboxed_poison_is_int_has_not
-  : ~ has (naked 2) (is_int_for_scrutinee (Name_var poison)).
-Proof. no. Qed.
-
-Example unboxed_poison_any_tag_has
-  : has (naked 7) (get_tag_for_block (Name_var poison)).
-Proof. yes. Qed.
 
 Example is_null_has
   : has (naked 0) (is_null_for_scrutinee (Name_symbol a_closure)).
@@ -1975,13 +1961,14 @@ Lemma relation_holds_extend (relation : Relation.t) (v : value) (n : Z) :
 Proof.
   destruct relation; simpl.
   - auto.
-  - intros [Himmediate | [[[tag [fields Hblock]] Hn] | Hpoison]];
-      [ left; exact Himmediate | | right; right; exact Hpoison ].
-    right. left. split; [ | exact Hn ]. exists tag, fields.
+  - intros [Himmediate | [[tag [fields Hblock]] Hn]];
+      [ left; exact Himmediate | ].
+    right. split; [ | exact Hn ]. exists tag, fields.
     exact (block_of_extend _ _ Hblock).
-  - intros [Himmediate | [[fields Hblock] | Hpoison]];
-      [ left; exact Himmediate | | right; right; exact Hpoison ].
-    right. left. exists fields. exact (block_of_extend _ _ Hblock).
+  - intros [Himmediate | [[fields Hblock] Htag]];
+      [ left; exact Himmediate | ].
+    right. split; [ | exact Htag ]. exists fields.
+    exact (block_of_extend _ _ Hblock).
 Qed.
 
 (* What holds of the fields under one meaning of types holds under
@@ -2590,20 +2577,20 @@ Qed.
 
 Theorem relation_is_int : relation_is_int_statement.
 Proof.
-  intros statics vars w n [[Himmediate ->] | [[Hblock ->] | Hpoison]].
+  intros statics vars w n [[Himmediate ->] | [Hblock ->]].
   - left. split; [ reflexivity | ].
     apply any_tagged_immediate_satisfied. exact Himmediate.
-  - right. left. split; [ reflexivity | ].
+  - right. split; [ reflexivity | ].
     apply any_block_satisfied. exact Hblock.
-  - right. right. exact Hpoison.
 Qed.
 
 Theorem relation_get_tag : relation_get_tag_statement.
 Proof.
   intros statics vars w n tags alloc_mode
-    [Himmediate | [[fields Hblock] | Hpoison]] Hin;
-    [ left; exact Himmediate | | right; right; exact Hpoison ].
-  right. left. apply blocks_with_these_tags_satisfied. exists n, fields.
+    [Himmediate | [[fields Hblock] Htag]];
+    [ left; exact Himmediate | ].
+  right. split; [ exact Htag | ]. intros Hin.
+  apply blocks_with_these_tags_satisfied. exists n, fields.
   split; assumption.
 Qed.
 
