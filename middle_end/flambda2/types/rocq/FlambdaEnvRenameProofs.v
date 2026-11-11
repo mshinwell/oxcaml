@@ -46,8 +46,9 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaBindingTime
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesRenamingSpec
   FlambdaEnvAliasesRenamingProofs FlambdaTypingEnv FlambdaTypingEnvSpec
-  FlambdaTypeRenameSpec FlambdaTypeRenameProofs FlambdaTypeNominalSpec
-  FlambdaTypeNominalProofs FlambdaEnvRenameSpec.
+  FlambdaTypingEnvInvariantSpec FlambdaTypingEnvInvariantProofs
+  FlambdaTypingEnvKindedSpec FlambdaTypeRenameSpec FlambdaTypeRenameProofs
+  FlambdaTypeNominalSpec FlambdaTypeNominalProofs FlambdaEnvRenameSpec.
 Import ListNotations.
 Import Nominal.
 
@@ -1703,4 +1704,590 @@ Proof.
   pose proof (env_satisfies_strictly_renamed (inverse_renaming r) _ _ _ H)
     as H'.
   rewrite rename_env_inverse_l, rename_typing_env_inverse in H'. exact H'.
+Qed.
+
+(* ======================================================================== *)
+(* The invariant of a renamed environment                                   *)
+(* ======================================================================== *)
+
+(* Each condition of the invariant is kept by a renaming. The converse
+   is the same fact of the inverse renaming. *)
+
+Lemma lookup_of_renamed (r : renaming) (tenv : Typing_env.t) (n : name)
+    (ty : flambda_type)
+    (binding_time_and_mode : Binding_time.With_name_mode.t) :
+  Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
+  = Some (ty, binding_time_and_mode) ->
+  Keyed.lookup name_eqb (rename_name r n)
+    (Typing_env.names_to_types (rename_typing_env r tenv))
+  = Some (rename_type r ty, binding_time_and_mode).
+Proof.
+  intros Hlookup.
+  rewrite names_to_types_renamed, lookup_named_renamed, Hlookup. reflexivity.
+Qed.
+
+Lemma lookup_in_renamed (r : renaming) (tenv : Typing_env.t) (n : name)
+    (ty : flambda_type)
+    (binding_time_and_mode : Binding_time.With_name_mode.t) :
+  Keyed.lookup name_eqb n
+    (Typing_env.names_to_types (rename_typing_env r tenv))
+  = Some (ty, binding_time_and_mode) ->
+  ∃ ty0 : flambda_type,
+    ty = rename_type r ty0
+    ∧ Keyed.lookup name_eqb (rename_name (inverse_renaming r) n)
+        (Typing_env.names_to_types tenv)
+      = Some (ty0, binding_time_and_mode).
+Proof.
+  rewrite <- (FlambdaTypeRenameProofs.rename_name_inverse_r r n) at 1.
+  rewrite names_to_types_renamed, lookup_named_renamed.
+  destruct
+    (Keyed.lookup name_eqb (rename_name (inverse_renaming r) n)
+       (Typing_env.names_to_types tenv))
+    as [[ty0 binding_time_and_mode0] | ];
+    [ | discriminate ].
+  unfold rename_binding. simpl. intros Hrenamed.
+  injection Hrenamed as <- <-. exists ty0. split; reflexivity.
+Qed.
+
+Lemma is_bound_named_renamed {B C : Type} (r : renaming) (g : B -> C)
+    (n : name) (bindings : Keyed.finite_map name B) :
+  Keyed.is_bound name_eqb (rename_name r n)
+    (Keyed.map_bindings (rename_name r) g bindings)
+  = Keyed.is_bound name_eqb n bindings.
+Proof.
+  unfold Keyed.is_bound. rewrite lookup_named_renamed.
+  destruct (Keyed.lookup name_eqb n bindings); reflexivity.
+Qed.
+
+Lemma simple_of_renamed_name (r : renaming) (n : name) :
+  simple_of_name (rename_name r n) = rename_simple r (simple_of_name n).
+Proof. destruct n; reflexivity. Qed.
+
+(* The names and their types. *)
+
+Lemma binding_times_in_range_renamed (r : renaming) (tenv : Typing_env.t) :
+  binding_times_in_range tenv ->
+  binding_times_in_range (rename_typing_env r tenv).
+Proof.
+  intros H x ty binding_time_and_mode Hlookup.
+  apply lookup_in_renamed in Hlookup as (ty0 & _ & Hlookup).
+  exact (H _ _ _ Hlookup).
+Qed.
+
+Lemma binding_times_distinct_renamed (r : renaming) (tenv : Typing_env.t) :
+  binding_times_distinct tenv ->
+  binding_times_distinct (rename_typing_env r tenv).
+Proof.
+  intros H x y ty ty' binding_time_and_mode binding_time_and_mode' Hx Hy
+    Hsame.
+  apply lookup_in_renamed in Hx as (ty0 & _ & Hx).
+  apply lookup_in_renamed in Hy as (ty0' & _ & Hy).
+  pose proof (H _ _ _ _ _ _ Hx Hy Hsame) as Heq.
+  apply (f_equal (rename_variable r)) in Heq.
+  rewrite !rename_variable_inverse_r in Heq. exact Heq.
+Qed.
+
+Lemma types_closed_renamed (r : renaming) (tenv : Typing_env.t) :
+  types_closed tenv -> types_closed (rename_typing_env r tenv).
+Proof.
+  intros H n ty binding_time_and_mode x Hlookup Hin.
+  apply lookup_in_renamed in Hlookup as (ty0 & -> & Hlookup).
+  rewrite (proj1 free_variables_rename_type) in Hin.
+  apply in_map_iff in Hin as (x0 & <- & Hin).
+  rewrite names_to_types_renamed.
+  change (Name_var (rename_variable r x0)) with (rename_name r (Name_var x0)).
+  rewrite is_bound_named_renamed. exact (H _ _ _ _ Hlookup Hin).
+Qed.
+
+Lemma symbols_defined_renamed (r : renaming) (tenv : Typing_env.t) :
+  symbols_defined tenv -> symbols_defined (rename_typing_env r tenv).
+Proof.
+  intros H s ty binding_time_and_mode Hlookup.
+  apply lookup_in_renamed in Hlookup as (ty0 & _ & Hlookup).
+  exact (H _ _ _ Hlookup).
+Qed.
+
+Lemma symbols_recorded_renamed (r : renaming) (tenv : Typing_env.t) :
+  symbols_recorded tenv -> symbols_recorded (rename_typing_env r tenv).
+Proof.
+  intros H s ty binding_time_and_mode Hlookup.
+  apply lookup_in_renamed in Hlookup as (ty0 & _ & Hlookup).
+  exact (H _ _ _ Hlookup).
+Qed.
+
+(* The levels. *)
+
+Lemma all_levels_renamed (r : renaming) (tenv : Typing_env.t) :
+  all_levels (rename_typing_env r tenv)
+  = map (rename_level r) (all_levels tenv).
+Proof. unfold all_levels. simpl. rewrite !map_map. reflexivity. Qed.
+
+Lemma all_scopes_renamed (r : renaming) (tenv : Typing_env.t) :
+  all_scopes (rename_typing_env r tenv) = all_scopes tenv.
+Proof. unfold all_scopes. simpl. rewrite map_map. reflexivity. Qed.
+
+Lemma in_all_levels_renamed (r : renaming) (tenv : Typing_env.t)
+    (level : Typing_env_level.t) :
+  level ∈ all_levels (rename_typing_env r tenv) ->
+  ∃ level0 : Typing_env_level.t,
+    rename_level r level0 = level ∧ level0 ∈ all_levels tenv.
+Proof. rewrite all_levels_renamed. apply in_map_iff. Qed.
+
+Lemma levels_disjoint_renamed (r : renaming)
+    (earlier later : Typing_env_level.t) :
+  levels_disjoint earlier later ->
+  levels_disjoint (rename_level r earlier) (rename_level r later).
+Proof.
+  intros H. apply (proj1 (concat_defined _ _)).
+  rewrite level_concat_equivariant.
+  apply (proj2 (concat_defined _ _)) in H.
+  destruct (Typing_env_level.concat earlier later);
+    [ discriminate | elim H; reflexivity ].
+Qed.
+
+Lemma levels_pairwise_disjoint_renamed (r : renaming)
+    (levels : list Typing_env_level.t) :
+  levels_pairwise_disjoint levels ->
+  levels_pairwise_disjoint (map (rename_level r) levels).
+Proof.
+  induction levels as [ | later levels IH]; simpl; [ trivial | ].
+  intros [Hlater Hrest]. split; [ | exact (IH Hrest) ].
+  intros earlier Hin. apply in_map_iff in Hin as (earlier0 & <- & Hin).
+  exact (levels_disjoint_renamed r _ _ (Hlater _ Hin)).
+Qed.
+
+Lemma defined_variables_bound_renamed (r : renaming) (tenv : Typing_env.t) :
+  defined_variables_bound tenv ->
+  defined_variables_bound (rename_typing_env r tenv).
+Proof.
+  intros H level x k Hin Hlookup.
+  apply in_all_levels_renamed in Hin as (level0 & <- & Hin).
+  rewrite <- (rename_variable_inverse_r r x) in Hlookup |- *.
+  pose proof
+    (level_find_kind_equivariant r level0
+       (rename_variable (inverse_renaming r) x))
+    as Hkind.
+  unfold Typing_env_level.find_kind in Hkind. rewrite Hkind in Hlookup.
+  destruct (H _ _ _ Hin Hlookup)
+    as (ty & binding_time_and_mode & Hty & Hk).
+  exists (rename_type r ty), binding_time_and_mode. split.
+  - exact (lookup_of_renamed r tenv _ _ _ Hty).
+  - rewrite kind_rename_type. exact Hk.
+Qed.
+
+Lemma binding_times_renamed (r : renaming) (level : Typing_env_level.t)
+    (binding_time : Binding_time.t) :
+  Keyed.lookup Z.eqb binding_time
+    (Typing_env_level.binding_times (rename_level r level))
+  = option_map (map (rename_variable r))
+      (Keyed.lookup Z.eqb binding_time
+         (Typing_env_level.binding_times level)).
+Proof. simpl. apply keyed_lookup_map_values. Qed.
+
+Lemma indexed_at_renamed (r : renaming) (level : Typing_env_level.t)
+    (binding_time : Binding_time.t) (x : variable) :
+  indexed_at level binding_time x ->
+  indexed_at (rename_level r level) binding_time (rename_variable r x).
+Proof.
+  intros (vars & Hlookup & Hin). exists (map (rename_variable r) vars). split.
+  - rewrite binding_times_renamed, Hlookup. reflexivity.
+  - exact (in_map _ _ _ Hin).
+Qed.
+
+Lemma indexed_at_renamed_back (r : renaming) (level : Typing_env_level.t)
+    (binding_time : Binding_time.t) (x : variable) :
+  indexed_at (rename_level r level) binding_time x ->
+  indexed_at level binding_time (rename_variable (inverse_renaming r) x).
+Proof.
+  intros (vars & Hlookup & Hin). rewrite binding_times_renamed in Hlookup.
+  destruct
+    (Keyed.lookup Z.eqb binding_time (Typing_env_level.binding_times level))
+    as [vars0 | ] eqn:Hvars0;
+    [ | discriminate ].
+  injection Hlookup as <-. apply in_map_iff in Hin as (x0 & <- & Hin).
+  exists vars0. split; [ exact Hvars0 | ].
+  rewrite rename_variable_inverse_l. exact Hin.
+Qed.
+
+Lemma level_indexed_renamed (r : renaming) (level : Typing_env_level.t) :
+  level_indexed level -> level_indexed (rename_level r level).
+Proof.
+  intros H x. rewrite <- (rename_variable_inverse_r r x).
+  generalize (rename_variable (inverse_renaming r) x). intros x0.
+  pose proof (level_variable_is_defined_equivariant r level x0) as Hdefined.
+  unfold Typing_env_level.variable_is_defined in Hdefined. rewrite Hdefined.
+  split.
+  - intros Hbound. apply (H x0) in Hbound as [binding_time Hindexed].
+    exists binding_time. exact (indexed_at_renamed r _ _ _ Hindexed).
+  - intros [binding_time Hindexed].
+    apply indexed_at_renamed_back in Hindexed.
+    rewrite rename_variable_inverse_l in Hindexed.
+    apply (H x0). exists binding_time. exact Hindexed.
+Qed.
+
+Lemma levels_indexed_renamed (r : renaming) (tenv : Typing_env.t) :
+  levels_indexed tenv -> levels_indexed (rename_typing_env r tenv).
+Proof.
+  intros H level Hin.
+  apply in_all_levels_renamed in Hin as (level0 & <- & Hin).
+  exact (level_indexed_renamed r _ (H _ Hin)).
+Qed.
+
+Lemma level_binding_times_recorded_renamed (r : renaming)
+    (tenv : Typing_env.t) :
+  level_binding_times_recorded tenv ->
+  level_binding_times_recorded (rename_typing_env r tenv).
+Proof.
+  intros H level binding_time x Hin Hindexed.
+  apply in_all_levels_renamed in Hin as (level0 & <- & Hin).
+  apply indexed_at_renamed_back in Hindexed.
+  destruct (H _ _ _ Hin Hindexed)
+    as (ty & binding_time_and_mode & Hty & Htime).
+  exists (rename_type r ty), binding_time_and_mode.
+  split; [ | exact Htime ].
+  rewrite <- (rename_variable_inverse_r r x).
+  exact (lookup_of_renamed r tenv _ _ _ Hty).
+Qed.
+
+Lemma level_binding_times_in_range_renamed (r : renaming)
+    (tenv : Typing_env.t) :
+  level_binding_times_in_range tenv ->
+  level_binding_times_in_range (rename_typing_env r tenv).
+Proof.
+  intros H level binding_time Hin Hbound.
+  apply in_all_levels_renamed in Hin as (level0 & <- & Hin).
+  apply (H level0 binding_time Hin). revert Hbound.
+  unfold Keyed.is_bound. rewrite binding_times_renamed.
+  destruct
+    (Keyed.lookup Z.eqb binding_time
+       (Typing_env_level.binding_times level0));
+    simpl; intros Hbound; [ reflexivity | discriminate ].
+Qed.
+
+Lemma variables_defined_renamed (r : renaming) (tenv : Typing_env.t) :
+  variables_defined tenv -> variables_defined (rename_typing_env r tenv).
+Proof.
+  intros H x ty binding_time_and_mode Hlookup.
+  apply lookup_in_renamed in Hlookup as (ty0 & _ & Hlookup).
+  destruct
+    (H (rename_variable (inverse_renaming r) x) ty0 binding_time_and_mode
+       Hlookup)
+    as (level & Hin & Hbound).
+  exists (rename_level r level). split.
+  - rewrite all_levels_renamed. exact (in_map _ _ _ Hin).
+  - rewrite <- (rename_variable_inverse_r r x).
+    pose proof
+      (level_variable_is_defined_equivariant r level
+         (rename_variable (inverse_renaming r) x))
+      as Hdefined.
+    unfold Typing_env_level.variable_is_defined in Hdefined.
+    rewrite Hdefined. exact Hbound.
+Qed.
+
+(* The aliases. *)
+
+Lemma aliases_consistent_renamed (r : renaming) (t : Aliases.t) :
+  aliases_consistent t -> aliases_consistent (rename_aliases r t).
+Proof.
+  intros [Hcanonical Hlisted]. split.
+  - intros n canonical_element Hdemoted.
+    apply demoted_to_renamed_inv in Hdemoted
+      as (n' & canonical_element' & -> & -> & Hdemoted).
+    unfold is_canonical. rewrite canonical_renamed.
+    rewrite (Hcanonical n' canonical_element' Hdemoted). reflexivity.
+  - intros n canonical_element. split.
+    + intros Hdemoted.
+      apply demoted_to_renamed_inv in Hdemoted
+        as (n' & canonical_element' & -> & -> & Hdemoted).
+      apply listed_alias_renamed, Hlisted, Hdemoted.
+    + intros Hlisted'.
+      rewrite <- (FlambdaTypeRenameProofs.rename_name_inverse_r r n),
+        <- (rename_simple_inverse_r r canonical_element)
+        in Hlisted' |- *.
+      apply listed_alias_renamed in Hlisted'.
+      apply demoted_to_renamed, Hlisted, Hlisted'.
+Qed.
+
+Lemma name_mode_of_renamed (r : renaming) (tenv : Typing_env.t)
+    (e : simple) :
+  Aliases.compute_name_mode_unscoped
+    (Typing_env.names_to_types (rename_typing_env r tenv))
+    (rename_simple r e)
+  = Aliases.compute_name_mode_unscoped (Typing_env.names_to_types tenv) e.
+Proof.
+  rewrite
+    (compute_name_mode_unscoped_alike _
+       (rename_binding_times r (Typing_env.names_to_types tenv))
+       (times_of_renamed r tenv)).
+  apply compute_name_mode_unscoped_renamed.
+Qed.
+
+Lemma name_modes_recorded_renamed (r : renaming) (tenv : Typing_env.t) :
+  name_modes_recorded (Typing_env.names_to_types tenv)
+    (Typing_env.aliases tenv) ->
+  name_modes_recorded (Typing_env.names_to_types (rename_typing_env r tenv))
+    (rename_aliases r (Typing_env.aliases tenv)).
+Proof.
+  intros Hrecorded canonical_element n name_mode Hlookup.
+  rewrite <- (rename_simple_inverse_r r canonical_element) in Hlookup.
+  rewrite <- (FlambdaTypeRenameProofs.rename_name_inverse_r r n)
+    in Hlookup |- *.
+  rewrite get_aliases_of_canonical_element_renamed in Hlookup.
+  unfold rename_aliases_of_canonical_element in Hlookup.
+  rewrite
+    (lookup_renamed name_eqb (rename_name r) (name_eqb_renamed r))
+    in Hlookup.
+  rewrite <- rename_simple_of_name, name_mode_of_renamed.
+  apply (Hrecorded (rename_simple (inverse_renaming r) canonical_element)).
+  destruct
+    (Keyed.lookup name_eqb
+       (rename_name (inverse_renaming r) n)
+       (Aliases.get_aliases_of_canonical_element (Typing_env.aliases tenv)
+          (rename_simple (inverse_renaming r) canonical_element)))
+    as [name_mode' | ];
+    [ | discriminate ].
+  injection Hlookup as <-. reflexivity.
+Qed.
+
+Lemma aliases_known_renamed (r : renaming) (tenv : Typing_env.t) :
+  aliases_known tenv -> aliases_known (rename_typing_env r tenv).
+Proof.
+  intros H n canonical_element Hdemoted.
+  change (Typing_env.aliases (rename_typing_env r tenv))
+    with (rename_aliases r (Typing_env.aliases tenv)) in Hdemoted.
+  apply demoted_to_renamed_inv in Hdemoted
+    as (n' & canonical_element' & -> & -> & Hdemoted).
+  destruct (H _ _ Hdemoted) as [Hn Hcanonical]. split.
+  - rewrite <- Hn. exact (mem_equivariant r None tenv n').
+  - rewrite <- Hcanonical. apply mem_simple_equivariant.
+Qed.
+
+Lemma canonical_names_concrete_renamed (r : renaming) (tenv : Typing_env.t) :
+  canonical_names_concrete tenv ->
+  canonical_names_concrete (rename_typing_env r tenv).
+Proof.
+  intros H n ty binding_time_and_mode alias Hlookup Halias Hcanonical.
+  apply lookup_in_renamed in Hlookup as (ty0 & -> & Hlookup).
+  rewrite get_alias_opt_renamed in Halias.
+  destruct (get_alias_opt ty0) as [alias0 | ] eqn:Halias0; [ | discriminate ].
+  apply (H _ _ _ _ Hlookup Halias0).
+  change (Typing_env.aliases (rename_typing_env r tenv))
+    with (rename_aliases r (Typing_env.aliases tenv)) in Hcanonical.
+  rewrite <- (FlambdaTypeRenameProofs.rename_name_inverse_r r n)
+    in Hcanonical.
+  unfold is_canonical in Hcanonical |- *.
+  rewrite simple_of_renamed_name, canonical_renamed in Hcanonical.
+  destruct
+    (Aliases.canonical (Typing_env.aliases tenv)
+       (simple_of_name (rename_name (inverse_renaming r) n)));
+    [ reflexivity | discriminate ].
+Qed.
+
+(* The equations of the levels. *)
+
+Lemma all_equations_renamed (r : renaming) (tenv : Typing_env.t) :
+  all_equations (rename_typing_env r tenv)
+  = Keyed.map_bindings (rename_name r) (rename_type r) (all_equations tenv).
+Proof.
+  unfold all_equations. rewrite all_levels_renamed.
+  induction (all_levels tenv) as [ | level levels IH]; [ reflexivity | ].
+  cbn [map flat_map]. rewrite IH. unfold Keyed.map_bindings.
+  rewrite map_app. reflexivity.
+Qed.
+
+Lemma levels_agree_renamed (r : renaming) (tenv : Typing_env.t) :
+  levels_agree tenv -> levels_agree (rename_typing_env r tenv).
+Proof.
+  intros H n ty. rewrite all_equations_renamed.
+  rewrite <- (FlambdaTypeRenameProofs.rename_name_inverse_r r n).
+  rewrite lookup_named_renamed.
+  destruct
+    (Keyed.lookup name_eqb (rename_name (inverse_renaming r) n)
+       (all_equations tenv))
+    as [ty0 | ] eqn:Hty0;
+    [ | discriminate ].
+  simpl. intros Heq. injection Heq as <-.
+  destruct (H _ _ Hty0) as [binding_time_and_mode Hfound].
+  exists binding_time_and_mode. exact (lookup_of_renamed r tenv _ _ _ Hfound).
+Qed.
+
+(* The conditions together. *)
+
+Lemma conditions_renamed (r : renaming) (tenv : Typing_env.t) :
+  typing_env_conditions tenv ->
+  typing_env_conditions (rename_typing_env r tenv).
+Proof.
+  intros ((Hbounded & Hrange & Hdistinct & Hclosed & Hdefined & Hrecorded)
+          & (Hdisjoint & Hbound & Hindexed & Htimes & Htimes_range & Hscopes
+             & Hvariables)
+          & (Hconsistent & Hmodes & Hknown & Hconcrete)).
+  refine
+    (conj (conj Hbounded (conj _ (conj _ (conj _ (conj _ _)))))
+       (conj (conj _ (conj _ (conj _ (conj _ (conj _ (conj _ _))))))
+          (conj _ (conj _ (conj _ _))))).
+  - exact (binding_times_in_range_renamed r _ Hrange).
+  - exact (binding_times_distinct_renamed r _ Hdistinct).
+  - exact (types_closed_renamed r _ Hclosed).
+  - exact (symbols_defined_renamed r _ Hdefined).
+  - exact (symbols_recorded_renamed r _ Hrecorded).
+  - rewrite all_levels_renamed.
+    exact (levels_pairwise_disjoint_renamed r _ Hdisjoint).
+  - exact (defined_variables_bound_renamed r _ Hbound).
+  - exact (levels_indexed_renamed r _ Hindexed).
+  - exact (level_binding_times_recorded_renamed r _ Htimes).
+  - exact (level_binding_times_in_range_renamed r _ Htimes_range).
+  - rewrite all_scopes_renamed. exact Hscopes.
+  - exact (variables_defined_renamed r _ Hvariables).
+  - exact (aliases_consistent_renamed r _ Hconsistent).
+  - exact (name_modes_recorded_renamed r _ Hmodes).
+  - exact (aliases_known_renamed r _ Hknown).
+  - exact (canonical_names_concrete_renamed r _ Hconcrete).
+Qed.
+
+Lemma well_formed_renamed_true (r : renaming) (tenv : Typing_env.t) :
+  typing_env_well_formed tenv = true ->
+  typing_env_well_formed (rename_typing_env r tenv) = true.
+Proof.
+  intros H. apply (proj2 (typing_env_well_formed_iff _)), conditions_renamed.
+  exact (proj1 (typing_env_well_formed_iff _) H).
+Qed.
+
+Theorem typing_env_well_formed_rename :
+  typing_env_well_formed_rename_statement.
+Proof.
+  intros r tenv. destruct (typing_env_well_formed tenv) eqn:Htenv.
+  - exact (well_formed_renamed_true r tenv Htenv).
+  - destruct (typing_env_well_formed (rename_typing_env r tenv)) eqn:Hrenamed;
+      [ | reflexivity ].
+    apply (well_formed_renamed_true (inverse_renaming r)) in Hrenamed.
+    rewrite rename_typing_env_inverse in Hrenamed. congruence.
+Qed.
+
+Theorem levels_agree_rename : levels_agree_rename_statement.
+Proof.
+  intros r tenv. split; [ | apply levels_agree_renamed ].
+  intros H. apply (levels_agree_renamed (inverse_renaming r)) in H.
+  rewrite rename_typing_env_inverse in H. exact H.
+Qed.
+
+Theorem typing_env_invariant_rename : typing_env_invariant_rename_statement.
+Proof.
+  intros r tenv. unfold typing_env_invariant.
+  rewrite (typing_env_well_formed_rename r tenv).
+  split; intros [Hwell_formed Hagree]; (split; [ exact Hwell_formed | ]);
+    apply (levels_agree_rename r tenv); exact Hagree.
+Qed.
+
+Lemma types_well_formed_renamed (r : renaming) (tenv : Typing_env.t) :
+  types_well_formed tenv -> types_well_formed (rename_typing_env r tenv).
+Proof.
+  intros H n ty binding_time_and_mode Hlookup.
+  apply lookup_in_renamed in Hlookup as (ty0 & -> & Hlookup).
+  rewrite (proj1 type_well_formed_rename). exact (H _ _ _ Hlookup).
+Qed.
+
+Theorem types_well_formed_rename : types_well_formed_rename_statement.
+Proof.
+  intros r tenv. split; [ | apply types_well_formed_renamed ].
+  intros H. apply (types_well_formed_renamed (inverse_renaming r)) in H.
+  rewrite rename_typing_env_inverse in H. exact H.
+Qed.
+
+(* ======================================================================== *)
+(* The kinds of a renamed environment                                       *)
+(* ======================================================================== *)
+
+Lemma find_of_renamed (r : renaming) (tenv : Typing_env.t) (n : name)
+    (kind : option flambda_kind) (ty : flambda_type) :
+  Typing_env.find tenv n kind = Some ty ->
+  Typing_env.find (rename_typing_env r tenv) (rename_name r n) kind
+  = Some (rename_type r ty).
+Proof. intros H. rewrite find_equivariant, H. reflexivity. Qed.
+
+Lemma simple_of_kind_renamed (r : renaming) (tenv : Typing_env.t)
+    (s : simple) (kind : flambda_kind) :
+  simple_of_kind tenv s kind ->
+  simple_of_kind (rename_typing_env r tenv) (rename_simple r s) kind.
+Proof.
+  destruct s as [x | sym | c]; simpl.
+  - intros [ty Hfind]. exists (rename_type r ty).
+    exact (find_of_renamed r tenv (Name_var x) (Some kind) ty Hfind).
+  - intros [ty Hfind]. exists (rename_type r ty).
+    exact (find_of_renamed r tenv (Name_symbol sym) (Some kind) ty Hfind).
+  - trivial.
+Qed.
+
+Theorem simple_of_kind_rename : simple_of_kind_rename_statement.
+Proof.
+  intros r tenv s kind. split; [ | apply simple_of_kind_renamed ].
+  intros H. apply (simple_of_kind_renamed (inverse_renaming r)) in H.
+  rewrite rename_typing_env_inverse, rename_simple_inverse_l in H. exact H.
+Qed.
+
+Lemma types_kinded_renamed (r : renaming) (tenv : Typing_env.t) :
+  types_kinded tenv -> types_kinded (rename_typing_env r tenv).
+Proof.
+  intros H n ty binding_time_and_mode Hlookup s kind Hin.
+  apply lookup_in_renamed in Hlookup as (ty0 & -> & Hlookup).
+  rewrite (proj1 aliases_with_kinds_rename_type) in Hin.
+  apply in_map_iff in Hin as ([s0 kind0] & Heq & Hin). simpl in Heq.
+  injection Heq as <- <-.
+  exact (simple_of_kind_renamed r tenv _ _ (H _ _ _ Hlookup _ _ Hin)).
+Qed.
+
+Lemma class_canonical_element_renamed (r : renaming) (t : Aliases.t)
+    (e : simple) :
+  canonical_element_of (rename_aliases r t) (rename_simple r e)
+  = rename_simple r (canonical_element_of t e).
+Proof.
+  unfold canonical_element_of. rewrite canonical_renamed.
+  destruct (Aliases.canonical t e); reflexivity.
+Qed.
+
+Lemma aliased_renamed_back (r : renaming) (t : Aliases.t) (e e' : simple) :
+  aliased (rename_aliases r t) (rename_simple r e) (rename_simple r e') ->
+  aliased t e e'.
+Proof.
+  unfold aliased. rewrite !class_canonical_element_renamed. intros H.
+  apply (f_equal (rename_simple (inverse_renaming r))) in H.
+  rewrite !rename_simple_inverse_l in H. exact H.
+Qed.
+
+Lemma aliases_kinded_renamed (r : renaming) (tenv : Typing_env.t) :
+  aliases_kinded tenv -> aliases_kinded (rename_typing_env r tenv).
+Proof.
+  intros H e e' kind kind' Haliased He He'.
+  rewrite <- (rename_simple_inverse_r r e) in Haliased, He.
+  rewrite <- (rename_simple_inverse_r r e') in Haliased, He'.
+  change (Typing_env.aliases (rename_typing_env r tenv))
+    with (rename_aliases r (Typing_env.aliases tenv)) in Haliased.
+  apply aliased_renamed_back in Haliased.
+  apply (proj1 (simple_of_kind_rename r tenv _ _)) in He.
+  apply (proj1 (simple_of_kind_rename r tenv _ _)) in He'.
+  exact (H _ _ _ _ Haliased He He').
+Qed.
+
+Lemma symbols_of_kind_value_renamed (r : renaming) (tenv : Typing_env.t) :
+  symbols_of_kind_value tenv ->
+  symbols_of_kind_value (rename_typing_env r tenv).
+Proof.
+  intros H s ty binding_time_and_mode Hlookup.
+  apply lookup_in_renamed in Hlookup as (ty0 & -> & Hlookup).
+  rewrite kind_rename_type. exact (H _ _ _ Hlookup).
+Qed.
+
+Lemma kinded_renamed (r : renaming) (tenv : Typing_env.t) :
+  typing_env_kinded tenv -> typing_env_kinded (rename_typing_env r tenv).
+Proof.
+  intros (Htypes & Haliases & Hsymbols). split; [ | split ].
+  - exact (types_kinded_renamed r _ Htypes).
+  - exact (aliases_kinded_renamed r _ Haliases).
+  - exact (symbols_of_kind_value_renamed r _ Hsymbols).
+Qed.
+
+Theorem typing_env_kinded_rename : typing_env_kinded_rename_statement.
+Proof.
+  intros r tenv. split; [ | apply kinded_renamed ].
+  intros H. apply (kinded_renamed (inverse_renaming r)) in H.
+  rewrite rename_typing_env_inverse in H. exact H.
 Qed.

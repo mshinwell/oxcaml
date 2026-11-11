@@ -96,7 +96,12 @@
    - the renamed valuation satisfies the renamed environment exactly
      when the valuation satisfies the environment, for each of the
      senses of FlambdaTypingEnvSpec.v. The values are not renamed: a
-     value holds no variable.
+     value holds no variable;
+   - the renamed environment has the invariant of
+     FlambdaTypingEnvInvariantSpec.v exactly when the environment has
+     it, and the test of the invariant answers the same of the two; the
+     same of its types being well formed, and of its being kinded
+     (FlambdaTypingEnvKindedSpec.v).
 
    Each statement about a function is an equation and holds of every
    level or environment: nothing is asked of it, its invariant
@@ -122,7 +127,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
   FlambdaEnvAliasesSpec FlambdaEnvAliasesRenamingSpec FlambdaTypingEnv
-  FlambdaTypingEnvSpec FlambdaTypeRenameSpec FlambdaTypeNominalSpec.
+  FlambdaTypingEnvSpec FlambdaTypingEnvInvariantSpec
+  FlambdaTypingEnvKindedSpec FlambdaTypeRenameSpec FlambdaTypeNominalSpec.
 Import ListNotations.
 Import Nominal.
 
@@ -728,3 +734,49 @@ Definition env_satisfies_strictly_rename_statement : Prop :=
     env_satisfies_strictly (rename_typing_env r tenv) statics
       (rename_env r vars)
     <-> env_satisfies_strictly tenv statics vars.
+
+(* ======================================================================== *)
+(* The invariant of a renamed environment                                   *)
+(* ======================================================================== *)
+
+(* The test of the invariant of an environment
+   (FlambdaTypingEnvInvariantSpec.v) answers the same of the renamed
+   environment. So does the condition that has no test, that the latest
+   equation on a name is the type that the environment has for it; and
+   the invariant, which is the two together. *)
+Definition typing_env_well_formed_rename_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t),
+    typing_env_well_formed (rename_typing_env r tenv)
+    = typing_env_well_formed tenv.
+
+Definition levels_agree_rename_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t),
+    levels_agree (rename_typing_env r tenv) <-> levels_agree tenv.
+
+Definition typing_env_invariant_rename_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t),
+    typing_env_invariant (rename_typing_env r tenv)
+    <-> typing_env_invariant tenv.
+
+(* The types of the renamed environment are well formed exactly when
+   those of the environment are. *)
+Definition types_well_formed_rename_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t),
+    types_well_formed (rename_typing_env r tenv) <-> types_well_formed tenv.
+
+(* ======================================================================== *)
+(* The kinds of a renamed environment                                       *)
+(* ======================================================================== *)
+
+(* A renamed [Simple] is of a kind in the renamed environment exactly
+   when the [Simple] is of that kind in the environment
+   (FlambdaTypingEnvKindedSpec.v); and the renamed environment is
+   kinded exactly when the environment is. *)
+Definition simple_of_kind_rename_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (s : simple) (kind : flambda_kind),
+    simple_of_kind (rename_typing_env r tenv) (rename_simple r s) kind
+    <-> simple_of_kind tenv s kind.
+
+Definition typing_env_kinded_rename_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t),
+    typing_env_kinded (rename_typing_env r tenv) <-> typing_env_kinded tenv.
