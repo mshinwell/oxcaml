@@ -1,5 +1,6 @@
 open Datatypes
 open FlambdaAliasesSpec
+open FlambdaBlockLoadSpec
 open FlambdaCompareSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
@@ -17,8 +18,9 @@ let normalise_code_before body =
     (remove_unused_lets
        (fold_constants
           (follow_aliases []
-             (thread_switches
-                (inline_tail_conts (collapse_switches (fold_constants body)))))))
+             (load_known_blocks
+                (thread_switches
+                   (inline_tail_conts (collapse_switches (fold_constants body))))))))
 
 (** val normalise_before_round : expr -> expr **)
 
@@ -30,10 +32,11 @@ let normalise_before_round e =
              (remove_unused_lets
                 (fold_constants
                    (follow_aliases []
-                      (thread_switches
-                         (inline_tail_conts
-                            (collapse_switches
-                               (fold_constants (inline_calls [] e)))))))))))
+                      (load_known_blocks
+                         (thread_switches
+                            (inline_tail_conts
+                               (collapse_switches
+                                  (fold_constants (inline_calls [] e))))))))))))
 
 (** val normalise_before : nat -> expr -> expr **)
 

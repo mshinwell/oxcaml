@@ -4,4 +4,4 @@ get_tag.fl:
   calls outside code: 0 before, 0 after
   the same
   calls outside code once those of known code are inlined: 0
-  not validated
+  validated: the same once normalised and unused static bindings removed

@@ -33,8 +33,9 @@ From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaSemanticsProofs FlambdaCompareSpec FlambdaCompareProofs
-  FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaUnusedStaticsSpec
-  FlambdaUnusedStaticsProofs FlambdaValidateSpec.
+  FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaBlockLoadSpec
+  FlambdaBlockLoadProofs FlambdaUnusedStaticsSpec FlambdaUnusedStaticsProofs
+  FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec
   FlambdaAliasesProofs.
 Import ListNotations.
@@ -64,6 +65,7 @@ Ltac refinement_step :=
     | apply collapse_switches_refines
     | apply inline_tail_conts_refines
     | apply remove_unused_lets_refines
+    | apply load_known_blocks_refines
     | apply expr_equivalent_refines; equivalence_step ].
 
 Lemma normalise_code_before_refines (body : expr) :

@@ -1,5 +1,6 @@
 open Datatypes
 open FlambdaAliasesSpec
+open FlambdaBlockLoadSpec
 open FlambdaCompareSpec
 open FlambdaModel
 open FlambdaNormaliseSpec
