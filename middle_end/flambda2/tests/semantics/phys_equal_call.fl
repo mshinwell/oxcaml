@@ -1,0 +1,12 @@
+let code size(9) is_three (x) my_closure &my_region my_depth -> k * e =
+  let c = %phys_eq (x, 3) in
+  switch c
+    | 0 -> k (10)
+    | 1 -> k (20)
+in
+let $Phys_equal_call_is_three = closure is_three @is_three &toplevel in
+apply direct(is_three &toplevel) inlined(always) $Phys_equal_call_is_three (3)
+  -> k1 * error
+  where k1 (r) =
+    let $camlPhys_equal_call = Block 0 (r, $Phys_equal_call_is_three) in
+    cont done ($camlPhys_equal_call)

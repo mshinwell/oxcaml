@@ -1,0 +1,6 @@
+let $b = Block 0 (1, 2) in
+let o = %opaque ($b) in
+let e = %phys_eq (o, o) in
+let t = %tag_imm (e) in
+let $camlPhys_equal_blocks = Block 0 (t) in
+cont done ($camlPhys_equal_blocks)

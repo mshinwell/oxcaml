@@ -1,0 +1,4 @@
+let e = %phys_eq (null, null) in
+let t = %tag_imm (e) in
+let $camlPhys_equal_null = Block 0 (t) in
+cont done ($camlPhys_equal_null)

@@ -1,0 +1,17 @@
+let x = %opaque (5) in
+let y = %opaque (5) in
+let z = %opaque (7) in
+let e1 = %phys_eq (x, y) in
+let e2 = %phys_ne (x, y) in
+let e3 = %phys_eq (x, z) in
+let e4 = %phys_ne (x, z) in
+let e5 = %phys_eq (3, 3) in
+let e6 = %phys_ne (3, 4) in
+let t1 = %tag_imm (e1) in
+let t2 = %tag_imm (e2) in
+let t3 = %tag_imm (e3) in
+let t4 = %tag_imm (e4) in
+let t5 = %tag_imm (e5) in
+let t6 = %tag_imm (e6) in
+let $camlPhys_equal = Block 0 (t1, t2, t3, t4, t5, t6) in
+cont done ($camlPhys_equal)
