@@ -640,9 +640,14 @@ Definition well_formed_call_binds_my_closure_statement : Prop :=
    code or the symbols of the other closures of the set, is right only
    of a unit in which every set that has the code is the one that the
    rewrite knows. This section says what that asks of a unit and what
-   it gives. Simplify is in that position for the code that it makes: it
-   gives the code of the sets it simplifies new code ids, which no other
-   set has. *)
+   it gives. What it asks is a test on the unit ([sets_are]), and a pass
+   that relies on it has to make the test: giving code new code ids does
+   not give it. Where Simplify simplifies sets of closures it gives
+   their code new code ids, one to each old one across the sets that it
+   simplifies together, and none to code that it does not simplify
+   (simplify/simplify_set_of_closures_context.ml,
+   [compute_old_to_new_code_ids_all_sets]); so two of those sets that
+   had the same code have the same code afterwards. *)
 
 Definition function_decls_eq_dec :
   ∀ decls decls' : list (function_slot * code_id),
