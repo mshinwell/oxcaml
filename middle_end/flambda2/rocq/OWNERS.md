@@ -209,6 +209,13 @@ Owner: N1.
 - `middle_end/flambda2/rocq/FlambdaFreeNames*`
 - `middle_end/flambda2/rocq/FlambdaNameAbstraction*`
 
+## N2: the freshness quantifier
+
+Owner: N2.
+
+- `middle_end/flambda2/rocq/FlambdaFreshQuantifier*`
+- `middle_end/flambda2/rocq/FlambdaFreshAbstraction*`
+
 ## R1, R2: reviewers
 
 Owner: R1, on `flambda2-rocq/R1-review`. R2 is unassigned. They write

@@ -798,7 +798,9 @@ my $unicode = join '',
   ['∧', '\wedge'], ['∨', '\vee'], ['¬', '\neg'], ['→', '\rightarrow'],
   ['↔', '\leftrightarrow'], ['⇒', '\Rightarrow'], ['▷', '\triangleright'],
   ['≤', '\leq'], ['≥', '\geq'], ['≠', '\neq'], ['×', '\times'],
-  ['∅', '\emptyset'], ['⊆', '\subseteq'], ['∘', '\circ'], ['λ', '\lambda'];
+  ['∅', '\emptyset'], ['⊆', '\subseteq'], ['∘', '\circ'], ['λ', '\lambda'],
+  # The freshness quantifier of nominal sets, a turned N.
+  ['И', '\reflectbox{$\mathsf{N}$}'];
 
 my $pdftitle = $title;
 $pdftitle =~ s/\\[a-zA-Z]+\{([^}]*)\}/$1/g;
@@ -841,6 +843,7 @@ my $main = <<"TEX";
   {\\setmonofont{DejaVu Sans Mono}[Scale=MatchLowercase]}
   {\\setmonofont{Latin Modern Mono}}
 \\usepackage{amsmath,amssymb}
+\\usepackage{graphicx}
 \\usepackage{newunicodechar}
 $unicode\\usepackage{xcolor}
 \\usepackage{booktabs,tabularx,longtable,array}

@@ -109,6 +109,8 @@ a `CR` at the place in the `Spec` file.
 - **D37.** Regions and local allocations. Proposed: the conversion
   drops regions and reads a local allocation as an ordinary one.
   Open.
+- **D39.** The freshness quantifier of nominal sets is a derived layer;
+  the explicit forms stay primary. Decided.
 
 ## Discrepancies with the compiler
 
