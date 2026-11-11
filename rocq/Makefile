@@ -109,6 +109,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaMapProofs.v \
   FlambdaMapSpec.v \
   FlambdaModel.v \
+  FlambdaNameAbstractionProofs.v \
+  FlambdaNameAbstractionSpec.v \
   FlambdaNominalProofs.v \
   FlambdaNominalSpec.v \
   FlambdaNormaliseProofs.v \
