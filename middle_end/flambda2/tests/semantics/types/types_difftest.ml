@@ -93,8 +93,14 @@ type names =
        the chosen joins. It is numbered after the variables of the tests: what a
        join says of it is read like what it says of a variable of its own. *)
     local : Variable.t;
+    (* A naked immediate that a join may have its source define for types only,
+       for the chosen joins. It is numbered after [local], and read like it. *)
+    for_types_only : Variable.t;
     (* The variables of the tests are numbered from 1 to this. *)
-    variables_of_the_tests : int
+    variables_of_the_tests : int;
+    (* The variables numbered up to this are printed by their numbers: those of
+       the tests, [local] and [for_types_only]. *)
+    variables_with_a_name : int
   }
 
 let create_names () : names =
@@ -158,6 +164,7 @@ let create_names () : names =
       G.all_kinds
   in
   let local = Variable.create "u" K.value in
+  let for_types_only = Variable.create "n" K.naked_immediate in
   let value_variables = number numbering.variables value_variables in
   let naked_immediate_variables =
     number numbering.variables naked_immediate_variables
@@ -173,6 +180,7 @@ let create_names () : names =
       ignore (numbering.variables.number parameter : N.positive))
     parameters;
   ignore (numbering.variables.number local : N.positive);
+  ignore (numbering.variables.number for_types_only : N.positive);
   { numbering;
     pool =
       { value_variables;
@@ -190,7 +198,10 @@ let create_names () : names =
     defined;
     parameters;
     local;
-    variables_of_the_tests = List.length all_variables + List.length parameters
+    for_types_only;
+    variables_of_the_tests = List.length all_variables + List.length parameters;
+    variables_with_a_name =
+      List.length all_variables + List.length parameters + 2
   }
 
 let parameter (names : names) (kind : MK.flambda_kind) : Variable.t =
@@ -1201,18 +1212,27 @@ let joined_of_env (names : names) (env : TE.t) (parameter : Variable.t) : joined
    a value of each of the types given, one at each use: the joined environment
    and the parameter. For the use of a position in the list, [known] gives what
    that use knows of the names of the tests besides, and [locals] the variables
-   that only that use binds, with their types. *)
+   that only that use binds, with their types. [in_types] are variables that the
+   environment of the continuation's definition defines for types only.
+   [observe] is given the environments of the uses before they are joined. *)
 let join_env (names : names) (implementation : implementation)
     ?(known = fun (_ : int) -> []) ?(locals = fun (_ : int) -> [])
+    ?(in_types = []) ?(observe = fun (_ : TE.t list) -> ())
     (kind : MK.flambda_kind) (types : TG.t list) : TE.t * Variable.t =
   let variable = parameter names kind in
   let compiler_kind = Converter.kind_of_model kind in
   let meet_expanded_head = implementation.meet_expanded_head in
-  let env =
-    TE.add_definition names.env
+  let define mode env variable =
+    TE.add_definition env
       (Bound_name.create_var
-         (Bound_var.create variable Flambda_debug_uid.none Name_mode.normal))
-      compiler_kind
+         (Bound_var.create variable Flambda_debug_uid.none mode))
+      (Variable.kind variable)
+  in
+  let env =
+    List.fold_left
+      (define Name_mode.in_types)
+      (define Name_mode.normal names.env variable)
+      in_types
   in
   let use_envs =
     List.mapi
@@ -1220,12 +1240,7 @@ let join_env (names : names) (implementation : implementation)
         let locals = locals i in
         let env =
           List.fold_left
-            (fun env (local, _) ->
-              TE.add_definition env
-                (Bound_name.create_var
-                   (Bound_var.create local Flambda_debug_uid.none
-                      Name_mode.normal))
-                (Variable.kind local))
+            (fun env (local, _) -> define Name_mode.normal env local)
             (TE.increment_scope env) locals
         in
         ME.use_meet_env ~meet_expanded_head env ~f:(fun env ->
@@ -1238,6 +1253,7 @@ let join_env (names : names) (implementation : implementation)
               @ [Name.var variable, t])))
       types
   in
+  observe use_envs;
   let joined =
     implementation.join env use_envs
       ~params:
@@ -1279,10 +1295,8 @@ let rename_own_variables (names : names) (printed : string) : string =
         in
         let j = end_of_number (i + 1) in
         let number = int_of_string (String.sub printed (i + 1) (j - i - 1)) in
-        if number <= names.variables_of_the_tests + 1
-        then
-          (* A variable of the tests, or the variable of one use. *)
-          Buffer.add_string buffer (String.sub printed i (j - i))
+        if number <= names.variables_with_a_name
+        then Buffer.add_string buffer (String.sub printed i (j - i))
         else (
           if not (Hashtbl.mem own number)
           then Hashtbl.add own number (Hashtbl.length own);
@@ -2319,14 +2333,23 @@ let shared_parts (names : names) : parts comparison list =
    which of the types joined the value has and whether it has what each join
    gives. A value that has one of the types and not a join is a disagreement,
    unless it is recorded. *)
+type use =
+  { (* The variables that only this use binds, with their types. *)
+    binds : (M.variable * MT.flambda_type) list;
+    (* What this use knows of names that the source defines. *)
+    learns : (MT.name * MT.flambda_type) list;
+    (* The type of what the continuation is applied to. *)
+    passes : MT.flambda_type
+  }
+
 type chosen_join =
   { title : string;
     kind : MK.flambda_kind;
+    (* Variables that the source defines for types only. *)
+    in_types : M.variable list;
     (* What every use knows of the names of the tests. *)
     known : (MT.name * MT.flambda_type) list;
-    (* For each use: the variables that only that use binds, with their types,
-       and the type of what the continuation is applied to. *)
-    uses : ((M.variable * MT.flambda_type) list * MT.flambda_type) list;
+    uses : use list;
     probes : ((M.variable * V.value) list * V.value) list;
     (* The entry that records that the n-way join is not above the types. *)
     recorded : string option
@@ -2401,18 +2424,29 @@ let chosen_joins (names : names) (cases : chosen_join list) =
   let print_type ppf t = Model_type.print ppf (Model_type.normalise t) in
   let plain = plain_world names in
   List.iter
-    (fun { title; kind; known; uses; probes; recorded } ->
+    (fun { title; kind; in_types; known; uses; probes; recorded } ->
       let lines = ref [] in
       let line print = lines := print :: !lines in
       List.iter
-        (fun (locals, t) ->
+        (fun x ->
           line (fun ppf ->
-              Format.fprintf ppf "@[<v 2>at one use:@ @[%a@]" print_type t;
+              Format.fprintf ppf "the source defines %a for types only"
+                Model_type.print_variable x))
+        in_types;
+      List.iter
+        (fun { binds; learns; passes } ->
+          line (fun ppf ->
+              Format.fprintf ppf "@[<v 2>at one use:@ @[%a@]" print_type passes;
               List.iter
                 (fun (x, t) ->
                   Format.fprintf ppf "@ where that use binds %a :@ @[%a@]"
                     Model_type.print_variable x print_type t)
-                locals;
+                binds;
+              List.iter
+                (fun (name, t) ->
+                  Format.fprintf ppf "@ where that use knows of %a:@ @[%a@]"
+                    Model_type.print_name name print_type t)
+                learns;
               Format.fprintf ppf "@]"))
         uses;
       List.iter
@@ -2421,38 +2455,97 @@ let chosen_joins (names : names) (cases : chosen_join list) =
               Format.fprintf ppf "@[<v 2>every use knows of %a:@ @[%a@]@]"
                 Model_type.print_name name print_type t))
         known;
-      let compiler_types = List.map (fun (_, t) -> to_compiler names t) uses in
-      let compiler_known =
-        List.map
-          (fun (name, t) ->
-            Converter.name_of_model names.numbering name, to_compiler names t)
-          known
+      let compiler_name = Converter.name_of_model names.numbering in
+      let compiler_variable = Converter.variable_of_model names.numbering in
+      let compiler_types =
+        List.map (fun { passes; _ } -> to_compiler names passes) uses
+      in
+      let equations =
+        List.map (fun (name, t) -> compiler_name name, to_compiler names t)
+      in
+      let compiler_known i =
+        equations known @ equations (List.nth uses i).learns
       in
       let compiler_locals i =
         List.map
-          (fun (x, t) ->
-            Converter.variable_of_model names.numbering x, to_compiler names t)
-          (fst (List.nth uses i))
+          (fun (x, t) -> compiler_variable x, to_compiler names t)
+          (List.nth uses i).binds
+      in
+      (* The names of the source of which one use knows something that the
+         others do not, or that are for types only: what each use and each join
+         says of them is shown. *)
+      let watched =
+        List.sort_uniq Stdlib.compare
+          (List.map (fun x -> MT.Name_var x) in_types
+          @ List.concat_map (fun { learns; _ } -> List.map fst learns) uses)
+      in
+      let says_of env ppf (name : MT.name) =
+        let compiler = compiler_name name in
+        let simple = Simple.name compiler in
+        Format.fprintf ppf "says of %a:@ @[%a@]" Model_type.print_name name
+          print_type
+          (to_model names (TE.find env compiler None));
+        let canonical = TE.get_canonical_simple_ignoring_name_mode env simple in
+        if not (Simple.equal canonical simple)
+        then
+          Format.fprintf ppf "@ which is %a" Model_type.print_simple
+            (Converter.simple_to_model names.numbering canonical)
       in
       let joins =
         List.map
           (fun (implementation : implementation) ->
+            let observe use_envs =
+              if watched <> []
+              then
+                List.iteri
+                  (fun i use_env ->
+                    let text =
+                      Format.asprintf "@[<v 2>use %d of the %s join%s%a@]"
+                        (i + 1) implementation.implementation
+                        (if TE.is_bottom use_env
+                         then ", whose environment is bottom,"
+                         else "")
+                        (fun ppf ->
+                          List.iter (fun name ->
+                              Format.fprintf ppf " %a" (says_of use_env) name))
+                        watched
+                    in
+                    line (fun ppf -> print_lines ppf text))
+                  use_envs
+            in
             let joined =
               or_fatal_error (fun () ->
-                  join names implementation
-                    ~known:(fun _ -> compiler_known)
-                    ~locals:compiler_locals kind compiler_types)
+                  let env, parameter =
+                    join_env names implementation ~known:compiler_known
+                      ~locals:compiler_locals
+                      ~in_types:(List.map compiler_variable in_types)
+                      ~observe kind compiler_types
+                  in
+                  ( joined_of_env names env parameter,
+                    List.map
+                      (fun name ->
+                        Format.asprintf "@[<v 2>%a@]" (says_of env) name)
+                      watched ))
             in
             let given =
               match joined with
-              | Ok joined -> print_joined names joined
+              | Ok (joined, _) -> print_joined names joined
               | Error what ->
                 "nothing: the compiler stops with the fatal error " ^ what
             in
             line (fun ppf ->
                 Format.fprintf ppf "@[<v 2>the %s join gives@ %a@]"
                   implementation.implementation print_lines given);
-            implementation, Result.to_option joined)
+            (match joined with
+            | Ok (_, of_the_watched) ->
+              List.iter
+                (fun text ->
+                  line (fun ppf ->
+                      Format.fprintf ppf "@[<v 2>the %s join %a@]"
+                        implementation.implementation print_lines text))
+                of_the_watched
+            | Error _ -> ());
+            implementation, Option.map fst (Result.to_option joined))
           [binary; n_way]
       in
       List.iter
@@ -2463,10 +2556,10 @@ let chosen_joins (names : names) (cases : chosen_join list) =
              them, it is not known whether the value has the type. *)
           let of_each_use =
             List.mapi
-              (fun i (locals, t) ->
+              (fun i { binds; passes; learns = _ } ->
                 ( string_of_int (i + 1),
                   has_joined names world v
-                    { joined = t; own = locals; own_in_terms = [] } ))
+                    { joined = passes; own = binds; own_in_terms = [] } ))
               uses
           in
           let uses_that answer =
@@ -2531,6 +2624,10 @@ let the_chosen_joins (names : names) : chosen_join list =
   let x = List.hd pool.value_variables in
   let i = List.hd pool.naked_immediate_variables in
   let local = Converter.variable_to_model names.numbering names.local in
+  let for_types_only =
+    Converter.variable_to_model names.numbering names.for_types_only
+  in
+  let use ?(binds = []) ?(learns = []) passes = { binds; learns; passes } in
   let constant n = MT.this_tagged_immediate (z n) in
   let block fields =
     MT.immutable_block false (z 0) (Scannable Value_only) Heap fields
@@ -2572,10 +2669,11 @@ let the_chosen_joins (names : names) : chosen_join list =
   [ { title =
         "Two blocks, (0, 0) and (1, 1), each field an alias of its constant";
       kind = Value;
+      in_types = [];
       known = [];
       uses =
         (let zero = constant 0 and one = constant 1 in
-         [[], block [zero; zero]; [], block [one; one]]);
+         [use (block [zero; zero]); use (block [one; one])]);
       probes =
         [ [], block_value [0; 0];
           [], block_value [1; 1];
@@ -2587,11 +2685,13 @@ let the_chosen_joins (names : names) : chosen_join list =
         "The immediate 0, and a block whose field is a variable that only that \
          use binds, known to be 4 or 5";
       kind = Value;
+      in_types = [];
       known = [];
       uses =
-        [ [], constant 0;
-          ( [local, MT.these_tagged_immediates [z 4; z 5]],
-            block [MT.alias_type_of Value (Var local)] ) ];
+        [ use (constant 0);
+          use
+            ~binds:[local, MT.these_tagged_immediates [z 4; z 5]]
+            (block [MT.alias_type_of Value (Var local)]) ];
       probes =
         [ [], tagged 0;
           [], block_value [4];
@@ -2604,11 +2704,13 @@ let the_chosen_joins (names : names) : chosen_join list =
         "The same, the variable known to be 4: its type is the alias of the \
          constant";
       kind = Value;
+      in_types = [];
       known = [];
       uses =
-        [ [], constant 0;
-          ( [local, MT.these_tagged_immediates [z 4]],
-            block [MT.alias_type_of Value (Var local)] ) ];
+        [ use (constant 0);
+          use
+            ~binds:[local, MT.these_tagged_immediates [z 4]]
+            (block [MT.alias_type_of Value (Var local)]) ];
       probes = [[], tagged 0; [], block_value [4]; [], block_value [5]];
       recorded = None
     };
@@ -2616,8 +2718,9 @@ let the_chosen_joins (names : names) : chosen_join list =
         "The immediates 5 and 6 as a variant whose immediate case says that a \
          variable is 1, and that it is 2 (R1-15)";
       kind = Value;
+      in_types = [];
       known = [];
-      uses = [[], variant_5_or_6 [1]; [], variant_5_or_6 [2]];
+      uses = [use (variant_5_or_6 [1]); use (variant_5_or_6 [2])];
       probes =
         [ [i, naked_immediate 1], tagged 5;
           [i, naked_immediate 2], tagged 5;
@@ -2630,8 +2733,9 @@ let the_chosen_joins (names : names) : chosen_join list =
          answers on a variable that every use knows to be the immediate 3: no \
          number is either (R1-16)";
       kind = Naked_number Kind_naked_immediate;
+      in_types = [];
       known = [Name_var x, constant 3];
-      uses = [[], is_int_of_x [0; 2]; [], is_int_of_x [2; 4]];
+      uses = [use (is_int_of_x [0; 2]); use (is_int_of_x [2; 4])];
       probes =
         [ [x, tagged 3], naked_immediate 0;
           [x, tagged 3], naked_immediate 1;
@@ -2642,29 +2746,48 @@ let the_chosen_joins (names : names) : chosen_join list =
         "The same two numbers as the immediates of two variants with no block \
          (R1-16)";
       kind = Value;
+      in_types = [];
       known = [Name_var x, constant 3];
       uses =
-        [ ( [],
-            MT.create_variant false
-              (Known (is_int_of_x [0; 2]))
-              no_blocks No_extensions );
-          ( [],
-            MT.create_variant false
-              (Known (is_int_of_x [2; 4]))
-              no_blocks No_extensions ) ];
+        [ use
+            (MT.create_variant false
+               (Known (is_int_of_x [0; 2]))
+               no_blocks No_extensions);
+          use
+            (MT.create_variant false
+               (Known (is_int_of_x [2; 4]))
+               no_blocks No_extensions) ];
       probes = [[x, tagged 3], tagged 0; [x, tagged 3], tagged 2];
+      recorded = None
+    };
+    { title =
+        "A variable of the source, for types only, that one use knows to be 0 \
+         or 2 and what is_int answers on a variable known to be the immediate \
+         3 (no number is that), and the other use knows to be 1";
+      kind = Value;
+      in_types = [for_types_only];
+      known = [Name_var x, constant 3];
+      uses =
+        [ use
+            ~learns:[Name_var for_types_only, is_int_of_x [0; 2]]
+            (MT.this_tagged_immediate (z 0));
+          use
+            ~learns:[Name_var for_types_only, MT.this_naked_immediate (z 1)]
+            (constant 0) ];
+      probes = [];
       recorded = None
     };
     { title =
         "A closure whose own function has a known code, and one of which \
          nothing is said of the code (T1-4)";
       kind = Value;
+      in_types = [];
       known = [];
       uses =
-        [ ( [],
-            closure [slot, MT.Or_unknown.Known { function_type_code_id = code }]
-          );
-          [], closure [] ];
+        [ use
+            (closure
+               [slot, MT.Or_unknown.Known { function_type_code_id = code }]);
+          use (closure []) ];
       probes =
         [[], V.Value_closure (code, []); [], V.Value_closure (other_code, [])];
       recorded = Some "T1-4"
@@ -2680,7 +2803,7 @@ let the_chosen_joins (names : names) : chosen_join list =
    one do, and not as aliases of two different ones do: a renaming of each type
    on its own would print all three alike. *)
 let comparison_by_text (names : names) =
-  let own i = N.positive_of_int (names.variables_of_the_tests + 1 + i) in
+  let own i = N.positive_of_int (names.variables_with_a_name + i) in
   let alias i = MT.alias_type_of Value (Var (own i)) in
   let text = print_with_own_variables names in
   let cases =

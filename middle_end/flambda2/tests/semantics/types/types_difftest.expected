@@ -604,6 +604,40 @@ Chosen joins
       nothing: the compiler stops with the fatal error Head_of_kind_naked_immediates.create_naked_immediates_non_empty
     with v1 = 3, 0: no use; the binary join: yes
     with v1 = 3, 2: no use; the binary join: yes
+  A variable of the source, for types only, that one use knows to be 0 or 2
+  and what is_int answers on a variable known to be the immediate 3 (no
+  number is that), and the other use knows to be 1
+    the source defines v25 for types only
+    at one use:
+      (Value (= 0))
+      where that use knows of v25:
+      (Naked_immediate ((Known [0; 2]) [Is_int v1]))
+    at one use:
+      (Value (= 0))
+      where that use knows of v25:
+      (Naked_immediate (= # 1))
+    every use knows of v1:
+      (Value (= 3))
+    use 1 of the binary join says of v25:
+      (Naked_immediate ((Known [0; 2]) [Is_int v1]))
+    use 2 of the binary join says of v25:
+      (Naked_immediate (= # 1))
+      which is # 1
+    the binary join gives
+      (Value (= 0))
+    the binary join says of v25:
+        (Naked_immediate (= # 1))
+        which is # 1
+    use 1 of the n-way join says of v25:
+      (Naked_immediate ((Known [0; 2]) [Is_int v1]))
+    use 2 of the n-way join says of v25:
+      (Naked_immediate (= # 1))
+      which is # 1
+    the n-way join gives
+      (Value (= 0))
+    the n-way join says of v25:
+        (Naked_immediate (= # 1))
+        which is # 1
   A closure whose own function has a known code, and one of which nothing is
   said of the code (T1-4)
     at one use:
