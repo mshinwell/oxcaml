@@ -106,6 +106,7 @@ design out; that is the request, not the change.
     `.expected` files
 - C3, sets of closures. Owner: C3, on `flambda2-rocq/C3-closures`.
   - `middle_end/flambda2/rocq/requests/C3-closures.md`
+  - `middle_end/flambda2/rocq/requests/C3-partial-application.md`
   - `middle_end/flambda2/rocq/FlambdaClosures*` (first facts about sets
     of closures; S4's once it is staffed)
   - `middle_end/flambda2/rocq/status/C3.md`
