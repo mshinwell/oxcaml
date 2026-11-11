@@ -159,7 +159,8 @@ Definition part_stable : Prop :=
    satisfies the environment and under which both inputs are true, the
    answer is not bottom, and a valuation that agrees with the first on
    what the environment knew satisfies the environment answered and
-   makes the part answered true. *)
+   makes the part answered true; and no equation has been added on a
+   name that has no value ([keeps_equations_valued]). *)
 Definition meet_call_ok (menv : Meet_env.t) (a1 a2 : A)
     (result : Meet_result.t A) : Prop :=
   let tenv := Meet_env.typing_env menv in
@@ -177,7 +178,9 @@ Definition meet_call_ok (menv : Meet_env.t) (a1 a2 : A)
         ∧ extended_from tenv valuation valuation'
         ∧ typing_env_satisfied_strictly statics valuation'
             (Meet_env.typing_env menv')
-        ∧ satisfied statics valuation' (extract_value r a1 a2).
+        ∧ satisfied statics valuation' (extract_value r a1 a2)
+        ∧ keeps_equations_valued tenv (Meet_env.typing_env menv') valuation
+            valuation'.
 
 (* A meet of parts is right: every call of it is, on inputs that fit
    an environment that fits. Nothing is said of a call that does not
@@ -281,6 +284,110 @@ Definition combine_results2_ok_statement : Prop :=
     = Some result ->
     meet_call_ok type_well_formed fits_c satisfied_c menv
       (rebuild left_a left_b) (rebuild right_a right_b) result.
+
+(* [meet_or_unknown_or_bottom]: the meet of two things of which either
+   may be unknown or bottom, by a meet of the two where both are known.
+   The answer is of a type [B] that such a thing is made into by [inj]
+   (itself, or an expanded type); what is made of bottom is true of
+   nothing. *)
+Definition meet_or_unknown_or_bottom_ok_statement : Prop :=
+  ∀ (type_well_formed : flambda_type -> bool) (A B : Type)
+    (fits : Typing_env.t -> B -> Prop)
+    (satisfied : static_env -> env -> B -> Prop)
+    (inj : or_unknown_or_bottom A -> B)
+    (meet_elt : Meet_env.t -> A -> A -> option (Meet_result.t B))
+    (menv : Meet_env.t) (input1 input2 : or_unknown_or_bottom A)
+    (result : Meet_result.t B),
+    let tenv := Meet_env.typing_env menv in
+    (∀ (a1 a2 : A) (result : Meet_result.t B),
+       fits tenv (inj (Ok a1)) ->
+       fits tenv (inj (Ok a2)) ->
+       meet_elt menv a1 a2 = Some result ->
+       meet_call_ok type_well_formed fits satisfied menv (inj (Ok a1))
+         (inj (Ok a2)) result) ->
+    (∀ (statics : static_env) (valuation : env),
+       ~ satisfied statics valuation (inj Bottom)) ->
+    typing_env_fits type_well_formed tenv ->
+    fits tenv (inj input1) ->
+    fits tenv (inj input2) ->
+    meet_or_unknown_or_bottom meet_elt menv input1 input2 = Some result ->
+    meet_call_ok type_well_formed fits satisfied menv (inj input1)
+      (inj input2) result.
+
+(* ======================================================================== *)
+(* Products                                                                 *)
+(* ======================================================================== *)
+
+(* [meet_mapping]: the meet of two products, component by component.
+   The components of the two are read by [get_left] and [get_right] at
+   the keys that the fold of the caller goes through, in order. What
+   it is for a component to be true may depend on its key
+   ([satisfied]). The statement says what the call answers where it
+   answers a new product: [rebuild] of a list that has one component
+   for each key, in the reverse of that order, each fitting the
+   environment answered and, in the second half, true under the
+   valuation answered. Of an answer that is an input nothing is said
+   here: an input stays as it was. *)
+Definition meet_mapping_ok_statement : Prop :=
+  ∀ (type_well_formed : flambda_type -> bool) (K A M : Type)
+    (fits : Typing_env.t -> A -> Prop)
+    (satisfied : K -> static_env -> env -> A -> Prop)
+    (meet_data : Meet_env.t -> A -> A -> option (Meet_result.t A))
+    (fold2 :
+      (K -> option A -> option A -> mapping_state K A -> mapping_state K A) ->
+      M -> M -> mapping_state K A -> mapping_state K A)
+    (keys : list K) (get_left get_right : K -> option A) (menv : Meet_env.t)
+    (left right : M) (rebuild : list (K * A) -> M)
+    (result : Meet_result.t M),
+    let tenv := Meet_env.typing_env menv in
+    (∀ (f :
+          K -> option A -> option A -> mapping_state K A ->
+          mapping_state K A)
+       (init : mapping_state K A),
+       fold2 f left right init
+       = List.fold_left
+           (fun state key => f key (get_left key) (get_right key) state)
+           keys init) ->
+    (∀ key : K, part_stable fits (satisfied key)) ->
+    (∀ key : K,
+       part_meet_ok type_well_formed fits (satisfied key) meet_data) ->
+    typing_env_fits type_well_formed tenv ->
+    (∀ (key : K) (a : A), get_left key = Some a -> fits tenv a) ->
+    (∀ (key : K) (a : A), get_right key = Some a -> fits tenv a) ->
+    meet_mapping meet_data fold2 menv left right rebuild = Some result ->
+    (∀ (r : meet_return_value M) (menv' : Meet_env.t),
+       result = Meet_result.Ok r menv' ->
+       meet_env_extends menv menv'
+       ∧ typing_env_fits type_well_formed (Meet_env.typing_env menv')
+       ∧ ∀ m : M,
+           r = New_result m ->
+           ∃ l : list (K * A),
+             m = rebuild l
+             ∧ map fst l = rev keys
+             ∧ ∀ (key : K) (a : A),
+                 (key, a) ∈ l -> fits (Meet_env.typing_env menv') a)
+    ∧ ∀ (statics : static_env) (valuation : env),
+        typing_env_satisfied_strictly statics valuation tenv ->
+        (∀ (key : K) (a : A),
+           get_left key = Some a -> satisfied key statics valuation a) ->
+        (∀ (key : K) (a : A),
+           get_right key = Some a -> satisfied key statics valuation a) ->
+        ∃ (r : meet_return_value M) (menv' : Meet_env.t) (valuation' : env),
+          result = Meet_result.Ok r menv'
+          ∧ extended_from tenv valuation valuation'
+          ∧ typing_env_satisfied_strictly statics valuation'
+              (Meet_env.typing_env menv')
+          ∧ keeps_equations_valued tenv (Meet_env.typing_env menv') valuation
+              valuation'
+          ∧ ∀ m : M,
+              r = New_result m ->
+              ∃ l : list (K * A),
+                m = rebuild l
+                ∧ map fst l = rev keys
+                ∧ ∀ (key : K) (a : A),
+                    (key, a) ∈ l ->
+                    fits (Meet_env.typing_env menv') a
+                    ∧ satisfied key statics valuation' a.
 
 (* ======================================================================== *)
 (* Sets                                                                     *)

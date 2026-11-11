@@ -299,11 +299,11 @@ Proof.
   - intros statics valuation Henv H1 H2.
     apply Hsatisfied in H1. apply Hsatisfied in H2.
     destruct (Hsound statics valuation Henv H1 H2)
-      as (r & menv' & valuation' & -> & Hextended & Henv' & Ha).
+      as (r & menv' & valuation' & -> & Hextended & Henv' & Ha & Hvalued).
     exists (map_return_value f r), menv', valuation'.
     split; [ apply map_result_ok_eq | ]. split; [ exact Hextended | ].
-    split; [ exact Henv' | ]. rewrite extract_value_map.
-    apply Hsatisfied, Ha.
+    split; [ exact Henv' | ]. split; [ | exact Hvalued ].
+    rewrite extract_value_map. apply Hsatisfied, Ha.
 Qed.
 
 (* A call that answers bottom is right if nothing has both inputs. *)
@@ -345,7 +345,8 @@ Proof.
   - intros statics valuation Hvaluation H1 H2.
     exists r, menv, valuation. split; [ reflexivity | ].
     split; [ apply extended_from_refl | ]. split; [ exact Hvaluation | ].
-    exact (Hsatisfied statics valuation H1 H2).
+    split; [ exact (Hsatisfied statics valuation H1 H2) | ].
+    intros cut_after Hvalued. exact Hvalued.
 Qed.
 
 Theorem meet_unknown_ok : meet_unknown_ok_statement.
@@ -469,7 +470,7 @@ Proof.
     destruct H1 as [Hsla Hslb], H2 as [Hsra Hsrb].
     destruct (Hsound_a statics valuation Hvaluation Hsla Hsra)
       as (r & menv' & valuation1 & Hresult & Hextended1 & Hvaluation1
-          & Hsanswer_a).
+          & Hsanswer_a & Hvalued1).
     injection Hresult as <- <-.
     destruct (Hsound_b statics valuation1 Hvaluation1
                 (Hstable_b2 statics _ valuation valuation1 left_b Hlb
@@ -477,7 +478,7 @@ Proof.
                 (Hstable_b2 statics _ valuation valuation1 right_b Hrb
                    Hextended1 Hsrb))
       as (r & menv' & valuation2 & Hresult & Hextended2 & Hvaluation2
-          & Hsanswer_b).
+          & Hsanswer_b & Hvalued2).
     injection Hresult as <- <-.
     assert (Hextended :
       extended_from (Meet_env.typing_env menv) valuation valuation2).
@@ -486,6 +487,8 @@ Proof.
                Hextended2). }
     eexists. exists menv2, valuation2. split; [ reflexivity | ].
     split; [ exact Hextended | ]. split; [ exact Hvaluation2 | ].
+    split; [ | intros cut_after Hvalued;
+               exact (Hvalued2 cut_after (Hvalued1 cut_after Hvalued)) ].
     rewrite Hextract. apply Hsatisfied_c. split.
     + destruct Ha as [ -> | [ -> | -> ] ].
       * exact (Hstable_a2 statics _ valuation valuation2 left_a Hla Hextended
@@ -566,4 +569,438 @@ Proof.
       destruct (Hboth H1 H2) as (c & n & Hv & Hk & Hn & Hin1 & Hin2).
       exists c, n. split; [ exact Hv | ]. split; [ exact Hk | ].
       split; [ exact Hn | ]. apply Hmem. split; assumption.
+Qed.
+
+(* ======================================================================== *)
+(* A thing that may be unknown or bottom                                    *)
+(* ======================================================================== *)
+
+Theorem meet_or_unknown_or_bottom_ok
+    : meet_or_unknown_or_bottom_ok_statement.
+Proof.
+  intros type_well_formed A B fits satisfied inj meet_elt menv input1 input2
+    result tenv Helt Hbottom Henv Hfits1 Hfits2 Hmeet.
+  unfold meet_or_unknown_or_bottom in Hmeet.
+  destruct input1 as [ | a1 | ], input2 as [ | a2 | ];
+    try (injection Hmeet as <-).
+  all: try (apply meet_call_ok_bottom;
+            intros statics valuation _ H1 H2;
+            first [ exact (Hbottom _ _ H1) | exact (Hbottom _ _ H2) ]).
+  all: try (apply meet_call_ok_same_env;
+            [ exact Henv
+            | first [ exact Hfits1 | exact Hfits2 ]
+            | intros statics valuation H1 H2;
+              first [ exact H1 | exact H2 ] ]).
+  exact (Helt a1 a2 result Hfits1 Hfits2 Hmeet).
+Qed.
+
+(* ======================================================================== *)
+(* Products                                                                 *)
+(* ======================================================================== *)
+
+(* The step of [meet_mapping], as a function of its own. *)
+Definition mapping_step {K A : Type}
+    (meet_data : Meet_env.t -> A -> A -> option (Meet_result.t A)) (key : K)
+    (data_left_opt data_right_opt : option A) (state : mapping_state K A)
+    : mapping_state K A :=
+  match state with
+  | None => None
+  | Some Or_bottom.Bottom => Some Or_bottom.Bottom
+  | Some (Or_bottom.Ok acc) =>
+    match data_left_opt, data_right_opt with
+    | None, None => None
+    | Some data_left, None =>
+      Some
+        (Or_bottom.Ok
+           {| all_left := all_left acc;
+              all_right := false;
+              mapping := (key, data_left) :: mapping acc;
+              mapping_env := mapping_env acc |})
+    | None, Some data_right =>
+      Some
+        (Or_bottom.Ok
+           {| all_left := false;
+              all_right := all_right acc;
+              mapping := (key, data_right) :: mapping acc;
+              mapping_env := mapping_env acc |})
+    | Some data_left, Some data_right =>
+      match meet_data (mapping_env acc) data_left data_right with
+      | None => None
+      | Some (Meet_result.Bottom _) => Some Or_bottom.Bottom
+      | Some (Meet_result.Ok res env) =>
+        let result (all_left all_right : bool) (data : A)
+            : mapping_state K A :=
+          Some
+            (Or_bottom.Ok
+               {| all_left := all_left;
+                  all_right := all_right;
+                  mapping := (key, data) :: mapping acc;
+                  mapping_env := env |})
+        in
+        match res with
+        | Both_inputs => result (all_left acc) (all_right acc) data_left
+        | Left_input => result (all_left acc) false data_left
+        | Right_input => result false (all_right acc) data_right
+        | New_result data => result false false data
+        end
+      end
+    end
+  end.
+
+Lemma meet_mapping_unfold {K A M : Type}
+    (meet_data : Meet_env.t -> A -> A -> option (Meet_result.t A))
+    (fold2 :
+      (K -> option A -> option A -> mapping_state K A -> mapping_state K A) ->
+      M -> M -> mapping_state K A -> mapping_state K A)
+    (env : Meet_env.t) (left right : M) (rebuild : list (K * A) -> M) :
+  meet_mapping meet_data fold2 env left right rebuild
+  = match
+      fold2 (mapping_step meet_data) left right
+        (Some
+           (Or_bottom.Ok
+              {| all_left := true;
+                 all_right := true;
+                 mapping := [];
+                 mapping_env := env |}))
+    with
+    | None => None
+    | Some Or_bottom.Bottom => Some (Meet_result.Bottom (New_result tt))
+    | Some (Or_bottom.Ok res) =>
+      let result :=
+        match all_left res, all_right res with
+        | true, true => Both_inputs
+        | true, false => Left_input
+        | false, true => Right_input
+        | false, false => New_result (rebuild (mapping res))
+        end
+      in
+      Some (Meet_result.Ok result (mapping_env res))
+    end.
+Proof. reflexivity. Qed.
+
+(* What a step that answers makes of the state: one component more,
+   which is that of the one input that has it, or what the meet of the
+   two answered. *)
+Lemma mapping_step_ok {K A : Type}
+    (meet_data : Meet_env.t -> A -> A -> option (Meet_result.t A)) (key : K)
+    (data_left_opt data_right_opt : option A) (acc acc' : mapping_acc K A) :
+  mapping_step meet_data key data_left_opt data_right_opt
+    (Some (Or_bottom.Ok acc))
+  = Some (Or_bottom.Ok acc') ->
+  (∃ a : A,
+     ((data_left_opt = Some a ∧ data_right_opt = None)
+      ∨ (data_left_opt = None ∧ data_right_opt = Some a))
+     ∧ mapping acc' = (key, a) :: mapping acc
+     ∧ mapping_env acc' = mapping_env acc)
+  ∨ ∃ (a b : A) (res : meet_return_value A),
+      data_left_opt = Some a
+      ∧ data_right_opt = Some b
+      ∧ meet_data (mapping_env acc) a b
+        = Some (Meet_result.Ok res (mapping_env acc'))
+      ∧ mapping acc' = (key, extract_value res a b) :: mapping acc.
+Proof.
+  unfold mapping_step.
+  destruct data_left_opt as [ a | ], data_right_opt as [ b | ].
+  - destruct (meet_data (mapping_env acc) a b) as [ [ r | res env ] | ]
+      eqn:Hmeet; [ discriminate | | discriminate ].
+    intros Hstep. right. exists a, b, res.
+    destruct res; injection Hstep as <-; cbn; repeat split; exact Hmeet.
+  - intros [= <-]. left. exists a. cbn. auto.
+  - intros [= <-]. left. exists b. cbn. auto.
+  - discriminate.
+Qed.
+
+Lemma mapping_fold_none {K A : Type} (step : mapping_state K A -> K -> _)
+    (keys : list K) :
+  (∀ key : K, step None key = None) ->
+  List.fold_left step keys None = None.
+Proof.
+  intros Hstep. induction keys as [ | key keys IH ]; [ reflexivity | ].
+  cbn. rewrite Hstep. exact IH.
+Qed.
+
+Lemma mapping_fold_bottom {K A : Type}
+    (step : mapping_state K A -> K -> mapping_state K A) (keys : list K) :
+  (∀ key : K, step (Some Or_bottom.Bottom) key = Some Or_bottom.Bottom) ->
+  List.fold_left step keys (Some Or_bottom.Bottom) = Some Or_bottom.Bottom.
+Proof.
+  intros Hstep. induction keys as [ | key keys IH ]; [ reflexivity | ].
+  cbn. rewrite Hstep. exact IH.
+Qed.
+
+Lemma keeps_equations_valued_refl (tenv : Typing_env.t) (valuation : env) :
+  keeps_equations_valued tenv tenv valuation valuation.
+Proof. intros cut_after Hvalued. exact Hvalued. Qed.
+
+Lemma keeps_equations_valued_trans (tenv1 tenv2 tenv3 : Typing_env.t)
+    (valuation1 valuation2 valuation3 : env) :
+  keeps_equations_valued tenv1 tenv2 valuation1 valuation2 ->
+  keeps_equations_valued tenv2 tenv3 valuation2 valuation3 ->
+  keeps_equations_valued tenv1 tenv3 valuation1 valuation3.
+Proof.
+  intros H12 H23 cut_after Hvalued. exact (H23 _ (H12 _ Hvalued)).
+Qed.
+
+Section Mapping.
+
+Variable type_well_formed : flambda_type -> bool.
+Context {K A : Type}.
+Variable fits : Typing_env.t -> A -> Prop.
+Variable satisfied : K -> static_env -> env -> A -> Prop.
+Variable meet_data : Meet_env.t -> A -> A -> option (Meet_result.t A).
+Variable get_left get_right : K -> option A.
+Variable menv : Meet_env.t.
+
+Hypothesis Hstable : ∀ key : K, part_stable fits (satisfied key).
+Hypothesis Hok :
+  ∀ key : K, part_meet_ok type_well_formed fits (satisfied key) meet_data.
+Hypothesis Hleft :
+  ∀ (key : K) (a : A),
+    get_left key = Some a -> fits (Meet_env.typing_env menv) a.
+Hypothesis Hright :
+  ∀ (key : K) (a : A),
+    get_right key = Some a -> fits (Meet_env.typing_env menv) a.
+
+Let step (state : mapping_state K A) (key : K) : mapping_state K A :=
+  mapping_step meet_data key (get_left key) (get_right key) state.
+
+(* What the fold keeps, whatever the values. *)
+Let keeps (done : list K) (acc : mapping_acc K A) : Prop :=
+  meet_env_extends menv (mapping_env acc)
+  ∧ typing_env_fits type_well_formed (Meet_env.typing_env (mapping_env acc))
+  ∧ map fst (mapping acc) = rev done
+  ∧ ∀ (key : K) (a : A),
+      (key, a) ∈ mapping acc ->
+      fits (Meet_env.typing_env (mapping_env acc)) a.
+
+(* What it keeps of a valuation [valuation0] that satisfied the first
+   environment and made the components of both inputs true. *)
+Let sound (statics : static_env) (valuation0 valuation : env)
+    (acc : mapping_acc K A) : Prop :=
+  extended_from (Meet_env.typing_env menv) valuation0 valuation
+  ∧ typing_env_satisfied_strictly statics valuation
+      (Meet_env.typing_env (mapping_env acc))
+  ∧ keeps_equations_valued (Meet_env.typing_env menv)
+      (Meet_env.typing_env (mapping_env acc)) valuation0 valuation
+  ∧ ∀ (key : K) (a : A),
+      (key, a) ∈ mapping acc -> satisfied key statics valuation a.
+
+Lemma mapping_fold_ok (todo : list K) :
+  ∀ (done : list K) (acc : mapping_acc K A) (final : mapping_state K A),
+    keeps done acc ->
+    List.fold_left step todo (Some (Or_bottom.Ok acc)) = final ->
+    (∀ acc' : mapping_acc K A,
+       final = Some (Or_bottom.Ok acc') -> keeps (done ++ todo) acc')
+    ∧ ∀ (statics : static_env) (valuation0 valuation : env),
+        (∀ (key : K) (a : A),
+           get_left key = Some a -> satisfied key statics valuation0 a) ->
+        (∀ (key : K) (a : A),
+           get_right key = Some a -> satisfied key statics valuation0 a) ->
+        sound statics valuation0 valuation acc ->
+        final <> None ->
+        ∃ (acc' : mapping_acc K A) (valuation' : env),
+          final = Some (Or_bottom.Ok acc')
+          ∧ sound statics valuation0 valuation' acc'.
+Proof.
+  induction todo as [ | key todo IH ];
+    intros done acc final Hkeeps Hfold.
+  - cbn in Hfold. subst final. rewrite app_nil_r. split.
+    + intros acc' [= <-]. exact Hkeeps.
+    + intros statics valuation0 valuation _ _ Hsound _.
+      exists acc, valuation. split; [ reflexivity | exact Hsound ].
+  - cbn [List.fold_left] in Hfold.
+    destruct Hkeeps as (Hextends & Henv & Hkeys & Hfits).
+    destruct (step (Some (Or_bottom.Ok acc)) key)
+      as [ [ acc1 | ] | ] eqn:Hstep.
+    + (* The step answered. *)
+      assert (Hkeeps1 : keeps (done ++ [key]) acc1
+        ∧ ∀ (statics : static_env) (valuation0 valuation : env),
+            (∀ (key : K) (a : A),
+               get_left key = Some a -> satisfied key statics valuation0 a) ->
+            (∀ (key : K) (a : A),
+               get_right key = Some a -> satisfied key statics valuation0 a)
+            ->
+            sound statics valuation0 valuation acc ->
+            ∃ valuation1 : env, sound statics valuation0 valuation1 acc1).
+      { destruct (mapping_step_ok meet_data key _ _ acc acc1 Hstep)
+          as [ (a & Hside & Hmapping & Henv1)
+             | (a & b & res & Hl & Hr & Hmeet & Hmapping) ].
+        - (* One input has the component. *)
+          assert (Ha : fits (Meet_env.typing_env menv) a).
+          { destruct Hside as [ [Hl _] | [_ Hr] ];
+              [ exact (Hleft key a Hl) | exact (Hright key a Hr) ]. }
+          split.
+          + unfold keeps. rewrite Henv1, Hmapping. cbn [map fst].
+            rewrite rev_app_distr. cbn [rev app].
+            split; [ exact Hextends | ]. split; [ exact Henv | ].
+            split; [ rewrite Hkeys; reflexivity | ].
+            intros key' a' [ [= <- <-] | Hin ]; [ | exact (Hfits _ _ Hin) ].
+            exact (proj1 (Hstable key) menv (mapping_env acc) a Hextends Ha).
+          + intros statics valuation0 valuation Hsl Hsr
+              (Hextended & Hvaluation & Hvalued & Hsat).
+            exists valuation. unfold sound. rewrite Henv1, Hmapping.
+            split; [ exact Hextended | ]. split; [ exact Hvaluation | ].
+            split; [ exact Hvalued | ].
+            intros key' a' [ [= <- <-] | Hin ]; [ | exact (Hsat _ _ Hin) ].
+            apply (proj2 (Hstable key) statics _ valuation0 valuation a Ha
+                     Hextended).
+            destruct Hside as [ [Hl _] | [_ Hr] ];
+              [ exact (Hsl key a Hl) | exact (Hsr key a Hr) ].
+        - (* Both have it: the meet of the two. *)
+          assert (Ha : fits (Meet_env.typing_env (mapping_env acc)) a).
+          { exact (proj1 (Hstable key) menv _ a Hextends (Hleft key a Hl)). }
+          assert (Hb : fits (Meet_env.typing_env (mapping_env acc)) b).
+          { exact (proj1 (Hstable key) menv _ b Hextends (Hright key b Hr)). }
+          destruct (Hok key (mapping_env acc) a b _ Henv Ha Hb Hmeet)
+            as [Hkeeps_data Hsound_data].
+          destruct (Hkeeps_data res (mapping_env acc1) eq_refl)
+            as (Hextends1 & Henv1 & Hanswer).
+          split.
+          + unfold keeps. rewrite Hmapping. cbn [map fst].
+            rewrite rev_app_distr. cbn [rev app].
+            split.
+            { exact (meet_env_extends_trans _ _ _ Hextends Hextends1). }
+            split; [ exact Henv1 | ].
+            split; [ rewrite Hkeys; reflexivity | ].
+            intros key' a' [ [= <- <-] | Hin ]; [ exact Hanswer | ].
+            exact (proj1 (Hstable key') _ _ a' Hextends1 (Hfits _ _ Hin)).
+          + intros statics valuation0 valuation Hsl Hsr
+              (Hextended & Hvaluation & Hvalued & Hsat).
+            assert (Hsa : satisfied key statics valuation a).
+            { exact (proj2 (Hstable key) statics _ valuation0 valuation a
+                       (Hleft key a Hl) Hextended (Hsl key a Hl)). }
+            assert (Hsb : satisfied key statics valuation b).
+            { exact (proj2 (Hstable key) statics _ valuation0 valuation b
+                       (Hright key b Hr) Hextended (Hsr key b Hr)). }
+            destruct (Hsound_data statics valuation Hvaluation Hsa Hsb)
+              as (r & menv' & valuation1 & Hresult & Hextended1 & Hvaluation1
+                  & Hsanswer & Hvalued1).
+            injection Hresult as <- <-.
+            exists valuation1. unfold sound. rewrite Hmapping.
+            split.
+            { exact (extended_from_trans _ _ _ _ _
+                       (meet_env_extends_keeps_names _ _ Hextends) Hextended
+                       Hextended1). }
+            split; [ exact Hvaluation1 | ].
+            split.
+            { exact (keeps_equations_valued_trans _ _ _ _ _ _ Hvalued
+                       Hvalued1). }
+            intros key' a' [ [= <- <-] | Hin ]; [ exact Hsanswer | ].
+            exact (proj2 (Hstable key') statics _ valuation valuation1 a'
+                     (Hfits _ _ Hin) Hextended1 (Hsat _ _ Hin)). }
+      destruct Hkeeps1 as [Hkeeps1 Hsound1].
+      destruct (IH (done ++ [key]) acc1 final Hkeeps1 Hfold)
+        as [IHkeeps IHsound].
+      rewrite <- app_assoc in IHkeeps. cbn [app] in IHkeeps.
+      split; [ exact IHkeeps | ].
+      intros statics valuation0 valuation Hsl Hsr Hsound Hfinal.
+      destruct (Hsound1 statics valuation0 valuation Hsl Hsr Hsound)
+        as (valuation1 & Hsound_acc1).
+      exact (IHsound statics valuation0 valuation1 Hsl Hsr Hsound_acc1 Hfinal).
+    + (* The step answered bottom: the meet of a component did. *)
+      rewrite (mapping_fold_bottom step todo (fun _ => eq_refl)) in Hfold.
+      subst final. split; [ intros acc' Hfinal; discriminate Hfinal | ].
+      intros statics valuation0 valuation Hsl Hsr
+        (Hextended & Hvaluation & Hvalued & Hsat) _.
+      exfalso. unfold step, mapping_step in Hstep.
+      destruct (get_left key) as [ a | ] eqn:Hl;
+        destruct (get_right key) as [ b | ] eqn:Hr; try discriminate Hstep.
+      destruct (meet_data (mapping_env acc) a b) as [ [ r | res env ] | ]
+        eqn:Hmeet; [ | destruct res; discriminate Hstep | discriminate Hstep ].
+      assert (Ha : fits (Meet_env.typing_env (mapping_env acc)) a).
+      { exact (proj1 (Hstable key) menv _ a Hextends (Hleft key a Hl)). }
+      assert (Hb : fits (Meet_env.typing_env (mapping_env acc)) b).
+      { exact (proj1 (Hstable key) menv _ b Hextends (Hright key b Hr)). }
+      destruct (Hok key (mapping_env acc) a b _ Henv Ha Hb Hmeet)
+        as [_ Hsound_data].
+      destruct (Hsound_data statics valuation Hvaluation
+                  (proj2 (Hstable key) statics _ valuation0 valuation a
+                     (Hleft key a Hl) Hextended (Hsl key a Hl))
+                  (proj2 (Hstable key) statics _ valuation0 valuation b
+                     (Hright key b Hr) Hextended (Hsr key b Hr)))
+        as (r' & menv' & valuation1 & Hresult & _).
+      discriminate Hresult.
+    + (* The step stopped. *)
+      rewrite (mapping_fold_none step todo (fun _ => eq_refl)) in Hfold.
+      subst final. split; [ intros acc' Hfinal; discriminate Hfinal | ].
+      intros statics valuation0 valuation _ _ _ Hfinal. destruct Hfinal.
+      reflexivity.
+Qed.
+
+End Mapping.
+
+Theorem meet_mapping_ok : meet_mapping_ok_statement.
+Proof.
+  intros type_well_formed K A M fits satisfied meet_data fold2 keys get_left
+    get_right menv left right rebuild result tenv Hfold2 Hstable Hok Henv
+    Hleft Hright Hmeet.
+  rewrite meet_mapping_unfold, Hfold2 in Hmeet.
+  set (init :=
+    {| all_left := true;
+       all_right := true;
+       mapping := @nil (K * A);
+       mapping_env := menv |}) in Hmeet.
+  assert (Hinit :
+    meet_env_extends menv (mapping_env init)
+    ∧ typing_env_fits type_well_formed (Meet_env.typing_env (mapping_env init))
+    ∧ map fst (mapping init) = rev []
+    ∧ ∀ (key : K) (a : A),
+        (key, a) ∈ mapping init ->
+        fits (Meet_env.typing_env (mapping_env init)) a).
+  { split; [ apply meet_env_extends_refl | ]. split; [ exact Henv | ].
+    split; [ reflexivity | ]. intros key a []. }
+  destruct (mapping_fold_ok type_well_formed fits satisfied meet_data get_left
+              get_right menv Hstable Hok Hleft Hright keys [] init _ Hinit
+              eq_refl)
+    as [Hkeeps Hsound].
+  cbn [app] in Hkeeps.
+  destruct
+    (List.fold_left
+       (fun state key =>
+          mapping_step meet_data key (get_left key) (get_right key) state)
+       keys (Some (Or_bottom.Ok init)))
+    as [ [ res | ] | ] eqn:Hfinal; [ | | discriminate Hmeet ].
+  - injection Hmeet as <-.
+    destruct (Hkeeps res eq_refl) as (Hextends & Henv' & Hkeys & Hfits).
+    assert (Hnew :
+      ∀ m : M,
+        match all_left res, all_right res with
+        | true, true => Both_inputs
+        | true, false => Left_input
+        | false, true => Right_input
+        | false, false => New_result (rebuild (mapping res))
+        end
+        = New_result m ->
+        m = rebuild (mapping res)).
+    { intros m. destruct (all_left res), (all_right res); intros [= <-].
+      reflexivity. }
+    split.
+    + intros r menv' [= <- <-].
+      split; [ exact Hextends | ]. split; [ exact Henv' | ].
+      intros m Hm. exists (mapping res).
+      split; [ exact (Hnew m Hm) | ]. split; [ exact Hkeys | exact Hfits ].
+    + intros statics valuation Hvaluation Hsl Hsr.
+      destruct (Hsound statics valuation valuation Hsl Hsr) as
+        (acc' & valuation' & Hacc' & Hextended & Hvaluation' & Hvalued
+         & Hsat).
+      { split; [ apply extended_from_refl | ]. split; [ exact Hvaluation | ].
+        split; [ apply keeps_equations_valued_refl | ]. intros key a []. }
+      { discriminate. }
+      injection Hacc' as <-.
+      eexists. exists (mapping_env res), valuation'.
+      split; [ reflexivity | ]. split; [ exact Hextended | ].
+      split; [ exact Hvaluation' | ]. split; [ exact Hvalued | ].
+      intros m Hm. exists (mapping res).
+      split; [ exact (Hnew m Hm) | ]. split; [ exact Hkeys | ].
+      intros key a Hin. split; [ exact (Hfits key a Hin) | ].
+      exact (Hsat key a Hin).
+  - injection Hmeet as <-. split.
+    + intros r menv' Hresult. discriminate Hresult.
+    + intros statics valuation Hvaluation Hsl Hsr.
+      destruct (Hsound statics valuation valuation Hsl Hsr) as
+        (acc' & valuation' & Hacc' & _).
+      { split; [ apply extended_from_refl | ]. split; [ exact Hvaluation | ].
+        split; [ apply keeps_equations_valued_refl | ]. intros key a []. }
+      { discriminate. }
+      discriminate Hacc'.
 Qed.
