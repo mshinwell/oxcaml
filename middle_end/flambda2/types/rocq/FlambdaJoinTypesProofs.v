@@ -200,7 +200,7 @@ Lemma tabulate_fold_opt_spec {A : Type} (f : K -> S -> option (option A * S))
      P s -> f key s = Some (a, s') -> P s' ∧ R s s') ->
   ∀ (s : S) (out : Keyed.finite_map K A) (s' : S),
     P s ->
-    Keyed_fold.tabulate_fold_opt f keys s = Some (out, s') ->
+    Keyed.tabulate_fold_opt f keys s = Some (out, s') ->
     P s' ∧ R s s'
     ∧ (∀ (key : K) (a : A),
          In (key, a) out -> Keyed.lookup eqb key out = Some a)
@@ -223,7 +223,7 @@ Proof.
   - simpl in Hdistinct. apply andb_true_iff in Hdistinct as [Hfirst Hdistinct].
     apply negb_true_iff in Hfirst.
     destruct (f first s) as [[a s1] | ] eqn:Hf; [ | discriminate ].
-    destruct (Keyed_fold.tabulate_fold_opt f keys s1) as [[rest s2] | ]
+    destruct (Keyed.tabulate_fold_opt f keys s1) as [[rest s2] | ]
       eqn:Hrest; [ | discriminate ].
     injection Hfold as <- <-.
     assert (Hfirst_among : Keyed.among eqb first (first :: keys) = true).
@@ -294,7 +294,7 @@ Lemma filter_map_fold_spec {A B : Type}
      P s -> g key b s = Some (a, s') -> P s' ∧ R s s') ->
   ∀ (s : S) (out : Keyed.finite_map K A) (s' : S),
     P s ->
-    Keyed_fold.filter_map_fold eqb g m s = Some (out, s') ->
+    Keyed.filter_map_fold eqb g m s = Some (out, s') ->
     P s' ∧ R s s'
     ∧ (∀ (key : K) (a : A),
          In (key, a) out -> Keyed.lookup eqb key out = Some a)
@@ -309,7 +309,7 @@ Lemma filter_map_fold_spec {A B : Type}
         ∨ ∃ s1 s2 : S, P s1 ∧ R s s1 ∧ g key b s1 = Some (None, s2).
 Proof.
   intros Hstep s out s' HP Hfold.
-  unfold Keyed_fold.filter_map_fold, Keyed_fold.filter_map_fold_on in Hfold.
+  unfold Keyed.filter_map_fold, Keyed.filter_map_fold_on in Hfold.
   set (f :=
     fun (key : K) (s : S) =>
       match Keyed.lookup eqb key m with
@@ -1321,17 +1321,17 @@ Proof.
     + left. split; reflexivity.
 Qed.
 
-Lemma read_boxed_number_eq (k : naked_number_kind)
+Lemma read_boxed_number_eq (k : boxable_number)
     (head : head_of_kind_value_non_null) (contents : flambda_type)
     (mode : Alloc_mode.t) :
   read_boxed_number k head = Some (contents, mode) ->
   head = Boxed_number k contents mode.
 Proof.
   destruct head as [ | | k' contents' mode' | | ]; try discriminate. simpl.
-  destruct (kind_eqb (Naked_number k) (Naked_number k')) eqn:Hkind;
+  destruct (kind_eqb (unboxed_kind k) (unboxed_kind k')) eqn:Hkind;
     [ | discriminate ].
-  intros [= <- <-]. apply kind_eqb_true in Hkind. injection Hkind as <-.
-  reflexivity.
+  intros [= <- <-]. apply kind_eqb_true in Hkind.
+  destruct k, k'; try discriminate Hkind; reflexivity.
 Qed.
 
 Lemma read_closures_eq (head : head_of_kind_value_non_null)

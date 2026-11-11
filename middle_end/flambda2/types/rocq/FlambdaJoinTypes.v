@@ -95,7 +95,8 @@
      (903): in full.
    - [generic_merge_map_known] (807): in full. Its first fold, which
      gathers the cases of each key, is [gather_known]; the
-     [filter_map] with a reference is the fold of [Keyed_fold].
+     [filter_map] with a reference is [Keyed.filter_map_fold]
+     (FlambdaMapSpec.v).
    - [join_array_element_kinds] (936) is left out: the grammar has no
      arrays.
    - [n_way_join] (1885): [n_way_join_body], and [n_way_join] with the
@@ -190,16 +191,12 @@
    makes them (a fold from the left that conses reverses its list);
    no statement depends on the order.
 
-   Stand-ins. Two things that this file needs are another workstream's
-   and are not yet where this file can import them. Each is copied
-   here under its owner's names, in a module of its own, and is to go,
-   with a change of the imports and nothing else, when the owner's
-   file is there:
-   - [Expanded_type]: the type of expanded types and its creation
-     functions, of the file of [Expand_head] (the workstream on meet);
-   - [Keyed_fold]: the fold over the bindings of a map that threads a
-     state and may drop bindings, which is to be in the module [Keyed]
-     of FlambdaMapSpec.v under the same names. *)
+   A stand-in. One thing that this file needs is another workstream's
+   and is not yet where this file can import it. It is copied here
+   under its owner's names, in a module of its own, and is to go, with
+   a change of the imports and nothing else, when the owner's file is
+   there: [Expanded_type], the type of expanded types and its creation
+   functions, of the file of [Expand_head] (the workstream on meet). *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlOption.
@@ -210,7 +207,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
 Import ListNotations.
 
 (* ======================================================================== *)
-(* Stand-ins                                                                *)
+(* A stand-in                                                               *)
 (* ======================================================================== *)
 
 (* [Expand_head.Expanded_type]: a type that is not an alias, given by
@@ -270,63 +267,6 @@ Module Expanded_type.
     end.
 
 End Expanded_type.
-
-(* To be in the module [Keyed] of FlambdaMapSpec.v, under these names
-   and with the equality test of the keys as first argument: a fold
-   over keys, or over the bindings of a map, that threads a state,
-   builds the map of what the function answers, drops a key for which
-   it answers no value, and stops if it fails. *)
-Module Keyed_fold.
-
-Section Keys.
-
-Context {K : Type} (eqb : K -> K -> bool).
-
-Fixpoint tabulate_fold_opt {A S : Type}
-    (f : K -> S -> option (option A * S)) (keys : list K) (s : S)
-    : option (Keyed.finite_map K A * S) :=
-  match keys with
-  | [] => Some ([], s)
-  | key :: keys =>
-    match f key s with
-    | None => None
-    | Some (a, s) =>
-      match tabulate_fold_opt f keys s with
-      | None => None
-      | Some (bindings, s) =>
-        Some
-          (match a with
-           | Some a => (key, a) :: bindings
-           | None => bindings
-           end,
-           s)
-      end
-    end
-  end.
-
-Definition filter_map_fold_on {A B S : Type} (keys : list K)
-    (f : K -> A -> S -> option (option B * S))
-    (bindings : Keyed.finite_map K A) (s : S)
-    : option (Keyed.finite_map K B * S) :=
-  tabulate_fold_opt
-    (fun key s =>
-       match Keyed.lookup eqb key bindings with
-       | Some a => f key a s
-       | None => Some (None, s)
-       end)
-    keys s.
-
-(* [Map.filter_map] with a state: each key that the map binds is
-   visited once, with what [lookup] finds for it. *)
-Definition filter_map_fold {A B S : Type}
-    (f : K -> A -> S -> option (option B * S))
-    (bindings : Keyed.finite_map K A) (s : S)
-    : option (Keyed.finite_map K B * S) :=
-  filter_map_fold_on (Keyed.domain eqb bindings) f bindings s.
-
-End Keys.
-
-End Keyed_fold.
 
 (* ======================================================================== *)
 (* Function types                                                           *)
@@ -891,12 +831,12 @@ Definition read_mutable_block (head : head_of_kind_value_non_null)
 
 (* A boxed number of the kind [k]: the compiler has a constructor for
    each kind. *)
-Definition read_boxed_number (k : naked_number_kind)
+Definition read_boxed_number (k : boxable_number)
     (head : head_of_kind_value_non_null)
     : option (flambda_type * Alloc_mode.t) :=
   match head with
   | Boxed_number k' n alloc_mode =>
-    if kind_eqb (Naked_number k) (Naked_number k')
+    if kind_eqb (unboxed_kind k) (unboxed_kind k')
     then Some (n, alloc_mode)
     else None
   | Variant _ _ _ _ _ _ | Mutable_block _ | Closures _ _ | String _ => None
@@ -1157,7 +1097,7 @@ Definition generic_merge_map_known {K value other : Type}
   match maps with
   | [] => Some ([], env)
   | _ :: _ =>
-    Keyed_fold.filter_map_fold eqb
+    Keyed.filter_map_fold eqb
       (fun _index values env =>
          let* joined := n_way_join env values in
          match joined with
@@ -1332,7 +1272,7 @@ Definition n_way_join_generic_product (env : state)
   match indexed_products with
   | [] => Some ([], env)
   | _ :: _ =>
-    Keyed_fold.filter_map_fold Pos.eqb
+    Keyed.filter_map_fold Pos.eqb
       (fun _index tys env =>
          let* '(joined, env) := n_way_join_rec env tys in
          match joined with
