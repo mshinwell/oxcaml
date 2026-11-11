@@ -219,6 +219,11 @@ pass into the validator.
     `Simple` that a prover answers, and the type of a block that is
     made; after `simplify/simplify_unary_primitive.ml` and
     `simplify_variadic_primitive.ml`)
+  - `middle_end/flambda2/types/rocq/FlambdaSimplifyBoxing*` (the types
+    of a number that is tagged or boxed, and the unboxing primitive
+    replaced by the `Simple` that a prover answers for the number
+    inside; after `simplify/simplify_unary_primitive.ml` and
+    `simplify/unboxing/unboxing_epa.ml`)
 - S2, switch. Owner of the first slice: T1, on
   `flambda2-rocq/T1-grammar`; the rest unassigned.
   - `middle_end/flambda2/types/rocq/FlambdaSimplifySwitch*` (the arms
