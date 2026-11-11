@@ -214,6 +214,11 @@ pass into the validator.
     answer of a prover about the types of its arguments; after
     `simplify/simplify_primitive.ml`, `simplify_unary_primitive.ml` and
     `simplify_binary_primitive.ml`)
+  - `middle_end/flambda2/types/rocq/FlambdaSimplifyProjections*` (a
+    load from a block or a projection from a closure replaced by the
+    `Simple` that a prover answers, and the type of a block that is
+    made; after `simplify/simplify_unary_primitive.ml` and
+    `simplify_variadic_primitive.ml`)
 - S2, switch. Owner of the first slice: T1, on
   `flambda2-rocq/T1-grammar`; the rest unassigned.
   - `middle_end/flambda2/types/rocq/FlambdaSimplifySwitch*` (the arms
