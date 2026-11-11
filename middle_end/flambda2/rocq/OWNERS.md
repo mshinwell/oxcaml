@@ -93,6 +93,9 @@ design out; that is the request, not the change.
   - the conversion of primitives and of constants in
     `middle_end/flambda2/tests/tools/flsemantics.ml`, until V3 has an
     owner
+  - `middle_end/flambda2/rocq/FlambdaRange*` (what a unit whose numbers
+    are in range gains; the check itself is in C0's
+    `FlambdaWellFormedSpec.v`)
 - C2, kinds and well-formed terms. Owner: C2, on
   `flambda2-rocq/C2-kinds`.
 - C3, sets of closures. Owner: C3, on `flambda2-rocq/C3-closures`.

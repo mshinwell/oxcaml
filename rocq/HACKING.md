@@ -108,7 +108,7 @@ Each directory is a Rocq library (`rocq/Makefile` maps them):
 | `backend/rocq/`          | `OxCamlBackend`| Backend-wide definitions: the semantics of `Cmm.integer_comparison` (with `IntegerComparisonProofs.v`), the model's copy of `Operation.t` |
 | `backend/ssa/rocq/`      | `OxCamlSsa`    | The SSA graph as the models see it, each model split into Spec, implementation and Proofs files (see "The layout of a model"): `SsaModel.v` (the abstract interface), `SsaGraph*` (terminators, edges and uses), `SsaDominance*` (dominance, paths and program points), `SsaSemantics*` (execution of the restricted integer fragment), `SsaExecution*` (well-formedness and available-value equations), `SsaLiveness*` (reads before redefinition), `SsaProgress*` (the `finished_graph` contract, definedness and progress), `SsaContext*` (opaque surrounding computations and the `reached_header` contract) |
 | `backend/ssa/loop/rocq/` | `OxCamlLoop`   | The loop analyses, each an implementation file and a `*Proofs.v`; the operational proofs in `LoopExecutionProofs.v`, `LoopInvariantExecutionProofs.v`, `LoopCounterExecutionProofs.v`, `LoopValueSnapshotProofs.v`, `LoopGuardExecutionProofs.v`, `LoopRangeExecutionProofs.v`, `LoopLiveOutProofs.v` and `InductionRangeExecutionProofs.v`; the statements to review in `LoopEligibilitySpec.v`, `DeleteEmptyLoopsSpec.v` and `BoundsCheckExecutionSpec.v`, proved in `LoopEligibilityProofs.v`, `DeleteEmptyLoopsProofs.v` and `BoundsCheckExecutionProofs.v`; and `Extract.v`, which extracts the implementation |
-| `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, extracted for its tests only: `FlambdaMap*` (finite maps and sets keyed by names, the one representation of environments), `FlambdaKindModel.v` (the kinds), `FlambdaPrimitiveModel.v` (the primitives of the fragment covered so far), `FlambdaModel.v` (the terms of that fragment), `FlambdaValue*` (the values of the machine, and how an allocated value is read), `FlambdaPrimitive*` (what each primitive computes, and the laws that all of them obey), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaWellFormed*` (the well-formedness of a unit: static bindings at toplevel only, each static name bound once, whole sets of closures; and that what a static name is bound to never changes in a run), `FlambdaClosures*` (sets of closures of several functions: the derived forms that make one, the projections, and what a well-formed unit keeps true of its sets), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics), `FlambdaContext*` (contexts, and that refinement and equivalence are preserved under them), `FlambdaNominal*` (renamings, free names, and binders as name abstractions), `FlambdaAlpha*` (the group action, equivariance, and alpha-equivalence with its soundness), `FlambdaApply*` (function calls and inlining), `FlambdaStatic*` (first facts about `Let_static`), `FlambdaCompare*` (a decision that two expressions are the same up to bound names, proved sound), `FlambdaNormalise*` (normalising a term by proved rewrites: inlining direct calls of known code, removing unused `Let`s, folding constants), `FlambdaUnusedStatics*` (removing unused static bindings, under environments in which their names do not occur), `FlambdaValidate*` (the whole check of a unit before and after Simplify, and that what it accepts is correct for the unit run on its own); see "The semantics of Flambda 2" below |
+| `middle_end/flambda2/rocq/` | `OxCamlFlambda2` | The beginning of a semantics of Flambda 2, extracted for its tests only: `FlambdaMap*` (finite maps and sets keyed by names, the one representation of environments), `FlambdaKindModel.v` (the kinds), `FlambdaPrimitiveModel.v` (the primitives of the fragment covered so far), `FlambdaModel.v` (the terms of that fragment), `FlambdaValue*` (the values of the machine, and how an allocated value is read), `FlambdaPrimitive*` (what each primitive computes, and the laws that all of them obey), `FlambdaSemantics*` (execution, behaviours, equivalence and refinement), `FlambdaWellFormed*` (the well-formedness of a unit: static bindings at toplevel only, each static name bound once, whole sets of closures; and that what a static name is bound to never changes in a run), `FlambdaClosures*` (sets of closures of several functions: the derived forms that make one, the projections, and what a well-formed unit keeps true of its sets), `FlambdaRange*` (that the run of a unit whose numbers are in range holds no number out of range), `FlambdaControlFlow*` (rewrites of control flow stated and proved against the semantics), `FlambdaContext*` (contexts, and that refinement and equivalence are preserved under them), `FlambdaNominal*` (renamings, free names, and binders as name abstractions), `FlambdaAlpha*` (the group action, equivariance, and alpha-equivalence with its soundness), `FlambdaApply*` (function calls and inlining), `FlambdaStatic*` (first facts about `Let_static`), `FlambdaCompare*` (a decision that two expressions are the same up to bound names, proved sound), `FlambdaNormalise*` (normalising a term by proved rewrites: inlining direct calls of known code, removing unused `Let`s, folding constants), `FlambdaUnusedStatics*` (removing unused static bindings, under environments in which their names do not occur), `FlambdaValidate*` (the whole check of a unit before and after Simplify, and that what it accepts is correct for the unit run on its own); see "The semantics of Flambda 2" below |
 | `middle_end/flambda2/types/rocq/` | `OxCamlFlambda2Types` | A first, naive model of Flambda types and typing environments, with nothing extracted: `FlambdaTypes*` (types, what it means to satisfy a typing environment, refinement relative to one, following aliases, going under a `Let`), `FlambdaAliases*` (following aliases through a whole term, an equivalence) |
 
 Put a definition or lemma where its OxCaml counterpart would live. A fact
@@ -572,16 +572,32 @@ be proved correct, built a fragment at a time. The files follow the same Spec/Pr
     value its arguments had the kinds it takes and the value has its
     result kind (`eval_prim_kinds`); it makes its value out of its
     arguments (`eval_prim_preserves`); it keeps its value when the
-    static environment grows (`eval_prim_statics_extend`); and if it has
+    static environment grows (`eval_prim_statics_extend`); if it has
     a value, no argument of it was a symbol bound to nothing
     (`eval_prim_symbols_bound`; this is about the arguments themselves,
-    not about symbols inside their fields). To reason about one
-    primitive, rewrite with the equations `eval_prim_unary`,
-    `eval_prim_binary` and `eval_prim_variadic`.
+    not about symbols inside their fields); and it brings no number out
+    of range (`eval_prim_in_range`: given values whose constants are in
+    the range of their kind and whose blocks have tags in range, it
+    returns such a value. It has two more premises: the numbers the
+    primitive carries itself are in range, and each symbol among the
+    arguments is bound to something in range, since a primitive reads
+    through a symbol: unboxing a symbol bound to a boxed number out of
+    range would give that number). To reason about one primitive,
+    rewrite with the equations `eval_prim_unary`, `eval_prim_binary`
+    and `eval_prim_variadic`.
   - Adding a primitive is leaf work in those three files: a constructor,
-    a case of the evaluation and of the kinds, and a case in each proof
-    of `FlambdaPrimitiveProofs.v` that goes by cases. Then teach the
-    conversion in `flsemantics.ml` and add an example.
+    a case of the evaluation, of the kinds and of `prim_in_range` (the
+    numbers the primitive carries: `true` if it has none), and a case in
+    each proof of `FlambdaPrimitiveProofs.v` that goes by cases. Then
+    teach the conversion in `flsemantics.ml` and add an example.
+  - The numbers of the model are integers, where the compiler's are of
+    types that hold a range. `FlambdaPrimitiveSpec.v` (the section
+    "Numbers in range") says which integers the compiler's are;
+    `FlambdaWellFormedSpec.numbers_in_range` is the check of a term, and
+    `FlambdaRangeSpec.v` has what it gives: every state of the run of a
+    unit that passes holds numbers in range only. A new place in a term
+    for a number (a constant, a tag, an index) gets its case in the
+    check, and a new form of value in `value_in_range`.
   - The signature of `eval_prim` and the statements of the laws are what
     the rest of the model is built on: a change to one of them is a core
     change, though the file is not a core file.
