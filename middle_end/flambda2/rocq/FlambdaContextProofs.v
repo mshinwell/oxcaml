@@ -348,21 +348,28 @@ Qed.
    runs related bodies under the same variables, with the two
    continuations of the code bound to what the caller gave. *)
 Lemma call_function_related (callee : value) (kind : call_kind)
-    (vs : list value) (statics statics' : static_env) :
+    (vs : list value) (args_arity return_arity : arity)
+    (statics statics' : static_env) :
   statics_related statics statics' ->
   ((∀ return_to exn_to : cont_value,
-     call_function callee kind vs return_to exn_to statics = Undefined)
+     call_function callee kind vs args_arity return_arity return_to exn_to
+       statics
+     = Undefined)
    ∧ (∀ return_to exn_to : cont_value,
-       call_function callee kind vs return_to exn_to statics' = Undefined))
+       call_function callee kind vs args_arity return_arity return_to exn_to
+         statics'
+       = Undefined))
   ∨ (∃ (body body' : expr) (callee_vars : env) (ret exn : continuation),
       (code_related body body' ∨ body = body')
       ∧ (∀ return_to exn_to : cont_value,
-          call_function callee kind vs return_to exn_to statics
+          call_function callee kind vs args_arity return_arity return_to
+            exn_to statics
           = Step
               (State body callee_vars [(ret, return_to); (exn, exn_to)]
                  statics))
       ∧ (∀ return_to exn_to : cont_value,
-          call_function callee kind vs return_to exn_to statics'
+          call_function callee kind vs args_arity return_arity return_to
+            exn_to statics'
           = Step
               (State body' callee_vars [(ret, return_to); (exn, exn_to)]
                  statics'))).
@@ -388,11 +395,25 @@ Proof.
     simpl.
   - rewrite <- Hbinds.
     destruct (binds_statics body); [ left; split; reflexivity | ].
+    destruct
+      (negb
+         (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+          && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
+               (unarize_per_parameter (cm_params_arity metadata))
+          && arity_eqb return_arity (cm_result_arity metadata)));
+      [ left; split; reflexivity | ].
     destruct (bind_params params vs [(my_closure, callee)])
       as [callee_vars | ]; [ | left; split; reflexivity ].
     right. exists body, body', callee_vars, ret, exn.
     split; [ left; exact Hbody | split; reflexivity ].
   - destruct (binds_statics (code_body c)); [ left; split; reflexivity | ].
+    destruct
+      (negb
+         (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+          && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
+               (unarize_per_parameter (code_params_arity c))
+          && arity_eqb return_arity (code_result_arity c)));
+      [ left; split; reflexivity | ].
     destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
       as [callee_vars | ]; [ | left; split; reflexivity ].
     right.
@@ -521,8 +542,9 @@ Proof.
       [ destruct (eval_simples vars (ap_args ap)) as [vs | ] eqn:Hargs;
         simpl in Hended
       | ].
-    + destruct (call_function_related closure (ap_call_kind ap) vs statics
-                  statics' Hstatics)
+    + destruct (call_function_related closure (ap_call_kind ap) vs
+                  (ap_args_arity ap) (ap_return_arity ap) statics statics'
+                  Hstatics)
         as [[Hundefined Hundefined']
            | (body & body' & callee_vars & ret & exn & Hbody & Hcall
               & Hcall')].

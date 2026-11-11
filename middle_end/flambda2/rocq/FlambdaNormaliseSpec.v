@@ -80,8 +80,13 @@
    [inline_known_calls] is inlining as an equivalence, for either term:
    it inlines a direct call only where the callee is a symbol that a
    [Let_static] passed has bound to a closure of the code called, so that
-   the call cannot be undefined for being of something else. It goes
-   where [inline_calls] goes.
+   the call cannot be undefined for being of something else; and only
+   where the call is sure to agree with the code as
+   FlambdaSemanticsSpec.call_function asks ([call_agrees_b]), so that it
+   cannot be undefined for that either. The second asks that each
+   argument be a constant or a symbol: the inlined body does not test the
+   kind of what a variable holds, and the call does. It goes where
+   [inline_calls] goes.
 
    [merge_statics], for either term, makes one group of [Let_static]s that
    follow one another, and puts the code of a group before its symbols.
@@ -637,6 +642,27 @@ Fixpoint symbols_of (bindings : list static_binding)
     symbols_of bindings known
   end.
 
+(* Whether an argument is sure to have a value of a kind, whatever the
+   environment: a constant of that kind, or a symbol where the kind is
+   [Value]. A variable is not: nothing here knows the kind of what it
+   holds. *)
+Definition simple_has_kind_b (s : simple) (kind : flambda_kind) : bool :=
+  match s with
+  | Const c => kind_eqb (kind_of_const c) kind
+  | Symbol _ => kind_eqb kind Value
+  | Var _ => false
+  end.
+
+(* Whether a call is sure to agree with code [c] as
+   FlambdaSemanticsSpec.call_function asks, whatever the environment: its
+   arities are those of the code, and its arguments are sure to have
+   values of the kinds that its own arity gives. *)
+Definition call_agrees_b (ap : apply_expr) (c : code) : bool :=
+  kinds_per_parameter_eqb (unarize_per_parameter (ap_args_arity ap))
+    (unarize_per_parameter (code_params_arity c))
+  && arity_eqb (ap_return_arity ap) (code_result_arity c)
+  && forall2b simple_has_kind_b (ap_args ap) (unarize (ap_args_arity ap)).
+
 Definition inline_known_apply (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id)) (ap : apply_expr)
     : expr :=
@@ -644,7 +670,7 @@ Definition inline_known_apply (known_code : list (code_id * code))
   | Symbol s, Direct called =>
     match lookup s known_symbols, lookup called known_code with
     | Some (Some code), Some c =>
-      if Pos.eqb code called && inlinable_b ap c
+      if Pos.eqb code called && inlinable_b ap c && call_agrees_b ap c
       then
         inlined_body c
           (inline_renaming (code_return_continuation c)

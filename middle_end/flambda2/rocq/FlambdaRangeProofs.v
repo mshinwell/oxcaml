@@ -429,14 +429,16 @@ Proof.
 Qed.
 
 Lemma call_function_in_range (callee : value) (kind : call_kind)
-    (vs : list value) (return_to exn_to : cont_value)
-    (statics : static_env) :
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) :
   value_in_range callee = true ->
   forallb value_in_range vs = true ->
   cont_in_range return_to ->
   cont_in_range exn_to ->
   statics_in_range statics ->
-  result_in_range (call_function callee kind vs return_to exn_to statics).
+  result_in_range
+    (call_function callee kind vs args_arity return_arity return_to exn_to
+       statics).
 Proof.
   intros Hcallee Hvs Hreturn Hexn Hstatics. unfold call_function.
   destruct (closure_of statics callee) as [[called slots] | ];
@@ -450,6 +452,13 @@ Proof.
   destruct (lookup called (static_code statics)) as [c | ] eqn:Hcode;
     [ | exact I ].
   destruct (binds_statics (code_body c)); [ exact I | ].
+  destruct
+    (negb
+       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+        && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
+             (unarize_per_parameter (code_params_arity c))
+        && arity_eqb return_arity (code_result_arity c)));
+    [ exact I | ].
   destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
     as [callee_vars | ] eqn:Hbind;
     [ | exact I ].

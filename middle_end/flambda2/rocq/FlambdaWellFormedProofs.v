@@ -91,7 +91,9 @@ Proof.
   - destruct (eval_simple vars (ap_callee ap)) as [callee | ];
       [ | discriminate ].
     destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | discriminate ].
-    destruct (call_function_cases callee (ap_call_kind ap) vs statics)
+    destruct
+      (call_function_cases callee (ap_call_kind ap) vs (ap_args_arity ap)
+         (ap_return_arity ap) statics)
       as [Hundefined | (body & callee_vars & ret & exn & Hcall)].
     + rewrite Hundefined in Hstep. discriminate.
     + rewrite Hcall in Hstep. injection Hstep as <-.
@@ -152,35 +154,6 @@ Proof.
   inversion H as [ | ? ? Hnotin Hrest]. subst.
   destruct Hin as [-> | Hin]; [ | exact (IH Hrest a Hin Hin') ].
   apply Hnotin, in_or_app. right. exact Hin'.
-Qed.
-
-Lemma call_function_step (callee : value) (kind : call_kind)
-    (vs : list value) (return_to exn_to : cont_value) (statics : static_env)
-    (s : state) :
-  call_function callee kind vs return_to exn_to statics = Step s ->
-  ∃ (called : code_id) (c : code) (callee_vars : env),
-    lookup called (static_code statics) = Some c
-    ∧ s
-      = State (code_body c) callee_vars
-          [(code_return_continuation c, return_to);
-           (code_exn_continuation c, exn_to)]
-          statics.
-Proof.
-  unfold call_function.
-  destruct (closure_of statics callee) as [[called slots] | ];
-    [ | discriminate ].
-  destruct
-    (match kind with
-     | Direct named => Pos.eqb called named
-     | Indirect => true
-     end);
-    [ | discriminate ].
-  destruct (lookup called (static_code statics)) as [c | ] eqn:Hlookup;
-    [ | discriminate ].
-  destruct (binds_statics (code_body c)); [ discriminate | ].
-  destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
-    as [callee_vars | ]; [ | discriminate ].
-  intros [= <-]. exists called, c, callee_vars. auto.
 Qed.
 
 Section Names.
@@ -481,7 +454,8 @@ Proof.
       [ | discriminate ].
     destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | discriminate ].
     apply call_function_step in Hstep
-      as (called & c & callee_vars & Hlookup & ->).
+      as (called & slots & c & callee_vars & _ & Hlookup & _ & _ & _ & _
+          & ->).
     unfold inv. simpl_state.
     pose proof (S called c Hlookup) as Hc.
     destruct c as [params my_closure ret exn metadata body]. simpl in Hc |- *.

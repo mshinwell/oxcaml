@@ -35,7 +35,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaWellFormedProofs FlambdaSemanticsProofs FlambdaNominalSpec
   FlambdaNominalProofs FlambdaControlFlowSpec FlambdaControlFlowProofs
   FlambdaContextSpec FlambdaContextProofs FlambdaApplySpec FlambdaApplyProofs
-  FlambdaStaticSpec FlambdaStaticProofs FlambdaNormaliseSpec.
+  FlambdaStaticSpec FlambdaStaticProofs FlambdaCompareSpec
+  FlambdaNormaliseSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -1314,6 +1315,24 @@ Proof.
       destruct (Pos.eqb s sym); [ discriminate | apply Hknow ].
 Qed.
 
+Lemma simples_have_kinds_sound (vars : env) (args : list simple) :
+  ∀ (kinds : list flambda_kind) (vs : list value),
+    forall2b simple_has_kind_b args kinds = true ->
+    eval_simples vars args = Some vs ->
+    map kind_of_value vs = kinds.
+Proof.
+  induction args as [ | s args IH]; intros [ | kind kinds] vs; simpl;
+    try discriminate.
+  - intros _ [= <-]. reflexivity.
+  - intros Hcheck. apply andb_true_iff in Hcheck as [Hs Hargs].
+    destruct (eval_simple vars s) as [v | ] eqn:Hv; [ | discriminate ].
+    destruct (eval_simples vars args) as [vs' | ]; [ | discriminate ].
+    simpl. intros [= <-]. simpl. rewrite (IH kinds vs' Hargs eq_refl).
+    f_equal.
+    destruct s as [x | sym | c]; simpl in Hs, Hv; [ discriminate | | ];
+      injection Hv as <-; apply kind_eqb_eq in Hs; simpl; congruence.
+Qed.
+
 Lemma inline_known_apply_equivalent (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id)) (ap : apply_expr)
     (vars : env) (conts : cont_env) (statics : static_env) :
@@ -1332,15 +1351,24 @@ Proof.
     try apply equivalent_refl.
   destruct (lookup called known_code) as [c | ] eqn:Hc;
     [ | apply equivalent_refl ].
-  destruct (Pos.eqb code called && inlinable_b ap c) eqn:Hcheck;
+  destruct (Pos.eqb code called && inlinable_b ap c && call_agrees_b ap c)
+    eqn:Hcheck;
     [ | apply equivalent_refl ].
+  apply andb_true_iff in Hcheck as [Hcheck Hagrees].
   apply andb_true_iff in Hcheck as [Hsame Hinlinable].
   apply Pos.eqb_eq in Hsame. subst code.
+  unfold call_agrees_b in Hagrees.
+  apply andb_true_iff in Hagrees as [Hagrees Hkinds].
+  apply andb_true_iff in Hagrees as [Hargs_arity Hreturn_arity].
+  apply kinds_per_parameter_eqb_eq in Hargs_arity.
+  apply arity_eqb_eq in Hreturn_arity.
   destruct (Hsymbols s called Hs) as [slots Hclosure].
   apply (inline_equivalent ap called c _ (Value_symbol s) slots);
     [ exact Hkind | rewrite Hcallee; reflexivity
     | exact Hclosure | exact (Hcode called c Hc)
-    | exact (inlinable_b_sound ap c Hinlinable) ].
+    | exact (inlinable_b_sound ap c Hinlinable) | exact Hargs_arity
+    | exact Hreturn_arity | ].
+  intros vs. apply simples_have_kinds_sound, Hkinds.
 Qed.
 
 Definition statics_know_both (known_code : list (code_id * code))
@@ -1375,8 +1403,10 @@ Proof.
   destruct (ap_call_kind ap) as [called | ]; try reflexivity.
   destruct (lookup s known_symbols) as [[code | ] | ]; try reflexivity.
   destruct (lookup called known_code) as [c | ]; try reflexivity.
-  destruct (Pos.eqb code called && inlinable_b ap c) eqn:Hcheck;
+  destruct (Pos.eqb code called && inlinable_b ap c && call_agrees_b ap c)
+    eqn:Hcheck;
     [ | reflexivity ].
+  apply andb_true_iff in Hcheck as [Hcheck _].
   apply andb_true_iff in Hcheck as [_ Hinlinable].
   rewrite inlined_body_binds_statics.
   exact (inlinable_b_binds_statics ap c Hinlinable).

@@ -69,8 +69,8 @@
    arity ([arity]) is the compiler's [Flambda_arity.t]: it keeps how the
    parameters are grouped into unboxed products, which the compiler
    compares at a call, while the parameters and the arguments themselves
-   are unarized, here as there. Execution (FlambdaSemanticsSpec.v) does
-   not look at any of these.
+   are unarized, here as there. Execution (FlambdaSemanticsSpec.v) looks
+   at none of these but the arities of a call and of the code called.
 
    What a handler and code are annotated with is a record each
    ([handler_metadata], [code_metadata]), so that a later annotation is

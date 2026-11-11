@@ -125,6 +125,14 @@ Lemma step_apply_direct (ap : apply_expr) (callee : value) (called : code_id)
   = match lookup called (static_code statics) with
     | Some c =>
       if binds_statics (code_body c) then Undefined
+      else if
+        negb
+          (kinds_eqb (map kind_of_value vs) (unarize (ap_args_arity ap))
+           && kinds_per_parameter_eqb
+                (unarize_per_parameter (ap_args_arity ap))
+                (unarize_per_parameter (code_params_arity c))
+           && arity_eqb (ap_return_arity ap) (code_result_arity c))
+      then Undefined
       else
         match
           bind_params (code_params c) vs [(code_my_closure c, callee)]
@@ -176,6 +184,10 @@ Proof.
   pose proof (step_apply_direct ap callee called slots vs vars conts statics
     Hcallee Hclosure Hargs Hkind) as Hstep.
   rewrite Hcode, Hstatic in Hstep.
+  match type of Hstep with
+  | context [negb ?agrees] => destruct agrees
+  end;
+    [ | exact (Hwrong Hstep) ].
   destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
     as [callee_vars | ] eqn:Hbind; [ | exact (Hwrong Hstep) ].
   apply equivalent_refines.
@@ -305,10 +317,12 @@ Proof.
   - rewrite (behaviour_unique _ _ _ Hb Hs'). exact Hs.
 Qed.
 
-(* Where the callee is a closure of the code called, the call cannot be
-   undefined for being of something else, and inlining is an equivalence:
-   if the arguments have values the two meet as in [inline], and if not
-   both go wrong. *)
+(* Where the callee is a closure of the code called, the call is made at
+   the arities of the code, and the arguments, when they have values,
+   have values of the kinds of the call's arity, the call cannot be
+   undefined for being of something else or for not agreeing with the
+   code, and inlining is an equivalence: if the arguments have values the
+   two meet as in [inline], and if not both go wrong. *)
 Lemma inline_equivalent (ap : apply_expr) (called : code_id) (c : code)
     (r : renaming) (callee : value) (slots : list (value_slot * value))
     (vars : env) (conts : cont_env) (statics : static_env) :
@@ -317,16 +331,27 @@ Lemma inline_equivalent (ap : apply_expr) (called : code_id) (c : code)
   closure_of statics callee = Some (called, slots) ->
   lookup called (static_code statics) = Some c ->
   inlinable ap c r ->
+  unarize_per_parameter (ap_args_arity ap)
+  = unarize_per_parameter (code_params_arity c) ->
+  ap_return_arity ap = code_result_arity c ->
+  (∀ vs : list value,
+    eval_simples vars (ap_args ap) = Some vs ->
+    map kind_of_value vs = unarize (ap_args_arity ap)) ->
   equivalent (State (Apply ap) vars conts statics)
     (State (inlined_body c r ap) vars conts statics).
 Proof.
   intros Hkind Hcallee Hclosure Hcode
     (Hclosed_vars & Hclosed_conts & Hvars & Hret & Hexn & Hmy_closure
-     & Hparams & Harity & Hstatic).
+     & Hparams & Harity & Hstatic)
+    Hargs_arity Hreturn_arity Hkinds.
   destruct (eval_simples vars (ap_args ap)) as [vs | ] eqn:Hargs.
   - pose proof (step_apply_direct ap callee called slots vs vars conts
       statics Hcallee Hclosure Hargs Hkind) as Hstep.
     rewrite Hcode, Hstatic in Hstep.
+    rewrite (Hkinds vs eq_refl), Hargs_arity, Hreturn_arity, kinds_eqb_refl,
+      arity_eqb_refl in Hstep.
+    rewrite (proj2 (kinds_per_parameter_eqb_eq _ _) eq_refl) in Hstep.
+    cbn [andb negb] in Hstep.
     destruct (bind_params_some (code_params c) vs
                 [(code_my_closure c, callee)])
       as [callee_vars Hbind].

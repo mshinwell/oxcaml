@@ -761,7 +761,8 @@ Proof.
 Qed.
 
 Lemma call_function_erased (callee : value) (kind : call_kind)
-    (vs : list value) (return_to return_to' exn_to exn_to' : cont_value)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value)
     (statics statics' : static_env) :
   value_avoids D callee = true ->
   forallb (value_avoids D) vs = true ->
@@ -769,8 +770,10 @@ Lemma call_function_erased (callee : value) (kind : call_kind)
   cont_erased exn_to exn_to' ->
   statics_erased statics statics' ->
   result_simulated state_erased
-    (call_function callee kind vs return_to exn_to statics)
-    (call_function callee kind vs return_to' exn_to' statics').
+    (call_function callee kind vs args_arity return_arity return_to exn_to
+       statics)
+    (call_function callee kind vs args_arity return_arity return_to' exn_to'
+       statics').
 Proof.
   intros Hcallee Hvs Hreturn Hexn Hstatics. unfold call_function.
   destruct (closure_of_erased statics statics' callee Hstatics Hcallee)
@@ -791,6 +794,13 @@ Proof.
     simpl; [ | exact I ].
   destruct (binds_statics body) eqn:Hbinds; [ exact I | ].
   rewrite (erase_binds_statics body Hbinds).
+  destruct
+    (negb
+       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+        && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
+             (unarize_per_parameter (cm_params_arity metadata))
+        && arity_eqb return_arity (cm_result_arity metadata)));
+    [ exact I | ].
   destruct (bind_params params vs [(my_closure, callee)]) as [bound | ]
     eqn:Hbind; simpl; [ | exact I ].
   apply State_erased.

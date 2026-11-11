@@ -563,9 +563,12 @@ Definition well_formed_closure_slot_statement : Prop :=
    with [my_closure] bound to the closure called. *)
 Definition call_binds_my_closure_statement : Prop :=
   ∀ (callee : value) (kind : call_kind) (vs : list value)
-    (return_to exn_to : cont_value) (statics : static_env) (s : state)
-    (called : code_id) (slot_values : list (value_slot * value)) (c : code),
-    call_function callee kind vs return_to exn_to statics = Step s ->
+    (args_arity return_arity : arity) (return_to exn_to : cont_value)
+    (statics : static_env) (s : state) (called : code_id)
+    (slot_values : list (value_slot * value)) (c : code),
+    call_function callee kind vs args_arity return_arity return_to exn_to
+      statics
+    = Step s ->
     closure_of statics callee = Some (called, slot_values) ->
     lookup called (static_code statics) = Some c ->
     among (code_my_closure c) (code_params c) = false ->

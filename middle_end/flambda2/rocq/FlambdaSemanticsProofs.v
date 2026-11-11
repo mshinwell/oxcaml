@@ -107,8 +107,8 @@ Lemma step_apply (ap : apply_expr) (vars : env) (conts : cont_env)
   step (State (Apply ap) vars conts statics)
   = match eval_simple vars (ap_callee ap), eval_simples vars (ap_args ap) with
     | Some callee, Some vs =>
-      call_function callee (ap_call_kind ap) vs
-        (resolve (ap_continuation ap) conts)
+      call_function callee (ap_call_kind ap) vs (ap_args_arity ap)
+        (ap_return_arity ap) (resolve (ap_continuation ap) conts)
         (resolve (ap_exn_continuation ap) conts) statics
     | _, _ => Undefined
     end.
@@ -180,8 +180,10 @@ Qed.
 (* The way in which an [Apply] does not go wrong: its callee is a closure
    of code that is bound, the code named if the call is direct, whose
    body binds nothing static and has as many parameters as there are
-   arguments. The body runs with [my_closure] bound to the callee, which
-   for a closure of a set is the closure at the slot of that code. *)
+   arguments, and the call agrees with the code in the three ways of
+   [call_function]. The body runs with [my_closure] bound to the callee,
+   which for a closure of a set is the closure at the slot of that
+   code. *)
 Lemma step_apply_closure (ap : apply_expr) (vars : env) (conts : cont_env)
     (statics : static_env) (callee : value) (vs : list value)
     (called : code_id) (slots : list (value_slot * value)) (c : code)
@@ -192,6 +194,11 @@ Lemma step_apply_closure (ap : apply_expr) (vars : env) (conts : cont_env)
   ap_call_kind ap = Indirect ∨ ap_call_kind ap = Direct called ->
   lookup called (static_code statics) = Some c ->
   binds_statics (code_body c) = false ->
+  kinds_eqb (map kind_of_value vs) (unarize (ap_args_arity ap)) = true ->
+  kinds_per_parameter_eqb (unarize_per_parameter (ap_args_arity ap))
+    (unarize_per_parameter (code_params_arity c))
+  = true ->
+  arity_eqb (ap_return_arity ap) (code_result_arity c) = true ->
   bind_params (code_params c) vs [(code_my_closure c, callee)]
   = Some callee_vars ->
   step (State (Apply ap) vars conts statics)
@@ -201,7 +208,8 @@ Lemma step_apply_closure (ap : apply_expr) (vars : env) (conts : cont_env)
           (code_exn_continuation c, resolve (ap_exn_continuation ap) conts)]
          statics).
 Proof.
-  intros Hcallee Hargs Hclosure Hkind Hcode Hbinds Hbind.
+  intros Hcallee Hargs Hclosure Hkind Hcode Hbinds Hkinds Hparams Hresult
+    Hbind.
   rewrite step_apply, Hcallee, Hargs. unfold call_function.
   rewrite Hclosure.
   assert (Hexpected :
@@ -210,7 +218,8 @@ Proof.
     | Indirect => true
     end = true)
     by (destruct Hkind as [-> | ->]; [ reflexivity | apply Pos.eqb_refl ]).
-  rewrite Hexpected, Hcode, Hbinds, Hbind. reflexivity.
+  rewrite Hexpected, Hcode, Hbinds, Hkinds, Hparams, Hresult, Hbind.
+  reflexivity.
 Qed.
 
 (* The [Let] of a closure of a new set, and of the projection of a
@@ -963,15 +972,23 @@ Proof.
 Qed.
 
 (* A call that is not undefined: the callee is a closure of code that is
-   bound, and the body runs with the parameters bound. *)
+   bound, the arguments are of the kinds of the call's arity, the call
+   is made at the arities of the code, and the body runs with the
+   parameters bound. *)
 Lemma call_function_step (callee : value) (kind : call_kind)
-    (vs : list value) (return_to exn_to : cont_value) (statics : static_env)
-    (s : state) :
-  call_function callee kind vs return_to exn_to statics = Step s ->
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) (s : state) :
+  call_function callee kind vs args_arity return_arity return_to exn_to
+    statics
+  = Step s ->
   ∃ (called : code_id) (value_slots : list (value_slot * value)) (c : code)
     (callee_vars : env),
     closure_of statics callee = Some (called, value_slots)
     ∧ lookup called (static_code statics) = Some c
+    ∧ map kind_of_value vs = unarize args_arity
+    ∧ unarize_per_parameter args_arity
+      = unarize_per_parameter (code_params_arity c)
+    ∧ return_arity = code_result_arity c
     ∧ bind_params (code_params c) vs [(code_my_closure c, callee)]
       = Some callee_vars
     ∧ s
@@ -992,21 +1009,35 @@ Proof.
   destruct (lookup called (static_code statics)) as [c | ] eqn:Hlookup;
     [ | discriminate ].
   destruct (binds_statics (code_body c)); [ discriminate | ].
+  destruct
+    (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+     && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
+          (unarize_per_parameter (code_params_arity c))
+     && arity_eqb return_arity (code_result_arity c))
+    eqn:Hagree; simpl; [ | discriminate ].
+  apply andb_true_iff in Hagree as [Hagree Hreturn].
+  apply andb_true_iff in Hagree as [Hkinds Hargs].
+  apply kinds_eqb_eq in Hkinds. apply kinds_per_parameter_eqb_eq in Hargs.
+  apply arity_eqb_eq in Hreturn.
   destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
     as [callee_vars | ] eqn:Hbind; [ | discriminate ].
-  intros [= <-]. exists called, value_slots, c, callee_vars. auto.
+  intros [= <-]. exists called, value_slots, c, callee_vars. auto 7.
 Qed.
 
 (* A call is undefined, or runs a body under variables that depend on the
    callee, the arguments and the static environment only, with the code's
    two continuations bound to what the caller gave. *)
 Lemma call_function_cases (callee : value) (kind : call_kind)
-    (vs : list value) (statics : static_env) :
+    (vs : list value) (args_arity return_arity : arity)
+    (statics : static_env) :
   (∀ return_to exn_to : cont_value,
-    call_function callee kind vs return_to exn_to statics = Undefined)
+    call_function callee kind vs args_arity return_arity return_to exn_to
+      statics
+    = Undefined)
   ∨ (∃ (body : expr) (callee_vars : env) (ret exn : continuation),
       ∀ return_to exn_to : cont_value,
-        call_function callee kind vs return_to exn_to statics
+        call_function callee kind vs args_arity return_arity return_to
+          exn_to statics
         = Step
             (State body callee_vars [(ret, return_to); (exn, exn_to)]
                statics)).
@@ -1023,6 +1054,13 @@ Proof.
   destruct (lookup called (static_code statics)) as [c | ];
     [ | left; reflexivity ].
   destruct (binds_statics (code_body c)); [ left; reflexivity | ].
+  destruct
+    (negb
+       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+        && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
+             (unarize_per_parameter (code_params_arity c))
+        && arity_eqb return_arity (code_result_arity c)));
+    [ left; reflexivity | ].
   destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
     as [callee_vars | ]; [ | left; reflexivity ].
   right. eauto.
@@ -1485,6 +1523,14 @@ Proof.
       [ | exact I ].
     destruct (lookup called (static_code statics)) as [c | ]; [ | exact I ].
     destruct (binds_statics (code_body c)); [ exact I | ].
+    destruct
+      (negb
+         (kinds_eqb (map kind_of_value vs) (unarize (ap_args_arity ap))
+          && kinds_per_parameter_eqb
+               (unarize_per_parameter (ap_args_arity ap))
+               (unarize_per_parameter (code_params_arity c))
+          && arity_eqb (ap_return_arity ap) (code_result_arity c)));
+      [ exact I | ].
     destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
       as [callee_vars | ] eqn:Hbind; [ | exact I ].
     apply Hstate.

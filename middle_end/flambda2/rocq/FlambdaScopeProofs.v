@@ -261,6 +261,14 @@ Proof.
     destruct (lookup called (static_code statics)) as [c | ] eqn:Hc;
       [ | exact I ].
     destruct (binds_statics (code_body c)); [ exact I | ].
+    destruct
+      (negb
+         (kinds_eqb (map kind_of_value vs) (unarize (ap_args_arity ap))
+          && kinds_per_parameter_eqb
+               (unarize_per_parameter (ap_args_arity ap))
+               (unarize_per_parameter (code_params_arity c))
+          && arity_eqb (ap_return_arity ap) (code_result_arity c)));
+      [ exact I | ].
     destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
       as [callee_vars | ] eqn:Hbind; [ | exact I ].
     destruct

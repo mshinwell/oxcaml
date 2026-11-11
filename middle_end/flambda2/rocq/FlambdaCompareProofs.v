@@ -930,14 +930,17 @@ Qed.
 (* The same call under matching static environments, returning to matching
    continuations. *)
 Lemma call_function_match (callee : value) (kind : call_kind)
-    (vs : list value) (return_to return_to' exn_to exn_to' : cont_value)
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to return_to' exn_to exn_to' : cont_value)
     (statics statics' : static_env) :
   statics_match statics statics' ->
   cont_matches return_to return_to' ->
   cont_matches exn_to exn_to' ->
   result_related state_matches
-    (call_function callee kind vs return_to exn_to statics)
-    (call_function callee kind vs return_to' exn_to' statics').
+    (call_function callee kind vs args_arity return_arity return_to exn_to
+       statics)
+    (call_function callee kind vs args_arity return_arity return_to' exn_to'
+       statics').
 Proof.
   intros Hstatics Hreturn Hexn. unfold call_function.
   rewrite <- (closure_of_match statics statics' callee Hstatics).
@@ -958,8 +961,16 @@ Proof.
   destruct (bind_names params params' [(my_closure, my_closure')])
     as [vm | ] eqn:Hbind; [ | discriminate ].
   apply andb_true_iff in Hc as [Hmetadata Hc].
+  apply code_metadata_eqb_eq in Hmetadata. subst metadata'.
   rewrite <- (expr_eqb_binds_statics body _ _ _ Hc).
   destruct (binds_statics body); [ exact I | ].
+  destruct
+    (negb
+       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+        && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
+             (unarize_per_parameter (cm_params_arity metadata))
+        && arity_eqb return_arity (cm_result_arity metadata)));
+    [ exact I | ].
   pose proof (bind_params_match params params' vs _ vm
     [(my_closure, callee)] [(my_closure', callee)] (fun _ => True)
     (fun x => var_free_in_expr x body) (fun x _ => or_intror I) Hbind
@@ -1078,8 +1089,9 @@ Proof.
       split; [ exact Hunbound | right; exact Hj ].
   - (* Apply *)
     unfold apply_eqb in He.
-    apply andb_true_iff in He as [He _].
-    apply andb_true_iff in He as [He _].
+    apply andb_true_iff in He as [He Hreturn_arity].
+    apply andb_true_iff in He as [He Hargs_arity].
+    apply arity_eqb_eq in Hargs_arity, Hreturn_arity.
     apply andb_true_iff in He as [He Hexn].
     apply andb_true_iff in He as [He Hreturn].
     apply andb_true_iff in He as [He Hargs].
@@ -1092,7 +1104,8 @@ Proof.
       envs_match (fun y => var_free_in_simples y (ap_args ap)) vm vars vars')
       by (fewer_variables Hvars; right; assumption).
     rewrite (eval_simple_match vm vars vars' _ _ Hvars_callee Hcallee),
-      (eval_simples_match vm vars vars' _ Hvars_args _ Hargs), <- Hkind.
+      (eval_simples_match vm vars vars' _ Hvars_args _ Hargs), <- Hkind,
+      <- Hargs_arity, <- Hreturn_arity.
     destruct (eval_simple vars' (ap_callee ap')) as [callee | ];
       [ | exact I ].
     destruct (eval_simples vars' (ap_args ap')) as [vs | ]; [ | exact I ].

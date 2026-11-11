@@ -773,7 +773,8 @@ Proof.
       [ | discriminate ].
     destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | discriminate ].
     apply call_function_step in Hstep
-      as (called & c & callee_vars & Hlookup & ->).
+      as (called & slots & c & callee_vars & _ & Hlookup & _ & _ & _ & _
+          & ->).
     unfold sets_inv. simpl_state.
     pose proof (S called c Hlookup) as Hc.
     destruct c as [params my_closure ret exn metadata body].
@@ -1357,8 +1358,8 @@ Qed.
 
 Theorem call_binds_my_closure : call_binds_my_closure_statement.
 Proof.
-  intros callee kind vs return_to exn_to statics s called slot_values c
-    Hcall Hclosure Hcode Hfresh.
+  intros callee kind vs args_arity return_arity return_to exn_to statics s
+    called slot_values c Hcall Hclosure Hcode Hfresh.
   unfold call_function in Hcall. rewrite Hclosure in Hcall.
   cbv beta iota zeta in Hcall.
   destruct
@@ -1369,6 +1370,13 @@ Proof.
     [ | discriminate ].
   rewrite Hcode in Hcall.
   destruct (binds_statics (code_body c)); [ discriminate | ].
+  destruct
+    (negb
+       (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+        && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
+             (unarize_per_parameter (code_params_arity c))
+        && arity_eqb return_arity (code_result_arity c)));
+    [ discriminate | ].
   destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
     as [callee_vars | ] eqn:Hbind;
     [ | discriminate ].

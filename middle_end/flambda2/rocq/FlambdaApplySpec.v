@@ -38,7 +38,10 @@
      bound by [Let] to [my_closure] and the parameters, and with the
      code's return and exception continuations renamed to those of the
      call. It is a refinement and not an equivalence because the call is
-     undefined when the callee is not a closure of the code named.
+     undefined when the callee is not a closure of the code named, and
+     when the call does not agree with the code
+     (FlambdaSemanticsSpec.call_function): the inlined body tests
+     neither.
 
    The code must be what the code id of the call is bound to: in the
    static environment ([inline_statement]), or by a [Let_static] around
@@ -51,7 +54,7 @@
    - the bindings do not capture: [my_closure] and the parameters are not
      free in the arguments. The simplifier ensures it by taking fresh
      names for them, which FlambdaNominalSpec.v allows;
-   - the arities agree;
+   - there are as many arguments as parameters;
    - the body binds nothing static. The call of code that does is
      undefined, wherever it is; inlined at toplevel, the body would have
      a meaning.

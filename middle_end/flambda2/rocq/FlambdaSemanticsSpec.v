@@ -131,7 +131,9 @@
 
    Execution is undefined ([Undefined]) at [Invalid], at an unbound variable,
    at a continuation or a function applied to the wrong number of
-   arguments, at a [Switch] whose scrutinee is not a naked immediate with
+   arguments, at a function called at arities that are not those of its
+   code or with arguments that are not of the kinds of the call's arity,
+   at a [Switch] whose scrutinee is not a naked immediate with
    an arm, where a primitive has no value, at a call of what is not a
    closure, of a closure whose code is not bound, or directly of a closure
    of other code than the one named, at the projection of a value slot
@@ -147,7 +149,11 @@
    the two are related.
 
    Kinds. The kinds and arities that terms carry (FlambdaModel.v) have
-   no effect on execution.
+   no effect on execution, with one exception: a call ([call_function])
+   is undefined unless it agrees with the code called, in the three ways
+   given there. Simplify assumes each of them, and a well-typed program
+   whose types are refined by a GADT can break the second and the third
+   in a branch that is never run.
 
    The primitives are those of FlambdaPrimitiveModel.v, and
    [FlambdaPrimitiveSpec.eval_prim] says what each computes. A law of a
@@ -531,7 +537,37 @@ Definition apply_continuation (k : continuation) (vs : list value)
    the caller's stand for. So there is no stack: to return is to apply the
    continuation the caller gave. A direct call must be to a closure of the
    code named. The body must bind nothing static: it would do so at each
-   call. *)
+   call.
+
+   The call must agree with the code, in three ways. Simplify assumes
+   each: it replaces by [Invalid] a call that fails one
+   (simplify/simplify_apply_expr.ml).
+   - The values of the arguments are of the kinds that the call's own
+     arity gives, unarized ([simplify_apply_shared], which compares the
+     kinds of the arguments with [Flambda_arity.unarize] of
+     [Apply.args_arity]; the reason is
+     [Application_argument_kind_mismatch]). This is the one place where
+     the machine looks at the kind of a value. A poison constant has the
+     kind it carries, and an allocated value or a symbol, bound or not,
+     has kind [Value]: so poison of the right kind passes, and that is
+     intended.
+   - The arity of the arguments is that of the parameters of the code,
+     each parameter unarized ([arity_mismatch], on
+     [Flambda_arity.unarize_per_parameter];
+     [Direct_application_parameter_kind_mismatch]). One parameter that
+     is an unboxed pair is not two parameters; how products are nested
+     inside one parameter does not count.
+   - The arity of the results that the call expects is that of the
+     results of the code, unboxed products and all
+     ([simplify_direct_function_call], by
+     [Flambda_arity.equal_ignoring_subkinds];
+     [Application_result_kind_mismatch]).
+   A call with fewer or more arguments than the code has parameters
+   fails the second and is undefined. Where the compiler takes such a
+   call for a partial application or an over-application, that is an
+   omission of this fragment and not undefined behaviour of the program:
+   FlambdaWellKindedSpec.v says which calls those are
+   ([partial_or_over_application]). *)
 
 (* CR mshinwell: two calls are undefined in [call_function] on trust.
    - A call of a closure whose code is not bound, or is deleted
@@ -550,8 +586,8 @@ Definition apply_continuation (k : continuation) (vs : list value)
      relates them by its code age relation, which the model has not got.
      Discrepancy C0-1; no decision yet. *)
 Definition call_function (callee : value) (kind : call_kind)
-    (vs : list value) (return_to exn_to : cont_value) (statics : static_env)
-    : step_result :=
+    (vs : list value) (args_arity return_arity : arity)
+    (return_to exn_to : cont_value) (statics : static_env) : step_result :=
   match closure_of statics callee with
   | Some (called, _) =>
     let expected :=
@@ -563,6 +599,13 @@ Definition call_function (callee : value) (kind : call_kind)
     match expected, lookup called (static_code statics) with
     | true, Some c =>
       if binds_statics (code_body c) then Undefined
+      else if
+        negb
+          (kinds_eqb (map kind_of_value vs) (unarize args_arity)
+           && kinds_per_parameter_eqb (unarize_per_parameter args_arity)
+                (unarize_per_parameter (code_params_arity c))
+           && arity_eqb return_arity (code_result_arity c))
+      then Undefined
       else
         match
           bind_params (code_params c) vs [(code_my_closure c, callee)]
@@ -578,6 +621,20 @@ Definition call_function (callee : value) (kind : call_kind)
     end
   | None => Undefined
   end.
+
+(* CR mshinwell: a variable bound to a value of another kind than the
+   one its binder gives (by a [Let], or as a parameter of a handler) is
+   not undefined: the machine does not test it. Nor does it test the
+   kind of a field of a static block or of a value slot. (The fields of
+   a block that a primitive makes are tested, as arguments of the
+   primitive: FlambdaPrimitiveSpec.eval_variadic_primitive.) The
+   compiler stops on a term in which it sees such a mismatch, so
+   Simplify never turns one into [Invalid], and no well-typed program
+   is known to produce one.
+   Should a mismatch of kinds be undefined wherever it is executed, the
+   machine would test the kind of a value wherever a variable is bound,
+   and the rewrites that remove or move a binding would be refinements,
+   or equivalences only of bindings whose kind is known. Decision D10. *)
 
 Definition step (s : state) : step_result :=
   match s with
@@ -601,8 +658,8 @@ Definition step (s : state) : step_result :=
   | State (Apply ap) vars conts statics =>
     match eval_simple vars (ap_callee ap), eval_simples vars (ap_args ap) with
     | Some callee, Some vs =>
-      call_function callee (ap_call_kind ap) vs
-        (resolve (ap_continuation ap) conts)
+      call_function callee (ap_call_kind ap) vs (ap_args_arity ap)
+        (ap_return_arity ap) (resolve (ap_continuation ap) conts)
         (resolve (ap_exn_continuation ap) conts) statics
     | _, _ => Undefined
     end
