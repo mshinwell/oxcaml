@@ -798,9 +798,9 @@ Definition joined_envs_are (property : Typing_env.t -> Prop)
   ∀ (index : Index.t) (use : Typing_env.t),
     Join_env.joined_env s index = Some use -> property use.
 
-(* The state that a join starts from is kinded, if the joined
-   environments have the variables of the source at the source's
-   kinds. *)
+(* The state that a join starts from is kinded, if a variable of the
+   source that a joined environment has is of the source's kind
+   there. *)
 Definition created_state_kinded_statement : Prop :=
   ∀ (avoid : list variable) (source : Typing_env.t) (envs : Joined_envs.t),
     (∀ (index : Index.t) (use : Typing_env.t) (x : variable)

@@ -103,6 +103,12 @@
      also keep the state kinded ([first_phases_kinded_statement]),
      and then this phase.
 
+   - The same of the join that Simplify calls, from the premises of
+     the contract ([join_with_true_statement]): the joined
+     environments are the uses that are not bottom, with the levels
+     cut from them, and two of the conditions on the run are the
+     contract's own.
+
    Not here yet: that the two extensions fit the environment that they
    are added to (the variables of their types are variables of the
    target, at their kinds), which the functions of the meet's
@@ -118,7 +124,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaTypingEnv
   FlambdaTypingEnvSpec FlambdaTypingEnvInvariantSpec
   FlambdaTypingEnvKindedSpec FlambdaJoinEnv FlambdaJoinSpec
-  FlambdaJoinEnvSpec FlambdaJoinStateSpec.
+  FlambdaJoinEnvSpec FlambdaJoinStateSpec FlambdaJoinTypes.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -531,3 +537,157 @@ Definition cut_and_n_way_join0_true_statement : Prop :=
               (target_valuation s index use valuation) relation_equations
           ∧ definitions_hold definitions index valuation
               (target_valuation s index use valuation).
+
+(* ======================================================================== *)
+(* The join that Simplify calls, up to what it adds to the target           *)
+(* ======================================================================== *)
+
+(* The join of types keeps the joined environments, with the levels
+   kept with them. This is more than its contract gives ([state_grows]
+   is about the environments and not about their levels). It is so of
+   a join of types that changes the state only through the three
+   functions of the environment side, which keep them at every
+   state. *)
+Definition join_of_types_keeps_envs (jt : Join_env.n_way_join_type) : Prop :=
+  ∀ (s s' : Join_env.t) (ts : list (Index.t * flambda_type))
+    (joined : Or_unknown.t flambda_type),
+    jt s ts = Some (joined, s') ->
+    Join_env.joined_envs s' = Join_env.joined_envs s.
+
+Definition n_way_join_simples_keeps_envs_statement : Prop :=
+  ∀ (p : Join_env.parameters) (fuel : nat) (s s' : Join_env.t)
+    (kind : flambda_kind) (simples : list (Index.t * simple))
+    (result : Or_bottom.t simple),
+    Join_env.n_way_join_simples p fuel s kind simples = Some (result, s') ->
+    Join_env.joined_envs s' = Join_env.joined_envs s.
+
+Definition import_type_keeps_envs_statement : Prop :=
+  ∀ (p : Join_env.parameters) (fuel : nat) (s s' : Join_env.t)
+    (ty : flambda_type),
+    Join_env.import_type p fuel s ty = Some s' ->
+    Join_env.joined_envs s' = Join_env.joined_envs s.
+
+Definition n_way_join_env_extension_keeps_envs_statement : Prop :=
+  ∀ (p : Join_env.parameters) (fuel : nat) (s s' : Join_env.t)
+    (extensions : list (Index.t * env_extension)) (joined : env_extension),
+    Join_env.n_way_join_env_extension p fuel s extensions
+    = Some (Or_bottom.Ok (joined, s')) ->
+    Join_env.joined_envs s' = Join_env.joined_envs s.
+
+(* So the n-way join of types (FlambdaJoinTypes.v), given the three
+   functions, keeps them: by the statement of
+   FlambdaJoinTypesKeepsSpec.v about the relations that the three
+   functions keep. *)
+Definition n_way_join_keeps_envs_statement : Prop :=
+  ∀ (p : Join_env.parameters) (fuel_of_env fuel : nat)
+    (expand_head : Typing_env.t -> flambda_type -> option Expanded_type.t)
+    (reduce_head_of_kind_naked_immediate :
+       Typing_env.t -> head_of_kind_naked_immediate
+       -> Or_bottom.t head_of_kind_naked_immediate)
+    (type_eqb : flambda_type -> flambda_type -> bool)
+    (block_shape_eqb : block_shape -> block_shape -> bool),
+    join_of_types_keeps_envs
+      (n_way_join Join_env.joined_env
+         (Join_env.n_way_join_simples p fuel_of_env)
+         (Join_env.import_type p fuel_of_env)
+         (Join_env.n_way_join_env_extension p fuel_of_env) expand_head
+         reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel).
+
+(* [join_with] (FlambdaJoinEnvSpec.v), which is
+   [cut_and_n_way_join_with_analysis] on the inputs of the contract,
+   where some use is not bottom. Supposed: a join of types that meets
+   its contract with the invariant and keeps the joined environments;
+   the parameters as before; the inputs of the contract
+   ([join_inputs_well_formed], [uses_kinded]); and that the uses have
+   the names of the source that they know at the source's kinds
+   ([uses_agree_with_source_on_kinds], which the contract does not
+   ask). Then there is a state with the invariant, kinded, whose
+   joined environments are the uses that are not bottom, each at its
+   index, and relations true of it, such that the target answered is
+   the final environment of the meet's environment made from the
+   source by defining variables and adding two extensions; and at the
+   run of a use that is not bottom, the equations of the two
+   extensions are true where their variables have values, and the two
+   maps of definitions of the analysis hold, in the valuation of the
+   target that the state gives.
+
+   The run is supposed to have: its blocks with tags in range, and
+   the variables joined with values ([blocks_have_tags] and
+   [joined_variables_have_values], two of the four conditions of
+   [values_are_read], as they are in FlambdaJoinSpec.v); the
+   variables brought in with values ([imported_have_values]: the
+   contract's [imported_variables_have_values], read on the state);
+   and the scrutinees of the relations kept with values
+   ([relation_scrutinees_have_values], which is not the contract's
+   [scrutinees_have_values]: see its CR).
+
+   Nothing is said of what the functions of the meet's environment
+   answer: so nothing of whether the target is satisfied, of what it
+   keeps of the source, nor of the kinds of the variables of the
+   analysis in it. *)
+Definition join_with_true_statement : Prop :=
+  ∀ (A meet_env meet_expanded_head : Type)
+    (ops : Join_env.meet_env_functions meet_env meet_expanded_head)
+    (p : Join_env.parameters) (fuel : nat) (choices : Join_env.choices)
+    (jt : Join_env.n_way_join_type) (mh : meet_expanded_head)
+    (avoid : list variable) (inputs : join_inputs A) (target : Typing_env.t)
+    (analysis : Analysis.t A),
+    n_way_join_type_sound typing_env_invariant Join_env.joined_env
+      Join_env.definitions_of_existentials kind_in_target_env
+      (state_true (source inputs)) state_kinded jt ->
+    join_of_types_keeps_envs jt ->
+    fresh_avoids p ->
+    parameters_type_eqb_sound p ->
+    expand_const_sound p ->
+    join_inputs_well_formed typing_env_invariant avoid inputs ->
+    uses_kinded inputs ->
+    uses_agree_with_source_on_kinds inputs ->
+    (∃ (index : Index.t) (use : Typing_env.t),
+       use_at inputs index use ∧ Typing_env.is_bottom use = false) ->
+    join_with choices ops p fuel jt mh avoid inputs = Some (target, analysis)
+    ->
+    ∃ (s : Join_env.t) (relations : Join_env.inverse_relations)
+      (kept : list (variable * flambda_kind))
+      (equations relation_equations : list (name * flambda_type))
+      (menv' menv'' : meet_env),
+      state_true (source inputs) s
+      ∧ state_kinded s
+      ∧ relations_hold s relations
+      ∧ (∀ (index : Index.t) (use : Typing_env.t),
+           Join_env.joined_env s index = Some use
+           <-> use_at inputs index use ∧ Typing_env.is_bottom use = false)
+      ∧ (∀ binding : variable * flambda_kind,
+           binding ∈ kept ->
+           binding
+           ∈ Bindings_in_target_env.existential_variables_in_order
+               (Join_env.bindings s))
+      ∧ Join_env.add_env_extension ops
+          (variables_defined ops
+             (Join_env.create_meet_env ops (source inputs))
+             (Bindings_in_target_env.imported_variables_in_order
+                (Join_env.bindings s)
+              ++ kept))
+          (Env_extension equations) mh
+        = Some menv'
+      ∧ Join_env.add_env_extension ops menv' (Env_extension relation_equations)
+          mh
+        = Some menv''
+      ∧ target = Join_env.final_typing_env ops menv''
+      ∧ ∀ (index : Index.t) (use : Typing_env.t) (statics : static_env)
+          (valuation : env),
+          use_at inputs index use ->
+          Typing_env.is_bottom use = false ->
+          typing_env_satisfied_strictly statics valuation use ->
+          blocks_have_tags (known_at_use inputs index) statics valuation ->
+          joined_variables_have_values inputs valuation ->
+          imported_have_values s use valuation ->
+          relation_scrutinees_have_values s relations index use valuation ->
+          equations_true_at statics (target_valuation s index use valuation)
+            equations
+          ∧ equations_true_at statics
+              (target_valuation s index use valuation) relation_equations
+          ∧ definitions_hold (Analysis.definitions_in_joined_envs analysis)
+              index valuation (target_valuation s index use valuation)
+          ∧ definitions_hold
+              (Analysis.canonical_definitions_at_normal_mode analysis) index
+              valuation (target_valuation s index use valuation).

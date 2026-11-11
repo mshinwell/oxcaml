@@ -556,8 +556,8 @@ Definition loop_true_statement : Prop :=
    [define_or_eliminate_variables_and_add_equations] is given. Asked of
    the joined environments: the names to avoid include what they and
    the source know; each has its invariant and is kinded; the levels
-   kept with them are types that they have; and they have the
-   variables of the source at the source's kinds. *)
+   kept with them are types that they have; and a variable of the
+   source that one of them has is of the source's kind there. *)
 Definition first_phases_true_statement : Prop :=
   ∀ (source : Typing_env.t) (jt : Join_env.n_way_join_type)
     (choices : Join_env.choices) (p : Join_env.parameters) (fuel : nat)
