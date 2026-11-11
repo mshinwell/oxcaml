@@ -1,0 +1,11 @@
+let $s = "hello" in
+let o = %opaque ($s) in
+let i = %num_conv.[`tagged_imm`].[`nativeint`] (1) in
+let a = %string_load.[`8`] (o, i) in
+let b = %tag_imm (a) in
+let c = %string_load.[`8`] ($s, 4n) in
+let d = %tag_imm (c) in
+let e = %string_load.[`8s`] ($s, 0n) in
+let f = %num_conv.[`int8`].[`tagged_imm`] (e) in
+let $camlString_load = Block 0 (b, d, f) in
+cont done ($camlString_load)
