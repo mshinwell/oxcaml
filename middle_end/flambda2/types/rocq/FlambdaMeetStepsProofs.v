@@ -256,6 +256,37 @@ Proof.
   rewrite (H2 x (keeps_names_mem _ _ _ Hkeeps Hmem)). exact (H1 x Hmem).
 Qed.
 
+(* The variables that a meet defines are new: nothing is defined where
+   the environment is the same, and what two meets define, one after
+   the other, is new. *)
+Lemma new_names_avoided_refl (menv : Meet_env.t) :
+  new_names_avoided menv menv.
+Proof.
+  intros x Hknown Hunknown. rewrite Hknown in Hunknown.
+  discriminate Hunknown.
+Qed.
+
+Lemma new_names_avoided_trans (menv1 menv2 menv3 : Meet_env.t) :
+  meet_env_extends menv1 menv2 ->
+  meet_env_extends menv2 menv3 ->
+  new_names_avoided menv1 menv2 ->
+  new_names_avoided menv2 menv3 ->
+  new_names_avoided menv1 menv3.
+Proof.
+  intros (_ & _ & _ & _ & _ & _ & Havoid12 & _)
+    (_ & _ & _ & _ & _ & _ & Havoid23 & _) Hnames12 Hnames23 x Hknown3
+    Hunknown1.
+  destruct (Typing_env.mem None (Meet_env.typing_env menv2) (Name_var x))
+    eqn:Hknown2.
+  - destruct (Hnames12 x Hknown2 Hunknown1) as [Hnot Hin].
+    split; [ exact Hnot | exact (Havoid23 x Hin) ].
+  - destruct (Hnames23 x Hknown3 Hknown2) as [Hnot Hin].
+    split; [ | exact Hin ].
+    destruct (among x (Meet_env.names_to_avoid menv1)) eqn:Havoided;
+      [ | reflexivity ].
+    rewrite (Havoid12 x Havoided) in Hnot. discriminate Hnot.
+Qed.
+
 Lemma meet_env_extends_keeps_names (menv menv' : Meet_env.t) :
   meet_env_extends menv menv' ->
   keeps_names (Meet_env.typing_env menv) (Meet_env.typing_env menv').
@@ -296,8 +327,9 @@ Proof.
   - intros r' menv' Hresult.
     destruct (map_result_ok_cases f result r' menv' Hresult)
       as (r & -> & ->).
-    destruct (Hkeeps r menv' eq_refl) as (Hextends & Henv & Ha).
+    destruct (Hkeeps r menv' eq_refl) as (Hextends & Henv & Ha & Hnames).
     split; [ exact Hextends | ]. split; [ exact Henv | ].
+    split; [ | exact Hnames ].
     rewrite extract_value_map. apply Hfits, Ha.
   - intros statics valuation Henv H1 H2.
     apply Hsatisfied in H1. apply Hsatisfied in H2.
@@ -342,7 +374,8 @@ Lemma meet_call_ok_same_env {A : Type} (fits : Typing_env.t -> A -> Prop)
 Proof.
   intros Henv Hfits Hsatisfied. split.
   - intros r' menv' [= <- <-].
-    split; [ apply meet_env_extends_refl | ]. split; assumption.
+    split; [ apply meet_env_extends_refl | ]. split; [ assumption | ].
+    split; [ assumption | apply new_names_avoided_refl ].
   - intros statics valuation Hvaluation H1 H2.
     exists r, menv, valuation. split; [ reflexivity | ].
     split; [ apply extended_from_refl | ]. split; [ exact Hvaluation | ].
@@ -427,7 +460,8 @@ Proof.
     destruct (Hsound_a statics valuation Hvaluation (proj1 H1) (proj1 H2))
       as (r & menv' & valuation' & Hresult & _).
     discriminate Hresult. }
-  destruct (Hkeeps_a res_a menv1 eq_refl) as (Hextends1 & Henv1 & Hanswer_a).
+  destruct (Hkeeps_a res_a menv1 eq_refl)
+    as (Hextends1 & Henv1 & Hanswer_a & Hnames1).
   destruct (meet_b menv1 left_b right_b) as [ result_b | ] eqn:Hmeet_b;
     [ | discriminate ].
   assert (Hlb1 := Hstable_b1 menv menv1 left_b Hextends1 Hlb).
@@ -450,13 +484,17 @@ Proof.
       as (r & menv' & valuation' & Hresult & _).
     discriminate Hresult. }
   injection Hmeet as <-.
-  destruct (Hkeeps_b res_b menv2 eq_refl) as (Hextends2 & Henv2 & Hanswer_b).
+  destruct (Hkeeps_b res_b menv2 eq_refl)
+    as (Hextends2 & Henv2 & Hanswer_b & Hnames2).
   assert (Hextends := meet_env_extends_trans _ _ _ Hextends1 Hextends2).
   destruct (combine_extract rebuild res_a res_b left_a right_a left_b right_b)
     as (a & b & Hextract & Ha & Hb).
   split.
   - intros r menv' [= <- <-].
     split; [ exact Hextends | ]. split; [ exact Henv2 | ].
+    split.
+    2: exact (new_names_avoided_trans _ _ _ Hextends1 Hextends2 Hnames1
+                Hnames2).
     rewrite Hextract. apply Hfits_c.
     + destruct Ha as [ -> | [ -> | -> ] ].
       * exact (Hstable_a1 menv menv2 left_a Hextends Hla).
@@ -768,6 +806,7 @@ Let step (state : mapping_state K A) (key : K) : mapping_state K A :=
 Let keeps (done : list K) (acc : mapping_acc K A) : Prop :=
   meet_env_extends menv (mapping_env acc)
   ∧ typing_env_fits (Meet_env.typing_env (mapping_env acc))
+  ∧ new_names_avoided menv (mapping_env acc)
   ∧ map fst (mapping acc) = rev done
   ∧ ∀ (key : K) (a : A),
       (key, a) ∈ mapping acc ->
@@ -809,7 +848,7 @@ Proof.
     + intros statics valuation0 valuation _ _ Hsound _.
       exists acc, valuation. split; [ reflexivity | exact Hsound ].
   - cbn [List.fold_left] in Hfold.
-    destruct Hkeeps as (Hextends & Henv & Hkeys & Hfits).
+    destruct Hkeeps as (Hextends & Henv & Hnames & Hkeys & Hfits).
     destruct (step (Some (Or_bottom.Ok acc)) key)
       as [ [ acc1 | ] | ] eqn:Hstep.
     + (* The step answered. *)
@@ -833,6 +872,7 @@ Proof.
           + unfold keeps. rewrite Henv1, Hmapping. cbn [map fst].
             rewrite rev_app_distr. cbn [rev app].
             split; [ exact Hextends | ]. split; [ exact Henv | ].
+            split; [ exact Hnames | ].
             split; [ rewrite Hkeys; reflexivity | ].
             intros key' a' [ [= <- <-] | Hin ]; [ | exact (Hfits _ _ Hin) ].
             exact (proj1 (Hstable key) menv (mapping_env acc) a Hextends Ha).
@@ -854,13 +894,16 @@ Proof.
           destruct (Hok key (mapping_env acc) a b _ Henv Ha Hb Hmeet)
             as [Hkeeps_data Hsound_data].
           destruct (Hkeeps_data res (mapping_env acc1) eq_refl)
-            as (Hextends1 & Henv1 & Hanswer).
+            as (Hextends1 & Henv1 & Hanswer & Hnames1).
           split.
           + unfold keeps. rewrite Hmapping. cbn [map fst].
             rewrite rev_app_distr. cbn [rev app].
             split.
             { exact (meet_env_extends_trans _ _ _ Hextends Hextends1). }
             split; [ exact Henv1 | ].
+            split.
+            { exact (new_names_avoided_trans _ _ _ Hextends Hextends1 Hnames
+                       Hnames1). }
             split; [ rewrite Hkeys; reflexivity | ].
             intros key' a' [ [= <- <-] | Hin ]; [ exact Hanswer | ].
             exact (proj1 (Hstable key') _ _ a' Hextends1 (Hfits _ _ Hin)).
@@ -943,11 +986,13 @@ Proof.
   assert (Hinit :
     meet_env_extends menv (mapping_env init)
     ∧ typing_env_fits (Meet_env.typing_env (mapping_env init))
+    ∧ new_names_avoided menv (mapping_env init)
     ∧ map fst (mapping init) = rev []
     ∧ ∀ (key : K) (a : A),
         (key, a) ∈ mapping init ->
         fits (Meet_env.typing_env (mapping_env init)) a).
   { split; [ apply meet_env_extends_refl | ]. split; [ exact Henv | ].
+    split; [ apply new_names_avoided_refl | ].
     split; [ reflexivity | ]. intros key a []. }
   destruct (mapping_fold_ok fits satisfied meet_data get_left
               get_right menv Hstable Hok Hleft Hright keys [] init _ Hinit
@@ -961,7 +1006,8 @@ Proof.
        keys (Some (Or_bottom.Ok init)))
     as [ [ res | ] | ] eqn:Hfinal; [ | | discriminate Hmeet ].
   - injection Hmeet as <-.
-    destruct (Hkeeps res eq_refl) as (Hextends & Henv' & Hkeys & Hfits).
+    destruct (Hkeeps res eq_refl)
+      as (Hextends & Henv' & Hnames & Hkeys & Hfits).
     assert (Hnew :
       ∀ m : M,
         match all_left res, all_right res with
@@ -977,6 +1023,7 @@ Proof.
     split.
     + intros r menv' [= <- <-].
       split; [ exact Hextends | ]. split; [ exact Henv' | ].
+      split; [ exact Hnames | ].
       intros m Hm. exists (mapping res).
       split; [ exact (Hnew m Hm) | ]. split; [ exact Hkeys | exact Hfits ].
     + intros statics valuation Hvaluation Hsl Hsr.

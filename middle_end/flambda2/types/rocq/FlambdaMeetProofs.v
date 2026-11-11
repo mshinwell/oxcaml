@@ -69,13 +69,15 @@ Qed.
 Theorem fits_types : fits_types_statement.
 Proof.
   intros tenv n ty binding_time_and_mode
-    ([Hwf _] & Htypes & (Hkinded & _) & _) Hlookup.
+    ([Hwf _] & Htypes & (Hkinded & _ & _) & Hequations & _) Hlookup.
   apply typing_env_well_formed_iff in Hwf.
   destruct Hwf as ((_ & _ & _ & Hclosed & _) & _).
   split; [ exact (Htypes n ty binding_time_and_mode Hlookup) | ]. split.
-  - intros x Hin. rewrite mem_var_is_bound.
-    exact (Hclosed n ty binding_time_and_mode x Hlookup Hin).
+  { intros x Hin. rewrite mem_var_is_bound.
+    exact (Hclosed n ty binding_time_and_mode x Hlookup Hin). }
+  split.
   - exact (Hkinded n ty binding_time_and_mode Hlookup).
+  - exact (Hequations n ty binding_time_and_mode Hlookup).
 Qed.
 
 (* ======================================================================== *)

@@ -131,13 +131,15 @@ Definition part_stable : Prop :=
        satisfied statics valuation' a).
 
 (* What one call of a meet answered is right. If it is not bottom, the
-   environment answered is the first extended, it fits, and the part
-   answered fits it. And no value is lost: under a valuation that
-   satisfies the environment and under which both inputs are true, the
-   answer is not bottom, and a valuation that agrees with the first on
-   what the environment knew satisfies the environment answered and
-   makes the part answered true; and no equation has been added on a
-   name that has no value ([keeps_equations_valued]). *)
+   environment answered is the first extended, it fits, the part
+   answered fits it, and the variables that it knows and the first
+   did not are new ([new_names_avoided]). And no value is lost: under
+   a valuation that satisfies the environment and under which both
+   inputs are true, the answer is not bottom, and a valuation that
+   agrees with the first on what the environment knew satisfies the
+   environment answered and makes the part answered true; and no
+   equation has been added on a name that has no value
+   ([keeps_equations_valued]). *)
 Definition meet_call_ok (menv : Meet_env.t) (a1 a2 : A)
     (result : Meet_result.t A) : Prop :=
   let tenv := Meet_env.typing_env menv in
@@ -145,7 +147,8 @@ Definition meet_call_ok (menv : Meet_env.t) (a1 a2 : A)
      result = Meet_result.Ok r menv' ->
      meet_env_extends menv menv'
      ∧ typing_env_fits (Meet_env.typing_env menv')
-     ∧ fits (Meet_env.typing_env menv') (extract_value r a1 a2))
+     ∧ fits (Meet_env.typing_env menv') (extract_value r a1 a2)
+     ∧ new_names_avoided menv menv')
   ∧ ∀ (statics : static_env) (valuation : env),
       typing_env_satisfied_strictly statics valuation tenv ->
       satisfied statics valuation a1 ->
@@ -335,6 +338,7 @@ Definition meet_mapping_ok_statement : Prop :=
        result = Meet_result.Ok r menv' ->
        meet_env_extends menv menv'
        ∧ typing_env_fits (Meet_env.typing_env menv')
+       ∧ new_names_avoided menv menv'
        ∧ ∀ m : M,
            r = New_result m ->
            ∃ l : list (K * A),

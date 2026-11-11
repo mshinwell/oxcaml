@@ -210,21 +210,29 @@
      variables are bound there, each alias is at the kind of the type
      that the environment has for its target, and the variables that
      hold the results of [Is_int], [Get_tag] and [Is_null] are naked
-     immediates there ([type_kinded]). Meet itself does not need the
-     kinds: where they are wrong it stops with a fatal error
-     ([Typing_env.find] with a kind, [Meet_env.add_equation]). The
-     join that it calls does (below), so meet has to be given them and
-     to give them back. There is a CR at [type_fits]. With it go two
-     conditions on the environment, which with the kinds of its types
-     make it kinded ([typing_env_kinded],
-     FlambdaTypingEnvKindedSpec.v, with its own CRs): two simples
-     that it knows to be equal are of one kind ([aliases_kinded]), and
-     a symbol that has a type has one of the kind of values
-     ([symbols_of_kind_value]). A meet that makes a name an alias of
-     another writes on it an alias type of the kind of the name, and
-     that type is kinded only if the other is of that kind; and
-     [Meet_env.add_alias] takes a symbol to be of the kind of
-     values.
+     immediates there ([type_kinded]); and each name that has an
+     equation in an extension inside the type is of the kind of the
+     type of its equation ([type_equations_kinded]). Meet itself does
+     not need the kinds of the aliases: where they are wrong it stops
+     with a fatal error ([Typing_env.find] with a kind,
+     [Meet_env.add_equation]). The join that it calls does (below), so
+     meet has to be given them and to give them back. The kinds of the
+     names of equations it needs itself, to keep the environment
+     kinded: where it adds the extension of a case, it checks the kind
+     of a name only where the type is not an alias and the canonical
+     element of the name is a name (FlambdaMeetEnvSpec.v). There is a
+     CR at [type_fits]. With it go two conditions on the environment,
+     which with the kinds of the aliases of its types make it kinded
+     ([typing_env_kinded], FlambdaTypingEnvKindedSpec.v, with its own
+     CRs): two simples that it knows to be equal are of one kind
+     ([aliases_kinded]), and a symbol that has a type has one of the
+     kind of values ([symbols_of_kind_value]). A meet that makes a
+     name an alias of another writes on it an alias type of the kind
+     of the name, and that type is kinded only if the other is of
+     that kind; and [Meet_env.add_alias] takes a symbol to be of the
+     kind of values. The kinds of the names of the equations inside
+     the types of the environment are a condition beside it
+     ([types_equations_kinded], in the same file).
    - The environment is well formed: it has the invariant of typing
      environments ([typing_env_invariant],
      FlambdaTypingEnvInvariantSpec.v): binding times, levels and
@@ -296,15 +304,26 @@
      are unchanged ([meet_env_extends]);
    - a variable that the result knows and that none of the environments
      given knows is new: it is not among the names to avoid
-     ([Meet_env.names_to_avoid]). Nothing else is said of the variables
+     ([Meet_env.names_to_avoid]) of the environment given, and is
+     among those of the result. Nothing else is said of the variables
      made: not which, nor in what order. Meet itself makes no variable;
      it defines again, in the result, the variables that the
      alternatives defined (see "Known differences");
-   - the result is well formed, and kinded.
+   - the result is well formed, and kinded;
+   - a [Simple] that the result knows is, in the result, of the kind
+     that an environment joined has it at. After the join the meet
+     defines, in the result, the variables of the alternatives that
+     the result does not know, and answers types that fit the
+     environments of the alternatives: they are to fit the result.
    Meet gives the join environments that it made from the first by
    adding definitions and equations ([scoped_env_of]): each fits, and
    has every name of the first with its binding time and a type of the
-   same kind.
+   same kind; and no two of them have one [Simple] at two kinds. The
+   variables that two alternatives define are different variables:
+   the second alternative is given the names to avoid of the first,
+   and a meet has its new variables among the names to avoid that it
+   answers and not among those that it was given
+   ([new_names_avoided], a clause of [meet_expanded_head_keeps]).
 
    The compiler's n-way join. It has not the first clause as it is
    stated (discrepancy T5-10; FlambdaJoinSpec.v states what it has).
@@ -579,7 +598,10 @@ Definition join_scoped_envs : Type :=
    environment is kinded ([typing_env_kinded]: its types are, two
    [Simple]s that it knows to be equal are of one kind, and a symbol
    that has a type has one of the kind of values) are the typing
-   environment's (FlambdaTypingEnvKindedSpec.v). *)
+   environment's (FlambdaTypingEnvKindedSpec.v). So are the kinds of
+   the names of the equations inside a type ([type_equations_kinded])
+   and inside the types of an environment
+   ([types_equations_kinded]). *)
 
 (* No name has a type that is obviously bottom, in an environment that
    is not bottom. *)
@@ -616,8 +638,10 @@ Definition no_bottom_types (tenv : Typing_env.t) : Prop :=
 (* A type that may be met in an environment: it is well formed
    ([type_well_formed], FlambdaTypeWellFormedSpec.v: the conditions on
    a type that the compiler's functions establish and meet relies
-   on), the environment knows its variables, and it is kinded
-   there. *)
+   on), the environment knows its variables, and it is kinded there:
+   its aliases ([type_kinded]) and the names of the equations of the
+   extensions inside it ([type_equations_kinded]) are of the kinds at
+   which the type has them (FlambdaTypingEnvKindedSpec.v). *)
 (* CR mshinwell: that the type is kinded is a premise of the
    contracts, and it is about kinds, on which the model may not ask
    more than the compiler (decisions D10, D12 and D32). It is not
@@ -633,21 +657,28 @@ Definition no_bottom_types (tenv : Typing_env.t) : Prop :=
    [Simple]s that they are aliases to, and does not look at their
    kinds), so the meet that calls it needs it of its own inputs.
    Whether an environment that is not kinded can reach a meet is not
-   known. Discrepancy T5-9. *)
+   known. Discrepancy T5-9. The kinds of the names of equations the
+   meet needs itself: [Meet_env.add_equation] does not check the kind
+   of a name where the type is an alias or the canonical element of
+   the name is a constant (FlambdaMeetEnvSpec.v). *)
 Definition type_fits (tenv : Typing_env.t) (t : flambda_type) : Prop :=
   type_well_formed t = true
   ∧ (∀ x : variable,
       x ∈ free_variables t -> Typing_env.mem None tenv (Name_var x) = true)
-  ∧ type_kinded tenv t.
+  ∧ type_kinded tenv t
+  ∧ type_equations_kinded tenv t.
 
 (* An environment in which a meet may be made: it has the invariant of
-   typing environments, its types are well formed, it is kinded, and
-   no name has an obviously bottom type in it unless it is bottom.
-   Each of its types then fits it ([fits_types_statement]). *)
+   typing environments, its types are well formed, it is kinded, the
+   names of the equations inside its types are of the kinds of their
+   types ([types_equations_kinded], FlambdaTypingEnvKindedSpec.v),
+   and no name has an obviously bottom type in it unless it is
+   bottom. Each of its types then fits it ([fits_types_statement]). *)
 Definition typing_env_fits (tenv : Typing_env.t) : Prop :=
   typing_env_invariant tenv
   ∧ types_well_formed tenv
   ∧ typing_env_kinded tenv
+  ∧ types_equations_kinded tenv
   ∧ no_bottom_types tenv.
 
 Definition meet_inputs_well_formed (tenv : Typing_env.t)
@@ -902,6 +933,20 @@ Definition meet_expanded_head_sound (meet_head : meet_expanded_head) : Prop :=
       ∧ keeps_equations_valued tenv (Meet_env.typing_env menv') valuation
           valuation'.
 
+(* The variables that a meet has defined are new. A variable that the
+   second environment knows and the first does not was not among the
+   names to avoid of the first, and is among those of the second. The
+   join makes its variables outside the names to avoid and adds them;
+   so the variables that the meets of two alternatives define, the
+   second being given the names to avoid of the first, are different
+   variables. *)
+Definition new_names_avoided (menv menv' : Meet_env.t) : Prop :=
+  ∀ x : variable,
+    Typing_env.mem None (Meet_env.typing_env menv') (Name_var x) = true ->
+    Typing_env.mem None (Meet_env.typing_env menv) (Name_var x) = false ->
+    among x (Meet_env.names_to_avoid menv) = false
+    ∧ among x (Meet_env.names_to_avoid menv') = true.
+
 (* What the meet of expanded types keeps, whatever the values:
    [meet_keeps_well_formed] for it. The environment answered is the
    first extended, it fits, and the type answered fits it and is of the
@@ -910,8 +955,9 @@ Definition meet_expanded_head_sound (meet_head : meet_expanded_head) : Prop :=
    type), and it is not obviously unknown unless it is the second
    input, or both: [Meet_env] gives the type answered to a name, where
    it is the first input or a new type, and the typing environment is
-   to be given neither kind of type there. No value and no valuation
-   is supposed. *)
+   to be given neither kind of type there. And the variables that
+   it has defined are new ([new_names_avoided]). No value and no
+   valuation is supposed. *)
 Definition meet_expanded_head_keeps (meet_head : meet_expanded_head) : Prop :=
   ∀ (menv menv' : Meet_env.t) (expanded1 expanded2 : Expanded_type.t)
     (r : meet_return_value Expanded_type.t),
@@ -928,7 +974,8 @@ Definition meet_expanded_head_keeps (meet_head : meet_expanded_head) : Prop :=
     ∧ kind answered = kind (Expanded_type.to_type expanded1)
     ∧ is_obviously_bottom answered = false
     ∧ (is_obviously_unknown answered = true ->
-       r = Right_input ∨ r = Both_inputs).
+       r = Right_input ∨ r = Both_inputs)
+    ∧ new_names_avoided menv menv'.
 
 (* What meet gives the join: an environment made from [initial_tenv] by
    adding definitions and equations. It fits, and it has what
@@ -940,6 +987,17 @@ Definition scoped_env_of (initial_tenv scoped_env : Typing_env.t) : Prop :=
       Typing_env.mem None initial_tenv n = true ->
       Typing_env.mem None scoped_env n = true)
   ∧ keeps_names initial_tenv scoped_env.
+
+(* No two of the environments that are joined have one [Simple] at
+   two kinds. *)
+Definition scoped_envs_agree (scoped_envs : list Typing_env.t) : Prop :=
+  ∀ (scoped_env scoped_env' : Typing_env.t) (s : simple)
+    (kind kind' : flambda_kind),
+    scoped_env ∈ scoped_envs ->
+    scoped_env' ∈ scoped_envs ->
+    simple_of_kind scoped_env s kind ->
+    simple_of_kind scoped_env' s kind' ->
+    kind = kind'.
 
 (* The contract of the join that meet is given. Meet calls it with the
    typing environment of [initial_env] for [initial_tenv] and its scope
@@ -953,6 +1011,7 @@ Definition join_scoped_envs_sound (join : join_scoped_envs) : Prop :=
     typing_env_fits initial_tenv ->
     (∀ scoped_env : Typing_env.t,
       scoped_env ∈ scoped_envs -> scoped_env_of initial_tenv scoped_env) ->
+    scoped_envs_agree scoped_envs ->
     join meet_head (Typing_env.current_scope initial_tenv) initial_env
       initial_tenv scoped_envs
     = Some result ->
@@ -979,7 +1038,7 @@ Definition join_scoped_envs_sound (join : join_scoped_envs) : Prop :=
     ∧ typing_env_fits (Meet_env.typing_env result)
     (* A variable of the result that no environment given knows is new,
        and is to be avoided from now on. *)
-    ∧ ∀ x : variable,
+    ∧ (∀ x : variable,
         Typing_env.mem None (Meet_env.typing_env result) (Name_var x)
         = true ->
         Typing_env.mem None initial_tenv (Name_var x) = false ->
@@ -987,7 +1046,14 @@ Definition join_scoped_envs_sound (join : join_scoped_envs) : Prop :=
           scoped_env ∈ scoped_envs ->
           Typing_env.mem None scoped_env (Name_var x) = false) ->
         among x (Meet_env.names_to_avoid initial_env) = false
-        ∧ among x (Meet_env.names_to_avoid result) = true.
+        ∧ among x (Meet_env.names_to_avoid result) = true)
+    (* A [Simple] that the result knows is of the kind that an
+       environment joined has it at. *)
+    ∧ ∀ (scoped_env : Typing_env.t) (s : simple) (kind : flambda_kind),
+        scoped_env ∈ scoped_envs ->
+        Typing_env.mem_simple None (Meet_env.typing_env result) s = true ->
+        simple_of_kind scoped_env s kind ->
+        simple_of_kind (Meet_env.typing_env result) s kind.
 
 (* What is to be proved of the transcribed meet, which takes the join
    and the fuel: with a join that has its contract, it has its own,

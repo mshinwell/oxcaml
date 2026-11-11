@@ -81,6 +81,15 @@ Proof.
   intros Hexpanded. of_non_alias_cases ty Hexpanded; reflexivity.
 Qed.
 
+Lemma of_non_alias_type_equation_names (ty : flambda_type)
+    (expanded : Expanded_type.t) :
+  Expanded_type.of_non_alias_type ty = Some expanded ->
+  equation_names_with_kinds (Expanded_type.to_type expanded)
+  = equation_names_with_kinds ty.
+Proof.
+  intros Hexpanded. of_non_alias_cases ty Hexpanded; reflexivity.
+Qed.
+
 Lemma of_non_alias_type_kind (ty : flambda_type)
     (expanded : Expanded_type.t) :
   Expanded_type.of_non_alias_type ty = Some expanded ->
@@ -128,6 +137,16 @@ Qed.
 
 Lemma create_const_free_variables (c : const) :
   free_variables (Expanded_type.to_type (Expanded_type.create_const c)) = [].
+Proof.
+  destruct c as [i | i | f | f | i | i | i | i | i | i | i | i | i | | k];
+    try reflexivity.
+  destruct k as [ | [] | | ]; reflexivity.
+Qed.
+
+Lemma create_const_equation_names (c : const) :
+  equation_names_with_kinds
+    (Expanded_type.to_type (Expanded_type.create_const c))
+  = [].
 Proof.
   destruct c as [i | i | f | f | i | i | i | i | i | i | i | i | i | | k];
     try reflexivity.

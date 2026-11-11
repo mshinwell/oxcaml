@@ -37,6 +37,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
   FlambdaTypeWellFormedSpec FlambdaTypeWellFormedProofs
+  FlambdaTypeAliasKindsSpec FlambdaTypeAliasKindsProofs
   FlambdaBindingTime FlambdaEnvAliases FlambdaEnvAliasesSpec
   FlambdaEnvAliasesProofs FlambdaTypingEnv FlambdaTypingEnvSpec
   FlambdaTypingEnvProofs FlambdaTypingEnvInvariantSpec
@@ -64,10 +65,12 @@ Lemma type_fits_kept (tenv tenv' : Typing_env.t) (ty : flambda_type) :
   type_fits tenv ty ->
   type_fits tenv' ty.
 Proof.
-  intros Hmem Hkind (Hwf & Hclosed & Hkinded).
+  intros Hmem Hkind (Hwf & Hclosed & Hkinded & Hequations).
   split; [ exact Hwf | ]. split.
-  - intros x Hin. exact (Hmem x (Hclosed x Hin)).
+  { intros x Hin. exact (Hmem x (Hclosed x Hin)). }
+  split.
   - intros s kind Hin. exact (Hkind s kind (Hkinded s kind Hin)).
+  - intros n kind Hin. exact (Hkind _ kind (Hequations n kind Hin)).
 Qed.
 
 Lemma is_obviously_bottom_unknown (kind : flambda_kind) :
@@ -84,7 +87,7 @@ Proof. destruct kind as [ | [] | | ]; reflexivity. Qed.
 
 Theorem make_bottom_keeps : make_bottom_keeps_statement.
 Proof.
-  intros menv (Hinvariant & Hwf & Hkinded & Hbottom).
+  intros menv (Hinvariant & Hwf & Hkinded & Hequations & Hbottom).
   split.
   - repeat split; try reflexivity.
     + intros s kind Hkind. apply make_bottom_simple_of_kind. exact Hkind.
@@ -96,6 +99,7 @@ Proof.
     split; [ exact (make_bottom_invariant _ Hinvariant) | ].
     split; [ exact (make_bottom_types_well_formed _ Hwf) | ].
     split; [ exact (make_bottom_kinded _ Hkinded) | ].
+    split; [ exact (make_bottom_equations_kinded _ Hequations) | ].
     intros Hfalse. discriminate Hfalse.
 Qed.
 
@@ -117,8 +121,8 @@ Proof. reflexivity. Qed.
 Theorem add_variable_definition_keeps
     : add_variable_definition_keeps_statement.
 Proof.
-  intros menv var kind name_mode (Hinvariant & Hwf & Hkinded & Hbottom)
-    Hfresh.
+  intros menv var kind name_mode
+    (Hinvariant & Hwf & Hkinded & Hequations & Hbottom) Hfresh.
   set (menv' := Meet_env.add_variable_definition menv var kind name_mode).
   set (tenv := Meet_env.typing_env menv) in *.
   set (tenv' := Typing_env.add_variable_definition tenv var kind name_mode).
@@ -173,6 +177,9 @@ Proof.
     split.
     { exact (add_variable_definition_kinded tenv var kind name_mode
                (proj1 Hinvariant) Hfresh Hkinded). }
+    split.
+    { exact (add_variable_definition_equations_kinded tenv var kind
+               name_mode Hfresh Hequations). }
     intros Hnot_bottom n ty binding_time_and_mode Hlookup.
     destruct (name_eqb n (Name_var var)) eqn:Hn.
     + apply name_eqb_eq in Hn. subst n. unfold tenv' in Hlookup.
@@ -234,6 +241,58 @@ Proof.
   intros (Hs & Hp & Hm & Hd & Hkind & Hk).
   repeat split; try assumption; try reflexivity.
   intros x Hamong. exact Hamong.
+Qed.
+
+(* The second environment knows no variable that the first does not. *)
+Definition no_new_variables (tenv tenv' : Typing_env.t) : Prop :=
+  ∀ x : variable,
+    Typing_env.mem None tenv' (Name_var x) = true ->
+    Typing_env.mem None tenv (Name_var x) = true.
+
+(* What a function that runs the meet of expanded types does to the
+   environment of a meet: it extends it, and the variables that it
+   defines are new. *)
+Definition meet_env_steps (menv menv' : Meet_env.t) : Prop :=
+  meet_env_extends menv menv' ∧ new_names_avoided menv menv'.
+
+Lemma meet_env_steps_refl (menv : Meet_env.t) : meet_env_steps menv menv.
+Proof.
+  split; [ apply meet_env_extends_refl | apply new_names_avoided_refl ].
+Qed.
+
+Lemma meet_env_steps_trans (menv1 menv2 menv3 : Meet_env.t) :
+  meet_env_steps menv1 menv2 -> meet_env_steps menv2 menv3 ->
+  meet_env_steps menv1 menv3.
+Proof.
+  intros [Hextends12 Hnames12] [Hextends23 Hnames23]. split.
+  - exact (meet_env_extends_trans _ _ _ Hextends12 Hextends23).
+  - exact (new_names_avoided_trans _ _ _ Hextends12 Hextends23 Hnames12
+             Hnames23).
+Qed.
+
+(* The environment of a meet with another typing environment, which
+   extends its own and knows no other variable. *)
+Lemma meet_env_steps_with (menv : Meet_env.t) (tenv' : Typing_env.t) :
+  tenv_extends (Meet_env.typing_env menv) tenv' ->
+  no_new_variables (Meet_env.typing_env menv) tenv' ->
+  meet_env_steps menv (Meet_env.with_typing_env menv tenv').
+Proof.
+  intros Hextends Hnone.
+  split; [ exact (meet_env_extends_with menv tenv' Hextends) | ].
+  intros x Hknown Hunknown.
+  change (Meet_env.typing_env (Meet_env.with_typing_env menv tenv'))
+    with tenv' in Hknown.
+  rewrite (Hnone x Hknown) in Hunknown. discriminate Hunknown.
+Qed.
+
+(* What the statements say, from what the lemmas give. *)
+Lemma meet_env_steps_kept (menv menv' : Meet_env.t) :
+  meet_env_steps menv menv'
+  ∧ typing_env_fits (Meet_env.typing_env menv') ->
+  meet_env_kept_by_meet menv menv'.
+Proof.
+  intros [[Hextends Hnames] Hfits].
+  split; [ split; assumption | exact Hnames ].
 Qed.
 
 (* A name that is bound stays bound. *)
@@ -355,8 +414,9 @@ Lemma replace_equation_fits :
   is_obviously_bottom ty = false ->
   typing_env_fits tenv'.
 Proof.
-  intros (_ & Hwf & Hkinded & Hbottom) (Hty_wf & Hty_closed & Hty_kinded)
-    Halias Hunknown Hnot_bottom.
+  intros (_ & Hwf & Hkinded & Hequations & Hbottom)
+    (Hty_wf & Hty_closed & Hty_kinded & Hty_equations) Halias Hunknown
+    Hnot_bottom.
   assert (Hmem := simple_of_kind_mem tenv n (kind ty) Hinvariant Hkind).
   split.
   { apply replace_equation_invariant; try assumption.
@@ -366,6 +426,9 @@ Proof.
   split; [ exact (replace_equation_types_well_formed tenv n ty Hty_wf Hwf) | ].
   split.
   { exact (replace_equation_kinded tenv n ty Hkind Hty_kinded Hkinded). }
+  split.
+  { exact (replace_equation_equations_kinded tenv n ty Hkind Hty_equations
+             Hequations). }
   intros His_bottom m ty0 binding_time_and_mode Hlookup.
   destruct (name_eqb m n) eqn:Hm.
   - apply name_eqb_eq in Hm. subst m.
@@ -473,7 +536,8 @@ Lemma add_alias_fits (kind : flambda_kind) :
   simple_of_kind tenv canonical_element2 kind ->
   typing_env_fits tenv'.
 Proof.
-  intros (Hinvariant & Hwf & Hkinded & Hbottom) Hc1 Hc2 Hm1 Hm2 Hk1 Hk2.
+  intros (Hinvariant & Hwf & Hkinded & Hequations & Hbottom) Hc1 Hc2 Hm1 Hm2
+    Hk1 Hk2.
   assert (Hframe := add_alias_frame tenv _ _ result Hadd).
   cbv zeta in Hframe.
   destruct Hframe as (_ & _ & _ & _ & Hnames & _ & _ & His_bottom).
@@ -486,6 +550,8 @@ Proof.
   { exact (add_alias_kinded tenv _ _ result kind
              (invariant_aliases_consistent tenv Hinvariant) Hc1 Hc2 Hk1 Hk2
              Hadd Hkinded). }
+  split.
+  { exact (add_alias_equations_kinded tenv _ _ result Hadd Hequations). }
   intros Hnot_bottom n ty binding_time_and_mode Hlookup.
   rewrite Hnames in Hlookup. rewrite His_bottom in Hnot_bottom.
   exact (Hbottom Hnot_bottom n ty binding_time_and_mode Hlookup).
@@ -628,6 +694,62 @@ Qed.
 (* The functions that add an equation: what they keep                       *)
 (* ======================================================================== *)
 
+(* Giving a name a type, and making two canonical elements aliases,
+   define no variable. *)
+Lemma replace_equation_no_new (tenv : Typing_env.t) (n : name)
+    (ty : flambda_type) :
+  no_new_variables tenv (Typing_env.replace_equation tenv n ty).
+Proof.
+  intros x. rewrite !mem_var_is_bound. unfold Keyed.is_bound.
+  destruct (name_eqb (Name_var x) n) eqn:Hx.
+  - apply name_eqb_eq in Hx. subst n. rewrite replace_equation_lookup.
+    destruct (Keyed.lookup name_eqb (Name_var x)
+                (Typing_env.names_to_types tenv));
+      [ reflexivity | discriminate ].
+  - rewrite replace_equation_lookup_other; [ intros H; exact H | ].
+    intros Heq. rewrite Heq, (proj2 (name_eqb_eq _ _) eq_refl) in Hx.
+    discriminate Hx.
+Qed.
+
+Lemma add_alias_no_new (tenv : Typing_env.t)
+    (canonical_element1 canonical_element2 : simple)
+    (result : Typing_env.add_alias_result) :
+  Typing_env.add_alias tenv canonical_element1 canonical_element2
+  = Some (Ok result) ->
+  no_new_variables tenv (Typing_env.add_alias_result_t result).
+Proof.
+  intros Hadd x.
+  assert (Hframe := add_alias_frame tenv _ _ result Hadd).
+  cbv zeta in Hframe.
+  destruct Hframe as (_ & _ & _ & _ & Hnames & _).
+  rewrite !mem_var_is_bound, Hnames. intros H. exact H.
+Qed.
+
+Lemma replace_concrete_equation_no_new (tenv tenv' : Typing_env.t)
+    (n : name) (ty : flambda_type) :
+  Meet_env.replace_concrete_equation tenv n ty = Some tenv' ->
+  no_new_variables tenv tenv'.
+Proof.
+  intros Hreplace x Hknown.
+  unfold Meet_env.replace_concrete_equation in Hreplace.
+  destruct (must_be_singleton ty) as [ [ const | ] | ];
+    [ | | discriminate Hreplace ]; cbn in Hreplace.
+  - destruct (Aliases.canonical (Typing_env.aliases tenv) (simple_of_name n));
+      [ | discriminate Hreplace ].
+    destruct (Typing_env.add_alias tenv (simple_of_name n) (Const const))
+      as [ [ | result | ] | ] eqn:Hadd; try discriminate Hreplace.
+    cbn in Hreplace.
+    destruct (name_eqb (Typing_env.demoted_name result) n
+              && simple_equal (Typing_env.canonical_element result)
+                   (Const const)); [ | discriminate Hreplace ].
+    injection Hreplace as <-.
+    apply (add_alias_no_new tenv _ _ result Hadd).
+    exact (replace_equation_no_new _ _ _ x Hknown).
+  - destruct (get_alias_opt ty); [ discriminate Hreplace | ].
+    injection Hreplace as <-.
+    exact (replace_equation_no_new _ _ _ x Hknown).
+Qed.
+
 (* What is used of the predicate of well-formed types, beside what
    its own file states: the type of a constant, expanded, is well
    formed, and a well-formed type that is not an alias is the type
@@ -669,10 +791,14 @@ Lemma type_fits_alias (tenv : Typing_env.t) (k : flambda_kind) (s : simple) :
   type_fits tenv (alias_type_of k s).
 Proof.
   intros Hmem Hkind. split; [ apply alias_type_of_well_formed | ]. split.
-  - intros x Hin. apply free_variables_alias_type_of in Hin. subst s.
-    exact Hmem.
+  { intros x Hin. apply free_variables_alias_type_of in Hin. subst s.
+    exact Hmem. }
+  split.
   - intros s' k' Hin. rewrite aliases_with_kinds_alias_type_of in Hin.
     destruct Hin as [ [= <- <-] | [] ]. exact Hkind.
+  - intros n k' Hin.
+    rewrite (proj1 (proj2 (proj2 equation_names_none))) in Hin.
+    destruct Hin.
 Qed.
 
 Lemma type_fits_of_non_alias (tenv : Typing_env.t) (ty : flambda_type)
@@ -681,15 +807,29 @@ Lemma type_fits_of_non_alias (tenv : Typing_env.t) (ty : flambda_type)
   type_fits tenv ty ->
   type_fits tenv (Expanded_type.to_type expanded).
 Proof.
-  intros Hexpanded (Hwf & Hclosed & Hkinded).
+  intros Hexpanded (Hwf & Hclosed & Hkinded & Hequations).
   split; [ exact (of_non_alias_type_well_formed ty expanded Hexpanded Hwf) | ].
   split.
-  - intros x Hin.
+  { intros x Hin.
     rewrite (of_non_alias_type_free_variables ty expanded Hexpanded) in Hin.
-    exact (Hclosed x Hin).
+    exact (Hclosed x Hin). }
+  split.
   - intros s k Hin.
     rewrite (of_non_alias_type_aliases ty expanded Hexpanded) in Hin.
     exact (Hkinded s k Hin).
+  - intros n k Hin.
+    rewrite (of_non_alias_type_equation_names ty expanded Hexpanded) in Hin.
+    exact (Hequations n k Hin).
+Qed.
+
+(* The type of a constant, expanded, fits any environment. *)
+Lemma type_fits_create_const (tenv : Typing_env.t) (c : const) :
+  type_fits tenv (Expanded_type.to_type (Expanded_type.create_const c)).
+Proof.
+  split; [ apply to_type_create_const_well_formed | ]. split.
+  { intros x Hin. rewrite create_const_free_variables in Hin. destruct Hin. }
+  split; [ apply create_const_kinded | ].
+  intros n k Hin. rewrite create_const_equation_names in Hin. destruct Hin.
 Qed.
 
 (* The type that an environment that fits answers for a name fits. *)
@@ -704,11 +844,16 @@ Proof.
     as [ [binding_time_and_mode Hlookup] | [ [k ->] | -> ] ].
   - exact (fits_types tenv n ty binding_time_and_mode Hfits Hlookup).
   - split; [ apply bottom_well_formed | ]. split.
-    + intros x Hin. rewrite free_variables_bottom in Hin. destruct Hin.
+    { intros x Hin. rewrite free_variables_bottom in Hin. destruct Hin. }
+    split.
     + intros s k' Hin. rewrite bottom_aliases in Hin. destruct Hin.
+    + intros m k' Hin.
+      rewrite (proj1 (proj2 equation_names_none)) in Hin. destruct Hin.
   - split; [ exact any_non_null_value_well_formed | ]. split.
-    + intros x Hin. destruct Hin.
+    { intros x Hin. destruct Hin. }
+    split.
     + intros s k' Hin. destruct Hin.
+    + intros m k' Hin. destruct Hin.
 Qed.
 
 (* [replace_concrete_equation]. *)
@@ -800,7 +945,7 @@ Lemma add_concrete_equation_on_canonical_name_keeps (menv menv' : Meet_env.t)
   Expanded_type.kind ty = kind (Expanded_type.to_type ty) ->
   Meet_env.add_concrete_equation_on_canonical_name true menv n ty mh
   = Some (Or_bottom.Ok menv') ->
-  meet_env_extends menv menv'
+  meet_env_steps menv menv'
   ∧ typing_env_fits (Meet_env.typing_env menv').
 Proof.
   intros Hfits Hty Hcoherent Hadd.
@@ -826,7 +971,7 @@ Proof.
       rewrite (find_kind _ _ _ _ Hfind). symmetry. exact Hcoherent. }
   destruct (Hmh menv menv1 ty existing_ty r Hinputs Hmeet)
     as (Hextends1 & Hfits1 & Hanswer & Hkind_answer & Hnot_bottom
-        & Hunknown).
+        & Hunknown & Hnames1).
   assert (Hreplace :
     ∀ (answer : Expanded_type.t) (tenv2 : Typing_env.t),
       extract_value r ty existing_ty = answer ->
@@ -834,7 +979,7 @@ Proof.
       Meet_env.replace_concrete_equation (Meet_env.typing_env menv1) n
         (Expanded_type.to_type answer)
       = Some tenv2 ->
-      meet_env_extends menv (Meet_env.with_typing_env menv1 tenv2)
+      meet_env_steps menv (Meet_env.with_typing_env menv1 tenv2)
       ∧ typing_env_fits tenv2).
   { intros answer tenv2 Hextract Hr Hreplace. rewrite Hextract in *.
     assert (Hkind_n :
@@ -852,16 +997,17 @@ Proof.
       destruct (Hunknown eq_refl) as [ -> | -> ];
         destruct Hr as [ Hr | Hr ]; discriminate Hr.
     - split; [ | exact Hfits2 ].
-      exact (meet_env_extends_trans _ _ _ Hextends1
-               (meet_env_extends_with menv1 tenv2 Hextends2)). }
+      exact (meet_env_steps_trans _ _ _ (conj Hextends1 Hnames1)
+               (meet_env_steps_with menv1 tenv2 Hextends2
+                  (replace_concrete_equation_no_new _ _ _ _ Hreplace))). }
   destruct r as [ | | | answer ].
   - destruct (Meet_env.replace_concrete_equation (Meet_env.typing_env menv1)
                 n (Expanded_type.to_type ty))
       as [ tenv2 | ] eqn:Hreplaced; [ | discriminate Hadd ].
     injection Hadd as <-.
     exact (Hreplace ty tenv2 eq_refl (or_introl eq_refl) Hreplaced).
-  - injection Hadd as <-. split; assumption.
-  - injection Hadd as <-. split; assumption.
+  - injection Hadd as <-. exact (conj (conj Hextends1 Hnames1) Hfits1).
+  - injection Hadd as <-. exact (conj (conj Hextends1 Hnames1) Hfits1).
   - destruct (Meet_env.replace_concrete_equation (Meet_env.typing_env menv1)
                 n (Expanded_type.to_type answer))
       as [ tenv2 | ] eqn:Hreplaced; [ | discriminate Hadd ].
@@ -875,10 +1021,10 @@ Lemma adding_equation_for_name_keeps (menv menv' : Meet_env.t) (n : name)
   (∀ menv1 menv2 : Meet_env.t,
      Meet_env.typing_env menv1 = Meet_env.typing_env menv ->
      f menv1 = Some (Or_bottom.Ok menv2) ->
-     meet_env_extends menv1 menv2
+     meet_env_steps menv1 menv2
      ∧ typing_env_fits (Meet_env.typing_env menv2)) ->
   Meet_env.adding_equation_for_name menv n f = Some (Or_bottom.Ok menv') ->
-  meet_env_extends menv menv'
+  meet_env_steps menv menv'
   ∧ typing_env_fits (Meet_env.typing_env menv').
 Proof.
   intros Hf Hadding. unfold Meet_env.adding_equation_for_name in Hadding.
@@ -886,10 +1032,11 @@ Proof.
   | context [ f ?env ] =>
     destruct (f env) as [ [ menv2 | ] | ] eqn:Hrun;
       try discriminate Hadding;
-      destruct (Hf env menv2 eq_refl Hrun) as [Hextends Hfits]
+      destruct (Hf env menv2 eq_refl Hrun) as [[Hextends Hnames] Hfits]
   end.
   injection Hadding as <-. split; [ | exact Hfits ].
   destruct Hextends as (Hs & Hp & Hm & Hd & Hkind & _ & Hv & Hk).
+  split; [ | exact Hnames ].
   exact (conj Hs (conj Hp (conj Hm (conj Hd (conj Hkind (conj eq_refl
            (conj Hv Hk))))))).
 Qed.
@@ -903,14 +1050,14 @@ Lemma add_or_delay_concrete_equation_on_canonical_name_keeps
   Expanded_type.kind ty = kind (Expanded_type.to_type ty) ->
   Meet_env.add_or_delay_concrete_equation_on_canonical_name true menv n ty mh
   = Some (Or_bottom.Ok menv') ->
-  meet_env_extends menv menv'
+  meet_env_steps menv menv'
   ∧ typing_env_fits (Meet_env.typing_env menv').
 Proof.
   intros Hfits Hty Hcoherent Hadd.
   unfold Meet_env.add_or_delay_concrete_equation_on_canonical_name in Hadd.
   destruct (Keyed.among name_eqb n (Meet_env.adding_equations_for_names menv)).
   - injection Hadd as <-.
-    split; [ apply meet_env_extends_refl | exact Hfits ].
+    split; [ apply meet_env_steps_refl | exact Hfits ].
   - apply (adding_equation_for_name_keeps menv menv' n _) in Hadd;
       [ exact Hadd | ].
     intros menv1 menv2 Hsame Hrun.
@@ -927,7 +1074,7 @@ Lemma add_concrete_equation_on_const_keeps (menv menv' : Meet_env.t)
   kind (type_for_const const) = kind (Expanded_type.to_type ty) ->
   Meet_env.add_concrete_equation_on_const true menv const ty mh
   = Some (Or_bottom.Ok menv') ->
-  meet_env_extends menv menv'
+  meet_env_steps menv menv'
   ∧ typing_env_fits (Meet_env.typing_env menv').
 Proof.
   intros Hfits Hty Hkind Hadd.
@@ -940,13 +1087,11 @@ Proof.
       (Expanded_type.to_type ty)
       (Expanded_type.to_type (Expanded_type.create_const const))).
   { split; [ exact Hfits | ]. split; [ exact Hty | ]. split.
-    - split; [ apply to_type_create_const_well_formed | ]. split.
-      + intros x Hin. rewrite create_const_free_variables in Hin.
-        destruct Hin.
-      + apply create_const_kinded.
+    - apply type_fits_create_const.
     - rewrite (proj2 (create_const_kind const)). symmetry. exact Hkind. }
-  destruct (Hmh menv menv1 ty _ r Hinputs Hmeet) as (Hextends & Hfits1 & _).
-  split; assumption.
+  destruct (Hmh menv menv1 ty _ r Hinputs Hmeet)
+    as (Hextends & Hfits1 & _ & _ & _ & _ & Hnames).
+  exact (conj (conj Hextends Hnames) Hfits1).
 Qed.
 
 (* [add_or_delay_concrete_equation_on_canonical]. *)
@@ -961,7 +1106,7 @@ Lemma add_or_delay_concrete_equation_on_canonical_keeps
   Meet_env.add_or_delay_concrete_equation_on_canonical true menv canonical ty
     mh
   = Some (Or_bottom.Ok menv') ->
-  meet_env_extends menv menv'
+  meet_env_steps menv menv'
   ∧ typing_env_fits (Meet_env.typing_env menv').
 Proof.
   intros Hfits Hty Hcoherent Hkind Hadd.
@@ -1016,6 +1161,46 @@ Proof.
   - exact (Hname (Name_var x) Hmem).
   - exact (Hname (Name_symbol sym) Hmem).
   - exists (kind (type_for_const c)). reflexivity.
+Qed.
+
+(* A simple that an environment knows is of the kind that an
+   environment made from it has it at. *)
+Lemma scoped_env_of_kind (initial_tenv scoped_env : Typing_env.t)
+    (s : simple) (kind : flambda_kind) :
+  scoped_env_of initial_tenv scoped_env ->
+  Typing_env.mem_simple None initial_tenv s = true ->
+  simple_of_kind scoped_env s kind ->
+  simple_of_kind initial_tenv s kind.
+Proof.
+  intros (Hfits & _ & Hnames) Hknown Hkind.
+  assert (Hsymbols : symbols_of_kind_value scoped_env).
+  { exact (proj2 (proj2 (proj1 (proj2 (proj2 Hfits))))). }
+  assert (Hname :
+    ∀ n : name,
+      Typing_env.mem None initial_tenv n = true ->
+      simple_of_kind scoped_env (simple_of_name n) kind ->
+      simple_of_kind initial_tenv (simple_of_name n) kind).
+  { intros n Hmem Hn. apply simple_of_kind_name.
+    destruct (Keyed.lookup name_eqb n (Typing_env.names_to_types initial_tenv))
+      as [ [ty binding_time_and_mode] | ] eqn:Hlookup.
+    - left. exists ty, binding_time_and_mode. split; [ reflexivity | ].
+      destruct (Hnames n ty binding_time_and_mode Hlookup)
+        as (ty' & Hlookup' & Hsame).
+      apply simple_of_kind_name in Hn.
+      destruct Hn as [ (ty'' & binding_time_and_mode'' & Hfound & Hkind'')
+                     | (Hnone & _) ].
+      + rewrite Hlookup' in Hfound. injection Hfound as <- _.
+        rewrite <- Hsame. exact Hkind''.
+      + rewrite Hlookup' in Hnone. discriminate Hnone.
+    - right. split; [ reflexivity | ]. split; [ exact Hmem | ].
+      destruct n as [ x | sym ].
+      + unfold Typing_env.mem in Hmem. rewrite Hlookup in Hmem.
+        discriminate Hmem.
+      + exact (symbol_of_kind_value scoped_env sym kind Hsymbols Hn). }
+  destruct s as [ x | sym | c ].
+  - exact (Hname (Name_var x) Hknown Hkind).
+  - exact (Hname (Name_symbol sym) Hknown Hkind).
+  - exact Hkind.
 Qed.
 
 Lemma tenv_extends_mem_simple (tenv tenv' : Typing_env.t) (s : simple) :
@@ -1085,7 +1270,7 @@ Lemma record_demotion_keeps (menv menv' : Meet_env.t) (kind : flambda_kind)
   simple_of_kind (Meet_env.typing_env menv) canonical kind ->
   Meet_env.record_demotion true menv kind demoted canonical mh
   = Some (Or_bottom.Ok menv') ->
-  meet_env_extends menv menv'
+  meet_env_steps menv menv'
   ∧ typing_env_fits (Meet_env.typing_env menv').
 Proof.
   intros Hfits Hnot_canonical Hkind_demoted Hkind_canonical Hrecord.
@@ -1161,8 +1346,10 @@ Proof.
              Hkind_canonical).
   - exact Hrecord.
   - split; [ | exact Hfits2 ].
-    exact (meet_env_extends_trans _ _ _
-             (meet_env_extends_with menv tenv1 Hextends1) Hextends2).
+    exact (meet_env_steps_trans _ _ _
+             (meet_env_steps_with menv tenv1 Hextends1
+                (replace_equation_no_new tenv demoted alias))
+             Hextends2).
 Qed.
 
 (* [add_alias_between_canonicals]. *)
@@ -1178,7 +1365,7 @@ Lemma add_alias_between_canonicals_keeps (menv menv' : Meet_env.t)
   Meet_env.add_alias_between_canonicals true menv kind canonical_element1
     canonical_element2 mh
   = Some (Or_bottom.Ok menv') ->
-  meet_env_extends menv menv'
+  meet_env_steps menv menv'
   ∧ typing_env_fits (Meet_env.typing_env menv').
 Proof.
   intros Hfits Hc1 Hc2 Hkind1 Hkind2 Hadd.
@@ -1187,11 +1374,11 @@ Proof.
   unfold Meet_env.add_alias_between_canonicals in Hadd. fold tenv in Hadd.
   destruct (simple_equal canonical_element1 canonical_element2) eqn:Hsame.
   { injection Hadd as <-.
-    split; [ apply meet_env_extends_refl | exact Hfits ]. }
+    split; [ apply meet_env_steps_refl | exact Hfits ]. }
   destruct (Typing_env.add_alias tenv canonical_element1 canonical_element2)
     as [ [ | result | ] | ] eqn:Halias; try discriminate Hadd.
   - injection Hadd as <-.
-    split; [ apply meet_env_extends_refl | exact Hfits ].
+    split; [ apply meet_env_steps_refl | exact Hfits ].
   - cbv beta iota in Hadd.
     assert (Hdifferent : canonical_element1 <> canonical_element2).
     { intros Heq. apply simple_equal_eq in Heq. rewrite Heq in Hsame.
@@ -1218,8 +1405,10 @@ Proof.
     + apply Hkept. destruct Hwhich as [ [-> _] | [-> _] ]; assumption.
     + exact Hadd.
     + split; [ | exact Hfits2 ].
-      exact (meet_env_extends_trans _ _ _
-               (meet_env_extends_with menv tenv1 Hextends1) Hextends2).
+      exact (meet_env_steps_trans _ _ _
+               (meet_env_steps_with menv tenv1 Hextends1
+                  (add_alias_no_new tenv _ _ result Halias))
+               Hextends2).
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -1234,7 +1423,7 @@ Lemma add_equation_on_simple0_keeps (menv menv' : Meet_env.t) (s : simple)
   simple_of_kind (Meet_env.typing_env menv) s (kind ty) ->
   Meet_env.add_equation_on_simple0 true menv s ty mh
   = Some (Or_bottom.Ok menv') ->
-  meet_env_extends menv menv'
+  meet_env_steps menv menv'
   ∧ typing_env_fits (Meet_env.typing_env menv').
 Proof.
   intros Hfits Hty Hkind Hadd.
@@ -1246,7 +1435,7 @@ Proof.
     as [Hcanonical Hkind_canonical].
   destruct (get_alias_opt ty) as [ alias | ] eqn:Halias.
   - assert (Hkind_alias : simple_of_kind tenv alias (kind ty)).
-    { exact (proj2 (proj2 Hty) alias (kind ty)
+    { exact (proj1 (proj2 (proj2 Hty)) alias (kind ty)
                (alias_among_aliases ty alias Halias)). }
     destruct (canonical_of_kind tenv alias (kind ty) Hinvariant Hkinded
                 Hkind_alias) as [Hcanonical2 Hkind_canonical2].
@@ -1281,13 +1470,13 @@ Lemma add_equations0_keeps (equations : list (name * flambda_type)) :
     equations_fit (Meet_env.typing_env menv) equations ->
     Meet_env.add_equations0 true menv equations mh
     = Some (Or_bottom.Ok menv') ->
-    meet_env_extends menv menv'
+    meet_env_steps menv menv'
     ∧ typing_env_fits (Meet_env.typing_env menv').
 Proof.
   induction equations as [ | [n ty] equations IH ];
     intros menv menv' Hfits Hequations Hadd.
   - injection Hadd as <-.
-    split; [ apply meet_env_extends_refl | exact Hfits ].
+    split; [ apply meet_env_steps_refl | exact Hfits ].
   - cbn [Meet_env.add_equations0] in Hadd.
     destruct (Meet_env.add_equation0 true menv n ty mh)
       as [ [ menv1 | ] | ] eqn:Hfirst; try discriminate Hadd.
@@ -1295,7 +1484,7 @@ Proof.
     destruct (Hequations n ty (or_introl eq_refl)) as [Hty Hkind].
     destruct (add_equation_on_simple0_keeps menv menv1 (simple_of_name n) ty
                 Hfits Hty Hkind Hfirst) as [Hextends1 Hfits1].
-    assert (Htenv := meet_env_extends_tenv _ _ Hextends1).
+    assert (Htenv := meet_env_extends_tenv _ _ (proj1 Hextends1)).
     destruct (IH menv1 menv' Hfits1) as [Hextends2 Hfits2].
     + intros n' ty' Hin.
       destruct (Hequations n' ty' (or_intror Hin)) as [Hty' Hkind'].
@@ -1304,7 +1493,7 @@ Proof.
       * exact (proj1 (proj2 (proj2 (proj2 (proj2 Htenv)))) _ _ Hkind').
     + exact Hadd.
     + split; [ | exact Hfits2 ].
-      exact (meet_env_extends_trans _ _ _ Hextends1 Hextends2).
+      exact (meet_env_steps_trans _ _ _ Hextends1 Hextends2).
 Qed.
 
 (* [add_env_extension ~raise_on_bottom:true]. *)
@@ -1315,10 +1504,11 @@ Lemma add_env_extension0_keeps (menv menv' : Meet_env.t)
   env_extension_kinded (Meet_env.typing_env menv) extension ->
   Meet_env.add_env_extension0 true menv extension mh
   = Some (Or_bottom.Ok menv') ->
-  meet_env_kept menv menv'.
+  meet_env_kept_by_meet menv menv'.
 Proof.
   intros Hfits Hextension Hkinded Hadd.
   destruct extension as [equations]. cbn in Hextension, Hkinded.
+  apply meet_env_steps_kept.
   apply (add_equations0_keeps (Keyed.compact name_eqb equations) menv menv'
            Hfits); [ | exact Hadd ].
   intros n ty Hin. apply (keyed_in_compact name_eqb name_eqb_eq) in Hin.
@@ -1331,15 +1521,20 @@ Lemma bottom_on_exception_keeps (menv menv' : Meet_env.t)
     (result : option (Or_bottom.t Meet_env.t)) :
   typing_env_fits (Meet_env.typing_env menv) ->
   (∀ menv1 : Meet_env.t,
-     result = Some (Or_bottom.Ok menv1) -> meet_env_kept menv menv1) ->
+     result = Some (Or_bottom.Ok menv1) ->
+     meet_env_kept_by_meet menv menv1) ->
   Meet_env.bottom_on_exception menv result = Some menv' ->
-  meet_env_kept menv menv'.
+  meet_env_kept_by_meet menv menv'.
 Proof.
   intros Hfits Hresult Hbottom.
   destruct result as [ [ menv1 | ] | ]; cbn in Hbottom;
     [ | | discriminate Hbottom ]; injection Hbottom as <-.
   - exact (Hresult menv1 eq_refl).
-  - exact (make_bottom_keeps menv Hfits).
+  - split; [ exact (make_bottom_keeps menv Hfits) | ].
+    intros x Hknown Hunknown.
+    change (Typing_env.mem None (Meet_env.typing_env menv) (Name_var x)
+            = true) in Hknown.
+    rewrite Hknown in Hunknown. discriminate Hunknown.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -1405,7 +1600,7 @@ Proof.
   intros Hfits Hty Halias.
   apply (canonical_of_kind tenv alias (kind ty) (proj1 Hfits)
            (proj1 (proj2 (proj1 (proj2 (proj2 Hfits)))))).
-  exact (proj2 (proj2 Hty) alias (kind ty)
+  exact (proj1 (proj2 (proj2 Hty)) alias (kind ty)
            (alias_among_aliases ty alias Halias)).
 Qed.
 
@@ -1416,15 +1611,18 @@ Lemma meet_keeps (menv menv' : Meet_env.t) (t1 t2 : flambda_type)
   type_fits (Meet_env.typing_env menv) t1 ->
   type_fits (Meet_env.typing_env menv) t2 ->
   Meet_env.meet menv t1 t2 mh = Some (Meet_result.Ok r menv') ->
-  meet_env_kept menv menv'
-  ∧ type_fits (Meet_env.typing_env menv')
-      match r with
-      | New_result expanded => Expanded_type.to_type expanded
-      | Right_input => t2
-      | Left_input | Both_inputs => t1
-      end.
+  let answered :=
+    match r with
+    | New_result expanded => Expanded_type.to_type expanded
+    | Right_input => t2
+    | Left_input | Both_inputs => t1
+    end
+  in
+  meet_env_kept_by_meet menv menv'
+  ∧ type_fits (Meet_env.typing_env menv') answered
+  ∧ kind answered = kind t1.
 Proof.
-  intros Hfits Ht1 Ht2 Hmeet.
+  intros Hfits Ht1 Ht2 Hmeet. cbv zeta.
   set (tenv := Meet_env.typing_env menv) in *.
   unfold Meet_env.meet in Hmeet. fold tenv in Hmeet.
   destruct (negb (kind_eqb (kind t1) (kind t2))) eqn:Hkinds;
@@ -1441,11 +1639,17 @@ Proof.
   assert (Hkept :
     ∀ ty : flambda_type,
       type_fits tenv ty ->
-      meet_env_kept menv menv' ->
-      meet_env_kept menv menv' ∧ type_fits (Meet_env.typing_env menv') ty).
-  { intros ty Hty Hkept. split; [ exact Hkept | ].
+      kind ty = kind t1 ->
+      meet_env_steps menv menv'
+      ∧ typing_env_fits (Meet_env.typing_env menv') ->
+      meet_env_kept_by_meet menv menv'
+      ∧ type_fits (Meet_env.typing_env menv') ty
+      ∧ kind ty = kind t1).
+  { intros ty Hty Hkind Hsteps.
+    split; [ exact (meet_env_steps_kept _ _ Hsteps) | ].
+    split; [ | exact Hkind ].
     exact (tenv_extends_type_fits _ _ _
-             (meet_env_extends_tenv _ _ (proj1 Hkept)) Hty). }
+             (meet_env_extends_tenv _ _ (proj1 (proj1 Hsteps))) Hty). }
   destruct (alias_then_canonical_cases tenv t1 simple1 Hsimple1)
     as [ [Halias1 ->] | (alias1 & Halias1 & ->) ];
     destruct (alias_then_canonical_cases tenv t2 simple2 Hsimple2)
@@ -1469,14 +1673,19 @@ Proof.
       rewrite (proj2 (of_non_alias_type_kind _ _ Hexpanded2)).
       exact Hkinds. }
     destruct (Hmh menv menv' expanded1 expanded2 r Hinputs Hmeet)
-      as (Hextends & Hfits' & Hanswer & _).
-    split; [ split; assumption | ].
+      as (Hextends & Hfits' & Hanswer & Hkind_answer & _ & _ & Hnames).
+    split; [ exact (conj (conj Hextends Hfits') Hnames) | ].
     assert (Htenv := meet_env_extends_tenv _ _ Hextends).
     destruct r as [ | | | answer ].
-    + exact (tenv_extends_type_fits _ _ _ Htenv Ht1).
-    + exact (tenv_extends_type_fits _ _ _ Htenv Ht2).
-    + exact (tenv_extends_type_fits _ _ _ Htenv Ht1).
-    + exact Hanswer.
+    + split; [ | reflexivity ].
+      exact (tenv_extends_type_fits _ _ _ Htenv Ht1).
+    + split; [ | symmetry; exact Hkinds ].
+      exact (tenv_extends_type_fits _ _ _ Htenv Ht2).
+    + split; [ | reflexivity ].
+      exact (tenv_extends_type_fits _ _ _ Htenv Ht1).
+    + split; [ exact Hanswer | ].
+      rewrite <- (proj2 (of_non_alias_type_kind _ _ Hexpanded1)).
+      exact Hkind_answer.
   - (* The second is an alias: the first is added to what it is an
        alias of. *)
     rewrite (expand_head0_concrete tenv t1 Halias1) in Hmeet.
@@ -1494,7 +1703,7 @@ Proof.
     destruct (of_non_alias_type_kind _ _ Hexpanded1) as [Hkind1 Hkind2].
     destruct (alias_canonical_of_kind tenv t2 alias2 Hfits Ht2 Halias2)
       as [_ Hkind_canonical].
-    apply (Hkept t2 Ht2).
+    apply (Hkept t2 Ht2 (eq_sym Hkinds)).
     apply (add_or_delay_concrete_equation_on_canonical_keeps menv menv1
              (Typing_env.get_canonical_simple_ignoring_name_mode tenv alias2)
              expanded1 Hfits).
@@ -1518,7 +1727,7 @@ Proof.
     destruct (of_non_alias_type_kind _ _ Hexpanded2) as [Hkind1 Hkind2].
     destruct (alias_canonical_of_kind tenv t1 alias1 Hfits Ht1 Halias1)
       as [_ Hkind_canonical].
-    apply (Hkept t1 Ht1).
+    apply (Hkept t1 Ht1 eq_refl).
     apply (add_or_delay_concrete_equation_on_canonical_keeps menv menv1
              (Typing_env.get_canonical_simple_ignoring_name_mode tenv alias1)
              expanded2 Hfits).
@@ -1539,7 +1748,7 @@ Proof.
       as [Hcanonical1 Hkind_canonical1].
     destruct (alias_canonical_of_kind tenv t2 alias2 Hfits Ht2 Halias2)
       as [Hcanonical2 Hkind_canonical2].
-    apply (Hkept t1 Ht1).
+    apply (Hkept t1 Ht1 eq_refl).
     rewrite <- Hkinds in Hkind_canonical2.
     exact (add_alias_between_canonicals_keeps menv menv1 (kind t1) _ _ Hfits
              Hcanonical1 Hcanonical2 Hkind_canonical1 Hkind_canonical2 Hadd).
@@ -1582,7 +1791,7 @@ Proof.
   intros mh menv menv' s ty Hmh Hfits Hty Hkind Hadd.
   apply (bottom_on_exception_keeps menv menv' _ Hfits) in Hadd;
     [ exact Hadd | ].
-  intros menv1 Hresult.
+  intros menv1 Hresult. apply meet_env_steps_kept.
   exact (add_equation_on_simple0_keeps mh Hmh menv menv1 s ty Hfits Hty Hkind
            Hresult).
 Qed.
@@ -1600,6 +1809,7 @@ Proof.
   unfold Meet_env.add_equation_strict in Hadd.
   destruct (Typing_env.is_bottom (Meet_env.typing_env menv));
     [ discriminate Hadd | ].
+  apply meet_env_steps_kept.
   exact (add_equation_on_simple0_keeps mh Hmh menv menv' (simple_of_name n) ty
            Hfits Hty Hkind Hadd).
 Qed.
@@ -1642,6 +1852,7 @@ Proof.
   cbv beta iota in Hadd.
   rewrite (kind_of_simple_of_kind tenv _ kind kind' Hsymbols Hkind_canonical1
              Hread) in Hadd.
+  apply meet_env_steps_kept.
   exact (add_alias_between_canonicals_keeps mh Hmh menv menv' kind _ _ Hfits
            Hcanonical1 Hcanonical2 Hkind_canonical1 Hkind_canonical2 Hadd).
 Qed.
@@ -1654,7 +1865,7 @@ Proof.
     intros param_types menv menv' Hfits Hparams Hadd.
   - destruct param_types as [ | ty param_types ]; [ | discriminate Hadd ].
     injection Hadd as <-.
-    split; [ apply meet_env_extends_refl | exact Hfits ].
+    exact (meet_env_steps_kept _ _ (conj (meet_env_steps_refl menv) Hfits)).
   - destruct param_types as [ | ty param_types ]; [ discriminate Hadd | ].
     apply Forall2_cons_iff in Hparams. destruct Hparams as [[Hty Hkind] Hrest].
     cbn [Meet_env.add_equations_on_params] in Hadd.
@@ -1662,16 +1873,18 @@ Proof.
       as [ menv1 | ] eqn:Hfirst; [ | discriminate Hadd ].
     cbv beta iota in Hadd.
     destruct (add_equation_keeps mh menv menv1 (Name_var (fst param)) ty Hmh
-                Hfits Hty Hkind Hfirst) as [Hextends1 Hfits1].
+                Hfits Hty Hkind Hfirst) as [[Hextends1 Hfits1] Hnames1].
     assert (Htenv := meet_env_extends_tenv _ _ Hextends1).
-    destruct (IH param_types menv1 menv' Hfits1) as [Hextends2 Hfits2].
+    destruct (IH param_types menv1 menv' Hfits1)
+      as [[Hextends2 Hfits2] Hnames2].
     + eapply Forall2_impl; [ | exact Hrest ].
       intros param' ty' [Hty' Hkind']. split.
       * exact (tenv_extends_type_fits _ _ _ Htenv Hty').
       * exact (proj1 (proj2 (proj2 (proj2 (proj2 Htenv)))) _ _ Hkind').
     + exact Hadd.
-    + split; [ | exact Hfits2 ].
-      exact (meet_env_extends_trans _ _ _ Hextends1 Hextends2).
+    + apply meet_env_steps_kept. split; [ | exact Hfits2 ].
+      exact (meet_env_steps_trans _ _ _ (conj Hextends1 Hnames1)
+               (conj Hextends2 Hnames2)).
 Qed.
 
 Theorem meet_type_keeps : meet_type_keeps_statement.
@@ -1938,10 +2151,7 @@ Proof.
       (Expanded_type.to_type ty)
       (Expanded_type.to_type (Expanded_type.create_const c))).
   { split; [ exact Hfits | ]. split; [ exact Hty | ]. split.
-    - split; [ apply to_type_create_const_well_formed | ]. split.
-      + intros x Hin. rewrite create_const_free_variables in Hin.
-        destruct Hin.
-      + apply create_const_kinded.
+    - apply type_fits_create_const.
     - rewrite (proj2 (create_const_kind c)). symmetry. exact Hkind. }
   destruct (Hsound statics valuation menv ty _ (Value_const c) result0
               Hinputs Hsatisfied Hv (create_const_sound statics valuation c)
@@ -2209,7 +2419,7 @@ Proof.
     exact Hvalue. }
   destruct (get_alias_opt ty) as [ alias | ] eqn:Halias.
   - assert (Hkind_alias : simple_of_kind tenv alias (kind ty)).
-    { exact (proj2 (proj2 Hty) alias (kind ty)
+    { exact (proj1 (proj2 (proj2 Hty)) alias (kind ty)
                (alias_among_aliases ty alias Halias)). }
     destruct (canonical_of_kind tenv alias (kind ty) Hinvariant Hkinded
                 Hkind_alias) as [Hcanonical2 Hkind_canonical2].
@@ -2271,7 +2481,7 @@ Proof.
       as (menv1 & -> & valuation1 & Hextended1 & Hsatisfied1 & Hvalued1).
     destruct (add_equation_on_simple0_keeps mh Hkeeps menv menv1
                 (simple_of_name n) ty Hfits Hty Hkind Hfirst)
-      as [Hextends1 Hfits1].
+      as [[Hextends1 _] Hfits1].
     assert (Htenv := meet_env_extends_tenv _ _ Hextends1).
     destruct (IH menv1 valuation1 result Hfits1)
       as (menv2 & -> & Hadded); try assumption.
@@ -2681,7 +2891,7 @@ Proof.
       as [ menv1 | ] eqn:Hfirst; [ | discriminate Hadd ].
     cbv beta iota in Hadd.
     destruct (add_equation_keeps mh menv menv1 (Name_var (fst param)) ty
-                Hkeeps Hfits Hty Hkind Hfirst) as [Hextends1 Hfits1].
+                Hkeeps Hfits Hty Hkind Hfirst) as [[Hextends1 Hfits1] _].
     destruct (meet_env_add_equation_sound mh statics valuation menv
                 menv1 (Name_var (fst param)) ty v Hkeeps Hsound Hfits Hty
                 Hkind Hsatisfied Hvalue Hv Hfirst)
@@ -2712,8 +2922,9 @@ Proof.
   split.
   - intros r menv' ->.
     destruct (meet_type_keeps mh menv menv' t1 t2 r Hkeeps Hfits Ht1 Ht2
-                Hmeet) as [[Hextends Hfits'] Hanswer].
-    split; [ exact Hextends | ]. split; [ exact Hfits' | exact Hanswer ].
+                Hmeet) as ([[Hextends Hfits'] Hnames] & Hanswer & _).
+    split; [ exact Hextends | ]. split; [ exact Hfits' | ].
+    split; [ exact Hanswer | exact Hnames ].
   - intros statics valuation Hsatisfied Hv1 Hv2.
     unfold Meet_env.meet_type in Hmeet.
     destruct (Meet_env.meet menv t1 t2 mh) as [ result0 | ] eqn:Hmeet0;

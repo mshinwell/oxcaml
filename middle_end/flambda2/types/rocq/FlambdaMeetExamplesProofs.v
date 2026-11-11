@@ -40,7 +40,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaEnvAliasesProofs FlambdaTypingEnv FlambdaTypingEnvSpec
   FlambdaTypingEnvProofs FlambdaTypingEnvExamplesProofs FlambdaMeetGrammar
   FlambdaExpandHead FlambdaMeetEnv FlambdaMeet FlambdaMeetSpec
-  FlambdaMeetProofs FlambdaMeetExamplesSpec.
+  FlambdaMeetProofs FlambdaMeetEnvProofs FlambdaMeetExamplesSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -148,8 +148,8 @@ Qed.
 Theorem forgetful_join_sound : forgetful_join_sound_statement.
 Proof.
   intros meet_head initial_env result scoped_envs initial_tenv Hsound Hkeeps
-    Hfits Hscoped Hjoin.
-  injection Hjoin as <-. split; [ | split; [ | split ] ].
+    Hfits Hscoped Hagree Hjoin.
+  injection Hjoin as <-. split; [ | split; [ | split; [ | split ] ] ].
   - intros scoped_env statics valuation Hin Hinitial Hscoped_env _.
     exists valuation. split; [ intros x _; reflexivity | ].
     split; [ exact Hinitial | ]. intros cut_after Hvalued. exact Hvalued.
@@ -161,6 +161,9 @@ Proof.
   - exact Hfits.
   - intros x Hknown Hunknown. unfold initial_tenv in Hunknown.
     rewrite Hknown in Hunknown. discriminate Hunknown.
+  - intros scoped_env s kind Hin Hknown Hkind.
+    exact (scoped_env_of_kind initial_tenv scoped_env s kind
+             (Hscoped scoped_env Hin) Hknown Hkind).
 Qed.
 
 Theorem meet_to_prove_get_tag : meet_to_prove_get_tag_statement.

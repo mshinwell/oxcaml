@@ -167,24 +167,34 @@ fits it, and the two types have one kind.
 
 - A type fits an environment (`type_fits`) if it is well formed
   (`type_well_formed`), the environment knows its variables, and it is
-  kinded there (`type_kinded`): each alias is at the kind that the
-  environment has for its target, and the variables for `Is_int`,
-  `Get_tag` and `Is_null` are naked immediates. Meet does not need the
-  kinds (it stops with a fatal error where they are wrong); the n-way
-  join does, of the environments it is given, so meet takes them and
-  gives them back. It is a premise about kinds, with a `CR mshinwell`
-  (D10, D12, D32; T5-9). The traversal `aliases_with_kinds` is T5's,
-  and is in T1's file; `type_kinded` is T2's.
+  kinded there. That is two conditions. `type_kinded`: each alias is
+  at the kind that the environment has for its target, and the
+  variables for `Is_int`, `Get_tag` and `Is_null` are naked
+  immediates. Meet does not need these kinds (it stops with a fatal
+  error where they are wrong); the n-way join does, of the
+  environments it is given, so meet takes them and gives them back.
+  `type_equations_kinded`: each name that has an equation in an
+  extension inside the type is of the kind of the type of its
+  equation. Meet needs these itself, to keep the environment kinded:
+  where it adds the extension of a case, the kind of a name is
+  checked only where the type is not an alias and the canonical
+  element of the name is a name. Both are premises about kinds, with
+  a `CR mshinwell` (D10, D12, D32; T5-9). The traversals
+  `aliases_with_kinds` (T5's) and `equation_names_with_kinds` are in
+  T1's file; `type_kinded` and `type_equations_kinded` are T2's.
 - An environment fits (`typing_env_fits`) if it has the invariant of
   typing environments (`typing_env_invariant`, T2's), its types are
   well formed (`types_well_formed`, T2's), it is kinded
   (`typing_env_kinded`, T2's: its types are kinded in it, two simples
   that it knows to be equal are of one kind, and a symbol that has a
-  type has one of kind `Value`), and no name has an obviously bottom
-  type in it unless it is bottom (`no_bottom_types`). Each of its
-  types then fits it (`fits_types`, proved). That a symbol's type is
-  of kind `Value` is new with the move to T2's predicate:
-  `Meet_env.add_alias` takes a symbol to be of that kind.
+  type has one of kind `Value`), the names of the equations inside
+  its types are of the kinds of their types (`types_equations_kinded`,
+  T2's, beside the last), and no name has an obviously bottom type
+  in it unless it is bottom (`no_bottom_types`). Each of its types
+  then fits it (`fits_types`, proved). The join owes all five of its
+  result (J4, section 5). That a symbol's type is of kind `Value` is
+  new with the move to T2's predicate: `Meet_env.add_alias` takes a
+  symbol to be of that kind.
   `no_bottom_types` is there for the n-way join, which passes
   over an obviously bottom type and can then make the name an alias of
   what it is in the other environments joined, giving a value to a
@@ -241,8 +251,11 @@ and equations: `scoped_env_of`), supposing that the
 `meet_expanded_head` given has its contract, which is in two parts:
 `meet_expanded_head_sound` (what it says of values) and
 `meet_expanded_head_keeps` (the environment answered is the first
-extended, it fits, and the type answered fits it and is of the kind of
-the inputs; no value and no valuation is supposed):
+extended, it fits, the type answered fits it and is of the kind of
+the inputs, and the variables that it has defined are new; no value
+and no valuation is supposed), and supposing that no two of the
+scoped environments have one simple at two kinds
+(`scoped_envs_agree`):
 
 - J1: a valuation that satisfies `initial_tenv` and one of the scoped
   environments extends to one that satisfies the result and agrees
@@ -253,7 +266,24 @@ the inputs; no value and no valuation is supposed):
 - J3: a variable of the result that no environment given knows is not
   in `Meet_env.names_to_avoid initial_env`, and is in that of the
   result;
-- J4: the result fits.
+- J4: the result fits;
+- J5: a simple that the result knows is, in the result, of the kind
+  that a scoped environment has it at.
+
+J5 and the premise `scoped_envs_agree` are new, and so is the last
+clause of `meet_expanded_head_keeps` (`new_names_avoided`: a variable
+that the environment answered knows and the first does not was not
+among the names to avoid of the first, and is among those of the
+environment answered). After the join, `meet_disjunction` defines in
+the result the variables of the two alternatives that the result does
+not know, and answers types that fit the environments of the
+alternatives. For the result to stay well formed and the types to fit
+it, the variables of the two alternatives are to be different (the
+second alternative is given the names to avoid of the first, so
+`new_names_avoided` gives it, and with it the premise), and what the
+join kept of them is to be at the kinds of the alternatives (J5).
+Agreed with T5, which needs `new_names_avoided` of the meet for J3.
+`forgetful_join_sound` is proved of the contract as it now is.
 
 J1 has one more conclusion since the second review, and one more
 premise: no equation is added on a name that has no value
@@ -609,6 +639,12 @@ first request.
 
 From T2: its strict notion replaces my stand-in; `satisfied_no_poison`
 is T2's `satisfied_no_poison_strictly`.
+
+From the proofs of the functions of `Meet_env` and the plan for
+`meet_disjunction`: `type_fits` has the kinds of the names of
+equations; `meet_expanded_head_keeps` has `new_names_avoided`; the
+join's contract has the premise `scoped_envs_agree` and J5
+(section 5).
 
 New: `add_env_extension_sound`, `add_equations_on_params_sound`,
 `fits_kinded`; `compiler_meet` and `meet_to_prove`; the examples; the

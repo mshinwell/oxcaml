@@ -66,10 +66,15 @@
      [Meet_env.add_equations_on_params]. The strict ones and
      [add_alias] answer bottom or an environment; the statement is
      about the environment. The others answer the environment made
-     bottom where the equation has no value;
+     bottom where the equation has no value. These functions run the
+     meet of expanded types, which may define variables (the join
+     that it calls makes some): what they keep says also that the
+     variables defined are new ([meet_env_kept_by_meet], with
+     [new_names_avoided] of FlambdaMeetSpec.v);
    - of [Meet_env.meet_type], the meet of two types of which either
      may be an alias ([meet_type_keeps_statement]): the type answered
-     fits the environment answered.
+     fits the environment answered and is of the kind of the
+     inputs.
 
    What is asked of an equation, beside that its type fits: the name,
    or the [Simple], is of the kind of the type ([simple_of_kind],
@@ -119,6 +124,12 @@ Import ListNotations.
 Definition meet_env_kept (menv menv' : Meet_env.t) : Prop :=
   meet_env_extends menv menv' ∧ typing_env_fits (Meet_env.typing_env menv').
 
+(* The same of a function that runs the meet of expanded types: and the
+   variables that the second environment knows and the first does not
+   are new. *)
+Definition meet_env_kept_by_meet (menv menv' : Meet_env.t) : Prop :=
+  meet_env_kept menv menv' ∧ new_names_avoided menv menv'.
+
 (* [Meet_env.make_bottom]. *)
 Definition make_bottom_keeps_statement : Prop :=
   ∀ menv : Meet_env.t,
@@ -166,7 +177,7 @@ Definition add_equation_on_simple_keeps_statement : Prop :=
     type_fits (Meet_env.typing_env menv) ty ->
     simple_of_kind (Meet_env.typing_env menv) s (kind ty) ->
     Meet_env.add_equation_on_simple menv s ty mh = Some menv' ->
-    meet_env_kept menv menv'.
+    meet_env_kept_by_meet menv menv'.
 
 (* [Meet_env.add_equation]. *)
 Definition add_equation_keeps_statement : Prop :=
@@ -177,7 +188,7 @@ Definition add_equation_keeps_statement : Prop :=
     type_fits (Meet_env.typing_env menv) ty ->
     simple_of_kind (Meet_env.typing_env menv) (simple_of_name n) (kind ty) ->
     Meet_env.add_equation menv n ty mh = Some menv' ->
-    meet_env_kept menv menv'.
+    meet_env_kept_by_meet menv menv'.
 
 (* [Meet_env.add_equation_strict]. *)
 Definition add_equation_strict_keeps_statement : Prop :=
@@ -188,7 +199,7 @@ Definition add_equation_strict_keeps_statement : Prop :=
     type_fits (Meet_env.typing_env menv) ty ->
     simple_of_kind (Meet_env.typing_env menv) (simple_of_name n) (kind ty) ->
     Meet_env.add_equation_strict menv n ty mh = Some (Or_bottom.Ok menv') ->
-    meet_env_kept menv menv'.
+    meet_env_kept_by_meet menv menv'.
 
 (* [Meet_env.add_env_extension]. *)
 Definition add_env_extension_keeps_statement : Prop :=
@@ -199,7 +210,7 @@ Definition add_env_extension_keeps_statement : Prop :=
     env_extension_fits (Meet_env.typing_env menv) extension ->
     env_extension_kinded (Meet_env.typing_env menv) extension ->
     Meet_env.add_env_extension menv extension mh = Some menv' ->
-    meet_env_kept menv menv'.
+    meet_env_kept_by_meet menv menv'.
 
 (* [Meet_env.add_env_extension_strict]. *)
 Definition add_env_extension_strict_keeps_statement : Prop :=
@@ -211,7 +222,7 @@ Definition add_env_extension_strict_keeps_statement : Prop :=
     env_extension_kinded (Meet_env.typing_env menv) extension ->
     Meet_env.add_env_extension_strict menv extension mh
     = Some (Or_bottom.Ok menv') ->
-    meet_env_kept menv menv'.
+    meet_env_kept_by_meet menv menv'.
 
 (* [Meet_env.add_alias], of two [Simple]s of one kind. *)
 Definition add_alias_keeps_statement : Prop :=
@@ -222,7 +233,7 @@ Definition add_alias_keeps_statement : Prop :=
     simple_of_kind (Meet_env.typing_env menv) s1 kind ->
     simple_of_kind (Meet_env.typing_env menv) s2 kind ->
     Meet_env.add_alias menv s1 s2 mh = Some (Or_bottom.Ok menv') ->
-    meet_env_kept menv menv'.
+    meet_env_kept_by_meet menv menv'.
 
 (* [Meet_env.add_equations_on_params]: each parameter is of the kind
    of the type given for it. *)
@@ -239,7 +250,7 @@ Definition add_equations_on_params_keeps_statement : Prop :=
              (kind ty))
       params param_types ->
     Meet_env.add_equations_on_params menv params param_types mh = Some menv' ->
-    meet_env_kept menv menv'.
+    meet_env_kept_by_meet menv menv'.
 
 (* ======================================================================== *)
 (* The meet of two types                                                    *)
@@ -247,8 +258,8 @@ Definition add_equations_on_params_keeps_statement : Prop :=
 
 (* [Meet_env.meet_type]: the meet of two types that fit, of which
    either may be an alias. Where the answer is not bottom, the
-   environment is kept and the type answered fits it. Types of two
-   kinds are a fatal error. *)
+   environment is kept, and the type answered fits it and is of the
+   kind of the inputs. Types of two kinds are a fatal error. *)
 Definition meet_type_keeps_statement : Prop :=
   ∀ (mh : meet_expanded_head) (menv menv' : Meet_env.t)
     (t1 t2 : flambda_type) (r : meet_return_value flambda_type),
@@ -257,8 +268,9 @@ Definition meet_type_keeps_statement : Prop :=
     type_fits (Meet_env.typing_env menv) t1 ->
     type_fits (Meet_env.typing_env menv) t2 ->
     Meet_env.meet_type menv t1 t2 mh = Some (Meet_result.Ok r menv') ->
-    meet_env_kept menv menv'
-    ∧ type_fits (Meet_env.typing_env menv') (extract_value r t1 t2).
+    meet_env_kept_by_meet menv menv'
+    ∧ type_fits (Meet_env.typing_env menv') (extract_value r t1 t2)
+    ∧ kind (extract_value r t1 t2) = kind t1.
 
 (* ======================================================================== *)
 (* What the functions add is true                                           *)
