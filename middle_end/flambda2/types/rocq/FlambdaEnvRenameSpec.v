@@ -92,7 +92,11 @@
      mode;
    - and so does what is done to an environment: the definition of a
      variable or of a symbol, [replace_equation], [add_alias], [cut],
-     and the changes of scope.
+     and the changes of scope;
+   - the renamed valuation satisfies the renamed environment exactly
+     when the valuation satisfies the environment, for each of the
+     senses of FlambdaTypingEnvSpec.v. The values are not renamed: a
+     value holds no variable.
 
    Each statement about a function is an equation and holds of every
    level or environment: nothing is asked of it, its invariant
@@ -115,9 +119,10 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaMapSpec FlambdaSemanticsSpec FlambdaNominalSpec FlambdaAlphaSpec
   FlambdaNameAbstractionSpec FlambdaNominalInstancesSpec.
-From OxCamlFlambda2Types Require Import FlambdaTypeGrammar FlambdaBindingTime
-  FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesRenamingSpec
-  FlambdaTypingEnv FlambdaTypeRenameSpec FlambdaTypeNominalSpec.
+From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
+  FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
+  FlambdaEnvAliasesSpec FlambdaEnvAliasesRenamingSpec FlambdaTypingEnv
+  FlambdaTypingEnvSpec FlambdaTypeRenameSpec FlambdaTypeNominalSpec.
 Import ListNotations.
 Import Nominal.
 
@@ -655,3 +660,71 @@ Definition cut_as_extension_equivariant_statement : Prop :=
     Typing_env.cut_as_extension (rename_typing_env r tenv) cut_after
     = option_map (rename_env_extension r)
         (Typing_env.cut_as_extension tenv cut_after).
+
+(* ======================================================================== *)
+(* What satisfies a renamed environment                                     *)
+(* ======================================================================== *)
+
+(* A valuation is renamed as the variables of the machine are
+   ([FlambdaAlphaSpec.rename_env]): each variable is renamed and keeps
+   its value. *)
+
+(* The names that are exempt, renamed: a name is exempt when the name
+   that it was before the renaming is. *)
+Definition rename_exempt (r : renaming) (exempt : name -> Prop) (n : name)
+    : Prop :=
+  exempt (rename_name (inverse_renaming r) n).
+
+(* The names that are exempt where poison is, for the renamed valuation
+   and the renamed environment, are those that were, renamed. *)
+Definition exempt_by_poison_rename_statement : Prop :=
+  ∀ (r : renaming) (valuation : env) (tenv : Typing_env.t) (n : name),
+    exempt_by_poison (rename_env r valuation) (rename_typing_env r tenv)
+      (rename_name r n)
+    <-> exempt_by_poison valuation tenv n.
+
+(* The renamed valuation satisfies the renamed environment, but for the
+   renamed exempt names, exactly when the valuation satisfies the
+   environment but for the exempt names. *)
+Definition typing_env_satisfied_but_rename_statement : Prop :=
+  ∀ (r : renaming) (exempt : name -> Prop) (statics : static_env)
+    (valuation : env) (tenv : Typing_env.t),
+    typing_env_satisfied_but (rename_exempt r exempt) statics
+      (rename_env r valuation) (rename_typing_env r tenv)
+    <-> typing_env_satisfied_but exempt statics valuation tenv.
+
+(* The same with no name exempt, and with the names exempt that are
+   where poison is. *)
+Definition typing_env_satisfied_strictly_rename_statement : Prop :=
+  ∀ (r : renaming) (statics : static_env) (valuation : env)
+    (tenv : Typing_env.t),
+    typing_env_satisfied_strictly statics (rename_env r valuation)
+      (rename_typing_env r tenv)
+    <-> typing_env_satisfied_strictly statics valuation tenv.
+
+Definition typing_env_satisfied_rename_statement : Prop :=
+  ∀ (r : renaming) (statics : static_env) (valuation : env)
+    (tenv : Typing_env.t),
+    typing_env_satisfied statics (rename_env r valuation)
+      (rename_typing_env r tenv)
+    <-> typing_env_satisfied statics valuation tenv.
+
+(* A variable may occur in a term under the renamed environment exactly
+   when the variable that it was may under the environment. *)
+Definition in_scope_in_terms_rename_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (x : variable),
+    in_scope_in_terms (rename_typing_env r tenv) (rename_variable r x)
+    <-> in_scope_in_terms tenv x.
+
+(* The renamed variables of the machine satisfy the renamed environment
+   exactly when the variables satisfy the environment. *)
+Definition env_satisfies_rename_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (statics : static_env) (vars : env),
+    env_satisfies (rename_typing_env r tenv) statics (rename_env r vars)
+    <-> env_satisfies tenv statics vars.
+
+Definition env_satisfies_strictly_rename_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t) (statics : static_env) (vars : env),
+    env_satisfies_strictly (rename_typing_env r tenv) statics
+      (rename_env r vars)
+    <-> env_satisfies_strictly tenv statics vars.

@@ -43,11 +43,11 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaKindModel
   FlambdaNameAbstractionSpec FlambdaNameAbstractionProofs
   FlambdaNominalInstancesSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
-  FlambdaTypeGrammarProofs FlambdaBindingTime FlambdaEnvAliases
-  FlambdaEnvAliasesSpec FlambdaEnvAliasesRenamingSpec
-  FlambdaEnvAliasesRenamingProofs FlambdaTypingEnv FlambdaTypeRenameSpec
-  FlambdaTypeRenameProofs FlambdaTypeNominalSpec FlambdaTypeNominalProofs
-  FlambdaEnvRenameSpec.
+  FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaBindingTime
+  FlambdaEnvAliases FlambdaEnvAliasesSpec FlambdaEnvAliasesRenamingSpec
+  FlambdaEnvAliasesRenamingProofs FlambdaTypingEnv FlambdaTypingEnvSpec
+  FlambdaTypeRenameSpec FlambdaTypeRenameProofs FlambdaTypeNominalSpec
+  FlambdaTypeNominalProofs FlambdaEnvRenameSpec.
 Import ListNotations.
 Import Nominal.
 
@@ -1474,4 +1474,233 @@ Proof.
   rewrite cut_equivariant.
   destruct (Typing_env.cut tenv cut_after) as [level | ]; [ | reflexivity ].
   cbn [option_map]. rewrite level_as_extension_equivariant. reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* What satisfies a renamed environment                                     *)
+(* ======================================================================== *)
+
+(* Each sense of satisfaction is kept by a renaming. The converse is
+   the same fact of the inverse renaming, which takes the renamed
+   valuation and the renamed environment back. *)
+
+Lemma name_renamed_back (r : renaming) (n : name) :
+  rename_name (inverse_renaming r) (rename_name r n) = n.
+Proof.
+  destruct n as [x | sym]; simpl; [ | reflexivity ].
+  rewrite rename_variable_inverse_l. reflexivity.
+Qed.
+
+Lemma value_of_renamed_name (r : renaming) (valuation : env) (n : name) :
+  value_of_name (rename_env r valuation) (rename_name r n)
+  = value_of_name valuation n.
+Proof. exact (value_of_name_rename_env r valuation n). Qed.
+
+Lemma holds_poison_renamed (r : renaming) (valuation : env) (n : name) :
+  holds_poison valuation n ->
+  holds_poison (rename_env r valuation) (rename_name r n).
+Proof.
+  intros (v & Hvalue & Hpoison). exists v.
+  rewrite value_of_renamed_name. split; assumption.
+Qed.
+
+Lemma relation_on_poison_renamed (r : renaming) (valuation : env)
+    (ty : flambda_type) :
+  relation_on_poison valuation ty ->
+  relation_on_poison (rename_env r valuation) (rename_type r ty).
+Proof.
+  intros (head & relation & scrutinee & -> & Hin & Hrelation & Hpoison).
+  exists (rename_head_of_kind_naked_immediate r head), relation,
+    (rename_name r scrutinee).
+  split; [ reflexivity | ]. split; [ | split; [ exact Hrelation | ] ].
+  - exact
+      (in_map (fun relation => (fst relation, rename_name r (snd relation)))
+         _ _ Hin).
+  - exact (holds_poison_renamed r _ _ Hpoison).
+Qed.
+
+Lemma exempt_by_poison_renamed (r : renaming) (valuation : env)
+    (tenv : Typing_env.t) (n : name) :
+  exempt_by_poison valuation tenv n ->
+  exempt_by_poison (rename_env r valuation) (rename_typing_env r tenv)
+    (rename_name r n).
+Proof.
+  intros [Hpoison | (ty & binding_time_and_mode & Hlookup & Hrelation)].
+  - left. exact (holds_poison_renamed r _ _ Hpoison).
+  - right. exists (rename_type r ty), binding_time_and_mode. split.
+    + rewrite names_to_types_renamed, lookup_named_renamed, Hlookup.
+      reflexivity.
+    + exact (relation_on_poison_renamed r _ _ Hrelation).
+Qed.
+
+Theorem exempt_by_poison_rename : exempt_by_poison_rename_statement.
+Proof.
+  intros r valuation tenv n. split; [ | apply exempt_by_poison_renamed ].
+  intros H.
+  pose proof (exempt_by_poison_renamed (inverse_renaming r) _ _ _ H) as H'.
+  rewrite rename_env_inverse_l, rename_typing_env_inverse, name_renamed_back
+    in H'.
+  exact H'.
+Qed.
+
+Lemma has_type_unless_renamed (r : renaming) (exempt exempt' : Prop)
+    (statics : static_env) (valuation : env) (v : value) (ty : flambda_type) :
+  (exempt -> exempt') ->
+  has_type_unless exempt statics valuation v ty ->
+  has_type_unless exempt' statics (rename_env r valuation) v
+    (rename_type r ty).
+Proof.
+  intros Himplies [[Hexempt Hkind] | Hsatisfied].
+  - left. split; [ exact (Himplies Hexempt) | ].
+    rewrite kind_rename_type. exact Hkind.
+  - right. apply type_satisfied_rename. exact Hsatisfied.
+Qed.
+
+Lemma names_have_their_types_but_renamed (r : renaming)
+    (exempt exempt' : name -> Prop) (statics : static_env) (valuation : env)
+    (tenv : Typing_env.t) :
+  (∀ n : name, exempt n -> exempt' (rename_name r n)) ->
+  names_have_their_types_but exempt statics valuation tenv ->
+  names_have_their_types_but exempt' statics (rename_env r valuation)
+    (rename_typing_env r tenv).
+Proof.
+  intros Himplies H n ty binding_time_and_mode v.
+  rewrite <- (FlambdaTypeRenameProofs.rename_name_inverse_r r n).
+  set (n0 := rename_name (inverse_renaming r) n).
+  rewrite names_to_types_renamed, lookup_named_renamed,
+    value_of_renamed_name.
+  destruct (Keyed.lookup name_eqb n0 (Typing_env.names_to_types tenv))
+    as [[ty0 binding_time_and_mode0] | ] eqn:Hlookup; [ | discriminate ].
+  simpl. unfold rename_binding. simpl. intros Hrenamed Hvalue.
+  injection Hrenamed as <- <-.
+  apply (has_type_unless_renamed r (exempt n0)); [ apply Himplies | ].
+  exact (H n0 ty0 binding_time_and_mode0 v Hlookup Hvalue).
+Qed.
+
+Lemma satisfied_but_renamed (r : renaming) (exempt exempt' : name -> Prop)
+    (statics : static_env) (valuation : env) (tenv : Typing_env.t) :
+  (∀ n : name, exempt n -> exempt' (rename_name r n)) ->
+  typing_env_satisfied_but exempt statics valuation tenv ->
+  typing_env_satisfied_but exempt' statics (rename_env r valuation)
+    (rename_typing_env r tenv).
+Proof.
+  intros Himplies (Hbottom & Htypes & Haliases).
+  split; [ exact Hbottom | ]. split.
+  - exact (names_have_their_types_but_renamed r _ _ _ _ _ Himplies Htypes).
+  - change (Typing_env.aliases (rename_typing_env r tenv))
+      with (rename_aliases r (Typing_env.aliases tenv)).
+    apply rename_respected. exact Haliases.
+Qed.
+
+(* The converse of each, from the inverse renaming. *)
+Lemma satisfied_but_renamed_back (r : renaming) (exempt exempt' : name -> Prop)
+    (statics : static_env) (valuation : env) (tenv : Typing_env.t) :
+  (∀ n : name, exempt' n -> exempt (rename_name (inverse_renaming r) n)) ->
+  typing_env_satisfied_but exempt' statics (rename_env r valuation)
+    (rename_typing_env r tenv) ->
+  typing_env_satisfied_but exempt statics valuation tenv.
+Proof.
+  intros Himplies H.
+  pose proof
+    (satisfied_but_renamed (inverse_renaming r) _ _ _ _ _ Himplies H) as H'.
+  rewrite rename_env_inverse_l, rename_typing_env_inverse in H'. exact H'.
+Qed.
+
+Theorem typing_env_satisfied_but_rename :
+  typing_env_satisfied_but_rename_statement.
+Proof.
+  intros r exempt statics valuation tenv. split.
+  - apply satisfied_but_renamed_back. intros n Hexempt. exact Hexempt.
+  - apply satisfied_but_renamed. intros n Hexempt. unfold rename_exempt.
+    rewrite name_renamed_back. exact Hexempt.
+Qed.
+
+Theorem typing_env_satisfied_strictly_rename :
+  typing_env_satisfied_strictly_rename_statement.
+Proof.
+  intros r statics valuation tenv. unfold typing_env_satisfied_strictly. split.
+  - apply satisfied_but_renamed_back. intros n [].
+  - apply satisfied_but_renamed. intros n [].
+Qed.
+
+Theorem typing_env_satisfied_rename : typing_env_satisfied_rename_statement.
+Proof.
+  intros r statics valuation tenv. unfold typing_env_satisfied. split.
+  - apply satisfied_but_renamed_back. intros n Hexempt.
+    apply (exempt_by_poison_rename r).
+    rewrite FlambdaTypeRenameProofs.rename_name_inverse_r. exact Hexempt.
+  - apply satisfied_but_renamed. intros n.
+    apply exempt_by_poison_renamed.
+Qed.
+
+Theorem in_scope_in_terms_rename : in_scope_in_terms_rename_statement.
+Proof.
+  intros r tenv x. unfold in_scope_in_terms.
+  change (Name_var (rename_variable r x)) with (rename_name r (Name_var x)).
+  rewrite mem_equivariant. reflexivity.
+Qed.
+
+Lemma bound_in_terms_renamed (r : renaming) (tenv : Typing_env.t)
+    (vars : env) :
+  bound_in_terms tenv vars ->
+  bound_in_terms (rename_typing_env r tenv) (rename_env r vars).
+Proof.
+  intros H x. rewrite <- (rename_variable_inverse_r r x). intros Hin.
+  apply (proj1 (in_scope_in_terms_rename r tenv _)) in Hin.
+  rewrite lookup_rename_env. exact (H _ Hin).
+Qed.
+
+Lemma agrees_in_terms_renamed (r : renaming) (tenv : Typing_env.t)
+    (valuation vars : env) :
+  agrees_in_terms tenv valuation vars ->
+  agrees_in_terms (rename_typing_env r tenv) (rename_env r valuation)
+    (rename_env r vars).
+Proof.
+  intros H x. rewrite <- (rename_variable_inverse_r r x). intros Hin.
+  apply (proj1 (in_scope_in_terms_rename r tenv _)) in Hin.
+  rewrite !lookup_rename_env. exact (H _ Hin).
+Qed.
+
+Lemma env_satisfies_renamed (r : renaming) (tenv : Typing_env.t)
+    (statics : static_env) (vars : env) :
+  env_satisfies tenv statics vars ->
+  env_satisfies (rename_typing_env r tenv) statics (rename_env r vars).
+Proof.
+  intros (Hbound & valuation & Hsatisfied & Hagrees).
+  split; [ exact (bound_in_terms_renamed r _ _ Hbound) | ].
+  exists (rename_env r valuation). split.
+  - apply typing_env_satisfied_rename. exact Hsatisfied.
+  - exact (agrees_in_terms_renamed r _ _ _ Hagrees).
+Qed.
+
+Theorem env_satisfies_rename : env_satisfies_rename_statement.
+Proof.
+  intros r tenv statics vars. split; [ | apply env_satisfies_renamed ].
+  intros H.
+  pose proof (env_satisfies_renamed (inverse_renaming r) _ _ _ H) as H'.
+  rewrite rename_env_inverse_l, rename_typing_env_inverse in H'. exact H'.
+Qed.
+
+Lemma env_satisfies_strictly_renamed (r : renaming) (tenv : Typing_env.t)
+    (statics : static_env) (vars : env) :
+  env_satisfies_strictly tenv statics vars ->
+  env_satisfies_strictly (rename_typing_env r tenv) statics
+    (rename_env r vars).
+Proof.
+  intros (Hbound & valuation & Hsatisfied & Hagrees).
+  split; [ exact (bound_in_terms_renamed r _ _ Hbound) | ].
+  exists (rename_env r valuation). split.
+  - apply typing_env_satisfied_strictly_rename. exact Hsatisfied.
+  - exact (agrees_in_terms_renamed r _ _ _ Hagrees).
+Qed.
+
+Theorem env_satisfies_strictly_rename :
+  env_satisfies_strictly_rename_statement.
+Proof.
+  intros r tenv statics vars.
+  split; [ | apply env_satisfies_strictly_renamed ].
+  intros H.
+  pose proof (env_satisfies_strictly_renamed (inverse_renaming r) _ _ _ H)
+    as H'.
+  rewrite rename_env_inverse_l, rename_typing_env_inverse in H'. exact H'.
 Qed.
