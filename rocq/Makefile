@@ -264,6 +264,10 @@ review: $(SOURCES:.v=.vo)
 # constant of the statement's type whose body is the theorem; on success the
 # claims checked are listed. The constant is named after the Spec file and
 # the statement, so that two Spec files may each have a statement of one name.
+# A statement is found by its first line, so [Definition X_statement : Prop]
+# must be on one line: a Spec file with a [Definition] of a name ending in
+# [_statement] that is written otherwise is an error, as such a statement
+# would not be checked.
 SPECS := $(patsubst %,OxCamlSsa:%,$(filter %Spec.v,$(SSA))) \
   $(patsubst %,OxCamlLoop:%,$(filter %Spec.v,$(LOOP))) \
   $(patsubst %,OxCamlFlambda2:%,$(filter %Spec.v,$(FLAMBDA2))) \
@@ -277,6 +281,13 @@ claims: $(SOURCES:.v=.vo)
 	  for entry in $(SPECS); do \
 	    lib=$${entry%%:*}; spec=$${entry#*:}; \
 	    module=$$(basename $$spec .v); proofs=$${module%Spec}Proofs; \
+	    if grep -n '^Definition [^ ]*_statement\( \|$$\)' $$spec \
+	        | grep -v '^[0-9]*:Definition [A-Za-z0-9_]*_statement : Prop' \
+	        >&2; then \
+	      echo "$$spec: a statement that make claims would not check;" \
+	        "write [Definition X_statement : Prop] on one line" >&2; \
+	      exit 1; \
+	    fi; \
 	    for claim in $$(sed -n \
 	        's/^Definition \([A-Za-z0-9_]*\)_statement : Prop.*/\1/p' $$spec); \
 	    do \

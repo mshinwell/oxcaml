@@ -281,7 +281,11 @@ file's name whether to read it:
   (the meaning of a helper check such as `uses_only`, an invariant of
   execution such as `valid_position`). Nothing here needs review, and
   `make -C rocq claims` (run by `make -C rocq all`) checks that every
-  statement a Spec binds is proved.
+  statement a Spec binds is proved. It finds a statement by the line
+  `Definition X_statement : Prop`, which is to be written on one line
+  however long the name: the target fails on a Spec file in which a
+  definition of such a name is written otherwise, since it would not
+  be checked.
 
 A model with nothing to extract has no `X.v`; one whose meaning appears in
 no reviewed statement has no `XSpec.v`. A Spec whose definitions the
