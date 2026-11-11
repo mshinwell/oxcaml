@@ -67,6 +67,50 @@ Types of the model that the compiler's functions make (3000 cases, seeds 5000 to
                          (other_tags Bottom) (alloc_mode Heap))))
                (extensions No_extensions) (is_unique false)) Not_null))])]
        Heap) Not_null))
+  type_well_formed of a type, and of what the compiler makes of it: 2966 agree
+  the types of which type_well_formed is true: 2714 agree
+    252 not run: it is false of the type
+
+Two types of the model that the compiler's functions make, for the equality of types (1500 cases, seeds 12000 to 13499)
+  19 not converted: not in the compiler: a Rec_info type given by its head: the model has not got the expression
+  2 not converted: not in the compiler: a head of naked immediates with no number
+  1 not converted: not in the compiler: a head with no number (a nativeint)
+  6 not converted: not in the compiler: a head with no number (an intN)
+  1 not converted: not in the compiler: a head with no number (the bits of a float)
+  2 not converted: not in the compiler: a head with no number (the bits of a mask)
+  3 not converted: not in the compiler: a head with no number (the bits of a vecN)
+  1466 converted
+  type_eqb against Type_grammar.equal: 1466 agree
+  type_eqb against the sameness of the tests: 1466 agree
+  the pairs that type_eqb answers to be the same: 613 agree
+    853 not run: not the same
+
+Two raw types of the model, for the equality of types (1500 cases, seeds 14000 to 15499)
+  23 not converted: not in the compiler: a Rec_info type given by its head: the model has not got the expression
+  2 not converted: not in the compiler: a closure type that is not of kind value, in a closures entry
+  1 not converted: not in the compiler: a head of naked immediates with no number
+  1 not converted: not in the compiler: a head with no number (a nativeint)
+  7 not converted: not in the compiler: a head with no number (an intN)
+  1 not converted: not in the compiler: a head with no number (the bits of a floatN)
+  1 not converted: not in the compiler: a head with no number (the bits of a mask)
+  6 not converted: not in the compiler: a head with no number (the bits of a vecN)
+  23 not converted: not in the compiler: a type of naked numbers of kind naked immediate (the type of naked immediates is another constructor)
+  4 not converted: not in the compiler: no function slot is numbered 
+  7 not converted: not in the compiler: no symbol is numbered 
+  1 not converted: not in the compiler: no value slot is numbered 
+  21 not converted: not in the compiler: no variable is numbered 
+  10 not converted: not in the compiler: the allocation mode Local, which no function of the compiler makes
+  1 not converted: not in the compiler: the number N is not a byte
+  7 not converted: not in the compiler: the number N is not a tag
+  3 not converted: not in the compiler: the number NbN is not an int
+  1 not converted: not in the compiler: the number NbN is not the bits of a float
+  2 not converted: not in the compiler: the number NbN is not the bits of a mask
+  5 not converted: not in the compiler: the number NbN is not the bits of a vec
+  1373 converted
+  type_eqb against Type_grammar.equal: 1373 agree
+  type_eqb against the sameness of the tests: 1373 agree
+  the pairs that type_eqb answers to be the same: 550 agree
+    823 not run: not the same
 
 The creation functions (6000 cases, seeds 20000 to 25999)
   6000 converted
@@ -99,6 +143,9 @@ The creation functions (6000 cases, seeds 20000 to 25999)
   exactly_this_closure: 203 agree
   at_least_this_closure: 209 agree
   a creation function that is not in the list above: 0 agree
+  type_well_formed of what a creation function gives, in the model and in the compiler: 6000 agree
+  the calls that give a type of which type_well_formed is true: 5325 agree
+    675 not run: it is false of the type
 
 A relation and a constant (600 cases, seeds 30000 to 30599)
   600 converted
@@ -127,6 +174,16 @@ Two types of kind value, for the two meets and the two joins (1000 cases, seeds 
     411 not run: the meet is bottom
   meet (n-way): the variables of the answer are defined in the environment answered: 589 agree
     411 not run: the meet is bottom
+  meet (binary) of two types of which type_well_formed is true: it is true of the answer and of what it teaches: 435 agree
+    291 not run: it is false of one of the two types
+    274 not run: the meet is bottom
+  meet (n-way) of two types of which type_well_formed is true: it is true of the answer and of what it teaches: 435 agree
+    291 not run: it is false of one of the two types
+    274 not run: the meet is bottom
+  join (binary) of two types of which type_well_formed is true: it is true of the answer and of what it says of its own variables: 709 agree
+    291 not run: it is false of one of the two types
+  join (n-way) of two types of which type_well_formed is true: it is true of the answer and of what it says of its own variables: 709 agree
+    291 not run: it is false of one of the two types
   meet: the binary and the n-way implementation: 1000 agree
   join: the binary and the n-way implementation: 791 agree, 209 disagree as recorded
     recorded as T7-3, the binary join is unknown and the n-way join is not (seed 9007): the binary join gives

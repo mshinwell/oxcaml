@@ -65,6 +65,8 @@ module MT = Flambda2_rocq_semantics.FlambdaTypeGrammar
 module V = Flambda2_rocq_semantics.FlambdaValueSpec
 module Meaning = Flambda2_rocq_semantics.FlambdaTypeMeaningBoolSpec
 module Primitive_spec = Flambda2_rocq_semantics.FlambdaPrimitiveSpec
+module Well_formed = Flambda2_rocq_semantics.FlambdaTypeWellFormedSpec
+module Type_equal = Flambda2_rocq_semantics.FlambdaTypeEqualSpec
 module Z = Flambda2_rocq_semantics.BinInt.Z
 module Converter = Flambda2_rocq_types_converter.Type_converter
 module Model_names = Flambda2_rocq_types_converter.Model_names
@@ -506,6 +508,52 @@ let comparisons_of_one_type (names : names) : both comparison list =
       (fun of_model of_compiler ->
         List.for_all (fun x -> List.mem x of_model) of_compiler)
       print_variables ]
+
+(* [type_well_formed] of FlambdaTypeWellFormedSpec.v is meant to be true of
+   every type that the compiler builds, whatever the program. Whether it is true
+   of a type of the compiler is asked of the type that the converter gives for
+   it.
+
+   The generator is not held to it: it makes types that a creation function of
+   the compiler would not (a case of blocks of an exact size with fewer types, a
+   set of closures with no function type for one of its closures), which the
+   functions that the converter builds with accept. So what is asked is that the
+   predicate is kept: by the conversion, and by a meet or a join of types of
+   which it is true. *)
+let is_well_formed = Well_formed.type_well_formed
+
+(* [Agree] if the predicate is true of every type given. *)
+let well_formed (types : MT.flambda_type list) : outcome =
+  match List.find_opt (fun t -> not (is_well_formed t)) types with
+  | None -> Agree
+  | Some t ->
+    Disagree
+      (Format.asprintf "type_well_formed is false of@ %a" Model_type.print t)
+
+(* The predicate is the same of a type and of what the compiler makes of it. A
+   map of the compiler binds a key once, so the type of the model is taken with
+   its maps written in one way. *)
+let well_formed_types (names : names) : both comparison list =
+  [ { name = "type_well_formed of a type, and of what the compiler makes of it";
+      compare =
+        (fun { model; compiler } ->
+          let of_model = is_well_formed (Model_type.normalise model) in
+          let back = to_model names compiler in
+          let of_compiler = is_well_formed back in
+          agree_if
+            (Bool.equal of_model of_compiler)
+            (Format.asprintf
+               "it is %b of the type and %b of what the compiler makes of it:@ \
+                %a"
+               of_model of_compiler Model_type.print back))
+    };
+    { name = "the types of which type_well_formed is true";
+      compare =
+        (fun { model; compiler = _ } ->
+          if is_well_formed (Model_type.normalise model)
+          then Agree
+          else Not_run "it is false of the type")
+    } ]
 
 (* The round trip from the compiler: a type of the compiler, to the model and
    back, is the same type for the compiler's own equality
@@ -1055,6 +1103,33 @@ let creation_functions (names : names) : call comparison list =
             if List.mem (name_of_call call) names_of_calls
             then Not_this_comparison
             else Disagree "it is compared with nothing")
+      };
+      { name =
+          "type_well_formed of what a creation function gives, in the model \
+           and in the compiler";
+        compare =
+          (fun call ->
+            match call_in_the_compiler names call with
+            | exception No_such_function why -> Not_run why
+            | of_compiler ->
+              (* The lists given to a call may bind a key twice. *)
+              let of_model =
+                is_well_formed (Model_type.normalise (call_in_the_model call))
+              in
+              let of_compiler = is_well_formed (to_model names of_compiler) in
+              agree_if
+                (Bool.equal of_model of_compiler)
+                (Printf.sprintf
+                   "it is %b of what the model gives and %b of what the \
+                    compiler gives"
+                   of_model of_compiler))
+      };
+      { name = "the calls that give a type of which type_well_formed is true";
+        compare =
+          (fun call ->
+            if is_well_formed (Model_type.normalise (call_in_the_model call))
+            then Agree
+            else Not_run "it is false of the type")
       } ]
 
 (* ======================================================================== *)
@@ -1452,8 +1527,45 @@ let two_implementations (names : names) :
                     (Converter.name_to_model names.numbering name) )))
     }
   in
+  let well_formed_meet (implementation : implementation) =
+    { name =
+        Printf.sprintf
+          "meet (%s) of two types of which type_well_formed is true: it is \
+           true of the answer and of what it teaches"
+          implementation.implementation;
+      compare =
+        (fun (m1, m2) ->
+          if not (is_well_formed m1 && is_well_formed m2)
+          then Not_run "it is false of one of the two types"
+          else
+            let t1 = to_compiler names m1 and t2 = to_compiler names m2 in
+            match meet_as_model names implementation t1 t2 with
+            | None -> Not_run "the meet is bottom"
+            | Some (meet, types) -> well_formed (meet :: types))
+    }
+  in
+  let well_formed_join (implementation : implementation) =
+    { name =
+        Printf.sprintf
+          "join (%s) of two types of which type_well_formed is true: it is \
+           true of the answer and of what it says of its own variables"
+          implementation.implementation;
+      compare =
+        (fun (m1, m2) ->
+          if not (is_well_formed m1 && is_well_formed m2)
+          then Not_run "it is false of one of the two types"
+          else
+            let types = [to_compiler names m1; to_compiler names m2] in
+            let joined = join names implementation Value types in
+            well_formed (joined.joined :: List.map snd joined.own))
+    }
+  in
   [ defined_in_the_answer binary;
     defined_in_the_answer n_way;
+    well_formed_meet binary;
+    well_formed_meet n_way;
+    well_formed_join binary;
+    well_formed_join n_way;
     { name = "meet: the binary and the n-way implementation";
       compare =
         (fun (m1, m2) ->
@@ -1503,6 +1615,58 @@ let two_implementations (names : names) :
                   "@[<v>the binary join gives@ %s@ the n-way join@ %s@]"
                   (printed of_binary) (printed of_n_way) ))
     } ]
+
+(* ======================================================================== *)
+(* The equality of types                                                    *)
+(* ======================================================================== *)
+
+(* [type_eqb] of FlambdaTypeEqualSpec.v against the compiler's
+   [Type_grammar.equal], which the joins ask with the structural setting of the
+   flag for sharing, and against the sameness that these tests use
+   ([Model_type.same]: two types of the model written in one way are equal). The
+   pairs are a type twice (converted twice: two values), a type and one of the
+   smaller types that the shrinker gives for it, and two types generated
+   apart. *)
+let equality_of_types (names : names) :
+    (MT.flambda_type * MT.flambda_type) comparison list =
+  [ { name = "type_eqb against Type_grammar.equal";
+      compare =
+        (fun (m1, m2) ->
+          let of_model = Type_equal.type_eqb m1 m2 in
+          let of_compiler =
+            TG.equal (to_compiler names m1) (to_compiler names m2)
+          in
+          agree_if
+            (Bool.equal of_model of_compiler)
+            (Format.asprintf "the model answers %b, the compiler %b" of_model
+               of_compiler))
+    };
+    { name = "type_eqb against the sameness of the tests";
+      compare =
+        (fun (m1, m2) ->
+          let of_model = Type_equal.type_eqb m1 m2 in
+          let of_tests = Model_type.same m1 m2 in
+          agree_if
+            (Bool.equal of_model of_tests)
+            (Format.asprintf "type_eqb answers %b, the tests %b" of_model
+               of_tests))
+    };
+    { name = "the pairs that type_eqb answers to be the same";
+      compare =
+        (fun (m1, m2) ->
+          if Type_equal.type_eqb m1 m2 then Agree else Not_run "not the same")
+    } ]
+
+let generate_pair_for_equality (names : names) (config : G.config) r :
+    MT.flambda_type * MT.flambda_type =
+  let first = G.flambda_type config r names.pool in
+  match G.below r 3 with
+  | 0 -> first, first
+  | 1 -> (
+    match G.shrink first with
+    | [] -> first, first
+    | _ :: _ as smaller -> first, G.pick r smaller)
+  | _ -> first, G.flambda_type config r names.pool
 
 (* ======================================================================== *)
 (* Meet and join against the meaning of types                               *)
@@ -3438,7 +3602,33 @@ let () =
     ~generate:(fun r ->
       G.flambda_type { well_formed = true; depth = 3 } r names.pool)
     ~prepare:(both names) ~shrink:G.shrink ~print:Model_type.print
-    (comparisons_of_one_type names @ round_trip_from_the_compiler names);
+    (comparisons_of_one_type names
+    @ round_trip_from_the_compiler names
+    @ well_formed_types names);
+  let pairs_for_equality ~title ~seed (config : G.config) =
+    run ~title ~seed ~count:1500
+      ~generate:(generate_pair_for_equality names config)
+      ~prepare:(fun (m1, m2) ->
+        ignore (to_compiler names m1 : TG.t);
+        ignore (to_compiler names m2 : TG.t);
+        m1, m2)
+      ~shrink:(fun (m1, m2) ->
+        List.map (fun m1 -> m1, m2) (G.shrink m1)
+        @ List.map (fun m2 -> m1, m2) (G.shrink m2))
+      ~print:(fun ppf (m1, m2) ->
+        Format.fprintf ppf "@[<v>%a@ and@ %a@]" Model_type.print m1
+          Model_type.print m2)
+      (equality_of_types names)
+  in
+  pairs_for_equality
+    ~title:
+      "Two types of the model that the compiler's functions make, for the \
+       equality of types"
+    ~seed:12000
+    { well_formed = true; depth = 3 };
+  pairs_for_equality
+    ~title:"Two raw types of the model, for the equality of types" ~seed:14000
+    { well_formed = false; depth = 2 };
   run ~title:"The creation functions" ~seed:20000 ~count:6000
     ~generate:(generate_call names)
     ~prepare:(fun call -> call)
