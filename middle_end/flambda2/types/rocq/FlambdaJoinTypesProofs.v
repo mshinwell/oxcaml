@@ -35,7 +35,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
-  FlambdaBindingTime FlambdaEnvAliases FlambdaTypingEnv FlambdaTypingEnvSpec
+  FlambdaTypeMeaningBoolSpec FlambdaTypeMeaningBoolProofs FlambdaBindingTime
+  FlambdaEnvAliases FlambdaTypingEnv FlambdaTypingEnvSpec
   FlambdaJoinEnv FlambdaJoinTypes FlambdaJoinSpec FlambdaJoinProofs
   FlambdaJoinTypesSpec.
 Import ListNotations.
@@ -879,6 +880,470 @@ Proof.
 Qed.
 
 End Index.
+
+(* ======================================================================== *)
+(* The parts of heads, gathered                                             *)
+(* ======================================================================== *)
+
+Lemma kind_eqb_true (k k' : flambda_kind) : kind_eqb k k' = true -> k = k'.
+Proof.
+  unfold kind_eqb. destruct (kind_eq_dec k k'); [ auto | discriminate ].
+Qed.
+
+Lemma kind_eqb_refl (k : flambda_kind) : kind_eqb k k = true.
+Proof.
+  unfold kind_eqb. destruct (kind_eq_dec k k); [ reflexivity | contradiction ].
+Qed.
+
+Lemma snoc_distinct {A : Type} (a : A) (l : list A) :
+  NoDup (a :: l) -> NoDup (l ++ [a]).
+Proof.
+  intros Hdistinct. inversion Hdistinct as [ | ? ? Ha Hl]. subst.
+  apply NoDup_app;
+    [ exact Hl | apply NoDup_cons; [ intros [] | apply NoDup_nil ] | ].
+  intros x Hx [<- | []]. exact (Ha Hx).
+Qed.
+
+(* The fold over the heads that follow the first is a fold over what
+   is read of them, if each can be read. *)
+Lemma gather_heads_eq {A B : Type}
+    (read : head_of_kind_value_non_null -> option A)
+    (combine : Index.t -> A -> B -> B)
+    (other_heads : list (Index.t * head_of_kind_value_non_null)) (init : B) :
+  gather_heads read combine other_heads init
+  = option_map
+      (fun l =>
+         List.fold_right (fun x acc => combine (fst x) (snd x) acc) init l)
+      (indexed_map_opt (fun _ head => read head) other_heads).
+Proof.
+  induction other_heads as [ | [id head] other_heads IH]; simpl;
+    [ reflexivity | ].
+  rewrite IH.
+  destruct (indexed_map_opt (fun _ head => read head) other_heads) as [l | ];
+    destruct (read head) as [a | ]; reflexivity.
+Qed.
+
+(* The parts gathered of heads that have a part to join and an
+   allocation mode. *)
+Lemma gathered_pairs_fst {A M : Type} (join : M -> M -> M)
+    (l : list (Index.t * (A * M))) (init : list (Index.t * A)) (m : M) :
+  fst
+    (List.fold_right
+       (fun x acc =>
+          ((fst x, fst (snd x)) :: fst acc, join (snd acc) (snd (snd x))))
+       (init, m) l)
+  = map (fun x => (fst x, fst (snd x))) l ++ init.
+Proof.
+  induction l as [ | x l IH]; simpl; [ reflexivity | rewrite IH; reflexivity ].
+Qed.
+
+Lemma strings_union_in (bytes : list Z) (strs strs' : list (list Z)) :
+  bytes ∈ strings_union strs strs' <-> bytes ∈ strs ∨ bytes ∈ strs'.
+Proof.
+  unfold strings_union.
+  rewrite <-
+    (keyed_among_in (list Z) (lists_eqb Z.eqb) bytes_eqb_eq bytes
+       (Keyed.dedup (lists_eqb Z.eqb) _)).
+  rewrite (keyed_among_dedup (list Z) (lists_eqb Z.eqb) bytes_eqb_eq).
+  rewrite (keyed_among_in (list Z) (lists_eqb Z.eqb) bytes_eqb_eq).
+  apply in_app_iff.
+Qed.
+
+Lemma fold_strings_keeps (l : list (Index.t * list (list Z)))
+    (init : list (list Z)) (bytes : list Z) :
+  bytes ∈ init ->
+  bytes
+  ∈ List.fold_right (fun x acc => strings_union (snd x) acc) init l.
+Proof.
+  intros Hin. induction l as [ | x l IH]; simpl; [ exact Hin | ].
+  apply strings_union_in. right. exact IH.
+Qed.
+
+Lemma fold_strings_in (l : list (Index.t * list (list Z)))
+    (init : list (list Z)) (index : Index.t) (strs : list (list Z))
+    (bytes : list Z) :
+  In (index, strs) l ->
+  bytes ∈ strs ->
+  bytes
+  ∈ List.fold_right (fun x acc => strings_union (snd x) acc) init l.
+Proof.
+  intros Hin Hbytes. induction l as [ | x l IH]; simpl; [ destruct Hin | ].
+  apply strings_union_in. destruct Hin as [-> | Hin];
+    [ left; exact Hbytes | right; exact (IH Hin) ].
+Qed.
+
+(* The extensions of variants, if each has them. *)
+Lemma gather_extensions_spec
+    (extensions : list (Index.t * variant_extensions)) :
+  ∀ (acc_i acc_b when_immediates when_blocks : list (Index.t * env_extension)),
+    gather_extensions acc_i acc_b extensions
+    = Some (when_immediates, when_blocks) ->
+    map fst when_immediates = rev (map fst extensions) ++ map fst acc_i
+    ∧ map fst when_blocks = rev (map fst extensions) ++ map fst acc_b
+    ∧ (∀ (index : Index.t) (e : variant_extensions),
+         In (index, e) extensions ->
+         ∃ wi wb : env_extension,
+           e = Ext wi wb ∧ In (index, wi) when_immediates
+           ∧ In (index, wb) when_blocks)
+    ∧ (∀ (index : Index.t) (wi : env_extension),
+         In (index, wi) when_immediates ->
+         In (index, wi) acc_i
+         ∨ ∃ wb : env_extension, In (index, Ext wi wb) extensions)
+    ∧ (∀ (index : Index.t) (wb : env_extension),
+         In (index, wb) when_blocks ->
+         In (index, wb) acc_b
+         ∨ ∃ wi : env_extension, In (index, Ext wi wb) extensions)
+    ∧ (∀ (index : Index.t) (wi : env_extension),
+         In (index, wi) acc_i -> In (index, wi) when_immediates)
+    ∧ ∀ (index : Index.t) (wb : env_extension),
+        In (index, wb) acc_b -> In (index, wb) when_blocks.
+Proof.
+  induction extensions as [ | [id [ | wi0 wb0]] extensions IH];
+    intros acc_i acc_b when_immediates when_blocks Hgather;
+    simpl in Hgather.
+  - injection Hgather as <- <-. simpl.
+    split; [ reflexivity | ]. split; [ reflexivity | ].
+    split; [ intros ? ? [] | ]. split; [ auto | ]. split; [ auto | ].
+    split; auto.
+  - discriminate.
+  - destruct (IH _ _ _ _ Hgather)
+      as (Hfst_i & Hfst_b & Hto & Hfrom_i & Hfrom_b & Hacc_i & Hacc_b).
+    split; [ rewrite Hfst_i; simpl; rewrite <- app_assoc; reflexivity | ].
+    split; [ rewrite Hfst_b; simpl; rewrite <- app_assoc; reflexivity | ].
+    split; [ | split; [ | split; [ | split ] ] ].
+    + intros index e [[= <- <-] | Hin]; [ | exact (Hto index e Hin) ].
+      exists wi0, wb0. split; [ reflexivity | ].
+      split; [ apply Hacc_i | apply Hacc_b ]; left; reflexivity.
+    + intros index wi Hin.
+      destruct (Hfrom_i index wi Hin) as [[[= <- <-] | Hin'] | [wb Hin']].
+      * right. exists wb0. left. reflexivity.
+      * left. exact Hin'.
+      * right. exists wb. right. exact Hin'.
+    + intros index wb Hin.
+      destruct (Hfrom_b index wb Hin) as [[[= <- <-] | Hin'] | [wi Hin']].
+      * right. exists wi0. left. reflexivity.
+      * left. exact Hin'.
+      * right. exists wi. right. exact Hin'.
+    + intros index wi Hin. apply Hacc_i. right. exact Hin.
+    + intros index wb Hin. apply Hacc_b. right. exact Hin.
+Qed.
+
+(* The heads that are not null, if none is unknown. *)
+Definition ok_head (x : Index.t * head_of_kind_value)
+    : list (Index.t * head_of_kind_value_non_null) :=
+  match snd x with
+  | Head_of_kind_value (Ok head) _ => [(fst x, head)]
+  | Head_of_kind_value _ _ => []
+  end.
+
+Lemma non_null_heads_spec (heads : list (Index.t * head_of_kind_value)) :
+  ∀ acc non_nulls : list (Index.t * head_of_kind_value_non_null),
+    non_null_heads acc heads = Some non_nulls ->
+    non_nulls = rev (flat_map ok_head heads) ++ acc
+    ∧ ∀ (index : Index.t)
+        (non_null : or_unknown_or_bottom head_of_kind_value_non_null)
+        (is_null : is_null),
+        In (index, Head_of_kind_value non_null is_null) heads ->
+        non_null <> Unknown.
+Proof.
+  induction heads as [ | [id [non_null is_null]] heads IH];
+    intros acc non_nulls Hheads; simpl in Hheads.
+  - injection Hheads as <-. split; [ reflexivity | intros ? ? ? [] ].
+  - destruct non_null as [ | head | ]; [ discriminate | | ].
+    + destruct (IH _ _ Hheads) as (-> & Hknown). split.
+      * simpl. unfold ok_head at 2. simpl. rewrite <- app_assoc. reflexivity.
+      * intros index non_null' is_null' [[= <- <- <-] | Hin];
+          [ discriminate | exact (Hknown _ _ _ Hin) ].
+    + destruct (IH _ _ Hheads) as (-> & Hknown).
+      split; [ reflexivity | ].
+      intros index non_null' is_null' [[= <- <- <-] | Hin];
+        [ discriminate | exact (Hknown _ _ _ Hin) ].
+Qed.
+
+(* The heads of expanded types, those that are bottom left out, if
+   none is unknown and each is of the sort asked. *)
+Definition extracted {A : Type} (extract : Expanded_type.head -> option A)
+    (x : Index.t * Expanded_type.t) : list (Index.t * A) :=
+  match Expanded_type.descr (snd x) with
+  | Ok head =>
+    match extract head with
+    | Some a => [(fst x, a)]
+    | None => []
+    end
+  | Unknown | Bottom => []
+  end.
+
+Lemma extract_heads_spec {A : Type} (extract : Expanded_type.head -> option A)
+    (expandeds : list (Index.t * Expanded_type.t)) :
+  ∀ heads : list (Index.t * A),
+    extract_heads extract expandeds = Some (Some heads) ->
+    heads = flat_map (extracted extract) expandeds
+    ∧ ∀ (index : Index.t) (e : Expanded_type.t),
+        In (index, e) expandeds ->
+        Expanded_type.descr e = Bottom
+        ∨ ∃ (head : Expanded_type.head) (a : A),
+            Expanded_type.descr e = Ok head ∧ extract head = Some a.
+Proof.
+  induction expandeds as [ | [id e] expandeds IH]; intros heads Hheads;
+    simpl in Hheads.
+  - injection Hheads as <-. split; [ reflexivity | intros ? ? [] ].
+  - destruct (Expanded_type.descr e) as [ | head | ] eqn:Hdescr;
+      [ discriminate | | ].
+    + destruct (extract head) as [a | ] eqn:Ha; [ | discriminate ].
+      destruct (extract_heads extract expandeds) as [[rest | ] | ];
+        try discriminate.
+      simpl in Hheads. injection Hheads as <-.
+      destruct (IH rest eq_refl) as (-> & Hall). split.
+      * cbn [flat_map].
+        replace (extracted extract (id, e)) with [(id, a)];
+          [ reflexivity | ].
+        unfold extracted. cbn [fst snd]. rewrite Hdescr, Ha. reflexivity.
+      * intros index e' [[= <- <-] | Hin];
+          [ right; exists head, a; split; assumption | exact (Hall _ _ Hin) ].
+    + destruct (IH heads Hheads) as (-> & Hall). split.
+      * cbn [flat_map].
+        replace (extracted extract (id, e)) with (@nil (Index.t * A));
+          [ reflexivity | ].
+        unfold extracted. cbn [fst snd]. rewrite Hdescr. reflexivity.
+      * intros index e' [[= <- <-] | Hin];
+          [ left; exact Hdescr | exact (Hall _ _ Hin) ].
+Qed.
+
+Lemma extracted_in {A : Type} (extract : Expanded_type.head -> option A)
+    (expandeds : list (Index.t * Expanded_type.t)) (index : Index.t) (a : A) :
+  In (index, a) (flat_map (extracted extract) expandeds)
+  <-> ∃ (e : Expanded_type.t) (head : Expanded_type.head),
+        In (index, e) expandeds
+        ∧ Expanded_type.descr e = Ok head ∧ extract head = Some a.
+Proof.
+  rewrite in_flat_map. split.
+  - intros ([id e] & Hin & Ha). unfold extracted in Ha. simpl in Ha.
+    destruct (Expanded_type.descr e) as [ | head | ] eqn:Hdescr;
+      [ destruct Ha | | destruct Ha ].
+    destruct (extract head) as [a' | ] eqn:Ha'; [ | destruct Ha ].
+    destruct Ha as [[= <- <-] | []]. exists e, head. auto.
+  - intros (e & head & Hin & Hdescr & Ha). exists (index, e).
+    split; [ exact Hin | ]. unfold extracted. simpl. rewrite Hdescr, Ha.
+    left. reflexivity.
+Qed.
+
+Lemma extracted_distinct {A : Type} (extract : Expanded_type.head -> option A)
+    (expandeds : list (Index.t * Expanded_type.t)) :
+  NoDup (map fst expandeds) ->
+  NoDup (map fst (flat_map (extracted extract) expandeds)).
+Proof.
+  apply flat_map_indexed_distinct.
+  - intros [id e] index a. unfold extracted. simpl.
+    destruct (Expanded_type.descr e) as [ | head | ];
+      [ intros [] | | intros [] ].
+    destruct (extract head);
+      [ intros [[= <- _] | []]; reflexivity | intros [] ].
+  - intros [id e]. unfold extracted. simpl.
+    destruct (Expanded_type.descr e) as [ | head | ]; try apply NoDup_nil.
+    destruct (extract head); [ | apply NoDup_nil ].
+    apply NoDup_cons; [ intros [] | apply NoDup_nil ].
+Qed.
+
+(* The parts of variants. *)
+Lemma read_variant_eq (head : head_of_kind_value_non_null)
+    (fields : variant_fields) :
+  read_variant head = Some fields ->
+  head
+  = Variant (variant_is_int fields) (variant_immediates fields)
+      (variant_get_tag fields) (variant_blocks fields)
+      (variant_extensions_of fields) (variant_is_unique fields).
+Proof. destruct head; try discriminate. intros [= <-]. reflexivity. Qed.
+
+Definition is_int_simple_of (fields : variant_fields) : option simple :=
+  deduce_is_int_simple (variant_blocks fields) (variant_immediates fields)
+    (variant_is_int fields).
+
+Definition get_tag_simple_of (fields : variant_fields)
+    : or_unknown_or_bottom simple :=
+  deduce_get_tag_simple (variant_blocks fields) (variant_get_tag fields).
+
+Definition get_tag_simples_of (x : Index.t * variant_fields)
+    : list (Index.t * simple) :=
+  match get_tag_simple_of (snd x) with
+  | Ok simple => [(fst x, simple)]
+  | Unknown | Bottom => []
+  end.
+
+Definition variant_parts_of (first_id : Index.t) (first : variant_fields)
+    (l : list (Index.t * variant_fields)) : variant_parts :=
+  List.fold_right (fun x acc => add_variant_parts (fst x) (snd x) acc)
+    (first_variant_parts first_id first) l.
+
+Lemma variant_parts_spec (first_id : Index.t) (first : variant_fields)
+    (l : list (Index.t * variant_fields)) :
+  parts_blocks (variant_parts_of first_id first l)
+  = map (fun x => (fst x, variant_blocks (snd x))) (l ++ [(first_id, first)])
+  ∧ parts_immediates (variant_parts_of first_id first l)
+    = map (fun x => (fst x, variant_immediates (snd x)))
+        (l ++ [(first_id, first)])
+  ∧ parts_extensions (variant_parts_of first_id first l)
+    = map (fun x => (fst x, variant_extensions_of (snd x)))
+        (l ++ [(first_id, first)])
+  ∧ (∀ simples : list (Index.t * simple),
+       parts_is_int (variant_parts_of first_id first l) = Some simples ->
+       indexed_map_opt (fun _ fields => is_int_simple_of fields)
+         (l ++ [(first_id, first)])
+       = Some simples)
+  ∧ ∀ simples : list (Index.t * simple),
+      parts_get_tag (variant_parts_of first_id first l) = Some simples ->
+      simples = flat_map get_tag_simples_of (l ++ [(first_id, first)])
+      ∧ ∀ x : Index.t * variant_fields,
+          In x (l ++ [(first_id, first)]) ->
+          get_tag_simple_of (snd x) <> Unknown.
+Proof.
+  induction l as [ | [id fields] l IH].
+  - unfold variant_parts_of. simpl.
+    split; [ reflexivity | ]. split; [ reflexivity | ].
+    split; [ reflexivity | ].
+    split.
+    + intros simples. unfold is_int_simple_of.
+      destruct (deduce_is_int_simple _ _ _);
+        [ intros [= <-]; reflexivity | discriminate ].
+    + intros simples. unfold get_tag_simples_of, get_tag_simple_of. simpl.
+      destruct (deduce_get_tag_simple _ _) eqn:Htag;
+        [ discriminate | intros [= <-] | intros [= <-] ];
+        (split;
+         [ reflexivity
+         | intros x [<- | []]; simpl; rewrite Htag; discriminate ]).
+  - destruct IH as (Hblocks & Himmediates & Hextensions & His_int & Hget_tag).
+    unfold variant_parts_of in *. cbn [List.fold_right app fst snd].
+    set (parts :=
+      List.fold_right (fun x acc => add_variant_parts (fst x) (snd x) acc)
+        (first_variant_parts first_id first) l) in *.
+    split; [ simpl; rewrite Hblocks; reflexivity | ].
+    split; [ simpl; rewrite Himmediates; reflexivity | ].
+    split; [ simpl; rewrite Hextensions; reflexivity | ].
+    split.
+    + intros simples. cbn [add_variant_parts parts_is_int].
+      destruct (parts_is_int parts) as [is_int | ]; [ | discriminate ].
+      destruct (deduce_is_int_simple _ _ _) as [other_is_int | ] eqn:Hother;
+        [ | discriminate ].
+      intros [= <-]. cbn [indexed_map_opt].
+      rewrite (His_int is_int eq_refl). unfold is_int_simple_of.
+      rewrite Hother. reflexivity.
+    + intros simples. cbn [add_variant_parts parts_get_tag].
+      destruct (parts_get_tag parts) as [get_tag | ]; [ | discriminate ].
+      destruct (Hget_tag get_tag eq_refl) as (-> & Hknown).
+      destruct (deduce_get_tag_simple _ _) as [ | other_get_tag | ] eqn:Hother;
+        [ discriminate | intros [= <-] | intros [= <-] ].
+      * split.
+        -- cbn [flat_map].
+           replace (get_tag_simples_of (id, fields))
+             with [(id, other_get_tag)]; [ reflexivity | ].
+           unfold get_tag_simples_of, get_tag_simple_of. cbn [fst snd].
+           rewrite Hother. reflexivity.
+        -- intros x [<- | Hin]; [ | exact (Hknown x Hin) ].
+           unfold get_tag_simple_of. cbn [snd]. rewrite Hother. discriminate.
+      * split.
+        -- cbn [flat_map].
+           replace (get_tag_simples_of (id, fields))
+             with (@nil (Index.t * simple)); [ reflexivity | ].
+           unfold get_tag_simples_of, get_tag_simple_of. cbn [fst snd].
+           rewrite Hother. reflexivity.
+        -- intros x [<- | Hin]; [ | exact (Hknown x Hin) ].
+           unfold get_tag_simple_of. cbn [snd]. rewrite Hother. discriminate.
+Qed.
+
+Lemma deduce_is_int_simple_cases (blocks : Or_unknown.t row_like_for_blocks)
+    (imms : Or_unknown.t flambda_type) (is_int : option variable)
+    (simple : simple) :
+  deduce_is_int_simple blocks imms is_int = Some simple ->
+  (∃ b : bool, simple = untagged_const_bool b)
+  ∨ ∃ var : variable, is_int = Some var ∧ simple = Var var.
+Proof.
+  unfold deduce_is_int_simple.
+  destruct (deduce_is_int blocks imms) as [b | ];
+    [ intros [= <-]; left; exists b; reflexivity | ].
+  destruct is_int as [var | ]; [ | discriminate ].
+  intros [= <-]. right. exists var. split; reflexivity.
+Qed.
+
+Lemma deduce_get_tag_simple_cases (blocks : Or_unknown.t row_like_for_blocks)
+    (get_tag : option variable) (simple : simple) :
+  deduce_get_tag_simple blocks get_tag = Ok simple ->
+  (∃ tag : Z, simple = untagged_const_int tag)
+  ∨ ∃ var : variable, get_tag = Some var ∧ simple = Var var.
+Proof.
+  unfold deduce_get_tag_simple.
+  destruct (deduce_get_tag blocks) as [ | tag | ];
+    [ | intros [= <-]; left; exists tag; reflexivity | discriminate ].
+  destruct get_tag as [var | ]; [ | discriminate ].
+  intros [= <-]. right. exists var. split; reflexivity.
+Qed.
+
+(* The parts gathered of the first head and of those that follow it,
+   where each has a part to join and an allocation mode. *)
+Lemma gathered_parts {A : Type}
+    (read : head_of_kind_value_non_null -> option (A * Alloc_mode.t))
+    (first_id : Index.t) (first : A)
+    (other_heads : list (Index.t * head_of_kind_value_non_null))
+    (l : list (Index.t * (A * Alloc_mode.t))) :
+  NoDup (first_id :: map fst other_heads) ->
+  indexed_map_opt (fun _ head => read head) other_heads = Some l ->
+  join_args_distinct
+    (map (fun x => (fst x, fst (snd x))) l ++ [(first_id, first)])
+  ∧ (∀ (index : Index.t) (head : head_of_kind_value_non_null),
+       In (index, head) other_heads ->
+       ∃ (a : A) (mode : Alloc_mode.t),
+         read head = Some (a, mode)
+         ∧ In (index, a)
+             (map (fun x => (fst x, fst (snd x))) l ++ [(first_id, first)]))
+  ∧ In (first_id, first)
+      (map (fun x => (fst x, fst (snd x))) l ++ [(first_id, first)])
+  ∧ ∀ (index : Index.t) (a : A),
+      In (index, a)
+        (map (fun x => (fst x, fst (snd x))) l ++ [(first_id, first)]) ->
+      (index = first_id ∧ a = first)
+      ∨ ∃ (head : head_of_kind_value_non_null) (mode : Alloc_mode.t),
+          In (index, head) other_heads ∧ read head = Some (a, mode).
+Proof.
+  intros Hdistinct Hl.
+  destruct (indexed_map_opt_spec _ _ l Hl) as (Hfst & Hto & Hfrom).
+  split; [ | split; [ | split ] ].
+  - unfold join_args_distinct. rewrite map_app, map_map. cbn [map fst].
+    change (NoDup (map fst l ++ [first_id])). rewrite Hfst.
+    apply snoc_distinct. exact Hdistinct.
+  - intros index head Hin.
+    destruct (Hto index head Hin) as ([a mode] & Hread & Hin').
+    exists a, mode. split; [ exact Hread | ].
+    apply in_or_app. left. apply in_map_iff. exists (index, (a, mode)).
+    split; [ reflexivity | exact Hin' ].
+  - apply in_or_app. right. left. reflexivity.
+  - intros index a Hin. apply in_app_or in Hin as [Hin | [[= <- <-] | []]].
+    + apply in_map_iff in Hin as ([index' [a' mode]] & [= <- <-] & Hin).
+      destruct (Hfrom index' (a', mode) Hin) as (head & Hread & Hin').
+      right. exists head, mode. split; [ exact Hin' | exact Hread ].
+    + left. split; reflexivity.
+Qed.
+
+Lemma read_boxed_number_eq (k : naked_number_kind)
+    (head : head_of_kind_value_non_null) (contents : flambda_type)
+    (mode : Alloc_mode.t) :
+  read_boxed_number k head = Some (contents, mode) ->
+  head = Boxed_number k contents mode.
+Proof.
+  destruct head as [ | | k' contents' mode' | | ]; try discriminate. simpl.
+  destruct (kind_eqb (Naked_number k) (Naked_number k')) eqn:Hkind;
+    [ | discriminate ].
+  intros [= <- <-]. apply kind_eqb_true in Hkind. injection Hkind as <-.
+  reflexivity.
+Qed.
+
+Lemma read_closures_eq (head : head_of_kind_value_non_null)
+    (closures : row_like_for_closures) (mode : Alloc_mode.t) :
+  read_closures head = Some (closures, mode) -> head = Closures closures mode.
+Proof. destruct head; try discriminate. intros [= <- <-]. reflexivity. Qed.
+
+(* A variant, of its fields. *)
+Definition variant_of (fields : variant_fields) : head_of_kind_value_non_null :=
+  Variant (variant_is_int fields) (variant_immediates fields)
+    (variant_get_tag fields) (variant_blocks fields)
+    (variant_extensions_of fields) (variant_is_unique fields).
 
 (* ======================================================================== *)
 (* Fields                                                                   *)
@@ -2074,7 +2539,7 @@ End Extension.
 (* The functions that call the join of types                                *)
 (* ======================================================================== *)
 
-Section Body.
+Section Functions.
 
 Context
   (n_way_join_simples :
@@ -2109,6 +2574,10 @@ Hypothesis Hreduce :
     reduce_head_of_kind_naked_immediate.
 Hypothesis Heqb : type_eqb_sound type_eqb.
 Hypothesis Hshape : block_shape_eqb_sound block_shape_eqb.
+
+(* What is proved of the functions that call the join of types, of a
+   join of types [n_way_join_rec] that is sound. *)
+Section Body.
 
 Variable n_way_join_rec :
   state -> list (Index.t * flambda_type)
@@ -3723,7 +4192,1119 @@ Proof.
     exact (Hkinds Hk simple kind Hsimple).
 Qed.
 
+(* ------------------------------------------------------------------------ *)
+(* Variants                                                                 *)
+(* ------------------------------------------------------------------------ *)
+
+Definition variables_of_extensions (extensions : variant_extensions)
+    : list variable :=
+  match extensions with
+  | No_extensions => []
+  | Ext when_immediate when_block =>
+    free_variables_of_env_extension when_immediate
+    ++ free_variables_of_env_extension when_block
+  end.
+
+Definition aliases_of_extensions (extensions : variant_extensions)
+    : list (simple * flambda_kind) :=
+  match extensions with
+  | No_extensions => []
+  | Ext when_immediate when_block =>
+    aliases_of_env_extension when_immediate
+    ++ aliases_of_env_extension when_block
+  end.
+
+(* What the extensions of a variant say of an immediate, and of a
+   block. *)
+Definition immediate_extension_holds (statics : static_env) (vars : env)
+    (extensions : variant_extensions) : Prop :=
+  match extensions with
+  | No_extensions => True
+  | Ext when_immediate _ => env_extension_satisfied statics vars when_immediate
+  end.
+
+Definition block_extension_holds (statics : static_env) (vars : env)
+    (extensions : variant_extensions) : Prop :=
+  match extensions with
+  | No_extensions => True
+  | Ext _ when_block => env_extension_satisfied statics vars when_block
+  end.
+
+Definition extensions_bound (statics : static_env) (valuation : env)
+    (extensions : variant_extensions) (valuation' : env)
+    (joined : variant_extensions) : Prop :=
+  (immediate_extension_holds statics valuation extensions ->
+   immediate_extension_holds statics valuation' joined)
+  ∧ (block_extension_holds statics valuation extensions ->
+     block_extension_holds statics valuation' joined).
+
+Local Abbreviation blocks_bound :=
+  (or_unknown_bound (all_kept blocks_hold blocks_hold)).
+Local Abbreviation immediates_bound :=
+  (or_unknown_bound (all_kept type_satisfied type_satisfied)).
+
+(* [n_way_join_variant]: each of the three parts answered bounds the
+   parts given. *)
+Lemma n_way_join_variant_is_sound (s s1 s2 : state)
+    (blocks : list (Index.t * Or_unknown.t row_like_for_blocks))
+    (imms : list (Index.t * Or_unknown.t flambda_type))
+    (extensions : list (Index.t * variant_extensions))
+    (answer :
+       Or_unknown.t
+         (Or_unknown.t row_like_for_blocks * Or_unknown.t flambda_type
+          * variant_extensions)) :
+  envs_well_formed s -> envs_kinded s -> grows s s1 -> state_valid s1 ->
+  join_args_distinct blocks -> join_args_distinct imms ->
+  join_args_distinct extensions ->
+  args_in_scope
+    (arg_ok (of_known free_variables_of_row_like_for_blocks)
+       (of_known aliases_of_row_like_for_blocks))
+    s blocks ->
+  args_in_scope
+    (arg_ok (of_known free_variables) (of_known aliases_with_kinds)) s imms ->
+  args_in_scope (arg_ok variables_of_extensions aliases_of_extensions) s
+    extensions ->
+  n_way_join_variant import_type join_env_n_way_join_env_extension type_eqb
+    block_shape_eqb n_way_join_rec s1 blocks imms extensions
+  = Some (answer, s2) ->
+  state_valid s2 ∧ grows s1 s2 ∧ (state_kinded s1 -> state_kinded s2)
+  ∧ ∀ (blocks' : Or_unknown.t row_like_for_blocks)
+      (imms' : Or_unknown.t flambda_type) (extensions' : variant_extensions),
+      answer = Or_unknown.Known (blocks', imms', extensions') ->
+      answer_holds_from (of_known free_variables_of_row_like_for_blocks)
+        (of_known aliases_of_row_like_for_blocks) blocks_bound s1 s2 blocks
+        blocks'
+      ∧ answer_holds_from (of_known free_variables)
+          (of_known aliases_with_kinds) immediates_bound s1 s2 imms imms'
+      ∧ answer_holds_from variables_of_extensions aliases_of_extensions
+          extensions_bound s1 s2 extensions extensions'.
+Proof.
+  intros Hwf Hkinded Hgrows Hvalid Hd_blocks Hd_imms Hd_extensions
+    Hargs_blocks Hargs_imms Hargs_extensions Hstep.
+  unfold n_way_join_variant in Hstep.
+  destruct
+    (n_way_join_unknown
+       (n_way_join_row_like_for_blocks import_type
+          join_env_n_way_join_env_extension type_eqb block_shape_eqb
+          n_way_join_rec)
+       s1 blocks)
+    as [[blocks' sa] | ] eqn:Hblocks; [ | discriminate ].
+  destruct (n_way_join_unknown n_way_join_rec sa imms) as [[imms' sb] | ]
+    eqn:Himms; [ | discriminate ].
+  destruct
+    (step_sound_at _ _ _ _ _ _
+       (n_way_join_unknown_is_sound _ _ _ _ _ _ _ _
+          n_way_join_row_like_for_blocks_is_sound)
+       s s1 sa blocks blocks' Hwf Hkinded Hgrows Hvalid Hd_blocks
+       Hargs_blocks Hblocks)
+    as (Hvalida & Hgrowsa & Hka & Hholds_blocks).
+  destruct
+    (step_sound_at _ _ _ _ _ _
+       (n_way_join_unknown_is_sound _ _ _ _ _ _ _ _ Hrec) s sa sb imms imms'
+       Hwf Hkinded (grows_trans _ _ _ Hgrows Hgrowsa) Hvalida Hd_imms
+       Hargs_imms Himms)
+    as (Hvalidb & Hgrowsb & Hkb & Hholds_imms).
+  (* What is left to do once the extensions are joined. *)
+  assert (Hfinal :
+    ∀ (joined : variant_extensions) (sc : state),
+      state_valid sc -> grows sb sc -> (state_kinded sb -> state_kinded sc) ->
+      answer_holds_from variables_of_extensions aliases_of_extensions
+        extensions_bound sb sc extensions joined ->
+      match blocks', imms', joined with
+      | Or_unknown.Unknown, Or_unknown.Unknown, No_extensions =>
+        Some (Or_unknown.Unknown, sc)
+      | _, _, _ => Some (Or_unknown.Known (blocks', imms', joined), sc)
+      end
+      = Some (answer, s2) ->
+      state_valid s2 ∧ grows s1 s2 ∧ (state_kinded s1 -> state_kinded s2)
+      ∧ ∀ (blocks'' : Or_unknown.t row_like_for_blocks)
+          (imms'' : Or_unknown.t flambda_type)
+          (extensions'' : variant_extensions),
+          answer = Or_unknown.Known (blocks'', imms'', extensions'') ->
+          answer_holds_from (of_known free_variables_of_row_like_for_blocks)
+            (of_known aliases_of_row_like_for_blocks) blocks_bound s1 s2
+            blocks blocks''
+          ∧ answer_holds_from (of_known free_variables)
+              (of_known aliases_with_kinds) immediates_bound s1 s2 imms
+              imms''
+          ∧ answer_holds_from variables_of_extensions aliases_of_extensions
+              extensions_bound s1 s2 extensions extensions'').
+  { intros joined sc Hvalidc Hgrowsc Hkc Hholds_extensions Hanswer.
+    assert (Hs2 : sc = s2).
+    { destruct blocks', imms', joined; cbv beta iota in Hanswer; congruence. }
+    subst sc.
+    split; [ exact Hvalidc | ].
+    split;
+      [ exact (grows_trans _ _ _ Hgrowsa (grows_trans _ _ _ Hgrowsb Hgrowsc))
+      | ].
+    split; [ auto | ].
+    intros blocks'' imms'' extensions'' ->.
+    assert (Heq : blocks'' = blocks' ∧ imms'' = imms' ∧ extensions'' = joined).
+    { destruct blocks', imms', joined; cbv beta iota in Hanswer;
+        repeat split; congruence. }
+    destruct Heq as (-> & -> & ->).
+    split; [ | split ].
+    - exact
+        (answer_holds_from_later _ _ _ s1 s1 sa s2 blocks blocks'
+           (fun H => H) (grows_trans _ _ _ Hgrowsb Hgrowsc) Hholds_blocks).
+    - exact
+        (answer_holds_from_later _ _ _ s1 sa sb s2 imms imms' Hka Hgrowsc
+           Hholds_imms).
+    - exact
+        (answer_holds_from_later _ _ _ s1 sb s2 s2 extensions joined
+           (fun H => Hkb (Hka H)) (grows_refl s2) Hholds_extensions). }
+  (* No extensions. *)
+  assert (Hnone :
+    answer_holds_from variables_of_extensions aliases_of_extensions
+      extensions_bound sb sb extensions No_extensions).
+  { intros s' _. split; [ intros x [] | ].
+    split; [ | intros _ simple kind [] ].
+    intros index e use statics valuation valuation' _ _ _ _.
+    split; intros _; exact I. }
+  destruct (gather_extensions [] [] extensions)
+    as [[when_immediates when_blocks] | ] eqn:Hgather.
+  2: { exact
+         (Hfinal No_extensions sb Hvalidb (grows_refl sb) (fun H => H) Hnone
+            Hstep). }
+  cbv zeta in Hstep.
+  destruct
+    (n_way_join_env_extension join_env_n_way_join_env_extension sb
+       when_immediates)
+    as [[when_immediate sc] | ] eqn:Hwhen_immediate; [ | discriminate ].
+  destruct
+    (n_way_join_env_extension join_env_n_way_join_env_extension sc
+       when_blocks)
+    as [[when_block sd] | ] eqn:Hwhen_block; [ | discriminate ].
+  destruct
+    (env_extension_is_empty when_immediate
+     && env_extension_is_empty when_block).
+  { exact
+      (Hfinal No_extensions sb Hvalidb (grows_refl sb) (fun H => H) Hnone
+         Hstep). }
+  destruct (gather_extensions_spec extensions [] [] _ _ Hgather)
+    as (Hfst_i & Hfst_b & Hto & Hfrom_i & Hfrom_b & _ & _).
+  rewrite app_nil_r in Hfst_i, Hfst_b.
+  assert (Hd_i : join_args_distinct when_immediates).
+  { unfold join_args_distinct. rewrite Hfst_i. apply NoDup_rev.
+    exact Hd_extensions. }
+  assert (Hd_b : join_args_distinct when_blocks).
+  { unfold join_args_distinct. rewrite Hfst_b. apply NoDup_rev.
+    exact Hd_extensions. }
+  assert (Hargs_i :
+    args_in_scope
+      (arg_ok free_variables_of_env_extension aliases_of_env_extension) s
+      when_immediates).
+  { apply (args_of_parts _ _ _ _ s extensions when_immediates Hargs_extensions).
+    intros index wi Hin. destruct (Hfrom_i index wi Hin) as [[] | [wb Hin']].
+    exists (Ext wi wb). split; [ exact Hin' | ].
+    split; apply incl_appl, incl_refl. }
+  assert (Hargs_b :
+    args_in_scope
+      (arg_ok free_variables_of_env_extension aliases_of_env_extension) s
+      when_blocks).
+  { apply (args_of_parts _ _ _ _ s extensions when_blocks Hargs_extensions).
+    intros index wb Hin. destruct (Hfrom_b index wb Hin) as [[] | [wi Hin']].
+    exists (Ext wi wb). split; [ exact Hin' | ].
+    split; apply incl_appr, incl_refl. }
+  assert (Hgrows_sb : grows s sb).
+  { exact (grows_trans _ _ _ Hgrows (grows_trans _ _ _ Hgrowsa Hgrowsb)). }
+  destruct
+    (step_sound_at _ _ _ _ _ _
+       (n_way_join_env_extension_is_sound join_env_n_way_join_env_extension
+          Hextension)
+       s sb sc when_immediates when_immediate Hwf Hkinded Hgrows_sb Hvalidb
+       Hd_i Hargs_i Hwhen_immediate)
+    as (Hvalidc & Hgrowsc & Hkc & Hholds_i).
+  destruct
+    (step_sound_at _ _ _ _ _ _
+       (n_way_join_env_extension_is_sound join_env_n_way_join_env_extension
+          Hextension)
+       s sc sd when_blocks when_block Hwf Hkinded
+       (grows_trans _ _ _ Hgrows_sb Hgrowsc) Hvalidc Hd_b Hargs_b Hwhen_block)
+    as (Hvalidd & Hgrowsd & Hkd & Hholds_b).
+  apply
+    (Hfinal (Ext when_immediate when_block) sd Hvalidd
+       (grows_trans _ _ _ Hgrowsc Hgrowsd) (fun H => Hkd (Hkc H)));
+    [ | exact Hstep ].
+  intros s' Hgrows'.
+  destruct (Hholds_i s' (grows_trans _ _ _ Hgrowsd Hgrows'))
+    as (Htarget_i & Hbound_i & Hkinds_i).
+  destruct (Hholds_b s' Hgrows') as (Htarget_b & Hbound_b & Hkinds_b).
+  split; [ | split ].
+  - intros x Hx. simpl in Hx. apply in_app_or in Hx as [Hx | Hx];
+      [ exact (Htarget_i x Hx) | exact (Htarget_b x Hx) ].
+  - intros index e use statics valuation valuation' Hin Huse Hsatisfied
+      Hextends.
+    destruct (Hto index e Hin) as (wi & wb & -> & Hin_i & Hin_b).
+    split; simpl.
+    + exact
+        (Hbound_i index wi use statics valuation valuation' Hin_i Huse
+           Hsatisfied Hextends).
+    + exact
+        (Hbound_b index wb use statics valuation valuation' Hin_b Huse
+           Hsatisfied Hextends).
+  - intros Hk simple kind Hsimple. simpl in Hsimple.
+    apply in_app_or in Hsimple as [Hsimple | Hsimple];
+      [ exact (Hkinds_i Hk simple kind Hsimple)
+      | exact (Hkinds_b (Hkc Hk) simple kind Hsimple) ].
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+(* Heads of kind value that are not null                                    *)
+(* ------------------------------------------------------------------------ *)
+
+(* The variable joined for [Is_int], and the one for [Get_tag]: it
+   holds in the target what the [Simple] deduced for a variant holds in
+   its input; there is none if a variant has no such [Simple]. *)
+Definition is_int_bound (statics : static_env) (valuation : env)
+    (fields : variant_fields) (valuation' : env) (x : option variable)
+    : Prop :=
+  match is_int_simple_of fields with
+  | Some simple =>
+    ∀ n : Z,
+      eval_simple valuation simple = Some (Value_const (Naked_immediate n)) ->
+      variable_is valuation' x n
+  | None => x = None
+  end.
+
+Definition get_tag_bound (statics : static_env) (valuation : env)
+    (fields : variant_fields) (valuation' : env) (x : option variable)
+    : Prop :=
+  match get_tag_simple_of fields with
+  | Ok simple =>
+    ∀ n : Z,
+      eval_simple valuation simple = Some (Value_const (Naked_immediate n)) ->
+      variable_is valuation' x n
+  | Bottom => True
+  | Unknown => x = None
+  end.
+
+(* [n_way_join_relation_simples] on the [Simple]s gathered of things
+   [args], if any were. *)
+Lemma relation_simples_step {X : Type}
+    (bound : static_env -> env -> X -> env -> option variable -> Prop)
+    (s s1 s2 : state) (args : list (Index.t * X))
+    (simples_opt : option (list (Index.t * simple))) (x : option variable) :
+  envs_well_formed s -> envs_kinded s -> grows s s1 -> state_valid s1 ->
+  (∀ simples : list (Index.t * simple),
+     simples_opt = Some simples ->
+     join_args_distinct simples
+     ∧ args_in_scope
+         (arg_ok (fun _ : simple => [])
+            (fun simple => [(simple, Naked_number Kind_naked_immediate)]))
+         s simples) ->
+  (simples_opt = None ->
+   ∀ (statics : static_env) (valuation : env) (a : X) (valuation' : env),
+     bound statics valuation a valuation' None) ->
+  (∀ simples : list (Index.t * simple),
+     simples_opt = Some simples ->
+     ∀ (index : Index.t) (a : X) (statics : static_env)
+       (valuation valuation' : env) (y : option variable),
+       In (index, a) args ->
+       (∀ simple : simple,
+          In (index, simple) simples ->
+          ∀ n : Z,
+            eval_simple valuation simple
+            = Some (Value_const (Naked_immediate n)) ->
+            variable_is valuation' y n) ->
+       bound statics valuation a valuation' y) ->
+  n_way_join_relation_simples n_way_join_simples s1 simples_opt
+  = Some (x, s2) ->
+  state_valid s2 ∧ grows s1 s2 ∧ (state_kinded s1 -> state_kinded s2)
+  ∧ answer_holds_from free_variables_of_option aliases_of_relation bound s1
+      s2 args x.
+Proof.
+  intros Hwf Hkinded Hgrows Hvalid Hsome Hnone Hbound Hstep.
+  destruct simples_opt as [simples | ].
+  - destruct (Hsome simples eq_refl) as (Hdistinct & Hargs).
+    destruct
+      (step_sound_at _ _ _ _ _ _
+         (n_way_join_relation_simples_is_sound n_way_join_simples Hsimples) s
+         s1 s2 simples x Hwf Hkinded Hgrows Hvalid Hdistinct Hargs Hstep)
+      as (Hvalid2 & Hgrows2 & Hk2 & Hholds).
+    split; [ exact Hvalid2 | ]. split; [ exact Hgrows2 | ].
+    split; [ exact Hk2 | ].
+    intros s' Hgrows'.
+    destruct (Hholds s' Hgrows') as (Htarget & Hbound' & Hkinds).
+    split; [ exact Htarget | ]. split; [ | exact Hkinds ].
+    intros index a use statics valuation valuation' Hin Huse Hsatisfied
+      Hextends.
+    apply (Hbound simples eq_refl index a statics valuation valuation' x Hin).
+    intros simple Hin' n Heval.
+    exact
+      (Hbound' index simple use statics valuation valuation' Hin' Huse
+         Hsatisfied Hextends n Heval).
+  - injection Hstep as <- <-.
+    split; [ exact Hvalid | ]. split; [ apply grows_refl | ].
+    split; [ auto | ].
+    intros s' _. split; [ intros y [] | ].
+    split; [ | intros _ simple kind [] ].
+    intros index a use statics valuation valuation' _ _ _ _.
+    exact (Hnone eq_refl statics valuation a valuation').
+Qed.
+
+Local Abbreviation non_null_bound :=
+  (known_bound
+     (all_kept head_of_kind_value_non_null_satisfied
+        head_of_kind_value_non_null_satisfied)).
+
+Theorem n_way_join_head_of_kind_value_non_null_is_sound :
+  step_sound free_variables_of_head_of_kind_value_non_null
+    aliases_of_head_of_kind_value_non_null
+    (of_known free_variables_of_head_of_kind_value_non_null)
+    (of_known aliases_of_head_of_kind_value_non_null) non_null_bound
+    (n_way_join_head_of_kind_value_non_null n_way_join_simples import_type
+       join_env_n_way_join_env_extension type_eqb block_shape_eqb
+       n_way_join_rec).
+Proof.
+  intros s s' heads answer Hvalid Hwf Hkinded Hdistinct Hargs Hstep.
+  unfold n_way_join_head_of_kind_value_non_null in Hstep.
+  destruct heads as [ | [first_id first_head] other_heads];
+    [ discriminate | ].
+  set (heads := (first_id, first_head) :: other_heads) in *.
+  (* The answer that says nothing. *)
+  assert (Hunknown :
+    ∀ s1 : state,
+      state_valid s1 -> grows s s1 -> (state_kinded s -> state_kinded s1) ->
+      Some (@Or_unknown.Unknown head_of_kind_value_non_null, s1)
+      = Some (answer, s') ->
+      state_valid s' ∧ grows s s'
+      ∧ in_target (of_known free_variables_of_head_of_kind_value_non_null) s'
+          answer
+      ∧ (∀ (index : Index.t) (x : head_of_kind_value_non_null)
+           (use : Typing_env.t) (statics : static_env)
+           (valuation valuation' : env),
+           In (index, x) heads ->
+           joined_env s' index = Some use ->
+           typing_env_satisfied_strictly statics valuation use ->
+           extends s' index valuation valuation' ->
+           non_null_bound statics valuation x valuation' answer)
+      ∧ (state_kinded s ->
+         state_kinded s'
+         ∧ kinded_in_target
+             (of_known aliases_of_head_of_kind_value_non_null) s' answer)).
+  { intros s1 Hvalid1 Hgrows1 Hk1 [= <- <-].
+    split; [ exact Hvalid1 | ]. split; [ exact Hgrows1 | ].
+    split; [ intros x [] | ]. split; [ intros; exact I | ].
+    intros Hk. split; [ exact (Hk1 Hk) | intros simple kind [] ]. }
+  destruct first_head
+    as [is_int immediates get_tag blocks extensions is_unique | alloc_mode
+       | k n alloc_mode | by_function_slot alloc_mode | strs].
+  - (* Variants. *)
+    set (first :=
+      {| variant_is_int := is_int;
+         variant_immediates := immediates;
+         variant_get_tag := get_tag;
+         variant_blocks := blocks;
+         variant_extensions_of := extensions;
+         variant_is_unique := is_unique |}) in Hstep.
+    cbv zeta in Hstep. rewrite gather_heads_eq in Hstep.
+    destruct (indexed_map_opt (fun _ head => read_variant head) other_heads)
+      as [l | ] eqn:Hl; cbn [option_map] in Hstep;
+      [ | exact (Hunknown s Hvalid (grows_refl s) (fun H => H) Hstep) ].
+    change
+      (List.fold_right (fun x acc => add_variant_parts (fst x) (snd x) acc)
+         (first_variant_parts first_id first) l)
+      with (variant_parts_of first_id first l) in Hstep.
+    set (parts := variant_parts_of first_id first l) in *.
+    set (all := l ++ [(first_id, first)]).
+    destruct (variant_parts_spec first_id first l)
+      as (Hblocks & Himmediates & Hextensions & His_int & Hget_tag).
+    fold parts all in Hblocks, Himmediates, Hextensions, His_int, Hget_tag.
+    destruct (indexed_map_opt_spec _ _ l Hl) as (Hfst & Hto & Hfrom).
+    assert (Hall_distinct : NoDup (map fst all)).
+    { unfold all. rewrite map_app. cbn [map fst]. rewrite Hfst.
+      apply snoc_distinct. exact Hdistinct. }
+    assert (Hall_from :
+      ∀ (index : Index.t) (fields : variant_fields),
+        In (index, fields) all -> In (index, variant_of fields) heads).
+    { intros index fields Hin.
+      apply in_app_or in Hin as [Hin | [[= <- <-] | []]].
+      - destruct (Hfrom index fields Hin) as (head & Hread & Hin').
+        right. rewrite (read_variant_eq head fields Hread) in Hin'.
+        exact Hin'.
+      - left. reflexivity. }
+    assert (Hall_to :
+      ∀ (index : Index.t) (head : head_of_kind_value_non_null),
+        In (index, head) heads ->
+        ∃ fields : variant_fields,
+          head = variant_of fields ∧ In (index, fields) all).
+    { intros index head [[= <- <-] | Hin].
+      - exists first. split; [ reflexivity | ].
+        apply in_or_app. right. left. reflexivity.
+      - destruct (Hto index head Hin) as (fields & Hread & Hin').
+        exists fields. split; [ exact (read_variant_eq head fields Hread) | ].
+        apply in_or_app. left. exact Hin'. }
+    assert (Hall_scope :
+      args_in_scope
+        (arg_ok
+           (fun fields =>
+              free_variables_of_head_of_kind_value_non_null
+                (variant_of fields))
+           (fun fields =>
+              aliases_of_head_of_kind_value_non_null (variant_of fields)))
+        s all).
+    { intros index fields Hin.
+      exact (Hargs index (variant_of fields) (Hall_from index fields Hin)). }
+    (* The relation variables. *)
+    destruct (n_way_join_relation_simples n_way_join_simples s
+                (parts_is_int parts))
+      as [[is_int' sa] | ] eqn:Hjoin_is_int; [ | discriminate ].
+    destruct (n_way_join_relation_simples n_way_join_simples sa
+                (parts_get_tag parts))
+      as [[get_tag' sb] | ] eqn:Hjoin_get_tag; [ | discriminate ].
+    destruct
+      (relation_simples_step is_int_bound s s sa all (parts_is_int parts)
+         is_int' Hwf Hkinded (grows_refl s) Hvalid)
+      as (Hvalida & Hgrowsa & Hka & Hholds_is_int);
+      [ | | | exact Hjoin_is_int | ].
+    { intros simples Hsimples'.
+      destruct (indexed_map_opt_spec _ _ simples (His_int simples Hsimples'))
+        as (Hfst' & _ & Hfrom').
+      split;
+        [ unfold join_args_distinct; rewrite Hfst'; exact Hall_distinct | ].
+      intros index simple Hin.
+      destruct (Hfrom' index simple Hin) as (fields & Hsimple & Hin').
+      destruct (Hall_scope index fields Hin') as (use & Huse & _ & Haliases).
+      exists use. split; [ exact Huse | ]. split; [ intros y [] | ].
+      intros simple' kind [[= <- <-] | []].
+      destruct (deduce_is_int_simple_cases _ _ _ _ Hsimple)
+        as [[b ->] | (var & Hvar & ->)]; [ reflexivity | ].
+      apply Haliases. unfold variant_of. simpl. rewrite Hvar. left.
+      reflexivity. }
+    { intros Hnone' statics valuation fields valuation'.
+      unfold is_int_bound. destruct (is_int_simple_of fields);
+        [ intros; exact I | reflexivity ]. }
+    { intros simples Hsimples' index fields statics valuation valuation' y
+        Hin Hy.
+      destruct (indexed_map_opt_spec _ _ simples (His_int simples Hsimples'))
+        as (_ & Hto' & _).
+      destruct (Hto' index fields Hin) as (simple & Hsimple & Hin').
+      unfold is_int_bound. rewrite Hsimple. exact (Hy simple Hin'). }
+    destruct
+      (relation_simples_step get_tag_bound s sa sb all (parts_get_tag parts)
+         get_tag' Hwf Hkinded Hgrowsa Hvalida)
+      as (Hvalidb & Hgrowsb & Hkb & Hholds_get_tag);
+      [ | | | exact Hjoin_get_tag | ].
+    { intros simples Hsimples'.
+      destruct (Hget_tag simples Hsimples') as (-> & _).
+      split.
+      - apply flat_map_indexed_distinct; [ | | exact Hall_distinct ].
+        + intros [id fields] index simple. unfold get_tag_simples_of.
+          destruct (get_tag_simple_of (snd (id, fields)));
+            [ intros [] | intros [[= <- _] | []]; reflexivity | intros [] ].
+        + intros [id fields]. unfold get_tag_simples_of.
+          destruct (get_tag_simple_of (snd (id, fields)));
+            try apply NoDup_nil.
+          apply NoDup_cons; [ intros [] | apply NoDup_nil ].
+      - intros index simple Hin.
+        apply in_flat_map in Hin as ([id fields] & Hin' & Hsimple).
+        unfold get_tag_simples_of in Hsimple. cbn [fst snd] in Hsimple.
+        destruct (get_tag_simple_of fields) as [ | simple' | ] eqn:Htag;
+          [ destruct Hsimple | | destruct Hsimple ].
+        destruct Hsimple as [[= <- <-] | []].
+        destruct (Hall_scope id fields Hin') as (use & Huse & _ & Haliases).
+        exists use. split; [ exact Huse | ]. split; [ intros y [] | ].
+        intros simple'' kind [[= <- <-] | []].
+        destruct (deduce_get_tag_simple_cases _ _ _ Htag)
+          as [[tag ->] | (var & Hvar & ->)]; [ reflexivity | ].
+        apply Haliases. unfold variant_of. simpl. rewrite Hvar.
+        apply in_or_app. right. apply in_or_app. right. left. reflexivity. }
+    { intros Hnone' statics valuation fields valuation'.
+      unfold get_tag_bound. destruct (get_tag_simple_of fields);
+        [ reflexivity | intros; exact I | exact I ]. }
+    { intros simples Hsimples' index fields statics valuation valuation' y
+        Hin Hy.
+      destruct (Hget_tag simples Hsimples') as (-> & Hknown).
+      unfold get_tag_bound.
+      destruct (get_tag_simple_of fields) as [ | simple | ] eqn:Htag;
+        [ | | exact I ].
+      - destruct (Hknown (index, fields) Hin Htag).
+      - apply Hy. apply in_flat_map. exists (index, fields).
+        split; [ exact Hin | ]. unfold get_tag_simples_of. cbn [fst snd].
+        rewrite Htag. left. reflexivity. }
+    (* The parts. *)
+    rewrite Hblocks, Himmediates, Hextensions in Hstep.
+    unfold map_join_result in Hstep.
+    match type of Hstep with
+    | context [n_way_join_variant ?a ?b ?c ?d ?e sb ?bs0 ?is0 ?es0] =>
+      set (blocks_given := bs0) in Hstep;
+      set (imms_given := is0) in Hstep;
+      set (extensions_given := es0) in Hstep;
+      destruct (n_way_join_variant a b c d e sb blocks_given imms_given
+                  extensions_given)
+        as [[joined sc] | ] eqn:Hjoin_variant; [ | discriminate ]
+    end.
+    injection Hstep as <- <-.
+    assert (Hgrows_sb : grows s sb)
+      by exact (grows_trans _ _ _ Hgrowsa Hgrowsb).
+    destruct
+      (n_way_join_variant_is_sound s sb sc blocks_given imms_given
+         extensions_given joined Hwf Hkinded Hgrows_sb Hvalidb)
+      as (Hvalidc & Hgrowsc & Hkc & Hjoined);
+      [ | | | | | | exact Hjoin_variant | ].
+    { unfold join_args_distinct, blocks_given. rewrite map_map.
+      exact Hall_distinct. }
+    { unfold join_args_distinct, imms_given. rewrite map_map.
+      exact Hall_distinct. }
+    { unfold join_args_distinct, extensions_given. rewrite map_map.
+      exact Hall_distinct. }
+    { apply (args_of_parts _ _ _ _ s all blocks_given Hall_scope).
+      intros index b Hin.
+      apply in_map_iff in Hin as ([id fields] & [= <- <-] & Hin).
+      exists fields. split; [ exact Hin | ]. unfold variant_of. simpl.
+      split; apply incl_appr, incl_appr, incl_appr, incl_appl, incl_refl. }
+    { apply (args_of_parts _ _ _ _ s all imms_given Hall_scope).
+      intros index b Hin.
+      apply in_map_iff in Hin as ([id fields] & [= <- <-] & Hin).
+      exists fields. split; [ exact Hin | ]. unfold variant_of. simpl.
+      split; apply incl_appr, incl_appl, incl_refl. }
+    { apply (args_of_parts _ _ _ _ s all extensions_given Hall_scope).
+      intros index b Hin.
+      apply in_map_iff in Hin as ([id fields] & [= <- <-] & Hin).
+      exists fields. split; [ exact Hin | ]. unfold variant_of. simpl.
+      split; apply incl_appr, incl_appr, incl_appr, incl_appr, incl_refl. }
+    destruct joined as [[[blocks' imms'] extensions'] | ].
+    2: { split; [ exact Hvalidc | ].
+         split; [ exact (grows_trans _ _ _ Hgrows_sb Hgrowsc) | ].
+         split; [ intros x [] | ]. split; [ intros; exact I | ].
+         intros Hk. split; [ exact (Hkc (Hkb (Hka Hk))) | ].
+         intros simple kind []. }
+    destruct (Hjoined blocks' imms' extensions' eq_refl)
+      as (Hholds_blocks & Hholds_imms & Hholds_extensions).
+    destruct (Hholds_is_int sc (grows_trans _ _ _ Hgrowsb Hgrowsc))
+      as (Htarget_is_int & Hbound_is_int & Hkinds_is_int).
+    destruct (Hholds_get_tag sc Hgrowsc)
+      as (Htarget_get_tag & Hbound_get_tag & Hkinds_get_tag).
+    destruct (Hholds_blocks sc (grows_refl sc))
+      as (Htarget_blocks & Hbound_blocks & Hkinds_blocks).
+    destruct (Hholds_imms sc (grows_refl sc))
+      as (Htarget_imms & Hbound_imms & Hkinds_imms).
+    destruct (Hholds_extensions sc (grows_refl sc))
+      as (Htarget_extensions & Hbound_extensions & Hkinds_extensions).
+    split; [ exact Hvalidc | ].
+    split; [ exact (grows_trans _ _ _ Hgrows_sb Hgrowsc) | ].
+    split; [ | split ].
+    + intros x Hx. simpl in Hx.
+      apply in_app_or in Hx as [Hx | Hx]; [ exact (Htarget_is_int x Hx) | ].
+      apply in_app_or in Hx as [Hx | Hx]; [ exact (Htarget_imms x Hx) | ].
+      apply in_app_or in Hx as [Hx | Hx]; [ exact (Htarget_get_tag x Hx) | ].
+      apply in_app_or in Hx as [Hx | Hx];
+        [ exact (Htarget_blocks x Hx) | exact (Htarget_extensions x Hx) ].
+    + intros index head use statics valuation valuation' Hin Huse Hsatisfied
+        Hextends v Hv.
+      destruct (Hall_to index head Hin) as (fields & -> & Hin').
+      pose proof
+        (Hbound_is_int index fields use statics valuation valuation' Hin'
+           Huse Hsatisfied Hextends)
+        as His_int_b.
+      pose proof
+        (Hbound_get_tag index fields use statics valuation valuation' Hin'
+           Huse Hsatisfied Hextends)
+        as Hget_tag_b.
+      assert (Hblocks_b :
+        blocks_bound statics valuation (variant_blocks fields) valuation'
+          blocks').
+      { apply (Hbound_blocks index _ use statics valuation valuation');
+          [ | exact Huse | exact Hsatisfied | exact Hextends ].
+        apply in_map_iff. exists (index, fields).
+        split; [ reflexivity | exact Hin' ]. }
+      assert (Himms_b :
+        immediates_bound statics valuation (variant_immediates fields)
+          valuation' imms').
+      { apply (Hbound_imms index _ use statics valuation valuation');
+          [ | exact Huse | exact Hsatisfied | exact Hextends ].
+        apply in_map_iff. exists (index, fields).
+        split; [ reflexivity | exact Hin' ]. }
+      assert (Hextensions_b :
+        extensions_bound statics valuation (variant_extensions_of fields)
+          valuation' extensions').
+      { apply (Hbound_extensions index _ use statics valuation valuation');
+          [ | exact Huse | exact Hsatisfied | exact Hextends ].
+        apply in_map_iff. exists (index, fields).
+        split; [ reflexivity | exact Hin' ]. }
+      unfold is_int_bound, is_int_simple_of in His_int_b.
+      unfold get_tag_bound, get_tag_simple_of in Hget_tag_b.
+      pose proof Hv as Hv'. unfold variant_of in Hv'.
+      destruct Hv'
+        as [(i & -> & His_int_i & Himm & Hext)
+           | (tag & fs & Hblock & His_int_i & Hget_tag_i & Hrow & Hext)].
+      * left. exists i. split; [ reflexivity | ].
+        split.
+        { destruct (deduce_is_int_simple _ _ _) as [simple | ] eqn:Hsimple;
+            [ | rewrite His_int_b; exact I ].
+          apply His_int_b.
+          destruct
+            (deduce_is_int_simple_is_sound statics valuation _ _ _ _ _ _ _
+               simple Hv Hsimple)
+            as [[_ Heval] | [[tag [fs Hblock]] _]]; [ exact Heval | ].
+          destruct (block_not_immediate statics i tag fs Hblock). }
+        split.
+        { destruct imms' as [ty' | ]; [ | exact I ].
+          destruct (variant_immediates fields) as [ty | ];
+            [ exact (Himms_b _ Himm) | destruct Himms_b ]. }
+        exact (proj1 Hextensions_b Hext).
+      * right. exists tag, fs. split; [ exact Hblock | ].
+        split.
+        { destruct (deduce_is_int_simple _ _ _) as [simple | ] eqn:Hsimple;
+            [ | rewrite His_int_b; exact I ].
+          apply His_int_b.
+          destruct
+            (deduce_is_int_simple_is_sound statics valuation _ _ _ _ _ _ _
+               simple Hv Hsimple)
+            as [[[i ->] _] | [_ Heval]]; [ | exact Heval ].
+          destruct (block_not_immediate statics i tag fs Hblock). }
+        split.
+        { pose proof
+            (deduce_get_tag_simple_is_sound statics valuation _ _ _ _ _ _ _
+               tag fs Hv Hblock)
+            as Hdeduce.
+          destruct (deduce_get_tag_simple _ _) as [ | simple | ];
+            [ rewrite Hget_tag_b; exact I | exact (Hget_tag_b tag Hdeduce)
+            | destruct Hdeduce ]. }
+        split.
+        { destruct blocks' as [b' | ]; [ | exact I ].
+          destruct (variant_blocks fields) as [b | ];
+            [ exact (Hblocks_b (tag, fs) Hrow) | destruct Hblocks_b ]. }
+        exact (proj2 Hextensions_b Hext).
+    + intros Hk. split; [ exact (Hkc (Hkb (Hka Hk))) | ].
+      intros simple kind Hsimple. simpl in Hsimple.
+      apply in_app_or in Hsimple as [Hsimple | Hsimple];
+        [ exact (Hkinds_is_int Hk simple kind Hsimple) | ].
+      apply in_app_or in Hsimple as [Hsimple | Hsimple];
+        [ exact (Hkinds_imms (Hkb (Hka Hk)) simple kind Hsimple) | ].
+      apply in_app_or in Hsimple as [Hsimple | Hsimple];
+        [ exact (Hkinds_get_tag (Hka Hk) simple kind Hsimple) | ].
+      apply in_app_or in Hsimple as [Hsimple | Hsimple];
+        [ exact (Hkinds_blocks (Hkb (Hka Hk)) simple kind Hsimple)
+        | exact (Hkinds_extensions (Hkb (Hka Hk)) simple kind Hsimple) ].
+  - (* Mutable blocks: no value is one. *)
+    rewrite gather_heads_eq in Hstep.
+    destruct
+      (indexed_map_opt (fun _ head => read_mutable_block head) other_heads)
+      as [l | ] eqn:Hl; cbn [option_map] in Hstep;
+      [ | exact (Hunknown s Hvalid (grows_refl s) (fun H => H) Hstep) ].
+    injection Hstep as <- <-.
+    destruct (indexed_map_opt_spec _ _ l Hl) as (_ & Hto & _).
+    split; [ exact Hvalid | ]. split; [ apply grows_refl | ].
+    split; [ intros x [] | ].
+    split; [ | intros Hk; split; [ exact Hk | intros simple kind [] ] ].
+    intros index head use statics valuation valuation' Hin _ _ _ v Hv.
+    destruct Hin as [[= <- <-] | Hin]; [ destruct Hv | ].
+    destruct (Hto index head Hin) as (mode & Hread & _).
+    destruct head; try discriminate. destruct Hv.
+  - (* Boxed numbers. *)
+    rewrite gather_heads_eq in Hstep.
+    destruct
+      (indexed_map_opt (fun _ head => read_boxed_number k head) other_heads)
+      as [l | ] eqn:Hl; cbn [option_map] in Hstep;
+      [ | exact (Hunknown s Hvalid (grows_refl s) (fun H => H) Hstep) ].
+    match type of Hstep with
+    | context [List.fold_right ?f ?i l] =>
+      destruct (List.fold_right f i l) as [ns mode] eqn:Hgathered
+    end.
+    assert (Hns :
+      ns = map (fun x => (fst x, fst (snd x))) l ++ [(first_id, n)]).
+    { change ns with (fst (ns, mode)). rewrite <- Hgathered.
+      exact (gathered_pairs_fst join_alloc_mode l [(first_id, n)] alloc_mode). }
+    destruct (gathered_parts (read_boxed_number k) first_id n other_heads l
+                Hdistinct Hl)
+      as (Hd_ns & Hto & Hfirst & Hfrom).
+    rewrite <- Hns in Hd_ns, Hto, Hfirst, Hfrom. clear Hns Hgathered.
+    unfold map_join_result in Hstep.
+    destruct (n_way_join_rec s ns) as [[joined s1] | ] eqn:Hjoin;
+      [ | discriminate ].
+    injection Hstep as <- <-.
+    assert (Hargs_ns :
+      args_in_scope (arg_ok free_variables aliases_with_kinds) s ns).
+    { apply (args_of_parts _ _ _ _ s heads ns Hargs). intros index ty Hin.
+      destruct (Hfrom index ty Hin)
+        as [[-> ->] | (head & mode' & Hin' & Hread)].
+      - exists (Boxed_number k n alloc_mode).
+        split; [ left; reflexivity | split; apply incl_refl ].
+      - exists head. split; [ right; exact Hin' | ].
+        rewrite (read_boxed_number_eq k head ty mode' Hread).
+        split; apply incl_refl. }
+    destruct
+      (step_sound_at _ _ _ _ _ _ Hrec s s s1 ns joined Hwf Hkinded
+         (grows_refl s) Hvalid Hd_ns Hargs_ns Hjoin)
+      as (Hvalid1 & Hgrows1 & Hk1 & Hholds).
+    destruct (Hholds s1 (grows_refl s1)) as (Htarget & Hbound & Hkinds).
+    split; [ exact Hvalid1 | ]. split; [ exact Hgrows1 | ].
+    split; [ | split ].
+    + destruct joined as [ty | ]; [ exact Htarget | intros x [] ].
+    + intros index head use statics valuation valuation' Hin Huse Hsatisfied
+        Hextends.
+      destruct joined as [ty | ]; [ | exact I ].
+      intros v Hv.
+      assert (Hhead :
+        ∃ (ty_i : flambda_type) (mode_i : Alloc_mode.t),
+          head = Boxed_number k ty_i mode_i ∧ In (index, ty_i) ns).
+      { destruct Hin as [[= <- <-] | Hin].
+        - exists n, alloc_mode. split; [ reflexivity | exact Hfirst ].
+        - destruct (Hto index head Hin) as (ty_i & mode_i & Hread & Hin').
+          exists ty_i, mode_i.
+          split; [ exact (read_boxed_number_eq k head ty_i mode_i Hread) | ].
+          exact Hin'. }
+      destruct Hhead as (ty_i & mode_i & -> & Hin_i).
+      destruct Hv as (c & Hboxed & Hkind & Hc). exists c.
+      split; [ exact Hboxed | ]. split; [ exact Hkind | ].
+      exact
+        (Hbound index ty_i use statics valuation valuation' Hin_i Huse
+           Hsatisfied Hextends (Value_const c) Hc).
+    + intros Hk. split; [ exact (Hk1 Hk) | ].
+      destruct joined as [ty | ];
+        [ exact (Hkinds Hk) | intros simple kind [] ].
+  - (* Closures. *)
+    rewrite gather_heads_eq in Hstep.
+    destruct (indexed_map_opt (fun _ head => read_closures head) other_heads)
+      as [l | ] eqn:Hl; cbn [option_map] in Hstep;
+      [ | exact (Hunknown s Hvalid (grows_refl s) (fun H => H) Hstep) ].
+    match type of Hstep with
+    | context [List.fold_right ?f ?i l] =>
+      destruct (List.fold_right f i l) as [function_slots mode] eqn:Hgathered
+    end.
+    assert (Hslots :
+      function_slots
+      = map (fun x => (fst x, fst (snd x))) l
+        ++ [(first_id, by_function_slot)]).
+    { change function_slots with (fst (function_slots, mode)).
+      rewrite <- Hgathered.
+      exact
+        (gathered_pairs_fst join_alloc_mode l [(first_id, by_function_slot)]
+           alloc_mode). }
+    destruct (gathered_parts read_closures first_id by_function_slot
+                other_heads l Hdistinct Hl)
+      as (Hd_slots & Hto & Hfirst & Hfrom).
+    rewrite <- Hslots in Hd_slots, Hto, Hfirst, Hfrom. clear Hslots Hgathered.
+    destruct
+      (n_way_join_row_like_for_closures join_env_n_way_join_env_extension
+         n_way_join_rec s function_slots)
+      as [[joined s1] | ] eqn:Hjoin; [ | discriminate ].
+    injection Hstep as <- <-.
+    assert (Hargs_slots :
+      args_in_scope
+        (arg_ok free_variables_of_row_like_for_closures
+           aliases_of_row_like_for_closures)
+        s function_slots).
+    { apply (args_of_parts _ _ _ _ s heads function_slots Hargs).
+      intros index closures Hin.
+      destruct (Hfrom index closures Hin)
+        as [[-> ->] | (head & mode' & Hin' & Hread)].
+      - exists (Closures by_function_slot alloc_mode).
+        split; [ left; reflexivity | split; apply incl_refl ].
+      - exists head. split; [ right; exact Hin' | ].
+        rewrite (read_closures_eq head closures mode' Hread).
+        split; apply incl_refl. }
+    destruct
+      (step_sound_at _ _ _ _ _ _ n_way_join_row_like_for_closures_is_sound s
+         s s1 function_slots joined Hwf Hkinded (grows_refl s) Hvalid
+         Hd_slots Hargs_slots Hjoin)
+      as (Hvalid1 & Hgrows1 & Hk1 & Hholds).
+    destruct (Hholds s1 (grows_refl s1)) as (Htarget & Hbound & Hkinds).
+    split; [ exact Hvalid1 | ]. split; [ exact Hgrows1 | ].
+    split; [ exact Htarget | ].
+    split; [ | intros Hk; split; [ exact (Hk1 Hk) | exact (Hkinds Hk) ] ].
+    intros index head use statics valuation valuation' Hin Huse Hsatisfied
+      Hextends v Hv.
+    assert (Hhead :
+      ∃ (closures : row_like_for_closures) (mode_i : Alloc_mode.t),
+        head = Closures closures mode_i ∧ In (index, closures) function_slots).
+    { destruct Hin as [[= <- <-] | Hin].
+      - exists by_function_slot, alloc_mode.
+        split; [ reflexivity | exact Hfirst ].
+      - destruct (Hto index head Hin) as (closures & mode_i & Hread & Hin').
+        exists closures, mode_i.
+        split; [ exact (read_closures_eq head closures mode_i Hread) | ].
+        exact Hin'. }
+    destruct Hhead as (closures & mode_i & -> & Hin_i).
+    destruct Hv as (slot & functions & value_slots & Hclosure & Hrow).
+    exists slot, functions, value_slots. split; [ exact Hclosure | ].
+    exact
+      (Hbound index closures use statics valuation valuation' Hin_i Huse
+         Hsatisfied Hextends (v, slot, functions, value_slots) Hrow).
+  - (* Strings. *)
+    rewrite gather_heads_eq in Hstep.
+    destruct (indexed_map_opt (fun _ head => read_string head) other_heads)
+      as [l | ] eqn:Hl; cbn [option_map] in Hstep;
+      [ | exact (Hunknown s Hvalid (grows_refl s) (fun H => H) Hstep) ].
+    injection Hstep as <- <-.
+    destruct (indexed_map_opt_spec _ _ l Hl) as (_ & Hto & _).
+    split; [ exact Hvalid | ]. split; [ apply grows_refl | ].
+    split; [ intros x [] | ].
+    split; [ | intros Hk; split; [ exact Hk | intros simple kind [] ] ].
+    intros index head use statics valuation valuation' Hin _ _ _ v Hv.
+    destruct Hin as [[= <- <-] | Hin].
+    + destruct Hv as (bytes & Hstring & Hbytes). exists bytes.
+      split; [ exact Hstring | apply fold_strings_keeps; exact Hbytes ].
+    + destruct (Hto index head Hin) as (strs' & Hread & Hin').
+      destruct head; try discriminate. injection Hread as ->.
+      destruct Hv as (bytes & Hstring & Hbytes). exists bytes.
+      split; [ exact Hstring | ].
+      exact (fold_strings_in l strs index strs' bytes Hin' Hbytes).
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+(* Heads of kind value                                                      *)
+(* ------------------------------------------------------------------------ *)
+
+Definition non_null_of (head : head_of_kind_value)
+    : or_unknown_or_bottom head_of_kind_value_non_null :=
+  match head with
+  | Head_of_kind_value non_null _ => non_null
+  end.
+
+Definition variables_of_non_null
+    (non_null : or_unknown_or_bottom head_of_kind_value_non_null)
+    : list variable :=
+  match non_null with
+  | Ok head => free_variables_of_head_of_kind_value_non_null head
+  | Unknown | Bottom => []
+  end.
+
+Definition aliases_of_non_null
+    (non_null : or_unknown_or_bottom head_of_kind_value_non_null)
+    : list (simple * flambda_kind) :=
+  match non_null with
+  | Ok head => aliases_of_head_of_kind_value_non_null head
+  | Unknown | Bottom => []
+  end.
+
+(* What a head of kind value says of a value that is not null. *)
+Definition non_null_part_holds (statics : static_env) (vars : env) (v : value)
+    (non_null : or_unknown_or_bottom head_of_kind_value_non_null) : Prop :=
+  match non_null with
+  | Unknown => kind_of_value v = Value
+  | Bottom => False
+  | Ok head => head_of_kind_value_non_null_satisfied statics vars v head
+  end.
+
+Definition non_null_part_bound (statics : static_env) (valuation : env)
+    (head : head_of_kind_value) (valuation' : env)
+    (non_null : or_unknown_or_bottom head_of_kind_value_non_null) : Prop :=
+  ∀ v : value,
+    non_null_part_holds statics valuation v (non_null_of head) ->
+    non_null_part_holds statics valuation' v non_null.
+
+Lemma non_null_part_kind (statics : static_env) (vars : env) (v : value)
+    (non_null : or_unknown_or_bottom head_of_kind_value_non_null) :
+  non_null_part_holds statics vars v non_null -> kind_of_value v = Value.
+Proof.
+  destruct non_null as [ | head | ]; simpl;
+    [ auto | intros Hhead | intros [] ].
+  exact (proj1 (head_non_null_kind statics vars v head Hhead)).
+Qed.
+
+Lemma ok_head_in (heads : list (Index.t * head_of_kind_value))
+    (index : Index.t) (head : head_of_kind_value_non_null) :
+  In (index, head) (flat_map ok_head heads)
+  <-> ∃ is_null : is_null,
+        In (index, Head_of_kind_value (Ok head) is_null) heads.
+Proof.
+  rewrite in_flat_map. split.
+  - intros ([id [non_null is_null]] & Hin & Hhead). unfold ok_head in Hhead.
+    simpl in Hhead.
+    destruct non_null as [ | head' | ]; [ destruct Hhead | | destruct Hhead ].
+    destruct Hhead as [[= <- <-] | []]. exists is_null. exact Hin.
+  - intros (is_null & Hin).
+    exists (index, Head_of_kind_value (Ok head) is_null).
+    split; [ exact Hin | left; reflexivity ].
+Qed.
+
+Lemma ok_head_distinct (heads : list (Index.t * head_of_kind_value)) :
+  NoDup (map fst heads) -> NoDup (map fst (flat_map ok_head heads)).
+Proof.
+  apply flat_map_indexed_distinct.
+  - intros [id [non_null is_null]] index head. unfold ok_head. simpl.
+    destruct non_null as [ | head' | ];
+      [ intros [] | intros [[= <- _] | []]; reflexivity | intros [] ].
+  - intros [id [non_null is_null]]. unfold ok_head. simpl.
+    destruct non_null as [ | head' | ]; try apply NoDup_nil.
+    apply NoDup_cons; [ intros [] | apply NoDup_nil ].
+Qed.
+
+Local Abbreviation value_head_bound :=
+  (known_bound
+     (all_kept head_of_kind_value_satisfied head_of_kind_value_satisfied)).
+
+Theorem n_way_join_head_of_kind_value_is_sound :
+  step_sound free_variables_of_head_of_kind_value
+    aliases_of_head_of_kind_value
+    (of_known free_variables_of_head_of_kind_value)
+    (of_known aliases_of_head_of_kind_value) value_head_bound
+    (n_way_join_head_of_kind_value n_way_join_simples import_type
+       join_env_n_way_join_env_extension type_eqb block_shape_eqb
+       n_way_join_rec).
+Proof.
+  intros s s' heads answer Hvalid Hwf Hkinded Hdistinct Hargs Hstep.
+  unfold n_way_join_head_of_kind_value in Hstep.
+  destruct (n_way_join_is_null n_way_join_simples s heads)
+    as [[is_null sa] | ] eqn:His_null; [ | discriminate ].
+  destruct
+    (step_sound_at _ _ _ _ _ _
+       (n_way_join_is_null_is_sound n_way_join_simples Hsimples) s s sa heads
+       is_null Hwf Hkinded (grows_refl s) Hvalid Hdistinct Hargs His_null)
+    as (Hvalida & Hgrowsa & Hka & Hholds_is_null).
+  (* What is left to do once the heads that are not null are joined. *)
+  assert (Hfinal :
+    ∀ (non_null : or_unknown_or_bottom head_of_kind_value_non_null)
+      (sb : state),
+      state_valid sb -> grows sa sb -> (state_kinded sa -> state_kinded sb) ->
+      answer_holds_from variables_of_non_null aliases_of_non_null
+        non_null_part_bound sa sb heads non_null ->
+      match non_null, is_null with
+      | Unknown, Maybe_null None => Some (Or_unknown.Unknown, sb)
+      | _, _ =>
+        Some (Or_unknown.Known (Head_of_kind_value non_null is_null), sb)
+      end
+      = Some (answer, s') ->
+      state_valid s' ∧ grows s s'
+      ∧ in_target (of_known free_variables_of_head_of_kind_value) s' answer
+      ∧ (∀ (index : Index.t) (x : head_of_kind_value) (use : Typing_env.t)
+           (statics : static_env) (valuation valuation' : env),
+           In (index, x) heads ->
+           joined_env s' index = Some use ->
+           typing_env_satisfied_strictly statics valuation use ->
+           extends s' index valuation valuation' ->
+           value_head_bound statics valuation x valuation' answer)
+      ∧ (state_kinded s ->
+         state_kinded s'
+         ∧ kinded_in_target (of_known aliases_of_head_of_kind_value) s'
+             answer)).
+  { intros non_null sb Hvalidb Hgrowsb Hkb Hholds_non_null Hanswer.
+    assert (Hcases :
+      s' = sb
+      ∧ (answer = Or_unknown.Unknown
+         ∨ answer
+           = Or_unknown.Known (Head_of_kind_value non_null is_null))).
+    { destruct non_null as [ | head | ]; destruct is_null as [ | [y | ]];
+        cbv beta iota in Hanswer;
+        (split;
+         [ congruence | first [ left; congruence | right; congruence ] ]). }
+    destruct Hcases as (-> & Hanswer').
+    split; [ exact Hvalidb | ].
+    split; [ exact (grows_trans _ _ _ Hgrowsa Hgrowsb) | ].
+    destruct Hanswer' as [-> | ->].
+    { split; [ intros x [] | ]. split; [ intros; exact I | ].
+      intros Hk. split; [ exact (Hkb (Hka Hk)) | intros simple kind [] ]. }
+    destruct (Hholds_non_null sb (grows_refl sb))
+      as (Htarget_non_null & Hbound_non_null & Hkinds_non_null).
+    destruct (Hholds_is_null sb Hgrowsb)
+      as (Htarget_is_null & Hbound_is_null & Hkinds_is_null).
+    split; [ | split ].
+    - intros x Hx. simpl in Hx. apply in_app_or in Hx as [Hx | Hx];
+        [ exact (Htarget_non_null x Hx) | exact (Htarget_is_null x Hx) ].
+    - intros index [non_null_i is_null_i] use statics valuation valuation'
+        Hin Huse Hsatisfied Hextends v Hv.
+      pose proof
+        (Hbound_non_null index _ use statics valuation valuation' Hin Huse
+           Hsatisfied Hextends)
+        as Hnon_null_b.
+      pose proof
+        (Hbound_is_null index _ use statics valuation valuation' Hin Huse
+           Hsatisfied Hextends)
+        as His_null_b.
+      cbn [is_null_of_head] in His_null_b.
+      destruct Hv as [(-> & Hnull) | (Hnot_null & Hnon_null & Hnull)].
+      + left. split; [ reflexivity | ].
+        destruct is_null_i as [ | x]; [ destruct Hnull | ].
+        pose proof (His_null_b true Hnull) as Hjoined.
+        destruct is_null as [ | y]; [ discriminate Hjoined | exact Hjoined ].
+      + right. split; [ exact Hnot_null | ].
+        split; [ exact (Hnon_null_b v Hnon_null) | ].
+        assert (Hjoined : is_null_says valuation' is_null false).
+        { apply His_null_b. destruct is_null_i as [ | x];
+            [ reflexivity | exact Hnull ]. }
+        destruct is_null as [ | y]; [ exact I | exact Hjoined ].
+    - intros Hk. split; [ exact (Hkb (Hka Hk)) | ].
+      intros simple kind Hsimple. simpl in Hsimple.
+      apply in_app_or in Hsimple as [Hsimple | Hsimple];
+        [ exact (Hkinds_non_null (Hka Hk) simple kind Hsimple)
+        | exact (Hkinds_is_null Hk simple kind Hsimple) ]. }
+  (* The part that is not null is unknown. *)
+  assert (Hunknown :
+    ∀ sb : state,
+      answer_holds_from variables_of_non_null aliases_of_non_null
+        non_null_part_bound sa sb heads Unknown).
+  { intros sb s'' _. split; [ intros x [] | ].
+    split; [ | intros _ simple kind [] ].
+    intros index head use statics valuation valuation' _ _ _ _ v Hv.
+    exact (non_null_part_kind statics valuation v _ Hv). }
+  destruct (non_null_heads [] heads) as [non_nulls | ] eqn:Hnon_nulls.
+  2: { exact
+         (Hfinal Unknown sa Hvalida (grows_refl sa) (fun H => H)
+            (Hunknown sa) Hstep). }
+  destruct (non_null_heads_spec heads [] non_nulls Hnon_nulls)
+    as (Heq & Hknown).
+  rewrite app_nil_r in Heq.
+  (* A head whose part that is not null has a value is among those
+     joined. *)
+  assert (Hin_non_nulls :
+    ∀ (index : Index.t)
+      (non_null : or_unknown_or_bottom head_of_kind_value_non_null)
+      (is_null_i : FlambdaTypeGrammar.is_null) (statics : static_env)
+      (valuation : env) (v : value),
+      In (index, Head_of_kind_value non_null is_null_i) heads ->
+      non_null_part_holds statics valuation v non_null ->
+      ∃ head : head_of_kind_value_non_null,
+        non_null = Ok head ∧ In (index, head) non_nulls).
+  { intros index non_null is_null_i statics valuation v Hin Hv.
+    destruct non_null as [ | head | ];
+      [ destruct (Hknown index _ _ Hin eq_refl) | | destruct Hv ].
+    exists head. split; [ reflexivity | ]. rewrite Heq, <- in_rev.
+    apply ok_head_in. exists is_null_i. exact Hin. }
+  destruct non_nulls as [ | first rest].
+  { apply (Hfinal Bottom sa Hvalida (grows_refl sa) (fun H => H));
+      [ | exact Hstep ].
+    intros s'' _. split; [ intros x [] | ].
+    split; [ | intros _ simple kind [] ].
+    intros index [non_null is_null_i] use statics valuation valuation' Hin _
+      _ _ v Hv.
+    destruct (Hin_non_nulls index non_null is_null_i statics valuation v Hin
+                Hv)
+      as (head & _ & []). }
+  set (non_nulls := first :: rest) in *.
+  assert (Hd_non_nulls : join_args_distinct non_nulls).
+  { unfold join_args_distinct. rewrite Heq, map_rev. apply NoDup_rev.
+    apply ok_head_distinct. exact Hdistinct. }
+  assert (Hargs_non_nulls :
+    args_in_scope
+      (arg_ok free_variables_of_head_of_kind_value_non_null
+         aliases_of_head_of_kind_value_non_null)
+      s non_nulls).
+  { apply (args_of_parts _ _ _ _ s heads non_nulls Hargs).
+    intros index head Hin. rewrite Heq, <- in_rev in Hin.
+    apply ok_head_in in Hin as (is_null_i & Hin).
+    exists (Head_of_kind_value (Ok head) is_null_i).
+    split; [ exact Hin | ]. simpl. split; apply incl_appl, incl_refl. }
+  destruct
+    (n_way_join_head_of_kind_value_non_null n_way_join_simples import_type
+       join_env_n_way_join_env_extension type_eqb block_shape_eqb
+       n_way_join_rec sa non_nulls)
+    as [[joined sb] | ] eqn:Hjoin; [ | discriminate ].
+  destruct
+    (step_sound_at _ _ _ _ _ _
+       n_way_join_head_of_kind_value_non_null_is_sound s sa sb non_nulls
+       joined Hwf Hkinded Hgrowsa Hvalida Hd_non_nulls Hargs_non_nulls Hjoin)
+    as (Hvalidb & Hgrowsb & Hkb & Hholds).
+  destruct joined as [head' | ]; cbv beta iota in Hstep.
+  2: { exact (Hfinal Unknown sb Hvalidb Hgrowsb Hkb (Hunknown sb) Hstep). }
+  apply (Hfinal (Ok head') sb Hvalidb Hgrowsb Hkb); [ | exact Hstep ].
+  intros s'' Hgrows''.
+  destruct (Hholds s'' Hgrows'') as (Htarget & Hbound & Hkinds).
+  split; [ exact Htarget | ]. split; [ | exact Hkinds ].
+  intros index [non_null is_null_i] use statics valuation valuation' Hin Huse
+    Hsatisfied Hextends v Hv.
+  destruct (Hin_non_nulls index non_null is_null_i statics valuation v Hin Hv)
+    as (head & -> & Hin').
+  exact
+    (Hbound index head use statics valuation valuation' Hin' Huse Hsatisfied
+       Hextends v Hv).
+Qed.
+
 End Body.
+
+End Functions.
 
 End Traversal.
 
