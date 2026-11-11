@@ -76,10 +76,14 @@
      inlined at them. It follows from the explicit form, and says
      less.
 
-   The statements are about a call with the binding of its code in
-   sight, as [inline_let_code_statement] is. The form in which the
-   code is found in the static environment of a state
-   (FlambdaApplySpec.inline_statement) is not given here.
+   The refinement is given in the two forms of FlambdaApplySpec.v: of
+   a call with the binding of its code in sight, as
+   [inline_let_code_statement] is ([inline_at_statement],
+   [inline_fresh_statement]); and of a state in whose static
+   environment the code id of the call is bound to the code, as
+   [inline_statement] is ([inline_at_state_statement],
+   [inline_fresh_state_statement]). The second is the form for a pass
+   that inlines the calls of the code it has seen bound.
 
    Nothing is trusted here. The proofs are in
    FlambdaInlineFreshProofs.v, which needs no review. *)
@@ -161,6 +165,33 @@ Definition inline_fresh_statement : Prop :=
     all_among (free_variables_of_simples (ap_args ap)) avoid = true ->
     expr_refines (Let_static [Bind_code called c] (Apply ap))
       (Let_static [Bind_code called c] (inlined_fresh avoid c r ap)).
+
+(* The same of a state, where the code id of the call is bound to the
+   code in the static environment: FlambdaApplySpec.inline_statement
+   with the code opened at fresh variables. *)
+Definition inline_at_state_statement : Prop :=
+  ∀ (ap : apply_expr) (called : code_id) (c : code) (r : renaming)
+    (fresh : list variable) (vars : env) (conts : cont_env)
+    (statics : static_env),
+    ap_call_kind ap = Direct called ->
+    lookup called (static_code statics) = Some c ->
+    inlinable_at_fresh ap c r ->
+    length fresh = length (code_variables c) ->
+    distinct_outside
+      (code_variables c ++ free_variables_of_simples (ap_args ap)) fresh ->
+    refines (State (Apply ap) vars conts statics)
+      (State (inlined_at fresh c r ap) vars conts statics).
+
+Definition inline_fresh_state_statement : Prop :=
+  ∀ (ap : apply_expr) (called : code_id) (c : code) (r : renaming)
+    (avoid : list variable) (vars : env) (conts : cont_env)
+    (statics : static_env),
+    ap_call_kind ap = Direct called ->
+    lookup called (static_code statics) = Some c ->
+    inlinable_at_fresh ap c r ->
+    all_among (free_variables_of_simples (ap_args ap)) avoid = true ->
+    refines (State (Apply ap) vars conts statics)
+      (State (inlined_fresh avoid c r ap) vars conts statics).
 
 (* With the quantifier. *)
 Definition inline_at_fresh_statement : Prop :=

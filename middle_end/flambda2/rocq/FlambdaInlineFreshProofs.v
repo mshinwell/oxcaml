@@ -35,7 +35,12 @@
    meets FlambdaApplySpec.inlinable, its variables being the fresh
    ones ([opened_inlinable]), so its call refines its body inlined
    (FlambdaApplyProofs.inline_let_code). And the code is renamed back
-   where it is bound.
+   where it is bound. Of a state it is the same three steps, with the
+   code replaced by the opened code in the static environment
+   ([replace_code]): the two static environments have, at each code
+   id, code that the comparison accepts, so a state under the one is
+   equivalent to the state under the other
+   (FlambdaCompareProofs.matched_equivalent).
 
    The choice. The result is a run of [Let]s that bind the fresh
    variables, around the body of the code renamed. For two lists of
@@ -56,7 +61,9 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaNominalProofs FlambdaAlphaSpec FlambdaAlphaProofs
   FlambdaNameAbstractionSpec FlambdaNameAbstractionProofs
   FlambdaNominalInstancesSpec FlambdaNominalInstancesProofs
-  FlambdaApplySpec FlambdaApplyProofs FlambdaFreshQuantifierSpec
+  FlambdaCompareSpec FlambdaCompareProofs FlambdaCompareAlphaSpec
+  FlambdaCompareAlphaProofs FlambdaApplySpec FlambdaApplyProofs
+  FlambdaFreshQuantifierSpec
   FlambdaFreshQuantifierProofs FlambdaFreshBindersSpec
   FlambdaFreshBindersProofs FlambdaInlineFreshSpec.
 Import ListNotations.
@@ -203,6 +210,107 @@ Proof.
       exact (Hbinders (inlined_at fresh c r ap) Hclosed vars conts statics).
 Qed.
 
+(* ======================================================================== *)
+(* The same of a state                                                      *)
+(* ======================================================================== *)
+
+(* The first binding of a code id replaced by other code. *)
+Fixpoint replace_code (called : code_id) (replacement : code)
+    (codes : list (code_id * code)) : list (code_id * code) :=
+  match codes with
+  | [] => []
+  | (id, c) :: codes =>
+    if Pos.eqb called id
+    then (id, replacement) :: codes
+    else (id, c) :: replace_code called replacement codes
+  end.
+
+Lemma lookup_replace_code (called : code_id) (c replacement : code)
+    (codes : list (code_id * code)) :
+  lookup called codes = Some c ->
+  lookup called (replace_code called replacement codes) = Some replacement.
+Proof.
+  induction codes as [ | [id first] codes IH]; cbn [lookup replace_code];
+    [ discriminate | ].
+  destruct (Pos.eqb called id) eqn:Hid; cbn [lookup]; rewrite Hid;
+    [ reflexivity | exact IH ].
+Qed.
+
+Definition codes_match (codes codes' : list (code_id * code)) : Prop :=
+  Forall2
+    (fun ic ic' => fst ic = fst ic' ∧ code_eqb (snd ic) (snd ic') = true)
+    codes codes'.
+
+Lemma codes_match_same (codes : list (code_id * code)) :
+  codes_match codes codes.
+Proof.
+  induction codes as [ | ic codes IH]; constructor; [ | exact IH ].
+  split; [ reflexivity | apply code_eqb_refl ].
+Qed.
+
+(* The code replaced, and what replaces it, are accepted by the
+   comparison in the order given, or in the other order. *)
+Lemma replace_code_match (called : code_id) (c replacement : code)
+    (codes : list (code_id * code)) :
+  lookup called codes = Some c ->
+  code_eqb c replacement = true ->
+  codes_match codes (replace_code called replacement codes)
+  ∧ codes_match (replace_code called replacement codes) codes.
+Proof.
+  intros Hcode Heq.
+  induction codes as [ | [id first] codes IH]; cbn [lookup replace_code] in *;
+    [ discriminate Hcode | ].
+  destruct (Pos.eqb called id).
+  - injection Hcode as ->.
+    split; (constructor; [ | apply codes_match_same ]);
+      (split; [ reflexivity | ]); cbn [snd];
+      [ exact Heq | exact (code_eqb_flip _ _ Heq) ].
+  - destruct (IH Hcode) as [Hforwards Hbackwards].
+    split; (constructor; [ | assumption ]);
+      (split; [ reflexivity | apply code_eqb_refl ]).
+Qed.
+
+(* A state under two static environments that match. *)
+Lemma statics_matched_equivalent (e : expr) (vars : env) (conts : cont_env)
+    (statics statics' : static_env) :
+  statics_match statics statics' ->
+  equivalent (State e vars conts statics) (State e vars conts statics').
+Proof.
+  intros Hmatch. apply matched_equivalent. apply (State_matches [] []).
+  - apply expr_eqb_refl; apply reflexive_map_nil.
+  - apply envs_match_same.
+  - apply conts_match_same.
+  - exact Hmatch.
+Qed.
+
+Theorem inline_at_state : inline_at_state_statement.
+Proof.
+  intros ap called c r fresh vars conts statics Hkind Hcode Hinlinable Hlength
+    Houtside.
+  pose proof Hinlinable as (Hclosed & _).
+  pose proof (opened_inlinable ap c r fresh Hinlinable Hlength Houtside)
+    as Hopened.
+  set (statics' :=
+    Static_env
+      (replace_code called (open_code fresh c) (static_code statics))
+      (static_values statics)).
+  destruct
+    (replace_code_match called c (open_code fresh c) (static_code statics)
+       Hcode (rename_code_eqb _ c Hclosed))
+    as [Hforwards Hbackwards].
+  apply (refines_trans _ (State (Apply ap) vars conts statics')).
+  - apply equivalent_refines, statics_matched_equivalent.
+    split; [ exact Hforwards | reflexivity ].
+  - apply
+      (refines_trans _
+         (State (inlined_at fresh c r ap) vars conts statics')).
+    + apply (inline ap called (open_code fresh c) r);
+        [ exact Hkind | | exact Hopened ].
+      exact (lookup_replace_code called c _ _ Hcode).
+    + apply equivalent_refines, statics_matched_equivalent.
+      split; [ exact Hbackwards | reflexivity ].
+Qed.
+
 (* The variables that [fresh_names] makes will do. *)
 Lemma fresh_for_code (avoid free : list variable) (c : code) :
   FlambdaMapSpec.all_among free avoid = true ->
@@ -226,6 +334,14 @@ Proof.
   intros ap called c r avoid Hkind Hinlinable Havoid.
   apply inline_at;
     [ exact Hkind | exact Hinlinable | apply fresh_names_length
+    | apply fresh_for_code, Havoid ].
+Qed.
+
+Theorem inline_fresh_state : inline_fresh_state_statement.
+Proof.
+  intros ap called c r avoid vars conts statics Hkind Hcode Hinlinable Havoid.
+  apply (inline_at_state ap called c r);
+    [ exact Hkind | exact Hcode | exact Hinlinable | apply fresh_names_length
     | apply fresh_for_code, Havoid ].
 Qed.
 
