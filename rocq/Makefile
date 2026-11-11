@@ -193,6 +193,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaEnvAliasesSetProofs.v \
   FlambdaEnvAliasesSetSpec.v \
   FlambdaEnvAliasesSpec.v \
+  FlambdaEnvRenameProofs.v \
+  FlambdaEnvRenameSpec.v \
   FlambdaExpandHead.v \
   FlambdaExpandHeadProofs.v \
   FlambdaExpandHeadSpec.v \
