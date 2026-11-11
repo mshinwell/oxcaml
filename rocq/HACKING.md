@@ -745,12 +745,14 @@ not a proof.
   every commit of the integration branch, and `make -s boot-compiler`
   type-checks `flsemantics.ml` against the extracted files that are
   committed. So whatever needs the regenerated files, to build or to
-  pass (a change to `flsemantics.ml`, a new `.fl` example and its
-  expected file), goes in one commit, the last of the branch, after the
-  one with the lines for the shared lists if there is one. Every commit
-  before it must pass `make -C rocq all` and `make -C rocq assumptions`.
-  The integrator does not fast-forward that last commit: it makes one
-  commit of it and of the regenerated files together.
+  pass (a change to `flsemantics.ml` or to another test tool, a new
+  `.fl` example and its expected file), goes at the end of the branch,
+  after the commit with the lines for the shared lists if there is one:
+  one commit, or a short series in which each builds on the one before.
+  Every commit before that must pass `make -C rocq all` and
+  `make -C rocq assumptions`. The integrator does not fast-forward
+  those last commits: it applies them in order, and the first of them
+  as one commit with the regenerated files.
 - Trusted and unverified: the conversion from Flambda terms to model
   terms, primitives and constants included. It must send each to the one
   of the same name, and refuse what the model has not got; read it in
