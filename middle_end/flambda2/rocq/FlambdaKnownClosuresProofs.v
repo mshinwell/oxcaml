@@ -1,0 +1,634 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+(* Proofs of the statements of FlambdaKnownClosuresSpec.v. Nothing here
+   needs review. *)
+
+From Stdlib Require Import ZArith List Bool.
+From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaMapProofs FlambdaValueSpec FlambdaSemanticsSpec
+  FlambdaSemanticsProofs FlambdaContextProofs FlambdaNominalSpec
+  FlambdaNominalProofs FlambdaWellFormedSpec FlambdaWellFormedProofs
+  FlambdaClosuresProofs FlambdaNormaliseSpec FlambdaKnownClosuresSpec.
+Import ListNotations.
+
+(* ======================================================================== *)
+(* What it means for what is known to hold                                  *)
+(* ======================================================================== *)
+
+(* A symbol known to be a closure is bound to what the constant makes in
+   the environment at hand. *)
+Definition closure_holds (vars : env) (statics : static_env)
+    (entry : symbol * static_const) : Prop :=
+  ∃ allocated : statically_allocated_value,
+    eval_static_const vars (snd entry) = Some allocated
+    ∧ lookup (fst entry) (static_values statics) = Some allocated.
+
+Definition closures_hold (known : known_closures) (vars : env)
+    (statics : static_env) : Prop :=
+  ∀ entry : symbol * static_const,
+    entry ∈ known -> closure_holds vars statics entry.
+
+(* ======================================================================== *)
+(* Binding a variable that a constant does not mention                      *)
+(* ======================================================================== *)
+
+Lemma eval_simple_fresh (x : variable) (v : value) (vars : env) (s : simple) :
+  var_in_simple x s = false ->
+  eval_simple ((x, v) :: vars) s = eval_simple vars s.
+Proof.
+  destruct s as [y | sym | c]; simpl; try reflexivity.
+  intros Hfresh. rewrite Pos.eqb_sym, Hfresh. reflexivity.
+Qed.
+
+Lemma eval_simples_fresh (x : variable) (v : value) (vars : env)
+    (args : list simple) :
+  var_in_simples x args = false ->
+  eval_simples ((x, v) :: vars) args = eval_simples vars args.
+Proof.
+  unfold var_in_simples.
+  induction args as [ | s args IH]; [ reflexivity | ].
+  cbn [existsb eval_simples]. intros Hfresh.
+  apply orb_false_iff in Hfresh as [Hs Hargs].
+  rewrite (eval_simple_fresh x v vars s Hs), (IH Hargs). reflexivity.
+Qed.
+
+Lemma eval_value_slots_fresh (x : variable) (v : value) (vars : env)
+    (slots : list (value_slot * simple)) :
+  var_in_value_slots x slots = false ->
+  eval_value_slots ((x, v) :: vars) slots = eval_value_slots vars slots.
+Proof.
+  unfold var_in_value_slots.
+  induction slots as [ | [slot s] slots IH]; [ reflexivity | ].
+  cbn [existsb eval_value_slots]. intros Hfresh.
+  apply orb_false_iff in Hfresh as [Hs Hslots].
+  rewrite (eval_simple_fresh x v vars s Hs), (IH Hslots). reflexivity.
+Qed.
+
+Lemma eval_static_const_fresh (x : variable) (v : value) (vars : env)
+    (s : symbol) (const : static_const) :
+  var_in_static_binding x (Bind_symbol s const) = false ->
+  eval_static_const ((x, v) :: vars) const = eval_static_const vars const.
+Proof.
+  destruct const as [code slots | fslot syms decls slots | tag fields
+    | contents | bytes];
+    simpl; intros Hfresh.
+  - rewrite (eval_value_slots_fresh x v vars slots Hfresh). reflexivity.
+  - rewrite (eval_value_slots_fresh x v vars slots Hfresh). reflexivity.
+  - rewrite (eval_simples_fresh x v vars fields Hfresh). reflexivity.
+  - rewrite (eval_simple_fresh x v vars contents Hfresh). reflexivity.
+  - reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* What is known stays so                                                   *)
+(* ======================================================================== *)
+
+Lemma closures_hold_forget_slot_var (known : known_closures) (vars : env)
+    (statics : static_env) (x : variable) (v : value) :
+  closures_hold known vars statics ->
+  closures_hold (forget_slot_var x known) ((x, v) :: vars) statics.
+Proof.
+  intros Hhold entry Hin. apply filter_In in Hin as [Hin Hfresh].
+  apply negb_true_iff in Hfresh.
+  destruct (Hhold entry Hin) as (allocated & Hconst & Hlookup).
+  exists allocated. split; [ | exact Hlookup ].
+  rewrite (eval_static_const_fresh x v vars (fst entry) (snd entry) Hfresh).
+  exact Hconst.
+Qed.
+
+Lemma closures_hold_bind_params (statics : static_env)
+    (params : list variable) :
+  ∀ (known : known_closures) (vs : list value) (vars handler_vars : env),
+    closures_hold known vars statics ->
+    bind_params params vs vars = Some handler_vars ->
+    closures_hold (forget_slot_vars params known) handler_vars statics.
+Proof.
+  induction params as [ | param params IH];
+    intros known [ | v vs] vars handler_vars Hhold; simpl; try discriminate.
+  - intros [= <-]. exact Hhold.
+  - apply IH, closures_hold_forget_slot_var, Hhold.
+Qed.
+
+(* A static environment that binds more. *)
+Lemma closures_hold_extend (known : known_closures) (vars : env)
+    (statics statics' : static_env) :
+  closures_hold known vars statics -> statics_extend statics statics' ->
+  closures_hold known vars statics'.
+Proof.
+  intros Hhold [_ Hvalues] entry Hin.
+  destruct (Hhold entry Hin) as (allocated & Hconst & Hlookup).
+  exists allocated. split; [ exact Hconst | apply Hvalues, Hlookup ].
+Qed.
+
+(* Each closure of a group that is bound is bound to what its constant
+   makes. *)
+Lemma static_closures_bound (vars : env) (bindings : list static_binding) :
+  ∀ statics extended : static_env,
+    eval_static_bindings vars bindings statics = Some extended ->
+    ∀ entry : symbol * static_const,
+      entry ∈ flat_map static_closure_made bindings ->
+      closure_holds vars extended entry.
+Proof.
+  induction bindings as [ | binding bindings IH]; intros statics extended;
+    simpl; [ intros _ entry [] | ].
+  destruct binding as [id c | id | sym const].
+  - destruct (lookup id (static_code statics)); [ discriminate | ].
+    simpl. apply IH.
+  - simpl. apply IH.
+  - destruct (lookup sym (static_values statics)); [ discriminate | ].
+    destruct (eval_static_const vars const) as [allocated | ] eqn:Hconst;
+      simpl; [ | discriminate ].
+    intros Heval entry Hin. apply in_app_or in Hin.
+    destruct Hin as [Hin | Hin]; [ | exact (IH _ _ Heval entry Hin) ].
+    assert (Hentry : entry = (sym, const)).
+    { destruct const; simpl in Hin; try contradiction;
+        destruct Hin as [<- | []]; reflexivity. }
+    subst entry. exists allocated. split; [ exact Hconst | ]. simpl.
+    destruct (eval_static_bindings_extend vars bindings _ _ Heval)
+      as [_ Hvalues].
+    apply Hvalues. simpl. rewrite Pos.eqb_refl. reflexivity.
+Qed.
+
+Lemma closures_hold_under_statics (known : known_closures) (vars : env)
+    (statics : static_env) (bindings : list static_binding)
+    (extended : static_env) :
+  closures_hold known vars statics ->
+  eval_static_bindings vars bindings statics = Some extended ->
+  closures_hold (closures_under_statics known bindings) vars extended.
+Proof.
+  intros Hhold Heval entry Hin. unfold closures_under_statics in Hin.
+  apply in_app_or in Hin. destruct Hin as [Hin | Hin].
+  - exact (static_closures_bound vars bindings statics extended Heval entry
+      Hin).
+  - exact (closures_hold_extend known vars statics extended Hhold
+      (eval_static_bindings_extend vars bindings _ _ Heval) entry Hin).
+Qed.
+
+(* ======================================================================== *)
+(* Reading a slot                                                           *)
+(* ======================================================================== *)
+
+(* What the projection is, by cases on whether a function slot is
+   named. *)
+Definition projected (statics : static_env) (vars : env)
+    (project_from : option function_slot) (slot : value_slot)
+    (closure : simple) : option value :=
+  match project_from with
+  | Some from =>
+    eval_named statics vars (Project_value_slot_from from slot closure)
+  | None => eval_named statics vars (Project_value_slot slot closure)
+  end.
+
+Lemma slot_read_sound (known : known_closures) (vars : env)
+    (statics : static_env) (project_from : option function_slot)
+    (slot : value_slot) (closure contents : simple) (v : value) :
+  closures_hold known vars statics ->
+  slot_read known project_from slot closure = Some contents ->
+  projected statics vars project_from slot closure = Some v ->
+  eval_simple vars contents = Some v.
+Proof.
+  intros Hhold. unfold slot_read.
+  destruct closure as [x | s | c]; try discriminate.
+  destruct (lookup s known) as [const | ] eqn:Hknown; [ | discriminate ].
+  apply lookup_in in Hknown.
+  destruct (Hhold (s, const) Hknown) as (allocated & Hconst & Hlookup).
+  simpl in Hconst, Hlookup.
+  destruct const as [code slots | fslot syms decls slots | tag fields
+    | contents' | bytes];
+    simpl; try discriminate.
+  - simpl in Hconst.
+    destruct (eval_value_slots vars slots) as [vs | ] eqn:Hslots;
+      [ | discriminate ].
+    simpl in Hconst. injection Hconst as <-.
+    destruct project_from as [from | ]; simpl.
+    + destruct (Pos.eqb unnamed_function_slot from) eqn:Hfrom;
+        [ | discriminate ].
+      intros Hread. unfold project_value_slot, closure_in_set.
+      rewrite Hlookup. simpl. rewrite Hfrom.
+      rewrite (eval_value_slots_lookup vars slot contents slots vs Hslots
+        Hread).
+      intros Hv. exact Hv.
+    + intros Hread. unfold closure_of. rewrite Hlookup. simpl.
+      rewrite (eval_value_slots_lookup vars slot contents slots vs Hslots
+        Hread).
+      intros Hv. exact Hv.
+  - simpl in Hconst.
+    destruct (lookup fslot decls) as [code | ] eqn:Hdecl; [ | discriminate ].
+    destruct (eval_value_slots vars slots) as [vs | ] eqn:Hslots;
+      [ | discriminate ].
+    simpl in Hconst. injection Hconst as <-.
+    destruct project_from as [from | ]; simpl.
+    + destruct (Pos.eqb fslot from) eqn:Hfrom; [ | discriminate ].
+      intros Hread. unfold project_value_slot, closure_in_set.
+      rewrite Hlookup, Hdecl. simpl. rewrite Hfrom.
+      rewrite (eval_value_slots_lookup vars slot contents slots vs Hslots
+        Hread).
+      intros Hv. exact Hv.
+    + intros Hread. unfold closure_of. rewrite Hlookup, Hdecl. simpl.
+      rewrite (eval_value_slots_lookup vars slot contents slots vs Hslots
+        Hread).
+      intros Hv. exact Hv.
+Qed.
+
+Lemma read_slot_named_holds (known : known_closures) (statics : static_env)
+    (vars : env) (d : named) (v : value) :
+  closures_hold known vars statics ->
+  eval_named statics vars d = Some v ->
+  eval_named statics vars (read_slot_named known d) = Some v.
+Proof.
+  intros Hhold Hd.
+  destruct d as
+    [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure];
+    try exact Hd.
+  - unfold read_slot_named.
+    destruct (slot_read known None slot closure) as [contents | ] eqn:Hread;
+      [ | exact Hd ].
+    exact (slot_read_sound known vars statics None slot closure contents v
+      Hhold Hread Hd).
+  - unfold read_slot_named.
+    destruct (slot_read known (Some pfrom) slot closure) as [contents | ]
+      eqn:Hread;
+      [ | exact Hd ].
+    exact (slot_read_sound known vars statics (Some pfrom) slot closure
+      contents v Hhold Hread Hd).
+Qed.
+
+Theorem read_slot_named_sound : read_slot_named_sound_statement.
+Proof.
+  intros known statics vars d v Hhold.
+  apply read_slot_named_holds. intros [s const] Hin.
+  exact (Hhold s const Hin).
+Qed.
+
+(* ======================================================================== *)
+(* Calling                                                                  *)
+(* ======================================================================== *)
+
+(* A callee known to be a closure is a symbol bound to a closure of the
+   code that is known. *)
+Lemma callee_code_sound (known : known_closures) (vars : env)
+    (statics : static_env) (callee : simple) (code : code_id) :
+  closures_hold known vars statics ->
+  callee_code known callee = Some code ->
+  ∃ (s : symbol) (slots : list (value_slot * value)),
+    callee = Symbol s
+    ∧ closure_of statics (Value_symbol s) = Some (code, slots).
+Proof.
+  intros Hhold. destruct callee as [x | s | c]; simpl; try discriminate.
+  destruct (lookup s known) as [const | ] eqn:Hknown; [ | discriminate ].
+  apply lookup_in in Hknown.
+  destruct (Hhold (s, const) Hknown) as (allocated & Hconst & Hlookup).
+  simpl in Hconst, Hlookup.
+  destruct const as [code' slots | fslot syms decls slots | tag fields
+    | contents | bytes];
+    simpl; try discriminate.
+  - intros [= ->]. simpl in Hconst.
+    destruct (eval_value_slots vars slots) as [vs | ]; [ | discriminate ].
+    simpl in Hconst. injection Hconst as <-.
+    exists s, vs. split; [ reflexivity | ].
+    unfold closure_of. rewrite Hlookup. reflexivity.
+  - intros Hcode. simpl in Hconst. rewrite Hcode in Hconst.
+    simpl in Hconst.
+    destruct (eval_value_slots vars slots) as [vs | ]; [ | discriminate ].
+    simpl in Hconst. injection Hconst as <-.
+    exists s, vs. split; [ reflexivity | ].
+    unfold closure_of. rewrite Hlookup. cbv beta iota. rewrite Hcode.
+    reflexivity.
+Qed.
+
+Lemma call_known_closure_holds (known : known_closures)
+    (statics : static_env) (vars : env) (conts : cont_env)
+    (ap : apply_expr) :
+  closures_hold known vars statics ->
+  step (State (Apply (call_known_closure known ap)) vars conts statics)
+  = step (State (Apply ap) vars conts statics).
+Proof.
+  intros Hhold. unfold call_known_closure.
+  destruct (ap_call_kind ap) as [named | ] eqn:Hkind; [ reflexivity | ].
+  destruct (callee_code known (ap_callee ap)) as [code | ] eqn:Hcode;
+    [ | reflexivity ].
+  destruct (callee_code_sound known vars statics (ap_callee ap) code Hhold
+    Hcode) as (s & slots & Hcallee & Hclosure).
+  rewrite !step_apply. unfold exn_extra_simples.
+  cbn [ap_callee ap_call_kind ap_args ap_continuation ap_exn_continuation
+       ap_exn_extra_args ap_args_arity ap_return_arity].
+  rewrite Hkind, Hcallee. cbn [eval_simple].
+  destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | reflexivity ].
+  destruct (eval_simples vars (map fst (ap_exn_extra_args ap)))
+    as [extra | ];
+    [ | reflexivity ].
+  unfold call_function. rewrite Hclosure. cbv beta iota zeta.
+  rewrite Pos.eqb_refl. reflexivity.
+Qed.
+
+Theorem call_known_closure_sound : call_known_closure_sound_statement.
+Proof.
+  intros known statics vars conts ap Hhold.
+  apply call_known_closure_holds. intros [s const] Hin.
+  exact (Hhold s const Hin).
+Qed.
+
+(* ======================================================================== *)
+(* The pass                                                                 *)
+(* ======================================================================== *)
+
+(* At a [Let], the projection has the value of what the slot holds or
+   none; then the parts under binders, by the induction, with what is
+   known there. *)
+Fixpoint use_closures_knowing_refines (e : expr) :
+  ∀ (known : known_closures) (vars : env) (conts : cont_env)
+    (statics : static_env),
+    closures_hold known vars statics ->
+    refines (State e vars conts statics)
+      (State (use_closures_knowing known e) vars conts statics)
+with use_closures_in_handler_refines (h : continuation_handler) :
+  ∀ (known : known_closures) (k : continuation) (body : expr) (vars : env)
+    (conts : cont_env) (statics : static_env),
+    closures_hold known vars statics ->
+    refines (State (Let_cont_non_recursive k h body) vars conts statics)
+      (State
+         (Let_cont_non_recursive k (use_closures_in_handler known h) body)
+         vars conts statics).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap
+         | ac | scrutinee arms | ];
+      intros known vars conts statics Hhold; simpl.
+    + destruct (eval_named statics vars d) as [v | ] eqn:Hd;
+        [ destruct (kind_eqb (kind_of_value v) kind) eqn:Hkind | ].
+      * eapply refines_step;
+          [ rewrite step_let, Hd, Hkind; reflexivity
+          | rewrite step_let,
+              (read_slot_named_holds known statics vars d v Hhold Hd), Hkind;
+            reflexivity
+          | ].
+        apply use_closures_knowing_refines.
+        apply closures_hold_forget_slot_var, Hhold.
+      * apply step_undefined_refines. rewrite step_let, Hd, Hkind.
+        reflexivity.
+      * apply step_undefined_refines. rewrite step_let, Hd. reflexivity.
+    + apply let_static_refines_step.
+      destruct (eval_static_bindings vars bindings statics)
+        as [extended | ] eqn:Hbindings; [ | exact I ].
+      apply use_closures_knowing_refines.
+      exact (closures_hold_under_statics known vars statics bindings extended
+        Hhold Hbindings).
+    + apply (refines_trans _
+        (State
+           (Let_cont_non_recursive k (use_closures_in_handler known h) body)
+           vars conts statics)).
+      * apply use_closures_in_handler_refines, Hhold.
+      * apply let_cont_non_recursive_refines_step,
+          use_closures_knowing_refines, Hhold.
+    + apply let_cont_recursive_refines_step; [ reflexivity | intros _ ].
+      apply use_closures_knowing_refines, Hhold.
+    + apply equivalent_refines, step_eq_equivalent. symmetry.
+      apply call_known_closure_holds, Hhold.
+    + apply refines_refl.
+    + apply refines_refl.
+    + apply refines_refl.
+  - destruct h as [params metadata handler].
+    intros known k body vars conts statics Hhold. simpl.
+    apply (let_cont_handler_refines_where (closures_hold known vars)
+      (closures_hold_extend known vars));
+      [ exact Hhold | ].
+    intros vs handler_vars conts' statics' Hhold' _ Hbind.
+    apply use_closures_knowing_refines.
+    exact (closures_hold_bind_params statics' params known vs vars
+      handler_vars Hhold' Hbind).
+Qed.
+
+Theorem use_known_closures_refines : use_known_closures_refines_statement.
+Proof.
+  intros e vars conts statics. apply use_closures_knowing_refines.
+  intros entry [].
+Qed.
+
+(* ======================================================================== *)
+(* Renaming                                                                 *)
+(* ======================================================================== *)
+
+Lemma var_in_simple_renamed (r : renaming) (x : variable) (s : simple) :
+  var_in_simple (rename_variable r x) (rename_simple r s) = var_in_simple x s.
+Proof.
+  destruct s as [y | sym | c]; simpl;
+    [ apply rename_variable_eqb | reflexivity | reflexivity ].
+Qed.
+
+Lemma var_in_value_slots_renamed (r : renaming) (x : variable)
+    (slots : list (value_slot * simple)) :
+  var_in_value_slots (rename_variable r x)
+    (map (fun slot => (fst slot, rename_simple r (snd slot))) slots)
+  = var_in_value_slots x slots.
+Proof.
+  unfold var_in_value_slots.
+  induction slots as [ | [slot s] slots IH]; simpl; [ reflexivity | ].
+  rewrite var_in_simple_renamed, IH. reflexivity.
+Qed.
+
+Lemma var_in_simples_renamed (r : renaming) (x : variable)
+    (args : list simple) :
+  var_in_simples (rename_variable r x) (map (rename_simple r) args)
+  = var_in_simples x args.
+Proof.
+  unfold var_in_simples.
+  induction args as [ | s args IH]; simpl; [ reflexivity | ].
+  rewrite IH. destruct s; simpl; rewrite ?rename_variable_eqb; reflexivity.
+Qed.
+
+Lemma var_in_static_const_renamed (r : renaming) (x : variable) (s : symbol)
+    (const : static_const) :
+  var_in_static_binding (rename_variable r x)
+    (Bind_symbol s (rename_static_const r const))
+  = var_in_static_binding x (Bind_symbol s const).
+Proof.
+  destruct const; simpl.
+  - apply var_in_value_slots_renamed.
+  - apply var_in_value_slots_renamed.
+  - apply var_in_simples_renamed.
+  - apply var_in_simple_renamed.
+  - reflexivity.
+Qed.
+
+Lemma forget_slot_var_renamed (r : renaming) (x : variable)
+    (known : known_closures) :
+  forget_slot_var (rename_variable r x) (rename_known_closures r known)
+  = rename_known_closures r (forget_slot_var x known).
+Proof.
+  unfold forget_slot_var, rename_known_closures, map_values.
+  induction known as [ | [s const] known IH]; [ reflexivity | ].
+  cbn [map filter fst snd]. rewrite var_in_static_const_renamed, IH.
+  destruct (var_in_static_binding x (Bind_symbol s const)); reflexivity.
+Qed.
+
+Lemma forget_slot_vars_renamed (r : renaming) (xs : list variable) :
+  ∀ known : known_closures,
+    forget_slot_vars (map (rename_variable r) xs)
+      (rename_known_closures r known)
+    = rename_known_closures r (forget_slot_vars xs known).
+Proof.
+  induction xs as [ | x xs IH]; intros known; cbn [map forget_slot_vars];
+    [ reflexivity | ].
+  rewrite forget_slot_var_renamed. apply IH.
+Qed.
+
+Lemma static_closure_made_renamed (r : renaming) (binding : static_binding) :
+  static_closure_made (rename_static_binding r binding)
+  = rename_known_closures r (static_closure_made binding).
+Proof.
+  destruct binding as [id c | id | s const]; try reflexivity.
+  destruct const; reflexivity.
+Qed.
+
+Lemma closures_under_statics_renamed (r : renaming) (known : known_closures)
+    (bindings : list static_binding) :
+  closures_under_statics (rename_known_closures r known)
+    (map (rename_static_binding r) bindings)
+  = rename_known_closures r (closures_under_statics known bindings).
+Proof.
+  unfold closures_under_statics, rename_known_closures, map_values.
+  rewrite map_app. f_equal.
+  induction bindings as [ | binding bindings IH]; [ reflexivity | ].
+  cbn [map flat_map]. rewrite map_app, IH. f_equal.
+  apply static_closure_made_renamed.
+Qed.
+
+Lemma static_closure_slots_renamed (r : renaming) (const : static_const) :
+  static_closure_slots (rename_static_const r const)
+  = option_map
+      (fun closure =>
+         (fst closure, map_values (rename_simple r) (snd closure)))
+      (static_closure_slots const).
+Proof. destruct const; reflexivity. Qed.
+
+Lemma slot_read_renamed (r : renaming) (known : known_closures)
+    (project_from : option function_slot) (slot : value_slot)
+    (closure : simple) :
+  slot_read (rename_known_closures r known) project_from slot
+    (rename_simple r closure)
+  = option_map (rename_simple r) (slot_read known project_from slot closure).
+Proof.
+  destruct closure as [x | s | c]; try reflexivity.
+  unfold slot_read, rename_known_closures. cbn [rename_simple].
+  rewrite lookup_map_values.
+  destruct (lookup s known) as [const | ]; [ | reflexivity ].
+  cbn [option_map]. rewrite static_closure_slots_renamed.
+  destruct (static_closure_slots const) as [[at_slot slots] | ];
+    [ | reflexivity ].
+  cbn [option_map fst snd].
+  destruct project_from as [from | ].
+  - destruct (Pos.eqb at_slot from); [ apply lookup_map_values | reflexivity ].
+  - apply lookup_map_values.
+Qed.
+
+Lemma read_slot_named_renamed (r : renaming) (known : known_closures)
+    (d : named) :
+  read_slot_named (rename_known_closures r known) (rename_named r d)
+  = rename_named r (read_slot_named known d).
+Proof.
+  destruct d as
+    [s | p args | code slots | fslot decls slots | slot closure
+    | pfrom slot closure | move_from move_to closure];
+    try reflexivity.
+  - unfold read_slot_named. cbn [rename_named]. rewrite slot_read_renamed.
+    destruct (slot_read known None slot closure); reflexivity.
+  - unfold read_slot_named. cbn [rename_named]. rewrite slot_read_renamed.
+    destruct (slot_read known (Some pfrom) slot closure); reflexivity.
+Qed.
+
+Lemma static_closure_code_renamed (r : renaming) (const : static_const) :
+  static_closure_code (rename_static_const r const)
+  = static_closure_code const.
+Proof. destruct const; reflexivity. Qed.
+
+Lemma callee_code_renamed (r : renaming) (known : known_closures)
+    (callee : simple) :
+  callee_code (rename_known_closures r known) (rename_simple r callee)
+  = callee_code known callee.
+Proof.
+  destruct callee as [x | s | c]; try reflexivity.
+  unfold callee_code, rename_known_closures. cbn [rename_simple].
+  rewrite lookup_map_values.
+  destruct (lookup s known) as [const | ]; [ | reflexivity ].
+  cbn [option_map]. apply static_closure_code_renamed.
+Qed.
+
+Lemma call_known_closure_renamed (r : renaming) (known : known_closures)
+    (ap : apply_expr) :
+  call_known_closure (rename_known_closures r known) (rename_apply r ap)
+  = rename_apply r (call_known_closure known ap).
+Proof.
+  unfold call_known_closure.
+  replace (ap_call_kind (rename_apply r ap)) with (ap_call_kind ap)
+    by reflexivity.
+  replace (ap_callee (rename_apply r ap))
+    with (rename_simple r (ap_callee ap)) by reflexivity.
+  rewrite callee_code_renamed.
+  destruct (ap_call_kind ap) as [named | ]; [ reflexivity | ].
+  destruct (callee_code known (ap_callee ap)); reflexivity.
+Qed.
+
+Fixpoint use_closures_knowing_renamed (r : renaming) (e : expr) {struct e} :
+  ∀ known : known_closures,
+    rename_expr r (use_closures_knowing known e)
+    = use_closures_knowing (rename_known_closures r known) (rename_expr r e)
+with use_closures_in_handler_renamed (r : renaming) (h : continuation_handler)
+    {struct h} :
+  ∀ known : known_closures,
+    rename_handler r (use_closures_in_handler known h)
+    = use_closures_in_handler (rename_known_closures r known)
+        (rename_handler r h).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k h body | handlers body | ap | ac
+         | scrutinee arms | ];
+      intros known; try reflexivity;
+      cbn [rename_expr use_closures_knowing].
+    + rewrite read_slot_named_renamed, forget_slot_var_renamed,
+        use_closures_knowing_renamed.
+      reflexivity.
+    + rewrite closures_under_statics_renamed, use_closures_knowing_renamed.
+      reflexivity.
+    + rewrite use_closures_in_handler_renamed, use_closures_knowing_renamed.
+      reflexivity.
+    + rewrite use_closures_knowing_renamed. reflexivity.
+    + rewrite call_known_closure_renamed. reflexivity.
+  - destruct h as [params metadata handler]. intros known.
+    cbn [rename_handler use_closures_in_handler].
+    rewrite forget_slot_vars_renamed, use_closures_knowing_renamed. reflexivity.
+Qed.
+
+Theorem use_closures_knowing_equivariant :
+  use_closures_knowing_equivariant_statement.
+Proof. intros r known e. apply use_closures_knowing_renamed. Qed.
+
+Theorem use_known_closures_equivariant :
+  use_known_closures_equivariant_statement.
+Proof. intros r e. exact (use_closures_knowing_renamed r e []). Qed.
