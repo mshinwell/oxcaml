@@ -15,17 +15,18 @@ front end has been read for decision 4, which the human has ruled on
 in part.
 
 Paths are in `middle_end/flambda2/` unless they say otherwise. The base
-is the integration branch at 1160b780f0: C1's epoch, with its law that
+is the integration branch at 66bbc6b1be: C1's epoch, with its law that
 no primitive has a value on a symbol bound to nothing, and its numbers
 in range; C3's epoch, sets of closures of several functions, and valid
 values; C2's epoch, in which terms carry kinds and arities and a call
-is undefined unless it agrees with the code called; C0's
-well-formedness; N1's names; and the types, T1's to T6's. It is read
-together with C0's note on well-formedness
-(`requests/C0-well-formed.md`) and what C5's owner told me of its
-design. The prototype was written on 0a2933e7c9 and has been rebased
-on 1160b780f0; what that cost each owner, and what changed in the
-prototype, is in `requests/C4-heap-fallout.md`.
+is undefined unless it agrees with the code called; C5's epoch, in
+which a call gives extra arguments to its exception continuation and
+an `Apply_cont` has a trap action; C0's well-formedness; N1's names;
+and the types, T1's to T6's. It is read together with C0's note on
+well-formedness (`requests/C0-well-formed.md`). The prototype was
+written on 0a2933e7c9 and has been rebased on 66bbc6b1be; what that
+cost each owner, and what changed in the prototype, is in
+`requests/C4-heap-fallout.md`.
 
 The prototype is on the branch `flambda2-rocq/C4-heap`. It builds
 (`make -C rocq -j16 all`, `make -C rocq assumptions`), and has no
@@ -1617,10 +1618,10 @@ such a use.
 ### 7.1 Measured on the prototype
 
 **A new form of value, and the primitives under one constructor.**
-Measured on the integration branch at 1160b780f0, file by file and
+Measured on the integration branch at 66bbc6b1be, file by file and
 owner by owner, in `requests/C4-heap-fallout.md`: `Value_location`
 with the types of the heap, the primitives under `Heap`, and the
-repairs that they force, in eighteen files, most of them one more
+repairs that they force, in nineteen files, most of them one more
 name in a pattern. The types library is among them (four of its
 files, T1's and T6's). No statement of an existing `Spec` file
 changes.
@@ -1704,13 +1705,21 @@ component that nothing reads. It is of the size of C2's first step
   valid, and a unit run from the empty heap has a valid one; nothing
   is claimed of an arbitrary heap that a state is given. It must not
   be left so when stores are turned on.
-- **C5 (exceptions).** Its owner's recommended design adds no field to
-  the state and does not change `Exit`: a raise is the `Apply_cont` it
-  is. So the sweep of 7.1 is mine alone. `cont_value` gains a form
-  that holds values (`Extra_args`), so `cont_value_closed` and the
-  action of a permutation gain a case. If the human chooses C5's
-  alternative (a stack of handlers in the state), the two fields
-  should land in one sweep; C5's owner will say. C5 needs nothing of
+- **C5 (exceptions).** Its design, which is on the integration
+  branch, adds no field to the state and does not change `Exit`: a
+  raise is the `Apply_cont` it is. So the sweep of 7.1 is mine alone.
+  `cont_value` has a form that holds values (`Extra_args`), so
+  `cont_value_closed` and the action of a permutation gain a case.
+  The prototype has met it: its machine follows `step` (a call
+  evaluates the extra arguments of its exception continuation, and a
+  continuation with extra arguments is applied to the arguments
+  followed by them), and a continuation with extra arguments is one
+  more case of what a continuation holds: in `cont_value_closed`, in
+  the relation on continuations (two such are related when the
+  continuations inside are and the extra arguments are), and in the
+  invariant on the handlers that a continuation holds. The stack of
+  handlers of C5's second machine (`FlambdaTrapSpec.v`) is not in
+  `state`, so it adds nothing to the sweep. C5 needs nothing of
   the value raised, so matching on an exception, which is
   `Phys_equal` on an `Immutable_unique` block that Simplify has made
   static, can wait for symbols as addresses.
@@ -2076,7 +2085,8 @@ Left:
   no existing theorem has been re-proved with a heap, and the claim
   that each carries over rests on `heap_step_agrees` and on the
   counts of 7.1, not on a build.
-- The prototype is on 1160b780f0. It has met C2's kinds (its machine
+- The prototype is on 66bbc6b1be. It has met C5's exceptions (section
+  7.2), C2's kinds (its machine
   follows `step`: a `Let` carries a kind that is not looked at, and a
   call is undefined unless it agrees with the code called; each
   statement about a `Let` has its kind), C3's closures of a set

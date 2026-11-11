@@ -1,17 +1,20 @@
 # C4, the heap: what the prototype costs on the integration branch
 
 The prototype was written on the integration branch at 0a2933e7c9. It is
-rebased here on 1160b780f0, after C1's law that no primitive has a value
+rebased here on 66bbc6b1be, after C1's law that no primitive has a value
 on a symbol bound to nothing and its numbers in range, C3's sets of
-closures and valid values, C2's kinds on terms, C0's well-formedness,
-N1's names, V2's normalisations, and the types, T1's to T6's. This note
+closures and valid values, C2's kinds on terms, C5's exceptions, C0's
+well-formedness, N1's names, V2's normalisations, and the types, T1's
+to T6's. This note
 says what applying its edits to the model costs each owner there, and
 what changed in the prototype's own two files. Paths are in
 `middle_end/flambda2/` unless they say otherwise. The counts are on
-1160b780f0. Of what came to the integration branch after C3's epoch,
-three files needed an edit (two of C2's and one of T6's, below); the
-rest did not (T2's typing environments, T3's aliases, T5's joins, N1's
-renamings, N2's binders, more of C1's laws).
+66bbc6b1be. Of what came to the integration branch after C3's epoch,
+five files needed an edit (two of C2's, one of T6's, one of N3's and
+one more function of C3's, below); the rest did not (T2's typing
+environments, T3's aliases, T4's meet, T5's joins, N1's renamings,
+N2's binders, C5's exceptions and its second machine, more of C1's
+laws).
 
 ## The edits to existing files, by owner
 
@@ -30,8 +33,9 @@ new constructor. "+a -b" counts lines added and removed.
 | `rocq/FlambdaPrimitiveSpec.v` | C1 (the signature of `eval_prim` and the laws are C0's; neither changes) | +31 -1 | `result_kind_of_heap_primitive`, and a case of `prim_result_kind`. `access_in_range` and `heap_primitive_in_range`, and a case of `prim_in_range`: a primitive of the heap carries the numbers of the `Make_block` or `Block_load` that it stands for. `value_in_range`: a location is in range (it holds no number). `eval_prim` has a wildcard already: it has no value on `Heap _`, and treats a location as any value that no observation reads. |
 | `rocq/FlambdaPrimitiveProofs.v` | C1 | +8 -6 | `eval_prim_arity`: a fourth branch (`Heap`: no value). `eval_prim_static_values`, `eval_prim_statics_extend`: a fourth pattern in the destruct on `prim`. `eval_is_null_statics_extend`: a seventh pattern in the destruct on `value`. |
 | `rocq/FlambdaSemanticsProofs.v` | C0 | +3 -3 | `closure_in_set_of`, `closure_in_set_slot`, `project_function_slot_defined`: one more name in the pattern of the destruct on `value`; the existing catch-all branches take it. |
-| `rocq/FlambdaClosuresSpec.v` | C3 | +2 -1 | `value_valid`: a location is valid (there is nothing in it). |
-| `rocq/FlambdaClosuresProofs.v` | C3 | +4 -4 | Four destructs on `value` (among them `closure_in_set_valid`): one more name in the pattern; the existing catch-all branches take it. |
+| `rocq/FlambdaClosuresSpec.v` | C3 | +5 -2 | `value_valid`: a location is valid (there is nothing in it). `value_sets_are`: a location holds no closure, so the property of the closures in a value holds of it. |
+| `rocq/FlambdaClosuresProofs.v` | C3 | +6 -6 | Six destructs on `value` (among them `closure_in_set_valid`): one more name in the pattern; the existing catch-all branches take it. |
+| `rocq/FlambdaValidatorEquivarianceProofs.v` | N3 | +1 -1 | `block_made_equivariant`: a fourth pattern in the destruct on `prim`. |
 | `rocq/FlambdaBlockLoadProofs.v` | V2 | +2 -2 | `block_made_spec`, `unary_applied_spec`: a fourth pattern in the destruct on `prim`. |
 | `rocq/FlambdaUnusedStaticsSpec.v` | V1 (unassigned) | +1 | `value_avoids`: a location avoids every name. |
 | `rocq/FlambdaUnusedStaticsProofs.v` | V1 (unassigned) | +6 -3 | `closure_of_erased`, `closure_in_set_erased`, `project_function_slot_erased`: one more name in the pattern, and one more branch, that of a boxed number (no closure, nothing erased). |
@@ -73,6 +77,22 @@ test `forallb (argument_bound statics h) vs` and `exec_bound_prim` are
 as they were, and `eval_prim` takes the same arguments.
 `equality_comparison` and `Phys_equal` are not in the integration
 branch's primitives, so the prototype's are kept, under `Heap`.
+
+On C5's epoch the machine follows `step` once more. `heap_step`
+evaluates the extra arguments of the exception continuation of a call
+and gives the callee that continuation with them
+(`FlambdaSemanticsSpec.with_extra_args`); `heap_apply_cont_value` is a
+`Fixpoint`, as `apply_cont_value` is, and applies a continuation with
+extra arguments to the arguments followed by them. A trap action is
+not executed, as in `step`. `cont_value_closed`, `cont_related` and
+`cont_code_free_of` have a case for a continuation with extra
+arguments: its extra arguments are closed, and related to those of the
+continuation it is related to; the handlers it holds are those of the
+continuation inside. No statement changes text. In the proofs, what
+was said of the application of a continuation by cases is now three
+lemmas by induction on the continuation (the heap is left as it is;
+the state after is closed; its handlers name no symbol left out), and
+the simulation has the case.
 
 Definitions:
 
@@ -173,7 +193,7 @@ statements are proved, and there is no conjecture.
   not add its heap there; its own invariant (`state_closed`) walks the
   heap and the static environment. Putting the heap in `state` adds the
   cells to `state_values_all`.
-- The cost to the other owners is small: eighteen files, most of them
+- The cost to the other owners is small: nineteen files, most of them
   a name in a pattern. The work is in the prototype's own proofs, which
   gain the lemmas on closures of a set (a closure of a set is a closure;
   what a closure that is not a symbol projects; a projection does not
