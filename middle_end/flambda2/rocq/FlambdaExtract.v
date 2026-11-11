@@ -54,8 +54,8 @@ From Stdlib Require Extraction.
 From Stdlib Require Import ExtrOcamlBasic.
 From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
   FlambdaSemanticsSpec FlambdaWellFormedSpec FlambdaCompareSpec
-  FlambdaNormaliseSpec FlambdaBlockLoadSpec FlambdaUnusedContsSpec
-  FlambdaUnusedStaticsSpec FlambdaValidateSpec.
+  FlambdaNormaliseSpec FlambdaBlockLoadSpec FlambdaUnboxSpec
+  FlambdaUnusedContsSpec FlambdaUnusedStaticsSpec FlambdaValidateSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 
 Extraction Language OCaml.
@@ -110,6 +110,7 @@ Separate Extraction
   run
   step
   unbind
+  unbox_known_numbers
   union_with
   validate_unit
   well_formed_unit
