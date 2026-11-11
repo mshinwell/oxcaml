@@ -70,11 +70,15 @@
      handler; the parameters of code and its [my_closure], which is so
      not one of them; the two continuations of code; the continuations
      of a recursive group, which is not empty ([binders_distinct]);
-   - code is closed: its body uses no variable but its parameters and
-     [my_closure], and no continuation but its two ([code_closed]).
-   In the last two the model asks more than the compiler checks, by the
-   ruling that it may where the condition ought to be an invariant;
-   FlambdaBindersSpec.v says at each definition what the compiler does.
+   - code is closed: its body has no free variable but its parameters
+     and [my_closure], and no free continuation but its two; what the
+     body binds itself it may use ([code_closed]).
+   The first the compiler checks where a name is visited (Simplify
+   stops on a name that its environment has not got), not where a term
+   is built. In the last two the model asks more than the compiler
+   checks, by the ruling that it may where the condition ought to be an
+   invariant; FlambdaBindersSpec.v says at each definition what the
+   compiler does.
    What they give is that the run of a well-formed unit reads no
    variable that has no value and leaves only by a continuation of its
    interface ([well_formed_names_bound_statement], from
@@ -534,11 +538,12 @@ with code_numbers_in_range (c : code) : bool :=
 (* ======================================================================== *)
 
 (* What a unit is given by where it is run: the continuation that it
-   returns to and its exception continuation. This stands for the
-   compiler's [Flambda_unit.t] less its body (return_continuation and
-   exn_continuation there); what else of it a condition comes to need
-   is to be a field here, so that no use of [well_formed_unit]
-   changes. *)
+   returns to and its exception continuation. These are the parts of
+   the compiler's [Flambda_unit.t] that the conditions need
+   (return_continuation and exn_continuation there). It has more: the
+   module symbol and the region of the unit, for two. What else of it a
+   condition comes to need is to be a field here, so that no use of
+   [well_formed_unit] changes. *)
 Record unit_interface : Type := Unit_interface {
   unit_return : continuation;
   unit_exn : continuation
@@ -547,8 +552,8 @@ Record unit_interface : Type := Unit_interface {
 (* A unit, with its interface: its static bindings are at toplevel, and
    bind each code id and each symbol once; its variables and its
    continuations are in scope, the names of each binder are distinct and
-   its code is closed; its sets of closures are whole; its numbers are in
-   range. The conditions are in the order of the rows of the table of
+   its code has no free name but its own binders; its sets of closures
+   are whole; its numbers are in range. The conditions are in the order of the rows of the table of
    requests/C0-well-formed.md (1, 2, 3, 5, 6, 7 and 8). *)
 Definition well_formed_unit (u : unit_interface) (e : expr) : bool :=
   statics_at_toplevel (unit_exn u) true e
