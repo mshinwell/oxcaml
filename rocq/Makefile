@@ -177,6 +177,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaAliasesSpec.v \
   FlambdaBindingTime.v \
   FlambdaEnvAliases.v \
+  FlambdaEnvAliasesFollowProofs.v \
+  FlambdaEnvAliasesFollowSpec.v \
   FlambdaEnvAliasesInvariantProofs.v \
   FlambdaEnvAliasesInvariantSpec.v \
   FlambdaEnvAliasesProofs.v \
