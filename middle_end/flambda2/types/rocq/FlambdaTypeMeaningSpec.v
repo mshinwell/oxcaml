@@ -410,8 +410,12 @@ Definition is_tag (n : Z) : Prop := (0 <= n <= 255)%Z.
    that is the compiler's reading of a poison constant
    ([Reg_width_const.is_null]), and what its join of types takes for
    granted. The primitive is a use that reads the value, and has none
-   on poison in the machine; whether it is to have one is open.
-   Decisions D8 and D26. *)
+   on poison in the machine; whether it is to have one is open. A
+   prover that finds the type [Null] for the name of such a relation
+   answers 1 ([Provers.meet_naked_immediates]), which is not what
+   this relation gives if the name holds poison and the environment
+   says nothing of it: the provers are to be stated for environments
+   that hold of every name (T1-9, T6-1). Decisions D8 and D26. *)
 (* CR mshinwell: [Get_tag] relates a block to its tag only if the tag
    is from 0 to 255. The machine makes a block of any tag and does not
    test it; the terms of the compiler have tags in range, which is to
@@ -769,6 +773,19 @@ with closures_entry_satisfied (v : value) (slot : function_slot)
 
 (* Every name with an equation has a value, of the type of the
    equation. *)
+(* CR mshinwell: an equation asks that its name have a value. A typing
+   environment asks the type of a name only if the name has a value,
+   since a variable that a join made existential stands for nothing on
+   some runs. So an extension made of a level of an environment holds
+   only if the names of the level have values: the meet has to show
+   that of the levels it cuts, and the n-way join of the compiler does
+   not ensure it of a variable that it brings in from one of the
+   environments joined (T5-5, T5-10). The other reading, that an
+   equation asks nothing of a name with no value, is that of an
+   environment; with it the meet would be wrong where it adds the
+   extensions that two inputs have for one case and drops the case if
+   they do not meet, since nothing would tie the two types of a name
+   with no value. No decision has a number. *)
 with env_extension_satisfied (extension : env_extension) {struct extension}
     : Prop :=
   match extension with
