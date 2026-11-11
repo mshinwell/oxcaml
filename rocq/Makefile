@@ -97,6 +97,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaBindersSpec.v \
   FlambdaBlockLoadProofs.v \
   FlambdaBlockLoadSpec.v \
+  FlambdaCanonicalFreeNamesProofs.v \
+  FlambdaCanonicalFreeNamesSpec.v \
   FlambdaClosuresProofs.v \
   FlambdaClosuresSpec.v \
   FlambdaCompareAlphaProofs.v \
@@ -143,6 +145,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaSemanticsProofs.v \
   FlambdaSemanticsSpec.v \
   FlambdaSimulationProofs.v \
+  FlambdaStateSupportProofs.v \
+  FlambdaStateSupportSpec.v \
   FlambdaStaticProofs.v \
   FlambdaStaticSpec.v \
   FlambdaUnboxProofs.v \
