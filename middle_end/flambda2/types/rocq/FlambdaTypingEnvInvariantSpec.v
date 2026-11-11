@@ -68,6 +68,10 @@
    - [symbols_defined]: a symbol that has a type is defined. Stricter:
      nothing checks it, and [replace_equation] gives a type to any
      symbol (discrepancy T2-1).
+   - [symbols_recorded]: a symbol that has a type has the binding time
+     and the name mode of symbols. By construction: only
+     [replace_equation] gives a symbol a type, with those. Nothing
+     checks it.
 
    Of the levels:
    - [levels_pairwise_disjoint]: no two levels define one variable or
@@ -283,6 +287,30 @@ Definition symbols_defined (tenv : Typing_env.t) : Prop :=
     Keyed.lookup name_eqb (Name_symbol s) (Typing_env.names_to_types tenv)
     = Some (ty, binding_time_and_mode) ->
     among s (Typing_env.defined_symbols tenv) = true.
+
+(* A symbol that has a type has the binding time and the name mode of
+   symbols. *)
+(* Nothing in the compiler checks this. Its environments have it by the
+   way they are made: a symbol of the unit being compiled gets a type
+   only from [Typing_env.replace_equation], which gives it
+   [Binding_time.symbols] and the normal name mode, whatever it had. *)
+Definition symbols_recorded (tenv : Typing_env.t) : Prop :=
+  ∀ (s : symbol) (ty : flambda_type)
+    (binding_time_and_mode : Binding_time.With_name_mode.t),
+    Keyed.lookup name_eqb (Name_symbol s) (Typing_env.names_to_types tenv)
+    = Some (ty, binding_time_and_mode) ->
+    binding_time_and_mode = Binding_time.With_name_mode.symbols.
+
+Definition symbols_recorded_b (tenv : Typing_env.t) : bool :=
+  Keyed.for_all_bindings_b name_eqb
+    (fun n entry =>
+       match n with
+       | Name_symbol _ =>
+         Binding_time.With_name_mode.equal (snd entry)
+           Binding_time.With_name_mode.symbols
+       | Name_var _ => true
+       end)
+    (Typing_env.names_to_types tenv).
 
 Definition symbols_defined_b (tenv : Typing_env.t) : bool :=
   Keyed.for_all_bindings_b name_eqb
@@ -622,7 +650,8 @@ Definition typing_env_conditions (tenv : Typing_env.t) : Prop :=
    ∧ binding_times_in_range tenv
    ∧ binding_times_distinct tenv
    ∧ types_closed tenv
-   ∧ symbols_defined tenv)
+   ∧ symbols_defined tenv
+   ∧ symbols_recorded tenv)
   ∧ (levels_pairwise_disjoint (all_levels tenv)
      ∧ defined_variables_bound tenv
      ∧ levels_indexed tenv
@@ -640,7 +669,8 @@ Definition typing_env_well_formed (tenv : Typing_env.t) : bool :=
    && binding_times_in_range_b tenv
    && binding_times_distinct_b tenv
    && types_closed_b tenv
-   && symbols_defined_b tenv)
+   && symbols_defined_b tenv
+   && symbols_recorded_b tenv)
   && (levels_pairwise_disjoint_b (all_levels tenv)
       && defined_variables_bound_b tenv
       && levels_indexed_b tenv
@@ -724,6 +754,18 @@ Definition find_closed_statement : Prop :=
     Typing_env.find tenv n kind = Some ty ->
     x ∈ free_variables ty ->
     Typing_env.mem None tenv (Name_var x) = true.
+
+(* The extension that a level makes has the equations of the level,
+   one for each name. *)
+Definition as_extension_without_bindings_equations_statement : Prop :=
+  ∀ (level : Typing_env_level.t)
+    (equations : Keyed.finite_map name flambda_type),
+    Typing_env_level.as_extension_without_bindings level
+    = Env_extension equations ->
+    (∀ n : name,
+      Keyed.lookup name_eqb n equations
+      = Keyed.lookup name_eqb n (Typing_env_level.equations level))
+    ∧ Keyed.distinct name_eqb (map fst equations) = true.
 
 (* [Typing_env.cut] answers, whatever the scope: the fatal error of
    [Typing_env_level.concat] does not happen. *)

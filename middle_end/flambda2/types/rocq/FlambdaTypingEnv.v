@@ -271,8 +271,10 @@ Module Typing_env_level.
            (equations later ++ equations earlier))
     else None.
 
+  (* One equation for each name that has one, the one that counts: the
+     map of the compiler has one for each name. *)
   Definition as_extension_without_bindings (level : t) : env_extension :=
-    Env_extension (equations level).
+    Env_extension (Keyed.compact name_eqb (equations level)).
 
   (* Binding times in increasing order. *)
   Fixpoint insert_binding_time (binding_time : Binding_time.t)
