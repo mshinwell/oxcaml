@@ -2,7 +2,9 @@ open BinInt
 open BinNums
 open BinPos
 open Datatypes
+open FlambdaKindModel
 open FlambdaModel
+open FlambdaPrimitiveSpec
 open List
 open ListDef
 open PeanoNat
@@ -41,43 +43,6 @@ let combine_names xs xs' m =
   then Some (app (combine xs xs') m)
   else None
 
-(** val kind_eq_dec : flambda_kind -> flambda_kind -> bool **)
-
-let kind_eq_dec k k' =
-  match k with
-  | Value -> ( match k' with Value -> true | _ -> false)
-  | Naked_number k0 -> (
-    match k' with
-    | Naked_number k1 -> (
-      match k0 with
-      | Kind_naked_immediate -> (
-        match k1 with Kind_naked_immediate -> true | _ -> false)
-      | Kind_naked_float32 -> (
-        match k1 with Kind_naked_float32 -> true | _ -> false)
-      | Kind_naked_float -> (
-        match k1 with Kind_naked_float -> true | _ -> false)
-      | Kind_naked_int8 -> (
-        match k1 with Kind_naked_int8 -> true | _ -> false)
-      | Kind_naked_int16 -> (
-        match k1 with Kind_naked_int16 -> true | _ -> false)
-      | Kind_naked_int32 -> (
-        match k1 with Kind_naked_int32 -> true | _ -> false)
-      | Kind_naked_int64 -> (
-        match k1 with Kind_naked_int64 -> true | _ -> false)
-      | Kind_naked_nativeint -> (
-        match k1 with Kind_naked_nativeint -> true | _ -> false)
-      | Kind_naked_vec128 -> (
-        match k1 with Kind_naked_vec128 -> true | _ -> false)
-      | Kind_naked_vec256 -> (
-        match k1 with Kind_naked_vec256 -> true | _ -> false)
-      | Kind_naked_vec512 -> (
-        match k1 with Kind_naked_vec512 -> true | _ -> false)
-      | Kind_naked_mask -> (
-        match k1 with Kind_naked_mask -> true | _ -> false))
-    | _ -> false)
-  | Region -> ( match k' with Region -> true | _ -> false)
-  | Rec_info -> ( match k' with Rec_info -> true | _ -> false)
-
 (** val const_eq_dec : const -> const -> bool **)
 
 let const_eq_dec c c' =
@@ -115,10 +80,6 @@ let const_eq_dec c c' =
 (** val const_eqb : const -> const -> bool **)
 
 let const_eqb c c' = if const_eq_dec c c' then true else false
-
-(** val prim_eqb : prim -> prim -> bool **)
-
-let prim_eqb = fun p p' -> !Prim_hook.prim_eqb p p'
 
 (** val forall2b : ('a1 -> 'a2 -> bool) -> 'a1 list -> 'a2 list -> bool **)
 

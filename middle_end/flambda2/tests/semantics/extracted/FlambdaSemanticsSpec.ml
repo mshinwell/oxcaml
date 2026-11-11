@@ -4,34 +4,12 @@ open BinPos
 open Datatypes
 open FlambdaMapSpec
 open FlambdaModel
+open FlambdaPrimitiveSpec
+open FlambdaValueSpec
 open List
 open ListDef
 
-type value =
-  | Value_const of const
-  | Value_closure of code_id * (value_slot * value) list
-  | Value_symbol of symbol
-
-(** val eval_prim : prim -> value list -> value option **)
-
-let eval_prim = fun p vs -> Obj.obj (!Prim_hook.eval_prim p (Obj.repr vs))
-
 type env = (variable * value) list
-
-type statically_allocated_value =
-  | Static_closure of code_id * (value_slot * value) list
-  | Static_block of coq_Z * value list
-  | Static_boxed_number of value
-  | Static_string of coq_Z list
-
-type static_env =
-  { static_code : (code_id * code) list;
-    static_values : (symbol * statically_allocated_value) list
-  }
-
-(** val empty_static_env : static_env **)
-
-let empty_static_env = { static_code = []; static_values = [] }
 
 type cont_value =
   | Closure of
@@ -90,29 +68,17 @@ let rec eval_value_slots vars = function
       | None -> None)
     | None -> None)
 
-(** val closure_of : static_env -> value -> (code_id * (value_slot * value)
-    list) option **)
-
-let closure_of statics = function
-  | Value_const _ -> None
-  | Value_closure (code0, value_slots) -> Some (code0, value_slots)
-  | Value_symbol s -> (
-    match lookup s statics.static_values with
-    | Some s0 -> (
-      match s0 with
-      | Static_closure (code0, value_slots) -> Some (code0, value_slots)
-      | _ -> None)
-    | None -> None)
-
 (** val eval_named : static_env -> env -> named -> value option **)
 
 let eval_named statics vars = function
   | Simple s -> eval_simple vars s
   | Prim (p, args) -> (
-    match eval_simples vars args with Some vs -> eval_prim p vs | None -> None)
-  | Set_of_closures (code0, value_slots) -> (
+    match eval_simples vars args with
+    | Some vs -> eval_prim statics p vs
+    | None -> None)
+  | Set_of_closures (code, value_slots) -> (
     match eval_value_slots vars value_slots with
-    | Some vs -> Some (Value_closure (code0, vs))
+    | Some vs -> Some (Value_closure (code, vs))
     | None -> None)
   | Project_value_slot (slot, closure) -> (
     match eval_simple vars closure with
@@ -126,9 +92,9 @@ let eval_named statics vars = function
     option **)
 
 let eval_static_const vars = function
-  | Static_const_set_of_closures (code0, value_slots) -> (
+  | Static_const_set_of_closures (code, value_slots) -> (
     match eval_value_slots vars value_slots with
-    | Some vs -> Some (Static_closure (code0, vs))
+    | Some vs -> Some (Static_closure (code, vs))
     | None -> None)
   | Static_const_block (tag, fields) -> (
     match eval_simples vars fields with
@@ -157,11 +123,11 @@ let rec eval_static_bindings vars bindings statics =
             static_values = statics.static_values
           })
     | Bind_deleted_code _ -> eval_static_bindings vars bindings0 statics
-    | Bind_symbol (s, const0) -> (
+    | Bind_symbol (s, const) -> (
       match lookup s statics.static_values with
       | Some _ -> None
       | None -> (
-        match eval_static_const vars const0 with
+        match eval_static_const vars const with
         | Some allocated ->
           eval_static_bindings vars bindings0
             { static_code = statics.static_code;

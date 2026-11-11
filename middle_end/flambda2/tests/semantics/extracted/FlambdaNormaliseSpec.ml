@@ -7,7 +7,10 @@ open FlambdaCompareSpec
 open FlambdaMapSpec
 open FlambdaModel
 open FlambdaNominalSpec
+open FlambdaPrimitiveModel
+open FlambdaPrimitiveSpec
 open FlambdaSemanticsSpec
+open FlambdaValueSpec
 open List
 open ListDef
 open PeanoNat
@@ -237,7 +240,9 @@ and var_free_in_handler_b x = function
 
 (** val prim_may_fold : prim -> bool **)
 
-let prim_may_fold = fun p -> !Prim_hook.prim_may_fold p
+let prim_may_fold = function
+  | Unary p0 -> ( match p0 with Opaque_identity _ -> false | _ -> true)
+  | Binary _ -> true
 
 (** val named_may_go : named -> bool **)
 
@@ -347,7 +352,7 @@ let fold_named d =
   | Prim (p, args) -> (
     match if prim_may_fold p then consts_of_simples args else None with
     | Some cs -> (
-      match eval_prim p (map (fun x -> Value_const x) cs) with
+      match eval_prim empty_static_env p (map (fun x -> Value_const x) cs) with
       | Some v -> ( match v with Value_const c -> Simple (Const c) | _ -> d)
       | None -> d)
     | None -> d)

@@ -1,0 +1,7 @@
+let $b = Block 3 (1, 2) in
+let t = %get_tag ($b) in
+let i = %is_int ($b) in
+let r = %tag_imm (t) in
+let j = %tag_imm (i) in
+let $camlGet_tag = Block 0 (r, j) in
+cont done ($camlGet_tag)

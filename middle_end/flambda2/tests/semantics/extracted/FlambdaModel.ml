@@ -1,4 +1,6 @@
 open BinNums
+open FlambdaKindModel
+open FlambdaPrimitiveModel
 
 type variable = positive
 
@@ -9,26 +11,6 @@ type symbol = positive
 type code_id = positive
 
 type value_slot = positive
-
-type naked_number_kind =
-  | Kind_naked_immediate
-  | Kind_naked_float32
-  | Kind_naked_float
-  | Kind_naked_int8
-  | Kind_naked_int16
-  | Kind_naked_int32
-  | Kind_naked_int64
-  | Kind_naked_nativeint
-  | Kind_naked_vec128
-  | Kind_naked_vec256
-  | Kind_naked_vec512
-  | Kind_naked_mask
-
-type flambda_kind =
-  | Value
-  | Naked_number of naked_number_kind
-  | Region
-  | Rec_info
 
 type const =
   | Naked_immediate of coq_Z
@@ -69,8 +51,6 @@ type simple =
   | Var of variable
   | Symbol of symbol
   | Const of const
-
-type prim = Obj.t
 
 type named =
   | Simple of simple

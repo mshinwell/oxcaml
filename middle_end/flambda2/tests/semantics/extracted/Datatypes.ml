@@ -25,3 +25,12 @@ let rec length = function [] -> O | _ :: l' -> S (length l')
 (** val app : 'a1 list -> 'a1 list -> 'a1 list **)
 
 let rec app l m = match l with [] -> m | a :: l1 -> a :: app l1 m
+
+type comparison =
+  | Eq
+  | Lt
+  | Gt
+
+(** val coq_CompOpp : comparison -> comparison **)
+
+let coq_CompOpp = function Eq -> Eq | Lt -> Gt | Gt -> Lt

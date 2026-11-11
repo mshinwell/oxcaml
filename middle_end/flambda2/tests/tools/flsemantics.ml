@@ -35,9 +35,10 @@
    undefined, the run after ends the same way.
 
    This is a test and not a proof. What is trusted, beyond the semantics itself:
-   the conversion below, which must be read against the model; and the meaning
-   given here to the primitives, which the model leaves abstract ([eval_prim]).
-   A construct or a primitive the conversion does not know is reported as
+   the conversion below, which must be read against the model. What a primitive
+   computes is the model's to say (FlambdaPrimitiveSpec.v); the conversion only
+   says which primitive of the model stands for one of the compiler's. A
+   construct or a primitive the conversion does not know is reported as
    unsupported, and never run as if it were undefined, as that would make the
    check pass for nothing. *)
 
@@ -52,7 +53,10 @@ open Flambda2_numbers
 open Flambda2_bound_identifiers
 open Flambda2_term_basics
 module Maps = Flambda2_rocq_semantics.FlambdaMapSpec
+module Kinds = Flambda2_rocq_semantics.FlambdaKindModel
+module Primitives = Flambda2_rocq_semantics.FlambdaPrimitiveModel
 module Model = Flambda2_rocq_semantics.FlambdaModel
+module Values = Flambda2_rocq_semantics.FlambdaValueSpec
 module Semantics = Flambda2_rocq_semantics.FlambdaSemanticsSpec
 module Normalise = Flambda2_rocq_semantics.FlambdaNormaliseSpec
 module Unused_statics = Flambda2_rocq_semantics.FlambdaUnusedStaticsSpec
@@ -77,13 +81,6 @@ let rec positive_of_int n : Numbers.positive =
 let rec nat_of_int n : Flambda2_rocq_semantics.Datatypes.nat =
   if n <= 0 then O else S (nat_of_int (n - 1))
 
-let z_of_int n : Numbers.coq_Z =
-  if n = 0
-  then Z0
-  else if n > 0
-  then Zpos (positive_of_int n)
-  else Zneg (positive_of_int (-n))
-
 let rec int_of_positive (p : Numbers.positive) =
   match p with
   | Coq_xH -> 1
@@ -95,6 +92,37 @@ let int_of_z (z : Numbers.coq_Z) =
   | Z0 -> 0
   | Zpos p -> int_of_positive p
   | Zneg p -> -int_of_positive p
+
+(* The integers of 64 bits: a positive number of the model is read as, and
+   written from, the unsigned reading of an [int64]. *)
+let rec positive_of_int64 n : Numbers.positive =
+  if Int64.equal n 1L
+  then Coq_xH
+  else if Int64.equal (Int64.logand n 1L) 0L
+  then Coq_xO (positive_of_int64 (Int64.shift_right_logical n 1))
+  else Coq_xI (positive_of_int64 (Int64.shift_right_logical n 1))
+
+let z_of_int64 n : Numbers.coq_Z =
+  if Int64.equal n 0L
+  then Z0
+  else if Int64.compare n 0L > 0
+  then Zpos (positive_of_int64 n)
+  else Zneg (positive_of_int64 (Int64.neg n))
+
+(* Through [int64], as the opposite of the least [int] is not an [int]. *)
+let z_of_int n = z_of_int64 (Int64.of_int n)
+
+let rec int64_of_positive (p : Numbers.positive) =
+  match p with
+  | Coq_xH -> 1L
+  | Coq_xO p -> Int64.mul 2L (int64_of_positive p)
+  | Coq_xI p -> Int64.add (Int64.mul 2L (int64_of_positive p)) 1L
+
+let int64_of_z (z : Numbers.coq_Z) =
+  match z with
+  | Z0 -> 0L
+  | Zpos p -> int64_of_positive p
+  | Zneg p -> Int64.neg (int64_of_positive p)
 
 (* ---- Names ------------------------------------------------------------ *)
 
@@ -136,116 +164,97 @@ module Value_slots = Numbering (Value_slot)
 
 (* ---- Primitives ------------------------------------------------------- *)
 
-(* The primitives the tool gives a meaning to. Integers are the tagged and the
-   naked immediates, with OCaml's own arithmetic on [int], which is that of the
-   target on 64 bits. *)
-type prim =
-  | Unary of P.unary_primitive
-  | Binary of P.binary_primitive
-
-let supported_int_kind (kind : Flambda_kind.Standard_int.t) =
+(* The primitives the model has (FlambdaPrimitiveModel.v), with the fields it
+   keeps of each. One that is not there, or that has a field with a value that
+   is not there, is unsupported. *)
+let convert_kind (kind : Flambda_kind.t) : Kinds.flambda_kind =
   match kind with
-  | Tagged_immediate | Naked_immediate -> true
-  | Naked_int8 | Naked_int16 | Naked_int32 | Naked_int64 | Naked_nativeint ->
-    false
+  | Value -> Value
+  | Naked_number Naked_immediate -> Naked_number Kind_naked_immediate
+  | Naked_number Naked_float32 -> Naked_number Kind_naked_float32
+  | Naked_number Naked_float -> Naked_number Kind_naked_float
+  | Naked_number Naked_int8 -> Naked_number Kind_naked_int8
+  | Naked_number Naked_int16 -> Naked_number Kind_naked_int16
+  | Naked_number Naked_int32 -> Naked_number Kind_naked_int32
+  | Naked_number Naked_int64 -> Naked_number Kind_naked_int64
+  | Naked_number Naked_nativeint -> Naked_number Kind_naked_nativeint
+  | Naked_number Naked_vec128 -> Naked_number Kind_naked_vec128
+  | Naked_number Naked_vec256 -> Naked_number Kind_naked_vec256
+  | Naked_number Naked_vec512 -> Naked_number Kind_naked_vec512
+  | Naked_number Naked_mask -> Naked_number Kind_naked_mask
+  | Region -> Region
+  | Rec_info -> Rec_info
 
-let check_supported (p : prim) =
+let convert_standard_int (kind : Flambda_kind.Standard_int.t) :
+    Kinds.standard_int =
+  match kind with
+  | Tagged_immediate -> Standard_tagged_immediate
+  | Naked_immediate -> Standard_naked_immediate
+  | Naked_int8 -> Standard_naked_int8
+  | Naked_int16 -> Standard_naked_int16
+  | Naked_int32 -> Standard_naked_int32
+  | Naked_int64 -> Standard_naked_int64
+  | Naked_nativeint -> Standard_naked_nativeint
+
+let convert_signed_or_unsigned (signedness : P.signed_or_unsigned) :
+    Primitives.signedness =
+  match signedness with Signed -> Signed | Unsigned -> Unsigned
+
+let convert_signedness (signedness : Scalar.Signedness.t) :
+    Primitives.signedness =
+  match signedness with Signed -> Signed | Unsigned -> Unsigned
+
+let convert_unary_primitive (p : P.unary_primitive) :
+    Primitives.unary_primitive option =
   match p with
-  | Unary (Tag_immediate | Untag_immediate | Is_int _ | Opaque_identity _) -> ()
-  | Binary (Int_arith (kind, (Add | Sub | Mul | And | Or | Xor)))
-    when supported_int_kind kind ->
-    ()
-  | Binary (Int_comp (kind, Yielding_bool _)) when supported_int_kind kind -> ()
-  | Unary p ->
-    let zero = Simple.const_zero Sixty_four in
-    unsupported "primitive %a" P.print (P.Unary (p, zero))
-  | Binary p ->
-    let zero = Simple.const_zero Sixty_four in
-    unsupported "primitive %a" P.print (P.Binary (p, zero, zero))
+  | Is_int { variant_only } -> Some (Is_int variant_only)
+  | Is_null -> Some Is_null
+  | Get_tag -> Some Get_tag
+  | Opaque_identity { middle_end_only = _; kind } ->
+    Some (Opaque_identity (convert_kind kind))
+  | Untag_immediate -> Some Untag_immediate
+  | Tag_immediate -> Some Tag_immediate
+  | _ -> None
 
-let int_of_value (kind : Flambda_kind.Standard_int.t) (v : Semantics.value) =
-  match kind, v with
-  | Tagged_immediate, Value_const (Tagged_immediate i)
-  | Naked_immediate, Value_const (Naked_immediate i) ->
-    Some (int_of_z i)
-  | _, _ -> None
+let convert_int_arith_op (op : P.binary_int_arith_op) :
+    Primitives.binary_int_arith_op =
+  match op with
+  | Add -> Add
+  | Sub -> Sub
+  | Mul -> Mul
+  | Div signedness -> Div (convert_signedness signedness)
+  | Mod signedness -> Mod (convert_signedness signedness)
+  | And -> And
+  | Or -> Or
+  | Xor -> Xor
 
-let value_of_int (kind : Flambda_kind.Standard_int.t) i : Semantics.value option
-    =
-  match kind with
-  | Tagged_immediate -> Some (Value_const (Tagged_immediate (z_of_int i)))
-  | Naked_immediate -> Some (Value_const (Naked_immediate (z_of_int i)))
-  | Naked_int8 | Naked_int16 | Naked_int32 | Naked_int64 | Naked_nativeint ->
-    None
-
-let naked_bool b : Semantics.value =
-  Value_const (Naked_immediate (z_of_int (if b then 1 else 0)))
-
-let compare_ints (cmp : P.signed_or_unsigned P.comparison) a b =
-  let unsigned_compare a b = compare (a - min_int) (b - min_int) in
-  let ordering (signedness : P.signed_or_unsigned) =
-    match signedness with
-    | Signed -> compare a b
-    | Unsigned -> unsigned_compare a b
-  in
+let convert_int_comparison (cmp : P.signed_or_unsigned P.comparison) :
+    Primitives.int_comparison =
   match cmp with
-  | Eq -> a = b
-  | Neq -> a <> b
-  | Lt s -> ordering s < 0
-  | Gt s -> ordering s > 0
-  | Le s -> ordering s <= 0
-  | Ge s -> ordering s >= 0
+  | Eq -> Int_eq
+  | Neq -> Int_neq
+  | Lt signedness -> Int_lt (convert_signed_or_unsigned signedness)
+  | Gt signedness -> Int_gt (convert_signed_or_unsigned signedness)
+  | Le signedness -> Int_le (convert_signed_or_unsigned signedness)
+  | Ge signedness -> Int_ge (convert_signed_or_unsigned signedness)
 
-let eval_prim (p : prim) (args : Semantics.value list) : Semantics.value option
-    =
-  match p, args with
-  | Unary Tag_immediate, [Value_const (Naked_immediate i)] ->
-    Some (Value_const (Tagged_immediate i))
-  | Unary Untag_immediate, [Value_const (Tagged_immediate i)] ->
-    Some (Value_const (Naked_immediate i))
-  | Unary (Is_int _), [v] ->
+let convert_binary_primitive (p : P.binary_primitive) :
+    Primitives.binary_primitive option =
+  match p with
+  | Int_arith (kind, op) ->
+    Some (Int_arith (convert_standard_int kind, convert_int_arith_op op))
+  | Int_comp (kind, Yielding_bool cmp) ->
+    let behaviour : Primitives.int_comparison_behaviour =
+      Yielding_bool (convert_int_comparison cmp)
+    in
+    Some (Int_comp (convert_standard_int kind, behaviour))
+  | Int_comp (kind, Yielding_int_like_compare_functions signedness) ->
     Some
-      (naked_bool
-         (match v with
-         | Value_const (Tagged_immediate _) -> true
-         | Value_const _ | Value_closure _ | Value_symbol _ -> false))
-  | Unary (Opaque_identity _), [v] -> Some v
-  | Binary (Int_arith (kind, op)), [a; b] -> (
-    match int_of_value kind a, int_of_value kind b with
-    | Some a, Some b -> (
-      match op with
-      | Add -> value_of_int kind (a + b)
-      | Sub -> value_of_int kind (a - b)
-      | Mul -> value_of_int kind (a * b)
-      | And -> value_of_int kind (a land b)
-      | Or -> value_of_int kind (a lor b)
-      | Xor -> value_of_int kind (a lxor b)
-      | Div _ | Mod _ -> None)
-    | _, _ -> None)
-  | Binary (Int_comp (kind, Yielding_bool cmp)), [a; b] -> (
-    match int_of_value kind a, int_of_value kind b with
-    | Some a, Some b -> Some (naked_bool (compare_ints cmp a b))
-    | _, _ -> None)
-  | _, _ -> None
-
-let () =
-  Flambda2_rocq_semantics.Prim_hook.eval_prim
-    := fun p args -> Obj.repr (eval_prim (Obj.obj p) (Obj.obj args))
-
-(* Structural equality decides the equality of [prim]: the primitives that
-   [check_supported] lets through hold only constant constructors and kinds. *)
-let () =
-  Flambda2_rocq_semantics.Prim_hook.prim_eqb
-    := fun p p' -> (Obj.obj p : prim) = (Obj.obj p' : prim)
-
-(* Everything is folded but [Opaque_identity], whose point is that the
-   simplifier does not look through it. *)
-let () =
-  Flambda2_rocq_semantics.Prim_hook.prim_may_fold
-    := fun p ->
-         match (Obj.obj p : prim) with
-         | Unary (Opaque_identity _) -> false
-         | Unary _ | Binary _ -> true
+      (Int_comp
+         ( convert_standard_int kind,
+           Yielding_int_like_compare_functions
+             (convert_signed_or_unsigned signedness) ))
+  | _ -> None
 
 (* ---- Conversion of terms ---------------------------------------------- *)
 
@@ -255,9 +264,14 @@ let convert_const (c : Reg_width_const.t) : Model.const =
   | Tagged_immediate i ->
     Tagged_immediate (z_of_int (Target_ocaml_int.to_int i))
   | Null -> Null
-  | Naked_float32 _ | Naked_float _ | Naked_int8 _ | Naked_int16 _
-  | Naked_int32 _ | Naked_int64 _ | Naked_nativeint _ | Naked_vec128 _
-  | Naked_vec256 _ | Naked_vec512 _ | Naked_mask _ | Poison _ ->
+  | Naked_int8 i -> Naked_int8 (z_of_int (Numeric_types.Int8.to_int i))
+  | Naked_int16 i -> Naked_int16 (z_of_int (Numeric_types.Int16.to_int i))
+  | Naked_int32 i -> Naked_int32 (z_of_int64 (Int64.of_int32 i))
+  | Naked_int64 i -> Naked_int64 (z_of_int64 i)
+  | Naked_nativeint i ->
+    Naked_nativeint (z_of_int64 (Targetint_32_64.to_int64 i))
+  | Naked_float32 _ | Naked_float _ | Naked_vec128 _ | Naked_vec256 _
+  | Naked_vec512 _ | Naked_mask _ | Poison _ ->
     unsupported "constant %a" Reg_width_const.print c
 
 let convert_simple (s : Simple.t) : Model.simple =
@@ -372,7 +386,8 @@ and convert_let (pattern : Bound_pattern.t) (defining_expr : Flambda.Named.t)
           (match Code0.newer_version_of code with
           | Some older -> newer_versions := (code_id, older) :: !newer_versions
           | None -> ());
-          Model.Bind_code (Code_ids.find code_id, convert_code code) :: bindings)
+          let id = Code_ids.find code_id in
+          Model.Bind_code (id, convert_code code) :: bindings)
         ~deleted_code:(fun bindings code_id ->
           deleted_code := code_id :: !deleted_code;
           Model.Bind_deleted_code (Code_ids.find code_id) :: bindings)
@@ -399,18 +414,23 @@ and convert_prim (prim : P.t) : Model.named =
   match prim with
   | Unary (Project_value_slot { value_slot; _ }, closure) ->
     Project_value_slot (Value_slots.find value_slot, convert_simple closure)
-  | Unary (p, arg) ->
-    check_supported (Unary p);
-    Prim (Obj.repr (Unary p), [convert_simple arg])
-  | Binary (p, arg1, arg2) ->
-    check_supported (Binary p);
-    Prim (Obj.repr (Binary p), [convert_simple arg1; convert_simple arg2])
+  | Unary (p, arg) -> (
+    match convert_unary_primitive p with
+    | Some p -> Prim (Unary p, [convert_simple arg])
+    | None -> unsupported "primitive %a" P.print prim)
+  | Binary (p, arg1, arg2) -> (
+    match convert_binary_primitive p with
+    | Some p -> Prim (Binary p, [convert_simple arg1; convert_simple arg2])
+    | None -> unsupported "primitive %a" P.print prim)
   | Nullary _ | Ternary _ | Quaternary _ | Variadic _ ->
     unsupported "primitive %a" P.print prim
 
+(* A static block of the model is a tag and fields that are values, so a block
+   with a mixed shape, whose flat suffix holds naked numbers, is not in the
+   model. *)
 and convert_static_const (const : Static_const.t) : Model.static_const =
   match const with
-  | Block (tag, Immutable, _, fields) ->
+  | Block (tag, Immutable, Value_only, fields) ->
     Static_const_block
       ( z_of_int (Tag.Scannable.to_int tag),
         List.map
@@ -482,7 +502,7 @@ and convert_apply (apply : Apply_expr.t) : Model.apply_expr =
    closure is not looked into: its code differs before and after. *)
 type observation =
   | Tagged of int
-  | Naked of string * int
+  | Naked of string * int64
   | Null
   | Block of int * observation list
   | Boxed of observation
@@ -491,17 +511,26 @@ type observation =
   | Dangling
   | Too_deep
 
-let rec observe depth (statics : Semantics.static_env) (v : Semantics.value) :
+let rec observe depth (statics : Values.static_env) (v : Values.value) :
     observation =
   if depth = 0
   then Too_deep
   else
     match v with
     | Value_const (Tagged_immediate i) -> Tagged (int_of_z i)
-    | Value_const (Naked_immediate i) -> Naked ("imm", int_of_z i)
+    | Value_const (Naked_immediate i) -> Naked ("imm", int64_of_z i)
+    | Value_const (Naked_int8 i) -> Naked ("int8", int64_of_z i)
+    | Value_const (Naked_int16 i) -> Naked ("int16", int64_of_z i)
+    | Value_const (Naked_int32 i) -> Naked ("int32", int64_of_z i)
+    | Value_const (Naked_int64 i) -> Naked ("int64", int64_of_z i)
+    | Value_const (Naked_nativeint i) -> Naked ("nativeint", int64_of_z i)
     | Value_const Null -> Null
-    | Value_const _ -> Naked ("number", 0)
+    | Value_const _ -> Naked ("number", 0L)
     | Value_closure _ -> Function
+    | Value_block (tag, fields) ->
+      Block (int_of_z tag, List.map (observe (depth - 1) statics) fields)
+    | Value_boxed_number c ->
+      Boxed (observe (depth - 1) statics (Values.Value_const c))
     | Value_symbol symbol -> (
       match Maps.lookup symbol statics.static_values with
       | None -> Dangling
@@ -517,7 +546,7 @@ let rec observe depth (statics : Semantics.static_env) (v : Semantics.value) :
 let rec print_observation ppf (o : observation) =
   match o with
   | Tagged i -> Format.fprintf ppf "%d" i
-  | Naked (kind, i) -> Format.fprintf ppf "#%d:%s" i kind
+  | Naked (kind, i) -> Format.fprintf ppf "#%Ld:%s" i kind
   | Null -> Format.fprintf ppf "null"
   | Block (tag, fields) ->
     Format.fprintf ppf "@[<hov 1>[%d:@ %a]@]" tag
@@ -604,7 +633,7 @@ let run (unit : converted) : outcome * int =
     { state_expr = unit.body;
       state_vars = [];
       state_conts = [];
-      state_statics = Semantics.empty_static_env
+      state_statics = Values.empty_static_env
     }
 
 (* ---- Printing model terms ---------------------------------------------- *)
@@ -637,10 +666,65 @@ let print_value_slots ppf slots =
       Format.fprintf ppf "%d = %a" (int_of_positive slot) print_simple s)
     ppf slots
 
-let print_prim ppf (p : Model.prim) =
-  match (Obj.obj p : prim) with
-  | Unary p -> P.Without_args.print ppf (Unary p)
-  | Binary p -> P.Without_args.print ppf (Binary p)
+let string_of_standard_int (kind : Kinds.standard_int) =
+  match kind with
+  | Standard_tagged_immediate -> "tagged_imm"
+  | Standard_naked_immediate -> "imm"
+  | Standard_naked_int8 -> "int8"
+  | Standard_naked_int16 -> "int16"
+  | Standard_naked_int32 -> "int32"
+  | Standard_naked_int64 -> "int64"
+  | Standard_naked_nativeint -> "nativeint"
+
+let string_of_signedness (signedness : Primitives.signedness) =
+  match signedness with Signed -> "" | Unsigned -> "unsigned_"
+
+let print_prim ppf (p : Primitives.prim) =
+  let unary (p : Primitives.unary_primitive) =
+    match p with
+    | Is_int variant_only -> if variant_only then "Is_int" else "Is_int_generic"
+    | Is_null -> "Is_null"
+    | Get_tag -> "Get_tag"
+    | Opaque_identity _ -> "Opaque_identity"
+    | Untag_immediate -> "Untag_immediate"
+    | Tag_immediate -> "Tag_immediate"
+  in
+  let int_arith (op : Primitives.binary_int_arith_op) =
+    match op with
+    | Add -> "add"
+    | Sub -> "sub"
+    | Mul -> "mul"
+    | Div signedness -> string_of_signedness signedness ^ "div"
+    | Mod signedness -> string_of_signedness signedness ^ "mod"
+    | And -> "and"
+    | Or -> "or"
+    | Xor -> "xor"
+  in
+  let int_comp (behaviour : Primitives.int_comparison_behaviour) =
+    match behaviour with
+    | Yielding_bool Int_eq -> "eq"
+    | Yielding_bool Int_neq -> "neq"
+    | Yielding_bool (Int_lt signedness) ->
+      string_of_signedness signedness ^ "lt"
+    | Yielding_bool (Int_gt signedness) ->
+      string_of_signedness signedness ^ "gt"
+    | Yielding_bool (Int_le signedness) ->
+      string_of_signedness signedness ^ "le"
+    | Yielding_bool (Int_ge signedness) ->
+      string_of_signedness signedness ^ "ge"
+    | Yielding_int_like_compare_functions signedness ->
+      string_of_signedness signedness ^ "compare"
+  in
+  match p with
+  | Unary p -> Format.pp_print_string ppf (unary p)
+  | Binary (Int_arith (kind, op)) ->
+    Format.fprintf ppf "Int_arith %s %s"
+      (string_of_standard_int kind)
+      (int_arith op)
+  | Binary (Int_comp (kind, behaviour)) ->
+    Format.fprintf ppf "Int_comp %s %s"
+      (string_of_standard_int kind)
+      (int_comp behaviour)
 
 let print_named ppf (d : Model.named) =
   match d with

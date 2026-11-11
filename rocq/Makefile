@@ -324,8 +324,8 @@ $(EXTRACT:.v=.vo): $(EXTRACT)
 
 # FlambdaExtract.v writes the machine of the Flambda 2 semantics as OCaml
 # modules into the directory of the test tool that runs it
-# (middle_end/flambda2/tests/semantics/); prim_hook.ml there is written by
-# hand.
+# (middle_end/flambda2/tests/semantics/extracted/); nothing there is written
+# by hand but the dune file.
 $(FLAMBDA2_EXTRACT:.v=.vo): $(FLAMBDA2_EXTRACT)
 	cd $(FLAMBDA2_EXTRACTED_DIR) && $(ROCQ) compile $(FLAGS) $<
 	$(OCAMLFORMAT) -i $(FLAMBDA2_EXTRACTED_DIR)/*.ml \

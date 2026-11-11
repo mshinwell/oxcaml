@@ -4,30 +4,12 @@ open BinPos
 open Datatypes
 open FlambdaMapSpec
 open FlambdaModel
+open FlambdaPrimitiveSpec
+open FlambdaValueSpec
 open List
 open ListDef
 
-type value =
-  | Value_const of const
-  | Value_closure of code_id * (value_slot * value) list
-  | Value_symbol of symbol
-
-val eval_prim : prim -> value list -> value option
-
 type env = (variable * value) list
-
-type statically_allocated_value =
-  | Static_closure of code_id * (value_slot * value) list
-  | Static_block of coq_Z * value list
-  | Static_boxed_number of value
-  | Static_string of coq_Z list
-
-type static_env =
-  { static_code : (code_id * code) list;
-    static_values : (symbol * statically_allocated_value) list
-  }
-
-val empty_static_env : static_env
 
 type cont_value =
   | Closure of
@@ -50,9 +32,6 @@ val eval_simples : env -> simple list -> value list option
 
 val eval_value_slots :
   env -> (value_slot * simple) list -> (value_slot * value) list option
-
-val closure_of :
-  static_env -> value -> (code_id * (value_slot * value) list) option
 
 val eval_named : static_env -> env -> named -> value option
 

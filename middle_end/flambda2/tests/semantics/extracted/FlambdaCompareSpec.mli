@@ -2,7 +2,9 @@ open BinInt
 open BinNums
 open BinPos
 open Datatypes
+open FlambdaKindModel
 open FlambdaModel
+open FlambdaPrimitiveSpec
 open List
 open ListDef
 open PeanoNat
@@ -16,13 +18,9 @@ val bind_names : positive list -> positive list -> name_map -> name_map option
 val combine_names :
   positive list -> positive list -> name_map -> name_map option
 
-val kind_eq_dec : flambda_kind -> flambda_kind -> bool
-
 val const_eq_dec : const -> const -> bool
 
 val const_eqb : const -> const -> bool
-
-val prim_eqb : prim -> prim -> bool
 
 val forall2b : ('a1 -> 'a2 -> bool) -> 'a1 list -> 'a2 list -> bool
 

@@ -7,7 +7,10 @@ open FlambdaCompareSpec
 open FlambdaMapSpec
 open FlambdaModel
 open FlambdaNominalSpec
+open FlambdaPrimitiveModel
+open FlambdaPrimitiveSpec
 open FlambdaSemanticsSpec
+open FlambdaValueSpec
 open List
 open ListDef
 open PeanoNat

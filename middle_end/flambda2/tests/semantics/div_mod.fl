@@ -1,0 +1,6 @@
+let a = %int_barith.`div` (7, 2) in
+let b = %int_barith.`mod` (-7, 2) in
+let c = %int_comp.`qmark` (a, b) in
+let t = %tag_imm (c) in
+let $camlDiv_mod = Block 0 (a, b, t) in
+cont done ($camlDiv_mod)

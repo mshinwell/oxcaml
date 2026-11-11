@@ -1,0 +1,7 @@
+let a = %int_barith.`int32`.`add` (2147483647l, 1l) in
+let c = %int_comp.`int32`.`lt` (a, 0l) in
+let d = %int_comp.`int32`.`unsigned`.`lt` (a, 0l) in
+let t = %tag_imm (c) in
+let u = %tag_imm (d) in
+let $camlInt32_wraps = Block 0 (t, u) in
+cont done ($camlInt32_wraps)
