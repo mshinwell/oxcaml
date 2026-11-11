@@ -286,6 +286,317 @@ Chosen pairs of types, for the meaning of meet and join (3 cases, seeds 60000 to
   meet (binary): a value of the meet has both types: 3 agree
   meet (n-way): a value of the meet has both types: 3 agree
 
+Chosen joins
+  Two blocks, (0, 0) and (1, 1), each field an alias of its constant
+    at one use:
+      (Value
+       ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+         (get_tag None)
+         (blocks (Known
+                  ((known_tags [0 ->
+                                 (Known
+                                  ((Known 2) Value_only
+                                   [(Value (= 0)); (Value (= 0))] []))])
+                   (other_tags Bottom) (alloc_mode Heap))))
+         (extensions No_extensions) (is_unique false)) Not_null))
+    at one use:
+      (Value
+       ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+         (get_tag None)
+         (blocks (Known
+                  ((known_tags [0 ->
+                                 (Known
+                                  ((Known 2) Value_only
+                                   [(Value (= 1)); (Value (= 1))] []))])
+                   (other_tags Bottom) (alloc_mode Heap))))
+         (extensions No_extensions) (is_unique false)) Not_null))
+    the binary join gives
+      (Value
+       ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+         (get_tag None)
+         (blocks (Known
+                  ((known_tags [0 ->
+                                 (Known
+                                  ((Known 2) Value_only
+                                   [(Value
+                                     ((Variant (is_int None)
+                                       (immediates (Known
+                                                    (Naked_immediate
+                                                     ((Known [0; 1]) []))))
+                                       (get_tag None)
+                                       (blocks (Known
+                                                ((known_tags [])
+                                                 (other_tags Bottom)
+                                                 (alloc_mode Heap_or_local))))
+                                       (extensions No_extensions)
+                                       (is_unique false)) Not_null));
+                                    (Value
+                                     ((Variant (is_int None)
+                                       (immediates (Known
+                                                    (Naked_immediate
+                                                     ((Known [0; 1]) []))))
+                                       (get_tag None)
+                                       (blocks (Known
+                                                ((known_tags [])
+                                                 (other_tags Bottom)
+                                                 (alloc_mode Heap_or_local))))
+                                       (extensions No_extensions)
+                                       (is_unique false)) Not_null))] []))])
+                   (other_tags Bottom) (alloc_mode Heap))))
+         (extensions No_extensions) (is_unique false)) Not_null))
+    the n-way join gives
+      (Value
+       ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+         (get_tag None)
+         (blocks (Known
+                  ((known_tags [0 ->
+                                 (Known
+                                  ((Known 2) Value_only
+                                   [(Value (= e0)); (Value (= e0))] []))])
+                   (other_tags Bottom) (alloc_mode Heap))))
+         (extensions No_extensions) (is_unique false)) Not_null))
+      where e0 : (Value
+                     ((Variant (is_int None)
+                       (immediates (Known (Naked_immediate ((Known [0; 1]) []))))
+                       (get_tag None)
+                       (blocks (Known
+                                ((known_tags []) (other_tags Bottom)
+                                 (alloc_mode Heap_or_local))))
+                       (extensions No_extensions) (is_unique false)) Not_null))
+    (block 0 [0; 0]): use 1; the binary join: yes; the n-way join: yes
+    (block 0 [1; 1]): use 2; the binary join: yes; the n-way join: yes
+    (block 0 [0; 1]): no use; the binary join: yes; the n-way join: not for the values tried of its own variables
+    (block 0 [2; 2]): no use; the binary join: no; the n-way join: not for the values tried of its own variables
+  The immediate 0, and a block whose field is a variable that only that use
+  binds, known to be 4 or 5
+    at one use:
+      (Value (= 0))
+    at one use:
+      (Value
+       ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+         (get_tag None)
+         (blocks (Known
+                  ((known_tags [0 ->
+                                 (Known
+                                  ((Known 1) Value_only [(Value (= v24))] []))])
+                   (other_tags Bottom) (alloc_mode Heap))))
+         (extensions No_extensions) (is_unique false)) Not_null))
+      where that use binds v24 :
+      (Value
+       ((Variant (is_int None)
+         (immediates (Known (Naked_immediate ((Known [4; 5]) []))))
+         (get_tag None)
+         (blocks (Known
+                  ((known_tags []) (other_tags Bottom)
+                   (alloc_mode Heap_or_local)))) (extensions No_extensions)
+         (is_unique false)) Not_null))
+    the binary join gives
+      (Value
+       ((Variant (is_int None) (immediates (Known (Naked_immediate (= # 0))))
+         (get_tag None)
+         (blocks (Known
+                  ((known_tags [0 ->
+                                 (Known
+                                  ((Known 1) Value_only [(Value (= v24))] []))])
+                   (other_tags Bottom) (alloc_mode Heap_or_local))))
+         (extensions No_extensions) (is_unique false)) Not_null))
+      where v24 : (Value
+                   ((Variant (is_int None)
+                     (immediates (Known (Naked_immediate ((Known [4; 5]) []))))
+                     (get_tag None)
+                     (blocks (Known
+                              ((known_tags []) (other_tags Bottom)
+                               (alloc_mode Heap_or_local))))
+                     (extensions No_extensions) (is_unique false)) Not_null))
+    the n-way join gives
+      (Value
+       ((Variant (is_int (Some e0))
+         (immediates (Known (Naked_immediate (= # 0)))) (get_tag None)
+         (blocks (Known
+                  ((known_tags [0 ->
+                                 (Known
+                                  ((Known 1) Value_only [(Value (= v24))] []))])
+                   (other_tags Bottom) (alloc_mode Heap))))
+         (extensions No_extensions) (is_unique false)) Not_null))
+      where e0 : (Naked_immediate ((Known [0; 1]) [Is_int v9]))
+      where v24 : (Value
+                   ((Variant (is_int None)
+                     (immediates (Known (Naked_immediate ((Known [4; 5]) []))))
+                     (get_tag None)
+                     (blocks (Known
+                              ((known_tags []) (other_tags Bottom)
+                               (alloc_mode Heap_or_local))))
+                     (extensions No_extensions) (is_unique false)) Not_null))
+    0: use 1; the binary join: yes; the n-way join: yes
+    (block 0 [4]): use 2; the binary join: yes; the n-way join: yes
+    (block 0 [5]): use 2; the binary join: yes; the n-way join: yes
+    (block 0 [6]): no use; the binary join: not for the values tried of its own variables; the n-way join: not for the values tried of its own variables
+    1: no use; the binary join: not for the values tried of its own variables; the n-way join: not for the values tried of its own variables
+  The same, the variable known to be 4: its type is the alias of the constant
+    at one use:
+      (Value (= 0))
+    at one use:
+      (Value
+       ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+         (get_tag None)
+         (blocks (Known
+                  ((known_tags [0 ->
+                                 (Known
+                                  ((Known 1) Value_only [(Value (= v24))] []))])
+                   (other_tags Bottom) (alloc_mode Heap))))
+         (extensions No_extensions) (is_unique false)) Not_null))
+      where that use binds v24 :
+      (Value (= 4))
+    the binary join gives
+      (Value
+       ((Variant (is_int None) (immediates (Known (Naked_immediate (= # 0))))
+         (get_tag None)
+         (blocks (Known
+                  ((known_tags [0 ->
+                                 (Known
+                                  ((Known 1) Value_only [(Value (= v24))] []))])
+                   (other_tags Bottom) (alloc_mode Heap_or_local))))
+         (extensions No_extensions) (is_unique false)) Not_null))
+      where v24 : (Value (= 4))
+    the n-way join gives
+      (Value
+       ((Variant (is_int (Some e0))
+         (immediates (Known (Naked_immediate (= # 0)))) (get_tag None)
+         (blocks (Known
+                  ((known_tags [0 ->
+                                 (Known
+                                  ((Known 1) Value_only [(Value (= v24))] []))])
+                   (other_tags Bottom) (alloc_mode Heap))))
+         (extensions No_extensions) (is_unique false)) Not_null))
+      where e0 : (Naked_immediate ((Known [0; 1]) [Is_int v9]))
+      where v24 : (Value (= 4))
+    0: use 1; the binary join: yes; the n-way join: yes
+    (block 0 [4]): use 2; the binary join: yes; the n-way join: yes
+    (block 0 [5]): no use; the binary join: not for the values tried of its own variables; the n-way join: not for the values tried of its own variables
+  The immediates 5 and 6 as a variant whose immediate case says that a
+  variable is 1, and that it is 2 (R1-15)
+    at one use:
+      (Value
+       ((Variant (is_int None)
+         (immediates (Known (Naked_immediate ((Known [5; 6]) []))))
+         (get_tag None)
+         (blocks (Known
+                  ((known_tags []) (other_tags Bottom)
+                   (alloc_mode Heap_or_local))))
+         (extensions (Ext (when_immediate [v4 -> (Naked_immediate (= # 1))])
+                      (when_block []))) (is_unique false)) Not_null))
+    at one use:
+      (Value
+       ((Variant (is_int None)
+         (immediates (Known (Naked_immediate ((Known [5; 6]) []))))
+         (get_tag None)
+         (blocks (Known
+                  ((known_tags []) (other_tags Bottom)
+                   (alloc_mode Heap_or_local))))
+         (extensions (Ext (when_immediate [v4 -> (Naked_immediate (= # 2))])
+                      (when_block []))) (is_unique false)) Not_null))
+    the binary join gives
+      (Value
+       ((Variant (is_int None)
+         (immediates (Known (Naked_immediate ((Known [5; 6]) [])))) (get_tag None)
+         (blocks (Known
+                  ((known_tags []) (other_tags Bottom) (alloc_mode Heap_or_local))))
+         (extensions (Ext
+                      (when_immediate [v4 -> (Naked_immediate ((Known [1; 2]) []))])
+                      (when_block []))) (is_unique false)) Not_null))
+    the n-way join gives
+      (Value
+       ((Variant (is_int None)
+         (immediates (Known (Naked_immediate ((Known [5; 6]) [])))) (get_tag None)
+         (blocks (Known
+                  ((known_tags []) (other_tags Bottom) (alloc_mode Heap_or_local))))
+         (extensions No_extensions) (is_unique false)) Not_null))
+    with v4 = # 1, 5: use 1; the binary join: yes; the n-way join: yes
+    with v4 = # 2, 5: use 2; the binary join: yes; the n-way join: yes
+    with v4 = # 3, 5: no use; the binary join: no; the n-way join: yes
+    with v4 = # 1, 7: no use; the binary join: no; the n-way join: no
+  A number that is 0 or 2, and one that is 2 or 4, each what is_int answers
+  on a variable that every use knows to be the immediate 3: no number is
+  either (R1-16)
+    at one use:
+      (Naked_immediate ((Known [0; 2]) [Is_int v1]))
+    at one use:
+      (Naked_immediate ((Known [2; 4]) [Is_int v1]))
+    every use knows of v1:
+      (Value (= 3))
+    the binary join gives
+      (Naked_immediate Unknown)
+    the n-way join gives
+      nothing: the compiler stops with the fatal error Head_of_kind_naked_immediates.create_naked_immediates_non_empty
+    with v1 = 3, # 0: no use; the binary join: yes
+    with v1 = 3, # 1: no use; the binary join: yes
+    with v1 = 3, # 2: no use; the binary join: yes
+  The same two numbers as the immediates of two variants with no block
+  (R1-16)
+    at one use:
+      (Value
+       ((Variant (is_int None)
+         (immediates (Known (Naked_immediate ((Known [0; 2]) [Is_int v1]))))
+         (get_tag None)
+         (blocks (Known
+                  ((known_tags []) (other_tags Bottom)
+                   (alloc_mode Heap_or_local)))) (extensions No_extensions)
+         (is_unique false)) Not_null))
+    at one use:
+      (Value
+       ((Variant (is_int None)
+         (immediates (Known (Naked_immediate ((Known [2; 4]) [Is_int v1]))))
+         (get_tag None)
+         (blocks (Known
+                  ((known_tags []) (other_tags Bottom)
+                   (alloc_mode Heap_or_local)))) (extensions No_extensions)
+         (is_unique false)) Not_null))
+    every use knows of v1:
+      (Value (= 3))
+    the binary join gives
+      (Value
+       ((Variant (is_int None) (immediates (Known (Naked_immediate Unknown)))
+         (get_tag None)
+         (blocks (Known
+                  ((known_tags []) (other_tags Bottom) (alloc_mode Heap_or_local))))
+         (extensions No_extensions) (is_unique false)) Not_null))
+    the n-way join gives
+      nothing: the compiler stops with the fatal error Head_of_kind_naked_immediates.create_naked_immediates_non_empty
+    with v1 = 3, 0: no use; the binary join: yes
+    with v1 = 3, 2: no use; the binary join: yes
+  A closure whose own function has a known code, and one of which nothing is
+  said of the code (T1-4)
+    at one use:
+      (Value
+       ((Closures
+         [1 ->
+           ((At_least (closures [1] value_slots []))
+            ((function_types [1 -> (Known code1)]) (closure_types [])
+             (value_slot_types [])) [])] Heap) Not_null))
+    at one use:
+      (Value
+       ((Closures
+         [1 ->
+           ((At_least (closures [] value_slots []))
+            ((function_types []) (closure_types []) (value_slot_types []))
+            [])] Heap) Not_null))
+    the binary join gives
+      (Value
+       ((Closures
+         [1 ->
+           ((At_least (closures [] value_slots []))
+            ((function_types []) (closure_types []) (value_slot_types [])) 
+            [])] Heap) Not_null))
+    the n-way join gives
+      (Value
+       ((Closures
+         [1 ->
+           ((At_least (closures [] value_slots []))
+            ((function_types []) (closure_types []) (value_slot_types [])) 
+            [])] Heap) Not_null))
+    (closure code1 []): uses 1 and 2; the binary join: yes; the n-way join: yes
+    (closure code2 []): use 2; the binary join: yes; the n-way join: yes
+
 A type of kind value with itself, shared and not (until the compiler has a flag for it, results may depend on sharing) (1500 cases, seeds 70000 to 71499)
   1500 converted
   join (binary) of a type with itself: 1487 agree, 13 disagree as recorded

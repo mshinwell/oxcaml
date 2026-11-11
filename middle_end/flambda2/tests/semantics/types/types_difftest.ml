@@ -2065,6 +2065,351 @@ let shared_and_not (names : names) : MT.flambda_type comparison list =
     compare_results "meet (n-way) of a type with itself" (meet n_way) ]
 
 (* ======================================================================== *)
+(* Chosen joins                                                             *)
+(* ======================================================================== *)
+
+(* Joins chosen by hand, where the two implementations are known or thought to
+   part. For each: the types joined, what each implementation gives, and for a
+   few values, each in a world where the variables named hold the values given,
+   which of the types joined the value has and whether it has what each join
+   gives. A value that has one of the types and not a join is a disagreement,
+   unless it is recorded. *)
+type chosen_join =
+  { title : string;
+    kind : MK.flambda_kind;
+    (* What every use knows of the names of the tests. *)
+    known : (MT.name * MT.flambda_type) list;
+    (* For each use: the variables that only that use binds, with their types,
+       and the type of what the continuation is applied to. *)
+    uses : ((M.variable * MT.flambda_type) list * MT.flambda_type) list;
+    probes : ((M.variable * V.value) list * V.value) list;
+    (* The entry that records that the n-way join is not above the types. *)
+    recorded : string option
+  }
+
+(* A world where every variable of the tests holds the first value of its kind
+   and every symbol is a block of tag 0 with no field. *)
+let plain_world (names : names) : world =
+  let pool = names.pool in
+  let bind kind = List.map (fun x -> x, default_of_kind kind) in
+  { statics =
+      { static_code = [];
+        static_values =
+          List.map
+            (fun symbol : (_ * V.statically_allocated_value) ->
+              symbol, Static_block (N.z_of_int 0, []))
+            pool.symbols
+      };
+    vars =
+      bind Value pool.value_variables
+      @ bind (Naked_number Kind_naked_immediate) pool.naked_immediate_variables
+      @ bind (Naked_number Kind_naked_float) pool.naked_float_variables
+      @ bind Region pool.region_variables
+      @ bind Rec_info pool.rec_info_variables
+  }
+
+(* What the compiler does where it may stop with a fatal error. It writes what
+   the error is about on the standard error before it raises: that is taken from
+   there, and kept out of the log. *)
+let or_fatal_error f : (_, string) result =
+  let out = Format.pp_get_formatter_out_functions Format.err_formatter () in
+  let written = Buffer.create 80 in
+  Format.pp_print_flush Format.err_formatter ();
+  Format.pp_set_formatter_out_functions Format.err_formatter
+    { out with
+      out_string = Buffer.add_substring written;
+      out_newline = (fun () -> Buffer.add_char written '\n');
+      out_spaces = (fun n -> Buffer.add_string written (String.make n ' '));
+      out_indent = ignore
+    };
+  let restore () =
+    Format.pp_print_flush Format.err_formatter ();
+    Format.pp_set_formatter_out_functions Format.err_formatter out
+  in
+  match f () with
+  | result ->
+    restore ();
+    Ok result
+  | exception Misc.Fatal_error ->
+    restore ();
+    (* The first line is the error; the context of the compiler may follow. *)
+    let first_line =
+      match String.split_on_char '\n' (Buffer.contents written) with
+      | line :: _ -> String.trim line
+      | [] -> ""
+    in
+    let prefix = ">> Fatal error: " in
+    let length = String.length prefix in
+    Error
+      (if
+         String.length first_line >= length
+         && String.equal (String.sub first_line 0 length) prefix
+       then String.sub first_line length (String.length first_line - length)
+       else first_line)
+
+let print_lines ppf text =
+  Format.pp_print_list ~pp_sep:Format.pp_print_cut Format.pp_print_string ppf
+    (String.split_on_char '\n' text)
+
+let chosen_joins (names : names) (cases : chosen_join list) =
+  Format.printf "@.Chosen joins@.";
+  let print_type ppf t = Model_type.print ppf (Model_type.normalise t) in
+  let plain = plain_world names in
+  List.iter
+    (fun { title; kind; known; uses; probes; recorded } ->
+      let lines = ref [] in
+      let line print = lines := print :: !lines in
+      List.iter
+        (fun (locals, t) ->
+          line (fun ppf ->
+              Format.fprintf ppf "@[<v 2>at one use:@ @[%a@]" print_type t;
+              List.iter
+                (fun (x, t) ->
+                  Format.fprintf ppf "@ where that use binds %a :@ @[%a@]"
+                    Model_type.print_variable x print_type t)
+                locals;
+              Format.fprintf ppf "@]"))
+        uses;
+      List.iter
+        (fun (name, t) ->
+          line (fun ppf ->
+              Format.fprintf ppf "@[<v 2>every use knows of %a:@ @[%a@]@]"
+                Model_type.print_name name print_type t))
+        known;
+      let compiler_types = List.map (fun (_, t) -> to_compiler names t) uses in
+      let compiler_known =
+        List.map
+          (fun (name, t) ->
+            Converter.name_of_model names.numbering name, to_compiler names t)
+          known
+      in
+      let compiler_locals i =
+        List.map
+          (fun (x, t) ->
+            Converter.variable_of_model names.numbering x, to_compiler names t)
+          (fst (List.nth uses i))
+      in
+      let joins =
+        List.map
+          (fun (implementation : implementation) ->
+            let joined =
+              or_fatal_error (fun () ->
+                  join names implementation ~known:compiler_known
+                    ~locals:compiler_locals kind compiler_types)
+            in
+            let given =
+              match joined with
+              | Ok joined -> print_joined names joined
+              | Error what ->
+                "nothing: the compiler stops with the fatal error " ^ what
+            in
+            line (fun ppf ->
+                Format.fprintf ppf "@[<v 2>the %s join gives@ %a@]"
+                  implementation.implementation print_lines given);
+            implementation, Result.to_option joined)
+          [binary; n_way]
+      in
+      List.iter
+        (fun (assignments, v) ->
+          let world = { plain with vars = assignments @ plain.vars } in
+          (* A value has the type of a use for some values of the variables that
+             the use binds. *)
+          let of_the_types =
+            List.filter_map
+              (fun (i, (locals, t)) ->
+                match
+                  has_joined names world v
+                    { joined = t; own = locals; own_in_terms = [] }
+                with
+                | Has -> Some (string_of_int (i + 1))
+                | Has_not | Unresolved -> None)
+              (List.mapi (fun i use -> i, use) uses)
+          in
+          let of_a_join ((implementation : implementation), joined) =
+            Option.map
+              (fun joined ->
+                Printf.sprintf "the %s join: %s" implementation.implementation
+                  (match has_joined names world v joined with
+                  | Has -> "yes"
+                  | Unresolved ->
+                    "not for the values tried of its own variables"
+                  | Has_not -> (
+                    match of_the_types, recorded with
+                    | [], _ -> "no"
+                    | _ :: _, Some entry -> "no (recorded as " ^ entry ^ ")"
+                    | _ :: _, None ->
+                      incr failures;
+                      "no: A DISAGREEMENT")))
+              joined
+          in
+          let answers =
+            (match of_the_types with
+            | [] -> "no use"
+            | [use] -> "use " ^ use
+            | _ :: _ :: _ -> "uses " ^ String.concat " and " of_the_types)
+            :: List.filter_map of_a_join joins
+          in
+          line (fun ppf ->
+              List.iter
+                (fun (x, value) ->
+                  Format.fprintf ppf "with %a = %a, " Model_type.print_variable
+                    x print_value value)
+                assignments;
+              Format.fprintf ppf "%a: %s" print_value v
+                (String.concat "; " answers)))
+        probes;
+      Format.printf "  @[<v 2>@[%a@]@ %a@]@." Format.pp_print_text title
+        (Format.pp_print_list ~pp_sep:Format.pp_print_cut (fun ppf print ->
+             print ppf))
+        (List.rev !lines))
+    cases
+
+let the_chosen_joins (names : names) : chosen_join list =
+  let pool = names.pool in
+  let z = N.z_of_int in
+  let x = List.hd pool.value_variables in
+  let i = List.hd pool.naked_immediate_variables in
+  let local = Converter.variable_to_model names.numbering names.local in
+  let constant n = MT.this_tagged_immediate (z n) in
+  let block fields =
+    MT.immutable_block false (z 0) (Scannable Value_only) Heap fields
+  in
+  let block_value fields : V.value =
+    Value_block (z 0, List.map tagged fields)
+  in
+  let no_blocks = MT.Or_unknown.Known MT.row_like_for_blocks_bottom in
+  let variant_5_or_6 numbers =
+    MT.create_variant false
+      (Known (MT.these_naked_immediates [z 5; z 6]))
+      no_blocks
+      (Ext
+         ( Env_extension
+             [Name_var i, MT.these_naked_immediates (List.map z numbers)],
+           MT.empty_env_extension ))
+  in
+  let is_int_of_x numbers : MT.flambda_type =
+    Type_naked_immediate
+      (Ok
+         (No_alias
+            { naked_immediates = Known (List.map z numbers);
+              inverse_relations = [Is_int, Name_var x]
+            }))
+  in
+  let slot =
+    List.find
+      (fun slot -> Stdlib.( = ) slot V.unnamed_function_slot)
+      pool.function_slots
+  in
+  let closure function_types =
+    MT.at_least_this_closure slot function_types [] [] MT.Alloc_mode.Heap
+  in
+  let code, other_code =
+    match pool.code_ids with
+    | code :: other_code :: _ -> code, other_code
+    | [] | [_] -> assert false
+  in
+  [ { title =
+        "Two blocks, (0, 0) and (1, 1), each field an alias of its constant";
+      kind = Value;
+      known = [];
+      uses =
+        (let zero = constant 0 and one = constant 1 in
+         [[], block [zero; zero]; [], block [one; one]]);
+      probes =
+        [ [], block_value [0; 0];
+          [], block_value [1; 1];
+          [], block_value [0; 1];
+          [], block_value [2; 2] ];
+      recorded = None
+    };
+    { title =
+        "The immediate 0, and a block whose field is a variable that only that \
+         use binds, known to be 4 or 5";
+      kind = Value;
+      known = [];
+      uses =
+        [ [], constant 0;
+          ( [local, MT.these_tagged_immediates [z 4; z 5]],
+            block [MT.alias_type_of Value (Var local)] ) ];
+      probes =
+        [ [], tagged 0;
+          [], block_value [4];
+          [], block_value [5];
+          [], block_value [6];
+          [], tagged 1 ];
+      recorded = None
+    };
+    { title =
+        "The same, the variable known to be 4: its type is the alias of the \
+         constant";
+      kind = Value;
+      known = [];
+      uses =
+        [ [], constant 0;
+          ( [local, MT.these_tagged_immediates [z 4]],
+            block [MT.alias_type_of Value (Var local)] ) ];
+      probes = [[], tagged 0; [], block_value [4]; [], block_value [5]];
+      recorded = None
+    };
+    { title =
+        "The immediates 5 and 6 as a variant whose immediate case says that a \
+         variable is 1, and that it is 2 (R1-15)";
+      kind = Value;
+      known = [];
+      uses = [[], variant_5_or_6 [1]; [], variant_5_or_6 [2]];
+      probes =
+        [ [i, naked_immediate 1], tagged 5;
+          [i, naked_immediate 2], tagged 5;
+          [i, naked_immediate 3], tagged 5;
+          [i, naked_immediate 1], tagged 7 ];
+      recorded = None
+    };
+    { title =
+        "A number that is 0 or 2, and one that is 2 or 4, each what is_int \
+         answers on a variable that every use knows to be the immediate 3: no \
+         number is either (R1-16)";
+      kind = Naked_number Kind_naked_immediate;
+      known = [Name_var x, constant 3];
+      uses = [[], is_int_of_x [0; 2]; [], is_int_of_x [2; 4]];
+      probes =
+        [ [x, tagged 3], naked_immediate 0;
+          [x, tagged 3], naked_immediate 1;
+          [x, tagged 3], naked_immediate 2 ];
+      recorded = None
+    };
+    { title =
+        "The same two numbers as the immediates of two variants with no block \
+         (R1-16)";
+      kind = Value;
+      known = [Name_var x, constant 3];
+      uses =
+        [ ( [],
+            MT.create_variant false
+              (Known (is_int_of_x [0; 2]))
+              no_blocks No_extensions );
+          ( [],
+            MT.create_variant false
+              (Known (is_int_of_x [2; 4]))
+              no_blocks No_extensions ) ];
+      probes = [[x, tagged 3], tagged 0; [x, tagged 3], tagged 2];
+      recorded = None
+    };
+    { title =
+        "A closure whose own function has a known code, and one of which \
+         nothing is said of the code (T1-4)";
+      kind = Value;
+      known = [];
+      uses =
+        [ ( [],
+            closure [slot, MT.Or_unknown.Known { function_type_code_id = code }]
+          );
+          [], closure [] ];
+      probes =
+        [[], V.Value_closure (code, []); [], V.Value_closure (other_code, [])];
+      recorded = Some "T1-4"
+    } ]
+
+(* ======================================================================== *)
 (* The ranges of numbers                                                    *)
 (* ======================================================================== *)
 
@@ -2305,6 +2650,7 @@ let () =
     ~shrink:(fun _ -> [])
     ~print:print_semantic_case
     (semantic_comparisons names);
+  chosen_joins names (the_chosen_joins names);
   run
     ~title:
       "A type of kind value with itself, shared and not (until the compiler \
