@@ -148,6 +148,8 @@ All in `middle_end/flambda2/types/rocq/`, library `OxCamlFlambda2Types`.
     things that contain names)
   - `middle_end/flambda2/types/rocq/FlambdaTypeAccess*` (what the
     provers and reification read of a type)
+  - `middle_end/flambda2/types/rocq/FlambdaTypeCreators*` (what the
+    other creation functions of types make)
 - T2, typing environment. Owner: T2, on `flambda2-rocq/T2-env`.
   - `middle_end/flambda2/types/rocq/FlambdaBindingTime.v` (binding times
     and name modes, after `types/env/binding_time.ml` and
