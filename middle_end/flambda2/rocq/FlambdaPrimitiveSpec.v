@@ -243,6 +243,22 @@ Definition eval_is_null (statics : static_env) (v : value) : option bool :=
     else None
   end.
 
+(* Whether a constant is a naked number of a boxable kind. *)
+Definition is_number_of_kind (kind : boxable_number) (c : const) : bool :=
+  match kind, c with
+  | Boxable_naked_float32, Naked_float32 _
+  | Boxable_naked_float, Naked_float _
+  | Boxable_naked_int32, Naked_int32 _
+  | Boxable_naked_int64, Naked_int64 _
+  | Boxable_naked_nativeint, Naked_nativeint _
+  | Boxable_naked_vec128, Naked_vec128 _
+  | Boxable_naked_vec256, Naked_vec256 _
+  | Boxable_naked_vec512, Naked_vec512 _
+  | Boxable_naked_mask, Naked_mask _ =>
+    true
+  | _, _ => false
+  end.
+
 (* A unary primitive applied to a value.
    - [Get_tag] is the tag of a block, and has no value on anything else,
      a closure, a boxed number and a string included: Simplify takes its
@@ -250,6 +266,13 @@ Definition eval_is_null (statics : static_env) (v : value) : option bool :=
      ([Flambda2_types.add_get_tag_relation]).
    - [Opaque_identity] is the identity, on a value of the kind it
      carries.
+   - [Box_number] makes a boxed number of a naked number of the kind it
+     carries, and [Unbox_number] is the naked number inside a boxed
+     number of that kind. Neither looks at the number: it is not
+     restricted to a range. Neither has a value on poison: a poison
+     constant is not boxed, and a boxed poison, which is a boxed number
+     (FlambdaValueSpec.v), is not unboxed, as [is_number_of_kind] goes
+     by the constructor of the constant.
    - [Untag_immediate] and [Tag_immediate] change a tagged immediate into
      the naked immediate that is the same integer, and back. *)
 Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
@@ -263,6 +286,15 @@ Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
     Some (Value_const (Naked_immediate tag))
   | Opaque_identity kind =>
     if kind_eqb (kind_of_value v) kind then Some v else None
+  | Unbox_number kind =>
+    let* c := boxed_number_of statics v in
+    if is_number_of_kind kind c then Some (Value_const c) else None
+  | Box_number kind =>
+    match v with
+    | Value_const c =>
+      if is_number_of_kind kind c then Some (Value_boxed_number c) else None
+    | _ => None
+    end
   | Untag_immediate =>
     let* i := int_of_value Standard_tagged_immediate v in
     Some (Value_const (Naked_immediate i))
@@ -310,8 +342,9 @@ Definition naked_immediate_kind : flambda_kind :=
 (* [Flambda_primitive.arg_kind_of_unary_primitive]. *)
 Definition arg_kind_of_unary_primitive (p : unary_primitive) : flambda_kind :=
   match p with
-  | Is_int _ | Is_null | Get_tag | Untag_immediate => Value
+  | Is_int _ | Is_null | Get_tag | Unbox_number _ | Untag_immediate => Value
   | Opaque_identity kind => kind
+  | Box_number kind => unboxed_kind kind
   | Tag_immediate => naked_immediate_kind
   end.
 
@@ -321,7 +354,8 @@ Definition result_kind_of_unary_primitive (p : unary_primitive)
   match p with
   | Is_int _ | Is_null | Get_tag | Untag_immediate => naked_immediate_kind
   | Opaque_identity kind => kind
-  | Tag_immediate => Value
+  | Unbox_number kind => unboxed_kind kind
+  | Box_number _ | Tag_immediate => Value
   end.
 
 (* [Flambda_primitive.args_kind_of_binary_primitive]. *)

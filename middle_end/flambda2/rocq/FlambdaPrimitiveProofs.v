@@ -155,6 +155,14 @@ Lemma is_allocated_kind (statics : static_env) (v : value) :
   is_allocated statics v = true -> kind_of_value v = Value.
 Proof. destruct v; simpl; try discriminate; reflexivity. Qed.
 
+Lemma boxed_number_of_kind (statics : static_env) (v : value) (c : const) :
+  boxed_number_of statics v = Some c -> kind_of_value v = Value.
+Proof. destruct v; simpl; try discriminate; reflexivity. Qed.
+
+Lemma is_number_of_kind_kind (kind : boxable_number) (c : const) :
+  is_number_of_kind kind c = true -> kind_of_const c = unboxed_kind kind.
+Proof. destruct kind, c; simpl; try discriminate; reflexivity. Qed.
+
 (* An observation depends on the static environment only through what
    the value, if it is a symbol, is bound to. *)
 Section Static_values.
@@ -206,7 +214,8 @@ Lemma eval_unary_primitive_static_values (p : unary_primitive) :
   eval_unary_primitive statics p v = eval_unary_primitive statics' p v.
 Proof.
   destruct p; simpl; unfold eval_is_int, eval_is_null;
-    rewrite ?block_of_static_values, ?is_allocated_static_values;
+    rewrite ?block_of_static_values, ?is_allocated_static_values,
+      ?boxed_number_of_static_values;
     reflexivity.
 Qed.
 
@@ -403,7 +412,7 @@ Lemma eval_unary_primitive_kinds (statics : static_env)
   kind_of_value arg = arg_kind_of_unary_primitive p
   ∧ kind_of_value v = result_kind_of_unary_primitive p.
 Proof.
-  destruct p as [variant_only | | | kind | | ];
+  destruct p as [variant_only | | | kind | kind | kind | | ];
     cbn [eval_unary_primitive arg_kind_of_unary_primitive
          result_kind_of_unary_primitive].
   - (* [Is_int] *)
@@ -448,6 +457,22 @@ Proof.
     destruct (kind_eqb (kind_of_value arg) kind) eqn:Hkind;
       [ | discriminate ].
     apply kind_eqb_eq in Hkind. intros [= <-]. auto.
+  - (* [Unbox_number] *)
+    destruct (boxed_number_of statics arg) as [c | ] eqn:Hboxed;
+      [ | discriminate ].
+    destruct (is_number_of_kind kind c) eqn:Hkind; [ | discriminate ].
+    intros [= <-]. split.
+    + exact (boxed_number_of_kind statics arg c Hboxed).
+    + exact (is_number_of_kind_kind kind c Hkind).
+  - (* [Box_number] *)
+    destruct arg; try discriminate.
+    match goal with
+    | |- context [is_number_of_kind kind ?c] =>
+      destruct (is_number_of_kind kind c) eqn:Hkind
+    end;
+      [ | discriminate ].
+    intros [= <-]. split; [ | reflexivity ].
+    exact (is_number_of_kind_kind kind _ Hkind).
   - (* [Untag_immediate] *)
     destruct (int_of_value Standard_tagged_immediate arg) as [i | ] eqn:Hint;
       [ | discriminate ].
@@ -509,7 +534,8 @@ Lemma eval_unary_primitive_preserves (p : unary_primitive) (arg v : value) :
   P arg -> eval_unary_primitive statics p arg = Some v -> P v.
 Proof.
   intros Harg.
-  destruct p as [variant_only | | | kind | | ]; cbn [eval_unary_primitive].
+  destruct p as [variant_only | | | kind | kind | kind | | ];
+    cbn [eval_unary_primitive].
   - destruct (eval_is_int statics variant_only arg); [ | discriminate ].
     intros [= <-]. apply naked_bool_preserved.
   - destruct (eval_is_null statics arg); [ | discriminate ].
@@ -518,6 +544,16 @@ Proof.
     intros [= <-]. apply Hnumbers.
   - destruct (kind_eqb (kind_of_value arg) kind); [ | discriminate ].
     intros [= <-]. exact Harg.
+  - destruct (boxed_number_of statics arg) as [c | ]; [ | discriminate ].
+    destruct (is_number_of_kind kind c); [ | discriminate ].
+    intros [= <-]. apply Hnumbers.
+  - destruct arg; try discriminate.
+    match goal with
+    | |- context [is_number_of_kind kind ?c] =>
+      destruct (is_number_of_kind kind c)
+    end;
+      [ | discriminate ].
+    intros [= <-]. apply Hnumbers.
   - destruct (int_of_value Standard_tagged_immediate arg); [ | discriminate ].
     intros [= <-]. apply Hnumbers.
   - destruct (int_of_value Standard_naked_immediate arg); [ | discriminate ].
@@ -772,7 +808,12 @@ Example get_tag_of_immediate :
   unary a_block Get_tag (tagged 0) = None.
 Proof. reflexivity. Qed.
 
-(* A boxed poison is a boxed number, and allocated. *)
+Definition a_boxed_int64 : static_env :=
+  Static_env []
+    [(1%positive, Static_boxed_number (Value_const (Naked_int64 5)))].
+
+(* A boxed poison is a boxed number, and allocated, but no primitive
+   reads the number in it or makes one. *)
 Definition a_boxed_poison : static_env :=
   Static_env []
     [(1%positive,
@@ -786,6 +827,48 @@ Proof. reflexivity. Qed.
 
 Example is_null_of_boxed_poison :
   unary a_boxed_poison Is_null (Value_symbol 1%positive) = Some (naked 0).
+Proof. reflexivity. Qed.
+
+Example unbox_boxed_poison :
+  unary a_boxed_poison (Unbox_number Boxable_naked_float)
+    (Value_symbol 1%positive)
+  = None.
+Proof. reflexivity. Qed.
+
+Example box_poison :
+  unary empty_static_env (Box_number Boxable_naked_float)
+    (Value_const (Poison (Naked_number Kind_naked_float)))
+  = None.
+Proof. reflexivity. Qed.
+
+Example box_number :
+  unary empty_static_env (Box_number Boxable_naked_int64)
+    (Value_const (Naked_int64 5))
+  = Some (Value_boxed_number (Naked_int64 5)).
+Proof. reflexivity. Qed.
+
+Example box_number_wrong_kind :
+  unary empty_static_env (Box_number Boxable_naked_int64)
+    (Value_const (Naked_int32 5))
+  = None.
+Proof. reflexivity. Qed.
+
+Example unbox_number :
+  unary empty_static_env (Unbox_number Boxable_naked_int64)
+    (Value_boxed_number (Naked_int64 5))
+  = Some (Value_const (Naked_int64 5)).
+Proof. reflexivity. Qed.
+
+Example unbox_static_number :
+  unary a_boxed_int64 (Unbox_number Boxable_naked_int64)
+    (Value_symbol 1%positive)
+  = Some (Value_const (Naked_int64 5)).
+Proof. reflexivity. Qed.
+
+Example unbox_number_of_other_kind :
+  unary a_boxed_int64 (Unbox_number Boxable_naked_float)
+    (Value_symbol 1%positive)
+  = None.
 Proof. reflexivity. Qed.
 
 Example opaque_identity :

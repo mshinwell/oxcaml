@@ -34,7 +34,8 @@
 
    The fragment has, with the compiler's names:
    - of [unary_primitive]: [Is_int], [Is_null], [Get_tag],
-     [Opaque_identity], [Untag_immediate] and [Tag_immediate];
+     [Opaque_identity], [Unbox_number], [Box_number], [Untag_immediate]
+     and [Tag_immediate];
    - of [binary_primitive]: [Int_arith] and [Int_comp], at every
      [Standard_int.t].
    Every other primitive is left out. The conversion from the compiler's
@@ -44,6 +45,8 @@
    Differences from the compiler:
    - [Opaque_identity] has no [middle_end_only], which has no effect on
      execution.
+   - [Box_number] has no allocation mode: it is the boxing on the heap,
+     and the conversion must refuse a local one.
    - The comparisons are those of integers only: the compiler's
      [comparison] and [comparison_behaviour] are polymorphic in the
      signedness so as to serve the floats too, which are not here. Their
@@ -73,6 +76,8 @@ Inductive unary_primitive : Type :=
   | Is_null
   | Get_tag
   | Opaque_identity (kind : flambda_kind)
+  | Unbox_number (kind : boxable_number)
+  | Box_number (kind : boxable_number)
   | Untag_immediate
   | Tag_immediate.
 
