@@ -52,9 +52,18 @@
    environment side is not the compiler's, so an example says nothing
    of what the join of environments does with the variables made here.
 
-   The environment side of the examples is the least that lets the
-   traversal run on types whose only aliases are to constants and to
-   variables that every environment joined has:
+   The environment side of the examples is a stub: the least that
+   lets the traversal run on types whose only aliases are to constants
+   and to variables. It is not an instance of the contracts of the
+   environment side (FlambdaJoinSpec.v), so nothing that is proved of
+   the join of types is said of these examples through it. It looks
+   nothing up: the environments joined are empty, so the variables
+   that some examples mention are bound in none of them, no scope is
+   checked, no canonical element is looked for, and the join of
+   [Simple]s compares the [Simple]s as they are written. To compare
+   with the compiler an example that mentions a variable, the
+   environments given to the compiler must bind that variable and
+   have it canonical. The stub:
    - the state is a number, the next variable to make;
    - every environment joined is the empty one;
    - the join of [Simple]s that are all the same is that [Simple]; of
