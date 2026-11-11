@@ -157,11 +157,29 @@ says so. Only the labels that this tree cites are listed.
 - **C1-13.** The kinds of the fields of a `Make_block` come from the
   types of the source, are used by Simplify for variables only, and are
   ignored by the backend.
+- **C2-1.** Simplify replaces by `Invalid` a call made at arities that
+  are not those of the code called.
+- **C2-2.** With the default flags Simplify accepts ill-kinded code and
+  makes it `Invalid`; a well-typed program with a GADT indexed at layout
+  `any` needs that.
+- **C2-3.** Simplify replaces by `Invalid` a call whose argument is not
+  of the kind that the arity of the call itself gives; the machine runs
+  it.
+- **C2-4.** Some mismatches of kinds stop Simplify with a fatal error
+  whatever the flags, while others of the same sort become `Invalid`.
 - **C2-5.** The fexpr parser gives a direct call, and an indirect call
   with no annotation, the arity in which every argument and result is a
   `Value`; the printer leaves the arity of such calls out.
 - **C2-6.** Nothing checks that the arities in a code's metadata are the
   kinds of its parameters.
+- **C2-7.** A call with fewer or more arguments than the code has
+  parameters is undefined in the model; in the compiler it is a partial
+  application or an over-application.
+- **C2-8.** Two array primitives treat an array of another kind than
+  their own differently, and neither becomes `Invalid`.
+- **C2-9.** An indirect call of a tupled function is made at one
+  argument, the tuple, whatever the arity of the code; the model has no
+  such mark on code.
 - **C3-1.** Simplify answers a projection that names the wrong function
   slot on one of its two paths and makes it `Invalid` on the other; the
   slot named is not checked where the term is built.
