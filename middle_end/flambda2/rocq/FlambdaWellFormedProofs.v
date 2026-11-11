@@ -94,7 +94,8 @@ Proof.
     injection Hstep as <-.
     exact (eval_static_bindings_extend vars bindings statics extended Heval).
   - injection Hstep as <-. apply statics_extend_refl.
-  - injection Hstep as <-. apply statics_extend_refl.
+  - destruct (handlers_bind_statics handlers); [ discriminate | ].
+    injection Hstep as <-. apply statics_extend_refl.
   - destruct (eval_simple vars (ap_callee ap)) as [callee | ];
       [ | discriminate ].
     destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | discriminate ].

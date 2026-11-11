@@ -211,7 +211,8 @@ Definition inlinable_b (ap : apply_expr) (c : code) : bool :=
   && negb (var_in_simples (code_my_closure c) (ap_args ap))
   && forallb (fun param => negb (var_in_simples param (ap_args ap)))
        (code_params c)
-  && Nat.eqb (length (code_params c)) (length (ap_args ap)).
+  && Nat.eqb (length (code_params c)) (length (ap_args ap))
+  && negb (binds_statics (code_body c)).
 
 (* The code that a group of bindings adds to what is known, the last
    bound first, as FlambdaSemanticsSpec.eval_static_bindings adds it to

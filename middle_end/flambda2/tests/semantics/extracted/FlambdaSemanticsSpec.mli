@@ -3,6 +3,7 @@ open BinNums
 open BinPos
 open Datatypes
 open FlambdaModel
+open List
 open ListDef
 
 type value =
@@ -60,6 +61,14 @@ val eval_static_const : env -> static_const -> statically_allocated_value option
 
 val eval_static_bindings :
   env -> static_binding list -> static_env -> static_env option
+
+val binding_binds : static_binding -> bool
+
+val binds_statics : expr -> bool
+
+val handler_binds_statics : continuation_handler -> bool
+
+val handlers_bind_statics : (continuation * continuation_handler) list -> bool
 
 val bind_params : variable list -> value list -> env -> env option
 

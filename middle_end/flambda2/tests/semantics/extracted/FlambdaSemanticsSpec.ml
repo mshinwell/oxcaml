@@ -3,6 +3,7 @@ open BinNums
 open BinPos
 open Datatypes
 open FlambdaModel
+open List
 open ListDef
 
 type value =
@@ -175,6 +176,42 @@ let rec eval_static_bindings vars bindings statics =
             }
         | None -> None)))
 
+(** val binding_binds : static_binding -> bool **)
+
+let binding_binds = function Bind_deleted_code _ -> false | _ -> true
+
+(** val binds_statics : expr -> bool **)
+
+let rec binds_statics = function
+  | Let (_, _, body) -> binds_statics body
+  | Let_static (bindings, body) ->
+    existsb binding_binds bindings || binds_statics body
+  | Let_cont_non_recursive (_, h, body) ->
+    handler_binds_statics h || binds_statics body
+  | Let_cont_recursive (handlers, body) ->
+    existsb
+      (fun pat ->
+        let _, h = pat in
+        handler_binds_statics h)
+      handlers
+    || binds_statics body
+  | _ -> false
+
+(** val handler_binds_statics : continuation_handler -> bool **)
+
+and handler_binds_statics = function
+  | Handler (_, handler) -> binds_statics handler
+
+(** val handlers_bind_statics : (continuation * continuation_handler) list ->
+    bool **)
+
+let handlers_bind_statics handlers =
+  existsb
+    (fun pat ->
+      let _, h = pat in
+      handler_binds_statics h)
+    handlers
+
 (** val bind_params : variable list -> value list -> env -> env option **)
 
 let rec bind_params params vs vars =
@@ -246,18 +283,21 @@ let call_function callee kind vs return_to exn_to statics =
     then
       match lookup called statics.static_code with
       | Some c -> (
-        match
-          bind_params (code_params c) vs ((code_my_closure c, callee) :: [])
-        with
-        | Some callee_vars ->
-          Step
-            (State
-               ( code_body c,
-                 callee_vars,
-                 [ code_return_continuation c, return_to;
-                   code_exn_continuation c, exn_to ],
-                 statics ))
-        | None -> Undefined)
+        if binds_statics (code_body c)
+        then Undefined
+        else
+          match
+            bind_params (code_params c) vs ((code_my_closure c, callee) :: [])
+          with
+          | Some callee_vars ->
+            Step
+              (State
+                 ( code_body c,
+                   callee_vars,
+                   [ code_return_continuation c, return_to;
+                     code_exn_continuation c, exn_to ],
+                   statics ))
+          | None -> Undefined)
       | None -> Undefined
     else Undefined
   | None -> Undefined
@@ -279,9 +319,12 @@ let step = function
       Step
         (State (body, vars, (k, Closure (h, vars, conts, [])) :: conts, statics))
     | Let_cont_recursive (handlers, body) ->
-      Step
-        (State
-           (body, vars, app (rec_closures handlers vars conts) conts, statics))
+      if handlers_bind_statics handlers
+      then Undefined
+      else
+        Step
+          (State
+             (body, vars, app (rec_closures handlers vars conts) conts, statics))
     | Apply ap -> (
       match eval_simple vars ap.ap_callee with
       | Some callee -> (

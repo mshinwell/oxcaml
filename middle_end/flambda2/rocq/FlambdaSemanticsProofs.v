@@ -448,6 +448,7 @@ Proof.
     [ | left; reflexivity ].
   destruct (lookup called (static_code statics)) as [c | ];
     [ | left; reflexivity ].
+  destruct (binds_statics (code_body c)); [ left; reflexivity | ].
   destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
     as [callee_vars | ]; [ | left; reflexivity ].
   right. eauto.
@@ -535,3 +536,56 @@ Proof.
 Qed.
 
 End Simulation.
+
+(* ======================================================================== *)
+(* Stepping a [Let_cont_recursive]                                          *)
+(* ======================================================================== *)
+
+(* Two [Let_cont_recursive]s that agree on whether their handlers bind
+   something static: both are undefined, or both step to their bodies. *)
+Lemma let_cont_recursive_equivalent_step
+    (handlers handlers' : list (continuation * continuation_handler))
+    (body body' : expr) (vars vars' : env) (conts conts' : cont_env)
+    (statics statics' : static_env) :
+  handlers_bind_statics handlers = handlers_bind_statics handlers' ->
+  (handlers_bind_statics handlers = false ->
+   equivalent
+     (State body vars (rec_closures handlers vars conts ++ conts) statics)
+     (State body' vars' (rec_closures handlers' vars' conts' ++ conts')
+        statics')) ->
+  equivalent (State (Let_cont_recursive handlers body) vars conts statics)
+    (State (Let_cont_recursive handlers' body') vars' conts' statics').
+Proof.
+  intros Hbinds Hbodies.
+  destruct (handlers_bind_statics handlers) eqn:Hsource.
+  - apply (equivalent_of_run 1 1). simpl. rewrite <- Hbinds, Hsource.
+    reflexivity.
+  - apply (equivalent_trans _
+      (State body vars (rec_closures handlers vars conts ++ conts) statics));
+      [ apply step_equivalent; simpl; rewrite Hsource; reflexivity | ].
+    apply (equivalent_trans _ _ _ (Hbodies eq_refl)).
+    apply equivalent_sym, step_equivalent. simpl. rewrite <- Hbinds.
+    reflexivity.
+Qed.
+
+Lemma let_cont_recursive_refines_step
+    (handlers handlers' : list (continuation * continuation_handler))
+    (body body' : expr) (vars vars' : env) (conts conts' : cont_env)
+    (statics statics' : static_env) :
+  handlers_bind_statics handlers = handlers_bind_statics handlers' ->
+  (handlers_bind_statics handlers = false ->
+   refines
+     (State body vars (rec_closures handlers vars conts ++ conts) statics)
+     (State body' vars' (rec_closures handlers' vars' conts' ++ conts')
+        statics')) ->
+  refines (State (Let_cont_recursive handlers body) vars conts statics)
+    (State (Let_cont_recursive handlers' body') vars' conts' statics').
+Proof.
+  intros Hbinds Hbodies.
+  destruct (handlers_bind_statics handlers) eqn:Hsource.
+  - apply goes_wrong_refines, (step_behaves _ Goes_wrong). simpl.
+    rewrite Hsource. reflexivity.
+  - eapply refines_step;
+      [ simpl; rewrite Hsource; reflexivity
+      | simpl; rewrite <- Hbinds; reflexivity | exact (Hbodies eq_refl) ].
+Qed.

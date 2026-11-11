@@ -72,7 +72,9 @@
      its definition, whose values do not change; what was learnt in the
      body of the [Let_cont] is not known in it. Nothing is known of a
      parameter but that it is bound: the types of the arguments at the
-     uses of the continuation are not joined;
+     uses of the continuation are not joined. A recursive handler may not
+     bind anything static, so the two handlers must agree on whether they
+     do;
    - [let_const_apply_cont_statement] and [let_simple_apply_cont_statement]
      put these together with the removal of an unused [Let]: a constant, or
      any [Simple], is propagated to its use;
@@ -283,6 +285,7 @@ Definition let_cont_recursive_handler_refines_in_statement : Prop :=
     (after : list (continuation * continuation_handler)) (body : expr),
     (∀ param : variable,
       param ∈ params -> ~ var_in_typing_env param tenv) ->
+    binds_statics handler = binds_statics handler' ->
     expr_refines_in (add_definitions_of_params tenv params) handler handler'
     ->
     expr_refines_in tenv

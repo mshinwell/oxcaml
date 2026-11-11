@@ -525,11 +525,26 @@ Qed.
 (* Alpha-equivalent expressions behave alike                                *)
 (* ======================================================================== *)
 
+Lemma alpha_binds_statics (e e' : expr) :
+  alpha_equivalent e e' -> binds_statics e = binds_statics e'.
+Proof.
+  intros Halpha.
+  induction Halpha
+    as [ e | e e' _ IH | e e' e'' _ IH _ IH' | c e e' _ IH
+       | r e Hvars Hconts | r x d body Hvars Hconts
+       | r k h body Hvars Hconts | r k params handler body Hvars Hconts
+       | r before k params handler after body Hvars Hconts ];
+    simpl; try congruence; rewrite ?rename_binds_statics;
+    try reflexivity.
+  - apply plug_binds_statics, IH.
+  - rewrite !existsb_app. simpl. rewrite rename_binds_statics. reflexivity.
+Qed.
+
 Theorem alpha_equivalent_sound : alpha_equivalent_sound_statement.
 Proof.
   intros e e' Halpha.
   induction Halpha
-    as [ e | e e' _ IH | e e' e'' _ IH _ IH' | c e e' _ IH
+    as [ e | e e' _ IH | e e' e'' _ IH _ IH' | c e e' Hinner IH
        | r e Hvars Hconts | r x d body Hvars Hconts
        | r k h body Hvars Hconts | r k params handler body Hvars Hconts
        | r before k params handler after body Hvars Hconts ].
@@ -537,7 +552,8 @@ Proof.
   - intros vars conts statics. apply equivalent_sym, IH.
   - intros vars conts statics.
     exact (equivalent_trans _ _ _ (IH _ _ _) (IH' _ _ _)).
-  - apply plug_equivalent, IH.
+  - apply plug_equivalent;
+      [ intros _; apply alpha_binds_statics, Hinner | exact IH ].
   - intros vars conts statics. apply renamed_equivalent, State_renamed.
     + intros x Hx. rewrite (Hvars x Hx). reflexivity.
     + intros k Hk. apply conts_agree_same, Hconts, Hk.

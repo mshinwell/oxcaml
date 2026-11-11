@@ -206,7 +206,7 @@ Theorem let_cont_recursive_body_refines_in :
   let_cont_recursive_body_refines_in_statement.
 Proof.
   intros tenv handlers body body' Hbody vars conts statics Hsat.
-  eapply refines_step; [ reflexivity | reflexivity | ].
+  apply let_cont_recursive_refines_step; [ reflexivity | intros _ ].
   apply Hbody, Hsat.
 Qed.
 
@@ -262,9 +262,9 @@ Qed.
 Theorem let_cont_recursive_handler_refines_in :
   let_cont_recursive_handler_refines_in_statement.
 Proof.
-  intros tenv before k params handler handler' after body Hfresh Hhandler
-    vars conts statics Hsat.
-  apply let_cont_recursive_handler_refines_at.
+  intros tenv before k params handler handler' after body Hfresh Hbinds
+    Hhandler vars conts statics Hsat.
+  apply let_cont_recursive_handler_refines_at; [ exact Hbinds | ].
   intros vs handler_vars conts' statics' Hbind. apply Hhandler.
   exact (env_satisfies_params tenv params vs vars handler_vars Hsat Hfresh
     Hbind).
@@ -381,7 +381,7 @@ Proof.
             (Apply_cont (Apply_cont_expr k [arg]))))).
   { exact (plug_refines
       (Let_static_body bindings (Let_body my_closure (Simple callee) Hole))
-      _ _ (let_simple_apply_cont x arg k Hx)). }
+      _ _ (not_many _) (let_simple_apply_cont x arg k Hx)). }
   (* the first [Let] is unused *)
   assert (Hunused :
     expr_refines
@@ -389,7 +389,8 @@ Proof.
          (Let my_closure (Simple callee)
             (Apply_cont (Apply_cont_expr k [arg]))))
       (Let_static bindings (Apply_cont (Apply_cont_expr k [arg])))).
-  { apply (plug_refines (Let_static_body bindings Hole)).
+  { apply (plug_refines (Let_static_body bindings Hole));
+      [ apply not_many | ].
     apply unused_let. simpl. unfold var_free_in_simples. intros Hfree.
     inversion Hfree as [? ? Hhead | ? ? Hrest];
       [ exact (Hmy_closure Hhead) | inversion Hrest ]. }

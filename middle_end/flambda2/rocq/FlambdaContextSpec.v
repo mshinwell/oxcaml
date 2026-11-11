@@ -35,6 +35,12 @@
    their own, such as those of FlambdaControlFlowSpec.v, be applied to a
    subterm of a program, the body of a function included.
 
+   Where the hole is in the body of code or in the handler of a recursive
+   continuation ([hole_runs_many_times]), nothing static may be bound, and
+   the machine makes the call or the [Let_cont] undefined if something is
+   (FlambdaSemanticsSpec.binds_statics). So there the two expressions
+   must agree on whether they bind something static.
+
    The premise is a refinement under all environments ([expr_refines]). A
    rewrite that is sound only under what is known of the variables in
    scope, as most of the simplifier's are, is not covered: that needs a
@@ -95,11 +101,26 @@ Fixpoint plug (c : context) (e : expr) : expr :=
       (before ++ (k, Handler params (plug handler e)) :: after) body
   end.
 
+(* Whether the hole is in the body of code or in the handler of a
+   recursive continuation. *)
+Fixpoint hole_runs_many_times (c : context) : bool :=
+  match c with
+  | Hole => false
+  | Let_body _ _ c | Let_static_body _ c | Let_cont_non_recursive_body _ _ c
+  | Let_cont_non_recursive_handler _ _ c _ | Let_cont_recursive_body _ c =>
+    hole_runs_many_times c
+  | Let_static_code _ _ _ _ _ _ _ _ _
+  | Let_cont_recursive_handler _ _ _ _ _ _ => true
+  end.
+
 Definition plug_refines_statement : Prop :=
   ∀ (c : context) (source target : expr),
+    (hole_runs_many_times c = true ->
+     binds_statics source = binds_statics target) ->
     expr_refines source target ->
     expr_refines (plug c source) (plug c target).
 
 Definition plug_equivalent_statement : Prop :=
   ∀ (c : context) (e e' : expr),
+    (hole_runs_many_times c = true -> binds_statics e = binds_statics e') ->
     expr_equivalent e e' -> expr_equivalent (plug c e) (plug c e').

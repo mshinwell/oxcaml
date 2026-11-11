@@ -51,7 +51,10 @@
    - the bindings do not capture: [my_closure] and the parameters are not
      free in the arguments. The simplifier ensures it by taking fresh
      names for them, which FlambdaNominalSpec.v allows;
-   - the arities agree.
+   - the arities agree;
+   - the body binds nothing static. The call of code that does is
+     undefined, wherever it is; inlined at toplevel, the body would have
+     a meaning.
    The renaming is a permutation, so a call whose return and exception
    continuations are one continuation, of code in which they are two, is
    not covered; otherwise there is such a renaming
@@ -120,7 +123,10 @@ Definition inlinable (ap : apply_expr) (c : code) (r : renaming) : Prop :=
   ∧ ~ var_free_in_simples (code_my_closure c) (ap_args ap)
   ∧ (∀ param : variable,
       param ∈ code_params c -> ~ var_free_in_simples param (ap_args ap))
-  ∧ length (code_params c) = length (ap_args ap).
+  ∧ length (code_params c) = length (ap_args ap)
+  (* the body binds nothing static: inlined, it could come to be at
+     toplevel, where it would be allowed to *)
+  ∧ binds_statics (code_body c) = false.
 
 (* Where the code id of a direct call is bound to code [c], the call
    refines [c] inlined. *)

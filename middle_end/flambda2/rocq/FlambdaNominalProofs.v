@@ -248,6 +248,39 @@ Proof.
   - reflexivity.
 Qed.
 
+(* A renaming leaves what binds something static as it is. *)
+Fixpoint rename_binds_statics (r : renaming) (e : expr) :
+  binds_statics (rename_expr r e) = binds_statics e.
+Proof.
+  destruct e
+    as [ x d body | bindings body | k h body | handlers body | ap | ac
+       | scrutinee arms | ];
+    simpl; try reflexivity.
+  - apply rename_binds_statics.
+  - rewrite rename_binds_statics. f_equal.
+    induction bindings as [ | [id c | id | sym const] bindings IH]; simpl;
+      congruence.
+  - destruct h as [params handler]. simpl.
+    rewrite !rename_binds_statics. reflexivity.
+  - rewrite rename_binds_statics. f_equal.
+    induction handlers as [ | [k [params handler]] handlers IH]; simpl;
+      [ reflexivity | ].
+    rewrite rename_binds_statics, IH. reflexivity.
+Qed.
+
+Lemma rename_handlers_bind_statics (r : renaming)
+    (handlers : list (continuation * continuation_handler)) :
+  handlers_bind_statics
+    (map (fun '(k, h) => (rename_continuation r k, rename_handler r h))
+       handlers)
+  = handlers_bind_statics handlers.
+Proof.
+  unfold handlers_bind_statics.
+  induction handlers as [ | [k [params handler]] handlers IH]; simpl;
+    [ reflexivity | ].
+  rewrite rename_binds_statics, IH. reflexivity.
+Qed.
+
 Lemma eval_static_bindings_renamed (r : renaming)
     (bindings : list static_binding) (vars vars' : env) :
   (∀ x : variable,
@@ -578,6 +611,8 @@ Proof.
            ++ intros k'' Hk''. apply Hconts. left. exact Hk''.
         -- exact (Hconts k' (or_intror (conj Hne Hk'))).
     + (* Let_cont_recursive *)
+      rewrite rename_handlers_bind_statics.
+      destruct (handlers_bind_statics handlers); [ exact I | ].
       apply State_renamed.
       * intros y Hy. apply Hvars. right. exact Hy.
       * intros k Hk. apply uniform_rec_conts_agree.
@@ -724,8 +759,9 @@ Qed.
 
 Theorem rename_let_cont_recursive : rename_let_cont_recursive_statement.
 Proof.
-  intros r handlers body Hvars Hconts vars conts statics.
-  eapply equivalent_step; [ reflexivity | reflexivity | ].
+  intros r handlers body Hvars Hconts vars conts statics. simpl.
+  apply let_cont_recursive_equivalent_step;
+    [ symmetry; apply rename_handlers_bind_statics | intros _ ].
   apply renamed_equivalent, State_renamed.
   - intros y Hy. rewrite (Hvars y); [ reflexivity | right; exact Hy ].
   - intros k Hk. apply uniform_rec_conts_agree.
@@ -806,7 +842,10 @@ Proof.
       split; [ exact (Hunbound k' Hnone) | apply Closure_same ].
     - intros k' hk Hk' Hlookup'. rewrite (Hfixk k' Hk').
       exact (Hbound k' hk Hlookup'). }
-  eapply equivalent_step; [ reflexivity | reflexivity | ].
+  apply let_cont_recursive_equivalent_step;
+    [ subst handlers handlers' h; unfold handlers_bind_statics;
+      rewrite !existsb_app; simpl; rewrite rename_binds_statics; reflexivity
+    | intros _ ].
   apply coincide_equivalent; [ reflexivity | ].
   intros k' _. unfold conts_agree_at, resolve.
   change (rename_continuation identity_renaming k') with k'.
@@ -851,8 +890,9 @@ Qed.
 
 Theorem unused_let_cont_recursive : unused_let_cont_recursive_statement.
 Proof.
-  intros handlers body Hunused vars conts statics.
-  eapply equivalent_trans; [ apply step_equivalent; reflexivity | ].
+  intros handlers body Hstatics Hunused vars conts statics.
+  eapply equivalent_trans;
+    [ apply step_equivalent; simpl; rewrite Hstatics; reflexivity | ].
   apply coincide_equivalent; [ reflexivity | ].
   intros k Hk. unfold conts_agree_at, resolve.
   change (rename_continuation identity_renaming k) with k.

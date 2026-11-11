@@ -426,6 +426,50 @@ Proof.
   simpl in Hk. subst k1'. destruct (Pos.eqb k k1); [ exact Hc | exact IH ].
 Qed.
 
+(* Erasing binds no more than was bound. *)
+Fixpoint erase_binds_statics (e : expr) :
+  binds_statics e = false -> binds_statics (erase_expr D e) = false.
+Proof.
+  destruct e
+    as [ x d body | bindings body | k h body | handlers body | ap | ac
+       | scrutinee arms | ];
+    simpl; try (intros _; reflexivity).
+  - apply erase_binds_statics.
+  - intros Hbinds. apply orb_false_iff in Hbinds as [Hbindings Hbody].
+    rewrite (erase_binds_statics body Hbody), orb_false_r.
+    induction bindings as [ | binding bindings IH]; simpl; [ reflexivity | ].
+    simpl in Hbindings. apply orb_false_iff in Hbindings as [Hbinding Hrest].
+    destruct (binding_kept D binding); simpl; [ | exact (IH Hrest) ].
+    rewrite (IH Hrest), orb_false_r.
+    destruct binding; simpl in Hbinding |- *; congruence.
+  - destruct h as [params handler]. simpl. intros Hbinds.
+    apply orb_false_iff in Hbinds as [Hhandler Hbody].
+    rewrite (erase_binds_statics handler Hhandler),
+      (erase_binds_statics body Hbody).
+    reflexivity.
+  - intros Hbinds. apply orb_false_iff in Hbinds as [Hhandlers Hbody].
+    rewrite (erase_binds_statics body Hbody), orb_false_r.
+    induction handlers as [ | [k [params handler]] handlers IH]; simpl;
+      [ reflexivity | ].
+    simpl in Hhandlers.
+    apply orb_false_iff in Hhandlers as [Hhandler Hrest].
+    rewrite (erase_binds_statics handler Hhandler), (IH Hrest).
+    reflexivity.
+Qed.
+
+Lemma erase_handlers_bind_statics
+    (handlers : list (continuation * continuation_handler)) :
+  handlers_bind_statics handlers = false ->
+  handlers_bind_statics (map (fun '(k, h) => (k, erase_handler D h)) handlers)
+  = false.
+Proof.
+  unfold handlers_bind_statics.
+  induction handlers as [ | [k [params handler]] handlers IH]; simpl;
+    [ reflexivity | ].
+  intros Hbinds. apply orb_false_iff in Hbinds as [Hhandler Hrest].
+  rewrite (erase_binds_statics handler Hhandler), (IH Hrest). reflexivity.
+Qed.
+
 (* [all] is the whole group, kept apart from the handlers still to be gone
    through. *)
 Lemma rec_closures_erased_aux (vars : env) (conts conts' : cont_env)
@@ -516,6 +560,8 @@ Proof.
   destruct (lookup called (static_code statics))
     as [[params my_closure ret exn body] | ] eqn:Hlookup;
     simpl; [ | exact I ].
+  destruct (binds_statics body) eqn:Hbinds; [ exact I | ].
+  rewrite (erase_binds_statics body Hbinds).
   destruct (bind_params params vs [(my_closure, callee)]) as [bound | ]
     eqn:Hbind; simpl; [ | exact I ].
   apply State_erased.
@@ -563,6 +609,8 @@ Proof.
     exact (Closure_erased h vars conts conts' [] Hh Hvars Hconts eq_refl).
   - (* Let_cont_recursive *)
     apply andb_true_iff in He as [Hhandlers Hbody].
+    destruct (handlers_bind_statics handlers) eqn:Hbinds; [ exact I | ].
+    rewrite (erase_handlers_bind_statics handlers Hbinds).
     apply State_erased; [ exact Hbody | exact Hvars | | exact Hstatics ].
     apply rec_closures_erased; assumption.
   - (* Apply *)

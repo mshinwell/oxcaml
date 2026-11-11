@@ -40,8 +40,9 @@
      ([inline_let_code_statement]).
 
    - The body of code bound by a [Let_static] may be replaced by one that
-     refines it ([let_static_code_refines_statement]): simplifying the
-     body of a function is sound. It is the case of FlambdaContextSpec.v
+     refines it and binds something static if and only if it does
+     ([let_static_code_refines_statement]): simplifying the body of a
+     function is sound. It is the case of FlambdaContextSpec.v
      of a hole in code, stated on its own. The premise is a refinement
      under all environments, the static one included, so a rewrite of the
      body that relies on what other code or symbols are bound to is not
@@ -78,6 +79,7 @@ Definition let_static_code_refines_statement : Prop :=
     (my_closure : variable) (ret exn : continuation)
     (code_body code_body' : expr) (after : list static_binding)
     (body : expr),
+    binds_statics code_body = binds_statics code_body' ->
     expr_refines code_body code_body' ->
     expr_refines
       (Let_static

@@ -617,6 +617,70 @@ Proof.
   intros Heq. apply Pos.eqb_eq in Heq. subst code'. reflexivity.
 Qed.
 
+(* Expressions that are the same up to bound names agree on whether they
+   bind something static. *)
+Fixpoint expr_eqb_binds_statics (e : expr) :
+  ∀ (vm km : name_map) (e' : expr),
+    expr_eqb vm km e e' = true -> binds_statics e = binds_statics e'.
+Proof.
+  destruct e
+    as [ x d body | bindings body | k h body | handlers body | ap | ac
+       | scrutinee arms | ];
+    intros vm km
+      [ x' d' body' | bindings' body' | k' h' body' | handlers' body' | ap'
+      | ac' | scrutinee' arms' | ];
+    simpl; try discriminate; try reflexivity; intros Heq.
+  - apply andb_true_iff in Heq as [_ Hbody].
+    exact (expr_eqb_binds_statics body _ _ _ Hbody).
+  - apply andb_true_iff in Heq as [Hbindings Hbody].
+    rewrite (expr_eqb_binds_statics body _ _ _ Hbody). f_equal.
+    clear Hbody. revert bindings' Hbindings.
+    induction bindings as [ | binding bindings IH];
+      intros [ | binding' bindings']; simpl; try discriminate;
+      [ reflexivity | ].
+    intros Heq. apply andb_true_iff in Heq as [Hbinding Hrest].
+    rewrite (IH _ Hrest). f_equal.
+    destruct binding, binding'; simpl in Hbinding; try discriminate;
+      reflexivity.
+  - apply andb_true_iff in Heq as [Hh Hbody].
+    destruct h as [params handler], h' as [params' handler'].
+    simpl in Hh |- *.
+    destruct (bind_names params params' vm) as [vm' | ]; [ | discriminate ].
+    rewrite (expr_eqb_binds_statics handler _ _ _ Hh),
+      (expr_eqb_binds_statics body _ _ _ Hbody).
+    reflexivity.
+  - destruct (combine_names (map fst handlers) (map fst handlers') km)
+      as [km' | ]; [ | discriminate ].
+    apply andb_true_iff in Heq as [Hhandlers Hbody].
+    rewrite (expr_eqb_binds_statics body _ _ _ Hbody). f_equal.
+    clear Hbody. revert handlers' Hhandlers.
+    induction handlers as [ | [k [params handler]] handlers IH];
+      intros [ | [k' [params' handler']] handlers']; simpl;
+      try discriminate; [ reflexivity | ].
+    intros Heq. apply andb_true_iff in Heq as [Hh Hrest].
+    destruct (bind_names params params' vm) as [vm' | ]; [ | discriminate ].
+    rewrite (expr_eqb_binds_statics handler _ _ _ Hh), (IH _ Hrest).
+    reflexivity.
+Qed.
+
+Lemma handlers_eqb_bind_statics (vm km : name_map)
+    (handlers : list (continuation * continuation_handler)) :
+  ∀ handlers' : list (continuation * continuation_handler),
+    forall2b (fun '(_, h) '(_, h') => handler_eqb vm km h h') handlers
+      handlers'
+    = true ->
+    handlers_bind_statics handlers = handlers_bind_statics handlers'.
+Proof.
+  unfold handlers_bind_statics.
+  induction handlers as [ | [k [params handler]] handlers IH];
+    intros [ | [k' [params' handler']] handlers']; simpl;
+    try discriminate; [ reflexivity | ].
+  intros Heq. apply andb_true_iff in Heq as [Hh Hrest].
+  destruct (bind_names params params' vm) as [vm' | ]; [ | discriminate ].
+  rewrite (expr_eqb_binds_statics handler _ _ _ Hh), (IH _ Hrest).
+  reflexivity.
+Qed.
+
 (* The same call under matching static environments, returning to matching
    continuations. *)
 Lemma call_function_match (callee : value) (kind : call_kind)
@@ -647,6 +711,8 @@ Proof.
   simpl in Hc |- *.
   destruct (bind_names params params' [(my_closure, my_closure')])
     as [vm | ] eqn:Hbind; [ | discriminate ].
+  rewrite <- (expr_eqb_binds_statics body _ _ _ Hc).
+  destruct (binds_statics body); [ exact I | ].
   pose proof (bind_params_match params params' vs _ vm
     [(my_closure, callee)] [(my_closure', callee)] Hbind
     (envs_match_cons [] [] [] my_closure my_closure' callee
@@ -723,6 +789,9 @@ Proof.
     destruct (combine_names (map fst handlers) (map fst handlers') km)
       as [km' | ] eqn:Hnames; [ | discriminate ].
     apply andb_true_iff in He as [Hhandlers Hbody].
+    rewrite <- (handlers_eqb_bind_statics vm km' handlers handlers'
+      Hhandlers).
+    destruct (handlers_bind_statics handlers); [ exact I | ].
     apply (State_matches vm km');
       [ exact Hbody | exact Hvars | | exact Hstatics ].
     exact (rec_conts_match vm km km' vars vars' conts conts' handlers

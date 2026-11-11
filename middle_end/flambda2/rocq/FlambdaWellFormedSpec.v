@@ -51,18 +51,22 @@
    whether it is at toplevel, as Simplify does. [well_formed_unit] asks
    also that no code id or symbol is bound twice.
 
-   The semantics cannot see where a [Let_static] is, only what it does. So
-   what it rules out is the harm of a binding in the wrong place: binding
-   a name that is bound already is undefined
+   The machine enforces the part of this that keeps a static binding from
+   being executed more than once. Calling code whose body binds something
+   static is undefined, as is a [Let_cont_recursive] one of whose handlers
+   does (FlambdaSemanticsSpec.binds_statics); and binding a name that is
+   bound already is undefined
    (FlambdaSemanticsSpec.eval_static_bindings). It follows, for any term,
    that what a code id or a symbol is bound to never changes during a run
    ([step_extends_statics_statement], [run_extends_statics_statement]):
    this is what a rewrite needs, to rely in a handler on a binding made
-   before the handler was defined.
+   before the handler was defined. That the handler of a non-recursive
+   continuation with static bindings postdominates its body is left to
+   the check here.
 
-   CR mshinwell: nothing here says that a well-formed unit never binds a
-   name twice as it runs, which is the reason for the condition. It needs
-   that a toplevel handler runs once at most.
+   CR mshinwell: nothing here says that a well-formed unit is never
+   undefined for one of these reasons. It needs that a toplevel handler
+   runs once at most.
 
    The model does not mark exception handlers, so [raises_to] finds them:
    a continuation is one when a call names it as its exception

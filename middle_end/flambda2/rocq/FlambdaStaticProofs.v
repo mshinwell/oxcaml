@@ -79,8 +79,8 @@ Qed.
 Theorem let_static_code_refines : let_static_code_refines_statement.
 Proof.
   intros before id params my_closure ret exn code_body code_body' after body
-    Hcode.
+    Hbinds Hcode.
   exact (plug_refines
     (Let_static_code before id params my_closure ret exn Hole after body)
-    code_body code_body' Hcode).
+    code_body code_body' (fun _ => Hbinds) Hcode).
 Qed.

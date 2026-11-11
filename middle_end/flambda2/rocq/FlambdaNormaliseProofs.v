@@ -262,6 +262,8 @@ Lemma inlinable_b_sound (ap : apply_expr) (c : code) :
        (ap_continuation ap) (ap_exn_continuation ap)).
 Proof.
   unfold inlinable_b. intros Hb.
+  apply andb_true_iff in Hb as [Hb Hstatic].
+  apply negb_true_iff in Hstatic.
   apply andb_true_iff in Hb as [Hb Harity].
   apply andb_true_iff in Hb as [Hb Hparams].
   apply andb_true_iff in Hb as [Hb Hmy_closure].
@@ -274,7 +276,10 @@ Proof.
     as (Hfix & Hret & Hexn).
   unfold inlinable.
   refine
-    (conj _ (conj _ (conj Hfix (conj Hret (conj Hexn (conj _ (conj _ _))))))).
+    (conj _
+       (conj _
+          (conj Hfix
+             (conj Hret (conj Hexn (conj _ (conj _ (conj _ Hstatic)))))))).
   - intros x Hx. destruct (Hvars x Hx) as [<- | Hin]; auto.
   - intros k Hk. destruct (Hconts k Hk) as [<- | [<- | []]]; auto.
   - intros Hfree. apply var_in_simples_sound in Hfree.
@@ -344,6 +349,73 @@ Definition handlers_refine (ok : static_env -> Prop) (vars : env)
          handler_refines_where ok params def_vars source target)
       vars handlers' handlers.
 
+(* Inlining leaves what binds something static as it is: what is inlined
+   binds nothing. *)
+Lemma let_params_binds_statics (params : list variable) :
+  ∀ (args : list simple) (body : expr),
+    binds_statics (let_params params args body) = binds_statics body.
+Proof.
+  induction params as [ | param params IH]; intros [ | arg args] body; simpl;
+    auto.
+Qed.
+
+Lemma inlined_body_binds_statics (c : code) (r : renaming) (ap : apply_expr) :
+  binds_statics (inlined_body c r ap) = binds_statics (code_body c).
+Proof.
+  unfold inlined_body. simpl. rewrite let_params_binds_statics.
+  apply rename_binds_statics.
+Qed.
+
+Lemma inlinable_b_binds_statics (ap : apply_expr) (c : code) :
+  inlinable_b ap c = true -> binds_statics (code_body c) = false.
+Proof.
+  unfold inlinable_b. intros Hb. apply andb_true_iff in Hb as [_ Hstatic].
+  apply negb_true_iff, Hstatic.
+Qed.
+
+Lemma inline_apply_binds_statics (known : list (code_id * code))
+    (ap : apply_expr) :
+  binds_statics (inline_apply known ap) = false.
+Proof.
+  unfold inline_apply.
+  destruct (ap_call_kind ap) as [called | ]; [ | reflexivity ].
+  destruct (lookup called known) as [c | ]; [ | reflexivity ].
+  destruct (inlinable_b ap c) eqn:Hinlinable; [ | reflexivity ].
+  rewrite inlined_body_binds_statics.
+  exact (inlinable_b_binds_statics ap c Hinlinable).
+Qed.
+
+Fixpoint inline_calls_binds_statics (e : expr) :
+  ∀ known : list (code_id * code),
+    binds_statics (inline_calls known e) = binds_statics e.
+Proof.
+  destruct e
+    as [ x d body | bindings body | k h body | handlers body
+       | ap | ac | scrutinee arms | ];
+    intros known; simpl; try reflexivity.
+  - apply inline_calls_binds_statics.
+  - rewrite inline_calls_binds_statics. reflexivity.
+  - destruct h as [params handler]. simpl.
+    rewrite !inline_calls_binds_statics. reflexivity.
+  - rewrite inline_calls_binds_statics. f_equal.
+    induction handlers as [ | [k [params handler]] handlers IH]; simpl;
+      [ reflexivity | ].
+    rewrite inline_calls_binds_statics, IH. reflexivity.
+  - apply inline_apply_binds_statics.
+Qed.
+
+Lemma inline_calls_handlers_bind_statics (known : list (code_id * code))
+    (handlers : list (continuation * continuation_handler)) :
+  handlers_bind_statics
+    (map (fun '(k, h) => (k, inline_calls_in_handler known h)) handlers)
+  = handlers_bind_statics handlers.
+Proof.
+  unfold handlers_bind_statics.
+  induction handlers as [ | [k [params handler]] handlers IH]; simpl;
+    [ reflexivity | ].
+  rewrite inline_calls_binds_statics, IH. reflexivity.
+Qed.
+
 (* Down the term, with the static environment binding what is known: at
    once in a body, and from then on in a handler. *)
 Fixpoint inline_calls_refines_knowing (e : expr) :
@@ -406,10 +478,11 @@ Proof.
               apply inline_calls_refines_knowing, Hknow'. }
         destruct Hhandlers as [Hforwards Hbackwards].
         apply (let_cont_recursive_handlers_refine_where (statics_know known)
-          (statics_know_extend known)); assumption.
-      * eapply refines_step;
-          [ reflexivity | reflexivity
-          | apply inline_calls_refines_knowing, Hknow ].
+          (statics_know_extend known));
+          try assumption.
+        symmetry. apply inline_calls_handlers_bind_statics.
+      * apply let_cont_recursive_refines_step; [ reflexivity | intros _ ].
+        apply inline_calls_refines_knowing, Hknow.
     + apply inline_apply_refines, Hknow.
 Qed.
 
@@ -541,7 +614,7 @@ Proof.
       as [ x d body | bindings body | k h body | handlers body | ap | ac
          | scrutinee arms | ];
       simpl; try apply expr_refines_refl.
-    + pose proof (plug_refines (Let_body x d Hole) _ _
+    + pose proof (plug_refines (Let_body x d Hole) _ _ (not_many _)
         (remove_unused_lets_refines_aux body)) as Hbody.
       simpl in Hbody.
       destruct
@@ -550,19 +623,20 @@ Proof.
       apply orb_false_iff in Hkeep as [Hfree _].
       apply (expr_refines_trans _ _ _ Hbody), unused_let.
       intros Hx. apply var_free_b_sound in Hx. congruence.
-    + exact (plug_refines (Let_static_body bindings Hole) _ _
+    + exact (plug_refines (Let_static_body bindings Hole) _ _ (not_many _)
         (remove_unused_lets_refines_aux body)).
     + apply (expr_refines_trans _ _ _
         (remove_unused_lets_in_handler_refines h k body)).
       exact (plug_refines
         (Let_cont_non_recursive_body k (remove_unused_lets_in_handler h)
            Hole)
-        _ _ (remove_unused_lets_refines_aux body)).
-    + exact (plug_refines (Let_cont_recursive_body handlers Hole) _ _
+        _ _ (not_many _) (remove_unused_lets_refines_aux body)).
+    + exact (plug_refines (Let_cont_recursive_body handlers Hole)
+          _ _ (not_many _)
         (remove_unused_lets_refines_aux body)).
   - destruct h as [params handler]. intros k body. simpl.
     exact (plug_refines (Let_cont_non_recursive_handler k params Hole body)
-      _ _ (remove_unused_lets_refines_aux handler)).
+      _ _ (not_many _) (remove_unused_lets_refines_aux handler)).
 Qed.
 
 Theorem remove_unused_lets_refines : remove_unused_lets_refines_statement.
@@ -716,9 +790,9 @@ Proof.
     as [ x d body | bindings body | k [params handler] body | handlers body
        | ap | ac | scrutinee arms | ];
     simpl; try apply expr_refines_refl.
-  - exact (plug_refines (Let_body x d Hole) _ _
+  - exact (plug_refines (Let_body x d Hole) _ _ (not_many _)
       (inline_tail_conts_refines_aux body)).
-  - exact (plug_refines (Let_static_body bindings Hole) _ _
+  - exact (plug_refines (Let_static_body bindings Hole) _ _ (not_many _)
       (inline_tail_conts_refines_aux body)).
   - assert (Hlayers :
       expr_refines (Let_cont_non_recursive k (Handler params handler) body)
@@ -729,12 +803,12 @@ Proof.
         (Let_cont_non_recursive k
            (Handler params (inline_tail_conts handler)) body)).
       - exact (plug_refines
-          (Let_cont_non_recursive_handler k params Hole body) _ _
+          (Let_cont_non_recursive_handler k params Hole body) _ _ (not_many _)
           (inline_tail_conts_refines_aux handler)).
       - exact (plug_refines
           (Let_cont_non_recursive_body k
              (Handler params (inline_tail_conts handler)) Hole)
-          _ _ (inline_tail_conts_refines_aux body)). }
+          _ _ (not_many _) (inline_tail_conts_refines_aux body)). }
     destruct
       (inline_cont_at_tail k params (inline_tail_conts handler)
          (inline_tail_conts body))
@@ -744,7 +818,7 @@ Proof.
       [ apply equivalent_refines, step_equivalent; reflexivity | ].
     apply (inline_cont_at_tail_refines k params _ _ inlined Hinline).
     intros x _. reflexivity.
-  - exact (plug_refines (Let_cont_recursive_body handlers Hole) _ _
+  - exact (plug_refines (Let_cont_recursive_body handlers Hole) _ _ (not_many _)
       (inline_tail_conts_refines_aux body)).
 Qed.
 
@@ -804,24 +878,25 @@ Proof.
     as [ x d body | bindings body | k [params handler] body | handlers body
        | ap | ac | scrutinee arms | ];
     simpl; try (intros vars conts statics; apply equivalent_refl).
-  - exact (plug_equivalent (Let_body x d Hole) _ _
+  - exact (plug_equivalent (Let_body x d Hole) _ _ (not_many _)
       (drop_deleted_code_equivalent_aux body)).
   - apply (expr_equivalent_trans _
       (Let_static bindings (drop_deleted_code body))).
-    + exact (plug_equivalent (Let_static_body bindings Hole) _ _
+    + exact (plug_equivalent (Let_static_body bindings Hole) _ _ (not_many _)
         (drop_deleted_code_equivalent_aux body)).
     + apply let_static_if_any_equivalent.
   - apply (expr_equivalent_trans _
       (Let_cont_non_recursive k
          (Handler params (drop_deleted_code handler)) body)).
     + exact (plug_equivalent
-        (Let_cont_non_recursive_handler k params Hole body) _ _
+        (Let_cont_non_recursive_handler k params Hole body) _ _ (not_many _)
         (drop_deleted_code_equivalent_aux handler)).
     + exact (plug_equivalent
         (Let_cont_non_recursive_body k
            (Handler params (drop_deleted_code handler)) Hole)
-        _ _ (drop_deleted_code_equivalent_aux body)).
-  - exact (plug_equivalent (Let_cont_recursive_body handlers Hole) _ _
+        _ _ (not_many _) (drop_deleted_code_equivalent_aux body)).
+  - exact (plug_equivalent (Let_cont_recursive_body handlers Hole)
+        _ _ (not_many _)
       (drop_deleted_code_equivalent_aux body)).
 Qed.
 
@@ -881,21 +956,22 @@ Proof.
   - apply (expr_equivalent_trans _ (Let x (fold_named d) body)).
     + intros vars conts statics. apply (equivalent_of_run 1 1). simpl.
       rewrite fold_named_sound. reflexivity.
-    + exact (plug_equivalent (Let_body x (fold_named d) Hole) _ _
+    + exact (plug_equivalent (Let_body x (fold_named d) Hole) _ _ (not_many _)
         (fold_constants_equivalent_aux body)).
-  - exact (plug_equivalent (Let_static_body bindings Hole) _ _
+  - exact (plug_equivalent (Let_static_body bindings Hole) _ _ (not_many _)
       (fold_constants_equivalent_aux body)).
   - apply (expr_equivalent_trans _
       (Let_cont_non_recursive k (Handler params (fold_constants handler))
          body)).
     + exact (plug_equivalent
-        (Let_cont_non_recursive_handler k params Hole body) _ _
+        (Let_cont_non_recursive_handler k params Hole body) _ _ (not_many _)
         (fold_constants_equivalent_aux handler)).
     + exact (plug_equivalent
         (Let_cont_non_recursive_body k
            (Handler params (fold_constants handler)) Hole)
-        _ _ (fold_constants_equivalent_aux body)).
-  - exact (plug_equivalent (Let_cont_recursive_body handlers Hole) _ _
+        _ _ (not_many _) (fold_constants_equivalent_aux body)).
+  - exact (plug_equivalent (Let_cont_recursive_body handlers Hole)
+        _ _ (not_many _)
       (fold_constants_equivalent_aux body)).
   - apply fold_switch_equivalent.
 Qed.
@@ -934,7 +1010,7 @@ Proof.
     as [ x d body | bindings body | k [params handler] body | handlers body
        | ap | ac | scrutinee arms | ];
     simpl; try (intros vars conts statics; apply equivalent_refl).
-  - pose proof (plug_equivalent (Let_body x d Hole) _ _
+  - pose proof (plug_equivalent (Let_body x d Hole) _ _ (not_many _)
       (remove_unused_total_lets_equivalent_aux body)) as Hbody.
     simpl in Hbody.
     destruct
@@ -945,19 +1021,20 @@ Proof.
     apply (expr_equivalent_trans _ _ _ Hbody), unused_total_let;
       [ exact Htotal | ].
     intros Hx. apply var_free_b_sound in Hx. congruence.
-  - exact (plug_equivalent (Let_static_body bindings Hole) _ _
+  - exact (plug_equivalent (Let_static_body bindings Hole) _ _ (not_many _)
       (remove_unused_total_lets_equivalent_aux body)).
   - apply (expr_equivalent_trans _
       (Let_cont_non_recursive k
          (Handler params (remove_unused_total_lets handler)) body)).
     + exact (plug_equivalent
-        (Let_cont_non_recursive_handler k params Hole body) _ _
+        (Let_cont_non_recursive_handler k params Hole body) _ _ (not_many _)
         (remove_unused_total_lets_equivalent_aux handler)).
     + exact (plug_equivalent
         (Let_cont_non_recursive_body k
            (Handler params (remove_unused_total_lets handler)) Hole)
-        _ _ (remove_unused_total_lets_equivalent_aux body)).
-  - exact (plug_equivalent (Let_cont_recursive_body handlers Hole) _ _
+        _ _ (not_many _) (remove_unused_total_lets_equivalent_aux body)).
+  - exact (plug_equivalent (Let_cont_recursive_body handlers Hole)
+        _ _ (not_many _)
       (remove_unused_total_lets_equivalent_aux body)).
 Qed.
 
@@ -1127,7 +1204,7 @@ Proof.
       eapply equivalent_step; [ reflexivity | reflexivity | ].
       apply (remove_unused_defined_lets_equivalent_bound body vs), Hbound.
   - intros vars conts statics Hbound.
-    eapply equivalent_step; [ reflexivity | reflexivity | ].
+    apply let_cont_recursive_equivalent_step; [ reflexivity | intros _ ].
     apply (remove_unused_defined_lets_equivalent_bound body vs), Hbound.
 Qed.
 
@@ -1235,6 +1312,61 @@ Proof.
     exists slots. apply (proj2 Hextend), Hlookup.
 Qed.
 
+Lemma inline_known_apply_binds_statics
+    (known_code : list (code_id * code))
+    (known_symbols : list (symbol * option code_id)) (ap : apply_expr) :
+  binds_statics (inline_known_apply known_code known_symbols ap) = false.
+Proof.
+  unfold inline_known_apply.
+  destruct (ap_callee ap) as [x | s | const]; try reflexivity.
+  destruct (ap_call_kind ap) as [called | ]; try reflexivity.
+  destruct (lookup s known_symbols) as [[code | ] | ]; try reflexivity.
+  destruct (lookup called known_code) as [c | ]; try reflexivity.
+  destruct (Pos.eqb code called && inlinable_b ap c) eqn:Hcheck;
+    [ | reflexivity ].
+  apply andb_true_iff in Hcheck as [_ Hinlinable].
+  rewrite inlined_body_binds_statics.
+  exact (inlinable_b_binds_statics ap c Hinlinable).
+Qed.
+
+Fixpoint inline_known_calls_binds_statics (e : expr) :
+  ∀ (known_code : list (code_id * code))
+    (known_symbols : list (symbol * option code_id)),
+    binds_statics (inline_known_calls known_code known_symbols e)
+    = binds_statics e.
+Proof.
+  destruct e
+    as [ x d body | bindings body | k h body | handlers body
+       | ap | ac | scrutinee arms | ];
+    intros known_code known_symbols; simpl; try reflexivity.
+  - apply inline_known_calls_binds_statics.
+  - rewrite inline_known_calls_binds_statics. reflexivity.
+  - destruct h as [params handler]. simpl.
+    rewrite !inline_known_calls_binds_statics. reflexivity.
+  - rewrite inline_known_calls_binds_statics. f_equal.
+    induction handlers as [ | [k [params handler]] handlers IH]; simpl;
+      [ reflexivity | ].
+    rewrite inline_known_calls_binds_statics, IH. reflexivity.
+  - apply inline_known_apply_binds_statics.
+Qed.
+
+Lemma inline_known_calls_handlers_bind_statics
+    (known_code : list (code_id * code))
+    (known_symbols : list (symbol * option code_id))
+    (handlers : list (continuation * continuation_handler)) :
+  handlers_bind_statics
+    (map
+       (fun '(k, h) =>
+          (k, inline_known_calls_in_handler known_code known_symbols h))
+       handlers)
+  = handlers_bind_statics handlers.
+Proof.
+  unfold handlers_bind_statics.
+  induction handlers as [ | [k [params handler]] handlers IH]; simpl;
+    [ reflexivity | ].
+  rewrite inline_known_calls_binds_statics, IH. reflexivity.
+Qed.
+
 Fixpoint inline_known_calls_equivalent_knowing (e : expr) :
   ∀ (known_code : list (code_id * code))
     (known_symbols : list (symbol * option code_id)) (vars : env)
@@ -1325,10 +1457,12 @@ Proof.
           apply (let_cont_recursive_handlers_refine_where
             (statics_know_both known_code known_symbols)
             (statics_know_both_extend known_code known_symbols));
-          try assumption; split; assumption.
-      * eapply equivalent_step;
-          [ reflexivity | reflexivity
-          | apply inline_known_calls_equivalent_knowing; assumption ].
+          try assumption; try (split; assumption);
+          first
+            [ apply inline_known_calls_handlers_bind_statics
+            | symmetry; apply inline_known_calls_handlers_bind_statics ].
+      * apply let_cont_recursive_equivalent_step; [ reflexivity | intros _ ].
+        apply inline_known_calls_equivalent_knowing; assumption.
     + apply inline_known_apply_equivalent; assumption.
 Qed.
 
@@ -1428,9 +1562,9 @@ Proof.
     as [ x d body | bindings body | k [params handler] body | handlers body
        | ap | ac | scrutinee arms | ];
     simpl; try (intros vars conts statics; apply equivalent_refl).
-  - exact (plug_equivalent (Let_body x d Hole) _ _
+  - exact (plug_equivalent (Let_body x d Hole) _ _ (not_many _)
       (merge_statics_equivalent_aux body)).
-  - pose proof (plug_equivalent (Let_static_body bindings Hole) _ _
+  - pose proof (plug_equivalent (Let_static_body bindings Hole) _ _ (not_many _)
       (merge_statics_equivalent_aux body)) as Hbody.
     simpl in Hbody.
     destruct (merge_statics body)
@@ -1447,13 +1581,14 @@ Proof.
       (Let_cont_non_recursive k (Handler params (merge_statics handler))
          body)).
     + exact (plug_equivalent
-        (Let_cont_non_recursive_handler k params Hole body) _ _
+        (Let_cont_non_recursive_handler k params Hole body) _ _ (not_many _)
         (merge_statics_equivalent_aux handler)).
     + exact (plug_equivalent
         (Let_cont_non_recursive_body k
            (Handler params (merge_statics handler)) Hole)
-        _ _ (merge_statics_equivalent_aux body)).
-  - exact (plug_equivalent (Let_cont_recursive_body handlers Hole) _ _
+        _ _ (not_many _) (merge_statics_equivalent_aux body)).
+  - exact (plug_equivalent (Let_cont_recursive_body handlers Hole)
+        _ _ (not_many _)
       (merge_statics_equivalent_aux body)).
 Qed.
 
@@ -1488,21 +1623,21 @@ Proof.
     as [ x d body | bindings body | k [params handler] body | handlers body
        | ap | ac | scrutinee arms | ];
     simpl; try apply expr_refines_refl.
-  - exact (plug_refines (Let_body x d Hole) _ _
+  - exact (plug_refines (Let_body x d Hole) _ _ (not_many _)
       (collapse_switches_refines_aux body)).
-  - exact (plug_refines (Let_static_body bindings Hole) _ _
+  - exact (plug_refines (Let_static_body bindings Hole) _ _ (not_many _)
       (collapse_switches_refines_aux body)).
   - apply (expr_refines_trans _
       (Let_cont_non_recursive k (Handler params (collapse_switches handler))
          body)).
     + exact (plug_refines
-        (Let_cont_non_recursive_handler k params Hole body) _ _
+        (Let_cont_non_recursive_handler k params Hole body) _ _ (not_many _)
         (collapse_switches_refines_aux handler)).
     + exact (plug_refines
         (Let_cont_non_recursive_body k
            (Handler params (collapse_switches handler)) Hole)
-        _ _ (collapse_switches_refines_aux body)).
-  - exact (plug_refines (Let_cont_recursive_body handlers Hole) _ _
+        _ _ (not_many _) (collapse_switches_refines_aux body)).
+  - exact (plug_refines (Let_cont_recursive_body handlers Hole) _ _ (not_many _)
       (collapse_switches_refines_aux body)).
   - apply collapse_switch_refines.
 Qed.

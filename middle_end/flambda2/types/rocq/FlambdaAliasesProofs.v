@@ -393,7 +393,7 @@ Proof.
       apply (follow_aliases_equivalent_in body tenv), Hsat.
     + (* Let_cont_recursive *)
       intros vars conts statics Hsat.
-      eapply equivalent_step; [ reflexivity | reflexivity | ].
+      apply let_cont_recursive_equivalent_step; [ reflexivity | intros _ ].
       apply (follow_aliases_equivalent_in body tenv), Hsat.
     + (* Apply *)
       intros vars conts statics Hsat.

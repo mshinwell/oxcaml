@@ -387,6 +387,7 @@ Definition unused_let_cont_statement : Prop :=
 
 Definition unused_let_cont_recursive_statement : Prop :=
   ∀ (handlers : list (continuation * continuation_handler)) (body : expr),
+    handlers_bind_statics handlers = false ->
     (∀ k : continuation,
       cont_free_in_expr k body -> lookup k handlers = None) ->
     expr_equivalent (Let_cont_recursive handlers body) body.

@@ -97,17 +97,18 @@ let var_in_simples x args =
 (** val inlinable_b : apply_expr -> code -> bool **)
 
 let inlinable_b ap c =
-  ((((expr_in_scope
-        (code_my_closure c :: code_params c)
-        [code_return_continuation c; code_exn_continuation c]
-        (code_body c)
-     && negb (Pos.eqb (code_return_continuation c) (code_exn_continuation c)))
-    && negb (Pos.eqb ap.ap_continuation ap.ap_exn_continuation))
-   && negb (var_in_simples (code_my_closure c) ap.ap_args))
-  && forallb
-       (fun param -> negb (var_in_simples param ap.ap_args))
-       (code_params c))
-  && Nat.eqb (length (code_params c)) (length ap.ap_args)
+  (((((expr_in_scope
+         (code_my_closure c :: code_params c)
+         [code_return_continuation c; code_exn_continuation c]
+         (code_body c)
+      && negb (Pos.eqb (code_return_continuation c) (code_exn_continuation c)))
+     && negb (Pos.eqb ap.ap_continuation ap.ap_exn_continuation))
+    && negb (var_in_simples (code_my_closure c) ap.ap_args))
+   && forallb
+        (fun param -> negb (var_in_simples param ap.ap_args))
+        (code_params c))
+  && Nat.eqb (length (code_params c)) (length ap.ap_args))
+  && negb (binds_statics (code_body c))
 
 (** val codes_of : static_binding list -> (code_id * code) list -> (code_id *
     code) list **)

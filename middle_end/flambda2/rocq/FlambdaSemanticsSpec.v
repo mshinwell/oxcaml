@@ -48,12 +48,16 @@
    A [Let_static] is executed where it stands; nothing lifts it.
 
    Flambda permits a [Let_static] at the toplevel of a compilation unit
-   only: FlambdaWellFormedSpec.v has the condition. The machine has no
-   notion of where a term stands, so it does not enforce the condition as
-   such. It makes undefined what the condition is there to prevent,
-   binding a code id or a symbol that is bound already; what a name is
-   bound to then never changes in a run, and what is known of the static
-   environment where a handler is defined still holds where it runs.
+   only: FlambdaWellFormedSpec.v has the condition. The machine keeps
+   static bindings out of the two places where one could be executed more
+   than once: calling code whose body binds something static is
+   undefined, and so is a [Let_cont_recursive] one of whose handlers does
+   ([binds_statics]). It also makes undefined binding a code id or a
+   symbol that is bound already. So what a name is bound to never changes
+   in a run, and what is known of the static environment where a handler
+   is defined still holds where it runs. The rest of the condition, that
+   the handler of a non-recursive continuation with static bindings
+   postdominates its body, is not the machine's to check.
 
    A continuation with no binding stands for a way out of the term: the
    return or exception continuation of the enclosing unit. Applying one
@@ -269,6 +273,36 @@ Fixpoint eval_static_bindings (vars : env) (bindings : list static_binding)
     end
   end.
 
+(* Whether an expression has a [Let_static] that binds something, in its
+   body or in a handler. The code that a [Let_static] binds is not looked
+   into: it is checked when it is called. *)
+Definition binding_binds (binding : static_binding) : bool :=
+  match binding with
+  | Bind_deleted_code _ => false
+  | Bind_code _ _ | Bind_symbol _ _ => true
+  end.
+
+Fixpoint binds_statics (e : expr) : bool :=
+  match e with
+  | Let _ _ body => binds_statics body
+  | Let_static bindings body =>
+    existsb binding_binds bindings || binds_statics body
+  | Let_cont_non_recursive _ h body =>
+    handler_binds_statics h || binds_statics body
+  | Let_cont_recursive handlers body =>
+    existsb (fun '(_, h) => handler_binds_statics h) handlers
+    || binds_statics body
+  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => false
+  end
+with handler_binds_statics (h : continuation_handler) : bool :=
+  match h with
+  | Handler _ handler => binds_statics handler
+  end.
+
+Definition handlers_bind_statics
+    (handlers : list (continuation * continuation_handler)) : bool :=
+  existsb (fun '(_, h) => handler_binds_statics h) handlers.
+
 (* Binds parameters to arguments; there must be as many of each. *)
 Fixpoint bind_params (params : list variable) (vs : list value) (vars : env)
     : option env :=
@@ -331,7 +365,8 @@ Definition apply_continuation (k : continuation) (vs : list value)
    return and exception continuations of the code, which stand for what
    the caller's stand for. So there is no stack: to return is to apply the
    continuation the caller gave. A direct call must be to a closure of the
-   code named. *)
+   code named. The body must bind nothing static: it would do so at each
+   call. *)
 Definition call_function (callee : value) (kind : call_kind)
     (vs : list value) (return_to exn_to : cont_value) (statics : static_env)
     : step_result :=
@@ -345,14 +380,18 @@ Definition call_function (callee : value) (kind : call_kind)
     in
     match expected, lookup called (static_code statics) with
     | true, Some c =>
-      match bind_params (code_params c) vs [(code_my_closure c, callee)] with
-      | Some callee_vars =>
-        Step (State (code_body c) callee_vars
-          [(code_return_continuation c, return_to);
-           (code_exn_continuation c, exn_to)]
-          statics)
-      | None => Undefined
-      end
+      if binds_statics (code_body c) then Undefined
+      else
+        match
+          bind_params (code_params c) vs [(code_my_closure c, callee)]
+        with
+        | Some callee_vars =>
+          Step (State (code_body c) callee_vars
+            [(code_return_continuation c, return_to);
+             (code_exn_continuation c, exn_to)]
+            statics)
+        | None => Undefined
+        end
     | _, _ => Undefined
     end
   | None => Undefined
@@ -373,7 +412,10 @@ Definition step (s : state) : step_result :=
   | State (Let_cont_non_recursive k h body) vars conts statics =>
     Step (State body vars ((k, Closure h vars conts []) :: conts) statics)
   | State (Let_cont_recursive handlers body) vars conts statics =>
-    Step (State body vars (rec_closures handlers vars conts ++ conts) statics)
+    if handlers_bind_statics handlers then Undefined
+    else
+      Step
+        (State body vars (rec_closures handlers vars conts ++ conts) statics)
   | State (Apply ap) vars conts statics =>
     match eval_simple vars (ap_callee ap), eval_simples vars (ap_args ap) with
     | Some callee, Some vs =>

@@ -74,12 +74,13 @@ Definition let_cont_apply_cont_one_param_statement : Prop :=
       (Let x (Simple arg) handler).
 
 (* Entering a recursive continuation: the handler runs with all the handlers
-   of the [Let_cont] in scope. *)
+   of the [Let_cont] in scope. The handlers must bind nothing static. *)
 Definition let_cont_recursive_apply_cont_statement : Prop :=
   ∀ (k : continuation) (params : list variable) (handler : expr)
     (handlers : list (continuation * continuation_handler))
     (args : list simple) (vars handler_vars : env) (conts : cont_env)
     (statics : static_env) (vs : list value),
+    handlers_bind_statics handlers = false ->
     lookup k handlers = Some (Handler params handler) ->
     eval_simples vars args = Some vs ->
     bind_params params vs vars = Some handler_vars ->

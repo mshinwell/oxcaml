@@ -120,17 +120,20 @@ Lemma step_apply_direct (ap : apply_expr) (callee : value) (called : code_id)
   step (State (Apply ap) vars conts statics)
   = match lookup called (static_code statics) with
     | Some c =>
-      match
-        bind_params (code_params c) vs [(code_my_closure c, callee)]
-      with
-      | Some callee_vars =>
-        Step (State (code_body c) callee_vars
-          [(code_return_continuation c, resolve (ap_continuation ap) conts);
-           (code_exn_continuation c,
-            resolve (ap_exn_continuation ap) conts)]
-          statics)
-      | None => Undefined
-      end
+      if binds_statics (code_body c) then Undefined
+      else
+        match
+          bind_params (code_params c) vs [(code_my_closure c, callee)]
+        with
+        | Some callee_vars =>
+          Step (State (code_body c) callee_vars
+            [(code_return_continuation c,
+              resolve (ap_continuation ap) conts);
+             (code_exn_continuation c,
+              resolve (ap_exn_continuation ap) conts)]
+            statics)
+        | None => Undefined
+        end
     | None => Undefined
     end.
 Proof.
@@ -149,7 +152,7 @@ Theorem inline : inline_statement.
 Proof.
   intros ap called c r vars conts statics Hkind Hcode
     (Hclosed_vars & Hclosed_conts & Hvars & Hret & Hexn & Hmy_closure
-     & Hparams & Harity).
+     & Hparams & Harity & Hstatic).
   assert (Hwrong :
     step (State (Apply ap) vars conts statics) = Undefined ->
     refines (State (Apply ap) vars conts statics)
@@ -170,7 +173,7 @@ Proof.
         [ contradiction | reflexivity ] ].
   pose proof (step_apply_direct ap callee called slots vs vars conts statics
     Hcallee Hclosure Hargs Hkind) as Hstep.
-  rewrite Hcode in Hstep.
+  rewrite Hcode, Hstatic in Hstep.
   destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
     as [callee_vars | ] eqn:Hbind; [ | exact (Hwrong Hstep) ].
   apply equivalent_refines.
@@ -314,11 +317,11 @@ Lemma inline_equivalent (ap : apply_expr) (called : code_id) (c : code)
 Proof.
   intros Hkind Hcallee Hclosure Hcode
     (Hclosed_vars & Hclosed_conts & Hvars & Hret & Hexn & Hmy_closure
-     & Hparams & Harity).
+     & Hparams & Harity & Hstatic).
   destruct (eval_simples vars (ap_args ap)) as [vs | ] eqn:Hargs.
   - pose proof (step_apply_direct ap callee called slots vs vars conts
       statics Hcallee Hclosure Hargs Hkind) as Hstep.
-    rewrite Hcode in Hstep.
+    rewrite Hcode, Hstatic in Hstep.
     destruct (bind_params_some (code_params c) vs
                 [(code_my_closure c, callee)])
       as [callee_vars Hbind].

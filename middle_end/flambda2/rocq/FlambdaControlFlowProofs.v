@@ -65,8 +65,10 @@ Theorem let_cont_recursive_apply_cont :
   let_cont_recursive_apply_cont_statement.
 Proof.
   intros k params handler handlers args vars handler_vars conts statics vs
-    Hlookup Hargs Hbind.
-  apply (equivalent_of_run 2 0). simpl.
+    Hstatics Hlookup Hargs Hbind.
+  eapply equivalent_trans;
+    [ apply step_equivalent; simpl; rewrite Hstatics; reflexivity | ].
+  apply step_equivalent. simpl.
   rewrite Hargs. unfold apply_continuation, resolve, rec_closures.
   rewrite (lookup_rec_closures _ _ _ _ _ _ _ Hlookup). simpl.
   rewrite Hbind.

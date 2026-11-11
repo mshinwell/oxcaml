@@ -203,6 +203,7 @@ Variable code_related : expr -> expr -> Prop.
 Inductive codes_related : code -> code -> Prop :=
   | Codes_related (params : list variable) (my_closure : variable)
       (ret exn : continuation) (body body' : expr) :
+    binds_statics body = binds_statics body' ->
     code_related body body' ->
     codes_related (Code params my_closure ret exn body)
       (Code params my_closure ret exn body')
@@ -347,12 +348,16 @@ Proof.
   destruct (lookup called (static_code statics)) as [c | ],
     (lookup called (static_code statics')) as [c' | ];
     try contradiction; [ | left; split; reflexivity ].
-  destruct Hc as [params my_closure ret exn body body' Hbody | c]; simpl.
-  - destruct (bind_params params vs [(my_closure, callee)])
+  destruct Hc as [params my_closure ret exn body body' Hbinds Hbody | c];
+    simpl.
+  - rewrite <- Hbinds.
+    destruct (binds_statics body); [ left; split; reflexivity | ].
+    destruct (bind_params params vs [(my_closure, callee)])
       as [callee_vars | ]; [ | left; split; reflexivity ].
     right. exists body, body', callee_vars, ret, exn.
     split; [ left; exact Hbody | split; reflexivity ].
-  - destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
+  - destruct (binds_statics (code_body c)); [ left; split; reflexivity | ].
+    destruct (bind_params (code_params c) vs [(code_my_closure c, callee)])
       as [callee_vars | ]; [ | left; split; reflexivity ].
     right.
     exists (code_body c), (code_body c), callee_vars,
@@ -462,7 +467,11 @@ Proof.
     apply Closure_related;
       [ apply Handler_same | exact Hrel | apply Forall2_nil ].
   - (* Let_cont_recursive *)
-    eapply carried_step; [ simpl; reflexivity | ].
+    destruct (handlers_bind_statics handlers) eqn:Hbinds; simpl in Hended;
+      [ apply ended_undefined in Hended; subst b; apply carried_undefined;
+        simpl; rewrite Hbinds; reflexivity
+      | ].
+    eapply carried_step; [ simpl; rewrite Hbinds; reflexivity | ].
     eapply IH; [ | exact Hstatics | exact Hok | exact Hended ].
     apply Forall2_app; [ | exact Hrel ].
     apply rec_closures_related; [ apply handlers_related_refl | exact Hrel ].
@@ -750,6 +759,7 @@ Lemma let_cont_recursive_handlers_refine_where
     (handlers handlers' : list (continuation * continuation_handler))
     (body : expr) (vars : env) (conts : cont_env) (statics : static_env) :
   ok statics ->
+  handlers_bind_statics handlers = handlers_bind_statics handlers' ->
   handlers_related (handler_refines_where ok) vars handlers handlers' ->
   handlers_related
     (fun params def_vars target source =>
@@ -758,8 +768,14 @@ Lemma let_cont_recursive_handlers_refine_where
   refines (State (Let_cont_recursive handlers body) vars conts statics)
     (State (Let_cont_recursive handlers' body) vars conts statics).
 Proof.
-  intros Hok Hhandlers Hhandlers'.
-  eapply refines_step; [ reflexivity | reflexivity | ].
+  intros Hok Hbinds Hhandlers Hhandlers'.
+  destruct (handlers_bind_statics handlers) eqn:Hsource;
+    [ apply goes_wrong_refines, (step_behaves _ Goes_wrong); simpl;
+      rewrite Hsource; reflexivity
+    | ].
+  eapply refines_step;
+    [ simpl; rewrite Hsource; reflexivity
+    | simpl; rewrite <- Hbinds; reflexivity | ].
   apply related_envs_refines; [ exact Hok | | ];
     (apply Forall2_app; [ | apply cont_env_related_refl ]);
     (apply rec_closures_related; [ assumption | apply cont_env_related_refl ]).
@@ -793,6 +809,7 @@ Lemma let_cont_recursive_handler_refines_at
     (params : list variable) (handler handler' : expr)
     (after : list (continuation * continuation_handler)) (body : expr)
     (vars : env) (conts : cont_env) (statics : static_env) :
+  binds_statics handler = binds_statics handler' ->
   handler_refines_at params vars handler handler' ->
   refines
     (State
@@ -804,9 +821,12 @@ Lemma let_cont_recursive_handler_refines_at
           body)
        vars conts statics).
 Proof.
-  intros Hhandler.
+  intros Hbinds Hhandler.
   apply (let_cont_recursive_handlers_refine_where always always_extend);
-    [ exact I | | ];
+    [ exact I
+    | unfold handlers_bind_statics; rewrite !existsb_app; simpl;
+      rewrite Hbinds; reflexivity
+    | | ];
     (apply Forall2_app; [ apply handlers_related_refl | ]);
     (apply Forall2_cons; [ | apply handlers_related_refl ]);
     (split; [ reflexivity | ]); apply Handler_related;
@@ -819,6 +839,7 @@ Lemma let_static_code_refines (before : list static_binding) (id : code_id)
     (params : list variable) (my_closure : variable) (ret exn : continuation)
     (code_body code_body' : expr) (after : list static_binding) (body : expr)
     (vars : env) (conts : cont_env) (statics : static_env) :
+  binds_statics code_body = binds_statics code_body' ->
   expr_refines code_body code_body' ->
   refines
     (State
@@ -836,7 +857,7 @@ Lemma let_static_code_refines (before : list static_binding) (id : code_id)
           body)
        vars conts statics).
 Proof.
-  intros Hcode.
+  intros Hbinds Hcode.
   set (c := Code params my_closure ret exn code_body).
   set (c' := Code params my_closure ret exn code_body').
   assert (Hbindings :
@@ -852,14 +873,15 @@ Proof.
   pose proof (eval_static_bindings_related (expr_refines_where always) vars
     _ _
     (Hbindings (expr_refines_where always) c c'
-       (Codes_related _ _ _ _ _ _ _ Hwhere))
+       (Codes_related _ _ _ _ _ _ _ Hbinds Hwhere))
     statics statics (statics_related_refl _ statics)) as Hforwards.
   pose proof (eval_static_bindings_related
     (fun target source => expr_refines_where always source target) vars _ _
     (Hbindings _ c' c
        (Codes_related
           (fun target source => expr_refines_where always source target)
-          params my_closure ret exn code_body' code_body Hwhere))
+          params my_closure ret exn code_body' code_body (eq_sym Hbinds)
+          Hwhere))
     statics statics (statics_related_refl _ statics)) as Hbackwards.
   destruct
     (eval_static_bindings vars (before ++ Bind_code id c :: after) statics)
@@ -881,43 +903,75 @@ Qed.
 (* Contexts                                                                 *)
 (* ======================================================================== *)
 
-(* By induction on the context. A hole in a body: one step, then the
-   induction. A hole in a handler: the handler refines where it runs, as
-   it does everywhere. A hole in code: the body refines. *)
-Theorem plug_refines : plug_refines_statement.
+(* For a context whose hole is not in code or in a recursive handler. *)
+Lemma not_many (P : Prop) : false = true -> P.
+Proof. discriminate. Qed.
+
+Lemma plug_binds_statics (c : context) (e e' : expr) :
+  binds_statics e = binds_statics e' ->
+  binds_statics (plug c e) = binds_statics (plug c e').
 Proof.
-  intros c source target Hrefines.
+  intros Hbinds.
   induction c
     as [ | x d c IH | bindings c IH
        | before id params my_closure ret exn c IH after body | k h c IH
        | k params c IH body | handlers c IH
        | before k params c IH after body ];
-    simpl; [ exact Hrefines | | | | | | | ]; intros vars conts statics.
+    simpl; try congruence.
+  - rewrite !existsb_app. reflexivity.
+  - rewrite !existsb_app. simpl. rewrite IH. reflexivity.
+Qed.
+
+(* By induction on the context. A hole in a body: one step, then the
+   induction. A hole in a handler: the handler refines where it runs, as
+   it does everywhere. A hole in code: the body refines. *)
+Theorem plug_refines : plug_refines_statement.
+Proof.
+  intros c source target Hbinds Hrefines.
+  induction c
+    as [ | x d c IH | bindings c IH
+       | before id params my_closure ret exn c IH after body | k h c IH
+       | k params c IH body | handlers c IH
+       | before k params c IH after body ];
+    simpl in Hbinds |- *; [ exact Hrefines | | | | | | | ];
+    intros vars conts statics.
   - destruct (eval_named statics vars d) as [v | ] eqn:Hd.
     + eapply refines_step;
         [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity
-        | apply IH ].
+        | apply IH, Hbinds ].
     + apply goes_wrong_refines. exists 1. simpl. rewrite Hd. reflexivity.
   - destruct (eval_static_bindings vars bindings statics) as [statics' | ]
       eqn:Hbindings.
     + eapply refines_step;
         [ simpl; rewrite Hbindings; reflexivity
-        | simpl; rewrite Hbindings; reflexivity | apply IH ].
+        | simpl; rewrite Hbindings; reflexivity | apply IH, Hbinds ].
     + apply goes_wrong_refines. exists 1. simpl. rewrite Hbindings.
       reflexivity.
-  - apply let_static_code_refines, IH.
-  - eapply refines_step; [ reflexivity | reflexivity | apply IH ].
+  - apply let_static_code_refines;
+      [ apply plug_binds_statics, Hbinds, eq_refl
+      | apply IH; intros _; apply Hbinds, eq_refl ].
+  - eapply refines_step; [ reflexivity | reflexivity | apply IH, Hbinds ].
   - apply let_cont_handler_refines_at.
+    intros vs handler_vars conts' statics' _. apply IH, Hbinds.
+  - destruct (handlers_bind_statics handlers) eqn:Hhandlers.
+    + apply goes_wrong_refines, (step_behaves _ Goes_wrong). simpl.
+      rewrite Hhandlers. reflexivity.
+    + eapply refines_step;
+        [ simpl; rewrite Hhandlers; reflexivity
+        | simpl; rewrite Hhandlers; reflexivity | apply IH, Hbinds ].
+  - apply let_cont_recursive_handler_refines_at;
+      [ apply plug_binds_statics, Hbinds, eq_refl | ].
     intros vs handler_vars conts' statics' _. apply IH.
-  - eapply refines_step; [ reflexivity | reflexivity | apply IH ].
-  - apply let_cont_recursive_handler_refines_at.
-    intros vs handler_vars conts' statics' _. apply IH.
+    intros _. apply Hbinds, eq_refl.
 Qed.
 
 Theorem plug_equivalent : plug_equivalent_statement.
 Proof.
-  intros c e e' Hequiv vars conts statics.
+  intros c e e' Hbinds Hequiv vars conts statics.
   apply refines_antisymmetric; apply plug_refines;
-    apply expr_equivalent_refines; [ exact Hequiv | ].
-  intros vars' conts' statics'. apply equivalent_sym, Hequiv.
+    try (apply expr_equivalent_refines; exact Hequiv);
+    try exact Hbinds.
+  - intros Hmany. symmetry. apply Hbinds, Hmany.
+  - intros vars' conts' statics'. apply equivalent_refines, equivalent_sym.
+    apply Hequiv.
 Qed.

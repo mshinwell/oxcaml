@@ -511,9 +511,15 @@ not a proof.
   (`FlambdaWellFormedSpec.well_formed_unit`, after Simplify's
   `at_unit_toplevel`). The tool checks the term before, and does not give
   one that fails to Simplify (`static_in_loop.fl`); the term after failing
-  is an error. The machine does not know where a term stands: what it
-  makes undefined is binding a static name twice, so static environments
-  only grow (`run_extends_statics`). A rewrite inside a handler may then
+  is an error. The machine enforces what keeps a static binding from
+  running twice: calling code whose body binds something static is
+  undefined, as is a `Let_cont_recursive` one of whose handlers does
+  (`binds_statics`), and so is binding a static name twice; so static
+  environments only grow (`run_extends_statics`). A rewrite of the body
+  of code or of a recursive handler must therefore keep whether it binds
+  something static (the premise of `plug_refines` for such a context),
+  and code is inlined only if its body binds nothing static
+  (`FlambdaApplySpec.inlinable`). A rewrite inside a handler may then
   rely on what was bound where the handler is defined: the lemmas for it
   are the ones ending in `_where` in `FlambdaContextProofs.v`, which take
   a property of the static environment that every extension keeps
