@@ -856,3 +856,25 @@ Proof.
   - apply rename_recursive_handler_params_accepted; assumption.
   - apply rename_code_accepted, Hclosed.
 Qed.
+
+(* A handler that repeats its parameter, and one that does not. The
+   later of two parameters of one name is the one in scope. *)
+Definition repeats_parameter : expr :=
+  Let_cont_non_recursive 1%positive
+    (Handler [2%positive; 2%positive] (make_handler_metadata [Value; Value])
+       (Apply_cont (Apply_cont_expr 3%positive [Var 2%positive])))
+    Invalid.
+
+Definition repeats_no_parameter : expr :=
+  Let_cont_non_recursive 1%positive
+    (Handler [2%positive; 4%positive] (make_handler_metadata [Value; Value])
+       (Apply_cont (Apply_cont_expr 3%positive [Var 4%positive])))
+    Invalid.
+
+Theorem expr_eqb_repeated_parameter : expr_eqb_repeated_parameter_statement.
+Proof.
+  exists repeats_parameter, repeats_no_parameter.
+  split; [ reflexivity | ]. split; [ reflexivity | ].
+  intros r Heq. unfold repeats_parameter, repeats_no_parameter in Heq.
+  simpl in Heq. injection Heq as _ Hfirst Hsecond _. congruence.
+Qed.

@@ -41,22 +41,24 @@
    So the comparison may be taken as the definition of "the same up to
    bound names", with the rules of [alpha_equivalent] as facts about it.
 
-   The converse does not hold as [alpha_equivalent] stands, and the two
-   reasons are statements of FlambdaAlphaCompareSpec.v (on another
-   branch as this is written): the comparison relates code whose own
-   binders are renamed, for which [alpha_equivalent] has no rule, and it
-   relates a list of parameters that repeats a name to one that does
-   not, which no renaming can do. With a rule for the binders of code,
-   and for terms in which no list of binders repeats a name, the
-   converse is expected to hold; it is not proved.
+   The converse can hold only of terms whose binders are distinct and
+   whose code is closed. The comparison relates a list of parameters
+   that repeats a name to one that does not, which no renaming can do
+   ([expr_eqb_repeated_parameter_statement]); well-formedness excludes
+   such lists (FlambdaBindersSpec.binders_distinct, which the first of
+   the two terms fails). And the rules of [alpha_equivalent] rename
+   only where code is closed, while the comparison is reflexive on
+   every term. Of terms with distinct binders and closed code the
+   converse is expected to hold; it is not proved here.
 
    Nothing is trusted here. The proofs are in FlambdaCompareAlphaProofs.v,
    which needs no review. *)
 
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaNominalSpec FlambdaAlphaSpec FlambdaCompareSpec.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaBindersSpec
+  FlambdaSemanticsSpec FlambdaNominalSpec FlambdaAlphaSpec
+  FlambdaCompareSpec.
 Import ListNotations.
 
 Definition expr_eqb_reflexive_statement : Prop :=
@@ -73,3 +75,12 @@ Definition expr_eqb_transitive_statement : Prop :=
 
 Definition alpha_equivalent_accepted_statement : Prop :=
   ∀ e e' : expr, alpha_equivalent e e' -> expr_eqb [] [] e e' = true.
+
+(* The comparison accepts two terms of which the second is not a
+   renaming of the first: a handler that repeats a parameter, against
+   one that does not. The first is not a term with distinct binders. *)
+Definition expr_eqb_repeated_parameter_statement : Prop :=
+  ∃ e e' : expr,
+    expr_eqb [] [] e e' = true
+    ∧ binders_distinct e = false
+    ∧ (∀ r : renaming, rename_expr r e <> e').
