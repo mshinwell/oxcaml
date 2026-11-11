@@ -62,8 +62,7 @@
    - The equations are asked of the runs whose blocks have tags in
      range ([tags_at], which is [blocks_have_tags] of FlambdaJoinSpec.v
      for the variables that the input or the source knows): the rounds
-     need it where they recover a [Get_tag] relation. Nothing in this
-     file uses it yet.
+     need it where they recover a [Get_tag] relation.
    - The invariant ([state_true]) is [state_valid], [state_holds], and
      that the source of the state is a given one: the join of types is
      known to keep the invariant that it is given, and this is what
@@ -80,13 +79,29 @@
      its types to be joined, keeps it
      ([join_aliases_true_statement]).
 
+   - What [recover_inverse_relations] does to the type joined for a
+     variable and to the relations kept
+     ([recover_free_variables_statement] and the two after it): the
+     type answered is true of a value of the type given, and a
+     relation recorded is true of it, if the blocks of the value have
+     tags in range.
+   - The rounds ([delayed_equations_true_statement],
+     [loop_true_statement]) keep the invariant and the truth of the
+     relations kept ([relations_hold]), given a join of types that
+     meets its contract of FlambdaJoinSpec.v with the invariant. With
+     the first phase, that is the state and the relations that the
+     join has when it comes to define the variables of the target
+     ([first_phases_true_statement]).
+
    What is asked of the parameters of the model's functions, besides
    what FlambdaJoinEnvSpec.v asks: the equality of types that stands
-   for physical equality is sound for meaning ([parameters_type_eqb_sound]).
+   for physical equality is sound for meaning
+   ([parameters_type_eqb_sound]), and the type that stands for a
+   constant is that of the constant ([expand_const_sound]).
 
-   Not here yet: the rounds (under the contract of the join of types),
-   the definition of the variables of the target, and the contract of
-   the whole join. *)
+   Not here yet: the definition of the variables of the target
+   ([define_or_eliminate_variables_and_add_equations]), and the
+   contract of the whole join. *)
 
 From Stdlib Require Import ZArith List Bool PeanoNat.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
@@ -347,3 +362,219 @@ Definition join_aliases_true_statement : Prop :=
     state_true source s'
     ∧ state_grows Join_env.joined_env Join_env.definitions_of_existentials
         kind_in_target_env s s'.
+
+(* ======================================================================== *)
+(* The relations that the rounds recover                                    *)
+(* ======================================================================== *)
+
+(* A relation kept for the variable that holds its result is true at
+   every input where the variable that it is on has a value: the
+   result is there the number that the relation gives for that value.
+   (Where the variable that it is on has no value, nothing is said:
+   that the result has no value there either is the condition
+   [scrutinees_have_values] on the runs of the compiler's join.) *)
+Definition relation_holds_at (s : Join_env.t) (r : variable)
+    (relation : Relation.t) (x : variable) : Prop :=
+  exists_in_target_env kind_in_target_env s x = true
+  ∧ exists_in_target_env kind_in_target_env s r = true
+  ∧ ∀ (index : Index.t) (use : Typing_env.t) (statics : static_env)
+      (valuation : env) (v : value),
+      Join_env.joined_env s index = Some use ->
+      typing_env_satisfied_strictly statics valuation use ->
+      tags_at s use statics valuation ->
+      lookup x (target_valuation s index use valuation) = Some v ->
+      ∃ i : Z,
+        lookup r (target_valuation s index use valuation)
+        = Some (Value_const (Naked_immediate i))
+        ∧ relation_holds statics relation v i.
+
+Definition relations_hold (s : Join_env.t)
+    (relations : Join_env.inverse_relations) : Prop :=
+  ∀ (r : variable) (relation : Relation.t) (n : name),
+    relation_recorded relations r relation n ->
+    ∃ x : variable, n = Name_var x ∧ relation_holds_at s r relation x.
+
+(* [recover_inverse_relations], given the type joined for a variable
+   and the relations kept so far. The type that it answers mentions no
+   variable that the type given does not, but the one that the
+   relations are on. *)
+Definition recover_free_variables_statement : Prop :=
+  ∀ (relations relations' : Join_env.inverse_relations) (x : variable)
+    (ty ty' : flambda_type) (y : variable),
+    Join_env.recover_inverse_relations relations (Name_var x) ty
+    = Some (ty', relations') ->
+    y ∈ free_variables ty' ->
+    y ∈ free_variables ty ∨ y = x.
+
+(* A relation that it records is on that variable; the variable that
+   holds its result is one of the type; and of a value of the type
+   whose blocks have tags in range, that variable holds the number
+   that the relation gives. (A type of variants says of a block of any
+   tag that its variable for the tag holds the tag; [Get_tag] relates
+   a block to its tag only if the tag is in range.) *)
+Definition recovered_relations_hold_statement : Prop :=
+  ∀ (relations relations' : Join_env.inverse_relations) (x : variable)
+    (ty ty' : flambda_type) (r : variable) (relation : Relation.t) (n : name),
+    Join_env.recover_inverse_relations relations (Name_var x) ty
+    = Some (ty', relations') ->
+    relation_recorded relations' r relation n ->
+    relation_recorded relations r relation n
+    ∨ (n = Name_var x
+       ∧ r ∈ free_variables ty
+       ∧ ∀ (statics : static_env) (vars : env) (v : value),
+           (∀ (tag : Z) (fields : list value),
+              block_of statics v = Some (tag, fields) -> is_tag tag) ->
+           type_satisfied statics vars v ty ->
+           ∃ i : Z,
+             lookup r vars = Some (Value_const (Naked_immediate i))
+             ∧ relation_holds statics relation v i).
+
+(* And the value of the variable, if it has the type given and its
+   blocks have tags in range, has the type answered: the relation that
+   is put in the extension for blocks of a type of variants is true of
+   the variable that holds the tag. *)
+Definition recover_keeps_meaning_statement : Prop :=
+  ∀ (relations relations' : Join_env.inverse_relations) (x : variable)
+    (ty ty' : flambda_type) (statics : static_env) (vars : env) (v : value),
+    Join_env.recover_inverse_relations relations (Name_var x) ty
+    = Some (ty', relations') ->
+    lookup x vars = Some v ->
+    (∀ (tag : Z) (fields : list value),
+       block_of statics v = Some (tag, fields) -> is_tag tag) ->
+    type_satisfied statics vars v ty ->
+    type_satisfied statics vars v ty'.
+
+(* ======================================================================== *)
+(* The rounds                                                               *)
+(* ======================================================================== *)
+
+(* What is asked of the type that stands for a constant that is not an
+   alias: it mentions no variable, it is kinded in every environment,
+   and the constant has it. (The compiler's type for a tagged immediate
+   is a type of variants whose type of immediates is an alias of a
+   constant: it has an alias inside it, of a constant, which is of its
+   kind whatever the environment.) *)
+Definition expand_const_sound (p : Join_env.parameters) : Prop :=
+  ∀ c : const,
+    free_variables (Join_env.expand_const p c) = []
+    ∧ (∀ tenv : Typing_env.t, type_kinded tenv (Join_env.expand_const p c))
+    ∧ ∀ (statics : static_env) (valuation : env),
+        type_satisfied statics valuation (Value_const c)
+          (Join_env.expand_const p c).
+
+(* The rounds that join the types kept ([n_way_join_delayed_equations]),
+   given a join of types that meets its contract with the invariant:
+   from a state that has the invariant, with relations that are true
+   and types to join that are true, they come to a state that has the
+   invariant, with relations that are true. Whether the relations are
+   recovered or not makes no difference here: a relation recovered is
+   true where its variable has a value. *)
+Definition delayed_equations_true_statement : Prop :=
+  ∀ (source : Typing_env.t) (jt : Join_env.n_way_join_type)
+    (choices : Join_env.choices) (fuel : nat) (s s' : Join_env.t)
+    (equations : finite_map (Keyed.finite_map Index.t flambda_type))
+    (relations relations' : Join_env.inverse_relations),
+    n_way_join_type_sound typing_env_invariant Join_env.joined_env
+      Join_env.definitions_of_existentials kind_in_target_env
+      (state_true source) state_kinded jt ->
+    (∀ (var : variable) (types : Keyed.finite_map Index.t flambda_type),
+       lookup var equations = Some types -> types_hold s var types) ->
+    state_true source s ->
+    joined_envs_are typing_env_invariant s ->
+    joined_envs_are typing_env_kinded s ->
+    relations_hold s relations ->
+    Join_env.n_way_join_delayed_equations fuel choices jt s relations
+      equations
+    = Some (relations', s') ->
+    state_true source s'
+    ∧ relations_hold s' relations'
+    ∧ state_grows Join_env.joined_env Join_env.definitions_of_existentials
+        kind_in_target_env s s'.
+
+(* The loop over the variables that the join has made
+   ([n_way_join_loop]), given definitions that the state has. *)
+Definition loop_true_statement : Prop :=
+  ∀ (source : Typing_env.t) (jt : Join_env.n_way_join_type)
+    (choices : Join_env.choices) (p : Join_env.parameters)
+    (depth fuel : nat) (s s' : Join_env.t)
+    (relations relations' : Join_env.inverse_relations)
+    (existentials : finite_map (Simples_in_joined_envs.t * flambda_kind)),
+    n_way_join_type_sound typing_env_invariant Join_env.joined_env
+      Join_env.definitions_of_existentials kind_in_target_env
+      (state_true source) state_kinded jt ->
+    expand_const_sound p ->
+    (∀ (x : variable) (definition : Simples_in_joined_envs.t * flambda_kind),
+       lookup x existentials = Some definition ->
+       lookup x (Join_env.definitions_of_existentials s) = Some definition) ->
+    state_true source s ->
+    joined_envs_are typing_env_invariant s ->
+    joined_envs_are typing_env_kinded s ->
+    relations_hold s relations ->
+    Join_env.n_way_join_loop depth p fuel choices jt s relations existentials
+    = Some (relations', s') ->
+    state_true source s'
+    ∧ relations_hold s' relations'
+    ∧ state_grows Join_env.joined_env Join_env.definitions_of_existentials
+        kind_in_target_env s s'.
+
+(* The phases of [cut_and_n_way_join0] before the variables of the
+   target are defined, together: the state and the relations that
+   [define_or_eliminate_variables_and_add_equations] is given. Asked of
+   the joined environments: the names to avoid include what they and
+   the source know; each has its invariant and is kinded; the levels
+   kept with them are types that they have; and they have the
+   variables of the source at the source's kinds. *)
+Definition first_phases_true_statement : Prop :=
+  ∀ (source : Typing_env.t) (jt : Join_env.n_way_join_type)
+    (choices : Join_env.choices) (p : Join_env.parameters) (fuel : nat)
+    (avoid : list variable) (envs : Joined_envs.t) (s1 s2 s3 : Join_env.t)
+    (relations2 relations3 : Join_env.inverse_relations),
+    n_way_join_type_sound typing_env_invariant Join_env.joined_env
+      Join_env.definitions_of_existentials kind_in_target_env
+      (state_true source) state_kinded jt ->
+    fresh_avoids p ->
+    parameters_type_eqb_sound p ->
+    expand_const_sound p ->
+    (∀ x : variable, knows source x -> x ∈ avoid) ->
+    (∀ (index : Index.t) (use : Typing_env.t) (x : variable),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       knows use x ->
+       x ∈ avoid) ->
+    (∀ (index : Index.t) (use : Typing_env.t),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       typing_env_invariant use) ->
+    (∀ (index : Index.t) (use : Typing_env.t),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       typing_env_kinded use) ->
+    levels_found envs ->
+    (∀ (index : Index.t) (use : Typing_env.t) (x : variable)
+       (kind : flambda_kind) (ty : flambda_type)
+       (binding_time_and_mode : Binding_time.With_name_mode.t),
+       Joined_envs.get_nth_joined_env envs index = Some use ->
+       simple_of_kind use (Var x) kind ->
+       Keyed.lookup name_eqb (Name_var x) (Typing_env.names_to_types source)
+       = Some (ty, binding_time_and_mode) ->
+       FlambdaTypeGrammar.kind ty = kind) ->
+    Join_env.join_aliases_into_bindings p fuel
+      (Join_env.create envs
+         (Bindings_in_target_env.from_source_env avoid source))
+      envs
+    = Some s1 ->
+    Join_env.n_way_join_delayed_equations fuel choices jt s1 []
+      (Join_env.new_equations_in_joined_envs s1
+         (Join_env.create envs
+            (Bindings_in_target_env.from_source_env avoid source)))
+    = Some (relations2, s2) ->
+    Join_env.n_way_join_loop (Join_env.join_depth p) p fuel choices jt s2
+      relations2
+      (Join_env.new_definitions_of_existentials s2
+         (Join_env.create envs
+            (Bindings_in_target_env.from_source_env avoid source)))
+    = Some (relations3, s3) ->
+    state_true source s3
+    ∧ relations_hold s3 relations3
+    ∧ state_grows Join_env.joined_env Join_env.definitions_of_existentials
+        kind_in_target_env
+        (Join_env.create envs
+           (Bindings_in_target_env.from_source_env avoid source))
+        s3.
