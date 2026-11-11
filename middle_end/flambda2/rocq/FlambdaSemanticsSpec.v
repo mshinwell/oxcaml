@@ -86,10 +86,14 @@
    builds terms in which the two cannot differ: a raise, and a call
    that raises, names the handler installed last.
    FlambdaWellFormedSpec.v has that discipline as a check of a term
-   ([traps_well_formed]); nothing here says what the backend's code
-   does. There are no backtraces, so the kind of a raise changes
-   nothing. The exception is any value: nothing here says what an
-   exception is made of.
+   ([traps_well_formed]). FlambdaTrapSpec.v has a second machine, which
+   goes by a stack of handlers as the backend's code does, and the
+   statement that the two machines of the model behave alike on a unit
+   that passes the check and whose binders are distinct. That the
+   backend's code behaves as that second machine is not stated, and
+   nothing proves it. There are no backtraces, so the kind of a raise
+   changes nothing. The exception is any value: nothing here says what
+   an exception is made of.
 
    A set of closures has functions, each the code of a function slot, and
    value slots, which the functions share. Each closure of the set is a

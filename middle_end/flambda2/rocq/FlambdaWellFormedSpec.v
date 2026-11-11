@@ -150,10 +150,12 @@
      with the stack they started with.
    Both are stricter than anything the compiler checks; the comment at
    each definition says what the compiler does check. Both are
-   conditions of [well_formed_unit]. There is no statement yet of what
-   they buy: it needs a machine with a stack of handlers.
-   FlambdaTrapProofs.v has examples of terms that each accepts and
-   refuses.
+   conditions of [well_formed_unit]. FlambdaTrapSpec.v has a machine
+   with a stack of handlers and the statement of what the discipline
+   buys: a unit that follows it, and whose binders are distinct,
+   behaves on that machine as it does on this one. The first check has
+   no such statement yet. FlambdaTrapProofs.v has examples of terms
+   that each check accepts and refuses.
 
    The machine enforces the part of this that keeps a static binding from
    being executed more than once. Calling code whose body binds something
