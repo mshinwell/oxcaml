@@ -570,7 +570,7 @@ Qed.
 
 Theorem example_loop : example_loop_statement.
 Proof.
-  intros k. apply expr_refines_under_create.
+  intros k j exit. apply expr_refines_under_create.
   apply (let_cont_recursive_handler_refines_under Typing_env.create [] k
            [example_p] _ _ _ []).
   - apply create_invariant.
@@ -583,6 +583,12 @@ Proof.
                  (Const (Tagged_immediate 7)) _ _ Value);
        [ vm_compute; reflexivity | vm_compute; reflexivity | intros y [=]
        | reflexivity | vm_compute; reflexivity | ]);
+      (apply let_cont_handler_refines_under;
+       [ split;
+         [ vm_compute; reflexivity
+         | intros n ty Hlookup; vm_compute in Hlookup; discriminate ]
+       | reflexivity | intros x [] | ]);
+      intros [ | ? ?]; try discriminate; intros _;
       apply expr_equivalent_under_refines, apply_cont_canonical;
       (apply Forall2_cons; [ canonical_computed | apply Forall2_nil ]).
 Qed.

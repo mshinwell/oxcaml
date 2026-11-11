@@ -75,10 +75,11 @@
      recursive [Let_cont];
    - three small terms rewritten with these, from the environment that
      knows nothing: a constant propagated through two [Let]s, a
-     [Switch] on a variable bound to a constant, and a constant
-     propagated in the handler of a loop. They are there to show that
-     the premises of the statements can be met and that the statements
-     fit together; what they say of the terms is plain.
+     [Switch] on a variable bound to a constant, and a loop that is
+     left on its second turn with a constant, propagated into a handler
+     inside the handler of the loop. They are there to show that the
+     premises of the statements can be met and that the statements fit
+     together; what they say of the terms is plain.
 
    Kinds. A [Let] gives the kind of its variable and a handler the
    kinds of its parameters (../../rocq/FlambdaModel.v), and the machine
@@ -244,8 +245,10 @@ Definition replace_equation_env_satisfies_strictly_statement : Prop :=
 
 (* Two [Simple]s that have the same value in the machine are made
    equal. Their variables are in scope, so that a valuation has the
-   machine's values for them. The two are to be canonical, as
-   [Typing_env.add_alias] asks. *)
+   machine's values for them. (The compiler gives
+   [Typing_env.add_alias] two canonical elements. The statement does
+   not ask that they are: it is about the case where [add_alias]
+   answers an environment, and so asks less.) *)
 Definition add_alias_env_satisfies_strictly_statement : Prop :=
   ∀ (tenv : Typing_env.t) (statics : static_env) (vars : env)
     (canonical_element1 canonical_element2 : simple)
@@ -324,9 +327,11 @@ Definition let_typed_refines_under_statement : Prop :=
    [Simple], and the aliases record that the two are equal.
    ([Meet_env.add_equation] then gives the name demoted the alias type
    of the canonical element: that step is
-   [replace_equation_env_satisfies_strictly].) The [Simple] is to be
-   canonical. The kind that the [Let] gives, [declared], is not read
-   here either. *)
+   [replace_equation_env_satisfies_strictly].) Simplify gives
+   [Typing_env.add_alias] the canonical element of the [Simple]; the
+   statement does not ask that the [Simple] is canonical, only that
+   [add_alias] answers an environment. The kind that the [Let] gives,
+   [declared], is not read here either. *)
 Definition let_simple_refines_under_statement : Prop :=
   ∀ (tenv : Typing_env.t) (x : variable) (declared : flambda_kind)
     (s : simple) (body body' : expr) (kind : flambda_kind)
@@ -450,22 +455,39 @@ Definition example_switch_known_statement : Prop :=
          (Simple (Const (Naked_immediate 1)))
          (Apply_cont (Apply_cont_expr k1 []))).
 
-(* A loop: [let rec k p = (let x = 7 in apply_cont k x) in
-   apply_cont k 0]. The handler is rewritten under the environment
-   with [p] defined, at any kind, on every turn of the loop. *)
+(* A loop:
+
+     let rec k p =
+       let x = 7 in
+       let_cont j () = apply_cont exit [result] in
+       switch p with 0 -> apply_cont k 1 | 1 -> apply_cont j ()
+     in
+     apply_cont k 0
+
+   Where the three continuations are different it goes round once and
+   leaves through [exit] on the second turn, with [result]. With
+   [result] the variable [x], the handler of the loop is rewritten
+   under the environment with [p] defined, at any kind, on every turn;
+   in it [x] is made equal to the constant; and under that the handler
+   of [j] is rewritten, [x] replaced by its canonical element. *)
+Definition example_loop_handler (k j exit : continuation) (result : simple)
+    : continuation_handler :=
+  Handler [example_p]
+    (make_handler_metadata [Naked_number Kind_naked_immediate])
+    (Let example_x Value (Simple (Const (Tagged_immediate 7)))
+       (Let_cont_non_recursive j
+          (Handler [] (make_handler_metadata [])
+             (Apply_cont (Apply_cont_expr exit [result])))
+          (Switch (Var example_p)
+             [(0, Apply_cont_expr k [Const (Naked_immediate 1)]);
+              (1, Apply_cont_expr j [])]))).
+
 Definition example_loop_statement : Prop :=
-  ∀ k : continuation,
+  ∀ k j exit : continuation,
     expr_refines
       (Let_cont_recursive
-         [(k,
-           Handler [example_p] (make_handler_metadata [Value])
-             (Let example_x Value (Simple (Const (Tagged_immediate 7)))
-                (Apply_cont (Apply_cont_expr k [Var example_x]))))]
-         (Apply_cont (Apply_cont_expr k [Const (Tagged_immediate 0)])))
+         [(k, example_loop_handler k j exit (Var example_x))]
+         (Apply_cont (Apply_cont_expr k [Const (Naked_immediate 0)])))
       (Let_cont_recursive
-         [(k,
-           Handler [example_p] (make_handler_metadata [Value])
-             (Let example_x Value (Simple (Const (Tagged_immediate 7)))
-                (Apply_cont
-                   (Apply_cont_expr k [Const (Tagged_immediate 7)]))))]
-         (Apply_cont (Apply_cont_expr k [Const (Tagged_immediate 0)]))).
+         [(k, example_loop_handler k j exit (Const (Tagged_immediate 7)))]
+         (Apply_cont (Apply_cont_expr k [Const (Naked_immediate 0)]))).
