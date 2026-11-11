@@ -59,7 +59,14 @@
      quantifier;
    - [pattern_match_pair_statement] holds as it stands with the
      quantifier in the place of [equal_abstraction]
-     ([pattern_match_pair_fresh_statement]).
+     ([pattern_match_pair_fresh_statement]);
+   - abstractions of one name, with the equality said with the
+     quantifier, are things that contain names and obey every law
+     ([fresh_abstraction_names], [fresh_abstraction_nominal_statement]).
+     So a binder of one name (the variable of a [Let], the continuation
+     of a [Let_cont]) may be given this equality where it is made an
+     instance of the interface, and the equality with permutations is
+     then a lemma about it.
 
    A list of bound names. One fresh name does not open an abstraction
    that binds a list (the parameters of a handler, the continuations of
@@ -186,6 +193,21 @@ Definition pattern_match_pair_fresh_statement : Prop :=
     = fst (pattern_match single_name NT p' a') ->
     equal NT (snd (pattern_match single_name NT p a))
       (snd (pattern_match single_name NT p' a')).
+
+(* Abstractions of one name with that equality: the action and the free
+   names are those of [abstraction_names]. *)
+Definition equal_at_fresh {T : Type} (NT : contains_names T)
+    (a a' : name_abstraction positive T) : Prop :=
+  И fresh, equal NT (concretion NT a fresh) (concretion NT a' fresh).
+
+Definition fresh_abstraction_names {T : Type} (NT : contains_names T)
+    : contains_names (name_abstraction positive T) :=
+  Contains_names (apply_renaming_abstraction single_name NT)
+    (free_names_abstraction single_name NT) (equal_at_fresh NT).
+
+Definition fresh_abstraction_nominal_statement : Prop :=
+  ∀ (T : Type) (NT : contains_names T),
+    nominal NT -> nominal (fresh_abstraction_names NT).
 
 (* ======================================================================== *)
 (* A list of bound names                                                    *)

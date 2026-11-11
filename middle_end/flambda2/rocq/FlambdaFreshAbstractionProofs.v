@@ -166,6 +166,30 @@ Proof.
   apply (equal_abstraction_fresh T NT a a' HT). exact Hfresh.
 Qed.
 
+(* Each law is the law of [abstraction_names], carried across the
+   equivalence of the two equalities. *)
+Theorem fresh_abstraction_nominal : fresh_abstraction_nominal_statement.
+Proof.
+  intros T NT HT.
+  pose proof
+    (abstraction_nominal positive T single_name NT single_name_bindable HT)
+    as Hlaws.
+  pose proof (fun a a' => equal_abstraction_fresh T NT a a' HT) as Hsame.
+  constructor.
+  - intros a. apply Hsame, (equal_refl _ Hlaws).
+  - intros a a' Hequal. apply Hsame, (equal_sym _ Hlaws), Hsame, Hequal.
+  - intros a a' a'' Hequal Hequal'.
+    apply Hsame, (equal_trans _ Hlaws) with a'; apply Hsame; assumption.
+  - exact (apply_renaming_identity _ Hlaws).
+  - exact (apply_renaming_compose _ Hlaws).
+  - exact (apply_renaming_same _ Hlaws).
+  - intros p a a' Hequal.
+    apply Hsame, (equal_equivariant _ Hlaws), Hsame, Hequal.
+  - exact (free_names_equivariant _ Hlaws).
+  - intros a a' Hequal. apply (free_names_equal _ Hlaws), Hsame, Hequal.
+  - intros p a Hfixes. apply Hsame, (apply_renaming_fixes _ Hlaws), Hfixes.
+Qed.
+
 (* ======================================================================== *)
 (* A list of bound names                                                    *)
 (* ======================================================================== *)
