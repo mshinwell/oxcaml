@@ -2003,7 +2003,8 @@ Lemma apply_cont_skip (ac : apply_cont) (vars : env) (k : continuation)
   step (State (Apply_cont ac) vars ((k, c) :: conts) statics)
   = step (State (Apply_cont ac) vars conts statics).
 Proof.
-  intros Hk. simpl. destruct (eval_simples vars (ac_args ac)); [ | reflexivity ].
+  intros Hk. simpl.
+  destruct (eval_simples vars (ac_args ac)); [ | reflexivity ].
   unfold apply_continuation, resolve. simpl.
   destruct (Pos.eqb_spec (ac_continuation ac) k); [ contradiction | ].
   reflexivity.
