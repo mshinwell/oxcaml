@@ -1,0 +1,7 @@
+let n = %is_int (1i) in
+switch n
+  | 0 -> good
+  | 1 -> good
+  where good =
+    let $camlKinds_is_int_bad = Block 0 (5) in
+    cont done ($camlKinds_is_int_bad)

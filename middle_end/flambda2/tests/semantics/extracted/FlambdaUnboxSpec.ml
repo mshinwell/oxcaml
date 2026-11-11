@@ -168,9 +168,10 @@ let unbox_known_named known d =
 
 let rec unbox_numbers_knowing known e =
   match e with
-  | Let (x, d, body) ->
+  | Let (x, kind, d, body) ->
     Let
       ( x,
+        kind,
         unbox_known_named known d,
         unbox_numbers_knowing (numbers_under_let known x d) body )
   | Let_static (bindings, body) ->
@@ -188,9 +189,11 @@ let rec unbox_numbers_knowing known e =
     continuation_handler **)
 
 and unbox_numbers_in_handler known = function
-  | Handler (params, handler) ->
+  | Handler (params, metadata, handler) ->
     Handler
-      (params, unbox_numbers_knowing (forget_wrapped_vars params known) handler)
+      ( params,
+        metadata,
+        unbox_numbers_knowing (forget_wrapped_vars params known) handler )
 
 (** val unbox_known_numbers : expr -> expr **)
 

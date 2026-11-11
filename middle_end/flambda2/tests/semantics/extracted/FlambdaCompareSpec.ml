@@ -205,20 +205,23 @@ let apply_cont_eqb vm km ac ac' =
 (** val apply_eqb : name_map -> name_map -> apply_expr -> apply_expr -> bool **)
 
 let apply_eqb vm km ap ap' =
-  (((simple_eqb vm ap.ap_callee ap'.ap_callee
-    && call_kind_eqb ap.ap_call_kind ap'.ap_call_kind)
-   && simples_eqb vm ap.ap_args ap'.ap_args)
-  && names_match km ap.ap_continuation ap'.ap_continuation)
-  && names_match km ap.ap_exn_continuation ap'.ap_exn_continuation
+  (((((simple_eqb vm ap.ap_callee ap'.ap_callee
+      && call_kind_eqb ap.ap_call_kind ap'.ap_call_kind)
+     && simples_eqb vm ap.ap_args ap'.ap_args)
+    && names_match km ap.ap_continuation ap'.ap_continuation)
+   && names_match km ap.ap_exn_continuation ap'.ap_exn_continuation)
+  && arity_eqb ap.ap_args_arity ap'.ap_args_arity)
+  && arity_eqb ap.ap_return_arity ap'.ap_return_arity
 
 (** val expr_eqb : name_map -> name_map -> expr -> expr -> bool **)
 
 let rec expr_eqb vm km e e' =
   match e with
-  | Let (x, d, body) -> (
+  | Let (x, kind, d, body) -> (
     match e' with
-    | Let (x', d', body') ->
-      named_eqb vm d d' && expr_eqb ((x, x') :: vm) km body body'
+    | Let (x', kind', d', body') ->
+      (kind_eqb kind kind' && named_eqb vm d d')
+      && expr_eqb ((x, x') :: vm) km body body'
     | _ -> false)
   | Let_static (bindings, body) -> (
     match e' with
@@ -264,10 +267,11 @@ let rec expr_eqb vm km e e' =
     continuation_handler -> bool **)
 
 and handler_eqb vm km h h' =
-  let (Handler (params, handler)) = h in
-  let (Handler (params', handler')) = h' in
+  let (Handler (params, metadata, handler)) = h in
+  let (Handler (params', metadata', handler')) = h' in
   match bind_names params params' vm with
-  | Some vm' -> expr_eqb vm' km handler handler'
+  | Some vm' ->
+    handler_metadata_eqb metadata metadata' && expr_eqb vm' km handler handler'
   | None -> false
 
 (** val binding_eqb : name_map -> static_binding -> static_binding -> bool **)
@@ -289,8 +293,10 @@ and binding_eqb vm binding binding' =
 (** val code_eqb : code -> code -> bool **)
 
 and code_eqb c c' =
-  let (Code (params, my_closure, ret, exn, body)) = c in
-  let (Code (params', my_closure', ret', exn', body')) = c' in
+  let (Code (params, my_closure, ret, exn, metadata, body)) = c in
+  let (Code (params', my_closure', ret', exn', metadata', body')) = c' in
   match bind_names params params' ((my_closure, my_closure') :: []) with
-  | Some vm -> expr_eqb vm [ret, ret'; exn, exn'] body body'
+  | Some vm ->
+    code_metadata_eqb metadata metadata'
+    && expr_eqb vm [ret, ret'; exn, exn'] body body'
   | None -> false

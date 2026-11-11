@@ -40,7 +40,32 @@
    says which primitive of the model stands for one of the compiler's. A
    construct or a primitive the conversion does not know is reported as
    unsupported, and never run as if it were undefined, as that would make the
-   check pass for nothing. *)
+   check pass for nothing.
+
+   Kinds. The conversion gives each [Let] the kind of its variable, each handler
+   the kinds of its parameters, code its two arities and each call the two it is
+   made at, with their unboxed products, and it keeps the kinds of the value
+   slots it meets. The machine makes a call undefined that does not agree with
+   its code (FlambdaSemanticsSpec.call_function), so a mistake here in the
+   arities of a call or of code would make a run undefined that should not be:
+   that is trusted too. Two things are cross-checked as the conversion goes: an
+   arity as converted, unarized by the model, has the kinds that the compiler's
+   own unarizing gives; and the parameter arity of code, unarized, has the kinds
+   of the parameters of its body. The check of kinds of FlambdaWellKindedSpec.v
+   is run on each of the two units and its answers are printed; nothing depends
+   on them.
+
+   Partial applications and over-applications are not in the model, where a call
+   with more or fewer arguments than the code has parameters is undefined. A
+   direct call that the compiler takes for one
+   (FlambdaWellKindedSpec.partial_or_over_application, against the arities of
+   the code named, when the unit binds it) is reported as unsupported. An
+   indirect one cannot be told from the term: a run that stops at one is
+   reported as such, and not as undefined, and then nothing is decided of the
+   example: the two runs are not compared and the validation is not attempted,
+   as what it would accept is true of the model only. Tupled functions, which a
+   call of unknown arity applies to one argument that is the tuple, are not in
+   the model either: code that is tupled is reported as unsupported. *)
 
 (* The matches below name the few constructs and primitives the model has and
    send every other to [unsupported]; they are meant to stay as they are when
@@ -61,6 +86,7 @@ module Semantics = Flambda2_rocq_semantics.FlambdaSemanticsSpec
 module Normalise = Flambda2_rocq_semantics.FlambdaNormaliseSpec
 module Unused_statics = Flambda2_rocq_semantics.FlambdaUnusedStaticsSpec
 module Well_formed = Flambda2_rocq_semantics.FlambdaWellFormedSpec
+module Well_kinded = Flambda2_rocq_semantics.FlambdaWellKindedSpec
 module Validate = Flambda2_rocq_semantics.FlambdaValidateSpec
 module Numbers = Flambda2_rocq_semantics.BinNums
 module P = Flambda_primitive
@@ -163,6 +189,16 @@ module Code_ids = Numbering (Code_id)
 module Value_slots = Numbering (Value_slot)
 module Function_slots = Numbering (Function_slot)
 
+(* The kinds of the value slots met ([Value_slot.kind]): the table that the
+   check of kinds is given. *)
+let slot_kinds : (Numbers.positive * Flambda_kind.t) list ref = ref []
+
+let find_value_slot slot =
+  let n = Value_slots.find slot in
+  if not (List.mem_assoc n !slot_kinds)
+  then slot_kinds := (n, Value_slot.kind slot) :: !slot_kinds;
+  n
+
 (* ---- Primitives ------------------------------------------------------- *)
 
 (* The primitives the model has (FlambdaPrimitiveModel.v), with the fields it
@@ -185,6 +221,42 @@ let convert_kind (kind : Flambda_kind.t) : Kinds.flambda_kind =
   | Naked_number Naked_mask -> Naked_number Kind_naked_mask
   | Region -> Region
   | Rec_info -> Rec_info
+
+(* An arity of the model is the compiler's without its subkinds: one component
+   to a parameter, each a kind or an unboxed product of components. It is
+   rebuilt through the fold that the compiler gives, a product from the
+   components folded so far, the last first. What the model then makes of it
+   unarized must be what the compiler makes of the arity unarized. *)
+type component_so_far =
+  | Kind of Flambda_kind.t
+  | Members of Model.arity_component list
+
+let convert_arity (arity : _ Flambda_arity.t) : Model.arity =
+  let component (so_far : component_so_far) : Model.arity_component =
+    match so_far with
+    | Kind kind -> Singleton (convert_kind kind)
+    | Members members -> Unboxed_product (List.rev members)
+  in
+  let converted =
+    Flambda_arity.fold_per_parameter arity ~init:(Members [])
+      ~singleton:(fun _ kind -> Kind (Flambda_kind.With_subkind.kind kind))
+      ~unboxed_product:(fun ~outer ~inner ->
+        match outer with
+        | Members members -> Members (component inner :: members)
+        | Kind _ ->
+          Misc.fatal_error "flsemantics: a kind with members, in an arity")
+    |> List.map component
+  in
+  let unarized =
+    List.map
+      (fun kind -> convert_kind (Flambda_kind.With_subkind.kind kind))
+      (Flambda_arity.unarize arity)
+  in
+  if Model.unarize converted <> unarized
+  then
+    Misc.fatal_errorf "flsemantics: the arity %a is not converted faithfully"
+      Flambda_arity.print arity;
+  converted
 
 let convert_standard_int (kind : Flambda_kind.Standard_int.t) :
     Kinds.standard_int =
@@ -373,7 +445,7 @@ let convert_simples = List.map convert_simple
 
 let convert_value_slots (slots : Simple.t Value_slot.Map.t) =
   Value_slot.Map.bindings slots
-  |> List.map (fun (slot, s) -> Value_slots.find slot, convert_simple s)
+  |> List.map (fun (slot, s) -> find_value_slot slot, convert_simple s)
 
 (* The model has two presentations of a set of closures (FlambdaModel.v): a set
    of one function whose function slot is not named, and a set of any number of
@@ -440,6 +512,22 @@ let convert_apply_cont (ac : Apply_cont_expr.t) : Model.apply_cont =
 let convert_params (params : Bound_parameters.t) =
   List.map Variables.find (Bound_parameters.vars params)
 
+(* The kinds of parameters, which the model keeps beside them. *)
+let convert_params_kinds (params : Bound_parameters.t) =
+  List.map
+    (fun param ->
+      let kind = Bound_parameter.kind param in
+      convert_kind (Flambda_kind.With_subkind.kind kind))
+    (Bound_parameters.to_list params)
+
+let convert_bound_var (bound_var : Bound_var.t) =
+  let var = Bound_var.var bound_var in
+  Variables.find var, convert_kind (Variable.kind var)
+
+(* The arities of the code that the unit has bound so far, for the calls that
+   name it. *)
+let code_arities : (Code_id.t * (Model.arity * Model.arity)) list ref = ref []
+
 (* The code that is a newer version of other code, with that code, and the code
    that is bound as deleted, noted as a unit is converted. *)
 let newer_versions : (Code_id.t * Code_id.t) list ref = ref []
@@ -455,7 +543,7 @@ let rec convert_expr (e : Flambda.Expr.t) : Model.expr =
     Flambda.Non_recursive_let_cont_handler.pattern_match handler
       ~f:(fun k ~body ->
         let handler =
-          convert_handler ~invariant_params:[]
+          convert_handler ~invariant_params:Bound_parameters.empty
             (Flambda.Non_recursive_let_cont_handler.handler handler)
         in
         Model.Let_cont_non_recursive
@@ -463,7 +551,6 @@ let rec convert_expr (e : Flambda.Expr.t) : Model.expr =
   | Let_cont (Recursive handlers) ->
     Flambda.Recursive_let_cont_handlers.pattern_match handlers
       ~f:(fun ~invariant_params ~body handlers ->
-        let invariant_params = convert_params invariant_params in
         let handlers =
           Flambda.Continuation_handlers.to_map handlers
           |> Continuation.Lmap.bindings
@@ -486,35 +573,40 @@ let rec convert_expr (e : Flambda.Expr.t) : Model.expr =
 and convert_handler ~invariant_params (handler : Flambda.Continuation_handler.t)
     : Model.continuation_handler =
   Flambda.Continuation_handler.pattern_match handler ~f:(fun params ~handler ->
+      let params = Bound_parameters.append invariant_params params in
       Model.Handler
-        (invariant_params @ convert_params params, convert_expr handler))
+        ( convert_params params,
+          Model.make_handler_metadata (convert_params_kinds params),
+          convert_expr handler ))
 
 and convert_let (pattern : Bound_pattern.t) (defining_expr : Flambda.Named.t)
     body : Model.expr =
   match pattern, defining_expr with
   | Singleton bound_var, Simple s ->
-    Model.Let
-      ( Variables.find (Bound_var.var bound_var),
-        Simple (convert_simple s),
-        convert_expr body )
+    let var, kind = convert_bound_var bound_var in
+    Model.Let (var, kind, Simple (convert_simple s), convert_expr body)
   | Singleton bound_var, Prim (prim, _) ->
-    Model.Let
-      ( Variables.find (Bound_var.var bound_var),
-        convert_prim prim,
-        convert_expr body )
+    let var, kind = convert_bound_var bound_var in
+    Model.Let (var, kind, convert_prim prim, convert_expr body)
   | Set_of_closures bound_vars, Set_of_closures (set, _) -> (
     let function_decls, slots = convert_set_of_closures set in
-    let bound_vars =
-      List.map
-        (fun bound_var -> Variables.find (Bound_var.var bound_var))
-        bound_vars
-    in
     match only_function function_decls, bound_vars with
     | Some code, [bound_var] ->
-      Model.Let (bound_var, Set_of_closures (code, slots), convert_expr body)
+      let var, kind = convert_bound_var bound_var in
+      Model.Let (var, kind, Set_of_closures (code, slots), convert_expr body)
     | Some _, ([] | _ :: _ :: _) ->
       unsupported "the binding %a" Bound_pattern.print pattern
     | None, _ -> (
+      (* [let_closures] gives each variable the kind [Value]. *)
+      let bound_vars =
+        List.map
+          (fun bound_var ->
+            match convert_bound_var bound_var with
+            | var, Kinds.Value -> var
+            | _, (Naked_number _ | Region | Rec_info) ->
+              unsupported "the binding %a" Bound_pattern.print pattern)
+          bound_vars
+      in
       match
         Model.let_closures bound_vars function_decls slots (convert_expr body)
       with
@@ -576,7 +668,7 @@ and convert_let (pattern : Bound_pattern.t) (defining_expr : Flambda.Named.t)
 and convert_prim (prim : P.t) : Model.named =
   match prim with
   | Unary (Project_value_slot { project_from; value_slot }, closure) ->
-    let slot = Value_slots.find value_slot in
+    let slot = find_value_slot value_slot in
     if !named_function_slots
     then
       Project_value_slot_from
@@ -663,11 +755,24 @@ and convert_code (code : Flambda.Function_params_and_body.t Code0.t) :
       (* CR mshinwell: the depth of the code is dropped; see
          [depth_variables]. *)
       drop_depth_variable my_depth;
+      (* A call of unknown arity gives a tupled function one argument, the
+         tuple, whatever the arity of its code, and the model has not got
+         that. *)
+      if Code0.is_tupled code then unsupported "a tupled function";
+      (* The arity that calls are compared with is that of the metadata of the
+         code; unarized, it must give the kinds of the parameters. *)
+      let params_arity = convert_arity (Code0.params_arity code) in
+      let result_arity = convert_arity (Code0.result_arity code) in
+      if Model.unarize params_arity <> convert_params_kinds params
+      then unsupported "code whose parameters are not those of its arity";
+      code_arities
+        := (Code0.code_id code, (params_arity, result_arity)) :: !code_arities;
       Model.Code
         ( convert_params params,
           Variables.find my_closure,
           Continuations.find return_continuation,
           Continuations.find exn_continuation,
+          Model.make_code_metadata params_arity result_arity,
           convert_expr body ))
 
 and convert_apply (apply : Apply_expr.t) : Model.apply_expr =
@@ -676,9 +781,18 @@ and convert_apply (apply : Apply_expr.t) : Model.apply_expr =
     | Some callee -> convert_simple callee
     | None -> unsupported "a call with no callee"
   in
+  let args_arity = convert_arity (Apply_expr.args_arity apply) in
+  let return_arity = convert_arity (Apply_expr.return_arity apply) in
   let call_kind : Model.call_kind =
     match Apply_expr.call_kind apply with
     | Function { function_call = Direct code_id; _ } ->
+      (match List.assoc_opt code_id !code_arities with
+      | Some (params_arity, result_arity) ->
+        if
+          Well_kinded.partial_or_over_application args_arity return_arity
+            params_arity result_arity
+        then unsupported "a partial application or an over-application"
+      | None -> ());
       Direct (Code_ids.find code_id)
     | Function
         { function_call = Indirect_unknown_arity | Indirect_known_arity _; _ }
@@ -701,7 +815,9 @@ and convert_apply (apply : Apply_expr.t) : Model.apply_expr =
     ap_args = convert_simples (Apply_expr.args apply);
     ap_continuation = continuation;
     ap_exn_continuation =
-      Continuations.find (Exn_continuation.exn_handler exn_continuation)
+      Continuations.find (Exn_continuation.exn_handler exn_continuation);
+    ap_args_arity = args_arity;
+    ap_return_arity = return_arity
   }
 
 (* ---- Running ---------------------------------------------------------- *)
@@ -775,6 +891,7 @@ type outcome =
   | Raises of observation list
   | Exits_elsewhere
   | Undefined
+  | Partial_or_over_application
   | Still_running
 
 let print_outcome ppf (outcome : outcome) =
@@ -790,6 +907,10 @@ let print_outcome ppf (outcome : outcome) =
     Format.fprintf ppf "@[<hov 2>raises@ %a@]" print_values values
   | Exits_elsewhere -> Format.fprintf ppf "applies an unbound continuation"
   | Undefined -> Format.fprintf ppf "undefined"
+  | Partial_or_over_application ->
+    Format.fprintf ppf
+      "stops at a partial application or an over-application, which the model \
+       has not got"
   | Still_running -> Format.fprintf ppf "still running when the fuel ran out"
 
 let fuel = 1_000_000
@@ -797,9 +918,9 @@ let fuel = 1_000_000
 (* The calls that are not in code: those of the unit itself, which inlining
    removes. *)
 let rec calls_outside_code (e : Model.expr) =
-  let in_handler (Model.Handler (_, handler)) = calls_outside_code handler in
+  let in_handler (Model.Handler (_, _, handler)) = calls_outside_code handler in
   match e with
-  | Let (_, _, body) | Let_static (_, body) -> calls_outside_code body
+  | Let (_, _, _, body) | Let_static (_, body) -> calls_outside_code body
   | Let_cont_non_recursive (_, handler, body) ->
     in_handler handler + calls_outside_code body
   | Let_cont_recursive (handlers, body) ->
@@ -829,7 +950,11 @@ let run (unit : converted) : outcome * int =
     else
       match Semantics.step state with
       | Step state -> go (steps + 1) state
-      | Undefined -> Undefined, steps
+      | Undefined ->
+        ( (if Well_kinded.at_partial_or_over_application state
+           then Partial_or_over_application
+           else Undefined),
+          steps )
       | Exit (k, values) ->
         let values = List.map (observe 50 state.state_statics) values in
         ( (if k = unit.return_continuation
@@ -977,7 +1102,7 @@ let print_apply_cont ppf (ac : Model.apply_cont) =
 
 let rec print_expr ppf (e : Model.expr) =
   match e with
-  | Let (x, d, body) ->
+  | Let (x, _, d, body) ->
     Format.fprintf ppf "@[<hov 2>let %a =@ %a in@]@ %a" print_var x print_named
       d print_expr body
   | Let_static (bindings, body) ->
@@ -1007,13 +1132,13 @@ let rec print_expr ppf (e : Model.expr) =
       arms
   | Invalid -> Format.fprintf ppf "invalid"
 
-and print_handler ppf (Model.Handler (params, handler)) =
+and print_handler ppf (Model.Handler (params, _, handler)) =
   Format.fprintf ppf "(%a) =@ @[<v>%a@]" (print_list print_var) params
     print_expr handler
 
 and print_binding ppf (binding : Model.static_binding) =
   match binding with
-  | Bind_code (id, Code (params, my_closure, ret, exn, body)) ->
+  | Bind_code (id, Code (params, my_closure, ret, exn, _, body)) ->
     Format.fprintf ppf "@[<v 2>code%d (%a) %a -> %a * %a =@ %a@]"
       (int_of_positive id) (print_list print_var) params print_var my_closure
       print_cont ret print_cont exn print_expr body
@@ -1066,7 +1191,7 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
   let in_slots owner = List.iter (fun (_, s) -> in_simple owner s) in
   let rec in_expr owner (e : Model.expr) =
     match e with
-    | Let (_, d, body) ->
+    | Let (_, _, d, body) ->
       (match d with
       | Simple s
       | Project_value_slot (_, s)
@@ -1085,7 +1210,7 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
       List.iter
         (fun (binding : Model.static_binding) ->
           match binding with
-          | Bind_code (id, Code (_, _, _, _, code_body)) ->
+          | Bind_code (id, Code (_, _, _, _, _, code_body)) ->
             bound := Code_name id :: !bound;
             in_expr (Some (Code_name id)) code_body
           | Bind_deleted_code _ -> ()
@@ -1107,12 +1232,12 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
             | Static_const_immutable_string _ -> ()))
         bindings;
       in_expr owner body
-    | Let_cont_non_recursive (_, Handler (_, handler), body) ->
+    | Let_cont_non_recursive (_, Handler (_, _, handler), body) ->
       in_expr owner handler;
       in_expr owner body
     | Let_cont_recursive (handlers, body) ->
       List.iter
-        (fun (_, Model.Handler (_, handler)) -> in_expr owner handler)
+        (fun (_, Model.Handler (_, _, handler)) -> in_expr owner handler)
         handlers;
       in_expr owner body
     | Apply ap -> (
@@ -1161,10 +1286,10 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
 (* Whether a code id is used: called, made a closure of, or bound to code. Being
    bound as deleted is not a use. *)
 let rec code_id_used (id : Model.code_id) (e : Model.expr) =
-  let in_handler (Model.Handler (_, handler)) = code_id_used id handler in
+  let in_handler (Model.Handler (_, _, handler)) = code_id_used id handler in
   let in_binding (binding : Model.static_binding) =
     match binding with
-    | Bind_code (bound, Code (_, _, _, _, body)) ->
+    | Bind_code (bound, Code (_, _, _, _, _, body)) ->
       bound = id || code_id_used id body
     | Bind_deleted_code _ -> false
     | Bind_symbol (_, Static_const_set_of_closures (code, _)) -> code = id
@@ -1177,13 +1302,14 @@ let rec code_id_used (id : Model.code_id) (e : Model.expr) =
       false
   in
   match e with
-  | Let (_, Set_of_closures (code, _), body) ->
+  | Let (_, _, Set_of_closures (code, _), body) ->
     code = id || code_id_used id body
-  | Let (_, Closure_of_set (_, function_decls, _), body) ->
+  | Let (_, _, Closure_of_set (_, function_decls, _), body) ->
     List.exists (fun (_, code) -> code = id) function_decls
     || code_id_used id body
   | Let
       ( _,
+        _,
         ( Simple _ | Prim _ | Project_value_slot _ | Project_value_slot_from _
         | Project_function_slot _ ),
         body ) ->
@@ -1236,6 +1362,13 @@ let convert_both (before : Flambda_unit.t) (after : Flambda_unit.t) =
     !newer_versions;
   before_converted, convert_unit after
 
+(* What the check of kinds answers for a unit (FlambdaWellKindedSpec.v), given
+   the kinds of the value slots met in the two units. *)
+let well_kinded (unit : converted) =
+  Well_kinded.well_kinded_unit
+    (List.map (fun (slot, kind) -> slot, convert_kind kind) !slot_kinds)
+    unit.return_continuation unit.exn_continuation unit.body
+
 (* Static bindings at toplevel only, each name bound once, the sets of closures
    whole, and the numbers in range (FlambdaWellFormedSpec.v). *)
 let well_formed (unit : converted) =
@@ -1274,6 +1407,48 @@ let well_formed_before ~filename (before : Flambda_unit.t) =
           filename;
     ok
 
+(* What the comparison of the two runs shows of one run, this shows of all. The
+   whole check is [validate_unit], extracted from FlambdaValidateSpec.v, where
+   it is proved that what it accepts is correct for the unit run on its own from
+   empty environments. It normalises the two terms, compares them up to bound
+   names and, failing that, removes from the term before the static bindings
+   named here and compares again. Which names those are is a guess that it
+   checks. *)
+let validate ~(outcome_before : outcome) (before : converted)
+    (after : converted) =
+  let inlined = Normalise.inline_calls [] before.body in
+  Format.printf
+    "  calls outside code once those of known code are inlined: %d@."
+    (calls_outside_code inlined);
+  let rounds = nat_of_int 50 in
+  let normalised_before = Validate.normalise_before rounds before.body in
+  let unused = unused_statics normalised_before in
+  let validation =
+    Validate.validate_unit rounds unused before.body after.body
+  in
+  Format.printf "  %s@."
+    (match validation with
+    | Same_up_to_bound_names -> "validated: the same up to bound names"
+    | Same_once_normalised -> "validated: the same once normalised"
+    | Same_once_unused_statics_removed ->
+      "validated: the same once normalised and unused static bindings removed"
+    | Not_validated ->
+      if outcome_before = Undefined
+      then "nothing to validate, as the term before is undefined"
+      else "not validated");
+  match validation with
+  | Not_validated when Sys.getenv_opt "FLSEMANTICS_PRINT_TERMS" <> None ->
+    Format.printf
+      "@[<v 2>  the term before, normalised:@ %a@]@.@[<v 2>  the term after, \
+       normalised:@ %a@]@."
+      print_expr
+      (Validate.without_statics unused normalised_before)
+      print_expr
+      (Validate.normalise_after rounds after.body)
+  | Not_validated | Same_up_to_bound_names | Same_once_normalised
+  | Same_once_unused_statics_removed ->
+    ()
+
 let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
   match convert_both before after with
   | exception Unsupported what ->
@@ -1289,11 +1464,26 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
       steps_before print_outcome outcome_before;
     Format.printf "  after Simplify (%d steps): %a@." steps_after print_outcome
       outcome_after;
+    let passes ok = if ok then "passes" else "fails" in
+    Format.printf "  the check of kinds: %s before, %s after@."
+      (passes (well_kinded before))
+      (passes (well_kinded after));
     Format.printf "  calls outside code: %d before, %d after@."
       (calls_outside_code before.body)
       (calls_outside_code after.body);
+    (* A run that stops at a partial application or an over-application stops
+       where the model says less than the compiler: nothing is decided, whatever
+       the other run does, and the validation, which is about the model, is not
+       attempted. *)
+    let outside_the_model =
+      match outcome_before, outcome_after with
+      | Partial_or_over_application, _ | _, Partial_or_over_application -> true
+      | _, _ -> false
+    in
     let verdict, ok =
       match outcome_before, outcome_after with
+      | Partial_or_over_application, _ | _, Partial_or_over_application ->
+        "not decided, as a run meets what the model has not got", true
       | Undefined, _ -> "anything goes, as the run before is undefined", true
       | Still_running, _ | _, Still_running -> "not decided", true
       | _, _ ->
@@ -1302,45 +1492,9 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
         else "DIFFERENT", false
     in
     Format.printf "  %s@." verdict;
-    (* What the test above shows of one run, this shows of all. The whole check
-       is [validate_unit], extracted from FlambdaValidateSpec.v, where it is
-       proved that what it accepts is correct for the unit run on its own from
-       empty environments. It normalises the two terms, compares them up to
-       bound names and, failing that, removes from the term before the static
-       bindings named here and compares again. Which names those are is a guess
-       that it checks. *)
-    let inlined = Normalise.inline_calls [] before.body in
-    Format.printf
-      "  calls outside code once those of known code are inlined: %d@."
-      (calls_outside_code inlined);
-    let rounds = nat_of_int 50 in
-    let normalised_before = Validate.normalise_before rounds before.body in
-    let unused = unused_statics normalised_before in
-    let validation =
-      Validate.validate_unit rounds unused before.body after.body
-    in
-    Format.printf "  %s@."
-      (match validation with
-      | Same_up_to_bound_names -> "validated: the same up to bound names"
-      | Same_once_normalised -> "validated: the same once normalised"
-      | Same_once_unused_statics_removed ->
-        "validated: the same once normalised and unused static bindings removed"
-      | Not_validated ->
-        if outcome_before = Undefined
-        then "nothing to validate, as the term before is undefined"
-        else "not validated");
-    (match validation with
-    | Not_validated when Sys.getenv_opt "FLSEMANTICS_PRINT_TERMS" <> None ->
-      Format.printf
-        "@[<v 2>  the term before, normalised:@ %a@]@.@[<v 2>  the term after, \
-         normalised:@ %a@]@."
-        print_expr
-        (Validate.without_statics unused normalised_before)
-        print_expr
-        (Validate.normalise_after rounds after.body)
-    | Not_validated | Same_up_to_bound_names | Same_once_normalised
-    | Same_once_unused_statics_removed ->
-      ());
+    if outside_the_model
+    then Format.printf "  not validated: no validation is attempted@."
+    else validate ~outcome_before before after;
     if not ok then exit 1
 
 let check_file filename =

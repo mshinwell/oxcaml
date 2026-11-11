@@ -31,6 +31,8 @@ type standard_int =
   | Standard_naked_int64
   | Standard_naked_nativeint
 
+val kind_of_standard_int : standard_int -> flambda_kind
+
 type boxable_number =
   | Boxable_naked_float32
   | Boxable_naked_float
@@ -41,5 +43,7 @@ type boxable_number =
   | Boxable_naked_vec256
   | Boxable_naked_vec512
   | Boxable_naked_mask
+
+val unboxed_kind : boxable_number -> flambda_kind
 
 val boxable_number_of_kind : flambda_kind -> boxable_number option

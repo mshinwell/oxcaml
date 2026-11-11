@@ -84,7 +84,7 @@ let apply_avoids d ap =
 (** val expr_avoids : dropped -> expr -> bool **)
 
 let rec expr_avoids d = function
-  | Let (_, d0, body) -> named_avoids d d0 && expr_avoids d body
+  | Let (_, _, d0, body) -> named_avoids d d0 && expr_avoids d body
   | Let_static (bindings, body) ->
     forallb (binding_avoids d) bindings && expr_avoids d body
   | Let_cont_non_recursive (_, h, body) ->
@@ -105,7 +105,8 @@ let rec expr_avoids d = function
 
 (** val handler_avoids : dropped -> continuation_handler -> bool **)
 
-and handler_avoids d = function Handler (_, handler) -> expr_avoids d handler
+and handler_avoids d = function
+  | Handler (_, _, handler) -> expr_avoids d handler
 
 (** val binding_avoids : dropped -> static_binding -> bool **)
 
@@ -117,7 +118,7 @@ and binding_avoids d = function
 
 (** val code_avoids : dropped -> code -> bool **)
 
-and code_avoids d = function Code (_, _, _, _, body) -> expr_avoids d body
+and code_avoids d = function Code (_, _, _, _, _, body) -> expr_avoids d body
 
 (** val binding_kept : dropped -> static_binding -> bool **)
 
@@ -136,7 +137,7 @@ let rec keep_map keep f = function
 
 let rec erase_expr d e =
   match e with
-  | Let (x, d0, body) -> Let (x, d0, erase_expr d body)
+  | Let (x, kind, d0, body) -> Let (x, kind, d0, erase_expr d body)
   | Let_static (bindings, body) ->
     Let_static
       (keep_map (binding_kept d) (erase_binding d) bindings, erase_expr d body)
@@ -156,7 +157,8 @@ let rec erase_expr d e =
     **)
 
 and erase_handler d = function
-  | Handler (params, handler) -> Handler (params, erase_expr d handler)
+  | Handler (params, metadata, handler) ->
+    Handler (params, metadata, erase_expr d handler)
 
 (** val erase_binding : dropped -> static_binding -> static_binding **)
 
@@ -168,8 +170,8 @@ and erase_binding d binding =
 (** val erase_code : dropped -> code -> code **)
 
 and erase_code d = function
-  | Code (params, my_closure, ret, exn, body) ->
-    Code (params, my_closure, ret, exn, erase_expr d body)
+  | Code (params, my_closure, ret, exn, metadata, body) ->
+    Code (params, my_closure, ret, exn, metadata, erase_expr d body)
 
 (** val drop_statics : dropped -> expr -> expr option **)
 

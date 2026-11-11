@@ -55,6 +55,56 @@ let kind_of_const = function
   | Poison kind -> kind
   | _ -> Value
 
+type arity_component =
+  | Singleton of flambda_kind
+  | Unboxed_product of arity_component list
+
+type arity = arity_component list
+
+(** val unarize_component : arity_component -> flambda_kind list **)
+
+let rec unarize_component = function
+  | Singleton k -> k :: []
+  | Unboxed_product components -> flat_map unarize_component components
+
+(** val unarize : arity -> flambda_kind list **)
+
+let unarize a = flat_map unarize_component a
+
+(** val unarize_per_parameter : arity -> flambda_kind list list **)
+
+let unarize_per_parameter a = map unarize_component a
+
+(** val arity_component_eq_dec : arity_component -> arity_component -> bool **)
+
+let rec arity_component_eq_dec c c' =
+  match c with
+  | Singleton k -> (
+    match c' with
+    | Singleton k0 -> kind_eq_dec k k0
+    | Unboxed_product _ -> false)
+  | Unboxed_product components -> (
+    match c' with
+    | Singleton _ -> false
+    | Unboxed_product components0 ->
+      list_eq_dec arity_component_eq_dec components components0)
+
+(** val arity_eqb : arity -> arity -> bool **)
+
+let arity_eqb a a' =
+  if list_eq_dec arity_component_eq_dec a a' then true else false
+
+(** val kinds_eqb : flambda_kind list -> flambda_kind list -> bool **)
+
+let kinds_eqb kinds kinds' =
+  if list_eq_dec kind_eq_dec kinds kinds' then true else false
+
+(** val kinds_per_parameter_eqb : flambda_kind list list -> flambda_kind list
+    list -> bool **)
+
+let kinds_per_parameter_eqb kinds kinds' =
+  if list_eq_dec (list_eq_dec kind_eq_dec) kinds kinds' then true else false
+
 type simple =
   | Var of variable
   | Symbol of symbol
@@ -239,11 +289,39 @@ type apply_expr =
     ap_call_kind : call_kind;
     ap_args : simple list;
     ap_continuation : continuation;
-    ap_exn_continuation : continuation
+    ap_exn_continuation : continuation;
+    ap_args_arity : arity;
+    ap_return_arity : arity
   }
 
+type handler_metadata = { hm_params_kinds : flambda_kind list }
+
+(** val make_handler_metadata : flambda_kind list -> handler_metadata **)
+
+let make_handler_metadata params_kinds = { hm_params_kinds = params_kinds }
+
+(** val handler_metadata_eqb : handler_metadata -> handler_metadata -> bool **)
+
+let handler_metadata_eqb m m' = kinds_eqb m.hm_params_kinds m'.hm_params_kinds
+
+type code_metadata =
+  { cm_params_arity : arity;
+    cm_result_arity : arity
+  }
+
+(** val make_code_metadata : arity -> arity -> code_metadata **)
+
+let make_code_metadata params_arity result_arity =
+  { cm_params_arity = params_arity; cm_result_arity = result_arity }
+
+(** val code_metadata_eqb : code_metadata -> code_metadata -> bool **)
+
+let code_metadata_eqb m m' =
+  arity_eqb m.cm_params_arity m'.cm_params_arity
+  && arity_eqb m.cm_result_arity m'.cm_result_arity
+
 type expr =
-  | Let of variable * named * expr
+  | Let of variable * flambda_kind * named * expr
   | Let_static of static_binding list * expr
   | Let_cont_non_recursive of continuation * continuation_handler * expr
   | Let_cont_recursive of (continuation * continuation_handler) list * expr
@@ -252,7 +330,7 @@ type expr =
   | Switch of simple * (coq_Z * apply_cont) list
   | Invalid
 
-and continuation_handler = Handler of variable list * expr
+and continuation_handler = Handler of variable list * handler_metadata * expr
 
 and static_binding =
   | Bind_code of code_id * code
@@ -260,29 +338,54 @@ and static_binding =
   | Bind_symbol of symbol * static_const
 
 and code =
-  | Code of variable list * variable * continuation * continuation * expr
+  | Code of
+      variable list
+      * variable
+      * continuation
+      * continuation
+      * code_metadata
+      * expr
+
+(** val handler_kinds : continuation_handler -> flambda_kind list **)
+
+let handler_kinds = function
+  | Handler (_, metadata, _) -> metadata.hm_params_kinds
 
 (** val code_params : code -> variable list **)
 
-let code_params = function Code (params, _, _, _, _) -> params
+let code_params = function Code (params, _, _, _, _, _) -> params
 
 (** val code_my_closure : code -> variable **)
 
-let code_my_closure = function Code (_, my_closure, _, _, _) -> my_closure
+let code_my_closure = function Code (_, my_closure, _, _, _, _) -> my_closure
 
 (** val code_return_continuation : code -> continuation **)
 
 let code_return_continuation = function
-  | Code (_, _, return_continuation, _, _) -> return_continuation
+  | Code (_, _, return_continuation, _, _, _) -> return_continuation
 
 (** val code_exn_continuation : code -> continuation **)
 
 let code_exn_continuation = function
-  | Code (_, _, _, exn_continuation, _) -> exn_continuation
+  | Code (_, _, _, exn_continuation, _, _) -> exn_continuation
+
+(** val code_params_arity : code -> arity **)
+
+let code_params_arity = function
+  | Code (_, _, _, _, metadata, _) -> metadata.cm_params_arity
+
+(** val code_result_arity : code -> arity **)
+
+let code_result_arity = function
+  | Code (_, _, _, _, metadata, _) -> metadata.cm_result_arity
+
+(** val code_params_kinds : code -> flambda_kind list **)
+
+let code_params_kinds c = unarize (code_params_arity c)
 
 (** val code_body : code -> expr **)
 
-let code_body = function Code (_, _, _, _, body) -> body
+let code_body = function Code (_, _, _, _, _, body) -> body
 
 (** val let_projections : variable -> function_slot -> (variable *
     function_slot) list -> expr -> expr **)
@@ -294,6 +397,7 @@ let rec let_projections base base_slot bound body =
     let x, slot = p in
     Let
       ( x,
+        Value,
         Project_function_slot (base_slot, slot, Var base),
         let_projections base base_slot bound0 body )
 
@@ -313,6 +417,7 @@ let let_closures bound_vars function_decls value_slots body =
         Some
           (Let
              ( x,
+               Value,
                Closure_of_set (slot, function_decls, value_slots),
                let_projections x slot
                  (combine bound_vars0 (map fst other_decls))

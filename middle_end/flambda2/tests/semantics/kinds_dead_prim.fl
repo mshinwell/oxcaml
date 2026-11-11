@@ -1,0 +1,12 @@
+let w = %opaque (0) in
+let untagged = %untag_imm (w) in
+(switch untagged
+   | 0 -> k (5)
+   | 1 -> k1)
+  where k1 =
+    let bad = %untag_imm (1i) in
+    let t = %tag_imm (bad) in
+    cont k (t)
+  where k (r) =
+    let $camlKinds_dead_prim = Block 0 (r) in
+    cont done ($camlKinds_dead_prim)

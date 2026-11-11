@@ -10,7 +10,7 @@ open ListDef
 (** val free_continuations : expr -> continuation list **)
 
 let rec free_continuations = function
-  | Let (_, _, body) -> free_continuations body
+  | Let (_, _, _, body) -> free_continuations body
   | Let_static (_, body) -> free_continuations body
   | Let_cont_non_recursive (k, h, body) ->
     app
@@ -33,12 +33,12 @@ let rec free_continuations = function
 (** val handler_free_continuations : continuation_handler -> continuation list **)
 
 and handler_free_continuations = function
-  | Handler (_, handler) -> free_continuations handler
+  | Handler (_, _, handler) -> free_continuations handler
 
 (** val raises_to : continuation -> expr -> bool **)
 
 let rec raises_to k = function
-  | Let (_, _, body) -> raises_to k body
+  | Let (_, _, _, body) -> raises_to k body
   | Let_static (_, body) -> raises_to k body
   | Let_cont_non_recursive (_, h, body) ->
     handler_raises_to k h || raises_to k body
@@ -54,7 +54,8 @@ let rec raises_to k = function
 
 (** val handler_raises_to : continuation -> continuation_handler -> bool **)
 
-and handler_raises_to k = function Handler (_, handler) -> raises_to k handler
+and handler_raises_to k = function
+  | Handler (_, _, handler) -> raises_to k handler
 
 (** val handler_at_toplevel : continuation -> continuation -> expr -> bool **)
 
@@ -64,7 +65,7 @@ let handler_at_toplevel unit_exn k body =
 (** val statics_at_toplevel : continuation -> bool -> expr -> bool **)
 
 let rec statics_at_toplevel unit_exn toplevel = function
-  | Let (_, _, body) -> statics_at_toplevel unit_exn toplevel body
+  | Let (_, _, _, body) -> statics_at_toplevel unit_exn toplevel body
   | Let_static (bindings, body) ->
     (toplevel && forallb (binding_statics_at_toplevel unit_exn) bindings)
     && statics_at_toplevel unit_exn toplevel body
@@ -86,7 +87,7 @@ let rec statics_at_toplevel unit_exn toplevel = function
     continuation_handler -> bool **)
 
 and handler_statics_at_toplevel unit_exn toplevel = function
-  | Handler (_, handler) -> statics_at_toplevel unit_exn toplevel handler
+  | Handler (_, _, handler) -> statics_at_toplevel unit_exn toplevel handler
 
 (** val binding_statics_at_toplevel : continuation -> static_binding -> bool **)
 
@@ -97,7 +98,7 @@ and binding_statics_at_toplevel unit_exn = function
 (** val code_statics_at_toplevel : continuation -> code -> bool **)
 
 and code_statics_at_toplevel unit_exn = function
-  | Code (_, _, _, _, body) -> statics_at_toplevel unit_exn false body
+  | Code (_, _, _, _, _, body) -> statics_at_toplevel unit_exn false body
 
 (** val code_ids_of_binding : static_binding -> code_id list **)
 
@@ -111,7 +112,7 @@ let symbols_of_binding = function Bind_symbol (s, _) -> s :: [] | _ -> []
     list **)
 
 let rec static_names names_of = function
-  | Let (_, _, body) -> static_names names_of body
+  | Let (_, _, _, body) -> static_names names_of body
   | Let_static (bindings, body) ->
     app (flat_map names_of bindings) (static_names names_of body)
   | Let_cont_non_recursive (_, h, body) ->
@@ -130,7 +131,7 @@ let rec static_names names_of = function
     continuation_handler -> positive list **)
 
 and handler_static_names names_of = function
-  | Handler (_, handler) -> static_names names_of handler
+  | Handler (_, _, handler) -> static_names names_of handler
 
 (** val set_well_formed : function_slot -> (function_slot * code_id) list ->
     bool **)
@@ -227,7 +228,7 @@ let rec static_sets_code_disjoint = function
 (** val sets_well_formed : expr -> bool **)
 
 let rec sets_well_formed = function
-  | Let (_, d, body) -> named_sets_well_formed d && sets_well_formed body
+  | Let (_, _, d, body) -> named_sets_well_formed d && sets_well_formed body
   | Let_static (bindings, body) ->
     ((forallb (static_set_whole bindings) bindings
      && static_sets_code_disjoint bindings)
@@ -247,7 +248,7 @@ let rec sets_well_formed = function
 (** val handler_sets_well_formed : continuation_handler -> bool **)
 
 and handler_sets_well_formed = function
-  | Handler (_, handler) -> sets_well_formed handler
+  | Handler (_, _, handler) -> sets_well_formed handler
 
 (** val binding_sets_well_formed : static_binding -> bool **)
 
@@ -258,7 +259,7 @@ and binding_sets_well_formed = function
 (** val code_sets_well_formed : code -> bool **)
 
 and code_sets_well_formed = function
-  | Code (_, _, _, _, body) -> sets_well_formed body
+  | Code (_, _, _, _, _, body) -> sets_well_formed body
 
 (** val simple_in_range : simple -> bool **)
 
@@ -309,7 +310,7 @@ let arm_in_range arm =
 (** val numbers_in_range : expr -> bool **)
 
 let rec numbers_in_range = function
-  | Let (_, d, body) -> named_in_range d && numbers_in_range body
+  | Let (_, _, d, body) -> named_in_range d && numbers_in_range body
   | Let_static (bindings, body) ->
     forallb binding_numbers_in_range bindings && numbers_in_range body
   | Let_cont_non_recursive (_, h, body) ->
@@ -330,7 +331,7 @@ let rec numbers_in_range = function
 (** val handler_numbers_in_range : continuation_handler -> bool **)
 
 and handler_numbers_in_range = function
-  | Handler (_, handler) -> numbers_in_range handler
+  | Handler (_, _, handler) -> numbers_in_range handler
 
 (** val binding_numbers_in_range : static_binding -> bool **)
 
@@ -342,7 +343,7 @@ and binding_numbers_in_range = function
 (** val code_numbers_in_range : code -> bool **)
 
 and code_numbers_in_range = function
-  | Code (_, _, _, _, body) -> numbers_in_range body
+  | Code (_, _, _, _, _, body) -> numbers_in_range body
 
 (** val well_formed_unit : continuation -> expr -> bool **)
 

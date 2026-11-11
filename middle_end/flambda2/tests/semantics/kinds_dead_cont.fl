@@ -1,0 +1,8 @@
+(switch 0i
+   | 0 -> good (5)
+   | 1 -> bad (1i))
+  where bad (x) =
+    cont good (x)
+  where good (r) =
+    let $camlKinds_dead_cont = Block 0 (r) in
+    cont done ($camlKinds_dead_cont)

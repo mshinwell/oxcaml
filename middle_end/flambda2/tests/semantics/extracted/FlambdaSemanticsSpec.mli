@@ -75,6 +75,8 @@ val call_function :
   value ->
   call_kind ->
   value list ->
+  arity ->
+  arity ->
   cont_value ->
   cont_value ->
   static_env ->

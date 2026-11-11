@@ -1,0 +1,3 @@
+let x = %opaque (1i) in
+let $camlKinds_opaque_bad = Block 0 (x) in
+cont done ($camlKinds_opaque_bad)

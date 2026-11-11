@@ -75,6 +75,16 @@ val variadic_primitive_in_range : variadic_primitive -> bool
 
 val prim_in_range : prim -> bool
 
+val naked_immediate_kind : flambda_kind
+
+val result_kind_of_unary_primitive : unary_primitive -> flambda_kind
+
+val result_kind_of_binary_primitive : binary_primitive -> flambda_kind
+
+val result_kind_of_variadic_primitive : variadic_primitive -> flambda_kind
+
+val prim_result_kind : prim -> flambda_kind
+
 val prim_eq_dec : prim -> prim -> bool
 
 val prim_eqb : prim -> prim -> bool

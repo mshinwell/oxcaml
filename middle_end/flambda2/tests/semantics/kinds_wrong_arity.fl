@@ -1,0 +1,8 @@
+let code size(1) five (x : imm) my_closure &my_region my_depth -> k * e =
+  cont k (5)
+in
+let $Five = closure five &toplevel in
+apply &toplevel ($Five : val -> val) (3) -> k1 * error
+  where k1 (r) =
+    let $camlKinds_wrong_arity = Block 0 (r) in
+    cont done ($camlKinds_wrong_arity)

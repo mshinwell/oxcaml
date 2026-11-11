@@ -68,6 +68,17 @@ type standard_int =
   | Standard_naked_int64
   | Standard_naked_nativeint
 
+(** val kind_of_standard_int : standard_int -> flambda_kind **)
+
+let kind_of_standard_int = function
+  | Standard_tagged_immediate -> Value
+  | Standard_naked_immediate -> Naked_number Kind_naked_immediate
+  | Standard_naked_int8 -> Naked_number Kind_naked_int8
+  | Standard_naked_int16 -> Naked_number Kind_naked_int16
+  | Standard_naked_int32 -> Naked_number Kind_naked_int32
+  | Standard_naked_int64 -> Naked_number Kind_naked_int64
+  | Standard_naked_nativeint -> Naked_number Kind_naked_nativeint
+
 type boxable_number =
   | Boxable_naked_float32
   | Boxable_naked_float
@@ -78,6 +89,19 @@ type boxable_number =
   | Boxable_naked_vec256
   | Boxable_naked_vec512
   | Boxable_naked_mask
+
+(** val unboxed_kind : boxable_number -> flambda_kind **)
+
+let unboxed_kind = function
+  | Boxable_naked_float32 -> Naked_number Kind_naked_float32
+  | Boxable_naked_float -> Naked_number Kind_naked_float
+  | Boxable_naked_int32 -> Naked_number Kind_naked_int32
+  | Boxable_naked_int64 -> Naked_number Kind_naked_int64
+  | Boxable_naked_nativeint -> Naked_number Kind_naked_nativeint
+  | Boxable_naked_vec128 -> Naked_number Kind_naked_vec128
+  | Boxable_naked_vec256 -> Naked_number Kind_naked_vec256
+  | Boxable_naked_vec512 -> Naked_number Kind_naked_vec512
+  | Boxable_naked_mask -> Naked_number Kind_naked_mask
 
 (** val boxable_number_of_kind : flambda_kind -> boxable_number option **)
 

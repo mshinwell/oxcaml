@@ -1,0 +1,22 @@
+let code inline(always) size(25) apply_to (w, k)
+    my_closure &my_region my_depth -> ret * e =
+  let untagged = %untag_imm (w) in
+  switch untagged
+    | 0 -> k0
+    | 1 -> k1
+    where k1 =
+      apply &my_region (k : val -> val) (1) -> ret * e
+    where k0 =
+      apply &my_region (k : imm -> val) (1i) -> ret * e
+in
+let code size(1) five (x : imm) my_closure &my_region my_depth -> k * e =
+  cont k (5)
+in
+let $Apply_to = closure apply_to @apply_to &toplevel in
+let $Five = closure five @five &toplevel in
+let w = %opaque (0) in
+apply direct(apply_to &toplevel) inlined(always) $Apply_to (w, $Five)
+  -> k1 * error
+  where k1 (r) =
+    let $camlKinds_gadt = Block 0 (r) in
+    cont done ($camlKinds_gadt)

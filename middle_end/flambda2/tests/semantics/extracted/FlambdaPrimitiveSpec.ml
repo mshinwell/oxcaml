@@ -441,6 +441,37 @@ let prim_in_range = function
   | Binary p0 -> binary_primitive_in_range p0
   | Variadic p0 -> variadic_primitive_in_range p0
 
+(** val naked_immediate_kind : flambda_kind **)
+
+let naked_immediate_kind = Naked_number Kind_naked_immediate
+
+(** val result_kind_of_unary_primitive : unary_primitive -> flambda_kind **)
+
+let result_kind_of_unary_primitive = function
+  | Block_load (_, _) -> Value
+  | Opaque_identity kind -> kind
+  | Unbox_number kind -> unboxed_kind kind
+  | Box_number _ -> Value
+  | Tag_immediate -> Value
+  | _ -> naked_immediate_kind
+
+(** val result_kind_of_binary_primitive : binary_primitive -> flambda_kind **)
+
+let result_kind_of_binary_primitive = function
+  | Int_arith (kind, _) -> kind_of_standard_int kind
+  | Int_comp (_, _) -> naked_immediate_kind
+
+(** val result_kind_of_variadic_primitive : variadic_primitive -> flambda_kind **)
+
+let result_kind_of_variadic_primitive _ = Value
+
+(** val prim_result_kind : prim -> flambda_kind **)
+
+let prim_result_kind = function
+  | Unary p0 -> result_kind_of_unary_primitive p0
+  | Binary p0 -> result_kind_of_binary_primitive p0
+  | Variadic p0 -> result_kind_of_variadic_primitive p0
+
 (** val prim_eq_dec : prim -> prim -> bool **)
 
 let prim_eq_dec p p' =

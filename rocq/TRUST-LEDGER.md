@@ -75,6 +75,50 @@ it gave back.
   slot is projected. What the compiler's two patterns expand to is not
   in the OCaml: it is `let_closures` and `bind_closures`, in Rocq, with
   statements.
+- **The kinds and arities that the conversion gives**, in the same file
+  (`convert_arity`, `convert_params_kinds`, `convert_bound_var`,
+  `find_value_slot`, and the arities in `convert_code` and
+  `convert_apply`, about 70 lines). A `Let` gets the kind of its
+  variable, a handler the kinds of its parameters, code and a call their
+  two arities with their unboxed products, and the value slots met their
+  kinds. The variables that a `Let` binds to the closures of a set of
+  several functions get the kind `Value` from `let_closures`; the tool
+  refuses the binding if one of the compiler's variables has another
+  kind. The machine makes a call undefined that does not agree with its
+  code (`FlambdaSemanticsSpec.call_function`), so a wrong arity makes a
+  run undefined that should not be, or the reverse. The check of kinds
+  (`FlambdaWellKindedSpec.v`) does not catch that: code that never
+  returns passes it with any result arity. Trusted: that the arities of
+  calls and of code, the kinds of parameters and the kinds of value
+  slots are the compiler's. Cross-checked as the tool runs, and fatal to
+  it: an arity as converted, unarized by the model, has the kinds of the
+  compiler's `Flambda_arity.unarize`; the parameter arity of code,
+  unarized, has the kinds of the parameters of its body (nothing in the
+  compiler checks that where code is made). Not cross-checked: how an
+  arity is grouped into unboxed products, which is rebuilt through
+  `Flambda_arity.fold_per_parameter`.
+- **Partial applications, over-applications and tupled functions**,
+  which the model has not got: there a call with more or fewer arguments
+  than the code has parameters is undefined, and code has no mark that
+  it is tupled. What the tool does about them is OCaml, in the same
+  file, and is trusted. The converter refuses (`Unsupported`) code that
+  is tupled (`Code0.is_tupled`), whatever calls it. It refuses a direct
+  call whose arities pass the compiler's test for a partial application
+  or an over-application, against the arities of the code named, when
+  the unit binds that code: the test is
+  `FlambdaWellKindedSpec.partial_or_over_application`, a test of
+  arities only, to be read against `simplify_direct_function_call` of
+  `simplify/simplify_apply_expr.ml`. An indirect one cannot be told from
+  the term. When the run of either unit stops at a call that passes the
+  test on a state (`at_partial_or_over_application`: the arities, and
+  the kinds of the values of the arguments), the tool prints "not
+  decided", does not compare the two runs, and does not call
+  `validate_unit`. Not covered: a unit with such a call on a path that
+  the run does not take, or beyond the fuel; a direct call of code that
+  the unit does not bind. Of such a unit `validate_unit` may answer yes:
+  its statement then holds of the model, where the call is undefined,
+  and says nothing of what the compiler makes of the unit there. This
+  goes when the fragment has the three.
 - **The conversion of primitives**, in the same file (the section
   "Primitives"): one function for each arity of primitive that the model
   has (`convert_unary_primitive`, `convert_binary_primitive` and, once

@@ -1,0 +1,13 @@
+let code size(5) add_naked (x : imm, y : imm) my_closure &my_region my_depth
+    -> k * e : imm =
+  let r = %int_barith.`imm`.`add` (x, y) in
+  cont k (r)
+in
+let $Add_naked = closure add_naked &toplevel in
+let three = %opaque (3) in
+let a = %untag_imm (three) in
+apply &toplevel ($Add_naked : imm * imm -> imm) (a, 4i) -> k1 * error
+  where k1 (r : imm) =
+    let t = %tag_imm (r) in
+    let $camlKinds_naked = Block 0 (t) in
+    cont done ($camlKinds_naked)

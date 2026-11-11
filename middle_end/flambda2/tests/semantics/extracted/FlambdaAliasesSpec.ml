@@ -126,7 +126,9 @@ let canonical_apply tenv ap =
     ap_call_kind = canonical_call_kind tenv callee ap.ap_call_kind;
     ap_args = map (canonical_simple tenv) ap.ap_args;
     ap_continuation = ap.ap_continuation;
-    ap_exn_continuation = ap.ap_exn_continuation
+    ap_exn_continuation = ap.ap_exn_continuation;
+    ap_args_arity = ap.ap_args_arity;
+    ap_return_arity = ap.ap_return_arity
   }
 
 (** val typing_env_under_let : typing_env -> variable -> named -> typing_env **)
@@ -145,9 +147,9 @@ let typing_env_under_let tenv x = function
 (** val follow_aliases : typing_env -> expr -> expr **)
 
 let rec follow_aliases tenv = function
-  | Let (x, d, body) ->
+  | Let (x, kind, d, body) ->
     let d' = canonical_named tenv d in
-    Let (x, d', follow_aliases (typing_env_under_let tenv x d') body)
+    Let (x, kind, d', follow_aliases (typing_env_under_let tenv x d') body)
   | Let_static (bindings, body) ->
     Let_static
       (map (canonical_static_binding tenv) bindings, follow_aliases tenv body)
@@ -168,5 +170,5 @@ let rec follow_aliases tenv = function
     continuation_handler **)
 
 and follow_aliases_in_handler tenv = function
-  | Handler (params, handler) ->
-    Handler (params, follow_aliases (drop_vars params tenv) handler)
+  | Handler (params, metadata, handler) ->
+    Handler (params, metadata, follow_aliases (drop_vars params tenv) handler)

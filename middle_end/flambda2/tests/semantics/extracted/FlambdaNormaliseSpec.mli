@@ -4,6 +4,7 @@ open Bool
 open Datatypes
 open FlambdaApplySpec
 open FlambdaCompareSpec
+open FlambdaKindModel
 open FlambdaMapSpec
 open FlambdaModel
 open FlambdaNominalSpec
@@ -74,7 +75,12 @@ val remove_unused_lets : expr -> expr
 val remove_unused_lets_in_handler : continuation_handler -> continuation_handler
 
 val inline_cont_at_tail :
-  continuation -> variable list -> expr -> expr -> expr option
+  continuation ->
+  variable list ->
+  handler_metadata ->
+  expr ->
+  expr ->
+  expr option
 
 val inline_tail_conts : expr -> expr
 
@@ -104,6 +110,10 @@ val symbols_of :
   static_binding list ->
   (symbol * code_id option) list ->
   (symbol * code_id option) list
+
+val simple_has_kind_b : simple -> flambda_kind -> bool
+
+val call_agrees_b : apply_expr -> code -> bool
 
 val inline_known_apply :
   (code_id * code) list -> (symbol * code_id option) list -> apply_expr -> expr

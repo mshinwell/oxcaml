@@ -166,7 +166,7 @@ let binding_binds = function Bind_deleted_code _ -> false | _ -> true
 (** val binds_statics : expr -> bool **)
 
 let rec binds_statics = function
-  | Let (_, _, body) -> binds_statics body
+  | Let (_, _, _, body) -> binds_statics body
   | Let_static (bindings, body) ->
     existsb binding_binds bindings || binds_statics body
   | Let_cont_non_recursive (_, h, body) ->
@@ -183,7 +183,7 @@ let rec binds_statics = function
 (** val handler_binds_statics : continuation_handler -> bool **)
 
 and handler_binds_statics = function
-  | Handler (_, handler) -> binds_statics handler
+  | Handler (_, _, handler) -> binds_statics handler
 
 (** val handlers_bind_statics : (continuation * continuation_handler) list ->
     bool **)
@@ -237,7 +237,7 @@ type step_result =
 let apply_cont_value c vs statics =
   match c with
   | Closure (h, def_vars, def_conts, recursive) -> (
-    let (Handler (params, handler)) = h in
+    let (Handler (params, _, handler)) = h in
     match bind_params params vs def_vars with
     | Some handler_vars ->
       Step
@@ -256,10 +256,11 @@ let apply_cont_value c vs statics =
 let apply_continuation k vs conts statics =
   apply_cont_value (resolve k conts) vs statics
 
-(** val call_function : value -> call_kind -> value list -> cont_value ->
-    cont_value -> static_env -> step_result **)
+(** val call_function : value -> call_kind -> value list -> arity -> arity ->
+    cont_value -> cont_value -> static_env -> step_result **)
 
-let call_function callee kind vs return_to exn_to statics =
+let call_function callee kind vs args_arity return_arity return_to exn_to
+    statics =
   match closure_of statics callee with
   | Some p ->
     let called, _ = p in
@@ -273,6 +274,14 @@ let call_function callee kind vs return_to exn_to statics =
       match lookup called statics.static_code with
       | Some c -> (
         if binds_statics (code_body c)
+        then Undefined
+        else if
+          negb
+            ((kinds_eqb (map kind_of_value vs) (unarize args_arity)
+             && kinds_per_parameter_eqb
+                  (unarize_per_parameter args_arity)
+                  (unarize_per_parameter (code_params_arity c)))
+            && arity_eqb return_arity (code_result_arity c))
         then Undefined
         else
           match
@@ -303,7 +312,7 @@ let step s =
     s
   in
   match state_expr0 with
-  | Let (x, defining_expr, body) -> (
+  | Let (x, _, defining_expr, body) -> (
     match eval_named statics vars defining_expr with
     | Some v ->
       Step
@@ -345,7 +354,8 @@ let step s =
     | Some callee -> (
       match eval_simples vars ap.ap_args with
       | Some vs ->
-        call_function callee ap.ap_call_kind vs
+        call_function callee ap.ap_call_kind vs ap.ap_args_arity
+          ap.ap_return_arity
           (resolve ap.ap_continuation conts)
           (resolve ap.ap_exn_continuation conts)
           statics

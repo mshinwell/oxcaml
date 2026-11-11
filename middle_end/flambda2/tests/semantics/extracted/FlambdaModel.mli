@@ -39,6 +39,27 @@ type const =
 
 val kind_of_const : const -> flambda_kind
 
+type arity_component =
+  | Singleton of flambda_kind
+  | Unboxed_product of arity_component list
+
+type arity = arity_component list
+
+val unarize_component : arity_component -> flambda_kind list
+
+val unarize : arity -> flambda_kind list
+
+val unarize_per_parameter : arity -> flambda_kind list list
+
+val arity_component_eq_dec : arity_component -> arity_component -> bool
+
+val arity_eqb : arity -> arity -> bool
+
+val kinds_eqb : flambda_kind list -> flambda_kind list -> bool
+
+val kinds_per_parameter_eqb :
+  flambda_kind list list -> flambda_kind list list -> bool
+
 type simple =
   | Var of variable
   | Symbol of symbol
@@ -85,11 +106,28 @@ type apply_expr =
     ap_call_kind : call_kind;
     ap_args : simple list;
     ap_continuation : continuation;
-    ap_exn_continuation : continuation
+    ap_exn_continuation : continuation;
+    ap_args_arity : arity;
+    ap_return_arity : arity
   }
 
+type handler_metadata = { hm_params_kinds : flambda_kind list }
+
+val make_handler_metadata : flambda_kind list -> handler_metadata
+
+val handler_metadata_eqb : handler_metadata -> handler_metadata -> bool
+
+type code_metadata =
+  { cm_params_arity : arity;
+    cm_result_arity : arity
+  }
+
+val make_code_metadata : arity -> arity -> code_metadata
+
+val code_metadata_eqb : code_metadata -> code_metadata -> bool
+
 type expr =
-  | Let of variable * named * expr
+  | Let of variable * flambda_kind * named * expr
   | Let_static of static_binding list * expr
   | Let_cont_non_recursive of continuation * continuation_handler * expr
   | Let_cont_recursive of (continuation * continuation_handler) list * expr
@@ -98,7 +136,7 @@ type expr =
   | Switch of simple * (coq_Z * apply_cont) list
   | Invalid
 
-and continuation_handler = Handler of variable list * expr
+and continuation_handler = Handler of variable list * handler_metadata * expr
 
 and static_binding =
   | Bind_code of code_id * code
@@ -106,7 +144,15 @@ and static_binding =
   | Bind_symbol of symbol * static_const
 
 and code =
-  | Code of variable list * variable * continuation * continuation * expr
+  | Code of
+      variable list
+      * variable
+      * continuation
+      * continuation
+      * code_metadata
+      * expr
+
+val handler_kinds : continuation_handler -> flambda_kind list
 
 val code_params : code -> variable list
 
@@ -115,6 +161,12 @@ val code_my_closure : code -> variable
 val code_return_continuation : code -> continuation
 
 val code_exn_continuation : code -> continuation
+
+val code_params_arity : code -> arity
+
+val code_result_arity : code -> arity
+
+val code_params_kinds : code -> flambda_kind list
 
 val code_body : code -> expr
 

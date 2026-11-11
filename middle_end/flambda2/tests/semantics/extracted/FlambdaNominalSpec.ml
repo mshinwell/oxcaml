@@ -96,14 +96,20 @@ let rename_apply r ap =
     ap_call_kind = ap.ap_call_kind;
     ap_args = map (rename_simple r) ap.ap_args;
     ap_continuation = rename_continuation r ap.ap_continuation;
-    ap_exn_continuation = rename_continuation r ap.ap_exn_continuation
+    ap_exn_continuation = rename_continuation r ap.ap_exn_continuation;
+    ap_args_arity = ap.ap_args_arity;
+    ap_return_arity = ap.ap_return_arity
   }
 
 (** val rename_expr : renaming -> expr -> expr **)
 
 let rec rename_expr r = function
-  | Let (x, defining_expr, body) ->
-    Let (rename_variable r x, rename_named r defining_expr, rename_expr r body)
+  | Let (x, kind, defining_expr, body) ->
+    Let
+      ( rename_variable r x,
+        kind,
+        rename_named r defining_expr,
+        rename_expr r body )
   | Let_static (bindings, body) ->
     Let_static (map (rename_static_binding r) bindings, rename_expr r body)
   | Let_cont_non_recursive (k, handler, body) ->
@@ -129,5 +135,5 @@ let rec rename_expr r = function
     continuation_handler **)
 
 and rename_handler r = function
-  | Handler (params, handler) ->
-    Handler (map (rename_variable r) params, rename_expr r handler)
+  | Handler (params, metadata, handler) ->
+    Handler (map (rename_variable r) params, metadata, rename_expr r handler)

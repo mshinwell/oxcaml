@@ -1,5 +1,13 @@
 open Datatypes
 
+(** val hd : 'a1 -> 'a1 list -> 'a1 **)
+
+let hd default = function [] -> default | x :: _ -> x
+
+(** val tl : 'a1 list -> 'a1 list **)
+
+let tl = function [] -> [] | _ :: l' -> l'
+
 (** val nth_error : 'a1 list -> nat -> 'a1 option **)
 
 let rec nth_error l = function
@@ -45,5 +53,5 @@ let rec filter f = function
 let rec combine l l' =
   match l with
   | [] -> []
-  | x :: tl -> (
-    match l' with [] -> [] | y :: tl' -> (x, y) :: combine tl tl')
+  | x :: tl0 -> (
+    match l' with [] -> [] | y :: tl' -> (x, y) :: combine tl0 tl')

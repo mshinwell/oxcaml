@@ -6,7 +6,7 @@ open List
 (** val cont_free_b : continuation -> expr -> bool **)
 
 let rec cont_free_b k = function
-  | Let (_, _, body) -> cont_free_b k body
+  | Let (_, _, _, body) -> cont_free_b k body
   | Let_static (_, body) -> cont_free_b k body
   | Let_cont_non_recursive (bound, h, body) ->
     cont_free_in_handler_b k h || (negb (Pos.eqb k bound) && cont_free_b k body)
@@ -26,13 +26,13 @@ let rec cont_free_b k = function
 (** val cont_free_in_handler_b : continuation -> continuation_handler -> bool **)
 
 and cont_free_in_handler_b k = function
-  | Handler (_, handler) -> cont_free_b k handler
+  | Handler (_, _, handler) -> cont_free_b k handler
 
 (** val remove_unused_conts : expr -> expr **)
 
 let rec remove_unused_conts e =
   match e with
-  | Let (x, d, body) -> Let (x, d, remove_unused_conts body)
+  | Let (x, kind, d, body) -> Let (x, kind, d, remove_unused_conts body)
   | Let_static (bindings, body) ->
     Let_static (bindings, remove_unused_conts body)
   | Let_cont_non_recursive (k, h, body) ->
@@ -48,4 +48,5 @@ let rec remove_unused_conts e =
     continuation_handler **)
 
 and remove_unused_conts_in_handler = function
-  | Handler (params, handler) -> Handler (params, remove_unused_conts handler)
+  | Handler (params, metadata, handler) ->
+    Handler (params, metadata, remove_unused_conts handler)

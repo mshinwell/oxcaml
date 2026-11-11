@@ -4,6 +4,7 @@ open Bool
 open Datatypes
 open FlambdaApplySpec
 open FlambdaCompareSpec
+open FlambdaKindModel
 open FlambdaMapSpec
 open FlambdaModel
 open FlambdaNominalSpec
@@ -59,7 +60,8 @@ let apply_cont_in_scope vs ks ac =
 (** val expr_in_scope : variable list -> continuation list -> expr -> bool **)
 
 let rec expr_in_scope vs ks = function
-  | Let (x, d, body) -> named_in_scope vs d && expr_in_scope (x :: vs) ks body
+  | Let (x, _, d, body) ->
+    named_in_scope vs d && expr_in_scope (x :: vs) ks body
   | Let_static (bindings, body) ->
     forallb (static_binding_in_scope vs) bindings && expr_in_scope vs ks body
   | Let_cont_non_recursive (k, h, body) ->
@@ -86,7 +88,7 @@ let rec expr_in_scope vs ks = function
     continuation_handler -> bool **)
 
 and handler_in_scope vs ks = function
-  | Handler (params, handler) -> expr_in_scope (app params vs) ks handler
+  | Handler (params, _, handler) -> expr_in_scope (app params vs) ks handler
 
 (** val inline_renaming : continuation -> continuation -> continuation ->
     continuation -> renaming **)
@@ -150,7 +152,7 @@ let inline_apply known ap =
 
 let rec inline_calls known e =
   match e with
-  | Let (x, d, body) -> Let (x, d, inline_calls known body)
+  | Let (x, kind, d, body) -> Let (x, kind, d, inline_calls known body)
   | Let_static (bindings, body) ->
     let bindings0 = map (inline_calls_in_binding known) bindings in
     Let_static (bindings0, inline_calls (codes_of bindings0 known) body)
@@ -172,7 +174,8 @@ let rec inline_calls known e =
     -> continuation_handler **)
 
 and inline_calls_in_handler known = function
-  | Handler (params, handler) -> Handler (params, inline_calls known handler)
+  | Handler (params, metadata, handler) ->
+    Handler (params, metadata, inline_calls known handler)
 
 (** val inline_calls_in_binding : (code_id * code) list -> static_binding ->
     static_binding **)
@@ -185,8 +188,8 @@ and inline_calls_in_binding known binding =
 (** val inline_calls_in_code : (code_id * code) list -> code -> code **)
 
 and inline_calls_in_code known = function
-  | Code (params, my_closure, ret, exn, body) ->
-    Code (params, my_closure, ret, exn, inline_calls known body)
+  | Code (params, my_closure, ret, exn, metadata, body) ->
+    Code (params, my_closure, ret, exn, metadata, inline_calls known body)
 
 (** val var_in_simple : variable -> simple -> bool **)
 
@@ -223,7 +226,7 @@ let var_in_static_binding x = function
 (** val var_free_b : variable -> expr -> bool **)
 
 let rec var_free_b x = function
-  | Let (y, d, body) ->
+  | Let (y, _, d, body) ->
     var_in_named x d || (negb (Pos.eqb x y) && var_free_b x body)
   | Let_static (bindings, body) ->
     existsb (var_in_static_binding x) bindings || var_free_b x body
@@ -246,7 +249,8 @@ let rec var_free_b x = function
 (** val var_free_in_handler_b : variable -> continuation_handler -> bool **)
 
 and var_free_in_handler_b x = function
-  | Handler (params, handler) -> negb (among x params) && var_free_b x handler
+  | Handler (params, _, handler) ->
+    negb (among x params) && var_free_b x handler
 
 (** val prim_may_fold : prim -> bool **)
 
@@ -262,10 +266,10 @@ let named_may_go = function Prim (p, _) -> prim_may_fold p | _ -> true
 
 let rec remove_unused_lets e =
   match e with
-  | Let (x, d, body) ->
+  | Let (x, kind, d, body) ->
     let body' = remove_unused_lets body in
     if var_free_b x body' || negb (named_may_go d)
-    then Let (x, d, body')
+    then Let (x, kind, d, body')
     else body'
   | Let_static (bindings, body) -> Let_static (bindings, remove_unused_lets body)
   | Let_cont_non_recursive (k, h, body) ->
@@ -279,29 +283,30 @@ let rec remove_unused_lets e =
     continuation_handler **)
 
 and remove_unused_lets_in_handler = function
-  | Handler (params, handler) -> Handler (params, remove_unused_lets handler)
+  | Handler (params, metadata, handler) ->
+    Handler (params, metadata, remove_unused_lets handler)
 
-(** val inline_cont_at_tail : continuation -> variable list -> expr -> expr ->
-    expr option **)
+(** val inline_cont_at_tail : continuation -> variable list -> handler_metadata
+    -> expr -> expr -> expr option **)
 
-let rec inline_cont_at_tail k params handler = function
-  | Let (x, d, body0) ->
-    if var_free_in_handler_b x (Handler (params, handler))
+let rec inline_cont_at_tail k params metadata handler = function
+  | Let (x, kind, d, body0) ->
+    if var_free_in_handler_b x (Handler (params, metadata, handler))
     then None
     else
       option_map
-        (fun x0 -> Let (x, d, x0))
-        (inline_cont_at_tail k params handler body0)
+        (fun x0 -> Let (x, kind, d, x0))
+        (inline_cont_at_tail k params metadata handler body0)
   | Let_static (bindings, body0) ->
     option_map
       (fun x -> Let_static (bindings, x))
-      (inline_cont_at_tail k params handler body0)
+      (inline_cont_at_tail k params metadata handler body0)
   | Apply_cont ac ->
     if
       (Pos.eqb ac.ac_continuation k
       && Nat.eqb (length params) (length ac.ac_args))
       && forallb (fun param -> negb (var_in_simples param ac.ac_args)) params
-    then Some (let_params params ac.ac_args handler)
+    then Some (let_params params metadata.hm_params_kinds ac.ac_args handler)
     else None
   | _ -> None
 
@@ -309,15 +314,16 @@ let rec inline_cont_at_tail k params handler = function
 
 let rec inline_tail_conts e =
   match e with
-  | Let (x, d, body) -> Let (x, d, inline_tail_conts body)
+  | Let (x, kind, d, body) -> Let (x, kind, d, inline_tail_conts body)
   | Let_static (bindings, body) -> Let_static (bindings, inline_tail_conts body)
   | Let_cont_non_recursive (k, handler0, body) -> (
-    let (Handler (params, handler)) = handler0 in
+    let (Handler (params, metadata, handler)) = handler0 in
     let handler' = inline_tail_conts handler in
     let body' = inline_tail_conts body in
-    match inline_cont_at_tail k params handler' body' with
+    match inline_cont_at_tail k params metadata handler' body' with
     | Some inlined -> inlined
-    | None -> Let_cont_non_recursive (k, Handler (params, handler'), body'))
+    | None ->
+      Let_cont_non_recursive (k, Handler (params, metadata, handler'), body'))
   | Let_cont_recursive (handlers, body) ->
     Let_cont_recursive (handlers, inline_tail_conts body)
   | _ -> e
@@ -335,13 +341,15 @@ let let_static_if_any bindings body =
 
 let rec drop_deleted_code e =
   match e with
-  | Let (x, d, body) -> Let (x, d, drop_deleted_code body)
+  | Let (x, kind, d, body) -> Let (x, kind, d, drop_deleted_code body)
   | Let_static (bindings, body) ->
     let_static_if_any (filter binds_something bindings) (drop_deleted_code body)
   | Let_cont_non_recursive (k, handler0, body) ->
-    let (Handler (params, handler)) = handler0 in
+    let (Handler (params, metadata, handler)) = handler0 in
     Let_cont_non_recursive
-      (k, Handler (params, drop_deleted_code handler), drop_deleted_code body)
+      ( k,
+        Handler (params, metadata, drop_deleted_code handler),
+        drop_deleted_code body )
   | Let_cont_recursive (handlers, body) ->
     Let_cont_recursive (handlers, drop_deleted_code body)
   | _ -> e
@@ -385,12 +393,14 @@ let fold_switch scrutinee arms =
 
 let rec fold_constants e =
   match e with
-  | Let (x, d, body) -> Let (x, fold_named d, fold_constants body)
+  | Let (x, kind, d, body) -> Let (x, kind, fold_named d, fold_constants body)
   | Let_static (bindings, body) -> Let_static (bindings, fold_constants body)
   | Let_cont_non_recursive (k, handler0, body) ->
-    let (Handler (params, handler)) = handler0 in
+    let (Handler (params, metadata, handler)) = handler0 in
     Let_cont_non_recursive
-      (k, Handler (params, fold_constants handler), fold_constants body)
+      ( k,
+        Handler (params, metadata, fold_constants handler),
+        fold_constants body )
   | Let_cont_recursive (handlers, body) ->
     Let_cont_recursive (handlers, fold_constants body)
   | Switch (scrutinee, arms) -> fold_switch scrutinee arms
@@ -406,18 +416,18 @@ let named_is_total = function
 
 let rec remove_unused_total_lets e =
   match e with
-  | Let (x, d, body) ->
+  | Let (x, kind, d, body) ->
     let body' = remove_unused_total_lets body in
     if named_is_total d && negb (var_free_b x body')
     then body'
-    else Let (x, d, body')
+    else Let (x, kind, d, body')
   | Let_static (bindings, body) ->
     Let_static (bindings, remove_unused_total_lets body)
   | Let_cont_non_recursive (k, handler0, body) ->
-    let (Handler (params, handler)) = handler0 in
+    let (Handler (params, metadata, handler)) = handler0 in
     Let_cont_non_recursive
       ( k,
-        Handler (params, remove_unused_total_lets handler),
+        Handler (params, metadata, remove_unused_total_lets handler),
         remove_unused_total_lets body )
   | Let_cont_recursive (handlers, body) ->
     Let_cont_recursive (handlers, remove_unused_total_lets body)
@@ -438,18 +448,19 @@ let named_defined vs = function
 
 let rec remove_unused_defined_lets vs e =
   match e with
-  | Let (x, d, body) ->
+  | Let (x, kind, d, body) ->
     let body' = remove_unused_defined_lets (x :: vs) body in
     if named_defined vs d && negb (var_free_b x body')
     then body'
-    else Let (x, d, body')
+    else Let (x, kind, d, body')
   | Let_static (bindings, body) ->
     Let_static (bindings, remove_unused_defined_lets vs body)
   | Let_cont_non_recursive (k, handler0, body) ->
-    let (Handler (params, handler)) = handler0 in
+    let (Handler (params, metadata, handler)) = handler0 in
     Let_cont_non_recursive
       ( k,
-        Handler (params, remove_unused_defined_lets (app params vs) handler),
+        Handler
+          (params, metadata, remove_unused_defined_lets (app params vs) handler),
         remove_unused_defined_lets vs body )
   | Let_cont_recursive (handlers, body) ->
     Let_cont_recursive (handlers, remove_unused_defined_lets vs body)
@@ -472,6 +483,23 @@ let rec symbols_of bindings known =
       | _ -> symbols_of bindings0 ((s, None) :: known))
     | _ -> symbols_of bindings0 known)
 
+(** val simple_has_kind_b : simple -> flambda_kind -> bool **)
+
+let simple_has_kind_b s kind =
+  match s with
+  | Var _ -> false
+  | Symbol _ -> kind_eqb kind Value
+  | Const c -> kind_eqb (kind_of_const c) kind
+
+(** val call_agrees_b : apply_expr -> code -> bool **)
+
+let call_agrees_b ap c =
+  (kinds_per_parameter_eqb
+     (unarize_per_parameter ap.ap_args_arity)
+     (unarize_per_parameter (code_params_arity c))
+  && arity_eqb ap.ap_return_arity (code_result_arity c))
+  && forall2b simple_has_kind_b ap.ap_args (unarize ap.ap_args_arity)
+
 (** val inline_known_apply : (code_id * code) list -> (symbol * code_id option)
     list -> apply_expr -> expr **)
 
@@ -486,7 +514,7 @@ let inline_known_apply known_code known_symbols ap =
         | Some code0 -> (
           match lookup called known_code with
           | Some c ->
-            if Pos.eqb code0 called && inlinable_b ap c
+            if (Pos.eqb code0 called && inlinable_b ap c) && call_agrees_b ap c
             then
               inlined_body c
                 (inline_renaming
@@ -506,8 +534,8 @@ let inline_known_apply known_code known_symbols ap =
 
 let rec inline_known_calls known_code known_symbols e =
   match e with
-  | Let (x, d, body) ->
-    Let (x, d, inline_known_calls known_code known_symbols body)
+  | Let (x, kind, d, body) ->
+    Let (x, kind, d, inline_known_calls known_code known_symbols body)
   | Let_static (bindings, body) ->
     let bindings0 =
       map (inline_known_calls_in_binding known_code known_symbols) bindings
@@ -538,8 +566,9 @@ let rec inline_known_calls known_code known_symbols e =
     code_id option) list -> continuation_handler -> continuation_handler **)
 
 and inline_known_calls_in_handler known_code known_symbols = function
-  | Handler (params, handler) ->
-    Handler (params, inline_known_calls known_code known_symbols handler)
+  | Handler (params, metadata, handler) ->
+    Handler
+      (params, metadata, inline_known_calls known_code known_symbols handler)
 
 (** val inline_known_calls_in_binding : (code_id * code) list -> (symbol *
     code_id option) list -> static_binding -> static_binding **)
@@ -554,12 +583,13 @@ and inline_known_calls_in_binding known_code known_symbols binding =
     option) list -> code -> code **)
 
 and inline_known_calls_in_code known_code known_symbols = function
-  | Code (params, my_closure, ret, exn, body) ->
+  | Code (params, my_closure, ret, exn, metadata, body) ->
     Code
       ( params,
         my_closure,
         ret,
         exn,
+        metadata,
         inline_known_calls known_code known_symbols body )
 
 (** val binds_code : static_binding -> bool **)
@@ -577,16 +607,16 @@ let code_first bindings =
 
 let rec merge_statics e =
   match e with
-  | Let (x, d, body) -> Let (x, d, merge_statics body)
+  | Let (x, kind, d, body) -> Let (x, kind, d, merge_statics body)
   | Let_static (bindings, body) -> (
     match merge_statics body with
     | Let_static (bindings', body') ->
       Let_static (code_first (app bindings bindings'), body')
     | x -> Let_static (code_first bindings, x))
   | Let_cont_non_recursive (k, handler0, body) ->
-    let (Handler (params, handler)) = handler0 in
+    let (Handler (params, metadata, handler)) = handler0 in
     Let_cont_non_recursive
-      (k, Handler (params, merge_statics handler), merge_statics body)
+      (k, Handler (params, metadata, merge_statics handler), merge_statics body)
   | Let_cont_recursive (handlers, body) ->
     Let_cont_recursive (handlers, merge_statics body)
   | _ -> e
@@ -626,12 +656,14 @@ let collapse_switch scrutinee arms =
 
 let rec collapse_switches e =
   match e with
-  | Let (x, d, body) -> Let (x, d, collapse_switches body)
+  | Let (x, kind, d, body) -> Let (x, kind, d, collapse_switches body)
   | Let_static (bindings, body) -> Let_static (bindings, collapse_switches body)
   | Let_cont_non_recursive (k, handler0, body) ->
-    let (Handler (params, handler)) = handler0 in
+    let (Handler (params, metadata, handler)) = handler0 in
     Let_cont_non_recursive
-      (k, Handler (params, collapse_switches handler), collapse_switches body)
+      ( k,
+        Handler (params, metadata, collapse_switches handler),
+        collapse_switches body )
   | Let_cont_recursive (handlers, body) ->
     Let_cont_recursive (handlers, collapse_switches body)
   | Switch (scrutinee, arms) -> collapse_switch scrutinee arms
@@ -649,15 +681,18 @@ let rewrite_code_body f body =
 let rewrite_code_in_binding f binding =
   match binding with
   | Bind_code (id, c) ->
-    let (Code (params, my_closure, ret, exn, body)) = c in
-    Bind_code (id, Code (params, my_closure, ret, exn, rewrite_code_body f body))
+    let (Code (params, my_closure, ret, exn, metadata, body)) = c in
+    Bind_code
+      ( id,
+        Code (params, my_closure, ret, exn, metadata, rewrite_code_body f body)
+      )
   | _ -> binding
 
 (** val rewrite_code : (expr -> expr) -> expr -> expr **)
 
 let rec rewrite_code f e =
   match e with
-  | Let (x, d, body) -> Let (x, d, rewrite_code f body)
+  | Let (x, kind, d, body) -> Let (x, kind, d, rewrite_code f body)
   | Let_static (bindings, body) ->
     Let_static (map (rewrite_code_in_binding f) bindings, rewrite_code f body)
   | Let_cont_non_recursive (k, h, body) ->
@@ -676,7 +711,8 @@ let rec rewrite_code f e =
     continuation_handler **)
 
 and rewrite_code_in_handler f = function
-  | Handler (params, handler) -> Handler (params, rewrite_code f handler)
+  | Handler (params, metadata, handler) ->
+    Handler (params, metadata, rewrite_code f handler)
 
 (** val thread_arm : continuation -> (coq_Z * apply_cont) list -> (coq_Z *
     apply_cont) -> coq_Z * apply_cont **)
@@ -702,7 +738,7 @@ let arms_apply k arms =
 (** val thread_switch : continuation -> continuation_handler -> expr -> expr **)
 
 let thread_switch k h body =
-  let (Handler (params, handler)) = h in
+  let (Handler (params, _, handler)) = h in
   match params with
   | [] -> (
     match handler with
@@ -724,12 +760,12 @@ let thread_switch k h body =
 
 let rec thread_switches e =
   match e with
-  | Let (x, d, body) -> Let (x, d, thread_switches body)
+  | Let (x, kind, d, body) -> Let (x, kind, d, thread_switches body)
   | Let_static (bindings, body) -> Let_static (bindings, thread_switches body)
   | Let_cont_non_recursive (k, handler0, body) ->
-    let (Handler (params, handler)) = handler0 in
+    let (Handler (params, metadata, handler)) = handler0 in
     thread_switch k
-      (Handler (params, thread_switches handler))
+      (Handler (params, metadata, thread_switches handler))
       (thread_switches body)
   | Let_cont_recursive (handlers, body) ->
     Let_cont_recursive (handlers, thread_switches body)

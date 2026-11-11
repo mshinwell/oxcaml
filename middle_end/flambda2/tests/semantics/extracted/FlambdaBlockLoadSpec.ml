@@ -157,9 +157,10 @@ let load_known_named known d =
 
 let rec load_blocks_knowing known e =
   match e with
-  | Let (x, d, body) ->
+  | Let (x, kind, d, body) ->
     Let
       ( x,
+        kind,
         load_known_named known d,
         load_blocks_knowing (known_under_let known x d) body )
   | Let_static (bindings, body) ->
@@ -176,8 +177,9 @@ let rec load_blocks_knowing known e =
     continuation_handler **)
 
 and load_blocks_in_handler known = function
-  | Handler (params, handler) ->
-    Handler (params, load_blocks_knowing (forget_vars params known) handler)
+  | Handler (params, metadata, handler) ->
+    Handler
+      (params, metadata, load_blocks_knowing (forget_vars params known) handler)
 
 (** val load_known_blocks : expr -> expr **)
 
