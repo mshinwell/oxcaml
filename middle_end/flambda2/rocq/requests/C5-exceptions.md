@@ -723,11 +723,14 @@ have not been run on a unit that the compiler made from OCaml source.
 ## 10. The series for the epoch
 
 Branch `flambda2-rocq/C5-epoch`. Its base is the integration branch
-at a39c0cb5ee, which has C3's and C2's epochs, the conditions on names
+at c77399d527, which has C3's and C2's epochs, the conditions on names
 in `well_formed_unit` and the renaming that enters code. The series
-was written on C2's series before those last two and replayed. Every
-commit passes `make -C rocq all` and `make -C rocq assumptions`; the
-last needs the extracted files regenerated.
+was written on C2's series before those last two and replayed as the
+branch moved; in the last replay, by N1, the owners of the files that
+had landed since repaired them in the series (`status/C5.md` names
+them). Every commit passes `make -C rocq all` and
+`make -C rocq assumptions`; the last needs the extracted files
+regenerated.
 
 1. **The terms and the machine.** The first commit of the prototype,
    over C2 and C3. What differs from the prototype:
