@@ -337,6 +337,14 @@ tool), delegated by the orchestrator, and:
   `string_load*`, `block_load_mut*`), with their
   `.expected` files
 
+## V4: loops
+
+Owner: V4, on `flambda2-rocq/V4-loops`: what the validator needs for
+units with loops (`while`, `for`, tail-recursive functions).
+
+- `middle_end/flambda2/rocq/FlambdaRecHandlers*` (applying a rewrite to
+  the handlers of recursive continuations)
+
 ## N1: nominal loose ends
 
 Owner: N1.
