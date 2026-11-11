@@ -267,6 +267,102 @@ Proof.
     exact (Hall level x k Hin).
 Qed.
 
+Lemma indexed_at_b_iff (level : Typing_env_level.t)
+    (binding_time : Binding_time.t) (x : variable) :
+  indexed_at_b level binding_time x = true
+  <-> indexed_at level binding_time x.
+Proof.
+  unfold indexed_at_b, indexed_at.
+  destruct (Keyed.lookup Z.eqb binding_time
+              (Typing_env_level.binding_times level)) as [vars | ].
+  - rewrite among_In. split.
+    + intros Hin. exists vars. split; [ reflexivity | exact Hin ].
+    + intros [vars' [[= <-] Hin]]. exact Hin.
+  - split; [ discriminate | ]. intros [vars [Hnone _]]. discriminate.
+Qed.
+
+Theorem level_indexed_b_iff : level_indexed_b_iff_statement.
+Proof.
+  intros level. unfold level_indexed_b, level_indexed.
+  rewrite andb_true_iff, forallb_forall.
+  rewrite (keyed_for_all_bindings_b Z Z.eqb z_eqb_decides_equality),
+    (keyed_for_all_bindings_lookup Z Z.eqb z_eqb_decides_equality).
+  split.
+  - intros [Hindex Hdefined] x. split.
+    + intros Hbound. rewrite <- among_domain in Hbound.
+      apply among_In in Hbound. specialize (Hdefined x Hbound).
+      apply existsb_exists in Hdefined.
+      destruct Hdefined as [binding_time [_ Hat]].
+      exists binding_time. apply indexed_at_b_iff. exact Hat.
+    + intros [binding_time [vars [Hlookup Hin]]].
+      specialize (Hindex binding_time vars Hlookup).
+      rewrite <- among_domain. apply (proj1 (all_among _ _) Hindex).
+      apply among_In. exact Hin.
+  - intros Hlevel. split.
+    + intros binding_time vars Hlookup. apply all_among. intros x Hx.
+      rewrite among_domain. apply Hlevel. exists binding_time, vars.
+      split; [ exact Hlookup | apply among_In; exact Hx ].
+    + intros x Hx. apply existsb_exists.
+      apply among_In in Hx. rewrite among_domain in Hx.
+      destruct (proj1 (Hlevel x) Hx) as [binding_time Hat].
+      exists binding_time. split; [ | apply indexed_at_b_iff; exact Hat ].
+      apply (keyed_among_in Z Z.eqb z_eqb_decides_equality).
+      rewrite (keyed_among_domain Z Z.eqb z_eqb_decides_equality).
+      destruct Hat as [vars [Hlookup _]].
+      apply keyed_is_bound_lookup. exists vars. exact Hlookup.
+Qed.
+
+Lemma levels_indexed_b_iff (tenv : Typing_env.t) :
+  levels_indexed_b tenv = true <-> levels_indexed tenv.
+Proof.
+  unfold levels_indexed_b, levels_indexed. rewrite forallb_forall.
+  split; intros Hall level Hin; apply level_indexed_b_iff, Hall, Hin.
+Qed.
+
+Lemma level_binding_times_recorded_b_iff (tenv : Typing_env.t) :
+  level_binding_times_recorded_b tenv = true
+  <-> level_binding_times_recorded tenv.
+Proof.
+  unfold level_binding_times_recorded_b, level_binding_times_recorded.
+  rewrite forallb_forall.
+  assert (Hentry :
+    ∀ (binding_time : Binding_time.t) (x : variable),
+      match
+        Keyed.lookup name_eqb (Name_var x) (Typing_env.names_to_types tenv)
+      with
+      | Some entry => binding_time_of entry =? binding_time
+      | None => false
+      end
+      = true
+      <-> ∃ (ty : flambda_type)
+            (binding_time_and_mode : Binding_time.With_name_mode.t),
+            Keyed.lookup name_eqb (Name_var x)
+              (Typing_env.names_to_types tenv)
+            = Some (ty, binding_time_and_mode)
+            ∧ Binding_time.With_name_mode.binding_time binding_time_and_mode
+              = binding_time).
+  { intros binding_time x.
+    destruct (Keyed.lookup name_eqb (Name_var x)
+                (Typing_env.names_to_types tenv)) as [[ty btm] | ].
+    - unfold binding_time_of. simpl. rewrite Z.eqb_eq. split.
+      + intros Htime. exists ty, btm. split; [ reflexivity | exact Htime ].
+      + intros [ty' [btm' [[= <- <-] Htime]]]. exact Htime.
+    - split; [ discriminate | ]. intros [ty [btm [Hnone _]]]. discriminate. }
+  split.
+  - intros Hall level binding_time x Hin [vars [Hlookup Hx]].
+    specialize (Hall level Hin).
+    rewrite (keyed_for_all_bindings_b Z Z.eqb z_eqb_decides_equality),
+      (keyed_for_all_bindings_lookup Z Z.eqb z_eqb_decides_equality) in Hall.
+    specialize (Hall binding_time vars Hlookup).
+    rewrite forallb_forall in Hall. apply Hentry. exact (Hall x Hx).
+  - intros Hall level Hin.
+    rewrite (keyed_for_all_bindings_b Z Z.eqb z_eqb_decides_equality),
+      (keyed_for_all_bindings_lookup Z Z.eqb z_eqb_decides_equality).
+    intros binding_time vars Hlookup. apply forallb_forall. intros x Hx.
+    apply Hentry. apply (Hall level binding_time x Hin).
+    exists vars. split; [ exact Hlookup | exact Hx ].
+Qed.
+
 Lemma level_binding_times_in_range_b_iff (tenv : Typing_env.t) :
   level_binding_times_in_range_b tenv = true
   <-> level_binding_times_in_range tenv.
@@ -343,6 +439,7 @@ Proof.
   rewrite binding_times_bounded_b_iff, binding_times_in_range_b_iff,
     binding_times_distinct_b_iff, types_closed_b_iff, symbols_defined_b_iff,
     levels_pairwise_disjoint_b_iff, defined_variables_bound_b_iff,
+    levels_indexed_b_iff, level_binding_times_recorded_b_iff,
     level_binding_times_in_range_b_iff, scopes_decreasing_b_iff,
     (aliases_consistent_b_iff (Typing_env.aliases tenv)),
     (name_modes_recorded_b_iff _ (Typing_env.names_to_types tenv)
@@ -410,6 +507,21 @@ Proof.
   - exact (Hcanonical n' Hdemoted).
   - exact (proj1 (Hknown n c (proj2 (Hlisted n c) Hlisted'))).
   - exact (Hcanonical n' (proj2 (Hlisted n' (simple_of_name n)) Hlisted')).
+Qed.
+
+Lemma free_variables_bottom (k : flambda_kind) :
+  free_variables (bottom k) = [].
+Proof. destruct k as [ | [] | | ]; reflexivity. Qed.
+
+Theorem find_closed : find_closed_statement.
+Proof.
+  intros tenv n kind ty x Hclosed Hfind Hin.
+  destruct (find_cases tenv n kind ty Hfind)
+    as [[binding_time_and_mode Hlookup] | [[k ->] | ->]].
+  - rewrite mem_var_is_bound.
+    exact (Hclosed n ty binding_time_and_mode x Hlookup Hin).
+  - rewrite free_variables_bottom in Hin. destruct Hin.
+  - destruct Hin.
 Qed.
 
 (* ------------------------------------------------------------------------ *)
@@ -595,6 +707,126 @@ Proof.
       right. rewrite Hlevels. apply in_or_app. left. exact Hin.
 Qed.
 
+(* What the concatenation of two disjoint levels has at a binding
+   time. *)
+Lemma concat_indexed_at (earlier later result : Typing_env_level.t)
+    (binding_time : Binding_time.t) (x : variable) :
+  Typing_env_level.concat earlier later = Some result ->
+  indexed_at result binding_time x
+  <-> indexed_at later binding_time x ∨ indexed_at earlier binding_time x.
+Proof.
+  intros Hconcat.
+  assert (Hdisjoint : levels_disjoint earlier later).
+  { apply concat_defined. rewrite Hconcat. discriminate. }
+  destruct Hdisjoint as [_ Htimes].
+  apply concat_some in Hconcat. subst result.
+  unfold indexed_at. simpl. rewrite keyed_lookup_app.
+  destruct (Keyed.lookup Z.eqb binding_time
+              (Typing_env_level.binding_times later))
+    as [vars | ] eqn:Hlater.
+  - split; [ intros Hat; left; exact Hat | ].
+    intros [Hat | [vars' [Hlookup _]]]; [ exact Hat | exfalso ].
+    assert (Hbound :
+      Keyed.is_bound Z.eqb binding_time
+        (Typing_env_level.binding_times earlier)
+      = true).
+    { apply keyed_is_bound_lookup. exists vars'. exact Hlookup. }
+    pose proof (Htimes binding_time Hbound) as Hfalse.
+    unfold Keyed.is_bound in Hfalse. rewrite Hlater in Hfalse.
+    discriminate.
+  - split; [ intros Hat; right; exact Hat | ].
+    intros [[vars [Hnone _]] | Hat]; [ discriminate | exact Hat ].
+Qed.
+
+Theorem concat_indexed : concat_indexed_statement.
+Proof.
+  intros earlier later result Hconcat Hearlier Hlater.
+  pose proof (concat_indexed_at earlier later result) as Hat.
+  split.
+  - intros x.
+    assert (Hbound :
+      is_bound x (Typing_env_level.defined_vars result)
+      = is_bound x (Typing_env_level.defined_vars later)
+        || is_bound x (Typing_env_level.defined_vars earlier)).
+    { rewrite (concat_some _ _ _ Hconcat). apply is_bound_app. }
+    rewrite Hbound, orb_true_iff, (Hlater x), (Hearlier x). split.
+    + intros [[binding_time Hx] | [binding_time Hx]]; exists binding_time;
+        apply (Hat binding_time x Hconcat);
+        [ left; exact Hx | right; exact Hx ].
+    + intros [binding_time Hx]. apply (Hat binding_time x Hconcat) in Hx.
+      destruct Hx as [Hx | Hx]; [ left | right ]; exists binding_time;
+        exact Hx.
+  - intros binding_time x Hx. apply (Hat binding_time x Hconcat) in Hx.
+    destruct Hx as [Hx | Hx]; [ right | left ]; exact Hx.
+Qed.
+
+(* A level has its index, and each of its variables is at the binding
+   time that the environment has for it. *)
+Definition level_recorded_in (tenv : Typing_env.t)
+    (level : Typing_env_level.t) : Prop :=
+  level_indexed level
+  ∧ ∀ (binding_time : Binding_time.t) (x : variable),
+      indexed_at level binding_time x ->
+      ∃ (ty : flambda_type)
+        (binding_time_and_mode : Binding_time.With_name_mode.t),
+        Keyed.lookup name_eqb (Name_var x) (Typing_env.names_to_types tenv)
+        = Some (ty, binding_time_and_mode)
+        ∧ Binding_time.With_name_mode.binding_time binding_time_and_mode
+          = binding_time.
+
+Lemma cut_loop_indexed (tenv : Typing_env.t) (cut_after : Scope.t)
+    (levels : list Typing_env.One_level.t) :
+  ∀ result level : Typing_env_level.t,
+    (∀ earlier : Typing_env_level.t,
+      earlier ∈ map Typing_env.One_level.level levels ->
+      level_recorded_in tenv earlier) ->
+    level_recorded_in tenv result ->
+    Typing_env.cut_loop cut_after result levels = Some level ->
+    level_recorded_in tenv level.
+Proof.
+  induction levels as [ | one_level levels IH];
+    intros result level Hlevels Hresult.
+  - intros [= <-]. exact Hresult.
+  - simpl. destruct (cut_after <? Typing_env.One_level.scope one_level).
+    + destruct (Typing_env_level.concat
+                  (Typing_env.One_level.level one_level) result)
+        as [result' | ] eqn:Hconcat; [ | discriminate ].
+      simpl. apply IH.
+      * intros earlier Hin. apply Hlevels. right. exact Hin.
+      * destruct (Hlevels _ (or_introl eq_refl)) as [Hone Hone_times].
+        destruct Hresult as [Hresult Hresult_times].
+        destruct (concat_indexed _ _ _ Hconcat Hone Hresult)
+          as [Hindexed Hat].
+        split; [ exact Hindexed | ].
+        intros binding_time x Hx.
+        destruct (Hat binding_time x Hx) as [Hx' | Hx'].
+        -- exact (Hone_times binding_time x Hx').
+        -- exact (Hresult_times binding_time x Hx').
+    + intros [= <-]. exact Hresult.
+Qed.
+
+Theorem cut_indexed : cut_indexed_statement.
+Proof.
+  intros tenv cut_after level Hwf.
+  apply typing_env_well_formed_iff in Hwf.
+  destruct Hwf as [_ [[_ [_ [Hindexed [Hrecorded _]]]] _]].
+  unfold Typing_env.cut.
+  destruct (Typing_env.current_scope tenv <=? cut_after).
+  - intros [= <-]. split.
+    + intros x. split; [ discriminate | ].
+      intros [binding_time [vars [Hnone _]]]. discriminate.
+    + intros binding_time x [vars [Hnone _]]. discriminate.
+  - apply cut_loop_indexed.
+    + intros earlier Hin. split.
+      * apply Hindexed. right. exact Hin.
+      * intros binding_time x Hx.
+        exact (Hrecorded earlier binding_time x (or_intror Hin) Hx).
+    + split.
+      * apply Hindexed. left. reflexivity.
+      * intros binding_time x Hx.
+        exact (Hrecorded _ binding_time x (or_introl eq_refl) Hx).
+Qed.
+
 (* ======================================================================== *)
 (* The functions keep the invariant                                         *)
 (* ======================================================================== *)
@@ -607,6 +839,8 @@ Lemma conditions_intro (tenv : Typing_env.t) :
   symbols_defined tenv ->
   levels_pairwise_disjoint (all_levels tenv) ->
   defined_variables_bound tenv ->
+  levels_indexed tenv ->
+  level_binding_times_recorded tenv ->
   level_binding_times_in_range tenv ->
   scopes_decreasing (all_scopes tenv) ->
   aliases_consistent (Typing_env.aliases tenv) ->
@@ -636,7 +870,8 @@ Ltac invariant_parts Hinvariant :=
   apply invariant_elim in Hinvariant;
   destruct Hinvariant
     as [[[Hbounded [Hrange [Hdistinct [Hclosed Hsymbols]]]]
-         [[Hdisjoint [Hdefined [Hlevel_range Hscopes]]]
+         [[Hdisjoint
+            [Hdefined [Hindexed [Hrecorded [Hlevel_range Hscopes]]]]]
           [Hconsistent [Hmodes [Hknown Hconcrete]]]]]
         Hagree].
 
@@ -684,6 +919,12 @@ Proof.
     intros earlier _. split; intros key _; reflexivity.
   - intros level x k [<- | Hin]; [ discriminate | ].
     exact (Hdefined level x k Hin).
+  - intros level [<- | Hin]; [ | exact (Hindexed level Hin) ].
+    intros x. split; [ discriminate | ].
+    intros [binding_time [vars [Hnone _]]]. discriminate.
+  - intros level binding_time x [<- | Hin].
+    + intros [vars [Hnone _]]. discriminate.
+    + exact (Hrecorded level binding_time x Hin).
   - intros level binding_time [<- | Hin]; [ discriminate | ].
     exact (Hlevel_range level binding_time Hin).
   - split; [ | exact Hscopes ]. simpl.
@@ -699,8 +940,9 @@ Proof.
   apply conditions_intro;
     try first
       [ exact Hrange | exact Hdistinct | exact Hclosed | exact Hsymbols
-      | exact Hdisjoint | exact Hdefined | exact Hlevel_range
-      | exact Hscopes | exact Hconsistent | exact Hmodes | exact Hknown
+      | exact Hdisjoint | exact Hdefined | exact Hindexed
+      | exact Hrecorded | exact Hlevel_range | exact Hscopes
+      | exact Hconsistent | exact Hmodes | exact Hknown
       | exact Hconcrete ].
   destruct Hbounded as [Hearliest Hmin]. split; simpl; lia.
 Qed.
@@ -727,8 +969,9 @@ Proof.
   apply conditions_intro;
     try first
       [ exact Hbounded | exact Hrange | exact Hdistinct | exact Hclosed
-      | exact Hdisjoint | exact Hdefined | exact Hlevel_range
-      | exact Hscopes | exact Hconsistent | exact Hmodes | exact Hconcrete ].
+      | exact Hdisjoint | exact Hdefined | exact Hindexed
+      | exact Hrecorded | exact Hlevel_range | exact Hscopes
+      | exact Hconsistent | exact Hmodes | exact Hconcrete ].
   - intros s ty btm Hlookup.
     exact (mem_add_symbol_definition tenv sym (Name_symbol s)
              (Hsymbols s ty btm Hlookup)).
@@ -795,6 +1038,53 @@ Lemma add_definition_is_bound_time (level : Typing_env_level.t)
 Proof.
   unfold Keyed.is_bound. simpl.
   destruct (binding_time' =? binding_time); reflexivity.
+Qed.
+
+(* What a level has at a binding time once a variable is defined. *)
+Lemma add_definition_indexed_at (level : Typing_env_level.t)
+    (var : variable) (kind : flambda_kind)
+    (binding_time binding_time' : Binding_time.t) (x : variable) :
+  indexed_at (Typing_env_level.add_definition level var kind binding_time)
+    binding_time' x
+  <-> (binding_time' = binding_time ∧ x = var)
+      ∨ indexed_at level binding_time' x.
+Proof.
+  unfold indexed_at, Typing_env_level.add_definition. simpl.
+  destruct (Z.eqb_spec binding_time' binding_time) as [-> | Hne].
+  - destruct (Keyed.lookup Z.eqb binding_time
+                (Typing_env_level.binding_times level)) as [prev_vars | ].
+    + split.
+      * intros [vars [[= <-] [<- | Hin]]].
+        -- left. split; reflexivity.
+        -- right. exists prev_vars. split; [ reflexivity | exact Hin ].
+      * intros [[_ ->] | [vars [[= <-] Hin]]].
+        -- eexists. split; [ reflexivity | left; reflexivity ].
+        -- eexists. split; [ reflexivity | right; exact Hin ].
+    + split.
+      * intros [vars [[= <-] [<- | []]]]. left. split; reflexivity.
+      * intros [[_ ->] | [vars [Hnone _]]]; [ | discriminate ].
+        eexists. split; [ reflexivity | left; reflexivity ].
+  - split.
+    + intros Hat. right. exact Hat.
+    + intros [[Heq _] | Hat]; [ contradiction | exact Hat ].
+Qed.
+
+Lemma add_definition_indexed (level : Typing_env_level.t) (var : variable)
+    (kind : flambda_kind) (binding_time : Binding_time.t) :
+  level_indexed level ->
+  level_indexed (Typing_env_level.add_definition level var kind binding_time).
+Proof.
+  intros Hlevel x. rewrite add_definition_defined_vars.
+  unfold is_bound. rewrite lookup_cons.
+  destruct (Pos.eqb_spec x var) as [-> | Hne].
+  - split; [ | reflexivity ]. intros _. exists binding_time.
+    apply add_definition_indexed_at. left. split; reflexivity.
+  - split.
+    + intros Hbound. destruct (proj1 (Hlevel x) Hbound) as [bt Hat].
+      exists bt. apply add_definition_indexed_at. right. exact Hat.
+    + intros [bt Hat]. apply add_definition_indexed_at in Hat.
+      destruct Hat as [[_ Heq] | Hat]; [ contradiction | ].
+      apply Hlevel. exists bt. exact Hat.
 Qed.
 
 Theorem add_variable_definition_invariant
@@ -913,6 +1203,25 @@ Proof.
       * destruct (Hdefined level x k (or_intror Hin) Hlookup)
           as [ty [btm [Hty Hkind]]].
         exists ty, btm. split; [ exact (Hold _ _ Hty) | exact Hkind ].
+    + intros level Hin. rewrite Hlevels in Hin. destruct Hin as [<- | Hin].
+      * apply add_definition_indexed.
+        exact (Hindexed _ (or_introl eq_refl)).
+      * exact (Hindexed level (or_intror Hin)).
+    + intros level binding_time x Hin Hat. rewrite Hlevels in Hin.
+      assert (Hbefore :
+        (binding_time = Typing_env.next_binding_time tenv ∧ x = var)
+        ∨ ∃ level' : Typing_env_level.t,
+            level' ∈ all_levels tenv ∧ indexed_at level' binding_time x).
+      { destruct Hin as [<- | Hin].
+        - apply add_definition_indexed_at in Hat.
+          destruct Hat as [Hat | Hat]; [ left; exact Hat | right ].
+          eexists. split; [ left; reflexivity | exact Hat ].
+        - right. exists level. split; [ right; exact Hin | exact Hat ]. }
+      destruct Hbefore as [[-> ->] | [level' [Hin' Hat']]].
+      * exists (fst entry), (snd entry). split; [ exact Hnew | reflexivity ].
+      * destruct (Hrecorded level' binding_time x Hin' Hat')
+          as [ty [btm [Hty Htime]]].
+        exists ty, btm. split; [ exact (Hold _ _ Hty) | exact Htime ].
     + intros level binding_time Hin Hbt. rewrite Hnext.
       rewrite Hlevels in Hin. destruct Hin as [<- | Hin].
       * rewrite add_definition_is_bound_time in Hbt.
@@ -1144,6 +1453,31 @@ Proof.
         rewrite (Hkind ty1 btm1 Hty1). exact Hkind1.
       * exists ty1, btm1.
         split; [ rewrite (Hother _ Hne); exact Hty1 | exact Hkind1 ].
+    + intros level Hin. rewrite Hlevels in Hin.
+      destruct Hin as [<- | Hin]; [ | exact (Hindexed level (or_intror Hin)) ].
+      pose proof (Hindexed _ (or_introl eq_refl)) as Hcurrent.
+      intros x. unfold indexed_at.
+      rewrite add_or_replace_equation_defined_vars,
+        add_or_replace_equation_binding_times.
+      exact (Hcurrent x).
+    + intros level binding_time x Hin Hat. rewrite Hlevels in Hin.
+      assert (Hold :
+        ∃ (ty1 : flambda_type) (btm1 : Binding_time.With_name_mode.t),
+          Keyed.lookup name_eqb (Name_var x) (Typing_env.names_to_types tenv)
+          = Some (ty1, btm1)
+          ∧ Binding_time.With_name_mode.binding_time btm1 = binding_time).
+      { destruct Hin as [<- | Hin].
+        - unfold indexed_at in Hat.
+          rewrite add_or_replace_equation_binding_times in Hat.
+          exact (Hrecorded _ binding_time x (or_introl eq_refl) Hat).
+        - exact (Hrecorded level binding_time x (or_intror Hin) Hat). }
+      destruct Hold as [ty1 [btm1 [Hty1 Htime]]].
+      destruct (keyed_eqb_spec name_eqb name_eqb_eq (Name_var x) n)
+        as [Heq | Hne].
+      * subst n. exists ty, btm_new. split; [ exact Hnew | ].
+        rewrite (Hbtm x ty1 btm1 eq_refl Hty1). exact Htime.
+      * exists ty1, btm1.
+        split; [ rewrite (Hother _ Hne); exact Hty1 | exact Htime ].
     + intros level binding_time Hin Hbt. rewrite Hlevels in Hin.
       destruct Hin as [<- | Hin].
       * rewrite add_or_replace_equation_binding_times in Hbt.
@@ -1308,8 +1642,8 @@ Proof.
   apply conditions_intro;
     try first
       [ exact Hbounded | exact Hrange | exact Hdistinct | exact Hclosed
-      | exact Hsymbols | exact Hdisjoint | exact Hdefined
-      | exact Hlevel_range | exact Hscopes ].
+      | exact Hsymbols | exact Hdisjoint | exact Hdefined | exact Hindexed
+      | exact Hrecorded | exact Hlevel_range | exact Hscopes ].
   - exact (add_consistent _ _ _ _ c1 c2 added Hconsistent Hc1 Hc2 Hadded).
   - exact (add_name_modes_recorded _ _ _ _ c1 c2 added Hmodes Hadded).
   - assert (Hmentioned :

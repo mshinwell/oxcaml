@@ -81,7 +81,20 @@
      [add_variable_definition] gives the unknown type of the kind, and
      [Meet_env] reads the type of a name with the kind of the type it
      is about to give it ([Typing_env.find] with a kind, a fatal error
-     if they differ). [replace_equation] itself checks nothing.
+     whatever the flags if they differ). [replace_equation] itself
+     checks nothing (discrepancy T2-8). This is the one condition that
+     speaks of kinds, and it is of two records of one definition, the
+     level's and the environment's. Nothing here is about the kind of a
+     value, or the kinds of the aliases inside a type (below).
+   - [levels_indexed]: the variables that a level has by binding time
+     are those that it defines. Checked by [Typing_env_level.create]
+     when invariant checks are on; [fold_on_defined_vars] relies on it
+     whatever the flags. Stricter (discrepancy T2-2).
+   - [level_binding_times_recorded]: a variable that a level has at a
+     binding time has that binding time in the environment. By
+     construction: [add_variable_definition] gives the level and the
+     environment the one binding time, and a new type for a variable
+     leaves its binding time. Nothing checks it.
    - [level_binding_times_in_range]: the binding times of the levels
      are before the next. By construction.
    - [scopes_decreasing]: each level has a greater scope than the one
@@ -121,6 +134,13 @@
    free names of an environment and its renaming; that a name that is
    not canonical has the alias type of its canonical element, which
    nothing here needs.
+
+   What is not here, and is not to be: that an alias inside a type is
+   at the kind that the environment has for its target. The compiler
+   checks that only where it follows an alias ([Typing_env.find] with a
+   kind), and programs that it accepts break agreement of kinds, so it
+   is a premise of the statements that need it, in a file of its own,
+   and no part of the invariant.
 
    The statements: the test answers [true] exactly when the conditions
    hold; what the conditions give to the aliases and to [cut]; and that
@@ -341,6 +361,23 @@ Fixpoint levels_pairwise_disjoint_b (levels : list Typing_env_level.t)
 
 (* A variable that a level defines has a type in the environment, of
    the kind that the level defined it with. *)
+(* The kind here is of two records of one definition: the kind that the
+   level has for the variable, and the kind of the type that the
+   environment has for it. It is not about the kind of a value, and not
+   about the kinds of the aliases inside a type.
+   [Typing_env.add_variable_definition] makes the two agree: it gives
+   the level the kind and the environment the unknown type of that
+   kind (and stops with a fatal error, whatever the flags, if the kind
+   is not the variable's own). The model is stricter than the compiler
+   in one place (decision D32): [Typing_env.replace_equation] and
+   [Cached_level.replace_variable_binding] take a type of any kind for
+   a variable and check nothing. It is their callers in [Meet_env] that
+   keep the kind: each reads the type of the name with the kind of the
+   type that it is about to give ([Typing_env.find] with a kind, in
+   [add_concrete_equation_on_canonical_name] and [record_demotion]),
+   which is a fatal error, whatever the flags, if the kinds differ.
+   [replace_equation_invariant_statement] has that as a premise.
+   Discrepancy T2-8. *)
 Definition defined_variables_bound (tenv : Typing_env.t) : Prop :=
   ∀ (level : Typing_env_level.t) (x : variable) (k : flambda_kind),
     level ∈ all_levels tenv ->
@@ -364,6 +401,101 @@ Definition defined_variables_bound_b (tenv : Typing_env.t) : bool :=
             | None => false
             end)
          (Typing_env_level.defined_vars level))
+    (all_levels tenv).
+
+(* A level has a variable at a binding time: the variables that it has
+   for the binding time ([Typing_env_level.variables_by_binding_time])
+   include it. *)
+Definition indexed_at (level : Typing_env_level.t)
+    (binding_time : Binding_time.t) (x : variable) : Prop :=
+  ∃ vars : list variable,
+    Keyed.lookup Z.eqb binding_time (Typing_env_level.binding_times level)
+    = Some vars
+    ∧ x ∈ vars.
+
+Definition indexed_at_b (level : Typing_env_level.t)
+    (binding_time : Binding_time.t) (x : variable) : bool :=
+  match
+    Keyed.lookup Z.eqb binding_time (Typing_env_level.binding_times level)
+  with
+  | Some vars => among x vars
+  | None => false
+  end.
+
+(* The variables that a level has by binding time are those that it
+   defines. *)
+(* The model is stricter than the compiler here (decision D32), in
+   that it asks this whatever the flags. [Typing_env_level.create]
+   checks it (the keys of [defined_vars] are the union of the sets of
+   [binding_times]) when invariant checks are on.
+   [Typing_env_level.fold_on_defined_vars] relies on it always: it goes
+   through the variables by binding time and looks up the kind of each
+   among the defined variables, with [Variable.Map.find], which raises
+   [Not_found] for a variable that is not defined; and it does not
+   reach a defined variable that is at no binding time.
+   Discrepancy T2-2. *)
+Definition level_indexed (level : Typing_env_level.t) : Prop :=
+  ∀ x : variable,
+    is_bound x (Typing_env_level.defined_vars level) = true
+    <-> ∃ binding_time : Binding_time.t, indexed_at level binding_time x.
+
+Definition level_indexed_b (level : Typing_env_level.t) : bool :=
+  Keyed.for_all_bindings_b Z.eqb
+    (fun _ vars =>
+       all_among vars (domain (Typing_env_level.defined_vars level)))
+    (Typing_env_level.binding_times level)
+  && forallb
+       (fun x =>
+          existsb (fun binding_time => indexed_at_b level binding_time x)
+            (Keyed.domain Z.eqb (Typing_env_level.binding_times level)))
+       (domain (Typing_env_level.defined_vars level)).
+
+Definition levels_indexed (tenv : Typing_env.t) : Prop :=
+  ∀ level : Typing_env_level.t,
+    level ∈ all_levels tenv -> level_indexed level.
+
+Definition levels_indexed_b (tenv : Typing_env.t) : bool :=
+  forallb level_indexed_b (all_levels tenv).
+
+(* A variable that a level has at a binding time has that binding time
+   in the environment. *)
+(* Nothing in the compiler checks this. Its environments have it by
+   the way they are made: [Typing_env.add_variable_definition] gives
+   the level and the environment the one binding time, the next;
+   [Typing_env.replace_equation] leaves the binding time of a variable
+   and the levels' variables by binding time as they are. The levels
+   that a join makes, in which several variables may be at one binding
+   time, are not levels of an environment: an environment takes one by
+   defining each of its variables anew
+   ([Meet_env.add_env_extension_from_level]). *)
+Definition level_binding_times_recorded (tenv : Typing_env.t) : Prop :=
+  ∀ (level : Typing_env_level.t) (binding_time : Binding_time.t)
+    (x : variable),
+    level ∈ all_levels tenv ->
+    indexed_at level binding_time x ->
+    ∃ (ty : flambda_type)
+      (binding_time_and_mode : Binding_time.With_name_mode.t),
+      Keyed.lookup name_eqb (Name_var x) (Typing_env.names_to_types tenv)
+      = Some (ty, binding_time_and_mode)
+      ∧ Binding_time.With_name_mode.binding_time binding_time_and_mode
+        = binding_time.
+
+Definition level_binding_times_recorded_b (tenv : Typing_env.t) : bool :=
+  forallb
+    (fun level =>
+       Keyed.for_all_bindings_b Z.eqb
+         (fun binding_time vars =>
+            forallb
+              (fun x =>
+                 match
+                   Keyed.lookup name_eqb (Name_var x)
+                     (Typing_env.names_to_types tenv)
+                 with
+                 | Some entry => binding_time_of entry =? binding_time
+                 | None => false
+                 end)
+              vars)
+         (Typing_env_level.binding_times level))
     (all_levels tenv).
 
 (* The binding times of the levels are before the next one. *)
@@ -491,6 +623,8 @@ Definition typing_env_conditions (tenv : Typing_env.t) : Prop :=
    ∧ symbols_defined tenv)
   ∧ (levels_pairwise_disjoint (all_levels tenv)
      ∧ defined_variables_bound tenv
+     ∧ levels_indexed tenv
+     ∧ level_binding_times_recorded tenv
      ∧ level_binding_times_in_range tenv
      ∧ scopes_decreasing (all_scopes tenv))
   ∧ (aliases_consistent (Typing_env.aliases tenv)
@@ -507,6 +641,8 @@ Definition typing_env_well_formed (tenv : Typing_env.t) : bool :=
    && symbols_defined_b tenv)
   && (levels_pairwise_disjoint_b (all_levels tenv)
       && defined_variables_bound_b tenv
+      && levels_indexed_b tenv
+      && level_binding_times_recorded_b tenv
       && level_binding_times_in_range_b tenv
       && scopes_decreasing_b (all_scopes tenv))
   && (aliases_consistent_b (Typing_env.aliases tenv)
@@ -529,6 +665,25 @@ Definition concat_defined_statement : Prop :=
   ∀ earlier later : Typing_env_level.t,
     Typing_env_level.concat earlier later <> None
     <-> levels_disjoint earlier later.
+
+(* The test of the index of a level answers [true] exactly when the
+   variables that the level has by binding time are those that it
+   defines. *)
+Definition level_indexed_b_iff_statement : Prop :=
+  ∀ level : Typing_env_level.t,
+    level_indexed_b level = true <-> level_indexed level.
+
+(* [Typing_env_level.concat] keeps it, and has a variable at a binding
+   time only where one of the two levels has it. *)
+Definition concat_indexed_statement : Prop :=
+  ∀ earlier later result : Typing_env_level.t,
+    Typing_env_level.concat earlier later = Some result ->
+    level_indexed earlier ->
+    level_indexed later ->
+    level_indexed result
+    ∧ ∀ (binding_time : Binding_time.t) (x : variable),
+        indexed_at result binding_time x ->
+        indexed_at earlier binding_time x ∨ indexed_at later binding_time x.
 
 (* The test of an environment answers [true] exactly when the
    conditions hold. *)
@@ -558,6 +713,15 @@ Definition well_formed_mentioned_known_statement : Prop :=
     typing_env_well_formed tenv = true ->
     aliases_mention (Typing_env.aliases tenv) n ->
     Typing_env.mem None tenv n = true.
+
+(* The variables of a type that [Typing_env.find] answers are bound. *)
+Definition find_closed_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (n : name) (kind : option flambda_kind)
+    (ty : flambda_type) (x : variable),
+    types_closed tenv ->
+    Typing_env.find tenv n kind = Some ty ->
+    x ∈ free_variables ty ->
+    Typing_env.mem None tenv (Name_var x) = true.
 
 (* [Typing_env.cut] answers, whatever the scope: the fatal error of
    [Typing_env_level.concat] does not happen. *)
@@ -591,6 +755,26 @@ Definition cut_defined_variables_found_statement : Prop :=
       Keyed.lookup name_eqb (Name_var x) (Typing_env.names_to_types tenv)
       = Some (ty, binding_time_and_mode)
       ∧ kind ty = k.
+
+(* The variables that the level that [Typing_env.cut] answers has by
+   binding time are those that it defines, and each is at the binding
+   time that the environment has for it. So
+   [Typing_env_level.fold_on_defined_vars] on that level finds the kind
+   of every variable that it comes to, and comes to every variable that
+   the level defines. *)
+Definition cut_indexed_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (cut_after : Scope.t) (level : Typing_env_level.t),
+    typing_env_well_formed tenv = true ->
+    Typing_env.cut tenv cut_after = Some level ->
+    level_indexed level
+    ∧ ∀ (binding_time : Binding_time.t) (x : variable),
+        indexed_at level binding_time x ->
+        ∃ (ty : flambda_type)
+          (binding_time_and_mode : Binding_time.With_name_mode.t),
+          Keyed.lookup name_eqb (Name_var x) (Typing_env.names_to_types tenv)
+          = Some (ty, binding_time_and_mode)
+          ∧ Binding_time.With_name_mode.binding_time binding_time_and_mode
+            = binding_time.
 
 (* ======================================================================== *)
 (* The functions keep the invariant                                         *)

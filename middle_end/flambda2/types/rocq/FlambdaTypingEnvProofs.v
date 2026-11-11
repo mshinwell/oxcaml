@@ -570,6 +570,25 @@ Proof.
     apply kind_eqb_eq in Hkind. intros [= <-]. symmetry. exact Hkind.
 Qed.
 
+Theorem find_cases : find_cases_statement.
+Proof.
+  intros tenv n kind ty.
+  unfold Typing_env.find, Typing_env.find_with_binding_time_and_mode'.
+  destruct (Keyed.lookup name_eqb n (Typing_env.names_to_types tenv))
+    as [[ty' binding_time_and_mode] | ].
+  - destruct (Typing_env.check_optional_kind_matches ty' kind);
+      [ | discriminate ].
+    destruct (Typing_env.is_bottom tenv); intros [= <-].
+    + right. left. eexists. reflexivity.
+    + left. eexists. reflexivity.
+  - destruct n as [x | s]; [ discriminate | ].
+    destruct (among s (Typing_env.defined_symbols tenv)
+              && Typing_env.check_optional_kind_matches
+                   (fst Typing_env.initial_symbol_type) kind);
+      [ | discriminate ].
+    intros [= <-]. right. right. reflexivity.
+Qed.
+
 Theorem mem_find : mem_find_statement.
 Proof.
   intros tenv min_name_mode n. unfold Typing_env.mem, Typing_env.find,

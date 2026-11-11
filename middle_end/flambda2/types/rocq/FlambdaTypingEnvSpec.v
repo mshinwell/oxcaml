@@ -587,6 +587,20 @@ Definition find_kind_statement : Prop :=
     Typing_env.find tenv n (Some kind) = Some ty ->
     FlambdaTypeGrammar.kind ty = kind.
 
+(* What is found, whether the environment is bottom or not: the type
+   that the environment has for the name; a bottom type, in an
+   environment that is bottom; or, for a symbol that is defined and has
+   no type, the type of the values that are not null. *)
+Definition find_cases_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (n : name) (kind : option flambda_kind)
+    (ty : flambda_type),
+    Typing_env.find tenv n kind = Some ty ->
+    (∃ binding_time_and_mode : Binding_time.With_name_mode.t,
+      Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
+      = Some (ty, binding_time_and_mode))
+    ∨ (∃ k : flambda_kind, ty = bottom k)
+    ∨ ty = any_non_null_value.
+
 (* A name that is bound has a type. *)
 Definition mem_find_statement : Prop :=
   ∀ (tenv : Typing_env.t) (min_name_mode : option Name_mode.t) (n : name),
