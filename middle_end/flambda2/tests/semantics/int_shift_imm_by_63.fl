@@ -1,0 +1,4 @@
+let b = %int_shift.`imm`.`asr` (-1i, 63i) in
+let t = %tag_imm (b) in
+let $camlInt_shift_imm_by_63 = Block 0 (t) in
+cont done ($camlInt_shift_imm_by_63)

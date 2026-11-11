@@ -1,0 +1,10 @@
+let x = %opaque (12) in
+let s1 = %untag_imm (1) in
+let a = %int_shift.`asr` (x, s1) in
+let l = %int_shift.`lsr` (x, s1) in
+let s2 = %untag_imm (2) in
+let m = %int_shift.`lsl` (x, s2) in
+let s = %int_barith.`add` (m, l) in
+let y = %int_barith.`add` (s, a) in
+let $camlInt_shift = Block 0 (x, y) in
+cont done ($camlInt_shift)
