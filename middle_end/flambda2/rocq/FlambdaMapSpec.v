@@ -104,11 +104,21 @@
    each a variable or a symbol. The module [Keyed], in the second half
    of this file, is for those: it has every definition on names again,
    for keys of any type [K].
-   - Each takes the equality test of the keys, [eqb : K -> K -> bool],
-     as its first argument, and is otherwise the definition on names
-     with [eqb] where that has [Pos.eqb]. [Keyed.lookup Z.eqb tag cases]
-     is the first case of a tag, and [Keyed.inter Z.eqb] the numbers of
-     both of two sets.
+   - Each one that compares keys takes the equality test of the keys,
+     [eqb : K -> K -> bool], as its first argument, and is otherwise the
+     definition on names with [eqb] where that has [Pos.eqb].
+     [Keyed.lookup Z.eqb tag cases] is the first case of a tag, and
+     [Keyed.inter Z.eqb] the numbers of both of two sets. Those that
+     compare no keys take no test: [Keyed.finite_map],
+     [Keyed.map_values], [Keyed.tabulate] and [Keyed.is_empty].
+   - Use one test for each type of key, named once, with the proof that
+     it decides equality: [Pos.eqb] and [Pos.eqb_eq] for names, [Z.eqb]
+     and [Z.eqb_eq] for integers, and for another type of key a test
+     defined beside the type. The definitions accept any test. The
+     statements speak only of one that decides equality; and two such
+     tests, though they agree on every pair of keys, are two terms, so
+     that a lemma used with one does not apply as it stands to a
+     definition written with the other.
    - The statements about [Keyed] are the statements about names, for
      every [K] and every [eqb] that tells whether two keys are the same
      ([decides_equality]), as [Pos.eqb] and [Z.eqb] do. Nothing is

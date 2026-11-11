@@ -467,9 +467,14 @@ a fragment at a time. The files follow the same Spec/Proofs split, and
   look.
 - Maps and sets keyed by something that is not a name (tags and numbers,
   which are integers; the names of the types) are the same definitions
-  again, in the module `Keyed` of `FlambdaMapSpec.v`. Each takes the
-  equality test of the keys as its first argument:
+  again, in the module `Keyed` of `FlambdaMapSpec.v`. Those that compare
+  keys take the equality test of the keys as their first argument:
   `Keyed.lookup Z.eqb tag cases`, `Keyed.inter Z.eqb`, `Keyed.merge Z.eqb`.
+  Those that compare none take none (`Keyed.finite_map`,
+  `Keyed.map_values`, `Keyed.tabulate`, `Keyed.is_empty`). Use one test
+  for each type of key, always the same: `Pos.eqb` for names, `Z.eqb` for
+  integers, and for another type of key one defined beside the type with
+  its proof of `decides_equality`.
   Their lemmas are the `keyed_...` of `FlambdaMapProofs.v`; one that
   depends on the test takes a proof that it decides equality (`Z.eqb_eq`,
   `Pos.eqb_eq`). The definitions on names are those of `Keyed` at
