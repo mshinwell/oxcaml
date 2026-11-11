@@ -27,7 +27,7 @@
 (executable
  (name types_difftest)
  (modes native)
- (modules type_generator types_difftest)
+ (modules type_comparisons type_generator types_difftest)
  (libraries
   ocamlfrontend
   ocamloptcomp
