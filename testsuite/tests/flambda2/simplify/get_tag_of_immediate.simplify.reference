@@ -1,0 +1,117 @@
+let code which_0 deleted in
+let code pick_1 deleted in
+let code tag_of_parameter_2 deleted in
+let code tag_of_constant_3 deleted in
+let code switch_on_tag_of_parameter_4 deleted in
+let code switch_on_tag_of_constant_5 deleted in
+let code inline(always) loopify(never) size(18) newer_version_of(which_0)
+      which_0_1 (w : imm tagged, x : val)
+        my_closure &my_alloc_region my_depth
+        -> k * k1
+        : imm tagged =
+  (let untagged = %untag_imm (w) in
+   switch untagged
+     | 0 -> k (0)
+     | 1 -> k2)
+    where k2 =
+      let prim = %get_tag (x) in
+      let tagged_scrutinee = %tag_imm (prim) in
+      let final_arg = %int_barith.add (1, tagged_scrutinee) in
+      cont k (final_arg)
+in
+let $camlGet_tag_of_immediate__which_1 = closure which_0_1 @which &toplevel
+in
+let code inline(always) loopify(never) size(46) newer_version_of(pick_1)
+      pick_1_1 (w : imm tagged, x : val, f : val)
+        my_closure &my_alloc_region my_depth
+        -> k * k1
+        : imm tagged =
+  (let untagged = %untag_imm (w) in
+   switch untagged
+     | 0 -> k (0)
+     | 1 -> k2)
+    where k2 =
+      ((let prim = %get_tag (x) in
+        switch prim
+          | 0 -> k2
+          | 1 -> k3
+          | 2 -> k4)
+         where k4 =
+           apply &my_alloc_region f (3) -> k * k1
+         where k3 =
+           apply &my_alloc_region f (2) -> k * k1
+         where k2 =
+           apply &my_alloc_region f (1) -> k * k1)
+in
+let $camlGet_tag_of_immediate__pick_2 = closure pick_1_1 @pick &toplevel in
+let code loopify(never) size(11) newer_version_of(tag_of_parameter_2)
+      tag_of_parameter_2_1 (w : imm tagged, n : imm tagged)
+        my_closure &my_alloc_region my_depth
+        -> k * k1
+        : imm tagged =
+  (let untagged = %untag_imm (w) in
+   switch untagged
+     | 0 -> k (0)
+     | 1 -> k2)
+    where k2 =
+      invalid
+in
+let $camlGet_tag_of_immediate__tag_of_parameter_3 =
+  closure tag_of_parameter_2_1 @tag_of_parameter &toplevel
+in
+let code loopify(never) size(11) newer_version_of(tag_of_constant_3)
+      tag_of_constant_3_1 (w : imm tagged)
+        my_closure &my_alloc_region my_depth
+        -> k * k1
+        : imm tagged =
+  (let untagged = %untag_imm (w) in
+   switch untagged
+     | 0 -> k (0)
+     | 1 -> k2)
+    where k2 =
+      invalid
+in
+let $camlGet_tag_of_immediate__tag_of_constant_4 =
+  closure tag_of_constant_3_1 @tag_of_constant &toplevel
+in
+let code loopify(never) size(11) newer_version_of(switch_on_tag_of_parameter_4)
+      switch_on_tag_of_parameter_4_1
+        (w : imm tagged, n : imm tagged, f : val)
+        my_closure &my_alloc_region my_depth
+        -> k * k1
+        : imm tagged =
+  (let untagged = %untag_imm (w) in
+   switch untagged
+     | 0 -> k (0)
+     | 1 -> k2)
+    where k2 =
+      invalid
+in
+let $camlGet_tag_of_immediate__switch_on_tag_of_parameter_5 =
+  closure switch_on_tag_of_parameter_4_1 @switch_on_tag_of_parameter
+    &toplevel
+in
+let code loopify(never) size(11) newer_version_of(switch_on_tag_of_constant_5)
+      switch_on_tag_of_constant_5_1 (w : imm tagged, f : val)
+        my_closure &my_alloc_region my_depth
+        -> k * k1
+        : imm tagged =
+  (let untagged = %untag_imm (w) in
+   switch untagged
+     | 0 -> k (0)
+     | 1 -> k2)
+    where k2 =
+      invalid
+in
+let $camlGet_tag_of_immediate__switch_on_tag_of_constant_6 =
+  closure switch_on_tag_of_constant_5_1 @switch_on_tag_of_constant &toplevel
+in
+let $camlGet_tag_of_immediate =
+  Block 0 ($camlGet_tag_of_immediate__which_1,
+           $camlGet_tag_of_immediate__pick_2,
+           $camlGet_tag_of_immediate__tag_of_parameter_3,
+           $camlGet_tag_of_immediate__tag_of_constant_4,
+           $camlGet_tag_of_immediate__switch_on_tag_of_parameter_5,
+           $camlGet_tag_of_immediate__switch_on_tag_of_constant_6)
+in
+cont done ($camlGet_tag_of_immediate)

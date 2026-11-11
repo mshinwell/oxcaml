@@ -252,8 +252,34 @@ let simplify_is_int ~variant_only dacc ~original_term ~arg:scrutinee
 
 let simplify_get_tag dacc ~original_term ~arg:scrutinee ~arg_ty:scrutinee_ty
     ~result_var =
-  simplify_relational_primitive dacc ~original_term ~scrutinee ~scrutinee_ty
-    ~result_var ~add_relation:TE.add_get_tag_relation
+  (* CR mshinwell: This is provisional ("for now"). [Get_tag] reads the header
+     of its argument, so here it is made [Invalid] when the argument is known to
+     be a tagged immediate: a constant, or a name whose type has no blocks.
+     Nothing changes when the argument may be a block.
+
+     Code using GADTs puts [Get_tag] of an immediate in branches that are never
+     executed (a match on a variant with no constant constructors, in a function
+     inlined where the GADT's index is a type of immediates): see
+     testsuite/tests/flambda2/simplify/get_tag_of_immediate.ml. Before this the
+     primitive was left in the term when the argument was a constant, and when
+     its result was used in arithmetic and not in a [Switch]. The Rocq model of
+     Flambda 2 (middle_end/flambda2/rocq) gives [Get_tag] of an immediate no
+     meaning (its decision D5).
+
+     This concerns the primitive only. The [Get_tag] relation that
+     [TE.add_get_tag_relation] records is still recorded on names that may be
+     immediates (unboxing does so, and passes tag 0 where a constant constructor
+     is passed).
+
+     The other primitives that read through their argument and are left in the
+     term when it is an immediate have not been changed: [Get_header],
+     [Block_set], [Block_load] of a mutable field, and the array loads and
+     sets. *)
+  match T.prove_is_int (DA.typing_env dacc) scrutinee_ty with
+  | Proved true -> SPR.create_invalid dacc
+  | Proved false | Unknown ->
+    simplify_relational_primitive dacc ~original_term ~scrutinee ~scrutinee_ty
+      ~result_var ~add_relation:TE.add_get_tag_relation
 
 let simplify_array_length _array_kind dacc ~original_term ~arg:_
     ~arg_ty:array_ty ~result_var =
