@@ -360,6 +360,9 @@ says so. Only the labels that this tree cites are listed.
 - **T6-1.** A prover answers what the environment says of a name, which
   is not true of a name that holds poison (one case reaches a number
   that is not poison).
+- **T6-2.** The grammar of the model has a type of naked numbers at the
+  kind of the immediates, of which four provers answer that it has no
+  value.
 - **T7-4.** The meet of a type with an `is_null` variable and a type
   that settles it forgets the variable.
 - **V2-2.** The fexpr printer drops the kinds of the fields of a
