@@ -2713,3 +2713,155 @@ Proof.
   - rewrite Hkinds in Hkinds'.
     destruct (mixed_kinds_inj _ _ _ _ Hkinds') as [-> ->]. reflexivity.
 Qed.
+
+(* ======================================================================== *)
+(* What meet and the joins read of a type                                   *)
+(* ======================================================================== *)
+
+Theorem heads_of_meet : heads_of_meet_statement.
+Proof. split; [ reflexivity | intros imm; reflexivity ]. Qed.
+
+Theorem block_shape_element_kind_field
+  : block_shape_element_kind_field_statement.
+Proof.
+  intros shape tag fields index field k [_ Hkinds] Hfield Hkind.
+  apply (map_nth_error kind_of_value) in Hfield. rewrite Hkinds in Hfield.
+  destruct shape as [[ | prefix suffix] | ]; simpl in Hkind, Hfield.
+  - injection Hkind as <-. apply nth_error_In, repeat_spec in Hfield.
+    exact Hfield.
+  - destruct (Nat.ltb index prefix) eqn:Hlt.
+    + injection Hkind as <-. apply Nat.ltb_lt in Hlt.
+      rewrite nth_error_app1 in Hfield by (rewrite repeat_length; exact Hlt).
+      apply nth_error_In, repeat_spec in Hfield. exact Hfield.
+    + apply Nat.ltb_ge in Hlt.
+      rewrite nth_error_app2 in Hfield by (rewrite repeat_length; exact Hlt).
+      rewrite repeat_length, nth_error_map in Hfield. congruence.
+  - injection Hkind as <-. apply nth_error_In, repeat_spec in Hfield.
+    exact Hfield.
+Qed.
+
+Lemma simple_must_be_const_eval (vars : env) (s : simple) (c : const)
+    (v : value) :
+  simple_must_be_const s = Some c ->
+  eval_simple vars s = Some v -> v = Value_const c.
+Proof.
+  destruct s as [x | sym | c']; simpl; try discriminate.
+  intros [= ->] [= <-]. reflexivity.
+Qed.
+
+(* A constant of a kind of naked numbers is the constant of its
+   number. *)
+Lemma const_of_its_number (k : naked_number_kind) (c : const) (n : Z) :
+  kind_of_const c = Naked_number k ->
+  number_of_const c = Some n -> c = const_of_naked_number k n.
+Proof.
+  destruct c; simpl; try discriminate; intros [= <-] [= <-]; reflexivity.
+Qed.
+
+(* The one number of a set that has one. *)
+Lemma get_singleton_member (numbers : list Z) (i j : Z) :
+  Keyed.get_singleton Z.eqb numbers = Some i -> j ∈ numbers -> j = i.
+Proof.
+  intros Hsingleton Hin.
+  pose proof (proj1 (keyed_get_singleton Z Z.eqb Z.eqb_eq i numbers)
+                Hsingleton j)
+    as Hamong.
+  apply (keyed_among_in Z Z.eqb Z.eqb_eq) in Hin.
+  rewrite Hamong in Hin. apply Z.eqb_eq in Hin. exact Hin.
+Qed.
+
+Lemma must_be_singleton_satisfied_all (statics : static_env) (vars : env) :
+  (∀ (t : flambda_type) (v : value) (c : const),
+    must_be_singleton t = Some (Some c) ->
+    type_satisfied statics vars v t -> v = Value_const c)
+  ∧ (∀ (head : head_of_kind_value) (v : value) (c : const),
+      must_be_singleton (Type_value (Ok (No_alias head))) = Some (Some c) ->
+      head_of_kind_value_satisfied statics vars v head -> v = Value_const c)
+  ∧ (∀ (head : head_of_kind_value_non_null) (v : value) (c : const),
+      must_be_singleton (non_null_value head) = Some (Some c) ->
+      head_of_kind_value_non_null_satisfied statics vars v head ->
+      v = Value_const c)
+  ∧ (∀ blocks : row_like_for_blocks, True)
+  ∧ (∀ closures : row_like_for_closures, True)
+  ∧ (∀ entry : closures_entry, True)
+  ∧ (∀ extension : env_extension, True).
+Proof.
+  apply types_induction; try (intros; exact I).
+  - (* Type_value *)
+    intros ty Hhead v c. destruct ty as [ | [head | s] | ].
+    + discriminate.
+    + autorewrite with type_satisfied. exact (Hhead v c).
+    + simpl must_be_singleton. intros [= Hconst].
+      autorewrite with type_satisfied. intros [Hs _].
+      exact (simple_must_be_const_eval vars s c v Hconst Hs).
+    + discriminate.
+  - (* Type_naked_immediate *)
+    intros ty v c. destruct ty as [ | [head | s] | ].
+    + discriminate.
+    + simpl must_be_singleton.
+      destruct (naked_immediates head) as [numbers | ] eqn:Hnumbers;
+        [ | discriminate ].
+      destruct (Keyed.get_singleton Z.eqb numbers) as [i | ] eqn:Hsingleton;
+        [ | discriminate ].
+      intros [= <-]. autorewrite with type_satisfied.
+      intros [j [-> [Hin _]]]. rewrite Hnumbers in Hin.
+      rewrite (get_singleton_member numbers i j Hsingleton Hin). reflexivity.
+    + simpl must_be_singleton. intros [= Hconst].
+      autorewrite with type_satisfied. intros [Hs _].
+      exact (simple_must_be_const_eval vars s c v Hconst Hs).
+    + discriminate.
+  - (* Type_naked_number *)
+    intros k ty v c. destruct ty as [ | [numbers | s] | ].
+    + discriminate.
+    + simpl must_be_singleton.
+      destruct (Keyed.get_singleton Z.eqb numbers) as [i | ] eqn:Hsingleton;
+        [ | discriminate ].
+      intros [= <-]. autorewrite with type_satisfied.
+      intros [c' [n [-> [Hkind [Hnumber Hin]]]]].
+      rewrite (const_of_its_number k c' n Hkind Hnumber),
+        (get_singleton_member numbers i n Hsingleton Hin).
+      reflexivity.
+    + simpl must_be_singleton. intros [= Hconst].
+      autorewrite with type_satisfied. intros [Hs _].
+      exact (simple_must_be_const_eval vars s c v Hconst Hs).
+    + discriminate.
+  - intros ty v c. discriminate.
+  - intros ty v c. discriminate.
+  - (* Head_of_kind_value *)
+    intros non_null is_null Hnon_null v c.
+    destruct non_null as [ | head | ]; try discriminate.
+    destruct is_null as [ | x]; [ | destruct head; discriminate ].
+    rewrite head_of_kind_value_satisfied_eq.
+    intros Hsingle [[_ []] | [_ [Hhead _]]].
+    exact (Hnon_null v c Hsingle Hhead).
+  - (* Variant *)
+    intros is_int immediates get_tag blocks extensions is_unique Himmediates
+      _ _ v c.
+    unfold non_null_value. simpl must_be_singleton.
+    destruct blocks as [blocks | ]; [ | discriminate ].
+    destruct (row_like_for_blocks_is_bottom blocks) eqn:Hbottom; simpl;
+      [ | discriminate ].
+    destruct immediates as [imm | ]; [ | discriminate ].
+    destruct (must_be_singleton imm) as [[c' | ] | ] eqn:Hsingle;
+      try discriminate.
+    intros Hc. rewrite variant_satisfied.
+    intros [[i [-> [_ [Himm _]]]] | [tag [fields [_ [_ [_ [Hrow _]]]]]]].
+    + pose proof (Himmediates _ c' eq_refl Himm) as Hsame.
+      injection Hsame as <-. injection Hc as <-. reflexivity.
+    + destruct (row_like_for_blocks_is_bottom_satisfied statics vars tag
+                  fields blocks Hbottom Hrow).
+  - (* Mutable_block *)
+    intros alloc_mode v c. discriminate.
+  - (* Boxed_number *)
+    intros k contents alloc_mode _ v c. discriminate.
+  - (* Closures *)
+    intros by_function_slot alloc_mode _ v c. discriminate.
+  - (* String *)
+    intros strs v c. discriminate.
+Qed.
+
+Theorem must_be_singleton_satisfied : must_be_singleton_satisfied_statement.
+Proof.
+  intros statics vars v t c.
+  exact (proj1 (must_be_singleton_satisfied_all statics vars) t v c).
+Qed.

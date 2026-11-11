@@ -1445,3 +1445,35 @@ Definition block_shapes_disjoint_statement : Prop :=
     block_has_shape shape tag fields ->
     block_has_shape shape' tag fields ->
     shape = shape'.
+
+(* ======================================================================== *)
+(* What meet and the joins read of a type                                   *)
+(* ======================================================================== *)
+
+(* The constant that [must_be_singleton] answers is the only value of
+   the type. The relations of a naked immediate are not looked at, and
+   need not be: they take values away. *)
+Definition must_be_singleton_satisfied_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (v : value) (t : flambda_type)
+    (c : const),
+    must_be_singleton t = Some (Some c) ->
+    type_satisfied statics vars v t ->
+    v = Value_const c.
+
+(* The two heads that meet makes are those of [null] and of the type
+   of one tagged immediate. *)
+Definition heads_of_meet_statement : Prop :=
+  Type_value (Ok (No_alias head_of_kind_value_null)) = null
+  ∧ ∀ imm : Z,
+      Type_value (Ok (No_alias (head_of_kind_value_tagged_immediate imm)))
+      = tag_immediate (this_naked_immediate imm).
+
+(* The field of a block of a shape, at an index, is of the kind that
+   the shape gives the index. *)
+Definition block_shape_element_kind_field_statement : Prop :=
+  ∀ (shape : block_shape) (tag : Z) (fields : list value) (index : nat)
+    (field : value) (k : flambda_kind),
+    block_has_shape shape tag fields ->
+    nth_error fields index = Some field ->
+    block_shape_element_kind shape index = Some k ->
+    kind_of_value field = k.

@@ -1042,3 +1042,157 @@ with aliases_of_env_extension (extension : env_extension)
   | Env_extension equations =>
     flat_map (fun binding => aliases_with_kinds (snd binding)) equations
   end.
+
+(* ======================================================================== *)
+(* What meet and the joins use of the grammar                               *)
+(* ======================================================================== *)
+
+(* Definitions that the workstreams of meet and of the joins wrote
+   against the compiler and that belong here; they are under the names
+   those workstreams gave them. *)
+
+(* [Flambda_kind.Block_shape.element_kind]: the kind of the field at an
+   index of a block of a shape. [None] is the exception of the
+   compiler for an index outside the fields of a mixed shape. *)
+Definition block_shape_element_kind (shape : block_shape) (index : nat)
+    : option flambda_kind :=
+  match shape with
+  | Scannable Value_only => Some Value
+  | Scannable (Mixed_record value_prefix_size flat_suffix) =>
+    if Nat.ltb index value_prefix_size
+    then Some Value
+    else
+      option_map Naked_number
+        (nth_error flat_suffix (index - value_prefix_size))
+  | Float_record => Some (Naked_number Kind_naked_float)
+  end.
+
+(* [Reg_width_const.naked_immediate], [naked_float32], ...: the constant
+   that a number of a kind is. *)
+Definition const_of_naked_number (k : naked_number_kind) (i : Z) : const :=
+  match k with
+  | Kind_naked_immediate => Naked_immediate i
+  | Kind_naked_float32 => Naked_float32 i
+  | Kind_naked_float => Naked_float i
+  | Kind_naked_int8 => Naked_int8 i
+  | Kind_naked_int16 => Naked_int16 i
+  | Kind_naked_int32 => Naked_int32 i
+  | Kind_naked_int64 => Naked_int64 i
+  | Kind_naked_nativeint => Naked_nativeint i
+  | Kind_naked_vec128 => Naked_vec128 i
+  | Kind_naked_vec256 => Naked_vec256 i
+  | Kind_naked_vec512 => Naked_vec512 i
+  | Kind_naked_mask => Naked_mask i
+  end.
+
+(* [Simple.must_be_const]. *)
+Definition simple_must_be_const (s : simple) : option const :=
+  match s with
+  | Const c => Some c
+  | Var _ | Symbol _ => None
+  end.
+
+(* [Type_grammar.must_be_singleton]: the constant that a type has for
+   only value, if the type shows it. The outer [None] is a fatal error
+   of the compiler ("Immediates case returned wrong kind of constant").
+   A set of numbers is a list here, and has one number if all its
+   numbers are the same one ([Keyed.get_singleton]). *)
+Fixpoint must_be_singleton (t : flambda_type) : option (option const) :=
+  match t with
+  | Type_value ty =>
+    match ty with
+    | Unknown | Bottom => Some None
+    | Ok (Equals simple) => Some (simple_must_be_const simple)
+    | Ok
+        (No_alias
+           (Head_of_kind_value (Ok (Variant _ immediates _ blocks _ _))
+              Not_null)) =>
+      match blocks with
+      | Or_unknown.Unknown => Some None
+      | Or_unknown.Known blocks =>
+        if negb (row_like_for_blocks_is_bottom blocks)
+        then Some None
+        else
+          match immediates with
+          | Or_unknown.Unknown => Some None
+          | Or_unknown.Known immediates =>
+            match must_be_singleton immediates with
+            | None => None
+            | Some None => Some None
+            | Some (Some (Naked_immediate i)) =>
+              Some (Some (Tagged_immediate i))
+            | Some (Some (Poison (Naked_number Kind_naked_immediate))) =>
+              Some (Some (Poison Value))
+            | Some (Some _) => None
+            end
+          end
+      end
+    | Ok (No_alias _) => Some None
+    end
+  | Type_naked_immediate ty =>
+    match ty with
+    | Unknown | Bottom => Some None
+    | Ok (Equals simple) => Some (simple_must_be_const simple)
+    | Ok (No_alias head) =>
+      match naked_immediates head with
+      | Or_unknown.Unknown => Some None
+      | Or_unknown.Known numbers =>
+        Some (option_map Naked_immediate (Keyed.get_singleton Z.eqb numbers))
+      end
+    end
+  | Type_naked_number k ty =>
+    match ty with
+    | Unknown | Bottom => Some None
+    | Ok (Equals simple) => Some (simple_must_be_const simple)
+    | Ok (No_alias numbers) =>
+      Some
+        (option_map (const_of_naked_number k)
+           (Keyed.get_singleton Z.eqb numbers))
+    end
+  | Type_rec_info _ | Type_region _ => Some None
+  end.
+
+(* [Type_grammar.Head_of_kind_value.null]: the head of [null]. *)
+Definition head_of_kind_value_null : head_of_kind_value :=
+  Head_of_kind_value Bottom (Maybe_null None).
+
+(* [Type_grammar.Head_of_kind_value.create_tagged_immediate]: the head
+   of [tag_immediate (this_naked_immediate imm)]. *)
+Definition head_of_kind_value_tagged_immediate (imm : Z)
+    : head_of_kind_value :=
+  Head_of_kind_value
+    (Ok
+       (Variant None (Or_unknown.Known (this_naked_immediate imm)) None
+          (Or_unknown.Known row_like_for_blocks_bottom) No_extensions false))
+    Not_null.
+
+(* [Set_of_closures_contents.equal], [subset], [union] and [inter]. A
+   set of slots is a list, compared as a set. *)
+Definition set_of_closures_contents_equal
+    (contents contents' : set_of_closures_contents) : bool :=
+  Keyed.same_keys_b Pos.eqb (contents_closures contents)
+    (contents_closures contents')
+  && Keyed.same_keys_b Pos.eqb (contents_value_slots contents)
+       (contents_value_slots contents').
+
+Definition set_of_closures_contents_subset
+    (contents contents' : set_of_closures_contents) : bool :=
+  all_among (contents_closures contents) (contents_closures contents')
+  && all_among (contents_value_slots contents)
+       (contents_value_slots contents').
+
+Definition set_of_closures_contents_union
+    (contents contents' : set_of_closures_contents)
+    : set_of_closures_contents :=
+  Set_of_closures_contents
+    (dedup (contents_closures contents ++ contents_closures contents'))
+    (dedup (contents_value_slots contents ++ contents_value_slots contents')).
+
+Definition set_of_closures_contents_inter
+    (contents contents' : set_of_closures_contents)
+    : set_of_closures_contents :=
+  Set_of_closures_contents
+    (Keyed.inter Pos.eqb (contents_closures contents)
+       (contents_closures contents'))
+    (Keyed.inter Pos.eqb (contents_value_slots contents)
+       (contents_value_slots contents')).
