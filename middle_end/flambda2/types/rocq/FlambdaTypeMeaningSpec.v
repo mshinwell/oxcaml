@@ -420,6 +420,10 @@ Definition is_poison (v : value) : Prop :=
    parameter, and no meet of its type to bottom, is reachable where
    it holds poison, and nothing in the compiler checks that.
    Decision D26. *)
+(* CR mshinwell: [Is_null] relates poison to 0, which is the compiler's
+   reading of a poison constant ([Reg_width_const.is_null]); the
+   primitive has no value on poison in the machine. Whether it is to
+   have one is open. Decision D8. *)
 Definition relation_holds (statics : static_env) (relation : Relation.t)
     (v : value) (n : Z) : Prop :=
   match relation with
@@ -602,6 +606,13 @@ Definition closures_case_satisfied
   ∧ env_extension_satisfied (case_env_extension case).
 
 (* A value has a type. *)
+(* CR mshinwell: a poison value has no type here that says what it is:
+   no type of a variant, of a boxed number, of a closure or of a
+   string. Unboxing records such types of parameters that hold poison
+   on some paths, and what satisfies an environment is to set those
+   names aside. The other way, that poison has every type of its kind,
+   would let an alias put another value where poison was. Decision
+   D26. *)
 Fixpoint type_satisfied (v : value) (t : flambda_type) {struct t} : Prop :=
   match t with
   | Type_value ty =>
@@ -729,6 +740,13 @@ with row_like_for_closures_satisfied (v : value) (slot : function_slot)
    closures of the set and the value slots have the types given: each
    if the set has it. What the set has is for the index of the case to
    say, not for the entry. *)
+(* CR mshinwell: the code of a function type is the very code of the
+   closure. The compiler means that code or a newer version of it
+   ([Code_age_relation]), so a closure made with a newer version has
+   not, here, the type that names the older one. It is to be put right
+   with the calls (workstream S4); until then what is stated of meet,
+   join and the provers leaves out the types that name code. No
+   decision has a number. *)
 with closures_entry_satisfied (v : value) (slot : function_slot)
     (functions : list (function_slot * code_id))
     (value_slots : list (value_slot * value)) (entry : closures_entry)
@@ -1241,6 +1259,13 @@ Definition relation_is_int_statement : Prop :=
     ∨ (n = 0%Z ∧ type_satisfied statics vars w any_block)
     ∨ is_poison w.
 
+(* CR mshinwell: this is less than [reduce_inverse_relations] concludes,
+   in both implementations of meet: it makes the value a block with one
+   of the tags. Here the value may be an immediate, because unboxing
+   records the relation, with the tag 0, of a parameter that is one on
+   some paths. Either the reduction is wrong where such a relation
+   reaches it, or something that is not written down keeps it from
+   doing so. No decision has a number; discrepancies T1-1 and R3-2. *)
 Definition relation_get_tag_statement : Prop :=
   ∀ (statics : static_env) (vars : env) (w : value) (n : Z)
     (tags : list Z) (alloc_mode : Alloc_mode.t),
