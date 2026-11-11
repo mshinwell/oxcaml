@@ -899,6 +899,173 @@ Proof.
       right. rewrite Hlevels. apply in_or_app. left. exact Hin.
 Qed.
 
+(* The levels that [cut_loop] goes through are the first of those that
+   it is given, each of a scope after the one given; the next, if there
+   is one, is not. *)
+Lemma cut_loop_taken (cut_after : Scope.t)
+    (levels : list Typing_env.One_level.t) :
+  ∀ result level : Typing_env_level.t,
+    Typing_env.cut_loop cut_after result levels = Some level ->
+    ∃ taken rest : list Typing_env.One_level.t,
+      levels = taken ++ rest
+      ∧ (∀ one_level : Typing_env.One_level.t,
+          one_level ∈ taken ->
+          cut_after < Typing_env.One_level.scope one_level)
+      ∧ match rest with
+        | [] => True
+        | one_level :: _ => Typing_env.One_level.scope one_level <= cut_after
+        end
+      ∧ Typing_env_level.defined_vars level
+        = Typing_env_level.defined_vars result
+          ++ flat_map Typing_env_level.defined_vars
+               (map Typing_env.One_level.level taken).
+Proof.
+  induction levels as [ | one_level levels IH]; intros result level.
+  - intros [= <-]. exists [], []. simpl. rewrite app_nil_r.
+    split; [ reflexivity | ]. split; [ intros l [] | ].
+    split; [ exact I | reflexivity ].
+  - simpl.
+    destruct (cut_after <? Typing_env.One_level.scope one_level) eqn:Hscope.
+    + destruct (Typing_env_level.concat
+                  (Typing_env.One_level.level one_level) result)
+        as [result' | ] eqn:Hconcat; [ | discriminate ].
+      simpl. intros Hloop.
+      destruct (IH result' level Hloop)
+        as [taken [rest [Hlevels [Hafter [Hrest Hdefined]]]]].
+      apply concat_some in Hconcat. subst result'. simpl in Hdefined.
+      exists (one_level :: taken), rest.
+      split; [ rewrite Hlevels; reflexivity | ].
+      split;
+        [ intros l [<- | Hin];
+          [ apply Z.ltb_lt; exact Hscope | exact (Hafter l Hin) ]
+        | ].
+      split; [ exact Hrest | ].
+      simpl. rewrite Hdefined, <- app_assoc. reflexivity.
+    + intros [= <-]. exists [], (one_level :: levels). simpl.
+      rewrite app_nil_r.
+      split; [ reflexivity | ]. split; [ intros l [] | ].
+      split; [ apply Z.ltb_ge; exact Hscope | reflexivity ].
+Qed.
+
+(* The first of scopes that decrease is greater than the others. *)
+Lemma scopes_decreasing_head (scopes : list Scope.t) :
+  ∀ later : Scope.t,
+    scopes_decreasing (later :: scopes) ->
+    ∀ earlier : Scope.t, earlier ∈ scopes -> earlier < later.
+Proof.
+  induction scopes as [ | s scopes IH];
+    intros later [Hhead Hrest] earlier Hin; [ destruct Hin | ].
+  destruct Hin as [<- | Hin]; [ exact Hhead | ].
+  pose proof (IH s Hrest earlier Hin). lia.
+Qed.
+
+Lemma scopes_decreasing_suffix (scopes scopes' : list Scope.t) :
+  scopes_decreasing (scopes ++ scopes') -> scopes_decreasing scopes'.
+Proof.
+  induction scopes as [ | s scopes IH]; [ exact (fun H => H) | ].
+  intros [_ Hrest]. exact (IH Hrest).
+Qed.
+
+Lemma levels_pairwise_disjoint_prefix
+    (levels levels' : list Typing_env_level.t) :
+  levels_pairwise_disjoint (levels ++ levels') ->
+  levels_pairwise_disjoint levels.
+Proof.
+  induction levels as [ | level levels IH]; [ intros _; exact I | ].
+  intros [Hhead Hrest]. split; [ | exact (IH Hrest) ].
+  intros earlier Hin. apply Hhead. apply in_or_app. left. exact Hin.
+Qed.
+
+(* What one of several disjoint levels defines is found in what they
+   define together. *)
+Lemma lookup_flat_map_disjoint (levels : list Typing_env_level.t)
+    (level : Typing_env_level.t) (x : variable) (k : flambda_kind) :
+  levels_pairwise_disjoint levels ->
+  level ∈ levels ->
+  lookup x (Typing_env_level.defined_vars level) = Some k ->
+  lookup x (flat_map Typing_env_level.defined_vars levels) = Some k.
+Proof.
+  induction levels as [ | later levels IH]; intros Hdisjoint Hin Hlookup;
+    [ destruct Hin | ].
+  destruct Hdisjoint as [Hhead Hrest]. simpl. rewrite lookup_app.
+  destruct Hin as [-> | Hin]; [ rewrite Hlookup; reflexivity | ].
+  destruct (Hhead level Hin) as [Hvars _].
+  assert (Hbound : is_bound x (Typing_env_level.defined_vars level) = true).
+  { apply is_bound_lookup. exists k. exact Hlookup. }
+  pose proof (Hvars x Hbound) as Hnot. unfold is_bound in Hnot.
+  destruct (lookup x (Typing_env_level.defined_vars later));
+    [ discriminate | ].
+  exact (IH Hrest Hin Hlookup).
+Qed.
+
+Theorem cut_defined_variables : cut_defined_variables_statement.
+Proof.
+  intros tenv cut_after level x k Hwf.
+  apply typing_env_well_formed_iff in Hwf.
+  destruct Hwf as [_ [[Hdisjoint [_ [_ [_ [_ [Hscopes _]]]]]] _]].
+  unfold Typing_env.cut.
+  destruct (Typing_env.current_scope tenv <=? cut_after) eqn:Hscope.
+  - (* No level is after the scope. *)
+    intros [= <-]. split; [ discriminate | ].
+    intros [one_level [Hin [Hafter _]]]. exfalso.
+    apply Z.leb_le in Hscope. unfold Typing_env.current_scope in Hscope.
+    destruct Hin as [<- | Hin]; [ lia | ].
+    pose proof (scopes_decreasing_head _ _ Hscopes
+                  (Typing_env.One_level.scope one_level)
+                  (in_map Typing_env.One_level.scope _ _ Hin)).
+    lia.
+  - intros Hloop. apply Z.leb_gt in Hscope.
+    unfold Typing_env.current_scope in Hscope.
+    destruct (cut_loop_taken _ _ _ _ Hloop)
+      as [taken [rest [Hlevels [Hafter [Hrest Hvars]]]]].
+    (* The current level and the levels gone through are disjoint. *)
+    assert (Hprefix :
+      levels_pairwise_disjoint
+        (Typing_env.One_level.level (Typing_env.current_level tenv)
+         :: map Typing_env.One_level.level taken)).
+    { apply (levels_pairwise_disjoint_prefix
+               (_ :: map Typing_env.One_level.level taken)
+               (map Typing_env.One_level.level rest)).
+      unfold all_levels in Hdisjoint. simpl in Hdisjoint.
+      rewrite Hlevels, map_app in Hdisjoint. exact Hdisjoint. }
+    change (Typing_env_level.defined_vars level
+            = flat_map Typing_env_level.defined_vars
+                (Typing_env.One_level.level (Typing_env.current_level tenv)
+                 :: map Typing_env.One_level.level taken)) in Hvars.
+    rewrite Hvars. split.
+    + intros Hlookup.
+      destruct (lookup_flat_map _ x k _ Hlookup) as [l [Hin Hl]].
+      destruct Hin as [<- | Hin].
+      * exists (Typing_env.current_level tenv).
+        split; [ left; reflexivity | ]. split; [ exact Hscope | exact Hl ].
+      * apply in_map_iff in Hin. destruct Hin as [one_level [<- Hin]].
+        exists one_level.
+        split; [ right; rewrite Hlevels; apply in_or_app; left; exact Hin | ].
+        split; [ exact (Hafter one_level Hin) | exact Hl ].
+    + intros [one_level [Hin [Hafter' Hl]]].
+      apply (lookup_flat_map_disjoint _
+               (Typing_env.One_level.level one_level) x k Hprefix);
+        [ | exact Hl ].
+      destruct Hin as [<- | Hin]; [ left; reflexivity | right ].
+      rewrite Hlevels in Hin. apply in_app_or in Hin.
+      destruct Hin as [Hin | Hin]; [ apply in_map; exact Hin | exfalso ].
+      (* A level that was not gone through is not after the scope. *)
+      destruct rest as [ | first rest]; [ destruct Hin | ].
+      assert (Hdecreasing :
+        scopes_decreasing
+          (map Typing_env.One_level.scope (first :: rest))).
+      { apply (scopes_decreasing_suffix
+                 (Typing_env.One_level.scope (Typing_env.current_level tenv)
+                  :: map Typing_env.One_level.scope taken)).
+        unfold all_scopes in Hscopes. simpl in Hscopes.
+        rewrite Hlevels, map_app in Hscopes. exact Hscopes. }
+      destruct Hin as [<- | Hin]; [ lia | ].
+      pose proof (scopes_decreasing_head _ _ Hdecreasing
+                    (Typing_env.One_level.scope one_level)
+                    (in_map Typing_env.One_level.scope _ _ Hin)).
+      lia.
+Qed.
+
 (* What the concatenation of two disjoint levels has at a binding
    time. *)
 Lemma concat_indexed_at (earlier later result : Typing_env_level.t)

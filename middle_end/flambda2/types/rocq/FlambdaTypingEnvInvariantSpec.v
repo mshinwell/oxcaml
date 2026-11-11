@@ -882,6 +882,24 @@ Definition cut_defined_variables_found_statement : Prop :=
       = Some (ty, binding_time_and_mode)
       ∧ kind ty = k.
 
+(* The variables that the level that [Typing_env.cut] answers defines
+   are those that the levels after the scope define, each with the
+   kind that its level has for it. *)
+Definition cut_defined_variables_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (cut_after : Scope.t) (level : Typing_env_level.t)
+    (x : variable) (k : flambda_kind),
+    typing_env_well_formed tenv = true ->
+    Typing_env.cut tenv cut_after = Some level ->
+    (lookup x (Typing_env_level.defined_vars level) = Some k
+     <-> ∃ one_level : Typing_env.One_level.t,
+           one_level
+           ∈ Typing_env.current_level tenv :: Typing_env.prev_levels tenv
+           ∧ cut_after < Typing_env.One_level.scope one_level
+           ∧ lookup x
+               (Typing_env_level.defined_vars
+                  (Typing_env.One_level.level one_level))
+             = Some k).
+
 (* The variables that the level that [Typing_env.cut] answers has by
    binding time are those that it defines, and each is at the binding
    time that the environment has for it. So
