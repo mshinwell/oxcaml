@@ -196,6 +196,19 @@ let convert_standard_int (kind : Flambda_kind.Standard_int.t) :
   | Naked_int64 -> Standard_naked_int64
   | Naked_nativeint -> Standard_naked_nativeint
 
+let convert_boxable_number (kind : Flambda_kind.Boxable_number.t) :
+    Kinds.boxable_number =
+  match kind with
+  | Naked_float32 -> Boxable_naked_float32
+  | Naked_float -> Boxable_naked_float
+  | Naked_int32 -> Boxable_naked_int32
+  | Naked_int64 -> Boxable_naked_int64
+  | Naked_nativeint -> Boxable_naked_nativeint
+  | Naked_vec128 -> Boxable_naked_vec128
+  | Naked_vec256 -> Boxable_naked_vec256
+  | Naked_vec512 -> Boxable_naked_vec512
+  | Naked_mask -> Boxable_naked_mask
+
 let convert_signed_or_unsigned (signedness : P.signed_or_unsigned) :
     Primitives.signedness =
   match signedness with Signed -> Signed | Unsigned -> Unsigned
@@ -212,6 +225,9 @@ let convert_unary_primitive (p : P.unary_primitive) :
   | Get_tag -> Some Get_tag
   | Opaque_identity { middle_end_only = _; kind } ->
     Some (Opaque_identity (convert_kind kind))
+  | Unbox_number kind -> Some (Unbox_number (convert_boxable_number kind))
+  | Box_number (kind, Heap _) -> Some (Box_number (convert_boxable_number kind))
+  | Box_number (_, Local _) -> None
   | Untag_immediate -> Some Untag_immediate
   | Tag_immediate -> Some Tag_immediate
   | _ -> None
@@ -258,6 +274,15 @@ let convert_binary_primitive (p : P.binary_primitive) :
 
 (* ---- Conversion of terms ---------------------------------------------- *)
 
+(* A float is its bit pattern, read as a signed integer. *)
+let convert_float32 f : Model.const =
+  Naked_float32
+    (z_of_int64
+       (Int64.of_int32 (Numeric_types.Float32_by_bit_pattern.to_bits f)))
+
+let convert_float f : Model.const =
+  Naked_float (z_of_int64 (Numeric_types.Float_by_bit_pattern.to_bits f))
+
 let convert_const (c : Reg_width_const.t) : Model.const =
   match Reg_width_const.descr c with
   | Naked_immediate i -> Naked_immediate (z_of_int (Target_ocaml_int.to_int i))
@@ -270,8 +295,10 @@ let convert_const (c : Reg_width_const.t) : Model.const =
   | Naked_int64 i -> Naked_int64 (z_of_int64 i)
   | Naked_nativeint i ->
     Naked_nativeint (z_of_int64 (Targetint_32_64.to_int64 i))
-  | Naked_float32 _ | Naked_float _ | Naked_vec128 _ | Naked_vec256 _
-  | Naked_vec512 _ | Naked_mask _ | Poison _ ->
+  | Naked_float32 f -> convert_float32 f
+  | Naked_float f -> convert_float f
+  | Naked_vec128 _ | Naked_vec256 _ | Naked_vec512 _ | Naked_mask _ | Poison _
+    ->
     unsupported "constant %a" Reg_width_const.print c
 
 let convert_simple (s : Simple.t) : Model.simple =
@@ -425,6 +452,13 @@ and convert_prim (prim : P.t) : Model.named =
   | Nullary _ | Ternary _ | Quaternary _ | Variadic _ ->
     unsupported "primitive %a" P.print prim
 
+and convert_or_variable : type a.
+    (a -> Model.const) -> a Or_variable.t -> Model.simple =
+ fun convert contents ->
+  match contents with
+  | Const c -> Const (convert c)
+  | Var (var, _) -> Var (Variables.find var)
+
 (* A static block of the model is a tag and fields that are values, so a block
    with a mixed shape, whose flat suffix holds naked numbers, is not in the
    model. *)
@@ -439,6 +473,26 @@ and convert_static_const (const : Static_const.t) : Model.static_const =
   | Immutable_string s ->
     Static_const_immutable_string
       (List.init (String.length s) (fun i -> z_of_int (Char.code s.[i])))
+  | Boxed_float32 contents ->
+    Static_const_boxed_number (convert_or_variable convert_float32 contents)
+  | Boxed_float contents ->
+    Static_const_boxed_number (convert_or_variable convert_float contents)
+  | Boxed_int32 contents ->
+    Static_const_boxed_number
+      (convert_or_variable
+         (fun i : Model.const -> Naked_int32 (z_of_int64 (Int64.of_int32 i)))
+         contents)
+  | Boxed_int64 contents ->
+    Static_const_boxed_number
+      (convert_or_variable
+         (fun i : Model.const -> Naked_int64 (z_of_int64 i))
+         contents)
+  | Boxed_nativeint contents ->
+    Static_const_boxed_number
+      (convert_or_variable
+         (fun i : Model.const ->
+           Naked_nativeint (z_of_int64 (Targetint_32_64.to_int64 i)))
+         contents)
   | _ -> unsupported "static constant %a" Static_const.print const
 
 and convert_code (code : Flambda.Function_params_and_body.t Code0.t) :
@@ -524,6 +578,8 @@ let rec observe depth (statics : Values.static_env) (v : Values.value) :
     | Value_const (Naked_int32 i) -> Naked ("int32", int64_of_z i)
     | Value_const (Naked_int64 i) -> Naked ("int64", int64_of_z i)
     | Value_const (Naked_nativeint i) -> Naked ("nativeint", int64_of_z i)
+    | Value_const (Naked_float32 bits) -> Naked ("float32", int64_of_z bits)
+    | Value_const (Naked_float bits) -> Naked ("float", int64_of_z bits)
     | Value_const Null -> Null
     | Value_const _ -> Naked ("number", 0L)
     | Value_closure _ -> Function
@@ -686,6 +742,8 @@ let print_prim ppf (p : Primitives.prim) =
     | Is_null -> "Is_null"
     | Get_tag -> "Get_tag"
     | Opaque_identity _ -> "Opaque_identity"
+    | Unbox_number _ -> "Unbox_number"
+    | Box_number _ -> "Box_number"
     | Untag_immediate -> "Untag_immediate"
     | Tag_immediate -> "Tag_immediate"
   in

@@ -9,6 +9,8 @@ type unary_primitive =
   | Is_null
   | Get_tag
   | Opaque_identity of flambda_kind
+  | Unbox_number of boxable_number
+  | Box_number of boxable_number
   | Untag_immediate
   | Tag_immediate
 

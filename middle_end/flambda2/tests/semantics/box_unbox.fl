@@ -1,0 +1,11 @@
+let $five = 5L in
+let o = %opaque ($five) in
+let u = %unbox_num.`int64` (o) in
+let v = %int_barith.`int64`.`add` (u, 1L) in
+let b = %box_num.`int64`.`toplevel` (v) in
+let p = %opaque (b) in
+let w = %unbox_num.`int64` (p) in
+let c = %int_comp.`int64`.`eq` (w, 6L) in
+let t = %tag_imm (c) in
+let $camlBox_unbox = Block 0 (t) in
+cont done ($camlBox_unbox)

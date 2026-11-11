@@ -36,6 +36,8 @@ val eval_is_int : static_env -> bool -> value -> bool option
 
 val eval_is_null : static_env -> value -> bool option
 
+val is_number_of_kind : boxable_number -> const -> bool
+
 val eval_unary_primitive :
   static_env -> unary_primitive -> value -> value option
 

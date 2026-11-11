@@ -193,6 +193,25 @@ let eval_is_null statics v =
   | _ ->
     if is_tagged_immediate v || is_allocated statics v then Some false else None
 
+(** val is_number_of_kind : boxable_number -> const -> bool **)
+
+let is_number_of_kind kind c =
+  match kind with
+  | Boxable_naked_float32 -> (
+    match c with Naked_float32 _ -> true | _ -> false)
+  | Boxable_naked_float -> ( match c with Naked_float _ -> true | _ -> false)
+  | Boxable_naked_int32 -> ( match c with Naked_int32 _ -> true | _ -> false)
+  | Boxable_naked_int64 -> ( match c with Naked_int64 _ -> true | _ -> false)
+  | Boxable_naked_nativeint -> (
+    match c with Naked_nativeint _ -> true | _ -> false)
+  | Boxable_naked_vec128 -> (
+    match c with Naked_vec128 _ -> true | _ -> false)
+  | Boxable_naked_vec256 -> (
+    match c with Naked_vec256 _ -> true | _ -> false)
+  | Boxable_naked_vec512 -> (
+    match c with Naked_vec512 _ -> true | _ -> false)
+  | Boxable_naked_mask -> ( match c with Naked_mask _ -> true | _ -> false)
+
 (** val eval_unary_primitive : static_env -> unary_primitive -> value -> value
     option **)
 
@@ -209,6 +228,15 @@ let eval_unary_primitive statics p v =
     | None -> None)
   | Opaque_identity kind ->
     if kind_eqb (kind_of_value v) kind then Some v else None
+  | Unbox_number kind -> (
+    match boxed_number_of statics v with
+    | Some c -> if is_number_of_kind kind c then Some (Value_const c) else None
+    | None -> None)
+  | Box_number kind -> (
+    match v with
+    | Value_const c ->
+      if is_number_of_kind kind c then Some (Value_boxed_number c) else None
+    | _ -> None)
   | Untag_immediate -> (
     match int_of_value Standard_tagged_immediate v with
     | Some i -> Some (Value_const (Naked_immediate i))
@@ -317,6 +345,52 @@ let prim_eq_dec p p' =
             | _ -> false)
           | Region -> ( match kind0 with Region -> true | _ -> false)
           | Rec_info -> ( match kind0 with Rec_info -> true | _ -> false))
+        | _ -> false)
+      | Unbox_number kind -> (
+        match p1 with
+        | Unbox_number kind0 -> (
+          match kind with
+          | Boxable_naked_float32 -> (
+            match kind0 with Boxable_naked_float32 -> true | _ -> false)
+          | Boxable_naked_float -> (
+            match kind0 with Boxable_naked_float -> true | _ -> false)
+          | Boxable_naked_int32 -> (
+            match kind0 with Boxable_naked_int32 -> true | _ -> false)
+          | Boxable_naked_int64 -> (
+            match kind0 with Boxable_naked_int64 -> true | _ -> false)
+          | Boxable_naked_nativeint -> (
+            match kind0 with Boxable_naked_nativeint -> true | _ -> false)
+          | Boxable_naked_vec128 -> (
+            match kind0 with Boxable_naked_vec128 -> true | _ -> false)
+          | Boxable_naked_vec256 -> (
+            match kind0 with Boxable_naked_vec256 -> true | _ -> false)
+          | Boxable_naked_vec512 -> (
+            match kind0 with Boxable_naked_vec512 -> true | _ -> false)
+          | Boxable_naked_mask -> (
+            match kind0 with Boxable_naked_mask -> true | _ -> false))
+        | _ -> false)
+      | Box_number kind -> (
+        match p1 with
+        | Box_number kind0 -> (
+          match kind with
+          | Boxable_naked_float32 -> (
+            match kind0 with Boxable_naked_float32 -> true | _ -> false)
+          | Boxable_naked_float -> (
+            match kind0 with Boxable_naked_float -> true | _ -> false)
+          | Boxable_naked_int32 -> (
+            match kind0 with Boxable_naked_int32 -> true | _ -> false)
+          | Boxable_naked_int64 -> (
+            match kind0 with Boxable_naked_int64 -> true | _ -> false)
+          | Boxable_naked_nativeint -> (
+            match kind0 with Boxable_naked_nativeint -> true | _ -> false)
+          | Boxable_naked_vec128 -> (
+            match kind0 with Boxable_naked_vec128 -> true | _ -> false)
+          | Boxable_naked_vec256 -> (
+            match kind0 with Boxable_naked_vec256 -> true | _ -> false)
+          | Boxable_naked_vec512 -> (
+            match kind0 with Boxable_naked_vec512 -> true | _ -> false)
+          | Boxable_naked_mask -> (
+            match kind0 with Boxable_naked_mask -> true | _ -> false))
         | _ -> false)
       | Untag_immediate -> (
         match p1 with Untag_immediate -> true | _ -> false)
