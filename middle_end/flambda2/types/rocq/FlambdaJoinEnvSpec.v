@@ -55,10 +55,7 @@
      contracts that are not about kinds.
    - Kinds, and the contracts (the section after it): [state_kinded],
      and that those three functions meet their contracts
-     ([n_way_join_simples_sound_statement] and the two after it). Two
-     of them have a stand-in for premise: that the aliases of a type
-     are made of its free variables, which is proved with the grammar
-     of types and is not under this file yet.
+     ([n_way_join_simples_sound_statement] and the two after it).
    - That those three functions keep the definitions of the state at
      every state, with no premise (the last section).
    - An instance, [Witness], that shows that the transcription has not
@@ -781,23 +778,6 @@ Definition state_kinded (s : Join_env.t) : Prop :=
       Join_env.joined_env s index = Some use ->
       simple_of_kind use simple kind.
 
-(* What two of the statements below suppose of the grammar of types:
-   the [Simple]s that a type or an extension has for aliases are made
-   of its free variables. It is a stand-in: a fact about
-   [aliases_with_kinds] and [free_variables], for the file that
-   defines them, where it is proved and not yet under this file. *)
-Definition aliases_are_free_variables : Prop :=
-  (∀ (ty : flambda_type) (simple : simple) (kind : flambda_kind)
-     (x : variable),
-     (simple, kind) ∈ aliases_with_kinds ty ->
-     x ∈ free_variables_of_simple simple ->
-     x ∈ free_variables ty)
-  ∧ ∀ (extension : env_extension) (simple : simple) (kind : flambda_kind)
-      (x : variable),
-      (simple, kind) ∈ aliases_of_env_extension extension ->
-      x ∈ free_variables_of_simple simple ->
-      x ∈ free_variables_of_env_extension extension.
-
 (* Every environment joined has a property. *)
 Definition joined_envs_are (property : Typing_env.t -> Prop)
     (s : Join_env.t) : Prop :=
@@ -839,7 +819,6 @@ Definition n_way_join_simples_sound_statement : Prop :=
 
 (* [Join_env.import_type]. *)
 Definition import_type_sound_statement : Prop :=
-  aliases_are_free_variables ->
   ∀ (p : Join_env.parameters) (fuel : nat),
     fresh_avoids p ->
     import_type_sound typing_env_invariant Join_env.joined_env
@@ -848,7 +827,6 @@ Definition import_type_sound_statement : Prop :=
 
 (* [Join_env.n_way_join_env_extension]. *)
 Definition n_way_join_env_extension_sound_statement : Prop :=
-  aliases_are_free_variables ->
   ∀ (p : Join_env.parameters) (fuel : nat),
     fresh_avoids p ->
     env_extension_eqb_sound p ->

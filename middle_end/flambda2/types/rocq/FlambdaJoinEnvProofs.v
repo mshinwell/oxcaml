@@ -39,6 +39,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaTypingEnvProofs
   FlambdaTypingEnvInvariantSpec FlambdaTypingEnvInvariantProofs
   FlambdaTypingEnvKindedSpec FlambdaTypingEnvKindedProofs
+  FlambdaTypeAliasKindsSpec FlambdaTypeAliasKindsProofs
   FlambdaJoinEnv FlambdaJoinSpec FlambdaJoinEnvSpec.
 Import ListNotations.
 
@@ -3096,28 +3097,28 @@ Qed.
 
 Theorem import_type_sound : import_type_sound_statement.
 Proof.
-  intros Hfree p fuel Hfresh s s' ty Hvalid Hwf Hkinded Himport.
+  intros p fuel Hfresh s s' ty Hvalid Hwf Hkinded Himport.
   destruct (import_type_valid p fuel s s' ty Hfresh Hvalid Himport)
     as [Hvalid' [Hgrows Htarget]].
   split; [ exact Hvalid' | ]. split; [ exact Hgrows | ].
   split; [ exact Htarget | ].
   intros Hstate Hty.
-  exact (import_type_kinds_in (proj1 Hfree) p fuel s s' ty Hfresh Hvalid Hwf
-           Hkinded Himport Hstate Hty).
+  exact (import_type_kinds_in (proj1 aliases_free_variables) p fuel s s' ty
+           Hfresh Hvalid Hwf Hkinded Himport Hstate Hty).
 Qed.
 
 Theorem n_way_join_env_extension_sound
   : n_way_join_env_extension_sound_statement.
 Proof.
-  intros Hfree p fuel Hfresh Heqb s extensions result Hvalid Hwf Hkinded
-    Hdistinct Hscope Hjoin.
+  intros p fuel Hfresh Heqb s extensions result Hvalid Hwf Hkinded Hdistinct
+    Hscope Hjoin.
   destruct (n_way_join_env_extension_valid p fuel s extensions result Hfresh
               Heqb Hvalid Hscope Hjoin) as [Hbottom Hok].
   split; [ exact Hbottom | ]. split; [ exact Hok | ].
   intros Hstate Hextensions joined s' Hresult.
-  exact (n_way_join_env_extension_kinds_in (proj2 Hfree) p fuel s extensions
-           result Hfresh Hvalid Hwf Hkinded Hjoin Hstate Hextensions joined s'
-           Hresult).
+  exact (n_way_join_env_extension_kinds_in (proj2 aliases_free_variables) p
+           fuel s extensions result Hfresh Hvalid Hwf Hkinded Hjoin Hstate
+           Hextensions joined s' Hresult).
 Qed.
 
 (* ======================================================================== *)
