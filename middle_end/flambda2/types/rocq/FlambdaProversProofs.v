@@ -1879,6 +1879,485 @@ Proof.
   - exact prove_strings_value_sound.
 Qed.
 
+(* ======================================================================== *)
+(* Blocks                                                                   *)
+(* ======================================================================== *)
+
+Lemma variant_head_variants (statics : static_env) (vars : env) (v : value)
+    (is_int : option variable) (immediates : Or_unknown.t flambda_type)
+    (get_tag : option variable) (blocks : Or_unknown.t row_like_for_blocks)
+    (extensions : variant_extensions) (is_unique : bool) :
+  head_of_kind_value_non_null_satisfied statics vars v
+    (Variant is_int immediates get_tag blocks extensions is_unique) ->
+  variants statics v.
+Proof.
+  intros Hhead.
+  destruct (variant_cases _ _ _ _ _ _ _ _ _ Hhead)
+    as [[i [-> _]] | [tag [fields [Hblock _]]]].
+  - left. exists i. reflexivity.
+  - right. exists tag, fields. exact Hblock.
+Qed.
+
+(* A prover on heads that answers [Proved] of variants only, and is
+   sound of the values that are a tagged immediate or a block, is
+   sound as a proof. *)
+Lemma generic_value_sound_proved_of_variants {A : Type}
+    (prove_gen :
+      Typing_env.t -> head_of_kind_value_non_null
+      -> option (Generic_proof.t A))
+    (input : Typing_env.t -> head_of_kind_value_non_null -> Prop)
+    (holds : static_env -> env -> A -> value -> Prop) :
+  generic_value_sound prove_gen input variants holds ->
+  (∀ (tenv : Typing_env.t) (head : head_of_kind_value_non_null) (x : A),
+    prove_gen tenv head = Some (Generic_proof.Proved x) ->
+    match head with
+    | Variant _ _ _ _ _ _ => True
+    | _ => False
+    end) ->
+  generic_value_proved_sound prove_gen input holds.
+Proof.
+  intros Hgen Hvariant statics valuation tenv head v x Hsat Hin Hhead Hproved.
+  pose proof (Hvariant _ _ _ Hproved) as His_variant.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    try contradiction.
+  pose proof
+    (Hgen statics valuation tenv _ v Hsat Hin Hhead
+       (variant_head_variants _ _ _ _ _ _ _ _ _ Hhead))
+    as Hsound.
+  rewrite Hproved in Hsound. exact Hsound.
+Qed.
+
+Lemma prove_variant_like_generic_value_sound :
+  generic_value_sound Provers.prove_variant_like_generic_value
+    well_formed_head variants (fun statics _ => variant_like statics).
+Proof.
+  intros statics valuation tenv head v Hsat Hinput Hhead Hdomain.
+  pose proof (not_variant_head _ _ _ _ Hhead) as Hnot_variant.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    simpl; try exact I; try exact (Hnot_variant Hdomain).
+  destruct blocks as [blocks | ]; [ | exact I ].
+  destruct (row_like_for_blocks_all_tags_and_sizes blocks) as [sizes | ]
+    eqn:Hsizes;
+    [ | exact I ].
+  destruct
+    (Keyed.for_all_bindings_b Z.eqb
+       (fun (tag : Z) (_ : nat * block_shape) =>
+          Provers.tag_is_scannable tag)
+       sizes);
+    [ | exact I ].
+  (* What is to be shown of the constant constructors answered. *)
+  assert (Hproof :
+    ∀ const_ctors : Or_unknown.t (list Z),
+      (∀ i : Z,
+        v = Value_const (Tagged_immediate i) ->
+        match immediates with
+        | Or_unknown.Unknown => True
+        | Or_unknown.Known ty =>
+          type_satisfied statics valuation (Value_const (Naked_immediate i))
+            ty
+        end ->
+        match const_ctors with
+        | Or_unknown.Known imms => i ∈ imms
+        | Or_unknown.Unknown => True
+        end) ->
+      variant_like statics (Variant_like_proof const_ctors sizes) v).
+  { intros const_ctors Hconst.
+    destruct (variant_cases _ _ _ _ _ _ _ _ _ Hhead)
+      as [[i [Hv Himms]] | [tag [fields [Hblock Hblocks]]]].
+    - left. exists i. split; [ exact Hv | exact (Hconst i Hv Himms) ].
+    - right.
+      destruct
+        (all_tags_and_sizes_satisfied _ _ _ _ _ _ Hsizes Hblocks)
+        as [size [shape [Hlookup [Hlength Hshape]]]].
+      exists tag, fields, size, shape. auto. }
+  destruct immediates as [imms | ].
+  - pose proof
+      (fun i Hty =>
+         prove_naked_immediates_generic_sound statics valuation tenv imms
+           (Value_const (Naked_immediate i)) Hsat
+           (well_formed_head_immediates _ _ _ _ _ _ _ Hinput) Hty eq_refl)
+      as Hsound.
+    destruct (Provers.prove_naked_immediates_generic tenv imms)
+      as [[imms' | | ] | ];
+      simpl; try exact I; apply Hproof; intros i Hv Hty.
+    + destruct (Hsound i Hty) as [i' [Heq Hin]]. injection Heq as <-.
+      exact Hin.
+    + exact I.
+    + destruct (Hsound i Hty).
+  - simpl. apply Hproof. intros i _ _. exact I.
+Qed.
+
+Lemma prove_variant_like_sound_proof :
+  prover_sound Provers.prove_variant_like well_formed_input
+    (fun statics _ => variant_like statics).
+Proof.
+  apply (gen_value_to_proof_proved_sound _ well_formed_input well_formed_head).
+  - exact well_formed_input_to_head.
+  - apply generic_value_sound_proved_of_variants.
+    + exact prove_variant_like_generic_value_sound.
+    + intros tenv head x.
+      destruct head; simpl; first [ intros _; exact I | discriminate ].
+Qed.
+
+Lemma meet_variant_like_sound_proof :
+  meet_shortcut_sound Provers.meet_variant_like well_formed_input variants
+    (fun statics _ => variant_like statics).
+Proof.
+  apply
+    (gen_value_to_meet_sound _ well_formed_input well_formed_head variants).
+  - exact well_formed_input_to_head.
+  - intros statics v Hvariant.
+    split; [ | split; [ | exact Hvariant ] ].
+    + destruct Hvariant as [Himmediate | Hblock].
+      * exact (immediate_kind _ Himmediate).
+      * exact (block_kind _ _ Hblock).
+    + destruct Hvariant as [[i ->] | [tag [fields Hblock]]].
+      * discriminate.
+      * intros ->. discriminate Hblock.
+  - exact prove_variant_like_generic_value_sound.
+Qed.
+
+(* What [Provers.prove_unique_tag_and_size_value] answers: the block,
+   and the types of its fields. *)
+Definition unique_block (statics : static_env) (valuation : env)
+    (x : Z * block_shape * nat * list flambda_type * Alloc_mode.t)
+    (v : value) : Prop :=
+  let '(tag, shape, size, tys, _) := x in
+  ∃ fields : list value,
+    block_of statics v = Some (tag, fields)
+    ∧ length fields = size
+    ∧ block_has_shape shape tag fields
+    ∧ fields_satisfied (type_satisfied statics valuation) tys fields.
+
+Lemma prove_unique_tag_and_size_value_sound :
+  generic_value_sound Provers.prove_unique_tag_and_size_value any_head
+    (fun _ _ => True) unique_block.
+Proof.
+  intros statics valuation tenv head v Hsat _ Hhead _.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    simpl; try exact I.
+  destruct immediates as [imms | ]; [ | exact I ].
+  destruct (Provers.is_bottom tenv imms) as [[ | ] | ] eqn:Himms;
+    simpl; try exact I.
+  destruct (variant_no_immediates _ _ _ _ _ _ _ _ _ _ Hsat Hhead Himms)
+    as [_ [tag' [fields [Hblock Hblocks]]]].
+  destruct blocks as [blocks | ]; [ | exact I ].
+  destruct (row_like_for_blocks_get_singleton blocks)
+    as [[[[[tag shape] size] tys] alloc_mode] | ] eqn:Hsingleton;
+    [ | exact I ].
+  destruct
+    (get_singleton_satisfied _ _ _ _ _ _ _ _ _ _ Hsingleton Hblocks)
+    as [-> [Hlength [Hshape Hfields]]].
+  exists fields. auto.
+Qed.
+
+Lemma prove_unique_tag_and_size_value_proof_sound :
+  prover_sound
+    (Provers.gen_value_to_proof Provers.prove_unique_tag_and_size_value)
+    any_input unique_block.
+Proof.
+  apply (gen_value_to_proof_sound _ any_input any_head).
+  - exact any_input_to_head.
+  - exact prove_unique_tag_and_size_value_sound.
+Qed.
+
+Lemma prove_unique_tag_and_size_sound_proof :
+  prover_sound Provers.prove_unique_tag_and_size any_input
+    (fun statics _ => block_of_tag_shape_and_size statics).
+Proof.
+  intros statics valuation tenv t x v Hsat Hin Hv Hproved.
+  unfold Provers.prove_unique_tag_and_size in Hproved.
+  destruct
+    (Provers.gen_value_to_proof Provers.prove_unique_tag_and_size_value tenv
+       t)
+    as [[[[[[tag shape] size] tys] alloc_mode] | ] | ] eqn:Hgen;
+    try discriminate Hproved.
+  injection Hproved as <-.
+  destruct
+    (prove_unique_tag_and_size_value_proof_sound _ _ _ _ _ _ Hsat Hin Hv
+       Hgen)
+    as [fields [Hblock [Hlength [Hshape _]]]].
+  exists fields. auto.
+Qed.
+
+Lemma field_aliases_fold_unknown (tys : list flambda_type) :
+  List.fold_left Provers.field_aliases_rev tys Proof_of_property.Unknown
+  = Proof_of_property.Unknown.
+Proof. induction tys as [ | ty tys IH]; [ reflexivity | exact IH ]. Qed.
+
+Lemma field_aliases_fold (tys : list flambda_type) :
+  ∀ acc simples_rev : list simple,
+    List.fold_left Provers.field_aliases_rev tys
+      (Proof_of_property.Proved acc)
+    = Proof_of_property.Proved simples_rev ->
+    ∃ aliases : list simple,
+      simples_rev = rev aliases ++ acc
+      ∧ Forall2 (fun ty s => get_alias_opt ty = Some s) tys aliases.
+Proof.
+  induction tys as [ | ty tys IH]; intros acc simples_rev Hfold;
+    simpl in Hfold.
+  - injection Hfold as <-. exists []. split; [ reflexivity | constructor ].
+  - destruct (get_alias_opt ty) as [s | ] eqn:Halias.
+    + destruct (IH _ _ Hfold) as [aliases [-> Hall]].
+      exists (s :: aliases). split.
+      * simpl. rewrite <- app_assoc. reflexivity.
+      * constructor; assumption.
+    + rewrite field_aliases_fold_unknown in Hfold. discriminate Hfold.
+Qed.
+
+Lemma forall2_nth_right {A B : Type} (P : A -> B -> Prop) (l : list A)
+    (l' : list B) :
+  Forall2 P l l' ->
+  ∀ (i : nat) (b : B),
+    nth_error l' i = Some b ->
+    ∃ a : A, nth_error l i = Some a ∧ P a b.
+Proof.
+  induction 1 as [ | a b' l l' Hab Hall IH]; intros i b Hnth.
+  - destruct i; discriminate Hnth.
+  - destruct i as [ | i]; simpl in Hnth.
+    + injection Hnth as <-. exists a. split; [ reflexivity | exact Hab ].
+    + exact (IH i b Hnth).
+Qed.
+
+Lemma prove_unique_immutable_heap_block_sound_proof :
+  prover_sound Provers.prove_unique_fully_constructed_immutable_heap_block
+    any_input
+    (fun statics valuation x v =>
+       let '(tag, shape, size, simples) := x in
+       ∃ fields : list value,
+         block_of statics v = Some (tag, fields)
+         ∧ length fields = size
+         ∧ block_has_shape shape tag fields
+         ∧ ∀ (i : nat) (s : simple) (field : value),
+             nth_error simples i = Some s ->
+             nth_error fields i = Some field ->
+             eval_simple valuation s = Some field).
+Proof.
+  intros statics valuation tenv t x v Hsat Hin Hv Hproved.
+  unfold Provers.prove_unique_fully_constructed_immutable_heap_block
+    in Hproved.
+  destruct
+    (Provers.gen_value_to_proof Provers.prove_unique_tag_and_size_value tenv
+       t)
+    as [[[[[[tag shape] size] tys] alloc_mode] | ] | ] eqn:Hgen;
+    try discriminate Hproved.
+  destruct alloc_mode; try discriminate Hproved.
+  destruct
+    (List.fold_left Provers.field_aliases_rev tys
+       (Proof_of_property.Proved []))
+    as [simples_rev | ] eqn:Hfold;
+    try discriminate Hproved.
+  injection Hproved as <-.
+  destruct (field_aliases_fold _ _ _ Hfold) as [aliases [-> Haliases]].
+  rewrite app_nil_r, rev_involutive.
+  destruct
+    (prove_unique_tag_and_size_value_proof_sound _ _ _ _ _ _ Hsat Hin Hv
+       Hgen)
+    as [fields [Hblock [Hlength [Hshape Hfields]]]].
+  exists fields. split; [ exact Hblock | ]. split; [ exact Hlength | ].
+  split; [ exact Hshape | ].
+  intros i s field Hs Hfield.
+  destruct (forall2_nth_right _ _ _ Haliases i s Hs) as [ty [Hty Halias]].
+  pose proof
+    (proj1 (fields_satisfied_nth _ _ _) Hfields i ty field Hty Hfield)
+    as Hsatisfied.
+  exact (proj1 (proj1 (get_alias_satisfied _ _ _ _ _ Halias) Hsatisfied)).
+Qed.
+
+(* With a well-formed head, the types of the fields that
+   [Provers.prove_unique_tag_and_size_value] answers are as many as
+   the size. *)
+Lemma prove_unique_tag_and_size_value_length :
+  generic_value_proved_sound Provers.prove_unique_tag_and_size_value
+    well_formed_head
+    (fun _ _ x _ => let '(_, _, size, tys, _) := x in length tys = size).
+Proof.
+  intros statics valuation tenv head v x Hsat [_ Hwf] Hhead Hproved.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    try discriminate Hproved.
+  simpl in Hproved.
+  destruct immediates as [imms | ]; [ | discriminate Hproved ].
+  destruct (Provers.is_bottom tenv imms) as [[ | ] | ];
+    simpl in Hproved; try discriminate Hproved.
+  destruct blocks as [blocks | ]; [ | discriminate Hproved ].
+  destruct (row_like_for_blocks_get_singleton blocks)
+    as [[[[[tag shape] size] tys] alloc_mode] | ] eqn:Hsingleton;
+    [ | discriminate Hproved ].
+  injection Hproved as <-.
+  rewrite variant_well_formed in Hwf.
+  apply andb_prop in Hwf. destruct Hwf as [Hwf _].
+  apply andb_prop in Hwf. destruct Hwf as [_ Hwf].
+  destruct blocks as [known_tags other_tags alloc_mode'].
+  destruct (get_singleton_case _ _ _ _ _ _ _ _ Hsingleton)
+    as [_ [case [Hlookup [Hdomain [_ Hmaps]]]]].
+  specialize (Hlookup tag). rewrite Z.eqb_refl in Hlookup.
+  pose proof
+    (proj1
+       (proj2
+          (proj1
+             (row_like_for_blocks_well_formed_iff known_tags other_tags
+                alloc_mode')
+             Hwf))
+       tag case Hlookup)
+    as Hcase.
+  apply row_like_block_case_well_formed_iff in Hcase.
+  destruct Hcase as [Hfits _].
+  unfold block_product_fits in Hfits. rewrite Hdomain, Hmaps in Hfits.
+  exact (proj1 (Nat.eqb_eq _ _) Hfits).
+Qed.
+
+Lemma eval_simples_of_fields (valuation : env) (simples : list simple)
+    (fields : list value) :
+  Forall2 (fun s field => eval_simple valuation s = Some field) simples
+    fields ->
+  eval_simples valuation simples = Some fields.
+Proof.
+  induction 1 as [ | s field simples fields Hs Hall IH];
+    [ reflexivity | ].
+  simpl. rewrite Hs. simpl. rewrite IH. reflexivity.
+Qed.
+
+Lemma forall2_compose {A B C : Type} (P : A -> B -> Prop)
+    (Q : B -> C -> Prop) (R : C -> A -> Prop) (l : list A) (l' : list B) :
+  (∀ (a : A) (b : B) (c : C), P a b -> Q b c -> R c a) ->
+  Forall2 P l l' ->
+  ∀ l'' : list C, Forall2 Q l' l'' -> Forall2 R l'' l.
+Proof.
+  intros Hcompose. induction 1 as [ | a b l l' Hab Hall IH];
+    intros l'' Hq; inversion Hq; subst; constructor; eauto.
+Qed.
+
+Lemma prove_unique_immutable_heap_block_fields_proof :
+  prover_sound Provers.prove_unique_fully_constructed_immutable_heap_block
+    well_formed_input
+    (fun statics valuation x v =>
+       let '(tag, shape, size, simples) := x in
+       ∃ fields : list value,
+         block_of statics v = Some (tag, fields)
+         ∧ length fields = size
+         ∧ block_has_shape shape tag fields
+         ∧ length simples = size
+         ∧ eval_simples valuation simples = Some fields).
+Proof.
+  intros statics valuation tenv t x v Hsat Hin Hv Hproved.
+  unfold Provers.prove_unique_fully_constructed_immutable_heap_block
+    in Hproved.
+  destruct
+    (Provers.gen_value_to_proof Provers.prove_unique_tag_and_size_value tenv
+       t)
+    as [[[[[[tag shape] size] tys] alloc_mode] | ] | ] eqn:Hgen;
+    try discriminate Hproved.
+  destruct alloc_mode; try discriminate Hproved.
+  destruct
+    (List.fold_left Provers.field_aliases_rev tys
+       (Proof_of_property.Proved []))
+    as [simples_rev | ] eqn:Hfold;
+    try discriminate Hproved.
+  injection Hproved as <-.
+  destruct (field_aliases_fold _ _ _ Hfold) as [aliases [-> Haliases]].
+  rewrite app_nil_r, rev_involutive.
+  destruct
+    (prove_unique_tag_and_size_value_proof_sound _ _ _ _ _ _ Hsat I Hv Hgen)
+    as [fields [Hblock [Hlength [Hshape Hfields]]]].
+  pose proof
+    (gen_value_to_proof_proved_sound _ well_formed_input well_formed_head _
+       well_formed_input_to_head prove_unique_tag_and_size_value_length _ _
+       _ _ _ _ Hsat Hin Hv Hgen)
+    as Hsize.
+  simpl in Hsize.
+  exists fields. split; [ exact Hblock | ]. split; [ exact Hlength | ].
+  split; [ exact Hshape | ].
+  split; [ rewrite <- (Forall2_length Haliases); exact Hsize | ].
+  apply eval_simples_of_fields.
+  assert (Hlength' : length fields = length tys).
+  { rewrite Hlength, Hsize. reflexivity. }
+  apply (fields_satisfied_Forall2 _ _ _ Hlength') in Hfields.
+  refine (forall2_compose _ _ _ _ _ _ Hfields aliases Haliases).
+  intros field ty s Hsatisfied Halias.
+  exact (proj1 (proj1 (get_alias_satisfied _ _ _ _ _ Halias) Hsatisfied)).
+Qed.
+
+Lemma meet_block_field_simple_value_sound (min_name_mode : Name_mode.t)
+    (field_kind : flambda_kind) (field_index : nat) :
+  generic_value_sound
+    (Provers.meet_block_field_simple_value min_name_mode field_kind
+       field_index)
+    any_head (block_field_loads field_kind field_index)
+    (fun statics valuation s v =>
+       ∃ (tag : Z) (fields : list value) (field : value),
+         block_of statics v = Some (tag, fields)
+         ∧ nth_error fields field_index = Some field
+         ∧ eval_simple valuation s = Some field).
+Proof.
+  intros statics valuation tenv head v Hsat _ Hhead
+    [tag [fields [field [Hblock [Hnth Hkind]]]]].
+  assert (Hvariant : variants statics v).
+  { right. exists tag, fields. exact Hblock. }
+  pose proof (not_variant_head _ _ _ _ Hhead) as Hnot_variant.
+  destruct head as [is_int immediates get_tag blocks extensions is_unique
+                   | alloc_mode | k contents alloc_mode
+                   | by_function_slot alloc_mode | strs];
+    simpl; try exact I; try exact (Hnot_variant Hvariant).
+  destruct blocks as [blocks | ]; [ | exact I ].
+  destruct (variant_cases _ _ _ _ _ _ _ _ _ Hhead)
+    as [[i [-> _]] | [tag' [fields' [Hblock' Hblocks]]]];
+    [ discriminate Hblock | ].
+  rewrite Hblock in Hblock'. injection Hblock' as <- <-.
+  destruct (row_like_for_blocks_is_bottom blocks) eqn:Hbottom.
+  - exact (row_like_for_blocks_is_bottom_satisfied _ _ _ _ _ Hbottom Hblocks).
+  - pose proof (get_field_satisfied _ _ _ _ _ field_index Hblocks) as Hfield.
+    destruct (row_like_for_blocks_get_field blocks field_index)
+      as [ | ty | ].
+    + exact I.
+    + destruct Hfield as [field' [Hnth' Hty]].
+      rewrite Hnth in Hnth'. injection Hnth' as <-.
+      destruct (kind_eqb (kind ty) field_kind) eqn:Hk; simpl.
+      * destruct (Provers.canonical_simple_of_alias tenv min_name_mode ty)
+          as [[s | ] | ] eqn:Hcanonical;
+          try exact I.
+        exists tag, fields, field. split; [ exact Hblock | ].
+        split; [ exact Hnth | ].
+        exact
+          (canonical_simple_of_alias_sound _ _ _ _ _ _ _ Hsat Hty Hcanonical).
+      * pose proof (type_satisfied_kind _ _ _ _ Hty) as Hkind'.
+        rewrite Hkind in Hkind'. rewrite Hkind' in Hk.
+        rewrite kind_eqb_refl in Hk. discriminate Hk.
+    + rewrite Hnth in Hfield. discriminate Hfield.
+Qed.
+
+Lemma meet_block_field_simple_sound_proof (min_name_mode : Name_mode.t)
+    (field_kind : flambda_kind) (field_index : nat) :
+  meet_shortcut_sound
+    (fun tenv t =>
+       Provers.meet_block_field_simple tenv min_name_mode field_kind t
+         field_index)
+    any_input (block_field_loads field_kind field_index)
+    (fun statics valuation s v =>
+       ∃ (tag : Z) (fields : list value) (field : value),
+         block_of statics v = Some (tag, fields)
+         ∧ nth_error fields field_index = Some field
+         ∧ eval_simple valuation s = Some field).
+Proof.
+  apply
+    (gen_value_to_meet_sound _ any_input any_head
+       (block_field_loads field_kind field_index)).
+  - exact any_input_to_head.
+  - intros statics v Hloads.
+    split; [ | split; [ | exact Hloads ] ];
+      destruct Hloads as [tag [fields [field [Hblock _]]]].
+    + exact (block_of_kind _ _ _ _ Hblock).
+    + intros ->. discriminate Hblock.
+  - exact (meet_block_field_simple_value_sound _ _ _).
+Qed.
+
 End With_expand_head.
 
 (* ======================================================================== *)
@@ -2161,4 +2640,102 @@ Proof.
     exact (meet_boxed_number_containing_simple_silent Hexpand _ _).
   - exact (gen_value_to_proof_silent Hexpand _).
   - exact (gen_value_to_meet_silent Hexpand _).
+Qed.
+
+(* ======================================================================== *)
+(* Blocks                                                                   *)
+(* ======================================================================== *)
+
+Theorem prove_variant_like_sound : prove_variant_like_sound_statement.
+Proof. exact prove_variant_like_sound_proof. Qed.
+
+Theorem meet_variant_like_sound : meet_variant_like_sound_statement.
+Proof. exact meet_variant_like_sound_proof. Qed.
+
+Theorem prove_unique_tag_and_size_sound
+  : prove_unique_tag_and_size_sound_statement.
+Proof. exact prove_unique_tag_and_size_sound_proof. Qed.
+
+Theorem prove_unique_immutable_heap_block_sound
+  : prove_unique_immutable_heap_block_sound_statement.
+Proof. exact prove_unique_immutable_heap_block_sound_proof. Qed.
+
+Theorem prove_unique_immutable_heap_block_fields
+  : prove_unique_immutable_heap_block_fields_statement.
+Proof. exact prove_unique_immutable_heap_block_fields_proof. Qed.
+
+Theorem meet_block_field_simple_sound
+  : meet_block_field_simple_sound_statement.
+Proof. exact meet_block_field_simple_sound_proof. Qed.
+
+Theorem block_load_defined : block_load_defined_statement.
+Proof.
+  intros statics access_kind field v r. rewrite eval_prim_unary. simpl.
+  unfold eval_block_load.
+  destruct access_kind as [tag size field_kind].
+  destruct (block_of statics v) as [[block_tag fields] | ] eqn:Hblock;
+    [ | discriminate ].
+  destruct
+    (known_is tag block_tag && known_is size (Z.of_nat (length fields))
+     && (0 <=? field)%Z)
+    eqn:Hcondition;
+    [ | discriminate ].
+  apply andb_prop in Hcondition. destruct Hcondition as [_ Hfield].
+  destruct (nth_error fields (Z.to_nat field)) as [loaded | ] eqn:Hnth;
+    [ | discriminate ].
+  assert (Hloaded :
+    kind_of_value loaded = Value ->
+    (0 <= field)%Z
+    ∧ block_field_loads Value (Z.to_nat field) statics v
+    ∧ ∃ (tag' : Z) (fields' : list value),
+        block_of statics v = Some (tag', fields')
+        ∧ nth_error fields' (Z.to_nat field) = Some loaded).
+  { intros Hkind. split; [ exact (proj1 (Z.leb_le _ _) Hfield) | ].
+    split.
+    - exists block_tag, fields, loaded. auto.
+    - exists block_tag, fields. auto. }
+  destruct field_kind.
+  - destruct (kind_eqb (kind_of_value loaded) Value) eqn:Hkind;
+      [ | discriminate ].
+    intros [= <-]. rewrite <- Hblock. apply Hloaded.
+    exact (proj1 (kind_eqb_eq _ _) Hkind).
+  - destruct (is_tagged_immediate loaded) eqn:Htagged; [ | discriminate ].
+    intros [= <-]. rewrite <- Hblock. apply Hloaded.
+    exact (is_tagged_immediate_kind _ Htagged).
+Qed.
+
+Theorem block_provers_silent_on_poison
+  : block_provers_silent_on_poison_statement.
+Proof.
+  intros Hexpand.
+  assert (Hunique :
+    prover_silent_on_poison
+      (Provers.gen_value_to_proof Provers.prove_unique_tag_and_size_value)).
+  { exact (gen_value_to_proof_silent Hexpand _). }
+  repeat split.
+  - exact (gen_value_to_proof_silent Hexpand _).
+  - exact (gen_value_to_meet_silent Hexpand _).
+  - apply
+      (prover_silent_of_made
+         (Provers.gen_value_to_proof Provers.prove_unique_tag_and_size_value));
+      [ | exact Hunique ].
+    intros tenv t y. unfold Provers.prove_unique_tag_and_size.
+    destruct
+      (Provers.gen_value_to_proof Provers.prove_unique_tag_and_size_value
+         tenv t)
+      as [[x | ] | ];
+      [ intros _; exists x; reflexivity | discriminate | discriminate ].
+  - apply
+      (prover_silent_of_made
+         (Provers.gen_value_to_proof Provers.prove_unique_tag_and_size_value));
+      [ | exact Hunique ].
+    intros tenv t y.
+    unfold Provers.prove_unique_fully_constructed_immutable_heap_block.
+    destruct
+      (Provers.gen_value_to_proof Provers.prove_unique_tag_and_size_value
+         tenv t)
+      as [[x | ] | ];
+      [ intros _; exists x; reflexivity | discriminate | discriminate ].
+  - intros min_name_mode field_kind field_index.
+    exact (gen_value_to_meet_silent Hexpand _).
 Qed.

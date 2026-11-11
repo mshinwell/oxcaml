@@ -76,6 +76,13 @@
    - [meet_boxed_number_containing_simple] and the nine functions
      defined with it, [meet_boxed_float32_containing_simple] to
      [meet_boxed_mask_containing_simple] (992 to 1110).
+   - [variant_like_proof], [prove_variant_like_generic_value],
+     [meet_variant_like], [prove_variant_like] (522 to 580);
+   - [prove_unique_tag_and_size_value], [prove_unique_tag_and_size],
+     [prove_unique_fully_constructed_immutable_heap_block] (697 to
+     752);
+   - [meet_block_field_simple_value], [meet_block_field_simple] (1112
+     to 1157).
    The rest of the file is to follow, in the order of the plan.
 
    How the definitions differ from the compiler's.
@@ -136,6 +143,15 @@
      number boxed ([boxable_number]); the second takes it where the
      compiler takes the function that reads the contents of a head of
      that number.
+   - A size and the index of a field are natural numbers, as in
+     FlambdaTypeAccessSpec.v; the compiler has target integers.
+   - [prove_variant_like_generic_value] keeps the sizes of the tags if
+     every tag is scannable, by a fold that makes a map keyed by
+     scannable tags; here it is a test of the tags
+     ([tag_is_scannable], which is [Tag.Scannable.of_tag]) and the map
+     is the same map. The function that
+     [prove_unique_fully_constructed_immutable_heap_block] folds over
+     the types of the fields is [field_aliases_rev].
    - A string of a [String] head is the list of its bytes
      (FlambdaTypeGrammar.v), where the compiler has a [String_info.t].
    - The arguments are in the compiler's order, the environment
@@ -234,6 +250,12 @@ Module Boxed_or_tagged_number.
         (contents : flambda_type)
     | Tagged_immediate.
 End Boxed_or_tagged_number.
+
+(* [Provers.variant_like_proof]. *)
+Record variant_like_proof : Type := Variant_like_proof {
+  const_ctors : Or_unknown.t (list Z);
+  non_const_ctors_with_sizes : Keyed.finite_map Z (nat * block_shape)
+}.
 
 (* ======================================================================== *)
 (* The provers                                                              *)
@@ -943,5 +965,188 @@ Module Provers.
     meet_boxed_number_containing_simple Boxable_naked_vec512.
   Definition meet_boxed_mask_containing_simple :=
     meet_boxed_number_containing_simple Boxable_naked_mask.
+
+  (* [Tag.Scannable.of_tag], as a test: a tag is that of a block that
+     the garbage collector scans. *)
+  Definition tag_is_scannable (tag : Z) : bool :=
+    negb (Z.ltb tag 0 || Z.leb no_scan_tag tag).
+
+  (* [Provers.prove_variant_like_generic_value]. *)
+  Definition prove_variant_like_generic_value (tenv : Typing_env.t)
+      (value_head : head_of_kind_value_non_null)
+      : option (Generic_proof.t variant_like_proof) :=
+    match value_head with
+    | Variant _ immediates _ blocks _ _ =>
+      match blocks with
+      | Or_unknown.Unknown => Some Generic_proof.Unknown
+      | Or_unknown.Known blocks =>
+        match row_like_for_blocks_all_tags_and_sizes blocks with
+        | Or_unknown.Unknown => Some Generic_proof.Unknown
+        | Or_unknown.Known non_const_ctors_with_sizes =>
+          let non_const_ctors_with_sizes
+              : Or_unknown.t (Keyed.finite_map Z (nat * block_shape)) :=
+            if
+              Keyed.for_all_bindings_b Z.eqb
+                (fun tag _ => tag_is_scannable tag)
+                non_const_ctors_with_sizes
+            then Or_unknown.Known non_const_ctors_with_sizes
+            else Or_unknown.Unknown
+          in
+          match non_const_ctors_with_sizes with
+          | Or_unknown.Unknown => Some Generic_proof.Unknown
+          | Or_unknown.Known non_const_ctors_with_sizes =>
+            let* const_ctors :=
+              match immediates with
+              | Or_unknown.Unknown => Some Or_unknown.Unknown
+              | Or_unknown.Known imms =>
+                let* proof := prove_naked_immediates_generic tenv imms in
+                match proof with
+                | Generic_proof.Unknown => Some Or_unknown.Unknown
+                | Generic_proof.Invalid => Some (Or_unknown.Known [])
+                | Generic_proof.Proved const_ctors =>
+                  Some (Or_unknown.Known const_ctors)
+                end
+              end
+            in
+            Some
+              (Generic_proof.Proved
+                 (Variant_like_proof const_ctors non_const_ctors_with_sizes))
+          end
+        end
+      end
+    | Mutable_block _ => Some Generic_proof.Unknown
+    | Closures _ _ | Boxed_number _ _ _ | String _ =>
+      Some Generic_proof.Invalid
+    end.
+
+  (* [Provers.meet_variant_like]. *)
+  Definition meet_variant_like (tenv : Typing_env.t) (t : flambda_type)
+      : option (Meet_shortcut.t variant_like_proof) :=
+    gen_value_to_meet prove_variant_like_generic_value tenv t.
+
+  (* [Provers.prove_variant_like]. *)
+  Definition prove_variant_like (tenv : Typing_env.t) (t : flambda_type)
+      : option (Proof_of_property.t variant_like_proof) :=
+    gen_value_to_proof prove_variant_like_generic_value tenv t.
+
+  (* [Provers.prove_unique_tag_and_size_value]. *)
+  Definition prove_unique_tag_and_size_value (tenv : Typing_env.t)
+      (value_head : head_of_kind_value_non_null)
+      : option
+          (Generic_proof.t
+             (Z * block_shape * nat * list flambda_type * Alloc_mode.t)) :=
+    match value_head with
+    | Variant _ immediates _ blocks _ _ =>
+      match immediates with
+      | Or_unknown.Unknown => Some Generic_proof.Unknown
+      | Or_unknown.Known immediates =>
+        let* immediates_bottom := is_bottom tenv immediates in
+        if immediates_bottom
+        then
+          match blocks with
+          | Or_unknown.Unknown => Some Generic_proof.Unknown
+          | Or_unknown.Known blocks =>
+            match row_like_for_blocks_get_singleton blocks with
+            | None => Some Generic_proof.Unknown
+            | Some (tag, shape, size, product, alloc_mode) =>
+              Some
+                (Generic_proof.Proved (tag, shape, size, product, alloc_mode))
+            end
+          end
+        else Some Generic_proof.Unknown
+      end
+    | Mutable_block _ | Closures _ _ | Boxed_number _ _ _ | String _ =>
+      Some Generic_proof.Unknown
+    end.
+
+  (* [Provers.prove_unique_tag_and_size]. *)
+  Definition prove_unique_tag_and_size (tenv : Typing_env.t)
+      (t : flambda_type)
+      : option (Proof_of_property.t (Z * block_shape * nat)) :=
+    let* proof := gen_value_to_proof prove_unique_tag_and_size_value tenv t in
+    match proof with
+    | Proof_of_property.Proved (tag, shape, size, _, _) =>
+      Some (Proof_of_property.Proved (tag, shape, size))
+    | Proof_of_property.Unknown => Some Proof_of_property.Unknown
+    end.
+
+  (* The function that
+     [Provers.prove_unique_fully_constructed_immutable_heap_block]
+     folds over the types of the fields: the [Simple]s that they are
+     aliases of, last first, if all are aliases. *)
+  Definition field_aliases_rev (result : Proof_of_property.t (list simple))
+      (field_ty : flambda_type) : Proof_of_property.t (list simple) :=
+    match result with
+    | Proof_of_property.Unknown => result
+    | Proof_of_property.Proved simples_rev =>
+      match get_alias_opt field_ty with
+      | None => Proof_of_property.Unknown
+      | Some simple => Proof_of_property.Proved (simple :: simples_rev)
+      end
+    end.
+
+  (* [Provers.prove_unique_fully_constructed_immutable_heap_block]. *)
+  Definition prove_unique_fully_constructed_immutable_heap_block
+      (tenv : Typing_env.t) (t : flambda_type)
+      : option (Proof_of_property.t (Z * block_shape * nat * list simple)) :=
+    let* proof := gen_value_to_proof prove_unique_tag_and_size_value tenv t in
+    match proof with
+    | Proof_of_property.Unknown
+    | Proof_of_property.Proved
+        (_, _, _, _, (Alloc_mode.Heap_or_local | Alloc_mode.Local)) =>
+      Some Proof_of_property.Unknown
+    | Proof_of_property.Proved (tag, shape, size, product, Alloc_mode.Heap) =>
+      let result :=
+        List.fold_left field_aliases_rev product (Proof_of_property.Proved [])
+      in
+      match result with
+      | Proof_of_property.Unknown => Some Proof_of_property.Unknown
+      | Proof_of_property.Proved simples =>
+        Some (Proof_of_property.Proved (tag, shape, size, rev simples))
+      end
+    end.
+
+  (* [Provers.meet_block_field_simple_value]. *)
+  Definition meet_block_field_simple_value (min_name_mode : Name_mode.t)
+      (field_kind : flambda_kind) (field_index : nat) (tenv : Typing_env.t)
+      (value_head : head_of_kind_value_non_null)
+      : option (Generic_proof.t simple) :=
+    match value_head with
+    | Variant _ _ _ blocks _ _ =>
+      match blocks with
+      | Or_unknown.Unknown => Some Generic_proof.Unknown
+      | Or_unknown.Known blocks =>
+        if row_like_for_blocks_is_bottom blocks
+        then Some Generic_proof.Invalid
+        else
+          match row_like_for_blocks_get_field blocks field_index with
+          | Bottom => Some Generic_proof.Invalid
+          | Unknown => Some Generic_proof.Unknown
+          | Ok ty =>
+            if negb (kind_eqb (kind ty) field_kind)
+            then Some Generic_proof.Invalid
+            else
+              let* canonical :=
+                canonical_simple_of_alias tenv min_name_mode ty
+              in
+              match canonical with
+              | Some simple => Some (Generic_proof.Proved simple)
+              | None => Some Generic_proof.Unknown
+              end
+          end
+      end
+    | Mutable_block _ => Some Generic_proof.Unknown
+    | Boxed_number _ _ _ | Closures _ _ | String _ =>
+      Some Generic_proof.Invalid
+    end.
+
+  (* [Provers.meet_block_field_simple]. *)
+  Definition meet_block_field_simple (tenv : Typing_env.t)
+      (min_name_mode : Name_mode.t) (field_kind : flambda_kind)
+      (t : flambda_type) (field_index : nat)
+      : option (Meet_shortcut.t simple) :=
+    gen_value_to_meet
+      (meet_block_field_simple_value min_name_mode field_kind field_index)
+      tenv t.
 
 End Provers.

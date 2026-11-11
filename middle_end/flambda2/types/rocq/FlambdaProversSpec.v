@@ -723,3 +723,161 @@ Definition more_provers_silent_on_poison_statement : Prop :=
              min_name_mode t))
   ∧ prover_silent_on_poison Provers.prove_strings
   ∧ meet_shortcut_silent_on_poison Provers.meet_strings.
+
+(* ======================================================================== *)
+(* Blocks                                                                   *)
+(* ======================================================================== *)
+
+(* What [Provers.prove_variant_like] answers: the value is a tagged
+   immediate, one of the constant constructors if they are known; or
+   it is a block whose tag is one of those answered, of the size and
+   of the shape answered for the tag. *)
+Definition variant_like (statics : static_env) (proof : variant_like_proof)
+    (v : value) : Prop :=
+  (∃ i : Z,
+    v = Value_const (Tagged_immediate i)
+    ∧ match const_ctors proof with
+      | Or_unknown.Known imms => i ∈ imms
+      | Or_unknown.Unknown => True
+      end)
+  ∨ (∃ (tag : Z) (fields : list value) (size : nat) (shape : block_shape),
+      block_of statics v = Some (tag, fields)
+      ∧ Keyed.lookup Z.eqb tag (non_const_ctors_with_sizes proof)
+        = Some (size, shape)
+      ∧ length fields = size
+      ∧ block_has_shape shape tag fields).
+
+(* [Provers.prove_variant_like]. It reads the numbers of the immediates
+   of the variant, so the type is to be well formed. *)
+Definition prove_variant_like_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  prover_sound Provers.prove_variant_like well_formed_input
+    (fun statics _ => variant_like statics).
+
+(* [Provers.meet_variant_like]: of the values of the type that are a
+   tagged immediate or a block. *)
+Definition meet_variant_like_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  meet_shortcut_sound Provers.meet_variant_like well_formed_input variants
+    (fun statics _ => variant_like statics).
+
+(* The value is a block of a tag, a shape and a size. *)
+Definition block_of_tag_shape_and_size (statics : static_env)
+    (x : Z * block_shape * nat) (v : value) : Prop :=
+  let '(tag, shape, size) := x in
+  ∃ fields : list value,
+    block_of statics v = Some (tag, fields)
+    ∧ length fields = size
+    ∧ block_has_shape shape tag fields.
+
+(* [Provers.prove_unique_tag_and_size]. *)
+Definition prove_unique_tag_and_size_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  prover_sound Provers.prove_unique_tag_and_size any_input
+    (fun statics _ => block_of_tag_shape_and_size statics).
+
+(* [Provers.prove_unique_fully_constructed_immutable_heap_block]: the
+   value is a block of the tag, the shape and the size answered, and
+   each [Simple] answered has the value of the field at its position.
+   The [Simple]s are the aliases that the types of the fields are, as
+   they stand in the type and not their canonical elements. There are
+   as many as the type has types of fields, which may be fewer than
+   the size: that there are as many is the statement that follows,
+   for a well-formed type. The allocation mode that the prover asks
+   for means nothing here. *)
+Definition prove_unique_immutable_heap_block_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  prover_sound Provers.prove_unique_fully_constructed_immutable_heap_block
+    any_input
+    (fun statics valuation x v =>
+       let '(tag, shape, size, simples) := x in
+       ∃ fields : list value,
+         block_of statics v = Some (tag, fields)
+         ∧ length fields = size
+         ∧ block_has_shape shape tag fields
+         ∧ ∀ (i : nat) (s : simple) (field : value),
+             nth_error simples i = Some s ->
+             nth_error fields i = Some field ->
+             eval_simple valuation s = Some field).
+
+(* The same of a well-formed type, with what the caller needs
+   ([Simplify_unary_primitive], which records that a [Make_block] of
+   the [Simple]s answered is the block): there are as many [Simple]s
+   as the size, and their values are the fields of the block, all of
+   them and in their order ([eval_simples] of FlambdaSemanticsSpec.v).
+   Without well-formedness there may be fewer [Simple]s than fields. A
+   type whose one case of blocks has an exact size and a product of
+   fewer types has the blocks of that size, whatever their other
+   fields, and the prover answers the size with the [Simple]s of the
+   product; condition 6 of FlambdaTypeWellFormedSpec.v excludes such a
+   case. Nothing is said of where the block is allocated, nor that a
+   block made of the same fields is the same block. *)
+Definition prove_unique_immutable_heap_block_fields_statement : Prop :=
+  expand_head_sound_assumed ->
+  prover_sound Provers.prove_unique_fully_constructed_immutable_heap_block
+    well_formed_input
+    (fun statics valuation x v =>
+       let '(tag, shape, size, simples) := x in
+       ∃ fields : list value,
+         block_of statics v = Some (tag, fields)
+         ∧ length fields = size
+         ∧ block_has_shape shape tag fields
+         ∧ length simples = size
+         ∧ eval_simples valuation simples = Some fields).
+
+(* The values on which the load of a field of a kind has a value: a
+   block that has the field, of that kind. *)
+Definition block_field_loads (field_kind : flambda_kind) (field_index : nat)
+    (statics : static_env) (v : value) : Prop :=
+  ∃ (tag : Z) (fields : list value) (field : value),
+    block_of statics v = Some (tag, fields)
+    ∧ nth_error fields field_index = Some field
+    ∧ kind_of_value field = field_kind.
+
+(* [Provers.meet_block_field_simple], at any name mode, kind and index:
+   of the values of the type on which the load has a value, the field
+   is the value of the [Simple] answered. The prover answers that there
+   is no such value where the type of the field is of another kind
+   than the one asked: a field of another kind is not in the domain. *)
+Definition meet_block_field_simple_sound_statement : Prop :=
+  expand_head_sound_assumed ->
+  ∀ (min_name_mode : Name_mode.t) (field_kind : flambda_kind)
+    (field_index : nat),
+    meet_shortcut_sound
+      (fun tenv t =>
+         Provers.meet_block_field_simple tenv min_name_mode field_kind t
+           field_index)
+      any_input (block_field_loads field_kind field_index)
+      (fun statics valuation s v =>
+         ∃ (tag : Z) (fields : list value) (field : value),
+           block_of statics v = Some (tag, fields)
+           ∧ nth_error fields field_index = Some field
+           ∧ eval_simple valuation s = Some field).
+
+(* [Block_load] has a value only on a value of that domain, at the
+   kind value, and its value is the field. *)
+Definition block_load_defined_statement : Prop :=
+  ∀ (statics : static_env) (kind : block_access_kind) (field : Z)
+    (v r : value),
+    eval_prim statics (Unary (Block_load kind field)) [v] = Some r ->
+    (0 <= field)%Z
+    ∧ block_field_loads Value (Z.to_nat field) statics v
+    ∧ ∃ (tag : Z) (fields : list value),
+        block_of statics v = Some (tag, fields)
+        ∧ nth_error fields (Z.to_nat field) = Some r.
+
+(* On a type that has a value that is poison none of these answers
+   [Proved] or [Known_result] either. *)
+Definition block_provers_silent_on_poison_statement : Prop :=
+  expand_head_sound_assumed ->
+  prover_silent_on_poison Provers.prove_variant_like
+  ∧ meet_shortcut_silent_on_poison Provers.meet_variant_like
+  ∧ prover_silent_on_poison Provers.prove_unique_tag_and_size
+  ∧ prover_silent_on_poison
+      Provers.prove_unique_fully_constructed_immutable_heap_block
+  ∧ ∀ (min_name_mode : Name_mode.t) (field_kind : flambda_kind)
+      (field_index : nat),
+      meet_shortcut_silent_on_poison
+        (fun tenv t =>
+           Provers.meet_block_field_simple tenv min_name_mode field_kind t
+             field_index).
