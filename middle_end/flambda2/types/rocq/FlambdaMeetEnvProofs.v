@@ -86,6 +86,7 @@ Proof.
   intros type_well_formed menv (Hinvariant & Hbottom & Haliases & Hfits).
   split.
   - repeat split; try reflexivity.
+    + intros s kind Hkind. apply make_bottom_simple_of_kind. exact Hkind.
     + intros x Hamong. exact Hamong.
     + intros n ty binding_time_and_mode Hlookup. exists ty.
       split; [ exact Hlookup | reflexivity ].
@@ -161,6 +162,7 @@ Proof.
       discriminate Hsame. }
   split.
   - repeat split; try reflexivity.
+    + exact Hkind.
     + intros x Hamong. exact Hamong.
     + exact Hkeeps.
   - change (Meet_env.typing_env menv') with tenv'.

@@ -154,6 +154,7 @@ Proof.
     exists valuation. split; [ intros x _; reflexivity | ].
     split; [ exact Hinitial | ]. intros cut_after Hvalued. exact Hvalued.
   - repeat split; try reflexivity.
+    + intros s kind Hkind. exact Hkind.
     + intros x Hamong. exact Hamong.
     + intros n ty binding_time_and_mode Hlookup. exists ty.
       split; [ exact Hlookup | reflexivity ].

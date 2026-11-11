@@ -328,16 +328,19 @@
      environment and the constant 1 in the other, both joins of the
      compiler answer that the name is the constant 1 (the stream of
      differential tests ran it).
-   A variable that the join brings in from one environment, with its
-   type, has no value on a run through another; the result then has
-   an equation on a name with no value, and the extension that an
-   enclosing meet cuts from it is false of a value that is in its
-   case. So the compiler's join has not what is asked here of
-   equations either ([keeps_equations_valued], in the first clause).
+   A variable that the join makes or brings in, with its type, may
+   have no value on a run through one of the environments joined; the
+   result then has an equation on a name with no value, and the
+   extension that an enclosing meet cuts from it is false of a value
+   that is in its case. So the compiler's join has not what is asked
+   here of equations either ([keeps_equations_valued], in the first
+   clause), unless every variable that has an equation in the level
+   that the join adds has a value on the run: a fourth condition.
    So the compiler's join has the first clause only of the runs that
    have the values that it reads: three conditions on a run, stated
    in FlambdaJoinSpec.v ([scrutinees_have_values],
-   [joined_variables_have_values], [imported_variables_have_values]).
+   [joined_variables_have_values], [imported_variables_have_values]),
+   and the fourth.
    The clause here is not weakened for them: a meet that follows
    reads a relation on behalf of the value of [r] and adds an
    equation to [x], whose type nothing ties to anything if it has no
@@ -346,7 +349,7 @@
    clause as a hypothesis on the join that it is given. Its instance
    for the compiler's own join is owed, and it has an obligation
    that nothing here discharges: that every join that a meet makes
-   is made on runs that have the three conditions. They are to be
+   is made on runs that have these conditions. They are to be
    carried through the meet as conditions on the run, and are
    hypotheses of that instance wherever the meet is not shown to
    establish them, with a CR there: nothing in the compiler is known
@@ -511,10 +514,16 @@ Definition equations_valued (tenv : Typing_env.t) (cut_after : Scope.t)
    continuation): the equation of a name that has no value in a run is
    then added in that run, and its meet with what is known of the name
    may be bottom. Meet keeps it, as far as its own equations go. The
-   compiler's n-way join does not, for a variable that it brings in
-   from some of the environments joined and that has no value on the
-   runs through the others (discrepancy T5-10, the third of the
-   conditions on runs of FlambdaJoinSpec.v). *)
+   compiler's n-way join does not: it gives an equation to a variable
+   that it makes for the simples that a type has in the environments
+   joined, which has no value on a run through an environment where
+   there is no such simple or the simple has none; and to a variable
+   that it brings in from some of the environments joined, which has
+   none on the runs through the others. That every variable with an
+   equation in the level that the join adds has a value at the
+   environment of the run is a fourth condition on the runs of the
+   compiler's join, beside the three of FlambdaJoinSpec.v
+   (discrepancies T5-5 and T5-10). *)
 Definition keeps_equations_valued (tenv tenv' : Typing_env.t)
     (valuation valuation' : env) : Prop :=
   ∀ cut_after : Scope.t,
@@ -861,10 +870,13 @@ Definition keeps_names (tenv tenv' : Typing_env.t) : Prop :=
 
 (* An environment of a meet after some of the meet: its typing
    environment has the same scope, the same earlier levels and the
-   same symbols defined, the names it knew are known with their
-   binding times and name modes and with types of the same kinds, the
-   names that equations are being added to are the same, and no name
-   to avoid is forgotten. *)
+   same symbols defined, every simple has the kinds that it had, the
+   names it knew are known with their binding times and name modes and
+   with types of the same kinds, the names that equations are being
+   added to are the same, and no name to avoid is forgotten. (A symbol
+   that is defined and has no type is of the kind of values; that it
+   is given no type of another kind is what the kinds add to what is
+   said of the names.) *)
 Definition meet_env_extends (menv menv' : Meet_env.t) : Prop :=
   let tenv := Meet_env.typing_env menv in
   let tenv' := Meet_env.typing_env menv' in
@@ -872,6 +884,8 @@ Definition meet_env_extends (menv menv' : Meet_env.t) : Prop :=
   ∧ Typing_env.prev_levels tenv' = Typing_env.prev_levels tenv
   ∧ Typing_env.min_binding_time tenv' = Typing_env.min_binding_time tenv
   ∧ Typing_env.defined_symbols tenv' = Typing_env.defined_symbols tenv
+  ∧ (∀ (s : simple) (kind : flambda_kind),
+      simple_of_kind tenv s kind -> simple_of_kind tenv' s kind)
   ∧ Meet_env.adding_equations_for_names menv'
     = Meet_env.adding_equations_for_names menv
   ∧ (∀ x : variable,

@@ -207,6 +207,7 @@ Qed.
 Lemma meet_env_extends_refl (menv : Meet_env.t) : meet_env_extends menv menv.
 Proof.
   repeat split; try reflexivity.
+  - intros s kind Hkind. exact Hkind.
   - intros x Hamong. exact Hamong.
   - apply keeps_names_refl.
 Qed.
@@ -215,9 +216,10 @@ Lemma meet_env_extends_trans (menv1 menv2 menv3 : Meet_env.t) :
   meet_env_extends menv1 menv2 -> meet_env_extends menv2 menv3 ->
   meet_env_extends menv1 menv3.
 Proof.
-  intros (Hs12 & Hp12 & Hm12 & Hd12 & Ha12 & Hv12 & Hk12)
-    (Hs23 & Hp23 & Hm23 & Hd23 & Ha23 & Hv23 & Hk23).
+  intros (Hs12 & Hp12 & Hm12 & Hd12 & Hkind12 & Ha12 & Hv12 & Hk12)
+    (Hs23 & Hp23 & Hm23 & Hd23 & Hkind23 & Ha23 & Hv23 & Hk23).
   repeat split; try congruence.
+  - intros s kind Hkind. exact (Hkind23 s kind (Hkind12 s kind Hkind)).
   - intros x Hamong. apply Hv23, Hv12, Hamong.
   - exact (keeps_names_trans _ _ _ Hk12 Hk23).
 Qed.
@@ -256,7 +258,7 @@ Qed.
 Lemma meet_env_extends_keeps_names (menv menv' : Meet_env.t) :
   meet_env_extends menv menv' ->
   keeps_names (Meet_env.typing_env menv) (Meet_env.typing_env menv').
-Proof. intros (_ & _ & _ & _ & _ & _ & Hkeeps). exact Hkeeps. Qed.
+Proof. intros (_ & _ & _ & _ & _ & _ & _ & Hkeeps). exact Hkeeps. Qed.
 
 (* ======================================================================== *)
 (* The meet of a part of a type                                             *)
