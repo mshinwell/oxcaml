@@ -248,6 +248,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaTypingEnvOperationsProofs.v \
   FlambdaTypingEnvOperationsSpec.v \
   FlambdaTypingEnvProofs.v \
+  FlambdaTypingEnvRangeProofs.v \
+  FlambdaTypingEnvRangeSpec.v \
   FlambdaTypingEnvRefinementProofs.v \
   FlambdaTypingEnvRefinementSpec.v \
   FlambdaTypingEnvSpec.v \
