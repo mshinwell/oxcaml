@@ -37,8 +37,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeGrammarProofs FlambdaTypeMeaningSpec FlambdaTypeMeaningProofs
   FlambdaTypeMeaningBoolSpec FlambdaTypeMeaningBoolProofs FlambdaBindingTime
   FlambdaEnvAliases FlambdaTypingEnv FlambdaTypingEnvSpec
-  FlambdaJoinEnv FlambdaJoinTypes FlambdaJoinSpec FlambdaJoinProofs
-  FlambdaJoinTypesSpec.
+  FlambdaTypingEnvKindedSpec FlambdaJoinEnv FlambdaJoinTypes FlambdaJoinSpec
+  FlambdaJoinProofs FlambdaJoinTypesSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -2568,6 +2568,8 @@ Hypothesis Hextension :
   n_way_join_env_extension_sound typing_env_well_formed joined_env
     definitions_of_existentials kind_in_target_env state_valid state_kinded
     join_env_n_way_join_env_extension.
+Hypothesis Hconstants :
+  joined_envs_constants_of_kind typing_env_well_formed joined_env state_valid.
 Hypothesis Hexpand : expand_head_sound typing_env_well_formed expand_head.
 Hypothesis Hreduce :
   reduce_head_of_kind_naked_immediate_sound
@@ -5302,7 +5304,746 @@ Proof.
        Hextends v Hv).
 Qed.
 
+(* ------------------------------------------------------------------------ *)
+(* Expanded types                                                           *)
+(* ------------------------------------------------------------------------ *)
+
+Definition variables_of_expanded (e : Expanded_type.t) : list variable :=
+  free_variables (Expanded_type.to_type e).
+
+Definition aliases_of_expanded (e : Expanded_type.t)
+    : list (simple * flambda_kind) :=
+  aliases_with_kinds (Expanded_type.to_type e).
+
+Definition expanded_holds (statics : static_env) (vars : env) (v : value)
+    (e : Expanded_type.t) : Prop :=
+  type_satisfied statics vars v (Expanded_type.to_type e).
+
+(* The expanded types given are of one kind. *)
+Definition expandeds_of_kind (kind : flambda_kind)
+    (expandeds : list (Index.t * Expanded_type.t)) : Prop :=
+  ∀ (index : Index.t) (e : Expanded_type.t),
+    In (index, e) expandeds ->
+    Expanded_type.kind e = kind
+    ∧ FlambdaTypeGrammar.kind (Expanded_type.to_type e) = kind.
+
+(* What is proved of the expanded type [e'] that
+   [n_way_join_expanded_head] answers at [s2], given [expandeds] at
+   [s1]. *)
+Definition expanded_answer_sound (kind : flambda_kind) (s1 s2 : state)
+    (expandeds : list (Index.t * Expanded_type.t)) (e' : Expanded_type.t)
+    : Prop :=
+  state_valid s2 ∧ grows s1 s2 ∧ (state_kinded s1 -> state_kinded s2)
+  ∧ FlambdaTypeGrammar.kind (Expanded_type.to_type e') = kind
+  ∧ answer_holds_from variables_of_expanded aliases_of_expanded
+      (all_kept expanded_holds expanded_holds) s1 s2 expandeds e'.
+
+Lemma expanded_unknown_sound (kind : flambda_kind) (s1 s2 : state)
+    (expandeds : list (Index.t * Expanded_type.t)) :
+  state_valid s2 -> grows s1 s2 -> (state_kinded s1 -> state_kinded s2) ->
+  expandeds_of_kind kind expandeds ->
+  expanded_answer_sound kind s1 s2 expandeds
+    (Expanded_type.create_unknown kind).
+Proof.
+  intros Hvalid Hgrows Hk Hkinds.
+  split; [ exact Hvalid | ]. split; [ exact Hgrows | ].
+  split; [ exact Hk | ]. split; [ apply kind_unknown | ].
+  intros s' _.
+  split.
+  { intros x Hx. change (x ∈ free_variables (unknown kind)) in Hx.
+    rewrite free_variables_unknown in Hx. destruct Hx. }
+  split.
+  2: { intros _ simple kind' Hsimple.
+       change ((simple, kind') ∈ aliases_with_kinds (unknown kind))
+         in Hsimple.
+       rewrite aliases_with_kinds_unknown in Hsimple. destruct Hsimple. }
+  intros index e use statics valuation valuation' Hin _ _ _ v Hv.
+  unfold expanded_holds in *.
+  change (Expanded_type.to_type (Expanded_type.create_unknown kind))
+    with (unknown kind).
+  apply unknown_satisfied. rewrite (type_satisfied_kind _ _ _ _ Hv).
+  exact (proj2 (Hkinds index e Hin)).
+Qed.
+
+Lemma expanded_bottom_sound (kind : flambda_kind) (s1 : state) :
+  state_valid s1 ->
+  expanded_answer_sound kind s1 s1 [] (Expanded_type.create_bottom kind).
+Proof.
+  intros Hvalid.
+  split; [ exact Hvalid | ]. split; [ apply grows_refl | ].
+  split; [ auto | ]. split; [ apply kind_bottom | ].
+  intros s' _.
+  split.
+  { intros x Hx. change (x ∈ free_variables (bottom kind)) in Hx.
+    rewrite free_variables_bottom in Hx. destruct Hx. }
+  split; [ intros ? ? ? ? ? ? [] | ].
+  intros _ simple kind' Hsimple.
+  change ((simple, kind') ∈ aliases_with_kinds (bottom kind)) in Hsimple.
+  rewrite aliases_with_kinds_bottom in Hsimple. destruct Hsimple.
+Qed.
+
+(* An expanded type that is bottom, before those joined. *)
+Lemma expanded_answer_cons_bottom (kind : flambda_kind) (s1 s2 : state)
+    (id : Index.t) (e : Expanded_type.t)
+    (expandeds : list (Index.t * Expanded_type.t)) (e' : Expanded_type.t) :
+  Expanded_type.descr e = Bottom ->
+  expanded_answer_sound kind s1 s2 expandeds e' ->
+  expanded_answer_sound kind s1 s2 ((id, e) :: expandeds) e'.
+Proof.
+  intros Hdescr (Hvalid & Hgrows & Hk & Hkind & Hholds).
+  split; [ exact Hvalid | ]. split; [ exact Hgrows | ].
+  split; [ exact Hk | ]. split; [ exact Hkind | ].
+  intros s' Hgrows'.
+  destruct (Hholds s' Hgrows') as (Htarget & Hbound & Hkinds).
+  split; [ exact Htarget | ]. split; [ | exact Hkinds ].
+  intros index e0 use statics valuation valuation' [[= <- <-] | Hin] Huse
+    Hsatisfied Hextends v Hv.
+  - unfold expanded_holds, Expanded_type.to_type in Hv. rewrite Hdescr in Hv.
+    destruct (bottom_satisfied statics valuation v _ Hv).
+  - exact
+      (Hbound index e0 use statics valuation valuation' Hin Huse Hsatisfied
+         Hextends v Hv).
+Qed.
+
+(* The join of the heads of one sort of the expanded types that are
+   not bottom, the first of which has such a head: [extract] reads a
+   head of that sort, [inject] makes an expanded type of one, and
+   [type_of_head] is the type that it stands for. *)
+Lemma expanded_heads_joined {H : Type}
+    (extract : Expanded_type.head -> option H)
+    (inject : H -> Expanded_type.t) (type_of_head : H -> flambda_type)
+    (variables_of_head : H -> list variable)
+    (aliases_of_head : H -> list (simple * flambda_kind))
+    (variables_of_answer : Or_unknown.t H -> list variable)
+    (aliases_of_answer : Or_unknown.t H -> list (simple * flambda_kind))
+    (head_holds : static_env -> env -> value -> H -> Prop)
+    (join : state -> list (Index.t * H) -> option (Or_unknown.t H * state))
+    (kind : flambda_kind) (s s1 s2 : state) (id1 : Index.t)
+    (expanded1 : Expanded_type.t) (head1 : Expanded_type.head) (a1 : H)
+    (rest : list (Index.t * Expanded_type.t))
+    (heads_opt : option (list (Index.t * H)))
+    (joined : Or_unknown.t Expanded_type.t) :
+  step_sound variables_of_head aliases_of_head variables_of_answer
+    aliases_of_answer (known_bound (all_kept head_holds head_holds)) join ->
+  (∀ (e : Expanded_type.t) (head : Expanded_type.head) (a : H),
+     Expanded_type.descr e = Ok head ->
+     extract head = Some a -> Expanded_type.to_type e = type_of_head a) ->
+  (∀ a : H, Expanded_type.to_type (inject a) = type_of_head a) ->
+  (∀ a : H, free_variables (type_of_head a) = variables_of_head a) ->
+  (∀ a : H, aliases_with_kinds (type_of_head a) = aliases_of_head a) ->
+  (∀ a : H, variables_of_answer (Or_unknown.Known a) = variables_of_head a) ->
+  (∀ a : H, aliases_of_answer (Or_unknown.Known a) = aliases_of_head a) ->
+  (∀ (statics : static_env) (vars : env) (v : value) (a : H),
+     type_satisfied statics vars v (type_of_head a)
+     <-> head_holds statics vars v a) ->
+  (∀ a a' : H,
+     FlambdaTypeGrammar.kind (type_of_head a)
+     = FlambdaTypeGrammar.kind (type_of_head a')) ->
+  envs_well_formed s -> envs_kinded s -> grows s s1 -> state_valid s1 ->
+  join_args_distinct ((id1, expanded1) :: rest) ->
+  args_in_scope (arg_ok variables_of_expanded aliases_of_expanded) s
+    ((id1, expanded1) :: rest) ->
+  expandeds_of_kind kind ((id1, expanded1) :: rest) ->
+  Expanded_type.descr expanded1 = Ok head1 ->
+  extract head1 = Some a1 ->
+  extract_heads extract rest = Some heads_opt ->
+  match heads_opt with
+  | None => Some (Or_unknown.Unknown, s1)
+  | Some heads => map_join_result inject (join s1 ((id1, a1) :: heads))
+  end
+  = Some (joined, s2) ->
+  expanded_answer_sound kind s1 s2 ((id1, expanded1) :: rest)
+    match joined with
+    | Or_unknown.Known e => e
+    | Or_unknown.Unknown => Expanded_type.unknown_like expanded1
+    end.
+Proof.
+  intros Hjoin_sound Hextract_type Hinject Hvariables Haliases
+    Hvariables_answer Haliases_answer Hholds_iff Hkind_head Hwf Hkinded
+    Hgrows Hvalid Hdistinct Hargs Hkinds Hdescr1 Ha1 Hextract Hjoined.
+  set (all := (id1, expanded1) :: rest) in *.
+  assert (Hkind1 : Expanded_type.kind expanded1 = kind).
+  { apply (Hkinds id1 expanded1). left. reflexivity. }
+  assert (Hunknown :
+    ∀ s2' : state,
+      state_valid s2' -> grows s1 s2' ->
+      (state_kinded s1 -> state_kinded s2') ->
+      expanded_answer_sound kind s1 s2' all
+        (Expanded_type.unknown_like expanded1)).
+  { intros s2' Hvalid2 Hgrows2 Hk2. unfold Expanded_type.unknown_like.
+    rewrite Hkind1.
+    exact (expanded_unknown_sound kind s1 s2' all Hvalid2 Hgrows2 Hk2 Hkinds). }
+  destruct heads_opt as [heads | ].
+  2: { injection Hjoined as <- <-.
+       exact (Hunknown s1 Hvalid (grows_refl s1) (fun H => H)). }
+  destruct (extract_heads_spec extract rest heads Hextract) as (-> & Hall).
+  assert (Hfirst : extracted extract (id1, expanded1) = [(id1, a1)]).
+  { unfold extracted. cbn [fst snd]. rewrite Hdescr1, Ha1. reflexivity. }
+  assert (Heq :
+    (id1, a1) :: flat_map (extracted extract) rest
+    = flat_map (extracted extract) all).
+  { unfold all. cbn [flat_map]. rewrite Hfirst. reflexivity. }
+  rewrite Heq in Hjoined. clear Heq.
+  set (heads := flat_map (extracted extract) all) in *.
+  (* Each expanded type given is bottom or has a head that was read. *)
+  assert (Hall' :
+    ∀ (index : Index.t) (e : Expanded_type.t),
+      In (index, e) all ->
+      Expanded_type.descr e = Bottom
+      ∨ ∃ a : H,
+          Expanded_type.to_type e = type_of_head a ∧ In (index, a) heads).
+  { intros index e Hin.
+    assert (Hcases :
+      Expanded_type.descr e = Bottom
+      ∨ ∃ (head : Expanded_type.head) (a : H),
+          Expanded_type.descr e = Ok head ∧ extract head = Some a).
+    { destruct Hin as [[= <- <-] | Hin];
+        [ right; exists head1, a1; split; assumption | exact (Hall _ _ Hin) ]. }
+    destruct Hcases as [Hbottom | (head & a & Hdescr & Ha)];
+      [ left; exact Hbottom | right ].
+    exists a. split; [ exact (Hextract_type e head a Hdescr Ha) | ].
+    apply extracted_in. exists e, head. auto. }
+  unfold map_join_result in Hjoined.
+  destruct (join s1 heads) as [[joined_head s2'] | ] eqn:Hjoin;
+    [ | discriminate ].
+  injection Hjoined as <- <-.
+  assert (Hd_heads : join_args_distinct heads).
+  { apply extracted_distinct. exact Hdistinct. }
+  assert (Hargs_heads :
+    args_in_scope (arg_ok variables_of_head aliases_of_head) s heads).
+  { apply (args_of_parts _ _ _ _ s all heads Hargs). intros index a Hin.
+    apply extracted_in in Hin as (e & head & Hin & Hdescr & Ha).
+    exists e. split; [ exact Hin | ].
+    unfold variables_of_expanded, aliases_of_expanded.
+    rewrite (Hextract_type e head a Hdescr Ha), Hvariables, Haliases.
+    split; apply incl_refl. }
+  destruct
+    (step_sound_at _ _ _ _ _ _ Hjoin_sound s s1 s2' heads joined_head Hwf
+       Hkinded Hgrows Hvalid Hd_heads Hargs_heads Hjoin)
+    as (Hvalid2 & Hgrows2 & Hk2 & Hholds).
+  destruct joined_head as [a' | ]; cbn [or_unknown_map];
+    [ | exact (Hunknown s2' Hvalid2 Hgrows2 Hk2) ].
+  split; [ exact Hvalid2 | ]. split; [ exact Hgrows2 | ].
+  split; [ exact Hk2 | ].
+  split.
+  { rewrite Hinject, (Hkind_head a' a1),
+      <- (Hextract_type expanded1 head1 a1 Hdescr1 Ha1).
+    apply (Hkinds id1 expanded1). left. reflexivity. }
+  intros s' Hgrows'.
+  destruct (Hholds s' Hgrows') as (Htarget & Hbound & Hkinds').
+  split.
+  { intros x Hx. unfold variables_of_expanded in Hx.
+    rewrite Hinject, Hvariables, <- Hvariables_answer in Hx.
+    exact (Htarget x Hx). }
+  split.
+  2: { intros Hk simple kind' Hsimple. unfold aliases_of_expanded in Hsimple.
+       rewrite Hinject, Haliases, <- Haliases_answer in Hsimple.
+       exact (Hkinds' Hk simple kind' Hsimple). }
+  intros index e use statics valuation valuation' Hin Huse Hsatisfied
+    Hextends v Hv.
+  unfold expanded_holds in *. rewrite Hinject.
+  destruct (Hall' index e Hin) as [Hbottom | (a & Htype & Hin')].
+  - unfold Expanded_type.to_type in Hv. rewrite Hbottom in Hv.
+    destruct (bottom_satisfied statics valuation v _ Hv).
+  - rewrite Htype in Hv. apply Hholds_iff. apply Hholds_iff in Hv.
+    exact
+      (Hbound index a use statics valuation valuation' Hin' Huse Hsatisfied
+         Hextends v Hv).
+Qed.
+
+(* A join of heads that answers a head of the first, whatever the
+   heads: the heads of that sort say one thing. *)
+Lemma constant_head_join_sound {H : Type}
+    (holds : static_env -> env -> value -> H -> Prop)
+    (f :
+       state -> H * Index.t -> list (Index.t * H)
+       -> option (Or_unknown.t H * state)) :
+  (∀ (s : state) (t1 : H * Index.t) (ts : list (Index.t * H)),
+     ∃ a : H, f s t1 ts = Some (Or_unknown.Known a, s)) ->
+  (∀ (statics : static_env) (vars vars' : env) (v : value) (a a' : H),
+     holds statics vars v a -> holds statics vars' v a') ->
+  step_sound (fun _ : H => []) (fun _ => []) (fun _ : Or_unknown.t H => [])
+    (fun _ => []) (known_bound (all_kept holds holds))
+    (fun s heads =>
+       match heads with
+       | [] => None
+       | (id1, head1) :: heads => f s (head1, id1) heads
+       end).
+Proof.
+  intros Hf Hholds s s' args answer Hvalid Hwf Hkinded Hdistinct Hargs Hstep.
+  destruct args as [ | [id1 head1] heads]; [ discriminate | ].
+  destruct (Hf s (head1, id1) heads) as [a Ha]. rewrite Ha in Hstep.
+  injection Hstep as <- <-.
+  split; [ exact Hvalid | ]. split; [ apply grows_refl | ].
+  split; [ intros x [] | ].
+  split.
+  - intros index a_i use statics valuation valuation' _ _ _ _ v Hv.
+    exact (Hholds statics valuation valuation' v a_i a Hv).
+  - intros Hk. split; [ exact Hk | intros simple kind [] ].
+Qed.
+
+Local Ltac expanded_case Hstep Hcase rest heads_opt Hextract joined s2'
+    Hjoined :=
+  match type of Hstep with
+  | context [extract_heads ?extract rest] =>
+    destruct (extract_heads extract rest) as [heads_opt | ] eqn:Hextract;
+      [ | discriminate ]
+  end;
+  match type of Hstep with
+  | (match ?m with Some _ => _ | None => _ end) = _ =>
+    destruct m as [[joined s2'] | ] eqn:Hjoined; [ | discriminate ]
+  end;
+  refine (Hcase joined s2' _ Hstep).
+
+Lemma n_way_join_expanded_head_is_sound (kind : flambda_kind) (s s1 : state) :
+  envs_well_formed s -> envs_kinded s -> grows s s1 -> state_valid s1 ->
+  ∀ (expandeds : list (Index.t * Expanded_type.t)) (s2 : state)
+    (answer : Or_unknown.t Expanded_type.t),
+    join_args_distinct expandeds ->
+    args_in_scope (arg_ok variables_of_expanded aliases_of_expanded) s
+      expandeds ->
+    expandeds_of_kind kind expandeds ->
+    n_way_join_expanded_head joined_env n_way_join_simples import_type
+      join_env_n_way_join_env_extension reduce_head_of_kind_naked_immediate
+      type_eqb block_shape_eqb n_way_join_rec s1 kind expandeds
+    = Some (answer, s2) ->
+    ∃ e' : Expanded_type.t,
+      answer = Or_unknown.Known e'
+      ∧ expanded_answer_sound kind s1 s2 expandeds e'.
+Proof.
+  intros Hwf Hkinded Hgrows Hvalid.
+  induction expandeds as [ | [id1 expanded1] rest IH];
+    intros s2 answer Hdistinct Hargs Hkinds Hstep.
+  { injection Hstep as <- <-. exists (Expanded_type.create_bottom kind).
+    split; [ reflexivity | apply expanded_bottom_sound; exact Hvalid ]. }
+  cbn [n_way_join_expanded_head] in Hstep.
+  destruct (Expanded_type.descr expanded1) as [ | descr1 | ] eqn:Hdescr1.
+  - (* The first is unknown. *)
+    injection Hstep as <- <-. exists (Expanded_type.create_unknown kind).
+    split; [ reflexivity | ].
+    exact
+      (expanded_unknown_sound kind s1 s1 _ Hvalid (grows_refl s1)
+         (fun H => H) Hkinds).
+  - (* The first has a head. *)
+    assert (Hcase :
+      ∀ (joined : Or_unknown.t Expanded_type.t) (s2' : state),
+        expanded_answer_sound kind s1 s2' ((id1, expanded1) :: rest)
+          match joined with
+          | Or_unknown.Known e => e
+          | Or_unknown.Unknown => Expanded_type.unknown_like expanded1
+          end ->
+        match joined with
+        | Or_unknown.Known expanded => Some (Or_unknown.Known expanded, s2')
+        | Or_unknown.Unknown =>
+          Some (Or_unknown.Known (Expanded_type.unknown_like expanded1), s2')
+        end
+        = Some (answer, s2) ->
+        ∃ e' : Expanded_type.t,
+          answer = Or_unknown.Known e'
+          ∧ expanded_answer_sound kind s1 s2 ((id1, expanded1) :: rest) e').
+    { intros joined s2' Hsound Hanswer.
+      destruct joined as [e | ]; injection Hanswer as <- <-; eexists;
+        (split; [ reflexivity | exact Hsound ]). }
+    destruct descr1 as [head1 | head1 | k head1 | head1 | head1].
+    + expanded_case Hstep Hcase rest heads_opt Hextract joined s2' Hjoined.
+      refine
+        (expanded_heads_joined
+           (fun head =>
+              match head with
+              | Expanded_type.Head_value head => Some head
+              | _ => None
+              end)
+           Expanded_type.create_value
+           (fun head => Type_value (Ok (No_alias head)))
+           free_variables_of_head_of_kind_value aliases_of_head_of_kind_value
+           (of_known free_variables_of_head_of_kind_value)
+           (of_known aliases_of_head_of_kind_value)
+           head_of_kind_value_satisfied
+           (n_way_join_head_of_kind_value n_way_join_simples import_type
+              join_env_n_way_join_env_extension type_eqb block_shape_eqb
+              n_way_join_rec)
+           kind s s1 s2' id1 expanded1 _ head1 rest heads_opt joined
+           n_way_join_head_of_kind_value_is_sound _ _ _ _ _ _ _ _ Hwf Hkinded
+           Hgrows Hvalid Hdistinct Hargs Hkinds Hdescr1 eq_refl Hextract
+           Hjoined);
+        try (intros; reflexivity).
+      intros e head a Hdescr Ha. unfold Expanded_type.to_type.
+      rewrite Hdescr. destruct head; try discriminate. injection Ha as ->.
+      reflexivity.
+    + expanded_case Hstep Hcase rest heads_opt Hextract joined s2' Hjoined.
+      refine
+        (expanded_heads_joined
+           (fun head =>
+              match head with
+              | Expanded_type.Head_naked_immediate head => Some head
+              | _ => None
+              end)
+           Expanded_type.create_naked_immediate
+           (fun head => Type_naked_immediate (Ok (No_alias head)))
+           free_variables_of_naked_immediate (fun _ => [])
+           (of_known free_variables_of_naked_immediate) (fun _ => [])
+           head_of_kind_naked_immediate_satisfied
+           (n_way_join_head_of_kind_naked_immediate joined_env
+              reduce_head_of_kind_naked_immediate)
+           kind s s1 s2' id1 expanded1 _ head1 rest heads_opt joined
+           (n_way_join_head_of_kind_naked_immediate_is_sound
+              reduce_head_of_kind_naked_immediate Hreduce)
+           _ _ _ _ _ _ _ _ Hwf Hkinded Hgrows Hvalid Hdistinct Hargs Hkinds
+           Hdescr1 eq_refl Hextract Hjoined);
+        try (intros; reflexivity).
+      intros e head a Hdescr Ha. unfold Expanded_type.to_type.
+      rewrite Hdescr. destruct head; try discriminate. injection Ha as ->.
+      reflexivity.
+    + expanded_case Hstep Hcase rest heads_opt Hextract joined s2' Hjoined.
+      refine
+        (expanded_heads_joined
+           (fun head =>
+              match head with
+              | Expanded_type.Head_naked_number k' head =>
+                if kind_eqb (Naked_number k) (Naked_number k')
+                then Some head
+                else None
+              | _ => None
+              end)
+           (Expanded_type.create_naked_number k)
+           (fun head => Type_naked_number k (Ok (No_alias head)))
+           (fun _ => []) (fun _ => []) (fun _ => []) (fun _ => [])
+           (fun _ _ v numbers => naked_numbers_satisfied k v numbers)
+           (fun s heads =>
+              match heads with
+              | [] => None
+              | (id1, head1) :: heads =>
+                n_way_join_head_of_kind_naked_numbers s (head1, id1) heads
+              end)
+           kind s s1 s2' id1 expanded1 _ head1 rest heads_opt joined
+           (n_way_join_head_of_kind_naked_numbers_is_sound k) _ _ _ _ _ _ _ _
+           Hwf Hkinded Hgrows Hvalid Hdistinct Hargs Hkinds Hdescr1 _ Hextract
+           Hjoined);
+        try (intros; reflexivity).
+      * intros e head a Hdescr Ha. unfold Expanded_type.to_type.
+        rewrite Hdescr. destruct head as [ | | k' numbers | | ];
+          try discriminate.
+        destruct (kind_eqb (Naked_number k) (Naked_number k')) eqn:Hkind;
+          [ | discriminate ].
+        injection Ha as ->. apply kind_eqb_true in Hkind.
+        injection Hkind as <-. reflexivity.
+      * cbv beta iota. rewrite kind_eqb_refl. reflexivity.
+    + expanded_case Hstep Hcase rest heads_opt Hextract joined s2' Hjoined.
+      refine
+        (expanded_heads_joined
+           (fun head =>
+              match head with
+              | Expanded_type.Head_rec_info head => Some head
+              | _ => None
+              end)
+           Expanded_type.create_rec_info
+           (fun head => Type_rec_info (Ok (No_alias head))) (fun _ => [])
+           (fun _ => []) (fun _ => []) (fun _ => [])
+           (fun _ _ v _ => kind_of_value v = Rec_info)
+           (fun s heads =>
+              match heads with
+              | [] => None
+              | (id1, head1) :: heads =>
+                n_way_join_head_of_kind_rec_info s (head1, id1) heads
+              end)
+           kind s s1 s2' id1 expanded1 _ head1 rest heads_opt joined
+           (constant_head_join_sound _ _ _ _) _ _ _ _ _ _ _ _ Hwf Hkinded
+           Hgrows Hvalid Hdistinct Hargs Hkinds Hdescr1 eq_refl Hextract
+           Hjoined);
+        try (intros; reflexivity).
+      * intros s0 t1 ts. exists (fst t1). reflexivity.
+      * intros statics vars vars' v a a' Hv. exact Hv.
+      * intros e head a Hdescr Ha. unfold Expanded_type.to_type.
+        rewrite Hdescr. destruct head; try discriminate. injection Ha as ->.
+        reflexivity.
+    + expanded_case Hstep Hcase rest heads_opt Hextract joined s2' Hjoined.
+      refine
+        (expanded_heads_joined
+           (fun head =>
+              match head with
+              | Expanded_type.Head_region head => Some head
+              | _ => None
+              end)
+           Expanded_type.create_region
+           (fun head => Type_region (Ok (No_alias head))) (fun _ => [])
+           (fun _ => []) (fun _ => []) (fun _ => [])
+           (fun _ _ v _ => kind_of_value v = Region)
+           (fun s heads =>
+              match heads with
+              | [] => None
+              | (id1, head1) :: heads =>
+                n_way_join_head_of_kind_region s (head1, id1) heads
+              end)
+           kind s s1 s2' id1 expanded1 _ head1 rest heads_opt joined
+           (constant_head_join_sound _ _ _ _) _ _ _ _ _ _ _ _ Hwf Hkinded
+           Hgrows Hvalid Hdistinct Hargs Hkinds Hdescr1 eq_refl Hextract
+           Hjoined);
+        try (intros; reflexivity).
+      * intros s0 t1 ts. exists tt. reflexivity.
+      * intros statics vars vars' v a a' Hv. exact Hv.
+      * intros e head a Hdescr Ha. unfold Expanded_type.to_type.
+        rewrite Hdescr. destruct head; try discriminate. injection Ha as ->.
+        reflexivity.
+  - (* The first is bottom. *)
+    assert (Hdistinct' : join_args_distinct rest).
+    { inversion Hdistinct. assumption. }
+    assert (Hargs' :
+      args_in_scope (arg_ok variables_of_expanded aliases_of_expanded) s rest).
+    { intros index e Hin. apply Hargs. right. exact Hin. }
+    assert (Hkinds' : expandeds_of_kind kind rest).
+    { intros index e Hin. exact (Hkinds index e (or_intror Hin)). }
+    destruct (IH s2 answer Hdistinct' Hargs' Hkinds' Hstep)
+      as (e' & -> & Hsound).
+    exists e'. split; [ reflexivity | ].
+    exact
+      (expanded_answer_cons_bottom kind s1 s2 id1 expanded1 rest e' Hdescr1
+         Hsound).
+Qed.
+
+(* ------------------------------------------------------------------------ *)
+(* The join of types                                                        *)
+(* ------------------------------------------------------------------------ *)
+
+Lemma expand_heads_eq (s : state) (ts : list (Index.t * flambda_type)) :
+  expand_heads joined_env expand_head s ts
+  = indexed_map_opt
+      (fun id ty =>
+         match joined_env s id with
+         | Some tenv => expand_head tenv ty
+         | None => None
+         end)
+      ts.
+Proof.
+  induction ts as [ | [id ty] ts IH]; simpl; [ reflexivity | ]. rewrite IH.
+  destruct (joined_env s id) as [tenv | ]; [ | reflexivity ].
+  destruct (expand_head tenv ty); [ | reflexivity ].
+  destruct (indexed_map_opt _ ts); reflexivity.
+Qed.
+
+(* The variables and the aliases of a type that is an alias. *)
+Lemma get_alias_opt_parts (ty : flambda_type) (simple : simple) :
+  get_alias_opt ty = Some simple ->
+  free_variables ty = free_variables_of_simple simple
+  ∧ aliases_with_kinds ty = [(simple, kind ty)].
+Proof.
+  destruct ty
+    as [[ | [head | s] | ] | [ | [head | s] | ] | k [ | [head | s] | ]
+       | [ | [head | s] | ] | [ | [head | s] | ]];
+    try discriminate; intros [= ->]; split; reflexivity.
+Qed.
+
+(* The body of the join of types meets the contract of the join of
+   types, if the join of types that it calls does. *)
+Theorem n_way_join_body_is_sound :
+  n_way_join_type_sound typing_env_well_formed joined_env
+    definitions_of_existentials kind_in_target_env state_valid state_kinded
+    (n_way_join_body joined_env n_way_join_simples import_type
+       join_env_n_way_join_env_extension expand_head
+       reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb
+       n_way_join_rec).
+Proof.
+  intros s s' ts result Hvalid Hwf Hkinded Hdistinct Hscope Hkinds Hstep.
+  unfold n_way_join_body in Hstep.
+  destruct ts as [ | [id1 t1] others]; [ discriminate | ].
+  cbv zeta in Hstep.
+  destruct
+    (forallb (fun t => kind_eqb (kind t1) (kind (snd t))) others) eqn:Hall;
+    cbn [negb] in Hstep; [ | discriminate ].
+  set (ts := (id1, t1) :: others) in *.
+  assert (Hkind_ts :
+    ∀ (index : Index.t) (t : flambda_type),
+      In (index, t) ts -> kind t = kind t1).
+  { intros index t [[= <- <-] | Hin]; [ reflexivity | ].
+    rewrite forallb_forall in Hall. symmetry.
+    exact (kind_eqb_true _ _ (Hall (index, t) Hin)). }
+  set (kept := filter (fun t => negb (is_obviously_bottom (snd t))) ts) in *.
+  assert (Hkept :
+    ∀ (index : Index.t) (t : flambda_type),
+      In (index, t) kept
+      <-> In (index, t) ts ∧ is_obviously_bottom t = false).
+  { intros index t. unfold kept. rewrite filter_In. cbn [snd].
+    rewrite negb_true_iff. reflexivity. }
+  assert (Hkept_distinct : join_args_distinct kept).
+  { apply filter_indexed_distinct. exact Hdistinct. }
+  (* A type that has a value is not left out. *)
+  assert (Hlive :
+    ∀ (index : Index.t) (t : flambda_type) (statics : static_env)
+      (valuation : env) (v : value),
+      In (index, t) ts ->
+      type_satisfied statics valuation v t -> In (index, t) kept).
+  { intros index t statics valuation v Hin Hv. apply Hkept.
+    split; [ exact Hin | ].
+    destruct (is_obviously_bottom t) eqn:Hbottom; [ | reflexivity ].
+    destruct (is_obviously_bottom_satisfied statics valuation v t Hbottom Hv). }
+  rewrite alias_simples_eq in Hstep.
+  destruct (indexed_map_opt (fun _ ty => get_alias_opt ty) kept)
+    as [simples | ] eqn:Hsimples'.
+  - (* Every type is an alias. *)
+    destruct (indexed_map_opt_spec _ _ simples Hsimples')
+      as (Hfst & Hto & Hfrom).
+    destruct (n_way_join_simples s (kind t1) simples) as [[joined s1] | ]
+      eqn:Hjoin; [ | discriminate ].
+    assert (Hd_simples : join_args_distinct simples).
+    { unfold join_args_distinct. rewrite Hfst. exact Hkept_distinct. }
+    assert (Hk_simples :
+      args_in_scope (fun use simple => simple_of_kind use simple (kind t1)) s
+        simples).
+    { intros index simple Hin.
+      destruct (Hfrom index simple Hin) as (ty & Halias & Hin').
+      apply Hkept in Hin' as [Hin' _].
+      destruct (Hkinds index ty Hin') as (use & Huse & Hkinded_ty).
+      exists use. split; [ exact Huse | ].
+      rewrite <- (Hkind_ts index ty Hin'). apply Hkinded_ty.
+      rewrite (proj2 (get_alias_opt_parts ty simple Halias)). left.
+      reflexivity. }
+    destruct
+      (Hsimples s s1 _ simples joined Hvalid Hwf Hkinded Hd_simples
+         Hk_simples Hjoin)
+      as (Hvalid1 & Hgrows & Hbottom & _ & Hok & Hkinded1).
+    assert (Hs' : s' = s1) by (destruct joined; congruence). subst s'.
+    split; [ exact Hvalid1 | ]. split; [ exact Hgrows | ].
+    destruct joined as [simple | ].
+    + assert (Hresult :
+        result = Or_unknown.Known (alias_type_of (kind t1) simple))
+        by congruence.
+      subst result.
+      destruct (Hok simple eq_refl) as (Htarget & Hbound).
+      split.
+      * intros ty [= <-]. split; [ | split ].
+        -- intros x Hx. rewrite free_variables_alias in Hx.
+           exact (Htarget x Hx).
+        -- intros index t_index Hin. rewrite kind_alias. symmetry.
+           exact (Hkind_ts index t_index Hin).
+        -- intros index t_index use statics valuation valuation' v Hin Huse
+             Hsatisfied Hextends Hv.
+           pose proof (Hlive index t_index statics valuation v Hin Hv)
+             as Hin'.
+           destruct (Hto index t_index Hin') as (simple_i & Halias & Hin_i).
+           apply (get_alias_satisfied statics valuation v t_index simple_i
+                    Halias)
+             in Hv as [Heval Hkind_v].
+           apply alias_satisfied. split.
+           ++ exact
+                (Hbound index simple_i use statics valuation valuation' v
+                   Hin_i Huse Hsatisfied Hextends Heval).
+           ++ rewrite Hkind_v. exact (Hkind_ts index t_index Hin).
+      * intros Hk. destruct (Hkinded1 Hk) as (Hk1 & Hsimple).
+        split; [ exact Hk1 | ].
+        intros ty [= <-] simple' kind' Hin.
+        rewrite aliases_with_kinds_alias in Hin.
+        destruct Hin as [[= <- <-] | []]. exact (Hsimple simple eq_refl).
+    + assert (Hresult : result = Or_unknown.Known (bottom (kind t1)))
+        by congruence.
+      subst result.
+      assert (Hnone : kept = []).
+      { pose proof (Hbottom eq_refl) as Hnil. subst simples.
+        symmetry in Hfst. exact (map_eq_nil _ _ Hfst). }
+      split.
+      * intros ty [= <-]. split; [ | split ].
+        -- intros x Hx. rewrite free_variables_bottom in Hx. destruct Hx.
+        -- intros index t_index Hin. rewrite kind_bottom. symmetry.
+           exact (Hkind_ts index t_index Hin).
+        -- intros index t_index use statics valuation valuation' v Hin _ _ _
+             Hv.
+           pose proof (Hlive index t_index statics valuation v Hin Hv)
+             as Hin'.
+           rewrite Hnone in Hin'. destruct Hin'.
+      * intros Hk. split; [ exact (proj1 (Hkinded1 Hk)) | ].
+        intros ty [= <-] simple' kind' Hin.
+        rewrite aliases_with_kinds_bottom in Hin. destruct Hin.
+  - (* A type is not an alias: each is expanded. *)
+    rewrite expand_heads_eq in Hstep.
+    match type of Hstep with
+    | context [indexed_map_opt ?f kept] =>
+      destruct (indexed_map_opt f kept) as [expandeds | ] eqn:Hexpandeds;
+        [ | discriminate ]
+    end.
+    destruct (indexed_map_opt_spec _ _ expandeds Hexpandeds)
+      as (Hfst & Hto & Hfrom).
+    unfold map_join_result in Hstep.
+    destruct
+      (n_way_join_expanded_head joined_env n_way_join_simples import_type
+         join_env_n_way_join_env_extension
+         reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb
+         n_way_join_rec s (kind t1) expandeds)
+      as [[answer s1] | ] eqn:Hjoin; [ | discriminate ].
+    injection Hstep as <- <-.
+    assert (Hexpanded :
+      ∀ (index : Index.t) (e : Expanded_type.t),
+        In (index, e) expandeds ->
+        ∃ (ty : flambda_type) (use : Typing_env.t),
+          In (index, ty) ts ∧ joined_env s index = Some use
+          ∧ expand_head use ty = Some e).
+    { intros index e Hin. destruct (Hfrom index e Hin) as (ty & He & Hin').
+      apply Hkept in Hin' as [Hin' _].
+      destruct (joined_env s index) as [use | ] eqn:Huse; [ | discriminate ].
+      exists ty, use. auto. }
+    assert (Hd_expandeds : join_args_distinct expandeds).
+    { unfold join_args_distinct. rewrite Hfst. exact Hkept_distinct. }
+    assert (Hargs_expandeds :
+      args_in_scope (arg_ok variables_of_expanded aliases_of_expanded) s
+        expandeds).
+    { intros index e Hin.
+      destruct (Hexpanded index e Hin) as (ty & use & Hin' & Huse & He).
+      exists use. split; [ exact Huse | ].
+      destruct (Hexpand use ty e He) as (_ & Hscope_e & Hkinded_e & _).
+      destruct (Hscope index ty Hin') as (use' & Huse' & Hscope_ty).
+      destruct (Hkinds index ty Hin') as (use'' & Huse'' & Hkinded_ty).
+      rewrite Huse in Huse', Huse''. injection Huse' as <-.
+      injection Huse'' as <-.
+      split;
+        [ exact (Hscope_e (Hwf index use Huse) Hscope_ty)
+        | exact (Hkinded_e (Hkinded index use Huse) Hkinded_ty) ]. }
+    assert (Hkinds_expandeds : expandeds_of_kind (kind t1) expandeds).
+    { intros index e Hin.
+      destruct (Hexpanded index e Hin) as (ty & use & Hin' & Huse & He).
+      destruct (Hexpand use ty e He) as (_ & _ & _ & Hkind_e).
+      destruct (Hkinds index ty Hin') as (use' & Huse' & Hkinded_ty).
+      rewrite Huse in Huse'. injection Huse' as <-.
+      rewrite <- (Hkind_ts index ty Hin').
+      exact
+        (Hkind_e (Hconstants s index use Hvalid Hwf Hkinded Huse) Hkinded_ty). }
+    destruct
+      (n_way_join_expanded_head_is_sound (kind t1) s s Hwf Hkinded
+         (grows_refl s) Hvalid expandeds s1 answer Hd_expandeds
+         Hargs_expandeds Hkinds_expandeds Hjoin)
+      as (e' & -> & Hvalid1 & Hgrows1 & Hk1 & Hkind_e' & Hholds).
+    destruct (Hholds s1 (grows_refl s1)) as (Htarget & Hbound & Hkinds').
+    cbn [or_unknown_map].
+    split; [ exact Hvalid1 | ]. split; [ exact Hgrows1 | ].
+    split.
+    + intros ty [= <-]. split; [ exact Htarget | ].
+      split.
+      * intros index t_index Hin. rewrite Hkind_e'. symmetry.
+        exact (Hkind_ts index t_index Hin).
+      * intros index t_index use statics valuation valuation' v Hin Huse
+          Hsatisfied Hextends Hv.
+        pose proof (Hlive index t_index statics valuation v Hin Hv) as Hin'.
+        destruct (Hto index t_index Hin') as (e & He & Hin_e).
+        rewrite <- (grows_joined_env s s1 index Hgrows1), Huse in He.
+        destruct (Hexpand use t_index e He) as (Hvalues & _).
+        exact
+          (Hbound index e use statics valuation valuation' Hin_e Huse
+             Hsatisfied Hextends v (Hvalues statics valuation v Hsatisfied Hv)).
+    + intros Hk. split; [ exact (Hk1 Hk) | ].
+      intros ty [= <-]. exact (Hkinds' Hk).
+Qed.
+
 End Body.
+
+(* The join of types meets its contract, whatever bounds the depth of
+   its calls to itself. *)
+Theorem n_way_join_is_sound (fuel : nat) :
+  n_way_join_type_sound typing_env_well_formed joined_env
+    definitions_of_existentials kind_in_target_env state_valid state_kinded
+    (n_way_join joined_env n_way_join_simples import_type
+       join_env_n_way_join_env_extension expand_head
+       reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel).
+Proof.
+  induction fuel as [ | fuel IH].
+  - intros s s' ts result _ _ _ _ _ _ Hstep. discriminate.
+  - exact (n_way_join_body_is_sound _ (type_sound_step _ IH)).
+Qed.
 
 End Functions.
 
@@ -5330,4 +6071,43 @@ Proof.
   split;
     [ exact deduce_is_int_simple_is_sound
     | exact deduce_get_tag_simple_is_sound ].
+Qed.
+
+Theorem n_way_join_sound : n_way_join_sound_statement.
+Proof.
+  intros typing_env_well_formed state joined_env definitions_of_existentials
+    kind_in_target_env state_valid state_kinded n_way_join_simples
+    import_type join_env_n_way_join_env_extension expand_head
+    reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel
+    (_ & Hsimples & Himport & Hextension) Hconstants Hexpand Hreduce Heqb
+    Hshape.
+  apply n_way_join_is_sound; assumption.
+Qed.
+
+Theorem n_way_join_bound_is_met : n_way_join_bound_is_met_statement.
+Proof.
+  intros typing_env_well_formed state joined_env definitions_of_existentials
+    kind_in_target_env state_valid state_kinded n_way_join_simples
+    import_type join_env_n_way_join_env_extension expand_head
+    reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel
+    Henvironment Hconstants Hexpand Hreduce Heqb Hshape s s' ts ty Hvalid Hwf
+    Hkinded Hdistinct Hscope Hkinds Hstep index t_index use statics valuation
+    v Hin Huse Hsatisfied Hv.
+  destruct
+    (n_way_join_sound typing_env_well_formed state joined_env
+       definitions_of_existentials kind_in_target_env state_valid
+       state_kinded n_way_join_simples import_type
+       join_env_n_way_join_env_extension expand_head
+       reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel
+       Henvironment Hconstants Hexpand Hreduce Heqb Hshape s s' ts _ Hvalid
+       Hwf Hkinded Hdistinct Hscope Hkinds Hstep)
+    as (Hvalid' & _ & Hknown & _).
+  destruct (Hknown ty eq_refl) as (_ & _ & Hbound).
+  destruct Henvironment as (Hwitnesses & _).
+  destruct (Hwitnesses s' index use statics valuation Hvalid' Huse Hsatisfied)
+    as [valuation' Hextends].
+  exists valuation'. split; [ exact Hextends | ].
+  exact
+    (Hbound index t_index use statics valuation valuation' v Hin Huse
+       Hsatisfied Hextends Hv).
 Qed.

@@ -36,13 +36,18 @@
    a transcription of the join functions of
    middle_end/flambda2/types/meet_and_n_way_join.ml.
 
-   What is to be proved, in the end, is one thing: the join of types
-   meets [n_way_join_type_sound], the contract that the join of
-   environments assumes of the join of types that it is given, as that
-   file states it. Until then this file states the same of the
-   functions that join heads with no types inside them, each in its own
-   form; the same of the functions that join products and closures
-   entries is proved, and stated with its proof.
+   What is proved is one thing ([n_way_join_sound_statement]): the join
+   of types meets [n_way_join_type_sound], the contract that the join
+   of environments assumes of the join of types that it is given, as
+   that file states it, whatever the number that bounds its depth. With
+   it ([n_way_join_bound_is_met_statement]): where the join answers a
+   type, a value of a type given, under a valuation that satisfies its
+   input, has the type answered under some valuation of the target
+   that extends it, so that the upper bound is not said of nothing.
+   This file also states the same contract of the functions that join
+   heads with no types inside them, each in its own form
+   ([flat_heads_sound_statement]); the same of every other function of
+   the traversal is proved on the way, and stated with its proof.
 
    How it is stated. The functions of the traversal thread the state of
    the join of environments, of which this file knows what
@@ -77,7 +82,8 @@
    this file:
    - [environment_side_sound]: the four statements of FlambdaJoinSpec.v
      about the functions of the environment side. The owner of the join
-     of environments proves them of its functions.
+     of environments proves them of its functions. The first, that a
+     valid state has witnesses, is used by the second statement only.
    - [reduce_head_of_kind_naked_immediate_sound]: a number that has a
      head of naked immediates, under a valuation that satisfies an
      environment strictly, has the head as the function reduces it in
@@ -91,13 +97,27 @@
    - [expand_head_sound]: a value that has a type has the type as
      [Expand_head] expands it, under a valuation that satisfies the
      environment strictly; the expanded type is in the scope of the
-     environment, kinded there and of the kind of the type, where the
-     type is. The owner of the meet proves it. The last part needs
-     that a constant that is the canonical element of a [Simple] of a
-     kind is of that kind, which the compiler does not test
-     (discrepancy T4-7): it is asked here of an environment that is
-     well formed, and is for the invariant of typing environments to
-     give.
+     environment and kinded there, where the type is; and it is of the
+     kind of the type, if the type is kinded and the environment has
+     [constants_of_kind] (FlambdaTypingEnvKindedSpec.v). The owner of
+     the meet proves it.
+   - [joined_envs_constants_of_kind]: in each environment joined, a
+     constant that is the canonical element of a [Simple] of a kind is
+     of that kind ([constants_of_kind]). It is a premise about kinds,
+     beside [joined_envs_kinded] of the contract and, like it, no part
+     of the well-formedness of environments. [Expand_head] answers the
+     type of such a constant whatever the kind of the alias
+     (discrepancy T4-7), so without it the join of aliases of one kind
+     could be a type of another. It follows from the aliases of an
+     environment being consistent and of one kind ([aliases_kinded] of
+     that file), which the meet keeps; the contract of the join of
+     types does not ask that of the environments joined, so it is
+     asked here. (A condition of structure would give it too, that
+     the type an environment has for a name that is not canonical is
+     the alias type of its canonical element; the compiler's
+     environments do not all have that one: a later demotion of the
+     canonical element leaves the type as it was, and discrepancy
+     T4-10 is another way.)
    - [type_eqb_sound] and [block_shape_eqb_sound]: two types that the
      test of structural equality identifies have the same values, and
      two shapes that the test of shapes identifies are one shape. The
@@ -113,8 +133,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec.
 From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases
-  FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaJoinEnv FlambdaJoinTypes
-  FlambdaJoinSpec.
+  FlambdaTypingEnv FlambdaTypingEnvSpec FlambdaTypingEnvKindedSpec
+  FlambdaJoinEnv FlambdaJoinTypes FlambdaJoinSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -254,8 +274,9 @@ Definition reduce_head_of_kind_naked_immediate_sound : Prop :=
 
 (* What is assumed of [Expand_head.expand_head]: the expanded type has
    the values of the type; it is in scope and kinded where the type is;
-   and it is of the kind of the type, in an environment that is well
-   formed and kinded. *)
+   and it is of the kind of the type, in an environment whose canonical
+   constants are of the kinds of their aliases, if the type is
+   kinded. *)
 Definition expand_head_sound : Prop :=
   ∀ (tenv : Typing_env.t) (ty : flambda_type) (expanded : Expanded_type.t),
     expand_head tenv ty = Some expanded ->
@@ -269,11 +290,32 @@ Definition expand_head_sound : Prop :=
     ∧ (typing_env_kinded tenv ->
        type_kinded tenv ty ->
        type_kinded tenv (Expanded_type.to_type expanded))
-    ∧ (typing_env_well_formed tenv ->
-       typing_env_kinded tenv ->
+    ∧ (constants_of_kind tenv ->
        type_kinded tenv ty ->
        Expanded_type.kind expanded = kind ty
        ∧ kind (Expanded_type.to_type expanded) = kind ty).
+
+(* What is assumed of the kinds of the environments joined, beside
+   [joined_envs_kinded]: in each, a constant that is the canonical
+   element of a [Simple] of a kind is of that kind. *)
+(* CR mshinwell: this is a premise about kinds, and the compiler does
+   not check it: [Expand_head] answers the type of a constant that is
+   the canonical element of an alias, whatever the kind of the alias
+   (discrepancy T4-7), and [Aliases.add] does not look at kinds. It is
+   a premise of its own because the contract of the join of types has
+   none that gives it: [joined_envs_kinded] is about the aliases
+   inside the types of an environment, not about what the environment
+   knows to be equal. It would follow from [aliases_kinded] of the
+   environments joined, if the contract asked that with the rest of
+   the kinds. Whether ill-kinded code that the compiler accepts can
+   make a name of one kind an alias of a constant of another is not
+   known. Decisions D10 and D12. *)
+Definition joined_envs_constants_of_kind : Prop :=
+  ∀ (s : state) (index : Index.t) (use : Typing_env.t),
+    state_valid s ->
+    joined_envs_well_formed typing_env_well_formed joined_env s ->
+    joined_envs_kinded joined_env s ->
+    joined_env s index = Some use -> constants_of_kind use.
 
 (* What is assumed of the two tests of equality. *)
 Definition type_eqb_sound : Prop :=
@@ -513,3 +555,97 @@ Definition flat_heads_sound_statement : Prop :=
         state_kinded join_env_n_way_join_env_extension
     ∧ deduce_is_int_simple_sound
     ∧ deduce_get_tag_simple_sound.
+
+(* The join of types meets the contract that the join of environments
+   assumes of it, whatever bounds the depth of its calls to itself. *)
+Definition n_way_join_sound_statement : Prop :=
+  ∀ (typing_env_well_formed : Typing_env.t -> Prop) (state : Type)
+    (joined_env : state -> Index.t -> option Typing_env.t)
+    (definitions_of_existentials :
+       state -> finite_map (Simples_in_joined_envs.t * flambda_kind))
+    (kind_in_target_env : state -> variable -> option flambda_kind)
+    (state_valid state_kinded : state -> Prop)
+    (n_way_join_simples :
+       state -> flambda_kind -> list (Index.t * simple)
+       -> option (Or_bottom.t simple * state))
+    (import_type : state -> flambda_type -> option state)
+    (join_env_n_way_join_env_extension :
+       state -> list (Index.t * env_extension)
+       -> option (Or_bottom.t (env_extension * state)))
+    (expand_head : Typing_env.t -> flambda_type -> option Expanded_type.t)
+    (reduce_head_of_kind_naked_immediate :
+       Typing_env.t -> head_of_kind_naked_immediate
+       -> Or_bottom.t head_of_kind_naked_immediate)
+    (type_eqb : flambda_type -> flambda_type -> bool)
+    (block_shape_eqb : block_shape -> block_shape -> bool) (fuel : nat),
+    environment_side_sound typing_env_well_formed joined_env
+      definitions_of_existentials kind_in_target_env state_valid state_kinded
+      n_way_join_simples import_type join_env_n_way_join_env_extension ->
+    joined_envs_constants_of_kind typing_env_well_formed joined_env
+      state_valid ->
+    expand_head_sound typing_env_well_formed expand_head ->
+    reduce_head_of_kind_naked_immediate_sound
+      reduce_head_of_kind_naked_immediate ->
+    type_eqb_sound type_eqb ->
+    block_shape_eqb_sound block_shape_eqb ->
+    n_way_join_type_sound typing_env_well_formed joined_env
+      definitions_of_existentials kind_in_target_env state_valid state_kinded
+      (n_way_join joined_env n_way_join_simples import_type
+         join_env_n_way_join_env_extension expand_head
+         reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel).
+
+(* The upper bound is met: where the join answers a type, a value of a
+   type given, under a valuation that satisfies its input, has the type
+   answered under a valuation of the target that extends that one. *)
+Definition n_way_join_bound_is_met_statement : Prop :=
+  ∀ (typing_env_well_formed : Typing_env.t -> Prop) (state : Type)
+    (joined_env : state -> Index.t -> option Typing_env.t)
+    (definitions_of_existentials :
+       state -> finite_map (Simples_in_joined_envs.t * flambda_kind))
+    (kind_in_target_env : state -> variable -> option flambda_kind)
+    (state_valid state_kinded : state -> Prop)
+    (n_way_join_simples :
+       state -> flambda_kind -> list (Index.t * simple)
+       -> option (Or_bottom.t simple * state))
+    (import_type : state -> flambda_type -> option state)
+    (join_env_n_way_join_env_extension :
+       state -> list (Index.t * env_extension)
+       -> option (Or_bottom.t (env_extension * state)))
+    (expand_head : Typing_env.t -> flambda_type -> option Expanded_type.t)
+    (reduce_head_of_kind_naked_immediate :
+       Typing_env.t -> head_of_kind_naked_immediate
+       -> Or_bottom.t head_of_kind_naked_immediate)
+    (type_eqb : flambda_type -> flambda_type -> bool)
+    (block_shape_eqb : block_shape -> block_shape -> bool) (fuel : nat),
+    environment_side_sound typing_env_well_formed joined_env
+      definitions_of_existentials kind_in_target_env state_valid state_kinded
+      n_way_join_simples import_type join_env_n_way_join_env_extension ->
+    joined_envs_constants_of_kind typing_env_well_formed joined_env
+      state_valid ->
+    expand_head_sound typing_env_well_formed expand_head ->
+    reduce_head_of_kind_naked_immediate_sound
+      reduce_head_of_kind_naked_immediate ->
+    type_eqb_sound type_eqb ->
+    block_shape_eqb_sound block_shape_eqb ->
+    ∀ (s s' : state) (ts : list (Index.t * flambda_type)) (ty : flambda_type),
+      state_valid s ->
+      joined_envs_well_formed typing_env_well_formed joined_env s ->
+      joined_envs_kinded joined_env s ->
+      join_args_distinct ts ->
+      join_args_in_scope joined_env type_in_scope s ts ->
+      join_args_in_scope joined_env type_kinded s ts ->
+      n_way_join joined_env n_way_join_simples import_type
+        join_env_n_way_join_env_extension expand_head
+        reduce_head_of_kind_naked_immediate type_eqb block_shape_eqb fuel s
+        ts
+      = Some (Or_unknown.Known ty, s') ->
+      ∀ (index : Index.t) (t_index : flambda_type) (use : Typing_env.t)
+        (statics : static_env) (valuation : env) (v : value),
+        In (index, t_index) ts ->
+        joined_env s' index = Some use ->
+        typing_env_satisfied_strictly statics valuation use ->
+        type_satisfied statics valuation v t_index ->
+        ∃ valuation' : env,
+          extends_input joined_env definitions_of_existentials s' index
+            valuation valuation'
+          ∧ type_satisfied statics valuation' v ty.
