@@ -83,3 +83,20 @@ val remove_unused_total_lets : expr -> expr
 val named_defined : variable list -> named -> bool
 
 val remove_unused_defined_lets : variable list -> expr -> expr
+
+val symbols_of :
+  static_binding list ->
+  (symbol * code_id option) list ->
+  (symbol * code_id option) list
+
+val inline_known_apply :
+  (code_id * code) list -> (symbol * code_id option) list -> apply_expr -> expr
+
+val inline_known_calls :
+  (code_id * code) list -> (symbol * code_id option) list -> expr -> expr
+
+val binds_code : static_binding -> bool
+
+val code_first : static_binding list -> static_binding list
+
+val merge_statics : expr -> expr

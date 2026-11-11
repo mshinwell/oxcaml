@@ -232,3 +232,128 @@ Proof.
     + destruct (Pos.eqb_spec k k_exn); [ contradiction | reflexivity ].
   - unfold swap at 1. rewrite Pos.eqb_refl. reflexivity.
 Qed.
+
+(* ======================================================================== *)
+(* Inlining as an equivalence                                               *)
+(* ======================================================================== *)
+
+Lemma eval_simples_length (vars : env) (args : list simple) :
+  ∀ vs : list value,
+    eval_simples vars args = Some vs -> length vs = length args.
+Proof.
+  induction args as [ | s args IH]; intros vs; simpl.
+  - intros [= <-]. reflexivity.
+  - destruct (eval_simple vars s); [ | discriminate ].
+    destruct (eval_simples vars args) as [vs' | ]; [ | discriminate ].
+    simpl. intros [= <-]. simpl. rewrite (IH vs' eq_refl). reflexivity.
+Qed.
+
+Lemma bind_params_some (params : list variable) :
+  ∀ (vs : list value) (vars : env),
+    length params = length vs ->
+    ∃ bound : env, bind_params params vs vars = Some bound.
+Proof.
+  induction params as [ | p params IH]; intros [ | v vs] vars; simpl;
+    try discriminate; [ eauto | ].
+  intros [= Hlength]. apply IH, Hlength.
+Qed.
+
+(* Where an argument has no value, the [Let]s of [let_params] go wrong. *)
+Lemma let_params_wrong (params : list variable) :
+  ∀ (args : list simple) (vars : env) (body : expr) (conts : cont_env)
+    (statics : static_env),
+    length params = length args ->
+    eval_simples vars args = None ->
+    (∀ param : variable,
+      param ∈ params -> ~ var_free_in_simples param args) ->
+    behaves (State (let_params params args body) vars conts statics)
+      Goes_wrong.
+Proof.
+  induction params as [ | param params IH];
+    intros [ | arg args] vars body conts statics; simpl; try discriminate.
+  intros [= Hlength] Hargs Hfresh.
+  destruct (eval_simple vars arg) as [v | ] eqn:Harg.
+  - destruct (eval_simples vars args) as [vs | ] eqn:Hrest;
+      [ discriminate | ].
+    apply (step_behaves _ Goes_wrong). simpl. rewrite Harg.
+    apply (IH args _ body conts statics Hlength).
+    + rewrite eval_simples_extend; [ exact Hrest | ].
+      intros Hfree. apply (Hfresh param (or_introl eq_refl)).
+      apply Exists_cons_tl. exact Hfree.
+    + intros p Hin Hfree. apply (Hfresh p (or_intror Hin)).
+      apply Exists_cons_tl. exact Hfree.
+  - exists 1. simpl. rewrite Harg. reflexivity.
+Qed.
+
+(* Two states that go wrong are equivalent. *)
+Lemma both_wrong_equivalent (s s' : state) :
+  behaves s Goes_wrong -> behaves s' Goes_wrong -> equivalent s s'.
+Proof.
+  intros Hs Hs' b. split; intros Hb.
+  - rewrite (behaviour_unique _ _ _ Hb Hs). exact Hs'.
+  - rewrite (behaviour_unique _ _ _ Hb Hs'). exact Hs.
+Qed.
+
+(* Where the callee is a closure of the code called, the call cannot be
+   undefined for being of something else, and inlining is an equivalence:
+   if the arguments have values the two meet as in [inline], and if not
+   both go wrong. *)
+Lemma inline_equivalent (ap : apply_expr) (called : code_id) (c : code)
+    (r : renaming) (callee : value) (slots : list (value_slot * value))
+    (vars : env) (conts : cont_env) (statics : static_env) :
+  ap_call_kind ap = Direct called ->
+  eval_simple vars (ap_callee ap) = Some callee ->
+  closure_of statics callee = Some (called, slots) ->
+  lookup called (static_code statics) = Some c ->
+  inlinable ap c r ->
+  equivalent (State (Apply ap) vars conts statics)
+    (State (inlined_body c r ap) vars conts statics).
+Proof.
+  intros Hkind Hcallee Hclosure Hcode
+    (Hclosed_vars & Hclosed_conts & Hvars & Hret & Hexn & Hmy_closure
+     & Hparams & Harity).
+  destruct (eval_simples vars (ap_args ap)) as [vs | ] eqn:Hargs.
+  - pose proof (step_apply_direct ap callee called slots vs vars conts
+      statics Hcallee Hclosure Hargs Hkind) as Hstep.
+    rewrite Hcode in Hstep.
+    destruct (bind_params_some (code_params c) vs
+                [(code_my_closure c, callee)])
+      as [callee_vars Hbind].
+    { rewrite (eval_simples_length vars _ vs Hargs). exact Harity. }
+    rewrite Hbind in Hstep.
+    eapply equivalent_trans; [ exact (step_equivalent _ _ Hstep) | ].
+    destruct (let_params_run (code_params c) (ap_args ap) vs
+                ((code_my_closure c, callee) :: vars) (callee_vars ++ vars)
+                (rename_expr r (code_body c)) conts statics)
+      as [n Hrun].
+    { rewrite eval_simples_extend; assumption. }
+    { exact Hparams. }
+    { exact (bind_params_app (code_params c) vs
+        [(code_my_closure c, callee)] callee_vars vars Hbind). }
+    apply equivalent_sym.
+    eapply equivalent_trans.
+    { apply (equivalent_of_run (S n) 0). simpl. rewrite Hcallee.
+      exact Hrun. }
+    apply equivalent_sym, renamed_equivalent, State_renamed.
+    + intros x Hx. rewrite Hvars, lookup_app.
+      destruct (bind_params_bound (code_params c) vs
+                  [(code_my_closure c, callee)] callee_vars x Hbind)
+        as [v Hlookup]; [ | rewrite Hlookup; reflexivity ].
+      destruct (Hclosed_vars x Hx) as [-> | Hin]; [ right | left; exact Hin ].
+      exists callee. simpl. rewrite Pos.eqb_refl. reflexivity.
+    + intros k Hk. unfold conts_agree_at.
+      destruct (Hclosed_conts k Hk) as [-> | ->].
+      * rewrite Hret. unfold resolve at 1. simpl. rewrite Pos.eqb_refl.
+        apply Closure_same.
+      * rewrite Hexn. unfold resolve at 1. simpl.
+        destruct (Pos.eqb_spec (code_exn_continuation c)
+                    (code_return_continuation c)) as [Heq | _].
+        -- rewrite <- Hexn, Heq, Hret. apply Closure_same.
+        -- rewrite Pos.eqb_refl. apply Closure_same.
+  - apply both_wrong_equivalent.
+    + exists 1. simpl. rewrite Hcallee, Hargs. reflexivity.
+    + apply (step_behaves _ Goes_wrong). unfold inlined_body. simpl.
+      rewrite Hcallee.
+      apply let_params_wrong; [ exact Harity | | exact Hparams ].
+      rewrite eval_simples_extend; assumption.
+Qed.

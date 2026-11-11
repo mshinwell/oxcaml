@@ -398,3 +398,99 @@ let rec remove_unused_defined_lets vs e =
   | Let_cont_recursive (handlers, body) ->
     Let_cont_recursive (handlers, remove_unused_defined_lets vs body)
   | _ -> e
+
+(** val symbols_of : static_binding list -> (symbol * code_id option) list ->
+    (symbol * code_id option) list **)
+
+let rec symbols_of bindings known =
+  match bindings with
+  | [] -> known
+  | s0 :: bindings0 -> (
+    match s0 with
+    | Bind_symbol (s, const0) -> (
+      match const0 with
+      | Static_const_set_of_closures (code0, _) ->
+        symbols_of bindings0 ((s, Some code0) :: known)
+      | _ -> symbols_of bindings0 ((s, None) :: known))
+    | _ -> symbols_of bindings0 known)
+
+(** val inline_known_apply : (code_id * code) list -> (symbol * code_id option)
+    list -> apply_expr -> expr **)
+
+let inline_known_apply known_code known_symbols ap =
+  match ap.ap_callee with
+  | Symbol s -> (
+    match ap.ap_call_kind with
+    | Direct called -> (
+      match lookup s known_symbols with
+      | Some o -> (
+        match o with
+        | Some code0 -> (
+          match lookup called known_code with
+          | Some c ->
+            if Pos.eqb code0 called && inlinable_b ap c
+            then
+              inlined_body c
+                (inline_renaming
+                   (code_return_continuation c)
+                   (code_exn_continuation c) ap.ap_continuation
+                   ap.ap_exn_continuation)
+                ap
+            else Apply ap
+          | None -> Apply ap)
+        | None -> Apply ap)
+      | None -> Apply ap)
+    | Indirect -> Apply ap)
+  | _ -> Apply ap
+
+(** val inline_known_calls : (code_id * code) list -> (symbol * code_id option)
+    list -> expr -> expr **)
+
+let rec inline_known_calls known_code known_symbols e =
+  match e with
+  | Let (x, d, body) ->
+    Let (x, d, inline_known_calls known_code known_symbols body)
+  | Let_static (bindings, body) ->
+    Let_static
+      ( bindings,
+        inline_known_calls
+          (codes_of bindings known_code)
+          (symbols_of bindings known_symbols)
+          body )
+  | Let_cont_non_recursive (k, h, body) ->
+    Let_cont_non_recursive
+      (k, h, inline_known_calls known_code known_symbols body)
+  | Let_cont_recursive (handlers, body) ->
+    Let_cont_recursive
+      (handlers, inline_known_calls known_code known_symbols body)
+  | Apply ap -> inline_known_apply known_code known_symbols ap
+  | _ -> e
+
+(** val binds_code : static_binding -> bool **)
+
+let binds_code = function Bind_symbol (_, _) -> false | _ -> true
+
+(** val code_first : static_binding list -> static_binding list **)
+
+let code_first bindings =
+  app
+    (filter binds_code bindings)
+    (filter (fun binding -> negb (binds_code binding)) bindings)
+
+(** val merge_statics : expr -> expr **)
+
+let rec merge_statics e =
+  match e with
+  | Let (x, d, body) -> Let (x, d, merge_statics body)
+  | Let_static (bindings, body) -> (
+    match merge_statics body with
+    | Let_static (bindings', body') ->
+      Let_static (code_first (app bindings bindings'), body')
+    | x -> Let_static (code_first bindings, x))
+  | Let_cont_non_recursive (k, handler0, body) ->
+    let (Handler (params, handler)) = handler0 in
+    Let_cont_non_recursive
+      (k, Handler (params, merge_statics handler), merge_statics body)
+  | Let_cont_recursive (handlers, body) ->
+    Let_cont_recursive (handlers, merge_statics body)
+  | _ -> e

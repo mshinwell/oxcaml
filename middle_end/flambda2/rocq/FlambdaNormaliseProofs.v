@@ -34,7 +34,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaSemanticsProofs FlambdaNominalSpec FlambdaNominalProofs
   FlambdaControlFlowSpec FlambdaControlFlowProofs FlambdaContextSpec
   FlambdaContextProofs FlambdaApplySpec FlambdaApplyProofs
-  FlambdaNormaliseSpec.
+  FlambdaStaticSpec FlambdaStaticProofs FlambdaNormaliseSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -1074,3 +1074,234 @@ Proof.
   intros e vars conts statics.
   apply (remove_unused_defined_lets_equivalent_bound e []). intros x [].
 Qed.
+
+(* ======================================================================== *)
+(* Inlining calls of symbols known to be closures                           *)
+(* ======================================================================== *)
+
+(* The static environment binds the symbols known to be closures to
+   closures of the code known. *)
+Definition statics_know_symbols (known : list (symbol * option code_id))
+    (statics : static_env) : Prop :=
+  ∀ (s : symbol) (code : code_id),
+    lookup s known = Some (Some code) ->
+    ∃ slots : list (value_slot * value),
+      lookup s (static_values statics) = Some (Static_closure code slots).
+
+Lemma eval_static_bindings_know_symbols (vars : env)
+    (bindings : list static_binding) :
+  ∀ (known : list (symbol * option code_id)) (statics extended : static_env),
+    statics_know_symbols known statics ->
+    eval_static_bindings vars bindings statics = Some extended ->
+    statics_know_symbols (symbols_of bindings known) extended.
+Proof.
+  induction bindings as [ | binding bindings IH];
+    intros known statics extended Hknow; simpl.
+  - intros [= <-]. exact Hknow.
+  - destruct binding
+      as [id c | id | sym [code slots | tag fields | contents | bytes]];
+      simpl.
+    + apply IH. exact Hknow.
+    + apply IH, Hknow.
+    + destruct (eval_value_slots vars slots) as [evaluated | ]; simpl;
+        [ | discriminate ].
+      apply IH. intros s code'. simpl.
+      destruct (Pos.eqb s sym); [ intros [= <-]; eauto | apply Hknow ].
+    + destruct (eval_simples vars fields) as [vs | ]; simpl;
+        [ | discriminate ].
+      apply IH. intros s code'. simpl.
+      destruct (Pos.eqb s sym); [ discriminate | apply Hknow ].
+    + destruct (eval_simple vars contents) as [v | ]; simpl;
+        [ | discriminate ].
+      apply IH. intros s code'. simpl.
+      destruct (Pos.eqb s sym); [ discriminate | apply Hknow ].
+    + apply IH. intros s code'. simpl.
+      destruct (Pos.eqb s sym); [ discriminate | apply Hknow ].
+Qed.
+
+Lemma inline_known_apply_equivalent (known_code : list (code_id * code))
+    (known_symbols : list (symbol * option code_id)) (ap : apply_expr)
+    (vars : env) (conts : cont_env) (statics : static_env) :
+  statics_know known_code statics ->
+  statics_know_symbols known_symbols statics ->
+  equivalent (State (Apply ap) vars conts statics)
+    (State (inline_known_apply known_code known_symbols ap) vars conts
+       statics).
+Proof.
+  intros Hcode Hsymbols. unfold inline_known_apply.
+  destruct (ap_callee ap) as [x | s | const] eqn:Hcallee;
+    try apply equivalent_refl.
+  destruct (ap_call_kind ap) as [called | ] eqn:Hkind;
+    [ | apply equivalent_refl ].
+  destruct (lookup s known_symbols) as [[code | ] | ] eqn:Hs;
+    try apply equivalent_refl.
+  destruct (lookup called known_code) as [c | ] eqn:Hc;
+    [ | apply equivalent_refl ].
+  destruct (Pos.eqb code called && inlinable_b ap c) eqn:Hcheck;
+    [ | apply equivalent_refl ].
+  apply andb_true_iff in Hcheck as [Hsame Hinlinable].
+  apply Pos.eqb_eq in Hsame. subst code.
+  destruct (Hsymbols s called Hs) as [slots Hlookup].
+  apply (inline_equivalent ap called c _ (Value_symbol s) slots);
+    [ exact Hkind | rewrite Hcallee; reflexivity
+    | simpl; rewrite Hlookup; reflexivity | exact (Hcode called c Hc)
+    | exact (inlinable_b_sound ap c Hinlinable) ].
+Qed.
+
+Lemma inline_known_calls_equivalent_knowing (e : expr) :
+  ∀ (known_code : list (code_id * code))
+    (known_symbols : list (symbol * option code_id)) (vars : env)
+    (conts : cont_env) (statics : static_env),
+    statics_know known_code statics ->
+    statics_know_symbols known_symbols statics ->
+    equivalent (State e vars conts statics)
+      (State (inline_known_calls known_code known_symbols e) vars conts
+         statics).
+Proof.
+  induction e
+    as [ x d body IH | bindings body IH | k h body IH | handlers body IH
+       | ap | ac | scrutinee arms | ];
+    intros known_code known_symbols vars conts statics Hcode Hsymbols; simpl;
+    try apply equivalent_refl.
+  - destruct (eval_named statics vars d) as [v | ] eqn:Hd.
+    + eapply equivalent_step;
+        [ simpl; rewrite Hd; reflexivity | simpl; rewrite Hd; reflexivity
+        | apply IH; assumption ].
+    + apply (equivalent_of_run 1 1). simpl. rewrite Hd. reflexivity.
+  - destruct (eval_static_bindings vars bindings statics) as [extended | ]
+      eqn:Hbindings.
+    + eapply equivalent_step;
+        [ simpl; rewrite Hbindings; reflexivity
+        | simpl; rewrite Hbindings; reflexivity | ].
+      apply IH.
+      * exact (eval_static_bindings_know vars bindings known_code statics
+          extended Hcode Hbindings).
+      * exact (eval_static_bindings_know_symbols vars bindings known_symbols
+          statics extended Hsymbols Hbindings).
+    + apply (equivalent_of_run 1 1). simpl. rewrite Hbindings. reflexivity.
+  - eapply equivalent_step;
+      [ reflexivity | reflexivity | apply IH; assumption ].
+  - eapply equivalent_step;
+      [ reflexivity | reflexivity | apply IH; assumption ].
+  - apply inline_known_apply_equivalent; assumption.
+Qed.
+
+Theorem inline_known_calls_equivalent :
+  inline_known_calls_equivalent_statement.
+Proof.
+  intros e vars conts statics. apply inline_known_calls_equivalent_knowing.
+  - intros id c Hlookup. discriminate Hlookup.
+  - intros s code Hlookup. discriminate Hlookup.
+Qed.
+
+(* ======================================================================== *)
+(* Groups of static bindings                                                *)
+(* ======================================================================== *)
+
+(* A binding of a symbol may be made after bindings of code that came
+   after it: code and symbols go to different parts of the static
+   environment. *)
+Lemma eval_static_bindings_symbol_later (vars : env) (sym : symbol)
+    (const : static_const) (codes rest : list static_binding) :
+  forallb binds_code codes = true ->
+  ∀ statics : static_env,
+    eval_static_bindings vars (codes ++ Bind_symbol sym const :: rest) statics
+    = eval_static_bindings vars (Bind_symbol sym const :: codes ++ rest)
+        statics.
+Proof.
+  induction codes as [ | binding codes IH]; intros Hcodes statics;
+    [ reflexivity | ].
+  simpl in Hcodes. apply andb_true_iff in Hcodes as [Hbinding Hcodes].
+  destruct binding as [id c | id | sym' const']; simpl in Hbinding;
+    try discriminate.
+  - change
+      (eval_static_bindings vars (codes ++ Bind_symbol sym const :: rest)
+         (Static_env ((id, c) :: static_code statics)
+            (static_values statics))
+       = eval_static_bindings vars
+           (Bind_symbol sym const :: Bind_code id c :: codes ++ rest)
+           statics).
+    rewrite (IH Hcodes). simpl.
+    destruct (eval_static_const vars const); reflexivity.
+  - change
+      (eval_static_bindings vars (codes ++ Bind_symbol sym const :: rest)
+         statics
+       = eval_static_bindings vars
+           (Bind_symbol sym const :: Bind_deleted_code id :: codes ++ rest)
+           statics).
+    rewrite (IH Hcodes). simpl.
+    destruct (eval_static_const vars const); reflexivity.
+Qed.
+
+Lemma filter_binds_code (bindings : list static_binding) :
+  forallb binds_code (filter binds_code bindings) = true.
+Proof.
+  induction bindings as [ | binding bindings IH]; simpl; [ reflexivity | ].
+  destruct (binds_code binding) eqn:Hcode; simpl; [ rewrite Hcode | ];
+    exact IH.
+Qed.
+
+Lemma eval_static_bindings_code_first (vars : env)
+    (bindings : list static_binding) :
+  ∀ statics : static_env,
+    eval_static_bindings vars (code_first bindings) statics
+    = eval_static_bindings vars bindings statics.
+Proof.
+  unfold code_first.
+  induction bindings as [ | binding bindings IH]; intros statics;
+    [ reflexivity | ].
+  destruct binding as [id c | id | sym const]; simpl.
+  - apply IH.
+  - apply IH.
+  - rewrite (eval_static_bindings_symbol_later vars sym const _ _
+      (filter_binds_code bindings)).
+    simpl. destruct (eval_static_const vars const); simpl;
+      [ apply IH | reflexivity ].
+Qed.
+
+Lemma code_first_equivalent (bindings : list static_binding) (body : expr) :
+  expr_equivalent (Let_static bindings body)
+    (Let_static (code_first bindings) body).
+Proof.
+  intros vars conts statics. apply (equivalent_of_run 1 1). simpl.
+  rewrite eval_static_bindings_code_first. reflexivity.
+Qed.
+
+Fixpoint merge_statics_equivalent_aux (e : expr) :
+  expr_equivalent e (merge_statics e).
+Proof.
+  destruct e
+    as [ x d body | bindings body | k [params handler] body | handlers body
+       | ap | ac | scrutinee arms | ];
+    simpl; try (intros vars conts statics; apply equivalent_refl).
+  - exact (plug_equivalent (Let_body x d Hole) _ _
+      (merge_statics_equivalent_aux body)).
+  - pose proof (plug_equivalent (Let_static_body bindings Hole) _ _
+      (merge_statics_equivalent_aux body)) as Hbody.
+    simpl in Hbody.
+    destruct (merge_statics body)
+      as [ x d body' | bindings' body' | k h body' | handlers body' | ap
+         | ac | scrutinee arms | ];
+      try (apply (expr_equivalent_trans _ _ _ Hbody), code_first_equivalent).
+    apply (expr_equivalent_trans _ _ _ Hbody).
+    apply (expr_equivalent_trans _
+      (Let_static (bindings ++ bindings') body')).
+    + intros vars conts statics.
+      apply equivalent_sym, let_static_split.
+    + apply code_first_equivalent.
+  - apply (expr_equivalent_trans _
+      (Let_cont_non_recursive k (Handler params (merge_statics handler))
+         body)).
+    + exact (plug_equivalent
+        (Let_cont_non_recursive_handler k params Hole body) _ _
+        (merge_statics_equivalent_aux handler)).
+    + exact (plug_equivalent
+        (Let_cont_non_recursive_body k
+           (Handler params (merge_statics handler)) Hole)
+        _ _ (merge_statics_equivalent_aux body)).
+  - exact (plug_equivalent (Let_cont_recursive_body handlers Hole) _ _
+      (merge_statics_equivalent_aux body)).
+Qed.
+
+Theorem merge_statics_equivalent : merge_statics_equivalent_statement.
+Proof. exact merge_statics_equivalent_aux. Qed.

@@ -918,16 +918,17 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
           |> Aliases.follow_aliases [] |> Normalise.fold_constants
           |> Normalise.remove_unused_lets
           |> Normalise.remove_unused_defined_lets []
-          |> Normalise.drop_deleted_code)
+          |> Normalise.drop_deleted_code |> Normalise.merge_statics)
         before.body
     in
     let normalised_after =
       rounds 4
         (fun term ->
           Aliases.follow_aliases [] term
+          |> Normalise.inline_known_calls [] []
           |> Normalise.fold_constants
           |> Normalise.remove_unused_defined_lets []
-          |> Normalise.drop_deleted_code)
+          |> Normalise.drop_deleted_code |> Normalise.merge_statics)
         after.body
     in
     let validated_as_is = Compare.expr_eqb [] [] before.body after.body in
@@ -945,7 +946,8 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
           (unused_statics normalised_before)
           normalised_before
       with
-      | Some dropped -> Normalise.drop_deleted_code dropped
+      | Some dropped ->
+        Normalise.merge_statics (Normalise.drop_deleted_code dropped)
       | None -> normalised_before
     in
     let validated_as_a_unit =
@@ -961,6 +963,8 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
        then
          "validated for the unit run on its own: the same once normalised and \
           unused static bindings removed"
+       else if outcome_before = Undefined
+       then "nothing to validate, as the term before is undefined"
        else "not validated");
     if
       (not validated) && (not validated_as_a_unit)

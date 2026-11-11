@@ -72,4 +72,4 @@ Set Extraction Output Directory ".".
 Separate Extraction step run kind_of_const empty_static_env expr_eqb
   inline_calls inline_tail_conts remove_unused_lets drop_deleted_code
   fold_constants remove_unused_total_lets remove_unused_defined_lets
-  drop_statics follow_aliases.
+  inline_known_calls merge_statics drop_statics follow_aliases.

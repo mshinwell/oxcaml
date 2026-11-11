@@ -74,6 +74,16 @@
    symbols and variables in scope, which has a value where those
    variables are bound.
 
+   [inline_known_calls] is inlining as an equivalence, for either term:
+   it inlines a direct call only where the callee is a symbol that a
+   [Let_static] passed has bound to a closure of the code called, so that
+   the call cannot be undefined for being of something else.
+
+   [merge_statics], for either term, makes one group of [Let_static]s that
+   follow one another, and puts the code of a group before its symbols.
+   Neither changes the static environment that results, so groups that
+   differ only in how they are cut up and ordered become the same.
+
    [fold_constants], for either term, replaces a primitive applied to
    constants by its value, when that is a constant, and a [Switch] on a
    constant by its arm. The value of the primitive is whatever
@@ -523,3 +533,102 @@ Fixpoint remove_unused_defined_lets (vs : list variable) (e : expr) : expr :=
 
 Definition remove_unused_defined_lets_equivalent_statement : Prop :=
   ∀ e : expr, expr_equivalent e (remove_unused_defined_lets [] e).
+
+(* ======================================================================== *)
+(* Inlining calls of symbols known to be closures                           *)
+(* ======================================================================== *)
+
+(* What a group of bindings adds to what is known of the symbols: the code
+   of those bound to closures, and that the others are not known to be
+   closures, the last bound first. *)
+Fixpoint symbols_of (bindings : list static_binding)
+    (known : list (symbol * option code_id))
+    : list (symbol * option code_id) :=
+  match bindings with
+  | [] => known
+  | Bind_symbol s (Static_const_set_of_closures code _) :: bindings =>
+    symbols_of bindings ((s, Some code) :: known)
+  | Bind_symbol s
+      (Static_const_block _ _ | Static_const_boxed_number _
+      | Static_const_immutable_string _)
+    :: bindings =>
+    symbols_of bindings ((s, None) :: known)
+  | (Bind_code _ _ | Bind_deleted_code _) :: bindings =>
+    symbols_of bindings known
+  end.
+
+Definition inline_known_apply (known_code : list (code_id * code))
+    (known_symbols : list (symbol * option code_id)) (ap : apply_expr)
+    : expr :=
+  match ap_callee ap, ap_call_kind ap with
+  | Symbol s, Direct called =>
+    match lookup s known_symbols, lookup called known_code with
+    | Some (Some code), Some c =>
+      if Pos.eqb code called && inlinable_b ap c
+      then
+        inlined_body c
+          (inline_renaming (code_return_continuation c)
+             (code_exn_continuation c) (ap_continuation ap)
+             (ap_exn_continuation ap))
+          ap
+      else Apply ap
+    | _, _ => Apply ap
+    end
+  | _, _ => Apply ap
+  end.
+
+Fixpoint inline_known_calls (known_code : list (code_id * code))
+    (known_symbols : list (symbol * option code_id)) (e : expr) : expr :=
+  match e with
+  | Let x d body => Let x d (inline_known_calls known_code known_symbols body)
+  | Let_static bindings body =>
+    Let_static bindings
+      (inline_known_calls (codes_of bindings known_code)
+         (symbols_of bindings known_symbols) body)
+  | Let_cont_non_recursive k h body =>
+    Let_cont_non_recursive k h
+      (inline_known_calls known_code known_symbols body)
+  | Let_cont_recursive handlers body =>
+    Let_cont_recursive handlers
+      (inline_known_calls known_code known_symbols body)
+  | Apply ap => inline_known_apply known_code known_symbols ap
+  | Apply_cont _ | Switch _ _ | Invalid => e
+  end.
+
+Definition inline_known_calls_equivalent_statement : Prop :=
+  ∀ e : expr, expr_equivalent e (inline_known_calls [] [] e).
+
+(* ======================================================================== *)
+(* Groups of static bindings                                                *)
+(* ======================================================================== *)
+
+Definition binds_code (binding : static_binding) : bool :=
+  match binding with
+  | Bind_code _ _ | Bind_deleted_code _ => true
+  | Bind_symbol _ _ => false
+  end.
+
+(* The bindings of code, then those of symbols, each in their order. *)
+Definition code_first (bindings : list static_binding) : list static_binding :=
+  filter binds_code bindings
+  ++ filter (fun binding => negb (binds_code binding)) bindings.
+
+Fixpoint merge_statics (e : expr) : expr :=
+  match e with
+  | Let x d body => Let x d (merge_statics body)
+  | Let_static bindings body =>
+    match merge_statics body with
+    | Let_static bindings' body' =>
+      Let_static (code_first (bindings ++ bindings')) body'
+    | body' => Let_static (code_first bindings) body'
+    end
+  | Let_cont_non_recursive k (Handler params handler) body =>
+    Let_cont_non_recursive k (Handler params (merge_statics handler))
+      (merge_statics body)
+  | Let_cont_recursive handlers body =>
+    Let_cont_recursive handlers (merge_statics body)
+  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => e
+  end.
+
+Definition merge_statics_equivalent_statement : Prop :=
+  ∀ e : expr, expr_equivalent e (merge_statics e).

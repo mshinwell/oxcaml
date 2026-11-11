@@ -495,9 +495,12 @@ not a proof.
   applied once at the end of its scope), `follow_aliases`,
   `remove_unused_lets` and `drop_deleted_code`, gone round a few times as
   they enable one another. Only equivalences may be applied to the term
-  after: `follow_aliases`, `fold_constants`, `remove_unused_defined_lets`
-  (an unused `Let` whose defining expression has a value given the
-  variables in scope) and `drop_deleted_code`. `fold_constants` asks `eval_prim` for the value
+  after: `follow_aliases`, `inline_known_calls` (inlining where the callee
+  is a symbol bound to a closure of the code called, which makes it an
+  equivalence), `fold_constants`, `remove_unused_defined_lets` (an unused
+  `Let` whose defining expression has a value given the variables in
+  scope), `drop_deleted_code` and `merge_statics` (one group for
+  `Let_static`s that follow one another, code before symbols). `fold_constants` asks `eval_prim` for the value
   of a primitive on constants, so it assumes nothing of the primitives.
 - Removing a static binding that nothing uses is not sound under every
   environment (a value already there may be a closure of the code), only
