@@ -21,24 +21,28 @@ in that definition.
   statement about the compiler's terms takes agreement of kinds as a
   premise; a mismatch is undefined where it is executed, and that is
   the machine's business. C2's check (`well_kinded_unit`, in its own
-  file) asks for the agreements on which the compiler stops whatever
-  the flags. It is not a condition of well-formedness, and C2 does not
-  propose it as one: the compiler stops only where Simplify goes, and
+  file) asks for the agreements that the compiler tests by a check
+  that is always on. It is not a condition of well-formedness, and C2
+  does not propose it as one: the compiler stops only where Simplify
+  goes, and
   R2 has a unit that the compiler compiles and the check refuses (a
   mismatch in an arm that Simplify removes first; R2-11). The check is
   a sufficient condition, proved, for the absence of certain faults,
   and a diagnostic that the tool prints.
 
 The test for which layer a condition belongs to: can a unit that the
-compiler builds with its default flags break it, in a branch that
-never runs? If so it is not well-formedness.
+compiler builds break it, in a branch that never runs? If so it is not
+well-formedness.
+
+The compiler is taken throughout as it runs with no option that adds
+checks of kinds: the only such checks are the ones that are always on.
 
 ## 2. The conditions of well-formedness
 
 "Where the compiler establishes it" is one of: a **type** that cannot
 express the bad term; a **creation function** that checks; a **pass**
-that stops when it meets the bad term, whatever the flags; an
-**invariant check** that runs only with `-flambda2-invariants`; or
+that always stops when it meets the bad term; an **invariant check**
+that runs only with `-flambda2-invariants`; or
 **nothing**. A row that says nothing, or only an invariant check, is
 an unchecked assumption of the compiler, and has an entry in the
 record of discrepancies.
@@ -55,6 +59,7 @@ record of discrepancies.
 | 7b | The function slots of a set are distinct | C3 | Nothing: they are an association list whose invariant function has no caller (C3-5) |
 | 7c | The functions of a set have each their own code id (the human, D28) | C3 | Nothing; Simplify stops later with "code_id has been bound twice" (R2-7) |
 | 7d | A group binds a static set whole, each symbol at its slot (D4, option (a)) | C3 | Type (one pattern binds the set) and creation function (`Static_const.match_against_bound_static_pattern`, slots in order) |
+| 7e | The sets that one group binds have no code id in common; sets of different groups may (the human, on R2-15) | C3 | Nothing; Simplify keeps one map from old to new code ids for a group (as R2 reports; C3 is to give the function) |
 | 8 | The tag of every block made, by `Make_block` or statically, and the tag a `Block_load` names, is in `[0, 251)` (the human, D23). Proposed with it: a constant is in the range of its kind (D13) | C1 | Type (`Tag.Scannable.t`, whose creation function refuses others). Constants: type, I believe (`Reg_width_const`, not read); the fexpr parser wraps `int8` and `int16` (C1-11) |
 | 9 | Annotations are of the right length: a handler has as many kinds as parameters, and code as many as its arity says | C2, with its first step | Type: a parameter carries its kind (`Bound_parameter`) |
 
