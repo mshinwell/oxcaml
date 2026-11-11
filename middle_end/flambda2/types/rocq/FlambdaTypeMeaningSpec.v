@@ -86,19 +86,72 @@
      ([meet_head_of_kind_value_non_null]: "This assumes that all the
      different constructors are incompatible"). The observations below
      are disjoint to match ([observations_disjoint_statement]).
-   - The variables [is_int] and [is_null] of a type hold the result of
-     the primitive on every value of the type, and [get_tag] on every
-     block of it ([meet_variant] says why the two differ).
+   - The variables [is_int], [get_tag] and [is_null] of a type and the
+     relations of a naked immediate say the same thing from two sides,
+     and the compiler records the two together
+     ([Typing_env.add_is_null_relation] and the two beside it, in
+     flambda2_types.ml). So they agree here: the variable of a type
+     holds a number that the relation relates to each value of the type
+     ([is_null_coherent_statement], [is_int_coherent_statement],
+     [get_tag_coherent_statement]). The variables [is_int] and [is_null]
+     say so of every value of the type, [get_tag] of its blocks only
+     ([meet_variant] says why).
    - A product (the fields of a block, the closures and the value slots
      of a set of closures) says something of the components that exist
      and nothing of the others: an absent component is unknown, and what
      exists is for the index of the case to say.
-   - The relations are those of the primitives restricted to where the
-     compiler records them: [Is_int] relates tagged immediates and
-     blocks only, which is [Is_int { variant_only = true }]
-     ([Simplify_unary_primitive.simplify_is_int]); [Get_tag] blocks
-     only. [reduce_inverse_relations] is sound for these and for no
-     wider reading.
+   - A relation is not the execution of its primitive
+     ([relation_holds]). It relates a value and a number wherever the
+     compiler records it of them, which is not where the primitive has
+     a result:
+     - [Is_null] relates every value of kind value: to 1 if it is
+       [Null], to 0 if not, poison and a symbol that is not bound
+       included. That is the compiler's reading of a constant
+       ([Relation.of_const], by [Reg_width_const.is_null];
+       [is_null_of_const_statement]), and the type of a scrutinee with
+       a variable [is_null] admits all these.
+     - [Is_int] relates a tagged immediate to 1 and a block to 0, and
+       nothing else. The compiler records it for
+       [Is_int { variant_only = true }]
+       ([Simplify_unary_primitive.simplify_is_int]) and for a parameter
+       that is unboxed as a variant, of a scrutinee that it takes to be
+       a variant and not null ([add_is_int_relation]). Its reading of a
+       constant is wider, 0 for [Null] and 1 for every other constant
+       ([Relation.of_const]); the two agree where this one says
+       something ([relation_of_const_sound_statement]).
+     - [Get_tag] relates a block to its tag, and a tagged immediate to
+       any number. Unboxing records it of a parameter that may be an
+       immediate (simplify/unboxing/build_unboxing_denv.ml), and passes
+       the tag 0 on the paths where it is one (unboxing_epa.ml,
+       [compute_extra_args_for_variant]); [add_get_tag_relation] keeps
+       the immediates for that reason, and on a constant
+       [reduce_head_of_kind_naked_immediate] drops the relation. The
+       primitive has no value on an immediate, and nothing here gives
+       it one.
+     The result of a primitive, where it has one, is to be related:
+     that is for the simplification of the primitives to prove, and is
+     all that ties the two. Where a primitive has a result is not said
+     here.
+   - One reduction of [Meet] is not sound for this meaning, nor for any
+     under which the environments that unboxing makes are true: from a
+     relation [Get_tag] whose number is among some tags,
+     [reduce_inverse_relations] makes the name a block with one of
+     those tags, where it may be an immediate.
+     [relation_get_tag_statement] has what does follow. Its other
+     reductions are sound ([relation_is_null_statement],
+     [relation_is_int_statement]).
+   - A poison value has no type but the unknown one of its kind, which
+     is the type the compiler gives the constant
+     ([More_type_creators.type_for_const]). Unboxing does not keep to
+     that. For a field of a variant that is unboxed in turn, it passes
+     poison on the paths where the argument has no such field, with 0
+     for the tag and for [Is_int] of it (unboxing_epa.ml); and the
+     environment of the handler has the type and the relations of that
+     field on every path (build_unboxing_denv.ml, [denv_of_decision]).
+     On such a path they are not true here. Whether a type is to say
+     nothing of a poison value is open, and is not for this file alone
+     to settle: it asks what it is to put another value where a poison
+     value was.
    - The code of a function type is the code of the closure, the very
      code id. The compiler means "that code or a newer version of it"
      ([Code_age_relation]); that is for the workstream on calls (S4) to
@@ -127,16 +180,19 @@
    - There is no value of kind [Region] or [Rec_info] but [Poison].
    - [Poison] is a value of its kind like another, of which nothing more
      is true: it has the unknown type of its kind, at kind value it is
-     not [Null], and it is no immediate and nothing allocated.
-   - The relations will be defined by the primitives themselves when
-     they are data (C1): [relation_holds] is to become "[eval_prim] of
-     the primitive on the value is this number".
+     not [Null], and it is no immediate and nothing allocated (see the
+     choices above).
+   - The primitives are abstract. When they are data (C1) the relations
+     stay as they are, and what is to be proved is that the result of
+     [Is_null], of [Is_int] of a variant and of [Get_tag], where there
+     is one, is related to the value.
 
    The statements say what each form of type means for the types built
    by the creation functions of the compiler, as an equivalence. The
-   proofs, and an example for each constructor of a value that has a
-   type and of one that has not, are in FlambdaTypeMeaningProofs.v,
-   which needs no review. *)
+   proofs are in FlambdaTypeMeaningProofs.v, which needs no review. It
+   also has, for each constructor but [Mutable_block], a value that has
+   a type built with it and a value that has not but would have one
+   close to it; no value has a [Mutable_block] type. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
@@ -252,7 +308,7 @@ Definition observations_disjoint_statement : Prop :=
     ∧ (boxed_number_of statics v <> None -> string_of statics v = None).
 
 (* ======================================================================== *)
-(* The primitives that types speak of                                       *)
+(* The relations that types speak of                                        *)
 (* ======================================================================== *)
 
 Definition is_tagged_immediate (v : value) : Prop :=
@@ -261,29 +317,26 @@ Definition is_tagged_immediate (v : value) : Prop :=
 Definition is_block (statics : static_env) (v : value) : Prop :=
   ∃ (tag : Z) (fields : list value), block_of statics v = Some (tag, fields).
 
-Definition allocated (statics : static_env) (v : value) : Prop :=
-  block_of statics v <> None
-  ∨ closure_of statics v <> None
-  ∨ boxed_number_of statics v <> None
-  ∨ string_of statics v <> None.
-
-(* The primitive of a relation gives the number [n] on the value [v]:
-   - [Is_null]: 1 on [Null], 0 on a tagged immediate and on what is
-     allocated;
-   - [Is_int], of a variant: 1 on a tagged immediate, 0 on a block;
-   - [Get_tag]: the tag of a block.
-   Where none of these holds, the primitive has no result that a type
-   may speak of. *)
+(* What a type means by "this number is [Is_null], [Is_int] or [Get_tag]
+   of that value". It is a relation of the types, not the execution of
+   the primitive (see the header):
+   - [Is_null]: the value is of kind value, and the number is 1 if it is
+     [Null] and 0 if it is not;
+   - [Is_int]: the value is a tagged immediate and the number is 1, or
+     it is a block and the number is 0;
+   - [Get_tag]: the value is a block and the number is its tag, or it
+     is a tagged immediate, and then nothing is said of the number. *)
 Definition relation_holds (statics : static_env) (relation : Relation.t)
     (v : value) (n : Z) : Prop :=
   match relation with
   | Relation.Is_null =>
     (v = Value_const Null ∧ n = 1%Z)
-    ∨ ((is_tagged_immediate v ∨ allocated statics v) ∧ n = 0%Z)
+    ∨ (kind_of_value v = Value ∧ v <> Value_const Null ∧ n = 0%Z)
   | Relation.Is_int =>
     (is_tagged_immediate v ∧ n = 1%Z) ∨ (is_block statics v ∧ n = 0%Z)
   | Relation.Get_tag =>
-    ∃ fields : list value, block_of statics v = Some (n, fields)
+    is_tagged_immediate v
+    ∨ ∃ fields : list value, block_of statics v = Some (n, fields)
   end.
 
 (* ======================================================================== *)
@@ -720,22 +773,27 @@ Definition type_naked_number_satisfied_statement : Prop :=
           ∧ number_of_const c = Some n
           ∧ n ∈ numbers.
 
-(* The result of a primitive on the value of a name. *)
+(* A number that a relation relates to the value of a name. The three
+   statements spell [relation_holds] out. *)
 Definition is_int_for_scrutinee_satisfied_statement : Prop :=
   ∀ (statics : static_env) (vars : env) (v : value) (scrutinee : name),
     type_satisfied statics vars v (is_int_for_scrutinee scrutinee)
     <-> ∃ (i : Z) (w : value),
           v = Value_const (Naked_immediate i)
           ∧ value_of_name vars scrutinee = Some w
-          ∧ relation_holds statics Relation.Is_int w i.
+          ∧ ((is_tagged_immediate w ∧ i = 1%Z)
+             ∨ (is_block statics w ∧ i = 0%Z)).
 
+(* The scrutinee may be an immediate, as a parameter that is unboxed
+   may be; the number is then any number. *)
 Definition get_tag_for_block_satisfied_statement : Prop :=
   ∀ (statics : static_env) (vars : env) (v : value) (block : name),
     type_satisfied statics vars v (get_tag_for_block block)
     <-> ∃ (i : Z) (w : value),
           v = Value_const (Naked_immediate i)
           ∧ value_of_name vars block = Some w
-          ∧ relation_holds statics Relation.Get_tag w i.
+          ∧ (is_tagged_immediate w
+             ∨ ∃ fields : list value, block_of statics w = Some (i, fields)).
 
 Definition is_null_for_scrutinee_satisfied_statement : Prop :=
   ∀ (statics : static_env) (vars : env) (v : value) (scrutinee : name),
@@ -743,7 +801,64 @@ Definition is_null_for_scrutinee_satisfied_statement : Prop :=
     <-> ∃ (i : Z) (w : value),
           v = Value_const (Naked_immediate i)
           ∧ value_of_name vars scrutinee = Some w
-          ∧ relation_holds statics Relation.Is_null w i.
+          ∧ ((w = Value_const Null ∧ i = 1%Z)
+             ∨ (kind_of_value w = Value ∧ w <> Value_const Null
+                ∧ i = 0%Z)).
+
+(* The two sides of a relation agree: the variable of a type holds a
+   number that the relation relates to each value of the type. For
+   [Get_tag] the variable need hold nothing where the value is an
+   immediate. *)
+Definition is_null_coherent_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (v : value)
+    (non_null : or_unknown_or_bottom head_of_kind_value_non_null)
+    (is_null : variable),
+    head_of_kind_value_satisfied statics vars v
+      (Head_of_kind_value non_null (Maybe_null (Some is_null))) ->
+    ∃ n : Z,
+      lookup is_null vars = Some (Value_const (Naked_immediate n))
+      ∧ relation_holds statics Relation.Is_null v n.
+
+Definition is_int_coherent_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (v : value) (is_int : variable)
+    (immediates : Or_unknown.t flambda_type) (get_tag : option variable)
+    (blocks : Or_unknown.t row_like_for_blocks)
+    (extensions : variant_extensions) (is_unique : bool),
+    head_of_kind_value_non_null_satisfied statics vars v
+      (Variant (Some is_int) immediates get_tag blocks extensions is_unique) ->
+    ∃ n : Z,
+      lookup is_int vars = Some (Value_const (Naked_immediate n))
+      ∧ relation_holds statics Relation.Is_int v n.
+
+Definition get_tag_coherent_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (v : value)
+    (is_int : option variable) (immediates : Or_unknown.t flambda_type)
+    (get_tag : variable) (blocks : Or_unknown.t row_like_for_blocks)
+    (extensions : variant_extensions) (is_unique : bool) (n : Z),
+    head_of_kind_value_non_null_satisfied statics vars v
+      (Variant is_int immediates (Some get_tag) blocks extensions is_unique) ->
+    lookup get_tag vars = Some (Value_const (Naked_immediate n)) ->
+    relation_holds statics Relation.Get_tag v n.
+
+(* The compiler's reading of a relation on a constant
+   ([Relation.of_const], which [reduce_head_of_kind_naked_immediate]
+   uses) is sound: if a relation relates a constant to a number, and the
+   compiler gives a number for it, it is that one. For [Is_null] it is
+   exact on the constants of kind value. For [Is_int] it is not: the
+   compiler gives 0 for [Null] and 1 for every other constant, poison
+   and the naked numbers included, and the relation holds of the tagged
+   immediates only. *)
+Definition relation_of_const_sound_statement : Prop :=
+  ∀ (statics : static_env) (relation : Relation.t) (c : const) (i n : Z),
+    relation_holds statics relation (Value_const c) i ->
+    Relation.of_const relation c = Or_bottom.Ok n ->
+    i = n.
+
+Definition is_null_of_const_statement : Prop :=
+  ∀ (statics : static_env) (c : const) (n : Z),
+    kind_of_const c = Value ->
+    (relation_holds statics Relation.Is_null (Value_const c) n
+     <-> Relation.of_const Relation.Is_null c = Or_bottom.Ok n).
 
 (* ======================================================================== *)
 (* Null, immediates and blocks                                              *)
@@ -942,6 +1057,26 @@ Definition exactly_this_closure_satisfied_statement : Prop :=
               (Closures_entry function_types closure_types
                  value_slot_types).
 
+(* The same of a set with at least the functions and the value slots
+   given. *)
+Definition at_least_this_closure_satisfied_statement : Prop :=
+  ∀ (statics : static_env) (vars : env) (v : value) (slot : function_slot)
+    (function_types : finite_map (Or_unknown.t function_type))
+    (closure_types value_slot_types : finite_map flambda_type)
+    (alloc_mode : Alloc_mode.t),
+    type_satisfied statics vars v
+      (at_least_this_closure slot function_types closure_types
+         value_slot_types alloc_mode)
+    <-> ∃ (functions : list (function_slot * code_id))
+          (value_slots : list (value_slot * value)),
+          closure_in_set statics v = Some (slot, functions, value_slots)
+          ∧ all_among (domain function_types) (domain functions) = true
+          ∧ all_among (domain value_slot_types) (domain value_slots) = true
+          ∧ closures_entry_satisfied statics vars v slot functions
+              value_slots
+              (Closures_entry function_types closure_types
+                 value_slot_types).
+
 (* ======================================================================== *)
 (* Environment extensions                                                   *)
 (* ======================================================================== *)
@@ -956,11 +1091,14 @@ Definition env_extension_lookup_statement : Prop :=
             value_of_name vars n = Some v ∧ type_satisfied statics vars v ty).
 
 (* ======================================================================== *)
-(* What a relation says of the value it is about                            *)
+(* What a relation says of the value it relates                             *)
 (* ======================================================================== *)
 
-(* What [Meet] deduces of a name from the result of a relation on it
-   ([reduce_inverse_relations]). *)
+(* What follows for a value from the number that a relation relates it
+   to. For [Is_null] and [Is_int] it is what [Meet] deduces
+   ([reduce_inverse_relations]). For [Get_tag] it is less: [Meet] makes
+   the value a block with one of the tags, and it may be an immediate
+   (see the header). *)
 Definition relation_is_null_statement : Prop :=
   ∀ (statics : static_env) (vars : env) (w : value) (n : Z),
     relation_holds statics Relation.Is_null w n ->
@@ -978,7 +1116,8 @@ Definition relation_get_tag_statement : Prop :=
     (tags : list Z) (alloc_mode : Alloc_mode.t),
     relation_holds statics Relation.Get_tag w n ->
     n ∈ tags ->
-    type_satisfied statics vars w (blocks_with_these_tags tags alloc_mode).
+    is_tagged_immediate w
+    ∨ type_satisfied statics vars w (blocks_with_these_tags tags alloc_mode).
 
 (* ======================================================================== *)
 (* What the meaning of a type depends on                                    *)

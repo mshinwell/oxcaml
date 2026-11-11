@@ -247,13 +247,26 @@ Inductive is_null : Type :=
   | Not_null
   | Maybe_null (is_null : option variable).
 
-(* [Type_grammar.Relation.descr]: the primitives whose result a type of
-   naked immediates can be said to be. *)
+(* [Type_grammar.Relation.descr]: the relations, named after primitives,
+   that a type of naked immediates can have to the value of a name. *)
 Module Relation.
   Inductive t : Type :=
     | Is_null
     | Is_int
     | Get_tag.
+
+  (* [Type_grammar.Relation.of_const]: the number that the compiler
+     takes a relation to relate a constant to, where it takes it to
+     relate it to one. [Reg_width_const.is_null] is the test for
+     [Null]. *)
+  Definition of_const (relation : t) (c : const) : Or_bottom.t Z :=
+    match relation, c with
+    | Is_null, Null => Or_bottom.Ok 1%Z
+    | Is_null, _ => Or_bottom.Ok 0%Z
+    | Is_int, Null => Or_bottom.Ok 0%Z
+    | Is_int, _ => Or_bottom.Ok 1%Z
+    | Get_tag, _ => Or_bottom.Bottom
+    end.
 End Relation.
 
 (* [head_of_kind_naked_immediate], as [Head_of_kind_naked_immediate.descr]
@@ -690,8 +703,8 @@ Definition immutable_block (is_unique : bool) (tag : Z) (shape : block_shape)
     No_extensions.
 
 (* [Type_grammar.is_int_for_scrutinee], [get_tag_for_block] and
-   [is_null], for a scrutinee that is a name: the result of the primitive
-   on the value of the name. *)
+   [is_null], for a scrutinee that is a name: a number that the relation
+   relates to the value of the name. *)
 Definition is_int_for_scrutinee (scrutinee : name) : flambda_type :=
   Type_naked_immediate
     (Ok
@@ -731,6 +744,28 @@ Definition exactly_this_closure (this_function_slot : function_slot)
               (Row_like_index_domain.Known
                  (Set_of_closures_contents (domain all_function_slots_in_set)
                     (domain all_value_slots_in_set)))
+              tt)
+           empty_env_extension)]).
+
+(* [More_type_creators.at_least_this_closure]: the closure at a function
+   slot of a set of closures with at least the functions, the closures
+   and the value slots given. *)
+Definition at_least_this_closure (this_function_slot : function_slot)
+    (at_least_these_function_slots : finite_map (Or_unknown.t function_type))
+    (at_least_these_closure_types : finite_map flambda_type)
+    (at_least_these_value_slots : finite_map flambda_type)
+    (alloc_mode : Alloc_mode.t) : flambda_type :=
+  create_closures alloc_mode
+    (Row_like_for_closures
+       [(this_function_slot,
+         Row_like_case
+           (Closures_entry at_least_these_function_slots
+              at_least_these_closure_types at_least_these_value_slots)
+           (Row_like_index
+              (Row_like_index_domain.At_least
+                 (Set_of_closures_contents
+                    (domain at_least_these_function_slots)
+                    (domain at_least_these_value_slots)))
               tt)
            empty_env_extension)]).
 

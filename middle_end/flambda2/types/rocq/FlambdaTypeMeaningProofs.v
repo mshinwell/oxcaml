@@ -27,8 +27,9 @@
 
 
 (* Proofs of the statements of FlambdaTypeMeaningSpec.v, and examples: for
-   each constructor of the grammar, a value that has a type built with it
-   and a value that has not. Nothing here needs review. *)
+   each constructor of the grammar but [Mutable_block], a value that has a
+   type built with it and a value that has not. Nothing here needs
+   review. *)
 
 From Stdlib Require Import ZArith List Bool Lia Setoid.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
@@ -561,21 +562,91 @@ Qed.
 Theorem is_int_for_scrutinee_satisfied
   : is_int_for_scrutinee_satisfied_statement.
 Proof.
-  intros statics vars v scrutinee. apply relation_type_satisfied.
+  intros statics vars v scrutinee.
+  apply (relation_type_satisfied statics vars v Relation.Is_int).
   intros w i [[_ ->] | [_ ->]]; simpl; auto.
 Qed.
 
 Theorem get_tag_for_block_satisfied : get_tag_for_block_satisfied_statement.
 Proof.
-  intros statics vars v block. apply relation_type_satisfied.
+  intros statics vars v block.
+  apply (relation_type_satisfied statics vars v Relation.Get_tag).
   intros w i _. exact I.
 Qed.
 
 Theorem is_null_for_scrutinee_satisfied
   : is_null_for_scrutinee_satisfied_statement.
 Proof.
-  intros statics vars v scrutinee. apply relation_type_satisfied.
-  intros w i [[_ ->] | [_ ->]]; simpl; auto.
+  intros statics vars v scrutinee.
+  apply (relation_type_satisfied statics vars v Relation.Is_null).
+  intros w i [[_ ->] | [_ [_ ->]]]; simpl; auto.
+Qed.
+
+(* The two sides of a relation agree. *)
+
+Theorem is_null_coherent : is_null_coherent_statement.
+Proof.
+  intros statics vars v non_null is_null.
+  rewrite head_of_kind_value_satisfied_eq. simpl.
+  intros [[-> His_null] | [Hnot_null [Hnon_null His_null]]].
+  - exists 1%Z. split; [ exact His_null | ]. left. split; reflexivity.
+  - exists 0%Z. split; [ exact His_null | ]. right.
+    split; [ | split; [ exact Hnot_null | reflexivity ] ].
+    destruct non_null as [ | head | ];
+      [ exact Hnon_null | | destruct Hnon_null ].
+    exact (proj1 (head_non_null_kind _ _ _ _ Hnon_null)).
+Qed.
+
+Theorem is_int_coherent : is_int_coherent_statement.
+Proof.
+  intros statics vars v is_int immediates get_tag blocks extensions
+    is_unique.
+  rewrite variant_satisfied. simpl.
+  intros [[i [Hv [His_int _]]] | [tag [fields [Hblock [His_int _]]]]].
+  - exists 1%Z. split; [ exact His_int | ]. left.
+    split; [ exists i; exact Hv | reflexivity ].
+  - exists 0%Z. split; [ exact His_int | ]. right.
+    split; [ exists tag, fields; exact Hblock | reflexivity ].
+Qed.
+
+Theorem get_tag_coherent : get_tag_coherent_statement.
+Proof.
+  intros statics vars v is_int immediates get_tag blocks extensions
+    is_unique n.
+  rewrite variant_satisfied. simpl.
+  intros [[i [Hv _]] | [tag [fields [Hblock [_ [Hget_tag _]]]]]] Hn.
+  - left. exists i. exact Hv.
+  - right. exists fields. rewrite Hget_tag in Hn. injection Hn as <-.
+    exact Hblock.
+Qed.
+
+(* The compiler's reading of a relation on a constant. *)
+
+Theorem relation_of_const_sound : relation_of_const_sound_statement.
+Proof.
+  intros statics relation c i n Hholds Hof_const.
+  destruct relation; simpl in Hholds.
+  - destruct Hholds as [[[= ->] ->] | [_ [Hnot_null ->]]].
+    + injection Hof_const as <-. reflexivity.
+    + destruct c; try (injection Hof_const as <-; reflexivity).
+      destruct (Hnot_null eq_refl).
+  - destruct Hholds as [[[j [= ->]] ->] | [[tag [fields Hblock]] _]].
+    + injection Hof_const as <-. reflexivity.
+    + discriminate Hblock.
+  - discriminate Hof_const.
+Qed.
+
+Theorem is_null_of_const : is_null_of_const_statement.
+Proof.
+  intros statics c n Hkind. simpl. split.
+  - intros [[[= ->] ->] | [_ [Hnot_null ->]]]; [ reflexivity | ].
+    destruct c; try reflexivity. destruct (Hnot_null eq_refl).
+  - intros Hof_const.
+    destruct c; try discriminate Hkind; injection Hof_const as <-.
+    + right. split; [ reflexivity | ]. split; [ discriminate | reflexivity ].
+    + left. split; reflexivity.
+    + right. split; [ exact Hkind | ].
+      split; [ discriminate | reflexivity ].
 Qed.
 
 Theorem these_tagged_immediates_satisfied
@@ -822,14 +893,61 @@ Proof.
       split; [ exact Hentry | apply empty_env_extension_satisfied ].
 Qed.
 
+Theorem at_least_this_closure_satisfied
+  : at_least_this_closure_satisfied_statement.
+Proof.
+  intros statics vars v slot function_types closure_types value_slot_types
+    alloc_mode.
+  unfold at_least_this_closure, create_closures.
+  rewrite non_null_value_satisfied, closures_satisfied. split.
+  - intros [slot' [functions [value_slots [Hclosure Hrow]]]].
+    rewrite row_like_for_closures_lookup_iff in Hrow.
+    destruct Hrow as [case [Hlookup Hcase]]. simpl in Hlookup.
+    destruct (Pos.eqb_spec slot' slot) as [-> | _]; [ | discriminate ].
+    injection Hlookup as <-.
+    destruct Hcase as [[Hfunctions Hslots] [Hentry _]].
+    exists functions, value_slots.
+    split; [ exact Hclosure | ]. split; [ exact Hfunctions | ].
+    split; [ exact Hslots | exact Hentry ].
+  - intros [functions [value_slots [Hclosure [Hfunctions [Hslots Hentry]]]]].
+    exists slot, functions, value_slots. split; [ exact Hclosure | ].
+    rewrite row_like_for_closures_lookup_iff. eexists. split.
+    + simpl. rewrite Pos.eqb_refl. reflexivity.
+    + split; [ split; assumption | ].
+      split; [ exact Hentry | apply empty_env_extension_satisfied ].
+Qed.
+
 (* ======================================================================== *)
 (* Examples                                                                 *)
 (* ======================================================================== *)
 
-(* For each constructor of the grammar, a value that has a type built
-   with it and a value that has not, under a static environment with a
-   block, a boxed float, a string and a closure, and an environment with
-   three variables. No statement about types holds for want of values. *)
+(* For each constructor of the grammar but one, a value that has a type
+   built with it and a value that has not, under a static environment
+   with blocks of the three shapes, two boxed numbers, a string and a
+   closure, and an environment with four variables. A type that is shown
+   to reject a value is one that some other value has, but where it is
+   said not to be. The exception is [Mutable_block]: the machine has no
+   mutable block, so no value has such a type
+   ([mutable_block_satisfied]), and what is stated of it holds for want
+   of values until there is a heap.
+
+   What the examples cover: [Unknown] and aliases; sets of naked
+   immediates and the three relations, with the two cases found in
+   review (a parameter that is unboxed and holds an immediate, and
+   [Is_null] of poison and of a symbol that is not bound) and the two
+   places where the compiler goes further than the meaning here (the
+   block that [Meet] makes of the scrutinee of [Get_tag], and the types
+   that unboxing gives to poison); two kinds of
+   the other naked numbers; null and its variable; variants with
+   immediates, with blocks of a known tag, of other tags and of a tag
+   with nothing known, with the variables and the extensions; the three
+   shapes of blocks; two kinds of boxed numbers; strings; closures with
+   exactly and with at least some contents, the code of the function,
+   the type of a value slot and the type of a closure of the set. Not
+   covered: the kinds of naked numbers and of boxed numbers other than
+   the two shown of each, which the definitions treat alike; a set of
+   closures of several functions, which the machine does not have
+   yet. *)
 
 Module Examples.
 
@@ -840,12 +958,18 @@ Definition a_boxed_float : symbol := 2%positive.
 Definition a_string : symbol := 3%positive.
 Definition a_closure : symbol := 4%positive.
 Definition unbound : symbol := 5%positive.
+Definition a_float_block : symbol := 6%positive.
+Definition a_mixed_block : symbol := 7%positive.
+Definition a_boxed_int64 : symbol := 8%positive.
 Definition some_code : code_id := 1%positive.
 Definition other_code : code_id := 2%positive.
 Definition a_value_slot : value_slot := 1%positive.
+Definition other_value_slot : value_slot := 2%positive.
 
-(* A block of tag 0 with two fields, a boxed float, a string of two
-   bytes, and a closure with one value slot. *)
+(* A block of tag 0 with two fields that are values; a boxed float; a
+   string of two bytes; a closure with one value slot; a block of two
+   naked floats; a block of tag 0 with a value and a naked float; a
+   boxed 64-bit integer. The symbol [unbound] is bound to nothing. *)
 Definition statics : static_env :=
   Static_env []
     [(a_block,
@@ -855,16 +979,27 @@ Definition statics : static_env :=
      (a_string, Static_string [104; 105]);
      (a_closure,
       Static_closure some_code
-        [(a_value_slot, Value_const (Tagged_immediate 3))])].
+        [(a_value_slot, Value_const (Tagged_immediate 3))]);
+     (a_float_block,
+      Static_block double_array_tag
+        [Value_const (Naked_float 1); Value_const (Naked_float 2)]);
+     (a_mixed_block,
+      Static_block 0
+        [Value_const (Tagged_immediate 7); Value_const (Naked_float 3)]);
+     (a_boxed_int64, Static_boxed_number (Value_const (Naked_int64 9)))].
 
 Definition x : variable := 1%positive.
 Definition zero : variable := 2%positive.
 Definition one : variable := 3%positive.
+Definition poison : variable := 4%positive.
 
+(* [x] holds a tagged immediate, [zero] and [one] the naked immediates 0
+   and 1, and [poison] a poison value. *)
 Definition vars : env :=
   [(x, Value_const (Tagged_immediate 5));
    (zero, Value_const (Naked_immediate 0));
-   (one, Value_const (Naked_immediate 1))].
+   (one, Value_const (Naked_immediate 1));
+   (poison, Value_const (Poison Value))].
 
 Definition has (v : value) (t : flambda_type) : Prop :=
   type_satisfied statics vars v t.
@@ -910,6 +1045,7 @@ Ltac no :=
     | H : ∀ c, Some ?v = Some c -> _ |- _ => specialize (H v eq_refl)
     | H : ∀ (g : positive) (function_type : function_type), _ |- _ =>
       specialize (H 1%positive _ eq_refl)
+    | H : ∀ name : positive, false = _ |- _ => specialize (H 1%positive)
     | _ => progress compute in *
     end;
   try congruence; try lia.
@@ -954,6 +1090,10 @@ Example is_int_of_block_has
   : has (naked 0) (is_int_for_scrutinee (Name_symbol a_block)).
 Proof. yes. Qed.
 
+Example is_int_of_closure_has_not
+  : ~ has (naked 0) (is_int_for_scrutinee (Name_symbol a_closure)).
+Proof. no. Qed.
+
 Example get_tag_has
   : has (naked 0) (get_tag_for_block (Name_symbol a_block)).
 Proof. yes. Qed.
@@ -962,12 +1102,97 @@ Example get_tag_has_not
   : ~ has (naked 1) (get_tag_for_block (Name_symbol a_block)).
 Proof. no. Qed.
 
+Example get_tag_of_closure_has_not
+  : ~ has (naked 0) (get_tag_for_block (Name_symbol a_closure)).
+Proof. no. Qed.
+
+(* A parameter that is unboxed as a variant, where it holds an
+   immediate: [x] is the parameter, [one] its extra parameter for
+   [Is_int] and [zero] the one for [Get_tag], to which the tag 0 is
+   passed on this path (unboxing_epa.ml). The types that
+   build_unboxing_denv.ml records for the three all hold: the tag is
+   [Get_tag] of [x], [Is_int] of [x] is 1, and [x] is a variant with
+   these two variables. *)
+Example unboxed_immediate_tag_has
+  : has (naked 0) (get_tag_for_block (Name_var x)).
+Proof. yes. Qed.
+
+Example unboxed_immediate_is_int_has
+  : has (naked 1) (is_int_for_scrutinee (Name_var x)).
+Proof. yes. Qed.
+
+Example unboxed_immediate_has
+  : has (tagged 5)
+      (non_null_value
+         (Variant (Some one) Or_unknown.Unknown (Some zero)
+            Or_unknown.Unknown No_extensions false)).
+Proof. yes. Qed.
+
+Example unboxed_immediate_is_int_has_not
+  : ~ has (tagged 5)
+        (non_null_value
+           (Variant (Some zero) Or_unknown.Unknown (Some zero)
+              Or_unknown.Unknown No_extensions false)).
+Proof. no. Qed.
+
+(* On that path the tag variable holds one of the tags [0], and [x] is
+   no block of one of them: what [Meet] deduces of the scrutinee from a
+   [Get_tag] relation whose number is among some tags
+   ([reduce_inverse_relations]) is not true there. *)
+Example unboxed_immediate_tag_among_has
+  : has (naked 0) (these_naked_immediates [0]).
+Proof. yes. Qed.
+
+Example unboxed_immediate_block_has_not
+  : ~ has (tagged 5) (blocks_with_these_tags [0] Alloc_mode.Heap_or_local).
+Proof. no. Qed.
+
+(* A field that is unboxed in turn as a variant, on a path where the
+   parameter it is a field of holds an immediate: [poison] is the
+   parameter for the field, and [zero] stands for its extra parameters
+   for [Is_int] and [Get_tag], to which 0 is passed on this path. None
+   of the three types that build_unboxing_denv.ml records for them
+   holds (see the header of the Spec, on poison). *)
+Example unboxed_poison_is_int_has_not
+  : ~ has (naked 0) (is_int_for_scrutinee (Name_var poison)).
+Proof. no. Qed.
+
+Example unboxed_poison_tag_has_not
+  : ~ has (naked 0) (get_tag_for_block (Name_var poison)).
+Proof. no. Qed.
+
+Example unboxed_poison_has_not
+  : ~ has (Value_const (Poison Value))
+        (non_null_value
+           (Variant (Some zero) Or_unknown.Unknown (Some zero)
+              Or_unknown.Unknown No_extensions false)).
+Proof. no. Qed.
+
 Example is_null_has
   : has (naked 0) (is_null_for_scrutinee (Name_symbol a_closure)).
 Proof. yes. Qed.
 
 Example is_null_has_not
   : ~ has (naked 1) (is_null_for_scrutinee (Name_symbol a_closure)).
+Proof. no. Qed.
+
+(* [Is_null] of poison and of a symbol that is not bound is 0, as the
+   variable of the type of the scrutinee says ([is_null_variable_...]
+   below). *)
+Example is_null_of_poison_has
+  : has (naked 0) (is_null_for_scrutinee (Name_var poison)).
+Proof. yes. Qed.
+
+Example is_null_of_poison_has_not
+  : ~ has (naked 1) (is_null_for_scrutinee (Name_var poison)).
+Proof. no. Qed.
+
+Example is_null_of_unbound_symbol_has
+  : has (naked 0) (is_null_for_scrutinee (Name_symbol unbound)).
+Proof. yes. Qed.
+
+Example is_null_of_naked_number_has_not
+  : ~ has (naked 0) (is_null_for_scrutinee (Name_var zero)).
 Proof. no. Qed.
 
 (* [Type_naked_number]. *)
@@ -979,6 +1204,16 @@ Proof. yes. Qed.
 Example naked_floats_has_not
   : ~ has (Value_const (Naked_int32 42))
         (Type_naked_number Kind_naked_float (Ok (No_alias [42; 43]))).
+Proof. no. Qed.
+
+Example naked_int32s_has
+  : has (Value_const (Naked_int32 42))
+      (Type_naked_number Kind_naked_int32 (Ok (No_alias [42; 43]))).
+Proof. yes. Qed.
+
+Example naked_int32s_has_not
+  : ~ has (Value_const (Naked_int32 44))
+        (Type_naked_number Kind_naked_int32 (Ok (No_alias [42; 43]))).
 Proof. no. Qed.
 
 (* [Type_region] and [Type_rec_info]: the machine has no value of these
@@ -1028,6 +1263,14 @@ Proof. yes. Qed.
 Example is_not_null_variable_has_not : ~ has (tagged 0) (maybe_null one).
 Proof. no. Qed.
 
+Example is_null_variable_of_poison_has
+  : has (Value_const (Poison Value)) (maybe_null zero).
+Proof. yes. Qed.
+
+Example is_null_variable_of_unbound_symbol_has
+  : has (Value_symbol unbound) (maybe_null zero).
+Proof. yes. Qed.
+
 (* [Variant]: immediates. *)
 Example tagged_immediates_has
   : has (tagged 1) (these_tagged_immediates [0; 1; 2]).
@@ -1066,10 +1309,47 @@ Example block_tag_has_not
            [this_tagged_immediate 7; unknown Value]).
 Proof. no. Qed.
 
-Example block_shape_has_not
-  : ~ has (Value_symbol a_block)
-        (immutable_block false 0 Float_record Alloc_mode.Heap
-           [this_tagged_immediate 7; unknown Value]).
+(* The shapes. A block of values has not the type of a mixed block of
+   its tag and size, which [a_mixed_block] has, and the other way
+   round; a block of naked floats has the type of a float record. *)
+Definition mixed_block_type : flambda_type :=
+  immutable_block false 0
+    (Scannable (Mixed_record 1 [Kind_naked_float])) Alloc_mode.Heap
+    [unknown Value; unknown (Naked_number Kind_naked_float)].
+
+Definition block_of_values_type : flambda_type :=
+  immutable_block false 0 (Scannable Value_only) Alloc_mode.Heap
+    [unknown Value; unknown Value].
+
+Example mixed_block_has : has (Value_symbol a_mixed_block) mixed_block_type.
+Proof. yes. Qed.
+
+Example mixed_block_shape_has_not
+  : ~ has (Value_symbol a_block) mixed_block_type.
+Proof. no. Qed.
+
+Example block_of_values_has : has (Value_symbol a_block) block_of_values_type.
+Proof. yes. Qed.
+
+Example block_of_values_shape_has_not
+  : ~ has (Value_symbol a_mixed_block) block_of_values_type.
+Proof. no. Qed.
+
+Definition float_block_type (first : Z) : flambda_type :=
+  immutable_block false double_array_tag Float_record Alloc_mode.Heap
+    [Type_naked_number Kind_naked_float (Ok (No_alias [first]));
+     unknown (Naked_number Kind_naked_float)].
+
+Example float_block_has
+  : has (Value_symbol a_float_block) (float_block_type 1).
+Proof. yes. Qed.
+
+Example float_block_field_has_not
+  : ~ has (Value_symbol a_float_block) (float_block_type 2).
+Proof. no. Qed.
+
+Example float_block_of_values_has_not
+  : ~ has (Value_symbol a_block) (float_block_type 1).
 Proof. no. Qed.
 
 Example any_block_has : has (Value_symbol a_block) any_block.
@@ -1169,6 +1449,26 @@ Example boxed_float_block_has_not
            Alloc_mode.Heap).
 Proof. no. Qed.
 
+Example boxed_int64_has
+  : has (Value_symbol a_boxed_int64)
+      (box_number Kind_naked_int64
+         (Type_naked_number Kind_naked_int64 (Ok (No_alias [9])))
+         Alloc_mode.Heap).
+Proof. yes. Qed.
+
+Example boxed_int64_contents_has_not
+  : ~ has (Value_symbol a_boxed_int64)
+        (box_number Kind_naked_int64
+           (Type_naked_number Kind_naked_int64 (Ok (No_alias [8])))
+           Alloc_mode.Heap).
+Proof. no. Qed.
+
+Example boxed_int64_kind_has_not
+  : ~ has (Value_symbol a_boxed_float)
+        (box_number Kind_naked_int64
+           (unknown (Naked_number Kind_naked_int64)) Alloc_mode.Heap).
+Proof. no. Qed.
+
 (* [String]. *)
 Example string_has
   : has (Value_symbol a_string) (this_immutable_string [104; 105]).
@@ -1211,8 +1511,63 @@ Example closure_block_has_not
         (closure_type some_code (this_tagged_immediate 3)).
 Proof. no. Qed.
 
+(* The closures of the set: the closure of the set at the slot of the
+   closure is the closure itself, so its type has to hold of it. *)
+Definition closure_with_closure_type (closure_type : flambda_type)
+    : flambda_type :=
+  exactly_this_closure unnamed_function_slot
+    [(unnamed_function_slot, Or_unknown.Unknown)]
+    [(unnamed_function_slot, closure_type)]
+    [(a_value_slot, unknown Value)] Alloc_mode.Heap.
+
+Example closure_types_has
+  : has (Value_symbol a_closure)
+      (closure_with_closure_type (alias_type_of Value (Symbol a_closure))).
+Proof. yes. Qed.
+
+Example closure_types_has_not
+  : ~ has (Value_symbol a_closure)
+        (closure_with_closure_type (alias_type_of Value (Symbol a_block))).
+Proof. no. Qed.
+
+(* Exactly and at least: the closure has one value slot, so it has not
+   the type of a closure with exactly none, but has that of one with at
+   least none; and it has not the type of a closure with at least a
+   value slot that it lacks. *)
+Example exactly_no_value_slot_has_not
+  : ~ has (Value_symbol a_closure)
+        (exactly_this_closure unnamed_function_slot
+           [(unnamed_function_slot, Or_unknown.Unknown)] [] []
+           Alloc_mode.Heap).
+Proof. no. Qed.
+
+Example at_least_no_value_slot_has
+  : has (Value_symbol a_closure)
+      (at_least_this_closure unnamed_function_slot
+         [(unnamed_function_slot, Or_unknown.Unknown)] [] []
+         Alloc_mode.Heap).
+Proof. yes. Qed.
+
+Example at_least_this_value_slot_has
+  : has (Value_symbol a_closure)
+      (at_least_this_closure unnamed_function_slot [] []
+         [(a_value_slot, this_tagged_immediate 3)] Alloc_mode.Heap).
+Proof. yes. Qed.
+
+Example at_least_this_value_slot_type_has_not
+  : ~ has (Value_symbol a_closure)
+        (at_least_this_closure unnamed_function_slot [] []
+           [(a_value_slot, this_tagged_immediate 4)] Alloc_mode.Heap).
+Proof. no. Qed.
+
+Example at_least_other_value_slot_has_not
+  : ~ has (Value_symbol a_closure)
+        (at_least_this_closure unnamed_function_slot [] []
+           [(other_value_slot, unknown Value)] Alloc_mode.Heap).
+Proof. no. Qed.
+
 (* [Mutable_block]: no value has it ([mutable_block_satisfied]), the
-   machine having none. *)
+   machine having none; so there is no example of a value that has. *)
 
 End Examples.
 
@@ -1307,37 +1662,17 @@ Proof.
   rewrite (closure_of_extend _ _ Hclosure). reflexivity.
 Qed.
 
-Lemma some_not_none {A : Type} (o : option A) :
-  o <> None <-> ∃ a : A, o = Some a.
-Proof.
-  destruct o as [a | ]; split; [ eauto | discriminate | congruence | ].
-  intros [a [=]].
-Qed.
-
-Lemma allocated_extend (v : value) :
-  allocated statics v -> allocated statics' v.
-Proof.
-  unfold allocated. rewrite !some_not_none.
-  intros [[b Hb] | [[c Hc] | [[n Hn] | [bytes Hs]]]].
-  - left. exists b. exact (block_of_extend _ _ Hb).
-  - right. left. exists c. exact (closure_of_extend _ _ Hc).
-  - right. right. left. exists n. exact (boxed_number_of_extend _ _ Hn).
-  - right. right. right. exists bytes. exact (string_of_extend _ _ Hs).
-Qed.
-
 Lemma relation_holds_extend (relation : Relation.t) (v : value) (n : Z) :
   relation_holds statics relation v n -> relation_holds statics' relation v n.
 Proof.
   destruct relation; simpl.
-  - intros [Hnull | [[Himmediate | Hallocated] Hn]]; [ left; exact Hnull | | ].
-    + right. split; [ left; exact Himmediate | exact Hn ].
-    + right. split; [ | exact Hn ]. right.
-      exact (allocated_extend _ Hallocated).
+  - auto.
   - intros [Himmediate | [[tag [fields Hblock]] Hn]];
       [ left; exact Himmediate | ].
     right. split; [ | exact Hn ]. exists tag, fields.
     exact (block_of_extend _ _ Hblock).
-  - intros [fields Hblock]. exists fields. exact (block_of_extend _ _ Hblock).
+  - intros [Himmediate | [fields Hblock]]; [ left; exact Himmediate | ].
+    right. exists fields. exact (block_of_extend _ _ Hblock).
 Qed.
 
 (* What holds of the fields under one meaning of types holds under
@@ -1883,7 +2218,7 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
-(* What a relation says of the value it is about                            *)
+(* What a relation says of the value it relates                             *)
 (* ======================================================================== *)
 
 Lemma find_tag_unknown_cases {A : Type} (tag : Z) (tags : list Z) :
@@ -1925,32 +2260,12 @@ Proof.
     exact (proj2 (Hrow tag fields) Hin).
 Qed.
 
-Lemma allocated_kind (statics : static_env) (v : value) :
-  allocated statics v -> kind_of_value v = Value ∧ v <> Value_const Null.
-Proof.
-  intros Hallocated.
-  assert (Hkind : kind_of_value v = Value).
-  { destruct Hallocated as [H | [H | [H | H]]].
-    - destruct (block_of statics v) as [[tag fields] | ] eqn:Hblock;
-        [ exact (block_of_kind _ _ _ _ Hblock) | congruence ].
-    - destruct (closure_of statics v) as [closure | ] eqn:Hclosure;
-        [ exact (closure_of_kind _ _ _ Hclosure) | congruence ].
-    - destruct (boxed_number_of statics v) as [c | ] eqn:Hboxed;
-        [ exact (boxed_number_of_kind _ _ _ Hboxed) | congruence ].
-    - destruct (string_of statics v) as [bytes | ] eqn:Hstring;
-        [ exact (string_of_kind _ _ _ Hstring) | congruence ]. }
-  split; [ exact Hkind | ]. intros ->.
-  destruct Hallocated as [H | [H | [H | H]]]; apply H; reflexivity.
-Qed.
-
 Theorem relation_is_null : relation_is_null_statement.
 Proof.
-  intros statics vars w n [[-> ->] | [Hnot_null ->]].
+  intros statics vars w n [[-> ->] | [Hkind [Hnot_null ->]]].
   - left. split; [ reflexivity | ]. apply null_satisfied. reflexivity.
   - right. split; [ reflexivity | ]. apply any_non_null_value_satisfied.
-    destruct Hnot_null as [[i ->] | Hallocated];
-      [ split; [ reflexivity | discriminate ] | ].
-    exact (allocated_kind _ _ Hallocated).
+    split; assumption.
 Qed.
 
 Theorem relation_is_int : relation_is_int_statement.
@@ -1963,7 +2278,8 @@ Qed.
 
 Theorem relation_get_tag : relation_get_tag_statement.
 Proof.
-  intros statics vars w n tags alloc_mode [fields Hblock] Hin.
-  apply blocks_with_these_tags_satisfied. exists n, fields.
+  intros statics vars w n tags alloc_mode [Himmediate | [fields Hblock]] Hin;
+    [ left; exact Himmediate | ].
+  right. apply blocks_with_these_tags_satisfied. exists n, fields.
   split; assumption.
 Qed.
