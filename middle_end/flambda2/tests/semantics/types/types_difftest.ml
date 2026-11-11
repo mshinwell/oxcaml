@@ -1198,13 +1198,13 @@ let joined_of_env (names : names) (env : TE.t) (parameter : Variable.t) : joined
   { joined; own; own_in_terms }
 
 (* The join at a continuation with one parameter of a kind, which is applied to
-   a value of each of the types given, one at each use. [known] is what every
-   use knows of the names of the tests besides; [locals] gives, for the use of a
-   position in the list, the variables that only that use binds, with their
-   types. *)
-let join (names : names) (implementation : implementation) ?(known = [])
-    ?(locals = fun (_ : int) -> []) (kind : MK.flambda_kind) (types : TG.t list)
-    : joined =
+   a value of each of the types given, one at each use: the joined environment
+   and the parameter. For the use of a position in the list, [known] gives what
+   that use knows of the names of the tests besides, and [locals] the variables
+   that only that use binds, with their types. *)
+let join_env (names : names) (implementation : implementation)
+    ?(known = fun (_ : int) -> []) ?(locals = fun (_ : int) -> [])
+    (kind : MK.flambda_kind) (types : TG.t list) : TE.t * Variable.t =
   let variable = parameter names kind in
   let compiler_kind = Converter.kind_of_model kind in
   let meet_expanded_head = implementation.meet_expanded_head in
@@ -1233,7 +1233,7 @@ let join (names : names) (implementation : implementation) ?(known = [])
               (fun env (name, t) ->
                 ME.add_equation env name t ~meet_expanded_head)
               env
-              (known
+              (known i
               @ List.map (fun (local, t) -> Name.var local, t) locals
               @ [Name.var variable, t])))
       types
@@ -1247,7 +1247,14 @@ let join (names : names) (implementation : implementation) ?(known = [])
                Flambda_debug_uid.none ])
       ~cut_after:(TE.current_scope env)
   in
-  joined_of_env names joined variable
+  joined, variable
+
+let join (names : names) (implementation : implementation) ?known ?locals
+    (kind : MK.flambda_kind) (types : TG.t list) : joined =
+  let env, parameter =
+    join_env names implementation ?known ?locals kind types
+  in
+  joined_of_env names env parameter
 
 (* What is printed, with the variables that are not those of the tests named
    [e0], [e1], ... in the order they come. *)
@@ -1296,21 +1303,22 @@ let print_with_own_variables (names : names) (m : MT.flambda_type) : string =
 
 (* What a join gives, as printed: the type, then what is said of each of its own
    variables. *)
-let print_joined (names : names) ({ joined; own; own_in_terms } : joined) :
-    string =
+let print_joined_as_numbered ({ joined; own; own_in_terms } : joined) : string =
   let print ppf t = Model_type.print ppf (Model_type.normalise t) in
-  rename_own_variables names
-    (Format.asprintf "@[<v>%a%a@]" print joined
-       (fun ppf own ->
-         List.iter
-           (fun (x, t) ->
-             Format.fprintf ppf "@ where %a%s : %a" Model_type.print_variable x
-               (if List.mem x own_in_terms
-                then ", which terms may mention,"
-                else "")
-               print t)
-           own)
-       own)
+  Format.asprintf "@[<v>%a%a@]" print joined
+    (fun ppf own ->
+      List.iter
+        (fun (x, t) ->
+          Format.fprintf ppf "@ where %a%s : %a" Model_type.print_variable x
+            (if List.mem x own_in_terms
+             then ", which terms may mention,"
+             else "")
+            print t)
+        own)
+    own
+
+let print_joined (names : names) (joined : joined) : string =
+  rename_own_variables names (print_joined_as_numbered joined)
 
 let two_implementations (names : names) :
     (MT.flambda_type * MT.flambda_type) comparison list =
@@ -2036,17 +2044,20 @@ let shared_and_not (names : names) : MT.flambda_type comparison list =
         (fun m ->
           let t = to_compiler names m in
           let again = to_compiler names m in
-          let shared = of_types t t in
-          let not_shared = of_types t again in
-          if String.equal shared not_shared
-          then Agree
+          if t == again
+          then Not_run "the type built twice is one value"
           else
-            Known_to_disagree
-              ( "T7-7, a result that depends on sharing",
-                Format.asprintf
-                  "@[<v>with the two arguments one value:@ %s@ with the type \
-                   built twice:@ %s@]"
-                  shared not_shared ))
+            let shared = of_types t t in
+            let not_shared = of_types t again in
+            if String.equal shared not_shared
+            then Agree
+            else
+              Known_to_disagree
+                ( "T7-7, a result that depends on sharing",
+                  Format.asprintf
+                    "@[<v>with the two arguments one value:@ %s@ with the type \
+                     built twice:@ %s@]"
+                    shared not_shared ))
     }
   in
   let join implementation t t' =
@@ -2063,6 +2074,131 @@ let shared_and_not (names : names) : MT.flambda_type comparison list =
     compare_results "join (n-way) of a type with itself" (join n_way);
     compare_results "meet (binary) of a type with itself" (meet binary);
     compare_results "meet (n-way) of a type with itself" (meet n_way) ]
+
+(* ======================================================================== *)
+(* Shared parts                                                             *)
+(* ======================================================================== *)
+
+(* The same for two different types that have a part in common: the part is
+   converted once and put in both (the two types share one value), or converted
+   twice. The types are made around the parts by the compiler's own functions: -
+   two blocks of tag 0 whose first field is the common part; - two variants of
+   immediates whose immediate case says of a variable that it has the common
+   part as its type; - two uses of a continuation that pass the same variable,
+   each knowing that the variable has the common part as its type. What is
+   compared is the type of the parameter with what the join says of its own
+   variables and of the names of the tests. *)
+type parts =
+  { common : MT.flambda_type;
+    left : MT.flambda_type;
+    right : MT.flambda_type
+  }
+
+let shared_parts (names : names) : parts comparison list =
+  let variable =
+    Converter.variable_of_model names.numbering
+      (List.hd names.pool.value_variables)
+  in
+  let block fields =
+    MTC.immutable_block ~machine_width ~is_unique:false
+      (Converter.tag_of_model machine_width (N.z_of_int 0))
+      ~shape:(Converter.block_shape_of_model (Scannable Value_only))
+      (Converter.alloc_mode_of_model Heap)
+      ~fields
+  in
+  let variant numbers said =
+    TG.create_variant ~is_unique:false
+      ~immediates:
+        (Known
+           (to_compiler names
+              (MT.these_naked_immediates (List.map N.z_of_int numbers))))
+      ~blocks:
+        (Known
+           (Converter.row_like_for_blocks_of_model names.numbering machine_width
+              MT.row_like_for_blocks_bottom))
+      ~extensions:
+        (Ext
+           { when_immediate =
+               TG.Env_extension.create
+                 ~equations:(Name.Map.singleton (Name.var variable) said);
+             when_block = TG.Env_extension.empty
+           })
+  in
+  let join implementation ?known types =
+    let env, parameter = join_env names implementation ?known Value types in
+    rename_own_variables names
+      (Format.asprintf "@[<v>%s@ and for the names %a@]"
+         (print_joined_as_numbered (joined_of_env names env parameter))
+         print_types
+         (List.map Model_type.normalise (types_of_names names env)))
+  in
+  let meet implementation t t' =
+    match meet_as_model names implementation t t' with
+    | None -> "Bottom"
+    | Some (meet, types) ->
+      String.concat " "
+        (List.map (print_with_own_variables names) (meet :: types))
+  in
+  let compare_results name result =
+    { name;
+      compare =
+        (fun { common; left; right } ->
+          let once = to_compiler names common in
+          let again = to_compiler names common in
+          if once == again
+          then Not_run "the common part built twice is one value"
+          else
+            let left = to_compiler names left in
+            let right = to_compiler names right in
+            let shared = result ~common:once ~common':once ~left ~right in
+            let not_shared = result ~common:once ~common':again ~left ~right in
+            if String.equal shared not_shared
+            then Agree
+            else
+              Known_to_disagree
+                ( "T7-7, a result that depends on sharing",
+                  Format.asprintf
+                    "@[<v>with the common part one value:@ %s@ with the common \
+                     part built twice:@ %s@]"
+                    shared not_shared ))
+    }
+  in
+  let of_blocks operation ~common ~common' ~left ~right =
+    operation (block [common; left]) (block [common'; right])
+  in
+  let of_variants (implementation : implementation) ~common ~common' ~left:_
+      ~right:_ =
+    join implementation [variant [5; 6] common; variant [6; 7] common']
+  in
+  let of_what_is_known (implementation : implementation) ~common ~common'
+      ~left:_ ~right:_ =
+    let passed = TG.alias_type_of K.value (Simple.var variable) in
+    join implementation
+      ~known:(fun i -> [(Name.var variable, if i = 0 then common else common')])
+      [passed; passed]
+  in
+  List.concat_map
+    (fun (implementation : implementation) ->
+      let name what =
+        Printf.sprintf "join (%s) of %s" implementation.implementation what
+      in
+      [ compare_results
+          (name "two blocks with a common field")
+          (of_blocks (fun t t' -> join implementation [t; t']));
+        compare_results
+          (name "two variants whose immediate case says the same")
+          (of_variants implementation);
+        compare_results
+          (name "a variable of which the two uses know the same")
+          (of_what_is_known implementation) ])
+    [binary; n_way]
+  @ List.map
+      (fun (implementation : implementation) ->
+        compare_results
+          (Printf.sprintf "meet (%s) of two blocks with a common field"
+             implementation.implementation)
+          (of_blocks (meet implementation)))
+      [binary; n_way]
 
 (* ======================================================================== *)
 (* Chosen joins                                                             *)
@@ -2194,7 +2330,8 @@ let chosen_joins (names : names) (cases : chosen_join list) =
           (fun (implementation : implementation) ->
             let joined =
               or_fatal_error (fun () ->
-                  join names implementation ~known:compiler_known
+                  join names implementation
+                    ~known:(fun _ -> compiler_known)
                     ~locals:compiler_locals kind compiler_types)
             in
             let given =
@@ -2677,6 +2814,34 @@ let () =
       ignore (to_compiler names m : TG.t);
       m)
     ~shrink:G.shrink ~print:Model_type.print (shared_and_not names);
+  run
+    ~title:
+      "Two types of kind value with a common part, shared and not (the same \
+       caution)"
+    ~seed:80000 ~count:1000
+    ~generate:(fun r ->
+      let part () =
+        G.type_of_kind { well_formed = true; depth = 2 } r names.pool MK.Value
+      in
+      let common = part () in
+      let left = part () in
+      let right = part () in
+      { common; left; right })
+    ~prepare:(fun ({ common; left; right } as parts) ->
+      ignore (to_compiler names common : TG.t);
+      ignore (to_compiler names left : TG.t);
+      ignore (to_compiler names right : TG.t);
+      parts)
+    ~shrink:(fun ({ common; left; right } as parts) ->
+      List.map (fun common -> { parts with common }) (G.shrink common)
+      @ List.map (fun left -> { parts with left }) (G.shrink left)
+      @ List.map (fun right -> { parts with right }) (G.shrink right))
+    ~print:(fun ppf { common; left; right } ->
+      Format.fprintf ppf
+        "@[<v>the common part@ %a@ the other part of the first@ %a@ the other \
+         part of the second@ %a@]"
+        Model_type.print common Model_type.print left Model_type.print right)
+    (shared_parts names);
   Format.printf "@.%s@."
     (if !failures = 0
      then "No disagreement."

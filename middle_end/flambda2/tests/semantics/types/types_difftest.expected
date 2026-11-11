@@ -599,7 +599,8 @@ Chosen joins
 
 A type of kind value with itself, shared and not (until the compiler has a flag for it, results may depend on sharing) (1500 cases, seeds 70000 to 71499)
   1500 converted
-  join (binary) of a type with itself: 1487 agree, 13 disagree as recorded
+  join (binary) of a type with itself: 1195 agree, 13 disagree as recorded
+    292 not run: the type built twice is one value
     recorded as T7-7, a result that depends on sharing (seed 70185): with the two arguments one value:
 (Value
  ((Variant (is_int None) (immediates Unknown) (get_tag None)
@@ -640,7 +641,8 @@ with the type built twice:
                                      (is_unique false)) Not_null))] []))])
                  (other_tags Bottom) (alloc_mode Heap_or_local))))
        (extensions No_extensions) (is_unique false)) Not_null))
-  join (n-way) of a type with itself: 1398 agree, 102 disagree as recorded
+  join (n-way) of a type with itself: 1106 agree, 102 disagree as recorded
+    292 not run: the type built twice is one value
     recorded as T7-7, a result that depends on sharing (seed 70021): with the two arguments one value:
 (Value
  ((Variant (is_int None) (immediates Unknown) (get_tag None)
@@ -668,7 +670,405 @@ with the type built twice:
                                  [$2 -> (Value (Unknown Not_null))]))])
                  (other_tags Bottom) (alloc_mode Heap_or_local))))
        (extensions No_extensions) (is_unique false)) Not_null))
-  meet (binary) of a type with itself: 1500 agree
-  meet (n-way) of a type with itself: 1500 agree
+  meet (binary) of a type with itself: 1208 agree
+    292 not run: the type built twice is one value
+  meet (n-way) of a type with itself: 1208 agree
+    292 not run: the type built twice is one value
+
+Two types of kind value with a common part, shared and not (the same caution) (1000 cases, seeds 80000 to 80999)
+  1000 converted
+  join (binary) of two blocks with a common field: 698 agree, 83 disagree as recorded
+    219 not run: the common part built twice is one value
+    recorded as T7-7, a result that depends on sharing (seed 80010): with the common part one value:
+(Value
+ ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+   (get_tag None)
+   (blocks (Known
+            ((known_tags [0 ->
+                           (Known
+                            ((Known 2) Value_only
+                             [(Value
+                               ((Variant (is_int None) (immediates Unknown)
+                                 (get_tag None) (blocks Unknown)
+                                 (extensions No_extensions)
+                                 (is_unique false)) Not_null));
+                              (Value Unknown)] []))]) (other_tags Bottom)
+             (alloc_mode Heap)))) (extensions No_extensions)
+   (is_unique false)) Not_null))
+and for the names [(Value Unknown); (Value Unknown); (Value Unknown);
+                   (Naked_immediate Unknown); (Naked_immediate Unknown);
+                   (Naked_number naked_float Unknown); (Region Unknown);
+                   (Rec_info Unknown); (Value (Unknown Not_null));
+                   (Value (Unknown Not_null))]
+with the common part built twice:
+(Value
+ ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+   (get_tag None)
+   (blocks (Known
+            ((known_tags [0 ->
+                           (Known
+                            ((Known 2) Value_only
+                             [(Value (Unknown Not_null)); (Value Unknown)]
+                             []))]) (other_tags Bottom) (alloc_mode Heap))))
+   (extensions No_extensions) (is_unique false)) Not_null))
+and for the names [(Value Unknown); (Value Unknown); (Value Unknown);
+                   (Naked_immediate Unknown); (Naked_immediate Unknown);
+                   (Naked_number naked_float Unknown); (Region Unknown);
+                   (Rec_info Unknown); (Value (Unknown Not_null));
+                   (Value (Unknown Not_null))]
+    on the shrunk input:
+    the common part
+    (Value
+     ((Variant (is_int None) (immediates Unknown) (get_tag None)
+       (blocks Unknown) (extensions No_extensions) (is_unique false))
+      Not_null))
+    the other part of the first
+    (Value Unknown)
+    the other part of the second
+    (Value Unknown)
+  join (binary) of two variants whose immediate case says the same: 775 agree, 6 disagree as recorded
+    219 not run: the common part built twice is one value
+    recorded as T7-7, a result that depends on sharing (seed 80207): with the common part one value:
+(Value
+ ((Variant (is_int None)
+   (immediates (Known (Naked_immediate ((Known [5; 6; 7]) []))))
+   (get_tag None)
+   (blocks (Known
+            ((known_tags []) (other_tags Bottom) (alloc_mode Heap_or_local))))
+   (extensions (Ext
+                (when_immediate [v1 ->
+                                  (Value
+                                   ((Variant (is_int None)
+                                     (immediates Unknown) (get_tag None)
+                                     (blocks (Known
+                                              ((known_tags [0 ->
+                                                             (Known
+                                                              ((At_least 3)
+                                                               (Mixed_record
+                                                                1
+                                                                [naked_vec256;
+                                                                 naked_vec512])
+                                                               [(Value
+                                                                 ((Variant
+                                                                   (is_int None)
+                                                                   (immediates Unknown)
+                                                                   (get_tag None)
+                                                                   (blocks Unknown)
+                                                                   (extensions No_extensions)
+                                                                   (is_unique false))
+                                                                  Not_null))]
+                                                               []))])
+                                               (other_tags Bottom)
+                                               (alloc_mode Heap))))
+                                     (extensions No_extensions)
+                                     (is_unique false)) Not_null))])
+                (when_block []))) (is_unique false)) Not_null))
+and for the names [(Value Unknown); (Value Unknown); (Value Unknown);
+                   (Naked_immediate Unknown); (Naked_immediate Unknown);
+                   (Naked_number naked_float Unknown); (Region Unknown);
+                   (Rec_info Unknown); (Value (Unknown Not_null));
+                   (Value (Unknown Not_null))]
+with the common part built twice:
+(Value
+ ((Variant (is_int None)
+   (immediates (Known (Naked_immediate ((Known [5; 6; 7]) []))))
+   (get_tag None)
+   (blocks (Known
+            ((known_tags []) (other_tags Bottom) (alloc_mode Heap_or_local))))
+   (extensions (Ext
+                (when_immediate [v1 ->
+                                  (Value
+                                   ((Variant (is_int None)
+                                     (immediates Unknown) (get_tag None)
+                                     (blocks (Known
+                                              ((known_tags [0 ->
+                                                             (Known
+                                                              ((At_least 3)
+                                                               (Mixed_record
+                                                                1
+                                                                [naked_vec256;
+                                                                 naked_vec512])
+                                                               [(Value
+                                                                 (Unknown
+                                                                  Not_null))]
+                                                               []))])
+                                               (other_tags Bottom)
+                                               (alloc_mode Heap))))
+                                     (extensions No_extensions)
+                                     (is_unique false)) Not_null))])
+                (when_block []))) (is_unique false)) Not_null))
+and for the names [(Value Unknown); (Value Unknown); (Value Unknown);
+                   (Naked_immediate Unknown); (Naked_immediate Unknown);
+                   (Naked_number naked_float Unknown); (Region Unknown);
+                   (Rec_info Unknown); (Value (Unknown Not_null));
+                   (Value (Unknown Not_null))]
+    on the shrunk input:
+    the common part
+    (Value
+     ((Variant (is_int None) (immediates Unknown) (get_tag None)
+       (blocks (Known
+                ((known_tags [0 ->
+                               (Known
+                                ((At_least 3)
+                                 (Mixed_record 1
+                                  [naked_vec256; naked_vec512])
+                                 [(Value
+                                   ((Variant (is_int None)
+                                     (immediates Unknown) (get_tag None)
+                                     (blocks Unknown)
+                                     (extensions No_extensions)
+                                     (is_unique false)) Not_null))] []))])
+                 (other_tags Bottom) (alloc_mode Heap))))
+       (extensions No_extensions) (is_unique false)) Not_null))
+    the other part of the first
+    (Value Unknown)
+    the other part of the second
+    (Value Unknown)
+  join (binary) of a variable of which the two uses know the same: 775 agree, 6 disagree as recorded
+    219 not run: the common part built twice is one value
+    recorded as T7-7, a result that depends on sharing (seed 80207): with the common part one value:
+(Value (= v1))
+and for the names [(Value
+                    ((Variant (is_int None) (immediates Unknown)
+                      (get_tag None)
+                      (blocks (Known
+                               ((known_tags [0 ->
+                                              (Known
+                                               ((At_least 3)
+                                                (Mixed_record 1
+                                                 [naked_vec256; naked_vec512])
+                                                [(Value
+                                                  ((Variant (is_int None)
+                                                    (immediates Unknown)
+                                                    (get_tag None)
+                                                    (blocks Unknown)
+                                                    (extensions No_extensions)
+                                                    (is_unique false))
+                                                   Not_null))] []))])
+                                (other_tags Bottom) (alloc_mode Heap))))
+                      (extensions No_extensions) (is_unique false)) Not_null));
+                   (Value Unknown); (Value Unknown);
+                   (Naked_immediate Unknown); (Naked_immediate Unknown);
+                   (Naked_number naked_float Unknown); (Region Unknown);
+                   (Rec_info Unknown); (Value (Unknown Not_null));
+                   (Value (Unknown Not_null))]
+with the common part built twice:
+(Value (= v1))
+and for the names [(Value
+                    ((Variant (is_int None) (immediates Unknown)
+                      (get_tag None)
+                      (blocks (Known
+                               ((known_tags [0 ->
+                                              (Known
+                                               ((At_least 3)
+                                                (Mixed_record 1
+                                                 [naked_vec256; naked_vec512])
+                                                [(Value (Unknown Not_null))]
+                                                []))]) (other_tags Bottom)
+                                (alloc_mode Heap))))
+                      (extensions No_extensions) (is_unique false)) Not_null));
+                   (Value Unknown); (Value Unknown);
+                   (Naked_immediate Unknown); (Naked_immediate Unknown);
+                   (Naked_number naked_float Unknown); (Region Unknown);
+                   (Rec_info Unknown); (Value (Unknown Not_null));
+                   (Value (Unknown Not_null))]
+    on the shrunk input:
+    the common part
+    (Value
+     ((Variant (is_int None) (immediates Unknown) (get_tag None)
+       (blocks (Known
+                ((known_tags [0 ->
+                               (Known
+                                ((At_least 3)
+                                 (Mixed_record 1
+                                  [naked_vec256; naked_vec512])
+                                 [(Value
+                                   ((Variant (is_int None)
+                                     (immediates Unknown) (get_tag None)
+                                     (blocks Unknown)
+                                     (extensions No_extensions)
+                                     (is_unique false)) Not_null))] []))])
+                 (other_tags Bottom) (alloc_mode Heap))))
+       (extensions No_extensions) (is_unique false)) Not_null))
+    the other part of the first
+    (Value Unknown)
+    the other part of the second
+    (Value Unknown)
+  join (n-way) of two blocks with a common field: 768 agree, 13 disagree as recorded
+    219 not run: the common part built twice is one value
+    recorded as T7-7, a result that depends on sharing (seed 80146): with the common part one value:
+(Value
+ ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+   (get_tag None)
+   (blocks (Known
+            ((known_tags [0 ->
+                           (Known
+                            ((Known 2) Value_only
+                             [(Value
+                               ((Closures
+                                 [2 ->
+                                   ((At_least
+                                     (closures [2] value_slots [1; 2]))
+                                    ((function_types [])
+                                     (closure_types [2 ->
+                                                      (Value
+                                                       (Unknown
+                                                        (Maybe_null None)))])
+                                     (value_slot_types [])) [])] Heap)
+                                Not_null)); (Value Bottom)] []))])
+             (other_tags Bottom) (alloc_mode Heap))))
+   (extensions No_extensions) (is_unique false)) Not_null))
+and for the names [(Value Unknown); (Value Unknown); (Value Unknown);
+                   (Naked_immediate Unknown); (Naked_immediate Unknown);
+                   (Naked_number naked_float Unknown); (Region Unknown);
+                   (Rec_info Unknown); (Value (Unknown Not_null));
+                   (Value (Unknown Not_null))]
+with the common part built twice:
+(Value
+ ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
+   (get_tag None)
+   (blocks (Known
+            ((known_tags [0 ->
+                           (Known
+                            ((Known 2) Value_only
+                             [(Value
+                               ((Closures
+                                 [2 ->
+                                   ((At_least
+                                     (closures [2] value_slots [1; 2]))
+                                    ((function_types [])
+                                     (closure_types [2 -> (Value Unknown)])
+                                     (value_slot_types [])) [])] Heap)
+                                Not_null)); (Value Bottom)] []))])
+             (other_tags Bottom) (alloc_mode Heap))))
+   (extensions No_extensions) (is_unique false)) Not_null))
+and for the names [(Value Unknown); (Value Unknown); (Value Unknown);
+                   (Naked_immediate Unknown); (Naked_immediate Unknown);
+                   (Naked_number naked_float Unknown); (Region Unknown);
+                   (Rec_info Unknown); (Value (Unknown Not_null));
+                   (Value (Unknown Not_null))]
+    on the shrunk input:
+    the common part
+    (Value
+     ((Closures
+       [2 ->
+         ((At_least (closures [2] value_slots [2; 1]))
+          ((function_types [])
+           (closure_types [2 -> (Value (Unknown (Maybe_null None)))])
+           (value_slot_types [])) [])] Heap) Not_null))
+    the other part of the first
+    (Value Bottom)
+    the other part of the second
+    (Value Bottom)
+  join (n-way) of two variants whose immediate case says the same: 0 agree, 781 disagree as recorded
+    219 not run: the common part built twice is one value
+    recorded as T7-7, a result that depends on sharing (seed 80000): with the common part one value:
+(Value
+ ((Variant (is_int None)
+   (immediates (Known (Naked_immediate ((Known [5; 6; 7]) []))))
+   (get_tag None)
+   (blocks (Known
+            ((known_tags []) (other_tags Bottom) (alloc_mode Heap_or_local))))
+   (extensions (Ext (when_immediate [v1 -> (Value (Unknown Not_null))])
+                (when_block []))) (is_unique false)) Not_null))
+and for the names [(Value Unknown); (Value Unknown); (Value Unknown);
+                   (Naked_immediate Unknown); (Naked_immediate Unknown);
+                   (Naked_number naked_float Unknown); (Region Unknown);
+                   (Rec_info Unknown); (Value (Unknown Not_null));
+                   (Value (Unknown Not_null))]
+with the common part built twice:
+(Value
+ ((Variant (is_int None)
+   (immediates (Known (Naked_immediate ((Known [5; 6; 7]) []))))
+   (get_tag None)
+   (blocks (Known
+            ((known_tags []) (other_tags Bottom) (alloc_mode Heap_or_local))))
+   (extensions No_extensions) (is_unique false)) Not_null))
+and for the names [(Value Unknown); (Value Unknown); (Value Unknown);
+                   (Naked_immediate Unknown); (Naked_immediate Unknown);
+                   (Naked_number naked_float Unknown); (Region Unknown);
+                   (Rec_info Unknown); (Value (Unknown Not_null));
+                   (Value (Unknown Not_null))]
+    on the shrunk input:
+    the common part
+    (Value (Unknown Not_null))
+    the other part of the first
+    (Value Unknown)
+    the other part of the second
+    (Value Unknown)
+  join (n-way) of a variable of which the two uses know the same: 773 agree, 8 disagree as recorded
+    219 not run: the common part built twice is one value
+    recorded as T7-7, a result that depends on sharing (seed 80207): with the common part one value:
+(Value (= v1))
+and for the names [(Value
+                    ((Variant (is_int None) (immediates Unknown)
+                      (get_tag None)
+                      (blocks (Known
+                               ((known_tags [0 ->
+                                              (Known
+                                               ((At_least 3)
+                                                (Mixed_record 1
+                                                 [naked_vec256; naked_vec512])
+                                                [(Value
+                                                  ((Variant (is_int None)
+                                                    (immediates Unknown)
+                                                    (get_tag None)
+                                                    (blocks Unknown)
+                                                    (extensions No_extensions)
+                                                    (is_unique false))
+                                                   Not_null))] []))])
+                                (other_tags Bottom) (alloc_mode Heap))))
+                      (extensions No_extensions) (is_unique false)) Not_null));
+                   (Value Unknown); (Value Unknown);
+                   (Naked_immediate Unknown); (Naked_immediate Unknown);
+                   (Naked_number naked_float Unknown); (Region Unknown);
+                   (Rec_info Unknown); (Value (Unknown Not_null));
+                   (Value (Unknown Not_null))]
+with the common part built twice:
+(Value (= v1))
+and for the names [(Value
+                    ((Variant (is_int None) (immediates Unknown)
+                      (get_tag None)
+                      (blocks (Known
+                               ((known_tags [0 ->
+                                              (Known
+                                               ((At_least 3)
+                                                (Mixed_record 1
+                                                 [naked_vec256; naked_vec512])
+                                                [(Value (Unknown Not_null))]
+                                                []))]) (other_tags Bottom)
+                                (alloc_mode Heap))))
+                      (extensions No_extensions) (is_unique false)) Not_null));
+                   (Value Unknown); (Value Unknown);
+                   (Naked_immediate Unknown); (Naked_immediate Unknown);
+                   (Naked_number naked_float Unknown); (Region Unknown);
+                   (Rec_info Unknown); (Value (Unknown Not_null));
+                   (Value (Unknown Not_null))]
+    on the shrunk input:
+    the common part
+    (Value
+     ((Variant (is_int None) (immediates Unknown) (get_tag None)
+       (blocks (Known
+                ((known_tags [0 ->
+                               (Known
+                                ((At_least 3)
+                                 (Mixed_record 1
+                                  [naked_vec256; naked_vec512])
+                                 [(Value
+                                   ((Variant (is_int None)
+                                     (immediates Unknown) (get_tag None)
+                                     (blocks Unknown)
+                                     (extensions No_extensions)
+                                     (is_unique false)) Not_null))] []))])
+                 (other_tags Bottom) (alloc_mode Heap))))
+       (extensions No_extensions) (is_unique false)) Not_null))
+    the other part of the first
+    (Value Unknown)
+    the other part of the second
+    (Value Unknown)
+  meet (binary) of two blocks with a common field: 781 agree
+    219 not run: the common part built twice is one value
+  meet (n-way) of two blocks with a common field: 781 agree
+    219 not run: the common part built twice is one value
 
 No disagreement.
