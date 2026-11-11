@@ -178,6 +178,9 @@ stays C0's for now.
   that is known; V1's once it is staffed)
 - `middle_end/flambda2/rocq/FlambdaUnusedConts*` (another: removing a
   continuation that is not used; S3's once it is staffed)
+- `middle_end/flambda2/rocq/FlambdaUnbox*` (another: unboxing a number
+  that is known to be boxed, untagging one that is known to be tagged;
+  S1's once it is staffed)
 - `middle_end/flambda2/rocq/requests/V2-missing-constructs.md`
 
 ## V3: converter
