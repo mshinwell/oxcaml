@@ -648,6 +648,7 @@ Qed.
 Theorem well_formed_never_faults : well_formed_never_faults_statement.
 Proof.
   intros unit_exn e n s Hwf Hrun. unfold well_formed_unit in Hwf.
+  apply andb_true_iff in Hwf as [Hwf _].
   apply andb_true_iff in Hwf as [Hwf Dsymbols].
   apply andb_true_iff in Hwf as [P Dcode].
   pose proof (inv_run unit_exn code_ids_of_binding code_id_bound

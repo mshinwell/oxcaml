@@ -30,8 +30,11 @@
    This file is to be reviewed: [statics_at_toplevel] against the
    definition of toplevel in Simplify
    (simplify/simplify_let_cont_expr.ml, at_unit_toplevel, and
-   Downwards_env.at_unit_toplevel), [well_formed_unit], and the two
-   statements.
+   Downwards_env.at_unit_toplevel), [sets_well_formed] against what the
+   compiler checks of a set of closures (terms/static_const.ml,
+   match_against_bound_static_pattern) and what it assumes
+   (terms/function_declarations.ml, create), [well_formed_unit], and the
+   two statements.
 
    Flambda permits a [Let_static] at the toplevel of a compilation unit
    only, so that it is executed once, before anything that follows it.
@@ -49,7 +52,33 @@
 
    [statics_at_toplevel] is this as a check, carrying down the term
    whether it is at toplevel, as Simplify does. [well_formed_unit] asks
-   also that no code id or symbol is bound twice.
+   also that no code id or symbol is bound twice, and that the sets of
+   closures of the unit are whole ([sets_well_formed]).
+
+   The model can express sets of closures that the compiler does not
+   make (FlambdaSemanticsSpec.v says what the machine does with them).
+   [sets_well_formed] is what the compiler's sets have that the model's
+   may lack:
+   - a closure is at a function slot of its set, and the function slots
+     of a set are distinct;
+   - the functions of a set have each their own code id. The compiler
+     builds a set in which two have the same, and Simplify fails on it;
+     such a term is not well-formed Flambda 2 (the human's ruling);
+   - the closures of a static set are bound together. The compiler binds
+     them with one pattern; here each symbol has a binding of its own,
+     which repeats the set and the symbols of its closures, and the
+     check is that one group has the binding of each symbol of the set,
+     all with the same set;
+   - the static sets that one group binds have no code in common, be
+     they of one function or of several. Simplify fails on a group two
+     of whose sets have the same code.
+   It does not ask that the value slots of a set are distinct (the
+   compiler's are a map), nor that a code id is named by one set only:
+   two sets of a unit may have the same code, unless they are static
+   and one group binds them both.
+   FlambdaClosuresSpec.v says what follows for a well-formed unit: it
+   never makes a closure at a slot its set has not got, and the symbols
+   of a static set are bound to its closures in every state of its run.
 
    The machine enforces the part of this that keeps a static binding from
    being executed more than once. Calling code whose body binds something
@@ -221,15 +250,170 @@ with handler_static_names (names_of : static_binding -> list positive)
   end.
 
 (* ======================================================================== *)
+(* Sets of closures are whole                                               *)
+(* ======================================================================== *)
+
+(* A closure of a set: the function slots of the set are distinct, the
+   closure is at one of them, and the functions of the set have each
+   their own code. *)
+Definition set_well_formed (slot : function_slot)
+    (function_decls : list (function_slot * code_id)) : bool :=
+  is_bound slot function_decls
+  && distinct (map fst function_decls)
+  && distinct (map snd function_decls).
+
+Definition named_sets_well_formed (d : named) : bool :=
+  match d with
+  | Closure_of_set slot function_decls _ =>
+    set_well_formed slot function_decls
+  | Simple _ | Prim _ _ | Set_of_closures _ _ | Project_value_slot _ _
+  | Project_value_slot_from _ _ _ | Project_function_slot _ _ _ =>
+    true
+  end.
+
+(* Whether a binding binds the symbol to the constant. *)
+Definition binds_symbol_to (s : symbol) (const : static_const)
+    (binding : static_binding) : bool :=
+  match binding with
+  | Bind_symbol s' const' =>
+    Pos.eqb s s' && if static_const_eq_dec const const' then true else false
+  | Bind_code _ _ | Bind_deleted_code _ => false
+  end.
+
+(* A binding of a group which binds a symbol to a closure of a static
+   set: the set has a symbol for each of its functions, in their order;
+   the symbol bound is the one the set has for the slot; and the group
+   binds every symbol of the set to the closure of the same set at that
+   symbol's slot. This is what the one pattern of the compiler binds
+   ([Bound_static.Pattern.Set_of_closures], against which
+   [Static_const.match_against_bound_static_pattern] checks the function
+   slots of the set, in order). *)
+Definition static_set_whole (bindings : list static_binding)
+    (binding : static_binding) : bool :=
+  match binding with
+  | Bind_symbol s
+      (Static_const_closure_of_set slot closure_symbols function_decls
+         value_slots) =>
+    set_well_formed slot function_decls
+    && (if
+          list_eq_dec Pos.eq_dec (map fst closure_symbols)
+            (map fst function_decls)
+        then true
+        else false)
+    && match lookup slot closure_symbols with
+       | Some s' => Pos.eqb s s'
+       | None => false
+       end
+    && forallb
+         (fun '(slot', s') =>
+            existsb
+              (binds_symbol_to s'
+                 (Static_const_closure_of_set slot' closure_symbols
+                    function_decls value_slots))
+              bindings)
+         closure_symbols
+  | Bind_symbol _
+      (Static_const_set_of_closures _ _ | Static_const_block _ _
+      | Static_const_boxed_number _ | Static_const_immutable_string _)
+  | Bind_code _ _ | Bind_deleted_code _ =>
+    true
+  end.
+
+(* The code ids of the functions of the static set of which a binding
+   binds a closure; none for another binding. *)
+Definition static_set_code_ids (binding : static_binding) : list code_id :=
+  match binding with
+  | Bind_symbol _ (Static_const_set_of_closures code _) => [code]
+  | Bind_symbol _ (Static_const_closure_of_set _ _ function_decls _) =>
+    map snd function_decls
+  | Bind_symbol _
+      (Static_const_block _ _ | Static_const_boxed_number _
+      | Static_const_immutable_string _)
+  | Bind_code _ _ | Bind_deleted_code _ =>
+    []
+  end.
+
+(* Whether the second binding binds one of the symbols of the static set
+   of which the first binds a closure. In a group that binds its sets
+   whole, the two are then bindings of one set. *)
+Definition binds_symbol_of_set (binding binding' : static_binding) : bool :=
+  match binding, binding' with
+  | Bind_symbol _ (Static_const_closure_of_set _ closure_symbols _ _),
+    Bind_symbol s' _ =>
+    among s' (map snd closure_symbols)
+  | _, _ => false
+  end.
+
+(* The static sets that a group binds have no code in common. A set is
+   counted once, though each of its symbols has a binding of its own.
+   Simplify gives each code id of the sets of one group one new code id
+   (Simplify_set_of_closures_context, the old-to-new code ids of all the
+   sets), and fails on a group two of whose sets have the same code.
+   Two sets bound by two groups may have the same. *)
+Fixpoint static_sets_code_disjoint (bindings : list static_binding) : bool :=
+  match bindings with
+  | [] => true
+  | binding :: bindings =>
+    forallb
+      (fun binding' =>
+         orb (binds_symbol_of_set binding binding')
+           match
+             inter (static_set_code_ids binding)
+               (static_set_code_ids binding')
+           with
+           | [] => true
+           | _ :: _ => false
+           end)
+      bindings
+    && static_sets_code_disjoint bindings
+  end.
+
+(* Every closure of a set that the expression makes is at a function slot
+   of its set, whose function slots are distinct and whose functions
+   have each their own code; every static set is bound whole by the
+   group that binds one of its symbols; and the static sets of one group
+   have no code in common. Code and handlers are looked into. *)
+Fixpoint sets_well_formed (e : expr) : bool :=
+  match e with
+  | Let _ d body => named_sets_well_formed d && sets_well_formed body
+  | Let_static bindings body =>
+    forallb (static_set_whole bindings) bindings
+    && static_sets_code_disjoint bindings
+    && forallb binding_sets_well_formed bindings
+    && sets_well_formed body
+  | Let_cont_non_recursive _ h body =>
+    handler_sets_well_formed h && sets_well_formed body
+  | Let_cont_recursive handlers body =>
+    forallb (fun '(_, h) => handler_sets_well_formed h) handlers
+    && sets_well_formed body
+  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => true
+  end
+with handler_sets_well_formed (h : continuation_handler) : bool :=
+  match h with
+  | Handler _ handler => sets_well_formed handler
+  end
+with binding_sets_well_formed (binding : static_binding) : bool :=
+  match binding with
+  | Bind_code _ c => code_sets_well_formed c
+  | Bind_deleted_code _ | Bind_symbol _ _ => true
+  end
+with code_sets_well_formed (c : code) : bool :=
+  match c with
+  | Code _ _ _ _ body => sets_well_formed body
+  end.
+
+(* ======================================================================== *)
 (* Well-formed units                                                        *)
 (* ======================================================================== *)
 
 (* A unit, with its exception continuation: its static bindings are at
-   toplevel, and bind each code id and each symbol once. *)
+   toplevel, and bind each code id and each symbol once; its sets of
+   closures are whole. *)
 Definition well_formed_unit (unit_exn : continuation) (e : expr) : bool :=
   statics_at_toplevel unit_exn true e
   && distinct (static_names code_ids_of_binding e)
-  && distinct (static_names symbols_of_binding e).
+  && distinct (static_names symbols_of_binding e)
+  && sets_well_formed e.
 
 (* ======================================================================== *)
 (* What is bound stays bound                                                *)
