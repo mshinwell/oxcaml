@@ -86,9 +86,13 @@ type names =
     env : TE.t;
     (* The variables and the symbols that [env] defines, with their kinds. *)
     defined : (Name.t * K.t) list;
-    (* A parameter of a continuation, for the joins. It is not in the pool: no
-       generated type mentions it. *)
-    parameter : Variable.t;
+    (* A parameter of a continuation of each kind, for the joins. They are not
+       in the pool: no generated type mentions them. *)
+    parameters : (MK.flambda_kind * Variable.t) list;
+    (* A variable of kind value that only one use of a continuation binds, for
+       the chosen joins. It is numbered after the variables of the tests: what a
+       join says of it is read like what it says of a variable of its own. *)
+    local : Variable.t;
     (* The variables of the tests are numbered from 1 to this. *)
     variables_of_the_tests : int
   }
@@ -148,7 +152,12 @@ let create_names () : names =
     List.map (fun var -> Name.var var, Variable.kind var) all_variables
     @ List.map (fun symbol -> Name.symbol symbol, K.value) symbols
   in
-  let parameter = Variable.create "p" K.value in
+  let parameters =
+    List.map
+      (fun kind -> kind, Variable.create "p" (Converter.kind_of_model kind))
+      G.all_kinds
+  in
+  let local = Variable.create "u" K.value in
   let value_variables = number numbering.variables value_variables in
   let naked_immediate_variables =
     number numbering.variables naked_immediate_variables
@@ -158,8 +167,12 @@ let create_names () : names =
   in
   let region_variables = number numbering.variables region_variables in
   let rec_info_variables = number numbering.variables rec_info_variables in
-  (* The parameter is numbered after the variables of the pool. *)
-  let (_ : N.positive) = numbering.variables.number parameter in
+  (* The parameters are numbered after the variables of the pool. *)
+  List.iter
+    (fun (_, parameter) ->
+      ignore (numbering.variables.number parameter : N.positive))
+    parameters;
+  ignore (numbering.variables.number local : N.positive);
   { numbering;
     pool =
       { value_variables;
@@ -175,9 +188,13 @@ let create_names () : names =
       };
     env;
     defined;
-    parameter;
-    variables_of_the_tests = List.length all_variables + 1
+    parameters;
+    local;
+    variables_of_the_tests = List.length all_variables + List.length parameters
   }
+
+let parameter (names : names) (kind : MK.flambda_kind) : Variable.t =
+  List.assoc kind names.parameters
 
 (* ======================================================================== *)
 (* Running a comparison                                                     *)
@@ -200,6 +217,10 @@ type 'input comparison =
     compare : 'input -> outcome
   }
 
+(* A variable that a type given by the compiler mentions and the environment
+   given with it does not define. *)
+exception Not_defined of string
+
 (* A failure of the compiler itself on an input is not an answer to compare: it
    is counted with the cases that could not be run. *)
 let guarded compare input =
@@ -210,6 +231,8 @@ let guarded compare input =
     Not_run ("not in the model: " ^ what)
   | exception Converter.Not_in_the_compiler what ->
     Not_run ("not in the compiler: " ^ what)
+  | exception Not_defined what ->
+    Disagree (what ^ " is in a type and the environment does not define it")
 
 (* A reason without what is particular to one case (numbers, names), so that
    reasons can be counted. *)
@@ -1117,43 +1140,118 @@ let meet_as_model (names : names) (implementation : implementation) t1 t2 :
   | Bottom -> None
   | Ok (t, env) -> Some (to_model names t, types_of_names names env)
 
-(* The type of the parameter of a continuation that is applied to a value of
-   each of the types given, one at each use. *)
-let join_as_model (names : names) (implementation : implementation)
-    (types : TG.t list) : MT.flambda_type =
-  let parameter = Name.var names.parameter in
+(* What a join gives: the type of the parameter, and the variables that the join
+   made of its own (those that are not of the tests) that this type mentions, or
+   the type of one of them, each with what the joined environment says of it. *)
+type joined =
+  { joined : MT.flambda_type;
+    own : (M.variable * MT.flambda_type) list;
+    (* Those of [own] that the joined environment lets terms mention (their name
+       mode is normal); the others are for types only. *)
+    own_in_terms : M.variable list
+  }
+
+let is_own (names : names) (x : M.variable) =
+  match N.int_of_positive x with
+  | Some number -> number > names.variables_of_the_tests
+  | None -> true
+
+(* The variables of a type that are not of the tests, once each, in the order in
+   which the type as written in one way mentions them. *)
+let own_variables_of (names : names) (t : MT.flambda_type) : M.variable list =
+  List.fold_left
+    (fun found x ->
+      if is_own names x && not (List.mem x found) then found @ [x] else found)
+    []
+    (MT.free_variables (Model_type.normalise t))
+
+let joined_of_env (names : names) (env : TE.t) (parameter : Variable.t) : joined
+    =
+  let type_of variable =
+    to_model names
+      (TE.find env (Name.var variable) (Some (Variable.kind variable)))
+  in
+  let joined = type_of parameter in
+  let rec close own (pending : M.variable list) =
+    match pending with
+    | [] -> List.rev own
+    | x :: pending ->
+      if List.mem_assoc x own
+      then close own pending
+      else
+        let variable = Converter.variable_of_model names.numbering x in
+        if not (TE.mem env (Name.var variable))
+        then
+          raise (Not_defined (Format.asprintf "%a" Model_type.print_variable x))
+        else
+          let t = type_of variable in
+          close ((x, t) :: own) (pending @ own_variables_of names t)
+  in
+  let own = close [] (own_variables_of names joined) in
+  let own_in_terms =
+    List.filter
+      (fun x ->
+        TE.mem ~min_name_mode:Name_mode.normal env
+          (Name.var (Converter.variable_of_model names.numbering x)))
+      (List.map fst own)
+  in
+  { joined; own; own_in_terms }
+
+(* The join at a continuation with one parameter of a kind, which is applied to
+   a value of each of the types given, one at each use. [known] is what every
+   use knows of the names of the tests besides; [locals] gives, for the use of a
+   position in the list, the variables that only that use binds, with their
+   types. *)
+let join (names : names) (implementation : implementation) ?(known = [])
+    ?(locals = fun (_ : int) -> []) (kind : MK.flambda_kind) (types : TG.t list)
+    : joined =
+  let variable = parameter names kind in
+  let compiler_kind = Converter.kind_of_model kind in
+  let meet_expanded_head = implementation.meet_expanded_head in
   let env =
     TE.add_definition names.env
       (Bound_name.create_var
-         (Bound_var.create names.parameter Flambda_debug_uid.none
-            Name_mode.normal))
-      K.value
+         (Bound_var.create variable Flambda_debug_uid.none Name_mode.normal))
+      compiler_kind
   in
   let use_envs =
-    List.map
-      (fun t ->
-        ME.use_meet_env ~meet_expanded_head:implementation.meet_expanded_head
-          (TE.increment_scope env) ~f:(fun env ->
-            ME.add_equation env parameter t
-              ~meet_expanded_head:implementation.meet_expanded_head))
+    List.mapi
+      (fun i t ->
+        let locals = locals i in
+        let env =
+          List.fold_left
+            (fun env (local, _) ->
+              TE.add_definition env
+                (Bound_name.create_var
+                   (Bound_var.create local Flambda_debug_uid.none
+                      Name_mode.normal))
+                (Variable.kind local))
+            (TE.increment_scope env) locals
+        in
+        ME.use_meet_env ~meet_expanded_head env ~f:(fun env ->
+            List.fold_left
+              (fun env (name, t) ->
+                ME.add_equation env name t ~meet_expanded_head)
+              env
+              (known
+              @ List.map (fun (local, t) -> Name.var local, t) locals
+              @ [Name.var variable, t])))
       types
   in
   let joined =
     implementation.join env use_envs
       ~params:
         (Bound_parameters.create
-           [ Bound_parameter.create names.parameter K.With_subkind.any_value
+           [ Bound_parameter.create variable
+               (K.With_subkind.anything compiler_kind)
                Flambda_debug_uid.none ])
       ~cut_after:(TE.current_scope env)
   in
-  to_model names (TE.find joined parameter (Some K.value))
+  joined_of_env names joined variable
 
-(* A type as printed, written in one way, with the variables that are not those
-   of the tests named [e0], [e1], ... in the order they come. *)
-let print_with_own_variables (names : names) (m : MT.flambda_type) : string =
-  let printed =
-    Format.asprintf "%a" Model_type.print (Model_type.normalise m)
-  in
+(* What is printed, with the variables that are not those of the tests named
+   [e0], [e1], ... in the order they come. *)
+let rename_own_variables (names : names) (printed : string) : string =
   let own = Hashtbl.create 4 in
   let buffer = Buffer.create (String.length printed) in
   let is_digit c = c >= '0' && c <= '9' in
@@ -1174,8 +1272,10 @@ let print_with_own_variables (names : names) (m : MT.flambda_type) : string =
         in
         let j = end_of_number (i + 1) in
         let number = int_of_string (String.sub printed (i + 1) (j - i - 1)) in
-        if number <= names.variables_of_the_tests
-        then Buffer.add_string buffer (String.sub printed i (j - i))
+        if number <= names.variables_of_the_tests + 1
+        then
+          (* A variable of the tests, or the variable of one use. *)
+          Buffer.add_string buffer (String.sub printed i (j - i))
         else (
           if not (Hashtbl.mem own number)
           then Hashtbl.add own number (Hashtbl.length own);
@@ -1188,6 +1288,29 @@ let print_with_own_variables (names : names) (m : MT.flambda_type) : string =
   in
   copy 0;
   Buffer.contents buffer
+
+(* A type as printed, written in one way. *)
+let print_with_own_variables (names : names) (m : MT.flambda_type) : string =
+  rename_own_variables names
+    (Format.asprintf "%a" Model_type.print (Model_type.normalise m))
+
+(* What a join gives, as printed: the type, then what is said of each of its own
+   variables. *)
+let print_joined (names : names) ({ joined; own; own_in_terms } : joined) :
+    string =
+  let print ppf t = Model_type.print ppf (Model_type.normalise t) in
+  rename_own_variables names
+    (Format.asprintf "@[<v>%a%a@]" print joined
+       (fun ppf own ->
+         List.iter
+           (fun (x, t) ->
+             Format.fprintf ppf "@ where %a%s : %a" Model_type.print_variable x
+               (if List.mem x own_in_terms
+                then ", which terms may mention,"
+                else "")
+               print t)
+           own)
+       own)
 
 let two_implementations (names : names) :
     (MT.flambda_type * MT.flambda_type) comparison list =
@@ -1220,12 +1343,12 @@ let two_implementations (names : names) :
       compare =
         (fun (m1, m2) ->
           let types = [to_compiler names m1; to_compiler names m2] in
-          let of_binary = join_as_model names binary types in
-          let of_n_way = join_as_model names n_way types in
+          let of_binary = join names binary Value types in
+          let of_n_way = join names n_way Value types in
           (* A join may make variables of its own, which are not the same
-             variables in the two: the two types are compared as they are
+             variables in the two: the two results are compared as they are
              printed, with those variables named in the order they come. *)
-          let printed m = print_with_own_variables names m in
+          let printed joined = print_joined names joined in
           if String.equal (printed of_binary) (printed of_n_way)
           then Agree
           else
@@ -1234,8 +1357,8 @@ let two_implementations (names : names) :
                comparison with the meaning of types. *)
             Known_to_disagree
               ( (match
-                   ( MT.is_obviously_unknown of_binary,
-                     MT.is_obviously_unknown of_n_way )
+                   ( MT.is_obviously_unknown of_binary.joined,
+                     MT.is_obviously_unknown of_n_way.joined )
                  with
                 | true, false ->
                   "T7-3, the binary join is unknown and the n-way join is not"
@@ -1523,42 +1646,71 @@ let rec parts_of_value (v : V.value) : V.value list =
     List.concat_map (fun (_, v) -> parts_of_value v) value_slots)
 
 (* A join may make variables of its own, which stand for some value. A value has
-   such a type if it has it for some values of those variables; the values tried
-   are small numbers and the parts of the value. This asks less than the type
-   means: what the joined environment says of those variables is not asked. *)
+   what a join gives if, with the parameter holding the value and for some
+   values of those variables, it has the type of the parameter and each of those
+   variables has the type that the joined environment gives it. (These types may
+   mention the parameter: a relation between it and a variable.) A variable may
+   also have no value, and then nothing is asked of its type: it stands for a
+   variable that only some of the uses bind, and what satisfies a typing
+   environment need not give every variable a value. The values tried for a
+   variable are those made from its type, small numbers and the parts of the
+   value, of its kind. *)
 type own_variables_answer =
   | Has  (** Values were found. *)
   | Has_not
       (** There is no variable to find a value for, and the test fails. *)
   | Unresolved
       (** No values were found for the variables. The search is finite, so this
-          decides nothing: it is neither that the value has the type nor that it
-          has not. *)
+          decides nothing: it is neither that the value has what the join gives
+          nor that it has not. *)
 
-let has_for_some_own_variables (world : world) (v : V.value)
-    (t : MT.flambda_type) : own_variables_answer =
-  let own =
-    List.filter
-      (fun x -> not (List.mem_assoc x world.vars))
-      (Model_type.set N.compare_positive (MT.free_variables t))
+let has_joined (names : names) (world : world) (v : V.value)
+    ({ joined; own; own_in_terms = _ } : joined) : own_variables_answer =
+  let values_of (x_type : MT.flambda_type) =
+    let kind = MT.kind x_type in
+    List.fold_left
+      (fun values value ->
+        if
+          Stdlib.( = ) (V.kind_of_value value) kind
+          && not (List.exists (Meaning.value_eqb value) values)
+        then values @ [value]
+        else values)
+      []
+      (values_for names world x_type
+      @ List.map naked_immediate [0; 1; 2; 3; 4; 5; 250; 254]
+      @ parts_of_value v)
   in
-  let values =
-    List.map naked_immediate [0; 1; 2; 3; 4; 5; 250; 254] @ parts_of_value v
+  let rec for_some vars (rest : (M.variable * MT.flambda_type) list) =
+    match rest with
+    | [] ->
+      Meaning.type_satisfied_b world.statics vars v joined
+      && List.for_all
+           (fun (x, x_type) ->
+             match List.assoc_opt x vars with
+             | Some value ->
+               Meaning.type_satisfied_b world.statics vars value x_type
+             | None -> true)
+           own
+    | (x, x_type) :: rest ->
+      for_some vars rest
+      || List.exists
+           (fun value -> for_some ((x, value) :: vars) rest)
+           (values_of x_type)
   in
-  let rec for_some vars (own : M.variable list) =
-    match own with
-    | [] -> Meaning.type_satisfied_b world.statics vars v t
-    | x :: own ->
-      List.exists (fun value -> for_some ((x, value) :: vars) own) values
+  let vars =
+    ( Converter.variable_to_model names.numbering
+        (parameter names (MT.kind joined)),
+      v )
+    :: world.vars
   in
   match own with
   | [] ->
     (* No variable of its own: the test decides. *)
-    if for_some world.vars [] then Has else Has_not
+    if for_some vars [] then Has else Has_not
   | _ :: _ ->
-    (* The search is finite: finding values shows that the value has the type;
-       not finding any shows nothing. *)
-    if List.compare_length_with own 3 <= 0 && for_some world.vars own
+    (* The search is finite: finding values shows that the value has what the
+       join gives; not finding any shows nothing. *)
+    if List.compare_length_with own 3 <= 0 && for_some vars own
     then Has
     else Unresolved
 
@@ -1611,10 +1763,11 @@ let semantic_comparisons (names : names) : semantic_case comparison list =
       compare =
         (fun ({ world_seed = _; first; second } as case) ->
           let world, values, t1, t2 = setting case in
-          if not (K.equal (TG.kind t1) K.value && K.equal (TG.kind t2) K.value)
-          then Not_run "the parameter of the joins is of kind value"
+          let kind = MT.kind first in
+          if not (Stdlib.( = ) kind (MT.kind second))
+          then Not_run "the two types are not of one kind"
           else
-            let join = join_as_model names implementation [t1; t2] in
+            let join = join names implementation kind [t1; t2] in
             let of_an_input =
               List.filter
                 (fun v -> has world v first || has world v second)
@@ -1623,7 +1776,7 @@ let semantic_comparisons (names : names) : semantic_case comparison list =
             let outside =
               List.find_opt
                 (fun v ->
-                  match has_for_some_own_variables world v join with
+                  match has_joined names world v join with
                   | Has_not -> true
                   | Has | Unresolved -> false)
                 of_an_input
@@ -1633,8 +1786,8 @@ let semantic_comparisons (names : names) : semantic_case comparison list =
               let what =
                 Format.asprintf
                   "@[<v>the value %a has one of the types and not their join,@ \
-                   %a@]"
-                  print_value v Model_type.print join
+                   %s@]"
+                  print_value v (print_joined names join)
               in
               (* A function type that only one of the types has, kept by the
                  join: T1-4. *)
@@ -1670,7 +1823,7 @@ let semantic_comparisons (names : names) : semantic_case comparison list =
                     not
                       (List.mem slot (function_types_of first)
                       && List.mem slot (function_types_of second)))
-                  (function_types_of join)
+                  (function_types_of join.joined)
               in
               if kept <> []
               then Known_to_disagree ("T1-4", what)
@@ -1680,7 +1833,7 @@ let semantic_comparisons (names : names) : semantic_case comparison list =
               if
                 List.exists
                   (fun v ->
-                    match has_for_some_own_variables world v join with
+                    match has_joined names world v join with
                     | Unresolved -> true
                     | Has | Has_not -> false)
                   of_an_input
@@ -1897,7 +2050,7 @@ let shared_and_not (names : names) : MT.flambda_type comparison list =
     }
   in
   let join implementation t t' =
-    print_with_own_variables names (join_as_model names implementation [t; t'])
+    print_joined names (join names implementation Value [t; t'])
   in
   let meet implementation t t' =
     match meet_as_model names implementation t t' with
@@ -2087,8 +2240,41 @@ let () =
     ~seed:40000 ~count:1500 MK.Value
     (semantic_comparisons names);
   semantic_pairs
-    ~title:"Two types of naked immediates and a world, for the meaning of meet"
+    ~title:
+      "Two types of naked immediates and a world, for the meaning of meet and \
+       join"
     ~seed:50000 ~count:1500 (MK.Naked_number Kind_naked_immediate)
+    (semantic_comparisons names);
+  let other_kinds =
+    List.filter
+      (fun (kind : MK.flambda_kind) ->
+        match kind with
+        | Value | Naked_number Kind_naked_immediate -> false
+        | Naked_number
+            ( Kind_naked_float32 | Kind_naked_float | Kind_naked_int8
+            | Kind_naked_int16 | Kind_naked_int32 | Kind_naked_int64
+            | Kind_naked_nativeint | Kind_naked_vec128 | Kind_naked_vec256
+            | Kind_naked_vec512 | Kind_naked_mask )
+        | Region | Rec_info ->
+          true)
+      G.all_kinds
+  in
+  run
+    ~title:
+      "Two types of one of the other kinds and a world, for the meaning of \
+       meet and join"
+    ~seed:55000 ~count:600
+    ~generate:(fun r ->
+      let config : G.config = { well_formed = true; depth = 2 } in
+      let kind = G.pick r other_kinds in
+      let first = G.type_of_kind config r names.pool kind in
+      let second = G.type_of_kind config r names.pool kind in
+      { world_seed = Random.int r; first; second })
+    ~prepare:(fun case ->
+      ignore (to_compiler names case.first : TG.t);
+      ignore (to_compiler names case.second : TG.t);
+      case)
+    ~shrink:shrink_semantic_case ~print:print_semantic_case
     (semantic_comparisons names);
   (* Chosen pairs, each in a few worlds. The first is T1-4: a closure whose own
      function has a known code, and a closure of which nothing is said of the

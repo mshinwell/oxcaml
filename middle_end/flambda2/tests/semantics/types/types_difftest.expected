@@ -125,6 +125,7 @@ Two types of kind value, for the two meets and the two joins (1000 cases, seeds 
 (Value Unknown)
 the n-way join
 (Value (Unknown (Maybe_null (Some e0))))
+where e0 : (Naked_immediate (Unknown [Is_null v9]))
     on the shrunk input:
     (Value (Unknown (Maybe_null (Some v4))))
     and
@@ -135,6 +136,7 @@ the n-way join
    (extensions No_extensions) (is_unique false)) (Maybe_null None)))
 the n-way join
 (Value (Unknown (Maybe_null (Some e0))))
+where e0 : (Naked_immediate (Unknown [Is_null v9]))
     on the shrunk input:
     (Value
      ((Variant (is_int None) (immediates Unknown) (get_tag None)
@@ -194,12 +196,12 @@ and not both types
     (Value ((Mutable_block Heap_or_local) Not_null))
     in the world of seed 1686301183863193517
 
-Two types of naked immediates and a world, for the meaning of meet (1500 cases, seeds 50000 to 51499)
+Two types of naked immediates and a world, for the meaning of meet and join (1500 cases, seeds 50000 to 51499)
   1500 converted
-  join (binary): a value of one of the types has the join: 0 agree
-    1500 not run: the parameter of the joins is of kind value
-  join (n-way): a value of one of the types has the join: 0 agree
-    1500 not run: the parameter of the joins is of kind value
+  join (binary): a value of one of the types has the join: 1251 agree
+    249 not run: no value tried has either type
+  join (n-way): a value of one of the types has the join: 1251 agree
+    249 not run: no value tried has either type
   meet (binary): a value of both types has the meet: 348 agree, 10 disagree as recorded
     1142 not run: no value tried has both types
     recorded as T1-1 (seed 50164): a value has both types, and the meet says of v1, which is 2, that it has the type
@@ -254,6 +256,26 @@ and not both types
     and
     (Naked_immediate ((Known [2]) [Is_null v3]))
     in the world of seed -4029428536059942018
+
+Two types of one of the other kinds and a world, for the meaning of meet and join (600 cases, seeds 55000 to 55599)
+  43 not converted: not in the compiler: a Rec_info type given by its head: the model has not got the expression
+  557 converted
+  join (binary): a value of one of the types has the join: 513 agree
+    44 not run: no value tried has either type
+  join (n-way): a value of one of the types has the join: 513 agree
+    44 not run: no value tried has either type
+  meet (binary): a value of both types has the meet: 216 agree
+    341 not run: no value tried has both types
+  meet (n-way): a value of both types has the meet: 216 agree
+    341 not run: no value tried has both types
+  meet (binary): a value of the meet has both types: 216 agree
+    34 not run: no value tried has the meet
+    303 not run: the meet is bottom: no value has it
+    4 not run: what the meet teaches is not true in the world
+  meet (n-way): a value of the meet has both types: 216 agree
+    34 not run: no value tried has the meet
+    303 not run: the meet is bottom: no value has it
+    4 not run: what the meet teaches is not true in the world
 
 Chosen pairs of types, for the meaning of meet and join (3 cases, seeds 60000 to 60002)
   3 converted
