@@ -543,6 +543,42 @@ Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
     Some (Value_const (Tagged_immediate i))
   end.
 
+(* [String_or_bigstring_load] of one byte from an immutable string: the
+   byte at an index, the first being at index 0. The index is a naked
+   nativeint. With [Eight] the result is the byte as a naked immediate,
+   from 0 to 255; with [Eight_signed], the naked int8 that has the same
+   eight bits. (Of what the string holds at the index only the low
+   eight bits are taken, which changes nothing of a byte.) It has no
+   value on what is not a string, or on an index that the string has
+   not got: the machine would read whatever is there
+   ([To_cmm_primitive.string_like_load]), and the front end makes such
+   a load after a test of the index, or for [String.unsafe_get].
+   Simplify does not compute it
+   ([Simplify_binary_primitive.simplify_string_or_bigstring_load]). *)
+(* CR mshinwell: a string of the model is an immutable value, so this
+   load gives the byte the string was made with, whenever it is done.
+   The compiler erases the conversions between bytes and strings before
+   Flambda 2 ([Lambda_to_lambda_transforms]: [Pbytes_to_string] and
+   [Pbytes_of_string] applied to an argument become the argument), so
+   that a string of the compiler's can be the block of bytes that are
+   written later; and [To_cmm] moves a load from a string, which has no
+   effect and no coeffect ([Flambda_primitive]), past such a write
+   (X5-3). A string made from bytes by an erased conversion is outside
+   the model, which has no bytes: the conversion to the model refuses
+   every primitive on bytes, but cannot see an erased conversion. *)
+Definition eval_string_load (statics : static_env)
+    (width : string_accessor_width) (v1 v2 : value) : option value :=
+  let* bytes := string_of statics v1 in
+  let* index := int_of_value Standard_naked_nativeint v2 in
+  if 0 <=? index
+  then
+    let* byte := nth_error bytes (Z.to_nat index) in
+    match width with
+    | Eight => Some (Value_const (Naked_immediate (byte mod 256)))
+    | Eight_signed => Some (Value_const (Naked_int8 (wrap 8 byte)))
+    end
+  else None.
+
 (* [Phys_equal]: whether two values of kind [Value] are the same value.
    The compiler compares the two machine words
    ([To_cmm_primitive.phys_equal]), which for two tagged immediates is
@@ -603,6 +639,7 @@ Definition eval_phys_equal (statics : static_env) (v1 v2 : value)
 Definition eval_binary_primitive (statics : static_env)
     (p : binary_primitive) (v1 v2 : value) : option value :=
   match p with
+  | String_or_bigstring_load width => eval_string_load statics width v1 v2
   | Phys_equal op =>
     let* same := eval_phys_equal statics v1 v2 in
     Some
@@ -749,7 +786,9 @@ Definition unary_primitive_in_range (p : unary_primitive) : bool :=
 
 Definition binary_primitive_in_range (p : binary_primitive) : bool :=
   match p with
-  | Phys_equal _ | Int_arith _ _ | Int_shift _ _ | Int_comp _ _ => true
+  | String_or_bigstring_load _ | Phys_equal _ | Int_arith _ _
+  | Int_shift _ _ | Int_comp _ _ =>
+    true
   end.
 
 Definition variadic_primitive_in_range (p : variadic_primitive) : bool :=
@@ -827,6 +866,8 @@ Definition result_kind_of_unary_primitive (p : unary_primitive)
 Definition args_kind_of_binary_primitive (p : binary_primitive)
     : flambda_kind * flambda_kind :=
   match p with
+  | String_or_bigstring_load _ =>
+    (Value, Naked_number Kind_naked_nativeint)
   | Phys_equal _ => (Value, Value)
   | Int_arith kind _ | Int_comp kind _ =>
     (kind_of_standard_int kind, kind_of_standard_int kind)
@@ -838,7 +879,9 @@ Definition result_kind_of_binary_primitive (p : binary_primitive)
     : flambda_kind :=
   match p with
   | Int_arith kind _ | Int_shift kind _ => kind_of_standard_int kind
-  | Phys_equal _ | Int_comp _ _ => naked_immediate_kind
+  | String_or_bigstring_load Eight | Phys_equal _ | Int_comp _ _ =>
+    naked_immediate_kind
+  | String_or_bigstring_load Eight_signed => Naked_number Kind_naked_int8
   end.
 
 (* [Flambda_primitive.args_kind_of_variadic_primitive]: the kind that

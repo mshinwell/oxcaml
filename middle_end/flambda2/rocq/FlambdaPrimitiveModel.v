@@ -39,8 +39,9 @@
      [Unary_int_arith]) with [Not], [Num_conv] between the integer
      kinds, [Boolean_not], [Unbox_number], [Box_number],
      [Untag_immediate] and [Tag_immediate];
-   - of [binary_primitive]: [Int_arith], [Int_shift] and [Int_comp], at
-     every [Standard_int.t], and [Phys_equal];
+   - of [binary_primitive]: [String_or_bigstring_load] of one byte from
+     a string, [Phys_equal], and [Int_arith], [Int_shift] and
+     [Int_comp], at every [Standard_int.t];
    - of [variadic_primitive]: [Make_block] of an immutable block of
      values.
    Every other primitive is left out. The conversion from the compiler's
@@ -90,6 +91,11 @@
      [Int_arith] is the binary one. Its only operation is [Not]: the
      swap of bytes, [Swap_byte_endianness], is not here, and the
      conversion must refuse it.
+   - [String_or_bigstring_load] has no [string_like_value]: it is the
+     load from a string ([String]), and the conversion must refuse
+     [Bytes] and [Bigstring]. The only [string_accessor_width]s are
+     those of one byte, [Eight] and [Eight_signed]; the conversion must
+     refuse the others.
 
    To add a primitive: add its constructor here, its case to the
    evaluation, to the kinds and to [prim_in_range] of
@@ -166,6 +172,11 @@ Inductive int_comparison_behaviour : Type :=
   | Yielding_bool (c : int_comparison)
   | Yielding_int_like_compare_functions (s : signedness).
 
+(* [Flambda_primitive.string_accessor_width], of one byte. *)
+Inductive string_accessor_width : Type :=
+  | Eight
+  | Eight_signed.
+
 (* [Flambda_primitive.equality_comparison]. *)
 Inductive equality_comparison : Type :=
   | Phys_eq
@@ -173,6 +184,7 @@ Inductive equality_comparison : Type :=
 
 (* [Flambda_primitive.binary_primitive]. *)
 Inductive binary_primitive : Type :=
+  | String_or_bigstring_load (width : string_accessor_width)
   | Phys_equal (op : equality_comparison)
   | Int_arith (kind : standard_int) (op : binary_int_arith_op)
   | Int_shift (kind : standard_int) (op : int_shift_op)

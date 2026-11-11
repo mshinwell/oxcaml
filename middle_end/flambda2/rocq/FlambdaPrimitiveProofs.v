@@ -280,8 +280,8 @@ Proof.
   reflexivity.
 Qed.
 
-(* By cases on the binary primitives: only [Phys_equal] reads an
-   allocated value, and through an observation. *)
+(* By cases on the binary primitives: [String_or_bigstring_load] and
+   [Phys_equal] read an allocated value, and through an observation. *)
 Lemma eval_binary_primitive_static_values (statics statics' : static_env)
     (p : binary_primitive) (v1 v2 : value) :
   (∀ s : symbol,
@@ -291,14 +291,18 @@ Lemma eval_binary_primitive_static_values (statics statics' : static_env)
   = eval_binary_primitive statics' p v1 v2.
 Proof.
   intros Hsame.
-  destruct p as [op | kind op | kind op | kind behaviour]; simpl;
+  destruct p as [width | op | kind op | kind op | kind behaviour]; simpl;
     try reflexivity.
-  unfold eval_phys_equal.
-  rewrite (is_allocated_static_values statics statics' v1)
-    by (intros s ->; apply Hsame; left; reflexivity).
-  rewrite (is_allocated_static_values statics statics' v2)
-    by (intros s ->; apply Hsame; right; left; reflexivity).
-  reflexivity.
+  - unfold eval_string_load.
+    rewrite (string_of_static_values statics statics' v1)
+      by (intros s ->; apply Hsame; left; reflexivity).
+    reflexivity.
+  - unfold eval_phys_equal.
+    rewrite (is_allocated_static_values statics statics' v1)
+      by (intros s ->; apply Hsame; left; reflexivity).
+    rewrite (is_allocated_static_values statics statics' v2)
+      by (intros s ->; apply Hsame; right; left; reflexivity).
+    reflexivity.
 Qed.
 
 (* By cases on the variadic primitives. *)
@@ -536,8 +540,9 @@ Proof.
     intros s allocated Hin. apply Hextend. right. exact Hin.
 Qed.
 
-(* By cases on the binary primitives: [Phys_equal] has a value on an
-   allocated value by its being allocated, which is kept. *)
+(* By cases on the binary primitives: [String_or_bigstring_load] has a
+   value on a string, and [Phys_equal] on an allocated value by its
+   being allocated, which are kept. *)
 Lemma eval_binary_primitive_statics_extend (statics statics' : static_env)
     (p : binary_primitive) (v1 v2 result : value) :
   (∀ (s : symbol) (allocated : statically_allocated_value),
@@ -548,24 +553,33 @@ Lemma eval_binary_primitive_statics_extend (statics statics' : static_env)
   eval_binary_primitive statics' p v1 v2 = Some result.
 Proof.
   intros Hextend.
-  destruct p as [op | kind op | kind op | kind behaviour]; simpl;
+  destruct p as [width | op | kind op | kind op | kind behaviour]; simpl;
     try exact (fun H => H).
-  unfold eval_phys_equal.
-  assert (Hv1 :
-    is_allocated statics v1 = true -> is_allocated statics' v1 = true).
-  { apply is_allocated_statics_extend. intros s allocated ->.
-    apply Hextend. left. reflexivity. }
-  assert (Hv2 :
-    is_allocated statics v2 = true -> is_allocated statics' v2 = true).
-  { apply is_allocated_statics_extend. intros s allocated ->.
-    apply Hextend. right. left. reflexivity. }
-  destruct (int_of_value Standard_tagged_immediate v1),
-    (int_of_value Standard_tagged_immediate v2);
-    try exact (fun H => H).
-  - destruct (is_allocated statics v2); [ | discriminate ].
-    rewrite (Hv2 eq_refl). exact (fun H => H).
-  - destruct (is_allocated statics v1); [ | discriminate ].
-    rewrite (Hv1 eq_refl). exact (fun H => H).
+  - (* [String_or_bigstring_load] *)
+    unfold eval_string_load.
+    destruct (string_of statics v1) as [bytes | ] eqn:Hstring;
+      [ | discriminate ].
+    rewrite (string_of_statics_extend statics statics' v1)
+      with (bytes := bytes);
+      [ exact (fun H => H) | | exact Hstring ].
+    intros s allocated ->. apply Hextend. left. reflexivity.
+  - (* [Phys_equal] *)
+    unfold eval_phys_equal.
+    assert (Hv1 :
+      is_allocated statics v1 = true -> is_allocated statics' v1 = true).
+    { apply is_allocated_statics_extend. intros s allocated ->.
+      apply Hextend. left. reflexivity. }
+    assert (Hv2 :
+      is_allocated statics v2 = true -> is_allocated statics' v2 = true).
+    { apply is_allocated_statics_extend. intros s allocated ->.
+      apply Hextend. right. left. reflexivity. }
+    destruct (int_of_value Standard_tagged_immediate v1),
+      (int_of_value Standard_tagged_immediate v2);
+      try exact (fun H => H).
+    + destruct (is_allocated statics v2); [ | discriminate ].
+      rewrite (Hv2 eq_refl). exact (fun H => H).
+    + destruct (is_allocated statics v1); [ | discriminate ].
+      rewrite (Hv1 eq_refl). exact (fun H => H).
 Qed.
 
 (* By cases on the variadic primitives. *)
@@ -674,8 +688,19 @@ Lemma eval_binary_primitive_symbol_bound (statics : static_env)
   v1 = Value_symbol s ∨ v2 = Value_symbol s ->
   lookup s (static_values statics) <> None.
 Proof.
-  destruct p as [op | kind op | kind op | kind behaviour];
+  destruct p as [width | op | kind op | kind op | kind behaviour];
     cbn [eval_binary_primitive].
+  - (* [String_or_bigstring_load]: the string, if a symbol, is bound to
+       one, and the index is not a symbol. *)
+    unfold eval_string_load.
+    destruct (string_of statics v1) as [bytes | ] eqn:Hstring;
+      [ | discriminate ].
+    destruct (int_of_value Standard_naked_nativeint v2) eqn:Hindex;
+      [ | discriminate ].
+    intros _ [-> | ->].
+    + simpl in Hstring.
+      destruct (lookup s (static_values statics)); discriminate.
+    + rewrite int_of_value_symbol in Hindex. discriminate.
   - (* [Phys_equal] *)
     destruct (eval_phys_equal statics v1 v2) as [same | ] eqn:Hsame;
       [ | discriminate ].
@@ -876,9 +901,22 @@ Lemma eval_binary_primitive_kinds (statics : static_env)
   ∧ kind_of_value arg2 = snd (args_kind_of_binary_primitive p)
   ∧ kind_of_value v = result_kind_of_binary_primitive p.
 Proof.
-  destruct p as [op | kind op | kind op | kind behaviour];
+  destruct p as [width | op | kind op | kind op | kind behaviour];
     cbn [eval_binary_primitive args_kind_of_binary_primitive
          result_kind_of_binary_primitive fst snd].
+  - (* [String_or_bigstring_load] *)
+    unfold eval_string_load.
+    destruct (string_of statics arg1) as [bytes | ] eqn:Hstring;
+      [ | discriminate ].
+    destruct (int_of_value Standard_naked_nativeint arg2) as [index | ]
+      eqn:Hindex;
+      [ | discriminate ].
+    rewrite (string_of_kind statics arg1 bytes Hstring),
+      (int_of_value_kind _ _ _ Hindex).
+    destruct (0 <=? index); [ | discriminate ].
+    destruct (nth_error bytes (Z.to_nat index)) as [byte | ];
+      [ | discriminate ].
+    destruct width; intros [= <-]; auto.
   - (* [Phys_equal] *)
     destruct (eval_phys_equal statics arg1 arg2) as [same | ] eqn:Hsame;
       [ | discriminate ].
@@ -1042,8 +1080,17 @@ Lemma eval_binary_primitive_preserves (p : binary_primitive)
     (arg1 arg2 v : value) :
   eval_binary_primitive statics p arg1 arg2 = Some v -> P v.
 Proof.
-  destruct p as [op | kind op | kind op | kind behaviour];
+  destruct p as [width | op | kind op | kind op | kind behaviour];
     cbn [eval_binary_primitive].
+  - (* [String_or_bigstring_load] *)
+    unfold eval_string_load.
+    destruct (string_of statics arg1) as [bytes | ]; [ | discriminate ].
+    destruct (int_of_value Standard_naked_nativeint arg2) as [index | ];
+      [ | discriminate ].
+    destruct (0 <=? index); [ | discriminate ].
+    destruct (nth_error bytes (Z.to_nat index)) as [byte | ];
+      [ | discriminate ].
+    destruct width; intros [= <-]; apply Hnumbers.
   - (* [Phys_equal] *)
     destruct (eval_phys_equal statics arg1 arg2); [ | discriminate ].
     intros [= <-]. apply naked_bool_preserved.
@@ -1393,6 +1440,17 @@ Proof.
   - destruct (reading width s a ?= reading width s b); reflexivity.
 Qed.
 
+(* The low eight bits of an integer are an immediate. *)
+Lemma low_byte_in_range (byte : Z) :
+  ocaml_int_in_range (byte mod 256) = true.
+Proof.
+  unfold ocaml_int_in_range, in_range.
+  change (2 ^ (int_width Standard_tagged_immediate - 1))
+    with 4611686018427387904.
+  pose proof (Z.mod_pos_bound byte 256 eq_refl) as Hbyte.
+  apply andb_true_iff. split; [ apply Z.leb_le | apply Z.ltb_lt ]; lia.
+Qed.
+
 Section In_range.
 
 Variable statics : static_env.
@@ -1547,8 +1605,19 @@ Lemma eval_binary_primitive_in_range (p : binary_primitive)
   eval_binary_primitive statics p arg1 arg2 = Some v ->
   value_in_range v = true.
 Proof.
-  destruct p as [op | kind op | kind op | kind behaviour];
+  destruct p as [width | op | kind op | kind op | kind behaviour];
     cbn [eval_binary_primitive].
+  - (* [String_or_bigstring_load] *)
+    unfold eval_string_load.
+    destruct (string_of statics arg1) as [bytes | ]; [ | discriminate ].
+    destruct (int_of_value Standard_naked_nativeint arg2) as [index | ];
+      [ | discriminate ].
+    destruct (0 <=? index); [ | discriminate ].
+    destruct (nth_error bytes (Z.to_nat index)) as [byte | ];
+      [ | discriminate ].
+    destruct width; intros [= <-]; cbn [value_in_range const_in_range].
+    + apply low_byte_in_range.
+    + apply wrap_in_range. lia.
   - (* [Phys_equal] *)
     destruct (eval_phys_equal statics arg1 arg2); [ | discriminate ].
     intros [= <-]. apply naked_bool_in_range.
@@ -1924,7 +1993,8 @@ Proof.
 Qed.
 
 (* By cases on the binary primitives: the arguments are integers, but
-   for those of [Phys_equal]. *)
+   for the string of [String_or_bigstring_load], which is read through
+   an observation, and those of [Phys_equal]. *)
 Lemma eval_binary_primitive_related (p : binary_primitive)
     (v1 v2 v1' v2' result : value) :
   R v1 v1' ->
@@ -1935,8 +2005,22 @@ Lemma eval_binary_primitive_related (p : binary_primitive)
     ∧ R result result'.
 Proof.
   intros Hr1 Hr2.
-  destruct p as [op | kind op | kind op | kind behaviour];
+  destruct p as [width | op | kind op | kind op | kind behaviour];
     cbn [eval_binary_primitive].
+  - (* [String_or_bigstring_load] *)
+    unfold eval_string_load.
+    destruct (string_of statics v1) as [bytes | ] eqn:Hv1;
+      [ | discriminate ].
+    rewrite (proj1 (proj2 (proj2 (Hobserved v1 v1' Hr1))) bytes Hv1).
+    destruct (int_of_value Standard_naked_nativeint v2) as [index | ]
+      eqn:Hv2;
+      [ | discriminate ].
+    rewrite (related_int _ v2 v2' index Hr2 Hv2), Hv2.
+    destruct (0 <=? index); [ | discriminate ].
+    destruct (nth_error bytes (Z.to_nat index)) as [byte | ];
+      [ | discriminate ].
+    destruct width; intros [= <-]; eexists;
+      (split; [ reflexivity | apply Hnumber ]).
   - (* [Phys_equal] *)
     destruct (eval_phys_equal statics v1 v2) as [same | ] eqn:Hsame;
       [ | discriminate ].
@@ -2548,6 +2632,43 @@ Example string_length_of_empty_string :
   unary (Static_env [] [(1%positive, Static_string [])]) String_length
     (Value_symbol 1%positive)
   = Some (naked 0).
+Proof. reflexivity. Qed.
+
+Definition string_load (statics : static_env) (width : string_accessor_width)
+    (v : value) (index : Z) : option value :=
+  eval_prim statics (Binary (String_or_bigstring_load width))
+    [v; Value_const (Naked_nativeint index)].
+
+Example string_load_byte :
+  string_load a_string Eight (Value_symbol 1%positive) 1 = Some (naked 101).
+Proof. reflexivity. Qed.
+
+Example string_load_last_byte :
+  string_load a_string Eight (Value_symbol 1%positive) 4 = Some (naked 111).
+Proof. reflexivity. Qed.
+
+Example string_load_signed_byte :
+  string_load (Static_env [] [(1%positive, Static_string [200])])
+    Eight_signed (Value_symbol 1%positive) 0
+  = Some (Value_const (Naked_int8 (-56))).
+Proof. reflexivity. Qed.
+
+Example string_load_past_the_end :
+  string_load a_string Eight (Value_symbol 1%positive) 5 = None.
+Proof. reflexivity. Qed.
+
+Example string_load_negative_index :
+  string_load a_string Eight (Value_symbol 1%positive) (-1) = None.
+Proof. reflexivity. Qed.
+
+Example string_load_from_block :
+  string_load a_block Eight (Value_symbol 1%positive) 0 = None.
+Proof. reflexivity. Qed.
+
+Example string_load_tagged_index :
+  eval_prim a_string (Binary (String_or_bigstring_load Eight))
+    [Value_symbol 1%positive; tagged 1]
+  = None.
 Proof. reflexivity. Qed.
 
 Example string_length_of_block :
