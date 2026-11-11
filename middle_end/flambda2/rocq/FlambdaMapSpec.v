@@ -99,6 +99,53 @@
      other operations and their lemmas, so that a faster representation
      can be put under them one day without touching their users.
 
+   Keys that are not names. The types have maps and sets keyed by tags
+   and by numbers, which are integers, and by the names of the types,
+   each a variable or a symbol. The module [Keyed], in the second half
+   of this file, is for those: it has every definition on names again,
+   for keys of any type [K].
+   - Each takes the equality test of the keys, [eqb : K -> K -> bool],
+     as its first argument, and is otherwise the definition on names
+     with [eqb] where that has [Pos.eqb]. [Keyed.lookup Z.eqb tag cases]
+     is the first case of a tag, and [Keyed.inter Z.eqb] the numbers of
+     both of two sets.
+   - The statements about [Keyed] are the statements about names, for
+     every [K] and every [eqb] that tells whether two keys are the same
+     ([decides_equality]), as [Pos.eqb] and [Z.eqb] do. Nothing is
+     stated for a test that takes two different keys for the same.
+   - The definitions on names stay as they are, under their short
+     names, for the machine and all that is written with it. Each is
+     the one of [Keyed] at [Pos.eqb], by computation
+     ([names_are_keys_statement]), so a lemma about [Keyed] applies to
+     them as it stands, and nothing need be proved twice.
+   - An operation that is added from now on is added to [Keyed] only.
+     Those that go through a map ([Keyed.for_all_bindings],
+     [Keyed.at_binding] and their tests) have short names on names;
+     these are abbreviations, not definitions.
+
+   Why the test is an argument, and what was rejected.
+   - A copy of the definitions and of the statements for integers, and
+     another for each type of key to come: as many of everything to
+     review, and to keep the same.
+   - A functor over the type of the keys, as OCaml's [Map.Make] and
+     Rocq's [FMapInterface] are. Each type of key gets a module of its
+     own; a statement cannot be about all of them, so each has its own
+     copy of the statements to be checked; and the extracted code is
+     functors.
+   - A type class of keys, so that the test need not be written. Which
+     test is used would then be nowhere in the text that uses it; this
+     development has no type classes; and the extracted code would pass
+     dictionaries.
+   - Coding every key as a [positive], as an integer or a name can be,
+     and keeping the one type of map. The grammar of types would show
+     codes where the compiler has tags and names, every statement would
+     be about [lookup (code tag)], and the coding would be one more
+     thing to review.
+   With the test as an argument, a definition says which equality it
+   uses where it is used, [Keyed.lookup] is one function to review
+   whatever the keys, and it extracts to an OCaml function that takes
+   the test.
+
    An exception, for now: the typing environment. [typing_env] of
    FlambdaTypesSpec.v (in types/rocq) has the type of a map of types,
    [list (variable * flambda_type)], and is not one. It is a list of
@@ -361,3 +408,532 @@ Definition lookup_inter_with_statement : Prop :=
       | Some a, Some b => Some (f a b)
       | _, _ => None
       end.
+
+(* ======================================================================== *)
+(* Keys of any type                                                         *)
+(* ======================================================================== *)
+
+(* What is above is keyed by names. What follows is the same for keys of
+   any type that has an equality test: see "Keys that are not names" in
+   the header. *)
+
+From Stdlib Require Import ZArith.
+
+(* [eqb] tells whether two keys are the same key. A statement below that
+   depends on the test assumes this of it. *)
+Definition decides_equality {K : Type} (eqb : K -> K -> bool) : Prop :=
+  ∀ key key' : K, eqb key key' = true <-> key = key'.
+
+(* [P] holds of every element of a list. This is [Forall] as a function
+   that goes through the list, so that Rocq accepts a definition by
+   recursion on a type that holds lists or maps of itself, in which [P]
+   makes the recursive call. For that, [P] is a parameter of the
+   definition and not of its recursion, here and in the definitions
+   below that take a predicate or a test. *)
+Definition every {A : Type} (P : A -> Prop) : list A -> Prop :=
+  fix every (l : list A) : Prop :=
+    match l with
+    | [] => True
+    | a :: l => P a ∧ every l
+    end.
+
+(* [every], as a test. *)
+Abbreviation every_b := forallb (only parsing).
+
+Module Keyed.
+
+(* [Map.t]: the first binding of a key is the one that counts. *)
+Definition finite_map (K A : Type) : Type := list (K * A).
+
+Section Keys.
+
+Context {K : Type} (eqb : K -> K -> bool).
+
+(* Sets of keys. *)
+
+(* [Set.mem]. *)
+Definition among (key : K) (keys : list K) : bool :=
+  existsb (eqb key) keys.
+
+(* [Set.subset]. *)
+Definition all_among (keys allowed : list K) : bool :=
+  forallb (fun key => among key allowed) keys.
+
+(* [Set.diff keys removed]. *)
+Definition without (removed keys : list K) : list K :=
+  filter (fun key => negb (among key removed)) keys.
+
+(* [Set.inter]. *)
+Definition inter (keys keys' : list K) : list K :=
+  filter (fun key => among key keys') keys.
+
+(* No key occurs twice. *)
+Fixpoint distinct (keys : list K) : bool :=
+  match keys with
+  | [] => true
+  | key :: keys => negb (among key keys) && distinct keys
+  end.
+
+(* The same keys, each once: the first occurrence of each is kept. *)
+Fixpoint dedup (keys : list K) : list K :=
+  match keys with
+  | [] => []
+  | key :: keys => key :: without [key] (dedup keys)
+  end.
+
+(* Two lists are the same set. *)
+Definition same_keys (keys keys' : list K) : Prop :=
+  ∀ key : K, among key keys = among key keys'.
+
+(* [Set.equal]. *)
+Definition same_keys_b (keys keys' : list K) : bool :=
+  all_among keys keys' && all_among keys' keys.
+
+(* [Set.is_empty] and [Map.is_empty]: the empty set and the empty map are
+   [[]], and nothing else is. *)
+Definition is_empty {A : Type} (l : list A) : bool :=
+  match l with
+  | [] => true
+  | _ :: _ => false
+  end.
+
+(* [Set.get_singleton]: the key of a set that has exactly one. *)
+Definition get_singleton (keys : list K) : option K :=
+  match dedup keys with
+  | [key] => Some key
+  | _ => None
+  end.
+
+(* Maps. *)
+
+(* [Map.find_opt]: the first binding of a key. *)
+Fixpoint lookup {A : Type} (key : K) (bindings : list (K * A)) : option A :=
+  match bindings with
+  | [] => None
+  | (bound, a) :: bindings =>
+    if eqb key bound then Some a else lookup key bindings
+  end.
+
+(* [Map.mem]. *)
+Definition is_bound {A : Type} (key : K) (bindings : finite_map K A)
+    : bool :=
+  match lookup key bindings with
+  | Some _ => true
+  | None => false
+  end.
+
+(* [Map.remove]: every binding of the key goes. *)
+Definition unbind {A : Type} (key : K) (bindings : finite_map K A)
+    : finite_map K A :=
+  filter (fun binding => negb (eqb key (fst binding))) bindings.
+
+(* [Map.map]. *)
+Definition map_values {A B : Type} (f : A -> B) (bindings : finite_map K A)
+    : finite_map K B :=
+  map (fun binding => (fst binding, f (snd binding))) bindings.
+
+(* [Map.keys]: the keys bound, each once, the latest bound first. *)
+Definition domain {A : Type} (bindings : finite_map K A) : list K :=
+  dedup (map fst bindings).
+
+(* The map that binds each of [keys] to what [f] gives for it, if it gives
+   something. *)
+Definition tabulate {A : Type} (f : K -> option A) (keys : list K)
+    : finite_map K A :=
+  flat_map
+    (fun key =>
+       match f key with
+       | Some a => [(key, a)]
+       | None => []
+       end)
+    keys.
+
+(* [Map.bindings]: the same map with one binding for each key bound, the
+   one that counts. *)
+Definition compact {A : Type} (bindings : finite_map K A) : finite_map K A :=
+  tabulate (fun key => lookup key bindings) (domain bindings).
+
+(* [Map.filter]. It is the bindings that count that are kept or not: a
+   binding that is shadowed never comes back. *)
+Definition filter_bindings {A : Type} (keep : K -> A -> bool)
+    (bindings : finite_map K A) : finite_map K A :=
+  tabulate
+    (fun key =>
+       match lookup key bindings with
+       | Some a => if keep key a then Some a else None
+       | None => None
+       end)
+    (domain bindings).
+
+(* [Map.merge], without the key: each key bound by either map is bound to
+   what [f] makes of what the two bind it to. [f None None] must be
+   [None], as it is not asked. *)
+Definition merge {A B C : Type} (f : option A -> option B -> option C)
+    (bindings : finite_map K A) (bindings' : finite_map K B)
+    : finite_map K C :=
+  tabulate (fun key => f (lookup key bindings) (lookup key bindings'))
+    (dedup (map fst bindings ++ map fst bindings')).
+
+(* [Map.union]: the keys of either, those of both combined by [f]. *)
+Definition union_with {A : Type} (f : A -> A -> A)
+    (bindings bindings' : finite_map K A) : finite_map K A :=
+  merge
+    (fun a a' =>
+       match a, a' with
+       | Some a, Some a' => Some (f a a')
+       | Some a, None => Some a
+       | None, a' => a'
+       end)
+    bindings bindings'.
+
+(* [Map.inter]: the keys of both, combined by [f]. *)
+Definition inter_with {A B C : Type} (f : A -> B -> C)
+    (bindings : finite_map K A) (bindings' : finite_map K B)
+    : finite_map K C :=
+  merge
+    (fun a b =>
+       match a, b with
+       | Some a, Some b => Some (f a b)
+       | _, _ => None
+       end)
+    bindings bindings'.
+
+(* Two maps bind the same keys to the same things. This, and not [=], is
+   when two maps are the same. *)
+Definition map_equal {A : Type} (bindings bindings' : finite_map K A)
+    : Prop :=
+  ∀ key : K, lookup key bindings = lookup key bindings'.
+
+(* Everything the first map binds, the second binds to the same thing. *)
+Definition map_included {A : Type} (bindings bindings' : finite_map K A)
+    : Prop :=
+  ∀ (key : K) (a : A),
+    lookup key bindings = Some a -> lookup key bindings' = Some a.
+
+(* [Map.get_singleton]: the binding of a map that binds exactly one
+   key. *)
+Definition get_singleton_binding {A : Type} (bindings : finite_map K A)
+    : option (K * A) :=
+  match compact bindings with
+  | [binding] => Some binding
+  | _ => None
+  end.
+
+(* Going through a map. The four definitions below go through every pair
+   of the list that the map is, for the reason given at [every], and ask
+   something only of the pairs that [lookup] finds: the bindings that
+   count. *)
+
+(* [Map.for_all], as a proposition: [P] holds of every binding. *)
+Definition for_all_bindings {A : Type} (P : K -> A -> Prop)
+    (bindings : finite_map K A) : Prop :=
+  every
+    (fun binding =>
+       lookup (fst binding) bindings = Some (snd binding)
+       -> P (fst binding) (snd binding))
+    bindings.
+
+(* [P] holds of what the map binds [key] to, if it binds it. *)
+Definition at_binding {A : Type} (P : A -> Prop) (key : K)
+    (bindings : finite_map K A) : Prop :=
+  every
+    (fun binding => lookup key bindings = Some (snd binding) -> P (snd binding))
+    bindings.
+
+(* [Map.for_all]: [for_all_bindings], as a test. [seen] is the keys of
+   the bindings gone past, which shadow those to come. *)
+Definition for_all_bindings_b {A : Type} (p : K -> A -> bool)
+    (bindings : finite_map K A) : bool :=
+  (fix for_all_bindings_b (seen : list K) (bindings : list (K * A))
+       {struct bindings} : bool :=
+     match bindings with
+     | [] => true
+     | (key, a) :: bindings =>
+       (among key seen || p key a) && for_all_bindings_b (key :: seen) bindings
+     end)
+    [] bindings.
+
+(* [at_binding], as a test. *)
+Definition at_binding_b {A : Type} (p : A -> bool) (key : K)
+    : finite_map K A -> bool :=
+  fix at_binding_b (bindings : list (K * A)) : bool :=
+    match bindings with
+    | [] => true
+    | (bound, a) :: bindings =>
+      if eqb key bound then p a else at_binding_b bindings
+    end.
+
+End Keys.
+
+End Keyed.
+
+(* On names, the four definitions that go through a map have the short
+   names that the rest of what is on names has. *)
+Abbreviation for_all_bindings := (Keyed.for_all_bindings Pos.eqb).
+Abbreviation at_binding := (Keyed.at_binding Pos.eqb).
+Abbreviation for_all_bindings_b := (Keyed.for_all_bindings_b Pos.eqb).
+Abbreviation at_binding_b := (Keyed.at_binding_b Pos.eqb).
+
+(* ======================================================================== *)
+(* What the operations on keys of any type do                               *)
+(* ======================================================================== *)
+
+(* The equality tests of names and of integers decide equality. *)
+
+Definition pos_eqb_decides_equality_statement : Prop :=
+  decides_equality Pos.eqb.
+
+Definition z_eqb_decides_equality_statement : Prop :=
+  decides_equality Z.eqb.
+
+(* Every definition on names of the first half of this file is the one of
+   [Keyed] at the equality test of names. *)
+Definition names_are_keys_statement : Prop :=
+  among = Keyed.among Pos.eqb
+  ∧ all_among = Keyed.all_among Pos.eqb
+  ∧ without = Keyed.without Pos.eqb
+  ∧ inter = Keyed.inter Pos.eqb
+  ∧ distinct = Keyed.distinct Pos.eqb
+  ∧ dedup = Keyed.dedup Pos.eqb
+  ∧ same_names = Keyed.same_keys Pos.eqb
+  ∧ finite_map = Keyed.finite_map positive
+  ∧ (∀ A : Type, @lookup A = Keyed.lookup Pos.eqb)
+  ∧ (∀ A : Type, @is_bound A = Keyed.is_bound Pos.eqb)
+  ∧ (∀ A : Type, @unbind A = Keyed.unbind Pos.eqb)
+  ∧ (∀ A B : Type, @map_values A B = Keyed.map_values)
+  ∧ (∀ A : Type, @domain A = Keyed.domain Pos.eqb)
+  ∧ (∀ A : Type, @tabulate A = Keyed.tabulate)
+  ∧ (∀ A : Type, @compact A = Keyed.compact Pos.eqb)
+  ∧ (∀ A : Type, @filter_bindings A = Keyed.filter_bindings Pos.eqb)
+  ∧ (∀ A B C : Type, @merge A B C = Keyed.merge Pos.eqb)
+  ∧ (∀ A : Type, @union_with A = Keyed.union_with Pos.eqb)
+  ∧ (∀ A B C : Type, @inter_with A B C = Keyed.inter_with Pos.eqb)
+  ∧ (∀ A : Type, @map_equal A = Keyed.map_equal Pos.eqb)
+  ∧ (∀ A : Type, @map_included A = Keyed.map_included Pos.eqb).
+
+(* Sets. *)
+
+Definition keyed_among_in_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (key : K) (keys : list K), Keyed.among eqb key keys = true <-> key ∈ keys.
+
+(* The union of two sets is [++]. *)
+Definition keyed_among_app_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool) (key : K) (keys keys' : list K),
+    Keyed.among eqb key (keys ++ keys')
+    = Keyed.among eqb key keys || Keyed.among eqb key keys'.
+
+Definition keyed_all_among_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ keys allowed : list K,
+      Keyed.all_among eqb keys allowed = true
+      <-> (∀ key : K,
+            Keyed.among eqb key keys = true
+            -> Keyed.among eqb key allowed = true).
+
+Definition keyed_among_without_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (key : K) (removed keys : list K),
+      Keyed.among eqb key (Keyed.without eqb removed keys)
+      = Keyed.among eqb key keys && negb (Keyed.among eqb key removed).
+
+Definition keyed_among_inter_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (key : K) (keys keys' : list K),
+      Keyed.among eqb key (Keyed.inter eqb keys keys')
+      = Keyed.among eqb key keys && Keyed.among eqb key keys'.
+
+Definition keyed_among_dedup_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (key : K) (keys : list K),
+      Keyed.among eqb key (Keyed.dedup eqb keys) = Keyed.among eqb key keys.
+
+Definition keyed_dedup_distinct_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ keys : list K, Keyed.distinct eqb (Keyed.dedup eqb keys) = true.
+
+Definition keyed_same_keys_b_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ keys keys' : list K,
+      Keyed.same_keys_b eqb keys keys' = true
+      <-> Keyed.same_keys eqb keys keys'.
+
+Definition keyed_is_empty_among_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ keys : list K,
+      Keyed.is_empty keys = true
+      <-> (∀ key : K, Keyed.among eqb key keys = false).
+
+(* The set has a singleton when its keys are that one key. *)
+Definition keyed_get_singleton_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (key : K) (keys : list K),
+      Keyed.get_singleton eqb keys = Some key
+      <-> (∀ key' : K, Keyed.among eqb key' keys = eqb key' key).
+
+(* Maps. *)
+
+Definition keyed_lookup_unbind_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (A : Type) (key removed : K) (bindings : Keyed.finite_map K A),
+      Keyed.lookup eqb key (Keyed.unbind eqb removed bindings)
+      = if eqb key removed then None else Keyed.lookup eqb key bindings.
+
+Definition keyed_lookup_map_values_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool) (A B : Type) (f : A -> B) (key : K)
+    (bindings : Keyed.finite_map K A),
+    Keyed.lookup eqb key (Keyed.map_values f bindings)
+    = option_map f (Keyed.lookup eqb key bindings).
+
+Definition keyed_among_domain_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (A : Type) (key : K) (bindings : Keyed.finite_map K A),
+      Keyed.among eqb key (Keyed.domain eqb bindings)
+      = Keyed.is_bound eqb key bindings.
+
+Definition keyed_domain_distinct_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (A : Type) (bindings : Keyed.finite_map K A),
+      Keyed.distinct eqb (Keyed.domain eqb bindings) = true.
+
+Definition keyed_lookup_tabulate_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (A : Type) (f : K -> option A) (key : K) (keys : list K),
+      Keyed.lookup eqb key (Keyed.tabulate f keys)
+      = if Keyed.among eqb key keys then f key else None.
+
+Definition keyed_lookup_compact_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (A : Type) (key : K) (bindings : Keyed.finite_map K A),
+      Keyed.lookup eqb key (Keyed.compact eqb bindings)
+      = Keyed.lookup eqb key bindings.
+
+Definition keyed_compact_distinct_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (A : Type) (bindings : Keyed.finite_map K A),
+      Keyed.distinct eqb (map fst (Keyed.compact eqb bindings)) = true.
+
+Definition keyed_lookup_filter_bindings_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (A : Type) (keep : K -> A -> bool) (key : K)
+      (bindings : Keyed.finite_map K A),
+      Keyed.lookup eqb key (Keyed.filter_bindings eqb keep bindings)
+      = match Keyed.lookup eqb key bindings with
+        | Some a => if keep key a then Some a else None
+        | None => None
+        end.
+
+Definition keyed_lookup_merge_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (A B C : Type) (f : option A -> option B -> option C) (key : K)
+      (bindings : Keyed.finite_map K A) (bindings' : Keyed.finite_map K B),
+      f None None = None ->
+      Keyed.lookup eqb key (Keyed.merge eqb f bindings bindings')
+      = f (Keyed.lookup eqb key bindings) (Keyed.lookup eqb key bindings').
+
+Definition keyed_lookup_union_with_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (A : Type) (f : A -> A -> A) (key : K)
+      (bindings bindings' : Keyed.finite_map K A),
+      Keyed.lookup eqb key (Keyed.union_with eqb f bindings bindings')
+      = match Keyed.lookup eqb key bindings, Keyed.lookup eqb key bindings'
+        with
+        | Some a, Some a' => Some (f a a')
+        | Some a, None => Some a
+        | None, a' => a'
+        end.
+
+Definition keyed_lookup_inter_with_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (A B C : Type) (f : A -> B -> C) (key : K)
+      (bindings : Keyed.finite_map K A) (bindings' : Keyed.finite_map K B),
+      Keyed.lookup eqb key (Keyed.inter_with eqb f bindings bindings')
+      = match Keyed.lookup eqb key bindings, Keyed.lookup eqb key bindings'
+        with
+        | Some a, Some b => Some (f a b)
+        | _, _ => None
+        end.
+
+Definition keyed_is_empty_lookup_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (A : Type) (bindings : Keyed.finite_map K A),
+      Keyed.is_empty bindings = true
+      <-> (∀ key : K, Keyed.lookup eqb key bindings = None).
+
+(* The map has a singleton when it binds that one key, to that. *)
+Definition keyed_get_singleton_binding_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (A : Type) (key : K) (a : A) (bindings : Keyed.finite_map K A),
+      Keyed.get_singleton_binding eqb bindings = Some (key, a)
+      <-> (∀ key' : K,
+            Keyed.lookup eqb key' bindings
+            = if eqb key' key then Some a else None).
+
+(* Going through a list or a map. *)
+
+Definition every_in_statement : Prop :=
+  ∀ (A : Type) (P : A -> Prop) (l : list A),
+    every P l <-> (∀ a : A, a ∈ l -> P a).
+
+Definition every_b_every_statement : Prop :=
+  ∀ (A : Type) (p : A -> bool) (l : list A),
+    every_b p l = true <-> every (fun a => p a = true) l.
+
+Definition keyed_for_all_bindings_lookup_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (A : Type) (P : K -> A -> Prop) (bindings : Keyed.finite_map K A),
+      Keyed.for_all_bindings eqb P bindings
+      <-> (∀ (key : K) (a : A),
+            Keyed.lookup eqb key bindings = Some a -> P key a).
+
+Definition keyed_at_binding_lookup_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool) (A : Type) (P : A -> Prop) (key : K)
+    (bindings : Keyed.finite_map K A),
+    Keyed.at_binding eqb P key bindings
+    <-> (∀ a : A, Keyed.lookup eqb key bindings = Some a -> P a).
+
+Definition keyed_for_all_bindings_b_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool),
+    decides_equality eqb ->
+    ∀ (A : Type) (p : K -> A -> bool) (bindings : Keyed.finite_map K A),
+      Keyed.for_all_bindings_b eqb p bindings = true
+      <-> Keyed.for_all_bindings eqb (fun key a => p key a = true) bindings.
+
+Definition keyed_at_binding_b_statement : Prop :=
+  ∀ (K : Type) (eqb : K -> K -> bool) (A : Type) (p : A -> bool) (key : K)
+    (bindings : Keyed.finite_map K A),
+    Keyed.at_binding_b eqb p key bindings = true
+    <-> Keyed.at_binding eqb (fun a => p a = true) key bindings.
+
+(* The same two on names, as they are written. *)
+
+Definition for_all_bindings_lookup_statement : Prop :=
+  ∀ (A : Type) (P : positive -> A -> Prop) (m : finite_map A),
+    for_all_bindings P m
+    <-> (∀ (name : positive) (a : A), lookup name m = Some a -> P name a).
+
+Definition at_binding_lookup_statement : Prop :=
+  ∀ (A : Type) (P : A -> Prop) (name : positive) (m : finite_map A),
+    at_binding P name m <-> (∀ a : A, lookup name m = Some a -> P a).

@@ -465,6 +465,25 @@ a fragment at a time. The files follow the same Spec/Proofs split, and
   lookup, membership test or merge; a lemma about these that is not about
   the terms goes in `FlambdaMapProofs.v`, so that there is one place to
   look.
+- Maps and sets keyed by something that is not a name (tags and numbers,
+  which are integers; the names of the types) are the same definitions
+  again, in the module `Keyed` of `FlambdaMapSpec.v`. Each takes the
+  equality test of the keys as its first argument:
+  `Keyed.lookup Z.eqb tag cases`, `Keyed.inter Z.eqb`, `Keyed.merge Z.eqb`.
+  Their lemmas are the `keyed_...` of `FlambdaMapProofs.v`; one that
+  depends on the test takes a proof that it decides equality (`Z.eqb_eq`,
+  `Pos.eqb_eq`). The definitions on names are those of `Keyed` at
+  `Pos.eqb` by computation, so a `keyed_...` lemma applies to them as it
+  stands. A new operation goes in `Keyed` only, with a statement for any
+  key.
+- To define something by recursion on a type that holds lists or maps of
+  itself (the meaning of a type, a check of one), go through them with
+  `every`, `Keyed.for_all_bindings` and `Keyed.at_binding`, or the tests
+  `every_b`, `Keyed.for_all_bindings_b` and `Keyed.at_binding_b`; on
+  names the last four are written `for_all_bindings`, `at_binding`,
+  `for_all_bindings_b` and `at_binding_b`. Rocq refuses a recursive call
+  on what `lookup` returns, and accepts one made by the predicate or the
+  test given to these.
 - A state is a record with the fields `state_expr`, `state_vars`,
   `state_conts` and `state_statics`. Say what a property is about with
   the projections, and never destruct a state by position: a field added
