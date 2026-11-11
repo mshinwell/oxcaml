@@ -987,7 +987,7 @@ Lemma bucket_indexed_at (level : Typing_env_level.t)
         Keyed.lookup Z.eqb binding_time
           (Typing_env_level.binding_times level)
       with
-      | Some vars => vars
+      | Some vars => dedup vars
       | None => []
       end ->
   indexed_at level binding_time x.
@@ -996,7 +996,8 @@ Proof.
   destruct (Keyed.lookup Z.eqb binding_time
               (Typing_env_level.binding_times level)) as [vars | ];
     [ | intros [] ].
-  intros Hin. exists vars. split; [ reflexivity | exact Hin ].
+  intros Hin. exists vars. split; [ reflexivity | ].
+  apply among_In. rewrite <- among_dedup. apply among_In. exact Hin.
 Qed.
 
 Theorem variables_in_order_indexed : variables_in_order_indexed_statement.
@@ -1010,7 +1011,101 @@ Proof.
       apply (keyed_among_in Z Z.eqb z_eqb_decides_equality).
       rewrite (keyed_among_domain Z Z.eqb z_eqb_decides_equality).
       apply keyed_is_bound_lookup. exists vars. exact Hlookup.
-    + rewrite Hlookup. exact Hin.
+    + rewrite Hlookup. apply among_In. rewrite among_dedup.
+      apply among_In. exact Hin.
+Qed.
+
+Lemma nodup_app_apart {B : Type} (l l' : list B) :
+  NoDup l -> NoDup l' -> (∀ b : B, b ∈ l -> ~ b ∈ l') -> NoDup (l ++ l').
+Proof.
+  intros Hl Hl' Hapart. induction Hl as [ | b l Hb Hl IH]; [ exact Hl' | ].
+  simpl. apply NoDup_cons.
+  - intros Hin. apply in_app_or in Hin. destruct Hin as [Hin | Hin].
+    + exact (Hb Hin).
+    + exact (Hapart b (or_introl eq_refl) Hin).
+  - apply IH. intros b' Hin. apply Hapart. right. exact Hin.
+Qed.
+
+Lemma nodup_flat_map {A B : Type} (g : A -> list B) (l : list A) :
+  NoDup l ->
+  (∀ a : A, a ∈ l -> NoDup (g a)) ->
+  (∀ (a a' : A) (b : B), a ∈ l -> a' ∈ l -> b ∈ g a -> b ∈ g a' -> a = a') ->
+  NoDup (flat_map g l).
+Proof.
+  intros Hl. induction Hl as [ | a l Ha Hl IH]; intros Hpieces Hapart;
+    [ apply NoDup_nil | ].
+  simpl. apply nodup_app_apart.
+  - apply Hpieces. left. reflexivity.
+  - apply IH.
+    + intros a' Hin. apply Hpieces. right. exact Hin.
+    + intros a' a'' b Hin' Hin''.
+      exact (Hapart a' a'' b (or_intror Hin') (or_intror Hin'')).
+  - intros b Hb Hin. apply in_flat_map in Hin.
+    destruct Hin as [a' [Hin' Hb']].
+    assert (Heq : a = a').
+    { exact (Hapart a a' b (or_introl eq_refl) (or_intror Hin') Hb Hb'). }
+    subst a'. exact (Ha Hin').
+Qed.
+
+Lemma insert_binding_time_nodup (binding_time : Binding_time.t)
+    (sorted : list Binding_time.t) :
+  ~ binding_time ∈ sorted ->
+  NoDup sorted ->
+  NoDup (Typing_env_level.insert_binding_time binding_time sorted).
+Proof.
+  induction sorted as [ | first rest IH]; intros Hnot Hsorted; simpl.
+  - apply NoDup_cons; [ intros [] | apply NoDup_nil ].
+  - destruct (binding_time <=? first).
+    + apply NoDup_cons; [ exact Hnot | exact Hsorted ].
+    + apply NoDup_cons_iff in Hsorted. destruct Hsorted as [Hfirst Hrest].
+      apply NoDup_cons.
+      * intros Hin. apply insert_binding_time_in in Hin.
+        destruct Hin as [-> | Hin]; [ | exact (Hfirst Hin) ].
+        apply Hnot. left. reflexivity.
+      * apply IH; [ | exact Hrest ]. intros Hin. apply Hnot. right.
+        exact Hin.
+Qed.
+
+Lemma sort_binding_times_nodup (times : list Binding_time.t) :
+  NoDup times -> NoDup (Typing_env_level.sort_binding_times times).
+Proof.
+  induction times as [ | first rest IH]; intros Htimes;
+    [ apply NoDup_nil | ].
+  apply NoDup_cons_iff in Htimes. destruct Htimes as [Hfirst Hrest].
+  rewrite sort_binding_times_cons. apply insert_binding_time_nodup.
+  - intros Hin. apply (proj1 (sort_binding_times_in rest first)) in Hin.
+    exact (Hfirst Hin).
+  - exact (IH Hrest).
+Qed.
+
+Theorem variables_in_order_distinct : variables_in_order_distinct_statement.
+Proof.
+  intros level Hone. unfold Typing_env_level.variables_in_order.
+  apply nodup_flat_map.
+  - apply sort_binding_times_nodup.
+    apply (keyed_distinct_NoDup Z.eqb z_eqb_decides_equality).
+    apply (keyed_domain_distinct Z Z.eqb z_eqb_decides_equality).
+  - intros binding_time _.
+    destruct (Keyed.lookup Z.eqb binding_time
+                (Typing_env_level.binding_times level)) as [vars | ];
+      [ | apply NoDup_nil ].
+    apply distinct_NoDup. apply dedup_distinct.
+  - intros binding_time binding_time' x _ _ Hx Hx'.
+    exact (Hone x binding_time binding_time'
+             (bucket_indexed_at level binding_time x Hx)
+             (bucket_indexed_at level binding_time' x Hx')).
+Qed.
+
+Theorem cut_variables_in_order_distinct
+    : cut_variables_in_order_distinct_statement.
+Proof.
+  intros tenv cut_after level Hwf Hcut.
+  destruct (cut_indexed tenv cut_after level Hwf Hcut) as [_ Htimes].
+  apply variables_in_order_distinct.
+  intros x binding_time binding_time' Hx Hx'.
+  destruct (Htimes binding_time x Hx) as [ty [btm [Hlookup <-]]].
+  destruct (Htimes binding_time' x Hx') as [ty' [btm' [Hlookup' <-]]].
+  rewrite Hlookup in Hlookup'. injection Hlookup' as _ <-. reflexivity.
 Qed.
 
 Theorem variables_in_order_sorted : variables_in_order_sorted_statement.

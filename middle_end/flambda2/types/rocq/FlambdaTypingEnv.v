@@ -149,14 +149,16 @@
      ([union_right_biased], in [concat]) is the second followed by the
      first.
    - The variables that a level has at one binding time are a set in
-     the compiler and a list here, to which [add_definition] conses.
+     the compiler and a list here, to which [add_definition] conses; a
+     variable that is twice in the list is in the set once.
      [Typing_env_level.fold_on_defined_vars] goes through the binding
      times in increasing order, as the compiler does, and through the
-     variables of one binding time in the order of the list, where the
-     compiler goes through its set in its order on variables (by
-     compilation unit and stamp), which the model's names have not.
-     Where each binding time has one variable, as in the levels of an
-     environment, the two are the same.
+     variables of one binding time, each once, in the order of their
+     first places in the list, where the compiler goes through its set
+     in its order on variables (by compilation unit and stamp), which
+     the model's names have not. Where a binding time has one variable
+     the two are the same; that is so of the levels of an environment
+     that is well formed (FlambdaTypingEnvInvariantSpec.v).
    - [Flambda_kind.equal] is the core's [kind_eqb]
      (FlambdaKindModel.v). *)
 
@@ -292,14 +294,15 @@ Module Typing_env_level.
     fold_right insert_binding_time [] binding_times.
 
   (* The variables that the level has by binding time, those of the
-     earliest binding time first. Those of one binding time are in the
-     order of the list that the model has for them; the compiler has a
-     set there, and goes through it in its order on variables. *)
+     earliest binding time first. Those of one binding time are each
+     once, in the order of the list that the model has for them; the
+     compiler has a set there, and goes through it in its order on
+     variables. *)
   Definition variables_in_order (level : t) : list variable :=
     flat_map
       (fun binding_time =>
          match Keyed.lookup Z.eqb binding_time (binding_times level) with
-         | Some vars => vars
+         | Some vars => dedup vars
          | None => []
          end)
       (sort_binding_times (Keyed.domain Z.eqb (binding_times level))).

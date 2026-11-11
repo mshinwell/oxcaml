@@ -821,11 +821,21 @@ Definition cut_indexed_statement : Prop :=
             = binding_time.
 
 (* [Typing_env_level.fold_on_defined_vars] goes through the variables
-   that a level has at a binding time... *)
+   that a level has at a binding time, each once for each binding time
+   that it is at... *)
 Definition variables_in_order_indexed_statement : Prop :=
   ∀ (level : Typing_env_level.t) (x : variable),
     x ∈ Typing_env_level.variables_in_order level
     <-> ∃ binding_time : Binding_time.t, indexed_at level binding_time x.
+
+(* ... so once in all, where no variable is at two binding times... *)
+Definition variables_in_order_distinct_statement : Prop :=
+  ∀ level : Typing_env_level.t,
+    (∀ (x : variable) (binding_time binding_time' : Binding_time.t),
+      indexed_at level binding_time x ->
+      indexed_at level binding_time' x ->
+      binding_time = binding_time') ->
+    NoDup (Typing_env_level.variables_in_order level).
 
 (* ... by binding time: one that it comes to before another is at a
    binding time that is not later. *)
@@ -862,6 +872,14 @@ Definition fold_on_defined_vars_defined_statement : Prop :=
               | None => acc
               end)
            (Typing_env_level.variables_in_order level) init).
+
+(* On the level that [Typing_env.cut] answers it comes to each variable
+   once. *)
+Definition cut_variables_in_order_distinct_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (cut_after : Scope.t) (level : Typing_env_level.t),
+    typing_env_well_formed tenv = true ->
+    Typing_env.cut tenv cut_after = Some level ->
+    NoDup (Typing_env_level.variables_in_order level).
 
 (* ======================================================================== *)
 (* The functions keep the invariant                                         *)
