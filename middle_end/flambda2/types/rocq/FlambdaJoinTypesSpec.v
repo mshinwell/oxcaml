@@ -38,9 +38,11 @@
 
    What is to be proved, in the end, is one thing: the join of types
    meets [n_way_join_type_sound], the contract that the join of
-   environments assumes of the join of types that it is given. Until
-   every function is transcribed, this file states the same of the
-   functions that are, each in its own form.
+   environments assumes of the join of types that it is given, as that
+   file states it. Until then this file states the same of the
+   functions that join heads with no types inside them, each in its own
+   form; the same of the functions that join products and closures
+   entries is proved, and stated with its proof.
 
    How it is stated. The functions of the traversal thread the state of
    the join of environments, of which this file knows what
@@ -56,7 +58,10 @@
    of the target that extends that of its index, and the answer is
    kinded in the target if the state is kinded. What "upper bound"
    means depends on the things: for types, that a value that has the
-   one has the other.
+   one has the other. The contract of the join of types says one thing
+   more, which is of types only and which [join_step_sound] does not
+   say: the type answered is of the kind of each type given. It is
+   proved of the join of types itself, with the rest of its contract.
 
    The join of types is not a recursion on a type: when it is given an
    alias and something that is not one it expands the alias, to a type
@@ -83,6 +88,20 @@
      types that this file is built on does not say yet: until it does,
      the premise cannot be met where an [Is_int] relation is on a name
      whose canonical element is a poison constant.
+   - [expand_head_sound]: a value that has a type has the type as
+     [Expand_head] expands it, under a valuation that satisfies the
+     environment strictly; the expanded type is in the scope of the
+     environment, kinded there and of the kind of the type, where the
+     type is. The owner of the meet proves it. The last part needs
+     that a constant that is the canonical element of a [Simple] of a
+     kind is of that kind, which the compiler does not test
+     (discrepancy T4-7): it is asked here of an environment that is
+     well formed, and is for the invariant of typing environments to
+     give.
+   - [type_eqb_sound] and [block_shape_eqb_sound]: two types that the
+     test of structural equality identifies have the same values, and
+     two shapes that the test of shapes identifies are one shape. The
+     owner of the grammar proves them of its tests.
 
    What is found of the compiler on the way is said at the function
    concerned, in FlambdaJoinTypes.v, and recorded as a discrepancy
@@ -199,9 +218,12 @@ Context
   (join_env_n_way_join_env_extension :
      state -> list (Index.t * env_extension)
      -> option (Or_bottom.t (env_extension * state)))
+  (expand_head : Typing_env.t -> flambda_type -> option Expanded_type.t)
   (reduce_head_of_kind_naked_immediate :
      Typing_env.t -> head_of_kind_naked_immediate
-     -> Or_bottom.t head_of_kind_naked_immediate).
+     -> Or_bottom.t head_of_kind_naked_immediate)
+  (type_eqb : flambda_type -> flambda_type -> bool)
+  (block_shape_eqb : block_shape -> block_shape -> bool).
 
 (* What is assumed of the environment side: its invariant has
    witnesses, and its three functions meet their contracts. *)
@@ -229,6 +251,40 @@ Definition reduce_head_of_kind_naked_immediate_sound : Prop :=
     ∃ head' : head_of_kind_naked_immediate,
       reduce_head_of_kind_naked_immediate tenv head = Or_bottom.Ok head'
       ∧ head_of_kind_naked_immediate_satisfied statics valuation v head'.
+
+(* What is assumed of [Expand_head.expand_head]: the expanded type has
+   the values of the type; it is in scope and kinded where the type is;
+   and it is of the kind of the type, in an environment that is well
+   formed and kinded. *)
+Definition expand_head_sound : Prop :=
+  ∀ (tenv : Typing_env.t) (ty : flambda_type) (expanded : Expanded_type.t),
+    expand_head tenv ty = Some expanded ->
+    (∀ (statics : static_env) (valuation : env) (v : value),
+       typing_env_satisfied_strictly statics valuation tenv ->
+       type_satisfied statics valuation v ty ->
+       type_satisfied statics valuation v (Expanded_type.to_type expanded))
+    ∧ (typing_env_well_formed tenv ->
+       type_in_scope tenv ty ->
+       type_in_scope tenv (Expanded_type.to_type expanded))
+    ∧ (typing_env_kinded tenv ->
+       type_kinded tenv ty ->
+       type_kinded tenv (Expanded_type.to_type expanded))
+    ∧ (typing_env_well_formed tenv ->
+       typing_env_kinded tenv ->
+       type_kinded tenv ty ->
+       Expanded_type.kind expanded = kind ty
+       ∧ kind (Expanded_type.to_type expanded) = kind ty).
+
+(* What is assumed of the two tests of equality. *)
+Definition type_eqb_sound : Prop :=
+  ∀ t t' : flambda_type,
+    type_eqb t t' = true ->
+    ∀ (statics : static_env) (vars : env) (v : value),
+      type_satisfied statics vars v t <-> type_satisfied statics vars v t'.
+
+Definition block_shape_eqb_sound : Prop :=
+  ∀ shape shape' : block_shape,
+    block_shape_eqb shape shape' = true -> shape = shape'.
 
 (* A thing given is in the scope of an environment and kinded there:
    the environment knows its variables, and has its aliases at their
