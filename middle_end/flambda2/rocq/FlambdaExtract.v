@@ -104,6 +104,7 @@ Separate Extraction
   load_known_blocks
   lookup
   make_code_metadata
+  make_exn_handler_metadata
   make_handler_metadata
   map_values
   merge
@@ -118,10 +119,12 @@ Separate Extraction
   rewrite_code
   run
   step
+  traps_well_formed
   unarize
   unbind
   unbox_known_numbers
   union_with
+  unit_exn_handlers_well_formed
   validate_unit
   well_formed_unit
   well_kinded_unit
