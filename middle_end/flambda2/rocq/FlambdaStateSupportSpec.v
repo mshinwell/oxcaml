@@ -29,7 +29,7 @@
    action of FlambdaEquivarianceSpec.v, the states of the machine are a
    nominal set.
 
-   This file is to be reviewed: the two statements.
+   This file is to be reviewed: the three statements.
 
    A nominal set is a set with an action of the permutations of names in
    which every element has a finite support: finitely many names such
@@ -46,6 +46,13 @@
 
    So the expressions and the states are nominal sets, and [step], [run]
    and [behaves] are equivariant functions and relations between them.
+
+   The machine of FlambdaTrapSpec.v runs a state under a stack of
+   exception handlers and of calls, and commutes with the action too
+   (FlambdaTrapSpec.stack_step_equivariant_statement). A state with a
+   stack has a finite support as well
+   ([stack_configuration_finitely_supported_statement]), so what that
+   machine runs is a nominal set.
 
    A state is not made an instance of
    FlambdaNameAbstractionSpec.contains_names, and the equivariance of
@@ -68,7 +75,7 @@ From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaNominalSpec FlambdaNameAbstractionSpec
-  FlambdaEquivarianceSpec.
+  FlambdaEquivarianceSpec FlambdaTrapSpec.
 Import ListNotations.
 
 Definition expr_finitely_supported_statement : Prop :=
@@ -86,3 +93,13 @@ Definition state_finitely_supported_statement : Prop :=
         fixes (variable_permutation r) vs ->
         fixes (continuation_permutation r) ks ->
         rename_state r s = s.
+
+(* A state and a stack, which are what the machine of FlambdaTrapSpec.v
+   runs, are supported together by finitely many names. *)
+Definition stack_configuration_finitely_supported_statement : Prop :=
+  ∀ (s : state) (st : stack),
+    ∃ (vs : list variable) (ks : list continuation),
+      ∀ r : renaming,
+        fixes (variable_permutation r) vs ->
+        fixes (continuation_permutation r) ks ->
+        rename_state r s = s ∧ rename_stack r st = st.

@@ -39,7 +39,7 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaNominalSpec
   FlambdaAlphaSpec FlambdaNameAbstractionSpec FlambdaEquivarianceSpec
-  FlambdaStateSupportSpec.
+  FlambdaTrapSpec FlambdaStateSupportSpec.
 Import ListNotations.
 
 Definition supported {T : Type} (act : renaming -> T -> T) (t : T) : Prop :=
@@ -469,4 +469,40 @@ Proof.
            rename_state State e vars conts statics (fun r => eq_refl)
            (expr_supported e) (env_supported vars) (cont_env_supported conts)
            (static_env_supported statics)).
+Qed.
+
+(* ======================================================================== *)
+(* A state with a stack                                                     *)
+(* ======================================================================== *)
+
+Lemma stack_entry_supported (entry : stack_entry) :
+  supported rename_stack_entry entry.
+Proof.
+  destruct entry as [c | ret exn return_to extra].
+  - exact (supported1 rename_cont_value rename_stack_entry Trap c
+             (fun r => eq_refl) (cont_value_supported c)).
+  - exact (supported3 rename_continuation rename_continuation
+             rename_cont_value rename_stack_entry
+             (fun ret exn return_to => Call ret exn return_to extra) ret exn
+             return_to (fun r => eq_refl) (supported_continuation ret)
+             (supported_continuation exn)
+             (cont_value_supported return_to)).
+Qed.
+
+Lemma stack_supported (st : stack) : supported rename_stack st.
+Proof.
+  apply (supported_map rename_stack_entry).
+  induction st as [ | entry st IH]; constructor;
+    [ apply stack_entry_supported | exact IH ].
+Qed.
+
+Theorem stack_configuration_finitely_supported :
+  stack_configuration_finitely_supported_statement.
+Proof.
+  intros s st.
+  destruct (state_finitely_supported s) as (vs & ks & Hstate).
+  destruct (stack_supported st) as (vs' & ks' & Hstack).
+  exists (vs ++ vs'), (ks ++ ks'). intros r Hvars Hconts. split.
+  - apply Hstate; eauto using fixes_app_l.
+  - apply Hstack; eauto using fixes_app_r.
 Qed.
