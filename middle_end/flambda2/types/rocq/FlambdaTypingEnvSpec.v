@@ -146,13 +146,17 @@
      To be strictly satisfied is not to be free of poison. A name may
      hold poison where its type admits it: the unknown type, an alias
      of a name that holds it, the type of the values that are not null.
-     But a relation of a type ([Is_int], [Get_tag], [Is_null]) is never
-     true of a scrutinee that holds poison (FlambdaTypeMeaningSpec.v;
-     decision D26 as revised), so under strict satisfaction a statement
-     that reads a relation has no case of poison. (Where no name holds
-     poison the two notions are one,
-     [satisfied_no_poison_strictly_statement]; that is a narrower case
-     than to be strictly satisfied.)
+     By decision D26 as revised, a relation of a type ([Is_int],
+     [Get_tag], [Is_null]) is never true of a scrutinee that holds
+     poison. So a value that has a type with a relation has a scrutinee
+     that is not poison, and a statement that reads a relation from the
+     type of a name that has a value has no case of poison; of a name
+     with no value the type says nothing, as above. This is so once
+     FlambdaTypeMeaningSpec.v says it: until then [Is_int] and
+     [Get_tag] there hold of a scrutinee that is poison, and such a
+     statement has that case to deal with. (Where no name holds poison
+     the two notions are one, [satisfied_no_poison_strictly_statement];
+     that is a narrower case than to be strictly satisfied.)
      [typing_env_satisfied]: the names that hold poison are exempt,
      and those whose type is a relation on a name that holds poison
      ([exempt_by_poison]; decision D26; there is a CR there). Typing
