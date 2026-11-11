@@ -29,7 +29,9 @@
 (* The validator commutes with renaming: each of its rewrites and each of
    its checks.
 
-   This file is to be reviewed: [rewrite_equivariant] and the statements.
+   This file is to be reviewed: [rewrite_equivariant], the action of a
+   renaming on what a pass carries (the definitions named [rename_...]),
+   and the statements.
 
    FlambdaEquivarianceSpec.v says that execution commutes with the
    renamings of FlambdaNominalSpec.v, and that two of the rewrites that
@@ -82,6 +84,16 @@
    which is the two together; and the condition on the environments
    under which that rewrite is sound ([envs_free_of]).
 
+   Two passes go through a term carrying what they know of its names:
+   FlambdaBlockLoadSpec.load_known_blocks, of the variables and symbols
+   that are blocks, and FlambdaUnboxSpec.unbox_known_numbers, of those
+   that are boxed or tagged numbers. What they carry holds variables,
+   so a renaming acts on it ([rename_known_blocks],
+   [rename_known_numbers], which are to be reviewed), and each pass
+   commutes with renaming when what it knows is renamed with the term.
+   As the validation runs them, with nothing known, they are rewrites
+   that take a term and nothing else.
+
    Nothing is trusted here. The proofs are in
    FlambdaValidatorEquivarianceProofs.v, which needs no review. *)
 
@@ -90,7 +102,7 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaNominalSpec FlambdaAlphaSpec
   FlambdaNormaliseSpec FlambdaEquivarianceSpec FlambdaUnusedContsSpec
-  FlambdaUnusedStaticsSpec.
+  FlambdaUnusedStaticsSpec FlambdaBlockLoadSpec FlambdaUnboxSpec.
 Import ListNotations.
 
 (* A rewrite of terms that takes nothing but the term commutes with
@@ -233,3 +245,60 @@ Definition envs_free_of_equivariant_statement : Prop :=
     envs_free_of D (rename_env r vars) (rename_cont_env r conts)
       (rename_static_env r statics)
     = envs_free_of D vars conts statics.
+
+(* ======================================================================== *)
+(* FlambdaBlockLoadSpec.v: what is known of blocks                          *)
+(* ======================================================================== *)
+
+(* The pass carries what is known of the blocks of the term, which holds
+   variables: those that are known to be blocks, and those that the
+   fields of a block are known to hold. A renaming acts on both. The
+   symbols that are known to be blocks, the tags and the numbers of
+   fields are as they were. *)
+Definition rename_known_block (r : renaming) (block : known_block)
+    : known_block :=
+  (fst block, map (option_map (rename_simple r)) (snd block)).
+
+Definition rename_known_blocks (r : renaming) (known : known_blocks)
+    : known_blocks :=
+  Known_blocks
+    (map
+       (fun entry =>
+          (rename_variable r (fst entry), rename_known_block r (snd entry)))
+       (known_vars known))
+    (map_values (rename_known_block r) (known_symbols known)).
+
+(* What is known is renamed with the term. *)
+Definition load_blocks_knowing_equivariant_statement : Prop :=
+  ∀ (r : renaming) (known : known_blocks) (e : expr),
+    load_blocks_knowing (rename_known_blocks r known) (rename_expr r e)
+    = rename_expr r (load_blocks_knowing known e).
+
+(* The pass as the validation runs it, with nothing known. *)
+Definition load_known_blocks_equivariant_statement : Prop :=
+  rewrite_equivariant load_known_blocks.
+
+(* ======================================================================== *)
+(* FlambdaUnboxSpec.v: what is known of wrapped numbers                     *)
+(* ======================================================================== *)
+
+(* Likewise: the variables that are known to be wrapped numbers are
+   renamed, and what each wraps. What is known of a symbol is a
+   constant. *)
+Definition rename_known_numbers (r : renaming) (known : known_numbers)
+    : known_numbers :=
+  Known_numbers
+    (map
+       (fun entry =>
+          (rename_variable r (fst entry),
+           (fst (snd entry), rename_simple r (snd (snd entry)))))
+       (known_wrapped_vars known))
+    (known_boxed_symbols known).
+
+Definition unbox_numbers_knowing_equivariant_statement : Prop :=
+  ∀ (r : renaming) (known : known_numbers) (e : expr),
+    unbox_numbers_knowing (rename_known_numbers r known) (rename_expr r e)
+    = rename_expr r (unbox_numbers_knowing known e).
+
+Definition unbox_known_numbers_equivariant_statement : Prop :=
+  rewrite_equivariant unbox_known_numbers.
