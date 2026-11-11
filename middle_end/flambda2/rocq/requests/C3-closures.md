@@ -645,17 +645,26 @@ full.
 **Calls, and what a GADT can produce.** The human's rule is that
 whatever programs with GADTs and the layout `any` can produce must be
 undefined in the model: a call whose arities are not those of the code
-called is the case that matters here. The change keeps it, because it
-does not touch `Apply`, `call_function` or `step`. A call reads its
-callee with `closure_of`, which for a closure of a set gives the code
-of the closure's own slot; `call_function` then binds the parameters of
-that code to the arguments and has no step if they are not as many, and
-a direct call has no step unless the code it names is that code. After
-C2's epoch the comparison of arities is made in the same place, on the
-same code. `step_apply_closure` (`FlambdaSemanticsProofs.v`) is the one
-way in which a call has a step. Likewise a projection from a value that
-is not a closure, which such programs can also contain in branches that
-are never taken, is undefined.
+called is the case that matters here. The change neither adds to what
+the machine checks of a call nor takes from it, because it does not
+touch `Apply`, `call_function` or `step`. What the machine checks at
+this stage is less than the rule asks. `call_function` binds the
+parameters of the code to the arguments (`bind_params`) and has no
+step if they are not as many; and a direct call has no step unless the
+closure is of the code it names. That is all: a call with as many
+arguments as parameters has a step whatever their kinds, and whatever
+the arity of the call as a product or of its result, with a closure of
+a set as with any other. Making those calls undefined is C2's work
+(the arities of the call compared with those of the code, in
+`call_function`); the full test of arities has not landed with this
+change. What the change does ensure is that the test will be made in
+the same place and on the same code for a closure of a set: a call
+reads its callee with `closure_of`, which for a closure of a set gives
+the code of the closure's own slot. `step_apply_closure`
+(`FlambdaSemanticsProofs.v`) is the one way in which a call has a
+step. Likewise a projection from a value that is not a closure, which
+such programs can also contain in branches that are never taken, is
+undefined.
 
 **Names.** For each new form the renaming and the free names are in the
 same change, and agree (`FlambdaNominalSpec.v`: `rename_named`,
