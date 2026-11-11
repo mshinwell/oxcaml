@@ -116,7 +116,13 @@ All in `middle_end/flambda2/types/rocq/`, library `OxCamlFlambda2Types`.
     of types)
   - `middle_end/flambda2/types/rocq/FlambdaTypeMeaning*` (what a type
     means: `type_satisfied`)
-- T2, typing environment. Owner: unassigned.
+- T2, typing environment. Owner: T2, on `flambda2-rocq/T2-env`.
+  - `middle_end/flambda2/types/rocq/FlambdaBindingTime.v` (binding times
+    and name modes, after `types/env/binding_time.ml` and
+    `nominal/name_mode.ml`; written first on T3's branch, which needs it)
+  - `middle_end/flambda2/types/rocq/FlambdaTypingEnv*` (the typing
+    environment, after `types/env/typing_env.ml`, `typing_env_level.ml`,
+    `cached_level.ml` and `typing_env_extension.ml`; what satisfies one)
 - T3, aliases. Owner: T3, on `flambda2-rocq/T3-aliases`.
   - `middle_end/flambda2/types/rocq/FlambdaAliases*` (today's, which T3
     replaces; `follow_aliases` is used by the validator, so a change to
