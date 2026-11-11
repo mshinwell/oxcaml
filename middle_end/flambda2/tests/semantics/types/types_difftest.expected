@@ -121,6 +121,10 @@ Raw row-like structures of blocks (1000 cases, seeds 31000 to 31999)
 
 Two types of kind value, for the two meets and the two joins (1000 cases, seeds 9000 to 9999)
   1000 converted
+  meet (binary): the variables of the answer are defined in the environment answered: 589 agree
+    411 not run: the meet is bottom
+  meet (n-way): the variables of the answer are defined in the environment answered: 589 agree
+    411 not run: the meet is bottom
   meet: the binary and the n-way implementation: 1000 agree
   join: the binary and the n-way implementation: 791 agree, 209 disagree as recorded
     recorded as T7-3, the binary join is unknown and the n-way join is not (seed 9007): the binary join gives

@@ -1337,7 +1337,50 @@ let two_implementations (names : names) :
       Format.fprintf ppf "@[<v>%a@ and for the names %a@]" Model_type.print t
         print_types types
   in
-  [ { name = "meet: the binary and the n-way implementation";
+  (* A meet may answer a type that mentions a variable made on the way. The
+     environment answered with it is to define every such variable. *)
+  let defined_in_the_answer (implementation : implementation) =
+    { name =
+        Printf.sprintf
+          "meet (%s): the variables of the answer are defined in the \
+           environment answered"
+          implementation.implementation;
+      compare =
+        (fun (m1, m2) ->
+          let t1 = to_compiler names m1 and t2 = to_compiler names m2 in
+          match implementation.meet names.env t1 t2 with
+          | Bottom -> Not_run "the meet is bottom"
+          | Ok (t, env) -> (
+            let of_the_names =
+              List.map
+                (fun (name, kind) -> TE.find env name (Some kind))
+                names.defined
+            in
+            let not_defined =
+              List.concat_map
+                (fun t ->
+                  Name_occurrences.fold_names (TG.free_names t) ~init:[]
+                    ~f:(fun not_defined name ->
+                      if TE.mem env name
+                      then not_defined
+                      else name :: not_defined))
+                (t :: of_the_names)
+            in
+            match not_defined with
+            | [] -> Agree
+            | name :: _ ->
+              Known_to_disagree
+                ( "T4-9",
+                  Format.asprintf
+                    "@[<v>the meet answers@ %a@ and the environment answered \
+                     does not define %a@]"
+                    Model_type.print (to_model names t) Model_type.print_name
+                    (Converter.name_to_model names.numbering name) )))
+    }
+  in
+  [ defined_in_the_answer binary;
+    defined_in_the_answer n_way;
+    { name = "meet: the binary and the n-way implementation";
       compare =
         (fun (m1, m2) ->
           let t1 = to_compiler names m1 and t2 = to_compiler names m2 in
