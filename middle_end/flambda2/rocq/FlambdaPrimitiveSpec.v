@@ -136,6 +136,17 @@ Definition const_of_int (kind : standard_int) (i : Z) : const :=
 
 (* The integer that a value is, if it is a constant of the kind and in
    its range. *)
+(* CR mshinwell: A constant that is out of the range of its kind is not an
+   integer of that kind, so the arithmetic, the comparisons, tagging and
+   untagging have no value on it. The compiler cannot build such a
+   constant: each of its numbers is of a type that holds its range only
+   ([Targetint_31_63.t], [Int32.t], ...). So this is about terms that
+   only the model has, and the choice is between no value, as here, and
+   reading the constant wrapped. No value would be wrong only if a term
+   of the compiler came to hold such a constant in the model, which
+   would be a fault of the conversion. A condition of well-formedness
+   that every constant is in range would make the question go away.
+   Decision D13. *)
 Definition int_of_value (kind : standard_int) (v : value) : option Z :=
   match kind, v with
   | Standard_tagged_immediate, Value_const (Tagged_immediate i)
@@ -161,6 +172,14 @@ Definition int_of_value (kind : standard_int) (v : value) : option Z :=
    ([Simplify_binary_primitive], [op_lhs_unknown]). The least integer
    divided by minus one wraps to itself. The bitwise operations are those
    of two's complement. *)
+(* CR mshinwell: [Div] and [Mod] have no value on a zero divisor. It is
+   what Simplify assumes, which makes such a division [Invalid]. It is
+   right for a division of the source, which follows a test of the
+   divisor. Nothing checks it for the unsafe divisions that the front
+   end makes without a test (those of comprehensions), where the
+   machine's division traps on x86-64. It would be wrong if a division
+   by zero that is reached has to mean something, or if a pass may move
+   a division to where its divisor has not been tested. Decision D14. *)
 Definition eval_int_arith (width : Z) (op : binary_int_arith_op) (a b : Z)
     : option Z :=
   match op with
@@ -225,6 +244,21 @@ Definition is_tagged_immediate (v : value) : bool :=
    every other allocated value. It has no value on null, on poison, or
    on a symbol bound to nothing; on a poison constant Simplify folds it
    to 1. *)
+(* CR mshinwell: With [variant_only], [Is_int] has no value on a closure,
+   a boxed number or a string. The machine computes the low bit of the
+   word and answers 0; Simplify answers [Invalid]. That the front end
+   applies the variant-only form to variants only is nowhere checked or
+   written down. It would be wrong if code that the machine runs
+   applies it to something else that is not ill-kinded: then Simplify
+   removes code that runs, and the model, by making it undefined, does
+   not say so. Decisions D5 and D22. *)
+(* CR mshinwell: [Is_int] has no value on null, with or without
+   [variant_only], where the machine answers 0. With [variant_only]
+   Simplify makes it [Invalid]; without, Simplify claims nothing, and
+   the model could as well answer 0. It has no value on poison either,
+   where Simplify folds it to 1 and the backend makes poison a tagged
+   immediate: that is right only if a poison is never the argument of a
+   primitive that is executed. Decision D8. *)
 Definition eval_is_int (statics : static_env) (variant_only : bool)
     (v : value) : option bool :=
   if is_tagged_immediate v then Some true
@@ -236,6 +270,14 @@ Definition eval_is_int (statics : static_env) (variant_only : bool)
 
 (* [Is_null]. It has no value on poison or on a symbol bound to
    nothing; on a poison constant Simplify folds it to 0. *)
+(* CR mshinwell: [Is_null] has no value on poison. Simplify folds it to 0
+   on a poison constant ([Reg_width_const.is_null]) and the backend
+   makes a poison of kind [Value] a tagged immediate, so the compiler
+   takes it to be 0. No value is sound for that folding and is right if
+   a poison is never the argument of a primitive that is executed; it
+   would be wrong if one may be, when the model should rather say that
+   poison is some tagged immediate. Decision D8 (which rules on the
+   symbol bound to nothing, not on poison). *)
 Definition eval_is_null (statics : static_env) (v : value) : option bool :=
   match v with
   | Value_const Null => Some true
@@ -278,6 +320,16 @@ Definition known_is (known : option Z) (actual : Z) : bool :=
    block to have that tag and that field only where it does not already
    know the field, when it reads it whatever the tag; it does not use
    the size. *)
+(* CR mshinwell: [Block_load] has no value on a block whose tag or whose
+   number of fields is not the one the access kind gives, nor, with
+   [Immediate], on a field that is not a tagged immediate. The machine
+   reads the field whatever the three are. Simplify uses the tag on one
+   of its two paths only, never the size, and reads a field that is not
+   an immediate under [Immediate]; nothing in the compiler says what an
+   access kind promises of the block, or checks it. It would be wrong
+   if the compiler makes a load whose access kind disagrees with the
+   block that reaches it: the model then calls undefined a load that
+   the compiler means. Decisions D15 and D22. *)
 Definition eval_block_load (statics : static_env) (kind : block_access_kind)
     (field : Z) (v : value) : option value :=
   match kind with
@@ -314,6 +366,22 @@ Definition eval_block_load (statics : static_env) (kind : block_access_kind)
      by the constructor of the constant.
    - [Untag_immediate] and [Tag_immediate] change a tagged immediate into
      the naked immediate that is the same integer, and back. *)
+(* CR mshinwell: [Get_tag] has no value on what is not a block: a tagged
+   immediate, null, a closure, a boxed number, a string. On anything
+   allocated the machine reads the tag in the header. Simplify makes it
+   [Invalid] on null and on a boxed number, and leaves it alone on a
+   tagged immediate; the unboxing of variants records the tag of a
+   scrutinee that may be an immediate. It would be wrong if the
+   compiler makes a [Get_tag] that is executed on a closure, a boxed
+   number or a string and uses the result. Decisions D5 and D22. *)
+(* CR mshinwell: [Box_number] has no value on a poison constant, and
+   [Unbox_number] none on a boxed number whose contents are poison,
+   although such a box is a boxed number for [Is_null] and [Is_int]
+   (FlambdaValueSpec.v). Nothing in the compiler says what boxing a
+   poison means when it is executed; the backend makes a poison some
+   number of its kind, which it would box and unbox like another. It
+   would be wrong if a poison may be boxed where the code is executed
+   and the box is then only passed on, not read. Decision D21. *)
 Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
     (v : value) : option value :=
   match p with
@@ -369,6 +437,16 @@ Definition eval_binary_primitive (p : binary_primitive) (v1 v2 : value)
    ([To_cmm_primitive.check_alloc_fields]) and relies on Simplify's
    having made it a symbol, which is an obligation of the compiler and
    not a reason for the term to be undefined. *)
+(* CR mshinwell: A [Make_block] says nothing of its fields but that each
+   is of kind [Value]: the block kind of the model has not the subkind
+   that the compiler gives each field, and the conversion refuses a
+   block that has one. So nothing is undefined here by a field's
+   subkind. In the compiler Simplify meets each argument that is a
+   variable with the subkind and gives [Invalid] where they cannot
+   agree, the subkinds come from the types of the source, and the
+   backend ignores them. When they come into the model, whether a
+   field that is not of its subkind makes the block undefined is to be
+   settled with the kinds. Decision D25. *)
 Definition eval_variadic_primitive (p : variadic_primitive)
     (vs : list value) : option value :=
   match p with
