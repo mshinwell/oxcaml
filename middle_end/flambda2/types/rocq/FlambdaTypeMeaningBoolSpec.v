@@ -97,6 +97,13 @@ Definition value_eqb_decides_equality_statement : Prop :=
 (* The relations, the shapes and the indexes                                *)
 (* ======================================================================== *)
 
+(* [is_poison]. *)
+Definition is_poison_b (v : value) : bool :=
+  match v with
+  | Value_const (Poison _) => true
+  | _ => false
+  end.
+
 (* [relation_holds]. *)
 Definition relation_holds_b (statics : static_env) (relation : Relation.t)
     (v : value) (n : Z) : bool :=
@@ -107,23 +114,25 @@ Definition relation_holds_b (statics : static_env) (relation : Relation.t)
     | _ => kind_eqb (kind_of_value v) Value && Z.eqb n 0
     end
   | Relation.Is_int =>
-    match v with
-    | Value_const (Tagged_immediate _) => Z.eqb n 1
-    | _ =>
-      match block_of statics v with
-      | Some _ => Z.eqb n 0
-      | None => false
-      end
-    end
+    is_poison_b v
+    || match v with
+       | Value_const (Tagged_immediate _) => Z.eqb n 1
+       | _ =>
+         match block_of statics v with
+         | Some _ => Z.eqb n 0
+         | None => false
+         end
+       end
   | Relation.Get_tag =>
-    match v with
-    | Value_const (Tagged_immediate _) => true
-    | _ =>
-      match block_of statics v with
-      | Some (tag, _) => Z.eqb tag n
-      | None => false
-      end
-    end
+    is_poison_b v
+    || match v with
+       | Value_const (Tagged_immediate _) => true
+       | _ =>
+         match block_of statics v with
+         | Some (tag, _) => Z.eqb tag n
+         | None => false
+         end
+       end
   end.
 
 Definition relation_holds_b_iff_statement : Prop :=

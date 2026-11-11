@@ -525,17 +525,10 @@ Qed.
 Theorem type_naked_number_satisfied : type_naked_number_satisfied_statement.
 Proof. intros statics vars v k numbers. reflexivity. Qed.
 
-(* The type of the result of a relation on the value of a name, where the
-   numbers known include every result the relation can have. *)
+(* The type of the result of a relation on the value of a name. *)
 Lemma relation_type_satisfied (statics : static_env) (vars : env) (v : value)
     (relation : Relation.t) (scrutinee : name)
     (numbers : Or_unknown.t (list Z)) :
-  (∀ (w : value) (i : Z),
-    relation_holds statics relation w i ->
-    match numbers with
-    | Or_unknown.Unknown => True
-    | Or_unknown.Known numbers => i ∈ numbers
-    end) ->
   type_satisfied statics vars v
     (Type_naked_immediate
        (Ok
@@ -543,41 +536,60 @@ Lemma relation_type_satisfied (statics : static_env) (vars : env) (v : value)
              (Head_of_kind_naked_immediate numbers [(relation, scrutinee)]))))
   <-> ∃ (i : Z) (w : value),
         v = Value_const (Naked_immediate i)
+        ∧ match numbers with
+          | Or_unknown.Unknown => True
+          | Or_unknown.Known numbers => i ∈ numbers
+          end
         ∧ value_of_name vars scrutinee = Some w
         ∧ relation_holds statics relation w i.
 Proof.
-  intros Hnumbers. simpl. unfold head_of_kind_naked_immediate_satisfied.
-  simpl. split.
-  - intros [i [Hv [_ Hrelations]]].
+  simpl. unfold head_of_kind_naked_immediate_satisfied. simpl. split.
+  - intros [i [Hv [Hnumbers Hrelations]]].
     destruct (Hrelations relation scrutinee (or_introl eq_refl))
       as [w [Hw Hholds]].
     exists i, w. repeat split; assumption.
-  - intros [i [w [Hv [Hw Hholds]]]]. exists i.
-    split; [ exact Hv | ]. split; [ exact (Hnumbers w i Hholds) | ].
+  - intros [i [w [Hv [Hnumbers [Hw Hholds]]]]]. exists i.
+    split; [ exact Hv | ]. split; [ exact Hnumbers | ].
     intros relation' n [[= <- <-] | []]. exists w. split; assumption.
 Qed.
 
 Theorem is_int_for_scrutinee_satisfied
   : is_int_for_scrutinee_satisfied_statement.
 Proof.
-  intros statics vars v scrutinee.
-  apply (relation_type_satisfied statics vars v Relation.Is_int).
-  intros w i [[_ ->] | [_ ->]]; simpl; auto.
+  intros statics vars v scrutinee. unfold is_int_for_scrutinee.
+  rewrite (relation_type_satisfied statics vars v Relation.Is_int). simpl.
+  split.
+  - intros [i [w [Hv [Hnumbers [Hw Hholds]]]]]. exists i, w.
+    split; [ exact Hv | ]. split; [ exact Hw | ].
+    destruct Hholds as [H | [H | H]];
+      [ left; exact H | right; left; exact H | right; right ].
+    split; [ exact H | ]. destruct Hnumbers as [<- | [<- | []]]; auto.
+  - intros [i [w [Hv [Hw Hholds]]]]. exists i, w.
+    split; [ exact Hv | ]. split; [ | split; [ exact Hw | ] ].
+    + destruct Hholds as [[_ ->] | [[_ ->] | [_ [-> | ->]]]]; auto.
+    + destruct Hholds as [H | [H | [H _]]];
+        [ left; exact H | right; left; exact H | right; right; exact H ].
 Qed.
 
 Theorem get_tag_for_block_satisfied : get_tag_for_block_satisfied_statement.
 Proof.
-  intros statics vars v block.
-  apply (relation_type_satisfied statics vars v Relation.Get_tag).
-  intros w i _. exact I.
+  intros statics vars v block. unfold get_tag_for_block.
+  rewrite (relation_type_satisfied statics vars v Relation.Get_tag). simpl.
+  split.
+  - intros [i [w [Hv [_ [Hw Hholds]]]]]. exists i, w. auto.
+  - intros [i [w [Hv [Hw Hholds]]]]. exists i, w. auto.
 Qed.
 
 Theorem is_null_for_scrutinee_satisfied
   : is_null_for_scrutinee_satisfied_statement.
 Proof.
-  intros statics vars v scrutinee.
-  apply (relation_type_satisfied statics vars v Relation.Is_null).
-  intros w i [[_ ->] | [_ [_ ->]]]; simpl; auto.
+  intros statics vars v scrutinee. unfold is_null_for_scrutinee.
+  rewrite (relation_type_satisfied statics vars v Relation.Is_null). simpl.
+  split.
+  - intros [i [w [Hv [_ [Hw Hholds]]]]]. exists i, w. auto.
+  - intros [i [w [Hv [Hw Hholds]]]]. exists i, w.
+    split; [ exact Hv | ]. split; [ | split; [ exact Hw | exact Hholds ] ].
+    destruct Hholds as [[_ ->] | [_ [_ ->]]]; auto.
 Qed.
 
 (* The two sides of a relation agree. *)
@@ -603,7 +615,7 @@ Proof.
   intros [[i [Hv [His_int _]]] | [tag [fields [Hblock [His_int _]]]]].
   - exists 1%Z. split; [ exact His_int | ]. left.
     split; [ exists i; exact Hv | reflexivity ].
-  - exists 0%Z. split; [ exact His_int | ]. right.
+  - exists 0%Z. split; [ exact His_int | ]. right. left.
     split; [ exists tag, fields; exact Hblock | reflexivity ].
 Qed.
 
@@ -614,7 +626,7 @@ Proof.
   rewrite variant_satisfied. simpl.
   intros [[i [Hv _]] | [tag [fields [Hblock [_ [Hget_tag _]]]]]] Hn.
   - left. exists i. exact Hv.
-  - right. exists fields. rewrite Hget_tag in Hn. injection Hn as <-.
+  - right. left. exists fields. rewrite Hget_tag in Hn. injection Hn as <-.
     exact Hblock.
 Qed.
 
@@ -624,13 +636,15 @@ Theorem relation_of_const_sound : relation_of_const_sound_statement.
 Proof.
   intros statics relation c i n Hholds Hof_const.
   destruct relation; simpl in Hholds.
-  - destruct Hholds as [[[= ->] ->] | [_ [Hnot_null ->]]].
+  - left. destruct Hholds as [[[= ->] ->] | [_ [Hnot_null ->]]].
     + injection Hof_const as <-. reflexivity.
     + destruct c; try (injection Hof_const as <-; reflexivity).
       destruct (Hnot_null eq_refl).
-  - destruct Hholds as [[[j [= ->]] ->] | [[tag [fields Hblock]] _]].
-    + injection Hof_const as <-. reflexivity.
+  - destruct Hholds
+      as [[[j [= ->]] ->] | [[[tag [fields Hblock]] _] | Hpoison]].
+    + left. injection Hof_const as <-. reflexivity.
     + discriminate Hblock.
+    + right. split; [ reflexivity | exact Hpoison ].
   - discriminate Hof_const.
 Qed.
 
@@ -693,10 +707,10 @@ Proof.
       reflexivity.
     + destruct (block_of statics v) as [[tag fields] | ] eqn:Hblock;
         [ | discriminate ].
-      simpl. intros [= <-]. right.
+      simpl. intros [= <-]. right. left.
       split; [ exists tag, fields; exact Hblock | reflexivity ].
   - destruct (block_of statics v) as [[tag fields] | ]; [ | discriminate ].
-    simpl. intros [= <-]. right. exists fields. reflexivity.
+    simpl. intros [= <-]. right. left. exists fields. reflexivity.
 Qed.
 
 Theorem these_tagged_immediates_satisfied
@@ -1250,16 +1264,19 @@ Proof. no. Qed.
 (* A field that is unboxed in turn as a variant, on a path where the
    parameter it is a field of holds an immediate: [poison] is the
    parameter for the field, and [zero] stands for its extra parameters
-   for [Is_int] and [Get_tag], to which 0 is passed on this path. None
-   of the three types that build_unboxing_denv.ml records for them
-   holds (see the header of the Spec, on poison). *)
-Example unboxed_poison_is_int_has_not
-  : ~ has (naked 0) (is_int_for_scrutinee (Name_var poison)).
-Proof. no. Qed.
+   for [Is_int] and [Get_tag], to which 0 is passed on this path. The
+   two types that build_unboxing_denv.ml records for those hold: a
+   relation says nothing of a value that is poison. The type recorded
+   for the field does not hold of the poison value: that is for what
+   satisfies an environment to set aside (see the header of the Spec, on
+   poison). *)
+Example unboxed_poison_is_int_has
+  : has (naked 0) (is_int_for_scrutinee (Name_var poison)).
+Proof. yes. Qed.
 
-Example unboxed_poison_tag_has_not
-  : ~ has (naked 0) (get_tag_for_block (Name_var poison)).
-Proof. no. Qed.
+Example unboxed_poison_tag_has
+  : has (naked 0) (get_tag_for_block (Name_var poison)).
+Proof. yes. Qed.
 
 Example unboxed_poison_has_not
   : ~ has (Value_const (Poison Value))
@@ -1267,6 +1284,16 @@ Example unboxed_poison_has_not
            (Variant (Some zero) Or_unknown.Unknown (Some zero)
               Or_unknown.Unknown No_extensions false)).
 Proof. no. Qed.
+
+(* The type of the result of [Is_int] has 0 and 1 only, of poison too;
+   that of [Get_tag] has every number. *)
+Example unboxed_poison_is_int_has_not
+  : ~ has (naked 2) (is_int_for_scrutinee (Name_var poison)).
+Proof. no. Qed.
+
+Example unboxed_poison_any_tag_has
+  : has (naked 7) (get_tag_for_block (Name_var poison)).
+Proof. yes. Qed.
 
 Example is_null_has
   : has (naked 0) (is_null_for_scrutinee (Name_symbol a_closure)).
@@ -1861,12 +1888,13 @@ Lemma relation_holds_extend (relation : Relation.t) (v : value) (n : Z) :
 Proof.
   destruct relation; simpl.
   - auto.
-  - intros [Himmediate | [[tag [fields Hblock]] Hn]];
-      [ left; exact Himmediate | ].
-    right. split; [ | exact Hn ]. exists tag, fields.
+  - intros [Himmediate | [[[tag [fields Hblock]] Hn] | Hpoison]];
+      [ left; exact Himmediate | | right; right; exact Hpoison ].
+    right. left. split; [ | exact Hn ]. exists tag, fields.
     exact (block_of_extend _ _ Hblock).
-  - intros [Himmediate | [fields Hblock]]; [ left; exact Himmediate | ].
-    right. exists fields. exact (block_of_extend _ _ Hblock).
+  - intros [Himmediate | [[fields Hblock] | Hpoison]];
+      [ left; exact Himmediate | | right; right; exact Hpoison ].
+    right. left. exists fields. exact (block_of_extend _ _ Hblock).
 Qed.
 
 (* What holds of the fields under one meaning of types holds under
@@ -2461,17 +2489,20 @@ Qed.
 
 Theorem relation_is_int : relation_is_int_statement.
 Proof.
-  intros statics vars w n [[Himmediate ->] | [Hblock ->]].
+  intros statics vars w n [[Himmediate ->] | [[Hblock ->] | Hpoison]].
   - left. split; [ reflexivity | ].
     apply any_tagged_immediate_satisfied. exact Himmediate.
-  - right. split; [ reflexivity | ]. apply any_block_satisfied. exact Hblock.
+  - right. left. split; [ reflexivity | ].
+    apply any_block_satisfied. exact Hblock.
+  - right. right. exact Hpoison.
 Qed.
 
 Theorem relation_get_tag : relation_get_tag_statement.
 Proof.
-  intros statics vars w n tags alloc_mode [Himmediate | [fields Hblock]] Hin;
-    [ left; exact Himmediate | ].
-  right. apply blocks_with_these_tags_satisfied. exists n, fields.
+  intros statics vars w n tags alloc_mode
+    [Himmediate | [[fields Hblock] | Hpoison]] Hin;
+    [ left; exact Himmediate | | right; right; exact Hpoison ].
+  right. left. apply blocks_with_these_tags_satisfied. exists n, fields.
   split; assumption.
 Qed.
 
