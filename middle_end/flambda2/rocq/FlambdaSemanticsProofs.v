@@ -1067,8 +1067,9 @@ Qed.
 Lemma handler_metadata_eqb_eq (m m' : handler_metadata) :
   handler_metadata_eqb m m' = true <-> m = m'.
 Proof.
-  unfold handler_metadata_eqb. rewrite kinds_eqb_eq.
-  destruct m, m'; simpl. split; congruence.
+  unfold handler_metadata_eqb.
+  rewrite andb_true_iff, kinds_eqb_eq, Bool.eqb_true_iff.
+  destruct m, m'; simpl. split; [ intros [-> ->] | intros [= -> ->] ]; auto.
 Qed.
 
 Lemma code_metadata_eqb_eq (m m' : code_metadata) :

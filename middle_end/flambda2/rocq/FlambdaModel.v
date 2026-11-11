@@ -57,8 +57,8 @@
    - the other call kinds (methods, C calls, effects), [Never_returns],
      partial and over-application, and the modes and inlining attributes
      of an [Apply];
-   - the [is_exn_handler] and [is_cold] flags of continuation handlers, and
-     the [is_applied_with_traps] of a non-recursive [Let_cont], which says
+   - the [is_cold] flag of continuation handlers, and the
+     [is_applied_with_traps] of a non-recursive [Let_cont], which says
      of its body what can be read there;
    - subkinds and nullability ([Flambda_kind.With_subkind]), debuginfo,
      and every annotation that has no effect on execution.
@@ -83,6 +83,14 @@
    constructor of the record or take one apart by position. A field
    added later is then given, by the function, the value that leaves a
    term written before with its meaning.
+
+   Exception handlers. A handler says whether it is an exception
+   handler ([hm_is_exn_handler], the compiler's
+   [Continuation_handler.is_exn_handler]): one that trap actions install
+   and remove, and that raises and the exceptions of calls go to.
+   Execution does not look at the flag. [make_handler_metadata] makes a
+   handler that is not one, and [make_exn_handler_metadata] one that
+   is.
 
    Kinds, arities and the two records of metadata have no names in them.
    Renaming a term leaves them as they are, and two terms that are the
@@ -429,17 +437,27 @@ Definition no_exn_extra_args (ap : apply_expr) : bool :=
   end.
 
 (* What a continuation handler is annotated with: the kinds of its
-   parameters (those of its [Bound_parameters.t]), one to a parameter. *)
+   parameters (those of its [Bound_parameters.t]), one to a parameter,
+   and whether it is an exception handler
+   ([Continuation_handler.is_exn_handler]). *)
 Record handler_metadata : Type := Handler_metadata {
-  hm_params_kinds : list flambda_kind
+  hm_params_kinds : list flambda_kind;
+  hm_is_exn_handler : bool
 }.
 
+(* The metadata of a handler that is not an exception handler. *)
 Definition make_handler_metadata (params_kinds : list flambda_kind)
     : handler_metadata :=
-  {| hm_params_kinds := params_kinds |}.
+  {| hm_params_kinds := params_kinds; hm_is_exn_handler := false |}.
+
+(* The metadata of an exception handler. *)
+Definition make_exn_handler_metadata (params_kinds : list flambda_kind)
+    : handler_metadata :=
+  {| hm_params_kinds := params_kinds; hm_is_exn_handler := true |}.
 
 Definition handler_metadata_eqb (m m' : handler_metadata) : bool :=
-  kinds_eqb (hm_params_kinds m) (hm_params_kinds m').
+  kinds_eqb (hm_params_kinds m) (hm_params_kinds m')
+  && Bool.eqb (hm_is_exn_handler m) (hm_is_exn_handler m').
 
 (* What code is annotated with, of [Code_metadata.t]: the arity of its
    parameters ([params_arity]; unarized, it gives the kinds of the
@@ -502,6 +520,10 @@ with code : Type :=
 (* The kinds of the parameters of a handler. *)
 Definition handler_kinds (h : continuation_handler) : list flambda_kind :=
   match h with Handler _ metadata _ => hm_params_kinds metadata end.
+
+(* Whether a handler is an exception handler. *)
+Definition handler_is_exn_handler (h : continuation_handler) : bool :=
+  match h with Handler _ metadata _ => hm_is_exn_handler metadata end.
 
 Definition code_params (c : code) : list variable :=
   match c with Code params _ _ _ _ _ => params end.
