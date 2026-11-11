@@ -67,7 +67,8 @@
    between the two halves of the transcription.
 
    What is guaranteed ([join_guarantees]), for a use and a valuation
-   that satisfies the use and the source strictly: some valuation
+   that satisfies the use and the source strictly and gives a value to
+   every variable that the use knows: some valuation
    satisfies the target strictly, gives every variable that the use or
    the source knows and that had a value that value, and gives every
    variable that has a definition in the analysis the value, at that
@@ -139,8 +140,9 @@
 
    What this contract does not yet cover of Simplify's joins. It is a
    foundation for runs in which one valuation satisfies a use and the
-   source strictly, through environments that are kinded; three kinds
-   of input that Simplify may make are outside it.
+   source strictly and gives a value to every variable of the use,
+   through environments that are kinded; four kinds of input that
+   Simplify may make are outside it.
    - A use environment in which a parameter that holds poison has a
      type that poison has not: variant unboxing makes these (decision
      D26, discrepancy T5-7). Such a use is not satisfied strictly, and
@@ -161,18 +163,33 @@
      variable for [Simple]s of a kind. It is a premise here, not an
      invariant claimed of the compiler's inputs: whoever states the
      kinds of typing environments is to say where it holds.
+   - A run on which a variable that the use knows has no value: one
+     that an earlier n-way join brought in from uses that the run did
+     not come through (discrepancies T5-5 and T5-10; the paragraph
+     that follows).
 
-   Not settled: names that have no value. [join_admits_use] is stated
-   of every valuation that satisfies the use and the source strictly,
-   and such a valuation may give no value to a variable that the use
-   knows. The compiler's join takes a variable that an environment
-   knows to have a value there. Two places are known where that
-   matters, and where the statement as it stands is not expected to
-   hold of the transcription (the CR at [join_admits_use], discrepancy
-   T5-10): the relations that the join puts back on a scrutinee
-   ([recover_inverse_relations]), and a name whose type at a use is
-   bottom. A premise is to be added for them; its form is to be agreed
-   with the meet's owner, whose contract has the same shape.
+   The restriction to valuations that give a value to every variable
+   that the use knows ([total_on]). A valuation that satisfies an
+   environment strictly need not: nothing is asked of a variable with
+   no value, and the target of a join is satisfied, at a use, by a
+   valuation that gives none to the variables that the join brought in
+   from other uses. But the compiler's join takes a variable that an
+   environment has a type for to have a value there: where it puts a
+   relation back on a scrutinee ([recover_inverse_relations]), and
+   where a name has the type bottom at a use. Of a valuation that
+   leaves such a variable out the upper bound is not expected to hold
+   of the transcription (the CR at [join_admits_use]; discrepancy
+   T5-10), so it is not claimed: [join_admits_use] has the premise, and
+   the statement without it is kept, as [join_admits_use_of_any], for
+   the instance that refutes it, which is owed once the functions are
+   all transcribed. The premise is not one that the join keeps: after a
+   join that brings a variable in from some of its uses, a run through
+   another use has no value for it, and the contract says nothing of a
+   later join, or meet, on that run. What a caller can ask of its
+   inputs so that the join's own imports do no harm is not known yet.
+   The upper bound of the join of types
+   ([n_way_join_type_sound]) is not restricted: it is of a value in
+   hand, and holds of any strict valuation.
 
    What the inputs must satisfy ([join_inputs_well_formed],
    [uses_kinded], and the source being satisfied with each use in
@@ -331,12 +348,17 @@ Definition definitions_hold
    only where the symbol is bound); and the workstream on
    continuations, to show it of the inputs it gives the join.
    Discrepancy T5-4. *)
-(* CR mshinwell: a valuation that satisfies a use strictly may give no
-   value to a variable that the use knows (nothing is asked of such a
-   variable), and the compiler's join takes every variable that an
-   environment knows to have a value there. Of a valuation that leaves
-   one out, the statement below is not expected to hold of the
-   transcription, in two places.
+(* The valuation gives a value to every variable that the environment
+   knows. *)
+Definition total_on (tenv : Typing_env.t) (valuation : env) : Prop :=
+  ∀ x : variable, knows tenv x -> ∃ v : value, lookup x valuation = Some v.
+
+(* CR mshinwell: the valuation must give a value to every variable that
+   the use knows. A valuation that satisfies a use strictly need not
+   (nothing is asked of a variable with no value), but the compiler's
+   join takes every variable that an environment has a type for to have
+   a value there, and of a valuation that leaves one out the statement
+   is not expected to hold of the transcription, in two places.
    - [recover_inverse_relations] (join_env.ml). Where the type joined
      for a variable [x], from types in every environment joined, names
      a variable [r] for the result of [Is_int], [Get_tag] or [Is_null]
@@ -351,22 +373,42 @@ Definition definitions_hold
      hand; the target may then make the name an alias of what it is at
      the other uses, which may have a value at that use, or be bottom
      if every use has bottom for the name.
-   A variable that an earlier n-way join brought in from some of its
-   uses is in that case on the runs that came through the others
-   (discrepancy T5-5), and nothing in an environment tells such a
-   variable from another. Two repairs are possible. A premise: no use
-   that is not bottom has the type bottom for a name, and at the use
-   the valuation gives a value to each variable on which the target
-   has a relation whose result it gives a value to (it holds of a
-   valuation that gives a value to every variable that the use knows).
-   Or a weaker conclusion: the target is satisfied but for the results
-   of relations on a name with no value, of which only the kind is
-   asked, as it is of a name that holds poison in the typing
-   environment's file. Which one is to be agreed with the owner of the
-   meet, whose contract for the join it is given has this shape, and
-   fixed when the proof of the transcription reaches these places.
-   Discrepancy T5-10. *)
+   The premise is the compiler's own reading of an environment, and it
+   is not kept by the compiler's join: a variable that an n-way join
+   brings in from some of its uses has no value on the runs that came
+   through the others (discrepancy T5-5), and nothing in the target
+   tells such a variable from another. So this statement says nothing
+   of a second join on such a run. A weaker premise that a caller
+   could keep is not known: what is needed is that the scrutinee of
+   each relation that the join puts back has a value where the result
+   of the relation has one, and it is the join that chooses them.
+   Weakening the conclusion instead (the target satisfied but for the
+   results of such relations) would not do for the meet that follows:
+   from such a result it reduces the type of the scrutinee, and may
+   answer bottom on a run that exists. Discrepancy T5-10. *)
 Definition join_admits_use (source use target : Typing_env.t)
+    (definitions definitions_at_normal_mode
+       : finite_map (Simples_in_joined_envs.t * flambda_kind))
+    (index : Index.t) : Prop :=
+  ∀ (statics : static_env) (valuation : env),
+    typing_env_satisfied_strictly statics valuation use ->
+    typing_env_satisfied_strictly statics valuation source ->
+    total_on use valuation ->
+    ∃ valuation' : env,
+      typing_env_satisfied_strictly statics valuation' target
+      ∧ agrees_on_known use valuation valuation'
+      ∧ agrees_on_known source valuation valuation'
+      ∧ definitions_hold definitions index valuation valuation'
+      ∧ definitions_hold definitions_at_normal_mode index valuation
+          valuation'.
+
+(* The same of every valuation that satisfies the use and the source,
+   whether or not it gives a value to every variable of the use. This
+   is not claimed of the compiler's join: see the note above. It is
+   kept to state what would have to hold for a join to follow a join
+   with no premise on the run, and for the instance that shows that
+   the transcription has it not, which is owed. *)
+Definition join_admits_use_of_any (source use target : Typing_env.t)
     (definitions definitions_at_normal_mode
        : finite_map (Simples_in_joined_envs.t * flambda_kind))
     (index : Index.t) : Prop :=
@@ -383,14 +425,16 @@ Definition join_admits_use (source use target : Typing_env.t)
 
 (* The machine satisfies a use and the source together: it binds the
    variables of terms of the use, and one valuation satisfies both
-   strictly and gives those variables the values that the machine has
-   for them. *)
+   strictly, gives a value to every variable that the use knows, and
+   gives the variables of terms the values that the machine has for
+   them. *)
 Definition use_and_source_satisfied (source use : Typing_env.t)
     (statics : static_env) (vars : env) : Prop :=
   bound_in_terms use vars
   ∧ ∃ valuation : env,
       typing_env_satisfied_strictly statics valuation use
       ∧ typing_env_satisfied_strictly statics valuation source
+      ∧ total_on use valuation
       ∧ agrees_in_terms use valuation vars.
 
 (* ======================================================================== *)

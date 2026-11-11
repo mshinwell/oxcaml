@@ -17,7 +17,8 @@ in the meet: the environment of the meet), a scope, and a list of
 
 1. **Upper bound under one extension** (`join_admits_use`). For each
    use and each valuation that satisfies that use and the source
-   strictly, some valuation satisfies the target strictly, gives every
+   strictly and gives a value to every variable of the use (see
+   below), some valuation satisfies the target strictly, gives every
    variable that the use or the source knows, and that had a value,
    that value, and gives every variable that has a definition in the
    analysis the value of that definition at that use, where it has
@@ -49,22 +50,29 @@ later join gets `uses_kinded`, and a meet the kinds it asks (T4 needs
 this for a meet that follows a disjunction). To be proved of the
 transcription.
 
-**Not settled: names with no value (T5-10).** `join_admits_use` speaks
-of every strict valuation, and one may give no value to a variable the
-use knows. The compiler's join assumes a variable an environment knows
-has a value there. Two places where the statement as it stands is not
-expected to hold of the transcription: the relations put back on a
-scrutinee by `recover_inverse_relations` (the result of the relation
-may have a value at a use where the scrutinee has none), and a name
-whose type at a use is bottom (the type joiner drops it; the target
-may then force a value on the name, or be bottom). A variable imported
-by an earlier n-way join from some of its uses is such a variable on
-the other runs (T5-5). Two repairs, in the note at `join_admits_use`:
-a premise (no bottom-typed name in a live use; the scrutinee of each
-relation of the target has a value where its result has), or a weaker
-conclusion (the target satisfied but for the results of relations on
-names with no value). To be agreed with T4, whose contract for the
-join has the same shape.
+**Restricted to valuations that are total on the use (T5-10).**
+`join_admits_use` has the premise `total_on use valuation`: the
+valuation gives a value to every variable the use knows. A strict
+valuation need not, and the target of an n-way join is satisfied on
+some runs only by one that does not (the variables imported from the
+other uses, T5-5). But the compiler's join reads "the environment has
+a type for `x`" as "`x` has a value": where `recover_inverse_relations`
+puts a relation back on a scrutinee (the result of the relation may
+have a value at a use where the scrutinee has none), and where a name
+has the type bottom at a use (the type joiner drops it; the target may
+then force a value on the name, or be bottom). Without the premise the
+upper bound is not expected to hold of the transcription, so it is
+not claimed: the unrestricted statement is kept as
+`join_admits_use_of_any`, for the refuting instance, which is owed
+when the functions are all transcribed. The premise is not kept by the
+join itself, so the contract says nothing of a second join, or a meet,
+on a run that came through a use that did not define an imported
+variable. A weaker conclusion instead (target satisfied but for the
+results of relations on names with no value) was rejected with T4 and
+the reviewer: the meet that follows reduces the scrutinee's type from
+such a result and can answer bottom on a run that exists. What callers
+can ask of their inputs so that the imports do no harm is open
+(question 5 below).
 
 In the machine (`join_guarantees_in_machine_statement` and
 `join_admits_use_in_machine_statement`, proved): if a variable that
@@ -89,8 +97,10 @@ not an upper bound; as changed it is).
 
 **What it does not yet cover of Simplify's joins.** The contract is a
 foundation for runs in which one valuation satisfies a use and the
-source strictly, through environments that are kinded. Outside it:
+source strictly and is total on the use, through environments that
+are kinded. Outside it:
 
+- a run on which a variable the use knows has no value (above);
 - a use made by variant unboxing with a poison argument (D26, T5-7;
   the unboxing workstream owes what holds at a join after an unboxed
   continuation);
@@ -363,3 +373,17 @@ I call (`add_variable_definition`, `add_env_extension`,
    test in `existential_for_these_canonicals`). Recommendation: find
    out which with a reproducer (X2 or X5), and keep the premise
    meanwhile.
+5. **Variables imported by a join from some of its uses (T5-5,
+   T5-10).** After such a join the environment has variables that
+   mean nothing on some runs, and the compiler goes on treating every
+   variable of an environment as having a value (the relations it
+   recovers at the next join; the reductions of the meet). The model
+   can state the join only for runs on which every variable of the
+   use has a value, and the join does not keep that. Either an
+   argument is found that the imported variables are never reached on
+   the other runs in a way that matters (an invariant of how Simplify
+   and the meet use environments, not known today), or the compiler
+   should not recover a relation on a scrutinee that was imported, or
+   should record which variables may mean nothing. A program that
+   shows wrong code would settle which; a shape for one is in T5-10.
+   No recommendation yet beyond asking X2 or X5 to try the shape.

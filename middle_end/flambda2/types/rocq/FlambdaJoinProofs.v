@@ -92,7 +92,7 @@ Proof.
     + intros index id Hlookup. discriminate.
     + intros x simples kind index simple Hlookup. discriminate.
     + intros x simples kind index simple Hlookup. discriminate.
-  - intros index use Huse statics valuation _ Hsatisfied.
+  - intros index use Huse statics valuation _ Hsatisfied _.
     exists valuation. split; [ exact Hsatisfied | ].
     split; [ intros x v _ Hvalue; exact Hvalue | ].
     split; [ intros x v _ Hvalue; exact Hvalue | ].
@@ -127,8 +127,11 @@ Proof.
   { exists tt. reflexivity. }
   destruct (create_satisfied_strictly (Static_env [] []))
     as [valuation Hsatisfied].
+  assert (Htotal : total_on Typing_env.create valuation).
+  { intros x Hknown. discriminate. }
   destruct
-    (Hadmits 0 Typing_env.create Huse _ valuation Hsatisfied Hsatisfied)
+    (Hadmits 0 Typing_env.create Huse _ valuation Hsatisfied Hsatisfied
+       Htotal)
     as [valuation' [Htarget _]].
   exact
     (bottom_not_satisfied_but (fun _ => False) _ valuation'
@@ -161,8 +164,8 @@ Theorem join_admits_use_in_machine : join_admits_use_in_machine_statement.
 Proof.
   intros source use target definitions definitions_at_normal_mode index
     statics vars Hadmits Hscope
-    [Hbound [valuation [Huse [Hsource Hterms]]]].
-  destruct (Hadmits statics valuation Huse Hsource)
+    [Hbound [valuation [Huse [Hsource [Htotal Hterms]]]]].
+  destruct (Hadmits statics valuation Huse Hsource Htotal)
     as [valuation' [Htarget [Hagrees [_ [_ Hdefinitions]]]]].
   exists valuation'. split; [ exact Htarget | ].
   split; [ | split ].
