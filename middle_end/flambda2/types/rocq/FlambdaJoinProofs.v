@@ -82,9 +82,10 @@ Qed.
 Theorem join_to_source_sound : join_to_source_sound_statement.
 Proof.
   intros typing_env_well_formed A avoid inputs target analysis
-    [[Hsource _] _] _ Hjoin.
+    [[Hsource _] [[Hno_bottom _] _]] _ Hjoin.
   injection Hjoin as <- <-.
-  split; [ exact Hsource | ]. split; [ | split; [ | split ] ].
+  split; [ exact Hsource | ]. split; [ exact Hno_bottom | ].
+  split; [ | split; [ | split ] ].
   - split; [ | repeat split ].
     intros n ty binding_time_and_mode Hlookup. exists ty. exact Hlookup.
   - intros x Hknown Hnot_known. contradiction.
@@ -94,8 +95,8 @@ Proof.
     + intros x simples kind index simple Hlookup. discriminate.
   - intros index use Huse statics valuation _ Hsatisfied.
     exists valuation. split; [ exact Hsatisfied | ].
-    split; [ intros x v _ Hvalue; exact Hvalue | ].
-    split; [ intros x v _ Hvalue; exact Hvalue | ].
+    split; [ intros x _; reflexivity | ].
+    split; [ intros x _; reflexivity | ].
     split; intros x simples kind simple v Hlookup; discriminate.
 Qed.
 
@@ -103,10 +104,11 @@ Theorem sound_join_where_values_are_read_of_sound
   : sound_join_where_values_are_read_of_sound_statement.
 Proof.
   intros typing_env_well_formed A join Hsound avoid inputs target analysis
-    Hwell_formed Hkinded _ Hjoin.
+    Hwell_formed Hkinded Hjoin.
   destruct (Hsound avoid inputs target analysis Hwell_formed Hkinded Hjoin)
-    as [Htarget [Hkeeps [Hintroduces [Hanalysis Hadmits]]]].
-  split; [ exact Htarget | ]. split; [ exact Hkeeps | ].
+    as [Htarget [Hno_bottom [Hkeeps [Hintroduces [Hanalysis Hadmits]]]]].
+  split; [ exact Htarget | ]. split; [ exact Hno_bottom | ].
+  split; [ exact Hkeeps | ].
   split; [ exact Hintroduces | ]. split; [ exact Hanalysis | ].
   intros index use Huse statics valuation Hsatisfied Hsource _.
   exact (Hadmits index use Huse statics valuation Hsatisfied Hsource).
@@ -121,6 +123,11 @@ Proof.
        uses := [(tt, Typing_env.create)] |}).
   assert (Hwell_formed : join_inputs_well_formed (fun _ => True) [] inputs).
   { split; [ split; [ exact I | intros; exact I ] | ].
+    split.
+    { split.
+      - intros _ n ty binding_time_and_mode Hlookup. discriminate.
+      - intros index use Huse _ n ty binding_time_and_mode Hlookup.
+        apply use_at_singleton in Huse. subst use. discriminate. }
     split; [ | split ].
     - intros index use Huse _.
       apply use_at_singleton in Huse. subst use.
@@ -135,7 +142,7 @@ Proof.
   { intros index use Huse n ty binding_time_and_mode Hlookup.
     apply use_at_singleton in Huse. subst use. discriminate. }
   destruct (Hsound [] inputs _ _ Hwell_formed Hkinded eq_refl)
-    as [_ [_ [_ [_ Hadmits]]]].
+    as [_ [_ [_ [_ [_ Hadmits]]]]].
   assert (Huse : use_at inputs 0 Typing_env.create).
   { exists tt. reflexivity. }
   destruct (create_satisfied_strictly (Static_env [] []))
@@ -180,9 +187,8 @@ Proof.
   exists valuation'. split; [ exact Htarget | ].
   split; [ | split ].
   - intros x Hx. specialize (Hscope x Hx).
-    destruct (Hbound x Hscope) as [v Hv]. rewrite Hv.
-    apply (Hagrees x v (in_scope_in_terms_knows _ _ Hscope)).
-    rewrite (Hterms x Hscope). exact Hv.
+    rewrite (Hagrees x (in_scope_in_terms_knows _ _ Hscope)).
+    exact (Hterms x Hscope).
   - intros x Hx. apply Hbound. apply Hscope. exact Hx.
   - intros x simples kind simple Hlookup Hfind Hnormal.
     destruct (eval_simple_in_terms use valuation vars simple Hbound Hterms
@@ -225,7 +231,7 @@ Qed.
 Theorem join_guarantees_in_machine : join_guarantees_in_machine_statement.
 Proof.
   intros typing_env_well_formed A avoid inputs target analysis index use
-    statics vars [_ [Hkeeps [Hintroduces [_ Hadmits]]]] Hterms Huse
+    statics vars [_ [_ [Hkeeps [Hintroduces [_ Hadmits]]]]] Hterms Huse
     Hsatisfied.
   apply
     (join_admits_use_env_satisfies (source inputs) use target

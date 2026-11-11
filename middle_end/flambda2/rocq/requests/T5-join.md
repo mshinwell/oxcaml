@@ -18,12 +18,15 @@ in the meet: the environment of the meet), a scope, and a list of
 1. **Upper bound under one extension** (`join_admits_use`). For each
    use and each valuation that satisfies that use and the source
    strictly, some valuation satisfies the target strictly, gives every
-   variable that the use or the source knows, and that had a value,
-   that value, and gives every variable that has a definition in the
-   analysis the value of that definition at that use, where it has
-   one. One valuation for all the equations of the target. (A variable
-   with no value may get one: the join can make it an alias of a
-   constant where the use has for it a type that nothing has.)
+   variable that the use or the source knows exactly what it had (the
+   same value, or none in both), and gives every variable that has a
+   definition in the analysis the value of that definition at that
+   use, where it has one. One valuation for all the equations of the
+   target. The agreement is exact so that the witness satisfies the
+   source of the next join or meet (agreed with T4, whose meet has the
+   same agreement): a caller can then supply "the valuation satisfies
+   the source and the use" from one step to the next. For it the
+   inputs must have no name of type bottom (`no_bottom_types`, below).
 2. **The target is the source extended** (`join_keeps_source`): same
    earlier levels, scope, symbols; every name keeps its binding time
    and name mode.
@@ -58,8 +61,7 @@ other uses, T5-5). That is what the meet assumes of its join. The
 compiler's join does not have it: it reads "the environment has a
 type for `x`" as "`x` has a value". So what is to be proved of the
 transcription is `sound_join_where_values_are_read`: the same
-contract for the runs that satisfy two named conditions, and inputs
-that satisfy a third:
+contract for the runs that satisfy two named conditions:
 
 - `scrutinees_have_values`: for every relation the target has on a
   variable (put back by `recover_inverse_relations` whenever every
@@ -71,9 +73,14 @@ that satisfy a third:
   meet of its source type with the joined type may be bottom on a run
   that exists). This is what "an equation is added on a name where
   the name has a value" gives a caller.
-- `uses_without_bottom_types`: no name has the type bottom at a live
-  use (the type joiner drops such a type; the target may then force a
-  value on the name, or be bottom).
+
+A third thing the compiler's join needs is in the contract itself, as
+a condition on the inputs of every join and a guarantee of its target
+(`no_bottom_types`, with a `CR mshinwell`: the model is stricter than
+the compiler here): no name has the type bottom in an environment
+that is not bottom. The type joiner drops a bottom type; without the
+condition the target could force a value on a name that has none at a
+use, and the exact agreement above would fail.
 
 A join that has the strict contract has this one
 (`sound_join_where_values_are_read_of_sound`, proved). An instance
@@ -206,8 +213,9 @@ source strictly, through environments that are kinded. Outside it:
   again with `equal_in_all_joined_envs`); a premise of precision
   only. Discrepancy T5-3.
 
-Also required and not in the header: every environment well formed;
-`cut` defined; the names to avoid include every known variable.
+Also required and not in the header: every environment well formed
+and with no name of type bottom unless it is bottom; `cut` defined;
+the names to avoid include every known variable.
 
 ## 5. The known failure, and what else was found
 

@@ -69,7 +69,8 @@
    What is guaranteed ([join_guarantees]), for a use and a valuation
    that satisfies the use and the source strictly: some valuation
    satisfies the target strictly, gives every variable that the use or
-   the source knows and that had a value that value, and gives every
+   the source knows what it had (the same value, or none), and gives
+   every
    variable that has a definition in the analysis the value, at that
    use, of the [Simple] that the analysis says, if it has one. It is
    one valuation for the whole target: every equation of the target, on
@@ -174,23 +175,29 @@
    compiler's join has it not: it takes a variable that an environment
    has a type for to have a value there. So what is to be proved of
    the transcription is the contract for the runs that have the values
-   that the join reads ([sound_join_where_values_are_read]), under two
-   conditions that are named and are premises there:
+   that the join reads ([sound_join_where_values_are_read]): two
+   conditions that are named and are premises there.
    - [scrutinees_have_values]: for every relation that the target has
      on a variable, the variable has a value in every run in which the
      result of the relation has one. The join puts such a relation back
      on a scrutinee whenever every environment joined has a type for it
      ([recover_inverse_relations]). Nothing in the compiler establishes
      the condition (the CR there; discrepancy T5-10).
-   - [joined_variables_have_values] and [uses_without_bottom_types]: a
-     variable of the source that every use has refined has a value in
-     the run, and no name has the type bottom at a use that is not
-     bottom. Without them the join of the types of such a variable, or
-     of what a new variable stands for, may be met to bottom in the
-     target, or force a value on a name, on a run that exists. They
-     are the typing environment's own reading of an equation (a
-     statement about a name that is not reached through a value in
-     hand needs the premise that the name has a value).
+   - [joined_variables_have_values]: a variable of the source that
+     every use has refined has a value in the run. Without it the join
+     of the types of such a variable may be met to bottom in the
+     target on a run that exists. It is the typing environment's own
+     reading of an equation (a statement about a name that is not
+     reached through a value in hand needs the premise that the name
+     has a value).
+   A third thing that the compiler's join needs is asked of the inputs
+   of every join, in the contract itself ([no_bottom_types], in
+   [join_inputs_well_formed]; the target has it too): no name has the
+   type bottom in an environment that is not bottom. With it the
+   witness gives the variables that the use or the source knows
+   exactly what they had ([agrees_on_known]), and so satisfies the
+   source of the next join or meet: this was agreed with the owner of
+   the meet, which has the same condition and the same agreement.
    An instance that shows that the transcription has not the strict
    contract without the first condition is owed, and can be given once
    the functions are all transcribed. The upper bound of the join of
@@ -296,15 +303,18 @@ Definition join_of_environments (A : Type) : Type :=
 (* One valuation for the target at a use                                    *)
 (* ======================================================================== *)
 
-(* The second valuation gives every variable that the use knows, and
-   that has a value in the first, that value. A variable that the use
-   knows and that has no value in the first may have one in the second:
-   the join may make it an alias of a constant, where the use has for
-   it a type that nothing has. *)
-Definition agrees_on_known (use : Typing_env.t) (valuation valuation' : env)
+(* The second valuation gives every variable that the environment
+   knows what the first gives it: the same value, or none in both. So
+   the second satisfies every environment that the first satisfies and
+   whose variables this one knows; that is what lets a caller go from
+   one join, or meet, to the next with a valuation that satisfies the
+   source as well as the use. (The join of types drops a type that is
+   bottom, and the target could then force a value on a name that has
+   none at a use: [no_bottom_types] is asked of the inputs so that it
+   does not.) *)
+Definition agrees_on_known (tenv : Typing_env.t) (valuation valuation' : env)
     : Prop :=
-  ∀ (x : variable) (v : value),
-    knows use x -> lookup x valuation = Some v -> lookup x valuation' = Some v.
+  ∀ x : variable, knows tenv x -> lookup x valuation' = lookup x valuation.
 
 (* The second valuation gives every variable that has a definition at
    the use of index [index] the value that that definition has in the
@@ -477,9 +487,35 @@ Definition avoids_known {A : Type} (avoid : list variable)
   ∧ ∀ (index : Index.t) (use : Typing_env.t) (x : variable),
       use_at inputs index use -> knows use x -> among x avoid = true.
 
+(* No name has the type bottom, unless the environment is bottom. *)
+(* CR mshinwell: the model is stricter than the compiler here. A name
+   with the type bottom has no value; the join of types leaves a bottom
+   type out, and the target could then force a value on the name at a
+   use where it has none, or be bottom though a use is not. The meet
+   makes the whole environment bottom when a type becomes bottom, and
+   the n-way join adds its equations with the meet's function, so the
+   environments of that path are expected to have this; the binary join
+   makes environments that have it not, on purpose
+   ([Meet_env.add_env_extension_maybe_bottom]). It is not known of
+   every environment that Simplify builds. Discrepancy T5-10. *)
+Definition no_bottom_types (tenv : Typing_env.t) : Prop :=
+  Typing_env.is_bottom tenv = false ->
+  ∀ (n : name) (ty : flambda_type)
+    (binding_time_and_mode : Binding_time.With_name_mode.t),
+    Keyed.lookup name_eqb n (Typing_env.names_to_types tenv)
+    = Some (ty, binding_time_and_mode) ->
+    is_obviously_bottom ty = false.
+
+Definition environments_without_bottom_types {A : Type}
+    (inputs : join_inputs A) : Prop :=
+  no_bottom_types (source inputs)
+  ∧ ∀ (index : Index.t) (use : Typing_env.t),
+      use_at inputs index use -> no_bottom_types use.
+
 Definition join_inputs_well_formed {A : Type} (avoid : list variable)
     (inputs : join_inputs A) : Prop :=
   environments_well_formed inputs
+  ∧ environments_without_bottom_types inputs
   ∧ cuts_defined inputs
   ∧ symbols_of_uses_in_source inputs
   ∧ avoids_known avoid inputs.
@@ -748,6 +784,7 @@ Definition join_guarantees {A : Type} (avoid : list variable)
     (inputs : join_inputs A) (target : Typing_env.t)
     (analysis : Analysis.t A) : Prop :=
   typing_env_well_formed target
+  ∧ no_bottom_types target
   ∧ join_keeps_source (source inputs) target
   ∧ join_introduces avoid inputs target
   ∧ analysis_describes_uses inputs target analysis
@@ -836,21 +873,6 @@ Definition joined_variables_have_values {A : Type} (inputs : join_inputs A)
            = Some ty) ->
     ∃ v : value, lookup x valuation = Some v.
 
-(* No name has the type bottom at a use that is not bottom. (Such a
-   name has no value there; the join of types leaves a bottom type out,
-   and the target may then be bottom, or force a value on the name.
-   The binary join makes such environments on purpose; the meet makes
-   an environment bottom when a type becomes bottom.) *)
-Definition uses_without_bottom_types {A : Type} (inputs : join_inputs A)
-    : Prop :=
-  ∀ (index : Index.t) (use : Typing_env.t) (n : name) (ty : flambda_type)
-    (binding_time_and_mode : Binding_time.With_name_mode.t),
-    use_at inputs index use ->
-    Typing_env.is_bottom use = false ->
-    Keyed.lookup name_eqb n (Typing_env.names_to_types use)
-    = Some (ty, binding_time_and_mode) ->
-    is_obviously_bottom ty = false.
-
 (* The run has the values that the join reads. *)
 Definition values_are_read {A : Type} (inputs : join_inputs A)
     (target : Typing_env.t)
@@ -865,6 +887,7 @@ Definition join_guarantees_where_values_are_read {A : Type}
     (avoid : list variable) (inputs : join_inputs A) (target : Typing_env.t)
     (analysis : Analysis.t A) : Prop :=
   typing_env_well_formed target
+  ∧ no_bottom_types target
   ∧ join_keeps_source (source inputs) target
   ∧ join_introduces avoid inputs target
   ∧ analysis_describes_uses inputs target analysis
@@ -886,7 +909,6 @@ Definition sound_join_where_values_are_read {A : Type}
     (analysis : Analysis.t A),
     join_inputs_well_formed avoid inputs ->
     uses_kinded inputs ->
-    uses_without_bottom_types inputs ->
     join avoid inputs = Some (target, analysis) ->
     join_guarantees_where_values_are_read avoid inputs target analysis.
 
