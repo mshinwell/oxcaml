@@ -1,0 +1,560 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+(* The aliases of the typing environment: what the structure means, the
+   order that chooses the canonical element of a class, and what the
+   queries answer.
+
+   This file is to be reviewed, with FlambdaEnvAliases.v, against
+   middle_end/flambda2/types/env/aliases.ml and aliases.mli. In
+   FlambdaEnvAliases.v, read against the OCaml: the type [Aliases.t], the
+   order ([Aliases.name_defined_earlier], [Aliases.defined_earlier]) and
+   the three functions that give a name its binding time and name mode
+   ([Aliases.binding_time_and_name_mode], [Aliases.compute_name_mode],
+   [Aliases.compute_name_mode_unscoped]). The queries there are written
+   as the OCaml is, but need not be read: what they answer is stated
+   here. Binding times and name modes are FlambdaBindingTime.v.
+
+   The structure. The simplifier learns that a name is equal to another
+   name or to a constant (an [Equals] type), and keeps what it has
+   learnt as classes of simples that are known to be equal, each with a
+   canonical element. [Aliases.t] holds, for each name that is not the
+   canonical element of its class (a name that has been demoted), its
+   canonical element ([canonical_elements]), and the same the other way
+   round, for each canonical element the names demoted to it
+   ([aliases_of_canonical_names] and [aliases_of_consts]). A simple that
+   the structure does not speak of is alone in its class.
+
+   What it means ([aliases_respected]). The structure is a claim about
+   the values of names when the program runs: an environment of the
+   machine respects it when every name that has been demoted has the
+   value of its canonical element.
+   - The value of a simple is what [eval_simple] gives: a constant is
+     its own value; a symbol is a pointer, a value by itself, whether
+     or not the static environment binds it; a variable has the value
+     the environment binds it to, and none if it binds it to nothing.
+     So the static environment is not needed.
+   - Values are compared as [eval_simple] gives them, a value or none.
+     A variable aliased to a constant or to a symbol is therefore bound
+     to it; two variables that are aliased are bound to the same value,
+     or neither is bound. That every name the typing environment knows
+     has a value is not said here: the names that exist only in types,
+     or are out of scope, have none at run time, and the typing
+     environment says what stands for their values
+     (FlambdaTypeMeaningSpec.v, "The environment").
+   - The values are those of the machine, and equal means the same
+     value: a variable that holds a closure made by a [Let] is not
+     equal to a symbol bound to a closure of the same code and slots.
+   - Respect asks the same of the two inverse maps: a name listed among
+     the aliases of a canonical element has its value. The three maps
+     agree when the structure is consistent ([aliases_consistent]), and
+     then this adds nothing; it is asked so that what a query answers
+     has the value of what it was asked about with no condition on the
+     structure ([respected_canonical_at_mode_statement]).
+
+   The order ([Aliases.defined_earlier]). The canonical element of a
+   class is its earliest element: a constant before any name; a symbol
+   before any variable; of two variables the one bound first, by the
+   binding times of the typing environment. The statements of the
+   section "The order" say this of the function. Two symbols are not
+   ordered, nor are two variables with the same binding times.
+
+   What is stated of the queries:
+   - [Aliases.get_canonical_ignoring_name_mode] answers the canonical
+     element of the class ([canonical_element_of]), which is not itself
+     demoted, is earlier than every other element of the class, is the
+     constant of the class if it has one, and is not a variable if the
+     class has a symbol;
+   - [Aliases.get_canonical_element_exn] answers the canonical element
+     if it may be used at the name mode asked for, and failing that an
+     alias that may; what it answers is in the class of what it was
+     asked about, and may be used at that name mode.
+
+   Differences from the OCaml, all deliberate.
+   - Coercions. A [Simple] of the model has no coercion
+     (FlambdaModel.v), so the model's classes are of simples that are
+     equal, where the OCaml's are of simples equal up to a coercion,
+     and keep beside each alias the coercion to its canonical element.
+     A coercion changes only the depth of recursion recorded for a
+     closure ([Coercion.t] is [Id] or [Change_depth]), which the machine
+     does not have: a simple and its coercion have the same value. So
+     respect loses nothing. What is not modelled: that the coercions
+     are composed and inverted correctly; the fatal errors of
+     [Coercion.compose_exn] and of adding an alias of an element to
+     itself with a coercion that is not the identity.
+   - One compilation unit. [Aliases.name_defined_earlier] leaves out
+     the comparison of the compilation units of two variables that have
+     the same binding time, and goes to the last step, the binding
+     times that [binding_time_resolver] gives. That function is total
+     here. In the compiler it may raise ([Binding_time_resolver_failure],
+     which [Typing_env] catches, dropping the alias), and for a name of
+     the current unit it stops with a fatal error.
+   - [Aliases_of_canonical_element.t] is one map from each alias to the
+     name mode it had when it was demoted. The OCaml's record has
+     [aliases], these names grouped by name mode, and [all], the names;
+     its invariant that the two agree has nothing to say here.
+   - The three maps of [Aliases.t] are kept as the OCaml has them, and
+     not replaced by the one that determines the others, so that the
+     functions read as the OCaml's do. That they agree is the condition
+     [aliases_consistent], which is not checked by the OCaml's
+     [invariant].
+   - Maps are association lists of which the first binding of a key
+     counts (FlambdaMapSpec.v): where the OCaml replaces a binding, the
+     model adds one in front.
+   - Fatal errors. Two of the OCaml's are not guarded by a flag: adding
+     to the aliases of a canonical element a name that is there, and
+     demoting a constant. The functions that can meet one answer an
+     option, and [None] is the fatal error. The checks that the OCaml
+     makes only under a flag ([invariant], [invariant_add_result], and
+     assertions) are not made by the model's functions; the first two
+     are functions of their own, [Aliases.invariant] and
+     [Aliases.invariant_add_result], that answer whether the check
+     passes.
+   - [Not_found] is [None].
+   - Where several aliases are equally early, [find_earliest_alias]
+     takes in the OCaml the one that an order on names
+     ([Name.compare]) puts first, and here the first of a list. The
+     model has no such order; there is at most one earliest alias when
+     the variables have different binding times.
+   - Not modelled yet: the rest of [Alias_set] ([inter], [filter],
+     [find_best], [get_singleton], [choose_opt]) and [add_alias_set].
+     [print] is not modelled.
+
+   Nothing is stated here yet of [Aliases.add], [Aliases.get_aliases],
+   [Aliases.invariant] and [Aliases.invariant_add_result].
+
+   The proofs are in FlambdaEnvAliasesProofs.v, which needs no review. *)
+
+From Stdlib Require Import ZArith List Bool.
+From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaSemanticsSpec.
+From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
+  FlambdaTypeMeaningSpec FlambdaBindingTime FlambdaEnvAliases.
+Import ListNotations.
+
+Local Open Scope Z_scope.
+
+(* ======================================================================== *)
+(* The classes                                                              *)
+(* ======================================================================== *)
+
+(* The structure has demoted the name [n] to [canonical_element]. *)
+Definition demoted_to (t : Aliases.t) (n : name) (canonical_element : simple)
+    : Prop :=
+  Keyed.lookup name_eqb n (Aliases.canonical_elements t)
+  = Some canonical_element.
+
+(* The structure lists the name [n] among the aliases of
+   [canonical_element]. *)
+Definition listed_alias (t : Aliases.t) (canonical_element : simple)
+    (n : name) : Prop :=
+  Aliases.Aliases_of_canonical_element.mem
+    (Aliases.get_aliases_of_canonical_element t canonical_element) n
+  = true.
+
+(* A simple that the structure has not demoted: a constant, or a name
+   that is alone in its class or is the canonical element of it. *)
+Definition is_canonical (t : Aliases.t) (e : simple) : Prop :=
+  Aliases.canonical t e = Aliases.Is_canonical.
+
+(* The canonical element of the class of a simple. *)
+Definition canonical_element_of (t : Aliases.t) (e : simple) : simple :=
+  match Aliases.canonical t e with
+  | Aliases.Is_canonical => e
+  | Aliases.Alias_of_canonical canonical_element => canonical_element
+  end.
+
+(* Two simples are known to be equal: they are in one class. *)
+Definition aliased (t : Aliases.t) (e e' : simple) : Prop :=
+  canonical_element_of t e = canonical_element_of t e'.
+
+(* The names that the structure speaks of. *)
+Definition aliases_mention (t : Aliases.t) (n : name) : Prop :=
+  (∃ canonical_element : simple, demoted_to t n canonical_element)
+  ∨ (∃ n' : name, demoted_to t n' (simple_of_name n))
+  ∨ (∃ canonical_element : simple, listed_alias t canonical_element n)
+  ∨ (∃ n' : name, listed_alias t (simple_of_name n) n').
+
+(* ======================================================================== *)
+(* What the structure means                                                 *)
+(* ======================================================================== *)
+
+(* Every name that has been demoted has the value of its canonical
+   element. *)
+Definition canonical_elements_respected (t : Aliases.t) (vars : env)
+    : Prop :=
+  ∀ (n : name) (canonical_element : simple),
+    demoted_to t n canonical_element ->
+    value_of_name vars n = eval_simple vars canonical_element.
+
+(* Every name listed among the aliases of a canonical element has its
+   value. *)
+Definition listed_aliases_respected (t : Aliases.t) (vars : env) : Prop :=
+  ∀ (canonical_element : simple) (n : name),
+    listed_alias t canonical_element n ->
+    value_of_name vars n = eval_simple vars canonical_element.
+
+(* An environment of the machine respects the structure. *)
+Definition aliases_respected (t : Aliases.t) (vars : env) : Prop :=
+  canonical_elements_respected t vars ∧ listed_aliases_respected t vars.
+
+(* Every environment respects the structure that knows nothing. *)
+Definition empty_respected_statement : Prop :=
+  ∀ vars : env, aliases_respected Aliases.empty vars.
+
+(* Simples that are known to be equal have the same value. *)
+Definition respected_aliased_statement : Prop :=
+  ∀ (t : Aliases.t) (vars : env) (e e' : simple),
+    aliases_respected t vars ->
+    aliased t e e' ->
+    eval_simple vars e = eval_simple vars e'.
+
+(* What the two queries answer has the value of what they were asked
+   about. Nothing is asked of the structure, of the binding times or of
+   the name modes. *)
+Definition respected_canonical_statement : Prop :=
+  ∀ (t : Aliases.t) (vars : env) (n : name),
+    aliases_respected t vars ->
+    eval_simple vars (Aliases.get_canonical_ignoring_name_mode t n)
+    = value_of_name vars n.
+
+Definition respected_canonical_at_mode_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (vars : env) (element : simple)
+    (elt_name_mode min_name_mode : Name_mode.t)
+    (min_binding_time : Binding_time.t) (answer : simple),
+    aliases_respected t vars ->
+    Aliases.get_canonical_element_exn binding_time_resolver
+      binding_times_and_modes t element elt_name_mode min_name_mode
+      min_binding_time
+    = Some answer ->
+    eval_simple vars answer = eval_simple vars element.
+
+(* Respect depends on the environment only through the values of the
+   names that the structure speaks of. So binding a variable that it does
+   not speak of keeps respect. *)
+Definition respected_coincide_statement : Prop :=
+  ∀ (t : Aliases.t) (vars vars' : env),
+    (∀ n : name,
+      aliases_mention t n -> value_of_name vars n = value_of_name vars' n) ->
+    aliases_respected t vars ->
+    aliases_respected t vars'.
+
+(* Alias types. A value has the alias type of a name when it is the
+   value of the name (FlambdaTypeMeaningSpec.alias_satisfied_statement).
+   In an environment that respects the structure, the alias type of a
+   name and that of its canonical element are the same type: the same
+   values have them. *)
+Definition respected_alias_type_statement : Prop :=
+  ∀ (t : Aliases.t) (statics : static_env) (vars : env) (v : value)
+    (k : flambda_kind) (n : name),
+    aliases_respected t vars ->
+    (type_satisfied statics vars v (alias_type_of k (simple_of_name n))
+     <-> type_satisfied statics vars v
+           (alias_type_of k (Aliases.get_canonical_ignoring_name_mode t n))).
+
+(* ======================================================================== *)
+(* The order                                                                *)
+(* ======================================================================== *)
+
+(* On two names, the order on simples is the order on names. *)
+Definition defined_earlier_names_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (alias than : name),
+    Aliases.defined_earlier binding_time_resolver binding_times_and_modes
+      (simple_of_name alias) (simple_of_name than)
+    = Aliases.name_defined_earlier binding_time_resolver
+        binding_times_and_modes alias than.
+
+(* A constant is earlier than every name, and nothing is earlier than a
+   constant. *)
+Definition constant_earliest_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (c : const) (e : simple) (n : name),
+    Aliases.defined_earlier binding_time_resolver binding_times_and_modes
+      (Const c) (simple_of_name n)
+    = true
+    ∧ Aliases.defined_earlier binding_time_resolver binding_times_and_modes
+        e (Const c)
+      = false.
+
+(* A symbol is earlier than every variable, and nothing but a constant is
+   earlier than a symbol: no variable, and no other symbol. *)
+Definition symbol_earlier_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (s : symbol) (x : variable) (n : name),
+    Aliases.name_defined_earlier binding_time_resolver
+      binding_times_and_modes (Name_symbol s) (Name_var x)
+    = true
+    ∧ Aliases.name_defined_earlier binding_time_resolver
+        binding_times_and_modes n (Name_symbol s)
+      = false.
+
+(* The binding time that the typing environment gives a variable, which
+   for a variable that it has no entry for is that of the variables of
+   other compilation units; and the one that the resolver gives. *)
+Definition binding_time_in {A : Type}
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (x : variable) : Binding_time.t :=
+  Binding_time.With_name_mode.binding_time
+    (Aliases.binding_time_and_name_mode binding_times_and_modes (Var x)).
+
+Definition resolved_binding_time
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (x : variable) : Binding_time.t :=
+  Binding_time.With_name_mode.binding_time
+    (binding_time_resolver (Name_var x)).
+
+(* Of two variables, the earlier is the one with the lesser binding time
+   in the typing environment; where the two have the same, the one with
+   the lesser binding time by the resolver. *)
+Definition variable_earlier_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (x y : variable),
+    Aliases.name_defined_earlier binding_time_resolver
+      binding_times_and_modes (Name_var x) (Name_var y)
+    = true
+    <-> (binding_time_in binding_times_and_modes x
+         < binding_time_in binding_times_and_modes y
+         ∨ (binding_time_in binding_times_and_modes x
+            = binding_time_in binding_times_and_modes y
+            ∧ resolved_binding_time binding_time_resolver x
+              < resolved_binding_time binding_time_resolver y)).
+
+(* The order is strict: nothing is earlier than itself, and it is
+   transitive. *)
+Definition defined_earlier_strict_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (e e' e'' : simple),
+    Aliases.defined_earlier binding_time_resolver binding_times_and_modes
+      e e
+    = false
+    ∧ (Aliases.defined_earlier binding_time_resolver binding_times_and_modes
+         e e'
+       = true ->
+       Aliases.defined_earlier binding_time_resolver binding_times_and_modes
+         e' e''
+       = true ->
+       Aliases.defined_earlier binding_time_resolver binding_times_and_modes
+         e e''
+       = true).
+
+(* ======================================================================== *)
+(* The canonical element                                                    *)
+(* ======================================================================== *)
+
+(* The three maps describe the same classes. First, what a name has been
+   demoted to has not been demoted itself... *)
+Definition canonical_elements_canonical (t : Aliases.t) : Prop :=
+  ∀ (n : name) (canonical_element : simple),
+    demoted_to t n canonical_element -> is_canonical t canonical_element.
+
+(* ... and the names listed among the aliases of a canonical element are
+   those that have been demoted to it. *)
+Definition aliases_listed (t : Aliases.t) : Prop :=
+  ∀ (n : name) (canonical_element : simple),
+    demoted_to t n canonical_element <-> listed_alias t canonical_element n.
+
+Definition aliases_consistent (t : Aliases.t) : Prop :=
+  canonical_elements_canonical t ∧ aliases_listed t.
+
+(* Every canonical element is earlier than the names demoted to it. *)
+Definition canonical_elements_earliest {A : Type}
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) : Prop :=
+  ∀ (n : name) (canonical_element : simple),
+    demoted_to t n canonical_element ->
+    Aliases.defined_earlier binding_time_resolver binding_times_and_modes
+      canonical_element (simple_of_name n)
+    = true.
+
+(* The name mode recorded for an alias is the one the typing environment
+   gives it. *)
+Definition name_modes_recorded {A : Type}
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) : Prop :=
+  ∀ (canonical_element : simple) (n : name) (name_mode : Name_mode.t),
+    Keyed.lookup name_eqb n
+      (Aliases.get_aliases_of_canonical_element t canonical_element)
+    = Some name_mode ->
+    name_mode
+    = Aliases.compute_name_mode_unscoped binding_times_and_modes
+        (simple_of_name n).
+
+(* The invariant of the structure, for a typing environment. *)
+Definition aliases_well_formed {A : Type}
+    (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) : Prop :=
+  aliases_consistent t
+  ∧ canonical_elements_earliest binding_time_resolver
+      binding_times_and_modes t
+  ∧ name_modes_recorded binding_times_and_modes t.
+
+(* [Aliases.get_canonical_ignoring_name_mode] answers the canonical
+   element of the class of the name. *)
+Definition get_canonical_ignoring_name_mode_statement : Prop :=
+  ∀ (t : Aliases.t) (n : name),
+    Aliases.get_canonical_ignoring_name_mode t n
+    = canonical_element_of t (simple_of_name n).
+
+(* The canonical element of a class is not demoted: it is its own
+   canonical element. *)
+Definition canonical_element_canonical_statement : Prop :=
+  ∀ (t : Aliases.t) (e : simple),
+    aliases_consistent t -> is_canonical t (canonical_element_of t e).
+
+(* The canonical element of a class is earlier than every other element
+   of the class. *)
+Definition canonical_element_earliest_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (e : simple),
+    canonical_elements_earliest binding_time_resolver
+      binding_times_and_modes t ->
+    canonical_element_of t e <> e ->
+    Aliases.defined_earlier binding_time_resolver binding_times_and_modes
+      (canonical_element_of t e) e
+    = true.
+
+(* It is the constant of the class, if the class has one. *)
+Definition canonical_element_constant_statement : Prop :=
+  ∀ (t : Aliases.t) (e : simple) (c : const),
+    aliased t e (Const c) -> canonical_element_of t e = Const c.
+
+(* If the class has a symbol, it is that symbol or a constant: not a
+   variable, and no other symbol. *)
+Definition canonical_element_symbol_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (e : simple) (s : symbol),
+    canonical_elements_earliest binding_time_resolver
+      binding_times_and_modes t ->
+    aliased t e (Symbol s) ->
+    canonical_element_of t e = Symbol s
+    ∨ (∃ c : const, canonical_element_of t e = Const c).
+
+(* ======================================================================== *)
+(* The canonical element at a name mode                                     *)
+(* ======================================================================== *)
+
+(* A name of mode [name_mode] may be used where [min_name_mode] is asked
+   for. *)
+Definition name_mode_at_least (name_mode min_name_mode : Name_mode.t)
+    : Prop :=
+  ∃ c : Z,
+    Name_mode.compare_partial_order name_mode min_name_mode = Some c
+    ∧ 0 <= c.
+
+(* The name mode that [Aliases.get_canonical_element_exn] takes the
+   canonical element of [element] to have: the one its caller gives for
+   [element], if that is the canonical element; otherwise the one of the
+   typing environment where the variables bound at [min_binding_time] or
+   later are in scope. *)
+Definition canonical_name_mode {A : Type}
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (element : simple) (elt_name_mode : Name_mode.t)
+    (min_binding_time : Binding_time.t) : Name_mode.t :=
+  match Aliases.canonical t element with
+  | Aliases.Is_canonical => elt_name_mode
+  | Aliases.Alias_of_canonical canonical_element =>
+    Aliases.compute_name_mode binding_times_and_modes canonical_element
+      min_binding_time
+  end.
+
+(* Where the canonical element may be used, it is the answer. *)
+Definition canonical_at_mode_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (element : simple)
+    (elt_name_mode min_name_mode : Name_mode.t)
+    (min_binding_time : Binding_time.t),
+    name_mode_at_least
+      (canonical_name_mode binding_times_and_modes t element elt_name_mode
+         min_binding_time)
+      min_name_mode ->
+    Aliases.get_canonical_element_exn binding_time_resolver
+      binding_times_and_modes t element elt_name_mode min_name_mode
+      min_binding_time
+    = Some (canonical_element_of t element).
+
+(* Whatever the answer, it may be used: it is the element asked about,
+   which its caller says may be, or its name mode in the typing
+   environment, in the scope given, is at least the one asked for. *)
+Definition canonical_at_mode_name_mode_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (element : simple)
+    (elt_name_mode min_name_mode : Name_mode.t)
+    (min_binding_time : Binding_time.t) (answer : simple),
+    Aliases.get_canonical_element_exn binding_time_resolver
+      binding_times_and_modes t element elt_name_mode min_name_mode
+      min_binding_time
+    = Some answer ->
+    (answer = element ∧ name_mode_at_least elt_name_mode min_name_mode)
+    ∨ name_mode_at_least
+        (Aliases.compute_name_mode binding_times_and_modes answer
+           min_binding_time)
+        min_name_mode.
+
+(* And it is in the class of the element asked about. *)
+Definition canonical_at_mode_aliased_statement : Prop :=
+  ∀ (A : Type) (binding_time_resolver : name -> Binding_time.With_name_mode.t)
+    (binding_times_and_modes
+      : Keyed.finite_map name (A * Binding_time.With_name_mode.t))
+    (t : Aliases.t) (element : simple)
+    (elt_name_mode min_name_mode : Name_mode.t)
+    (min_binding_time : Binding_time.t) (answer : simple),
+    aliases_consistent t ->
+    Aliases.get_canonical_element_exn binding_time_resolver
+      binding_times_and_modes t element elt_name_mode min_name_mode
+      min_binding_time
+    = Some answer ->
+    aliased t answer element.
