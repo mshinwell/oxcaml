@@ -159,8 +159,11 @@
      of null, and a naked immediate with the relation [Is_null] to
      that name: the number is 0 by the relation, and
      [meet_naked_immediates] answers that it is 1 (discrepancy T6-1;
-     T1-9 is the same). The statements for that notion, with the
-     premise that the names reached hold no poison, are to follow.
+     T1-9 is the same). Where no name holds poison the two notions
+     are one (FlambdaTypingEnvSpec.v), and a statement here holds
+     with [typing_env_satisfied]: the last section says so of the two
+     forms. A finer statement, whose premise is only of the names
+     that a prover reaches, is not made.
 
    A [Simple] that a prover answers. Where an answer is a [Simple],
    the statement is that the [Simple] has a value in the valuation
@@ -1144,3 +1147,66 @@ Definition prove_physical_equality_sound_statement : Prop :=
     Provers.prove_physical_equality tenv t1 t2
     = Some (Proof_of_property.Proved b) ->
     if b then v1 = v2 else v1 <> v2.
+
+(* ======================================================================== *)
+(* Where no name holds poison                                               *)
+(* ======================================================================== *)
+
+(* The two forms of statement for the notion of satisfaction that
+   exempts the names that hold poison ([typing_env_satisfied] of
+   FlambdaTypingEnvSpec.v), of a valuation in which no name holds
+   poison. *)
+Definition prover_sound_where_no_poison {A : Type}
+    (prover : Typing_env.t -> flambda_type -> option (Proof_of_property.t A))
+    (input : Typing_env.t -> flambda_type -> Prop)
+    (holds : static_env -> env -> A -> value -> Prop) : Prop :=
+  ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
+    (t : flambda_type) (x : A) (v : value),
+    typing_env_satisfied statics valuation tenv ->
+    (∀ n : name, ~ holds_poison valuation n) ->
+    input tenv t ->
+    type_satisfied statics valuation v t ->
+    prover tenv t = Some (Proof_of_property.Proved x) ->
+    holds statics valuation x v.
+
+Definition meet_shortcut_sound_where_no_poison {A : Type}
+    (prover : Typing_env.t -> flambda_type -> option (Meet_shortcut.t A))
+    (input : Typing_env.t -> flambda_type -> Prop)
+    (domain : static_env -> value -> Prop)
+    (holds : static_env -> env -> A -> value -> Prop) : Prop :=
+  ∀ (statics : static_env) (valuation : env) (tenv : Typing_env.t)
+    (t : flambda_type) (v : value),
+    typing_env_satisfied statics valuation tenv ->
+    (∀ n : name, ~ holds_poison valuation n) ->
+    input tenv t ->
+    type_satisfied statics valuation v t ->
+    domain statics v ->
+    match prover tenv t with
+    | Some (Meet_shortcut.Known_result x) => holds statics valuation x v
+    | Some Meet_shortcut.Invalid => False
+    | Some Meet_shortcut.Need_meet | None => True
+    end.
+
+(* A prover that is sound is sound in that sense: the two notions of
+   satisfaction are one there. So each statement of this file that is
+   of one of the two forms gives one for [typing_env_satisfied]; that
+   of [prove_physical_equality] goes the same way. The premise is of
+   every name of the valuation. It is more than is needed, which is
+   that the names that the prover reaches hold no poison; that
+   statement is not made, as nothing here says which names a prover
+   reaches. *)
+Definition sound_where_no_poison_statement : Prop :=
+  (∀ (A : Type)
+     (prover :
+       Typing_env.t -> flambda_type -> option (Proof_of_property.t A))
+     (input : Typing_env.t -> flambda_type -> Prop)
+     (holds : static_env -> env -> A -> value -> Prop),
+    prover_sound prover input holds ->
+    prover_sound_where_no_poison prover input holds)
+  ∧ ∀ (A : Type)
+      (prover : Typing_env.t -> flambda_type -> option (Meet_shortcut.t A))
+      (input : Typing_env.t -> flambda_type -> Prop)
+      (domain : static_env -> value -> Prop)
+      (holds : static_env -> env -> A -> value -> Prop),
+      meet_shortcut_sound prover input domain holds ->
+      meet_shortcut_sound_where_no_poison prover input domain holds.

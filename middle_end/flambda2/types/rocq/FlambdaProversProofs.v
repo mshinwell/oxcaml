@@ -3841,3 +3841,17 @@ Qed.
 Theorem prove_physical_equality_sound
   : prove_physical_equality_sound_statement.
 Proof. exact prove_physical_equality_sound_proof. Qed.
+
+Theorem sound_where_no_poison : sound_where_no_poison_statement.
+Proof.
+  split.
+  - intros A prover input holds Hsound statics valuation tenv t x v Hsat Hno.
+    exact
+      (Hsound statics valuation tenv t x v
+         (satisfied_no_poison_strictly _ _ _ Hno Hsat)).
+  - intros A prover input domain holds Hsound statics valuation tenv t v Hsat
+      Hno.
+    exact
+      (Hsound statics valuation tenv t v
+         (satisfied_no_poison_strictly _ _ _ Hno Hsat)).
+Qed.
