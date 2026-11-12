@@ -50,6 +50,29 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaMeetStepsProofs FlambdaMeetEnvSpec.
 Import ListNotations.
 
+(* The proofs below, as far as the end of the section, are for any
+   predicate on static environments that implies validity
+   (FlambdaMeetValidity.v): in them the names of the four contracts
+   that suppose a valid static environment stand for the same with
+   that predicate. The theorems of the signed statements are after the
+   section, at validity itself. *)
+From OxCamlFlambda2Types Require Import FlambdaMeetValidity.
+
+Section Validity.
+
+Context {V : validity}.
+
+Abbreviation statics_valid := valid.
+Abbreviation meet_expanded_head_sound := meet_expanded_head_sound_for.
+Abbreviation join_scoped_envs_sound := join_scoped_envs_sound_for.
+Abbreviation meet_call_ok := meet_call_ok_for.
+Abbreviation part_meet_ok := part_meet_ok_for.
+Abbreviation meet_disjunction_right := meet_disjunction_right_for.
+Abbreviation type_part_meet_ok := type_part_meet_ok_for.
+Abbreviation meet_row_like_for_closures_right :=
+  meet_row_like_for_closures_right_for.
+Abbreviation value_heads_right := value_heads_right_for.
+
 (* ======================================================================== *)
 (* From one environment to another that has the same names                  *)
 (* ======================================================================== *)
@@ -86,7 +109,8 @@ Proof. destruct kind as [ | [] | | ]; reflexivity. Qed.
 (* [make_bottom]                                                            *)
 (* ======================================================================== *)
 
-Theorem make_bottom_keeps : make_bottom_keeps_statement.
+Lemma make_bottom_keeps_for :
+  for_validity make_bottom_keeps_statement.
 Proof.
   intros menv (Hinvariant & Hwf & Hkinded & Hequations & Hbottom).
   split.
@@ -119,8 +143,8 @@ Lemma add_variable_definition_names (tenv : Typing_env.t) (var : variable)
     :: Typing_env.names_to_types tenv.
 Proof. reflexivity. Qed.
 
-Theorem add_variable_definition_keeps
-    : add_variable_definition_keeps_statement.
+Lemma add_variable_definition_keeps_for :
+  for_validity add_variable_definition_keeps_statement.
 Proof.
   intros menv var kind name_mode
     (Hinvariant & Hwf & Hkinded & Hequations & Hbottom) Hfresh.
@@ -1504,7 +1528,7 @@ Proof.
   destruct result as [ [ menv1 | ] | ]; cbn in Hbottom;
     [ | | discriminate Hbottom ]; injection Hbottom as <-.
   - exact (Hresult menv1 eq_refl).
-  - split; [ exact (make_bottom_keeps menv Hfits) | ].
+  - split; [ exact (make_bottom_keeps_for menv Hfits) | ].
     intros x Hknown Hunknown.
     change (Typing_env.mem None (Meet_env.typing_env menv) (Name_var x)
             = true) in Hknown.
@@ -1760,7 +1784,8 @@ End Keeps.
 (* The statements about the functions that add an equation                  *)
 (* ======================================================================== *)
 
-Theorem add_equation_on_simple_keeps : add_equation_on_simple_keeps_statement.
+Lemma add_equation_on_simple_keeps_for :
+  for_validity add_equation_on_simple_keeps_statement.
 Proof.
   intros mh menv menv' s ty Hmh Hfits Hty Hkind Hadd.
   apply (bottom_on_exception_keeps menv menv' _ Hfits) in Hadd;
@@ -1770,14 +1795,17 @@ Proof.
            Hresult).
 Qed.
 
-Theorem add_equation_keeps : add_equation_keeps_statement.
+Lemma add_equation_keeps_for :
+  for_validity add_equation_keeps_statement.
 Proof.
   intros mh menv menv' n ty Hmh Hfits Hty Hkind Hadd.
-  exact (add_equation_on_simple_keeps mh menv menv' (simple_of_name n) ty Hmh
+  exact (add_equation_on_simple_keeps_for mh menv menv' (simple_of_name n) ty
+           Hmh
            Hfits Hty Hkind Hadd).
 Qed.
 
-Theorem add_equation_strict_keeps : add_equation_strict_keeps_statement.
+Lemma add_equation_strict_keeps_for :
+  for_validity add_equation_strict_keeps_statement.
 Proof.
   intros mh menv menv' n ty Hmh Hfits Hty Hkind Hadd.
   unfold Meet_env.add_equation_strict in Hadd.
@@ -1788,7 +1816,8 @@ Proof.
            Hfits Hty Hkind Hadd).
 Qed.
 
-Theorem add_env_extension_keeps : add_env_extension_keeps_statement.
+Lemma add_env_extension_keeps_for :
+  for_validity add_env_extension_keeps_statement.
 Proof.
   intros mh menv menv' extension Hmh Hfits Hextension Hkinded Hadd.
   apply (bottom_on_exception_keeps menv menv' _ Hfits) in Hadd;
@@ -1798,8 +1827,8 @@ Proof.
            Hextension Hkinded Hresult).
 Qed.
 
-Theorem add_env_extension_strict_keeps
-    : add_env_extension_strict_keeps_statement.
+Lemma add_env_extension_strict_keeps_for :
+  for_validity add_env_extension_strict_keeps_statement.
 Proof.
   intros mh menv menv' extension Hmh Hfits Hextension Hkinded Hadd.
   unfold Meet_env.add_env_extension_strict in Hadd.
@@ -1809,7 +1838,8 @@ Proof.
            Hextension Hkinded Hadd).
 Qed.
 
-Theorem add_alias_keeps : add_alias_keeps_statement.
+Lemma add_alias_keeps_for :
+  for_validity add_alias_keeps_statement.
 Proof.
   intros mh menv menv' s1 s2 kind Hmh Hfits Hkind1 Hkind2 Hadd.
   assert (Hinvariant := proj1 Hfits).
@@ -1831,8 +1861,8 @@ Proof.
            Hcanonical1 Hcanonical2 Hkind_canonical1 Hkind_canonical2 Hadd).
 Qed.
 
-Theorem add_equations_on_params_keeps
-    : add_equations_on_params_keeps_statement.
+Lemma add_equations_on_params_keeps_for :
+  for_validity add_equations_on_params_keeps_statement.
 Proof.
   intros mh menv menv' params param_types Hmh. revert param_types menv menv'.
   induction params as [ | param params IH ];
@@ -1846,7 +1876,7 @@ Proof.
     destruct (Meet_env.add_equation menv (Name_var (fst param)) ty mh)
       as [ menv1 | ] eqn:Hfirst; [ | discriminate Hadd ].
     cbv beta iota in Hadd.
-    destruct (add_equation_keeps mh menv menv1 (Name_var (fst param)) ty Hmh
+    destruct (add_equation_keeps_for mh menv menv1 (Name_var (fst param)) ty Hmh
                 Hfits Hty Hkind Hfirst) as [[Hextends1 Hfits1] Hnames1].
     assert (Htenv := meet_env_extends_tenv _ _ Hextends1).
     destruct (IH param_types menv1 menv' Hfits1)
@@ -1861,7 +1891,8 @@ Proof.
                (conj Hextends2 Hnames2)).
 Qed.
 
-Theorem meet_type_keeps : meet_type_keeps_statement.
+Lemma meet_type_keeps_for :
+  for_validity meet_type_keeps_statement.
 Proof.
   intros mh menv menv' t1 t2 r Hmh Hfits Ht1 Ht2 Hmeet.
   unfold Meet_env.meet_type in Hmeet.
@@ -2740,8 +2771,8 @@ End Meet_sound.
 (* The statements about what the functions add                              *)
 (* ======================================================================== *)
 
-Theorem meet_env_add_equation_on_simple_sound
-    : meet_env_add_equation_on_simple_sound_statement.
+Lemma meet_env_add_equation_on_simple_sound_for :
+  for_validity meet_env_add_equation_on_simple_sound_statement.
 Proof.
   intros mh statics valuation menv menv' s ty v Hkeeps Hsound Hfits
     Hty Hkind Hstatics Hsatisfied Hvalue Hv Hadd.
@@ -2752,11 +2783,12 @@ Proof.
            valuation v result0 Hfits Hty Hkind Hsatisfied Hvalue Hv Hresult).
 Qed.
 
-Theorem meet_env_add_equation_sound : meet_env_add_equation_sound_statement.
+Lemma meet_env_add_equation_sound_for :
+  for_validity meet_env_add_equation_sound_statement.
 Proof.
   intros mh statics valuation menv menv' n ty v Hkeeps Hsound Hfits
     Hty Hkind Hstatics Hsatisfied Hvalue Hv Hadd.
-  exact (meet_env_add_equation_on_simple_sound mh statics valuation
+  exact (meet_env_add_equation_on_simple_sound_for mh statics valuation
            menv menv' (simple_of_name n) ty v Hkeeps Hsound Hfits Hty Hkind
            Hstatics Hsatisfied Hvalue Hv Hadd).
 Qed.
@@ -2768,8 +2800,8 @@ Lemma satisfied_not_bottom (statics : static_env) (valuation : env)
   Typing_env.is_bottom tenv = false.
 Proof. intros [Hnot_bottom _]. exact Hnot_bottom. Qed.
 
-Theorem meet_env_add_equation_strict_sound
-    : meet_env_add_equation_strict_sound_statement.
+Lemma meet_env_add_equation_strict_sound_for :
+  for_validity meet_env_add_equation_strict_sound_statement.
 Proof.
   intros mh statics valuation menv n ty v result Hkeeps Hsound
     Hfits Hty Hkind Hstatics Hsatisfied Hvalue Hv Hadd.
@@ -2780,8 +2812,8 @@ Proof.
            Hvalue Hv Hadd).
 Qed.
 
-Theorem meet_env_add_env_extension_sound
-    : meet_env_add_env_extension_sound_statement.
+Lemma meet_env_add_env_extension_sound_for :
+  for_validity meet_env_add_env_extension_sound_statement.
 Proof.
   intros mh statics valuation menv menv' extension Hkeeps Hsound
     Hfits Hextension Hkinded Hstatics Hsatisfied Htrue Hadd.
@@ -2793,8 +2825,8 @@ Proof.
            Htrue Hresult).
 Qed.
 
-Theorem meet_env_add_env_extension_strict_sound
-    : meet_env_add_env_extension_strict_sound_statement.
+Lemma meet_env_add_env_extension_strict_sound_for :
+  for_validity meet_env_add_env_extension_strict_sound_statement.
 Proof.
   intros mh statics valuation menv extension result Hkeeps Hsound
     Hfits Hextension Hkinded Hstatics Hsatisfied Htrue Hadd.
@@ -2805,7 +2837,8 @@ Proof.
            Htrue Hadd).
 Qed.
 
-Theorem meet_env_add_alias_sound : meet_env_add_alias_sound_statement.
+Lemma meet_env_add_alias_sound_for :
+  for_validity meet_env_add_alias_sound_statement.
 Proof.
   intros mh statics valuation menv s1 s2 kind v result Hkeeps
     Hsound Hfits Hkind1 Hkind2 Hstatics Hsatisfied Hvalue1 Hvalue2 Hadd.
@@ -2846,8 +2879,8 @@ Proof.
     constructor; [ split; assumption | exact (IH HQ) ].
 Qed.
 
-Theorem meet_env_add_equations_on_params_sound
-    : meet_env_add_equations_on_params_sound_statement.
+Lemma meet_env_add_equations_on_params_sound_for :
+  for_validity meet_env_add_equations_on_params_sound_statement.
 Proof.
   intros mh statics valuation menv menv' params param_types Hkeeps
     Hsound.
@@ -2866,9 +2899,9 @@ Proof.
     destruct (Meet_env.add_equation menv (Name_var (fst param)) ty mh)
       as [ menv1 | ] eqn:Hfirst; [ | discriminate Hadd ].
     cbv beta iota in Hadd.
-    destruct (add_equation_keeps mh menv menv1 (Name_var (fst param)) ty
+    destruct (add_equation_keeps_for mh menv menv1 (Name_var (fst param)) ty
                 Hkeeps Hfits Hty Hkind Hfirst) as [[Hextends1 Hfits1] _].
-    destruct (meet_env_add_equation_sound mh statics valuation menv
+    destruct (meet_env_add_equation_sound_for mh statics valuation menv
                 menv1 (Name_var (fst param)) ty v Hkeeps Hsound Hfits Hty
                 Hkind Hstatics Hsatisfied Hvalue Hv Hfirst)
       as (valuation1 & Hextended1 & Hsatisfied1 & Hvalued1).
@@ -2892,12 +2925,13 @@ Proof.
                  Hv').
 Qed.
 
-Theorem meet_type_ok : meet_type_ok_statement.
+Lemma meet_type_ok_for :
+  for_validity meet_type_ok_statement.
 Proof.
   intros mh v Hkeeps Hsound menv t1 t2 result Hfits Ht1 Ht2 Hmeet.
   split.
   - intros r menv' ->.
-    destruct (meet_type_keeps mh menv menv' t1 t2 r Hkeeps Hfits Ht1 Ht2
+    destruct (meet_type_keeps_for mh menv menv' t1 t2 r Hkeeps Hfits Ht1 Ht2
                 Hmeet) as ([[Hextends Hfits'] Hnames] & Hanswer & _).
     split; [ exact Hextends | ]. split; [ exact Hfits' | ].
     split; [ exact Hanswer | exact Hnames ].
@@ -2916,4 +2950,150 @@ Proof.
       exists menv', valuation'; (split; [ reflexivity | ]);
       (split; [ exact Hextended | ]); (split; [ exact Hsatisfied' | ]);
       (split; [ exact Hanswer | exact Hvalued ]).
+Qed.
+
+End Validity.
+
+Theorem make_bottom_keeps :
+  make_bottom_keeps_statement.
+Proof.
+  first
+    [ exact (@make_bottom_keeps_for standard_validity)
+    | exact make_bottom_keeps_for ].
+Qed.
+
+Theorem add_variable_definition_keeps :
+  add_variable_definition_keeps_statement.
+Proof.
+  first
+    [ exact (@add_variable_definition_keeps_for standard_validity)
+    | exact add_variable_definition_keeps_for ].
+Qed.
+
+Theorem add_equation_on_simple_keeps :
+  add_equation_on_simple_keeps_statement.
+Proof.
+  first
+    [ exact (@add_equation_on_simple_keeps_for standard_validity)
+    | exact add_equation_on_simple_keeps_for ].
+Qed.
+
+Theorem add_equation_keeps :
+  add_equation_keeps_statement.
+Proof.
+  first
+    [ exact (@add_equation_keeps_for standard_validity)
+    | exact add_equation_keeps_for ].
+Qed.
+
+Theorem add_equation_strict_keeps :
+  add_equation_strict_keeps_statement.
+Proof.
+  first
+    [ exact (@add_equation_strict_keeps_for standard_validity)
+    | exact add_equation_strict_keeps_for ].
+Qed.
+
+Theorem add_env_extension_keeps :
+  add_env_extension_keeps_statement.
+Proof.
+  first
+    [ exact (@add_env_extension_keeps_for standard_validity)
+    | exact add_env_extension_keeps_for ].
+Qed.
+
+Theorem add_env_extension_strict_keeps :
+  add_env_extension_strict_keeps_statement.
+Proof.
+  first
+    [ exact (@add_env_extension_strict_keeps_for standard_validity)
+    | exact add_env_extension_strict_keeps_for ].
+Qed.
+
+Theorem add_alias_keeps :
+  add_alias_keeps_statement.
+Proof.
+  first
+    [ exact (@add_alias_keeps_for standard_validity)
+    | exact add_alias_keeps_for ].
+Qed.
+
+Theorem add_equations_on_params_keeps :
+  add_equations_on_params_keeps_statement.
+Proof.
+  first
+    [ exact (@add_equations_on_params_keeps_for standard_validity)
+    | exact add_equations_on_params_keeps_for ].
+Qed.
+
+Theorem meet_type_keeps :
+  meet_type_keeps_statement.
+Proof.
+  first
+    [ exact (@meet_type_keeps_for standard_validity)
+    | exact meet_type_keeps_for ].
+Qed.
+
+Theorem meet_env_add_equation_on_simple_sound :
+  meet_env_add_equation_on_simple_sound_statement.
+Proof.
+  first
+    [ exact (@meet_env_add_equation_on_simple_sound_for standard_validity)
+    | exact meet_env_add_equation_on_simple_sound_for ].
+Qed.
+
+Theorem meet_env_add_equation_sound :
+  meet_env_add_equation_sound_statement.
+Proof.
+  first
+    [ exact (@meet_env_add_equation_sound_for standard_validity)
+    | exact meet_env_add_equation_sound_for ].
+Qed.
+
+Theorem meet_env_add_equation_strict_sound :
+  meet_env_add_equation_strict_sound_statement.
+Proof.
+  first
+    [ exact (@meet_env_add_equation_strict_sound_for standard_validity)
+    | exact meet_env_add_equation_strict_sound_for ].
+Qed.
+
+Theorem meet_env_add_env_extension_sound :
+  meet_env_add_env_extension_sound_statement.
+Proof.
+  first
+    [ exact (@meet_env_add_env_extension_sound_for standard_validity)
+    | exact meet_env_add_env_extension_sound_for ].
+Qed.
+
+Theorem meet_env_add_env_extension_strict_sound :
+  meet_env_add_env_extension_strict_sound_statement.
+Proof.
+  first
+    [ exact (@meet_env_add_env_extension_strict_sound_for standard_validity)
+    | exact meet_env_add_env_extension_strict_sound_for ].
+Qed.
+
+Theorem meet_env_add_alias_sound :
+  meet_env_add_alias_sound_statement.
+Proof.
+  first
+    [ exact (@meet_env_add_alias_sound_for standard_validity)
+    | exact meet_env_add_alias_sound_for ].
+Qed.
+
+Theorem meet_env_add_equations_on_params_sound :
+  meet_env_add_equations_on_params_sound_statement.
+Proof.
+  first
+    [ exact (@meet_env_add_equations_on_params_sound_for standard_validity)
+    | exact meet_env_add_equations_on_params_sound_for ].
+Qed.
+
+Theorem meet_type_ok :
+  meet_type_ok_statement.
+Proof.
+  first
+    [ exact (@meet_type_ok_for standard_validity)
+    | exact meet_type_ok_for ].
 Qed.

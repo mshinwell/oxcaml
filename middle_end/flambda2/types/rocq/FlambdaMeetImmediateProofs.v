@@ -48,12 +48,35 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaMeetEnvProofs FlambdaMeetImmediateSpec.
 Import ListNotations.
 
+(* The proofs below, as far as the end of the section, are for any
+   predicate on static environments that implies validity
+   (FlambdaMeetValidity.v): in them the names of the four contracts
+   that suppose a valid static environment stand for the same with
+   that predicate. The theorems of the signed statements are after the
+   section, at validity itself. *)
+From OxCamlFlambda2Types Require Import FlambdaMeetValidity.
+
+Section Validity.
+
+Context {V : validity}.
+
+Abbreviation statics_valid := valid.
+Abbreviation meet_expanded_head_sound := meet_expanded_head_sound_for.
+Abbreviation join_scoped_envs_sound := join_scoped_envs_sound_for.
+Abbreviation meet_call_ok := meet_call_ok_for.
+Abbreviation part_meet_ok := part_meet_ok_for.
+Abbreviation meet_disjunction_right := meet_disjunction_right_for.
+Abbreviation type_part_meet_ok := type_part_meet_ok_for.
+Abbreviation meet_row_like_for_closures_right :=
+  meet_row_like_for_closures_right_for.
+Abbreviation value_heads_right := value_heads_right_for.
+
 (* ======================================================================== *)
 (* Two types of different kinds                                             *)
 (* ======================================================================== *)
 
-Theorem meet_expanded_head_fuel_other_kinds
-    : meet_expanded_head_fuel_other_kinds_statement.
+Lemma meet_expanded_head_fuel_other_kinds_for :
+  for_validity meet_expanded_head_fuel_other_kinds_statement.
 Proof.
   intros join choices fuel menv menv' expanded1 expanded2 r Hkinds Hmeet.
   destruct fuel as [ | fuel ]; [ discriminate Hmeet | ].
@@ -149,8 +172,8 @@ Proof.
                     Hdemoted)).
 Qed.
 
-Theorem reduce_head_of_kind_naked_immediate_fits
-    : reduce_head_of_kind_naked_immediate_fits_statement.
+Lemma reduce_head_of_kind_naked_immediate_fits_for :
+  for_validity reduce_head_of_kind_naked_immediate_fits_statement.
 Proof.
   intros tenv head head' Hfits Hhead Hreduce.
   assert (Hinvariant : typing_env_invariant tenv) by exact (proj1 Hfits).
@@ -248,7 +271,7 @@ Proof.
          intros i [H1 H2]; (exact H1 || exact H2)).
   - cbn [option_map].
     assert (Hcases :=
-      set_meet_cases Z (list Z) Z.eqb (fun s => s) env (i1 :: s1) (i2 :: s2)
+      set_meet_cases_for Z (list Z) Z.eqb (fun s => s) env (i1 :: s1) (i2 :: s2)
         z_eqb_decides_equality).
     destruct (set_meet Z.eqb (fun s => s) env (i1 :: s1) (i2 :: s2))
       as [ r | r env' ].
@@ -397,7 +420,8 @@ Proof.
     [ discriminate Hadd0 | ].
   destruct (add_equation0_kind_cases menv n ty _ Hfits Halias Hadd0)
     as [ Hkind | [ Heq | [Heq _] ] ].
-  - exact (add_equation_strict_keeps mh menv menv' n ty Hkeeps Hfits Hty Hkind
+  - exact (add_equation_strict_keeps_for mh menv menv' n ty Hkeeps Hfits Hty
+             Hkind
              Hadd).
   - injection Heq as ->. apply meet_env_steps_kept.
     split; [ apply meet_env_steps_refl | exact Hfits ].
@@ -424,7 +448,8 @@ Proof.
   rewrite (satisfied_not_bottom statics valuation _ Hsatisfied) in Hadd0.
   destruct (add_equation0_kind_cases menv n ty _ Hfits Halias Hadd0)
     as [ Hkind | [ -> | (_ & c & Hcanonical & Hdiffer) ] ].
-  - exact (meet_env_add_equation_strict_sound mh statics valuation menv n ty v
+  - exact (meet_env_add_equation_strict_sound_for mh statics valuation menv n ty
+             v
              result Hkeeps Hsound Hfits Hty Hkind Hstatics Hsatisfied Hvalue
              Hv Hadd).
   - exists menv. split; [ reflexivity | ].
@@ -908,8 +933,8 @@ Qed.
 (* The meet of two heads                                                    *)
 (* ======================================================================== *)
 
-Theorem meet_head_of_kind_naked_immediate_ok
-    : meet_head_of_kind_naked_immediate_ok_statement.
+Lemma meet_head_of_kind_naked_immediate_ok_for :
+  for_validity meet_head_of_kind_naked_immediate_ok_statement.
 Proof.
   intros choices mh v Hchoice Hkeeps Hsound Hother menv t1 t2 result Hfits
     Ht1 Ht2 Hmeet.
@@ -926,7 +951,7 @@ Proof.
         ∧ type_satisfied statics valuation v
             (naked_immediate_head_type head')).
   { intros statics valuation head Hsatisfied Hhead.
-    exact (reduce_head_of_kind_naked_immediate_sound statics valuation tenv
+    exact (reduce_head_of_kind_naked_immediate_sound_for statics valuation tenv
              head v Hsatisfied Hhead). }
   destruct (reduce_head_of_kind_naked_immediate tenv t1) as [ t1' | ] eqn:Hr1,
     (reduce_head_of_kind_naked_immediate tenv t2) as [ t2' | ] eqn:Hr2.
@@ -943,9 +968,9 @@ Proof.
        destruct (Hreduced statics valuation t1 Hsatisfied H1) as (h & Heq & _).
        rewrite Hr1 in Heq. discriminate Heq. }
   assert (Ht1' :=
-    reduce_head_of_kind_naked_immediate_fits tenv t1 t1' Hfits Ht1 Hr1).
+    reduce_head_of_kind_naked_immediate_fits_for tenv t1 t1' Hfits Ht1 Hr1).
   assert (Ht2' :=
-    reduce_head_of_kind_naked_immediate_fits tenv t2 t2' Hfits Ht2 Hr2).
+    reduce_head_of_kind_naked_immediate_fits_for tenv t2 t2' Hfits Ht2 Hr2).
   cbv zeta in Hmeet.
   fold (meet_numbers menv (naked_immediates t1') (naked_immediates t2'))
     in Hmeet.
@@ -1098,4 +1123,30 @@ Proof.
         | exact (Hstable t2' Ht2' Hh2)
         | intros j Hj1 Hj2; apply Hboth; split; assumption
         | exact Hall ].
+Qed.
+
+End Validity.
+
+Theorem meet_expanded_head_fuel_other_kinds :
+  meet_expanded_head_fuel_other_kinds_statement.
+Proof.
+  first
+    [ exact (@meet_expanded_head_fuel_other_kinds_for standard_validity)
+    | exact meet_expanded_head_fuel_other_kinds_for ].
+Qed.
+
+Theorem reduce_head_of_kind_naked_immediate_fits :
+  reduce_head_of_kind_naked_immediate_fits_statement.
+Proof.
+  first
+    [ exact (@reduce_head_of_kind_naked_immediate_fits_for standard_validity)
+    | exact reduce_head_of_kind_naked_immediate_fits_for ].
+Qed.
+
+Theorem meet_head_of_kind_naked_immediate_ok :
+  meet_head_of_kind_naked_immediate_ok_statement.
+Proof.
+  first
+    [ exact (@meet_head_of_kind_naked_immediate_ok_for standard_validity)
+    | exact meet_head_of_kind_naked_immediate_ok_for ].
 Qed.

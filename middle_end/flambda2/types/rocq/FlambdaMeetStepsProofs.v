@@ -42,6 +42,29 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaMeetSpec FlambdaMeetStepsSpec.
 Import ListNotations.
 
+(* The proofs below, as far as the end of the section, are for any
+   predicate on static environments that implies validity
+   (FlambdaMeetValidity.v): in them the names of the four contracts
+   that suppose a valid static environment stand for the same with
+   that predicate. The theorems of the signed statements are after the
+   section, at validity itself. *)
+From OxCamlFlambda2Types Require Import FlambdaMeetValidity.
+
+Section Validity.
+
+Context {V : validity}.
+
+Abbreviation statics_valid := valid.
+Abbreviation meet_expanded_head_sound := meet_expanded_head_sound_for.
+Abbreviation join_scoped_envs_sound := join_scoped_envs_sound_for.
+Abbreviation meet_call_ok := meet_call_ok_for.
+Abbreviation part_meet_ok := part_meet_ok_for.
+Abbreviation meet_disjunction_right := meet_disjunction_right_for.
+Abbreviation type_part_meet_ok := type_part_meet_ok_for.
+Abbreviation meet_row_like_for_closures_right :=
+  meet_row_like_for_closures_right_for.
+Abbreviation value_heads_right := value_heads_right_for.
+
 (* ======================================================================== *)
 (* The relations of a naked immediate, reduced                              *)
 (* ======================================================================== *)
@@ -80,8 +103,8 @@ Lemma eval_simple_const (valuation : env) (c : const) :
   eval_simple valuation (Const c) = Some (Value_const c).
 Proof. reflexivity. Qed.
 
-Theorem reduce_head_of_kind_naked_immediate_sound
-    : reduce_head_of_kind_naked_immediate_sound_statement.
+Lemma reduce_head_of_kind_naked_immediate_sound_for :
+  for_validity reduce_head_of_kind_naked_immediate_sound_statement.
 Proof.
   intros statics valuation tenv head v Henv (i & Hv & Himms & Hrels).
   unfold reduce_head_of_kind_naked_immediate.
@@ -350,7 +373,8 @@ Lemma map_result_ok_eq {A B : Type} (f : A -> B) (r : meet_return_value A)
   = Meet_result.Ok (map_return_value f r) menv.
 Proof. destruct r; reflexivity. Qed.
 
-Theorem map_result_ok : map_result_ok_statement.
+Lemma map_result_ok_for :
+  for_validity map_result_ok_statement.
 Proof.
   intros A B fits_a satisfied_a fits_b satisfied_b f menv a1
     a2 result Hfits Hsatisfied [Hkeeps Hsound].
@@ -416,7 +440,8 @@ Proof.
     intros cut_after Hvalued. exact Hvalued.
 Qed.
 
-Theorem meet_unknown_ok : meet_unknown_ok_statement.
+Lemma meet_unknown_ok_for :
+  for_validity meet_unknown_ok_statement.
 Proof.
   intros A fits satisfied meet_contents contents_is_bottom
     Hbottom Hok menv x1 x2 result Henv Hfits1 Hfits2 Hmeet.
@@ -433,7 +458,7 @@ Proof.
     + destruct (meet_contents menv c1 c2) as [ result0 | ] eqn:Hcontents;
         [ | discriminate ].
       injection Hmeet as <-.
-      apply (map_result_ok A (Or_unknown.t A) fits satisfied
+      apply (map_result_ok_for A (Or_unknown.t A) fits satisfied
                (or_unknown_fits fits) (or_unknown_satisfied satisfied)
                Or_unknown.Known menv c1 c2 result0).
       * intros tenv a Ha. exact Ha.
@@ -474,7 +499,8 @@ Proof.
     (split; [ reflexivity | ]); split; auto.
 Qed.
 
-Theorem combine_results2_ok : combine_results2_ok_statement.
+Lemma combine_results2_ok_for :
+  for_validity combine_results2_ok_statement.
 Proof.
   intros A B C fits_a satisfied_a fits_b satisfied_b fits_c
     satisfied_c meet_a meet_b rebuild menv left_a right_a left_b right_b
@@ -583,7 +609,8 @@ Qed.
 (* Sets                                                                     *)
 (* ======================================================================== *)
 
-Theorem set_meet_cases : set_meet_cases_statement.
+Lemma set_meet_cases_for :
+  for_validity set_meet_cases_statement.
 Proof.
   intros K B eqb of_set env s1 s2 Heqb. unfold set_meet.
   assert (Hin := keyed_among_in K eqb Heqb).
@@ -615,12 +642,13 @@ Proof.
       intros _ _. discriminate.
 Qed.
 
-Theorem naked_number_meet_ok : naked_number_meet_ok_statement.
+Lemma naked_number_meet_ok_for :
+  for_validity naked_number_meet_ok_statement.
 Proof.
   intros k v menv t1 t2 result Henv Hf1 Hf2 [= <-].
   unfold meet_head_of_kind_naked_number.
   assert (Hcases :=
-    set_meet_cases Z (list Z) Z.eqb (fun s => s) menv t1 t2
+    set_meet_cases_for Z (list Z) Z.eqb (fun s => s) menv t1 t2
       z_eqb_decides_equality).
   assert (Hboth :
     naked_numbers_satisfied k v t1 -> naked_numbers_satisfied k v t2 ->
@@ -649,8 +677,8 @@ Qed.
 (* A thing that may be unknown or bottom                                    *)
 (* ======================================================================== *)
 
-Theorem meet_or_unknown_or_bottom_ok
-    : meet_or_unknown_or_bottom_ok_statement.
+Lemma meet_or_unknown_or_bottom_ok_for :
+  for_validity meet_or_unknown_or_bottom_ok_statement.
 Proof.
   intros A B fits satisfied inj meet_elt menv input1 input2
     result tenv Helt Hbottom Henv Hfits1 Hfits2 Hmeet.
@@ -1010,7 +1038,8 @@ Qed.
 
 End Mapping.
 
-Theorem meet_mapping_ok : meet_mapping_ok_statement.
+Lemma meet_mapping_ok_for :
+  for_validity meet_mapping_ok_statement.
 Proof.
   intros K A M fits satisfied meet_data fold2 keys get_left
     get_right menv left right rebuild result tenv Hfold2 Hstable Hok Henv
@@ -1088,4 +1117,70 @@ Proof.
         split; [ apply keeps_equations_valued_refl | ]. intros key a []. }
       { discriminate. }
       discriminate Hacc'.
+Qed.
+
+End Validity.
+
+Theorem reduce_head_of_kind_naked_immediate_sound :
+  reduce_head_of_kind_naked_immediate_sound_statement.
+Proof.
+  first
+    [ exact (@reduce_head_of_kind_naked_immediate_sound_for standard_validity)
+    | exact reduce_head_of_kind_naked_immediate_sound_for ].
+Qed.
+
+Theorem map_result_ok :
+  map_result_ok_statement.
+Proof.
+  first
+    [ exact (@map_result_ok_for standard_validity)
+    | exact map_result_ok_for ].
+Qed.
+
+Theorem meet_unknown_ok :
+  meet_unknown_ok_statement.
+Proof.
+  first
+    [ exact (@meet_unknown_ok_for standard_validity)
+    | exact meet_unknown_ok_for ].
+Qed.
+
+Theorem combine_results2_ok :
+  combine_results2_ok_statement.
+Proof.
+  first
+    [ exact (@combine_results2_ok_for standard_validity)
+    | exact combine_results2_ok_for ].
+Qed.
+
+Theorem set_meet_cases :
+  set_meet_cases_statement.
+Proof.
+  first
+    [ exact (@set_meet_cases_for standard_validity)
+    | exact set_meet_cases_for ].
+Qed.
+
+Theorem naked_number_meet_ok :
+  naked_number_meet_ok_statement.
+Proof.
+  first
+    [ exact (@naked_number_meet_ok_for standard_validity)
+    | exact naked_number_meet_ok_for ].
+Qed.
+
+Theorem meet_or_unknown_or_bottom_ok :
+  meet_or_unknown_or_bottom_ok_statement.
+Proof.
+  first
+    [ exact (@meet_or_unknown_or_bottom_ok_for standard_validity)
+    | exact meet_or_unknown_or_bottom_ok_for ].
+Qed.
+
+Theorem meet_mapping_ok :
+  meet_mapping_ok_statement.
+Proof.
+  first
+    [ exact (@meet_mapping_ok_for standard_validity)
+    | exact meet_mapping_ok_for ].
 Qed.

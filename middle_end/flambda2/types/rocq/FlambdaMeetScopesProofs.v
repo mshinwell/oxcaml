@@ -47,6 +47,29 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaMeetEnvProofs FlambdaMeetScopesSpec.
 Import ListNotations.
 
+(* The proofs below, as far as the end of the section, are for any
+   predicate on static environments that implies validity
+   (FlambdaMeetValidity.v): in them the names of the four contracts
+   that suppose a valid static environment stand for the same with
+   that predicate. The theorems of the signed statements are after the
+   section, at validity itself. *)
+From OxCamlFlambda2Types Require Import FlambdaMeetValidity.
+
+Section Validity.
+
+Context {V : validity}.
+
+Abbreviation statics_valid := valid.
+Abbreviation meet_expanded_head_sound := meet_expanded_head_sound_for.
+Abbreviation join_scoped_envs_sound := join_scoped_envs_sound_for.
+Abbreviation meet_call_ok := meet_call_ok_for.
+Abbreviation part_meet_ok := part_meet_ok_for.
+Abbreviation meet_disjunction_right := meet_disjunction_right_for.
+Abbreviation type_part_meet_ok := type_part_meet_ok_for.
+Abbreviation meet_row_like_for_closures_right :=
+  meet_row_like_for_closures_right_for.
+Abbreviation value_heads_right := value_heads_right_for.
+
 (* ======================================================================== *)
 (* Valuations                                                               *)
 (* ======================================================================== *)
@@ -423,7 +446,7 @@ Proof.
   change tenv'
     with (Typing_env.add_variable_definition tenv x k Name_mode.in_types).
   split.
-  { exact (add_variable_definition_keeps menv x k Name_mode.in_types Hfits
+  { exact (add_variable_definition_keeps_for menv x k Name_mode.in_types Hfits
              Hfresh). }
   split.
   { apply (simple_of_kind_name _ (Name_var x)). left.
@@ -1126,7 +1149,7 @@ Proof.
   intros Hfits Hextension Hadd.
   destruct extension as [ extension | ]; cbn in Hadd.
   - destruct Hextension as (_ & Hextension & Hkinded).
-    exact (add_env_extension_strict_keeps mh menv menv' extension Hkeeps
+    exact (add_env_extension_strict_keeps_for mh menv menv' extension Hkeeps
              Hfits Hextension Hkinded Hadd).
   - injection Hadd as <-.
     exact (meet_env_steps_kept _ _ (conj (meet_env_steps_refl menv) Hfits)).
@@ -1146,7 +1169,7 @@ Proof.
   intros Hfits Hextension Hstatics Hsatisfied Htrue Hadd.
   destruct extension as [ extension | ]; cbn in Hadd.
   - destruct Hextension as (_ & Hextension & Hkinded).
-    exact (meet_env_add_env_extension_strict_sound mh statics valuation menv
+    exact (meet_env_add_env_extension_strict_sound_for mh statics valuation menv
              extension result Hkeeps Hsound Hfits Hextension Hkinded
              Hstatics Hsatisfied Htrue Hadd).
   - injection Hadd as <-. exists menv. split; [ reflexivity | ].
@@ -1395,7 +1418,7 @@ Proof.
               (scoped_extension_fits tenv stenv Hscoped_fits
                  alternative_scoped))
     as (_ & Hextension & Hkinded).
-  destruct (add_env_extension_strict_keeps mh menv1 menv2 _ Hkeeps Hfits1
+  destruct (add_env_extension_strict_keeps_for mh menv1 menv2 _ Hkeeps Hfits1
               Hextension Hkinded Hadd) as [[Hextends12 Hfits2] Hnames12].
   split; [ reflexivity | ]. split.
   { exact (meet_env_extends_trans _ _ _ initial_extends_avoiding
@@ -1506,7 +1529,7 @@ Proof.
               (scoped_extension_fits tenv stenv Hscoped_fits
                  alternative_scoped))
     as (_ & Hextension & Hkinded).
-  destruct (meet_env_add_env_extension_strict_sound mh statics valuation_s
+  destruct (meet_env_add_env_extension_strict_sound_for mh statics valuation_s
               menv1 _ added Hkeeps Hsound Hfits1 Hextension Hkinded Hstatics
               Hsatisfied1 Htrue Hadd)
     as (menv2 & -> & valuation' & Hextended' & Hsatisfied' & Hvalued').
@@ -2574,7 +2597,8 @@ Qed.
 
 End Disjunction.
 
-Theorem meet_disjunction_ok : meet_disjunction_ok_statement.
+Lemma meet_disjunction_ok_for :
+  for_validity meet_disjunction_ok_statement.
 Proof.
   intros A B fits_a satisfied_a fits_b satisfied_b join choices mh meet_a
     meet_b bottom_a bottom_b Hjoin Hchoice Hkeeps Hsound Hstable_a Hstable_b
@@ -2585,4 +2609,14 @@ Proof.
            Hjoin Hchoice Hkeeps Hsound Hkinds_a Hkinds_b Hmeet_a Hmeet_b
            Hexclusive Hbottom_a Hbottom_b menv a1 a2 b1 b2 e1 e2 Hfits Hx1 Hx2
            result Hmeet).
+Qed.
+
+End Validity.
+
+Theorem meet_disjunction_ok :
+  meet_disjunction_ok_statement.
+Proof.
+  first
+    [ exact (@meet_disjunction_ok_for standard_validity)
+    | exact meet_disjunction_ok_for ].
 Qed.
