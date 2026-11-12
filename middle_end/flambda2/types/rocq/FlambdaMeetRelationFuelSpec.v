@@ -26,8 +26,9 @@
  ******************************************************************************)
 
 (* The fuel of the meet that a [Switch] makes where it enters an arm,
-   for a scrutinee that is the result of a relation: two units are
-   enough.
+   for a scrutinee that is the result of relations: two units are
+   enough, and the environment that the meet answers is one for which
+   they are enough again.
 
    This file is to be reviewed: the definitions and the statements.
    It goes on from FlambdaMeetTerminationSpec.v (what it is for the
@@ -58,7 +59,9 @@
      environment has for the canonical element of the name.
    The last is the meet of a bare shape with a type of the environment
    (FlambdaMeetDepthSpec.v), for which one unit is enough; the second
-   is one step more.
+   is one step more. A head with several relations has the second
+   done for each in turn, each in the environment that the one before
+   left.
 
    What is stated. [relation_const_fuel_enough_statement]: two units
    of fuel are enough for the meet of the two types, where
@@ -66,7 +69,7 @@
      a name that is canonical, in aliases that are consistent, as in
      [alias_const_fuel_enough_statement];
    - the type that the environment has for that name is a head of
-     naked immediates with one inverse relation at most;
+     naked immediates, with whatever inverse relations;
    - every type of kind value that the environment has for a name is
      an alias or has no extension ([values_extension_free]);
    - the types that the choices give for [Get_tag] are bare shapes of
@@ -78,16 +81,25 @@
    The constant is any constant. Enough is [meet_fuel_enough]: the
    answer is the same whatever is answered where the fuel runs out.
    That the meet answers is not said.
+   [relation_const_meet_keeps_statement]: under the same hypotheses,
+   where the meet of that fuel or more answers an environment, every
+   type of kind value that this environment has for a name is an
+   alias or has no extension. So what is supposed of the environment
+   is kept by the meet for an arm, and holds of the environment in
+   which the arm is entered.
 
-   What the hypotheses are for. One relation at most: each relation
-   adds an equation, and after the first the environment is another,
-   of which the third hypothesis would have to be shown again; that
-   needs that the meet of a bare shape answers a type with no
-   extension, which is not stated. Types of kind value with no
-   extension: the type that the environment has for the name of the
-   relation, or for what that name is an alias of, is met with the
-   shape; with an extension in it the meet would add the equations of
-   the extension, for which no bound is known. The name of the
+   What the hypotheses are for. Each relation adds one equation at
+   most, and after it the environment is another, of which the third
+   hypothesis is shown again: the type that the name of the relation
+   is given is the shape, or the type that it had, or what the meet
+   of the two makes, which has no extension
+   ([bare_shape_meet_extension_free_statement],
+   FlambdaMeetDepthSpec.v); or the name becomes an alias of a
+   constant. Types of kind value with no extension: the type that the
+   environment has for the name of the relation, or for what that
+   name is an alias of, is met with the shape; with an extension in
+   it the meet would add the equations of the extension, for which no
+   bound is known. The name of the
    relation is not asked to be canonical, nor to be another than the
    scrutinee: whatever its canonical element is, the type of that is
    an alias or has no extension, or the canonical element is a
@@ -99,11 +111,16 @@
    is supposed, so two units are enough for the arm for 0, with every
    join and all choices that have what is supposed of them; and with
    the meet that is to be proved and the join that forgets, one unit
-   is not enough.
+   is not enough. A second ([example_two_relations_statement]): the
+   same environment where [tag] is also the result of [Is_int] of a
+   third variable. Two units are enough for the arm for 1, and with
+   them the meet answers: the first variable, whose type had the
+   variable for its tag, is given a type that the meet makes, and the
+   third the type of the tagged immediates.
 
-   What is not here: a scrutinee with more relations than one; an
-   environment in which a type of kind value has an extension; and
-   what the meet answers. *)
+   What is not here: an environment in which a type of kind value has
+   an extension; and what the meet answers, beyond what is said of
+   its environment. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
@@ -142,8 +159,7 @@ Definition choices_get_tag_shapes_statement : Prop :=
 
 (* The meet of a type that is an alias of a canonical name with the
    type of a constant, where the type that the environment has for
-   the name is a head of naked immediates with one inverse relation
-   at most. *)
+   the name is a head of naked immediates. *)
 Definition relation_const_fuel_enough_statement : Prop :=
   ∀ (join : join_scoped_envs) (choices : meet_choices) (tenv : Typing_env.t)
     (t : flambda_type) (n : name) (head : head_of_kind_naked_immediate)
@@ -158,11 +174,32 @@ Definition relation_const_fuel_enough_statement : Prop :=
     = Some (Some (simple_of_name n)) ->
     Typing_env.find tenv n (Some (kind t))
     = Some (Type_naked_immediate (Ok (No_alias head))) ->
-    length (inverse_relations head) <= 1 ->
     meet_fuel_enough join choices 2 tenv t (this_const c).
 
+(* The environment that this meet answers, with that fuel or more, has
+   what is supposed of the environment again: its types of kind value
+   are aliases or have no extension. *)
+Definition relation_const_meet_keeps_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (fuel : nat)
+    (tenv tenv' : Typing_env.t) (t ty : flambda_type) (n : name)
+    (head : head_of_kind_naked_immediate) (c : const),
+    join_of_nothing join ->
+    get_tag_shapes choices ->
+    values_extension_free tenv ->
+    aliases_consistent (Typing_env.aliases tenv) ->
+    is_canonical (Typing_env.aliases tenv) (simple_of_name n) ->
+    Typing_env.get_alias_then_canonical_simple_exn tenv
+      (Some Name_mode.in_types) None t
+    = Some (Some (simple_of_name n)) ->
+    Typing_env.find tenv n (Some (kind t))
+    = Some (Type_naked_immediate (Ok (No_alias head))) ->
+    2 <= fuel ->
+    Meet.meet join choices fuel tenv t (this_const c)
+    = Some (Or_bottom.Ok (ty, tenv')) ->
+    values_extension_free tenv'.
+
 (* ======================================================================== *)
-(* An example                                                               *)
+(* Two examples                                                             *)
 (* ======================================================================== *)
 
 (* The environment after [let tag = Get_tag p] of
@@ -182,3 +219,71 @@ Definition example_relation_fuel_statement : Prop :=
         1 FlambdaMeetExamplesSpec.example_get_tag_env
         FlambdaMeetExamplesSpec.example_tag_type
         FlambdaMeetExamplesSpec.example_zero_type.
+
+(* The same with two relations: [tag] is also the result of [Is_int]
+   of a third variable, [q], of which nothing else is known. *)
+Definition example_q : variable := 3%positive.
+
+Definition example_two_relations_env : Typing_env.t :=
+  let tenv :=
+    Typing_env.add_variable_definition
+      FlambdaMeetExamplesSpec.example_get_tag_env example_q Value
+      Name_mode.normal
+  in
+  Typing_env.replace_equation tenv
+    (Name_var FlambdaMeetExamplesSpec.example_tag)
+    (Type_naked_immediate
+       (Ok
+          (No_alias
+             (Head_of_kind_naked_immediate Or_unknown.Unknown
+                [(Relation.Get_tag,
+                  Name_var FlambdaMeetExamplesSpec.example_p);
+                 (Relation.Is_int, Name_var example_q)])))).
+
+(* The types that the environment has for [p] and for [q] once the arm
+   for 1 is entered, with the meet that is to be proved and the join
+   that forgets, at two units of fuel. *)
+Definition example_two_relations_types
+    : option (option flambda_type * option flambda_type) :=
+  match
+    Meet.meet FlambdaMeetExamplesSpec.forgetful_join repaired_choices 2
+      example_two_relations_env FlambdaMeetExamplesSpec.example_tag_type
+      (this_naked_immediate 1)
+  with
+  | Some (Or_bottom.Ok (_, tenv')) =>
+    Some
+      (Typing_env.find tenv' (Name_var FlambdaMeetExamplesSpec.example_p)
+         (Some Value),
+       Typing_env.find tenv' (Name_var example_q) (Some Value))
+  | Some Or_bottom.Bottom | None => None
+  end.
+
+(* Two units are enough, whatever the join and the choices that have
+   what is supposed of them. With them the meet answers: [p], whose
+   type had the variable for its tag, is given a type that the meet
+   makes, the blocks of tag 1 with that variable, and [q] is given the
+   type of the tagged immediates. *)
+Definition example_two_relations_statement : Prop :=
+  (∀ (join : join_scoped_envs) (choices : meet_choices),
+    join_of_nothing join ->
+    get_tag_shapes choices ->
+    meet_fuel_enough join choices 2 example_two_relations_env
+      FlambdaMeetExamplesSpec.example_tag_type (this_naked_immediate 1))
+  ∧ example_two_relations_types
+    = Some
+        (Some
+           (Type_value
+              (Ok
+                 (No_alias
+                    (Head_of_kind_value
+                       (Ok
+                          (Variant None Or_unknown.Unknown
+                             (Some FlambdaMeetExamplesSpec.example_tag)
+                             (Or_unknown.Known
+                                (Row_like_for_blocks
+                                   [(1%Z, Or_unknown.Unknown)]
+                                   Or_bottom.Bottom
+                                   Alloc_mode.Heap_or_local))
+                             No_extensions false))
+                       Not_null)))),
+         Some any_tagged_immediate).

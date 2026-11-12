@@ -57,11 +57,17 @@
      that says nothing or has no value), the meets of every fuel from
      one unit on answer the same on those as the meet of one unit.
    - [relation_switch_fuel_statement]: for a scrutinee that is the
-     result of one relation at most ([Is_int], [Get_tag], [Is_null]),
+     result of relations ([Is_int], [Get_tag], [Is_null]; one, none or
+     several),
      the meets of every fuel from two units on answer the same as the
      meet of two units, under what FlambdaMeetRelationFuelSpec.v
      supposes of the environment, of the choices of the meet and of
      the join.
+   - [relation_switch_arm_keeps_statement]: under the same
+     hypotheses, the environment that the meet for an arm answers has
+     what is supposed of the environment of the [Switch]: its types of
+     kind value are aliases or have no extension. So what the second
+     slice does to an arm is done in such an environment.
    - [model_relation_switch_fuel_statement]: the same of the meet of
      the model (FlambdaJoinMeet.model_meet), whose join has what is
      supposed where there is fuel for the join of environments
@@ -75,7 +81,7 @@
    the environment answers for it is an alias whose canonical element,
    as the meet reads it, is a canonical name, and the type that the
    environment has for that name is flat ([flat_type]) or is a head of
-   naked immediates with one inverse relation at most
+   naked immediates, with whatever inverse relations
    ([relation_type]). The aliases of the environment are consistent,
    as in FlambdaMeetTerminationSpec.v. Both [scrutinee_has] and
    [arm_meets_agree] are about the type that the environment answers
@@ -93,10 +99,9 @@
    What is not here: that the slices applied to the meet of that fuel
    answer what the compiler does (the places where the model of the
    meet is not the compiler's are listed in FlambdaMeet.v and
-   FlambdaMeetEnv.v); a scrutinee whose type is neither flat nor that
-   of the result of one relation (a head of naked immediates with
-   several relations, a head of values that is not flat), or for
-   which the meet reads no canonical name (a constant); and the
+   FlambdaMeetEnv.v); a scrutinee whose type is neither flat nor a
+   head of naked immediates (a head of values that is not flat), or
+   for which the meet reads no canonical name (a constant); and the
    environments in which a type of kind value has an extension. *)
 
 From Stdlib Require Import ZArith List Bool.
@@ -169,12 +174,12 @@ Definition flat_type (ty : flambda_type) : Prop :=
   ∃ e : Expanded_type.t,
     Expanded_type.of_non_alias_type ty = Some e ∧ flat e = true.
 
-(* The type of the scrutinee is that of the result of one relation at
-   most. *)
+(* The type of the scrutinee is that of the result of relations: a
+   head of naked immediates, with the inverse relations that it
+   has. *)
 Definition relation_type (ty : flambda_type) : Prop :=
   ∃ head : head_of_kind_naked_immediate,
-    ty = Type_naked_immediate (Ok (No_alias head))
-    ∧ length (inverse_relations head) <= 1.
+    ty = Type_naked_immediate (Ok (No_alias head)).
 
 (* From one unit of fuel on, the meets for the arms are the same, for
    a scrutinee whose type is flat. *)
@@ -187,8 +192,8 @@ Definition flat_switch_fuel_statement : Prop :=
     arm_meets_agree (Meet.meet join choices fuel) (Meet.meet join choices 1)
       tenv scrutinee.
 
-(* From two units on, for a scrutinee that is the result of a
-   relation. *)
+(* From two units on, for a scrutinee that is the result of
+   relations. *)
 Definition relation_switch_fuel_statement : Prop :=
   ∀ (join : join_scoped_envs) (choices : meet_choices) (tenv : Typing_env.t)
     (scrutinee : simple) (fuel : nat),
@@ -200,6 +205,24 @@ Definition relation_switch_fuel_statement : Prop :=
     2 <= fuel ->
     arm_meets_agree (Meet.meet join choices fuel) (Meet.meet join choices 2)
       tenv scrutinee.
+
+(* The environment that the meet for an arm answers has what is
+   supposed of the environment of the [Switch]. *)
+Definition relation_switch_arm_keeps_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices)
+    (tenv tenv' : Typing_env.t) (scrutinee : simple) (fuel : nat)
+    (scrutinee_ty ty : flambda_type) (canonical : simple) (i : Z),
+    join_of_nothing join ->
+    get_tag_shapes choices ->
+    values_extension_free tenv ->
+    aliases_consistent (Typing_env.aliases tenv) ->
+    scrutinee_has relation_type tenv scrutinee ->
+    2 <= fuel ->
+    Typing_env.type_simple_in_term_exn tenv (Some Name_mode.normal) scrutinee
+    = Some (Some (scrutinee_ty, canonical)) ->
+    Meet.meet join choices fuel tenv scrutinee_ty (this_naked_immediate i)
+    = Some (Or_bottom.Ok (ty, tenv')) ->
+    values_extension_free tenv'.
 
 (* The same of the meet of the model, where there is fuel for the join
    of environments: two meets of the model that differ in the fuel of

@@ -132,7 +132,7 @@
    naked immediate that is the result of a relation: the types that
    Simplify meets at a [Switch] on the tag of a variant are of those.
    (For the last there is FlambdaMeetRelationFuelSpec.v: two units
-   are enough where the relation is one. That is not of every join
+   are enough, whatever the relations. That is not of every join
    and every choice: it is under what that file supposes of the join
    ([join_of_nothing]), of the choices of the meet ([get_tag_shapes]),
    and of the environment and its aliases.)

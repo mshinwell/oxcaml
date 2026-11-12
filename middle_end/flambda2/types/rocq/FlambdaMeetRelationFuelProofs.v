@@ -35,7 +35,9 @@
    agree on a bare shape and a type with no extension; the
    environment is carried along with what is supposed of it
    ([values_extension_free]), which the demotion of the scrutinee
-   keeps. *)
+   keeps, and which each equation that a relation adds keeps: the
+   type that a name is given there is a shape, the type that it had,
+   or what the meet of the two makes, which has no extension. *)
 
 From Stdlib Require Import ZArith List Bool Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
@@ -123,27 +125,6 @@ Proof.
   reflexivity.
 Qed.
 
-(* The reduction of a head with one relation at most has one at
-   most. *)
-Lemma reduce_keeps_one (tenv : Typing_env.t)
-    (head head' : head_of_kind_naked_immediate) :
-  length (inverse_relations head) <= 1 ->
-  reduce_head_of_kind_naked_immediate tenv head = Or_bottom.Ok head' ->
-  length (inverse_relations head') <= 1.
-Proof.
-  destruct head as [imms relations]. cbn [inverse_relations].
-  destruct relations as [ | [relation x] [ | inverse relations]];
-    cbn [length]; try lia; intros _.
-  - rewrite reduce_no_relation by reflexivity. intros [= <-]. cbn. lia.
-  - unfold reduce_head_of_kind_naked_immediate,
-      head_of_kind_naked_immediate_from_descr.
-    cbv zeta.
-    cbn [List.fold_left inverse_relations naked_immediates fst snd
-         reduce_imms reduce_relations reduce_changed].
-    repeat destruct_innermost; cbn; try discriminate; intros [= <-]; cbn;
-      lia.
-Qed.
-
 (* The meet of the numbers of two heads answers the environment that
    it was given. *)
 Lemma meet_numbers_env (env env' : Meet_env.t)
@@ -160,183 +141,7 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
-(* Two meets that agree on a bare shape and a type with no extension        *)
-(* ======================================================================== *)
-
-Section Agree.
-
-Variable choices : meet_choices.
-Variables mh mh' : meet_expanded_head.
-Hypothesis Hshapes : get_tag_shapes choices.
-Hypothesis Hagree :
-  ∀ (env : Meet_env.t) (e1 e2 : Expanded_type.t),
-    bare_shape (Expanded_type.to_type e1) = true ->
-    extension_free (Expanded_type.to_type e2) = true ->
-    mh env e1 e2 = mh' env e1 e2.
-
-Lemma add_shape_on_name (env : Meet_env.t) (x : name) (e : Expanded_type.t) :
-  values_extension_free (Meet_env.typing_env env) ->
-  bare_shape (Expanded_type.to_type e) = true ->
-  Expanded_type.kind e = Value ->
-  Meet_env.add_concrete_equation_on_canonical_name true env x e mh
-  = Meet_env.add_concrete_equation_on_canonical_name true env x e mh'.
-Proof.
-  intros Henv Hshape Hkind.
-  unfold Meet_env.add_concrete_equation_on_canonical_name. rewrite Hkind.
-  destruct (Typing_env.find (Meet_env.typing_env env) x (Some Value))
-    as [existing | ] eqn:Hfind; [ | reflexivity ].
-  cbn beta iota. destruct (Henv x existing Hfind) as [Halias | Hfree].
-  - rewrite (alias_not_expanded existing Halias). reflexivity.
-  - destruct (plain_expands true (fun _ => true) existing Hfree)
-      as (e_existing & He & Hfree' & _).
-    rewrite He. cbn beta iota.
-    rewrite (Hagree env e e_existing Hshape Hfree'). reflexivity.
-Qed.
-
-Lemma add_shape_on_canonical (env : Meet_env.t) (canonical : simple)
-    (e : Expanded_type.t) :
-  values_extension_free (Meet_env.typing_env env) ->
-  bare_shape (Expanded_type.to_type e) = true ->
-  Expanded_type.kind e = Value ->
-  Meet_env.add_or_delay_concrete_equation_on_canonical true env canonical e mh
-  = Meet_env.add_or_delay_concrete_equation_on_canonical true env canonical e
-      mh'.
-Proof.
-  intros Henv Hshape Hkind.
-  unfold Meet_env.add_or_delay_concrete_equation_on_canonical.
-  assert (Hname :
-    ∀ name : name,
-      Meet_env.add_or_delay_concrete_equation_on_canonical_name true env name
-        e mh
-      = Meet_env.add_or_delay_concrete_equation_on_canonical_name true env
-          name e mh').
-  { intros name.
-    unfold Meet_env.add_or_delay_concrete_equation_on_canonical_name.
-    destruct (Keyed.among name_eqb name _); [ reflexivity | ].
-    unfold Meet_env.adding_equation_for_name.
-    rewrite add_shape_on_name; [ reflexivity | exact Henv | exact Hshape
-                               | exact Hkind ]. }
-  destruct canonical as [x | sym | c]; [ apply Hname | apply Hname | ].
-  unfold Meet_env.add_concrete_equation_on_const.
-  rewrite (Hagree env e (Expanded_type.create_const c) Hshape
-             (const_extension_free c)).
-  reflexivity.
-Qed.
-
-Lemma add_shape_equation (env : Meet_env.t) (x : name) (ty : flambda_type) :
-  values_extension_free (Meet_env.typing_env env) ->
-  bare_shape ty = true ->
-  kind ty = Value ->
-  Meet_env.add_equation_strict env x ty mh
-  = Meet_env.add_equation_strict env x ty mh'.
-Proof.
-  intros Henv Hshape Hkind.
-  unfold Meet_env.add_equation_strict, Meet_env.add_equation0,
-    Meet_env.add_equation_on_simple0.
-  destruct (Typing_env.is_bottom _); [ reflexivity | ].
-  destruct (plain_expands false (fun _ => false) ty Hshape)
-    as (e & He & Hshape' & Hkind').
-  rewrite (of_non_alias_type_not_alias ty e He), He. cbn beta iota.
-  unfold Meet_env.add_concrete_equation_on_simple.
-  apply add_shape_on_canonical; [ exact Henv | exact Hshape' | ].
-  rewrite Hkind'. exact Hkind.
-Qed.
-
-(* The relations of a head of naked immediates say of the names what
-   the numbers say: with one relation at most, one equation at most
-   is added, and the type that it adds is a shape. *)
-Lemma reduce_inverse_relations_agree (env : Meet_env.t)
-    (imms : Or_unknown.t (list Z)) (relations : list (Relation.t * name)) :
-  values_extension_free (Meet_env.typing_env env) ->
-  length relations <= 1 ->
-  reduce_inverse_relations choices mh env imms relations
-  = reduce_inverse_relations choices mh' env imms relations.
-Proof.
-  intros Henv Hlength.
-  destruct relations as [ | [relation x] [ | inverse relations]];
-    [ reflexivity | | cbn in Hlength; lia ].
-  unfold reduce_inverse_relations.
-  destruct imms as [imms | ]; [ | reflexivity ].
-  cbn [fold_left fst snd].
-  destruct relation.
-  - destruct (Keyed.among Z.eqb 0%Z imms), (Keyed.among Z.eqb 1%Z imms);
-      try reflexivity; apply add_shape_equation; try exact Henv; reflexivity.
-  - destruct (Keyed.among Z.eqb 0%Z imms), (Keyed.among Z.eqb 1%Z imms);
-      try reflexivity; apply add_shape_equation; try exact Henv; reflexivity.
-  - unfold type_of_get_tag_scrutinee_or_unknown.
-    destruct (forallb is_structured_block _); [ | reflexivity ].
-    apply add_shape_equation; [ exact Henv | apply Hshapes | apply Hshapes ].
-Qed.
-
-(* The meet of a head of naked immediates that has one relation at
-   most with one that has none. *)
-Lemma meet_naked_immediate_agree (env : Meet_env.t)
-    (t1 t2 : head_of_kind_naked_immediate) :
-  values_extension_free (Meet_env.typing_env env) ->
-  length (inverse_relations t1) <= 1 ->
-  inverse_relations t2 = [] ->
-  meet_head_of_kind_naked_immediate choices mh env t1 t2
-  = meet_head_of_kind_naked_immediate choices mh' env t1 t2.
-Proof.
-  intros Henv Hone Hnone. unfold meet_head_of_kind_naked_immediate.
-  unfold Meet_env.current_typing_env.
-  rewrite (reduce_no_relation _ t2 Hnone).
-  destruct (reduce_head_of_kind_naked_immediate (Meet_env.typing_env env) t1)
-    as [t1' | ] eqn:Hreduce; [ | reflexivity ].
-  pose proof (reduce_keeps_one _ t1 t1' Hone Hreduce) as Hone'.
-  destruct (meet_unknown _ _ env (naked_immediates t1') (naked_immediates t2))
-    as [[r | r env1] | ] eqn:Hnumbers; cbn beta iota; try reflexivity.
-  apply meet_numbers_env in Hnumbers. subst env1.
-  rewrite Hnone.
-  destruct t1' as [imms1 relations1]. cbn [inverse_relations] in Hone' |- *.
-  destruct relations1 as [ | inverse1 [ | inverse relations1]];
-    [ | | cbn in Hone'; lia ];
-    cbn [meet_inverse_relations Keyed.without Keyed.dedup app Keyed.is_empty
-         left_inputs_only right_inputs_only meet_return_value_of
-         combine_meet_return_values extract_value naked_immediates
-         FlambdaTypeGrammar.naked_immediates
-         FlambdaTypeGrammar.inverse_relations];
-    destruct r as [ | | | imms];
-    cbn;
-    repeat
-      match goal with
-      | |- context [reduce_inverse_relations choices mh env ?imms ?relations] =>
-        rewrite (reduce_inverse_relations_agree env imms relations Henv)
-          by (cbn; lia)
-      end;
-    reflexivity.
-Qed.
-
-(* A step of the meet, on a head of naked immediates that has one
-   relation at most and the head of a constant. *)
-Lemma step_relation_const_agree (join : join_scoped_envs) (env : Meet_env.t)
-    (head : head_of_kind_naked_immediate) (c : const) :
-  values_extension_free (Meet_env.typing_env env) ->
-  length (inverse_relations head) <= 1 ->
-  meet_expanded_head_step join choices mh env
-    (Expanded_type.create_naked_immediate head) (Expanded_type.create_const c)
-  = meet_expanded_head_step join choices mh' env
-      (Expanded_type.create_naked_immediate head)
-      (Expanded_type.create_const c).
-Proof.
-  intros Henv Hone. unfold meet_expanded_head_step.
-  destruct c;
-    cbn [Expanded_type.create_const Expanded_type.create_naked_immediate
-         Expanded_type.create_value Expanded_type.create_naked_number
-         Expanded_type.create_unknown Expanded_type.descr
-         meet_or_unknown_or_bottom meet_expanded_head0];
-    try reflexivity.
-  match goal with
-  | |- context [meet_head_of_kind_naked_immediate choices mh env head ?t2] =>
-    rewrite (meet_naked_immediate_agree env head t2 Henv Hone eq_refl)
-  end.
-  reflexivity.
-Qed.
-
-End Agree.
-
-(* ======================================================================== *)
-(* The environment once a name is demoted                                   *)
+(* The environment once a name is given a type                              *)
 (* ======================================================================== *)
 
 (* A name that has no type once another is given one had none
@@ -427,6 +232,478 @@ Lemma alias_type_is_alias (kind : flambda_kind) (simple : simple) :
   get_alias_opt (alias_type_of kind simple) <> None.
 Proof. destruct kind as [ | [] | | ]; discriminate. Qed.
 
+(* An environment whose types of kind value have no extension is so
+   once a name is given a type that has none. *)
+Lemma replace_concrete_free (tenv tenv' : Typing_env.t) (n : name)
+    (ty : flambda_type) :
+  values_extension_free tenv ->
+  extension_free ty = true ->
+  Meet_env.replace_concrete_equation tenv n ty = Some tenv' ->
+  values_extension_free tenv'.
+Proof.
+  intros Hfree Hty. unfold Meet_env.replace_concrete_equation.
+  destruct (must_be_singleton ty) as [[const | ] | ]; [ | | discriminate ].
+  - destruct (Aliases.canonical _ _); try discriminate.
+    destruct (Typing_env.add_alias tenv (simple_of_name n) (Const const))
+      as [[ | result | ] | ] eqn:Hadd; try discriminate.
+    destruct (name_eqb _ _ && simple_equal _ _); [ | discriminate ].
+    intros [= <-]. apply replace_by_alias_free; [ apply alias_type_is_alias | ].
+    unfold Typing_env.add_alias in Hadd.
+    destruct (Typing_env.aliases_add tenv _ _) as [[added | ] | ];
+      try discriminate Hadd.
+    injection Hadd as <-. cbn [Typing_env.add_alias_result_t].
+    apply with_aliases_free, Hfree.
+  - destruct (get_alias_opt ty); [ discriminate | ]. intros [= <-].
+    intros m ty1 Hfind.
+    destruct (find_after_replace tenv n ty m _ ty1 Hfind)
+      as [-> | [-> | Hbefore]].
+    + right. exact Hty.
+    + right. apply bottom_extension_free.
+    + exact (Hfree m ty1 Hbefore).
+Qed.
+
+(* ======================================================================== *)
+(* Two meets that agree on a bare shape and a type with no extension        *)
+(* ======================================================================== *)
+
+Section Agree.
+
+Variable choices : meet_choices.
+Variables mh mh' : meet_expanded_head.
+Hypothesis Hshapes : get_tag_shapes choices.
+Hypothesis Hagree :
+  ∀ (env : Meet_env.t) (e1 e2 : Expanded_type.t),
+    bare_shape (Expanded_type.to_type e1) = true ->
+    extension_free (Expanded_type.to_type e2) = true ->
+    mh env e1 e2 = mh' env e1 e2.
+(* On those the second of the two keeps the typing environment, and
+   what it makes has no extension. *)
+Hypothesis Hkept :
+  ∀ (env env' : Meet_env.t) (e1 e2 : Expanded_type.t)
+    (r : meet_return_value Expanded_type.t),
+    bare_shape (Expanded_type.to_type e1) = true ->
+    extension_free (Expanded_type.to_type e2) = true ->
+    mh' env e1 e2 = Some (Meet_result.Ok r env') ->
+    Meet_env.typing_env env' = Meet_env.typing_env env.
+Hypothesis Hmade :
+  ∀ (env env' : Meet_env.t) (e1 e2 e : Expanded_type.t),
+    bare_shape (Expanded_type.to_type e1) = true ->
+    extension_free (Expanded_type.to_type e2) = true ->
+    mh' env e1 e2 = Some (Meet_result.Ok (New_result e) env') ->
+    extension_free (Expanded_type.to_type e) = true.
+
+Lemma add_shape_on_name (env : Meet_env.t) (x : name) (e : Expanded_type.t) :
+  values_extension_free (Meet_env.typing_env env) ->
+  bare_shape (Expanded_type.to_type e) = true ->
+  Expanded_type.kind e = Value ->
+  Meet_env.add_concrete_equation_on_canonical_name true env x e mh
+  = Meet_env.add_concrete_equation_on_canonical_name true env x e mh'.
+Proof.
+  intros Henv Hshape Hkind.
+  unfold Meet_env.add_concrete_equation_on_canonical_name. rewrite Hkind.
+  destruct (Typing_env.find (Meet_env.typing_env env) x (Some Value))
+    as [existing | ] eqn:Hfind; [ | reflexivity ].
+  cbn beta iota. destruct (Henv x existing Hfind) as [Halias | Hfree].
+  - rewrite (alias_not_expanded existing Halias). reflexivity.
+  - destruct (plain_expands true (fun _ => true) existing Hfree)
+      as (e_existing & He & Hfree' & _).
+    rewrite He. cbn beta iota.
+    rewrite (Hagree env e e_existing Hshape Hfree'). reflexivity.
+Qed.
+
+Lemma add_shape_on_canonical (env : Meet_env.t) (canonical : simple)
+    (e : Expanded_type.t) :
+  values_extension_free (Meet_env.typing_env env) ->
+  bare_shape (Expanded_type.to_type e) = true ->
+  Expanded_type.kind e = Value ->
+  Meet_env.add_or_delay_concrete_equation_on_canonical true env canonical e mh
+  = Meet_env.add_or_delay_concrete_equation_on_canonical true env canonical e
+      mh'.
+Proof.
+  intros Henv Hshape Hkind.
+  unfold Meet_env.add_or_delay_concrete_equation_on_canonical.
+  assert (Hname :
+    ∀ name : name,
+      Meet_env.add_or_delay_concrete_equation_on_canonical_name true env name
+        e mh
+      = Meet_env.add_or_delay_concrete_equation_on_canonical_name true env
+          name e mh').
+  { intros name.
+    unfold Meet_env.add_or_delay_concrete_equation_on_canonical_name.
+    destruct (Keyed.among name_eqb name _); [ reflexivity | ].
+    unfold Meet_env.adding_equation_for_name.
+    rewrite add_shape_on_name; [ reflexivity | exact Henv | exact Hshape
+                               | exact Hkind ]. }
+  destruct canonical as [x | sym | c]; [ apply Hname | apply Hname | ].
+  unfold Meet_env.add_concrete_equation_on_const.
+  rewrite (Hagree env e (Expanded_type.create_const c) Hshape
+             (const_extension_free c)).
+  reflexivity.
+Qed.
+
+Lemma add_shape_equation (env : Meet_env.t) (x : name) (ty : flambda_type) :
+  values_extension_free (Meet_env.typing_env env) ->
+  bare_shape ty = true ->
+  kind ty = Value ->
+  Meet_env.add_equation_strict env x ty mh
+  = Meet_env.add_equation_strict env x ty mh'.
+Proof.
+  intros Henv Hshape Hkind.
+  unfold Meet_env.add_equation_strict, Meet_env.add_equation0,
+    Meet_env.add_equation_on_simple0.
+  destruct (Typing_env.is_bottom _); [ reflexivity | ].
+  destruct (plain_expands false (fun _ => false) ty Hshape)
+    as (e & He & Hshape' & Hkind').
+  rewrite (of_non_alias_type_not_alias ty e He), He. cbn beta iota.
+  unfold Meet_env.add_concrete_equation_on_simple.
+  apply add_shape_on_canonical; [ exact Henv | exact Hshape' | ].
+  rewrite Hkind'. exact Hkind.
+Qed.
+
+(* The environment once the type of a relation is added to a name has
+   what is supposed of it: the type that the name is given is the
+   shape, the type it had, or what the meet makes of the two, which
+   has no extension. *)
+Lemma add_shape_on_name_free (env env' : Meet_env.t) (x : name)
+    (e : Expanded_type.t) :
+  values_extension_free (Meet_env.typing_env env) ->
+  bare_shape (Expanded_type.to_type e) = true ->
+  Expanded_type.kind e = Value ->
+  Meet_env.add_concrete_equation_on_canonical_name true env x e mh'
+  = Some (Or_bottom.Ok env') ->
+  values_extension_free (Meet_env.typing_env env').
+Proof.
+  intros Henv Hshape Hkind.
+  unfold Meet_env.add_concrete_equation_on_canonical_name. rewrite Hkind.
+  destruct (Typing_env.find (Meet_env.typing_env env) x (Some Value))
+    as [existing | ] eqn:Hfind; [ | discriminate ].
+  cbn beta iota. destruct (Henv x existing Hfind) as [Halias | Hfree].
+  - rewrite (alias_not_expanded existing Halias). discriminate.
+  - destruct (plain_expands true (fun _ => true) existing Hfree)
+      as (e_existing & He & Hfree' & _).
+    rewrite He. cbn beta iota.
+    destruct (mh' env e e_existing) as [[r | r env1] | ] eqn:Hmeet;
+      cbn beta iota; [ discriminate | | discriminate ].
+    pose proof (Hkept env env1 e e_existing r Hshape Hfree' Hmeet) as Henv1.
+    assert (Hfree1 : values_extension_free (Meet_env.typing_env env1))
+      by (rewrite Henv1; exact Henv).
+    destruct r as [ | | | e'].
+    + destruct (Meet_env.replace_concrete_equation _ x _) as [tenv | ]
+        eqn:Hreplace; [ | discriminate ].
+      intros [= <-].
+      exact
+        (replace_concrete_free _ _ _ _ Hfree1 (plain_type_weaken _ _ _ Hshape)
+           Hreplace).
+    + intros [= <-]. exact Hfree1.
+    + intros [= <-]. exact Hfree1.
+    + destruct (Meet_env.replace_concrete_equation _ x _) as [tenv | ]
+        eqn:Hreplace; [ | discriminate ].
+      intros [= <-].
+      exact
+        (replace_concrete_free _ _ _ _ Hfree1
+           (Hmade env env1 e e_existing e' Hshape Hfree' Hmeet) Hreplace).
+Qed.
+
+Lemma add_shape_on_canonical_free (env env' : Meet_env.t) (canonical : simple)
+    (e : Expanded_type.t) :
+  values_extension_free (Meet_env.typing_env env) ->
+  bare_shape (Expanded_type.to_type e) = true ->
+  Expanded_type.kind e = Value ->
+  Meet_env.add_or_delay_concrete_equation_on_canonical true env canonical e
+    mh'
+  = Some (Or_bottom.Ok env') ->
+  values_extension_free (Meet_env.typing_env env').
+Proof.
+  intros Henv Hshape Hkind.
+  unfold Meet_env.add_or_delay_concrete_equation_on_canonical.
+  assert (Hname :
+    ∀ name : name,
+      Meet_env.add_or_delay_concrete_equation_on_canonical_name true env name
+        e mh'
+      = Some (Or_bottom.Ok env') ->
+      values_extension_free (Meet_env.typing_env env')).
+  { intros name.
+    unfold Meet_env.add_or_delay_concrete_equation_on_canonical_name.
+    destruct (Keyed.among name_eqb name _); [ intros [= <-]; exact Henv | ].
+    unfold Meet_env.adding_equation_for_name. cbv zeta.
+    match goal with
+    | |- match ?added with _ => _ end = _ -> _ =>
+      destruct added as [[env1 | ] | ] eqn:Hadded;
+        [ | discriminate | discriminate ]
+    end.
+    intros [= <-]. cbn [Meet_env.typing_env].
+    refine (add_shape_on_name_free _ env1 name e _ Hshape Hkind Hadded).
+    exact Henv. }
+  destruct canonical as [x | sym | c]; [ apply Hname | apply Hname | ].
+  unfold Meet_env.add_concrete_equation_on_const.
+  destruct (mh' env e (Expanded_type.create_const c)) as [[r | r env1] | ]
+    eqn:Hmeet; cbn beta iota; [ discriminate | | discriminate ].
+  intros [= <-].
+  rewrite (Hkept env env1 e _ r Hshape (const_extension_free c) Hmeet).
+  exact Henv.
+Qed.
+
+Lemma add_shape_equation_free (env env' : Meet_env.t) (x : name)
+    (ty : flambda_type) :
+  values_extension_free (Meet_env.typing_env env) ->
+  bare_shape ty = true ->
+  kind ty = Value ->
+  Meet_env.add_equation_strict env x ty mh' = Some (Or_bottom.Ok env') ->
+  values_extension_free (Meet_env.typing_env env').
+Proof.
+  intros Henv Hshape Hkind.
+  unfold Meet_env.add_equation_strict, Meet_env.add_equation0,
+    Meet_env.add_equation_on_simple0.
+  destruct (Typing_env.is_bottom _); [ discriminate | ].
+  destruct (plain_expands false (fun _ => false) ty Hshape)
+    as (e & He & Hshape' & Hkind').
+  rewrite (of_non_alias_type_not_alias ty e He), He. cbn beta iota.
+  unfold Meet_env.add_concrete_equation_on_simple.
+  apply add_shape_on_canonical_free; [ exact Henv | exact Hshape' | ].
+  rewrite Hkind'. exact Hkind.
+Qed.
+
+(* One relation, as [reduce_inverse_relations] goes through them: the
+   function of its fold, with the meet as a parameter. *)
+Definition relation_step (m : meet_expanded_head) (imms : list Z)
+    (state : option (Or_bottom.t Meet_env.t)) (inverse : Relation.t * name)
+    : option (Or_bottom.t Meet_env.t) :=
+  match state with
+  | None => None
+  | Some Or_bottom.Bottom => Some Or_bottom.Bottom
+  | Some (Or_bottom.Ok env) =>
+    let name := snd inverse in
+    let add_equation (ty : flambda_type) :=
+      Meet_env.add_equation_strict env name ty m
+    in
+    match fst inverse with
+    | Relation.Is_null =>
+      match Keyed.among Z.eqb 0%Z imms, Keyed.among Z.eqb 1%Z imms with
+      | false, false => Some Or_bottom.Bottom
+      | true, true => Some (Or_bottom.Ok env)
+      | true, false => add_equation any_non_null_value
+      | false, true => add_equation null
+      end
+    | Relation.Is_int =>
+      match Keyed.among Z.eqb 0%Z imms, Keyed.among Z.eqb 1%Z imms with
+      | false, false => Some Or_bottom.Bottom
+      | true, true => Some (Or_bottom.Ok env)
+      | true, false => add_equation any_block
+      | false, true => add_equation any_tagged_immediate
+      end
+    | Relation.Get_tag =>
+      let tags := Keyed.dedup Z.eqb (filter is_tag imms) in
+      match
+        type_of_get_tag_scrutinee_or_unknown choices tags
+          Alloc_mode.Heap_or_local
+      with
+      | Or_unknown.Known shape => add_equation shape
+      | Or_unknown.Unknown => Some (Or_bottom.Ok env)
+      end
+    end
+  end.
+
+Lemma reduce_inverse_relations_unfold (m : meet_expanded_head)
+    (env : Meet_env.t) (imms : list Z) (relations : list (Relation.t * name)) :
+  reduce_inverse_relations choices m env (Or_unknown.Known imms) relations
+  = List.fold_left (relation_step m imms) relations (Some (Or_bottom.Ok env)).
+Proof. reflexivity. Qed.
+
+(* Where the fold is at an environment, that has what is supposed. *)
+Definition state_free (state : option (Or_bottom.t Meet_env.t)) : Prop :=
+  ∀ env : Meet_env.t,
+    state = Some (Or_bottom.Ok env) ->
+    values_extension_free (Meet_env.typing_env env).
+
+(* One relation adds one equation at most, of a shape: the two meets
+   answer the same, and the environment has what is supposed again. *)
+Lemma relation_step_agree (imms : list Z)
+    (state : option (Or_bottom.t Meet_env.t)) (inverse : Relation.t * name) :
+  state_free state ->
+  relation_step mh imms state inverse = relation_step mh' imms state inverse
+  ∧ state_free (relation_step mh' imms state inverse).
+Proof.
+  intros Hstate.
+  destruct state as [[env | ] | ]; cbn [relation_step];
+    [ | split; [ reflexivity | intros env; discriminate ]
+    | split; [ reflexivity | intros env; discriminate ] ].
+  pose proof (Hstate env eq_refl) as Henv.
+  assert (Hadd :
+    ∀ (x : name) (ty : flambda_type),
+      bare_shape ty = true ->
+      kind ty = Value ->
+      Meet_env.add_equation_strict env x ty mh
+      = Meet_env.add_equation_strict env x ty mh'
+      ∧ state_free (Meet_env.add_equation_strict env x ty mh')).
+  { intros x ty Hshape Hkind.
+    split; [ exact (add_shape_equation env x ty Henv Hshape Hkind) | ].
+    intros env' Hadded.
+    exact (add_shape_equation_free env env' x ty Henv Hshape Hkind Hadded). }
+  assert (Hsame : state_free (Some (Or_bottom.Ok env)))
+    by (intros env' [= <-]; exact Henv).
+  assert (Hbottom : state_free (Some Or_bottom.Bottom))
+    by (intros env'; discriminate).
+  destruct inverse as [relation x]. cbv zeta. cbn [fst snd].
+  destruct relation;
+    try
+      (destruct (Keyed.among Z.eqb 0%Z imms), (Keyed.among Z.eqb 1%Z imms);
+       first
+         [ split; [ reflexivity | assumption ] | apply Hadd; reflexivity ]).
+  unfold type_of_get_tag_scrutinee_or_unknown.
+  destruct (forallb is_structured_block _);
+    [ | split; [ reflexivity | exact Hsame ] ].
+  apply Hadd; apply Hshapes.
+Qed.
+
+Lemma relation_fold_agree (imms : list Z)
+    (relations : list (Relation.t * name))
+    (state : option (Or_bottom.t Meet_env.t)) :
+  state_free state ->
+  List.fold_left (relation_step mh imms) relations state
+  = List.fold_left (relation_step mh' imms) relations state
+  ∧ state_free (List.fold_left (relation_step mh' imms) relations state).
+Proof.
+  revert state.
+  induction relations as [ | inverse relations IH]; intros state Hstate;
+    cbn [List.fold_left]; [ split; [ reflexivity | exact Hstate ] | ].
+  destruct (relation_step_agree imms state inverse Hstate) as [-> Hfree].
+  exact (IH _ Hfree).
+Qed.
+
+(* The relations of a head of naked immediates say of the names what
+   the numbers say: each adds one equation at most, and the type that
+   it adds is a shape. *)
+Lemma reduce_inverse_relations_agree (env : Meet_env.t)
+    (imms : Or_unknown.t (list Z)) (relations : list (Relation.t * name)) :
+  values_extension_free (Meet_env.typing_env env) ->
+  reduce_inverse_relations choices mh env imms relations
+  = reduce_inverse_relations choices mh' env imms relations
+  ∧ state_free (reduce_inverse_relations choices mh' env imms relations).
+Proof.
+  intros Henv.
+  destruct imms as [imms | ];
+    [ | split; [ reflexivity | intros env' [= <-]; exact Henv ] ].
+  rewrite !reduce_inverse_relations_unfold. apply relation_fold_agree.
+  intros env' [= <-]. exact Henv.
+Qed.
+
+(* The meet of a head of naked immediates with one that has no
+   relation. *)
+Lemma meet_naked_immediate_agree (env : Meet_env.t)
+    (t1 t2 : head_of_kind_naked_immediate) :
+  values_extension_free (Meet_env.typing_env env) ->
+  inverse_relations t2 = [] ->
+  meet_head_of_kind_naked_immediate choices mh env t1 t2
+  = meet_head_of_kind_naked_immediate choices mh' env t1 t2.
+Proof.
+  intros Henv Hnone. unfold meet_head_of_kind_naked_immediate.
+  unfold Meet_env.current_typing_env.
+  rewrite (reduce_no_relation _ t2 Hnone).
+  destruct (reduce_head_of_kind_naked_immediate (Meet_env.typing_env env) t1)
+    as [t1' | ]; [ | reflexivity ].
+  destruct (meet_unknown _ _ env (naked_immediates t1') (naked_immediates t2))
+    as [[r | r env1] | ] eqn:Hnumbers; cbn beta iota; try reflexivity.
+  apply meet_numbers_env in Hnumbers. subst env1. cbv zeta.
+  destruct (sequence_return_value _) as [head | ]; [ | reflexivity ].
+  destruct r as [ | | | imms]; cbn beta iota; try reflexivity;
+    rewrite (proj1 (reduce_inverse_relations_agree env _ _ Henv));
+    reflexivity.
+Qed.
+
+(* A step of the meet, on a head of naked immediates and the head of a
+   constant. *)
+Lemma step_relation_const_agree (join : join_scoped_envs) (env : Meet_env.t)
+    (head : head_of_kind_naked_immediate) (c : const) :
+  values_extension_free (Meet_env.typing_env env) ->
+  meet_expanded_head_step join choices mh env
+    (Expanded_type.create_naked_immediate head) (Expanded_type.create_const c)
+  = meet_expanded_head_step join choices mh' env
+      (Expanded_type.create_naked_immediate head)
+      (Expanded_type.create_const c).
+Proof.
+  intros Henv. unfold meet_expanded_head_step.
+  destruct c;
+    cbn [Expanded_type.create_const Expanded_type.create_naked_immediate
+         Expanded_type.create_value Expanded_type.create_naked_number
+         Expanded_type.create_unknown Expanded_type.descr
+         meet_or_unknown_or_bottom meet_expanded_head0];
+    try reflexivity.
+  match goal with
+  | |- context [meet_head_of_kind_naked_immediate choices mh env head ?t2] =>
+    rewrite (meet_naked_immediate_agree env head t2 Henv eq_refl)
+  end.
+  reflexivity.
+Qed.
+
+(* The environment that these answer has what is supposed of it. *)
+Lemma meet_naked_immediate_free (env env' : Meet_env.t)
+    (t1 t2 : head_of_kind_naked_immediate)
+    (r : meet_return_value head_of_kind_naked_immediate) :
+  values_extension_free (Meet_env.typing_env env) ->
+  inverse_relations t2 = [] ->
+  meet_head_of_kind_naked_immediate choices mh' env t1 t2
+  = Some (Meet_result.Ok r env') ->
+  values_extension_free (Meet_env.typing_env env').
+Proof.
+  intros Henv Hnone. unfold meet_head_of_kind_naked_immediate.
+  unfold Meet_env.current_typing_env.
+  rewrite (reduce_no_relation _ t2 Hnone).
+  destruct (reduce_head_of_kind_naked_immediate (Meet_env.typing_env env) t1)
+    as [t1' | ]; [ | discriminate ].
+  destruct (meet_unknown _ _ env (naked_immediates t1') (naked_immediates t2))
+    as [[r0 | r0 env1] | ] eqn:Hnumbers; cbn beta iota; try discriminate.
+  apply meet_numbers_env in Hnumbers. subst env1. cbv zeta.
+  destruct (sequence_return_value _) as [head | ]; [ | discriminate ].
+  destruct r0 as [ | | | imms]; cbn beta iota;
+    first
+      [ intros [= _ <-]; exact Henv
+      | match goal with
+        | |- option_map _
+               (reduce_inverse_relations choices mh' env ?numbers ?relations)
+             = _ -> _ =>
+          pose proof
+            (proj2 (reduce_inverse_relations_agree env numbers relations Henv))
+            as Hfree;
+          destruct (reduce_inverse_relations choices mh' env numbers relations)
+            as [[env2 | ] | ] eqn:Hreduce;
+          cbn; try discriminate; intros [= _ <-];
+          first [ exact (Hfree env2 eq_refl) | exact (Hfree env2 Hreduce) ]
+        end ].
+Qed.
+
+Lemma step_relation_const_free (join : join_scoped_envs)
+    (env env' : Meet_env.t) (head : head_of_kind_naked_immediate) (c : const)
+    (r : meet_return_value Expanded_type.t) :
+  values_extension_free (Meet_env.typing_env env) ->
+  meet_expanded_head_step join choices mh' env
+    (Expanded_type.create_naked_immediate head) (Expanded_type.create_const c)
+  = Some (Meet_result.Ok r env') ->
+  values_extension_free (Meet_env.typing_env env').
+Proof.
+  intros Henv. unfold meet_expanded_head_step.
+  destruct c;
+    cbn [Expanded_type.create_const Expanded_type.create_naked_immediate
+         Expanded_type.create_value Expanded_type.create_naked_number
+         Expanded_type.create_unknown Expanded_type.descr
+         meet_or_unknown_or_bottom meet_expanded_head0];
+    try discriminate; try (intros [= _ <-]; exact Henv).
+  match goal with
+  | |- context [meet_head_of_kind_naked_immediate choices mh' env head ?t2] =>
+    destruct (meet_head_of_kind_naked_immediate choices mh' env head t2)
+      as [[r0 | r0 env1] | ] eqn:Hmeet
+  end;
+    cbn [option_map]; try discriminate.
+  intros Hmap. destruct r0; cbn in Hmap; injection Hmap as _ <-;
+    refine (meet_naked_immediate_free env env1 head _ _ Henv _ Hmeet);
+    reflexivity.
+Qed.
+
+End Agree.
+
+(* ======================================================================== *)
+(* The meet of an alias with the type of a constant                         *)
+(* ======================================================================== *)
+
 (* The meet of an alias of a canonical name with the type of a
    constant, in an environment whose types of kind value have no
    extension: the one meet that is asked for is that of the type of
@@ -484,6 +761,71 @@ Proof.
   apply with_aliases_free, Hfree.
 Qed.
 
+(* The same meet answers an environment that has what is supposed,
+   where the one meet that is asked for does. *)
+Lemma meet_type_alias_const_keeps (menv menv' : Meet_env.t)
+    (t ty : flambda_type) (n : name) (e : Expanded_type.t) (c : const)
+    (m : meet_expanded_head) (r : meet_return_value flambda_type) :
+  aliases_consistent (Typing_env.aliases (Meet_env.typing_env menv)) ->
+  is_canonical (Typing_env.aliases (Meet_env.typing_env menv))
+    (simple_of_name n) ->
+  Typing_env.get_alias_then_canonical_simple_exn (Meet_env.typing_env menv)
+    (Some Name_mode.in_types) None t
+  = Some (Some (simple_of_name n)) ->
+  Typing_env.find (Meet_env.typing_env menv) n (Some (kind t)) = Some ty ->
+  Expanded_type.of_non_alias_type ty = Some e ->
+  values_extension_free (Meet_env.typing_env menv) ->
+  (∀ (menv1 menv2 : Meet_env.t) (r0 : meet_return_value Expanded_type.t),
+    values_extension_free (Meet_env.typing_env menv1) ->
+    m menv1 e (Expanded_type.create_const c)
+    = Some (Meet_result.Ok r0 menv2) ->
+    values_extension_free (Meet_env.typing_env menv2)) ->
+  Meet_env.meet_type menv t (this_const c) m
+  = Some (Meet_result.Ok r menv') ->
+  values_extension_free (Meet_env.typing_env menv').
+Proof.
+  intros Hconsistent Hcanonical Hsimple Hfind He Hfree Hkeeps.
+  unfold Meet_env.meet_type, Meet_env.meet.
+  destruct (negb (kind_eqb (kind t) (kind (this_const c))));
+    [ discriminate | ].
+  rewrite Hsimple, canonical_of_const.
+  cbn beta iota.
+  unfold Meet_env.add_alias_between_canonicals.
+  assert (Hne : simple_equal (simple_of_name n) (Const c) = false)
+    by (destruct n; reflexivity).
+  rewrite Hne.
+  unfold Typing_env.add_alias, Typing_env.aliases_add.
+  destruct (FlambdaEnvAliasesProofs.add_name_constant _
+              (Typing_env.binding_time_resolver (Meet_env.typing_env menv))
+              (Typing_env.names_to_types (Meet_env.typing_env menv))
+              (Typing_env.aliases (Meet_env.typing_env menv)) n c Hconsistent
+              Hcanonical) as [[result [Hadd [Hdemoted Hcanon]]] _].
+  rewrite Hadd.
+  cbn [Typing_env.add_alias_result_t Typing_env.demoted_name
+       Typing_env.canonical_element].
+  rewrite Hdemoted, Hcanon.
+  unfold Meet_env.record_demotion.
+  cbn [Meet_env.typing_env Meet_env.with_typing_env Meet_env.map_typing_env].
+  rewrite find_with_aliases, Hfind.
+  cbn beta iota.
+  unfold expand_head0.
+  rewrite (of_non_alias_type_not_alias ty e He), He.
+  cbn beta iota delta [Meet_env.add_or_delay_concrete_equation_on_canonical].
+  unfold Meet_env.add_concrete_equation_on_const.
+  match goal with
+  | |- context [m ?demoted e (Expanded_type.create_const c)] =>
+    pose proof (Hkeeps demoted) as Hkeeps';
+    destruct (m demoted e (Expanded_type.create_const c))
+      as [[r0 | r0 menv2] | ] eqn:Hm
+  end;
+    cbn; try discriminate.
+  intros [= _ <-].
+  apply (Hkeeps' menv2 r0); [ | first [ exact Hm | reflexivity ] ].
+  cbn [Meet_env.typing_env Meet_env.with_typing_env Meet_env.map_typing_env].
+  apply replace_by_alias_free; [ apply alias_type_is_alias | ].
+  apply with_aliases_free, Hfree.
+Qed.
+
 (* ======================================================================== *)
 (* The meet for an arm                                                      *)
 (* ======================================================================== *)
@@ -491,7 +833,7 @@ Qed.
 Theorem relation_const_fuel_enough : relation_const_fuel_enough_statement.
 Proof.
   intros join choices tenv t n head c Hjoin Hshapes Hfree Hconsistent
-    Hcanonical Hsimple Hfind Hone mh0.
+    Hcanonical Hsimple Hfind mh0.
   apply
     (meet_type_alias_const_free (Meet_env.create tenv) t
        (Type_naked_immediate (Ok (No_alias head))) n
@@ -508,10 +850,65 @@ Proof.
          (Expanded_type.create_naked_immediate head)
          (Expanded_type.create_const c)).
   apply (step_relation_const_agree choices _ _ Hshapes); try assumption.
-  intros env e1 e2 Hshape Hext.
-  exact
-    (proj1 (bare_shape_fuel_enough join choices env e1 e2 Hjoin Hshape Hext)
-       mh0).
+  - intros env e1 e2 Hshape Hext.
+    exact
+      (proj1
+         (bare_shape_fuel_enough join choices env e1 e2 Hjoin Hshape Hext)
+         mh0).
+  - intros env env' e1 e2 r Hshape Hext.
+    exact
+      (proj1
+         (bare_shape_meet_adds_nothing join choices env env' e1 e2 r Hjoin
+            Hshape Hext)).
+  - intros env env' e1 e2 e Hshape Hext.
+    exact
+      (proj1
+         (bare_shape_meet_extension_free join choices env env' e1 e2 e Hjoin
+            Hshape Hext)).
+Qed.
+
+Theorem relation_const_meet_keeps : relation_const_meet_keeps_statement.
+Proof.
+  intros join choices fuel tenv tenv' t ty n head c Hjoin Hshapes Hfree
+    Hconsistent Hcanonical Hsimple Hfind Hfuel.
+  pose proof
+    (relation_const_fuel_enough join choices tenv t n head c Hjoin Hshapes
+       Hfree Hconsistent Hcanonical Hsimple Hfind) as Henough.
+  rewrite
+    (proj2
+       (meet_fuel_enough_stable join choices 2 fuel tenv t (this_const c)
+          Henough Hfuel)).
+  unfold Meet.meet.
+  destruct (Typing_env.is_bottom tenv); [ discriminate | ].
+  destruct
+    (Meet_env.meet_type (Meet_env.create tenv) t (this_const c)
+       (Meet.meet_expanded_head join choices 2))
+    as [[r | r menv'] | ] eqn:Hmeet; try discriminate.
+  destruct (is_obviously_bottom _); [ discriminate | ].
+  unfold Meet_env.final_typing_env_strict. intros [= _ <-].
+  apply
+    (meet_type_alias_const_keeps (Meet_env.create tenv) menv' t
+       (Type_naked_immediate (Ok (No_alias head))) n
+       (Expanded_type.create_naked_immediate head) c
+       (Meet.meet_expanded_head join choices 2) r Hconsistent Hcanonical
+       Hsimple Hfind eq_refl Hfree);
+    [ | exact Hmeet ].
+  intros menv1 menv2 r0 Hfree1 Hstep.
+  refine
+    (step_relation_const_free choices (Meet.meet_expanded_head join choices 1)
+       (Meet.meet_expanded_head join choices 1) Hshapes _ _ _ join menv1 menv2
+       head c r0 Hfree1 Hstep).
+  - intros env e1 e2 _ _. reflexivity.
+  - intros env env' e1 e2 r1 Hshape Hext.
+    exact
+      (proj1
+         (bare_shape_meet_adds_nothing join choices env env' e1 e2 r1 Hjoin
+            Hshape Hext)).
+  - intros env env' e1 e2 e Hshape Hext.
+    exact
+      (proj1
+         (bare_shape_meet_extension_free join choices env env' e1 e2 e Hjoin
+            Hshape Hext)).
 Qed.
 
 (* ======================================================================== *)
@@ -579,12 +976,38 @@ Proof.
       | exact Hconsistent
       | vm_compute; reflexivity
       | vm_compute; reflexivity
-      | vm_compute; reflexivity
-      | cbn; lia ].
+      | vm_compute; reflexivity ].
   - intros Henough.
     specialize
       (Henough
          (Meet.meet_expanded_head FlambdaMeetExamplesSpec.forgetful_join
             repaired_choices 1)).
     vm_compute in Henough. discriminate Henough.
+Qed.
+
+Theorem example_two_relations : example_two_relations_statement.
+Proof.
+  split; [ | vm_compute; reflexivity ].
+  intros join choices Hjoin Hshapes.
+  assert (Hwf :
+    FlambdaTypingEnvInvariantSpec.typing_env_well_formed
+      example_two_relations_env
+    = true) by (vm_compute; reflexivity).
+  pose proof
+    (proj1 (FlambdaTypingEnvInvariantProofs.typing_env_well_formed_iff _)
+       Hwf) as Hconditions.
+  destruct Hconditions as [_ [_ [Hconsistent _]]].
+  apply
+    (relation_const_fuel_enough join choices example_two_relations_env
+       FlambdaMeetExamplesSpec.example_tag_type
+       (Name_var FlambdaMeetExamplesSpec.example_tag)
+       (Head_of_kind_naked_immediate Or_unknown.Unknown
+          [(Relation.Get_tag, Name_var FlambdaMeetExamplesSpec.example_p);
+           (Relation.Is_int, Name_var example_q)])
+       (Naked_immediate 1%Z) Hjoin Hshapes);
+    [ apply values_extension_free_of_entries; vm_compute; reflexivity
+    | exact Hconsistent
+    | vm_compute; reflexivity
+    | vm_compute; reflexivity
+    | vm_compute; reflexivity ].
 Qed.

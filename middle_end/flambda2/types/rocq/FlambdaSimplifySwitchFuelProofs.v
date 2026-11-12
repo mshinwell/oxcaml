@@ -107,15 +107,27 @@ Proof.
   intros join choices tenv scrutinee fuel Hjoin Hshapes Hfree Hconsistent
     Hscrutinee Hfuel scrutinee_ty canonical i Hty.
   destruct (Hscrutinee scrutinee_ty canonical Hty)
-    as (n & ty & Hcanonical & Hsimple & Hfind & head & -> & Hone).
+    as (n & ty & Hcanonical & Hsimple & Hfind & head & ->).
   pose proof
     (relation_const_fuel_enough join choices tenv scrutinee_ty n head
        (Naked_immediate i) Hjoin Hshapes Hfree Hconsistent Hcanonical Hsimple
-       Hfind Hone) as Henough.
+       Hfind) as Henough.
   exact
     (proj2
        (meet_fuel_enough_stable join choices 2 fuel tenv scrutinee_ty
           (this_const (Naked_immediate i)) Henough Hfuel)).
+Qed.
+
+Theorem relation_switch_arm_keeps : relation_switch_arm_keeps_statement.
+Proof.
+  intros join choices tenv tenv' scrutinee fuel scrutinee_ty ty canonical i
+    Hjoin Hshapes Hfree Hconsistent Hscrutinee Hfuel Hty Hmeet.
+  destruct (Hscrutinee scrutinee_ty canonical Hty)
+    as (n & ty0 & Hcanonical & Hsimple & Hfind & head & ->).
+  exact
+    (relation_const_meet_keeps join choices fuel tenv tenv' scrutinee_ty ty n
+       head (Naked_immediate i) Hjoin Hshapes Hfree Hconsistent Hcanonical
+       Hsimple Hfind Hfuel Hmeet).
 Qed.
 
 Theorem model_relation_switch_fuel : model_relation_switch_fuel_statement.
@@ -173,5 +185,5 @@ Proof.
     eexists. split; [ vm_compute; reflexivity | ].
     split; [ vm_compute; reflexivity | ].
     split; [ vm_compute; reflexivity | ].
-    eexists. split; [ reflexivity | cbn; lia ].
+    eexists. reflexivity.
 Qed.
