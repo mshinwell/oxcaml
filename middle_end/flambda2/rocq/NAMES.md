@@ -332,12 +332,21 @@ avoid to a name outside them; `fresh_name` is one. No such function
 commutes with every renaming. Take a list `l`, the name `n` that the
 source gives for `l`, and a name `y` that is not in `l` and is not
 `n`. The renaming that swaps `n` and `y` moves no name of `l`, so the
-source gives `n` for the renamed list; and `n` renamed is `y`. So a
-function that asks the source for a name and lets that name show in
-its answer does not commute with every renaming, whatever the source
-is. This is not a defect of `fresh_name`, and another choice would
-not help: that no function which respects renaming can pick a name
-out is what it is for names to be compared by equality only.
+source gives `n` for the renamed list; and `n` renamed is `y`. The
+same goes for a function that asks the source for a name and lets
+that name show in its answer: swap the name with one that is neither
+in the arguments nor in the answer; the arguments are as they were
+and the answer is not. So such a function does not commute with every
+renaming, whatever the source is. This is not a defect of
+`fresh_name`, and another choice would not help: that no function
+which respects renaming can pick a name out is what it is for names
+to be compared by equality only.
+
+Of this, what is a theorem is the first part, of the source alone
+(`no_source_commutes_statement`, in
+`types/rocq/FlambdaEnvRenameJoinSpec.v`). That the join of typing
+environments with one source does not commute with every renaming is
+the argument above applied to it, and is not proved.
 
 **What such a function owes instead.** One of two things.
 
