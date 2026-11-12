@@ -33,6 +33,7 @@ let static_const_total = function
   | Static_const_block (_, fields) -> forallb plain_simple fields
   | Static_const_boxed_number contents -> plain_simple contents
   | Static_const_immutable_string _ -> true
+  | Static_const_immutable_value_array elements -> forallb plain_simple elements
 
 (** val removed_binding_total : dropped -> static_binding -> bool **)
 

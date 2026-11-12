@@ -118,6 +118,10 @@ let int_of_value kind v =
       | _ -> None)
     | _ -> None)
 
+(** val is_tagged_immediate : value -> bool **)
+
+let is_tagged_immediate v = is_some (int_of_value Standard_tagged_immediate v)
+
 (** val eval_int_arith : coq_Z -> binary_int_arith_op -> coq_Z -> coq_Z -> coq_Z
     option **)
 
@@ -239,6 +243,51 @@ let eval_int_comp width behaviour a b =
     | Lt -> Zneg Coq_xH
     | Gt -> Zpos Coq_xH)
 
+(** val array_kind_of_load_kind : array_load_kind -> array_kind **)
+
+let array_kind_of_load_kind = function
+  | Load_immediates -> Array_immediates
+  | Load_gc_ignorable_values -> Array_gc_ignorable_values
+  | Load_values -> Array_values
+
+(** val array_element_ok : array_kind -> value -> bool **)
+
+let array_element_ok kind v =
+  match kind with
+  | Array_immediates -> is_tagged_immediate v
+  | _ -> kind_eqb (kind_of_value v) Value
+
+(** val array_length_of : value list -> value option **)
+
+let array_length_of elements =
+  let length0 = Z.of_nat (length elements) in
+  if in_range (int_width Standard_tagged_immediate) length0
+  then Some (Value_const (Tagged_immediate length0))
+  else None
+
+(** val array_index : value list -> value -> nat option **)
+
+let array_index elements index =
+  match int_of_value Standard_tagged_immediate index with
+  | Some i ->
+    if Z.leb Z0 i && Z.ltb i (Z.of_nat (length elements))
+    then Some (Z.to_nat i)
+    else None
+  | None -> None
+
+(** val array_loaded : array_load_kind -> value list -> value -> value option **)
+
+let array_loaded load_kind elements index =
+  match array_index elements index with
+  | Some i -> (
+    match nth_error elements i with
+    | Some v ->
+      if array_element_ok (array_kind_of_load_kind load_kind) v
+      then Some v
+      else None
+    | None -> None)
+  | None -> None
+
 (** val bound_if_symbol : static_env -> value -> bool **)
 
 let bound_if_symbol statics = function
@@ -248,10 +297,6 @@ let bound_if_symbol statics = function
 (** val naked_bool : bool -> value **)
 
 let naked_bool b = Value_const (Naked_immediate (if b then Zpos Coq_xH else Z0))
-
-(** val is_tagged_immediate : value -> bool **)
-
-let is_tagged_immediate v = is_some (int_of_value Standard_tagged_immediate v)
 
 (** val eval_is_int : static_env -> bool -> value -> bool option **)
 
@@ -360,7 +405,10 @@ let eval_unary_primitive statics p v =
       let tag, _ = p0 in
       Some (Value_const (Naked_immediate tag))
     | None -> None)
-  | Array_length _ -> None
+  | Array_length _ -> (
+    match array_of statics v with
+    | Some elements -> array_length_of elements
+    | None -> None)
   | String_length -> (
     match string_of statics v with
     | Some bytes ->
@@ -500,7 +548,10 @@ let eval_phys_equal statics v1 v2 =
 
 let eval_binary_primitive statics p v1 v2 =
   match p with
-  | Array_load (_, _, _) -> None
+  | Array_load (_, load_kind, _) -> (
+    match array_of statics v1 with
+    | Some elements -> array_loaded load_kind elements v2
+    | None -> None)
   | String_or_bigstring_load width -> eval_string_load statics width v1 v2
   | Phys_equal op -> (
     match eval_phys_equal statics v1 v2 with

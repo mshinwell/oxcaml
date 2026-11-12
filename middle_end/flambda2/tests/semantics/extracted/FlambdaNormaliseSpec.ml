@@ -49,7 +49,9 @@ let static_binding_in_scope vs = function
       forallb (fun slot -> simple_in_scope vs (snd slot)) slots
     | Static_const_block (_, fields) -> simples_in_scope vs fields
     | Static_const_boxed_number contents -> simple_in_scope vs contents
-    | Static_const_immutable_string _ -> true)
+    | Static_const_immutable_string _ -> true
+    | Static_const_immutable_value_array elements ->
+      simples_in_scope vs elements)
   | _ -> true
 
 (** val apply_cont_in_scope : variable list -> continuation list -> apply_cont
@@ -259,7 +261,8 @@ let var_in_static_binding x = function
     | Static_const_closure_of_set (_, _, _, slots) -> var_in_value_slots x slots
     | Static_const_block (_, fields) -> var_in_simples x fields
     | Static_const_boxed_number contents -> var_in_simple x contents
-    | Static_const_immutable_string _ -> false)
+    | Static_const_immutable_string _ -> false
+    | Static_const_immutable_value_array elements -> var_in_simples x elements)
   | _ -> false
 
 (** val var_free_b : variable -> expr -> bool **)

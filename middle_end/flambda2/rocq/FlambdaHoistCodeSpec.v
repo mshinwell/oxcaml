@@ -196,7 +196,8 @@ Definition const_closures_bound (bound : code_id -> bool)
   | Static_const_set_of_closures code _ => bound code
   | Static_const_closure_of_set _ _ decls _ => decls_bound bound decls
   | Static_const_block _ _ | Static_const_boxed_number _
-  | Static_const_immutable_string _ =>
+  | Static_const_immutable_string _
+  | Static_const_immutable_value_array _ =>
     true
   end.
 
@@ -305,6 +306,8 @@ Definition allocated_closures_bound (bound : code_id -> bool)
     decls_bound bound decls
     && forallb (fun slot => value_closures_bound bound (snd slot)) slots
   | Static_block _ fields => forallb (value_closures_bound bound) fields
+  | Static_immutable_array elements =>
+    forallb (value_closures_bound bound) elements
   | Static_boxed_number contents => value_closures_bound bound contents
   | Static_string _ | Static_imported _ => true
   end.

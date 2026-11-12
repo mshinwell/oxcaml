@@ -37,6 +37,7 @@ type statically_allocated_value =
   | Static_block of coq_Z * value list
   | Static_boxed_number of value
   | Static_string of coq_Z list
+  | Static_immutable_array of value list
   | Static_imported of import_class
 
 type static_env =
@@ -213,6 +214,18 @@ let string_of statics = function
     | None -> None)
   | _ -> None
 
+(** val array_of : static_env -> value -> value list option **)
+
+let array_of statics = function
+  | Value_symbol s -> (
+    match lookup s statics.static_values with
+    | Some s0 -> (
+      match s0 with
+      | Static_immutable_array elements -> Some elements
+      | _ -> None)
+    | None -> None)
+  | _ -> None
+
 (** val partial_application_of : value -> ((value * value list) * arity) option
     **)
 
@@ -224,9 +237,10 @@ let partial_application_of = function
 (** val is_allocated : static_env -> value -> bool **)
 
 let is_allocated statics v =
-  (((is_some (closure_of statics v) || is_some (block_of statics v))
-   || is_some (boxed_number_of statics v))
-  || is_some (string_of statics v))
+  ((((is_some (closure_of statics v) || is_some (block_of statics v))
+    || is_some (boxed_number_of statics v))
+   || is_some (string_of statics v))
+  || is_some (array_of statics v))
   || is_some (partial_application_of v)
 
 (** val imported_of : static_env -> value -> (symbol * import_class) option **)

@@ -25,6 +25,8 @@ val const_of_int : standard_int -> coq_Z -> const
 
 val int_of_value : standard_int -> value -> coq_Z option
 
+val is_tagged_immediate : value -> bool
+
 val eval_int_arith :
   coq_Z -> binary_int_arith_op -> coq_Z -> coq_Z -> coq_Z option
 
@@ -44,11 +46,19 @@ val eval_int_comparison : coq_Z -> int_comparison -> coq_Z -> coq_Z -> bool
 
 val eval_int_comp : coq_Z -> int_comparison_behaviour -> coq_Z -> coq_Z -> coq_Z
 
+val array_kind_of_load_kind : array_load_kind -> array_kind
+
+val array_element_ok : array_kind -> value -> bool
+
+val array_length_of : value list -> value option
+
+val array_index : value list -> value -> nat option
+
+val array_loaded : array_load_kind -> value list -> value -> value option
+
 val bound_if_symbol : static_env -> value -> bool
 
 val naked_bool : bool -> value
-
-val is_tagged_immediate : value -> bool
 
 val eval_is_int : static_env -> bool -> value -> bool option
 

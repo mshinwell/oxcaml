@@ -632,7 +632,7 @@ Proof.
     + split; [ discriminate | intros (slot' & decls' & [=] & _) ].
   - destruct (lookup s (static_values statics))
       as [[code' slots | slot syms decls slots | tag fields | contents
-          | bytes | ] | ];
+          | bytes | elements | ] | ];
       try (split; [ discriminate | intros (slot' & decls' & [=] & _) ]).
     + split.
       * intros [= <- <-]. exists unnamed_function_slot. eexists.
@@ -658,7 +658,7 @@ Proof.
     simpl. intros [= <- <- _]. rewrite Hslot. reflexivity.
   - destruct (lookup s (static_values statics))
       as [[code vs | fslot syms fdecls vs | tag fields | contents
-          | bytes | ] | ];
+          | bytes | elements | ] | ];
       try discriminate.
     + intros [= <- <- _]. reflexivity.
     + destruct (lookup fslot fdecls) as [code | ] eqn:Hslot;
@@ -734,7 +734,7 @@ Proof.
     simpl. intros _. exists decls, slots, code, code'. auto.
   - destruct (lookup s (static_values statics))
       as [[code slots | slot syms decls slots | tag fields | contents
-          | bytes | ] | ];
+          | bytes | elements | ] | ];
       try discriminate.
     + intros Hproject.
       apply project_unnamed_function_slot in Hproject as (-> & -> & _).

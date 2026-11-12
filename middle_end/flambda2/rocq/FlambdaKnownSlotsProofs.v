@@ -230,7 +230,7 @@ Proof.
     exact (conj Has (slot_values_known_in slots Hslots)).
   - destruct (lookup s (static_values statics))
       as [[code slots | at_slot syms set_decls slots | tag fields | contents
-          | bytes | ] | ] eqn:Hs;
+          | bytes | elements | ] | ] eqn:Hs;
       try discriminate.
     + pose proof (statics_slots_known_lookup statics s _ Hstatics Hs)
         as Hvalid.
@@ -266,6 +266,16 @@ Proof.
   exact (Hvalid v Hin).
 Qed.
 
+Lemma value_slots_known_in_static_arrays (statics : static_env) :
+  Forall (fun binding => Qv (snd binding)) (static_values statics) ->
+  holds_in_static_arrays statics Pv.
+Proof.
+  intros Hstatics s elements _ Hs v Hin.
+  pose proof (statics_slots_known_lookup statics s _ Hstatics Hs) as Hvalid.
+  unfold Qv in Hvalid. simpl in Hvalid. rewrite forallb_forall in Hvalid.
+  exact (Hvalid v Hin).
+Qed.
+
 Lemma project_function_slot_slots_known (statics : static_env)
     (move_from move_to : function_slot) (v w : value) :
   Pv v -> project_function_slot statics move_from move_to v = Some w -> Pv w.
@@ -284,7 +294,7 @@ Proof.
     simpl. intros [= <-]. exact Hv.
   - destruct (lookup s (static_values statics))
       as [[code slots | at_slot syms decls slots | tag fields | contents
-          | bytes | ] | ];
+          | bytes | elements | ] | ];
       try discriminate.
     + intros Hproject.
       apply project_unnamed_function_slot in Hproject as (_ & _ & ->).
@@ -314,7 +324,8 @@ Proof.
     simpl. intros Hprim.
     apply (eval_prim_preserves Pv statics p vs v value_slots_known_of_numbers
              value_slots_known_of_blocks
-             (value_slots_known_in_static_blocks statics Hstatics));
+             (value_slots_known_in_static_blocks statics Hstatics)
+             (value_slots_known_in_static_arrays statics Hstatics));
       [ | exact Hprim ].
     pose proof (eval_simples_slots_known vars Hvars args vs Hargs) as Hvs.
     rewrite forallb_forall in Hvs. exact Hvs.
@@ -370,7 +381,7 @@ Lemma eval_static_const_slots_known (const : static_const) (vars : env)
 Proof.
   intros Hconst Hvars.
   destruct const as [code slots | slot syms decls slots | tag fields
-    | contents | bytes];
+    | contents | bytes | elements];
     simpl.
   - destruct (eval_value_slots vars slots) as [vs | ] eqn:Hslots;
       [ | discriminate ].
@@ -394,6 +405,10 @@ Proof.
     simpl. intros [= <-].
     exact (eval_simple_slots_known vars contents v Hvars Hcontents).
   - intros [= <-]. reflexivity.
+  - destruct (eval_simples vars elements) as [vs | ] eqn:Helements;
+      [ | discriminate ].
+    simpl. intros [= <-].
+    exact (eval_simples_slots_known vars Hvars elements vs Helements).
 Qed.
 
 Lemma eval_static_bindings_slots_known (vars : env) :
@@ -451,6 +466,7 @@ Proof.
     refine (eval_prim_preserves Pv (state_statics s) _ [tuple] v
               value_slots_known_of_numbers value_slots_known_of_blocks
               (value_slots_known_in_static_blocks (state_statics s) Hstatics)
+              (value_slots_known_in_static_arrays (state_statics s) Hstatics)
               _ Hprim).
     intros w [<- | []]. exact Htuple.
   - intros x kind d body v Hexpr Heval. rewrite Hexpr in P. simpl in P.
@@ -1270,7 +1286,7 @@ Lemma static_const_slots_made_renamed (r : renaming) (const : static_const) :
   = map (rename_slot r) (static_const_slots_made const).
 Proof.
   destruct const as [code slots | slot syms decls slots | tag fields
-    | contents | bytes];
+    | contents | bytes | elements];
     reflexivity.
 Qed.
 

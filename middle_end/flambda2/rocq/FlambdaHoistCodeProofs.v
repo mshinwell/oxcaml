@@ -229,7 +229,7 @@ Lemma allocated_closures_bound_le (bound bound' : code_id -> bool)
 Proof.
   intros Hle.
   destruct allocated as [code slots | slot syms decls slots | tag fields
-                        | contents | bytes | c];
+                        | contents | bytes | elements | c];
     simpl.
   - intros H. apply andb_true_iff in H as [Hcode Hslots].
     rewrite (Hle code Hcode), (slots_closures_bound_le _ _ slots Hle Hslots).
@@ -242,6 +242,8 @@ Proof.
     exact (value_closures_bound_le bound bound' field Hle (H field Hin)).
   - apply value_closures_bound_le, Hle.
   - intros _. reflexivity.
+  - rewrite !forallb_forall. intros H element Hin.
+    exact (value_closures_bound_le bound bound' element Hle (H element Hin)).
   - intros _. reflexivity.
 Qed.
 
@@ -361,7 +363,7 @@ Lemma eval_static_const_ok (vars : env) (const : static_const)
 Proof.
   intros Hconst Hvars.
   destruct const as [code slots | slot syms decls slots | tag fields
-                    | contents | bytes];
+                    | contents | bytes | elements];
     simpl in Hconst |- *.
   - destruct (eval_value_slots vars slots) as [vs | ] eqn:Hslots; simpl;
       [ | discriminate ].
@@ -382,6 +384,10 @@ Proof.
       [ | discriminate ].
     intros [= <-]. exact (eval_simple_ok vars contents v Hvars Hcontents).
   - intros [= <-]. reflexivity.
+  - destruct (eval_simples vars elements) as [vs | ] eqn:Helements; simpl;
+      [ | discriminate ].
+    intros [= <-]. simpl. apply forallb_Forall.
+    exact (eval_simples_ok vars elements vs Hvars Helements).
 Qed.
 
 (* A group whose constants are of code that is bound keeps what the
@@ -447,6 +453,13 @@ Proof.
   rewrite forallb_forall in Hfields. exact (Hfields v Hin).
 Qed.
 
+Lemma value_ok_in_static_arrays : holds_in_static_arrays statics value_ok.
+Proof.
+  intros s elements _ Hlookup v Hin.
+  pose proof (allocated_ok s _ Hlookup) as Helements. simpl in Helements.
+  rewrite forallb_forall in Helements. exact (Helements v Hin).
+Qed.
+
 (* The fields of a tuple whose closures are of bound code are so too:
    they are read by a primitive. *)
 Lemma tuple_fields_ok (size : nat) (tuple : value) (fields : list value) :
@@ -460,7 +473,8 @@ Proof.
   intros field v Hv.
   refine
     (eval_prim_preserves value_ok statics _ [tuple] v value_ok_of_numbers
-       value_ok_of_blocks value_ok_in_static_blocks _ Hv).
+       value_ok_of_blocks value_ok_in_static_blocks
+       value_ok_in_static_arrays _ Hv).
   intros w [<- | [ ]]. exact Htuple.
 Qed.
 
@@ -488,7 +502,7 @@ Proof.
     pose proof (allocated_ok s allocated Hlookup) as Hallocated.
     destruct allocated
       as [code aslots | aslot syms adecls aslots | tag fields | contents
-         | bytes | ];
+         | bytes | elements | ];
       simpl in Hallocated |- *; try discriminate.
     + intros [= <- <- <-].
       apply andb_true_iff in Hallocated as [Hcode Hslots].
@@ -538,7 +552,7 @@ Proof.
     intros [= <-]. exact Hc.
   - destruct (lookup s (static_values statics))
       as [[code aslots | aslot syms adecls aslots | tag fields | contents
-          | bytes | ] | ];
+          | bytes | elements | ] | ];
       try discriminate.
     + destruct (Pos.eqb move_from unnamed_function_slot); [ | discriminate ].
       destruct (Pos.eqb move_to unnamed_function_slot); [ | discriminate ].
@@ -566,7 +580,8 @@ Proof.
       [ | discriminate ].
     intros Hprim.
     apply (eval_prim_preserves value_ok statics p vs v value_ok_of_numbers
-             value_ok_of_blocks value_ok_in_static_blocks);
+             value_ok_of_blocks value_ok_in_static_blocks
+             value_ok_in_static_arrays);
       [ | exact Hprim ].
     pose proof (eval_simples_ok vars args vs Hvars Hargs) as Hvs.
     rewrite Forall_forall in Hvs. exact Hvs.

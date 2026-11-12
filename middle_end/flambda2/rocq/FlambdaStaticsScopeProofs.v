@@ -1272,7 +1272,7 @@ Lemma eval_static_const_closed_free (const : static_const)
   free_variables_of_static_const const = [].
 Proof.
   destruct const as [code slots | slot syms decls slots | tag fields
-                    | contents | bytes];
+                    | contents | bytes | elements];
     simpl.
   - destruct (eval_value_slots [] slots) as [vs | ] eqn:Hslots;
       [ | discriminate ].
@@ -1288,6 +1288,9 @@ Proof.
       [ | discriminate ].
     intros _. exact (eval_simple_closed_free contents v Hcontents).
   - intros _. reflexivity.
+  - destruct (eval_simples [] elements) as [vs | ] eqn:Helements;
+      [ | discriminate ].
+    intros _. exact (eval_simples_closed_free elements vs Helements).
 Qed.
 
 (* The bindings that are bound first have no free name, where the code

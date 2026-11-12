@@ -191,6 +191,8 @@ Definition rename_static_const (r : renaming) (const : static_const)
   | Static_const_boxed_number contents =>
     Static_const_boxed_number (rename_simple r contents)
   | Static_const_immutable_string bytes => Static_const_immutable_string bytes
+  | Static_const_immutable_value_array elements =>
+    Static_const_immutable_value_array (map (rename_simple r) elements)
   end.
 
 Definition rename_apply (r : renaming) (ap : apply_expr) : apply_expr :=
@@ -317,6 +319,8 @@ Definition var_free_in_static_const (x : variable) (const : static_const)
   | Static_const_closure_of_set _ _ _ value_slots =>
     Exists (fun slot => var_free_in_simple x (snd slot)) value_slots
   | Static_const_block _ fields => var_free_in_simples x fields
+  | Static_const_immutable_value_array elements =>
+    var_free_in_simples x elements
   | Static_const_boxed_number contents => var_free_in_simple x contents
   | Static_const_immutable_string _ => False
   end.

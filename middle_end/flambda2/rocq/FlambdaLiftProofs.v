@@ -289,13 +289,18 @@ Inductive allocated_lifted (statics' : static_env)
   | Lifted_static_string (bytes : list Z) :
     allocated_lifted statics' (Static_string bytes) (Static_string bytes)
   | Lifted_static_imported (c : import_class) :
-    allocated_lifted statics' (Static_imported c) (Static_imported c).
+    allocated_lifted statics' (Static_imported c) (Static_imported c)
+  | Lifted_static_immutable_array (elements elements' : list value) :
+    Forall2 (value_lifted statics') elements elements' ->
+    allocated_lifted statics' (Static_immutable_array elements)
+      (Static_immutable_array elements').
 
 Ltac allocated_cases H :=
   destruct H
     as [ acode aslots aslots' Haslots
        | afslot asyms adecls aslots aslots' Haslots
-       | atag afields afields' Hafields | av av' Hav | abytes | ].
+       | atag afields afields' Hafields | av av' Hav | abytes |
+       | aelements aelements' Haelements ].
 
 Lemma allocated_lifted_extend (statics' statics'' : static_env)
     (allocated allocated' : statically_allocated_value) :
@@ -400,6 +405,21 @@ Proof.
     [ | discriminate ].
   destruct (Hsymbols s allocated Hs) as (allocated' & -> & Hallocated).
   allocated_cases Hallocated; try discriminate. exact (fun H => H).
+Qed.
+
+Lemma array_of_lifted (v v' : value) (elements : list value) :
+  value_lifted statics' v v' ->
+  array_of statics v = Some elements ->
+  ∃ elements' : list value,
+    array_of statics' v' = Some elements'
+    ∧ Forall2 (value_lifted statics') elements elements'.
+Proof.
+  intros Hv. lifted_cases Hv; simpl; try discriminate.
+  destruct (lookup s (static_values statics)) as [allocated | ] eqn:Hs;
+    [ | discriminate ].
+  destruct (Hsymbols s allocated Hs) as (allocated' & -> & Hallocated).
+  allocated_cases Hallocated; try discriminate.
+  intros [= <-]. eauto.
 Qed.
 
 Lemma closure_in_set_lifted (v v' : value) (at_slot : function_slot)
@@ -538,7 +558,9 @@ Proof.
     + intros c. split; constructor.
     + intros tag fields fields' Hfields. constructor. exact Hfields.
   - intros v v' Hv.
-    split; [ | split; [ | split; [ | split; [ | split; [ | split ] ] ] ] ].
+    split;
+      [ | split; [ | split; [ | split; [ | split; [ | split; [ | split ] ] ] ] ]
+      ].
     + intros tag fields. exact (block_of_lifted v v' tag fields Hv).
     + intros c. exact (boxed_number_of_lifted v v' c Hv).
     + intros bytes. exact (string_of_lifted v v' bytes Hv).
@@ -566,6 +588,7 @@ Proof.
       inversion Hv; subst. simpl.
       destruct (Hsymbols s0 _ Hs0) as (allocated' & -> & Hallocated).
       inversion Hallocated. reflexivity.
+    + intros elements. exact (array_of_lifted v v' elements Hv).
 Qed.
 
 Lemma eval_prim_lifted (p : prim) (vs vs' : list value) (v : value) :
@@ -750,7 +773,8 @@ Lemma eval_static_const_lifted (statics' : static_env) (vars vars' : env)
 Proof.
   intros Hvars.
   destruct const
-    as [code slots | fslot syms decls slots | tag fields | contents | bytes];
+    as [code slots | fslot syms decls slots | tag fields | contents | bytes
+        | elements];
     simpl.
   - destruct (eval_value_slots vars slots) as [vs | ] eqn:Hslots;
       [ | discriminate ].
@@ -782,6 +806,13 @@ Proof.
     apply Lifted_static_boxed_number, Hw.
   - intros [= <-]. eexists. split; [ reflexivity | ].
     apply Lifted_static_string.
+  - destruct (eval_simples vars elements) as [vs | ] eqn:Helements;
+      [ | discriminate ].
+    destruct
+      (eval_simples_lifted statics' vars vars' elements Hvars vs Helements)
+      as (vs' & -> & Hvs).
+    intros [= <-]. eexists. split; [ reflexivity | ].
+    apply Lifted_static_immutable_array, Hvs.
 Qed.
 
 (* ======================================================================== *)

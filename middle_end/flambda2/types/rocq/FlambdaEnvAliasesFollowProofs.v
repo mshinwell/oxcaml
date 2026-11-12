@@ -416,7 +416,7 @@ Proof.
   destruct binding
     as [id code | id
        | sym [code slots | fslot syms decls slots | tag fields | contents
-             | bytes]];
+             | bytes | elements]];
     simpl in Hentry; try contradiction;
     destruct Hentry as [[= <- <-] | []];
     destruct
@@ -690,7 +690,8 @@ Proof.
     [ reflexivity | ].
   destruct binding
     as [id c | id
-       | sym [code slots | fslot syms decls slots | tag fields | s | bytes]];
+       | sym [code slots | fslot syms decls slots | tag fields | s | bytes
+              | elements]];
     simpl; try apply IH.
   - destruct (lookup id (static_code statics)); [ reflexivity | apply IH ].
   - destruct (lookup sym (static_values statics)); [ reflexivity | ].
@@ -708,6 +709,9 @@ Proof.
     destruct (eval_simple vars s); simpl; [ apply IH | reflexivity ].
   - destruct (lookup sym (static_values statics)); [ reflexivity | ].
     apply IH.
+  - destruct (lookup sym (static_values statics)); [ reflexivity | ].
+    rewrite (canonical_simples_sound known vars elements Hrespected).
+    destruct (eval_simples vars elements); simpl; [ apply IH | reflexivity ].
 Qed.
 
 Lemma find_arm_canonical (known : Known.t) (i : Z)
@@ -1465,7 +1469,8 @@ Proof.
   cbn [map flat_map]. rewrite map_app, IH. f_equal.
   destruct binding
     as [id c | id
-       | sym [code slots | fslot syms decls slots | tag fields | s | bytes]];
+       | sym [code slots | fslot syms decls slots | tag fields | s | bytes
+              | elements]];
     reflexivity.
 Qed.
 
@@ -1574,7 +1579,8 @@ Lemma canonical_static_binding_renamed (r : renaming) (known : Known.t)
 Proof.
   destruct binding
     as [id c | id
-       | sym [code slots | fslot syms decls slots | tag fields | s | bytes]];
+       | sym [code slots | fslot syms decls slots | tag fields | s | bytes
+              | elements]];
     cbn [rename_static_binding canonical_static_binding rename_static_const
          canonical_static_const];
     try reflexivity.
@@ -1582,6 +1588,7 @@ Proof.
   - do 2 f_equal. apply canonical_value_slots_renamed.
   - rewrite canonical_simples_renamed. reflexivity.
   - rewrite canonical_simple_renamed. reflexivity.
+  - rewrite canonical_simples_renamed. reflexivity.
 Qed.
 
 Lemma canonical_apply_cont_renamed (r : renaming) (known : Known.t)

@@ -157,6 +157,8 @@ Definition free_variables_of_static_const (const : static_const)
   | Static_const_closure_of_set _ _ _ value_slots =>
     free_variables_of_value_slots value_slots
   | Static_const_block _ fields => free_variables_of_simples fields
+  | Static_const_immutable_value_array elements =>
+    free_variables_of_simples elements
   | Static_const_boxed_number contents => free_variables_of_simple contents
   | Static_const_immutable_string _ => []
   end.

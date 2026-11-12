@@ -232,7 +232,8 @@ Proof.
     [ reflexivity | ].
   destruct binding
     as [id c | id
-       | sym [code slots | fslot syms decls slots | tag fields | s | bytes]];
+       | sym [code slots | fslot syms decls slots | tag fields | s | bytes
+              | elements]];
     simpl; try apply IH.
   - destruct (lookup id (static_code statics)); [ reflexivity | apply IH ].
   - destruct (lookup sym (static_values statics)); [ reflexivity | ].
@@ -250,6 +251,9 @@ Proof.
     destruct (eval_simple vars s); simpl; [ apply IH | reflexivity ].
   - destruct (lookup sym (static_values statics)); [ reflexivity | ].
     apply IH.
+  - destruct (lookup sym (static_values statics)); [ reflexivity | ].
+    rewrite (canonical_simples_sound tenv vars elements Hsat).
+    destruct (eval_simples vars elements); simpl; [ apply IH | reflexivity ].
 Qed.
 
 Lemma find_arm_canonical (tenv : typing_env) (i : Z)

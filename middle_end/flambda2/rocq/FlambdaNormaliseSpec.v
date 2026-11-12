@@ -171,6 +171,8 @@ Definition static_binding_in_scope (vs : list variable)
       | Static_const_closure_of_set _ _ _ slots) =>
     forallb (fun slot => simple_in_scope vs (snd slot)) slots
   | Bind_symbol _ (Static_const_block _ fields) => simples_in_scope vs fields
+  | Bind_symbol _ (Static_const_immutable_value_array elements) =>
+    simples_in_scope vs elements
   | Bind_symbol _ (Static_const_boxed_number contents) =>
     simple_in_scope vs contents
   | Bind_symbol _ (Static_const_immutable_string _) => true
@@ -387,6 +389,8 @@ Definition var_in_static_binding (x : variable) (binding : static_binding)
       | Static_const_closure_of_set _ _ _ slots) =>
     var_in_value_slots x slots
   | Bind_symbol _ (Static_const_block _ fields) => var_in_simples x fields
+  | Bind_symbol _ (Static_const_immutable_value_array elements) =>
+    var_in_simples x elements
   | Bind_symbol _ (Static_const_boxed_number contents) =>
     var_in_simple x contents
   | Bind_symbol _ (Static_const_immutable_string _) => false
@@ -755,7 +759,8 @@ Fixpoint symbols_of (bindings : list static_binding)
     symbols_of bindings ((s, lookup slot function_decls) :: known)
   | Bind_symbol s
       (Static_const_block _ _ | Static_const_boxed_number _
-      | Static_const_immutable_string _)
+      | Static_const_immutable_string _
+      | Static_const_immutable_value_array _)
     :: bindings =>
     symbols_of bindings ((s, None) :: known)
   | (Bind_code _ _ | Bind_deleted_code _) :: bindings =>

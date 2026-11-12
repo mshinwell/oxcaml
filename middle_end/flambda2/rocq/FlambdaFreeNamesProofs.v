@@ -584,7 +584,8 @@ Proof.
   cbn [forallb flat_map]. rewrite all_among_app, IH. f_equal.
   destruct binding
     as [id c | id
-       | sym [code slots | fslot syms decls slots | tag fields | s | bytes]];
+       | sym [code slots | fslot syms decls slots | tag fields | s | bytes
+              | elements]];
     cbn [static_binding_in_scope free_variables_of_static_const];
     first
       [ reflexivity | apply value_slots_in_scope_among

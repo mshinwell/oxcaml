@@ -169,7 +169,8 @@ Definition static_closure_of_is (id : code_id) (s sym : symbol)
     | None => true
     end
   | Static_const_block _ _ | Static_const_boxed_number _
-  | Static_const_immutable_string _ =>
+  | Static_const_immutable_string _
+  | Static_const_immutable_value_array _ =>
     true
   end.
 

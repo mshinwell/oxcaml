@@ -136,6 +136,8 @@ Definition variables_in_static_const (const : static_const)
   | Static_const_closure_of_set _ _ _ slots =>
     variables_in_slots slots
   | Static_const_block _ fields => variables_in_simples fields
+  | Static_const_immutable_value_array elements =>
+    variables_in_simples elements
   | Static_const_boxed_number contents => variables_in_simple contents
   | Static_const_immutable_string _ => []
   end.

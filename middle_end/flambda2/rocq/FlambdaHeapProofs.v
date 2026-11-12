@@ -1231,7 +1231,8 @@ Proof.
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
        | kind v' Hpoison Hkind
-       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs].
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | v v' elements elements' Hv Hv' Helements].
   - apply Step_const.
   - apply Step_location. exact Hl.
   - exact
@@ -1254,6 +1255,9 @@ Proof.
   - apply Step_partial_application;
       [ exact (Hmono _ _ Hpcallee)
       | exact (Forall2_mono _ _ _ _ Hmono Hpargs) ].
+  - exact
+      (Step_array _ _ _ _ _ _ _ elements elements' Hv Hv'
+         (Forall2_mono _ _ _ _ Hmono Helements)).
 Qed.
 
 (* Induction on the relation, through the lists of related contents. *)
@@ -1279,7 +1283,8 @@ Proof.
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
        | kind v' Hpoison Hkind
-       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs].
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | v v' elements elements' Hv Hv' Helements].
   - apply Step_const.
   - apply Step_location. exact Hl.
   - apply (Step_block _ _ _ _ _ _ _ tag fields fields' Hv Hv').
@@ -1344,6 +1349,22 @@ Proof.
             Forall2_cons _ _ (conj Hhead (IH _ _ Hhead)) (go _ _ Htail)
           end)
          _ _ Hpargs).
+  - apply (Step_array _ _ _ _ _ _ _ elements elements' Hv Hv').
+    exact
+      ((fix go (vs vs' : list value)
+          (H : Forall2 (value_related poison_refines r statics statics')
+                 vs vs')
+          : Forall2
+              (fun a a' =>
+                 value_related poison_refines r statics statics' a a'
+                 ∧ P a a')
+              vs vs' :=
+          match H with
+          | Forall2_nil _ => Forall2_nil _
+          | Forall2_cons _ _ Hhead Htail =>
+            Forall2_cons _ _ (conj Hhead (IH _ _ Hhead)) (go _ _ Htail)
+          end)
+         _ _ Helements).
 Qed.
 
 (* Two related values have their heads in common, under a valid
@@ -1421,12 +1442,20 @@ Lemma not_allocated (statics : static_env) (v : value) :
   ∧ string_of statics v = None.
 Proof.
   unfold is_allocated. rewrite !orb_false_iff.
-  intros [[[[Hclosure Hblock] Hboxed] Hstring] _].
+  intros [[[[[Hclosure Hblock] Hboxed] Hstring] _] _].
   destruct (closure_of statics v); [ discriminate | ].
   destruct (block_of statics v); [ discriminate | ].
   destruct (boxed_number_of statics v); [ discriminate | ].
   destruct (string_of statics v); [ discriminate | ].
   auto.
+Qed.
+
+Lemma not_allocated_array (statics : static_env) (v : value) :
+  is_allocated statics v = false -> array_of statics v = None.
+Proof.
+  unfold is_allocated. rewrite !orb_false_iff.
+  intros [[_ Harray] _].
+  destruct (array_of statics v); [ discriminate | reflexivity ].
 Qed.
 
 Lemma boxable_contents_same (c c' : const) :
@@ -1454,7 +1483,7 @@ Proof.
     intros [= <- <- <-]. exists code. auto.
   - destruct (lookup s (static_values statics))
       as [[code slots' | slot' syms decls' slots' | tag fields | contents
-          | bytes | ] | ];
+          | bytes | elements | ] | ];
       try discriminate.
     + intros [= <- <- <-]. exists code. rewrite lookup_head. auto.
     + destruct (lookup slot' decls') as [code | ] eqn:Hslot; simpl;
@@ -1478,7 +1507,7 @@ Proof.
     intros [= <- <-]. exists slot, decls. auto.
   - destruct (lookup s (static_values statics))
       as [[code' slots' | slot syms decls slots' | tag fields | contents
-          | bytes | ] | ];
+          | bytes | elements | ] | ];
       try discriminate.
     + intros [= <- <-]. eexists _, _. split; [ reflexivity | ].
       apply lookup_head.
@@ -1533,7 +1562,7 @@ Proof.
     + split; [ split; reflexivity | discriminate ].
   - destruct (lookup s (static_values st))
       as [[code vs | slot' syms decls' vs | tag fields | contents | bytes
-          | ] | ]
+          | elements | ] | ]
       eqn:Hlookup; try discriminate.
     + intros _ [= <- <- <-].
       destruct (Pos.eqb_spec move_to unnamed_function_slot) as [-> | Hne].
@@ -1596,7 +1625,8 @@ Lemma project_symbol (st : static_env) (s : symbol) (w : value)
 Proof.
   cbn -[Pos.eqb].
   destruct (lookup s (static_values st))
-    as [[code vs | slot syms decls vs | tag fields | contents | bytes | ] | ];
+    as [[code vs | slot syms decls vs | tag fields | contents | bytes
+         | elements | ] | ];
     try discriminate.
   - destruct (Pos.eqb move_from unnamed_function_slot); [ | discriminate ].
     destruct (Pos.eqb move_to unnamed_function_slot); [ | discriminate ].
@@ -1626,7 +1656,8 @@ Proof.
     destruct (lookup move_from decls); simpl; [ | discriminate ].
     intros _. eauto.
   - destruct (lookup s (static_values st))
-      as [[code vs | slot syms decls vs | tag fields | contents | bytes | ] | ];
+      as [[code vs | slot syms decls vs | tag fields | contents | bytes
+           | elements | ] | ];
       try discriminate.
     + destruct (Pos.eqb_spec move_from unnamed_function_slot) as [-> | _];
         [ | discriminate ].
@@ -1686,6 +1717,37 @@ Ltac observations_conflict_of :=
   | Hnot : is_allocated ?st ?v = false, H : string_of ?st ?v = Some _ |- _ =>
     exfalso; destruct (not_allocated st v Hnot) as (_ & _ & _ & Hd);
     rewrite H in Hd; discriminate
+  | Harray : array_of ?st ?v = Some _, H : closure_of ?st ?v = Some _ |- _ =>
+    exfalso;
+    destruct
+      (FlambdaValueProofs.array_of_disjoint st v
+         ltac:(rewrite Harray; discriminate))
+      as (Hd & _);
+    rewrite H in Hd; discriminate
+  | Harray : array_of ?st ?v = Some _, H : block_of ?st ?v = Some _ |- _ =>
+    exfalso;
+    destruct
+      (FlambdaValueProofs.array_of_disjoint st v
+         ltac:(rewrite Harray; discriminate))
+      as (_ & Hd & _);
+    rewrite H in Hd; discriminate
+  | Harray : array_of ?st ?v = Some _, H : boxed_number_of ?st ?v = Some _
+    |- _ =>
+    exfalso;
+    destruct
+      (FlambdaValueProofs.array_of_disjoint st v
+         ltac:(rewrite Harray; discriminate))
+      as (_ & _ & Hd & _);
+    rewrite H in Hd; discriminate
+  | Harray : array_of ?st ?v = Some _, H : string_of ?st ?v = Some _ |- _ =>
+    exfalso;
+    destruct
+      (FlambdaValueProofs.array_of_disjoint st v
+         ltac:(rewrite Harray; discriminate))
+      as (_ & _ & _ & Hd);
+    rewrite H in Hd; discriminate
+  | Hnot : is_allocated ?st ?v = false, H : array_of ?st ?v = Some _ |- _ =>
+    exfalso; rewrite (not_allocated_array st v Hnot) in H; discriminate
   end.
 
 (* The same, where one observation is that of a closure of a set. *)
@@ -1714,6 +1776,11 @@ Lemma string_of_kind (statics : static_env) (v : value) (bytes : list Z) :
   string_of statics v = Some bytes -> kind_of_value v = Value.
 Proof. destruct v; simpl; try discriminate; reflexivity. Qed.
 
+Lemma array_of_kind (statics : static_env) (v : value)
+    (elements : list value) :
+  array_of statics v = Some elements -> kind_of_value v = Value.
+Proof. destruct v; simpl; try discriminate; reflexivity. Qed.
+
 Lemma closure_of_kind (statics : static_env) (v : value)
     (c : code_id * list (value_slot * value)) :
   closure_of statics v = Some c -> kind_of_value v = Value.
@@ -1740,7 +1807,8 @@ Proof.
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
        | kind v' Hpoison Hkind
-       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs]; try reflexivity.
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | v v' elements elements' Hv Hv' Helements]; try reflexivity.
   - rewrite (block_of_kind _ _ _ Hv), (block_of_kind _ _ _ Hv'). reflexivity.
   - rewrite (boxed_number_of_kind _ _ _ Hv), (boxed_number_of_kind _ _ _ Hv').
     reflexivity.
@@ -1748,6 +1816,7 @@ Proof.
   - rewrite (closure_in_set_kind _ _ _ Hv), (closure_in_set_kind _ _ _ Hv').
     reflexivity.
   - simpl. symmetry. exact Hkind.
+  - rewrite (array_of_kind _ _ _ Hv), (array_of_kind _ _ _ Hv'). reflexivity.
 Qed.
 
 (* Where the relation on contents holds of every two values that have
@@ -1772,7 +1841,8 @@ Proof.
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
        | kind v' Hpoison Hkind
-       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs];
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | v v' elements elements' Hv Hv' Helements];
     try discriminate;
     try observations_conflict.
   - rewrite Hv in Hclosure. injection Hclosure as <- <- <-.
@@ -1932,7 +2002,7 @@ Proof.
     + pose proof (Hstatics s a) as Hclosed.
       destruct a
         as [code slots | slot syms decls slots | tag fields | contents
-           | bytes | ].
+           | bytes | elements | ].
       * apply
           (Step_closure _ _ _ _ _ _ _ unnamed_function_slot
              [(unnamed_function_slot, code)] slots slots);
@@ -1969,6 +2039,10 @@ Proof.
            apply Step_opaque_symbol; exact Hnot.
       * apply (Step_string _ _ _ _ _ _ _ bytes); simpl; rewrite Hlookup;
           reflexivity.
+      * apply (Step_array _ _ _ _ _ _ _ elements elements);
+          simpl; try rewrite Hlookup; try reflexivity.
+        apply Forall2_same. intros v Hv. apply Hsame.
+        exact (Hclosed v Hlookup Hv).
       * apply Step_opaque_symbol; unfold is_allocated; simpl;
           rewrite Hlookup; reflexivity.
     + assert (Hnot : is_allocated statics (Value_symbol s) = false).
@@ -1991,7 +2065,8 @@ Proof.
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
        | kind v' Hpoison Hkind
-       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs].
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | v v' elements elements' Hv Hv' Helements].
   - apply Step_const.
   - apply Step_location. exact Hl.
   - exact (Step_block _ _ _ _ _ _ _ tag fields fields' Hv Hv' Hfields).
@@ -2007,6 +2082,7 @@ Proof.
   - apply Step_opaque_symbol; assumption.
   - discriminate Hpoison.
   - apply Step_partial_application; assumption.
+  - exact (Step_array _ _ _ _ _ _ _ elements elements' Hv Hv' Helements).
 Qed.
 
 Lemma value_related_poison (r : correspondence)
@@ -2189,7 +2265,8 @@ Proof.
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
        | kind v' Hpoison Hkind
-       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs].
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | v v' elements elements' Hv Hv' Helements].
   - apply Step_const.
   - apply Step_location. exact Hl.
   - exact
@@ -2223,6 +2300,9 @@ Proof.
   - apply Step_partial_application;
       [ exact (Hswap _ _ Hpcallee)
       | exact (Forall2_swap _ _ _ _ Hswap Hpargs) ].
+  - exact
+      (Step_array _ _ _ _ _ _ _ elements' elements Hv' Hv
+         (Forall2_swap _ _ _ _ Hswap Helements)).
 Qed.
 
 Lemma value_related_swap (r : correspondence) (st st' : static_env)
@@ -2301,7 +2381,8 @@ Proof.
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
        | kind v' Hpoison Hkind
-       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs].
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | v v' elements elements' Hv Hv' Helements].
   - (* a constant *)
     inversion Hsecond; subst; simpl in *; try discriminate.
     + apply Step_const.
@@ -2353,7 +2434,8 @@ Proof.
            Hsiblings2
          | gslot gdecls gslots Hgslot | s Hs Hs'
          | kind v3 Hpoison Hkind
-         | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs];
+         | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+         | v2 v3 elements elements' Hv2 Hv3 Helements];
       try discriminate;
       try observations_conflict.
     + rewrite Hv' in Hv2. injection Hv2 as <- <- <-.
@@ -2421,6 +2503,15 @@ Proof.
     inversion Hsecond; subst; simpl in *; try discriminate.
     apply Step_partial_application;
       [ eexists; split; eassumption | eapply Forall2_compose; eassumption ].
+  - (* an immutable array *)
+    inversion Hsecond; subst; try observations_conflict; simpl in *;
+      try discriminate.
+    match goal with
+    | H : array_of statics2 v' = Some _ |- _ =>
+      rewrite Hv' in H; injection H as <-
+    end.
+    eapply Step_array; [ exact Hv | eassumption | ].
+    eapply Forall2_compose; eassumption.
 Qed.
 
 Theorem outcome_related_transitive : outcome_related_transitive_statement.
@@ -2702,6 +2793,18 @@ Proof.
   rewrite (Hextend _ _ Hlookup). auto.
 Qed.
 
+Lemma array_of_extend (st st1 : static_env) (v : value)
+    (elements : list value) :
+  statics_extend st st1 ->
+  array_of st v = Some elements ->
+  array_of st1 v = Some elements.
+Proof.
+  intros Hextend. destruct v; simpl; try discriminate; auto.
+  destruct (lookup s (static_values st)) as [a | ] eqn:Hlookup;
+    [ | discriminate ].
+  rewrite (Hextend _ _ Hlookup). auto.
+Qed.
+
 Lemma closure_of_extend (st st1 : static_env) (v : value)
     (c : code_id * list (value_slot * value)) :
   statics_extend st st1 ->
@@ -2761,7 +2864,8 @@ Proof.
     [ | intros H; discriminate H ].
   rewrite (Hextend _ _ Hlookup). intros _.
   destruct a
-    as [code slots | slot syms decls slots | tag fields | contents | bytes | ];
+    as [code slots | slot syms decls slots | tag fields | contents | bytes
+        | elements | ];
     try (intros _; exact I).
   intros [Hkeys Hbound]. split; [ exact Hkeys | ].
   intros slot0 s0 Hin. exact (Hextend _ _ (Hbound slot0 s0 Hin)).
@@ -2783,7 +2887,8 @@ Proof.
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
        | kind v' Hpoison Hkind
-       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs].
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | v v' elements elements' Hv Hv' Helements].
   - apply Step_const.
   - apply Step_location. exact (Hlocations _ _ Hl).
   - exact
@@ -2806,6 +2911,9 @@ Proof.
   - apply Step_partial_application;
       [ exact (Hmono _ _ Hpcallee)
       | exact (Forall2_mono _ _ _ _ Hmono Hpargs) ].
+  - exact
+      (Step_array _ _ _ _ _ _ _ elements elements' Hv Hv'
+         (Forall2_mono _ _ _ _ Hmono Helements)).
 Qed.
 
 Lemma value_related_grow (poison_refines : bool) (r r1 : correspondence)
@@ -2847,7 +2955,8 @@ Proof.
            Hsiblings
          | gslot gdecls gslots Hgslot | s Hs Hs'
          | kind v' Hpoison Hkind
-         | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs].
+         | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+         | v v' elements elements' Hv Hv' Helements].
     + apply related_const.
     + apply related_location. exact Hl.
     + apply (related_block _ _ _ _ _ _ tag fields fields');
@@ -2890,6 +2999,12 @@ Proof.
     + apply Related_step, Step_partial_application;
         [ exact (proj2 Hpcallee) | ].
       revert Hpargs. apply Forall2_mono. intros a a' [_ Ha]. exact Ha.
+    + apply Related_step.
+      apply
+        (Step_array _ _ _ _ _ _ _ elements elements'
+           (array_of_extend _ _ _ _ Hextend Hv)
+           (array_of_extend _ _ _ _ Hextend' Hv')).
+      revert Helements. apply Forall2_mono. intros a a' [_ Ha]. exact Ha.
 Qed.
 
 Section Machine.
@@ -2967,7 +3082,8 @@ Proof.
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
        | kind v' Hpoison Hkind
-       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs];
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | v v' elements elements' Hv Hv' Helements];
     try reflexivity; try discriminate.
   all: destruct v; try discriminate; destruct v'; try discriminate;
     reflexivity.
@@ -2998,9 +3114,11 @@ Proof.
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
        | kind v' Hpoison Hkind
-       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs];
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | v v' elements elements' Hv Hv' Helements];
     simpl; try exact I; try discriminate.
   - exact Hl.
+  - destruct v; try discriminate; destruct v'; try discriminate; exact I.
   - destruct v; try discriminate; destruct v'; try discriminate; exact I.
   - destruct v; try discriminate; destruct v'; try discriminate; exact I.
   - destruct v; try discriminate; destruct v'; try discriminate; exact I.
@@ -3031,7 +3149,8 @@ Proof.
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
        | kind v' Hpoison Hkind
-       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs];
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | v v' elements elements' Hv Hv' Helements];
     try discriminate;
     try observations_conflict.
   rewrite Hv in Hblock. injection Hblock as <- <-. exists fields'. auto.
@@ -3050,7 +3169,8 @@ Proof.
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
        | kind v' Hpoison Hkind
-       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs];
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | v v' elements elements' Hv Hv' Helements];
     try discriminate;
     try observations_conflict.
   - rewrite Hv in Hboxed. injection Hboxed as <-.
@@ -3071,10 +3191,33 @@ Proof.
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
        | kind v' Hpoison Hkind
-       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs];
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | v v' elements elements' Hv Hv' Helements];
     try discriminate;
     try observations_conflict.
   rewrite Hv in Hstring. injection Hstring as <-. exact Hv'.
+Qed.
+
+Lemma related_array_of (v v' : value) (elements : list value) :
+  related v v' ->
+  array_of statics v = Some elements ->
+  ∃ elements' : list value,
+    array_of statics' v' = Some elements'
+    ∧ Forall2 related elements elements'.
+Proof.
+  intros Hrelated Harray. apply related_step in Hrelated.
+  destruct Hrelated
+    as [c | l l' Hl | v v' tag fields fields' Hv Hv' Hfields
+       | v v' c c' Hv Hv' Hc | c | v v' bytes Hv Hv'
+       | v v' fslot fdecls slots slots' Hv Hv' Hnames Hslots
+         Hsiblings
+       | gslot gdecls gslots Hgslot | s Hs Hs'
+       | kind v' Hpoison Hkind
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | v v' elements0 elements' Hv Hv' Helements];
+    try discriminate;
+    try observations_conflict.
+  rewrite Hv in Harray. injection Harray as <-. exists elements'. auto.
 Qed.
 
 Lemma related_closure_of (v v' : value) (code : code_id)
@@ -3094,7 +3237,8 @@ Proof.
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
        | kind v' Hpoison Hkind
-       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs];
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | v v' elements elements' Hv Hv' Helements];
     try discriminate;
     try observations_conflict.
   - destruct (closure_in_set_closure_of _ _ _ _ _ Hv)
@@ -3141,7 +3285,8 @@ Proof.
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
        | kind v' Hpoison Hkind
-       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs];
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | v v' elements elements' Hv Hv' Helements];
     try discriminate;
     try observations_conflict.
   - rewrite Hv in Hclosure. injection Hclosure as <- <- <-.
@@ -3201,6 +3346,9 @@ Proof.
   destruct (string_of statics v) as [bytes | ] eqn:Hstring.
   { rewrite (related_string_of _ _ _ Hrelated Hstring).
     intros _. simpl. rewrite !orb_true_r. reflexivity. }
+  destruct (array_of statics v) as [elements | ] eqn:Harray.
+  { destruct (related_array_of _ _ _ Hrelated Harray) as (elements' & -> & _).
+    intros _. simpl. rewrite !orb_true_r. reflexivity. }
   destruct (partial_application_of v) as [[[callee args] args_arity] | ]
     eqn:Hpartial; [ | discriminate ].
   destruct (related_partial_application_of _ _ _ _ _ Hrelated Hpartial)
@@ -3253,7 +3401,8 @@ Proof.
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
        | kind v' Hpoison Hkind
-       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs]; try reflexivity.
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | v v' elements elements' Hb Hb' Helements]; try reflexivity.
   - destruct (proj1 (proj2 memories_valid) _ _ Hl) as (c & c' & _ & Hc' & _).
     simpl. unfold is_bound. rewrite Hc'. reflexivity.
   - destruct v'; try discriminate; try reflexivity. simpl in Hb' |- *.
@@ -3270,6 +3419,9 @@ Proof.
       [ reflexivity | discriminate ].
   - simpl in Hbound |- *. exact (memories_bound s Hbound).
   - discriminate Hpoison.
+  - destruct v'; try discriminate; try reflexivity. simpl in Hb' |- *.
+    unfold is_bound. destruct (lookup s (static_values statics'));
+      [ reflexivity | discriminate ].
 Qed.
 
 (* The same of the test of FlambdaPrimitiveSpec.v: a symbol that is
@@ -3288,7 +3440,8 @@ Proof.
          Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
        | kind v' Hpoison Hkind
-       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs]; try reflexivity.
+       | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+       | v v' elements elements' Hb Hb' Helements]; try reflexivity.
   1-4:
     destruct v'; try discriminate; try reflexivity; simpl in Hb' |- *;
     destruct (lookup s (static_values statics'));
@@ -3300,6 +3453,9 @@ Proof.
     destruct (lookup s (static_values statics'));
       [ reflexivity | discriminate (Hdomain eq_refl) ].
   - discriminate Hpoison.
+  - destruct v'; try discriminate; try reflexivity; simpl in Hb' |- *;
+      destruct (lookup s (static_values statics'));
+      [ reflexivity | discriminate ].
 Qed.
 
 Lemma related_all_bound_if_symbol (vs vs' : list value) :
@@ -3406,7 +3562,7 @@ Proof.
         [ | contradiction Hclosure; reflexivity ].
       destruct (related_closure_of _ _ _ _ Hv Hc) as (slots' & -> & _).
       discriminate.
-    + split; [ | split; [ exact (related_bound_if_symbol _ _ Hv) | ] ].
+    + split; [ | split; [ exact (related_bound_if_symbol _ _ Hv) | split ] ].
       * intros Hpartial.
         destruct (partial_application_of v) as [[[callee args] args_arity] | ]
           eqn:Hp; [ | contradiction Hpartial; reflexivity ].
@@ -3425,6 +3581,7 @@ Proof.
                  simpl in H; rewrite Hs in H; discriminate H
                end).
         simpl. rewrite (proj1 (memories_imported s c) Hs). reflexivity.
+      * intros elements Harray. exact (related_array_of _ _ _ Hv Harray).
 Qed.
 
 (* So it keeps the kind and the integers, which is what the functions of
@@ -3442,14 +3599,15 @@ Lemma related_imported_of (v v' : value) (i : symbol * import_class) :
 Proof.
   intros Hv.
   exact
-    (proj2
+    (proj1
        (proj2
           (proj2
              (proj2
                 (proj2
                    (proj2
-                      (proj2 (proj2 related_respects_observations) v v'
-                         Hv))))))
+                      (proj2
+                         (proj2 (proj2 related_respects_observations) v v'
+                            Hv)))))))
        i).
 Qed.
 
@@ -4092,6 +4250,8 @@ Definition static_related (R : value -> value -> Prop)
     tag = tag' ∧ Forall2 R fields fields'
   | Static_boxed_number v, Static_boxed_number v' => R v v'
   | Static_string bytes, Static_string bytes' => bytes = bytes'
+  | Static_immutable_array elements, Static_immutable_array elements' =>
+    Forall2 R elements elements'
   | _, _ => False
   end.
 
@@ -4108,7 +4268,8 @@ Lemma related_eval_static_const (needed : variable -> bool) (vars vars' : env)
 Proof.
   intros Henv Hneeded Havoid.
   destruct const
-    as [code slots | slot syms decls slots | tag fields | contents | bytes];
+    as [code slots | slot syms decls slots | tag fields | contents | bytes
+        | elements];
     simpl in Hneeded, Havoid |- *.
   - apply andb_true_iff in Havoid as [_ Havoid].
     destruct (eval_value_slots vars slots) as [vs | ] eqn:Hvs; simpl;
@@ -4138,6 +4299,12 @@ Proof.
       as (v' & -> & Hv').
     simpl. eexists. split; [ reflexivity | exact Hv' ].
   - intros [= <-]. eexists. split; reflexivity.
+  - destruct (eval_simples vars elements) as [vs | ] eqn:Hvs; simpl;
+      [ | discriminate ].
+    intros [= <-].
+    destruct (related_eval_simples _ _ _ _ _ Henv Hneeded Havoid Hvs)
+      as (vs' & -> & Hvs').
+    simpl. eexists. split; [ reflexivity | exact Hvs' ].
 Qed.
 
 (* The symbols that a static set of closures names are those that its
@@ -4154,7 +4321,7 @@ Proof.
   intros Havoid.
   destruct const
     as [code cslots | cslot csyms cdecls cslots | tag fields | contents
-       | bytes];
+       | bytes | elements];
     simpl in Havoid |- *.
   - destruct (eval_value_slots vars cslots); discriminate.
   - destruct (lookup cslot cdecls); simpl; [ | discriminate ].
@@ -4165,6 +4332,7 @@ Proof.
   - destruct (eval_simples vars fields); discriminate.
   - destruct (eval_simple vars contents); discriminate.
   - discriminate.
+  - destruct (eval_simples vars elements); discriminate.
 Qed.
 
 (* The static environment with one more symbol. *)
@@ -4217,10 +4385,10 @@ Proof.
               (Value_symbol s) (Value_symbol s)).
   { destruct a
       as [code slots | slot syms decls slots | tag fields | contents
-         | bytes | ],
+         | bytes | elements | ],
       a'
       as [code' slots' | slot' syms' decls' slots' | tag' fields'
-         | contents' | bytes' | ];
+         | contents' | bytes' | elements' | ];
       simpl in Ha; try contradiction.
     - destruct Ha as (<- & Hnames & Hslots).
       apply
@@ -4278,7 +4446,12 @@ Proof.
         * destruct contents'; try discriminate; reflexivity.
     - subst bytes'.
       apply (Step_string _ _ _ _ _ _ _ bytes); simpl; rewrite Pos.eqb_refl;
-        reflexivity. }
+        reflexivity.
+    - apply (Step_array _ _ _ _ _ _ _ elements elements');
+        [ simpl; rewrite Pos.eqb_refl; reflexivity
+        | simpl; rewrite Pos.eqb_refl; reflexivity
+        | ].
+      revert Ha. apply Forall2_mono. exact Hmono. }
   pose proof memories_valid as (Hbijection & Hcells & Hvalues).
   split;
     [ split; [ exact Hbijection | split ]
@@ -4294,7 +4467,8 @@ Proof.
            Hsiblings
          | gslot gdecls gslots Hgslot | s0 Hs0 Hs0'
          | kind v' Hpoison Hkind
-         | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs].
+         | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+         | v v' elements elements' Hb Hb' Helements].
     + apply Step_const.
     + apply Step_location. exact Hl.
     + exact
@@ -4340,6 +4514,11 @@ Proof.
     + apply Step_partial_application;
         [ exact (Hmono _ _ Hpcallee)
         | exact (Forall2_mono _ _ _ _ Hmono Hpargs) ].
+    + exact
+        (Step_array _ _ _ _ _ _ _ elements elements'
+           (array_of_extend _ _ _ _ Hextend Hb)
+           (array_of_extend _ _ _ _ Hextend' Hb')
+           (Forall2_mono _ _ _ _ Hmono Helements)).
   - exact memories_symbols.
   - intros s0 Hkept0. unfold is_bound. simpl.
     destruct (Pos.eqb s0 s);
@@ -4553,7 +4732,8 @@ Lemma is_allocated_same_values (st st2 : static_env) (v : value) :
   is_allocated st2 v = is_allocated st v.
 Proof.
   intros Hsame.
-  unfold is_allocated, closure_of, block_of, boxed_number_of, string_of.
+  unfold is_allocated, closure_of, block_of, boxed_number_of, string_of,
+    array_of.
   rewrite Hsame. reflexivity.
 Qed.
 
@@ -4596,7 +4776,8 @@ Proof.
            Hsiblings
          | gslot gdecls gslots Hgslot | s0 Hs0 Hs0'
          | kind v' Hpoison Hkind
-         | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs].
+         | pcallee pcallee' pargs pargs' parity Hpcallee Hpargs
+         | v v' elements elements' Hb Hb' Helements].
     + apply Step_const.
     + apply Step_location. exact Hl.
     + exact
@@ -4637,6 +4818,11 @@ Proof.
     + apply Step_partial_application;
         [ exact (Hmono _ _ Hpcallee)
         | exact (Forall2_mono _ _ _ _ Hmono Hpargs) ].
+    + exact
+        (Step_array _ _ _ _ _ _ _ elements elements'
+           (array_of_extend _ _ _ _ Hextend Hb)
+           (array_of_extend _ _ _ _ Hextend' Hb')
+           (Forall2_mono _ _ _ _ Hmono Helements)).
   - exact Hsymbols.
   - intros s Hkept. rewrite Hsame, Hsame'. exact (Hdomain s Hkept).
   - intros s Hdropped. rewrite Hsame.
@@ -5593,7 +5779,8 @@ Lemma is_allocated_same_lookup (st st1 : static_env) (s : symbol) :
   is_allocated st1 (Value_symbol s) = is_allocated st (Value_symbol s).
 Proof.
   intros Hsame.
-  unfold is_allocated, closure_of, block_of, boxed_number_of, string_of.
+  unfold is_allocated, closure_of, block_of, boxed_number_of, string_of,
+    array_of.
   rewrite Hsame. reflexivity.
 Qed.
 
@@ -5646,7 +5833,7 @@ Proof.
       pose proof (Hstatics_avoid s a) as Havoids.
       destruct a
         as [code slots | slot syms decls slots | tag fields | contents
-           | bytes | ].
+           | bytes | elements | ].
       * apply
           (Step_closure _ _ _ _ _ _ _ unnamed_function_slot
              [(unnamed_function_slot, code)] slots slots);
@@ -5693,6 +5880,11 @@ Proof.
              [ exact Hnot | rewrite Hlookup; exact Hsame ].
       * apply (Step_string _ _ _ _ _ _ _ bytes); simpl;
           rewrite ?Hsame, ?Hlookup; reflexivity.
+      * apply (Step_array _ _ _ _ _ _ _ elements elements);
+          simpl; rewrite ?Hsame, ?Hlookup; try reflexivity.
+        apply Forall2_same. intros v Hv. apply closed_value_related_except.
+        -- exact (Hclosed v Hlookup Hv).
+        -- exact (Havoids v Hlookup Hv).
       * assert (Hnot : is_allocated st (Value_symbol s) = false).
         { unfold is_allocated. simpl. rewrite Hlookup. reflexivity. }
         apply Step_opaque_symbol; [ exact Hnot | ].
@@ -5937,7 +6129,7 @@ Proof.
   apply load_field_in in Hfield. intros l Hl.
   destruct block; simpl in Hblock_of; try discriminate.
   - destruct (lookup s (static_values statics))
-      as [[ | | tag0 fields0 | | | ] | ] eqn:Hs; try discriminate.
+      as [[ | | tag0 fields0 | | | | ] | ] eqn:Hs; try discriminate.
     injection Hblock_of as <- <-.
     exact (proj2 Hmemory s _ loaded Hs Hfield l Hl).
   - injection Hblock_of as <- <-.
@@ -6122,7 +6314,8 @@ Lemma block_fields_closed (st : static_env) (h : heap) (v : value) (tag : Z)
 Proof.
   intros [_ Hstatics] Hclosed Hblock Hfield.
   destruct v; simpl in Hblock; try discriminate.
-  - destruct (lookup s (static_values st)) as [[ | | tag0 fields0 | | | ] | ]
+  - destruct (lookup s (static_values st))
+      as [[ | | tag0 fields0 | | | | ] | ]
       eqn:Hs; try discriminate.
     injection Hblock as <- <-. exact (Hstatics s _ field Hs Hfield).
   - injection Hblock as <- <-. intros l Hl. apply Hclosed. simpl.
@@ -6149,7 +6342,7 @@ Proof.
     apply in_flat_map. apply in_map_iff in Hw as (slot & <- & Hslot).
     exists slot. auto.
   - destruct (lookup s (static_values st))
-      as [[code0 slots0 | fslot syms decls slots0 | | | | ] | ]
+      as [[code0 slots0 | fslot syms decls slots0 | | | | | ] | ]
       eqn:Hs; try discriminate.
     + injection Hclosure as <- <-. exact (Hstatics s _ w Hs Hw).
     + destruct (lookup fslot decls); simpl in Hclosure; [ | discriminate ].
@@ -6178,6 +6371,7 @@ Proof.
       apply in_flat_map in Hl as (field & Hfield & Hl).
       exact (Hfields field Hfield l Hl).
   - intros s tag fields _ Hs v Hv. exact (proj2 Hmemory s _ v Hs Hv).
+  - intros s elements _ Hs v Hv. exact (proj2 Hmemory s _ v Hs Hv).
 Qed.
 
 (* The fields of a closed tuple are closed. *)
@@ -6524,7 +6718,8 @@ Lemma eval_static_const_closed (h : heap) (vars : env) (const : static_const)
 Proof.
   intros Hvars.
   destruct const
-    as [code slots | slot syms decls slots | tag fields | contents | bytes];
+    as [code slots | slot syms decls slots | tag fields | contents | bytes
+        | elements];
     simpl.
   - destruct (eval_value_slots vars slots) as [vs | ] eqn:Hvs; simpl;
       [ | discriminate ].
@@ -6540,6 +6735,9 @@ Proof.
       [ | discriminate ].
     intros [= <-] v [<- | [ ]]. exact (eval_simple_closed _ _ _ _ Hvars Hw).
   - intros [= <-] v [ ].
+  - destruct (eval_simples vars elements) as [vs | ] eqn:Hvs; simpl;
+      [ | discriminate ].
+    intros [= <-] v Hv. exact (eval_simples_closed _ _ _ _ Hvars Hvs v Hv).
 Qed.
 
 Lemma eval_static_bindings_closed (h : heap) (vars : env)
@@ -7420,7 +7618,8 @@ Lemma allocated_free_of_values (D : dropped) (a : statically_allocated_value)
   value_avoids D v = true.
 Proof.
   destruct a
-    as [code slots | slot syms decls slots | tag fields | contents | bytes | ];
+    as [code slots | slot syms decls slots | tag fields | contents | bytes
+        | elements | ];
     unfold allocated_free_of, values_of_static; intros Ha Hv.
   - apply andb_true_iff in Ha as [_ Ha].
     apply in_map_iff in Hv as ([name w] & <- & Hin).
@@ -7431,6 +7630,7 @@ Proof.
   - rewrite forallb_forall in Ha. exact (Ha v Hv).
   - destruct Hv as [<- | [ ]]. exact Ha.
   - destruct Hv.
+  - rewrite forallb_forall in Ha. exact (Ha v Hv).
   - destruct Hv.
 Qed.
 

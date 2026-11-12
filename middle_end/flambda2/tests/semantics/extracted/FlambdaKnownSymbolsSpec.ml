@@ -22,6 +22,8 @@ let closed_static_const = function
   | Static_const_block (_, fields) -> forallb closed_simple fields
   | Static_const_boxed_number contents -> closed_simple contents
   | Static_const_immutable_string _ -> true
+  | Static_const_immutable_value_array elements ->
+    forallb closed_simple elements
 
 (** val known_of_binding : static_binding -> (symbol * static_const) list **)
 

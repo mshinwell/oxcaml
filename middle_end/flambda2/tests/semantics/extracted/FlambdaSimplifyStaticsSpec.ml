@@ -18,6 +18,7 @@ let static_const_simples = function
   | Static_const_block (_, fields) -> fields
   | Static_const_boxed_number contents -> contents :: []
   | Static_const_immutable_string _ -> []
+  | Static_const_immutable_value_array elements -> elements
 
 (** val static_const_type : static_const -> flambda_type list -> flambda_type
     option **)
@@ -43,6 +44,7 @@ let static_const_type const tys =
         | None -> None)
       | _ :: _ -> None))
   | Static_const_immutable_string bytes -> Some (this_immutable_string bytes)
+  | Static_const_immutable_value_array _ -> None
 
 (** val static_const_type_in : Typing_env.t -> static_const -> flambda_type
     option **)

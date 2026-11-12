@@ -370,6 +370,8 @@ Definition static_const_well_kinded (kinds : kind_env)
     value_slots_well_kinded kinds value_slots
   | Static_const_block _ fields =>
     forallb (fun s => has_kind (kind_of_simple kinds s) Value) fields
+  | Static_const_immutable_value_array elements =>
+    forallb (fun s => has_kind (kind_of_simple kinds s) Value) elements
   | Static_const_boxed_number contents =>
     match kind_of_simple kinds contents with
     | Some kind => is_some (boxable_number_of_kind kind)
@@ -629,6 +631,10 @@ Definition allocated_well_kinded (allocated : statically_allocated_value)
     forallb
       (fun v => kind_eqb (kind_of_value v) Value && value_well_kinded v)
       fields
+  | Static_immutable_array elements =>
+    forallb
+      (fun v => kind_eqb (kind_of_value v) Value && value_well_kinded v)
+      elements
   | Static_boxed_number contents =>
     is_some (boxable_number_of_kind (kind_of_value contents))
   | Static_string _ | Static_imported _ => true
@@ -657,6 +663,7 @@ Definition simples_of_static_const (const : static_const) : list simple :=
   | Static_const_closure_of_set _ _ _ value_slots =>
     map snd value_slots
   | Static_const_block _ fields => fields
+  | Static_const_immutable_value_array elements => elements
   | Static_const_boxed_number contents => [contents]
   | Static_const_immutable_string _ => []
   end.

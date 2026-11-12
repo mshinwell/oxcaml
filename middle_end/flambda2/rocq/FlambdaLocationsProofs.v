@@ -414,26 +414,28 @@ Proof.
   pose proof values_laws as Hvalues. use_laws Hvalues.
   constructor.
   - intros [code slots | slot closure_symbols decls slots | tag fields
-           | contents | bytes | class]; simpl.
+           | contents | bytes | elements | class]; simpl.
     + rewrite (act_identity _ _ slots_laws). reflexivity.
     + rewrite (act_identity _ _ slots_laws). reflexivity.
     + rewrite Hidentity. reflexivity.
     + rewrite permute_value_identity. reflexivity.
     + reflexivity.
+    + rewrite Hidentity. reflexivity.
     + reflexivity.
   - intros second first
       [code slots | slot closure_symbols decls slots | tag fields | contents
-      | bytes | class];
+      | bytes | elements | class];
       simpl.
     + rewrite (act_compose _ _ slots_laws). reflexivity.
     + rewrite (act_compose _ _ slots_laws). reflexivity.
     + rewrite Hcompose. reflexivity.
     + rewrite permute_value_compose. reflexivity.
     + reflexivity.
+    + rewrite Hcompose. reflexivity.
     + reflexivity.
   - intros p
       [code slots | slot closure_symbols decls slots | tag fields | contents
-      | bytes | class];
+      | bytes | elements | class];
       unfold locations_of_static_value; simpl.
     + rewrite !flat_map_map_snd.
       apply (act_names _ _ (@slots_laws value_slot)).
@@ -442,10 +444,11 @@ Proof.
     + apply Hnames.
     + rewrite !app_nil_r. apply locations_of_permute_value.
     + reflexivity.
+    + apply Hnames.
     + reflexivity.
   - intros p p'
       [code slots | slot closure_symbols decls slots | tag fields | contents
-      | bytes | class]
+      | bytes | elements | class]
       Hagree;
       unfold locations_of_static_value in Hagree; simpl in *; f_equal.
     + apply (act_ext _ _ (@slots_laws value_slot)). intros name Hname.
@@ -455,6 +458,7 @@ Proof.
     + apply Hext, Hagree.
     + apply permute_value_ext. intros l Hl. apply Hagree.
       rewrite app_nil_r. exact Hl.
+    + apply Hext, Hagree.
 Qed.
 
 Lemma static_values_laws :

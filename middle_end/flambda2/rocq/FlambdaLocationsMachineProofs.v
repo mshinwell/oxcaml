@@ -93,7 +93,7 @@ Proof.
   - destruct (lookup fslot decls); reflexivity.
   - rewrite lookup_permute_statics.
     destruct (lookup s (static_values statics))
-      as [[code slots | fslot syms decls slots | | | | ] | ]; simpl;
+      as [[code slots | fslot syms decls slots | | | | | ] | ]; simpl;
       try reflexivity.
     destruct (lookup fslot decls); reflexivity.
 Qed.
@@ -111,7 +111,7 @@ Proof.
   - destruct (lookup fslot decls); reflexivity.
   - rewrite lookup_permute_statics.
     destruct (lookup s (static_values statics))
-      as [[code slots | fslot syms decls slots | | | | ] | ]; simpl;
+      as [[code slots | fslot syms decls slots | | | | | ] | ]; simpl;
       try reflexivity.
     destruct (lookup fslot decls); reflexivity.
 Qed.
@@ -152,7 +152,7 @@ Proof.
   - by_cases.
   - rewrite lookup_permute_statics.
     destruct (lookup s (static_values statics))
-      as [[code slots | fslot syms decls slots | | | | ] | ]; simpl;
+      as [[code slots | fslot syms decls slots | | | | | ] | ]; simpl;
       by_cases.
 Qed.
 
@@ -192,7 +192,7 @@ Lemma eval_static_const_permuted (p : permutation) (vars : env)
   = option_map (permute_static_value p) (eval_static_const vars const).
 Proof.
   destruct const as [code slots | fslot syms decls slots | tag fields
-    | contents | bytes];
+    | contents | bytes | elements];
     simpl.
   - rewrite eval_value_slots_permuted.
     destruct (eval_value_slots vars slots); reflexivity.
@@ -204,6 +204,8 @@ Proof.
   - rewrite eval_simple_permuted.
     destruct (eval_simple vars contents); reflexivity.
   - reflexivity.
+  - rewrite eval_simples_permuted.
+    destruct (eval_simples vars elements); reflexivity.
 Qed.
 
 Lemma eval_static_bindings_permuted (p : permutation) (vars : env)

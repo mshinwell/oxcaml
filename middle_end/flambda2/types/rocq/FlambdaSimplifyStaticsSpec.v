@@ -210,6 +210,7 @@ Local Open Scope Z_scope.
 Definition static_const_simples (const : static_const) : list simple :=
   match const with
   | Static_const_block _ fields => fields
+  | Static_const_immutable_value_array elements => elements
   | Static_const_boxed_number contents => [contents]
   | Static_const_immutable_string _ => []
   | Static_const_set_of_closures _ value_slots
@@ -221,7 +222,10 @@ Definition static_const_simples (const : static_const) : list simple :=
    the types of those [Simple]s. [None]: a block whose tag is not one
    of a block that is scanned, or one of whose fields is not of the
    kind value; a boxed number whose contents are not of a kind of
-   number that has a boxed form. *)
+   number that has a boxed form; an immutable array, of which nothing
+   is said here yet (the compiler gives its symbol the type of an
+   immutable array of the types of its elements, [T.immutable_array]
+   in [simplify_static_const_of_kind_value]). *)
 Definition static_const_type (const : static_const)
     (tys : list flambda_type) : option flambda_type :=
   match const with
@@ -239,6 +243,7 @@ Definition static_const_type (const : static_const)
     | [] | _ :: _ :: _ => None
     end
   | Static_const_immutable_string bytes => Some (this_immutable_string bytes)
+  | Static_const_immutable_value_array _ => None
   | Static_const_set_of_closures code value_slots =>
     Some (set_of_closures_type code (map fst value_slots) tys)
   | Static_const_closure_of_set slot _ function_decls value_slots =>
@@ -306,7 +311,8 @@ Definition is_closure_const (const : static_const) : bool :=
   | Static_const_set_of_closures _ _ | Static_const_closure_of_set _ _ _ _ =>
     true
   | Static_const_block _ _ | Static_const_boxed_number _
-  | Static_const_immutable_string _ =>
+  | Static_const_immutable_string _
+  | Static_const_immutable_value_array _ =>
     false
   end.
 

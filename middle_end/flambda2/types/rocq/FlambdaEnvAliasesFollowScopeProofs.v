@@ -236,7 +236,7 @@ Lemma static_closure_of_binding_within (binding : static_binding)
 Proof.
   destruct binding as [id c | id | s const]; try discriminate.
   destruct const as [code slots | slot syms decls slots | tag fields
-                    | contents | bytes];
+                    | contents | bytes | elements];
     try discriminate; intros [= <-]; apply incl_refl.
 Qed.
 

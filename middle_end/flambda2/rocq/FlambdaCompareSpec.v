@@ -181,6 +181,9 @@ Definition static_const_eqb (vm : name_map) (const const' : static_const)
     Z.eqb tag tag' && simples_eqb vm fields fields'
   | Static_const_boxed_number contents, Static_const_boxed_number contents' =>
     simple_eqb vm contents contents'
+  | Static_const_immutable_value_array elements,
+    Static_const_immutable_value_array elements' =>
+    simples_eqb vm elements elements'
   | Static_const_immutable_string bytes,
     Static_const_immutable_string bytes' =>
     forall2b Z.eqb bytes bytes'

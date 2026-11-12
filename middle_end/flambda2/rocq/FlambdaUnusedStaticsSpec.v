@@ -141,6 +141,7 @@ Definition static_const_avoids (D : dropped) (const : static_const) : bool :=
     closure_symbols_avoid D symbols && function_decls_avoid D decls
     && value_slots_avoid D slots
   | Static_const_block _ fields => simples_avoid D fields
+  | Static_const_immutable_value_array elements => simples_avoid D elements
   | Static_const_boxed_number contents => simple_avoids D contents
   | Static_const_immutable_string _ => true
   end.
@@ -313,6 +314,7 @@ Definition allocated_free_of (D : dropped)
     closure_symbols_avoid D symbols && function_decls_avoid D decls
     && forallb (fun '(_, v) => value_avoids D v) slots
   | Static_block _ fields => forallb (value_avoids D) fields
+  | Static_immutable_array elements => forallb (value_avoids D) elements
   | Static_boxed_number contents => value_avoids D contents
   | Static_string _ | Static_imported _ => true
   end.

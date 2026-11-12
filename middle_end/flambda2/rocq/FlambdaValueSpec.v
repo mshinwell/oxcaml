@@ -30,8 +30,9 @@
 
    This file is to be reviewed: [value], [kind_of_value],
    [statically_allocated_value], the observations [closure_of],
-   [block_of], [boxed_number_of] and [string_of], and the statement that
-   they are exclusive, which FlambdaValueProofs.v proves; [import_class],
+   [block_of], [boxed_number_of], [string_of] and [array_of], and the
+   statements that they are exclusive, which FlambdaValueProofs.v
+   proves; [import_class],
    [imported_of] and [identity_of]; and the three readings of a closure
    as one of a set,
    [closure_in_set], [project_value_slot] and [project_function_slot],
@@ -53,7 +54,17 @@
    allocated value goes through an observation, which takes the static
    environment and answers the same for both. The observations are
    pairwise exclusive: a value is at most one of a closure, a block, a
-   boxed number and a string ([observations_disjoint_statement]).
+   boxed number, a string and an immutable array
+   ([observations_disjoint_statement], [array_of_disjoint_statement]).
+
+   A symbol may be bound to an immutable array of values
+   ([Static_immutable_array]): the table that Simplify makes of a
+   [Switch] whose arms give one continuation constants
+   (simplify/simplify_switch_expr.ml), or an immutable array that it
+   lifts. It is static data, as a static block is, and not a location
+   of the heap: nothing writes it. [array_of] reads it, by its
+   elements. There is no value that is an immutable array, only a
+   symbol bound to one: no primitive of the model makes one.
 
    A symbol may also be bound to something that the unit imports
    ([Static_imported]): an object of another unit (a predefined
@@ -63,14 +74,15 @@
    is its symbol ([identity_of]): an exception. One of the class
    [Import_data] is anything else, and is to the model what an
    immutable allocated value of the unit is, without its contents.
-   None of the four observations reads an import of either class, so
-   it is not a closure, a block, a boxed number or a string, and is not
-   allocated in the sense of [is_allocated]. Of the unary and binary
-   primitives two have a value on it: the identity, which returns it,
-   and physical equality, which tells an identity from everything else
-   (FlambdaPrimitiveSpec.v); and it can be a field of a block that is
-   made. No static binding of a term makes an import: the static
-   environment in which a unit is run has them (FlambdaImportsSpec.v).
+   None of the five observations reads an import of either class, so
+   it is not a closure, a block, a boxed number, a string or an
+   immutable array, and is not allocated in the sense of
+   [is_allocated]. Of the unary and binary primitives two have a value
+   on it: the identity, which returns it, and physical equality, which
+   tells an identity from everything else (FlambdaPrimitiveSpec.v); and
+   it can be a field of a block that is made. No static binding of a
+   term makes an import: the static environment in which a unit is run
+   has them (FlambdaImportsSpec.v).
 
    A closure is one of a set of closures. The closure of a set of one
    function whose function slot has no name is its code and the values
@@ -160,8 +172,10 @@ Inductive import_class : Type :=
 
 (* What a symbol points to. [Static_closure_of_set] is the closure at
    [slot] of a static set; [closure_symbols] are the symbols of the
-   closures of the set. [Static_imported] is what the unit imports: an
-   object of the class given, whose contents are not known. *)
+   closures of the set. [Static_immutable_array] is an immutable array
+   of values, by its elements. [Static_imported] is what the unit
+   imports: an object of the class given, whose contents are not
+   known. *)
 Inductive statically_allocated_value : Type :=
   | Static_closure (code : code_id) (value_slots : list (value_slot * value))
   | Static_closure_of_set (slot : function_slot)
@@ -171,6 +185,7 @@ Inductive statically_allocated_value : Type :=
   | Static_block (tag : Z) (fields : list value)
   | Static_boxed_number (contents : value)
   | Static_string (bytes : list Z)
+  | Static_immutable_array (elements : list value)
   | Static_imported (c : import_class).
 
 (* The static environment: the code and the statically allocated values
@@ -401,6 +416,20 @@ Definition string_of (statics : static_env) (v : value) : option (list Z) :=
   | _ => None
   end.
 
+(* A value as an immutable array of values, by its elements: a symbol
+   bound to one. A location of the heap that holds an array is not
+   one: that array may be written, and is read through the heap. *)
+Definition array_of (statics : static_env) (v : value)
+    : option (list value) :=
+  match v with
+  | Value_symbol s =>
+    match lookup s (static_values statics) with
+    | Some (Static_immutable_array elements) => Some elements
+    | _ => None
+    end
+  | _ => None
+  end.
+
 (* A value as a partial application: the callee, the arguments it has
    been applied to so far, and the arity they were given at. *)
 Definition partial_application_of (v : value)
@@ -412,7 +441,8 @@ Definition partial_application_of (v : value)
   end.
 
 (* Whether a value is allocated: a closure, a block, a boxed number, a
-   string or a partial application. A symbol bound to nothing is not,
+   string, an immutable array or a partial application. A symbol bound
+   to nothing is not,
    and nor is an imported symbol, of which no observation here says
    anything. *)
 Definition is_allocated (statics : static_env) (v : value) : bool :=
@@ -420,6 +450,7 @@ Definition is_allocated (statics : static_env) (v : value) : bool :=
   || is_some (block_of statics v)
   || is_some (boxed_number_of statics v)
   || is_some (string_of statics v)
+  || is_some (array_of statics v)
   || is_some (partial_application_of v).
 
 (* A value as an imported symbol: a symbol that the static environment
@@ -463,3 +494,12 @@ Definition observations_disjoint_statement : Prop :=
     ∧ (closure_of statics v <> None
        -> boxed_number_of statics v = None ∧ string_of statics v = None)
     ∧ (boxed_number_of statics v <> None -> string_of statics v = None).
+
+(* And an immutable array is none of the four. *)
+Definition array_of_disjoint_statement : Prop :=
+  ∀ (statics : static_env) (v : value),
+    array_of statics v <> None ->
+    closure_of statics v = None
+    ∧ block_of statics v = None
+    ∧ boxed_number_of statics v = None
+    ∧ string_of statics v = None.

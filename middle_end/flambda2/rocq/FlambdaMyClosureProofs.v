@@ -89,6 +89,7 @@ Definition allocated_ok (sym : symbol)
     end
     && slots_free slots
   | Static_block _ fields => forallb value_free fields
+  | Static_immutable_array elements => forallb value_free elements
   | Static_boxed_number v => value_free v
   | Static_string _ | Static_imported _ => true
   end.
@@ -236,7 +237,7 @@ Proof.
   - intros _.
     destruct (lookup sym (static_values statics))
       as [[code' slots' | fslot syms decls slots' | tag fields | contents
-          | bytes | ] | ] eqn:Hsym;
+          | bytes | elements | ] | ] eqn:Hsym;
       try discriminate;
       pose proof (Hvalues sym _ Hsym) as Hok; simpl in Hok;
       apply andb_true_iff in Hok as [Hcode Hslots].
@@ -268,7 +269,7 @@ Proof.
   - intros _.
     destruct (lookup sym (static_values statics))
       as [[code' slots' | fslot syms decls' slots' | tag fields | contents
-          | bytes | ] | ] eqn:Hsym;
+          | bytes | elements | ] | ] eqn:Hsym;
       try discriminate;
       pose proof (Hvalues sym _ Hsym) as Hok; simpl in Hok;
       apply andb_true_iff in Hok as [_ Hslots].
@@ -302,7 +303,7 @@ Proof.
     simpl. intros [= <-]. exact Hv.
   - destruct (lookup sym (static_values statics))
       as [[code' slots' | fslot syms decls slots' | tag fields | contents
-          | bytes | ] | ];
+          | bytes | elements | ] | ];
       try discriminate.
     + exact Hunnamed.
     + destruct (Pos.eqb fslot move_from); [ | discriminate ].
@@ -325,6 +326,9 @@ Proof.
   - intros c. split; reflexivity.
   - intros tag fields. simpl. apply forallb_forall.
   - intros sym tag fields _ Hsym.
+    pose proof (Hvalues sym _ Hsym) as Hok. simpl in Hok.
+    apply forallb_forall. exact Hok.
+  - intros sym elements _ Hsym.
     pose proof (Hvalues sym _ Hsym) as Hok. simpl in Hok.
     apply forallb_forall. exact Hok.
   - apply forallb_forall. exact Hvs.
@@ -389,7 +393,8 @@ Lemma eval_static_const_ok (vars : env) (sym : symbol) (const : static_const)
 Proof.
   intros Hvars.
   destruct const
-    as [code slots | fslot syms decls slots | tag fields | contents | bytes];
+    as [code slots | fslot syms decls slots | tag fields | contents | bytes
+        | elements];
     simpl; intros Hconst.
   - destruct (eval_value_slots vars slots) as [vs | ] eqn:Hslots;
       [ | discriminate ].
@@ -410,6 +415,10 @@ Proof.
     intros [= <-]. simpl.
     exact (eval_simple_free vars contents w Hvars Hcontents).
   - intros [= <-]. reflexivity.
+  - destruct (eval_simples vars elements) as [vs | ] eqn:Helements;
+      [ | discriminate ].
+    intros [= <-]. simpl.
+    exact (eval_simples_free vars elements Hvars vs Helements).
 Qed.
 
 Lemma eval_static_bindings_ok (vars : env) :

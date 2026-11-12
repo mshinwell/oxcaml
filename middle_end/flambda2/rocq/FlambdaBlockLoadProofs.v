@@ -261,7 +261,7 @@ Proof.
     intros Heval entry Hin. apply in_app_or in Hin.
     destruct Hin as [Hin | Hin]; [ | exact (IH _ _ Heval entry Hin) ].
     destruct const as [code slots | fslot syms decls slots | tag fields | s
-      | bytes];
+      | bytes | elements];
       simpl in Hin; try contradiction.
     destruct Hin as [<- | []]. simpl in Hconst.
     destruct (eval_simples vars fields) as [vs | ] eqn:Hfields;

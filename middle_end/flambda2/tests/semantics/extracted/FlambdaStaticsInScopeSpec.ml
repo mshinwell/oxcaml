@@ -52,6 +52,8 @@ let static_const_statics_in_scope syms ids = function
   | Static_const_block (_, fields) -> simples_statics_in_scope syms fields
   | Static_const_boxed_number contents -> simple_statics_in_scope syms contents
   | Static_const_immutable_string _ -> true
+  | Static_const_immutable_value_array elements ->
+    simples_statics_in_scope syms elements
 
 (** val apply_statics_in_scope : symbol list -> code_id list -> apply_expr ->
     bool **)

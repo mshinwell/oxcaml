@@ -473,6 +473,7 @@ Definition allocated_valid (allocated : statically_allocated_value) : bool :=
         else false)
     && forallb (fun '(_, contents) => value_valid contents) value_slots
   | Static_block _ fields => forallb value_valid fields
+  | Static_immutable_array elements => forallb value_valid elements
   | Static_boxed_number contents => value_valid contents
   | Static_string _ | Static_imported _ => true
   end.
@@ -797,7 +798,8 @@ Definition static_const_set_is (c : code_id)
   | Static_const_closure_of_set _ symbols decls _ =>
     set_is c function_decls closure_symbols decls (Some symbols)
   | Static_const_block _ _ | Static_const_boxed_number _
-  | Static_const_immutable_string _ =>
+  | Static_const_immutable_string _
+  | Static_const_immutable_value_array _ =>
     true
   end.
 
@@ -901,6 +903,8 @@ Definition allocated_sets_are (c : code_id)
          value_slots
   | Static_block _ fields =>
     forallb (value_sets_are c function_decls closure_symbols) fields
+  | Static_immutable_array elements =>
+    forallb (value_sets_are c function_decls closure_symbols) elements
   | Static_boxed_number contents =>
     value_sets_are c function_decls closure_symbols contents
   | Static_string _ | Static_imported _ => true

@@ -912,6 +912,10 @@ Definition contents_related (c c' : const) : Prop :=
    - Immutable values are compared by their contents, read through the
      observations, so through a symbol on either side: a block made by a
      primitive is a symbol bound to a static block with related fields.
+     An immutable array that a symbol is bound to
+     (FlambdaValueSpec.array_of) is one with related elements
+     ([Step_array]); it is static data and not a location, and an
+     array of the heap is a location.
    - A closure is read as one of a set ([closure_in_set]): the same
      function slot of a set with the same function declarations, with
      value slots of the same names and related values. And the closures
@@ -997,7 +1001,12 @@ Inductive value_step (R : value -> value -> Prop) : value -> value -> Prop :=
     R callee callee' ->
     Forall2 R args args' ->
     value_step R (Value_partial_application callee args args_arity)
-      (Value_partial_application callee' args' args_arity).
+      (Value_partial_application callee' args' args_arity)
+  | Step_array (v v' : value) (elements elements' : list value) :
+    array_of statics v = Some elements ->
+    array_of statics' v' = Some elements' ->
+    Forall2 R elements elements' ->
+    value_step R v v'.
 
 (* A value of the first run is a value of the second: the two
    correspond, or they have their heads in common and what they hold is
@@ -1082,6 +1091,7 @@ Definition values_of_static (a : statically_allocated_value) : list value :=
   | Static_closure _ slots | Static_closure_of_set _ _ _ slots =>
     map snd slots
   | Static_block _ fields => fields
+  | Static_immutable_array elements => elements
   | Static_boxed_number v => [v]
   | Static_string _ | Static_imported _ => []
   end.

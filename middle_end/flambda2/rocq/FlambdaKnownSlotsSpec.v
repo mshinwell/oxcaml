@@ -168,7 +168,8 @@ Definition static_const_slots_made (const : static_const)
   | Static_const_closure_of_set _ _ _ value_slots =>
     value_slots
   | Static_const_block _ _ | Static_const_boxed_number _
-  | Static_const_immutable_string _ =>
+  | Static_const_immutable_string _
+  | Static_const_immutable_value_array _ =>
     []
   end.
 
@@ -399,6 +400,8 @@ Definition allocated_slots_known (known : known_slots)
     && forallb (fun '(_, contents) => value_slots_known known contents)
          slot_values
   | Static_block _ fields => forallb (value_slots_known known) fields
+  | Static_immutable_array elements =>
+    forallb (value_slots_known known) elements
   | Static_boxed_number contents => value_slots_known known contents
   | Static_string _ | Static_imported _ => true
   end.

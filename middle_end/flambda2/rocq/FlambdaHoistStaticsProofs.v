@@ -185,7 +185,7 @@ Lemma eval_static_const_closed (vars : env) (const : static_const)
   eval_static_const vars const = Some allocated.
 Proof.
   destruct const as [code slots | slot syms decls slots | tag fields
-                    | contents | bytes];
+                    | contents | bytes | elements];
     simpl.
   - destruct (eval_value_slots [] slots) as [vs | ] eqn:Hslots;
       [ | discriminate ].
@@ -204,6 +204,10 @@ Proof.
     rewrite (eval_simple_closed vars contents v Hcontents).
     intros H; exact H.
   - intros H; exact H.
+  - destruct (eval_simples [] elements) as [vs | ] eqn:Helements;
+      [ | discriminate ].
+    rewrite (eval_simples_closed vars elements vs Helements).
+    intros H; exact H.
 Qed.
 
 (* ======================================================================== *)

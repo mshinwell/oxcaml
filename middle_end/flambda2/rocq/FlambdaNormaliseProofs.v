@@ -94,12 +94,14 @@ Lemma static_binding_in_scope_sound (vs : list variable)
 Proof.
   destruct binding
     as [id c | id
-       | sym [code slots | fslot syms decls slots | tag fields | s | bytes]];
+       | sym [code slots | fslot syms decls slots | tag fields | s | bytes
+              | elements]];
     simpl; try contradiction.
   - apply value_slots_in_scope_sound.
   - apply value_slots_in_scope_sound.
   - apply simples_in_scope_sound.
   - apply simple_in_scope_sound.
+  - apply simples_in_scope_sound.
 Qed.
 
 Lemma all_among_In (names allowed : list positive) (k : positive) :
@@ -717,12 +719,14 @@ Lemma var_in_static_binding_sound (x : variable) (binding : static_binding) :
 Proof.
   destruct binding
     as [id c | id
-       | sym [code slots | fslot syms decls slots | tag fields | s | bytes]];
+       | sym [code slots | fslot syms decls slots | tag fields | s | bytes
+              | elements]];
     simpl; try contradiction.
   - apply var_in_value_slots_sound.
   - apply var_in_value_slots_sound.
   - apply var_in_simples_sound.
   - apply var_in_simple_sound.
+  - apply var_in_simples_sound.
 Qed.
 
 (* The test says yes of every variable that is free. *)
@@ -1500,7 +1504,7 @@ Proof.
       as [id c | id
          | sym
              [code slots | fslot syms decls slots | tag fields | contents
-             | bytes]];
+             | bytes | elements]];
       simpl.
     + destruct (lookup id (static_code statics)); [ discriminate | ].
       apply IH. exact Hknow.
@@ -1529,6 +1533,11 @@ Proof.
       apply IH. intros s code'. simpl.
       destruct (Pos.eqb s sym); [ discriminate | apply Hknow ].
     + destruct (lookup sym (static_values statics)); [ discriminate | ].
+      apply IH. intros s code'. simpl.
+      destruct (Pos.eqb s sym); [ discriminate | apply Hknow ].
+    + destruct (lookup sym (static_values statics)); [ discriminate | ].
+      destruct (eval_simples vars elements) as [vs | ]; simpl;
+        [ | discriminate ].
       apply IH. intros s code'. simpl.
       destruct (Pos.eqb s sym); [ discriminate | apply Hknow ].
 Qed.

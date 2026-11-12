@@ -380,6 +380,9 @@ let canonical_static_const known = function
   | Static_const_boxed_number contents ->
     Static_const_boxed_number (Known.canonical_simple known contents)
   | Static_const_immutable_string bytes -> Static_const_immutable_string bytes
+  | Static_const_immutable_value_array elements ->
+    Static_const_immutable_value_array
+      (map (Known.canonical_simple known) elements)
 
 (** val canonical_static_binding : Known.t -> static_binding -> static_binding **)
 

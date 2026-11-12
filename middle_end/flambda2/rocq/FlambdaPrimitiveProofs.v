@@ -175,6 +175,30 @@ Lemma string_of_kind (statics : static_env) (v : value) (bytes : list Z) :
   string_of statics v = Some bytes -> kind_of_value v = Value.
 Proof. destruct v; simpl; try discriminate; reflexivity. Qed.
 
+Lemma array_of_kind (statics : static_env) (v : value)
+    (elements : list value) :
+  array_of statics v = Some elements -> kind_of_value v = Value.
+Proof. destruct v; simpl; try discriminate; reflexivity. Qed.
+
+(* An immutable array is what a symbol is bound to. *)
+Lemma array_of_symbol (statics : static_env) (v : value)
+    (elements : list value) :
+  array_of statics v = Some elements ->
+  ∃ s : symbol,
+    v = Value_symbol s
+    ∧ lookup s (static_values statics)
+      = Some (Static_immutable_array elements).
+Proof.
+  destruct v; simpl; try discriminate.
+  match goal with
+  | |- context [lookup ?s ?values] =>
+    destruct (lookup s values) as [allocated | ] eqn:Hlookup;
+      [ destruct allocated | ]
+  end;
+    try discriminate.
+  intros [= <-]. eexists. split; [ reflexivity | exact Hlookup ].
+Qed.
+
 (* A block is one made by a primitive, or what a symbol is bound to. *)
 Lemma block_of_cases (statics : static_env) (v : value) (tag : Z)
     (fields : list value) :
@@ -235,12 +259,19 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma array_of_static_values : array_of statics v = array_of statics' v.
+Proof.
+  destruct v; simpl; try reflexivity. rewrite (Hsame _ eq_refl).
+  reflexivity.
+Qed.
+
 Lemma is_allocated_static_values :
   is_allocated statics v = is_allocated statics' v.
 Proof.
   unfold is_allocated.
   rewrite closure_of_static_values, block_of_static_values,
-    boxed_number_of_static_values, string_of_static_values.
+    boxed_number_of_static_values, string_of_static_values,
+    array_of_static_values.
   reflexivity.
 Qed.
 
@@ -269,7 +300,7 @@ Proof.
     unfold eval_is_int, eval_is_null, eval_block_load;
     rewrite ?block_of_static_values, ?is_allocated_static_values,
       ?boxed_number_of_static_values, ?string_of_static_values,
-      ?bound_if_symbol_static_values;
+      ?array_of_static_values, ?bound_if_symbol_static_values;
     reflexivity.
 Qed.
 
@@ -284,7 +315,7 @@ Lemma imported_of_symbol (statics : static_env) (v : value) (s : symbol)
   ∧ lookup s (static_values statics) = Some (Static_imported c).
 Proof.
   destruct v as [ | | | s0 | | | | ]; simpl; try discriminate.
-  destruct (lookup s0 (static_values statics)) as [[ | | | | | c0] | ]
+  destruct (lookup s0 (static_values statics)) as [[ | | | | | | c0] | ]
     eqn:Hlookup; try discriminate.
   intros [= <- <-]. split; [ reflexivity | exact Hlookup ].
 Qed.
@@ -294,7 +325,7 @@ Lemma is_allocated_not_imported (statics : static_env) (v : value) :
 Proof.
   destruct v as [ | | | s | | | | ]; try reflexivity.
   unfold is_allocated. simpl.
-  destruct (lookup s (static_values statics)) as [[ | | | | | c] | ];
+  destruct (lookup s (static_values statics)) as [[ | | | | | | c] | ];
     try (intros _; reflexivity).
   discriminate.
 Qed.
@@ -431,8 +462,9 @@ Proof.
   reflexivity.
 Qed.
 
-(* By cases on the binary primitives: [String_or_bigstring_load] and
-   [Phys_equal] read an allocated value, and through an observation. *)
+(* By cases on the binary primitives: [Array_load],
+   [String_or_bigstring_load] and [Phys_equal] read an allocated value,
+   and through an observation. *)
 Lemma eval_binary_primitive_static_values (statics statics' : static_env)
     (p : binary_primitive) (v1 v2 : value) :
   (∀ s : symbol,
@@ -445,6 +477,9 @@ Proof.
   destruct p as [array_kind load_kind mut | width | op | kind op | kind op
                 | kind behaviour];
     simpl; try reflexivity.
+  - rewrite (array_of_static_values statics statics' v1)
+      by (intros s ->; apply Hsame; left; reflexivity).
+    reflexivity.
   - unfold eval_string_load.
     rewrite (string_of_static_values statics statics' v1)
       by (intros s ->; apply Hsame; left; reflexivity).
@@ -649,6 +684,19 @@ Lemma array_index_same_length (elements elements' : list value)
   length elements' = length elements ->
   array_index elements' index = array_index elements index.
 Proof. intros Hlength. unfold array_index. rewrite Hlength. reflexivity. Qed.
+
+(* The index of a load that has a value is a tagged immediate. *)
+Lemma array_loaded_index_kind (load_kind : array_load_kind)
+    (elements : list value) (index v : value) :
+  array_loaded load_kind elements index = Some v ->
+  kind_of_value index = Value.
+Proof.
+  unfold array_loaded.
+  destruct (array_index elements index) as [i | ] eqn:Hindex;
+    [ | discriminate ].
+  intros _. apply array_index_position in Hindex as [_ Hindex].
+  exact (int_of_value_kind _ _ _ Hindex).
+Qed.
 
 Theorem array_element_kind : array_element_kind_statement.
 Proof.
@@ -939,6 +987,18 @@ Proof.
   end.
 Qed.
 
+Lemma array_of_statics_extend (elements : list value) :
+  array_of statics v = Some elements -> array_of statics' v = Some elements.
+Proof.
+  destruct v; simpl; try exact (fun H => H).
+  match goal with
+  | |- context [lookup ?s (static_values statics)] =>
+    destruct (lookup s (static_values statics)) eqn:Hlookup;
+      [ rewrite (Hextend _ _ eq_refl Hlookup); exact (fun H => H)
+      | discriminate ]
+  end.
+Qed.
+
 Lemma is_some_statics_extend {A : Type} (o o' : option A) :
   (∀ x : A, o = Some x -> o' = Some x) ->
   is_some o = true -> is_some o' = true.
@@ -951,15 +1011,17 @@ Lemma is_allocated_statics_extend :
   is_allocated statics v = true -> is_allocated statics' v = true.
 Proof.
   unfold is_allocated. rewrite !orb_true_iff.
-  intros [[[[Hsome | Hsome] | Hsome] | Hsome] | Hsome].
-  - left. left. left. left. revert Hsome. apply is_some_statics_extend.
+  intros [[[[[Hsome | Hsome] | Hsome] | Hsome] | Hsome] | Hsome].
+  - do 5 left. revert Hsome. apply is_some_statics_extend.
     exact closure_of_statics_extend.
-  - left. left. left. right. revert Hsome. apply is_some_statics_extend.
+  - do 4 left. right. revert Hsome. apply is_some_statics_extend.
     exact block_of_statics_extend.
-  - left. left. right. revert Hsome. apply is_some_statics_extend.
+  - do 3 left. right. revert Hsome. apply is_some_statics_extend.
     exact boxed_number_of_statics_extend.
-  - left. right. revert Hsome. apply is_some_statics_extend.
+  - do 2 left. right. revert Hsome. apply is_some_statics_extend.
     exact string_of_statics_extend.
+  - left. right. revert Hsome. apply is_some_statics_extend.
+    exact array_of_statics_extend.
   - right. exact Hsome.
 Qed.
 
@@ -1049,6 +1111,9 @@ Proof.
     | |- context [string_of statics v] =>
       destruct (string_of statics v) eqn:Hvalue;
         [ rewrite (string_of_statics_extend _ Hvalue) | discriminate ]
+    | |- context [array_of statics v] =>
+      destruct (array_of statics v) eqn:Hvalue;
+        [ rewrite (array_of_statics_extend _ Hvalue) | discriminate ]
     | |- context [bound_if_symbol statics v] =>
       destruct (bound_if_symbol statics v) eqn:Hvalue;
         [ rewrite (bound_if_symbol_statics_extend Hvalue)
@@ -1077,9 +1142,10 @@ Proof.
     intros s allocated Hin. apply Hextend. right. exact Hin.
 Qed.
 
-(* By cases on the binary primitives: [String_or_bigstring_load] has a
-   value on a string, and [Phys_equal] on an allocated value by its
-   being allocated, which are kept. *)
+(* By cases on the binary primitives: [Array_load] has a value on an
+   immutable array, [String_or_bigstring_load] on a string, and
+   [Phys_equal] on an allocated value by its being allocated, which
+   are kept. *)
 Lemma eval_binary_primitive_statics_extend (statics statics' : static_env)
     (p : binary_primitive) (v1 v2 result : value) :
   (∀ (s : symbol) (allocated : statically_allocated_value),
@@ -1093,6 +1159,13 @@ Proof.
   destruct p as [array_kind load_kind mut | width | op | kind op | kind op
                 | kind behaviour];
     simpl; try exact (fun H => H).
+  - (* [Array_load] *)
+    destruct (array_of statics v1) as [elements | ] eqn:Harray;
+      [ | discriminate ].
+    rewrite (array_of_statics_extend statics statics' v1)
+      with (elements := elements);
+      [ exact (fun H => H) | | exact Harray ].
+    intros s allocated ->. apply Hextend. left. reflexivity.
   - (* [String_or_bigstring_load] *)
     unfold eval_string_load.
     destruct (string_of statics v1) as [bytes | ] eqn:Hstring;
@@ -1232,9 +1305,16 @@ Lemma eval_binary_primitive_symbol_bound (statics : static_env)
 Proof.
   destruct p as [array_kind load_kind mut | width | op | kind op | kind op
                 | kind behaviour];
-    cbn [eval_binary_primitive];
-    (* [Array_load] has no value. *)
-    try (intros Hnone; discriminate Hnone).
+    cbn [eval_binary_primitive].
+  - (* [Array_load]: the array, if a symbol, is bound to one, and the
+       index is not a symbol. *)
+    destruct (array_of statics v1) as [elements | ] eqn:Harray;
+      [ | discriminate ].
+    intros Hloaded [-> | ->].
+    + simpl in Harray.
+      destruct (lookup s (static_values statics)); discriminate.
+    + exfalso. revert Hloaded. unfold array_loaded, array_index.
+      rewrite int_of_value_symbol. simpl. discriminate.
   - (* [String_or_bigstring_load]: the string, if a symbol, is bound to
        one, and the index is not a symbol. *)
     unfold eval_string_load.
@@ -1299,9 +1379,7 @@ Proof.
   destruct p as [access mut field | variant_only | | | length_kind | | kind
                 | kind op | src dst | | kind | kind | | | reinterpret];
     cbn [eval_unary_primitive arg_kind_of_unary_primitive
-         result_kind_of_unary_primitive];
-    (* [Array_length] has no value. *)
-    try (intros Hnone; discriminate Hnone).
+         result_kind_of_unary_primitive].
   - (* [Block_load] *)
     unfold eval_block_load. destruct access as [tag size field_kind].
     destruct (block_of statics arg) as [[block_tag fields] | ] eqn:Hblock;
@@ -1359,6 +1437,12 @@ Proof.
       [ | discriminate ].
     intros [= <-]. split; [ | reflexivity ].
     apply (block_of_kind statics). rewrite Hblock. reflexivity.
+  - (* [Array_length] *)
+    destruct (array_of statics arg) as [elements | ] eqn:Harray;
+      [ | discriminate ].
+    unfold array_length_of. destruct (in_range _ _); [ | discriminate ].
+    intros [= <-]. split; [ | reflexivity ].
+    exact (array_of_kind statics arg elements Harray).
   - (* [String_length] *)
     destruct (string_of statics arg) as [bytes | ] eqn:Hstring;
       [ | discriminate ].
@@ -1498,9 +1582,17 @@ Proof.
   destruct p as [array_kind load_kind mut | width | op | kind op | kind op
                 | kind behaviour];
     cbn [eval_binary_primitive args_kind_of_binary_primitive
-         result_kind_of_binary_primitive fst snd];
-    (* [Array_load] has no value. *)
-    try (intros Hnone; discriminate Hnone).
+         result_kind_of_binary_primitive fst snd].
+  - (* [Array_load]: the array is of kind [Value], the index a tagged
+       immediate, and the element one that the load kind takes. *)
+    destruct (array_of statics arg1) as [elements | ] eqn:Harray;
+      [ | discriminate ].
+    intros Hloaded.
+    split; [ exact (array_of_kind statics arg1 elements Harray) | ].
+    split; [ exact (array_loaded_index_kind _ _ _ _ Hloaded) | ].
+    exact
+      (array_element_kind _ v
+         (proj2 (array_loaded_element _ _ _ _ Hloaded))).
   - (* [String_or_bigstring_load] *)
     unfold eval_string_load.
     destruct (string_of statics arg1) as [bytes | ] eqn:Hstring;
@@ -1586,9 +1678,22 @@ Variable statics : static_env.
 Hypothesis Hnumbers : holds_of_numbers P.
 Hypothesis Hblocks : holds_of_blocks P.
 Hypothesis Hstatic : holds_in_static_blocks statics P.
+Hypothesis Harrays : holds_in_static_arrays statics P.
 
 Lemma naked_bool_preserved (b : bool) : P (naked_bool b).
 Proof. apply Hnumbers. Qed.
+
+(* The elements of an immutable array with the property have it. *)
+Lemma array_of_elements_preserved (arg : value) (elements : list value) :
+  P arg ->
+  array_of statics arg = Some elements ->
+  ∀ v : value, v ∈ elements -> P v.
+Proof.
+  intros Harg Harray.
+  destruct (array_of_symbol statics arg elements Harray)
+    as (s & -> & Hlookup).
+  exact (Harrays s elements Harg Hlookup).
+Qed.
 
 (* The fields of a block with the property have it, whether the block
    was made by a primitive or is what a symbol is bound to. *)
@@ -1612,9 +1717,7 @@ Proof.
   intros Harg.
   destruct p as [access mut field | variant_only | | | length_kind | | kind
                 | kind op | src dst | | kind | kind | | | reinterpret];
-    cbn [eval_unary_primitive];
-    (* [Array_length] has no value. *)
-    try (intros Hnone; discriminate Hnone).
+    cbn [eval_unary_primitive].
   - unfold eval_block_load. destruct access as [tag size field_kind].
     destruct (block_of statics arg) as [[block_tag fields] | ] eqn:Hblock;
       [ | discriminate ].
@@ -1640,6 +1743,10 @@ Proof.
   - destruct (eval_is_null statics arg); [ | discriminate ].
     intros [= <-]. apply naked_bool_preserved.
   - destruct (block_of statics arg) as [[tag fields] | ]; [ | discriminate ].
+    intros [= <-]. apply Hnumbers.
+  - (* [Array_length] *)
+    destruct (array_of statics arg) as [elements | ]; [ | discriminate ].
+    unfold array_length_of. destruct (in_range _ _); [ | discriminate ].
     intros [= <-]. apply Hnumbers.
   - destruct (string_of statics arg) as [bytes | ]; [ | discriminate ].
     destruct (in_range _ _); [ | discriminate ].
@@ -1678,13 +1785,19 @@ Qed.
 (* By cases on the binary primitives. *)
 Lemma eval_binary_primitive_preserves (p : binary_primitive)
     (arg1 arg2 v : value) :
-  eval_binary_primitive statics p arg1 arg2 = Some v -> P v.
+  P arg1 -> eval_binary_primitive statics p arg1 arg2 = Some v -> P v.
 Proof.
+  intros Harg1.
   destruct p as [array_kind load_kind mut | width | op | kind op | kind op
                 | kind behaviour];
-    cbn [eval_binary_primitive];
-    (* [Array_load] has no value. *)
-    try (intros Hnone; discriminate Hnone).
+    cbn [eval_binary_primitive].
+  - (* [Array_load]: an element of the array. *)
+    destruct (array_of statics arg1) as [elements | ] eqn:Harray;
+      [ | discriminate ].
+    intros Hloaded.
+    exact
+      (array_of_elements_preserved arg1 elements Harg1 Harray v
+         (proj1 (array_loaded_element _ _ _ _ Hloaded))).
   - (* [String_or_bigstring_load] *)
     unfold eval_string_load.
     destruct (string_of statics arg1) as [bytes | ]; [ | discriminate ].
@@ -1731,7 +1844,7 @@ End Preserves.
 
 Theorem eval_prim_preserves : eval_prim_preserves_statement.
 Proof.
-  intros P statics p vs v Hnumbers Hblocks Hstatic Hargs Heval.
+  intros P statics p vs v Hnumbers Hblocks Hstatic Harrays Hargs Heval.
   destruct (eval_prim_arity statics p vs v Heval)
     as [(p' & v1 & -> & -> & Hp)
        | [(p' & v1 & v2 & -> & -> & Hp) | (p' & -> & Hp)]].
@@ -1740,7 +1853,11 @@ Proof.
          v1 v);
       [ | exact Hp ].
     apply Hargs. left. reflexivity.
-  - exact (eval_binary_primitive_preserves P statics Hnumbers p' v1 v2 v Hp).
+  - apply
+      (eval_binary_primitive_preserves P statics Hnumbers Harrays p' v1 v2
+         v);
+      [ | exact Hp ].
+    apply Hargs. left. reflexivity.
   - exact
       (eval_variadic_primitive_preserves P statics Hblocks p' vs v Hargs Hp).
 Qed.
@@ -2355,9 +2472,7 @@ Proof.
   intros Hsymbols Harg.
   destruct p as [access mut field | variant_only | | | length_kind | | kind
                 | kind op | src dst | | kind | kind | | | reinterpret];
-    cbn [eval_unary_primitive];
-    (* [Array_length] has no value. *)
-    try (intros Hnone; discriminate Hnone).
+    cbn [eval_unary_primitive].
   - unfold eval_block_load. destruct access as [tag size field_kind].
     destruct (block_of statics arg) as [[block_tag fields] | ] eqn:Hblock;
       [ | discriminate ].
@@ -2388,6 +2503,11 @@ Proof.
     intros [= <-]. cbn [value_in_range const_in_range].
     apply tag_in_range_ocaml_int.
     exact (proj1 (block_of_in_range arg tag fields Hsymbols Harg Hblock)).
+  - (* [Array_length] *)
+    destruct (array_of statics arg) as [elements | ]; [ | discriminate ].
+    unfold array_length_of.
+    destruct (in_range _ _) eqn:Hlength; [ | discriminate ].
+    intros [= <-]. exact Hlength.
   - (* [String_length] *)
     destruct (string_of statics arg) as [bytes | ]; [ | discriminate ].
     destruct (in_range _ _) eqn:Hlength; [ | discriminate ].
@@ -2440,14 +2560,28 @@ Qed.
 (* By cases on the binary primitives. *)
 Lemma eval_binary_primitive_in_range (p : binary_primitive)
     (arg1 arg2 v : value) :
+  (∀ (s : symbol) (allocated : statically_allocated_value),
+    Value_symbol s ∈ [arg1; arg2] ->
+    lookup s (static_values statics) = Some allocated ->
+    allocated_in_range allocated = true) ->
   eval_binary_primitive statics p arg1 arg2 = Some v ->
   value_in_range v = true.
 Proof.
+  intros Hsymbols.
   destruct p as [array_kind load_kind mut | width | op | kind op | kind op
                 | kind behaviour];
-    cbn [eval_binary_primitive];
-    (* [Array_load] has no value. *)
-    try (intros Hnone; discriminate Hnone).
+    cbn [eval_binary_primitive].
+  - (* [Array_load]: an element of an array that is in range. *)
+    destruct (array_of statics arg1) as [elements | ] eqn:Harray;
+      [ | discriminate ].
+    intros Hloaded.
+    destruct (array_of_symbol statics arg1 elements Harray)
+      as (s & -> & Hlookup).
+    pose proof (Hsymbols s _ (or_introl eq_refl) Hlookup) as Helements.
+    cbn [allocated_in_range] in Helements.
+    exact
+      (proj1 (forallb_forall _ _) Helements v
+         (proj1 (array_loaded_element _ _ _ _ Hloaded))).
   - (* [String_or_bigstring_load] *)
     unfold eval_string_load.
     destruct (string_of statics arg1) as [bytes | ]; [ | discriminate ].
@@ -2519,7 +2653,7 @@ Proof.
   - apply (eval_unary_primitive_in_range statics p' v1 v);
       [ exact Hsymbols | | exact Hp' ].
     apply Hargs. left. reflexivity.
-  - exact (eval_binary_primitive_in_range statics p' v1 v2 v Hp').
+  - exact (eval_binary_primitive_in_range statics p' v1 v2 v Hsymbols Hp').
   - exact
       (eval_variadic_primitive_in_range statics p' vs v Hp Hargs Hp').
 Qed.
@@ -2627,17 +2761,21 @@ Lemma related_is_allocated (v v' : value) :
 Proof.
   intros Hr. unfold is_allocated. rewrite !orb_true_iff.
   destruct (Hobserved v v' Hr)
-    as (_ & Hboxed & Hstring & Hclosure & Hpartial & _).
-  intros [[[[Hsome | Hsome] | Hsome] | Hsome] | Hsome].
-  - left. left. left. left.
+    as (_ & Hboxed & Hstring & Hclosure & Hpartial & _ & _ & Harrays).
+  intros [[[[[Hsome | Hsome] | Hsome] | Hsome] | Hsome] | Hsome].
+  - do 5 left.
     apply is_some_not_none, Hclosure, is_some_not_none. exact Hsome.
-  - left. left. left. right. exact (related_is_block v v' Hr Hsome).
-  - left. left. right.
+  - do 4 left. right. exact (related_is_block v v' Hr Hsome).
+  - do 3 left. right.
     destruct (boxed_number_of statics v) as [c | ] eqn:Hv; [ | discriminate ].
     rewrite (Hboxed c eq_refl). reflexivity.
-  - left. right.
+  - do 2 left. right.
     destruct (string_of statics v) as [bytes | ] eqn:Hv; [ | discriminate ].
     rewrite (Hstring bytes eq_refl). reflexivity.
+  - left. right.
+    destruct (array_of statics v) as [elements | ] eqn:Hv; [ | discriminate ].
+    destruct (Harrays elements eq_refl) as (elements' & -> & _).
+    reflexivity.
   - right. apply is_some_not_none, Hpartial, is_some_not_none. exact Hsome.
 Qed.
 
@@ -2663,7 +2801,9 @@ Lemma related_imported_of (v v' : value) (i : symbol * import_class) :
 Proof.
   intros Hr.
   exact
-    (proj2 (proj2 (proj2 (proj2 (proj2 (proj2 (Hobserved v v' Hr)))))) i).
+    (proj1
+       (proj2 (proj2 (proj2 (proj2 (proj2 (proj2 (Hobserved v v' Hr)))))))
+       i).
 Qed.
 
 (* [Phys_equal] reads its arguments as tagged immediates, which are
@@ -2722,12 +2862,10 @@ Lemma eval_unary_primitive_related (p : unary_primitive)
 Proof.
   intros Hr.
   destruct (Hobserved v v' Hr)
-    as (Hblocks & Hboxed & Hstring & _ & _ & Hbound & _).
+    as (Hblocks & Hboxed & Hstring & _ & _ & Hbound & _ & Harrays).
   destruct p as [access mut field | variant_only | | | length_kind | | kind
                 | kind op | src dst | | kind | kind | | | reinterpret];
-    cbn [eval_unary_primitive];
-    (* [Array_length] has no value. *)
-    try (intros Hnone; discriminate Hnone).
+    cbn [eval_unary_primitive].
   - unfold eval_block_load. destruct access as [tag size field_kind].
     destruct (block_of statics v) as [[block_tag fields] | ] eqn:Hv;
       [ | discriminate ].
@@ -2762,6 +2900,12 @@ Proof.
   - destruct (block_of statics v) as [[tag fields] | ] eqn:Hv;
       [ | discriminate ].
     destruct (Hblocks tag fields eq_refl) as (fields' & -> & _).
+    intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
+  - (* [Array_length]: related arrays have as many elements. *)
+    destruct (array_of statics v) as [elements | ] eqn:Hv; [ | discriminate ].
+    destruct (Harrays elements eq_refl) as (elements' & -> & Helements).
+    unfold array_length_of. rewrite <- (Forall2_length Helements).
+    destruct (in_range _ _); [ | discriminate ].
     intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
   - (* [String_length] *)
     destruct (string_of statics v) as [bytes | ] eqn:Hv; [ | discriminate ].
@@ -2814,8 +2958,9 @@ Proof.
 Qed.
 
 (* By cases on the binary primitives: the arguments are integers, but
-   for the string of [String_or_bigstring_load], which is read through
-   an observation, and those of [Phys_equal]. *)
+   for the array of [Array_load] and the string of
+   [String_or_bigstring_load], which are read through an observation,
+   and those of [Phys_equal]. *)
 Lemma eval_binary_primitive_related (p : binary_primitive)
     (v1 v2 v1' v2' result : value) :
   R v1 v1' ->
@@ -2828,9 +2973,19 @@ Proof.
   intros Hr1 Hr2.
   destruct p as [array_kind load_kind mut | width | op | kind op | kind op
                 | kind behaviour];
-    cbn [eval_binary_primitive];
-    (* [Array_load] has no value. *)
-    try (intros Hnone; discriminate Hnone).
+    cbn [eval_binary_primitive].
+  - (* [Array_load]: related arrays have related elements. *)
+    destruct (array_of statics v1) as [elements | ] eqn:Hv1;
+      [ | discriminate ].
+    destruct
+      (proj2
+         (proj2 (proj2 (proj2 (proj2 (proj2 (proj2 (Hobserved v1 v1' Hr1)))))))
+         elements Hv1)
+      as (elements' & -> & Helements).
+    exact
+      (array_loaded_related_in R
+         (relates_constants_numbers R (proj1 Hrespects)) load_kind elements
+         elements' v2 v2' result Helements Hr2).
   - (* [String_or_bigstring_load] *)
     unfold eval_string_load.
     destruct (string_of statics v1) as [bytes | ] eqn:Hv1;
@@ -3827,6 +3982,92 @@ Example array_stored_past_the_end :
   array_stored Set_immediates Array_immediates [tagged 5] (tagged 1)
     (tagged 9)
   = None.
+Proof. reflexivity. Qed.
+
+(* A static immutable array, read through its symbol. *)
+Definition a_table : static_env :=
+  Static_env []
+    [(1%positive,
+      Static_immutable_array [tagged 8; tagged 6; Value_symbol 2%positive]);
+     (2%positive, Static_block 0 [])].
+
+Definition table_load (load_kind : array_load_kind) (v index : value)
+    : option value :=
+  eval_prim a_table (Binary (Array_load Array_values load_kind Immutable))
+    [v; index].
+
+Example static_array_length :
+  unary a_table (Array_length (Array_kind Array_values))
+    (Value_symbol 1%positive)
+  = Some (tagged 3).
+Proof. reflexivity. Qed.
+
+Example static_array_length_of_block :
+  unary a_table (Array_length (Array_kind Array_values))
+    (Value_symbol 2%positive)
+  = None.
+Proof. reflexivity. Qed.
+
+Example static_array_load :
+  table_load Load_immediates (Value_symbol 1%positive) (tagged 1)
+  = Some (tagged 6).
+Proof. reflexivity. Qed.
+
+(* The load kind of the access decides, not the one that the array was
+   made for: the same element at [Load_values]. *)
+Example static_array_load_an_immediate_as_a_value :
+  table_load Load_values (Value_symbol 1%positive) (tagged 1)
+  = Some (tagged 6).
+Proof. reflexivity. Qed.
+
+Example static_array_load_a_symbol :
+  table_load Load_values (Value_symbol 1%positive) (tagged 2)
+  = Some (Value_symbol 2%positive).
+Proof. reflexivity. Qed.
+
+Example static_array_load_a_symbol_as_an_immediate :
+  table_load Load_immediates (Value_symbol 1%positive) (tagged 2) = None.
+Proof. reflexivity. Qed.
+
+Example static_array_load_past_the_end :
+  table_load Load_values (Value_symbol 1%positive) (tagged 3) = None.
+Proof. reflexivity. Qed.
+
+Example static_array_load_at_a_naked_index :
+  table_load Load_values (Value_symbol 1%positive) (naked 0) = None.
+Proof. reflexivity. Qed.
+
+Example static_array_load_from_block :
+  table_load Load_values (Value_symbol 2%positive) (tagged 0) = None.
+Proof. reflexivity. Qed.
+
+Example block_load_from_static_array :
+  unary a_table (load None None 0) (Value_symbol 1%positive) = None.
+Proof. reflexivity. Qed.
+
+Example get_tag_of_static_array :
+  unary a_table Get_tag (Value_symbol 1%positive) = None.
+Proof. reflexivity. Qed.
+
+Example is_int_of_static_array :
+  unary a_table (Is_int false) (Value_symbol 1%positive) = Some (naked 0).
+Proof. reflexivity. Qed.
+
+Example is_null_of_static_array :
+  unary a_table Is_null (Value_symbol 1%positive) = Some (naked 0).
+Proof. reflexivity. Qed.
+
+(* Two allocated values: no value, as for two static blocks. *)
+Example phys_equal_of_static_array_and_block :
+  eval_prim a_table (Binary (Phys_equal Phys_eq))
+    [Value_symbol 1%positive; Value_symbol 2%positive]
+  = None.
+Proof. reflexivity. Qed.
+
+Example phys_equal_of_static_array_and_immediate :
+  eval_prim a_table (Binary (Phys_equal Phys_eq))
+    [Value_symbol 1%positive; tagged 8]
+  = Some (naked 0).
 Proof. reflexivity. Qed.
 
 End Examples.

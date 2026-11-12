@@ -228,7 +228,7 @@ Lemma static_const_supported (const : static_const) :
 Proof.
   destruct const
     as [ code slots | slot symbols decls slots | tag fields | contents
-       | bytes ].
+       | bytes | elements ].
   - exact (supported1 _ rename_static_const
              (Static_const_set_of_closures code) slots (fun r => eq_refl)
              (value_slots_supported slots)).
@@ -240,6 +240,9 @@ Proof.
   - exact (supported1 _ rename_static_const Static_const_boxed_number
              contents (fun r => eq_refl) (simple_supported contents)).
   - apply supported_none. reflexivity.
+  - exact (supported1 _ rename_static_const
+             Static_const_immutable_value_array elements
+             (fun r => eq_refl) (simples_supported elements)).
 Qed.
 
 Lemma trap_action_supported (action : option trap_action) :

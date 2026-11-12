@@ -166,10 +166,11 @@ Lemma static_const_eqb_flip (vm : name_map) (const const' : static_const) :
   static_const_eqb (flip vm) const' const = true.
 Proof.
   destruct const
-    as [code slots | fslot syms decls slots | tag fields | s | bytes],
+    as [code slots | fslot syms decls slots | tag fields | s | bytes
+        | elements],
     const'
     as [code' slots' | fslot' syms' decls' slots' | tag' fields' | s'
-       | bytes'];
+       | bytes' | elements'];
     simpl; try discriminate; intros Heq.
   - apply andb_true_iff in Heq as [Hcode Hslots]. rewrite Pos.eqb_sym, Hcode.
     apply value_slots_eqb_flip, Hslots.
@@ -184,6 +185,7 @@ Proof.
   - apply simple_eqb_flip, Heq.
   - apply (forall2b_flip Z.eqb Z.eqb bytes); [ | exact Heq ].
     intros z z' Hz. rewrite Z.eqb_sym. exact Hz.
+  - apply simples_eqb_flip, Heq.
 Qed.
 
 Lemma apply_cont_eqb_flip (vm km : name_map) (ac ac' : apply_cont) :
@@ -518,14 +520,15 @@ Lemma static_const_eqb_trans (const const' const'' : static_const) :
   static_const_eqb vm const const'' = true.
 Proof.
   destruct const
-    as [code slots | fslot syms decls slots | tag fields | s | bytes],
+    as [code slots | fslot syms decls slots | tag fields | s | bytes
+        | elements],
     const'
     as [code' slots' | fslot' syms' decls' slots' | tag' fields' | s'
-       | bytes'];
+       | bytes' | elements'];
     simpl; try discriminate; intros H1;
     destruct const''
       as [code'' slots'' | fslot'' syms'' decls'' slots'' | tag'' fields''
-         | s'' | bytes''];
+         | s'' | bytes'' | elements''];
     simpl; try discriminate; intros H2.
   - apply andb_true_iff in H1 as [Hcode1 Hslots1].
     apply andb_true_iff in H2 as [Hcode2 Hslots2].
@@ -549,6 +552,7 @@ Proof.
   - exact (simple_eqb_trans _ _ _ H1 H2).
   - apply forall2b_Z_eqb in H1, H2. subst bytes' bytes''.
     apply forall2b_refl, Z.eqb_refl.
+  - exact (simples_eqb_trans _ _ _ H1 H2).
 Qed.
 
 Variables km1 km2 km : name_map.

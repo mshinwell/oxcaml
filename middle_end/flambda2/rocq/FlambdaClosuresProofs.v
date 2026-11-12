@@ -565,7 +565,8 @@ Lemma eval_static_const_closure_of_set (vars : env) (const : static_const)
     ∧ eval_value_slots vars value_slots = Some slot_values.
 Proof.
   destruct const
-    as [code slots | fslot syms fdecls slots | tag fields | contents | bytes];
+    as [code slots | fslot syms fdecls slots | tag fields | contents | bytes
+        | elements];
     simpl.
   - destruct (eval_value_slots vars slots); discriminate.
   - destruct (lookup fslot fdecls); [ | discriminate ]. simpl.
@@ -575,6 +576,7 @@ Proof.
   - destruct (eval_simples vars fields); discriminate.
   - destruct (eval_simple vars contents); discriminate.
   - discriminate.
+  - destruct (eval_simples vars elements); discriminate.
 Qed.
 
 Lemma binds_symbol_to_sound (s : symbol) (const : static_const)
@@ -888,7 +890,7 @@ Proof.
       as [id c | id
          | sym
              [code slots | fslot syms decls slots | tag fields | contents
-             | bytes]];
+             | bytes | elements]];
       try discriminate.
     destruct (static_set_whole_facts bindings sym fslot syms decls slots
                 Pwhole) as (Hslot & _).
@@ -921,7 +923,7 @@ Proof.
     auto.
   - destruct (lookup s (static_values statics))
       as [[code slots | slot syms decls slots | tag fields | contents
-          | bytes | ] | ] eqn:Hs;
+          | bytes | elements | ] | ] eqn:Hs;
       try discriminate.
     + intros Hproject.
       apply project_unnamed_function_slot in Hproject as (-> & -> & ->).
@@ -993,7 +995,7 @@ Proof.
     exact (slot_values_valid_in slots Hslots).
   - destruct (lookup s (static_values statics))
       as [[code slots | at_slot syms set_decls slots | tag fields | contents
-          | bytes | ] | ] eqn:Hs;
+          | bytes | elements | ] | ] eqn:Hs;
       try discriminate.
     + pose proof (statics_valid_lookup statics s _ Hstatics Hs) as Hvalid.
       intros [= <- <- <-]. split; [ exact (unnamed_set_well_formed code) | ].
@@ -1037,7 +1039,7 @@ Proof.
     intros _. eexists. rewrite Pos.eqb_refl. simpl. reflexivity.
   - destruct (lookup s (static_values statics))
       as [[code slots | at_slot syms set_decls slots | tag fields | contents
-          | bytes | ] | ] eqn:Hs;
+          | bytes | elements | ] | ] eqn:Hs;
       try discriminate.
     + intros [= <- <- <-]. exact (project_unnamed_defined move_to code _).
     + pose proof (statics_valid_lookup statics s _ Hstatics Hs) as Hvalid.
@@ -1113,6 +1115,15 @@ Proof.
   simpl in Hvalid. rewrite forallb_forall in Hvalid. exact (Hvalid v Hin).
 Qed.
 
+Lemma value_valid_in_static_arrays (statics : static_env) :
+  statics_valid statics ->
+  holds_in_static_arrays statics (fun v => value_valid v = true).
+Proof.
+  intros Hstatics s elements _ Hs v Hin.
+  pose proof (statics_valid_lookup statics s _ Hstatics Hs) as Hvalid.
+  simpl in Hvalid. rewrite forallb_forall in Hvalid. exact (Hvalid v Hin).
+Qed.
+
 (* The closure at another slot of the set of a valid closure is valid. *)
 Lemma project_function_slot_keeps_valid (statics : static_env)
     (move_from move_to : function_slot) (v w : value) :
@@ -1139,7 +1150,7 @@ Proof.
     unfold is_bound. rewrite Hto, Hnames, Hcodes. reflexivity.
   - destruct (lookup s (static_values statics))
       as [[code slots | at_slot syms decls slots | tag fields | contents
-          | bytes | ] | ];
+          | bytes | elements | ] | ];
       try discriminate.
     + intros Hproject.
       apply project_unnamed_function_slot in Hproject as (_ & _ & ->).
@@ -1163,7 +1174,8 @@ Proof.
     simpl. intros Hprim.
     apply (eval_prim_preserves (fun v => value_valid v = true) statics p vs
              v value_valid_of_numbers value_valid_of_blocks
-             (value_valid_in_static_blocks statics Hstatics));
+             (value_valid_in_static_blocks statics Hstatics)
+             (value_valid_in_static_arrays statics Hstatics));
       [ | exact Hprim ].
     pose proof (eval_simples_valid vars Hvars args vs Hargs) as Hvs.
     rewrite forallb_forall in Hvs. exact Hvs.
@@ -1208,7 +1220,7 @@ Theorem eval_static_const_valid : eval_static_const_valid_statement.
 Proof.
   intros bindings s const vars allocated Hwhole Hvars.
   destruct const as [code slots | slot syms decls slots | tag fields
-    | contents | bytes];
+    | contents | bytes | elements];
     simpl.
   - destruct (eval_value_slots vars slots) as [vs | ] eqn:Hslots;
       [ | discriminate ].
@@ -1231,6 +1243,10 @@ Proof.
     simpl. intros [= <-].
     exact (eval_simple_valid vars contents v Hvars Hcontents).
   - intros [= <-]. reflexivity.
+  - destruct (eval_simples vars elements) as [vs | ] eqn:Helements;
+      [ | discriminate ].
+    simpl. intros [= <-].
+    exact (eval_simples_valid vars Hvars elements vs Helements).
 Qed.
 
 (* ======================================================================== *)
@@ -1296,7 +1312,8 @@ Proof.
     refine (eval_prim_preserves (fun v => value_valid v = true)
               (state_statics s) _ [tuple] v value_valid_of_numbers
               value_valid_of_blocks
-              (value_valid_in_static_blocks (state_statics s) Hstatics) _
+              (value_valid_in_static_blocks (state_statics s) Hstatics)
+              (value_valid_in_static_arrays (state_statics s) Hstatics) _
               Hprim).
     intros w [<- | []]. exact Htuple.
   - intros x kind d body v Hexpr Heval. rewrite Hexpr in P. simpl in P.
@@ -1940,7 +1957,7 @@ Proof.
     discriminate (Hnone expected Hexpected).
   - destruct (lookup s (static_values statics))
       as [[code slots | at_slot syms set_decls slots | tag fields | contents
-          | bytes | ] | ] eqn:Hs;
+          | bytes | elements | ] | ] eqn:Hs;
       try discriminate.
     + pose proof (statics_sets_are_lookup statics s _ Hstatics Hs) as Hvalid.
       unfold Qv in Hvalid. simpl in Hvalid.
@@ -1984,6 +2001,16 @@ Proof.
   exact (Hvalid v Hin).
 Qed.
 
+Lemma value_sets_are_in_static_arrays (statics : static_env) :
+  Forall (fun binding => Qv (snd binding)) (static_values statics) ->
+  holds_in_static_arrays statics Pv.
+Proof.
+  intros Hstatics s elements _ Hs v Hin.
+  pose proof (statics_sets_are_lookup statics s _ Hstatics Hs) as Hvalid.
+  unfold Qv in Hvalid. simpl in Hvalid. rewrite forallb_forall in Hvalid.
+  exact (Hvalid v Hin).
+Qed.
+
 Lemma project_function_slot_sets_are (statics : static_env)
     (move_from move_to : function_slot) (v w : value) :
   Pv v -> project_function_slot statics move_from move_to v = Some w -> Pv w.
@@ -2002,7 +2029,7 @@ Proof.
     simpl. intros [= <-]. exact Hv.
   - destruct (lookup s (static_values statics))
       as [[code slots | at_slot syms decls slots | tag fields | contents
-          | bytes | ] | ];
+          | bytes | elements | ] | ];
       try discriminate.
     + intros Hproject.
       apply project_unnamed_function_slot in Hproject as (_ & _ & ->).
@@ -2032,7 +2059,8 @@ Proof.
     simpl. intros Hprim.
     apply (eval_prim_preserves Pv statics p vs v value_sets_are_of_numbers
              value_sets_are_of_blocks
-             (value_sets_are_in_static_blocks statics Hstatics));
+             (value_sets_are_in_static_blocks statics Hstatics)
+             (value_sets_are_in_static_arrays statics Hstatics));
       [ | exact Hprim ].
     pose proof (eval_simples_sets_are vars Hvars args vs Hargs) as Hvs.
     rewrite forallb_forall in Hvs. exact Hvs.
@@ -2084,7 +2112,7 @@ Lemma eval_static_const_sets_are (const : static_const) (vars : env)
 Proof.
   intros Hconst Hvars.
   destruct const as [code slots | slot syms decls slots | tag fields
-    | contents | bytes];
+    | contents | bytes | elements];
     simpl.
   - destruct (eval_value_slots vars slots) as [vs | ] eqn:Hslots;
       [ | discriminate ].
@@ -2104,6 +2132,10 @@ Proof.
     simpl. intros [= <-].
     exact (eval_simple_sets_are vars contents v Hvars Hcontents).
   - intros [= <-]. reflexivity.
+  - destruct (eval_simples vars elements) as [vs | ] eqn:Helements;
+      [ | discriminate ].
+    simpl. intros [= <-].
+    exact (eval_simples_sets_are vars Hvars elements vs Helements).
 Qed.
 
 Lemma eval_static_bindings_sets_are (vars : env) :
@@ -2162,7 +2194,8 @@ Proof.
     intros field v Hprim.
     refine (eval_prim_preserves Pv (state_statics s) _ [tuple] v
               value_sets_are_of_numbers value_sets_are_of_blocks
-              (value_sets_are_in_static_blocks (state_statics s) Hstatics) _
+              (value_sets_are_in_static_blocks (state_statics s) Hstatics)
+              (value_sets_are_in_static_arrays (state_statics s) Hstatics) _
               Hprim).
     intros w [<- | []]. exact Htuple.
   - intros x kind d body v Hexpr Heval. rewrite Hexpr in P. simpl in P.

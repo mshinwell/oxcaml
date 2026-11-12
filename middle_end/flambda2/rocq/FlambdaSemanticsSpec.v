@@ -439,6 +439,9 @@ Definition eval_static_const (vars : env) (const : static_const)
     let* v := eval_simple vars contents in
     Some (Static_boxed_number v)
   | Static_const_immutable_string bytes => Some (Static_string bytes)
+  | Static_const_immutable_value_array elements =>
+    let* vs := eval_simples vars elements in
+    Some (Static_immutable_array vs)
   end.
 
 (* What is made at a function slot of a set, by a [Let] or statically, is

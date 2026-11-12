@@ -66,6 +66,7 @@ let static_const_avoids d = function
   | Static_const_block (_, fields) -> simples_avoid d fields
   | Static_const_boxed_number contents -> simple_avoids d contents
   | Static_const_immutable_string _ -> true
+  | Static_const_immutable_value_array elements -> simples_avoid d elements
 
 (** val apply_cont_avoids : dropped -> apply_cont -> bool **)
 

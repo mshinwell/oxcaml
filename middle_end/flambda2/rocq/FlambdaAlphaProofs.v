@@ -165,7 +165,8 @@ Lemma rename_static_const_ext (const : static_const) :
   rename_static_const r const = rename_static_const r' const.
 Proof.
   destruct const
-    as [code slots | fslot syms decls slots | tag fields | s | bytes];
+    as [code slots | fslot syms decls slots | tag fields | s | bytes
+        | elements];
     simpl;
     rewrite ?rename_simple_ext, ?(map_ext _ _ rename_simple_ext);
     try reflexivity;
@@ -285,7 +286,8 @@ Lemma rename_static_const_compose (const : static_const) :
   = rename_static_const second (rename_static_const first const).
 Proof.
   destruct const
-    as [code slots | fslot syms decls slots | tag fields | s | bytes];
+    as [code slots | fslot syms decls slots | tag fields | s | bytes
+        | elements];
     simpl;
     rewrite ?rename_simple_compose, ?rename_simples_compose;
     try reflexivity;
@@ -479,12 +481,14 @@ Proof.
     destruct binding
       as [id c | id
          | sym
-             [code slots | fslot syms decls slots | tag fields | s | bytes]];
+             [code slots | fslot syms decls slots | tag fields | s | bytes
+              | elements]];
       simpl; try reflexivity.
     + apply var_free_in_value_slots_equivariant.
     + apply var_free_in_value_slots_equivariant.
     + apply var_free_in_simples_equivariant.
     + apply var_free_in_simple_equivariant.
+    + apply var_free_in_simples_equivariant.
 Qed.
 
 Lemma in_map_rename_variable (r : renaming) (x : variable)

@@ -199,7 +199,7 @@ Lemma static_const_scope_sub (syms syms' : list symbol)
 Proof.
   intros Hs Hi.
   destruct const as [code slots | slot symbols decls slots | tag fields
-                    | contents | bytes];
+                    | contents | bytes | elements];
     simpl; rewrite ?andb_true_iff.
   - intros [Hc Hslots]. split; [ exact (Hi code Hc) | ].
     exact (value_slots_scope_sub _ _ _ Hs Hslots).
@@ -210,6 +210,7 @@ Proof.
   - apply simples_scope_sub, Hs.
   - apply simple_scope_sub, Hs.
   - auto.
+  - apply simples_scope_sub, Hs.
 Qed.
 
 Lemma apply_scope_sub (syms syms' : list symbol) (ids ids' : list code_id)
@@ -1093,7 +1094,7 @@ Proof.
   intros Hs Hi.
   destruct allocated
     as [code slots | slot symbols decls slots | tag fields | contents
-       | bytes | c];
+       | bytes | elements | c];
     simpl; rewrite ?andb_true_iff.
   - intros [Hc Hslots]. split; [ exact (Hi code Hc) | ].
     exact (slots_among_sub _ _ _ _ _ Hs Hi Hslots).
@@ -1104,6 +1105,7 @@ Proof.
   - apply values_among_sub; assumption.
   - apply value_among_sub; assumption.
   - auto.
+  - apply values_among_sub; assumption.
   - auto.
 Qed.
 
@@ -1219,7 +1221,7 @@ Proof.
       as Hallocated.
     destruct allocated
       as [code aslots | aslot symbols adecls aslots | tag fields | contents
-         | bytes | ];
+         | bytes | elements | ];
       simpl in Hallocated; try discriminate.
     + intros [= <- <- <-]. apply andb_true_iff in Hallocated as [Hc Hslots].
       split; [ | exact Hslots ]. simpl. rewrite Hc. reflexivity.
@@ -1288,7 +1290,7 @@ Proof.
       as Hallocated.
     destruct allocated
       as [code aslots | aslot symbols adecls aslots | tag fields | contents
-         | bytes | ];
+         | bytes | elements | ];
       try discriminate.
     + exact Hunnamed.
     + destruct (Pos.eqb aslot move_from); [ | discriminate ].
@@ -1319,6 +1321,10 @@ Proof.
     pose proof (statics_among_lookup statics s _ Hstatics Hlookup)
       as Hfields.
     simpl in Hfields. apply forallb_forall. exact Hfields.
+  - intros s elements _ Hlookup.
+    pose proof (statics_among_lookup statics s _ Hstatics Hlookup)
+      as Helements.
+    simpl in Helements. apply forallb_forall. exact Helements.
   - apply forallb_forall. exact Hvs.
 Qed.
 
@@ -1391,7 +1397,7 @@ Lemma eval_static_const_among (vars : env) (const : static_const)
 Proof.
   intros Hvars.
   destruct const as [code slots | slot symbols decls slots | tag fields
-                    | contents | bytes];
+                    | contents | bytes | elements];
     simpl.
   - intros H. apply andb_true_iff in H as [Hc Hslots].
     destruct (eval_value_slots vars slots) as [evaluated | ] eqn:Heval;
@@ -1415,6 +1421,11 @@ Proof.
     simpl. intros [= <-]. simpl.
     exact (eval_simple_among vars contents v Hvars Hcontents Heval).
   - intros _ [= <-]. reflexivity.
+  - intros Helements.
+    destruct (eval_simples vars elements) as [vs | ] eqn:Heval;
+      [ | discriminate ].
+    simpl. intros [= <-]. simpl.
+    exact (eval_simples_among vars elements Hvars vs Helements Heval).
 Qed.
 
 End Evaluation.

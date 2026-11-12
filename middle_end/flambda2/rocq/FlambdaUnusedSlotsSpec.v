@@ -105,7 +105,8 @@ Definition drop_slots_static_const (dropped : list value_slot)
     Static_const_closure_of_set slot closure_symbols function_decls
       (keep_slots dropped value_slots)
   | Static_const_block _ _ | Static_const_boxed_number _
-  | Static_const_immutable_string _ =>
+  | Static_const_immutable_string _
+  | Static_const_immutable_value_array _ =>
     const
   end.
 

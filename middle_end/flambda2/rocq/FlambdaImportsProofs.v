@@ -157,8 +157,8 @@ Proof.
         is_allocated, eval_reinterpret_64_bit_word;
       try destruct reinterpret;
       rewrite ?int_of_value_symbol;
-      cbn [block_of closure_of boxed_number_of string_of bound_if_symbol
-           partial_application_of kind_of_value];
+      cbn [block_of closure_of boxed_number_of string_of array_of
+           bound_if_symbol partial_application_of kind_of_value];
       rewrite ?Hs; simpl;
       try discriminate.
     + destruct variant_only; discriminate.
@@ -175,9 +175,11 @@ Proof.
          [ | discriminate ]);
       apply imported_of_symbol in Hs as [-> Hs];
       revert Heval;
-      unfold eval_string_load; rewrite ?int_of_value_symbol;
-      cbn [string_of]; rewrite ?Hs;
+      unfold eval_string_load, array_loaded, array_index;
+      rewrite ?int_of_value_symbol;
+      cbn [string_of array_of]; rewrite ?Hs;
       try discriminate.
+    + destruct (array_of statics v1); discriminate.
     + destruct (string_of statics v1); discriminate.
     + destruct (int_of_value kind v1); discriminate.
     + destruct (int_of_value kind v1); discriminate.

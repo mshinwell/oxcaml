@@ -422,7 +422,7 @@ Lemma static_const_total_evaluates (vars : env) (const : static_const) :
     eval_static_const vars const = Some allocated.
 Proof.
   destruct const as [code slots | slot symbols decls slots | tag fields
-    | contents | bytes]; simpl.
+    | contents | bytes | elements]; simpl.
   - intros Hplain.
     destruct (plain_value_slots_evaluate vars slots Hplain) as [vs ->].
     simpl. eauto.
@@ -436,6 +436,9 @@ Proof.
     destruct (plain_simple_evaluates vars contents Hplain) as [v ->].
     simpl. eauto.
   - eauto.
+  - intros Hplain.
+    destruct (plain_simples_evaluate vars elements Hplain) as [vs ->].
+    simpl. eauto.
 Qed.
 
 (* ======================================================================== *)

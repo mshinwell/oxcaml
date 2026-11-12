@@ -134,6 +134,8 @@ Definition closed_static_const (const : static_const) : bool :=
   | Static_const_closure_of_set _ _ _ value_slots =>
     forallb (fun slot => closed_simple (snd slot)) value_slots
   | Static_const_block _ fields => forallb closed_simple fields
+  | Static_const_immutable_value_array elements =>
+    forallb closed_simple elements
   | Static_const_boxed_number contents => closed_simple contents
   | Static_const_immutable_string _ => true
   end.

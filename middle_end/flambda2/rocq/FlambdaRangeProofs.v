@@ -281,7 +281,8 @@ Lemma eval_static_const_in_range (vars : env) (const : static_const)
 Proof.
   intros Hvars.
   destruct const
-    as [code slots | fslot syms decls slots | tag fields | contents | bytes];
+    as [code slots | fslot syms decls slots | tag fields | contents | bytes
+        | elements];
     simpl; intros Hconst.
   - destruct (eval_value_slots vars slots) as [evaluated | ] eqn:Heval;
       [ | discriminate ].
@@ -302,6 +303,10 @@ Proof.
     simpl. intros [= <-].
     exact (eval_simple_in_range vars Hvars contents v Hconst Heval).
   - intros [= <-]. exact Hconst.
+  - destruct (eval_simples vars elements) as [vs | ] eqn:Heval;
+      [ | discriminate ].
+    simpl. intros [= <-].
+    exact (eval_simples_in_range vars Hvars elements vs Hconst Heval).
 Qed.
 
 Lemma eval_static_bindings_in_range (vars : env)

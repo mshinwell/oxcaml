@@ -151,6 +151,7 @@ Definition allocated_avoids (allocated : statically_allocated_value) : bool :=
     closure_symbols_avoid D symbols && function_decls_avoid D decls
     && slot_values_avoid slots
   | Static_block _ fields => forallb (value_avoids D) fields
+  | Static_immutable_array elements => forallb (value_avoids D) elements
   | Static_boxed_number contents => value_avoids D contents
   | Static_string _ | Static_imported _ => true
   end.
@@ -311,7 +312,7 @@ Proof.
     intros called slots.
     destruct (lookup s (static_values statics))
       as [[code slots' | fslot syms decls slots' | tag fields | contents
-          | bytes | ] | ] eqn:Hlookup;
+          | bytes | elements | ] | ] eqn:Hlookup;
       try discriminate.
     + intros [= <- <-].
       pose proof (Hvalues_avoid s _ Hkept Hlookup) as Hallocated.
@@ -360,7 +361,7 @@ Proof.
     intros at_slot decls slots.
     destruct (lookup s (static_values statics))
       as [[code slots' | fslot syms decls' slots' | tag fields | contents
-          | bytes | ] | ] eqn:Hlookup;
+          | bytes | elements | ] | ] eqn:Hlookup;
       try discriminate;
       pose proof (Hvalues_avoid s _ Hkept Hlookup) as Hallocated;
       simpl in Hallocated; apply andb_true_iff in Hallocated as [_ Hslots].
@@ -433,7 +434,7 @@ Proof.
   - simpl in Hv. rewrite (Hvalues s Hv). split; [ reflexivity | ].
     destruct (lookup s (static_values statics))
       as [[code slots' | fslot syms decls slots' | tag fields | contents
-          | bytes | ] | ] eqn:Hlookup;
+          | bytes | elements | ] | ] eqn:Hlookup;
       try discriminate.
     + exact Hunnamed.
     + pose proof (Hvalues_avoid s _ Hv Hlookup) as Hallocated.
@@ -470,6 +471,9 @@ Proof.
   - intros s tag fields Hkept Hlookup.
     pose proof (Hvalues_avoid s _ Hkept Hlookup) as Hfields.
     simpl in Hfields. apply forallb_forall. exact Hfields.
+  - intros s elements Hkept Hlookup.
+    pose proof (Hvalues_avoid s _ Hkept Hlookup) as Helements.
+    simpl in Helements. apply forallb_forall. exact Helements.
   - apply forallb_forall. exact Hvs.
 Qed.
 
@@ -548,7 +552,8 @@ Lemma eval_static_const_avoids (vars : env) (const : static_const)
 Proof.
   intros Hvars.
   destruct const
-    as [code slots | fslot syms decls slots | tag fields | contents | bytes];
+    as [code slots | fslot syms decls slots | tag fields | contents | bytes
+        | elements];
     simpl; intros Hconst.
   - apply andb_true_iff in Hconst as [Hcode Hslots].
     destruct (eval_value_slots vars slots) as [evaluated | ] eqn:Heval;
@@ -570,6 +575,10 @@ Proof.
     simpl. intros [= <-]. simpl.
     exact (eval_simple_avoids vars contents v Hvars Hconst Heval).
   - intros [= <-]. reflexivity.
+  - destruct (eval_simples vars elements) as [vs | ] eqn:Heval;
+      [ | discriminate ].
+    simpl. intros [= <-]. simpl.
+    exact (eval_simples_avoid vars elements Hvars vs Hconst Heval).
 Qed.
 
 (* A group of bindings and the group erased, added to static environments

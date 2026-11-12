@@ -185,6 +185,7 @@ type static_const =
   | Static_const_block of coq_Z * simple list
   | Static_const_boxed_number of simple
   | Static_const_immutable_string of coq_Z list
+  | Static_const_immutable_value_array of simple list
 
 (** val simple_eq_dec : simple -> simple -> bool **)
 
@@ -326,6 +327,11 @@ let static_const_eq_dec const0 const' =
   | Static_const_immutable_string bytes -> (
     match const' with
     | Static_const_immutable_string bytes0 -> list_eq_dec Z.eq_dec bytes bytes0
+    | _ -> false)
+  | Static_const_immutable_value_array elements -> (
+    match const' with
+    | Static_const_immutable_value_array elements0 ->
+      list_eq_dec simple_eq_dec elements elements0
     | _ -> false)
 
 type raise_kind =

@@ -96,13 +96,14 @@ Lemma eval_static_const_fresh (x : variable) (v : value) (vars : env)
   eval_static_const ((x, v) :: vars) const = eval_static_const vars const.
 Proof.
   destruct const as [code slots | fslot syms decls slots | tag fields
-    | contents | bytes];
+    | contents | bytes | elements];
     simpl; intros Hfresh.
   - rewrite (eval_value_slots_fresh x v vars slots Hfresh). reflexivity.
   - rewrite (eval_value_slots_fresh x v vars slots Hfresh). reflexivity.
   - rewrite (eval_simples_fresh x v vars fields Hfresh). reflexivity.
   - rewrite (eval_simple_fresh x v vars contents Hfresh). reflexivity.
   - reflexivity.
+  - rewrite (eval_simples_fresh x v vars elements Hfresh). reflexivity.
 Qed.
 
 (* ======================================================================== *)
@@ -220,7 +221,7 @@ Proof.
   destruct (Hhold (s, const) Hknown) as (allocated & Hconst & Hlookup).
   simpl in Hconst, Hlookup.
   destruct const as [code slots | fslot syms decls slots | tag fields
-    | contents' | bytes];
+    | contents' | bytes | elements];
     simpl; try discriminate.
   - simpl in Hconst.
     destruct (eval_value_slots vars slots) as [vs | ] eqn:Hslots;
@@ -307,7 +308,7 @@ Proof.
   destruct (Hhold (s, const) Hknown) as (allocated & Hconst & Hlookup).
   simpl in Hconst, Hlookup.
   destruct const as [code' slots | fslot syms decls slots | tag fields
-    | contents | bytes];
+    | contents | bytes | elements];
     simpl; try discriminate.
   - intros [= ->]. simpl in Hconst.
     destruct (eval_value_slots vars slots) as [vs | ]; [ | discriminate ].
@@ -478,6 +479,7 @@ Proof.
   - apply var_in_simples_renamed.
   - apply var_in_simple_renamed.
   - reflexivity.
+  - apply var_in_simples_renamed.
 Qed.
 
 Lemma forget_slot_var_renamed (r : renaming) (x : variable)

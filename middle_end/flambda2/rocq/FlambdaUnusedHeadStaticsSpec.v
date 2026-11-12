@@ -51,9 +51,9 @@
    - A binding removed may have had no value: the group that binds it
      is then undefined, and the term without it is not. So each constant
      removed must have a value whatever the environment
-     ([static_const_total]): its fields or value slots are constants
-     and symbols, no variable, and a closure of a set is at a slot that
-     its set has.
+     ([static_const_total]): its fields, elements or value slots are
+     constants and symbols, no variable, and a closure of a set is at a
+     slot that its set has.
    - A binding of a name that is bound already is undefined
      (FlambdaSemanticsSpec.eval_static_bindings). So the statement is of
      a term run on its own, from empty environments, and the bindings
@@ -123,6 +123,8 @@ Definition static_const_total (const : static_const) : bool :=
     | None => false
     end
   | Static_const_block _ fields => forallb plain_simple fields
+  | Static_const_immutable_value_array elements =>
+    forallb plain_simple elements
   | Static_const_boxed_number contents => plain_simple contents
   | Static_const_immutable_string _ => true
   end.

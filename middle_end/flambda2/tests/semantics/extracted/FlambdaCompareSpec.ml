@@ -186,6 +186,11 @@ let static_const_eqb vm const0 const' =
     match const' with
     | Static_const_immutable_string bytes' -> forall2b Z.eqb bytes bytes'
     | _ -> false)
+  | Static_const_immutable_value_array elements -> (
+    match const' with
+    | Static_const_immutable_value_array elements' ->
+      simples_eqb vm elements elements'
+    | _ -> false)
 
 (** val call_kind_eqb : call_kind -> call_kind -> bool **)
 

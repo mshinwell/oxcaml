@@ -134,6 +134,10 @@ let eval_static_const vars = function
     | Some v -> Some (Static_boxed_number v)
     | None -> None)
   | Static_const_immutable_string bytes -> Some (Static_string bytes)
+  | Static_const_immutable_value_array elements -> (
+    match eval_simples vars elements with
+    | Some vs -> Some (Static_immutable_array vs)
+    | None -> None)
 
 (** val eval_static_bindings : env -> static_binding list -> static_env ->
     static_env option **)

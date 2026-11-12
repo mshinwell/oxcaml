@@ -149,6 +149,8 @@ Definition static_const_statics_in_scope (syms : list symbol)
     && all_among (map snd function_decls) ids
     && value_slots_statics_in_scope syms value_slots
   | Static_const_block _ fields => simples_statics_in_scope syms fields
+  | Static_const_immutable_value_array elements =>
+    simples_statics_in_scope syms elements
   | Static_const_boxed_number contents =>
     simple_statics_in_scope syms contents
   | Static_const_immutable_string _ => true
@@ -178,7 +180,8 @@ Definition is_closure_const (const : static_const) : bool :=
   | Static_const_set_of_closures _ _ | Static_const_closure_of_set _ _ _ _ =>
     true
   | Static_const_block _ _ | Static_const_boxed_number _
-  | Static_const_immutable_string _ =>
+  | Static_const_immutable_string _
+  | Static_const_immutable_value_array _ =>
     false
   end.
 
@@ -421,6 +424,8 @@ Definition allocated_statics_among (syms : list symbol) (ids : list code_id)
     && all_among (map snd function_decls) ids
     && forallb (fun '(_, v) => value_statics_among syms ids v) value_slots
   | Static_block _ fields => forallb (value_statics_among syms ids) fields
+  | Static_immutable_array elements =>
+    forallb (value_statics_among syms ids) elements
   | Static_boxed_number contents => value_statics_among syms ids contents
   | Static_string _ | Static_imported _ => true
   end.

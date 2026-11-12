@@ -94,6 +94,8 @@ let rename_static_const r = function
   | Static_const_boxed_number contents ->
     Static_const_boxed_number (rename_simple r contents)
   | Static_const_immutable_string bytes -> Static_const_immutable_string bytes
+  | Static_const_immutable_value_array elements ->
+    Static_const_immutable_value_array (map (rename_simple r) elements)
 
 (** val rename_apply : renaming -> apply_expr -> apply_expr **)
 

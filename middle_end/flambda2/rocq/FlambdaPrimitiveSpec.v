@@ -84,13 +84,18 @@
    static environment, but only on what the symbols among its arguments
    are bound to ([eval_prim_static_values_statement]).
 
-   Arrays. No value here is an array: the only arrays of the model are
-   those that have an identity, which are cells of the heap of C4's
-   prototype (FlambdaHeapSpec.v). So [eval_prim] has no value on
-   [Array_length] and on [Array_load], as it has none on the primitives
-   of the heap. The section "Arrays" says what the four primitives of
-   arrays compute on the elements of an array, which is what
-   FlambdaHeapSpec.v applies to a cell; it is to be reviewed against
+   Arrays. An array that has an identity is a cell of the heap
+   (FlambdaHeapSpec.v), and [eval_prim] has no value on an access to
+   one, as it has none on the primitives of the heap. An immutable
+   array of values is what a symbol may be bound to
+   (FlambdaValueSpec.array_of): the table that Simplify makes of a
+   [Switch] whose arms give one continuation constants. It is static
+   data and not a location, and [eval_prim] has a value on
+   [Array_length] and on [Array_load] of such a symbol. The section
+   "Arrays" says what the four primitives of arrays compute on the
+   elements of an array, which is what FlambdaHeapSpec.v applies to a
+   cell and what is applied here to the elements of a static array;
+   it is to be reviewed against
    [Simplify_common.specialise_array_kind] and the functions for
    arrays of the four files of Simplify above, and against
    [Lambda_to_flambda_primitives] for the checks of bounds that the
@@ -356,9 +361,11 @@ Definition eval_int_comp (width : Z) (behaviour : int_comparison_behaviour)
 
 (* What the primitives of arrays compute on the elements of an array,
    given as a list, and on the kind that the array was made at. The
-   array itself is a cell of the heap (FlambdaHeapSpec.v); an immutable
-   array, when the values of the model have one, is to be read with the
-   same functions.
+   array itself is a cell of the heap (FlambdaHeapSpec.v), or, for an
+   immutable array, what a symbol is bound to
+   (FlambdaValueSpec.array_of), which [eval_prim] reads with the same
+   functions; a static array has no kind, and only its length and its
+   elements are read.
 
    An array keeps the kind it was made at, and each of its elements is
    a value that this kind holds ([array_element_ok]): a tagged
@@ -532,19 +539,19 @@ Definition naked_bool (b : bool) : value :=
    to be a variant that is not null
    ([Flambda2_types.add_is_int_relation]), and
    [Provers.prove_is_int_generic_value] answers [Invalid] on closures,
-   boxed numbers and strings. The machine computes the low bit of
-   anything. Without [variant_only], the primitive also answers no on
-   every other allocated value. It has no value on null, on poison, or
-   on a symbol bound to nothing; on a poison constant Simplify folds it
-   to 1. *)
+   boxed numbers, strings and arrays. The machine computes the low bit
+   of anything. Without [variant_only], the primitive also answers no
+   on every other allocated value. It has no value on null, on poison,
+   or on a symbol bound to nothing; on a poison constant Simplify folds
+   it to 1. *)
 (* CR mshinwell: With [variant_only], [Is_int] has no value on a closure,
-   a boxed number or a string. The machine computes the low bit of the
-   word and answers 0; Simplify answers [Invalid]. That the front end
-   applies the variant-only form to variants only is nowhere checked or
-   written down. It would be wrong if code that the machine runs
-   applies it to something else that is not ill-kinded: then Simplify
-   removes code that runs, and the model, by making it undefined, does
-   not say so. Decisions D5 and D22. *)
+   a boxed number, a string or an immutable array. The machine computes
+   the low bit of the word and answers 0; Simplify answers [Invalid].
+   That the front end applies the variant-only form to variants only is
+   nowhere checked or written down. It would be wrong if code that the
+   machine runs applies it to something else that is not ill-kinded:
+   then Simplify removes code that runs, and the model, by making it
+   undefined, does not say so. Decisions D5 and D22. *)
 (* CR mshinwell: [Is_int] has no value on null, with or without
    [variant_only], where the machine answers 0. With [variant_only]
    Simplify makes it [Invalid]; without, Simplify claims nothing, and
@@ -690,9 +697,13 @@ Definition eval_reinterpret_64_bit_word
 
 (* A unary primitive applied to a value.
    - [Get_tag] is the tag of a block, and has no value on anything else,
-     a closure, a boxed number and a string included: Simplify takes its
-     argument to be a variant that is not null
-     ([Flambda2_types.add_get_tag_relation]).
+     a closure, a boxed number, a string and an immutable array
+     included: Simplify takes its argument to be a variant that is not
+     null ([Flambda2_types.add_get_tag_relation]).
+   - [Array_length] is the number of elements of an immutable array
+     that a symbol is bound to ([array_length_of], above), and has no
+     value on anything else. An array of the heap is a location, which
+     FlambdaHeapSpec.v reads.
    - [String_length] is the number of bytes of an immutable string, and
      has no value on anything else: Simplify makes it [Invalid] where
      its argument cannot be a string
@@ -732,13 +743,14 @@ Definition eval_reinterpret_64_bit_word
    - [Reinterpret_64_bit_word] reads the 64 bits of one integer as
      another ([eval_reinterpret_64_bit_word], above). *)
 (* CR mshinwell: [Get_tag] has no value on what is not a block: a tagged
-   immediate, null, a closure, a boxed number, a string. On anything
-   allocated the machine reads the tag in the header. Simplify makes it
-   [Invalid] on null and on a boxed number, and leaves it alone on a
-   tagged immediate; the unboxing of variants records the tag of a
-   scrutinee that may be an immediate. It would be wrong if the
-   compiler makes a [Get_tag] that is executed on a closure, a boxed
-   number or a string and uses the result. Decisions D5 and D22. *)
+   immediate, null, a closure, a boxed number, a string, an immutable
+   array. On anything allocated the machine reads the tag in the
+   header. Simplify makes it [Invalid] on null and on a boxed number,
+   and leaves it alone on a tagged immediate; the unboxing of variants
+   records the tag of a scrutinee that may be an immediate. It would be
+   wrong if the compiler makes a [Get_tag] that is executed on a
+   closure, a boxed number, a string or an array and uses the result.
+   Decisions D5 and D22. *)
 (* CR mshinwell: [Box_number] has no value on a poison constant, and
    [Unbox_number] none on a boxed number whose contents are poison,
    although such a box is a boxed number for [Is_null] and [Is_int]
@@ -768,8 +780,12 @@ Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
   | Get_tag =>
     let* '(tag, _) := block_of statics v in
     Some (Value_const (Naked_immediate tag))
-  (* No value is an array (the section "Arrays"). *)
-  | Array_length _ => None
+  (* The length of an immutable array that a symbol is bound to. An
+     array that can be written is a cell of the heap, and has no value
+     here (the section "Arrays"). *)
+  | Array_length _ =>
+    let* elements := array_of statics v in
+    array_length_of elements
   | String_length =>
     let* bytes := string_of statics v in
     let length := Z.of_nat (length bytes) in
@@ -891,9 +907,10 @@ Definition eval_string_load (statics : static_env)
 
    It has a value on two tagged immediates: whether they are the same
    integer. And on a tagged immediate against an allocated value (a
-   block, a closure, a boxed number, a string, or a symbol bound to
-   one): they are not the same, as the word of the one is odd and that
-   of the other a pointer, and as [prove_physical_equality] answers.
+   block, a closure, a boxed number, a string, an immutable array, or
+   a symbol bound to one): they are not the same, as the word of the
+   one is odd and that of the other a pointer, and as
+   [prove_physical_equality] answers.
 
    An imported symbol ([FlambdaValueSpec.imported_of]) of either class
    is not a tagged immediate either: it is a pointer.
@@ -903,12 +920,13 @@ Definition eval_string_load (statics : static_env)
    ([FlambdaValueSpec.identity_of]). Two identities are the same when
    they are one symbol: [prove_physical_equality] answers so of any two
    symbols. An identity is not an allocated value (a block, a closure,
-   a boxed number, a string, or a symbol bound to one), and is not an
-   imported symbol of the class [Import_data]. This is what a handler
-   does to tell which exception it has caught: it compares the
-   exception, or its first field, with the symbol of a predefined
-   exception (lambda/matching.ml, [combine_extension_constructor]), and
-   what it caught may be a block: an exception with arguments.
+   a boxed number, a string, an immutable array, or a symbol bound to
+   one), and is not an imported symbol of the class [Import_data]. This
+   is what a handler does to tell which exception it has caught: it
+   compares the exception, or its first field, with the symbol of a
+   predefined exception (lambda/matching.ml,
+   [combine_extension_constructor]), and what it caught may be a block:
+   an exception with arguments.
 
    It has no value on anything else. So an imported symbol of the class
    [Import_data] is as an immutable allocated value is: the comparison
@@ -996,8 +1014,27 @@ Definition eval_phys_equal (statics : static_env) (v1 v2 : value)
 Definition eval_binary_primitive (statics : static_env)
     (p : binary_primitive) (v1 v2 : value) : option value :=
   match p with
-  (* No value is an array (the section "Arrays"). *)
-  | Array_load _ _ _ => None
+  (* A load from an immutable array that a symbol is bound to: the
+     element at the index, where the index is one that the array has
+     and the element one that the load kind takes
+     ([array_loaded]). The array kind and the mark that the load
+     carries are not looked at. An array that can be written is a cell
+     of the heap, and has no value here (the section "Arrays"). *)
+  (* CR mshinwell: A static immutable array is read at any load kind
+     that its elements fit: a table of tagged immediates has a value
+     read at [Load_values]. The compiler's constant has no kind
+     either ([Static_const.Immutable_value_array]); the symbol has the
+     type of an array of the kind that Simplify made it for
+     (simplify/simplify_switch_expr.ml,
+     [rebuild_mergeable_argument]), and Simplify makes no load from it
+     at another kind. Reading it at a wider kind is what a load at
+     [Values] of an [int array] does, and what is done here for the
+     arrays of the heap. It would be wrong if a load at a kind other
+     than the one of the symbol's type had to be [Invalid]. Section 3
+     of requests/P1-immutable-arrays.md. *)
+  | Array_load _ load_kind _ =>
+    let* elements := array_of statics v1 in
+    array_loaded load_kind elements v2
   | String_or_bigstring_load width => eval_string_load statics width v1 v2
   | Phys_equal op =>
     let* same := eval_phys_equal statics v1 v2 in
@@ -1324,6 +1361,7 @@ Definition allocated_in_range (allocated : statically_allocated_value)
     tag_in_range tag && forallb value_in_range fields
   | Static_boxed_number contents => value_in_range contents
   | Static_string bytes => forallb byte_in_range bytes
+  | Static_immutable_array elements => forallb value_in_range elements
   | Static_imported _ => true
   end.
 
@@ -1514,11 +1552,13 @@ Definition eval_prim_kinds_statement : Prop :=
     ∧ kind_of_value v = prim_result_kind p.
 
 (* A primitive makes its value out of its arguments: it returns a number,
-   one of its arguments, a block of them, or a field of a block that is
-   one of them. So a property of values that holds of numbers, that holds
-   of a block exactly when it holds of its fields, and that holds of the
-   fields of the static block that a symbol with the property is bound
-   to, holds of the value of a primitive whose arguments have it. That no
+   one of its arguments, a block of them, a field of a block that is
+   one of them, or an element of an immutable array that is one of
+   them. So a property of values that holds of numbers, that holds of a
+   block exactly when it holds of its fields, and that holds of the
+   fields of the static block, and of the elements of the static
+   array, that a symbol with the property is bound to, holds of the
+   value of a primitive whose arguments have it. That no
    primitive brings in a symbol or a code id is a case
    (FlambdaUnusedStaticsProofs.eval_prim_avoids). *)
 Definition holds_of_numbers (P : value -> Prop) : Prop :=
@@ -1535,12 +1575,21 @@ Definition holds_in_static_blocks (statics : static_env)
     lookup s (static_values statics) = Some (Static_block tag fields) ->
     ∀ v : value, v ∈ fields -> P v.
 
+Definition holds_in_static_arrays (statics : static_env)
+    (P : value -> Prop) : Prop :=
+  ∀ (s : symbol) (elements : list value),
+    P (Value_symbol s) ->
+    lookup s (static_values statics)
+    = Some (Static_immutable_array elements) ->
+    ∀ v : value, v ∈ elements -> P v.
+
 Definition eval_prim_preserves_statement : Prop :=
   ∀ (P : value -> Prop) (statics : static_env) (p : prim) (vs : list value)
     (v : value),
     holds_of_numbers P ->
     holds_of_blocks P ->
     holds_in_static_blocks statics P ->
+    holds_in_static_arrays statics P ->
     (∀ arg : value, arg ∈ vs -> P arg) ->
     eval_prim statics p vs = Some v ->
     P v.
@@ -1606,9 +1655,10 @@ Definition phys_equal_same_statement : Prop :=
    - what an observation answers of the first value it answers of the
      second, with related parts; if the first is a closure or a partial
      application so is the second; if the first is not a symbol bound
-     to nothing nor is the second; and if the first is an imported
-     symbol the second is the same imported symbol, of the same class
-     ([relates_observations]).
+     to nothing nor is the second; if the first is an imported symbol
+     the second is the same imported symbol, of the same class; and if
+     the first is an immutable array so is the second, with related
+     elements ([relates_observations]).
    Equality is such a relation when the two static environments are the
    same. So is the relation between a value and the same value with a
    symbol in place of some of the blocks, boxed numbers and closures in
@@ -1629,8 +1679,8 @@ Definition phys_equal_same_statement : Prop :=
    immutable allocated value. In particular [Phys_equal] can have no
    value on two of them, or it would tell a block from a symbol bound to
    an equal block. What it answers of an imported symbol does depend on
-   its class, and of an identity on which symbol it is, and the last
-   part of the premise is for that.
+   its class, and of an identity on which symbol it is, and the part of
+   the premise on imported symbols is for that.
    With a heap the premise needs one more part, that a location is
    related to a location only. *)
 Definition relates_constants (R : value -> value -> Prop) : Prop :=
@@ -1666,7 +1716,12 @@ Definition relates_observations (R : value -> value -> Prop)
        bound_if_symbol statics' v' = true)
     ∧ (∀ i : symbol * import_class,
         imported_of statics v = Some i ->
-        imported_of statics' v' = Some i).
+        imported_of statics' v' = Some i)
+    ∧ (∀ elements : list value,
+        array_of statics v = Some elements ->
+        ∃ elements' : list value,
+          array_of statics' v' = Some elements'
+          ∧ Forall2 R elements elements').
 
 Definition respects_observations (R : value -> value -> Prop)
     (statics statics' : static_env) : Prop :=

@@ -51,8 +51,10 @@
      ([Function_declarations.Deleted]), the allocation mode (a set on the
      stack is not told from one on the heap), [only_full_applications],
      and everything about its layout in memory;
-   - the static constants that are arrays or float blocks, and mutable
-     blocks and strings;
+   - the static constants that are arrays of naked numbers or of
+     floats, the empty array or float blocks, and mutable blocks and
+     strings (an immutable array of values is here:
+     [Static_const_immutable_value_array]);
    - [Rec_info];
    - the other call kinds (methods, C calls, effects), [Never_returns],
      partial and over-application, and the modes and inlining attributes
@@ -385,7 +387,9 @@ Inductive named : Type :=
 
 (* [Static_const.t]: what a symbol may be bound to. Its fields are
    [Simple]s, where the compiler has, for a boxed number, a constant or a
-   variable. A block is immutable.
+   variable. A block is immutable. [Static_const_immutable_value_array]
+   is the compiler's [Immutable_value_array], of its elements: the
+   constant has no array kind.
 
    [Static_const_closure_of_set] is the closure at [slot] of a static set
    of closures; [closure_symbols] are the symbols that the closures of the
@@ -400,7 +404,8 @@ Inductive static_const : Type :=
       (value_slots : list (value_slot * simple))
   | Static_const_block (tag : Z) (fields : list simple)
   | Static_const_boxed_number (contents : simple)
-  | Static_const_immutable_string (bytes : list Z).
+  | Static_const_immutable_string (bytes : list Z)
+  | Static_const_immutable_value_array (elements : list simple).
 
 (* Whether two simples, or two static constants, are the same. *)
 Definition simple_eq_dec : forall s s' : simple, {s = s'} + {s <> s'}.

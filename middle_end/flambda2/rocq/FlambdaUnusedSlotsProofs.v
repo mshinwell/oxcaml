@@ -96,7 +96,7 @@ Definition trim_allocated (allocated : statically_allocated_value)
   | Static_closure_of_set slot symbols decls slots =>
     Static_closure_of_set slot symbols decls (keep_slots D slots)
   | Static_block _ _ | Static_boxed_number _ | Static_string _
-  | Static_imported _ =>
+  | Static_immutable_array _ | Static_imported _ =>
     allocated
   end.
 
@@ -170,6 +170,13 @@ Proof.
   destruct (lookup s (static_values statics)) as [[] | ]; reflexivity.
 Qed.
 
+Lemma array_of_drop (statics : static_env) (v : value) :
+  array_of (trim_statics statics) v = array_of statics v.
+Proof.
+  destruct v; simpl; try reflexivity. lookup_trimmed.
+  destruct (lookup s (static_values statics)) as [[] | ]; reflexivity.
+Qed.
+
 Lemma bound_if_symbol_drop (statics : static_env) (v : value) :
   bound_if_symbol (trim_statics statics) v = bound_if_symbol statics v.
 Proof.
@@ -215,7 +222,7 @@ Proof.
   - intros H. exists slots. split; [ exact H | intros kept _; reflexivity ].
   - lookup_trimmed.
     destruct (lookup s (static_values statics))
-      as [[ acode aslots | aslot asyms adecls aslots | | | | ] | ];
+      as [[ acode aslots | aslot asyms adecls aslots | | | | | ] | ];
       simpl; try discriminate.
     + intros [= <- <-]. eexists. split; [ reflexivity | ].
       intros kept Hkept. apply lookup_keep_slots, Hkept.
@@ -240,7 +247,7 @@ Proof.
   - intros H. exists slots. split; [ exact H | intros kept _; reflexivity ].
   - lookup_trimmed.
     destruct (lookup s (static_values statics))
-      as [[ acode aslots | aslot asyms adecls aslots | | | | ] | ];
+      as [[ acode aslots | aslot asyms adecls aslots | | | | | ] | ];
       simpl; try discriminate.
     + intros [= <- <- <-]. eexists. split; [ reflexivity | ].
       intros kept Hkept. apply lookup_keep_slots, Hkept.
@@ -260,7 +267,9 @@ Proof.
     intros tag fields fields' Hfields.
     rewrite (forall2_eq fields fields' Hfields). reflexivity.
   - intros v v' <-.
-    split; [ | split; [ | split; [ | split; [ | split; [ | split ] ] ] ] ].
+    split;
+      [ | split; [ | split; [ | split; [ | split; [ | split; [ | split ] ] ] ] ]
+      ].
     + intros tag fields H. exists fields. rewrite block_of_drop.
       split; [ exact H | apply forall2_eq_refl ].
     + intros c. rewrite boxed_number_of_drop. exact (fun H => H).
@@ -272,6 +281,8 @@ Proof.
     + exact (fun H => H).
     + rewrite bound_if_symbol_drop. exact (fun H => H).
     + intros s. rewrite imported_of_drop. exact (fun H => H).
+    + intros elements H. exists elements. rewrite array_of_drop.
+      split; [ exact H | apply forall2_eq_refl ].
 Qed.
 
 Lemma eval_prim_drop (statics : static_env) (p : prim) (vs : list value)
@@ -348,7 +359,8 @@ Lemma eval_static_const_drop (vars : env) (const : static_const)
   = Some (trim_allocated allocated).
 Proof.
   destruct const
-    as [code slots | fslot syms decls slots | tag fields | contents | bytes];
+    as [code slots | fslot syms decls slots | tag fields | contents | bytes
+        | elements];
     simpl.
   - destruct (eval_value_slots vars slots) as [vs | ] eqn:Hslots; simpl;
       [ | discriminate ].
@@ -364,6 +376,8 @@ Proof.
   - destruct (eval_simple vars contents); simpl; [ | discriminate ].
     intros [= <-]. reflexivity.
   - intros [= <-]. reflexivity.
+  - destruct (eval_simples vars elements); simpl; [ | discriminate ].
+    intros [= <-]. reflexivity.
 Qed.
 
 Lemma eval_static_bindings_drop (vars : env)

@@ -118,12 +118,14 @@ Lemma eval_static_const_renamed (r : renaming) (const : static_const)
 Proof.
   intros Hvars.
   destruct const
-    as [code slots | fslot syms decls slots | tag fields | s | bytes]; simpl.
+    as [code slots | fslot syms decls slots | tag fields | s | bytes
+        | elements]; simpl.
   - rewrite (eval_value_slots_renamed r slots vars vars' Hvars). reflexivity.
   - rewrite (eval_value_slots_renamed r slots vars vars' Hvars). reflexivity.
   - rewrite (eval_simples_renamed r fields vars vars' Hvars). reflexivity.
   - rewrite (eval_simple_renamed r s vars vars' Hvars). reflexivity.
   - reflexivity.
+  - rewrite (eval_simples_renamed r elements vars vars' Hvars). reflexivity.
 Qed.
 
 

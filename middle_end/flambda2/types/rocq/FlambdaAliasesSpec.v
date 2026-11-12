@@ -149,6 +149,8 @@ Definition canonical_static_const (tenv : typing_env) (const : static_const)
   | Static_const_boxed_number contents =>
     Static_const_boxed_number (canonical_simple tenv contents)
   | Static_const_immutable_string bytes => Static_const_immutable_string bytes
+  | Static_const_immutable_value_array elements =>
+    Static_const_immutable_value_array (map (canonical_simple tenv) elements)
   end.
 
 Definition canonical_static_binding (tenv : typing_env)

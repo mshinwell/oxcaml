@@ -306,6 +306,8 @@ let static_const_in_range = function
     tag_in_range tag && forallb simple_in_range fields
   | Static_const_boxed_number contents -> simple_in_range contents
   | Static_const_immutable_string bytes -> forallb byte_in_range bytes
+  | Static_const_immutable_value_array elements ->
+    forallb simple_in_range elements
 
 (** val apply_cont_in_range : apply_cont -> bool **)
 

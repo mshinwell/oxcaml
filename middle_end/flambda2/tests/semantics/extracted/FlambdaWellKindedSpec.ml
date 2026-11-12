@@ -111,6 +111,8 @@ let static_const_well_kinded slots kinds = function
     | Some kind -> is_some (boxable_number_of_kind kind)
     | None -> false)
   | Static_const_immutable_string _ -> true
+  | Static_const_immutable_value_array elements ->
+    forallb (fun s -> has_kind (kind_of_simple kinds s) Value) elements
 
 (** val trap_action_in_scope : arity_env -> apply_cont -> bool **)
 

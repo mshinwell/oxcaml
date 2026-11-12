@@ -101,6 +101,7 @@ type static_const =
   | Static_const_block of coq_Z * simple list
   | Static_const_boxed_number of simple
   | Static_const_immutable_string of coq_Z list
+  | Static_const_immutable_value_array of simple list
 
 val simple_eq_dec : simple -> simple -> bool
 

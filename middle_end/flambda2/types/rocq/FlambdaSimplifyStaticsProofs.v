@@ -109,9 +109,9 @@ Proof.
   clear Hanswers. remember (map fst answers) as tys eqn:Heqtys in *.
   clear Heqtys answers.
   destruct const as [code slots | fslot syms decls slots | tag fields
-    | contents | bytes];
+    | contents | bytes | elements];
     [ | | simpl in Htype, Htys, Heval | simpl in Htype, Htys, Heval
-    | simpl in Htype, Htys, Heval ].
+    | simpl in Htype, Htys, Heval | discriminate Htype ].
   - (* A closure that is the only one of its set. *)
     cbn [static_const_type] in Htype. injection Htype as <-.
     cbn [static_const_simples] in Htys. cbn [eval_static_const] in Heval.
@@ -203,9 +203,9 @@ Proof.
   clear Hanswers. remember (map fst answers) as tys eqn:Heqtys in *.
   clear Heqtys answers.
   destruct const as [code slots | fslot syms decls slots | tag fields
-    | contents | bytes];
+    | contents | bytes | elements];
     [ | | simpl in Htype, Htys | simpl in Htype, Htys
-    | simpl in Htype, Htys ].
+    | simpl in Htype, Htys | discriminate Htype ].
   - cbn [static_const_type] in Htype. injection Htype as <-.
     cbn [static_const_simples] in Htys.
     destruct
@@ -541,7 +541,7 @@ Lemma static_const_simples_renamed (r : renaming) (const : static_const) :
   = map (rename_simple r) (static_const_simples const).
 Proof.
   destruct const as [code slots | fslot syms decls slots | tag fields
-    | contents | bytes];
+    | contents | bytes | elements];
     simpl; try reflexivity; rewrite !map_map; reflexivity.
 Qed.
 
@@ -557,7 +557,7 @@ Lemma static_const_type_renamed (r : renaming) (const : static_const)
   = option_map (rename_type r) (static_const_type const tys).
 Proof.
   destruct const as [code slots | fslot syms decls slots | tag fields
-    | contents | bytes];
+    | contents | bytes | elements];
     cbn [static_const_type rename_static_const]; try reflexivity.
   - rewrite map_fst_renamed_slots. cbn [option_map]. f_equal. symmetry.
     exact (closure_of_set_type_rename r unnamed_function_slot
@@ -713,7 +713,7 @@ Lemma static_const_type_shape (const : static_const)
   ∧ is_obviously_unknown ty = false.
 Proof.
   destruct const as [code slots | fslot syms decls slots | tag fields
-    | contents | bytes];
+    | contents | bytes | elements];
     cbn [static_const_type].
   - intros [= <-]. repeat split; reflexivity.
   - intros [= <-]. repeat split; reflexivity.
@@ -724,6 +724,7 @@ Proof.
       as [k | ]; [ | discriminate ].
     simpl. intros [= <-]. repeat split; reflexivity.
   - intros [= <-]. repeat split; reflexivity.
+  - discriminate.
 Qed.
 
 Lemma static_const_type_in_shape (tenv : Typing_env.t) (const : static_const)

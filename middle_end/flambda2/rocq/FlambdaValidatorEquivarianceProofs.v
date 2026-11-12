@@ -1213,7 +1213,7 @@ Proof.
   destruct const; simpl;
     rewrite ?value_slots_plain_renamed, ?plain_simple_renamed_same;
     try reflexivity.
-  apply forallb_map_with. apply plain_simple_renamed_same.
+  all: apply forallb_map_with; apply plain_simple_renamed_same.
 Qed.
 
 Lemma removed_binding_total_renamed (r : renaming)
@@ -1540,7 +1540,7 @@ Lemma static_number_boxed_renamed (r : renaming) (binding : static_binding) :
   = static_number_boxed binding.
 Proof.
   destruct binding as [id c | id | sym const]; try reflexivity.
-  destruct const as [ | | | [x | sym' | c] | ]; reflexivity.
+  destruct const as [ | | | [x | sym' | c] | | ]; reflexivity.
 Qed.
 
 Lemma numbers_under_statics_equivariant (r : renaming)
@@ -2186,7 +2186,8 @@ Lemma static_set_whole_renamed (r : renaming)
   = static_set_whole bindings binding.
 Proof.
   destruct binding as [id c | id | s const]; try reflexivity.
-  destruct const as [ | slot closure_symbols function_decls value_slots | | | ];
+  destruct const
+    as [ | slot closure_symbols function_decls value_slots | | | | ];
     try reflexivity.
   cbn [rename_static_binding rename_static_const static_set_whole]. f_equal.
   apply forallb_same. intros [slot' s'].
@@ -5399,8 +5400,8 @@ Proof.
   destruct const; cbn [rename_static_const static_const_well_kinded];
     rewrite ?kind_of_simple_renamed, ?value_slots_well_kinded_renamed;
     try reflexivity.
-  apply forallb_map_with. intros s. rewrite kind_of_simple_renamed.
-  reflexivity.
+  all: apply forallb_map_with; intros s; rewrite kind_of_simple_renamed;
+    reflexivity.
 Qed.
 
 Lemma is_bound_map_keys_injective {A : Type} (f : positive -> positive)
@@ -5741,13 +5742,14 @@ Lemma rename_closed_static_const (r : renaming) (const : static_const) :
   closed_static_const const = true -> rename_static_const r const = const.
 Proof.
   destruct const as [code slots | fslot syms decls slots | tag fields
-    | contents | bytes];
+    | contents | bytes | elements];
     simpl; intros Hclosed.
   - rewrite (rename_closed_value_slots r slots Hclosed). reflexivity.
   - rewrite (rename_closed_value_slots r slots Hclosed). reflexivity.
   - rewrite (rename_closed_simples r fields Hclosed). reflexivity.
   - rewrite (rename_closed_simple r contents Hclosed). reflexivity.
   - reflexivity.
+  - rewrite (rename_closed_simples r elements Hclosed). reflexivity.
 Qed.
 
 Lemma closed_static_const_renamed (r : renaming) (const : static_const) :
@@ -5755,13 +5757,14 @@ Lemma closed_static_const_renamed (r : renaming) (const : static_const) :
   = closed_static_const const.
 Proof.
   destruct const as [code slots | fslot syms decls slots | tag fields
-    | contents | bytes];
+    | contents | bytes | elements];
     simpl.
   - apply closed_value_slots_renamed.
   - apply closed_value_slots_renamed.
   - apply closed_simples_renamed.
   - apply closed_simple_renamed.
   - reflexivity.
+  - apply closed_simples_renamed.
 Qed.
 
 Lemma known_of_binding_renamed (r : renaming) (binding : static_binding) :

@@ -409,7 +409,8 @@ Definition static_closure_of_binding (binding : static_binding)
          closure_symbols)
   | Bind_symbol _
       (Static_const_block _ _ | Static_const_boxed_number _
-      | Static_const_immutable_string _)
+      | Static_const_immutable_string _
+      | Static_const_immutable_value_array _)
   | Bind_code _ _ | Bind_deleted_code _ =>
     None
   end.
@@ -526,6 +527,9 @@ Definition canonical_static_const (known : Known.t) (const : static_const)
   | Static_const_boxed_number contents =>
     Static_const_boxed_number (Known.canonical_simple known contents)
   | Static_const_immutable_string bytes => Static_const_immutable_string bytes
+  | Static_const_immutable_value_array elements =>
+    Static_const_immutable_value_array
+      (map (Known.canonical_simple known) elements)
   end.
 
 Definition canonical_static_binding (known : Known.t)

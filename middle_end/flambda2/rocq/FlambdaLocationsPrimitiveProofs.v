@@ -79,12 +79,13 @@ Proof.
     + intros tag fields fields' Hfields. apply Forall2_moved in Hfields.
       subst fields'. reflexivity.
   - intros v v' ->.
-    split; [ | split; [ | split; [ | split; [ | split; [ | split ]]]]].
+    split;
+      [ | split; [ | split; [ | split; [ | split; [ | split; [ | split ]]]]]].
     + intros tag fields Hblock.
       destruct v; simpl in Hblock; try discriminate.
       * simpl. statics_lookup.
         destruct (lookup s (static_values statics))
-          as [[ | | tag0 fields0 | | | ] | ]; try discriminate.
+          as [[ | | tag0 fields0 | | | | ] | ]; try discriminate.
         injection Hblock as <- <-. simpl. eexists.
         split; [ reflexivity | apply Forall2_moved; reflexivity ].
       * injection Hblock as <- <-. simpl. eexists.
@@ -93,14 +94,14 @@ Proof.
       destruct v; simpl in Hboxed |- *; try discriminate.
       * statics_lookup.
         destruct (lookup s (static_values statics))
-          as [[ | | | contents | | ] | ]; try discriminate.
+          as [[ | | | contents | | | ] | ]; try discriminate.
         simpl. destruct contents; try discriminate. exact Hboxed.
       * exact Hboxed.
     + intros bytes Hstring.
       destruct v; simpl in Hstring |- *; try discriminate.
       statics_lookup.
       destruct (lookup s (static_values statics))
-        as [[ | | | | bytes0 | ] | ]; try discriminate.
+        as [[ | | | | bytes0 | | ] | ]; try discriminate.
       exact Hstring.
     + destruct v; simpl; try (intros Hclosure; exact Hclosure).
       * discriminate.
@@ -108,7 +109,7 @@ Proof.
           [ discriminate | intros Hclosure; exact Hclosure ].
       * statics_lookup.
         destruct (lookup s (static_values statics))
-          as [[code slots | slot syms decls slots | | | | ] | ]; simpl;
+          as [[code slots | slot syms decls slots | | | | | ] | ]; simpl;
           try (intros Hclosure; exact Hclosure).
         -- discriminate.
         -- destruct (lookup slot decls); simpl;
@@ -123,8 +124,15 @@ Proof.
       destruct v; simpl in Himported |- *; try discriminate.
       statics_lookup.
       destruct (lookup s (static_values statics))
-        as [[ | | | | | class] | ]; try discriminate.
+        as [[ | | | | | | class] | ]; try discriminate.
       exact Himported.
+    + intros elements Harray.
+      destruct v; simpl in Harray |- *; try discriminate.
+      statics_lookup.
+      destruct (lookup s (static_values statics))
+        as [[ | | | | | elements0 | ] | ]; try discriminate.
+      injection Harray as <-. simpl. eexists.
+      split; [ reflexivity | apply Forall2_moved; reflexivity ].
 Qed.
 
 Lemma eval_prim_moved (p : permutation) (statics : static_env) (prim : prim)
@@ -328,7 +336,7 @@ Proof.
   - destruct (lookup _ _); reflexivity.
   - statics_lookup.
     destruct (lookup s (static_values statics))
-      as [[code slots | slot syms decls slots | | contents | | ] | ];
+      as [[code slots | slot syms decls slots | | contents | | | ] | ];
       simpl;
       try reflexivity.
     + destruct (lookup slot decls); reflexivity.
@@ -342,7 +350,8 @@ Lemma is_imported_permute (p : permutation) (statics : static_env)
 Proof.
   unfold is_imported. destruct v; simpl; try reflexivity.
   rewrite lookup_permute_statics.
-  destruct (lookup s (static_values statics)) as [[ | | | | | class] | ];
+  destruct (lookup s (static_values statics))
+    as [[ | | | | | | class] | ];
     reflexivity.
 Qed.
 
@@ -646,7 +655,7 @@ Proof.
   apply
     (FlambdaPrimitiveProofs.eval_prim_preserves
        (fun w => locations_bound h (locations_of_value w)) statics prim vs v);
-    [ | | | | exact Heval ].
+    [ | | | | | exact Heval ].
   - intros c. split; intros l [ ].
   - intros tag fields. split.
     + intros Hblock w Hw l Hl. apply Hblock. simpl. apply in_flat_map.
@@ -655,6 +664,10 @@ Proof.
       apply in_flat_map in Hl as (w & Hw & Hl). exact (Hfields w Hw l Hl).
   - intros s tag fields _ Hs w Hw l Hl. apply Hstatics. apply in_flat_map.
     exists (s, Static_block tag fields).
+    split; [ exact (lookup_in _ _ _ Hs) | ].
+    simpl. apply in_flat_map. exists w. split; assumption.
+  - intros s elements _ Hs w Hw l Hl. apply Hstatics. apply in_flat_map.
+    exists (s, Static_immutable_array elements).
     split; [ exact (lookup_in _ _ _ Hs) | ].
     simpl. apply in_flat_map. exists w. split; assumption.
   - intros arg Harg. exact (locations_bound_values h vs arg Hvs Harg).

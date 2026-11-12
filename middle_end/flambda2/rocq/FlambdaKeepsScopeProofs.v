@@ -851,7 +851,7 @@ Proof.
   apply in_flat_map in Hentry. destruct Hentry as (binding & Hbinding & Hentry).
   unfold static_block_made in Hentry.
   destruct binding as [ | | sym const]; try solve [ destruct Hentry ].
-  destruct const as [ | | tag fields | | ]; try solve [ destruct Hentry ].
+  destruct const as [ | | tag fields | | | ]; try solve [ destruct Hentry ].
   destruct Hentry as [<- | []]. cbn [snd]. intros s Hs.
   apply in_map_iff in Hs. destruct Hs as (s' & Heq & Hin).
   injection Heq as ->. intros y Hy. apply in_or_app. right.

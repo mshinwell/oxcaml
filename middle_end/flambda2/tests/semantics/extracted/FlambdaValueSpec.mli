@@ -35,6 +35,7 @@ type statically_allocated_value =
   | Static_block of coq_Z * value list
   | Static_boxed_number of value
   | Static_string of coq_Z list
+  | Static_immutable_array of value list
   | Static_imported of import_class
 
 type static_env =
@@ -78,6 +79,8 @@ val boxable_contents : const -> const option
 val boxed_number_of : static_env -> value -> const option
 
 val string_of : static_env -> value -> coq_Z list option
+
+val array_of : static_env -> value -> value list option
 
 val partial_application_of : value -> ((value * value list) * arity) option
 

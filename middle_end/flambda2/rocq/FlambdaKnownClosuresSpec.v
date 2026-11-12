@@ -113,7 +113,8 @@ Definition static_closure_made (binding : static_binding)
     [(s, const)]
   | Bind_symbol _
       (Static_const_block _ _ | Static_const_boxed_number _
-      | Static_const_immutable_string _)
+      | Static_const_immutable_string _
+      | Static_const_immutable_value_array _)
   | Bind_code _ _ | Bind_deleted_code _ =>
     []
   end.
@@ -155,7 +156,8 @@ Definition static_closure_slots (const : static_const)
     Some (unnamed_function_slot, slots)
   | Static_const_closure_of_set slot _ _ slots => Some (slot, slots)
   | Static_const_block _ _ | Static_const_boxed_number _
-  | Static_const_immutable_string _ =>
+  | Static_const_immutable_string _
+  | Static_const_immutable_value_array _ =>
     None
   end.
 
@@ -209,7 +211,8 @@ Definition static_closure_code (const : static_const) : option code_id :=
   | Static_const_closure_of_set slot _ function_decls _ =>
     lookup slot function_decls
   | Static_const_block _ _ | Static_const_boxed_number _
-  | Static_const_immutable_string _ =>
+  | Static_const_immutable_string _
+  | Static_const_immutable_value_array _ =>
     None
   end.
 

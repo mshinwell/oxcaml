@@ -81,7 +81,7 @@ Proof.
   destruct binding
     as [id c | id
        | s [code slots | fslot syms decls slots | tag fields | contents
-           | bytes]];
+           | bytes | elements]];
     try reflexivity.
   cbn. do 3 f_equal. rewrite !map_map. apply map_ext.
   intros [x | s' | c]; reflexivity.
@@ -96,7 +96,7 @@ Proof.
   destruct binding
     as [id c | id
        | s [code slots | fslot syms decls slots | tag fields | contents
-           | bytes]];
+           | bytes | elements]];
     try reflexivity.
   destruct contents as [x | s' | c]; reflexivity.
 Qed.

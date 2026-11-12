@@ -408,7 +408,8 @@ Definition static_set_whole (bindings : list static_binding)
          closure_symbols
   | Bind_symbol _
       (Static_const_set_of_closures _ _ | Static_const_block _ _
-      | Static_const_boxed_number _ | Static_const_immutable_string _)
+      | Static_const_boxed_number _ | Static_const_immutable_string _
+      | Static_const_immutable_value_array _)
   | Bind_code _ _ | Bind_deleted_code _ =>
     true
   end.
@@ -422,7 +423,8 @@ Definition static_set_code_ids (binding : static_binding) : list code_id :=
     map snd function_decls
   | Bind_symbol _
       (Static_const_block _ _ | Static_const_boxed_number _
-      | Static_const_immutable_string _)
+      | Static_const_immutable_string _
+      | Static_const_immutable_value_array _)
   | Bind_code _ _ | Bind_deleted_code _ =>
     []
   end.
@@ -554,6 +556,8 @@ Definition static_const_in_range (const : static_const) : bool :=
     tag_in_range tag && forallb simple_in_range fields
   | Static_const_boxed_number contents => simple_in_range contents
   | Static_const_immutable_string bytes => forallb byte_in_range bytes
+  | Static_const_immutable_value_array elements =>
+    forallb simple_in_range elements
   end.
 
 Definition apply_cont_in_range (ac : apply_cont) : bool :=

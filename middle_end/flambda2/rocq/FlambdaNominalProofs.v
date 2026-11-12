@@ -115,7 +115,8 @@ Lemma rename_static_const_id (const : static_const) :
   rename_static_const identity_renaming const = const.
 Proof.
   destruct const
-    as [code slots | fslot syms decls slots | tag fields | s | bytes];
+    as [code slots | fslot syms decls slots | tag fields | s | bytes
+        | elements];
     simpl;
     rewrite ?rename_simple_id, ?rename_simples_id, ?rename_value_slots_id;
     reflexivity.
@@ -418,7 +419,8 @@ Lemma static_const_eqb_renamed (const : static_const) :
   static_const_eqb vm const (rename_static_const r const) = true.
 Proof.
   destruct const
-    as [code slots | fslot syms decls slots | tag fields | s | bytes];
+    as [code slots | fslot syms decls slots | tag fields | s | bytes
+        | elements];
     simpl; intros Hfree;
     rewrite ?Pos.eqb_refl, ?Z.eqb_refl, ?names_eqb_refl; simpl.
   - apply value_slots_eqb_renamed, Hfree.
@@ -426,6 +428,7 @@ Proof.
   - apply simples_eqb_renamed, Hfree.
   - apply simple_eqb_renamed, Hfree.
   - apply forall2b_refl, Z.eqb_refl.
+  - apply simples_eqb_renamed, Hfree.
 Qed.
 
 Lemma apply_cont_eqb_renamed (km : name_map) (ac : apply_cont) :

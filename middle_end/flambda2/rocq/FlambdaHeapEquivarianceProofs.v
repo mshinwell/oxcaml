@@ -445,7 +445,8 @@ Proof.
        | v v' fslot fdecls slots slots' Hv Hv' Hnames Hslots Hsiblings
        | gslot gdecls gslots Hgslot | s Hs Hs'
        | kind v' Hpoison Hkind
-       | callee callee' args args' args_arity Hcallee Hargs].
+       | callee callee' args args' args_arity Hcallee Hargs
+       | v v' elements elements' Hv Hv' Helements].
   - apply Step_const.
   - apply Step_location. exact Hl.
   - exact (Step_block poison_refines corr st2 st2' R v v' tag fields fields'
@@ -460,6 +461,8 @@ Proof.
   - apply Step_opaque_symbol; [ exact Hs | exact Hs' ].
   - apply Step_poison; assumption.
   - apply Step_partial_application; assumption.
+  - exact (Step_array poison_refines corr st2 st2' R v v' elements elements'
+             Hv Hv' Helements).
 Qed.
 
 Lemma value_related_code (v v' : value) :

@@ -159,7 +159,8 @@ Lemma static_const_eqb_refl (vm : name_map) (const : static_const) :
 Proof.
   intros Hvm.
   destruct const
-    as [code slots | fslot syms decls slots | tag fields | s | bytes]; simpl;
+    as [code slots | fslot syms decls slots | tag fields | s | bytes
+        | elements]; simpl;
     rewrite ?Pos.eqb_refl, ?Z.eqb_refl, ?simple_eqb_refl, ?simples_eqb_refl,
       ?value_slots_eqb_refl, ?names_eqb_refl;
     auto.
@@ -506,10 +507,11 @@ Lemma eval_static_const_match (vm : name_map) (vars vars' : env)
 Proof.
   intros Hmatch.
   destruct const
-    as [code slots | fslot syms decls slots | tag fields | s | bytes],
+    as [code slots | fslot syms decls slots | tag fields | s | bytes
+        | elements],
     const'
     as [code' slots' | fslot' syms' decls' slots' | tag' fields' | s'
-       | bytes'];
+       | bytes' | elements'];
     simpl; try discriminate; intros Heq.
   - apply andb_true_iff in Heq as [Hcode Hslots]. apply Pos.eqb_eq in Hcode.
     subst code'.
@@ -528,6 +530,9 @@ Proof.
     reflexivity.
   - rewrite (eval_simple_match vm vars vars' s s' Hmatch Heq). reflexivity.
   - rewrite (forall2b_Z_eqb bytes bytes' Heq). reflexivity.
+  - rewrite
+      (eval_simples_match vm vars vars' elements Hmatch elements' Heq).
+    reflexivity.
 Qed.
 
 (* Matching groups of bindings added to matching static environments:

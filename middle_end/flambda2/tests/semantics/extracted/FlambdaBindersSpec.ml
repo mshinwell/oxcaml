@@ -42,6 +42,8 @@ let free_variables_of_static_const = function
   | Static_const_block (_, fields) -> free_variables_of_simples fields
   | Static_const_boxed_number contents -> free_variables_of_simple contents
   | Static_const_immutable_string _ -> []
+  | Static_const_immutable_value_array elements ->
+    free_variables_of_simples elements
 
 (** val free_variables_of_apply_cont : apply_cont -> variable list **)
 

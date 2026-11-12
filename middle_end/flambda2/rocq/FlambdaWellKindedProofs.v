@@ -251,7 +251,8 @@ Proof.
     intros [= <- <-]. exact Hv.
   - apply andb_true_iff in Hstatics as [_ Hvalues].
     destruct (lookup sym (static_values statics))
-      as [[code' vs' | slot syms decls vs' | tag fields | contents | bytes | ]
+      as [[code' vs' | slot syms decls vs' | tag fields | contents | bytes
+           | elements | ]
          | ] eqn:Hsym;
       try discriminate.
     + intros [= <- <-].
@@ -281,7 +282,8 @@ Proof.
     intros [= <- <- <-]. exact Hv.
   - apply andb_true_iff in Hstatics as [_ Hvalues].
     destruct (lookup sym (static_values statics))
-      as [[code' vs' | slot' syms decls' vs' | tag fields | contents | bytes | ]
+      as [[code' vs' | slot' syms decls' vs' | tag fields | contents | bytes
+           | elements | ]
          | ] eqn:Hsym;
       try discriminate.
     + intros [= <- <- <-].
@@ -314,7 +316,8 @@ Proof.
     destruct (lookup move_to decls); [ | discriminate ].
     intros [= <-]. split; [ reflexivity | exact Hv ].
   - destruct (lookup sym (static_values statics))
-      as [[code vs | slot syms decls vs | tag fields | contents | bytes | ] | ];
+      as [[code vs | slot syms decls vs | tag fields | contents | bytes
+           | elements | ] | ];
       try discriminate.
     + destruct (Pos.eqb move_from unnamed_function_slot); [ | discriminate ].
       destruct (Pos.eqb move_to unnamed_function_slot); [ | discriminate ].
@@ -347,6 +350,14 @@ Proof.
     simpl in Hfields. rewrite forallb_forall in Hfields.
     specialize (Hfields field Hin).
     apply andb_true_iff in Hfields as [_ Hfield]. exact Hfield.
+  - intros s elements _ Hlookup element Hin.
+    apply andb_true_iff in Hstatics as [_ Hvalues].
+    pose proof
+      (lookup_forallb (allocated_well_kinded slots) s _ _ Hvalues Hlookup)
+      as Helements.
+    simpl in Helements. rewrite forallb_forall in Helements.
+    specialize (Helements element Hin).
+    apply andb_true_iff in Helements as [_ Helement]. exact Helement.
   - rewrite forallb_forall in Hvs. exact Hvs.
 Qed.
 
@@ -470,7 +481,7 @@ Proof.
   intros Hvars.
   destruct const
     as [code value_slots | fslot syms decls value_slots | tag fields
-       | contents | bytes];
+       | contents | bytes | elements];
     simpl.
   - intros Hslots.
     destruct (eval_value_slots vars value_slots) as [vs | ] eqn:Hvs;
@@ -495,6 +506,11 @@ Proof.
     rewrite (eval_simple_kind vars contents v Hv).
     intros Hkind [= <-]. exact Hkind.
   - intros _ [= <-]. reflexivity.
+  - intros Helements.
+    destruct (eval_simples vars elements) as [vs | ] eqn:Hvs;
+      [ | discriminate ].
+    intros [= <-].
+    exact (eval_fields_well_kinded vars elements vs Hvars Helements Hvs).
 Qed.
 
 Lemma eval_static_bindings_well_kinded (vars : env)
@@ -1344,7 +1360,7 @@ Lemma static_const_each (kinds : kind_env) (const : static_const) :
 Proof.
   destruct const
     as [code value_slots | fslot syms decls value_slots | tag fields
-       | contents | bytes];
+       | contents | bytes | elements];
     simpl.
   - apply value_slots_each.
   - apply value_slots_each.
@@ -1354,6 +1370,8 @@ Proof.
     destruct (kind_of_simple kinds contents) as [k | ]; [ | discriminate ].
     exists k. reflexivity.
   - intros _ s [].
+  - rewrite forallb_forall. intros Helements s Hin.
+    exists Value. apply has_kind_eq. exact (Helements s Hin).
 Qed.
 
 Lemma bindings_each (kinds : kind_env) (bindings : list static_binding) :

@@ -181,6 +181,8 @@ Definition permute_static_value (p : permutation)
   | Static_boxed_number contents =>
     Static_boxed_number (permute_value p contents)
   | Static_string bytes => Static_string bytes
+  | Static_immutable_array elements =>
+    Static_immutable_array (map (permute_value p) elements)
   | Static_imported c => Static_imported c
   end.
 

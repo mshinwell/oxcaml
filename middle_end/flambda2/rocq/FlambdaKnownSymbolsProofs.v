@@ -80,13 +80,15 @@ Lemma eval_closed_static_const (vars : env) (const : static_const) :
   eval_static_const vars const = eval_static_const [] const.
 Proof.
   destruct const
-    as [code slots | fslot syms decls slots | tag fields | contents | bytes];
+    as [code slots | fslot syms decls slots | tag fields | contents | bytes
+        | elements];
     simpl; intros H.
   - rewrite (eval_closed_value_slots vars slots H). reflexivity.
   - rewrite (eval_closed_value_slots vars slots H). reflexivity.
   - rewrite (eval_closed_simples vars fields H). reflexivity.
   - rewrite (eval_closed_simple vars contents H). reflexivity.
   - reflexivity.
+  - rewrite (eval_closed_simples vars elements H). reflexivity.
 Qed.
 
 (* ======================================================================== *)
@@ -250,8 +252,8 @@ Proof.
   destruct (lookup s (static_values run_statics)) as [allocated' | ] eqn:Hs';
     [ | discriminate ].
   pose proof (Hsets s allocated allocated' Hs Hs') as Hsame.
-  destruct allocated as [code slots | fslot syms decls slots | | | | ],
-    allocated' as [code' slots' | fslot' syms' decls' slots' | | | | ];
+  destruct allocated as [code slots | fslot syms decls slots | | | | | ],
+    allocated' as [code' slots' | fslot' syms' decls' slots' | | | | | ];
     try contradiction.
   - rewrite Hknown in Hrun. exact Hrun.
   - destruct Hsame as (-> & -> & ->). rewrite Hknown in Hrun. exact Hrun.
@@ -271,8 +273,8 @@ Proof.
   destruct (lookup s (static_values run_statics)) as [allocated' | ] eqn:Hs';
     [ | discriminate ].
   pose proof (Hsets s allocated allocated' Hs Hs') as Hsame.
-  destruct allocated as [c sl | fslot syms decls sl | | | | ],
-    allocated' as [c' sl' | fslot' syms' decls' sl' | | | | ];
+  destruct allocated as [c sl | fslot syms decls sl | | | | | ],
+    allocated' as [c' sl' | fslot' syms' decls' sl' | | | | | ];
     try contradiction.
   - simpl in Hsame. subst c'. intros [= <- _] [= <- _]. reflexivity.
   - destruct Hsame as (-> & -> & ->).
@@ -381,7 +383,8 @@ Lemma set_of_binding_have_values (binding : static_binding) :
 Proof.
   destruct binding as [id c | id | s const]; try constructor.
   destruct const
-    as [code slots | fslot syms decls slots | tag fields | contents | bytes].
+    as [code slots | fslot syms decls slots | tag fields | contents | bytes
+        | elements].
   - unfold all_have_values, set_of_binding.
     constructor; [ discriminate | constructor ].
   - unfold all_have_values, set_of_binding. cbv zeta.
@@ -390,6 +393,7 @@ Proof.
       eqn:Hconst;
       constructor; [ | constructor ].
     cbn [snd]. rewrite Hconst. discriminate.
+  - constructor.
   - constructor.
   - constructor.
   - constructor.
@@ -502,7 +506,7 @@ Proof.
     destruct (lookup sym sets) as [expected | ]; [ | discriminate ].
     destruct const
       as [code slots | fslot syms decls slots | tag fields | contents
-         | bytes];
+         | bytes | elements];
       try discriminate.
     { cbn -[static_const_eq_dec] in Hsym.
       destruct
