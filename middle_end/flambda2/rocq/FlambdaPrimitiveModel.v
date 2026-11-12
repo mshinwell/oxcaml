@@ -38,7 +38,8 @@
      [Get_tag], [String_length] of a string, [Opaque_identity], the
      unary [Int_arith] (here [Unary_int_arith]), [Num_conv] between the
      integer kinds, [Boolean_not], [Unbox_number],
-     [Box_number], [Untag_immediate] and [Tag_immediate];
+     [Box_number], [Untag_immediate], [Tag_immediate] and
+     [Reinterpret_64_bit_word] between a tagged immediate and an int64;
    - of [binary_primitive]: [String_or_bigstring_load] of an integer of
      one, two, four or eight bytes from a string, [Phys_equal], and
      [Int_arith], [Int_shift] and [Int_comp], at every [Standard_int.t];
@@ -96,6 +97,10 @@
      here, and the conversion must refuse them.
    - The unary [Int_arith] of the compiler is [Unary_int_arith] here, as
      [Int_arith] is the binary one.
+   - [reinterpret_64_bit_word] has the two of the compiler's
+     [Reinterpret_64_bit_word.t] that are between integers. The two
+     that are between an int64 and a float are not here, and the
+     conversion must refuse them.
    - [String_or_bigstring_load] has no [string_like_value]: it is the
      load from a string ([String]), and the conversion must refuse
      [Bytes] and [Bigstring]. The only [string_accessor_width]s are
@@ -138,6 +143,11 @@ Inductive unary_int_arith_op : Type :=
   | Not
   | Swap_byte_endianness.
 
+(* [Flambda_primitive.Reinterpret_64_bit_word.t], between integers. *)
+Inductive reinterpret_64_bit_word : Type :=
+  | Tagged_int63_as_unboxed_int64
+  | Unboxed_int64_as_tagged_int63.
+
 (* [Flambda_primitive.unary_primitive]. *)
 Inductive unary_primitive : Type :=
   | Block_load (kind : block_access_kind) (mut : mutability) (field : Z)
@@ -152,7 +162,8 @@ Inductive unary_primitive : Type :=
   | Unbox_number (kind : boxable_number)
   | Box_number (kind : boxable_number)
   | Untag_immediate
-  | Tag_immediate.
+  | Tag_immediate
+  | Reinterpret_64_bit_word (reinterpret : reinterpret_64_bit_word).
 
 (* [Flambda_primitive.binary_int_arith_op]. *)
 Inductive binary_int_arith_op : Type :=

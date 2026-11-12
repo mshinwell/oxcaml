@@ -492,6 +492,32 @@ Definition eval_block_load (statics : static_env) (kind : block_access_kind)
     else None
   end.
 
+(* [Reinterpret_64_bit_word], between a tagged immediate and an int64.
+   The machine word of the tagged immediate [i] is [2 * i + 1].
+   [Tagged_int63_as_unboxed_int64] is that word as an int64.
+   [Unboxed_int64_as_tagged_int63] is the tagged immediate whose word
+   is the int64 with its lowest bit set: the int64 halved, towards
+   minus infinity. The backend leaves the word as it is for the first
+   and sets the lowest bit for the second
+   ([To_cmm_primitive.unary_primitive]); Simplify computes [2 * i + 1],
+   and a logical shift to the right by one bit, read as an integer of
+   63 bits, which is the same half ([Simplify_unary_primitive], the
+   two modules [Simplify_reinterpret_] between these integers).
+   The first has no value on a value that is not a tagged immediate,
+   where the machine would give the address: Simplify makes it
+   [Invalid] there, as it asks the type of the argument to be that of
+   a tagged immediate. *)
+Definition eval_reinterpret_64_bit_word
+    (reinterpret : reinterpret_64_bit_word) (v : value) : option value :=
+  match reinterpret with
+  | Tagged_int63_as_unboxed_int64 =>
+    let* i := int_of_value Standard_tagged_immediate v in
+    Some (Value_const (Naked_int64 (2 * i + 1)))
+  | Unboxed_int64_as_tagged_int63 =>
+    let* word := int_of_value Standard_naked_int64 v in
+    Some (Value_const (Tagged_immediate (word / 2)))
+  end.
+
 (* A unary primitive applied to a value.
    - [Get_tag] is the tag of a block, and has no value on anything else,
      a closure, a boxed number and a string included: Simplify takes its
@@ -532,7 +558,9 @@ Definition eval_block_load (statics : static_env) (kind : block_access_kind)
      the tagged immediate 0 or 1: 1 for 0 and 0 for 1. It has no value
      on another tagged immediate, nor on anything else.
    - [Untag_immediate] and [Tag_immediate] change a tagged immediate into
-     the naked immediate that is the same integer, and back. *)
+     the naked immediate that is the same integer, and back.
+   - [Reinterpret_64_bit_word] reads the 64 bits of one integer as
+     another ([eval_reinterpret_64_bit_word], above). *)
 (* CR mshinwell: [Get_tag] has no value on what is not a block: a tagged
    immediate, null, a closure, a boxed number, a string. On anything
    allocated the machine reads the tag in the header. Simplify makes it
@@ -608,6 +636,8 @@ Definition eval_unary_primitive (statics : static_env) (p : unary_primitive)
   | Tag_immediate =>
     let* i := int_of_value Standard_naked_immediate v in
     Some (Value_const (Tagged_immediate i))
+  | Reinterpret_64_bit_word reinterpret =>
+    eval_reinterpret_64_bit_word reinterpret v
   end.
 
 (* [Flambda_primitive.byte_width_of_string_accessor_width]: how many
@@ -879,7 +909,8 @@ Definition unary_primitive_in_range (p : unary_primitive) : bool :=
     && ocaml_int_in_range field
   | Is_int _ | Is_null | Get_tag | String_length | Opaque_identity _
   | Unary_int_arith _ _ | Num_conv _ _ | Boolean_not | Unbox_number _
-  | Box_number _ | Untag_immediate | Tag_immediate =>
+  | Box_number _ | Untag_immediate | Tag_immediate
+  | Reinterpret_64_bit_word _ =>
     true
   end.
 
@@ -956,13 +987,16 @@ Definition naked_immediate_kind : flambda_kind :=
 Definition arg_kind_of_unary_primitive (p : unary_primitive) : flambda_kind :=
   match p with
   | Block_load _ _ _ | Is_int _ | Is_null | Get_tag | String_length
-  | Boolean_not | Unbox_number _ | Untag_immediate =>
+  | Boolean_not | Unbox_number _ | Untag_immediate
+  | Reinterpret_64_bit_word Tagged_int63_as_unboxed_int64 =>
     Value
   | Opaque_identity kind => kind
   | Unary_int_arith kind _ => kind_of_standard_int kind
   | Num_conv src _ => kind_of_standard_int src
   | Box_number kind => unboxed_kind kind
   | Tag_immediate => naked_immediate_kind
+  | Reinterpret_64_bit_word Unboxed_int64_as_tagged_int63 =>
+    Naked_number Kind_naked_int64
   end.
 
 (* [Flambda_primitive.result_kind_of_unary_primitive']. *)
@@ -975,8 +1009,11 @@ Definition result_kind_of_unary_primitive (p : unary_primitive)
   | Unary_int_arith kind _ => kind_of_standard_int kind
   | Num_conv _ dst => kind_of_standard_int dst
   | Unbox_number kind => unboxed_kind kind
-  | Block_load _ _ _ | Boolean_not | Box_number _ | Tag_immediate =>
+  | Block_load _ _ _ | Boolean_not | Box_number _ | Tag_immediate
+  | Reinterpret_64_bit_word Unboxed_int64_as_tagged_int63 =>
     Value
+  | Reinterpret_64_bit_word Tagged_int63_as_unboxed_int64 =>
+    Naked_number Kind_naked_int64
   end.
 
 (* [Flambda_primitive.args_kind_of_binary_primitive]. *)

@@ -256,7 +256,8 @@ Qed.
 Lemma eval_unary_primitive_static_values (p : unary_primitive) :
   eval_unary_primitive statics p v = eval_unary_primitive statics' p v.
 Proof.
-  destruct p as [[tag size field_kind] mut field | | | | | | | | | | | | ];
+  destruct p as [[tag size field_kind] mut field | | | | | | | | | | | |
+                | ];
     simpl;
     unfold eval_is_int, eval_is_null, eval_block_load;
     rewrite ?block_of_static_values, ?is_allocated_static_values,
@@ -649,7 +650,7 @@ Lemma eval_unary_primitive_symbol_bound (statics : static_env)
   lookup s (static_values statics) <> None.
 Proof.
   destruct p as [[tag size field_kind] mut field | [ | ] | | | | kind
-                | kind op | src dst | | kind | kind | | ];
+                | kind op | src dst | | kind | kind | | | [ | ]];
     simpl; unfold eval_is_int, eval_is_null, eval_block_load; simpl;
     rewrite ?int_of_value_symbol;
     try discriminate;
@@ -755,7 +756,7 @@ Lemma eval_unary_primitive_kinds (statics : static_env)
   ∧ kind_of_value v = result_kind_of_unary_primitive p.
 Proof.
   destruct p as [access mut field | variant_only | | | | kind | kind op
-                | src dst | | kind | kind | | ];
+                | src dst | | kind | kind | | | reinterpret];
     cbn [eval_unary_primitive arg_kind_of_unary_primitive
          result_kind_of_unary_primitive].
   - (* [Block_load] *)
@@ -870,6 +871,12 @@ Proof.
       [ | discriminate ].
     intros [= <-]. split; [ | reflexivity ].
     exact (int_of_value_kind _ _ _ Hint).
+  - (* [Reinterpret_64_bit_word] *)
+    destruct reinterpret; cbn [eval_reinterpret_64_bit_word];
+      (destruct (int_of_value _ arg) as [i | ] eqn:Hint;
+        [ | discriminate ]);
+      intros [= <-]; (split; [ | reflexivity ]);
+      exact (int_of_value_kind _ _ _ Hint).
 Qed.
 
 (* The arguments on which [Phys_equal] has a value are of kind
@@ -1017,7 +1024,7 @@ Lemma eval_unary_primitive_preserves (p : unary_primitive) (arg v : value) :
 Proof.
   intros Harg.
   destruct p as [access mut field | variant_only | | | | kind | kind op
-                | src dst | | kind | kind | | ];
+                | src dst | | kind | kind | | | reinterpret];
     cbn [eval_unary_primitive].
   - unfold eval_block_load. destruct access as [tag size field_kind].
     destruct (block_of statics arg) as [[block_tag fields] | ] eqn:Hblock;
@@ -1074,6 +1081,9 @@ Proof.
     intros [= <-]. apply Hnumbers.
   - destruct (int_of_value Standard_naked_immediate arg); [ | discriminate ].
     intros [= <-]. apply Hnumbers.
+  - destruct reinterpret; cbn [eval_reinterpret_64_bit_word];
+      (destruct (int_of_value _ arg); [ | discriminate ]);
+      intros [= <-]; apply Hnumbers.
 Qed.
 
 (* By cases on the binary primitives. *)
@@ -1612,6 +1622,34 @@ Proof.
   - destruct (reading width s a ?= reading width s b); reflexivity.
 Qed.
 
+(* The machine word of a tagged immediate is an int64, and half an
+   int64 is an immediate. *)
+Lemma tagged_word_in_range (i : Z) :
+  in_range (int_width Standard_tagged_immediate) i = true ->
+  in_range 64 (2 * i + 1) = true.
+Proof.
+  unfold in_range. cbn [int_width].
+  change (2 ^ (63 - 1)) with 4611686018427387904.
+  change (2 ^ (64 - 1)) with 9223372036854775808.
+  intros Hrange. apply andb_true_iff in Hrange as [Hlow Hhigh].
+  apply Z.leb_le in Hlow. apply Z.ltb_lt in Hhigh.
+  apply andb_true_iff. split; [ apply Z.leb_le | apply Z.ltb_lt ]; lia.
+Qed.
+
+Lemma half_word_in_range (word : Z) :
+  in_range (int_width Standard_naked_int64) word = true ->
+  ocaml_int_in_range (word / 2) = true.
+Proof.
+  unfold ocaml_int_in_range, in_range. cbn [int_width].
+  change (2 ^ (63 - 1)) with 4611686018427387904.
+  change (2 ^ (64 - 1)) with 9223372036854775808.
+  intros Hrange. apply andb_true_iff in Hrange as [Hlow Hhigh].
+  apply Z.leb_le in Hlow. apply Z.ltb_lt in Hhigh.
+  pose proof (Z.div_mod word 2 ltac:(lia)) as Hdiv.
+  pose proof (Z.mod_pos_bound word 2 eq_refl) as Hmod.
+  apply andb_true_iff. split; [ apply Z.leb_le | apply Z.ltb_lt ]; lia.
+Qed.
+
 (* An integer of two bytes without a sign is an immediate. *)
 Lemma two_bytes_in_range (z : Z) :
   0 <= z < 65536 -> ocaml_int_in_range z = true.
@@ -1712,7 +1750,7 @@ Lemma eval_unary_primitive_in_range (p : unary_primitive) (arg v : value) :
 Proof.
   intros Hsymbols Harg.
   destruct p as [access mut field | variant_only | | | | kind | kind op
-                | src dst | | kind | kind | | ];
+                | src dst | | kind | kind | | | reinterpret];
     cbn [eval_unary_primitive].
   - unfold eval_block_load. destruct access as [tag size field_kind].
     destruct (block_of statics arg) as [[block_tag fields] | ] eqn:Hblock;
@@ -1784,6 +1822,13 @@ Proof.
   - destruct (int_of_value Standard_naked_immediate arg) as [i | ] eqn:Hint;
       [ | discriminate ].
     intros [= <-]. exact (proj2 (int_of_value_const _ _ _ Hint)).
+  - (* [Reinterpret_64_bit_word] *)
+    destruct reinterpret; cbn [eval_reinterpret_64_bit_word];
+      (destruct (int_of_value _ arg) as [i | ] eqn:Hint;
+        [ | discriminate ]);
+      intros [= <-]; cbn [value_in_range const_in_range].
+    + exact (tagged_word_in_range i (proj2 (int_of_value_const _ _ _ Hint))).
+    + exact (half_word_in_range i (proj2 (int_of_value_const _ _ _ Hint))).
 Qed.
 
 (* By cases on the binary primitives. *)
@@ -2099,7 +2144,7 @@ Proof.
   intros Hr.
   destruct (Hobserved v v' Hr) as (Hblocks & Hboxed & Hstring & _ & Hbound).
   destruct p as [access mut field | variant_only | | | | kind | kind op
-                | src dst | | kind | kind | | ];
+                | src dst | | kind | kind | | | reinterpret];
     cbn [eval_unary_primitive].
   - unfold eval_block_load. destruct access as [tag size field_kind].
     destruct (block_of statics v) as [[block_tag fields] | ] eqn:Hv;
@@ -2179,6 +2224,11 @@ Proof.
       [ | discriminate ].
     rewrite (related_int _ v v' i Hr Hv), Hv.
     intros [= <-]. eexists. split; [ reflexivity | apply Hnumber ].
+  - (* [Reinterpret_64_bit_word] *)
+    destruct reinterpret; cbn [eval_reinterpret_64_bit_word];
+      (destruct (int_of_value _ v) as [i | ] eqn:Hv; [ | discriminate ]);
+      rewrite (related_int _ v v' i Hr Hv), Hv;
+      intros [= <-]; eexists; (split; [ reflexivity | apply Hnumber ]).
 Qed.
 
 (* By cases on the binary primitives: the arguments are integers, but
@@ -2545,6 +2595,61 @@ Proof. reflexivity. Qed.
 
 Example untag_immediate :
   unary empty_static_env Untag_immediate (tagged 5) = Some (naked 5).
+Proof. reflexivity. Qed.
+
+(* The word of a tagged immediate, and the tagged immediate of a word. *)
+Definition reinterpret (r : reinterpret_64_bit_word) (v : value)
+    : option value :=
+  unary empty_static_env (Reinterpret_64_bit_word r) v.
+
+Example tagged_as_int64 :
+  reinterpret Tagged_int63_as_unboxed_int64 (tagged 5)
+  = Some (Value_const (Naked_int64 11)).
+Proof. reflexivity. Qed.
+
+Example tagged_as_int64_negative :
+  reinterpret Tagged_int63_as_unboxed_int64 (tagged (-1))
+  = Some (Value_const (Naked_int64 (-1))).
+Proof. reflexivity. Qed.
+
+Example tagged_as_int64_of_least :
+  reinterpret Tagged_int63_as_unboxed_int64 (tagged min_int63)
+  = Some (Value_const (Naked_int64 (-9223372036854775807))).
+Proof. reflexivity. Qed.
+
+Example tagged_as_int64_of_naked :
+  reinterpret Tagged_int63_as_unboxed_int64 (naked 5) = None.
+Proof. reflexivity. Qed.
+
+Example int64_as_tagged_odd :
+  reinterpret Unboxed_int64_as_tagged_int63 (Value_const (Naked_int64 11))
+  = Some (tagged 5).
+Proof. reflexivity. Qed.
+
+Example int64_as_tagged_even :
+  reinterpret Unboxed_int64_as_tagged_int63 (Value_const (Naked_int64 10))
+  = Some (tagged 5).
+Proof. reflexivity. Qed.
+
+Example int64_as_tagged_negative :
+  reinterpret Unboxed_int64_as_tagged_int63 (Value_const (Naked_int64 (-3)))
+  = Some (tagged (-2)).
+Proof. reflexivity. Qed.
+
+Example int64_as_tagged_of_least :
+  reinterpret Unboxed_int64_as_tagged_int63
+    (Value_const (Naked_int64 (-9223372036854775808)))
+  = Some (tagged min_int63).
+Proof. reflexivity. Qed.
+
+Example int64_as_tagged_of_greatest :
+  reinterpret Unboxed_int64_as_tagged_int63
+    (Value_const (Naked_int64 9223372036854775807))
+  = Some (tagged max_int63).
+Proof. reflexivity. Qed.
+
+Example int64_as_tagged_of_tagged :
+  reinterpret Unboxed_int64_as_tagged_int63 (tagged 11) = None.
 Proof. reflexivity. Qed.
 
 Example not_tagged :
