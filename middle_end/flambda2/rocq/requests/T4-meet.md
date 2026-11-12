@@ -24,9 +24,11 @@ Files, in `middle_end/flambda2/types/rocq/`:
   statements about the transcribed functions, nine proved by running
   them and two that are corollaries of the main theorem (section 15).
 - `FlambdaMeetMatchExamplesSpec.v`,
-  `FlambdaMeetProjectionExamplesSpec.v` and their proofs: what the
-  meet answers at the calls that Simplify makes on small functions,
-  fifteen statements, proved by running it (section 15).
+  `FlambdaMeetProjectionExamplesSpec.v`,
+  `FlambdaMeetTagExamplesSpec.v` and their proofs: what the meet
+  answers on scenarios made after the calls that Simplify makes on
+  small functions, twenty statements, proved by running it (section
+  15).
 - `FlambdaExpandHeadSpec.v`, `FlambdaExpandHeadProofs.v`: what
   `expand_head` keeps, eight statements, proved.
 
@@ -730,9 +732,14 @@ strict satisfaction, with no other premise), `expand_head_closed`,
   `FlambdaMeetExamplesSpec.v`). It is not the compiler's join.
 - Examples of the meet at the calls that Simplify makes
   (`FlambdaMeetMatchExamplesSpec.v`,
-  `FlambdaMeetProjectionExamplesSpec.v`): a match on
+  `FlambdaMeetProjectionExamplesSpec.v`,
+  `FlambdaMeetTagExamplesSpec.v`): a match on
   `type t = A | B | C of int`; the two fields of a pair; a float that
-  is boxed and then unboxed; two value slots of a closure. Each
+  is boxed and then unboxed; two value slots of a closure; a match on
+  a variant with two constructors that have arguments (the arm of the
+  switch on the tag is where the two meets differ); a match on a
+  value that may be null. The inputs are made by hand from a reading
+  of Simplify. Each
   statement gives the two types met, says that `meet_to_prove` and
   `compiler_meet` answer the same type and environment (whatever the
   join, but for the two meets of rows, which call it), and says what
