@@ -5011,6 +5011,25 @@ let model_against_compiler (names : names) :
          print_lines
          (print_seen ~threshold in_the_compiler))
   in
+  let against_the_binary_meet ~label input =
+    let in_the_model = in_the_model input in
+    let in_the_compiler = in_the_compiler binary input in
+    match in_the_model, in_the_compiler with
+    | Nothing_seen _, Nothing_seen _ -> Not_run "neither answers"
+    | (Nothing_seen _ | Bottom_seen | Seen _), _ ->
+      if same_seen ~threshold in_the_model in_the_compiler
+      then Agree
+      else
+        Known_to_disagree
+          (label, "what is seen of the two answers is not the same")
+  in
+  let on_a_symbol { equations = _; met = m1, m2 } =
+    List.exists
+      (fun symbol ->
+        let name : MT.name = Name_symbol symbol in
+        has_an_extension_on name m1 || has_an_extension_on name m2)
+      names.pool.symbols
+  in
   [ { name = "meet: the model and the n-way meet of the compiler";
       compare =
         (fun input ->
@@ -5060,19 +5079,29 @@ let model_against_compiler (names : names) :
        answers apart. *)
     { name = "meet: the model and the binary meet of the compiler";
       compare =
+        against_the_binary_meet
+          ~label:
+            "the binary meet, which the model does not transcribe, answers \
+             otherwise"
+    };
+    (* The same comparison on the inputs where an extension of one of the two
+       types has an equation on a symbol. The n-way meet, and the model with it,
+       forgets such an equation where one case is left; the binary meet keeps it
+       (T7-9). The inputs are told by their text, not by what the meets do: a
+       difference counted here may have another cause. *)
+    { name =
+        "of which those where an extension of the types met has an equation on \
+         a symbol";
+      compare =
         (fun input ->
-          let in_the_model = in_the_model input in
-          let in_the_compiler = in_the_compiler binary input in
-          match in_the_model, in_the_compiler with
-          | Nothing_seen _, Nothing_seen _ -> Not_run "neither answers"
-          | (Nothing_seen _ | Bottom_seen | Seen _), _ ->
-            if same_seen ~threshold in_the_model in_the_compiler
-            then Agree
-            else
-              Known_to_disagree
-                ( "the binary meet, which the model does not transcribe, \
-                   answers otherwise",
-                  "what is seen of the two answers is not the same" ))
+          if on_a_symbol input
+          then
+            against_the_binary_meet
+              ~label:
+                "T7-9, the binary meet answers otherwise where an extension \
+                 has an equation on a symbol"
+              input
+          else Not_this_comparison)
     } ]
 
 (* ======================================================================== *)
