@@ -911,6 +911,26 @@ Examples of the meet, written down from a transcription: the two meets of the co
   closure_second_slot: as stated, with each of the two meets
   Of 23 statements, each with the two meets: 46 runs as stated, 0 different, 0 not run
 
+Chosen meets
+  T7-2 (binary):
+  extensions of the answer have equations on v1, v2, v3
+  the environment answered defines every name of the answer
+  type_well_formed is true of the answer
+  given the answer by an equation, v1 has a type that has an extension with an equation on v1
+  T7-2 (n-way):
+  extensions of the answer have equations on v1, v2, v3
+  the environment answered defines every name of the answer
+  type_well_formed is true of the answer
+  given the answer by an equation, v1 has a type that has an extension with an equation on v1
+  T4-9 (binary):
+  extensions of the answer have equations on v1
+  the environment answered defines every name of the answer
+  type_well_formed is true of the answer
+  T4-9 (n-way):
+  extensions of the answer have equations on v1
+  the answer mentions v4, which the environment answered does not define
+  type_well_formed is true of the answer
+
 A type of kind value with itself, shared and not (1500 cases, seeds 70000 to 71499)
   1500 converted
   join (binary) of a type with itself: 1208 agree

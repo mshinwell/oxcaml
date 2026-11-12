@@ -3322,10 +3322,16 @@ let examples_of_meets : example_of_meet list =
               [v 2, (v 3, Value); v 1, (v 2, Value)] ) ]
       () ]
 
-(* What differs from the statement when an example is run with one of the two
-   meets; nothing if the list is empty. *)
-let run_example_of_meet (implementation : implementation)
-    (example : example_of_meet) : string list =
+(* The names of a scenario, and the environment that its steps make with one of
+   the two meets. *)
+type scenario =
+  { numbering : Model_names.t;
+    variable : int -> Variable.t;
+    after_the_steps : (TE.t, string) result
+  }
+
+let scenario (implementation : implementation) (kinds : MK.flambda_kind list)
+    (steps : step list) : scenario =
   let numbering = Model_names.create () in
   let unit = Current_unit.get_cu_exn () in
   let variables =
@@ -3334,7 +3340,7 @@ let run_example_of_meet (implementation : implementation)
         let variable = Variable.create "v" (Converter.kind_of_model kind) in
         ignore (numbering.variables.number variable : N.positive);
         variable)
-      example.variables
+      kinds
   in
   List.iter
     (fun name ->
@@ -3356,7 +3362,6 @@ let run_example_of_meet (implementation : implementation)
       (Bound_var.create (variable i) Flambda_debug_uid.none Name_mode.normal)
   in
   let to_compiler = Converter.type_of_model numbering machine_width in
-  let to_model = Converter.type_to_model numbering in
   let meet_expanded_head = implementation.meet_expanded_head in
   (* The steps as far as the last relation, through the interface that the
      library exports, with the meet of the implementation chosen by the flag
@@ -3395,7 +3400,7 @@ let run_example_of_meet (implementation : implementation)
       (fun () ->
         exported
           (Exported.create ~machine_width ~resolver:(fun _ -> None))
-          example.steps)
+          steps)
   in
   (* The same environment, as the modules of the library have it. *)
   let observed = ref None in
@@ -3423,6 +3428,17 @@ let run_example_of_meet (implementation : implementation)
     | Relation _ :: _ ->
       Error "a relation after a step that is not a definition"
   in
+  { numbering; variable; after_the_steps = go env steps }
+
+(* What differs from the statement when an example is run with one of the two
+   meets; nothing if the list is empty. *)
+let run_example_of_meet (implementation : implementation)
+    (example : example_of_meet) : string list =
+  let { numbering; variable; after_the_steps } =
+    scenario implementation example.variables example.steps
+  in
+  let to_compiler = Converter.type_of_model numbering machine_width in
+  let to_model = Converter.type_to_model numbering in
   let differences = ref [] in
   let differs fmt =
     Format.kasprintf (fun what -> differences := what :: !differences) fmt
@@ -3457,7 +3473,7 @@ let run_example_of_meet (implementation : implementation)
         | exception Not_found -> differs "v%d has no canonical element" i)
       example.canonicals
   in
-  (match go env steps with
+  (match after_the_steps with
   | Error why -> differs "%s" why
   | Ok env -> (
     match example.meet with
@@ -3556,6 +3572,274 @@ let run_examples_of_meets () =
      different, %d not run@."
     (List.length examples_of_meets)
     !as_stated !different !not_run
+
+(* ======================================================================== *)
+(* Chosen meets                                                             *)
+(* ======================================================================== *)
+
+(* Two meets of types written by hand, each in an environment made as those of
+   the examples above are, which answer what the meets of generated types above
+   were not seen to answer. What each of the two meets of the compiler does is
+   shown; nothing is compared, and the expected output is the record.
+
+   - T7-2. The variable 1 is a value, the variable 3 is the tagging of the
+   variable 2, and the variable 2 is [Get_tag] of the variable 1. The types met
+   are the blocks of tag 0 or 1 whose one field is the variable 3, and the
+   blocks of tag 0 whose field is the number 0 or of tag 1 whose field is the
+   number 1. Neither has an extension. In each case of the answer the field is a
+   number, so the variable 2 is, and the variable 1 is a block of that tag: the
+   extension of the case says so. Given to the variable 1, the answer is then a
+   type of a name that has an extension on that name, on which the compiler's
+   [Equal_types_for_debug.equal_type] does not end; that function is not called
+   here. - T4-9. The three variables are values of which nothing is known. The
+   types met are blocks of one field: a variant whose blocks, of tag 0 or 1,
+   have for their field the variable 1; and a variant whose blocks have for
+   their field a pair, of the variable 2 twice for tag 0 and of the variable 3
+   twice for tag 1. The answer of the n-way meet mentions a variable that the
+   environment answered with it does not define. *)
+type chosen_meet =
+  { label : string;
+    kinds : MK.flambda_kind list;
+    before : step list;
+    met : MT.flambda_type * MT.flambda_type;
+    (* The variable that is then given the answer, by an equation, and whose
+       type is read. *)
+    given_to : int option
+  }
+
+let the_chosen_meets : chosen_meet list =
+  let v = N.positive_of_int in
+  let z = N.z_of_int in
+  let naked_immediate : MK.flambda_kind = Naked_number Kind_naked_immediate in
+  let alias i = MT.alias_type_of Value (Var (v i)) in
+  let variant immediates cases : MT.flambda_type =
+    Type_value
+      (Ok
+         (No_alias
+            (Head_of_kind_value
+               ( Ok
+                   (Variant
+                      ( None,
+                        immediates,
+                        None,
+                        Known
+                          (Row_like_for_blocks
+                             ( List.map
+                                 (fun (tag, fields) :
+                                      (_
+                                      * MT.row_like_block_case MT.Or_unknown.t)
+                                    ->
+                                   ( z tag,
+                                     Known
+                                       { case_maps_to = fields;
+                                         case_index =
+                                           { index_domain =
+                                               Known
+                                                 (N.nat_of_int
+                                                    (List.length fields));
+                                             index_shape = Scannable Value_only
+                                           };
+                                         case_env_extension =
+                                           MT.empty_env_extension
+                                       } ))
+                                 cases,
+                               Bottom,
+                               Heap )),
+                        No_extensions,
+                        false )),
+                 Not_null ))))
+  in
+  let blocks = variant (Known (MT.bottom naked_immediate)) in
+  let immediates_or_blocks = variant Unknown in
+  let number i = MT.this_tagged_immediate (z i) in
+  [ { label = "T7-2";
+      kinds = [Value; naked_immediate; Value];
+      before =
+        [ Define 1;
+          Define 2;
+          Define 3;
+          Equation (3, MT.tagged_immediate_alias_to (v 2));
+          Equation (2, MT.get_tag_for_block (Name_var (v 1))) ];
+      met =
+        ( blocks [0, [alias 3]; 1, [alias 3]],
+          blocks [0, [number 0]; 1, [number 1]] );
+      given_to = Some 1
+    };
+    { label = "T4-9";
+      kinds = [Value; Value; Value];
+      before = [Define 1; Define 2; Define 3];
+      met =
+        ( blocks [0, [immediates_or_blocks [0, [alias 1]; 1, [alias 1]]]],
+          blocks
+            [ ( 0,
+                [ immediates_or_blocks
+                    [ 0, [blocks [0, [alias 2; alias 2]]];
+                      1, [blocks [0, [alias 3; alias 3]]] ] ] ) ] );
+      given_to = None
+    } ]
+
+(* Whether a type has, in an extension, an equation on a name. *)
+let rec has_an_extension_on (name : MT.name) (t : MT.flambda_type) : bool =
+  let in_extension (Env_extension equations : MT.env_extension) =
+    List.exists
+      (fun (name', t) -> MT.name_eqb name name' || has_an_extension_on name t)
+      equations
+  in
+  let in_block_case (case : MT.row_like_block_case) =
+    in_extension case.case_env_extension
+    || List.exists (has_an_extension_on name) case.case_maps_to
+  in
+  match t with
+  | Type_value (Ok (No_alias (Head_of_kind_value (Ok head, _)))) -> (
+    match head with
+    | Variant (_, immediates, _, blocks, extensions, _) -> (
+      (match immediates with
+        | Known t -> has_an_extension_on name t
+        | Unknown -> false)
+      || (match blocks with
+        | Known (Row_like_for_blocks (known, other, _)) -> (
+          List.exists
+            (fun ((_ : N.z), (case : _ MT.Or_unknown.t)) ->
+              match case with
+              | Known case -> in_block_case case
+              | Unknown -> false)
+            known
+          || match other with Ok case -> in_block_case case | Bottom -> false)
+        | Unknown -> false)
+      ||
+      match extensions with
+      | No_extensions -> false
+      | Ext (when_immediate, when_block) ->
+        in_extension when_immediate || in_extension when_block)
+    | Boxed_number (_, contents, _) -> has_an_extension_on name contents
+    | Closures (Row_like_for_closures known, _) ->
+      let in_case (case : MT.row_like_closures_case) =
+        in_extension case.case_env_extension
+        ||
+        let (Closures_entry (_, closure_types, value_slot_types)) =
+          case.case_maps_to
+        in
+        List.exists
+          (fun ((_ : N.positive), t) -> has_an_extension_on name t)
+          (closure_types @ value_slot_types)
+      in
+      List.exists (fun ((_ : N.positive), case) -> in_case case) known
+    | Mutable_block _ | String _ -> false)
+  | Type_value
+      ( Unknown | Bottom
+      | Ok (Equals _)
+      | Ok (No_alias (Head_of_kind_value ((Unknown | Bottom), _))) )
+  | Type_naked_immediate _ | Type_naked_number _ | Type_rec_info _
+  | Type_region _ ->
+    false
+
+let chosen_meets () =
+  Format.printf "@.Chosen meets@.";
+  List.iter
+    (fun { label; kinds; before; met = first, second; given_to } ->
+      List.iter
+        (fun (implementation : implementation) ->
+          let name =
+            Printf.sprintf "%s (%s)" label implementation.implementation
+          in
+          let observed =
+            or_fatal_error (fun () ->
+                let { numbering; variable; after_the_steps } =
+                  scenario implementation kinds before
+                in
+                let to_compiler =
+                  Converter.type_of_model numbering machine_width
+                in
+                let to_model = Converter.type_to_model numbering in
+                let print_names ppf names =
+                  Format.pp_print_list
+                    ~pp_sep:(fun ppf () -> Format.pp_print_string ppf ", ")
+                    Model_type.print_name ppf names
+                in
+                match after_the_steps with
+                | Error why -> ["not run: " ^ why]
+                | Ok env -> (
+                  match
+                    implementation.meet env (to_compiler first)
+                      (to_compiler second)
+                  with
+                  | Bottom -> ["the meet is bottom"]
+                  | Ok (t, env) ->
+                    let not_defined =
+                      Name_occurrences.fold_names (TG.free_names t) ~init:[]
+                        ~f:(fun not_defined name ->
+                          if TE.mem env name
+                          then not_defined
+                          else
+                            Converter.name_to_model numbering name
+                            :: not_defined)
+                    in
+                    let answered = to_model t in
+                    let name_of i : MT.name =
+                      Name_var (numbering.variables.number (variable i))
+                    in
+                    let with_equations =
+                      List.filter
+                        (fun name -> has_an_extension_on name answered)
+                        (List.mapi (fun i _ -> name_of (i + 1)) kinds)
+                    in
+                    let given =
+                      match given_to with
+                      | None -> []
+                      | Some i ->
+                        let x = variable i in
+                        let meet_expanded_head =
+                          implementation.meet_expanded_head
+                        in
+                        let env =
+                          ME.use_meet_env ~meet_expanded_head env ~f:(fun env ->
+                              ME.add_equation env (Name.var x) t
+                                ~meet_expanded_head)
+                        in
+                        let of_x =
+                          to_model
+                            (TE.find env (Name.var x) (Some (Variable.kind x)))
+                        in
+                        [ Format.asprintf
+                            "given the answer by an equation, %a has a type \
+                             that has %s extension with an equation on %a"
+                            Model_type.print_name (name_of i)
+                            (if has_an_extension_on (name_of i) of_x
+                             then "an"
+                             else "no")
+                            Model_type.print_name (name_of i) ]
+                    in
+                    [ (match with_equations with
+                      | [] ->
+                        "no extension of the answer has an equation on a \
+                         variable of the environment"
+                      | _ :: _ ->
+                        Format.asprintf
+                          "extensions of the answer have equations on %a"
+                          print_names with_equations);
+                      (match not_defined with
+                      | [] ->
+                        "the environment answered defines every name of the \
+                         answer"
+                      | _ :: _ ->
+                        Format.asprintf
+                          "the answer mentions %a, which the environment \
+                           answered does not define"
+                          print_names (List.rev not_defined));
+                      Printf.sprintf "type_well_formed is %b of the answer"
+                        (is_well_formed answered) ]
+                    @ given))
+          in
+          match observed with
+          | Ok observed ->
+            Format.printf "  @[<v>%s:%a@]@." name
+              (fun ppf ->
+                List.iter (fun what -> Format.fprintf ppf "@ %s" what))
+              observed
+          | Error line ->
+            Format.printf "  %s: the compiler stops: %s@." name (general line))
+        [binary; n_way])
+    the_chosen_meets
 
 (* ======================================================================== *)
 (* The comparison by text                                                   *)
@@ -4175,6 +4459,7 @@ let () =
   chosen_joins names (the_chosen_joins names);
   run_examples_of_joins names;
   run_examples_of_meets ();
+  chosen_meets ();
   let with_itself ~title sharing =
     run ~title ~seed:70000 ~count:1500
       ~generate:(fun r ->
