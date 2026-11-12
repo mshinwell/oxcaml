@@ -107,6 +107,21 @@
      those of an integer of one, two, four or eight bytes; the
      conversion must refuse the others ([Single], which loads a float,
      the three of vectors, and [Mask]).
+   - The kinds of arrays are here, and no primitive carries one yet
+     (the section "Arrays" of FlambdaPrimitiveSpec.v says what the
+     primitives of arrays compute). The only arrays are those whose
+     elements are of kind [Value]: [array_kind] has [Immediates],
+     [Gc_ignorable_values] and [Values] of the compiler's
+     [Array_kind.t], and the conversion must refuse the others (the
+     arrays of floats, of naked numbers, of vectors and of masks, and
+     [Unboxed_product]). [array_load_kind] and [array_set_kind] have
+     the same three of [Array_load_kind.t] and of [Array_set_kind.t].
+     The constructors are prefixed with [Array_], [Load_] and [Set_]:
+     the three types of the compiler have the same names in three
+     modules. [Float_array_opt_dynamic], the kind of an [Array_length]
+     of an array that may be one of floats, is here: the model has no
+     array of floats, and the conversion must refuse the load and the
+     store that the front end makes for the case of floats.
 
    To add a primitive: add its constructor here, its case to the
    evaluation, to the kinds and to [prim_in_range] of
@@ -147,6 +162,24 @@ Inductive unary_int_arith_op : Type :=
 Inductive reinterpret_64_bit_word : Type :=
   | Tagged_int63_as_unboxed_int64
   | Unboxed_int64_as_tagged_int63.
+
+(* [Flambda_primitive.Array_kind.t], of the arrays whose elements are of
+   kind [Value]. *)
+Inductive array_kind : Type :=
+  | Array_immediates
+  | Array_gc_ignorable_values
+  | Array_values.
+
+(* [Flambda_primitive.Array_kind_for_length.t]. *)
+Inductive array_kind_for_length : Type :=
+  | Array_kind (kind : array_kind)
+  | Float_array_opt_dynamic.
+
+(* [Flambda_primitive.Array_load_kind.t], of the same arrays. *)
+Inductive array_load_kind : Type :=
+  | Load_immediates
+  | Load_gc_ignorable_values
+  | Load_values.
 
 (* [Flambda_primitive.unary_primitive]. *)
 Inductive unary_primitive : Type :=
@@ -246,6 +279,13 @@ Inductive cell_mutability : Type :=
 Inductive init_or_assign : Type :=
   | Initialization
   | Assignment.
+
+(* [Flambda_primitive.Array_set_kind.t], of the arrays whose elements are
+   of kind [Value]. *)
+Inductive array_set_kind : Type :=
+  | Set_immediates
+  | Set_gc_ignorable_values
+  | Set_values (init : init_or_assign).
 
 Inductive heap_primitive : Type :=
   (* [Make_block (Values (tag, _), Mutable | Immutable_unique, Heap)]:

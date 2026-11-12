@@ -103,24 +103,14 @@ Proof.
   intros Hunique. rewrite (Hsame3 Hunique). exact (Hsame2 Hunique).
 Qed.
 
-Lemma replace_nth_length {A : Type} (n : nat) (x : A) (l l' : list A) :
-  replace_nth n x l = Some l' -> length l' = length l.
-Proof.
-  revert l l'. induction n as [ | n IH]; intros [ | y l] l'; simpl;
-    try discriminate.
-  - intros [= <-]. reflexivity.
-  - destruct (replace_nth n x l) as [l'' | ] eqn:Hreplace; simpl;
-      [ | discriminate ].
-    intros [= <-]. simpl. rewrite (IH _ _ Hreplace). reflexivity.
-Qed.
-
 Lemma store_field_length (kind : block_access_kind) (field : Z) (new : value)
     (tag : Z) (fields fields' : list value) :
   store_field kind field new tag fields = Some fields' ->
   length fields' = length fields.
 Proof.
   destruct kind as [known_tag size field_kind]. simpl.
-  destruct (_ && _); [ | discriminate ]. apply replace_nth_length.
+  destruct (_ && _); [ | discriminate ].
+  apply FlambdaPrimitiveProofs.replace_nth_length.
 Qed.
 
 Lemma exec_heap_primitive_evolves (statics : static_env) (h h' : heap)
@@ -2082,23 +2072,6 @@ Proof.
   - apply IH.
 Qed.
 
-Lemma Forall2_replace_nth {A B : Type} (R : A -> B -> Prop) (n : nat) (x : A)
-    (y : B) (l l1 : list A) (l' : list B) :
-  R x y ->
-  Forall2 R l l' ->
-  replace_nth n x l = Some l1 ->
-  ∃ l1' : list B, replace_nth n y l' = Some l1' ∧ Forall2 R l1 l1'.
-Proof.
-  intros Hxy Hall. revert n l1.
-  induction Hall as [ | a b l l' Hab Hall IH]; intros [ | n] l1; simpl;
-    try discriminate.
-  - intros [= <-]. eexists. split; [ reflexivity | constructor; assumption ].
-  - destruct (replace_nth n x l) as [l2 | ] eqn:Hreplace; simpl;
-      [ | discriminate ].
-    intros [= <-]. destruct (IH _ _ Hreplace) as (l2' & -> & Hl2). simpl.
-    eexists. split; [ reflexivity | constructor; assumption ].
-Qed.
-
 (* Two finite maps with the same names and related contents. *)
 Lemma lookup_related {A : Type} (R : A -> A -> Prop)
     (l l' : list (positive * A)) (name : positive) (a : A) :
@@ -2825,7 +2798,7 @@ Proof.
       reflexivity. }
   rewrite Hcheck.
   destruct (_ && _); [ | discriminate ].
-  apply Forall2_replace_nth; assumption.
+  apply FlambdaPrimitiveProofs.Forall2_replace_nth; assumption.
 Qed.
 
 (* The relation is one that the observations respect
@@ -5417,20 +5390,6 @@ Proof.
   - intros s tag fields _ Hs v Hv. exact (proj2 Hmemory s _ v Hs Hv).
 Qed.
 
-Lemma replace_nth_in {A : Type} (n : nat) (x : A) (l l1 : list A) (y : A) :
-  replace_nth n x l = Some l1 -> y ∈ l1 -> y = x ∨ y ∈ l.
-Proof.
-  revert n l1. induction l as [ | a l IH]; intros [ | n] l1; simpl;
-    try discriminate.
-  - intros [= <-] [<- | Hin];
-      [ left; reflexivity | right; right; exact Hin ].
-  - destruct (replace_nth n x l) as [l2 | ] eqn:Hreplace; simpl;
-      [ | discriminate ].
-    intros [= <-] [<- | Hin]; [ right; left; reflexivity | ].
-    destruct (IH _ _ Hreplace Hin) as [-> | Hin'];
-      [ left; reflexivity | right; right; exact Hin' ].
-Qed.
-
 Lemma store_field_in (kind : block_access_kind) (field : Z) (new : value)
     (tag : Z) (fields fields1 : list value) :
   store_field kind field new tag fields = Some fields1 ->
@@ -5454,7 +5413,8 @@ Proof.
     + exact (kind_eqb_true _ _ Hcheck).
     + destruct new; try discriminate. destruct c; try discriminate.
       reflexivity.
-  - intros y Hy. exact (replace_nth_in _ _ _ _ _ Hreplace Hy).
+  - intros y Hy.
+    exact (FlambdaPrimitiveProofs.replace_nth_in _ _ _ _ _ Hreplace Hy).
 Qed.
 
 (* A primitive keeps the memory closed, and its value is closed. *)

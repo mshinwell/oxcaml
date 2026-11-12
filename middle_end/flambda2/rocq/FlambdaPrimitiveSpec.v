@@ -84,6 +84,17 @@
    static environment, but only on what the symbols among its arguments
    are bound to ([eval_prim_static_values_statement]).
 
+   Arrays. The section "Arrays" says what the four primitives of
+   arrays ([Make_array], [Array_length], [Array_load], [Array_set])
+   compute on the elements of an array, given as a list. No value here
+   is an array and no primitive of the model is one of those four yet:
+   the section is what the cells of the heap of C4's prototype
+   (FlambdaHeapSpec.v) are to be read and written with. It is to be
+   reviewed against [Simplify_common.specialise_array_kind] and the
+   functions for arrays of the four files of Simplify above, and
+   against [Lambda_to_flambda_primitives] for the checks of bounds
+   that the front end puts before an access.
+
    The laws. The rest of the model does not look inside a primitive: it
    uses the statements at the end, which hold of every primitive.
    [eval_prim] is opaque after FlambdaPrimitiveProofs.v, as [step] is, so
@@ -837,6 +848,278 @@ Definition eval_prim (statics : static_env) (p : prim) (vs : list value)
   | Variadic p, vs => eval_variadic_primitive statics p vs
   | _, _ => None
   end.
+
+(* ======================================================================== *)
+(* Arrays                                                                   *)
+(* ======================================================================== *)
+
+(* What the primitives of arrays compute on the elements of an array,
+   given as a list, and on the kind that the array was made at. Nothing
+   uses it yet: no value of the model is an array, and no primitive of
+   the model is one of arrays. An array is to be a cell of the heap of
+   C4's prototype (FlambdaHeapSpec.v), read and written with these
+   functions; an immutable array, when the values of the model have
+   one, is to be read with the same.
+
+   An array keeps the kind it was made at, and each of its elements is
+   a value that this kind holds ([array_element_ok]): a tagged
+   immediate for [Array_immediates], anything of kind [Value] for the
+   two others. The kind is kept because Simplify keeps it: the type
+   that it gives a mutable array has the kind of the elements, and
+   stays the type of the array across stores
+   ([Flambda2_types.mutable_array], in
+   [Simplify_variadic_primitive.simplify_make_array]); and
+   [Simplify_common.specialise_array_kind] makes a load or a store at
+   [Values] or at [Gc_ignorable_values] one at [Immediates] where that
+   type says that the elements are immediates. So a store of a value
+   that the kind of the array does not hold has no value here: it
+   would make that type wrong.
+
+   The array kind that an access carries ([Array_length],
+   [Array_load], [Array_set]) is not looked at: every array kind of
+   the model is one of values, and among those Simplify changes the
+   kind of an access as just said. It is to matter when there are
+   arrays of naked numbers, where Simplify gives [Invalid] for a load
+   or a store at a kind of naked numbers of an array whose type has
+   another kind of element.
+
+   A load says what it takes the element to be ([array_load_kind]) and
+   has no value on another: at [Load_immediates], on an element that
+   is not a tagged immediate. A store says the same of the new value
+   ([array_set_kind]). Whether a store is an initialisation or an
+   assignment changes nothing. *)
+
+(* The kind of array whose elements a load kind, and a set kind, take
+   the element to be one of. *)
+Definition array_kind_of_load_kind (load_kind : array_load_kind)
+    : array_kind :=
+  match load_kind with
+  | Load_immediates => Array_immediates
+  | Load_gc_ignorable_values => Array_gc_ignorable_values
+  | Load_values => Array_values
+  end.
+
+Definition array_kind_of_set_kind (set_kind : array_set_kind) : array_kind :=
+  match set_kind with
+  | Set_immediates => Array_immediates
+  | Set_gc_ignorable_values => Array_gc_ignorable_values
+  | Set_values _ => Array_values
+  end.
+
+(* Whether an array of a kind holds a value:
+   [Flambda_primitive.Array_kind.element_kinds], with the subkind of
+   the immediates. *)
+(* CR mshinwell: An array made at [Gc_ignorable_values] holds any value
+   of kind [Value], as [Array_kind.element_kinds] says, and a load or a
+   store at that kind takes any. The model has no notion of what the
+   collector may ignore, so it gives a meaning to a store at this kind
+   of a value that the collector must not ignore, which the machine
+   does without telling the collector. The front end uses the kind for
+   the stores of integers into an array of them ([Pintarray_set]) and
+   for the arrays of values that are not in the heap. If such a store
+   is to be undefined, the test here is to refuse more. Decided while
+   the owner of the branch was away
+   (middle_end/flambda2/rocq/status/P1.md). *)
+Definition array_element_ok (kind : array_kind) (v : value) : bool :=
+  match kind with
+  | Array_immediates => is_tagged_immediate v
+  | Array_gc_ignorable_values | Array_values =>
+    kind_eqb (kind_of_value v) Value
+  end.
+
+(* [Make_array]: the elements of the array made are the arguments, each
+   of which is a value that the kind holds. *)
+(* CR mshinwell: A [Make_array] says nothing of its elements but what
+   its array kind says. In the compiler the kind of the elements has a
+   subkind, and Simplify meets the type of each argument with it and
+   gives [Invalid] where they cannot agree
+   ([Simplify_variadic_primitive.simplify_make_array]); the only
+   subkind that the array kinds of the model give is that of the
+   immediates, which is tested. Decision D25 is the same question for
+   [Make_block]. *)
+Definition array_made (kind : array_kind) (vs : list value)
+    : option (list value) :=
+  if forallb (array_element_ok kind) vs then Some vs else None.
+
+(* [Array_length]: the number of elements, a tagged immediate. It does
+   not depend on the kind of the array nor on the kind that the
+   primitive carries: [Simplify_unary_primitive.simplify_array_length]
+   looks at neither. With [Float_array_opt_dynamic] the array may be
+   one of floats or one of values; the compiled code reads the size in
+   words either way, a float being a word on a 64-bit target, and the
+   model has no array of floats. *)
+Definition array_length_of (elements : list value) : option value :=
+  let length := Z.of_nat (length elements) in
+  if in_range (int_width Standard_tagged_immediate) length
+  then Some (Value_const (Tagged_immediate length))
+  else None.
+
+(* The position in an array that an index is: the index is a tagged
+   immediate, at least 0 and below the number of elements. *)
+(* CR mshinwell: A load or a store at an index that the array has not
+   got has no value. [Array_load] and [Array_set] are the accesses
+   that test nothing: the front end puts a test of the bounds before
+   one, which raises, unless the source asks for none
+   ([Array.unsafe_get], [-unsafe]), and the machine reads or writes
+   the word at the index. Simplify replaces a load at a known index
+   out of the bounds of an immutable array of known length by
+   [Invalid] ([Simplify_binary_primitive.simplify_array_load]); it
+   says nothing of a mutable array. It would be wrong if a program
+   that has a meaning reads out of the bounds of an array and does
+   not use what it reads. Decided while the owner of the branch was
+   away (middle_end/flambda2/rocq/status/P1.md). *)
+Definition array_index (elements : list value) (index : value)
+    : option nat :=
+  let* i := int_of_value Standard_tagged_immediate index in
+  if (0 <=? i) && (i <? Z.of_nat (length elements))
+  then Some (Z.to_nat i)
+  else None.
+
+(* [Array_load]: the element at the index, if it is one that the load
+   kind takes. *)
+Definition array_loaded (load_kind : array_load_kind)
+    (elements : list value) (index : value) : option value :=
+  let* i := array_index elements index in
+  let* v := nth_error elements i in
+  if array_element_ok (array_kind_of_load_kind load_kind) v
+  then Some v
+  else None.
+
+(* A list with the element at a position replaced. There is none if the
+   list has no such position. *)
+Fixpoint replace_nth {A : Type} (n : nat) (x : A) (l : list A)
+    : option (list A) :=
+  match n, l with
+  | O, _ :: l => Some (x :: l)
+  | S n, y :: l =>
+    let* l' := replace_nth n x l in
+    Some (y :: l')
+  | _, [] => None
+  end.
+
+(* [Array_set]: the elements with the one at the index replaced by the
+   new value, which must be a value that the set kind takes and one
+   that the kind of the array holds. *)
+Definition array_stored (set_kind : array_set_kind) (kind : array_kind)
+    (elements : list value) (index new : value) : option (list value) :=
+  if array_element_ok (array_kind_of_set_kind set_kind) new
+     && array_element_ok kind new
+  then
+    let* i := array_index elements index in
+    replace_nth i new elements
+  else None.
+
+(* What follows is what FlambdaHeapSpec.v needs of these functions. *)
+
+(* An element that an array holds is of kind [Value]. *)
+Definition array_element_kind_statement : Prop :=
+  ∀ (kind : array_kind) (v : value),
+    array_element_ok kind v = true -> kind_of_value v = Value.
+
+(* The elements of an array made are its arguments, and each is one
+   that the kind holds. *)
+Definition array_made_of_arguments_statement : Prop :=
+  ∀ (kind : array_kind) (vs elements : list value),
+    array_made kind vs = Some elements ->
+    elements = vs ∧ (∀ v : value, v ∈ vs -> array_element_ok kind v = true).
+
+(* The length is that of the list: it is the same for two arrays of as
+   many elements. *)
+Definition array_length_of_same_length_statement : Prop :=
+  ∀ elements elements' : list value,
+    length elements' = length elements ->
+    array_length_of elements' = array_length_of elements.
+
+(* What a load answers is an element of the array, and one that its
+   load kind takes. *)
+Definition array_loaded_element_statement : Prop :=
+  ∀ (load_kind : array_load_kind) (elements : list value) (index v : value),
+    array_loaded load_kind elements index = Some v ->
+    v ∈ elements
+    ∧ array_element_ok (array_kind_of_load_kind load_kind) v = true.
+
+(* A store keeps the number of elements; the new value is one that the
+   kind of the array holds; and each element after the store is the new
+   value or an element before it. So an array whose elements are values
+   that its kind holds stays one. *)
+Definition array_stored_elements_statement : Prop :=
+  ∀ (set_kind : array_set_kind) (kind : array_kind) (elements : list value)
+    (index new : value) (stored : list value),
+    array_stored set_kind kind elements index new = Some stored ->
+    length stored = length elements
+    ∧ array_element_ok kind new = true
+    ∧ (∀ v : value, v ∈ stored -> v = new ∨ v ∈ elements).
+
+(* A load at the index of a store answers the value stored, if it is
+   one that the load kind takes. *)
+Definition array_load_after_store_statement : Prop :=
+  ∀ (set_kind : array_set_kind) (kind : array_kind)
+    (load_kind : array_load_kind) (elements : list value)
+    (index new : value) (stored : list value),
+    array_stored set_kind kind elements index new = Some stored ->
+    array_loaded load_kind stored index
+    = if array_element_ok (array_kind_of_load_kind load_kind) new
+      then Some new
+      else None.
+
+(* A load at another index answers what it did before the store. *)
+Definition array_load_after_other_store_statement : Prop :=
+  ∀ (set_kind : array_set_kind) (kind : array_kind)
+    (load_kind : array_load_kind) (elements : list value)
+    (index new other : value) (stored : list value) (i j : Z),
+    array_stored set_kind kind elements index new = Some stored ->
+    int_of_value Standard_tagged_immediate index = Some i ->
+    int_of_value Standard_tagged_immediate other = Some j ->
+    i <> j ->
+    array_loaded load_kind stored other
+    = array_loaded load_kind elements other.
+
+(* What the functions compute on some elements they compute on related
+   ones, for a relation between values under which the second of two
+   related values is of the kind of the first, and is every integer
+   that the first is. A relation that [relates_constants]
+   (the section "The laws of every primitive") is one, and so is the
+   relation of FlambdaHeapSpec.v between the values of two runs, which
+   relates a poison to any value of its kind. As for
+   [eval_prim_related_statement], the statements go one way. *)
+Definition relates_numbers (R : value -> value -> Prop) : Prop :=
+  ∀ v v' : value,
+    R v v' ->
+    kind_of_value v' = kind_of_value v
+    ∧ (∀ (kind : standard_int) (i : Z),
+        int_of_value kind v = Some i -> int_of_value kind v' = Some i).
+
+Definition array_made_related_statement : Prop :=
+  ∀ (R : value -> value -> Prop) (kind : array_kind)
+    (vs vs' elements : list value),
+    relates_numbers R ->
+    Forall2 R vs vs' ->
+    array_made kind vs = Some elements ->
+    ∃ elements' : list value,
+      array_made kind vs' = Some elements' ∧ Forall2 R elements elements'.
+
+Definition array_loaded_related_statement : Prop :=
+  ∀ (R : value -> value -> Prop) (load_kind : array_load_kind)
+    (elements elements' : list value) (index index' v : value),
+    relates_numbers R ->
+    Forall2 R elements elements' ->
+    R index index' ->
+    array_loaded load_kind elements index = Some v ->
+    ∃ v' : value,
+      array_loaded load_kind elements' index' = Some v' ∧ R v v'.
+
+Definition array_stored_related_statement : Prop :=
+  ∀ (R : value -> value -> Prop) (set_kind : array_set_kind)
+    (kind : array_kind) (elements elements' : list value)
+    (index index' new new' : value) (stored : list value),
+    relates_numbers R ->
+    Forall2 R elements elements' ->
+    R index index' ->
+    R new new' ->
+    array_stored set_kind kind elements index new = Some stored ->
+    ∃ stored' : list value,
+      array_stored set_kind kind elements' index' new' = Some stored'
+      ∧ Forall2 R stored stored'.
 
 (* ======================================================================== *)
 (* Numbers in range                                                         *)

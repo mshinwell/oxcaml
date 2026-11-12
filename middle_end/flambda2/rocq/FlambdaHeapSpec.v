@@ -109,16 +109,6 @@ Definition load_field (kind : block_access_kind) (field : Z) (block_tag : Z)
     else None
   end.
 
-Fixpoint replace_nth {A : Type} (n : nat) (x : A) (l : list A)
-    : option (list A) :=
-  match n, l with
-  | O, _ :: l => Some (x :: l)
-  | S n, y :: l =>
-    let* l' := replace_nth n x l in
-    Some (y :: l')
-  | _, [] => None
-  end.
-
 (* The fields with [field] replaced by [new], under the same checks: the
    tag and the size are those the access kind gives, the field is one the
    block has, and the new value is of kind [Value], and a tagged
