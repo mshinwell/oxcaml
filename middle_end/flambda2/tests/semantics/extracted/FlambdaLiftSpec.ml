@@ -29,6 +29,15 @@ let rec rec_handlers_map f q = function
     let k, h = p in
     (k, f (Coq_xO q) h) :: rec_handlers_map f (Coq_xI q) rest
 
+(** val rec_handlers_forall : (path -> continuation_handler -> bool) -> path ->
+    (continuation * continuation_handler) list -> bool **)
+
+let rec rec_handlers_forall f q = function
+  | [] -> true
+  | p :: rest ->
+    let _, h = p in
+    f (Coq_xO q) h && rec_handlers_forall f (Coq_xI q) rest
+
 (** val rec_handlers_bindings : (path -> continuation_handler -> static_binding
     list) -> path -> (continuation * continuation_handler) list ->
     static_binding list **)
@@ -44,7 +53,9 @@ type lifting =
     lifted_lets : (path * lift_to) list;
     lifted_my_closures : (code_id * symbol) list;
     lifted_out_of_code : (code_id * (path * lift_to) list) list;
-    lifted_to_head : (path * lift_to) list
+    lifted_to_head : (path * lift_to) list;
+    lifted_around : (path * lift_to) list;
+    groups_put : (path * path list) list
   }
 
 (** val lift_named : lift_to -> named -> (static_binding list * symbol) option **)

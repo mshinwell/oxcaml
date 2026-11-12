@@ -50,6 +50,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaCompareSpec FlambdaCompareAlphaSpec FlambdaCompareAlphaProofs
   FlambdaMyClosureSpec FlambdaMyClosureProofs FlambdaLiftSpec
   FlambdaLiftProofs FlambdaLiftFromCodeSpec FlambdaLiftFromCodeProofs
+  FlambdaLiftAroundSpec
   FlambdaLiftFromArmsSpec FlambdaStaticsInScopeSpec FlambdaHoistStaticsSpec
   FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs
   FlambdaKnownSymbolsSpec FlambdaKnownSymbolsProofs
@@ -78,6 +79,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
 From OxCamlFlambda2 Require FlambdaKeepsScopeProofs FlambdaValidateScopeProofs
   FlambdaLoopsScopeProofs
   FlambdaStaticsScopeProofs FlambdaLiftFromArmsProofs
+  FlambdaLiftAroundProofs
   FlambdaHoistStaticsProofs FlambdaUnboxParamsNamesProofs
   FlambdaUnaliasParamsNamesProofs.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
@@ -5670,6 +5672,34 @@ Proof.
     reflexivity.
 Qed.
 
+(* The lifting to a group around: the groups are read off the unit, so
+   those of the renamed unit are those of the unit, renamed; the check
+   answers the same, and the rewrite commutes with the renaming. *)
+Lemma lift_around_unit_renamed (r : renaming) (u : unit_interface)
+    (lets : list (path * lift_to)) (places : list (path * list path))
+    (e : expr) :
+  lift_around_unit (rename_unit_interface r u) lets places (rename_expr r e)
+  = option_map (rename_expr r) (lift_around_unit u lets places e).
+Proof.
+  unfold lift_around_unit. cbv zeta.
+  rewrite FlambdaLiftAroundProofs.groups_of_equivariant,
+    <- FlambdaLiftAroundProofs.lift_around_equivariant,
+    well_formed_unit_equivariant.
+  pose proof
+    (FlambdaLiftAroundProofs.around_ok_equivariant r lets
+       (groups_of lets places e) [] root e)
+    as Hok.
+  cbn [rename_known_constants map] in Hok. rewrite Hok.
+  pose proof (exits_plain_equivariant r [] e) as Hexits. simpl in Hexits.
+  rewrite Hexits.
+  destruct
+    (exits_plain [] e
+     && around_ok lets (groups_of lets places e) [] root e
+     && well_formed_unit u
+          (lift_around lets (groups_of lets places e) root e));
+    reflexivity.
+Qed.
+
 Lemma with_lifting_renamed (r : renaming) (L : lifting) (e : expr) :
   with_lifting (rename_lifting r L) (rename_expr r e)
   = rename_expr r (with_lifting L e).
@@ -5680,6 +5710,8 @@ Proof.
   change (lifted_out_of_code (rename_lifting r L))
     with (lifted_out_of_code L).
   change (lifted_to_head (rename_lifting r L)) with (lifted_to_head L).
+  change (lifted_around (rename_lifting r L)) with (lifted_around L).
+  change (groups_put (rename_lifting r L)) with (groups_put L).
   rewrite lift_to_head_unit_renamed.
   destruct (lift_to_head_unit (lifting_unit L) (lifted_to_head L) e)
     as [at_head | ];
@@ -5687,7 +5719,11 @@ Proof.
     destruct (lift_from_code_unit (lifting_unit L) (lifted_out_of_code L) _)
       as [e' | ];
     cbn [option_map]; rewrite lift_unit_renamed;
-    destruct (lift_unit L _); reflexivity.
+    destruct (lift_unit L _) as [lifted | ];
+    cbn [option_map]; rewrite lift_around_unit_renamed;
+    destruct
+      (lift_around_unit (lifting_unit L) (lifted_around L) (groups_put L) _);
+    reflexivity.
 Qed.
 
 Theorem with_lifting_equivariant : with_lifting_equivariant_statement.

@@ -19,6 +19,7 @@ open FlambdaInlineTailSpec
 open FlambdaKnownClosuresSpec
 open FlambdaKnownSlotsSpec
 open FlambdaKnownSymbolsSpec
+open FlambdaLiftAroundSpec
 open FlambdaLiftFromArmsSpec
 open FlambdaLiftFromCodeSpec
 open FlambdaLiftSpec
@@ -230,7 +231,10 @@ let with_lifting l e =
     | Some e' -> e'
     | None -> e0
   in
-  match lift_unit l e1 with Some e' -> e' | None -> e1
+  let e2 = match lift_unit l e1 with Some e' -> e' | None -> e1 in
+  match lift_around_unit l.lifting_unit l.lifted_around l.groups_put e2 with
+  | Some e' -> e'
+  | None -> e2
 
 (** val with_known : expr -> expr **)
 

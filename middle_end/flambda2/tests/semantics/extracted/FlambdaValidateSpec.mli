@@ -19,6 +19,7 @@ open FlambdaInlineTailSpec
 open FlambdaKnownClosuresSpec
 open FlambdaKnownSlotsSpec
 open FlambdaKnownSymbolsSpec
+open FlambdaLiftAroundSpec
 open FlambdaLiftFromArmsSpec
 open FlambdaLiftFromCodeSpec
 open FlambdaLiftSpec

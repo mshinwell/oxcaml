@@ -64,6 +64,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaUnusedStaticsProofs FlambdaLiftSpec FlambdaLiftProofs
   FlambdaLiftFromCodeSpec FlambdaLiftFromCodeProofs
   FlambdaLiftFromArmsSpec FlambdaLiftFromArmsProofs
+  FlambdaLiftAroundSpec FlambdaLiftAroundProofs
   FlambdaUnusedSlotsSpec FlambdaUnusedSlotsProofs FlambdaKnownSymbolsSpec
   FlambdaKnownSymbolsProofs FlambdaKnownClosuresSpec FlambdaKnownClosuresProofs
   FlambdaFloatCodeSpec FlambdaFloatCodeProofs FlambdaGroupsUpSpec
@@ -525,6 +526,11 @@ Proof.
     | Some e' => e'
     | None => at_head
     end).
+  set (lifted :=
+    match lift_unit L out_of_code with
+    | Some e' => e'
+    | None => out_of_code
+    end).
   apply (refines_trans _ (State at_head [] [] empty_static_env empty_heap)).
   - subst at_head.
     destruct (lift_to_head_unit (lifting_unit L) (lifted_to_head L) e)
@@ -539,9 +545,48 @@ Proof.
         as [e' | ] eqn:Hout;
         [ | apply refines_refl ].
       exact (lift_from_code_unit_program_refines _ _ at_head e' Hout).
-    + destruct (lift_unit L out_of_code) as [e' | ] eqn:Hlift;
-        [ | apply refines_refl ].
-      exact (lift_unit_program_refines L out_of_code e' Hlift).
+    + apply
+        (refines_trans _ (State lifted [] [] empty_static_env empty_heap)).
+      * subst lifted.
+        destruct (lift_unit L out_of_code) as [e' | ] eqn:Hlift;
+          [ | apply refines_refl ].
+        exact (lift_unit_program_refines L out_of_code e' Hlift).
+      * destruct
+          (lift_around_unit (lifting_unit L) (lifted_around L) (groups_put L)
+             lifted)
+          as [e' | ] eqn:Haround;
+          [ | apply refines_refl ].
+        exact (lift_around_unit_program_refines _ _ _ lifted e' Haround).
+Qed.
+
+(* With no [Let] to make an alias of a symbol bound around it and no
+   group to put, [with_lifting] is its first three liftings. *)
+Lemma with_lifting_nothing_around (L : lifting) (e : expr) :
+  lifted_around L = [] ->
+  groups_put L = [] ->
+  with_lifting L e
+  = (let at_head :=
+       match lift_to_head_unit (lifting_unit L) (lifted_to_head L) e with
+       | Some e' => e'
+       | None => e
+       end
+     in
+     let out_of_code :=
+       match
+         lift_from_code_unit (lifting_unit L) (lifted_out_of_code L) at_head
+       with
+       | Some e' => e'
+       | None => at_head
+       end
+     in
+     match lift_unit L out_of_code with
+     | Some e' => e'
+     | None => out_of_code
+     end).
+Proof.
+  intros Haround Hgroups. unfold with_lifting. cbv zeta.
+  rewrite Haround, Hgroups.
+  apply FlambdaLiftAroundProofs.lift_around_unit_nothing.
 Qed.
 
 Lemma with_known_program_refines (e : expr) :

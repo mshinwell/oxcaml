@@ -43,7 +43,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaSemanticsSpec FlambdaBindersSpec
   FlambdaNormaliseSpec FlambdaUnusedStaticsSpec FlambdaStaticsOrderSpec
   FlambdaMyClosureSpec FlambdaWellFormedSpec FlambdaLiftSpec
-  FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaHoistStaticsSpec
+  FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaLiftAroundSpec
+  FlambdaHoistStaticsSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
   FlambdaKnownSlotsSpec FlambdaStubCallsSpec FlambdaStaticsInScopeSpec
   FlambdaFloatCodeSpec FlambdaGroupsUpSpec FlambdaUnaliasParamsSpec
@@ -666,13 +667,140 @@ Proof.
     [ apply lift_expr_scoped | apply bind_my_closures_scoped ].
 Qed.
 
+(* ======================================================================== *)
+(* The lifting to a group around                                            *)
+(* ======================================================================== *)
+
+(* A group that may be put binds symbols only: it has no code and
+   mentions no continuation. *)
+Lemma putable_group_closed (bindings : list static_binding) :
+  putable_group bindings = true ->
+  forallb binding_code_closed bindings = true
+  ∧ flat_map free_continuations_of_binding bindings = [].
+Proof.
+  unfold putable_group.
+  induction bindings as [ | binding bindings IH]; cbn [forallb flat_map];
+    [ intros _; split; reflexivity | ].
+  intros H. apply andb_true_iff in H. destruct H as [Hfirst Hrest].
+  destruct (IH Hrest) as [Hclosed Hk].
+  destruct binding as [id c | id | s const]; try discriminate.
+  scope. rewrite Hclosed, Hk. split; reflexivity.
+Qed.
+
+(* A group put before a term of which it mentions only variables. *)
+Lemma scoped_group_put (bindings : list static_binding) (e e' : expr) :
+  putable_group bindings = true ->
+  group_in_scope bindings e = true ->
+  scoped e e' ->
+  scoped e
+    match bindings with
+    | [] => e'
+    | binding :: bindings' => Let_static (binding :: bindings') e'
+    end.
+Proof.
+  intros Hput Hscope He. unfold group_in_scope in Hscope.
+  destruct bindings as [ | binding bindings']; [ exact He | ].
+  set (bindings := binding :: bindings') in *.
+  intros Hclosed. destruct (He Hclosed) as (Hclosed' & Hv & Hk).
+  destruct (putable_group_closed bindings Hput) as [Hb Hbk].
+  scope. rewrite Hb, Hclosed', Hbk. split; [ reflexivity | ]. cbn [app].
+  split; [ | exact Hk ].
+  apply incl_app; [ | exact Hv ].
+  intros x Hx. apply among_In.
+  exact
+    (proj1 (FlambdaMapProofs.all_among _ _) Hscope x
+       (proj2 (among_In _ _) Hx)).
+Qed.
+
+Fixpoint lift_around_scoped (lets : list (path * lift_to))
+    (groups : list (path * list static_binding)) (known : known_constants)
+    (at_path : path) (e : expr) {struct e} :
+  around_ok lets groups known at_path e = true ->
+  scoped e (lift_around lets groups at_path e)
+with handler_lift_around_scoped (lets : list (path * lift_to))
+    (groups : list (path * list static_binding)) (known : known_constants)
+    (at_path : path) (h : continuation_handler) {struct h} :
+  handler_around_ok lets groups known at_path h = true ->
+  scoped_handler h (lift_around_handler lets groups at_path h).
+Proof.
+  - destruct e as [x kind d body | bindings body | k h body | handlers body
+                  | ap | ac | scrutinee arms | ];
+      cbn [around_ok lift_around]; intros Hok; try apply scoped_refl.
+    + apply andb_true_iff in Hok. destruct Hok as [_ Hbody].
+      destruct (alias_of lets at_path d) as [[bindings s] | ];
+        (apply scoped_let;
+         [ | exact (lift_around_scoped _ _ _ _ _ Hbody) ]);
+        [ intros x' Hx'; cbn in Hx'; destruct Hx' | apply incl_refl ].
+    + apply scoped_let_static;
+        [ apply scoped_bindings_refl
+        | exact (lift_around_scoped _ _ _ _ _ Hok) ].
+    + cbv zeta in Hok.
+      apply andb_true_iff in Hok. destruct Hok as [Hok Hbody].
+      apply andb_true_iff in Hok. destruct Hok as [Hok Hh].
+      apply andb_true_iff in Hok. destruct Hok as [Hput Hscope].
+      apply (scoped_group_put _ _ _ Hput Hscope).
+      apply scoped_let_cont;
+        [ exact (handler_lift_around_scoped _ _ _ _ _ Hh)
+        | exact (lift_around_scoped _ _ _ _ _ Hbody) ].
+    + cbv zeta in Hok.
+      apply andb_true_iff in Hok. destruct Hok as [Hok Hbody].
+      apply andb_true_iff in Hok. destruct Hok as [Hok Hhandlers].
+      apply andb_true_iff in Hok. destruct Hok as [Hok _].
+      apply andb_true_iff in Hok. destruct Hok as [Hput Hscope].
+      apply (scoped_group_put _ _ _ Hput Hscope). clear Hscope.
+      apply scoped_let_cont_recursive;
+        [ | | exact (lift_around_scoped _ _ _ _ _ Hbody) ].
+      * clear Hhandlers. generalize (xI at_path).
+        induction handlers as [ | [k1 h1] handlers IH]; intros q;
+          [ reflexivity | ].
+        cbn [rec_handlers_map map fst]. rewrite IH. reflexivity.
+      * revert Hhandlers. generalize (xI at_path).
+        induction handlers as [ | [k1 h1] handlers IH]; intros q Hhandlers;
+          cbn [rec_handlers_map]; [ apply scoped_handlers_nil | ].
+        cbn [rec_handlers_forall] in Hhandlers.
+        apply andb_true_iff in Hhandlers. destruct Hhandlers as [H1 Hrest].
+        apply scoped_handlers_cons;
+          [ exact (handler_lift_around_scoped _ _ _ _ _ H1)
+          | exact (IH _ Hrest) ].
+  - destruct h as [params metadata handler].
+    cbn [handler_around_ok lift_around_handler]. intros Hok.
+    apply scoped_handler_intro.
+    exact (lift_around_scoped _ _ _ _ _ Hok).
+Qed.
+
+Theorem lift_around_keeps_scope : lift_around_keeps_scope_statement.
+Proof.
+  intros lets groups at_path. apply keeps_scope_intro. intros e.
+  destruct (around_ok lets groups [] at_path e) eqn:Hok;
+    [ exact (lift_around_scoped _ _ _ _ _ Hok) | apply scoped_refl ].
+Qed.
+
+Lemma lift_around_unit_scoped (u : unit_interface)
+    (lets : list (path * lift_to)) (places : list (path * list path))
+    (e : expr) :
+  scoped e
+    match lift_around_unit u lets places e with
+    | Some e' => e'
+    | None => e
+    end.
+Proof.
+  unfold lift_around_unit. cbv zeta.
+  set (groups := groups_of lets places e).
+  destruct (exits_plain [] e); cbn [andb]; [ | apply scoped_refl ].
+  destruct (around_ok lets groups [] root e) eqn:Hok; cbn [andb];
+    [ | apply scoped_refl ].
+  destruct (well_formed_unit u (lift_around lets groups root e));
+    [ exact (lift_around_scoped _ _ _ _ _ Hok) | apply scoped_refl ].
+Qed.
+
 Theorem with_lifting_keeps_scope : with_lifting_keeps_scope_statement.
 Proof.
   intros L. apply keeps_scope_intro. intros e.
   unfold with_lifting. cbv zeta.
   eapply scoped_trans; [ apply lift_to_head_unit_scoped | ].
+  eapply scoped_trans; [ apply lift_from_code_unit_scoped | ].
   eapply scoped_trans;
-    [ apply lift_from_code_unit_scoped | apply lift_unit_scoped ].
+    [ apply lift_unit_scoped | apply lift_around_unit_scoped ].
 Qed.
 
 (* ======================================================================== *)

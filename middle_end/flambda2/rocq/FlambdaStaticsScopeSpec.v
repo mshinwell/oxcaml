@@ -78,12 +78,22 @@
      FlambdaLiftFromArmsSpec.lift_to_head does the same outside code,
      and binds the symbols in a group around the unit
      ([lift_to_head_keeps_scope_statement]).
+     FlambdaLiftAroundSpec.lift_around puts a symbol in the place of a
+     defining expression, and a group of static bindings before a
+     [Let_cont]. A group that the guess puts may mention variables,
+     so this one needs a test: where FlambdaLiftAroundSpec.around_ok
+     passes, a group put binds symbols only and mentions only
+     variables that are free in the [Let_cont] that it is put before;
+     where it does not pass the term is left as it is
+     ([lift_around_keeps_scope_statement]).
      The lifting as the check applies it, FlambdaValidateSpec.with_lifting,
-     is the last of these, then the one before it, then the first two,
-     each made or not ([with_lifting_keeps_scope_statement]). None of
-     the five statements needs the tests that FlambdaLiftSpec.lift_unit,
-     FlambdaLiftFromCodeSpec.lift_from_code_unit and
-     FlambdaLiftFromArmsSpec.lift_to_head_unit make.
+     is the fourth of these, then the third, then the first two, then
+     the last, each made or not ([with_lifting_keeps_scope_statement]).
+     None of the statements but that of [lift_around] needs the tests
+     that FlambdaLiftSpec.lift_unit,
+     FlambdaLiftFromCodeSpec.lift_from_code_unit,
+     FlambdaLiftFromArmsSpec.lift_to_head_unit and
+     FlambdaLiftAroundSpec.lift_around_unit make.
    - FlambdaKnownSymbolsSpec.fold_known puts a constant or a symbol in
      the place of a defining expression, and makes an indirect call a
      direct call of the same callee with the same arguments, whatever is
@@ -149,7 +159,8 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaSemanticsSpec FlambdaBindersSpec FlambdaUnusedStaticsSpec
   FlambdaStaticsOrderSpec FlambdaMyClosureSpec FlambdaLiftSpec
-  FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaUnusedSlotsSpec
+  FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaLiftAroundSpec
+  FlambdaUnusedSlotsSpec
   FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec FlambdaFloatCodeSpec
   FlambdaGroupsUpSpec FlambdaKnownSlotsSpec FlambdaStubCallsSpec
   FlambdaUnaliasParamsSpec
@@ -197,6 +208,19 @@ Definition lift_from_code_keeps_scope_statement : Prop :=
    are. *)
 Definition lift_to_head_keeps_scope_statement : Prop :=
   ∀ lets : list (path * lift_to), keeps_scope (lift_to_head lets).
+
+(* The [Let]s given made aliases of the symbols given and the groups
+   given put, where the check of FlambdaLiftAroundSpec.around_ok
+   passes, from nothing known and at any path; the term as it is
+   where it does not. *)
+Definition lift_around_keeps_scope_statement : Prop :=
+  ∀ (lets : list (path * lift_to))
+    (groups : list (path * list static_binding)) (at_path : path),
+    keeps_scope
+      (fun e =>
+         if around_ok lets groups [] at_path e
+         then lift_around lets groups at_path e
+         else e).
 
 (* The closure of each code given bound to its symbol in the code. *)
 Definition bind_my_closures_keeps_scope_statement : Prop :=

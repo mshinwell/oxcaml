@@ -282,7 +282,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaUnusedStaticsSpec FlambdaWellFormedSpec FlambdaLiftSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
   FlambdaFloatCodeSpec FlambdaHoistCodeSpec FlambdaLoopifySpec
-  FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaHoistStaticsSpec
+  FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaLiftAroundSpec
+  FlambdaHoistStaticsSpec
   FlambdaGuardScopeSpec FlambdaGroupsUpSpec.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
@@ -680,7 +681,10 @@ Definition without_head_statics (D : dropped) (e : expr) : expr :=
    bodies of code, if the conditions of
    FlambdaLiftFromCodeSpec.lift_from_code_unit hold of what that gives;
    then those outside code that are bound where they stand, if the
-   conditions of FlambdaLiftSpec.lift_unit hold of what that gives.
+   conditions of FlambdaLiftSpec.lift_unit hold of what that gives;
+   then those that are made aliases of symbols that a group around
+   them binds, with the groups that the guess puts, if the conditions
+   of FlambdaLiftAroundSpec.lift_around_unit hold of what that gives.
    Where the conditions of one do not hold, it is not made. The paths
    of each are paths in the term that it is given: the first puts the
    unit under a group of static bindings, if it lifts anything. *)
@@ -697,7 +701,15 @@ Definition with_lifting (L : lifting) (e : expr) : expr :=
     | None => e
     end
   in
-  match lift_unit L e with
+  let e :=
+    match lift_unit L e with
+    | Some e' => e'
+    | None => e
+    end
+  in
+  match
+    lift_around_unit (lifting_unit L) (lifted_around L) (groups_put L) e
+  with
   | Some e' => e'
   | None => e
   end.
