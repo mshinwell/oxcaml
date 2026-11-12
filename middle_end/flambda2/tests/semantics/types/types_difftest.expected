@@ -2625,7 +2625,7 @@ Groups of one to three static constants that are not closures, for the types tha
     recorded as T3-10, Simplify stops at a boxed number whose contents are a variable that holds the naked number, and the model gives it the type of the box (seed 150014): Simplify stops at the constant of position 1 (Kind ℕ𝕗 of type (Naked_float ⊤) for f/NN), which the model gives a type
     on the shrunk input:
     $4 = the boxed number of v6
-    recorded as T3-10, the model gives no type to a boxed number whose contents are a variable of kind value, and Simplify gives its symbol the type that the environment has for the variable (seed 150043): what is seen is the same once the model gives the symbol that type; as they are:
+    recorded as T3-10, the model gives no type to a boxed number whose contents are a variable of kind value, and Simplify gives its symbol the type that the environment has for the variable (seed 150043): what is seen is the same once the model gives the symbol of a boxed number whose contents are a variable of kind value the type that its environment has for the variable; as they are:
 the model:
 the environment
 v1 : (Value Unknown), of which the canonical element is v1
@@ -2660,7 +2660,7 @@ $5 : not defined, of which the canonical element is not found
     with v1 an alias of v3
     $4 = the boxed number of v3
   of which those where the model gives no type to a constant that Simplify goes past: what is seen after the group, or after the constants before the one at which Simplify stops: 82 agree, 69 disagree as recorded
-    recorded as T3-10, the model gives no type to a boxed number whose contents are a variable of kind value, and Simplify gives its symbol the type that the environment has for the variable (seed 150043): what is seen is the same once the model gives the symbol that type
+    recorded as T3-10, the model gives no type to a boxed number whose contents are a variable of kind value, and Simplify gives its symbol the type that the environment has for the variable (seed 150043): what is seen is the same once the model gives the symbol of a boxed number whose contents are a variable of kind value the type that its environment has for the variable
     on the shrunk input:
     with v1 an alias of v3
     $4 = the boxed number of v3
@@ -2694,5 +2694,14 @@ A control: groups of one static constant, the model on one and Simplify on one t
   where nothing is known of the variable, the two see the same: yes
   where the variable has an alias type, the two are told apart: yes
   and the model made to give the symbol the type that its environment has for the variable sees the same as Simplify: yes
+  a block, then a boxed number of the variable that holds a naked float: Simplify stops at the second, to which the model gives a type, and goes past the first: yes
+  what is seen before the stop is the same: recorded under T3-10: yes
+  with, for the compiler, what it sees of the block of another tag: a disagreement: yes
+  with, for the compiler, what it sees of the block of the two variables exchanged: a disagreement: yes
+  with, for the compiler, what it sees where the first variable is an alias of the second: a disagreement: yes
+  with nothing read of the model before the stop: a disagreement: yes
+  a boxed number of a variable of kind value that has an alias type, then the boxed number of the naked float: what is seen before the stop is not the same, and is once the model does as Simplify: yes
+  it is recorded under T3-10: yes
+  with, for the compiler, what it sees of the same group without the alias: a disagreement: yes
 
 No disagreement.

@@ -6892,18 +6892,19 @@ let ranges_of_numbers () =
    is not defined when the constant is reached (T3-11). [static_const_type_in],
    which is extracted too, says of each constant whether it has a type in the
    environment that the constants before it make. Simplify is run on each prefix
-   of the group, which tells at which constant it stops. Where it stops at a
-   constant to which the model gives no type, or at none, what is seen of the
-   two environments after the constants before that one, or after the group, is
-   compared: the type and the canonical element of every name of the tests and
-   of every symbol that a group may bind.
+   of the group, which tells at which constant it stops. What is seen of the two
+   environments after the constants before that one, or after the group, is
+   compared in every case, whatever the constant at which Simplify stops: the
+   type and the canonical element of every name of the tests and of every symbol
+   that a group may bind.
 
    Two things are known to differ, both of a boxed number whose contents are a
    variable (T3-10). Where the variable holds the naked number, the model gives
-   the type of the box and Simplify stops. Where it is of the kind value, the
-   model gives no type and Simplify goes on: it gives the symbol the type that
-   the environment has for the variable, so that what is seen is the same if
-   nothing is known of the variable, and differs if the variable is an alias,
+   the type of the box and Simplify stops: that is recorded only if what is seen
+   before that constant passes the comparison. Where it is of the kind value,
+   the model gives no type and Simplify goes on: it gives the symbol the type
+   that the environment has for the variable, so that what is seen is the same
+   if nothing is known of the variable, and differs if the variable is an alias,
    which the symbol then is too. The comparison goes past such a constant, and a
    difference in what is seen is recorded, and is not a disagreement, only if it
    goes once the model is made to give the symbol of each such constant the type
@@ -7456,82 +7457,94 @@ let static_group_in_simplify (names : names)
                 | Error line ->
                   Nothing_seen ("a fatal error: " ^ without_colours line) )))
 
-let static_groups (names : names) (symbols : M.symbol list) :
-    static_group comparison list =
-  let setting = setting_of_static_groups names symbols in
-  let threshold = setting.threshold in
-  let in_the_model = static_group_in_the_model names setting in
-  let in_the_compiler = static_group_in_simplify names setting in
-  let verdict (input : static_group) : static_group_verdict =
-    match in_the_model input, in_the_compiler N_way input with
-    | Error why, Error why' ->
-      Neither_starts (Printf.sprintf "the model: %s; the compiler: %s" why why')
-    | Error why, Ok _ -> One_does_not_start ("the model: " ^ why)
-    | Ok _, Error why -> One_does_not_start ("the compiler: " ^ why)
-    | Ok { typed; seen_after; seen_after_as_simplify }, Ok (stops, of_compiler)
-      ->
-      let compared =
-        match stops with
-        | Some (j, (_ : string)) -> j
-        | None -> List.length input.bindings
-      in
-      Compared
-        { stops = Option.map (fun (j, line) -> j, line, typed j) stops;
-          passed_untyped =
-            List.filter
-              (fun i -> not (typed i))
-              (List.init compared (fun i -> i));
-          in_the_model = seen_after compared;
-          in_the_compiler = of_compiler compared;
-          in_the_model_as_simplify = seen_after_as_simplify compared
-        }
-  in
-  let print_both ?(one = "the model") ?(other = "the compiler") seen seen' =
-    Format.asprintf "@[<v>%s:@ %a@ %s:@ %a@]" one print_lines
-      (print_seen ~threshold seen)
-      other print_lines
-      (print_seen ~threshold seen')
-  in
-  let defined_before (input : static_group) i : M.symbol list =
-    names.pool.symbols @ List.map fst (first i input.bindings)
-  in
-  let const_at (input : static_group) i : M.static_const =
-    snd (List.nth input.bindings i)
-  in
-  let why_untyped_at (input : static_group) i : untyped =
-    why_untyped names ~defined:(defined_before input i) (const_at input i)
-  in
-  let boxes_a_naked_number (const : M.static_const) =
-    match const with
-    | Static_const_boxed_number (Var x) ->
-      List.exists
-        (fun y -> N.compare_positive x y = 0)
-        names.pool.naked_float_variables
-    | Static_const_boxed_number (Const _ | Symbol _)
-    | Static_const_block _ | Static_const_immutable_string _
-    | Static_const_set_of_closures _ | Static_const_closure_of_set _ ->
-      false
-  in
-  let outcome ?(brief = false) (input : static_group)
-      (verdict : static_group_verdict) : outcome =
-    match verdict with
-    | Neither_starts why -> Not_run ("neither starts (" ^ why ^ ")")
-    | One_does_not_start why ->
-      Disagree ("one of the two does not start (" ^ why ^ ")")
-    | Compared
-        { stops = Some (j, line, true);
-          passed_untyped = _;
-          in_the_model = _;
-          in_the_compiler = _;
-          in_the_model_as_simplify = _
-        } ->
+let verdict_of_a_static_group (names : names)
+    (setting : setting_of_static_groups) (input : static_group) :
+    static_group_verdict =
+  match
+    ( static_group_in_the_model names setting input,
+      static_group_in_simplify names setting N_way input )
+  with
+  | Error why, Error why' ->
+    Neither_starts (Printf.sprintf "the model: %s; the compiler: %s" why why')
+  | Error why, Ok _ -> One_does_not_start ("the model: " ^ why)
+  | Ok _, Error why -> One_does_not_start ("the compiler: " ^ why)
+  | Ok { typed; seen_after; seen_after_as_simplify }, Ok (stops, of_compiler) ->
+    let compared =
+      match stops with
+      | Some (j, (_ : string)) -> j
+      | None -> List.length input.bindings
+    in
+    Compared
+      { stops = Option.map (fun (j, line) -> j, line, typed j) stops;
+        passed_untyped =
+          List.filter (fun i -> not (typed i)) (List.init compared Fun.id);
+        in_the_model = seen_after compared;
+        in_the_compiler = of_compiler compared;
+        in_the_model_as_simplify = seen_after_as_simplify compared
+      }
+
+let print_both_seen ~threshold ?(one = "the model") ?(other = "the compiler")
+    seen seen' =
+  Format.asprintf "@[<v>%s:@ %a@ %s:@ %a@]" one print_lines
+    (print_seen ~threshold seen)
+    other print_lines
+    (print_seen ~threshold seen')
+
+(* A boxed number whose contents are a variable that holds a naked number. *)
+let boxes_a_naked_number (names : names) (const : M.static_const) =
+  match const with
+  | Static_const_boxed_number (Var x) ->
+    List.exists
+      (fun y -> N.compare_positive x y = 0)
+      names.pool.naked_float_variables
+  | Static_const_boxed_number (Const _ | Symbol _)
+  | Static_const_block _ | Static_const_immutable_string _
+  | Static_const_set_of_closures _ | Static_const_closure_of_set _ ->
+    false
+
+(* What a verdict comes to. What is seen after the constants before the one at
+   which Simplify stops, or after the group, is compared first, whatever comes
+   after: it is to be read on both sides and the same, or the same once the
+   model is made to do as Simplify of the boxed numbers of variables of kind
+   value that were gone past, which is recorded (T3-10); anything else is a
+   disagreement. Only then is the constant at which Simplify stops looked at: if
+   the model gives it a type, that is recorded where it is a boxed number whose
+   contents are a variable that holds a naked number (T3-10), and is a
+   disagreement otherwise. *)
+let outcome_of_a_static_group ?(brief = false) (names : names) ~threshold
+    (input : static_group) (verdict : static_group_verdict) : outcome =
+  match verdict with
+  | Neither_starts why -> Not_run ("neither starts (" ^ why ^ ")")
+  | One_does_not_start why ->
+    Disagree ("one of the two does not start (" ^ why ^ ")")
+  | Compared
+      { stops;
+        passed_untyped;
+        in_the_model;
+        in_the_compiler;
+        in_the_model_as_simplify
+      } ->
+    let is_read (seen : seen) =
+      match seen with Seen _ -> true | Nothing_seen _ | Bottom_seen -> false
+    in
+    let same_as_the_compiler seen =
+      is_read seen && is_read in_the_compiler
+      && same_seen ~threshold seen in_the_compiler
+    in
+    let passed = match passed_untyped with [] -> false | _ :: _ -> true in
+    let once =
+      "what is seen is the same once the model gives the symbol of a boxed \
+       number whose contents are a variable of kind value the type that its \
+       environment has for the variable"
+    in
+    let stops_where_the_model_types j line ~before : outcome =
       let what =
         Printf.sprintf
           "Simplify stops at the constant of position %d (%s), which the model \
-           gives a type"
-          (j + 1) line
+           gives a type%s"
+          (j + 1) line before
       in
-      if boxes_a_naked_number (const_at input j)
+      if boxes_a_naked_number names (snd (List.nth input.bindings j))
       then
         Known_to_disagree
           ( "T3-10, Simplify stops at a boxed number whose contents are a \
@@ -7539,36 +7552,51 @@ let static_groups (names : names) (symbols : M.symbol list) :
              type of the box",
             what )
       else Disagree what
-    | Compared
-        { stops = Some ((_ : int), (_ : string), false) | None;
-          passed_untyped;
-          in_the_model;
-          in_the_compiler;
-          in_the_model_as_simplify
-        } ->
-      if same_seen ~threshold in_the_model in_the_compiler
-      then Agree
-      else
-        let what = print_both in_the_model in_the_compiler in
-        let passed = match passed_untyped with [] -> false | _ :: _ -> true in
-        if
-          passed
-          && same_seen ~threshold in_the_model_as_simplify in_the_compiler
-        then
-          Known_to_disagree
-            ( "T3-10, the model gives no type to a boxed number whose contents \
-               are a variable of kind value, and Simplify gives its symbol the \
-               type that the environment has for the variable",
-              if brief
-              then
-                "what is seen is the same once the model gives the symbol that \
-                 type"
-              else
-                Format.asprintf
-                  "@[<v>what is seen is the same once the model gives the \
-                   symbol that type; as they are:@ %a@]"
-                  print_lines what )
-        else Disagree what
+    in
+    if same_as_the_compiler in_the_model
+    then
+      match stops with
+      | None | Some ((_ : int), (_ : string), false) -> Agree
+      | Some (j, line, true) -> stops_where_the_model_types j line ~before:""
+    else if passed && same_as_the_compiler in_the_model_as_simplify
+    then
+      match stops with
+      | None | Some ((_ : int), (_ : string), false) ->
+        Known_to_disagree
+          ( "T3-10, the model gives no type to a boxed number whose contents \
+             are a variable of kind value, and Simplify gives its symbol the \
+             type that the environment has for the variable",
+            if brief
+            then once
+            else
+              Format.asprintf "@[<v>%s; as they are:@ %a@]" once print_lines
+                (print_both_seen ~threshold in_the_model in_the_compiler) )
+      | Some (j, line, true) ->
+        stops_where_the_model_types j line
+          ~before:("; before that constant, " ^ once)
+    else
+      Disagree
+        (if is_read in_the_model
+         then print_both_seen ~threshold in_the_model in_the_compiler
+         else
+           "nothing is read of the model where Simplify answers: "
+           ^ print_seen ~threshold in_the_model)
+
+let static_groups (names : names) (symbols : M.symbol list) :
+    static_group comparison list =
+  let setting = setting_of_static_groups names symbols in
+  let threshold = setting.threshold in
+  let in_the_compiler = static_group_in_simplify names setting in
+  let verdict = verdict_of_a_static_group names setting in
+  let outcome ?brief input verdict =
+    outcome_of_a_static_group ?brief names ~threshold input verdict
+  in
+  let defined_before (input : static_group) i : M.symbol list =
+    names.pool.symbols @ List.map fst (first i input.bindings)
+  in
+  let why_untyped_at (input : static_group) i : untyped =
+    why_untyped names ~defined:(defined_before input i)
+      (snd (List.nth input.bindings i))
   in
   (* The groups in which Simplify goes past no constant to which the model gives
      no type. *)
@@ -7673,7 +7701,8 @@ let static_groups (names : names) (symbols : M.symbol list) :
               then Agree
               else
                 Disagree
-                  (print_both ~one:"n-way" ~other:"binary" (seen n) (seen' n))
+                  (print_both_seen ~threshold ~one:"n-way" ~other:"binary"
+                     (seen n) (seen' n))
             in
             match stops, stops' with
             | None, None -> same (List.length input.bindings)
@@ -7837,7 +7866,121 @@ let control_of_the_static_groups (names : names) (symbols : M.symbol list) =
        | Error why -> Nothing_seen why
      in
      let seen' = in_simplify alias in
-     both_see seen seen' && same_seen ~threshold seen seen')
+     both_see seen seen' && same_seen ~threshold seen seen');
+  (* What a group comes to where Simplify stops at a later constant to which the
+     model gives a type: what is seen before that constant counts first. In some
+     of the cases one side of the verdict is put there by hand: the compiler's
+     from another group, or the model's taken away. *)
+  let float_variable = List.hd names.pool.naked_float_variables in
+  let then_a_boxed_float ?(before = []) const : static_group =
+    { before;
+      bindings =
+        [ symbol, const;
+          other_symbol, Static_const_boxed_number (Var float_variable) ]
+    }
+  in
+  let verdict = verdict_of_a_static_group names setting in
+  let outcome group verdict =
+    outcome_of_a_static_group names ~threshold group verdict
+  in
+  let recorded_under_t3_10 (outcome : outcome) =
+    match outcome with
+    | Known_to_disagree (label, (_ : string)) ->
+      String.starts_with ~prefix:"T3-10, Simplify stops" label
+    | Agree | Disagree _ | Not_run _ | Not_this_comparison -> false
+  in
+  let is_a_disagreement (outcome : outcome) =
+    match outcome with
+    | Disagree _ -> true
+    | Agree | Known_to_disagree _ | Not_run _ | Not_this_comparison -> false
+  in
+  (* The verdict of a group with, for what the compiler sees before the stop,
+     what it sees of another group. *)
+  let with_the_compiler_on (other : static_group) (group : static_group) :
+      static_group_verdict =
+    match verdict group, verdict other with
+    | Compared compared, Compared { in_the_compiler; _ } ->
+      Compared { compared with in_the_compiler }
+    | ( ((Compared _ | Neither_starts _ | One_does_not_start _) as unchanged),
+        (Compared _ | Neither_starts _ | One_does_not_start _) ) ->
+      unchanged
+  in
+  let stopped = then_a_boxed_float (block [Var x; Var y]) in
+  check
+    "a block, then a boxed number of the variable that holds a naked float: \
+     Simplify stops at the second, to which the model gives a type, and goes \
+     past the first"
+    (match verdict stopped with
+    | Compared { stops = Some (1, (_ : string), true); passed_untyped = []; _ }
+      ->
+      true
+    | Compared _ | Neither_starts _ | One_does_not_start _ -> false);
+  check "what is seen before the stop is the same: recorded under T3-10"
+    (recorded_under_t3_10 (outcome stopped (verdict stopped)));
+  check
+    "with, for the compiler, what it sees of the block of another tag: a \
+     disagreement"
+    (is_a_disagreement
+       (outcome stopped
+          (with_the_compiler_on
+             (then_a_boxed_float (block ~tag:1 [Var x; Var y]))
+             stopped)));
+  check
+    "with, for the compiler, what it sees of the block of the two variables \
+     exchanged: a disagreement"
+    (is_a_disagreement
+       (outcome stopped
+          (with_the_compiler_on
+             (then_a_boxed_float (block [Var y; Var x]))
+             stopped)));
+  check
+    "with, for the compiler, what it sees where the first variable is an alias \
+     of the second: a disagreement"
+    (is_a_disagreement
+       (outcome stopped
+          (with_the_compiler_on
+             (then_a_boxed_float ~before:[x, Var y] (block [Var x; Var y]))
+             stopped)));
+  let without_the_model : static_group_verdict =
+    match verdict stopped with
+    | Compared compared ->
+      Compared
+        { compared with
+          in_the_model = Nothing_seen "taken away";
+          in_the_model_as_simplify = Nothing_seen "taken away"
+        }
+    | (Neither_starts _ | One_does_not_start _) as unchanged -> unchanged
+  in
+  check "with nothing read of the model before the stop: a disagreement"
+    (is_a_disagreement (outcome stopped without_the_model));
+  let explained =
+    then_a_boxed_float ~before:[x, Var y] (Static_const_boxed_number (Var y))
+  in
+  check
+    "a boxed number of a variable of kind value that has an alias type, then \
+     the boxed number of the naked float: what is seen before the stop is not \
+     the same, and is once the model does as Simplify"
+    (match verdict explained with
+    | Compared
+        { stops = Some (1, (_ : string), true);
+          passed_untyped = [0];
+          in_the_model;
+          in_the_compiler;
+          in_the_model_as_simplify
+        } ->
+      (not (same_seen ~threshold in_the_model in_the_compiler))
+      && same_seen ~threshold in_the_model_as_simplify in_the_compiler
+    | Compared _ | Neither_starts _ | One_does_not_start _ -> false);
+  check "it is recorded under T3-10"
+    (recorded_under_t3_10 (outcome explained (verdict explained)));
+  check
+    "with, for the compiler, what it sees of the same group without the alias: \
+     a disagreement"
+    (is_a_disagreement
+       (outcome explained
+          (with_the_compiler_on
+             (then_a_boxed_float (Static_const_boxed_number (Var y)))
+             explained)))
 
 (* ======================================================================== *)
 (* The tests                                                                *)
