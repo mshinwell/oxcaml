@@ -28,7 +28,12 @@
 
 (* For the proofs of the statements of FlambdaMeetRenameSpec.v: the
    variables of a level and the meet of two alternatives under a
-   renaming. Nothing here needs review. *)
+   renaming. Nothing here needs review.
+
+   The laws that need the meet of less fuel or the join are for two
+   meets and two joins that one renaming relates
+   ([meet_expanded_head_related], [join_related_at]): the primed one
+   is given the renamed arguments. *)
 
 From Stdlib Require Import ZArith List Bool Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
@@ -146,45 +151,45 @@ Definition rename_disjunction {A B : Type} (ra : renaming -> A -> A)
 
 Section Disjunction.
 
-Variable join : join_scoped_envs.
+Variable r : renaming.
+Variables join join' : join_scoped_envs.
 Variable choices : meet_choices.
-Variable m : meet_expanded_head.
+Variables m m' : meet_expanded_head.
 
-Hypothesis Hjoin : join_scoped_envs_equivariant join.
-Hypothesis Hm : meet_expanded_head_equivariant m.
+Hypothesis Hjoin : join_related_at r join join' m m'.
+Hypothesis Hm : meet_expanded_head_related r m m'.
 
-Lemma add_extension_of_level_renamed (r : renaming) (env : Meet_env.t)
+Lemma add_extension_of_level_renamed (env : Meet_env.t)
     (level : Typing_env_level.t) :
   Meet_env.add_env_extension_strict (rename_meet_env r env)
-    (extension_of_level (rename_level r level)) m
+    (extension_of_level (rename_level r level)) m'
   = option_map (or_bottom_map (rename_meet_env r))
       (Meet_env.add_env_extension_strict env (extension_of_level level) m).
 Proof.
   rewrite extension_of_level_renamed.
-  apply (add_env_extension_strict_renamed m Hm).
+  apply (add_env_extension_strict_renamed r m m' Hm).
 Qed.
 
-Lemma join_two_renamed (r : renaming) (cut_after : Scope.t)
-    (env : Meet_env.t) (tenv tenv_a tenv_b : Typing_env.t) :
-  join m cut_after (rename_meet_env r env) (rename_typing_env r tenv)
+Lemma join_two_renamed (cut_after : Scope.t) (env : Meet_env.t)
+    (tenv tenv_a tenv_b : Typing_env.t) :
+  join' m' cut_after (rename_meet_env r env) (rename_typing_env r tenv)
     [rename_typing_env r tenv_a; rename_typing_env r tenv_b]
   = option_map (rename_meet_env r)
       (join m cut_after env tenv [tenv_a; tenv_b]).
-Proof. exact (Hjoin r m cut_after env tenv [tenv_a; tenv_b] Hm). Qed.
+Proof. exact (Hjoin cut_after env tenv [tenv_a; tenv_b]). Qed.
 
 Lemma meet_disjunction_renamed {A B : Type} (ra : renaming -> A -> A)
     (rb : renaming -> B -> B)
-    (meet_a : Meet_env.t -> A -> A -> option (Meet_result.t A))
-    (meet_b : Meet_env.t -> B -> B -> option (Meet_result.t B))
+    (meet_a meet_a' : Meet_env.t -> A -> A -> option (Meet_result.t A))
+    (meet_b meet_b' : Meet_env.t -> B -> B -> option (Meet_result.t B))
     (bottom_a : unit -> A) (bottom_b : unit -> B) :
-  meet_of_parts_equivariant ra ra meet_a ->
-  meet_of_parts_equivariant rb rb meet_b ->
-  (∀ r : renaming, ra r (bottom_a tt) = bottom_a tt) ->
-  (∀ r : renaming, rb r (bottom_b tt) = bottom_b tt) ->
-  ∀ (r : renaming) (env : Meet_env.t) (a1 : A) (b1 : B)
-    (ext1 : variant_extensions) (a2 : A) (b2 : B)
-    (ext2 : variant_extensions),
-    meet_disjunction join choices m meet_a meet_b bottom_a bottom_b
+  meet_of_parts_related r (ra r) (ra r) meet_a meet_a' ->
+  meet_of_parts_related r (rb r) (rb r) meet_b meet_b' ->
+  ra r (bottom_a tt) = bottom_a tt ->
+  rb r (bottom_b tt) = bottom_b tt ->
+  ∀ (env : Meet_env.t) (a1 : A) (b1 : B) (ext1 : variant_extensions)
+    (a2 : A) (b2 : B) (ext2 : variant_extensions),
+    meet_disjunction join' choices m' meet_a' meet_b' bottom_a bottom_b
       (rename_meet_env r env) (ra r a1) (rb r b1)
       (rename_variant_extensions r ext1) (ra r a2) (rb r b2)
       (rename_variant_extensions r ext2)
@@ -192,7 +197,7 @@ Lemma meet_disjunction_renamed {A B : Type} (ra : renaming -> A -> A)
         (meet_disjunction join choices m meet_a meet_b bottom_a bottom_b env
            a1 b1 ext1 a2 b2 ext2).
 Proof.
-  intros Ha Hb Hbottom_a Hbottom_b r env a1 b1 ext1 a2 b2 ext2.
+  intros Ha Hb Hbottom_a Hbottom_b env a1 b1 ext1 a2 b2 ext2.
   unfold meet_disjunction. rewrite enter_scope_renamed.
   destruct (Meet_env.enter_scope env) as [[join_scope initial_tenv] env']
     eqn:Henter.
@@ -202,7 +207,7 @@ Proof.
   all: repeat
          (simpl;
           repeat first
-            [ rewrite (add_env_extension_strict_renamed m Hm)
+            [ rewrite (add_env_extension_strict_renamed r m m' Hm)
             | rewrite Ha | rewrite Hb
             | rewrite cut_equivariant
             | rewrite with_names_to_avoid_renamed

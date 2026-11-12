@@ -121,12 +121,13 @@ Definition rename_row_like_state (r : renaming) (state : row_like_state)
 
 Section Row_like.
 
-Variable join : join_scoped_envs.
+Variable r : renaming.
+Variables join join' : join_scoped_envs.
 Variable choices : meet_choices.
-Variable m : meet_expanded_head.
+Variables m m' : meet_expanded_head.
 
-Hypothesis Hjoin : join_scoped_envs_equivariant join.
-Hypothesis Hm : meet_expanded_head_equivariant m.
+Hypothesis Hjoin : join_related_at r join join' m m'.
+Hypothesis Hm : meet_expanded_head_related r m m'.
 
 Context {lattice shape maps_to row_tag known : Type}.
 
@@ -141,7 +142,7 @@ Let rename_step (r : renaming)
   (option_map (or_unknown_map (rename_case rm r)) (fst res),
    rename_row_like_state r (snd res)).
 
-Variable meet_maps_to :
+Variables meet_maps_to meet_maps_to' :
   Meet_env.t -> maps_to -> maps_to -> option (Meet_result.t maps_to).
 Variable equal_index : lattice -> lattice -> bool.
 Variable subset_index : lattice -> lattice -> bool.
@@ -154,18 +155,17 @@ Variable merge_map_known :
    row_like_state -> option (option (Or_unknown.t case) * row_like_state)) ->
   known -> known -> row_like_state -> option (known * row_like_state).
 
-Hypothesis Hmaps : meet_of_parts_equivariant rm rm meet_maps_to.
+Hypothesis Hmaps :
+  meet_of_parts_related r (rm r) (rm r) meet_maps_to meet_maps_to'.
 Hypothesis Hempty :
-  ∀ (r : renaming) (k : known),
-    is_empty_map_known (rk r k) = is_empty_map_known k.
+  ∀ k : known, is_empty_map_known (rk r k) = is_empty_map_known k.
 Hypothesis Hsingleton :
-  ∀ (r : renaming) (k : known),
+  ∀ k : known,
     get_singleton_map_known (rk r k)
     = option_map (fun tc => (fst tc, rename_case rm r (snd tc)))
         (get_singleton_map_known k).
 Hypothesis Hmerge :
-  ∀ (r : renaming)
-    (f f' :
+  ∀ (f f' :
       row_tag -> option (Or_unknown.t case) -> option (Or_unknown.t case) ->
       row_like_state -> option (option (Or_unknown.t case) * row_like_state))
     (k1 k2 : known) (state : row_like_state),
@@ -183,17 +183,17 @@ Hypothesis Hmerge :
 (* The parts of [meet_row_like] (FlambdaMeetRowLikeProofs.v), one by
    one. *)
 
-Lemma not_t1_renamed (r : renaming) (state : row_like_state) :
+Lemma not_t1_renamed (state : row_like_state) :
   not_t1 (rename_row_like_state r state)
   = rename_row_like_state r (not_t1 state).
 Proof. reflexivity. Qed.
 
-Lemma not_t2_renamed (r : renaming) (state : row_like_state) :
+Lemma not_t2_renamed (state : row_like_state) :
   not_t2 (rename_row_like_state r state)
   = rename_row_like_state r (not_t2 state).
 Proof. reflexivity. Qed.
 
-Lemma update_refs_renamed {A : Type} (r : renaming)
+Lemma update_refs_renamed {A : Type}
     (res : meet_return_value A) (state : row_like_state) :
   update_refs res (rename_row_like_state r state)
   = rename_row_like_state r (update_refs res state).
@@ -204,7 +204,7 @@ Lemma update_refs_return_value {A : Type} (f : A -> A)
   update_refs (rename_return_value f res) state = update_refs res state.
 Proof. destruct res; reflexivity. Qed.
 
-Lemma row_add_extra_renamed (r : renaming) (common_scope : Scope.t)
+Lemma row_add_extra_renamed (common_scope : Scope.t)
     (scoped_env : Typing_env.t) (state : row_like_state) :
   row_add_extra common_scope (rename_typing_env r scoped_env)
     (rename_row_like_state r state)
@@ -231,10 +231,10 @@ Proof.
   reflexivity.
 Qed.
 
-Lemma row_join_all_renamed (r : renaming) (initial_env : Meet_env.t)
+Lemma row_join_all_renamed (initial_env : Meet_env.t)
     (common_scope : Scope.t) (initial_tenv : Typing_env.t)
     (scoped_envs : list Typing_env.t) (state : row_like_state) :
-  row_join_all join choices m (rename_meet_env r initial_env) common_scope
+  row_join_all join' choices m' (rename_meet_env r initial_env) common_scope
     (rename_typing_env r initial_tenv)
     (map (rename_typing_env r) scoped_envs) (rename_row_like_state r state)
   = option_map (rename_meet_env r)
@@ -246,7 +246,7 @@ Proof.
     with (map (rename_variable r) (avoid state)).
   change (extra_variables (rename_row_like_state r state))
     with (rename_extra r (extra_variables state)).
-  rewrite with_names_to_avoid_renamed, (Hjoin r m _ _ _ _ Hm).
+  rewrite with_names_to_avoid_renamed, (Hjoin _ _ _ _).
   destruct (join m common_scope
               (Meet_env.with_names_to_avoid initial_env (avoid state))
               initial_tenv scoped_envs) as [result_env | ]; [ | reflexivity ].
@@ -255,7 +255,7 @@ Proof.
            (Some result_env)).
 Qed.
 
-Lemma row_join_result_env_renamed (r : renaming) (need_join : bool)
+Lemma row_join_result_env_renamed (need_join : bool)
     (scoped_env : Typing_env.t) (names : list variable)
     (state : row_like_state) :
   row_join_result_env need_join (rename_typing_env r scoped_env)
@@ -268,7 +268,7 @@ Proof.
     reflexivity.
 Qed.
 
-Lemma row_meet_index_renamed (r : renaming) (env : Meet_env.t)
+Lemma row_meet_index_renamed (env : Meet_env.t)
     (i1 i2 : row_like_index lattice shape) :
   row_meet_index equal_index subset_index union_index meet_shape
     (rename_meet_env r env) i1 i2
@@ -292,9 +292,9 @@ Proof.
   all: reflexivity.
 Qed.
 
-Lemma row_add_case_extension_renamed (r : renaming) (base_env : Meet_env.t)
+Lemma row_add_case_extension_renamed (base_env : Meet_env.t)
     (extension : env_extension) (state : row_like_state) :
-  row_add_case_extension m (rename_meet_env r base_env)
+  row_add_case_extension m' (rename_meet_env r base_env)
     (rename_env_extension r extension) (rename_row_like_state r state)
   = option_map (or_bottom_map (rename_meet_env r))
       (row_add_case_extension m base_env extension state).
@@ -303,13 +303,13 @@ Proof.
   change (avoid (rename_row_like_state r state))
     with (map (rename_variable r) (avoid state)).
   rewrite with_names_to_avoid_renamed.
-  rewrite (add_env_extension_strict_renamed m Hm).
+  rewrite (add_env_extension_strict_renamed r m m' Hm).
   destruct (Meet_env.add_env_extension_strict
               (Meet_env.with_names_to_avoid base_env (avoid state)) extension
               m) as [[env | ] | ]; reflexivity.
 Qed.
 
-Lemma env_extension_is_empty_renamed {A : Type} (r : renaming)
+Lemma env_extension_is_empty_renamed {A : Type}
     (extension : env_extension) (a b : A) :
   match rename_env_extension r extension with
   | Env_extension [] => a
@@ -321,7 +321,7 @@ Lemma env_extension_is_empty_renamed {A : Type} (r : renaming)
     end.
 Proof. destruct extension as [[ | binding bindings]]; reflexivity. Qed.
 
-Lemma row_case_result_renamed (r : renaming) (common_scope : Scope.t)
+Lemma row_case_result_renamed (common_scope : Scope.t)
     (need_join : bool) (case1 case2 : case)
     (index_result : meet_return_value (row_like_index lattice shape))
     (maps_to_result : meet_return_value maps_to) (env : Meet_env.t)
@@ -355,17 +355,17 @@ Proof.
   - destruct (row_add_extra common_scope (Meet_env.typing_env env) state'')
       as [[extension state3] | ]; [ | reflexivity ].
     cbn [option_map fst snd].
-    rewrite (env_extension_is_empty_renamed r extension).
+    rewrite (env_extension_is_empty_renamed extension).
     destruct extension as [[ | binding bindings]]; reflexivity.
   - destruct (lift_variables_of_single_case choices); [ | reflexivity ].
     destruct (row_add_extra common_scope (Meet_env.typing_env env) state'')
       as [[extension state3] | ]; reflexivity.
 Qed.
 
-Lemma row_meet_case_renamed (r : renaming) (common_scope : Scope.t)
+Lemma row_meet_case_renamed (common_scope : Scope.t)
     (need_join : bool) (env : Meet_env.t) (case1 case2 : case)
     (state : row_like_state) :
-  row_meet_case choices m meet_maps_to equal_index subset_index union_index
+  row_meet_case choices m' meet_maps_to' equal_index subset_index union_index
     meet_shape common_scope need_join (rename_meet_env r env)
     (rename_case rm r case1) (rename_case rm r case2)
     (rename_row_like_state r state)
@@ -399,13 +399,13 @@ Proof.
     with (rename_env_extension r (case_env_extension case1)).
   change (case_env_extension (rename_case rm r case2))
     with (rename_env_extension r (case_env_extension case2)).
-  rewrite (add_env_extension_strict_renamed m Hm).
+  rewrite (add_env_extension_strict_renamed r m m' Hm).
   destruct (Meet_env.add_env_extension_strict env2 (case_env_extension case1)
               m) as [[env3 | ] | ]; [ | | reflexivity ].
   2: { cbn [option_map or_bottom_map]. rewrite update_refs_renamed.
        reflexivity. }
   cbn [option_map or_bottom_map].
-  rewrite (add_env_extension_strict_renamed m Hm).
+  rewrite (add_env_extension_strict_renamed r m m' Hm).
   destruct (Meet_env.add_env_extension_strict env3 (case_env_extension case2)
               m) as [[env4 | ] | ]; [ | | reflexivity ].
   2: { cbn [option_map or_bottom_map]. rewrite update_refs_renamed.
@@ -414,13 +414,13 @@ Proof.
   apply row_case_result_renamed.
 Qed.
 
-Lemma row_meet_case_with_unknown_renamed (r : renaming) (need_join : bool)
+Lemma row_meet_case_with_unknown_renamed (need_join : bool)
     (base_env : Meet_env.t) (other_case : case)
     (change : row_like_state -> row_like_state) (state : row_like_state) :
   (∀ state : row_like_state,
     change (rename_row_like_state r state)
     = rename_row_like_state r (change state)) ->
-  row_meet_case_with_unknown m need_join (rename_meet_env r base_env)
+  row_meet_case_with_unknown m' need_join (rename_meet_env r base_env)
     (rename_case rm r other_case) change (rename_row_like_state r state)
   = option_map (rename_step r)
       (row_meet_case_with_unknown m need_join base_env other_case change
@@ -442,11 +442,11 @@ Proof.
   cbn [option_map]. rewrite Hchange. reflexivity.
 Qed.
 
-Lemma row_meet_knowns_renamed (r : renaming) (common_scope : Scope.t)
+Lemma row_meet_knowns_renamed (common_scope : Scope.t)
     (need_join : bool) (base_env : Meet_env.t)
     (other1 other2 : Or_bottom.t case)
     (case1 case2 : option (Or_unknown.t case)) (state : row_like_state) :
-  row_meet_knowns choices m meet_maps_to equal_index subset_index union_index
+  row_meet_knowns choices m' meet_maps_to' equal_index subset_index union_index
     meet_shape common_scope need_join (rename_meet_env r base_env)
     (or_bottom_map (rename_case rm r) other1)
     (or_bottom_map (rename_case rm r) other2)
@@ -474,7 +474,7 @@ Proof.
                    (avoid state) state); reflexivity.
 Qed.
 
-Lemma row_need_join_renamed (r : renaming) (k1 k2 : known)
+Lemma row_need_join_renamed (k1 k2 : known)
     (other1 other2 : Or_bottom.t case) :
   row_need_join is_empty_map_known get_singleton_map_known (rk r k1) (rk r k2)
     (or_bottom_map (rename_case rm r) other1)
@@ -487,12 +487,12 @@ Proof.
     (get_singleton_map_known k2); reflexivity.
 Qed.
 
-Lemma row_initial_state_renamed (r : renaming) (base_env : Meet_env.t) :
+Lemma row_initial_state_renamed (base_env : Meet_env.t) :
   row_initial_state (rename_meet_env r base_env)
   = rename_row_like_state r (row_initial_state base_env).
 Proof. reflexivity. Qed.
 
-Lemma row_match_with_input_renamed {A : Type} (r : renaming) (f : A -> A)
+Lemma row_match_with_input_renamed {A : Type} (f : A -> A)
     (state : row_like_state) (v : A) :
   row_match_with_input (rename_row_like_state r state) (f v)
   = rename_return_value f (row_match_with_input state v).
@@ -505,11 +505,11 @@ Proof.
   destruct (result_is_t1 state), (result_is_t2 state); reflexivity.
 Qed.
 
-Lemma row_meet_others_renamed (r : renaming) (common_scope : Scope.t)
+Lemma row_meet_others_renamed (common_scope : Scope.t)
     (need_join : bool) (base_env : Meet_env.t)
     (other1 other2 : Or_bottom.t case)
     (state : row_like_state) :
-  row_meet_others choices m meet_maps_to equal_index subset_index union_index
+  row_meet_others choices m' meet_maps_to' equal_index subset_index union_index
     meet_shape common_scope need_join (rename_meet_env r base_env)
     (or_bottom_map (rename_case rm r) other1)
     (or_bottom_map (rename_case rm r) other2) (rename_row_like_state r state)
@@ -530,10 +530,10 @@ Proof.
               other2 state) as [[[[c | ] | ] state'] | ]; reflexivity.
 Qed.
 
-Lemma row_finish_renamed (r : renaming) (initial_env : Meet_env.t)
+Lemma row_finish_renamed (initial_env : Meet_env.t)
     (common_scope : Scope.t) (initial_tenv : Typing_env.t) (cases : known)
     (other : Or_bottom.t case) (state : row_like_state) :
-  row_finish join choices m is_empty_map_known (rename_meet_env r initial_env)
+  row_finish join' choices m' is_empty_map_known (rename_meet_env r initial_env)
     common_scope (rename_typing_env r initial_tenv) (rk r cases)
     (or_bottom_map (rename_case rm r) other) (rename_row_like_state r state)
   = option_map
@@ -555,7 +555,7 @@ Proof.
                 initial_tenv scoped_envs state) as [env | ]; [ | reflexivity ].
     cbn [option_map rename_meet_result].
     pose proof
-      (row_match_with_input_renamed r
+      (row_match_with_input_renamed
          (fun x : known * Or_bottom.t case =>
             (rk r (fst x), or_bottom_map (rename_case rm r) (snd x)))
          state (cases, other))
@@ -566,9 +566,9 @@ Proof.
   - reflexivity.
 Qed.
 
-Lemma meet_row_like_renamed (r : renaming) (env : Meet_env.t)
+Lemma meet_row_like_renamed (env : Meet_env.t)
     (k1 k2 : known) (o1 o2 : Or_bottom.t case) :
-  meet_row_like join choices m meet_maps_to equal_index subset_index
+  meet_row_like join' choices m' meet_maps_to' equal_index subset_index
     union_index meet_shape is_empty_map_known get_singleton_map_known
     merge_map_known (rename_meet_env r env) (rk r k1) (rk r k2)
     (or_bottom_map (rename_case rm r) o1)
@@ -589,7 +589,7 @@ Proof.
   set (need_join :=
          row_need_join is_empty_map_known get_singleton_map_known k1 k2 o1 o2).
   rewrite
-    (Hmerge r
+    (Hmerge
        (fun _ case1 case2 =>
           row_meet_knowns choices m meet_maps_to equal_index subset_index
             union_index meet_shape common_scope need_join base_env o1 o2 case1
