@@ -346,9 +346,21 @@ it gave back.
   - `must_be_singleton`: that the model's outer `None` is compared
     with a fatal error of the compiler.
 
-Not trusted, though it is OCaml: which static bindings the tool proposes
-to remove as unused (`unused_statics`). The extracted `drop_statics`
-checks the proposal, and `validate_unit_sound` holds whatever it is.
+Not trusted, though it is OCaml: what the tool proposes to
+`validate_unit`. Each proposal is checked by an extracted function, and
+`validate_unit_sound` holds whatever is proposed.
+- Which static bindings to remove as unused (`unused_statics`): checked
+  by `drop_statics`.
+- Which `Let`s Simplify made static bindings, under which symbols, and
+  in which code `my_closure` is a symbol (`lifting_guess`, once for
+  each lifting of the list): checked by `lift_unit`.
+- Which value slots Simplify removed from the static sets of closures
+  (`unused_slots_guess`): checked by `drop_unused_slots`.
+
+The guesses are made from the two terms as `convert_both` gives them,
+so a code id or a symbol of the term after that a guess names is named
+by the numbering above. That identification of names is trusted, as
+said there; a guess adds nothing to it.
 
 ## The SSA loop passes
 
