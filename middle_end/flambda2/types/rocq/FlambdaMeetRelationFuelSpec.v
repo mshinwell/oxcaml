@@ -27,8 +27,8 @@
 
 (* The fuel of the meet that a [Switch] makes where it enters an arm,
    for a scrutinee that is the result of relations: two units are
-   enough, and the environment that the meet answers is one for which
-   they are enough again.
+   enough, and the environment that the meet answers has again the
+   one thing that is supposed of the types of the environment.
 
    This file is to be reviewed: the definitions and the statements.
    It goes on from FlambdaMeetTerminationSpec.v (what it is for the
@@ -84,9 +84,12 @@
    [relation_const_meet_keeps_statement]: under the same hypotheses,
    where the meet of that fuel or more answers an environment, every
    type of kind value that this environment has for a name is an
-   alias or has no extension. So what is supposed of the environment
-   is kept by the meet for an arm, and holds of the environment in
-   which the arm is entered.
+   alias or has no extension. So that one hypothesis
+   ([values_extension_free]) is kept by the meet for an arm. The
+   others are not shown of the environment answered: that its aliases
+   are consistent, and what is asked of the canonical element and of
+   the type of a scrutinee. A later meet in that environment still
+   needs them.
 
    What the hypotheses are for. Each relation adds one equation at
    most, and after it the environment is another, of which the third
@@ -177,8 +180,8 @@ Definition relation_const_fuel_enough_statement : Prop :=
     meet_fuel_enough join choices 2 tenv t (this_const c).
 
 (* The environment that this meet answers, with that fuel or more, has
-   what is supposed of the environment again: its types of kind value
-   are aliases or have no extension. *)
+   [values_extension_free] again: its types of kind value are aliases
+   or have no extension. Nothing is said of its aliases. *)
 Definition relation_const_meet_keeps_statement : Prop :=
   ∀ (join : join_scoped_envs) (choices : meet_choices) (fuel : nat)
     (tenv tenv' : Typing_env.t) (t ty : flambda_type) (n : name)

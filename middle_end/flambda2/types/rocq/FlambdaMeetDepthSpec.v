@@ -157,12 +157,14 @@
    environment.
 
    What the meet with a shape makes. A meet answers one of its two
-   inputs, or a type that it makes. Where the meet of a shape with a
-   type that has no extension makes a type, that type has no
-   extension ([shape_meet_extension_free_statement], at two units of
-   fuel; [bare_shape_meet_extension_free_statement], at one unit for
-   a bare shape; in either order). The extensions of a variant and
-   of the cases of a row-like structure are what was added to the
+   inputs as it is, or a type that it makes ([New_result]). Where the
+   meet of a shape with a type that has no extension makes a type,
+   that type has no extension ([shape_meet_extension_free_statement],
+   at two units of fuel; [bare_shape_meet_extension_free_statement],
+   at one unit for a bare shape; in either order). That the type made
+   differs from the two inputs is not said: the constructor says only
+   that the meet built it. The extensions of a variant and of the
+   cases of a row-like structure are what was added to the
    environments of the alternatives, and nothing is added there; a
    head of naked immediates that is made of two that have no inverse
    relation has none. Nothing is said of the types inside what is
@@ -575,8 +577,10 @@ Definition shape_meet_adds_nothing_statement : Prop :=
        = Some (Meet_result.Ok r menv') ->
        Meet_env.typing_env menv' = Meet_env.typing_env menv).
 
-(* What that meet makes has no extension: where it answers a type that
-   is neither of the two, that type has none. *)
+(* What that meet makes has no extension: where its answer is a type
+   that it makes ([New_result]) and not one of the two inputs as it is,
+   that type has none. That it is not equal to an input is not said:
+   the constructor says only that the meet built it. *)
 Definition shape_meet_extension_free_statement : Prop :=
   ∀ (join : join_scoped_envs) (choices : meet_choices)
     (menv menv' : Meet_env.t) (e1 e2 e : Expanded_type.t),

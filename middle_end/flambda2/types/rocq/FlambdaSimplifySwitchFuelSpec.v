@@ -65,9 +65,11 @@
      the join.
    - [relation_switch_arm_keeps_statement]: under the same
      hypotheses, the environment that the meet for an arm answers has
-     what is supposed of the environment of the [Switch]: its types of
-     kind value are aliases or have no extension. So what the second
-     slice does to an arm is done in such an environment.
+     one of them again ([values_extension_free]): its types of kind
+     value are aliases or have no extension. The others are not shown
+     of it (that its aliases are consistent; what [scrutinee_has] asks
+     of a scrutinee), so a [Switch] that is simplified in the
+     environment of an arm still needs them.
    - [model_relation_switch_fuel_statement]: the same of the meet of
      the model (FlambdaJoinMeet.model_meet), whose join has what is
      supposed where there is fuel for the join of environments
@@ -206,8 +208,9 @@ Definition relation_switch_fuel_statement : Prop :=
     arm_meets_agree (Meet.meet join choices fuel) (Meet.meet join choices 2)
       tenv scrutinee.
 
-(* The environment that the meet for an arm answers has what is
-   supposed of the environment of the [Switch]. *)
+(* The environment that the meet for an arm answers has
+   [values_extension_free], as the environment of the [Switch] has.
+   Nothing is said of its aliases, nor of another scrutinee in it. *)
 Definition relation_switch_arm_keeps_statement : Prop :=
   ∀ (join : join_scoped_envs) (choices : meet_choices)
     (tenv tenv' : Typing_env.t) (scrutinee : simple) (fuel : nat)
