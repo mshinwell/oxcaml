@@ -25,10 +25,12 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* The fuel of the meet that a [Switch] makes where it enters an arm,
-   for a scrutinee that is the result of relations: two units are
-   enough, and the environment that the meet answers has again what
-   is supposed of the types and of the aliases of the environment.
+(* The fuel of the meet that a [Switch] makes where it enters an arm:
+   two units are enough, and the environment that the meet answers
+   has again what is supposed of the types and of the aliases of the
+   environment. First for a scrutinee that is the result of
+   relations, met with the type of any constant; then for any type,
+   met with the type of a number.
 
    This file is to be reviewed: the definitions and the statements.
    It goes on from FlambdaMeetTerminationSpec.v (what it is for the
@@ -91,9 +93,42 @@
    canonical, is made an alias of the constant, and a name that an
    equation of a relation is added to keeps its place among the
    aliases or, being canonical, is made an alias of a constant. What
-   is asked of the canonical element and of the type of a scrutinee
-   is not shown of the environment answered; a later meet in that
-   environment still needs it.
+   these three ask of the canonical element and of the type of a
+   scrutinee is not shown of the environment answered; the two
+   statements that follow do not ask it.
+
+   [naked_immediate_fuel_enough_statement]: two units are enough for
+   the meet of any type with the type of a number, as a naked
+   immediate, under the last three of the hypotheses above and
+   consistent aliases. Nothing is asked of the type, nor of what the
+   environment has for it. The cases, of the meet of types that
+   [Meet.meet] asks where the environment is not bottom
+   ([Meet_env.meet_type]):
+   - the type is of another kind: the meet answers nothing whatever
+     the fuel (a fatal error of the compiler);
+   - the type is not an alias: it is flat, and one unit is enough
+     (FlambdaMeetTerminationSpec.v), or it is a head of naked
+     immediates, whose relations are followed as above;
+   - the type is an alias: the meet reads for it the canonical
+     element of the class of what it is an alias of, whatever the
+     name mode of that element (the meet reads at the name mode of
+     the names of types, which is below the two others,
+     [Name_mode.compare_partial_order]); with consistent aliases that
+     element is canonical. If it is a constant, the meet compares the
+     two constants and asks no meet of expanded types. If it is a
+     name, the type that the environment has for it at the kind is
+     flat, or is a head of naked immediates (the case of
+     [relation_const_fuel_enough_statement]), or is an alias, or
+     there is none; in the last two the meet answers nothing
+     whatever the fuel (fatal errors of the compiler: its
+     [Expand_head] stops on a name that it takes for canonical and
+     whose type is an alias).
+   [naked_immediate_meet_keeps_statement]: where that meet answers an
+   environment, with that fuel or more, the environment has again
+   the two things that are supposed of the environment. So the meet
+   for an arm of a [Switch] may be followed by another in the
+   environment that it answers, whatever the scrutinee of each
+   (FlambdaSimplifySwitchFuelSpec.v).
 
    What the hypotheses are for. Each relation adds one equation at
    most, and after it the environment is another, of which the third
@@ -224,6 +259,37 @@ Definition relation_const_meet_keeps_aliases_statement : Prop :=
     Meet.meet join choices fuel tenv t (this_const c)
     = Some (Or_bottom.Ok (ty, tenv')) ->
     aliases_consistent (Typing_env.aliases tenv').
+
+(* ======================================================================== *)
+(* Any type                                                                 *)
+(* ======================================================================== *)
+
+(* The meet of any type with the type of a number, as a naked
+   immediate: two units of fuel are enough. Nothing is asked of the
+   type, nor of the canonical element that the meet reads for it. *)
+Definition naked_immediate_fuel_enough_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (tenv : Typing_env.t)
+    (t : flambda_type) (i : Z),
+    join_of_nothing join ->
+    get_tag_shapes choices ->
+    values_extension_free tenv ->
+    aliases_consistent (Typing_env.aliases tenv) ->
+    meet_fuel_enough join choices 2 tenv t (this_naked_immediate i).
+
+(* The environment that this meet answers, with that fuel or more, has
+   again the two things that are supposed of the environment. *)
+Definition naked_immediate_meet_keeps_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (fuel : nat)
+    (tenv tenv' : Typing_env.t) (t ty : flambda_type) (i : Z),
+    join_of_nothing join ->
+    get_tag_shapes choices ->
+    values_extension_free tenv ->
+    aliases_consistent (Typing_env.aliases tenv) ->
+    2 <= fuel ->
+    Meet.meet join choices fuel tenv t (this_naked_immediate i)
+    = Some (Or_bottom.Ok (ty, tenv')) ->
+    values_extension_free tenv'
+    ∧ aliases_consistent (Typing_env.aliases tenv').
 
 (* ======================================================================== *)
 (* Two examples                                                             *)
