@@ -6,7 +6,7 @@ open FlambdaWellFormedSpec
 (** val lift_to_head : (path * lift_to) list -> expr -> expr **)
 
 let lift_to_head lets e =
-  let bindings = lifted_out_bindings lets root e in
+  let bindings = once_each [] (lifted_out_bindings lets root e) in
   match bindings with
   | [] -> e
   | _ :: _ -> Let_static (bindings, lift_from_code [] lets root e)

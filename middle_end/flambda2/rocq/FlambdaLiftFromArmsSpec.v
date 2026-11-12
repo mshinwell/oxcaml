@@ -65,11 +65,15 @@
    the lifting out of code, only a [Let] that mentions no variable is
    lifted (FlambdaLiftFromCodeSpec.closed_named), the variable stays,
    bound to the symbol, a [Let] is named by its path in the unit, the
-   handlers of recursive continuations and the bodies of code are not
-   gone into, and which [Let]s, to which symbols, is a guess of the
-   caller's, of which nothing is believed. The guess may name any
-   such [Let] of the unit, in a handler that is at toplevel or in the
-   unit itself as well as in the arm of a test.
+   handlers of recursive continuations are gone into and the bodies
+   of code are not, two [Let]s that are given one symbol and make the
+   same constant have one binding
+   (FlambdaLiftFromCodeSpec.once_each, and the header of that file
+   for what is refused), and which [Let]s, to which symbols, is a
+   guess of the caller's, of which nothing is believed. The guess may
+   name any such [Let] of the unit, in a handler that is at toplevel
+   or in the unit itself as well as in the arm of a test or in a
+   loop.
 
    Why it is right. As for the lifting out of code: the first run
    makes a closure, a block or a boxed number when the [Let] is
@@ -98,10 +102,10 @@ Import ListNotations.
 (* ======================================================================== *)
 
 (* The unit with the [Let]s at the paths [lets] made aliases of the
-   symbols that stand for them, and those symbols bound in one group
-   around it. The unit itself if nothing is lifted. *)
+   symbols that stand for them, and those symbols bound, once each, in
+   one group around it. The unit itself if nothing is lifted. *)
 Definition lift_to_head (lets : list (path * lift_to)) (e : expr) : expr :=
-  let bindings := lifted_out_bindings lets root e in
+  let bindings := once_each [] (lifted_out_bindings lets root e) in
   match bindings with
   | [] => e
   | _ :: _ => Let_static bindings (lift_from_code [] lets root e)

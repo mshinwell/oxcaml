@@ -19,6 +19,26 @@ type path = positive
 
 let root = Coq_xH
 
+(** val rec_handlers_map : (path -> continuation_handler ->
+    continuation_handler) -> path -> (continuation * continuation_handler) list
+    -> (continuation * continuation_handler) list **)
+
+let rec rec_handlers_map f q = function
+  | [] -> []
+  | p :: rest ->
+    let k, h = p in
+    (k, f (Coq_xO q) h) :: rec_handlers_map f (Coq_xI q) rest
+
+(** val rec_handlers_bindings : (path -> continuation_handler -> static_binding
+    list) -> path -> (continuation * continuation_handler) list ->
+    static_binding list **)
+
+let rec rec_handlers_bindings f q = function
+  | [] -> []
+  | p :: rest ->
+    let _, h = p in
+    app (f (Coq_xO q) h) (rec_handlers_bindings f (Coq_xI q) rest)
+
 type lifting =
   { lifting_unit : unit_interface;
     lifted_lets : (path * lift_to) list;

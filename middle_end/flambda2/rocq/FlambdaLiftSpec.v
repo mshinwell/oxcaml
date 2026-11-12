@@ -158,19 +158,26 @@
    wrongly accepted:
    - lifting out of a function, where the binding moves to toplevel:
      that is FlambdaLiftFromCodeSpec.v, for what mentions no variable;
-   - lifting out of a loop;
-   - the sharing of equal constants: a symbol is bound once, so two
-     [Let]s cannot be given the same symbol;
+   - lifting out of a loop: that is FlambdaLiftFromCodeSpec.v in code
+     and FlambdaLiftFromArmsSpec.v outside it, for what mentions no
+     variable;
+   - the sharing of equal constants: here a symbol is bound once, so
+     two [Let]s cannot be given the same symbol; the two files just
+     named put one binding for two [Let]s of one constant that are
+     lifted out of one body (FlambdaLiftFromCodeSpec.once_each);
    - immutable arrays, which the model has not got;
    - a unit that gives a variable to its return continuation, or raises
      a variable in code: see the CR at [exits_plain].
 
-   Identity. The model's [Make_block] is the immutable one only
+   Identity. The model's [Make_block] is the immutable one
    (FlambdaPrimitiveModel.v) and its values have no identity, so nothing
-   lifted here has one. Simplify also lifts a block that is
+   lifted here has one. A block that is mutable or unique is made by a
+   primitive of the heap
+   (FlambdaPrimitiveModel.Make_block_with_identity), which
+   [lift_named] does not lift. Simplify also lifts a block that is
    [Immutable_unique] (reification.ml, [create_static_const]), out of
-   functions too, which changes how many blocks there are. When the
-   model has mutability, [lift_named] must fire on [Immutable] only.
+   functions too, which changes how many blocks there are: no lifting
+   here follows it.
 
    The proofs are in FlambdaLiftProofs.v, which needs no review. They
    need one law of the primitives that the others do not give: a

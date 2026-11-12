@@ -475,10 +475,34 @@ Proof.
     + apply no_free_names_app;
         [ apply lifted_out_bindings_no_free_names
         | apply handler_lifted_out_bindings_no_free_names ].
-    + apply lifted_out_bindings_no_free_names.
+    + apply no_free_names_app; [ apply lifted_out_bindings_no_free_names | ].
+      generalize (xI at_path).
+      induction handlers as [ | [k1 h1] handlers IH]; intros q;
+        cbn [rec_handlers_bindings]; [ repeat split | ].
+      apply no_free_names_app;
+        [ apply handler_lifted_out_bindings_no_free_names | apply IH ].
   - destruct h as [params metadata handler].
     cbn [handler_lifted_out_bindings].
     apply lifted_out_bindings_no_free_names.
+Qed.
+
+(* Bindings with no free names, put once each, have none. *)
+Lemma once_each_no_free_names :
+  ∀ bindings seen : list static_binding,
+    no_free_names bindings -> no_free_names (once_each seen bindings).
+Proof.
+  induction bindings as [ | binding bindings IH]; intros seen;
+    cbn [once_each]; [ exact (fun H => H) | ].
+  intros (Hclosed & Hv & Hk). cbn [forallb flat_map] in Hclosed, Hv, Hk.
+  apply andb_true_iff in Hclosed. destruct Hclosed as [Hfirst Hrest].
+  apply app_eq_nil in Hv. destruct Hv as [Hv Hv'].
+  apply app_eq_nil in Hk. destruct Hk as [Hk Hk'].
+  assert (Hbindings : no_free_names bindings) by (repeat split; assumption).
+  destruct (existsb (same_binding binding) seen);
+    [ exact (IH _ Hbindings) | ].
+  destruct (IH (binding :: seen) Hbindings) as (Hclosed1 & Hv1 & Hk1).
+  unfold no_free_names. cbn [forallb flat_map].
+  rewrite Hfirst, Hclosed1, Hv, Hv1, Hk, Hk1. repeat split.
 Qed.
 
 (* Bindings with no free names put before a group. *)
@@ -531,9 +555,16 @@ Proof.
                (binding_lift_from_code_scoped K binding) IH).
     + apply scoped_let_cont;
         [ apply handler_lift_from_code_scoped | apply lift_from_code_scoped ].
-    + apply scoped_let_cont_recursive;
-        [ reflexivity | apply scoped_handlers_refl
-        | apply lift_from_code_scoped ].
+    + apply scoped_let_cont_recursive; [ | | apply lift_from_code_scoped ].
+      * generalize (xI at_path).
+        induction handlers as [ | [k1 h1] handlers IH]; intros q;
+          [ reflexivity | ].
+        cbn [rec_handlers_map map fst]. rewrite IH. reflexivity.
+      * generalize (xI at_path).
+        induction handlers as [ | [k1 h1] handlers IH]; intros q;
+          cbn [rec_handlers_map]; [ apply scoped_handlers_nil | ].
+        apply scoped_handlers_cons;
+          [ apply handler_lift_from_code_scoped | apply IH ].
   - destruct h as [params metadata handler].
     cbn [handler_lift_from_code].
     apply scoped_handler_intro, lift_from_code_scoped.
@@ -541,7 +572,7 @@ Proof.
       cbn [binding_lift_from_code]; try apply scoped_bindings_refl.
     destruct c as [params my_closure ret exn metadata body].
     apply scoped_bindings_prepend;
-      [ apply lifted_out_bindings_no_free_names | ].
+      [ apply once_each_no_free_names, lifted_out_bindings_no_free_names | ].
     apply scoped_bindings_cons_code;
       [ apply scoped_code_intro, lift_from_code_scoped
       | apply scoped_bindings_nil ].
@@ -570,8 +601,12 @@ Lemma lift_to_head_scoped (lets : list (path * lift_to)) (e : expr) :
   scoped e (lift_to_head lets e).
 Proof.
   unfold lift_to_head. cbv zeta.
-  pose proof (lifted_out_bindings_no_free_names lets root e) as Hfree.
-  destruct (lifted_out_bindings lets root e) as [ | binding bindings];
+  pose proof
+    (once_each_no_free_names _ []
+       (lifted_out_bindings_no_free_names lets root e))
+    as Hfree.
+  destruct (once_each [] (lifted_out_bindings lets root e))
+    as [ | binding bindings];
     [ apply scoped_refl | ].
   exact (scoped_let_static_around _ _ _ Hfree
            (lift_from_code_scoped [] lets root e)).

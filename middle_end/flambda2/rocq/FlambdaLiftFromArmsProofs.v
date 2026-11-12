@@ -31,7 +31,8 @@
    then on the two runs are those of FlambdaLiftFromCodeProofs.v, with
    no code named: the second expression is the first with its [Let]s
    made aliases, and the symbols of those [Let]s are bound to what the
-   [Let]s make (FlambdaLiftFromCodeProofs.eval_lifted_out_bindings).
+   [Let]s make (FlambdaLiftFromCodeProofs.eval_lifted_out_bindings,
+   which is of the bindings put once each).
    So the first step of the first run is answered by two of the second,
    and every other step by the step that
    FlambdaLiftFromCodeProofs.lifted_out_step gives. *)
@@ -57,7 +58,8 @@ Variable lets : list (path * lift_to).
 Variable e : expr.
 
 (* The unit lifted, where something is lifted. *)
-Let bindings : list static_binding := lifted_out_bindings lets root e.
+Let bindings : list static_binding :=
+  once_each [] (lifted_out_bindings lets root e).
 Let lifted : expr := Let_static bindings (lift_from_code [] lets root e).
 
 Hypothesis Hwf : well_formed_unit u lifted = true.
@@ -181,14 +183,14 @@ Proof.
   destruct (well_formed_unit u (lift_to_head lets e)) eqn:Hwf;
     [ | discriminate ].
   intros [= <-]. unfold program_refines.
-  destruct (lifted_out_bindings lets root e) as [ | binding rest]
-    eqn:Hbindings.
+  destruct (once_each [] (lifted_out_bindings lets root e))
+    as [ | binding rest] eqn:Hbindings.
   - unfold lift_to_head. cbv zeta. rewrite Hbindings. apply refines_refl.
-  - assert (Hsome : lifted_out_bindings lets root e <> [])
+  - assert (Hsome : once_each [] (lifted_out_bindings lets root e) <> [])
       by (rewrite Hbindings; discriminate).
     assert (Hshape :
       lift_to_head lets e
-      = Let_static (lifted_out_bindings lets root e)
+      = Let_static (once_each [] (lifted_out_bindings lets root e))
           (lift_from_code [] lets root e)).
     { unfold lift_to_head. cbv zeta. rewrite Hbindings. reflexivity. }
     rewrite Hshape in Hwf |- *.
@@ -203,9 +205,11 @@ Theorem lift_to_head_equivariant : lift_to_head_equivariant_statement.
 Proof.
   intros r lets e. unfold lift_to_head. cbv zeta.
   rewrite (lifted_out_bindings_equivariant r lets root e).
-  destruct (lifted_out_bindings lets root e) as [ | binding rest]
-    eqn:Hbindings; [ reflexivity | ].
-  pose proof (lifted_out_bindings_closed r lets root e) as Hclosed.
+  destruct (once_each [] (lifted_out_bindings lets root e))
+    as [ | binding rest] eqn:Hbindings; [ reflexivity | ].
+  pose proof
+    (once_each_closed r _ [] (lifted_out_bindings_closed r lets root e))
+    as Hclosed.
   rewrite Hbindings in Hclosed. simpl in Hclosed |- *.
   rewrite Hclosed, (lift_from_code_equivariant r [] lets root e).
   reflexivity.

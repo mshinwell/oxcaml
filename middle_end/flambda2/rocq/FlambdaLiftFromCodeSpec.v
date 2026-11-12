@@ -31,8 +31,9 @@
    code.
 
    This file is to be reviewed: [closed_named], [lifted_out],
-   [lift_from_code] and [lifted_out_bindings], against what Simplify
-   does (below); [lift_from_code_unit], which is extracted and run by
+   [lift_from_code], [lifted_out_bindings] and [once_each], against
+   what Simplify does (below); [lift_from_code_unit], which is
+   extracted and run by
    the validation of middle_end/flambda2/tests/semantics/; and the
    statements.
 
@@ -65,9 +66,48 @@
    ([closed_named]), so that the bindings mean the same at toplevel. As
    there, the variable stays, bound to the symbol, for other passes to
    follow and remove; a [Let] is named by its path in the body of its
-   code; the handlers of recursive continuations are not gone into; and
-   which [Let]s, to which symbols, is a guess of the caller's, of which
-   nothing is believed.
+   code; and which [Let]s, to which symbols, is a guess of the
+   caller's, of which nothing is believed.
+
+   The handlers of recursive continuations are gone into: a [Let] that
+   mentions no variable makes the same thing each time round a loop,
+   and Simplify lifts it from there as from anywhere else (a local
+   recursive function that captures nothing, made in the loop of a
+   function, is the common case). The path of such a [Let] is under
+   that of its handler (FlambdaLiftSpec.rec_handlers_map).
+
+   Two [Let]s may be given one symbol. Where inlining has made two
+   [Let]s of one closure that captures nothing, Simplify has one
+   symbol for both. The bindings that stand for the [Let]s lifted out
+   of one body are put once each ([once_each]): a binding is left out
+   if one before it binds the same symbol to the same constant. The
+   same constant is the same term (FlambdaModel.static_const_eq_dec);
+   the constants compared mention no variable, so the same term is
+   the same thing wherever it is evaluated. If a guess gives one
+   symbol to two [Let]s that do not make the same constant, both
+   bindings stay, the symbol is bound twice, the result is not a
+   well-formed unit, and [lift_from_code_unit] gives nothing: the
+   guess is refused and the unit stays as it is. Nothing is shared
+   between the bodies of two pieces of code, or between code and the
+   term outside it: a guess that gives one symbol to [Let]s of two
+   bodies is refused in the same way.
+
+   What is shared has no identity. FlambdaLiftSpec.lift_named lifts a
+   closure, a boxed number and a block made by [Make_block], which is
+   the immutable one (FlambdaLiftSpec.v, "Identity"). A block or an
+   array that a unit allocates with an identity is made by a
+   primitive of the heap (FlambdaPrimitiveModel.heap_primitive: a
+   block that is mutable or unique, a mutable array). [lift_named]
+   lifts none of those, so two
+   [Let]s of one are given no symbol, one or two; and the step of
+   FlambdaSemanticsSpec.v, which the statements here are about, gives
+   such a primitive no value: it is the machine of FlambdaHeapSpec.v
+   that executes one. A
+   [Let] that is lifted out mentions no variable, so what is put once
+   holds symbols and constants only. A location of the heap is a
+   value that only a variable holds, so the constant holds none
+   itself: a closure or a block that is put once may lead, through a
+   symbol, to something that can be written, and is not that thing.
 
    A [Let] whose parts are variables bound to symbols by an earlier
    lifting is closed once those aliases are followed: the validator
@@ -102,9 +142,13 @@
    fields is a symbol bound to nothing: decision D8), the refinement
    asks nothing more of the second run.
 
-   What is not here: lifting out of the handler of a recursive
-   continuation, in code or at toplevel; out of the arm of a test at
-   toplevel; and the sharing of equal constants.
+   Two [Let]s with one symbol add nothing to this: both are aliases
+   of a symbol that is bound, once, to what each of them makes.
+
+   What is not here: lifting out of the arm of a test at toplevel
+   (FlambdaLiftFromArmsSpec.v, which uses the functions of this file);
+   a constant with a variable in it; and the sharing of a constant
+   with one that the unit binds already.
 
    The proofs are in FlambdaLiftFromCodeProofs.v, which needs no
    review. *)
@@ -158,7 +202,8 @@ Definition lets_of (K : lets_in_code) (id : code_id)
 
 (* The static bindings that stand for the [Let]s of an expression that
    are lifted out, in the order of FlambdaLiftSpec.lift_expr: the body
-   of a [Let_cont] before its handler. *)
+   of a [Let_cont] before its handler, and before the handlers of its
+   recursive continuations. *)
 Fixpoint lifted_out_bindings (lets : list (path * lift_to)) (at_path : path)
     (e : expr) : list static_binding :=
   match e with
@@ -172,13 +217,36 @@ Fixpoint lifted_out_bindings (lets : list (path * lift_to)) (at_path : path)
   | Let_cont_non_recursive _ h body =>
     lifted_out_bindings lets (xO at_path) body
     ++ handler_lifted_out_bindings lets (xI at_path) h
-  | Let_cont_recursive _ body => lifted_out_bindings lets (xO at_path) body
+  | Let_cont_recursive handlers body =>
+    lifted_out_bindings lets (xO at_path) body
+    ++ rec_handlers_bindings (handler_lifted_out_bindings lets) (xI at_path)
+         handlers
   | Apply _ | Apply_cont _ | Switch _ _ | Invalid => []
   end
 with handler_lifted_out_bindings (lets : list (path * lift_to))
     (at_path : path) (h : continuation_handler) : list static_binding :=
   match h with
   | Handler _ _ handler => lifted_out_bindings lets at_path handler
+  end.
+
+(* Two bindings of one symbol to the same constant. *)
+Definition same_binding (binding binding' : static_binding) : bool :=
+  match binding, binding' with
+  | Bind_symbol s const, Bind_symbol s' const' =>
+    Pos.eqb s s' && if static_const_eq_dec const const' then true else false
+  | (Bind_code _ _ | Bind_deleted_code _ | Bind_symbol _ _), _ => false
+  end.
+
+(* The bindings given, less each one that is the same as one of [seen]
+   or as one before it: two [Let]s that are given one symbol and make
+   the same constant have one binding. *)
+Fixpoint once_each (seen bindings : list static_binding)
+    : list static_binding :=
+  match bindings with
+  | [] => []
+  | binding :: rest =>
+    if existsb (same_binding binding) seen then once_each seen rest
+    else binding :: once_each (binding :: seen) rest
   end.
 
 (* ======================================================================== *)
@@ -189,8 +257,8 @@ with handler_lifted_out_bindings (lets : list (path * lift_to))
    the symbols that stand for them, and with every group of static
    bindings rewritten: the code that [K] names has the [Let]s that [K]
    gives for it made aliases, and the bindings that stand for them are
-   put before it. [at_path] is the path of the expression. For a unit,
-   [lets] is empty: only its code is rewritten. *)
+   put before it, once each. [at_path] is the path of the expression.
+   For a unit, [lets] is empty: only its code is rewritten. *)
 Fixpoint lift_from_code (K : lets_in_code) (lets : list (path * lift_to))
     (at_path : path) (e : expr) : expr :=
   match e with
@@ -207,7 +275,9 @@ Fixpoint lift_from_code (K : lets_in_code) (lets : list (path * lift_to))
     Let_cont_non_recursive k (handler_lift_from_code K lets (xI at_path) h)
       (lift_from_code K lets (xO at_path) body)
   | Let_cont_recursive handlers body =>
-    Let_cont_recursive handlers (lift_from_code K lets (xO at_path) body)
+    Let_cont_recursive
+      (rec_handlers_map (handler_lift_from_code K lets) (xI at_path) handlers)
+      (lift_from_code K lets (xO at_path) body)
   | Apply _ | Apply_cont _ | Switch _ _ | Invalid => e
   end
 with handler_lift_from_code (K : lets_in_code)
@@ -221,7 +291,7 @@ with binding_lift_from_code (K : lets_in_code)
     (binding : static_binding) : list static_binding :=
   match binding with
   | Bind_code id (Code params my_closure ret exn metadata body) =>
-    lifted_out_bindings (lets_of K id) root body
+    once_each [] (lifted_out_bindings (lets_of K id) root body)
     ++ [Bind_code id
           (Code params my_closure ret exn metadata
              (lift_from_code K (lets_of K id) root body))]

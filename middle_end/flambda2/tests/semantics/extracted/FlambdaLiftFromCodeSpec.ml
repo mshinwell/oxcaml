@@ -1,4 +1,5 @@
 open BinNums
+open BinPos
 open Datatypes
 open FlambdaLiftSpec
 open FlambdaMapSpec
@@ -47,8 +48,12 @@ let rec lifted_out_bindings lets at_path = function
     app
       (lifted_out_bindings lets (Coq_xO at_path) body)
       (handler_lifted_out_bindings lets (Coq_xI at_path) h)
-  | Let_cont_recursive (_, body) ->
-    lifted_out_bindings lets (Coq_xO at_path) body
+  | Let_cont_recursive (handlers, body) ->
+    app
+      (lifted_out_bindings lets (Coq_xO at_path) body)
+      (rec_handlers_bindings
+         (handler_lifted_out_bindings lets)
+         (Coq_xI at_path) handlers)
   | _ -> []
 
 (** val handler_lifted_out_bindings : (path * lift_to) list -> path ->
@@ -56,6 +61,27 @@ let rec lifted_out_bindings lets at_path = function
 
 and handler_lifted_out_bindings lets at_path = function
   | Handler (_, _, handler) -> lifted_out_bindings lets at_path handler
+
+(** val same_binding : static_binding -> static_binding -> bool **)
+
+let same_binding binding binding' =
+  match binding with
+  | Bind_symbol (s, const) -> (
+    match binding' with
+    | Bind_symbol (s', const') ->
+      Pos.eqb s s' && if static_const_eq_dec const const' then true else false
+    | _ -> false)
+  | _ -> false
+
+(** val once_each : static_binding list -> static_binding list -> static_binding
+    list **)
+
+let rec once_each seen = function
+  | [] -> []
+  | binding :: rest ->
+    if existsb (same_binding binding) seen
+    then once_each seen rest
+    else binding :: once_each (binding :: seen) rest
 
 (** val lift_from_code : lets_in_code -> (path * lift_to) list -> path -> expr
     -> expr **)
@@ -79,7 +105,11 @@ let rec lift_from_code k lets at_path e =
         handler_lift_from_code k lets (Coq_xI at_path) h,
         lift_from_code k lets (Coq_xO at_path) body )
   | Let_cont_recursive (handlers, body) ->
-    Let_cont_recursive (handlers, lift_from_code k lets (Coq_xO at_path) body)
+    Let_cont_recursive
+      ( rec_handlers_map
+          (handler_lift_from_code k lets)
+          (Coq_xI at_path) handlers,
+        lift_from_code k lets (Coq_xO at_path) body )
   | _ -> e
 
 (** val handler_lift_from_code : lets_in_code -> (path * lift_to) list -> path
@@ -97,7 +127,7 @@ and binding_lift_from_code k binding =
   | Bind_code (id, c) ->
     let (Code (params, my_closure, ret, exn, metadata, body)) = c in
     app
-      (lifted_out_bindings (lets_of k id) root body)
+      (once_each [] (lifted_out_bindings (lets_of k id) root body))
       (Bind_code
          ( id,
            Code

@@ -17,6 +17,18 @@ type path = positive
 
 val root : path
 
+val rec_handlers_map :
+  (path -> continuation_handler -> continuation_handler) ->
+  path ->
+  (continuation * continuation_handler) list ->
+  (continuation * continuation_handler) list
+
+val rec_handlers_bindings :
+  (path -> continuation_handler -> static_binding list) ->
+  path ->
+  (continuation * continuation_handler) list ->
+  static_binding list
+
 type lifting =
   { lifting_unit : unit_interface;
     lifted_lets : (path * lift_to) list;

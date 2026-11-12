@@ -1,4 +1,5 @@
 open BinNums
+open BinPos
 open Datatypes
 open FlambdaLiftSpec
 open FlambdaMapSpec
@@ -23,6 +24,11 @@ val lifted_out_bindings :
 
 val handler_lifted_out_bindings :
   (path * lift_to) list -> path -> continuation_handler -> static_binding list
+
+val same_binding : static_binding -> static_binding -> bool
+
+val once_each :
+  static_binding list -> static_binding list -> static_binding list
 
 val lift_from_code :
   lets_in_code -> (path * lift_to) list -> path -> expr -> expr
