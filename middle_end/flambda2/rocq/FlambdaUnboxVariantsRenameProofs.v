@@ -1,0 +1,1163 @@
+(******************************************************************************
+ *                                  OxCaml                                    *
+ * -------------------------------------------------------------------------- *
+ *                               MIT License                                  *
+ *                                                                            *
+ * Copyright (c) 2026 Jane Street Group LLC                                   *
+ * opensource-contacts@janestreet.com                                         *
+ *                                                                            *
+ * Permission is hereby granted, free of charge, to any person obtaining a    *
+ * copy of this software and associated documentation files (the "Software"), *
+ * to deal in the Software without restriction, including without limitation  *
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,   *
+ * and/or sell copies of the Software, and to permit persons to whom the      *
+ * Software is furnished to do so, subject to the following conditions:       *
+ *                                                                            *
+ * The above copyright notice and this permission notice shall be included    *
+ * in all copies or substantial portions of the Software.                     *
+ *                                                                            *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR *
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,   *
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL    *
+ * THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER *
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING    *
+ * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER        *
+ * DEALINGS IN THE SOFTWARE.                                                  *
+ ******************************************************************************)
+
+
+(* Proofs of the statements of FlambdaUnboxVariantsRenameSpec.v. Nothing
+   here needs review. *)
+
+From Stdlib Require Import ZArith List Bool.
+From OxCamlStdlib Require Import OxCamlLogic OxCamlOption OxCamlList.
+From OxCamlFlambda2 Require Import FlambdaKindModel FlambdaModel FlambdaMapSpec
+  FlambdaMapProofs FlambdaPrimitiveModel FlambdaBindersSpec FlambdaNominalSpec
+  FlambdaNominalProofs FlambdaAlphaProofs FlambdaNormaliseSpec
+  FlambdaEquivarianceSpec FlambdaEquivarianceProofs FlambdaBlockLoadSpec
+  FlambdaBlockLoadProofs FlambdaUnboxSpec FlambdaValidatorEquivarianceSpec
+  FlambdaValidatorEquivarianceProofs FlambdaScopedProofs
+  FlambdaKeepsScopeProofs FlambdaSemanticsSpec FlambdaUnusedContsSpec
+  FlambdaCompareSpec FlambdaUnboxParamsSpec FlambdaUnboxParamsProofs
+  FlambdaUnboxParamsRenameSpec FlambdaUnboxParamsRenameProofs
+  FlambdaUnboxVariantsSpec FlambdaUnboxVariantsProofs
+  FlambdaUnboxVariantsRenameSpec.
+Import ListNotations.
+
+(* ======================================================================== *)
+(* The applications, extended by a function that commutes with renaming     *)
+(* ======================================================================== *)
+
+Section By_renamed.
+
+Variable r : renaming.
+Variable extend extend' : facts -> list simple -> option (list simple).
+
+Hypothesis extend_renamed :
+  ∀ (known : facts) (args : list simple),
+    extend' (rename_facts r known) (map (rename_simple r) args)
+    = option_map (map (rename_simple r)) (extend known args).
+
+Lemma extend_apply_cont_by_equivariant (known : facts) (k : continuation)
+    (ac : apply_cont) :
+  extend_apply_cont_by extend' (rename_facts r known)
+    (rename_continuation r k) (rename_apply_cont r ac)
+  = option_map (rename_apply_cont r) (extend_apply_cont_by extend known k ac).
+Proof.
+  unfold extend_apply_cont_by, rename_apply_cont.
+  cbn [ac_continuation ac_args ac_trap_action].
+  rewrite rename_continuation_eqb.
+  destruct (Pos.eqb (ac_continuation ac) k); [ | reflexivity ].
+  rewrite extend_renamed.
+  destruct (extend known (ac_args ac)); reflexivity.
+Qed.
+
+Lemma extend_arms_by_equivariant (known : facts) (k : continuation)
+    (arms : list (Z * apply_cont)) :
+  extend_arms_by extend' (rename_facts r known) (rename_continuation r k)
+    (map (fun arm => (fst arm, rename_apply_cont r (snd arm))) arms)
+  = option_map (map (fun arm => (fst arm, rename_apply_cont r (snd arm))))
+      (extend_arms_by extend known k arms).
+Proof.
+  induction arms as [ | [discriminant ac] arms IH]; simpl; [ reflexivity | ].
+  rewrite extend_apply_cont_by_equivariant.
+  destruct (extend_apply_cont_by extend known k ac); simpl; [ | reflexivity ].
+  rewrite IH. destruct (extend_arms_by extend known k arms); reflexivity.
+Qed.
+
+Fixpoint extend_applications_by_equivariant_aux (e : expr) :
+  ∀ (known : facts) (k : continuation),
+    extend_applications_by extend' (rename_facts r known)
+      (rename_continuation r k) (rename_expr r e)
+    = option_map (rename_expr r) (extend_applications_by extend known k e)
+with extend_in_handler_by_equivariant (h : continuation_handler) :
+  ∀ (known : facts) (k : continuation),
+    extend_in_handler_by extend' (rename_facts r known)
+      (rename_continuation r k) (rename_handler r h)
+    = option_map (rename_handler r) (extend_in_handler_by extend known k h).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k0 h body | handlers body | ap
+         | ac | scrutinee arms | ];
+      intros known k; cbn [rename_expr extend_applications_by].
+    + rewrite facts_under_let_equivariant,
+        extend_applications_by_equivariant_aux.
+      destruct
+        (extend_applications_by extend (facts_under_let known x d) k body);
+        reflexivity.
+    + rewrite facts_under_statics_equivariant,
+        extend_applications_by_equivariant_aux.
+      destruct
+        (extend_applications_by extend (facts_under_statics known bindings) k
+           body);
+        reflexivity.
+    + rewrite extend_in_handler_by_equivariant.
+      destruct (extend_in_handler_by extend known k h) as [h' | ]; simpl;
+        [ | reflexivity ].
+      rewrite rename_continuation_eqb.
+      destruct (Pos.eqb k0 k); [ reflexivity | ].
+      rewrite extend_applications_by_equivariant_aux.
+      destruct (extend_applications_by extend known k body); reflexivity.
+    + rewrite is_bound_renamed_handlers.
+      destruct (is_bound k handlers); [ reflexivity | ].
+      assert (Hhandlers :
+        all_some
+          (map
+             (fun '(k', h) =>
+                let* h :=
+                  extend_in_handler_by extend' (rename_facts r known)
+                    (rename_continuation r k) h
+                in
+                Some (k', h))
+             (map
+                (fun '(k', h) => (rename_continuation r k', rename_handler r h))
+                handlers))
+        = option_map
+            (map
+               (fun '(k', h) =>
+                  (rename_continuation r k', rename_handler r h)))
+            (all_some
+               (map
+                  (fun '(k', h) =>
+                     let* h := extend_in_handler_by extend known k h in
+                     Some (k', h))
+                  handlers))).
+      { induction handlers as [ | [k1 h1] handlers IH]; simpl;
+          [ reflexivity | ].
+        rewrite (extend_in_handler_by_equivariant h1 known k).
+        destruct (extend_in_handler_by extend known k h1); simpl;
+          [ | reflexivity ].
+        rewrite IH.
+        destruct
+          (all_some
+             (map
+                (fun '(k', h) =>
+                   let* h := extend_in_handler_by extend known k h in
+                   Some (k', h))
+                handlers));
+          reflexivity. }
+      rewrite Hhandlers.
+      destruct
+        (all_some
+           (map
+              (fun '(k', h) =>
+                 let* h := extend_in_handler_by extend known k h in
+                 Some (k', h))
+              handlers));
+        simpl; [ | reflexivity ].
+      rewrite extend_applications_by_equivariant_aux.
+      destruct (extend_applications_by extend known k body); reflexivity.
+    + cbn [rename_apply ap_continuation ap_exn_continuation].
+      rewrite !rename_continuation_eqb.
+      destruct
+        (Pos.eqb (ap_continuation ap) k || Pos.eqb (ap_exn_continuation ap) k);
+        reflexivity.
+    + rewrite extend_apply_cont_by_equivariant.
+      destruct (extend_apply_cont_by extend known k ac); reflexivity.
+    + rewrite extend_arms_by_equivariant.
+      destruct (extend_arms_by extend known k arms); reflexivity.
+    + reflexivity.
+  - destruct h as [params metadata handler]. intros known k.
+    cbn [rename_handler extend_in_handler_by].
+    rewrite facts_under_params_equivariant,
+      extend_applications_by_equivariant_aux.
+    destruct
+      (extend_applications_by extend (facts_under_params known params) k
+         handler);
+      reflexivity.
+Qed.
+
+End By_renamed.
+
+Theorem extend_applications_by_equivariant :
+  extend_applications_by_equivariant_statement.
+Proof.
+  intros r extend extend' Hextend known k e.
+  exact (extend_applications_by_equivariant_aux r extend extend' Hextend e
+    known k).
+Qed.
+
+(* ======================================================================== *)
+(* The argument for a parameter that is read under a test                   *)
+(* ======================================================================== *)
+
+Lemma lookup_known_var_renamed (r : renaming) (known : facts)
+    (y : variable) :
+  lookup (rename_variable r y)
+    (known_vars (facts_blocks (rename_facts r known)))
+  = option_map (rename_known_block r)
+      (lookup y (known_vars (facts_blocks known))).
+Proof. exact (known_block_of_equivariant r (facts_blocks known) (Var y)). Qed.
+
+Lemma no_value_on_renamed (r : renaming) (known : facts)
+    (p : unary_primitive) (arg : simple) :
+  no_value_on (rename_facts r known) p (rename_simple r arg)
+  = no_value_on known p arg.
+Proof.
+  destruct p, arg as [y | sym | c]; try reflexivity.
+  cbn [no_value_on rename_simple]. unfold is_bound.
+  rewrite lookup_known_var_renamed.
+  destruct (lookup y (known_vars (facts_blocks known))); reflexivity.
+Qed.
+
+Lemma made_field_equivariant (r : renaming) (known : facts)
+    (p : unary_primitive) (kind : flambda_kind) (arg : simple) :
+  made_field (rename_facts r known) p kind (rename_simple r arg)
+  = option_map (rename_simple r) (made_field known p kind arg).
+Proof.
+  destruct p as [access mut field | | | | | | | | | | | | | | ];
+    try reflexivity; try (destruct arg; reflexivity).
+  destruct mut, arg as [y | sym | c]; try reflexivity;
+    (cbn [made_field rename_simple]; rewrite lookup_known_var_renamed;
+     destruct (lookup y (known_vars (facts_blocks known))) as [block | ];
+     simpl; [ | reflexivity ];
+     rewrite field_loaded_equivariant;
+     destruct (field_loaded access field block); simpl; [ | reflexivity ];
+     destruct (kind_eqb kind Value); reflexivity).
+Qed.
+
+Lemma certain_projection_equivariant (r : renaming) (known : facts)
+    (p : unary_primitive) (kind : flambda_kind) (arg : simple) :
+  certain_projection (rename_facts r known) p kind (rename_simple r arg)
+  = option_map (rename_simple r) (certain_projection known p kind arg).
+Proof.
+  unfold certain_projection. rewrite projection_of_equivariant.
+  destruct (projection_of known p arg) as [[y | sym | c] | ];
+    cbn [option_map rename_simple]; try apply made_field_equivariant.
+  destruct (kind_eqb (kind_of_const c) kind); reflexivity.
+Qed.
+
+Lemma lookup_rename_immediates (r : renaming) (consts : list (variable * Z))
+    (t : variable) :
+  lookup (rename_variable r t) (rename_immediates r consts) = lookup t consts.
+Proof.
+  unfold rename_immediates.
+  induction consts as [ | [t0 i0] consts IH]; cbn [map fst snd lookup];
+    [ reflexivity | ].
+  rewrite rename_variable_eqb, IH. reflexivity.
+Qed.
+
+Lemma forget_immediates_equivariant (r : renaming) (bound : list variable)
+    (consts : list (variable * Z)) :
+  forget_immediates (map (rename_variable r) bound)
+    (rename_immediates r consts)
+  = rename_immediates r (forget_immediates bound consts).
+Proof.
+  unfold forget_immediates, rename_immediates.
+  induction consts as [ | [t0 i0] consts IH]; cbn [map filter fst snd];
+    [ reflexivity | ].
+  rewrite among_rename_variable, IH.
+  destruct (among t0 bound); reflexivity.
+Qed.
+
+Fixpoint take_arms_equivariant_aux (r : renaming) (e : expr) :
+  ∀ consts : list (variable * Z),
+    take_arms (rename_immediates r consts) (rename_expr r e)
+    = rename_expr r (take_arms consts e).
+Proof.
+  destruct e
+    as [ y kind d body | bindings body | k [handler_params metadata handler]
+           body
+       | handlers body | ap | ac | scrutinee arms | ];
+    intros consts; cbn [rename_expr rename_handler take_arms];
+    try reflexivity.
+  - change [rename_variable r y] with (map (rename_variable r) [y]).
+    rewrite forget_immediates_equivariant, take_arms_equivariant_aux.
+    reflexivity.
+  - rewrite take_arms_equivariant_aux. reflexivity.
+  - rewrite forget_immediates_equivariant, !take_arms_equivariant_aux.
+    reflexivity.
+  - rewrite take_arms_equivariant_aux. reflexivity.
+  - destruct scrutinee as [t | sym | c]; try reflexivity.
+    cbn [rename_simple take_arms]. rewrite lookup_rename_immediates.
+    destruct (lookup t consts) as [i | ]; [ | reflexivity ].
+    rewrite find_arm_renamed. destruct (find_arm i arms); reflexivity.
+Qed.
+
+Theorem take_arms_equivariant : take_arms_equivariant_statement.
+Proof. intros r consts e. apply take_arms_equivariant_aux. Qed.
+
+Lemma known_immediates_equivariant (r : renaming) (params : list variable) :
+  ∀ args : list simple,
+    known_immediates (map (rename_variable r) params)
+      (map (rename_simple r) args)
+    = rename_immediates r (known_immediates params args).
+Proof.
+  induction params as [ | param params IH]; intros [ | arg args];
+    try reflexivity.
+  cbn [map].
+  destruct arg as [x | sym | c]; cbn [rename_simple known_immediates];
+    try apply IH.
+  destruct c; cbn [known_immediates]; try apply IH.
+  rewrite IH. reflexivity.
+Qed.
+
+Lemma never_reads_renamed (r : renaming) (consts : list (variable * Z))
+    (handler without : expr) :
+  never_reads (rename_immediates r consts) (rename_expr r handler)
+    (rename_expr r without)
+  = never_reads consts handler without.
+Proof.
+  unfold never_reads.
+  rewrite !take_arms_equivariant_aux, !remove_unused_conts_equivariant,
+    expr_eqb_renamed.
+  reflexivity.
+Qed.
+
+Theorem extend_args_certain_equivariant :
+  extend_args_certain_equivariant_statement.
+Proof.
+  intros r params handler without known i p kind args.
+  unfold extend_args_certain. rewrite nth_error_map.
+  destruct (nth_error args i) as [arg | ]; [ | reflexivity ].
+  cbn [option_map]. cbv beta iota.
+  rewrite known_immediates_equivariant, never_reads_renamed,
+    certain_projection_equivariant, no_value_on_renamed.
+  destruct (never_reads (known_immediates params args) handler without);
+    cbn [option_map]; [ rewrite map_app; reflexivity | ].
+  destruct (certain_projection known p kind arg); cbn [option_map];
+    [ rewrite map_app; reflexivity | ].
+  destruct (no_value_on known p arg); cbn [option_map];
+    [ rewrite map_app; reflexivity | reflexivity ].
+Qed.
+
+(* ======================================================================== *)
+(* The first read of a parameter                                            *)
+(* ======================================================================== *)
+
+Lemma param_read_renamed (r : renaming) (wanted : unary_primitive -> bool)
+    (params bound : list variable) (f : variable) (d : named) :
+  param_read wanted (map (rename_variable r) params)
+    (map (rename_variable r) bound) (rename_variable r f) (rename_named r d)
+  = param_read wanted params bound f d.
+Proof.
+  destruct d as [s | pr args | | | | | ]; try reflexivity.
+  destruct pr as [p | b | v | hp]; try reflexivity.
+  destruct args as [ | [x | sym | c] [ | arg args]]; try reflexivity.
+  cbn [param_read rename_named map rename_simple].
+  rewrite !among_rename_variable, position_renamed. reflexivity.
+Qed.
+
+Fixpoint first_read_equivariant_aux (r : renaming)
+    (wanted : unary_primitive -> bool) (params : list variable) (e : expr) :
+  ∀ bound : list variable,
+    first_read wanted (map (rename_variable r) params)
+      (map (rename_variable r) bound) (rename_expr r e)
+    = option_map (rename_read r) (first_read wanted params bound e).
+Proof.
+  destruct e
+    as [ y kind d body | bindings body | k [handler_params metadata handler]
+           body
+       | handlers body | ap | ac | scrutinee arms | ];
+    intros bound; cbn [rename_expr rename_handler first_read];
+    try reflexivity.
+  - rewrite param_read_renamed.
+    destruct (param_read wanted params bound y d) as [[p i] | ];
+      [ reflexivity | ].
+    change (rename_variable r y :: map (rename_variable r) bound)
+      with (map (rename_variable r) (y :: bound)).
+    rewrite first_read_equivariant_aux.
+    destruct (first_read wanted params (y :: bound) body); reflexivity.
+  - rewrite first_read_equivariant_aux.
+    destruct (first_read wanted params bound body); [ reflexivity | ].
+    cbn [option_map]. rewrite <- map_app, first_read_equivariant_aux.
+    destruct (first_read wanted params (handler_params ++ bound) handler);
+      reflexivity.
+Qed.
+
+Theorem first_read_equivariant : first_read_equivariant_statement.
+Proof. intros r wanted params bound e. apply first_read_equivariant_aux. Qed.
+
+Lemma next_read_equivariant (r : renaming) (params : list variable)
+    (handler : expr) :
+  next_read (map (rename_variable r) params) (rename_expr r handler)
+  = option_map (rename_read r) (next_read params handler).
+Proof.
+  unfold next_read.
+  pose proof
+    (fun wanted => first_read_equivariant_aux r wanted params handler [])
+    as Hfirst.
+  cbn [map] in Hfirst. rewrite !Hfirst.
+  destruct (first_read reads_tag params [] handler); [ reflexivity | ].
+  destruct (first_read reads_constant_constructor params [] handler);
+    [ reflexivity | ].
+  destruct (first_read reads_is_int params [] handler); reflexivity.
+Qed.
+
+Lemma head_read_equivariant (r : renaming) (params : list variable)
+    (e : expr) :
+  head_read (map (rename_variable r) params) (rename_expr r e)
+  = option_map (rename_read r) (head_read params e).
+Proof.
+  destruct e as [ f kind d rest | | | | | | | ]; try reflexivity.
+  cbn [rename_expr head_read].
+  pose proof (param_read_renamed r reads_any params [] f d) as Hread.
+  cbn [map] in Hread. rewrite Hread.
+  destruct (param_read reads_any params [] f d) as [[p i] | ]; reflexivity.
+Qed.
+
+Fixpoint lets_in_renamed (r : renaming) (e : expr) :
+  lets_in (rename_expr r e) = lets_in e.
+Proof.
+  destruct e
+    as [ y kind d body | bindings body | k [handler_params metadata handler]
+           body
+       | handlers body | ap | ac | scrutinee arms | ];
+    cbn [rename_expr rename_handler lets_in]; try reflexivity.
+  - rewrite lets_in_renamed. reflexivity.
+  - rewrite !lets_in_renamed. reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* The pass                                                                 *)
+(* ======================================================================== *)
+
+(* The parameters, the metadata, the handler and the body that a step
+   gives, renamed. *)
+Definition rename_step (r : renaming)
+    (step : list variable * handler_metadata * expr * expr)
+    : list variable * handler_metadata * expr * expr :=
+  let '(params, metadata, handler, body) := step in
+  (map (rename_variable r) params, metadata, rename_expr r handler,
+   rename_expr r body).
+
+Lemma unbox_read_equivariant (r : renaming)
+    (extend extend' : facts -> list simple -> option (list simple))
+    (known : facts) (k : continuation) (params : list variable)
+    (metadata : handler_metadata) (handler body : expr) (found : read) :
+  (∀ (known : facts) (args : list simple),
+    extend' (rename_facts r known) (map (rename_simple r) args)
+    = option_map (map (rename_simple r)) (extend known args)) ->
+  unbox_read extend' (rename_facts r known) (rename_continuation r k)
+    (map (rename_variable r) params) metadata (rename_expr r handler)
+    (rename_expr r body) (rename_read r found)
+  = option_map (rename_step r)
+      (unbox_read extend known k params metadata handler body found).
+Proof.
+  intros Hextend. unfold unbox_read.
+  cbn [rename_read read_variable read_kind read_without].
+  rewrite may_take_renamed, var_free_b_equivariant.
+  destruct
+    (may_take params metadata (read_variable found)
+     && negb (var_free_b (read_variable found) handler));
+    [ | reflexivity ].
+  rewrite (extend_applications_by_equivariant r extend extend' Hextend).
+  destruct (extend_applications_by extend known k body); simpl;
+    [ rewrite map_app; reflexivity | reflexivity ].
+Qed.
+
+Lemma head_step_equivariant (r : renaming) (known : facts)
+    (k : continuation) (params : list variable) (metadata : handler_metadata)
+    (handler body : expr) (found : read) :
+  unbox_read
+    (fun known =>
+       extend_args known (read_position (rename_read r found))
+         (read_primitive (rename_read r found)))
+    (rename_facts r known) (rename_continuation r k)
+    (map (rename_variable r) params) metadata (rename_expr r handler)
+    (rename_expr r body) (rename_read r found)
+  = option_map (rename_step r)
+      (unbox_read
+         (fun known =>
+            extend_args known (read_position found) (read_primitive found))
+         known k params metadata handler body found).
+Proof.
+  exact (unbox_read_equivariant r _ _ known k params metadata handler body
+    found
+    (fun known args =>
+       extend_args_equivariant r known (read_position found)
+         (read_primitive found) args)).
+Qed.
+
+Lemma certain_step_equivariant (r : renaming) (known : facts)
+    (k : continuation) (params : list variable) (metadata : handler_metadata)
+    (handler body : expr) (found : read) :
+  unbox_read
+    (fun known =>
+       extend_args_certain (map (rename_variable r) params)
+         (rename_expr r handler) (read_without (rename_read r found)) known
+         (read_position (rename_read r found))
+         (read_primitive (rename_read r found))
+         (read_kind (rename_read r found)))
+    (rename_facts r known) (rename_continuation r k)
+    (map (rename_variable r) params) metadata (rename_expr r handler)
+    (rename_expr r body) (rename_read r found)
+  = option_map (rename_step r)
+      (unbox_read
+         (fun known =>
+            extend_args_certain params handler (read_without found) known
+              (read_position found) (read_primitive found) (read_kind found))
+         known k params metadata handler body found).
+Proof.
+  exact (unbox_read_equivariant r _ _ known k params metadata handler body
+    found
+    (fun known args =>
+       extend_args_certain_equivariant r params handler (read_without found)
+         known (read_position found) (read_primitive found) (read_kind found)
+         args)).
+Qed.
+
+Lemma unbox_reads_equivariant (r : renaming) (fuel : nat) :
+  ∀ (known : facts) (k : continuation) (params : list variable)
+    (metadata : handler_metadata) (handler body : expr),
+    unbox_reads fuel (rename_facts r known) (rename_continuation r k)
+      (map (rename_variable r) params) metadata (rename_expr r handler)
+      (rename_expr r body)
+    = rename_expr r (unbox_reads fuel known k params metadata handler body).
+Proof.
+  induction fuel as [ | fuel IH];
+    intros known k params metadata handler body; cbn [unbox_reads];
+    [ reflexivity | ].
+  rewrite next_read_equivariant, head_read_equivariant.
+  destruct (next_read params handler) as [found | ]; cbn [option_map];
+    [ | reflexivity ].
+  simpl.
+  assert (Hcertain :
+    match
+      unbox_read
+        (fun known =>
+           extend_args_certain (map (rename_variable r) params)
+             (rename_expr r handler) (read_without (rename_read r found))
+             known (read_position (rename_read r found))
+             (read_primitive (rename_read r found))
+             (read_kind (rename_read r found)))
+        (rename_facts r known) (rename_continuation r k)
+        (map (rename_variable r) params) metadata (rename_expr r handler)
+        (rename_expr r body) (rename_read r found)
+    with
+    | Some (params0, metadata0, handler0, body0) =>
+      unbox_reads fuel (rename_facts r known) (rename_continuation r k)
+        params0 metadata0 handler0 body0
+    | None =>
+      Let_cont_non_recursive (rename_continuation r k)
+        (Handler (map (rename_variable r) params) metadata
+           (rename_expr r handler))
+        (rename_expr r body)
+    end
+    = rename_expr r
+        match
+          unbox_read
+            (fun known =>
+               extend_args_certain params handler (read_without found)
+                 known (read_position found) (read_primitive found)
+                 (read_kind found))
+            known k params metadata handler body found
+        with
+        | Some (params0, metadata0, handler0, body0) =>
+          unbox_reads fuel known k params0 metadata0 handler0 body0
+        | None =>
+          Let_cont_non_recursive k (Handler params metadata handler) body
+        end).
+  { rewrite certain_step_equivariant.
+    destruct
+      (unbox_read
+         (fun known =>
+            extend_args_certain params handler (read_without found) known
+              (read_position found) (read_primitive found) (read_kind found))
+         known k params metadata handler body found)
+      as [[[[params' metadata'] handler'] body'] | ];
+      cbn [option_map rename_step]; [ apply IH | reflexivity ]. }
+  destruct (head_read params handler) as [head | ]; cbn [option_map];
+    [ | exact Hcertain ].
+  change (read_variable (rename_read r head))
+    with (rename_variable r (read_variable head)).
+  change (read_variable (rename_read r found))
+    with (rename_variable r (read_variable found)).
+  rewrite rename_variable_eqb.
+  destruct (Pos.eqb (read_variable head) (read_variable found));
+    [ | exact Hcertain ].
+  rewrite head_step_equivariant.
+  destruct
+    (unbox_read
+       (fun known =>
+          extend_args known (read_position head) (read_primitive head))
+       known k params metadata handler body head)
+    as [[[[params' metadata'] handler'] body'] | ];
+    cbn [option_map rename_step]; [ apply IH | reflexivity ].
+Qed.
+
+Fixpoint unbox_variants_knowing_equivariant_aux (r : renaming) (e : expr) :
+  ∀ known : facts,
+    unbox_variants_knowing (rename_facts r known) (rename_expr r e)
+    = rename_expr r (unbox_variants_knowing known e).
+Proof.
+  destruct e
+    as [ x kind d body | bindings body | k h body | handlers body | ap
+       | ac | scrutinee arms | ];
+    intros known; cbn [rename_expr unbox_variants_knowing]; try reflexivity.
+  - rewrite facts_under_let_equivariant,
+      unbox_variants_knowing_equivariant_aux.
+    reflexivity.
+  - rewrite facts_under_statics_equivariant,
+      unbox_variants_knowing_equivariant_aux.
+    reflexivity.
+  - destruct h as [params metadata handler].
+    cbn [rename_handler unbox_variants_knowing].
+    rewrite facts_under_params_equivariant,
+      !unbox_variants_knowing_equivariant_aux, lets_in_renamed.
+    apply unbox_reads_equivariant.
+  - rewrite unbox_variants_knowing_equivariant_aux. reflexivity.
+Qed.
+
+Theorem unbox_variants_knowing_equivariant :
+  unbox_variants_knowing_equivariant_statement.
+Proof. intros r known e. apply unbox_variants_knowing_equivariant_aux. Qed.
+
+Theorem unbox_variant_params_equivariant :
+  unbox_variant_params_equivariant_statement.
+Proof.
+  intros r e. exact (unbox_variants_knowing_equivariant_aux r e no_facts).
+Qed.
+
+(* ======================================================================== *)
+(* The pass keeps scope                                                     *)
+(* ======================================================================== *)
+
+Section By_scoped.
+
+Variable extend : facts -> list simple -> option (list simple).
+
+(* What an application is given is of its arguments or of what is
+   known. *)
+Hypothesis extend_free :
+  ∀ (names : list variable) (known : facts) (args args' : list simple),
+    facts_within names known ->
+    extend known args = Some args' ->
+    incl (free_variables_of_simples args')
+      (free_variables_of_simples args ++ names).
+
+Lemma extend_apply_cont_by_free (names : list variable) (known : facts)
+    (k : continuation) (ac ac' : apply_cont) :
+  facts_within names known ->
+  extend_apply_cont_by extend known k ac = Some ac' ->
+  incl (free_variables_of_apply_cont ac')
+    (free_variables_of_apply_cont ac ++ names)
+  ∧ apply_cont_continuations ac' = apply_cont_continuations ac.
+Proof.
+  intros Hknown. unfold extend_apply_cont_by.
+  destruct (Pos.eqb (ac_continuation ac) k).
+  - destruct (extend known (ac_args ac)) as [args' | ] eqn:Hextend;
+      [ | discriminate ].
+    intros [= <-]. split; [ | reflexivity ].
+    exact (extend_free names known _ _ Hknown Hextend).
+  - intros [= <-]. split; [ apply incl_appl, incl_refl | reflexivity ].
+Qed.
+
+Lemma extend_arms_by_free (names : list variable) (known : facts)
+    (k : continuation) :
+  ∀ arms arms' : list (Z * apply_cont),
+    facts_within names known ->
+    extend_arms_by extend known k arms = Some arms' ->
+    incl (flat_map (fun arm => free_variables_of_apply_cont (snd arm)) arms')
+      (flat_map (fun arm => free_variables_of_apply_cont (snd arm)) arms
+       ++ names)
+    ∧ flat_map (fun arm => apply_cont_continuations (snd arm)) arms'
+      = flat_map (fun arm => apply_cont_continuations (snd arm)) arms.
+Proof.
+  induction arms as [ | [discriminant ac] arms IH]; intros arms' Hknown;
+    cbn [extend_arms_by flat_map snd].
+  - intros [= <-]. split; [ intros y [] | reflexivity ].
+  - destruct (extend_apply_cont_by extend known k ac) as [ac' | ] eqn:Hac;
+      [ | discriminate ].
+    destruct (extend_arms_by extend known k arms) as [rest | ];
+      [ | discriminate ].
+    intros [= <-].
+    destruct (extend_apply_cont_by_free names known k ac ac' Hknown Hac)
+      as [Hv Hk].
+    destruct (IH rest Hknown eq_refl) as [Hv' Hk'].
+    cbn [flat_map snd]. rewrite Hk, Hk'. split; [ | reflexivity ].
+    intros y Hy. apply in_app_or in Hy. apply in_or_app.
+    destruct Hy as [Hy | Hy].
+    + apply Hv, in_app_or in Hy.
+      destruct Hy as [Hy | Hy];
+        [ left; apply in_or_app; left; exact Hy | right; exact Hy ].
+    + apply Hv', in_app_or in Hy.
+      destruct Hy as [Hy | Hy];
+        [ left; apply in_or_app; right; exact Hy | right; exact Hy ].
+Qed.
+
+Fixpoint extend_applications_by_scoped (e : expr) :
+  ∀ (names : list variable) (known : facts) (k : continuation) (e' : expr),
+    facts_within names known ->
+    extend_applications_by extend known k e = Some e' ->
+    scoped_under names e e'
+with extend_in_handler_by_scoped (h : continuation_handler) :
+  ∀ (names : list variable) (known : facts) (k : continuation)
+    (h' : continuation_handler),
+    facts_within names known ->
+    extend_in_handler_by extend known k h = Some h' ->
+    handler_code_closed h = true ->
+    handler_code_closed h' = true
+    ∧ incl (free_variables_of_handler h') (free_variables_of_handler h ++ names)
+    ∧ incl (free_continuations_of_handler h')
+        (free_continuations_of_handler h).
+Proof.
+  - destruct e
+      as [ x kind d body | bindings body | k0 h body | handlers body | ap
+         | ac | scrutinee arms | ];
+      intros names known k e' Hknown; cbn [extend_applications_by].
+    + destruct
+        (extend_applications_by extend (facts_under_let known x d) k body)
+        as [body' | ] eqn:Hbody; [ | discriminate ].
+      intros [= <-].
+      apply scoped_under_let; [ apply incl_appl, incl_refl | ].
+      exact (extend_applications_by_scoped body _ _ k body'
+        (facts_under_let_within names known x d Hknown) Hbody).
+    + destruct
+        (extend_applications_by extend (facts_under_statics known bindings) k
+           body)
+        as [body' | ] eqn:Hbody; [ | discriminate ].
+      intros [= <-]. apply scoped_under_let_static.
+      exact (extend_applications_by_scoped body _ _ k body'
+        (facts_under_statics_within names known bindings Hknown) Hbody).
+    + destruct h as [params metadata handler]. cbn [extend_in_handler_by].
+      destruct
+        (extend_applications_by extend (facts_under_params known params) k
+           handler)
+        as [handler' | ] eqn:Hhandler; [ | discriminate ].
+      pose proof (extend_applications_by_scoped handler names _ k handler'
+        (facts_under_params_within names known params Hknown) Hhandler)
+        as Hin_handler.
+      destruct (Pos.eqb k0 k).
+      * intros [= <-].
+        apply scoped_under_let_cont;
+          [ exact Hin_handler | apply scoped_under_refl ].
+      * destruct (extend_applications_by extend known k body) as [body' | ]
+          eqn:Hbody; [ | discriminate ].
+        intros [= <-].
+        apply scoped_under_let_cont; [ exact Hin_handler | ].
+        exact (extend_applications_by_scoped body names known k body' Hknown
+          Hbody).
+    + destruct (is_bound k handlers);
+        [ intros [= <-]; apply scoped_under_refl | ].
+      destruct
+        (all_some
+           (map
+              (fun '(k', h) =>
+                 let* h := extend_in_handler_by extend known k h in
+                 Some (k', h))
+              handlers))
+        as [handlers' | ] eqn:Hhandlers; [ | discriminate ].
+      destruct (extend_applications_by extend known k body) as [body' | ]
+        eqn:Hbody; [ | discriminate ].
+      intros [= <-] Hclosed. scope_in Hclosed. scope.
+      apply andb_true_iff in Hclosed. destruct Hclosed as [Hgroup Hclosed].
+      destruct
+        (extend_applications_by_scoped body names known k body' Hknown Hbody
+           Hclosed)
+        as (Hclosed' & Hv & Hk).
+      assert (Hin_handlers :
+        forallb (fun '(_, h) => handler_code_closed h) handlers' = true
+        ∧ incl
+            (flat_map (fun '(_, h) => free_variables_of_handler h) handlers')
+            (flat_map (fun '(_, h) => free_variables_of_handler h) handlers
+             ++ names)
+        ∧ incl
+            (flat_map (fun '(_, h) => free_continuations_of_handler h)
+               handlers')
+            (flat_map (fun '(_, h) => free_continuations_of_handler h)
+               handlers)
+        ∧ map fst handlers' = map fst handlers).
+      { clear Hbody Hclosed Hclosed' Hv Hk. revert handlers' Hhandlers Hgroup.
+        induction handlers as [ | [k1 h1] handlers IH]; intros handlers';
+          simpl.
+        - intros [= <-] _.
+          split; [ reflexivity | ].
+          split; [ intros y [] | split; [ intros y [] | reflexivity ] ].
+        - destruct (extend_in_handler_by extend known k h1) as [h1' | ]
+            eqn:Hh1; [ | discriminate ].
+          destruct
+            (all_some
+               (map
+                  (fun '(k', h) =>
+                     let* h := extend_in_handler_by extend known k h in
+                     Some (k', h))
+                  handlers))
+            as [rest | ]; [ | discriminate ].
+          intros [= <-] Hgroup. apply andb_true_iff in Hgroup.
+          destruct Hgroup as [Hfirst Hrest].
+          destruct
+            (extend_in_handler_by_scoped h1 names known k h1' Hknown Hh1
+               Hfirst)
+            as (Hfirst' & Hv1 & Hk1).
+          destruct (IH rest eq_refl Hrest) as (Hrest' & Hv2 & Hk2 & Hnames).
+          simpl. rewrite Hfirst', Hrest', Hnames.
+          split; [ reflexivity | ].
+          split; [ | split; [ apply incl_app_app; assumption | reflexivity ] ].
+          intros y Hy. apply in_app_or in Hy. apply in_or_app.
+          destruct Hy as [Hy | Hy].
+          + apply Hv1, in_app_or in Hy.
+            destruct Hy as [Hy | Hy];
+              [ left; apply in_or_app; left; exact Hy | right; exact Hy ].
+          + apply Hv2, in_app_or in Hy.
+            destruct Hy as [Hy | Hy];
+              [ left; apply in_or_app; right; exact Hy | right; exact Hy ]. }
+      destruct Hin_handlers as (Hgroup' & Hgroup_v & Hgroup_k & Hnames).
+      rewrite Hgroup', Hclosed', Hnames. split; [ reflexivity | split ].
+      * intros y Hy. apply in_app_or in Hy. apply in_or_app.
+        destruct Hy as [Hy | Hy].
+        -- apply Hgroup_v, in_app_or in Hy.
+           destruct Hy as [Hy | Hy];
+             [ left; apply in_or_app; left; exact Hy | right; exact Hy ].
+        -- apply Hv, in_app_or in Hy.
+           destruct Hy as [Hy | Hy];
+             [ left; apply in_or_app; right; exact Hy | right; exact Hy ].
+      * apply incl_without, incl_app_app; assumption.
+    + destruct
+        (Pos.eqb (ap_continuation ap) k || Pos.eqb (ap_exn_continuation ap) k);
+        [ discriminate | intros [= <-]; apply scoped_under_refl ].
+    + destruct (extend_apply_cont_by extend known k ac) as [ac' | ] eqn:Hac;
+        [ | discriminate ].
+      intros [= <-] _. scope.
+      destruct (extend_apply_cont_by_free names known k ac ac' Hknown Hac)
+        as [Hv Hk].
+      split; [ reflexivity | split; [ exact Hv | ] ].
+      rewrite Hk. apply incl_refl.
+    + destruct (extend_arms_by extend known k arms) as [arms' | ] eqn:Harms;
+        [ | discriminate ].
+      intros [= <-] _. scope.
+      destruct (extend_arms_by_free names known k arms arms' Hknown Harms)
+        as [Hv Hk].
+      split; [ reflexivity | split; [ | rewrite Hk; apply incl_refl ] ].
+      intros y Hy. apply in_app_or in Hy. apply in_or_app.
+      destruct Hy as [Hy | Hy];
+        [ left; apply in_or_app; left; exact Hy | ].
+      apply Hv, in_app_or in Hy.
+      destruct Hy as [Hy | Hy];
+        [ left; apply in_or_app; right; exact Hy | right; exact Hy ].
+    + intros [= <-]. apply scoped_under_refl.
+  - destruct h as [params metadata handler].
+    intros names known k h' Hknown. cbn [extend_in_handler_by].
+    destruct
+      (extend_applications_by extend (facts_under_params known params) k
+         handler)
+      as [handler' | ] eqn:Hhandler; [ | discriminate ].
+    intros [= <-] Hclosed. scope_in Hclosed. scope.
+    destruct
+      (extend_applications_by_scoped handler names _ k handler'
+         (facts_under_params_within names known params Hknown) Hhandler
+         Hclosed)
+      as (Hclosed' & Hv & Hk).
+    split; [ exact Hclosed' | split; [ | exact Hk ] ].
+    intros y Hy. apply in_without in Hy. destruct Hy as [Hy Hparams].
+    apply Hv, in_app_or in Hy. apply in_or_app.
+    destruct Hy as [Hy | Hy]; [ left | right; exact Hy ].
+    apply in_without. split; assumption.
+Qed.
+
+End By_scoped.
+
+(* What the two functions give an application. *)
+Lemma extend_args_free (i : nat) (p : unary_primitive)
+    (names : list variable) (known : facts) (args args' : list simple) :
+  facts_within names known ->
+  extend_args known i p args = Some args' ->
+  incl (free_variables_of_simples args')
+    (free_variables_of_simples args ++ names).
+Proof.
+  intros Hknown. unfold extend_args.
+  destruct (nth_error args i) as [arg | ] eqn:Hnth; [ | discriminate ].
+  simpl.
+  destruct (projection_of known p arg) as [projection | ] eqn:Hprojection;
+    [ | discriminate ].
+  intros [= <-]. unfold free_variables_of_simples.
+  rewrite flat_map_app. cbn [flat_map]. rewrite app_nil_r.
+  intros y Hy. apply in_app_or in Hy.
+  destruct Hy as [Hy | Hy]; [ apply in_or_app; left; exact Hy | ].
+  apply (projection_of_free names known p arg projection Hknown Hprojection)
+    in Hy.
+  apply in_app_or in Hy. apply in_or_app.
+  destruct Hy as [Hy | Hy]; [ left | right; exact Hy ].
+  apply in_flat_map. exists arg.
+  split; [ exact (nth_error_In _ _ Hnth) | exact Hy ].
+Qed.
+
+Lemma made_field_free (names : list variable) (known : facts)
+    (p : unary_primitive) (kind : flambda_kind) (arg projection : simple) :
+  facts_within names known ->
+  made_field known p kind arg = Some projection ->
+  incl (free_variables_of_simple projection) names.
+Proof.
+  intros [[Hvars _] _] Hmade. unfold made_field in Hmade.
+  destruct p as [access mut field | | | | | | | | | | | | | | ];
+    try discriminate Hmade.
+  assert (Hfield :
+    match arg with
+    | Var y =>
+      let* block := lookup y (known_vars (facts_blocks known)) in
+      let* contents := field_loaded access field block in
+      if kind_eqb kind Value then Some contents else None
+    | _ => None
+    end
+    = Some projection)
+    by (destruct mut; [ discriminate Hmade | exact Hmade .. ]).
+  clear Hmade. destruct arg as [y | sym | c]; try discriminate Hfield.
+  destruct (lookup y (known_vars (facts_blocks known))) as [block | ]
+    eqn:Hblock; [ | discriminate ].
+  simpl in Hfield.
+  destruct (field_loaded access field block) as [contents | ] eqn:Hloaded;
+    [ | discriminate ].
+  simpl in Hfield.
+  destruct (kind_eqb kind Value); [ | discriminate ].
+  injection Hfield as <-.
+  destruct (field_loaded_spec _ _ _ _ Hloaded)
+    as (tag & size & _ & _ & _ & _ & Hnth).
+  exact (Hvars (y, block) (lookup_in _ _ _ Hblock) contents
+    (nth_error_In _ _ Hnth)).
+Qed.
+
+Lemma extend_args_certain_free (params : list variable)
+    (handler without : expr) (i : nat) (p : unary_primitive)
+    (kind : flambda_kind) (names : list variable) (known : facts)
+    (args args' : list simple) :
+  facts_within names known ->
+  extend_args_certain params handler without known i p kind args
+  = Some args' ->
+  incl (free_variables_of_simples args')
+    (free_variables_of_simples args ++ names).
+Proof.
+  intros Hknown. unfold extend_args_certain.
+  destruct (nth_error args i) as [arg | ]; [ | discriminate ].
+  simpl.
+  assert (Hlast :
+    ∀ last : simple,
+      incl (free_variables_of_simple last) names ->
+      incl (free_variables_of_simples (args ++ [last]))
+        (free_variables_of_simples args ++ names)).
+  { intros last Hlast. unfold free_variables_of_simples.
+    rewrite flat_map_app. cbn [flat_map]. rewrite app_nil_r.
+    apply incl_app_app; [ apply incl_refl | exact Hlast ]. }
+  destruct (never_reads (known_immediates params args) handler without);
+    [ intros [= <-]; apply Hlast; intros z [] | ].
+  destruct (certain_projection known p kind arg) as [projection | ]
+    eqn:Hcertain.
+  - intros [= <-]. apply Hlast. unfold certain_projection in Hcertain.
+    destruct (projection_of known p arg) as [[y | sym | c] | ];
+      try exact (made_field_free names known p kind arg projection Hknown
+        Hcertain).
+    destruct (kind_eqb (kind_of_const c) kind); [ | discriminate ].
+    injection Hcertain as <-. intros z [].
+  - destruct (no_value_on known p arg); [ | discriminate ].
+    intros [= <-]. apply Hlast. intros z [].
+Qed.
+
+(* An expression without one of its [Let]s: its code is closed if the
+   code of the expression is, its free variables are those of the
+   expression and the variable of the [Let], and it has no more free
+   continuations. *)
+Lemma removes_scoped (f : variable) (kind : flambda_kind)
+    (p : unary_primitive) (x : variable) (e e' : expr) :
+  removes f kind p x e e' ->
+  code_closed e = true ->
+  code_closed e' = true
+  ∧ incl (free_variables_of_expr e') (f :: free_variables_of_expr e)
+  ∧ incl (free_continuations_of_expr e') (free_continuations_of_expr e).
+Proof.
+  intros Hremoves.
+  induction Hremoves
+    as [ rest | y kind0 d body body' _ _ _ IH
+       | k params metadata handler handler' body _ _ _ IH
+       | k h body body' _ IH ];
+    intros Hclosed; scope_in Hclosed; scope.
+  - split; [ exact Hclosed | split; [ | apply incl_refl ] ].
+    intros y Hy. destruct (Pos.eq_dec y f) as [-> | Hne];
+      [ left; reflexivity | right ].
+    apply in_or_app. right. apply in_without.
+    split; [ exact Hy | intros [Heq | []]; congruence ].
+  - destruct (IH Hclosed) as (Hclosed' & Hv & Hk).
+    split; [ exact Hclosed' | split; [ | exact Hk ] ].
+    intros z Hz. apply in_app_or in Hz.
+    destruct Hz as [Hz | Hz]; [ right; apply in_or_app; left; exact Hz | ].
+    apply in_without in Hz. destruct Hz as [Hz Hy].
+    destruct (Hv z Hz) as [Heq | Hin]; [ left; exact Heq | right ].
+    apply in_or_app. right. apply in_without. split; assumption.
+  - apply andb_true_iff in Hclosed. destruct Hclosed as [Hfirst Hrest].
+    destruct (IH Hfirst) as (Hfirst' & Hv & Hk).
+    rewrite Hfirst', Hrest. split; [ reflexivity | split ].
+    + intros z Hz. apply in_app_or in Hz.
+      destruct Hz as [Hz | Hz]; [ | right; apply in_or_app; right; exact Hz ].
+      apply in_without in Hz. destruct Hz as [Hz Hparams].
+      destruct (Hv z Hz) as [Heq | Hin]; [ left; exact Heq | right ].
+      apply in_or_app. left. apply in_without. split; assumption.
+    + apply incl_app_app; [ exact Hk | apply incl_refl ].
+  - apply andb_true_iff in Hclosed. destruct Hclosed as [Hfirst Hrest].
+    destruct (IH Hrest) as (Hrest' & Hv & Hk).
+    rewrite Hfirst, Hrest'. split; [ reflexivity | split ].
+    + intros z Hz. apply in_app_or in Hz.
+      destruct Hz as [Hz | Hz]; [ right; apply in_or_app; left; exact Hz | ].
+      destruct (Hv z Hz) as [Heq | Hin]; [ left; exact Heq | right ].
+      apply in_or_app. right. exact Hin.
+    + apply incl_app_app; [ apply incl_refl | apply incl_without, Hk ].
+Qed.
+
+(* One read made a parameter. *)
+Lemma unbox_read_scoped
+    (extend : facts -> list simple -> option (list simple))
+    (names : list variable) (known : facts) (k : continuation)
+    (params params' : list variable) (metadata metadata' : handler_metadata)
+    (handler handler' body body' : expr) (found : read) (x : variable) :
+  (∀ (names : list variable) (known : facts) (args args' : list simple),
+    facts_within names known ->
+    extend known args = Some args' ->
+    incl (free_variables_of_simples args')
+      (free_variables_of_simples args ++ names)) ->
+  facts_within names known ->
+  unbox_read extend known k params metadata handler body found
+  = Some (params', metadata', handler', body') ->
+  removes (read_variable found) (read_kind found) (read_primitive found) x
+    handler (read_without found) ->
+  scoped_under names
+    (Let_cont_non_recursive k (Handler params metadata handler) body)
+    (Let_cont_non_recursive k (Handler params' metadata' handler') body').
+Proof.
+  intros Hextend Hknown Hstep Hremoves. unfold unbox_read in Hstep.
+  destruct
+    (may_take params metadata (read_variable found)
+     && negb (var_free_b (read_variable found) handler));
+    [ | discriminate ].
+  destruct (extend_applications_by extend known k body) as [extended | ]
+    eqn:Hbody; [ | discriminate ].
+  simpl in Hstep. injection Hstep as <- <- <- <-.
+  pose proof (extend_applications_by_scoped extend Hextend body names known
+    k extended Hknown Hbody) as Hin_body.
+  intros Hclosed. scope_in Hclosed. scope.
+  apply andb_true_iff in Hclosed. destruct Hclosed as [Hfirst Hrest].
+  destruct (removes_scoped _ _ _ _ _ _ Hremoves Hfirst)
+    as (Hfirst' & Hv & Hk).
+  destruct (Hin_body Hrest) as (Hrest' & Hv' & Hk').
+  rewrite Hfirst', Hrest'. split; [ reflexivity | split ].
+  - intros y Hy. apply in_app_or in Hy. apply in_or_app.
+    destruct Hy as [Hy | Hy].
+    + left. apply in_or_app. left.
+      apply in_without in Hy. destruct Hy as [Hy Hparams].
+      apply in_without. split.
+      * destruct (Hv y Hy) as [Heq | Hin]; [ | exact Hin ].
+        exfalso. apply Hparams, in_or_app. right. left. exact Heq.
+      * intros Hin. apply Hparams, in_or_app. left. exact Hin.
+    + apply Hv', in_app_or in Hy.
+      destruct Hy as [Hy | Hy];
+        [ left; apply in_or_app; right; exact Hy | right; exact Hy ].
+  - apply incl_app_app; [ exact Hk | apply incl_without, Hk' ].
+Qed.
+
+Lemma unbox_reads_scoped (fuel : nat) :
+  ∀ (names : list variable) (known : facts) (k : continuation)
+    (params : list variable) (metadata : handler_metadata)
+    (handler body : expr),
+    facts_within names known ->
+    scoped_under names
+      (Let_cont_non_recursive k (Handler params metadata handler) body)
+      (unbox_reads fuel known k params metadata handler body).
+Proof.
+  induction fuel as [ | fuel IH];
+    intros names known k params metadata handler body Hknown;
+    cbn [unbox_reads]; [ apply scoped_under_refl | ].
+  destruct (next_read params handler) as [found | ] eqn:Hnext;
+    [ | apply scoped_under_refl ].
+  simpl.
+  assert (Hcertain :
+    scoped_under names
+      (Let_cont_non_recursive k (Handler params metadata handler) body)
+      match
+        unbox_read
+          (fun known =>
+             extend_args_certain params handler (read_without found) known
+               (read_position found) (read_primitive found)
+               (read_kind found))
+          known k params metadata handler body found
+      with
+      | Some (params0, metadata0, handler0, body0) =>
+        unbox_reads fuel known k params0 metadata0 handler0 body0
+      | None =>
+        Let_cont_non_recursive k (Handler params metadata handler) body
+      end).
+  { destruct
+      (unbox_read
+         (fun known =>
+            extend_args_certain params handler (read_without found) known
+              (read_position found) (read_primitive found) (read_kind found))
+         known k params metadata handler body found)
+      as [[[[params' metadata'] handler'] body'] | ] eqn:Hstep;
+      [ | apply scoped_under_refl ].
+    eapply scoped_under_trans; [ | apply IH; exact Hknown ].
+    destruct (next_read_first params handler found Hnext)
+      as [wanted Hfirst].
+    destruct (first_read_removes wanted params handler [] found Hfirst)
+      as (x & _ & _ & _ & Hremoves).
+    exact (unbox_read_scoped _ names known k params params' metadata
+      metadata' handler handler' body body' found x
+      (extend_args_certain_free params handler (read_without found)
+         (read_position found) (read_primitive found) (read_kind found))
+      Hknown Hstep Hremoves). }
+  destruct (head_read params handler) as [head | ] eqn:Hhead;
+    [ | exact Hcertain ].
+  destruct (Pos.eqb (read_variable head) (read_variable found));
+    [ | exact Hcertain ].
+  destruct
+    (unbox_read
+       (fun known =>
+          extend_args known (read_position head) (read_primitive head))
+       known k params metadata handler body head)
+    as [[[[params' metadata'] handler'] body'] | ] eqn:Hstep;
+    [ | apply scoped_under_refl ].
+  eapply scoped_under_trans; [ | apply IH; exact Hknown ].
+  unfold head_read in Hhead.
+  destruct handler as [ f kind d rest | | | | | | | ]; try discriminate.
+  destruct (param_read reads_any params [] f d) as [[p i] | ] eqn:Hread;
+    [ | discriminate ].
+  simpl in Hhead. injection Hhead as <-.
+  destruct (param_read_spec reads_any params [] f d p i Hread)
+    as (x & -> & _).
+  exact (unbox_read_scoped _ names known k params params' metadata
+    metadata' _ handler' body body' _ x (extend_args_free i p) Hknown Hstep
+    (Removes_here f kind p x rest)).
+Qed.
+
+Fixpoint unbox_variants_knowing_scoped (e : expr) :
+  ∀ (names : list variable) (known : facts),
+    facts_within names known ->
+    scoped_under names e (unbox_variants_knowing known e).
+Proof.
+  destruct e
+    as [ x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
+    intros names known Hknown; cbn [unbox_variants_knowing];
+    try apply scoped_under_refl.
+  - apply scoped_under_let; [ apply incl_appl, incl_refl | ].
+    apply unbox_variants_knowing_scoped, facts_under_let_within, Hknown.
+  - apply scoped_under_let_static.
+    apply unbox_variants_knowing_scoped, facts_under_statics_within, Hknown.
+  - eapply scoped_under_trans; [ | apply unbox_reads_scoped, Hknown ].
+    apply scoped_under_let_cont; apply unbox_variants_knowing_scoped;
+      [ apply facts_under_params_within, Hknown | exact Hknown ].
+  - apply scoped_under_let_cont_recursive.
+    apply unbox_variants_knowing_scoped, Hknown.
+Qed.
+
+Theorem unbox_variant_params_keeps_scope :
+  unbox_variant_params_keeps_scope_statement.
+Proof.
+  apply keeps_scope_intro. intros e.
+  apply scoped_under_none, unbox_variants_knowing_scoped.
+  split; [ split; intros entry [] | intros entry [] ].
+Qed.

@@ -146,8 +146,8 @@
    The result refines the term
    ([unbox_variant_params_refines_statement]), under all
    environments; so the pass is for the term before Simplify. It
-   makes no name. It is not yet stated that it commutes with
-   renaming, nor that it keeps scope.
+   makes no name. FlambdaUnboxVariantsRenameSpec.v has the statements
+   that it commutes with a renaming and that it keeps scope.
 
    The proofs are in FlambdaUnboxVariantsProofs.v, which needs no
    review. *)
