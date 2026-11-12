@@ -215,7 +215,9 @@ Definition validate_unit_knowing_sound_from_statement : Prop :=
    code id that the groups at the head of that term bind
    (FlambdaUnusedHeadStaticsSpec.head_free_in). The term is the one
    that [validate_unit] removes them from: [after], normalised and
-   tidied. *)
+   tidied. For a static environment in general the statements below
+   also ask that the names removed occur in none of its code and
+   values ([statics_free_of]); this test does not check that. *)
 Definition holds_from (statics : static_env) (rounds : nat)
     (kept : list code_id) (after : expr) (v : validation) : bool :=
   match v with

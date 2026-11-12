@@ -66,7 +66,10 @@
      arguments as the code has parameters, so it is a full call or an
      over-application and not a partial application: a partial
      application is given to the return continuation at once
-     (FlambdaSemanticsSpec.run_call). In an over-application the full
+     (FlambdaSemanticsSpec.run_call). The arguments and the parameters
+     are counted as FlambdaSemanticsSpec.shape_of_code_call counts
+     them, by the components of the two arities and not unarized. In
+     an over-application the full
      call inside returns to what is left of the application, and it is
      that full call which never returns;
    - the return and exception continuations of the call are two
