@@ -300,10 +300,12 @@ Fixpoint iterate (rounds : nat) (f : expr -> expr) (e : expr) : expr :=
    slope plus an offset, becomes that application, under the [Let]s
    that compute the argument where it is not the scrutinee itself,
    where the tests of FlambdaMergeSwitchesSpec.merge_switches pass
-   (among them: the scrutinee is a variable that no arm passes, no arm
-   has a trap action, the arguments that differ are all computed in
-   one way, and, for the ways that tag or compute, the numbers of the
-   arms are immediates), after
+   (among them: the scrutinee is a variable, no arm has a trap action,
+   either the arguments that differ are all computed in one way and
+   no arm passes the scrutinee, or the continuation is bound around
+   the [Switch] and its parameters can be bound to the arguments that
+   are computed, and, for the ways that tag or compute, the numbers
+   of the arms are immediates), after
    [collapse_switches] for the arms that are all the same; a
    continuation that is applied once is moved to where it is
    applied and inlined there ([sink_let_conts], then [inline_tail_conts]),
