@@ -1,0 +1,21 @@
+(let $camlInt64_compare_tested__int64_1 = 4L in
+ let $camlInt64_compare_tested__int64_0 = 3L in
+ (let Popaque/29 = %opaque ($camlInt64_compare_tested__int64_0) in
+  let prim/30 = %unbox_num.`int64` ($camlInt64_compare_tested__int64_1) in
+  let prim/31 = %unbox_num.`int64` (Popaque/29) in
+  let prim/32 = %int_comp.`int64`.qmark (prim/31, prim/30) in
+  let int64_compare/33 = %tag_imm (prim/32) in
+  let prim/34 = %int_comp.lt (int64_compare/33, 0) in
+  let int_lessthan/35 = %tag_imm (prim/34) in
+  let untagged/36 = %untag_imm (int_lessthan/35) in
+  switch untagged/36
+    | 0 -> k/8 (20)
+    | 1 -> k/8 (10))
+   where k/8 (result/27 : imm tagged) =
+     let Pmakeblock/28 = %block.[`0`].`toplevel` (result/27) in
+     cont k/7 (Pmakeblock/28))
+  where k/7 define_root_symbol (module_block/25) =
+    let field_0/26 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/25)
+    in
+    let $camlInt64_compare_tested = Block 0 (field_0/26) in
+    cont done ($camlInt64_compare_tested)
