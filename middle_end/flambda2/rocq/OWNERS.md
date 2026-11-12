@@ -341,22 +341,31 @@ Owner: unassigned.
 
 ## P1: primitives that OCaml programs need
 
-Owner: P1, on `flambda2-rocq/P1-prims`. Leaf work in C1's files
+Owner: P1, on `flambda2-rocq/P1-prims` and the branches that follow
+it. Leaf work in C1's files
 (`FlambdaPrimitive*` and the conversion of primitives in the test
 tool), delegated by the orchestrator, and:
 
 - `middle_end/flambda2/rocq/FlambdaIdentities*` (a normalisation for
   the validator: the identities of integer arithmetic that Simplify
   applies; V1's once it is staffed)
+- `middle_end/flambda2/rocq/FlambdaExtcall*` (what some C functions
+  of the runtime compute, as a table that nothing uses; whoever owns
+  calls of C functions once they have a meaning)
 - `middle_end/flambda2/rocq/status/P1.md`
-- `middle_end/flambda2/rocq/requests/P1-num-conv.py` and
-  `requests/P1-int-shift.py` (the generators of the examples that
-  compare conversions and shifts with a reference)
+- `middle_end/flambda2/rocq/requests/P1-floats.md` and
+  `requests/P1-c-calls.md`
+- `middle_end/flambda2/rocq/requests/P1-num-conv.py`,
+  `requests/P1-int-shift.py`, `requests/P1-int-bswap.py`,
+  `requests/P1-reinterpret.py` (the generators of the examples that
+  compare conversions, shifts, swaps and reinterpretations with a
+  reference) and `requests/P1-extcall.py` (the check of the table of
+  C functions against the runtime)
 - the examples of `middle_end/flambda2/tests/semantics/` for its
   primitives (`phys_equal*`, `num_conv*`, `boolean_not*`,
   `int_shift*`, `string_length*`, `int_not`, `int_xor_minus_one`,
-  `string_load*`, `block_load_mut*`), with their
-  `.expected` files
+  `string_load*`, `block_load_mut*`, `int_bswap`,
+  `reinterpret_int63_int64`), with their `.expected` files
 
 ## V4: loops
 
