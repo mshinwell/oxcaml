@@ -48,7 +48,15 @@
      action, to a continuation of no parameters whose handler is known
      becomes the [Apply_cont] of the handler as it is, with its
      arguments and its trap action if it has one
-     (simplify/simplify_switch_expr.ml, [rebuild_arm]).
+     (simplify/simplify_switch_expr.ml, [rebuild_arm]);
+   - a call that returns to such a continuation is rebuilt to return to
+     the one its handler applies, if the arguments of the handler are
+     its parameters, in their order
+     (simplify/continuation_shortcut.ml, [to_alias];
+     simplify/expr_builder.ml, [apply_continuation_aliases], which
+     [rewrite_fixed_arity_apply] takes the return continuation of a
+     call through, where nothing has changed the parameters of that
+     continuation).
 
    FlambdaShortcutSpec.shortcut_switches does this where the [Switch] is
    directly under the [Let_cont] and the continuation has no parameter.
@@ -66,7 +74,12 @@
    neither it nor that of the handler has a trap action
    ([forward_apply_cont]); an arm of a [Switch] in the same way, and a
    goto to a continuation of no parameters whatever the trap action of
-   the handler ([forward_arm]). The [Let_cont] stays;
+   the handler ([forward_arm]). An [Apply] that returns to such a
+   continuation returns to the one that its handler applies, if the
+   [Apply_cont] of the handler has no trap action and its arguments
+   are the parameters, in their order ([passes_on], [alias_of],
+   [forward_apply]); the exception continuation of the call is left,
+   no entry being kept for an exception handler. The [Let_cont] stays;
    FlambdaUnusedContsSpec.remove_unused_conts removes it if nothing
    names its continuation any more.
 
@@ -105,11 +118,12 @@
      through applications of a continuation of the same name bound
      again inside. An application is then left that could have gone
      on, no more;
-   - recursive continuations are not forwarded, and an [Apply] that
-     returns to a continuation still does: the call passes it as it is.
-     Simplify renames such a continuation too where its handler passes
-     its parameters on unchanged ([Continuation_shortcut.to_alias]);
-     this pass does not;
+   - recursive continuations are not forwarded;
+   - an [Apply] returns where it did if the handler of its return
+     continuation does anything to its parameters but pass them all on
+     in their order (one dropped, two exchanged, a constant or another
+     variable among the arguments): there the call would give its
+     results to a continuation that expects others;
    - the bodies of code are not gone into
      (FlambdaNormaliseSpec.rewrite_code takes the pass there).
 
@@ -118,17 +132,25 @@
    application of the first term binds the parameters, so one with a
    parameter that the handler does not pass on is undefined where its
    argument has no value, and the second term does not look at that
-   argument. So the pass is for the term before Simplify. The machine
-   does not execute trap actions, so that a goto takes that of the
-   handler is nothing to it.
+   argument. Likewise a call of the first term gives its results to
+   its return continuation, which tests their number and their kinds
+   against its own parameters before its handler passes them on, and
+   the continuation they are passed on to tests them again against
+   its own; the call of the second term gives them to that one at
+   once. Nothing is asked of the kinds that the two continuations give
+   their parameters: where they differ the first term is undefined,
+   and the second may not be. So the pass is for the term before
+   Simplify. The machine does not execute trap actions, so that a goto
+   takes that of the handler is nothing to it.
 
    Nothing is asked of the names of the term beyond what the pass checks
    itself. [binds_cont] and FlambdaParamAliasesSpec.binds_var may say yes
    when the answer is no, never the reverse.
 
    Renaming: the functions here compare names by equality only and bind
-   none, so the pass commutes with a renaming. That statement is owed to
-   the nominal work and is not made here.
+   none, so the pass commutes with a renaming: that is
+   forward_applications_equivariant_statement of
+   FlambdaValidatorEquivarianceSpec.v.
 
    The proofs are in FlambdaForwardProofs.v, which needs no review. *)
 
@@ -216,6 +238,36 @@ Definition forward_arm (F : forwards) (ac : apply_cont) : apply_cont :=
   | _, _ => forward_apply_cont F ac
   end.
 
+(* Whether the arguments are the parameters, in their order. *)
+Fixpoint passes_on (params : list variable) (args : list simple) : bool :=
+  match params, args with
+  | [], [] => true
+  | p :: params, Var x :: args => Pos.eqb x p && passes_on params args
+  | _, _ => false
+  end.
+
+(* The continuation that a continuation is another name for: its
+   handler passes its parameters on to that one as they are. *)
+Definition alias_of (F : forwards) (k : continuation) : option continuation :=
+  match forward_of F k with
+  | Some (params, target) =>
+    if no_trap_action target && passes_on params (ac_args target)
+    then Some (ac_continuation target)
+    else None
+  | None => None
+  end.
+
+(* A call that returns to a continuation which is another name for one
+   returns to that one. *)
+Definition forward_apply (F : forwards) (ap : apply_expr) : apply_expr :=
+  match alias_of F (ap_continuation ap) with
+  | Some k' =>
+    Apply_expr (ap_callee ap) (ap_call_kind ap) (ap_args ap) k'
+      (ap_exn_continuation ap) (ap_exn_extra_args ap) (ap_args_arity ap)
+      (ap_return_arity ap)
+  | None => ap
+  end.
+
 (* Whether the applications of [k], whose handler has become [handler],
    may go where it goes: the parameters and the [Apply_cont] if so.
    [body] is the body of the [Let_cont] of [k]. *)
@@ -293,7 +345,8 @@ Fixpoint forward_applications_under (F : forwards) (e : expr) : expr :=
     Let_cont_recursive
       (map (fun '(k, h) => (k, forward_applications_in_handler F h)) handlers)
       (forward_applications_under F body)
-  | Apply _ | Invalid => e
+  | Apply ap => Apply (forward_apply F ap)
+  | Invalid => e
   | Apply_cont ac => Apply_cont (forward_apply_cont F ac)
   | Switch scrutinee arms =>
     Switch scrutinee (map (fun arm => (fst arm, forward_arm F (snd arm))) arms)

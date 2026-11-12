@@ -78,6 +78,46 @@ let forward_arm f ac =
     | _ :: _ -> forward_apply_cont f ac)
   | None -> forward_apply_cont f ac
 
+(** val passes_on : variable list -> simple list -> bool **)
+
+let rec passes_on params args =
+  match params with
+  | [] -> ( match args with [] -> true | _ :: _ -> false)
+  | p :: params0 -> (
+    match args with
+    | [] -> false
+    | s :: args0 -> (
+      match s with
+      | Var x -> Pos.eqb x p && passes_on params0 args0
+      | _ -> false))
+
+(** val alias_of : forwards -> continuation -> continuation option **)
+
+let alias_of f k =
+  match forward_of f k with
+  | Some p ->
+    let params, target = p in
+    if no_trap_action target && passes_on params target.ac_args
+    then Some target.ac_continuation
+    else None
+  | None -> None
+
+(** val forward_apply : forwards -> apply_expr -> apply_expr **)
+
+let forward_apply f ap =
+  match alias_of f ap.ap_continuation with
+  | Some k' ->
+    { ap_callee = ap.ap_callee;
+      ap_call_kind = ap.ap_call_kind;
+      ap_args = ap.ap_args;
+      ap_continuation = k';
+      ap_exn_continuation = ap.ap_exn_continuation;
+      ap_exn_extra_args = ap.ap_exn_extra_args;
+      ap_args_arity = ap.ap_args_arity;
+      ap_return_arity = ap.ap_return_arity
+    }
+  | None -> ap
+
 (** val forwarding : continuation -> variable list -> handler_metadata -> expr
     -> expr -> (variable list * apply_cont) option **)
 
@@ -159,10 +199,11 @@ let rec forward_applications_under f e =
             k, forward_applications_in_handler f0 h)
           handlers,
         forward_applications_under f0 body )
+  | Apply ap -> Apply (forward_apply f ap)
   | Apply_cont ac -> Apply_cont (forward_apply_cont f ac)
   | Switch (scrutinee, arms) ->
     Switch (scrutinee, map (fun arm -> fst arm, forward_arm f (snd arm)) arms)
-  | _ -> e
+  | Invalid -> e
 
 (** val forward_applications_in_handler : forwards -> continuation_handler ->
     continuation_handler **)

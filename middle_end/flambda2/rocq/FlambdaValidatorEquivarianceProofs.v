@@ -4313,6 +4313,35 @@ Proof.
   - destruct (ac_args ac); exact Hgeneral.
 Qed.
 
+Lemma passes_on_renamed (r : renaming) (params : list variable) :
+  ∀ args : list simple,
+    passes_on (map (rename_variable r) params) (map (rename_simple r) args)
+    = passes_on params args.
+Proof.
+  induction params as [ | p params IH]; intros [ | [x | sym | c] args];
+    simpl; try reflexivity.
+  rewrite rename_variable_eqb, IH. reflexivity.
+Qed.
+
+Lemma forward_apply_equivariant (r : renaming) (F : forwards)
+    (ap : apply_expr) :
+  forward_apply (rename_forwards r F) (rename_apply r ap)
+  = rename_apply r (forward_apply F ap).
+Proof.
+  unfold forward_apply, alias_of.
+  change (ap_continuation (rename_apply r ap))
+    with (rename_continuation r (ap_continuation ap)).
+  rewrite forward_of_renamed.
+  destruct (forward_of F (ap_continuation ap)) as [[params target] | ];
+    [ | reflexivity ].
+  cbn [rename_forward_entry option_map fst snd].
+  change (ac_args (rename_apply_cont r target))
+    with (map (rename_simple r) (ac_args target)).
+  rewrite no_trap_action_renamed, passes_on_renamed.
+  destruct (no_trap_action target && passes_on params (ac_args target));
+    reflexivity.
+Qed.
+
 Lemma forwarding_equivariant (r : renaming) (k : continuation)
     (params : list variable) (metadata : handler_metadata)
     (handler body : expr) :
@@ -4433,6 +4462,8 @@ Proof.
       induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
       rewrite (forward_applications_in_handler_equivariant r h F'), IH.
       reflexivity.
+    + cbn [rename_expr forward_applications_under].
+      rewrite forward_apply_equivariant. reflexivity.
     + cbn [rename_expr forward_applications_under].
       rewrite forward_apply_cont_equivariant. reflexivity.
     + cbn [rename_expr forward_applications_under]. f_equal.

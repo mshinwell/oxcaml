@@ -153,7 +153,7 @@ Proof.
         simpl; [ reflexivity | ].
       rewrite forward_jumps_binds_statics, IH. reflexivity.
     + apply forward_jumps_fwd, safe_plain, Hbody.
-  - apply Fwd_apply.
+  - apply Fwd_apply, Returns_same.
   - apply Fwd_apply_cont, goes_forward_apply_cont.
   - apply Fwd_switch. clear Hsafe.
     induction arms as [ | arm arms IH]; simpl; [ apply Forall2_nil | ].

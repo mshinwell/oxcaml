@@ -1504,6 +1504,31 @@ Proof.
     split; [ exact Hforward | exact Hj ].
 Qed.
 
+(* A call that returns further on has the variables of the call, and
+   returns to a continuation of the entry. *)
+Lemma forward_apply_scope (F : forwards) (ap : apply_expr) :
+  free_variables_of_apply (forward_apply F ap) = free_variables_of_apply ap
+  ∧ incl
+      [ap_continuation (forward_apply F ap);
+       ap_exn_continuation (forward_apply F ap)]
+      ([ap_continuation ap; ap_exn_continuation ap]
+       ++ flat_map forward_continuations F).
+Proof.
+  unfold forward_apply, alias_of.
+  destruct (forward_of F (ap_continuation ap)) as [[params target] | ]
+    eqn:Hforward;
+    [ | split; [ reflexivity | apply incl_appl, incl_refl ] ].
+  destruct (no_trap_action target && passes_on params (ac_args target));
+    [ | split; [ reflexivity | apply incl_appl, incl_refl ] ].
+  apply forward_of_In in Hforward. split; [ reflexivity | ].
+  cbn [ap_continuation ap_exn_continuation].
+  intros j [<- | [<- | []]]; apply in_or_app.
+  - right. apply in_flat_map.
+    exists (ap_continuation ap, Some (params, target)).
+    split; [ exact Hforward | left; reflexivity ].
+  - left. right. left. reflexivity.
+Qed.
+
 (* A continuation whose applications are forwarded has a handler that
    is one application. *)
 Lemma forwarding_some (k : continuation) (params params' : list variable)
@@ -1610,7 +1635,9 @@ Proof.
     + rewrite <- (forwards_none_variables handlers F),
         <- (forwards_none_continuations handlers F).
       apply forward_applications_scoped_among.
-  - apply scoped_among_refl.
+  - intros _. scope. destruct (forward_apply_scope F ap) as [Hv Hk].
+    split; [ reflexivity | split; [ | exact Hk ] ].
+    rewrite Hv. apply incl_appl, incl_refl.
   - intros _. scope. destruct (forward_apply_cont_scope F ac) as [Hv Hk].
     split; [ reflexivity | split; assumption ].
   - intros _. scope. split; [ reflexivity | split ].

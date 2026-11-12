@@ -23,6 +23,12 @@ val forward_apply_cont : forwards -> apply_cont -> apply_cont
 
 val forward_arm : forwards -> apply_cont -> apply_cont
 
+val passes_on : variable list -> simple list -> bool
+
+val alias_of : forwards -> continuation -> continuation option
+
+val forward_apply : forwards -> apply_expr -> apply_expr
+
 val forwarding :
   continuation ->
   variable list ->
