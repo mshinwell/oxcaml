@@ -422,6 +422,18 @@ Proof.
   destruct v; try apply incl_refl; apply incl_nil_l.
 Qed.
 
+Lemma fold_known_apply_scoped (sets : static_env) (ap : apply_expr) :
+  scoped (Apply ap) (Apply (fold_known_apply sets ap)).
+Proof.
+  destruct ap as [callee call_kind args k exn extra args_arity return_arity].
+  unfold fold_known_apply. cbn [ap_call_kind ap_callee].
+  destruct call_kind as [code | ]; [ apply scoped_refl | ].
+  destruct callee as [x | s | c]; try apply scoped_refl.
+  destruct (closure_of sets (Value_symbol s)) as [[code slots] | ];
+    [ | apply scoped_refl ].
+  intros Hclosed. split; [ exact Hclosed | split; apply incl_refl ].
+Qed.
+
 Fixpoint fold_known_scoped (statics sets : static_env) (e : expr)
     {struct e} :
   scoped e (fold_known statics sets e)
@@ -454,6 +466,7 @@ Proof.
           [ apply scoped_handlers_nil | ].
         apply scoped_handlers_cons;
           [ apply fold_known_handler_scoped | exact IH ].
+    + apply fold_known_apply_scoped.
   - destruct h as [params metadata handler]. cbn [fold_known_handler].
     apply scoped_handler_intro, fold_known_scoped.
   - destruct c as [params my_closure ret exn metadata body].

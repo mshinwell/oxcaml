@@ -38,6 +38,8 @@ val fold_known_named : static_env -> named -> named
 
 val fold_function_slot : static_env -> named -> named
 
+val fold_known_apply : static_env -> apply_expr -> apply_expr
+
 val fold_known : static_env -> static_env -> expr -> expr
 
 val fold_known_handler :

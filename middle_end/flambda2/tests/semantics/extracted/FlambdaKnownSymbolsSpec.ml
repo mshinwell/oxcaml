@@ -77,6 +77,8 @@ let known_statics known =
 let set_of_binding = function
   | Bind_symbol (s, const) -> (
     match const with
+    | Static_const_set_of_closures (code0, _) ->
+      (s, Static_const_set_of_closures (code0, [])) :: []
     | Static_const_closure_of_set (slot, symbols, decls, _) -> (
       let set = Static_const_closure_of_set (slot, symbols, decls, []) in
       match eval_static_const [] set with
@@ -152,6 +154,29 @@ let fold_function_slot sets d =
     | _ -> d)
   | _ -> d
 
+(** val fold_known_apply : static_env -> apply_expr -> apply_expr **)
+
+let fold_known_apply sets ap =
+  match ap.ap_call_kind with
+  | Direct _ -> ap
+  | Indirect -> (
+    match ap.ap_callee with
+    | Symbol s -> (
+      match closure_of sets (Value_symbol s) with
+      | Some p ->
+        let code0, _ = p in
+        { ap_callee = ap.ap_callee;
+          ap_call_kind = Direct code0;
+          ap_args = ap.ap_args;
+          ap_continuation = ap.ap_continuation;
+          ap_exn_continuation = ap.ap_exn_continuation;
+          ap_exn_extra_args = ap.ap_exn_extra_args;
+          ap_args_arity = ap.ap_args_arity;
+          ap_return_arity = ap.ap_return_arity
+        }
+      | None -> ap)
+    | _ -> ap)
+
 (** val fold_known : static_env -> static_env -> expr -> expr **)
 
 let rec fold_known statics sets e =
@@ -177,6 +202,7 @@ let rec fold_known statics sets e =
             k, fold_known_handler statics sets h)
           handlers,
         fold_known statics sets body )
+  | Apply ap -> Apply (fold_known_apply sets ap)
   | _ -> e
 
 (** val fold_known_handler : static_env -> static_env -> continuation_handler ->

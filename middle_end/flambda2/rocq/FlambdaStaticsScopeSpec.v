@@ -74,9 +74,11 @@
      ([with_lifting_keeps_scope_statement]). None of the three
      statements needs the tests that FlambdaLiftSpec.lift_unit makes.
    - FlambdaKnownSymbolsSpec.fold_known puts a constant or a symbol in
-     the place of a defining expression, whatever is known of constants
-     and of sets ([fold_known_keeps_scope_statement]); [with_known] is
-     that, or the term as it is ([with_known_keeps_scope_statement]).
+     the place of a defining expression, and makes an indirect call a
+     direct call of the same callee with the same arguments, whatever is
+     known of constants and of sets
+     ([fold_known_keeps_scope_statement]); [with_known] is that, or the
+     term as it is ([with_known_keeps_scope_statement]).
    - FlambdaUnusedSlotsSpec.drop_slots removes value slots from static
      sets of closures, and with them the variables they hold
      ([drop_slots_keeps_scope_statement]); [without_slots] is that, or

@@ -249,10 +249,71 @@ Proof.
   destruct (lookup s (static_values run_statics)) as [allocated' | ] eqn:Hs';
     [ | discriminate ].
   pose proof (Hsets s allocated allocated' Hs Hs') as Hsame.
-  destruct allocated as [ | fslot syms decls slots | | | ],
-    allocated' as [ | fslot' syms' decls' slots' | | | ];
+  destruct allocated as [code slots | fslot syms decls slots | | | ],
+    allocated' as [code' slots' | fslot' syms' decls' slots' | | | ];
     try contradiction.
-  destruct Hsame as (-> & -> & ->). rewrite Hknown in Hrun. exact Hrun.
+  - rewrite Hknown in Hrun. exact Hrun.
+  - destruct Hsame as (-> & -> & ->). rewrite Hknown in Hrun. exact Hrun.
+Qed.
+
+(* A symbol that [sets] binds to a closure of code is, in the run, a
+   closure of that code, or bound to nothing. *)
+Lemma closure_of_sets (s : symbol) (code called : code_id)
+    (slots slots' : list (value_slot * value)) :
+  closure_of sets (Value_symbol s) = Some (code, slots) ->
+  closure_of run_statics (Value_symbol s) = Some (called, slots') ->
+  called = code.
+Proof.
+  unfold closure_of.
+  destruct (lookup s (static_values sets)) as [allocated | ] eqn:Hs;
+    [ | discriminate ].
+  destruct (lookup s (static_values run_statics)) as [allocated' | ] eqn:Hs';
+    [ | discriminate ].
+  pose proof (Hsets s allocated allocated' Hs Hs') as Hsame.
+  destruct allocated as [c sl | fslot syms decls sl | | | ],
+    allocated' as [c' sl' | fslot' syms' decls' sl' | | | ];
+    try contradiction.
+  - simpl in Hsame. subst c'. intros [= <- _] [= <- _]. reflexivity.
+  - destruct Hsame as (-> & -> & ->).
+    destruct (lookup fslot decls) as [c | ]; simpl; [ | discriminate ].
+    intros [= <- _] [= <- _]. reflexivity.
+Qed.
+
+(* An indirect call of such a symbol and the direct call of that code
+   step alike: both are undefined where the symbol is bound to
+   nothing. *)
+Lemma fold_known_apply_sound_here (vars : env) (conts : cont_env)
+    (ap : apply_expr) :
+  step (State (Apply (fold_known_apply sets ap)) vars conts run_statics)
+  = step (State (Apply ap) vars conts run_statics).
+Proof.
+  unfold fold_known_apply.
+  destruct (ap_call_kind ap) as [named | ] eqn:Hkind; [ reflexivity | ].
+  destruct (ap_callee ap) as [x | s | c] eqn:Hcallee; try reflexivity.
+  destruct (closure_of sets (Value_symbol s)) as [[code slots] | ] eqn:Hknown;
+    [ | reflexivity ].
+  rewrite !step_apply. unfold exn_extra_simples.
+  cbn [ap_callee ap_call_kind ap_args ap_continuation ap_exn_continuation
+       ap_exn_extra_args ap_args_arity ap_return_arity].
+  rewrite Hkind, Hcallee. cbn [eval_simple].
+  destruct (eval_simples vars (ap_args ap)) as [vs | ]; [ | reflexivity ].
+  destruct (eval_simples vars (map fst (ap_exn_extra_args ap)))
+    as [extra | ];
+    [ | reflexivity ].
+  unfold call_function.
+  rewrite
+    !(shape_of_call_closure run_statics (Value_symbol s) _ vs _ _ eq_refl).
+  destruct (closure_of run_statics (Value_symbol s))
+    as [[called slots'] | ] eqn:Hrun.
+  - rewrite
+      (shape_of_closure_call_kind run_statics (Value_symbol s) (Direct code)
+         vs _ _ called slots' Hrun
+         (or_intror
+            (f_equal Direct
+               (eq_sym (closure_of_sets s code called slots slots' Hknown
+                          Hrun))))).
+    reflexivity.
+  - unfold shape_of_closure_call. rewrite Hrun. reflexivity.
 Qed.
 
 End Folded_slot.
@@ -261,6 +322,12 @@ Theorem fold_function_slot_sound : fold_function_slot_sound_statement.
 Proof.
   intros sets run_statics vars d v Hsets.
   exact (fold_function_slot_sound_here sets run_statics Hsets vars d v).
+Qed.
+
+Theorem fold_known_apply_sound : fold_known_apply_sound_statement.
+Proof.
+  intros sets run_statics vars conts ap Hsets.
+  exact (fold_known_apply_sound_here sets run_statics Hsets vars conts ap).
 Qed.
 
 (* ======================================================================== *)
@@ -313,14 +380,18 @@ Lemma set_of_binding_have_values (binding : static_binding) :
 Proof.
   destruct binding as [id c | id | s const]; try constructor.
   destruct const
-    as [code slots | fslot syms decls slots | tag fields | contents | bytes];
-    try constructor.
-  unfold all_have_values, set_of_binding. cbv zeta.
-  destruct
-    (eval_static_const [] (Static_const_closure_of_set fslot syms decls []))
-    eqn:Hconst;
-    constructor; [ | constructor ].
-  cbn [snd]. rewrite Hconst. discriminate.
+    as [code slots | fslot syms decls slots | tag fields | contents | bytes].
+  - unfold all_have_values, set_of_binding.
+    constructor; [ discriminate | constructor ].
+  - unfold all_have_values, set_of_binding. cbv zeta.
+    destruct
+      (eval_static_const [] (Static_const_closure_of_set fslot syms decls []))
+      eqn:Hconst;
+      constructor; [ | constructor ].
+    cbn [snd]. rewrite Hconst. discriminate.
+  - constructor.
+  - constructor.
+  - constructor.
 Qed.
 
 Fixpoint known_sets_have_values (e : expr) {struct e} :
@@ -432,6 +503,15 @@ Proof.
       as [code slots | fslot syms decls slots | tag fields | contents
          | bytes];
       try discriminate.
+    { cbn -[static_const_eq_dec] in Hsym.
+      destruct
+        (static_const_eq_dec (Static_const_set_of_closures code []) expected)
+        as [<- | ];
+        [ | discriminate ].
+      simpl in Hs. injection Hs as <-. simpl in Hmade.
+      destruct (eval_value_slots vars slots) as [vs | ]; simpl in Hmade;
+        [ | discriminate ].
+      injection Hmade as <-. reflexivity. }
     simpl in Hmade.
     destruct (lookup fslot decls) as [code | ] eqn:Hcode;
       cbn -[static_const_eq_dec] in Hsym, Hmade;
@@ -842,7 +922,11 @@ Proof.
   destruct e
     as [ x xkind d body | bindings body | k h body | handlers body | ap | ac
        | scrutinee arms | ];
-    simpl fold_known; autorewrite with step.
+    simpl fold_known;
+    try
+      rewrite
+        (fold_known_apply_sound_here T (fold_statics statics) (proj2 Hagrees));
+    autorewrite with step.
   - (* Let *)
     destruct (eval_named statics vars d) as [v | ] eqn:Hv; [ | exact I ].
     destruct (kind_eqb (kind_of_value v) xkind) eqn:Hkind; [ | exact I ].
@@ -1031,6 +1115,23 @@ Proof.
   destruct w; reflexivity.
 Qed.
 
+Lemma fold_known_apply_rename (r : renaming) (sets : static_env)
+    (ap : apply_expr) :
+  rename_apply r (fold_known_apply sets ap)
+  = fold_known_apply sets (rename_apply r ap).
+Proof.
+  unfold fold_known_apply.
+  replace (ap_call_kind (rename_apply r ap)) with (ap_call_kind ap)
+    by reflexivity.
+  replace (ap_callee (rename_apply r ap))
+    with (rename_simple r (ap_callee ap)) by reflexivity.
+  destruct (ap_call_kind ap) as [named | ]; [ reflexivity | ].
+  destruct (ap_callee ap) as [x | s | c]; try reflexivity.
+  cbn [rename_simple].
+  destruct (closure_of sets (Value_symbol s)) as [[code slots] | ];
+    reflexivity.
+Qed.
+
 Fixpoint fold_known_rename (r : renaming) (statics sets : static_env)
     (e : expr) {struct e} :
   rename_expr r (fold_known statics sets e)
@@ -1062,6 +1163,7 @@ Proof.
     + rewrite fold_known_rename. f_equal. rewrite !map_map.
       induction handlers as [ | [k h] handlers IH]; simpl; [ reflexivity | ].
       rewrite fold_known_handler_rename, IH. reflexivity.
+    + rewrite fold_known_apply_rename. reflexivity.
   - destruct h as [params metadata handler]. simpl. rewrite fold_known_rename.
     reflexivity.
   - destruct binding as [id c | id | sym const]; simpl; try reflexivity.

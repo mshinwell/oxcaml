@@ -50,7 +50,13 @@
    their answers ([simplify_immutable_block_load] and the like). In the
    code of a function whose closure is a symbol, [my_closure] is that
    symbol (FlambdaMyClosureSpec.v), so the code of two functions that
-   call each other comes to call through the two symbols.
+   call each other comes to call through the two symbols. And an
+   indirect call of such a symbol is made a direct call of the code of
+   its closure (simplify/simplify_apply_expr.ml,
+   [simplify_function_call], which reads the closure off the type of
+   the callee): so where a function that is given a function of the
+   unit is inlined, the call of its argument is direct, and may be
+   inlined in turn.
 
    What is here. [known_bindings e] are the symbols that the unit [e]
    binds, outside code, to a constant with no variable in it: one whose
@@ -65,7 +71,9 @@
    the symbols and the functions of the set ([known_sets]). That is
    what the projection of a function slot reads, so one from such a
    symbol is replaced by the symbol of the other closure
-   ([fold_function_slot]). The value
+   ([fold_function_slot]); and it says which code the closure is of, so
+   an indirect call of such a symbol is made a direct call of that code
+   ([fold_known_apply]). The value
    is computed by the evaluation of the machine itself
    (FlambdaSemanticsSpec.eval_named), so there is no list of primitives
    here, and nothing to keep in step with them. The one primitive that
@@ -185,6 +193,8 @@ Definition known_statics (known : list (symbol * static_const))
 Definition set_of_binding (binding : static_binding)
     : list (symbol * static_const) :=
   match binding with
+  | Bind_symbol s (Static_const_set_of_closures code _) =>
+    [(s, Static_const_set_of_closures code [])]
   | Bind_symbol s (Static_const_closure_of_set slot symbols decls _) =>
     let set := Static_const_closure_of_set slot symbols decls [] in
     match eval_static_const [] set with
@@ -215,10 +225,12 @@ with known_sets_of_handler (h : continuation_handler)
   end.
 
 (* Two closures at one function slot of one static set, whatever their
-   value slots hold. *)
+   value slots hold; for a set of one function with no name for its
+   slot, two closures of one code. *)
 Definition same_set (allocated allocated' : statically_allocated_value)
     : Prop :=
   match allocated, allocated' with
+  | Static_closure code _, Static_closure code' _ => code' = code
   | Static_closure_of_set slot symbols decls _,
     Static_closure_of_set slot' symbols' decls' _ =>
     slot' = slot ∧ symbols' = symbols ∧ decls' = decls
@@ -274,9 +286,26 @@ Definition fold_function_slot (sets : static_env) (d : named) : named :=
   | _ => d
   end.
 
+(* An indirect call of a symbol that [sets] binds to a closure, made a
+   direct call of the code of that closure. *)
+Definition fold_known_apply (sets : static_env) (ap : apply_expr)
+    : apply_expr :=
+  match ap_call_kind ap, ap_callee ap with
+  | Indirect, Symbol s =>
+    match closure_of sets (Value_symbol s) with
+    | Some (code, _) =>
+      Apply_expr (ap_callee ap) (Direct code) (ap_args ap)
+        (ap_continuation ap) (ap_exn_continuation ap) (ap_exn_extra_args ap)
+        (ap_args_arity ap) (ap_return_arity ap)
+    | None => ap
+    end
+  | Indirect, (Var _ | Const _) | Direct _, _ => ap
+  end.
+
 (* Every [Let] of the expression, in handlers and in code too, with its
    defining expression folded: by what [statics] binds, and then, if it
-   is still the projection of a function slot, by what [sets] binds. *)
+   is still the projection of a function slot, by what [sets] binds. And
+   every call, with its kind folded by what [sets] binds. *)
 Fixpoint fold_known (statics sets : static_env) (e : expr) : expr :=
   match e with
   | Let x kind d body =>
@@ -292,7 +321,8 @@ Fixpoint fold_known (statics sets : static_env) (e : expr) : expr :=
     Let_cont_recursive
       (map (fun '(k, h) => (k, fold_known_handler statics sets h)) handlers)
       (fold_known statics sets body)
-  | Apply _ | Apply_cont _ | Switch _ _ | Invalid => e
+  | Apply ap => Apply (fold_known_apply sets ap)
+  | Apply_cont _ | Switch _ _ | Invalid => e
   end
 with fold_known_handler (statics sets : static_env)
     (h : continuation_handler) : continuation_handler :=
@@ -421,9 +451,22 @@ Definition fold_function_slot_sound_statement : Prop :=
     eval_named run_statics vars d = Some v ->
     eval_named run_statics vars (fold_function_slot sets d) = Some v.
 
+(* A call is folded to a call that steps as it does, in any such static
+   environment. *)
+Definition fold_known_apply_sound_statement : Prop :=
+  ∀ (sets run_statics : static_env) (vars : env) (conts : cont_env)
+    (ap : apply_expr),
+    (∀ (s : symbol) (allocated allocated' : statically_allocated_value),
+      lookup s (static_values sets) = Some allocated ->
+      lookup s (static_values run_statics) = Some allocated' ->
+      same_set allocated allocated') ->
+    step (State (Apply (fold_known_apply sets ap)) vars conts run_statics)
+    = step (State (Apply ap) vars conts run_statics).
+
 (* The rewrite commutes with renaming, which renames no symbol: what is
-   known is the same, and an expression that is folded has no variable
-   in it. *)
+   known is the same, a defining expression that is folded has no
+   variable in it, and whether a call is folded is read off its kind and
+   a callee that is a symbol, with its arguments left as they are. *)
 Definition fold_known_equivariant_statement : Prop :=
   ∀ (r : renaming) (statics sets : static_env) (e : expr),
     rename_expr r (fold_known statics sets e)
