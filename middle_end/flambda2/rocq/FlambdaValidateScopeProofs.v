@@ -35,8 +35,12 @@
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
-From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaNormaliseSpec FlambdaBlockLoadSpec FlambdaCseSpec
+From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
+  FlambdaMapProofs FlambdaSemanticsSpec FlambdaBindersSpec
+  FlambdaBindersProofs FlambdaNominalSpec FlambdaAlphaProofs
+  FlambdaEquivarianceProofs FlambdaFreeNamesProofs FlambdaGuardScopeSpec
+  FlambdaNormaliseSpec FlambdaNormaliseProofs FlambdaBlockLoadSpec
+  FlambdaCseSpec
   FlambdaIdentitiesSpec FlambdaRenameApartSpec FlambdaUnboxSpec
   FlambdaUnusedContsSpec
   FlambdaLoopAliasesSpec FlambdaRecHandlersSpec FlambdaShortcutSpec
@@ -96,3 +100,90 @@ Proof. unfold normalise_code_before. scoped_chain. Qed.
 Theorem normalise_code_before_keeps_scope :
   normalise_code_before_keeps_scope_statement.
 Proof. apply keeps_scope_intro, normalise_code_before_scoped. Qed.
+
+(* ======================================================================== *)
+(* A rewrite made to keep scope by a test                                   *)
+(* ======================================================================== *)
+
+Lemma scope_kept_scoped (e e' : expr) :
+  scope_kept e e' = true -> scoped e e'.
+Proof.
+  unfold scope_kept. intros Hkept _.
+  apply andb_true_iff in Hkept. destruct Hkept as [Hkept Hk].
+  apply andb_true_iff in Hkept. destruct Hkept as [Hclosed Hv].
+  split; [ exact Hclosed | ].
+  split; intros name Hname;
+    [ exact (all_among_In _ _ name Hv Hname)
+    | exact (all_among_In _ _ name Hk Hname) ].
+Qed.
+
+Lemma scoped_scope_kept (e e' : expr) :
+  code_closed e = true -> scoped e e' -> scope_kept e e' = true.
+Proof.
+  intros Hclosed Hscoped. destruct (Hscoped Hclosed) as (Hclosed' & Hv & Hk).
+  unfold scope_kept. rewrite Hclosed'. cbn [andb].
+  apply andb_true_iff.
+  split; apply all_among_iff; intros name Hname; apply among_In;
+    [ apply Hv | apply Hk ]; apply among_In; exact Hname.
+Qed.
+
+Lemma guard_scope_scoped (f : expr -> expr) (e : expr) :
+  scoped e (guard_scope f e).
+Proof.
+  unfold guard_scope. cbv zeta. intros Hclosed. rewrite Hclosed.
+  cbn [negb orb].
+  destruct (scope_kept e (f e)) eqn:Hkept;
+    [ exact (scope_kept_scoped e (f e) Hkept Hclosed)
+    | exact (scoped_refl e Hclosed) ].
+Qed.
+
+#[export] Hint Resolve guard_scope_scoped : scoped.
+
+Theorem guard_scope_keeps_scope : guard_scope_keeps_scope_statement.
+Proof. intros f. apply keeps_scope_intro, guard_scope_scoped. Qed.
+
+Theorem guard_scope_unchanged : guard_scope_unchanged_statement.
+Proof.
+  intros f Hf e. unfold guard_scope. cbv zeta.
+  destruct (code_closed e) eqn:Hclosed; cbn [negb orb]; [ | reflexivity ].
+  rewrite (scoped_scope_kept e (f e) Hclosed (keeps_scope_scoped f Hf e)).
+  reflexivity.
+Qed.
+
+Lemma all_among_rename_variable (r : renaming) (xs ys : list variable) :
+  FlambdaMapSpec.all_among (map (rename_variable r) xs)
+    (map (rename_variable r) ys)
+  = FlambdaMapSpec.all_among xs ys.
+Proof.
+  unfold FlambdaMapSpec.all_among.
+  induction xs as [ | x xs IH]; [ reflexivity | ].
+  cbn [map forallb]. rewrite among_rename_variable, IH. reflexivity.
+Qed.
+
+Lemma all_among_rename_continuation (r : renaming)
+    (ks js : list continuation) :
+  FlambdaMapSpec.all_among (map (rename_continuation r) ks)
+    (map (rename_continuation r) js)
+  = FlambdaMapSpec.all_among ks js.
+Proof.
+  unfold FlambdaMapSpec.all_among.
+  induction ks as [ | k ks IH]; [ reflexivity | ].
+  cbn [map forallb]. rewrite among_rename_continuation, IH. reflexivity.
+Qed.
+
+Lemma scope_kept_renamed (r : renaming) (e e' : expr) :
+  scope_kept (rename_expr r e) (rename_expr r e') = scope_kept e e'.
+Proof.
+  unfold scope_kept.
+  rewrite code_closed_renamed, !free_variables_of_expr_renamed,
+    !free_continuations_of_expr_renamed, all_among_rename_variable,
+    all_among_rename_continuation.
+  reflexivity.
+Qed.
+
+Theorem guard_scope_equivariant : guard_scope_equivariant_statement.
+Proof.
+  intros f Hf r e. unfold guard_scope. cbv zeta.
+  rewrite Hf, code_closed_renamed, scope_kept_renamed.
+  destruct (negb (code_closed e) || scope_kept e (f e)); reflexivity.
+Qed.

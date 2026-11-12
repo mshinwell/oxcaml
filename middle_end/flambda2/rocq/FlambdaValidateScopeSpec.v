@@ -38,6 +38,15 @@
    ([normalise_code_before]), which is the first taken into the
    handlers of the recursive continuations.
 
+   The last section is about FlambdaGuardScopeSpec.guard_scope, which
+   of a term whose code is closed gives what a rewrite gives only where
+   that passes the test of keeping scope, and of a term whose code is
+   not closed gives what the rewrite gives: it keeps scope whatever the
+   rewrite; it is the rewrite where the rewrite keeps scope; and it
+   commutes with renaming where the rewrite does. They are here and not
+   beside the definition because [keeps_scope] and [rewrite_equivariant]
+   are defined after the validation, which is to run [guard_scope].
+
    What is not here yet: the inlining of the calls of known code, and
    a round of the term as a whole. Their statements are to come with
    the change that makes the validation give every binder a name of its
@@ -52,7 +61,8 @@
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaValidateSpec FlambdaValidatorEquivarianceSpec.
+  FlambdaNominalSpec FlambdaGuardScopeSpec FlambdaValidateSpec
+  FlambdaValidatorEquivarianceSpec.
 Import ListNotations.
 
 Definition normalise_expr_before_keeps_scope_statement : Prop :=
@@ -60,3 +70,24 @@ Definition normalise_expr_before_keeps_scope_statement : Prop :=
 
 Definition normalise_code_before_keeps_scope_statement : Prop :=
   keeps_scope normalise_code_before.
+
+(* ======================================================================== *)
+(* A rewrite made to keep scope by a test                                   *)
+(* ======================================================================== *)
+
+(* FlambdaGuardScopeSpec.guard_scope keeps scope, whatever the rewrite
+   it is given. *)
+Definition guard_scope_keeps_scope_statement : Prop :=
+  ∀ f : expr -> expr, keeps_scope (guard_scope f).
+
+(* It is the rewrite, where the rewrite keeps scope: the test then
+   changes no result. *)
+Definition guard_scope_unchanged_statement : Prop :=
+  ∀ f : expr -> expr,
+    keeps_scope f -> ∀ e : expr, guard_scope f e = f e.
+
+(* It commutes with renaming where the rewrite does: the test does not
+   tell a renamed pair of terms from the pair. *)
+Definition guard_scope_equivariant_statement : Prop :=
+  ∀ f : expr -> expr,
+    rewrite_equivariant f -> rewrite_equivariant (guard_scope f).
