@@ -92,13 +92,19 @@
 
    There is one function for each sort of name and each sort of term,
    and nothing else in the model is to compute free names or scope. The
-   older ones are to be restated by these and then removed:
+   statements that a bound name may be renamed
+   (FlambdaCanonicalFreeNamesSpec.v) and the rules of alpha-equivalence
+   (FlambdaAlphaSpec.v) are written with these. The older accounts that
+   are still there, to be restated by these and then removed:
    FlambdaWellFormedSpec.free_continuations and
-   [handler_free_continuations]; the relations [var_free_in_expr],
-   [cont_free_in_expr] and those beside them in FlambdaNominalSpec.v;
-   and FlambdaNormaliseSpec.expr_in_scope. None of those looks into
-   code. On a term whose code is closed they say the same as the
-   functions here (FlambdaFreeNamesSpec.v).
+   [handler_free_continuations], and
+   FlambdaNormaliseSpec.expr_in_scope, which are checks that run; and
+   the relations [var_free_in_expr], [cont_free_in_expr] and those
+   beside them in FlambdaNominalSpec.v, which
+   FlambdaApplySpec.inlinable and the proofs are written with, and the
+   three statements about a binding that is not used, which keep them.
+   None of those looks into code. On a term whose code is closed they
+   say the same as the functions here (FlambdaFreeNamesSpec.v).
 
    The three checks are conditions of FlambdaWellFormedSpec.v, which
    takes them as conjuncts of [well_formed_unit]. They are here, and

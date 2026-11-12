@@ -28,10 +28,13 @@
 (* Proofs of the statements of FlambdaCanonicalFreeNamesSpec.v. This file
    needs no review.
 
-   Each statement is the one it restates, with the premise about names
-   turned by [var_free_among] and [cont_free_among]: what is free by the
-   relation is among the list, so a renaming that fixes the list fixes
-   it, and a name that is not among the list is not free. *)
+   Each statement is proved from its older form, a lemma of
+   FlambdaNominalProofs.v or of FlambdaAlphaProofs.v, with the premise
+   about names turned by [var_free_among] and [cont_free_among]: what is
+   free by the relation is among the list, so a renaming that fixes the
+   list fixes it ([variables_fixed] and the lemmas beside it, in
+   FlambdaAlphaProofs.v), and a name that is not among the list is not
+   free. *)
 
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
@@ -43,89 +46,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
 Import ListNotations.
 
 (* ======================================================================== *)
-(* What a renaming that fixes a list fixes                                  *)
-(* ======================================================================== *)
-
-Lemma fixes_variable (r : renaming) (names : list variable) (x : variable) :
-  fixes (variable_permutation r) names ->
-  among x names = true -> rename_variable r x = x.
-Proof. intros Hfixes Hx. exact (Hfixes x Hx). Qed.
-
-Lemma fixes_continuation (r : renaming) (names : list continuation)
-    (k : continuation) :
-  fixes (continuation_permutation r) names ->
-  among k names = true -> rename_continuation r k = k.
-Proof. intros Hfixes Hk. exact (Hfixes k Hk). Qed.
-
-Lemma among_without_one (name bound : positive) (names : list positive) :
-  name <> bound -> among name names = true ->
-  among name (without [bound] names) = true.
-Proof.
-  intros Hne Hname. rewrite among_without, Hname.
-  apply not_among_singleton in Hne. rewrite Hne. reflexivity.
-Qed.
-
-Lemma among_without_all (name : positive) (bound names : list positive) :
-  name ∉ bound -> among name names = true ->
-  among name (without bound names) = true.
-Proof.
-  intros Hnotin Hname. rewrite among_without, Hname.
-  apply not_among_in in Hnotin. rewrite Hnotin. reflexivity.
-Qed.
-
-(* The premises of the older statements, from those of these. *)
-Section Premises.
-
-Variable r : renaming.
-
-Lemma variables_fixed (e : expr) :
-  fixes (variable_permutation r) (free_variables_of_expr e) ->
-  ∀ y : variable, var_free_in_expr y e -> rename_variable r y = y.
-Proof.
-  intros Hfixes y Hy. apply (fixes_variable r _ y Hfixes), var_free_among, Hy.
-Qed.
-
-Lemma continuations_fixed (e : expr) :
-  fixes (continuation_permutation r) (free_continuations_of_expr e) ->
-  ∀ k : continuation, cont_free_in_expr k e -> rename_continuation r k = k.
-Proof.
-  intros Hfixes k Hk.
-  apply (fixes_continuation r _ k Hfixes), cont_free_among, Hk.
-Qed.
-
-Lemma variables_fixed_but_one (x : variable) (e : expr) :
-  fixes (variable_permutation r) (without [x] (free_variables_of_expr e)) ->
-  ∀ y : variable,
-    y <> x -> var_free_in_expr y e -> rename_variable r y = y.
-Proof.
-  intros Hfixes y Hne Hy. apply (fixes_variable r _ y Hfixes).
-  apply among_without_one; [ exact Hne | apply var_free_among, Hy ].
-Qed.
-
-Lemma continuations_fixed_but_one (k : continuation) (e : expr) :
-  fixes (continuation_permutation r)
-    (without [k] (free_continuations_of_expr e)) ->
-  ∀ k' : continuation,
-    k' <> k -> cont_free_in_expr k' e -> rename_continuation r k' = k'.
-Proof.
-  intros Hfixes k' Hne Hk'. apply (fixes_continuation r _ k' Hfixes).
-  apply among_without_one; [ exact Hne | apply cont_free_among, Hk' ].
-Qed.
-
-Lemma variables_fixed_but_params (params : list variable) (e : expr) :
-  fixes (variable_permutation r)
-    (without params (free_variables_of_expr e)) ->
-  ∀ y : variable,
-    y ∉ params -> var_free_in_expr y e -> rename_variable r y = y.
-Proof.
-  intros Hfixes y Hnotin Hy. apply (fixes_variable r _ y Hfixes).
-  apply among_without_all; [ exact Hnotin | apply var_free_among, Hy ].
-Qed.
-
-End Premises.
-
-(* ======================================================================== *)
-(* The statements of FlambdaNominalSpec.v                                   *)
+(* The names that a binder binds may be renamed; bindings not used          *)
 (* ======================================================================== *)
 
 Theorem rename_let_canonical : rename_let_canonical_statement.
@@ -200,50 +121,8 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
-(* The rules of alpha-equivalence                                           *)
+(* Execution is equivariant in the variables                                *)
 (* ======================================================================== *)
-
-Theorem alpha_rename_canonical : alpha_rename_canonical_statement.
-Proof.
-  intros r e Hclosed [Hvars Hconts].
-  apply Alpha_rename;
-    [ exact Hclosed | apply variables_fixed, Hvars
-    | apply continuations_fixed, Hconts ].
-Qed.
-
-Theorem alpha_let_canonical : alpha_let_canonical_statement.
-Proof.
-  intros r x kind d body Hclosed [Hvars Hconts].
-  apply Alpha_let;
-    [ exact Hclosed | apply variables_fixed_but_one, Hvars
-    | apply continuations_fixed, Hconts ].
-Qed.
-
-Theorem alpha_let_cont_canonical : alpha_let_cont_canonical_statement.
-Proof.
-  intros r k h body Hclosed [Hvars Hconts].
-  apply Alpha_let_cont;
-    [ exact Hclosed | apply variables_fixed, Hvars
-    | apply continuations_fixed_but_one, Hconts ].
-Qed.
-
-Theorem alpha_handler_canonical : alpha_handler_canonical_statement.
-Proof.
-  intros r k params metadata handler body Hclosed [Hvars Hconts].
-  apply Alpha_handler;
-    [ exact Hclosed | apply variables_fixed_but_params, Hvars
-    | apply continuations_fixed, Hconts ].
-Qed.
-
-Theorem alpha_recursive_handler_canonical :
-  alpha_recursive_handler_canonical_statement.
-Proof.
-  intros r before k params metadata handler after body Hclosed
-    [Hvars Hconts].
-  apply Alpha_recursive_handler;
-    [ exact Hclosed | apply variables_fixed_but_params, Hvars
-    | apply continuations_fixed, Hconts ].
-Qed.
 
 Theorem rename_variables_equivalent_canonical :
   rename_variables_equivalent_canonical_statement.

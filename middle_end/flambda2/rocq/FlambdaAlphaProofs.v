@@ -34,7 +34,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMapProofs FlambdaBindersSpec FlambdaBindersProofs
   FlambdaSemanticsSpec FlambdaSemanticsProofs FlambdaContextSpec
   FlambdaContextProofs FlambdaNominalSpec FlambdaNominalProofs
-  FlambdaFreeNamesSpec FlambdaFreeNamesProofs FlambdaAlphaSpec.
+  FlambdaFreeNamesSpec FlambdaFreeNamesProofs FlambdaNameAbstractionSpec
+  FlambdaAlphaSpec.
 Import ListNotations.
 
 Lemma or_iff (A A' B B' : Prop) :
@@ -999,6 +1000,358 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* What a renaming that fixes a list fixes                                  *)
+(* ======================================================================== *)
+
+Lemma fixes_variable (r : renaming) (names : list variable) (x : variable) :
+  fixes (variable_permutation r) names ->
+  among x names = true -> rename_variable r x = x.
+Proof. intros Hfixes Hx. exact (Hfixes x Hx). Qed.
+
+Lemma fixes_continuation (r : renaming) (names : list continuation)
+    (k : continuation) :
+  fixes (continuation_permutation r) names ->
+  among k names = true -> rename_continuation r k = k.
+Proof. intros Hfixes Hk. exact (Hfixes k Hk). Qed.
+
+Lemma among_without_one (name bound : positive) (names : list positive) :
+  name <> bound -> among name names = true ->
+  among name (without [bound] names) = true.
+Proof.
+  intros Hne Hname. rewrite among_without, Hname.
+  apply not_among_singleton in Hne. rewrite Hne. reflexivity.
+Qed.
+
+Lemma among_without_all (name : positive) (bound names : list positive) :
+  name ∉ bound -> among name names = true ->
+  among name (without bound names) = true.
+Proof.
+  intros Hnotin Hname. rewrite among_without, Hname.
+  apply not_among_in in Hnotin. rewrite Hnotin. reflexivity.
+Qed.
+
+(* The premises of the older statements, from those of these. *)
+Section Premises.
+
+Variable r : renaming.
+
+Lemma variables_fixed (e : expr) :
+  fixes (variable_permutation r) (free_variables_of_expr e) ->
+  ∀ y : variable, var_free_in_expr y e -> rename_variable r y = y.
+Proof.
+  intros Hfixes y Hy. apply (fixes_variable r _ y Hfixes), var_free_among, Hy.
+Qed.
+
+Lemma continuations_fixed (e : expr) :
+  fixes (continuation_permutation r) (free_continuations_of_expr e) ->
+  ∀ k : continuation, cont_free_in_expr k e -> rename_continuation r k = k.
+Proof.
+  intros Hfixes k Hk.
+  apply (fixes_continuation r _ k Hfixes), cont_free_among, Hk.
+Qed.
+
+Lemma variables_fixed_but_one (x : variable) (e : expr) :
+  fixes (variable_permutation r) (without [x] (free_variables_of_expr e)) ->
+  ∀ y : variable,
+    y <> x -> var_free_in_expr y e -> rename_variable r y = y.
+Proof.
+  intros Hfixes y Hne Hy. apply (fixes_variable r _ y Hfixes).
+  apply among_without_one; [ exact Hne | apply var_free_among, Hy ].
+Qed.
+
+Lemma continuations_fixed_but_one (k : continuation) (e : expr) :
+  fixes (continuation_permutation r)
+    (without [k] (free_continuations_of_expr e)) ->
+  ∀ k' : continuation,
+    k' <> k -> cont_free_in_expr k' e -> rename_continuation r k' = k'.
+Proof.
+  intros Hfixes k' Hne Hk'. apply (fixes_continuation r _ k' Hfixes).
+  apply among_without_one; [ exact Hne | apply cont_free_among, Hk' ].
+Qed.
+
+Lemma variables_fixed_but_params (params : list variable) (e : expr) :
+  fixes (variable_permutation r)
+    (without params (free_variables_of_expr e)) ->
+  ∀ y : variable,
+    y ∉ params -> var_free_in_expr y e -> rename_variable r y = y.
+Proof.
+  intros Hfixes y Hnotin Hy. apply (fixes_variable r _ y Hfixes).
+  apply among_without_all; [ exact Hnotin | apply var_free_among, Hy ].
+Qed.
+
+End Premises.
+
+(* The premises of the rules, from those of their older forms: where the
+   code is closed, what is among the list is free by the relation. *)
+Section Premises_by_relation.
+
+Variable r : renaming.
+
+Lemma free_variables_fixed (e : expr) :
+  code_closed e = true ->
+  (∀ y : variable, var_free_in_expr y e -> rename_variable r y = y) ->
+  fixes (variable_permutation r) (free_variables_of_expr e).
+Proof.
+  intros Hclosed Hfixed y Hy.
+  apply Hfixed, (proj2 (var_free_agrees y e Hclosed)), Hy.
+Qed.
+
+Lemma free_continuations_fixed (e : expr) :
+  code_closed e = true ->
+  (∀ k : continuation, cont_free_in_expr k e -> rename_continuation r k = k)
+  ->
+  fixes (continuation_permutation r) (free_continuations_of_expr e).
+Proof.
+  intros Hclosed Hfixed k Hk.
+  apply Hfixed, (proj2 (cont_free_agrees k e Hclosed)), Hk.
+Qed.
+
+Lemma free_variables_fixed_but_one (x : variable) (e : expr) :
+  code_closed e = true ->
+  (∀ y : variable,
+    y <> x -> var_free_in_expr y e -> rename_variable r y = y) ->
+  fixes (variable_permutation r) (without [x] (free_variables_of_expr e)).
+Proof.
+  intros Hclosed Hfixed y Hy. rewrite among_without in Hy.
+  apply andb_true_iff in Hy. destruct Hy as [Hin Hout].
+  apply Hfixed; [ | apply (proj2 (var_free_agrees y e Hclosed)), Hin ].
+  intros ->. rewrite among_cons, Pos.eqb_refl in Hout. discriminate.
+Qed.
+
+Lemma free_continuations_fixed_but_one (k : continuation) (e : expr) :
+  code_closed e = true ->
+  (∀ k' : continuation,
+    k' <> k -> cont_free_in_expr k' e -> rename_continuation r k' = k') ->
+  fixes (continuation_permutation r)
+    (without [k] (free_continuations_of_expr e)).
+Proof.
+  intros Hclosed Hfixed k' Hk'. rewrite among_without in Hk'.
+  apply andb_true_iff in Hk'. destruct Hk' as [Hin Hout].
+  apply Hfixed; [ | apply (proj2 (cont_free_agrees k' e Hclosed)), Hin ].
+  intros ->. rewrite among_cons, Pos.eqb_refl in Hout. discriminate.
+Qed.
+
+Lemma free_variables_fixed_but_params (params : list variable) (e : expr) :
+  code_closed e = true ->
+  (∀ y : variable,
+    y ∉ params -> var_free_in_expr y e -> rename_variable r y = y) ->
+  fixes (variable_permutation r)
+    (without params (free_variables_of_expr e)).
+Proof.
+  intros Hclosed Hfixed y Hy. rewrite among_without in Hy.
+  apply andb_true_iff in Hy. destruct Hy as [Hin Hout].
+  apply Hfixed; [ | apply (proj2 (var_free_agrees y e Hclosed)), Hin ].
+  intros Hparam. apply among_In in Hparam. rewrite Hparam in Hout.
+  discriminate.
+Qed.
+
+End Premises_by_relation.
+
+(* ======================================================================== *)
+(* The rules of alpha-equivalence in their older form                       *)
+(* ======================================================================== *)
+
+(* The rules of [alpha_equivalent] that rename were written with the
+   relations of free names. They ask that the code is closed, and there
+   the relations and the functions say the same, so each rule in its
+   older form is a lemma, and so is the induction on a derivation with
+   the premises in that form. The proofs below, and those of other
+   files, that were written with the relations use these. *)
+
+Lemma Alpha_rename_by_relation (r : renaming) (e : expr) :
+  code_closed e = true ->
+  (∀ x : variable, var_free_in_expr x e -> rename_variable r x = x) ->
+  (∀ k : continuation,
+    cont_free_in_expr k e -> rename_continuation r k = k) ->
+  alpha_equivalent e (rename_expr r e).
+Proof.
+  intros Hclosed Hvars Hconts. apply Alpha_rename; [ exact Hclosed | ].
+  split;
+    [ apply free_variables_fixed | apply free_continuations_fixed ];
+    assumption.
+Qed.
+
+Lemma Alpha_let_by_relation (r : renaming) (x : variable)
+    (kind : flambda_kind) (defining_expr : named) (body : expr) :
+  code_closed body = true ->
+  (∀ y : variable,
+    y <> x -> var_free_in_expr y body -> rename_variable r y = y) ->
+  (∀ k : continuation,
+    cont_free_in_expr k body -> rename_continuation r k = k) ->
+  alpha_equivalent (Let x kind defining_expr body)
+    (Let (rename_variable r x) kind defining_expr (rename_expr r body)).
+Proof.
+  intros Hclosed Hvars Hconts. apply Alpha_let; [ exact Hclosed | ].
+  split;
+    [ apply free_variables_fixed_but_one | apply free_continuations_fixed ];
+    assumption.
+Qed.
+
+Lemma Alpha_let_cont_by_relation (r : renaming) (k : continuation)
+    (handler : continuation_handler) (body : expr) :
+  code_closed body = true ->
+  (∀ y : variable, var_free_in_expr y body -> rename_variable r y = y) ->
+  (∀ k' : continuation,
+    k' <> k -> cont_free_in_expr k' body -> rename_continuation r k' = k')
+  ->
+  alpha_equivalent (Let_cont_non_recursive k handler body)
+    (Let_cont_non_recursive (rename_continuation r k) handler
+       (rename_expr r body)).
+Proof.
+  intros Hclosed Hvars Hconts. apply Alpha_let_cont; [ exact Hclosed | ].
+  split;
+    [ apply free_variables_fixed | apply free_continuations_fixed_but_one ];
+    assumption.
+Qed.
+
+Lemma Alpha_handler_by_relation (r : renaming) (k : continuation)
+    (params : list variable) (metadata : handler_metadata)
+    (handler body : expr) :
+  code_closed handler = true ->
+  (∀ y : variable,
+    y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
+  (∀ k' : continuation,
+    cont_free_in_expr k' handler -> rename_continuation r k' = k') ->
+  alpha_equivalent
+    (Let_cont_non_recursive k (Handler params metadata handler) body)
+    (Let_cont_non_recursive k
+       (rename_handler r (Handler params metadata handler)) body).
+Proof.
+  intros Hclosed Hvars Hconts. apply Alpha_handler; [ exact Hclosed | ].
+  split;
+    [ exact (free_variables_fixed_but_params r params handler Hclosed Hvars)
+    | apply free_continuations_fixed; assumption ].
+Qed.
+
+Lemma Alpha_recursive_handler_by_relation (r : renaming)
+    (before : list (continuation * continuation_handler))
+    (k : continuation) (params : list variable)
+    (metadata : handler_metadata) (handler : expr)
+    (after : list (continuation * continuation_handler)) (body : expr) :
+  code_closed handler = true ->
+  (∀ y : variable,
+    y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
+  (∀ k' : continuation,
+    cont_free_in_expr k' handler -> rename_continuation r k' = k') ->
+  alpha_equivalent
+    (Let_cont_recursive
+       (before ++ (k, Handler params metadata handler) :: after) body)
+    (Let_cont_recursive
+       (before
+        ++ (k, rename_handler r (Handler params metadata handler)) :: after)
+       body).
+Proof.
+  intros Hclosed Hvars Hconts.
+  apply Alpha_recursive_handler; [ exact Hclosed | ].
+  split;
+    [ exact (free_variables_fixed_but_params r params handler Hclosed Hvars)
+    | apply free_continuations_fixed; assumption ].
+Qed.
+
+(* Induction on a derivation, with the premises of the rules that rename
+   in their older form: what is free by the relation is among the list,
+   whatever the code. *)
+Lemma alpha_equivalent_by_relation_ind (P : expr -> expr -> Prop) :
+  (∀ e : expr, P e e) ->
+  (∀ e e' : expr, alpha_equivalent e e' -> P e e' -> P e' e) ->
+  (∀ e e' e'' : expr,
+    alpha_equivalent e e' -> P e e' ->
+    alpha_equivalent e' e'' -> P e' e'' -> P e e'') ->
+  (∀ (c : context) (e e' : expr),
+    alpha_equivalent e e' -> P e e' -> P (plug c e) (plug c e')) ->
+  (∀ (r : renaming) (e : expr),
+    code_closed e = true ->
+    (∀ x : variable, var_free_in_expr x e -> rename_variable r x = x) ->
+    (∀ k : continuation,
+      cont_free_in_expr k e -> rename_continuation r k = k) ->
+    P e (rename_expr r e)) ->
+  (∀ (r : renaming) (x : variable) (kind : flambda_kind)
+     (defining_expr : named) (body : expr),
+    code_closed body = true ->
+    (∀ y : variable,
+      y <> x -> var_free_in_expr y body -> rename_variable r y = y) ->
+    (∀ k : continuation,
+      cont_free_in_expr k body -> rename_continuation r k = k) ->
+    P (Let x kind defining_expr body)
+      (Let (rename_variable r x) kind defining_expr (rename_expr r body))) ->
+  (∀ (r : renaming) (k : continuation) (handler : continuation_handler)
+     (body : expr),
+    code_closed body = true ->
+    (∀ y : variable, var_free_in_expr y body -> rename_variable r y = y) ->
+    (∀ k' : continuation,
+      k' <> k -> cont_free_in_expr k' body ->
+      rename_continuation r k' = k') ->
+    P (Let_cont_non_recursive k handler body)
+      (Let_cont_non_recursive (rename_continuation r k) handler
+         (rename_expr r body))) ->
+  (∀ (r : renaming) (k : continuation) (params : list variable)
+     (metadata : handler_metadata) (handler body : expr),
+    code_closed handler = true ->
+    (∀ y : variable,
+      y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
+    (∀ k' : continuation,
+      cont_free_in_expr k' handler -> rename_continuation r k' = k') ->
+    P (Let_cont_non_recursive k (Handler params metadata handler) body)
+      (Let_cont_non_recursive k
+         (rename_handler r (Handler params metadata handler)) body)) ->
+  (∀ (r : renaming) (before : list (continuation * continuation_handler))
+     (k : continuation) (params : list variable)
+     (metadata : handler_metadata) (handler : expr)
+     (after : list (continuation * continuation_handler)) (body : expr),
+    code_closed handler = true ->
+    (∀ y : variable,
+      y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
+    (∀ k' : continuation,
+      cont_free_in_expr k' handler -> rename_continuation r k' = k') ->
+    P (Let_cont_recursive
+         (before ++ (k, Handler params metadata handler) :: after) body)
+      (Let_cont_recursive
+         (before
+          ++ (k, rename_handler r (Handler params metadata handler))
+             :: after)
+         body)) ->
+  (∀ (r : renaming) (before : list static_binding) (id : code_id)
+     (c : code) (after : list static_binding) (body : expr),
+    code_is_closed c = true ->
+    P (Let_static (before ++ Bind_code id c :: after) body)
+      (Let_static (before ++ Bind_code id (rename_code r c) :: after) body))
+  ->
+  ∀ e e' : expr, alpha_equivalent e e' -> P e e'.
+Proof.
+  intros Hrefl Hsym Htrans Hcontext Hrename Hlet Hlet_cont Hhandler
+    Hrecursive Hcode e e' Halpha.
+  induction Halpha
+    as [ e | e e' Halpha IH | e e' e'' Halpha IH Halpha' IH'
+       | c e e' Halpha IH
+       | r e Hclosed [Hvars Hconts] | r x kind d body Hclosed [Hvars Hconts]
+       | r k h body Hclosed [Hvars Hconts]
+       | r k params metadata handler body Hclosed [Hvars Hconts]
+       | r before k params metadata handler after body Hclosed
+           [Hvars Hconts]
+       | r before id c after body Hclosed ].
+  - apply Hrefl.
+  - exact (Hsym _ _ Halpha IH).
+  - exact (Htrans _ _ _ Halpha IH Halpha' IH').
+  - exact (Hcontext _ _ _ Halpha IH).
+  - apply Hrename;
+      [ exact Hclosed | apply variables_fixed, Hvars
+      | apply continuations_fixed, Hconts ].
+  - apply Hlet;
+      [ exact Hclosed | apply variables_fixed_but_one, Hvars
+      | apply continuations_fixed, Hconts ].
+  - apply Hlet_cont;
+      [ exact Hclosed | apply variables_fixed, Hvars
+      | apply continuations_fixed_but_one, Hconts ].
+  - apply Hhandler;
+      [ exact Hclosed | apply variables_fixed_but_params, Hvars
+      | apply continuations_fixed, Hconts ].
+  - apply Hrecursive;
+      [ exact Hclosed | apply variables_fixed_but_params, Hvars
+      | apply continuations_fixed, Hconts ].
+  - apply Hcode, Hclosed.
+Qed.
+
+(* ======================================================================== *)
 (* Alpha-equivalent expressions behave alike                                *)
 (* ======================================================================== *)
 
@@ -1012,7 +1365,8 @@ Proof.
        | r k h body _ Hvars Hconts
        | r k params metadata handler body _ Hvars Hconts
        | r before k params metadata handler after body _ Hvars Hconts
-       | r before id c after body _ ];
+       | r before id c after body _ ]
+    using alpha_equivalent_by_relation_ind;
     simpl; try congruence; rewrite ?rename_binds_statics;
     try reflexivity.
   - apply plug_binds_statics, IH.
@@ -1029,7 +1383,8 @@ Proof.
        | r k h body Hclosed Hvars Hconts
        | r k params metadata handler body Hclosed Hvars Hconts
        | r before k params metadata handler after body Hclosed Hvars Hconts
-       | r before id c after body Hclosed ].
+       | r before id c after body Hclosed ]
+    using alpha_equivalent_by_relation_ind.
   - intros vars conts statics. apply equivalent_refl.
   - intros vars conts statics. apply equivalent_sym, IH.
   - intros vars conts statics.
@@ -1173,19 +1528,20 @@ Proof.
        | s k h body Hclosed Hvars Hconts
        | s k params metadata handler body Hclosed Hvars Hconts
        | s before k params metadata handler after body Hclosed Hvars Hconts
-       | s before id c after body Hclosed ].
+       | s before id c after body Hclosed ]
+    using alpha_equivalent_by_relation_ind.
   - apply Alpha_refl.
   - apply Alpha_sym, IH.
   - exact (Alpha_trans _ _ _ IH IH').
   - rewrite !rename_plug. apply Alpha_context, IH.
-  - rewrite <- conjugate_expr. apply Alpha_rename.
+  - rewrite <- conjugate_expr. apply Alpha_rename_by_relation.
     + rewrite code_closed_renamed. exact Hclosed.
     + intros y Hy.
       apply conjugate_fixes_variable, Hvars, var_free_in_renamed, Hy.
     + intros k Hk.
       apply conjugate_fixes_continuation, Hconts, cont_free_in_renamed, Hk.
   - simpl. rewrite <- conjugate_variable, <- conjugate_expr.
-    apply Alpha_let.
+    apply Alpha_let_by_relation.
     + rewrite code_closed_renamed. exact Hclosed.
     + intros y Hne Hy.
       apply conjugate_fixes_variable, Hvars;
@@ -1195,7 +1551,7 @@ Proof.
     + intros k Hk.
       apply conjugate_fixes_continuation, Hconts, cont_free_in_renamed, Hk.
   - simpl. rewrite <- conjugate_continuation, <- conjugate_expr.
-    apply Alpha_let_cont.
+    apply Alpha_let_cont_by_relation.
     + rewrite code_closed_renamed. exact Hclosed.
     + intros y Hy.
       apply conjugate_fixes_variable, Hvars, var_free_in_renamed, Hy.
@@ -1210,7 +1566,7 @@ Proof.
               (map (rename_variable r) params))
       by (rewrite !map_map; apply map_ext; intros x;
           apply conjugate_variable).
-    apply (Alpha_handler (conjugate r s) (rename_continuation r k)
+    apply (Alpha_handler_by_relation (conjugate r s) (rename_continuation r k)
       (map (rename_variable r) params) metadata (rename_expr r handler)
       (rename_expr r body)).
     + rewrite code_closed_renamed. exact Hclosed.
@@ -1227,10 +1583,10 @@ Proof.
               (map (rename_variable r) params))
       by (rewrite !map_map; apply map_ext; intros x;
           apply conjugate_variable).
-    apply (Alpha_recursive_handler (conjugate r s) (rename_handlers r before)
-      (rename_continuation r k) (map (rename_variable r) params) metadata
-      (rename_expr r handler) (rename_handlers r after)
-      (rename_expr r body)).
+    apply (Alpha_recursive_handler_by_relation (conjugate r s)
+      (rename_handlers r before) (rename_continuation r k)
+      (map (rename_variable r) params) metadata (rename_expr r handler)
+      (rename_handlers r after) (rename_expr r body)).
     + rewrite code_closed_renamed. exact Hclosed.
     + intros y Hnotin Hy.
       apply conjugate_fixes_variable, Hvars;
@@ -1355,7 +1711,8 @@ Proof.
        | s k h body _ Hvars Hconts
        | s k params metadata handler body _ Hvars Hconts
        | s before k params metadata handler after body _ Hvars Hconts
-       | s before id c after body _ ].
+       | s before id c after body _ ]
+    using alpha_equivalent_by_relation_ind.
   - split; reflexivity.
   - split; intros; symmetry; [ apply IHv | apply IHk ].
   - split; intros y;
@@ -1457,11 +1814,34 @@ Proof.
     rewrite !Exists_app, !Exists_cons. reflexivity.
 Qed.
 
+Theorem alpha_let_cont_recursive_canonical :
+  alpha_let_cont_recursive_canonical_statement.
+Proof.
+  intros r handlers body Hclosed Hfixed.
+  exact (Alpha_rename r (Let_cont_recursive handlers body) Hclosed Hfixed).
+Qed.
+
+(* The same in its older form, which was a statement of
+   FlambdaAlphaSpec.v. It keeps its name and its text because a proof
+   uses it. *)
+Definition alpha_let_cont_recursive_statement : Prop :=
+  ∀ (r : renaming) (handlers : list (continuation * continuation_handler))
+    (body : expr),
+    code_closed (Let_cont_recursive handlers body) = true ->
+    (∀ y : variable,
+      var_free_in_expr y (Let_cont_recursive handlers body) ->
+      rename_variable r y = y) ->
+    (∀ k : continuation,
+      cont_free_in_expr k (Let_cont_recursive handlers body) ->
+      rename_continuation r k = k) ->
+    alpha_equivalent (Let_cont_recursive handlers body)
+      (Let_cont_recursive (rename_handlers r handlers) (rename_expr r body)).
+
 Theorem alpha_let_cont_recursive : alpha_let_cont_recursive_statement.
 Proof.
   intros r handlers body Hclosed Hvars Hconts.
-  exact (Alpha_rename r (Let_cont_recursive handlers body) Hclosed Hvars
-           Hconts).
+  exact (Alpha_rename_by_relation r (Let_cont_recursive handlers body)
+           Hclosed Hvars Hconts).
 Qed.
 
 (* ======================================================================== *)
@@ -1475,6 +1855,18 @@ Proof.
   rewrite rename_variable_eqb. destruct (Pos.eqb x y); [ reflexivity | ].
   exact IH.
 Qed.
+
+(* The older form of [rename_variables_equivalent_canonical_statement]
+   of FlambdaCanonicalFreeNamesSpec.v, from which that one is proved.
+   It was a statement of FlambdaAlphaSpec.v. *)
+Definition rename_variables_equivalent_statement : Prop :=
+  ∀ (r : renaming) (e : expr) (vars : env) (conts : cont_env)
+    (statics : static_env),
+    code_closed e = true ->
+    (∀ k : continuation,
+      cont_free_in_expr k e -> rename_continuation r k = k) ->
+    equivalent (State e vars conts statics)
+      (State (rename_expr r e) (rename_env r vars) conts statics).
 
 Theorem rename_variables_equivalent : rename_variables_equivalent_statement.
 Proof.
@@ -1521,7 +1913,8 @@ Proof.
        | s e _ _ _ | s x kind d body _ _ _ | s k h body _ _ _
        | s k params metadata handler body _ _ _
        | s before k params metadata handler after body _ _ _
-       | s before id c after body _ ].
+       | s before id c after body _ ]
+    using alpha_equivalent_by_relation_ind.
   - reflexivity.
   - symmetry. exact IH.
   - rewrite IH. exact IH'.
@@ -1652,7 +2045,8 @@ Proof.
        | s k h body Hclosed Hvars Hconts
        | s k params metadata handler body Hclosed Hvars Hconts
        | s before k params metadata handler after body Hclosed Hvars Hconts
-       | s before id c after body Hclosed ].
+       | s before id c after body Hclosed ]
+    using alpha_equivalent_by_relation_ind.
   - repeat split.
   - destruct IH as [IHv [IHk IHc]].
     split; [ | split ].

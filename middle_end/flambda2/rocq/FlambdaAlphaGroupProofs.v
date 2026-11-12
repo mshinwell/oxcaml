@@ -233,7 +233,9 @@ Proof.
   set (s := swap_continuations (map fst hs) zks).
   destruct (group_fixes zks hs body Hclosed Hopens)
     as [Hvariables Hcontinuations].
-  split; [ exact (Alpha_rename s _ Hclosed Hvariables Hcontinuations) | ].
+  split;
+    [ exact (Alpha_rename_by_relation s _ Hclosed Hvariables Hcontinuations)
+    | ].
   split;
     [ exact (eq_trans
                (code_closed_equivariant s (Let_cont_recursive hs body))
@@ -709,8 +711,8 @@ Lemma abstract_handler_opened (p : permutation)
        body).
 Proof.
   intros Hfixes <-.
-  apply (Alpha_recursive_handler (variables_renaming p) before k (bound h)
-           metadata (proj1_sig (scope h)) after body).
+  apply (Alpha_recursive_handler_by_relation (variables_renaming p) before k
+           (bound h) metadata (proj1_sig (scope h)) after body).
   - exact (proj2_sig (scope h)).
   - intros y Hnotin Hy. apply Hfixes, among_without_list; [ exact Hnotin | ].
     apply closed_var_free, Hy.

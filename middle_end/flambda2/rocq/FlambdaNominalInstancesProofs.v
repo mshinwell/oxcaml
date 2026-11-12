@@ -318,7 +318,7 @@ Proof.
     rewrite <- !closed_var_free.
     exact (proj1 (alpha_equivalent_free_names _ _ Halpha) name).
   - intros p e Hfixes. unfold alpha_equivalent_closed.
-    rewrite rename_closed_expr_term. apply Alpha_sym, Alpha_rename.
+    rewrite rename_closed_expr_term. apply Alpha_sym, Alpha_rename_by_relation.
     + exact (proj2_sig e).
     + intros x Hx. apply Hfixes, closed_var_free, Hx.
     + reflexivity.
@@ -352,7 +352,7 @@ Proof.
     rewrite <- !closed_cont_free.
     exact (proj2 (alpha_equivalent_free_names _ _ Halpha) name).
   - intros p e Hfixes. unfold alpha_equivalent_closed.
-    rewrite rename_closed_expr_term. apply Alpha_sym, Alpha_rename.
+    rewrite rename_closed_expr_term. apply Alpha_sym, Alpha_rename_by_relation.
     + exact (proj2_sig e).
     + reflexivity.
     + intros k Hk. apply Hfixes, closed_cont_free, Hk.
@@ -392,7 +392,8 @@ Lemma let_opened (p : permutation) (kind : flambda_kind) (d : named)
        (rename_expr (variables_renaming p) (proj1_sig body))).
 Proof.
   intros Hfixes.
-  apply (Alpha_let (variables_renaming p) x kind d (proj1_sig body)).
+  apply (Alpha_let_by_relation (variables_renaming p) x kind d
+           (proj1_sig body)).
   - exact (proj2_sig body).
   - intros y Hne Hy. apply Hfixes, among_without_cons; [ exact Hne | ].
     apply closed_var_free, Hy.
@@ -407,7 +408,8 @@ Lemma let_cont_opened (p : permutation) (h : continuation_handler)
        (rename_expr (continuations_renaming p) (proj1_sig body))).
 Proof.
   intros Hfixes.
-  apply (Alpha_let_cont (continuations_renaming p) k h (proj1_sig body)).
+  apply (Alpha_let_cont_by_relation (continuations_renaming p) k h
+           (proj1_sig body)).
   - exact (proj2_sig body).
   - reflexivity.
   - intros k' Hne Hk'. apply Hfixes, among_without_cons; [ exact Hne | ].
@@ -427,7 +429,7 @@ Lemma handler_opened (p : permutation) (k : continuation)
        body).
 Proof.
   intros Hfixes.
-  apply (Alpha_handler (variables_renaming p) k params metadata
+  apply (Alpha_handler_by_relation (variables_renaming p) k params metadata
            (proj1_sig handler) body).
   - exact (proj2_sig handler).
   - intros y Hnotin Hy. apply Hfixes, among_without_list; [ exact Hnotin | ].

@@ -76,8 +76,8 @@
    The continuations of a recursive [Let_cont] bind in its handlers and
    in its body together; that scope is not one expression, and it is
    not stated here as an abstraction
-   (FlambdaAlphaSpec.alpha_let_cont_recursive_statement says that a
-   renaming of them gives an alpha-equivalent term).
+   (FlambdaAlphaSpec.alpha_let_cont_recursive_canonical_statement says
+   that a renaming of them gives an alpha-equivalent term).
 
    A state is not made an instance: the action on states and the
    equivariance of the machine are in FlambdaEquivarianceSpec.v, stated

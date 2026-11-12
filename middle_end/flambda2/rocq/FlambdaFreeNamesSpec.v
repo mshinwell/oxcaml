@@ -33,7 +33,9 @@
    The model has four older accounts of which names a term uses:
    - the relations [var_free_in_expr] and [cont_free_in_expr] of
      FlambdaNominalSpec.v, in which the statements about binders and
-     about alpha-equivalence are written;
+     about alpha-equivalence were written, and in which the three
+     statements about a binding that is not used,
+     FlambdaApplySpec.inlinable and many proofs still are;
    - [free_continuations] of FlambdaWellFormedSpec.v, by which a handler
      is found to be at toplevel;
    - [expr_in_scope] of FlambdaNormaliseSpec.v, the check of scope that
@@ -50,8 +52,13 @@
 
    These statements are what lets the older definitions be restated as
    the one function, a statement at a time, without changing what any
-   of them says of a well-formed term. When that is done this file
-   goes.
+   of them says of a well-formed term. The statements that a bound
+   name may be renamed and the rules of alpha-equivalence have been
+   (FlambdaCanonicalFreeNamesSpec.v, FlambdaAlphaSpec.v), and their
+   older forms are lemmas, proved as they were. When the two checks
+   and [inlinable] have been too, and no proof needs the relations
+   but those of the three statements about a binding that is not used,
+   which keep them, this file is to say that alone.
 
    The proofs are in FlambdaFreeNamesProofs.v, which needs no review. *)
 

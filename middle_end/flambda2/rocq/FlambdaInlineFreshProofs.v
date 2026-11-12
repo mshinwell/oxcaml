@@ -374,7 +374,7 @@ Proof.
   assert (Hsame : rename_expr t (rename_expr q e) = rename_expr q' e).
   { unfold t. rewrite rename_expr_compose, rename_expr_inverse.
     reflexivity. }
-  rewrite <- Hsame. apply Alpha_rename.
+  rewrite <- Hsame. apply Alpha_rename_by_relation.
   - rewrite code_closed_renamed. exact Hclosed.
   - intros x Hx. unfold t. rewrite rename_variable_compose.
     assert (Hfree :
@@ -650,7 +650,7 @@ Proof.
     rewrite Hzs_shape, among_cons, Hnot, Hrest in Hbody.
     discriminate Hbody. }
   apply Alpha_trans with (rename_expr p first).
-  { apply (Alpha_rename p first Hclosed_first).
+  { apply (Alpha_rename_by_relation p first Hclosed_first).
     - intros x Hx. exact (swap_fixes_call zs ws x Hzs Hws (Hfree x Hx)).
     - intros k _. reflexivity. }
   (* The first term renamed is the second, up to the body. *)

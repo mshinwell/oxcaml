@@ -28,13 +28,14 @@
 (* The binders of Flambda 2 and the freshness quantifier.
 
    This file is to be reviewed: the statements, against those of
-   FlambdaNominalSpec.v and FlambdaAlphaSpec.v that they restate, and
+   FlambdaCanonicalFreeNamesSpec.v and FlambdaAlphaSpec.v that they
+   restate, and
    against the compiler's [Name_abstraction.pattern_match] and
    [pattern_match_pair] (nominal/name_abstraction.ml), which open a
    binder at a fresh name and two binders at one fresh name.
 
-   FlambdaNominalSpec.v says of each binder that a renaming may be
-   applied to the bound names and their scope if it fixes the other
+   FlambdaCanonicalFreeNamesSpec.v says of each binder that a renaming
+   may be applied to the bound names and their scope if it fixes the other
    free names of the scope. That is the general form: any permutation,
    with the names it must not move said by a premise. The compiler uses
    one case of it, the swap of the bound name with a fresh one. Here
@@ -42,17 +43,20 @@
    FlambdaFreshQuantifierSpec.v, and the rules of alpha-equivalence at
    a binder are given in the form in which two terms are compared.
 
-   - A fresh name is not free ([fresh_not_free_statement]): the free
-     names of an expression are finitely many. This is what lets a
-     premise "not free in the body" be discharged by the quantifier.
+   - A fresh name is not free: the free names of an expression are a
+     list (FlambdaBindersSpec.v), and all but finitely many names are
+     outside a list (FlambdaFreshQuantifierSpec.for_fresh_avoids_statement).
+     This is what lets a premise "not free in the body" be discharged
+     by the quantifier.
    - Opening a binder at a fresh name: the variable of a [Let], the
      continuation of a [Let_cont], the parameters of a handler
      ([freshen_let_fresh_statement] and the two after it). Each is the
-     statement of FlambdaNominalSpec.v for a swap, with the premise that
-     the new name is not free replaced by the quantifier. Nothing is
-     gained in strength, and something is hidden: the statement of
-     FlambdaNominalSpec.v says which names will do (those not free in
-     the scope), and a rewrite that has a name in hand needs that.
+     statement of FlambdaCanonicalFreeNamesSpec.v for a swap, with the
+     premise that the new name is not free replaced by the quantifier.
+     Nothing is gained in strength, and something is hidden: the
+     statement of FlambdaCanonicalFreeNamesSpec.v says which names will
+     do (those not free in the scope), and a rewrite that has a name in
+     hand needs that.
    - Two binders compared at one fresh name. Two [Let]s with the same
      kind and the same defining expression are alpha-equivalent if
      their bodies are, once the two bound variables are exchanged for
@@ -103,19 +107,10 @@ Definition swap_continuations (ks fresh : list continuation) : renaming :=
   Renaming [] (combine ks fresh).
 
 (* ======================================================================== *)
-(* A fresh name is not free                                                 *)
-(* ======================================================================== *)
-
-Definition fresh_not_free_statement : Prop :=
-  ∀ e : expr,
-    code_closed e = true ->
-    (И x, ~ var_free_in_expr x e) ∧ (И k, ~ cont_free_in_expr k e).
-
-(* ======================================================================== *)
 (* Opening a binder at a fresh name                                         *)
 (* ======================================================================== *)
 
-(* FlambdaNominalSpec.freshen_let_statement. *)
+(* FlambdaCanonicalFreeNamesSpec.freshen_let_canonical_statement. *)
 Definition freshen_let_fresh_statement : Prop :=
   ∀ (x : variable) (kind : flambda_kind) (defining_expr : named)
     (body : expr),
@@ -125,7 +120,8 @@ Definition freshen_let_fresh_statement : Prop :=
         (Let fresh kind defining_expr
            (rename_expr (swap_variable x fresh) body)).
 
-(* FlambdaNominalSpec.rename_let_cont_statement, for a swap. *)
+(* FlambdaCanonicalFreeNamesSpec.rename_let_cont_canonical_statement,
+   for a swap. *)
 Definition freshen_let_cont_fresh_statement : Prop :=
   ∀ (k : continuation) (handler : continuation_handler) (body : expr),
     code_closed body = true ->
@@ -134,8 +130,8 @@ Definition freshen_let_cont_fresh_statement : Prop :=
         (Let_cont_non_recursive fresh handler
            (rename_expr (swap_continuation k fresh) body)).
 
-(* FlambdaNominalSpec.rename_handler_params_statement, for the swaps
-   with as many fresh names. *)
+(* FlambdaCanonicalFreeNamesSpec.rename_handler_params_canonical_statement,
+   for the swaps with as many fresh names. *)
 Definition freshen_handler_params_fresh_statement : Prop :=
   ∀ (k : continuation) (params : list variable)
     (metadata : handler_metadata) (handler body : expr),

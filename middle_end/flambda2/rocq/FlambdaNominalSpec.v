@@ -30,8 +30,11 @@
 
    This file is to be reviewed, against middle_end/flambda2/nominal/: the
    renamings and their application to terms ([Renaming], [apply_renaming]),
-   the free names ([free_names]), and the statements, which say what
-   [Name_abstraction] relies on.
+   the statement about the binders of code, and the three about
+   bindings that are not used, with the relations of free names that
+   they are written with. Those relations are an older account, kept
+   for what is listed where they are defined; the free names
+   ([free_names]) are in FlambdaBindersSpec.v.
 
    The compiler treats a binder as a name abstraction in the sense of
    nominal sets: [Name_abstraction.t] holds a bound name and a term,
@@ -49,30 +52,38 @@
      occurrences alike and so never captures. It goes into code, as the
      compiler's does: the parameters of code, [my_closure], its two
      continuations and its body are renamed;
-   - the support of a term up to its binders, its free names
-     ([var_free_in_expr], [cont_free_in_expr]). These relations do not
-     look into code; FlambdaBindersSpec.v has the free names as
-     functions, which do, and FlambdaFreeNamesSpec.v says that the two
-     agree where code is closed;
+   - the support of a term up to its binders, its free names: they are
+     the functions of FlambdaBindersSpec.v, one for each sort, which go
+     into code;
    - the defining property of an abstraction: a permutation that fixes the
      free names of a binder with its scope may be applied to the bound name
-     and the scope ([rename_let_statement] and the four after it). The
-     concretion at a fresh name that [pattern_match] performs is the case
-     of a swap ([freshen_let_statement]). The binders of code are the
-     case with no condition on the permutation: closed code has no free
-     name ([rename_code_binders_statement]);
+     and the scope. For a [Let], a [Let_cont] and a handler the
+     statements are in FlambdaCanonicalFreeNamesSpec.v
+     ([rename_let_canonical_statement] and the four after it); the
+     concretion at a fresh name that [pattern_match] performs is the
+     case of a swap ([freshen_let_canonical_statement]). The binders of
+     code are the case with no condition on the permutation: closed code
+     has no free name ([rename_code_binders_statement], here);
    - that behaviour depends on the free names only, by which a binding
      that is not used may be removed ([unused_let_statement] and the two
-     after it).
+     after it, here).
    With FlambdaContextSpec.v these apply to any subterm.
 
    Each statement that renames takes as a premise that the code bound in
    what is renamed is closed (FlambdaBindersSpec.code_closed, a
-   condition of well-formedness). The relations of free names do not
-   see the names that are free in code, so without the premise a
-   renaming that fixes the free names of a term could still move a name
-   that code in it leaves free. No statement says anything of a
+   condition of well-formedness). No statement says anything of a
    renaming of code that is not closed.
+
+   The relations [var_free_in_expr] and [cont_free_in_expr] of this
+   file are an older account of the free names, which does not go into
+   code. The statements that a bound name may be renamed were written
+   with them, in this file; they are now written with the functions,
+   and the older forms are lemmas of FlambdaNominalProofs.v, under the
+   names they had, because proofs use them. The three statements about
+   a binding that is not used are still written with the relations,
+   and are meant to be: the comment over them says why.
+   FlambdaFreeNamesSpec.v says that the two accounts agree where code
+   is closed.
 
    There is no type of alpha-equivalence classes here. The general
    notions (a type whose values contain names, its support, name
@@ -247,8 +258,29 @@ Definition rename_handlers (r : renaming)
   map (fun '(k, h) => (rename_continuation r k, rename_handler r h)) handlers.
 
 (* ======================================================================== *)
-(* Free names                                                               *)
+(* The older relations of free names                                        *)
 (* ======================================================================== *)
+
+(* A variable, or a continuation, is free in a term. These relations do
+   not go into code: a name that occurs only in the code of a term is
+   not free by them. The free names of a term are the functions of
+   FlambdaBindersSpec.v, which do, and no statement that a bound name
+   may be renamed, and no rule of FlambdaAlphaSpec.alpha_equivalent, is
+   written with these relations. They are still here for:
+   - the three statements at the end of this file about a binding that
+     is not used, which ask nothing of the code;
+   - FlambdaApplySpec.inlinable, of code whose body binds nothing
+     static, so that there is no code in it for the two accounts to
+     differ on;
+   - one statement of FlambdaRenameApartSpec.v;
+   - FlambdaFreeNamesSpec.v, which says how they relate to the
+     functions;
+   - the proofs, many of which are written with them, and the tests of
+     freedom that the rewrites of the validator run
+     (FlambdaNormaliseSpec.var_free_b, FlambdaUnusedContsSpec.cont_free_b),
+     which do not go into code either and are proved sound for these.
+   [var_free_in_simple] and [var_free_in_simples] say that a variable is
+   one of some simples, where there is no code and no binder. *)
 
 (* Some handler of the list satisfies [P]. *)
 Fixpoint any_handler {A : Type} (P : A -> Prop)
@@ -352,93 +384,11 @@ with cont_free_in_handler (k : continuation) (h : continuation_handler)
 (* Binders are name abstractions                                            *)
 (* ======================================================================== *)
 
-(* The variable of a [Let]: a renaming that fixes the free names of the
-   body other than the bound variable may be applied to the bound variable
-   and the body. The code that the body binds is closed, here and in the
-   statements below. *)
-Definition rename_let_statement : Prop :=
-  ∀ (r : renaming) (x : variable) (kind : flambda_kind)
-    (defining_expr : named) (body : expr),
-    code_closed body = true ->
-    (∀ y : variable,
-      y <> x -> var_free_in_expr y body -> rename_variable r y = y) ->
-    (∀ k : continuation,
-      cont_free_in_expr k body -> rename_continuation r k = k) ->
-    expr_equivalent (Let x kind defining_expr body)
-      (Let (rename_variable r x) kind defining_expr (rename_expr r body)).
-
-(* [Name_abstraction.pattern_match] on a [Let]: the bound variable becomes
-   one that is not free in the body. *)
-Definition freshen_let_statement : Prop :=
-  ∀ (x fresh : variable) (kind : flambda_kind) (defining_expr : named)
-    (body : expr),
-    code_closed body = true ->
-    ~ var_free_in_expr fresh body ->
-    expr_equivalent (Let x kind defining_expr body)
-      (Let fresh kind defining_expr
-         (rename_expr (Renaming [(x, fresh)] []) body)).
-
-(* The continuation of a non-recursive [Let_cont]. *)
-Definition rename_let_cont_statement : Prop :=
-  ∀ (r : renaming) (k : continuation) (handler : continuation_handler)
-    (body : expr),
-    code_closed body = true ->
-    (∀ y : variable, var_free_in_expr y body -> rename_variable r y = y) ->
-    (∀ k' : continuation,
-      k' <> k -> cont_free_in_expr k' body -> rename_continuation r k' = k')
-    ->
-    expr_equivalent (Let_cont_non_recursive k handler body)
-      (Let_cont_non_recursive (rename_continuation r k) handler
-         (rename_expr r body)).
-
-(* The parameters of a continuation handler. *)
-Definition rename_handler_params_statement : Prop :=
-  ∀ (r : renaming) (k : continuation) (params : list variable)
-    (metadata : handler_metadata) (handler body : expr),
-    code_closed handler = true ->
-    (∀ y : variable,
-      y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
-    (∀ k' : continuation,
-      cont_free_in_expr k' handler -> rename_continuation r k' = k') ->
-    expr_equivalent
-      (Let_cont_non_recursive k (Handler params metadata handler) body)
-      (Let_cont_non_recursive k
-         (rename_handler r (Handler params metadata handler)) body).
-
-(* The parameters of one handler of a recursive [Let_cont]. *)
-Definition rename_recursive_handler_params_statement : Prop :=
-  ∀ (r : renaming) (before : list (continuation * continuation_handler))
-    (k : continuation) (params : list variable)
-    (metadata : handler_metadata) (handler : expr)
-    (after : list (continuation * continuation_handler)) (body : expr),
-    code_closed handler = true ->
-    (∀ y : variable,
-      y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
-    (∀ k' : continuation,
-      cont_free_in_expr k' handler -> rename_continuation r k' = k') ->
-    expr_equivalent
-      (Let_cont_recursive
-         (before ++ (k, Handler params metadata handler) :: after) body)
-      (Let_cont_recursive
-         (before
-          ++ (k, rename_handler r (Handler params metadata handler)) :: after)
-         body).
-
-(* The continuations of a recursive [Let_cont], and the parameters of its
-   handlers: a renaming that fixes the free names of the whole may be
-   applied throughout. *)
-Definition rename_let_cont_recursive_statement : Prop :=
-  ∀ (r : renaming) (handlers : list (continuation * continuation_handler))
-    (body : expr),
-    code_closed (Let_cont_recursive handlers body) = true ->
-    (∀ y : variable,
-      var_free_in_expr y (Let_cont_recursive handlers body) ->
-      rename_variable r y = y) ->
-    (∀ k : continuation,
-      cont_free_in_expr k (Let_cont_recursive handlers body) ->
-      rename_continuation r k = k) ->
-    expr_equivalent (Let_cont_recursive handlers body)
-      (rename_expr r (Let_cont_recursive handlers body)).
+(* The binders of a [Let], of a [Let_cont] and of a handler: that a
+   renaming which fixes the free names of the scope may be applied to
+   the bound names and the scope is said in
+   FlambdaCanonicalFreeNamesSpec.v, with the free names of
+   FlambdaBindersSpec.v. *)
 
 (* The binders of code: its parameters, [my_closure] and its return and
    exception continuations. Closed code has no other name, so any
@@ -453,6 +403,19 @@ Definition rename_code_binders_statement : Prop :=
 (* ======================================================================== *)
 (* Bindings that are not used                                               *)
 (* ======================================================================== *)
+
+(* These three are written with the older relations, on purpose. They
+   ask nothing of the code, and the relations do not go into code: a
+   name that occurs only in code that does not bind it is not free by
+   them, and the binding may still be removed, since the machine runs
+   code under its parameters and [my_closure] alone and code never
+   reads such a name. The rewrites of the validator that remove
+   bindings test freedom in the same way
+   (FlambdaNormaliseSpec.var_free_b, FlambdaUnusedContsSpec.cont_free_b),
+   are stated of every term, and are proved from these. With the free
+   names of FlambdaBindersSpec.v the premise would ask more, and the
+   statements would say less of a term whose code is not closed; those
+   forms are corollaries, in FlambdaCanonicalFreeNamesSpec.v. *)
 
 (* A [Let] whose variable is not free in its body may be removed. This is
    a refinement: the defining expression may be undefined. (It has no

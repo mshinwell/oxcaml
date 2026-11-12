@@ -643,8 +643,9 @@ Proof.
     as [Hvariables Hcontinuations].
   apply distinct_outside_app in Houtside as [Hparams _].
   pose proof
-    (Alpha_recursive_handler (swap_variables params fresh) before k params
-       metadata handler after body Hclosed Hvariables Hcontinuations)
+    (Alpha_recursive_handler_by_relation (swap_variables params fresh) before
+       k params metadata handler after body Hclosed Hvariables
+       Hcontinuations)
     as Hrule.
   cbn [rename_handler] in Hrule.
   rewrite (rename_variables_swap params fresh Hlength Hdistinct Hparams)
@@ -1232,11 +1233,14 @@ Proof.
     with (rename_expr s
             (Let_cont_recursive (rename_handlers r handlers)
                (rename_expr r body)));
-    [ exact (Alpha_rename s _ Hclosed1 Hvariables Hcontinuations) | ].
+    [ exact (Alpha_rename_by_relation s _ Hclosed1 Hvariables
+               Hcontinuations)
+    | ].
   apply Alpha_trans
     with (rename_expr s' (Let_cont_recursive handlers' body'));
     [ | exact (Alpha_sym _ _
-                 (Alpha_rename s' _ Hclosed' Hvariables' Hcontinuations')) ].
+                 (Alpha_rename_by_relation s' _ Hclosed' Hvariables'
+                    Hcontinuations')) ].
   assert (Hopened :
     expr_eqb [] []
       (rename_expr s

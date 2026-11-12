@@ -960,6 +960,108 @@ Proof.
   rewrite Pos.eqb_refl, (rename_code_eqb r c Hclosed), Hsame. reflexivity.
 Qed.
 
+(* ======================================================================== *)
+(* The older forms of the statements about binders                          *)
+(* ======================================================================== *)
+
+(* These were statements of FlambdaNominalSpec.v: that the names a
+   binder binds may be renamed. They are written with the relations
+   [var_free_in_expr] and [cont_free_in_expr], which do not go into
+   code. FlambdaCanonicalFreeNamesSpec.v has them with the free names
+   of FlambdaBindersSpec.v, and those are the statements now; each is
+   proved from the one here. These are no statement of a Spec file.
+   They keep their names and their text because proofs use them. (The
+   three statements about a binding that is not used are still
+   statements of FlambdaNominalSpec.v.) *)
+
+(* The variable of a [Let]: a renaming that fixes the free names of the
+   body other than the bound variable may be applied to the bound variable
+   and the body. The code that the body binds is closed, here and in the
+   statements below. *)
+Definition rename_let_statement : Prop :=
+  ∀ (r : renaming) (x : variable) (kind : flambda_kind)
+    (defining_expr : named) (body : expr),
+    code_closed body = true ->
+    (∀ y : variable,
+      y <> x -> var_free_in_expr y body -> rename_variable r y = y) ->
+    (∀ k : continuation,
+      cont_free_in_expr k body -> rename_continuation r k = k) ->
+    expr_equivalent (Let x kind defining_expr body)
+      (Let (rename_variable r x) kind defining_expr (rename_expr r body)).
+
+(* [Name_abstraction.pattern_match] on a [Let]: the bound variable becomes
+   one that is not free in the body. *)
+Definition freshen_let_statement : Prop :=
+  ∀ (x fresh : variable) (kind : flambda_kind) (defining_expr : named)
+    (body : expr),
+    code_closed body = true ->
+    ~ var_free_in_expr fresh body ->
+    expr_equivalent (Let x kind defining_expr body)
+      (Let fresh kind defining_expr
+         (rename_expr (Renaming [(x, fresh)] []) body)).
+
+(* The continuation of a non-recursive [Let_cont]. *)
+Definition rename_let_cont_statement : Prop :=
+  ∀ (r : renaming) (k : continuation) (handler : continuation_handler)
+    (body : expr),
+    code_closed body = true ->
+    (∀ y : variable, var_free_in_expr y body -> rename_variable r y = y) ->
+    (∀ k' : continuation,
+      k' <> k -> cont_free_in_expr k' body -> rename_continuation r k' = k')
+    ->
+    expr_equivalent (Let_cont_non_recursive k handler body)
+      (Let_cont_non_recursive (rename_continuation r k) handler
+         (rename_expr r body)).
+
+(* The parameters of a continuation handler. *)
+Definition rename_handler_params_statement : Prop :=
+  ∀ (r : renaming) (k : continuation) (params : list variable)
+    (metadata : handler_metadata) (handler body : expr),
+    code_closed handler = true ->
+    (∀ y : variable,
+      y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
+    (∀ k' : continuation,
+      cont_free_in_expr k' handler -> rename_continuation r k' = k') ->
+    expr_equivalent
+      (Let_cont_non_recursive k (Handler params metadata handler) body)
+      (Let_cont_non_recursive k
+         (rename_handler r (Handler params metadata handler)) body).
+
+(* The parameters of one handler of a recursive [Let_cont]. *)
+Definition rename_recursive_handler_params_statement : Prop :=
+  ∀ (r : renaming) (before : list (continuation * continuation_handler))
+    (k : continuation) (params : list variable)
+    (metadata : handler_metadata) (handler : expr)
+    (after : list (continuation * continuation_handler)) (body : expr),
+    code_closed handler = true ->
+    (∀ y : variable,
+      y ∉ params -> var_free_in_expr y handler -> rename_variable r y = y) ->
+    (∀ k' : continuation,
+      cont_free_in_expr k' handler -> rename_continuation r k' = k') ->
+    expr_equivalent
+      (Let_cont_recursive
+         (before ++ (k, Handler params metadata handler) :: after) body)
+      (Let_cont_recursive
+         (before
+          ++ (k, rename_handler r (Handler params metadata handler)) :: after)
+         body).
+
+(* The continuations of a recursive [Let_cont], and the parameters of its
+   handlers: a renaming that fixes the free names of the whole may be
+   applied throughout. *)
+Definition rename_let_cont_recursive_statement : Prop :=
+  ∀ (r : renaming) (handlers : list (continuation * continuation_handler))
+    (body : expr),
+    code_closed (Let_cont_recursive handlers body) = true ->
+    (∀ y : variable,
+      var_free_in_expr y (Let_cont_recursive handlers body) ->
+      rename_variable r y = y) ->
+    (∀ k : continuation,
+      cont_free_in_expr k (Let_cont_recursive handlers body) ->
+      rename_continuation r k = k) ->
+    expr_equivalent (Let_cont_recursive handlers body)
+      (rename_expr r (Let_cont_recursive handlers body)).
+
 Theorem rename_let : rename_let_statement.
 Proof.
   intros r x kind d body Hclosed Hvars Hconts.

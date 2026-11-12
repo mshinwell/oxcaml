@@ -111,6 +111,15 @@ Proof.
   congruence.
 Qed.
 
+(* A fresh name is not free by the relations. This was a statement of
+   FlambdaFreshBindersSpec.v; of the lists of free names it is
+   FlambdaFreshQuantifierSpec.for_fresh_avoids_statement. It keeps its
+   name and its text because the proofs below use it. *)
+Definition fresh_not_free_statement : Prop :=
+  ∀ e : expr,
+    code_closed e = true ->
+    (И x, ~ var_free_in_expr x e) ∧ (И k, ~ cont_free_in_expr k e).
+
 Theorem fresh_not_free : fresh_not_free_statement.
 Proof.
   intros e Hclosed. split.
@@ -200,7 +209,8 @@ Lemma alpha_let_swap (x fresh : variable) (kind : flambda_kind) (d : named)
     (Let fresh kind d (rename_expr (swap_variable x fresh) body)).
 Proof.
   intros Hclosed Hfresh.
-  pose proof (Alpha_let (swap_variable x fresh) x kind d body Hclosed)
+  pose proof
+    (Alpha_let_by_relation (swap_variable x fresh) x kind d body Hclosed)
     as Hrule.
   rewrite rename_variable_swap in Hrule. apply Hrule.
   - intros y Hdifferent Hy.
@@ -244,7 +254,8 @@ Lemma alpha_let_cont_swap (k fresh : continuation)
 Proof.
   intros Hclosed Hfresh.
   pose proof
-    (Alpha_let_cont (swap_continuation k fresh) k handler body Hclosed)
+    (Alpha_let_cont_by_relation (swap_continuation k fresh) k handler body
+       Hclosed)
     as Hrule.
   rewrite rename_continuation_swap in Hrule. apply Hrule.
   - intros y _. reflexivity.
@@ -301,8 +312,8 @@ Proof.
     as [Hvariables Hcontinuations].
   apply distinct_outside_app in Houtside as [Hparams _].
   pose proof
-    (Alpha_handler (swap_variables params fresh) k params metadata handler
-       body Hclosed Hvariables Hcontinuations)
+    (Alpha_handler_by_relation (swap_variables params fresh) k params
+       metadata handler body Hclosed Hvariables Hcontinuations)
     as Hrule.
   cbn [rename_handler] in Hrule.
   rewrite (rename_variables_swap params fresh Hlength Hdistinct Hparams)

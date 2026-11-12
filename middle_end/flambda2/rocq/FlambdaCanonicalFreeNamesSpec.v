@@ -25,36 +25,57 @@
  * DEALINGS IN THE SOFTWARE.                                                  *
  ******************************************************************************)
 
-(* The statements about binders, written with the one function for the
-   free names.
+(* The statements about binders: that the names a binder binds may be
+   renamed, and that a binding that is not used may be removed.
 
-   This file is to be reviewed: the statements, each against the
-   statement of FlambdaNominalSpec.v or the rule of
-   FlambdaAlphaSpec.alpha_equivalent that it restates.
+   This file is to be reviewed: the statements.
 
-   The statements of FlambdaNominalSpec.v and the rules of
-   [alpha_equivalent] are written with the older relations
-   [var_free_in_expr] and [cont_free_in_expr], which do not look into
-   code. The free names of a term are now given by one function for
-   each sort (FlambdaBindersSpec.v), which does. Here each of those
-   statements is written with the functions: where the older statement
-   asks that a renaming fixes every name that is free by the relation,
-   this one asks that it fixes the list ([fixes_names]); where the older
-   asks that a name is not free by the relation, this one asks that it
-   is not among the list.
+   The free names of a term are given by one function for each sort
+   (FlambdaBindersSpec.free_variables_of_expr and
+   free_continuations_of_expr), which goes into code. Each statement
+   here is written with those:
+   - a renaming that fixes the free names of the scope of a binder,
+     other than the names bound (FlambdaAlphaSpec.fixes_names), may be
+     applied to the bound names and the scope
+     ([rename_let_canonical_statement] and the five after it);
+   - a binding whose name is not among the free names of its scope may
+     be removed ([unused_let_canonical_statement] and the two after
+     it). These three are corollaries of the statements of
+     FlambdaNominalSpec.v, which say more;
+   - a renaming of the variables of a term and of its environment that
+     fixes its free continuations does not change its behaviour
+     ([rename_variables_equivalent_canonical_statement]).
+   The rules of FlambdaAlphaSpec.alpha_equivalent are the first of
+   these, with [alpha_equivalent] for [expr_equivalent]. The binders of
+   code are in FlambdaNominalSpec.v ([rename_code_binders_statement]).
 
-   Each is proved from the statement it restates and from
+   The statements that rename were in FlambdaNominalSpec.v and
+   FlambdaAlphaSpec.v, written with the relations [var_free_in_expr]
+   and [cont_free_in_expr] of FlambdaNominalSpec.v, which do not go
+   into code. Those older forms are no longer statements of a Spec
+   file. They are lemmas of FlambdaNominalProofs.v and
+   FlambdaAlphaProofs.v, under the names they had ([rename_let] and so
+   on, which is why the names here end in [_canonical]), because proofs
+   use them. Each statement here is proved from the older one and from
    FlambdaFreeNamesSpec.var_free_among_statement and
-   cont_free_among_statement (free by the relation is among the list,
-   whatever the code). So the premise about names here asks at least as
-   much as the older one, and the two are the same where code is closed
-   (FlambdaFreeNamesSpec.var_free_agrees_statement). The premises that
-   code is closed are kept as they are.
+   cont_free_among_statement: what is free by the relation is among the
+   list, whatever the code. So the premise about names here asks at
+   least as much as the older one did, and the two are the same where
+   code is closed (FlambdaFreeNamesSpec.var_free_agrees_statement).
 
-   These are the forms that the statements of FlambdaNominalSpec.v and
-   the rules of [alpha_equivalent] are to take when the older relations
-   are deleted; until then both are there, and this file adds nothing
-   that a well-formed term can tell from the older ones.
+   What that means for each sort of statement:
+   - those that rename ask that the code is closed, so they say what
+     the older forms said;
+   - the three about a binding that is not used ask nothing of the
+     code, and here the premise asks more than that of
+     FlambdaNominalSpec.unused_let_statement and the two after it,
+     which are written with the relations and are still statements. Of
+     a term whose code is not closed those say more: a name that occurs
+     only in code is not free by the relation, and the binding may
+     still be removed, since the machine never lets code read a name
+     that it does not bind. The rewrites of the validator that remove
+     bindings are proved from them. Of a well-formed term, whose code
+     is closed, the two forms say the same.
 
    Nothing is trusted here. The proofs are in
    FlambdaCanonicalFreeNamesProofs.v, which needs no review. *)
@@ -66,18 +87,14 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaAlphaSpec FlambdaNameAbstractionSpec.
 Import ListNotations.
 
-(* The renaming moves none of the variables [vs] and none of the
-   continuations [ks]. *)
-Definition fixes_names (r : renaming) (vs : list variable)
-    (ks : list continuation) : Prop :=
-  fixes (variable_permutation r) vs
-  ∧ fixes (continuation_permutation r) ks.
-
 (* ======================================================================== *)
-(* The statements of FlambdaNominalSpec.v                                   *)
+(* The names that a binder binds may be renamed                             *)
 (* ======================================================================== *)
 
-(* [rename_let_statement]. *)
+(* The variable of a [Let]: a renaming that fixes the free names of the
+   body other than the bound variable may be applied to the bound
+   variable and the body. The code that the body binds is closed, here
+   and in the statements below. *)
 Definition rename_let_canonical_statement : Prop :=
   ∀ (r : renaming) (x : variable) (kind : flambda_kind)
     (defining_expr : named) (body : expr),
@@ -87,7 +104,8 @@ Definition rename_let_canonical_statement : Prop :=
     expr_equivalent (Let x kind defining_expr body)
       (Let (rename_variable r x) kind defining_expr (rename_expr r body)).
 
-(* [freshen_let_statement]. *)
+(* [Name_abstraction.pattern_match] on a [Let]: the bound variable
+   becomes one that is not free in the body. *)
 Definition freshen_let_canonical_statement : Prop :=
   ∀ (x fresh : variable) (kind : flambda_kind) (defining_expr : named)
     (body : expr),
@@ -97,7 +115,7 @@ Definition freshen_let_canonical_statement : Prop :=
       (Let fresh kind defining_expr
          (rename_expr (Renaming [(x, fresh)] []) body)).
 
-(* [rename_let_cont_statement]. *)
+(* The continuation of a non-recursive [Let_cont]. *)
 Definition rename_let_cont_canonical_statement : Prop :=
   ∀ (r : renaming) (k : continuation) (handler : continuation_handler)
     (body : expr),
@@ -108,8 +126,8 @@ Definition rename_let_cont_canonical_statement : Prop :=
       (Let_cont_non_recursive (rename_continuation r k) handler
          (rename_expr r body)).
 
-(* [rename_handler_params_statement]. The free variables of a handler
-   are those of its body that are not its parameters. *)
+(* The parameters of a continuation handler. The free variables of a
+   handler are those of its body that are not its parameters. *)
 Definition rename_handler_params_canonical_statement : Prop :=
   ∀ (r : renaming) (k : continuation) (params : list variable)
     (metadata : handler_metadata) (handler body : expr),
@@ -122,7 +140,7 @@ Definition rename_handler_params_canonical_statement : Prop :=
       (Let_cont_non_recursive k
          (rename_handler r (Handler params metadata handler)) body).
 
-(* [rename_recursive_handler_params_statement]. *)
+(* The parameters of one handler of a recursive [Let_cont]. *)
 Definition rename_recursive_handler_params_canonical_statement : Prop :=
   ∀ (r : renaming) (before : list (continuation * continuation_handler))
     (k : continuation) (params : list variable)
@@ -140,7 +158,9 @@ Definition rename_recursive_handler_params_canonical_statement : Prop :=
           ++ (k, rename_handler r (Handler params metadata handler)) :: after)
          body).
 
-(* [rename_let_cont_recursive_statement]. *)
+(* The continuations of a recursive [Let_cont], and the parameters of
+   its handlers: a renaming that fixes the free names of the whole may
+   be applied throughout. *)
 Definition rename_let_cont_recursive_canonical_statement : Prop :=
   ∀ (r : renaming) (handlers : list (continuation * continuation_handler))
     (body : expr),
@@ -151,21 +171,26 @@ Definition rename_let_cont_recursive_canonical_statement : Prop :=
     expr_equivalent (Let_cont_recursive handlers body)
       (rename_expr r (Let_cont_recursive handlers body)).
 
-(* [unused_let_statement]. No condition on code, there or here; here
-   the premise asks more where code is not closed. *)
+(* ======================================================================== *)
+(* Bindings that are not used                                               *)
+(* ======================================================================== *)
+
+(* A [Let] whose variable is not among the free variables of its body
+   may be removed. This and the two statements below are corollaries of
+   FlambdaNominalSpec.unused_let_statement and the two after it, which
+   ask less: nothing is asked of the code, and those do not count a
+   name that occurs only in code. *)
 Definition unused_let_canonical_statement : Prop :=
   ∀ (x : variable) (kind : flambda_kind) (defining_expr : named)
     (body : expr),
     among x (free_variables_of_expr body) = false ->
     expr_refines (Let x kind defining_expr body) body.
 
-(* [unused_let_cont_statement]. *)
 Definition unused_let_cont_canonical_statement : Prop :=
   ∀ (k : continuation) (handler : continuation_handler) (body : expr),
     among k (free_continuations_of_expr body) = false ->
     expr_equivalent (Let_cont_non_recursive k handler body) body.
 
-(* [unused_let_cont_recursive_statement]. *)
 Definition unused_let_cont_recursive_canonical_statement : Prop :=
   ∀ (handlers : list (continuation * continuation_handler)) (body : expr),
     handlers_bind_statics handlers = false ->
@@ -175,70 +200,13 @@ Definition unused_let_cont_recursive_canonical_statement : Prop :=
     expr_equivalent (Let_cont_recursive handlers body) body.
 
 (* ======================================================================== *)
-(* The rules of alpha-equivalence                                           *)
+(* Execution is equivariant in the variables                                *)
 (* ======================================================================== *)
 
-(* [Alpha_rename]. *)
-Definition alpha_rename_canonical_statement : Prop :=
-  ∀ (r : renaming) (e : expr),
-    code_closed e = true ->
-    fixes_names r (free_variables_of_expr e)
-      (free_continuations_of_expr e) ->
-    alpha_equivalent e (rename_expr r e).
-
-(* [Alpha_let]. *)
-Definition alpha_let_canonical_statement : Prop :=
-  ∀ (r : renaming) (x : variable) (kind : flambda_kind)
-    (defining_expr : named) (body : expr),
-    code_closed body = true ->
-    fixes_names r (without [x] (free_variables_of_expr body))
-      (free_continuations_of_expr body) ->
-    alpha_equivalent (Let x kind defining_expr body)
-      (Let (rename_variable r x) kind defining_expr (rename_expr r body)).
-
-(* [Alpha_let_cont]. *)
-Definition alpha_let_cont_canonical_statement : Prop :=
-  ∀ (r : renaming) (k : continuation) (handler : continuation_handler)
-    (body : expr),
-    code_closed body = true ->
-    fixes_names r (free_variables_of_expr body)
-      (without [k] (free_continuations_of_expr body)) ->
-    alpha_equivalent (Let_cont_non_recursive k handler body)
-      (Let_cont_non_recursive (rename_continuation r k) handler
-         (rename_expr r body)).
-
-(* [Alpha_handler]. *)
-Definition alpha_handler_canonical_statement : Prop :=
-  ∀ (r : renaming) (k : continuation) (params : list variable)
-    (metadata : handler_metadata) (handler body : expr),
-    code_closed handler = true ->
-    fixes_names r
-      (free_variables_of_handler (Handler params metadata handler))
-      (free_continuations_of_expr handler) ->
-    alpha_equivalent
-      (Let_cont_non_recursive k (Handler params metadata handler) body)
-      (Let_cont_non_recursive k
-         (rename_handler r (Handler params metadata handler)) body).
-
-(* [Alpha_recursive_handler]. *)
-Definition alpha_recursive_handler_canonical_statement : Prop :=
-  ∀ (r : renaming) (before : list (continuation * continuation_handler))
-    (k : continuation) (params : list variable)
-    (metadata : handler_metadata) (handler : expr)
-    (after : list (continuation * continuation_handler)) (body : expr),
-    code_closed handler = true ->
-    fixes_names r
-      (free_variables_of_handler (Handler params metadata handler))
-      (free_continuations_of_expr handler) ->
-    alpha_equivalent
-      (Let_cont_recursive
-         (before ++ (k, Handler params metadata handler) :: after) body)
-      (Let_cont_recursive
-         (before
-          ++ (k, rename_handler r (Handler params metadata handler)) :: after)
-         body).
-
-(* [rename_variables_equivalent_statement]. *)
+(* Renaming an expression and the environment of its variables together
+   does not change its behaviour, for a renaming that fixes the free
+   continuations, which are observed. The code of the expression is
+   closed. *)
 Definition rename_variables_equivalent_canonical_statement : Prop :=
   ∀ (r : renaming) (e : expr) (vars : env) (conts : cont_env)
     (statics : static_env),

@@ -876,7 +876,8 @@ Proof.
        | r k h body Hclosed Hvars Hconts
        | r k params metadata handler body Hclosed Hvars Hconts
        | r before k params metadata handler after body Hclosed Hvars Hconts
-       | r before id c after body Hclosed ].
+       | r before id c after body Hclosed ]
+    using alpha_equivalent_by_relation_ind.
   - apply expr_eqb_reflexive.
   - apply expr_eqb_symmetric, IH.
   - exact (expr_eqb_transitive _ _ _ IH IH').
@@ -980,7 +981,8 @@ Proof.
        | s e Hclosed _ _ | s x kind d body Hclosed _ _ | s k h body Hclosed _ _
        | s k params metadata handler body _ _ _
        | s before k params metadata handler after body _ _ _
-       | s before id c after body _ ];
+       | s before id c after body _ ]
+    using alpha_equivalent_by_relation_ind;
     try reflexivity.
   - symmetry. exact IH.
   - rewrite IH. exact IH'.
