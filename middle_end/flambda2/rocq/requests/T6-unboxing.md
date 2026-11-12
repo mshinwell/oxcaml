@@ -564,13 +564,14 @@ Two things had to be got right, and are where to look.
 
 ### What it does not cover
 
-- **A read under a test that is not a `Switch` on a parameter given a
-  constant.** `never_reads` knows only the parameters that the
-  application gives a constant naked immediate, and replaces only a
-  `Switch` on such a parameter. A read under a comparison, or under a
-  `Switch` on what a `Let` of the handler computes of a parameter,
-  is taken to be reachable; the application then needs an argument
-  that is certain, or the pass stops.
+- **A read under a test that is not a `Switch` on a test of the box
+  given a constant.** `never_reads` knows only the tests of the box
+  read (below, "By the box") that the application gives a constant
+  naked immediate, and replaces only a `Switch` on such a parameter.
+  A read under a comparison, or under a `Switch` on what a `Let` of
+  the handler computes of a parameter, is taken to be reachable; the
+  application then needs an argument that is certain, or the pass
+  stops.
 - It stops at the first read, in its order, that cannot be made a
   parameter, even where the first pass would make the read at the
   head of the handler one. For a handler that begins with the load of
@@ -582,9 +583,13 @@ Two things had to be got right, and are where to look.
   (`earlier_examples_validated_statement`).
 - Among the loads, the order of the new parameters is the order in
   which the handler has them, the body of a `Let_cont` before its
-  handler. In the seven examples that is Simplify's (the front end
-  reads the fields last to first, and puts the continuation of the
-  first arm outermost).
+  handler, but that a load of the same box at a greater field, found
+  below a load, is taken before it. That is Simplify's order where
+  the front end puts the continuation of the first arm outermost.
+- A load that no test of the tag guards, where two applications give
+  blocks of different tags, is made a parameter; Simplify keeps the
+  block there (its parameters for the fields are by the tag). The
+  validation fails on such a join. Owed.
 - A field that the handler reads in two places becomes two
   parameters, where Simplify has one. A pass that makes one of two
   parameters that every application gives the same argument would
@@ -655,6 +660,55 @@ further down the unit, which may be bound by the time the code runs
 (that would be a statement about a unit run on its own, as
 `FlambdaKnownSymbolsSpec.fold_known_unit` has); and a symbol that the
 unit imports, which no `Let_static` of the unit binds.
+
+### By the box: the tests, the constant for an untagging, the fields
+
+Three rules were coarser than Simplify's, and sources of other
+streams showed each.
+
+*The tests of the box.* Simplify gives `poison` for a field by what
+the argument is: a block of another tag, a constant constructor, or
+nothing at all where the value that the field would be read from is
+not there. It gives the field itself wherever the block is there.
+`never_reads` took every constant naked immediate that the
+application gives as a reason: for
+
+    match if c then x, true else 0, false with
+    | v, true -> v
+    | _, false -> -7
+
+the arm of the constant pair gives `false` for the second field, the
+handler reads the first only where the second is `true`, and the pass
+gave the constant for nothing to read where Simplify gives 0. Now
+`never_reads` is told only the constants given to the tests of the
+box read (`tests_of`): the parameters that the pass itself made from
+`Get_tag`, `Is_int` or `Untag_immediate` of the parameter read, or of
+a parameter that the parameter read was itself read from.
+`unbox_reads` keeps, for one handler, the tests it made and, for each
+parameter it made, the parameters above it. The refinement is as it
+was: fewer constants are known, and each is still given by the
+application.
+
+*The constant for an untagging.* For the constant constructor of a
+variant whose argument is a block Simplify gives 0
+(`extra_arg_for_ctor`); for a tagged immediate that is unboxed as a
+number, where the block that holds it is not there, it gives `poison`
+(`Unboxers.Immediate`). The model has no types, so the pass tells the
+two apart by the handler: the untagging of a box of which the handler
+also reads `Is_int` is the first, any other the second. `Is_int`
+itself is given 0 where there is nothing to read, as the tag was
+(`extra_arg_for_is_int`). The proof gives any constant of the kind.
+
+*The fields from the last.* Simplify's parameters for the fields of a
+block are those of the last field first. The front end loads the
+fields that the pattern of a function takes apart from the last, and
+those of a constructor from the first. `first_read`, where it finds a
+load, now takes instead the first load of the same box at a greater
+field that it finds below it, and so on down; the loads of the fields
+of another tag are in other arms and are not below.
+
+`pair_constant`, `option_pair` and `option_fields` of
+`FlambdaUnboxVariantsExamplesSpec.v` are the three, computed.
 
 ## 8. What else is owed for pairs and numbers
 
@@ -856,6 +910,16 @@ unit) and `option_constant_loop_fun` (in a loop of a function). Over
 the other units of the directory, the units written by hand, the 600
 of `census/README.md` and 240 generated units with exceptions and
 with loops, the change moves no verdict and no line of any output.
+
+With what a join is given going by the box (section 7), four more
+sources are validated that were not, each from another stream:
+`pair_constant_arm`, `pair_constant_arm_toplevel` and
+`pair_two_constants` (a pair with a constant arm, taken apart at
+once: the tests of the box) and `match_pair_option_built` (an option
+of a pair: the fields from the last). Over the units that were in
+the directory (296), the units written by hand (111), the 600 of
+`census/README.md` and the 240 generated units, the change moves no
+verdict and no line of any output.
 
 ## 10. Asked of others
 
