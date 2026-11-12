@@ -29,7 +29,7 @@
 (* What a meet keeps, for a join that has the half of its contract
    that is not about values.
 
-   This file is to be reviewed: one definition and four statements.
+   This file is to be reviewed: one definition and six statements.
    The proofs are in FlambdaMeetKeepsProofs.v, which needs no review.
 
    The contract of the meet (FlambdaMeetSpec.v) has two halves. One
@@ -74,12 +74,21 @@
    and what the chain proves of the meet is
    [meet_expanded_head_keeps].
 
+   The meet of types ([Meet.meet]) made of that meet of expanded
+   types has the part of its contract ([meet_contract],
+   FlambdaMeetSpec.v) that is about what is kept
+   ([meet_keeps_well_formed]: what it answers may be met again), by
+   the same premise ([meet_of_types_keeps_statement]). The two other
+   parts that are not about values, the refusal of two kinds and the
+   bottom environment, need no premise at all
+   ([meet_of_types_kinds_statement]).
+
    What is not stated. Nothing about values, by construction.
    Nothing for the choices of the compiler ([compiler_choices]),
-   which the main theorem does not cover either. Nothing of the meet
-   of types ([Meet.meet]) or of the functions that add to a typing
-   environment: their contracts mix the two halves, and no keeps-only
-   form of them is defined. A join that has
+   which the main theorem does not cover either. Nothing of the
+   functions that add to a typing environment: their contracts are
+   about values throughout, and no keeps-only form of them is
+   defined. A join that has
    [join_scoped_envs_sound] is not thereby shown to have
    [join_scoped_envs_keeps]: the first gives its conclusions only for
    a meet that loses no value, the second for any meet that keeps;
@@ -167,3 +176,22 @@ Definition meet_with_forgetful_join_keeps_statement : Prop :=
   ∀ fuel : nat,
     meet_expanded_head_keeps
       (Meet.meet_expanded_head forgetful_join repaired_choices fuel).
+
+(* The meet of types made of such a meet of expanded types: what it
+   answers may be met again ([meet_keeps_well_formed],
+   FlambdaMeetSpec.v). *)
+Definition meet_of_types_keeps_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (fuel : nat),
+    join_scoped_envs_keeps join ->
+    type_of_get_tag_scrutinee choices = immediate_or_blocks_with_these_tags ->
+    define_again choices = false ->
+    lift_variables_of_single_case choices = true ->
+    meet_keeps_well_formed (Meet.meet join choices fuel).
+
+(* The two other parts of [meet_contract] that are not about values
+   hold of the meet of types whatever the join, the choices and the
+   fuel. *)
+Definition meet_of_types_kinds_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices) (fuel : nat),
+    meet_kinds (Meet.meet join choices fuel)
+    ∧ meet_bottom_env (Meet.meet join choices fuel).

@@ -34,10 +34,12 @@
 From Stdlib Require Import ZArith List Bool.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
-  FlambdaSemanticsSpec FlambdaClosuresSpec.
-From OxCamlFlambda2Types Require Import FlambdaTypeGrammar FlambdaTypingEnv
-  FlambdaMeetGrammar FlambdaExpandHead FlambdaMeetEnv FlambdaMeet
-  FlambdaMeetSpec FlambdaMeetStepsSpec FlambdaMeetHeadsSpec
+  FlambdaSemanticsSpec FlambdaClosuresSpec FlambdaPrimitiveProofs.
+From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
+  FlambdaTypeGrammarProofs FlambdaTypingEnv FlambdaTypingEnvSpec
+  FlambdaTypingEnvProofs FlambdaMeetGrammar FlambdaExpandHead FlambdaMeetEnv
+  FlambdaMeet FlambdaMeetSpec FlambdaMeetProofs FlambdaMeetStepsSpec
+  FlambdaMeetEnvSpec FlambdaMeetEnvProofs FlambdaMeetHeadsSpec
   FlambdaMeetRowLikeSpec FlambdaMeetClosuresSpec FlambdaMeetFuelSpec
   FlambdaMeetExamplesSpec FlambdaMeetValidity FlambdaMeetHeadsProofs
   FlambdaMeetRowLikeProofs FlambdaMeetFuelProofs FlambdaMeetClosuresProofs
@@ -109,4 +111,46 @@ Proof.
   intros fuel.
   exact (meet_expanded_head_repaired_keeps forgetful_join fuel
            forgetful_join_keeps).
+Qed.
+
+(* The two proofs below are the parts of the proof of
+   [meet_of_fuel_contract] (FlambdaMeetFuelProofs.v) that are not
+   about values. *)
+Theorem meet_of_types_keeps : meet_of_types_keeps_statement.
+Proof.
+  intros join choices fuel Hjoin Hchoice Hdefine Hlift.
+  pose proof
+    (meet_expanded_head_fuel_keeps join choices fuel Hjoin Hchoice Hdefine
+       Hlift)
+    as Hkeeps.
+  set (mh := Meet.meet_expanded_head join choices fuel) in *.
+  intros tenv tenv' t1 t2 t (Hfits & Ht1 & Ht2 & Hkinds) Hmeet.
+  unfold Meet.meet in Hmeet. fold mh in Hmeet.
+  destruct (Typing_env.is_bottom tenv); [ discriminate Hmeet | ].
+  destruct (Meet_env.meet_type (Meet_env.create tenv) t1 t2 mh)
+    as [ [ r0 | r menv' ] | ] eqn:Htype; try discriminate Hmeet.
+  cbv beta iota zeta in Hmeet.
+  destruct (is_obviously_bottom (extract_value r t1 t2));
+    [ discriminate Hmeet | ].
+  cbn in Hmeet. injection Hmeet as <- <-.
+  destruct (meet_type_keeps mh (Meet_env.create tenv) menv' t1 t2 r Hkeeps
+              Hfits Ht1 Ht2 Htype)
+    as ([[Hextends Hfits'] _] & Hanswer & Hkind).
+  split; [ exact Hfits' | ]. split; [ exact Hanswer | ].
+  split; [ exact Hkind | ].
+  intros n Hmem.
+  exact (tenv_extends_mem _ _ n (meet_env_extends_tenv _ _ Hextends) Hmem).
+Qed.
+
+Theorem meet_of_types_kinds : meet_of_types_kinds_statement.
+Proof.
+  intros join choices fuel. split.
+  - intros tenv t1 t2 Hnot_bottom Hkinds. unfold Meet.meet.
+    rewrite Hnot_bottom. unfold Meet_env.meet_type, Meet_env.meet.
+    assert (Hneq : kind_eqb (kind t1) (kind t2) = false).
+    { destruct (kind_eqb (kind t1) (kind t2)) eqn:H; [ | reflexivity ].
+      apply kind_eqb_eq in H. contradiction. }
+    rewrite Hneq. reflexivity.
+  - intros tenv t1 t2 Hbottom. unfold Meet.meet. rewrite Hbottom.
+    reflexivity.
 Qed.
