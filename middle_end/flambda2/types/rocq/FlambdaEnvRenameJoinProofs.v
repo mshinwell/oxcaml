@@ -2717,7 +2717,7 @@ Module Meet_parts := FlambdaEnvRenameMeetPartsProofs.
 Lemma join_expanded_renamed (r : renaming)
     (expanded : FlambdaExpandHead.Expanded_type.t) :
   join_expanded (FlambdaProversRenameSpec.rename_expanded r expanded)
-  = FlambdaEnvRenameJoinTypesProofs.rename_expanded r
+  = FlambdaProversRenameSpec.rename_expanded r
       (join_expanded expanded).
 Proof.
   destruct expanded as [kind [ | [head | head | k head | head | head] | ]];
@@ -2727,7 +2727,7 @@ Qed.
 Lemma expand_head_for_join_renamed (r : renaming) (tenv : Typing_env.t)
     (t : flambda_type) :
   expand_head_for_join (rename_typing_env r tenv) (rename_type r t)
-  = option_map (FlambdaEnvRenameJoinTypesProofs.rename_expanded r)
+  = option_map (FlambdaProversRenameSpec.rename_expanded r)
       (expand_head_for_join tenv t).
 Proof.
   unfold expand_head_for_join.

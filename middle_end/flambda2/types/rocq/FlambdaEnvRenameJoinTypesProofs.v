@@ -66,13 +66,13 @@
    given.
 
    What is defined here is the action of a renaming on the types that
-   FlambdaJoinTypes.v defines for itself: [rename_expanded_head] and
-   [rename_expanded], on its expanded types, which are the text of the
-   definitions of those names in FlambdaProversRenameSpec.v for the
-   expanded types of FlambdaExpandHead.v; [rename_variant_extensions],
+   FlambdaJoinTypes.v defines for itself: [rename_variant_extensions],
    [rename_variant_fields] and [rename_variant_parts], on what its
    fold over variants reads and gathers; and [rename_case], on a case
-   of a row-like structure, whose index holds no variable.
+   of a row-like structure, whose index holds no variable. Its
+   expanded types are those of FlambdaExpandHead.v, and the action on
+   them is that of FlambdaProversRenameSpec.v ([rename_expanded_head],
+   [rename_expanded]).
 
    The first section is about maps: what the operations of
    FlambdaMapSpec.v make of a map whose values have been through a
@@ -86,7 +86,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypeMeaningBoolSpec FlambdaBindingTime FlambdaEnvAliases
   FlambdaEnvAliasesRenamingProofs FlambdaTypingEnv FlambdaEnvRenameSpec
   FlambdaJoinEnv FlambdaJoinTypes FlambdaTypeRenameSpec
-  FlambdaTypeRenameProofs.
+  FlambdaTypeRenameProofs FlambdaProversRenameSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -247,27 +247,10 @@ Proof. exact (keyed_for_all_bindings_b_values Pos.eqb g p p' m). Qed.
 (* The expanded types                                                       *)
 (* ======================================================================== *)
 
-(* The action of a renaming on the expanded types of FlambdaJoinTypes.v:
-   the head is renamed, the kind is kept. *)
-Definition rename_expanded_head (r : renaming) (head : Expanded_type.head)
-    : Expanded_type.head :=
-  match head with
-  | Expanded_type.Head_value head =>
-    Expanded_type.Head_value (rename_head_of_kind_value r head)
-  | Expanded_type.Head_naked_immediate head =>
-    Expanded_type.Head_naked_immediate
-      (rename_head_of_kind_naked_immediate r head)
-  | Expanded_type.Head_naked_number k head =>
-    Expanded_type.Head_naked_number k head
-  | Expanded_type.Head_rec_info head => Expanded_type.Head_rec_info head
-  | Expanded_type.Head_region head => Expanded_type.Head_region head
-  end.
-
-Definition rename_expanded (r : renaming) (expanded : Expanded_type.t)
-    : Expanded_type.t :=
-  Expanded_type.create (Expanded_type.kind expanded)
-    (or_unknown_or_bottom_map (rename_expanded_head r)
-       (Expanded_type.descr expanded)).
+(* The action of a renaming on the expanded types is
+   FlambdaProversRenameSpec.rename_expanded: the head is renamed, the
+   kind is kept. The expanded types of FlambdaJoinTypes.v are those of
+   FlambdaExpandHead.v, which that action is defined on. *)
 
 Lemma create_bottom_renamed (r : renaming) (kind : flambda_kind) :
   rename_expanded r (Expanded_type.create_bottom kind)
