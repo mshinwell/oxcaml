@@ -53,7 +53,14 @@
    unit that the file has, read as Simplify reads them when it compiles a unit
    that uses that one. What is printed for a unit is a line: its symbols, its
    variables, and the types that the model has; and at the end, with the counts
-   of the comparisons, how many of the types are what at their top. *)
+   of the comparisons, how many of the types are what at their top. A file that
+   has no types is a unit that is not read, and is counted so.
+
+   A run on one input that stops, by a fatal error or an exception, is a line
+   for that input and is counted; the tool then fails, with another status than
+   for a disagreement.
+
+   With [-tops], a control of what is counted at the top of a type. *)
 
 open Flambda2_identifiers
 open Flambda2_kinds
@@ -68,6 +75,7 @@ module TEL = Flambda2_types__Typing_env_level
 module MT = Flambda2_rocq_semantics.FlambdaTypeGrammar
 module Converter = Flambda2_rocq_types_converter.Type_converter
 module Model_names = Flambda2_rocq_types_converter.Model_names
+module N = Flambda2_rocq_types_converter.Model_numbers
 module Model_type = Flambda2_rocq_types_converter.Model_type
 
 (* ======================================================================== *)
@@ -253,7 +261,9 @@ let add_counts totals path =
   in
   read ()
 
-(* What a type is at its top, for the counts. *)
+(* What a type is at its top, for the counts. A head that may be null has a
+   variable for whether it is, which holds a relation, or has none: the two are
+   counted apart. *)
 let top_of_a_type (t : MT.flambda_type) : string =
   match t with
   | Type_value Unknown -> "unknown"
@@ -262,25 +272,59 @@ let top_of_a_type (t : MT.flambda_type) : string =
   | Type_value (Ok (Equals (Var _))) -> "an alias of a variable"
   | Type_value (Ok (Equals (Const _))) -> "a constant"
   | Type_value (Ok (No_alias (Head_of_kind_value (non_null, is_null)))) -> (
-    match non_null, is_null with
-    | Unknown, Not_null -> "any value that is not null"
-    | Unknown, Maybe_null _ -> "any value that is not null, or null"
-    | Bottom, Not_null -> "no value"
-    | Bottom, Maybe_null _ -> "null"
-    | Ok head, _ -> (
-      let what =
-        match head with
-        | Variant _ -> "a variant"
-        | Mutable_block _ -> "a mutable block"
-        | Boxed_number _ -> "a boxed number"
-        | Closures _ -> "closures"
-        | String _ -> "a string"
-      in
-      match is_null with Not_null -> what | Maybe_null _ -> what ^ ", or null"))
+    let or_null what =
+      match is_null with
+      | Not_null -> what
+      | Maybe_null None -> what ^ ", or null"
+      | Maybe_null (Some _) ->
+        what ^ ", or null, with a variable for whether it is null"
+    in
+    match non_null with
+    | Unknown -> or_null "any value that is not null"
+    | Bottom -> (
+      match is_null with
+      | Not_null -> "no value"
+      | Maybe_null None -> "null"
+      | Maybe_null (Some _) -> "null, with a variable for whether it is null")
+    | Ok (Variant _) -> or_null "a variant"
+    | Ok (Mutable_block _) -> or_null "a mutable block"
+    | Ok (Boxed_number _) -> or_null "a boxed number"
+    | Ok (Closures _) -> or_null "closures"
+    | Ok (String _) -> or_null "a string")
   | Type_naked_immediate _ -> "a naked immediate"
   | Type_naked_number _ -> "a naked number"
   | Type_rec_info _ -> "a rec_info"
   | Type_region _ -> "a region"
+
+(* A control of what is counted at the top of a type, on the four types that say
+   least of a value: the unknown type, and the heads of which the part that is
+   not null is unknown, which is not null, may be null, or may be null with a
+   variable for whether it is. The four are to be counted apart. *)
+let control_of_the_tops () =
+  let head is_null : MT.flambda_type =
+    Type_value (Ok (No_alias (Head_of_kind_value (Unknown, is_null))))
+  in
+  let types : (string * MT.flambda_type) list =
+    [ "the unknown type", Type_value Unknown;
+      "a head that is not null, of which no more is known", head Not_null;
+      ( "a head that may be null, with no variable for whether it is",
+        head (Maybe_null None) );
+      ( "a head that may be null, with a variable for whether it is",
+        head (Maybe_null (Some (N.positive_of_int 1))) ) ]
+  in
+  Format.printf
+    "A control: what is counted at the top of the types that say least of a \
+     value@.";
+  List.iter
+    (fun (what, t) -> Format.printf "  %s: %s@." what (top_of_a_type t))
+    types;
+  let tops = List.map (fun ((_ : string), t) -> top_of_a_type t) types in
+  let apart =
+    List.length (List.sort_uniq String.compare tops) = List.length tops
+  in
+  Format.printf "  the four are counted apart: %s@.@."
+    (if apart then "yes" else "NO");
+  if not apart then exit 1
 
 (* A disagreement: the comparison, what it says, and the type. *)
 type disagreement = string * string * MT.flambda_type
@@ -486,9 +530,11 @@ let check_cmx unit_name : counts * int =
 
 (* The compiler keeps what it knows of a unit when it goes on to another one in
    the same run, and then fails on units that it simplifies when they come
-   first. So each file, or each unit of the standard library, is gone through in
-   a run of its own: this program runs itself on each, and adds up the counts
-   that each run writes. *)
+   first. So each file, or each unit of a directory, is gone through in a run of
+   its own: this program runs itself on each, and adds up the counts that each
+   run writes. A run that stops is a line for its input, and is counted: the
+   tool then ends with status 3, where no input has a disagreement, so that a
+   rule which expects no such run fails. *)
 let each_in_a_run_of_its_own ~(one : string list) ~(shown : string -> string)
     ~(they : string) (inputs : string list) =
   let totals = create_counts () in
@@ -512,11 +558,18 @@ let each_in_a_run_of_its_own ~(one : string list) ~(shown : string -> string)
     inputs;
   Format.printf "@.In all:@.";
   print_counts totals;
+  let stopped = number totals "units on which this tool stopped" in
   Format.printf "@.%s@."
-    (if !with_disagreements = 0
-     then "No disagreement."
-     else Printf.sprintf "DISAGREEMENTS in %d %s." !with_disagreements they);
-  if !with_disagreements > 0 then exit 1
+    (if !with_disagreements > 0
+     then Printf.sprintf "DISAGREEMENTS in %d %s." !with_disagreements they
+     else if stopped > 0
+     then
+       Printf.sprintf
+         "No disagreement in the %s gone through; this tool stopped on %d." they
+         stopped
+     else "No disagreement.");
+  if !with_disagreements > 0 then exit 1;
+  if stopped > 0 then exit 3
 
 let () =
   match Array.to_list Sys.argv with
@@ -542,10 +595,11 @@ let () =
     let counts, disagreements = check_cmx unit_name in
     write_counts counts counts_file;
     if disagreements > 0 then exit 1
+  | [_; "-tops"] -> control_of_the_tops ()
   | [] | [_] | [_; "-cmx"] ->
     prerr_endline
       "usage: types_of_compilations FILE.fl ..., or types_of_compilations -cmx \
-       DIRECTORY";
+       DIRECTORY, or types_of_compilations -tops";
     exit 2
   | [_; "-cmx"; directory] ->
     (* The units of the .cmx files of the directory, in the order of their
@@ -559,8 +613,8 @@ let () =
       |> List.sort String.compare
     in
     Format.printf
-      "The types that the compiler kept of the units of the standard library \
-       in their .cmx files, against the Rocq model.@.@.";
+      "The types that the compiler kept of the units of a directory in their \
+       .cmx files, against the Rocq model.@.@.";
     each_in_a_run_of_its_own ~one:["-one-cmx"; directory] ~shown:Fun.id
       ~they:"units" units
   | _ :: filenames ->

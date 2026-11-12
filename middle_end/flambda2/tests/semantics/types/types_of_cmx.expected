@@ -1,4 +1,4 @@
-The types that the compiler kept of the units of the standard library in their .cmx files, against the Rocq model.
+The types that the compiler kept of the units of a directory in their .cmx files, against the Rocq model.
 
 CamlinternalAtomic: 9 symbols, 0 variables, 9 in the model
 CamlinternalComprehension: 6 symbols, 0 variables, 6 in the model

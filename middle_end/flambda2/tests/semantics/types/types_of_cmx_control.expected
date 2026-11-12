@@ -1,0 +1,40 @@
+A control: what is counted at the top of the types that say least of a value
+  the unknown type: unknown
+  a head that is not null, of which no more is known: any value that is not null
+  a head that may be null, with no variable for whether it is: any value that is not null, or null
+  a head that may be null, with a variable for whether it is: any value that is not null, or null, with a variable for whether it is null
+  the four are counted apart: yes
+
+The types that the compiler kept of the units of a directory in their .cmx files, against the Rocq model.
+
+No_types: not read: no .cmx file, or one that has no types
+Rejected: this tool stopped with status 2
+With_types: 2 symbols, 0 variables, 2 in the model
+
+In all:
+  1 units not read
+  1 units on which this tool stopped
+  1 units read
+  2 symbols of a unit in its .cmx file
+  2 names in the environments
+  2 different types of a name
+  2 in the model
+  1 at its top, a variant
+  2 the round trip from the model (to the compiler and back): agree
+  2 kind: agree
+  2 get_alias_opt: agree
+  2 is_obviously_bottom: agree
+  2 is_obviously_unknown: agree
+  2 free_variables against free_names, without shadowed bindings: agree
+  2 free_variables includes free_names, with shadowed bindings: agree
+  2 must_be_singleton: agree
+  2 is_alias_of_name, of each name that the type mentions at its top: not run, the type mentions no variable and is no alias
+  2 free_variables, with the variables of what the converter drops, against free_names: agree
+  2 the round trip from the compiler, as printed: agree
+  2 the round trip from the compiler, for the compiler's equality: agree
+  2 the round trip from the compiler, for Type_grammar.equal: agree
+  2 type_well_formed: agree
+  1 at its top, closures
+  1 with a function type that has a rec_info, which is put back for the round trip from the compiler
+
+No disagreement in the units gone through; this tool stopped on 1.

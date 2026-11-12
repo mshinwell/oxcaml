@@ -107,3 +107,66 @@
   (= %{context_name} main))
  (action
   (diff types_of_cmx.expected types_of_cmx.output)))
+
+;; A control of the tool on .cmx files, and of what it counts at the top of a
+;; type. In a directory of their own: a unit compiled as usual; a unit
+;; compiled with -opaque, whose .cmx file has no types and is to be counted
+;; as not read; and a file that is no .cmx file, on which the run of the
+;; tool is to stop and be counted so. The tool then ends with status 3.
+;; What it writes on its other channel, where the loader says why it
+;; stops, is kept apart and is not compared.
+
+(subdir
+ cmx_control
+ (rule
+  (enabled_if
+   (= %{context_name} main))
+  (action
+   (progn
+    (with-stdout-to
+     with_types.ml
+     (echo "let pair x = x, 1\n"))
+    (with-stdout-to
+     no_types.ml
+     (echo "let pair x = x, 1\n"))
+    (with-stdout-to
+     rejected.cmx
+     (echo "This is no .cmx file.\n")))))
+ (rule
+  (enabled_if
+   (= %{context_name} main))
+  (targets with_types.cmx with_types.cmi with_types.o)
+  (action
+   (run %{ocamlopt} -c %{dep:with_types.ml})))
+ (rule
+  (enabled_if
+   (= %{context_name} main))
+  (targets no_types.cmx no_types.cmi no_types.o)
+  (action
+   (run %{ocamlopt} -c -opaque %{dep:no_types.ml}))))
+
+(rule
+ (enabled_if
+  (= %{context_name} main))
+ (deps
+  types_of_compilations.exe
+  cmx_control/with_types.cmx
+  cmx_control/no_types.cmx
+  cmx_control/rejected.cmx)
+ (action
+  (with-stderr-to
+   types_of_cmx_control.stderr
+   (with-stdout-to
+    types_of_cmx_control.output
+    (progn
+     (run ./types_of_compilations.exe -tops)
+     (with-accepted-exit-codes
+      3
+      (run ./types_of_compilations.exe -cmx cmx_control)))))))
+
+(rule
+ (alias runtest)
+ (enabled_if
+  (= %{context_name} main))
+ (action
+  (diff types_of_cmx_control.expected types_of_cmx_control.output)))
