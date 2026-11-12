@@ -107,8 +107,23 @@
    says of it, and is followed by a line that begins "not validated with its
    imports"; the comparison of the two runs shown is then a test and no more,
    and the unit before is run from the empty static environment as well, to say
-   whether the validation with nothing imported is of a term that is
-   undefined.
+   whether the validation with nothing imported is of a term that is undefined.
+
+   The .cmx of other units. The compiler's Simplify reads the .cmx of another
+   unit when it meets a symbol of that unit, and uses what the file says: it
+   puts a closure symbol in the place of a load from the module block of the
+   unit, makes a call direct, inlines a body. The tool's Simplify looks for a
+   .cmx in the directories given with [-I] and in no other ([init_load_path]).
+   The rules of the tests give none, but for the pairs of units of
+   tests/semantics/ocaml/pairs/. Given none, it reads no .cmx and knows nothing
+   of another unit, so the term after that is checked, of a unit that uses
+   another unit, is then not the one that the compiler makes. Given some, the
+   tool names, on a line before the runs, the units whose .cmx its Simplify read
+   ([units_read]). Nothing else changes: the model is told nothing of what a
+   .cmx says. A symbol of another unit is an import whose contents are unknown,
+   the symbol of a closure included, and a code id of another unit is bound to
+   nothing, so that a call of it is undefined when it runs. The verdicts, and
+   what each claims, are those of the paragraph above.
 
    Stubs. The conversion gives code the compiler's flag that says whether it is
    a stub ([Code.stub]). The machine does not read it and the checks of
@@ -2853,7 +2868,40 @@ let validate ~(imports : (Model.symbol * Values.import_class) list)
   | Same_once_lifted ->
     ()
 
-let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
+(* ---- The .cmx of other units ------------------------------------------- *)
+
+(* Where the tool's Simplify looks for the .cmx of another unit: the directories
+   given with [-I] and no other, neither the standard library nor the current
+   directory. *)
+let init_load_path () =
+  Clflags.no_std_include := true;
+  Clflags.no_cwd := true;
+  Compmisc.init_path ()
+
+(* The units whose .cmx file the compilation has read so far, each with the
+   digest of the file. They are what the compiler would record as the imports of
+   the .cmx file of the unit being compiled ([Compilenv]), less those for which
+   it found no file or which are opaque, which have no digest. [Compilenv] gives
+   them only as part of the description of the unit that it would write, so that
+   is built here, of an empty module, and nothing else of it is used. It is
+   asked once, after Simplify has run: the units are then those that Simplify
+   read. With no directory given there is none. *)
+let units_read () : (Compilation_unit.t * Digest.t) list =
+  let infos =
+    Compilenv.build_unit_info
+      ~main_module_block_format:
+        (Lambda.Mb_struct
+           { mb_repr = Lambda.Module_value_only { field_count = 0 } })
+      ~static_data:(Slambda.CU_data.empty ())
+  in
+  List.filter_map
+    (fun import ->
+      match Import_info.crc import with
+      | Some digest -> Some (Import_info.cu import, digest)
+      | None -> None)
+    infos.Cmx_format.ui_imports_cmx
+
+let check ~filename ~units (before : Flambda_unit.t) (after : Flambda_unit.t) =
   match convert_both before after with
   | exception Unsupported what ->
     Format.printf "%s: not checked: the model has not got %s@." filename
@@ -2875,8 +2923,18 @@ let check ~filename (before : Flambda_unit.t) (after : Flambda_unit.t) =
       | _ :: _ :: _ ->
         Printf.sprintf ", with its %d imports" (List.length imports)
     in
-    Format.printf "%s:@.  before Simplify%s (%d steps): %a@." filename
-      with_imports steps_before print_outcome outcome_before;
+    Format.printf "%s:@." filename;
+    (match units with
+    | [] -> ()
+    | _ :: _ ->
+      Format.printf "  the tool's Simplify read the .cmx of: %s@."
+        (String.concat ", "
+           (List.sort String.compare
+              (List.map
+                 (fun (unit, _) -> Compilation_unit.name_as_string unit)
+                 units))));
+    Format.printf "  before Simplify%s (%d steps): %a@." with_imports
+      steps_before print_outcome outcome_before;
     Format.printf "  after Simplify%s (%d steps): %a@." with_imports steps_after
       print_outcome outcome_after;
     let passes ok = if ok then "passes" else "fails" in
@@ -2908,7 +2966,9 @@ let check_file filename =
     named_function_slots := false;
     let unit_info = Parse_flambda.make_unit_info ~filename in
     let comp_unit = Unit_info.modname unit_info in
-    Env.set_current_unit unit_info;
+    (* As the driver does for a unit that it compiles: [Compilenv] reads the
+       .cmx of the other units for the current one. *)
+    Compilenv.reset unit_info;
     let fl2 = Fexpr_to_flambda.conv comp_unit unit in
     let filename_shown = Filename.basename filename in
     if well_formed_before ~filename:filename_shown fl2.unit
@@ -2922,7 +2982,8 @@ let check_file filename =
           ~machine_width:Sixty_four ~code_slot_offsets:fl2.code_slot_offsets
           fl2.unit
       in
-      check ~filename:filename_shown fl2.unit result.flambda
+      check ~filename:filename_shown ~units:(units_read ()) fl2.unit
+        result.flambda
 
 (* The conversion, for the check that takes a term of the model through fexpr
    and back (flroundtrip.ml). *)
@@ -2994,6 +3055,7 @@ let () =
   Clflags.Opt_flag_handler.set Oxcaml_flags.opt_flag_handler;
   Compenv.parse_arguments (ref Sys.argv) defer_file "flsemantics";
   Location.read_clflags_from_env ();
+  init_load_path ();
   (* One unit to a process: the symbols of a unit stay in the tables of the
      compiler, so a second unit that used the name of one would be refused for a
      reason that is not its own. *)
