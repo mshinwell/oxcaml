@@ -439,7 +439,8 @@ tool), delegated by the orchestrator, and:
   calls of C functions once they have a meaning)
 - `middle_end/flambda2/rocq/status/P1.md`
 - `middle_end/flambda2/rocq/requests/P1-floats.md`,
-  `requests/P1-c-calls.md` and `requests/P1-arrays.md`
+  `requests/P1-c-calls.md`, `requests/P1-arrays.md` and
+  `requests/P1-immutable-arrays.md`
 - the section "Arrays" of `FlambdaPrimitiveSpec.v` and of its proofs
   (what the primitives of arrays compute on the elements of an
   array); the cases of arrays in `FlambdaHeapSpec.v` and
