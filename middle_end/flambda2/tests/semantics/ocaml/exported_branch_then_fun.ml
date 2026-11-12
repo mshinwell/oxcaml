@@ -1,5 +1,5 @@
-(* A value chosen by a test when the module runs, and then a function that
-   uses it. *)
+(* A value chosen by a test when the module runs, and then a function that uses
+   it. *)
 
 external ( + ) : int -> int -> int = "%addint"
 
