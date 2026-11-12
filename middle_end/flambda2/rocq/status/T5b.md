@@ -113,8 +113,11 @@ types, inside a join of environments". I do not change that file.
   read off a run of the compiler. T7 has since run them through the
   compiler's join of environments: no unexpected answer in the cases
   compared (the header of the file says how they were run, what the
-  compiler does where the stub makes a variable, and which four were
-  not run). The example of the two mutable blocks was not compared
+  compiler does where the stub makes a variable, and which three
+  were not run; T7 has since run the one of closure types of another
+  kind, where the compiler stops at the fatal error that the
+  transcription has as `None`). The example of the two mutable
+  blocks was not compared
   as it is written (`Heap` and `Local`): `Heap` and `Heap_or_local`
   were compared in its place.
 - Proved on the way, each stated with its proof in
@@ -161,6 +164,8 @@ definition and the first two statements of
   `n_way_join_equations_kinded_statement` with the premise
   `expand_head_equations_kinded`, and
   `n_way_join_of_types_equations_kinded_statement`.
+- To be asked: the sentence of the header of the examples about the
+  example of closure types of another kind, which T7 has run.
 - To be asked: the two premises, the contract and the statement of
   `FlambdaJoinTypesSpec.v` for well-formedness
   (`expand_head_well_formed`,

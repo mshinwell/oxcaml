@@ -64,12 +64,14 @@
    relation. Where one is made for the [Simple]s of an alias that is
    mentioned once, the join of environments puts the join of their
    types in its place. The last example stops the compiler at the
-   [assert false] that it names. The example of the two mutable
-   blocks was not compared as it is written, of the modes [Heap] and
+   [assert false] that it names, and the example of closure types of
+   another kind at the fatal error of the creation function of a
+   product of function slots. The example of the two mutable blocks
+   was not compared as it is written, of the modes [Heap] and
    [Local]: the compiler has no function that makes the mode [Local]
    of a type, and the modes [Heap] and [Heap_or_local] were compared
    in its place. Not run: no type, types of two kinds, the bound on
-   the depth, closure types of another kind.
+   the depth.
 
    The environment side of the examples is a stub: the least that
    lets the traversal run on types whose only aliases are to constants
