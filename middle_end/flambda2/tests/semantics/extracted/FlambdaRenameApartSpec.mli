@@ -89,6 +89,6 @@ val apart_binding :
 
 val apart_code : renaming -> positive list -> code -> positive list * code
 
-val renamed_apart : expr -> expr
+val renamed_apart_avoiding : continuation list -> expr -> expr
 
-val rename_apart : expr -> expr
+val rename_apart_avoiding : continuation list -> expr -> expr

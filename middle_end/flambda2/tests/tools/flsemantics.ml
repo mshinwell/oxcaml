@@ -2037,7 +2037,16 @@ let validate ~(outcome_before : outcome) (before : converted)
          first only if it lifts something, and there are three at most. After
          each, as [validate_unit] does, the value slots of static closures are
          read and what the unit binds its symbols to is used in every round of
-         the normalisation. *)
+         the normalisation. The rounds are told, as [validate_unit] tells them,
+         not to make a name that is one of the two continuations of the unit:
+         every lifting has the unit of the term before, and a name made is the
+         one after the greatest of those to avoid and of the term, so the names
+         made here are those that [validate_unit] makes whatever the number of
+         liftings it is given. *)
+      let avoid =
+        let unit = interface before in
+        [unit.unit_return; unit.unit_exn]
+      in
       let rec liftings_from made lifted remaining =
         let lifting =
           lifting_guess ~unit:(interface before) lifted normalised_after
@@ -2056,7 +2065,7 @@ let validate ~(outcome_before : outcome) (before : converted)
           | None -> List.rev made, lifted
           | Some lifted ->
             liftings_from (lifting :: made)
-              (Validate.normalise_lifted rounds kept lifted)
+              (Validate.normalise_lifted rounds avoid kept lifted)
               (remaining - 1)
       in
       match liftings_from [] before.body 3 with

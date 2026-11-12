@@ -27,6 +27,8 @@ open FlambdaUnusedParamsSpec
 open FlambdaUnusedProjectionsSpec
 open FlambdaUnusedSlotsSpec
 open FlambdaUnusedStaticsSpec
+open FlambdaWellFormedSpec
+open List
 
 val iterate : nat -> (expr -> expr) -> expr -> expr
 
@@ -35,6 +37,9 @@ val normalise_expr_before : expr -> expr
 val normalise_code_before : expr -> expr
 
 val normalise_before_inlined : expr -> expr
+
+val normalise_before_round_avoiding :
+  continuation list -> code_id list -> expr -> expr
 
 val normalise_before_round : code_id list -> expr -> expr
 
@@ -60,11 +65,14 @@ val with_lifting : lifting -> expr -> expr
 
 val with_known : expr -> expr
 
-val normalise_lifted_round : code_id list -> expr -> expr
+val normalise_lifted_round : continuation list -> code_id list -> expr -> expr
 
-val normalise_lifted : nat -> code_id list -> expr -> expr
+val normalise_lifted : nat -> continuation list -> code_id list -> expr -> expr
 
-val lifted_in_turn : nat -> lifting list -> code_id list -> expr -> expr
+val unit_continuations : lifting list -> continuation list
+
+val lifted_in_turn :
+  nat -> continuation list -> lifting list -> code_id list -> expr -> expr
 
 val without_slots : value_slot list -> expr -> expr
 

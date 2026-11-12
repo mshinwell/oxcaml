@@ -304,13 +304,16 @@ and apart_code r news = function
           metadata,
           body' ) )
 
-(** val renamed_apart : expr -> expr **)
+(** val renamed_apart_avoiding : continuation list -> expr -> expr **)
 
-let renamed_apart e =
-  snd (apart identity_renaming (fresh_names (binders e) (names_of e)) e)
+let renamed_apart_avoiding avoid e =
+  snd
+    (apart identity_renaming
+       (fresh_names (binders e) (app avoid (names_of e)))
+       e)
 
-(** val rename_apart : expr -> expr **)
+(** val rename_apart_avoiding : continuation list -> expr -> expr **)
 
-let rename_apart e =
-  let e' = renamed_apart e in
+let rename_apart_avoiding avoid e =
+  let e' = renamed_apart_avoiding avoid e in
   if expr_eqb [] [] e e' then e' else e

@@ -27,6 +27,8 @@ open FlambdaUnusedParamsSpec
 open FlambdaUnusedProjectionsSpec
 open FlambdaUnusedSlotsSpec
 open FlambdaUnusedStaticsSpec
+open FlambdaWellFormedSpec
+open List
 
 (** val iterate : nat -> (expr -> expr) -> expr -> expr **)
 
@@ -64,11 +66,17 @@ let normalise_before_inlined e =
   rewrite_code normalise_code_before
     (merge_statics (drop_deleted_code (normalise_code_before e)))
 
+(** val normalise_before_round_avoiding : continuation list -> code_id list ->
+    expr -> expr **)
+
+let normalise_before_round_avoiding avoid kept e =
+  normalise_before_inlined
+    (rename_apart_avoiding avoid
+       (inline_sibling_calls kept (inline_calls kept [] e)))
+
 (** val normalise_before_round : code_id list -> expr -> expr **)
 
-let normalise_before_round kept e =
-  normalise_before_inlined
-    (rename_apart (inline_sibling_calls kept (inline_calls kept [] e)))
+let normalise_before_round kept e = normalise_before_round_avoiding [] kept e
 
 (** val normalise_expr_params : expr -> expr **)
 
@@ -151,26 +159,34 @@ let with_lifting l e = match lift_unit l e with Some e' -> e' | None -> e
 
 let with_known e = match fold_known_unit e with Some e' -> e' | None -> e
 
-(** val normalise_lifted_round : code_id list -> expr -> expr **)
+(** val normalise_lifted_round : continuation list -> code_id list -> expr ->
+    expr **)
 
-let normalise_lifted_round kept e =
-  with_known (use_known_closures (normalise_before_round kept e))
+let normalise_lifted_round avoid kept e =
+  with_known (use_known_closures (normalise_before_round_avoiding avoid kept e))
 
-(** val normalise_lifted : nat -> code_id list -> expr -> expr **)
+(** val normalise_lifted : nat -> continuation list -> code_id list -> expr ->
+    expr **)
 
-let normalise_lifted rounds kept e =
+let normalise_lifted rounds avoid kept e =
   iterate rounds
-    (normalise_lifted_round kept)
+    (normalise_lifted_round avoid kept)
     (iterate rounds normalise_params_round e)
 
-(** val lifted_in_turn : nat -> lifting list -> code_id list -> expr -> expr **)
+(** val unit_continuations : lifting list -> continuation list **)
 
-let rec lifted_in_turn rounds ls kept e =
+let unit_continuations ls =
+  flat_map (fun l -> [l.lifting_unit.unit_return; l.lifting_unit.unit_exn]) ls
+
+(** val lifted_in_turn : nat -> continuation list -> lifting list -> code_id
+    list -> expr -> expr **)
+
+let rec lifted_in_turn rounds avoid ls kept e =
   match ls with
   | [] -> e
   | l :: ls0 ->
-    lifted_in_turn rounds ls0 kept
-      (normalise_lifted rounds kept (with_lifting l e))
+    lifted_in_turn rounds avoid ls0 kept
+      (normalise_lifted rounds avoid kept (with_lifting l e))
 
 (** val without_slots : value_slot list -> expr -> expr **)
 
@@ -213,7 +229,9 @@ let validate_unit rounds unused slots ls kept before after =
            (float_code (with_code_first after0))
            (float_code
               (without_statics unused
-                 (without_slots slots (lifted_in_turn rounds ls kept before)))))
+                 (without_slots slots
+                    (lifted_in_turn rounds (unit_continuations ls) ls kept
+                       before)))))
         (float_code (with_code_first after0))
     then Same_once_lifted
     else Not_validated
