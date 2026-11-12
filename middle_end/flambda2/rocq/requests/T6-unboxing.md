@@ -445,7 +445,8 @@ it does not cover".
    term shows the primitive to give, if it is of the kind of the
    `Let`; the field of a block that a `Let` in scope made, for a load
    at the kind of values; the number in a box that a `Let` in scope
-   made, for the unboxing of such a box at the kind of the number
+   made, for the unboxing of such a box at the kind of the number, or
+   the number that a `Let` in scope tagged, for the untagging
    (`made_number`); or, where the term shows that the primitive has no
    value on the argument for the parameter read, that constant
    again. The primitive is known to have no value
