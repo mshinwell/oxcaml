@@ -2016,6 +2016,15 @@ Proof.
   rewrite rename_typing_env_inverse in H. exact H.
 Qed.
 
+Theorem types_well_formed_b_rename : types_well_formed_b_rename_statement.
+Proof.
+  intros r tenv. apply Bool.eq_true_iff_eq.
+  exact
+    (iff_trans (types_well_formed_b_iff (rename_typing_env r tenv))
+       (iff_trans (types_well_formed_rename r tenv)
+          (iff_sym (types_well_formed_b_iff tenv)))).
+Qed.
+
 (* ======================================================================== *)
 (* The kinds of a renamed environment                                       *)
 (* ======================================================================== *)

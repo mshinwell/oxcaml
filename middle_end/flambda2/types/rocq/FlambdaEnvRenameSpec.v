@@ -100,8 +100,8 @@
    - the renamed environment has the invariant of
      FlambdaTypingEnvInvariantSpec.v exactly when the environment has
      it, and the test of the invariant answers the same of the two; the
-     same of its types being well formed, and of its being kinded, in
-     the two senses of FlambdaTypingEnvKindedSpec.v.
+     same of its types being well formed, with the test of that, and of
+     its being kinded, in the two senses of FlambdaTypingEnvKindedSpec.v.
 
    Each statement about a function is an equation and holds of every
    level or environment: nothing is asked of it, its invariant
@@ -763,6 +763,11 @@ Definition typing_env_invariant_rename_statement : Prop :=
 Definition types_well_formed_rename_statement : Prop :=
   ∀ (r : renaming) (tenv : Typing_env.t),
     types_well_formed (rename_typing_env r tenv) <-> types_well_formed tenv.
+
+(* The test of that condition answers the same of the two. *)
+Definition types_well_formed_b_rename_statement : Prop :=
+  ∀ (r : renaming) (tenv : Typing_env.t),
+    types_well_formed_b (rename_typing_env r tenv) = types_well_formed_b tenv.
 
 (* ======================================================================== *)
 (* The kinds of a renamed environment                                       *)
