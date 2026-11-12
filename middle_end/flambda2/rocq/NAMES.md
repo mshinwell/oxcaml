@@ -488,8 +488,11 @@ actions among them; the check of kinds; the passes for loops
 `FlambdaLoopAliasesSpec.v`, `FlambdaLoopifySpec.v`, those of the
 second series, `FlambdaParamAliasesSpec.v`, `FlambdaForwardSpec.v`,
 `FlambdaInlineTailSpec.v`, `FlambdaLoopLetsSpec.v`, and that of the
-third, `FlambdaDeadParamsSpec.v`); the removal, in the body of code,
-of the unused `Let`s of its parameters (`FlambdaCodeLetsSpec.v`); the
+third, `FlambdaDeadParamsSpec.v`); the forwarding, in the term
+after, of an application of a continuation of no parameters whose
+handler only applies another (`FlambdaForwardJumpsSpec.v`); the
+removal, in the body of code, of the unused `Let`s of its parameters
+(`FlambdaCodeLetsSpec.v`); the
 test for inlining a call that gives tupled code a tuple; the demotion
 of exception handlers with the rounds that tidy after it
 (`demote_and_tidy`); the normalisation of the term after and the
