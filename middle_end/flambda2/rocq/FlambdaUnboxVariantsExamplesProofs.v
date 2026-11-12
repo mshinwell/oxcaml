@@ -138,5 +138,15 @@ Proof. vm_compute. reflexivity. Qed.
 Theorem either_heap_refines : either_heap_refines_statement.
 Proof. exact (validated_refines 5 _ _ either_heap_validated). Qed.
 
+Theorem int64_option_heap_validated : int64_option_heap_validated_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem int64_option_heap_not_validated_today :
+  int64_option_heap_not_validated_today_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem int64_option_heap_refines : int64_option_heap_refines_statement.
+Proof. exact (validated_refines 5 _ _ int64_option_heap_validated). Qed.
+
 Theorem earlier_examples_validated : earlier_examples_validated_statement.
 Proof. split; vm_compute; reflexivity. Qed.

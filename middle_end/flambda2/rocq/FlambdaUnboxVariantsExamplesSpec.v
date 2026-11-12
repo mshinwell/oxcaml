@@ -26,7 +26,7 @@
  ******************************************************************************)
 
 
-(* Six bodies of code in which Simplify unboxed a variant that is the
+(* Seven bodies of code in which Simplify unboxed a variant that is the
    parameter of a join, and the validation of each once
    [unbox_variant_params] is in the round of the term before.
 
@@ -106,6 +106,27 @@
    because the branch of [Right] gives the tag 1, with which the
    handler does not come to the continuation of [Left]
    (FlambdaUnboxVariantsSpec.never_reads).
+
+   [int64_option_heap] is
+
+     let[@inline never] f : bool -> int64 -> int64 =
+      fun c x ->
+       let v = if c then Some (add x 1L) else None in
+       match on_heap v with None -> 0L | Some y -> add y 2L
+
+   with the arithmetic of %int64_add. The branch of [Some] boxes a
+   number and makes the block of it; the continuation of the [let]
+   loads the field and unboxes it. Simplify unboxes the option and then
+   the number: the continuation gets whether the value is an immediate
+   and the number, the branch of [Some] gives the number that it
+   computed, and boxes nothing, and the branch of [None] gives [poison]
+   of the kind of the number. On the term before, the field is first
+   made a parameter, and then its unboxing, which is under the test:
+   the branch of [Some] gives the number in the box that it made
+   (FlambdaUnboxVariantsSpec.made_number). The two constants [1L] and
+   [2L] are symbols that the unit binds to boxed numbers, which the
+   body unboxes; they are written here as the numbers, and the boxed
+   [0L] that the branch of [None] returns as the symbol 1.
 
    The bodies are those of the function of each source: the body
    before Simplify and the body after. They are written by hand from
@@ -623,6 +644,77 @@ Definition either_heap_not_validated_today_statement : Prop :=
 
 Definition either_heap_refines_statement : Prop :=
   expr_refines either_heap_before either_heap_after.
+
+(* ======================================================================== *)
+(* An option of a boxed number                                              *)
+(* ======================================================================== *)
+
+Definition poison_int64 : simple := Const (Poison naked_int64).
+
+Definition int64_option_heap_before : expr :=
+  Let_cont_non_recursive 2
+    (Handler [3] (make_handler_metadata [Value])
+       (Let_cont_non_recursive 5
+          (Handler [] (make_handler_metadata [])
+             (Let 4 Value (field 0 3)
+                (Let 12 naked_int64 (unbox_int64 (Var 4))
+                   (Let 13 naked_int64
+                      (int64_arith Add (Var 12) (Const (Naked_int64 2)))
+                      (Let 5 Value (box_int64 (Var 13))
+                         (Apply_cont (jump 1 [Var 5])))))))
+          (Let 6 naked_immediate (is_int (Var 3))
+             (Let 7 Value (tag_immediate (Var 6))
+                (Let_cont_non_recursive 6
+                   (Handler [] (make_handler_metadata [])
+                      (Apply_cont (jump 5 [])))
+                   (Let 8 naked_immediate (untag (Var 7))
+                      (Switch (Var 8)
+                         [(0%Z, jump 6 []); (1%Z, jump 1 [Symbol 1])])))))))
+    (Let_cont_non_recursive 3
+       (Handler [] (make_handler_metadata [])
+          (Let 14 naked_int64 (unbox_int64 (Var 2))
+             (Let 15 naked_int64
+                (int64_arith Add (Var 14) (Const (Naked_int64 1)))
+                (Let 9 Value (box_int64 (Var 15))
+                   (Let 10 Value (block_of_one (Var 9))
+                      (Apply_cont (jump 2 [Var 10])))))))
+       (Let_cont_non_recursive 4
+          (Handler [] (make_handler_metadata []) (Apply_cont (jump 3 [])))
+          (Let 11 naked_immediate (untag (Var 1))
+             (Switch (Var 11) [(0%Z, jump 2 [tagged 0]); (1%Z, jump 4 [])])))).
+
+Definition int64_option_heap_after : expr :=
+  Let_cont_non_recursive 2
+    (Handler [6; 12] (make_handler_metadata [naked_immediate; naked_int64])
+       (Let_cont_non_recursive 5
+          (Handler [] (make_handler_metadata [])
+             (Let 13 naked_int64
+                (int64_arith Add (Var 12) (Const (Naked_int64 2)))
+                (Let 5 Value (box_int64 (Var 13))
+                   (Apply_cont (jump 1 [Var 5])))))
+          (Switch (Var 6) [(0%Z, jump 5 []); (1%Z, jump 1 [Symbol 1])])))
+    (Let_cont_non_recursive 3
+       (Handler [] (make_handler_metadata [])
+          (Let 14 naked_int64 (unbox_int64 (Var 2))
+             (Let 15 naked_int64
+                (int64_arith Add (Var 14) (Const (Naked_int64 1)))
+                (Apply_cont (jump 2 [naked 0; Var 15])))))
+       (Let 11 naked_immediate (untag (Var 1))
+          (Switch (Var 11)
+             [(0%Z, jump 2 [naked 1; poison_int64]); (1%Z, jump 3 [])]))).
+
+Definition int64_option_heap_validated_statement : Prop :=
+  expr_eqb [] [] (iterate 5 round_with_variants int64_option_heap_before)
+    int64_option_heap_after
+  = true.
+
+Definition int64_option_heap_not_validated_today_statement : Prop :=
+  expr_eqb [] [] (iterate 5 normalise_expr_before int64_option_heap_before)
+    int64_option_heap_after
+  = false.
+
+Definition int64_option_heap_refines_statement : Prop :=
+  expr_refines int64_option_heap_before int64_option_heap_after.
 
 (* ======================================================================== *)
 (* The bodies of the other file                                             *)
