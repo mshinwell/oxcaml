@@ -1789,10 +1789,21 @@ A control: two joins that differ only in what a variable bound by one use is kno
   the target of the model for the one and of the compiler for the other are told apart: yes
   the targets of the model and of the compiler for the one are the same: yes
 
+A control: two joins that differ only in which of two uses passes which of two blocks (4 and 4, 5 and 5)
+  the two targets of the compiler are the same: yes
+  a variable is created at the join and a name is refined at it: yes
+  what is read of the two analyses of the compiler is told apart: yes
+  what is read of the two analyses of the model is told apart: yes
+  what is read of the analysis of the model for the one and of the compiler for the other is told apart: yes
+  what is read of the analyses of the model and of the compiler for the one is the same: yes
+
 Two or three types of kind value, for the join of the model and the n-way join of the compiler (1000 cases, seeds 100000 to 100999)
   1000 converted
   join: the model and the n-way join of the compiler: 1000 agree
   of which those where a variable that was made is mentioned: 133 agree
+  the analysis of the join, where the two targets are the same: 1000 agree
+  of which those where a variable was created at the join: 162 agree
+  of which those where a name is refined at the join: 162 agree
   join: the model and the binary join of the compiler: 829 agree, 171 disagree as recorded
     recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 100003): what is seen of the two answers is not the same
     on the shrunk input:
@@ -1804,6 +1815,9 @@ Two or three types of naked immediates, for the join of the model and the n-way 
   500 converted
   join: the model and the n-way join of the compiler: 500 agree
   of which those where a variable that was made is mentioned: 0 agree
+  the analysis of the join, where the two targets are the same: 500 agree
+  of which those where a variable was created at the join: 51 agree
+  of which those where a name is refined at the join: 51 agree
   join: the model and the binary join of the compiler: 481 agree, 19 disagree as recorded
     recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 102028): what is seen of the two answers is not the same
     on the shrunk input:
@@ -1815,6 +1829,9 @@ Two or three uses that know equations on variables and pass a type of kind value
   1000 converted
   join: the model and the n-way join of the compiler: 1000 agree
   of which those where a variable that was made is mentioned: 130 agree
+  the analysis of the join, where the two targets are the same: 1000 agree
+  of which those where a variable was created at the join: 183 agree
+  of which those where a name is refined at the join: 173 agree
   join: the model and the binary join of the compiler: 566 agree, 434 disagree as recorded
     recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 104001): what is seen of the two answers is not the same
     on the shrunk input:
@@ -1826,6 +1843,9 @@ Two or three uses that know equations on variables and pass a type of naked imme
   500 converted
   join: the model and the n-way join of the compiler: 500 agree
   of which those where a variable that was made is mentioned: 32 agree
+  the analysis of the join, where the two targets are the same: 500 agree
+  of which those where a variable was created at the join: 81 agree
+  of which those where a name is refined at the join: 76 agree
   join: the model and the binary join of the compiler: 334 agree, 166 disagree as recorded
     recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 106000): what is seen of the two answers is not the same
     on the shrunk input:
@@ -1843,6 +1863,9 @@ Two or three uses, of which some bind a variable and pass it or a block that hol
   1000 converted
   join: the model and the n-way join of the compiler: 1000 agree
   of which those where a variable that was made is mentioned: 207 agree
+  the analysis of the join, where the two targets are the same: 1000 agree
+  of which those where a variable was created at the join: 235 agree
+  of which those where a name is refined at the join: 235 agree
   join: the model and the binary join of the compiler: 727 agree, 273 disagree as recorded
     recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 108004): what is seen of the two answers is not the same
     on the shrunk input:
@@ -1854,6 +1877,9 @@ The same with uses that know equations on variables, for the join of the model a
   1000 converted
   join: the model and the n-way join of the compiler: 1000 agree
   of which those where a variable that was made is mentioned: 135 agree
+  the analysis of the join, where the two targets are the same: 1000 agree
+  of which those where a variable was created at the join: 195 agree
+  of which those where a name is refined at the join: 177 agree
   join: the model and the binary join of the compiler: 548 agree, 452 disagree as recorded
     recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 110000): what is seen of the two answers is not the same
     on the shrunk input:
@@ -1876,6 +1902,9 @@ Two or three uses that pass a type of kind value and smaller types made from it,
   join: the model and the n-way join of the compiler: 1490 agree
     1 not run: neither answers (the model: no answer of the join; the compiler: a fatal error: Kind mismatch upon join:)
   of which those where a variable that was made is mentioned: 4 agree
+  the analysis of the join, where the two targets are the same: 1490 agree
+  of which those where a variable was created at the join: 4 agree
+  of which those where a name is refined at the join: 4 agree
   join: the model and the binary join of the compiler: 1272 agree, 218 disagree as recorded
     1 not run: neither answers
     recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 118012): what is seen of the two answers is not the same
@@ -1891,6 +1920,9 @@ The same with uses that know equations on variables, for the join of the model a
   994 converted
   join: the model and the n-way join of the compiler: 994 agree
   of which those where a variable that was made is mentioned: 60 agree
+  the analysis of the join, where the two targets are the same: 994 agree
+  of which those where a variable was created at the join: 92 agree
+  of which those where a name is refined at the join: 87 agree
   join: the model and the binary join of the compiler: 643 agree, 351 disagree as recorded
     recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 120000): what is seen of the two answers is not the same
     on the shrunk input:
@@ -1932,6 +1964,9 @@ Two or three uses that each pass a smaller type made from one type of kind value
   991 converted
   join: the model and the n-way join of the compiler: 991 agree
   of which those where a variable that was made is mentioned: 5 agree
+  the analysis of the join, where the two targets are the same: 991 agree
+  of which those where a variable was created at the join: 5 agree
+  of which those where a name is refined at the join: 5 agree
   join: the model and the binary join of the compiler: 871 agree, 120 disagree as recorded
     recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 128002): what is seen of the two answers is not the same
     on the shrunk input:
@@ -1965,6 +2000,9 @@ The same with uses that know equations on variables, for the join of the model a
   join: the model and the n-way join of the compiler: 986 agree
     1 not run: neither answers (the model: no answer of the join; the compiler: a fatal error: Kind mismatch upon join: (Naked_float ([Nm[N;N;N;Nm=[Nm [Nm[N;N;N;Nmf/NN[Nm)) versus)
   of which those where a variable that was made is mentioned: 56 agree
+  the analysis of the join, where the two targets are the same: 986 agree
+  of which those where a variable was created at the join: 85 agree
+  of which those where a name is refined at the join: 82 agree
   join: the model and the binary join of the compiler: 645 agree, 341 disagree as recorded
     1 not run: neither answers
     recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 130001): what is seen of the two answers is not the same
@@ -1980,6 +2018,9 @@ Two or three uses that pass closure types of one set of closures with two functi
   1000 converted
   join: the model and the n-way join of the compiler: 1000 agree
   of which those where a variable that was made is mentioned: 0 agree
+  the analysis of the join, where the two targets are the same: 1000 agree
+  of which those where a variable was created at the join: 0 agree
+  of which those where a name is refined at the join: 0 agree
   join: the model and the binary join of the compiler: 891 agree, 109 disagree as recorded
     recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 144008): what is seen of the two answers is not the same
     on the shrunk input:
@@ -2009,6 +2050,9 @@ The same with uses that know equations on variables, for the join of the model a
   1000 converted
   join: the model and the n-way join of the compiler: 1000 agree
   of which those where a variable that was made is mentioned: 55 agree
+  the analysis of the join, where the two targets are the same: 1000 agree
+  of which those where a variable was created at the join: 100 agree
+  of which those where a name is refined at the join: 88 agree
   join: the model and the binary join of the compiler: 646 agree, 354 disagree as recorded
     recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 146001): what is seen of the two answers is not the same
     on the shrunk input:
@@ -2022,6 +2066,9 @@ Two or three uses, of which most bind a naked immediate that holds a relation on
   1000 converted
   join: the model and the n-way join of the compiler: 1000 agree
   of which those where a variable that was made is mentioned: 243 agree
+  the analysis of the join, where the two targets are the same: 1000 agree
+  of which those where a variable was created at the join: 336 agree
+  of which those where a name is refined at the join: 336 agree
   join: the model and the binary join of the compiler: 591 agree, 409 disagree as recorded
     recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 140000): what is seen of the two answers is not the same
     on the shrunk input:
@@ -2041,6 +2088,9 @@ The same with uses that know equations on variables, for the join of the model a
   1000 converted
   join: the model and the n-way join of the compiler: 1000 agree
   of which those where a variable that was made is mentioned: 178 agree
+  the analysis of the join, where the two targets are the same: 1000 agree
+  of which those where a variable was created at the join: 246 agree
+  of which those where a name is refined at the join: 237 agree
   join: the model and the binary join of the compiler: 400 agree, 600 disagree as recorded
     recorded as T7-3, the binary join, which the model does not transcribe, answers otherwise (seed 142001): what is seen of the two answers is not the same
     on the shrunk input:

@@ -1465,9 +1465,10 @@ let join (names : names) (implementation : implementation) ?known ?locals
   joined_of_env names env parameter
 
 (* What is printed, with the variables numbered above a threshold named [e0],
-   [e1], ... in the order they come. *)
-let rename_variables_above (threshold : int) (printed : string) : string =
-  let own = Hashtbl.create 4 in
+   [e1], ... in the order they come. [own] is the table of those names: given
+   again, it goes on with a second text where the first left it. *)
+let rename_variables_above ?(own = Hashtbl.create 4) (threshold : int)
+    (printed : string) : string =
   let buffer = Buffer.create (String.length printed) in
   let is_digit c = c >= '0' && c <= '9' in
   let length = String.length printed in
@@ -4339,6 +4340,7 @@ module Model_join_meet = Flambda2_rocq_semantics.FlambdaJoinMeet
 module Model_join_env = Flambda2_rocq_semantics.FlambdaJoinEnv.Join_env
 module Model_name_mode = Flambda2_rocq_semantics.FlambdaBindingTime.Name_mode
 module Model_join_spec = Flambda2_rocq_semantics.FlambdaJoinSpec
+module Model_analysis = Flambda2_rocq_semantics.FlambdaJoinEnv.Analysis
 
 type model =
   { meet_of_model :
@@ -4351,7 +4353,8 @@ type model =
     add_relation_of_model :
       MT.Relation.t -> Model_env.t -> MT.name -> M.simple -> Model_env.t option;
     (* The join of environments, for the tests of the join below. *)
-    join_of_model : unit Model_join_spec.join_of_environments
+    (* The uses are given their positions for names. *)
+    join_of_model : int Model_join_spec.join_of_environments
   }
 
 (* The choices of the model: the compiler's, or those of the meet and of the
@@ -4550,7 +4553,7 @@ let seen_in_the_compiler (numbering : Model_names.t) ~threshold
 
 (* What is seen, as printed, with the variables numbered above the threshold
    renamed in the order in which they come. *)
-let print_seen ~threshold (seen : seen) : string =
+let print_seen ?own ~threshold (seen : seen) : string =
   let print ppf t = Model_type.print ppf (Model_type.normalise t) in
   let print_type ppf (t : MT.flambda_type option) =
     match t with
@@ -4561,7 +4564,7 @@ let print_seen ~threshold (seen : seen) : string =
   | Nothing_seen why -> "no answer: " ^ why
   | Bottom_seen -> "the meet is bottom"
   | Seen { answer; env_is_bottom; of_names; of_others } ->
-    rename_variables_above threshold
+    rename_variables_above ?own threshold
       (Format.asprintf "@[<v>%a%s%a%a@]"
          (fun ppf (answer : MT.flambda_type option) ->
            match answer with
@@ -5588,7 +5591,217 @@ let generate_join_of_relations (names : names) ~(known : bool) r :
        else [first; second])
   }
 
-let join_in_the_model (names : names) (model : model)
+(* What is read of the analysis that a join answers with its target, by the two
+   functions that Simplify reads it with
+   ([Join_env.Analysis.simple_refined_at_join] and
+   [fold_variables_created_at_join]) and by their transcriptions. The uses are
+   named by their positions. *)
+type refined =
+  | Not_refined
+  | Invariant of M.simple
+  (* At each use, the constant that the name is there, if it is one. *)
+  | Refined of (int * M.const option) list
+  (* The model's reader has no answer: a fatal error of the compiler's. *)
+  | No_reading
+
+type analysis_read =
+  { (* What the join did to each name asked that the target defines, and to each
+       variable that the join made and what is seen reaches. *)
+    refined : (MT.name * refined) list;
+    (* The variables created at the join, each with what may stand for it at
+       each use and its kind. *)
+    created : (M.variable * (int * M.simple) list option * MK.flambda_kind) list
+  }
+
+let by_use uses = List.sort (fun (i, _) (j, _) -> Int.compare i j) uses
+
+(* The names of which the analysis is asked: those asked of the target, and the
+   variables that the join made which what is seen reaches. *)
+let names_asked_of_an_analysis (asked : MT.name list) (seen : seen) :
+    MT.name list =
+  asked
+  @
+  match seen with
+  | Seen { of_others; _ } ->
+    List.map
+      (fun (x, (_ : MT.flambda_type option)) : MT.name -> Name_var x)
+      of_others
+  | Nothing_seen _ | Bottom_seen -> []
+
+let analysis_of_the_model (asked : MT.name list) (seen : seen)
+    (target : Model_env.t) (analysis : int Model_analysis.t) : analysis_read =
+  let refined =
+    List.filter_map
+      (fun name ->
+        if not (Model_env.mem None target name)
+        then None
+        else
+          let refined =
+            match
+              Model_analysis.simple_refined_at_join_of analysis target
+                (MT.simple_of_name name)
+            with
+            | Not_refined_at_join -> Not_refined
+            | Invariant_in_all_uses simple -> Invariant simple
+            | Variable_refined_at_these_uses (canonicals, (_ : MK.flambda_kind))
+              -> (
+              match
+                Model_analysis.values_at_uses analysis.external_ids canonicals
+              with
+              | Some values ->
+                Refined
+                  (by_use
+                     (List.map
+                        (fun (use, (value : M.const MT.Or_unknown.t)) ->
+                          ( use,
+                            match value with
+                            | Known const -> Some const
+                            | Unknown -> None ))
+                        values))
+              | None -> No_reading)
+          in
+          Some (name, refined))
+      (names_asked_of_an_analysis asked seen)
+  in
+  let created =
+    List.map
+      (fun ((x, simples), kind) ->
+        ( x,
+          Option.map by_use
+            (Model_analysis.definitions_at_uses analysis.external_ids simples),
+          kind ))
+      (Model_analysis.variables_created_at_join analysis)
+  in
+  { refined; created }
+
+let analysis_of_the_compiler (names : names) (asked : MT.name list)
+    (seen : seen) (target : TE.t) (analysis : int N_way_join.Analysis.t) :
+    analysis_read =
+  let numbering = names.numbering in
+  let refined =
+    List.filter_map
+      (fun name ->
+        let of_the_compiler = Converter.name_of_model numbering name in
+        if not (TE.mem target of_the_compiler)
+        then None
+        else
+          let refined =
+            match
+              N_way_join.Analysis.simple_refined_at_join analysis target
+                (Simple.name of_the_compiler)
+            with
+            | Not_refined_at_join -> Not_refined
+            | Invariant_in_all_uses simple ->
+              Invariant (Converter.simple_to_model numbering simple)
+            | Variable_refined_at_these_uses at_uses ->
+              Refined
+                (by_use
+                   (N_way_join.Analysis.Variable_refined_at_join
+                    .fold_values_at_uses
+                      (fun use (value : Reg_width_const.t Or_unknown.t) values
+                         ->
+                        ( use,
+                          match value with
+                          | Known const -> Some (Converter.const_to_model const)
+                          | Unknown -> None )
+                        :: values)
+                      at_uses []))
+          in
+          Some (name, refined))
+      (names_asked_of_an_analysis asked seen)
+  in
+  let created =
+    N_way_join.Analysis.fold_variables_created_at_join analysis ~init:[]
+      ~f:(fun name simples kind created ->
+        let x =
+          Name.pattern_match name ~var:(Converter.variable_to_model numbering)
+            ~symbol:(fun (_ : Symbol.t) ->
+              Misc.fatal_error "a symbol among the variables created at a join")
+        in
+        let definitions =
+          N_way_join.Analysis.Simples_at_join.fold_definitions_at_uses
+            (fun use (At_normal_mode simple) definitions ->
+              (use, Converter.simple_to_model numbering simple) :: definitions)
+            simples []
+        in
+        (x, Some (by_use definitions), Converter.kind_to_model kind) :: created)
+  in
+  { refined; created }
+
+(* What is read of an analysis, as text, after what is seen of the target: the
+   variables that the join made have the names that they have there. The
+   variables created come in the order of those names, and those that what is
+   seen does not reach after them, in the order of what is read of them. *)
+let print_analysis ~threshold (seen : seen)
+    ({ refined; created } : analysis_read) : string =
+  let own = Hashtbl.create 4 in
+  let (_ : string) = print_seen ~own ~threshold seen in
+  let print_uses print ppf uses =
+    Format.pp_print_list
+      ~pp_sep:(fun ppf () -> Format.pp_print_string ppf "; ")
+      (fun ppf (use, x) -> Format.fprintf ppf "at use %d %a" use print x)
+      ppf uses
+  in
+  let print_refined ppf (refined : refined) =
+    match refined with
+    | Not_refined -> Format.pp_print_string ppf "not refined at the join"
+    | Invariant simple ->
+      Format.fprintf ppf "the same at every use, %a" Model_type.print_simple
+        simple
+    | Refined values ->
+      print_uses
+        (fun ppf (value : M.const option) ->
+          match value with
+          | Some const -> Model_type.print_const ppf const
+          | None -> Format.pp_print_string ppf "no constant")
+        ppf values
+    | No_reading -> Format.pp_print_string ppf "no answer"
+  in
+  let of_the_names =
+    List.map
+      (fun (name, refined) ->
+        Format.asprintf "%a: %a" Model_type.print_name name print_refined
+          refined)
+      refined
+  in
+  let what_is_read (definitions, kind) =
+    Format.asprintf "of kind %a, %a" Model_type.print_kind kind
+      (fun ppf (definitions : (int * M.simple) list option) ->
+        match definitions with
+        | Some definitions -> print_uses Model_type.print_simple ppf definitions
+        | None -> Format.pp_print_string ppf "no answer")
+      definitions
+  in
+  let place x =
+    Option.bind (N.int_of_positive x) (fun number ->
+        if number <= threshold
+        then Some number
+        else
+          Option.map (fun i -> threshold + 1 + i) (Hashtbl.find_opt own number))
+  in
+  let created =
+    List.sort
+      (fun (x, read) (x', read') ->
+        match place x, place x' with
+        | Some i, Some j -> Int.compare i j
+        | Some _, None -> -1
+        | None, Some _ -> 1
+        | None, None -> String.compare read read')
+      (List.map
+         (fun (x, definitions, kind) -> x, what_is_read (definitions, kind))
+         created)
+  in
+  let of_the_created =
+    List.map
+      (fun (x, read) ->
+        Format.asprintf "created: %a %s" Model_type.print_variable x read)
+      created
+  in
+  rename_variables_above ~own threshold
+    (String.concat "\n" (of_the_names @ of_the_created))
+
+let join_in_the_model ?(read = fun _ _ _ _ -> ()) (names : names)
+    (model : model)
     ({ kind_of_parameter = kind; for_types_at_source; at_uses } as input :
       join_at_a_continuation) : seen =
   let model_env, defined = env_of_model names in
@@ -5631,17 +5844,22 @@ let join_in_the_model (names : names) (model : model)
       model.join_of_model avoid
         { source;
           cut_after = Model_env.current_scope source;
-          uses = List.filter_map (Option.map (fun env -> (), env)) uses
+          uses = List.mapi (fun i env -> i, env) (List.filter_map Fun.id uses)
         }
     with
     | None -> Nothing_seen "no answer of the join"
-    | Some (target, _) ->
-      seen_in_the_model ~threshold:names.variables_with_a_name
-        (defined @ names_asked_of_a_join input parameter)
-        None target
+    | Some (target, analysis) ->
+      let asked = defined @ names_asked_of_a_join input parameter in
+      let seen =
+        seen_in_the_model ~threshold:names.variables_with_a_name asked None
+          target
+      in
+      read asked seen target analysis;
+      seen
 
 (* The same in the compiler. The conversion of the inputs may refuse them. *)
-let join_in_the_compiler (names : names) (implementation : implementation)
+let join_in_the_compiler ?(read = fun _ _ _ -> ()) (names : names)
+    (implementation : implementation)
     ({ kind_of_parameter = kind; for_types_at_source; at_uses } as input :
       join_at_a_continuation) : seen =
   let (_ : Model_env.t), defined = env_of_model names in
@@ -5672,17 +5890,72 @@ let join_in_the_compiler (names : names) (implementation : implementation)
             ~locals:(List.nth locals) ~in_types kind types
         with
         | env, parameter ->
-          seen_in_the_compiler names.numbering
-            ~threshold:names.variables_with_a_name
-            (defined
+          let asked =
+            defined
             @ names_asked_of_a_join input
-                (names.numbering.variables.number parameter))
-            None env
+                (names.numbering.variables.number parameter)
+          in
+          let seen =
+            seen_in_the_compiler names.numbering
+              ~threshold:names.variables_with_a_name asked None env
+          in
+          read asked seen env;
+          seen
         | exception Assert_failure (file, _, _) ->
           Nothing_seen ("an assertion of " ^ Filename.basename file ^ " fails"))
   with
   | Ok seen -> seen
   | Error line -> Nothing_seen ("a fatal error: " ^ general line)
+
+(* A join in the model, and in the compiler with its n-way join, each with what
+   is read of the analysis that the join answers, where it answers. *)
+let join_and_analysis_in_the_model (names : names) (model : model)
+    (input : join_at_a_continuation) : seen * analysis_read option =
+  let of_the_model = ref None in
+  let seen =
+    join_in_the_model names model input ~read:(fun asked seen target analysis ->
+        of_the_model := Some (analysis_of_the_model asked seen target analysis))
+  in
+  seen, !of_the_model
+
+let join_and_analysis_in_the_compiler (names : names)
+    (input : join_at_a_continuation) : seen * analysis_read option =
+  let analysis = ref None in
+  let with_its_analysis : implementation =
+    { n_way with
+      join =
+        (fun env use_envs ~params:_ ~cut_after ->
+          let target, of_the_join =
+            N_way_join.cut_and_n_way_join_with_analysis
+              ~meet_expanded_head:N_way.meet_expanded_head
+              ~n_way_join_type:N_way.n_way_join env ~cut_after
+              (List.mapi (fun i use_env -> i, use_env) use_envs)
+          in
+          analysis := Some of_the_join;
+          target)
+    }
+  in
+  let of_the_compiler = ref None in
+  let seen =
+    join_in_the_compiler names with_its_analysis input
+      ~read:(fun asked seen target ->
+        of_the_compiler
+          := Option.map
+               (analysis_of_the_compiler names asked seen target)
+               !analysis)
+  in
+  seen, !of_the_compiler
+
+let a_variable_is_created ({ created; refined = _ } : analysis_read) =
+  match created with [] -> false | _ :: _ -> true
+
+let a_name_is_refined ({ refined; created = _ } : analysis_read) =
+  List.exists
+    (fun ((_ : MT.name), (refined : refined)) ->
+      match refined with
+      | Refined _ -> true
+      | Not_refined | Invariant _ | No_reading -> false)
+    refined
 
 let joins_in_the_model (names : names) ~title
     (joins : (string * join_at_a_continuation) list) =
@@ -5809,6 +6082,89 @@ let control_of_the_joins (names : names) =
   check "the targets of the model and of the compiler for the one are the same"
     (same_seen ~threshold (in_the_model [4; 5]) (in_the_compiler [4; 5]))
 
+(* A control of what is read of an analysis: two joins of two uses that pass a
+   block of two fields, both the number 4 at one use and both the number 5 at
+   the other, and the same with the two uses exchanged. The two targets are the
+   same: a block whose two fields are one variable that the join made, which is
+   4 or 5. The analyses are not: the variable is 4 at the first use in the one,
+   and 5 in the other. *)
+let control_of_the_analysis (names : names) =
+  let z = N.z_of_int in
+  let join numbers : join_at_a_continuation =
+    { kind_of_parameter = Value;
+      for_types_at_source = [];
+      at_uses =
+        List.map
+          (fun number ->
+            let field = MT.this_tagged_immediate (z number) in
+            { binds = [];
+              learns = [];
+              passes =
+                MT.immutable_block false (z 0) (Scannable Value_only) Heap
+                  [field; field]
+            })
+          numbers
+    }
+  in
+  let threshold = names.variables_with_a_name in
+  let model = the_model Of_the_compiler in
+  let check what holds =
+    if holds
+    then Format.printf "  %s: yes@." what
+    else (
+      incr failures;
+      Format.printf "  %s: NO@." what)
+  in
+  Format.printf
+    "@.A control: two joins that differ only in which of two uses passes which \
+     of two blocks (4 and 4, 5 and 5)@.";
+  let in_the_compiler numbers =
+    join_and_analysis_in_the_compiler names (join numbers)
+  in
+  let in_the_model numbers =
+    join_and_analysis_in_the_model names model (join numbers)
+  in
+  let both_read (_, read) (_, read')
+      ~(f : analysis_read -> analysis_read -> bool) =
+    match read, read' with
+    | Some read, Some read' -> f read read'
+    | Some _, None | None, (Some _ | None) -> false
+  in
+  let same_analysis (seen, read) (seen', read') =
+    match read, read' with
+    | Some read, Some read' ->
+      same_text
+        (print_analysis ~threshold seen read)
+        (print_analysis ~threshold seen' read')
+    | Some _, None | None, (Some _ | None) -> false
+  in
+  let compiler = in_the_compiler [4; 5] in
+  let compiler' = in_the_compiler [5; 4] in
+  let of_the_model = in_the_model [4; 5] in
+  let of_the_model' = in_the_model [5; 4] in
+  check "the two targets of the compiler are the same"
+    (same_seen ~threshold (fst compiler) (fst compiler'));
+  check "a variable is created at the join and a name is refined at it"
+    (both_read compiler of_the_model ~f:(fun read read' ->
+         a_variable_is_created read && a_name_is_refined read
+         && a_variable_is_created read'
+         && a_name_is_refined read'));
+  check "what is read of the two analyses of the compiler is told apart"
+    (both_read compiler compiler' ~f:(fun _ _ -> true)
+    && not (same_analysis compiler compiler'));
+  check "what is read of the two analyses of the model is told apart"
+    (both_read of_the_model of_the_model' ~f:(fun _ _ -> true)
+    && not (same_analysis of_the_model of_the_model'));
+  check
+    "what is read of the analysis of the model for the one and of the compiler \
+     for the other is told apart"
+    (both_read of_the_model compiler' ~f:(fun _ _ -> true)
+    && not (same_analysis of_the_model compiler'));
+  check
+    "what is read of the analyses of the model and of the compiler for the one \
+     is the same"
+    (same_analysis of_the_model compiler)
+
 let print_join_at_a_continuation ppf
     ({ kind_of_parameter; for_types_at_source = _; at_uses } :
       join_at_a_continuation) =
@@ -5877,6 +6233,34 @@ let model_join_against_compiler (names : names) :
          print_lines
          (print_seen ~threshold in_the_compiler))
   in
+  let analyses (only : analysis_read -> bool) input =
+    let in_the_model, of_the_model =
+      join_and_analysis_in_the_model names model input
+    in
+    let in_the_compiler, of_the_compiler =
+      join_and_analysis_in_the_compiler names input
+    in
+    match of_the_model, of_the_compiler with
+    | Some of_the_model, Some of_the_compiler ->
+      if
+        (not (same_seen ~threshold in_the_model in_the_compiler))
+        || not (only of_the_model || only of_the_compiler)
+      then Not_this_comparison
+      else
+        let in_the_model =
+          print_analysis ~threshold in_the_model of_the_model
+        in
+        let in_the_compiler =
+          print_analysis ~threshold in_the_compiler of_the_compiler
+        in
+        if same_text in_the_model in_the_compiler
+        then Agree
+        else
+          Disagree
+            (Format.asprintf "@[<v>the model:@ %a@ the compiler:@ %a@]"
+               print_lines in_the_model print_lines in_the_compiler)
+    | Some _, None | None, (Some _ | None) -> Not_this_comparison
+  in
   [ { name = "join: the model and the n-way join of the compiler";
       compare =
         (fun input ->
@@ -5909,6 +6293,19 @@ let model_join_against_compiler (names : names) :
             then Agree
             else different in_the_model in_the_compiler
           | (Nothing_seen _ | Bottom_seen | Seen _), _ -> Not_this_comparison)
+    };
+    (* The analysis that each join answers, read by the functions that Simplify
+       reads it with and by their transcriptions, where what is seen of the two
+       targets is the same; and the same again where a variable was created at
+       the join, and where a name is refined at it. *)
+    { name = "the analysis of the join, where the two targets are the same";
+      compare = analyses (fun (_ : analysis_read) -> true)
+    };
+    { name = "of which those where a variable was created at the join";
+      compare = analyses a_variable_is_created
+    };
+    { name = "of which those where a name is refined at the join";
+      compare = analyses a_name_is_refined
     };
     (* The binary join is not what the model transcribes (T7-3): the comparison
        is shown to tell two answers apart. *)
@@ -6678,6 +7075,7 @@ let () =
   examples_of_joins_in_the_model names;
   chosen_joins_in_the_model names;
   control_of_the_joins names;
+  control_of_the_analysis names;
   let prepare_join (input : join_at_a_continuation) =
     List.iter
       (fun { binds; learns; passes } ->
