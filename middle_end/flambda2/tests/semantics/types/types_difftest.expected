@@ -1371,6 +1371,103 @@ Equations on variables, then two smaller types made from one type of kind value,
                (blocks Unknown) (extensions No_extensions) (is_unique false))
               Not_null))])] Heap_or_local) Not_null))
 
+Two variants with variables of relations, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 132000 to 132999)
+  1000 converted
+  meet: the model and the n-way meet of the compiler: 998 agree, 2 disagree as recorded
+    recorded as T7-10, the alias that a name keeps is to another member of its class, and the canonical elements are the same (seed 132130): what is seen is the same once the type of a name that is an alias is read as the alias of its canonical element
+    on the shrunk input:
+    (Value
+     ((Variant (is_int (Some v5))
+       (immediates (Known (Naked_immediate ((Known [2]) [])))) (get_tag None)
+       (blocks Unknown) (extensions No_extensions) (is_unique false))
+      Not_null))
+    and
+    (Value
+     ((Variant (is_int (Some v4))
+       (immediates (Known (Naked_immediate (= v5)))) (get_tag None)
+       (blocks (Known
+                ((known_tags []) (other_tags Bottom) (alloc_mode Heap))))
+       (extensions No_extensions) (is_unique false)) Not_null))
+  of which those where the meet is not bottom: 959 agree, 2 disagree as recorded
+    recorded as T7-10, the alias that a name keeps is to another member of its class, and the canonical elements are the same (seed 132130): what is seen is the same once the type of a name that is an alias is read as the alias of its canonical element
+    on the shrunk input:
+    (Value
+     ((Variant (is_int (Some v5))
+       (immediates (Known (Naked_immediate ((Known [2]) [])))) (get_tag None)
+       (blocks Unknown) (extensions No_extensions) (is_unique false))
+      Not_null))
+    and
+    (Value
+     ((Variant (is_int (Some v4))
+       (immediates (Known (Naked_immediate (= v5)))) (get_tag None)
+       (blocks (Known
+                ((known_tags []) (other_tags Bottom) (alloc_mode Heap))))
+       (extensions No_extensions) (is_unique false)) Not_null))
+  of which those where a variable that was made is mentioned: 0 agree
+  meet: the model and the binary meet of the compiler: 998 agree, 2 disagree as recorded
+    recorded as the binary meet, which the model does not transcribe, answers otherwise (seed 132130): what is seen of the two answers is not the same
+    on the shrunk input:
+    (Value
+     ((Variant (is_int (Some v5))
+       (immediates (Known (Naked_immediate ((Known [2]) [])))) (get_tag None)
+       (blocks Unknown) (extensions No_extensions) (is_unique false))
+      Not_null))
+    and
+    (Value
+     ((Variant (is_int (Some v4))
+       (immediates (Known (Naked_immediate (= v5)))) (get_tag None)
+       (blocks (Known
+                ((known_tags []) (other_tags Bottom) (alloc_mode Heap))))
+       (extensions No_extensions) (is_unique false)) Not_null))
+  of which those where an extension of the types met has an equation on a symbol: 112 agree
+
+Equations on variables, then two variants with variables of relations, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 134000 to 134999)
+  1000 converted
+  meet: the model and the n-way meet of the compiler: 998 agree, 2 disagree as recorded
+    recorded as T7-10, the alias that a name keeps is to another member of its class, and the canonical elements are the same (seed 134184): what is seen is the same once the type of a name that is an alias is read as the alias of its canonical element
+    on the shrunk input:
+    with v4 : (Naked_immediate ((Known [3; 2]) []))
+    with v5 : (Naked_immediate ((Known [-1; 2; 0]) []))
+    (Value
+     ((Variant (is_int (Some v4)) (immediates Unknown) (get_tag None)
+       (blocks Unknown) (extensions No_extensions) (is_unique false))
+      Not_null))
+    and
+    (Value
+     ((Variant (is_int (Some v5)) (immediates Unknown) (get_tag None)
+       (blocks Unknown) (extensions No_extensions) (is_unique false))
+      Not_null))
+  of which those where the meet is not bottom: 694 agree, 2 disagree as recorded
+    recorded as T7-10, the alias that a name keeps is to another member of its class, and the canonical elements are the same (seed 134184): what is seen is the same once the type of a name that is an alias is read as the alias of its canonical element
+    on the shrunk input:
+    with v4 : (Naked_immediate ((Known [3; 2]) []))
+    with v5 : (Naked_immediate ((Known [-1; 2; 0]) []))
+    (Value
+     ((Variant (is_int (Some v4)) (immediates Unknown) (get_tag None)
+       (blocks Unknown) (extensions No_extensions) (is_unique false))
+      Not_null))
+    and
+    (Value
+     ((Variant (is_int (Some v5)) (immediates Unknown) (get_tag None)
+       (blocks Unknown) (extensions No_extensions) (is_unique false))
+      Not_null))
+  of which those where a variable that was made is mentioned: 0 agree
+  meet: the model and the binary meet of the compiler: 997 agree, 3 disagree as recorded
+    recorded as the binary meet, which the model does not transcribe, answers otherwise (seed 134184): what is seen of the two answers is not the same
+    on the shrunk input:
+    with v4 : (Naked_immediate ((Known [3; 2]) []))
+    with v5 : (Naked_immediate ((Known [-1; 2; 0]) []))
+    (Value
+     ((Variant (is_int (Some v4)) (immediates Unknown) (get_tag None)
+       (blocks Unknown) (extensions No_extensions) (is_unique false))
+      Not_null))
+    and
+    (Value
+     ((Variant (is_int (Some v5)) (immediates Unknown) (get_tag None)
+       (blocks Unknown) (extensions No_extensions) (is_unique false))
+      Not_null))
+  of which those where an extension of the types met has an equation on a symbol: 102 agree
+
 The join of the model beside the n-way join of the compiler, on the inputs of the examples of the join
   two sets of naked immediates: the same
   two sets of tagged immediates: the same

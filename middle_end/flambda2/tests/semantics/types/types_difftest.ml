@@ -4578,6 +4578,33 @@ let same_seen ~threshold (seen : seen) (seen' : seen) : bool =
     same_text (print_seen ~threshold seen) (print_seen ~threshold seen')
   | (Nothing_seen _ | Bottom_seen | Seen _), _ -> false
 
+(* What is seen, with the type of a name that is an alias read as the alias of
+   its canonical element. Two names of one class may each keep an alias to the
+   other member or to the canonical element: where a meet adds again the
+   equations of a level that it cut, the compiler adds them in the order of the
+   names and the model in the order in which they were made, and an alias to a
+   name that has since become an alias of a constant is kept by one and not by
+   the other (T7-10). The canonical elements are compared as they are. *)
+let up_to_the_alias_kept (seen : seen) : seen =
+  match seen with
+  | Nothing_seen _ | Bottom_seen -> seen
+  | Seen { answer; env_is_bottom; of_names; of_others } ->
+    let of_names =
+      List.map
+        (fun ((name, t, canonical) as entry) ->
+          match t, canonical with
+          | Some t, Some canonical -> (
+            match MT.get_alias_opt t with
+            | Some (_ : M.simple) ->
+              ( name,
+                Some (MT.alias_type_of (MT.kind t) canonical),
+                Some canonical )
+            | None -> entry)
+          | Some _, None | None, (Some _ | None) -> entry)
+        of_names
+    in
+    Seen { answer; env_is_bottom; of_names; of_others }
+
 (* A scenario and a meet in the model and in the compiler. *)
 let scenario_in_both (model : model) (kinds : MK.flambda_kind list)
     (steps : step list) (meet : (MT.flambda_type * MT.flambda_type) option) :
@@ -4917,6 +4944,54 @@ let generate_siblings (names : names) r (kind : MK.flambda_kind) :
   let third = one () in
   first, second, third
 
+(* Two variants with variables of relations. A variant may name the naked
+   immediate that holds whether its value is an immediate and the one that holds
+   the tag of its block, and a type that may be null the one that holds whether
+   its value is null. Each of the two types names such variables, most often,
+   among the two naked immediates of the tests, on immediates and blocks that
+   are the same for the two half of the time: so that the meet has two variables
+   for one relation, and, where equations before the meet say what a variable
+   is, a relation to reduce. *)
+let generate_meet_of_relations (names : names) r :
+    MT.flambda_type * MT.flambda_type =
+  let pool = names.pool in
+  let config : G.config = { well_formed = true; depth = 1 } in
+  let variable () =
+    if G.chance r ~percent:75
+    then Some (G.pick r pool.naked_immediate_variables)
+    else None
+  in
+  let is_null () : MT.is_null =
+    match G.below r 4 with
+    | 0 -> Maybe_null None
+    | 1 | 2 -> Maybe_null (Some (G.pick r pool.naked_immediate_variables))
+    | _ -> Not_null
+  in
+  let body () :
+      MT.flambda_type MT.Or_unknown.t * MT.row_like_for_blocks MT.Or_unknown.t =
+    ( (if G.chance r ~percent:30
+       then Unknown
+       else
+         Known
+           (G.type_of_kind config r pool (Naked_number Kind_naked_immediate))),
+      if G.chance r ~percent:25
+      then Unknown
+      else Known (G.row_like_for_blocks config r pool) )
+  in
+  let variant (immediates, blocks) : MT.flambda_type =
+    let is_int = variable () in
+    let get_tag = variable () in
+    let head : MT.head_of_kind_value_non_null =
+      Variant (is_int, immediates, get_tag, blocks, No_extensions, false)
+    in
+    Type_value (Ok (No_alias (Head_of_kind_value (Ok head, is_null ()))))
+  in
+  let first = body () in
+  let second = if G.chance r ~percent:50 then first else body () in
+  let one = variant first in
+  let other = variant second in
+  one, other
+
 type meet_in_an_environment =
   { equations : (MT.name * MT.flambda_type) list;
     met : MT.flambda_type * MT.flambda_type
@@ -5005,11 +5080,22 @@ let model_against_compiler (names : names) :
   in
   let both input = in_the_model input, in_the_compiler n_way input in
   let different in_the_model in_the_compiler =
-    Disagree
-      (Format.asprintf "@[<v>the model:@ %a@ the compiler:@ %a@]" print_lines
-         (print_seen ~threshold in_the_model)
-         print_lines
-         (print_seen ~threshold in_the_compiler))
+    if
+      same_seen ~threshold
+        (up_to_the_alias_kept in_the_model)
+        (up_to_the_alias_kept in_the_compiler)
+    then
+      Known_to_disagree
+        ( "T7-10, the alias that a name keeps is to another member of its \
+           class, and the canonical elements are the same",
+          "what is seen is the same once the type of a name that is an alias \
+           is read as the alias of its canonical element" )
+    else
+      Disagree
+        (Format.asprintf "@[<v>the model:@ %a@ the compiler:@ %a@]" print_lines
+           (print_seen ~threshold in_the_model)
+           print_lines
+           (print_seen ~threshold in_the_compiler))
   in
   let against_the_binary_meet ~label input =
     let in_the_model = in_the_model input in
@@ -6126,8 +6212,9 @@ let () =
         let config : G.config = { well_formed = true; depth = 2 } in
         let aliases, equations =
           match shape with
-          | `None | `Cases | `Alike | `Siblings -> false, []
-          | `Types | `Alike_with_equations | `Siblings_with_equations ->
+          | `None | `Cases | `Alike | `Siblings | `Relations -> false, []
+          | `Types | `Alike_with_equations | `Siblings_with_equations
+          | `Relations_with_equations ->
             false, generate_equations names r
           | `Aliases -> true, generate_aliases names r
         in
@@ -6148,6 +6235,8 @@ let () =
                 generate_siblings names r kind
               in
               first, second
+            | `Relations | `Relations_with_equations ->
+              generate_meet_of_relations names r
             | `None | `Types | `Aliases -> side (), side ())
         })
       ~prepare:(fun ({ equations; met = m1, m2 } as input) ->
@@ -6218,6 +6307,16 @@ let () =
        kind value, for the meet of the model and the n-way meet of the \
        compiler"
     ~seed:124000 ~count:1000 ~equations:`Siblings_with_equations MK.Value;
+  model_and_compiler
+    ~title:
+      "Two variants with variables of relations, for the meet of the model and \
+       the n-way meet of the compiler"
+    ~seed:132000 ~count:1000 ~equations:`Relations MK.Value;
+  model_and_compiler
+    ~title:
+      "Equations on variables, then two variants with variables of relations, \
+       for the meet of the model and the n-way meet of the compiler"
+    ~seed:134000 ~count:1000 ~equations:`Relations_with_equations MK.Value;
   examples_of_joins_in_the_model names;
   chosen_joins_in_the_model names;
   control_of_the_joins names;
