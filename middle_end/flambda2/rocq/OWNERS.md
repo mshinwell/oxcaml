@@ -492,6 +492,8 @@ units with loops (`while`, `for`, tail-recursive functions).
   parameters of a loop that are only passed round it)
 - `middle_end/flambda2/rocq/FlambdaCodeLets*` (removing, in the body
   of code, the unused `Let`s of its parameters)
+- `middle_end/flambda2/rocq/FlambdaSinkUses*` (moving a continuation
+  down to the call or the test that uses it)
 
 ## N1: nominal loose ends
 

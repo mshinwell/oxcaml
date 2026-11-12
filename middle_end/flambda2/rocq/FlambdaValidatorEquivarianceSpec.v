@@ -196,8 +196,15 @@
    The normalisations of FlambdaValidateSpec.v: [iterate] of a rewrite
    that commutes, [normalise_before_inlined], [normalise_after],
    [without_statics], [demote_and_tidy], and [with_code_first], which
-   the check applies to the term after. The check, [validate_unit], is
-   in the last section. It is given the liftings to make
+   the check applies to the term after. And [placed], which the check
+   applies once to each term that it compares after the first
+   comparison, which is of the two terms as they are given: it is
+   FlambdaSinkUsesSpec.sink_conts_to_uses in the term, in the handlers
+   of its recursive continuations and in the bodies of its code; it
+   commutes with renaming, and it keeps scope
+   ([placed_keeps_scope_statement], in the last section). The check,
+   [validate_unit], is in the last section. It is given the liftings
+   to make
    (FlambdaLiftSpec.lifting), each of which holds the two
    continuations of the unit, so a renaming acts on it
    ([rename_lifting], which is to be reviewed); the lifting, the
@@ -297,7 +304,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaUnusedStaticsSpec FlambdaBlockLoadSpec FlambdaUnboxSpec
   FlambdaBindersSpec FlambdaWellFormedSpec FlambdaWellKindedSpec
   FlambdaLiftSpec FlambdaCompareSpec FlambdaRecHandlersSpec
-  FlambdaSinkContsSpec FlambdaShortcutSpec FlambdaUnusedParamsSpec
+  FlambdaSinkContsSpec FlambdaSinkUsesSpec FlambdaShortcutSpec
+  FlambdaUnusedParamsSpec
   FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaCodeLetsSpec
   FlambdaParamAliasesSpec
   FlambdaForwardSpec FlambdaForwardJumpsSpec FlambdaInlineTailSpec
@@ -716,6 +724,11 @@ Definition rewrite_rec_handlers_equivariant_statement : Prop :=
 Definition sink_let_conts_equivariant_statement : Prop :=
   rewrite_equivariant sink_let_conts.
 
+(* Moving a continuation down to the call or the test that uses it
+   (FlambdaSinkUsesSpec.v). *)
+Definition sink_conts_to_uses_equivariant_statement : Prop :=
+  rewrite_equivariant sink_conts_to_uses.
+
 (* An arm of a [Switch] that applies a continuation which only applies
    another (FlambdaShortcutSpec.v). *)
 Definition shortcut_switches_equivariant_statement : Prop :=
@@ -827,6 +840,11 @@ Definition normalise_before_inlined_equivariant_statement : Prop :=
 Definition normalise_after_equivariant_statement : Prop :=
   ∀ (rounds : nat) (kept : list code_id),
     rewrite_equivariant (normalise_after rounds kept).
+
+(* The placing of continuations that the check makes, once, of each
+   term that it compares (FlambdaValidateSpec.placed). *)
+Definition placed_equivariant_statement : Prop :=
+  rewrite_equivariant placed.
 
 (* The removal of the static bindings of the names given, where nothing
    refers to them. *)
@@ -1154,6 +1172,10 @@ Definition normalise_before_keeps_scope_statement : Prop :=
   ∀ (rounds : nat) (kept : list code_id),
     keeps_scope (normalise_before rounds kept).
 
+(* The placing of continuations, which the check applies after the
+   normalisations, keeps scope. *)
+Definition placed_keeps_scope_statement : Prop := keeps_scope placed.
+
 (* A round of the second phase of the term before, and the
    normalisation of the term before, commute with renaming up to the
    names that they make; the first phase commutes with renaming, and
@@ -1220,6 +1242,10 @@ Definition normalise_lifted_equivariant_up_to_statement : Prop :=
    does to them what the first does, and the lifting renamed by the
    first is the lifting renamed by the other, whether or not the term
    still mentions those continuations.
+   Each of those terms, and the term after normalised, then has its
+   continuations placed (FlambdaValidateSpec.placed), which commutes
+   with every renaming and keeps scope
+   ([placed_equivariant_statement], [placed_keeps_scope_statement]).
    The removal of static bindings, the removal of value slots, the
    moving up of the bindings of code and the ordering of static
    bindings commute with those renamings and keep scope

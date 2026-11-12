@@ -50,7 +50,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaParamAliasesProofs FlambdaRecHandlersSpec FlambdaRecHandlersProofs
   FlambdaShareProjectionsSpec FlambdaShareProjectionsProofs
   FlambdaShortcutSpec FlambdaShortcutProofs FlambdaSinkContsSpec
-  FlambdaSinkContsProofs FlambdaUnboxSpec FlambdaUnboxProofs
+  FlambdaSinkContsProofs FlambdaSinkUsesSpec FlambdaSinkUsesProofs
+  FlambdaUnboxSpec FlambdaUnboxProofs
   FlambdaUnboxVariantsSpec FlambdaUnboxVariantsProofs
   FlambdaUnusedContsSpec FlambdaUnusedContsProofs FlambdaUnusedParamsSpec
   FlambdaUnusedParamsProofs FlambdaUnusedProjectionsSpec
@@ -274,21 +275,48 @@ Proof.
     (IH _)).
 Qed.
 
+(* The placing of the continuations of a term is an equivalence. *)
+Lemma place_conts_equivalent (e : expr) : expr_equivalent e (place_conts e).
+Proof.
+  unfold place_conts.
+  exact (expr_equivalent_trans _ _ _ (sink_conts_to_uses_equivalent e)
+    (rewrite_rec_handlers_equivalent _ sink_conts_to_uses_equivalent _)).
+Qed.
+
+Lemma placed_equivalent (e : expr) : expr_equivalent e (placed e).
+Proof.
+  unfold placed.
+  exact (expr_equivalent_trans _ _ _ (place_conts_equivalent e)
+    (rewrite_code_equivalent _ place_conts_equivalent _)).
+Qed.
+
+(* The term after, normalised and with its continuations placed, is
+   equivalent to the term after. *)
+Lemma placed_after_equivalent (rounds : nat) (kept : list code_id)
+    (after : expr) :
+  expr_equivalent after (placed (normalise_after rounds kept after)).
+Proof.
+  exact (expr_equivalent_trans _ _ _
+    (normalise_after_equivalent rounds kept after) (placed_equivalent _)).
+Qed.
+
 (* A term that is, once its static bindings are in the order of the
    term after normalised, the same as that term up to bound names: it
    is equivalent to the term after. *)
 Lemma ordered_same_equivalent (rounds : nat) (kept : list code_id)
     (e after : expr) :
-  expr_eqb [] [] (order_statics_as (normalise_after rounds kept after) e)
-    (normalise_after rounds kept after)
+  expr_eqb [] []
+    (order_statics_as (placed (normalise_after rounds kept after)) e)
+    (placed (normalise_after rounds kept after))
   = true ->
   expr_equivalent e after.
 Proof.
   intros Heq.
   apply (expr_equivalent_trans _ _ _
-    (order_statics_as_equivalent (normalise_after rounds kept after) e)).
+    (order_statics_as_equivalent
+       (placed (normalise_after rounds kept after)) e)).
   apply (expr_equivalent_trans _ _ _ (expr_eqb_sound _ _ Heq)).
-  apply expr_equivalent_sym, normalise_after_equivalent.
+  apply expr_equivalent_sym, placed_after_equivalent.
 Qed.
 
 (* The two normalised terms being the same up to bound names, once the
@@ -297,15 +325,17 @@ Qed.
 Lemma normalised_refines (rounds : nat) (kept : list code_id)
     (before after : expr) :
   expr_eqb [] []
-    (order_statics_as (normalise_after rounds kept after)
-       (normalise_before rounds kept before))
-    (normalise_after rounds kept after)
+    (order_statics_as (placed (normalise_after rounds kept after))
+       (placed (normalise_before rounds kept before)))
+    (placed (normalise_after rounds kept after))
   = true ->
   expr_refines before after.
 Proof.
   intros Heq.
   apply (expr_refines_trans _ _ _
     (normalise_before_refines rounds kept before)).
+  apply (expr_refines_trans _ _ _
+    (expr_equivalent_refines _ _ (placed_equivalent _))).
   apply expr_equivalent_refines.
   exact (ordered_same_equivalent rounds kept _ after Heq).
 Qed.
@@ -456,15 +486,17 @@ Proof.
     apply (expr_refines_trans _ _ _ (loopify_unit_refines G before)).
     revert Hvalidated. clear Hsame.
     generalize (loopify_unit G before). clear before. intros before.
-    set (a := normalise_after rounds kept after).
+    set (a := placed (normalise_after rounds kept after)).
     destruct (expr_eqb [] []
-                (order_statics_as a (normalise_before rounds kept before)) a)
+                (order_statics_as a
+                   (placed (normalise_before rounds kept before)))
+                a)
       eqn:Hnormalised.
     + intros _. exact (normalised_refines rounds kept before after Hnormalised).
     + destruct (expr_eqb [] []
                   (order_statics_as a
                      (without_statics unused
-                        (normalise_before rounds kept before)))
+                        (placed (normalise_before rounds kept before))))
                   a);
         [ intros [H | H]; discriminate H | ].
       destruct
@@ -473,8 +505,9 @@ Proof.
               (float_code
                  (without_statics unused
                     (without_slots slots
-                       (lifted_in_turn rounds (unit_continuations Ls) Ls kept
-                          before)))))
+                       (placed
+                          (lifted_in_turn rounds (unit_continuations Ls) Ls
+                             kept before))))))
            (float_code (with_code_first a)));
         [ intros [H | H]; discriminate H | ].
       destruct
@@ -483,8 +516,9 @@ Proof.
               (with_statics_first Ls
                  (without_statics unused
                     (without_slots slots
-                       (lifted_in_turn rounds (unit_continuations Ls) Ls kept
-                          before)))))
+                       (placed
+                          (lifted_in_turn rounds (unit_continuations Ls) Ls
+                             kept before))))))
            (with_statics_first Ls a));
         intros [H | H]; discriminate H.
 Qed.
@@ -501,19 +535,25 @@ Proof.
       (expr_refines_program _ _ (loopify_unit_refines G before))).
     revert Hvalidated. clear Hsame.
     generalize (loopify_unit G before). clear before. intros before.
-    set (a := normalise_after rounds kept after).
+    set (a := placed (normalise_after rounds kept after)).
     destruct (expr_eqb [] []
-                (order_statics_as a (normalise_before rounds kept before)) a)
+                (order_statics_as a
+                   (placed (normalise_before rounds kept before)))
+                a)
       eqn:Hnormalised.
     + intros _. apply expr_refines_program.
       exact (normalised_refines rounds kept before after Hnormalised).
     + assert (Hbefore :
-        program_refines before (normalise_before rounds kept before))
-        by apply expr_refines_program, normalise_before_refines.
+        program_refines before
+          (placed (normalise_before rounds kept before))).
+      { apply expr_refines_program.
+        apply (expr_refines_trans _ _ _
+          (normalise_before_refines rounds kept before)).
+        apply expr_equivalent_refines, placed_equivalent. }
       destruct (expr_eqb [] []
                   (order_statics_as a
                      (without_statics unused
-                        (normalise_before rounds kept before)))
+                        (placed (normalise_before rounds kept before))))
                   a) eqn:Hremoved.
       * intros _. apply (refines_trans _ _ _ Hbefore).
         apply (refines_trans _ _ _
@@ -523,18 +563,22 @@ Proof.
       * set (lifted :=
           without_statics unused
             (without_slots slots
-               (lifted_in_turn rounds (unit_continuations Ls) Ls kept
-                  before))).
+               (placed
+                  (lifted_in_turn rounds (unit_continuations Ls) Ls kept
+                     before)))).
         assert (Hlifting : program_refines before lifted).
         { apply (refines_trans _ _ _
             (lifted_in_turn_program_refines rounds (unit_continuations Ls) Ls
                kept _)).
+          apply (refines_trans _ _ _
+            (expr_refines_program _ _
+               (expr_equivalent_refines _ _ (placed_equivalent _)))).
           apply (refines_trans _ _ _ (without_slots_program_refines slots _)).
           apply without_statics_program_refines. }
         assert (Hafter :
           equivalent (State after [] [] empty_static_env)
             (State a [] [] empty_static_env))
-          by exact (normalise_after_equivalent rounds kept after [] []
+          by exact (placed_after_equivalent rounds kept after [] []
                       empty_static_env).
         destruct
           (expr_eqb [] []

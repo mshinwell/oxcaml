@@ -126,6 +126,22 @@
    (FlambdaStaticsOrderSpec.order_statics_as): Simplify builds the group
    of a set of closures again, in an order of its own.
 
+   Apart from the first comparison, which is of the two terms as they
+   are given, each of the terms that are compared has first had its
+   continuations placed ([placed]): a non-recursive [Let_cont] goes
+   down to the call
+   that returns to its continuation, or to the test of which an arm
+   names it, past the [Let]s and the other bindings between the two
+   that allow it (FlambdaSinkUsesSpec.sink_conts_to_uses, an
+   equivalence), in the bodies of code and in the handlers of
+   recursive continuations too. It is done once, when the rounds are
+   over: to the term before normalised, to the term after normalised,
+   and to the term before with the liftings made. Simplify binds a
+   continuation that it makes for a call at the call, under the [Let]s
+   of the arguments, where the term before has the continuation of
+   the call above them; and the comparison is of the bindings in
+   their order.
+
    The normalisation of the term before ends by making ordinary
    continuations of the exception handlers that no call can raise to,
    and removing the trap actions that name them
@@ -180,6 +196,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaLoopLetsSpec
   FlambdaParamAliasesSpec FlambdaRecHandlersSpec FlambdaRenameApartSpec
   FlambdaShareProjectionsSpec FlambdaShortcutSpec FlambdaSinkContsSpec
+  FlambdaSinkUsesSpec
   FlambdaStaticsOrderSpec FlambdaUnboxSpec FlambdaUnboxVariantsSpec
   FlambdaUnusedContsSpec
   FlambdaUnusedParamsSpec FlambdaUnusedProjectionsSpec
@@ -601,6 +618,22 @@ Definition with_statics_first (Ls : list lifting) (e : expr) : expr :=
     end
   end.
 
+(* What is done once, when the rounds are over, to each of the terms
+   that are then compared; the first comparison, of the two terms as
+   they are given, comes before it. A non-recursive [Let_cont] goes
+   down to the call or
+   the test that uses its continuation, where
+   FlambdaSinkUsesSpec.sink_conts_to_uses can move it: in the term and
+   in the handlers of its recursive continuations ([place_conts]), and
+   the same in the body of each piece of code. Not in a round: the
+   rewrites of a round that look at where a continuation is bound
+   follow Simplify on the term as the rounds leave it. *)
+Definition place_conts (e : expr) : expr :=
+  rewrite_rec_handlers sink_conts_to_uses (sink_conts_to_uses e).
+
+Definition placed (e : expr) : expr :=
+  rewrite_code place_conts (place_conts e).
+
 (* ======================================================================== *)
 (* The check                                                                *)
 (* ======================================================================== *)
@@ -619,8 +652,8 @@ Definition validate_unit (rounds : nat) (unused : dropped)
   if expr_eqb [] [] before after then Same_up_to_bound_names
   else
     let before := loopify_unit G before in
-    let normalised := normalise_before rounds kept before in
-    let after := normalise_after rounds kept after in
+    let normalised := placed (normalise_before rounds kept before) in
+    let after := placed (normalise_after rounds kept after) in
     if expr_eqb [] [] (order_statics_as after normalised) after
     then Same_once_normalised
     else if
@@ -633,8 +666,9 @@ Definition validate_unit (rounds : nat) (unused : dropped)
            (float_code
               (without_statics unused
                  (without_slots slots
-                    (lifted_in_turn rounds (unit_continuations Ls) Ls kept
-                       before)))))
+                    (placed
+                       (lifted_in_turn rounds (unit_continuations Ls) Ls kept
+                          before))))))
         (float_code (with_code_first after))
     then Same_once_lifted
     else if
@@ -643,8 +677,9 @@ Definition validate_unit (rounds : nat) (unused : dropped)
            (with_statics_first Ls
               (without_statics unused
                  (without_slots slots
-                    (lifted_in_turn rounds (unit_continuations Ls) Ls kept
-                       before)))))
+                    (placed
+                       (lifted_in_turn rounds (unit_continuations Ls) Ls kept
+                          before))))))
         (with_statics_first Ls after)
     then Same_once_lifted
     else Not_validated.

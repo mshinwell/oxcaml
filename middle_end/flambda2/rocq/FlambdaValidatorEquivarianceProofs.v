@@ -55,7 +55,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaKnownClosuresSpec FlambdaKnownClosuresProofs FlambdaFloatCodeSpec
   FlambdaFloatCodeProofs FlambdaHoistCodeSpec FlambdaHoistCodeProofs
   FlambdaInlineFreshProofs FlambdaRecHandlersSpec
-  FlambdaSinkContsSpec FlambdaShortcutSpec FlambdaUnusedParamsSpec
+  FlambdaSinkContsSpec FlambdaSinkUsesSpec FlambdaShortcutSpec
+  FlambdaUnusedParamsSpec
   FlambdaLoopAliasesSpec FlambdaLoopLetsSpec FlambdaParamAliasesSpec
   FlambdaForwardSpec FlambdaForwardJumpsSpec FlambdaInlineTailSpec
   FlambdaDeadParamsSpec
@@ -3254,6 +3255,66 @@ Qed.
 Lemma sink_let_conts_equivariant : rewrite_equivariant sink_let_conts.
 Proof. exact sink_let_conts_equivariant_aux. Qed.
 
+(* Moving a continuation down to the call or the test that uses it. *)
+Fixpoint sink_to_use_equivariant (r : renaming) (k : continuation)
+    (h : continuation_handler) (body : expr) {struct body} :
+  sink_to_use (rename_continuation r k) (rename_handler r h)
+    (rename_expr r body)
+  = option_map (rename_expr r) (sink_to_use k h body).
+Proof.
+  destruct body
+    as [ x kind d body | bindings body | k' [params' metadata' handler'] body
+       | handlers body | ap | ac | scrutinee arms | ];
+    cbn [rename_expr rename_handler sink_to_use]; try reflexivity.
+  - rewrite var_free_in_handler_b_equivariant,
+      (sink_to_use_equivariant r k h body).
+    destruct (var_free_in_handler_b x h); [ reflexivity | ].
+    destruct (sink_to_use k h body); reflexivity.
+  - rewrite (sink_to_use_equivariant r k h body).
+    destruct (sink_to_use k h body); reflexivity.
+  - rewrite cont_free_b_equivariant_aux, cont_free_in_handler_b_equivariant,
+      rename_continuation_eqb, (sink_to_use_equivariant r k h body).
+    destruct
+      (negb (Pos.eqb k k') && negb (cont_free_b k handler')
+       && negb (cont_free_in_handler_b k' h));
+      [ | reflexivity ].
+    destruct (sink_to_use k h body); reflexivity.
+  - change (Apply (rename_apply r ap)) with (rename_expr r (Apply ap)).
+    rewrite cont_free_b_equivariant_aux.
+    destruct (cont_free_b k (Apply ap)); reflexivity.
+  - rewrite arms_apply_equivariant.
+    destruct (arms_apply k arms); reflexivity.
+Qed.
+
+Fixpoint sink_conts_to_uses_equivariant_aux (r : renaming) (e : expr) :
+  sink_conts_to_uses (rename_expr r e)
+  = rename_expr r (sink_conts_to_uses e).
+Proof.
+  destruct e
+    as [ x kind d body | bindings body | k [params metadata handler] body
+       | handlers body | ap | ac | scrutinee arms | ];
+    cbn [rename_expr rename_handler sink_conts_to_uses]; try reflexivity.
+  - rewrite sink_conts_to_uses_equivariant_aux. reflexivity.
+  - rewrite sink_conts_to_uses_equivariant_aux. reflexivity.
+  - rewrite !sink_conts_to_uses_equivariant_aux.
+    pose proof
+      (sink_to_use_equivariant r k
+         (Handler params metadata (sink_conts_to_uses handler))
+         (sink_conts_to_uses body))
+      as Hsink.
+    cbn [rename_handler] in Hsink. rewrite Hsink.
+    destruct
+      (sink_to_use k
+         (Handler params metadata (sink_conts_to_uses handler))
+         (sink_conts_to_uses body));
+      reflexivity.
+  - rewrite sink_conts_to_uses_equivariant_aux. reflexivity.
+Qed.
+
+Lemma sink_conts_to_uses_equivariant :
+  rewrite_equivariant sink_conts_to_uses.
+Proof. exact sink_conts_to_uses_equivariant_aux. Qed.
+
 (* An arm of a switch that applies a continuation which only applies
    another. *)
 Lemma shortcut_arm_equivariant (r : renaming) (k : continuation)
@@ -4837,6 +4898,23 @@ Theorem normalise_after_equivariant : normalise_after_equivariant_statement.
 Proof.
   intros rounds kept.
   apply iterate_equivariant, normalise_after_round_equivariant.
+Qed.
+
+(* The placing of continuations: the pass in the term, in the handlers
+   of its recursive continuations and in its code. *)
+Lemma place_conts_equivariant : rewrite_equivariant place_conts.
+Proof.
+  intros r e. unfold place_conts.
+  rewrite sink_conts_to_uses_equivariant_aux.
+  apply
+    (rewrite_rec_handlers_equivariant sink_conts_to_uses
+       sink_conts_to_uses_equivariant).
+Qed.
+
+Theorem placed_equivariant : placed_equivariant_statement.
+Proof.
+  intros r e. unfold placed. rewrite place_conts_equivariant.
+  apply (rewrite_code_equivariant _ place_conts_equivariant).
 Qed.
 
 Theorem without_statics_equivariant : without_statics_equivariant_statement.
@@ -6516,13 +6594,34 @@ Proof.
   - right. left. reflexivity.
 Qed.
 
+(* The placing of continuations keeps scope, as its pass does. *)
+Lemma place_conts_keeps_scope : keeps_scope place_conts.
+Proof.
+  exact
+    (keeps_scope_compose sink_conts_to_uses
+       (rewrite_rec_handlers sink_conts_to_uses)
+       FlambdaLoopsScopeProofs.sink_conts_to_uses_keeps_scope
+       (FlambdaLoopsScopeProofs.rewrite_rec_handlers_keeps_scope _
+          FlambdaLoopsScopeProofs.sink_conts_to_uses_keeps_scope)).
+Qed.
+
+Theorem placed_keeps_scope : placed_keeps_scope_statement.
+Proof.
+  exact
+    (keeps_scope_compose place_conts (rewrite_code place_conts)
+       place_conts_keeps_scope
+       (FlambdaKeepsScopeProofs.rewrite_code_keeps_scope _
+          place_conts_keeps_scope)).
+Qed.
+
 (* The term before normalised is, under the renaming, that term under a
    second renaming; the term before with the liftings made in turn is
    that term under a third, since each normalisation after a lifting
-   avoids the continuations of the units of the liftings. The removal
-   of static bindings, the removal of value slots, the moving up of the
-   bindings of code and the ordering of static bindings commute with
-   each of them, whatever renames the pattern, and keep scope; so the
+   avoids the continuations of the units of the liftings. The placing
+   of continuations, which comes next, the removal of static bindings,
+   the removal of value slots, the moving up of the bindings of code
+   and the ordering of static bindings commute with each of them,
+   whatever renames the pattern, and keep scope; so the
    two renamings rename the free names of each term that is compared
    alike. The term after is under the first renaming throughout: its
    normalisation and the putting of its code first commute with it.
@@ -6554,28 +6653,39 @@ Proof.
   pose proof
     (renames_alike_then (normalise_before rounds kept) r r1 r' before
        (normalise_before_keeps_scope rounds kept) Hclosed Halike1 Halike_b)
-    as Halike.
+    as Halike0.
   destruct (normalise_before_keeps_scope rounds kept before Hclosed)
-    as (Hclosed_b & _ & _).
+    as (Hclosed_b0 & _ & _).
+  destruct
+    (renames_alike_kept placed r r' (normalise_before rounds kept before)
+       placed_keeps_scope Hclosed_b0 Halike0)
+    as (Hclosed_b & Halike).
   destruct
     (lifted_in_turn_up_to r rounds (unit_continuations Ls) kept Ls
        (unit_continuations_has Ls) r1 before Hclosed Halike1 Hunits)
-    as (r'' & Halike' & Havoid' & Heq').
+    as (r'' & Halike0' & Havoid' & Heq').
   destruct
     (lifted_in_turn_scope rounds (unit_continuations Ls) kept Ls before
        Hclosed)
-    as (Hclosed_l & _ & _).
+    as (Hclosed_l0 & _ & _).
+  destruct
+    (renames_alike_kept placed r r''
+       (lifted_in_turn rounds (unit_continuations Ls) Ls kept before)
+       placed_keeps_scope Hclosed_l0 Halike0')
+    as (Hclosed_l & Halike').
   rewrite unit_continuations_renamed.
-  rewrite Heq, Heq', normalise_after_equivariant,
+  rewrite Heq, Heq', normalise_after_equivariant, !placed_equivariant,
     without_slots_equivariant, !without_statics_equivariant,
     with_code_first_equivariant, !float_code_rewrite_equivariant,
     (with_statics_first_renamed_alike r r Ls _ (fun k _ => eq_refl)),
     (with_statics_first_renamed_alike r r'' Ls _ Havoid'),
     !order_statics_as_equivariant.
-  set (b := normalise_before rounds kept before) in *.
-  set (l := lifted_in_turn rounds (unit_continuations Ls) Ls kept before)
+  set (b := placed (normalise_before rounds kept before)) in *.
+  set
+    (l :=
+      placed (lifted_in_turn rounds (unit_continuations Ls) Ls kept before))
     in *.
-  set (a := normalise_after rounds kept after).
+  set (a := placed (normalise_after rounds kept after)).
   set (c := float_code (with_code_first a)).
   set (c' := with_statics_first Ls a).
   destruct

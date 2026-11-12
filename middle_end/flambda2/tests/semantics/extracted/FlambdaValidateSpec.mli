@@ -34,6 +34,7 @@ open FlambdaShareProjectionsSpec
 open FlambdaShortcutSpec
 open FlambdaSimplifyPassSpec
 open FlambdaSinkContsSpec
+open FlambdaSinkUsesSpec
 open FlambdaStaticsOrderSpec
 open FlambdaUnboxSpec
 open FlambdaUnboxVariantsSpec
@@ -98,6 +99,10 @@ val without_slots : value_slot list -> expr -> expr
 val with_code_first : expr -> expr
 
 val with_statics_first : lifting list -> expr -> expr
+
+val place_conts : expr -> expr
+
+val placed : expr -> expr
 
 type validation =
   | Same_up_to_bound_names

@@ -34,6 +34,7 @@ open FlambdaShareProjectionsSpec
 open FlambdaShortcutSpec
 open FlambdaSimplifyPassSpec
 open FlambdaSinkContsSpec
+open FlambdaSinkUsesSpec
 open FlambdaStaticsOrderSpec
 open FlambdaUnboxSpec
 open FlambdaUnboxVariantsSpec
@@ -263,6 +264,15 @@ let with_statics_first ls e =
     | Some e' -> merge_statics (drop_deleted_code e')
     | None -> e)
 
+(** val place_conts : expr -> expr **)
+
+let place_conts e =
+  rewrite_rec_handlers sink_conts_to_uses (sink_conts_to_uses e)
+
+(** val placed : expr -> expr **)
+
+let placed e = rewrite_code place_conts (place_conts e)
+
 type validation =
   | Same_up_to_bound_names
   | Same_once_normalised
@@ -278,8 +288,8 @@ let validate_unit rounds unused slots g ls kept before after =
   then Same_up_to_bound_names
   else
     let before0 = loopify_unit g before in
-    let normalised = normalise_before rounds kept before0 in
-    let after0 = normalise_after rounds kept after in
+    let normalised = placed (normalise_before rounds kept before0) in
+    let after0 = placed (normalise_after rounds kept after) in
     if expr_eqb [] [] (order_statics_as after0 normalised) after0
     then Same_once_normalised
     else if
@@ -294,8 +304,9 @@ let validate_unit rounds unused slots g ls kept before after =
            (float_code
               (without_statics unused
                  (without_slots slots
-                    (lifted_in_turn rounds (unit_continuations ls) ls kept
-                       before0)))))
+                    (placed
+                       (lifted_in_turn rounds (unit_continuations ls) ls kept
+                          before0))))))
         (float_code (with_code_first after0))
     then Same_once_lifted
     else if
@@ -305,8 +316,9 @@ let validate_unit rounds unused slots g ls kept before after =
            (with_statics_first ls
               (without_statics unused
                  (without_slots slots
-                    (lifted_in_turn rounds (unit_continuations ls) ls kept
-                       before0)))))
+                    (placed
+                       (lifted_in_turn rounds (unit_continuations ls) ls kept
+                          before0))))))
         (with_statics_first ls after0)
     then Same_once_lifted
     else Not_validated
