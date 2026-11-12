@@ -74,6 +74,16 @@ let made_number known p kind arg =
         if kind_eqb kind (unboxed_kind boxed) then Some contents else None
       | None -> None)
     | _ -> None)
+  | Untag_immediate -> (
+    match arg with
+    | Var y -> (
+      match unwrapped known.facts_numbers Tagged (Var y) with
+      | Some contents ->
+        if kind_eqb kind (Naked_number Kind_naked_immediate)
+        then Some contents
+        else None
+      | None -> None)
+    | _ -> None)
   | _ -> None
 
 (** val certain_projection : facts -> unary_primitive -> flambda_kind -> simple
