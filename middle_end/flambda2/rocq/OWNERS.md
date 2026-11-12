@@ -154,6 +154,8 @@ design out; that is the request, not the change.
   - `middle_end/flambda2/rocq/FlambdaImports*` (the static environment
     of a unit that imports symbols, and what a primitive does with an
     imported symbol; a prototype)
+  - `middle_end/flambda2/rocq/FlambdaValidateImports*` (the validation
+    of a unit run from its imports: which verdicts hold of it)
   - `middle_end/flambda2/rocq/FlambdaDemote*` (the demotion of an
     exception handler that no call can raise to, as a rewrite, with
     what it keeps)
