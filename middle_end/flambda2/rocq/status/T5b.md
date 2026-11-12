@@ -742,28 +742,37 @@ functions (`FlambdaJoinMeet.v`), by T5's statements and mine there.
   is joined with a type that is not one. Options: (a) a bound on
   the depth of such expansions; (b) a test for a cycle (the names
   expanded on the way are remembered, and one met again stops the
-  join); (c) both. Chosen: (a). In the binary join the depth that
-  is already counted where both types are aliases is counted also
-  where one is, with the same bound (the join depth, 5 unless a
-  flag says otherwise). In the n-way join a count of its own in
-  the join environment, with the same bound, is taken up before
-  the heads are joined and down after. At the bound the join
-  answers the unknown type, as it does today at the bound for two
-  aliases. Where all the types are aliases, or none is, nothing
-  changes. Why (a): it is the smaller change; in the model, the
-  variant with such a bound keeps the contract about values
-  (`n_way_join_bounded_sound`); the join is expected to end with
-  it (argued, not proved: a call either takes the count down or
-  is on types that are parts of the types that it was given);
-  and (b) alone does not bound the work, since a way through the
-  names may go through each of them once. What (a) can lose: where a join goes
-  today, and ends, through more such expansions than the bound,
-  one inside another, the part below the bound becomes unknown;
-  in the binary join also where the expansions of the two sorts
-  together exceed it. Types that are not aliases, one inside
-  another, are needed on one side for that, and the census made
-  with the reproduction found them rare. Cost to change to (c):
-  a set of names in each join environment and one test.
+  join); (c) both. Chosen: (a), with a count of its own in each
+  join and the bound that the joins have already (the join depth,
+  5 unless a flag says otherwise). In the binary join the count
+  is beside the depth that is counted where both types are
+  aliases; in the n-way join it is in the join environment, taken
+  up before the heads are joined and down after, beside the
+  rounds. At the bound the join answers the unknown type, as it
+  does today at the bound for two aliases. Where all the types
+  are aliases, or none is, nothing changes. Why (a): it is the
+  smaller change; in the model, the variant with such a bound
+  keeps the contract about values (`n_way_join_bounded_sound`);
+  the join is expected to end with it (argued, not proved: a call
+  either takes a count down or is on types that are parts of the
+  types that it was given); and (b) alone does not bound the
+  work, since a way through the names may go through each of them
+  once. What it can lose: where a join goes today, and ends,
+  through more such expansions than the bound, one inside
+  another, the part below the bound becomes unknown. Types that
+  are not aliases, one inside another, are needed on one side for
+  that. Cost to change to (c): a set of names in each join
+  environment and one test.
+  Why a count of its own, in the binary join too: the first
+  candidate counted these expansions in the depth that the binary
+  join has for two aliases. A measurement on generated programs
+  by the stream that reproduces compiler issues (not in this
+  tree) found a program that does not overflow and loses a direct
+  call with it: the way to a closure went through five joins of
+  two aliases, which is the whole depth, and one join of an alias
+  with a type that is not one. With a count of its own that
+  program compiles as it does today. The variant of the model is
+  of the n-way join, whose count was its own from the start.
 
 ## Found so far
 
