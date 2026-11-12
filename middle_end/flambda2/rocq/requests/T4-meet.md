@@ -35,6 +35,11 @@ Files, in `middle_end/flambda2/types/rocq/`:
   variables; nine statements, and six more for two joins that one
   renaming relates, proved (`FlambdaMeetRenameProofs.v`). To be
   reviewed (sections 16 and 17).
+- `FlambdaMeetKeepsSpec.v`: what a meet keeps, for a join that has
+  the half of its contract that is not about values; one definition
+  and four statements, proved (`FlambdaMeetKeepsProofs.v`). To be
+  reviewed (section 18). `FlambdaMeetValidity.v`: the device of the
+  proof; definitions and a tactic, no statement.
 
 The compiler read: `types/meet_and_n_way_join.ml` (lines 1 to 1883, the
 meet), `types/meet.ml`, `types/env/meet_env.ml`, `types/expand_head.ml`,
@@ -902,3 +907,72 @@ What is not stated.
   the names made. Without it, the statements compare the meet on
   renamed inputs with a renamed source to the renamed answer; they
   do not compare two runs with one source.
+
+## 18. What a meet keeps, without the values (2026-11-12)
+
+For review: `FlambdaMeetKeepsSpec.v`; and, for what it does to the
+proofs of signed statements, the device in `FlambdaMeetValidity.v`.
+Asked by T5.
+
+The need. A join of which only the half of the contract that is not
+about values is known. `meet_to_prove_sound` cannot be used of the
+meet that is given such a join; the half of the meet's contract that
+is not about values does not need J1, and T5 asked for it alone,
+for the join of the model. This series gives an interface
+(`join_scoped_envs_keeps`) and a conditional theorem. The instance
+for the join of the model is neither proved nor used here: it is in
+the separate work on the join (T5's and T5b's files, under review).
+What that work has or has not of J1, and whether the conditions it
+names become premises of J1 or the join changes, is not decided
+here.
+
+What is defined: `join_scoped_envs_keeps`, the contract of the join
+without the premise `meet_expanded_head_sound meet_head` and without
+J1; the text is T5's, which T5 deletes from its file for this one.
+
+What is stated and proved:
+
+- `meet_expanded_head_fuel_keeps`: with a join that has
+  `join_scoped_envs_keeps`, and choices that have the three
+  conditions of the main theorem, `Meet.meet_expanded_head join
+  choices fuel` has `meet_expanded_head_keeps` at every fuel.
+- `meet_expanded_head_repaired_keeps`: so at `repaired_choices`.
+- `forgetful_join_keeps`, `meet_with_forgetful_join_keeps`: the join
+  that forgets has the definition, so the premise can be had.
+
+What is not stated: nothing about values; nothing for
+`compiler_choices`; nothing of `Meet.meet` or of the functions that
+add to a typing environment, whose contracts mix the two halves;
+and neither of `join_scoped_envs_sound` and `join_scoped_envs_keeps`
+is shown to imply the other (the first gives its conclusions only
+for a meet that loses no value).
+
+How it is proved, which a reviewer of the signed statements may
+want to check. Above the layer of `Meet_env`, the statements of the
+contract bundle the two halves (`part_meet_ok`), so the keeping
+half was not a corollary. But every clause about values supposes
+`statics_valid statics`, and no proof of the nine files looks into
+it: they hand it on, and in one place to a fact about the closures
+of a set. `FlambdaMeetValidity.v` has a class of predicates on
+static environments that imply validity, and, made by a tactic from
+the signed definitions, copies of `meet_expanded_head_sound`,
+`join_scoped_envs_sound`, `meet_call_ok`, `part_meet_ok` and of four
+definitions made of them, with the predicate where they have
+`statics_valid`; at `statics_valid` each copy is the signed
+definition by `reflexivity`. In the nine proof files the lemmas are
+now in a section that has such a predicate, in which the signed
+names stand for the copies; no proof script changed but one line.
+Each `Theorem X : X_statement` is, after the section, the lemma of
+the section at `statics_valid`. So:
+
+- the signed statements are not changed, and each is still proved
+  by a theorem of its name in its proofs file; `make assumptions`
+  is as it was;
+- at the predicate that no static environment has, J1 and every
+  other clause about values is vacuous, the join's contract is
+  `join_scoped_envs_keeps`, and the chain gives
+  `meet_expanded_head_keeps`.
+
+Three of the nine files are T5b's (`FlambdaMeetProductsProofs.v`,
+`FlambdaMeetHeadsProofs.v`, `FlambdaMeetRowLikeProofs.v`); T5b
+agreed to the change being made in this series.
