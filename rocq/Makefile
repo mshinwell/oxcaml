@@ -258,6 +258,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaStaticsOrderSpec.v \
   FlambdaStaticsScopeProofs.v \
   FlambdaStaticsScopeSpec.v \
+  FlambdaStubCallsProofs.v \
+  FlambdaStubCallsSpec.v \
   FlambdaTrapProofs.v \
   FlambdaTrapSpec.v \
   FlambdaTupledProofs.v \
