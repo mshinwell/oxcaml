@@ -347,6 +347,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaMeetChoicesSpec.v \
   FlambdaMeetClosuresProofs.v \
   FlambdaMeetClosuresSpec.v \
+  FlambdaMeetDepthProofs.v \
+  FlambdaMeetDepthSpec.v \
   FlambdaMeetEnv.v \
   FlambdaMeetEnvProofs.v \
   FlambdaMeetEnvSpec.v \
