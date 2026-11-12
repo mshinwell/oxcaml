@@ -921,7 +921,7 @@ is not about values does not need J1, and T5 asked for it alone,
 for the join of the model. This series gives an interface
 (`join_scoped_envs_keeps`) and a conditional theorem. The instance
 for the join of the model is neither proved nor used here: it is in
-the separate work on the join (T5's and T5b's files, under review).
+the separate work on the join (T5's and T5b's files).
 What that work has or has not of J1, and whether the conditions it
 names become premises of J1 or the join changes, is not decided
 here.
