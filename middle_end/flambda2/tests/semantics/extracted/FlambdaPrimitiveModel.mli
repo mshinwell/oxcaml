@@ -21,6 +21,10 @@ type unary_int_arith_op =
   | Not
   | Swap_byte_endianness
 
+type reinterpret_64_bit_word =
+  | Tagged_int63_as_unboxed_int64
+  | Unboxed_int64_as_tagged_int63
+
 type unary_primitive =
   | Block_load of block_access_kind * mutability * coq_Z
   | Is_int of bool
@@ -35,6 +39,7 @@ type unary_primitive =
   | Box_number of boxable_number
   | Untag_immediate
   | Tag_immediate
+  | Reinterpret_64_bit_word of reinterpret_64_bit_word
 
 type binary_int_arith_op =
   | Add

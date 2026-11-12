@@ -326,6 +326,24 @@ let eval_block_load statics kind field v =
     else None
   | None -> None
 
+(** val eval_reinterpret_64_bit_word : reinterpret_64_bit_word -> value -> value
+    option **)
+
+let eval_reinterpret_64_bit_word reinterpret v =
+  match reinterpret with
+  | Tagged_int63_as_unboxed_int64 -> (
+    match int_of_value Standard_tagged_immediate v with
+    | Some i ->
+      Some
+        (Value_const
+           (Naked_int64 (Z.add (Z.mul (Zpos (Coq_xO Coq_xH)) i) (Zpos Coq_xH))))
+    | None -> None)
+  | Unboxed_int64_as_tagged_int63 -> (
+    match int_of_value Standard_naked_int64 v with
+    | Some word ->
+      Some (Value_const (Tagged_immediate (Z.div word (Zpos (Coq_xO Coq_xH)))))
+    | None -> None)
+
 (** val eval_unary_primitive : static_env -> unary_primitive -> value -> value
     option **)
 
@@ -388,6 +406,8 @@ let eval_unary_primitive statics p v =
     match int_of_value Standard_naked_immediate v with
     | Some i -> Some (Value_const (Tagged_immediate i))
     | None -> None)
+  | Reinterpret_64_bit_word reinterpret ->
+    eval_reinterpret_64_bit_word reinterpret v
 
 (** val byte_width_of_string_accessor_width : string_accessor_width -> nat **)
 
@@ -659,6 +679,10 @@ let result_kind_of_unary_primitive = function
   | Unbox_number kind -> unboxed_kind kind
   | Box_number _ -> Value
   | Tag_immediate -> Value
+  | Reinterpret_64_bit_word reinterpret -> (
+    match reinterpret with
+    | Tagged_int63_as_unboxed_int64 -> Naked_number Kind_naked_int64
+    | Unboxed_int64_as_tagged_int63 -> Value)
   | _ -> naked_immediate_kind
 
 (** val result_kind_of_binary_primitive : binary_primitive -> flambda_kind **)
@@ -1300,7 +1324,20 @@ let prim_eq_dec p p' =
         | _ -> false)
       | Untag_immediate -> (
         match p1 with Untag_immediate -> true | _ -> false)
-      | Tag_immediate -> ( match p1 with Tag_immediate -> true | _ -> false))
+      | Tag_immediate -> ( match p1 with Tag_immediate -> true | _ -> false)
+      | Reinterpret_64_bit_word reinterpret -> (
+        match p1 with
+        | Reinterpret_64_bit_word reinterpret0 -> (
+          match reinterpret with
+          | Tagged_int63_as_unboxed_int64 -> (
+            match reinterpret0 with
+            | Tagged_int63_as_unboxed_int64 -> true
+            | Unboxed_int64_as_tagged_int63 -> false)
+          | Unboxed_int64_as_tagged_int63 -> (
+            match reinterpret0 with
+            | Tagged_int63_as_unboxed_int64 -> false
+            | Unboxed_int64_as_tagged_int63 -> true))
+        | _ -> false))
     | _ -> false)
   | Binary p0 -> (
     match p' with

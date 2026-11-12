@@ -373,6 +373,13 @@ let convert_unary_primitive (p : P.unary_primitive) :
   | Box_number (_, Local _) -> None
   | Untag_immediate -> Some Untag_immediate
   | Tag_immediate -> Some Tag_immediate
+  | Reinterpret_64_bit_word Tagged_int63_as_unboxed_int64 ->
+    Some (Reinterpret_64_bit_word Tagged_int63_as_unboxed_int64)
+  | Reinterpret_64_bit_word Unboxed_int64_as_tagged_int63 ->
+    Some (Reinterpret_64_bit_word Unboxed_int64_as_tagged_int63)
+  | Reinterpret_64_bit_word
+      (Unboxed_int64_as_unboxed_float64 | Unboxed_float64_as_unboxed_int64) ->
+    None
   | _ -> None
 
 let convert_int_arith_op (op : P.binary_int_arith_op) :
@@ -1162,6 +1169,10 @@ let print_prim ppf (p : Primitives.prim) =
     | Box_number _ -> "Box_number"
     | Untag_immediate -> "Untag_immediate"
     | Tag_immediate -> "Tag_immediate"
+    | Reinterpret_64_bit_word Tagged_int63_as_unboxed_int64 ->
+      "Reinterpret_64_bit_word int63_as_int64"
+    | Reinterpret_64_bit_word Unboxed_int64_as_tagged_int63 ->
+      "Reinterpret_64_bit_word int64_as_int63"
   in
   let int_arith (op : Primitives.binary_int_arith_op) =
     match op with

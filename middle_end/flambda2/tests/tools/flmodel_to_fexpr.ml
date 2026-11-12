@@ -361,6 +361,13 @@ let unary_primitive (p : Primitives.unary_primitive) : P.unary_primitive =
   | Box_number kind -> Box_number (boxable_number kind, on_the_heap ())
   | Untag_immediate -> Untag_immediate
   | Tag_immediate -> Tag_immediate
+  | Reinterpret_64_bit_word reinterpret ->
+    let reinterpret : P.Reinterpret_64_bit_word.t =
+      match reinterpret with
+      | Tagged_int63_as_unboxed_int64 -> Tagged_int63_as_unboxed_int64
+      | Unboxed_int64_as_tagged_int63 -> Unboxed_int64_as_tagged_int63
+    in
+    Reinterpret_64_bit_word reinterpret
 
 let binary_primitive (p : Primitives.binary_primitive) : P.binary_primitive =
   match p with

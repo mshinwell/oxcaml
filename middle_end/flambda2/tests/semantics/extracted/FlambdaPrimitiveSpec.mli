@@ -60,6 +60,9 @@ val known_is : coq_Z option -> coq_Z -> bool
 val eval_block_load :
   static_env -> block_access_kind -> coq_Z -> value -> value option
 
+val eval_reinterpret_64_bit_word :
+  reinterpret_64_bit_word -> value -> value option
+
 val eval_unary_primitive :
   static_env -> unary_primitive -> value -> value option
 
