@@ -286,6 +286,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaUnusedSlotsSpec.v \
   FlambdaUnusedProjectionsProofs.v \
   FlambdaUnusedProjectionsSpec.v \
+  FlambdaUnusedHeadStaticsProofs.v \
+  FlambdaUnusedHeadStaticsSpec.v \
   FlambdaUnusedStaticsProofs.v \
   FlambdaUnusedStaticsSpec.v \
   FlambdaValidateImportsProofs.v \
