@@ -952,6 +952,12 @@ and static_bindings env (bindings : Model.static_binding list) :
   | Bind_symbol (s, Static_const_boxed_number contents) :: bindings ->
     F.Data { symbol = symbol s; defining_expr = boxed_number env contents }
     :: static_bindings env bindings
+  | Bind_symbol (s, Static_const_immutable_value_array elements) :: bindings ->
+    F.Data
+      { symbol = symbol s;
+        defining_expr = Immutable_value_array (List.map static_field elements)
+      }
+    :: static_bindings env bindings
   | Bind_symbol (s, Static_const_immutable_string bytes) :: bindings ->
     F.Data
       { symbol = symbol s;

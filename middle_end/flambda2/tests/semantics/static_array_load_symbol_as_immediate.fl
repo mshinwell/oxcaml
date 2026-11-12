@@ -1,0 +1,7 @@
+let $b = Block 0 (1, 2) in
+let $t = Value_array [| $b; 7 |] in
+let o = %opaque ($t) in
+let i = %opaque (0) in
+let x = %array_load.`imm` (o, i) in
+let $camlStatic_array_load_symbol_as_immediate = Block 0 (x) in
+cont done ($camlStatic_array_load_symbol_as_immediate)

@@ -1,0 +1,7 @@
+let $b = Block 0 (1, 2) in
+let $t = Value_array [| $b; 7 |] in
+let o = %opaque ($t) in
+let x = %array_load (o, 0) in
+let y = %array_load (o, 1) in
+let $camlStatic_array_of_symbols = Block 0 (x, y, $t) in
+cont done ($camlStatic_array_of_symbols)

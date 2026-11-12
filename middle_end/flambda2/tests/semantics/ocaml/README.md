@@ -461,7 +461,7 @@ in the table above.
 
 | Source | What the model has not got |
 |--------|----------------------------|
-| `array_literal.ml` | arrays: `Array_load` |
+| `array_literal.ml` | mutable arrays: `Make_array` (C4) |
 | `float_add.ml` | floating-point arithmetic |
 | `ref_counter.ml` | mutable fields: `Block_set` (C4) |
 | `tupled_recursive.ml` | after Simplify the unit calls tupled code directly, giving it the components; the model has not got that call (C3) |
@@ -529,9 +529,9 @@ in the table above.
    raises.
 
 What the model has not got, and the conversion refuses: floating-point
-arithmetic (`float_add.ml`), arrays (`array_literal.ml`), mutable
-fields (`ref_counter.ml`), and a direct call of tupled code, which
-gives the code the components (`tupled_recursive.ml`,
+arithmetic (`float_add.ml`), mutable arrays (`array_literal.ml`),
+mutable fields (`ref_counter.ml`), and a direct call of tupled code,
+which gives the code the components (`tupled_recursive.ml`,
 `tupled_unknown_pair.ml`): Simplify makes one of the call of a tupled
 function that it knows and does not inline, so the term after is
 refused where the term before is not.

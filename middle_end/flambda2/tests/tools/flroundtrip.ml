@@ -164,6 +164,8 @@ let rename_static_const r (const : Model.static_const) : Model.static_const =
   | Static_const_boxed_number contents ->
     Static_const_boxed_number (rename_simple r contents)
   | Static_const_immutable_string _ -> const
+  | Static_const_immutable_value_array elements ->
+    Static_const_immutable_value_array (rename_simples r elements)
 
 let rename_apply_cont r (ac : Model.apply_cont) : Model.apply_cont =
   { ac with ac_args = rename_simples r ac.ac_args }
@@ -259,7 +261,7 @@ let slots_in_order_static_const (const : Model.static_const) :
     Static_const_closure_of_set
       (slot, closure_symbols, function_decls, sort_value_slots slots)
   | Static_const_block _ | Static_const_boxed_number _
-  | Static_const_immutable_string _ ->
+  | Static_const_immutable_string _ | Static_const_immutable_value_array _ ->
     const
 
 let rec slots_in_order (e : Model.expr) : Model.expr =

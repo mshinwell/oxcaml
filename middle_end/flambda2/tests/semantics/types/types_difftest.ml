@@ -7423,6 +7423,8 @@ let print_static_const ppf (const : M.static_const) =
          ~pp_sep:(fun ppf () -> Format.fprintf ppf ",@ ")
          N.print_z)
       bytes
+  | Static_const_immutable_value_array elements ->
+    Format.fprintf ppf "@[<hov 2>the immutable array of (%a)@]" simples elements
   | Static_const_set_of_closures _ | Static_const_closure_of_set _ ->
     Format.pp_print_string ppf "a closure"
 
@@ -7468,6 +7470,7 @@ let shrink_static_group ({ before; bindings } as group) =
                  })
                fields
            | Static_const_boxed_number _ | Static_const_immutable_string _
+           | Static_const_immutable_value_array _
            | Static_const_set_of_closures _ | Static_const_closure_of_set _ ->
              [])
          bindings)
@@ -7524,6 +7527,8 @@ let static_const_of_model (names : names) (const : M.static_const) :
                 String.make 1 (Char.chr byte)
               | Some _ | None -> not_in_the_compiler "a byte out of range")
             bytes))
+  | Static_const_immutable_value_array _ ->
+    not_in_the_compiler "an immutable array, which is not generated"
   | Static_const_set_of_closures _ | Static_const_closure_of_set _ ->
     not_in_the_compiler "a static closure, which is not generated"
 
@@ -7658,7 +7663,8 @@ let why_untyped (names : names) ~(defined : M.symbol list)
           fields
     }
   | Static_const_boxed_number _ | Static_const_immutable_string _
-  | Static_const_set_of_closures _ | Static_const_closure_of_set _ ->
+  | Static_const_immutable_value_array _ | Static_const_set_of_closures _
+  | Static_const_closure_of_set _ ->
     { names_a_symbol_not_defined = false;
       has_a_field_not_of_kind_value = false
     }
@@ -7783,6 +7789,7 @@ let static_group_in_the_model (names : names)
                       (Name_symbol symbol) t)
               | Static_const_boxed_number (Var _ | Const _ | Symbol _)
               | Static_const_block _ | Static_const_immutable_string _
+              | Static_const_immutable_value_array _
               | Static_const_set_of_closures _ | Static_const_closure_of_set _
                 ->
                 Some (Model_statics.add_static_bindings env [binding bound])))
@@ -7884,7 +7891,8 @@ let boxes_a_naked_number (names : names) (const : M.static_const) =
       names.pool.naked_float_variables
   | Static_const_boxed_number (Const _ | Symbol _)
   | Static_const_block _ | Static_const_immutable_string _
-  | Static_const_set_of_closures _ | Static_const_closure_of_set _ ->
+  | Static_const_immutable_value_array _ | Static_const_set_of_closures _
+  | Static_const_closure_of_set _ ->
     false
 
 (* What a verdict comes to. What is seen after the constants before the one at

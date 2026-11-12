@@ -1,1 +1,2 @@
-array_literal.fl: not checked: the model has not got primitive ((Array_load Immediates Immediates Mutable) Pmakearray/18UV 1)
+array_literal.fl: not checked: the model has not got primitive ((Make_array Immediates Mutable
+            (Heap (alloc_region toplevel_alloc_region/0N))) 1 2 3)

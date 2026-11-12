@@ -403,6 +403,12 @@ let convert_unary_primitive (p : P.unary_primitive) :
   | Get_tag -> Some Get_tag
   | String_length String -> Some String_length
   | String_length Bytes -> None
+  | Array_length (Array_kind Immediates) ->
+    Some (Array_length (Array_kind Array_immediates))
+  | Array_length (Array_kind Gc_ignorable_values) ->
+    Some (Array_length (Array_kind Array_gc_ignorable_values))
+  | Array_length (Array_kind Values) ->
+    Some (Array_length (Array_kind Array_values))
   | Opaque_identity { middle_end_only = _; kind } ->
     Some (Opaque_identity (convert_kind kind))
   | Int_arith (kind, Not) ->
@@ -472,6 +478,29 @@ let convert_binary_primitive (p : P.binary_primitive) :
     | Single | One_twenty_eight _ | Two_fifty_six _ | Five_twelve _ | Mask ->
       None)
   | String_or_bigstring_load ((Bytes | Bigstring), _) -> None
+  | Array_load
+      ( ((Immediates | Gc_ignorable_values | Values) as kind),
+        ((Immediates | Gc_ignorable_values | Values) as load_kind),
+        mut ) ->
+    let kind : Primitives.array_kind =
+      match kind with
+      | Immediates -> Array_immediates
+      | Gc_ignorable_values -> Array_gc_ignorable_values
+      | _ -> Array_values
+    in
+    let load_kind : Primitives.array_load_kind =
+      match load_kind with
+      | Immediates -> Load_immediates
+      | Gc_ignorable_values -> Load_gc_ignorable_values
+      | _ -> Load_values
+    in
+    let mut : Primitives.mutability =
+      match mut with
+      | Mutable -> Mutable
+      | Immutable -> Immutable
+      | Immutable_unique -> Immutable_unique
+    in
+    Some (Array_load (kind, load_kind, mut))
   | Phys_equal Eq -> Some (Phys_equal Phys_eq)
   | Phys_equal Neq -> Some (Phys_equal Phys_neq)
   | Int_arith (kind, op) ->
@@ -981,6 +1010,11 @@ and convert_static_const (const : Static_const.t) : Model.static_const =
         List.map
           (fun field -> convert_simple (Simple.With_debuginfo.simple field))
           fields )
+  | Immutable_value_array fields ->
+    Static_const_immutable_value_array
+      (List.map
+         (fun field -> convert_simple (Simple.With_debuginfo.simple field))
+         fields)
   | Immutable_string s ->
     Static_const_immutable_string
       (List.init (String.length s) (fun i -> z_of_int (Char.code s.[i])))
@@ -1114,12 +1148,15 @@ and convert_apply (apply : Apply_expr.t) : Model.expr =
 (* What is observed of a value: what it is, through the symbols it points to. A
    closure is not looked into: its code differs before and after. A partial
    application is observed as a closure is: Simplify makes a closure of one
-   whose function it knows. *)
+   whose function it knows. An immutable array that a symbol is bound to is
+   observed by its elements, and is not a block: the two runs do not agree by an
+   array in one and a block of tag 0 in the other. *)
 type observation =
   | Tagged of int
   | Naked of string * int64
   | Null
   | Block of int * observation list
+  | Array of observation list
   | Boxed of observation
   | String of string
   | Function
@@ -1159,6 +1196,8 @@ let rec observe depth (statics : Values.static_env) (v : Values.value) :
       | Some (Static_block (tag, fields)) ->
         Block (int_of_z tag, List.map (observe (depth - 1) statics) fields)
       | Some (Static_boxed_number v) -> Boxed (observe (depth - 1) statics v)
+      | Some (Static_immutable_array elements) ->
+        Array (List.map (observe (depth - 1) statics) elements)
       | Some (Static_string bytes) ->
         String
           (String.init (List.length bytes) (fun i ->
@@ -1186,6 +1225,12 @@ let rec print_observation ppf (o : observation) =
          ~pp_sep:(fun ppf () -> Format.fprintf ppf ";@ ")
          print_observation)
       fields
+  | Array elements ->
+    Format.fprintf ppf "@[<hov 2>[|%a|]@]"
+      (Format.pp_print_list
+         ~pp_sep:(fun ppf () -> Format.fprintf ppf ";@ ")
+         print_observation)
+      elements
   | Boxed o -> Format.fprintf ppf "@[<hov 1>(boxed@ %a)@]" print_observation o
   | String s -> Format.fprintf ppf "%S" s
   | Function -> Format.fprintf ppf "<fun>"
@@ -1642,6 +1687,9 @@ and print_binding ppf (binding : Model.static_binding) =
       contents
   | Bind_symbol (sym, Static_const_immutable_string _) ->
     Format.fprintf ppf "$%d = <string>" (int_of_positive sym)
+  | Bind_symbol (sym, Static_const_immutable_value_array elements) ->
+    Format.fprintf ppf "@[<hov 2>$%d = Array@ (%a)@]" (int_of_positive sym)
+      print_simples elements
 
 (* ---- Static bindings that are not used --------------------------------- *)
 
@@ -1706,6 +1754,8 @@ let unused_statics (e : Model.expr) : Unused_statics.dropped =
               in_slots owner slots
             | Static_const_block (_, fields) -> in_simples owner fields
             | Static_const_boxed_number contents -> in_simple owner contents
+            | Static_const_immutable_value_array elements ->
+              in_simples owner elements
             | Static_const_immutable_string _ -> ()))
         bindings;
       in_expr owner body
@@ -2083,7 +2133,8 @@ let lifting_guess ~unit ~(banned : (Lift.path * Model.symbol) list)
           | Static_const_closure_of_set (slot, _, decls, _) ->
             List.assoc_opt slot decls
           | Static_const_block _ | Static_const_boxed_number _
-          | Static_const_immutable_string _ ->
+          | Static_const_immutable_string _
+          | Static_const_immutable_value_array _ ->
             None
         in
         match code with
@@ -2120,7 +2171,8 @@ let unused_slots_guess (before : Model.expr) (after : Model.expr) :
           | Bind_symbol
               ( _,
                 ( Static_const_block _ | Static_const_boxed_number _
-                | Static_const_immutable_string _ ) )
+                | Static_const_immutable_string _
+                | Static_const_immutable_value_array _ ) )
           | Bind_code _ | Bind_deleted_code _ ->
             [])
         bindings
@@ -2152,7 +2204,8 @@ let rec code_id_used (id : Model.code_id) (e : Model.expr) =
     | Bind_symbol
         ( _,
           ( Static_const_block _ | Static_const_boxed_number _
-          | Static_const_immutable_string _ ) ) ->
+          | Static_const_immutable_string _
+          | Static_const_immutable_value_array _ ) ) ->
       false
   in
   match e with

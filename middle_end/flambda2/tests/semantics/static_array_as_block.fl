@@ -1,0 +1,5 @@
+let $t = Value_array [| 8; 6; 9 |] in
+let o = %opaque ($t) in
+let x = %block_load.[`0`] (o) in
+let $camlStatic_array_as_block = Block 0 (x) in
+cont done ($camlStatic_array_as_block)
