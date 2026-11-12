@@ -33,12 +33,17 @@ its own there.) Files, all in
 - `FlambdaJoinMeetFitsSpec.v`, `FlambdaJoinMeetFitsProofs.v`: so
   the types that the join put together with the meet adds fit the
   environment of the meet, which was a premise of T5's statements
-  about that join.
+  about that join: the join that the meet calls, and the join that
+  Simplify calls.
 
 The last three pairs are about T5's join of environments
 (`FlambdaJoinEnv.v`) and stand on T5's files; T5 handed the two
 open points over (the orchestrator's item of the night). They are
-on `flambda2-rocq/T5b-join-types`, which is on T5's branch.
+on `flambda2-rocq/T5b-join-types`. What is about the join that
+Simplify calls, and the join and the meet together, is on
+`flambda2-rocq/T5b-loop`, which stands on that series, on T5's
+later commits for that join and on T4's series of what a meet
+keeps; it goes after the three are merged.
 
 The interface is T5's `FlambdaJoinSpec.v`, section "The join of
 types, inside a join of environments". I do not change that file.
@@ -157,6 +162,71 @@ types, inside a join of environments". I do not change that file.
   the join itself (`model_join_scoped_envs_keeps_outright`). The
   same of T5's conclusion about values on the runs that have its
   conditions (`model_join_scoped_envs_satisfied_outright`).
+- The same of the join that Simplify calls (`model_join`), in a
+  section of `FlambdaJoinMeetFitsSpec.v`, on T5's three
+  statements about it (`model_join_keeps_statement`,
+  `model_join_describes_uses_statement`,
+  `model_join_with_admits_use_statement`, `FlambdaJoinMeetSpec.v`),
+  which have the premise `types_fit_otherwise` for the run that
+  they name. `model_join_run_adds_types_that_fit_otherwise`: the
+  premise follows from theirs about the inputs and one more,
+  `uses_fit_otherwise` (the types of the uses that are joined are
+  well formed and have the names of their equations at their
+  kinds). `model_join_keeps_outright`: a meet may be made in the
+  target, the target keeps the source, and its new variables are
+  as the contract says (four of the six parts of
+  `join_guarantees`), with no premise about a run; it is T5's
+  theorem with the run found from the answer of the function
+  (`model_join_run_found`; where no use is cut there is no run,
+  and T5's argument for that case is used as it is).
+  `model_join_describes_uses_outright`: the same for what the
+  analysis speaks of (`analysis_describes_uses`, a fifth part).
+  What stays a premise of the two: that the meet of expanded
+  types of the model has `meet_expanded_head_keeps`.
+  `model_join_with_admits_use_outright`: T5's statement about
+  valuations and the definitions of the analysis (the conclusion
+  of `join_admits_use`) for that join made with any meet of
+  expanded types that has the two contracts
+  (`model_join_with_admits_use_statement`), word for word, with
+  `uses_fit_otherwise` in the place of its premise about the
+  types added. It is not stated at the meet of the model, which
+  is not shown to have the contract about values and may not
+  have it (T5's remark). The proof of the two joins is one lemma
+  (`phases_add_types_that_fit`), given what the first phases
+  suppose of the environments joined. T5 asked for it.
+- The join and the meet of the model together (the section after
+  that one). `model_meet_expanded_head_keeps`: the meet of
+  expanded types of the model has `meet_expanded_head_keeps`, for
+  every choice of the join, depth and fuel, and for choices of
+  the meet that have the three conditions of the meet's contract
+  (`repaired_choices` has them; `compiler_choices` has not). It
+  is T4's `meet_expanded_head_fuel_keeps`
+  (`FlambdaMeetKeepsSpec.v`: the meet keeps at every fuel, from a
+  join that has the conclusions of its contract that are not
+  about values) at `model_join_scoped_envs_keeps_outright`.
+  `model_join_guarantees_on_inputs`: so the join that Simplify
+  calls has five of the six parts of `join_guarantees` (a meet
+  may be made in the target, which gives the first two; the
+  target keeps the source; its new variables are as the contract
+  says; the analysis speaks of the uses) under premises about its
+  inputs and those three conditions only; nothing is supposed of
+  a function of the model. T5 asked that it be stated here. The
+  sixth part (`join_admits_use`) is had on the runs that have
+  T5's conditions, of the join made with a meet that has both
+  contracts.
+- `model_meet_keeps_terms` (the same section): the meet of the
+  model (`model_meet`), with such choices, adds no variable that
+  may occur in terms (`meet_keeps_terms`,
+  `FlambdaMeetTermsSpec.v`), which is what T1's statements about
+  the arms of a `Switch` suppose of the meet that they are given.
+  With it in `FlambdaMeetTermsSpec.v`:
+  `meet_to_prove_keeps_terms_of_keeps`, the conclusion of that
+  file's statement for a join that has `join_scoped_envs_keeps`
+  (another hypothesis than the contract of the join: neither
+  implies the other). T4 proposed it.
+- Validation of these two sections, on a base that has my
+  series, T5's later commits and T4's series of what a meet
+  keeps: `make -C rocq -j8 all`, `make -C rocq assumptions`.
 - `Expanded_type` is T4's module: `FlambdaJoinTypes.v` names it
   (`Module Expanded_type := FlambdaExpandHead.Expanded_type`) where
   it had a copy. Nothing else changed, in my files or in T5's: the
@@ -183,6 +253,15 @@ types, inside a join of environments". I do not change that file.
   blocks was not compared
   as it is written (`Heap` and `Local`): `Heap` and `Heap_or_local`
   were compared in its place.
+  T7 has since run the join of the model itself (`model_join`,
+  extracted, with the compiler's choices) on the inputs of the
+  examples beside the compiler's n-way join, both through the whole
+  join of environments: of thirty-two inputs, twenty-nine give the
+  same target (the bottom mark, the type and the canonical element
+  of each name, the types of the variables made, up to their
+  names); on the two where the compiler stops the model answers
+  `None`; one was not run (mode `Local`). And five thousand
+  generated joins over six shapes: all agree.
 - Proved on the way, each stated with its proof in
   `FlambdaJoinTypesProofs.v`, in the form of `join_step_sound` or
   what it becomes for a function that takes several lists or may
@@ -240,8 +319,17 @@ definition and the first two statements of
 - Asked of R4: the three Specs of the last three pairs of files.
   Read, with no formal finding; one repair of prose asked and made
   (what `recover_equation_names_statement` says, against what the
-  function does). To be confirmed at the tip, with the change of
-  `Expanded_type`.
+  function does). Confirmed at the tip, with the change of
+  `Expanded_type` (R4 read that each operation that was copied is
+  the one of T4's module) and the statement about values
+  (`model_join_scoped_envs_satisfied_outright_statement`). R4's
+  own build was still to come.
+- To be asked of R4: the last two sections of
+  `FlambdaJoinMeetFitsSpec.v` (`uses_fit_otherwise` and four
+  statements about the join that Simplify calls; three
+  statements about the join and the meet together), and the
+  statement added to `FlambdaMeetTermsSpec.v` (for R1 or R4, as
+  the orchestrator says).
 
 ## Stand-ins carried
 
@@ -284,6 +372,18 @@ is gone.
 - T5: no second form of `n_way_join_keeps` is needed for the kinds
   of the variables of the state: `n_way_join_sound` gives
   `state_grows` at valid states, which is where T5 uses it.
+- T4: its proofs of the contract of the meet are made general in
+  what is supposed of a static environment, by a script, so that
+  the meet keeps what it keeps from a join that has only the
+  conclusions that are not about values. I agreed that T4 commit
+  the scripted change to my three proof files of the meet
+  (products, heads of kind value, row-like structures); no proof
+  script changed, and each theorem is the general one at
+  validity.
+- T5 and T4: `join_scoped_envs_keeps` is defined twice, word for
+  word (`FlambdaJoinMeetSpec.v`, `FlambdaMeetKeepsSpec.v`), until
+  T5 deletes its copy; `model_meet_expanded_head_keeps` is proved
+  by the conversion between the two.
 - T1: `type_eqb` identifies types with the same values;
   `block_shape_eqb` decides equality. `type_satisfied_coincide` is
   what the proofs use where a type is imported as it stands (no
@@ -583,6 +683,23 @@ is on my base.
   (`join_expanded`) converts a type to itself and can go when T5
   wishes. Cost to change to (a): mechanical.
 
+- What is supposed of the uses of the join that Simplify calls
+  (2026-11-12). The types that its last phase adds fit the
+  environment of the meet only if the types of the environments
+  joined are well formed and have the names of their equations at
+  their kinds; the contract of the join supposes neither (nor
+  that a meet may be made in the source, which T5's statements
+  suppose). Options: (a) a premise that a meet may be made in each
+  use (`typing_env_fits`); (b) a premise of those two things only,
+  of the uses that are not bottom, which are the ones joined
+  (`uses_fit_otherwise`); (c) wait until the contract says which
+  environments Simplify gives the join. Chosen: (b), with a
+  `CR mshinwell` at the definition. Why: it is the least that the
+  proof uses, and with what the contract and `uses_kinded` give
+  it is (a) for those uses. What stays for the human: whether
+  every environment that Simplify gives the join has it is not
+  known. Cost to change: the premise of five statements.
+
 - Where the last three pairs of files stand. They are about T5's
   functions and are in files of mine, by agreement with T5 and the
   orchestrator; T5 owns the functions and the statements that
@@ -646,6 +763,16 @@ is on my base.
   (`join_scoped_envs_sound`) for the model's join: T5's, with the
   meet's own statements; the conclusions that are not about values
   are had.
+- The half about values of the meet of the model
+  (`meet_expanded_head_sound` of `model_meet_expanded_head`): not
+  shown, and it may not hold, since the join that it calls has
+  the conclusion about values only on some runs (the item
+  before). So the sixth part of `join_guarantees` is stated of
+  the join made with a meet that has both contracts, not with
+  the model's.
+- The same for the choices of the compiler (`compiler_choices`):
+  T4's theorems are for the choices that have the three
+  conditions.
 
 ## Asked of me next
 

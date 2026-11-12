@@ -256,6 +256,18 @@ through the orchestrator. Not merged; for T4 and R1 to read.
   every `join` with `join_scoped_envs_sound join`. The join that
   forgets has that contract (`forgetful_join_sound`, proved again),
   so there is an instance with no premise.
+- After the merge, not merged yet (on the branch of the join of
+  types that stands on T4's series of what a meet keeps):
+  `meet_to_prove_keeps_terms_of_keeps`, the same conclusion for
+  every `join` with `join_scoped_envs_keeps join`
+  (`FlambdaMeetKeepsSpec.v`: the conclusions of the contract that
+  are not about values, with every meet that keeps; another
+  hypothesis than the contract, which neither implies nor is
+  implied by it). T4 proposed it: the proof used only
+  `meet_expanded_head_keeps` of the meet of expanded types, which
+  T4's theorem gives from such a join. Its instance for the join
+  of the model is `model_meet_keeps_terms`
+  (`FlambdaJoinMeetFitsSpec.v`).
 
 It did not follow from the contract as it was: for the steps of a
 meet that define no variable it follows from what T4 proves (the
