@@ -4362,6 +4362,7 @@ type model =
 type choices =
   | Of_the_compiler
   | To_be_proved
+  | With_the_repaired_test_of_the_join
 
 let the_model (choices : choices) : model =
   let fuel = N.nat_of_int 200 in
@@ -4375,6 +4376,8 @@ let the_model (choices : choices) : model =
       Model_join_env.compiler_choices, Model_meet.compiler_choices
     | To_be_proved ->
       Model_join_env.repaired_choices, Model_meet.repaired_choices
+    | With_the_repaired_test_of_the_join ->
+      Model_join_env.repaired_choices, Model_meet.compiler_choices
   in
   let join =
     Model_join_meet.model_join_scoped_envs join_choices join_depth fuels
@@ -8072,6 +8075,644 @@ let control_of_the_static_groups (names : names) (symbols : M.symbol list) =
        (outcome alias (without_what_the_model_sees Bottom_seen alias)))
 
 (* ======================================================================== *)
+(* Joins after joins                                                        *)
+(* ======================================================================== *)
+
+(* The joins above are each of environments made from the environment of the
+   tests by definitions and equations. Here an environment is made by steps of
+   which one may be a join, of environments made by steps from the environment
+   before it: a use of a continuation may come after another continuation, and
+   then knows the variables that the join at that one brought in or made.
+
+   The one program is the three joins of the shape of T5-10, as the owner of the
+   transcription of the join wrote them (FlambdaJoinMeetExamplesSpec.v,
+   [Recovered]): the join at [kx] makes [t0] the tag of [x]; the join at [k0]
+   brings [x] in from the one use that knows it; the join at [k2] makes a
+   variable for a field that is [x] at one use, and records that [t0] is its
+   tag, though on a run through the other use of [k0] the variable [x] has no
+   value; and where [t0] is then 2 the environment is bottom.
+
+   It is run in the compiler, with the n-way join, in the model with the
+   compiler's test for recovering relations, and in the model with the repaired
+   test ([Join_env.repaired_choices]), which the compiler has not. What is seen
+   at four places is compared: after each join and where [t0] is 2. The model
+   with the compiler's test is to see what the compiler sees. The model with the
+   repaired test is to see the same after the first two joins, and not after the
+   third (T5-10). *)
+type joined_step =
+  | Defines of int
+      (** The variable of that number is defined, at the normal name mode. *)
+  | Further_scope
+  | Learns of int * MT.flambda_type  (** An equation on that variable. *)
+  | Defines_as of int * MT.flambda_type  (** Defined, with an equation. *)
+  | Joins of joined_step list list
+      (** The join, after the scope of the environment so far, of the
+          environments that each list of steps makes from it. *)
+  | Looked_at of string  (** What is seen here is kept under that name. *)
+
+(* What a side has for the steps: the model, or the compiler. *)
+type 'env side_of_joins =
+  { empty : 'env;
+    defines : 'env -> int -> 'env;
+    further_scope : 'env -> 'env;
+    learns : 'env -> int -> MT.flambda_type -> 'env option;
+    joins : source:'env -> 'env list -> 'env option;
+    looks : 'env -> seen
+  }
+
+(* The environment that the steps make, if every step answers, and what was
+   looked at on the way, in order. *)
+let run_joined_steps (side : 'env side_of_joins) (steps : joined_step list) :
+    'env option * (string * seen) list =
+  let looked_at = ref [] in
+  let rec run env (steps : joined_step list) : 'env option =
+    match steps with
+    | [] -> Some env
+    | Defines i :: steps -> run (side.defines env i) steps
+    | Further_scope :: steps -> run (side.further_scope env) steps
+    | Learns (i, t) :: steps ->
+      Option.bind (side.learns env i t) (fun env -> run env steps)
+    | Defines_as (i, t) :: rest -> run env (Defines i :: Learns (i, t) :: rest)
+    | Joins uses :: steps ->
+      let uses = List.map (run env) uses in
+      if List.exists Option.is_none uses
+      then None
+      else
+        Option.bind
+          (side.joins ~source:env (List.filter_map Fun.id uses))
+          (fun env -> run env steps)
+    | Looked_at name :: steps ->
+      looked_at := (name, side.looks env) :: !looked_at;
+      run env steps
+  in
+  let env = run side.empty steps in
+  env, List.rev !looked_at
+
+(* The two sides, for variables of the kinds given, numbered from 1. The
+   variables that the joins make are numbered after them. *)
+let sides_of_joins (kinds : MK.flambda_kind list) :
+    (model -> Model_env.t side_of_joins) * TE.t side_of_joins =
+  let numbering = Model_names.create () in
+  let variables =
+    List.map
+      (fun kind ->
+        let variable = Variable.create "v" (Converter.kind_of_model kind) in
+        ignore (numbering.variables.number variable : N.positive);
+        variable)
+      kinds
+  in
+  let threshold = List.length kinds in
+  let v = N.positive_of_int in
+  let asked = List.mapi (fun i _ : MT.name -> Name_var (v (i + 1))) kinds in
+  let variable i = List.nth variables (i - 1) in
+  let kind i = List.nth kinds (i - 1) in
+  let of_the_model (model : model) : Model_env.t side_of_joins =
+    (* The variables of the targets of the joins run so far. A join of the model
+       makes a variable one greater than those that it is told to avoid: told
+       only of the variables that its environments know, two uses of one join
+       that each have a join of their own would each be given the same new
+       variable, which the join after them would take for one. The compiler's
+       new variables differ from every other. So a join here avoids what every
+       join before it made (T7-11). *)
+    let made = ref [] in
+    { empty = Model_env.create;
+      defines =
+        (fun env i ->
+          Model_env.add_variable_definition env (v i) (kind i)
+            Model_name_mode.normal);
+      further_scope = Model_env.increment_scope;
+      learns =
+        (fun env i t -> model.add_equation_of_model env (Name_var (v i)) t);
+      joins =
+        (fun ~source uses ->
+          Option.map
+            (fun (target, _) ->
+              made := Model_join_env.variables_of_env target @ !made;
+              target)
+            (model.join_of_model
+               (names_for_a_join_to_avoid
+                  (List.mapi (fun i _ -> v (i + 1)) kinds @ !made)
+                  ~source ~uses)
+               { source;
+                 cut_after = Model_env.current_scope source;
+                 uses = List.mapi (fun i use -> i, use) uses
+               }));
+      looks = (fun env -> seen_in_the_model ~threshold asked None env)
+    }
+  in
+  let meet_expanded_head = N_way.meet_expanded_head in
+  let of_the_compiler : TE.t side_of_joins =
+    { empty = TE.create ~machine_width ~resolver:(fun _ -> None);
+      defines =
+        (fun env i ->
+          TE.add_definition env
+            (Bound_name.create_var
+               (Bound_var.create (variable i) Flambda_debug_uid.none
+                  Name_mode.normal))
+            (Variable.kind (variable i)));
+      further_scope = TE.increment_scope;
+      learns =
+        (fun env i t ->
+          Some
+            (ME.use_meet_env ~meet_expanded_head env ~f:(fun env ->
+                 ME.add_equation env
+                   (Name.var (variable i))
+                   (Converter.type_of_model numbering machine_width t)
+                   ~meet_expanded_head)));
+      joins =
+        (fun ~source uses ->
+          Some
+            (fst
+               (N_way_join.cut_and_n_way_join_with_analysis ~meet_expanded_head
+                  ~n_way_join_type:N_way.n_way_join source
+                  ~cut_after:(TE.current_scope source)
+                  (List.map (fun use -> (), use) uses))));
+      looks =
+        (fun env -> seen_in_the_compiler numbering ~threshold asked None env)
+    }
+  in
+  of_the_model, of_the_compiler
+
+(* The program of T5-10. The variables, in the order of their numbers: [n], a
+   value; [t0], a naked immediate; [x], [p], [s], and the blocks made on the way
+   [b0], [b1], [pa], [pb], [z], [pd], values. *)
+let joins_of_the_shape_of_t5_10 () =
+  let n = 1 and t0 = 2 and x = 3 and p = 4 and s = 5 in
+  let b0 = 6 and b1 = 7 and pa = 8 and pb = 9 and z = 10 and pd = 11 in
+  let kinds : MK.flambda_kind list =
+    List.init 11 (fun i : MK.flambda_kind ->
+        if i + 1 = t0 then Naked_number Kind_naked_immediate else Value)
+  in
+  let alias i = MT.alias_type_of Value (Var (N.positive_of_int i)) in
+  let block tag fields =
+    MT.immutable_block false (N.z_of_int tag) (Scannable Value_only) Heap fields
+  in
+  let number i = MT.this_naked_immediate (N.z_of_int i) in
+  let use_of_kx tag made : joined_step list =
+    [ Further_scope;
+      Learns (t0, number tag);
+      Defines_as (made, block tag [alias n]);
+      Learns (x, alias made) ]
+  in
+  let after_kx = "after the join at kx" in
+  let after_k0 = "after the join at k0" in
+  let after_k2 = "after the join at k2" in
+  let where_two = "where t0 is 2 after the join at k2" in
+  let steps : joined_step list =
+    [ Defines n;
+      Defines t0;
+      Defines p;
+      Joins
+        [ [ Further_scope;
+            Defines x;
+            Joins [use_of_kx 0 b0; use_of_kx 1 b1];
+            Looked_at after_kx;
+            Defines_as (pa, block 0 [alias x]);
+            Learns (p, alias pa) ];
+          [ Further_scope;
+            Defines_as (pb, block 1 [alias n]);
+            Learns (p, alias pb) ] ];
+      Looked_at after_k0;
+      Defines s;
+      Joins
+        [ [Further_scope; Learns (s, alias p)];
+          [ Further_scope;
+            Learns (t0, number 0);
+            Defines_as (z, block 0 [alias n]);
+            Defines_as (pd, block 0 [alias z]);
+            Learns (s, alias pd) ] ];
+      Looked_at after_k2;
+      Learns (t0, number 2);
+      Looked_at where_two ]
+  in
+  let threshold = List.length kinds in
+  let of_the_model, of_the_compiler = sides_of_joins kinds in
+  let in_the_compiler =
+    match
+      or_fatal_error (fun () ->
+          match run_joined_steps of_the_compiler steps with
+          | looked_at -> Ok looked_at
+          | exception Assert_failure (file, _, _) ->
+            Error ("an assertion of " ^ Filename.basename file ^ " fails"))
+    with
+    | Ok (Ok ((_ : TE.t option), looked_at)) -> Ok looked_at
+    | Ok (Error why) -> Error why
+    | Error line -> Error ("a fatal error: " ^ general line)
+  in
+  let in_the_model choices =
+    let (_ : Model_env.t option), looked_at =
+      run_joined_steps (of_the_model (the_model choices)) steps
+    in
+    looked_at
+  in
+  let as_the_compiler = in_the_model Of_the_compiler in
+  let with_the_repaired_test =
+    in_the_model With_the_repaired_test_of_the_join
+  in
+  let check what holds =
+    if holds
+    then Format.printf "  %s: yes@." what
+    else (
+      incr failures;
+      Format.printf "  %s: NO@." what)
+  in
+  Format.printf
+    "@.Joins after joins: the three joins of the shape of T5-10, in the \
+     compiler, in the model with the compiler's test for recovering relations \
+     and in the model with the repaired test@.";
+  match in_the_compiler with
+  | Error why ->
+    incr failures;
+    Format.printf "  the compiler does not answer: %s@." why
+  | Ok in_the_compiler ->
+    let seen looked_at name : seen =
+      match List.assoc_opt name looked_at with
+      | Some seen -> seen
+      | None -> Nothing_seen "the steps did not come to it"
+    in
+    let is_seen (seen : seen) =
+      match seen with Seen _ -> true | Nothing_seen _ | Bottom_seen -> false
+    in
+    let same looked_at name =
+      let of_model = seen looked_at name in
+      let of_compiler = seen in_the_compiler name in
+      is_seen of_model && is_seen of_compiler
+      && same_seen ~threshold of_model of_compiler
+    in
+    let told_apart looked_at name =
+      let of_model = seen looked_at name in
+      let of_compiler = seen in_the_compiler name in
+      is_seen of_model && is_seen of_compiler
+      && not (same_seen ~threshold of_model of_compiler)
+    in
+    let is_bottom looked_at name =
+      match seen looked_at name with
+      | Seen { env_is_bottom; _ } -> Some env_is_bottom
+      | Nothing_seen _ | Bottom_seen -> None
+    in
+    let is expected (answer : bool option) =
+      Option.equal Bool.equal answer (Some expected)
+    in
+    List.iter
+      (fun name ->
+        check
+          (name
+         ^ ", the model with the compiler's test sees what the compiler sees")
+          (same as_the_compiler name))
+      [after_kx; after_k0; after_k2; where_two];
+    check "the environment where t0 is 2 is bottom in the compiler"
+      (is true (is_bottom in_the_compiler where_two));
+    check "and in the model with the compiler's test"
+      (is true (is_bottom as_the_compiler where_two));
+    List.iter
+      (fun name ->
+        check
+          (name
+         ^ ", the model with the repaired test sees what the compiler sees")
+          (same with_the_repaired_test name))
+      [after_kx; after_k0];
+    List.iter
+      (fun name ->
+        check
+          (name
+         ^ ", the model with the repaired test and the compiler are told apart \
+            (T5-10)")
+          (told_apart with_the_repaired_test name))
+      [after_k2; where_two];
+    check
+      "the environment where t0 is 2 is not bottom in the model with the \
+       repaired test"
+      (is false (is_bottom with_the_repaired_test where_two));
+    (* The type that an environment looked at has for [t0]. *)
+    let of_t0 looked_at name : string =
+      match seen looked_at name with
+      | Seen { of_names; _ } -> (
+        match
+          List.find_opt
+            (fun ((name : MT.name), _, _) ->
+              MT.name_eqb name (Name_var (N.positive_of_int t0)))
+            of_names
+        with
+        | Some (_, Some t, _) ->
+          rename_variables_above threshold
+            (Format.asprintf "%a" Model_type.print (Model_type.normalise t))
+        | Some (_, None, _) | None -> "not defined")
+      | Nothing_seen why -> "nothing is seen: " ^ why
+      | Bottom_seen -> "bottom"
+    in
+    Format.printf "  the type of t0 after the join at k2, in the compiler: %s@."
+      (of_t0 in_the_compiler after_k2);
+    Format.printf "  in the model with the compiler's test: %s@."
+      (of_t0 as_the_compiler after_k2);
+    Format.printf "  in the model with the repaired test: %s@."
+      (of_t0 with_the_repaired_test after_k2)
+
+(* Generated programs of joins. Twelve values, numbered from 1, and three naked
+   immediates after them. The first two values and the immediates are defined at
+   the start and the third value after the first join; each of the other values
+   is defined at most once, at a use, so that no variable is defined on two
+   paths.
+
+   A program is a join of two uses, a value defined after it, a join of two uses
+   that give that value a type, and at times an equation on an immediate after
+   that. A use of the first join may begin with a join of its own, at a
+   continuation whose parameter it defines. A use learns a number for an
+   immediate, makes blocks, whose tag is most often that number, and gives the
+   values that it is to give a type an alias of a value in scope or a block. So
+   the tag of a value is often an immediate at every use of a join, which is
+   where a join records a relation; and a use of the second join knows the
+   variables that the first brought in. *)
+let kinds_of_generated_joins : MK.flambda_kind list =
+  List.init 15 (fun i : MK.flambda_kind ->
+      if i < 12 then Value else Naked_number Kind_naked_immediate)
+
+let generate_joined_steps r : joined_step list =
+  let immediates = [13; 14; 15] in
+  let unused = ref [4; 5; 6; 7; 8; 9; 10; 11; 12] in
+  let fresh () =
+    match !unused with
+    | [] -> None
+    | x :: rest ->
+      unused := rest;
+      Some x
+  in
+  let alias i = MT.alias_type_of Value (Var (N.positive_of_int i)) in
+  let number i = MT.this_naked_immediate (N.z_of_int i) in
+  let block tag fields =
+    MT.immutable_block false (N.z_of_int tag) (Scannable Value_only) Heap fields
+  in
+  (* A use: the values in scope, and those that it is to give a type. *)
+  let rec use ~depth (in_scope : int list) (targets : int list) :
+      joined_step list =
+    let in_scope = ref in_scope in
+    let steps = ref [Further_scope] in
+    let add step = steps := step :: !steps in
+    (* A join of its own, at a continuation whose parameter it defines. *)
+    (if depth > 0 && G.chance r ~percent:50
+     then
+       match fresh () with
+       | None -> ()
+       | Some parameter ->
+         add (Defines parameter);
+         let before = !in_scope in
+         add
+           (Joins
+              [ use ~depth:(depth - 1) before [parameter];
+                use ~depth:(depth - 1) before [parameter] ]);
+         in_scope := parameter :: before);
+    let tag =
+      if G.chance r ~percent:70
+      then (
+        let tag = G.below r 2 in
+        add (Learns (G.pick r immediates, number tag));
+        tag)
+      else G.below r 2
+    in
+    let field () =
+      if G.chance r ~percent:70
+      then alias (G.pick r !in_scope)
+      else MT.this_tagged_immediate (G.small_number r)
+    in
+    let a_block () =
+      block
+        (if G.chance r ~percent:80 then tag else G.below r 2)
+        (List.init (1 + G.below r 2) (fun _ -> field ()))
+    in
+    List.iter
+      (fun target ->
+        match G.below r 4 with
+        | 0 -> ()
+        | 1 -> add (Learns (target, alias (G.pick r !in_scope)))
+        | _ -> (
+          match fresh () with
+          | None -> add (Learns (target, a_block ()))
+          | Some made ->
+            add (Defines_as (made, a_block ()));
+            in_scope := made :: !in_scope;
+            add (Learns (target, alias made))))
+      targets;
+    List.rev !steps
+  in
+  let first = Joins [use ~depth:1 [1; 2] [1; 2]; use ~depth:1 [1; 2] [1; 2]] in
+  let second = Joins [use ~depth:0 [1; 2; 3] [3]; use ~depth:0 [1; 2; 3] [3]] in
+  List.map (fun i -> Defines i) ([1; 2] @ immediates)
+  @ [first; Looked_at "after the first join"; Defines 3; second]
+  @ [Looked_at "after the second join"]
+  @
+  if G.chance r ~percent:50
+  then
+    [ Learns (G.pick r immediates, number (G.below r 3));
+      Looked_at "after an equation on an immediate" ]
+  else []
+
+let rec print_joined_steps ppf (steps : joined_step list) =
+  Format.fprintf ppf "@[<v>%a@]"
+    (Format.pp_print_list ~pp_sep:Format.pp_print_cut
+       (fun ppf (step : joined_step) ->
+         let variable ppf i =
+           Model_type.print_variable ppf (N.positive_of_int i)
+         in
+         match step with
+         | Defines i -> Format.fprintf ppf "%a is defined" variable i
+         | Further_scope -> Format.pp_print_string ppf "one scope further"
+         | Learns (i, t) ->
+           Format.fprintf ppf "@[<hov 2>%a :@ %a@]" variable i Model_type.print
+             t
+         | Defines_as (i, t) ->
+           Format.fprintf ppf "@[<hov 2>%a is defined, and@ %a :@ %a@]" variable
+             i variable i Model_type.print t
+         | Joins uses ->
+           Format.fprintf ppf "@[<v>the join of@ %a@]"
+             (Format.pp_print_list ~pp_sep:Format.pp_print_cut (fun ppf use ->
+                  Format.fprintf ppf "@[<v 2>a use:@ %a@]" print_joined_steps
+                    use))
+             uses
+         | Looked_at name -> Format.fprintf ppf "(looked at: %s)" name))
+    steps
+
+(* One step less, anywhere but for the places looked at; a join with one use
+   less. What is left may not define what it mentions: then neither side
+   answers. *)
+let rec shrink_joined_steps (steps : joined_step list) : joined_step list list =
+  let without i = List.filteri (fun j _ -> i <> j) steps in
+  let with_at i step =
+    List.mapi (fun j other -> if i = j then step else other) steps
+  in
+  List.concat
+    (List.mapi
+       (fun i (step : joined_step) ->
+         match step with
+         | Looked_at _ -> []
+         | Defines _ | Further_scope | Learns _ | Defines_as _ -> [without i]
+         | Joins uses ->
+           (match uses with
+             | [] | [_] -> []
+             | _ :: _ :: _ ->
+               List.mapi
+                 (fun k _ ->
+                   with_at i (Joins (List.filteri (fun l _ -> k <> l) uses)))
+                 uses)
+           @ List.concat
+               (List.mapi
+                  (fun k use ->
+                    List.map
+                      (fun use ->
+                        with_at i
+                          (Joins
+                             (List.mapi
+                                (fun l other -> if k = l then use else other)
+                                uses)))
+                      (shrink_joined_steps use))
+                  uses))
+       steps)
+
+(* What the two sides see at the places looked at, or why one does not
+   answer. *)
+type joins_run =
+  | Neither_answers of string
+  | Only_one_answers of string
+  | Both_answer of (string * seen * seen) list
+
+let joined_steps_in_the_compiler (of_the_compiler : TE.t side_of_joins)
+    (steps : joined_step list) : ((string * seen) list, string) result =
+  match
+    or_fatal_error (fun () ->
+        match run_joined_steps of_the_compiler steps with
+        | (_ : TE.t option), looked_at -> Ok looked_at
+        | exception Assert_failure (file, _, _) ->
+          Error ("an assertion of " ^ Filename.basename file ^ " fails"))
+  with
+  | Ok (Ok looked_at) -> Ok looked_at
+  | Ok (Error why) -> Error why
+  | Error line -> Error ("a fatal error: " ^ general line)
+
+let joined_steps_in_the_model (of_the_model : Model_env.t side_of_joins)
+    (steps : joined_step list) : ((string * seen) list, string) result =
+  match run_joined_steps of_the_model steps with
+  | Some (_ : Model_env.t), looked_at -> Ok looked_at
+  | None, (_ : (string * seen) list) -> Error "no answer of a step"
+
+let generated_joins_after_joins () : joined_step list comparison list =
+  let kinds = kinds_of_generated_joins in
+  let threshold = List.length kinds in
+  let run choices (steps : joined_step list) : joins_run =
+    let of_the_model, of_the_compiler = sides_of_joins kinds in
+    match
+      ( joined_steps_in_the_model (of_the_model (the_model choices)) steps,
+        joined_steps_in_the_compiler of_the_compiler steps )
+    with
+    | Error why, Error why' ->
+      Neither_answers
+        (Printf.sprintf "the model: %s; the compiler: %s" why why')
+    | Error why, Ok _ -> Only_one_answers ("the model: " ^ why)
+    | Ok _, Error why -> Only_one_answers ("the compiler: " ^ why)
+    | Ok of_model, Ok of_compiler ->
+      Both_answer
+        (List.map2
+           (fun (name, seen) ((_ : string), seen') -> name, seen, seen')
+           of_model of_compiler)
+  in
+  let is_seen (seen : seen) =
+    match seen with Seen _ -> true | Nothing_seen _ | Bottom_seen -> false
+  in
+  (* The first place at which the two do not see the same. *)
+  let first_difference (places : (string * seen * seen) list) :
+      (string * seen * seen) option =
+    List.find_opt
+      (fun ((_ : string), seen, seen') ->
+        not (is_seen seen && is_seen seen' && same_seen ~threshold seen seen'))
+      places
+  in
+  (* A difference is shown without the variables that are not in scope at the
+     place, of which nothing is seen on either side. *)
+  let in_scope (seen : seen) : seen =
+    match seen with
+    | Nothing_seen _ | Bottom_seen -> seen
+    | Seen { answer; env_is_bottom; of_names; of_others } ->
+      Seen
+        { answer;
+          env_is_bottom;
+          of_names =
+            List.filter
+              (fun ((_ : MT.name), t, canonical) ->
+                Option.is_some t || Option.is_some canonical)
+              of_names;
+          of_others
+        }
+  in
+  let print_difference (name, seen, seen') =
+    Format.asprintf "@[<v>%s, the model:@ %a@ the compiler:@ %a@]" name
+      print_lines
+      (print_seen ~threshold (in_scope seen))
+      print_lines
+      (print_seen ~threshold (in_scope seen'))
+  in
+  let with_the_test_of_the_compiler (steps : joined_step list) : outcome =
+    match run Of_the_compiler steps with
+    | Neither_answers why -> Not_run ("neither answers (" ^ why ^ ")")
+    | Only_one_answers why -> Disagree ("only one answers (" ^ why ^ ")")
+    | Both_answer places -> (
+      match first_difference places with
+      | None -> Agree
+      | Some difference -> Disagree (print_difference difference))
+  in
+  let a_use_after_a_join (steps : joined_step list) =
+    List.exists
+      (fun (step : joined_step) ->
+        match step with
+        | Joins uses ->
+          List.exists
+            (List.exists (fun (step : joined_step) ->
+                 match step with
+                 | Joins _ -> true
+                 | Defines _ | Further_scope | Learns _ | Defines_as _
+                 | Looked_at _ ->
+                   false))
+            uses
+        | Defines _ | Further_scope | Learns _ | Defines_as _ | Looked_at _ ->
+          false)
+      steps
+  in
+  [ { name = "joins after joins: the model and the n-way join of the compiler";
+      compare = with_the_test_of_the_compiler
+    };
+    { name =
+        "of which those where a use of the first join has a join of its own";
+      compare =
+        (fun steps ->
+          if a_use_after_a_join steps
+          then with_the_test_of_the_compiler steps
+          else Not_this_comparison)
+    };
+    (* The repaired test is not the compiler's: where the model with it sees
+       otherwise than the compiler, and the model with the compiler's test sees
+       what the compiler sees, the repair is what makes the difference. *)
+    { name =
+        "joins after joins: the model with the repaired test for recovering \
+         relations, and the compiler";
+      compare =
+        (fun steps ->
+          match run With_the_repaired_test_of_the_join steps with
+          | Neither_answers why -> Not_run ("neither answers (" ^ why ^ ")")
+          | Only_one_answers why -> Disagree ("only one answers (" ^ why ^ ")")
+          | Both_answer places -> (
+            match first_difference places with
+            | None -> Agree
+            | Some difference -> (
+              match with_the_test_of_the_compiler steps with
+              | Agree ->
+                Known_to_disagree
+                  ( "T5-10, the repaired test, which the compiler has not, \
+                     records no relation where the compiler's records one: the \
+                     model with the compiler's test sees what the compiler \
+                     sees",
+                    print_difference difference )
+              | Not_this_comparison | Not_run _ | Disagree _
+              | Known_to_disagree _ ->
+                Disagree (print_difference difference))))
+    } ]
+
+(* ======================================================================== *)
 (* The tests                                                                *)
 (* ======================================================================== *)
 
@@ -8634,6 +9275,16 @@ let () =
           "Two types of kind value with a common part, shared and not, with \
            the compiler's default for the sharing of joins"
         Default_sharing);
+  joins_of_the_shape_of_t5_10 ();
+  run
+    ~title:
+      "Programs of two joins of two uses, of which a use of the first may have \
+       a join of its own, for the join of the model and the n-way join of the \
+       compiler"
+    ~seed:160000 ~count:1500 ~generate:generate_joined_steps
+    ~prepare:(fun steps -> steps)
+    ~shrink:shrink_joined_steps ~print:print_joined_steps
+    (generated_joins_after_joins ());
   let symbols_of_groups = symbols_for_static_groups names in
   run
     ~title:
