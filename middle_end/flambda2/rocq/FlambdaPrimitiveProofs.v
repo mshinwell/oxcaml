@@ -507,6 +507,374 @@ Proof.
 Qed.
 
 (* ======================================================================== *)
+(* Values that are constants, and lists                                     *)
+(* ======================================================================== *)
+
+(* A value is a constant, or it is none and is of kind [Value]. *)
+Lemma const_or_not (v : value) :
+  (∃ c : const, v = Value_const c)
+  ∨ ((∀ c : const, v <> Value_const c) ∧ kind_of_value v = Value).
+Proof.
+  destruct v; simpl;
+    try (right; split; [ intros c'; discriminate | reflexivity ]).
+  left. eauto.
+Qed.
+
+Lemma is_some_not_none {A : Type} (o : option A) :
+  is_some o = true <-> o <> None.
+Proof. destruct o; simpl; split; congruence. Qed.
+
+Lemma forall2_nth_error {A B : Type} (R : A -> B -> Prop) (l : list A)
+    (l' : list B) :
+  Forall2 R l l' ->
+  ∀ (n : nat) (a : A),
+    nth_error l n = Some a -> ∃ b : B, nth_error l' n = Some b ∧ R a b.
+Proof.
+  induction 1 as [ | a0 b0 l l' Hhead _ IH]; intros [ | n] a; simpl;
+    try discriminate.
+  - intros [= <-]. exists b0. auto.
+  - apply IH.
+Qed.
+
+Lemma forall2_forallb {A B : Type} (R : A -> B -> Prop) (f : A -> bool)
+    (g : B -> bool) (l : list A) (l' : list B) :
+  (∀ (a : A) (b : B), R a b -> f a = true -> g b = true) ->
+  Forall2 R l l' ->
+  forallb f l = true ->
+  forallb g l' = true.
+Proof.
+  intros Hfg. induction 1 as [ | a b l l' Hhead _ IH]; simpl;
+    [ reflexivity | ].
+  intros Hall. apply andb_true_iff in Hall as [Ha Hl].
+  rewrite (Hfg a b Hhead Ha), (IH Hl). reflexivity.
+Qed.
+
+(* ======================================================================== *)
+(* Arrays                                                                   *)
+(* ======================================================================== *)
+
+Lemma replace_nth_length {A : Type} (n : nat) (x : A) (l l' : list A) :
+  replace_nth n x l = Some l' -> length l' = length l.
+Proof.
+  revert l l'. induction n as [ | n IH]; intros [ | y l] l'; simpl;
+    try discriminate.
+  - intros [= <-]. reflexivity.
+  - destruct (replace_nth n x l) as [l'' | ] eqn:Hreplace; simpl;
+      [ | discriminate ].
+    intros [= <-]. simpl. rewrite (IH _ _ Hreplace). reflexivity.
+Qed.
+
+Lemma replace_nth_in {A : Type} (n : nat) (x : A) (l l1 : list A) (y : A) :
+  replace_nth n x l = Some l1 -> y ∈ l1 -> y = x ∨ y ∈ l.
+Proof.
+  revert n l1. induction l as [ | a l IH]; intros [ | n] l1; simpl;
+    try discriminate.
+  - intros [= <-] [<- | Hin];
+      [ left; reflexivity | right; right; exact Hin ].
+  - destruct (replace_nth n x l) as [l2 | ] eqn:Hreplace; simpl;
+      [ | discriminate ].
+    intros [= <-] [<- | Hin]; [ right; left; reflexivity | ].
+    destruct (IH _ _ Hreplace Hin) as [-> | Hin'];
+      [ left; reflexivity | right; right; exact Hin' ].
+Qed.
+
+Lemma Forall2_replace_nth {A B : Type} (R : A -> B -> Prop) (n : nat) (x : A)
+    (y : B) (l l1 : list A) (l' : list B) :
+  R x y ->
+  Forall2 R l l' ->
+  replace_nth n x l = Some l1 ->
+  ∃ l1' : list B, replace_nth n y l' = Some l1' ∧ Forall2 R l1 l1'.
+Proof.
+  intros Hxy Hall. revert n l1.
+  induction Hall as [ | a b l l' Hab Hall IH]; intros [ | n] l1; simpl;
+    try discriminate.
+  - intros [= <-]. eexists. split; [ reflexivity | constructor; assumption ].
+  - destruct (replace_nth n x l) as [l2 | ] eqn:Hreplace; simpl;
+      [ | discriminate ].
+    intros [= <-]. destruct (IH _ _ Hreplace) as (l2' & -> & Hl2). simpl.
+    eexists. split; [ reflexivity | constructor; assumption ].
+Qed.
+
+(* The element at the position replaced is the new one, and the others
+   are as they were. *)
+Lemma replace_nth_same {A : Type} (n : nat) (x : A) (l l' : list A) :
+  replace_nth n x l = Some l' -> nth_error l' n = Some x.
+Proof.
+  revert l l'. induction n as [ | n IH]; intros [ | y l] l'; simpl;
+    try discriminate.
+  - intros [= <-]. reflexivity.
+  - destruct (replace_nth n x l) as [l'' | ] eqn:Hreplace; simpl;
+      [ | discriminate ].
+    intros [= <-]. simpl. exact (IH _ _ Hreplace).
+Qed.
+
+Lemma replace_nth_other {A : Type} (n m : nat) (x : A) (l l' : list A) :
+  replace_nth n x l = Some l' -> n <> m -> nth_error l' m = nth_error l m.
+Proof.
+  revert m l l'.
+  induction n as [ | n IH]; intros [ | m] [ | y l] l'; simpl;
+    try discriminate.
+  - intros _ Hneq. contradiction Hneq. reflexivity.
+  - intros [= <-] _. reflexivity.
+  - destruct (replace_nth n x l) as [l'' | ] eqn:Hreplace; simpl;
+      [ | discriminate ].
+    intros [= <-] _. reflexivity.
+  - destruct (replace_nth n x l) as [l'' | ] eqn:Hreplace; simpl;
+      [ | discriminate ].
+    intros [= <-] Hneq. simpl. apply (IH _ _ _ Hreplace). congruence.
+Qed.
+
+(* An index that is a position is the tagged immediate of that position,
+   which the array has. *)
+Lemma array_index_position (elements : list value) (index : value)
+    (i : nat) :
+  array_index elements index = Some i ->
+  (i < length elements)%nat
+  ∧ int_of_value Standard_tagged_immediate index = Some (Z.of_nat i).
+Proof.
+  unfold array_index.
+  destruct (int_of_value Standard_tagged_immediate index) as [z | ];
+    [ | discriminate ].
+  cbv beta iota.
+  destruct ((0 <=? z) && (z <? Z.of_nat (length elements))) eqn:Hbounds;
+    [ | discriminate ].
+  intros [= <-]. apply andb_true_iff in Hbounds as [Hlow Hhigh].
+  apply Z.leb_le in Hlow. apply Z.ltb_lt in Hhigh.
+  split; [ lia | ]. rewrite Z2Nat.id by exact Hlow. reflexivity.
+Qed.
+
+(* The position of an index depends on the number of elements only. *)
+Lemma array_index_same_length (elements elements' : list value)
+    (index : value) :
+  length elements' = length elements ->
+  array_index elements' index = array_index elements index.
+Proof. intros Hlength. unfold array_index. rewrite Hlength. reflexivity. Qed.
+
+Theorem array_element_kind : array_element_kind_statement.
+Proof.
+  intros kind v. destruct kind; simpl;
+    [ apply is_tagged_immediate_kind | apply kind_eqb_eq | apply kind_eqb_eq ].
+Qed.
+
+Theorem array_made_of_arguments : array_made_of_arguments_statement.
+Proof.
+  intros kind vs elements. unfold array_made.
+  destruct (forallb (array_element_ok kind) vs) eqn:Hall; [ | discriminate ].
+  intros [= <-]. split; [ reflexivity | ].
+  intros v Hin. rewrite forallb_forall in Hall. exact (Hall v Hin).
+Qed.
+
+Theorem array_length_of_same_length : array_length_of_same_length_statement.
+Proof.
+  intros elements elements' Hlength. unfold array_length_of.
+  rewrite Hlength. reflexivity.
+Qed.
+
+Theorem array_loaded_element : array_loaded_element_statement.
+Proof.
+  intros load_kind elements index v. unfold array_loaded.
+  destruct (array_index elements index) as [i | ]; [ | discriminate ].
+  cbv beta iota.
+  destruct (nth_error elements i) as [w | ] eqn:Hnth; [ | discriminate ].
+  cbv beta iota.
+  destruct (array_element_ok (array_kind_of_load_kind load_kind) w) eqn:Hok;
+    [ | discriminate ].
+  intros [= <-]. split; [ exact (nth_error_In _ _ Hnth) | exact Hok ].
+Qed.
+
+(* A store that has a value: the two tests of the new value passed, the
+   index is a position, and the elements are replaced there. *)
+Lemma array_stored_cases (set_kind : array_set_kind) (kind : array_kind)
+    (elements : list value) (index new : value) (stored : list value) :
+  array_stored set_kind kind elements index new = Some stored ->
+  array_element_ok (array_kind_of_set_kind set_kind) new = true
+  ∧ array_element_ok kind new = true
+  ∧ ∃ i : nat,
+      array_index elements index = Some i
+      ∧ replace_nth i new elements = Some stored.
+Proof.
+  unfold array_stored.
+  destruct (array_element_ok (array_kind_of_set_kind set_kind) new);
+    [ | discriminate ].
+  destruct (array_element_ok kind new); [ | discriminate ].
+  simpl.
+  destruct (array_index elements index) as [i | ]; [ | discriminate ].
+  cbv beta iota. intros Hstored. eauto.
+Qed.
+
+Theorem array_stored_elements : array_stored_elements_statement.
+Proof.
+  intros set_kind kind elements index new stored Hstored.
+  apply array_stored_cases in Hstored as (_ & Hok & i & _ & Hreplace).
+  split; [ exact (replace_nth_length _ _ _ _ Hreplace) | ].
+  split; [ exact Hok | ].
+  intros v Hin. exact (replace_nth_in _ _ _ _ _ Hreplace Hin).
+Qed.
+
+Theorem array_load_after_store : array_load_after_store_statement.
+Proof.
+  intros set_kind kind load_kind elements index new stored Hstored.
+  apply array_stored_cases in Hstored as (_ & _ & i & Hindex & Hreplace).
+  unfold array_loaded.
+  rewrite (array_index_same_length elements stored index)
+    by exact (replace_nth_length _ _ _ _ Hreplace).
+  rewrite Hindex. cbv beta iota.
+  rewrite (replace_nth_same _ _ _ _ Hreplace). reflexivity.
+Qed.
+
+Theorem array_load_after_other_store :
+  array_load_after_other_store_statement.
+Proof.
+  intros set_kind kind load_kind elements index new other stored i j
+    Hstored Hi Hj Hneq.
+  apply array_stored_cases in Hstored as (_ & _ & n & Hindex & Hreplace).
+  unfold array_loaded.
+  rewrite (array_index_same_length elements stored other)
+    by exact (replace_nth_length _ _ _ _ Hreplace).
+  destruct (array_index elements other) as [m | ] eqn:Hother;
+    [ | reflexivity ].
+  cbv beta iota.
+  rewrite (replace_nth_other n m new elements stored Hreplace);
+    [ reflexivity | ].
+  intros ->.
+  apply array_index_position in Hindex as [_ Hindex].
+  apply array_index_position in Hother as [_ Hother].
+  congruence.
+Qed.
+
+(* A relation that relates a constant to itself only keeps the kind and
+   the integers. *)
+Lemma relates_constants_numbers (R : value -> value -> Prop) :
+  relates_constants R -> relates_numbers R.
+Proof.
+  intros [Hconst_l Hconst_r] v v' Hr. split.
+  - destruct (const_or_not v) as [[c ->] | [Hv Hkind]];
+      [ rewrite (Hconst_l c v' Hr); reflexivity | ].
+    destruct (const_or_not v') as [[c ->] | [_ Hkind']];
+      [ rewrite (Hconst_r v c Hr); reflexivity | congruence ].
+  - intros kind i Hint.
+    destruct (int_of_value_const _ _ _ Hint) as [-> _].
+    rewrite (Hconst_l _ v' Hr). exact Hint.
+Qed.
+
+Section Arrays_related.
+
+Variable R : value -> value -> Prop.
+Hypothesis Hnumbers : relates_numbers R.
+
+(* A value that an array holds is related to values that it holds. *)
+Lemma array_element_ok_related (kind : array_kind) (v v' : value) :
+  R v v' -> array_element_ok kind v = true -> array_element_ok kind v' = true.
+Proof.
+  intros Hr. destruct (Hnumbers v v' Hr) as [Hkind Hint].
+  destruct kind; simpl; try (rewrite Hkind; exact (fun H => H)).
+  unfold is_tagged_immediate.
+  destruct (int_of_value Standard_tagged_immediate v) as [i | ] eqn:Hi;
+    [ | discriminate ].
+  rewrite (Hint _ i Hi). exact (fun H => H).
+Qed.
+
+Lemma array_index_related (elements elements' : list value)
+    (index index' : value) (i : nat) :
+  Forall2 R elements elements' ->
+  R index index' ->
+  array_index elements index = Some i ->
+  array_index elements' index' = Some i.
+Proof.
+  intros Helements Hr. unfold array_index.
+  destruct (int_of_value Standard_tagged_immediate index) as [z | ] eqn:Hz;
+    [ | discriminate ].
+  rewrite (proj2 (Hnumbers index index' Hr) _ z Hz).
+  rewrite (Forall2_length Helements). exact (fun H => H).
+Qed.
+
+Lemma array_made_related_in (kind : array_kind)
+    (vs vs' elements : list value) :
+  Forall2 R vs vs' ->
+  array_made kind vs = Some elements ->
+  ∃ elements' : list value,
+    array_made kind vs' = Some elements' ∧ Forall2 R elements elements'.
+Proof.
+  intros Hvs. unfold array_made.
+  destruct (forallb (array_element_ok kind) vs) eqn:Hall; [ | discriminate ].
+  intros [= <-].
+  rewrite
+    (forall2_forallb R (array_element_ok kind) (array_element_ok kind) vs vs'
+       (array_element_ok_related kind) Hvs Hall).
+  exists vs'. split; [ reflexivity | exact Hvs ].
+Qed.
+
+Lemma array_loaded_related_in (load_kind : array_load_kind)
+    (elements elements' : list value) (index index' v : value) :
+  Forall2 R elements elements' ->
+  R index index' ->
+  array_loaded load_kind elements index = Some v ->
+  ∃ v' : value, array_loaded load_kind elements' index' = Some v' ∧ R v v'.
+Proof.
+  intros Helements Hr. unfold array_loaded.
+  destruct (array_index elements index) as [i | ] eqn:Hindex;
+    [ | discriminate ].
+  rewrite (array_index_related _ _ _ _ _ Helements Hr Hindex).
+  cbv beta iota.
+  destruct (nth_error elements i) as [w | ] eqn:Hnth; [ | discriminate ].
+  destruct (forall2_nth_error R elements elements' Helements i w Hnth)
+    as (w' & -> & Hw).
+  cbv beta iota.
+  destruct (array_element_ok (array_kind_of_load_kind load_kind) w) eqn:Hok;
+    [ | discriminate ].
+  rewrite (array_element_ok_related _ w w' Hw Hok).
+  intros [= <-]. exists w'. auto.
+Qed.
+
+Lemma array_stored_related_in (set_kind : array_set_kind) (kind : array_kind)
+    (elements elements' : list value) (index index' new new' : value)
+    (stored : list value) :
+  Forall2 R elements elements' ->
+  R index index' ->
+  R new new' ->
+  array_stored set_kind kind elements index new = Some stored ->
+  ∃ stored' : list value,
+    array_stored set_kind kind elements' index' new' = Some stored'
+    ∧ Forall2 R stored stored'.
+Proof.
+  intros Helements Hindex Hnew Hstored.
+  apply array_stored_cases in Hstored as (Hset & Hok & i & Hi & Hreplace).
+  unfold array_stored.
+  rewrite (array_element_ok_related _ new new' Hnew Hset),
+    (array_element_ok_related _ new new' Hnew Hok).
+  simpl. rewrite (array_index_related _ _ _ _ _ Helements Hindex Hi).
+  cbv beta iota.
+  exact
+    (Forall2_replace_nth R i new new' elements stored elements' Hnew
+       Helements Hreplace).
+Qed.
+
+End Arrays_related.
+
+Theorem array_made_related : array_made_related_statement.
+Proof.
+  intros R kind vs vs' elements Hnumbers.
+  exact (array_made_related_in R Hnumbers kind vs vs' elements).
+Qed.
+
+Theorem array_loaded_related : array_loaded_related_statement.
+Proof.
+  intros R load_kind elements elements' index index' v Hnumbers.
+  exact
+    (array_loaded_related_in R Hnumbers load_kind elements elements' index
+       index' v).
+Qed.
+
+Theorem array_stored_related : array_stored_related_statement.
+Proof.
+  intros R set_kind kind elements elements' index index' new new' stored
+    Hnumbers.
+  exact
+    (array_stored_related_in R Hnumbers set_kind kind elements elements'
+       index index' new new' stored).
+Qed.
+
+(* ======================================================================== *)
 (* When the static environment grows                                        *)
 (* ======================================================================== *)
 
@@ -2160,45 +2528,6 @@ Qed.
 (* A primitive cannot tell related values apart                             *)
 (* ======================================================================== *)
 
-(* A value is a constant, or it is none and is of kind [Value]. *)
-Lemma const_or_not (v : value) :
-  (∃ c : const, v = Value_const c)
-  ∨ ((∀ c : const, v <> Value_const c) ∧ kind_of_value v = Value).
-Proof.
-  destruct v; simpl;
-    try (right; split; [ intros c'; discriminate | reflexivity ]).
-  left. eauto.
-Qed.
-
-Lemma is_some_not_none {A : Type} (o : option A) :
-  is_some o = true <-> o <> None.
-Proof. destruct o; simpl; split; congruence. Qed.
-
-Lemma forall2_nth_error {A B : Type} (R : A -> B -> Prop) (l : list A)
-    (l' : list B) :
-  Forall2 R l l' ->
-  ∀ (n : nat) (a : A),
-    nth_error l n = Some a -> ∃ b : B, nth_error l' n = Some b ∧ R a b.
-Proof.
-  induction 1 as [ | a0 b0 l l' Hhead _ IH]; intros [ | n] a; simpl;
-    try discriminate.
-  - intros [= <-]. exists b0. auto.
-  - apply IH.
-Qed.
-
-Lemma forall2_forallb {A B : Type} (R : A -> B -> Prop) (f : A -> bool)
-    (g : B -> bool) (l : list A) (l' : list B) :
-  (∀ (a : A) (b : B), R a b -> f a = true -> g b = true) ->
-  Forall2 R l l' ->
-  forallb f l = true ->
-  forallb g l' = true.
-Proof.
-  intros Hfg. induction 1 as [ | a b l l' Hhead _ IH]; simpl;
-    [ reflexivity | ].
-  intros Hall. apply andb_true_iff in Hall as [Ha Hl].
-  rewrite (Hfg a b Hhead Ha), (IH Hl). reflexivity.
-Qed.
-
 Section Related.
 
 Variable R : value -> value -> Prop.
@@ -2595,331 +2924,6 @@ Proof.
     exact
       (eval_variadic_primitive_related R statics statics' Hrespects p' vs
          vs' v Hargs Hp).
-Qed.
-
-(* ======================================================================== *)
-(* Arrays                                                                   *)
-(* ======================================================================== *)
-
-Lemma replace_nth_length {A : Type} (n : nat) (x : A) (l l' : list A) :
-  replace_nth n x l = Some l' -> length l' = length l.
-Proof.
-  revert l l'. induction n as [ | n IH]; intros [ | y l] l'; simpl;
-    try discriminate.
-  - intros [= <-]. reflexivity.
-  - destruct (replace_nth n x l) as [l'' | ] eqn:Hreplace; simpl;
-      [ | discriminate ].
-    intros [= <-]. simpl. rewrite (IH _ _ Hreplace). reflexivity.
-Qed.
-
-Lemma replace_nth_in {A : Type} (n : nat) (x : A) (l l1 : list A) (y : A) :
-  replace_nth n x l = Some l1 -> y ∈ l1 -> y = x ∨ y ∈ l.
-Proof.
-  revert n l1. induction l as [ | a l IH]; intros [ | n] l1; simpl;
-    try discriminate.
-  - intros [= <-] [<- | Hin];
-      [ left; reflexivity | right; right; exact Hin ].
-  - destruct (replace_nth n x l) as [l2 | ] eqn:Hreplace; simpl;
-      [ | discriminate ].
-    intros [= <-] [<- | Hin]; [ right; left; reflexivity | ].
-    destruct (IH _ _ Hreplace Hin) as [-> | Hin'];
-      [ left; reflexivity | right; right; exact Hin' ].
-Qed.
-
-Lemma Forall2_replace_nth {A B : Type} (R : A -> B -> Prop) (n : nat) (x : A)
-    (y : B) (l l1 : list A) (l' : list B) :
-  R x y ->
-  Forall2 R l l' ->
-  replace_nth n x l = Some l1 ->
-  ∃ l1' : list B, replace_nth n y l' = Some l1' ∧ Forall2 R l1 l1'.
-Proof.
-  intros Hxy Hall. revert n l1.
-  induction Hall as [ | a b l l' Hab Hall IH]; intros [ | n] l1; simpl;
-    try discriminate.
-  - intros [= <-]. eexists. split; [ reflexivity | constructor; assumption ].
-  - destruct (replace_nth n x l) as [l2 | ] eqn:Hreplace; simpl;
-      [ | discriminate ].
-    intros [= <-]. destruct (IH _ _ Hreplace) as (l2' & -> & Hl2). simpl.
-    eexists. split; [ reflexivity | constructor; assumption ].
-Qed.
-
-(* The element at the position replaced is the new one, and the others
-   are as they were. *)
-Lemma replace_nth_same {A : Type} (n : nat) (x : A) (l l' : list A) :
-  replace_nth n x l = Some l' -> nth_error l' n = Some x.
-Proof.
-  revert l l'. induction n as [ | n IH]; intros [ | y l] l'; simpl;
-    try discriminate.
-  - intros [= <-]. reflexivity.
-  - destruct (replace_nth n x l) as [l'' | ] eqn:Hreplace; simpl;
-      [ | discriminate ].
-    intros [= <-]. simpl. exact (IH _ _ Hreplace).
-Qed.
-
-Lemma replace_nth_other {A : Type} (n m : nat) (x : A) (l l' : list A) :
-  replace_nth n x l = Some l' -> n <> m -> nth_error l' m = nth_error l m.
-Proof.
-  revert m l l'.
-  induction n as [ | n IH]; intros [ | m] [ | y l] l'; simpl;
-    try discriminate.
-  - intros _ Hneq. contradiction Hneq. reflexivity.
-  - intros [= <-] _. reflexivity.
-  - destruct (replace_nth n x l) as [l'' | ] eqn:Hreplace; simpl;
-      [ | discriminate ].
-    intros [= <-] _. reflexivity.
-  - destruct (replace_nth n x l) as [l'' | ] eqn:Hreplace; simpl;
-      [ | discriminate ].
-    intros [= <-] Hneq. simpl. apply (IH _ _ _ Hreplace). congruence.
-Qed.
-
-(* An index that is a position is the tagged immediate of that position,
-   which the array has. *)
-Lemma array_index_position (elements : list value) (index : value)
-    (i : nat) :
-  array_index elements index = Some i ->
-  (i < length elements)%nat
-  ∧ int_of_value Standard_tagged_immediate index = Some (Z.of_nat i).
-Proof.
-  unfold array_index.
-  destruct (int_of_value Standard_tagged_immediate index) as [z | ];
-    [ | discriminate ].
-  cbv beta iota.
-  destruct ((0 <=? z) && (z <? Z.of_nat (length elements))) eqn:Hbounds;
-    [ | discriminate ].
-  intros [= <-]. apply andb_true_iff in Hbounds as [Hlow Hhigh].
-  apply Z.leb_le in Hlow. apply Z.ltb_lt in Hhigh.
-  split; [ lia | ]. rewrite Z2Nat.id by exact Hlow. reflexivity.
-Qed.
-
-(* The position of an index depends on the number of elements only. *)
-Lemma array_index_same_length (elements elements' : list value)
-    (index : value) :
-  length elements' = length elements ->
-  array_index elements' index = array_index elements index.
-Proof. intros Hlength. unfold array_index. rewrite Hlength. reflexivity. Qed.
-
-Theorem array_element_kind : array_element_kind_statement.
-Proof.
-  intros kind v. destruct kind; simpl;
-    [ apply is_tagged_immediate_kind | apply kind_eqb_eq | apply kind_eqb_eq ].
-Qed.
-
-Theorem array_made_of_arguments : array_made_of_arguments_statement.
-Proof.
-  intros kind vs elements. unfold array_made.
-  destruct (forallb (array_element_ok kind) vs) eqn:Hall; [ | discriminate ].
-  intros [= <-]. split; [ reflexivity | ].
-  intros v Hin. rewrite forallb_forall in Hall. exact (Hall v Hin).
-Qed.
-
-Theorem array_length_of_same_length : array_length_of_same_length_statement.
-Proof.
-  intros elements elements' Hlength. unfold array_length_of.
-  rewrite Hlength. reflexivity.
-Qed.
-
-Theorem array_loaded_element : array_loaded_element_statement.
-Proof.
-  intros load_kind elements index v. unfold array_loaded.
-  destruct (array_index elements index) as [i | ]; [ | discriminate ].
-  cbv beta iota.
-  destruct (nth_error elements i) as [w | ] eqn:Hnth; [ | discriminate ].
-  cbv beta iota.
-  destruct (array_element_ok (array_kind_of_load_kind load_kind) w) eqn:Hok;
-    [ | discriminate ].
-  intros [= <-]. split; [ exact (nth_error_In _ _ Hnth) | exact Hok ].
-Qed.
-
-(* A store that has a value: the two tests of the new value passed, the
-   index is a position, and the elements are replaced there. *)
-Lemma array_stored_cases (set_kind : array_set_kind) (kind : array_kind)
-    (elements : list value) (index new : value) (stored : list value) :
-  array_stored set_kind kind elements index new = Some stored ->
-  array_element_ok (array_kind_of_set_kind set_kind) new = true
-  ∧ array_element_ok kind new = true
-  ∧ ∃ i : nat,
-      array_index elements index = Some i
-      ∧ replace_nth i new elements = Some stored.
-Proof.
-  unfold array_stored.
-  destruct (array_element_ok (array_kind_of_set_kind set_kind) new);
-    [ | discriminate ].
-  destruct (array_element_ok kind new); [ | discriminate ].
-  simpl.
-  destruct (array_index elements index) as [i | ]; [ | discriminate ].
-  cbv beta iota. intros Hstored. eauto.
-Qed.
-
-Theorem array_stored_elements : array_stored_elements_statement.
-Proof.
-  intros set_kind kind elements index new stored Hstored.
-  apply array_stored_cases in Hstored as (_ & Hok & i & _ & Hreplace).
-  split; [ exact (replace_nth_length _ _ _ _ Hreplace) | ].
-  split; [ exact Hok | ].
-  intros v Hin. exact (replace_nth_in _ _ _ _ _ Hreplace Hin).
-Qed.
-
-Theorem array_load_after_store : array_load_after_store_statement.
-Proof.
-  intros set_kind kind load_kind elements index new stored Hstored.
-  apply array_stored_cases in Hstored as (_ & _ & i & Hindex & Hreplace).
-  unfold array_loaded.
-  rewrite (array_index_same_length elements stored index)
-    by exact (replace_nth_length _ _ _ _ Hreplace).
-  rewrite Hindex. cbv beta iota.
-  rewrite (replace_nth_same _ _ _ _ Hreplace). reflexivity.
-Qed.
-
-Theorem array_load_after_other_store :
-  array_load_after_other_store_statement.
-Proof.
-  intros set_kind kind load_kind elements index new other stored i j
-    Hstored Hi Hj Hneq.
-  apply array_stored_cases in Hstored as (_ & _ & n & Hindex & Hreplace).
-  unfold array_loaded.
-  rewrite (array_index_same_length elements stored other)
-    by exact (replace_nth_length _ _ _ _ Hreplace).
-  destruct (array_index elements other) as [m | ] eqn:Hother;
-    [ | reflexivity ].
-  cbv beta iota.
-  rewrite (replace_nth_other n m new elements stored Hreplace);
-    [ reflexivity | ].
-  intros ->.
-  apply array_index_position in Hindex as [_ Hindex].
-  apply array_index_position in Hother as [_ Hother].
-  congruence.
-Qed.
-
-(* A relation that relates a constant to itself only keeps the kind and
-   the integers. *)
-Lemma relates_constants_numbers (R : value -> value -> Prop) :
-  relates_constants R -> relates_numbers R.
-Proof.
-  intros [Hconst_l Hconst_r] v v' Hr. split.
-  - destruct (const_or_not v) as [[c ->] | [Hv Hkind]];
-      [ rewrite (Hconst_l c v' Hr); reflexivity | ].
-    destruct (const_or_not v') as [[c ->] | [_ Hkind']];
-      [ rewrite (Hconst_r v c Hr); reflexivity | congruence ].
-  - intros kind i Hint.
-    destruct (int_of_value_const _ _ _ Hint) as [-> _].
-    rewrite (Hconst_l _ v' Hr). exact Hint.
-Qed.
-
-Section Arrays_related.
-
-Variable R : value -> value -> Prop.
-Hypothesis Hnumbers : relates_numbers R.
-
-(* A value that an array holds is related to values that it holds. *)
-Lemma array_element_ok_related (kind : array_kind) (v v' : value) :
-  R v v' -> array_element_ok kind v = true -> array_element_ok kind v' = true.
-Proof.
-  intros Hr. destruct (Hnumbers v v' Hr) as [Hkind Hint].
-  destruct kind; simpl; try (rewrite Hkind; exact (fun H => H)).
-  unfold is_tagged_immediate.
-  destruct (int_of_value Standard_tagged_immediate v) as [i | ] eqn:Hi;
-    [ | discriminate ].
-  rewrite (Hint _ i Hi). exact (fun H => H).
-Qed.
-
-Lemma array_index_related (elements elements' : list value)
-    (index index' : value) (i : nat) :
-  Forall2 R elements elements' ->
-  R index index' ->
-  array_index elements index = Some i ->
-  array_index elements' index' = Some i.
-Proof.
-  intros Helements Hr. unfold array_index.
-  destruct (int_of_value Standard_tagged_immediate index) as [z | ] eqn:Hz;
-    [ | discriminate ].
-  rewrite (proj2 (Hnumbers index index' Hr) _ z Hz).
-  rewrite (Forall2_length Helements). exact (fun H => H).
-Qed.
-
-Lemma array_made_related_in (kind : array_kind)
-    (vs vs' elements : list value) :
-  Forall2 R vs vs' ->
-  array_made kind vs = Some elements ->
-  ∃ elements' : list value,
-    array_made kind vs' = Some elements' ∧ Forall2 R elements elements'.
-Proof.
-  intros Hvs. unfold array_made.
-  destruct (forallb (array_element_ok kind) vs) eqn:Hall; [ | discriminate ].
-  intros [= <-].
-  rewrite
-    (forall2_forallb R (array_element_ok kind) (array_element_ok kind) vs vs'
-       (array_element_ok_related kind) Hvs Hall).
-  exists vs'. split; [ reflexivity | exact Hvs ].
-Qed.
-
-Lemma array_loaded_related_in (load_kind : array_load_kind)
-    (elements elements' : list value) (index index' v : value) :
-  Forall2 R elements elements' ->
-  R index index' ->
-  array_loaded load_kind elements index = Some v ->
-  ∃ v' : value, array_loaded load_kind elements' index' = Some v' ∧ R v v'.
-Proof.
-  intros Helements Hr. unfold array_loaded.
-  destruct (array_index elements index) as [i | ] eqn:Hindex;
-    [ | discriminate ].
-  rewrite (array_index_related _ _ _ _ _ Helements Hr Hindex).
-  cbv beta iota.
-  destruct (nth_error elements i) as [w | ] eqn:Hnth; [ | discriminate ].
-  destruct (forall2_nth_error R elements elements' Helements i w Hnth)
-    as (w' & -> & Hw).
-  cbv beta iota.
-  destruct (array_element_ok (array_kind_of_load_kind load_kind) w) eqn:Hok;
-    [ | discriminate ].
-  rewrite (array_element_ok_related _ w w' Hw Hok).
-  intros [= <-]. exists w'. auto.
-Qed.
-
-Lemma array_stored_related_in (set_kind : array_set_kind) (kind : array_kind)
-    (elements elements' : list value) (index index' new new' : value)
-    (stored : list value) :
-  Forall2 R elements elements' ->
-  R index index' ->
-  R new new' ->
-  array_stored set_kind kind elements index new = Some stored ->
-  ∃ stored' : list value,
-    array_stored set_kind kind elements' index' new' = Some stored'
-    ∧ Forall2 R stored stored'.
-Proof.
-  intros Helements Hindex Hnew Hstored.
-  apply array_stored_cases in Hstored as (Hset & Hok & i & Hi & Hreplace).
-  unfold array_stored.
-  rewrite (array_element_ok_related _ new new' Hnew Hset),
-    (array_element_ok_related _ new new' Hnew Hok).
-  simpl. rewrite (array_index_related _ _ _ _ _ Helements Hindex Hi).
-  cbv beta iota.
-  exact
-    (Forall2_replace_nth R i new new' elements stored elements' Hnew
-       Helements Hreplace).
-Qed.
-
-End Arrays_related.
-
-Theorem array_made_related : array_made_related_statement.
-Proof.
-  intros R kind vs vs' elements Hnumbers.
-  exact (array_made_related_in R Hnumbers kind vs vs' elements).
-Qed.
-
-Theorem array_loaded_related : array_loaded_related_statement.
-Proof.
-  intros R load_kind elements elements' index index' v Hnumbers.
-  exact
-    (array_loaded_related_in R Hnumbers load_kind elements elements' index
-       index' v).
-Qed.
-
-Theorem array_stored_related : array_stored_related_statement.
-Proof.
-  intros R set_kind kind elements elements' index index' new new' stored
-    Hnumbers.
-  exact
-    (array_stored_related_in R Hnumbers set_kind kind elements elements'
-       index index' new new' stored).
 Qed.
 
 (* ======================================================================== *)
