@@ -222,6 +222,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaUnusedProjectionsSpec.v \
   FlambdaUnusedStaticsProofs.v \
   FlambdaUnusedStaticsSpec.v \
+  FlambdaValidateKnowingProofs.v \
+  FlambdaValidateKnowingSpec.v \
   FlambdaValidateProofs.v \
   FlambdaValidateScopeProofs.v \
   FlambdaValidateScopeSpec.v \
