@@ -29,7 +29,9 @@
 (* For the proofs of the statements of FlambdaMeetRenameSpec.v: the
    meets of the heads of types under a renaming, from the rows of
    blocks and of closures to the meet of two expanded types. Nothing
-   here needs review. *)
+   here needs review. The laws are for two meets and two joins that
+   one renaming relates; the primed one is given the renamed
+   arguments. *)
 
 From Stdlib Require Import ZArith List Bool Lia.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList OxCamlOption.
@@ -144,20 +146,22 @@ End Merge_renamed.
 
 Section Heads.
 
-Variable join : join_scoped_envs.
+Variable r : renaming.
+Variables join join' : join_scoped_envs.
 Variable choices : meet_choices.
-Variable m : meet_expanded_head.
+Variables m m' : meet_expanded_head.
 
-Hypothesis Hjoin : join_scoped_envs_equivariant join.
-Hypothesis Hm : meet_expanded_head_equivariant m.
+Hypothesis Hjoin : join_related_at r join join' m m'.
+Hypothesis Hm : meet_expanded_head_related r m m'.
 
 Hypothesis Hchoices : meet_choices_closed choices.
 
 Lemma meet_row_like_for_blocks_renamed :
-  meet_of_parts_equivariant rename_row_like_for_blocks
-    rename_row_like_for_blocks (meet_row_like_for_blocks join choices m).
+  meet_of_parts_related r (rename_row_like_for_blocks r)
+    (rename_row_like_for_blocks r) (meet_row_like_for_blocks join choices m)
+    (meet_row_like_for_blocks join' choices m').
 Proof.
-  intros r env [known1 other1 alloc_mode1] [known2 other2 alloc_mode2].
+  intros env [known1 other1 alloc_mode1] [known2 other2 alloc_mode2].
   cbn [rename_row_like_for_blocks]. unfold meet_row_like_for_blocks.
   set (rm := fun r : renaming => map (rename_type r)).
   set (rk :=
@@ -187,10 +191,11 @@ Proof.
   apply (combine_results2_renamed r fa (fun alloc_mode => alloc_mode)
            (rename_row_like_for_blocks r)).
   - intros env' [k1 o1] [k2 o2]. unfold fa. cbn [fst snd].
-    apply (meet_row_like_renamed join choices m Hjoin Hm) with (rk := rk).
-    + exact (meet_int_indexed_product_renamed m Hm).
-    + intros r' k. apply is_empty_map_values.
-    + intros r' k. unfold rk.
+    apply (meet_row_like_renamed r join join' choices m m' Hjoin Hm)
+      with (rk := rk).
+    + exact (meet_int_indexed_product_renamed r m m' Hm).
+    + intros k. apply is_empty_map_values.
+    + intros k. unfold rk.
       rewrite (keyed_get_singleton_binding_map_values Z.eqb Z.eqb_eq).
       unfold row_like_block_case.
       match goal with
@@ -199,7 +204,7 @@ Proof.
           as [[tag [c | ]] | ];
           reflexivity
       end.
-    + intros r' f f' k1' k2' state Hf. unfold rk.
+    + intros f f' k1' k2' state Hf. unfold rk.
       rewrite keys_of_both_map_values.
       exact (merge_fold_failing_renamed Z.eqb _ _ _ _ f f' k1' k2' Hf _ state).
   - intros env' mode1 mode2.
@@ -209,17 +214,20 @@ Proof.
 Qed.
 
 Lemma meet_row_like_for_closures_renamed :
-  meet_of_parts_equivariant rename_row_like_for_closures
-    rename_row_like_for_closures (meet_row_like_for_closures join choices m).
+  meet_of_parts_related r (rename_row_like_for_closures r)
+    (rename_row_like_for_closures r)
+    (meet_row_like_for_closures join choices m)
+    (meet_row_like_for_closures join' choices m').
 Proof.
-  intros r env [known1] [known2].
+  intros env [known1] [known2].
   cbn [rename_row_like_for_closures]. unfold meet_row_like_for_closures.
   set (rk :=
          fun (r : renaming) (known : finite_map row_like_closures_case) =>
            Keyed.map_values (rename_case rename_closures_entry r) known).
   pose proof
-    (meet_row_like_renamed join choices m Hjoin Hm rename_closures_entry rk
-       (meet_closures_entry m) set_of_closures_contents_equal
+    (meet_row_like_renamed r join join' choices m m' Hjoin Hm
+       rename_closures_entry rk (meet_closures_entry m)
+       (meet_closures_entry m') set_of_closures_contents_equal
        set_of_closures_contents_subset set_of_closures_contents_union
        (fun _ _ : unit => Or_bottom.Ok tt) Keyed.is_empty
        (Keyed.get_singleton_binding Pos.eqb))
@@ -230,15 +238,14 @@ Proof.
        end = _ =>
     specialize (Hrow merge)
   end.
-  specialize (Hrow (meet_closures_entry_renamed m Hm)).
-  specialize (Hrow (fun r' k => is_empty_map_values _ k)).
+  specialize (Hrow (meet_closures_entry_renamed r m m' Hm)).
+  specialize (Hrow (fun k => is_empty_map_values _ k)).
   specialize
     (Hrow
-       (fun r' k =>
+       (fun k =>
           keyed_get_singleton_binding_map_values Pos.eqb Pos.eqb_eq _ k)).
   assert (Hmerge :
-            ∀ (r : renaming)
-              (f f' :
+            ∀ (f f' :
                 function_slot ->
                 option (Or_unknown.t row_like_closures_case) ->
                 option (Or_unknown.t row_like_closures_case) ->
@@ -295,7 +302,7 @@ Proof.
                         | Some Or_unknown.Unknown => None
                         end)
                      k1 k2 state)).
-  { intros r' f f' k1 k2 state Hf. unfold rk.
+  { intros f f' k1 k2 state Hf. unfold rk.
     rewrite keys_of_both_map_values.
     apply merge_fold_failing_renamed. intros key a b s. cbv zeta.
     pose proof
@@ -316,7 +323,7 @@ Proof.
         | f _ _ _ _ => destruct x as [[[[c | ] | ] s'] | ]; reflexivity
         end
       end. }
-  specialize (Hrow Hmerge r env known1 known2 Or_bottom.Bottom
+  specialize (Hrow Hmerge env known1 known2 Or_bottom.Bottom
                 Or_bottom.Bottom).
   cbn [or_bottom_map] in Hrow. unfold rk in Hrow.
   match goal with
@@ -341,17 +348,18 @@ Qed.
 (* The heads of kind value, from the two rows
    (FlambdaEnvRenameMeetValuesProofs.v). *)
 Lemma value_heads_renamed :
-  meet_of_parts_equivariant rename_head_of_kind_value
-    rename_head_of_kind_value (meet_head_of_kind_value join choices m).
+  meet_of_parts_related r (rename_head_of_kind_value r)
+    (rename_head_of_kind_value r) (meet_head_of_kind_value join choices m)
+    (meet_head_of_kind_value join' choices m').
 Proof.
-  exact (meet_head_of_kind_value_renamed join choices m Hjoin Hm
+  exact (meet_head_of_kind_value_renamed r join join' choices m m' Hjoin Hm
            meet_row_like_for_blocks_renamed
            meet_row_like_for_closures_renamed).
 Qed.
 
-Lemma meet_expanded_head0_renamed (r : renaming) (env : Meet_env.t)
+Lemma meet_expanded_head0_renamed (env : Meet_env.t)
     (head1 head2 : Expanded_type.head) :
-  meet_expanded_head0 join choices m (rename_meet_env r env)
+  meet_expanded_head0 join' choices m' (rename_meet_env r env)
     (rename_expanded_head r head1) (rename_expanded_head r head2)
   = option_map (rename_meet_result r (rename_expanded r))
       (meet_expanded_head0 join choices m env head1 head2).
@@ -363,7 +371,8 @@ Proof.
     destruct (meet_head_of_kind_value join choices m env head1 head2)
       as [result | ]; cbn [option_map]; [ | reflexivity ].
     f_equal. apply map_result_renamed. intros head. reflexivity.
-  - rewrite (meet_head_of_kind_naked_immediate_renamed m Hm choices Hchoices).
+  - rewrite
+      (meet_head_of_kind_naked_immediate_renamed r m m' Hm choices Hchoices).
     destruct (meet_head_of_kind_naked_immediate choices m env head1 head2)
       as [result | ]; cbn [option_map]; [ | reflexivity ].
     f_equal. apply map_result_renamed. intros head. reflexivity.
@@ -380,9 +389,10 @@ Proof.
 Qed.
 
 Lemma meet_expanded_head_step_renamed :
-  meet_expanded_head_equivariant (meet_expanded_head_step join choices m).
+  meet_expanded_head_related r (meet_expanded_head_step join choices m)
+    (meet_expanded_head_step join' choices m').
 Proof.
-  intros r env expanded1 expanded2. unfold meet_expanded_head_step.
+  intros env expanded1 expanded2. unfold meet_expanded_head_step.
   change (Expanded_type.descr (rename_expanded r expanded1))
     with (or_unknown_or_bottom_map (rename_expanded_head r)
             (Expanded_type.descr expanded1)).

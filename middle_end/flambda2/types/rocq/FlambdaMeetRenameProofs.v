@@ -62,20 +62,85 @@ Proof.
   exact FlambdaEnvRenameMeetProductsProofs.repaired_choices_closed.
 Qed.
 
+(* ======================================================================== *)
+(* Two joins, two meets, one renaming                                       *)
+(* ======================================================================== *)
+
+Theorem meet_expanded_head_equivariant_iff_related :
+  meet_expanded_head_equivariant_iff_related_statement.
+Proof. intros m. split; intros H r; exact (H r). Qed.
+
+Theorem meet_function_equivariant_iff_related :
+  meet_function_equivariant_iff_related_statement.
+Proof. intros meet. split; intros H r; exact (H r). Qed.
+
+Theorem join_related_gives_equivariant :
+  join_related_gives_equivariant_statement.
+Proof.
+  intros join H r m cut_after env tenv scoped_envs Hm.
+  exact (H r m m (Hm r) cut_after env tenv scoped_envs).
+Qed.
+
+Theorem meet_expanded_head_at_fuel_related :
+  meet_expanded_head_at_fuel_related_statement.
+Proof.
+  intros r join join' choices fuel Hjoin Hchoices.
+  induction fuel as [ | fuel IH]; [ intros env e1 e2; reflexivity | ].
+  cbn [Meet.meet_expanded_head].
+  exact (meet_expanded_head_step_renamed r join join' choices _ _
+           (Hjoin _ _ IH) IH Hchoices).
+Qed.
+
+Theorem meet_of_types_related : meet_of_types_related_statement.
+Proof.
+  intros r join join' choices fuel Hjoin Hchoices.
+  apply exposed_meet_renamed.
+  exact (meet_expanded_head_at_fuel_related r join join' choices fuel Hjoin
+           Hchoices).
+Qed.
+
+Theorem typing_env_functions_related :
+  typing_env_functions_related_statement.
+Proof.
+  intros r join join' choices fuel Hjoin Hchoices.
+  pose proof
+    (meet_expanded_head_at_fuel_related r join join' choices fuel Hjoin
+       Hchoices)
+    as Hmeet.
+  split; [ | split ].
+  - intros tenv name ty.
+    exact (typing_env_add_equation_renamed r join join' choices fuel Hmeet
+             tenv name ty).
+  - intros tenv extension.
+    exact (typing_env_add_env_extension_renamed r join join' choices fuel
+             Hmeet tenv extension).
+  - intros tenv params param_types.
+    exact (typing_env_add_equations_on_params_renamed r join join' choices
+             fuel Hmeet tenv params param_types).
+Qed.
+
+(* ======================================================================== *)
+(* A join that commutes with every renaming                                 *)
+(* ======================================================================== *)
+
 Theorem meet_expanded_head_at_fuel_equivariant :
   meet_expanded_head_at_fuel_equivariant_statement.
 Proof.
   intros join choices fuel Hjoin Hchoices.
   induction fuel as [ | fuel IH]; [ intros r env e1 e2; reflexivity | ].
-  cbn [Meet.meet_expanded_head].
-  exact (meet_expanded_head_step_renamed join choices _ Hjoin IH Hchoices).
+  intros r. cbn [Meet.meet_expanded_head].
+  exact (meet_expanded_head_step_renamed r join join choices _ _
+           (fun cut_after env tenv scoped_envs =>
+              Hjoin r _ cut_after env tenv scoped_envs IH)
+           (IH r) Hchoices).
 Qed.
 
 Theorem meet_of_types_equivariant : meet_of_types_equivariant_statement.
 Proof.
-  intros join choices fuel Hjoin Hchoices. apply exposed_meet_renamed.
+  intros join choices fuel Hjoin Hchoices r.
+  apply (exposed_meet_renamed r join join choices fuel).
   exact (meet_expanded_head_at_fuel_equivariant join choices fuel Hjoin
-           Hchoices).
+           Hchoices r).
 Qed.
 
 Theorem meet_to_prove_equivariant : meet_to_prove_equivariant_statement.
@@ -112,12 +177,12 @@ Proof.
     as Hmeet.
   split; [ | split ].
   - intros r tenv name ty.
-    exact (typing_env_add_equation_renamed join choices fuel Hmeet r tenv
-             name ty).
+    exact (typing_env_add_equation_renamed r join join choices fuel
+             (Hmeet r) tenv name ty).
   - intros r tenv extension.
-    exact (typing_env_add_env_extension_renamed join choices fuel Hmeet r
-             tenv extension).
+    exact (typing_env_add_env_extension_renamed r join join choices fuel
+             (Hmeet r) tenv extension).
   - intros r tenv params param_types.
-    exact (typing_env_add_equations_on_params_renamed join choices fuel
-             Hmeet r tenv params param_types).
+    exact (typing_env_add_equations_on_params_renamed r join join choices
+             fuel (Hmeet r) tenv params param_types).
 Qed.
