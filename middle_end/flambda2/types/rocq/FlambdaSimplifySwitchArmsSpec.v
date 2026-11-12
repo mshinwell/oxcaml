@@ -47,12 +47,16 @@
    their canonical elements there ([simplify_arm]:
    [Simplify_simple.simplify_simples] with [env_at_use]), or, where
    one arm is left, the whole [Apply_cont] is simplified there
-   ([Simplify_apply_cont_expr.simplify_apply_cont]). So
-   [switch x with 0 -> k x | 1 -> k' x] becomes
-   [switch x with 0 -> k 0 | 1 -> k' 1]. [simplify_switch_arms] here
-   is that function. The meet is a parameter, as in the first slice,
-   and so is what is done to the [Apply_cont] of an arm in the
-   environment of the arm ([apply_cont_rewrite]).
+   ([Simplify_apply_cont_expr.simplify_apply_cont]), which may do more
+   than rewrite its arguments: the arm is then a use of the
+   continuation that may be inlined, and the handler may take its
+   place on the way up. So [switch x with 0 -> k x | 1 -> k' x]
+   becomes [switch x with 0 -> k 0 | 1 -> k' 1].
+   [simplify_switch_arms] here is that function as far as an arm
+   stays an [Apply_cont]. The meet is a parameter, as in the first
+   slice, and so is what is done to the [Apply_cont] of an arm in the
+   environment of the arm ([apply_cont_rewrite]), which answers an
+   [Apply_cont].
 
    What is stated.
    - What an arm knows ([arm_env_satisfied_statement]): a state that
@@ -103,6 +107,9 @@
      the names that the first environment knew; the machine binds the
      variables that may occur in terms under the first environment,
      and nothing says that it binds a variable that the meet has made.
+     (The hypothesis also excludes that a variable which the first
+     environment had at another name mode, or out of scope, comes to
+     be in scope in terms.)
      In the compiler a meet makes variables only in the join of the
      environments of a disjunction, and makes them at the name mode
      [In_types], so they may not occur in terms. Nothing in the files
@@ -131,7 +138,15 @@
    no canonical element at the normal name mode, and where a meet
    answers nothing.
 
-   Not here: what an arm tells its continuation. Simplify records
+   Not here: what Simplify makes of the arm that is alone where that
+   is not an [Apply_cont]. A rewrite here takes an [Apply_cont] to an
+   [Apply_cont], so the inlining of the continuation of that arm, and
+   any other expression that
+   [Simplify_apply_cont_expr.simplify_apply_cont] may answer for it,
+   is not transcribed: the model has the part of that case in which
+   the arm stays an [Apply_cont].
+
+   Nor: what an arm tells its continuation. Simplify records
    each arm as a use of the continuation, with the environment of the
    arm and the types of the arguments there
    ([record_continuation_use]), and the handler is later simplified
