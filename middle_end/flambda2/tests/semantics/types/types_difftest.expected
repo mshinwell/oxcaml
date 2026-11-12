@@ -734,12 +734,12 @@ Chosen joins
     (closure code2 []): use 2; the binary join: yes; the n-way join: yes
 
 Examples of the join of types, written down from a transcription: the n-way join of the compiler on the same types
-  two sets of naked immediates: as written down
-  two sets of tagged immediates: as written down
-  two boxed floats: as written down
-  two strings: as written down
-  one constant twice: as written down
-  two constants: the compiler answers
+  two sets of naked immediates [naked_immediates]: as written down
+  two sets of tagged immediates [tagged_immediates]: as written down
+  two boxed floats [boxed_floats]: as written down
+  two strings [strings]: as written down
+  one constant twice [one_constant]: as written down
+  two constants [two_constants]: not compared; the compiler answers
   (Value
  ((Variant (is_int None)
    (immediates (Known (Naked_immediate ((Known [5; 6]) [])))) (get_tag None)
@@ -747,8 +747,8 @@ Examples of the join of types, written down from a transcription: the n-way join
             ((known_tags []) (other_tags Bottom) (alloc_mode Heap_or_local))))
    (extensions No_extensions) (is_unique false)) Not_null))
   (the transcription makes a variable and answers an alias to it; here the parameter is that variable, and the answer is its type)
-  two constants in a field (a variable is made, mentioned once: its type is in its place): as written down
-  two constants in two fields (not from the transcription: one variable is made, mentioned twice): as written down, with the compiler's variables:
+  two constants in a field (a variable is made, mentioned once: its type is in its place) [not from the file]: as written down
+  two constants in two fields (one variable is made, mentioned twice) [not from the file]: as written down, with the compiler's variables:
   (Value
  ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
    (get_tag None)
@@ -767,19 +767,19 @@ where e0 : (Value
                           ((known_tags []) (other_tags Bottom)
                            (alloc_mode Heap_or_local))))
                  (extensions No_extensions) (is_unique false)) Not_null))
-  a constant and a set: as written down
-  a set and the unknown type: as written down
-  a set and bottom: as written down
-  bottom twice: as written down
-  a string and a tagged immediate: as written down
-  null and a tagged immediate: as written down
-  two mutable blocks, on the heap and local: NOT COMPARED: not run, not in the compiler: the allocation mode Local, which no function of the compiler makes
-  two mutable blocks, on the heap and on the heap or local: as written down
-  blocks of one tag and one size: as written down
-  blocks whose field is one variable: as written down
-  blocks whose fields are two variables of which nothing is known (a variable is made, mentioned once: its type is in its place): as written down
-  blocks whose fields are two variables known to be numbers (the same): as written down
-  blocks with two fields that are two variables of which nothing is known (not from the transcription: one variable is made, mentioned twice): as written down, with the compiler's variables:
+  a constant and a set [constant_and_set]: as written down
+  a set and the unknown type [unknown]: as written down
+  a set and bottom [bottom]: as written down
+  bottom twice [all_bottom]: as written down
+  a string and a tagged immediate [string_and_immediate]: as written down
+  null and a tagged immediate [null_and_immediate]: as written down
+  two mutable blocks, on the heap and local [mutable_blocks]: not run, not in the compiler: the allocation mode Local, which no function of the compiler makes
+  two mutable blocks, on the heap and on the heap or local [not from the file]: as written down
+  blocks of one tag and one size [fields]: as written down
+  blocks whose field is one variable [same_fields]: as written down
+  blocks whose fields are two variables of which nothing is known (a variable is made, mentioned once: its type is in its place) [the inputs of fields_of_two_variables, another answer]: as written down
+  blocks whose fields are two variables known to be numbers (the same) [not from the file]: as written down
+  blocks with two fields that are two variables of which nothing is known (one variable is made, mentioned twice) [not from the file]: as written down, with the compiler's variables:
   (Value
  ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
    (get_tag None)
@@ -791,7 +791,7 @@ where e0 : (Value
              (other_tags Bottom) (alloc_mode Heap))))
    (extensions No_extensions) (is_unique false)) Not_null))
 where e0 : (Value Unknown)
-  blocks with two fields that are two variables known to be numbers (not from the transcription: the same): as written down, with the compiler's variables:
+  blocks with two fields that are two variables known to be numbers (the same) [not from the file]: as written down, with the compiler's variables:
   (Value
  ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
    (get_tag None)
@@ -811,9 +811,9 @@ where e0 : (Value
                           ((known_tags []) (other_tags Bottom)
                            (alloc_mode Heap_or_local))))
                  (extensions No_extensions) (is_unique false)) Not_null))
-  blocks of one tag and two sizes: as written down
-  blocks of one tag and two shapes: as written down
-  blocks of two tags (a variable is made for Get_tag): as written down, with the compiler's variables:
+  blocks of one tag and two sizes [two_sizes]: as written down
+  blocks of one tag and two shapes (two values; a value and a naked float) [two_shapes]: as written down
+  blocks of two tags (a variable is made for Get_tag) [two_tags]: as written down, with the compiler's variables:
   (Value
  ((Variant (is_int None) (immediates (Known (Naked_immediate Bottom)))
    (get_tag (Some e0))
@@ -857,7 +857,7 @@ where e0 : (Value
              (other_tags Bottom) (alloc_mode Heap))))
    (extensions No_extensions) (is_unique false)) Not_null))
 where e0 : (Naked_immediate ((Known [0; 1]) [Get_tag v9]))
-  an immediate and a block (a variable is made for Is_int): as written down, with the compiler's variables:
+  an immediate and a block (a variable is made for Is_int) [immediate_and_block]: as written down, with the compiler's variables:
   (Value
  ((Variant (is_int (Some e0))
    (immediates (Known (Naked_immediate (= # 0)))) (get_tag None)
@@ -877,12 +877,13 @@ where e0 : (Naked_immediate ((Known [0; 1]) [Get_tag v9]))
              (other_tags Bottom) (alloc_mode Heap))))
    (extensions No_extensions) (is_unique false)) Not_null))
 where e0 : (Naked_immediate ((Known [0; 1]) [Is_int v9]))
-  two variants: as written down
-  two closures of one code: as written down
-  two closures of two codes: as written down
-  two closures, one without a function type: as written down
-  a tagged immediate and an alias of kind value to a naked immediate (T5b-3): the compiler stops: an assertion of meet_and_n_way_join.ml fails (the transcription has no answer: it is where the compiler is thought to stop)
-  1 of 31 differ or could not be compared
+  two variants [variants]: as written down
+  two closures of one code [closures]: as written down
+  two closures of two codes [closures_of_two_codes]: as written down
+  a closure with a function type, and the closures of at least a value slot [closures_one_without_function_type]: as written down
+  a tagged immediate and an alias of kind value to a naked immediate (T5b-3) [alias_of_another_kind]: the compiler stops, where the transcription has no answer: an assertion of meet_and_n_way_join.ml fails
+  two closures whose closure types join to a type of another kind [closure_types_of_another_kind]: the compiler stops, where the transcription has no answer: a fatal error: Function-slot-indexed products can only hold types of kind [Value]:
+  Of 32: 23 as written down, and 5 more with the compiler's variables for those written down; 2 where the compiler stops and the transcription has no answer; 1 not compared; 1 not run; 0 different
 
 A type of kind value with itself, shared and not (1500 cases, seeds 70000 to 71499)
   1500 converted
