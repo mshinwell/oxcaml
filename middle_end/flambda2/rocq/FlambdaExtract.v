@@ -62,7 +62,8 @@ From OxCamlFlambda2 Require Import FlambdaMapSpec FlambdaModel
   FlambdaLoopifySpec FlambdaMergeSwitchesSpec FlambdaNormaliseSpec
   FlambdaParamAliasesSpec
   FlambdaRecHandlersSpec FlambdaRenameApartSpec FlambdaShortcutSpec
-  FlambdaSinkContsSpec FlambdaStaticsInScopeSpec FlambdaStaticsOrderSpec
+  FlambdaSinkContsSpec FlambdaSinkUsesSpec FlambdaStaticsInScopeSpec
+  FlambdaStaticsOrderSpec
   FlambdaUnboxSpec
   FlambdaUnusedContsSpec FlambdaUnusedParamsSpec FlambdaUnusedStaticsSpec
   FlambdaValidateSpec FlambdaValidateKnowingSpec.
@@ -253,6 +254,7 @@ Separate Extraction
   rewrite_rec_handlers
   run
   shortcut_switches
+  sink_conts_to_uses
   sink_let_conts
   static_names_apart
   statics_in_scope

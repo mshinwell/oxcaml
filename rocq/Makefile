@@ -226,6 +226,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaSimulationProofs.v \
   FlambdaSinkContsProofs.v \
   FlambdaSinkContsSpec.v \
+  FlambdaSinkUsesProofs.v \
+  FlambdaSinkUsesSpec.v \
   FlambdaStateSupportProofs.v \
   FlambdaStateSupportSpec.v \
   FlambdaStaticProofs.v \
