@@ -181,3 +181,11 @@ Theorem while_two_tests_refines : while_two_tests_refines_statement.
 Proof.
   exact (validated_by_first_phase_refines _ _ while_two_tests_validated).
 Qed.
+
+Theorem shape_constant_validated : shape_constant_validated_statement.
+Proof. vm_compute. reflexivity. Qed.
+
+Theorem shape_constant_refines : shape_constant_refines_statement.
+Proof.
+  exact (validated_by_first_phase_refines _ _ shape_constant_validated).
+Qed.

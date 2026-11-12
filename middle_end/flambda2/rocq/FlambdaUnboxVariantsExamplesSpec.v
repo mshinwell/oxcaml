@@ -156,6 +156,29 @@
    the bound [n] is the variable 3, the loop is the continuation 2
    and its exit the continuation 1, which is given the result alone.
 
+   [shape_constant] is the body of a unit in which
+
+     type shape = Empty | Full | Box of int
+
+     let v = if c then Box 8 else Empty in
+     match v with Empty -> 1 | Full -> 2 | Box y -> y
+
+   is not in a function. The block [Box 8] is a constant, so the unit
+   binds a symbol to it, and the join is given that symbol or the
+   constant [Empty]. Simplify gives the continuation whether the value
+   is an immediate and the field, 8 from the symbol and [poison] from
+   [Empty]; the constant constructor it finds to be the first on both
+   paths. On the term before, the untagging of the value is under the
+   test of whether it is an immediate, and the path of the symbol has
+   nothing to untag: a symbol is never an immediate
+   (FlambdaUnboxVariantsSpec.no_value_on), so that path gives 0, as
+   the other does, and the parameter is then bound to it and the
+   [Switch] on it folded. The load is given the field of the symbol,
+   a constant, by what is known of the static block in scope. The
+   condition is the variable 1 and the return continuation is 1; the
+   symbol is 1, and its binding, which nothing uses in the end, is
+   kept in both bodies.
+
    The bodies are those of the function of each source: the body
    before Simplify and the body after. They are written by hand from
    the two terms that the compiler prints ([-drawfexpr-to] and
@@ -201,7 +224,9 @@
    ([while_two_tests_validated_statement]), so that body after refines
    the body before ([while_two_tests_refines_statement]); the round
    of this file does not, as it binds no parameter that every
-   application gives the same thing.
+   application gives the same thing. The same is said of
+   [shape_constant] ([shape_constant_validated_statement],
+   [shape_constant_refines_statement]).
 
    The proofs are in FlambdaUnboxVariantsExamplesProofs.v, which needs
    no review. *)
@@ -865,3 +890,46 @@ Definition while_two_tests_validated_statement : Prop :=
 
 Definition while_two_tests_refines_statement : Prop :=
   expr_refines while_two_tests_before while_two_tests_after.
+
+(* ======================================================================== *)
+(* A symbol where there is nothing to untag                                 *)
+(* ======================================================================== *)
+
+(* The continuation of the join is 2 and its parameter is 3; 3 is the
+   continuation that loads the field and 4 the one that untags the
+   constant constructor. *)
+Definition shape_constant_before : expr :=
+  Let_static [Bind_symbol 1 (Static_const_block 0 [tagged 8])]
+    (Let_cont_non_recursive 2
+       (Handler [3] (make_handler_metadata [Value])
+          (Let_cont_non_recursive 3
+             (Handler [] (make_handler_metadata [])
+                (Let 4 Value (field 0 3) (Apply_cont (jump 1 [Var 4]))))
+             (Let_cont_non_recursive 4
+                (Handler [] (make_handler_metadata [])
+                   (Let 5 naked_immediate (untag (Var 3))
+                      (Switch (Var 5)
+                         [(0%Z, jump 1 [tagged 1]);
+                          (1%Z, jump 1 [tagged 2])])))
+                (Let 6 naked_immediate (is_int (Var 3))
+                   (Switch (Var 6) [(0%Z, jump 3 []); (1%Z, jump 4 [])])))))
+       (Let 7 naked_immediate (untag (Var 1))
+          (Switch (Var 7)
+             [(0%Z, jump 2 [tagged 0]); (1%Z, jump 2 [Symbol 1])]))).
+
+Definition shape_constant_after : expr :=
+  Let_static [Bind_symbol 1 (Static_const_block 0 [tagged 8])]
+    (Let_cont_non_recursive 2
+       (Handler [6; 4] (make_handler_metadata [naked_immediate; Value])
+          (Switch (Var 6)
+             [(0%Z, jump 1 [Var 4]); (1%Z, jump 1 [tagged 1])]))
+       (Let 7 naked_immediate (untag (Var 1))
+          (Switch (Var 7)
+             [(0%Z, jump 2 [naked 1; poison_value]);
+              (1%Z, jump 2 [naked 0; tagged 8])]))).
+
+Definition shape_constant_validated_statement : Prop :=
+  validated_by_first_phase shape_constant_before shape_constant_after.
+
+Definition shape_constant_refines_statement : Prop :=
+  expr_refines shape_constant_before shape_constant_after.
