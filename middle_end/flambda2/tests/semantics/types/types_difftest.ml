@@ -7504,13 +7504,13 @@ let boxes_a_naked_number (names : names) (const : M.static_const) =
 
 (* What a verdict comes to. What is seen after the constants before the one at
    which Simplify stops, or after the group, is compared first, whatever comes
-   after: it is to be read on both sides and the same, or the same once the
-   model is made to do as Simplify of the boxed numbers of variables of kind
-   value that were gone past, which is recorded (T3-10); anything else is a
-   disagreement. Only then is the constant at which Simplify stops looked at: if
-   the model gives it a type, that is recorded where it is a boxed number whose
-   contents are a variable that holds a naked number (T3-10), and is a
-   disagreement otherwise. *)
+   after: what the model itself sees and what the compiler sees are to be read;
+   then they are to be the same, or the same once the model is made to do as
+   Simplify of the boxed numbers of variables of kind value that were gone past,
+   which is recorded (T3-10); anything else is a disagreement. Only then is the
+   constant at which Simplify stops looked at: if the model gives it a type,
+   that is recorded where it is a boxed number whose contents are a variable
+   that holds a naked number (T3-10), and is a disagreement otherwise. *)
 let outcome_of_a_static_group ?(brief = false) (names : names) ~threshold
     (input : static_group) (verdict : static_group_verdict) : outcome =
   match verdict with
@@ -7528,8 +7528,7 @@ let outcome_of_a_static_group ?(brief = false) (names : names) ~threshold
       match seen with Seen _ -> true | Nothing_seen _ | Bottom_seen -> false
     in
     let same_as_the_compiler seen =
-      is_read seen && is_read in_the_compiler
-      && same_seen ~threshold seen in_the_compiler
+      is_read seen && same_seen ~threshold seen in_the_compiler
     in
     let passed = match passed_untyped with [] -> false | _ :: _ -> true in
     let once =
@@ -7553,7 +7552,22 @@ let outcome_of_a_static_group ?(brief = false) (names : names) ~threshold
             what )
       else Disagree what
     in
-    if same_as_the_compiler in_the_model
+    (* What the model itself sees and what the compiler sees are to be read,
+       whatever else is. *)
+    if not (is_read in_the_model && is_read in_the_compiler)
+    then
+      let reading (seen : seen) =
+        match seen with
+        | Seen _ -> "read"
+        | Nothing_seen why -> "no answer: " ^ why
+        | Bottom_seen -> "bottom"
+      in
+      Disagree
+        (Printf.sprintf
+           "what is seen is not read on both sides (the model: %s; the \
+            compiler: %s)"
+           (reading in_the_model) (reading in_the_compiler))
+    else if same_as_the_compiler in_the_model
     then
       match stops with
       | None | Some ((_ : int), (_ : string), false) -> Agree
@@ -7574,13 +7588,7 @@ let outcome_of_a_static_group ?(brief = false) (names : names) ~threshold
       | Some (j, line, true) ->
         stops_where_the_model_types j line
           ~before:("; before that constant, " ^ once)
-    else
-      Disagree
-        (if is_read in_the_model
-         then print_both_seen ~threshold in_the_model in_the_compiler
-         else
-           "nothing is read of the model where Simplify answers: "
-           ^ print_seen ~threshold in_the_model)
+    else Disagree (print_both_seen ~threshold in_the_model in_the_compiler)
 
 let static_groups (names : names) (symbols : M.symbol list) :
     static_group comparison list =
@@ -7980,7 +7988,38 @@ let control_of_the_static_groups (names : names) (symbols : M.symbol list) =
        (outcome explained
           (with_the_compiler_on
              (then_a_boxed_float (Static_const_boxed_number (Var y)))
-             explained)))
+             explained)));
+  (* The reading of the model itself is wanted even where the model made to do
+     as Simplify sees what Simplify sees. *)
+  let without_what_the_model_sees (taken : seen) (group : static_group) :
+      static_group_verdict =
+    match verdict group with
+    | Compared compared -> Compared { compared with in_the_model = taken }
+    | (Neither_starts _ | One_does_not_start _) as unchanged -> unchanged
+  in
+  let recorded_as_gone_past (outcome : outcome) =
+    match outcome with
+    | Known_to_disagree (label, (_ : string)) ->
+      String.starts_with ~prefix:"T3-10, the model gives no type" label
+    | Agree | Disagree _ | Not_run _ | Not_this_comparison -> false
+  in
+  check
+    "with only what the model itself sees taken away, the model made to do as \
+     Simplify seeing what Simplify sees: a disagreement"
+    (is_a_disagreement
+       (outcome explained
+          (without_what_the_model_sees (Nothing_seen "taken away") explained)));
+  check
+    "the boxed number of that variable alone, which Simplify goes past: \
+     recorded under T3-10"
+    (recorded_as_gone_past (outcome alias (verdict alias)));
+  check "with only what the model itself sees taken away: a disagreement"
+    (is_a_disagreement
+       (outcome alias
+          (without_what_the_model_sees (Nothing_seen "taken away") alias)));
+  check "with bottom in the place of what the model itself sees: a disagreement"
+    (is_a_disagreement
+       (outcome alias (without_what_the_model_sees Bottom_seen alias)))
 
 (* ======================================================================== *)
 (* The tests                                                                *)

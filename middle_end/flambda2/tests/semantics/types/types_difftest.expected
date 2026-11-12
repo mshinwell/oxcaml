@@ -2703,5 +2703,9 @@ A control: groups of one static constant, the model on one and Simplify on one t
   a boxed number of a variable of kind value that has an alias type, then the boxed number of the naked float: what is seen before the stop is not the same, and is once the model does as Simplify: yes
   it is recorded under T3-10: yes
   with, for the compiler, what it sees of the same group without the alias: a disagreement: yes
+  with only what the model itself sees taken away, the model made to do as Simplify seeing what Simplify sees: a disagreement: yes
+  the boxed number of that variable alone, which Simplify goes past: recorded under T3-10: yes
+  with only what the model itself sees taken away: a disagreement: yes
+  with bottom in the place of what the model itself sees: a disagreement: yes
 
 No disagreement.
