@@ -1,0 +1,8 @@
+kinds_direct_naked.fl:
+  before Simplify (10 steps): returns [0: 7]
+  after Simplify (11 steps): returns [0: 7]
+  the check of kinds: passes before, passes after
+  calls outside code: 1 before, 1 after
+  the same
+  calls outside code once those of known code are inlined: 1
+  not validated

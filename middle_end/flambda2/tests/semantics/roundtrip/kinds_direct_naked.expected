@@ -1,0 +1,5 @@
+kinds_direct_naked.fl: round trip the same
+kinds_direct_naked.fl, after Simplify: round trip DIFFERS
+  the two terms, printed, differ first at line 13
+  converted: apply direct(code2 &toplevel) ($s1 : imm * imm -> imm) (v4, 4i) -> k1 * error
+  read back: apply direct(code2 &toplevel) ($s1 : val * val -> imm) (v4, 4i) -> k1 * error

@@ -1,0 +1,4 @@
+;; The rules that take the examples through fexpr and back. They are
+;; generated: see ../dune.
+
+(dynamic_include ../dune.inc)
