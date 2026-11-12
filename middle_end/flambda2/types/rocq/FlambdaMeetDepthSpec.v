@@ -27,7 +27,8 @@
 
 (* The fuel of the meet of types that have no name inside: their depth
    is enough. And of the meet of a shape with a type that has no
-   extension: two units are enough.
+   extension: two units are enough, and what that meet makes has no
+   extension.
 
    This file is to be reviewed: the definitions and the statements.
    They go on from FlambdaMeetTerminationSpec.v, whose header says what
@@ -154,6 +155,23 @@
    [bare_shape_meet_adds_nothing_statement]): no meet of types is
    asked, so the functions of the meet read no type of the
    environment.
+
+   What the meet with a shape makes. A meet answers one of its two
+   inputs, or a type that it makes. Where the meet of a shape with a
+   type that has no extension makes a type, that type has no
+   extension ([shape_meet_extension_free_statement], at two units of
+   fuel; [bare_shape_meet_extension_free_statement], at one unit for
+   a bare shape; in either order). The extensions of a variant and
+   of the cases of a row-like structure are what was added to the
+   environments of the alternatives, and nothing is added there; a
+   head of naked immediates that is made of two that have no inverse
+   relation has none. Nothing is said of the types inside what is
+   made, as nothing is asked of them in a type that has no extension.
+   So a name whose type has no extension, once the type that a
+   relation gives is added to it, has a type with no extension again:
+   the shape, the type that it had, or the type that the meet makes.
+   FlambdaMeetRelationFuelSpec.v rests on this for a scrutinee with
+   several relations.
 
    The two classes are one test ([plain_type]) with two parameters:
    whether a head of values may have variables for relations, and
@@ -557,6 +575,21 @@ Definition shape_meet_adds_nothing_statement : Prop :=
        = Some (Meet_result.Ok r menv') ->
        Meet_env.typing_env menv' = Meet_env.typing_env menv).
 
+(* What that meet makes has no extension: where it answers a type that
+   is neither of the two, that type has none. *)
+Definition shape_meet_extension_free_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices)
+    (menv menv' : Meet_env.t) (e1 e2 e : Expanded_type.t),
+    join_of_nothing join ->
+    shape (Expanded_type.to_type e1) = true ->
+    extension_free (Expanded_type.to_type e2) = true ->
+    (Meet.meet_expanded_head join choices 2 menv e1 e2
+     = Some (Meet_result.Ok (New_result e) menv') ->
+     extension_free (Expanded_type.to_type e) = true)
+    ∧ (Meet.meet_expanded_head join choices 2 menv e2 e1
+       = Some (Meet_result.Ok (New_result e) menv') ->
+       extension_free (Expanded_type.to_type e) = true).
+
 (* One unit is enough where the shape is bare. *)
 Definition bare_shape_fuel_enough_statement : Prop :=
   ∀ (join : join_scoped_envs) (choices : meet_choices) (menv : Meet_env.t)
@@ -580,6 +613,20 @@ Definition bare_shape_meet_adds_nothing_statement : Prop :=
     ∧ (Meet.meet_expanded_head join choices 1 menv e2 e1
        = Some (Meet_result.Ok r menv') ->
        Meet_env.typing_env menv' = Meet_env.typing_env menv).
+
+(* And what it makes has no extension. *)
+Definition bare_shape_meet_extension_free_statement : Prop :=
+  ∀ (join : join_scoped_envs) (choices : meet_choices)
+    (menv menv' : Meet_env.t) (e1 e2 e : Expanded_type.t),
+    join_of_nothing join ->
+    bare_shape (Expanded_type.to_type e1) = true ->
+    extension_free (Expanded_type.to_type e2) = true ->
+    (Meet.meet_expanded_head join choices 1 menv e1 e2
+     = Some (Meet_result.Ok (New_result e) menv') ->
+     extension_free (Expanded_type.to_type e) = true)
+    ∧ (Meet.meet_expanded_head join choices 1 menv e2 e1
+       = Some (Meet_result.Ok (New_result e) menv') ->
+       extension_free (Expanded_type.to_type e) = true).
 
 (* The types that a relation gives the name it is a relation of
    ([reduce_inverse_relations], FlambdaMeet.v) are bare shapes; the
