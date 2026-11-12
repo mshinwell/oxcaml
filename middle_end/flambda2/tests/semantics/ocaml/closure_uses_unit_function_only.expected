@@ -1,0 +1,9 @@
+closure_uses_unit_function_only.fl:
+  before Simplify (39 steps): returns [0: 16]
+  after Simplify (30 steps): returns [0: 16]
+  the check of kinds: passes before, passes after
+  calls outside code: 4 before, 4 after
+  the same
+  calls outside code once those of known code are inlined: 2
+  validated: the same once normalised and unused static bindings removed, at the head of the term after too
+  (at the second asking, of the two terms normalised with what their symbols are bound to used)

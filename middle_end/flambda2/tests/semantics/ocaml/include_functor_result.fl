@@ -1,0 +1,72 @@
+(let code inline(never) size(7)
+       times_1 (x/81 : imm tagged)
+         my_closure/82 &my_alloc_region/83 my_depth/84
+         -> k/28 * k/29
+         : imm tagged =
+   let next_depth/85 = rec_info (succ my_depth/84) in
+   let N/86 = %project_value_slot.[times].[N] (my_closure/82) in
+   let Pfield/87 = %block_load.[`0`] (N/86) in
+   let int_mul/88 = %int_barith.mul (x/81, Pfield/87) in
+   cont k/28 (int_mul/88)
+ in
+ let code inline(always) loopify(never) size(22)
+       Times_0 (N/89 : val)
+         my_closure/90 &my_alloc_region/91 my_depth/92
+         -> k/30 * k/31
+         : val =
+   let next_depth/93 = rec_info (succ my_depth/92) in
+   let times/94 = closure times_1 @times &my_alloc_region/91
+   with { N = N/89 }
+   in
+   let Pmakeblock/95 = %block.[`0`].my_alloc_region/91 (times/94) in
+   cont k/30 (Pmakeblock/95)
+ in
+ let code inline(never) size(10)
+       times_plus_one_2 (x/96 : imm tagged)
+         my_closure/97 &my_alloc_region/98 my_depth/99
+         -> k/32 * k/33
+         : imm tagged =
+   let next_depth/100 = rec_info (succ my_depth/99) in
+   let times/101 =
+     %project_value_slot.[times_plus_one].[times] (my_closure/97)
+   in
+   apply &my_alloc_region/98 times/101 (x/96) -> k/34 * k/33
+     where k/34 (apply_result/102 : imm tagged) =
+       let int_add/103 = %int_barith.add (apply_result/102, 1) in
+       cont k/32 (int_add/103)
+ in
+ let $camlInclude_functor_result__Pmakeblock_0 = Block 0 (3) in
+ let Times/104 = closure Times_0 @Times &toplevel in
+ apply direct(Times_0 &toplevel)
+   (Times/104 : _ -> val)
+     ($camlInclude_functor_result__Pmakeblock_0)
+     -> k/38 * error
+   where k/38 (include/113 : val) =
+     let times/114 = %block_load.[`0`] (include/113) in
+     let times_plus_one/115 =
+       closure times_plus_one_2 @times_plus_one &toplevel
+     with { times = times/114 }
+     in
+     let Pmakeblock/116 =
+       %block.[`0`].`toplevel` (times/114, times_plus_one/115)
+     in
+     cont k/35 (Pmakeblock/116)
+   where k/35 (Three/105 : val) =
+     ((let Pfield/112 = %block_load.[`0`] (Three/105) in
+       apply &toplevel Pfield/112 (2) -> k/36 * error)
+        where k/36 (apply_result/106 : imm tagged) =
+          ((let Popaque/110 = %opaque (4) in
+            let Pfield/111 = %block_load.[`1`] (Three/105) in
+            apply direct(times_plus_one_2 &toplevel)
+              (Pfield/111 : _ -> imm tagged) (Popaque/110) -> k/37 * error)
+             where k/37 (apply_result/107 : imm tagged) =
+               let result/108 =
+                 %int_barith.add (apply_result/107, apply_result/106)
+               in
+               let Pmakeblock/109 = %block.[`0`].`toplevel` (result/108) in
+               cont k/27 (Pmakeblock/109))))
+  where k/27 define_root_symbol (module_block/79) =
+    let field_0/80 = %block_load.tag[`0`].`size`[`1`].[`0`] (module_block/79)
+    in
+    let $camlInclude_functor_result = Block 0 (field_0/80) in
+    cont done ($camlInclude_functor_result)
