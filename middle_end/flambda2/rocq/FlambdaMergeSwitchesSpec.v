@@ -49,7 +49,7 @@
    The model of that function, with what it is given and what is
    stated of it, is ../types/rocq/FlambdaSimplifySwitchMergeSpec.v.
 
-   [merge_switches] does as much to the term before, for two of the
+   [merge_switches] does as much to the term before, for three of the
    ways in which Simplify computes an argument:
    - the argument is, in every arm, the number of the arm as a tagged
      immediate: the scrutinee is tagged ([By_tagging]);
@@ -57,10 +57,16 @@
      tagged immediate 0 in the arm of 1, and there is no other arm:
      the scrutinee is tagged and the result negated
      ([By_tagging_and_negating]).
+   - the argument is, in every arm, the number of the arm as a naked
+     immediate: it is the scrutinee, and no primitive is needed
+     ([As_it_is]). Simplify takes such an argument for one that is
+     the same in every arm, the scrutinee, whatever the number of the
+     arms ([recognize_mergeable_argument], where the function of the
+     number of the arm is the identity on naked immediates).
    The arguments that differ from arm to arm are all computed in the
-   same one of these two ways. An argument that is a multiple of the
-   number of the arm plus an offset, and the scrutinee passed as it
-   is, which Simplify also merges, are not here.
+   same one of these three ways. An argument that is another multiple
+   of the number of the arm plus an offset, which Simplify also
+   merges, is not here.
 
    How it decides ([merge_switch]). The scrutinee must be a variable
    and there must be two arms or more. The application that the
@@ -71,14 +77,15 @@
    Every arm must then be that application with a constant in place of
    the variable ([arm_is_merged]): the constant that is computed from
    the number of the arm ([constant_of_arm]). Where that is so of all
-   the arms the [Switch] becomes the application, under a [Let] of the
-   variable as itself tagged, and for the second way under a second
-   [Let] of the variable as that negated ([bind_tagged],
-   [bind_negated]).
+   the arms the [Switch] becomes the application: for the first way
+   under a [Let] of the variable as itself tagged, for the second
+   under a second [Let] of the variable as that negated
+   ([bind_tagged], [bind_negated]), and for the third with no [Let].
    Otherwise the [Switch] is left as it is.
 
-   The variable of the scrutinee is bound again, where Simplify binds
-   a new variable. So the rewrite makes no name, and needs none to be
+   For the two ways that tag, the variable of the scrutinee is bound
+   again, where Simplify binds a new variable; for the third nothing
+   is bound. So the rewrite makes no name, and needs none to be
    given; the comparison of the validation is up to bound names
    (FlambdaCompareSpec.v). The arguments that are the same in every
    arm are not captured by the new [Let]s: in the merged arguments the
@@ -89,7 +96,9 @@
    arms: for the first way they are tested to be immediates
    ([in_range]), as [Tag_immediate] has no value on a number that is
    not one and the machine does not ask it of the scrutinee of a
-   [Switch]; for the second they are 0 or 1.
+   [Switch]; for the second they are 0 or 1; for the third nothing is
+   asked of them, as the variable is passed with the value that the
+   machine has for it.
 
    [merge_switches] goes where
    FlambdaNormaliseSpec.collapse_switches goes: into the bodies of
@@ -105,7 +114,8 @@
    The result refines the term ([merge_switches_refines_statement]).
    Where the scrutinee is the number of an arm, the [Switch] goes to
    that arm, and the merged term binds the variable to the constant
-   of that arm and applies the continuation to the same values. It is
+   of that arm (for the third way the variable holds it already) and
+   applies the continuation to the same values. It is
    not an equivalence: the [Switch] is undefined where the scrutinee
    is not the number of an arm, and the merged term is not.
 
@@ -118,9 +128,10 @@
    in the term, is stated with the same of the other rewrites of a
    round (FlambdaKeepsScopeSpec.merge_switches_keeps_scope_statement).
 
-   Two terms as checks of the definitions
+   Three terms as checks of the definitions
    ([merge_switches_tagging_example_statement],
-   [merge_switches_negating_example_statement]).
+   [merge_switches_negating_example_statement],
+   [merge_switches_as_it_is_example_statement]).
 
    The proofs are in FlambdaMergeSwitchesProofs.v, which needs no
    review. *)
@@ -142,10 +153,13 @@ Local Open Scope Z_scope.
    scrutinee. *)
 Inductive merge_by : Type :=
   | By_tagging
-  | By_tagging_and_negating.
+  | By_tagging_and_negating
+  | As_it_is.
 
-(* The constant that such an argument is in the arm of number [i], if
-   the number is one that the primitives have a value on. *)
+(* The constant that such an argument is in the arm of number [i]. For
+   the two ways that apply a primitive, only if the number is one
+   that the primitive has a value on; the scrutinee as it is, is the
+   number of the arm whatever that is. *)
 Definition constant_of_arm (how : merge_by) (i : Z) : option const :=
   match how with
   | By_tagging =>
@@ -156,6 +170,7 @@ Definition constant_of_arm (how : merge_by) (i : Z) : option const :=
     if i =? 0 then Some (Tagged_immediate 1)
     else if i =? 1 then Some (Tagged_immediate 0)
     else None
+  | As_it_is => Some (Naked_immediate i)
   end.
 
 (* ======================================================================== *)
@@ -223,6 +238,8 @@ Definition merge_switch (scrutinee : simple) (arms : list (Z * apply_cont))
       then bind_tagged v (Apply_cont merged)
       else if forallb (arm_is_merged By_tagging_and_negating v merged) arms
       then bind_tagged v (bind_negated v (Apply_cont merged))
+      else if forallb (arm_is_merged As_it_is v merged) arms
+      then Apply_cont merged
       else Switch scrutinee arms
     else Switch scrutinee arms
   | _, _ => Switch scrutinee arms
@@ -254,7 +271,7 @@ Definition merge_switches_equivariant_statement : Prop :=
     merge_switches (rename_expr r e) = rename_expr r (merge_switches e).
 
 (* ======================================================================== *)
-(* Two terms                                                                *)
+(* Three terms                                                              *)
 (* ======================================================================== *)
 
 Module Merge_examples.
@@ -286,6 +303,15 @@ Definition switch_negating : expr :=
 Definition merged_negating : expr :=
   bind_tagged i (bind_negated i (Apply_cont (apply_k (Var i)))).
 
+(* [switch i with 0 -> k x #0 | 1 -> k x #1], where [#0] is the naked
+   immediate, and [k x i]. *)
+Definition switch_as_it_is : expr :=
+  Switch (Var i)
+    [(0, apply_k (Const (Naked_immediate 0)));
+     (1, apply_k (Const (Naked_immediate 1)))].
+
+Definition merged_as_it_is : expr := Apply_cont (apply_k (Var i)).
+
 End Merge_examples.
 
 Definition merge_switches_tagging_example_statement : Prop :=
@@ -295,3 +321,7 @@ Definition merge_switches_tagging_example_statement : Prop :=
 Definition merge_switches_negating_example_statement : Prop :=
   merge_switches Merge_examples.switch_negating
   = Merge_examples.merged_negating.
+
+Definition merge_switches_as_it_is_example_statement : Prop :=
+  merge_switches Merge_examples.switch_as_it_is
+  = Merge_examples.merged_as_it_is.

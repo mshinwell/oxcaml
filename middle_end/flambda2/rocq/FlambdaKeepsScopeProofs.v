@@ -158,8 +158,8 @@ Proof. apply keeps_scope_intro, collapse_switches_scoped. Qed.
 
 (* Switches whose arms are merged. The merged arguments are among
    those of the first arm and the variable of the scrutinee, and the
-   continuation is that of the first arm; the new [Let]s bind that
-   variable and use nothing else. *)
+   continuation is that of the first arm; the new [Let]s, where there
+   are any, bind that variable and use nothing else. *)
 
 Lemma merged_arguments_free (v : variable) (args args' : list simple) :
   incl (free_variables_of_simples (merged_arguments v args args'))
@@ -203,6 +203,12 @@ Proof.
   unfold bind_negated. scope. simpl.
   intros x [<- | Hx]; [ left; reflexivity | right ].
   apply in_without in Hx. apply Hx.
+Qed.
+
+Lemma binds_again_nothing (v : variable) : binds_again v (fun body => body).
+Proof.
+  intros body. split; [ reflexivity | split; [ | reflexivity ] ].
+  apply incl_tl, incl_refl.
 Qed.
 
 Lemma binds_again_twice (v : variable) (wrap wrap' : expr -> expr) :
@@ -261,12 +267,15 @@ Proof.
   destruct (forallb (arm_is_merged By_tagging v _) _).
   - apply (merged_scoped v i i' ac ac' others (bind_tagged v)).
     apply bind_tagged_binds_again.
-  - destruct (forallb _ _); [ | apply scoped_refl ].
-    apply
-      (merged_scoped v i i' ac ac' others
-         (fun body => bind_tagged v (bind_negated v body))).
-    apply binds_again_twice;
-      [ apply bind_tagged_binds_again | apply bind_negated_binds_again ].
+  - destruct (forallb (arm_is_merged By_tagging_and_negating v _) _).
+    + apply
+        (merged_scoped v i i' ac ac' others
+           (fun body => bind_tagged v (bind_negated v body))).
+      apply binds_again_twice;
+        [ apply bind_tagged_binds_again | apply bind_negated_binds_again ].
+    + destruct (forallb _ _); [ | apply scoped_refl ].
+      apply (merged_scoped v i i' ac ac' others (fun body => body)).
+      apply binds_again_nothing.
 Qed.
 
 Fixpoint merge_switches_scoped (e : expr) : scoped e (merge_switches e).

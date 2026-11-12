@@ -225,6 +225,38 @@ Proof.
   intros x Hne. apply lookup_other_variable, Hne.
 Qed.
 
+(* The variable passed as it is: the value that it has is the constant
+   of the arm. *)
+Lemma eval_simples_constant_held (v : variable) (c : const) (vars : env)
+    (args : list simple) :
+  lookup v vars = Some (Value_const c) ->
+  eval_simples vars (map (constant_for v c) args) = eval_simples vars args.
+Proof.
+  intros Hv. induction args as [ | s args IH]; simpl; [ reflexivity | ].
+  rewrite IH. destruct s as [x | sym | c']; simpl; try reflexivity.
+  destruct (Pos.eqb_spec x v) as [-> | Hne]; [ | reflexivity ].
+  simpl. rewrite Hv. reflexivity.
+Qed.
+
+Lemma merge_as_it_is_refines (v : variable) (merged : apply_cont)
+    (arms : list (Z * apply_cont)) :
+  forallb (arm_is_merged As_it_is v merged) arms = true ->
+  expr_refines (Switch (Var v) arms) (Apply_cont merged).
+Proof.
+  intros Hall vars conts statics hp.
+  destruct (step_switch_cases (Var v) arms vars conts statics hp)
+    as [Hwrong | (w & i & ac & Hv & Hi & Hfind & Hstep)];
+    [ apply step_undefined_refines, Hwrong | ].
+  apply naked_immediate_of_value_some in Hi. subst w.
+  destruct (arm_is_merged_found _ _ _ _ _ _ Hall Hfind) as (c & Hc & ->).
+  injection Hc as <-.
+  apply equivalent_refines.
+  eapply equivalent_trans; [ apply step_equivalent, Hstep | ].
+  apply step_eq_equivalent. rewrite !step_apply_cont. simpl.
+  rewrite (eval_simples_constant_held v (Naked_immediate i) vars _ Hv).
+  destruct merged. reflexivity.
+Qed.
+
 Lemma merge_switch_refines (scrutinee : simple)
     (arms : list (Z * apply_cont)) :
   expr_refines (Switch scrutinee arms) (merge_switch scrutinee arms).
@@ -238,8 +270,9 @@ Proof.
   destruct (forallb (arm_is_merged By_tagging v _) _) eqn:Htagging;
     [ apply merge_by_tagging_refines, Htagging | ].
   destruct (forallb (arm_is_merged By_tagging_and_negating v _) _)
-    eqn:Hnegating;
-    [ apply merge_by_negating_refines, Hnegating | apply expr_refines_refl ].
+    eqn:Hnegating; [ apply merge_by_negating_refines, Hnegating | ].
+  destruct (forallb (arm_is_merged As_it_is v _) _) eqn:Has_it_is;
+    [ apply merge_as_it_is_refines, Has_it_is | apply expr_refines_refl ].
 Qed.
 
 Fixpoint merge_switches_refines_aux (e : expr) :
@@ -435,7 +468,8 @@ Proof.
   destruct (var_in_simples v (ac_args merged)); [ | reflexivity ].
   destruct (forallb (arm_is_merged By_tagging v merged) _); [ reflexivity | ].
   destruct (forallb (arm_is_merged By_tagging_and_negating v merged) _);
-    reflexivity.
+    [ reflexivity | ].
+  destruct (forallb (arm_is_merged As_it_is v merged) _); reflexivity.
 Qed.
 
 Fixpoint merge_switches_equivariant_aux (r : renaming) (e : expr) :
@@ -456,7 +490,7 @@ Theorem merge_switches_equivariant : merge_switches_equivariant_statement.
 Proof. exact merge_switches_equivariant_aux. Qed.
 
 (* ======================================================================== *)
-(* Two terms                                                                *)
+(* Three terms                                                              *)
 (* ======================================================================== *)
 
 Theorem merge_switches_tagging_example :
@@ -465,4 +499,8 @@ Proof. reflexivity. Qed.
 
 Theorem merge_switches_negating_example :
   merge_switches_negating_example_statement.
+Proof. reflexivity. Qed.
+
+Theorem merge_switches_as_it_is_example :
+  merge_switches_as_it_is_example_statement.
 Proof. reflexivity. Qed.
