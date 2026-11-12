@@ -329,6 +329,9 @@ pass into the validator.
     moved up to the head of what they are in; same stream)
   - `middle_end/flambda2/rocq/FlambdaHoistCode*` (all the code of a unit
     bound first, for a unit run on its own; same stream)
+  - `middle_end/flambda2/rocq/FlambdaLiftFromCode*` (a closure or a block
+    that mentions no variable lifted out of the code of a function; same
+    stream)
   - `middle_end/flambda2/rocq/FlambdaSimulationProofs.v` (simulations in
     which one step is answered by one or more; same stream, and used by
     the loops of V4)
