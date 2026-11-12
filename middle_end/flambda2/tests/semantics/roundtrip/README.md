@@ -23,7 +23,11 @@ parser makes a slot where the text first names it, which may be in the
 code of a function that projects only some of the slots, before the
 set. After Simplify a closure that keeps a function of its module and
 an argument is such a case. The machine looks a slot up by its name,
-so the order says nothing; what each slot holds is compared.
+and what a lookup finds does not depend on where the slot stands among
+the others; what each slot holds is compared. This is a choice of what
+the round trip tells apart, not a proof that two such terms are
+equivalent: a closure that is a value still holds its slots as a list
+in the order of the term.
 
 ## Answers that are not "round trip the same"
 

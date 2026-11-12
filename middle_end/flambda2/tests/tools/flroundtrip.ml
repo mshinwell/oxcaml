@@ -223,10 +223,16 @@ and rename_binding r (binding : Model.static_binding) : Model.static_binding =
    compiler made the slots (flsemantics.ml, [convert_value_slots]). The text
    cannot keep that order: the parser of fexpr makes a slot where the text first
    names it, and that may be in the code of a function, before the set, where
-   the code projects some of the slots and not others. The machine does not read
-   the order: it looks a slot up by its name. So the two terms are compared with
-   the slots of each set in the order of their numbers; what each slot holds is
-   compared as before. *)
+   the code projects some of the slots and not others. The machine looks a slot
+   up by its name, and what a lookup finds does not depend on where the slot
+   stands among the others (two bindings of one slot keep their order here: the
+   sort is stable). So the two terms are compared with the slots of each set in
+   the order of their numbers; what each slot holds is compared as before.
+
+   This is a choice of what the round trip tells apart, and no proof that two
+   such terms are equivalent: a closure that is a value still holds its slots as
+   a list, in the order of the term, and a value that a unit returns shows
+   it. *)
 let sort_value_slots slots =
   List.stable_sort
     (fun (slot, _) (slot', _) ->
