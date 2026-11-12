@@ -40,9 +40,18 @@
    call of such a symbol the direct call of its code, puts in the
    place of the projection of a value slot from such a symbol what the
    slot holds, and in the place of the projection of a function slot
-   the symbol that the set names for that slot. Units that are not
-   validated with the first are validated with the second: those in
-   which Simplify has used what a symbol is bound to.
+   the symbol that the set names for that slot. It also knows the
+   closure that a [Let] binds a variable to when the closure is one of
+   a set whose function slots are named, which the first does not.
+   Units that are not validated with the first are validated with the
+   second: those in which Simplify has used what a symbol is bound to,
+   or what such a variable is bound to.
+
+   The second function does not go into the bodies of code. Here it is
+   run on the term and then on the body of each piece of code that the
+   term binds ([follow_aliases_knowing]), in a body from nothing
+   known: what the term around the code knows of a symbol is not used
+   in the body, and what a [Let] of the body binds is.
 
    The second does not take the place of the first in the rounds. The
    normalisation of the term before has more rewrites than that of the
@@ -126,8 +135,11 @@
    round they are the same of [knowing_round]. They rest on the laws
    of the function that follows aliases
    (FlambdaEnvAliasesFollowSpec.rename_follow_aliases_empty_statement,
-   FlambdaEnvAliasesFollowScopeSpec.v) and on those of composition and
-   iteration of FlambdaValidatorEquivarianceSpec.v. They are laws of
+   FlambdaEnvAliasesFollowScopeSpec.v), on those of a rewrite taken
+   into the bodies of code (FlambdaKeepsScopeSpec.v and
+   FlambdaValidatorEquivarianceSpec.v, for [rewrite_code]) and on
+   those of composition and iteration of
+   FlambdaValidatorEquivarianceSpec.v. They are laws of
    the normalisation. What follows from them for the second asking is
    that its verdict does not depend on the names of the unit, where
    the code of the term before is closed
@@ -153,18 +165,27 @@
 From Stdlib Require Import ZArith List.
 From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
-  FlambdaNominalSpec FlambdaBindersSpec FlambdaUnusedStaticsSpec
-  FlambdaLiftSpec FlambdaLoopifySpec FlambdaValidateSpec
-  FlambdaValidatorEquivarianceSpec.
+  FlambdaNominalSpec FlambdaBindersSpec FlambdaNormaliseSpec
+  FlambdaUnusedStaticsSpec FlambdaLiftSpec FlambdaLoopifySpec
+  FlambdaValidateSpec FlambdaValidatorEquivarianceSpec.
 From OxCamlFlambda2Types Require FlambdaEnvAliasesFollowSpec.
 Import ListNotations.
 
-(* A round, after the aliases have been followed with what is known of
-   the symbols. *)
-Definition knowing_round (round : expr -> expr) (e : expr) : expr :=
-  round
+(* The aliases followed with what is known of the symbols and of the
+   closures that a [Let] binds: in the term, and then in the body of
+   each piece of code that the term binds, where it starts from nothing
+   known (FlambdaNormaliseSpec.rewrite_code, which leaves a body alone
+   if the rewrite would change whether it binds something static). *)
+Definition follow_aliases_knowing (e : expr) : expr :=
+  rewrite_code
+    (FlambdaEnvAliasesFollowSpec.follow_aliases
+       FlambdaEnvAliasesFollowSpec.Known.empty)
     (FlambdaEnvAliasesFollowSpec.follow_aliases
        FlambdaEnvAliasesFollowSpec.Known.empty e).
+
+(* A round, after the aliases have been followed so. *)
+Definition knowing_round (round : expr -> expr) (e : expr) : expr :=
+  round (follow_aliases_knowing e).
 
 Definition normalise_knowing (round : expr -> expr) (rounds : nat)
     (e : expr) : expr :=

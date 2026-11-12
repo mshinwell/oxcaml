@@ -3,13 +3,19 @@ open FlambdaEnvAliasesFollowSpec
 open FlambdaLiftSpec
 open FlambdaLoopifySpec
 open FlambdaModel
+open FlambdaNormaliseSpec
 open FlambdaUnusedStaticsSpec
 open FlambdaValidateSpec
 open ListDef
 
+(** val follow_aliases_knowing : expr -> expr **)
+
+let follow_aliases_knowing e =
+  rewrite_code (follow_aliases Known.empty) (follow_aliases Known.empty e)
+
 (** val knowing_round : (expr -> expr) -> expr -> expr **)
 
-let knowing_round round e = round (follow_aliases Known.empty e)
+let knowing_round round e = round (follow_aliases_knowing e)
 
 (** val normalise_knowing : (expr -> expr) -> nat -> expr -> expr **)
 

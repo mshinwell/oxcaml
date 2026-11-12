@@ -3,9 +3,12 @@ open FlambdaEnvAliasesFollowSpec
 open FlambdaLiftSpec
 open FlambdaLoopifySpec
 open FlambdaModel
+open FlambdaNormaliseSpec
 open FlambdaUnusedStaticsSpec
 open FlambdaValidateSpec
 open ListDef
+
+val follow_aliases_knowing : expr -> expr
 
 val knowing_round : (expr -> expr) -> expr -> expr
 

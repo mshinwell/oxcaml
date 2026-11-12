@@ -33,13 +33,44 @@ From OxCamlStdlib Require Import OxCamlLogic OxCamlList.
 From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaSemanticsProofs FlambdaNormaliseSpec FlambdaNormaliseProofs
   FlambdaUnusedStaticsSpec FlambdaNominalSpec FlambdaValidateSpec
-  FlambdaValidateProofs FlambdaValidatorEquivarianceSpec
-  FlambdaValidatorEquivarianceProofs FlambdaValidateKnowingSpec.
+  FlambdaValidateProofs FlambdaKeepsScopeSpec FlambdaKeepsScopeProofs
+  FlambdaValidatorEquivarianceSpec FlambdaValidatorEquivarianceProofs
+  FlambdaValidateKnowingSpec.
 From OxCamlFlambda2Types Require FlambdaEnvAliasesFollowSpec
   FlambdaEnvAliasesFollowProofs.
 From OxCamlFlambda2Types Require Import FlambdaEnvAliasesFollowScopeSpec
   FlambdaEnvAliasesFollowScopeProofs.
 Import ListNotations.
+
+(* The three laws of [follow_aliases_knowing]: those of the function
+   that follows aliases, taken into the bodies of code. *)
+Lemma follow_aliases_knowing_equivalent (e : expr) :
+  expr_equivalent e (follow_aliases_knowing e).
+Proof.
+  unfold follow_aliases_knowing.
+  eapply expr_equivalent_trans;
+    [ apply FlambdaEnvAliasesFollowProofs.follow_aliases_equivalent | ].
+  apply rewrite_code_equivalent.
+  exact FlambdaEnvAliasesFollowProofs.follow_aliases_equivalent.
+Qed.
+
+Lemma follow_aliases_knowing_keeps_scope : keeps_scope follow_aliases_knowing.
+Proof.
+  exact
+    (keeps_scope_compose _ _ follow_aliases_knowing_nothing_keeps_scope
+       (rewrite_code_keeps_scope _
+          follow_aliases_knowing_nothing_keeps_scope)).
+Qed.
+
+Lemma rename_follow_aliases_knowing :
+  rewrite_equivariant follow_aliases_knowing.
+Proof.
+  intros r e. unfold follow_aliases_knowing.
+  rewrite (FlambdaEnvAliasesFollowProofs.rename_follow_aliases_empty r e).
+  exact
+    (rewrite_code_equivariant _
+       FlambdaEnvAliasesFollowProofs.rename_follow_aliases_empty r _).
+Qed.
 
 Theorem normalise_knowing_refines : normalise_knowing_refines_statement.
 Proof.
@@ -49,7 +80,7 @@ Proof.
   refine (expr_refines_trans _ _ _ _ (IH _)). unfold knowing_round.
   eapply expr_refines_trans; [ | apply Hround ].
   apply expr_equivalent_refines.
-  apply FlambdaEnvAliasesFollowProofs.follow_aliases_equivalent.
+  apply follow_aliases_knowing_equivalent.
 Qed.
 
 Theorem normalise_knowing_equivalent : normalise_knowing_equivalent_statement.
@@ -59,7 +90,7 @@ Proof.
     [ apply expr_equivalent_refl | ].
   refine (expr_equivalent_trans _ _ _ _ (IH _)). unfold knowing_round.
   eapply expr_equivalent_trans; [ | apply Hround ].
-  apply FlambdaEnvAliasesFollowProofs.follow_aliases_equivalent.
+  apply follow_aliases_knowing_equivalent.
 Qed.
 
 Theorem validate_knowing_sound : validate_knowing_sound_statement.
@@ -126,8 +157,7 @@ Lemma knowing_round_keeps_scope (round : expr -> expr) :
   keeps_scope round -> keeps_scope (knowing_round round).
 Proof.
   intros Hround.
-  exact (keeps_scope_compose _ round
-    follow_aliases_knowing_nothing_keeps_scope
+  exact (keeps_scope_compose _ round follow_aliases_knowing_keeps_scope
     Hround).
 Qed.
 
@@ -145,7 +175,7 @@ Proof.
   intros round rounds Hround r. unfold normalise_knowing.
   induction rounds as [ | rounds IH]; intros e; simpl; [ reflexivity | ].
   rewrite <- IH. f_equal. unfold knowing_round.
-  rewrite (FlambdaEnvAliasesFollowProofs.rename_follow_aliases_empty r e).
+  rewrite (rename_follow_aliases_knowing r e).
   apply Hround.
 Qed.
 
@@ -156,11 +186,11 @@ Proof.
   apply (equivariant_up_to_iterate rounds (knowing_round round));
     [ exact (knowing_round_keeps_scope round Hscope) | ].
   apply (equivariant_up_to_compose _ round
-    follow_aliases_knowing_nothing_keeps_scope
+    follow_aliases_knowing_keeps_scope
     Hscope);
     [ | exact Hround ].
   apply rewrite_equivariant_up_to.
-  exact FlambdaEnvAliasesFollowProofs.rename_follow_aliases_empty.
+  exact rename_follow_aliases_knowing.
 Qed.
 
 (* The following of aliases comes before the round and commutes with
@@ -175,8 +205,8 @@ Proof.
        (fun avoid => knowing_round (round avoid))
        (fun avoid => knowing_round_keeps_scope (round avoid) (Hscope avoid))
        (equivariant_up_to_avoiding_before round _
-          follow_aliases_knowing_nothing_keeps_scope
-          FlambdaEnvAliasesFollowProofs.rename_follow_aliases_empty Hround)).
+          follow_aliases_knowing_keeps_scope rename_follow_aliases_knowing
+          Hround)).
 Qed.
 
 (* The second asking on renamed terms. The continuations that the round
