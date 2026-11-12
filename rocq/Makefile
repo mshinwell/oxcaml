@@ -379,6 +379,8 @@ FLAMBDA2_TYPES := $(addprefix $(FLAMBDA2_TYPES_DIR)/, \
   FlambdaMeetProjectionExamplesProofs.v \
   FlambdaMeetProjectionExamplesSpec.v \
   FlambdaMeetProofs.v \
+  FlambdaMeetRelationFuelProofs.v \
+  FlambdaMeetRelationFuelSpec.v \
   FlambdaMeetRenameHeadsProofs.v \
   FlambdaMeetRenameProofs.v \
   FlambdaMeetRenameRowLikeProofs.v \
