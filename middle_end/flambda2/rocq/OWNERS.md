@@ -254,7 +254,12 @@ pass into the validator.
     of a `Switch` that the type of its scrutinee excludes are removed;
     after `simplify/simplify_switch_expr.ml`)
 - S3, continuations. Owner: unassigned.
-- S4, calls. Owner: unassigned.
+- S4, calls. Owner of the first slice: T4, on
+  `flambda2-rocq/T4-meet-rename`; the rest unassigned.
+  - `middle_end/flambda2/types/rocq/FlambdaSimplifyApply*` (an indirect
+    call of a callee whose type a prover shows to be a closure of known
+    code is made the direct call of that code; after
+    `simplify/simplify_apply_expr.ml`)
 - S5, lets, CSE and lifting. Owner: unassigned.
   - `middle_end/flambda2/rocq/FlambdaLift*` (lifting a `Let` of a
     closure, a block or a boxed number to a static binding, for the
