@@ -11,6 +11,7 @@ Files, in `middle_end/flambda2/types/rocq/`:
 
 - `FlambdaMeetProductsSpec.v`, `FlambdaMeetProductsProofs.v`: slice 1.
 - `FlambdaMeetHeadsSpec.v`, `FlambdaMeetHeadsProofs.v`: slice 3.
+- `FlambdaMeetRowLikeSpec.v`, `FlambdaMeetRowLikeProofs.v`: slice 2.
 
 ## The cut, as agreed with T4
 
@@ -19,10 +20,9 @@ Files, in `middle_end/flambda2/types/rocq/`:
    `meet_function_type` (with `meet_code_id`), the two products
    indexed by slots, `meet_closures_entry`. Done.
 2. Row-like structures (`FlambdaMeetRowLike*`): `meet_row_like` and
-   its instances for blocks and for closures. Not started: it needs
-   T4's statements about scopes (`Meet_env.enter_scope`,
-   `Typing_env.cut`, the extension of a level, `add_defined_vars`,
-   the join's contract), which T4 is writing.
+   its instances for blocks and for closures. `meet_row_like` and the
+   instance for blocks are done; the instance for closures is T4's,
+   on top of the general statement (agreed with T4).
 3. Heads (`FlambdaMeetHeads*`): `meet_relation`, `meet_variant`,
    `meet_head_of_kind_value_non_null`, `meet_head_of_kind_value`, to
    T4's target: for every value `v`, `part_meet_ok` of
@@ -144,7 +144,73 @@ In `FlambdaMeetHeadsSpec.v`, each proved:
   (`meet_row_like_for_closures`) are. Those two are slice 2, and
   what is left of the heads of kind value.
 
-To come: slice 2.
+## Slice 2: `meet_row_like` and the rows of blocks done
+
+In `FlambdaMeetRowLikeSpec.v`:
+
+- `meet_row_like_for_blocks_ok_statement`, proved
+  (`meet_row_like_for_blocks_ok`): the meet of the rows of two sets
+  of blocks is right, for any value, in the form that
+  `meet_value_heads_ok` takes as its first premise. It supposes the
+  join's contract, `define_again choices = false`,
+  `lift_variables_of_single_case choices = true` and the two facts
+  about `mh`.
+- `meet_row_like_for_closures_right`: the same of the rows of
+  closures, the second premise. Not proved here and not named as a
+  statement: T4 proves it, in a file of T4's, from the general
+  statement below.
+
+In `FlambdaMeetRowLikeProofs.v`, the general statement,
+`row_like_body_ok`: the body of `meet_row_like`
+(`meet_row_like_unfold`) is right whatever its cases are of, and
+whatever is taken for `need_join`. What it asks of an instance:
+
+- of the products: what it is for one to fit (stable, and by the
+  kinds of names only), `part_meet_ok` of their meet at "holds"
+  (true, and the value has every position), and "true" as the meaning
+  has it, stable;
+- of the indexes: `index_ok` (index and product well formed
+  together, for the case of a tag or of the other tags), under which
+  "true" and a true index give "holds" on a valid static environment;
+  that the index answered and the product answered are `index_ok`;
+  that two indexes true of the value meet, to an index true of it;
+- of the map of the cases: `find`, `known_ok`, that an empty map
+  binds nothing, and that the merge goes through the tags of both
+  maps once each with the state (said with an invariant of the state,
+  an order that the steps follow, and a fact about each tag).
+
+A row fits (`row_fits`) if its map is well formed and each case
+fits: index and product well formed together, the product fits, the
+extension fits (T4's `extension_fits`). It is true of the value in
+hand, whose tag is given (`row_true`): the case that the tag selects
+is unknown, or its index, its product and its extension are true.
+
+How it goes. The cases are met one pair after the other with a
+state: the environments of the pairs that stay, the extra variables
+and the names to avoid. Kept of the state (`row_inv`): each
+environment kept is the environment of the meet one scope further,
+extended, and fits; two of them share only what the environment of
+the meet knows; the variables new in one are to be avoided; an extra
+variable is defined by the level of an environment kept, at its
+kind. Kept of a pair: the case answered fits the environment of the
+meet, or an environment kept whose level the extra variables cover;
+where the two cases are true of the value, an environment kept has a
+valuation under which the case answered is true. At the end the
+environments kept are joined and the extra variables defined: by the
+join's contract the environment answered knows what each kept one
+knows, and the valuation of the pair of the tag of the value extends
+to it.
+
+The instance for blocks: `index_ok` is conditions 6 and 7 of the
+well-formedness of types; an index true of the block and condition 6
+say that the block has a field for each type of the product; two
+canonical shapes that a block both has are one (T1's
+`block_shapes_disjoint`); the product answered is as long as the
+longer input (`meet_int_indexed_product_length`). The block in hand
+is the one that the value is, read in the static environment.
+
+With it `meet_value_heads_ok` has one premise left, the rows of
+closures.
 
 ## Settled with T4 and T1: a valid static environment
 
