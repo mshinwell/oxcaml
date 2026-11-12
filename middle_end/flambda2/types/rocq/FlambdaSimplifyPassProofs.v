@@ -55,6 +55,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaSimplifyValueSlotsSpec FlambdaSimplifyValueSlotsProofs
   FlambdaSimplifyStaticsSpec FlambdaSimplifyStaticsProofs
   FlambdaSimplifyCodeEnvSpec FlambdaSimplifyCodeEnvProofs
+  FlambdaSimplifyHandlersSpec FlambdaSimplifyHandlersProofs
   FlambdaSimplifyPassSpec.
 Import ListNotations.
 
@@ -1105,8 +1106,50 @@ Proof.
     + exact (Hbindings (add_static_bindings tenv bindings) [] eq_refl).
     + apply let_static_typed. rewrite add_static_bindings_simplify.
       apply simplify_expr_sound.
-  - apply let_cont_body_refines_under. apply simplify_expr_sound.
-  - apply let_cont_recursive_body_refines_under. apply simplify_expr_sound.
+  - eapply expr_refines_under_trans.
+    + apply let_cont_body_refines_under. apply (simplify_expr_sound body).
+    + destruct handler as [params metadata handler].
+      cbn [simplify_handler].
+      destruct (handler_env tenv params metadata) as [tenv_handler | ]
+        eqn:Henv; [ | apply expr_refines_under_refl ].
+      cbv zeta. cbn [negb orb].
+      exact (let_cont_handler_typed tenv k params metadata handler _ _
+               tenv_handler Henv (simplify_expr_sound handler tenv_handler)).
+  - eapply expr_refines_under_trans.
+    + apply let_cont_recursive_body_refines_under.
+      apply (simplify_expr_sound body).
+    + generalize (simplify_expr tenv body). intros body'.
+      assert (Hhandlers :
+        ∀ before : list (continuation * continuation_handler),
+          expr_refines_under tenv
+            (Let_cont_recursive (before ++ handlers) body')
+            (Let_cont_recursive
+               (before
+                ++ map (fun '(k, h) => (k, simplify_handler true tenv h))
+                     handlers)
+               body')).
+      { induction handlers as [ | [k h] handlers IH]; intros before;
+          [ apply expr_refines_under_refl | ].
+        cbn [map].
+        apply (expr_refines_under_trans tenv _
+                 (Let_cont_recursive
+                    (before ++ (k, simplify_handler true tenv h) :: handlers)
+                    body')
+                 _).
+        - destruct h as [params metadata handler]. cbn [simplify_handler].
+          destruct (handler_env tenv params metadata) as [tenv_handler | ]
+            eqn:Henv; [ | apply expr_refines_under_refl ].
+          cbv zeta. cbn [negb orb].
+          destruct (Bool.eqb (binds_statics handler)
+                      (binds_statics (simplify_expr tenv_handler handler)))
+            eqn:Hbinds; [ | apply expr_refines_under_refl ].
+          apply (let_cont_recursive_handler_typed tenv before k params
+                   metadata handler _ handlers body' tenv_handler Henv);
+            [ apply eqb_prop; exact Hbinds
+            | apply (simplify_expr_sound handler tenv_handler) ].
+        - specialize (IH (before ++ [(k, simplify_handler true tenv h)])).
+          rewrite <- !app_assoc in IH. exact IH. }
+      exact (Hhandlers []).
   - apply simplify_apply_refines_under.
   - apply expr_equivalent_under_refines. apply simplify_apply_cont_equivalent.
   - apply simplify_switch_refines.
@@ -1178,3 +1221,6 @@ Proof. intros k ret exn. vm_compute. reflexivity. Qed.
 Theorem example_pass_static_closure
     : example_pass_static_closure_statement.
 Proof. intros k exn ret exn'. vm_compute. reflexivity. Qed.
+
+Theorem example_pass_loop : example_pass_loop_statement.
+Proof. intros k. vm_compute. reflexivity. Qed.

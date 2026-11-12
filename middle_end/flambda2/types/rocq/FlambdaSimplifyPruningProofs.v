@@ -51,6 +51,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaSimplifyApplySpec FlambdaSimplifyApplyProofs
   FlambdaSimplifyStaticsSpec FlambdaSimplifyStaticsProofs
   FlambdaSimplifyCodeEnvSpec FlambdaSimplifyCodeEnvProofs
+  FlambdaSimplifyHandlersSpec FlambdaSimplifyHandlersProofs
   FlambdaSimplifyPassSpec FlambdaSimplifyPassProofs
   FlambdaSimplifyPruningSpec.
 From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec
@@ -498,6 +499,16 @@ Proof.
   - exact (closure_env_aliases_kinded tenv Haliases).
 Qed.
 
+Theorem handler_env_known_to_fit : handler_env_known_to_fit_statement.
+Proof.
+  intros tenv fit params metadata tenv_handler Hknown Henv Hfit.
+  unfold handler_env in Henv.
+  destruct (Nat.eqb (length (hm_params_kinds metadata)) (length params));
+    [ | discriminate ].
+  exact (define_variables_checked_carried _ tenv tenv_handler (Hknown Hfit)
+           Henv).
+Qed.
+
 Theorem let_keeps_fit_sound : let_keeps_fit_sound_statement.
 Proof.
   intros tenv tenv' fit x d d' Hknown Hlet Hfit.
@@ -903,6 +914,131 @@ Proof.
   rewrite step_let_cont_recursive, Hbinds. reflexivity.
 Qed.
 
+(* A handler rewritten under its environment
+   (FlambdaSimplifyHandlersSpec.let_cont_handler_typed), for refinement
+   from the states that have [run_valid]. The predicate is [run_valid]
+   with that the static environment extends the one at the
+   [Let_cont]. *)
+Lemma handler_typed_from (tenv : Typing_env.t) (statics : static_env)
+    (vars : env) (params : list variable) (metadata : handler_metadata)
+    (handler handler' : expr) (tenv_handler : Typing_env.t) :
+  handler_env tenv params metadata = Some tenv_handler ->
+  sets_well_formed handler = true ->
+  sets_well_formed handler' = true ->
+  refines_valid tenv_handler handler handler' ->
+  env_satisfies_strictly tenv statics vars ->
+  handler_refines_from
+    (fun s => run_valid s ∧ statics_extend statics (state_statics s)) params
+    (hm_params_kinds metadata) vars handler handler'.
+Proof.
+  intros Henv Hsets Hsets' Hhandler Hsat vs handler_vars conts' statics'
+    Hkinds Hbind.
+  split.
+  - split; intros [Hrun Hextend]; (split; [ | exact Hextend ]).
+    + exact (run_valid_expr _ _ _ _ _ Hsets' Hrun).
+    + exact (run_valid_expr _ _ _ _ _ Hsets Hrun).
+  - intros [Hrun Hextend]. apply Hhandler.
+    + exact (run_valid_rest _ _ _ _ Hrun).
+    + exact (handler_env_satisfied tenv params metadata tenv_handler
+               statics' vars vs handler_vars Henv
+               (env_satisfies_strictly_statics_extend tenv statics statics'
+                  vars Hextend Hsat)
+               Hkinds Hbind).
+Qed.
+
+Lemma valid_extending_kept (statics : static_env) :
+  kept_by_step
+    (fun s => run_valid s ∧ statics_extend statics (state_statics s)).
+Proof.
+  intros s s' [Hrun Hextend] Hstep.
+  split; [ exact (run_valid_kept s s' Hrun Hstep) | ].
+  exact (statics_extend_trans statics _ _ Hextend
+           (step_extends_statics s s' Hstep)).
+Qed.
+
+Lemma let_cont_handler_typed_valid (tenv : Typing_env.t) (k : continuation)
+    (params : list variable) (metadata : handler_metadata)
+    (handler handler' body : expr) (tenv_handler : Typing_env.t) :
+  handler_env tenv params metadata = Some tenv_handler ->
+  sets_well_formed handler = true ->
+  sets_well_formed handler' = true ->
+  sets_well_formed body = true ->
+  refines_valid tenv_handler handler handler' ->
+  refines_valid tenv
+    (Let_cont_non_recursive k (Handler params metadata handler) body)
+    (Let_cont_non_recursive k (Handler params metadata handler') body).
+Proof.
+  intros Henv Hsets Hsets' Hbody Hhandler vars conts statics Hvalid Hsat.
+  apply (FlambdaContextWhereProofs.let_cont_handler_refines_from
+           (fun s => run_valid s ∧ statics_extend statics (state_statics s))).
+  - exact (valid_extending_kept statics).
+  - split; [ | apply statics_extend_refl ].
+    apply rest_valid_run; [ | exact Hvalid ].
+    cbn [sets_well_formed handler_sets_well_formed].
+    rewrite Hsets, Hbody. reflexivity.
+  - split; [ | apply statics_extend_refl ].
+    apply rest_valid_run; [ | exact Hvalid ].
+    cbn [sets_well_formed handler_sets_well_formed].
+    rewrite Hsets', Hbody. reflexivity.
+  - exact (handler_typed_from tenv statics vars params metadata handler
+             handler' tenv_handler Henv Hsets Hsets' Hhandler Hsat).
+Qed.
+
+Lemma let_cont_recursive_handler_typed_valid (tenv : Typing_env.t)
+    (before : list (continuation * continuation_handler)) (k : continuation)
+    (params : list variable) (metadata : handler_metadata)
+    (handler handler' : expr)
+    (after : list (continuation * continuation_handler)) (body : expr)
+    (tenv_handler : Typing_env.t) :
+  handler_env tenv params metadata = Some tenv_handler ->
+  binds_statics handler = binds_statics handler' ->
+  sets_well_formed handler = true ->
+  sets_well_formed handler' = true ->
+  sets_well_formed
+    (Let_cont_recursive
+       (before ++ (k, Handler params metadata handler) :: after) body)
+  = true ->
+  sets_well_formed
+    (Let_cont_recursive
+       (before ++ (k, Handler params metadata handler') :: after) body)
+  = true ->
+  refines_valid tenv_handler handler handler' ->
+  refines_valid tenv
+    (Let_cont_recursive
+       (before ++ (k, Handler params metadata handler) :: after) body)
+    (Let_cont_recursive
+       (before ++ (k, Handler params metadata handler') :: after) body).
+Proof.
+  intros Henv Hbinds Hsets Hsets' Hall Hall' Hhandler vars conts statics
+    Hvalid Hsat.
+  apply (FlambdaContextWhereProofs.let_cont_recursive_handler_refines_from
+           (fun s => run_valid s ∧ statics_extend statics (state_statics s))).
+  - exact (valid_extending_kept statics).
+  - split; [ | apply statics_extend_refl ].
+    exact (rest_valid_run _ vars conts statics Hall Hvalid).
+  - split; [ | apply statics_extend_refl ].
+    exact (rest_valid_run _ vars conts statics Hall' Hvalid).
+  - exact Hbinds.
+  - exact (handler_typed_from tenv statics vars params metadata handler
+             handler' tenv_handler Henv Hsets Hsets' Hhandler Hsat).
+Qed.
+
+(* The sets of a recursive [Let_cont], one handler apart. *)
+Lemma let_cont_recursive_sets
+    (before after : list (continuation * continuation_handler))
+    (k : continuation) (h : continuation_handler) (body : expr) :
+  sets_well_formed (Let_cont_recursive (before ++ (k, h) :: after) body)
+  = handler_sets_well_formed h
+    && sets_well_formed (Let_cont_recursive (before ++ after) body).
+Proof.
+  cbn [sets_well_formed]. rewrite !forallb_app. cbn [forallb].
+  destruct (forallb (fun '(_, h0) => handler_sets_well_formed h0) before),
+    (handler_sets_well_formed h),
+    (forallb (fun '(_, h0) => handler_sets_well_formed h0) after),
+    (sets_well_formed body);
+    reflexivity.
+Qed.
+
 Lemma let_static_body_refines_valid (tenv : Typing_env.t)
     (bindings : list static_binding) (body body' : expr) :
   sets_well_formed (Let_static bindings body) = true ->
@@ -1299,19 +1435,151 @@ Proof.
     destruct (simplify_expr_pruning_sound prune Hprune body tenv fit Hknown
                 Hbody)
       as [Hbody' Hrefines].
-    split.
-    + cbn [sets_well_formed]. rewrite Hhandler, Hbody'. reflexivity.
-    + exact (let_cont_body_refines_valid tenv k handler body _ Hsets
-               Hrefines).
+    pose proof (let_cont_body_refines_valid tenv k handler body _ Hsets
+                  Hrefines)
+      as Hfirst.
+    destruct handler as [params metadata handler].
+    cbn [handler_sets_well_formed] in Hhandler.
+    cbn [simplify_handler_pruning].
+    destruct (handler_env tenv params metadata) as [tenv_handler | ]
+      eqn:Henv.
+    + cbv zeta. cbn [negb orb].
+      destruct (simplify_expr_pruning_sound prune Hprune handler
+                  tenv_handler fit
+                  (handler_env_known_to_fit tenv fit params metadata
+                     tenv_handler Hknown Henv)
+                  Hhandler)
+        as [Hhandler' Hhandler_refines].
+      split.
+      * cbn [sets_well_formed handler_sets_well_formed].
+        rewrite Hhandler', Hbody'. reflexivity.
+      * eapply refines_valid_trans; [ exact Hfirst | ].
+        exact (let_cont_handler_typed_valid tenv k params metadata handler
+                 _ _ tenv_handler Henv Hhandler Hhandler' Hbody'
+                 Hhandler_refines).
+    + split; [ | exact Hfirst ].
+      cbn [sets_well_formed handler_sets_well_formed].
+      rewrite Hhandler, Hbody'. reflexivity.
   - pose proof Hsets as H. cbn [sets_well_formed] in H.
     apply andb_true_iff in H. destruct H as [Hhandlers Hbody].
     destruct (simplify_expr_pruning_sound prune Hprune body tenv fit Hknown
                 Hbody)
       as [Hbody' Hrefines].
-    split.
-    + cbn [sets_well_formed]. rewrite Hhandlers, Hbody'. reflexivity.
-    + exact (let_cont_recursive_body_refines_valid tenv handlers body _ Hsets
-               Hrefines).
+    pose proof (let_cont_recursive_body_refines_valid tenv handlers body _
+                  Hsets Hrefines)
+      as Hfirst.
+    assert (Hsets1 :
+      sets_well_formed
+        (Let_cont_recursive handlers
+           (simplify_expr_pruning prune tenv fit body))
+      = true).
+    { cbn [sets_well_formed]. rewrite Hhandlers, Hbody'. reflexivity. }
+    revert Hfirst Hsets1.
+    generalize (simplify_expr_pruning prune tenv fit body).
+    intros body' Hfirst Hsets1.
+    assert (Hall :
+      ∀ before : list (continuation * continuation_handler),
+        sets_well_formed (Let_cont_recursive (before ++ handlers) body')
+        = true ->
+        sets_well_formed
+          (Let_cont_recursive
+             (before
+              ++ map
+                   (fun '(k, h) =>
+                      (k, simplify_handler_pruning prune true tenv fit h))
+                   handlers)
+             body')
+        = true
+        ∧ refines_valid tenv
+            (Let_cont_recursive (before ++ handlers) body')
+            (Let_cont_recursive
+               (before
+                ++ map
+                     (fun '(k, h) =>
+                        (k, simplify_handler_pruning prune true tenv fit h))
+                     handlers)
+               body')).
+    { clear Hsets Hhandlers Hfirst Hsets1 Hrefines.
+      induction handlers as [ | [k h] handlers IH]; intros before Hall.
+      { split; [ exact Hall | ].
+        apply refines_under_valid, expr_refines_under_refl. }
+      cbn [map].
+      assert (Hone :
+        sets_well_formed
+          (Let_cont_recursive
+             (before
+              ++ (k, simplify_handler_pruning prune true tenv fit h)
+                 :: handlers)
+             body')
+        = true
+        ∧ refines_valid tenv
+            (Let_cont_recursive (before ++ (k, h) :: handlers) body')
+            (Let_cont_recursive
+               (before
+                ++ (k, simplify_handler_pruning prune true tenv fit h)
+                   :: handlers)
+               body')).
+      { assert (Hsame :
+          sets_well_formed
+            (Let_cont_recursive (before ++ (k, h) :: handlers) body')
+          = true
+          ∧ refines_valid tenv
+              (Let_cont_recursive (before ++ (k, h) :: handlers) body')
+              (Let_cont_recursive (before ++ (k, h) :: handlers) body')).
+        { split; [ exact Hall | ].
+          apply refines_under_valid, expr_refines_under_refl. }
+        destruct h as [params metadata handler].
+        cbn [simplify_handler_pruning].
+        destruct (handler_env tenv params metadata) as [tenv_handler | ]
+          eqn:Henv; [ | exact Hsame ].
+        cbv zeta. cbn [negb orb].
+        destruct (Bool.eqb (binds_statics handler)
+                    (binds_statics
+                       (simplify_expr_pruning prune tenv_handler fit
+                          handler)))
+          eqn:Hbinds; [ | exact Hsame ].
+        clear Hsame.
+        pose proof Hall as Hparts.
+        rewrite let_cont_recursive_sets in Hparts.
+        apply andb_true_iff in Hparts.
+        destruct Hparts as [Hhandler Hothers].
+        cbn [handler_sets_well_formed] in Hhandler.
+        destruct (simplify_expr_pruning_sound prune Hprune handler
+                    tenv_handler fit
+                    (handler_env_known_to_fit tenv fit params metadata
+                       tenv_handler Hknown Henv)
+                    Hhandler)
+          as [Hhandler' Hhandler_refines].
+        assert (Hall' :
+          sets_well_formed
+            (Let_cont_recursive
+               (before
+                ++ (k,
+                    Handler params metadata
+                      (simplify_expr_pruning prune tenv_handler fit handler))
+                   :: handlers)
+               body')
+          = true).
+        { rewrite let_cont_recursive_sets.
+          cbn [handler_sets_well_formed].
+          rewrite Hhandler', Hothers. reflexivity. }
+        split; [ exact Hall' | ].
+        exact (let_cont_recursive_handler_typed_valid tenv before k params
+                 metadata handler _ handlers body' tenv_handler Henv
+                 (eqb_prop _ _ Hbinds) Hhandler Hhandler' Hall Hall'
+                 Hhandler_refines). }
+      destruct Hone as [Hall1 Hrefines1].
+      specialize
+        (IH
+           (before ++ [(k, simplify_handler_pruning prune true tenv fit h)])).
+      rewrite <- !app_assoc in IH. cbn [app] in IH.
+      destruct (IH Hall1) as [Hall2 Hrefines2].
+      split; [ exact Hall2 | ].
+      exact (refines_valid_trans tenv _ _ _ Hrefines1 Hrefines2). }
+    destruct (Hall [] Hsets1) as [Hsets2 Hrefines2].
+    cbn [app] in Hsets2, Hrefines2.
+    split; [ exact Hsets2 | ].
+    exact (refines_valid_trans tenv _ _ _ Hfirst Hrefines2).
   - split; [ reflexivity | ].
     apply refines_under_valid, simplify_apply_refines_under.
   - split; [ reflexivity | ].
@@ -1380,8 +1648,24 @@ Proof.
       [ | reflexivity ].
     cbv zeta. rewrite (simplify_expr_no_pruning_eq code_body tenv_code fit').
     reflexivity.
-  - f_equal. apply simplify_expr_no_pruning_eq.
-  - f_equal. apply simplify_expr_no_pruning_eq.
+  - f_equal; [ | apply simplify_expr_no_pruning_eq ].
+    destruct handler as [params metadata handler].
+    cbn [simplify_handler_pruning simplify_handler].
+    destruct (handler_env tenv params metadata) as [tenv_handler | ];
+      [ | reflexivity ].
+    cbv zeta.
+    rewrite (simplify_expr_no_pruning_eq handler tenv_handler fit).
+    reflexivity.
+  - f_equal; [ | apply simplify_expr_no_pruning_eq ].
+    induction handlers as [ | [k h] handlers IH]; [ reflexivity | ].
+    cbn [map]. f_equal; [ | exact IH ].
+    destruct h as [params metadata handler].
+    cbn [simplify_handler_pruning simplify_handler].
+    destruct (handler_env tenv params metadata) as [tenv_handler | ];
+      [ | reflexivity ].
+    cbv zeta.
+    rewrite (simplify_expr_no_pruning_eq handler tenv_handler fit).
+    reflexivity.
   - reflexivity.
   - reflexivity.
   - unfold simplify_switch_pruning, no_pruning.

@@ -102,7 +102,14 @@
      only if neither it nor what it becomes binds something static: a
      call of code whose body does is undefined
      (FlambdaSemanticsSpec.binds_statics).
-   - The body of a [Let_cont] is gone into.
+   - The body of a [Let_cont] is gone into, and so is each handler
+     ([simplify_handler]), under the environment of the [Let_cont]
+     with the parameters of the handler defined at the kinds that the
+     handler gives them ([handler_env],
+     FlambdaSimplifyHandlersSpec.v). A handler of a recursive
+     [Let_cont] is kept as it was if the rewrite would change whether
+     it binds something static, as such a handler may bind nothing
+     static.
    - The arguments of an [Apply_cont] are replaced by their canonical
      elements. A [Switch] whose scrutinee has a constant for
      canonical element becomes the [Apply_cont] of its arm.
@@ -117,10 +124,12 @@
      from there down as it is.
 
    What Simplify does and this does not:
-   - Nothing is done in the handler of a continuation. (The
-     statement for going into one at the kinds of its parameters is
-     to come.) So there are no joins of the environments at the uses
-     of a continuation.
+   - In the handler of a continuation nothing is known of a
+     parameter but its kind: there are no joins of the environments
+     at the uses of a continuation, which Simplify has for the
+     parameters of a non-recursive [Let_cont] and for the invariant
+     parameters of a recursive one, and no subkinds
+     (FlambdaSimplifyHandlersSpec.v says where the two part).
    - In the body of code nothing is known of a parameter but its
      kind, nor of [my_closure] but that it is a value: Simplify gives
      [my_closure] the type of the closure. The code is rewritten
@@ -171,7 +180,9 @@
      the arity of the code has as many kinds as the code has
      parameters, and [my_closure] and the parameters are different
      variables that the environment does not have, each defined in
-     an environment that is well formed. Where a test fails the
+     an environment that is well formed; and of those of
+     [handler_env], which are the same for the parameters of a
+     handler. Where a test fails the
      rewrite that it guards is
      not made: the function goes on knowing less, or leaves the term
      from there down, or the code, as it is. So a failure costs
@@ -179,7 +190,7 @@
      environments that the function builds, for a term whose binders
      are all different, is not stated here.
 
-   Seventeen terms on which the function is computed are at the end:
+   Eighteen terms on which the function is computed are at the end:
    what it answers is stated as an equation, with no premise.
 
    That the function commutes with renaming ([simplify_expr] of the
@@ -207,7 +218,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaSimplifyProjectionsSpec FlambdaSimplifyBoxingSpec
   FlambdaSimplifyArithSpec FlambdaSimplifyApplySpec
   FlambdaSimplifyValueSlotsSpec FlambdaSimplifyStaticsSpec
-  FlambdaSimplifyCodeEnvSpec.
+  FlambdaSimplifyCodeEnvSpec FlambdaSimplifyHandlersSpec.
 Import ListNotations.
 
 Local Open Scope Z_scope.
@@ -823,13 +834,36 @@ Fixpoint simplify_expr (tenv : Typing_env.t) (e : expr) : expr :=
     Let_static (map (simplify_static_binding tenv') bindings)
       (simplify_expr tenv' body)
   | Let_cont_non_recursive k handler body =>
-    Let_cont_non_recursive k handler (simplify_expr tenv body)
+    Let_cont_non_recursive k (simplify_handler false tenv handler)
+      (simplify_expr tenv body)
   | Let_cont_recursive handlers body =>
-    Let_cont_recursive handlers (simplify_expr tenv body)
+    Let_cont_recursive
+      (map (fun '(k, h) => (k, simplify_handler true tenv h)) handlers)
+      (simplify_expr tenv body)
   | Apply ap => simplify_apply tenv ap
   | Apply_cont ac => Apply_cont (simplify_apply_cont tenv ac)
   | Switch scrutinee arms => simplify_switch tenv scrutinee arms
   | Invalid => Invalid
+  end
+
+(* A handler, where [tenv] is the environment of its [Let_cont]: it is
+   rewritten under the environment of the handler made from [tenv]
+   ([handler_env], FlambdaSimplifyHandlersSpec.v). [recursive] says
+   whether the [Let_cont] is recursive: a handler of one is rewritten
+   only if that does not change whether it binds something static. *)
+with simplify_handler (recursive : bool) (tenv : Typing_env.t)
+    (h : continuation_handler) : continuation_handler :=
+  match h with
+  | Handler params metadata handler =>
+    match handler_env tenv params metadata with
+    | Some tenv_handler =>
+      let handler' := simplify_expr tenv_handler handler in
+      if negb recursive
+         || Bool.eqb (binds_statics handler) (binds_statics handler')
+      then Handler params metadata handler'
+      else h
+    | None => h
+    end
   end
 
 (* The code that a static binding binds, where [tenv] is the
@@ -1003,15 +1037,16 @@ Definition example_pass_untag_of_tag_statement : Prop :=
            (Let example_q naked_immediate_kind (Simple (Var example_x))
               (Apply_cont (Apply_cont_expr k [Var example_x] None)))).
 
-(* Under a [Let_static] and in the body of a [Let_cont]: the symbol is
-   known to the environment, and the handler is left as it is. *)
+(* Under a [Let_static], in the body of a [Let_cont] and in its
+   handler: the symbol is known to the environment; in the handler,
+   whose parameter [p] is of kind value, [q] is [p]. *)
 Definition example_pass_under_binders_statement : Prop :=
   ∀ k k' : continuation,
-    let handler :=
+    let handler (defining_expr : named) (result : simple)
+        : continuation_handler :=
       Handler [example_p] (make_handler_metadata [Value])
-        (Let example_q Value
-           (example_tagged_add (Var example_p) (Const (Tagged_immediate 0)))
-           (Apply_cont (Apply_cont_expr k [Var example_q] None)))
+        (Let example_q Value defining_expr
+           (Apply_cont (Apply_cont_expr k [result] None)))
     in
     let bindings :=
       [Bind_symbol example_s
@@ -1019,7 +1054,11 @@ Definition example_pass_under_binders_statement : Prop :=
     in
     simplify_by_types
       (Let_static bindings
-         (Let_cont_non_recursive k' handler
+         (Let_cont_non_recursive k'
+            (handler
+               (example_tagged_add (Var example_p)
+                  (Const (Tagged_immediate 0)))
+               (Var example_q))
             (Let example_x Value (Simple (Symbol example_s))
                (Let example_y Value
                   (example_tagged_add (Const (Tagged_immediate 1))
@@ -1027,7 +1066,8 @@ Definition example_pass_under_binders_statement : Prop :=
                   (Apply_cont
                      (Apply_cont_expr k' [Var example_y] None))))))
     = Let_static bindings
-        (Let_cont_non_recursive k' handler
+        (Let_cont_non_recursive k'
+           (handler (Simple (Var example_p)) (Var example_p))
            (Let example_x Value (Simple (Symbol example_s))
               (Let example_y Value (Simple (Const (Tagged_immediate 3)))
                  (Apply_cont
@@ -1304,3 +1344,22 @@ Definition example_pass_static_closure_statement : Prop :=
          (call Indirect (Const (Tagged_immediate 7)) k exn))
     = Let_static (bindings (Direct example_f))
         (call (Direct example_f) (Const (Tagged_immediate 7)) k exn).
+
+(* A loop. [let_cont rec k (p) = (let q = p + 0 in apply_cont k q) in
+   apply_cont k 1], where [p] is a parameter of kind value: in the
+   handler, [q] is [p]. *)
+Definition example_pass_loop_statement : Prop :=
+  ∀ k : continuation,
+    let loop (defining_expr : named) (result : simple) : expr :=
+      Let_cont_recursive
+        [(k,
+          Handler [example_p] (make_handler_metadata [Value])
+            (Let example_q Value defining_expr
+               (Apply_cont (Apply_cont_expr k [result] None))))]
+        (Apply_cont (Apply_cont_expr k [Const (Tagged_immediate 1)] None))
+    in
+    simplify_by_types
+      (loop
+         (example_tagged_add (Var example_p) (Const (Tagged_immediate 0)))
+         (Var example_q))
+    = loop (Simple (Var example_p)) (Var example_p).

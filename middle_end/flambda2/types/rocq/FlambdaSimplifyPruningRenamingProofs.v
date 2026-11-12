@@ -51,7 +51,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaSimplifyPrimitivesRenamingProofs FlambdaSimplifyApplySpec
   FlambdaSimplifyApplyProofs FlambdaSimplifyStaticsSpec
   FlambdaSimplifyStaticsProofs FlambdaSimplifyCodeEnvSpec
-  FlambdaSimplifyCodeEnvProofs FlambdaSimplifyPassSpec
+  FlambdaSimplifyCodeEnvProofs FlambdaSimplifyHandlersSpec
+  FlambdaSimplifyHandlersProofs FlambdaSimplifyPassSpec
   FlambdaSimplifyPassRenamingSpec FlambdaSimplifyPassRenamingProofs
   FlambdaSimplifyPruningSpec FlambdaSimplifyPruningRenamingSpec.
 From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec
@@ -322,6 +323,13 @@ Fixpoint simplify_expr_pruning_equivariant_aux (prune : switch_rewrite)
     simplify_expr_pruning prune (rename_typing_env r tenv) fit
       (rename_expr r e)
     = rename_expr r (simplify_expr_pruning prune tenv fit e)
+with simplify_handler_pruning_equivariant (prune : switch_rewrite)
+    (Hprune : switch_rewrite_equivariant prune) (r : renaming)
+    (h : continuation_handler) {struct h} :
+  ∀ (recursive : bool) (tenv : Typing_env.t) (fit : bool),
+    simplify_handler_pruning prune recursive (rename_typing_env r tenv) fit
+      (rename_handler r h)
+    = rename_handler r (simplify_handler_pruning prune recursive tenv fit h)
 with simplify_static_binding_pruning_equivariant (prune : switch_rewrite)
     (Hprune : switch_rewrite_equivariant prune) (r : renaming)
     (binding : static_binding) {struct binding} :
@@ -371,15 +379,41 @@ Proof.
            tenv' fit'),
         IH.
       reflexivity.
-    + rewrite (simplify_expr_pruning_equivariant_aux prune Hprune r body).
+    + rewrite
+        (simplify_handler_pruning_equivariant prune Hprune r handler false
+           tenv fit),
+        (simplify_expr_pruning_equivariant_aux prune Hprune r body).
       reflexivity.
     + rewrite (simplify_expr_pruning_equivariant_aux prune Hprune r body).
+      f_equal.
+      induction handlers as [ | [k h] handlers IH]; cbn [map];
+        [ reflexivity | ].
+      rewrite
+        (simplify_handler_pruning_equivariant prune Hprune r h true tenv
+           fit),
+        IH.
       reflexivity.
     + apply simplify_apply_rename.
     + rewrite simplify_apply_cont_equivariant. reflexivity.
     + exact (simplify_switch_pruning_equivariant prune r tenv fit scrutinee
                arms Hprune).
     + reflexivity.
+  - destruct h as [params metadata handler]; intros recursive tenv fit;
+      cbn [rename_handler simplify_handler_pruning].
+    rewrite handler_env_rename.
+    destruct (handler_env tenv params metadata) as [tenv_handler | ];
+      cbn [option_map]; [ | reflexivity ].
+    cbv zeta.
+    rewrite
+      (simplify_expr_pruning_equivariant_aux prune Hprune r handler
+         tenv_handler fit),
+      !rename_binds_statics.
+    destruct (negb recursive
+              || Bool.eqb (binds_statics handler)
+                   (binds_statics
+                      (simplify_expr_pruning prune tenv_handler fit
+                         handler)));
+      reflexivity.
   - destruct binding as [id c | id | sym const]; intros tenv fit;
       cbn [rename_static_binding simplify_static_binding_pruning];
       [ rewrite

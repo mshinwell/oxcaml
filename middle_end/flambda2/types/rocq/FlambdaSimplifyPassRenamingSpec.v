@@ -56,8 +56,10 @@
    that it makes answers the same of the renamed environment and
    term: the tests of the invariant and of the well-formed types,
    that a variable is new, that a type speaks of variables in scope,
-   and those of the environment of the body of code
-   (FlambdaSimplifyCodeEnvSpec.code_env_in_rename_statement).
+   and those of the environment of the body of code and of the
+   environment of a handler
+   (FlambdaSimplifyCodeEnvSpec.code_env_in_rename_statement,
+   FlambdaSimplifyHandlersSpec.handler_env_rename_statement).
 
    The statements for the parts of the function are here too, since
    each is a function that reads names and owes the same equation

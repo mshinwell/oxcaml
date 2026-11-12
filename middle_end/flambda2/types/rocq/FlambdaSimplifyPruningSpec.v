@@ -116,8 +116,9 @@
    that knows nothing; the environment of the body of code has the
    two conditions if the environment after the group that binds the
    code has them ([code_env_in_known_to_fit_statement]), so the
-   boolean in the code is the one after the group; and at a [Let], and
-   at a
+   boolean in the code is the one after the group; the same of the
+   environment of a handler and the environment of its [Let_cont]
+   ([handler_env_known_to_fit_statement]); and at a [Let], and at a
    [Let_static] for the types that its symbols are given, it stays
    true if the premises of the statements by which the function that
    extends the environment keeps the two conditions pass as tests
@@ -144,8 +145,9 @@
 
    Not here. The arms that are kept are not rewritten with what the
    meet finds of them, and the environment that the meet answers for
-   an arm is not kept. The function does nothing in the handler of a
-   continuation, as the first does not. That it commutes with
+   an arm is not kept. In the handler of a continuation nothing is
+   known of a parameter but its kind, as in the first function. That
+   it commutes with
    renaming is in FlambdaSimplifyPruningRenamingSpec.v. That it keeps
    scope (../../rocq/FlambdaValidatorEquivarianceSpec.v) is not
    stated: the validation can have it by the test of
@@ -168,7 +170,7 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaTypingEnvRefinementSpec FlambdaMeet FlambdaMeetSpec
   FlambdaSimplifyPrimitivesSpec FlambdaSimplifyApplySpec
   FlambdaSimplifyStaticsSpec FlambdaSimplifyCodeEnvSpec
-  FlambdaSimplifyPassSpec.
+  FlambdaSimplifyHandlersSpec FlambdaSimplifyPassSpec.
 From OxCamlFlambda2Types Require FlambdaMeetExamplesSpec
   FlambdaSimplifySwitchSpec.
 Import ListNotations.
@@ -487,6 +489,15 @@ Definition code_env_in_known_to_fit_statement : Prop :=
     code_env_in tenv params my_closure metadata = Some tenv_code ->
     known_to_fit tenv_code fit.
 
+(* The same of the environment of a handler
+   (FlambdaSimplifyHandlersSpec.handler_env). *)
+Definition handler_env_known_to_fit_statement : Prop :=
+  ∀ (tenv : Typing_env.t) (fit : bool) (params : list variable)
+    (metadata : handler_metadata) (tenv_handler : Typing_env.t),
+    known_to_fit tenv fit ->
+    handler_env tenv params metadata = Some tenv_handler ->
+    known_to_fit tenv_handler fit.
+
 (* ======================================================================== *)
 (* The function                                                             *)
 (* ======================================================================== *)
@@ -549,15 +560,37 @@ Fixpoint simplify_expr_pruning (prune : switch_rewrite) (tenv : Typing_env.t)
       (map (simplify_static_binding_pruning prune tenv' fit') bindings)
       (simplify_expr_pruning prune tenv' fit' body)
   | Let_cont_non_recursive k handler body =>
-    Let_cont_non_recursive k handler
+    Let_cont_non_recursive k
+      (simplify_handler_pruning prune false tenv fit handler)
       (simplify_expr_pruning prune tenv fit body)
   | Let_cont_recursive handlers body =>
-    Let_cont_recursive handlers (simplify_expr_pruning prune tenv fit body)
+    Let_cont_recursive
+      (map (fun '(k, h) => (k, simplify_handler_pruning prune true tenv fit h))
+         handlers)
+      (simplify_expr_pruning prune tenv fit body)
   | Apply ap => simplify_apply tenv ap
   | Apply_cont ac => Apply_cont (simplify_apply_cont tenv ac)
   | Switch scrutinee arms =>
     simplify_switch_pruning prune tenv fit scrutinee arms
   | Invalid => Invalid
+  end
+
+(* A handler, where [tenv] is the environment of its [Let_cont] and
+   [fit] its boolean. *)
+with simplify_handler_pruning (prune : switch_rewrite) (recursive : bool)
+    (tenv : Typing_env.t) (fit : bool) (h : continuation_handler)
+    : continuation_handler :=
+  match h with
+  | Handler params metadata handler =>
+    match handler_env tenv params metadata with
+    | Some tenv_handler =>
+      let handler' := simplify_expr_pruning prune tenv_handler fit handler in
+      if negb recursive
+         || Bool.eqb (binds_statics handler) (binds_statics handler')
+      then Handler params metadata handler'
+      else h
+    | None => h
+    end
   end
 
 (* The code that a static binding binds, where [tenv] is the

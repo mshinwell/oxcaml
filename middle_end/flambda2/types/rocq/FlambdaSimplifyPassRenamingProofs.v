@@ -50,7 +50,8 @@ From OxCamlFlambda2Types Require Import FlambdaTypeGrammar
   FlambdaSimplifyApplyProofs FlambdaSimplifyValueSlotsSpec
   FlambdaSimplifyValueSlotsProofs FlambdaSimplifyStaticsSpec
   FlambdaSimplifyStaticsProofs FlambdaSimplifyCodeEnvSpec
-  FlambdaSimplifyCodeEnvProofs FlambdaSimplifyPassSpec
+  FlambdaSimplifyCodeEnvProofs FlambdaSimplifyHandlersSpec
+  FlambdaSimplifyHandlersProofs FlambdaSimplifyPassSpec
   FlambdaSimplifyPassRenamingSpec.
 Import ListNotations.
 
@@ -520,6 +521,12 @@ Fixpoint simplify_expr_equivariant_aux (r : renaming) (e : expr) {struct e} :
   ∀ tenv : Typing_env.t,
     simplify_expr (rename_typing_env r tenv) (rename_expr r e)
     = rename_expr r (simplify_expr tenv e)
+with simplify_handler_equivariant (r : renaming) (h : continuation_handler)
+    {struct h} :
+  ∀ (recursive : bool) (tenv : Typing_env.t),
+    simplify_handler recursive (rename_typing_env r tenv)
+      (rename_handler r h)
+    = rename_handler r (simplify_handler recursive tenv h)
 with simplify_static_binding_equivariant (r : renaming)
     (binding : static_binding) {struct binding} :
   ∀ tenv : Typing_env.t,
@@ -551,12 +558,30 @@ Proof.
         [ reflexivity | ].
       rewrite (simplify_static_binding_equivariant r binding tenv'), IH.
       reflexivity.
-    + rewrite (simplify_expr_equivariant_aux r body). reflexivity.
-    + rewrite (simplify_expr_equivariant_aux r body). reflexivity.
+    + rewrite (simplify_handler_equivariant r handler false tenv),
+        (simplify_expr_equivariant_aux r body).
+      reflexivity.
+    + rewrite (simplify_expr_equivariant_aux r body). f_equal.
+      induction handlers as [ | [k h] handlers IH]; cbn [map];
+        [ reflexivity | ].
+      rewrite (simplify_handler_equivariant r h true tenv), IH.
+      reflexivity.
     + apply simplify_apply_rename.
     + rewrite simplify_apply_cont_equivariant. reflexivity.
     + apply simplify_switch_equivariant.
     + reflexivity.
+  - destruct h as [params metadata handler]; intros recursive tenv;
+      cbn [rename_handler simplify_handler].
+    rewrite handler_env_rename.
+    destruct (handler_env tenv params metadata) as [tenv_handler | ];
+      cbn [option_map]; [ | reflexivity ].
+    cbv zeta.
+    rewrite (simplify_expr_equivariant_aux r handler tenv_handler),
+      !rename_binds_statics.
+    destruct (negb recursive
+              || Bool.eqb (binds_statics handler)
+                   (binds_statics (simplify_expr tenv_handler handler)));
+      reflexivity.
   - destruct binding as [id c | id | sym const]; intros tenv;
       cbn [rename_static_binding simplify_static_binding];
       [ rewrite (simplify_code_equivariant r c tenv) | | ]; reflexivity.
