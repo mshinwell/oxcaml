@@ -544,13 +544,17 @@ be proved correct, built a fragment at a time. The files follow the same Spec/Pr
   and no statement about the compiler's terms may take it as a
   premise. The header of the file says more.
 - Mutable memory is being added in steps, and the first is in: a form
-  of value, `Value_location`, which no observation reads, and two
+  of value, `Value_location`, which no observation reads, and four
   primitives of the heap under one constructor of `prim` (`Heap`: the
-  allocation of a block that has an identity, and `Block_set`), on
+  allocation of a block that has an identity, `Block_set`, the
+  allocation of a mutable array of values, and `Array_set`), on
   which `eval_prim` has no value. The load from such a block and the
   comparison of two are `Block_load`, with its mark of mutability, and
-  `Phys_equal`. Nothing makes a location yet: the state has no heap,
-  and the conversion of the test tool refuses the primitives.
+  `Phys_equal`. The length and the load of an array are `Array_length`
+  and `Array_load`. A cell of the heap is a block or an array
+  (`FlambdaValueSpec.cell`). Nothing makes a location yet: the state
+  has no heap, and the conversion of the test tool refuses the
+  primitives.
   `FlambdaHeapSpec.v` is the prototype that the design
   (`middle_end/flambda2/rocq/requests/C4-heap.md`) rests on: a machine
   of its own beside `step`, with a heap carried along and an exit that

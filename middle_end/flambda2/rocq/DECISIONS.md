@@ -286,6 +286,13 @@ says so. Only the labels that this tree cites are listed.
   of `x`, which flips the sign of a NaN where the machine keeps it.
 - **P1-8.** Which NaN a folded operation returns is the host's. Not
   reproduced on x86-64 for x86-64; open for cross compilation.
+- **P1-9.** The fexpr printer writes `Array_load` and `Array_set` with
+  their array kind only, so a load kind or a set kind that differs from
+  it is lost.
+- **P1-10.** Simplify stops with a fatal error on two array primitives
+  that the terms let anyone build.
+- **P1-11.** Simplify looks at the array kind of a load and of a store
+  and not at that of `Array_length`, whose compiled code depends on it.
 - **R1-1.** Unboxing records `Get_tag` on the paths where the value is
   an immediate, and supplies a dummy tag of zero.
 - **R1-2.** The types library evaluates `Is_null` of poison as false.
