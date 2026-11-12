@@ -999,6 +999,8 @@ The meet of the model beside the n-way meet of the compiler, on the scenarios of
   T4-9
   With the variables of each scenario defined in the reverse order: 25 the same, 0 different (the compiler answers otherwise than in the order given on 1)
 
+What is the same up to the alias that a name keeps (10 cases): 10 as expected
+
 Two types of kind value, for the meet of the model and the n-way meet of the compiler (1000 cases, seeds 90000 to 90999)
   1000 converted
   meet: the model and the n-way meet of the compiler: 1000 agree

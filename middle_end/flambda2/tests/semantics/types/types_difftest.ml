@@ -4600,26 +4600,133 @@ let same_seen ~threshold (seen : seen) (seen' : seen) : bool =
    equations of a level that it cut, the compiler adds them in the order of the
    names and the model in the order in which they were made, and an alias to a
    name that has since become an alias of a constant is kept by one and not by
-   the other (T7-10). The canonical elements are compared as they are. *)
+   the other (T7-10). The canonical elements are compared as they are.
+
+   An alias is read so only where what is seen says that what it is an alias to
+   is of the class of the name: a constant is its own canonical element; a name
+   has the canonical element of its own line, if it has one. Where that is not
+   the canonical element of the name, or is not seen, the type is left as it is,
+   and a difference stays one. *)
 let up_to_the_alias_kept (seen : seen) : seen =
   match seen with
   | Nothing_seen _ | Bottom_seen -> seen
   | Seen { answer; env_is_bottom; of_names; of_others } ->
+    let canonical_of (target : M.simple) : M.simple option =
+      let of_name (name : MT.name) =
+        List.find_map
+          (fun (name', (_ : MT.flambda_type option), canonical) ->
+            if MT.name_eqb name name' then canonical else None)
+          of_names
+      in
+      match target with
+      | Const _ -> Some target
+      | Var x -> of_name (Name_var x)
+      | Symbol symbol -> of_name (Name_symbol symbol)
+    in
     let of_names =
       List.map
         (fun ((name, t, canonical) as entry) ->
           match t, canonical with
           | Some t, Some canonical -> (
-            match MT.get_alias_opt t with
-            | Some (_ : M.simple) ->
+            match Option.bind (MT.get_alias_opt t) canonical_of with
+            | Some of_the_target when Stdlib.( = ) of_the_target canonical ->
               ( name,
                 Some (MT.alias_type_of (MT.kind t) canonical),
                 Some canonical )
-            | None -> entry)
+            | Some (_ : M.simple) | None -> entry)
           | Some _, None | None, (Some _ | None) -> entry)
         of_names
     in
     Seen { answer; env_is_bottom; of_names; of_others }
+
+(* What [up_to_the_alias_kept] takes for the same and what it does not, on lines
+   written by hand: two naked immediates, of which the first is 2, and a third
+   in two of the cases. *)
+let control_of_the_alias_kept () =
+  let naked_immediate : MK.flambda_kind = Naked_number Kind_naked_immediate in
+  let v i = N.positive_of_int i in
+  let variable i : M.simple = Var (v i) in
+  let two : M.simple = Const (Naked_immediate (N.z_of_int 2)) in
+  let three : M.simple = Const (Naked_immediate (N.z_of_int 3)) in
+  let alias simple = Some (MT.alias_type_of naked_immediate simple) in
+  let unknown = Some (MT.unknown naked_immediate) in
+  let line i t canonical : MT.name * MT.flambda_type option * M.simple option =
+    Name_var (v i), t, Some canonical
+  in
+  let seen ?(answer = MT.unknown Value) ?(of_others = []) of_names : seen =
+    Seen { answer = Some answer; env_is_bottom = false; of_names; of_others }
+  in
+  let threshold = 3 in
+  let same one other =
+    same_seen ~threshold (up_to_the_alias_kept one) (up_to_the_alias_kept other)
+  in
+  let first = line 1 (alias two) two in
+  let reference = seen [first; line 2 (alias two) two] in
+  let made = v 4 in
+  let cases =
+    [ ( "an alias to the constant, and an alias to a name of which the \
+         constant is the canonical element",
+        same reference (seen [first; line 2 (alias (variable 1)) two]) );
+      ( "the same through two names",
+        same
+          (seen [first; line 2 (alias two) two; line 3 (alias two) two])
+          (seen
+             [ first;
+               line 2 (alias (variable 1)) two;
+               line 3 (alias (variable 2)) two ]) );
+      ( "an alias to another constant than the canonical element",
+        not (same reference (seen [first; line 2 (alias three) two])) );
+      ( "an alias to a name of another class",
+        not
+          (same
+             (seen [first; line 2 (alias two) two; line 3 unknown (variable 3)])
+             (seen
+                [ first;
+                  line 2 (alias (variable 3)) two;
+                  line 3 unknown (variable 3) ])) );
+      ( "an alias to a name of which nothing is seen",
+        not (same reference (seen [first; line 2 (alias (Var made)) two])) );
+      ( "another type answered",
+        not
+          (same reference
+             (seen
+                ~answer:(MT.this_tagged_immediate (N.z_of_int 0))
+                [first; line 2 (alias two) two])) );
+      ( "a type that is no alias, and another",
+        not
+          (same
+             (seen [first; line 2 unknown (variable 2)])
+             (seen
+                [ first;
+                  line 2
+                    (Some (MT.these_naked_immediates [N.z_of_int 0]))
+                    (variable 2) ])) );
+      ( "a name that is defined, and not",
+        not (same reference (seen [first; Name_var (v 2), None, None])) );
+      ( "another canonical element",
+        not
+          (same
+             (seen [first; line 2 (alias (variable 1)) two])
+             (seen [first; line 2 (alias (variable 1)) (variable 1)])) );
+      ( "another type of a variable that was made",
+        let lines = [first; line 2 (alias two) two] in
+        not
+          (same
+             (seen ~of_others:[made, unknown] lines)
+             (seen ~of_others:[made, alias two] lines)) ) ]
+  in
+  Format.printf
+    "@.What is the same up to the alias that a name keeps (%d cases): %d as \
+     expected@."
+    (List.length cases)
+    (List.length (List.filter snd cases));
+  List.iter
+    (fun (name, as_expected) ->
+      if not as_expected
+      then (
+        incr failures;
+        Format.printf "  DISAGREEMENT: %s@." name))
+    cases
 
 (* A scenario and a meet in the model and in the compiler. *)
 let scenario_in_both (model : model) (kinds : MK.flambda_kind list)
@@ -5398,9 +5505,11 @@ let names_asked_of_a_join
    immediate. The other uses bind nothing and pass a variable of the tests or a
    generated type.
 
-   The target of a join defines no variable that a use binds: it keeps a
-   relation by a variable of its own, or loses it. The same naked immediate is
-   the one that every such use binds. *)
+   The naked immediate is the same variable at every use that binds one. It and
+   the other variable that a use binds are among the names asked of the two
+   targets: whether a target defines one, what it says of it, and what variables
+   of its own it makes for a relation are compared, and nothing of that is
+   assumed here. *)
 let generate_join_of_relations (names : names) ~(known : bool) r :
     join_at_a_continuation =
   let pool = names.pool in
@@ -6440,6 +6549,7 @@ let () =
   run_examples_of_meets ();
   chosen_meets ();
   scenarios_in_the_model ();
+  control_of_the_alias_kept ();
   let model_and_compiler ~title ~seed ~count ~equations:shape kind =
     run ~title ~seed ~count
       ~generate:(fun r ->
