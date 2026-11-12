@@ -3,6 +3,7 @@ open BinPos
 open FlambdaKindModel
 open FlambdaMapSpec
 open FlambdaModel
+open FlambdaPrimitiveModel
 open OxCamlOption
 
 type location = positive
@@ -37,6 +38,14 @@ type static_env =
   }
 
 val empty_static_env : static_env
+
+type cell =
+  | Cell_block of cell_mutability * coq_Z * value list
+  | Cell_array of array_kind * value list
+
+type heap = (location * cell) list
+
+val empty_heap : heap
 
 val closure_of :
   static_env -> value -> (code_id * (value_slot * value) list) option

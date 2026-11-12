@@ -1285,7 +1285,7 @@ let run (unit : converted) : outcome * int =
       match Semantics.step state with
       | Step state -> go (steps + 1) state
       | Undefined -> Undefined, steps
-      | Exit (k, values) ->
+      | Exit (k, values, _heap) ->
         let values = List.map (observe 50 state.state_statics) values in
         ( (if k = unit.return_continuation
            then Returns values
@@ -1298,7 +1298,8 @@ let run (unit : converted) : outcome * int =
     { state_expr = unit.body;
       state_vars = [];
       state_conts = [];
-      state_statics = Values.empty_static_env
+      state_statics = Values.empty_static_env;
+      state_heap = Values.empty_heap
     }
 
 (* ---- Printing model terms ---------------------------------------------- *)

@@ -63,12 +63,13 @@ type state =
   { state_expr : expr;
     state_vars : env;
     state_conts : cont_env;
-    state_statics : static_env
+    state_statics : static_env;
+    state_heap : heap
   }
 
 type step_result =
   | Step of state
-  | Exit of continuation * value list
+  | Exit of continuation * value list * heap
   | Undefined
 
 val with_extra_args : cont_value -> value list -> cont_value
@@ -82,6 +83,7 @@ val call_code :
   cont_value ->
   cont_value ->
   static_env ->
+  heap ->
   step_result
 
 type call_shape =
@@ -130,12 +132,14 @@ val run_call :
   cont_value ->
   cont_value ->
   static_env ->
+  heap ->
   step_result
 
-val apply_cont_value : cont_value -> value list -> static_env -> step_result
+val apply_cont_value :
+  cont_value -> value list -> static_env -> heap -> step_result
 
 val apply_continuation :
-  continuation -> value list -> cont_env -> static_env -> step_result
+  continuation -> value list -> cont_env -> static_env -> heap -> step_result
 
 val call_function :
   value ->
@@ -146,6 +150,7 @@ val call_function :
   cont_value ->
   cont_value ->
   static_env ->
+  heap ->
   step_result
 
 val step : state -> step_result
