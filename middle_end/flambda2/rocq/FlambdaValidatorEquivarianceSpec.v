@@ -1345,8 +1345,12 @@ Definition normalise_before_equivariant_up_to_statement : Prop :=
    the unit binds its symbols to, and of the value slots that every
    set of closures of the unit gives one symbol or constant
    (FlambdaKnownSlotsSpec.read_known_slots), which commute with
-   renaming and keep scope (FlambdaStaticsScopeSpec.v). The second
-   renaming does to the continuations to avoid what the first does. *)
+   renaming and keep scope (FlambdaStaticsScopeSpec.v); between those
+   rounds and the same rounds once more come the rewrites from the
+   types under their test of scope, as in the normalisation of the
+   term before, which commute with renaming, keep scope and make no
+   name. The second renaming does to the continuations to avoid what
+   the first does. *)
 Definition normalise_lifted_keeps_scope_statement : Prop :=
   ∀ (rounds : nat) (avoid : list continuation) (kept : list code_id),
     keeps_scope (normalise_lifted rounds avoid kept).

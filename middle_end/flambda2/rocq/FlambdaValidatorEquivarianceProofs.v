@@ -6825,14 +6825,16 @@ Proof.
        FlambdaSimplifyPassSpec.simplify_by_types).
 Qed.
 
-Lemma by_types_up_to : equivariant_up_to by_types.
+Lemma by_types_equivariant : rewrite_equivariant by_types.
 Proof.
   exact
-    (rewrite_equivariant_up_to by_types
-       (FlambdaValidateScopeProofs.guard_scope_equivariant
-          FlambdaSimplifyPassSpec.simplify_by_types
-          FlambdaSimplifyPassRenamingProofs.simplify_by_types_equivariant)).
+    (FlambdaValidateScopeProofs.guard_scope_equivariant
+       FlambdaSimplifyPassSpec.simplify_by_types
+       FlambdaSimplifyPassRenamingProofs.simplify_by_types_equivariant).
 Qed.
+
+Lemma by_types_up_to : equivariant_up_to by_types.
+Proof. exact (rewrite_equivariant_up_to by_types by_types_equivariant). Qed.
 
 (* The two phases, those rewrites, and the rounds of the second phase
    once more. *)
@@ -6957,15 +6959,108 @@ Proof.
        (normalise_before_round_avoiding_up_to kept)).
 Qed.
 
+(* Two rewrites that are given the same continuations to avoid, one
+   after the other: the second renaming of the first is the one that
+   the second is asked about, and it does to the continuations what
+   the first renaming does, so the second is given the same list. *)
+Lemma equivariant_up_to_avoiding_then
+    (f g : list continuation -> expr -> expr) :
+  (∀ avoid : list continuation, keeps_scope (f avoid)) ->
+  (∀ avoid : list continuation, keeps_scope (g avoid)) ->
+  equivariant_up_to_avoiding f ->
+  equivariant_up_to_avoiding g ->
+  equivariant_up_to_avoiding (fun avoid e => g avoid (f avoid e)).
+Proof.
+  intros Kf Kg Hf Hg r avoid e Hclosed.
+  destruct (Hf r avoid e Hclosed) as (r1 & Halike1 & Havoid1 & Heq1).
+  destruct (Kf avoid e Hclosed) as (Hclosed_f & _ & _).
+  destruct (Hg r1 avoid (f avoid e) Hclosed_f)
+    as (r2 & Halike2 & Havoid2 & Heq2).
+  rewrite (map_rename_conts_alike r r1 avoid Havoid1) in Heq2.
+  exists r2. split; [ | split ].
+  - exact
+      (renames_alike_then (g avoid) r r1 r2 (f avoid e) (Kg avoid) Hclosed_f
+         Halike1 Halike2).
+  - intros k Hk. rewrite (Havoid2 k Hk). apply Havoid1, Hk.
+  - rewrite Heq1. exact Heq2.
+Qed.
+
+(* The first phase, the rounds of a term in which something was
+   lifted, and the rewrites from the types: what the normalisation of
+   such a term does before it goes through the rounds once more. *)
+Definition lifted_and_types (rounds : nat) (avoid : list continuation)
+    (kept : list code_id) (e : expr) : expr :=
+  by_types
+    (iterate rounds (normalise_lifted_round avoid kept)
+       (iterate rounds normalise_params_round e)).
+
+Lemma lifted_rounds_scope (rounds : nat) (avoid : list continuation)
+    (kept : list code_id) :
+  keeps_scope (iterate rounds (normalise_lifted_round avoid kept)).
+Proof.
+  exact
+    (keeps_scope_iterate rounds (normalise_lifted_round avoid kept)
+       (normalise_lifted_round_scope avoid kept)).
+Qed.
+
+Lemma lifted_rounds_up_to (rounds : nat) (kept : list code_id) :
+  equivariant_up_to_avoiding
+    (fun avoid => iterate rounds (normalise_lifted_round avoid kept)).
+Proof.
+  exact
+    (equivariant_up_to_avoiding_iterate rounds
+       (fun avoid => normalise_lifted_round avoid kept)
+       (fun avoid => normalise_lifted_round_scope avoid kept)
+       (normalise_lifted_round_up_to kept)).
+Qed.
+
+Lemma lifted_and_types_scope (rounds : nat) (avoid : list continuation)
+    (kept : list code_id) :
+  keeps_scope (lifted_and_types rounds avoid kept).
+Proof.
+  exact
+    (keeps_scope_compose
+       (fun e =>
+          iterate rounds (normalise_lifted_round avoid kept)
+            (iterate rounds normalise_params_round e))
+       by_types
+       (keeps_scope_compose (iterate rounds normalise_params_round)
+          (iterate rounds (normalise_lifted_round avoid kept))
+          (params_phase_scope rounds)
+          (lifted_rounds_scope rounds avoid kept))
+       by_types_scope).
+Qed.
+
+Lemma lifted_and_types_up_to (rounds : nat) (kept : list code_id) :
+  equivariant_up_to_avoiding
+    (fun avoid => lifted_and_types rounds avoid kept).
+Proof.
+  exact
+    (equivariant_up_to_avoiding_after
+       (fun avoid e =>
+          iterate rounds (normalise_lifted_round avoid kept)
+            (iterate rounds normalise_params_round e))
+       by_types
+       (fun avoid =>
+          keeps_scope_compose (iterate rounds normalise_params_round)
+            (iterate rounds (normalise_lifted_round avoid kept))
+            (params_phase_scope rounds)
+            (lifted_rounds_scope rounds avoid kept))
+       by_types_scope by_types_equivariant
+       (equivariant_up_to_avoiding_before
+          (fun avoid => iterate rounds (normalise_lifted_round avoid kept))
+          (iterate rounds normalise_params_round) (params_phase_scope rounds)
+          (params_phase_equivariant rounds) (lifted_rounds_up_to rounds kept))).
+Qed.
+
 Theorem normalise_lifted_keeps_scope : normalise_lifted_keeps_scope_statement.
 Proof.
   intros rounds avoid kept.
   exact
-    (keeps_scope_compose (iterate rounds normalise_params_round)
+    (keeps_scope_compose (lifted_and_types rounds avoid kept)
        (iterate rounds (normalise_lifted_round avoid kept))
-       (params_phase_scope rounds)
-       (keeps_scope_iterate rounds (normalise_lifted_round avoid kept)
-          (normalise_lifted_round_scope avoid kept))).
+       (lifted_and_types_scope rounds avoid kept)
+       (lifted_rounds_scope rounds avoid kept)).
 Qed.
 
 Theorem normalise_lifted_equivariant_up_to :
@@ -6973,14 +7068,12 @@ Theorem normalise_lifted_equivariant_up_to :
 Proof.
   intros rounds kept.
   exact
-    (equivariant_up_to_avoiding_before
+    (equivariant_up_to_avoiding_then
+       (fun avoid => lifted_and_types rounds avoid kept)
        (fun avoid => iterate rounds (normalise_lifted_round avoid kept))
-       (iterate rounds normalise_params_round) (params_phase_scope rounds)
-       (params_phase_equivariant rounds)
-       (equivariant_up_to_avoiding_iterate rounds
-          (fun avoid => normalise_lifted_round avoid kept)
-          (fun avoid => normalise_lifted_round_scope avoid kept)
-          (normalise_lifted_round_up_to kept))).
+       (fun avoid => lifted_and_types_scope rounds avoid kept)
+       (fun avoid => lifted_rounds_scope rounds avoid kept)
+       (lifted_and_types_up_to rounds kept) (lifted_rounds_up_to rounds kept)).
 Qed.
 
 (* The liftings in turn keep scope. *)

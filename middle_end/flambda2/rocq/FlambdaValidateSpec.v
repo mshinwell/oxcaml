@@ -114,7 +114,9 @@
    (FlambdaKnownSlotsSpec.read_known_slots; [normalise_lifted]): in
    the code of a closure that a function makes, the slot that holds a
    function of the unit is the symbol of that function once the
-   function is lifted. Every round of that normalisation, after each
+   function is lifted. Between those rounds and the same rounds once
+   more it applies the rewrites from the types, as the normalisation
+   of the term before does. Every round of that normalisation, after each
    of the liftings, makes no name that is the return or the exception
    continuation of the unit of any of the liftings given, the later
    ones included, whether or not the term mentions them
@@ -727,7 +729,20 @@ Definition with_known (e : expr) : expr :=
    round followed by the use of what is known of the static closures in
    sight, of what the unit binds its symbols to, and of the value slots
    that every set of closures of the unit gives one symbol or
-   constant. *)
+   constant.
+
+   Between those rounds and the same rounds once more come the
+   rewrites that Simplify makes from the types, under the same test
+   as in [normalise_before], and once for the same reason. In the
+   case observed, the unit keeps a function and the comparison that
+   succeeds for it is the one of the lifted terms; the lifted term
+   before is normalised here from the term before as it was read and
+   not from what [normalise_before] gives, so without the rewrites
+   here what they do to such a unit is lost. The case: a [Switch] on
+   a variable, in the code of a function that the unit keeps, in a
+   handler that only one arm of a [Switch] on the same variable
+   applies. Not every unit that keeps a function is validated by
+   that comparison. *)
 Definition normalise_lifted_round (avoid : list continuation)
     (kept : list code_id) (e : expr) : expr :=
   read_known_slots
@@ -737,7 +752,9 @@ Definition normalise_lifted_round (avoid : list continuation)
 Definition normalise_lifted (rounds : nat) (avoid : list continuation)
     (kept : list code_id) (e : expr) : expr :=
   iterate rounds (normalise_lifted_round avoid kept)
-    (iterate rounds normalise_params_round e).
+    (guard_scope FlambdaSimplifyPassSpec.simplify_by_types
+       (iterate rounds (normalise_lifted_round avoid kept)
+          (iterate rounds normalise_params_round e))).
 
 (* The return and the exception continuation of the unit of each of
    the liftings given: the names by which a lifting checks the unit

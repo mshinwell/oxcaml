@@ -619,10 +619,16 @@ Lemma normalise_lifted_program_refines (rounds : nat)
   ∀ e : expr, program_refines e (normalise_lifted rounds avoid kept e).
 Proof.
   intros e. unfold normalise_lifted.
-  exact (refines_trans _ _ _
+  apply (refines_trans _ _ _
     (expr_refines_program _ _
-       (iterate_refines _ normalise_params_round_refines rounds e))
+       (iterate_refines _ normalise_params_round_refines rounds e))).
+  apply (refines_trans _ _ _
     (iterate_lifted_program_refines rounds avoid kept _)).
+  apply (refines_trans _ _ _
+    (expr_refines_program _ _
+       (guard_scope_refines _ _
+          (FlambdaSimplifyPassProofs.simplify_by_types_refines _)))).
+  apply iterate_lifted_program_refines.
 Qed.
 
 Lemma lifted_in_turn_program_refines (rounds : nat)
