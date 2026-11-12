@@ -369,8 +369,12 @@ tool), delegated by the orchestrator, and:
   of the runtime compute, as a table that nothing uses; whoever owns
   calls of C functions once they have a meaning)
 - `middle_end/flambda2/rocq/status/P1.md`
-- `middle_end/flambda2/rocq/requests/P1-floats.md` and
-  `requests/P1-c-calls.md`
+- `middle_end/flambda2/rocq/requests/P1-floats.md`,
+  `requests/P1-c-calls.md` and `requests/P1-arrays.md`
+- the section "Arrays" of `FlambdaPrimitiveSpec.v` and of its proofs
+  (what the primitives of arrays compute on the elements of an
+  array); the cases of arrays in `FlambdaHeapSpec.v` and
+  `FlambdaHeapProofs.v` are the heap's
 - `middle_end/flambda2/rocq/requests/P1-num-conv.py`,
   `requests/P1-int-shift.py`, `requests/P1-int-bswap.py`,
   `requests/P1-reinterpret.py` (the generators of the examples that
