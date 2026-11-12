@@ -89,6 +89,12 @@
      known of constants and of sets
      ([fold_known_keeps_scope_statement]); [with_known] is that, or the
      term as it is ([with_known_keeps_scope_statement]).
+   - FlambdaKnownSlotsSpec.read_slots puts a symbol or a constant in
+     the place of the projection of a value slot, where what it is
+     given lists symbols and constants only
+     ([read_slots_keeps_scope_statement]); [read_known_slots] is that,
+     with what it has checked, or the term as it is
+     ([read_known_slots_keeps_scope_statement]).
    - FlambdaUnusedSlotsSpec.drop_slots removes value slots from static
      sets of closures, and with them the variables they hold
      ([drop_slots_keeps_scope_statement]); [without_slots] is that, or
@@ -123,7 +129,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaStaticsOrderSpec FlambdaMyClosureSpec FlambdaLiftSpec
   FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaUnusedSlotsSpec
   FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec FlambdaFloatCodeSpec
-  FlambdaValidateSpec FlambdaValidatorEquivarianceSpec.
+  FlambdaKnownSlotsSpec FlambdaValidateSpec
+  FlambdaValidatorEquivarianceSpec.
 Import ListNotations.
 
 (* ======================================================================== *)
@@ -183,6 +190,17 @@ Definition fold_known_keeps_scope_statement : Prop :=
   ∀ statics sets : static_env, keeps_scope (fold_known statics sets).
 
 Definition with_known_keeps_scope_statement : Prop := keeps_scope with_known.
+
+(* ======================================================================== *)
+(* The value slots that the unit gives one symbol or constant               *)
+(* ======================================================================== *)
+
+Definition read_slots_keeps_scope_statement : Prop :=
+  ∀ (known : known_slots) (syms : list symbol),
+    closed_slots known = true -> keeps_scope (read_slots known syms).
+
+Definition read_known_slots_keeps_scope_statement : Prop :=
+  keeps_scope read_known_slots.
 
 (* ======================================================================== *)
 (* The removal of value slots                                               *)

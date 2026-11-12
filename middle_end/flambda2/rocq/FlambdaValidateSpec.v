@@ -66,10 +66,16 @@
    normalises the result, each round followed by using
    what is known of the static closures whose bindings are in sight
    (FlambdaKnownClosuresSpec.use_known_closures: a value slot is read,
-   a call is made direct) and by replacing the primitives and the
+   a call is made direct), by replacing the primitives and the
    projections applied to symbols that the unit binds to constants by
-   their values (FlambdaKnownSymbolsSpec.fold_known_unit;
-   [normalise_lifted]). Every round of that normalisation, after each
+   their values (FlambdaKnownSymbolsSpec.fold_known_unit), and by
+   replacing the projection of a value slot that every set of
+   closures of the unit gives the same symbol or constant by that
+   symbol or constant, where the symbol is in scope
+   (FlambdaKnownSlotsSpec.read_known_slots; [normalise_lifted]): in
+   the code of a closure that a function makes, the slot that holds a
+   function of the unit is the symbol of that function once the
+   function is lifted. Every round of that normalisation, after each
    of the liftings, makes no name that is the return or the exception
    continuation of the unit of any of the liftings given, the later
    ones included, whether or not the term mentions them
@@ -182,6 +188,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
   FlambdaFloatCodeSpec FlambdaHoistCodeSpec FlambdaLoopifySpec
   FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaHoistStaticsSpec.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
+From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -502,11 +509,14 @@ Definition with_known (e : expr) : expr :=
 (* The normalisation of a term in which something was lifted: the first
    phase of that of the term before, then its second phase with each
    round followed by the use of what is known of the static closures in
-   sight, and of what the unit binds its symbols to. *)
+   sight, of what the unit binds its symbols to, and of the value slots
+   that every set of closures of the unit gives one symbol or
+   constant. *)
 Definition normalise_lifted_round (avoid : list continuation)
     (kept : list code_id) (e : expr) : expr :=
-  with_known
-    (use_known_closures (normalise_before_round_avoiding avoid kept e)).
+  read_known_slots
+    (with_known
+       (use_known_closures (normalise_before_round_avoiding avoid kept e))).
 
 Definition normalise_lifted (rounds : nat) (avoid : list continuation)
     (kept : list code_id) (e : expr) : expr :=

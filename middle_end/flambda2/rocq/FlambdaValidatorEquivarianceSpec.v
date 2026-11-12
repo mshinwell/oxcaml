@@ -1158,10 +1158,12 @@ Definition normalise_before_equivariant_up_to_statement : Prop :=
    phase, each of its rounds is a round of the second phase of the
    term before in which the names made avoid those continuations
    (FlambdaValidateSpec.normalise_before_round_avoiding), followed by
-   the use of what is known of the static closures in sight and of
-   what the unit binds its symbols to, which commute with renaming and
-   keep scope (FlambdaStaticsScopeSpec.v). The second renaming does to
-   the continuations to avoid what the first does. *)
+   the use of what is known of the static closures in sight, of what
+   the unit binds its symbols to, and of the value slots that every
+   set of closures of the unit gives one symbol or constant
+   (FlambdaKnownSlotsSpec.read_known_slots), which commute with
+   renaming and keep scope (FlambdaStaticsScopeSpec.v). The second
+   renaming does to the continuations to avoid what the first does. *)
 Definition normalise_lifted_keeps_scope_statement : Prop :=
   ∀ (rounds : nat) (avoid : list continuation) (kept : list code_id),
     keeps_scope (normalise_lifted rounds avoid kept).

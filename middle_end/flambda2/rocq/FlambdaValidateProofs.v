@@ -66,6 +66,8 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaSemanticsSpec
 From OxCamlFlambda2 Require FlambdaHoistStaticsProofs.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require FlambdaDemoteProofs.
+From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec
+  FlambdaKnownSlotsProofs.
 From OxCamlFlambda2Types Require Import FlambdaAliasesSpec
   FlambdaAliasesProofs.
 Import ListNotations.
@@ -369,6 +371,7 @@ Proof.
   apply (refines_trans _ _ _
     (expr_refines_program _ _ (use_known_closures_refines _))).
   apply (refines_trans _ _ _ (with_known_program_refines _)).
+  apply (refines_trans _ _ _ (read_known_slots_program_refines _)).
   apply IH.
 Qed.
 

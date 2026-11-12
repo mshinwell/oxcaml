@@ -43,6 +43,7 @@ From OxCamlFlambda2 Require Import FlambdaModel FlambdaMapSpec
   FlambdaMyClosureSpec FlambdaWellFormedSpec FlambdaLiftSpec
   FlambdaLiftFromCodeSpec FlambdaLiftFromArmsSpec FlambdaHoistStaticsSpec
   FlambdaUnusedSlotsSpec FlambdaKnownSymbolsSpec FlambdaKnownClosuresSpec
+  FlambdaKnownSlotsSpec FlambdaStaticsInScopeSpec
   FlambdaFloatCodeSpec FlambdaValidateSpec
   FlambdaValidatorEquivarianceSpec FlambdaScopedProofs
   FlambdaKeepsScopeProofs FlambdaStaticsScopeSpec.
@@ -728,6 +729,95 @@ Proof.
   apply keeps_scope_intro. intros e. unfold with_known, fold_known_unit.
   cbv zeta. destruct (bound_as (known_bindings e) (known_sets e) e);
     [ apply fold_known_scoped | apply scoped_refl ].
+Qed.
+
+(* ======================================================================== *)
+(* The value slots that the unit gives one symbol or constant               *)
+(* ======================================================================== *)
+
+(* What is put in the place of a projection has no variable. *)
+Lemma read_slot_free (known : known_slots) (syms : list symbol) (d : named) :
+  closed_slots known = true ->
+  incl (free_variables_of_named (read_slot known syms d))
+    (free_variables_of_named d).
+Proof.
+  intros Hclosed. unfold closed_slots in Hclosed.
+  rewrite forallb_forall in Hclosed.
+  destruct d as [s | p args | code slots | slot decls slots | slot closure
+                | pfrom slot closure | move_from move_to closure];
+    cbn [read_slot]; try apply incl_refl;
+    (destruct (lookup slot known) as [a | ] eqn:Hknown;
+       [ | apply incl_refl ]);
+    (destruct (simple_statics_in_scope syms a); [ | apply incl_refl ]);
+    specialize (Hclosed (slot, a) (lookup_in _ _ _ Hknown));
+    (destruct a as [x | sym | k]; [ discriminate | | ]); apply incl_nil_l.
+Qed.
+
+Fixpoint read_slots_scoped (known : known_slots)
+    (Hclosed : closed_slots known = true) (e : expr) {struct e} :
+  ∀ syms : list symbol, scoped e (read_slots known syms e)
+with read_slots_in_handler_scoped (known : known_slots)
+    (Hclosed : closed_slots known = true) (h : continuation_handler)
+    {struct h} :
+  ∀ syms : list symbol,
+    scoped_handler h (read_slots_in_handler known syms h).
+Proof.
+  - destruct e as [x kind d body | bindings body | k h body | handlers body
+                  | ap | ac | scrutinee arms | ];
+      intros syms; cbn [read_slots]; try apply scoped_refl.
+    + apply scoped_let;
+        [ apply read_slot_free, Hclosed | apply read_slots_scoped, Hclosed ].
+    + apply scoped_let_static; [ | apply read_slots_scoped, Hclosed ].
+      match goal with
+      | |- scoped_bindings _ (map (read_slots_in_binding known ?all) _) =>
+        generalize all
+      end.
+      intros all.
+      induction bindings
+        as [ | [id [params my_closure ret exn metadata code_body] | id
+               | sym const]
+               bindings IH];
+        cbn [map]; [ apply scoped_bindings_nil | | | ].
+      * cbn [read_slots_in_binding read_slots_in_code].
+        apply scoped_bindings_cons_code; [ | exact IH ].
+        apply scoped_code_intro, read_slots_scoped, Hclosed.
+      * apply scoped_bindings_cons_same, IH.
+      * apply scoped_bindings_cons_same, IH.
+    + apply scoped_let_cont;
+        [ apply read_slots_in_handler_scoped, Hclosed
+        | apply read_slots_scoped, Hclosed ].
+    + apply scoped_let_cont_recursive;
+        [ | | apply read_slots_scoped, Hclosed ].
+      * rewrite map_map. apply map_ext. intros [k h]. reflexivity.
+      * match goal with
+        | |- scoped_handlers _
+               (map (fun '(k, h) => (k, read_slots_in_handler known ?all h))
+                  _) =>
+          generalize all
+        end.
+        intros all.
+        induction handlers as [ | [k h] handlers IH]; cbn [map];
+          [ apply scoped_handlers_nil | ].
+        apply scoped_handlers_cons;
+          [ apply read_slots_in_handler_scoped, Hclosed | exact IH ].
+  - destruct h as [params metadata handler]. intros syms.
+    cbn [read_slots_in_handler].
+    apply scoped_handler_intro, read_slots_scoped, Hclosed.
+Qed.
+
+Theorem read_slots_keeps_scope : read_slots_keeps_scope_statement.
+Proof.
+  intros known syms Hclosed. apply keeps_scope_intro. intros e.
+  apply read_slots_scoped, Hclosed.
+Qed.
+
+Theorem read_known_slots_keeps_scope : read_known_slots_keeps_scope_statement.
+Proof.
+  apply keeps_scope_intro. intros e. unfold read_known_slots. cbv zeta.
+  destruct (closed_slots (slots_known (slots_made e))) eqn:Hclosed;
+    cbn [andb]; [ | apply scoped_refl ].
+  destruct (slots_as (slots_known (slots_made e)) e);
+    [ apply read_slots_scoped, Hclosed | apply scoped_refl ].
 Qed.
 
 (* ======================================================================== *)

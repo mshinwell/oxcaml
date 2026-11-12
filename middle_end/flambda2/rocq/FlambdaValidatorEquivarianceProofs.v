@@ -75,6 +75,8 @@ From OxCamlFlambda2 Require FlambdaKeepsScopeProofs FlambdaValidateScopeProofs
   FlambdaHoistStaticsProofs FlambdaUnboxParamsNamesProofs.
 From OxCamlFlambda2 Require Import FlambdaDemoteSpec.
 From OxCamlFlambda2 Require FlambdaDemoteProofs.
+From OxCamlFlambda2 Require Import FlambdaKnownSlotsSpec.
+From OxCamlFlambda2 Require FlambdaKnownSlotsProofs.
 From OxCamlFlambda2Types Require Import FlambdaTypesSpec FlambdaAliasesSpec.
 Import ListNotations.
 
@@ -6353,19 +6355,31 @@ Proof. exact FlambdaStaticsScopeProofs.use_known_closures_keeps_scope. Qed.
 Lemma float_code_scope : keeps_scope float_code.
 Proof. exact FlambdaStaticsScopeProofs.float_code_keeps_scope. Qed.
 
-Definition use_known (e : expr) : expr := with_known (use_known_closures e).
+Lemma read_known_slots_scope : keeps_scope read_known_slots.
+Proof. exact FlambdaStaticsScopeProofs.read_known_slots_keeps_scope. Qed.
+
+Lemma read_known_slots_rewrite_equivariant :
+  rewrite_equivariant read_known_slots.
+Proof. exact FlambdaKnownSlotsProofs.read_known_slots_equivariant. Qed.
+
+Definition use_known (e : expr) : expr :=
+  read_known_slots (with_known (use_known_closures e)).
 
 Lemma use_known_scope : keeps_scope use_known.
 Proof.
   exact
-    (keeps_scope_compose use_known_closures with_known
-       use_known_closures_scope with_known_scope).
+    (keeps_scope_compose (fun e => with_known (use_known_closures e))
+       read_known_slots
+       (keeps_scope_compose use_known_closures with_known
+          use_known_closures_scope with_known_scope)
+       read_known_slots_scope).
 Qed.
 
 Lemma use_known_equivariant : rewrite_equivariant use_known.
 Proof.
   intros r e. unfold use_known.
-  rewrite use_known_closures_rewrite_equivariant. apply with_known_equivariant.
+  rewrite use_known_closures_rewrite_equivariant, with_known_equivariant.
+  apply read_known_slots_rewrite_equivariant.
 Qed.
 
 (* A round of the normalisation of a term in which something was

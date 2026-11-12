@@ -15,6 +15,7 @@ open FlambdaIdentitiesSpec
 open FlambdaInlineSiblingsSpec
 open FlambdaInlineTailSpec
 open FlambdaKnownClosuresSpec
+open FlambdaKnownSlotsSpec
 open FlambdaKnownSymbolsSpec
 open FlambdaLiftFromArmsSpec
 open FlambdaLiftFromCodeSpec
@@ -208,7 +209,9 @@ let with_known e = match fold_known_unit e with Some e' -> e' | None -> e
     expr **)
 
 let normalise_lifted_round avoid kept e =
-  with_known (use_known_closures (normalise_before_round_avoiding avoid kept e))
+  read_known_slots
+    (with_known
+       (use_known_closures (normalise_before_round_avoiding avoid kept e)))
 
 (** val normalise_lifted : nat -> continuation list -> code_id list -> expr ->
     expr **)
