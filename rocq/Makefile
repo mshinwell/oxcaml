@@ -154,6 +154,8 @@ FLAMBDA2 := $(addprefix $(FLAMBDA2_DIR)/, \
   FlambdaHoistStaticsSpec.v \
   FlambdaIdentitiesProofs.v \
   FlambdaIdentitiesSpec.v \
+  FlambdaImportsProofs.v \
+  FlambdaImportsSpec.v \
   FlambdaInlineFreshProofs.v \
   FlambdaInlineFreshSpec.v \
   FlambdaInlineSiblingsProofs.v \
